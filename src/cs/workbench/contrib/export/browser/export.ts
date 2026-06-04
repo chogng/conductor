@@ -3,10 +3,10 @@ import {
   classifySsFit,
   computeSubthresholdSwingFitAuto,
   computeSubthresholdSwingFitInRange,
+  isTransferLikeFile,
   resolveAutoSsSelection,
-} from "../../diagnostics/common/analysisMath.ts";
-import { getCachedSsFitAuto } from "../../diagnostics/common/analysisCacheAccess.ts";
-import { isTransferLikeFile } from "../../diagnostics/common/metrics.ts";
+} from "src/cs/workbench/contrib/calculation/common/firstCalculation";
+import { getCachedSsFitAuto } from "../../calculation/common/analysisCacheAccess.ts";
 import { getExcelColumnLabel } from "../common/columnLabels.ts";
 import type { CleanedEntry, CleanedSeries } from "../../session/common/sessionTypes.ts";
 export type {

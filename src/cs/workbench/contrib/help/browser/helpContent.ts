@@ -36,7 +36,7 @@ export const createHelpContent = (kind: HelpWindowKind): HelpContent => {
           title: localize("help_guide_chart_title", "Review charts"),
           body: [
             localize("help_guide_chart_body_1", "Switch IV, GM, SS, and VTH tabs from the chart header."),
-            localize("help_guide_chart_body_2", "Use Locator and Diagnostics buttons to show detail panes when processed data is available."),
+            localize("help_guide_chart_body_2", "Use Inspector for second-pass curves and Search in the side bar to locate values."),
           ],
         },
         {

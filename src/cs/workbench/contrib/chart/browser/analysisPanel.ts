@@ -1,4 +1,4 @@
-import { localize } from "src/cs/nls";
+﻿import { localize } from "src/cs/nls";
 import {
   getCardClassName,
   type CardVariant,
@@ -32,6 +32,7 @@ type StateSetter<T> = (next: T | ((previous: T) => T)) => void;
 export type ChartViewLazyProps = {
   visiblePanes?: readonly ChartPane[];
   activePlotType?: PlotType;
+  onActivePlotTypeChange?: (next: PlotType) => void;
   cleanedData: CleanedEntry[];
   calculatedDataByKey?: CalculatedDataByKey;
   processingStatus?: Partial<ProcessingStatus>;
@@ -44,12 +45,6 @@ export type ChartViewLazyProps = {
   setIonIoffManualTargetsByFileId?: StateSetter<IonIoffManualTargetsByFileId>;
   ssMethod?: SsMethod;
   setSsMethod?: (next: SsMethod) => void;
-  ssDiagnosticsEnabled?: boolean;
-  setSsDiagnosticsEnabled?: (next: boolean) => void;
-  vthDiagnosticsEnabled?: boolean;
-  setVthDiagnosticsEnabled?: (next: boolean) => void;
-  gmDiagnosticsEnabled?: boolean;
-  setGmDiagnosticsEnabled?: (next: boolean) => void;
   ssShowFitLine?: boolean;
   setSsShowFitLine?: (next: boolean) => void;
   ssManualRanges?: SsManualRanges;

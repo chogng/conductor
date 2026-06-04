@@ -1,6 +1,10 @@
-import { calculateGmPoints } from "src/cs/workbench/contrib/calculation/common/gm";
-import { calculateSsPoints } from "src/cs/workbench/contrib/calculation/common/ss";
-import { calculateVthPoints } from "src/cs/workbench/contrib/calculation/common/vth";
+import {
+  calculateGmPoints,
+  calculateIvPoints,
+  calculateSsPoints,
+  calculateVthPoints,
+} from "src/cs/workbench/contrib/calculation/common/firstCalculation";
+import { createSecondDerivativeResult } from "src/cs/workbench/contrib/calculation/common/secondCalculation";
 import { PlotTypes, type PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type {
   CleanedEntry,
@@ -19,16 +23,26 @@ export type CalculatedPoint = {
   yAbsPositive: number | null;
 };
 
+export type CalculatedDataKind = PlotType | "secondDerivative";
+
 export type CalculatedSeries = {
+  kind: CalculatedDataKind;
   id: string;
   name: string;
   data: CalculatedPoint[];
 };
 
+export type CalculatedDataSource = {
+  readonly fileId: string | null;
+  readonly inputKind: "cleaned" | PlotType;
+};
+
 export type CalculatedData = {
   readonly activeFile: CleanedEntry | null;
+  readonly kind: CalculatedDataKind;
   readonly pointsCount: number;
   readonly seriesList: CalculatedSeries[];
+  readonly source: CalculatedDataSource;
   readonly xDomain: [number, number];
   readonly xUnitLabel: string;
   readonly yDomain: [number, number];
@@ -54,6 +68,7 @@ export const createCalculatedDataByKey = (
     for (const plotType of PlotTypes) {
       next[createCalculatedDataKey({ fileId, plotType })] = createCalculatedDataForFile({
         file,
+        fileId,
         plotType,
       });
     }
@@ -98,9 +113,11 @@ export const createCalculatedData = ({
 
 export const createCalculatedDataForFile = ({
   file,
+  fileId,
   plotType,
 }: {
   readonly file: CleanedEntry | null;
+  readonly fileId?: string | null;
   readonly plotType: PlotType;
 }): CalculatedData => {
   const activeFile = file;
@@ -108,8 +125,13 @@ export const createCalculatedDataForFile = ({
   const points = seriesList.flatMap((series) => series.data);
   return {
     activeFile,
+    kind: plotType,
     pointsCount: points.length,
     seriesList,
+    source: {
+      fileId: fileId ?? resolveSourceFileId(activeFile),
+      inputKind: "cleaned",
+    },
     xDomain: getFiniteDomain(points.map((point) => Number(point.x)), [0, 1]),
     xUnitLabel: String(activeFile?.xUnit ?? ""),
     yDomain: getFiniteDomain(points.map((point) => Number(point.y)), [0, 1]),
@@ -120,6 +142,11 @@ export const createCalculatedDataForFile = ({
 const getCalculatedFileId = (file: CleanedEntry, index: number): string => {
   const fileId = String(file?.fileId ?? "").trim();
   return fileId || `file-${index}`;
+};
+
+const resolveSourceFileId = (file: CleanedEntry | null): string | null => {
+  const fileId = String(file?.fileId ?? "").trim();
+  return fileId || null;
 };
 
 export const resolveCalculatedFile = (
@@ -140,7 +167,7 @@ export const createCalculatedSeries = (
 ): CalculatedSeries[] => {
   const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
   return (Array.isArray(file?.series) ? file.series : [])
-    .map((series: CleanedSeries, index: number) => {
+    .map((series: CleanedSeries, index: number): CalculatedSeries | null => {
       if (!isArrayLike(xGroups[Number(series?.groupIndex)])) {
         return null;
       }
@@ -151,6 +178,7 @@ export const createCalculatedSeries = (
       }
 
       return {
+        kind: plotType,
         id: resolveSeriesId(file, series, index),
         name: String(series?.name ?? series?.legendValue ?? `Series ${index + 1}`),
         data,
@@ -176,6 +204,48 @@ export const getCalculatedYUnitLabel = (
   }
 };
 
+export const createSecondCalculatedData = (
+  sourceData: CalculatedData,
+): CalculatedData => {
+  const sourceKind = resolveSecondSourceKind(sourceData.kind);
+  const seriesList = sourceData.seriesList
+    .map((series): CalculatedSeries | null => {
+      const result = createSecondDerivativeResult({
+        fileId: sourceData.source.fileId,
+        inputKind: sourceKind,
+        points: series.data.map(({ x, y }) => ({ x, y })),
+      });
+      const data = result.points.map(toCalculatedPoint);
+      if (!data.length) {
+        return null;
+      }
+
+      return {
+        data,
+        id: `${series.id}:second-derivative`,
+        kind: "secondDerivative",
+        name: series.name,
+      };
+    })
+    .filter((series): series is CalculatedSeries => series !== null);
+  const points = seriesList.flatMap((series) => series.data);
+
+  return {
+    activeFile: sourceData.activeFile,
+    kind: "secondDerivative",
+    pointsCount: points.length,
+    seriesList,
+    source: {
+      fileId: sourceData.source.fileId,
+      inputKind: sourceKind,
+    },
+    xDomain: getFiniteDomain(points.map((point) => Number(point.x)), sourceData.xDomain),
+    xUnitLabel: sourceData.xUnitLabel,
+    yDomain: getFiniteDomain(points.map((point) => Number(point.y)), [0, 1]),
+    yUnitLabel: getSecondCalculatedYUnitLabel(sourceData),
+  };
+};
+
 const resolveSeriesId = (
   file: CleanedEntry | null,
   series: CleanedSeries,
@@ -194,6 +264,14 @@ const resolveSeriesId = (
     Number.isInteger(groupIndex) ? `x${groupIndex}` : "x",
     Number.isInteger(yCol) ? `y${yCol}` : `series${index}`,
   ].join(":");
+};
+
+const resolveSecondSourceKind = (kind: CalculatedDataKind): PlotType =>
+  kind === "secondDerivative" ? "gm" : kind;
+
+const getSecondCalculatedYUnitLabel = (sourceData: CalculatedData): string => {
+  const unit = String(sourceData.yUnitLabel ?? "").trim();
+  return unit ? `d(${unit})/dx` : "dY/dx";
 };
 
 const createSourcePoints = (
@@ -226,15 +304,17 @@ const resolveCalculatedPoints = (
   sourcePoints: readonly SourcePoint[],
 ): CalculatedPoint[] => {
   switch (plotType) {
+    // 一次计算区域：从清洗后的源数据直接得到 gm、SS、Vth 曲线。
     case "gm":
       return calculateGmPoints(sourcePoints).map(toCalculatedPoint);
     case "ss":
       return calculateSsPoints(sourcePoints).map(toCalculatedPoint);
     case "vth":
       return calculateVthPoints(sourcePoints).map(toCalculatedPoint);
+    // 一次计算区域：IV 只做绘图点格式归一，不额外派生。
     case "iv":
     default:
-      return sourcePoints.map(toCalculatedPoint);
+      return calculateIvPoints(sourcePoints).map(toCalculatedPoint);
   }
 };
 

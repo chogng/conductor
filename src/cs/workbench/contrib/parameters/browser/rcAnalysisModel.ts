@@ -1,7 +1,7 @@
 ﻿import { localize } from "src/cs/nls";
 import { getPlotColor } from "../../plot/browser/plotColors.ts";
 import { buildNiceTicks, padLinearDomain } from "../../plot/browser/plotViewModel.ts";
-import { formatNumber } from "../../diagnostics/common/numberFormat.ts";
+import { formatNumber } from "../../calculation/common/numberFormat.ts";
 
 export type RcCurveChartPoint = {
   rc: number;

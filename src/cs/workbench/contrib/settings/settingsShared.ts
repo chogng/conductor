@@ -1,4 +1,4 @@
-import { localize } from "src/cs/nls";
+﻿import { localize } from "src/cs/nls";
 import type { LanguagePreference } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type { Feedback } from "src/cs/workbench/contrib/settings/common/feedback";
@@ -35,9 +35,6 @@ export type AnalysisSettings = {
   ionIoffManualIonX?: number | string;
   ionIoffManualTargetsByFileId?: IonIoffManualTargetsByFileId;
   ionIoffMethodDefault?: IonIoffMethod;
-  gmDiagnosticsEnabled?: boolean;
-  ssDiagnosticsEnabled?: boolean;
-  vthDiagnosticsEnabled?: boolean;
   ssIdHigh?: number | string;
   ssIdLow?: number | string;
   ssMethodDefault?: SsMethod;

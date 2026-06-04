@@ -34,9 +34,6 @@ type SessionSnapshot = {
   readonly ionIoffMethod: IonIoffMethod;
   readonly ionIoffManualTargetsByFileId: IonIoffManualTargetsByFileId;
   readonly ssMethod: SsMethod;
-  readonly ssInspectorEnabled: boolean;
-  readonly vthInspectorEnabled: boolean;
-  readonly gmInspectorEnabled: boolean;
   readonly ssShowFitLine: boolean;
   readonly ssManualRanges: SsManualRanges;
 };
@@ -89,9 +86,6 @@ export class SessionModel {
     ionIoffMethod: "auto",
     ionIoffManualTargetsByFileId: {},
     ssMethod: "auto",
-    ssInspectorEnabled: false,
-    vthInspectorEnabled: false,
-    gmInspectorEnabled: false,
     ssShowFitLine: true,
     ssManualRanges: {},
   };
@@ -141,12 +135,6 @@ export class SessionModel {
     (value) => this.update("ionIoffManualTargetsByFileId", value);
   readonly setSsMethod: StateSetter<SsMethod> = (value) =>
     this.update("ssMethod", value);
-  readonly setSsInspectorEnabled: StateSetter<boolean> = (value) =>
-    this.update("ssInspectorEnabled", value);
-  readonly setVthInspectorEnabled: StateSetter<boolean> = (value) =>
-    this.update("vthInspectorEnabled", value);
-  readonly setGmInspectorEnabled: StateSetter<boolean> = (value) =>
-    this.update("gmInspectorEnabled", value);
   readonly setSsShowFitLine: StateSetter<boolean> = (value) =>
     this.update("ssShowFitLine", value);
   readonly setSsManualRanges: StateSetter<SsManualRanges> = (value) =>
@@ -201,9 +189,6 @@ export class SessionModel {
       setIonIoffMethod: this.setIonIoffMethod,
       setIonIoffManualTargetsByFileId: this.setIonIoffManualTargetsByFileId,
       setSsMethod: this.setSsMethod,
-      setSsInspectorEnabled: this.setSsInspectorEnabled,
-      setVthInspectorEnabled: this.setVthInspectorEnabled,
-      setGmInspectorEnabled: this.setGmInspectorEnabled,
       setSsShowFitLine: this.setSsShowFitLine,
       setSsManualRanges: this.setSsManualRanges,
     };

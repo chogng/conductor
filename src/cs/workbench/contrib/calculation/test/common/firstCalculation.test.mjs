@@ -7,7 +7,7 @@ import {
   interpolateCurveAtX,
   resolveAutoSsSelection,
   splitBidirectionalCurvePoints,
-} from "./analysisMath.ts";
+} from "../../common/firstCalculation.ts";
 
 test("resolveAutoSsSelection falls back to suggested window with low confidence", () => {
   const selection = resolveAutoSsSelection({

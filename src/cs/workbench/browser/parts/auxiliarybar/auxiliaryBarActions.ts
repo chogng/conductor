@@ -4,9 +4,10 @@ import { localize } from "src/cs/nls";
 import { ExportViewId } from "src/cs/workbench/contrib/export/common/export";
 import { OriginExportSettingsViewId } from "src/cs/workbench/contrib/origin/common/origin";
 import { ParametersViewId } from "src/cs/workbench/contrib/parameters/common/parameters";
+import { SearchViewId } from "src/cs/workbench/contrib/search/common/search";
 import { TemplateAuxiliaryBarViewId } from "src/cs/workbench/contrib/template/common/template";
 
-export type AuxiliaryBarView = "template" | "export" | "parameters" | "settings";
+export type AuxiliaryBarView = "template" | "search" | "export" | "parameters" | "settings";
 export type AuxiliaryBarMode = "table" | "chart";
 export type TemplateAuxiliaryBarMode = "select" | "save";
 
@@ -32,6 +33,14 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
     viewId: TemplateAuxiliaryBarViewId,
     labelKey: "template_management_title",
     label: "Template Management",
+  },
+  {
+    id: "search",
+    icon: LxIcon.search,
+    mode: "chart",
+    viewId: SearchViewId,
+    labelKey: "analysis_views_search",
+    label: "Search",
   },
   {
     id: "export",

@@ -1,12 +1,12 @@
 import type { MainPlotPoint, MainPlotSeries } from "src/cs/workbench/contrib/plot/browser/mainPlotCanvas";
 
-export type LocatorPointStatus = "empty" | "outOfRange" | "ready";
+export type SearchPointStatus = "empty" | "outOfRange" | "ready";
 
-export type LocatorPoint = {
+export type SearchPoint = {
   readonly color?: string;
   readonly seriesId: string;
   readonly seriesName: string;
-  readonly status: LocatorPointStatus;
+  readonly status: SearchPointStatus;
   readonly x: number;
   readonly y: number | null;
 };
@@ -16,14 +16,14 @@ type FinitePoint = {
   readonly y: number;
 };
 
-export const locateSeriesAtX = (
+export const searchSeriesAtX = (
   seriesList: readonly MainPlotSeries[],
   x: number,
-): LocatorPoint[] => {
+): SearchPoint[] => {
   if (!Number.isFinite(x)) return [];
 
   return seriesList.map((series, index) => {
-    const located = locatePoint(series.data, x);
+    const located = searchPoint(series.data, x);
     return {
       color: series.color,
       seriesId: String(series.id || `series-${index + 1}`),
@@ -35,10 +35,10 @@ export const locateSeriesAtX = (
   });
 };
 
-const locatePoint = (
+const searchPoint = (
   points: readonly MainPlotPoint[],
   x: number,
-): { readonly status: LocatorPointStatus; readonly y: number | null } => {
+): { readonly status: SearchPointStatus; readonly y: number | null } => {
   const finitePoints = getFinitePoints(points);
   if (!finitePoints.length) {
     return { status: "empty", y: null };

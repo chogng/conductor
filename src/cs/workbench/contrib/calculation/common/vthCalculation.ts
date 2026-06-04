@@ -17,7 +17,7 @@ export type VthFitResult = {
   y2: number;
 };
 
-export const createVthSqrtPoints = (points: Array<{ x?: unknown; y?: unknown }>) =>
+export const createVthSqrtPoints = (points: readonly { x?: unknown; y?: unknown }[]) =>
   (Array.isArray(points) ? points : [])
     .map((point) => {
       const x = Number(point?.x);
@@ -130,7 +130,7 @@ const pickVthLinearFit = (
 };
 
 export const computeVthSqrtFits = (
-  points: Array<{ x?: unknown; y?: unknown }>,
+  points: readonly { x?: unknown; y?: unknown }[],
 ): VthFitResult[] => {
   const sqrtPoints = createVthSqrtPoints(points);
   if (sqrtPoints.length < 5) return [];

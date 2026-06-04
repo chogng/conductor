@@ -2,18 +2,16 @@
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import {
+  computeBaseCurrentMetrics,
   computeCentralDerivative,
   computeSubthresholdSwing,
   computeSubthresholdSwingFitAuto,
-} from "../src/cs/workbench/contrib/diagnostics/common/analysisMath.ts";
+  isTransferLikeFile,
+} from "../src/cs/workbench/contrib/calculation/common/firstCalculation.ts";
 import {
   buildPoints,
   downsamplePointsForDisplay,
 } from "../src/cs/workbench/contrib/plot/browser/plotViewModel.ts";
-import {
-  computeBaseCurrentMetrics,
-  isTransferLikeFile,
-} from "../src/cs/workbench/contrib/diagnostics/common/metrics.ts";
 
 const ROOT = process.cwd();
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "device-analysis-phase3-bench");

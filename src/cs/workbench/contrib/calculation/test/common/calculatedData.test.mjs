@@ -6,6 +6,7 @@ import {
   createCalculatedDataByKey,
   createCalculatedDataKey,
   createCalculatedSeries,
+  createSecondCalculatedData,
   getCalculatedData,
   getCalculatedYUnitLabel,
 } from "../../common/calculatedData.ts";
@@ -42,7 +43,10 @@ test("createCalculatedData builds drawable IV series for the active file", () =>
   });
 
   assert.equal(model.activeFile?.fileId, "file-b");
+  assert.equal(model.kind, "iv");
+  assert.deepEqual(model.source, { fileId: "file-b", inputKind: "cleaned" });
   assert.equal(model.seriesList.length, 1);
+  assert.equal(model.seriesList[0].kind, "iv");
   assert.equal(model.pointsCount, 3);
   assert.deepEqual(model.xDomain, [-1, 1]);
   assert.deepEqual(model.yDomain, [-2, 2]);
@@ -169,4 +173,21 @@ test("getCalculatedData falls back to the first file for a plot type", () => {
   ]);
 
   assert.equal(getCalculatedData(byKey, "iv")?.activeFile?.fileId, "file-a");
+});
+
+test("createSecondCalculatedData derives drawable second-pass data from calculated data", () => {
+  const source = createCalculatedData({
+    activeFileId: "file-a",
+    plotType: "gm",
+    cleanedData: [createFile()],
+  });
+  const second = createSecondCalculatedData(source);
+
+  assert.equal(second.kind, "secondDerivative");
+  assert.deepEqual(second.source, { fileId: "file-a", inputKind: "gm" });
+  assert.equal(second.seriesList[0].kind, "secondDerivative");
+  assert.deepEqual(
+    second.seriesList[0].data.map((point) => point.y),
+    [0.5, 0.5, 0.5],
+  );
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { computeVthSqrtFits } from "./vth.ts";
+import { computeVthSqrtFits } from "../../common/firstCalculation.ts";
 
 test("computeVthSqrtFits fits electron and hole branches around the valley", () => {
   const points = [];

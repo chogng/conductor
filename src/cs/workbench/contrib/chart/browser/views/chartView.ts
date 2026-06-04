@@ -1,11 +1,8 @@
-import { localize } from "src/cs/nls";
+﻿import { localize } from "src/cs/nls";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
+import { createMainPlotView } from "src/cs/workbench/contrib/plot/browser/mainPlotView";
 import {
-  createMainPlotInspectorView,
-  createMainPlotLocatorView,
-  createMainPlotView,
-} from "src/cs/workbench/contrib/plot/browser/mainPlotView";
-import {
+  createSecondCalculatedData,
   getCalculatedData,
   type CalculatedDataByKey,
 } from "src/cs/workbench/contrib/calculation/common/calculatedData";
@@ -27,12 +24,12 @@ import "src/cs/workbench/contrib/chart/browser/views/media/chartView.css";
 
 type StateSetter<T> = (next: T | ((previous: T) => T)) => void;
 
-export type ChartAuxiliaryPane = "locator" | "inspector";
-export type ChartPane = "chart" | ChartAuxiliaryPane;
+export type ChartPane = "chart" | "inspector";
 
 export type ChartViewProps = {
   visiblePanes?: readonly ChartPane[];
   activePlotType?: PlotType;
+  onActivePlotTypeChange?: (next: PlotType) => void;
   cleanedData: CleanedEntry[];
   calculatedDataByKey?: CalculatedDataByKey;
   processingStatus?: Partial<ProcessingStatus>;
@@ -45,12 +42,6 @@ export type ChartViewProps = {
   setIonIoffManualTargetsByFileId?: StateSetter<IonIoffManualTargetsByFileId>;
   ssMethod?: SsMethod;
   setSsMethod?: (next: SsMethod) => void;
-  ssDiagnosticsEnabled?: boolean;
-  setSsDiagnosticsEnabled?: (next: boolean) => void;
-  vthDiagnosticsEnabled?: boolean;
-  setVthDiagnosticsEnabled?: (next: boolean) => void;
-  gmDiagnosticsEnabled?: boolean;
-  setGmDiagnosticsEnabled?: (next: boolean) => void;
   ssShowFitLine?: boolean;
   setSsShowFitLine?: (next: boolean) => void;
   ssManualRanges?: SsManualRanges;
@@ -99,8 +90,14 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
     return root;
   }
 
-  const plotView = createMainPlotView({
+  const chartPlotView = createMainPlotView({
     model: calculatedData,
+    originOpenPlotOptions: props.originOpenPlotOptions,
+    plotAxisSettings: props.plotAxisSettings,
+    plotType: activePlotType,
+  });
+  const inspectorPlotView = createMainPlotView({
+    model: createSecondCalculatedData(calculatedData),
     originOpenPlotOptions: props.originOpenPlotOptions,
     plotAxisSettings: props.plotAxisSettings,
     plotType: activePlotType,
@@ -108,7 +105,11 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
 
   const chartHost = document.createElement("div");
   chartHost.className = "chart_view_host";
-  chartHost.append(plotView.element);
+  chartHost.append(chartPlotView.element);
+
+  const inspectorHost = document.createElement("div");
+  inspectorHost.className = "chart_view_host";
+  inspectorHost.append(inspectorPlotView.element);
 
   const main = document.createElement("div");
   main.className = "chart_view_main";
@@ -118,17 +119,12 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
   mainPane.className = "chart_view_main_pane";
   mainPane.append(chartHost);
 
-  const inspectorPane = createMainPlotInspectorView({
-    plotType: activePlotType,
-    model: plotView.model,
-    props,
-  });
+  const inspectorPane = document.createElement("div");
+  inspectorPane.className = "chart_view_main_pane chart_view_inspector_pane";
+  inspectorPane.append(inspectorHost);
 
   if (visiblePanes.includes("chart")) {
     main.append(mainPane);
-  }
-  if (visiblePanes.includes("locator")) {
-    main.append(createMainPlotLocatorView(plotView.model));
   }
   if (visiblePanes.includes("inspector")) {
     main.append(inspectorPane);
@@ -142,7 +138,7 @@ const normalizeVisiblePanes = (
   visiblePanes: readonly ChartPane[] | undefined,
 ): readonly ChartPane[] => {
   if (!visiblePanes?.length) {
-    return ["chart", "locator"];
+    return ["chart", "inspector"];
   }
 
   const next: ChartPane[] = [];

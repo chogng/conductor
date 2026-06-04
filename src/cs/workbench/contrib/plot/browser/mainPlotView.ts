@@ -69,9 +69,3 @@ export const createMainPlotView = ({
     model,
   };
 };
-
-export {
-  createMainPlotInspectorView,
-  type MainPlotInspectorProps,
-} from "src/cs/workbench/contrib/plot/browser/mainPlotInspectorView";
-export { createMainPlotLocatorView } from "src/cs/workbench/contrib/plot/browser/mainPlotLocatorView";

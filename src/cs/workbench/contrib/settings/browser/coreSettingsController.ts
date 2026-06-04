@@ -1,4 +1,4 @@
-import { Emitter, type Event } from "src/cs/base/common/event";
+﻿import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import {
   isLanguagePreference,
@@ -32,9 +32,6 @@ export type CoreSettingsControllerOptions = {
   setLanguage: (language: LanguagePreference) => void;
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
-  setGmDiagnosticsEnabled: (enabled: boolean) => void;
-  setSsDiagnosticsEnabled: (enabled: boolean) => void;
-  setVthDiagnosticsEnabled: (enabled: boolean) => void;
   setSsMethod: (method: SsMethod) => void;
   setSsShowFitLine: (enabled: boolean) => void;
 };
@@ -222,18 +219,6 @@ export class CoreSettingsController extends Disposable {
     const ssMethodDefault = settings?.ssMethodDefault;
     if (ssMethodDefault === "auto" || ssMethodDefault === "manual") {
       this.options.setSsMethod(ssMethodDefault);
-    }
-
-    if (typeof settings?.ssDiagnosticsEnabled === "boolean") {
-      this.options.setSsDiagnosticsEnabled(settings.ssDiagnosticsEnabled);
-    }
-
-    if (typeof settings?.vthDiagnosticsEnabled === "boolean") {
-      this.options.setVthDiagnosticsEnabled(settings.vthDiagnosticsEnabled);
-    }
-
-    if (typeof settings?.gmDiagnosticsEnabled === "boolean") {
-      this.options.setGmDiagnosticsEnabled(settings.gmDiagnosticsEnabled);
     }
 
     if (typeof settings?.ssShowFitLine === "boolean") {

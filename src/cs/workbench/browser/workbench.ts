@@ -831,7 +831,9 @@ export class Workbench extends Layout {
   ) {
     return {
       activeFileId: this.getActiveAnalysisFileId(snapshot),
+      activePlotType: this.activePlotType,
       onActiveFileIdChange: this.handleAnalysisFileSelected,
+      onActivePlotTypeChange: this.setActivePlotType,
       calculatedDataByKey: snapshot.calculatedDataByKey,
       cleanedData: snapshot.cleanedData,
       onPlotAxisSettingsChange: this.updatePlotAxisSettings,
@@ -855,6 +857,15 @@ export class Workbench extends Layout {
       plotAxisSettings: this.coreSettingsState.analysisSettings?.analysisPlotAxisSettings,
     };
   }
+
+  private readonly setActivePlotType = (plotType: PlotType): void => {
+    if (this.activePlotType === plotType) {
+      return;
+    }
+
+    this.activePlotType = plotType;
+    this.renderWorkbench();
+  };
 
   private resolveActiveFile(snapshot = this.session.getSnapshot()): CleanedEntry | null {
     const activeFileId = this.getActiveAnalysisFileId(snapshot);
@@ -1001,15 +1012,12 @@ export class Workbench extends Layout {
   private getCoreSettingsOptions() {
     return {
       language: this.languagePreference,
-      setGmInspectorEnabled: () => undefined,
       setAppearance: this.setAppearance,
       setIonIoffMethod: () => undefined,
       setLanguage: this.setLanguage,
-      setSsInspectorEnabled: () => undefined,
       setSsMethod: () => undefined,
       setSsShowFitLine: () => undefined,
       setTheme: this.setTheme,
-      setVthInspectorEnabled: () => undefined,
       theme: this.theme,
     };
   }

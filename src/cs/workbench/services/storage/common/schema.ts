@@ -1,4 +1,4 @@
-type OriginPlotOptions = {
+﻿type OriginPlotOptions = {
   plotType: number;
   xyPairs: string;
   plotCommand: string;
@@ -54,8 +54,6 @@ type AnalysisSettings = JsonRecord & {
   defaultYScaleForPv: string;
   defaultYScaleForSpecial: string;
   ssMethodDefault: string;
-  ssDiagnosticsEnabled: boolean;
-  vthDiagnosticsEnabled: boolean;
   ssShowFitLine: boolean;
   ssIdLow: number;
   ssIdHigh: number;
@@ -253,8 +251,6 @@ export const ANALYSIS_DEFAULT_SETTINGS: AnalysisSettings = {
   defaultYScaleForPv: "linear",
   defaultYScaleForSpecial: "linear",
   ssMethodDefault: "auto",
-  ssDiagnosticsEnabled: true,
-  vthDiagnosticsEnabled: false,
   ssShowFitLine: true,
   ssIdLow: 1e-11,
   ssIdHigh: 1e-9,
@@ -553,7 +549,17 @@ export function normalizeStoreData(raw: unknown): AnalysisStoreData {
 
 export function normalizeAnalysisSettings(raw: unknown): AnalysisSettings {
   const next = isRecord(raw) ? { ...raw } : {};
-  const { yUnit: _legacyGlobalYUnit, yScale: _legacyGlobalYScale, ...nextWithoutLegacyAxes } = next;
+  const {
+    gmDiagnosticsEnabled: _legacyGmDiagnosticsEnabled,
+    gmInspectorEnabled: _legacyGmInspectorEnabled,
+    ssDiagnosticsEnabled: _legacySsDiagnosticsEnabled,
+    ssInspectorEnabled: _legacySsInspectorEnabled,
+    vthDiagnosticsEnabled: _legacyVthDiagnosticsEnabled,
+    vthInspectorEnabled: _legacyVthInspectorEnabled,
+    yUnit: _legacyGlobalYUnit,
+    yScale: _legacyGlobalYScale,
+    ...nextWithoutLegacyAxes
+  } = next;
 
   const ssMethodDefault = isSetValue(ANALYSIS_SS_METHODS, next.ssMethodDefault)
     ? next.ssMethodDefault
@@ -581,16 +587,6 @@ export function normalizeAnalysisSettings(raw: unknown): AnalysisSettings {
     next.trayMinimizeHintShown,
     ANALYSIS_DEFAULT_SETTINGS.trayMinimizeHintShown,
   );
-
-  const ssDiagnosticsEnabled =
-    typeof next.ssDiagnosticsEnabled === "boolean"
-      ? next.ssDiagnosticsEnabled
-      : ANALYSIS_DEFAULT_SETTINGS.ssDiagnosticsEnabled;
-
-  const vthDiagnosticsEnabled =
-    typeof next.vthDiagnosticsEnabled === "boolean"
-      ? next.vthDiagnosticsEnabled
-      : ANALYSIS_DEFAULT_SETTINGS.vthDiagnosticsEnabled;
 
   const ssShowFitLine =
     typeof next.ssShowFitLine === "boolean"
@@ -681,8 +677,6 @@ export function normalizeAnalysisSettings(raw: unknown): AnalysisSettings {
     windowCloseBehavior,
     trayMinimizeHintShown,
     ssMethodDefault,
-    ssDiagnosticsEnabled,
-    vthDiagnosticsEnabled,
     ssShowFitLine,
     ssIdLow,
     ssIdHigh,

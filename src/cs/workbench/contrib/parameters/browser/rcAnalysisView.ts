@@ -1,6 +1,6 @@
 import { localize } from "src/cs/nls";
 
-import { formatNumber } from "../../diagnostics/common/numberFormat.ts";
+import { formatNumber } from "../../calculation/common/numberFormat.ts";
 import type { RcCurveChartSeries } from "./rcAnalysisModel.ts";
 
 export type RcAnalysisSummary = {

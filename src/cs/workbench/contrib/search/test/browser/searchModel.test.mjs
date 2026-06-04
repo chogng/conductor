@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { locateSeriesAtX } from "../../browser/mainPlotLocatorModel.ts";
+import { searchSeriesAtX } from "../../browser/searchModel.ts";
 
 const createSeries = (overrides = {}) => ({
   id: "series-a",
@@ -14,8 +14,8 @@ const createSeries = (overrides = {}) => ({
   ...overrides,
 });
 
-test("locateSeriesAtX returns exact y values for each series", () => {
-  const results = locateSeriesAtX([
+test("searchSeriesAtX returns exact y values for each series", () => {
+  const results = searchSeriesAtX([
     createSeries(),
     createSeries({
       id: "series-b",
@@ -36,15 +36,15 @@ test("locateSeriesAtX returns exact y values for each series", () => {
   );
 });
 
-test("locateSeriesAtX interpolates between adjacent points", () => {
-  const results = locateSeriesAtX([createSeries()], 0.25);
+test("searchSeriesAtX interpolates between adjacent points", () => {
+  const results = searchSeriesAtX([createSeries()], 0.25);
 
   assert.equal(results[0].status, "ready");
   assert.equal(results[0].y, 2.5);
 });
 
-test("locateSeriesAtX handles descending or unsorted x points", () => {
-  const results = locateSeriesAtX([
+test("searchSeriesAtX handles descending or unsorted x points", () => {
+  const results = searchSeriesAtX([
     createSeries({
       data: [
         { x: 2, y: 20 },
@@ -58,8 +58,8 @@ test("locateSeriesAtX handles descending or unsorted x points", () => {
   assert.equal(results[0].y, 15);
 });
 
-test("locateSeriesAtX marks missing or out-of-range series", () => {
-  const results = locateSeriesAtX([
+test("searchSeriesAtX marks missing or out-of-range series", () => {
+  const results = searchSeriesAtX([
     createSeries({ data: [] }),
     createSeries(),
   ], 3);
@@ -73,8 +73,8 @@ test("locateSeriesAtX marks missing or out-of-range series", () => {
   );
 });
 
-test("locateSeriesAtX ignores non-finite points", () => {
-  const results = locateSeriesAtX([
+test("searchSeriesAtX ignores non-finite points", () => {
+  const results = searchSeriesAtX([
     createSeries({
       data: [
         { x: 0, y: 0 },

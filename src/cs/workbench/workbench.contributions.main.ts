@@ -2,7 +2,6 @@
 
 import "src/cs/workbench/contrib/chart/browser/chart.contribution";
 import "src/cs/workbench/contrib/calculation/browser/calculation.contribution";
-import "src/cs/workbench/contrib/diagnostics/browser/diagnostics.contribution";
 import "src/cs/workbench/contrib/thumbnail/browser/thumbnail.contribution";
 import "src/cs/workbench/contrib/sash/browser/sash.contribution";
 import "src/cs/workbench/contrib/settings/browser/settings.contribution";

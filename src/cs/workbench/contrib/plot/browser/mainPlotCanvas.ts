@@ -1,4 +1,4 @@
-﻿import { formatNumber } from "src/cs/workbench/contrib/diagnostics/common/numberFormat";
+﻿import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
 
 import "src/cs/workbench/contrib/plot/browser/media/plot.css";

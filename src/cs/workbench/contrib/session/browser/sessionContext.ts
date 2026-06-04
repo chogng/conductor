@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   AnalysisResultsByFileId,
   PreviewFile,
   PreviewRowsRequest,
@@ -107,12 +107,6 @@ export type SessionContextValue = {
   setIonIoffManualTargetsByFileId: StateSetter<IonIoffManualTargetsByFileId>;
   ssMethod: SsMethod;
   setSsMethod: StateSetter<SsMethod>;
-  ssDiagnosticsEnabled: boolean;
-  setSsDiagnosticsEnabled: StateSetter<boolean>;
-  vthDiagnosticsEnabled: boolean;
-  setVthDiagnosticsEnabled: StateSetter<boolean>;
-  gmDiagnosticsEnabled: boolean;
-  setGmDiagnosticsEnabled: StateSetter<boolean>;
   ssShowFitLine: boolean;
   setSsShowFitLine: StateSetter<boolean>;
   ssManualRanges: SsManualRanges;

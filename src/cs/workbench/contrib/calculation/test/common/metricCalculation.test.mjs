@@ -4,7 +4,7 @@ import {
   computeBaseCurrentMetrics,
   isOutputLikeFile,
   isTransferLikeFile,
-} from "./metrics.ts";
+} from "../../common/firstCalculation.ts";
 
 test("isTransferLikeFile recognizes Vg sweeps", () => {
   assert.equal(isTransferLikeFile({ xAxisRole: "vg" }), true);

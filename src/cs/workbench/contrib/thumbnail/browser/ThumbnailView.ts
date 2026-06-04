@@ -3,7 +3,7 @@
   resolvePreviewPlotYDataRange,
   type CanvasMultiLinePlotProps,
 } from "src/cs/workbench/contrib/plot/browser/CanvasMultiLinePlot";
-import { formatNumber } from "src/cs/workbench/contrib/diagnostics/common/numberFormat";
+import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
 
 export type CleanedFileLike = {
   fileId?: string;

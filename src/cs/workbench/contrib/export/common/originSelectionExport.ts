@@ -1,21 +1,19 @@
 import Papa from "papaparse";
 import {
+  computeBaseCurrentMetrics,
   computeCentralDerivative,
   computeSubthresholdSwing,
   computeSubthresholdSwingFitAuto,
-  resolveAutoSsSelection,
-} from "../../diagnostics/common/analysisMath.ts";
-import { computeVthSqrtFits } from "../../diagnostics/common/vth.ts";
-import {
-  computeBaseCurrentMetrics,
+  computeVthSqrtFits,
   isOutputLikeFile,
   isTransferLikeFile,
-} from "../../diagnostics/common/metrics.ts";
+  resolveAutoSsSelection,
+} from "src/cs/workbench/contrib/calculation/common/firstCalculation";
 import {
   getCachedBaseCurrent,
   getCachedDerivativePoints,
   getCachedSsFitAuto,
-} from "../../diagnostics/common/analysisCacheAccess.ts";
+} from "../../calculation/common/analysisCacheAccess.ts";
 import { resolveOriginLogPositiveMinForRange } from "../../origin/common/originAxisCommands.ts";
 
 type CleanedSeriesLike = {

@@ -1,37 +1,33 @@
 import { localize } from "src/cs/nls";
-import { formatNumber } from "src/cs/workbench/contrib/diagnostics/common/numberFormat";
-import { locateSeriesAtX, type LocatorPoint } from "src/cs/workbench/contrib/plot/browser/mainPlotLocatorModel";
+import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
 import type { MainPlotRenderModel } from "src/cs/workbench/contrib/plot/browser/mainPlotRenderModel";
 import { getPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
+import { searchSeriesAtX, type SearchPoint } from "src/cs/workbench/contrib/search/browser/searchModel";
 
-export const createMainPlotLocatorView = (
+export const createSearchView = (
   model: MainPlotRenderModel,
 ): HTMLElement => {
   const section = document.createElement("section");
-  section.className = "main_plot_locator_pane";
-  section.setAttribute("aria-label", localize("chart_locator_heading", "Locator"));
-
-  const header = document.createElement("div");
-  header.className = "main_plot_auxiliary_header";
-  header.textContent = localize("chart_locator_heading", "Locator");
+  section.className = "search_pane";
+  section.setAttribute("aria-label", localize("search_heading", "Search"));
 
   const control = document.createElement("label");
-  control.className = "main_plot_locator_control";
+  control.className = "search_control";
 
   const label = document.createElement("span");
-  label.className = "main_plot_locator_label";
-  label.textContent = localize("chart_locator_x_input", "X value");
+  label.className = "search_label";
+  label.textContent = localize("search_x_input", "X value");
 
   const input = document.createElement("input");
-  input.className = "main_plot_locator_input";
+  input.className = "search_input";
   input.type = "number";
   input.step = "any";
   input.value = formatInputValue(resolveInitialX(model.xDomain));
-  input.setAttribute("aria-label", localize("chart_locator_x_input", "X value"));
+  input.setAttribute("aria-label", localize("search_x_input", "X value"));
 
   const summary = document.createElement("span");
-  summary.className = "main_plot_locator_summary";
-  summary.textContent = localize("chart_locator_summary", "{seriesCount} series, {pointsCount} points, X {xDomain}", {
+  summary.className = "search_summary";
+  summary.textContent = localize("search_summary", "{seriesCount} series, {pointsCount} points, X {xDomain}", {
     pointsCount: model.pointsCount,
     seriesCount: model.seriesList.length,
     xDomain: formatDomain(model.xDomain),
@@ -40,66 +36,66 @@ export const createMainPlotLocatorView = (
   control.append(label, input, summary);
 
   const body = document.createElement("div");
-  body.className = "main_plot_locator_results";
+  body.className = "search_results";
 
   const render = () => {
-    const x = parseLocatorX(input.value);
+    const x = parseSearchX(input.value);
     if (x === null) {
-      body.replaceChildren(createLocatorEmpty(localize("chart_locator_invalid_x", "Enter a numeric X value.")));
+      body.replaceChildren(createSearchEmpty(localize("search_invalid_x", "Enter a numeric X value.")));
       return;
     }
 
-    const results = locateSeriesAtX(model.seriesList, x);
+    const results = searchSeriesAtX(model.seriesList, x);
     if (!results.length) {
-      body.replaceChildren(createLocatorEmpty(localize("chart_locator_no_series", "No series available.")));
+      body.replaceChildren(createSearchEmpty(localize("search_no_series", "No series available.")));
       return;
     }
 
-    body.replaceChildren(...results.map((result, index) => createLocatorResult(result, index)));
+    body.replaceChildren(...results.map((result, index) => createSearchResult(result, index)));
   };
 
   input.addEventListener("input", render);
   render();
 
-  section.append(header, control, body);
+  section.append(control, body);
   return section;
 };
 
-const createLocatorResult = (result: LocatorPoint, index: number): HTMLElement => {
+const createSearchResult = (result: SearchPoint, index: number): HTMLElement => {
   const row = document.createElement("div");
-  row.className = "main_plot_locator_result";
+  row.className = "search_result";
   row.dataset.status = result.status;
 
   const swatch = document.createElement("span");
-  swatch.className = "main_plot_locator_swatch";
+  swatch.className = "search_swatch";
   swatch.style.backgroundColor = result.color || getPlotColor(index);
 
   const name = document.createElement("span");
-  name.className = "main_plot_locator_series";
+  name.className = "search_series";
   name.textContent = result.seriesName;
 
   const value = document.createElement("span");
-  value.className = "main_plot_locator_value";
-  value.textContent = formatLocatorValue(result);
+  value.className = "search_value";
+  value.textContent = formatSearchValue(result);
 
   row.append(swatch, name, value);
   return row;
 };
 
-const createLocatorEmpty = (message: string): HTMLElement => {
+const createSearchEmpty = (message: string): HTMLElement => {
   const empty = document.createElement("div");
-  empty.className = "main_plot_locator_empty";
+  empty.className = "search_empty";
   empty.setAttribute("role", "status");
   empty.textContent = message;
   return empty;
 };
 
-const formatLocatorValue = (result: LocatorPoint): string => {
+const formatSearchValue = (result: SearchPoint): string => {
   if (result.status === "empty") {
-    return localize("chart_locator_empty_series", "No data");
+    return localize("search_empty_series", "No data");
   }
   if (result.status === "outOfRange") {
-    return localize("chart_locator_out_of_range", "Out of range");
+    return localize("search_out_of_range", "Out of range");
   }
   return formatNumber(result.y, { digits: 4 });
 };
@@ -115,7 +111,7 @@ const resolveInitialX = (domain: readonly [number, number] | undefined): number 
 const formatInputValue = (value: number | null): string =>
   value === null ? "" : String(Number(value.toPrecision(12)));
 
-const parseLocatorX = (value: string): number | null => {
+const parseSearchX = (value: string): number | null => {
   const text = value.trim();
   if (!text) return null;
   const x = Number(text);

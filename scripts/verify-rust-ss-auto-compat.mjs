@@ -2,15 +2,12 @@
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import {
+  computeBaseCurrentMetrics,
   computeCentralDerivative,
   computeSubthresholdSwing,
   computeSubthresholdSwingFitAuto,
-} from "../src/cs/workbench/contrib/chartPreview/lib/analysisMath.ts";
-import {
-  computeBaseCurrentMetrics,
   isTransferLikeFile,
-} from "../src/cs/workbench/contrib/chartPreview/lib/metrics.ts";
-import { buildPoints } from "../src/cs/workbench/contrib/chartPreview/lib/analysisChartsUtils.ts";
+} from "../src/cs/workbench/contrib/calculation/common/firstCalculation.ts";
 
 const ROOT = process.cwd();
 const PHASE3_DIR = path.join(ROOT, ".tooling", "device-analysis-phase3-bench");
@@ -25,6 +22,22 @@ const now = () => performance.now();
 const formatMs = (value) => `${Math.round(value)}ms`;
 const safeArray = (value) => (Array.isArray(value) ? value : []);
 const isFiniteNumber = (value) => typeof value === "number" && Number.isFinite(value);
+
+const buildPoints = (xArr, yArr) => {
+  const xValues = Array.isArray(xArr) ? xArr : [];
+  const yValues = Array.isArray(yArr) ? yArr : [];
+  const count = Math.min(xValues.length, yValues.length);
+  const points = [];
+  for (let index = 0; index < count; index += 1) {
+    const x = Number(xValues[index]);
+    const y = Number(yValues[index]);
+    points.push({
+      x: Number.isFinite(x) ? x : null,
+      y: Number.isFinite(y) ? y : null,
+    });
+  }
+  return points;
+};
 
 const readJsonLines = async (filePath) => {
   const text = await fs.readFile(filePath, "utf8");
