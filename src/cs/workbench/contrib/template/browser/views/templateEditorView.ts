@@ -151,6 +151,32 @@ export class TemplateEditorView {
     const xSegmentCountInput = this.createField(xFields, localize("template_x_segment_count", "Segment count"), "xSegmentCount");
     const xPointsPerGroupInput = this.createField(xFields, localize("template_x_points_per_group", "Point count"), "xPointsPerGroup");
 
+    const yColumnsField = document.createElement("div");
+    yColumnsField.className = "template_selection_field";
+
+    const yColumnsHeader = document.createElement("div");
+    yColumnsHeader.className = "template_selection_header";
+
+    const yColumnsLabel = document.createElement("span");
+    yColumnsLabel.className = "template_selection_label";
+    yColumnsLabel.textContent = localize("template_y_columns", "Y columns");
+
+    this.yColumnsClearButton = document.createElement("button");
+    this.yColumnsClearButton.type = "button";
+    this.yColumnsClearButton.className = "template_selection_clear";
+    this.yColumnsClearButton.textContent = localize("template_clear_y_columns", "Clear");
+    this.disposables.add(addDisposableListener(this.yColumnsClearButton, "click", () => {
+      this.options.onClearYColumns();
+    }));
+
+    yColumnsHeader.append(yColumnsLabel, this.yColumnsClearButton);
+
+    this.yColumnsSummary = document.createElement("p");
+    this.yColumnsSummary.className = "template_selection_summary";
+    this.yColumnsSummary.setAttribute("aria-live", "polite");
+    yColumnsField.append(yColumnsHeader, this.yColumnsSummary);
+    yFields.append(yColumnsField);
+
     this.inputs = {
       name: nameInput,
       xDataStart: xDataStartInput,
@@ -202,32 +228,6 @@ export class TemplateEditorView {
         this.options.onUpdateConfig({ yLegendTarget: value });
       },
     );
-
-    const yColumnsField = document.createElement("div");
-    yColumnsField.className = "template_selection_field";
-
-    const yColumnsHeader = document.createElement("div");
-    yColumnsHeader.className = "template_selection_header";
-
-    const yColumnsLabel = document.createElement("span");
-    yColumnsLabel.className = "template_selection_label";
-    yColumnsLabel.textContent = localize("template_y_columns", "Y columns");
-
-    this.yColumnsClearButton = document.createElement("button");
-    this.yColumnsClearButton.type = "button";
-    this.yColumnsClearButton.className = "template_selection_clear";
-    this.yColumnsClearButton.textContent = localize("template_clear_y_columns", "Clear");
-    this.disposables.add(addDisposableListener(this.yColumnsClearButton, "click", () => {
-      this.options.onClearYColumns();
-    }));
-
-    yColumnsHeader.append(yColumnsLabel, this.yColumnsClearButton);
-
-    this.yColumnsSummary = document.createElement("p");
-    this.yColumnsSummary.className = "template_selection_summary";
-    this.yColumnsSummary.setAttribute("aria-live", "polite");
-    yColumnsField.append(yColumnsHeader, this.yColumnsSummary);
-    yFields.append(yColumnsField);
 
     this.element.append(form);
 

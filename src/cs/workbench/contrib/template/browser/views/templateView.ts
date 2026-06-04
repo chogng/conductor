@@ -57,7 +57,6 @@ export type TemplateViewOptions = {
     TableModel,
     | "clearHighlight"
     | "getSelection"
-    | "highlightColumns"
     | "onDidChangeSelection"
     | "setSelection"
   >;
@@ -196,9 +195,9 @@ export class TemplateView {
 
     this.ensureTemplatesLoaded();
     this.syncStopOnErrorDraft();
-    this.syncTableHighlight();
 
     const nextMode = this.session.templateMode;
+    this.syncTableColumnState();
     if (this.mode !== nextMode) {
       this.mode = nextMode;
       if (nextMode === "select") {
@@ -307,16 +306,26 @@ export class TemplateView {
 
     this.stopOnErrorDraft = next.stopOnError;
     this.session.setTemplateConfig(next);
+    this.syncTableColumnState();
+    this.updateEditorView();
   }
 
-  private syncTableHighlight(): void {
+  private syncTableColumnState(): void {
     const columns = normalizeColumnIndexes(this.getEffectiveTemplateConfig().yColumns);
-    if (columns.length > 0) {
-      this.tableModel?.highlightColumns(columns);
+    this.tableModel?.clearHighlight();
+    this.syncTableSelectedColumns(columns);
+  }
+
+  private syncTableSelectedColumns(columns: readonly number[]): void {
+    const selection = this.tableModel?.getSelection();
+    if (!selection || areColumnIndexesEqual(selection.selectedColumns, columns)) {
       return;
     }
 
-    this.tableModel?.clearHighlight();
+    this.tableModel?.setSelection({
+      ...selection,
+      selectedColumns: columns,
+    });
   }
 
   private syncStopOnErrorDraft(): void {
