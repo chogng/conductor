@@ -502,6 +502,7 @@ export interface IViewPaneContainer extends IDisposable {
   getActionsContext(): unknown;
   getView(viewId: string): IView | undefined;
   addView(view: IView, options?: { readonly dispose?: boolean }): IView;
+  setViewVisible(viewId: string, visible: boolean): boolean;
   setTitle(title: string): void;
   setActions(actions: readonly IAction[], contextActions?: readonly IAction[]): void;
   openView(viewId: string, focus?: boolean): IView | undefined;

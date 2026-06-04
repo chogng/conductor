@@ -6,7 +6,7 @@ description: Context size guidance
 Keep added context bounded and easy to reason about.
 
 Watch for:
-- large preview-row caches or unbounded file data retained in React state
+- large preview-row caches or unbounded file data retained in view or model state
 - oversized IPC payloads between renderer, preload, Electron main, and workers
 - repeated serialization of workbook, CSV, template, or analysis data
 - long-lived session/template state that grows without a clear cap

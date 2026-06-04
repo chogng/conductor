@@ -45,6 +45,7 @@ export class ViewPaneContainer implements IViewPaneContainer {
   private readonly onDidRemoveViewsEmitter = new Emitter<readonly IView[]>();
   private readonly onDidChangeViewVisibilityEmitter = new Emitter<IView>();
   private readonly panes = new Map<string, IView>();
+  private readonly visiblePaneIds = new Map<string, boolean>();
   private containerTitle: string;
   private primaryActions: readonly IAction[];
   private secondaryActions: readonly IAction[];
@@ -142,7 +143,9 @@ export class ViewPaneContainer implements IViewPaneContainer {
     }));
     this.disposables.add(pane);
     this.panes.set(options.id, pane);
-    this.body.append(pane.element);
+    this.visiblePaneIds.set(options.id, true);
+    pane.setVisible(this.visible);
+    this.renderViews();
     this.fireCollapsedPaneIds();
     this.onDidAddViewsEmitter.fire([pane]);
     this.layout();
@@ -156,8 +159,10 @@ export class ViewPaneContainer implements IViewPaneContainer {
     }
 
     this.panes.set(view.id, view);
-    view.setVisible(this.visible);
-    this.body.append(view.element);
+    const visible = this.visiblePaneIds.get(view.id) ?? true;
+    this.visiblePaneIds.set(view.id, visible);
+    view.setVisible(this.visible && visible);
+    this.renderViews();
     if (view instanceof ViewPane) {
       this.disposables.add(view.onDidChangeCollapsed(() => {
         this.onDidChangeViewVisibilityEmitter.fire(view);
@@ -179,9 +184,11 @@ export class ViewPaneContainer implements IViewPaneContainer {
     }
 
     this.panes.delete(id);
+    this.visiblePaneIds.delete(id);
     this.collapsedPaneIds.delete(id);
     this.onDidRemoveViewsEmitter.fire([pane]);
     pane.dispose();
+    this.renderViews();
     this.fireCollapsedPaneIds();
     this.layout();
   }
@@ -205,7 +212,7 @@ export class ViewPaneContainer implements IViewPaneContainer {
       return undefined;
     }
 
-    view.setVisible(true);
+    this.setViewVisible(viewId, true);
     view.setExpanded(true);
     if (focus) {
       view.focus();
@@ -221,11 +228,12 @@ export class ViewPaneContainer implements IViewPaneContainer {
 
     this.visible = visible;
     this.element.hidden = !visible;
-    for (const pane of this.panes.values()) {
-      if (pane.setVisible(visible)) {
+    for (const [id, pane] of this.panes) {
+      if (pane.setVisible(visible && this.isPaneVisible(id))) {
         this.onDidChangeViewVisibilityEmitter.fire(pane);
       }
     }
+    this.renderViews();
     this.layout();
   }
 
@@ -239,6 +247,22 @@ export class ViewPaneContainer implements IViewPaneContainer {
 
   public getActionsContext(): unknown {
     return undefined;
+  }
+
+  public setViewVisible(viewId: string, visible: boolean): boolean {
+    const pane = this.panes.get(viewId);
+    if (!pane) {
+      return false;
+    }
+
+    this.visiblePaneIds.set(viewId, visible);
+    const changed = pane.setVisible(this.visible && visible);
+    this.renderViews();
+    if (changed) {
+      this.onDidChangeViewVisibilityEmitter.fire(pane);
+    }
+    this.layout();
+    return changed;
   }
 
   public layout(height?: number, width?: number): void {
@@ -295,10 +319,7 @@ export class ViewPaneContainer implements IViewPaneContainer {
       return;
     }
 
-    if (pane.setVisible(!pane.isVisible())) {
-      this.onDidChangeViewVisibilityEmitter.fire(pane);
-      this.layout();
-    }
+    this.setViewVisible(viewId, !this.isPaneVisible(viewId));
   }
 
   public getCollapsedPaneIds(): readonly string[] {
@@ -368,6 +389,20 @@ export class ViewPaneContainer implements IViewPaneContainer {
 
   private fireCollapsedPaneIds(): void {
     this.onDidChangeCollapsedPaneIdsEmitter.fire(this.getCollapsedPaneIds());
+  }
+
+  private isPaneVisible(viewId: string): boolean {
+    return this.visiblePaneIds.get(viewId) !== false;
+  }
+
+  private renderViews(): void {
+    const visibleViews: HTMLElement[] = [];
+    for (const [id, pane] of this.panes) {
+      if (this.visible && this.isPaneVisible(id)) {
+        visibleViews.push(pane.element);
+      }
+    }
+    this.body.replaceChildren(...visibleViews);
   }
 
   private getElementClassName(className = ""): string {

@@ -193,6 +193,11 @@ export class ViewsService extends Disposable implements IViewsServiceType {
     }
 
     this.visibleAddedViews.set(id, visible);
+    const containerId = this.viewContainerIdsByViewId.get(id);
+    if (containerId) {
+      return this.viewPaneContainers.get(containerId)?.setViewVisible(id, visible) ?? false;
+    }
+
     const changed = view.setVisible(visible);
     if (changed) {
       this.onViewVisibilityChanged(view, view.isBodyVisible());
@@ -270,10 +275,7 @@ export class ViewsService extends Disposable implements IViewsServiceType {
         continue;
       }
 
-      const changed = view.setVisible(visible);
-      if (changed) {
-        this.onViewVisibilityChanged(view, view.isBodyVisible());
-      }
+      this.viewPaneContainers.get(containerId)?.setViewVisible(viewId, visible);
     }
   }
 

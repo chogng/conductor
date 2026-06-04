@@ -222,6 +222,9 @@ export class Workbench extends Layout {
   private readonly table: TableContribution;
   private readonly templateViewPane: TemplateViewPane;
   private readonly templateAuxiliaryBarViewPane: TemplateAuxiliaryBarViewPane;
+  private readonly exportViewPane: ExportViewPane;
+  private readonly parametersViewPane: ParametersViewPane;
+  private readonly originSettingsViewPane: OriginSettingsViewPane;
   private readonly analysis: ChartViewPane;
   private readonly settings: SettingsViewPane;
   private readonly templateApply: TemplateApplyController;
@@ -323,6 +326,9 @@ export class Workbench extends Layout {
     this.templateAuxiliaryBarViewPane = this._register(new TemplateAuxiliaryBarViewPane(
       this.templateViewPane.configElement,
     ));
+    this.exportViewPane = this._register(new ExportViewPane());
+    this.parametersViewPane = this._register(new ParametersViewPane());
+    this.originSettingsViewPane = this._register(new OriginSettingsViewPane());
     this.analysis = this._register(new ChartViewPane(this.getAnalysisProps()));
     this.settings = this._register(new SettingsViewPane(this.getSettingsProps()));
     this.coreSettingsController = this._register(
@@ -460,6 +466,9 @@ export class Workbench extends Layout {
     }
     this.viewsService.addViewToContainer(WorkbenchViewContainers.main, this.analysis);
     this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.templateAuxiliaryBarViewPane);
+    this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.exportViewPane);
+    this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.parametersViewPane);
+    this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.originSettingsViewPane);
     this.viewsService.addViewToContainer(WorkbenchViewContainers.settings, this.settings);
 
     const isSettingsActive = this.activeView === "settings";
@@ -513,11 +522,7 @@ export class Workbench extends Layout {
     });
 
     for (const view of state.views) {
-      if (view.visible) {
-        void this.viewsService.openView(view.viewId);
-      } else {
-        this.viewsService.closeView(view.viewId);
-      }
+      this.viewsService.setViewVisible(view.viewId, view.visible);
     }
   }
 
