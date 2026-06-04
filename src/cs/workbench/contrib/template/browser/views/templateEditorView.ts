@@ -1,12 +1,8 @@
 import { createButton } from "src/cs/base/browser/ui/button/button";
-import { DropdownMenu } from "src/cs/base/browser/ui/dropdown/dropdown";
 import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { addDisposableListener } from "src/cs/base/browser/dom";
-import {
-  createMenuAction,
-  createMenuItemLabel,
-} from "src/cs/base/browser/ui/menu/menu";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { createSelectBox, type SelectBox } from "src/cs/base/browser/ui/selecbox/selectBox";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
@@ -36,7 +32,7 @@ type TemplateEditorInputName =
   | "yLegendStep"
   | "legendPrefix";
 
-type TemplatePaneId = "x" | "y" | "optional";
+type TemplateSectionId = "x" | "y" | "optional";
 
 export type TemplateEditorViewOptions = {
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
@@ -103,7 +99,7 @@ export class TemplateEditorView {
     state: TemplateEditorViewState,
   ) {
     this.element = document.createElement("div");
-    this.element.className = "template_view_content";
+    this.element.className = "template_editor_view template_view_content";
 
     const form = document.createElement("div");
     form.className = "template_form";
@@ -317,7 +313,7 @@ export class TemplateEditorView {
   private createSection(
     container: HTMLElement,
     title: string | null,
-    paneId?: TemplatePaneId,
+    sectionId?: TemplateSectionId,
   ): HTMLElement {
     const section = document.createElement("section");
     section.className = "template_form_section";
@@ -325,14 +321,14 @@ export class TemplateEditorView {
     const fields = document.createElement("div");
     fields.className = "template_form_grid";
 
-    if (title && paneId) {
-      const sectionPane = this.disposables.add(new TemplateFormSection({
-        collapsed: paneId === "optional",
-        id: `template_form_${paneId}`,
+    if (title && sectionId) {
+      const formSection = this.disposables.add(new TemplateFormSection({
+        collapsed: sectionId === "optional",
+        id: `template_form_${sectionId}`,
         title,
       }));
-      container.append(sectionPane.element);
-      return sectionPane.body;
+      container.append(formSection.element);
+      return formSection.body;
     } else if (title) {
       const heading = document.createElement("h3");
       heading.className = "template_form_section_title";
@@ -402,43 +398,19 @@ export class TemplateEditorView {
     wrapper.append(labelElement);
 
     const field: SelectField<T> = {
-      currentOptions: options,
-      currentValue: value,
-      dropdown: null as unknown as DropdownMenu,
-      label: document.createElement("span"),
+      ariaLabel: label,
       onSelect,
+      select: createSelectBox({
+        ariaLabel: label,
+        className: "template_form_selectbox",
+        onDidSelect: onSelect,
+        options,
+        surfaceClassName: "template_form_selectbox_surface",
+        value,
+      }),
     };
-
-    field.label.className = "template_form_dropdown_label";
-
-    const dropdown = new DropdownMenu(wrapper, {
-      actionProvider: {
-        getActions: () => createDropdownActions({
-          onSelect: field.onSelect,
-          options: field.currentOptions,
-          value: field.currentValue,
-        }),
-      },
-      contextMenuProvider: this.options.contextMenuService,
-      labelRenderer: container => {
-        const content = document.createElement("span");
-        content.className = "template_form_dropdown_button";
-
-        const icon = document.createElement("span");
-        icon.className = "template_form_dropdown_icon";
-        icon.append(createLxIcon({ icon: LxIcon.chevronDown, size: 14 }));
-
-        content.append(field.label, icon);
-        container.replaceChildren(content);
-        container.setAttribute("aria-label", label);
-        return null;
-      },
-      matchAnchorWidth: true,
-      menuClassName: "template_form_dropdown_menu",
-    });
-    dropdown.element.classList.add("template_form_dropdown");
-    field.dropdown = dropdown;
-    this.disposables.add(dropdown);
+    this.disposables.add(field.select);
+    wrapper.append(field.select.domNode);
     container.append(wrapper);
     this.updateDropdownField(field, { options, value });
     return field;
@@ -454,11 +426,14 @@ export class TemplateEditorView {
       options: Array<{ label: string; value: T }>;
     },
   ): void {
-    field.currentOptions = options;
-    field.currentValue = value;
-    const selected = options.find((option) => option.value === value) ?? options[0];
-    field.label.textContent = selected?.label ?? "";
-    field.dropdown.tooltip = selected?.label ?? "";
+    field.select.update({
+      ariaLabel: field.ariaLabel,
+      className: "template_form_selectbox",
+      onDidSelect: field.onSelect,
+      options,
+      surfaceClassName: "template_form_selectbox_surface",
+      value,
+    });
   }
 
   private updateXSegmentationFields(mode: TemplateConfig["xSegmentationMode"]): void {
@@ -476,33 +451,10 @@ export class TemplateEditorView {
   }
 }
 
-const createDropdownActions = <T extends string>({
-  onSelect,
-  options,
-  value,
-}: {
-  readonly onSelect: (value: T) => void;
-  readonly options: Array<{ label: string; value: T }>;
-  readonly value: T;
-}) =>
-  options.map((option) =>
-    createMenuAction({
-      id: `template.select.${option.value}`,
-      label: option.label,
-      left: createMenuItemLabel(option.label),
-      run: () => onSelect(option.value),
-      selected: option.value === value,
-      tabIndex: 0,
-      value: option.value,
-    }),
-  );
-
 type SelectField<T extends string> = {
-  currentOptions: Array<{ label: string; value: T }>;
-  currentValue: T;
-  dropdown: DropdownMenu;
-  label: HTMLElement;
+  ariaLabel: string;
   onSelect: (value: T) => void;
+  select: SelectBox<T>;
 };
 
 class TemplateFormSection {

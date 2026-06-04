@@ -91,19 +91,12 @@
 
 .origin_settings_dropdown {
   height: 30px;
-}
-
-.origin_settings_dropdown > .conductor-dropdown > .dropdown-label {
-  height: 30px;
-}
-
-.origin_settings_dropdown_button {
-  height: 30px;
   padding: 0 10px;
 }
 
-.origin_settings_dropdown_menu {
+.origin_settings_dropdown_surface {
   width: 100%;
+  min-width: 0;
 }
 
 .export_settings_view_textarea {
