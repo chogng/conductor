@@ -1,10 +1,6 @@
 import { localize } from "src/cs/nls";
 
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
-import {
-  getInputBoxFieldClassName,
-  getInputBoxNativeClassName,
-} from "src/cs/base/browser/ui/inputbox/inputBox";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import type {
@@ -37,11 +33,8 @@ import type {
 } from "src/cs/workbench/contrib/export/common/originSelectionExport";
 import { ExportContributionId } from "src/cs/workbench/contrib/export/common/export";
 import { ResultsViewId } from "src/cs/workbench/contrib/chart/common/chart";
-import {
-  DEFAULT_ORIGIN_PLOT_OPTIONS,
-  normalizeOriginPlotOptions,
-  type OriginPlotOptions,
-} from "src/cs/workbench/contrib/origin/common/originPlotOptions";
+import PlotSettingsView from "src/cs/workbench/contrib/origin/browser/PlotSettingsView";
+import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import type { ParametersContribution } from "src/cs/workbench/contrib/parameters/browser/parameters.contribution";
 import { ParametersContributionId } from "src/cs/workbench/contrib/parameters/common/parameters";
 import type { CalculatedParameterRowData } from "src/cs/workbench/contrib/parameters/browser/parametersModel";
@@ -90,9 +83,9 @@ const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
 
 export class ResultsPane extends ViewPane {
   private readonly content = document.createElement("div");
-  private readonly settingsPane = document.createElement("div");
   private readonly exportContribution: ExportContribution;
   private readonly parametersContribution: ParametersContribution;
+  private readonly plotSettingsView = new PlotSettingsView();
   private readonly sidebarPart: SidebarPart;
   private props: ResultsPaneProps;
   private activeView: ResultsPaneView = "export";
@@ -113,7 +106,6 @@ export class ResultsPane extends ViewPane {
     });
     this.props = props;
     this.content.className = "results_pane";
-    this.settingsPane.className = "results_pane_body";
     this.exportContribution = getWorkbenchContribution<ExportContribution>(ExportContributionId);
     this.parametersContribution = getWorkbenchContribution<ParametersContribution>(ParametersContributionId);
     this.exportContribution.element.className = "results_pane_body";
@@ -128,6 +120,7 @@ export class ResultsPane extends ViewPane {
   }
 
   public dispose(): void {
+    this.plotSettingsView.dispose();
     this.sidebarPart.dispose();
     this.content.replaceChildren();
     super.dispose();
@@ -217,7 +210,7 @@ export class ResultsPane extends ViewPane {
       case "settings":
         return this.createPane(
           localize("da_chart_curve_settings_title", "Curve Settings"),
-          this.settingsPane,
+          this.plotSettingsView.element,
           "results_pane_section--fill",
         );
       case "export":
@@ -287,14 +280,10 @@ export class ResultsPane extends ViewPane {
   }
 
   private renderSettingsPane(props: ResultsPaneProps): void {
-    const options = normalizeOriginPlotOptions(
-      props.originOpenPlotOptions,
-      DEFAULT_ORIGIN_PLOT_OPTIONS,
-    );
-    this.settingsPane.replaceChildren(createCurveSettingsView({
+    this.plotSettingsView.update({
       onChange: props.onOriginOpenPlotOptionsChange,
-      options,
-    }));
+      options: props.originOpenPlotOptions,
+    });
   }
 
   private createPane(
@@ -464,99 +453,6 @@ const createEmptyState = (message: string): HTMLElement => {
   root.className = "results_empty";
   root.textContent = message;
   return root;
-};
-
-const createCurveSettingsView = ({
-  onChange,
-  options,
-}: {
-  readonly onChange?: (updates: Partial<OriginPlotOptions>) => void | Promise<void>;
-  readonly options: OriginPlotOptions;
-}): HTMLElement => {
-  const root = document.createElement("div");
-  root.className = "results_settings";
-
-  root.append(
-    createSettingsRow(
-      localize("da_chart_curve_type_label", "Curve type"),
-      createPlotTypeSelect(options, onChange),
-    ),
-    createSettingsRow(
-      localize("da_settings_origin_plot_line_width_label", "Line width"),
-      createLineWidthInput(options, onChange),
-    ),
-  );
-  return root;
-};
-
-const createSettingsRow = (labelText: string, control: HTMLElement): HTMLElement => {
-  const row = document.createElement("div");
-  row.className = "results_settings_row";
-
-  const label = document.createElement("label");
-  label.className = "results_settings_label";
-  label.textContent = labelText;
-  if (control.id) {
-    label.htmlFor = control.id;
-  }
-
-  row.append(label, control);
-  return row;
-};
-
-const createPlotTypeSelect = (
-  options: OriginPlotOptions,
-  onChange: ResultsPaneProps["onOriginOpenPlotOptionsChange"],
-): HTMLSelectElement => {
-  const select = document.createElement("select");
-  select.id = "results-curve-plot-type";
-  select.className = "dropdown-field dropdown-field--sm results_settings_control";
-  select.value = String(options.type);
-  for (const option of [
-    { value: "200", label: localize("da_settings_origin_plot_type_200", "Line") },
-    { value: "201", label: localize("da_settings_origin_plot_type_201", "Scatter") },
-    { value: "202", label: localize("da_settings_origin_plot_type_202", "Line + Symbol") },
-  ]) {
-    const item = document.createElement("option");
-    item.value = option.value;
-    item.textContent = option.label;
-    select.append(item);
-  }
-  select.addEventListener("change", () => {
-    const normalized = normalizeOriginPlotOptions(
-      { type: select.value },
-      options,
-    );
-    void onChange?.({ type: normalized.type });
-  });
-  return select;
-};
-
-const createLineWidthInput = (
-  options: OriginPlotOptions,
-  onChange: ResultsPaneProps["onOriginOpenPlotOptionsChange"],
-): HTMLInputElement => {
-  const input = document.createElement("input");
-  input.id = "results-curve-line-width";
-  input.className = getInputBoxNativeClassName({
-    inputClassName: getInputBoxFieldClassName({
-      fieldClassName: "results_settings_control",
-    }),
-  });
-  input.type = "number";
-  input.min = "0.5";
-  input.max = "20";
-  input.step = "0.5";
-  input.value = String(options.lineWidth);
-  input.addEventListener("change", () => {
-    const normalized = normalizeOriginPlotOptions(
-      { lineWidth: input.value },
-      options,
-    );
-    input.value = String(normalized.lineWidth);
-    void onChange?.({ lineWidth: normalized.lineWidth });
-  });
-  return input;
 };
 
 export default ResultsPane;

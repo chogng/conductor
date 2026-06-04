@@ -1,0 +1,94 @@
+.plot_settings {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+}
+
+.plot_settings_content {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 16px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.plot_settings_group {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.plot_settings_group + .plot_settings_group {
+  border-top: 1px solid rgb(var(--border) / 1);
+  padding-top: 14px;
+}
+
+.plot_settings_group_title {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  color: rgb(var(--text-primary) / 1);
+}
+
+.plot_settings_field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.plot_settings_label {
+  font-size: 12px;
+  line-height: 16px;
+  color: rgb(var(--text-secondary) / 1);
+}
+
+.plot_settings_control {
+  width: 100%;
+}
+
+.plot_settings_input_field {
+  min-height: 30px;
+}
+
+.plot_settings_input {
+  min-width: 0;
+  font-size: 12px;
+}
+
+.plot_settings_control.dropdown-field {
+  height: 30px;
+  padding: 4px 8px;
+}
+
+.plot_settings_textarea {
+  min-height: 92px;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid rgb(var(--border) / 1);
+  border-radius: 6px;
+  background: rgb(var(--bg-surface) / 1);
+  color: rgb(var(--text-primary) / 1);
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  outline: none;
+}
+
+.plot_settings_textarea:focus {
+  border-color: rgb(var(--accent) / 1);
+}
+
+.plot_settings_hint {
+  margin: 0;
+  color: rgb(var(--text-tertiary) / 1);
+  font-size: 11px;
+  line-height: 16px;
+}

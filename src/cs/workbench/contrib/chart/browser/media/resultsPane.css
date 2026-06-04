@@ -7,7 +7,7 @@
 
 .results_sidebar_part > .workbench_sidebar_header .workbench_sidebar_title {
   font-size: 12px;
-  line-height: 1rem;
+  line-height: 16px;
   color: rgb(var(--text-secondary) / 1);
 }
 
@@ -77,33 +77,4 @@
   color: rgb(var(--text-secondary) / 1);
   font-size: 12px;
   line-height: 16px;
-}
-
-.results_settings {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.results_settings_row {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.results_settings_label {
-  font-size: 12px;
-  line-height: 16px;
-  color: rgb(var(--text-secondary) / 1);
-}
-
-.results_settings_control {
-  width: 100%;
-}
-
-.results_settings_control.dropdown-field {
-  height: 30px;
-  padding: 4px 8px;
 }
