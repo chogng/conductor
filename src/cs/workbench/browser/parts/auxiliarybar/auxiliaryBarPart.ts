@@ -3,6 +3,13 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import type { SplitViewPane } from "src/cs/base/browser/ui/splitview/splitview";
 import type { IAction } from "src/cs/base/common/actions";
 import type { IViewPaneContainer } from "src/cs/workbench/common/views";
+import { ActionViewItem, type IActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
+import type { IActionViewItemProvider } from "src/cs/base/browser/ui/actionbar/actionbar";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
+import {
+  isAuxiliaryBarViewSwitchAction,
+  type AuxiliaryBarViewSwitchAction,
+} from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
 
 export const WorkbenchAuxiliaryBarClassName = "workbench_layout_auxiliarybar";
 export const WorkbenchAuxiliaryBarPaneId = "workbench-auxiliarybar";
@@ -16,6 +23,14 @@ export const createAuxiliaryBarPart = (): HTMLDivElement => {
   element.className = WorkbenchAuxiliaryBarClassName;
   return element;
 };
+
+export const createAuxiliaryBarActionViewItem: IActionViewItemProvider = (
+  action,
+  options,
+): IActionViewItem | undefined =>
+  isAuxiliaryBarViewSwitchAction(action)
+    ? new AuxiliaryBarViewSwitchActionViewItem(action, options)
+    : undefined;
 
 export const clampAuxiliaryBarWidth = (width: number): number =>
   Math.max(
@@ -88,5 +103,31 @@ export class WorkbenchAuxiliaryBarPart extends Disposable {
   public updatePaneContainer(input: AuxiliaryBarPaneContainerInput): void {
     input.container.setTitle(input.title);
     input.container.setActions(input.actions);
+  }
+}
+
+class AuxiliaryBarViewSwitchActionViewItem extends ActionViewItem {
+  constructor(
+    action: AuxiliaryBarViewSwitchAction,
+    options: IActionViewItemOptions,
+  ) {
+    super(undefined, action, {
+      ...options,
+      label: false,
+    });
+  }
+
+  protected override updateLabel(): void {
+    super.updateLabel();
+    if (!this.label || !isAuxiliaryBarViewSwitchAction(this.action)) {
+      return;
+    }
+
+    const icon = createLxIcon({
+      className: "auxiliarybar_view_switch_action_icon",
+      icon: this.action.icon,
+      size: 16,
+    });
+    this.label.replaceChildren(icon);
   }
 }

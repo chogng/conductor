@@ -10,10 +10,6 @@
   flex-direction: column;
 }
 
-.template_auxiliarybar_view_pane .template_config_panel {
-  padding-top: 0;
-}
-
 .workbench_layout_shell:not(.workbench_layout_shell--stacked) .template_viewlet--joined_auxiliarybar {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;

@@ -6,6 +6,7 @@ import { Registry } from "src/cs/platform/registry/common/platform";
 import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
 import { Workbench } from "src/cs/workbench/browser/workbench";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
+import { createAuxiliaryBarActionViewItem } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 import { hideWorkbenchSplash } from "src/cs/workbench/contrib/splash/browser/partsSplash";
 import {
   IFileDialogService,
@@ -134,13 +135,15 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
 }
 
 function registerContainer(id: string, title: string, location: ViewContainerLocation): ViewContainer {
+  const isAuxiliaryBar = id === WorkbenchViewContainers.auxiliarybar;
   return viewContainersRegistry.registerViewContainer({
     id,
     title,
     ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [{
+      actionViewItemProvider: isAuxiliaryBar ? createAuxiliaryBarActionViewItem : undefined,
       className: "workbench-part-view-pane-container",
       id,
-      renderHeader: id === WorkbenchViewContainers.auxiliarybar,
+      renderHeader: isAuxiliaryBar,
       title,
     }]),
   }, location, { isDefault: true, doNotRegisterOpenCommand: true });
