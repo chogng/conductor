@@ -21,6 +21,8 @@ import {
   lxSearch as renderSearch,
   lxSettings as renderSettings,
   lxSummary as renderSummary,
+  lxPinned as renderPinned,
+  lxUnpin as renderUnpin,
   lxXlsGreen as renderXlsGreen,
 } from "@chogng/lxicon";
 
@@ -129,6 +131,10 @@ export const lxSettings = registerLxIcon("settings", renderSettings);
 
 export const lxSummary = registerLxIcon("summary", renderSummary);
 
+export const lxPinned = registerLxIcon("pinned", renderPinned);
+
+export const lxUnpin = registerLxIcon("unpin", renderUnpin);
+
 export const LxIcon = {
   add: lxAdd,
   alertCircle: lxAlertCircle,
@@ -157,5 +163,7 @@ export const LxIcon = {
   search: lxSearch,
   settings: lxSettings,
   summary: lxSummary,
+  pinned: lxPinned,
+  unpin: lxUnpin,
   xlsGreen: lxXlsGreen,
 } as const;
