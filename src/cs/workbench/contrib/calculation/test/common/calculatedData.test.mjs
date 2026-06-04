@@ -2,10 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  createMainPlotModel,
-  createMainPlotSeries,
-  getMainPlotYUnitLabel,
-} from "../../browser/mainPlotModel.ts";
+  createCalculatedData,
+  createCalculatedDataByKey,
+  createCalculatedDataKey,
+  createCalculatedSeries,
+  getCalculatedData,
+  getCalculatedYUnitLabel,
+} from "../../common/calculatedData.ts";
 
 const createFile = (overrides = {}) => ({
   fileId: "file-a",
@@ -24,8 +27,8 @@ const createFile = (overrides = {}) => ({
   ...overrides,
 });
 
-test("createMainPlotModel builds drawable IV series for the active file", () => {
-  const model = createMainPlotModel({
+test("createCalculatedData builds drawable IV series for the active file", () => {
+  const model = createCalculatedData({
     activeFileId: "file-b",
     plotType: "iv",
     cleanedData: [
@@ -49,8 +52,8 @@ test("createMainPlotModel builds drawable IV series for the active file", () => 
   );
 });
 
-test("createMainPlotSeries derives GM points from IV source points", () => {
-  const series = createMainPlotSeries(createFile(), "gm");
+test("createCalculatedSeries derives GM points from IV source points", () => {
+  const series = createCalculatedSeries(createFile(), "gm");
 
   assert.equal(series.length, 1);
   assert.deepEqual(
@@ -59,8 +62,8 @@ test("createMainPlotSeries derives GM points from IV source points", () => {
   );
 });
 
-test("createMainPlotSeries keeps curves without explicit ids", () => {
-  const series = createMainPlotSeries(
+test("createCalculatedSeries keeps curves without explicit ids", () => {
+  const series = createCalculatedSeries(
     createFile({
       fileId: "file-c",
       series: [
@@ -84,8 +87,8 @@ test("createMainPlotSeries keeps curves without explicit ids", () => {
   );
 });
 
-test("createMainPlotSeries reads array-like y values like thumbnails", () => {
-  const series = createMainPlotSeries(
+test("createCalculatedSeries reads array-like y values like thumbnails", () => {
+  const series = createCalculatedSeries(
     createFile({
       xGroups: [Float64Array.from([0, 1, 2])],
       series: [
@@ -107,8 +110,8 @@ test("createMainPlotSeries reads array-like y values like thumbnails", () => {
   );
 });
 
-test("createMainPlotSeries derives VTH sqrt current points", () => {
-  const series = createMainPlotSeries(
+test("createCalculatedSeries derives VTH sqrt current points", () => {
+  const series = createCalculatedSeries(
     createFile({
       series: [{ id: "series-a", groupIndex: 0, y: [-4, 0, 9] }],
     }),
@@ -119,11 +122,11 @@ test("createMainPlotSeries derives VTH sqrt current points", () => {
     series[0].data.map((point) => point.y),
     [2, 0, 3],
   );
-  assert.equal(getMainPlotYUnitLabel("vth", createFile()), "sqrt(|I|)");
+  assert.equal(getCalculatedYUnitLabel("vth", createFile()), "sqrt(|I|)");
 });
 
-test("createMainPlotModel falls back to an empty drawable domain", () => {
-  const model = createMainPlotModel({
+test("createCalculatedData falls back to an empty drawable domain", () => {
+  const model = createCalculatedData({
     activeFileId: "missing",
     plotType: "iv",
     cleanedData: [
@@ -137,4 +140,33 @@ test("createMainPlotModel falls back to an empty drawable domain", () => {
   assert.equal(model.seriesList.length, 0);
   assert.deepEqual(model.xDomain, [0, 1]);
   assert.deepEqual(model.yDomain, [0, 1]);
+});
+
+test("createCalculatedDataByKey stores each file and plot type in session-friendly keys", () => {
+  const byKey = createCalculatedDataByKey([
+    createFile(),
+    createFile({ fileId: "file-b" }),
+  ]);
+
+  assert.equal(
+    getCalculatedData(byKey, "gm", "file-b")?.activeFile?.fileId,
+    "file-b",
+  );
+  assert.deepEqual(
+    getCalculatedData(byKey, "vth", "file-a")?.seriesList[0].data.map((point) => point.y),
+    [1, Math.SQRT2, 2],
+  );
+  assert.equal(
+    byKey[createCalculatedDataKey({ fileId: "file-a", plotType: "ss" })]?.activeFile?.fileId,
+    "file-a",
+  );
+});
+
+test("getCalculatedData falls back to the first file for a plot type", () => {
+  const byKey = createCalculatedDataByKey([
+    createFile(),
+    createFile({ fileId: "file-b" }),
+  ]);
+
+  assert.equal(getCalculatedData(byKey, "iv")?.activeFile?.fileId, "file-a");
 });

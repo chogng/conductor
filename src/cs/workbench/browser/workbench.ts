@@ -806,6 +806,7 @@ export class Workbench extends Layout {
     return {
       activeFileId: this.getActiveAnalysisFileId(snapshot),
       onActiveFileIdChange: this.handleAnalysisFileSelected,
+      calculatedDataByKey: snapshot.calculatedDataByKey,
       cleanedData: snapshot.cleanedData,
       onPlotAxisSettingsChange: this.updatePlotAxisSettings,
       onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,
@@ -820,6 +821,7 @@ export class Workbench extends Layout {
   private getAuxiliaryBarViewInput(snapshot = this.session.getSnapshot()) {
     return {
       activeFileId: this.getActiveAnalysisFileId(snapshot),
+      calculatedDataByKey: snapshot.calculatedDataByKey,
       cleanedData: snapshot.cleanedData,
       onPlotAxisSettingsChange: this.updatePlotAxisSettings,
       onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,

@@ -5,6 +5,10 @@ import {
   createMainPlotLocatorView,
   createMainPlotView,
 } from "src/cs/workbench/contrib/plot/browser/mainPlotView";
+import {
+  getCalculatedData,
+  type CalculatedDataByKey,
+} from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import { createEmptyView } from "src/cs/workbench/contrib/chart/browser/views/emptyView";
@@ -30,6 +34,7 @@ export type ChartViewProps = {
   visiblePanes?: readonly ChartPane[];
   activePlotType?: PlotType;
   cleanedData: CleanedEntry[];
+  calculatedDataByKey?: CalculatedDataByKey;
   processingStatus?: Partial<ProcessingStatus>;
   activeFileId?: string | null;
   ionIoffMethod?: IonIoffMethod;
@@ -59,6 +64,7 @@ export type ChartViewProps = {
 export const createChartView = (props: ChartViewProps): HTMLElement => {
   const {
     activePlotType = "iv",
+    calculatedDataByKey,
     cleanedData = [],
     processingStatus,
     activeFileId: controlledActiveFileId = undefined,
@@ -80,9 +86,21 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
     return root;
   }
 
+  const calculatedData = getCalculatedData(
+    calculatedDataByKey,
+    activePlotType,
+    controlledActiveFileId,
+  );
+  if (!calculatedData) {
+    root.append(createEmptyView({
+      hint: localize("analysis_calculation_hint", "Preparing chart calculations, please wait."),
+      title: localize("analysis_calculation", "Calculating chart data..."),
+    }));
+    return root;
+  }
+
   const plotView = createMainPlotView({
-    activeFileId: controlledActiveFileId,
-    cleanedData,
+    model: calculatedData,
     originOpenPlotOptions: props.originOpenPlotOptions,
     plotAxisSettings: props.plotAxisSettings,
     plotType: activePlotType,

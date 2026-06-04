@@ -1,8 +1,8 @@
 ﻿import { localize } from "src/cs/nls";
-import type { MainPlotModel } from "src/cs/workbench/contrib/plot/browser/mainPlotModel";
+import type { MainPlotRenderModel } from "src/cs/workbench/contrib/plot/browser/mainPlotRenderModel";
 
 export const createMainPlotLocatorView = (
-  model: MainPlotModel,
+  model: MainPlotRenderModel,
 ): HTMLElement => {
   const section = document.createElement("section");
   section.className = "main_plot_locator_pane";

@@ -1,7 +1,7 @@
 ﻿import { createSwitch } from "src/cs/base/browser/ui/switch/switch";
 import { localize } from "src/cs/nls";
 import CanvasDiagnosticsChart from "src/cs/workbench/contrib/diagnostics/browser/CanvasDiagnosticsChart";
-import type { MainPlotModel } from "src/cs/workbench/contrib/plot/browser/mainPlotModel";
+import type { MainPlotRenderModel } from "src/cs/workbench/contrib/plot/browser/mainPlotRenderModel";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 
 type DiagnosticsState = {
@@ -25,7 +25,7 @@ export const createMainPlotInspectorView = ({
   props,
 }: {
   readonly plotType: PlotType;
-  readonly model: MainPlotModel;
+  readonly model: MainPlotRenderModel;
   readonly props: MainPlotInspectorProps;
 }): HTMLElement => {
   const diagnostics = getDiagnosticsState(plotType, props);
@@ -53,7 +53,6 @@ export const createMainPlotInspectorView = ({
     content.append(CanvasDiagnosticsChart({
       ariaLabel: diagnostics.label,
       series: model.seriesList.map((series) => ({
-        color: series.color,
         data: series.data,
         id: series.id,
         lineName: series.name,

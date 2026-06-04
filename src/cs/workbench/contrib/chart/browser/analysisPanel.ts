@@ -17,6 +17,7 @@ import type {
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
+import type { CalculatedDataByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type {
   IonIoffManualTargetsByFileId,
   IonIoffMethod,
@@ -32,6 +33,7 @@ export type ChartViewLazyProps = {
   visiblePanes?: readonly ChartPane[];
   activePlotType?: PlotType;
   cleanedData: CleanedEntry[];
+  calculatedDataByKey?: CalculatedDataByKey;
   processingStatus?: Partial<ProcessingStatus>;
   activeFileId?: string | null;
   ionIoffMethod?: IonIoffMethod;

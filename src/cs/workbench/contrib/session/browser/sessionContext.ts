@@ -5,6 +5,7 @@ import type {
   CleanedEntry,
   SessionFile,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { CalculatedDataByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 
 export type MutableState<T> = {
   current: T;
@@ -74,6 +75,8 @@ export type SessionContextValue = {
   setSelectedPreviewSheetId: StateSetter<string | null>;
   cleanedData: CleanedEntry[];
   setCleanedData: StateSetter<CleanedEntry[]>;
+  calculatedDataByKey: CalculatedDataByKey;
+  setCalculatedDataByKey: StateSetter<CalculatedDataByKey>;
   analysisResults: AnalysisResultsByFileId;
   setAnalysisResults: StateSetter<AnalysisResultsByFileId>;
   templateMode: TemplateMode;

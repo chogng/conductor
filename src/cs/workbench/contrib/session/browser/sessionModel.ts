@@ -5,6 +5,7 @@ import type {
   CleanedEntry,
   SessionFile,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { CalculatedDataByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type {
   IonIoffManualTargetsByFileId,
   IonIoffMethod,
@@ -23,6 +24,7 @@ type SessionSnapshot = {
   readonly selectedPreviewFileId: string | null;
   readonly selectedPreviewSheetId: string | null;
   readonly cleanedData: CleanedEntry[];
+  readonly calculatedDataByKey: CalculatedDataByKey;
   readonly analysisResults: AnalysisResultsByFileId;
   readonly templateMode: TemplateMode;
   readonly selectedTemplateId: string | null;
@@ -77,6 +79,7 @@ export class SessionModel {
     selectedPreviewFileId: null,
     selectedPreviewSheetId: null,
     cleanedData: [],
+    calculatedDataByKey: {},
     analysisResults: {},
     templateMode: "select",
     selectedTemplateId: null,
@@ -116,6 +119,8 @@ export class SessionModel {
     this.update("selectedPreviewSheetId", value);
   readonly setCleanedData: StateSetter<CleanedEntry[]> = (value) =>
     this.update("cleanedData", value);
+  readonly setCalculatedDataByKey: StateSetter<CalculatedDataByKey> = (value) =>
+    this.update("calculatedDataByKey", value);
   readonly setAnalysisResults: StateSetter<AnalysisResultsByFileId> = (value) =>
     this.update("analysisResults", value);
   readonly setTemplateMode: StateSetter<TemplateMode> = (value) =>
@@ -161,6 +166,7 @@ export class SessionModel {
       setSelectedPreviewFileId: this.setSelectedPreviewFileId,
       setSelectedPreviewSheetId: this.setSelectedPreviewSheetId,
       setCleanedData: this.setCleanedData,
+      setCalculatedDataByKey: this.setCalculatedDataByKey,
       setAnalysisResults: this.setAnalysisResults,
       setTemplateMode: this.setTemplateMode,
       setSelectedTemplateId: this.setSelectedTemplateId,

@@ -8,16 +8,11 @@ import {
   type PlotAxisSettings,
 } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import { createMainPlotCanvas } from "src/cs/workbench/contrib/plot/browser/mainPlotCanvas";
-import {
-  createMainPlotModel,
-  type MainPlotModel,
-} from "src/cs/workbench/contrib/plot/browser/mainPlotModel";
+import type { MainPlotRenderModel } from "src/cs/workbench/contrib/plot/browser/mainPlotRenderModel";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
-import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
 export type MainPlotViewProps = {
-  readonly activeFileId?: string | null;
-  readonly cleanedData: readonly CleanedEntry[];
+  readonly model: MainPlotRenderModel;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly plotType: PlotType;
@@ -25,12 +20,11 @@ export type MainPlotViewProps = {
 
 export type MainPlotView = {
   readonly element: HTMLElement;
-  readonly model: MainPlotModel;
+  readonly model: MainPlotRenderModel;
 };
 
 export const createMainPlotView = ({
-  activeFileId,
-  cleanedData,
+  model,
   originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS,
   plotAxisSettings,
   plotType,
@@ -39,12 +33,6 @@ export const createMainPlotView = ({
     plotAxisSettings,
     DEFAULT_PLOT_AXIS_SETTINGS,
   );
-  const model = createMainPlotModel({
-    activeFileId,
-    cleanedData,
-    plotType,
-  });
-
   return {
     element: createMainPlotCanvas({
       activeFile: model.activeFile,
