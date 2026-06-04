@@ -30,9 +30,9 @@
 }
 
 .workbench_layout_auxiliarybar .workbench-view-pane-container__actions .auxiliarybar_view_switch_action {
-  width: 26px;
-  height: 26px;
-  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   padding: 0;
   color: rgb(var(--text-secondary) / 1);
   cursor: pointer;

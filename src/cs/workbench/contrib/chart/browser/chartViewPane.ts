@@ -2,7 +2,8 @@ import AnalysisPanel, {
   type AnalysisPanelProps,
 } from "src/cs/workbench/contrib/chart/browser/analysisPanel";
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
-import { createButton } from "src/cs/base/browser/ui/button/button";
+import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
+import { ActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
   getTabsButtonClassName,
@@ -12,6 +13,7 @@ import {
   type NormalizedTabOption,
   type TabOptionBase,
 } from "src/cs/base/browser/ui/tab/tab";
+import { toAction, type IAction } from "src/cs/base/common/actions";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
@@ -19,7 +21,7 @@ import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import type { LxIconDefinition } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { ChartViewId } from "src/cs/workbench/contrib/chart/common/chart";
-import type { ChartAuxiliaryPane, ChartPane } from "src/cs/workbench/contrib/chart/browser/chartView";
+import type { ChartAuxiliaryPane, ChartPane } from "src/cs/workbench/contrib/chart/browser/views/chartView";
 import { isPlotType, PlotTypes, type PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
@@ -32,6 +34,8 @@ type ChartPlotTabOption = TabOptionBase & {
 
 const CHART_PLOT_ID_BASE = "chart-view-plot";
 const CHART_PLOT_PANEL_ID_BASE = "chart-view-plot-panel";
+const CHART_LOCATOR_ACTION_ID = "chart.header.locator";
+const CHART_INSPECTOR_ACTION_ID = "chart.header.inspector";
 type PaneVisibilityMode = "single" | "multiple";
 
 export class ChartViewPane extends ViewPane {
@@ -110,7 +114,7 @@ export class ChartViewPane extends ViewPane {
       store: this.headerStore,
     }));
 
-    this.headerActions.append(this.createAuxiliaryPaneActions(props));
+    this.headerActions.append(this.createAuxiliaryPaneActions());
 
     if (activeFile && props.showFileSelect !== false) {
       this.headerActions.append(createFileSelect(props, activeFile, this.headerStore));
@@ -142,51 +146,55 @@ export class ChartViewPane extends ViewPane {
     this.analysisPanel.element.setAttribute("aria-labelledby", getPlotTabId(this.activePlotType));
   }
 
-  private createAuxiliaryPaneActions(props: AnalysisPanelProps): HTMLElement {
-    const root = document.createElement("div");
-    root.className = "chart_view_auxiliary_actions";
-    root.setAttribute("role", "toolbar");
-    root.setAttribute("aria-label", localize("chart_detail_actions", "Chart detail views"));
-    root.append(
+  private createAuxiliaryPaneActions(): HTMLElement {
+    const actionBar = new ActionBar({
+      ariaLabel: localize("chart_detail_actions", "Chart detail views"),
+      actionViewItemProvider: (action, options) => new AuxiliaryPaneActionViewItem(
+        action,
+        getAuxiliaryPaneActionIcon(action.id),
+        options,
+      ),
+      className: "chart_view_auxiliary_actions",
+      contentClassName: "chart_view_auxiliary_action_items",
+    });
+    this.headerStore.add(actionBar);
+    actionBar.push([
       this.createAuxiliaryPaneAction({
-        icon: LxIcon.search,
+        id: CHART_LOCATOR_ACTION_ID,
         label: localize("chart_locator_heading", "Locator"),
         pane: "locator",
       }),
       this.createAuxiliaryPaneAction({
-        icon: LxIcon.diagnostics,
+        id: CHART_INSPECTOR_ACTION_ID,
         label: localize("chart_diagnostics_heading", "Diagnostics"),
         pane: "inspector",
       }),
-    );
-    return root;
+    ], {
+      className: "chart_view_header_icon_btn",
+      label: false,
+    });
+    return actionBar.domNode;
   }
 
   private createAuxiliaryPaneAction({
-    icon,
+    id,
     label,
     pane,
   }: {
-    readonly icon: LxIconDefinition;
+    readonly id: string;
     readonly label: string;
     readonly pane: ChartAuxiliaryPane;
-  }): HTMLButtonElement {
+  }): IAction {
     const isActive = this.visibleAuxiliaryPanes.includes(pane);
-    const button = createButton({
-      ariaLabel: label,
-      className: isActive
-        ? "chart_view_header_icon_btn chart_view_header_icon_btn--active"
-        : "chart_view_header_icon_btn",
-      content: createLxIcon({ icon, size: 16 }),
-      size: "iconSm",
-      title: label,
-      variant: "ghost",
+    return toAction({
+      checked: isActive,
+      id,
+      label,
+      tooltip: label,
+      run: () => {
+        this.toggleAuxiliaryPane(pane);
+      },
     });
-    button.setAttribute("aria-pressed", isActive ? "true" : "false");
-    this.headerStore.add(addDisposableListener(button, EventType.CLICK, () => {
-      this.toggleAuxiliaryPane(pane);
-    }));
-    return button;
   }
 
   private toggleAuxiliaryPane(pane: ChartAuxiliaryPane): void {
@@ -204,6 +212,27 @@ export class ChartViewPane extends ViewPane {
     this.updateAnalysisPanel(this.props);
   }
 }
+
+class AuxiliaryPaneActionViewItem extends ActionViewItem {
+  constructor(
+    action: IAction,
+    private readonly icon: LxIconDefinition,
+    options: IActionViewItemOptions,
+  ) {
+    super(undefined, action, options);
+  }
+
+  protected override updateLabel(): void {
+    if (!this.label) {
+      return;
+    }
+
+    this.label.replaceChildren(createLxIcon({ icon: this.icon, size: 16 }));
+  }
+}
+
+const getAuxiliaryPaneActionIcon = (actionId: string): LxIconDefinition =>
+  actionId === CHART_INSPECTOR_ACTION_ID ? LxIcon.diagnostics : LxIcon.search;
 
 const resolveActiveFile = ({
   activeFileId,

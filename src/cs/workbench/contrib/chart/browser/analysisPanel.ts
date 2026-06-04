@@ -24,7 +24,7 @@ import type {
   SsMethod,
 } from "src/cs/workbench/contrib/session/browser/sessionContext";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
-import { createChartView, type ChartPane } from "src/cs/workbench/contrib/chart/browser/chartView";
+import { createChartView, type ChartPane } from "src/cs/workbench/contrib/chart/browser/views/chartView";
 
 type StateSetter<T> = (next: T | ((previous: T) => T)) => void;
 

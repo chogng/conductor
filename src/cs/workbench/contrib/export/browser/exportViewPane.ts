@@ -76,12 +76,9 @@ export class ExportViewPane extends ViewPane {
     }));
   }
 
-  renderEmpty(message: string): void {
+  renderEmpty(_message: string): void {
     this.toolbarStore.clear();
-    const root = document.createElement("div");
-    root.className = "workbench-view-pane__empty";
-    root.textContent = message;
-    this.content.replaceChildren(root);
+    this.content.replaceChildren();
   }
 
   public override dispose(): void {

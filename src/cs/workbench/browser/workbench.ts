@@ -568,14 +568,15 @@ export class Workbench extends Layout {
       return;
     }
 
-    if (!activeFile) {
-      view.renderEmpty(localize("no_processed_data", "No Processed Data"));
-      return;
+    if (activeFile) {
+      this.syncCurveSelection(activeFile);
+    } else {
+      this.selectedCurveKeys = new Set();
     }
 
-    this.syncCurveSelection(activeFile);
+    const curveOptions = activeFile ? createOriginCurveOptions(activeFile) : [];
     view.render({
-      curveOptions: createOriginCurveOptions(activeFile),
+      curveOptions,
       hasMixedExportYScales: false,
       mode: this.originMode,
       onExportOriginZip: () => undefined,
@@ -596,7 +597,7 @@ export class Workbench extends Layout {
         matchedSeriesCount: 0,
       }),
       resolvedCurveExportMode: this.curveMode,
-      scopedFileIds: activeFile.fileId ? [activeFile.fileId] : [],
+      scopedFileIds: activeFile?.fileId ? [activeFile.fileId] : [],
       selectedContentKeys: this.selectedContentKeys,
       selectedCurveOptionKeySet: this.selectedCurveKeys,
       setContentKeys: (next) => {
@@ -628,15 +629,10 @@ export class Workbench extends Layout {
       return;
     }
 
-    if (!activeFile) {
-      view.renderEmpty(localize("no_processed_data", "No Processed Data"));
-      return;
-    }
-
     view.renderParameters({
       gmMetricHeader: "gm",
-      rows: createParameterRows(activeFile),
-      showTransferMetrics: isTransferLikeFile(activeFile),
+      rows: activeFile ? createParameterRows(activeFile) : [],
+      showTransferMetrics: activeFile ? isTransferLikeFile(activeFile) : false,
     });
   }
 

@@ -3,10 +3,10 @@ export type EmptyViewOptions = {
   readonly title: string;
 };
 
-const createMessage = ({
+export const createEmptyView = ({
   hint,
   title,
-}: Pick<EmptyViewOptions, "hint" | "title">): HTMLDivElement => {
+}: EmptyViewOptions): HTMLDivElement => {
   const message = document.createElement("div");
   message.className = "chart_view_empty";
 
@@ -23,8 +23,4 @@ const createMessage = ({
   }
 
   return message;
-};
-
-export const createEmptyView = (options: EmptyViewOptions): HTMLDivElement => {
-  return createMessage(options);
 };
