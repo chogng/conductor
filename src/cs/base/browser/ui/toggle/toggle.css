@@ -1,0 +1,99 @@
+.ui-toggle {
+  --toggle-bg: transparent;
+  --toggle-bg-hover: rgb(var(--bg-surface-hover) / 0.8);
+  --toggle-bg-checked: rgb(var(--bg-primary) / 0.1);
+  --toggle-bg-checked-hover: rgb(var(--bg-primary) / 0.14);
+  --toggle-border: rgb(var(--border-200) / 1);
+  --toggle-border-checked: rgb(var(--bg-primary) / 0.42);
+  --toggle-color: rgb(var(--text-secondary) / 1);
+  --toggle-color-checked: rgb(var(--text-primary) / 1);
+
+  position: relative;
+  display: inline-flex;
+  min-width: 0px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 1px solid var(--toggle-border);
+  border-radius: 6px;
+  padding: 0px 10px;
+  color: var(--toggle-color);
+  background: var(--toggle-bg);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    border-color 120ms ease,
+    opacity 120ms ease;
+}
+
+.ui-toggle--sm {
+  height: 28px;
+  padding: 0px 8px;
+}
+
+.ui-toggle--md {
+  height: 32px;
+}
+
+.ui-toggle:not(:disabled):hover {
+  background: var(--toggle-bg-hover);
+}
+
+.ui-toggle[data-state="checked"] {
+  color: var(--toggle-color-checked);
+  background: var(--toggle-bg-checked);
+  border-color: var(--toggle-border-checked);
+}
+
+.ui-toggle[data-state="checked"]:not(:disabled):hover {
+  background: var(--toggle-bg-checked-hover);
+}
+
+.ui-toggle:focus,
+.ui-toggle:focus-visible {
+  outline: none;
+}
+
+.ui-toggle::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    border-color 120ms ease,
+    opacity 120ms ease;
+}
+
+html[data-nav="keyboard"] .ui-toggle:focus-visible::after {
+  border-color: rgb(var(--accent-terracotta) / 0.5);
+  opacity: 1;
+}
+
+.ui-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.ui-toggle__content {
+  display: inline-flex;
+  min-width: 0px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-toggle,
+  .ui-toggle::after {
+    transition: none;
+  }
+}
