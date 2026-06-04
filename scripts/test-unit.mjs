@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+﻿import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -8,7 +8,8 @@ const outRoot = path.join(workspace, "out-test");
 const outSrcRoot = path.join(outRoot, "src");
 
 const sourceTests = [
-  "src/cs/base/common/uri.test.mjs",
+  "src/cs/base/common/test/uri.test.mjs",
+  "src/cs/base/common/test/path.test.mjs",
   "src/cs/workbench/contrib/table/browser/tableService.test.mjs",
   "src/cs/workbench/contrib/table/browser/rows/rowChunk.test.mjs",
   "src/cs/workbench/contrib/table/browser/rows/selectionNavigation.test.mjs",
@@ -25,17 +26,17 @@ const sourceTests = [
   "src/cs/workbench/browser/layout.test.mjs",
   "src/cs/workbench/services/analysisFile/test/importFileAssessment.test.mjs",
   "src/cs/workbench/services/analysisFile/test/fileAssessment.test.mjs",
-  "src/cs/workbench/contrib/plot/common/units.test.mjs",
-  "src/cs/workbench/contrib/plot/browser/chartModel.test.mjs",
-  "src/cs/workbench/contrib/plot/browser/chartView.test.mjs",
-  "src/cs/workbench/contrib/plot/browser/mainPlotModel.test.mjs",
+  "src/cs/workbench/contrib/plot/test/common/units.test.mjs",
+  "src/cs/workbench/contrib/plot/test/browser/plotModel.test.mjs",
+  "src/cs/workbench/contrib/plot/test/browser/chartView.test.mjs",
+  "src/cs/workbench/contrib/plot/test/browser/mainPlotModel.test.mjs",
   "src/cs/workbench/contrib/diagnostics/common/metrics.test.mjs",
   "src/cs/workbench/contrib/diagnostics/common/analysisMath.test.mjs",
   "src/cs/workbench/contrib/diagnostics/common/vth.test.mjs",
   "src/cs/workbench/contrib/parameters/browser/parametersModel.test.mjs",
   "src/cs/workbench/contrib/parameters/browser/parametersController.test.mjs",
   "src/cs/workbench/contrib/parameters/browser/rcAnalysisModel.test.mjs",
-  "src/cs/workbench/contrib/plot/browser/canvasPlot.test.mjs",
+  "src/cs/workbench/contrib/plot/test/browser/canvasPlot.test.mjs",
   "src/cs/workbench/contrib/export/browser/exportModel.test.mjs",
   "src/cs/workbench/contrib/export/browser/export.test.mjs",
 ];

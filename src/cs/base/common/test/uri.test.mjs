@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { MarshalledId } from "./marshallingIds.ts";
-import { URI } from "./uri.ts";
+import { MarshalledId } from "../marshallingIds.ts";
+import { URI } from "../uri.ts";
 import {
   DefaultURITransformer,
   transformAndReviveIncomingURIs,
   transformOutgoingURIs,
-} from "./uriIpc.ts";
-import { createURITransformer } from "./uriTransformer.ts";
+} from "../uriIpc.ts";
+import { createURITransformer } from "../uriTransformer.ts";
 
 test("joinPath keeps file names as file-system paths", () => {
   const root = URI.file("C:\\Users\\lanxi\\Desktop\\293K");
