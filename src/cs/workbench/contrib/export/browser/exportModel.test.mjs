@@ -45,7 +45,7 @@ test("getCanvasScopeSummary formats each canvas scope", () => {
       originFilteredCanvasKind: "transfer",
       selectedCanvasCount: 1,
     }),
-    "da_origin_canvas_scope_summary_current",
+    "origin_canvas_scope_summary_current",
   );
   assert.equal(
     getCanvasScopeSummary({
@@ -53,7 +53,7 @@ test("getCanvasScopeSummary formats each canvas scope", () => {
       originFilteredCanvasKind: "output",
       selectedCanvasCount: 3,
     }),
-    'da_origin_canvas_scope_summary_filtered:{"count":3,"kind":"da_origin_filtered_canvas_kind_output"}',
+    'origin_canvas_scope_summary_filtered:{"count":3,"kind":"origin_filtered_canvas_kind_output"}',
   );
   assert.equal(
     getCanvasScopeSummary({
@@ -61,7 +61,7 @@ test("getCanvasScopeSummary formats each canvas scope", () => {
       originFilteredCanvasKind: "transfer",
       selectedCanvasCount: 5,
     }),
-    'da_origin_canvas_scope_summary_all:{"count":5}',
+    'origin_canvas_scope_summary_all:{"count":5}',
   );
   assert.equal(
     getCanvasScopeSummary({
@@ -69,7 +69,7 @@ test("getCanvasScopeSummary formats each canvas scope", () => {
       originFilteredCanvasKind: "transfer",
       selectedCanvasCount: 2,
     }),
-    'da_origin_canvas_scope_summary_selected:{"count":2}',
+    'origin_canvas_scope_summary_selected:{"count":2}',
   );
 });
 
@@ -81,7 +81,7 @@ test("getExportSelectionSummary uses collection summary for merged export", () =
       selectedOriginSeriesTotalCount: 7,
       separateCanvasScopeSummary: "separate",
     }),
-    'da_origin_collection_summary:{"curves":7,"files":2}',
+    'origin_collection_summary:{"curves":7,"files":2}',
   );
 
   assert.equal(

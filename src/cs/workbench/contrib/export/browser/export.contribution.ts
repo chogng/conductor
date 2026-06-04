@@ -17,7 +17,7 @@ const container = viewContainersRegistry.get(WorkbenchViewContainers.auxiliaryba
 if (container) {
   viewsRegistry.registerViews([{
     id: ExportViewId,
-    name: localize("da_analysis_views_export", "Export"),
+    name: localize("analysis_views_export", "Export"),
     ctorDescriptor: new SyncDescriptor(ExportView),
     hideByDefault: true,
     order: 10,

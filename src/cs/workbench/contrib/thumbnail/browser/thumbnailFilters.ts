@@ -55,7 +55,7 @@ export const createThumbnailFieldFilterOptions = <T extends ThumbnailFileForView
 
     seen.add(meta.key);
     options.push({
-      label: `${localize("da_match_mode_field", "Field match")}: ${meta.label}`,
+      label: `${localize("match_mode_field", "Field match")}: ${meta.label}`,
       value: meta.key,
     });
   }

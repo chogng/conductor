@@ -1,4 +1,4 @@
-﻿/* Origin 导出时的绘图/轴/命令设置 */
+/* Origin 导出时的绘图/轴/命令设置 */
 
 import { localize } from "src/cs/nls";
 
@@ -39,7 +39,7 @@ export class ExportSettingsView extends ViewPane {
   constructor() {
     super({
       id: OriginExportSettingsViewId,
-      title: localize("da_chart_curve_settings_title", "Curve Settings"),
+      title: localize("chart_curve_settings_title", "Curve Settings"),
       className: "auxiliarybar_view_pane export_settings_view",
       bodyClassName: "workbench-part-view-pane__body",
       headerVisible: false,
@@ -94,24 +94,24 @@ const createExportSettingsView = ({
   root.className = "export_settings_view_content";
 
   root.append(
-    createSettingsGroup(localize("da_chart_curve_settings_title", "Curve Settings"), [
+    createSettingsGroup(localize("chart_curve_settings_title", "Curve Settings"), [
       createSettingsField({
         control: createPlotTypeSelect(options, onChange, store),
-        label: localize("da_chart_curve_type_label", "Curve type"),
+        label: localize("chart_curve_type_label", "Curve type"),
       }),
       createSettingsField({
         control: createLineWidthInput(options, onChange, store),
-        label: localize("da_settings_origin_plot_line_width_label", "Line width"),
+        label: localize("settings_origin_plot_line_width_label", "Line width"),
       }),
     ]),
-    createSettingsGroup(localize("da_origin_export_settings_plot_title", "Plot Settings"), [
+    createSettingsGroup(localize("origin_export_settings_plot_title", "Plot Settings"), [
       createSettingsRow({
         control: createBooleanSwitch({
           checked: axisSettings.showGrid,
           onChange: (checked) => void onAxisChange?.({ showGrid: checked }),
           store,
         }),
-        label: localize("da_chart_axis_grid_lines", "Grid lines"),
+        label: localize("chart_axis_grid_lines", "Grid lines"),
       }),
       createSettingsRow({
         control: createBooleanSwitch({
@@ -119,7 +119,7 @@ const createExportSettingsView = ({
           onChange: (checked) => void onAxisChange?.({ showMajorTicks: checked }),
           store,
         }),
-        label: localize("da_chart_axis_major_ticks", "Major tick marks"),
+        label: localize("chart_axis_major_ticks", "Major tick marks"),
       }),
       createSettingsRow({
         control: createBooleanSwitch({
@@ -127,7 +127,7 @@ const createExportSettingsView = ({
           onChange: (checked) => void onAxisChange?.({ showMinorTicks: checked }),
           store,
         }),
-        label: localize("da_chart_axis_minor_ticks", "Minor ticks"),
+        label: localize("chart_axis_minor_ticks", "Minor ticks"),
       }),
       createSettingsField({
         control: createAxisTextInput({
@@ -137,62 +137,62 @@ const createExportSettingsView = ({
           store,
           value: axisSettings.minorTickCount,
         }),
-        label: localize("da_chart_axis_minor_tick_count", "Minor tick count"),
+        label: localize("chart_axis_minor_tick_count", "Minor tick count"),
       }),
       createSettingsField({
         control: createAxisTextInput({
           id: "export-settings-tick-label-font-size",
           onChange: (value) => void onAxisChange?.({ tickLabelFontSize: value }),
-          placeholder: localize("da_chart_axis_auto", "auto"),
+          placeholder: localize("chart_axis_auto", "auto"),
           store,
           value: axisSettings.tickLabelFontSize,
         }),
-        label: localize("da_chart_tick_label_font_size", "Tick label size"),
+        label: localize("chart_tick_label_font_size", "Tick label size"),
       }),
       createSettingsField({
         control: createAxisTextInput({
           id: "export-settings-axis-title-font-size",
           onChange: (value) => void onAxisChange?.({ axisTitleFontSize: value }),
-          placeholder: localize("da_chart_axis_auto", "auto"),
+          placeholder: localize("chart_axis_auto", "auto"),
           store,
           value: axisSettings.axisTitleFontSize,
         }),
-        label: localize("da_chart_axis_title_font_size", "Title size"),
+        label: localize("chart_axis_title_font_size", "Title size"),
       }),
       createSettingsField({
         control: createAxisTextInput({
           id: "export-settings-legend-font-size",
           onChange: (value) => void onAxisChange?.({ legendFontSize: value }),
-          placeholder: localize("da_chart_axis_auto", "auto"),
+          placeholder: localize("chart_axis_auto", "auto"),
           store,
           value: axisSettings.legendFontSize,
         }),
-        label: localize("da_chart_legend_font_size", "Legend size"),
+        label: localize("chart_legend_font_size", "Legend size"),
       }),
       createSettingsField({
         control: createAxisTextInput({
           id: "export-settings-tick-label-offset",
           onChange: (value) => void onAxisChange?.({ originTickLabelOffset: value }),
-          placeholder: localize("da_chart_axis_auto", "auto"),
+          placeholder: localize("chart_axis_auto", "auto"),
           store,
           value: axisSettings.originTickLabelOffset,
         }),
-        label: localize("da_chart_axis_tick_label_offset", "Tick label offset"),
+        label: localize("chart_axis_tick_label_offset", "Tick label offset"),
       }),
       createSettingsField({
         control: createAxisTextInput({
           id: "export-settings-axis-title-gap",
           onChange: (value) => void onAxisChange?.({ originAxisTitleGap: value }),
-          placeholder: localize("da_chart_axis_auto", "auto"),
+          placeholder: localize("chart_axis_auto", "auto"),
           store,
           value: axisSettings.originAxisTitleGap,
         }),
-        label: localize("da_chart_axis_title_gap", "Title offset"),
+        label: localize("chart_axis_title_gap", "Title offset"),
       }),
     ]),
     createAxisSettingsGroup({
       axisSettings,
-      label: localize("da_chart_axis_x_title", "X Axis"),
+      label: localize("chart_axis_x_title", "X Axis"),
       maxKey: "xMax",
       minKey: "xMin",
       onAxisChange,
@@ -203,7 +203,7 @@ const createExportSettingsView = ({
     }),
     createAxisSettingsGroup({
       axisSettings,
-      label: localize("da_chart_axis_y_title", "Y Axis"),
+      label: localize("chart_axis_y_title", "Y Axis"),
       maxKey: "yMax",
       minKey: "yMin",
       onAxisChange,
@@ -212,7 +212,7 @@ const createExportSettingsView = ({
       ticksKey: "yTicks",
       store,
     }),
-    createSettingsGroup(localize("da_settings_origin_plot_title", "Default Plot Settings"), [
+    createSettingsGroup(localize("settings_origin_plot_title", "Default Plot Settings"), [
       createSettingsField({
         control: createTextInput({
           id: "export-settings-xy-pairs",
@@ -223,8 +223,8 @@ const createExportSettingsView = ({
           store,
           value: options.xyPairs,
         }),
-        hint: localize("da_settings_origin_plot_xy_pairs_hint", "LabTalk expression, for example ((1,2)) or ((1,2),(3,4))."),
-        label: localize("da_settings_origin_plot_xy_pairs_label", "XY pairs"),
+        hint: localize("settings_origin_plot_xy_pairs_hint", "LabTalk expression, for example ((1,2)) or ((1,2),(3,4))."),
+        label: localize("settings_origin_plot_xy_pairs_label", "XY pairs"),
       }),
       createSettingsField({
         control: createTextInput({
@@ -236,13 +236,13 @@ const createExportSettingsView = ({
           store,
           value: options.command,
         }),
-        hint: localize("da_settings_origin_plot_command_hint", "Optional full LabTalk command. If set, it overrides plot type and XY pairs."),
-        label: localize("da_settings_origin_plot_command_label", "Plot command override"),
+        hint: localize("settings_origin_plot_command_hint", "Optional full LabTalk command. If set, it overrides plot type and XY pairs."),
+        label: localize("settings_origin_plot_command_label", "Plot command override"),
       }),
       createSettingsField({
         control: createPostCommandsInput(options, onChange, store),
-        hint: localize("da_settings_origin_plot_post_commands_hint", "One LabTalk command per line, executed after plotting."),
-        label: localize("da_settings_origin_plot_post_commands_label", "Post-plot commands"),
+        hint: localize("settings_origin_plot_post_commands_hint", "One LabTalk command per line, executed after plotting."),
+        label: localize("settings_origin_plot_post_commands_label", "Post-plot commands"),
       }),
     ]),
   );
@@ -340,21 +340,21 @@ const createAxisSettingsGroup = ({
       control: createAxisTextInput({
         id: `export-settings-${minKey}`,
         onChange: (value) => void onAxisChange?.({ [minKey]: value }),
-        placeholder: localize("da_chart_axis_auto", "auto"),
+        placeholder: localize("chart_axis_auto", "auto"),
         store,
         value: axisSettings[minKey],
       }),
-      label: localize("da_chart_axis_min", "min"),
+      label: localize("chart_axis_min", "min"),
     }),
     createSettingsField({
       control: createAxisTextInput({
         id: `export-settings-${maxKey}`,
         onChange: (value) => void onAxisChange?.({ [maxKey]: value }),
-        placeholder: localize("da_chart_axis_auto", "auto"),
+        placeholder: localize("chart_axis_auto", "auto"),
         store,
         value: axisSettings[maxKey],
       }),
-      label: localize("da_chart_axis_max", "max"),
+      label: localize("chart_axis_max", "max"),
     }),
     createSettingsField({
       control: createAxisTickSelect({
@@ -371,7 +371,7 @@ const createAxisSettingsGroup = ({
         store,
         value: axisSettings[ticksKey],
       }),
-      label: localize("da_chart_axis_ticks", "Major ticks"),
+      label: localize("chart_axis_ticks", "Major ticks"),
     }),
     createSettingsField({
       control: createAxisTextInput({
@@ -382,18 +382,18 @@ const createAxisSettingsGroup = ({
         store,
         value: axisSettings[ticksKey] === "nice" ? axisSettings[tickCountKey] : "",
       }),
-      label: localize("da_chart_axis_count", "Major tick count"),
+      label: localize("chart_axis_count", "Major tick count"),
     }),
     createSettingsField({
       control: createAxisTextInput({
         disabled: axisSettings[ticksKey] !== "step",
         id: `export-settings-${stepKey}`,
         onChange: (value) => void onAxisChange?.({ [stepKey]: value }),
-        placeholder: localize("da_chart_axis_auto", "auto"),
+        placeholder: localize("chart_axis_auto", "auto"),
         store,
         value: axisSettings[ticksKey] === "step" ? axisSettings[stepKey] : "",
       }),
-      label: localize("da_chart_axis_step", "step"),
+      label: localize("chart_axis_step", "step"),
     }),
   ]);
 };
@@ -408,9 +408,9 @@ const createPlotTypeSelect = (
   select.className = "dropdown-field dropdown-field--sm export_settings_view_control";
   select.value = String(options.type);
   for (const option of [
-    { value: "200", label: localize("da_settings_origin_plot_type_200", "Line") },
-    { value: "201", label: localize("da_settings_origin_plot_type_201", "Scatter") },
-    { value: "202", label: localize("da_settings_origin_plot_type_202", "Line + Symbol") },
+    { value: "200", label: localize("settings_origin_plot_type_200", "Line") },
+    { value: "201", label: localize("settings_origin_plot_type_201", "Scatter") },
+    { value: "202", label: localize("settings_origin_plot_type_202", "Line + Symbol") },
   ]) {
     const item = document.createElement("option");
     item.value = option.value;
@@ -448,15 +448,15 @@ const createAxisTickSelect = ({
   select.value = String(value);
   const options = isY
     ? [
-        { value: "auto", label: localize("da_chart_axis_auto", "auto") },
-        { value: "nice", label: localize("da_chart_axis_nice", "nice") },
-        { value: "step", label: localize("da_chart_axis_step", "step") },
-        { value: "decades", label: localize("da_chart_axis_decades", "decades") },
+        { value: "auto", label: localize("chart_axis_auto", "auto") },
+        { value: "nice", label: localize("chart_axis_nice", "nice") },
+        { value: "step", label: localize("chart_axis_step", "step") },
+        { value: "decades", label: localize("chart_axis_decades", "decades") },
       ]
     : [
-        { value: "auto", label: localize("da_chart_axis_auto", "auto") },
-        { value: "nice", label: localize("da_chart_axis_nice", "nice") },
-        { value: "step", label: localize("da_chart_axis_step", "step") },
+        { value: "auto", label: localize("chart_axis_auto", "auto") },
+        { value: "nice", label: localize("chart_axis_nice", "nice") },
+        { value: "step", label: localize("chart_axis_step", "step") },
       ];
   for (const option of options) {
     const item = document.createElement("option");

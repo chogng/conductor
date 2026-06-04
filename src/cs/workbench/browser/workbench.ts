@@ -3,7 +3,6 @@ import {
   toDisposable,
   type IDisposable,
 } from "src/cs/base/common/lifecycle";
-import { toAction, type IAction } from "src/cs/base/common/actions";
 import type {
   LanguageCode,
   LanguagePreference,
@@ -33,6 +32,11 @@ import {
   WORKBENCH_TITLEBAR_COMMAND_BAR_ID,
   type WorkbenchTitlebarProps,
 } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
+import {
+  AuxiliaryBarViews,
+  createAuxiliaryBarActions,
+  type AuxiliaryBarView,
+} from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
 import type { WorkbenchStyle } from "src/cs/workbench/browser/style";
 import {
   applyWorkbenchAppearance,
@@ -130,37 +134,8 @@ export type WorkbenchTitlebarState = {
 };
 
 type WorkbenchMainPart = "table" | "chart";
-type AuxiliaryBarView = "export" | "parameters" | "settings";
 
 type WorkbenchSessionSnapshot = ReturnType<SessionModel["getSnapshot"]>;
-
-type AuxiliaryBarViewDescriptor = {
-  readonly id: AuxiliaryBarView;
-  readonly viewId: string;
-  readonly labelKey: string;
-  readonly label: string;
-};
-
-const auxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
-  {
-    id: "export",
-    viewId: ExportViewId,
-    labelKey: "da_analysis_views_export",
-    label: "Export",
-  },
-  {
-    id: "parameters",
-    viewId: ParametersViewId,
-    labelKey: "da_analysis_views_parameters",
-    label: "Parameters",
-  },
-  {
-    id: "settings",
-    viewId: OriginExportSettingsViewId,
-    labelKey: "da_chart_curve_settings_title",
-    label: "Curve Settings",
-  },
-];
 
 export type WorkbenchOptions = {
   readonly className?: string;
@@ -267,7 +242,8 @@ export class Workbench extends Layout {
   private activeMainPart: WorkbenchMainPart = resolveInitialMainPart(
     this.session.getSnapshot(),
   );
-  private activeAuxiliaryBarView: AuxiliaryBarView = "export";
+  private activeAuxiliaryBarView: AuxiliaryBarView =
+    this.activeMainPart === "chart" ? "export" : "template";
   private originMode: OriginExportMode = "merged";
   private canvasScope: OriginCanvasExportScope = "current";
   private filteredKind: OriginFilteredCanvasKind = "output";
@@ -394,7 +370,7 @@ export class Workbench extends Layout {
       ),
       auxiliaryBar: this.getViewContainerElement(
         WorkbenchViewContainers.auxiliarybar,
-        this.activeMainPart === "chart" ? this.getActiveAuxiliaryBarElement() : this.templateViewlet.sidebarElement,
+        this.getActiveAuxiliaryBarElement(),
       ),
       settings: this.getViewContainerElement(WorkbenchViewContainers.settings, this.settings.element),
     });
@@ -499,10 +475,9 @@ export class Workbench extends Layout {
       this.viewsService.setViewVisible(this.table.view.id, isWorkbenchActive && !isAnalysisActive);
     }
     this.viewsService.setViewVisible(this.analysis.id, isWorkbenchActive && isAnalysisActive);
-    this.updateAuxiliaryBarViewVisibility(isWorkbenchActive && isAnalysisActive);
-    this.viewsService.setViewVisible(this.templateViewlet.sidebarView.id, isWorkbenchActive && !isAnalysisActive);
+    this.updateAuxiliaryBarViewVisibility(isWorkbenchActive);
     this.viewsService.setViewVisible(this.settings.id, isSettingsActive);
-    this.updateAuxiliaryBarActions(isWorkbenchActive && isAnalysisActive);
+    this.updateAuxiliaryBarActions(isWorkbenchActive);
   }
 
   private updateAuxiliaryBarViewVisibility(visible: boolean): void {
@@ -511,7 +486,7 @@ export class Workbench extends Layout {
       return;
     }
 
-    for (const view of auxiliaryBarViews) {
+    for (const view of AuxiliaryBarViews) {
       if (view.id === this.activeAuxiliaryBarView) {
         void this.viewsService.openView(view.viewId);
       } else {
@@ -521,7 +496,7 @@ export class Workbench extends Layout {
   }
 
   private closeAuxiliaryBarViews(): void {
-    for (const view of auxiliaryBarViews) {
+    for (const view of AuxiliaryBarViews) {
       this.viewsService.closeView(view.viewId);
     }
   }
@@ -533,23 +508,12 @@ export class Workbench extends Layout {
     }
 
     container.setTitle("");
-    container.setActions(visible ? this.createAuxiliaryBarActions() : []);
-  }
-
-  private createAuxiliaryBarActions(): IAction[] {
-    return auxiliaryBarViews.map(view => this.createAuxiliaryBarAction(view));
-  }
-
-  private createAuxiliaryBarAction(view: AuxiliaryBarViewDescriptor): IAction {
-    const label = localize(view.labelKey, view.label);
-    return toAction({
-      id: `workbench.secondary.${view.id}`,
-      label,
-      tooltip: label,
-      class: "auxiliarybar_view_switch_action",
-      checked: this.activeAuxiliaryBarView === view.id,
-      run: () => this.setActiveAuxiliaryBarView(view.id),
-    });
+    container.setActions(visible
+      ? createAuxiliaryBarActions({
+          activeView: this.activeAuxiliaryBarView,
+          onSelect: (view) => this.setActiveAuxiliaryBarView(view),
+        })
+      : []);
   }
 
   private setActiveAuxiliaryBarView(view: AuxiliaryBarView): void {
@@ -564,7 +528,7 @@ export class Workbench extends Layout {
   }
 
   private renderAuxiliaryBarView(snapshot = this.session.getSnapshot()): void {
-    if (this.activeMainPart !== "chart" || this.activeView === "settings") {
+    if (this.activeView === "settings") {
       return;
     }
 
@@ -572,6 +536,8 @@ export class Workbench extends Layout {
     const activeFile = this.resolveActiveFile(snapshot);
 
     switch (this.activeAuxiliaryBarView) {
+      case "template":
+        break;
       case "parameters":
         this.renderParametersView(activeFile);
         break;
@@ -597,7 +563,7 @@ export class Workbench extends Layout {
     }
 
     if (!activeFile) {
-      view.renderEmpty(localize("da_no_processed_data", "No Processed Data"));
+      view.renderEmpty(localize("no_processed_data", "No Processed Data"));
       return;
     }
 
@@ -657,7 +623,7 @@ export class Workbench extends Layout {
     }
 
     if (!activeFile) {
-      view.renderEmpty(localize("da_no_processed_data", "No Processed Data"));
+      view.renderEmpty(localize("no_processed_data", "No Processed Data"));
       return;
     }
 
@@ -669,7 +635,7 @@ export class Workbench extends Layout {
   }
 
   private getActiveAuxiliaryBarElement(): HTMLElement | null {
-    const descriptor = auxiliaryBarViews.find(view => view.id === this.activeAuxiliaryBarView);
+    const descriptor = AuxiliaryBarViews.find(view => view.id === this.activeAuxiliaryBarView);
     return descriptor
       ? this.viewsService.getViewWithId(descriptor.viewId)?.element ?? null
       : null;

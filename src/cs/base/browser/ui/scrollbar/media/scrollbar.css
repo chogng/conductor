@@ -100,44 +100,44 @@
 }
 
 /* Component-level scrollbar layout variants */
-.da-calculated-parameters-scroll-area {
+.calculated-parameters-scroll-area {
   overflow: visible;
 }
 
-.da-calculated-parameters-scroll-area .scrollAreaTrackX {
+.calculated-parameters-scroll-area .scrollAreaTrackX {
   left: 0;
   right: 0;
   bottom: -14px;
 }
 
-.da-preview-scroll-area {
+.preview-scroll-area {
   overflow: visible;
 }
 
-.da-preview-scroll-area .scrollAreaTrackY {
+.preview-scroll-area .scrollAreaTrackY {
   right: -14px;
 }
 
-.da-preview-scroll-area .scrollAreaTrackX {
+.preview-scroll-area .scrollAreaTrackX {
   left: -12px;
   right: -12px;
   bottom: -14px;
 }
 
-.da-analysis-scroll-area {
+.analysis-scroll-area {
   overflow: visible;
 }
 
-.da-analysis-scroll-area > .scrollAreaTrackY {
+.analysis-scroll-area > .scrollAreaTrackY {
   right: -2px;
 }
 
-.da-template-config-scroll-area {
+.template-config-scroll-area {
   overflow: visible;
   padding-right: 4px;
 }
 
-.da-template-config-scroll-area > .scrollAreaTrackY {
+.template-config-scroll-area > .scrollAreaTrackY {
   right: 0;
 }
 

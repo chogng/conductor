@@ -31,7 +31,7 @@ export const parseOlderExtractionError = (
         /^(?:(.+?):\s*)?X range has (\d+) points, which is not divisible by points=(\d+) \(from ([A-Z]+[0-9]+)\)\.$/i,
       map: (matched) => ({
         fileName: matched[1] || null,
-        messageKey: "da_extractXNotDivisibleByPointsFromCell",
+        messageKey: "extractXNotDivisibleByPointsFromCell",
         messageParams: {
           total: Number(matched[2]),
           points: Number(matched[3]),
@@ -44,7 +44,7 @@ export const parseOlderExtractionError = (
         /^(?:(.+?):\s*)?X range has (\d+) points, which is not divisible by points=(\d+)\.$/i,
       map: (matched) => ({
         fileName: matched[1] || null,
-        messageKey: "da_extractXNotDivisibleByPoints",
+        messageKey: "extractXNotDivisibleByPoints",
         messageParams: {
           total: Number(matched[2]),
           points: Number(matched[3]),
@@ -56,7 +56,7 @@ export const parseOlderExtractionError = (
         /^(?:(.+?):\s*)?Points cell ([A-Z]+[0-9]+) must contain a positive integer\.$/i,
       map: (matched) => ({
         fileName: matched[1] || null,
-        messageKey: "da_extractPointsCellPositiveInt",
+        messageKey: "extractPointsCellPositiveInt",
         messageParams: { cell: String(matched[2]).toUpperCase() },
       }),
     },
@@ -65,7 +65,7 @@ export const parseOlderExtractionError = (
         /^(?:(.+?):\s*)?Points from ([A-Z]+[0-9]+) \((\d+)\) cannot be larger than the X range length \((\d+)\)\.$/i,
       map: (matched) => ({
         fileName: matched[1] || null,
-        messageKey: "da_extractPointsCellTooLarge",
+        messageKey: "extractPointsCellTooLarge",
         messageParams: {
           cell: String(matched[2]).toUpperCase(),
           points: Number(matched[3]),
@@ -78,7 +78,7 @@ export const parseOlderExtractionError = (
         /^(?:(.+?):\s*)?Unable to determine curve type from Var1\/Var2 or nearby headers\. Please check the template, or use file-name keywords\.$/i,
       map: (matched) => ({
         fileName: matched[1] || null,
-        messageKey: "da_extractCurveTypeUndeterminedFromVarHints",
+        messageKey: "extractCurveTypeUndeterminedFromVarHints",
         messageParams: {},
       }),
     },

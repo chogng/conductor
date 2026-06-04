@@ -228,7 +228,7 @@ const createFileSelector = ({
   });
   const select = createElement("select", {
     id: "analysis-window-file-select",
-    className: "titlebar-file-select-native da-neutral-select",
+    className: "titlebar-file-select-native neutral-select",
     "aria-label": "Analysis file",
   });
 

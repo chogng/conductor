@@ -101,11 +101,11 @@ const createHeader = ({
   row.className = "chart_axis_settings_header_row";
   row.append(
     createIconButton({
-      label: localize("da_chart_plot_settings_title", "Plot Settings"),
+      label: localize("chart_plot_settings_title", "Plot Settings"),
       onClick: onClose,
     }),
-    createTitle(localize("da_chart_plot_settings_title", "Plot Settings")),
-    createTextButton(localize("da_chart_axis_reset", "Reset"), () => resetAxisSettings(setAxis)),
+    createTitle(localize("chart_plot_settings_title", "Plot Settings")),
+    createTextButton(localize("chart_axis_reset", "Reset"), () => resetAxisSettings(setAxis)),
   );
   root.append(row);
   return root;
@@ -147,16 +147,16 @@ const createSections = ({
   };
 
   root.append(
-    createSection(localize("da_chart_curve_settings_title", "Curve Settings"), [
+    createSection(localize("chart_curve_settings_title", "Curve Settings"), [
       createRow(
-        localize("da_chart_curve_type_label", "Curve type"),
+        localize("chart_curve_type_label", "Curve type"),
         createDropdown({
           id: "analysis-plot-type-select",
           value: String(normalizedOriginPlotOptions.type),
           options: [
-            { value: "200", label: localize("da_settings_origin_plot_type_200", "Line") },
-            { value: "201", label: localize("da_settings_origin_plot_type_201", "Scatter") },
-            { value: "202", label: localize("da_settings_origin_plot_type_202", "Line + Symbol") },
+            { value: "200", label: localize("settings_origin_plot_type_200", "Line") },
+            { value: "201", label: localize("settings_origin_plot_type_201", "Scatter") },
+            { value: "202", label: localize("settings_origin_plot_type_202", "Line + Symbol") },
           ],
           onChange: (next) => {
             const normalized = normalizeOriginPlotOptions(
@@ -169,7 +169,7 @@ const createSections = ({
         }),
       ),
       createRow(
-        localize("da_settings_origin_plot_line_width_label", "Line width"),
+        localize("settings_origin_plot_line_width_label", "Line width"),
         createInput({
           id: "analysis-plot-line-width-input",
           value: normalizedOriginPlotOptions.lineWidth,
@@ -185,21 +185,21 @@ const createSections = ({
         }),
       ),
     ]),
-    createSection(localize("da_chart_axis_grid_lines", "Grid lines"), [
+    createSection(localize("chart_axis_grid_lines", "Grid lines"), [
       createRow(
-        localize("da_chart_axis_grid_lines", "Grid lines"),
+        localize("chart_axis_grid_lines", "Grid lines"),
         createSwitch(axis?.showGrid !== false, (checked) =>
           setAxis((prev: any) => ({ ...prev, showGrid: checked })),
         ),
       ),
       createRow(
-        localize("da_chart_axis_major_ticks", "Major tick marks"),
+        localize("chart_axis_major_ticks", "Major tick marks"),
         createSwitch(axis?.showMajorTicks !== false, (checked) =>
           setAxis((prev: any) => ({ ...prev, showMajorTicks: checked })),
         ),
       ),
       createRow(
-        localize("da_chart_axis_minor_ticks", "Minor ticks"),
+        localize("chart_axis_minor_ticks", "Minor ticks"),
         createSwitch(axis?.showMinorTicks !== false, (checked) =>
           setAxis((prev: any) => ({ ...prev, showMinorTicks: checked })),
         ),
@@ -208,7 +208,7 @@ const createSections = ({
     createAxisSection({
       axis,
       inputOptions,
-      label: localize("da_chart_axis_x_title", "X Axis"),
+      label: localize("chart_axis_x_title", "X Axis"),
       maxKey: "xMax",
       minKey: "xMin",
       setAxis,
@@ -216,7 +216,7 @@ const createSections = ({
       tickCountKey: "xTickCount",
       ticksKey: "xTicks",
       tooltipDigitsKey: "xTooltipDigits",
-      tooltipDigitsPlaceholder: localize("da_chart_axis_x_tooltip_digits_placeholder", "{auto}", {
+      tooltipDigitsPlaceholder: localize("chart_axis_x_tooltip_digits_placeholder", "{auto}", {
         auto: xTooltipDigitsAuto,
       }),
     }),
@@ -224,7 +224,7 @@ const createSections = ({
       axis,
       effectiveYScale,
       inputOptions,
-      label: localize("da_chart_axis_y_title", "Y Axis"),
+      label: localize("chart_axis_y_title", "Y Axis"),
       maxKey: "yMax",
       minKey: "yMin",
       setAxis,
@@ -276,39 +276,39 @@ const createAxisSection = ({
 }): HTMLElement =>
   createSection(label, [
     createRow(
-      unitLabel ? `${localize("da_chart_axis_min", "min")} (${unitLabel})` : localize("da_chart_axis_min", "min"),
+      unitLabel ? `${localize("chart_axis_min", "min")} (${unitLabel})` : localize("chart_axis_min", "min"),
       createInput({
         id: `analysis-axis-${minKey}`,
         value: axis[minKey],
-        placeholder: localize("da_chart_axis_auto", "auto"),
+        placeholder: localize("chart_axis_auto", "auto"),
         onChange: (nextValue) => setAxis((prev: any) => ({ ...prev, [minKey]: nextValue })),
         ...inputOptions,
       }),
     ),
     createRow(
-      unitLabel ? `${localize("da_chart_axis_max", "max")} (${unitLabel})` : localize("da_chart_axis_max", "max"),
+      unitLabel ? `${localize("chart_axis_max", "max")} (${unitLabel})` : localize("chart_axis_max", "max"),
       createInput({
         id: `analysis-axis-${maxKey}`,
         value: axis[maxKey],
-        placeholder: localize("da_chart_axis_auto", "auto"),
+        placeholder: localize("chart_axis_auto", "auto"),
         onChange: (nextValue) => setAxis((prev: any) => ({ ...prev, [maxKey]: nextValue })),
         ...inputOptions,
       }),
     ),
     createRow(
-      localize("da_chart_axis_ticks", "Major ticks"),
+      localize("chart_axis_ticks", "Major ticks"),
       createDropdown({
         value: axis[ticksKey],
         options:
           effectiveYScale === "linear"
             ? [
-                { value: "auto", label: localize("da_chart_axis_auto", "auto") },
-                { value: "nice", label: localize("da_chart_axis_nice", "nice") },
-                { value: "step", label: localize("da_chart_axis_step", "step") },
+                { value: "auto", label: localize("chart_axis_auto", "auto") },
+                { value: "nice", label: localize("chart_axis_nice", "nice") },
+                { value: "step", label: localize("chart_axis_step", "step") },
               ]
             : [
-                { value: "auto", label: localize("da_chart_axis_auto", "auto") },
-                { value: "decades", label: localize("da_chart_axis_decades", "decades") },
+                { value: "auto", label: localize("chart_axis_auto", "auto") },
+                { value: "decades", label: localize("chart_axis_decades", "decades") },
               ],
         onChange: (nextValue) =>
           setAxis((prev: any) => ({
@@ -321,7 +321,7 @@ const createAxisSection = ({
       }),
     ),
     createRow(
-      localize("da_chart_axis_count", "Major tick count"),
+      localize("chart_axis_count", "Major tick count"),
       createInput({
         id: `analysis-axis-${tickCountKey}`,
         value: axis[ticksKey] === "nice" ? axis[tickCountKey] : "",
@@ -332,12 +332,12 @@ const createAxisSection = ({
       }),
     ),
     createRow(
-      localize("da_chart_axis_step", "step"),
+      localize("chart_axis_step", "step"),
       createInput({
         id: `analysis-axis-${stepKey}`,
         value: axis[ticksKey] === "step" ? axis[stepKey] : "",
         disabled: axis[ticksKey] !== "step",
-        placeholder: localize("da_chart_axis_auto", "auto"),
+        placeholder: localize("chart_axis_auto", "auto"),
         onChange: (nextValue) => setAxis((prev: any) => ({ ...prev, [stepKey]: nextValue })),
         ...inputOptions,
       }),
@@ -345,7 +345,7 @@ const createAxisSection = ({
     ...(tooltipDigitsKey
       ? [
           createRow(
-            localize("da_chart_axis_x_tooltip_digits", "Tooltip X digits"),
+            localize("chart_axis_x_tooltip_digits", "Tooltip X digits"),
             createInput({
               id: `analysis-axis-${tooltipDigitsKey}`,
               value: axis[tooltipDigitsKey],

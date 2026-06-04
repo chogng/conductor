@@ -85,10 +85,10 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
   if (!cleanedData.length) {
     root.append(createEmptyView({
       hint: processingStatus?.state === "processing"
-        ? localize("da_analysis_processing_hint", "Extracting and preparing chart data, please wait.")
+        ? localize("analysis_processing_hint", "Extracting and preparing chart data, please wait.")
         : localize("analysis.empty.hint", "Apply a template to generate chart data."),
       title: processingStatus?.state === "processing"
-        ? localize("da_analysis_processing", "Processing analysis data...")
+        ? localize("analysis_processing", "Processing analysis data...")
         : localize("analysis.empty.title", "No analysis data"),
     }));
     return root;
@@ -184,11 +184,11 @@ const createLocatorPane = (
 ): HTMLElement => {
   const section = document.createElement("section");
   section.className = "chart_view_locator_pane";
-  section.setAttribute("aria-label", localize("da_chart_locator_heading", "Locator"));
+  section.setAttribute("aria-label", localize("chart_locator_heading", "Locator"));
 
   const header = document.createElement("div");
   header.className = "chart_view_auxiliary_header";
-  header.textContent = localize("da_chart_locator_heading", "Locator");
+  header.textContent = localize("chart_locator_heading", "Locator");
 
   const body = document.createElement("div");
   body.className = "chart_view_locator_grid";
@@ -251,14 +251,14 @@ const createInspectorPane = ({
   const section = document.createElement("section");
   section.className = "chart_view_inspector_pane";
   section.dataset.state = diagnostics?.enabled ? "on" : "off";
-  section.setAttribute("aria-label", localize("da_chart_diagnostics_heading", "Diagnostics"));
+  section.setAttribute("aria-label", localize("chart_diagnostics_heading", "Diagnostics"));
 
   const header = document.createElement("div");
   header.className = "chart_view_diagnostics_header";
 
   const title = document.createElement("div");
   title.className = "chart_view_diagnostics_title";
-  title.textContent = diagnostics?.label ?? localize("da_chart_diagnostics_heading", "Diagnostics");
+  title.textContent = diagnostics?.label ?? localize("chart_diagnostics_heading", "Diagnostics");
   header.append(title);
 
   if (diagnostics) {
@@ -291,8 +291,8 @@ const createInspectorPane = ({
     const empty = document.createElement("div");
     empty.className = "chart_view_diagnostics_empty";
     empty.textContent = diagnostics
-      ? localize("da_chart_diagnostics_disabled", "Turn on diagnostics to show the diagnostic curve here.")
-      : localize("da_chart_diagnostics_unavailable", "Switch to GM, SS, or VTH to inspect diagnostic curves.");
+      ? localize("chart_diagnostics_disabled", "Turn on diagnostics to show the diagnostic curve here.")
+      : localize("chart_diagnostics_unavailable", "Switch to GM, SS, or VTH to inspect diagnostic curves.");
     content.append(empty);
   }
   section.append(content);

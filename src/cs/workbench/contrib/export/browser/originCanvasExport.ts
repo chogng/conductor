@@ -615,7 +615,7 @@ export const createOriginCanvasExport = ({
     omitRustEligibleCsvText = false,
   }: { omitRustEligibleCsvText?: boolean } = {}): OriginExportPlan => {
     if (!selectedOriginCanvases.length) {
-      throw new Error(localize("da_origin_select_canvas", "Please select at least one thumbnail first."));
+      throw new Error(localize("origin_select_canvas", "Please select at least one thumbnail first."));
     }
     const exportCanvases = omitRustEligibleCsvText
       ? selectedOriginCanvases.map((canvas: any) => {
@@ -649,7 +649,7 @@ export const createOriginCanvasExport = ({
       originExportContentKeys,
     );
     if (!plan.payloads.length) {
-      throw new Error(localize("da_origin_select_curve", "Please select a curve first."));
+      throw new Error(localize("origin_select_curve", "Please select a curve first."));
     }
     return plan;
   };

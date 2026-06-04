@@ -46,14 +46,14 @@ export const runRcAnalysis = async ({
 }: RunRcAnalysisOptions): Promise<RunRcAnalysisResult> => {
   if (!analysisFileService.canAnalyzeRc()) {
     return {
-      error: localize("da_rc_error_bridge_unavailable", "Rust Rc bridge is unavailable."),
+      error: localize("rc_error_bridge_unavailable", "Rust Rc bridge is unavailable."),
       ok: false,
     };
   }
 
   if (!rows.length) {
     return {
-      error: localize("da_rc_error_no_transfer_curves", "No transfer curves are available."),
+      error: localize("rc_error_no_transfer_curves", "No transfer curves are available."),
       ok: false,
     };
   }
@@ -61,7 +61,7 @@ export const runRcAnalysis = async ({
   const devices = createRcAnalyzeDevices(rows);
   if (devices.length < 2) {
     return {
-      error: localize("da_rc_error_insufficient_devices", "Rc needs at least two valid devices; three or more is recommended."),
+      error: localize("rc_error_insufficient_devices", "Rc needs at least two valid devices; three or more is recommended."),
       ok: false,
     };
   }
@@ -80,7 +80,7 @@ export const runRcAnalysis = async ({
     const responseRecord = isRecord(response) ? response : {};
     if (responseRecord.ok !== true) {
       const message = String(responseRecord.message || "").trim();
-      throw new Error(message || localize("da_rc_error_analysis_failed", "Rc analysis failed."));
+      throw new Error(message || localize("rc_error_analysis_failed", "Rc analysis failed."));
     }
 
     return {
@@ -91,7 +91,7 @@ export const runRcAnalysis = async ({
     return {
       error: error instanceof Error && error.message
         ? error.message
-        : localize("da_rc_error_analysis_failed", "Rc analysis failed."),
+        : localize("rc_error_analysis_failed", "Rc analysis failed."),
       ok: false,
     };
   }

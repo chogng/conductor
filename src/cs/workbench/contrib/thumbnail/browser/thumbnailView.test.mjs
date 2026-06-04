@@ -46,8 +46,8 @@ test("createThumbnailFieldFilterOptions deduplicates field filters", () => {
       ],
     ),
     [
-      { label: "da_match_mode_field: Batch A", value: "batch:a" },
-      { label: "da_match_mode_field: Batch B", value: "batch:b" },
+      { label: "match_mode_field: Batch A", value: "batch:a" },
+      { label: "match_mode_field: Batch B", value: "batch:b" },
     ],
   );
 });

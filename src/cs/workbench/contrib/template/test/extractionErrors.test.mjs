@@ -12,7 +12,7 @@ test("structured extraction error payload wins over legacy message parsing", () 
     fileName: "structured.csv",
     message:
       "legacy.csv: X range has 12 points, which is not divisible by points=5.",
-    messageKey: "da_structuredError",
+    messageKey: "structuredError",
     messageParams: { value: 42 },
   });
 
@@ -20,7 +20,7 @@ test("structured extraction error payload wins over legacy message parsing", () 
     fileName: "structured.csv",
     message:
       "legacy.csv: X range has 12 points, which is not divisible by points=5.",
-    messageKey: "da_structuredError",
+    messageKey: "structuredError",
     messageParams: { value: 42 },
   });
 });
@@ -32,7 +32,7 @@ test("legacy extraction errors parse older worker messages", () => {
     ),
     {
       fileName: "demo.csv",
-      messageKey: "da_extractXNotDivisibleByPointsFromCell",
+      messageKey: "extractXNotDivisibleByPointsFromCell",
       messageParams: {
         cell: "B2",
         points: 5,

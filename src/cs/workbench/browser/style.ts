@@ -17,7 +17,7 @@ const toCssPropertyName = (key: string): string =>
 export const getWorkbenchStyle = (style?: WorkbenchStyle): WorkbenchStyle =>
   ({
     "--sidebar-width": `${SIDEBAR_DEFAULT_WIDTH_PX}px`,
-    "--da-template-stack-panel-h": "clamp(24rem, 52dvh, 40rem)",
+    "--template-stack-panel-h": "clamp(384px, 52dvh, 640px)",
     ...(style ?? {}),
   });
 

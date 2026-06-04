@@ -71,7 +71,7 @@ export const createScrollPanePart = ({
   isActive,
   labelledBy,
   paneId,
-  className = "da_page_scroll workbench_scroll_pane_part",
+  className = "page_scroll workbench_scroll_pane_part",
   viewportClassName = "",
 }: ScrollPanePartOptions): HTMLElement =>
   createPanePart({

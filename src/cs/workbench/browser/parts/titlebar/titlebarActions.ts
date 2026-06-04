@@ -26,12 +26,12 @@ export const createWorkbenchTitlebarNavActions = (
 ): WorkbenchTitlebarNavAction[] => [
   {
     id: "analysis-window-nav-back-btn",
-    title: localize("da_menu_page_back", "Back"),
+    title: localize("menu_page_back", "Back"),
     isDisabled: !canNavigateBack,
   },
   {
     id: "analysis-window-nav-forward-btn",
-    title: localize("da_menu_page_forward", "Forward"),
+    title: localize("menu_page_forward", "Forward"),
     isDisabled: !canNavigateForward,
   },
 ];
@@ -41,7 +41,7 @@ export const createWorkbenchTitlebarPageActions = (
 ): WorkbenchTitlebarPageAction[] => [
   {
     id: "data",
-    title: localize("da_tab_data", "Import & Extraction"),
+    title: localize("tab_data", "Import & Extraction"),
     isActive: activePage === "data",
   },
   {
@@ -51,7 +51,7 @@ export const createWorkbenchTitlebarPageActions = (
   },
   {
     id: "settings",
-    title: localize("da_settings_title", "Settings"),
+    title: localize("settings_title", "Settings"),
     isActive: activePage === "settings",
   },
 ];
@@ -60,21 +60,21 @@ export const createWorkbenchTitlebarWindowActions =
 (): WorkbenchTitlebarWindowAction[] => [
   {
     id: "minimize",
-    title: localize("da_menu_window_minimize", "Minimize Window"),
+    title: localize("menu_window_minimize", "Minimize Window"),
   },
   {
     id: "maximize",
-    title: localize("da_menu_window_maximize", "Maximize / Restore"),
+    title: localize("menu_window_maximize", "Maximize / Restore"),
   },
   {
     id: "close",
-    title: localize("da_menu_window_close", "Close Window"),
+    title: localize("menu_window_close", "Close Window"),
     isDanger: true,
   },
 ];
 
 export const getWorkbenchTitlebarUpdateLabel = (): string =>
-  localize("da_menu_update_available", "Update");
+  localize("menu_update_available", "Update");
 
 export const getWorkbenchTitlebarUpdateTitle = (
   updateAction?: WorkbenchTitlebarUpdateAction,

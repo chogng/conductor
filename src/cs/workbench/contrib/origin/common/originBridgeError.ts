@@ -203,8 +203,8 @@ const inferOriginSuggestionKey = (
     .trim()
     .toUpperCase();
 
-  if (code === "ORIGIN_EXE_REQUIRED") return "da_origin_pick_exe_required";
-  if (code === "ORIGIN_CSV_RUNNER_NOT_FOUND") return "da_origin_error_tip_csv_runner_missing";
+  if (code === "ORIGIN_EXE_REQUIRED") return "origin_pick_exe_required";
+  if (code === "ORIGIN_CSV_RUNNER_NOT_FOUND") return "origin_error_tip_csv_runner_missing";
   if (
     code === "ORIGIN_CSV_RUNNER_FAILED" ||
     code === "ORIGIN_CSV_FAILED" ||
@@ -213,26 +213,26 @@ const inferOriginSuggestionKey = (
     stage === "CSV_PYTHON_RUNNER" ||
     code === "ORIGIN_ORIGINPRO_ATTACH_FAILED"
   ) {
-    return "da_origin_error_tip_csv_runner_check";
+    return "origin_error_tip_csv_runner_check";
   }
   if (code === "ORIGIN_ORIGINPRO_IMPORT_FAILED") {
-    return "da_origin_error_tip_install_python";
+    return "origin_error_tip_install_python";
   }
-  if (code === "ORIGIN_EXE_NOT_FOUND") return "da_origin_error_tip_reselect_exe";
+  if (code === "ORIGIN_EXE_NOT_FOUND") return "origin_error_tip_reselect_exe";
   if (code === "ORIGIN_MULTI_PROCESS_DETECTED") {
-    return "da_origin_error_tip_close_extra_origin";
+    return "origin_error_tip_close_extra_origin";
   }
   if (code === "ORIGIN_PYTHON_NOT_FOUND" || code === "ORIGIN_PYWIN32_MISSING") {
-    return "da_origin_error_tip_install_python";
+    return "origin_error_tip_install_python";
   }
-  if (hresult === "0X8000FFFF") return "da_origin_error_tip_register_com";
+  if (hresult === "0X8000FFFF") return "origin_error_tip_register_com";
   if (stage === "COM_CREATE" || code === "ORIGIN_COM_CREATE_FAILED") {
-    return "da_origin_error_tip_register_com";
+    return "origin_error_tip_register_com";
   }
   if (stage === "SESSION_BEGIN" || code === "ORIGIN_SESSION_BEGIN_FAILED") {
-    return "da_origin_error_tip_launch_once";
+    return "origin_error_tip_launch_once";
   }
-  return "da_origin_error_tip_manual_zip";
+  return "origin_error_tip_manual_zip";
 };
 
 export const formatOriginBridgeError = (
@@ -244,24 +244,24 @@ export const formatOriginBridgeError = (
 
   const message =
     detail.code === "ORIGIN_EXE_REQUIRED"
-      ? localize("da_origin_pick_exe_required", "Please select Origin executable path first.")
+      ? localize("origin_pick_exe_required", "Please select Origin executable path first.")
       : detail.message || localize("unknownError", "Unknown error");
 
   const chunks = [message];
   if (detail.stage) {
-    chunks.push(localize("da_origin_error_stage", "Stage: {stage}", { stage: detail.stage }));
+    chunks.push(localize("origin_error_stage", "Stage: {stage}", { stage: detail.stage }));
   }
   if (detail.hresult) {
-    chunks.push(localize("da_origin_error_hresult", "HRESULT: {hresult}", { hresult: detail.hresult }));
+    chunks.push(localize("origin_error_hresult", "HRESULT: {hresult}", { hresult: detail.hresult }));
   }
   if (detail.logPath) {
-    chunks.push(localize("da_origin_error_log_path", "Log: {path}", { path: detail.logPath }));
+    chunks.push(localize("origin_error_log_path", "Log: {path}", { path: detail.logPath }));
   }
   if (detail.originExe) {
-    chunks.push(localize("da_origin_error_origin_exe", "Origin EXE: {path}", { path: detail.originExe }));
+    chunks.push(localize("origin_error_origin_exe", "Origin EXE: {path}", { path: detail.originExe }));
   }
   if (detail.workerExe) {
-    chunks.push(localize("da_origin_error_worker_exe", "Origin CSV worker: {path}", { path: detail.workerExe }));
+    chunks.push(localize("origin_error_worker_exe", "Origin CSV worker: {path}", { path: detail.workerExe }));
   }
   if (suggestionText && suggestionText !== suggestionKey) {
     chunks.push(suggestionText);

@@ -238,8 +238,7 @@ html[data-transparent-chrome="true"] .table_view_grid th {
 }
 
 .workbench_layout_main,
-.workbench_layout_sidebar,
-.workbench_layout_auxiliarybar {
+.workbench_layout_sidebar {
   height: 100%;
   min-height: 0;
 }

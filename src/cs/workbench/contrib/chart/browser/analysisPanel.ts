@@ -72,7 +72,7 @@ export class AnalysisPanel {
   }
 
   public update(props: AnalysisPanelProps): void {
-    this.element.setAttribute("aria-label", localize("da_analysis_visualization", "Analysis & Visualization"));
+    this.element.setAttribute("aria-label", localize("analysis_visualization", "Analysis & Visualization"));
     this.element.replaceChildren(createAnalysisPanelContent(props));
   }
 
@@ -94,8 +94,8 @@ const createAnalysisPanelContent = (props: AnalysisPanelProps): HTMLElement => {
       return createAnalysisStatusCard({
         id: "analysis-analysis-loading-card",
         iconClassName: "analysis_status_icon--muted analysis_status_icon--pulse",
-        message: localize("da_analysis_loading", "Loading analysis charts..."),
-        hint: localize("da_analysis_loading_hint", "Preparing visualization modules, please wait."),
+        message: localize("analysis_loading", "Loading analysis charts..."),
+        hint: localize("analysis_loading_hint", "Preparing visualization modules, please wait."),
       });
     }
 
@@ -124,8 +124,8 @@ const createProcessingCard = (
   const card = createAnalysisStatusCard({
     id: "analysis-processing-card",
     iconClassName: "analysis_status_icon--muted analysis_status_icon--pulse",
-    message: localize("da_analysis_processing", "Processing analysis data..."),
-    hint: localize("da_analysis_processing_hint", "Extracting and preparing chart data, please wait."),
+    message: localize("analysis_processing", "Processing analysis data..."),
+    hint: localize("analysis_processing_hint", "Extracting and preparing chart data, please wait."),
   });
 
   const progress = document.createElement("div");
@@ -136,7 +136,7 @@ const createProcessingCard = (
     "analysis_processing_progress_label";
 
   const processedLabel = document.createElement("span");
-  processedLabel.textContent = localize("da_analysis_processing_progress", "{processed}/{total} files processed", {
+  processedLabel.textContent = localize("analysis_processing_progress", "{processed}/{total} files processed", {
     processed,
     total: processingStatus.total ?? 0,
   });

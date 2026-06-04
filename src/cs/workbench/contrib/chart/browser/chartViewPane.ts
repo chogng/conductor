@@ -146,16 +146,16 @@ export class ChartViewPane extends ViewPane {
     const root = document.createElement("div");
     root.className = "chart_view_auxiliary_actions";
     root.setAttribute("role", "toolbar");
-    root.setAttribute("aria-label", localize("da_chart_detail_actions", "Chart detail views"));
+    root.setAttribute("aria-label", localize("chart_detail_actions", "Chart detail views"));
     root.append(
       this.createAuxiliaryPaneAction({
         icon: LxIcon.search,
-        label: localize("da_chart_locator_heading", "Locator"),
+        label: localize("chart_locator_heading", "Locator"),
         pane: "locator",
       }),
       this.createAuxiliaryPaneAction({
         icon: LxIcon.diagnostics,
-        label: localize("da_chart_diagnostics_heading", "Diagnostics"),
+        label: localize("chart_diagnostics_heading", "Diagnostics"),
         pane: "inspector",
       }),
     );

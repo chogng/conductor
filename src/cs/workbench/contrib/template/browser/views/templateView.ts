@@ -101,7 +101,7 @@ const importTemplates = async (
         newName = `${draft.name}(${suffix})`;
       }
       const confirmMessage = localize(
-        "da_template_import_conflict",
+        "template_import_conflict",
         "Template \"{name}\" already exists.\nOK: import as \"{newName}\".\nCancel: overwrite the existing template.",
         { name: draft.name, newName },
       );

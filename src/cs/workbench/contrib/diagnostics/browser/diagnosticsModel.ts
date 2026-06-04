@@ -22,14 +22,14 @@ export const createDiagnosticsContextBadges = ({
   const labelKey =
     (effectivePlotType === "gm" && gmDiagnosticsEnabled) ||
     (effectivePlotType === "ss" && ssDiagnosticsEnabled)
-      ? "da_chart_diagnostic_curve_label"
-      : "da_chart_selected_curve_label";
+      ? "chart_diagnostic_curve_label"
+      : "chart_selected_curve_label";
 
   return [
     { text: localize(labelKey, labelKey) },
     {
       color: focusedSeriesColor,
-      text: focusedLabel || localize("da_chart_current_curve_label", "current"),
+      text: focusedLabel || localize("chart_current_curve_label", "current"),
     },
   ];
 };

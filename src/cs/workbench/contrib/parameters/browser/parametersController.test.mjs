@@ -31,7 +31,7 @@ test("runRcAnalysis rejects unavailable bridge before building payload", async (
   });
 
   assert.deepEqual(result, {
-    error: "da_rc_error_bridge_unavailable",
+    error: "rc_error_bridge_unavailable",
     ok: false,
   });
 });
@@ -49,7 +49,7 @@ test("runRcAnalysis validates rows before bridge call", async () => {
   });
 
   assert.deepEqual(result, {
-    error: "da_rc_error_insufficient_devices",
+    error: "rc_error_insufficient_devices",
     ok: false,
   });
 });

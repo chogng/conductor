@@ -16,11 +16,11 @@ export type ExportPaneState = {
 };
 
 export const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
-  { group: "basic", key: "iv", labelKey: "da_origin_export_content_iv" },
-  { group: "derived", key: "metrics", labelKey: "da_origin_export_content_metrics" },
-  { group: "derived", key: "gm", labelKey: "da_origin_export_content_gm" },
-  { group: "derived", key: "ss", labelKey: "da_origin_export_content_ss" },
-  { group: "derived", key: "vth", labelKey: "da_origin_export_content_vth" },
+  { group: "basic", key: "iv", labelKey: "origin_export_content_iv" },
+  { group: "derived", key: "metrics", labelKey: "origin_export_content_metrics" },
+  { group: "derived", key: "gm", labelKey: "origin_export_content_gm" },
+  { group: "derived", key: "ss", labelKey: "origin_export_content_ss" },
+  { group: "derived", key: "vth", labelKey: "origin_export_content_vth" },
 ];
 
 export const createOriginCurveOptions = (
@@ -72,26 +72,26 @@ export const getCanvasScopeSummary = ({
   selectedCanvasCount: number;
 }): string => {
   if (originCanvasExportScope === "current") {
-    return localize("da_origin_canvas_scope_summary_current", "The current thumbnail will export as a single result unit.");
+    return localize("origin_canvas_scope_summary_current", "The current thumbnail will export as a single result unit.");
   }
 
   if (originCanvasExportScope === "filtered") {
-    return localize("da_origin_canvas_scope_summary_filtered", "{count} {kind} thumbnails match the current filter.", {
+    return localize("origin_canvas_scope_summary_filtered", "{count} {kind} thumbnails match the current filter.", {
       count: selectedCanvasCount,
       kind:
         originFilteredCanvasKind === "transfer"
-          ? localize("da_origin_filtered_canvas_kind_transfer", "Transfer")
-          : localize("da_origin_filtered_canvas_kind_output", "Output"),
+          ? localize("origin_filtered_canvas_kind_transfer", "Transfer")
+          : localize("origin_filtered_canvas_kind_output", "Output"),
     });
   }
 
   if (originCanvasExportScope === "all") {
-    return localize("da_origin_canvas_scope_summary_all", "All {count} thumbnails will export.", {
+    return localize("origin_canvas_scope_summary_all", "All {count} thumbnails will export.", {
       count: selectedCanvasCount,
     });
   }
 
-  return localize("da_origin_canvas_scope_summary_selected", "{count} thumbnails are selected.", {
+  return localize("origin_canvas_scope_summary_selected", "{count} thumbnails are selected.", {
     count: selectedCanvasCount,
   });
 };
@@ -108,7 +108,7 @@ export const getExportSelectionSummary = ({
   separateCanvasScopeSummary: string;
 }): string =>
   resolvedOriginExportMode === "merged"
-    ? localize("da_origin_collection_summary", "{curves} collected curve(s) from {files} file(s)", {
+    ? localize("origin_collection_summary", "{curves} collected curve(s) from {files} file(s)", {
         curves: selectedOriginSeriesTotalCount,
         files: selectedCanvasCount,
       })

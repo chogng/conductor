@@ -27,9 +27,9 @@ import {
   normalizeTableSelection,
 } from "src/cs/workbench/contrib/table/common/selection";
 import {
-  DA_PREVIEW_MAX_CACHED_FILES,
-  DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
-  DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
+  TABLE_MAX_CACHED_FILES,
+  TABLE_MAX_CACHED_UI_ROWS_PER_FILE,
+  TABLE_UI_CHUNK_SIZE_ROWS,
 } from "src/cs/workbench/contrib/table/browser/rows/rowLimits";
 import {
   collectMissingChunkRanges,
@@ -319,15 +319,15 @@ type CreateTableOptions = {
 };
 
 const TABLE_LOAD_STATE_IDLE: TableLoadState = { state: "idle", message: "" };
-const DA_PREVIEW_MAX_CACHED_UI_CHUNKS_PER_FILE = Math.max(
+const TABLE_MAX_CACHED_UI_CHUNKS_PER_FILE = Math.max(
   1,
   Math.ceil(
-    DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE / DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
+    TABLE_MAX_CACHED_UI_ROWS_PER_FILE / TABLE_UI_CHUNK_SIZE_ROWS,
   ),
 );
 const PREVIEW_ROWS_FETCH_MAX_ATTEMPTS = 2;
 const PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS = Math.max(
-  DA_PREVIEW_UI_CHUNK_SIZE_ROWS * 8,
+  TABLE_UI_CHUNK_SIZE_ROWS * 8,
   400,
 );
 
@@ -535,8 +535,8 @@ const createTableModel = ({
         rangeStart: safeStart,
         rangeEnd: safeStart + safeRows.length,
         rows: safeRows,
-        chunkSize: DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
-        maxChunks: DA_PREVIEW_MAX_CACHED_UI_CHUNKS_PER_FILE,
+        chunkSize: TABLE_UI_CHUNK_SIZE_ROWS,
+        maxChunks: TABLE_MAX_CACHED_UI_CHUNKS_PER_FILE,
       });
       return merged.complete;
     },
@@ -720,7 +720,7 @@ const createTableModel = ({
       fileLru.delete(fileId);
       fileLru.add(fileId);
 
-      while (fileLru.size > DA_PREVIEW_MAX_CACHED_FILES) {
+      while (fileLru.size > TABLE_MAX_CACHED_FILES) {
         const oldestFileId = fileLru.values().next().value as string | undefined;
         if (!oldestFileId || (activateCurrent && oldestFileId === fileId)) break;
 
@@ -976,7 +976,7 @@ const createTableModel = ({
           sheetId: previewTargetSource.source.sheetId ?? null,
           sheetName: previewTargetSource.sheetName,
           file: fallbackFile,
-          maxPreviewRows: DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
+          maxPreviewRows: TABLE_MAX_CACHED_UI_ROWS_PER_FILE,
         },
       });
     };
@@ -995,7 +995,7 @@ const createTableModel = ({
           fileId: previewTargetSourceKey,
           fileName: previewTargetFile.fileName ?? "",
           path: rustInputPath,
-          seedRows: DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
+          seedRows: TABLE_MAX_CACHED_UI_ROWS_PER_FILE,
           sheetId: previewTargetSource.source.sheetId ?? null,
           sheetName: previewTargetSource.sheetName,
           sourceKey: previewTargetSourceKey,
@@ -1352,20 +1352,20 @@ const createTableModel = ({
       if (start >= end) return;
 
       const firstChunkStart =
-        Math.floor(start / DA_PREVIEW_UI_CHUNK_SIZE_ROWS) *
-        DA_PREVIEW_UI_CHUNK_SIZE_ROWS;
+        Math.floor(start / TABLE_UI_CHUNK_SIZE_ROWS) *
+        TABLE_UI_CHUNK_SIZE_ROWS;
       const lastChunkStart =
-        Math.floor((end - 1) / DA_PREVIEW_UI_CHUNK_SIZE_ROWS) *
-        DA_PREVIEW_UI_CHUNK_SIZE_ROWS;
+        Math.floor((end - 1) / TABLE_UI_CHUNK_SIZE_ROWS) *
+        TABLE_UI_CHUNK_SIZE_ROWS;
 
       for (
         let chunkStart = firstChunkStart;
         chunkStart <= lastChunkStart;
-        chunkStart += DA_PREVIEW_UI_CHUNK_SIZE_ROWS
+        chunkStart += TABLE_UI_CHUNK_SIZE_ROWS
       ) {
         const chunkEnd = Math.min(
           totalRows,
-          chunkStart + DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
+          chunkStart + TABLE_UI_CHUNK_SIZE_ROWS,
         );
         if (!hasChunkRowsInCache(rowCache, chunkStart, chunkEnd)) continue;
         // Treat row-presence as source of truth; loadedChunks is only an LRU index.
@@ -1378,7 +1378,7 @@ const createTableModel = ({
         pendingChunks,
         startRow: start,
         endRow: end,
-        chunkSize: DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
+        chunkSize: TABLE_UI_CHUNK_SIZE_ROWS,
         maxRangeRows: PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS,
       });
 
@@ -1419,8 +1419,8 @@ const createTableModel = ({
             rangeStart,
             rangeEnd,
             rows,
-            chunkSize: DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
-            maxChunks: DA_PREVIEW_MAX_CACHED_UI_CHUNKS_PER_FILE,
+            chunkSize: TABLE_UI_CHUNK_SIZE_ROWS,
+            maxChunks: TABLE_MAX_CACHED_UI_CHUNKS_PER_FILE,
           });
           if (!merged.complete) return;
 
@@ -1436,7 +1436,7 @@ const createTableModel = ({
               clearChunkRows(
                 rowCache,
                 chunkStart,
-                chunkStart + DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
+                chunkStart + TABLE_UI_CHUNK_SIZE_ROWS,
               );
               loadedChunks.delete(chunkStart);
             }

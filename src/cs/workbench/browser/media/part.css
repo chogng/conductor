@@ -1,5 +1,5 @@
 @media (max-width: 640px) {
-  .da_page_scroll {
+  .workbench_page_scroll {
     padding-bottom: env(safe-area-inset-bottom);
     scroll-padding-bottom: env(safe-area-inset-bottom);
   }
@@ -63,10 +63,10 @@
   flex: 1 1 auto;
 }
 
-.da-neutral-select {
+.neutral-select {
   color-scheme: light;
 }
 
-.dark .da-neutral-select {
+.dark .neutral-select {
   color-scheme: dark;
 }

@@ -48,7 +48,7 @@ const DEFAULT_THEME: ThemeMode = "system";
 const DEFAULT_SIDEBAR_WIDTH = 280;
 const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 600;
-const SIDEBAR_STORAGE_KEY = "da-sidebar-width";
+const SIDEBAR_STORAGE_KEY = "sidebar-width";
 
 const getBootNowMs = () =>
   typeof performance !== "undefined" && typeof performance.now === "function"

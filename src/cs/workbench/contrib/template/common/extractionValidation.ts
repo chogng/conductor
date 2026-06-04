@@ -136,7 +136,7 @@ export function prepareExtraction({
       ok: false,
       type: "warning",
       message: msg(
-        "da_extractImportCsvFirst",
+        "extractImportCsvFirst",
         null,
         "Please import at least one CSV file first.",
       ),
@@ -150,7 +150,7 @@ export function prepareExtraction({
       type: "warning",
       message:
         templateValidation.message ||
-        msg("da_extractInvalidConfig", null, "Invalid configuration."),
+        msg("extractInvalidConfig", null, "Invalid configuration."),
     };
   }
 
@@ -163,7 +163,7 @@ export function prepareExtraction({
       ok: false,
       type: "warning",
       message: msg(
-        "da_extractSetXStart",
+        "extractSetXStart",
         null,
         "Please set X Data start cell (e.g. A2).",
       ),
@@ -179,7 +179,7 @@ export function prepareExtraction({
       ok: false,
       type: "warning",
       message: msg(
-        "da_extractSetXEndOrUseEnd",
+        "extractSetXEndOrUseEnd",
         null,
         "Please set X Data end cell (e.g. A1408) or use 'End' to read until the last preview row.",
       ),
@@ -191,7 +191,7 @@ export function prepareExtraction({
       ok: false,
       type: "warning",
       message: msg(
-        "da_extractXSameColumn",
+        "extractXSameColumn",
         null,
         "X Data start/end must be in the same column.",
       ),
@@ -211,7 +211,7 @@ export function prepareExtraction({
     return {
       ok: false,
       type: "warning",
-      message: msg("da_extractInvalidXRange", null, "Invalid X row range."),
+      message: msg("extractInvalidXRange", null, "Invalid X row range."),
     };
   }
 
@@ -238,7 +238,7 @@ export function prepareExtraction({
         ok: false,
         type: "warning",
         message: msg(
-          "da_extractXSegmentsPositiveInt",
+          "extractXSegmentsPositiveInt",
           null,
           "Segments must be a positive integer.",
         ),
@@ -252,7 +252,7 @@ export function prepareExtraction({
           ok: false,
           type: "warning",
           message: msg(
-            "da_extractXNotDivisibleBySegments",
+            "extractXNotDivisibleBySegments",
             { total: totalForValidation, segments },
             `X range has ${totalForValidation} points, which is not divisible by segments=${segments}.`,
           ),
@@ -300,7 +300,7 @@ export function prepareExtraction({
             ok: false,
             type: "warning",
             message: msg(
-              "da_extractPointsCellPositiveInt",
+              "extractPointsCellPositiveInt",
               { cell: String(pointsRaw).toUpperCase() },
               `Points cell ${String(pointsRaw).toUpperCase()} must contain a positive integer.`,
             ),
@@ -312,7 +312,7 @@ export function prepareExtraction({
               ok: false,
               type: "warning",
               message: msg(
-                "da_extractPointsCellTooLarge",
+                "extractPointsCellTooLarge",
                 { cell: String(pointsRaw).toUpperCase(), points: asInt, total },
                 `Points from ${String(pointsRaw).toUpperCase()} (${asInt}) cannot be larger than the X range length (${total}).`,
               ),
@@ -323,7 +323,7 @@ export function prepareExtraction({
               ok: false,
               type: "warning",
               message: msg(
-                "da_extractXNotDivisibleByPointsFromCell",
+                "extractXNotDivisibleByPointsFromCell",
                 {
                   total,
                   points: asInt,
@@ -343,7 +343,7 @@ export function prepareExtraction({
           ok: false,
           type: "warning",
           message: msg(
-            "da_extractXPointsPositiveIntOrCell",
+            "extractXPointsPositiveIntOrCell",
             null,
             "X Points must be a positive integer (or a cell like B2).",
           ),
@@ -354,7 +354,7 @@ export function prepareExtraction({
           ok: false,
           type: "warning",
           message: msg(
-            "da_extractXPointsTooLarge",
+            "extractXPointsTooLarge",
             { points, total },
             `X Points (${points}) cannot be larger than the X range length (${total}).`,
           ),
@@ -376,7 +376,7 @@ export function prepareExtraction({
           ok: false,
           type: "warning",
           message: msg(
-            "da_extractXNotDivisibleBySegments",
+            "extractXNotDivisibleBySegments",
             { total, segments: normalizedSegments },
             `X range has ${total} points, which is not divisible by segments=${normalizedSegments}.`,
           ),
@@ -393,7 +393,7 @@ export function prepareExtraction({
           ok: false,
           type: "warning",
           message: msg(
-            "da_extractXNotDivisibleByPoints",
+            "extractXNotDivisibleByPoints",
             { total, points: groupSize },
             `X range has ${total} points, which is not divisible by points=${groupSize}.`,
           ),
@@ -422,7 +422,7 @@ export function prepareExtraction({
       ok: false,
       type: "warning",
       message: msg(
-        "da_extractSelectYColumn",
+        "extractSelectYColumn",
         null,
         "Please select at least one Y column (click column headers in the preview).",
       ),
@@ -433,7 +433,7 @@ export function prepareExtraction({
       ok: false,
       type: "warning",
       message: msg(
-        "da_extractYCannotIncludeX",
+        "extractYCannotIncludeX",
         null,
         "Y columns cannot include the X column.",
       ),
@@ -509,7 +509,7 @@ export function prepareExtraction({
 
     const countParsed = parsePositiveIntOrCell(
       yLegendCountRaw,
-      "da_extractYCountPositiveIntOrCell",
+      "extractYCountPositiveIntOrCell",
       "Y Data Count must be a positive integer (or a cell like B2).",
     );
     if (countParsed?.type === "cell") {
@@ -520,7 +520,7 @@ export function prepareExtraction({
 
     const stepParsed = parsePositiveNumberOrCell(
       yLegendStepRaw,
-      "da_extractYStepPositiveNumberOrCell",
+      "extractYStepPositiveNumberOrCell",
       "Y Data Step must be a positive number (or a cell like B2).",
     );
     if (stepParsed?.type === "cell") {
@@ -543,7 +543,7 @@ export function prepareExtraction({
         if (asInt === null || asInt <= 0) {
           warnings.push(
             msg(
-              "da_extractYCountCellPositiveInt",
+              "extractYCountCellPositiveInt",
               { cell: yLegendCountRaw.toUpperCase() },
               `Y Data Count cell ${yLegendCountRaw.toUpperCase()} must contain a positive integer.`,
             ),
@@ -564,7 +564,7 @@ export function prepareExtraction({
         if (parsed === null || parsed <= 0) {
           warnings.push(
             msg(
-              "da_extractYStepCellPositiveNumber",
+              "extractYStepCellPositiveNumber",
               { cell: yLegendStepRaw.toUpperCase() },
               `Y Data Step cell ${yLegendStepRaw.toUpperCase()} must contain a positive number.`,
             ),

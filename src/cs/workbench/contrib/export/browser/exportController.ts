@@ -43,7 +43,7 @@ const getOriginOpenSuccessMessage = (
 ): { message: string; type: "success" } => {
   if (result.mode === "merged" && result.totalCanvasCount > 1) {
     return {
-      message: localize("da_open_in_origin_combined_success", "Origin launched, and {curves} curve(s) from {files} file(s) were summarized into one worksheet.", {
+      message: localize("open_in_origin_combined_success", "Origin launched, and {curves} curve(s) from {files} file(s) were summarized into one worksheet.", {
         curves: result.totalCurveCount,
         files: result.totalCanvasCount,
       }),
@@ -53,7 +53,7 @@ const getOriginOpenSuccessMessage = (
 
   if (result.mode === "workbookBooks" && result.totalCanvasCount > 1) {
     return {
-      message: localize("da_open_in_origin_workbook_books_success", "Origin export tasks submitted for {count} thumbnail(s) into different workbooks of the same Origin window.", {
+      message: localize("open_in_origin_workbook_books_success", "Origin export tasks submitted for {count} thumbnail(s) into different workbooks of the same Origin window.", {
         count: result.totalCanvasCount,
       }),
       type: "success",
@@ -64,7 +64,7 @@ const getOriginOpenSuccessMessage = (
     return {
       message: result.mixedYScales
         ? "Mixed linear/log export was split into separate Origin worksheets."
-        : localize("da_open_in_origin_workbook_sheets_success", "Origin export tasks submitted for {count} thumbnail(s) into different worksheets of the same workbook.", {
+        : localize("open_in_origin_workbook_sheets_success", "Origin export tasks submitted for {count} thumbnail(s) into different worksheets of the same workbook.", {
             count: result.totalCanvasCount,
           }),
       type: "success",
@@ -73,7 +73,7 @@ const getOriginOpenSuccessMessage = (
 
   if (result.mode === "separate" && result.totalCanvasCount > 1) {
     return {
-      message: localize("da_open_in_origin_batch_success", "Origin export tasks submitted for {count} thumbnail(s), one standalone Origin window each.", {
+      message: localize("open_in_origin_batch_success", "Origin export tasks submitted for {count} thumbnail(s), one standalone Origin window each.", {
         count: result.totalCanvasCount,
       }),
       type: "success",
@@ -81,7 +81,7 @@ const getOriginOpenSuccessMessage = (
   }
 
   return {
-    message: localize("da_open_in_origin_success", "Origin launched and import task submitted."),
+    message: localize("open_in_origin_success", "Origin launched and import task submitted."),
     type: "success",
   };
 };
@@ -91,7 +91,7 @@ const getOriginZipSuccessMessage = (
 ): { message: string; type: "success" } => {
   if (exported.mode === "merged") {
     return {
-      message: localize("da_origin_zip_export_success", "Exported a ZIP package with CSV data for {curves} curve(s) from {files} file(s).", {
+      message: localize("origin_zip_export_success", "Exported a ZIP package with CSV data for {curves} curve(s) from {files} file(s).", {
         curves: exported.curveCount,
         files: exported.canvasCount,
       }),
@@ -103,7 +103,7 @@ const getOriginZipSuccessMessage = (
     return {
       message: exported.mixedYScales
         ? "Mixed linear/log export was packaged as separate worksheets."
-        : localize("da_origin_zip_export_workbook_sheets_success", "Exported a ZIP package with CSV files for {count} thumbnails.", {
+        : localize("origin_zip_export_workbook_sheets_success", "Exported a ZIP package with CSV files for {count} thumbnails.", {
             count: exported.canvasCount,
           }),
       type: "success",
@@ -111,7 +111,7 @@ const getOriginZipSuccessMessage = (
   }
 
   return {
-    message: localize("da_origin_zip_export_batch_success", "Exported a ZIP package with standalone CSV files for {count} thumbnail(s).", {
+    message: localize("origin_zip_export_batch_success", "Exported a ZIP package with standalone CSV files for {count} thumbnail(s).", {
       count: exported.canvasCount,
     }),
     type: "success",
@@ -148,7 +148,7 @@ const getFallbackZipSuccessMessage = ({
 }): { message: string; type: "warning" } => {
   if (fallback.mode === "merged") {
     return {
-      message: localize("da_open_in_origin_fallback_zip_success_with_reason_and_stats", "Auto open failed ({reason}). Exported a ZIP package with CSV data for {curves} curve(s) from {files} file(s).", {
+      message: localize("open_in_origin_fallback_zip_success_with_reason_and_stats", "Auto open failed ({reason}). Exported a ZIP package with CSV data for {curves} curve(s) from {files} file(s).", {
         curves: fallback.curveCount,
         files: fallback.canvasCount,
         reason: fallbackReason,
@@ -161,7 +161,7 @@ const getFallbackZipSuccessMessage = ({
     return {
       message: fallback.mixedYScales
         ? `Mixed linear/log export was split into separate worksheets. ${fallbackReason}`
-        : localize("da_open_in_origin_fallback_zip_workbook_sheets_success_with_reason", "Auto open failed ({reason}). Exported a ZIP package with CSV files for {count} thumbnails.", {
+        : localize("open_in_origin_fallback_zip_workbook_sheets_success_with_reason", "Auto open failed ({reason}). Exported a ZIP package with CSV files for {count} thumbnails.", {
             count: fallback.canvasCount,
             reason: fallbackReason,
           }),
@@ -170,7 +170,7 @@ const getFallbackZipSuccessMessage = ({
   }
 
   return {
-    message: localize("da_open_in_origin_fallback_zip_batch_success_with_reason", "Auto open failed ({reason}). Exported a ZIP package with CSV files for {count} thumbnails.", {
+    message: localize("open_in_origin_fallback_zip_batch_success_with_reason", "Auto open failed ({reason}). Exported a ZIP package with CSV files for {count} thumbnails.", {
       count: fallback.canvasCount,
       reason: fallbackReason,
     }),
@@ -194,7 +194,7 @@ export const runOpenInOrigin = async ({
   try {
     originBusyRef.current = true;
     if (!canRunOriginCsv()) {
-      throw new Error(localize("da_origin_pick_exe_required", "Please select Origin executable path first."));
+      throw new Error(localize("origin_pick_exe_required", "Please select Origin executable path first."));
     }
 
     const result = buildPayloads({
@@ -231,7 +231,7 @@ export const runOpenInOrigin = async ({
     const code = String(detail.code || "").trim().toUpperCase();
 
     if (detail.code === "ORIGIN_EXE_REQUIRED") {
-      showToast(localize("da_origin_pick_exe_required", "Please select Origin executable path first."), "error");
+      showToast(localize("origin_pick_exe_required", "Please select Origin executable path first."), "error");
     } else if (ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES.has(code)) {
       const fallbackReason = getFallbackReason(detail);
       try {
@@ -249,7 +249,7 @@ export const runOpenInOrigin = async ({
             ? fallbackErr.message
             : String(fallbackErr ?? localize("unknownError", "Unknown error"));
         showToast(
-          localize("da_open_in_origin_fallback_zip_failed", "Auto open failed, and ZIP fallback export failed: {error}", {
+          localize("open_in_origin_fallback_zip_failed", "Auto open failed, and ZIP fallback export failed: {error}", {
             error: fallbackMessage,
           }),
           "error",
@@ -257,7 +257,7 @@ export const runOpenInOrigin = async ({
       }
     } else {
       showToast(
-        localize("da_open_in_origin_failed", "Failed to open in Origin: {error}", { error: detail.messageText }),
+        localize("open_in_origin_failed", "Failed to open in Origin: {error}", { error: detail.messageText }),
         "error",
       );
     }
@@ -279,6 +279,6 @@ export const runExportOriginZip = async ({
   } catch (err) {
     const message =
       err instanceof Error ? err.message : String(err ?? localize("unknownError", "Unknown error"));
-    showToast(localize("da_open_in_origin_fallback_zip_failed", "Auto open failed, and ZIP fallback export failed: {error}", { error: message }), "error");
+    showToast(localize("open_in_origin_fallback_zip_failed", "Auto open failed, and ZIP fallback export failed: {error}", { error: message }), "error");
   }
 };

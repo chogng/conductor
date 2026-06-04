@@ -22,7 +22,7 @@ export class ParametersView extends ViewPane {
   constructor() {
     super({
       id: ParametersViewId,
-      title: localize("da_analysis_views_parameters", "Parameters"),
+      title: localize("analysis_views_parameters", "Parameters"),
       className: "auxiliarybar_view_pane",
       bodyClassName: "workbench-part-view-pane__body workbench-view-pane__body--scroll",
       headerVisible: false,

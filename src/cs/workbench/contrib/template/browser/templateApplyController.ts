@@ -336,7 +336,7 @@ export class TemplateApplyController {
 
       return buildExtractionStartFeedback({
         count: queue.length,
-        messageKey: "da_extract_started",
+        messageKey: "extract_started",
         meta: {},
         warnings: [],
       });
@@ -358,7 +358,7 @@ export class TemplateApplyController {
 
     return buildExtractionStartFeedback({
       count: queue.length,
-      messageKey: "da_extract_started",
+      messageKey: "extract_started",
       meta: prepared.meta,
       warnings: prepared.warnings,
     });
@@ -420,7 +420,7 @@ export class TemplateApplyController {
 
       return buildExtractionStartFeedback({
         count: queue.length,
-        messageKey: "da_apply_to_new_files_started",
+        messageKey: "apply_to_new_files_started",
         meta: {},
         warnings: [],
       });
@@ -475,7 +475,7 @@ export class TemplateApplyController {
 
     return buildExtractionStartFeedback({
       count: queue.length,
-      messageKey: "da_apply_to_new_files_started",
+      messageKey: "apply_to_new_files_started",
       meta: prepared.meta,
       warnings: prepared.warnings,
     });
@@ -799,8 +799,8 @@ export class TemplateApplyController {
     return buildExtractionStartFeedback({
       count: finalQueue.length,
       messageKey: incremental
-        ? "da_extract_started_incremental"
-        : "da_extract_started",
+        ? "extract_started_incremental"
+        : "extract_started",
       meta: {},
       warnings,
     });

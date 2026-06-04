@@ -52,7 +52,7 @@ export class ExportView extends ViewPane {
   constructor() {
     super({
       id: ExportViewId,
-      title: localize("da_analysis_views_export", "Export"),
+      title: localize("analysis_views_export", "Export"),
       className: "auxiliarybar_view_pane",
       bodyClassName: "workbench-part-view-pane__body",
       headerVisible: false,

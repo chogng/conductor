@@ -17,7 +17,7 @@ const container = viewContainersRegistry.get(WorkbenchViewContainers.auxiliaryba
 if (container) {
   viewsRegistry.registerViews([{
     id: ParametersViewId,
-    name: localize("da_analysis_views_parameters", "Parameters"),
+    name: localize("analysis_views_parameters", "Parameters"),
     ctorDescriptor: new SyncDescriptor(ParametersView),
     hideByDefault: true,
     order: 20,

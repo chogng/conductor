@@ -74,7 +74,7 @@ export const renderRcSummaryView = (
       root,
       "div",
       error ? "rc_summary_message rc_summary_message--error" : "rc_summary_message",
-      error || localize("da_rc_no_result", "No Rc result yet."),
+      error || localize("rc_no_result", "No Rc result yet."),
     );
     message.setAttribute("aria-live", "polite");
     return;
@@ -109,7 +109,7 @@ export const renderRcCurveHeaderView = (
   root.className = "rc_curve_header";
   container.appendChild(root);
 
-  appendText(root, "div", "rc_curve_title", localize("da_rc_curve_title", "Rc Curve"));
+  appendText(root, "div", "rc_curve_title", localize("rc_curve_title", "Rc Curve"));
 
   const legend = document.createElement("div");
   legend.className = "rc_curve_legend";
@@ -156,7 +156,7 @@ export const renderRcCurveRowsView = (
   headerRow.className = "rc_table_header_row";
   thead.appendChild(headerRow);
 
-  for (const label of ["Vg", "Rc", "RcW", "Rsh", "R2", "n", localize("da_rc_table_warnings", "warnings")]) {
+  for (const label of ["Vg", "Rc", "RcW", "Rsh", "R2", "n", localize("rc_table_warnings", "warnings")]) {
     appendText(headerRow, "th", TABLE_HEADER_CLASS, label);
   }
 

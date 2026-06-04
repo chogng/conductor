@@ -68,9 +68,9 @@ export const createOverviewGrid = ({
   const fieldFilterOptions = createThumbnailFieldFilterOptions(cleanedData);
   const curveFilterOptions = [
     ...fieldFilterOptions,
-    { label: localize("da_overview_curve_filter_all", "All"), value: "all" as const },
-    { label: localize("da_overview_curve_filter_transfer", "Transfer"), value: "transfer" as const },
-    { label: localize("da_overview_curve_filter_output", "Output"), value: "output" as const },
+    { label: localize("overview_curve_filter_all", "All"), value: "all" as const },
+    { label: localize("overview_curve_filter_transfer", "Transfer"), value: "transfer" as const },
+    { label: localize("overview_curve_filter_output", "Output"), value: "output" as const },
   ];
 
   const card = createCard({
@@ -111,7 +111,7 @@ export const createOverviewGrid = ({
           ),
           showOriginSelectionBadge:
             isSelectionMode && originCanvasExportScope === "selected",
-          originSelectedBadgeLabel: localize("da_overview_select_badge", "SELECT"),
+          originSelectedBadgeLabel: localize("overview_select_badge", "SELECT"),
           xUnitFactor,
           xUnitLabel,
           yUnitFactor: yUnitMeta.factor,
@@ -167,7 +167,7 @@ const createToolbar = ({
   const label = document.createElement("label");
   label.htmlFor = "analysis-overview-curve-filter-btn";
   label.className = "thumbnail_visually_hidden";
-  label.textContent = localize("da_overview_curve_filter_label", "Curve filter");
+  label.textContent = localize("overview_curve_filter_label", "Curve filter");
   filterWrap.append(
     label,
     createDropdown({
@@ -189,7 +189,7 @@ const createToolbar = ({
         );
         onChange(matchedFieldOption?.value ?? "all");
       },
-      className: "thumbnail_overview_grid_select da-neutral-select",
+      className: "thumbnail_overview_grid_select neutral-select",
     }),
   );
   controls.append(filterWrap);
@@ -197,7 +197,7 @@ const createToolbar = ({
   if (processingStatus?.state === "processing") {
     const progress = document.createElement("div");
     progress.className = "thumbnail_overview_grid_progress";
-    progress.textContent = localize("da_overview_processing", "Processing {processed}/{total}", {
+    progress.textContent = localize("overview_processing", "Processing {processed}/{total}", {
       processed: processingStatus.processed,
       total: processingStatus.total,
     });

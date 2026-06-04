@@ -67,44 +67,44 @@ const appendTableHeader = (
   appendHeaderCell(groupRow, {
     className: SERIES_HEADER_CLASS,
     rowSpan: 2,
-    text: localize("da_calc_group_series", "Series"),
+    text: localize("calc_group_series", "Series"),
   });
   if (showTransferMetrics) {
     appendHeaderCell(groupRow, {
       className: `${GROUP_HEADER_CLASS} parameters_cell--on`,
       colSpan: 2,
-      text: localize("da_calc_group_on_state", "On-state"),
+      text: localize("calc_group_on_state", "On-state"),
     });
     appendHeaderCell(groupRow, {
       className: `${GROUP_HEADER_CLASS} parameters_cell--off`,
       colSpan: 2,
-      text: localize("da_calc_group_off_state", "Off-state"),
+      text: localize("calc_group_off_state", "Off-state"),
     });
     appendHeaderCell(groupRow, {
       className: GROUP_HEADER_CLASS,
-      text: localize("da_calc_group_ratio", "On/Off Ratio"),
+      text: localize("calc_group_ratio", "On/Off Ratio"),
     });
   }
   appendHeaderCell(groupRow, {
     className: `${GROUP_HEADER_CLASS} parameters_cell--derivative`,
     colSpan: 2,
-    text: localize("da_calc_group_derivative", "Derivative"),
+    text: localize("calc_group_derivative", "Derivative"),
   });
   if (showTransferMetrics) {
     appendHeaderCell(groupRow, {
       className: `${GROUP_HEADER_CLASS} parameters_cell--threshold`,
       colSpan: 2,
-      text: localize("da_calc_group_threshold_voltage", "Threshold Voltage"),
+      text: localize("calc_group_threshold_voltage", "Threshold Voltage"),
     });
     appendHeaderCell(groupRow, {
       className: `${GROUP_HEADER_CLASS} parameters_cell--ss`,
       colSpan: 2,
-      text: localize("da_calc_group_ss", "Subthreshold"),
+      text: localize("calc_group_ss", "Subthreshold"),
     });
     appendHeaderCell(groupRow, {
       className: GROUP_HEADER_CLASS,
-      text: localize("da_calc_group_jon", "Current Density"),
-      title: localize("da_calc_group_jon_hint", "J = |I|/Area (if area is available)."),
+      text: localize("calc_group_jon", "Current Density"),
+      title: localize("calc_group_jon_hint", "J = |I|/Area (if area is available)."),
     });
   }
 
@@ -120,12 +120,12 @@ const appendTableHeader = (
   appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--derivative`, text: gmMetricHeader });
   appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--derivative`, text: "x" });
   if (showTransferMetrics) {
-    const vthHint = localize("da_calc_group_threshold_voltage_hint", "sqrt(|Id|)-Vg linear extrapolation; V-shaped transfer curves are fitted by electron / hole branch.");
+    const vthHint = localize("calc_group_threshold_voltage_hint", "sqrt(|Id|)-Vg linear extrapolation; V-shaped transfer curves are fitted by electron / hole branch.");
     appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--threshold`, text: "Vth,e", title: vthHint });
     appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--threshold`, text: "Vth,h", title: vthHint });
     appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--ss`, text: "SS" });
     appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--ss`, text: "x" });
-    appendHeaderCell(labelRow, { text: "Jon", title: localize("da_calc_group_jon_hint", "J = |I|/Area (if area is available).") });
+    appendHeaderCell(labelRow, { text: "Jon", title: localize("calc_group_jon_hint", "J = |I|/Area (if area is available).") });
   }
 
   thead.append(groupRow, labelRow);

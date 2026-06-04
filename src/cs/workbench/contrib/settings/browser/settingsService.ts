@@ -108,7 +108,7 @@ export class BrowserSettingsService implements ISettingsServiceType {
   public formatOriginError(error: unknown): string {
     const detail = formatOriginBridgeError(error);
     if (detail.code === "ORIGIN_EXE_REQUIRED") {
-      return localize("da_origin_pick_exe_required", "Please select Origin executable path first.");
+      return localize("origin_pick_exe_required", "Please select Origin executable path first.");
     }
 
     return detail.messageText;

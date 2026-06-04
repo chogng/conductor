@@ -27,7 +27,7 @@ export const renderRcAnalysisToolbar = (
   const toolbar = document.createElement("div");
   toolbar.className = "parameters_toolbar";
   toolbar.setAttribute("role", "toolbar");
-  toolbar.setAttribute("aria-label", localize("da_rc_toolbar_aria_label", "Contact resistance toolbar"));
+  toolbar.setAttribute("aria-label", localize("rc_toolbar_aria_label", "Contact resistance toolbar"));
 
   const row = document.createElement("div");
   row.className = "parameters_toolbar_row";
@@ -38,11 +38,11 @@ export const renderRcAnalysisToolbar = (
   const label = document.createElement("label");
   label.className = "parameters_toolbar_label";
   label.htmlFor = "analysis-rc-bias-select";
-  label.textContent = localize("da_rc_bias_label", "Bias voltage");
+  label.textContent = localize("rc_bias_label", "Bias voltage");
 
   const select = document.createElement("select");
   select.id = "analysis-rc-bias-select";
-  select.className = "parameters_toolbar_select da-neutral-select";
+  select.className = "parameters_toolbar_select neutral-select";
   select.value = selectedBiasKey;
   select.disabled = isPending;
 
@@ -56,7 +56,7 @@ export const renderRcAnalysisToolbar = (
 
   const button = createButton({
     disabled: isPending || !rowCount,
-    label: isPending ? localize("da_rc_run_pending", "Running...") : localize("da_rc_run_button", "Run Rc"),
+    label: isPending ? localize("rc_run_pending", "Running...") : localize("rc_run_button", "Run Rc"),
     size: "sm",
     variant: "primary",
   });

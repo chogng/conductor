@@ -172,10 +172,10 @@ export const getRcStatusText = ({
   rowCount: number;
   summary: RcSummaryLike | null;
 }): string => {
-  if (isPending) return localize("da_rc_status_running", "Rc running...");
+  if (isPending) return localize("rc_status_running", "Rc running...");
   if (error) return error;
   if (summary) {
     return `Rc=${formatNumber(toFiniteNumber(summary.rc))} | RcW=${formatNumber(toFiniteNumber(summary.rcw))} | R2=${formatNumber(toFiniteNumber(summary.r2), { digits: 4 })}`;
   }
-  return localize("da_rc_status_selected_curves", "Rc uses {count} selected statistic curves", { count: rowCount });
+  return localize("rc_status_selected_curves", "Rc uses {count} selected statistic curves", { count: rowCount });
 };

@@ -1,0 +1,30 @@
+/* Auxiliary Bar Shell */
+
+.workbench_layout_auxiliarybar {
+  position: relative;
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border: 1px solid rgb(var(--border) / 1);
+  border-radius: 12px;
+  background-color: rgb(var(--bg-surface) / 1);
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+/* Auxiliary Bar View Switch */
+
+.workbench-view-pane-container__actions .auxiliarybar_view_switch_action {
+  min-height: 26px;
+  border-radius: 4px;
+  padding: 0 8px;
+  color: rgb(var(--text-secondary) / 1);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.workbench-view-pane-container__actions .auxiliarybar_view_switch_action.checked {
+  background: rgb(var(--accent) / 0.12);
+  color: rgb(var(--accent) / 1);
+}
