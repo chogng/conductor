@@ -1,14 +1,14 @@
-.auxiliarybar_view_body {
+.workbench-view-pane__body {
   min-width: 0;
 }
 
-.auxiliarybar_view_body--scroll {
+.workbench-view-pane__body--scroll {
   min-height: 0;
   flex: 1 1 0;
   overflow: auto;
 }
 
-.auxiliarybar_view_empty {
+.workbench-view-pane__empty {
   padding: 12px 8px;
   color: rgb(var(--text-secondary) / 1);
   font-size: 12px;

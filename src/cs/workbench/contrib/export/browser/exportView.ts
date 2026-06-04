@@ -54,7 +54,7 @@ export class ExportView extends ViewPane {
       id: ExportViewId,
       title: localize("da_analysis_views_export", "Export"),
       className: "auxiliarybar_view_pane",
-      bodyClassName: "workbench-part-view-pane__body auxiliarybar_view_body",
+      bodyClassName: "workbench-part-view-pane__body",
       headerVisible: false,
     });
   }
@@ -70,7 +70,7 @@ export class ExportView extends ViewPane {
   renderEmpty(message: string): void {
     this.toolbarStore.clear();
     const root = document.createElement("div");
-    root.className = "auxiliarybar_view_empty";
+    root.className = "workbench-view-pane__empty";
     root.textContent = message;
     this.body.replaceChildren(root);
   }

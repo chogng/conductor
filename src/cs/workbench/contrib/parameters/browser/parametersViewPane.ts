@@ -24,7 +24,7 @@ export class ParametersView extends ViewPane {
       id: ParametersViewId,
       title: localize("da_analysis_views_parameters", "Parameters"),
       className: "auxiliarybar_view_pane",
-      bodyClassName: "workbench-part-view-pane__body auxiliarybar_view_body auxiliarybar_view_body--scroll",
+      bodyClassName: "workbench-part-view-pane__body workbench-view-pane__body--scroll",
       headerVisible: false,
     });
   }
@@ -35,7 +35,7 @@ export class ParametersView extends ViewPane {
 
   renderEmpty(message: string): void {
     const root = document.createElement("div");
-    root.className = "auxiliarybar_view_empty";
+    root.className = "workbench-view-pane__empty";
     root.textContent = message;
     this.body.replaceChildren(root);
   }
