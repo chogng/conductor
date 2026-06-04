@@ -1,16 +1,12 @@
 import { localize } from "src/cs/nls";
+import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import {
-  DEFAULT_ORIGIN_PLOT_OPTIONS,
-  type OriginPlotOptions,
-} from "src/cs/workbench/contrib/origin/common/originPlotOptions";
-import MainPlotChart from "src/cs/workbench/contrib/plot/browser/MainPlotChart";
-import { createMainPlotModel } from "src/cs/workbench/contrib/plot/browser/mainPlotModel";
+  createMainPlotInspectorView,
+  createMainPlotLocatorView,
+  createMainPlotView,
+} from "src/cs/workbench/contrib/plot/browser/mainPlotView";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
-import {
-  DEFAULT_PLOT_AXIS_SETTINGS,
-  normalizePlotAxisSettings,
-  type PlotAxisSettings,
-} from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
+import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import { createEmptyView } from "src/cs/workbench/contrib/chart/browser/views/emptyView";
 import type {
   IonIoffManualTargetsByFileId,
@@ -22,8 +18,6 @@ import type {
   CleanedEntry,
   ProcessingStatus,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
-import { createInspectorView } from "src/cs/workbench/contrib/chart/browser/views/inspectorView";
-import { createLocatorView } from "src/cs/workbench/contrib/chart/browser/views/locatorView";
 
 import "src/cs/workbench/contrib/chart/browser/views/media/chartView.css";
 
@@ -68,12 +62,7 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
     cleanedData = [],
     processingStatus,
     activeFileId: controlledActiveFileId = undefined,
-    originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS,
   } = props;
-  const axisSettings = normalizePlotAxisSettings(
-    props.plotAxisSettings,
-    DEFAULT_PLOT_AXIS_SETTINGS,
-  );
   const visiblePanes = normalizeVisiblePanes(props.visiblePanes);
   const root = document.createElement("section");
   root.className = "chart_view";
@@ -91,46 +80,17 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
     return root;
   }
 
-  const model = createMainPlotModel({
+  const plotView = createMainPlotView({
     activeFileId: controlledActiveFileId,
-    plotType: activePlotType,
     cleanedData,
+    originOpenPlotOptions: props.originOpenPlotOptions,
+    plotAxisSettings: props.plotAxisSettings,
+    plotType: activePlotType,
   });
 
   const chartHost = document.createElement("div");
   chartHost.className = "chart_view_host";
-  chartHost.append(MainPlotChart({
-    activeFile: model.activeFile,
-    curveLineWidth: Number(originOpenPlotOptions.lineWidth) || DEFAULT_ORIGIN_PLOT_OPTIONS.lineWidth,
-    curvePlotType: Number(originOpenPlotOptions?.type ?? DEFAULT_ORIGIN_PLOT_OPTIONS.type),
-    effectiveYScale: "linear",
-    focusedSeriesColor: "#2563eb",
-    highlightOverlays: [],
-    plotType: activePlotType,
-    plotXFactor: 1,
-    plotXUnitLabel: model.xUnitLabel,
-    plotYFactor: 1,
-    plotYUnitLabel: model.yUnitLabel,
-    showGrid: axisSettings.showGrid,
-    showMajorTicks: axisSettings.showMajorTicks,
-    showMinorTicks: axisSettings.showMinorTicks,
-    minorTickCount: axisSettings.minorTickCount === "" ? undefined : axisSettings.minorTickCount,
-    tickLabelFontSize: axisSettings.tickLabelFontSize === "" ? undefined : axisSettings.tickLabelFontSize,
-    axisTitleFontSize: axisSettings.axisTitleFontSize === "" ? undefined : axisSettings.axisTitleFontSize,
-    legendFontSize: axisSettings.legendFontSize === "" ? undefined : axisSettings.legendFontSize,
-    seriesList: model.seriesList,
-    ssOverlayStyle: {
-      fill: "#2563eb",
-      fillOpacity: 0.08,
-      stroke: "#2563eb",
-      strokeOpacity: 0.8,
-    },
-    xDomain: model.xDomain,
-    xLabelInterval: 1,
-    xTickDigits: 4,
-    yDomain: model.yDomain,
-    yScaleMode: "linear",
-  }));
+  chartHost.append(plotView.element);
 
   const main = document.createElement("div");
   main.className = "chart_view_main";
@@ -140,9 +100,9 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
   mainPane.className = "chart_view_main_pane";
   mainPane.append(chartHost);
 
-  const inspectorPane = createInspectorView({
-    activePlotType,
-    model,
+  const inspectorPane = createMainPlotInspectorView({
+    plotType: activePlotType,
+    model: plotView.model,
     props,
   });
 
@@ -150,7 +110,7 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
     main.append(mainPane);
   }
   if (visiblePanes.includes("locator")) {
-    main.append(createLocatorView(model));
+    main.append(createMainPlotLocatorView(plotView.model));
   }
   if (visiblePanes.includes("inspector")) {
     main.append(inspectorPane);

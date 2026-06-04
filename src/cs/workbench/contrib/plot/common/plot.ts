@@ -1,5 +1,3 @@
-export const PlotContributionId = "workbench.contrib.plot";
-
 export const PlotTypes = ["iv", "ss", "gm", "vth"] as const;
 
 export type PlotType = typeof PlotTypes[number];

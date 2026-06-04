@@ -1,4 +1,4 @@
-import { getChartColor } from "src/cs/workbench/contrib/plot/browser/chartColors";
+﻿import { getPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
 
 type DiagnosticsPoint = {
   x?: number | null;
@@ -60,7 +60,7 @@ export const createSsDiagnosticsChart = ({
   overlay,
   overlayStyle,
   series,
-  seriesColor = getChartColor(0),
+  seriesColor = getPlotColor(0),
   ssReferenceValue = null,
 }: SsDiagnosticsChartProps): HTMLElement => {
   const referenceLines: DiagnosticsReferenceLine[] = [];

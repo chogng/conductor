@@ -1,4 +1,4 @@
-import { buildPoints } from "src/cs/workbench/contrib/plot/browser/chartViewModel";
+﻿import { buildPoints } from "src/cs/workbench/contrib/plot/browser/plotViewModel";
 import {
   computeCentralDerivative,
   computeSubthresholdSwingFitAuto,

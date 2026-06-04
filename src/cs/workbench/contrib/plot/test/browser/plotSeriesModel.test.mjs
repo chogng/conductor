@@ -1,14 +1,14 @@
-import test from "node:test";
+﻿import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  createChartAxisTitleChangeEvent,
+  createPlotAxisTitleChangeEvent,
   getDisplayPlotSeries,
   getPlotLegendSeries,
   getRenderMaxPointsPerSeries,
   getRenderPointBudget,
-} from "./chartView.ts";
-import { SIGNED_LOG_Y_DATA_KEY } from "./chartViewModel.ts";
+} from "../../browser/plotSeriesModel.ts";
+import { SIGNED_LOG_Y_DATA_KEY } from "../../browser/plotViewModel.ts";
 
 test("getPlotLegendSeries selects the active plot family", () => {
   const byType = {
@@ -91,8 +91,8 @@ test("render point budget clamps adaptive per-series count", () => {
   );
 });
 
-test("createChartAxisTitleChangeEvent trims title text", () => {
-  assert.deepEqual(createChartAxisTitleChangeEvent("x", " Gate "), {
+test("createPlotAxisTitleChangeEvent trims title text", () => {
+  assert.deepEqual(createPlotAxisTitleChangeEvent("x", " Gate "), {
     axis: "x",
     title: "Gate",
   });

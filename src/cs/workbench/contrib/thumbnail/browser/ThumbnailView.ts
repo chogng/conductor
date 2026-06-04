@@ -1,8 +1,8 @@
-import {
-  createCanvasMultiLineChart,
-  resolvePreviewChartYDataRange,
-  type CanvasMultiLineChartProps,
-} from "src/cs/workbench/contrib/plot/browser/CanvasMultiLineChart";
+﻿import {
+  createCanvasMultiLinePlot,
+  resolvePreviewPlotYDataRange,
+  type CanvasMultiLinePlotProps,
+} from "src/cs/workbench/contrib/plot/browser/CanvasMultiLinePlot";
 import { formatNumber } from "src/cs/workbench/contrib/diagnostics/common/numberFormat";
 
 export type CleanedFileLike = {
@@ -18,7 +18,7 @@ export type CleanedFileLike = {
   };
   xAxisRole?: "vg" | "vd" | null;
   xGroups?: number[][];
-  series?: CanvasMultiLineChartProps["series"];
+  series?: CanvasMultiLinePlotProps["series"];
   domain?: {
     x?: [number, number];
     y?: [number, number];
@@ -142,7 +142,7 @@ const createChartThumbnail = ({
   root.className = "thumbnail_view_chart";
   root.style.aspectRatio = "16 / 9";
   root.append(
-    createCanvasMultiLineChart({
+    createCanvasMultiLinePlot({
       xGroups: file.xGroups,
       series: file.series,
       domain: file.domain,
@@ -164,7 +164,7 @@ const createChartThumbnail = ({
     root.append(badge);
   }
 
-  const range = resolvePreviewChartYDataRange({
+  const range = resolvePreviewPlotYDataRange({
     series: file?.series,
     yScaleType: yScale === "log" ? "log" : "linear",
     yLogCurrentMode,

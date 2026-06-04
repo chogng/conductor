@@ -1,5 +1,5 @@
-export type AxisTitleOverridesByFileId = Record<string, Partial<Record<"x" | "y", string>>>;
-export type ChartYScale = "linear" | "log" | "logAbs";
+﻿export type AxisTitleOverridesByFileId = Record<string, Partial<Record<"x" | "y", string>>>;
+export type PlotYScale = "linear" | "log" | "logAbs";
 export type LinearLogScale = "linear" | "log";
 export type LogCurrentMode = "all" | "positive";
 
@@ -77,7 +77,7 @@ export const normalizeAxisTitleOverridesByFileId = (
 export const normalizeLinearLogScale = (value: unknown): LinearLogScale =>
   String(value ?? "").trim().toLowerCase() === "log" ? "log" : "linear";
 
-export const normalizeChartYScale = (value: unknown): ChartYScale => {
+export const normalizePlotYScale = (value: unknown): PlotYScale => {
   const normalized = String(value ?? "").trim();
   if (normalized === "logAbs") return "logAbs";
   return normalizeLinearLogScale(normalized);

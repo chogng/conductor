@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   getYUnitMeta,
   normalizeYUnit,
-} from "./units.ts";
+} from "../../common/units.ts";
 
 test("normalizes capacitance y units instead of falling back to current", () => {
   assert.equal(normalizeYUnit("F", "A"), "F");

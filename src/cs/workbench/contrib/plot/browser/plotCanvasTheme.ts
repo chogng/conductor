@@ -1,4 +1,4 @@
-export type ChartCanvasTheme = {
+﻿export type PlotCanvasTheme = {
   axisLabel: string;
   border: string;
   grid: string;
@@ -20,7 +20,7 @@ export type ChartCanvasTheme = {
   tooltipMuted: string;
 };
 
-const buildFallbackTheme = (isDark: boolean): ChartCanvasTheme => ({
+const buildFallbackTheme = (isDark: boolean): PlotCanvasTheme => ({
   axisLabel: isDark ? "rgba(244,244,245,0.96)" : "#000000",
   border: isDark ? "rgba(255,255,255,0.18)" : "rgba(15,23,42,0.18)",
   grid: isDark ? "rgba(255,255,255,0.08)" : "rgba(15,23,42,0.14)",
@@ -42,9 +42,9 @@ const buildFallbackTheme = (isDark: boolean): ChartCanvasTheme => ({
   tooltipMuted: isDark ? "rgba(212,212,216,0.9)" : "rgba(71,85,105,0.92)",
 });
 
-export const resolveCanvasChartTheme = (
+export const resolvePlotCanvasTheme = (
   target: Element | null,
-): ChartCanvasTheme => {
+): PlotCanvasTheme => {
   const isDark =
     typeof document !== "undefined" &&
     document.documentElement.classList.contains("dark");
@@ -74,8 +74,8 @@ export const resolveCanvasChartTheme = (
   };
 };
 
-export const useCanvasChartTheme = (
+export const usePlotCanvasTheme = (
   targetRef: { current: Element | null },
-): ChartCanvasTheme => {
-  return resolveCanvasChartTheme(targetRef.current);
+): PlotCanvasTheme => {
+  return resolvePlotCanvasTheme(targetRef.current);
 };

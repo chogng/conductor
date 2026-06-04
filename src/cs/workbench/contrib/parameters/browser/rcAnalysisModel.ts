@@ -1,6 +1,6 @@
-import { localize } from "src/cs/nls";
-import { getChartColor } from "../../plot/browser/chartColors.ts";
-import { buildNiceTicks, padLinearDomain } from "../../plot/browser/chartViewModel.ts";
+﻿import { localize } from "src/cs/nls";
+import { getPlotColor } from "../../plot/browser/plotColors.ts";
+import { buildNiceTicks, padLinearDomain } from "../../plot/browser/plotViewModel.ts";
 import { formatNumber } from "../../diagnostics/common/numberFormat.ts";
 
 export type RcCurveChartPoint = {
@@ -125,7 +125,7 @@ export const createRcCurveChart = (curveRows: unknown[]): RcCurveChart | null =>
   if (!xDomain || !yDomain) return null;
   const series = [
     {
-      color: getChartColor(0),
+      color: getPlotColor(0),
       data: points
         .filter((point) => Number.isFinite(point.rc))
         .map((point) => ({ x: point.vg, y: point.rc })),
@@ -133,7 +133,7 @@ export const createRcCurveChart = (curveRows: unknown[]): RcCurveChart | null =>
       lineName: "Rc",
     },
     {
-      color: getChartColor(1),
+      color: getPlotColor(1),
       data: points
         .filter((point) => Number.isFinite(point.rcw))
         .map((point) => ({ x: point.vg, y: point.rcw })),
@@ -141,7 +141,7 @@ export const createRcCurveChart = (curveRows: unknown[]): RcCurveChart | null =>
       lineName: "RcW",
     },
     {
-      color: getChartColor(2),
+      color: getPlotColor(2),
       data: points
         .filter((point) => Number.isFinite(point.rSheet))
         .map((point) => ({ x: point.vg, y: point.rSheet })),

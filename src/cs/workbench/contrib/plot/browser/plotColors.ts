@@ -13,9 +13,9 @@ export const COLORS = [
   "#6FB802",
 ] as const;
 
-const DEFAULT_CHART_COLOR = "#8884d8";
+const DEFAULT_PLOT_COLOR = "#8884d8";
 
-type ChartColorSeries = Record<string, unknown> & {
+type PlotColorSeries = Record<string, unknown> & {
   color?: unknown;
 };
 
@@ -37,7 +37,7 @@ const hexToRgb = (hex: unknown): { r: number; g: number; b: number } | null => {
   };
 };
 
-export const applyAlphaToChartColor = (
+export const applyAlphaToPlotColor = (
   color: unknown,
   alpha: unknown,
 ): string => {
@@ -48,17 +48,16 @@ export const applyAlphaToChartColor = (
   return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${normalizedAlpha})`;
 };
 
-export const getChartColor = (seriesIndex: unknown): string => {
+export const getPlotColor = (seriesIndex: unknown): string => {
   const index = Math.floor(Number(seriesIndex) || 0);
   const paletteIndex = ((index % COLORS.length) + COLORS.length) % COLORS.length;
-  return COLORS[paletteIndex] ?? DEFAULT_CHART_COLOR;
+  return COLORS[paletteIndex] ?? DEFAULT_PLOT_COLOR;
 };
 
-export const resolveSeriesChartColor = (
-  series: ChartColorSeries | null | undefined,
+export const resolveSeriesPlotColor = (
+  series: PlotColorSeries | null | undefined,
   seriesIndex: unknown,
 ): string => {
   const ownColor = String(series?.color ?? "").trim();
-  return ownColor || getChartColor(seriesIndex);
+  return ownColor || getPlotColor(seriesIndex);
 };
-

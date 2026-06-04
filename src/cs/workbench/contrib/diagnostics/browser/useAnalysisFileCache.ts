@@ -1,9 +1,9 @@
-import {
+﻿import {
   computeCentralDerivative,
   computeSubthresholdSwing,
   computeSubthresholdSwingFitAuto,
 } from "../common/analysisMath";
-import { buildPoints } from "src/cs/workbench/contrib/plot/browser/chartViewModel";
+import { buildPoints } from "src/cs/workbench/contrib/plot/browser/plotViewModel";
 import {
   computeBaseCurrentMetrics,
   isTransferLikeFile,

@@ -28,7 +28,7 @@ const sourceTests = [
   "src/cs/workbench/services/analysisFile/test/fileAssessment.test.mjs",
   "src/cs/workbench/contrib/plot/test/common/units.test.mjs",
   "src/cs/workbench/contrib/plot/test/browser/plotModel.test.mjs",
-  "src/cs/workbench/contrib/plot/test/browser/chartView.test.mjs",
+  "src/cs/workbench/contrib/plot/test/browser/plotSeriesModel.test.mjs",
   "src/cs/workbench/contrib/plot/test/browser/mainPlotModel.test.mjs",
   "src/cs/workbench/contrib/diagnostics/common/metrics.test.mjs",
   "src/cs/workbench/contrib/diagnostics/common/analysisMath.test.mjs",

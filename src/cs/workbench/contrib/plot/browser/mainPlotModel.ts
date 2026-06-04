@@ -1,4 +1,4 @@
-import {
+﻿import {
   computeCentralDerivative,
   computeSubthresholdSwing,
 } from "../../diagnostics/common/analysisMath.ts";
@@ -7,7 +7,7 @@ import type {
   CleanedSeries,
 } from "../../session/common/sessionTypes.ts";
 import type { PlotType } from "../common/plot.ts";
-import type { MainPlotPoint, MainPlotSeries } from "./MainPlotChart.ts";
+import type { MainPlotPoint, MainPlotSeries } from "./mainPlotCanvas.ts";
 
 type SourcePoint = {
   readonly x: number;

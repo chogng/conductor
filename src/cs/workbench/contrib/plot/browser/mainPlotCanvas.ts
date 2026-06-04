@@ -1,5 +1,7 @@
-import { formatNumber } from "src/cs/workbench/contrib/diagnostics/common/numberFormat";
-import { getChartColor, resolveSeriesChartColor } from "src/cs/workbench/contrib/plot/browser/chartColors";
+﻿import { formatNumber } from "src/cs/workbench/contrib/diagnostics/common/numberFormat";
+import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
+
+import "src/cs/workbench/contrib/plot/browser/media/plot.css";
 
 export type MainPlotPoint = {
   x?: number | null;
@@ -83,7 +85,7 @@ type VthFitOverlay = {
   y2: number;
 };
 
-export type MainPlotChartProps = {
+export type MainPlotCanvasProps = {
   plotType?: string;
   curveLineWidth?: number;
   curvePlotType?: number;
@@ -178,9 +180,9 @@ const normalizeDomain = (domain: readonly number[]): [number, number] => {
 };
 
 const resolvePlotYKey = (
-  effectiveYScale: MainPlotChartProps["effectiveYScale"],
-  yScaleMode: MainPlotChartProps["yScaleMode"],
-  yLogCurrentMode: MainPlotChartProps["yLogCurrentMode"],
+  effectiveYScale: MainPlotCanvasProps["effectiveYScale"],
+  yScaleMode: MainPlotCanvasProps["yScaleMode"],
+  yLogCurrentMode: MainPlotCanvasProps["yLogCurrentMode"],
 ): PlotYKey => {
   if (effectiveYScale === "logAbs" || yScaleMode === "logAbs") return "yAbsPositive";
   if (effectiveYScale === "log" || yScaleMode === "log") {
@@ -338,9 +340,9 @@ const drawRangeOverlay = (
   context.restore();
 };
 
-const drawMainPlotChart = (
+const drawMainPlotCanvas = (
   canvas: HTMLCanvasElement,
-  props: MainPlotChartProps,
+  props: MainPlotCanvasProps,
 ): {
   plotRect: PlotRect;
   scale: ChartScale;
@@ -467,7 +469,7 @@ const drawMainPlotChart = (
 
   const lineWidth = Math.max(1, Number(props.curveLineWidth) || 2);
   for (const [seriesIndex, series] of (props.seriesList ?? []).entries()) {
-    const color = series.color || resolveSeriesChartColor(series, seriesIndex) || getChartColor(seriesIndex);
+    const color = series.color || resolveSeriesPlotColor(series, seriesIndex) || getPlotColor(seriesIndex);
     const points = (Array.isArray(series.data) ? series.data : [])
       .map((point) => {
         const x = Number(point?.x);
@@ -494,7 +496,7 @@ const drawMainPlotChart = (
         };
       })
       .filter((point): point is { x: number; y: number } => Boolean(point));
-    drawLine(context, fitPoints, props.focusedSeriesColor ?? getChartColor(0), lineWidth + 1);
+    drawLine(context, fitPoints, props.focusedSeriesColor ?? getPlotColor(0), lineWidth + 1);
   }
 
   for (const overlay of props.vthFitOverlays ?? []) {
@@ -527,7 +529,7 @@ const drawMainPlotChart = (
 };
 
 const findNearestTooltipEntries = (
-  props: MainPlotChartProps,
+  props: MainPlotCanvasProps,
   xRaw: number,
   yKey: PlotYKey,
 ): TooltipEntry[] => {
@@ -549,7 +551,7 @@ const findNearestTooltipEntries = (
     const x = Number(nearest.x);
     if (y === null || !Number.isFinite(x)) continue;
     entries.push({
-      color: series.color || resolveSeriesChartColor(series, seriesIndex) || getChartColor(seriesIndex),
+      color: series.color || resolveSeriesPlotColor(series, seriesIndex) || getPlotColor(seriesIndex),
       label: String(series.tooltipName ?? series.name ?? `Series ${seriesIndex + 1}`),
       x,
       y,
@@ -570,15 +572,15 @@ const renderLegend = (
   }
 
   const list = document.createElement("div");
-  list.className = "chart_main_plot_legend_list";
+  list.className = "main_plot_canvas_legend_list";
   for (const [index, series] of seriesList.entries()) {
     const row = document.createElement("div");
-    row.className = "chart_main_plot_legend_row";
+    row.className = "main_plot_canvas_legend_row";
     const swatch = document.createElement("span");
-    swatch.className = "chart_main_plot_legend_swatch";
-    swatch.style.backgroundColor = series.color || resolveSeriesChartColor(series, index) || getChartColor(index);
+    swatch.className = "main_plot_canvas_legend_swatch";
+    swatch.style.backgroundColor = series.color || resolveSeriesPlotColor(series, index) || getPlotColor(index);
     const label = document.createElement("span");
-    label.className = "chart_main_plot_legend_label";
+    label.className = "main_plot_canvas_legend_label";
     label.textContent = String(series.name ?? `Series ${index + 1}`);
     row.append(swatch, label);
     list.appendChild(row);
@@ -586,16 +588,16 @@ const renderLegend = (
   container.appendChild(list);
 };
 
-export const createMainPlotChart = (props: MainPlotChartProps): HTMLElement => {
+export const createMainPlotCanvas = (props: MainPlotCanvasProps): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "chart_main_plot";
+  root.className = "main_plot_canvas";
 
   const canvas = document.createElement("canvas");
-  canvas.className = "chart_main_plot_canvas";
+  canvas.className = "main_plot_canvas_canvas";
   root.appendChild(canvas);
 
   const legend = document.createElement("div");
-  legend.className = "chart_main_plot_legend";
+  legend.className = "main_plot_canvas_legend";
   legend.style.width = `${Math.max(80, Number(props.legendWidth) || 120)}px`;
   if (props.legendFontSize) {
     legend.style.fontSize = `${props.legendFontSize}px`;
@@ -604,16 +606,16 @@ export const createMainPlotChart = (props: MainPlotChartProps): HTMLElement => {
   renderLegend(legend, props.seriesList ?? [], props.legendContent);
 
   const tooltip = document.createElement("div");
-  tooltip.className = "chart_main_plot_tooltip chart_main_plot_tooltip--hidden";
+  tooltip.className = "main_plot_canvas_tooltip main_plot_canvas_tooltip--hidden";
   root.appendChild(tooltip);
 
-  let rendered = drawMainPlotChart(canvas, props);
+  let rendered = drawMainPlotCanvas(canvas, props);
   queueMicrotask(() => {
-    rendered = drawMainPlotChart(canvas, props);
+    rendered = drawMainPlotCanvas(canvas, props);
   });
 
   canvas.addEventListener("mousemove", (event) => {
-    rendered ??= drawMainPlotChart(canvas, props);
+    rendered ??= drawMainPlotCanvas(canvas, props);
     if (!rendered) return;
 
     const rect = canvas.getBoundingClientRect();
@@ -626,29 +628,29 @@ export const createMainPlotChart = (props: MainPlotChartProps): HTMLElement => {
       localY < plotRect.top ||
       localY > plotRect.bottom
     ) {
-      tooltip.classList.add("chart_main_plot_tooltip--hidden");
+      tooltip.classList.add("main_plot_canvas_tooltip--hidden");
       return;
     }
 
     const xRaw = scale.pixelToX(localX);
     const entries = findNearestTooltipEntries(props, xRaw, yKey);
     if (!entries.length) {
-      tooltip.classList.add("chart_main_plot_tooltip--hidden");
+      tooltip.classList.add("main_plot_canvas_tooltip--hidden");
       return;
     }
 
     tooltip.replaceChildren();
     const title = document.createElement("div");
-    title.className = "chart_main_plot_tooltip_title";
+    title.className = "main_plot_canvas_tooltip_title";
     title.textContent = formatNumber(entries[0]!.x * props.plotXFactor, {
       digits: props.xTooltipDigits ?? props.xTickDigits,
     });
     tooltip.appendChild(title);
     for (const entry of entries) {
       const row = document.createElement("div");
-      row.className = "chart_main_plot_tooltip_row";
+      row.className = "main_plot_canvas_tooltip_row";
       const swatch = document.createElement("span");
-      swatch.className = "chart_main_plot_tooltip_swatch";
+      swatch.className = "main_plot_canvas_tooltip_swatch";
       swatch.style.backgroundColor = entry.color;
       const label = document.createElement("span");
       label.textContent = `${entry.label}: ${formatNumber(entry.y * props.plotYFactor, { digits: 4 })}`;
@@ -657,15 +659,15 @@ export const createMainPlotChart = (props: MainPlotChartProps): HTMLElement => {
     }
     tooltip.style.left = `${clamp(localX + 12, 8, rect.width - 220)}px`;
     tooltip.style.top = `${clamp(localY + 12, 8, rect.height - 120)}px`;
-    tooltip.classList.remove("chart_main_plot_tooltip--hidden");
+    tooltip.classList.remove("main_plot_canvas_tooltip--hidden");
   });
   canvas.addEventListener("mouseleave", () => {
-    tooltip.classList.add("chart_main_plot_tooltip--hidden");
+    tooltip.classList.add("main_plot_canvas_tooltip--hidden");
   });
 
   return root;
 };
 
-const MainPlotChart = (props: MainPlotChartProps): HTMLElement => createMainPlotChart(props);
+const MainPlotCanvas = (props: MainPlotCanvasProps): HTMLElement => createMainPlotCanvas(props);
 
-export default MainPlotChart;
+export default MainPlotCanvas;

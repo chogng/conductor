@@ -5,7 +5,7 @@ import {
   createMainPlotModel,
   createMainPlotSeries,
   getMainPlotYUnitLabel,
-} from "./mainPlotModel.ts";
+} from "../../browser/mainPlotModel.ts";
 
 const createFile = (overrides = {}) => ({
   fileId: "file-a",

@@ -1,7 +1,9 @@
-import {
+﻿import {
   padLinearDomain,
   padLogDomain,
-} from "src/cs/workbench/contrib/plot/browser/chartViewModel";
+} from "src/cs/workbench/contrib/plot/browser/plotViewModel";
+
+import "src/cs/workbench/contrib/plot/browser/media/plot.css";
 
 type Padding = {
   top: number;
@@ -10,22 +12,22 @@ type Padding = {
   left: number;
 };
 
-type ChartDomain = {
+type PreviewPlotDomain = {
   x?: [number, number] | number[];
   y?: [number, number] | number[];
 };
 
-type ChartSeries = {
+type PreviewPlotSeries = {
   name?: string;
   groupIndex?: number;
   y?: ArrayLike<unknown> | null;
   [key: string]: unknown;
 };
 
-export type CanvasMultiLineChartProps = {
+export type CanvasMultiLinePlotProps = {
   xGroups?: number[][];
-  series?: ChartSeries[];
-  domain?: ChartDomain | null;
+  series?: PreviewPlotSeries[];
+  domain?: PreviewPlotDomain | null;
   xScaleFactor?: number;
   xUnitLabel?: string;
   yScaleFactor?: number;
@@ -51,7 +53,7 @@ type ResolvedPreviewYDataRange = {
 };
 
 const normalizeDomainTuple = (
-  raw: ChartDomain[keyof ChartDomain] | null | undefined,
+  raw: PreviewPlotDomain[keyof PreviewPlotDomain] | null | undefined,
 ): [number, number] | null => {
   const start = Number(raw?.[0]);
   const end = Number(raw?.[1]);
@@ -75,19 +77,19 @@ const resolvePreviewYForScale = (
   return abs > 0 ? abs : null;
 };
 
-export const resolvePreviewChartYDataRange = ({
+export const resolvePreviewPlotYDataRange = ({
   series,
   yScaleType,
   yLogCurrentMode = "all",
 }: Pick<
-  CanvasMultiLineChartProps,
+  CanvasMultiLinePlotProps,
   "series" | "yScaleType" | "yLogCurrentMode"
 >): ResolvedPreviewYDataRange => {
   const resolvedYScaleType = String(yScaleType ?? "linear") === "log" ? "log" : "linear";
   let minY = Infinity;
   let maxY = -Infinity;
-  for (const chartSeries of series ?? []) {
-    const yArr = chartSeries?.y;
+  for (const plotSeries of series ?? []) {
+    const yArr = plotSeries?.y;
     if (!yArr) continue;
     for (let index = 0; index < (yArr.length ?? 0); index++) {
       const yVal = resolvePreviewYForScale(
@@ -106,14 +108,14 @@ export const resolvePreviewChartYDataRange = ({
   };
 };
 
-export const resolvePreviewChartDomain = ({
+export const resolvePreviewPlotDomain = ({
   xGroups,
   series,
   domain,
   yScaleType,
   yLogCurrentMode = "all",
 }: Pick<
-  CanvasMultiLineChartProps,
+  CanvasMultiLinePlotProps,
   "xGroups" | "series" | "domain" | "yScaleType" | "yLogCurrentMode"
 >): ResolvedPreviewDomain => {
   const explicitXDomain = normalizeDomainTuple(domain?.x);
@@ -132,8 +134,8 @@ export const resolvePreviewChartDomain = ({
   const wantsLogScale = String(yScaleType ?? "linear") === "log";
   let minY = Infinity;
   let maxY = -Infinity;
-  for (const chartSeries of series ?? []) {
-    const yArr = chartSeries?.y;
+  for (const plotSeries of series ?? []) {
+    const yArr = plotSeries?.y;
     if (!yArr) continue;
     for (let index = 0; index < (yArr.length ?? 0); index++) {
       const yVal = resolvePreviewYForScale(
@@ -166,10 +168,10 @@ export const resolvePreviewChartDomain = ({
   };
 };
 
-const CanvasMultiLineChart = (props: CanvasMultiLineChartProps): any =>
-  createCanvasMultiLineChart(props);
+const CanvasMultiLinePlot = (props: CanvasMultiLinePlotProps): any =>
+  createCanvasMultiLinePlot(props);
 
-export const createCanvasMultiLineChart = ({
+export const createCanvasMultiLinePlot = ({
   className = "",
   domain,
   padding = DEFAULT_PADDING,
@@ -178,18 +180,18 @@ export const createCanvasMultiLineChart = ({
   xGroups = [],
   yLogCurrentMode = "all",
   yScaleType = "linear",
-}: CanvasMultiLineChartProps): HTMLElement => {
+}: CanvasMultiLinePlotProps): HTMLElement => {
   const root = document.createElement("div");
-  root.className = `chart_canvas_multi_line ${className}`.trim();
+  root.className = `canvas_multi_line_plot ${className}`.trim();
   if (title) {
     root.title = title;
   }
 
   const canvas = document.createElement("canvas");
-  canvas.className = "chart_canvas_multi_line_canvas";
+  canvas.className = "canvas_multi_line_plot_canvas";
   root.append(canvas);
 
-  const resolvedDomain = resolvePreviewChartDomain({
+  const resolvedDomain = resolvePreviewPlotDomain({
     domain,
     series,
     xGroups,
@@ -197,7 +199,7 @@ export const createCanvasMultiLineChart = ({
     yScaleType,
   });
   queueMicrotask(() =>
-    drawPreviewChart(canvas, {
+    drawPreviewPlot(canvas, {
       padding,
       resolvedDomain,
       series,
@@ -207,7 +209,7 @@ export const createCanvasMultiLineChart = ({
   return root;
 };
 
-const drawPreviewChart = (
+const drawPreviewPlot = (
   canvas: HTMLCanvasElement,
   {
     padding,
@@ -217,7 +219,7 @@ const drawPreviewChart = (
   }: {
     readonly padding: Padding;
     readonly resolvedDomain: ResolvedPreviewDomain;
-    readonly series: ChartSeries[];
+    readonly series: PreviewPlotSeries[];
     readonly xGroups: number[][];
   },
 ): void => {
@@ -275,4 +277,4 @@ const drawPreviewChart = (
 const getColor = (index: number): string =>
   ["#60a5fa", "#f97316", "#22c55e", "#e879f9", "#f43f5e"][index % 5];
 
-export default CanvasMultiLineChart;
+export default CanvasMultiLinePlot;

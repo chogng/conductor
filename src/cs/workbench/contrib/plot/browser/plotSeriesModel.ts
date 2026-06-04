@@ -1,18 +1,18 @@
-import { withSignedLogPositivePoints } from "./chartViewModel.ts";
-import type { ChartYScale, LogCurrentMode } from "./chartModel.ts";
+﻿import { withSignedLogPositivePoints } from "./plotViewModel.ts";
+import type { PlotYScale, LogCurrentMode } from "./plotModel.ts";
 
-export type ChartAxisTitleChangeEvent = {
+export type PlotAxisTitleChangeEvent = {
   axis: "x" | "y";
   title: string;
 };
 
-export type ChartPlotSeries = {
+export type PlotSeries = {
   data?: Array<{ y?: unknown; [key: string]: unknown }>;
   id?: unknown;
   [key: string]: unknown;
 };
 
-export type ChartPlotSeriesByType<T extends ChartPlotSeries> = Partial<{
+export type PlotSeriesByType<T extends PlotSeries> = Partial<{
   gm: T[];
   iv: T[];
   j: T[];
@@ -20,12 +20,12 @@ export type ChartPlotSeriesByType<T extends ChartPlotSeries> = Partial<{
   vth: T[];
 }>;
 
-export const getPlotLegendSeries = <T extends ChartPlotSeries>({
+export const getPlotLegendSeries = <T extends PlotSeries>({
   effectivePlotType,
   plotSeriesByType,
 }: {
   effectivePlotType: string;
-  plotSeriesByType?: ChartPlotSeriesByType<T> | null;
+  plotSeriesByType?: PlotSeriesByType<T> | null;
 }): T[] => {
   const byType = plotSeriesByType ?? {};
   if (effectivePlotType === "gm") return byType.gm ?? [];
@@ -35,7 +35,7 @@ export const getPlotLegendSeries = <T extends ChartPlotSeries>({
   return byType.iv ?? [];
 };
 
-export const getDisplayPlotSeries = <T extends ChartPlotSeries>({
+export const getDisplayPlotSeries = <T extends PlotSeries>({
   plotLegendSeries,
   visibleSeriesKeySet,
   yLogCurrentMode,
@@ -44,7 +44,7 @@ export const getDisplayPlotSeries = <T extends ChartPlotSeries>({
   plotLegendSeries: readonly T[];
   visibleSeriesKeySet: Set<string>;
   yLogCurrentMode: LogCurrentMode;
-  yScaleMode: ChartYScale;
+  yScaleMode: PlotYScale;
 }): T[] => {
   const visible = plotLegendSeries.filter((series) => {
     const seriesId = String(series?.id ?? "").trim();
@@ -86,10 +86,10 @@ export const getRenderMaxPointsPerSeries = ({
   return Math.max(minPoints, Math.min(maxPoints, adaptive));
 };
 
-export const createChartAxisTitleChangeEvent = (
+export const createPlotAxisTitleChangeEvent = (
   axis: "x" | "y",
   title: unknown,
-): ChartAxisTitleChangeEvent => ({
+): PlotAxisTitleChangeEvent => ({
   axis,
   title: String(title ?? "").trim(),
 });

@@ -1,15 +1,15 @@
-import test from "node:test";
+﻿import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
   normalizeAxisTitleOverridesByFileId,
-  normalizeChartYScale,
+  normalizePlotYScale,
   normalizeLogCurrentMode,
   normalizeSeriesLegendLabelsByFileId,
   normalizeVisibleSeriesByFileId,
   normalizeYLogCurrentModeByFileIdRecord,
   normalizeYScaleByFileIdRecord,
-} from "./chartModel.ts";
+} from "../../browser/plotModel.ts";
 
 test("normalizeVisibleSeriesByFileId trims ids and removes duplicates", () => {
   assert.deepEqual(
@@ -66,10 +66,10 @@ test("normalizeAxisTitleOverridesByFileId keeps x and y labels only", () => {
   );
 });
 
-test("normalizes chart scale records", () => {
-  assert.equal(normalizeChartYScale("logAbs"), "logAbs");
-  assert.equal(normalizeChartYScale("LOG"), "log");
-  assert.equal(normalizeChartYScale("other"), "linear");
+test("normalizes plot scale records", () => {
+  assert.equal(normalizePlotYScale("logAbs"), "logAbs");
+  assert.equal(normalizePlotYScale("LOG"), "log");
+  assert.equal(normalizePlotYScale("other"), "linear");
   assert.equal(normalizeLogCurrentMode("positive"), "positive");
   assert.equal(normalizeLogCurrentMode("all"), "all");
   assert.deepEqual(normalizeYScaleByFileIdRecord({ a: "log", b: "bad" }), {

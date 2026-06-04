@@ -1,4 +1,4 @@
-.analysis_status_card {
+﻿.analysis_status_card {
   display: flex;
   flex: 1 1 0%;
   flex-direction: column;
@@ -118,16 +118,10 @@
   grid-template-rows: minmax(220px, 1fr) minmax(120px, 0.24fr) minmax(156px, 0.34fr);
 }
 
-.chart_view_main_pane,
-.chart_view_locator_pane,
-.chart_view_inspector_pane,
-.chart_view_diagnostics_content {
-  min-width: 0;
-  min-height: 0;
-}
-
 .chart_view_main_pane {
   display: flex;
+  min-width: 0;
+  min-height: 0;
 }
 
 .chart_view_host {
@@ -137,119 +131,6 @@
   border: 1px solid rgb(var(--border) / 1);
   border-radius: 8px;
   padding: 12px;
-}
-
-.chart_view_locator_pane {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  border: 1px solid rgb(var(--border) / 0.65);
-  border-radius: 8px;
-  padding: 10px 12px 12px;
-}
-
-.chart_view_auxiliary_header {
-  min-height: 28px;
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: 600;
-  color: rgb(var(--text-primary) / 1);
-}
-
-.chart_view_locator_grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.chart_view_locator_metric {
-  min-width: 0;
-  border: 1px solid rgb(var(--border) / 0.65);
-  border-radius: 6px;
-  background-color: rgb(var(--bg-surface) / 0.58);
-  padding: 8px 10px;
-}
-
-.chart_view_locator_metric_label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  line-height: 16px;
-  color: rgb(var(--text-secondary) / 1);
-}
-
-.chart_view_locator_metric_value {
-  margin-top: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 14px;
-  line-height: 20px;
-  color: rgb(var(--text-primary) / 1);
-}
-
-.chart_view_inspector_pane {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border: 1px solid rgb(var(--border) / 0.65);
-  border-radius: 8px;
-  padding: 10px 12px 12px;
-}
-
-.chart_view_diagnostics_header {
-  display: flex;
-  min-height: 28px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.chart_view_diagnostics_title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: 600;
-  color: rgb(var(--text-primary) / 1);
-}
-
-.chart_view_diagnostics_switch {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 8px;
-}
-
-.chart_view_diagnostics_switch_label {
-  font-size: 12px;
-  line-height: 16px;
-  color: rgb(var(--text-secondary) / 1);
-}
-
-.chart_view_diagnostics_content {
-  position: relative;
-  flex: 1 1 0%;
-}
-
-.chart_view_diagnostics_empty {
-  display: flex;
-  height: 100%;
-  min-height: 96px;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  font-size: 12px;
-  line-height: 16px;
-  color: rgb(var(--text-secondary) / 1);
-}
-
-.chart_view_inspector_pane[data-state="off"] .chart_view_diagnostics_content {
-  min-height: 96px;
 }
 
 .chart_view_empty {

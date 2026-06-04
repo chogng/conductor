@@ -1,14 +1,14 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import test from "node:test";
 import {
   SIGNED_LOG_Y_DATA_KEY,
   withSignedLogPositivePoints,
-} from "./chartViewModel.ts";
+} from "../../browser/plotViewModel.ts";
 import {
   collectCanvasLineRuns,
   toFiniteCanvasNumber,
   valueToCanvasY,
-} from "./canvasPlot.ts";
+} from "../../browser/canvasPlot.ts";
 
 test("toFiniteCanvasNumber preserves null-like canvas gaps", () => {
   assert.equal(toFiniteCanvasNumber(null), null);

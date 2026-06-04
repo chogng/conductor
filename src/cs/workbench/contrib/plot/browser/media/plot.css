@@ -1,4 +1,4 @@
-.chart_canvas_multi_line {
+﻿.canvas_multi_line_plot {
 
     position: relative;
 
@@ -7,14 +7,14 @@
     width: 100%
 }
 
-.chart_canvas_multi_line_canvas {
+.canvas_multi_line_plot_canvas {
 
     position: absolute;
 
     inset: 0px
 }
 
-.chart_main_plot {
+.main_plot_canvas {
 
     position: relative;
 
@@ -25,7 +25,7 @@
     width: 100%
 }
 
-.chart_main_plot_canvas {
+.main_plot_canvas_canvas {
 
     position: absolute;
 
@@ -36,7 +36,7 @@
     width: 100%
 }
 
-.chart_main_plot_legend {
+.main_plot_canvas_legend {
 
     position: absolute;
 
@@ -67,7 +67,7 @@
     padding-bottom: 0.5rem
 }
 
-.chart_main_plot_legend_list > :not([hidden]) ~ :not([hidden]) {
+.main_plot_canvas_legend_list > :not([hidden]) ~ :not([hidden]) {
 
     --tw-space-y-reverse: 0;
 
@@ -76,7 +76,7 @@
     margin-bottom: calc(0.25rem * var(--tw-space-y-reverse))
 }
 
-.chart_main_plot_legend_list {
+.main_plot_canvas_legend_list {
 
     font-size: inherit;
 
@@ -87,7 +87,7 @@
     color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1))
 }
 
-.chart_main_plot_legend_row {
+.main_plot_canvas_legend_row {
 
     display: flex;
 
@@ -98,7 +98,7 @@
     gap: 0.5rem
 }
 
-.chart_main_plot_legend_swatch {
+.main_plot_canvas_legend_swatch {
 
     height: 0.5rem;
 
@@ -109,7 +109,7 @@
     border-radius: 9999px
 }
 
-.chart_main_plot_legend_label {
+.main_plot_canvas_legend_label {
 
     overflow: hidden;
 
@@ -118,7 +118,7 @@
     white-space: nowrap
 }
 
-.chart_main_plot_tooltip {
+.main_plot_canvas_tooltip {
 
     pointer-events: none;
 
@@ -157,17 +157,17 @@
     box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)
 }
 
-.chart_main_plot_tooltip--hidden {
+.main_plot_canvas_tooltip--hidden {
 
     display: none
 }
 
-.chart_main_plot_tooltip_title {
+.main_plot_canvas_tooltip_title {
 
     font-weight: 500
 }
 
-.chart_main_plot_tooltip_row {
+.main_plot_canvas_tooltip_row {
 
     display: flex;
 
@@ -176,7 +176,7 @@
     gap: 0.5rem
 }
 
-.chart_main_plot_tooltip_swatch {
+.main_plot_canvas_tooltip_swatch {
 
     height: 0.5rem;
 
@@ -185,7 +185,127 @@
     border-radius: 9999px
 }
 
-.chart_axis_settings_card {
+.main_plot_locator_pane,
+.main_plot_inspector_pane,
+.main_plot_diagnostics_content {
+  min-width: 0;
+  min-height: 0;
+}
+
+.main_plot_locator_pane {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid rgb(var(--border) / 0.65);
+  border-radius: 8px;
+  padding: 10px 12px 12px;
+}
+
+.main_plot_auxiliary_header {
+  min-height: 28px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  color: rgb(var(--text-primary) / 1);
+}
+
+.main_plot_locator_grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.main_plot_locator_metric {
+  min-width: 0;
+  border: 1px solid rgb(var(--border) / 0.65);
+  border-radius: 6px;
+  background-color: rgb(var(--bg-surface) / 0.58);
+  padding: 8px 10px;
+}
+
+.main_plot_locator_metric_label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 16px;
+  color: rgb(var(--text-secondary) / 1);
+}
+
+.main_plot_locator_metric_value {
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 14px;
+  line-height: 20px;
+  color: rgb(var(--text-primary) / 1);
+}
+
+.main_plot_inspector_pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid rgb(var(--border) / 0.65);
+  border-radius: 8px;
+  padding: 10px 12px 12px;
+}
+
+.main_plot_diagnostics_header {
+  display: flex;
+  min-height: 28px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.main_plot_diagnostics_title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  color: rgb(var(--text-primary) / 1);
+}
+
+.main_plot_diagnostics_switch {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.main_plot_diagnostics_switch_label {
+  font-size: 12px;
+  line-height: 16px;
+  color: rgb(var(--text-secondary) / 1);
+}
+
+.main_plot_diagnostics_content {
+  position: relative;
+  flex: 1 1 0%;
+}
+
+.main_plot_diagnostics_empty {
+  display: flex;
+  height: 100%;
+  min-height: 96px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 12px;
+  line-height: 16px;
+  color: rgb(var(--text-secondary) / 1);
+}
+
+.main_plot_inspector_pane[data-state="off"] .main_plot_diagnostics_content {
+  min-height: 96px;
+}
+
+.plot_axis_settings_card {
 
     display: flex;
 
@@ -198,19 +318,19 @@
     padding-right: 0px !important
 }
 
-.chart_axis_settings_compact_input {
+.plot_axis_settings_compact_input {
 
     width: 132px
 }
 
-.chart_axis_settings_compact_input.dropdown-field {
+.plot_axis_settings_compact_input.dropdown-field {
 
     height: 30px;
 
     padding: 4px 8px
 }
 
-.chart_axis_settings_compact_input_field {
+.plot_axis_settings_compact_input_field {
 
     height: 30px !important;
 
@@ -231,14 +351,14 @@
     padding-bottom: 4px
 }
 
-.chart_axis_settings_header {
+.plot_axis_settings_header {
 
     margin-bottom: 0.75rem;
 
     padding-right: 1rem
 }
 
-.chart_axis_settings_header_row {
+.plot_axis_settings_header_row {
 
     display: flex;
 
@@ -249,7 +369,7 @@
     gap: 0.5rem
 }
 
-.chart_axis_settings_sections {
+.plot_axis_settings_sections {
 
     display: flex;
 
@@ -258,7 +378,7 @@
     gap: 0.75rem
 }
 
-.chart_axis_settings_warning {
+.plot_axis_settings_warning {
 
     border-top-width: 1px;
 
@@ -279,7 +399,7 @@
     color: rgb(234 179 8 / var(--tw-text-opacity, 1))
 }
 
-.chart_axis_settings_section {
+.plot_axis_settings_section {
 
     overflow: hidden;
 
@@ -294,7 +414,7 @@
     background-color: rgb(var(--bg-surface) / var(--tw-bg-opacity, 1))
 }
 
-.chart_axis_settings_section_header {
+.plot_axis_settings_section_header {
 
     border-bottom-width: 1px;
 
@@ -319,7 +439,7 @@
     color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1))
 }
 
-.chart_axis_settings_row {
+.plot_axis_settings_row {
 
     display: grid;
 
@@ -342,12 +462,12 @@
     padding-bottom: 0.5rem
 }
 
-.chart_axis_settings_row:last-child {
+.plot_axis_settings_row:last-child {
 
     border-bottom-width: 0px
 }
 
-.chart_axis_settings_row_label {
+.plot_axis_settings_row_label {
 
     font-size: 0.75rem;
 
@@ -358,19 +478,19 @@
     color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1))
 }
 
-.chart_axis_settings_scroll {
+.plot_axis_settings_scroll {
 
     min-height: 0px;
 
     flex: 1 1 0%
 }
 
-.chart_axis_settings_scroll_viewport {
+.plot_axis_settings_scroll_viewport {
 
     padding-right: 1rem
 }
 
-.chart_axis_settings_icon_button {
+.plot_axis_settings_icon_button {
 
     height: 2rem;
 
@@ -383,14 +503,14 @@
     color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1))
 }
 
-.chart_axis_settings_icon_button:hover {
+.plot_axis_settings_icon_button:hover {
 
     --tw-text-opacity: 1;
 
     color: rgb(var(--text-primary) / var(--tw-text-opacity, 1))
 }
 
-.chart_axis_settings_text_button {
+.plot_axis_settings_text_button {
 
     height: 1.75rem;
 
@@ -407,21 +527,21 @@
     color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1))
 }
 
-.chart_axis_settings_text_button:hover {
+.plot_axis_settings_text_button:hover {
 
     --tw-text-opacity: 1;
 
     color: rgb(var(--text-primary) / var(--tw-text-opacity, 1))
 }
 
-.chart_axis_settings_title {
+.plot_axis_settings_title {
 
     min-width: 0px;
 
     flex: 1 1 0%
 }
 
-.chart_axis_settings_title_text {
+.plot_axis_settings_title_text {
 
     overflow: hidden;
 

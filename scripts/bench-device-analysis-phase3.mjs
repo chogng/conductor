@@ -9,7 +9,7 @@ import {
 import {
   buildPoints,
   downsamplePointsForDisplay,
-} from "../src/cs/workbench/contrib/plot/browser/chartViewModel.ts";
+} from "../src/cs/workbench/contrib/plot/browser/plotViewModel.ts";
 import {
   computeBaseCurrentMetrics,
   isTransferLikeFile,

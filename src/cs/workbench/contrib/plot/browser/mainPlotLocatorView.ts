@@ -1,21 +1,19 @@
-import { localize } from "src/cs/nls";
-import type { createMainPlotModel } from "src/cs/workbench/contrib/plot/browser/mainPlotModel";
+﻿import { localize } from "src/cs/nls";
+import type { MainPlotModel } from "src/cs/workbench/contrib/plot/browser/mainPlotModel";
 
-type MainPlotModel = ReturnType<typeof createMainPlotModel>;
-
-export const createLocatorView = (
+export const createMainPlotLocatorView = (
   model: MainPlotModel,
 ): HTMLElement => {
   const section = document.createElement("section");
-  section.className = "chart_view_locator_pane";
+  section.className = "main_plot_locator_pane";
   section.setAttribute("aria-label", localize("chart_locator_heading", "Locator"));
 
   const header = document.createElement("div");
-  header.className = "chart_view_auxiliary_header";
+  header.className = "main_plot_auxiliary_header";
   header.textContent = localize("chart_locator_heading", "Locator");
 
   const body = document.createElement("div");
-  body.className = "chart_view_locator_grid";
+  body.className = "main_plot_locator_grid";
   body.append(
     createLocatorMetric(localize("analysis.seriesCount", "Series"), String(model.seriesList.length)),
     createLocatorMetric(localize("analysis.pointsCount", "Points"), String(model.pointsCount)),
@@ -29,14 +27,14 @@ export const createLocatorView = (
 
 const createLocatorMetric = (labelText: string, valueText: string): HTMLElement => {
   const item = document.createElement("div");
-  item.className = "chart_view_locator_metric";
+  item.className = "main_plot_locator_metric";
 
   const label = document.createElement("div");
-  label.className = "chart_view_locator_metric_label";
+  label.className = "main_plot_locator_metric_label";
   label.textContent = labelText;
 
   const value = document.createElement("div");
-  value.className = "chart_view_locator_metric_value";
+  value.className = "main_plot_locator_metric_value";
   value.textContent = valueText;
 
   item.append(label, value);
