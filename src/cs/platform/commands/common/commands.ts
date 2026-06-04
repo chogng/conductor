@@ -1,4 +1,8 @@
 import { Emitter, type Event } from "src/cs/base/common/event";
+import { Iterable } from "src/cs/base/common/iterator";
+import type { IJSONSchema } from "src/cs/base/common/jsonSchema";
+import { LinkedList } from "src/cs/base/common/linkedList";
+import type { ILocalizedString } from "src/cs/platform/action/common/action";
 import { createDecorator, type ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import { toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 
@@ -25,6 +29,18 @@ export type ICommandHandler<Args extends unknown[] = unknown[], R = void> = (
 export interface ICommand<Args extends unknown[] = unknown[], R = void> {
   readonly id: string;
   readonly handler: ICommandHandler<Args, R>;
+  readonly metadata?: ICommandMetadata | null;
+}
+
+export interface ICommandMetadata {
+  readonly description: ILocalizedString | string;
+  readonly args?: ReadonlyArray<{
+    readonly name: string;
+    readonly isOptional?: boolean;
+    readonly description?: string;
+    readonly schema?: IJSONSchema;
+  }>;
+  readonly returns?: string;
 }
 
 export type ICommandsMap = Map<string, ICommand>;
@@ -40,7 +56,7 @@ export interface ICommandRegistry {
 }
 
 class CommandRegistry implements ICommandRegistry {
-  private readonly commands = new Map<string, ICommand[]>();
+  private readonly commands = new Map<string, LinkedList<ICommand>>();
   private readonly onDidRegisterCommandEmitter = new Emitter<string>();
 
   public readonly onDidRegisterCommand = this.onDidRegisterCommandEmitter.event;
@@ -61,22 +77,19 @@ class CommandRegistry implements ICommandRegistry {
     }
 
     const command = idOrCommand as ICommand;
-    const commands = this.commands.get(command.id) ?? [];
-    commands.unshift(command);
-    this.commands.set(command.id, commands);
+    let commands = this.commands.get(command.id);
+    if (!commands) {
+      commands = new LinkedList<ICommand>();
+      this.commands.set(command.id, commands);
+    }
+
+    const removeCommand = commands.unshift(command);
     this.onDidRegisterCommandEmitter.fire(command.id);
 
     return toDisposable(() => {
-      const currentCommands = this.commands.get(command.id);
-      if (!currentCommands) {
-        return;
-      }
-
-      const nextCommands = currentCommands.filter(item => item !== command);
-      if (nextCommands.length === 0) {
+      removeCommand();
+      if (commands.isEmpty() && this.commands.get(command.id) === commands) {
         this.commands.delete(command.id);
-      } else {
-        this.commands.set(command.id, nextCommands);
       }
     });
   }
@@ -88,7 +101,12 @@ class CommandRegistry implements ICommandRegistry {
   }
 
   public getCommand(id: string): ICommand | undefined {
-    return this.commands.get(id)?.[0];
+    const commands = this.commands.get(id);
+    if (!commands) {
+      return undefined;
+    }
+
+    return Iterable.first(commands);
   }
 
   public getCommands(): ICommandsMap {
