@@ -77,7 +77,7 @@ registerContainer(
   ViewContainerLocation.Panel,
 );
 registerContainer(
-  WorkbenchViewContainers.secondary,
+  WorkbenchViewContainers.auxiliarybar,
   localize("workbench.views.secondary", "Details"),
   ViewContainerLocation.AuxiliaryBar,
 );
@@ -140,7 +140,7 @@ function registerContainer(id: string, title: string, location: ViewContainerLoc
     ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [{
       className: "workbench-part-view-pane-container",
       id,
-      renderHeader: id === WorkbenchViewContainers.secondary,
+      renderHeader: id === WorkbenchViewContainers.auxiliarybar,
       title,
     }]),
   }, location, { isDefault: true, doNotRegisterOpenCommand: true });

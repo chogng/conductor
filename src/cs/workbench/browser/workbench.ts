@@ -1,4 +1,4 @@
-﻿import {
+import {
   DisposableStore,
   toDisposable,
   type IDisposable,
@@ -130,18 +130,18 @@ export type WorkbenchTitlebarState = {
 };
 
 type WorkbenchMainPart = "table" | "chart";
-type SecondarySidebarView = "export" | "parameters" | "settings";
+type AuxiliaryBarView = "export" | "parameters" | "settings";
 
 type WorkbenchSessionSnapshot = ReturnType<SessionModel["getSnapshot"]>;
 
-type SecondarySidebarViewDescriptor = {
-  readonly id: SecondarySidebarView;
+type AuxiliaryBarViewDescriptor = {
+  readonly id: AuxiliaryBarView;
   readonly viewId: string;
   readonly labelKey: string;
   readonly label: string;
 };
 
-const secondarySidebarViews: readonly SecondarySidebarViewDescriptor[] = [
+const auxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
   {
     id: "export",
     viewId: ExportViewId,
@@ -267,7 +267,7 @@ export class Workbench extends Layout {
   private activeMainPart: WorkbenchMainPart = resolveInitialMainPart(
     this.session.getSnapshot(),
   );
-  private activeSecondarySidebarView: SecondarySidebarView = "export";
+  private activeAuxiliaryBarView: AuxiliaryBarView = "export";
   private originMode: OriginExportMode = "merged";
   private canvasScope: OriginCanvasExportScope = "current";
   private filteredKind: OriginFilteredCanvasKind = "output";
@@ -385,16 +385,16 @@ export class Workbench extends Layout {
     this.analysis.update(this.getAnalysisProps(snapshot, this.templateApply));
     this.settings.update(this.getSettingsProps());
     this.updateViewContainers();
-    this.renderSecondarySidebarView(snapshot);
+    this.renderAuxiliaryBarView(snapshot);
     this.setParts({
       sidebar: this.getViewContainerElement(WorkbenchViewContainers.files, this.filesPane.element),
       data: this.getViewContainerElement(
         WorkbenchViewContainers.main,
         this.activeMainPart === "chart" ? this.analysis.element : this.table.element,
       ),
-      secondarySidebar: this.getViewContainerElement(
-        WorkbenchViewContainers.secondary,
-        this.activeMainPart === "chart" ? this.getActiveSecondarySidebarElement() : this.templateViewlet.sidebarElement,
+      auxiliaryBar: this.getViewContainerElement(
+        WorkbenchViewContainers.auxiliarybar,
+        this.activeMainPart === "chart" ? this.getActiveAuxiliaryBarElement() : this.templateViewlet.sidebarElement,
       ),
       settings: this.getViewContainerElement(WorkbenchViewContainers.settings, this.settings.element),
     });
@@ -475,7 +475,7 @@ export class Workbench extends Layout {
       this.viewsService.addViewToContainer(WorkbenchViewContainers.main, this.table.view);
     }
     this.viewsService.addViewToContainer(WorkbenchViewContainers.main, this.analysis);
-    this.viewsService.addViewToContainer(WorkbenchViewContainers.secondary, this.templateViewlet.sidebarView);
+    this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.templateViewlet.sidebarView);
     this.viewsService.addViewToContainer(WorkbenchViewContainers.settings, this.settings);
 
     const isSettingsActive = this.activeView === "settings";
@@ -485,12 +485,12 @@ export class Workbench extends Layout {
     if (isWorkbenchActive) {
       void this.viewsService.openViewContainer(WorkbenchViewContainers.files);
       void this.viewsService.openViewContainer(WorkbenchViewContainers.main);
-      void this.viewsService.openViewContainer(WorkbenchViewContainers.secondary);
+      void this.viewsService.openViewContainer(WorkbenchViewContainers.auxiliarybar);
       this.viewsService.closeViewContainer(WorkbenchViewContainers.settings);
     } else {
       this.viewsService.closeViewContainer(WorkbenchViewContainers.files);
       this.viewsService.closeViewContainer(WorkbenchViewContainers.main);
-      this.viewsService.closeViewContainer(WorkbenchViewContainers.secondary);
+      this.viewsService.closeViewContainer(WorkbenchViewContainers.auxiliarybar);
       void this.viewsService.openViewContainer(WorkbenchViewContainers.settings);
     }
 
@@ -499,20 +499,20 @@ export class Workbench extends Layout {
       this.viewsService.setViewVisible(this.table.view.id, isWorkbenchActive && !isAnalysisActive);
     }
     this.viewsService.setViewVisible(this.analysis.id, isWorkbenchActive && isAnalysisActive);
-    this.updateSecondarySidebarViewVisibility(isWorkbenchActive && isAnalysisActive);
+    this.updateAuxiliaryBarViewVisibility(isWorkbenchActive && isAnalysisActive);
     this.viewsService.setViewVisible(this.templateViewlet.sidebarView.id, isWorkbenchActive && !isAnalysisActive);
     this.viewsService.setViewVisible(this.settings.id, isSettingsActive);
-    this.updateSecondarySidebarActions(isWorkbenchActive && isAnalysisActive);
+    this.updateAuxiliaryBarActions(isWorkbenchActive && isAnalysisActive);
   }
 
-  private updateSecondarySidebarViewVisibility(visible: boolean): void {
+  private updateAuxiliaryBarViewVisibility(visible: boolean): void {
     if (!visible) {
-      this.closeSecondarySidebarViews();
+      this.closeAuxiliaryBarViews();
       return;
     }
 
-    for (const view of secondarySidebarViews) {
-      if (view.id === this.activeSecondarySidebarView) {
+    for (const view of auxiliaryBarViews) {
+      if (view.id === this.activeAuxiliaryBarView) {
         void this.viewsService.openView(view.viewId);
       } else {
         this.viewsService.closeView(view.viewId);
@@ -520,58 +520,58 @@ export class Workbench extends Layout {
     }
   }
 
-  private closeSecondarySidebarViews(): void {
-    for (const view of secondarySidebarViews) {
+  private closeAuxiliaryBarViews(): void {
+    for (const view of auxiliaryBarViews) {
       this.viewsService.closeView(view.viewId);
     }
   }
 
-  private updateSecondarySidebarActions(visible: boolean): void {
-    const container = this.viewsService.getActiveViewPaneContainerWithId(WorkbenchViewContainers.secondary);
+  private updateAuxiliaryBarActions(visible: boolean): void {
+    const container = this.viewsService.getActiveViewPaneContainerWithId(WorkbenchViewContainers.auxiliarybar);
     if (!container) {
       return;
     }
 
     container.setTitle("");
-    container.setActions(visible ? this.createSecondarySidebarActions() : []);
+    container.setActions(visible ? this.createAuxiliaryBarActions() : []);
   }
 
-  private createSecondarySidebarActions(): IAction[] {
-    return secondarySidebarViews.map(view => this.createSecondarySidebarAction(view));
+  private createAuxiliaryBarActions(): IAction[] {
+    return auxiliaryBarViews.map(view => this.createAuxiliaryBarAction(view));
   }
 
-  private createSecondarySidebarAction(view: SecondarySidebarViewDescriptor): IAction {
+  private createAuxiliaryBarAction(view: AuxiliaryBarViewDescriptor): IAction {
     const label = localize(view.labelKey, view.label);
     return toAction({
       id: `workbench.secondary.${view.id}`,
       label,
       tooltip: label,
-      class: "secondary_sidebar_view_switch_action",
-      checked: this.activeSecondarySidebarView === view.id,
-      run: () => this.setActiveSecondarySidebarView(view.id),
+      class: "auxiliarybar_view_switch_action",
+      checked: this.activeAuxiliaryBarView === view.id,
+      run: () => this.setActiveAuxiliaryBarView(view.id),
     });
   }
 
-  private setActiveSecondarySidebarView(view: SecondarySidebarView): void {
-    if (this.activeSecondarySidebarView === view) {
+  private setActiveAuxiliaryBarView(view: AuxiliaryBarView): void {
+    if (this.activeAuxiliaryBarView === view) {
       return;
     }
 
-    this.activeSecondarySidebarView = view;
+    this.activeAuxiliaryBarView = view;
     this.updateViewContainers();
-    this.renderSecondarySidebarView();
+    this.renderAuxiliaryBarView();
     this.layoutVisibleViewContainers();
   }
 
-  private renderSecondarySidebarView(snapshot = this.session.getSnapshot()): void {
+  private renderAuxiliaryBarView(snapshot = this.session.getSnapshot()): void {
     if (this.activeMainPart !== "chart" || this.activeView === "settings") {
       return;
     }
 
-    const props = this.getSecondarySidebarViewInput(snapshot);
+    const props = this.getAuxiliaryBarViewInput(snapshot);
     const activeFile = this.resolveActiveFile(snapshot);
 
-    switch (this.activeSecondarySidebarView) {
+    switch (this.activeAuxiliaryBarView) {
       case "parameters":
         this.renderParametersView(activeFile);
         break;
@@ -668,8 +668,8 @@ export class Workbench extends Layout {
     });
   }
 
-  private getActiveSecondarySidebarElement(): HTMLElement | null {
-    const descriptor = secondarySidebarViews.find(view => view.id === this.activeSecondarySidebarView);
+  private getActiveAuxiliaryBarElement(): HTMLElement | null {
+    const descriptor = auxiliaryBarViews.find(view => view.id === this.activeAuxiliaryBarView);
     return descriptor
       ? this.viewsService.getViewWithId(descriptor.viewId)?.element ?? null
       : null;
@@ -801,7 +801,7 @@ export class Workbench extends Layout {
     };
   }
 
-  private getSecondarySidebarViewInput(snapshot = this.session.getSnapshot()) {
+  private getAuxiliaryBarViewInput(snapshot = this.session.getSnapshot()) {
     return {
       activeFileId: this.getActiveCleanedFileId(snapshot),
       cleanedData: snapshot.cleanedData,

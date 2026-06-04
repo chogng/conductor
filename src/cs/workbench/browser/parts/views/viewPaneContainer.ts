@@ -6,6 +6,8 @@ import type { IAction } from "src/cs/base/common/actions";
 import { ViewPane, type ViewPaneOptions } from "src/cs/workbench/browser/parts/views/viewPane";
 import type { IView, IViewPaneContainer } from "src/cs/workbench/common/views";
 
+import "src/cs/workbench/browser/parts/views/media/paneviewlet.css";
+
 let viewPaneContainerIdPool = 0;
 
 export type ViewPaneContainerOptions = {

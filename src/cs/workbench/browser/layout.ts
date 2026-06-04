@@ -34,7 +34,7 @@ export type LayoutParts = {
   readonly settings?: Node | null;
   readonly overlay?: Node | null;
   readonly sidebar?: Node | null;
-  readonly secondarySidebar?: Node | null;
+  readonly auxiliaryBar?: Node | null;
 };
 
 export type LayoutView = "data" | "analysis" | "settings";
@@ -143,11 +143,11 @@ const hasSidebar = (activeView: LayoutView): boolean =>
 export class Layout extends Disposable {
   private readonly navigation = this._register(new WorkbenchLayoutNavigation());
   private readonly sidebarLayout = this._register(new WorkbenchSidebarLayout());
-  private readonly secondarySidebarLayout = this._register(new WorkbenchSidebarLayout());
+  private readonly auxiliaryBarLayout = this._register(new WorkbenchSidebarLayout());
   private readonly splitView = this._register(new MutableDisposable<SplitView>());
   private readonly main = document.createElement("div");
   private readonly sidebar = document.createElement("div");
-  private readonly secondarySidebar = document.createElement("div");
+  private readonly auxiliaryBar = document.createElement("div");
   private readonly overlay = document.createElement("div");
   private readonly controller = document.createElement("div");
   private readonly shell = document.createElement("div");
@@ -165,7 +165,7 @@ export class Layout extends Disposable {
     this.element.className = "workbench_layout";
     this.main.className = "workbench_layout_main";
     this.sidebar.className = "workbench_layout_sidebar";
-    this.secondarySidebar.className = "workbench_layout_secondary_sidebar";
+    this.auxiliaryBar.className = "workbench_layout_auxiliarybar";
     this.overlay.className = "workbench_layout_overlay";
     this.controller.className = "workbench_layout_controller";
     if (parent) {
@@ -174,7 +174,7 @@ export class Layout extends Disposable {
 
     this._register(this.navigation.onDidChangeState(() => this.render()));
     this._register(this.sidebarLayout.onDidChangeWidth(() => this.render()));
-    this._register(this.secondarySidebarLayout.onDidChangeWidth(() => this.render()));
+    this._register(this.auxiliaryBarLayout.onDidChangeWidth(() => this.render()));
     this._register(
       new DisposableResizeObserver(getWindow(this.element), () => {
         this.syncResponsiveState();
@@ -228,7 +228,7 @@ export class Layout extends Disposable {
     this.controller.replaceChildren();
     this.main.replaceChildren();
     this.sidebar.replaceChildren();
-    this.secondarySidebar.replaceChildren();
+    this.auxiliaryBar.replaceChildren();
     this.overlay.replaceChildren();
 
     appendIfPresent(this.controller, this.parts.controller);
@@ -240,8 +240,8 @@ export class Layout extends Disposable {
         ? this.parts.sidebar
         : null);
       appendIfPresent(
-        this.secondarySidebar,
-        this.activeView === "data" ? this.parts.secondarySidebar : null,
+        this.auxiliaryBar,
+        this.activeView === "data" ? this.parts.auxiliaryBar : null,
       );
       this.renderSplit();
       setWorkbenchSidebarPortal(null);
@@ -325,8 +325,8 @@ export class Layout extends Disposable {
     splitView.getPaneElement("workbench-sidebar")?.replaceChildren(this.sidebar);
     splitView.getPaneElement("workbench-main")?.replaceChildren(this.main);
     splitView
-      .getPaneElement("workbench-secondary-sidebar")
-      ?.replaceChildren(this.secondarySidebar);
+      .getPaneElement("workbench-auxiliarybar")
+      ?.replaceChildren(this.auxiliaryBar);
     this.shell.className = shellClassName;
     this.shell.replaceChildren(splitView.element);
     this.element.replaceChildren(
@@ -351,9 +351,9 @@ export class Layout extends Disposable {
         },
       ];
 
-      if (this.activeView === "data" && this.parts.secondarySidebar) {
+      if (this.activeView === "data" && this.parts.auxiliaryBar) {
         panes.push({
-          id: "workbench-secondary-sidebar",
+          id: "workbench-auxiliarybar",
           defaultSize: SIDEBAR_DEFAULT_WIDTH_PX,
           minSize: SIDEBAR_MIN_WIDTH_PX,
           maxSize: SIDEBAR_MAX_WIDTH_PX,
@@ -377,13 +377,13 @@ export class Layout extends Disposable {
       },
     ];
 
-    if (this.activeView === "data" && this.parts.secondarySidebar) {
+    if (this.activeView === "data" && this.parts.auxiliaryBar) {
       panes.push({
-        id: "workbench-secondary-sidebar",
+        id: "workbench-auxiliarybar",
         defaultSize: SIDEBAR_DEFAULT_WIDTH_PX,
         minSize: SIDEBAR_MIN_WIDTH_PX,
         maxSize: SIDEBAR_MAX_WIDTH_PX,
-        size: this.secondarySidebarLayout.sidebarWidth,
+        size: this.auxiliaryBarLayout.sidebarWidth,
       });
     }
 
@@ -400,13 +400,13 @@ export class Layout extends Disposable {
       this.sidebarLayout.resize(nextWidth);
     }
 
-    const nextSecondaryWidth = sizes[2];
+    const nextAuxiliaryBarWidth = sizes[2];
     if (
       this.activeView === "data" &&
-      this.parts.secondarySidebar &&
-      Number.isFinite(nextSecondaryWidth)
+      this.parts.auxiliaryBar &&
+      Number.isFinite(nextAuxiliaryBarWidth)
     ) {
-      this.secondarySidebarLayout.resize(nextSecondaryWidth);
+      this.auxiliaryBarLayout.resize(nextAuxiliaryBarWidth);
     }
   }
 
@@ -613,4 +613,4 @@ const areLayoutPartsEqual = (
   (left.settings ?? null) === (right.settings ?? null) &&
   (left.overlay ?? null) === (right.overlay ?? null) &&
   (left.sidebar ?? null) === (right.sidebar ?? null) &&
-  (left.secondarySidebar ?? null) === (right.secondarySidebar ?? null);
+  (left.auxiliaryBar ?? null) === (right.auxiliaryBar ?? null);

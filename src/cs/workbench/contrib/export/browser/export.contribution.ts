@@ -12,7 +12,7 @@ import { ExportViewId } from "src/cs/workbench/contrib/export/common/export";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-const container = viewContainersRegistry.get(WorkbenchViewContainers.secondary);
+const container = viewContainersRegistry.get(WorkbenchViewContainers.auxiliarybar);
 
 if (container) {
   viewsRegistry.registerViews([{

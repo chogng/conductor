@@ -1,6 +1,6 @@
 export const WorkbenchViewContainers = {
   files: "workbench.viewContainer.files",
   main: "workbench.viewContainer.main",
-  secondary: "workbench.viewContainer.secondary",
+  auxiliarybar: "workbench.viewContainer.auxiliarybar",
   settings: "workbench.viewContainer.settings",
 } as const;

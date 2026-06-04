@@ -5,7 +5,7 @@ import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import type { IView } from "src/cs/workbench/common/views";
 
-import "src/cs/workbench/browser/parts/views/media/viewPane.css";
+import "src/cs/workbench/browser/parts/views/media/paneviewlet.css";
 
 let viewPaneIdPool = 0;
 

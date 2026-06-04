@@ -20,7 +20,7 @@ import {
 } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 
 import "src/cs/workbench/contrib/origin/browser/media/exportSettingsView.css";
-import "src/cs/workbench/browser/parts/views/media/secondarySidebarViews.css";
+import "src/cs/workbench/browser/parts/views/media/views.css";
 
 export type ExportSettingsViewOptions = {
   readonly axisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
@@ -40,7 +40,7 @@ export class ExportSettingsView extends ViewPane {
     super({
       id: OriginExportSettingsViewId,
       title: localize("da_chart_curve_settings_title", "Curve Settings"),
-      className: "secondary_sidebar_view_pane export_settings_view",
+      className: "auxiliarybar_view_pane export_settings_view",
       bodyClassName: "workbench-part-view-pane__body",
       headerVisible: false,
     });

@@ -177,6 +177,7 @@ html[data-transparent-chrome="true"].dark .titlebar-root {
 }
 
 html[data-transparent-chrome="true"] .workbench_sidebar_part,
+html[data-transparent-chrome="true"] .workbench_layout_auxiliarybar,
 html[data-transparent-chrome="true"] .workbench_preview_area_part,
 html[data-transparent-chrome="true"] .settings-view-nav,
 html[data-transparent-chrome="true"] .settings-card,
@@ -190,6 +191,7 @@ html[data-transparent-chrome="true"] .template_tab_container.tab_menu {
 }
 
 html[data-transparent-chrome="true"] .workbench_sidebar_part,
+html[data-transparent-chrome="true"] .workbench_layout_auxiliarybar,
 html[data-transparent-chrome="true"] .workbench_preview_area_part,
 html[data-transparent-chrome="true"] .settings-view-nav,
 html[data-transparent-chrome="true"] .settings-card {
@@ -237,7 +239,7 @@ html[data-transparent-chrome="true"] .table_view_grid th {
 
 .workbench_layout_main,
 .workbench_layout_sidebar,
-.workbench_layout_secondary_sidebar {
+.workbench_layout_auxiliarybar {
   height: 100%;
   min-height: 0;
 }

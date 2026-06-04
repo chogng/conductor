@@ -247,3 +247,18 @@
 
     color: rgb(245 158 11 / var(--tw-text-opacity, 1))
 }
+
+.auxiliarybar_view_body .origin_export_toolbar {
+    border: 0;
+    background: transparent;
+    padding: 0
+}
+
+.auxiliarybar_view_body .origin_export_toolbar_header,
+.auxiliarybar_view_body .origin_export_toolbar_controls {
+    align-items: stretch
+}
+
+.auxiliarybar_view_body .origin_export_toolbar_actions {
+    align-items: flex-start
+}
