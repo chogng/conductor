@@ -20,6 +20,7 @@ import {
   lxRemove as renderRemove,
   lxSearch as renderSearch,
   lxSettings as renderSettings,
+  lxSummary as renderSummary,
   lxXlsGreen as renderXlsGreen,
 } from "@chogng/lxicon";
 
@@ -126,6 +127,8 @@ export const lxSearch = registerLxIcon("search", renderSearch);
 
 export const lxSettings = registerLxIcon("settings", renderSettings);
 
+export const lxSummary = registerLxIcon("summary", renderSummary);
+
 export const LxIcon = {
   add: lxAdd,
   alertCircle: lxAlertCircle,
@@ -153,5 +156,6 @@ export const LxIcon = {
   remove: lxRemove,
   search: lxSearch,
   settings: lxSettings,
+  summary: lxSummary,
   xlsGreen: lxXlsGreen,
 } as const;
