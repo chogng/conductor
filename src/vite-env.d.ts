@@ -1,5 +1,10 @@
 /// <reference types="vite/client" />
 
+type MochaTestCallback = () => void | Promise<void>;
+
+declare function suite(name: string, callback: MochaTestCallback): void;
+declare function test(name: string, callback: MochaTestCallback): void;
+
 interface Window {
   conductor?: {
     ipcRenderer?: unknown;

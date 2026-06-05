@@ -21,7 +21,8 @@
     "rewriteRelativeImportExtensions": true
   },
   "include": [
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "src/**/*.d.ts"
   ],
   "exclude": [
     "src/cs/code/electron-main",
