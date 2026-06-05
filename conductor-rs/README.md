@@ -245,11 +245,11 @@ renderer 使用：
 
 - 自动提取、曲线分类、处理、分析、导出仍有 TS 版本作为兼容基准和 fallback。
 - 相关 TS 测试仍是迁移时的行为锚点，例如：
-  - `src/cs/workbench/services/analysisFile/test/importFileAssessment.test.mjs`
-  - `src/cs/workbench/services/analysisFile/test/fileAssessment.test.mjs`
-  - `src/cs/workbench/contrib/table/browser/rows/rustCells.test.mjs`
-  - `src/cs/workbench/contrib/diagnostics/common/analysisMath.test.mjs`
-  - `src/cs/workbench/contrib/export/browser/export.test.mjs`
+  - `src/cs/workbench/services/analysisFile/test/importFileAssessment.test.ts`
+  - `src/cs/workbench/services/analysisFile/test/fileAssessment.test.ts`
+  - `src/cs/workbench/contrib/table/browser/rows/rustCells.test.ts`
+  - `src/cs/workbench/contrib/diagnostics/common/analysisMath.test.ts`
+  - `src/cs/workbench/contrib/export/browser/export.test.ts`
 
 ### Origin COM 操作
 

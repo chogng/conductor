@@ -141,7 +141,14 @@ Contribution、Command、Context Key、Configuration：
 - 缓存必须有 owner、失效条件和释放路径；不要在模块顶层放永久 Map 缓存业务数据。
 
 测试和收口：
-- parser、resolver、model、状态转换、导入映射这类复杂逻辑优先下沉成可单测的纯函数；测试覆盖输入输出和关键边界，不依赖私有实现细节。UI 测试关注用户动作后的可见结果和状态变化。
+- 单元测试按上游 VS Code 测试逻辑写：测试靠近被测模块，按运行环境放在模块内 `test/common`、`test/browser`、`test/node`、`test/electron-main`，或沿用相邻同目录测试模式；不要集中堆到仓库根 `test`。
+- 仓库根 `test` 只放测试基础设施和跨应用测试，例如 `test/unit` runner、`test/integration`、`test/smoke`、`test/automation`；普通 feature 单测不要放到这里。
+- 新增测试文件扩展名跟被测代码和 runner 的编译链路走：TS 源码测试优先 `*.test.ts`；直接由 Node/Electron 执行的 runner、glue code 或脚本用 `.js`；只有现有 runner 或相邻测试已经约定 `.mjs` 时才沿用 `.mjs`。
+- 新增单测后，确认能被 `test/unit/node/index.js` 从 `out-test/src` 的 `*.test.js` 编译产物收集到；不要再维护手写测试清单。
+- 新增单元测试使用 Mocha TDD 风格：`suite(...)` / `test(...)`，断言使用 Node `assert`；不要引入 Jest/Vitest，也不要自造第二套测试 DSL。
+- 测试优先覆盖纯计算、解析、推断、model 状态转换和边界协议；service/controller 只测关键编排分支，UI 测试只覆盖用户动作后的可见结果和状态变化。
+- parser、resolver、model、状态转换、导入映射这类复杂逻辑优先下沉成可单测的纯函数；测试覆盖输入输出和关键边界，不依赖私有实现细节。
+- 有 `DisposableStore`、listener、model binding、timer、worker、watcher 的测试必须验证生命周期释放；按上游习惯优先使用 `ensureNoDisposablesAreLeakedInTestSuite()` 或同层已有测试生命周期工具。
 - 如果暂时没写测试，最终说明必须明确未测原因和人工验证方式。
 - 新增代码必须通过项目现有 formatter/lint 风格；不要用局部格式化把整文件无关代码刷一遍。
 - 改到旧文件时，至少顺手清掉触碰范围内的死代码、重复类型、无用 import、临时注释和明显多余的业务前缀。

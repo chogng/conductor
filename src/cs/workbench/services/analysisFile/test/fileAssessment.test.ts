@@ -309,3 +309,41 @@ test("classifies FastIV pulse-voltage files as pv without needing a template", (
   assert.equal(result.needsTemplate, false);
   assert.match(result.reasons.join(" "), /pulse-voltage|fastiv/i);
 });
+
+test("uses template x-axis labels when metadata is absent", () => {
+  const result = assessFile({
+    fileName: "sample.csv",
+    templateXAxisLabel: "Drain Voltage (V)",
+  });
+
+  assert.equal(result.curveType, "output");
+  assert.equal(result.xAxisRole, "vd");
+  assert.equal(result.xAxisRoleSource, "title");
+  assert.equal(result.confidence, "low");
+  assert.equal(result.needsTemplate, true);
+  assert.match(result.reasons.join(" "), /template x label suggests Vd/i);
+});
+
+test("extractFileMetadata keeps stripped sweep stats to the first VAR2 segment", () => {
+  const metadata = extractFileMetadata([
+    [
+      "Repeat",
+      "VAR2",
+      "Point",
+      "CH1 Voltage",
+      "CH1 Current",
+      "CH2 Voltage",
+      "CH2 Current",
+    ],
+    ["1", "1", "1", "0", "1e-12", "2", "1e-9"],
+    ["1", "1", "2", "1", "1e-10", "2", "1e-9"],
+    ["1", "1", "3", "2", "1e-8", "2", "1e-9"],
+    ["1", "2", "1", "0", "1e-3", "50", "1e-3"],
+    ["1", "2", "2", "0", "1e-3", "60", "1e-3"],
+  ]);
+
+  assert.equal(metadata.isStrippedChannelSweep, true);
+  assert.equal(metadata.strippedSweepVoltageAxis, "ch1");
+  assert.equal(metadata.strippedFixedVoltageMagnitude, 2);
+  assert.equal(metadata.strippedSweepVoltageSpan, 2);
+});

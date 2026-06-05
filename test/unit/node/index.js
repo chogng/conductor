@@ -1,49 +1,11 @@
-﻿import { spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const workspace = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+const workspace = path.resolve(fileURLToPath(new URL("../../../", import.meta.url)));
 const outRoot = path.join(workspace, "out-test");
 const outSrcRoot = path.join(outRoot, "src");
-
-const sourceTests = [
-  "src/cs/base/common/test/uri.test.mjs",
-  "src/cs/base/common/test/path.test.mjs",
-  "src/cs/workbench/contrib/table/browser/tableService.test.mjs",
-  "src/cs/workbench/contrib/table/browser/rows/rowChunk.test.mjs",
-  "src/cs/workbench/contrib/table/browser/rows/selectionNavigation.test.mjs",
-  "src/cs/workbench/contrib/table/browser/rows/rustCells.test.mjs",
-  "src/cs/workbench/contrib/session/browser/sessionModel.test.mjs",
-  "src/cs/workbench/contrib/template/test/autoTemplate.test.mjs",
-  "src/cs/workbench/contrib/template/test/autoTemplatePlan.test.mjs",
-  "src/cs/workbench/contrib/template/test/fileNameMatching.test.mjs",
-  "src/cs/workbench/contrib/template/test/templateApplyProcessing.test.mjs",
-  "src/cs/workbench/contrib/template/test/templateController.test.mjs",
-  "src/cs/workbench/contrib/template/test/templateManagerUtils.test.mjs",
-  "src/cs/workbench/contrib/template/test/templateRecords.test.mjs",
-  "src/cs/workbench/contrib/template/test/templateSelection.test.mjs",
-  "src/cs/workbench/contrib/template/test/extractionErrors.test.mjs",
-  "src/cs/workbench/contrib/thumbnail/browser/thumbnailView.test.mjs",
-  "src/cs/workbench/browser/layout.test.mjs",
-  "src/cs/workbench/services/analysisFile/test/importFileAssessment.test.mjs",
-  "src/cs/workbench/services/analysisFile/test/fileAssessment.test.mjs",
-  "src/cs/workbench/contrib/plot/test/common/units.test.mjs",
-  "src/cs/workbench/contrib/search/test/browser/searchModel.test.mjs",
-  "src/cs/workbench/contrib/calculation/test/common/calculatedData.test.mjs",
-  "src/cs/workbench/contrib/calculation/test/common/calculatedParameters.test.mjs",
-  "src/cs/workbench/contrib/calculation/test/common/metricCalculation.test.mjs",
-  "src/cs/workbench/contrib/calculation/test/common/firstCalculation.test.mjs",
-  "src/cs/workbench/contrib/calculation/test/common/vthCalculation.test.mjs",
-  "src/cs/workbench/contrib/calculation/test/common/secondCalculation.test.mjs",
-  "src/cs/workbench/contrib/parameters/browser/parametersModel.test.mjs",
-  "src/cs/workbench/contrib/parameters/browser/parametersController.test.mjs",
-  "src/cs/workbench/contrib/parameters/browser/rcAnalysisModel.test.mjs",
-  "src/cs/workbench/contrib/export/browser/exportModel.test.mjs",
-  "src/cs/workbench/contrib/export/browser/export.test.mjs",
-];
-
-const tests = sourceTests.map((test) => path.join("out-test", test));
 
 const toImportPath = (fromFile, targetFile) => {
   const relative = path.relative(path.dirname(fromFile), targetFile).replace(/\\/g, "/");
@@ -121,6 +83,23 @@ const visit = (directory, visitor) => {
   }
 };
 
+const collectTests = (directory) => {
+  const tests = [];
+  visit(directory, (filePath) => {
+    if (!filePath.endsWith(".test.js")) {
+      return;
+    }
+
+    const relative = path.relative(outSrcRoot, filePath).replace(/\\/g, "/");
+    if (/(^|\/)(electron-main|electron-utility)(\/|$)/.test(relative)) {
+      return;
+    }
+
+    tests.push(filePath);
+  });
+  return tests.sort();
+};
+
 const copyAsset = (source, target) => {
   if (!existsSync(source)) return;
   mkdirSync(path.dirname(target), { recursive: true });
@@ -152,6 +131,7 @@ copyAsset(
 );
 
 const nlsSetup = createNlsTestSetup();
+const tests = collectTests(outSrcRoot);
 const result = spawnSync(process.execPath, [
   "--import",
   pathToFileURL(nlsSetup).href,
