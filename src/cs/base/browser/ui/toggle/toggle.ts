@@ -35,7 +35,7 @@ export const getToggleDataAttributes = ({
   testId,
 }: Pick<ToggleOptions, "checked" | "testId"> = {}): Record<string, string | undefined> => ({
   "data-state": checked ? "checked" : "unchecked",
-  "data-testid": import.meta.env.DEV && testId ? testId : undefined,
+  "data-testid": import.meta.env?.DEV && testId ? testId : undefined,
 });
 
 export const createToggle = (options: ToggleOptions = {}): HTMLButtonElement => {

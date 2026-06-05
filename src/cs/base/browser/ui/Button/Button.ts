@@ -66,7 +66,7 @@ export const getButtonDataAttributes = ({
 >): Record<string, string | undefined> => ({
   "data-icon": dataIcon,
   "data-fx": fx ? "on" : undefined,
-  "data-testid": import.meta.env.DEV && testId ? testId : undefined,
+  "data-testid": import.meta.env?.DEV && testId ? testId : undefined,
 });
 
 export const createButton = (options: ButtonOptions): HTMLButtonElement => {

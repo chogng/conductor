@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import assert from "assert";
 
 import {
   isMacintosh,
@@ -10,25 +9,27 @@ import {
   PlatformToString,
 } from "../../common/platform.ts";
 
-test("detects the native platform from node process", () => {
-  if (process.platform === "darwin") {
-    assert.equal(isMacintosh, true);
-    assert.equal(isWindows, false);
-    assert.equal(isNative, true);
-    assert.equal(platform, Platform.Mac);
-    assert.equal(PlatformToString(platform), "Mac");
-    return;
-  }
+suite("base/test/common/platform", () => {
+  test("detects the native platform from node process", () => {
+    if (process.platform === "darwin") {
+      assert.equal(isMacintosh, true);
+      assert.equal(isWindows, false);
+      assert.equal(isNative, true);
+      assert.equal(platform, Platform.Mac);
+      assert.equal(PlatformToString(platform), "Mac");
+      return;
+    }
 
-  if (process.platform === "win32") {
+    if (process.platform === "win32") {
+      assert.equal(isMacintosh, false);
+      assert.equal(isWindows, true);
+      assert.equal(isNative, true);
+      assert.equal(platform, Platform.Windows);
+      assert.equal(PlatformToString(platform), "Windows");
+      return;
+    }
+
     assert.equal(isMacintosh, false);
-    assert.equal(isWindows, true);
-    assert.equal(isNative, true);
-    assert.equal(platform, Platform.Windows);
-    assert.equal(PlatformToString(platform), "Windows");
-    return;
-  }
-
-  assert.equal(isMacintosh, false);
-  assert.equal(isWindows, false);
+    assert.equal(isWindows, false);
+  });
 });

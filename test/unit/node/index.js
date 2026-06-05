@@ -1,7 +1,8 @@
-import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+
+import Mocha from "mocha";
 
 const workspace = path.resolve(fileURLToPath(new URL("../../../", import.meta.url)));
 const outRoot = path.join(workspace, "out-test");
@@ -89,8 +90,14 @@ const collectTests = (directory) => {
     if (!filePath.endsWith(".test.js")) {
       return;
     }
-
     const relative = path.relative(outSrcRoot, filePath).replace(/\\/g, "/");
+    const sourcePath = path.join(workspace, "src", relative.replace(/\.js$/, ".ts"));
+    if (!existsSync(sourcePath)) {
+      return;
+    }
+    if (relative.startsWith("cs/base/test/browser/")) {
+      return;
+    }
     if (/(^|\/)(electron-main|electron-utility)(\/|$)/.test(relative)) {
       return;
     }
@@ -132,14 +139,22 @@ copyAsset(
 
 const nlsSetup = createNlsTestSetup();
 const tests = collectTests(outSrcRoot);
-const result = spawnSync(process.execPath, [
-  "--import",
-  pathToFileURL(nlsSetup).href,
-  "--test",
-  "--test-isolation=none",
-  ...tests,
-], {
-  stdio: "inherit",
+await import(nlsSetup);
+
+const mocha = new Mocha({
+  ui: "tdd",
 });
 
-process.exit(result.status ?? 1);
+for (const file of tests) {
+  mocha.addFile(file);
+}
+
+await mocha.loadFilesAsync();
+
+const failures = await new Promise((resolve) => {
+  mocha.run((failures) => {
+    resolve(failures);
+  });
+});
+
+process.exit(failures ? 1 : 0);

@@ -1,5 +1,4 @@
-import { suite, test } from "node:test";
-import assert from "node:assert/strict";
+import assert from "assert";
 
 import {
   createThumbnailFieldFilterOptions,

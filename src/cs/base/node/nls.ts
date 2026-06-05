@@ -2,7 +2,7 @@ import {
   createNLSConfiguration,
   resolveNLSLanguage,
   type NLSConfiguration,
-} from "src/cs/nls";
+} from "../../nls.js";
 
 export type ResolveNLSConfigurationOptions = {
   readonly language?: unknown;

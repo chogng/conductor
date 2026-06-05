@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import assert from "assert";
 import {
   SIDEBAR_DEFAULT_WIDTH_PX,
   SIDEBAR_MAX_WIDTH_PX,
@@ -7,12 +6,14 @@ import {
   TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX,
 } from "./layout.ts";
 
-test("sidebar width can be resized within workbench bounds", () => {
-  assert.equal(SIDEBAR_MIN_WIDTH_PX, 220);
-  assert.equal(SIDEBAR_DEFAULT_WIDTH_PX, 300);
-  assert.equal(SIDEBAR_MAX_WIDTH_PX, 520);
-});
+suite("workbench/browser/layout", () => {
+  test("sidebar width can be resized within workbench bounds", () => {
+    assert.equal(SIDEBAR_MIN_WIDTH_PX, 220);
+    assert.equal(SIDEBAR_DEFAULT_WIDTH_PX, 300);
+    assert.equal(SIDEBAR_MAX_WIDTH_PX, 520);
+  });
 
-test("template icon-only threshold stays below the default sidebar width", () => {
-  assert.ok(TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX < SIDEBAR_DEFAULT_WIDTH_PX);
+  test("template icon-only threshold stays below the default sidebar width", () => {
+    assert.ok(TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX < SIDEBAR_DEFAULT_WIDTH_PX);
+  });
 });

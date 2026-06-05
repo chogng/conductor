@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import assert from "assert";
 import { runProcess } from "../../../desktop-dist/desktop/origin-runner/core.js";
 import {
   appendOriginCapabilitiesWorkerArgs,

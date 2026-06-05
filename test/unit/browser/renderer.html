@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Conductor Browser Tests</title>
+    <link rel="stylesheet" href="/node_modules/mocha/mocha.css" />
+  </head>
+  <body>
+    <div id="mocha"></div>
+    <div id="test-root"></div>
+    <script src="/node_modules/mocha/mocha.js"></script>
+    <script type="module">
+      const serializeError = (error) => {
+        if (error instanceof Error) {
+          return {
+            message: error.message,
+            stack: error.stack,
+          };
+        }
+
+        return {
+          message: String(error),
+        };
+      };
+
+      const readModules = () => {
+        const encoded = new URLSearchParams(window.location.search).get("modules");
+        if (!encoded) {
+          throw new Error("Missing browser test modules.");
+        }
+
+        const modules = JSON.parse(atob(encoded));
+        if (!Array.isArray(modules) || !modules.every((module) => typeof module === "string")) {
+          throw new Error("Invalid browser test modules.");
+        }
+
+        return modules;
+      };
+
+      const runnableName = (entry) => entry.fullTitle?.() ?? entry.title ?? "unknown browser test";
+
+      const runMocha = () => new Promise((resolve) => {
+        const results = [];
+        const runner = mocha.run(() => {
+          resolve(results);
+        });
+
+        runner.on("pass", (entry) => {
+          results.push({
+            name: runnableName(entry),
+            durationMs: entry.duration ?? 0,
+          });
+        });
+
+        runner.on("fail", (entry, error) => {
+          results.push({
+            name: runnableName(entry),
+            durationMs: entry.duration ?? 0,
+            error: serializeError(error),
+          });
+        });
+      });
+
+      const main = async () => {
+        mocha.setup({
+          ui: "tdd",
+          timeout: 5000,
+        });
+
+        for (const module of readModules()) {
+          await import(module);
+        }
+
+        const results = await runMocha();
+        const fail = results.filter((result) => result.error).length;
+        globalThis.__conductorBrowserTestResults = {
+          results,
+          pass: results.length - fail,
+          fail,
+        };
+      };
+
+      main().catch((error) => {
+        globalThis.__conductorBrowserTestResults = {
+          results: [
+            {
+              name: "Browser test bootstrap",
+              durationMs: 0,
+              error: serializeError(error),
+            },
+          ],
+          pass: 0,
+          fail: 1,
+        };
+      });
+    </script>
+  </body>
+</html>
