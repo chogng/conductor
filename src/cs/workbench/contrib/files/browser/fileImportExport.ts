@@ -9,6 +9,7 @@ import {
   isExcelImportFileName,
   isSupportedImportFileName,
   type FileSource,
+  type PathFileSource,
 } from "src/cs/workbench/contrib/files/common/files";
 import {
   FOLDER_IMPORT_STAT_CONCURRENCY,
@@ -21,6 +22,10 @@ export {
 } from "src/cs/workbench/contrib/files/common/files";
 
 const MAX_FOLDER_WALK_DEPTH = 32;
+export type FolderImportFileSource = PathFileSource & {
+  readonly loadFile: () => Promise<File>;
+};
+
 export type FolderFileReadFailure = {
   readonly fileName: string;
   readonly message: string;
@@ -28,12 +33,12 @@ export type FolderFileReadFailure = {
 };
 
 export type FolderFileCollection = {
-  readonly files: FileSource[];
+  readonly files: FolderImportFileSource[];
   readonly readFailures: FolderFileReadFailure[];
 };
 
 export type FolderFileCollectionBatch = {
-  readonly files: FileSource[];
+  readonly files: FolderImportFileSource[];
 };
 
 type CollectFolderImportFilesOptions = {
@@ -121,7 +126,7 @@ export async function collectFolderImportFilesIncrementally(
 ): Promise<FolderFileCollection> {
   const root = URI.revive(folder);
   const rootName = getPathBaseName(root.path) || "Folder";
-  const files: FileSource[] = [];
+  const files: FolderImportFileSource[] = [];
   const readFailures: FolderFileReadFailure[] = [];
 
   await collectFolderFilesAt(root, rootName, files, readFailures, 0, filesService, options);
@@ -135,7 +140,7 @@ function shouldContinueCollecting(options: CollectFolderImportFilesOptions): boo
 async function collectFolderFilesAt(
   folder: URI,
   relativeFolderPath: string,
-  files: FileSource[],
+  files: FolderImportFileSource[],
   readFailures: FolderFileReadFailure[],
   depth: number,
   filesService: IFileService,
@@ -254,7 +259,7 @@ async function statFolderFileTasks(
   > = new Array(tasks.length);
   let nextTaskIndex = 0;
   const workerCount = Math.min(FOLDER_IMPORT_STAT_CONCURRENCY, tasks.length);
-  const files: FileSource[] = [];
+  const files: FolderImportFileSource[] = [];
   const readFailures: FolderFileReadFailure[] = [];
 
   await Promise.all(Array.from({ length: workerCount }, async () => {
