@@ -1,4 +1,4 @@
-import { getSession } from "src/cs/workbench/contrib/session/browser/useSession";
+import { getSession } from "src/cs/workbench/contrib/session/browser/session";
 import type { TemplateMode } from "src/cs/workbench/contrib/session/browser/sessionContext";
 
 export const setTemplateMode = (mode: TemplateMode): void => {

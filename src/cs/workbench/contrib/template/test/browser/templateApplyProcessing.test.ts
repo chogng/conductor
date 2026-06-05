@@ -2,38 +2,48 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { SessionModel } from "src/cs/workbench/contrib/session/browser/sessionModel";
+import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
+import type {
+  CleanedEntry,
+  ProcessingStatus,
+} from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { StateSetter } from "src/cs/workbench/contrib/session/browser/sessionContext";
 import {
   startProcessingJob,
   startRuleProcessingJob,
+  type ProcessingQueueItem,
 } from "../../browser/templateApplyProcessing.ts";
 
-const createRef = (current) => ({ current });
+const createRef = <T,>(current: T) => ({ current });
 
-const resolveNext = (value, previous) =>
-  typeof value === "function" ? value(previous) : value;
+const resolveNext = <T,>(value: T | ((previous: T) => T), previous: T): T =>
+  typeof value === "function"
+    ? (value as (previous: T) => T)(previous)
+    : value;
 
 class TestWorker {
   onmessage = null;
-  messages = [];
+  messages: unknown[] = [];
   terminated = false;
 
-  postMessage(message) {
+  postMessage(message: unknown): void {
     this.messages.push(message);
   }
 
-  terminate() {
+  terminate(): void {
     this.terminated = true;
   }
 }
 
-const withTestWorker = async (callback) => {
+const withTestWorker = async (callback: () => Promise<void>): Promise<void> => {
   const previousWorker = globalThis.Worker;
-  globalThis.Worker = TestWorker;
+  (globalThis as { Worker?: typeof Worker }).Worker =
+    TestWorker as unknown as typeof Worker;
   try {
     await callback();
   } finally {
     if (previousWorker === undefined) {
-      delete globalThis.Worker;
+      delete (globalThis as { Worker?: typeof Worker }).Worker;
     } else {
       globalThis.Worker = previousWorker;
     }
@@ -45,6 +55,11 @@ const waitForAsyncJob = () =>
     setTimeout(resolve, 0);
   });
 
+const analysisFileService = {
+  canReadConvertedCsv: () => false,
+  readConvertedCsv: async () => ({ ok: false }),
+} as unknown as IAnalysisFileService;
+
 const createProcessingHarness = () => {
   const session = new SessionModel();
   let sessionChangeCount = 0;
@@ -52,7 +67,7 @@ const createProcessingHarness = () => {
     sessionChangeCount += 1;
   });
 
-  let processingStatus = {
+  let processingStatus: ProcessingStatus = {
     processed: 0,
     state: "idle",
     total: 0,
@@ -72,21 +87,18 @@ const createProcessingHarness = () => {
     },
     options: {
       activeFileId: null,
-      analysisFileService: {
-        canReadConvertedCsv: () => false,
-        readConvertedCsv: async () => ({ ok: false }),
-      },
+      analysisFileService,
       batchSessionUpdate: session.batch,
       hasSourceFile: () => true,
       onWorkerErrorPayload: () => undefined,
       processingJobIdRef: createRef(0),
-      processingQueueRef: createRef([]),
+      processingQueueRef: createRef<ProcessingQueueItem[]>([]),
       processingStopOnErrorRef: createRef(false),
-      processingWorkerRef: createRef(null),
-      removedQueuedFileIdsRef: createRef(new Set()),
+      processingWorkerRef: createRef<Worker | null>(null),
+      removedQueuedFileIdsRef: createRef<Set<string>>(new Set()),
       setAnalysisResults: session.setAnalysisResults,
       setCleanedData: session.setCleanedData,
-      setProcessingStatus: (next) => {
+      setProcessingStatus: (next: Parameters<StateSetter<ProcessingStatus>>[0]) => {
         processingStatus = resolveNext(next, processingStatus);
       },
       showResults: () => {
@@ -98,7 +110,7 @@ const createProcessingHarness = () => {
   };
 };
 
-const createProcessedFile = (fileId) => ({
+const createProcessedFile = (fileId: string): CleanedEntry => ({
   analysisCache: {
     series: {},
   },
@@ -144,7 +156,7 @@ test("startRuleProcessingJob batches reset and first result session writes befor
   await withTestWorker(async () => {
     const harness = createProcessingHarness();
     const processed = createProcessedFile("file-b");
-    const entry = {
+    const entry: ProcessingQueueItem = {
       file: {},
       fileId: "file-b",
       fileName: "file-b.csv",
@@ -180,7 +192,7 @@ test("startRuleProcessingJob batches reset and first result session writes befor
 test("startRuleProcessingJob commits multiple Rust results into the session", async () => {
   await withTestWorker(async () => {
     const harness = createProcessingHarness();
-    const entries = [
+    const entries: ProcessingQueueItem[] = [
       {
         file: {},
         fileId: "file-a",

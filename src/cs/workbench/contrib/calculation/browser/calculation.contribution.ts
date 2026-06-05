@@ -5,7 +5,7 @@ import {
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from "src/cs/workbench/common/contributions";
 import { createCalculatedDataByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import { CalculationContributionId } from "src/cs/workbench/contrib/calculation/common/calculation";
-import { defaultSessionModel } from "src/cs/workbench/contrib/session/browser/useSession";
+import { defaultSessionModel } from "src/cs/workbench/contrib/session/browser/session";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
 export class CalculationContribution extends Disposable implements IWorkbenchContribution {

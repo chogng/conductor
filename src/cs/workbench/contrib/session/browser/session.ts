@@ -5,5 +5,3 @@ export const defaultSessionModel = new SessionModel();
 
 export const getSession = (): SessionContextValue =>
   defaultSessionModel.createContextValue(defaultSessionModel.getSnapshot());
-
-export const useSession = getSession;

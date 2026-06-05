@@ -13,7 +13,7 @@ import {
   toTemplateNameKey,
   type TemplateConfig,
 } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
-import { getSession, defaultSessionModel } from "src/cs/workbench/contrib/session/browser/useSession";
+import { getSession, defaultSessionModel } from "src/cs/workbench/contrib/session/browser/session";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import {
   validateTemplateForSave,
@@ -76,6 +76,42 @@ const TEMPLATE_TOAST_ID = "template.notification";
 
 const showToast = (message: string, type: "success" | "error" | "warning" | "info" = "success") => {
   notificationService.showToast({ id: TEMPLATE_TOAST_ID, message, type });
+};
+
+export type TemplateApplyStateInput = {
+  readonly config: TemplateConfig;
+  readonly selectedTemplateId: string | null;
+  readonly stopOnErrorDraft: boolean | null;
+  readonly templates: readonly TemplateRecord[] | null;
+};
+
+export const createTemplateApplyViewState = ({
+  config,
+  selectedTemplateId,
+  stopOnErrorDraft,
+  templates,
+}: TemplateApplyStateInput) => {
+  const effectiveConfig = stopOnErrorDraft === null
+    ? config
+    : {
+        ...config,
+        stopOnError: stopOnErrorDraft,
+      };
+  const isCustomTemplate = Boolean(
+    selectedTemplateId && !isAutoTemplateId(selectedTemplateId),
+  );
+  const selectedTemplateLabel =
+    !selectedTemplateId || isAutoTemplateId(selectedTemplateId)
+      ? localize("template_auto_extraction", "Auto extraction")
+      : templates?.find((template) => template.id === selectedTemplateId)?.name ||
+        selectedTemplateId;
+
+  return {
+    canDeleteTemplate: isCustomTemplate,
+    canExportTemplate: Boolean(effectiveConfig.name),
+    selectedTemplateLabel,
+    stopOnError: effectiveConfig.stopOnError,
+  };
 };
 
 const importTemplates = async (
@@ -141,10 +177,11 @@ const importTemplates = async (
       cachedTemplates = [saved];
     }
     
-    session.setSelectedTemplateId(typeof saved.id === "string" ? saved.id : null);
-    session.setTemplateConfig(cloneTemplateConfig(saved));
+    defaultSessionModel.batch(() => {
+      session.setSelectedTemplateId(typeof saved.id === "string" ? saved.id : null);
+      session.setTemplateConfig(cloneTemplateConfig(saved));
+    });
     showToast(localize("template_imported", "Template imported"), "success");
-    defaultSessionModel.emitChange();
   } catch (err) {
     showToast(localize("template_import_failed", "Failed to import template: {error}", { error: String(err) }), "error");
   }
@@ -389,16 +426,12 @@ export class TemplateView {
   }
 
   private getApplyViewState() {
-    const config = this.getEffectiveTemplateConfig();
-    const isCustomTemplate = Boolean(
-      this.session.selectedTemplateId && !isAutoTemplateId(this.session.selectedTemplateId),
-    );
-    return {
-      canDeleteTemplate: isCustomTemplate,
-      canExportTemplate: Boolean(config.name),
-      selectedTemplateLabel: this.getSelectedTemplateLabel(),
-      stopOnError: config.stopOnError,
-    };
+    return createTemplateApplyViewState({
+      config: this.session.templateConfig,
+      selectedTemplateId: this.session.selectedTemplateId,
+      stopOnErrorDraft: this.stopOnErrorDraft,
+      templates: cachedTemplates,
+    });
   }
 
   private getEditorView(): TemplateEditorView {
@@ -468,25 +501,17 @@ export class TemplateView {
         cachedTemplates = cachedTemplates.filter((template) => template.id !== selectedTemplateId);
       }
       const config = this.getEffectiveTemplateConfig();
-      this.session.setSelectedTemplateId(AUTO_TEMPLATE_ID);
-      this.session.setTemplateConfig(createEmptyTemplateConfig({
-        stopOnError: templateConfig.stopOnError,
-      }));
-      this.stopOnErrorDraft = config.stopOnError;
+      defaultSessionModel.batch(() => {
+        this.session.setSelectedTemplateId(AUTO_TEMPLATE_ID);
+        this.session.setTemplateConfig(createEmptyTemplateConfig({
+          stopOnError: templateConfig.stopOnError,
+        }));
+        this.stopOnErrorDraft = config.stopOnError;
+      });
       showToast(localize("template_deleted", "Template deleted"), "success");
-      defaultSessionModel.emitChange();
     } catch (err) {
       showToast(localize("template_delete_failed", "Failed to delete template: {error}", { error: String(err) }), "error");
     }
-  }
-
-  private getSelectedTemplateLabel(): string {
-    if (!this.session.selectedTemplateId || isAutoTemplateId(this.session.selectedTemplateId)) {
-      return localize("template_auto_extraction", "Auto extraction");
-    }
-
-    const found = cachedTemplates?.find((template) => template.id === this.session.selectedTemplateId);
-    return found?.name || this.session.selectedTemplateId;
   }
 
   private createTemplateActions(): IAction[] {
@@ -566,13 +591,14 @@ export class TemplateView {
 
   private createTemplateDraft(): void {
     const config = this.getEffectiveTemplateConfig();
-    this.session.setSelectedTemplateId(null);
-    this.session.setTemplateConfig(createEmptyTemplateConfig({
-      stopOnError: config.stopOnError,
-    }));
-    this.stopOnErrorDraft = config.stopOnError;
-    showTemplateEditor();
-    defaultSessionModel.emitChange();
+    defaultSessionModel.batch(() => {
+      this.session.setSelectedTemplateId(null);
+      this.session.setTemplateConfig(createEmptyTemplateConfig({
+        stopOnError: config.stopOnError,
+      }));
+      this.stopOnErrorDraft = config.stopOnError;
+      showTemplateEditor();
+    });
   }
 
   private editTemplate(template: TemplateRecord): void {
@@ -581,30 +607,34 @@ export class TemplateView {
       return;
     }
 
-    this.session.setSelectedTemplateId(templateId);
-    this.session.setTemplateConfig(cloneTemplateConfig(template));
-    this.stopOnErrorDraft = Boolean(template.stopOnError);
-    showTemplateEditor();
-    defaultSessionModel.emitChange();
+    defaultSessionModel.batch(() => {
+      this.session.setSelectedTemplateId(templateId);
+      this.session.setTemplateConfig(cloneTemplateConfig(template));
+      this.stopOnErrorDraft = Boolean(template.stopOnError);
+      showTemplateEditor();
+    });
   }
 
   private selectTemplate(templateId: string): void {
     const config = this.getEffectiveTemplateConfig();
     if (isAutoTemplateId(templateId)) {
-      this.session.setSelectedTemplateId(AUTO_TEMPLATE_ID);
-      this.session.setTemplateConfig(createEmptyTemplateConfig({
-        stopOnError: config.stopOnError,
-      }));
-      this.stopOnErrorDraft = config.stopOnError;
+      defaultSessionModel.batch(() => {
+        this.session.setSelectedTemplateId(AUTO_TEMPLATE_ID);
+        this.session.setTemplateConfig(createEmptyTemplateConfig({
+          stopOnError: config.stopOnError,
+        }));
+        this.stopOnErrorDraft = config.stopOnError;
+      });
     } else {
       const found = cachedTemplates?.find((template) => template.id === templateId);
       if (found) {
-        this.session.setSelectedTemplateId(typeof found.id === "string" ? found.id : null);
-        this.session.setTemplateConfig(cloneTemplateConfig(found));
-        this.stopOnErrorDraft = Boolean(found.stopOnError);
+        defaultSessionModel.batch(() => {
+          this.session.setSelectedTemplateId(typeof found.id === "string" ? found.id : null);
+          this.session.setTemplateConfig(cloneTemplateConfig(found));
+          this.stopOnErrorDraft = Boolean(found.stopOnError);
+        });
       }
     }
-    defaultSessionModel.emitChange();
   }
 
   private applyTemplate(incremental: boolean): void {
@@ -661,12 +691,13 @@ export class TemplateView {
         cachedTemplates = [saved];
       }
 
-      this.session.setSelectedTemplateId(typeof saved.id === "string" ? saved.id : null);
-      this.session.setTemplateConfig(cloneTemplateConfig(saved));
-      this.stopOnErrorDraft = Boolean(saved.stopOnError);
-      showTemplateManagement();
+      defaultSessionModel.batch(() => {
+        this.session.setSelectedTemplateId(typeof saved.id === "string" ? saved.id : null);
+        this.session.setTemplateConfig(cloneTemplateConfig(saved));
+        this.stopOnErrorDraft = Boolean(saved.stopOnError);
+        showTemplateManagement();
+      });
       showToast(localize("template_saved", "Template saved"), "success");
-      defaultSessionModel.emitChange();
     } catch (err) {
       showToast(localize("template_save_failed", "Failed to save template: {error}", { error: String(err) }), "error");
     }
@@ -674,23 +705,24 @@ export class TemplateView {
 
   private cancelSaveMode(): void {
     const config = this.getEffectiveTemplateConfig();
-    showTemplateManagement();
-    if (
-      this.session.selectedTemplateId &&
-      !isAutoTemplateId(this.session.selectedTemplateId) &&
-      cachedTemplates
-    ) {
-      const found = cachedTemplates.find((template) => template.id === this.session.selectedTemplateId);
-      if (found) {
-        this.session.setTemplateConfig(cloneTemplateConfig(found));
-        this.stopOnErrorDraft = Boolean(found.stopOnError);
+    defaultSessionModel.batch(() => {
+      showTemplateManagement();
+      if (
+        this.session.selectedTemplateId &&
+        !isAutoTemplateId(this.session.selectedTemplateId) &&
+        cachedTemplates
+      ) {
+        const found = cachedTemplates.find((template) => template.id === this.session.selectedTemplateId);
+        if (found) {
+          this.session.setTemplateConfig(cloneTemplateConfig(found));
+          this.stopOnErrorDraft = Boolean(found.stopOnError);
+        }
+      } else {
+        this.session.setTemplateConfig(createEmptyTemplateConfig({
+          stopOnError: config.stopOnError,
+        }));
+        this.stopOnErrorDraft = config.stopOnError;
       }
-    } else {
-      this.session.setTemplateConfig(createEmptyTemplateConfig({
-        stopOnError: config.stopOnError,
-      }));
-      this.stopOnErrorDraft = config.stopOnError;
-    }
-    defaultSessionModel.emitChange();
+    });
   }
 }

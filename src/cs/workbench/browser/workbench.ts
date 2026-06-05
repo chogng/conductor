@@ -68,7 +68,7 @@ import {
   type TemplateApplyControllerInput,
 } from "src/cs/workbench/contrib/template/browser/templateApplyController";
 import { SessionModel } from "src/cs/workbench/contrib/session/browser/sessionModel";
-import { defaultSessionModel } from "src/cs/workbench/contrib/session/browser/useSession";
+import { defaultSessionModel } from "src/cs/workbench/contrib/session/browser/session";
 import { createSessionActions } from "src/cs/workbench/contrib/session/browser/sessionActions";
 import type {
   ITableService,
