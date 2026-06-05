@@ -1,3 +1,7 @@
+import {
+  isEqualOrParent as isPathEqualOrParent,
+  toSlashes,
+} from "src/cs/base/common/extpath";
 import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
 
 export type FileTreeNode = {
@@ -17,8 +21,7 @@ type MutableFileTreeNode = {
 };
 
 const normalizePath = (value: unknown): string[] =>
-  String(value ?? "")
-    .replace(/\\/g, "/")
+  toSlashes(String(value ?? ""))
     .split("/")
     .map((part) => part.trim())
     .filter(Boolean);
@@ -139,8 +142,7 @@ export const getFileTreeFolderPath = (folderKey: unknown): string | null => {
 };
 
 const normalizeFolderPath = (value: unknown): string =>
-  String(value ?? "")
-    .replace(/\\/g, "/")
+  toSlashes(String(value ?? ""))
     .split("/")
     .map((part) => part.trim())
     .filter(Boolean)
@@ -154,9 +156,11 @@ export const isFileTreePathInFolder = (
   const normalizedFolderPath = normalizeFolderPath(folderPath);
   return Boolean(
     normalizedFolderPath &&
-      (
-        normalizedRelativePath === normalizedFolderPath ||
-        normalizedRelativePath.startsWith(`${normalizedFolderPath}/`)
+      isPathEqualOrParent(
+        normalizedRelativePath,
+        normalizedFolderPath,
+        false,
+        "/",
       ),
   );
 };

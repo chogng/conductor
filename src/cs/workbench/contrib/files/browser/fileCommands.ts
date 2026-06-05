@@ -6,6 +6,10 @@ import {
   type DataTransferFile,
 } from "src/cs/platform/dnd/browser/dnd";
 import type { IFileService } from "src/cs/platform/files/common/files";
+import {
+  detectFolderImportSupport,
+  type FolderImportSupport,
+} from "src/cs/platform/files/browser/webFileSystemAccess";
 import { createFileSource } from "src/cs/workbench/contrib/files/browser/fileActions";
 import {
   collectFolderImportFiles,
@@ -73,6 +77,32 @@ export const pickFolderImportFiles = async ({
     folder,
     readFailures: result.readFailures,
   };
+};
+
+export const getFolderImportUnsupportedMessage = (
+  support: FolderImportSupport,
+): string => support.reason === "no-webassembly"
+  ? localize(
+    "files.importUnsupportedWasm",
+    "当前浏览器环境无法运行预览所需组件（WebAssembly 可能被禁用）。请在独立的 Chrome 或 Edge 窗口中打开本页面后再导入。",
+  )
+  : localize(
+    "files.importUnsupportedPicker",
+    "当前浏览器环境不支持文件夹选择。请在独立的 Chrome 或 Edge 窗口中打开本页面后再导入。",
+  );
+
+export const canImportFolderInCurrentBrowser = (): boolean => {
+  const support = detectFolderImportSupport();
+  if (support.supported) {
+    return true;
+  }
+
+  notificationService.showToast({
+    id: "files.importFolderUnsupported",
+    message: getFolderImportUnsupportedMessage(support),
+    type: "warning",
+  });
+  return false;
 };
 
 export const showCreateFolderUnsupported = (): void => {

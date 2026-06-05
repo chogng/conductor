@@ -6,7 +6,6 @@ import type {
 import { assessImportFile } from "src/cs/workbench/services/analysisFile/browser/fileAssessment";
 import {
   isExcelImportFileName,
-  isXlsxImportFileName,
 } from "src/cs/workbench/contrib/files/common/files";
 
 const BROWSER_XLSX_CONVERSION_TIMEOUT_MS = 30_000;
@@ -14,8 +13,7 @@ const BROWSER_XLSX_MAX_BYTES = 32 * 1024 * 1024;
 
 type BrowserAssessmentInput =
   | { mode: "csv" }
-  | { mode: "xlsx" }
-  | { mode: "unsupportedExcel" };
+  | { mode: "excel" };
 
 export type PreparedBrowserFile = {
   assessment: AnalysisFileAssessment;
@@ -60,15 +58,9 @@ const getRustConvertCsvBytes = (manifest: unknown): number | null => {
 };
 
 const resolveBrowserAssessmentInput = (file: File): BrowserAssessmentInput => {
-  if (!isExcelImportFileName(file.name)) {
-    return { mode: "csv" };
-  }
-
-  if (isXlsxImportFileName(file.name)) {
-    return { mode: "xlsx" };
-  }
-
-  return { mode: "unsupportedExcel" };
+  // The browser xlsx WASM converter auto-detects the workbook format, so both
+  // legacy .xls (BIFF) and modern .xlsx (OOXML) go through the same path.
+  return isExcelImportFileName(file.name) ? { mode: "excel" } : { mode: "csv" };
 };
 
 const shouldFallbackToBrowserFile = (code: unknown): boolean =>
@@ -150,14 +142,7 @@ const prepareBrowserFile = async (
   sourcePath: string | null,
 ): Promise<PreparedBrowserFile> => {
   const input = resolveBrowserAssessmentInput(file);
-  if (input.mode !== "csv") {
-    if (input.mode === "unsupportedExcel") {
-      throw new ImportPrepareError(
-        `Excel import requires a conversion service for ${file.name}.`,
-        "EXCEL_CONVERSION_UNAVAILABLE",
-      );
-    }
-
+  if (input.mode === "excel") {
     const convertedFile = await convertXlsxFile(file);
     const assessment = await assessImportFile(convertedFile);
     return {

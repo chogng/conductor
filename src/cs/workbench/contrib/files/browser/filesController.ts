@@ -27,6 +27,7 @@ import type {
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   buildImportErrorMessage,
+  canImportFolderInCurrentBrowser,
   collectDroppedFiles,
   pickImportFolder,
   showCreateFolderUnsupported,
@@ -276,6 +277,10 @@ export class FilesController implements FilesPaneRef, IDisposable {
   };
 
   private async openFolderDialog(): Promise<void> {
+    if (!canImportFolderInCurrentBrowser()) {
+      return;
+    }
+
     this.error = null;
     this.syncView();
 
@@ -294,9 +299,9 @@ export class FilesController implements FilesPaneRef, IDisposable {
         return;
       }
 
-      if (import.meta.env?.DEV) {
-        console.error("Failed to read files from the selected folder.", error);
-      }
+      // Logged unconditionally (not only in DEV) so the failure is visible in
+      // the browser console when running `npm run dev`.
+      console.error("Failed to read files from the selected folder.", error);
 
       this.error = localize(
         "import.failedToReadSelectedFolder",
@@ -467,6 +472,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
     }
 
     if (canApplyResult()) {
+      this.logImportDiagnostics("files", failedFiles, options.readFailures);
       this.error = buildImportErrorMessage({
         failedFiles,
         hasAnyUnsupportedFiles,
@@ -581,6 +587,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
     }
 
     this.watchImportedFolder(folder);
+    this.logImportDiagnostics("folder", failedFiles, result.readFailures);
     this.error = buildImportErrorMessage({
       failedFiles,
       hasAnyUnsupportedFiles: false,
@@ -867,6 +874,34 @@ export class FilesController implements FilesPaneRef, IDisposable {
       );
       this.syncView();
     }
+  }
+
+  private logImportDiagnostics(
+    source: "folder" | "files",
+    failedFiles: readonly ImportFilePrepareFailure[],
+    readFailures: readonly FolderFileReadFailure[] = [],
+  ): void {
+    if (failedFiles.length === 0 && readFailures.length === 0) {
+      return;
+    }
+
+    // Surfaced unconditionally (not only in DEV) so web users running
+    // `npm run dev` can diagnose why files did not import.
+    console.warn(
+      `[files] ${source} import completed with issues:`,
+      {
+        parseFailures: failedFiles.map((failure) => ({
+          code: failure.code,
+          fileName: failure.fileName,
+          message: failure.message,
+        })),
+        readFailures: readFailures.map((failure) => ({
+          fileName: failure.fileName,
+          message: failure.message,
+          relativePath: failure.relativePath,
+        })),
+      },
+    );
   }
 
   private getSelectedRelativePath(): string | null {

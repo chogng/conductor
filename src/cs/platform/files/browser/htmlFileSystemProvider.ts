@@ -1,6 +1,8 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
+import { isEqualOrParent, toSlashes } from "src/cs/base/common/extpath";
+import { extname } from "src/cs/base/common/resources";
 import {
   FileType,
   type IFileContent,
@@ -46,7 +48,7 @@ type BrowserFileTreeEntry = BrowserFileTreeDirectory | BrowserFileTreeFile;
 
 function normalizePath(path: string): string {
   const parts: string[] = [];
-  for (const part of String(path ?? "").replace(/\\/g, "/").split("/")) {
+  for (const part of toSlashes(String(path ?? "")).split("/")) {
     if (!part || part === ".") {
       continue;
     }
@@ -76,15 +78,6 @@ function createRandomId(prefix: string): string {
   }
 
   return `${prefix}_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
-}
-
-function getNameExtension(name: string): string {
-  const dotIndex = name.lastIndexOf(".");
-  if (dotIndex <= 0 || dotIndex === name.length - 1) {
-    return "";
-  }
-
-  return name.slice(dotIndex);
 }
 
 function isTreeDirectory(entry: BrowserFileTreeEntry): entry is BrowserFileTreeDirectory {
@@ -218,16 +211,24 @@ async function ensureHandlePermission(handle: FileSystemHandle): Promise<void> {
     return;
   }
 
-  const permission = await handle.queryPermission();
-  if (permission === "granted") {
-    return;
-  }
+  // queryPermission/requestPermission are non-standard File System Access
+  // extensions. They can return "prompt" or throw (e.g. requestPermission
+  // outside a user gesture) even for a freshly picked handle that already has
+  // read access. Treat them as best-effort: never throw here, and let the
+  // actual read operation surface a genuine permission failure. Throwing here
+  // previously aborted folder imports with no data rendered.
+  try {
+    const permission = await handle.queryPermission({ mode: "read" });
+    if (permission === "granted") {
+      return;
+    }
 
-  if (typeof handle.requestPermission === "function" && await handle.requestPermission() === "granted") {
-    return;
+    if (typeof handle.requestPermission === "function") {
+      await handle.requestPermission({ mode: "read" });
+    }
+  } catch {
+    // Ignore — fall through and attempt the read anyway.
   }
-
-  throw new Error(`Permission denied for browser file handle '${handle.name}'.`);
 }
 
 function readDirectoryEntries(
@@ -408,7 +409,7 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
       !await isSameEntry(this.roots.get(path)?.handle, handle)
     ) {
       const pathName = path.slice(1);
-      const extension = getNameExtension(pathName);
+      const extension = extname(URI.from({ path, scheme: "file" }));
       const name = pathName.slice(0, pathName.length - extension.length) || pathName;
       let counter = 1;
       do {
@@ -466,10 +467,7 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
   private getRoot(path: string): RegisteredBrowserFileRoot | null {
     let match: RegisteredBrowserFileRoot | null = null;
     for (const root of this.roots.values()) {
-      if (
-        path === root.path ||
-        path.startsWith(`${root.path}/`)
-      ) {
+      if (isEqualOrParent(path, root.path, false, "/")) {
         if (!match || root.path.length > match.path.length) {
           match = root;
         }

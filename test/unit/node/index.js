@@ -1,6 +1,6 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import Mocha from "mocha";
 
@@ -139,7 +139,9 @@ copyAsset(
 
 const nlsSetup = createNlsTestSetup();
 const tests = collectTests(outSrcRoot);
-await import(nlsSetup);
+// Import via a file:// URL so absolute Windows paths (C:\...) are accepted by
+// Node's ESM loader.
+await import(pathToFileURL(nlsSetup).href);
 
 const mocha = new Mocha({
   ui: "tdd",

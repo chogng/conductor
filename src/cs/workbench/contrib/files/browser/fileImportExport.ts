@@ -1,4 +1,6 @@
 import { URI } from "src/cs/base/common/uri";
+import { toSlashes } from "src/cs/base/common/extpath";
+import { basename, joinPath } from "src/cs/base/common/resources";
 import {
   FileType,
   type IFileContent,
@@ -54,27 +56,11 @@ type FolderFileStatTask = {
 };
 
 function joinResourcePath(parent: URI, name: string): URI {
-  return URI.joinPath(parent, name);
+  return joinPath(parent, name);
 }
 
 function getPathBaseName(path: string): string {
-  const normalized = path.trim().replace(/[\\/]+$/, "");
-  const separatorIndex = Math.max(
-    normalized.lastIndexOf("/"),
-    normalized.lastIndexOf("\\"),
-  );
-
-  return decodePathSegment(
-    separatorIndex >= 0 ? normalized.slice(separatorIndex + 1) : normalized,
-  );
-}
-
-function decodePathSegment(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
+  return basename(URI.from({ path: toSlashes(String(path ?? "")), scheme: "file" }));
 }
 
 function getFileMimeType(fileName: string): string {
