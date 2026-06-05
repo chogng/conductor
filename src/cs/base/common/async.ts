@@ -451,12 +451,13 @@ export class TaskSequentializer implements IDisposable {
         if (disposable) {
             this.pending.add(disposable);
         }
-        this.current = task.finally(() => {
-            if (this.current === task) {
+        const current = task.finally(() => {
+            if (this.current === current) {
                 this.current = undefined;
                 this.pending.clear();
             }
         });
+        this.current = current;
     }
 
     public hasPending(): boolean {
