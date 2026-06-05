@@ -54,40 +54,47 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
       return undefined;
     }
 
-    if (this.canPickDirectoryInput()) {
-      const files = await this.pickDirectoryInputFiles();
-      return files.length ? [await provider.registerDirectoryInputFiles(files)] : undefined;
-    }
-
     const activeWindow = globalThis.window as FilePickerWindow | undefined;
     const picker = activeWindow?.showDirectoryPicker;
-    if (!activeWindow || !WebFileSystemAccess.supported(activeWindow) || typeof picker !== "function") {
-      return undefined;
-    }
+    if (activeWindow && WebFileSystemAccess.supported(activeWindow) && typeof picker === "function") {
+      try {
+        const handle = await this.pickDirectoryHandle(picker);
+        return handle ? [await provider.registerDirectoryHandle(handle)] : undefined;
+      } catch (error) {
+        if (isDirectoryPickerCancel(error)) {
+          return undefined;
+        }
 
-    let handle: FileSystemDirectoryHandle | undefined;
-    try {
-      handle = await picker({
-        startIn: "documents",
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
-        return undefined;
+        if (!isInterceptedFileChooserError(error)) {
+          throw error;
+        }
       }
-
-      throw error;
     }
 
-    if (!handle) {
+    if (!this.canPickDirectoryInput()) {
       return undefined;
     }
+
+    const files = await this.pickDirectoryInputFiles();
+    if (files.length === 0) {
+      return undefined;
+    }
+
+    return [await provider.registerDirectoryInputFiles(files)];
+  }
+
+  private async pickDirectoryHandle(
+    picker: NonNullable<FilePickerWindow["showDirectoryPicker"]>,
+  ): Promise<FileSystemDirectoryHandle | undefined> {
+    const handle = await picker({
+      startIn: "documents",
+    });
 
     if (!WebFileSystemAccess.isFileSystemDirectoryHandle(handle)) {
       return undefined;
     }
 
-    const folder = await provider.registerDirectoryHandle(handle);
-    return [folder];
+    return handle;
   }
 
   private async showOpenFileDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
@@ -122,6 +129,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
   }
 
   private canPickDirectoryInput(): boolean {
+    if (typeof document === "undefined") {
+      return false;
+    }
+
     const input = document.createElement("input");
     return "webkitdirectory" in input;
   }
@@ -144,12 +155,17 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
       input.multiple = true;
       input.webkitdirectory = true;
       input.style.display = "none";
-      input.addEventListener("change", () => {
-        complete(Array.from(input.files ?? []));
-      }, { once: true });
-      input.addEventListener("cancel", () => {
-        complete([]);
-      }, { once: true });
+      const collectFiles = (): void => {
+        const files = Array.from(input.files ?? []);
+        if (files.length === 0) {
+          return;
+        }
+
+        complete(files);
+      };
+
+      input.addEventListener("input", collectFiles, { once: true });
+      input.addEventListener("change", collectFiles, { once: true });
       document.body.append(input);
       input.click();
     });
@@ -166,3 +182,15 @@ const getAcceptAttribute = (options: IOpenDialogOptions): string => {
 
   return extensions || "";
 };
+
+function isDirectoryPickerCancel(error: unknown): boolean {
+  return error instanceof Error &&
+    error.name === "AbortError" &&
+    !isInterceptedFileChooserError(error);
+}
+
+function isInterceptedFileChooserError(error: unknown): boolean {
+  return error instanceof Error &&
+    error.name === "AbortError" &&
+    error.message.includes("Page.setInterceptFileChooserDialog");
+}

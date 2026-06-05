@@ -2,6 +2,7 @@ import assert from "assert";
 
 import {
   isMacintosh,
+  isLinux,
   isNative,
   isWindows,
   platform,
@@ -13,6 +14,7 @@ suite("base/test/common/platform", () => {
   test("detects the native platform from node process", () => {
     if (process.platform === "darwin") {
       assert.equal(isMacintosh, true);
+      assert.equal(isLinux, false);
       assert.equal(isWindows, false);
       assert.equal(isNative, true);
       assert.equal(platform, Platform.Mac);
@@ -22,6 +24,7 @@ suite("base/test/common/platform", () => {
 
     if (process.platform === "win32") {
       assert.equal(isMacintosh, false);
+      assert.equal(isLinux, false);
       assert.equal(isWindows, true);
       assert.equal(isNative, true);
       assert.equal(platform, Platform.Windows);
@@ -29,7 +32,18 @@ suite("base/test/common/platform", () => {
       return;
     }
 
+    if (process.platform === "linux") {
+      assert.equal(isMacintosh, false);
+      assert.equal(isLinux, true);
+      assert.equal(isWindows, false);
+      assert.equal(isNative, true);
+      assert.equal(platform, Platform.Linux);
+      assert.equal(PlatformToString(platform), "Linux");
+      return;
+    }
+
     assert.equal(isMacintosh, false);
+    assert.equal(isLinux, false);
     assert.equal(isWindows, false);
   });
 });

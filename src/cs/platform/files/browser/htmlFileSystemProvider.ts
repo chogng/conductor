@@ -45,12 +45,26 @@ type BrowserFileTreeFile = {
 type BrowserFileTreeEntry = BrowserFileTreeDirectory | BrowserFileTreeFile;
 
 function normalizePath(path: string): string {
-  const normalized = String(path ?? "").replace(/\\/g, "/").replace(/\/+/g, "/");
-  if (!normalized || normalized === ".") {
+  const parts: string[] = [];
+  for (const part of String(path ?? "").replace(/\\/g, "/").split("/")) {
+    if (!part || part === ".") {
+      continue;
+    }
+
+    if (part === "..") {
+      parts.pop();
+      continue;
+    }
+
+    parts.push(part);
+  }
+
+  const normalized = `/${parts.join("/")}`;
+  if (!parts.length) {
     return "/";
   }
 
-  return normalized.startsWith("/") ? normalized : `/${normalized}`;
+  return normalized;
 }
 
 function createRandomId(prefix: string): string {
@@ -87,7 +101,6 @@ function createTreeDirectory(name: string): BrowserFileTreeDirectory {
 function getSafePathParts(path: string): string[] {
   return normalizePath(path)
     .split("/")
-    .map(part => part.trim())
     .filter(part => part && part !== "." && part !== "..");
 }
 
@@ -279,7 +292,7 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 
   public async registerDirectoryHandle(handle: FileSystemDirectoryHandle): Promise<URI> {
     const path = await this.registerHandle(handle);
-    return URI.file(path);
+    return URI.from({ path, scheme: "file" });
   }
 
   public async registerDirectoryInputFiles(files: readonly File[]): Promise<URI> {
@@ -288,9 +301,9 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 
   public registerFile(file: File): URI {
     const id = createRandomId("browserfile");
-    const path = `/${id}/${encodeURIComponent(file.name || "file")}`;
+    const path = normalizePath(`/${id}/${file.name || "file"}`);
     this.files.set(path, { file, path });
-    return URI.file(path);
+    return URI.from({ path, scheme: "file" });
   }
 
   public async exists(resource: URI): Promise<boolean> {
@@ -385,17 +398,21 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 
   private async registerHandle(handle: FileSystemDirectoryHandle): Promise<string> {
     const handleName = handle.name || "folder";
-    let path = `/${handleName}`;
+    let path = normalizePath(`/${handleName}`);
+    if (path === "/") {
+      path = "/folder";
+    }
 
     if (
       this.roots.has(path) &&
       !await isSameEntry(this.roots.get(path)?.handle, handle)
     ) {
-      const extension = getNameExtension(handleName);
-      const name = handleName.slice(0, handleName.length - extension.length) || handleName;
+      const pathName = path.slice(1);
+      const extension = getNameExtension(pathName);
+      const name = pathName.slice(0, pathName.length - extension.length) || pathName;
       let counter = 1;
       do {
-        path = `/${name}-${counter}${extension}`;
+        path = normalizePath(`/${name}-${counter}${extension}`);
         counter += 1;
       } while (
         this.roots.has(path) &&

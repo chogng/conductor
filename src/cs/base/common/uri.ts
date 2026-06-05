@@ -14,7 +14,10 @@ const WINDOWS_DRIVE_PATH = /^\/[a-zA-Z]:/;
 const WINDOWS_DRIVE_FS_PATH = /^[a-zA-Z]:[\\/]/;
 
 type UriChange = {
+  readonly authority?: string | null;
+  readonly fragment?: string | null;
   readonly path?: string | null;
+  readonly query?: string | null;
   readonly scheme?: string | null;
 };
 
@@ -185,13 +188,22 @@ export class URI {
   }
 
   public with(change: UriChange): URI {
+    const authority = change.authority === null ? "" : change.authority ?? this.authority;
+    const fragment = change.fragment === null ? "" : change.fragment ?? this.fragment;
     const scheme = change.scheme === null ? "" : change.scheme ?? this.scheme;
     const path = change.path === null ? "" : change.path ?? this.path;
-    if (scheme === this.scheme && path === this.path) {
+    const query = change.query === null ? "" : change.query ?? this.query;
+    if (
+      authority === this.authority &&
+      fragment === this.fragment &&
+      path === this.path &&
+      query === this.query &&
+      scheme === this.scheme
+    ) {
       return this;
     }
 
-    return new URI(scheme, path, this.authority, this.query, this.fragment);
+    return new URI(scheme, path, authority, query, fragment);
   }
 
   public toString(): string {

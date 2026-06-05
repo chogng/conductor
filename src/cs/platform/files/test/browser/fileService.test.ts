@@ -147,6 +147,42 @@ suite("platform/files/test/browser/fileService", () => {
     assert.deepEqual(entries, [["transfer.csv", FileType.File]]);
   });
 
+  test("FileService normalizes browser directory root paths when registering handles", async () => {
+    const { filesService, provider } = createBrowserFileService();
+    const root = createDirectoryHandle({
+      children: [
+        createFileHandle("transfer.csv", "Vg,Id\n0,1"),
+      ],
+      name: "selected-folder/",
+    });
+
+    const folder = await provider.registerDirectoryHandle(root);
+
+    assert.equal(folder.path, "/selected-folder");
+    assert.deepEqual(await filesService.readDir(folder), [["transfer.csv", FileType.File]]);
+  });
+
+  test("FileService normalizes browser directory resource paths before lookup", async () => {
+    const { filesService, provider } = createBrowserFileService();
+    const nested = createDirectoryHandle({
+      children: [
+        createFileHandle("output.csv", "Vd,Id\n0,3"),
+      ],
+      name: "nested",
+    });
+    const root = createDirectoryHandle({
+      children: [
+        nested,
+      ],
+      name: "selected-folder",
+    });
+
+    const folder = await provider.registerDirectoryHandle(root);
+    const output = folder.with({ path: `${folder.path}//nested/../nested/./output.csv` });
+
+    assert.equal((await filesService.readFile(output)).value, "Vd,Id\n0,3");
+  });
+
   test("FileService reads browser directory input files as a virtual folder", async () => {
     const { filesService, provider } = createBrowserFileService();
     const folder = await provider.registerDirectoryInputFiles([

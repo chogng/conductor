@@ -4,6 +4,7 @@ export const LANGUAGE_DEFAULT = "en";
 
 let _isWindows = false;
 let _isMacintosh = false;
+let _isLinux = false;
 let _isNative = false;
 let _isWeb = false;
 let _isElectron = false;
@@ -80,6 +81,7 @@ if (typeof nodeProcess === "object") {
 
     _isWindows = nodeProcess.platform === "win32";
     _isMacintosh = nodeProcess.platform === "darwin";
+    _isLinux = nodeProcess.platform === "linux";
     _isElectron = isElectronProcess;
     _isCI = !!env["CI"] || !!env["BUILD_ARTIFACTSTAGINGDIRECTORY"] || !!env["GITHUB_WORKSPACE"];
     _locale = LANGUAGE_DEFAULT;
@@ -90,10 +92,12 @@ if (typeof nodeProcess === "object") {
         _language = resolveNLSLanguage(conductorNLSLanguage);
     }
 
-    _isNative = _isWindows || _isMacintosh;
+    _isNative = _isWindows || _isMacintosh || _isLinux;
 } else if (typeof navigator === "object" && !isElectronRenderer) {
     _userAgent = navigator.userAgent;
+    _isWindows = _userAgent.includes("Windows");
     _isMacintosh = _userAgent.includes("Macintosh");
+    _isLinux = _userAgent.includes("Linux");
     _isMobile = _userAgent.includes("Mobi");
     _isWeb = true;
     _language = getNLSLanguage();
@@ -107,9 +111,10 @@ export const enum Platform {
     Web,
     Windows,
     Mac,
+    Linux,
 }
 
-export type PlatformName = "Web" | "Windows" | "Mac";
+export type PlatformName = "Web" | "Windows" | "Mac" | "Linux";
 
 export function PlatformToString(platform: Platform): PlatformName {
     switch (platform) {
@@ -119,6 +124,8 @@ export function PlatformToString(platform: Platform): PlatformName {
             return "Windows";
         case Platform.Mac:
             return "Mac";
+        case Platform.Linux:
+            return "Linux";
     }
 }
 
@@ -127,10 +134,13 @@ if (_isNative && _isWindows) {
     _platform = Platform.Windows;
 } else if (_isNative && _isMacintosh) {
     _platform = Platform.Mac;
+} else if (_isNative && _isLinux) {
+    _platform = Platform.Linux;
 }
 
 export const isWindows = _isWindows;
 export const isMacintosh = _isMacintosh;
+export const isLinux = _isLinux;
 export const isNative = _isNative;
 export const isElectron = _isElectron;
 export const isWeb = _isWeb;
