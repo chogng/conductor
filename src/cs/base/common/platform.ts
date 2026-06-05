@@ -1,4 +1,4 @@
-import { getNLSLanguage, resolveNLSLanguage } from "src/cs/nls";
+import { getNLSLanguage, resolveNLSLanguage } from "../../nls.js";
 
 export const LANGUAGE_DEFAULT = "en";
 
@@ -44,6 +44,11 @@ type GlobalWithProcess = typeof globalThis & {
     };
     importScripts?: unknown;
     origin?: string;
+    postMessage?: (message: unknown, targetOrigin: string) => void;
+    addEventListener?: (
+        type: "message",
+        listener: (event: { data: unknown }) => void,
+    ) => void;
 };
 
 declare const process: INodeProcess;
@@ -173,7 +178,7 @@ export const setTimeout0 = (() => {
 
         const pending: IQueueElement[] = [];
 
-        $globalThis.addEventListener("message", (event: MessageEvent) => {
+        $globalThis.addEventListener("message", event => {
             const data: unknown = event.data;
             if (!data || typeof data !== "object" || !("conductorScheduleAsyncWork" in data)) {
                 return;

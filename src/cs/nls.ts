@@ -1,5 +1,5 @@
-import enMessages from "../../build/nls/en.json";
-import zhMessages from "../../build/nls/zh.json";
+import enMessages from "../../build/nls/en.json" with { type: "json" };
+import zhMessages from "../../build/nls/zh.json" with { type: "json" };
 
 export const SUPPORTED_NLS_LANGUAGES = ["en", "zh"] as const;
 
