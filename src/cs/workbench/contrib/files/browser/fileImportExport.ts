@@ -150,7 +150,18 @@ async function collectFolderFilesAt(
     return;
   }
 
-  const entries = await filesService.readDir(folder);
+  let entries: readonly [string, FileType][];
+  try {
+    entries = await filesService.readDir(folder);
+  } catch (error) {
+    readFailures.push({
+      fileName: getPathBaseName(relativeFolderPath) || relativeFolderPath,
+      message: getErrorMessage(error),
+      relativePath: relativeFolderPath,
+    });
+    return;
+  }
+
   const fileTasks: FolderFileStatTask[] = [];
   const folderTasks: Array<{
     readonly relativePath: string;

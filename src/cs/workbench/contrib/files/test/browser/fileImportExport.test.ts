@@ -74,6 +74,23 @@ function createDirectoryHandle({
   return handle;
 }
 
+function createUnreadableDirectoryHandle(name: string, message: string): FileSystemDirectoryHandle {
+  return {
+    kind: "directory",
+    name,
+    entries: async function* entries() {
+      throw new Error(message);
+    },
+    values: undefined,
+    getDirectoryHandle: async () => {
+      throw new Error(message);
+    },
+    getFileHandle: async () => {
+      throw new Error(message);
+    },
+  };
+}
+
 async function collectBrowserFolderFiles(root: FileSystemDirectoryHandle) {
   const provider = new HTMLFileSystemProvider();
   const filesService = new FileService();
@@ -121,4 +138,23 @@ test("collectFolderImportFiles keeps raw percent signs in browser file names", a
   );
   assert.equal(await (await result.files[0].loadFile()).text(), "Vg,Id\n0,1");
   assert.equal(await (await result.files[1].loadFile()).text(), "Vg,Id\n1,2");
+});
+
+test("collectFolderImportFiles keeps readable files when a child folder cannot be read", async () => {
+  const root = createDirectoryHandle({
+    children: [
+      createFileHandle("transfer.csv", "Vg,Id\n0,1"),
+      createUnreadableDirectoryHandle("blocked", "Permission denied"),
+    ],
+    name: "selected-folder",
+  });
+
+  const result = await collectBrowserFolderFiles(root);
+
+  assert.equal(result.files.length, 1);
+  assert.equal(result.files[0].relativePath, "selected-folder/transfer.csv");
+  assert.equal(result.readFailures.length, 1);
+  assert.equal(result.readFailures[0].fileName, "blocked");
+  assert.equal(result.readFailures[0].relativePath, "selected-folder/blocked");
+  assert.equal(result.readFailures[0].message, "Permission denied");
 });

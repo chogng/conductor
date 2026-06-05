@@ -51,10 +51,15 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
       return undefined;
     }
 
-    const handle = await picker({
-      id: "conductor-import-folder",
-      mode: "read",
-    });
+    let handle: FileSystemDirectoryHandle | undefined;
+    try {
+      handle = await picker({
+        id: "conductor-import-folder",
+        mode: "read",
+      });
+    } catch {
+      return undefined;
+    }
 
     if (!WebFileSystemAccess.isFileSystemDirectoryHandle(handle)) {
       return undefined;
