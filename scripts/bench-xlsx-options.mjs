@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
-import * as xlsx from "xlsx";
+
+let xlsxModule = null;
 
 const cases = [
   {
@@ -33,7 +34,23 @@ const cases = [
 
 const fmt = (ms) => `${Math.round(ms)}ms`;
 
-const benchOne = (filePath, testCase) => {
+const loadXlsxModule = async () => {
+  if (xlsxModule) return xlsxModule;
+  try {
+    const imported = await import("xlsx");
+    xlsxModule = imported.default ?? imported;
+    return xlsxModule;
+  } catch (error) {
+    throw new Error(
+      `Excel benchmark options require the optional xlsx package: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+};
+
+const benchOne = async (filePath, testCase) => {
+  const xlsx = await loadXlsxModule();
   const buffer = fs.readFileSync(filePath);
   const readStart = performance.now();
   const workbook = xlsx.read(buffer, testCase.read);
@@ -51,7 +68,7 @@ const benchOne = (filePath, testCase) => {
   };
 };
 
-const main = () => {
+const main = async () => {
   const files = process.argv.slice(2);
   const selected = files.length
     ? files
@@ -73,7 +90,7 @@ const main = () => {
     }
     console.log(`size=${Math.round(fs.statSync(filePath).size / 1024 / 1024)}MB`);
     for (const testCase of cases) {
-      const result = benchOne(filePath, testCase);
+      const result = await benchOne(filePath, testCase);
       console.log(
         `${testCase.name.padEnd(24)} read=${fmt(result.readMs).padStart(7)} csv=${fmt(result.csvMs).padStart(6)} total=${fmt(result.totalMs).padStart(7)} csvBytes=${result.csvBytes}`,
       );
@@ -81,4 +98,4 @@ const main = () => {
   }
 };
 
-main();
+await main();

@@ -53,7 +53,8 @@ const walkExcelFiles = async (root) => {
 };
 
 if (!isMainThread) {
-  const xlsx = await import("xlsx");
+  const imported = await import("xlsx");
+  const xlsx = imported.default ?? imported;
 
   parentPort.on("message", async (message) => {
     if (message?.type === "stop") {

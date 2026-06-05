@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createAnalysisStorageMainService } from "../desktop-dist/src/cs/workbench/services/storage/electron-main/analysisStorageMainService.js";
+import { createAnalysisStorageMainService } from "../../../desktop-dist/src/cs/workbench/services/storage/electron-main/analysisStorageMainService.js";
 
 const readJson = (filePath) => JSON.parse(fs.readFileSync(filePath, "utf8"));
 

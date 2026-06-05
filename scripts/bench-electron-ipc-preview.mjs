@@ -1,6 +1,16 @@
+import path from "node:path";
+
 const port = Number(process.argv[2] || process.env.CONDUCTOR_CDP_PORT || 9224);
-const filePath = process.argv[3] || "C:\\Users\\lanxi\\Desktop\\293K\\2.csv";
-const fileName = filePath.split(/[\\/]/).pop() || "2.csv";
+const filePath = process.argv[3] || process.env.CONDUCTOR_BENCH_FILE;
+if (!Number.isFinite(port)) {
+  throw new Error("Usage: node scripts/bench-electron-ipc-preview.mjs <cdp-port> <file-path>");
+}
+if (!filePath) {
+  throw new Error(
+    "Usage: node scripts/bench-electron-ipc-preview.mjs <cdp-port> <file-path> or set CONDUCTOR_BENCH_FILE.",
+  );
+}
+const fileName = path.basename(filePath) || "device-analysis.csv";
 
 const requestJson = async (url) => {
   const response = await fetch(url);
