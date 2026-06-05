@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 
@@ -40,6 +40,19 @@ const inlinePackageConfiguration = (throwOnMissingMarker) => {
     bootstrapMeta.replace(packageMarker, packageJsonFields),
   );
 };
+
+const resetBootstrapMetaOutput = () => {
+  if (!existsSync(bootstrapMetaPath)) {
+    return;
+  }
+
+  const bootstrapMeta = readFileSync(bootstrapMetaPath, "utf8");
+  if (!packageMarker.test(bootstrapMeta)) {
+    unlinkSync(bootstrapMetaPath);
+  }
+};
+
+resetBootstrapMetaOutput();
 
 if (isWatch) {
   const proc = spawn(tscCmd, tscArgs, { stdio: ["inherit", "pipe", "pipe"] });

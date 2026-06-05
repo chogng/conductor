@@ -896,7 +896,7 @@ const createTableModel = ({
 
   const createPreviewWorker = memoCallback(() => {
     const worker = new Worker(
-      new URL("../../../contrib/workers/analysis.worker.ts", import.meta.url),
+      new URL("./analysisWorker.ts", import.meta.url),
       { type: "module" },
     );
 

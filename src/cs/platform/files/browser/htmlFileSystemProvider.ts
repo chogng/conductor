@@ -14,6 +14,7 @@ import { sliceReadFileContent } from "src/cs/platform/files/common/io";
 import {
   WebFileSystemAccess,
   type FileSystemDirectoryHandle,
+  type FileSystemFileHandle,
   type FileSystemHandle,
 } from "src/cs/platform/files/browser/webFileSystemAccess";
 
@@ -26,6 +27,22 @@ type RegisteredBrowserFile = {
   readonly file: File;
   readonly path: string;
 };
+
+type BrowserDirectoryInputFile = File & {
+  readonly webkitRelativePath?: string;
+};
+
+type BrowserFileTreeDirectory = {
+  readonly children: Map<string, BrowserFileTreeEntry>;
+  readonly name: string;
+};
+
+type BrowserFileTreeFile = {
+  readonly file: File;
+  readonly name: string;
+};
+
+type BrowserFileTreeEntry = BrowserFileTreeDirectory | BrowserFileTreeFile;
 
 function normalizePath(path: string): string {
   const normalized = String(path ?? "").replace(/\\/g, "/").replace(/\/+/g, "/");
@@ -54,6 +71,112 @@ function getNameExtension(name: string): string {
   }
 
   return name.slice(dotIndex);
+}
+
+function isTreeDirectory(entry: BrowserFileTreeEntry): entry is BrowserFileTreeDirectory {
+  return "children" in entry;
+}
+
+function createTreeDirectory(name: string): BrowserFileTreeDirectory {
+  return {
+    children: new Map<string, BrowserFileTreeEntry>(),
+    name,
+  };
+}
+
+function getSafePathParts(path: string): string[] {
+  return normalizePath(path)
+    .split("/")
+    .map(part => part.trim())
+    .filter(part => part && part !== "." && part !== "..");
+}
+
+function getFileRelativePath(file: BrowserDirectoryInputFile): string {
+  return file.webkitRelativePath || file.name || "file";
+}
+
+function getVirtualRootName(files: readonly BrowserDirectoryInputFile[]): string {
+  for (const file of files) {
+    const rootName = getSafePathParts(getFileRelativePath(file))[0];
+    if (rootName) {
+      return rootName;
+    }
+  }
+
+  return "folder";
+}
+
+function createDirectoryInputHandle(files: readonly BrowserDirectoryInputFile[]): FileSystemDirectoryHandle {
+  const root = createTreeDirectory(getVirtualRootName(files));
+
+  for (const file of files) {
+    const parts = getSafePathParts(getFileRelativePath(file));
+    if (parts.length === 0) {
+      continue;
+    }
+
+    const pathParts = parts[0] === root.name ? parts.slice(1) : parts;
+    const fileName = pathParts.pop() || file.name || "file";
+    let current = root;
+    for (const part of pathParts) {
+      const existing = current.children.get(part);
+      if (existing && isTreeDirectory(existing)) {
+        current = existing;
+        continue;
+      }
+
+      const next = createTreeDirectory(part);
+      current.children.set(part, next);
+      current = next;
+    }
+
+    current.children.set(fileName, { file, name: fileName });
+  }
+
+  return toDirectoryHandle(root);
+}
+
+function toDirectoryHandle(directory: BrowserFileTreeDirectory): FileSystemDirectoryHandle {
+  const getChild = (name: string): BrowserFileTreeEntry | undefined => directory.children.get(name);
+  const handle: FileSystemDirectoryHandle = {
+    kind: "directory",
+    name: directory.name,
+    entries: async function* entries() {
+      for (const [name, child] of directory.children) {
+        yield [
+          name,
+          isTreeDirectory(child) ? toDirectoryHandle(child) : toFileHandle(child),
+        ];
+      }
+    },
+    getDirectoryHandle: async (name: string) => {
+      const child = getChild(name);
+      if (child && isTreeDirectory(child)) {
+        return toDirectoryHandle(child);
+      }
+
+      throw new Error(`Directory '${name}' was not found.`);
+    },
+    getFileHandle: async (name: string) => {
+      const child = getChild(name);
+      if (child && !isTreeDirectory(child)) {
+        return toFileHandle(child);
+      }
+
+      throw new Error(`File '${name}' was not found.`);
+    },
+  };
+  handle[Symbol.asyncIterator] = handle.entries;
+
+  return handle;
+}
+
+function toFileHandle(entry: BrowserFileTreeFile): FileSystemFileHandle {
+  return {
+    kind: "file",
+    name: entry.name,
+    getFile: async () => entry.file,
+  };
 }
 
 async function isSameEntry(
@@ -139,6 +262,10 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 
   public async registerDirectoryHandle(handle: FileSystemDirectoryHandle): Promise<URI> {
     return URI.file(await this.registerHandle(handle));
+  }
+
+  public async registerDirectoryInputFiles(files: readonly File[]): Promise<URI> {
+    return this.registerDirectoryHandle(createDirectoryInputHandle(files));
   }
 
   public registerFile(file: File): URI {

@@ -17,7 +17,7 @@ suite("base/test/browser/ui/Button/button", () => {
         size: "lg",
         variant: "secondary",
       }),
-      "action-btn action-btn--lg action-btn--secondary w-full extra",
+      "action-btn action-btn--lg action-btn--secondary action-btn--full extra",
     );
 
     assert.equal(

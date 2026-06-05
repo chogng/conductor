@@ -7,6 +7,7 @@ import {
 } from "src/cs/workbench/contrib/files/common/files";
 
 export type PendingImportFile = {
+  canUseNativePath?: boolean;
   finishFilePerf: (meta?: Record<string, unknown>) => void;
   kind: FileSource["kind"];
   lastModified: number;
@@ -61,6 +62,7 @@ export const collectPendingImportFiles = (
     }
 
     pendingImportFiles.push({
+      canUseNativePath: source.kind === "path" ? source.canUseNativePath !== false : false,
       finishFilePerf,
       kind: source.kind,
       lastModified,

@@ -143,7 +143,7 @@ Contribution、Command、Context Key、Configuration：
 测试和收口：
 - 单元测试按上游 VS Code 测试逻辑写：测试靠近被测模块，按运行环境放在模块内 `test/common`、`test/browser`、`test/node`、`test/electron-main`，或沿用相邻同目录测试模式；不要集中堆到仓库根 `test`。
 - 仓库根 `test` 只放测试基础设施和跨应用测试，例如 `test/unit` runner、`test/integration`、`test/smoke`、`test/automation`；普通 feature 单测不要放到这里。
-- 新增测试文件扩展名跟被测代码和 runner 的编译链路走：TS 源码测试优先 `*.test.ts`；直接由 Node/Electron 执行的 runner、glue code 或脚本用 `.js`；只有现有 runner 或相邻测试已经约定 `.mjs` 时才沿用 `.mjs`。
+- 新增测试文件扩展名跟被测代码和 runner 的编译链路走：TS 源码测试优先 `*.test.ts`；直接由 Node/Electron 执行的 runner、glue code 或脚本用 `.js`；
 - 普通 feature 单测按被测对象命名，例如 `templateApplyProcessing.test.ts`、`fileNameMatching.test.ts`；不要在 feature 的 unit test 目录里新增 `*Smoke.test.ts`、`smoke*.test.ts` 这类文件名。
 - 真正的 smoke test 按上游独立 smoke runner 体系落在仓库根 `test/smoke` 等测试基础设施目录，不混进 `src/cs/workbench/contrib/<feature>/test/<runtime>` 的普通单测里。
 - 新增单测后，确认能被 `test/unit/node/index.js` 从 `out-test/src` 的 `*.test.js` 编译产物收集到；不要再维护手写测试清单。

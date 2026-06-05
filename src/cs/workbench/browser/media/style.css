@@ -1,9 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 :root {
-  /* Theme tokens (RGB triplets): Tailwind colors read from these variables. */
+  /* Theme tokens (RGB triplets). */
   color-scheme: light;
   --bg-page: 245 244 239;
   --bg-surface: 255 255 255;
@@ -57,7 +53,7 @@
   --color-warning: #F59E0B;
   --color-error: #EF4444;
 
-  /* Semantic status colors (RGB triplets for Tailwind alpha support) */
+  /* Semantic status colors (RGB triplets for alpha support) */
   --status-approved-rgb: 16 185 129; /* emerald-500 */
   --status-pending-rgb: 245 158 11; /* amber-500 */
   --status-rejected-rgb: 239 68 68; /* red-500 */
@@ -151,12 +147,22 @@
 }
 
 html {
+  height: 100%;
   scroll-behavior: smooth;
 }
 
-/* Global Styles */
+*,
+::before,
+::after {
+  box-sizing: border-box;
+  border-width: 0;
+  border-style: solid;
+  border-color: rgb(var(--border) / 1);
+}
 
 body {
+  min-height: 100%;
+  margin: 0;
   font-family: var(--font-family-base);
   background-color: var(--color-bg);
   color: var(--color-text-primary);
@@ -164,6 +170,13 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
 }
 
 html[data-transparent-chrome="true"] body,

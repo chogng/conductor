@@ -103,6 +103,10 @@ html[data-nav="keyboard"] .action-btn:focus-visible::after {
   padding-right: 0px;
 }
 
+.action-btn--full {
+  width: 100%;
+}
+
 /* Content */
 .action-btn__content {
   position: relative;

@@ -44,7 +44,7 @@ export const getButtonClassName = ({
   const sizeClass = getButtonSizeClassName(size);
   const classNames = ["action-btn", sizeClass, variantClass];
   if (fullWidth) {
-    classNames.push("w-full");
+    classNames.push("action-btn--full");
   }
   if (className) {
     classNames.push(className);

@@ -1,5 +1,7 @@
 import { DisposableStore, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 
+import "src/cs/base/browser/ui/InlineEditableText/inlineEditableText.css";
+
 export type InlineEditableTextWidgetStyle = Partial<CSSStyleDeclaration>;
 
 export type InlineEditableTextWidgetOptions = {
@@ -61,8 +63,8 @@ export class InlineEditableTextWidget implements IDisposable {
     this.options = options;
 
     const rootClassNames = [
-      "flex h-6 min-w-0 max-w-full flex-1 items-center overflow-hidden rounded-md px-1.5 transition-colors",
-      options.editing ? "bg-bg-page" : "bg-transparent",
+      "inline-editable-text",
+      options.editing ? "inline-editable-text--editing" : "inline-editable-text--display",
     ];
     if (options.className) {
       rootClassNames.push(options.className);
@@ -76,10 +78,10 @@ export class InlineEditableTextWidget implements IDisposable {
     this.input.value = options.editing ? options.draftValue : options.value;
     this.input.readOnly = !options.editing;
     const inputClassNames = [
-      "h-full min-w-0 w-full flex-1 bg-transparent border-0 p-0 outline-none focus:outline-none focus:ring-0 text-[11px] leading-4",
+      "inline-editable-text__input",
       options.editing
-        ? "cursor-text text-text-primary"
-        : "cursor-text text-text-secondary select-text",
+        ? "inline-editable-text__input--editing"
+        : "inline-editable-text__input--display",
     ];
     if (options.displayClassName) {
       inputClassNames.push(options.displayClassName);

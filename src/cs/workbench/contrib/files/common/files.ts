@@ -59,6 +59,7 @@ export type DataFileSource = {
 };
 
 export type PathFileSource = {
+  readonly canUseNativePath?: boolean;
   readonly file?: File;
   readonly fileName: string;
   readonly kind: "path";

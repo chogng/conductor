@@ -21,6 +21,19 @@ suite("platform/files/test/browser/fileService", () => {
     };
   }
 
+  function createDirectoryFile(path: string, text: string): File {
+    const name = path.split("/").pop() || "file";
+    const file = new File([text], name, {
+      lastModified: 1,
+      type: "text/csv;charset=utf-8",
+    });
+    Object.defineProperty(file, "webkitRelativePath", {
+      value: path,
+    });
+
+    return file;
+  }
+
   function createDirectoryHandle({
     children,
     name,
@@ -99,6 +112,26 @@ suite("platform/files/test/browser/fileService", () => {
     const entries = await filesService.readDir(folder);
 
     assert.deepEqual(entries, [["transfer.csv", FileType.File]]);
+  });
+
+  test("FileService reads browser directory files as a virtual folder", async () => {
+    const { filesService, provider } = createBrowserFileService();
+    const folder = await provider.registerDirectoryInputFiles([
+      createDirectoryFile("selected-folder/transfer.csv", "Vg,Id\n0,1"),
+      createDirectoryFile("selected-folder/nested/output.csv", "Vg,Id\n1,2"),
+    ]);
+
+    assert.deepEqual(await filesService.readDir(folder), [
+      ["transfer.csv", FileType.File],
+      ["nested", FileType.Directory],
+    ]);
+    assert.deepEqual(await filesService.readDir(folder.with({ path: `${folder.path}/nested` })), [
+      ["output.csv", FileType.File],
+    ]);
+    assert.equal(
+      (await filesService.readFile(folder.with({ path: `${folder.path}/nested/output.csv` }))).value,
+      "Vg,Id\n1,2",
+    );
   });
 
   test("FileService keeps raw percent signs in browser file paths", async () => {

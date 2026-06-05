@@ -24,6 +24,10 @@ type FilePickerWindow = Window & typeof globalThis & {
   }) => Promise<FileSystemDirectoryHandle>;
 };
 
+type DirectoryInputElement = HTMLInputElement & {
+  webkitdirectory: boolean;
+};
+
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogServiceType {
   constructor(
     @IFileService private readonly filesService: IFileServiceType,
@@ -45,28 +49,28 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
       return undefined;
     }
 
+    const provider = this.filesService.getProvider("file");
+    if (!(provider instanceof HTMLFileSystemProvider)) {
+      return undefined;
+    }
+
     const activeWindow = globalThis.window as FilePickerWindow | undefined;
     const picker = activeWindow?.showDirectoryPicker;
     if (!activeWindow || !WebFileSystemAccess.supported(activeWindow) || typeof picker !== "function") {
-      return undefined;
+      const files = await this.pickDirectoryInputFiles();
+      return files.length ? [await provider.registerDirectoryInputFiles(files)] : undefined;
     }
 
     let handle: FileSystemDirectoryHandle | undefined;
     try {
       handle = await picker({
-        id: "conductor-import-folder",
-        mode: "read",
+        startIn: "documents",
       });
     } catch {
       return undefined;
     }
 
     if (!WebFileSystemAccess.isFileSystemDirectoryHandle(handle)) {
-      return undefined;
-    }
-
-    const provider = this.filesService.getProvider("file");
-    if (!(provider instanceof HTMLFileSystemProvider)) {
       return undefined;
     }
 
@@ -93,6 +97,23 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
       input.type = "file";
       input.accept = getAcceptAttribute(options);
       input.multiple = Boolean(options.canSelectMany);
+      input.style.display = "none";
+      input.addEventListener("change", () => {
+        const files = Array.from(input.files ?? []);
+        input.remove();
+        resolve(files);
+      }, { once: true });
+      document.body.append(input);
+      input.click();
+    });
+  }
+
+  private pickDirectoryInputFiles(): Promise<File[]> {
+    return new Promise(resolve => {
+      const input = document.createElement("input") as DirectoryInputElement;
+      input.type = "file";
+      input.multiple = true;
+      input.webkitdirectory = true;
       input.style.display = "none";
       input.addEventListener("change", () => {
         const files = Array.from(input.files ?? []);

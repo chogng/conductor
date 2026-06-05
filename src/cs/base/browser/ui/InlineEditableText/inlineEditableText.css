@@ -1,0 +1,45 @@
+.inline-editable-text {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 24px;
+  flex: 1 1 0%;
+  align-items: center;
+  overflow: hidden;
+  border-radius: 6px;
+  padding: 0 6px;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.inline-editable-text--editing {
+  background-color: rgb(var(--bg-page) / 1);
+}
+
+.inline-editable-text--display {
+  background-color: transparent;
+}
+
+.inline-editable-text__input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  flex: 1 1 0%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 11px;
+  line-height: 16px;
+  outline: none;
+}
+
+.inline-editable-text__input--editing {
+  cursor: text;
+  color: rgb(var(--text-primary) / 1);
+}
+
+.inline-editable-text__input--display {
+  cursor: text;
+  color: rgb(var(--text-secondary) / 1);
+  user-select: text;
+}

@@ -179,6 +179,13 @@
 
 .ui-menu__scroll-area {
   overflow: hidden;
+  max-height: 240px;
+  margin-right: -4px;
+  padding-right: 4px;
+}
+
+.ui-menu__scroll-viewport {
+  max-height: 240px;
 }
 
 .ui-menu__scroll-area .scrollAreaTrackY {

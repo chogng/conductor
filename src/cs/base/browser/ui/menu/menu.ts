@@ -229,8 +229,8 @@ function createMenuActionBarOptions(options: MenuOptions): ActionBarOptions {
 
 function createMenuScrollContent(element: HTMLElement): ActionBarContent {
     const scrollbar = new Scrollbar({
-        className: "ui-menu__scroll-area max-h-60 -mr-1 pr-1",
-        viewportClassName: "max-h-60",
+        className: "ui-menu__scroll-area",
+        viewportClassName: "ui-menu__scroll-viewport",
     });
     scrollbar.viewport.style.height = "auto";
     scrollbar.viewport.style.maxHeight = "15rem";

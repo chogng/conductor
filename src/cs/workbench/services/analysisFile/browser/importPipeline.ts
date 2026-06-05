@@ -103,6 +103,10 @@ const toPrepareFailure = (
 const resolvePreparedFileSource = (
   pendingImportFile: PendingImportFile,
 ): ImportFileSource => {
+  if (pendingImportFile.canUseNativePath === false) {
+    return { kind: "data" };
+  }
+
   const path =
     pendingImportFile.kind === "path"
       ? String(pendingImportFile.resource?.fsPath ?? "").trim()

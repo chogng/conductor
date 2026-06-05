@@ -5,6 +5,7 @@ import {
   type IFileStat,
   type IFileService,
 } from "src/cs/platform/files/common/files";
+import { HTMLFileSystemProvider } from "src/cs/platform/files/browser/htmlFileSystemProvider";
 import {
   isExcelImportFileName,
   isSupportedImportFileName,
@@ -128,8 +129,9 @@ export async function collectFolderImportFilesIncrementally(
   const rootName = getPathBaseName(root.path) || "Folder";
   const files: FolderImportFileSource[] = [];
   const readFailures: FolderFileReadFailure[] = [];
+  const canUseNativePath = !(filesService.getProvider(root.scheme) instanceof HTMLFileSystemProvider);
 
-  await collectFolderFilesAt(root, rootName, files, readFailures, 0, filesService, options);
+  await collectFolderFilesAt(root, rootName, files, readFailures, 0, filesService, options, canUseNativePath);
   return { files, readFailures };
 }
 
@@ -145,6 +147,7 @@ async function collectFolderFilesAt(
   depth: number,
   filesService: IFileService,
   options: CollectFolderImportFilesOptions,
+  canUseNativePath: boolean,
 ): Promise<void> {
   if (depth > MAX_FOLDER_WALK_DEPTH || !shouldContinueCollecting(options)) {
     return;
@@ -205,6 +208,7 @@ async function collectFolderFilesAt(
       const batch = await statFolderFileTasks(
         sortedFileTasks.slice(startIndex, startIndex + FOLDER_IMPORT_STAT_CONCURRENCY),
         filesService,
+        canUseNativePath,
       );
       files.push(...batch.files);
       readFailures.push(...batch.readFailures);
@@ -227,6 +231,7 @@ async function collectFolderFilesAt(
       depth + 1,
       filesService,
       options,
+      canUseNativePath,
     );
   }
 }
@@ -250,6 +255,7 @@ function compareFolderFileStatTasks(
 async function statFolderFileTasks(
   tasks: readonly FolderFileStatTask[],
   filesService: IFileService,
+  canUseNativePath: boolean,
 ): Promise<FolderFileCollection> {
   const results: Array<
     | {
@@ -308,6 +314,7 @@ async function statFolderFileTasks(
 
     if (result.ok) {
       files.push({
+        canUseNativePath,
         fileName: result.name,
         kind: "path",
         lastModified: result.lastModified,
