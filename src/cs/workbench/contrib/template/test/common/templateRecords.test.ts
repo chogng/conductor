@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { filterUserTemplateRecords } from "../common/templateRecords.ts";
+import { filterUserTemplateRecords } from "../../common/templateRecords.ts";
 
 test("template records keep only user templates", () => {
   assert.deepEqual(

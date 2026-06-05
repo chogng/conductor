@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   formatTemplateExportFileName,
   importTemplateFile,
-} from "../browser/templateController.ts";
+} from "../../browser/templateController.ts";
 
 test("formatTemplateExportFileName creates a safe json filename", () => {
   assert.equal(formatTemplateExportFileName("  Transfer: A/B?  "), "Transfer- A-B-.json");

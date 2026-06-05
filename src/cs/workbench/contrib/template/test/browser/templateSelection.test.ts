@@ -8,7 +8,7 @@ import {
   resolveTemplateCellSelectionUpdate,
   resolveTemplateColumnSelectionUpdate,
   toColumnLabel,
-} from "../browser/templateSelection.ts";
+} from "../../browser/templateSelection.ts";
 
 test("template selection normalizes and labels columns", () => {
   assert.deepEqual(normalizeColumnIndexes([2.9, 0, 2, -1, Number.NaN, 1]), [0, 1, 2]);

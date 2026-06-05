@@ -5,7 +5,7 @@ import {
   matchFileNameAgainstPhrase,
   matchFileNameAgainstPatternTokens,
   normalizeFileNameFieldSeparators,
-} from "../common/fileNameMatching.ts";
+} from "../../common/fileNameMatching.ts";
 
 test("normalizeFileNameFieldSeparators falls back to defaults", () => {
   assert.equal(

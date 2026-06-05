@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 import {
   normalizeExtractionErrorDetails,
   parseOlderExtractionError,
-} from "../common/extractionErrors.ts";
-import { stableStringify } from "../common/templateStableKey.ts";
+} from "../../common/extractionErrors.ts";
+import { stableStringify } from "../../common/templateStableKey.ts";
 
 test("structured extraction error payload wins over legacy message parsing", () => {
   const details = normalizeExtractionErrorDetails({

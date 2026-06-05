@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { SessionModel } from "../../session/browser/sessionModel.ts";
+import { SessionModel } from "src/cs/workbench/contrib/session/browser/sessionModel";
 import {
   startProcessingJob,
   startRuleProcessingJob,
-} from "../browser/templateApplyProcessing.ts";
+} from "../../browser/templateApplyProcessing.ts";
 
 const createRef = (current) => ({ current });
 
@@ -172,6 +172,54 @@ test("startRuleProcessingJob batches reset and first result session writes befor
     assert.equal(harness.processingStatus.state, "done");
     assert.equal(snapshot.cleanedData.length, 1);
     assert.equal(snapshot.cleanedData[0], processed);
+    assert.equal(snapshot.analysisResults["file-b"]?.fileId, "file-b");
+    harness.dispose();
+  });
+});
+
+test("startRuleProcessingJob commits multiple Rust results into the session", async () => {
+  await withTestWorker(async () => {
+    const harness = createProcessingHarness();
+    const entries = [
+      {
+        file: {},
+        fileId: "file-a",
+        fileName: "file-a.csv",
+        normalizedCsvPath: "file-a.csv",
+      },
+      {
+        file: {},
+        fileId: "file-b",
+        fileName: "file-b.csv",
+        normalizedCsvPath: "file-b.csv",
+      },
+    ];
+
+    startRuleProcessingJob({
+      ...harness.options,
+      activeFileId: "file-a",
+      finalQueue: entries,
+      groupedPrepared: [{
+        extractionConfig: { group: "transfer" },
+        queue: entries,
+      }],
+      incremental: false,
+      tryProcessFileWithRust: async ({ entry }) => createProcessedFile(entry.fileId),
+    });
+
+    assert.equal(harness.sessionChangeCount, 1);
+
+    await waitForAsyncJob();
+
+    const snapshot = harness.session.getSnapshot();
+    assert.equal(harness.processingStatus.state, "done");
+    assert.equal(harness.processingStatus.processed, 2);
+    assert.equal(harness.showResultsCount, 1);
+    assert.deepEqual(
+      snapshot.cleanedData.map((file) => file.fileId),
+      ["file-a", "file-b"],
+    );
+    assert.equal(snapshot.analysisResults["file-a"]?.fileId, "file-a");
     assert.equal(snapshot.analysisResults["file-b"]?.fileId, "file-b");
     harness.dispose();
   });

@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import {
   buildAutoTemplateConfig,
   buildAutoWorkerConfig,
-} from "../common/autoTemplateConfig.ts";
+} from "../../common/autoTemplateConfig.ts";
 import {
   inferAutoExtraction,
-} from "../common/autoTemplatePlan.ts";
+} from "../../common/autoTemplatePlan.ts";
 
 test("infers stripped CH1/CH2 output files into executable auto extraction plans", () => {
   const rows = [

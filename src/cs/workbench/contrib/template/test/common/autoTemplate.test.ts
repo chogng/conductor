@@ -5,7 +5,7 @@ import {
   AUTO_TEMPLATE_ID,
   isAutoTemplateConfig,
   isAutoTemplateId,
-} from "../common/autoTemplate.ts";
+} from "../../common/autoTemplate.ts";
 
 test("auto template id is only the special auto extraction option", () => {
   assert.equal(AUTO_TEMPLATE_ID, "__auto__");
