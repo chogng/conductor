@@ -15,8 +15,9 @@ export type FileSystemFileHandle = FileSystemHandleBase & {
 
 export type FileSystemDirectoryHandle = FileSystemHandleBase & {
   readonly kind: "directory";
-  [Symbol.asyncIterator](): AsyncIterableIterator<[string, FileSystemHandle]>;
+  [Symbol.asyncIterator]?: () => AsyncIterableIterator<[string, FileSystemHandle]>;
   entries?: () => AsyncIterableIterator<[string, FileSystemHandle]>;
+  values?: () => AsyncIterableIterator<FileSystemHandle>;
   getDirectoryHandle(name: string): Promise<FileSystemDirectoryHandle>;
   getFileHandle(name: string): Promise<FileSystemFileHandle>;
 };

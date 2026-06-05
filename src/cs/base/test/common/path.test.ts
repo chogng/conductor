@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { extname, posix, win32 } from "../path.ts";
+import { extname, posix, win32 } from "../../common/path.ts";
 
 test("returns file extensions from windows paths", () => {
   assert.equal(extname("C:\\data\\sample.csv"), ".csv");

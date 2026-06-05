@@ -84,7 +84,24 @@ function readDirectoryEntries(
     return handle.entries();
   }
 
-  return handle[Symbol.asyncIterator]();
+  const iterator = handle[Symbol.asyncIterator];
+  if (typeof iterator === "function") {
+    return iterator.call(handle);
+  }
+
+  if (typeof handle.values === "function") {
+    return readDirectoryValues(handle.values());
+  }
+
+  throw new Error(`Directory handle '${handle.name}' cannot be enumerated.`);
+}
+
+async function* readDirectoryValues(
+  values: AsyncIterableIterator<FileSystemHandle>,
+): AsyncIterableIterator<[string, FileSystemHandle]> {
+  for await (const handle of values) {
+    yield [handle.name, handle];
+  }
 }
 
 function encodeBase64(content: Uint8Array): string {
@@ -264,7 +281,7 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     }
 
     let current: FileSystemDirectoryHandle = root.handle;
-    const parts = relativePath.split("/").filter(Boolean).map(decodeURIComponent);
+    const parts = relativePath.split("/").filter(Boolean);
     for (let index = 0; index < parts.length; index += 1) {
       const name = parts[index];
       const isLast = index === parts.length - 1;

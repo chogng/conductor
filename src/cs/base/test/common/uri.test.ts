@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { MarshalledId } from "../marshallingIds.ts";
-import { URI } from "../uri.ts";
+import { MarshalledId } from "../../common/marshallingIds.ts";
+import { isWindows } from "../../common/platform.ts";
+import { URI } from "../../common/uri.ts";
 import {
   DefaultURITransformer,
   transformAndReviveIncomingURIs,
   transformOutgoingURIs,
-} from "../uriIpc.ts";
-import { createURITransformer } from "../uriTransformer.ts";
+} from "../../common/uriIpc.ts";
+import { createURITransformer } from "../../common/uriTransformer.ts";
 
 test("joinPath keeps file names as file-system paths", () => {
   const root = URI.file("C:\\Users\\lanxi\\Desktop\\293K");
@@ -34,7 +35,11 @@ test("toJSON marks URI values for IPC revive", () => {
 
   const revived = transformAndReviveIncomingURIs(raw, DefaultURITransformer);
   assert.equal(revived.resource instanceof URI, true);
-  assert.equal(revived.resource.fsPath, "C:\\data\\sample.csv");
+  assert.equal(revived.resource.path, "/C:/data/sample.csv");
+  assert.equal(
+    revived.resource.fsPath,
+    isWindows ? "C:\\data\\sample.csv" : "/C:/data/sample.csv",
+  );
 });
 
 test("remote URI transformer maps file schemes like upstream", () => {
@@ -53,5 +58,9 @@ test("remote URI transformer maps file schemes like upstream", () => {
     transformer,
   );
   assert.equal(revived.resource.scheme, "file");
-  assert.equal(revived.resource.fsPath, "C:\\data\\sample.csv");
+  assert.equal(revived.resource.path, "/C:/data/sample.csv");
+  assert.equal(
+    revived.resource.fsPath,
+    isWindows ? "C:\\data\\sample.csv" : "/C:/data/sample.csv",
+  );
 });

@@ -1,4 +1,5 @@
 import { MarshalledId } from "./marshallingIds.js";
+import { isWindows } from "./platform.js";
 
 export type UriComponents = {
   readonly $mid?: typeof MarshalledId.Uri;
@@ -11,7 +12,6 @@ export type UriComponents = {
 
 const WINDOWS_DRIVE_PATH = /^\/[a-zA-Z]:/;
 const WINDOWS_DRIVE_FS_PATH = /^[a-zA-Z]:[\\/]/;
-const isWindows = typeof process !== "undefined" && process.platform === "win32";
 
 type UriChange = {
   readonly path?: string | null;
