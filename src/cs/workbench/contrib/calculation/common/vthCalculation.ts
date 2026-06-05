@@ -3,6 +3,11 @@ type VthPoint = {
   y: number;
 };
 
+type VthSourcePoint = {
+  x?: unknown;
+  y?: unknown;
+} | null | undefined;
+
 export type VthBranch = "electron" | "hole";
 
 export type VthFitResult = {
@@ -17,7 +22,7 @@ export type VthFitResult = {
   y2: number;
 };
 
-export const createVthSqrtPoints = (points: readonly { x?: unknown; y?: unknown }[]) =>
+export const createVthSqrtPoints = (points: readonly VthSourcePoint[]) =>
   (Array.isArray(points) ? points : [])
     .map((point) => {
       const x = Number(point?.x);
@@ -130,7 +135,7 @@ const pickVthLinearFit = (
 };
 
 export const computeVthSqrtFits = (
-  points: readonly { x?: unknown; y?: unknown }[],
+  points: readonly VthSourcePoint[],
 ): VthFitResult[] => {
   const sqrtPoints = createVthSqrtPoints(points);
   if (sqrtPoints.length < 5) return [];
