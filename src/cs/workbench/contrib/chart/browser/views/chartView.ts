@@ -52,7 +52,11 @@ export type ChartViewProps = {
   onPlotAxisSettingsChange?: (updates: unknown) => Promise<unknown> | void;
 };
 
-export const createChartView = (props: ChartViewProps): HTMLElement => {
+export type ChartViewElement = HTMLElement & {
+  readonly dispose?: () => void;
+};
+
+export const createChartView = (props: ChartViewProps): ChartViewElement => {
   const {
     activePlotType = "iv",
     calculatedDataByKey,
@@ -61,7 +65,7 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
     activeFileId: controlledActiveFileId = undefined,
   } = props;
   const visiblePanes = normalizeVisiblePanes(props.visiblePanes);
-  const root = document.createElement("section");
+  const root = document.createElement("section") as ChartViewElement;
   root.className = "chart_view";
   root.setAttribute("aria-label", localize("analysis.visualization", "Analysis & Visualization"));
 
@@ -130,6 +134,13 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
     main.append(inspectorPane);
   }
   root.append(main);
+  Object.defineProperty(root, "dispose", {
+    value: (): void => {
+      chartPlotView.dispose();
+      inspectorPlotView.dispose();
+      root.replaceChildren();
+    },
+  });
 
   return root;
 };
@@ -150,7 +161,7 @@ const normalizeVisiblePanes = (
   return next.length ? next : ["chart"];
 };
 
-const ChartView = (props: ChartViewProps): HTMLElement =>
+const ChartView = (props: ChartViewProps): ChartViewElement =>
   createChartView(props);
 
 export default ChartView;

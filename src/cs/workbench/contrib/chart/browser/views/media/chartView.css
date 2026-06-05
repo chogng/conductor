@@ -104,18 +104,19 @@
 
 .chart_view_main {
   display: grid;
+  width: 100%;
   min-height: 0;
-  flex: 1 1 0%;
-  grid-template-rows: minmax(260px, 1fr) minmax(156px, 0.34fr);
+  flex: 0 0 auto;
+  grid-template-rows: auto auto;
   gap: 12px;
 }
 
 .chart_view_main[data-pane-count="1"] {
-  grid-template-rows: minmax(260px, 1fr);
+  grid-template-rows: auto;
 }
 
 .chart_view_main[data-pane-count="3"] {
-  grid-template-rows: minmax(220px, 1fr) minmax(120px, 0.24fr) minmax(156px, 0.34fr);
+  grid-template-rows: auto auto auto;
 }
 
 .chart_view_main_pane {
@@ -126,11 +127,20 @@
 
 .chart_view_host {
   position: relative;
-  min-height: 360px;
+  aspect-ratio: 16 / 9;
+  min-height: 0;
   flex: 1 1 0%;
   border: 1px solid rgb(var(--border) / 1);
   border-radius: 8px;
   padding: 12px;
+}
+
+.chart_view_inspector_pane .chart_view_host {
+  aspect-ratio: 16 / 5;
+}
+
+.chart_view_host .main_plot_canvas {
+  min-height: 0;
 }
 
 .chart_view_empty {

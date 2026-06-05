@@ -61,6 +61,7 @@ export type AnalysisPanelProps = ChartViewLazyProps & {
 
 export class AnalysisPanel {
   public readonly element: HTMLElement;
+  private content: DisposableContent | null = null;
 
   constructor(props: AnalysisPanelProps) {
     this.element = document.createElement("section");
@@ -70,16 +71,28 @@ export class AnalysisPanel {
 
   public update(props: AnalysisPanelProps): void {
     this.element.setAttribute("aria-label", localize("analysis_visualization", "Analysis & Visualization"));
-    this.element.replaceChildren(createAnalysisPanelContent(props));
+    disposeContent(this.content);
+    this.content = createAnalysisPanelContent(props);
+    this.element.replaceChildren(this.content);
   }
 
   public dispose(): void {
+    disposeContent(this.content);
+    this.content = null;
     this.element.replaceChildren();
     this.element.remove();
   }
 }
 
-const createAnalysisPanelContent = (props: AnalysisPanelProps): HTMLElement => {
+type DisposableContent = HTMLElement & {
+  readonly dispose?: () => void;
+};
+
+const disposeContent = (content: DisposableContent | null): void => {
+  content?.dispose?.();
+};
+
+const createAnalysisPanelContent = (props: AnalysisPanelProps): DisposableContent => {
   const {
     cleanedData = [],
     processingStatus,

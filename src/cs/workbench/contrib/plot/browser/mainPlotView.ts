@@ -21,6 +21,7 @@ export type MainPlotViewProps = {
 export type MainPlotView = {
   readonly element: HTMLElement;
   readonly model: MainPlotRenderModel;
+  readonly dispose: () => void;
 };
 
 export const createMainPlotView = ({
@@ -33,39 +34,42 @@ export const createMainPlotView = ({
     plotAxisSettings,
     DEFAULT_PLOT_AXIS_SETTINGS,
   );
+  const element = createMainPlotCanvas({
+    activeFile: model.activeFile,
+    curveLineWidth: Number(originOpenPlotOptions.lineWidth) || DEFAULT_ORIGIN_PLOT_OPTIONS.lineWidth,
+    curvePlotType: Number(originOpenPlotOptions.type ?? DEFAULT_ORIGIN_PLOT_OPTIONS.type),
+    effectiveYScale: "linear",
+    focusedSeriesColor: "#2563eb",
+    highlightOverlays: [],
+    plotType,
+    plotXFactor: 1,
+    plotXUnitLabel: model.xUnitLabel,
+    plotYFactor: 1,
+    plotYUnitLabel: model.yUnitLabel,
+    showGrid: axisSettings.showGrid,
+    showMajorTicks: axisSettings.showMajorTicks,
+    showMinorTicks: axisSettings.showMinorTicks,
+    minorTickCount: axisSettings.minorTickCount === "" ? undefined : axisSettings.minorTickCount,
+    tickLabelFontSize: axisSettings.tickLabelFontSize === "" ? undefined : axisSettings.tickLabelFontSize,
+    axisTitleFontSize: axisSettings.axisTitleFontSize === "" ? undefined : axisSettings.axisTitleFontSize,
+    legendFontSize: axisSettings.legendFontSize === "" ? undefined : axisSettings.legendFontSize,
+    seriesList: model.seriesList,
+    ssOverlayStyle: {
+      fill: "#2563eb",
+      fillOpacity: 0.08,
+      stroke: "#2563eb",
+      strokeOpacity: 0.8,
+    },
+    xDomain: model.xDomain,
+    xLabelInterval: 1,
+    xTickDigits: 4,
+    yDomain: model.yDomain,
+    yScaleMode: "linear",
+  });
+
   return {
-    element: createMainPlotCanvas({
-      activeFile: model.activeFile,
-      curveLineWidth: Number(originOpenPlotOptions.lineWidth) || DEFAULT_ORIGIN_PLOT_OPTIONS.lineWidth,
-      curvePlotType: Number(originOpenPlotOptions.type ?? DEFAULT_ORIGIN_PLOT_OPTIONS.type),
-      effectiveYScale: "linear",
-      focusedSeriesColor: "#2563eb",
-      highlightOverlays: [],
-      plotType,
-      plotXFactor: 1,
-      plotXUnitLabel: model.xUnitLabel,
-      plotYFactor: 1,
-      plotYUnitLabel: model.yUnitLabel,
-      showGrid: axisSettings.showGrid,
-      showMajorTicks: axisSettings.showMajorTicks,
-      showMinorTicks: axisSettings.showMinorTicks,
-      minorTickCount: axisSettings.minorTickCount === "" ? undefined : axisSettings.minorTickCount,
-      tickLabelFontSize: axisSettings.tickLabelFontSize === "" ? undefined : axisSettings.tickLabelFontSize,
-      axisTitleFontSize: axisSettings.axisTitleFontSize === "" ? undefined : axisSettings.axisTitleFontSize,
-      legendFontSize: axisSettings.legendFontSize === "" ? undefined : axisSettings.legendFontSize,
-      seriesList: model.seriesList,
-      ssOverlayStyle: {
-        fill: "#2563eb",
-        fillOpacity: 0.08,
-        stroke: "#2563eb",
-        strokeOpacity: 0.8,
-      },
-      xDomain: model.xDomain,
-      xLabelInterval: 1,
-      xTickDigits: 4,
-      yDomain: model.yDomain,
-      yScaleMode: "linear",
-    }),
+    dispose: () => element.dispose(),
+    element,
     model,
   };
 };

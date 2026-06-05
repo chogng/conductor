@@ -139,6 +139,10 @@ export type MainPlotCanvasProps = {
   onYAxisLabelChange?: (nextLabel: string) => void;
 };
 
+export type MainPlotCanvasElement = HTMLElement & {
+  readonly dispose: () => void;
+};
+
 type PlotRect = {
   bottom: number;
   height: number;
@@ -348,8 +352,9 @@ const drawMainPlotCanvas = (
   scale: ChartScale;
   yKey: PlotYKey;
 } | null => {
-  const width = Math.max(320, canvas.clientWidth || 720);
-  const height = Math.max(220, canvas.clientHeight || 420);
+  const container = canvas.parentElement;
+  const width = Math.max(320, container?.clientWidth || canvas.clientWidth || 720);
+  const height = Math.max(220, container?.clientHeight || canvas.clientHeight || 420);
   const context = applyCanvasSize(canvas, width, height);
   if (!context) return null;
 
@@ -601,8 +606,8 @@ export const createMainPlotLegend = (props: Pick<MainPlotCanvasProps,
   return legend;
 };
 
-export const createMainPlotCanvas = (props: MainPlotCanvasProps): HTMLElement => {
-  const root = document.createElement("div");
+export const createMainPlotCanvas = (props: MainPlotCanvasProps): MainPlotCanvasElement => {
+  const root = document.createElement("div") as MainPlotCanvasElement;
   root.className = "main_plot_canvas";
 
   const canvas = document.createElement("canvas");
@@ -613,10 +618,25 @@ export const createMainPlotCanvas = (props: MainPlotCanvasProps): HTMLElement =>
   tooltip.className = "main_plot_canvas_tooltip main_plot_canvas_tooltip--hidden";
   root.appendChild(tooltip);
 
+  let disposed = false;
+  let animationFrame = 0;
   let rendered = drawMainPlotCanvas(canvas, props);
-  queueMicrotask(() => {
+  const render = (): void => {
+    animationFrame = 0;
+    if (disposed) {
+      return;
+    }
     rendered = drawMainPlotCanvas(canvas, props);
-  });
+  };
+  const requestRender = (): void => {
+    if (disposed || animationFrame) {
+      return;
+    }
+    animationFrame = window.requestAnimationFrame(render);
+  };
+  const resizeObserver = new ResizeObserver(requestRender);
+  resizeObserver.observe(root);
+  queueMicrotask(requestRender);
 
   canvas.addEventListener("mousemove", (event) => {
     rendered ??= drawMainPlotCanvas(canvas, props);
@@ -667,6 +687,18 @@ export const createMainPlotCanvas = (props: MainPlotCanvasProps): HTMLElement =>
   });
   canvas.addEventListener("mouseleave", () => {
     tooltip.classList.add("main_plot_canvas_tooltip--hidden");
+  });
+
+  Object.defineProperty(root, "dispose", {
+    value: (): void => {
+      disposed = true;
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+        animationFrame = 0;
+      }
+      resizeObserver.disconnect();
+      root.replaceChildren();
+    },
   });
 
   return root;
