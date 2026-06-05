@@ -41,10 +41,15 @@ import {
   type ICommandService as ICommandServiceType,
 } from "src/cs/platform/commands/common/commands";
 import {
+  IInstantiationService,
+  type IInstantiationService as IInstantiationServiceType,
+} from "src/cs/platform/instantiation/common/instantiation";
+import {
   registerWorkbenchContribution2,
   WorkbenchPhase,
   type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
+import { WorkbenchContextKeysHandler } from "src/cs/workbench/browser/contextkeys";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
@@ -107,8 +112,11 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @IViewsService viewsService: IViewsServiceType,
     @ITemplateApplyService templateApplyService: ITemplateApplyServiceType,
     @ITemplateService templateService: ITemplateServiceType,
+    @IInstantiationService instantiationService: IInstantiationServiceType,
   ) {
     super();
+
+    this._register(instantiationService.createInstance(WorkbenchContextKeysHandler));
 
     const root = document.getElementById("root");
     if (!root) {

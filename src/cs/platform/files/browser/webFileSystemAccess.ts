@@ -5,6 +5,7 @@ export type FileSystemHandleBase = {
   readonly name: string;
   queryPermission?: () => Promise<PermissionState>;
   requestPermission?: () => Promise<PermissionState>;
+  isSameEntry?: (other: FileSystemHandle) => Promise<boolean>;
 };
 
 export type FileSystemFileHandle = FileSystemHandleBase & {
@@ -15,6 +16,7 @@ export type FileSystemFileHandle = FileSystemHandleBase & {
 export type FileSystemDirectoryHandle = FileSystemHandleBase & {
   readonly kind: "directory";
   [Symbol.asyncIterator](): AsyncIterableIterator<[string, FileSystemHandle]>;
+  entries?: () => AsyncIterableIterator<[string, FileSystemHandle]>;
   getDirectoryHandle(name: string): Promise<FileSystemDirectoryHandle>;
   getFileHandle(name: string): Promise<FileSystemFileHandle>;
 };

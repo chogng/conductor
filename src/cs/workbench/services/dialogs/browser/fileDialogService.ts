@@ -65,7 +65,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
       return undefined;
     }
 
-    return [provider.registerDirectoryHandle(handle)];
+    return [await provider.registerDirectoryHandle(handle)];
   }
 
   private async showOpenFileDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
