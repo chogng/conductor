@@ -17,7 +17,7 @@ const isTruthyFlag = (value: unknown): boolean => {
 };
 
 export const isPerfEnabled = (): boolean => {
-  if (isTruthyFlag(import.meta.env.VITE_DEVICE_ANALYSIS_PERF)) return true;
+  if (isTruthyFlag(import.meta.env?.VITE_DEVICE_ANALYSIS_PERF)) return true;
 
   try {
     const storage = globalThis.localStorage;

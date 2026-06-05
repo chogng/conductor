@@ -325,6 +325,7 @@ export class Workbench extends Layout {
     this.templateApply = this._register(new TemplateApplyController({
       analysisFileService: this.analysisFileService,
       templateApplyService: this.templateApplyService,
+      batchSessionUpdate: this.session.batch,
       onExtractionError: () => undefined,
       showResults: () => this.showMainPart("chart"),
       setAnalysisResults: this.session.setAnalysisResults,

@@ -52,6 +52,7 @@ type SchedulerRefs = {
 type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
 type SchedulerCallbacks = {
+  batchSessionUpdate?: (callback: () => void) => void;
   onWorkerErrorPayload?: (payload: unknown) => void;
   hasSourceFile: (fileId: string | null | undefined) => boolean;
   showResults: () => void;
@@ -330,6 +331,7 @@ export const startProcessingJob = ({
   extractionConfig,
   messageType = "processFile",
   onWorkerErrorPayload,
+  batchSessionUpdate,
   processingJobIdRef,
   processingQueueRef,
   processingStopOnErrorRef,
@@ -348,6 +350,13 @@ export const startProcessingJob = ({
   if (!Array.isArray(queue) || queue.length === 0) return;
 
   const workQueue = [...queue];
+  const updateSession = (callback: () => void): void => {
+    if (batchSessionUpdate) {
+      batchSessionUpdate(callback);
+      return;
+    }
+    callback();
+  };
   let hasAnyProcessedResult = false;
   const finishBatchPerf = startPerf("processing:batch", {
     fileCount: workQueue.length,
@@ -367,8 +376,10 @@ export const startProcessingJob = ({
   };
 
   if (resetCleanedData) {
-    setCleanedData([]);
-    setAnalysisResults({});
+    updateSession(() => {
+      setCleanedData([]);
+      setAnalysisResults({});
+    });
   }
   removedQueuedFileIdsRef.current = new Set();
 
@@ -474,10 +485,12 @@ export const startProcessingJob = ({
             });
             filePerfFinishers.delete(nextFileId);
           }
-          commitAnalysisResults(setAnalysisResults, rustProcessed);
-          setCleanedData((prev) =>
-            applyAnalysisCacheBudget([...prev, rustProcessed], activeFileId),
-          );
+          updateSession(() => {
+            commitAnalysisResults(setAnalysisResults, rustProcessed);
+            setCleanedData((prev) =>
+              applyAnalysisCacheBudget([...prev, rustProcessed], activeFileId),
+            );
+          });
           setProcessingStatus((prev) => ({
             ...prev,
             processed: prev.processed + 1,
@@ -544,13 +557,15 @@ export const startProcessingJob = ({
         );
         filePerfFinishers.delete(nextFileId);
       }
-      commitAnalysisResults(setAnalysisResults, nextProcessed as CleanedEntry);
-      setCleanedData((prev) =>
-        applyAnalysisCacheBudget(
-          [...prev, nextProcessed as CleanedEntry],
-          activeFileId,
-        ),
-      );
+      updateSession(() => {
+        commitAnalysisResults(setAnalysisResults, nextProcessed as CleanedEntry);
+        setCleanedData((prev) =>
+          applyAnalysisCacheBudget(
+            [...prev, nextProcessed as CleanedEntry],
+            activeFileId,
+          ),
+        );
+      });
       setProcessingStatus((prev) => ({
         ...prev,
         processed: prev.processed + 1,
@@ -609,6 +624,7 @@ export const startRuleProcessingJob = ({
   groupedPrepared,
   incremental,
   onWorkerErrorPayload,
+  batchSessionUpdate,
   processingJobIdRef,
   processingQueueRef,
   processingStopOnErrorRef,
@@ -624,6 +640,13 @@ export const startRuleProcessingJob = ({
 }: RuleProcessingJobOptions) => {
   if (!groupedPrepared.length || !finalQueue.length) return;
 
+  const updateSession = (callback: () => void): void => {
+    if (batchSessionUpdate) {
+      batchSessionUpdate(callback);
+      return;
+    }
+    callback();
+  };
   processingStopOnErrorRef.current = stopOnError;
   processingJobIdRef.current += 1;
   const jobId = processingJobIdRef.current;
@@ -634,8 +657,10 @@ export const startRuleProcessingJob = ({
   processingWorkerRef.current = worker;
 
   if (!incremental) {
-    setCleanedData([]);
-    setAnalysisResults({});
+    updateSession(() => {
+      setCleanedData([]);
+      setAnalysisResults({});
+    });
   }
   removedQueuedFileIdsRef.current = new Set();
   processingQueueRef.current = [...finalQueue];
@@ -753,10 +778,12 @@ export const startRuleProcessingJob = ({
             });
             filePerfFinishers.delete(nextFileId);
           }
-          commitAnalysisResults(setAnalysisResults, rustProcessed);
-          setCleanedData((prev) =>
-            applyAnalysisCacheBudget([...prev, rustProcessed], activeFileId),
-          );
+          updateSession(() => {
+            commitAnalysisResults(setAnalysisResults, rustProcessed);
+            setCleanedData((prev) =>
+              applyAnalysisCacheBudget([...prev, rustProcessed], activeFileId),
+            );
+          });
           processedCount += 1;
           activeCount = Math.max(0, activeCount - 1);
           setProcessingStatus((prev) => ({
@@ -818,13 +845,15 @@ export const startRuleProcessingJob = ({
         );
         filePerfFinishers.delete(nextFileId);
       }
-      commitAnalysisResults(setAnalysisResults, nextProcessed as CleanedEntry);
-      setCleanedData((prev) =>
-        applyAnalysisCacheBudget(
-          [...prev, nextProcessed as CleanedEntry],
-          activeFileId,
-        ),
-      );
+      updateSession(() => {
+        commitAnalysisResults(setAnalysisResults, nextProcessed as CleanedEntry);
+        setCleanedData((prev) =>
+          applyAnalysisCacheBudget(
+            [...prev, nextProcessed as CleanedEntry],
+            activeFileId,
+          ),
+        );
+      });
       processedCount += 1;
       activeCount = Math.max(0, activeCount - 1);
       setProcessingStatus((prev) => ({ ...prev, processed: processedCount }));

@@ -1,3 +1,4 @@
+import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { localize } from "src/cs/nls";
 import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
 import type { MainPlotRenderModel } from "src/cs/workbench/contrib/plot/browser/mainPlotRenderModel";
@@ -18,12 +19,15 @@ export const createSearchView = (
   label.className = "search_label";
   label.textContent = localize("search_x_input", "X value");
 
-  const input = document.createElement("input");
-  input.className = "search_input";
-  input.type = "number";
+  const inputField = createInputBoxField({
+    ariaLabel: localize("search_x_input", "X value"),
+    className: "search_input",
+    inputClassName: "search_input_native",
+    type: "number",
+    value: formatInputValue(resolveInitialX(model.xDomain)),
+  });
+  const input = inputField.input;
   input.step = "any";
-  input.value = formatInputValue(resolveInitialX(model.xDomain));
-  input.setAttribute("aria-label", localize("search_x_input", "X value"));
 
   const summary = document.createElement("span");
   summary.className = "search_summary";
@@ -33,7 +37,7 @@ export const createSearchView = (
     xDomain: formatDomain(model.xDomain),
   });
 
-  control.append(label, input, summary);
+  control.append(label, inputField.element, summary);
 
   const body = document.createElement("div");
   body.className = "search_results";

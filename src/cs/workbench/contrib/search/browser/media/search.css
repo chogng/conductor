@@ -41,20 +41,15 @@
 
 .search_input {
   min-width: 0;
-  height: 30px;
-  border: 1px solid rgb(var(--border) / 0.8);
-  border-radius: 6px;
-  background-color: rgb(var(--bg-surface) / 1);
-  padding: 4px 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 13px;
-  line-height: 20px;
-  color: rgb(var(--text-primary) / 1);
 }
 
-.search_input:focus {
-  border-color: rgb(var(--accent) / 0.8);
-  outline: none;
+.search_input .inputbox_field {
+  height: 30px;
+}
+
+.search_input_native {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 13px;
 }
 
 .search_results {

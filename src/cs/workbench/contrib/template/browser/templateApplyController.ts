@@ -85,6 +85,7 @@ type TemplateApplyControllerOptions = {
     MutableState<Worker | null>,
     Worker | null
   >;
+  batchSessionUpdate?: (callback: () => void) => void;
   onExtractionError?: (error: ExtractionErrorEntry) => void;
   showResults: () => void;
   setAnalysisResults: StateSetter<AnalysisResultsByFileId>;
@@ -585,6 +586,7 @@ export class TemplateApplyController {
     this.options.templateApplyService.startProcessingJob({
       analysisFileService: this.options.analysisFileService,
       activeFileId,
+      batchSessionUpdate: this.options.batchSessionUpdate,
       extractionConfig,
       messageType,
       onWorkerErrorPayload: (payload) => {
@@ -776,6 +778,7 @@ export class TemplateApplyController {
     this.options.templateApplyService.startRuleProcessingJob({
       analysisFileService: this.options.analysisFileService,
       activeFileId,
+      batchSessionUpdate: this.options.batchSessionUpdate,
       finalQueue,
       groupedPrepared,
       incremental,
