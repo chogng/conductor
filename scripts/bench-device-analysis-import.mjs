@@ -2,11 +2,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import Papa from "papaparse";
-import * as xlsx from "xlsx";
 
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 const PREVIEW_BYTES = 128 * 1024;
 const PREVIEW_ROWS = 256;
+let xlsxModule = null;
 
 const rootsFromEnv = () =>
   String(process.env.CONDUCTOR_BENCH_ROOTS ?? "")
@@ -93,6 +93,21 @@ const parsePreview = (text) => {
   return Array.isArray(parsed?.data) ? parsed.data.length : 0;
 };
 
+const loadXlsxModule = async () => {
+  if (xlsxModule) return xlsxModule;
+  try {
+    const imported = await import("xlsx");
+    xlsxModule = imported.default ?? imported;
+    return xlsxModule;
+  } catch (error) {
+    throw new Error(
+      `Excel benchmark input requires the optional xlsx package: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+};
+
 const loadAsCsvText = async (filePath, extension) => {
   const ioStart = now();
 
@@ -109,6 +124,7 @@ const loadAsCsvText = async (filePath, extension) => {
   const buffer = await fs.readFile(filePath);
   const ioMs = now() - ioStart;
   const convertStart = now();
+  const xlsx = await loadXlsxModule();
   const workbook = xlsx.read(buffer, {
     type: "buffer",
     cellDates: false,

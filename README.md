@@ -119,6 +119,19 @@ npm run typecheck
 npm run test:unit
 ```
 
+Import test and benchmark data:
+
+- Unit and smoke-style import coverage should use small repository fixtures under
+  `src/cs/workbench/services/analysisFile/test/fixtures`.
+- Stress and performance runs should use generated data or an explicit external
+  data root, not committed large files.
+- Generate deterministic large CSV inputs with `npm run bench:import:data`.
+- Run the import parser benchmark against generated inputs with
+  `npm run bench:import:generated`.
+- Run the same benchmark against external CSV/XLS/XLSX data with
+  `node scripts/bench-device-analysis-import.mjs <data-root...>` or
+  `CONDUCTOR_BENCH_ROOTS`.
+
 Build and package:
 
 - `npm run build`: build the Web app

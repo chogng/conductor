@@ -1,0 +1,9 @@
+SetupTitle,Transfer_DB
+TestParameter,Channel.VName,Vg,Vd,Vs
+TestParameter,Channel.Func,VAR1,VAR2,CONST
+TestParameter,Output.Graph.XAxis.Data,Vg
+AnalysisSetup,Analysis.Setup.Vector.Graph.Notes,"[VAR1] Unit=SMU3:MP, Name=Vg, Start=-1 V	[VAR2] Unit=SMU2:MP, Name=Vd, Start=50 mV"
+DataName,Vg,Id,Ig
+DataValue,-1,-2.63E-12,-2.05E-12
+DataValue,0,-1.25E-10,-2.11E-12
+DataValue,1,-4.88E-08,-2.18E-12

@@ -1,12 +1,40 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 import {
   isExcelImportFileName,
   isSupportedImportFileName,
+  isXlsxImportFileName,
 } from "../../../contrib/files/common/files.ts";
 import {
   assessImportFile,
 } from "../browser/fileAssessment.ts";
+
+const fixturePath = (fileName: string): string =>
+  path.join(
+    process.cwd(),
+    "src",
+    "cs",
+    "workbench",
+    "services",
+    "analysisFile",
+    "test",
+    "fixtures",
+    fileName,
+  );
+
+const readFixtureFile = async (
+  fileName: string,
+  type: string,
+): Promise<File> => {
+  const bytes = await readFile(fixturePath(fileName));
+  return new File([new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)], fileName, {
+    lastModified: 0,
+    type,
+  });
+};
 
 test("isSupportedImportFileName accepts csv/xls/xlsx with case-insensitive suffixes", () => {
   assert.equal(isSupportedImportFileName("sample.csv"), true);
@@ -23,22 +51,29 @@ test("isExcelImportFileName only accepts xls/xlsx", () => {
   assert.equal(isExcelImportFileName("sample.csv"), false);
 });
 
-test("assessImportFile detects transfer metadata on import", async () => {
-  const file = new File(
-    [
-      [
-        "SetupTitle,Transfer_DB",
-        "TestParameter,Channel.VName,Vg,Vd,Vs",
-        "TestParameter,Channel.Func,VAR1,VAR2,CONST",
-        "TestParameter,Output.Graph.XAxis.Data,Vg",
-        "AnalysisSetup,Analysis.Setup.Vector.Graph.Notes,[VAR1] Unit=SMU3:MP, Name=Vg, Start=-1 V\t[VAR2] Unit=SMU2:MP, Name=Vd, Start=50 mV",
-        "DataName,Vg,Id,Ig",
-        "DataValue,-1,-2.63E-12,-2.05E-12",
-      ].join("\n"),
-    ],
-    "transfer.csv",
-    { type: "text/csv" },
+test("import fixtures provide csv, xls, and xlsx source files", async () => {
+  const csvFile = await readFixtureFile("transfer.csv", "text/csv;charset=utf-8");
+  const xlsFile = await readFixtureFile("transfer.xls", "application/vnd.ms-excel");
+  const xlsxFile = await readFixtureFile(
+    "transfer.xlsx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   );
+
+  assert.equal(isSupportedImportFileName(csvFile.name), true);
+  assert.equal(isSupportedImportFileName(xlsFile.name), true);
+  assert.equal(isSupportedImportFileName(xlsxFile.name), true);
+  assert.equal(isExcelImportFileName(csvFile.name), false);
+  assert.equal(isExcelImportFileName(xlsFile.name), true);
+  assert.equal(isExcelImportFileName(xlsxFile.name), true);
+  assert.equal(isXlsxImportFileName(xlsFile.name), false);
+  assert.equal(isXlsxImportFileName(xlsxFile.name), true);
+
+  const xlsxBytes = new Uint8Array(await xlsxFile.arrayBuffer());
+  assert.equal(String.fromCharCode(xlsxBytes[0], xlsxBytes[1]), "PK");
+});
+
+test("assessImportFile detects transfer metadata on import", async () => {
+  const file = await readFixtureFile("transfer.csv", "text/csv;charset=utf-8");
 
   const result = await assessImportFile(file);
 

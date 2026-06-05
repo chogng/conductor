@@ -6,6 +6,7 @@ import {
   filterThumbnailFiles,
   getVisibleThumbnailFileIds,
   resolveThumbnailCurveFieldFilterMeta,
+  type ThumbnailFileForView,
 } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailFilters";
 import {
   createThumbnailSelectionEvent,
@@ -52,7 +53,7 @@ suite("Thumbnail view", () => {
   });
 
   test("filterThumbnailFiles handles built-in and field filters", () => {
-    const files = [
+    const files: ThumbnailFileForView[] = [
       { curveFilterKey: "batch:a", fileId: "a", xAxisRole: "vg" },
       { curveFilterKey: "batch:b", curveType: "output", fileId: "b" },
       { fileId: "c", xLabel: "Vd" },
