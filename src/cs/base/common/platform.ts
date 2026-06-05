@@ -95,9 +95,13 @@ if (typeof nodeProcess === "object") {
     _isNative = _isWindows || _isMacintosh || _isLinux;
 } else if (typeof navigator === "object" && !isElectronRenderer) {
     _userAgent = navigator.userAgent;
-    _isWindows = _userAgent.includes("Windows");
+    // Pure web (non-Electron) runs against a virtual, POSIX-style file system
+    // (see HTMLFileSystemProvider). Path semantics must NOT depend on the host
+    // OS here: deriving isWindows/isLinux from the user agent would make
+    // URI.fsPath / extpath / resources apply Windows (backslash, drive-letter)
+    // rules to virtual "/folder/file" paths and corrupt folder imports. Only
+    // isMacintosh is kept, since it drives keyboard-modifier UI, not paths.
     _isMacintosh = _userAgent.includes("Macintosh");
-    _isLinux = _userAgent.includes("Linux");
     _isMobile = _userAgent.includes("Mobi");
     _isWeb = true;
     _language = getNLSLanguage();

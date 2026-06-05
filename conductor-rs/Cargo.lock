@@ -343,6 +343,7 @@ name = "xlsx"
 version = "0.1.0"
 dependencies = [
  "calamine",
+ "quick-xml",
  "serde_json",
 ]
 
