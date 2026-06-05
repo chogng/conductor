@@ -13,7 +13,7 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["vite/client"],
+    "types": ["vite/client", "mocha"],
     "paths": {
       "cs/*": ["./src/cs/*"],
       "src/*": ["./src/*"]

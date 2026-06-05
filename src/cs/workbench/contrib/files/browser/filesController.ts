@@ -294,7 +294,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
         return;
       }
 
-      if (import.meta.env.DEV) {
+      if (import.meta.env?.DEV) {
         console.error("Failed to read files from the selected folder.", error);
       }
 
@@ -573,7 +573,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
       return;
     }
 
-    if (prepareQueueError && import.meta.env.DEV) {
+    if (prepareQueueError && import.meta.env?.DEV) {
       console.error(
         "Failed to prepare files from the selected folder.",
         prepareQueueError,

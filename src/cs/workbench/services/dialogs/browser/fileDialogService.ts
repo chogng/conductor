@@ -54,11 +54,15 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
       return undefined;
     }
 
+    if (this.canPickDirectoryInput()) {
+      const files = await this.pickDirectoryInputFiles();
+      return files.length ? [await provider.registerDirectoryInputFiles(files)] : undefined;
+    }
+
     const activeWindow = globalThis.window as FilePickerWindow | undefined;
     const picker = activeWindow?.showDirectoryPicker;
     if (!activeWindow || !WebFileSystemAccess.supported(activeWindow) || typeof picker !== "function") {
-      const files = await this.pickDirectoryInputFiles();
-      return files.length ? [await provider.registerDirectoryInputFiles(files)] : undefined;
+      return undefined;
     }
 
     let handle: FileSystemDirectoryHandle | undefined;
@@ -66,7 +70,15 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
       handle = await picker({
         startIn: "documents",
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        return undefined;
+      }
+
+      throw error;
+    }
+
+    if (!handle) {
       return undefined;
     }
 
@@ -74,7 +86,8 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
       return undefined;
     }
 
-    return [await provider.registerDirectoryHandle(handle)];
+    const folder = await provider.registerDirectoryHandle(handle);
+    return [folder];
   }
 
   private async showOpenFileDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
@@ -108,17 +121,34 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
     });
   }
 
+  private canPickDirectoryInput(): boolean {
+    const input = document.createElement("input");
+    return "webkitdirectory" in input;
+  }
+
   private pickDirectoryInputFiles(): Promise<File[]> {
     return new Promise(resolve => {
       const input = document.createElement("input") as DirectoryInputElement;
+      let settled = false;
+      const complete = (files: File[]): void => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        input.remove();
+        resolve(files);
+      };
+
       input.type = "file";
       input.multiple = true;
       input.webkitdirectory = true;
       input.style.display = "none";
       input.addEventListener("change", () => {
-        const files = Array.from(input.files ?? []);
-        input.remove();
-        resolve(files);
+        complete(Array.from(input.files ?? []));
+      }, { once: true });
+      input.addEventListener("cancel", () => {
+        complete([]);
       }, { once: true });
       document.body.append(input);
       input.click();

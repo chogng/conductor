@@ -37,32 +37,48 @@ suite("platform/files/test/browser/fileService", () => {
   function createDirectoryHandle({
     children,
     name,
+    requiresPermission = false,
     useValuesOnly = false,
   }: {
     readonly children: readonly FileSystemHandle[];
     readonly name: string;
+    readonly requiresPermission?: boolean;
     readonly useValuesOnly?: boolean;
   }): FileSystemDirectoryHandle {
+    let permission: PermissionState = requiresPermission ? "prompt" : "granted";
+    const assertPermission = () => {
+      if (permission !== "granted") {
+        throw new Error("Permission denied.");
+      }
+    };
     const getChild = (childName: string): FileSystemHandle | undefined =>
       children.find(child => child.name === childName);
     const handle: FileSystemDirectoryHandle = {
       kind: "directory",
       name,
+      queryPermission: async () => permission,
+      requestPermission: async () => {
+        permission = "granted";
+        return permission;
+      },
       entries: useValuesOnly
         ? undefined
         : async function* entries() {
+          assertPermission();
           for (const child of children) {
             yield [child.name, child];
           }
         },
       values: useValuesOnly
         ? async function* values() {
+          assertPermission();
           for (const child of children) {
             yield child;
           }
         }
         : undefined,
       getDirectoryHandle: async (childName: string) => {
+        assertPermission();
         const child = getChild(childName);
         if (child?.kind === "directory") {
           return child;
@@ -71,6 +87,7 @@ suite("platform/files/test/browser/fileService", () => {
         throw new Error(`Directory '${childName}' was not found.`);
       },
       getFileHandle: async (childName: string) => {
+        assertPermission();
         const child = getChild(childName);
         if (child?.kind === "file") {
           return child;
@@ -114,7 +131,23 @@ suite("platform/files/test/browser/fileService", () => {
     assert.deepEqual(entries, [["transfer.csv", FileType.File]]);
   });
 
-  test("FileService reads browser directory files as a virtual folder", async () => {
+  test("FileService requests permission before reading browser directory handles", async () => {
+    const { filesService, provider } = createBrowserFileService();
+    const root = createDirectoryHandle({
+      children: [
+        createFileHandle("transfer.csv", "Vg,Id\n0,1"),
+      ],
+      name: "selected-folder",
+      requiresPermission: true,
+    });
+
+    const folder = await provider.registerDirectoryHandle(root);
+    const entries = await filesService.readDir(folder);
+
+    assert.deepEqual(entries, [["transfer.csv", FileType.File]]);
+  });
+
+  test("FileService reads browser directory input files as a virtual folder", async () => {
     const { filesService, provider } = createBrowserFileService();
     const folder = await provider.registerDirectoryInputFiles([
       createDirectoryFile("selected-folder/transfer.csv", "Vg,Id\n0,1"),

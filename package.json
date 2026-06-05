@@ -32,6 +32,7 @@
     "lint": "eslint .",
     "test:preview": "node --experimental-strip-types node_modules/mocha/bin/mocha.js --ui tdd src/cs/workbench/contrib/table/browser/rows/rowChunk.test.ts src/cs/workbench/contrib/table/browser/rows/selectionNavigation.test.ts",
     "test:unit": "tsc -p tsconfig.test.json && node test/unit/node/index.js",
+    "test:integration:browser": "node test/integration/browser/folderImport.test.mjs",
     "test:desktop-core": "npm run build:desktop:core && mocha --ui tdd test/integration/node/originRunner.test.mjs test/integration/node/analysisStorageService.test.mjs",
     "test:unit:browser": "node test/unit/browser/index.js",
     "test:origin-runner": "npm run build:desktop:core && mocha --ui tdd test/integration/node/originRunner.test.mjs",
@@ -55,6 +56,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@playwright/test": "^1.60.0",
+    "@types/mocha": "^10.0.10",
     "@types/papaparse": "^5.5.2",
     "@typescript-eslint/eslint-plugin": "^8.57.0",
     "@typescript-eslint/parser": "^8.57.0",

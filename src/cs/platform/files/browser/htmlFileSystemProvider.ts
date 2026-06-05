@@ -200,6 +200,23 @@ function toFileType(handle: FileSystemHandle): FileType {
     : FileType.File;
 }
 
+async function ensureHandlePermission(handle: FileSystemHandle): Promise<void> {
+  if (typeof handle.queryPermission !== "function") {
+    return;
+  }
+
+  const permission = await handle.queryPermission();
+  if (permission === "granted") {
+    return;
+  }
+
+  if (typeof handle.requestPermission === "function" && await handle.requestPermission() === "granted") {
+    return;
+  }
+
+  throw new Error(`Permission denied for browser file handle '${handle.name}'.`);
+}
+
 function readDirectoryEntries(
   handle: FileSystemDirectoryHandle,
 ): AsyncIterableIterator<[string, FileSystemHandle]> {
@@ -261,7 +278,8 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
   public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
 
   public async registerDirectoryHandle(handle: FileSystemDirectoryHandle): Promise<URI> {
-    return URI.file(await this.registerHandle(handle));
+    const path = await this.registerHandle(handle);
+    return URI.file(path);
   }
 
   public async registerDirectoryInputFiles(files: readonly File[]): Promise<URI> {
@@ -401,6 +419,8 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     if (!root) {
       throw new Error(`Browser file handle not registered for '${uri.toString()}'.`);
     }
+
+    await ensureHandlePermission(root.handle);
 
     const relativePath = path.slice(root.path.length).replace(/^\/+/, "");
     if (!relativePath) {

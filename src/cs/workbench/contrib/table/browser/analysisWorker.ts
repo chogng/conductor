@@ -84,7 +84,7 @@ const handlePreview = async (payload: PreviewRequest = {}): Promise<void> => {
     const parsed = Papa.parse<unknown[]>(text, {
       skipEmptyLines: false,
     });
-    if (parsed.errors.length > 0) {
+    if (parsed.errors.length > 0 && parsed.data.length === 0) {
       throw new Error(parsed.errors[0].message);
     }
 
