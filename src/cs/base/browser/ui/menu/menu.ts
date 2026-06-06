@@ -317,6 +317,20 @@ class MenuActionViewItem extends BaseActionViewItem {
         append(this.label, this.data.left);
     }
 
+    protected override updateTooltip(): void {
+        if (!this.label) {
+            return;
+        }
+
+        const label = this.action.tooltip || this.action.label;
+        if (label) {
+            this.label.setAttribute("aria-label", label);
+        }
+        else {
+            this.label.removeAttribute("aria-label");
+        }
+    }
+
     protected override async run(event: MouseEvent): Promise<void> {
         await super.run(event);
         if (this.data?.autoHide !== false) {

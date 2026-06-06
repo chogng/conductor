@@ -124,7 +124,6 @@ export class SelectBox<T extends string> extends Disposable {
         icon.className = "ui-selectbox__icon";
         icon.append(createLxIcon({ icon: LxIcon.chevronDown, size: 14 }));
 
-        this.button.title = selected?.label ?? "";
         this.button.replaceChildren(label, icon);
     }
 

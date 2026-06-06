@@ -1,7 +1,9 @@
 import {
   normalizeLxIconSvgMarkup,
 } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { getBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LayoutViewSwitchIds } from "src/cs/workbench/browser/actions/layoutActions";
 import type { LayoutView } from "src/cs/workbench/browser/layout";
 import { localize } from "src/cs/nls";
@@ -213,6 +215,20 @@ const createIconButton = (
   return button;
 };
 
+const setupTooltipHover = (
+  target: HTMLElement,
+  tooltip: string,
+  hoverStore?: DisposableStore,
+): void => {
+  if (!tooltip || !hoverStore) {
+    return;
+  }
+
+  target.removeAttribute("title");
+  target.setAttribute("aria-label", tooltip);
+  hoverStore.add(getBaseLayerHoverDelegate().setupManagedHover(target, tooltip));
+};
+
 const createFileSelector = ({
   activeFileId,
   options,
@@ -246,24 +262,27 @@ const createFileSelector = ({
   return wrapper;
 };
 
-export const createWorkbenchTitlebarElement = ({
-  activePage,
-  analysisActiveFileId = null,
-  analysisFileOptions = [],
-  canNavigateBack = false,
-  canNavigateForward = false,
-  id = "workbench-titlebar",
-  onAnalysisFileChange,
-  onAnalysisIntent,
-  onCloseWindow,
-  onMinimizeWindow,
-  onNavigateBack,
-  onNavigateForward,
-  onPageChange,
-  onToggleMaximizeWindow,
-  showAnalysisFileSelector = false,
-  updateAction,
-}: WorkbenchTitlebarProps): HTMLElement => {
+export const createWorkbenchTitlebarElement = (
+  {
+    activePage,
+    analysisActiveFileId = null,
+    analysisFileOptions = [],
+    canNavigateBack = false,
+    canNavigateForward = false,
+    id = "workbench-titlebar",
+    onAnalysisFileChange,
+    onAnalysisIntent,
+    onCloseWindow,
+    onMinimizeWindow,
+    onNavigateBack,
+    onNavigateForward,
+    onPageChange,
+    onToggleMaximizeWindow,
+    showAnalysisFileSelector = false,
+    updateAction,
+  }: WorkbenchTitlebarProps,
+  hoverStore?: DisposableStore,
+): HTMLElement => {
   const normalizedAnalysisFileOptions =
     normalizeWorkbenchTitlebarAnalysisFileOptions(analysisFileOptions);
   const navActions = createWorkbenchTitlebarNavActions(
@@ -296,19 +315,19 @@ export const createWorkbenchTitlebarElement = ({
   for (const action of navActions) {
     const isBack = action.id === "analysis-window-nav-back-btn";
 
-    navControls.appendChild(
-      createIconButton(
-        {
-          id: action.id,
-          "aria-label": action.title,
-          title: action.title,
-          className: "titlebar-icon-button",
-          disabled: action.isDisabled,
-        },
-        createLxIcon(isBack ? LxIcon.arrowLeft : LxIcon.arrowRight, 14, "opacity-80"),
-        isBack ? onNavigateBack : onNavigateForward,
-      ),
+    const button = createIconButton(
+      {
+        id: action.id,
+        "aria-label": action.title,
+        title: action.title,
+        className: "titlebar-icon-button",
+        disabled: action.isDisabled,
+      },
+      createLxIcon(isBack ? LxIcon.arrowLeft : LxIcon.arrowRight, 14, "opacity-80"),
+      isBack ? onNavigateBack : onNavigateForward,
     );
+    setupTooltipHover(button, action.title, hoverStore);
+    navControls.appendChild(button);
   }
 
   const center = createElement("div", {
@@ -339,6 +358,7 @@ export const createWorkbenchTitlebarElement = ({
     });
     updateButton.textContent = getWorkbenchTitlebarUpdateLabel();
     updateButton.addEventListener("click", () => updateAction.onClick?.());
+    setupTooltipHover(updateButton, getWorkbenchTitlebarUpdateTitle(updateAction), hoverStore);
     rightControls.appendChild(updateButton);
   }
 
@@ -364,6 +384,7 @@ export const createWorkbenchTitlebarElement = ({
       pageActionIcon,
       () => onPageChange?.(action.id),
     );
+    setupTooltipHover(button, action.title, hoverStore);
 
     if (action.id === "analysis") {
       button.addEventListener("mouseenter", () => onAnalysisIntent?.());
@@ -396,6 +417,7 @@ export const createWorkbenchTitlebarElement = ({
           ? onToggleMaximizeWindow
           : onCloseWindow,
     );
+    setupTooltipHover(button, action.title, hoverStore);
 
     rightControls.appendChild(button);
   }
@@ -405,6 +427,7 @@ export const createWorkbenchTitlebarElement = ({
 
 export class WorkbenchTitlebarPart {
   private contentArea: HTMLElement | null = null;
+  private readonly hoverStore = new DisposableStore();
 
   constructor(private readonly parent: HTMLElement) {}
 
@@ -424,7 +447,8 @@ export class WorkbenchTitlebarPart {
 
   update(props: WorkbenchTitlebarProps): void {
     const contentArea = this.createContentArea();
-    contentArea.replaceChildren(createWorkbenchTitlebarElement(props));
+    this.hoverStore.clear();
+    contentArea.replaceChildren(createWorkbenchTitlebarElement(props, this.hoverStore));
   }
 
   layout(): void {
@@ -432,6 +456,7 @@ export class WorkbenchTitlebarPart {
   }
 
   dispose(): void {
+    this.hoverStore.dispose();
     this.contentArea?.remove();
     this.contentArea = null;
   }
