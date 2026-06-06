@@ -46,11 +46,11 @@
   font-weight: 500;
 }
 
-.chart_view_auxiliary_actions {
+.chart_view_detail_actions {
   flex-shrink: 0;
 }
 
-.chart_view_auxiliary_action_items {
+.chart_view_detail_action_items {
   display: inline-flex;
   align-items: center;
   gap: 2px;

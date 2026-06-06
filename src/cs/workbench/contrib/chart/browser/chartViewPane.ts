@@ -3,47 +3,25 @@ import AnalysisPanel, {
 } from "src/cs/workbench/contrib/chart/browser/analysisPanel";
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
-import { ActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
-import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import {
-  getTabsButtonClassName,
-  getTabsInstanceId,
-  getTabsMenuClassName,
-  normalizeTabsOptions,
-  type NormalizedTabOption,
-  type TabOptionBase,
-} from "src/cs/base/browser/ui/tab/tab";
 import { Action, toAction, type IAction } from "src/cs/base/common/actions";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
-import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
-import type { LxIconDefinition } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { ChartViewId } from "src/cs/workbench/contrib/chart/common/chart";
-import type { ChartPane } from "src/cs/workbench/contrib/chart/browser/views/chartView";
-import { getCalculatedData } from "src/cs/workbench/contrib/calculation/common/calculatedData";
-import { createMainPlotLegend } from "src/cs/workbench/contrib/plot/browser/mainPlotCanvas";
+import { createPlotTabs, getPlotPanelId, getPlotTabId } from "src/cs/workbench/contrib/chart/browser/chartPlotTabs";
 import {
-  DEFAULT_PLOT_AXIS_SETTINGS,
-  normalizePlotAxisSettings,
-} from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
-import { isPlotType, PlotTypes, type PlotType } from "src/cs/workbench/contrib/plot/common/plot";
-import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+  CHART_INSPECTOR_ACTION_ID,
+  CHART_LEGEND_ACTION_ID,
+  ChartHeaderActionViewItem,
+  getHeaderActionIcon,
+} from "src/cs/workbench/contrib/chart/browser/chartActions";
+import { createFileSelect, resolveActiveFile } from "src/cs/workbench/contrib/chart/browser/chartFileSelect";
+import { createLegendPopover, getLegendContext, isSameLegendContext, type LegendContext } from "src/cs/workbench/contrib/chart/browser/chartLegend";
+import { sameDetailPanes, toAnalysisPanelProps, toggleDetailPane, type ChartDetailPane } from "src/cs/workbench/contrib/chart/browser/chartPaneState";
+import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 
 import "src/cs/workbench/contrib/chart/browser/media/chart.css";
-
-type ChartPlotTabOption = TabOptionBase & {
-  readonly label: string;
-  readonly plotType: PlotType;
-};
-
-const CHART_PLOT_ID_BASE = "chart-view-plot";
-const CHART_PLOT_PANEL_ID_BASE = "chart-view-plot-panel";
-const CHART_LEGEND_ACTION_ID = "chart.header.legend";
-const CHART_INSPECTOR_ACTION_ID = "chart.header.inspector";
-type ChartDetailPane = "inspector";
-type PaneVisibilityMode = "single" | "multiple";
 
 export class ChartViewPane extends ViewPane {
   private readonly previewPart: HTMLElement;
@@ -55,9 +33,9 @@ export class ChartViewPane extends ViewPane {
   private readonly analysisPanel: AnalysisPanel;
   private legendAction: Action | null = null;
   private legendPopover: HTMLElement | null = null;
+  private legendContext: LegendContext | null = null;
   private fallbackActivePlotType: PlotType = "iv";
   private visibleDetailPanes: readonly ChartDetailPane[] = ["inspector"];
-  private readonly paneVisibilityMode: PaneVisibilityMode = "multiple";
   private props: AnalysisPanelProps;
 
   constructor(props: AnalysisPanelProps) {
@@ -106,6 +84,7 @@ export class ChartViewPane extends ViewPane {
 
   public update(props: AnalysisPanelProps): void {
     this.props = props;
+    this.closeStaleLegendPopover(props);
     this.renderHeader(props);
     this.updateAnalysisPanel(props);
   }
@@ -120,7 +99,6 @@ export class ChartViewPane extends ViewPane {
   }
 
   private renderHeader(props: AnalysisPanelProps): void {
-    this.closeLegendPopover();
     this.headerStore.clear();
     this.legendAction = null;
     const activeFile = resolveActiveFile(props);
@@ -136,7 +114,6 @@ export class ChartViewPane extends ViewPane {
     this.headerTabs.append(createPlotTabs({
       activePlotType: this.getActivePlotType(),
       onDidChangePlotType: (plotType) => this.setActivePlotType(plotType),
-      props,
       store: this.headerStore,
     }));
 
@@ -154,6 +131,7 @@ export class ChartViewPane extends ViewPane {
 
     this.fallbackActivePlotType = plotType;
     this.props.onActivePlotTypeChange?.(plotType);
+    this.closeLegendPopover();
     this.renderHeader(this.props);
     this.updateAnalysisPanel(this.props);
   }
@@ -181,13 +159,13 @@ export class ChartViewPane extends ViewPane {
         getHeaderActionIcon(action.id),
         options,
       ),
-      className: "chart_view_auxiliary_actions",
-      contentClassName: "chart_view_auxiliary_action_items",
+      className: "chart_view_detail_actions",
+      contentClassName: "chart_view_detail_action_items",
     });
     this.headerStore.add(actionBar);
     const actions = [
       this.createLegendAction(props),
-      this.createAuxiliaryPaneAction({
+      this.createDetailPaneAction({
         id: CHART_INSPECTOR_ACTION_ID,
         label: localize("chart_inspector_heading", "Inspector"),
         pane: "inspector",
@@ -200,7 +178,7 @@ export class ChartViewPane extends ViewPane {
     return actionBar.domNode;
   }
 
-  private createAuxiliaryPaneAction({
+  private createDetailPaneAction({
     id,
     label,
     pane,
@@ -216,25 +194,17 @@ export class ChartViewPane extends ViewPane {
       label,
       tooltip: label,
       run: () => {
-        this.toggleAuxiliaryPane(pane);
+        this.toggleVisibleDetailPane(pane);
       },
     });
   }
 
   private createLegendAction(props: AnalysisPanelProps): IAction | null {
-    const calculatedData = getCalculatedData(
-      props.calculatedDataByKey,
-      this.getActivePlotType(),
-      props.activeFileId,
-    );
-    if (!calculatedData?.seriesList.length) {
+    const legendContext = this.getCurrentLegendContext(props);
+    if (!legendContext) {
       return null;
     }
 
-    const axisSettings = normalizePlotAxisSettings(
-      props.plotAxisSettings,
-      DEFAULT_PLOT_AXIS_SETTINGS,
-    );
     const legendAction = new Action(
       CHART_LEGEND_ACTION_ID,
       localize("chart_legend_heading", "Legend"),
@@ -245,17 +215,14 @@ export class ChartViewPane extends ViewPane {
           this.closeLegendPopover();
           return;
         }
-        const legend = createMainPlotLegend({
-          legendFontSize: axisSettings.legendFontSize === "" ? undefined : axisSettings.legendFontSize,
-          seriesList: calculatedData.seriesList,
-        });
-        legend.setAttribute("role", "dialog");
-        legend.setAttribute("aria-label", localize("chart_legend_heading", "Legend"));
+        const legend = createLegendPopover(props, legendContext);
         this.legendPopover = legend;
+        this.legendContext = legendContext;
         this.previewPart.append(legend);
         legendAction.checked = true;
       },
     );
+    legendAction.checked = this.isLegendPopoverCurrent(props);
     legendAction.tooltip = localize("chart_legend_tooltip", "Show chart legend");
     this.headerStore.add(legendAction);
     this.legendAction = legendAction;
@@ -265,18 +232,31 @@ export class ChartViewPane extends ViewPane {
   private closeLegendPopover(): void {
     this.legendPopover?.remove();
     this.legendPopover = null;
+    this.legendContext = null;
     if (this.legendAction) {
       this.legendAction.checked = false;
     }
   }
 
-  private toggleAuxiliaryPane(pane: ChartDetailPane): void {
-    const isVisible = this.visibleDetailPanes.includes(pane);
-    const next = this.paneVisibilityMode === "single"
-      ? (isVisible ? [] : [pane])
-      : togglePane(this.visibleDetailPanes, pane);
+  private closeStaleLegendPopover(props: AnalysisPanelProps): void {
+    if (this.legendPopover && !this.isLegendPopoverCurrent(props)) {
+      this.closeLegendPopover();
+    }
+  }
 
-    if (samePanes(next, this.visibleDetailPanes)) {
+  private isLegendPopoverCurrent(props: AnalysisPanelProps): boolean {
+    const currentContext = this.getCurrentLegendContext(props);
+    const legendContext = this.legendContext;
+    if (!this.legendPopover || !legendContext || !currentContext) {
+      return false;
+    }
+    return isSameLegendContext(legendContext, currentContext);
+  }
+
+  private toggleVisibleDetailPane(pane: ChartDetailPane): void {
+    const next = toggleDetailPane(this.visibleDetailPanes, pane);
+
+    if (sameDetailPanes(next, this.visibleDetailPanes)) {
       return;
     }
 
@@ -288,241 +268,10 @@ export class ChartViewPane extends ViewPane {
   private getActivePlotType(): PlotType {
     return this.props.activePlotType ?? this.fallbackActivePlotType;
   }
-}
 
-class ChartHeaderActionViewItem extends ActionViewItem {
-  constructor(
-    action: IAction,
-    private readonly icon: LxIconDefinition,
-    options: IActionViewItemOptions,
-  ) {
-    super(undefined, action, options);
-  }
-
-  protected override updateLabel(): void {
-    if (!this.label) {
-      return;
-    }
-
-    this.label.replaceChildren(createLxIcon({ icon: this.icon, size: 16 }));
-  }
-
-  protected override updateChecked(): void {
-    super.updateChecked();
-    if (!this.label || this.action.id !== CHART_LEGEND_ACTION_ID) {
-      return;
-    }
-    this.label.dataset.actionId = CHART_LEGEND_ACTION_ID;
-    this.label.setAttribute("aria-haspopup", "dialog");
-    this.label.setAttribute("aria-expanded", String(Boolean(this.action.checked)));
+  private getCurrentLegendContext(props: AnalysisPanelProps): LegendContext | null {
+    return getLegendContext(props, this.getActivePlotType());
   }
 }
-
-const getHeaderActionIcon = (actionId: string): LxIconDefinition => {
-  if (actionId === CHART_LEGEND_ACTION_ID) {
-    return LxIcon.summary;
-  }
-  if (actionId === CHART_INSPECTOR_ACTION_ID) {
-    return LxIcon.analysis;
-  }
-  return LxIcon.search;
-};
-
-const resolveActiveFile = ({
-  activeFileId,
-  cleanedData = [],
-}: AnalysisPanelProps): CleanedEntry | null => {
-  const normalizedActiveFileId = String(activeFileId ?? "").trim();
-  return (
-    cleanedData.find((file) => String(file?.fileId ?? "") === normalizedActiveFileId) ??
-    cleanedData[0] ??
-    null
-  );
-};
-
-const createFileSelect = (
-  props: AnalysisPanelProps,
-  activeFile: CleanedEntry,
-  store: DisposableStore,
-): HTMLSelectElement => {
-  const select = document.createElement("select");
-  select.className = "chart_view_file_select dropdown-field dropdown-field--sm";
-  select.value = String(activeFile.fileId ?? "");
-  for (const file of props.cleanedData) {
-    const fileId = String(file?.fileId ?? "");
-    if (!fileId) {
-      continue;
-    }
-
-    const option = document.createElement("option");
-    option.value = fileId;
-    option.textContent = String(file?.fileName ?? fileId).replace(/\.csv$/i, "");
-    select.append(option);
-  }
-  store.add(addDisposableListener(select, EventType.CHANGE, () => {
-    props.onActiveFileIdChange?.(select.value || null);
-  }));
-  return select;
-};
-
-const createPlotTabs = ({
-  activePlotType,
-  onDidChangePlotType,
-  props,
-  store,
-}: {
-  readonly activePlotType: PlotType;
-  readonly onDidChangePlotType: (plotType: PlotType) => void;
-  readonly props: AnalysisPanelProps;
-  readonly store: DisposableStore;
-}): HTMLElement => {
-  const tabs = document.createElement("div");
-  tabs.className = getTabsMenuClassName("chart_view_tabs");
-  tabs.setAttribute("role", "tablist");
-  tabs.setAttribute("aria-label", localize("analysis.visualization", "Analysis & Visualization"));
-
-  const normalizedTabs = normalizeTabsOptions<ChartPlotTabOption>({
-    idBase: CHART_PLOT_ID_BASE,
-    instanceId: getTabsInstanceId(CHART_PLOT_ID_BASE, CHART_PLOT_ID_BASE),
-    options: PlotTypes.map((plotType) => ({
-      label: getPlotTypeLabel(plotType),
-      plotType,
-      value: plotType,
-    })),
-    panelIdBase: CHART_PLOT_PANEL_ID_BASE,
-    shouldLinkPanels: true,
-  });
-
-  for (const tab of normalizedTabs) {
-    const button = document.createElement("button");
-    const isActive = tab.plotType === activePlotType;
-    button.id = tab.__tabId;
-    button.type = "button";
-    button.className = getTabsButtonClassName({
-      isActive,
-      size: "sm",
-    });
-    button.tabIndex = isActive ? 0 : -1;
-    button.setAttribute("role", "tab");
-    button.setAttribute("aria-selected", String(isActive));
-    if (tab.__panelId) {
-      button.setAttribute("aria-controls", tab.__panelId);
-    }
-    button.dataset.chartPlotType = tab.plotType;
-
-    const text = document.createElement("span");
-    text.className = "tab_btn_text";
-    text.textContent = tab.label;
-    button.append(text);
-    tabs.append(button);
-  }
-
-  store.add(addDisposableListener(tabs, EventType.CLICK, (event) => {
-    const plotType = getEventPlotType(event);
-    if (plotType) {
-      onDidChangePlotType(plotType);
-    }
-  }));
-  store.add(addDisposableListener(tabs, EventType.KEY_DOWN, (event) => {
-    const currentPlotType = getEventPlotType(event);
-    const nextTab = currentPlotType
-      ? getNextPlotTab(normalizedTabs, currentPlotType, event.key)
-      : undefined;
-    if (!nextTab) {
-      return;
-    }
-
-    event.preventDefault();
-    tabs.querySelector<HTMLButtonElement>(`#${CSS.escape(nextTab.__tabId)}`)?.focus();
-    onDidChangePlotType(nextTab.plotType);
-  }));
-
-  return tabs;
-};
-
-const getPlotTypeLabel = (plotType: PlotType): string => {
-  switch (plotType) {
-    case "gm":
-      return "GM";
-    case "ss":
-      return "SS";
-    case "vth":
-      return "VTH";
-    case "iv":
-    default:
-      return "IV";
-  }
-};
-
-const getEventPlotType = (event: Event): PlotType | undefined => {
-  const target = event.target;
-  if (!(target instanceof HTMLElement)) {
-    return undefined;
-  }
-
-  const value = target.closest<HTMLElement>("[data-chart-plot-type]")?.dataset.chartPlotType;
-  return isPlotType(value) ? value : undefined;
-};
-
-const getNextPlotTab = (
-  tabs: readonly NormalizedTabOption<ChartPlotTabOption>[],
-  plotType: PlotType,
-  key: string,
-): NormalizedTabOption<ChartPlotTabOption> | undefined => {
-  const currentIndex = tabs.findIndex((tab) => tab.plotType === plotType);
-  if (currentIndex < 0) {
-    return tabs[0];
-  }
-
-  if (key === "Home") {
-    return tabs[0];
-  }
-  if (key === "End") {
-    return tabs[tabs.length - 1];
-  }
-  if (key !== "ArrowLeft" && key !== "ArrowRight") {
-    return undefined;
-  }
-
-  const delta = key === "ArrowRight" ? 1 : -1;
-  return tabs[(currentIndex + delta + tabs.length) % tabs.length];
-};
-
-const getPlotTabId = (plotType: PlotType): string =>
-  `${CHART_PLOT_ID_BASE}-tab-${plotType}`;
-
-const getPlotPanelId = (plotType: PlotType): string =>
-  `${CHART_PLOT_PANEL_ID_BASE}-${plotType}`;
-
-const togglePane = (
-  panes: readonly ChartDetailPane[],
-  pane: ChartDetailPane,
-): readonly ChartDetailPane[] =>
-  panes.includes(pane)
-    ? panes.filter((item) => item !== pane)
-    : [...panes, pane];
-
-const samePanes = (
-  left: readonly ChartDetailPane[],
-  right: readonly ChartDetailPane[],
-): boolean =>
-  left.length === right.length && left.every((pane) => right.includes(pane));
-
-const toVisiblePanes = (
-  visibleDetailPanes: readonly ChartDetailPane[],
-): readonly ChartPane[] => [
-  "chart",
-  ...visibleDetailPanes,
-];
-
-const toAnalysisPanelProps = (
-  props: AnalysisPanelProps,
-  activePlotType: PlotType,
-  visibleDetailPanes: readonly ChartDetailPane[],
-): AnalysisPanelProps => ({
-  ...props,
-  activePlotType,
-  visiblePanes: toVisiblePanes(visibleDetailPanes),
-});
 
 export default ChartViewPane;
