@@ -15,8 +15,8 @@ export const WorkbenchAuxiliaryBarClassName = "workbench_layout_auxiliarybar";
 export const WorkbenchAuxiliaryBarPaneId = "workbench-auxiliarybar";
 
 export const AUXILIARY_BAR_DEFAULT_WIDTH_PX = 300;
-export const AUXILIARY_BAR_MIN_WIDTH_PX = 220;
-export const AUXILIARY_BAR_MAX_WIDTH_PX = 520;
+export const AUXILIARY_BAR_MIN_WIDTH_PX = 170;
+export const AUXILIARY_BAR_MAX_WIDTH_PX = Number.POSITIVE_INFINITY;
 
 export const createAuxiliaryBarPart = (): HTMLDivElement => {
   const element = document.createElement("div");

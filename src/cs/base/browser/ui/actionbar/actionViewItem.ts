@@ -1,6 +1,8 @@
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
+import type { IManagedHover } from "src/cs/base/browser/ui/hover/hover";
+import { getBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { Action, ActionRunner, Separator, type IAction, type IActionChangeEvent, type IActionRunner } from "src/cs/base/common/actions";
-import { Disposable } from "src/cs/base/common/lifecycle";
+import { Disposable, MutableDisposable } from "src/cs/base/common/lifecycle";
 
 import "src/cs/base/browser/ui/actionbar/actionbar.css";
 
@@ -26,6 +28,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
     protected element: HTMLElement | undefined;
     protected label: HTMLButtonElement | undefined;
     protected context: unknown;
+    private readonly tooltipHover = this._register(new MutableDisposable<IManagedHover>());
     private runner: IActionRunner | undefined;
 
     constructor(
@@ -170,12 +173,17 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
         const tooltip = this.action.tooltip || this.action.label;
         if (tooltip) {
-            this.label.title = tooltip;
             this.label.setAttribute("aria-label", tooltip);
+            if (!this.tooltipHover.current) {
+                this.tooltipHover.current = getBaseLayerHoverDelegate().setupManagedHover(this.label, tooltip);
+            }
+            else {
+                this.tooltipHover.current.update(tooltip);
+            }
         }
         else {
-            this.label.removeAttribute("title");
             this.label.removeAttribute("aria-label");
+            this.tooltipHover.clear();
         }
     }
 

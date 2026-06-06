@@ -27,8 +27,9 @@ import {
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 
 export const SIDEBAR_DEFAULT_WIDTH_PX = 300;
-export const SIDEBAR_MIN_WIDTH_PX = 220;
-export const SIDEBAR_MAX_WIDTH_PX = 520;
+export const SIDEBAR_MIN_WIDTH_PX = 170;
+export const SIDEBAR_MAX_WIDTH_PX = Number.POSITIVE_INFINITY;
+export const MAIN_MIN_WIDTH_PX = 220;
 export const WORKBENCH_STACK_LAYOUT_THRESHOLD_PX = 860;
 export const TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX = 250;
 
@@ -378,7 +379,7 @@ export class Layout extends Disposable {
       },
       {
         id: "workbench-main",
-        minSize: 520,
+        minSize: MAIN_MIN_WIDTH_PX,
       },
     ];
 

@@ -127,7 +127,7 @@
     white-space: nowrap
 }
 
-.main_plot_canvas_tooltip {
+.main_plot_canvas_readout {
 
     pointer-events: none;
 
@@ -166,17 +166,17 @@
     box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)
 }
 
-.main_plot_canvas_tooltip--hidden {
+.main_plot_canvas_readout--hidden {
 
     display: none
 }
 
-.main_plot_canvas_tooltip_title {
+.main_plot_canvas_readout_title {
 
     font-weight: 500
 }
 
-.main_plot_canvas_tooltip_row {
+.main_plot_canvas_readout_row {
 
     display: flex;
 
@@ -185,7 +185,7 @@
     gap: 0.5rem
 }
 
-.main_plot_canvas_tooltip_swatch {
+.main_plot_canvas_readout_swatch {
 
     height: 0.5rem;
 

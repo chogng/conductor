@@ -1,5 +1,11 @@
 ﻿import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
+import {
+  getPlotReadoutAtX,
+  resolvePlotPointY,
+  type PlotYKey,
+} from "src/cs/workbench/contrib/plot/browser/plotReadoutModel";
+import { PlotReadoutHover } from "src/cs/workbench/contrib/plot/browser/plotReadoutHover";
 
 import "src/cs/workbench/contrib/plot/browser/media/plot.css";
 
@@ -20,8 +26,6 @@ export type MainPlotSeries = {
   data: MainPlotPoint[];
   [key: string]: unknown;
 };
-
-type PlotYKey = "y" | "yPositive" | "yAbsPositive" | "ySignedLogPositive";
 
 type SsOverlay = {
   x1: number;
@@ -158,13 +162,6 @@ type ChartScale = {
   pixelToX: (value: number) => number;
 };
 
-type TooltipEntry = {
-  color: string;
-  label: string;
-  x: number;
-  y: number;
-};
-
 const DEFAULT_TICK_LABEL_FONT_SIZE = 11;
 const DEFAULT_AXIS_TITLE_FONT_SIZE = 12;
 const DEFAULT_MARGIN = { top: 20, right: 20, bottom: 46, left: 64 };
@@ -193,20 +190,6 @@ const resolvePlotYKey = (
     return yLogCurrentMode === "positive" ? "yPositive" : "yAbsPositive";
   }
   return "y";
-};
-
-const resolvePointY = (point: MainPlotPoint, key: PlotYKey): number | null => {
-  const value = Number(point[key]);
-  if (Number.isFinite(value)) return value;
-  if (key === "yAbsPositive") {
-    const raw = Number(point.y);
-    return Number.isFinite(raw) && raw !== 0 ? Math.abs(raw) : null;
-  }
-  if (key === "yPositive") {
-    const raw = Number(point.y);
-    return Number.isFinite(raw) && raw > 0 ? raw : null;
-  }
-  return null;
 };
 
 const resolveLabelWithUnit = (label: unknown, unit: unknown, fallback: string): string => {
@@ -478,7 +461,7 @@ const drawMainPlotCanvas = (
     const points = (Array.isArray(series.data) ? series.data : [])
       .map((point) => {
         const x = Number(point?.x);
-        const y = resolvePointY(point, yKey);
+        const y = resolvePlotPointY(point, yKey);
         if (!Number.isFinite(x) || y === null) return null;
         return {
           x: scale.xToPixel(x),
@@ -493,7 +476,7 @@ const drawMainPlotCanvas = (
     const fitPoints = props.focusedFitLine
       .map((point) => {
         const x = Number(point.x);
-        const y = resolvePointY(point, yKey);
+        const y = resolvePlotPointY(point, yKey);
         if (!Number.isFinite(x) || y === null) return null;
         return {
           x: scale.xToPixel(x),
@@ -531,38 +514,6 @@ const drawMainPlotCanvas = (
   }
 
   return { plotRect, scale, yKey };
-};
-
-const findNearestTooltipEntries = (
-  props: MainPlotCanvasProps,
-  xRaw: number,
-  yKey: PlotYKey,
-): TooltipEntry[] => {
-  const entries: TooltipEntry[] = [];
-  for (const [seriesIndex, series] of (props.seriesList ?? []).entries()) {
-    let nearest: MainPlotPoint | null = null;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-    for (const point of series.data ?? []) {
-      const x = Number(point?.x);
-      if (!Number.isFinite(x)) continue;
-      const distance = Math.abs(x - xRaw);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearest = point;
-      }
-    }
-    if (!nearest) continue;
-    const y = resolvePointY(nearest, yKey);
-    const x = Number(nearest.x);
-    if (y === null || !Number.isFinite(x)) continue;
-    entries.push({
-      color: series.color || resolveSeriesPlotColor(series, seriesIndex) || getPlotColor(seriesIndex),
-      label: String(series.tooltipName ?? series.name ?? `Series ${seriesIndex + 1}`),
-      x,
-      y,
-    });
-  }
-  return entries.slice(0, 8);
 };
 
 const renderLegend = (
@@ -614,9 +565,7 @@ export const createMainPlotCanvas = (props: MainPlotCanvasProps): MainPlotCanvas
   canvas.className = "main_plot_canvas_canvas";
   root.appendChild(canvas);
 
-  const tooltip = document.createElement("div");
-  tooltip.className = "main_plot_canvas_tooltip main_plot_canvas_tooltip--hidden";
-  root.appendChild(tooltip);
+  const readoutHover = new PlotReadoutHover(root);
 
   let disposed = false;
   let animationFrame = 0;
@@ -652,41 +601,25 @@ export const createMainPlotCanvas = (props: MainPlotCanvasProps): MainPlotCanvas
       localY < plotRect.top ||
       localY > plotRect.bottom
     ) {
-      tooltip.classList.add("main_plot_canvas_tooltip--hidden");
+      readoutHover.hide();
       return;
     }
 
     const xRaw = scale.pixelToX(localX);
-    const entries = findNearestTooltipEntries(props, xRaw, yKey);
+    const entries = getPlotReadoutAtX(props.seriesList, xRaw, yKey);
     if (!entries.length) {
-      tooltip.classList.add("main_plot_canvas_tooltip--hidden");
+      readoutHover.hide();
       return;
     }
 
-    tooltip.replaceChildren();
-    const title = document.createElement("div");
-    title.className = "main_plot_canvas_tooltip_title";
-    title.textContent = formatNumber(entries[0]!.x * props.plotXFactor, {
-      digits: props.xTooltipDigits ?? props.xTickDigits,
+    readoutHover.show(entries, localX, localY, rect, {
+      plotXFactor: props.plotXFactor,
+      plotYFactor: props.plotYFactor,
+      xDigits: props.xTooltipDigits ?? props.xTickDigits,
     });
-    tooltip.appendChild(title);
-    for (const entry of entries) {
-      const row = document.createElement("div");
-      row.className = "main_plot_canvas_tooltip_row";
-      const swatch = document.createElement("span");
-      swatch.className = "main_plot_canvas_tooltip_swatch";
-      swatch.style.backgroundColor = entry.color;
-      const label = document.createElement("span");
-      label.textContent = `${entry.label}: ${formatNumber(entry.y * props.plotYFactor, { digits: 4 })}`;
-      row.append(swatch, label);
-      tooltip.appendChild(row);
-    }
-    tooltip.style.left = `${clamp(localX + 12, 8, rect.width - 220)}px`;
-    tooltip.style.top = `${clamp(localY + 12, 8, rect.height - 120)}px`;
-    tooltip.classList.remove("main_plot_canvas_tooltip--hidden");
   });
   canvas.addEventListener("mouseleave", () => {
-    tooltip.classList.add("main_plot_canvas_tooltip--hidden");
+    readoutHover.hide();
   });
 
   Object.defineProperty(root, "dispose", {
@@ -697,6 +630,7 @@ export const createMainPlotCanvas = (props: MainPlotCanvasProps): MainPlotCanvas
         animationFrame = 0;
       }
       resizeObserver.disconnect();
+      readoutHover.dispose();
       root.replaceChildren();
     },
   });

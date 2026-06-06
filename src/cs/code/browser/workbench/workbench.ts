@@ -7,6 +7,8 @@ import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceC
 import { Registry } from "src/cs/platform/registry/common/platform";
 import { IFileService } from "src/cs/platform/files/common/files";
 import { HTMLFileSystemProvider } from "src/cs/platform/files/browser/htmlFileSystemProvider";
+import { setBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
+import { IHoverService } from "src/cs/platform/hover/browser/hoverService";
 import {
   resolveLanguageCode,
   type LanguageCode,
@@ -148,6 +150,7 @@ function startWorkbench(): void {
   );
   fileSystemProviderStore.add(lifecycleService.onDidShutdown(() => fileSystemProviderStore.dispose()));
   instantiationService.invokeFunction(accessor => {
+    setBaseLayerHoverDelegate(accessor.get(IHoverService));
     const filesService = accessor.get(IFileService);
     fileSystemProviderStore.add(
       filesService.registerProvider("file", fileSystemProviderStore.add(new HTMLFileSystemProvider())),
