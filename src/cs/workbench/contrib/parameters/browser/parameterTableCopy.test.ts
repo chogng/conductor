@@ -44,7 +44,6 @@ suite("workbench/contrib/parameters/browser/parameterTableCopy", () => {
         showTransferMetrics: false,
       }),
       [
-        "#\tcalc_group_series\tcalc_group_derivative\t",
         "#\tcalc_group_series\tgds\tx",
         "1\tcurve A\t...\t...",
       ].join("\n"),

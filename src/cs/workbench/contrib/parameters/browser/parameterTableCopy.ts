@@ -22,12 +22,6 @@ const getHeaderRows = ({
 }: Pick<ParameterTableCopyOptions, "gmMetricHeader" | "showTransferMetrics">): string[][] => {
   if (!showTransferMetrics) {
     return [
-      [
-        "#",
-        localize("calc_group_series", "Series"),
-        localize("calc_group_derivative", "Derivative"),
-        "",
-      ],
       ["#", localize("calc_group_series", "Series"), gmMetricHeader, "x"],
     ];
   }

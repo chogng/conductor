@@ -14,6 +14,7 @@ export type SsConfidence = "high" | "low" | "fail" | string;
 export type CalculatedParameterRowData = {
   currentCandidateWindows?: unknown[];
   currentMethod?: string | null;
+  legendHeader?: string | null;
   name: string;
   ion: number | null;
   ionWindow?: unknown;
@@ -73,6 +74,7 @@ export const createParameterRows = (
       ? resolveSsFit(computeSubthresholdSwingFitAuto(points))
       : { confidence: "fail", value: null, x: null };
 
+    const seriesName = resolveSeriesName(series, index);
     return {
       currentCandidateWindows: baseMetrics.candidateWindows,
       currentMethod: baseMetrics.method,
@@ -84,7 +86,8 @@ export const createParameterRows = (
       ioff: baseMetrics.ioff,
       ioffWindow: baseMetrics.ioffWindow,
       jon: null,
-      name: resolveSeriesName(series, index),
+      legendHeader: seriesName.header,
+      name: seriesName.value,
       ss: ssFit.value,
       ssConfidence: ssFit.confidence,
       thresholdVoltage: null,
@@ -116,8 +119,39 @@ const createSourcePoints = (
   return points;
 };
 
-const resolveSeriesName = (series: CleanedSeries, index: number): string =>
-  String(series?.name ?? `Series ${index + 1}`);
+const resolveSeriesName = (
+  series: CleanedSeries,
+  index: number,
+): { header: string | null; value: string } => {
+  for (const candidate of [series?.legendValue, series?.name]) {
+    const parsedLegend = parseLegendValue(String(candidate ?? "").trim());
+    if (parsedLegend) {
+      return parsedLegend;
+    }
+  }
+
+  return {
+    header: null,
+    value: `#${index + 1}`,
+  };
+};
+
+const parseLegendValue = (
+  legendValue: string,
+): { header: string; value: string } | null => {
+  const match = /^([^=]+?)\s*=\s*(.+)$/u.exec(legendValue);
+  if (!match) {
+    return null;
+  }
+
+  const header = match[1]?.trim() ?? "";
+  const value = match[2]?.trim() ?? "";
+  if (!header || !value) {
+    return null;
+  }
+
+  return { header, value };
+};
 
 const resolveMaxAbsPoint = (
   points: DerivativePoint[],
