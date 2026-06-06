@@ -53,5 +53,5 @@ export const getPlotReadoutAtX = (
       y,
     });
   }
-  return entries.slice(0, 8);
+  return entries;
 };

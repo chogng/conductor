@@ -4,6 +4,7 @@ import { createMainPlotView } from "src/cs/workbench/contrib/plot/browser/mainPl
 import {
   createSecondCalculatedData,
   getCalculatedData,
+  type CalculatedData,
   type CalculatedDataByKey,
 } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
@@ -40,6 +41,7 @@ export type ChartViewProps = {
   onActiveFileIdChange?: (nextFileId: string | null) => void;
   showFileSelect?: boolean;
   hiddenLegendKeys?: readonly string[];
+  legendLabels?: Readonly<Record<string, string>>;
   setIonIoffMethod?: (next: IonIoffMethod) => void;
   setIonIoffManualTargetsByFileId?: StateSetter<IonIoffManualTargetsByFileId>;
   ssMethod?: SsMethod;
@@ -96,7 +98,10 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
     return root;
   }
 
-  const filteredData = filterCalculatedDataSeries(calculatedData, props.hiddenLegendKeys ?? []);
+  const filteredData = applyLegendLabels(
+    filterCalculatedDataSeries(calculatedData, props.hiddenLegendKeys ?? []),
+    props.legendLabels ?? {},
+  );
 
   const chartPlotView = createMainPlotView({
     model: filteredData,
@@ -147,6 +152,24 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   });
 
   return root;
+};
+
+const applyLegendLabels = (
+  data: CalculatedData,
+  legendLabels: Readonly<Record<string, string>>,
+): CalculatedData => {
+  const labels = Object.keys(legendLabels);
+  if (!labels.length) {
+    return data;
+  }
+
+  return {
+    ...data,
+    seriesList: data.seriesList.map((series) => ({
+      ...series,
+      name: legendLabels[series.id] ?? series.name,
+    })),
+  };
 };
 
 const normalizeVisiblePanes = (

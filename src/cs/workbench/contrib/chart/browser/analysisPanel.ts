@@ -1,4 +1,4 @@
-﻿import { localize } from "src/cs/nls";
+import { localize } from "src/cs/nls";
 import {
   getCardClassName,
   type CardVariant,
@@ -42,6 +42,7 @@ export type ChartViewLazyProps = {
   onActiveFileIdChange?: (nextFileId: string | null) => void;
   showFileSelect?: boolean;
   hiddenLegendKeys?: readonly string[];
+  legendLabels?: Readonly<Record<string, string>>;
   setIonIoffMethod?: (next: IonIoffMethod) => void;
   setIonIoffManualTargetsByFileId?: StateSetter<IonIoffManualTargetsByFileId>;
   ssMethod?: SsMethod;

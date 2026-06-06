@@ -35,6 +35,7 @@ export class ChartViewPane extends ViewPane {
   private legendPopover: HTMLElement | null = null;
   private legendContext: LegendContext | null = null;
   private readonly hiddenLegendKeysByContext = new Map<string, readonly string[]>();
+  private readonly legendLabelsByContext = new Map<string, Readonly<Record<string, string>>>();
   private fallbackActivePlotType: PlotType = "iv";
   private visibleDetailPanes: readonly ChartDetailPane[] = ["inspector"];
   private props: AnalysisPanelProps;
@@ -53,6 +54,7 @@ export class ChartViewPane extends ViewPane {
       this.getActivePlotType(),
       this.visibleDetailPanes,
       this.getHiddenLegendKeys(this.getCurrentLegendContext(props)),
+      this.getLegendLabels(this.getCurrentLegendContext(props)),
     ));
     this.updateAnalysisPanelTabState();
     this.headerTabs.className = "chart_view_header_tabs";
@@ -139,6 +141,7 @@ export class ChartViewPane extends ViewPane {
       this.getActivePlotType(),
       this.visibleDetailPanes,
       this.getHiddenLegendKeys(this.getCurrentLegendContext(props)),
+      this.getLegendLabels(this.getCurrentLegendContext(props)),
     ));
   }
 
@@ -214,7 +217,9 @@ export class ChartViewPane extends ViewPane {
         }
         const legend = createLegendPopover(props, legendContext, {
           hiddenLegendKeys: this.getHiddenLegendKeys(legendContext),
+          legendLabels: this.getLegendLabels(legendContext),
           onToggleLegendItem: (legendKey) => this.toggleLegendItem(legendContext, legendKey),
+          onEditLegendItem: (legendKey, currentLabel) => this.editLegendItem(legendContext, legendKey, currentLabel),
         });
         this.legendPopover = legend;
         this.legendContext = legendContext;
@@ -262,12 +267,55 @@ export class ChartViewPane extends ViewPane {
 
     const legend = createLegendPopover(this.props, context, {
       hiddenLegendKeys: this.getHiddenLegendKeys(context),
+      legendLabels: this.getLegendLabels(context),
       onToggleLegendItem: (legendKey) => this.toggleLegendItem(context, legendKey),
+      onEditLegendItem: (legendKey, currentLabel) => this.editLegendItem(context, legendKey, currentLabel),
     });
     this.legendPopover.remove();
     this.legendPopover = legend;
     this.legendContext = context;
     this.previewPart.append(legend);
+  }
+
+  private editLegendItem(context: LegendContext, legendKey: string, currentLabel: string): void {
+    const series = context.seriesList.find((item) => item.id === legendKey);
+    if (!series) {
+      return;
+    }
+
+    const nextLabel = window.prompt(
+      localize("chart_legend_edit_label_prompt", "Legend label"),
+      currentLabel,
+    );
+    if (nextLabel === null) {
+      return;
+    }
+
+    this.updateLegendLabel(context, legendKey, String(series.name ?? ""), nextLabel.trim());
+  }
+
+  private updateLegendLabel(context: LegendContext, legendKey: string, defaultLabel: string, nextLabel: string): void {
+    if (!nextLabel) {
+      return;
+    }
+
+    const key = this.getLegendStateKey(context);
+    const current = this.getLegendLabels(context);
+    const next: Record<string, string> = { ...current };
+    if (nextLabel === defaultLabel) {
+      delete next[legendKey];
+    } else {
+      next[legendKey] = nextLabel;
+    }
+
+    if (Object.keys(next).length) {
+      this.legendLabelsByContext.set(key, next);
+    } else {
+      this.legendLabelsByContext.delete(key);
+    }
+
+    this.updateAnalysisPanel(this.props);
+    this.refreshLegendPopover();
   }
 
   private toggleLegendItem(context: LegendContext, legendKey: string): void {
@@ -327,6 +375,30 @@ export class ChartViewPane extends ViewPane {
 
     this.hiddenLegendKeysByContext.set(key, hidden);
     return hidden;
+  }
+
+  private getLegendLabels(context: LegendContext | null): Readonly<Record<string, string>> {
+    if (!context) {
+      return {};
+    }
+
+    const key = this.getLegendStateKey(context);
+    const liveLegendKeys = new Set(context.seriesList.map((series) => series.id));
+    const labels = this.legendLabelsByContext.get(key) ?? {};
+    const next: Record<string, string> = {};
+    for (const [legendKey, label] of Object.entries(labels)) {
+      if (liveLegendKeys.has(legendKey)) {
+        next[legendKey] = label;
+      }
+    }
+
+    if (!Object.keys(next).length) {
+      this.legendLabelsByContext.delete(key);
+      return {};
+    }
+
+    this.legendLabelsByContext.set(key, next);
+    return next;
   }
 
   private getLegendStateKey(context: LegendContext): string {

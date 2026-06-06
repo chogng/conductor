@@ -15,6 +15,7 @@ export type MainPlotViewProps = {
   readonly model: MainPlotRenderModel;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
+  readonly legendLabels?: Readonly<Record<string, string>>;
   readonly plotType: PlotType;
 };
 
@@ -28,6 +29,7 @@ export const createMainPlotView = ({
   model,
   originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS,
   plotAxisSettings,
+  legendLabels,
   plotType,
 }: MainPlotViewProps): MainPlotView => {
   const axisSettings = normalizePlotAxisSettings(
@@ -53,6 +55,7 @@ export const createMainPlotView = ({
     tickLabelFontSize: axisSettings.tickLabelFontSize === "" ? undefined : axisSettings.tickLabelFontSize,
     axisTitleFontSize: axisSettings.axisTitleFontSize === "" ? undefined : axisSettings.axisTitleFontSize,
     legendFontSize: axisSettings.legendFontSize === "" ? undefined : axisSettings.legendFontSize,
+    legendLabels,
     seriesList: model.seriesList,
     ssOverlayStyle: {
       fill: "#2563eb",

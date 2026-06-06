@@ -23,10 +23,12 @@ export const toAnalysisPanelProps = (
   activePlotType: PlotType,
   visibleDetailPanes: readonly ChartDetailPane[],
   hiddenLegendKeys: readonly string[] = [],
+  legendLabels: Readonly<Record<string, string>> = {},
 ): AnalysisPanelProps => ({
   ...props,
   activePlotType,
   hiddenLegendKeys,
+  legendLabels,
   visiblePanes: toVisiblePanes(visibleDetailPanes),
 });
 

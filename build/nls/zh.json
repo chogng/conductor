@@ -55,6 +55,9 @@
   "chart_curve_type_label": "曲线类型",
   "chart_header_actions": "图表操作",
   "chart_inspector_heading": "检查器",
+  "chart_legend_edit_label": "编辑图例文案",
+  "chart_legend_edit_label_for": "编辑 {label} 的图例文案",
+  "chart_legend_edit_label_prompt": "图例文案",
   "chart_legend_font_size": "图例大小",
   "chart_legend_heading": "图例",
   "chart_legend_tooltip": "显示图表图例",
@@ -450,5 +453,6 @@
   "originZip.error.emptyEntry": "Origin ZIP 条目缺少 CSV 内容。",
   "originZip.error.invalidEntryPath": "Origin ZIP 条目路径不可读取。",
   "originZip.error.saveFailed": "保存 Origin ZIP 失败。",
+  "plot_hover_more_entries": "另有 {count} 条",
   "preview_worker_failed": "预览 worker 执行失败。"
 }

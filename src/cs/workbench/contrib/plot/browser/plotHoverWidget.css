@@ -1,0 +1,46 @@
+.plot_hover_widget {
+    pointer-events: none;
+    position: absolute;
+    z-index: 3;
+    border-radius: 6px;
+    border-width: 1px;
+    --tw-border-opacity: 1;
+    border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
+    background-color: rgb(var(--bg-page) / 0.95);
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    font-size: 12px;
+    line-height: 16px;
+    --tw-text-opacity: 1;
+    color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
+    --tw-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --tw-shadow-colored: 0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);
+    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
+
+.plot_hover_widget--hidden {
+    display: none;
+}
+
+.plot_hover_widget_title {
+    font-weight: 500;
+}
+
+.plot_hover_widget_row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.plot_hover_widget_swatch {
+    height: 8px;
+    width: 8px;
+    border-radius: 9999px;
+}
+
+.plot_hover_widget_more {
+    margin-top: 2px;
+    color: rgb(var(--text-secondary) / 1);
+}

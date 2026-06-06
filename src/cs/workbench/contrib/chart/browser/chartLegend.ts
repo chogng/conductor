@@ -47,7 +47,9 @@ export const createLegendPopover = (
   context: LegendContext,
   options: {
     readonly hiddenLegendKeys?: readonly string[];
+    readonly legendLabels?: Readonly<Record<string, string>>;
     readonly onToggleLegendItem?: (legendKey: string) => void;
+    readonly onEditLegendItem?: (legendKey: string, currentLabel: string) => void;
   } = {},
 ): HTMLElement => {
   const axisSettings = normalizePlotAxisSettings(
@@ -57,7 +59,9 @@ export const createLegendPopover = (
   const legend = createMainPlotLegend({
     hiddenLegendKeys: options.hiddenLegendKeys,
     legendFontSize: axisSettings.legendFontSize === "" ? undefined : axisSettings.legendFontSize,
+    legendLabels: options.legendLabels,
     onToggleLegendItem: options.onToggleLegendItem,
+    onEditLegendItem: options.onEditLegendItem,
     seriesList: context.seriesList,
   });
   legend.setAttribute("role", "dialog");

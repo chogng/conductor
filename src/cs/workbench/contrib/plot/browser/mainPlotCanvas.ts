@@ -1,11 +1,15 @@
-﻿import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
+﻿import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
+import { localize } from "src/cs/nls";
+import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
 import {
   getPlotReadoutAtX,
   resolvePlotPointY,
+  type PlotReadoutEntry,
   type PlotYKey,
 } from "src/cs/workbench/contrib/plot/browser/plotReadoutModel";
-import { PlotReadoutHover } from "src/cs/workbench/contrib/plot/browser/plotReadoutHover";
+import { PlotHoverWidget } from "src/cs/workbench/contrib/plot/browser/plotHoverWidget";
 
 import "src/cs/workbench/contrib/plot/browser/media/plot.css";
 
@@ -138,7 +142,9 @@ export type MainPlotCanvasProps = {
   legendWidth?: number;
   legendContent?: unknown;
   hiddenLegendKeys?: readonly string[];
+  legendLabels?: Readonly<Record<string, string>>;
   onToggleLegendItem?: (legendKey: string) => void;
+  onEditLegendItem?: (legendKey: string, currentLabel: string) => void;
   xAxisLabelOverride?: string;
   yAxisLabelOverride?: string;
   onXAxisLabelChange?: (nextLabel: string) => void;
@@ -326,6 +332,57 @@ const drawRangeOverlay = (
   context.globalAlpha = fillOpacity;
   context.fillStyle = fill;
   context.fillRect(left, plotRect.top, right - left, plotRect.height);
+  context.restore();
+};
+
+const clearHoverOverlay = (canvas: HTMLCanvasElement): void => {
+  const context = applyCanvasSize(
+    canvas,
+    Math.max(320, canvas.parentElement?.clientWidth || canvas.clientWidth || 720),
+    Math.max(220, canvas.parentElement?.clientHeight || canvas.clientHeight || 420),
+  );
+  context?.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+};
+
+const drawHoverOverlay = (
+  canvas: HTMLCanvasElement,
+  plotRect: PlotRect,
+  scale: ChartScale,
+  entries: readonly PlotReadoutEntry[],
+): void => {
+  const width = Math.max(320, canvas.parentElement?.clientWidth || canvas.clientWidth || 720);
+  const height = Math.max(220, canvas.parentElement?.clientHeight || canvas.clientHeight || 420);
+  const context = applyCanvasSize(canvas, width, height);
+  if (!context || !entries.length) return;
+
+  const x = scale.xToPixel(entries[0]!.x);
+  if (!Number.isFinite(x)) return;
+
+  context.save();
+  context.beginPath();
+  context.rect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
+  context.clip();
+  context.setLineDash([3, 2]);
+  context.strokeStyle = "rgba(71, 85, 105, 0.52)";
+  context.lineWidth = 0.75;
+  context.beginPath();
+  context.moveTo(x, plotRect.top);
+  context.lineTo(x, plotRect.bottom);
+  context.stroke();
+  context.setLineDash([]);
+
+  for (const entry of entries) {
+    const pointX = scale.xToPixel(entry.x);
+    const pointY = scale.yToPixel(entry.y);
+    if (!Number.isFinite(pointX) || !Number.isFinite(pointY)) continue;
+    context.beginPath();
+    context.arc(pointX, pointY, 3.5, 0, Math.PI * 2);
+    context.fillStyle = "#ffffff";
+    context.fill();
+    context.lineWidth = 2;
+    context.strokeStyle = entry.color;
+    context.stroke();
+  }
   context.restore();
 };
 
@@ -523,7 +580,9 @@ const renderLegend = (
   seriesList: MainPlotSeries[],
   legendContent: unknown,
   hiddenLegendKeys: readonly string[] = [],
+  legendLabels: Readonly<Record<string, string>> = {},
   onToggleLegendItem?: (legendKey: string) => void,
+  onEditLegendItem?: (legendKey: string, currentLabel: string) => void,
 ): void => {
   container.replaceChildren();
   if (legendContent instanceof Node) {
@@ -534,33 +593,62 @@ const renderLegend = (
   const list = document.createElement("div");
   list.className = "main_plot_canvas_legend_list";
   for (const [index, series] of seriesList.entries()) {
-    const row = document.createElement("button");
+    const row = document.createElement("div");
     row.className = "main_plot_canvas_legend_row";
-    row.type = "button";
     const legendKey = String(series.id ?? "");
     const isVisible = !hiddenLegendKeys.includes(legendKey);
+    const labelText = String(legendLabels[legendKey] ?? series.name ?? `Series ${index + 1}`);
     row.dataset.hidden = isVisible ? "false" : "true";
-    row.setAttribute("aria-pressed", String(isVisible));
-    row.disabled = !legendKey || !onToggleLegendItem;
-    row.addEventListener("click", () => {
+
+    const toggle = document.createElement("button");
+    toggle.className = "main_plot_canvas_legend_toggle";
+    toggle.type = "button";
+    toggle.setAttribute("aria-pressed", String(isVisible));
+    toggle.disabled = !legendKey || !onToggleLegendItem;
+    toggle.addEventListener("click", () => {
       if (legendKey) {
         onToggleLegendItem?.(legendKey);
       }
     });
+
     const swatch = document.createElement("span");
     swatch.className = "main_plot_canvas_legend_swatch";
     swatch.style.backgroundColor = series.color || resolveSeriesPlotColor(series, index) || getPlotColor(index);
     const label = document.createElement("span");
     label.className = "main_plot_canvas_legend_label";
-    label.textContent = String(series.name ?? `Series ${index + 1}`);
-    row.append(swatch, label);
+    label.textContent = labelText;
+    toggle.append(swatch, label);
+    row.append(toggle);
+
+    if (onEditLegendItem) {
+      const edit = document.createElement("button");
+      edit.className = "main_plot_canvas_legend_edit";
+      edit.type = "button";
+      edit.disabled = !legendKey;
+      edit.title = localize("chart_legend_edit_label", "Edit legend label");
+      edit.setAttribute("aria-label", localize("chart_legend_edit_label_for", "Edit legend label for {label}", {
+        label: labelText,
+      }));
+      edit.append(createLxIcon({
+        className: "main_plot_canvas_legend_edit_icon",
+        icon: LxIcon.edit,
+        size: 14,
+      }));
+      edit.addEventListener("click", () => {
+        if (legendKey) {
+          onEditLegendItem(legendKey, labelText);
+        }
+      });
+      row.append(edit);
+    }
+
     list.appendChild(row);
   }
   container.appendChild(list);
 };
 
 export const createMainPlotLegend = (props: Pick<MainPlotCanvasProps,
-  "hiddenLegendKeys" | "legendContent" | "legendFontSize" | "legendWidth" | "onToggleLegendItem" | "seriesList"
+  "hiddenLegendKeys" | "legendContent" | "legendFontSize" | "legendLabels" | "legendWidth" | "onEditLegendItem" | "onToggleLegendItem" | "seriesList"
 >): HTMLElement => {
   const legend = document.createElement("div");
   legend.className = "main_plot_canvas_legend";
@@ -573,7 +661,9 @@ export const createMainPlotLegend = (props: Pick<MainPlotCanvasProps,
     props.seriesList ?? [],
     props.legendContent,
     props.hiddenLegendKeys,
+    props.legendLabels,
     props.onToggleLegendItem,
+    props.onEditLegendItem,
   );
   return legend;
 };
@@ -586,7 +676,11 @@ export const createMainPlotCanvas = (props: MainPlotCanvasProps): MainPlotCanvas
   canvas.className = "main_plot_canvas_canvas";
   root.appendChild(canvas);
 
-  const readoutHover = new PlotReadoutHover(root);
+  const hoverCanvas = document.createElement("canvas");
+  hoverCanvas.className = "main_plot_canvas_hover_canvas";
+  root.appendChild(hoverCanvas);
+
+  const hoverWidget = new PlotHoverWidget(root);
 
   let disposed = false;
   let animationFrame = 0;
@@ -597,6 +691,7 @@ export const createMainPlotCanvas = (props: MainPlotCanvasProps): MainPlotCanvas
       return;
     }
     rendered = drawMainPlotCanvas(canvas, props);
+    clearHoverOverlay(hoverCanvas);
   };
   const requestRender = (): void => {
     if (disposed || animationFrame) {
@@ -622,25 +717,29 @@ export const createMainPlotCanvas = (props: MainPlotCanvasProps): MainPlotCanvas
       localY < plotRect.top ||
       localY > plotRect.bottom
     ) {
-      readoutHover.hide();
+      clearHoverOverlay(hoverCanvas);
+      hoverWidget.hide();
       return;
     }
 
     const xRaw = scale.pixelToX(localX);
     const entries = getPlotReadoutAtX(props.seriesList, xRaw, yKey);
     if (!entries.length) {
-      readoutHover.hide();
+      clearHoverOverlay(hoverCanvas);
+      hoverWidget.hide();
       return;
     }
 
-    readoutHover.show(entries, localX, localY, rect, {
+    drawHoverOverlay(hoverCanvas, plotRect, scale, entries);
+    hoverWidget.show(entries, localX, localY, rect, {
       plotXFactor: props.plotXFactor,
       plotYFactor: props.plotYFactor,
       xDigits: props.xTooltipDigits ?? props.xTickDigits,
     });
   });
   canvas.addEventListener("mouseleave", () => {
-    readoutHover.hide();
+    clearHoverOverlay(hoverCanvas);
+    hoverWidget.hide();
   });
 
   Object.defineProperty(root, "dispose", {
@@ -651,7 +750,7 @@ export const createMainPlotCanvas = (props: MainPlotCanvasProps): MainPlotCanvas
         animationFrame = 0;
       }
       resizeObserver.disconnect();
-      readoutHover.dispose();
+      hoverWidget.dispose();
       root.replaceChildren();
     },
   });
