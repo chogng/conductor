@@ -47,8 +47,8 @@ export const pickImportFolder = async ({
   const folders = await dialogsService.showOpenDialog({
     canSelectFolders: true,
     defaultUri: pathService.userHome({ preferLocal: true }),
-    title: localize("import.pickFolderTitle", "选择要导入的文件夹"),
-    openLabel: localize("import.openFolderButton", "打开文件夹"),
+    title: localize("import.pickFolderTitle", "Select a folder to import"),
+    openLabel: localize("import.openFolderButton", "Open Folder"),
   });
   const folder = folders?.[0] ? URI.revive(folders[0]) : null;
   if (!folder) {

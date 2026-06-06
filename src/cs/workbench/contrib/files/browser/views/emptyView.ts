@@ -29,12 +29,12 @@ export const createEmptyView = ({
 
   const support = folderImportSupport ?? detectFolderImportSupport();
   const importButton = createButton({
-    ariaLabel: localize("files.importFolderButton", "导入文件夹"),
+    ariaLabel: localize("files.importFolderButton", "Import Folder"),
     className: "file-list-empty-import-button",
-    content: document.createTextNode(localize("files.importFolderButton", "导入文件夹")),
+    content: document.createTextNode(localize("files.importFolderButton", "Import Folder")),
     disabled: !support.supported,
     size: "sm",
-    title: localize("files.importFolderButton", "导入文件夹"),
+    title: localize("files.importFolderButton", "Import Folder"),
     variant: "primary",
   });
   importButton.addEventListener("click", onImportFiles);
@@ -76,13 +76,13 @@ const createDragEmptyView = (): HTMLDivElement => {
 
   const title = document.createElement("div");
   title.className = "file-list-drag-empty-title";
-  title.textContent = localize("files.dropFilesTitle", "释放以导入");
+  title.textContent = localize("files.dropFilesTitle", "Release to import");
 
   const description = document.createElement("div");
   description.className = "file-list-drag-empty-description";
   description.textContent = localize(
     "files.dropFilesDescription",
-    "支持拖入文件或文件夹",
+    "Drag files or folders here",
   );
 
   view.append(icon, title, description);

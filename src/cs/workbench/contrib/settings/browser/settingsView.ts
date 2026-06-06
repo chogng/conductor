@@ -174,7 +174,7 @@ export class SettingsView {
         },
         options: [
           { value: "system", label: localize("settings_language_system", "System") },
-          { value: "zh", label: localize("settings_language_zh", "中文") },
+          { value: "zh", label: localize("settings_language_zh", "Chinese") },
           { value: "en", label: localize("settings_language_en", "English") },
         ],
       })),

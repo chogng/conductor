@@ -23,7 +23,7 @@ export class FilesPaneHost extends ViewPane {
   constructor(props: FilesPaneProps) {
     super({
       id: FilesViewId,
-      title: localize("files.explorerSection", "资源管理器"),
+      title: localize("files.explorerSection", "Explorer"),
       className: "files-view-pane",
       bodyClassName: "workbench-part-view-pane__body",
       headerVisible: false,
@@ -63,13 +63,13 @@ export class FilesPaneHost extends ViewPane {
 
   private getSidebarOptions(props: FilesPaneProps) {
     return {
-      ariaLabel: localize("files.explorerSection", "资源管理器"),
+      ariaLabel: localize("files.explorerSection", "Explorer"),
       children: this.host,
       className: "files-sidebar_part",
       headerActions: this.createHeaderActions(props),
       onAction: (action: WorkbenchSidebarAction, anchor: HTMLElement) =>
         this.handleSidebarAction(action, anchor, props),
-      title: localize("files.explorerSection", "资源管理器"),
+      title: localize("files.explorerSection", "Explorer"),
     };
   }
 

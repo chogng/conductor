@@ -356,10 +356,10 @@ const clampZoomPercent = (value: number): number =>
 const getHeaderLabel = (mode: HeaderMode): string => {
   switch (mode) {
     case "file":
-      return localize("table.header.filename", "文件名");
+      return localize("table.header.filename", "File name");
     case "empty":
     default:
-      return localize("table.header.empty", "暂无预览");
+      return localize("table.header.empty", "No preview");
   }
 };
 

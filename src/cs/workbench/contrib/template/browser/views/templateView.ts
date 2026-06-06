@@ -557,9 +557,9 @@ export class TemplateView {
       new Separator(),
       createMenuAction({
         id: "template.create",
-        label: localize("template_create_new", "新建模板..."),
+        label: localize("template_create_new", "New Template..."),
         className: "template_picker_menu_create",
-        left: createMenuItemLabel(localize("template_create_new", "新建模板..."), LxIcon.add),
+        left: createMenuItemLabel(localize("template_create_new", "New Template..."), LxIcon.add),
         run: () => this.createTemplateDraft(),
         tabIndex: 0,
       }),

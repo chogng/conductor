@@ -110,7 +110,7 @@ const getFileItemMeta = (fileEntry: FileEntry): FileItemMeta | null => {
   const confidence = fileEntry?.curveTypeConfidence
     ? ` (${String(fileEntry.curveTypeConfidence).trim()})`
     : "";
-  const summary = localize("files.autoSummary", "自动识别：{curveType}{confidence}", {
+  const summary = localize("files.autoSummary", "Auto detected: {curveType}{confidence}", {
     curveType,
     confidence,
   });
@@ -392,7 +392,7 @@ export class ExplorerViewer implements IDisposable {
     delete host.dataset.expanded;
     host.setAttribute(
       "aria-label",
-      localize("import.fileItemAriaLabel", "import.fileItemAriaLabel", { fileName }),
+      localize("import.fileItemAriaLabel", "File {fileName}", { fileName }),
     );
     host.title = fileName;
     if (isSelected) {
@@ -433,7 +433,7 @@ export class ExplorerViewer implements IDisposable {
     );
     template.removeButton.setAttribute(
       "aria-label",
-      localize("import.removeFileButtonLabel", "import.removeFileButtonLabel", { fileName }),
+      localize("import.removeFileButtonLabel", "Remove {fileName}", { fileName }),
     );
     if (
       template.content.parentElement !== host ||
@@ -487,7 +487,7 @@ export class ExplorerViewer implements IDisposable {
 
     const countBadge = new CountBadge(controls, {
       count: 0,
-      titleFormat: localize("files.folderCount", "{0} 个文件"),
+      titleFormat: localize("files.folderCount", "{count} files"),
     });
 
     const actionsHost = document.createElement("div");
@@ -503,7 +503,7 @@ export class ExplorerViewer implements IDisposable {
     };
 
     const actionButton = createDropdownButton({
-      ariaLabel: localize("files.folderMoreActions", "更多操作"),
+      ariaLabel: localize("files.folderMoreActions", "More Actions"),
       className: "file-list-folder-more",
       closeOnContentEvent: "menuitemactionrun",
       label: "",
@@ -560,15 +560,15 @@ export class ExplorerViewer implements IDisposable {
     return [
       createMenuAction({
         id: "files.folder.remove",
-        label: localize("files.removeFolder", "移除"),
-        left: createMenuItemLabel(localize("files.removeFolder", "移除"), LxIcon.remove),
+        label: localize("files.removeFolder", "Remove"),
+        left: createMenuItemLabel(localize("files.removeFolder", "Remove"), LxIcon.remove),
         run: () => this.props.onRemoveFolder(node.key),
         tabIndex: 0,
       }),
       createMenuAction({
         id: "files.folder.create",
-        label: localize("files.createFolder", "新建文件夹"),
-        left: createMenuItemLabel(localize("files.createFolder", "新建文件夹"), LxIcon.add),
+        label: localize("files.createFolder", "New Folder"),
+        left: createMenuItemLabel(localize("files.createFolder", "New Folder"), LxIcon.add),
         run: () => this.props.onCreateFolder(node.key),
         tabIndex: 0,
       }),

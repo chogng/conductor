@@ -59,8 +59,8 @@ export class CountBadge extends Disposable {
 
   private render(): void {
     const countText = String(this.count);
-    this.element.textContent = this.countFormat.replaceAll("{0}", countText);
-    this.element.title = this.titleFormat.replaceAll("{0}", countText);
+    this.element.textContent = formatCount(this.countFormat, countText);
+    this.element.title = formatCount(this.titleFormat, countText);
     this.element.style.backgroundColor = this.styles.badgeBackground ?? "";
     this.element.style.color = this.styles.badgeForeground ?? "";
     this.element.style.border = this.styles.badgeBorder
@@ -68,3 +68,6 @@ export class CountBadge extends Disposable {
       : "";
   }
 }
+
+const formatCount = (format: string, countText: string): string =>
+  format.replaceAll("{count}", countText).replaceAll("{0}", countText);
