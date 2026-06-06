@@ -3,10 +3,18 @@
   width: 100%;
   min-width: 100%;
   max-width: inherit;
+  border: 1px solid rgb(var(--border) / 0.82);
+  border-radius: 8px;
   background-color: rgb(var(--bg-surface) / 0.98) !important;
   color: rgb(var(--text-primary) / 1);
   padding: 4px;
   backdrop-filter: blur(18px);
+}
+
+.context-view.fixed.ui-menu-container {
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: var(--shadow-menu);
 }
 
 .ui-menu__list {
@@ -167,6 +175,10 @@
 
 .dark .ui-menu {
   background-color: rgb(var(--bg-surface) / 0.94) !important;
+}
+
+.dark .context-view.fixed.ui-menu-container {
+  box-shadow: var(--shadow-menu);
 }
 
 .dark .ui-menu__separator {

@@ -48,6 +48,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
             getAnchor: () => anchor,
             getWidth: () => delegate.getMenuWidth?.(),
             render: container => {
+                container.classList.add("ui-menu-container");
                 const menu = this.renderMenu(delegate, actions);
                 container.append(menu.domNode);
                 this.menuDisposables.add(menu);

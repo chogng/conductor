@@ -1,11 +1,19 @@
 import { localize } from "src/cs/nls";
+import { createMenuAction } from "src/cs/base/browser/ui/menu/menu";
+import { LxIcon } from "src/cs/base/common/lxicon";
+import type { WorkbenchSidebarAction } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import {
   FilesPane,
   type FilesPaneProps,
 } from "src/cs/workbench/contrib/files/browser/filesPane";
-import { FilesViewId } from "src/cs/workbench/contrib/files/common/files";
+import {
+  ADD_FOLDER_ACTION_ID,
+  FilesViewId,
+  MORE_ACTIONS_ACTION_ID,
+  REMOVE_FOLDER_ACTION_ID,
+} from "src/cs/workbench/contrib/files/common/files";
 
 export class FilesPaneHost extends ViewPane {
   private readonly host: HTMLDivElement;
@@ -58,7 +66,61 @@ export class FilesPaneHost extends ViewPane {
       ariaLabel: localize("files.explorerSection", "资源管理器"),
       children: this.host,
       className: "files-sidebar_part",
+      headerActions: this.createHeaderActions(props),
+      onAction: (action: WorkbenchSidebarAction, anchor: HTMLElement) =>
+        this.handleSidebarAction(action, anchor, props),
       title: localize("files.explorerSection", "资源管理器"),
     };
   }
+
+  private createHeaderActions(_props: FilesPaneProps) {
+    return [
+      {
+        id: MORE_ACTIONS_ACTION_ID,
+        icon: LxIcon.moreHorizontal.render(),
+        kind: "icon" as const,
+        title: localize("files.moreActions", "More Actions"),
+      },
+    ];
+  }
+
+  private handleSidebarAction(
+    action: WorkbenchSidebarAction,
+    anchor: HTMLElement,
+    props: FilesPaneProps,
+  ): void {
+    if (action.id === MORE_ACTIONS_ACTION_ID) {
+      this.showMoreActions(anchor, props);
+    }
+  }
+
+  private showMoreActions(anchor: HTMLElement, props: FilesPaneProps): void {
+    const canRemoveFolder = hasFolder(props.files);
+    props.contextMenuService.showContextMenu({
+      autoSelectFirstItem: true,
+      getAnchor: () => anchor,
+      getActions: () => [
+        createMenuAction({
+          icon: LxIcon.add,
+          id: ADD_FOLDER_ACTION_ID,
+          label: localize("files.addFolder", "Add Folder"),
+          run: () => this.view.openFileDialog(),
+        }),
+        createMenuAction({
+          enabled: canRemoveFolder,
+          icon: LxIcon.remove,
+          id: REMOVE_FOLDER_ACTION_ID,
+          label: localize("files.removeFolder", "Remove Folder"),
+          run: () => this.view.removeSelectedFolder(),
+        }),
+      ],
+    });
+  }
+}
+
+function hasFolder(files: FilesPaneProps["files"]): boolean {
+  return Array.isArray(files) && files.some(file => {
+    const relativePath = String(file.relativePath ?? "");
+    return relativePath.includes("/");
+  });
 }

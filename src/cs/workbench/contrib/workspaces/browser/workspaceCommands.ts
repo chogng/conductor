@@ -6,13 +6,13 @@ import {
 import { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import { IFileService } from "src/cs/platform/files/common/files";
 import { IPathService } from "src/cs/workbench/services/path/common/pathService";
-import { IMPORT_FOLDER_COMMAND_ID } from "src/cs/workbench/contrib/files/common/files";
 import {
   canImportFolderWithFileService,
   pickImportFolder,
 } from "src/cs/workbench/contrib/files/browser/fileCommands";
+import { ADD_WORKSPACE_FOLDER_COMMAND_ID } from "src/cs/workbench/contrib/workspaces/common/workspaces";
 
-export const importFolderHandler: ICommandHandler<[], Promise<URI | null>> = async (accessor) => {
+export const addWorkspaceFolderHandler: ICommandHandler<[], Promise<URI | null>> = async (accessor) => {
   const filesService = accessor.get(IFileService);
   if (!canImportFolderWithFileService(filesService)) {
     return null;
@@ -25,6 +25,6 @@ export const importFolderHandler: ICommandHandler<[], Promise<URI | null>> = asy
 };
 
 CommandsRegistry.registerCommand({
-  id: IMPORT_FOLDER_COMMAND_ID,
-  handler: importFolderHandler,
+  id: ADD_WORKSPACE_FOLDER_COMMAND_ID,
+  handler: addWorkspaceFolderHandler,
 });

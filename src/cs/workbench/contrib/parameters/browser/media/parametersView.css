@@ -18,8 +18,86 @@
   min-height: 0px;
   min-width: 0px;
   flex: 1 1 0;
-  overflow: auto;
+  overflow: hidden;
   padding: 10px;
+}
+
+.parameters_table_layout {
+  display: flex;
+  height: 100%;
+  min-height: 0px;
+  min-width: 0px;
+  flex-direction: column;
+}
+
+.parameters_table_toolbar {
+  display: flex;
+  min-height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid rgb(var(--border) / 1);
+  padding: 0 0 8px;
+}
+
+.parameters_table_toolbar_title {
+  min-width: 0px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(var(--text-secondary) / 1);
+}
+
+.parameters_table_actionbar {
+  flex: 0 0 auto;
+}
+
+.parameters_table_actionbar .ui-actionbar__items {
+  gap: 2px;
+}
+
+.parameters_table_copy_action {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  padding: 0;
+  color: rgb(var(--text-secondary) / 1);
+  cursor: pointer;
+}
+
+.parameters_table_copy_action:hover {
+  background: rgb(var(--bg-surface-hover) / 0.72);
+  color: rgb(var(--text-primary) / 1);
+}
+
+.parameters_table_copy_action:focus-visible {
+  box-shadow: 0 0 0 2px rgb(var(--accent) / 0.16);
+  outline: none;
+}
+
+.parameters_table_copy_action_icon {
+  width: 16px;
+  height: 16px;
+}
+
+.parameters_clipboard_textarea {
+  position: fixed;
+  left: -10000px;
+  top: 0px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.parameters_table_scroll {
+  flex: 1 1 0;
+  min-height: 0px;
+  min-width: 0px;
+  overflow: auto;
+  padding-top: 8px;
 }
 
 .parameters_toolbar {

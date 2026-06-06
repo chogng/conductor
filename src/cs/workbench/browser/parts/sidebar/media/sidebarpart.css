@@ -37,6 +37,7 @@
 
 .workbench_sidebar_header_actions {
   display: flex;
+  margin-left: auto;
   align-items: center;
   gap: 4px;
 }
@@ -48,10 +49,6 @@
 .workbench_sidebar_header_btn,
 .workbench_sidebar_header_icon_btn {
   flex-shrink: 0;
-}
-
-.workbench_sidebar_header_icon_btn {
-  margin-left: auto;
 }
 
 .workbench_sidebar_header_icon_btn--active {

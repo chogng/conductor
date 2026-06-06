@@ -1,5 +1,6 @@
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
+import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { IFileService } from "src/cs/platform/files/common/files";
 import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import type { FileEntry, FilesPaneRef } from "src/cs/workbench/contrib/files/common/files";
@@ -14,6 +15,7 @@ import "src/cs/workbench/contrib/files/browser/views/media/filesPane.css";
 export type FilesPaneProps = {
   readonly analysisFileService: IAnalysisFileService;
   readonly commandService: ICommandService;
+  readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly filesService: IFileService;
   readonly filesPaneRef: { current: FilesPaneRef | null };
   readonly files?: FileEntry[];
@@ -80,6 +82,14 @@ export class FilesPane implements IDisposable {
       onFileSelected: nextProps.onFileSelected,
       selectedFileId: nextProps.selectedFileId,
     });
+  }
+
+  openFileDialog(): void {
+    this.controller.openFileDialog();
+  }
+
+  removeSelectedFolder(): void {
+    this.controller.removeSelectedFolder();
   }
 
   layout(height: number, width: number): void {

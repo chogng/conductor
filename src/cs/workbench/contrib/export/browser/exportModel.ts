@@ -17,7 +17,6 @@ export type ExportPaneState = {
 
 export const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
   { group: "basic", key: "iv", labelKey: "origin_export_content_iv" },
-  { group: "derived", key: "metrics", labelKey: "origin_export_content_metrics" },
   { group: "derived", key: "gm", labelKey: "origin_export_content_gm" },
   { group: "derived", key: "ss", labelKey: "origin_export_content_ss" },
   { group: "derived", key: "vth", labelKey: "origin_export_content_vth" },

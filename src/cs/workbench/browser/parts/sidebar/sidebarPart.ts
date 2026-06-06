@@ -54,6 +54,7 @@ export type WorkbenchSidebarPartState = {
 
 export type WorkbenchSidebarActionHandler = (
   action: WorkbenchSidebarAction,
+  anchor: HTMLElement,
 ) => void;
 
 export type SidebarPartOptions = WorkbenchSidebarPartState & {
@@ -284,7 +285,7 @@ const createSidebarAction = (
   button.type = "button";
   button.disabled = Boolean(action.isDisabled);
   button.title = action.title;
-  button.addEventListener("click", () => onAction?.(action));
+  button.addEventListener("click", () => onAction?.(action, button));
 
   if (kind === "icon") {
     button.className = getButtonClassName({
@@ -292,8 +293,8 @@ const createSidebarAction = (
         ? "workbench_sidebar_header_icon_btn workbench_sidebar_header_icon_btn--active"
         : "workbench_sidebar_header_icon_btn",
       disabled: action.isDisabled,
-      size: "iconSm",
-      variant: "ghost",
+      size: "icon",
+      variant: "icon",
     });
     button.setAttribute("aria-label", action.title);
     button.setAttribute("aria-pressed", action.isActive ? "true" : "false");

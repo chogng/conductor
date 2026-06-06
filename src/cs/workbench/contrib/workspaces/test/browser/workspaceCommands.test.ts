@@ -1,15 +1,18 @@
 import assert from "assert";
 
 import { URI } from "../../../../../base/common/uri.ts";
-import { IFileDialogService, type IOpenDialogOptions } from "../../../../../platform/dialogs/common/dialogs.ts";
+import {
+  IFileDialogService,
+  type IOpenDialogOptions,
+} from "../../../../../platform/dialogs/common/dialogs.ts";
 import { FileService } from "../../../../../platform/files/common/fileService.ts";
 import { IFileService } from "../../../../../platform/files/common/files.ts";
 import type { ServicesAccessor, ServiceIdentifier } from "../../../../../platform/instantiation/common/instantiation.ts";
 import { IPathService, type IPathService as IPathServiceType } from "../../../../../workbench/services/path/common/pathService.ts";
-import { importFolderHandler } from "../../browser/workspaceCommands.ts";
+import { addWorkspaceFolderHandler } from "../../browser/workspaceCommands.ts";
 
-suite("workbench/contrib/files/test/browser/workspaceCommands", () => {
-  test("import folder command returns the selected folder", async () => {
+suite("workbench/contrib/workspaces/test/browser/workspaceCommands", () => {
+  test("add workspace folder command returns the selected folder", async () => {
     const selectedFolder = URI.file("/data/import");
     const userHome = URI.file("/data");
     let openDialogDefaultUri: URI | undefined;
@@ -33,7 +36,7 @@ suite("workbench/contrib/files/test/browser/workspaceCommands", () => {
       }],
     ]);
 
-    const folder = await importFolderHandler(accessor);
+    const folder = await addWorkspaceFolderHandler(accessor);
 
     assert.equal(folder?.toString(), selectedFolder.toString());
     assert.equal(openDialogDefaultUri?.toString(), userHome.toString());

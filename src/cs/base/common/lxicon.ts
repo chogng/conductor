@@ -7,6 +7,7 @@ import {
   lxChevronDown as renderChevronDown,
   lxChevronRight as renderChevronRight,
   lxClose as renderClose,
+  lxCopy as renderCopy,
   lxCsvGreen as renderCsvGreen,
   lxDiagnostics as renderDiagnostics,
   lxDownload as renderDownload,
@@ -101,6 +102,8 @@ export const lxChevronRight = registerLxIcon("chevron-right", renderChevronRight
 
 export const lxClose = registerLxIcon("close", renderClose);
 
+export const lxCopy = registerLxIcon("copy", renderCopy);
+
 export const lxCsvGreen = registerLxIcon("csv-green", renderCsvGreen);
 
 export const lxXlsGreen = registerLxIcon("xls-green", renderXlsGreen);
@@ -147,6 +150,7 @@ export const LxIcon = {
   chevronDown: lxChevronDown,
   chevronRight: lxChevronRight,
   close: lxClose,
+  copy: lxCopy,
   csvGreen: lxCsvGreen,
   diagnostics: lxDiagnostics,
   download: lxDownload,
