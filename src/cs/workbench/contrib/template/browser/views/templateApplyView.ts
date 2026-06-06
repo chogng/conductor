@@ -116,7 +116,7 @@ export class TemplateApplyView {
     applyActions.className = "template_apply_actions";
 
     const applyAllButton = createButton({
-      label: localize("apply_template", "Apply Template"),
+      label: localize("apply_template", "Apply to All"),
       size: "md",
       variant: "primary",
     });
@@ -124,7 +124,7 @@ export class TemplateApplyView {
     applyAllButton.addEventListener("click", () => this.options.onApplyTemplate(false));
 
     const applyNewButton = createButton({
-      label: localize("apply_new_files", "Apply New Files"),
+      label: localize("apply_new_files", "Apply to New"),
       size: "md",
       variant: "secondary",
     });

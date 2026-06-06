@@ -1,5 +1,3 @@
-import "src/cs/workbench/workbench.desktop.main.ts";
-
 import { ipcRenderer } from "src/cs/base/parts/sandbox/electron-browser/globals";
 import { mainWindow } from "src/cs/base/browser/window";
 import {
@@ -332,6 +330,11 @@ const startMs = getBootNowMs();
 const isBootProfileEnabled = resolveBootProfileEnabled();
 const logBoot = createBootLogger("renderer", startMs, () => isBootProfileEnabled);
 
-prepareWorkbench(logBoot, isBootProfileEnabled);
-startWorkbench();
-startWorkbenchThemeContribution();
+const bootstrapWorkbench = async (): Promise<void> => {
+  prepareWorkbench(logBoot, isBootProfileEnabled);
+  await import("src/cs/workbench/workbench.desktop.main.ts");
+  startWorkbench();
+  startWorkbenchThemeContribution();
+};
+
+void bootstrapWorkbench();

@@ -24,12 +24,12 @@ import {
   normalizeWorkbenchAppearance,
   type WorkbenchAppearance,
 } from "src/cs/workbench/browser/appearance";
+import { reloadWindow } from "src/cs/workbench/browser/actions/windowActions";
 
 export type CoreSettingsControllerOptions = {
   language: LanguagePreference;
   setAppearance: (appearance: WorkbenchAppearance) => void;
   setIonIoffMethod: (method: IonIoffMethod) => void;
-  setLanguage: (language: LanguagePreference) => void;
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
   setSsMethod: (method: SsMethod) => void;
@@ -157,10 +157,9 @@ export class CoreSettingsController extends Disposable {
     if (!isLanguagePreference(nextLanguage)) return;
     if (this.options.language === nextLanguage) return;
 
-    this.options.setLanguage(nextLanguage);
-
     try {
       await this.handleUpdateAnalysisSettings({ language: nextLanguage });
+      reloadWorkbench();
     } catch {
       // Keep UI responsive even if persistence fails.
     }
@@ -204,11 +203,6 @@ export class CoreSettingsController extends Disposable {
   }
 
   private applySettings(settings: AnalysisSettings | null): void {
-    const nextLanguage = settings?.language;
-    if (isLanguagePreference(nextLanguage)) {
-      this.options.setLanguage(nextLanguage);
-    }
-
     const nextTheme = settings?.theme;
     if (nextTheme === "system" || nextTheme === "light" || nextTheme === "dark") {
       this.options.setTheme(nextTheme);
@@ -232,3 +226,15 @@ export class CoreSettingsController extends Disposable {
     }
   }
 }
+
+const reloadWorkbench = (): void => {
+  const conductor = window.conductor as
+    | { ipcRenderer?: { send?: (channel: string, ...args: unknown[]) => void } }
+    | undefined;
+  if (typeof conductor?.ipcRenderer?.send === "function") {
+    reloadWindow();
+    return;
+  }
+
+  window.location.reload();
+};

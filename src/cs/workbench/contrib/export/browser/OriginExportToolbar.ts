@@ -24,7 +24,7 @@ import type {
 export type OriginExportContentOption = {
   group: "basic" | "derived";
   key: OriginExportContentKey;
-  labelKey: string;
+  label: string;
 };
 
 export type OriginCurveExportSeriesOption = {
@@ -203,7 +203,7 @@ const createContentSelector = ({
   for (const option of options) {
     container.appendChild(createToggleButton({
       checked: selectedSet.has(option.key),
-      label: localize(option.labelKey, option.labelKey),
+      label: option.label,
       onClick: () => {
         setSelectedKeys((previous) => {
           const current = normalizeOriginExportContentKeysForOptions(previous, options);

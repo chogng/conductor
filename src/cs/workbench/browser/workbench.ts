@@ -24,11 +24,7 @@ import {
   isLanguagePreference,
   resolveLanguageCode,
 } from "src/cs/platform/language/common/language";
-import {
-  createNLSConfiguration,
-  localize,
-  setNLSConfiguration,
-} from "src/cs/nls";
+import { localize } from "src/cs/nls";
 import { getCalculatedData } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
@@ -196,10 +192,6 @@ export const createTitlebarState = (
         },
       }
     : undefined;
-
-const applyLanguage = (language: LanguageCode): void => {
-  setNLSConfiguration(createNLSConfiguration(language));
-};
 
 const getSystemLanguage = (): string | undefined =>
   typeof navigator === "undefined" ? undefined : navigator.language;
@@ -1044,7 +1036,6 @@ export class Workbench extends Layout {
       language: this.languagePreference,
       setAppearance: this.setAppearance,
       setIonIoffMethod: () => undefined,
-      setLanguage: this.setLanguage,
       setSsMethod: () => undefined,
       setSsShowFitLine: () => undefined,
       setTheme: this.setTheme,
@@ -1067,24 +1058,6 @@ export class Workbench extends Layout {
     root.append(title, description);
     return root;
   }
-
-  private readonly setLanguage = (preference: LanguagePreference): void => {
-    const language = resolveLanguageCode(preference, getSystemLanguage());
-    if (this.languagePreference === preference && this.language === language) {
-      return;
-    }
-
-    this.languagePreference = preference;
-    this.language = language;
-    window.__CONDUCTOR_INITIAL_LANGUAGE__ = language;
-    document.documentElement.setAttribute(
-      "lang",
-      language === "zh" ? "zh-CN" : "en",
-    );
-    applyLanguage(language);
-    this.coreSettingsController?.update(this.getCoreSettingsOptions());
-    this.renderWorkbench();
-  };
 
   private readonly setTheme = (theme: ThemeMode): void => {
     if (this.theme === theme) {

@@ -235,12 +235,37 @@ const inferOriginSuggestionKey = (
   return "origin_error_tip_manual_zip";
 };
 
+const localizeOriginSuggestion = (suggestionKey: string): string => {
+  switch (suggestionKey) {
+    case "origin_pick_exe_required":
+      return localize(suggestionKey, "Please select Origin executable path first.");
+    case "origin_error_tip_csv_runner_missing":
+      return localize(suggestionKey, "Origin CSV runner is missing. Reinstall or restore the worker files.");
+    case "origin_error_tip_csv_runner_check":
+      return localize(suggestionKey, "Origin CSV export failed. Check the runner environment and retry.");
+    case "origin_error_tip_install_python":
+      return localize(suggestionKey, "Install the required Python environment and pywin32 support for Origin.");
+    case "origin_error_tip_reselect_exe":
+      return localize(suggestionKey, "Origin executable was not found. Re-select the executable path.");
+    case "origin_error_tip_close_extra_origin":
+      return localize(suggestionKey, "Close extra Origin processes and try again.");
+    case "origin_error_tip_register_com":
+      return localize(suggestionKey, "Register Origin COM components, then relaunch Origin once.");
+    case "origin_error_tip_launch_once":
+      return localize(suggestionKey, "Launch Origin manually once before retrying the export.");
+    case "origin_error_tip_manual_zip":
+      return localize(suggestionKey, "Export the ZIP package instead, then import it manually in Origin.");
+    default:
+      return localize("unknownError", "Unknown error");
+  }
+};
+
 export const formatOriginBridgeError = (
   errorLike: unknown,
 ): ParsedOriginBridgeErrorWithMessage => {
   const detail = parseOriginBridgeError(errorLike);
   const suggestionKey = inferOriginSuggestionKey(detail);
-  const suggestionText = suggestionKey ? localize(suggestionKey, suggestionKey) : "";
+  const suggestionText = suggestionKey ? localizeOriginSuggestion(suggestionKey) : "";
 
   const message =
     detail.code === "ORIGIN_EXE_REQUIRED"

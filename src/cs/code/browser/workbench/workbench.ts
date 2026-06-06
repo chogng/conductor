@@ -1,5 +1,3 @@
-import "src/cs/workbench/workbench.web.main.ts";
-
 import { mainWindow } from "src/cs/base/browser/window";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
@@ -174,6 +172,11 @@ const startMs = getBootNowMs();
 const isBootProfileEnabled = resolveBootProfileEnabled();
 const logBoot = createBootLogger("browser", startMs, () => isBootProfileEnabled);
 
-startBrowserWorkbenchBoot(logBoot, isBootProfileEnabled);
-startWorkbench();
-startWorkbenchThemeContribution();
+const bootstrapWorkbench = async (): Promise<void> => {
+  startBrowserWorkbenchBoot(logBoot, isBootProfileEnabled);
+  await import("src/cs/workbench/workbench.web.main.ts");
+  startWorkbench();
+  startWorkbenchThemeContribution();
+};
+
+void bootstrapWorkbench();
