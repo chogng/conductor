@@ -2,32 +2,32 @@ import assert from "assert";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createAnalysisStorageMainService } from "../../../desktop-dist/src/cs/workbench/services/storage/electron-main/analysisStorageMainService.js";
+import { createStorageMainService } from "../../../desktop-dist/src/cs/workbench/services/storage/electron-main/storageMainService.js";
 
 const readJson = (filePath) => JSON.parse(fs.readFileSync(filePath, "utf8"));
 
 test("analysis storage service preserves settings defaults without eagerly writing config", () => {
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "analysis-storage-"));
-  const service = createAnalysisStorageMainService({ getHomeDir: () => homeDir });
+  const service = createStorageMainService({ getHomeDir: () => homeDir });
 
-  const settings = service.getAnalysisSettings();
+  const settings = service.getConductorSettings();
   assert.equal(settings.theme, "system");
   assert.equal(fs.existsSync(path.join(homeDir, "config.json")), false);
 
-  service.patchAnalysisSettings({ theme: "dark" });
+  service.patchConductorSettings({ theme: "dark" });
   assert.equal(readJson(path.join(homeDir, "config.json")).theme, "dark");
 });
 
 test("analysis storage service creates templates and migrates configured paths", () => {
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "analysis-storage-"));
-  const service = createAnalysisStorageMainService({ getHomeDir: () => homeDir });
+  const service = createStorageMainService({ getHomeDir: () => homeDir });
 
-  const saved = service.upsertAnalysisTemplate({
+  const saved = service.upsertTemplate({
     name: "Default",
     selectedColumns: [1, "2", "x"],
   });
   assert.equal(saved.name, "Default");
-  assert.deepEqual(service.getAnalysisTemplates().map((template) => template.name), [
+  assert.deepEqual(service.getTemplates().map((template) => template.name), [
     "Default",
   ]);
 

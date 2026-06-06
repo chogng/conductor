@@ -1,4 +1,4 @@
-﻿type OriginPlotOptions = {
+type OriginPlotOptions = {
   plotType: number;
   xyPairs: string;
   plotCommand: string;
@@ -9,7 +9,7 @@
 
 type JsonRecord = Record<string, unknown>;
 
-type AnalysisPlotAxisSettings = {
+type PlotAxisSettings = {
   xMin: string;
   xMax: string;
   xTicks: "auto" | "nice" | "step";
@@ -30,12 +30,11 @@ type AnalysisPlotAxisSettings = {
   minorTickCount: string | number;
   tickLabelFontSize: string | number;
   axisTitleFontSize: string | number;
-  legendFontSize: string | number;
   originTickLabelOffset: string;
   originAxisTitleGap: string;
 };
 
-type AnalysisSettings = JsonRecord & {
+type ConductorSettings = JsonRecord & {
   defaultTemplate: unknown | null;
   lastTemplateId: unknown | null;
   theme: string;
@@ -69,10 +68,10 @@ type AnalysisSettings = JsonRecord & {
   originRuntimeCleanupEnabled: boolean;
   originRuntimeKeepSuccessJobs: number;
   originRuntimeFailedRetentionDays: number;
-  analysisPlotAxisSettings: AnalysisPlotAxisSettings;
+  plotAxisSettings: PlotAxisSettings;
 };
 
-type AnalysisTemplate = JsonRecord & {
+type StoredTemplate = JsonRecord & {
   id?: unknown;
   xSegmentationMode: string;
   xPoints: string;
@@ -80,8 +79,8 @@ type AnalysisTemplate = JsonRecord & {
   selectedColumns: number[];
 };
 
-type AnalysisStoreData = {
-  templates: AnalysisTemplate[];
+type StoreData = {
+  templates: StoredTemplate[];
 };
 
 const isRecord = (value: unknown): value is JsonRecord =>
@@ -241,7 +240,7 @@ const X_SEGMENTATION_MODES = new Set([
   "segments",
 ]);
 
-export const DEFAULT_SETTINGS: AnalysisSettings = {
+export const DEFAULT_SETTINGS: ConductorSettings = {
   defaultTemplate: null,
   lastTemplateId: null,
   theme: "system",
@@ -275,7 +274,7 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
   originRuntimeCleanupEnabled: true,
   originRuntimeKeepSuccessJobs: 1,
   originRuntimeFailedRetentionDays: 7,
-  analysisPlotAxisSettings: {
+  plotAxisSettings: {
     xMin: "",
     xMax: "",
     xTicks: "auto",
@@ -296,7 +295,6 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
     minorTickCount: "",
     tickLabelFontSize: "",
     axisTitleFontSize: "",
-    legendFontSize: "",
     originTickLabelOffset: "",
     originAxisTitleGap: "",
   },
@@ -309,10 +307,9 @@ const STARTUP_DEFAULTS = {
   defaultYScaleForCv: DEFAULT_SETTINGS.defaultYScaleForCv,
   defaultYScaleForPv: DEFAULT_SETTINGS.defaultYScaleForPv,
   defaultYScaleForSpecial: DEFAULT_SETTINGS.defaultYScaleForSpecial,
-  analysisPlotAxisSettings: {
-    tickLabelFontSize: DEFAULT_SETTINGS.analysisPlotAxisSettings.tickLabelFontSize,
-    axisTitleFontSize: DEFAULT_SETTINGS.analysisPlotAxisSettings.axisTitleFontSize,
-    legendFontSize: DEFAULT_SETTINGS.analysisPlotAxisSettings.legendFontSize,
+  plotAxisSettings: {
+    tickLabelFontSize: DEFAULT_SETTINGS.plotAxisSettings.tickLabelFontSize,
+    axisTitleFontSize: DEFAULT_SETTINGS.plotAxisSettings.axisTitleFontSize,
   },
 };
 
@@ -378,8 +375,8 @@ function normalizeIntegerText(value: unknown, min: number, max: number): string 
 
 function normalizePlotAxisSettings(
   value: unknown,
-  fallback: AnalysisPlotAxisSettings = DEFAULT_SETTINGS.analysisPlotAxisSettings,
-): AnalysisPlotAxisSettings {
+  fallback: PlotAxisSettings = DEFAULT_SETTINGS.plotAxisSettings,
+): PlotAxisSettings {
   const raw = isRecord(value) ? value : {};
   const yScale = raw.yScale === "log" || raw.yScale === "logAbs" ? raw.yScale : fallback.yScale;
   const xTicks = raw.xTicks === "nice" || raw.xTicks === "step" ? raw.xTicks : "auto";
@@ -427,12 +424,6 @@ function normalizePlotAxisSettings(
     axisTitleFontSize: normalizeOptionalRoundedBoundedInt(
       raw.axisTitleFontSize,
       fallback.axisTitleFontSize,
-      1,
-      96,
-    ),
-    legendFontSize: normalizeOptionalRoundedBoundedInt(
-      raw.legendFontSize,
-      fallback.legendFontSize,
       1,
       96,
     ),
@@ -497,10 +488,10 @@ function normalizeXSegmentationMode(mode: unknown): string {
   return "auto";
 }
 
-const isAnalysisTemplate = (value: AnalysisTemplate | null): value is AnalysisTemplate =>
+const isStoredTemplate = (value: StoredTemplate | null): value is StoredTemplate =>
   value !== null;
 
-export function normalizeAnalysisTemplate(template: unknown): AnalysisTemplate | null {
+export function normalizeStoredTemplate(template: unknown): StoredTemplate | null {
   if (!isRecord(template)) return null;
 
   return {
@@ -516,12 +507,12 @@ export function normalizeAnalysisTemplate(template: unknown): AnalysisTemplate |
   };
 }
 
-export function normalizeAnalysisTemplates(templates: unknown): AnalysisTemplate[] {
+export function normalizeStoredTemplates(templates: unknown): StoredTemplate[] {
   if (!Array.isArray(templates)) return [];
 
   return templates
-    .map((template) => normalizeAnalysisTemplate(template))
-    .filter(isAnalysisTemplate)
+    .map((template) => normalizeStoredTemplate(template))
+    .filter(isStoredTemplate)
     .map((template, index) => ({
       ...template,
       id: template.id || `tpl_local_${index}_${Date.now()}`,
@@ -532,20 +523,20 @@ export function toTemplateNameKey(name: unknown): string {
   return String(name || "").trim().toLowerCase();
 }
 
-export function buildDefaultStoreData(): AnalysisStoreData {
+export function buildDefaultStoreData(): StoreData {
   return {
     templates: [],
   };
 }
 
-export function normalizeStoreData(raw: unknown): AnalysisStoreData {
+export function normalizeStoreData(raw: unknown): StoreData {
   const next = isRecord(raw) ? raw : {};
   return {
-    templates: normalizeAnalysisTemplates(next.templates),
+    templates: normalizeStoredTemplates(next.templates),
   };
 }
 
-export function normalizeAnalysisSettings(raw: unknown): AnalysisSettings {
+export function normalizeConductorSettings(raw: unknown): ConductorSettings {
   const next = isRecord(raw) ? { ...raw } : {};
 
   const ssMethodDefault = isSetValue(SS_METHODS, next.ssMethodDefault)
@@ -615,6 +606,9 @@ export function normalizeAnalysisSettings(raw: unknown): AnalysisSettings {
     legendFontSize: DEFAULT_SETTINGS.originPlotLegendFontSizeDefault,
     xyPairs: DEFAULT_SETTINGS.originPlotXyPairsDefault,
   });
+  const plotAxisSettings = normalizePlotAxisSettings(
+    next.plotAxisSettings,
+  );
   const originPlotSettings = normalizeOriginPlotOptions(
     {
       plotCommand: next.originPlotCommandDefault,
@@ -642,10 +636,6 @@ export function normalizeAnalysisSettings(raw: unknown): AnalysisSettings {
     1,
     365,
   );
-  const analysisPlotAxisSettings = normalizePlotAxisSettings(
-    next.analysisPlotAxisSettings,
-  );
-
   return {
     ...DEFAULT_SETTINGS,
     ...next,
@@ -676,22 +666,22 @@ export function normalizeAnalysisSettings(raw: unknown): AnalysisSettings {
     originRuntimeCleanupEnabled,
     originRuntimeKeepSuccessJobs,
     originRuntimeFailedRetentionDays,
-    analysisPlotAxisSettings,
+    plotAxisSettings,
   };
 }
 
-export function cloneAnalysisSettings(settings: unknown): AnalysisSettings {
-  return normalizeAnalysisSettings(settings);
+export function cloneConductorSettings(settings: unknown): ConductorSettings {
+  return normalizeConductorSettings(settings);
 }
 
-export function applyStartupAnalysisDefaults(settings: unknown): AnalysisSettings {
-  const normalized = normalizeAnalysisSettings(settings);
-  return normalizeAnalysisSettings({
+export function applyStartupConductorDefaults(settings: unknown): ConductorSettings {
+  const normalized = normalizeConductorSettings(settings);
+  return normalizeConductorSettings({
     ...normalized,
     ...STARTUP_DEFAULTS,
-    analysisPlotAxisSettings: {
-      ...normalized.analysisPlotAxisSettings,
-      ...STARTUP_DEFAULTS.analysisPlotAxisSettings,
+    plotAxisSettings: {
+      ...normalized.plotAxisSettings,
+      ...STARTUP_DEFAULTS.plotAxisSettings,
     },
   });
 }

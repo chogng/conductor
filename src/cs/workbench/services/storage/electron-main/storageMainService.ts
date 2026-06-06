@@ -1,7 +1,7 @@
 // @ts-nocheck
 import type {
-  AnalysisStoreOptions,
-  IAnalysisStorageService,
+  StoreOptions,
+  IStorageService,
 } from "../common/storage.js";
 import { createConfigurableJsonStorage } from "../../../../platform/storage/electron-main/configurableJsonStorage.js";
 import { createJsonStorageDocument } from "../../../../platform/storage/electron-main/jsonStorageDocument.js";
@@ -11,18 +11,18 @@ import {
   STORE_CONFIG_FILENAME,
   TEMPLATE_FILENAME,
   DEFAULT_SETTINGS,
-  applyStartupAnalysisDefaults,
+  applyStartupConductorDefaults,
   buildDefaultStoreData,
-  cloneAnalysisSettings,
-  normalizeAnalysisSettings,
-  normalizeAnalysisTemplate,
-  normalizeAnalysisTemplates,
+  cloneConductorSettings,
+  normalizeConductorSettings,
+  normalizeStoredTemplate,
+  normalizeStoredTemplates,
   normalizeStoreData,
   toTemplateNameKey,
 } from "../common/schema.js";
-export function createAnalysisStorageMainService(
-  options: AnalysisStoreOptions,
-): IAnalysisStorageService {
+export function createStorageMainService(
+  options: StoreOptions,
+): IStorageService {
   const input = options && typeof options === "object" ? options : {};
   const getHomeDir =
     typeof input.getHomeDir === "function" ? input.getHomeDir : null;
@@ -49,10 +49,10 @@ export function createAnalysisStorageMainService(
 
   const settingsDocument = createJsonStorageDocument({
     getPath: getStorePath,
-    getDefaultValue: () => normalizeAnalysisSettings(DEFAULT_SETTINGS),
-    readNormalize: applyStartupAnalysisDefaults,
-    writeNormalize: normalizeAnalysisSettings,
-    clone: cloneAnalysisSettings,
+    getDefaultValue: () => normalizeConductorSettings(DEFAULT_SETTINGS),
+    readNormalize: applyStartupConductorDefaults,
+    writeNormalize: normalizeConductorSettings,
+    clone: cloneConductorSettings,
   });
 
   function clearStoreCache() {
@@ -63,7 +63,7 @@ export function createAnalysisStorageMainService(
     settingsDocument.clear();
   }
 
-  function getStorePersistenceInfo() {
+  function getPersistenceInfo() {
     return storage.getPersistenceInfo();
   }
 
@@ -91,28 +91,28 @@ export function createAnalysisStorageMainService(
     return settingsDocument.write(nextSettings);
   }
 
-  function getAnalysisSettings() {
+  function getConductorSettings() {
     const direct = tryReadSettingsFile();
     if (direct) return direct;
     return settingsDocument.readDefault();
   }
 
-  function patchAnalysisSettings(updates) {
+  function patchConductorSettings(updates) {
     const patch = updates && typeof updates === "object" ? updates : {};
-    const nextSettings = normalizeAnalysisSettings({
-      ...getAnalysisSettings(),
+    const nextSettings = normalizeConductorSettings({
+      ...getConductorSettings(),
       ...patch,
     });
     writeSettings(nextSettings);
     return nextSettings;
   }
 
-  function getAnalysisTemplates() {
+  function getTemplates() {
     return readStore().templates;
   }
 
-  function upsertAnalysisTemplate(payload) {
-    const input = normalizeAnalysisTemplate(payload);
+  function upsertTemplate(payload) {
+    const input = normalizeStoredTemplate(payload);
     if (!input) throw new Error("Invalid template payload.");
 
     const inputNameKey = toTemplateNameKey(input.name);
@@ -135,7 +135,7 @@ export function createAnalysisStorageMainService(
       id: existingMatch?.id || input.id || `tpl_${Date.now()}`,
     };
     const savedId = String(saved.id || "");
-    store.templates = normalizeAnalysisTemplates([
+    store.templates = normalizeStoredTemplates([
       saved,
       ...existingTemplates.filter((tpl) => {
         const nameKey = toTemplateNameKey(tpl?.name);
@@ -147,7 +147,7 @@ export function createAnalysisStorageMainService(
     return saved;
   }
 
-  function deleteAnalysisTemplate(id) {
+  function deleteTemplate(id) {
     const templateId = String(id || "").trim();
     if (!templateId) throw new Error("Invalid template id.");
 
@@ -161,7 +161,7 @@ export function createAnalysisStorageMainService(
     const info = storage.setCustomPath(
       typeof nextPath === "string" ? nextPath : null,
       [{ fileName: TEMPLATE_FILENAME, label: "template" }],
-      "device-analysis-settings",
+      "settings",
     );
     clearStoreCache();
     clearSettingsCache();
@@ -170,12 +170,12 @@ export function createAnalysisStorageMainService(
 
   return {
     getHomeDir,
-    getStorePersistenceInfo,
-    getAnalysisSettings,
-    patchAnalysisSettings,
-    getAnalysisTemplates,
-    upsertAnalysisTemplate,
-    deleteAnalysisTemplate,
+    getPersistenceInfo,
+    getConductorSettings,
+    patchConductorSettings,
+    getTemplates,
+    upsertTemplate,
+    deleteTemplate,
     setPersistencePath,
   };
 }

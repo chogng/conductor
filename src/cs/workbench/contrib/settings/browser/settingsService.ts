@@ -1,6 +1,6 @@
 import { localize } from "src/cs/nls";
 import { formatOriginBridgeError } from "src/cs/workbench/contrib/origin/common/originBridgeError";
-import { analysisStoreClient } from "src/cs/workbench/services/storage/electron-sandbox/analysisStoreClient";
+import { storeClient } from "src/cs/workbench/services/storage/electron-sandbox/storeClient";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
   getDesktopOriginBridge,
@@ -8,7 +8,7 @@ import {
   getOriginExePathWithTimeout,
   normalizeTrimmedString,
   toPersistencePathInfo,
-  type AnalysisSettings,
+  type ConductorSettings,
   type OriginCleanupResult,
   type OriginHealthResult,
   type PersistencePathInfo,
@@ -20,9 +20,9 @@ import {
 } from "src/cs/workbench/contrib/settings/common/settings";
 
 const defaultOptions: SettingsServiceOptions = {
-  handleUpdateAnalysisSettings: async () => null,
+  updateConductorSettings: async () => null,
   isWindowsDesktopShell: false,
-  mergeAnalysisSettings: () => {},
+  mergeConductorSettings: () => {},
 };
 
 export class BrowserSettingsService implements ISettingsServiceType {
@@ -49,11 +49,11 @@ export class BrowserSettingsService implements ISettingsServiceType {
   }
 
   public async getPersistencePath(): Promise<PersistencePathInfo | null> {
-    return toPersistencePathInfo(await analysisStoreClient.getAnalysisPersistencePath());
+    return toPersistencePathInfo(await storeClient.getPersistencePath());
   }
 
   public async choosePersistencePath(): Promise<PersistencePathInfo | null> {
-    return toPersistencePathInfo(await analysisStoreClient.chooseAnalysisPersistencePath());
+    return toPersistencePathInfo(await storeClient.choosePersistencePath());
   }
 
   public async getOriginExePath(): Promise<string> {
@@ -73,7 +73,7 @@ export class BrowserSettingsService implements ISettingsServiceType {
 
     const nextPath = normalizeTrimmedString(await bridge.pickOriginExePath());
     if (nextPath) {
-      this.options.mergeAnalysisSettings({ originExePath: nextPath });
+      this.options.mergeConductorSettings({ originExePath: nextPath });
     }
     return nextPath;
   }
@@ -87,7 +87,7 @@ export class BrowserSettingsService implements ISettingsServiceType {
     const result = await bridge.checkOriginHealth({ path: path || undefined });
     const nextPath = normalizeTrimmedString(result?.originExePath);
     if (nextPath) {
-      this.options.mergeAnalysisSettings({ originExePath: nextPath });
+      this.options.mergeConductorSettings({ originExePath: nextPath });
     }
     return result;
   }
@@ -101,8 +101,8 @@ export class BrowserSettingsService implements ISettingsServiceType {
     return bridge.runOriginRuntimeCleanup();
   }
 
-  public async updateSettings(updates: unknown): Promise<AnalysisSettings | null> {
-    return this.options.handleUpdateAnalysisSettings(updates);
+  public async updateSettings(updates: unknown): Promise<ConductorSettings | null> {
+    return this.options.updateConductorSettings(updates);
   }
 
   public formatOriginError(error: unknown): string {

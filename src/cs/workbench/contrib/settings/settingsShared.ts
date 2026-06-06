@@ -1,4 +1,4 @@
-﻿import { localize } from "src/cs/nls";
+import { localize } from "src/cs/nls";
 import type { LanguagePreference } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type { Feedback } from "src/cs/workbench/contrib/settings/common/feedback";
@@ -9,7 +9,7 @@ import type {
 } from "src/cs/workbench/contrib/session/browser/sessionContext";
 import { originService } from "src/cs/workbench/services/origin/browser/originService";
 
-export type AnalysisSettings = {
+export type ConductorSettings = {
   backgroundColor?: string;
   fileNameFieldSeparators?: string;
   language?: LanguagePreference;
@@ -28,6 +28,7 @@ export type AnalysisSettings = {
   originPlotTypeDefault?: number;
   originPlotXyPairsDefault?: string;
   originPlotLineWidthDefault?: number;
+  originPlotLegendFontSizeDefault?: number | "";
   originRuntimeCleanupEnabled?: boolean;
   originRuntimeFailedRetentionDays?: number;
   originRuntimeKeepSuccessJobs?: number;
@@ -46,7 +47,7 @@ export type AnalysisSettings = {
   defaultYScaleForPv?: "linear" | "log";
   defaultYScaleForSpecial?: "linear" | "log";
   defaultYScaleForTransfer?: "linear" | "log";
-  analysisPlotAxisSettings?: Record<string, unknown>;
+  plotAxisSettings?: Record<string, unknown>;
   yUnitByFileId?: Record<
     string,
     "A" | "mA" | "uA" | "nA" | "pA" | "F" | "mF" | "uF" | "nF" | "pF"
@@ -83,7 +84,7 @@ export type OriginBridge = {
 
 declare global {
   interface Window {
-    __CONDUCTOR_INITIAL_ANALYSIS_SETTINGS__?: Record<string, unknown> | null;
+    __CONDUCTOR_INITIAL_SETTINGS__?: Record<string, unknown> | null;
   }
 }
 
@@ -105,21 +106,21 @@ export const isObjectRecord = (
 ): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object";
 
-export const toAnalysisSettings = (
+export const toConductorSettings = (
   value: unknown,
-): AnalysisSettings | null => (isObjectRecord(value) ? value : null);
+): ConductorSettings | null => (isObjectRecord(value) ? value : null);
 
 export const toPersistencePathInfo = (
   value: unknown,
 ): PersistencePathInfo | null => (isObjectRecord(value) ? value : null);
 
 export const getInitialSettingsSnapshot =
-  (): AnalysisSettings | null => {
+  (): ConductorSettings | null => {
     if (typeof window === "undefined") return null;
 
-    const settings = window.__CONDUCTOR_INITIAL_ANALYSIS_SETTINGS__;
+    const settings = window.__CONDUCTOR_INITIAL_SETTINGS__;
     return isObjectRecord(settings)
-      ? (settings as AnalysisSettings)
+      ? (settings as ConductorSettings)
       : null;
   };
 

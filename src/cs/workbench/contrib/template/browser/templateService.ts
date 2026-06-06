@@ -9,7 +9,7 @@ import {
 } from "src/cs/workbench/contrib/template/common/template";
 import { filterUserTemplateRecords } from "src/cs/workbench/contrib/template/common/templateRecords";
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
-import { analysisStoreClient } from "src/cs/workbench/services/storage/electron-sandbox/analysisStoreClient";
+import { storeClient } from "src/cs/workbench/services/storage/electron-sandbox/storeClient";
 
 export class BrowserTemplateService implements ITemplateService {
   public declare readonly _serviceBrand: undefined;
@@ -19,16 +19,16 @@ export class BrowserTemplateService implements ITemplateService {
   }
 
   async getTemplates(): Promise<TemplateRecord[]> {
-    const remote = await analysisStoreClient.getAnalysisTemplates();
+    const remote = await storeClient.getTemplates();
     return filterUserTemplateRecords(remote) as TemplateRecord[];
   }
 
   async deleteTemplate(id: string): Promise<void> {
-    await analysisStoreClient.deleteAnalysisTemplate(id);
+    await storeClient.deleteTemplate(id);
   }
 
   async saveTemplate(template: TemplateConfig): Promise<TemplateRecord> {
-    const saved = await analysisStoreClient.createAnalysisTemplate({
+    const saved = await storeClient.createTemplate({
       ...template,
     });
     return isTemplateRecord(saved) ? saved : template;

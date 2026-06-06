@@ -1,24 +1,23 @@
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 
 const REQUIRED_STORE_METHODS = [
-  "getAnalysisTemplates",
-  "createAnalysisTemplate",
-  "deleteAnalysisTemplate",
-  "getAnalysisSettings",
-  "updateAnalysisSettings",
-  "getAnalysisPersistencePath",
-  "updateAnalysisPersistencePath",
-  "chooseAnalysisPersistencePath",
+  "getTemplates",
+  "createTemplate",
+  "deleteTemplate",
+  "getConductorSettings",
+  "updateConductorSettings",
+  "getPersistencePath",
+  "updatePersistencePath",
+  "choosePersistencePath",
 ] as const;
 
-type AnalysisStoreMethod = (typeof REQUIRED_STORE_METHODS)[number];
+type StoreMethod = (typeof REQUIRED_STORE_METHODS)[number];
 
 type JsonRecord = Record<string, unknown>;
 type PersistencePathInfo = JsonRecord & { isConfigurable?: boolean };
-export type AnalysisDesktopStore = {
+export type DesktopStore = {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
 };
-export type DesktopStore = AnalysisDesktopStore;
 
 export const DESKTOP_STORE_UNAVAILABLE =
   "Desktop store bridge unavailable.";
@@ -42,18 +41,18 @@ const parseJsonBody = (body: unknown): JsonRecord | null => {
   }
 };
 
-export const getDesktopStore = (): AnalysisDesktopStore | null => {
+export const getDesktopStore = (): DesktopStore | null => {
   if (typeof window === "undefined") return null;
 
-  const ipcRenderer = window.conductor?.ipcRenderer as AnalysisDesktopStore | undefined;
+  const ipcRenderer = window.conductor?.ipcRenderer as DesktopStore | undefined;
   if (!ipcRenderer || typeof ipcRenderer.invoke !== "function") return null;
 
   return ipcRenderer;
 };
 
 export const getDesktopStoreMethod = (
-  ipcRenderer: AnalysisDesktopStore,
-  method: AnalysisStoreMethod,
+  ipcRenderer: DesktopStore,
+  method: StoreMethod,
 ): ((...args: unknown[]) => unknown) => {
   const channel = resolveStoreChannel(method);
   return (...args: unknown[]) => {
@@ -66,24 +65,24 @@ export const getDesktopStoreMethod = (
 };
 
 function resolveStoreChannel(
-  method: AnalysisStoreMethod,
+  method: StoreMethod,
 ): { name: string; wrapPath?: boolean } {
   switch (method) {
-    case "getAnalysisTemplates":
+    case "getTemplates":
       return { name: workbenchIpcChannels.templatesGet };
-    case "createAnalysisTemplate":
+    case "createTemplate":
       return { name: workbenchIpcChannels.templatesCreate };
-    case "deleteAnalysisTemplate":
+    case "deleteTemplate":
       return { name: workbenchIpcChannels.templatesDelete };
-    case "getAnalysisSettings":
+    case "getConductorSettings":
       return { name: workbenchIpcChannels.settingsGet };
-    case "updateAnalysisSettings":
+    case "updateConductorSettings":
       return { name: workbenchIpcChannels.settingsPatch };
-    case "getAnalysisPersistencePath":
+    case "getPersistencePath":
       return { name: workbenchIpcChannels.persistencePathGet };
-    case "updateAnalysisPersistencePath":
+    case "updatePersistencePath":
       return { name: workbenchIpcChannels.persistencePathSet, wrapPath: true };
-    case "chooseAnalysisPersistencePath":
+    case "choosePersistencePath":
       return { name: workbenchIpcChannels.persistencePathChoose };
   }
 
@@ -95,103 +94,100 @@ const normalizePersistencePathInfo = (info: unknown): PersistencePathInfo => ({
   isConfigurable: true,
 });
 
-export const requestAnalysisDesktopStore = async (
+export const requestDesktopStore = async (
   endpoint: string,
   options: RequestInit = {},
 ): Promise<unknown> => {
   const method = String(options.method || "GET").toUpperCase();
-  const isAnalysisEndpoint = (name: string) =>
-    endpoint === `/analysis/${name}`;
-  const isAnalysisTemplateItemEndpoint =
-    endpoint.startsWith("/analysis/templates/");
+  const isStoreEndpoint = (name: string) => endpoint === `/${name}`;
+  const isTemplateItemEndpoint =
+    endpoint.startsWith("/templates/");
 
   const store = getDesktopStore();
   if (!store) {
-    if (isAnalysisEndpoint("templates") && method === "GET") {
+    if (isStoreEndpoint("templates") && method === "GET") {
       return [];
     }
 
-    if (isAnalysisEndpoint("settings") && method === "GET") {
+    if (isStoreEndpoint("settings") && method === "GET") {
       return {};
     }
 
-    if (isAnalysisEndpoint("persistence-path") && method === "GET") {
+    if (isStoreEndpoint("persistence-path") && method === "GET") {
       return { isConfigurable: false };
     }
 
     throw new Error(DESKTOP_STORE_UNAVAILABLE);
   }
 
-  if (isAnalysisEndpoint("templates") && method === "GET") {
+  if (isStoreEndpoint("templates") && method === "GET") {
     return getDesktopStoreMethod(
       store,
-      "getAnalysisTemplates",
+      "getTemplates",
     )();
   }
 
-  if (isAnalysisEndpoint("templates") && method === "POST") {
+  if (isStoreEndpoint("templates") && method === "POST") {
     return getDesktopStoreMethod(
       store,
-      "createAnalysisTemplate",
+      "createTemplate",
     )(
       parseJsonBody(options.body) || {},
     );
   }
 
-  if (isAnalysisTemplateItemEndpoint && method === "DELETE") {
-    const id = endpoint.split("/")[3];
+  if (isTemplateItemEndpoint && method === "DELETE") {
+    const id = endpoint.split("/")[2];
     return getDesktopStoreMethod(
       store,
-      "deleteAnalysisTemplate",
+      "deleteTemplate",
     )(id);
   }
 
-  if (isAnalysisEndpoint("settings") && method === "GET") {
+  if (isStoreEndpoint("settings") && method === "GET") {
     return getDesktopStoreMethod(
       store,
-      "getAnalysisSettings",
+      "getConductorSettings",
     )();
   }
 
-  if (isAnalysisEndpoint("settings") && method === "PATCH") {
+  if (isStoreEndpoint("settings") && method === "PATCH") {
     return getDesktopStoreMethod(
       store,
-      "updateAnalysisSettings",
+      "updateConductorSettings",
     )(
       parseJsonBody(options.body) || {},
     );
   }
 
-  if (isAnalysisEndpoint("persistence-path") && method === "GET") {
+  if (isStoreEndpoint("persistence-path") && method === "GET") {
     const info = await getDesktopStoreMethod(
       store,
-      "getAnalysisPersistencePath",
+      "getPersistencePath",
     )();
     return normalizePersistencePathInfo(info);
   }
 
-  if (isAnalysisEndpoint("persistence-path") && method === "PATCH") {
+  if (isStoreEndpoint("persistence-path") && method === "PATCH") {
     const payload = parseJsonBody(options.body) || {};
     const path = typeof payload.path === "string" ? payload.path : "";
     const info = await getDesktopStoreMethod(
       store,
-      "updateAnalysisPersistencePath",
+      "updatePersistencePath",
     )(path);
     return normalizePersistencePathInfo(info);
   }
 
   if (
-    endpoint === "/analysis/persistence-path/choose" &&
+    endpoint === "/persistence-path/choose" &&
     method === "POST"
   ) {
     const info = await getDesktopStoreMethod(
       store,
-      "chooseAnalysisPersistencePath",
+      "choosePersistencePath",
     )();
     return normalizePersistencePathInfo(info);
   }
 
   throw new Error(`Desktop store endpoint not implemented: ${method} ${endpoint}`);
 };
-
-export const requestDesktopStore = requestAnalysisDesktopStore;

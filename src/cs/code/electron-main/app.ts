@@ -21,7 +21,7 @@ import {
   getCurrentBootThemeSnapshot,
 } from "../../platform/windows/electron-main/windowImpl.js";
 import { defaultBrowserWindowOptions } from "../../platform/windows/electron-main/windows.js";
-import { createAnalysisStorageMainService } from "../../workbench/services/storage/electron-main/analysisStorageMainService.js";
+import { createStorageMainService } from "../../workbench/services/storage/electron-main/storageMainService.js";
 import {
   assertOriginExePath,
   normalizeOriginExePath,
@@ -80,7 +80,7 @@ let originRunnerModulePromise = null;
 
 function getMainLanguage() {
   try {
-    const language = analysisStore?.getAnalysisSettings?.()?.language;
+    const language = conductorStore?.getConductorSettings?.()?.language;
     return language === "zh" ? "zh" : "en";
   } catch {
     return "en";
@@ -275,7 +275,7 @@ function formatDiagnosticValue(value) {
 }
 
 function getThemeSnapshotFromStore() {
-  const settings = analysisStore.getAnalysisSettings();
+  const settings = conductorStore.getConductorSettings();
   return getCurrentBootThemeSnapshot(settings?.theme);
 }
 
@@ -299,7 +299,7 @@ function normalizeWorkbenchBackgroundColor(value) {
 }
 
 function getAppearanceFromStore() {
-  const settings = analysisStore.getAnalysisSettings();
+  const settings = conductorStore.getConductorSettings();
   return {
     backgroundColor: normalizeWorkbenchBackgroundColor(settings?.backgroundColor),
     transparentChrome: settings?.transparentChrome === true,
@@ -1241,7 +1241,7 @@ async function handleExcelReadConvertedCsv(_event, payload) {
   }
 }
 
-const analysisStore = createAnalysisStorageMainService({
+const conductorStore = createStorageMainService({
   getHomeDir: getAnalysisHomeDir,
 });
 
@@ -1258,20 +1258,20 @@ function configureRuntimeCachePath() {
   }
 }
 
-function handleAnalysisTemplatesGet() {
-  return analysisStore.getAnalysisTemplates();
+function handleTemplatesGet() {
+  return conductorStore.getTemplates();
 }
 
-function handleAnalysisTemplatesCreate(_event, payload) {
-  return analysisStore.upsertAnalysisTemplate(payload);
+function handleTemplatesCreate(_event, payload) {
+  return conductorStore.upsertTemplate(payload);
 }
 
-function handleAnalysisTemplatesDelete(_event, id) {
-  return analysisStore.deleteAnalysisTemplate(id);
+function handleTemplatesDelete(_event, id) {
+  return conductorStore.deleteTemplate(id);
 }
 
-function handleAnalysisSettingsGet() {
-  return analysisStore.getAnalysisSettings();
+function handleConductorSettingsGet() {
+  return conductorStore.getConductorSettings();
 }
 
 function handleAnalysisDemoFilesGet() {
@@ -1319,7 +1319,7 @@ function handleWorkbenchBootstrapSettingsGet(event) {
   }
 
   try {
-    event.returnValue = analysisStore.getAnalysisSettings();
+    event.returnValue = conductorStore.getConductorSettings();
   } catch (error) {
     console.warn("[boot] Failed to load initial desktop settings:", error?.message || error);
     event.returnValue = null;
@@ -1353,8 +1353,8 @@ function ensureRustExcelJobRoot() {
   return jobRoot;
 }
 
-function handleAnalysisSettingsPatch(_event, updates) {
-  const updated = analysisStore.patchAnalysisSettings(updates);
+function handleConductorSettingsPatch(_event, updates) {
+  const updated = conductorStore.patchConductorSettings(updates);
   if (
     updates &&
     typeof updates === "object" &&
@@ -1403,8 +1403,8 @@ function handleHelpWindowOpen(_event, payload) {
   return { ok: true };
 }
 
-function handleAnalysisPersistencePathGet() {
-  return analysisStore.getStorePersistenceInfo();
+function handlePersistencePathGet() {
+  return conductorStore.getPersistenceInfo();
 }
 
 async function handleExcelConvertRust(_event, payload) {
@@ -1689,18 +1689,18 @@ async function handleAnalysisOriginZipSave(event, payload) {
   }
 }
 
-function handleAnalysisPersistencePathSet(_event, payload) {
+function handlePersistencePathSet(_event, payload) {
   const rawPath =
     payload && typeof payload === "object" ? payload.path : payload;
-  return analysisStore.setPersistencePath(rawPath);
+  return conductorStore.setPersistencePath(rawPath);
 }
 
 async function handleNativeHostOpenDialog(event, options) {
   return nativeHostMainService.showOpenDialog(event.sender, options);
 }
 
-async function handleAnalysisPersistencePathChoose(event) {
-  const currentInfo = analysisStore.getStorePersistenceInfo();
+async function handlePersistencePathChoose(event) {
+  const currentInfo = conductorStore.getPersistenceInfo();
   const win = BrowserWindow.fromWebContents(event.sender) ?? null;
 
   const result = await dialog.showSaveDialog(win || undefined, {
@@ -1718,12 +1718,12 @@ async function handleAnalysisPersistencePathChoose(event) {
     return { ...currentInfo, cancelled: true };
   }
 
-  const updated = analysisStore.setPersistencePath(result.filePath);
+  const updated = conductorStore.setPersistencePath(result.filePath);
   return { ...updated, cancelled: false };
 }
 
 function getOriginExePathFromSettings() {
-  const settings = analysisStore.getAnalysisSettings();
+  const settings = conductorStore.getConductorSettings();
   return normalizeOriginExePath(settings?.originExePath);
 }
 
@@ -1731,14 +1731,14 @@ function saveOriginExePathToSettings(originExePath) {
   originDetectionCache = null;
   originDetectionPromise = null;
   const normalizedPath = normalizeOriginExePath(originExePath);
-  const settings = analysisStore.patchAnalysisSettings({
+  const settings = conductorStore.patchConductorSettings({
     originExePath: normalizedPath,
   });
   return settings.originExePath ?? null;
 }
 
 function getOriginRuntimeCleanupPolicyFromSettings() {
-  const settings = analysisStore.getAnalysisSettings();
+  const settings = conductorStore.getConductorSettings();
   return {
     enabled: Boolean(settings?.originRuntimeCleanupEnabled),
     keepSuccessJobs: Number(settings?.originRuntimeKeepSuccessJobs),
@@ -1747,7 +1747,7 @@ function getOriginRuntimeCleanupPolicyFromSettings() {
 }
 
 function getOriginPlotOptionsFromSettings() {
-  const settings = analysisStore.getAnalysisSettings();
+  const settings = conductorStore.getConductorSettings();
   return normalizeOriginPlotOptions({
     plotCommand: settings?.originPlotCommandDefault,
     plotType: settings?.originPlotTypeDefault,
@@ -2100,7 +2100,7 @@ async function revealMainWindow(win) {
 function showTrayHint() {
   if (!isWindows || !appTray) return;
   if (typeof appTray.displayBalloon !== "function") return;
-  const settings = analysisStore.getAnalysisSettings();
+  const settings = conductorStore.getConductorSettings();
   if (settings?.trayMinimizeHintShown) return;
 
   appTray.displayBalloon({
@@ -2108,13 +2108,13 @@ function showTrayHint() {
     content: mainMessage("tray.backgroundContinueMessage"),
     noSound: true,
   });
-  analysisStore.patchAnalysisSettings({
+  conductorStore.patchConductorSettings({
     trayMinimizeHintShown: true,
   });
 }
 
 function getWindowCloseBehaviorFromSettings() {
-  const settings = analysisStore.getAnalysisSettings();
+  const settings = conductorStore.getConductorSettings();
   return settings?.windowCloseBehavior === "quit" ? "quit" : "minimizeToTray";
 }
 
@@ -2622,14 +2622,14 @@ if (hasSingleInstanceLock) {
   );
   ipcMain.handle(ipcChannels.desktopAppearanceSet, handleDesktopAppearanceSet);
   ipcMain.handle(ipcChannels.helpWindowOpen, handleHelpWindowOpen);
-  ipcMain.handle(ipcChannels.templatesGet, handleAnalysisTemplatesGet);
-  ipcMain.handle(ipcChannels.templatesCreate, handleAnalysisTemplatesCreate);
-  ipcMain.handle(ipcChannels.templatesDelete, handleAnalysisTemplatesDelete);
-  ipcMain.handle(ipcChannels.settingsGet, handleAnalysisSettingsGet);
-  ipcMain.handle(ipcChannels.settingsPatch, handleAnalysisSettingsPatch);
-  ipcMain.handle(ipcChannels.persistencePathGet, handleAnalysisPersistencePathGet);
-  ipcMain.handle(ipcChannels.persistencePathSet, handleAnalysisPersistencePathSet);
-  ipcMain.handle(ipcChannels.persistencePathChoose, handleAnalysisPersistencePathChoose);
+  ipcMain.handle(ipcChannels.templatesGet, handleTemplatesGet);
+  ipcMain.handle(ipcChannels.templatesCreate, handleTemplatesCreate);
+  ipcMain.handle(ipcChannels.templatesDelete, handleTemplatesDelete);
+  ipcMain.handle(ipcChannels.settingsGet, handleConductorSettingsGet);
+  ipcMain.handle(ipcChannels.settingsPatch, handleConductorSettingsPatch);
+  ipcMain.handle(ipcChannels.persistencePathGet, handlePersistencePathGet);
+  ipcMain.handle(ipcChannels.persistencePathSet, handlePersistencePathSet);
+  ipcMain.handle(ipcChannels.persistencePathChoose, handlePersistencePathChoose);
   ipcMain.handle(ipcChannels.importPrepareRust, handleImportPrepareRust);
   ipcMain.handle(ipcChannels.excelConvertRust, handleExcelConvertRust);
   ipcMain.handle(ipcChannels.excelReadConvertedCsv, handleExcelReadConvertedCsv);

@@ -196,10 +196,13 @@ const createOriginSettingsView = ({
         createSettingsField({
           control: createAxisTextInput({
             id: "export-settings-legend-font-size",
-            onChange: (value) => void onAxisChange?.({ legendFontSize: value }),
+            onChange: (value) => {
+              const normalized = normalizeOriginPlotOptions({ legendFontSize: value }, options);
+              void onChange?.({ legendFontSize: normalized.legendFontSize });
+            },
             placeholder: localize("chart_axis_auto", "auto"),
             store,
-            value: axisSettings.legendFontSize,
+            value: options.legendFontSize,
           }),
           label: localize("chart_legend_font_size", "Legend size"),
         }),

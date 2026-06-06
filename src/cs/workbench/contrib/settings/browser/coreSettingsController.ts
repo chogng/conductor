@@ -1,4 +1,4 @@
-﻿import { Emitter, type Event } from "src/cs/base/common/event";
+import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import {
   isLanguagePreference,
@@ -17,8 +17,8 @@ import type {
 import { getSettings, updateSettings } from "src/cs/workbench/contrib/settings/settingsService";
 import {
   getInitialSettingsSnapshot,
-  toAnalysisSettings,
-  type AnalysisSettings,
+  toConductorSettings,
+  type ConductorSettings,
 } from "src/cs/workbench/contrib/settings/settingsShared";
 import {
   normalizeWorkbenchAppearance,
@@ -37,40 +37,40 @@ export type CoreSettingsControllerOptions = {
 };
 
 export type CoreSettingsState = {
-  analysisSettings: AnalysisSettings | null;
-  analysisSettingsLoaded: boolean;
+  conductorSettings: ConductorSettings | null;
+  conductorSettingsLoaded: boolean;
   handleLanguageChange: (language: LanguagePreference) => Promise<void>;
   handleThemeChange: (theme: ThemeMode) => Promise<void>;
-  handleUpdateAnalysisSettings: (
+  updateConductorSettings: (
     updates: unknown,
-  ) => Promise<AnalysisSettings | null>;
-  mergeAnalysisSettings: (nextSettings: AnalysisSettings | null) => void;
+  ) => Promise<ConductorSettings | null>;
+  mergeConductorSettings: (nextSettings: ConductorSettings | null) => void;
   originOpenPlotOptions: OriginPlotOptions;
 };
 
 const emptyController = {
   handleLanguageChange: async () => {},
   handleThemeChange: async () => {},
-  handleUpdateAnalysisSettings: async () => null,
-  mergeAnalysisSettings: () => {},
+  updateConductorSettings: async () => null,
+  mergeConductorSettings: () => {},
 };
 
 export const createCoreSettingsState = (): CoreSettingsState => {
   const settings = getInitialSettingsSnapshot();
 
   return {
-    analysisSettings: settings,
-    analysisSettingsLoaded: Boolean(settings),
+    conductorSettings: settings,
+    conductorSettingsLoaded: Boolean(settings),
     handleLanguageChange: emptyController.handleLanguageChange,
     handleThemeChange: emptyController.handleThemeChange,
-    handleUpdateAnalysisSettings: emptyController.handleUpdateAnalysisSettings,
-    mergeAnalysisSettings: emptyController.mergeAnalysisSettings,
+    updateConductorSettings: emptyController.updateConductorSettings,
+    mergeConductorSettings: emptyController.mergeConductorSettings,
     originOpenPlotOptions: getOriginOpenPlotOptions(settings),
   };
 };
 
 const getOriginOpenPlotOptions = (
-  settings: AnalysisSettings | null,
+  settings: ConductorSettings | null,
 ): OriginPlotOptions =>
   normalizeOriginPlotOptions(
     {
@@ -78,6 +78,7 @@ const getOriginOpenPlotOptions = (
       postCommands: settings?.originPlotPostCommandsDefault,
       type: settings?.originPlotTypeDefault,
       lineWidth: settings?.originPlotLineWidthDefault,
+      legendFontSize: settings?.originPlotLegendFontSizeDefault,
       xyPairs: settings?.originPlotXyPairsDefault,
     },
     DEFAULT_ORIGIN_PLOT_OPTIONS,
@@ -90,8 +91,8 @@ export class CoreSettingsController extends Disposable {
   public readonly onDidChangeState: Event<CoreSettingsState> =
     this.onDidChangeStateEmitter.event;
 
-  private analysisSettings: AnalysisSettings | null;
-  private analysisSettingsLoaded: boolean;
+  private conductorSettings: ConductorSettings | null;
+  private conductorSettingsLoaded: boolean;
   private isDisposed = false;
   private options: CoreSettingsControllerOptions;
 
@@ -99,11 +100,11 @@ export class CoreSettingsController extends Disposable {
     super();
 
     this.options = options;
-    this.analysisSettings = getInitialSettingsSnapshot();
-    this.analysisSettingsLoaded = Boolean(this.analysisSettings);
+    this.conductorSettings = getInitialSettingsSnapshot();
+    this.conductorSettingsLoaded = Boolean(this.conductorSettings);
 
-    if (this.analysisSettings) {
-      this.applySettings(this.analysisSettings);
+    if (this.conductorSettings) {
+      this.applySettings(this.conductorSettings);
     } else {
       void this.loadSettings();
     }
@@ -120,34 +121,34 @@ export class CoreSettingsController extends Disposable {
 
   public getState(): CoreSettingsState {
     return {
-      analysisSettings: this.analysisSettings,
-      analysisSettingsLoaded: this.analysisSettingsLoaded,
+      conductorSettings: this.conductorSettings,
+      conductorSettingsLoaded: this.conductorSettingsLoaded,
       handleLanguageChange: this.handleLanguageChange,
       handleThemeChange: this.handleThemeChange,
-      handleUpdateAnalysisSettings: this.handleUpdateAnalysisSettings,
-      mergeAnalysisSettings: this.mergeAnalysisSettings,
-      originOpenPlotOptions: getOriginOpenPlotOptions(this.analysisSettings),
+      updateConductorSettings: this.updateConductorSettings,
+      mergeConductorSettings: this.mergeConductorSettings,
+      originOpenPlotOptions: getOriginOpenPlotOptions(this.conductorSettings),
     };
   }
 
-  public readonly mergeAnalysisSettings = (
-    nextSettings: AnalysisSettings | null,
+  public readonly mergeConductorSettings = (
+    nextSettings: ConductorSettings | null,
   ): void => {
-    this.analysisSettings = nextSettings
-      ? { ...(this.analysisSettings || {}), ...nextSettings }
-      : this.analysisSettings ?? null;
-    this.applySettings(this.analysisSettings);
+    this.conductorSettings = nextSettings
+      ? { ...(this.conductorSettings || {}), ...nextSettings }
+      : this.conductorSettings ?? null;
+    this.applySettings(this.conductorSettings);
     this.fireState();
   };
 
-  public readonly handleUpdateAnalysisSettings = async (
+  public readonly updateConductorSettings = async (
     updates: unknown,
-  ): Promise<AnalysisSettings | null> => {
+  ): Promise<ConductorSettings | null> => {
     const patch = updates && typeof updates === "object" ? updates : null;
     if (!patch) return null;
 
-    const updated = toAnalysisSettings(await updateSettings(patch));
-    this.mergeAnalysisSettings(updated);
+    const updated = toConductorSettings(await updateSettings(patch));
+    this.mergeConductorSettings(updated);
     return updated;
   };
 
@@ -158,7 +159,7 @@ export class CoreSettingsController extends Disposable {
     if (this.options.language === nextLanguage) return;
 
     try {
-      await this.handleUpdateAnalysisSettings({ language: nextLanguage });
+      await this.updateConductorSettings({ language: nextLanguage });
       reloadWorkbench();
     } catch {
       // Keep UI responsive even if persistence fails.
@@ -176,33 +177,33 @@ export class CoreSettingsController extends Disposable {
     this.options.setTheme(nextTheme);
 
     try {
-      await this.handleUpdateAnalysisSettings({ theme: nextTheme });
+      await this.updateConductorSettings({ theme: nextTheme });
     } catch {
       // Keep UI responsive even if persistence fails.
     }
   };
 
   private async loadSettings(): Promise<void> {
-    this.analysisSettingsLoaded = false;
+    this.conductorSettingsLoaded = false;
     this.fireState();
 
     try {
-      const settings = toAnalysisSettings(await getSettings());
+      const settings = toConductorSettings(await getSettings());
       if (this.isDisposed) return;
 
-      this.analysisSettings = settings;
+      this.conductorSettings = settings;
       this.applySettings(settings);
     } catch {
       // Ignore settings load failures; settings UI can still render defaults.
     } finally {
       if (!this.isDisposed) {
-        this.analysisSettingsLoaded = true;
+        this.conductorSettingsLoaded = true;
         this.fireState();
       }
     }
   }
 
-  private applySettings(settings: AnalysisSettings | null): void {
+  private applySettings(settings: ConductorSettings | null): void {
     const nextTheme = settings?.theme;
     if (nextTheme === "system" || nextTheme === "light" || nextTheme === "dark") {
       this.options.setTheme(nextTheme);

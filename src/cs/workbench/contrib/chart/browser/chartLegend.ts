@@ -5,10 +5,8 @@ import type { AnalysisPanelProps } from "src/cs/workbench/contrib/chart/browser/
 import { getCalculatedData, type CalculatedSeries } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
-import {
-  DEFAULT_PLOT_AXIS_SETTINGS,
-  normalizePlotAxisSettings,
-} from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
+
+const DEFAULT_LEGEND_FONT_SIZE = 12;
 
 export type LegendContext = {
   readonly fileId: string;
@@ -125,16 +123,10 @@ export const createLegendPopover = (
     readonly onEditLegendItem?: (legendKey: string, currentLabel: string) => void;
   } = {},
 ): HTMLElement => {
-  const axisSettings = normalizePlotAxisSettings(
-    props.plotAxisSettings,
-    DEFAULT_PLOT_AXIS_SETTINGS,
-  );
   const legend = document.createElement("div");
   legend.className = "chart_legend";
   legend.style.width = "120px";
-  if (axisSettings.legendFontSize !== "") {
-    legend.style.fontSize = `${axisSettings.legendFontSize}px`;
-  }
+  legend.style.fontSize = `${DEFAULT_LEGEND_FONT_SIZE}px`;
   renderLegend(
     legend,
     context.seriesList,

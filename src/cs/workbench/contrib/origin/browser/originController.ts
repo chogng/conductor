@@ -14,6 +14,7 @@ import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
 } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
+import { buildOriginLegendCommands } from "src/cs/workbench/contrib/origin/common/originLegendCommands";
 import { originService } from "src/cs/workbench/services/origin/browser/originService";
 
 export const ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES = new Set([
@@ -270,6 +271,9 @@ export function buildOriginCsvJobs(options: {
       yAxisTitle: payload.yAxisTitle,
       axisTitleFontSize: axisSettings?.axisTitleFontSize ?? null,
     });
+    const originLegendCommands = buildOriginLegendCommands({
+      legendFontSize: normalizedPlotOptions.legendFontSize,
+    });
     const originAxisCommands = payload.skipAxisCommands
       ? []
       : [
@@ -320,6 +324,11 @@ export function buildOriginCsvJobs(options: {
         plot: legendPostCommands.length
           ? {
               postCommands: legendPostCommands,
+            }
+          : undefined,
+        style: originLegendCommands.length
+          ? {
+              commands: originLegendCommands,
             }
           : undefined,
         axis: {

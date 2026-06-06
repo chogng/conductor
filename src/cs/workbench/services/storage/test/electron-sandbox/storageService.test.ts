@@ -1,7 +1,7 @@
 import * as assert from "assert";
 
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
-import { requestAnalysisDesktopStore } from "src/cs/workbench/services/storage/electron-sandbox/storageService";
+import { requestDesktopStore } from "src/cs/workbench/services/storage/electron-sandbox/storageService";
 
 suite("workbench/services/storage/electron-sandbox/storageService", () => {
   const originalWindow = globalThis.window;
@@ -14,7 +14,7 @@ suite("workbench/services/storage/electron-sandbox/storageService", () => {
     });
   });
 
-  test("routes analysis requests through analysis channels", async () => {
+  test("routes store requests through store channels", async () => {
     const calls: Array<{ readonly args: readonly unknown[]; readonly channel: string }> = [];
     Object.defineProperty(globalThis, "window", {
       configurable: true,
@@ -31,16 +31,16 @@ suite("workbench/services/storage/electron-sandbox/storageService", () => {
       writable: true,
     });
 
-    await requestAnalysisDesktopStore("/analysis/templates");
-    await requestAnalysisDesktopStore("/analysis/templates", {
+    await requestDesktopStore("/templates");
+    await requestDesktopStore("/templates", {
       body: JSON.stringify({ name: "Template" }),
       method: "POST",
     });
-    await requestAnalysisDesktopStore("/analysis/settings", {
+    await requestDesktopStore("/settings", {
       body: JSON.stringify({ theme: "dark" }),
       method: "PATCH",
     });
-    await requestAnalysisDesktopStore("/analysis/persistence-path", {
+    await requestDesktopStore("/persistence-path", {
       body: JSON.stringify({ path: "C:\\Data" }),
       method: "PATCH",
     });
@@ -61,7 +61,7 @@ suite("workbench/services/storage/electron-sandbox/storageService", () => {
     });
 
     assert.deepStrictEqual(
-      await requestAnalysisDesktopStore("/analysis/persistence-path"),
+      await requestDesktopStore("/persistence-path"),
       { isConfigurable: false },
     );
   });

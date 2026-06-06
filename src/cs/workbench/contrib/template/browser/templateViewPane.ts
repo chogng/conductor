@@ -16,7 +16,7 @@ import "src/cs/workbench/contrib/template/browser/media/templateViewPane.css";
 const TEMPLATE_TITLE = localize("template_workspace_title", "Template");
 
 export type TemplateViewPaneProps = {
-  readonly analysisSettings?: TemplateViewOptions["analysisSettings"];
+  readonly conductorSettings?: TemplateViewOptions["conductorSettings"];
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly onTemplateApplied?: TemplateViewOptions["onTemplateApplied"];
   readonly onTemplateAppliedIncremental?: TemplateViewOptions["onTemplateAppliedIncremental"];

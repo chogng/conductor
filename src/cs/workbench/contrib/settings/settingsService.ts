@@ -1,6 +1,6 @@
 import {
   DESKTOP_STORE_UNAVAILABLE,
-  type AnalysisDesktopStore,
+  type DesktopStore,
   getDesktopStore,
   getDesktopStoreMethod,
 } from "src/cs/workbench/services/storage/electron-sandbox/storageService";
@@ -11,18 +11,18 @@ const wrapSettingsStoreError = (error: unknown): never => {
     error.message === DESKTOP_STORE_UNAVAILABLE
   ) {
     throw new Error(
-      "Desktop store bridge unavailable. Analysis settings are persisted only via desktop config.json.",
+      "Desktop store bridge unavailable. Conductor settings are persisted only via desktop config.json.",
     );
   }
 
   throw error;
 };
 
-const requireDesktopSettingsStore = (): AnalysisDesktopStore => {
+const requireDesktopSettingsStore = (): DesktopStore => {
   const store = getDesktopStore();
   if (!store) {
     throw new Error(
-      "Desktop store bridge unavailable. Analysis settings are persisted only via desktop config.json.",
+      "Desktop store bridge unavailable. Conductor settings are persisted only via desktop config.json.",
     );
   }
 
@@ -35,7 +35,7 @@ export const getSettings = async (): Promise<unknown> => {
   try {
     return await getDesktopStoreMethod(
       store,
-      "getAnalysisSettings",
+      "getConductorSettings",
     )();
   } catch (error) {
     wrapSettingsStoreError(error);
@@ -50,7 +50,7 @@ export const updateSettings = async (
   try {
     return await getDesktopStoreMethod(
       store,
-      "updateAnalysisSettings",
+      "updateConductorSettings",
     )(updates);
   } catch (error) {
     wrapSettingsStoreError(error);

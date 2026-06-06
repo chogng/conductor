@@ -1,21 +1,21 @@
-export type AnalysisStoreOptions = {
+export type StoreOptions = {
   getHomeDir: () => string;
 };
 
-export type AnalysisPersistenceInfo = {
+export type PersistenceInfo = {
   currentPath: string;
   defaultPath: string;
   isCustom: boolean;
   isConfigurable: boolean;
 };
 
-export interface IAnalysisStorageService {
+export interface IStorageService {
   getHomeDir(): string;
-  getStorePersistenceInfo(): AnalysisPersistenceInfo;
-  getAnalysisSettings(): Record<string, unknown>;
-  patchAnalysisSettings(updates: unknown): Record<string, unknown>;
-  getAnalysisTemplates(): unknown[];
-  upsertAnalysisTemplate(payload: unknown): unknown;
-  deleteAnalysisTemplate(id: unknown): { success: true };
-  setPersistencePath(nextPath: unknown): AnalysisPersistenceInfo;
+  getPersistenceInfo(): PersistenceInfo;
+  getConductorSettings(): Record<string, unknown>;
+  patchConductorSettings(updates: unknown): Record<string, unknown>;
+  getTemplates(): unknown[];
+  upsertTemplate(payload: unknown): unknown;
+  deleteTemplate(id: unknown): { success: true };
+  setPersistencePath(nextPath: unknown): PersistenceInfo;
 }

@@ -4,6 +4,7 @@ export type OriginPlotOptions = {
   command: string;
   postCommands: string[];
   lineWidth: number;
+  legendFontSize: number | "";
 };
 
 export const DEFAULT_ORIGIN_PLOT_OPTIONS: OriginPlotOptions = Object.freeze({
@@ -12,6 +13,7 @@ export const DEFAULT_ORIGIN_PLOT_OPTIONS: OriginPlotOptions = Object.freeze({
   command: "",
   postCommands: [],
   lineWidth: 2,
+  legendFontSize: "",
 }) as OriginPlotOptions;
 
 const clampInt = (
@@ -38,6 +40,20 @@ const clampPositiveFloat = (
   if (!Number.isFinite(num) || num <= 0) return fallback;
   const clamped = Math.min(max, Math.max(min, num));
   return Math.round(clamped * 100) / 100;
+};
+
+const normalizeOptionalBoundedInt = (
+  value: unknown,
+  fallback: number | "",
+  min: number,
+  max: number,
+): number | "" => {
+  if (value === null || value === undefined) return fallback;
+  const text = String(value).trim();
+  if (!text) return "";
+  const num = Number(text);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(num)));
 };
 
 export const normalizeOriginPostCommands = (value: unknown): string[] => {
@@ -86,6 +102,12 @@ export const normalizeOriginPlotOptions = (
     0.5,
     20,
   );
+  const legendFontSize = normalizeOptionalBoundedInt(
+    raw.legendFontSize ?? raw.legend_font_size,
+    fallbackValue.legendFontSize,
+    1,
+    96,
+  );
 
   return {
     type,
@@ -93,6 +115,7 @@ export const normalizeOriginPlotOptions = (
     command,
     postCommands,
     lineWidth,
+    legendFontSize,
   };
 };
 

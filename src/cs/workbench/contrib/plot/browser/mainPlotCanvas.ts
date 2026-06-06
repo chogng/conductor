@@ -133,7 +133,6 @@ export type MainPlotCanvasProps = {
   minorTickCount?: number;
   tickLabelFontSize?: number;
   axisTitleFontSize?: number;
-  legendFontSize?: number;
   originTickLabelOffset?: unknown;
   originAxisTitleGap?: unknown;
   legendWidth?: number;

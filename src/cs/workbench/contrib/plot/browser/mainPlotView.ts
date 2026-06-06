@@ -54,7 +54,6 @@ export const createMainPlotView = ({
     minorTickCount: axisSettings.minorTickCount === "" ? undefined : axisSettings.minorTickCount,
     tickLabelFontSize: axisSettings.tickLabelFontSize === "" ? undefined : axisSettings.tickLabelFontSize,
     axisTitleFontSize: axisSettings.axisTitleFontSize === "" ? undefined : axisSettings.axisTitleFontSize,
-    legendFontSize: axisSettings.legendFontSize === "" ? undefined : axisSettings.legendFontSize,
     legendLabels,
     seriesList: model.seriesList,
     ssOverlayStyle: {

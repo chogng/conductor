@@ -24,6 +24,7 @@ export type OriginSettings = {
   plotSaving: boolean;
   plotType: number;
   plotLineWidth: number;
+  plotLegendFontSize: number | "";
   plotXyPairs: string;
   isSaving: boolean;
   onCheckHealth: () => Promise<void> | void;
@@ -39,6 +40,7 @@ export type OriginSettings = {
   onPlotPostCommandsChange: (value: string) => Promise<void> | void;
   onPlotTypeChange: (value: string | number) => Promise<void> | void;
   onPlotLineWidthChange: (value: string | number) => Promise<void> | void;
+  onPlotLegendFontSizeChange: (value: string | number) => Promise<void> | void;
   onPlotXyPairsChange: (value: string) => Promise<void> | void;
   onRunCleanupNow: () => Promise<void> | void;
 };
@@ -84,7 +86,7 @@ export type FileNameMatchingSettings = {
   onFieldSeparatorsChange: (value: string) => Promise<void> | void;
 };
 
-export type AnalysisDefaultSettings = {
+export type ChartDefaultSettings = {
   defaultYScaleForCf: "linear" | "log";
   defaultYScaleForCv: "linear" | "log";
   defaultYScaleForOutput: "linear" | "log";
@@ -92,7 +94,6 @@ export type AnalysisDefaultSettings = {
   defaultYScaleForTransfer: "linear" | "log";
   tickLabelFontSize: number | "";
   axisTitleFontSize: number | "";
-  legendFontSize: number | "";
   feedback: Feedback;
   isSaving: boolean;
   onDefaultYScaleForCfChange: (value: string) => Promise<void> | void;
@@ -102,13 +103,12 @@ export type AnalysisDefaultSettings = {
   onDefaultYScaleForTransferChange: (value: string) => Promise<void> | void;
   onTickLabelFontSizeChange: (value: string | number) => Promise<void> | void;
   onAxisTitleFontSizeChange: (value: string | number) => Promise<void> | void;
-  onLegendFontSizeChange: (value: string | number) => Promise<void> | void;
 };
 
 export type SettingsViewProps = {
   appearanceSettings: AppearanceSettings;
   appUpdateSettings: AppUpdateSettings;
-  analysisDefaultSettings: AnalysisDefaultSettings;
+  chartDefaultSettings: ChartDefaultSettings;
   fileNameMatchingSettings: FileNameMatchingSettings;
   language: LanguagePreference;
   onLanguageChange: (language: LanguagePreference) => Promise<void> | void;

@@ -8,24 +8,24 @@ import {
   type SettingsControllerOptions,
 } from "src/cs/workbench/contrib/settings/browser/settingsController";
 import { BrowserSettingsService } from "src/cs/workbench/contrib/settings/browser/settingsService";
-import type { AnalysisSettings } from "src/cs/workbench/contrib/settings/settingsShared";
+import type { ConductorSettings } from "src/cs/workbench/contrib/settings/settingsShared";
 import type {
   AppUpdateSettings,
 } from "src/cs/workbench/contrib/settings/settingsViewTypes";
 
 export type SettingsViewPaneProps = {
   appUpdateSettings: AppUpdateSettings;
-  analysisSettings: AnalysisSettings | null;
-  analysisSettingsLoaded: boolean;
+  conductorSettings: ConductorSettings | null;
+  conductorSettingsLoaded: boolean;
   handleLanguageChange: (language: LanguagePreference) => Promise<void> | void;
   handleResetLayoutState: () => Promise<void> | void;
   handleThemeChange: (theme: ThemeMode) => Promise<void> | void;
-  handleUpdateAnalysisSettings: (
+  updateConductorSettings: (
     updates: unknown,
-  ) => Promise<AnalysisSettings | null>;
+  ) => Promise<ConductorSettings | null>;
   isWindowsDesktopShell: boolean;
   language: LanguagePreference;
-  mergeAnalysisSettings: (nextSettings: AnalysisSettings | null) => void;
+  mergeConductorSettings: (nextSettings: ConductorSettings | null) => void;
   theme: ThemeMode;
 };
 
@@ -59,26 +59,26 @@ export class SettingsViewPane extends ViewPane {
 
 const toControllerOptions = ({
   appUpdateSettings,
-  analysisSettings,
-  analysisSettingsLoaded,
+  conductorSettings,
+  conductorSettingsLoaded,
   handleLanguageChange,
   handleResetLayoutState,
   handleThemeChange,
-  handleUpdateAnalysisSettings,
+  updateConductorSettings,
   isWindowsDesktopShell,
   language,
-  mergeAnalysisSettings,
+  mergeConductorSettings,
   theme,
 }: SettingsViewPaneProps): SettingsControllerOptions => ({
   appUpdateSettings,
-  analysisSettings,
-  analysisSettingsLoaded,
+  conductorSettings,
+  conductorSettingsLoaded,
   handleLanguageChange,
   handleResetLayoutState,
   handleThemeChange,
-  handleUpdateAnalysisSettings,
+  updateConductorSettings,
   isWindowsDesktopShell,
   language,
-  mergeAnalysisSettings,
+  mergeConductorSettings,
   theme,
 });

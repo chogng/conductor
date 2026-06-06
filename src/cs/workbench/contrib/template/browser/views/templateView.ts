@@ -65,7 +65,7 @@ export type TemplateViewOptions = {
   >;
   onTemplateApplied?: (config: Record<string, unknown>) => unknown;
   onTemplateAppliedIncremental?: (config: Record<string, unknown>) => unknown;
-  analysisSettings?: Record<string, unknown> | null;
+  conductorSettings?: Record<string, unknown> | null;
   onUpdateSettings?: (updates: Record<string, unknown>) => Promise<unknown> | unknown;
 };
 

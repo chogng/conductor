@@ -12,7 +12,7 @@ import type { LanguagePreference } from "src/cs/platform/language/common/languag
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type {
   AppearanceSettings,
-  AnalysisDefaultSettings,
+  ChartDefaultSettings,
   AppUpdateSettings,
   FileNameMatchingSettings,
   OriginSettings,
@@ -25,7 +25,7 @@ import {
   normalizeBoundedInt,
   normalizeTrimmedString,
   ORIGIN_CLEANUP_DEFAULTS,
-  type AnalysisSettings,
+  type ConductorSettings,
   type PersistencePathInfo,
 } from "src/cs/workbench/contrib/settings/settingsShared";
 import type { ISettingsService, SettingsServiceOptions } from "src/cs/workbench/contrib/settings/common/settings";
@@ -40,17 +40,17 @@ import type { HelpWindowKind } from "src/cs/workbench/contrib/help/common/helpWi
 
 export type SettingsControllerOptions = {
   appUpdateSettings: AppUpdateSettings;
-  analysisSettings: AnalysisSettings | null;
-  analysisSettingsLoaded: boolean;
+  conductorSettings: ConductorSettings | null;
+  conductorSettingsLoaded: boolean;
   handleLanguageChange: (language: LanguagePreference) => Promise<void> | void;
   handleResetLayoutState: () => Promise<void> | void;
   handleThemeChange: (theme: ThemeMode) => Promise<void> | void;
-  handleUpdateAnalysisSettings: (
+  updateConductorSettings: (
     updates: unknown,
-  ) => Promise<AnalysisSettings | null>;
+  ) => Promise<ConductorSettings | null>;
   isWindowsDesktopShell: boolean;
   language: LanguagePreference;
-  mergeAnalysisSettings: (nextSettings: AnalysisSettings | null) => void;
+  mergeConductorSettings: (nextSettings: ConductorSettings | null) => void;
   theme: ThemeMode;
 };
 
@@ -65,7 +65,7 @@ type SettingsDraftState = {
   axisTitleFontSizeDraft: string;
   cleanupToast: NotificationToastState;
   fileNameFieldSeparatorsDraft: string;
-  legendFontSizeDraft: string;
+  originLegendFontSizeDraft: string;
   originHealthToast: NotificationToastState;
   plotCommandDraft: string;
   postCommandsDraft: string;
@@ -95,8 +95,8 @@ export class SettingsController {
   private originPlotFeedback: Feedback = IDLE_FEEDBACK;
   private fileNameMatchingSaving = false;
   private fileNameMatchingFeedback: Feedback = IDLE_FEEDBACK;
-  private analysisDefaultsSaving = false;
-  private analysisDefaultsFeedback: Feedback = IDLE_FEEDBACK;
+  private defaultsSaving = false;
+  private defaultsFeedback: Feedback = IDLE_FEEDBACK;
   private appearanceSaving = false;
   private windowCloseSaving = false;
   private drafts: SettingsDraftState;
@@ -106,7 +106,7 @@ export class SettingsController {
     this.options = options;
     this.service = service;
     this.service.update(this.createServiceOptions(options));
-    this.originExePath = normalizeTrimmedString(options.analysisSettings?.originExePath);
+    this.originExePath = normalizeTrimmedString(options.conductorSettings?.originExePath);
     this.drafts = this.createDraftState();
     this.view = new SettingsView(container, this.createViewOptions());
     void this.loadPersistencePath();
@@ -130,9 +130,9 @@ export class SettingsController {
 
   private createServiceOptions(options: SettingsControllerOptions): SettingsServiceOptions {
     return {
-      handleUpdateAnalysisSettings: options.handleUpdateAnalysisSettings,
+      updateConductorSettings: options.updateConductorSettings,
       isWindowsDesktopShell: options.isWindowsDesktopShell,
-      mergeAnalysisSettings: options.mergeAnalysisSettings,
+      mergeConductorSettings: options.mergeConductorSettings,
     };
   }
 
@@ -144,7 +144,7 @@ export class SettingsController {
       axisTitleFontSizeDraft: String(axisSettings.axisTitleFontSize ?? ""),
       cleanupToast: { isVisible: false, message: "", type: "success" },
       fileNameFieldSeparatorsDraft: this.fileNameFieldSeparators,
-      legendFontSizeDraft: String(axisSettings.legendFontSize ?? ""),
+      originLegendFontSizeDraft: String(this.originPlotConfig.legendFontSize ?? ""),
       originHealthToast: { isVisible: false, message: "", type: "success" },
       plotCommandDraft: this.originPlotConfig.command ?? "",
       postCommandsDraft: originPostCommandsToMultiline(this.originPlotConfig.postCommands),
@@ -154,22 +154,22 @@ export class SettingsController {
   }
 
   private syncDrafts(previous: SettingsControllerOptions): void {
-    if (previous.analysisSettings === this.options.analysisSettings) {
+    if (previous.conductorSettings === this.options.conductorSettings) {
       return;
     }
 
     const axisSettings = this.axisSettings;
     this.drafts.axisTitleFontSizeDraft = String(axisSettings.axisTitleFontSize ?? "");
-    this.drafts.legendFontSizeDraft = String(axisSettings.legendFontSize ?? "");
     this.drafts.tickLabelFontSizeDraft = String(axisSettings.tickLabelFontSize ?? "");
     this.drafts.fileNameFieldSeparatorsDraft = this.fileNameFieldSeparators;
+    this.drafts.originLegendFontSizeDraft = String(this.originPlotConfig.legendFontSize ?? "");
     this.drafts.plotCommandDraft = this.originPlotConfig.command ?? "";
     this.drafts.postCommandsDraft = originPostCommandsToMultiline(this.originPlotConfig.postCommands);
     this.drafts.xyPairsDraft = this.originPlotConfig.xyPairs ?? "";
   }
 
   private syncOriginFeedback(): void {
-    this.showToastFromFeedback(this.options.analysisSettings ? this.originPathFeedback : IDLE_FEEDBACK, "originHealthToast");
+    this.showToastFromFeedback(this.options.conductorSettings ? this.originPathFeedback : IDLE_FEEDBACK, "originHealthToast");
     this.showToastFromFeedback(this.originCleanupFeedback, "cleanupToast");
   }
 
@@ -186,12 +186,12 @@ export class SettingsController {
   }
 
   private syncOriginPath(): void {
-    if (!this.options.analysisSettingsLoaded) {
+    if (!this.options.conductorSettingsLoaded) {
       this.originPathLoading = true;
       return;
     }
 
-    const settingsOriginExePath = normalizeTrimmedString(this.options.analysisSettings?.originExePath);
+    const settingsOriginExePath = normalizeTrimmedString(this.options.conductorSettings?.originExePath);
     if (settingsOriginExePath) {
       this.originExePath = settingsOriginExePath;
       this.originPathLoading = false;
@@ -236,7 +236,7 @@ export class SettingsController {
       const configuredPath = await this.service.getOriginExePath();
       if (configuredPath) {
         this.originExePath = configuredPath;
-        this.options.mergeAnalysisSettings({ originExePath: configuredPath });
+        this.options.mergeConductorSettings({ originExePath: configuredPath });
       }
     }
     catch {
@@ -261,7 +261,7 @@ export class SettingsController {
       appearanceSettings: this.appearanceSettings,
       appUpdateChecking: this.drafts.appUpdateChecking,
       appUpdateSettings: this.options.appUpdateSettings,
-      analysisDefaultSettings: this.analysisDefaultSettings,
+      chartDefaultSettings: this.chartDefaultSettings,
       axisTitleFontSizeDraft: this.drafts.axisTitleFontSizeDraft,
       cleanupEnabledOptions: this.cleanupEnabledOptions,
       cleanupFailedDaysOptions: this.cleanupFailedDaysOptions,
@@ -281,7 +281,7 @@ export class SettingsController {
       handleOpenHelpWindow: kind => void this.openHelpWindow(kind),
       canOpenHelpWindow: this.helpWindowService.canOpenHelpWindow(),
       language: this.options.language,
-      legendFontSizeDraft: this.drafts.legendFontSizeDraft,
+      originLegendFontSizeDraft: this.drafts.originLegendFontSizeDraft,
       onLanguageChange: this.options.handleLanguageChange,
       onResetLayoutState: this.options.handleResetLayoutState,
       onThemeChange: this.options.handleThemeChange,
@@ -299,8 +299,8 @@ export class SettingsController {
       setFileNameFieldSeparatorsDraft: value => {
         this.drafts.fileNameFieldSeparatorsDraft = value;
       },
-      setLegendFontSizeDraft: value => {
-        this.drafts.legendFontSizeDraft = value;
+      setOriginLegendFontSizeDraft: value => {
+        this.drafts.originLegendFontSizeDraft = value;
       },
       setPlotCommandDraft: value => {
         this.drafts.plotCommandDraft = value;
@@ -326,8 +326,8 @@ export class SettingsController {
     };
   }
 
-  private get settings(): AnalysisSettings {
-    return this.options.analysisSettings || {};
+  private get settings(): ConductorSettings {
+    return this.options.conductorSettings || {};
   }
 
   private get cleanupConfig() {
@@ -344,12 +344,13 @@ export class SettingsController {
       postCommands: this.settings.originPlotPostCommandsDefault,
       type: this.settings.originPlotTypeDefault,
       lineWidth: this.settings.originPlotLineWidthDefault,
+      legendFontSize: this.settings.originPlotLegendFontSizeDefault,
       xyPairs: this.settings.originPlotXyPairsDefault,
     }, DEFAULT_ORIGIN_PLOT_OPTIONS);
   }
 
   private get axisSettings() {
-    return normalizePlotAxisSettings(this.settings.analysisPlotAxisSettings);
+    return normalizePlotAxisSettings(this.settings.plotAxisSettings);
   }
 
   private get fileNameFieldSeparators(): string {
@@ -391,7 +392,7 @@ export class SettingsController {
     };
   }
 
-  private get analysisDefaultSettings(): AnalysisDefaultSettings {
+  private get chartDefaultSettings(): ChartDefaultSettings {
     const axisSettings = this.axisSettings;
     return {
       defaultYScaleForCf: this.resolveSpecialYScale(this.settings.defaultYScaleForCf),
@@ -401,17 +402,15 @@ export class SettingsController {
       defaultYScaleForTransfer: this.defaultYScaleForTransfer,
       tickLabelFontSize: axisSettings.tickLabelFontSize,
       axisTitleFontSize: axisSettings.axisTitleFontSize,
-      legendFontSize: axisSettings.legendFontSize,
-      feedback: this.analysisDefaultsFeedback,
-      isSaving: this.analysisDefaultsSaving,
-      onDefaultYScaleForCfChange: value => this.updateAnalysisDefault({ defaultYScaleForCf: value === "log" ? "log" : "linear" }),
-      onDefaultYScaleForCvChange: value => this.updateAnalysisDefault({ defaultYScaleForCv: value === "log" ? "log" : "linear" }),
-      onDefaultYScaleForOutputChange: value => this.updateAnalysisDefault({ defaultYScaleForOutput: value === "log" ? "log" : "linear" }),
-      onDefaultYScaleForPvChange: value => this.updateAnalysisDefault({ defaultYScaleForPv: value === "log" ? "log" : "linear" }),
-      onDefaultYScaleForTransferChange: value => this.updateAnalysisDefault({ defaultYScaleForTransfer: value === "linear" ? "linear" : "log" }),
+      feedback: this.defaultsFeedback,
+      isSaving: this.defaultsSaving,
+      onDefaultYScaleForCfChange: value => this.updateDefault({ defaultYScaleForCf: value === "log" ? "log" : "linear" }),
+      onDefaultYScaleForCvChange: value => this.updateDefault({ defaultYScaleForCv: value === "log" ? "log" : "linear" }),
+      onDefaultYScaleForOutputChange: value => this.updateDefault({ defaultYScaleForOutput: value === "log" ? "log" : "linear" }),
+      onDefaultYScaleForPvChange: value => this.updateDefault({ defaultYScaleForPv: value === "log" ? "log" : "linear" }),
+      onDefaultYScaleForTransferChange: value => this.updateDefault({ defaultYScaleForTransfer: value === "linear" ? "linear" : "log" }),
       onTickLabelFontSizeChange: value => this.updateAxisDefaults({ tickLabelFontSize: value }),
       onAxisTitleFontSizeChange: value => this.updateAxisDefaults({ axisTitleFontSize: value }),
-      onLegendFontSizeChange: value => this.updateAxisDefaults({ legendFontSize: value }),
     };
   }
 
@@ -471,6 +470,7 @@ export class SettingsController {
       plotSaving: this.originPlotSaving,
       plotType: originPlotConfig.type,
       plotLineWidth: originPlotConfig.lineWidth,
+      plotLegendFontSize: originPlotConfig.legendFontSize,
       plotXyPairs: originPlotConfig.xyPairs,
       isSaving: this.originPathSaving,
       onCheckHealth: () => this.checkOriginHealth(),
@@ -482,6 +482,7 @@ export class SettingsController {
       onPlotPostCommandsChange: value => this.updateOriginPlot({ originPlotPostCommandsDefault: normalizeOriginPostCommands(value) }),
       onPlotTypeChange: value => this.updateOriginPlot({ originPlotTypeDefault: normalizeOriginPlotOptions({ type: value }, DEFAULT_ORIGIN_PLOT_OPTIONS).type }),
       onPlotLineWidthChange: value => this.updateOriginPlot({ originPlotLineWidthDefault: normalizeOriginPlotOptions({ lineWidth: value }, DEFAULT_ORIGIN_PLOT_OPTIONS).lineWidth }),
+      onPlotLegendFontSizeChange: value => this.updateOriginPlot({ originPlotLegendFontSizeDefault: normalizeOriginPlotOptions({ legendFontSize: value }, DEFAULT_ORIGIN_PLOT_OPTIONS).legendFontSize }),
       onPlotXyPairsChange: value => this.updateOriginPlot({ originPlotXyPairsDefault: normalizeOriginPlotOptions({ xyPairs: value }, DEFAULT_ORIGIN_PLOT_OPTIONS).xyPairs }),
       onRunCleanupNow: () => this.runOriginCleanup(),
     };
@@ -731,34 +732,34 @@ export class SettingsController {
     }
   }
 
-  private async updateAnalysisDefault(updates: Record<string, unknown>): Promise<void> {
-    this.analysisDefaultsSaving = true;
-    this.analysisDefaultsFeedback = IDLE_FEEDBACK;
+  private async updateDefault(updates: Record<string, unknown>): Promise<void> {
+    this.defaultsSaving = true;
+    this.defaultsFeedback = IDLE_FEEDBACK;
     this.render();
     try {
       await this.service.updateSettings(updates);
-      this.analysisDefaultsFeedback = {
+      this.defaultsFeedback = {
         type: "success",
-        message: localize("analysisSettings.defaultsSaved", "Analysis defaults saved."),
+        message: localize("conductorSettings.defaultsSaved", "Chart defaults saved."),
       };
     }
     catch (error) {
-      this.analysisDefaultsFeedback = {
+      this.defaultsFeedback = {
         type: "error",
-        message: localize("analysisSettings.defaultsSaveFailed", "Failed to save analysis defaults: {error}", {
+        message: localize("conductorSettings.defaultsSaveFailed", "Failed to save chart defaults: {error}", {
           error: this.service.errorMessage(error),
         }),
       };
     }
     finally {
-      this.analysisDefaultsSaving = false;
+      this.defaultsSaving = false;
       this.render();
     }
   }
 
   private async updateAxisDefaults(updates: Record<string, unknown>): Promise<void> {
-    await this.updateAnalysisDefault({
-      analysisPlotAxisSettings: normalizePlotAxisSettings({
+    await this.updateDefault({
+      plotAxisSettings: normalizePlotAxisSettings({
         ...this.axisSettings,
         ...updates,
       }, this.axisSettings),

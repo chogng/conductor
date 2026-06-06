@@ -14,6 +14,8 @@ import {
   buildOriginXAxisRangeCommandsFromDisplayRange,
   buildOriginYAxisRangeCommandsFromDisplayRange,
 } from "../../origin/common/originAxisCommands.ts";
+import { buildOriginLegendCommands } from "../../origin/common/originLegendCommands.ts";
+import { buildOriginCsvJobs } from "../../origin/browser/originController.ts";
 
 suite("workbench/contrib/export/browser/export", () => {
   test("buildCsvExports writes caller-provided legend labels when requested", () => {
@@ -154,6 +156,35 @@ suite("workbench/contrib/export/browser/export", () => {
         "yl.fsize=22;",
       ],
     );
+  });
+
+  test("buildOriginLegendCommands emits explicit Origin legend font size command", () => {
+    assert.deepEqual(buildOriginLegendCommands(null), []);
+    assert.deepEqual(buildOriginLegendCommands({ legendFontSize: "" }), []);
+    assert.deepEqual(buildOriginLegendCommands({ legendFontSize: "12" }), [
+      "legend.fsize=12;",
+    ]);
+  });
+
+  test("buildOriginCsvJobs sends legend size as an Origin style command", () => {
+    const jobs = buildOriginCsvJobs({
+      plan: {
+        payloads: [
+          {
+            csvName: "file.csv",
+            csvText: "x,y\r\n0,1",
+            xyPairs: "((1,2))",
+          },
+        ],
+      },
+      plotOptions: {
+        legendFontSize: "12",
+      },
+    });
+
+    assert.deepEqual(jobs[0].capabilities?.style, {
+      commands: ["legend.fsize=12;"],
+    });
   });
 
   test("display-range Origin axis commands keep manual scale limits", () => {

@@ -1,6 +1,6 @@
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type {
-  AnalysisSettings,
+  ConductorSettings,
   OriginCleanupResult,
   OriginHealthResult,
   PersistencePathInfo,
@@ -13,11 +13,11 @@ export const SettingsViewId = "workbench.settings";
 export const ISettingsService = createDecorator<ISettingsService>("settingsService");
 
 export type SettingsServiceOptions = {
-  handleUpdateAnalysisSettings: (
+  updateConductorSettings: (
     updates: unknown,
-  ) => Promise<AnalysisSettings | null>;
+  ) => Promise<ConductorSettings | null>;
   isWindowsDesktopShell: boolean;
-  mergeAnalysisSettings: (nextSettings: AnalysisSettings | null) => void;
+  mergeConductorSettings: (nextSettings: ConductorSettings | null) => void;
 };
 
 export interface ISettingsService {
@@ -35,5 +35,5 @@ export interface ISettingsService {
   getPersistencePath(): Promise<PersistencePathInfo | null>;
   runOriginCleanup(): Promise<OriginCleanupResult>;
   update(options: SettingsServiceOptions): void;
-  updateSettings(updates: unknown): Promise<AnalysisSettings | null>;
+  updateSettings(updates: unknown): Promise<ConductorSettings | null>;
 }

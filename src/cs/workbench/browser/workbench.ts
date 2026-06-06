@@ -1,4 +1,4 @@
-﻿import {
+import {
   DisposableStore,
   toDisposable,
   type IDisposable,
@@ -217,7 +217,7 @@ const getInitialLanguage = (): LanguageCode =>
     : resolveLanguageCode("system", getSystemLanguage());
 
 const getInitialLanguagePreference = (): LanguagePreference => {
-  const settings = window.__CONDUCTOR_INITIAL_ANALYSIS_SETTINGS__;
+  const settings = window.__CONDUCTOR_INITIAL_SETTINGS__;
   return settings &&
     typeof settings === "object" &&
     isLanguagePreference(settings.language)
@@ -889,11 +889,11 @@ export class Workbench extends Layout {
     processing = this.templateApply,
   ) {
     return {
-      analysisSettings: this.coreSettingsState.analysisSettings,
+      conductorSettings: this.coreSettingsState.conductorSettings,
       contextMenuService: this.contextMenuService,
       onTemplateApplied: processing.handleTemplateApplied,
       onTemplateAppliedIncremental: processing.handleTemplateAppliedIncremental,
-      onUpdateSettings: this.coreSettingsState.handleUpdateAnalysisSettings,
+      onUpdateSettings: this.coreSettingsState.updateConductorSettings,
       sourceFiles: snapshot.sourceFiles,
       tableModel,
       templateImportController: this.templateImportController,
@@ -924,7 +924,7 @@ export class Workbench extends Layout {
       onPlotAxisSettingsChange: this.updatePlotAxisSettings,
       onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
-      plotAxisSettings: this.coreSettingsState.analysisSettings?.analysisPlotAxisSettings,
+      plotAxisSettings: this.coreSettingsState.conductorSettings?.plotAxisSettings,
       processingStatus: processing.processingStatus,
       showFileSelect: false,
       shouldMountCharts: false,
@@ -939,7 +939,7 @@ export class Workbench extends Layout {
       onPlotAxisSettingsChange: this.updatePlotAxisSettings,
       onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
-      plotAxisSettings: this.coreSettingsState.analysisSettings?.analysisPlotAxisSettings,
+      plotAxisSettings: this.coreSettingsState.conductorSettings?.plotAxisSettings,
     };
   }
 
@@ -988,6 +988,9 @@ export class Workbench extends Layout {
     if (plotUpdates.lineWidth !== undefined) {
       settingsUpdates.originPlotLineWidthDefault = plotUpdates.lineWidth;
     }
+    if (plotUpdates.legendFontSize !== undefined) {
+      settingsUpdates.originPlotLegendFontSizeDefault = plotUpdates.legendFontSize;
+    }
     if (plotUpdates.command !== undefined) {
       settingsUpdates.originPlotCommandDefault = plotUpdates.command;
     }
@@ -998,7 +1001,7 @@ export class Workbench extends Layout {
       settingsUpdates.originPlotXyPairsDefault = plotUpdates.xyPairs;
     }
 
-    await this.coreSettingsState.handleUpdateAnalysisSettings(settingsUpdates);
+    await this.coreSettingsState.updateConductorSettings(settingsUpdates);
   };
 
   private readonly updatePlotAxisSettings = async (updates: unknown): Promise<void> => {
@@ -1006,9 +1009,9 @@ export class Workbench extends Layout {
       return;
     }
 
-    await this.coreSettingsState.handleUpdateAnalysisSettings({
-      analysisPlotAxisSettings: {
-        ...(this.coreSettingsState.analysisSettings?.analysisPlotAxisSettings ?? {}),
+    await this.coreSettingsState.updateConductorSettings({
+      plotAxisSettings: {
+        ...(this.coreSettingsState.conductorSettings?.plotAxisSettings ?? {}),
         ...(updates as Record<string, unknown>),
       },
     });
@@ -1095,17 +1098,17 @@ export class Workbench extends Layout {
         isAvailable: windowState.isAppUpdatePreviewEnabled,
         onCheckForUpdates: async () => false,
       },
-      analysisSettings: state.analysisSettings,
-      analysisSettingsLoaded: state.analysisSettingsLoaded,
+      conductorSettings: state.conductorSettings,
+      conductorSettingsLoaded: state.conductorSettingsLoaded,
       handleLanguageChange: state.handleLanguageChange,
       handleResetLayoutState: async () => {
         await this.commandService.executeCommand(ResetLayoutStateCommandId);
       },
       handleThemeChange: state.handleThemeChange,
-      handleUpdateAnalysisSettings: state.handleUpdateAnalysisSettings,
+      updateConductorSettings: state.updateConductorSettings,
       isWindowsDesktopShell: windowState.isWindowsDesktopShell,
       language: this.languagePreference,
-      mergeAnalysisSettings: state.mergeAnalysisSettings,
+      mergeConductorSettings: state.mergeConductorSettings,
       theme: this.theme,
     };
   }
