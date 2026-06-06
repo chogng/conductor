@@ -36,7 +36,7 @@ export class ChartHeaderActionViewItem extends ActionViewItem {
 
 export const getHeaderActionIcon = (actionId: string): LxIconDefinition => {
   if (actionId === CHART_LEGEND_ACTION_ID) {
-    return LxIcon.summary;
+    return LxIcon.legend;
   }
   if (actionId === CHART_INSPECTOR_ACTION_ID) {
     return LxIcon.analysis;

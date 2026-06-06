@@ -18,6 +18,7 @@ import {
   lxLayoutSidebarLeftEmpty as renderLayoutSidebarLeftEmpty,
   lxLayoutSidebarRightEmpty as renderLayoutSidebarRightEmpty,
   lxListUnordered as renderListUnordered,
+  lxLegend as renderLegend,
   lxOrigin as renderOrigin,
   lxParameters as renderParameters,
   lxRemove as renderRemove,
@@ -136,6 +137,8 @@ export const lxGear = registerLxIcon("gear", renderGear);
 
 export const lxListUnordered = registerLxIcon("list-unordered", renderListUnordered);
 
+export const lxLegend = registerLxIcon("legend", renderLegend);
+
 export const lxOrigin = registerLxIcon("origin", renderOrigin);
 
 export const lxParameters = registerLxIcon("parameters", renderParameters);
@@ -180,6 +183,7 @@ export const LxIcon = {
   layoutSidebarLeftEmpty: lxLayoutSidebarLeftEmpty,
   layoutSidebarRightEmpty: lxLayoutSidebarRightEmpty,
   listUnordered: lxListUnordered,
+  legend: lxLegend,
   moreHorizontal: lxMoreHorizontal,
   origin: lxOrigin,
   parameters: lxParameters,
