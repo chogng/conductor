@@ -9,6 +9,7 @@ import {
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import { createEmptyView } from "src/cs/workbench/contrib/chart/browser/views/emptyView";
+import { filterCalculatedDataSeries } from "src/cs/workbench/contrib/chart/browser/chartLegendVisibility";
 import type {
   IonIoffManualTargetsByFileId,
   IonIoffMethod,
@@ -38,6 +39,7 @@ export type ChartViewProps = {
   ionIoffManualTargetsByFileId?: IonIoffManualTargetsByFileId;
   onActiveFileIdChange?: (nextFileId: string | null) => void;
   showFileSelect?: boolean;
+  hiddenLegendKeys?: readonly string[];
   setIonIoffMethod?: (next: IonIoffMethod) => void;
   setIonIoffManualTargetsByFileId?: StateSetter<IonIoffManualTargetsByFileId>;
   ssMethod?: SsMethod;
@@ -94,14 +96,16 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
     return root;
   }
 
+  const filteredData = filterCalculatedDataSeries(calculatedData, props.hiddenLegendKeys ?? []);
+
   const chartPlotView = createMainPlotView({
-    model: calculatedData,
+    model: filteredData,
     originOpenPlotOptions: props.originOpenPlotOptions,
     plotAxisSettings: props.plotAxisSettings,
     plotType: activePlotType,
   });
   const inspectorPlotView = createMainPlotView({
-    model: createSecondCalculatedData(calculatedData),
+    model: createSecondCalculatedData(filteredData),
     originOpenPlotOptions: props.originOpenPlotOptions,
     plotAxisSettings: props.plotAxisSettings,
     plotType: activePlotType,

@@ -45,13 +45,19 @@ export const isSameLegendContext = (
 export const createLegendPopover = (
   props: AnalysisPanelProps,
   context: LegendContext,
+  options: {
+    readonly hiddenLegendKeys?: readonly string[];
+    readonly onToggleLegendItem?: (legendKey: string) => void;
+  } = {},
 ): HTMLElement => {
   const axisSettings = normalizePlotAxisSettings(
     props.plotAxisSettings,
     DEFAULT_PLOT_AXIS_SETTINGS,
   );
   const legend = createMainPlotLegend({
+    hiddenLegendKeys: options.hiddenLegendKeys,
     legendFontSize: axisSettings.legendFontSize === "" ? undefined : axisSettings.legendFontSize,
+    onToggleLegendItem: options.onToggleLegendItem,
     seriesList: context.seriesList,
   });
   legend.setAttribute("role", "dialog");

@@ -137,6 +137,8 @@ export type MainPlotCanvasProps = {
   originAxisTitleGap?: unknown;
   legendWidth?: number;
   legendContent?: unknown;
+  hiddenLegendKeys?: readonly string[];
+  onToggleLegendItem?: (legendKey: string) => void;
   xAxisLabelOverride?: string;
   yAxisLabelOverride?: string;
   onXAxisLabelChange?: (nextLabel: string) => void;
@@ -520,6 +522,8 @@ const renderLegend = (
   container: HTMLElement,
   seriesList: MainPlotSeries[],
   legendContent: unknown,
+  hiddenLegendKeys: readonly string[] = [],
+  onToggleLegendItem?: (legendKey: string) => void,
 ): void => {
   container.replaceChildren();
   if (legendContent instanceof Node) {
@@ -530,8 +534,19 @@ const renderLegend = (
   const list = document.createElement("div");
   list.className = "main_plot_canvas_legend_list";
   for (const [index, series] of seriesList.entries()) {
-    const row = document.createElement("div");
+    const row = document.createElement("button");
     row.className = "main_plot_canvas_legend_row";
+    row.type = "button";
+    const legendKey = String(series.id ?? "");
+    const isVisible = !hiddenLegendKeys.includes(legendKey);
+    row.dataset.hidden = isVisible ? "false" : "true";
+    row.setAttribute("aria-pressed", String(isVisible));
+    row.disabled = !legendKey || !onToggleLegendItem;
+    row.addEventListener("click", () => {
+      if (legendKey) {
+        onToggleLegendItem?.(legendKey);
+      }
+    });
     const swatch = document.createElement("span");
     swatch.className = "main_plot_canvas_legend_swatch";
     swatch.style.backgroundColor = series.color || resolveSeriesPlotColor(series, index) || getPlotColor(index);
@@ -545,7 +560,7 @@ const renderLegend = (
 };
 
 export const createMainPlotLegend = (props: Pick<MainPlotCanvasProps,
-  "legendContent" | "legendFontSize" | "legendWidth" | "seriesList"
+  "hiddenLegendKeys" | "legendContent" | "legendFontSize" | "legendWidth" | "onToggleLegendItem" | "seriesList"
 >): HTMLElement => {
   const legend = document.createElement("div");
   legend.className = "main_plot_canvas_legend";
@@ -553,7 +568,13 @@ export const createMainPlotLegend = (props: Pick<MainPlotCanvasProps,
   if (props.legendFontSize) {
     legend.style.fontSize = `${props.legendFontSize}px`;
   }
-  renderLegend(legend, props.seriesList ?? [], props.legendContent);
+  renderLegend(
+    legend,
+    props.seriesList ?? [],
+    props.legendContent,
+    props.hiddenLegendKeys,
+    props.onToggleLegendItem,
+  );
   return legend;
 };
 

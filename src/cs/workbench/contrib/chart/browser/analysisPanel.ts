@@ -41,6 +41,7 @@ export type ChartViewLazyProps = {
   ionIoffManualTargetsByFileId?: IonIoffManualTargetsByFileId;
   onActiveFileIdChange?: (nextFileId: string | null) => void;
   showFileSelect?: boolean;
+  hiddenLegendKeys?: readonly string[];
   setIonIoffMethod?: (next: IonIoffMethod) => void;
   setIonIoffManualTargetsByFileId?: StateSetter<IonIoffManualTargetsByFileId>;
   ssMethod?: SsMethod;

@@ -34,6 +34,7 @@ export class ChartViewPane extends ViewPane {
   private legendAction: Action | null = null;
   private legendPopover: HTMLElement | null = null;
   private legendContext: LegendContext | null = null;
+  private readonly hiddenLegendKeysByContext = new Map<string, readonly string[]>();
   private fallbackActivePlotType: PlotType = "iv";
   private visibleDetailPanes: readonly ChartDetailPane[] = ["inspector"];
   private props: AnalysisPanelProps;
@@ -51,6 +52,7 @@ export class ChartViewPane extends ViewPane {
       props,
       this.getActivePlotType(),
       this.visibleDetailPanes,
+      this.getHiddenLegendKeys(this.getCurrentLegendContext(props)),
     ));
     this.updateAnalysisPanelTabState();
     this.headerTabs.className = "chart_view_header_tabs";
@@ -65,12 +67,6 @@ export class ChartViewPane extends ViewPane {
       children: this.content,
       titleContent: this.headerTabs,
     });
-    this.paneStore.add(addDisposableListener(document, EventType.POINTER_DOWN, (event) => {
-      if (!this.legendPopover || this.previewPart.contains(event.target as Node | null)) {
-        return;
-      }
-      this.closeLegendPopover();
-    }));
     this.paneStore.add(addDisposableListener(document, EventType.KEY_DOWN, (event) => {
       if (event.key !== "Escape" || !this.legendPopover) {
         return;
@@ -142,6 +138,7 @@ export class ChartViewPane extends ViewPane {
       props,
       this.getActivePlotType(),
       this.visibleDetailPanes,
+      this.getHiddenLegendKeys(this.getCurrentLegendContext(props)),
     ));
   }
 
@@ -215,7 +212,10 @@ export class ChartViewPane extends ViewPane {
           this.closeLegendPopover();
           return;
         }
-        const legend = createLegendPopover(props, legendContext);
+        const legend = createLegendPopover(props, legendContext, {
+          hiddenLegendKeys: this.getHiddenLegendKeys(legendContext),
+          onToggleLegendItem: (legendKey) => this.toggleLegendItem(legendContext, legendKey),
+        });
         this.legendPopover = legend;
         this.legendContext = legendContext;
         this.previewPart.append(legend);
@@ -253,6 +253,44 @@ export class ChartViewPane extends ViewPane {
     return isSameLegendContext(legendContext, currentContext);
   }
 
+  private refreshLegendPopover(): void {
+    const context = this.getCurrentLegendContext(this.props);
+    if (!this.legendPopover || !context) {
+      this.closeLegendPopover();
+      return;
+    }
+
+    const legend = createLegendPopover(this.props, context, {
+      hiddenLegendKeys: this.getHiddenLegendKeys(context),
+      onToggleLegendItem: (legendKey) => this.toggleLegendItem(context, legendKey),
+    });
+    this.legendPopover.remove();
+    this.legendPopover = legend;
+    this.legendContext = context;
+    this.previewPart.append(legend);
+  }
+
+  private toggleLegendItem(context: LegendContext, legendKey: string): void {
+    const key = this.getLegendStateKey(context);
+    if (!context.seriesList.some((series) => series.id === legendKey)) {
+      return;
+    }
+
+    const current = this.getHiddenLegendKeys(context);
+    const next = current.includes(legendKey)
+      ? current.filter((item) => item !== legendKey)
+      : [...current, legendKey];
+    if (next.length) {
+      this.hiddenLegendKeysByContext.set(key, next);
+    } else {
+      this.hiddenLegendKeysByContext.delete(key);
+    }
+
+    this.renderHeader(this.props);
+    this.updateAnalysisPanel(this.props);
+    this.refreshLegendPopover();
+  }
+
   private toggleVisibleDetailPane(pane: ChartDetailPane): void {
     const next = toggleDetailPane(this.visibleDetailPanes, pane);
 
@@ -271,6 +309,28 @@ export class ChartViewPane extends ViewPane {
 
   private getCurrentLegendContext(props: AnalysisPanelProps): LegendContext | null {
     return getLegendContext(props, this.getActivePlotType());
+  }
+
+  private getHiddenLegendKeys(context: LegendContext | null): readonly string[] {
+    if (!context) {
+      return [];
+    }
+
+    const key = this.getLegendStateKey(context);
+    const liveLegendKeys = new Set(context.seriesList.map((series) => series.id));
+    const hidden = (this.hiddenLegendKeysByContext.get(key) ?? [])
+      .filter((legendKey) => liveLegendKeys.has(legendKey));
+    if (!hidden.length) {
+      this.hiddenLegendKeysByContext.delete(key);
+      return [];
+    }
+
+    this.hiddenLegendKeysByContext.set(key, hidden);
+    return hidden;
+  }
+
+  private getLegendStateKey(context: LegendContext): string {
+    return `${context.fileId}:${context.plotType}`;
   }
 }
 
