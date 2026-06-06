@@ -7,7 +7,6 @@ export interface IHoverWidget extends IDisposable {
   readonly isDisposed: boolean;
   readonly element: HTMLElement;
   layout(target: HTMLElement, options?: IHoverPositionOptions): void;
-  update(content: Exclude<HoverContent, undefined>): void;
 }
 
 export const enum HoverPosition {

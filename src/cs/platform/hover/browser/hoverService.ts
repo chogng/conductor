@@ -9,7 +9,7 @@ import type { IHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate"
 import { Disposable, DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import { HoverWidget } from "src/cs/platform/hover/browser/hoverWidget";
+import { ManagedHoverWidget } from "src/cs/platform/hover/browser/updatableHoverWidget";
 
 export const IHoverService = createDecorator<IHoverService>("hoverService");
 
@@ -19,7 +19,7 @@ export interface IHoverService extends IHoverDelegate {
 
 class ManagedHover extends Disposable implements IManagedHover {
   private readonly listeners = this._register(new DisposableStore());
-  private hoverWidget: HoverWidget | undefined;
+  private readonly hoverWidget: ManagedHoverWidget;
   private showTimer = 0;
   private content: IManagedHoverContentOrFactory;
 
@@ -29,6 +29,7 @@ class ManagedHover extends Disposable implements IManagedHover {
   ) {
     super();
     this.content = content;
+    this.hoverWidget = this._register(new ManagedHoverWidget(target));
     this.listeners.add(addDisposableListener(target, EventType.MOUSE_ENTER, () => this.schedule()));
     this.listeners.add(addDisposableListener(target, EventType.FOCUS, () => this.schedule()));
     this.listeners.add(addDisposableListener(target, EventType.MOUSE_LEAVE, () => this.hide()));
@@ -47,35 +48,22 @@ class ManagedHover extends Disposable implements IManagedHover {
       return;
     }
 
-    const ownerDocument = this.target.ownerDocument;
-    const widget = this.hoverWidget ?? new HoverWidget(ownerDocument, content);
-    if (!this.hoverWidget) {
-      ownerDocument.body.appendChild(widget.element);
-      this.hoverWidget = widget;
-    } else {
-      widget.update(content);
-    }
-
-    widget.layout(this.target);
+    this.hoverWidget.show(content);
   }
 
   public hide(): void {
     this.clearTimer();
-    this.hoverWidget?.dispose();
-    this.hoverWidget = undefined;
+    this.hoverWidget.hide();
   }
 
   public update(content: IManagedHoverContent, _options?: IManagedHoverOptions): void {
     this.content = content;
-    if (this.hoverWidget) {
-      const resolved = this.resolveContent();
-      if (!resolved) {
-        this.hide();
-        return;
-      }
-      this.hoverWidget.update(resolved);
-      this.hoverWidget.layout(this.target);
+    const resolved = this.resolveContent();
+    if (!resolved) {
+      this.hide();
+      return;
     }
+    this.hoverWidget.show(resolved);
   }
 
   public override dispose(): void {
