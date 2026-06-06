@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 
+import { localize } from "src/cs/nls";
 import { triggerBlobDownload } from "src/cs/workbench/contrib/export/browser/export";
 import {
   buildOriginAxisSpacingCommands,
@@ -25,6 +26,21 @@ export const ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES = new Set([
 ]);
 
 type JsonRecord = Record<string, unknown>;
+
+const getOriginZipSaveErrorMessage = (code: unknown): string => {
+  switch (code) {
+    case "ORIGIN_ZIP_EMPTY":
+      return localize("originZip.error.empty", "No Origin CSV entries were provided.");
+    case "ORIGIN_ZIP_EMPTY_ENTRY":
+      return localize("originZip.error.emptyEntry", "Origin ZIP entry is missing CSV content.");
+    case "ORIGIN_ZIP_INVALID_ENTRY_PATH":
+      return localize("originZip.error.invalidEntryPath", "Origin ZIP entry path is not readable.");
+    case "ORIGIN_ZIP_SAVE_FAILED":
+      return localize("originZip.error.saveFailed", "Failed to save Origin ZIP.");
+  }
+
+  return localize("originZip.error.saveFailed", "Failed to save Origin ZIP.");
+};
 
 export type OriginDisplayRange = {
   min: number;
@@ -480,7 +496,7 @@ export async function exportOriginZip(options: {
     });
     if (response?.cancelled) return null;
     if (!response?.ok) {
-      throw new Error(response?.message || "Failed to save Origin ZIP.");
+      throw new Error(getOriginZipSaveErrorMessage(response?.code));
     }
     return {
       canvasCount: Number(result.totalCanvasCount ?? 0),

@@ -33,6 +33,19 @@ export type RunRcAnalysisResult =
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object";
 
+const getRcErrorMessage = (response: Record<string, unknown>): string => {
+  switch (response.code) {
+    case "RUST_ENGINE_RC_MISSING_DEVICES":
+      return localize("rc_error_no_devices", "Rc analysis requires at least one device.");
+    case "RUST_ENGINE_RC_FAILED":
+      return localize("rc_error_analysis_failed", "Rc analysis failed.");
+    default: {
+      const message = String(response.message || "").trim();
+      return message || localize("rc_error_analysis_failed", "Rc analysis failed.");
+    }
+  }
+};
+
 export type RunRcAnalysisOptions = {
   curveProbeX: number | null;
   analysisFileService: RcAnalysisFileService;
@@ -79,8 +92,7 @@ export const runRcAnalysis = async ({
     });
     const responseRecord = isRecord(response) ? response : {};
     if (responseRecord.ok !== true) {
-      const message = String(responseRecord.message || "").trim();
-      throw new Error(message || localize("rc_error_analysis_failed", "Rc analysis failed."));
+      throw new Error(getRcErrorMessage(responseRecord));
     }
 
     return {

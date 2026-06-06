@@ -1,3 +1,4 @@
+import { localize } from "src/cs/nls";
 import type {
   AnalysisFileAssessment,
   IAnalysisFileService,
@@ -151,7 +152,7 @@ export const preparePendingImportFile = async (
   } catch (error) {
     const failure = toPrepareFailure(
       error,
-      pendingImportFile.sourceName || "Unknown file",
+      pendingImportFile.sourceName || localize("import.unknownFile", "Unknown file"),
     );
     finishFilePerf({
       code: failure.code,

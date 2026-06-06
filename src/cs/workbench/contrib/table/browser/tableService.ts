@@ -856,10 +856,14 @@ const createTableModel = ({
         const errorPayload = payload as WorkerErrorPayload;
         const requestId = Number(errorPayload.requestId);
         if (!Number.isFinite(requestId)) return;
-        const errorMessage =
+        const workerMessage =
           typeof errorPayload.message === "string" && errorPayload.message
             ? errorPayload.message
             : "Unknown worker error";
+        const errorMessage = localize(
+          "preview_worker_failed",
+          "Preview worker failed.",
+        );
 
         if (
           requestId !== previewRequestIdRef.current &&
@@ -875,7 +879,7 @@ const createTableModel = ({
           return;
         }
 
-        console.error("Preview worker error:", errorMessage);
+        console.error("Preview worker error:", workerMessage);
         clearPendingPreviewRequest(requestId);
         runImmediately(() => {
           clearPreviewState();

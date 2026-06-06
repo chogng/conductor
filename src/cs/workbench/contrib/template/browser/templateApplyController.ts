@@ -1,4 +1,4 @@
-import { localize } from "src/cs/nls";
+import { localize, type NLSVars } from "src/cs/nls";
 import type {
   MutableState,
   StateSetter,
@@ -232,13 +232,80 @@ const buildExtractionStartFeedback = ({
 
 const buildWorkerExtractionError = (payload: unknown): ExtractionErrorEntry => {
   const details = normalizeExtractionErrorDetails(payload);
+  const message = getWorkerExtractionErrorMessage(details);
 
   return {
-    fileName: details.fileName || "Unknown file",
-    message: details.message,
+    fileName:
+      details.fileName || localize("import.unknownFile", "Unknown file"),
+    message,
     messageKey: details.messageKey,
     messageParams: details.messageParams,
   };
+};
+
+const toNLSVars = (
+  value: Record<string, unknown> | null,
+): NLSVars | undefined => {
+  if (!value) return undefined;
+
+  const vars: NLSVars = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (
+      typeof entry === "string" ||
+      typeof entry === "number" ||
+      typeof entry === "boolean" ||
+      entry === null ||
+      entry === undefined
+    ) {
+      vars[key] = entry;
+    }
+  }
+
+  return vars;
+};
+
+const getWorkerExtractionErrorMessage = ({
+  messageKey,
+  messageParams,
+}: {
+  messageKey: string | null;
+  messageParams: Record<string, unknown> | null;
+}): string => {
+  const vars = toNLSVars(messageParams);
+
+  switch (messageKey) {
+    case "extractPointsCellPositiveInt":
+      return localize(
+        "extractPointsCellPositiveInt",
+        "Points cell {cell} must contain a positive integer.",
+        vars,
+      );
+    case "extractPointsCellTooLarge":
+      return localize(
+        "extractPointsCellTooLarge",
+        "Points from {cell} ({points}) cannot be larger than the X range length ({total}).",
+        vars,
+      );
+    case "extractXNotDivisibleByPointsFromCell":
+      return localize(
+        "extractXNotDivisibleByPointsFromCell",
+        "X range has {total} points, which is not divisible by points={points} (from {cell}).",
+        vars,
+      );
+    case "extractXNotDivisibleByPoints":
+      return localize(
+        "extractXNotDivisibleByPoints",
+        "X range has {total} points, which is not divisible by points={points}.",
+        vars,
+      );
+    case "extractCurveTypeUndeterminedFromVarHints":
+      return localize(
+        "extractCurveTypeUndeterminedFromVarHints",
+        "Unable to determine curve type from Var1/Var2 or nearby headers. Please check the template, or use file-name keywords.",
+      );
+    default:
+      return localize("extract_worker_failed", "Extraction worker failed.");
+  }
 };
 
 export class TemplateApplyController {

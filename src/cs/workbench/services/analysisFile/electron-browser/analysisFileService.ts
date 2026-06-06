@@ -12,6 +12,7 @@ import {
   type AnalysisFileRcAnalysisResult,
   type AnalysisFileResultPayload,
 } from "src/cs/workbench/services/analysisFile/common/analysisFile";
+import { localize } from "src/cs/nls";
 
 type DesktopIpcRenderer = {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
@@ -38,7 +39,68 @@ declare global {
   }
 }
 
-const SERVICE_UNAVAILABLE = "Analysis file desktop bridge unavailable.";
+const getServiceUnavailableMessage = (): string =>
+  localize("analysisFile.desktopBridgeUnavailable", "Analysis file desktop bridge unavailable.");
+
+const getAnalysisFileErrorMessage = (code: unknown): string => {
+  switch (code) {
+    case "ANALYSIS_FILE_NOT_FOUND":
+      return localize("analysisFile.error.fileNotFound", "Analysis file was not found.");
+    case "INVALID_ANALYSIS_CELL":
+      return localize("analysisFile.error.invalidCell", "Invalid analysis cell request.");
+    case "INVALID_ANALYSIS_CELLS":
+      return localize("analysisFile.error.invalidCells", "Invalid analysis cells request.");
+    case "INVALID_ANALYSIS_FILE_ID":
+      return localize("analysisFile.error.invalidFileId", "Missing analysis file id.");
+    case "INVALID_ANALYSIS_PATH":
+      return localize("analysisFile.error.invalidPath", "Invalid analysis file path.");
+    case "RUST_ENGINE_EXPORT_FAILED":
+      return localize("analysisFile.error.exportFailed", "Failed to export Origin CSV.");
+    case "RUST_ENGINE_EXPORT_UNSUPPORTED_CONFIG":
+      return localize("analysisFile.error.exportUnsupportedConfig", "This Origin export plan is not supported yet.");
+    case "RUST_ENGINE_INFER_AUTO_EXTRACTION_FAILED":
+      return localize("analysisFile.error.inferAutoExtractionFailed", "Failed to infer auto extraction.");
+    case "RUST_ENGINE_OPEN_FAILED":
+      return localize("analysisFile.error.openFailed", "Failed to open analysis file.");
+    case "RUST_ENGINE_PREVIEW_META_FAILED":
+      return localize("analysisFile.error.previewMetaFailed", "Failed to read preview metadata.");
+    case "RUST_ENGINE_PREVIEW_ROWS_FAILED":
+      return localize("analysisFile.error.previewRowsFailed", "Failed to read preview rows.");
+    case "RUST_ENGINE_PROCESS_FAILED":
+      return localize("analysisFile.error.processFailed", "Failed to process analysis file.");
+    case "RUST_ENGINE_PROCESS_UNSUPPORTED_CONFIG":
+      return localize("analysisFile.error.processUnsupportedConfig", "This extraction config is not supported yet.");
+    case "RUST_ENGINE_RC_FAILED":
+      return localize("analysisFile.error.rcFailed", "Rc analysis failed.");
+    case "RUST_ENGINE_RC_MISSING_DEVICES":
+      return localize("analysisFile.error.rcMissingDevices", "Rc analysis requires at least one device.");
+    case "RUST_ENGINE_READ_CELL_FAILED":
+      return localize("analysisFile.error.readCellFailed", "Failed to read analysis cell.");
+    case "RUST_ENGINE_READ_CELLS_FAILED":
+      return localize("analysisFile.error.readCellsFailed", "Failed to read analysis cells.");
+    case "RUST_ENGINE_DISPOSE_FAILED":
+      return localize("analysisFile.error.disposeFailed", "Failed to release analysis file.");
+  }
+
+  return localize("analysisFile.error.engineFailed", "Analysis engine failed.");
+};
+
+const localizeAnalysisFileResponse = <T>(response: T): T => {
+  if (
+    response &&
+    typeof response === "object" &&
+    !Array.isArray(response) &&
+    (response as { ok?: unknown }).ok === false
+  ) {
+    const record = response as Record<string, unknown>;
+    return {
+      ...record,
+      message: getAnalysisFileErrorMessage(record.code),
+    } as T;
+  }
+
+  return response;
+};
 
 function getBridge(): AnalysisFileBridge | null {
   const bridge = globalThis.window?.desktopImport;
@@ -55,7 +117,7 @@ function getBridgeMethod<K extends keyof AnalysisFileBridge>(
 ): NonNullable<AnalysisFileBridge[K]> {
   const method = bridge[key];
   if (typeof method !== "function") {
-    throw new Error(`${SERVICE_UNAVAILABLE} (${String(key)})`);
+    throw new Error(`${getServiceUnavailableMessage()} (${String(key)})`);
   }
 
   return method as NonNullable<AnalysisFileBridge[K]>;
@@ -68,7 +130,7 @@ function getIpcRenderer(): DesktopIpcRenderer {
     } | undefined
   )?.conductor?.ipcRenderer;
   if (!ipcRenderer || typeof ipcRenderer.invoke !== "function") {
-    throw new Error(SERVICE_UNAVAILABLE);
+    throw new Error(getServiceUnavailableMessage());
   }
 
   return ipcRenderer;
@@ -93,10 +155,12 @@ export class ElectronBrowserAnalysisFileService extends Disposable implements IA
   public analyzeRc(payload: unknown): Promise<AnalysisFileRcAnalysisResult> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("analyzeAnalysisFileRcWithRust")) {
-      return getBridgeMethod(bridge, "analyzeAnalysisFileRcWithRust")(payload);
+      return getBridgeMethod(bridge, "analyzeAnalysisFileRcWithRust")(payload)
+        .then(localizeAnalysisFileResponse);
     }
 
-    return invoke<AnalysisFileRcAnalysisResult>(workbenchIpcChannels.analysisRustEngineAnalyzeRc, payload);
+    return invoke<AnalysisFileRcAnalysisResult>(workbenchIpcChannels.analysisRustEngineAnalyzeRc, payload)
+      .then(localizeAnalysisFileResponse);
   }
 
   public canAnalyzeRc(): boolean {
@@ -138,10 +202,12 @@ export class ElectronBrowserAnalysisFileService extends Disposable implements IA
   public disposeFile(payload: unknown): Promise<unknown> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("disposeAnalysisFileWithRust")) {
-      return getBridgeMethod(bridge, "disposeAnalysisFileWithRust")(payload);
+      return getBridgeMethod(bridge, "disposeAnalysisFileWithRust")(payload)
+        .then(localizeAnalysisFileResponse);
     }
 
-    return invoke(workbenchIpcChannels.analysisRustEngineDispose, payload);
+    return invoke(workbenchIpcChannels.analysisRustEngineDispose, payload)
+      .then(localizeAnalysisFileResponse);
   }
 
   public getDemoFiles(): Promise<AnalysisFileDemoFiles> {
@@ -156,73 +222,89 @@ export class ElectronBrowserAnalysisFileService extends Disposable implements IA
   public getPreviewMeta(payload: unknown): Promise<AnalysisFileResultPayload> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("getAnalysisFilePreviewMetaWithRust")) {
-      return getBridgeMethod(bridge, "getAnalysisFilePreviewMetaWithRust")(payload);
+      return getBridgeMethod(bridge, "getAnalysisFilePreviewMetaWithRust")(payload)
+        .then(localizeAnalysisFileResponse);
     }
 
-    return invoke<AnalysisFileResultPayload>(workbenchIpcChannels.analysisRustEnginePreviewMeta, payload);
+    return invoke<AnalysisFileResultPayload>(workbenchIpcChannels.analysisRustEnginePreviewMeta, payload)
+      .then(localizeAnalysisFileResponse);
   }
 
   public getPreviewRows(payload: unknown): Promise<AnalysisFileResultPayload> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("getAnalysisFilePreviewRowsWithRust")) {
-      return getBridgeMethod(bridge, "getAnalysisFilePreviewRowsWithRust")(payload);
+      return getBridgeMethod(bridge, "getAnalysisFilePreviewRowsWithRust")(payload)
+        .then(localizeAnalysisFileResponse);
     }
 
-    return invoke<AnalysisFileResultPayload>(workbenchIpcChannels.analysisRustEnginePreviewRows, payload);
+    return invoke<AnalysisFileResultPayload>(workbenchIpcChannels.analysisRustEnginePreviewRows, payload)
+      .then(localizeAnalysisFileResponse);
   }
 
   public inferAutoExtraction(payload: unknown): Promise<unknown> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("inferAnalysisFileAutoExtractionWithRust")) {
-      return getBridgeMethod(bridge, "inferAnalysisFileAutoExtractionWithRust")(payload);
+      return getBridgeMethod(bridge, "inferAnalysisFileAutoExtractionWithRust")(payload)
+        .then(localizeAnalysisFileResponse);
     }
 
-    return invoke(workbenchIpcChannels.analysisRustEngineInferAutoExtraction, payload);
+    return invoke(workbenchIpcChannels.analysisRustEngineInferAutoExtraction, payload)
+      .then(localizeAnalysisFileResponse);
   }
 
   public openFile(payload: unknown): Promise<AnalysisFileResultPayload> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("openAnalysisFileWithRust")) {
-      return getBridgeMethod(bridge, "openAnalysisFileWithRust")(payload);
+      return getBridgeMethod(bridge, "openAnalysisFileWithRust")(payload)
+        .then(localizeAnalysisFileResponse);
     }
 
-    return invoke<AnalysisFileResultPayload>(workbenchIpcChannels.analysisRustEngineOpen, payload);
+    return invoke<AnalysisFileResultPayload>(workbenchIpcChannels.analysisRustEngineOpen, payload)
+      .then(localizeAnalysisFileResponse);
   }
 
   public prepareFile(payload: { fileName: string; path: string }): Promise<AnalysisFilePreparedFile> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("prepareImportFileWithRust")) {
-      return getBridgeMethod(bridge, "prepareImportFileWithRust")(payload);
+      return getBridgeMethod(bridge, "prepareImportFileWithRust")(payload)
+        .then(localizeAnalysisFileResponse);
     }
 
-    return invoke<AnalysisFilePreparedFile>(workbenchIpcChannels.importPrepareRust, payload);
+    return invoke<AnalysisFilePreparedFile>(workbenchIpcChannels.importPrepareRust, payload)
+      .then(localizeAnalysisFileResponse);
   }
 
   public processFile(payload: unknown): Promise<AnalysisFileResultPayload> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("processAnalysisFileWithRust")) {
-      return getBridgeMethod(bridge, "processAnalysisFileWithRust")(payload);
+      return getBridgeMethod(bridge, "processAnalysisFileWithRust")(payload)
+        .then(localizeAnalysisFileResponse);
     }
 
-    return invoke<AnalysisFileResultPayload>(workbenchIpcChannels.analysisRustEngineProcessFile, payload);
+    return invoke<AnalysisFileResultPayload>(workbenchIpcChannels.analysisRustEngineProcessFile, payload)
+      .then(localizeAnalysisFileResponse);
   }
 
   public readCell(payload: unknown): Promise<unknown> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("readAnalysisFileCellWithRust")) {
-      return getBridgeMethod(bridge, "readAnalysisFileCellWithRust")(payload);
+      return getBridgeMethod(bridge, "readAnalysisFileCellWithRust")(payload)
+        .then(localizeAnalysisFileResponse);
     }
 
-    return invoke(workbenchIpcChannels.analysisRustEngineReadCell, payload);
+    return invoke(workbenchIpcChannels.analysisRustEngineReadCell, payload)
+      .then(localizeAnalysisFileResponse);
   }
 
   public readCells(payload: unknown): Promise<AnalysisFileResultPayload> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("readAnalysisFileCellsWithRust")) {
-      return getBridgeMethod(bridge, "readAnalysisFileCellsWithRust")(payload);
+      return getBridgeMethod(bridge, "readAnalysisFileCellsWithRust")(payload)
+        .then(localizeAnalysisFileResponse);
     }
 
-    return invoke<AnalysisFileResultPayload>(workbenchIpcChannels.analysisRustEngineReadCells, payload);
+    return invoke<AnalysisFileResultPayload>(workbenchIpcChannels.analysisRustEngineReadCells, payload)
+      .then(localizeAnalysisFileResponse);
   }
 
   public readConvertedCsv(payload: { path: string }): Promise<AnalysisFileConvertedCsv> {

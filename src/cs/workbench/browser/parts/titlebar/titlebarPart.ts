@@ -4,6 +4,7 @@ import {
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { LayoutViewSwitchIds } from "src/cs/workbench/browser/actions/layoutActions";
 import type { LayoutView } from "src/cs/workbench/browser/layout";
+import { localize } from "src/cs/nls";
 import {
   createWorkbenchTitlebarNavActions,
   createWorkbenchTitlebarPageActions,
@@ -227,7 +228,7 @@ const createFileSelector = ({
   const select = createElement("select", {
     id: "analysis-window-file-select",
     className: "titlebar-file-select-native neutral-select",
-    "aria-label": "Analysis file",
+    "aria-label": localize("titlebar.analysisFileAriaLabel", "Analysis file"),
   });
 
   select.value = activeFileId ?? "";

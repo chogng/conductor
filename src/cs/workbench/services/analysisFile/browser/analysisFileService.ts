@@ -9,11 +9,13 @@ import {
   type AnalysisFileRcAnalysisResult,
   type AnalysisFileResultPayload,
 } from "src/cs/workbench/services/analysisFile/common/analysisFile";
+import { localize } from "src/cs/nls";
 
-const SERVICE_UNAVAILABLE = "Analysis file desktop bridge unavailable.";
+const getServiceUnavailableMessage = (): string =>
+  localize("analysisFile.desktopBridgeUnavailable", "Analysis file desktop bridge unavailable.");
 
 function unavailable(): Promise<never> {
-  return Promise.reject(new Error(SERVICE_UNAVAILABLE));
+  return Promise.reject(new Error(getServiceUnavailableMessage()));
 }
 
 export class BrowserAnalysisFileService extends Disposable implements IAnalysisFileServiceType {

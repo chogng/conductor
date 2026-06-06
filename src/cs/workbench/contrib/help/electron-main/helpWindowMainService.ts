@@ -19,6 +19,7 @@ export type HelpWindowMainServiceOptions = {
   readonly getAppRootPath: () => string;
   readonly getAppearance: () => HelpWindowAppearance;
   readonly getThemeSnapshot: () => ThemeSnapshot;
+  readonly getWindowTitle: (kind: HelpWindowKind) => string;
   readonly iconPath?: string;
   readonly isDev: boolean;
   readonly loadBaseUrl: string;
@@ -155,8 +156,6 @@ export class HelpWindowMainService {
   }
 
   private getWindowTitle(kind: HelpWindowKind): string {
-    return kind === "guide"
-      ? "Conductor Studio User Guide"
-      : "Conductor Studio Update Log";
+    return this.options.getWindowTitle(kind);
   }
 }

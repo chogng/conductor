@@ -12,6 +12,7 @@ import type {
   NotificationToastType,
 } from "src/cs/workbench/services/notification/common/notificationService";
 import { getPrimaryNotificationAction } from "src/cs/workbench/browser/parts/notifications/notificationsActions";
+import { localize } from "src/cs/nls";
 
 export type NotificationRendererOptions = {
   readonly onAction: (action: IAction) => void;
@@ -62,7 +63,7 @@ export class NotificationRenderer implements IDisposable {
     this.actionButton.className = "conductor-toast-action";
     this.closeButton.type = "button";
     this.closeButton.className = "conductor-toast-close";
-    this.closeButton.setAttribute("aria-label", "Close toast");
+    this.closeButton.setAttribute("aria-label", localize("notifications.closeToast", "Close toast"));
     appendIcon(this.closeButton, LxIcon.close, 16);
 
     this.messageScroll.viewport.append(this.message);

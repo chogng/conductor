@@ -5,6 +5,7 @@
   "type": "module",
   "main": "desktop-dist/desktop/main.js",
   "scripts": {
+    "sync:nls": "node --experimental-strip-types build/lib/nls.ts",
     "verify:icons": "node scripts/verify-icons.mjs",
     "verify:nls": "node --experimental-strip-types build/lib/nls.ts",
     "generate:icons": "node scripts/run-powershell.mjs scripts/generate-icons.ps1",

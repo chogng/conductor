@@ -5,6 +5,7 @@ import { ActionBar, type IActionViewItemProvider } from "src/cs/base/browser/ui/
 import type { IAction } from "src/cs/base/common/actions";
 import { ViewPane, type ViewPaneOptions } from "src/cs/workbench/browser/parts/views/viewPane";
 import type { IView, IViewPaneContainer } from "src/cs/workbench/common/views";
+import { localize } from "src/cs/nls";
 
 import "src/cs/workbench/browser/parts/views/media/paneviewlet.css";
 
@@ -73,7 +74,9 @@ export class ViewPaneContainer implements IViewPaneContainer {
     this.titleElement.className = "workbench-view-pane-container__title";
     this.actionBar = this.disposables.add(new ActionBar({
       actionViewItemProvider: options.actionViewItemProvider,
-      ariaLabel: this.containerTitle ? `${this.containerTitle} actions` : "View actions",
+      ariaLabel: this.containerTitle
+        ? localize("viewPaneContainer.titleActionsAriaLabel", "{title} actions", { title: this.containerTitle })
+        : localize("viewPaneContainer.viewActionsAriaLabel", "View actions"),
       className: "workbench-view-pane-container__actions",
     }));
     this.body = document.createElement("div");

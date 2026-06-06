@@ -737,13 +737,15 @@ export class SettingsController {
       await this.service.updateSettings(updates);
       this.analysisDefaultsFeedback = {
         type: "success",
-        message: "Analysis defaults saved.",
+        message: localize("analysisSettings.defaultsSaved", "Analysis defaults saved."),
       };
     }
     catch (error) {
       this.analysisDefaultsFeedback = {
         type: "error",
-        message: `Failed to save analysis defaults: ${this.service.errorMessage(error)}`,
+        message: localize("analysisSettings.defaultsSaveFailed", "Failed to save analysis defaults: {error}", {
+          error: this.service.errorMessage(error),
+        }),
       };
     }
     finally {

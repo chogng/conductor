@@ -34,6 +34,7 @@ export interface Win32UpdateServiceOptions {
   readonly packageJsonPath: string;
   readonly getDialogWindow: () => BrowserWindow | null;
   readonly onStatusChange: (status: DesktopUpdateStatus) => void;
+  readonly localize: (key: string, vars?: Record<string, unknown>) => string;
   readonly log: (message: string) => void;
   readonly warn: (message: string, error?: unknown) => void;
 }
@@ -115,7 +116,7 @@ export class Win32UpdateService {
 
   async setup(): Promise<void> {
     if (!this.options.app.isPackaged) {
-      this.setStatus("disabled", null, "none", "Auto update is disabled in development.");
+      this.setStatus("disabled", null, "none", this.options.localize("update.disabledDevelopment"));
       return;
     }
 
@@ -126,14 +127,14 @@ export class Win32UpdateService {
         "idle",
         null,
         "store",
-        "Updates are managed by Microsoft Store.",
+        this.options.localize("update.storeManagedMessage"),
       );
       this.options.log("[update] Microsoft Store package detected; Store manages updates.");
       return;
     }
 
     if (!AUTO_UPDATE_SUPPORTED_PLATFORMS.has(process.platform)) {
-      this.setStatus("unsupported", null, "unsupported", "Auto update is Windows-only.");
+      this.setStatus("unsupported", null, "unsupported", this.options.localize("update.unsupportedWindowsOnly"));
       this.options.log(`[update] Skipped for unsupported platform: ${process.platform}`);
       return;
     }
@@ -207,9 +208,9 @@ export class Win32UpdateService {
     if (!updater || !this.autoUpdater) return null;
 
     if (!this.isAutoUpdateConfigured) {
-      this.setStatus("disabled", null, "none", "Auto update is not enabled in this build.");
+      this.setStatus("disabled", null, "none", this.options.localize("update.notEnabled"));
       if (manual) {
-        await this.showInfoDialog("Auto update is not enabled in this build.");
+        await this.showInfoDialog(this.options.localize("update.notEnabled"));
       }
       return null;
     }
@@ -217,20 +218,22 @@ export class Win32UpdateService {
     try {
       const result = await this.autoUpdater.checkForUpdates();
       if (manual && result && result.isUpdateAvailable === false) {
-        await this.showInfoDialog("You are already using the latest version.");
+        await this.showInfoDialog(this.options.localize("update.alreadyLatest"));
       }
       return result;
     } catch (error) {
       this.options.warn("[update] Check failed.", error);
-      this.setStatus("error", null, this.status.channel, "Update check failed.");
+      this.setStatus("error", null, this.status.channel, this.options.localize("update.checkFailedMessage"));
 
       if (manual) {
         await this.showMessageBox({
           type: "error",
           title: this.options.appDisplayName,
-          message: "检查更新失败",
-          detail: `${this.getFailureDetail(error)}\n\n请确认网络或代理设置后重试。`,
-          buttons: ["确定"],
+          message: this.options.localize("update.checkFailedMessage"),
+          detail: this.options.localize("update.checkFailedDetail", {
+            reason: this.getFailureDetail(error),
+          }),
+          buttons: [this.options.localize("update.ok")],
           defaultId: 0,
           noLink: true,
         });
@@ -353,7 +356,7 @@ export class Win32UpdateService {
 
     this.autoUpdater.on("error", (error: unknown) => {
       this.autoUpdateInstallAfterDownloadRequested = false;
-      this.setStatus("error", null, this.status.channel, "Auto update failed.");
+      this.setStatus("error", null, this.status.channel, this.options.localize("update.failed"));
       this.options.warn("[update] Error.", error);
     });
 
@@ -389,7 +392,7 @@ export class Win32UpdateService {
       type: "info",
       title: this.options.appDisplayName,
       message,
-      buttons: ["OK"],
+      buttons: [this.options.localize("update.ok")],
       defaultId: 0,
       noLink: true,
     });
@@ -399,10 +402,9 @@ export class Win32UpdateService {
     await this.showMessageBox({
       type: "info",
       title: this.options.appDisplayName,
-      message: "更新由 Microsoft Store 管理",
-      detail:
-        "当前安装包来自 Microsoft Store。商店会负责检查、下载、校验和安装更新；也可以在 Microsoft Store 的库页面手动检查更新。",
-      buttons: ["确定"],
+      message: this.options.localize("update.storeManagedMessage"),
+      detail: this.options.localize("update.storeManagedDetail"),
+      buttons: [this.options.localize("update.ok")],
       defaultId: 0,
       noLink: true,
     });
@@ -411,10 +413,10 @@ export class Win32UpdateService {
   private getFailureDetail(error: unknown): string {
     const message = getErrorMessage(error).trim();
     if (!message) {
-      return "请稍后重试，或确认当前网络可以访问更新服务器。";
+      return this.options.localize("update.retrySuggestion");
     }
 
-    return `原因：${message}`;
+    return this.options.localize("update.errorReasonPrefix", { message });
   }
 
   private async showMessageBox(options: MessageBoxOptions): Promise<void> {

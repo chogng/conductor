@@ -14,6 +14,7 @@ import {
   WillShutdownJoinerOrder,
   type ILifecycleService as ILifecycleServiceType,
 } from "src/cs/workbench/services/lifecycle/common/lifecycle";
+import { localize } from "src/cs/nls";
 
 export class AnalysisFileLifecycleContribution extends Disposable implements IWorkbenchContribution {
   public constructor(
@@ -31,7 +32,7 @@ export class AnalysisFileLifecycleContribution extends Disposable implements IWo
         () => this.analysisFileService.disposeFile({ clear: true }).then(() => undefined),
         {
           id: "analysisFile.clearRustPreviewFiles",
-          label: "Clear Rust preview files",
+          label: localize("analysisFile.clearRustPreviewFiles", "Clear Rust preview files"),
           order: WillShutdownJoinerOrder.Last,
         },
       );

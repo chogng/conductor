@@ -135,6 +135,9 @@ Contribution、Command、Context Key、Configuration：
 - 不吞异常，不空 `catch`。如果确实忽略错误，必须写清楚原因，并限制在最小范围。
 - 用户可见文案统一使用 `src/cs/nls` 的 `localize(...)`，不要新增第二套 i18n/service 封装。最终用户字符串由 UI 或入口层生成；common/model/parser/node/electron-main 优先返回结构化状态、错误码和必要参数，不直接组织最终用户文案。
 - 本项目 `localize` 使用命名变量格式，例如 `localize('rowsImported', 'Imported {count} rows.', { count })`，不要写 VS Code `{0}` 风格占位。
+- `localize(...)` 的 source string 默认使用英文，不直接写中文 source string；英文文案以源码为准，由 `npm run sync:nls` / `npm run verify:nls` 自动同步到 `build/nls/en.json`，不要再手工维护 `en.json`。
+- 中文文案按需维护在 `build/nls/zh.json`；缺少中文时允许先回退英文，但新增或触碰用户可见文案时，优先顺手补齐对应中文。
+- 新增、删除或重命名 `localize` key 后，至少运行一次 `npm run verify:nls`；需要先更新英文词典时可直接运行 `npm run sync:nls`。
 
 安全和性能：
 - 路径和 URI 处理使用项目已有 URI/path/file service；不要手写字符串拼接路径，不把 Windows 路径分隔符写死进业务逻辑。
@@ -171,4 +174,3 @@ Contribution、Command、Context Key、Configuration：
 - 不为了通过编译把类型断言一路写到底；先修类型边界。
 - 不为了“更通用”覆盖上游朴素写法；简化和抽象冲突时，优先上游同类模块的直接写法。
 - 尺寸单位使用 `px`；不要引入 `rem` 一类尺寸体系。
-- `localize(...)` 的 source string 默认使用英文，不直接写中文 source string。

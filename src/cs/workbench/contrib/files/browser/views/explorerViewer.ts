@@ -560,8 +560,8 @@ export class ExplorerViewer implements IDisposable {
     return [
       createMenuAction({
         id: "files.folder.remove",
-        label: localize("files.removeFolder", "Remove"),
-        left: createMenuItemLabel(localize("files.removeFolder", "Remove"), LxIcon.remove),
+        label: localize("files.removeFolder", "Remove Folder"),
+        left: createMenuItemLabel(localize("files.removeFolder", "Remove Folder"), LxIcon.remove),
         run: () => this.props.onRemoveFolder(node.key),
         tabIndex: 0,
       }),

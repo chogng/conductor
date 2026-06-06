@@ -85,11 +85,11 @@ export const getFolderImportUnsupportedMessage = (
 ): string => support.reason === "no-webassembly"
   ? localize(
     "files.importUnsupportedWasm",
-    "当前浏览器环境无法运行预览所需组件（WebAssembly 可能被禁用）。请在独立的 Chrome 或 Edge 窗口中打开本页面后再导入。",
+    "The current browser environment cannot run the preview component. WebAssembly may be disabled. Open this page in a standalone Chrome or Edge window, then import again.",
   )
   : localize(
     "files.importUnsupportedPicker",
-    "当前浏览器环境不支持文件夹选择。请在独立的 Chrome 或 Edge 窗口中打开本页面后再导入。",
+    "The current browser environment does not support folder selection. Open this page in a standalone Chrome or Edge window, then import again.",
   );
 
 export const getFolderImportSupportForFileService = (
@@ -124,7 +124,7 @@ export const showCreateFolderUnsupported = (): void => {
     id: "files.createFolderUnsupported",
     message: localize(
       "files.createFolderUnsupported",
-      "当前导入列表暂不支持创建空文件夹。",
+      "The current import list does not support creating empty folders yet.",
     ),
     type: "info",
   });

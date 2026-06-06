@@ -78,6 +78,26 @@ if (!hasSingleInstanceLock) {
 
 let originRunnerModulePromise = null;
 
+function getMainLanguage() {
+  try {
+    const language = analysisStore?.getAnalysisSettings?.()?.language;
+    return language === "zh" ? "zh" : "en";
+  } catch {
+    return "en";
+  }
+}
+
+function mainMessage(key, vars = {}) {
+  const language = getMainLanguage();
+  const messages = MAIN_MESSAGES[language] || MAIN_MESSAGES.en;
+  const template = messages[key] || MAIN_MESSAGES.en[key] || key;
+  return Object.entries(vars).reduce(
+    (value, [name, replacement]) =>
+      value.replaceAll(`{${name}}`, String(replacement ?? "")),
+    template,
+  );
+}
+
 const isDev = !app.isPackaged;
 const isWindows = process.platform === "win32";
 // The desktop renderer follows VS Code's code/electron-browser/workbench entry shape.
@@ -89,6 +109,63 @@ const isWindowsStorePackage =
   process.platform === "win32" && Reflect.get(process, "windowsStore") === true;
 const APP_DISPLAY_NAME = product.nameLong;
 const APP_USER_MODEL_ID = product.appId;
+
+const MAIN_MESSAGES = {
+  en: {
+    "dialog.allFiles": "All Files",
+    "dialog.confirm": "Confirm",
+    "dialog.save": "Save",
+    "help.windowGuideTitle": "Conductor Studio User Guide",
+    "help.windowUpdateLogTitle": "Conductor Studio Update Log",
+    "originCsv.saveDialogTitle": "Save Origin CSV ZIP",
+    "originCsv.zipFilter": "ZIP",
+    "settings.selectUserConfigDialogTitle": "Select user config file path",
+    "tray.backgroundContinueMessage": "The app is still running in the background. You can restore or quit it from the system tray.",
+    "tray.checkForUpdates": "Check for Updates",
+    "tray.hideWindow": "Hide Window",
+    "tray.quit": "Quit",
+    "tray.showWindow": "Show Window",
+    "update.alreadyLatest": "You are already using the latest version.",
+    "update.checkFailedDetail": "{reason}\n\nPlease check your network or proxy settings and try again.",
+    "update.checkFailedMessage": "Update check failed",
+    "update.disabledDevelopment": "Auto update is disabled in development.",
+    "update.errorReasonPrefix": "Reason: {message}",
+    "update.failed": "Auto update failed.",
+    "update.notEnabled": "Auto update is not enabled in this build.",
+    "update.ok": "OK",
+    "update.retrySuggestion": "Please try again later, or confirm that the current network can access the update server.",
+    "update.storeManagedDetail": "This package comes from Microsoft Store. The Store checks, downloads, verifies, and installs updates. You can also check for updates manually from the Microsoft Store library page.",
+    "update.storeManagedMessage": "Updates are managed by Microsoft Store.",
+    "update.unsupportedWindowsOnly": "Auto update is Windows-only.",
+  },
+  zh: {
+    "dialog.allFiles": "所有文件",
+    "dialog.confirm": "确定",
+    "dialog.save": "保存",
+    "help.windowGuideTitle": "Conductor Studio 用户指南",
+    "help.windowUpdateLogTitle": "Conductor Studio 更新日志",
+    "originCsv.saveDialogTitle": "保存 Origin CSV ZIP",
+    "originCsv.zipFilter": "ZIP",
+    "settings.selectUserConfigDialogTitle": "选择用户配置文件路径",
+    "tray.backgroundContinueMessage": "应用仍在后台运行，可从系统托盘恢复或退出。",
+    "tray.checkForUpdates": "检查更新",
+    "tray.hideWindow": "隐藏窗口",
+    "tray.quit": "退出",
+    "tray.showWindow": "显示窗口",
+    "update.alreadyLatest": "当前已是最新版本。",
+    "update.checkFailedDetail": "{reason}\n\n请确认网络或代理设置后重试。",
+    "update.checkFailedMessage": "检查更新失败",
+    "update.disabledDevelopment": "开发环境已禁用自动更新。",
+    "update.errorReasonPrefix": "原因：{message}",
+    "update.failed": "自动更新失败。",
+    "update.notEnabled": "当前构建未启用自动更新。",
+    "update.ok": "确定",
+    "update.retrySuggestion": "请稍后重试，或确认当前网络可以访问更新服务器。",
+    "update.storeManagedDetail": "当前安装包来自 Microsoft Store。商店会负责检查、下载、校验和安装更新；也可以在 Microsoft Store 的库页面手动检查更新。",
+    "update.storeManagedMessage": "更新由 Microsoft Store 管理",
+    "update.unsupportedWindowsOnly": "自动更新仅支持 Windows。",
+  },
+};
 const DEFAULT_WORKBENCH_BACKGROUND_COLOR = "#f3f4f6";
 const WORKBENCH_BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 const DEMO_FILE_NAMES = [
@@ -1559,12 +1636,12 @@ async function handleAnalysisOriginZipSave(event, payload) {
     .replace(/\.zip$/i, "") + ".zip";
   const win = BrowserWindow.fromWebContents(event.sender) ?? null;
   const result = await dialog.showSaveDialog(win || undefined, {
-    title: "Save Origin CSV ZIP",
+    title: mainMessage("originCsv.saveDialogTitle"),
     defaultPath: defaultName,
-    buttonLabel: "Save",
+    buttonLabel: mainMessage("dialog.save"),
     filters: [
-      { name: "ZIP", extensions: ["zip"] },
-      { name: "All Files", extensions: ["*"] },
+      { name: mainMessage("originCsv.zipFilter"), extensions: ["zip"] },
+      { name: mainMessage("dialog.allFiles"), extensions: ["*"] },
     ],
     properties: ["createDirectory", "showOverwriteConfirmation"],
   });
@@ -1627,12 +1704,12 @@ async function handleAnalysisPersistencePathChoose(event) {
   const win = BrowserWindow.fromWebContents(event.sender) ?? null;
 
   const result = await dialog.showSaveDialog(win || undefined, {
-    title: "Select user config file path",
+    title: mainMessage("settings.selectUserConfigDialogTitle"),
     defaultPath: currentInfo.currentPath,
-    buttonLabel: "Confirm",
+    buttonLabel: mainMessage("dialog.confirm"),
     filters: [
       { name: "JSON", extensions: ["json"] },
-      { name: "All Files", extensions: ["*"] },
+      { name: mainMessage("dialog.allFiles"), extensions: ["*"] },
     ],
     properties: ["createDirectory", "showOverwriteConfirmation"],
   });
@@ -1985,6 +2062,7 @@ function createUpdateService() {
     isWindowsStorePackage,
     packageJsonPath: path.join(getAppRootPath(), "package.json"),
     onStatusChange: broadcastAutoUpdateStatus,
+    localize: mainMessage,
     log: (message: string) => {
       if (isDesktopBootProfileEnabled()) {
         console.info(message);
@@ -2027,7 +2105,7 @@ function showTrayHint() {
 
   appTray.displayBalloon({
     title: APP_DISPLAY_NAME,
-    content: "应用仍在后台运行，可从系统托盘恢复或退出。",
+    content: mainMessage("tray.backgroundContinueMessage"),
     noSound: true,
   });
   analysisStore.patchAnalysisSettings({
@@ -2063,7 +2141,7 @@ function updateTrayMenu() {
   appTray.setContextMenu(
     Menu.buildFromTemplate([
       {
-        label: hasVisibleWindow ? "隐藏窗口" : "显示窗口",
+        label: hasVisibleWindow ? mainMessage("tray.hideWindow") : mainMessage("tray.showWindow"),
         click: () => {
           if (hasVisibleWindow) {
             hideMainWindowToTray(mainWindow);
@@ -2073,14 +2151,14 @@ function updateTrayMenu() {
         },
       },
       {
-        label: "检查更新",
+        label: mainMessage("tray.checkForUpdates"),
         click: () => {
           void updateService?.checkForUpdates({ manual: true });
         },
       },
       { type: "separator" },
       {
-        label: "退出",
+        label: mainMessage("tray.quit"),
         click: () => {
           isAppQuitting = true;
           stopAllRustAnalysisEngines();
@@ -2526,6 +2604,7 @@ if (hasSingleInstanceLock) {
     getAppearance: getAppearanceFromStore,
     getAppRootPath,
     getThemeSnapshot: getThemeSnapshotFromStore,
+    getWindowTitle: kind => mainMessage(kind === "guide" ? "help.windowGuideTitle" : "help.windowUpdateLogTitle"),
     iconPath: resolveDesktopWindowIconPath(),
     isDev,
     loadBaseUrl: devUrl,
