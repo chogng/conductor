@@ -1,7 +1,6 @@
 import type { IDisposable } from "src/cs/base/common/lifecycle";
-import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
+import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { IFileService } from "src/cs/platform/files/common/files";
-import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import type { FileEntry, FilesPaneRef } from "src/cs/workbench/contrib/files/common/files";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
@@ -14,9 +13,8 @@ import "src/cs/workbench/contrib/files/browser/views/media/filesPane.css";
 
 export type FilesPaneProps = {
   readonly analysisFileService: IAnalysisFileService;
-  readonly dialogsService: IFileDialogService;
+  readonly commandService: ICommandService;
   readonly filesService: IFileService;
-  readonly pathService: IPathService;
   readonly filesPaneRef: { current: FilesPaneRef | null };
   readonly files?: FileEntry[];
   readonly cleanedData?: CleanedEntry[];
@@ -49,10 +47,9 @@ export class FilesPane implements IDisposable {
 
     this.controller = new FilesController(this.sessionHost, {
       analysisFileService: props.analysisFileService,
-      dialogsService: props.dialogsService,
+      commandService: props.commandService,
       files: props.files,
       filesService: props.filesService,
-      pathService: props.pathService,
       cleanedData: props.cleanedData,
       onFileImported: props.onFileImported,
       onFilesAdded: props.onFilesAdded,
@@ -71,10 +68,9 @@ export class FilesPane implements IDisposable {
     nextProps.filesPaneRef.current = this.controller;
     this.controller.setProps({
       analysisFileService: nextProps.analysisFileService,
-      dialogsService: nextProps.dialogsService,
+      commandService: nextProps.commandService,
       files: nextProps.files,
       filesService: nextProps.filesService,
-      pathService: nextProps.pathService,
       cleanedData: nextProps.cleanedData,
       onFileImported: nextProps.onFileImported,
       onFilesAdded: nextProps.onFilesAdded,

@@ -779,13 +779,12 @@ export class Workbench extends Layout {
 
     return {
       analysisFileService: this.analysisFileService,
-      dialogsService: this.dialogsService,
+      commandService: this.commandService,
       filesPaneRef: this.filesPaneRef,
       files: isChartMode
         ? createChartExplorerFiles(snapshot.sourceFiles, snapshot.cleanedData)
         : snapshot.sourceFiles,
       filesService: this.filesService,
-      pathService: this.pathService,
       cleanedData: snapshot.cleanedData,
       onFileImported: sessionActions.handleFileImported,
       onFilesAdded: sessionActions.handleFilesAdded,

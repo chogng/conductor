@@ -5,6 +5,7 @@ import {
   collectDataTransferFiles,
   type DataTransferFile,
 } from "src/cs/platform/dnd/browser/dnd";
+import { HTMLFileSystemProvider } from "src/cs/platform/files/browser/htmlFileSystemProvider";
 import type { IFileService } from "src/cs/platform/files/common/files";
 import {
   detectFolderImportSupport,
@@ -91,8 +92,21 @@ export const getFolderImportUnsupportedMessage = (
     "当前浏览器环境不支持文件夹选择。请在独立的 Chrome 或 Edge 窗口中打开本页面后再导入。",
   );
 
-export const canImportFolderInCurrentBrowser = (): boolean => {
-  const support = detectFolderImportSupport();
+export const getFolderImportSupportForFileService = (
+  filesService: IFileService,
+): FolderImportSupport => {
+  const provider = filesService.getProvider("file");
+  if (provider instanceof HTMLFileSystemProvider) {
+    return detectFolderImportSupport();
+  }
+
+  return { reason: null, supported: true };
+};
+
+export const canImportFolderWithFileService = (
+  filesService: IFileService,
+): boolean => {
+  const support = getFolderImportSupportForFileService(filesService);
   if (support.supported) {
     return true;
   }

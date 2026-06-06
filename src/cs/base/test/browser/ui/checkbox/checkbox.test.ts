@@ -4,9 +4,9 @@ import {
   getCheckboxAriaAttributes,
   getCheckboxClassName,
   getCheckboxIconMarkup,
-} from "../../../../browser/ui/Checkbox/Checkbox.ts";
+} from "../../../../browser/ui/checkbox/checkbox.ts";
 
-suite("base/test/browser/ui/Checkbox/checkbox", () => {
+suite("base/test/browser/ui/checkbox/checkbox", () => {
   test("getCheckboxClassName combines size, checked state and caller classes", () => {
     assert.equal(getCheckboxClassName(), "ui-checkbox ui-checkbox--sm");
     assert.equal(

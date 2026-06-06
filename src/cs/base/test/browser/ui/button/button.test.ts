@@ -5,9 +5,9 @@ import {
   getButtonClassName,
   getButtonContentClassName,
   updateButton,
-} from "../../../../browser/ui/Button/Button.ts";
+} from "../../../../browser/ui/button/button.ts";
 
-suite("base/test/browser/ui/Button/button", () => {
+suite("base/test/browser/ui/button/button", () => {
   test("getButtonClassName combines size, variant and state classes", () => {
     assert.equal(
       getButtonClassName({

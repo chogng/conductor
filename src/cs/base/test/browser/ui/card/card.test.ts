@@ -1,8 +1,8 @@
 import assert from "assert";
 
-import { getCardClassName } from "../../../../browser/ui/Card/Card.ts";
+import { getCardClassName } from "../../../../browser/ui/card/card.ts";
 
-suite("base/test/browser/ui/Card/card", () => {
+suite("base/test/browser/ui/card/card", () => {
   test("getCardClassName resolves variants and caller class names", () => {
     assert.equal(getCardClassName(), "card");
     assert.equal(getCardClassName({ variant: "panel" }), "card card--panel");

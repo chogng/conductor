@@ -59,7 +59,7 @@ suite("workbench/contrib/template/test/common/extractionErrors", () => {
   test("stableStringify sorts keys and handles cycles", () => {
     assert.equal(stableStringify({ b: 2, a: 1 }), stableStringify({ a: 1, b: 2 }));
 
-    const cyclic = { b: 2, a: 1 };
+    const cyclic: { a: number; b: number; self?: unknown } = { b: 2, a: 1 };
     cyclic.self = cyclic;
 
     assert.equal(stableStringify(cyclic), '{"a":1,"b":2,"self":null}');

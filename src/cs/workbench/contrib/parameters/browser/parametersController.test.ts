@@ -3,9 +3,7 @@ import assert from "assert";
 import { runRcAnalysis } from "./parametersController.ts";
 
 suite("workbench/contrib/parameters/browser/parametersController", () => {
-  const t = (key) => key;
-
-  const createRow = (overrides = {}) => ({
+  const createRow = (overrides: Record<string, unknown> = {}) => ({
     fileId: "file",
     fileName: "sample",
     label: "curve",
@@ -55,7 +53,13 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
   });
 
   test("runRcAnalysis passes normalized devices to import service", async () => {
-    let payload;
+    let payload: {
+      devices: unknown[];
+      options: {
+        minDevices: number;
+        selectedVg: number | null;
+      };
+    } | undefined;
     const result = await runRcAnalysis({
       curveProbeX: 1.5,
       analysisFileService: {
@@ -75,6 +79,7 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
       ok: true,
       result: { summary: { rc: 12 } },
     });
+    assert.ok(payload);
     assert.equal(payload.devices.length, 2);
     assert.equal(payload.options.selectedVg, 1.5);
     assert.equal(payload.options.minDevices, 2);

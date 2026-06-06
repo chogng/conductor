@@ -1,8 +1,8 @@
 import assert from "assert";
 
-import { createSwitch, updateSwitch } from "../../../../browser/ui/Switch/Switch.ts";
+import { createSwitch, updateSwitch } from "../../../../browser/ui/switch/switch.ts";
 
-suite("base/test/browser/ui/Switch/switch", () => {
+suite("base/test/browser/ui/switch/switch", () => {
   class FakeStyle {
     readonly values = new Map<string, string>();
 

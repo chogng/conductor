@@ -524,25 +524,31 @@ suite("workbench/contrib/export/browser/export", () => {
     assert.ok(gdsPayload);
     assert.deepEqual(gdsPayload.yColumnLongNames, ["Curve 1"]);
     const metricsPayloads = plan.payloads.filter((payload) => /__metrics\.csv$/.test(payload.csvName));
+    const transferMetricsPayload = metricsPayloads[0];
+    const outputMetricsPayload = metricsPayloads[1];
+    assert.ok(transferMetricsPayload);
+    assert.ok(outputMetricsPayload);
     assert.equal(metricsPayloads.every((payload) => payload.skipPlot === true), true);
     assert.equal(metricsPayloads.every((payload) => payload.skipAxisCommands === true), true);
-    assert.deepEqual(metricsPayloads[0].xColumnLongNames.slice(0, 4), [
+    assert.deepEqual(transferMetricsPayload.xColumnLongNames.slice(0, 4), [
       "series",
       "gm_max_abs",
       "x_at_gm_max_abs",
       "vth",
     ]);
-    assert.deepEqual(metricsPayloads[1].xColumnLongNames, [
+    assert.deepEqual(outputMetricsPayload.xColumnLongNames, [
       "series",
       "gds_max_abs",
       "x_at_gds_max_abs",
     ]);
-    assert.equal(metricsPayloads[1].xColumnLongNames.includes("vth"), false);
-    assert.equal(metricsPayloads[0].xColumnComments[0], "transfer_a.csv");
-    assert.equal(metricsPayloads[1].xColumnComments[0], "output_a.csv");
-    assert.equal(metricsPayloads[0].csvText.includes("transfer_a.csv"), false);
-    assert.equal(metricsPayloads[1].csvText.includes("output_a.csv"), false);
-    assert.equal(metricsPayloads[0].csvText.includes("file_name,series,gm_max_abs"), false);
+    assert.equal(outputMetricsPayload.xColumnLongNames.includes("vth"), false);
+    assert.ok(transferMetricsPayload.xColumnComments);
+    assert.ok(outputMetricsPayload.xColumnComments);
+    assert.equal(transferMetricsPayload.xColumnComments[0], "transfer_a.csv");
+    assert.equal(outputMetricsPayload.xColumnComments[0], "output_a.csv");
+    assert.equal(transferMetricsPayload.csvText.includes("transfer_a.csv"), false);
+    assert.equal(outputMetricsPayload.csvText.includes("output_a.csv"), false);
+    assert.equal(transferMetricsPayload.csvText.includes("file_name,series,gm_max_abs"), false);
   });
 
   test("single-file transfer gm, SS and Vth Origin payloads can omit csv text for Rust export", () => {

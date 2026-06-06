@@ -5,9 +5,8 @@ import type { LxIconDefinition } from "../../../../browser/ui/lxicon/lxiconMarku
 
 suite("base/test/browser/ui/lxicon/lxiconMarkup", () => {
   test("normalizeLxIconSvgMarkup normalizes size, accessibility and color", () => {
-    const icon: LxIconDefinition = {
-      render: () => '<svg width="16" height="16"><path fill="#000" stroke="black"/></svg>',
-    };
+    const icon: LxIconDefinition = () =>
+      '<svg width="16" height="16"><path fill="#000" stroke="black"/></svg>';
 
     assert.equal(
       normalizeLxIconSvgMarkup(icon),

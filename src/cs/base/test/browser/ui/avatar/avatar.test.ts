@@ -6,9 +6,9 @@ import {
   getAvatarDataAttributes,
   getAvatarIconClassName,
   getAvatarMode,
-} from "../../../../browser/ui/Avatar/Avatar.ts";
+} from "../../../../browser/ui/avatar/avatar.ts";
 
-suite("base/test/browser/ui/Avatar/avatar", () => {
+suite("base/test/browser/ui/avatar/avatar", () => {
   test("avatar helpers resolve class names and mode", () => {
     assert.equal(getAvatarClassName(), "avatar");
     assert.equal(

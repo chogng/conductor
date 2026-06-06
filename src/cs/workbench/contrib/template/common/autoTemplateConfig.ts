@@ -1,5 +1,26 @@
 import { AUTO_TEMPLATE_CONFIG_FIELD } from "./autoTemplate.ts";
-import type { AutoExtractionPlan } from "./autoTemplatePlan.ts";
+import type { AutoExtractionBlock, AutoExtractionPlan } from "./autoTemplatePlan.ts";
+
+type AutoWorkerBlockConfig = Pick<
+  AutoExtractionBlock,
+  | "bottomTitle"
+  | "endCol"
+  | "legendStep"
+  | "legendTarget"
+  | "startCol"
+  | "xAxisRole"
+  | "xCol"
+> & {
+  legendStartCell: {
+    colIndex: number;
+    rowIndex: number;
+  } | null;
+  yCols: number[];
+};
+
+export type AutoWorkerConfig = Record<string, unknown> & {
+  blocks?: AutoWorkerBlockConfig[];
+};
 
 const formatCompactNumber = (value: number | null | undefined): string => {
   if (!Number.isFinite(value)) return "";
@@ -54,7 +75,7 @@ export const buildAutoTemplateConfig = (
 // Shared serializer used by the worker processing path.
 export const buildAutoWorkerConfig = (
   plan: AutoExtractionPlan,
-): Record<string, unknown> => {
+): AutoWorkerConfig => {
   const normalizedGroupSize =
     Number.isInteger(plan.xPointsPerGroup) && Number(plan.xPointsPerGroup) > 0
       ? Number(plan.xPointsPerGroup)

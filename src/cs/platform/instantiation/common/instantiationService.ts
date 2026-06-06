@@ -3,7 +3,6 @@ import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors
 import { registerSingletonServiceDescriptors } from "src/cs/platform/instantiation/common/extensions";
 import {
   IInstantiationService,
-  type GetLeadingNonServiceArgs,
   type ServiceIdentifier,
   type ServicesAccessor,
   _util,
@@ -62,7 +61,7 @@ export class InstantiationService implements IInstantiationService, IDisposable 
   }
 
   public createInstance<T>(descriptor: SyncDescriptor<T>): T;
-  public createInstance<Ctor extends new (...args: unknown[]) => unknown, R extends InstanceType<Ctor>>(ctor: Ctor, ...args: GetLeadingNonServiceArgs<ConstructorParameters<Ctor>>): R;
+  public createInstance<T>(ctor: new (...args: any[]) => T, ...args: unknown[]): T;
   public createInstance<T>(ctorOrDescriptor: SyncDescriptor<T> | (new (...args: unknown[]) => T), ...args: unknown[]): T {
     this.throwIfDisposed();
 

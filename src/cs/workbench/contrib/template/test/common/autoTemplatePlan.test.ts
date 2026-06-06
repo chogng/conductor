@@ -1,4 +1,4 @@
-import assert from "assert";
+﻿import assert from "assert";
 import {
   buildAutoTemplateConfig,
   buildAutoWorkerConfig,
@@ -37,7 +37,7 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
       totalRowCount: rows.length,
     });
 
-    assert.equal(result.ok, true);
+    assert.ok(result.ok);
     assert.equal(result.plan.curveType, "output");
     assert.equal(result.plan.xCol, 3);
     assert.deepEqual(result.plan.yCols, [4]);
@@ -72,7 +72,7 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
       totalRowCount: rows.length,
     });
 
-    assert.equal(result.ok, true);
+    assert.ok(result.ok);
     assert.equal(result.plan.curveType, "transfer");
     assert.equal(result.plan.xCol, 1);
     assert.deepEqual(result.plan.yCols, [2]);
@@ -106,7 +106,7 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
       totalRowCount: rows.length,
     });
 
-    assert.equal(result.ok, true);
+    assert.ok(result.ok);
     assert.equal(result.plan.curveType, "transfer");
     assert.equal(result.plan.xPointsPerGroup, 3);
     assert.equal(result.plan.groups, 2);
@@ -114,7 +114,9 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
     assert.equal(result.plan.legendStartColIndex, null);
     assert.equal(result.plan.legendStartValue, "0.05");
     assert.equal(result.plan.legendCount, 2);
-    assert.ok(Math.abs(result.plan.legendStep - 0.95) < 1e-12);
+    const legendStep = result.plan.legendStep;
+    assert.ok(typeof legendStep === "number");
+    assert.ok(Math.abs(legendStep - 0.95) < 1e-12);
     assert.equal(result.plan.legendTarget, "group");
 
     const templateConfig = buildAutoTemplateConfig(result.plan);
@@ -148,14 +150,16 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
       totalRowCount: 814,
     });
 
-    assert.equal(result.ok, true);
+    assert.ok(result.ok);
     assert.equal(result.plan.curveType, "transfer");
     assert.equal(result.plan.xPointsPerGroup, 402);
     assert.equal(result.plan.groups, 2);
     assert.equal(result.plan.legendPrefix, "Vd");
     assert.equal(result.plan.legendStartValue, "0.05");
     assert.equal(result.plan.legendCount, 2);
-    assert.ok(Math.abs(result.plan.legendStep - 0.95) < 1e-12);
+    const legendStep = result.plan.legendStep;
+    assert.ok(typeof legendStep === "number");
+    assert.ok(Math.abs(legendStep - 0.95) < 1e-12);
     assert.equal(result.plan.legendTarget, "group");
   });
 
@@ -180,7 +184,7 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
       totalRowCount: rows.length,
     });
 
-    assert.equal(result.ok, true);
+    assert.ok(result.ok);
     assert.equal(result.plan.curveType, "transfer");
     assert.equal(result.plan.xPointsPerGroup, 3);
     assert.equal(result.plan.groups, 1);
@@ -220,7 +224,7 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
       totalRowCount: rows.length,
     });
 
-    assert.equal(result.ok, true);
+    assert.ok(result.ok);
     assert.equal(result.plan.curveType, "output");
     assert.equal(result.plan.xAxisRole, "vd");
     assert.equal(result.plan.xCol, 0);
@@ -254,7 +258,7 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
       totalRowCount: rows.length,
     });
 
-    assert.equal(result.ok, true);
+    assert.ok(result.ok);
     assert.equal(result.plan.curveType, "output");
     assert.equal(result.plan.xAxisRole, "vd");
     assert.equal(result.plan.xCol, 0);
@@ -280,20 +284,24 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
       totalRowCount: rows.length,
     });
 
-    assert.equal(result.ok, true);
+    assert.ok(result.ok);
     assert.equal(result.plan.curveType, "output");
     assert.equal(result.plan.xCol, 0);
     assert.deepEqual(result.plan.yCols, [1, 2, 6, 7]);
-    assert.equal(result.plan.blocks.length, 2);
-    assert.equal(result.plan.blocks[0].xCol, 0);
-    assert.deepEqual(result.plan.blocks[0].yCols, [1, 2]);
-    assert.equal(result.plan.blocks[1].xCol, 5);
-    assert.deepEqual(result.plan.blocks[1].yCols, [6, 7]);
+    const blocks = result.plan.blocks;
+    assert.ok(blocks);
+    assert.equal(blocks.length, 2);
+    assert.equal(blocks[0].xCol, 0);
+    assert.deepEqual(blocks[0].yCols, [1, 2]);
+    assert.equal(blocks[1].xCol, 5);
+    assert.deepEqual(blocks[1].yCols, [6, 7]);
 
     const workerConfig = buildAutoWorkerConfig(result.plan);
-    assert.equal(workerConfig.blocks.length, 2);
-    assert.equal(workerConfig.blocks[1].xCol, 5);
-    assert.deepEqual(workerConfig.blocks[1].yCols, [6, 7]);
+    const workerBlocks = workerConfig.blocks;
+    assert.ok(workerBlocks);
+    assert.equal(workerBlocks.length, 2);
+    assert.equal(workerBlocks[1].xCol, 5);
+    assert.deepEqual(workerBlocks[1].yCols, [6, 7]);
   });
 
   test("does not classify transient transfer exports as pulse-voltage", () => {
@@ -311,7 +319,7 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
       totalRowCount: rows.length,
     });
 
-    assert.equal(result.ok, true);
+    assert.ok(result.ok);
     assert.equal(result.plan.curveType, "transfer");
     assert.equal(result.plan.xAxisRole, "vg");
     assert.equal(result.plan.xCol, 0);
@@ -336,7 +344,7 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
       totalRowCount: rows.length,
     });
 
-    assert.equal(result.ok, false);
+    assert.ok(!result.ok);
     assert.match(result.message, /unable to locate|unable to infer/i);
   });
 
@@ -350,7 +358,7 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
       totalRowCount: 2,
     });
 
-    assert.equal(result.ok, false);
+    assert.ok(!result.ok);
     assert.match(result.message, /unable to infer|no rows/i);
   });
 
@@ -371,7 +379,7 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
       totalRowCount: rows.length,
     });
 
-    assert.equal(result.ok, true);
+    assert.ok(result.ok);
     assert.equal(result.plan.curveType, "cv");
     assert.equal(result.plan.xAxisRole, null);
     assert.equal(result.plan.xCol, 0);
@@ -399,7 +407,7 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
       totalRowCount: rows.length,
     });
 
-    assert.equal(result.ok, true);
+    assert.ok(result.ok);
     assert.equal(result.plan.curveType, "cf");
     assert.equal(result.plan.xAxisRole, null);
     assert.equal(result.plan.xCol, 0);
@@ -435,7 +443,7 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
       totalRowCount: rows.length,
     });
 
-    assert.equal(result.ok, true);
+    assert.ok(result.ok);
     assert.equal(result.plan.curveType, "cv");
     assert.equal(result.plan.xCol, 0);
     assert.deepEqual(result.plan.yCols, [1, 3, 5, 7, 9]);
@@ -463,7 +471,7 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
       totalRowCount: rows.length,
     });
 
-    assert.equal(result.ok, true);
+    assert.ok(result.ok);
     assert.equal(result.plan.curveType, "pv");
     assert.equal(result.plan.xCol, 4);
     assert.deepEqual(result.plan.yCols, [5]);
@@ -473,3 +481,4 @@ suite("workbench/contrib/template/test/common/autoTemplatePlan", () => {
     assert.equal(result.plan.yUnit, "A");
   });
 });
+

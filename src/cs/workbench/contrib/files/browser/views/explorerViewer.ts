@@ -24,6 +24,7 @@ import { localize } from "src/cs/nls";
 import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
 import { ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { FolderImportSupport } from "src/cs/platform/files/browser/webFileSystemAccess";
 import {
   buildFileTree,
   collectFileTreeFolderKeys,
@@ -37,6 +38,7 @@ import { createThumbnailView } from "src/cs/workbench/contrib/thumbnail/browser/
 export type ExplorerViewerProps = {
   readonly effectiveSelectedFileId?: string | null;
   readonly files: FileEntry[];
+  readonly folderImportSupport?: FolderImportSupport;
   readonly onListScroll: (event: Event) => void;
   readonly onCreateFolder: (folderKey: string) => void;
   readonly onOpenFileDialog: () => void;
@@ -325,6 +327,7 @@ export class ExplorerViewer implements IDisposable {
   private readonly renderEmpty = (container: HTMLElement): void => {
     container.replaceChildren(
       createEmptyView({
+        folderImportSupport: this.props.folderImportSupport,
         onImportFiles: this.props.onOpenFileDialog,
       }),
     );

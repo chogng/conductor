@@ -607,7 +607,7 @@ export const createMainPlotLegend = (props: Pick<MainPlotCanvasProps,
 };
 
 export const createMainPlotCanvas = (props: MainPlotCanvasProps): MainPlotCanvasElement => {
-  const root = document.createElement("div") as MainPlotCanvasElement;
+  const root = document.createElement("div") as unknown as MainPlotCanvasElement;
   root.className = "main_plot_canvas";
 
   const canvas = document.createElement("canvas");

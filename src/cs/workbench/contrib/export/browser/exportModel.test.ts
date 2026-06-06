@@ -7,7 +7,7 @@ import {
 } from "./exportModel.ts";
 
 suite("workbench/contrib/export/browser/exportModel", () => {
-  const t = (key, vars = {}) =>
+  const t = (key: string, vars: Record<string, unknown> = {}) =>
     Object.keys(vars).length ? `${key}:${JSON.stringify(vars)}` : key;
 
   test("createExportPaneState resolves export canvas selection mode", () => {

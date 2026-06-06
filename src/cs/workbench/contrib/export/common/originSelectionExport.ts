@@ -17,19 +17,25 @@ import {
 import { resolveOriginLogPositiveMinForRange } from "../../origin/common/originAxisCommands.ts";
 
 type CleanedSeriesLike = {
+  groupIndex?: number;
   id?: string;
+  label?: string;
   name?: string;
   legendValue?: unknown;
-  groupIndex?: number;
   y?: number[];
+  yCol?: number;
 };
 
 type CleanedEntryLike = {
   analysisCache?: unknown;
+  curveType?: string;
   fileId?: string;
   fileName?: string;
+  originExportConfig?: unknown;
+  originExportSourcePath?: string;
   xLabel?: string;
   xUnit?: string;
+  xAxisRole?: string;
   xGroups?: number[][];
   series?: CleanedSeriesLike[];
   yLabel?: string;

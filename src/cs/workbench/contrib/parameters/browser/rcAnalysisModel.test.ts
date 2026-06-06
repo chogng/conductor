@@ -52,14 +52,12 @@ suite("workbench/contrib/parameters/browser/rcAnalysisModel", () => {
   });
 
   test("getRcStatusText formats pending, error, summary, and selection states", () => {
-    const t = (key, vars) => `${key}:${vars?.count ?? ""}`;
-
     assert.equal(
-      getRcStatusText({ error: "", isPending: true, rowCount: 2, summary: null, t }),
+      getRcStatusText({ error: "", isPending: true, rowCount: 2, summary: null }),
       "rc_status_running",
     );
     assert.equal(
-      getRcStatusText({ error: "bad", isPending: false, rowCount: 2, summary: null, t }),
+      getRcStatusText({ error: "bad", isPending: false, rowCount: 2, summary: null }),
       "bad",
     );
     assert.equal(
@@ -72,7 +70,7 @@ suite("workbench/contrib/parameters/browser/rcAnalysisModel", () => {
       "Rc=10 | RcW=20 | R2=0.98765",
     );
     assert.equal(
-      getRcStatusText({ error: "", isPending: false, rowCount: 3, summary: null, t }),
+      getRcStatusText({ error: "", isPending: false, rowCount: 3, summary: null }),
       'rc_status_selected_curves:{"count":3}',
     );
   });

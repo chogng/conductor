@@ -2,6 +2,9 @@ import type { URI } from "src/cs/base/common/uri";
 
 export const IMPORT_FILE_EXTENSIONS = [".csv", ".xls", ".xlsx"] as const;
 export const FilesViewId = "workbench.files";
+export const IMPORT_FOLDER_COMMAND_ID = "files.importFolder";
+export const ADD_FOLDER_ACTION_ID = "files.addFolder";
+export const REMOVE_FOLDER_ACTION_ID = "files.removeFolder";
 
 const SUPPORTED_IMPORT_FILE_EXTENSIONS = new Set<string>(IMPORT_FILE_EXTENSIONS);
 const EXCEL_IMPORT_FILE_EXTENSIONS = new Set<string>([".xls", ".xlsx"]);
@@ -74,6 +77,7 @@ export type FileSource = DataFileSource | PathFileSource;
 
 export type FilesPaneRef = {
   openFileDialog: () => void;
+  removeSelectedFolder: () => void;
   hasFiles: boolean;
 };
 

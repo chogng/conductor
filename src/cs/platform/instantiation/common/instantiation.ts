@@ -20,26 +20,17 @@ export namespace _util {
 
 export type BrandedService = { _serviceBrand: undefined };
 
-export interface IConstructorSignature<T, Args extends unknown[] = []> {
-  new <Services extends BrandedService[]>(...args: [...Args, ...Services]): T;
-}
-
 export interface ServicesAccessor {
   get<T>(id: ServiceIdentifier<T>): T;
 }
 
 export const IInstantiationService = createDecorator<IInstantiationService>("instantiationService");
 
-export type GetLeadingNonServiceArgs<TArgs extends unknown[]> =
-  TArgs extends [] ? []
-    : TArgs extends [...infer First, BrandedService] ? GetLeadingNonServiceArgs<First>
-      : TArgs;
-
 export interface IInstantiationService {
   readonly _serviceBrand: undefined;
 
   createInstance<T>(descriptor: SyncDescriptor0<T>): T;
-  createInstance<Ctor extends new (...args: unknown[]) => unknown, R extends InstanceType<Ctor>>(ctor: Ctor, ...args: GetLeadingNonServiceArgs<ConstructorParameters<Ctor>>): R;
+  createInstance<T>(ctor: new (...args: any[]) => T, ...args: unknown[]): T;
   invokeFunction<R, TS extends unknown[] = []>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R;
   createChild(services: ServiceCollection, store?: DisposableStore): IInstantiationService;
   dispose(): void;

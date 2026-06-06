@@ -1,10 +1,9 @@
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
-import type { IFileDialogService as IFileDialogServiceType } from "src/cs/platform/dialogs/common/dialogs";
+import type { ICommandService as ICommandServiceType } from "src/cs/platform/commands/common/commands";
 import type { IFileService as IFileServiceType } from "src/cs/platform/files/common/files";
 import { localize } from "src/cs/nls";
-import type { IPathService as IPathServiceType } from "src/cs/workbench/services/path/common/pathService";
 import type { IAnalysisFileService as IAnalysisFileServiceType } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import { startPerf } from "src/cs/workbench/common/perf";
 import { WorkspaceWatcher } from "src/cs/workbench/contrib/files/browser/workspaceWatcher";
@@ -19,17 +18,17 @@ import {
 import {
   IMPORT_PREPARE_CONCURRENCY,
 } from "src/cs/workbench/contrib/files/browser/fileConstants";
-import type {
-  FileEntry,
-  FileSource,
-  FilesPaneRef,
+import {
+  IMPORT_FOLDER_COMMAND_ID,
+  type FileEntry,
+  type FileSource,
+  type FilesPaneRef,
 } from "src/cs/workbench/contrib/files/common/files";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   buildImportErrorMessage,
-  canImportFolderInCurrentBrowser,
   collectDroppedFiles,
-  pickImportFolder,
+  getFolderImportSupportForFileService,
   showCreateFolderUnsupported,
 } from "src/cs/workbench/contrib/files/browser/fileCommands";
 import {
@@ -60,9 +59,8 @@ type FirstPreparedImport = {
 
 export type FilesControllerProps = {
   readonly analysisFileService: IAnalysisFileServiceType;
-  readonly dialogsService: IFileDialogServiceType;
+  readonly commandService: ICommandServiceType;
   readonly filesService: IFileServiceType;
-  readonly pathService: IPathServiceType;
   files?: FileEntry[];
   cleanedData?: CleanedEntry[];
   onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
@@ -93,10 +91,9 @@ export class FilesController implements FilesPaneRef, IDisposable {
   private folderRefreshRunId = 0;
   private prevFileCount = 0;
   private disposed = false;
-  private readonly dialogsService: IFileDialogServiceType;
   private readonly analysisFileService: IAnalysisFileServiceType;
+  private readonly commandService: ICommandServiceType;
   private readonly filesService: IFileServiceType;
-  private readonly pathService: IPathServiceType;
 
   constructor(
     host: HTMLElement,
@@ -104,9 +101,8 @@ export class FilesController implements FilesPaneRef, IDisposable {
   ) {
     this.props = props;
     this.analysisFileService = props.analysisFileService;
-    this.dialogsService = props.dialogsService;
+    this.commandService = props.commandService;
     this.filesService = props.filesService;
-    this.pathService = props.pathService;
     this.folderWatcher = new WorkspaceWatcher(this.filesService, folderPath => {
       void this.refreshImportedFolder(folderPath);
     });
@@ -125,6 +121,15 @@ export class FilesController implements FilesPaneRef, IDisposable {
     this.error = null;
     this.syncView();
     this.explorerView?.openFileDialog();
+  }
+
+  removeSelectedFolder(): void {
+    const folderPath = this.getSelectedFolderPath() ?? this.getFirstFolderPath();
+    if (!folderPath) {
+      return;
+    }
+
+    this.handleRemoveFolder(`folder:${folderPath}`);
   }
 
   setProps(nextProps: FilesControllerProps): void {
@@ -172,6 +177,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
       effectiveSelectedFileId: this.effectiveSelectedFileId,
       error: this.error,
       files: this.files,
+      folderImportSupport: getFolderImportSupportForFileService(this.filesService),
       isDragging: this.isDragging,
       onClearError: this.handleClearError,
       onDraggingChange: this.handleDraggingChange,
@@ -277,18 +283,11 @@ export class FilesController implements FilesPaneRef, IDisposable {
   };
 
   private async openFolderDialog(): Promise<void> {
-    if (!canImportFolderInCurrentBrowser()) {
-      return;
-    }
-
     this.error = null;
     this.syncView();
 
     try {
-      const folder = await pickImportFolder({
-        dialogsService: this.dialogsService,
-        pathService: this.pathService,
-      });
+      const folder = await this.commandService.executeCommand<URI | null>(IMPORT_FOLDER_COMMAND_ID);
       if (!folder || this.disposed) {
         return;
       }
@@ -914,9 +913,38 @@ export class FilesController implements FilesPaneRef, IDisposable {
     return normalizeRelativePath(selectedFile?.relativePath);
   }
 
+  private getSelectedFolderPath(): string | null {
+    return getTopLevelFolderPath(this.getSelectedRelativePath());
+  }
+
+  private getFirstFolderPath(): string | null {
+    for (const file of this.files) {
+      const folderPath = getTopLevelFolderPath(file.relativePath);
+      if (folderPath) {
+        return folderPath;
+      }
+    }
+
+    return null;
+  }
+
 }
 
 function normalizeRelativePath(value: unknown): string | null {
   const relativePath = String(value ?? "").trim();
   return relativePath || null;
+}
+
+function getTopLevelFolderPath(relativePath: unknown): string | null {
+  const normalized = normalizeRelativePath(relativePath);
+  if (!normalized) {
+    return null;
+  }
+
+  const slashIndex = normalized.indexOf("/");
+  if (slashIndex <= 0) {
+    return null;
+  }
+
+  return normalized.slice(0, slashIndex);
 }

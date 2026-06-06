@@ -92,7 +92,7 @@ suite("platform/files/test/common/fileService", () => {
       scheme: "test",
       path: "/folder/transfer%25.csv",
     });
-    const changes: readonly IFileChange[][] = [];
+    const changes: Array<readonly IFileChange[]> = [];
     service.onDidFilesChange(event => {
       changes.push(event);
     });

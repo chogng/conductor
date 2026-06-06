@@ -145,6 +145,31 @@ fn cell_target_index(event: &quick_xml::events::BytesStart) -> Option<usize> {
     None
 }
 
+fn decode_xml_reference(event: &quick_xml::events::BytesRef) -> Result<String, String> {
+    let decoded = event.decode().map_err(|error| error.to_string())?;
+    match decoded.as_ref() {
+        "amp" => Ok("&".to_string()),
+        "lt" => Ok("<".to_string()),
+        "gt" => Ok(">".to_string()),
+        "quot" => Ok("\"".to_string()),
+        "apos" => Ok("'".to_string()),
+        value if value.starts_with("#x") => {
+            let code = u32::from_str_radix(&value[2..], 16)
+                .map_err(|error| error.to_string())?;
+            char::from_u32(code)
+                .map(|ch| ch.to_string())
+                .ok_or_else(|| "invalid XML character reference".to_string())
+        }
+        value if value.starts_with('#') => {
+            let code = value[1..].parse::<u32>().map_err(|error| error.to_string())?;
+            char::from_u32(code)
+                .map(|ch| ch.to_string())
+                .ok_or_else(|| "invalid XML character reference".to_string())
+        }
+        value => Ok(format!("&{value};")),
+    }
+}
+
 fn pad_to_column(row: &mut Vec<String>, col: &mut usize, target: usize) {
     while *col < target {
         row.push(String::new());
@@ -203,12 +228,13 @@ fn convert_spreadsheet_ml(bytes: &[u8]) -> Result<String, String> {
                 _ => {}
             },
             Event::Text(text) if in_data => {
-                let raw = text.into_inner();
-                let raw_str =
-                    std::str::from_utf8(&raw).map_err(|error| error.to_string())?;
-                let decoded = quick_xml::escape::unescape(raw_str)
+                let decoded_text = text.decode().map_err(|error| error.to_string())?;
+                let decoded = quick_xml::escape::unescape(&decoded_text)
                     .map_err(|error| error.to_string())?;
                 cell_text.push_str(&decoded);
+            }
+            Event::GeneralRef(reference) if in_data => {
+                cell_text.push_str(&decode_xml_reference(&reference)?);
             }
             Event::End(element) => match local_name(element.name().as_ref()) {
                 b"Data" => {
@@ -280,4 +306,57 @@ fn write_csv_cell(value: &str, output: &mut String) {
         }
     }
     output.push('"');
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn spreadsheet_ml(rows: &str) -> Vec<u8> {
+        format!(
+            r#"<?xml version="1.0"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Worksheet ss:Name="Sheet1">
+    <Table>
+      {rows}
+    </Table>
+  </Worksheet>
+</Workbook>"#
+        )
+        .into_bytes()
+    }
+
+    #[test]
+    fn converts_spreadsheet_ml_rows_to_csv() {
+        let bytes = spreadsheet_ml(
+            r#"
+      <Row>
+        <Cell><Data ss:Type="String">Vg</Data></Cell>
+        <Cell><Data ss:Type="String">Id</Data></Cell>
+      </Row>
+      <Row>
+        <Cell><Data ss:Type="Number">0</Data></Cell>
+        <Cell><Data ss:Type="Number">1e-9</Data></Cell>
+      </Row>"#,
+        );
+
+        assert_eq!(convert_workbook_to_csv(&bytes).unwrap(), "Vg,Id\n0,1e-9");
+    }
+
+    #[test]
+    fn preserves_indexed_empty_cells_and_csv_escaping() {
+        let bytes = spreadsheet_ml(
+            r#"
+      <Row>
+        <Cell><Data ss:Type="String">Name</Data></Cell>
+        <Cell ss:Index="3"><Data ss:Type="String">Value, quoted &amp; "raw"</Data></Cell>
+      </Row>"#,
+        );
+
+        assert_eq!(
+            convert_workbook_to_csv(&bytes).unwrap(),
+            "Name,,\"Value, quoted & \"\"raw\"\"\"",
+        );
+    }
 }
