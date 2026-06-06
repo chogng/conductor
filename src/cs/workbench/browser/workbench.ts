@@ -11,6 +11,10 @@ import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs"
 import type { IFileService } from "src/cs/platform/files/common/files";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
+import type {
+  IContextKey,
+  IContextKeyService,
+} from "src/cs/platform/contextkey/common/contextkey";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
@@ -25,10 +29,14 @@ import {
   localize,
   setNLSConfiguration,
 } from "src/cs/nls";
-import { isTransferLikeFile } from "src/cs/workbench/contrib/calculation/common/firstCalculation";
 import { getCalculatedData } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
+import {
+  ActiveAuxiliaryBarViewContext,
+  ActiveWorkbenchMainPartContext,
+  ActiveWorkbenchViewContext,
+} from "src/cs/workbench/common/contextkeys";
 import { Layout, type LayoutView } from "src/cs/workbench/browser/layout";
 import {
   WORKBENCH_TITLEBAR_COMMAND_BAR_ID,
@@ -96,7 +104,7 @@ import type {
 } from "src/cs/workbench/contrib/export/common/originSelectionExport";
 import { ExportViewId } from "src/cs/workbench/contrib/export/common/export";
 import { ParametersViewPane } from "src/cs/workbench/contrib/parameters/browser/parametersViewPane";
-import { createParameterRows } from "src/cs/workbench/contrib/parameters/browser/parametersModel";
+import { createParametersViewState } from "src/cs/workbench/contrib/parameters/browser/parametersModel";
 import { ParametersViewId } from "src/cs/workbench/contrib/parameters/common/parameters";
 import { OriginSettingsViewPane } from "src/cs/workbench/contrib/origin/browser/originSettingsViewPane";
 import { OriginExportSettingsViewId } from "src/cs/workbench/contrib/origin/common/origin";
@@ -143,6 +151,7 @@ export type WorkbenchOptions = {
   readonly className?: string;
   readonly analysisFileService?: IAnalysisFileService;
   readonly commandService?: ICommandService;
+  readonly contextKeyService?: IContextKeyService;
   readonly contextMenuService?: IContextMenuService;
   readonly dialogsService?: IFileDialogService;
   readonly filesService?: IFileService;
@@ -201,7 +210,7 @@ const getInitialLanguage = (): LanguageCode =>
     : resolveLanguageCode("system", getSystemLanguage());
 
 const getInitialLanguagePreference = (): LanguagePreference => {
-  const settings = window.__CONDUCTOR_INITIAL_DEVICE_ANALYSIS_SETTINGS__;
+  const settings = window.__CONDUCTOR_INITIAL_ANALYSIS_SETTINGS__;
   return settings &&
     typeof settings === "object" &&
     isLanguagePreference(settings.language)
@@ -223,6 +232,9 @@ export class Workbench extends Layout {
   private readonly session = defaultSessionModel;
   private readonly filesPane: FilesPaneHost;
   private readonly commandService: ICommandService;
+  private readonly activeWorkbenchViewContext: IContextKey<string> | null = null;
+  private readonly activeWorkbenchMainPartContext: IContextKey<string> | null = null;
+  private readonly activeAuxiliaryBarViewContext: IContextKey<string> | null = null;
   private readonly table: TableContribution;
   private readonly templateViewPane: TemplateViewPane;
   private readonly templateAuxiliaryBarViewPane: TemplateAuxiliaryBarViewPane;
@@ -294,6 +306,9 @@ export class Workbench extends Layout {
     if (!options.commandService) {
       throw new Error("Workbench requires ICommandService.");
     }
+    if (!options.contextKeyService) {
+      throw new Error("Workbench requires IContextKeyService.");
+    }
     if (!options.pathService) {
       throw new Error("Workbench requires IPathService.");
     }
@@ -311,6 +326,9 @@ export class Workbench extends Layout {
     this.dialogsService = options.dialogsService;
     this.contextMenuService = options.contextMenuService;
     this.commandService = options.commandService;
+    this.activeWorkbenchViewContext = ActiveWorkbenchViewContext.bindTo(options.contextKeyService);
+    this.activeWorkbenchMainPartContext = ActiveWorkbenchMainPartContext.bindTo(options.contextKeyService);
+    this.activeAuxiliaryBarViewContext = ActiveAuxiliaryBarViewContext.bindTo(options.contextKeyService);
     this.pathService = options.pathService;
     this.viewsService = options.viewsService;
     this.tableService = options.tableService;
@@ -389,6 +407,7 @@ export class Workbench extends Layout {
     this.analysis.update(this.getAnalysisProps(snapshot, this.templateApply));
     this.settings.update(this.getSettingsProps());
     this.updateViewContainers();
+    this.updateContextKeys();
     this.renderAuxiliaryBarView(snapshot);
     this.setParts({
       sidebar: this.getViewContainerElement(WorkbenchViewContainers.files, this.filesPane.element),
@@ -510,6 +529,14 @@ export class Workbench extends Layout {
     this.viewsService.setViewVisible(this.analysis.id, isWorkbenchActive && isAnalysisActive);
     this.viewsService.setViewVisible(this.settings.id, isSettingsActive);
     this.updateAuxiliaryBar(isWorkbenchActive);
+  }
+
+  private updateContextKeys(): void {
+    this.activeWorkbenchViewContext?.set(this.activeView);
+    this.activeWorkbenchMainPartContext?.set(this.activeMainPart);
+    this.activeAuxiliaryBarViewContext?.set(
+      this.auxiliaryBarModel.getActiveView(this.activeMainPart),
+    );
   }
 
   private closeAuxiliaryBarViews(): void {
@@ -661,11 +688,13 @@ export class Workbench extends Layout {
       return;
     }
 
-    view.renderParameters({
-      gmMetricHeader: "gm",
-      rows: activeFile ? createParameterRows(activeFile) : [],
-      showTransferMetrics: activeFile ? isTransferLikeFile(activeFile) : false,
-    });
+    const state = createParametersViewState(activeFile);
+    if (state.kind === "empty") {
+      view.renderEmpty(state.message);
+      return;
+    }
+
+    view.renderParameters(state);
   }
 
   private getActiveAuxiliaryBarElement(): HTMLElement | null {
