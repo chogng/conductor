@@ -10,7 +10,7 @@ import {
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import { createEmptyView } from "src/cs/workbench/contrib/chart/browser/views/emptyView";
-import { filterCalculatedDataSeries } from "src/cs/workbench/contrib/chart/browser/chartLegendVisibility";
+import { filterCalculatedDataSeries } from "src/cs/workbench/contrib/chart/common/chartLegendVisibility";
 import type {
   IonIoffManualTargetsByFileId,
   IonIoffMethod,

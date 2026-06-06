@@ -1,6 +1,3 @@
-﻿import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import { LxIcon } from "src/cs/base/common/lxicon";
-import { localize } from "src/cs/nls";
 import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
 import {
@@ -573,99 +570,6 @@ const drawMainPlotCanvas = (
   }
 
   return { plotRect, scale, yKey };
-};
-
-const renderLegend = (
-  container: HTMLElement,
-  seriesList: MainPlotSeries[],
-  legendContent: unknown,
-  hiddenLegendKeys: readonly string[] = [],
-  legendLabels: Readonly<Record<string, string>> = {},
-  onToggleLegendItem?: (legendKey: string) => void,
-  onEditLegendItem?: (legendKey: string, currentLabel: string) => void,
-): void => {
-  container.replaceChildren();
-  if (legendContent instanceof Node) {
-    container.appendChild(legendContent);
-    return;
-  }
-
-  const list = document.createElement("div");
-  list.className = "main_plot_canvas_legend_list";
-  for (const [index, series] of seriesList.entries()) {
-    const row = document.createElement("div");
-    row.className = "main_plot_canvas_legend_row";
-    const legendKey = String(series.id ?? "");
-    const isVisible = !hiddenLegendKeys.includes(legendKey);
-    const labelText = String(legendLabels[legendKey] ?? series.name ?? `Series ${index + 1}`);
-    row.dataset.hidden = isVisible ? "false" : "true";
-
-    const toggle = document.createElement("button");
-    toggle.className = "main_plot_canvas_legend_toggle";
-    toggle.type = "button";
-    toggle.setAttribute("aria-pressed", String(isVisible));
-    toggle.disabled = !legendKey || !onToggleLegendItem;
-    toggle.addEventListener("click", () => {
-      if (legendKey) {
-        onToggleLegendItem?.(legendKey);
-      }
-    });
-
-    const swatch = document.createElement("span");
-    swatch.className = "main_plot_canvas_legend_swatch";
-    swatch.style.backgroundColor = series.color || resolveSeriesPlotColor(series, index) || getPlotColor(index);
-    const label = document.createElement("span");
-    label.className = "main_plot_canvas_legend_label";
-    label.textContent = labelText;
-    toggle.append(swatch, label);
-    row.append(toggle);
-
-    if (onEditLegendItem) {
-      const edit = document.createElement("button");
-      edit.className = "main_plot_canvas_legend_edit";
-      edit.type = "button";
-      edit.disabled = !legendKey;
-      edit.title = localize("chart_legend_edit_label", "Edit legend label");
-      edit.setAttribute("aria-label", localize("chart_legend_edit_label_for", "Edit legend label for {label}", {
-        label: labelText,
-      }));
-      edit.append(createLxIcon({
-        className: "main_plot_canvas_legend_edit_icon",
-        icon: LxIcon.edit,
-        size: 14,
-      }));
-      edit.addEventListener("click", () => {
-        if (legendKey) {
-          onEditLegendItem(legendKey, labelText);
-        }
-      });
-      row.append(edit);
-    }
-
-    list.appendChild(row);
-  }
-  container.appendChild(list);
-};
-
-export const createMainPlotLegend = (props: Pick<MainPlotCanvasProps,
-  "hiddenLegendKeys" | "legendContent" | "legendFontSize" | "legendLabels" | "legendWidth" | "onEditLegendItem" | "onToggleLegendItem" | "seriesList"
->): HTMLElement => {
-  const legend = document.createElement("div");
-  legend.className = "main_plot_canvas_legend";
-  legend.style.width = `${Math.max(80, Number(props.legendWidth) || 120)}px`;
-  if (props.legendFontSize) {
-    legend.style.fontSize = `${props.legendFontSize}px`;
-  }
-  renderLegend(
-    legend,
-    props.seriesList ?? [],
-    props.legendContent,
-    props.hiddenLegendKeys,
-    props.legendLabels,
-    props.onToggleLegendItem,
-    props.onEditLegendItem,
-  );
-  return legend;
 };
 
 export const createMainPlotCanvas = (props: MainPlotCanvasProps): MainPlotCanvasElement => {

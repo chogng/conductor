@@ -1,9 +1,9 @@
 import assert from "assert";
 
 import type { CalculatedData } from "src/cs/workbench/contrib/calculation/common/calculatedData";
-import { filterCalculatedDataSeries } from "../../browser/chartLegendVisibility.ts";
+import { filterCalculatedDataSeries } from "../../common/chartLegendVisibility.ts";
 
-suite("workbench/contrib/chart/test/browser/chartLegendVisibility", () => {
+suite("workbench/contrib/chart/test/common/chartLegendVisibility", () => {
   test("filters hidden legend items and recomputes domains", () => {
     const model = createModel();
 
