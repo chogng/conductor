@@ -26,19 +26,7 @@ export class SearchViewPane extends ViewPane {
   }
 
   renderSearch(model: MainPlotRenderModel | null): void {
-    if (!model) {
-      this.renderEmpty(localize("search_empty_model", "No chart data to search."));
-      return;
-    }
-
     this.content.replaceChildren(createSearchView(model));
-  }
-
-  renderEmpty(message: string): void {
-    const root = document.createElement("div");
-    root.className = "workbench-view-pane__empty";
-    root.textContent = message;
-    this.content.replaceChildren(root);
   }
 
   public override dispose(): void {

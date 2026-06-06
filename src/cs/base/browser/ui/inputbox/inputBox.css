@@ -74,6 +74,15 @@ html[data-nav="keyboard"] .inputbox_field[data-state="enable"]:focus-within::aft
   cursor: not-allowed;
 }
 
+.inputbox_native[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+}
+
+.inputbox_native[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
 .inputbox_native.inputbox_field {
   display: block;
   width: 100%;

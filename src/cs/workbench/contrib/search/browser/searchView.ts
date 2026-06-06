@@ -6,7 +6,7 @@ import { getPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
 import { searchSeriesAtX, type SearchPoint } from "src/cs/workbench/contrib/search/browser/searchModel";
 
 export const createSearchView = (
-  model: MainPlotRenderModel,
+  model: MainPlotRenderModel | null,
 ): HTMLElement => {
   const section = document.createElement("section");
   section.className = "search_pane";
@@ -22,25 +22,34 @@ export const createSearchView = (
   const inputField = createInputBoxField({
     ariaLabel: localize("search_x_input", "X value"),
     className: "search_input",
+    disabled: !model,
     inputClassName: "search_input_native",
     type: "number",
-    value: formatInputValue(resolveInitialX(model.xDomain)),
+    value: model ? formatInputValue(resolveInitialX(model.xDomain)) : "",
   });
   const input = inputField.input;
   input.step = "any";
 
   const summary = document.createElement("span");
   summary.className = "search_summary";
-  summary.textContent = localize("search_summary", "{seriesCount} series, {pointsCount} points, X {xDomain}", {
-    pointsCount: model.pointsCount,
-    seriesCount: model.seriesList.length,
-    xDomain: formatDomain(model.xDomain),
-  });
+  if (model) {
+    summary.textContent = localize("search_summary", "{seriesCount} series, {pointsCount} points, X {xDomain}", {
+      pointsCount: model.pointsCount,
+      seriesCount: model.seriesList.length,
+      xDomain: formatDomain(model.xDomain),
+    });
+  }
 
   control.append(label, inputField.element, summary);
 
   const body = document.createElement("div");
   body.className = "search_results";
+
+  if (!model) {
+    body.replaceChildren(createSearchEmpty(localize("search_empty_model", "No chart data to search.")));
+    section.append(control, body);
+    return section;
+  }
 
   const render = () => {
     const x = parseSearchX(input.value);
