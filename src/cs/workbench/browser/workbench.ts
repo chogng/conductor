@@ -519,8 +519,6 @@ export class Workbench extends Layout {
     if (isWorkbenchActive) {
       if (this.sidebarVisible) {
         void this.viewsService.openViewContainer(WorkbenchViewContainers.files);
-      } else {
-        this.viewsService.closeViewContainer(WorkbenchViewContainers.files);
       }
       void this.viewsService.openViewContainer(WorkbenchViewContainers.main);
       void this.viewsService.openViewContainer(WorkbenchViewContainers.auxiliarybar);

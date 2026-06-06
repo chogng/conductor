@@ -48,6 +48,7 @@ export class ViewsService extends Disposable implements IViewsServiceType {
   private readonly visibleViewContextKeys = new Map<string, IContextKey<boolean>>();
   private readonly focusedViewContextKey: IContextKey<string>;
   private readonly visibleViewContainers = new Map<ViewContainerLocation, string>();
+  private readonly lastActiveViewContainers = new Map<ViewContainerLocation, string>();
   private readonly visibleAddedViews = new Map<string, boolean>();
   private readonly viewsById = new Map<string, IView>();
   private readonly viewPaneContainers = new Map<string, IViewPaneContainer>();
@@ -72,6 +73,9 @@ export class ViewsService extends Disposable implements IViewsServiceType {
         this.registerViewContainerModel(container);
       }
     }));
+    this._register(this.layoutService.onDidChangePartVisibility(({ partId, visible }) => {
+      this.onDidChangePartVisibility(partId, visible);
+    }));
     this._register(toDisposable(() => {
       for (const disposables of this.containerDisposables.values()) {
         disposables.dispose();
@@ -79,6 +83,8 @@ export class ViewsService extends Disposable implements IViewsServiceType {
       this.containerDisposables.clear();
       this.viewContainerIdsByViewId.clear();
       this.visibleViewContextKeys.clear();
+      this.visibleViewContainers.clear();
+      this.lastActiveViewContainers.clear();
       this.visibleAddedViews.clear();
       this.viewsById.clear();
       this.viewPaneContainers.clear();
@@ -105,6 +111,10 @@ export class ViewsService extends Disposable implements IViewsServiceType {
   }
 
   public async openViewContainer(id: string, _focus?: boolean): Promise<ViewContainer | null> {
+    return this.openViewContainerInternal(id, true);
+  }
+
+  private openViewContainerInternal(id: string, updatePartVisibility: boolean): ViewContainer | null {
     const viewContainer = this.viewDescriptorService.getViewContainerById(id);
     const location = viewContainer ? this.viewDescriptorService.getViewContainerLocation(viewContainer) : null;
     if (!viewContainer || location === null) {
@@ -118,16 +128,23 @@ export class ViewsService extends Disposable implements IViewsServiceType {
     }
 
     this.visibleViewContainers.set(location, id);
+    this.lastActiveViewContainers.set(location, id);
     this.viewPaneContainers.get(id)?.setVisible(true);
     this.applyAddedViewVisibility(id);
     if (previousId !== id) {
       this.onDidChangeViewContainerVisibilityEmitter.fire({ id, visible: true, location });
     }
-    this.updatePartVisibility(location);
+    if (updatePartVisibility) {
+      this.updatePartVisibility(location, true);
+    }
     return viewContainer;
   }
 
   public closeViewContainer(id: string): void {
+    this.closeViewContainerInternal(id, true);
+  }
+
+  private closeViewContainerInternal(id: string, updatePartVisibility: boolean): void {
     const viewContainer = this.viewDescriptorService.getViewContainerById(id);
     const location = viewContainer ? this.viewDescriptorService.getViewContainerLocation(viewContainer) : null;
     if (location === null) {
@@ -136,10 +153,13 @@ export class ViewsService extends Disposable implements IViewsServiceType {
 
     if (this.visibleViewContainers.get(location) === id) {
       this.visibleViewContainers.delete(location);
+      this.lastActiveViewContainers.set(location, id);
       this.onDidChangeViewContainerVisibilityEmitter.fire({ id, visible: false, location });
+      if (updatePartVisibility) {
+        this.updatePartVisibility(location, false);
+      }
     }
     this.viewPaneContainers.get(id)?.setVisible(false);
-    this.updatePartVisibility(location);
   }
 
   public getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null {
@@ -362,7 +382,12 @@ export class ViewsService extends Disposable implements IViewsServiceType {
     for (const [location, id] of this.visibleViewContainers) {
       if (id === viewContainerId) {
         this.visibleViewContainers.delete(location);
-        this.updatePartVisibility(location);
+        this.updatePartVisibility(location, false);
+      }
+    }
+    for (const [location, id] of this.lastActiveViewContainers) {
+      if (id === viewContainerId) {
+        this.lastActiveViewContainers.delete(location);
       }
     }
   }
@@ -439,10 +464,52 @@ export class ViewsService extends Disposable implements IViewsServiceType {
     throw new Error("Unknown view pane container.");
   }
 
-  private updatePartVisibility(location: ViewContainerLocation): void {
+  private onDidChangePartVisibility(part: string, visible: boolean): void {
+    const location = viewContainerPartToLocation(part);
+    if (location === null) {
+      return;
+    }
+
+    if (visible) {
+      this.restoreViewContainer(location);
+    } else {
+      this.hideVisibleViewContainer(location);
+    }
+  }
+
+  private hideVisibleViewContainer(location: ViewContainerLocation): void {
+    const id = this.visibleViewContainers.get(location);
+    if (!id) {
+      return;
+    }
+
+    this.closeViewContainerInternal(id, false);
+  }
+
+  private restoreViewContainer(location: ViewContainerLocation): void {
+    if (this.visibleViewContainers.has(location)) {
+      return;
+    }
+
+    const id = this.getLastOrDefaultViewContainerId(location);
+    if (id) {
+      this.openViewContainerInternal(id, false);
+    }
+  }
+
+  private getLastOrDefaultViewContainerId(location: ViewContainerLocation): string | null {
+    const lastActiveId = this.lastActiveViewContainers.get(location);
+    if (lastActiveId && this.viewDescriptorService.getViewContainerById(lastActiveId)) {
+      return lastActiveId;
+    }
+
+    return this.viewDescriptorService.getDefaultViewContainer(location)?.id ?? null;
+  }
+
+  private updatePartVisibility(location: ViewContainerLocation, visible: boolean): void {
     const part = viewContainerLocationToPart(location);
     if (part) {
-      this.layoutService.setPartHidden(!this.visibleViewContainers.has(location), part);
+      this.layoutService.setPartHidden(!visible, part);
     }
   }
 }
@@ -455,6 +522,19 @@ function viewContainerLocationToPart(location: ViewContainerLocation): Parts | n
       return Parts.PANEL_PART;
     case ViewContainerLocation.AuxiliaryBar:
       return Parts.AUXILIARYBAR_PART;
+  }
+}
+
+function viewContainerPartToLocation(part: string): ViewContainerLocation | null {
+  switch (part) {
+    case Parts.SIDEBAR_PART:
+      return ViewContainerLocation.Sidebar;
+    case Parts.PANEL_PART:
+      return ViewContainerLocation.Panel;
+    case Parts.AUXILIARYBAR_PART:
+      return ViewContainerLocation.AuxiliaryBar;
+    default:
+      return null;
   }
 }
 

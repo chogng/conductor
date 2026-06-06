@@ -15,9 +15,3 @@
   flex-direction: column;
   overflow: hidden;
 }
-
-.files-sidebar_part > .workbench_sidebar_header .workbench_sidebar_title {
-  font-size: 12px;
-  line-height: 16px;
-  color: rgb(var(--text-secondary) / 1);
-}
