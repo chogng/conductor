@@ -4,11 +4,13 @@ import type {
   SsMethod,
 } from "src/cs/workbench/contrib/session/browser/sessionContext";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { ResolveCsvCurveLabelForSeries } from "src/cs/workbench/contrib/export/browser/export";
 
 type ExportModule = typeof import("./export");
 
 type UseExportsOptions = {
   cleanedData?: CleanedEntry[];
+  resolveCurveLabelForSeries?: ResolveCsvCurveLabelForSeries;
   ssManualRanges?: SsManualRanges;
   ssMethod?: SsMethod;
 };
@@ -44,6 +46,7 @@ const loadExportDependencies = async () => {
 
 export const createExports = ({
   cleanedData = [],
+  resolveCurveLabelForSeries,
   ssManualRanges,
   ssMethod,
 }: UseExportsOptions) => {
@@ -57,7 +60,7 @@ export const createExports = ({
       triggerBlobDownload,
     } = await loadExportDependencies();
 
-    const exports = buildCsvExports(cleanedData);
+    const exports = buildCsvExports(cleanedData, resolveCurveLabelForSeries);
     if (exports.length === 0) return;
 
     const zip = new JSZip();
@@ -93,7 +96,7 @@ export const createExports = ({
       triggerBlobDownload,
     } = await loadExportDependencies();
 
-    const exports = buildCsvExports(cleanedData);
+    const exports = buildCsvExports(cleanedData, resolveCurveLabelForSeries);
     if (exports.length === 0) return;
 
     const zip = new JSZip();

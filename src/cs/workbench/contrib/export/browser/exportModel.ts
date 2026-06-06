@@ -6,7 +6,10 @@ import type {
   OriginExportContentKey,
   OriginExportMode,
 } from "src/cs/workbench/contrib/export/common/originSelectionExport";
-import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type {
+  CleanedEntry,
+  CleanedSeries,
+} from "src/cs/workbench/contrib/session/common/sessionTypes";
 
 export type ExportPaneState = {
   isExportListCanvasSelectionMode: boolean;
@@ -24,6 +27,12 @@ export const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
 
 export const createOriginCurveOptions = (
   file: CleanedEntry,
+  resolveCurveLabelForSeries: (
+    file: CleanedEntry,
+    series: CleanedSeries,
+    index: number,
+  ) => string = (_file, series, index) =>
+    String(series?.name ?? `Series ${index + 1}`),
 ): OriginCurveExportSeriesOption[] =>
   (Array.isArray(file?.series) ? file.series : [])
     .map((series, index) => {
@@ -31,7 +40,7 @@ export const createOriginCurveOptions = (
       if (!seriesId) return null;
       return {
         key: seriesId,
-        label: String(series?.name ?? `Series ${index + 1}`),
+        label: resolveCurveLabelForSeries(file, series, index),
         sourceFileId: String(file?.fileId ?? ""),
         sourceSeriesId: seriesId,
       };

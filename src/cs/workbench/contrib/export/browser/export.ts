@@ -87,8 +87,22 @@ export const createUniqueFileNameResolver = (): ((
   };
 };
 
+export type ResolveCsvCurveLabelForSeries = (
+  file: CleanedEntry,
+  series: CleanedSeries,
+  index: number,
+) => string;
+
+type CsvSeriesGroup = {
+  groupIndex: number;
+  label: string | undefined;
+  xArr: number[];
+  yArr: number[];
+};
+
 export const buildCsvExports = (
   cleanedData: CleanedEntry[] = [],
+  resolveCurveLabelForSeries?: ResolveCsvCurveLabelForSeries,
 ): Array<{
   csvText: string;
   filename: string;
@@ -128,12 +142,21 @@ export const buildCsvExports = (
           const yArr = series?.y;
 
           if (!xArr || !yArr) return null;
-          return { groupIndex, xArr, yArr };
+          return {
+            groupIndex,
+            label: resolveCurveLabelForSeries?.(
+              file,
+              series,
+              seriesList.indexOf(series),
+            ),
+            xArr,
+            yArr,
+          };
         })
         .filter(
           (
             group,
-          ): group is { groupIndex: number; xArr: number[]; yArr: number[] } =>
+          ): group is CsvSeriesGroup =>
             Boolean(group),
         );
 
@@ -144,14 +167,22 @@ export const buildCsvExports = (
           Math.min(group.xArr.length ?? 0, group.yArr.length ?? 0),
         ),
       );
-      const rows: Array<Array<number | string>> = new Array(rowCount);
+      const rows: Array<Array<number | string>> = [];
+      if (resolveCurveLabelForSeries) {
+        const header: string[] = [];
+        for (const group of groups) {
+          const label = String(group.label ?? "").trim();
+          header.push(`${label || "X"} X`, label || "Y");
+        }
+        rows.push(header);
+      }
 
       for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
         const row: Array<number | string> = [];
         for (const group of groups) {
           row.push(group.xArr[rowIndex] ?? "", group.yArr[rowIndex] ?? "");
         }
-        rows[rowIndex] = row;
+        rows.push(row);
       }
 
       const csvText = Papa.unparse(rows);

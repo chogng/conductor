@@ -43,6 +43,11 @@ export type ChartViewLazyProps = {
   showFileSelect?: boolean;
   hiddenLegendKeys?: readonly string[];
   legendLabels?: Readonly<Record<string, string>>;
+  onLegendLabelChange?: (
+    fileId: string,
+    seriesId: string,
+    label: string | null,
+  ) => void;
   setIonIoffMethod?: (next: IonIoffMethod) => void;
   setIonIoffManualTargetsByFileId?: StateSetter<IonIoffManualTargetsByFileId>;
   ssMethod?: SsMethod;

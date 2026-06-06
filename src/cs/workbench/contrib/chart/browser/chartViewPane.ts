@@ -35,7 +35,6 @@ export class ChartViewPane extends ViewPane {
   private legendPopover: HTMLElement | null = null;
   private legendContext: LegendContext | null = null;
   private readonly hiddenLegendKeysByContext = new Map<string, readonly string[]>();
-  private readonly legendLabelsByContext = new Map<string, Readonly<Record<string, string>>>();
   private fallbackActivePlotType: PlotType = "iv";
   private visibleDetailPanes: readonly ChartDetailPane[] = ["inspector"];
   private props: AnalysisPanelProps;
@@ -299,21 +298,11 @@ export class ChartViewPane extends ViewPane {
       return;
     }
 
-    const key = this.getLegendStateKey(context);
-    const current = this.getLegendLabels(context);
-    const next: Record<string, string> = { ...current };
-    if (nextLabel === defaultLabel) {
-      delete next[legendKey];
-    } else {
-      next[legendKey] = nextLabel;
-    }
-
-    if (Object.keys(next).length) {
-      this.legendLabelsByContext.set(key, next);
-    } else {
-      this.legendLabelsByContext.delete(key);
-    }
-
+    this.props.onLegendLabelChange?.(
+      context.fileId,
+      legendKey,
+      nextLabel === defaultLabel ? null : nextLabel,
+    );
     this.updateAnalysisPanel(this.props);
     this.refreshLegendPopover();
   }
@@ -382,22 +371,14 @@ export class ChartViewPane extends ViewPane {
       return {};
     }
 
-    const key = this.getLegendStateKey(context);
     const liveLegendKeys = new Set(context.seriesList.map((series) => series.id));
-    const labels = this.legendLabelsByContext.get(key) ?? {};
+    const labels = this.props.legendLabels ?? {};
     const next: Record<string, string> = {};
     for (const [legendKey, label] of Object.entries(labels)) {
       if (liveLegendKeys.has(legendKey)) {
         next[legendKey] = label;
       }
     }
-
-    if (!Object.keys(next).length) {
-      this.legendLabelsByContext.delete(key);
-      return {};
-    }
-
-    this.legendLabelsByContext.set(key, next);
     return next;
   }
 

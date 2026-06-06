@@ -111,6 +111,10 @@ import { SearchViewPane } from "src/cs/workbench/contrib/search/browser/searchVi
 import { SearchViewId } from "src/cs/workbench/contrib/search/common/search";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import {
+  ISeriesLabelService,
+  type ISeriesLabelService as ISeriesLabelServiceType,
+} from "src/cs/workbench/services/seriesLabels/common/seriesLabels";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
   closeWindow,
@@ -157,6 +161,7 @@ export type WorkbenchOptions = {
   readonly dialogsService?: IFileDialogService;
   readonly filesService?: IFileService;
   readonly pathService?: IPathService;
+  readonly seriesLabelService?: ISeriesLabelServiceType;
   readonly layoutService?: IWorkbenchLayoutService;
   readonly viewsService?: IViewsService;
   readonly id?: string;
@@ -250,6 +255,7 @@ export class Workbench extends Layout {
   private readonly contextMenuService: IContextMenuService;
   private readonly layoutService: IWorkbenchLayoutService;
   private readonly pathService: IPathService;
+  private readonly seriesLabelService: ISeriesLabelServiceType;
   private readonly viewsService: IViewsService;
   private readonly tableService: ITableService;
   private readonly templateApplyService: ITemplateApplyService;
@@ -312,6 +318,9 @@ export class Workbench extends Layout {
     if (!options.pathService) {
       throw new Error("Workbench requires IPathService.");
     }
+    if (!options.seriesLabelService) {
+      throw new Error("Workbench requires ISeriesLabelService.");
+    }
     if (!options.layoutService) {
       throw new Error("Workbench requires IWorkbenchLayoutService.");
     }
@@ -334,6 +343,7 @@ export class Workbench extends Layout {
     this.activeWorkbenchMainPartContext = ActiveWorkbenchMainPartContext.bindTo(options.contextKeyService);
     this.activeAuxiliaryBarViewContext = ActiveAuxiliaryBarViewContext.bindTo(options.contextKeyService);
     this.pathService = options.pathService;
+    this.seriesLabelService = options.seriesLabelService;
     this.viewsService = options.viewsService;
     this.tableService = options.tableService;
     this.templateApplyService = options.templateApplyService;
@@ -389,6 +399,7 @@ export class Workbench extends Layout {
 
   private renderWorkbench(): void {
     const snapshot = this.session.getSnapshot();
+    this.seriesLabelService.prune(snapshot.cleanedData);
     this.clearStaleAnalysisFileSelection(snapshot);
     const tableModel = this.getTableModel(snapshot);
     this.templateApply.update(this.getTemplateApplyInput(snapshot, tableModel));
@@ -654,7 +665,9 @@ export class Workbench extends Layout {
       this.selectedCurveKeys = new Set();
     }
 
-    const curveOptions = activeFile ? createOriginCurveOptions(activeFile) : [];
+    const curveOptions = activeFile
+      ? createOriginCurveOptions(activeFile, this.resolveCurveLabelForSeries)
+      : [];
     view.render({
       curveOptions,
       hasMixedExportYScales: false,
@@ -725,7 +738,7 @@ export class Workbench extends Layout {
 
   private syncCurveSelection(activeFile: CleanedEntry): void {
     const curveKeys = new Set(
-      createOriginCurveOptions(activeFile).map((option) => option.key),
+      createOriginCurveOptions(activeFile, this.resolveCurveLabelForSeries).map((option) => option.key),
     );
     this.selectedCurveKeys = new Set(
       this.selectedCurveKeys.size > 0
@@ -891,8 +904,10 @@ export class Workbench extends Layout {
     return {
       activeFileId: this.getActiveAnalysisFileId(snapshot),
       activePlotType: this.activePlotType,
+      legendLabels: this.seriesLabelService.getLabels(this.getActiveAnalysisFileId(snapshot) ?? ""),
       onActiveFileIdChange: this.handleAnalysisFileSelected,
       onActivePlotTypeChange: this.setActivePlotType,
+      onLegendLabelChange: this.updateLegendLabel,
       calculatedDataByKey: snapshot.calculatedDataByKey,
       cleanedData: snapshot.cleanedData,
       onPlotAxisSettingsChange: this.updatePlotAxisSettings,
@@ -925,6 +940,19 @@ export class Workbench extends Layout {
     this.activePlotType = plotType;
     this.renderWorkbench();
   };
+
+  private readonly updateLegendLabel = (
+    fileId: string,
+    seriesId: string,
+    label: string | null,
+  ): void => {
+    this.seriesLabelService.setLabel(fileId, seriesId, label);
+    this.renderWorkbench();
+  };
+
+  private readonly resolveCurveLabelForSeries = (
+    ...args: Parameters<ISeriesLabelServiceType["resolveLabel"]>
+  ): string => this.seriesLabelService.resolveLabel(...args);
 
   private resolveActiveFile(snapshot = this.session.getSnapshot()): CleanedEntry | null {
     const activeFileId = this.getActiveAnalysisFileId(snapshot);

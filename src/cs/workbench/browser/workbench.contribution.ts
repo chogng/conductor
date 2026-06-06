@@ -71,6 +71,10 @@ import {
   type ITemplateApplyService as ITemplateApplyServiceType,
   type ITemplateService as ITemplateServiceType,
 } from "src/cs/workbench/contrib/template/common/template";
+import {
+  ISeriesLabelService,
+  type ISeriesLabelService as ISeriesLabelServiceType,
+} from "src/cs/workbench/services/seriesLabels/common/seriesLabels";
 
 export const WorkbenchContributionId = "workbench.browser.workbench";
 
@@ -118,6 +122,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @IViewsService viewsService: IViewsServiceType,
     @ITemplateApplyService templateApplyService: ITemplateApplyServiceType,
     @ITemplateService templateService: ITemplateServiceType,
+    @ISeriesLabelService seriesLabelService: ISeriesLabelServiceType,
     @IInstantiationService instantiationService: IInstantiationServiceType,
   ) {
     super();
@@ -139,6 +144,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       pathService,
       layoutService,
       viewsService,
+      seriesLabelService,
       tableService,
       templateApplyService,
       templateService,

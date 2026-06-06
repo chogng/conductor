@@ -1,5 +1,5 @@
 import assert from "assert";
-import { buildSsMetricsCsv } from "./export.ts";
+import { buildCsvExports, buildSsMetricsCsv } from "./export.ts";
 import {
   buildOriginExportPlan,
   buildOriginExportsByMode,
@@ -16,6 +16,30 @@ import {
 } from "../../origin/common/originAxisCommands.ts";
 
 suite("workbench/contrib/export/browser/export", () => {
+  test("buildCsvExports writes caller-provided legend labels when requested", () => {
+    const exports = buildCsvExports([
+      {
+        fileId: "file-a",
+        fileName: "file_a.csv",
+        xGroups: [[0, 1]],
+        series: [
+          {
+            id: "curve-a",
+            groupIndex: 0,
+            yCol: 1,
+            y: [3, 4],
+          },
+        ],
+      },
+    ], (_file, series) => series.id === "curve-a" ? "Edited Legend" : "");
+
+    assert.equal(exports.length, 1);
+    assert.equal(
+      exports[0].csvText,
+      "Edited Legend X,Edited Legend\r\n0,3\r\n1,4",
+    );
+  });
+
   test("buildSsMetricsCsv does not compute SS for output curves", () => {
     const csv = buildSsMetricsCsv({
       cleanedData: [
