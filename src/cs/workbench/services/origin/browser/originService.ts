@@ -12,12 +12,12 @@ import {
 
 type OriginBridge = {
   checkOriginHealth?: (options: { path?: string }) => Promise<OriginHealthResult>;
-  exportDeviceAnalysisOriginCsvWithRust?: (payload: unknown) => Promise<OriginCsvExportResult>;
+  exportAnalysisOriginCsvWithRust?: (payload: unknown) => Promise<OriginCsvExportResult>;
   getOriginExePath?: () => Promise<string>;
   pickOriginExePath?: () => Promise<string>;
   runOriginCsv?: (payload: unknown) => Promise<unknown>;
   runOriginRuntimeCleanup?: (payload?: unknown) => Promise<OriginCleanupResult>;
-  saveDeviceAnalysisOriginZip?: (payload: unknown) => Promise<OriginZipSaveResult>;
+  saveAnalysisOriginZip?: (payload: unknown) => Promise<OriginZipSaveResult>;
   setOriginExePath?: (path: string) => Promise<unknown>;
 };
 
@@ -87,7 +87,7 @@ export class OriginService extends Disposable implements IOriginServiceType {
   }
 
   public canExportCsv(): boolean {
-    return hasBridgeMethod("exportDeviceAnalysisOriginCsvWithRust") || hasIpcRenderer();
+    return hasBridgeMethod("exportAnalysisOriginCsvWithRust") || hasIpcRenderer();
   }
 
   public canManageExePath(): boolean {
@@ -106,7 +106,7 @@ export class OriginService extends Disposable implements IOriginServiceType {
   }
 
   public canSaveZip(): boolean {
-    return hasBridgeMethod("saveDeviceAnalysisOriginZip") || hasIpcRenderer();
+    return hasBridgeMethod("saveAnalysisOriginZip") || hasIpcRenderer();
   }
 
   public checkHealth(options: { path?: string }): Promise<OriginHealthResult> {
@@ -122,9 +122,9 @@ export class OriginService extends Disposable implements IOriginServiceType {
   }
 
   public exportCsv(payload: unknown): Promise<OriginCsvExportResult> {
-    if (hasBridgeMethod("exportDeviceAnalysisOriginCsvWithRust")) {
+    if (hasBridgeMethod("exportAnalysisOriginCsvWithRust")) {
       const bridge = getBridge();
-      return getBridgeMethod(bridge, "exportDeviceAnalysisOriginCsvWithRust")(payload);
+      return getBridgeMethod(bridge, "exportAnalysisOriginCsvWithRust")(payload);
     }
 
     return getIpcRenderer().invoke(
@@ -173,9 +173,9 @@ export class OriginService extends Disposable implements IOriginServiceType {
   }
 
   public saveZip(payload: unknown): Promise<OriginZipSaveResult> {
-    if (hasBridgeMethod("saveDeviceAnalysisOriginZip")) {
+    if (hasBridgeMethod("saveAnalysisOriginZip")) {
       const bridge = getBridge();
-      return getBridgeMethod(bridge, "saveDeviceAnalysisOriginZip")(payload);
+      return getBridgeMethod(bridge, "saveAnalysisOriginZip")(payload);
     }
 
     return getIpcRenderer().invoke(

@@ -73,7 +73,7 @@ const getErrorMessage = (error: unknown) =>
 const resolveAutoUpdateFeedUrl = () =>
   normalizeAutoUpdateUrl(
     process.env.CONDUCTOR_UPDATE_URL ||
-      process.env.DEVICE_ANALYSIS_UPDATE_URL ||
+      process.env.ANALYSIS_UPDATE_URL ||
       process.env.APP_UPDATE_URL ||
       null,
   );

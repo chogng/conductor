@@ -1,4 +1,4 @@
-export const DEVICE_ANALYSIS_CURRENT_Y_UNIT_VALUES = [
+const CURRENT_Y_UNIT_VALUES = [
   "A",
   "mA",
   "uA",
@@ -6,7 +6,7 @@ export const DEVICE_ANALYSIS_CURRENT_Y_UNIT_VALUES = [
   "pA",
 ] as const;
 
-export const DEVICE_ANALYSIS_CAPACITANCE_Y_UNIT_VALUES = [
+const CAPACITANCE_Y_UNIT_VALUES = [
   "F",
   "mF",
   "uF",
@@ -15,8 +15,8 @@ export const DEVICE_ANALYSIS_CAPACITANCE_Y_UNIT_VALUES = [
 ] as const;
 
 export const Y_UNIT_VALUES = [
-  ...DEVICE_ANALYSIS_CURRENT_Y_UNIT_VALUES,
-  ...DEVICE_ANALYSIS_CAPACITANCE_Y_UNIT_VALUES,
+  ...CURRENT_Y_UNIT_VALUES,
+  ...CAPACITANCE_Y_UNIT_VALUES,
 ] as const;
 
 export const X_UNIT_VALUES = ["V", "mV"] as const;
@@ -28,15 +28,15 @@ export type XUnit =
 
 export const isCurrentYUnit = (
   value: unknown,
-): value is (typeof DEVICE_ANALYSIS_CURRENT_Y_UNIT_VALUES)[number] =>
-  DEVICE_ANALYSIS_CURRENT_Y_UNIT_VALUES.includes(value as never);
+): value is (typeof CURRENT_Y_UNIT_VALUES)[number] =>
+  CURRENT_Y_UNIT_VALUES.includes(value as never);
 
 export const isCapacitanceYUnit = (
   value: unknown,
-): value is (typeof DEVICE_ANALYSIS_CAPACITANCE_Y_UNIT_VALUES)[number] =>
-  DEVICE_ANALYSIS_CAPACITANCE_Y_UNIT_VALUES.includes(value as never);
+): value is (typeof CAPACITANCE_Y_UNIT_VALUES)[number] =>
+  CAPACITANCE_Y_UNIT_VALUES.includes(value as never);
 
-const DEVICE_ANALYSIS_Y_UNIT_ALIAS_MAP: Record<string, YUnit> = {
+const Y_UNIT_ALIAS_MAP: Record<string, YUnit> = {
   a: "A",
   ma: "mA",
   "ua": "uA",
@@ -51,7 +51,7 @@ const DEVICE_ANALYSIS_Y_UNIT_ALIAS_MAP: Record<string, YUnit> = {
   pf: "pF",
 };
 
-const DEVICE_ANALYSIS_X_UNIT_ALIAS_MAP: Record<string, XUnit> = {
+const X_UNIT_ALIAS_MAP: Record<string, XUnit> = {
   v: "V",
   mv: "mV",
 };
@@ -64,12 +64,12 @@ export const normalizeYUnit = (
   const normalizeFallback = (): YUnit | "" => {
     if (fallback === "") return "";
     const fallbackRaw = String(fallback).trim().toLowerCase();
-    return DEVICE_ANALYSIS_Y_UNIT_ALIAS_MAP[fallbackRaw] ?? "";
+    return Y_UNIT_ALIAS_MAP[fallbackRaw] ?? "";
   };
   if (!raw) return normalizeFallback();
 
   const normalized =
-    DEVICE_ANALYSIS_Y_UNIT_ALIAS_MAP[raw.toLowerCase()] ?? null;
+    Y_UNIT_ALIAS_MAP[raw.toLowerCase()] ?? null;
   if (normalized) return normalized;
 
   return normalizeFallback();
@@ -115,12 +115,12 @@ export const normalizeXUnit = (
   const normalizeFallback = (): XUnit | "" => {
     if (fallback === "") return "";
     const fallbackRaw = String(fallback).trim().toLowerCase();
-    return DEVICE_ANALYSIS_X_UNIT_ALIAS_MAP[fallbackRaw] ?? "";
+    return X_UNIT_ALIAS_MAP[fallbackRaw] ?? "";
   };
   if (!raw) return normalizeFallback();
 
   const normalized =
-    DEVICE_ANALYSIS_X_UNIT_ALIAS_MAP[raw.toLowerCase()] ?? null;
+    X_UNIT_ALIAS_MAP[raw.toLowerCase()] ?? null;
   if (normalized) return normalized;
 
   return normalizeFallback();

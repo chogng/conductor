@@ -17,10 +17,10 @@ const ROOT = process.cwd();
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "device-analysis-phase3-bench");
 const REQUESTS_PATH = path.join(OUTPUT_DIR, "requests.jsonl");
 const RUST_RESULTS_PATH = path.join(OUTPUT_DIR, "rust-results.jsonl");
-const ANALYSIS_REQUESTS_PATH = path.join(OUTPUT_DIR, "analysis-requests.jsonl");
+const REQUESTS_PATH = path.join(OUTPUT_DIR, "analysis-requests.jsonl");
 const RUST_ANALYSIS_RESULTS_PATH = path.join(OUTPUT_DIR, "rust-analysis-results.jsonl");
 const PROCESS_TIMING_PATH = path.join(OUTPUT_DIR, "rust-process-timing.json");
-const ANALYSIS_TIMING_PATH = path.join(OUTPUT_DIR, "rust-analysis-timing.json");
+const TIMING_PATH = path.join(OUTPUT_DIR, "rust-analysis-timing.json");
 const REPORT_PATH = path.join(OUTPUT_DIR, "report.json");
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 const DEFAULT_RENDER_POINT_BUDGET = 12000;
@@ -328,7 +328,7 @@ const prepareRustAnalysis = async () => {
       }),
     );
   }
-  await fs.writeFile(ANALYSIS_REQUESTS_PATH, `${requests.join("\n")}\n`, "utf8");
+  await fs.writeFile(REQUESTS_PATH, `${requests.join("\n")}\n`, "utf8");
   console.log(
     `[phase3-bench] prepared rust analysis requests files=${requests.length} series=${seriesCount}`,
   );
@@ -367,7 +367,7 @@ const summarizeRustAnalysisResults = async () => {
     failures: failures.slice(0, 20),
     files,
     seriesCount,
-    timing: await readJsonIfExists(ANALYSIS_TIMING_PATH),
+    timing: await readJsonIfExists(TIMING_PATH),
   };
 };
 

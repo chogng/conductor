@@ -17,7 +17,7 @@ declare global {
   interface Window {
     __conductorDebug?: {
       [key: string]: unknown;
-      deviceAnalysis?: {
+      analysis?: {
         exportOriginZip: () => Promise<void>;
         exportZip: () => Promise<void>;
       };
@@ -66,7 +66,7 @@ export const createExports = ({
     }
 
     zip.file(
-      "device_analysis_metrics.csv",
+      "metrics.csv",
       "\uFEFF" +
         buildSsMetricsCsv({
           cleanedData,
@@ -81,7 +81,7 @@ export const createExports = ({
       compressionOptions: { level: 6 },
     });
 
-    triggerBlobDownload("device_analysis_export.zip", zipBlob);
+    triggerBlobDownload("export.zip", zipBlob);
   };
 
   const handleExportOrigin = async () => {
@@ -107,12 +107,12 @@ export const createExports = ({
       compressionOptions: { level: 6 },
     });
 
-    triggerBlobDownload("device_analysis.zip", zipBlob);
+    triggerBlobDownload("origin.zip", zipBlob);
   };
 
   if (typeof window !== "undefined" && import.meta.env.DEV) {
     window.__conductorDebug = window.__conductorDebug || {};
-    window.__conductorDebug.deviceAnalysis = {
+    window.__conductorDebug.analysis = {
       exportOriginZip: handleExportOrigin,
       exportZip: handleExport,
     };

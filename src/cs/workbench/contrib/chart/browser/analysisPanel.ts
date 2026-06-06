@@ -103,7 +103,7 @@ const createAnalysisPanelContent = (props: AnalysisPanelProps): DisposableConten
     if (shouldMountCharts) {
       return createAnalysisStatusCard({
         id: "analysis-analysis-loading-card",
-        iconClassName: "analysis_status_icon--muted analysis_status_icon--pulse",
+        iconClassName: "status-icon--muted status-icon--pulse",
         message: localize("analysis_loading", "Loading analysis charts..."),
         hint: localize("analysis_loading_hint", "Preparing visualization modules, please wait."),
       });
@@ -133,17 +133,17 @@ const createProcessingCard = (
   const percent = Math.min(100, Math.round((processed / total) * 100));
   const card = createAnalysisStatusCard({
     id: "analysis-processing-card",
-    iconClassName: "analysis_status_icon--muted analysis_status_icon--pulse",
+    iconClassName: "status-icon--muted status-icon--pulse",
     message: localize("analysis_processing", "Processing analysis data..."),
     hint: localize("analysis_processing_hint", "Extracting and preparing chart data, please wait."),
   });
 
   const progress = document.createElement("div");
-  progress.className = "analysis_processing_progress";
+  progress.className = "processing-progress";
 
   const labelRow = document.createElement("div");
   labelRow.className =
-    "analysis_processing_progress_label";
+    "processing-progress-label";
 
   const processedLabel = document.createElement("span");
   processedLabel.textContent = localize("analysis_processing_progress", "{processed}/{total} files processed", {
@@ -156,10 +156,10 @@ const createProcessingCard = (
   labelRow.append(processedLabel, percentLabel);
 
   const track = document.createElement("div");
-  track.className = "analysis_processing_progress_track";
+  track.className = "processing-progress-track";
 
   const bar = document.createElement("div");
-  bar.className = "analysis_processing_progress_bar";
+  bar.className = "processing-progress-bar";
   bar.style.width = `${percent}%`;
   track.append(bar);
   progress.append(labelRow, track);
@@ -181,16 +181,16 @@ const createAnalysisStatusCard = ({
   const card = createLocalCard({
     id,
     variant: "fill",
-    className: "analysis_status_card",
+    className: "status-card",
   });
   card.append(
     createLocalLxIcon({
       icon: LxIcon.analysis,
       size: 48,
-      className: `analysis_status_icon ${iconClassName}`,
+      className: `status-icon ${iconClassName}`,
     }),
-    createText("p", "analysis_status_message", message),
-    createText("p", "analysis_status_hint", hint),
+    createText("p", "status-message", message),
+    createText("p", "status-hint", hint),
   );
   return card;
 };

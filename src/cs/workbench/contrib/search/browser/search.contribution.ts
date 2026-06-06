@@ -1,7 +1,7 @@
 import { localize } from "src/cs/nls";
+import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
-import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
 import {
   ActiveAuxiliaryBarViewContext,
   ActiveWorkbenchMainPartContext,
@@ -12,8 +12,8 @@ import {
   type IViewContainersRegistry,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
-import { OriginSettingsViewPane } from "src/cs/workbench/contrib/origin/browser/originSettingsViewPane";
-import { OriginExportSettingsViewId } from "src/cs/workbench/contrib/origin/common/origin";
+import { SearchViewPane } from "src/cs/workbench/contrib/search/browser/searchViewPane";
+import { SearchViewId } from "src/cs/workbench/contrib/search/common/search";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
@@ -21,14 +21,14 @@ const container = viewContainersRegistry.get(WorkbenchViewContainers.auxiliaryba
 
 if (container) {
   viewsRegistry.registerViews([{
-    id: OriginExportSettingsViewId,
-    name: localize("chart_curve_settings_title", "Origin Settings"),
-    ctorDescriptor: new SyncDescriptor(OriginSettingsViewPane),
+    id: SearchViewId,
+    name: localize("analysis_views_search", "Search"),
+    ctorDescriptor: new SyncDescriptor(SearchViewPane),
     hideByDefault: true,
-    order: 30,
+    order: 5,
     when: ContextKeyExpr.and(
       ActiveWorkbenchMainPartContext.isEqualTo("chart"),
-      ActiveAuxiliaryBarViewContext.isEqualTo("settings"),
+      ActiveAuxiliaryBarViewContext.isEqualTo("search"),
     ),
   }], container);
 }

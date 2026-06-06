@@ -79,7 +79,7 @@ try {
       const waitStart = now();
       while (
         !window.desktopImport?.prepareImportFileWithRust ||
-        !window.desktopImport?.openDeviceAnalysisFileWithRust
+        !window.desktopImport?.openAnalysisFileWithRust
       ) {
         if (now() - waitStart > 10000) {
           throw new Error("desktopImport bridge not ready");
@@ -98,7 +98,7 @@ try {
       results.prepareRustDurationMs = prepare?.durationMs ?? null;
 
       started = now();
-      const open = await window.desktopImport.openDeviceAnalysisFileWithRust({
+      const open = await window.desktopImport.openAnalysisFileWithRust({
         fileId: "cdp-preview-test",
         fileName,
         path: filePath,

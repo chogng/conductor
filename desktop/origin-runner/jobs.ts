@@ -233,7 +233,7 @@ function createUniqueCsvFileName(
   usedNames: Set<string>,
   index: number,
 ): string {
-  const original = sanitizeFileName(name || `device_analysis_origin_${index + 1}.csv`);
+  const original = sanitizeFileName(name || `origin_${index + 1}.csv`);
   const extension = path.extname(original);
   const base = extension ? original.slice(0, -extension.length) : original;
   let candidate = original;
@@ -296,7 +296,7 @@ function normalizeBatchCsvJobs(
     const csvName =
       typeof source.csvName === "string" && source.csvName.trim()
         ? source.csvName.trim()
-        : `device_analysis_origin_${index + 1}.csv`;
+        : `origin_${index + 1}.csv`;
     const csvPath = normalizeReadableCsvPath(
       Reflect.get(source, "csvPath"),
       originExePath,
@@ -553,7 +553,7 @@ export async function runOriginCsvBatchJob({
 
   const normalizedJobs = normalizeBatchCsvJobs(jobs, normalizedOriginExePath);
   const { jobDir, workDir, logPath, errorPath } = createCsvJobPaths(
-    normalizedJobs[0]?.csvName || "device_analysis_origin.csv",
+    normalizedJobs[0]?.csvName || "origin.csv",
     {
       runtimeRootDir,
     },

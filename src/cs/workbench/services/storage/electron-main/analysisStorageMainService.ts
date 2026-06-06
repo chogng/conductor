@@ -13,11 +13,11 @@ import {
 } from "../../../../platform/storage/electron-main/jsonFileStorage.js";
 
 import {
-  ANALYSIS_LEGACY_SETTINGS_FILENAME_SUFFIX,
-  ANALYSIS_SETTINGS_FILENAME,
-  ANALYSIS_STORE_CONFIG_FILENAME,
-  ANALYSIS_TEMPLATE_FILENAME,
-  ANALYSIS_DEFAULT_SETTINGS,
+  LEGACY_SETTINGS_FILENAME_SUFFIX,
+  SETTINGS_FILENAME,
+  STORE_CONFIG_FILENAME,
+  TEMPLATE_FILENAME,
+  DEFAULT_SETTINGS,
   applyStartupAnalysisDefaults,
   buildDefaultStoreData,
   cloneAnalysisSettings,
@@ -35,13 +35,13 @@ export function createAnalysisStorageMainService(
     typeof input.getHomeDir === "function" ? input.getHomeDir : null;
 
   if (!getHomeDir) {
-    throw new Error("Device analysis store requires getHomeDir().");
+    throw new Error("Store requires getHomeDir().");
   }
 
   const storage = createConfigurableJsonStorage({
     getHomeDir,
-    primaryFileName: ANALYSIS_SETTINGS_FILENAME,
-    configFileName: ANALYSIS_STORE_CONFIG_FILENAME,
+    primaryFileName: SETTINGS_FILENAME,
+    configFileName: STORE_CONFIG_FILENAME,
   });
 
   function cloneStoreData(store) {
@@ -56,7 +56,7 @@ export function createAnalysisStorageMainService(
 
   const settingsDocument = createJsonStorageDocument({
     getPath: getStorePath,
-    getDefaultValue: () => normalizeAnalysisSettings(ANALYSIS_DEFAULT_SETTINGS),
+    getDefaultValue: () => normalizeAnalysisSettings(DEFAULT_SETTINGS),
     readNormalize: applyStartupAnalysisDefaults,
     writeNormalize: normalizeAnalysisSettings,
     clone: cloneAnalysisSettings,
@@ -79,12 +79,12 @@ export function createAnalysisStorageMainService(
   }
 
   function getTemplatePath() {
-    return storage.getRelatedPath(ANALYSIS_TEMPLATE_FILENAME);
+    return storage.getRelatedPath(TEMPLATE_FILENAME);
   }
 
   function getLegacySettingsPath() {
     return storage.getRelatedPathWithPrimaryNameSuffix(
-      ANALYSIS_LEGACY_SETTINGS_FILENAME_SUFFIX,
+      LEGACY_SETTINGS_FILENAME_SUFFIX,
     );
   }
 
@@ -227,7 +227,7 @@ export function createAnalysisStorageMainService(
 
     const info = storage.setCustomPath(
       typeof nextPath === "string" ? nextPath : null,
-      [{ fileName: ANALYSIS_TEMPLATE_FILENAME, label: "device-analysis-template" }],
+      [{ fileName: TEMPLATE_FILENAME, label: "template" }],
       "device-analysis-settings",
     );
     clearStoreCache();

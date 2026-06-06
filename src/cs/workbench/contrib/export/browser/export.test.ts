@@ -518,7 +518,7 @@ suite("workbench/contrib/export/browser/export", () => {
     );
     assert.deepEqual(
       Array.from(new Set(plan.payloads.map((payload) => payload.workbookName))),
-      ["Device Analysis 2 files"],
+      ["Analysis 2 files"],
     );
     const gdsPayload = plan.payloads.find((payload) => /__gds__selected_curves\.csv$/.test(payload.csvName));
     assert.ok(gdsPayload);
@@ -749,7 +749,7 @@ suite("workbench/contrib/export/browser/export", () => {
     assert.equal(ivWithMetrics.payloads.length, 2);
     assert.equal(ivWithMetrics.payloads[0].workbookName, ivOnly.payloads[0].workbookName);
     assert.equal(ivWithMetrics.payloads[0].sheetName, ivOnly.payloads[0].sheetName);
-    assert.equal(ivWithMetrics.payloads[0].workbookName, "Device Analysis");
+    assert.equal(ivWithMetrics.payloads[0].workbookName, "Analysis");
     assert.equal(ivWithMetrics.payloads[0].sheetName, "IV_Trans");
     assert.equal(ivWithMetrics.payloads[0].sheetShortName, "IVTrans");
   });

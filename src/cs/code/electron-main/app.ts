@@ -91,7 +91,7 @@ const APP_DISPLAY_NAME = product.nameLong;
 const APP_USER_MODEL_ID = product.appId;
 const DEFAULT_WORKBENCH_BACKGROUND_COLOR = "#f3f4f6";
 const WORKBENCH_BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
-const ANALYSIS_DEMO_FILE_NAMES = [
+const DEMO_FILE_NAMES = [
   "demo-01.csv",
   "demo-02.csv",
   "demo-03.csv",
@@ -102,7 +102,7 @@ const ANALYSIS_DEMO_FILE_NAMES = [
 const ORIGIN_DETECTION_CACHE_TTL_MS = 60 * 1000;
 const BOOT_WINDOW_SETTLE_MS = 80;
 const BOOT_UI_READY_FALLBACK_MS = 3500;
-const ANALYSIS_RUST_PROCESSING_POOL_SIZE = Math.max(
+const RUST_PROCESSING_POOL_SIZE = Math.max(
   1,
   Math.min(
     4,
@@ -111,7 +111,7 @@ const ANALYSIS_RUST_PROCESSING_POOL_SIZE = Math.max(
 );
 const rustWorkerRuntime = new RustWorkerRuntime({
   isWindows,
-  processingPoolSize: ANALYSIS_RUST_PROCESSING_POOL_SIZE,
+  processingPoolSize: RUST_PROCESSING_POOL_SIZE,
   resolveExecutablePath: () => resolveRustWorkerExecutablePath({
     desktopRuntimeDir,
     env: process.env,
@@ -793,7 +793,7 @@ function normalizeOriginCsvPayload(payload, plotDefaults = undefined) {
 
   const csvName = normalizeNonEmptyString(
     raw.csvName ?? csv.name,
-    "device_analysis_origin.csv",
+    "origin.csv",
   );
   const csvPath = normalizeOriginExePath(raw.csvPath ?? csv.path);
   const csvText =
@@ -909,7 +909,7 @@ function ensureAnalysisDemoFiles() {
   fs.mkdirSync(demoDir, { recursive: true });
 
   const filePaths = [];
-  for (const fileName of ANALYSIS_DEMO_FILE_NAMES) {
+  for (const fileName of DEMO_FILE_NAMES) {
     const sourcePath = path.join(sourceDir, fileName);
     const targetPath = path.join(demoDir, fileName);
     if (!fs.existsSync(sourcePath)) continue;
@@ -969,16 +969,16 @@ function createRustAnalysisResultTempDir(fileId) {
 
 function createRustAnalysisOriginExportTempPath(fileId, csvName) {
   const safeFileId = String(fileId || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
-  const safeCsvName = String(csvName || "device_analysis_origin.csv")
+  const safeCsvName = String(csvName || "origin.csv")
     .replace(/[/\\?%*:|"<>]+/g, "_")
-    .trim() || "device_analysis_origin.csv";
+    .trim() || "origin.csv";
   const root = path.join(getOriginRuntimeStorageDir(), "stream-jobs");
   fs.mkdirSync(root, { recursive: true });
   const jobDir = fs.mkdtempSync(path.join(root, `${safeFileId}-`));
   return path.join(jobDir, safeCsvName);
 }
 
-function sanitizeZipEntryName(name, fallback = "device_analysis_origin.csv") {
+function sanitizeZipEntryName(name, fallback = "origin.csv") {
   const raw = String(name || fallback)
     .replace(/[/\\?%*:|"<>\x00-\x1f]+/g, "_")
     .replace(/\s+/g, " ")
@@ -1554,7 +1554,7 @@ async function handleAnalysisOriginZipSave(event, payload) {
     }
   }
 
-  const defaultName = sanitizeZipEntryName(raw.defaultName, "device_analysis_origin.zip")
+  const defaultName = sanitizeZipEntryName(raw.defaultName, "origin.zip")
     .replace(/\.csv$/i, ".zip")
     .replace(/\.zip$/i, "") + ".zip";
   const win = BrowserWindow.fromWebContents(event.sender) ?? null;

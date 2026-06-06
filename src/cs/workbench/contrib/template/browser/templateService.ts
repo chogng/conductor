@@ -19,16 +19,16 @@ export class BrowserTemplateService implements ITemplateService {
   }
 
   async getTemplates(): Promise<TemplateRecord[]> {
-    const remote = await analysisStoreClient.getDeviceAnalysisTemplates();
+    const remote = await analysisStoreClient.getAnalysisTemplates();
     return filterUserTemplateRecords(remote) as TemplateRecord[];
   }
 
   async deleteTemplate(id: string): Promise<void> {
-    await analysisStoreClient.deleteDeviceAnalysisTemplate(id);
+    await analysisStoreClient.deleteAnalysisTemplate(id);
   }
 
   async saveTemplate(template: TemplateConfig): Promise<TemplateRecord> {
-    const saved = await analysisStoreClient.createDeviceAnalysisTemplate({
+    const saved = await analysisStoreClient.createAnalysisTemplate({
       ...template,
     });
     return isTemplateRecord(saved) ? saved : template;

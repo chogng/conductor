@@ -25,12 +25,12 @@ export function ensureDir(dirPath: unknown): asserts dirPath is string {
 }
 
 export function sanitizeFileName(name: unknown): string {
-  const raw = String(name || "device_analysis_origin.zip");
+  const raw = String(name || "origin.zip");
   const cleaned = raw
     .replace(/[/\\?%*:|"<>]/g, "_")
     .replace(/\s+/g, " ")
     .trim();
-  return cleaned || "device_analysis_origin.zip";
+  return cleaned || "origin.zip";
 }
 
 export function getOriginBridgeWorkDir(jobDir: string): string {
@@ -203,4 +203,3 @@ export function assertOriginExePath(originExePath: unknown): string {
   }
   return normalized;
 }
-

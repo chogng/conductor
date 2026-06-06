@@ -99,7 +99,7 @@ export const buildCsvExports = (
     [];
 
   for (const file of cleanedData) {
-    const originalFileName = file?.fileName ?? "device_analysis";
+    const originalFileName = file?.fileName ?? "export";
     const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
     const seriesList = Array.isArray(file?.series) ? file.series : [];
 

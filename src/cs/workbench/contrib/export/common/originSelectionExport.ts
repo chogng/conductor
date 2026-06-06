@@ -217,7 +217,7 @@ const sanitizeOriginDisplayName = (
     .replace(preserveUnderscore ? /[\\]+/g : /[\\_]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  if (!raw) return "device analysis";
+  if (!raw) return "export";
   return raw.length > max ? raw.slice(0, max).trim() : raw;
 };
 
@@ -798,10 +798,10 @@ export const buildOriginCanvasExport = (
   );
   if (!curveEntries.length) return null;
 
-  const canvasName = String(canvas?.fileName ?? "device_analysis");
+  const canvasName = String(canvas?.fileName ?? "export");
   const csvBase = `${sanitizeAnalysisFilename(canvasName)
     .replace(/\.csv$/i, "")
-    .trim() || "device_analysis"}__selected_curves`;
+    .trim() || "export"}__selected_curves`;
   const xAxisTitle = resolveAxisTitleWithUnit(
     resolveAxisTitleForFile(canvas, "x"),
     canvas?.xLabel,
@@ -860,7 +860,7 @@ export const buildOriginSelectionExport = (
   );
   if (!curveEntries.length) return null;
 
-  const firstCanvasName = String(liveCanvases[0]?.fileName ?? "device_analysis");
+  const firstCanvasName = String(liveCanvases[0]?.fileName ?? "export");
   const sanitizedFirstBase = sanitizeAnalysisFilename(firstCanvasName)
     .replace(/\.csv$/i, "")
     .trim();
@@ -868,11 +868,11 @@ export const buildOriginSelectionExport = (
   const curveCount = curveEntries.length;
   const csvBase =
     canvasCount === 1
-      ? `${sanitizedFirstBase || "device_analysis"}__selected_curves`
+      ? `${sanitizedFirstBase || "export"}__selected_curves`
       : `${canvasCount}files_${curveCount}curves`;
   const workbookName =
     canvasCount === 1
-      ? sanitizeOriginDisplayName(sanitizedFirstBase || "device analysis")
+      ? sanitizeOriginDisplayName(sanitizedFirstBase || "workbook")
       : sanitizeOriginDisplayName(
           `Merged curves ${canvasCount} files ${curveCount} curves`,
         );
@@ -921,13 +921,13 @@ const buildOriginWorkbookSheetsExports = (
   );
   if (!liveCanvases.length) return [];
 
-  const firstCanvasName = String(liveCanvases[0]?.fileName ?? "device_analysis");
+  const firstCanvasName = String(liveCanvases[0]?.fileName ?? "export");
   const sanitizedFirstBase = sanitizeAnalysisFilename(firstCanvasName)
     .replace(/\.csv$/i, "")
     .trim();
   const workbookName =
     liveCanvases.length === 1
-      ? sanitizeOriginDisplayName(sanitizedFirstBase || "device analysis")
+      ? sanitizeOriginDisplayName(sanitizedFirstBase || "workbook")
       : sanitizeOriginDisplayName(
           `Selected thumbnails ${liveCanvases.length} sheets`,
         );
@@ -1040,7 +1040,7 @@ const buildDerivedCurveFile = (
 
   const isTransfer = isTransferLikeFile(file as any);
   const isOutput = isOutputLikeFile(file as any);
-  const baseName = String(file?.fileName ?? "device_analysis").replace(/\.csv$/i, "");
+  const baseName = String(file?.fileName ?? "export").replace(/\.csv$/i, "");
 
   if (contentKey === "gm" || contentKey === "gds") {
     if (contentKey === "gm" && !isTransfer) return null;
@@ -1211,17 +1211,17 @@ const buildMetricsWorksheetExports = (
         (supportsOutput || supportsTransfer) &&
         Boolean(file?.originExportOmitIvCsvText);
       const csvText = omitCsvText ? "" : "\uFEFF" + Papa.unparse(csvRows);
-      const fileName = sanitizeAnalysisFilename(file?.fileName ?? "device_analysis")
+      const fileName = sanitizeAnalysisFilename(file?.fileName ?? "export")
         .replace(/\.csv$/i, "")
         .trim();
-      const workbookName = sanitizeOriginDisplayName(fileName || "device analysis");
+      const workbookName = sanitizeOriginDisplayName(fileName || "workbook");
       const comments = fields.map((_, index) =>
         index === 0 ? String(file?.fileName ?? "") : "",
       );
       return {
         canvasCount: 1,
         columnLayout: "xy-pairs",
-        csvName: `${fileName || "device_analysis"}__metrics.csv`,
+        csvName: `${fileName || "export"}__metrics.csv`,
         csvText,
         curveCount: 0,
         curveLabels: rows.map((row) => String(row.series ?? "")),
@@ -1503,8 +1503,8 @@ export const buildOriginExportPlan = (
     const contentSeen = new Map<OriginExportContentKey, number>();
     const contentWorkbookName =
       (liveCanvases.length === 1
-        ? "Device Analysis"
-        : `Device Analysis ${liveCanvases.length} files`);
+        ? "Analysis"
+        : `Analysis ${liveCanvases.length} files`);
     const payloads = entries.map((entry) => {
       if (entry.contentKey === "iv" && entry.payload.sheetShortName) {
         return applyOriginSheetDisplayName(
@@ -1611,9 +1611,9 @@ export const buildOriginExportPlan = (
     };
   }
 
-  const firstCanvasName = String(liveCanvases[0]?.fileName ?? "device_analysis");
+  const firstCanvasName = String(liveCanvases[0]?.fileName ?? "export");
   const workbookName = sanitizeOriginDisplayName(
-    `Mixed-scale export ${sanitizeAnalysisFilename(firstCanvasName).replace(/\.csv$/i, "").trim() || "device analysis"}`,
+    `Mixed-scale export ${sanitizeAnalysisFilename(firstCanvasName).replace(/\.csv$/i, "").trim() || "export"}`,
   );
   const payloads = Array.from(groupedCanvases.entries())
     .sort(([left], [right]) => left.localeCompare(right))
@@ -1632,7 +1632,7 @@ export const buildOriginExportPlan = (
       const suffix = scaleMode === "log" ? "log" : "linear";
       return {
         ...payload,
-        csvName: `${String(payload.csvName || "device_analysis").replace(/\.csv$/i, "")}__${suffix}.csv`,
+        csvName: `${String(payload.csvName || "export").replace(/\.csv$/i, "")}__${suffix}.csv`,
         sheetName: appendOriginScaleSuffix(payload.sheetName, scaleMode),
         workbookName,
         yScaleMode: scaleMode,

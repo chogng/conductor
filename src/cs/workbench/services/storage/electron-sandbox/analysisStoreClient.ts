@@ -8,28 +8,28 @@ const isDesktopStoreUnavailableError = (error: unknown): boolean =>
   error.message === DESKTOP_STORE_UNAVAILABLE;
 
 class AnalysisStoreClient {
-  async getDeviceAnalysisTemplates(): Promise<unknown> {
+  async getAnalysisTemplates(): Promise<unknown> {
     return this.requestStore("/analysis/templates");
   }
 
-  async createDeviceAnalysisTemplate(template: unknown): Promise<unknown> {
+  async createAnalysisTemplate(template: unknown): Promise<unknown> {
     return this.requestStore("/analysis/templates", {
       method: "POST",
       body: JSON.stringify(template),
     });
   }
 
-  async deleteDeviceAnalysisTemplate(id: string): Promise<unknown> {
+  async deleteAnalysisTemplate(id: string): Promise<unknown> {
     return this.requestStore(`/analysis/templates/${id}`, {
       method: "DELETE",
     });
   }
 
-  async getDeviceAnalysisPersistencePath(): Promise<unknown> {
+  async getAnalysisPersistencePath(): Promise<unknown> {
     return this.requestStore("/analysis/persistence-path");
   }
 
-  async chooseDeviceAnalysisPersistencePath(): Promise<unknown> {
+  async chooseAnalysisPersistencePath(): Promise<unknown> {
     return this.requestStore(
       "/analysis/persistence-path/choose",
       {
@@ -47,7 +47,7 @@ class AnalysisStoreClient {
     } catch (error) {
       if (isDesktopStoreUnavailableError(error)) {
         throw new Error(
-          "Desktop store bridge unavailable. Device Analysis data is persisted only via desktop config.json and template.json.",
+          "Desktop store bridge unavailable. Analysis data is persisted only via desktop config.json and template.json.",
         );
       }
 

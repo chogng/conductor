@@ -406,25 +406,25 @@ export async function exportOriginZip(options: {
 }): Promise<OriginZipExportResult | null> {
   const result = options.buildPayloads({ omitRustEligibleCsvText: true });
   const sanitizedPayloads = result.payloads.map((payload, index) => ({
-    csvName: sanitizeFilename(payload.csvName || `device_analysis_${index + 1}.csv`),
+    csvName: sanitizeFilename(payload.csvName || `origin_${index + 1}.csv`),
     payload,
   }));
   const zipBase =
     result.mode === "merged"
       ? sanitizeFilename(
-          String(result.payloads[0]?.csvName || "device_analysis").replace(
+          String(result.payloads[0]?.csvName || "origin").replace(
             /\.csv$/i,
             "",
           ),
         )
       : result.mode === "workbookSheets"
         ? sanitizeFilename(
-            String(result.payloads[0]?.workbookName || "device_analysis_workbook"),
+            String(result.payloads[0]?.workbookName || "workbook"),
           )
         : sanitizeFilename(
-            `device_analysis_batch_${result.totalCanvasCount ?? 0}_canvases`,
+            `batch_${result.totalCanvasCount ?? 0}_canvases`,
           );
-  const zipName = `${String(zipBase || "device_analysis").replace(
+  const zipName = `${String(zipBase || "origin").replace(
     /\.zip$/i,
     "",
   )}.zip`;
@@ -467,7 +467,7 @@ export async function exportOriginZip(options: {
         if (!fullPayload) continue;
         entries[index] = {
           name: sanitizeFilename(
-            fullPayload.csvName || `device_analysis_${index + 1}.csv`,
+            fullPayload.csvName || `origin_${index + 1}.csv`,
           ),
           text: String(fullPayload.csvText ?? ""),
         };
@@ -499,7 +499,7 @@ export async function exportOriginZip(options: {
   const zip = new JSZip();
   fullResult.payloads.forEach((payload, index) => {
     zip.file(
-      sanitizeFilename(payload.csvName || `device_analysis_${index + 1}.csv`),
+      sanitizeFilename(payload.csvName || `origin_${index + 1}.csv`),
       String(payload.csvText ?? ""),
     );
   });

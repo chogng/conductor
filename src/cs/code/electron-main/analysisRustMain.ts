@@ -47,6 +47,11 @@ const readObject = (value: unknown): Record<string, unknown> | null =>
     ? value as Record<string, unknown>
     : null;
 
+const AnalysisErrorCode = {
+  InvalidCell: "INVALID_ANALYSIS_CELL",
+  InvalidCells: "INVALID_ANALYSIS_CELLS",
+} as const;
+
 const normalizeAbsoluteFilePath = (rawPath: unknown): string => {
   const normalized = typeof rawPath === "string" ? rawPath.trim() : "";
   if (!normalized || !path.isAbsolute(normalized)) {
@@ -110,7 +115,7 @@ export const registerAnalysisRustHandlers = ({
     if (!readString(record?.fileId) || rowIndex === null || colIndex === null) {
       return {
         ok: false,
-        code: "INVALID_DEVICE_ANALYSIS_CELL",
+        code: AnalysisErrorCode.InvalidCell,
         message: "Invalid analysis cell request.",
       };
     }
@@ -142,7 +147,7 @@ export const registerAnalysisRustHandlers = ({
     if (!readString(record?.fileId) || !cells.length || cells.length !== rawCells.length) {
       return {
         ok: false,
-        code: "INVALID_DEVICE_ANALYSIS_CELLS",
+        code: AnalysisErrorCode.InvalidCells,
         message: "Invalid analysis cells request.",
       };
     }
@@ -206,7 +211,7 @@ export const registerAnalysisRustHandlers = ({
     const request: ExportOriginCsvRequest = {
       columns: Array.isArray(record?.columns) ? record.columns : [],
       config: readObject(record?.config) as RustProcessConfig | null,
-      csvName: readString(record?.csvName) || "device_analysis_origin.csv",
+      csvName: readString(record?.csvName) || "origin.csv",
       fileId: readString(record?.fileId),
       fileName: readString(record?.fileName),
       inputPath: normalizeAbsoluteFilePath(record?.path),

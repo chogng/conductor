@@ -1,6 +1,6 @@
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 
-const REQUIRED_ANALYSIS_STORE_METHODS = [
+const REQUIRED_STORE_METHODS = [
   "getAnalysisTemplates",
   "createAnalysisTemplate",
   "deleteAnalysisTemplate",
@@ -11,20 +11,7 @@ const REQUIRED_ANALYSIS_STORE_METHODS = [
   "chooseAnalysisPersistencePath",
 ] as const;
 
-const LEGACY_ANALYSIS_STORE_METHODS = [
-  "getDeviceAnalysisTemplates",
-  "createDeviceAnalysisTemplate",
-  "deleteDeviceAnalysisTemplate",
-  "getSettings",
-  "updateSettings",
-  "getDeviceAnalysisPersistencePath",
-  "updateDeviceAnalysisPersistencePath",
-  "chooseDeviceAnalysisPersistencePath",
-] as const;
-
-type AnalysisStoreMethod = (typeof REQUIRED_ANALYSIS_STORE_METHODS)[number];
-type LegacyAnalysisStoreMethod =
-  (typeof LEGACY_ANALYSIS_STORE_METHODS)[number];
+type AnalysisStoreMethod = (typeof REQUIRED_STORE_METHODS)[number];
 
 type JsonRecord = Record<string, unknown>;
 type PersistencePathInfo = JsonRecord & { isConfigurable?: boolean };
@@ -35,8 +22,6 @@ export type DesktopStore = AnalysisDesktopStore;
 
 export const DESKTOP_STORE_UNAVAILABLE =
   "Desktop store bridge unavailable.";
-export const DEVICE_ANALYSIS_DESKTOP_STORE_UNAVAILABLE =
-  DESKTOP_STORE_UNAVAILABLE;
 
 const parseJsonBody = (body: unknown): JsonRecord | null => {
   if (!body) return null;
@@ -69,9 +54,8 @@ export const getDesktopStore = (): AnalysisDesktopStore | null => {
 export const getDesktopStoreMethod = (
   ipcRenderer: AnalysisDesktopStore,
   method: AnalysisStoreMethod,
-  legacyMethod?: LegacyAnalysisStoreMethod,
 ): ((...args: unknown[]) => unknown) => {
-  const channel = resolveStoreChannel(method, legacyMethod);
+  const channel = resolveStoreChannel(method);
   return (...args: unknown[]) => {
     if (channel.wrapPath) {
       return ipcRenderer.invoke(channel.name, { path: args[0] });
@@ -83,7 +67,6 @@ export const getDesktopStoreMethod = (
 
 function resolveStoreChannel(
   method: AnalysisStoreMethod,
-  legacyMethod?: LegacyAnalysisStoreMethod,
 ): { name: string; wrapPath?: boolean } {
   switch (method) {
     case "getAnalysisTemplates":
@@ -104,11 +87,7 @@ function resolveStoreChannel(
       return { name: workbenchIpcChannels.persistencePathChoose };
   }
 
-  throw new Error(
-    legacyMethod
-      ? `${DESKTOP_STORE_UNAVAILABLE} (${method}/${legacyMethod})`
-      : `${DESKTOP_STORE_UNAVAILABLE} (${method})`,
-  );
+  throw new Error(`${DESKTOP_STORE_UNAVAILABLE} (${method})`);
 }
 
 const normalizePersistencePathInfo = (info: unknown): PersistencePathInfo => ({
@@ -147,7 +126,6 @@ export const requestAnalysisDesktopStore = async (
     return getDesktopStoreMethod(
       store,
       "getAnalysisTemplates",
-      "getDeviceAnalysisTemplates",
     )();
   }
 
@@ -155,7 +133,6 @@ export const requestAnalysisDesktopStore = async (
     return getDesktopStoreMethod(
       store,
       "createAnalysisTemplate",
-      "createDeviceAnalysisTemplate",
     )(
       parseJsonBody(options.body) || {},
     );
@@ -166,7 +143,6 @@ export const requestAnalysisDesktopStore = async (
     return getDesktopStoreMethod(
       store,
       "deleteAnalysisTemplate",
-      "deleteDeviceAnalysisTemplate",
     )(id);
   }
 
@@ -174,7 +150,6 @@ export const requestAnalysisDesktopStore = async (
     return getDesktopStoreMethod(
       store,
       "getAnalysisSettings",
-      "getSettings",
     )();
   }
 
@@ -182,7 +157,6 @@ export const requestAnalysisDesktopStore = async (
     return getDesktopStoreMethod(
       store,
       "updateAnalysisSettings",
-      "updateSettings",
     )(
       parseJsonBody(options.body) || {},
     );
@@ -192,7 +166,6 @@ export const requestAnalysisDesktopStore = async (
     const info = await getDesktopStoreMethod(
       store,
       "getAnalysisPersistencePath",
-      "getDeviceAnalysisPersistencePath",
     )();
     return normalizePersistencePathInfo(info);
   }
@@ -203,7 +176,6 @@ export const requestAnalysisDesktopStore = async (
     const info = await getDesktopStoreMethod(
       store,
       "updateAnalysisPersistencePath",
-      "updateDeviceAnalysisPersistencePath",
     )(path);
     return normalizePersistencePathInfo(info);
   }
@@ -215,7 +187,6 @@ export const requestAnalysisDesktopStore = async (
     const info = await getDesktopStoreMethod(
       store,
       "chooseAnalysisPersistencePath",
-      "chooseDeviceAnalysisPersistencePath",
     )();
     return normalizePersistencePathInfo(info);
   }

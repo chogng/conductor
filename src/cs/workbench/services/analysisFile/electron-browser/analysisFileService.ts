@@ -18,18 +18,18 @@ type DesktopIpcRenderer = {
 };
 
 type AnalysisFileBridge = {
-  analyzeDeviceAnalysisRcWithRust?: (payload: unknown) => Promise<AnalysisFileRcAnalysisResult>;
-  disposeDeviceAnalysisFileWithRust?: (payload: unknown) => Promise<unknown>;
-  getDeviceAnalysisDemoFiles?: () => Promise<AnalysisFileDemoFiles>;
-  getDeviceAnalysisPreviewMetaWithRust?: (payload: unknown) => Promise<AnalysisFileResultPayload>;
-  getDeviceAnalysisPreviewRowsWithRust?: (payload: unknown) => Promise<AnalysisFileResultPayload>;
-  inferDeviceAnalysisAutoExtractionWithRust?: (payload: unknown) => Promise<unknown>;
-  openDeviceAnalysisFileWithRust?: (payload: unknown) => Promise<AnalysisFileResultPayload>;
+  analyzeAnalysisFileRcWithRust?: (payload: unknown) => Promise<AnalysisFileRcAnalysisResult>;
+  disposeAnalysisFileWithRust?: (payload: unknown) => Promise<unknown>;
+  getAnalysisFileDemoFiles?: () => Promise<AnalysisFileDemoFiles>;
+  getAnalysisFilePreviewMetaWithRust?: (payload: unknown) => Promise<AnalysisFileResultPayload>;
+  getAnalysisFilePreviewRowsWithRust?: (payload: unknown) => Promise<AnalysisFileResultPayload>;
+  inferAnalysisFileAutoExtractionWithRust?: (payload: unknown) => Promise<unknown>;
+  openAnalysisFileWithRust?: (payload: unknown) => Promise<AnalysisFileResultPayload>;
   prepareImportFileWithRust?: (payload: { fileName: string; path: string }) => Promise<AnalysisFilePreparedFile>;
-  processDeviceAnalysisFileWithRust?: (payload: unknown) => Promise<AnalysisFileResultPayload>;
+  processAnalysisFileWithRust?: (payload: unknown) => Promise<AnalysisFileResultPayload>;
   readConvertedCsvFileWithRust?: (payload: { path: string }) => Promise<AnalysisFileConvertedCsv>;
-  readDeviceAnalysisCellWithRust?: (payload: unknown) => Promise<unknown>;
-  readDeviceAnalysisCellsWithRust?: (payload: unknown) => Promise<AnalysisFileResultPayload>;
+  readAnalysisFileCellWithRust?: (payload: unknown) => Promise<unknown>;
+  readAnalysisFileCellsWithRust?: (payload: unknown) => Promise<AnalysisFileResultPayload>;
 };
 
 declare global {
@@ -38,7 +38,7 @@ declare global {
   }
 }
 
-const ANALYSIS_FILE_SERVICE_UNAVAILABLE = "Analysis file desktop bridge unavailable.";
+const SERVICE_UNAVAILABLE = "Analysis file desktop bridge unavailable.";
 
 function getBridge(): AnalysisFileBridge | null {
   const bridge = globalThis.window?.desktopImport;
@@ -55,7 +55,7 @@ function getBridgeMethod<K extends keyof AnalysisFileBridge>(
 ): NonNullable<AnalysisFileBridge[K]> {
   const method = bridge[key];
   if (typeof method !== "function") {
-    throw new Error(`${ANALYSIS_FILE_SERVICE_UNAVAILABLE} (${String(key)})`);
+    throw new Error(`${SERVICE_UNAVAILABLE} (${String(key)})`);
   }
 
   return method as NonNullable<AnalysisFileBridge[K]>;
@@ -68,7 +68,7 @@ function getIpcRenderer(): DesktopIpcRenderer {
     } | undefined
   )?.conductor?.ipcRenderer;
   if (!ipcRenderer || typeof ipcRenderer.invoke !== "function") {
-    throw new Error(ANALYSIS_FILE_SERVICE_UNAVAILABLE);
+    throw new Error(SERVICE_UNAVAILABLE);
   }
 
   return ipcRenderer;
@@ -92,31 +92,31 @@ export class ElectronBrowserAnalysisFileService extends Disposable implements IA
 
   public analyzeRc(payload: unknown): Promise<AnalysisFileRcAnalysisResult> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("analyzeDeviceAnalysisRcWithRust")) {
-      return getBridgeMethod(bridge, "analyzeDeviceAnalysisRcWithRust")(payload);
+    if (bridge && hasBridgeMethod("analyzeAnalysisFileRcWithRust")) {
+      return getBridgeMethod(bridge, "analyzeAnalysisFileRcWithRust")(payload);
     }
 
     return invoke<AnalysisFileRcAnalysisResult>(workbenchIpcChannels.analysisRustEngineAnalyzeRc, payload);
   }
 
   public canAnalyzeRc(): boolean {
-    return hasBridgeMethod("analyzeDeviceAnalysisRcWithRust") || hasIpcRenderer();
+    return hasBridgeMethod("analyzeAnalysisFileRcWithRust") || hasIpcRenderer();
   }
 
   public canDisposeFile(): boolean {
-    return hasBridgeMethod("disposeDeviceAnalysisFileWithRust") || hasIpcRenderer();
+    return hasBridgeMethod("disposeAnalysisFileWithRust") || hasIpcRenderer();
   }
 
   public canGetDemoFiles(): boolean {
-    return hasBridgeMethod("getDeviceAnalysisDemoFiles") || hasIpcRenderer();
+    return hasBridgeMethod("getAnalysisFileDemoFiles") || hasIpcRenderer();
   }
 
   public canGetPreviewRows(): boolean {
-    return hasBridgeMethod("getDeviceAnalysisPreviewRowsWithRust") || hasIpcRenderer();
+    return hasBridgeMethod("getAnalysisFilePreviewRowsWithRust") || hasIpcRenderer();
   }
 
   public canOpenFile(): boolean {
-    return hasBridgeMethod("openDeviceAnalysisFileWithRust") || hasIpcRenderer();
+    return hasBridgeMethod("openAnalysisFileWithRust") || hasIpcRenderer();
   }
 
   public canPrepareFile(): boolean {
@@ -124,7 +124,7 @@ export class ElectronBrowserAnalysisFileService extends Disposable implements IA
   }
 
   public canProcessFile(): boolean {
-    return hasBridgeMethod("processDeviceAnalysisFileWithRust") || hasIpcRenderer();
+    return hasBridgeMethod("processAnalysisFileWithRust") || hasIpcRenderer();
   }
 
   public canReadConvertedCsv(): boolean {
@@ -132,13 +132,13 @@ export class ElectronBrowserAnalysisFileService extends Disposable implements IA
   }
 
   public canReadCells(): boolean {
-    return hasBridgeMethod("readDeviceAnalysisCellsWithRust") || hasIpcRenderer();
+    return hasBridgeMethod("readAnalysisFileCellsWithRust") || hasIpcRenderer();
   }
 
   public disposeFile(payload: unknown): Promise<unknown> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("disposeDeviceAnalysisFileWithRust")) {
-      return getBridgeMethod(bridge, "disposeDeviceAnalysisFileWithRust")(payload);
+    if (bridge && hasBridgeMethod("disposeAnalysisFileWithRust")) {
+      return getBridgeMethod(bridge, "disposeAnalysisFileWithRust")(payload);
     }
 
     return invoke(workbenchIpcChannels.analysisRustEngineDispose, payload);
@@ -146,8 +146,8 @@ export class ElectronBrowserAnalysisFileService extends Disposable implements IA
 
   public getDemoFiles(): Promise<AnalysisFileDemoFiles> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("getDeviceAnalysisDemoFiles")) {
-      return getBridgeMethod(bridge, "getDeviceAnalysisDemoFiles")();
+    if (bridge && hasBridgeMethod("getAnalysisFileDemoFiles")) {
+      return getBridgeMethod(bridge, "getAnalysisFileDemoFiles")();
     }
 
     return invoke<AnalysisFileDemoFiles>(workbenchIpcChannels.analysisDemoFilesGet);
@@ -155,8 +155,8 @@ export class ElectronBrowserAnalysisFileService extends Disposable implements IA
 
   public getPreviewMeta(payload: unknown): Promise<AnalysisFileResultPayload> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("getDeviceAnalysisPreviewMetaWithRust")) {
-      return getBridgeMethod(bridge, "getDeviceAnalysisPreviewMetaWithRust")(payload);
+    if (bridge && hasBridgeMethod("getAnalysisFilePreviewMetaWithRust")) {
+      return getBridgeMethod(bridge, "getAnalysisFilePreviewMetaWithRust")(payload);
     }
 
     return invoke<AnalysisFileResultPayload>(workbenchIpcChannels.analysisRustEnginePreviewMeta, payload);
@@ -164,8 +164,8 @@ export class ElectronBrowserAnalysisFileService extends Disposable implements IA
 
   public getPreviewRows(payload: unknown): Promise<AnalysisFileResultPayload> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("getDeviceAnalysisPreviewRowsWithRust")) {
-      return getBridgeMethod(bridge, "getDeviceAnalysisPreviewRowsWithRust")(payload);
+    if (bridge && hasBridgeMethod("getAnalysisFilePreviewRowsWithRust")) {
+      return getBridgeMethod(bridge, "getAnalysisFilePreviewRowsWithRust")(payload);
     }
 
     return invoke<AnalysisFileResultPayload>(workbenchIpcChannels.analysisRustEnginePreviewRows, payload);
@@ -173,8 +173,8 @@ export class ElectronBrowserAnalysisFileService extends Disposable implements IA
 
   public inferAutoExtraction(payload: unknown): Promise<unknown> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("inferDeviceAnalysisAutoExtractionWithRust")) {
-      return getBridgeMethod(bridge, "inferDeviceAnalysisAutoExtractionWithRust")(payload);
+    if (bridge && hasBridgeMethod("inferAnalysisFileAutoExtractionWithRust")) {
+      return getBridgeMethod(bridge, "inferAnalysisFileAutoExtractionWithRust")(payload);
     }
 
     return invoke(workbenchIpcChannels.analysisRustEngineInferAutoExtraction, payload);
@@ -182,8 +182,8 @@ export class ElectronBrowserAnalysisFileService extends Disposable implements IA
 
   public openFile(payload: unknown): Promise<AnalysisFileResultPayload> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("openDeviceAnalysisFileWithRust")) {
-      return getBridgeMethod(bridge, "openDeviceAnalysisFileWithRust")(payload);
+    if (bridge && hasBridgeMethod("openAnalysisFileWithRust")) {
+      return getBridgeMethod(bridge, "openAnalysisFileWithRust")(payload);
     }
 
     return invoke<AnalysisFileResultPayload>(workbenchIpcChannels.analysisRustEngineOpen, payload);
@@ -200,8 +200,8 @@ export class ElectronBrowserAnalysisFileService extends Disposable implements IA
 
   public processFile(payload: unknown): Promise<AnalysisFileResultPayload> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("processDeviceAnalysisFileWithRust")) {
-      return getBridgeMethod(bridge, "processDeviceAnalysisFileWithRust")(payload);
+    if (bridge && hasBridgeMethod("processAnalysisFileWithRust")) {
+      return getBridgeMethod(bridge, "processAnalysisFileWithRust")(payload);
     }
 
     return invoke<AnalysisFileResultPayload>(workbenchIpcChannels.analysisRustEngineProcessFile, payload);
@@ -209,8 +209,8 @@ export class ElectronBrowserAnalysisFileService extends Disposable implements IA
 
   public readCell(payload: unknown): Promise<unknown> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("readDeviceAnalysisCellWithRust")) {
-      return getBridgeMethod(bridge, "readDeviceAnalysisCellWithRust")(payload);
+    if (bridge && hasBridgeMethod("readAnalysisFileCellWithRust")) {
+      return getBridgeMethod(bridge, "readAnalysisFileCellWithRust")(payload);
     }
 
     return invoke(workbenchIpcChannels.analysisRustEngineReadCell, payload);
@@ -218,8 +218,8 @@ export class ElectronBrowserAnalysisFileService extends Disposable implements IA
 
   public readCells(payload: unknown): Promise<AnalysisFileResultPayload> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("readDeviceAnalysisCellsWithRust")) {
-      return getBridgeMethod(bridge, "readDeviceAnalysisCellsWithRust")(payload);
+    if (bridge && hasBridgeMethod("readAnalysisFileCellsWithRust")) {
+      return getBridgeMethod(bridge, "readAnalysisFileCellsWithRust")(payload);
     }
 
     return invoke<AnalysisFileResultPayload>(workbenchIpcChannels.analysisRustEngineReadCells, payload);

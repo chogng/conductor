@@ -1,7 +1,7 @@
-export const ANALYSIS_CACHE_VERSION = 2;
+export const CACHE_VERSION = 2;
 
 export const isCompatibleAnalysisCache = (analysisCache: any): boolean =>
-  Number(analysisCache?.version) === ANALYSIS_CACHE_VERSION;
+  Number(analysisCache?.version) === CACHE_VERSION;
 
 export const hasSlidingCurrentWindowCandidates = (baseCurrent: any): boolean => {
   const windows = baseCurrent?.candidateWindows;

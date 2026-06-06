@@ -35,7 +35,7 @@ declare global {
     __CONDUCTOR_BOOT_LOG__?: (stage: string, extra?: string) => void;
     __CONDUCTOR_BOOT_MARK_UI_READY__?: (source?: string) => void;
     __CONDUCTOR_BOOT_PROFILE_ENABLED__?: boolean;
-    __CONDUCTOR_INITIAL_DEVICE_ANALYSIS_SETTINGS__?: Record<string, unknown> | null;
+    __CONDUCTOR_INITIAL_ANALYSIS_SETTINGS__?: Record<string, unknown> | null;
     __CONDUCTOR_INITIAL_LANGUAGE__?: LanguageCode;
     __CONDUCTOR_INITIAL_THEME__?: ThemeMode;
     __CONDUCTOR_NAV_MODE_INIT__?: boolean;
@@ -277,7 +277,7 @@ const prepareWorkbench = (logBoot: BootLogger, isBootProfileEnabled: boolean) =>
     ? initialSettings.theme
     : DEFAULT_THEME;
 
-  window.__CONDUCTOR_INITIAL_DEVICE_ANALYSIS_SETTINGS__ = initialSettings;
+  window.__CONDUCTOR_INITIAL_ANALYSIS_SETTINGS__ = initialSettings;
   applyWorkbenchAppearance(normalizeWorkbenchAppearance(initialSettings));
   window.__CONDUCTOR_INITIAL_LANGUAGE__ = initialLanguage;
   setNLSConfiguration(createNLSConfiguration(initialLanguage));

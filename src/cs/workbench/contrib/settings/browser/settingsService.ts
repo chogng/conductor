@@ -49,11 +49,11 @@ export class BrowserSettingsService implements ISettingsServiceType {
   }
 
   public async getPersistencePath(): Promise<PersistencePathInfo | null> {
-    return toPersistencePathInfo(await analysisStoreClient.getDeviceAnalysisPersistencePath());
+    return toPersistencePathInfo(await analysisStoreClient.getAnalysisPersistencePath());
   }
 
   public async choosePersistencePath(): Promise<PersistencePathInfo | null> {
-    return toPersistencePathInfo(await analysisStoreClient.chooseDeviceAnalysisPersistencePath());
+    return toPersistencePathInfo(await analysisStoreClient.chooseAnalysisPersistencePath());
   }
 
   public async getOriginExePath(): Promise<string> {

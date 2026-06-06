@@ -85,8 +85,8 @@ export type RuleProcessingJobOptions = SchedulerRefs &
   };
 
 const RUST_PROCESSING_CONCURRENCY = 2;
-const ANALYSIS_CACHE_SINGLE_FILE_BUDGET_BYTES = 32 * 1024 * 1024;
-const ANALYSIS_CACHE_TOTAL_BUDGET_BYTES = 64 * 1024 * 1024;
+const CACHE_SINGLE_FILE_BUDGET_BYTES = 32 * 1024 * 1024;
+const CACHE_TOTAL_BUDGET_BYTES = 64 * 1024 * 1024;
 
 const isRustCapableProcessingEntry = (entry: ProcessingQueueItem): boolean =>
   Boolean(
@@ -219,7 +219,7 @@ const applyAnalysisCacheBudget = (
   const pruneIndexes = new Set<number>();
   for (const { index } of pruneOrder) {
     if (
-      estimatedBytes[index] > ANALYSIS_CACHE_SINGLE_FILE_BUDGET_BYTES &&
+      estimatedBytes[index] > CACHE_SINGLE_FILE_BUDGET_BYTES &&
       hasPrunableAnalysisCurves(files[index])
     ) {
       pruneIndexes.add(index);
@@ -231,9 +231,9 @@ const applyAnalysisCacheBudget = (
     projectedTotalBytes -= estimatedBytes[index] ?? 0;
   }
 
-  if (projectedTotalBytes > ANALYSIS_CACHE_TOTAL_BUDGET_BYTES) {
+  if (projectedTotalBytes > CACHE_TOTAL_BUDGET_BYTES) {
     for (const { index } of pruneOrder) {
-      if (projectedTotalBytes <= ANALYSIS_CACHE_TOTAL_BUDGET_BYTES) break;
+      if (projectedTotalBytes <= CACHE_TOTAL_BUDGET_BYTES) break;
       if (pruneIndexes.has(index)) continue;
       if (!hasPrunableAnalysisCurves(files[index])) continue;
       pruneIndexes.add(index);

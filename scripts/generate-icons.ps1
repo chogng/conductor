@@ -213,7 +213,7 @@ function Write-InstallerSidebar {
     $graphics.FillRectangle($gradient, $rect)
     $graphics.DrawImage($logo, 43, 42, 78, 78)
     Draw-CenteredText -Graphics $graphics -Text "Conductor Studio" -Font $titleFont -Brush $whiteBrush -Y 138 -Width 164
-    Draw-CenteredText -Graphics $graphics -Text "Device Analysis Studio" -Font $captionFont -Brush $softBrush -Y 163 -Width 164
+    Draw-CenteredText -Graphics $graphics -Text "Analysis Workspace" -Font $captionFont -Brush $softBrush -Y 163 -Width 164
     $graphics.DrawLine($linePen, 38, 220, 126, 220)
     Draw-CenteredText -Graphics $graphics -Text $DisplayVersion -Font $captionFont -Brush $softBrush -Y 238 -Width 164
     $sidebar.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Bmp)

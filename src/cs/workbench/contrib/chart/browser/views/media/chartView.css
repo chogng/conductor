@@ -1,4 +1,4 @@
-﻿.analysis_status_card {
+﻿.status-card {
   display: flex;
   flex: 1 1 0%;
   flex-direction: column;
@@ -9,11 +9,11 @@
   color: rgb(var(--text-secondary) / 1);
 }
 
-.analysis_status_icon {
+.status-icon {
   margin-bottom: 16px;
 }
 
-.analysis_status_icon--muted {
+.status-icon--muted {
   opacity: 0.2;
 }
 
@@ -23,28 +23,28 @@
   }
 }
 
-.analysis_status_icon--pulse {
+.status-icon--pulse {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-.analysis_processing_progress {
+.processing-progress {
   margin-top: 16px;
   width: 100%;
   max-width: 384px;
 }
 
-.analysis_status_message {
+.status-message {
   font-size: 18px;
   line-height: 28px;
   font-weight: 500;
 }
 
-.analysis_status_hint {
+.status-hint {
   font-size: 14px;
   line-height: 20px;
 }
 
-.analysis_processing_progress_label {
+.processing-progress-label {
   display: flex;
   margin-bottom: 8px;
   align-items: center;
@@ -54,14 +54,14 @@
   color: rgb(var(--text-secondary) / 1);
 }
 
-.analysis_processing_progress_track {
+.processing-progress-track {
   height: 8px;
   overflow: hidden;
   border-radius: 9999px;
   background-color: rgb(var(--bg-page) / 1);
 }
 
-.analysis_processing_progress_bar {
+.processing-progress-bar {
   height: 100%;
   border-radius: 9999px;
   background-color: rgb(var(--accent) / 1);

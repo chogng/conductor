@@ -11,7 +11,7 @@ const wrapSettingsStoreError = (error: unknown): never => {
     error.message === DESKTOP_STORE_UNAVAILABLE
   ) {
     throw new Error(
-      "Desktop store bridge unavailable. Device Analysis settings are persisted only via desktop config.json.",
+      "Desktop store bridge unavailable. Analysis settings are persisted only via desktop config.json.",
     );
   }
 
@@ -22,7 +22,7 @@ const requireDesktopSettingsStore = (): AnalysisDesktopStore => {
   const store = getDesktopStore();
   if (!store) {
     throw new Error(
-      "Desktop store bridge unavailable. Device Analysis settings are persisted only via desktop config.json.",
+      "Desktop store bridge unavailable. Analysis settings are persisted only via desktop config.json.",
     );
   }
 
@@ -36,7 +36,6 @@ export const getSettings = async (): Promise<unknown> => {
     return await getDesktopStoreMethod(
       store,
       "getAnalysisSettings",
-      "getSettings",
     )();
   } catch (error) {
     wrapSettingsStoreError(error);
@@ -52,7 +51,6 @@ export const updateSettings = async (
     return await getDesktopStoreMethod(
       store,
       "updateAnalysisSettings",
-      "updateSettings",
     )(updates);
   } catch (error) {
     wrapSettingsStoreError(error);

@@ -29,6 +29,14 @@ type RustAnalysisServiceOptions = RustAnalysisServiceHelpers & {
   rustWorkerRuntime: IRustWorkerService;
 };
 
+const AnalysisErrorCode = {
+  FileNotFound: "ANALYSIS_FILE_NOT_FOUND",
+  InvalidCell: "INVALID_ANALYSIS_CELL",
+  InvalidCells: "INVALID_ANALYSIS_CELLS",
+  InvalidFileId: "INVALID_ANALYSIS_FILE_ID",
+  InvalidPath: "INVALID_ANALYSIS_PATH",
+} as const;
+
 const buildSuccess = (
   startedAt: number,
   result: unknown,
@@ -60,17 +68,17 @@ export class RustAnalysisService implements IRustAnalysisService {
 
   public async openFile(request: OpenFileRequest): Promise<RustAnalysisResponse> {
     if (!request.fileId || !request.inputPath || !this.options.isSupportedRustAnalysisInputPath(request.inputPath)) {
-      return buildFailure("INVALID_DEVICE_ANALYSIS_PATH", "Invalid analysis file path.");
+      return buildFailure(AnalysisErrorCode.InvalidPath, "Invalid analysis file path.");
     }
 
     try {
       const stat = fs.statSync(request.inputPath);
       if (!stat.isFile()) {
-        return buildFailure("INVALID_DEVICE_ANALYSIS_PATH", "Analysis path is not a file.");
+        return buildFailure(AnalysisErrorCode.InvalidPath, "Analysis path is not a file.");
       }
     } catch (error) {
       return buildFailure(
-        "DEVICE_ANALYSIS_FILE_NOT_FOUND",
+        AnalysisErrorCode.FileNotFound,
         (error as Error)?.message || "Analysis file not found.",
       );
     }
@@ -95,7 +103,7 @@ export class RustAnalysisService implements IRustAnalysisService {
 
   public async previewRows(request: PreviewRowsRequest): Promise<RustAnalysisResponse> {
     if (!request.fileId) {
-      return buildFailure("INVALID_DEVICE_ANALYSIS_FILE_ID", "Missing file id.");
+      return buildFailure(AnalysisErrorCode.InvalidFileId, "Missing file id.");
     }
 
     const startedAt = Date.now();
@@ -113,7 +121,7 @@ export class RustAnalysisService implements IRustAnalysisService {
 
   public async previewMeta(request: PreviewMetaRequest): Promise<RustAnalysisResponse> {
     if (!request.fileId) {
-      return buildFailure("INVALID_DEVICE_ANALYSIS_FILE_ID", "Missing file id.");
+      return buildFailure(AnalysisErrorCode.InvalidFileId, "Missing file id.");
     }
 
     const startedAt = Date.now();
@@ -131,7 +139,7 @@ export class RustAnalysisService implements IRustAnalysisService {
 
   public async readCell(request: ReadCellRequest): Promise<RustAnalysisResponse> {
     if (!request.fileId) {
-      return buildFailure("INVALID_DEVICE_ANALYSIS_CELL", "Invalid analysis cell request.");
+      return buildFailure(AnalysisErrorCode.InvalidCell, "Invalid analysis cell request.");
     }
 
     const startedAt = Date.now();
@@ -149,7 +157,7 @@ export class RustAnalysisService implements IRustAnalysisService {
 
   public async readCells(request: ReadCellsRequest): Promise<RustAnalysisResponse> {
     if (!request.fileId || !request.cells.length) {
-      return buildFailure("INVALID_DEVICE_ANALYSIS_CELLS", "Invalid analysis cells request.");
+      return buildFailure(AnalysisErrorCode.InvalidCells, "Invalid analysis cells request.");
     }
 
     const startedAt = Date.now();
@@ -169,7 +177,7 @@ export class RustAnalysisService implements IRustAnalysisService {
     request: InferAutoExtractionRequest,
   ): Promise<RustAnalysisResponse> {
     if (!request.fileId || !request.inputPath || !this.options.isSupportedRustAnalysisInputPath(request.inputPath)) {
-      return buildFailure("INVALID_DEVICE_ANALYSIS_PATH", "Invalid analysis file path.");
+      return buildFailure(AnalysisErrorCode.InvalidPath, "Invalid analysis file path.");
     }
 
     const startedAt = Date.now();
@@ -191,7 +199,7 @@ export class RustAnalysisService implements IRustAnalysisService {
 
   public async processFile(request: ProcessFileRequest): Promise<RustAnalysisResponse> {
     if (!request.fileId || !request.inputPath || !this.options.isSupportedRustAnalysisInputPath(request.inputPath)) {
-      return buildFailure("INVALID_DEVICE_ANALYSIS_PATH", "Invalid analysis file path.");
+      return buildFailure(AnalysisErrorCode.InvalidPath, "Invalid analysis file path.");
     }
     if (!request.auto && !this.options.isRustProcessFileConfigSupported(request.config)) {
       return buildFailure(
@@ -273,7 +281,7 @@ export class RustAnalysisService implements IRustAnalysisService {
       (request.metricKind === "output" || request.metricKind === "transfer") &&
       request.metricSeries.length > 0;
     if (!request.fileId || !request.inputPath || !this.options.isSupportedRustAnalysisInputPath(request.inputPath)) {
-      return buildFailure("INVALID_DEVICE_ANALYSIS_PATH", "Invalid analysis file path.");
+      return buildFailure(AnalysisErrorCode.InvalidPath, "Invalid analysis file path.");
     }
     if (!this.options.isRustProcessFileConfigSupported(request.config) || (!request.columns.length && !hasRustSeries)) {
       return buildFailure(

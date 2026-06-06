@@ -83,7 +83,7 @@ export type OriginBridge = {
 
 declare global {
   interface Window {
-    __CONDUCTOR_INITIAL_DEVICE_ANALYSIS_SETTINGS__?: Record<string, unknown> | null;
+    __CONDUCTOR_INITIAL_ANALYSIS_SETTINGS__?: Record<string, unknown> | null;
   }
 }
 
@@ -117,7 +117,7 @@ export const getInitialSettingsSnapshot =
   (): AnalysisSettings | null => {
     if (typeof window === "undefined") return null;
 
-    const settings = window.__CONDUCTOR_INITIAL_DEVICE_ANALYSIS_SETTINGS__;
+    const settings = window.__CONDUCTOR_INITIAL_ANALYSIS_SETTINGS__;
     return isObjectRecord(settings)
       ? (settings as AnalysisSettings)
       : null;

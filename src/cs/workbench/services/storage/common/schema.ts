@@ -193,18 +193,18 @@ function normalizeOriginExePath(inputPath: unknown): string | null {
   const normalized = inputPath.trim();
   return normalized || null;
 }
-export const ANALYSIS_TEMPLATE_FILENAME = "template.json";
-export const ANALYSIS_SETTINGS_FILENAME = "config.json";
-export const ANALYSIS_STORE_CONFIG_FILENAME = "store-path.json";
-export const ANALYSIS_LEGACY_SETTINGS_FILENAME_SUFFIX = ".settings.json";
-const ANALYSIS_SS_METHODS = new Set(["auto", "manual", "idWindow", "legacy"]);
-const ANALYSIS_ORIGIN_EXPORT_MODES = new Set([
+export const TEMPLATE_FILENAME = "template.json";
+export const SETTINGS_FILENAME = "config.json";
+export const STORE_CONFIG_FILENAME = "store-path.json";
+export const LEGACY_SETTINGS_FILENAME_SUFFIX = ".settings.json";
+const SS_METHODS = new Set(["auto", "manual", "idWindow", "legacy"]);
+const ORIGIN_EXPORT_MODES = new Set([
   "merged",
   "workbookBooks",
   "workbookSheets",
   "separate",
 ]);
-const ANALYSIS_Y_UNITS = new Set([
+const Y_UNITS = new Set([
   "A",
   "mA",
   "uA",
@@ -216,26 +216,26 @@ const ANALYSIS_Y_UNITS = new Set([
   "nF",
   "pF",
 ]);
-const ANALYSIS_Y_SCALES = new Set(["linear", "log"]);
-const ANALYSIS_DEFAULT_Y_SCALE = "linear";
-const ANALYSIS_THEMES = new Set(["system", "light", "dark"]);
-const ANALYSIS_WINDOW_CLOSE_BEHAVIORS = new Set([
+const Y_SCALES = new Set(["linear", "log"]);
+const DEFAULT_Y_SCALE = "linear";
+const THEMES = new Set(["system", "light", "dark"]);
+const WINDOW_CLOSE_BEHAVIORS = new Set([
   "minimizeToTray",
   "quit",
 ]);
-const ANALYSIS_DEFAULT_BACKGROUND_COLOR = "#f3f4f6";
-const ANALYSIS_BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
-const ANALYSIS_X_SEGMENTATION_MODES = new Set([
+const DEFAULT_BACKGROUND_COLOR = "#f3f4f6";
+const BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
+const X_SEGMENTATION_MODES = new Set([
   "auto",
   "points",
   "segments",
 ]);
 
-export const ANALYSIS_DEFAULT_SETTINGS: AnalysisSettings = {
+export const DEFAULT_SETTINGS: AnalysisSettings = {
   defaultTemplate: null,
   lastTemplateId: null,
   theme: "system",
-  backgroundColor: ANALYSIS_DEFAULT_BACKGROUND_COLOR,
+  backgroundColor: DEFAULT_BACKGROUND_COLOR,
   transparentChrome: false,
   windowCloseBehavior: "minimizeToTray",
   trayMinimizeHintShown: false,
@@ -291,17 +291,17 @@ export const ANALYSIS_DEFAULT_SETTINGS: AnalysisSettings = {
   },
 };
 
-const ANALYSIS_STARTUP_ANALYSIS_DEFAULTS = {
-  defaultYScaleForTransfer: ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForTransfer,
-  defaultYScaleForOutput: ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForOutput,
-  defaultYScaleForCf: ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForCf,
-  defaultYScaleForCv: ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForCv,
-  defaultYScaleForPv: ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForPv,
-  defaultYScaleForSpecial: ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForSpecial,
+const STARTUP_DEFAULTS = {
+  defaultYScaleForTransfer: DEFAULT_SETTINGS.defaultYScaleForTransfer,
+  defaultYScaleForOutput: DEFAULT_SETTINGS.defaultYScaleForOutput,
+  defaultYScaleForCf: DEFAULT_SETTINGS.defaultYScaleForCf,
+  defaultYScaleForCv: DEFAULT_SETTINGS.defaultYScaleForCv,
+  defaultYScaleForPv: DEFAULT_SETTINGS.defaultYScaleForPv,
+  defaultYScaleForSpecial: DEFAULT_SETTINGS.defaultYScaleForSpecial,
   analysisPlotAxisSettings: {
-    tickLabelFontSize: ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings.tickLabelFontSize,
-    axisTitleFontSize: ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings.axisTitleFontSize,
-    legendFontSize: ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings.legendFontSize,
+    tickLabelFontSize: DEFAULT_SETTINGS.analysisPlotAxisSettings.tickLabelFontSize,
+    axisTitleFontSize: DEFAULT_SETTINGS.analysisPlotAxisSettings.axisTitleFontSize,
+    legendFontSize: DEFAULT_SETTINGS.analysisPlotAxisSettings.legendFontSize,
   },
 };
 
@@ -316,13 +316,13 @@ function normalizeBoolean(value: unknown, fallback: boolean): boolean {
 
 function normalizeBackgroundColor(value: unknown): string {
   if (typeof value !== "string") {
-    return ANALYSIS_DEFAULT_SETTINGS.backgroundColor;
+    return DEFAULT_SETTINGS.backgroundColor;
   }
 
   const normalized = value.trim();
-  return ANALYSIS_BACKGROUND_COLOR_PATTERN.test(normalized)
+  return BACKGROUND_COLOR_PATTERN.test(normalized)
     ? normalized.toLowerCase()
-    : ANALYSIS_DEFAULT_SETTINGS.backgroundColor;
+    : DEFAULT_SETTINGS.backgroundColor;
 }
 
 function normalizeBoundedInt(value: unknown, fallback: number, min: number, max: number): number {
@@ -379,7 +379,7 @@ function normalizeIntegerText(value: unknown, min: number, max: number): string 
 
 function normalizePlotAxisSettings(
   value: unknown,
-  fallback: AnalysisPlotAxisSettings = ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings,
+  fallback: AnalysisPlotAxisSettings = DEFAULT_SETTINGS.analysisPlotAxisSettings,
 ): AnalysisPlotAxisSettings {
   const raw = isRecord(value) ? value : {};
   const legacyAutoFontDefaults = isLegacyAutoFontDefaults(raw);
@@ -461,12 +461,12 @@ function normalizeYScaleByFileIdMap(value: unknown): Record<string, string> {
       typeof fileId === "string" && fileId.trim() ? fileId.trim() : "";
     if (!normalizedFileId) continue;
     const normalizedScale =
-      typeof scale === "string" && ANALYSIS_Y_SCALES.has(scale)
+      typeof scale === "string" && Y_SCALES.has(scale)
         ? scale
-        : ANALYSIS_DEFAULT_Y_SCALE;
+        : DEFAULT_Y_SCALE;
     next[normalizedFileId] = normalizedScale
       ? normalizedScale
-      : ANALYSIS_DEFAULT_Y_SCALE;
+      : DEFAULT_Y_SCALE;
   }
 
   return next;
@@ -481,7 +481,7 @@ function normalizeYUnitByFileIdMap(value: unknown): Record<string, string> {
       typeof fileId === "string" && fileId.trim() ? fileId.trim() : "";
     if (!normalizedFileId) continue;
     next[normalizedFileId] =
-      typeof unit === "string" && ANALYSIS_Y_UNITS.has(unit)
+      typeof unit === "string" && Y_UNITS.has(unit)
         ? unit
         : "A";
   }
@@ -492,7 +492,7 @@ function normalizeYUnitByFileIdMap(value: unknown): Record<string, string> {
 function normalizeXSegmentationMode(mode: unknown): string {
   const normalizedMode =
     typeof mode === "string" ? mode.trim().toLowerCase() : "";
-  if (ANALYSIS_X_SEGMENTATION_MODES.has(normalizedMode)) {
+  if (X_SEGMENTATION_MODES.has(normalizedMode)) {
     return normalizedMode;
   }
 
@@ -561,75 +561,75 @@ export function normalizeAnalysisSettings(raw: unknown): AnalysisSettings {
     ...nextWithoutLegacyAxes
   } = next;
 
-  const ssMethodDefault = isSetValue(ANALYSIS_SS_METHODS, next.ssMethodDefault)
+  const ssMethodDefault = isSetValue(SS_METHODS, next.ssMethodDefault)
     ? next.ssMethodDefault
-    : isSetValue(ANALYSIS_SS_METHODS, next.ssMethod)
+    : isSetValue(SS_METHODS, next.ssMethod)
       ? next.ssMethod
-      : ANALYSIS_DEFAULT_SETTINGS.ssMethodDefault;
+      : DEFAULT_SETTINGS.ssMethodDefault;
 
   const yUnitByFileId = normalizeYUnitByFileIdMap(next.yUnitByFileId);
   const yScaleByFileId = normalizeYScaleByFileIdMap(next.yScaleByFileId);
-  const theme = isSetValue(ANALYSIS_THEMES, next.theme)
+  const theme = isSetValue(THEMES, next.theme)
     ? next.theme
-    : ANALYSIS_DEFAULT_SETTINGS.theme;
+    : DEFAULT_SETTINGS.theme;
   const backgroundColor = normalizeBackgroundColor(next.backgroundColor);
   const transparentChrome = normalizeBoolean(
     next.transparentChrome,
-    ANALYSIS_DEFAULT_SETTINGS.transparentChrome,
+    DEFAULT_SETTINGS.transparentChrome,
   );
   const windowCloseBehavior = isSetValue(
-    ANALYSIS_WINDOW_CLOSE_BEHAVIORS,
+    WINDOW_CLOSE_BEHAVIORS,
     next.windowCloseBehavior,
   )
     ? next.windowCloseBehavior
-    : ANALYSIS_DEFAULT_SETTINGS.windowCloseBehavior;
+    : DEFAULT_SETTINGS.windowCloseBehavior;
   const trayMinimizeHintShown = normalizeBoolean(
     next.trayMinimizeHintShown,
-    ANALYSIS_DEFAULT_SETTINGS.trayMinimizeHintShown,
+    DEFAULT_SETTINGS.trayMinimizeHintShown,
   );
 
   const ssShowFitLine =
     typeof next.ssShowFitLine === "boolean"
       ? next.ssShowFitLine
-      : ANALYSIS_DEFAULT_SETTINGS.ssShowFitLine;
+      : DEFAULT_SETTINGS.ssShowFitLine;
 
   const stopOnErrorDefault =
     normalizeBoolean(
       next.stopOnErrorDefault,
-      ANALYSIS_DEFAULT_SETTINGS.stopOnErrorDefault,
+      DEFAULT_SETTINGS.stopOnErrorDefault,
     );
   const onboardingCompleted = normalizeBoolean(
     next.onboardingCompleted,
-    ANALYSIS_DEFAULT_SETTINGS.onboardingCompleted,
+    DEFAULT_SETTINGS.onboardingCompleted,
   );
   const onboardingAutoStartDismissed = normalizeBoolean(
     next.onboardingAutoStartDismissed,
-    ANALYSIS_DEFAULT_SETTINGS.onboardingAutoStartDismissed,
+    DEFAULT_SETTINGS.onboardingAutoStartDismissed,
   );
 
   const ssIdLow = normalizePositiveNumber(
     next.ssIdLow ?? next.ssIdWindowLow,
-    ANALYSIS_DEFAULT_SETTINGS.ssIdLow,
+    DEFAULT_SETTINGS.ssIdLow,
   );
   const ssIdHigh = normalizePositiveNumber(
     next.ssIdHigh ?? next.ssIdWindowHigh,
-    ANALYSIS_DEFAULT_SETTINGS.ssIdHigh,
+    DEFAULT_SETTINGS.ssIdHigh,
   );
   const originExePath = normalizeOriginExePath(next.originExePath);
   const originExportModeDefault = isSetValue(
-    ANALYSIS_ORIGIN_EXPORT_MODES,
+    ORIGIN_EXPORT_MODES,
     next.originExportModeDefault,
   )
     ? next.originExportModeDefault
-    : isSetValue(ANALYSIS_ORIGIN_EXPORT_MODES, next.originExportMode)
+    : isSetValue(ORIGIN_EXPORT_MODES, next.originExportMode)
       ? next.originExportMode
-      : ANALYSIS_DEFAULT_SETTINGS.originExportModeDefault;
+      : DEFAULT_SETTINGS.originExportModeDefault;
   const originPlotDefaults = normalizeOriginPlotOptions({
-    plotCommand: ANALYSIS_DEFAULT_SETTINGS.originPlotCommandDefault,
-    plotType: ANALYSIS_DEFAULT_SETTINGS.originPlotTypeDefault,
-    postPlotCommands: ANALYSIS_DEFAULT_SETTINGS.originPlotPostCommandsDefault,
-    lineWidth: ANALYSIS_DEFAULT_SETTINGS.originPlotLineWidthDefault,
-    xyPairs: ANALYSIS_DEFAULT_SETTINGS.originPlotXyPairsDefault,
+    plotCommand: DEFAULT_SETTINGS.originPlotCommandDefault,
+    plotType: DEFAULT_SETTINGS.originPlotTypeDefault,
+    postPlotCommands: DEFAULT_SETTINGS.originPlotPostCommandsDefault,
+    lineWidth: DEFAULT_SETTINGS.originPlotLineWidthDefault,
+    xyPairs: DEFAULT_SETTINGS.originPlotXyPairsDefault,
   });
   const originPlotSettings = normalizeOriginPlotOptions(
     {
@@ -644,16 +644,16 @@ export function normalizeAnalysisSettings(raw: unknown): AnalysisSettings {
   const originRuntimeCleanupEnabled =
     typeof next.originRuntimeCleanupEnabled === "boolean"
       ? next.originRuntimeCleanupEnabled
-      : ANALYSIS_DEFAULT_SETTINGS.originRuntimeCleanupEnabled;
+      : DEFAULT_SETTINGS.originRuntimeCleanupEnabled;
   const originRuntimeKeepSuccessJobs = normalizeBoundedInt(
     next.originRuntimeKeepSuccessJobs,
-    ANALYSIS_DEFAULT_SETTINGS.originRuntimeKeepSuccessJobs,
+    DEFAULT_SETTINGS.originRuntimeKeepSuccessJobs,
     0,
     100,
   );
   const originRuntimeFailedRetentionDays = normalizeBoundedInt(
     next.originRuntimeFailedRetentionDays,
-    ANALYSIS_DEFAULT_SETTINGS.originRuntimeFailedRetentionDays,
+    DEFAULT_SETTINGS.originRuntimeFailedRetentionDays,
     1,
     365,
   );
@@ -662,7 +662,7 @@ export function normalizeAnalysisSettings(raw: unknown): AnalysisSettings {
   );
 
   return {
-    ...ANALYSIS_DEFAULT_SETTINGS,
+    ...DEFAULT_SETTINGS,
     ...nextWithoutLegacyAxes,
     defaultTemplate: next.defaultTemplate ?? null,
     lastTemplateId: next.lastTemplateId ?? null,
@@ -702,10 +702,10 @@ export function applyStartupAnalysisDefaults(settings: unknown): AnalysisSetting
   const normalized = normalizeAnalysisSettings(settings);
   return normalizeAnalysisSettings({
     ...normalized,
-    ...ANALYSIS_STARTUP_ANALYSIS_DEFAULTS,
+    ...STARTUP_DEFAULTS,
     analysisPlotAxisSettings: {
       ...normalized.analysisPlotAxisSettings,
-      ...ANALYSIS_STARTUP_ANALYSIS_DEFAULTS.analysisPlotAxisSettings,
+      ...STARTUP_DEFAULTS.analysisPlotAxisSettings,
     },
   });
 }

@@ -400,7 +400,6 @@
   position: sticky;
   left: 0px;
   z-index: 1;
-  max-width: 0px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

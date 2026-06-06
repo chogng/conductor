@@ -10,10 +10,10 @@ import {
   type AnalysisFileResultPayload,
 } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 
-const ANALYSIS_FILE_SERVICE_UNAVAILABLE = "Analysis file desktop bridge unavailable.";
+const SERVICE_UNAVAILABLE = "Analysis file desktop bridge unavailable.";
 
 function unavailable(): Promise<never> {
-  return Promise.reject(new Error(ANALYSIS_FILE_SERVICE_UNAVAILABLE));
+  return Promise.reject(new Error(SERVICE_UNAVAILABLE));
 }
 
 export class BrowserAnalysisFileService extends Disposable implements IAnalysisFileServiceType {

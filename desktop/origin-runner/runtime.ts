@@ -230,7 +230,7 @@ export function createCsvJobPaths(
   ensureDir(jobDir);
   ensureDir(workDir);
 
-  const safeCsvName = sanitizeFileName(csvName || "device_analysis_origin.csv");
+  const safeCsvName = sanitizeFileName(csvName || "origin.csv");
   const csvPath = path.join(jobDir, safeCsvName);
 
   return {
