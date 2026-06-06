@@ -17,7 +17,7 @@ const MAX_VISIBLE_ENTRIES = 8;
 const PLOT_HOVER_MARGIN = 8;
 const PLOT_HOVER_GAP = 12;
 
-const getTooltipPosition = (
+const getHoverPosition = (
   anchor: number,
   size: number,
   boundary: number,
@@ -44,50 +44,14 @@ export class PlotHoverWidget {
     rect: DOMRect,
     options: PlotHoverWidgetOptions,
   ): void {
-    this.element.replaceChildren();
-
-    const title = document.createElement("div");
-    title.className = "plot_hover_widget_title";
-    title.textContent = formatNumber(entries[0]!.x * options.plotXFactor, {
-      digits: options.xDigits,
-    });
-    this.element.appendChild(title);
-
-    const visibleEntries = entries.slice(0, MAX_VISIBLE_ENTRIES);
-    for (const entry of visibleEntries) {
-      const row = document.createElement("div");
-      row.className = "plot_hover_widget_row";
-      const swatch = document.createElement("span");
-      swatch.className = "plot_hover_widget_swatch";
-      swatch.style.backgroundColor = entry.color;
-      const label = document.createElement("span");
-      label.className = "plot_hover_widget_label";
-      label.textContent = entry.label;
-      const value = document.createElement("span");
-      value.className = "plot_hover_widget_value";
-      value.textContent = formatNumber(entry.y * options.plotYFactor, { digits: 4 });
-      row.append(swatch, label, value);
-      this.element.appendChild(row);
+    if (!entries.length) {
+      this.hide();
+      return;
     }
 
-    const hiddenCount = entries.length - visibleEntries.length;
-    if (hiddenCount > 0) {
-      const more = document.createElement("div");
-      more.className = "plot_hover_widget_more";
-      more.textContent = localize("plot_hover_more_entries", "+ {count} more", { count: hiddenCount });
-      this.element.appendChild(more);
-    }
-
+    this.element.replaceChildren(...this.createContent(entries, options));
     this.element.classList.remove("plot_hover_widget--hidden");
-    this.element.style.visibility = "hidden";
-    this.element.style.left = "0px";
-    this.element.style.top = "0px";
-
-    const width = this.element.offsetWidth;
-    const height = this.element.offsetHeight;
-    this.element.style.left = `${getTooltipPosition(localX, width, rect.width)}px`;
-    this.element.style.top = `${getTooltipPosition(localY, height, rect.height)}px`;
-    this.element.style.visibility = "";
+    this.layout(localX, localY, rect);
   }
 
   public hide(): void {
@@ -96,5 +60,65 @@ export class PlotHoverWidget {
 
   public dispose(): void {
     this.element.remove();
+  }
+
+  private createContent(
+    entries: readonly PlotReadoutEntry[],
+    options: PlotHoverWidgetOptions,
+  ): HTMLElement[] {
+    const content: HTMLElement[] = [];
+    const title = document.createElement("div");
+    title.className = "plot_hover_widget_title";
+    title.textContent = formatNumber(entries[0].x * options.plotXFactor, {
+      digits: options.xDigits,
+    });
+    content.push(title);
+
+    const visibleEntries = entries.slice(0, MAX_VISIBLE_ENTRIES);
+    for (const entry of visibleEntries) {
+      content.push(this.createEntryRow(entry, options.plotYFactor));
+    }
+
+    const hiddenCount = entries.length - visibleEntries.length;
+    if (hiddenCount > 0) {
+      const more = document.createElement("div");
+      more.className = "plot_hover_widget_more";
+      more.textContent = localize("plot_hover_more_entries", "+ {count} more", { count: hiddenCount });
+      content.push(more);
+    }
+
+    return content;
+  }
+
+  private createEntryRow(entry: PlotReadoutEntry, plotYFactor: number): HTMLElement {
+    const row = document.createElement("div");
+    row.className = "plot_hover_widget_row";
+
+    const swatch = document.createElement("span");
+    swatch.className = "plot_hover_widget_swatch";
+    swatch.style.backgroundColor = entry.color;
+
+    const label = document.createElement("span");
+    label.className = "plot_hover_widget_label";
+    label.textContent = entry.label;
+
+    const value = document.createElement("span");
+    value.className = "plot_hover_widget_value";
+    value.textContent = formatNumber(entry.y * plotYFactor, { digits: 4 });
+
+    row.append(swatch, label, value);
+    return row;
+  }
+
+  private layout(localX: number, localY: number, rect: DOMRect): void {
+    this.element.style.visibility = "hidden";
+    this.element.style.left = "0px";
+    this.element.style.top = "0px";
+
+    const width = this.element.offsetWidth;
+    const height = this.element.offsetHeight;
+    this.element.style.left = `${getHoverPosition(localX, width, rect.width)}px`;
+    this.element.style.top = `${getHoverPosition(localY, height, rect.height)}px`;
+    this.element.style.visibility = "";
   }
 }
