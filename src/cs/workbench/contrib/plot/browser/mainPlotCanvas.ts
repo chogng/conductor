@@ -376,10 +376,10 @@ const drawHoverOverlay = (
     const pointY = scale.yToPixel(entry.y);
     if (!Number.isFinite(pointX) || !Number.isFinite(pointY)) continue;
     context.beginPath();
-    context.arc(pointX, pointY, 3.5, 0, Math.PI * 2);
+    context.arc(pointX, pointY, 3, 0, Math.PI * 2);
     context.fillStyle = "#ffffff";
     context.fill();
-    context.lineWidth = 2;
+    context.lineWidth = 1.75;
     context.strokeStyle = entry.color;
     context.stroke();
   }

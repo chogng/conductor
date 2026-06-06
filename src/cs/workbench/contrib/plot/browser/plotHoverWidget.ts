@@ -14,6 +14,19 @@ const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
 const MAX_VISIBLE_ENTRIES = 8;
+const PLOT_HOVER_MARGIN = 8;
+const PLOT_HOVER_GAP = 12;
+
+const getTooltipPosition = (
+  anchor: number,
+  size: number,
+  boundary: number,
+): number =>
+  clamp(
+    anchor + PLOT_HOVER_GAP,
+    PLOT_HOVER_MARGIN,
+    Math.max(PLOT_HOVER_MARGIN, boundary - size - PLOT_HOVER_MARGIN),
+  );
 
 export class PlotHoverWidget {
   public readonly element: HTMLElement;
@@ -48,8 +61,12 @@ export class PlotHoverWidget {
       swatch.className = "plot_hover_widget_swatch";
       swatch.style.backgroundColor = entry.color;
       const label = document.createElement("span");
-      label.textContent = `${entry.label}: ${formatNumber(entry.y * options.plotYFactor, { digits: 4 })}`;
-      row.append(swatch, label);
+      label.className = "plot_hover_widget_label";
+      label.textContent = entry.label;
+      const value = document.createElement("span");
+      value.className = "plot_hover_widget_value";
+      value.textContent = formatNumber(entry.y * options.plotYFactor, { digits: 4 });
+      row.append(swatch, label, value);
       this.element.appendChild(row);
     }
 
@@ -61,9 +78,16 @@ export class PlotHoverWidget {
       this.element.appendChild(more);
     }
 
-    this.element.style.left = `${clamp(localX + 12, 8, rect.width - 220)}px`;
-    this.element.style.top = `${clamp(localY + 12, 8, rect.height - 120)}px`;
     this.element.classList.remove("plot_hover_widget--hidden");
+    this.element.style.visibility = "hidden";
+    this.element.style.left = "0px";
+    this.element.style.top = "0px";
+
+    const width = this.element.offsetWidth;
+    const height = this.element.offsetHeight;
+    this.element.style.left = `${getTooltipPosition(localX, width, rect.width)}px`;
+    this.element.style.top = `${getTooltipPosition(localY, height, rect.height)}px`;
+    this.element.style.visibility = "";
   }
 
   public hide(): void {
