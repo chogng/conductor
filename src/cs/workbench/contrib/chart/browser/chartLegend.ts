@@ -103,7 +103,11 @@ const renderLegend = (
           onEditLegendItem(legendKey, labelText);
         }
       });
-      row.append(edit);
+
+      const actions = document.createElement("div");
+      actions.className = "chart_legend_actions";
+      actions.appendChild(edit);
+      row.append(actions);
     }
 
     list.appendChild(row);

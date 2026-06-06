@@ -91,6 +91,21 @@ suite("workbench/contrib/calculation/test/common/calculatedData", () => {
     );
   });
 
+  test("createCalculatedSeries keeps duplicate source ids separate", () => {
+    const series = createCalculatedSeries(
+      createFile({
+        series: [
+          { id: "series-a", groupIndex: 0, legendValue: "Vg=-60", y: [1, 2, 3] },
+          { id: "series-a", groupIndex: 0, legendValue: "Vg=-40", y: [4, 5, 6] },
+        ],
+      }),
+      "iv",
+    );
+
+    assert.deepEqual(series.map((item) => item.id), ["series-a", "series-a:1"]);
+    assert.deepEqual(series.map((item) => item.name), ["Vg=-60", "Vg=-40"]);
+  });
+
   test("createCalculatedSeries reads array-like y values like thumbnails", () => {
     const series = createCalculatedSeries(
       createFile({

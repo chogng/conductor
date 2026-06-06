@@ -166,6 +166,7 @@ export const createCalculatedSeries = (
   plotType: PlotType,
 ): CalculatedSeries[] => {
   const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
+  const usedIds = new Set<string>();
   return (Array.isArray(file?.series) ? file.series : [])
     .map((series: CleanedSeries, index: number): CalculatedSeries | null => {
       if (!isArrayLike(xGroups[Number(series?.groupIndex)])) {
@@ -177,9 +178,10 @@ export const createCalculatedSeries = (
         return null;
       }
 
+      const id = resolveUniqueSeriesId(resolveSeriesId(file, series, index), index, usedIds);
       return {
         kind: plotType,
-        id: resolveSeriesId(file, series, index),
+        id,
         name: String(series?.name ?? series?.legendValue ?? `Series ${index + 1}`),
         data,
       };
@@ -264,6 +266,26 @@ const resolveSeriesId = (
     Number.isInteger(groupIndex) ? `x${groupIndex}` : "x",
     Number.isInteger(yCol) ? `y${yCol}` : `series${index}`,
   ].join(":");
+};
+
+const resolveUniqueSeriesId = (
+  id: string,
+  index: number,
+  usedIds: Set<string>,
+): string => {
+  if (!usedIds.has(id)) {
+    usedIds.add(id);
+    return id;
+  }
+
+  let suffix = index;
+  let next = `${id}:${suffix}`;
+  while (usedIds.has(next)) {
+    suffix += 1;
+    next = `${id}:${suffix}`;
+  }
+  usedIds.add(next);
+  return next;
 };
 
 const resolveSecondSourceKind = (kind: CalculatedDataKind): PlotType =>

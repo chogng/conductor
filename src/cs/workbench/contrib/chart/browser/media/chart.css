@@ -149,6 +149,7 @@
   min-width: 0px;
   align-items: center;
   gap: 4px;
+  justify-content: space-between;
 }
 
 .chart_legend_toggle {
@@ -156,9 +157,10 @@
   box-sizing: border-box;
   min-height: 20px;
   min-width: 0px;
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   align-items: center;
   gap: 8px;
+  overflow: hidden;
   border-width: 0px;
   background-color: transparent;
   padding: 0px;
@@ -183,8 +185,16 @@
   outline: none;
 }
 
-.chart_legend_edit {
+.chart_legend_actions {
   display: flex;
+  width: 20px;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart_legend_edit {
+  display: inline-flex;
   height: 20px;
   width: 20px;
   flex: 0 0 20px;
@@ -195,13 +205,27 @@
   padding: 0px;
   color: inherit;
   cursor: pointer;
-  opacity: 0.68;
+  opacity: 0;
   -webkit-appearance: none;
   appearance: none;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
 }
 
-.chart_legend_edit_icon {
-  flex: 0 0 auto;
+.chart_legend_row:hover .chart_legend_edit,
+.chart_legend_row:focus-within .chart_legend_edit {
+  opacity: 1;
+}
+
+.chart_legend_edit:hover,
+.chart_legend_edit:focus-visible {
+  background-color: rgb(var(--bg-page) / 1);
+}
+
+.chart_legend_edit svg {
+  width: 14px;
+  height: 14px;
 }
 
 .chart_legend_row[data-hidden="true"] {
