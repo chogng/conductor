@@ -21,11 +21,13 @@ class ManagedHover extends Disposable implements IManagedHover {
   private readonly listeners = this._register(new DisposableStore());
   private readonly hoverWidget: ManagedHoverWidget;
   private showTimer = 0;
+  private suppressUntil = 0;
   private content: IManagedHoverContentOrFactory;
 
   constructor(
     private readonly target: HTMLElement,
     content: IManagedHoverContentOrFactory,
+    private readonly options: IManagedHoverOptions = {},
   ) {
     super();
     this.content = content;
@@ -34,7 +36,12 @@ class ManagedHover extends Disposable implements IManagedHover {
     this.listeners.add(addDisposableListener(target, EventType.FOCUS, () => this.schedule()));
     this.listeners.add(addDisposableListener(target, EventType.MOUSE_LEAVE, () => this.hide()));
     this.listeners.add(addDisposableListener(target, EventType.BLUR, () => this.hide()));
+    this.listeners.add(addDisposableListener(target, EventType.POINTER_DOWN, () => this.suppress()));
     this.listeners.add(addDisposableListener(target, EventType.KEY_DOWN, event => {
+      if (event.key === "Enter" || event.key === " ") {
+        this.suppress();
+        return;
+      }
       if (event.key === "Escape") {
         this.hide();
       }
@@ -43,6 +50,10 @@ class ManagedHover extends Disposable implements IManagedHover {
 
   public show(): void {
     this.clearTimer();
+    if (Date.now() < this.suppressUntil) {
+      return;
+    }
+
     const content = this.resolveContent();
     if (!content) {
       return;
@@ -73,7 +84,18 @@ class ManagedHover extends Disposable implements IManagedHover {
 
   private schedule(): void {
     this.clearTimer();
-    this.showTimer = this.target.ownerDocument.defaultView?.setTimeout(() => this.show(), 300) ?? 0;
+    this.showTimer = this.target.ownerDocument.defaultView?.setTimeout(() => this.show(), this.options.delay ?? 300) ?? 0;
+  }
+
+  private suppress(): void {
+    const duration = this.options.suppressOnPointerDown;
+    if (duration === undefined) {
+      this.hide();
+      return;
+    }
+
+    this.suppressUntil = Date.now() + duration;
+    this.hide();
   }
 
   private clearTimer(): void {
@@ -97,9 +119,9 @@ class BrowserHoverService extends Disposable implements IHoverService {
   public setupManagedHover(
     target: HTMLElement,
     content: IManagedHoverContentOrFactory,
-    _options?: IManagedHoverOptions,
+    options?: IManagedHoverOptions,
   ): IManagedHover {
-    return this.managedHovers.add(new ManagedHover(target, content));
+    return this.managedHovers.add(new ManagedHover(target, content, options));
   }
 }
 

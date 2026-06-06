@@ -6,6 +6,9 @@ import { Disposable, MutableDisposable } from "src/cs/base/common/lifecycle";
 
 import "src/cs/base/browser/ui/actionbar/actionbar.css";
 
+const ActionTooltipDelay = 500;
+const ActionTooltipPointerDownSuppress = 1000;
+
 export interface IActionViewItem {
     readonly action: IAction;
     actionRunner: IActionRunner;
@@ -175,7 +178,10 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
         if (tooltip) {
             this.label.setAttribute("aria-label", tooltip);
             if (!this.tooltipHover.current) {
-                this.tooltipHover.current = getBaseLayerHoverDelegate().setupManagedHover(this.label, tooltip);
+                this.tooltipHover.current = getBaseLayerHoverDelegate().setupManagedHover(this.label, tooltip, {
+                    delay: ActionTooltipDelay,
+                    suppressOnPointerDown: ActionTooltipPointerDownSuppress,
+                });
             }
             else {
                 this.tooltipHover.current.update(tooltip);

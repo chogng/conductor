@@ -66,7 +66,10 @@ export interface IHoverAppearanceOptions {
   readonly skipFadeInAnimation?: boolean;
 }
 
-export interface IManagedHoverOptions extends Pick<IHoverOptions, "appearance"> {}
+export interface IManagedHoverOptions extends Pick<IHoverOptions, "appearance"> {
+  readonly delay?: number;
+  readonly suppressOnPointerDown?: number;
+}
 
 export interface IManagedHover extends IDisposable {
   show(focus?: boolean): void;
