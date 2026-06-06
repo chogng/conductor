@@ -15,6 +15,8 @@ import {
   lxEdit as renderEdit,
   lxFileText as renderFileText,
   lxGear as renderGear,
+  lxLayoutSidebarLeftEmpty as renderLayoutSidebarLeftEmpty,
+  lxLayoutSidebarRightEmpty as renderLayoutSidebarRightEmpty,
   lxListUnordered as renderListUnordered,
   lxOrigin as renderOrigin,
   lxParameters as renderParameters,
@@ -78,6 +80,16 @@ export const lxInfoCircle = registerLxIcon(
   "info-circle",
   () =>
     `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" stroke="#000"/><path stroke="#000" stroke-linecap="round" d="M8 7v4"/><circle cx="8" cy="4.75" r=".75" fill="#000"/></svg>`,
+);
+
+export const lxLayoutSidebarLeftEmpty = registerLxIcon(
+  "layout-sidebar-left-empty",
+  renderLayoutSidebarLeftEmpty,
+);
+
+export const lxLayoutSidebarRightEmpty = registerLxIcon(
+  "layout-sidebar-right-empty",
+  renderLayoutSidebarRightEmpty,
 );
 
 export const lxMoreHorizontal = registerLxIcon(
@@ -159,6 +171,8 @@ export const LxIcon = {
   fileText: lxFileText,
   gear: lxGear,
   infoCircle: lxInfoCircle,
+  layoutSidebarLeftEmpty: lxLayoutSidebarLeftEmpty,
+  layoutSidebarRightEmpty: lxLayoutSidebarRightEmpty,
   listUnordered: lxListUnordered,
   moreHorizontal: lxMoreHorizontal,
   origin: lxOrigin,
