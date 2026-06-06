@@ -23,6 +23,8 @@ import {
   lxRemove as renderRemove,
   lxSearch as renderSearch,
   lxSettings as renderSettings,
+  lxScreenFull as renderScreenFull,
+  lxScreenNormal as renderScreenNormal,
   lxSummary as renderSummary,
   lxPinned as renderPinned,
   lxUnpin as renderUnpin,
@@ -144,6 +146,10 @@ export const lxSearch = registerLxIcon("search", renderSearch);
 
 export const lxSettings = registerLxIcon("settings", renderSettings);
 
+export const lxScreenFull = registerLxIcon("screen-full", renderScreenFull);
+
+export const lxScreenNormal = registerLxIcon("screen-normal", renderScreenNormal);
+
 export const lxSummary = registerLxIcon("summary", renderSummary);
 
 export const lxPinned = registerLxIcon("pinned", renderPinned);
@@ -180,6 +186,8 @@ export const LxIcon = {
   remove: lxRemove,
   search: lxSearch,
   settings: lxSettings,
+  screenFull: lxScreenFull,
+  screenNormal: lxScreenNormal,
   summary: lxSummary,
   pinned: lxPinned,
   unpin: lxUnpin,
