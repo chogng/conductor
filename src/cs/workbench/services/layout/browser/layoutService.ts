@@ -8,6 +8,13 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { refineServiceDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import {
+  IStorageService,
+  StorageScope,
+  StorageTarget,
+  type IStorageService as IStorageServiceType,
+} from "src/cs/platform/storage/common/storage";
+import { WorkbenchPartHiddenStoragePrefix } from "src/cs/workbench/services/layout/browser/layoutConstants";
+import {
   ILayoutService,
   type ILayoutOffsetInfo,
   type ILayoutService as ILayoutServiceType,
@@ -26,6 +33,15 @@ export const enum Parts {
   AUXILIARYBAR_PART = "workbench.parts.auxiliarybar",
 }
 
+const StoredLayoutParts = [
+  Parts.TITLEBAR_PART,
+  Parts.SIDEBAR_PART,
+  Parts.EDITOR_PART,
+  Parts.PANEL_PART,
+  Parts.AUXILIARYBAR_PART,
+] as const;
+const DefaultVisibleParts = new Set<Parts>(StoredLayoutParts);
+
 export interface IPartVisibilityChangeEvent {
   readonly partId: string;
   readonly visible: boolean;
@@ -38,6 +54,7 @@ export interface IWorkbenchLayoutService extends ILayoutServiceType {
 
   layout(): void;
   isVisible(part: Parts): boolean;
+  resetLayoutState(): void;
   setPartHidden(hidden: boolean, part: Parts): void;
 }
 
@@ -64,6 +81,13 @@ export class BrowserWorkbenchLayoutService
     Parts.AUXILIARYBAR_PART,
   ]);
   private dimension: IDimension = Dimension.None;
+
+  constructor(
+    @IStorageService private readonly storageService: IStorageServiceType,
+  ) {
+    super();
+    this.restorePartVisibility();
+  }
 
   public readonly onDidLayoutMainContainer = this.onDidLayoutMainContainerEmitter.event;
   public readonly onDidLayoutContainer = this.onDidLayoutContainerEmitter.event;
@@ -139,10 +163,53 @@ export class BrowserWorkbenchLayoutService
       this.visibleParts.add(part);
     }
 
+    this.storageService.store(
+      this.getHiddenPartStorageKey(part),
+      hidden,
+      StorageScope.PROFILE,
+      StorageTarget.USER,
+    );
+
     this.onDidChangePartVisibilityEmitter.fire({
       partId: part,
       visible: !hidden,
     });
+  }
+
+  public resetLayoutState(): void {
+    const changedParts = StoredLayoutParts.filter(part => !this.visibleParts.has(part));
+    this.visibleParts.clear();
+    for (const part of DefaultVisibleParts) {
+      this.visibleParts.add(part);
+    }
+
+    this.storageService.removeByPrefix(
+      WorkbenchPartHiddenStoragePrefix,
+      StorageScope.PROFILE,
+    );
+
+    for (const part of changedParts) {
+      this.onDidChangePartVisibilityEmitter.fire({
+        partId: part,
+        visible: true,
+      });
+    }
+  }
+
+  private restorePartVisibility(): void {
+    for (const part of StoredLayoutParts) {
+      if (this.storageService.getBoolean(
+        this.getHiddenPartStorageKey(part),
+        StorageScope.PROFILE,
+        false,
+      )) {
+        this.visibleParts.delete(part);
+      }
+    }
+  }
+
+  private getHiddenPartStorageKey(part: Parts): string {
+    return `${WorkbenchPartHiddenStoragePrefix}${part}`;
   }
 
   private resolveMainContainer(): HTMLElement {

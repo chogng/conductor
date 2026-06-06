@@ -5,6 +5,12 @@ import type { IAction } from "src/cs/base/common/actions";
 import { ActionViewItem, type IActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import type { IActionViewItemProvider } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { createLxIcon, type LxIconDefinition } from "src/cs/base/browser/ui/lxicon/lxicon";
+import {
+  StorageScope,
+  StorageTarget,
+  type IStorageService,
+} from "src/cs/platform/storage/common/storage";
+import { WorkbenchLayoutStorageKeys } from "src/cs/workbench/services/layout/browser/layoutConstants";
 import type { IViewPaneContainer } from "src/cs/workbench/common/views";
 
 export const WorkbenchSidebarClassName = "workbench_layout_sidebar";
@@ -45,10 +51,14 @@ export const clampSidebarWidth = (width: number): number =>
   );
 
 export class WorkbenchSidebarLayout {
-  private _width = SIDEBAR_DEFAULT_WIDTH_PX;
+  private _width: number;
   private readonly onDidChangeWidthEmitter = new Emitter<number>();
 
   public readonly onDidChangeWidth = this.onDidChangeWidthEmitter.event;
+
+  constructor(width = SIDEBAR_DEFAULT_WIDTH_PX) {
+    this._width = clampSidebarWidth(width);
+  }
 
   public get width(): number {
     return this._width;
@@ -79,10 +89,31 @@ export const createSidebarSplitPane = (
 });
 
 export class WorkbenchSidebarPart extends Disposable {
-  private readonly layout = this._register(new WorkbenchSidebarLayout());
+  private readonly layout: WorkbenchSidebarLayout;
 
   public readonly element = createSidebarPart();
-  public readonly onDidChangeWidth = this.layout.onDidChangeWidth;
+  public readonly onDidChangeWidth;
+
+  constructor(private readonly storageService?: IStorageService) {
+    super();
+
+    this.layout = this._register(new WorkbenchSidebarLayout(
+      this.storageService?.getNumber(
+        WorkbenchLayoutStorageKeys.sidebarWidth,
+        StorageScope.PROFILE,
+        SIDEBAR_DEFAULT_WIDTH_PX,
+      ),
+    ));
+    this.onDidChangeWidth = this.layout.onDidChangeWidth;
+    this._register(this.layout.onDidChangeWidth((width) => {
+      this.storageService?.store(
+        WorkbenchLayoutStorageKeys.sidebarWidth,
+        width,
+        StorageScope.PROFILE,
+        StorageTarget.USER,
+      );
+    }));
+  }
 
   public get width(): number {
     return this.layout.width;
@@ -90,6 +121,14 @@ export class WorkbenchSidebarPart extends Disposable {
 
   public resize(width: number): void {
     this.layout.resize(width);
+  }
+
+  public resetWidth(): void {
+    this.storageService?.remove(
+      WorkbenchLayoutStorageKeys.sidebarWidth,
+      StorageScope.PROFILE,
+    );
+    this.layout.resize(SIDEBAR_DEFAULT_WIDTH_PX);
   }
 
   public createSplitPane(): SplitViewPane {

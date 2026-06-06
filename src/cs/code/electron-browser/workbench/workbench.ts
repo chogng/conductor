@@ -29,6 +29,8 @@ import {
   normalizeWorkbenchAppearance,
 } from "src/cs/workbench/browser/appearance";
 import { installWindowDeveloperKeybindings } from "src/cs/workbench/browser/actions/windowActions";
+import { getStorageKey, StorageScope } from "src/cs/platform/storage/common/storage";
+import { WorkbenchLayoutStorageKeys } from "src/cs/workbench/services/layout/browser/layoutConstants";
 
 declare global {
   interface Window {
@@ -45,10 +47,13 @@ declare global {
 type BootLogger = (stage: string, extra?: string) => void;
 
 const DEFAULT_THEME: ThemeMode = "system";
-const DEFAULT_SIDEBAR_WIDTH = 280;
-const MIN_SIDEBAR_WIDTH = 200;
-const MAX_SIDEBAR_WIDTH = 600;
-const SIDEBAR_STORAGE_KEY = "sidebar-width";
+const DEFAULT_SIDEBAR_WIDTH = 300;
+const MIN_SIDEBAR_WIDTH = 170;
+const MAX_SIDEBAR_WIDTH = Number.POSITIVE_INFINITY;
+const SIDEBAR_STORAGE_KEY = getStorageKey(
+  WorkbenchLayoutStorageKeys.sidebarWidth,
+  StorageScope.PROFILE,
+);
 
 const getBootNowMs = () =>
   typeof performance !== "undefined" && typeof performance.now === "function"

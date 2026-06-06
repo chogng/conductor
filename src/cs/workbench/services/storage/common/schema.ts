@@ -4,6 +4,7 @@
   plotCommand: string;
   postPlotCommands: string[];
   lineWidth: number;
+  legendFontSize: string | number;
 };
 
 type JsonRecord = Record<string, unknown>;
@@ -64,6 +65,7 @@ type AnalysisSettings = JsonRecord & {
   originPlotCommandDefault: string;
   originPlotPostCommandsDefault: string[];
   originPlotLineWidthDefault: number;
+  originPlotLegendFontSizeDefault: string | number;
   originRuntimeCleanupEnabled: boolean;
   originRuntimeKeepSuccessJobs: number;
   originRuntimeFailedRetentionDays: number;
@@ -94,6 +96,7 @@ const DEFAULT_ORIGIN_PLOT_OPTIONS = Object.freeze<OriginPlotOptions>({
   plotCommand: "",
   postPlotCommands: [],
   lineWidth: 2,
+  legendFontSize: "",
 });
 
 function normalizeNonEmptyString(value: unknown, fallback = ""): string {
@@ -178,6 +181,13 @@ function normalizeOriginPlotOptions(rawOptions: unknown, fallbackOptions: Origin
     0.5,
     20,
   );
+  const legendFontSize = normalizeOptionalRoundedBoundedInt(
+    (raw as { legendFontSize?: unknown; legend_font_size?: unknown }).legendFontSize ??
+      (raw as { legend_font_size?: unknown }).legend_font_size,
+    fallback.legendFontSize,
+    1,
+    96,
+  );
 
   return {
     plotType,
@@ -185,6 +195,7 @@ function normalizeOriginPlotOptions(rawOptions: unknown, fallbackOptions: Origin
     plotCommand,
     postPlotCommands,
     lineWidth,
+    legendFontSize,
   };
 }
 
@@ -196,8 +207,7 @@ function normalizeOriginExePath(inputPath: unknown): string | null {
 export const TEMPLATE_FILENAME = "template.json";
 export const SETTINGS_FILENAME = "config.json";
 export const STORE_CONFIG_FILENAME = "store-path.json";
-export const LEGACY_SETTINGS_FILENAME_SUFFIX = ".settings.json";
-const SS_METHODS = new Set(["auto", "manual", "idWindow", "legacy"]);
+const SS_METHODS = new Set(["auto", "manual"]);
 const ORIGIN_EXPORT_MODES = new Set([
   "merged",
   "workbookBooks",
@@ -261,6 +271,7 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
   originPlotCommandDefault: "",
   originPlotPostCommandsDefault: [],
   originPlotLineWidthDefault: 2,
+  originPlotLegendFontSizeDefault: "",
   originRuntimeCleanupEnabled: true,
   originRuntimeKeepSuccessJobs: 1,
   originRuntimeFailedRetentionDays: 7,
@@ -351,18 +362,6 @@ function normalizeOptionalRoundedBoundedInt(
   return normalizeRoundedBoundedInt(text, fallback, min, max);
 }
 
-function isLegacyAutoFontDefaults(raw: unknown): boolean {
-  if (!isRecord(raw)) return false;
-  const tick = Number(raw.tickLabelFontSize);
-  const title = Number(raw.axisTitleFontSize);
-  const legendText =
-    raw.legendFontSize === null || raw.legendFontSize === undefined
-      ? ""
-      : String(raw.legendFontSize).trim();
-  if (legendText) return false;
-  return (tick === 8 && title === 8) || (tick === 12 && title === 18);
-}
-
 function normalizeFiniteNumberText(value: unknown): string {
   if (value === null || value === undefined) return "";
   const text = String(value).trim();
@@ -382,7 +381,6 @@ function normalizePlotAxisSettings(
   fallback: AnalysisPlotAxisSettings = DEFAULT_SETTINGS.analysisPlotAxisSettings,
 ): AnalysisPlotAxisSettings {
   const raw = isRecord(value) ? value : {};
-  const legacyAutoFontDefaults = isLegacyAutoFontDefaults(raw);
   const yScale = raw.yScale === "log" || raw.yScale === "logAbs" ? raw.yScale : fallback.yScale;
   const xTicks = raw.xTicks === "nice" || raw.xTicks === "step" ? raw.xTicks : "auto";
   const yTicks =
@@ -421,13 +419,13 @@ function normalizePlotAxisSettings(
       20,
     ),
     tickLabelFontSize: normalizeOptionalRoundedBoundedInt(
-      legacyAutoFontDefaults ? "" : raw.tickLabelFontSize,
+      raw.tickLabelFontSize,
       fallback.tickLabelFontSize,
       1,
       96,
     ),
     axisTitleFontSize: normalizeOptionalRoundedBoundedInt(
-      legacyAutoFontDefaults ? "" : raw.axisTitleFontSize,
+      raw.axisTitleFontSize,
       fallback.axisTitleFontSize,
       1,
       96,
@@ -549,23 +547,10 @@ export function normalizeStoreData(raw: unknown): AnalysisStoreData {
 
 export function normalizeAnalysisSettings(raw: unknown): AnalysisSettings {
   const next = isRecord(raw) ? { ...raw } : {};
-  const {
-    gmDiagnosticsEnabled: _legacyGmDiagnosticsEnabled,
-    gmInspectorEnabled: _legacyGmInspectorEnabled,
-    ssDiagnosticsEnabled: _legacySsDiagnosticsEnabled,
-    ssInspectorEnabled: _legacySsInspectorEnabled,
-    vthDiagnosticsEnabled: _legacyVthDiagnosticsEnabled,
-    vthInspectorEnabled: _legacyVthInspectorEnabled,
-    yUnit: _legacyGlobalYUnit,
-    yScale: _legacyGlobalYScale,
-    ...nextWithoutLegacyAxes
-  } = next;
 
   const ssMethodDefault = isSetValue(SS_METHODS, next.ssMethodDefault)
     ? next.ssMethodDefault
-    : isSetValue(SS_METHODS, next.ssMethod)
-      ? next.ssMethod
-      : DEFAULT_SETTINGS.ssMethodDefault;
+    : DEFAULT_SETTINGS.ssMethodDefault;
 
   const yUnitByFileId = normalizeYUnitByFileIdMap(next.yUnitByFileId);
   const yScaleByFileId = normalizeYScaleByFileIdMap(next.yScaleByFileId);
@@ -608,11 +593,11 @@ export function normalizeAnalysisSettings(raw: unknown): AnalysisSettings {
   );
 
   const ssIdLow = normalizePositiveNumber(
-    next.ssIdLow ?? next.ssIdWindowLow,
+    next.ssIdLow,
     DEFAULT_SETTINGS.ssIdLow,
   );
   const ssIdHigh = normalizePositiveNumber(
-    next.ssIdHigh ?? next.ssIdWindowHigh,
+    next.ssIdHigh,
     DEFAULT_SETTINGS.ssIdHigh,
   );
   const originExePath = normalizeOriginExePath(next.originExePath);
@@ -621,14 +606,13 @@ export function normalizeAnalysisSettings(raw: unknown): AnalysisSettings {
     next.originExportModeDefault,
   )
     ? next.originExportModeDefault
-    : isSetValue(ORIGIN_EXPORT_MODES, next.originExportMode)
-      ? next.originExportMode
-      : DEFAULT_SETTINGS.originExportModeDefault;
+    : DEFAULT_SETTINGS.originExportModeDefault;
   const originPlotDefaults = normalizeOriginPlotOptions({
     plotCommand: DEFAULT_SETTINGS.originPlotCommandDefault,
     plotType: DEFAULT_SETTINGS.originPlotTypeDefault,
     postPlotCommands: DEFAULT_SETTINGS.originPlotPostCommandsDefault,
     lineWidth: DEFAULT_SETTINGS.originPlotLineWidthDefault,
+    legendFontSize: DEFAULT_SETTINGS.originPlotLegendFontSizeDefault,
     xyPairs: DEFAULT_SETTINGS.originPlotXyPairsDefault,
   });
   const originPlotSettings = normalizeOriginPlotOptions(
@@ -637,6 +621,7 @@ export function normalizeAnalysisSettings(raw: unknown): AnalysisSettings {
       plotType: next.originPlotTypeDefault,
       postPlotCommands: next.originPlotPostCommandsDefault,
       lineWidth: next.originPlotLineWidthDefault,
+      legendFontSize: next.originPlotLegendFontSizeDefault,
       xyPairs: next.originPlotXyPairsDefault,
     },
     originPlotDefaults,
@@ -663,7 +648,7 @@ export function normalizeAnalysisSettings(raw: unknown): AnalysisSettings {
 
   return {
     ...DEFAULT_SETTINGS,
-    ...nextWithoutLegacyAxes,
+    ...next,
     defaultTemplate: next.defaultTemplate ?? null,
     lastTemplateId: next.lastTemplateId ?? null,
     onboardingCompleted,
@@ -687,6 +672,7 @@ export function normalizeAnalysisSettings(raw: unknown): AnalysisSettings {
     originPlotCommandDefault: originPlotSettings.plotCommand,
     originPlotPostCommandsDefault: originPlotSettings.postPlotCommands,
     originPlotLineWidthDefault: originPlotSettings.lineWidth,
+    originPlotLegendFontSizeDefault: originPlotSettings.legendFontSize,
     originRuntimeCleanupEnabled,
     originRuntimeKeepSuccessJobs,
     originRuntimeFailedRetentionDays,

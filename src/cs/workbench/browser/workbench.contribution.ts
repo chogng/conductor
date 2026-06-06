@@ -42,9 +42,14 @@ import {
   type IContextKeyService as IContextKeyServiceType,
 } from "src/cs/platform/contextkey/common/contextkey";
 import {
+  CommandsRegistry,
   ICommandService,
   type ICommandService as ICommandServiceType,
 } from "src/cs/platform/commands/common/commands";
+import {
+  IStorageService,
+  type IStorageService as IStorageServiceType,
+} from "src/cs/platform/storage/common/storage";
 import {
   IInstantiationService,
   type IInstantiationService as IInstantiationServiceType,
@@ -75,6 +80,7 @@ import {
   ISeriesLabelService,
   type ISeriesLabelService as ISeriesLabelServiceType,
 } from "src/cs/workbench/services/seriesLabels/common/seriesLabels";
+import { ResetLayoutStateCommandId } from "src/cs/workbench/services/layout/browser/layoutConstants";
 
 export const WorkbenchContributionId = "workbench.browser.workbench";
 
@@ -123,6 +129,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @ITemplateApplyService templateApplyService: ITemplateApplyServiceType,
     @ITemplateService templateService: ITemplateServiceType,
     @ISeriesLabelService seriesLabelService: ISeriesLabelServiceType,
+    @IStorageService storageService: IStorageServiceType,
     @IInstantiationService instantiationService: IInstantiationServiceType,
   ) {
     super();
@@ -145,9 +152,17 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       layoutService,
       viewsService,
       seriesLabelService,
+      storageService,
       tableService,
       templateApplyService,
       templateService,
+    }));
+    this._register(CommandsRegistry.registerCommand({
+      id: ResetLayoutStateCommandId,
+      handler: () => this.workbench.resetLayoutState(),
+      metadata: {
+        description: localize("workbench.commands.resetLayoutState", "Reset workbench layout state"),
+      },
     }));
     this._register(
       scheduleAtNextAnimationFrame(window, () => {

@@ -2510,15 +2510,6 @@ function runWindowCommand(win, command) {
   }
 }
 
-function normalizeLegacyWindowCommand(command) {
-  if (command === "toggle-devtools") return nativeWindowCommands.toggleDevTools;
-  if (command === "reload-window") return nativeWindowCommands.reloadWindow;
-  if (command === "minimize-window") return nativeWindowCommands.minimizeWindow;
-  if (command === "toggle-maximize-window") return nativeWindowCommands.toggleWindowMaximized;
-  if (command === "close-window") return nativeWindowCommands.closeWindow;
-  return command;
-}
-
 function handleNativeWindowCommand(event, payload) {
   const command =
     payload && typeof payload.command === "string" ? payload.command : "";
@@ -2531,12 +2522,6 @@ function handleDesktopCommand(event, payload) {
   const command =
     payload && typeof payload.command === "string" ? payload.command : "";
   if (!command) return;
-
-  const normalizedWindowCommand = normalizeLegacyWindowCommand(command);
-  if (normalizedWindowCommand !== command) {
-    runWindowCommand(BrowserWindow.fromWebContents(event.sender), normalizedWindowCommand);
-    return;
-  }
 
   if (command === "check-for-updates") {
     void updateService?.checkForUpdates({ manual: true });

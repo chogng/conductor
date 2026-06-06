@@ -43,6 +43,7 @@ export type SettingsControllerOptions = {
   analysisSettings: AnalysisSettings | null;
   analysisSettingsLoaded: boolean;
   handleLanguageChange: (language: LanguagePreference) => Promise<void> | void;
+  handleResetLayoutState: () => Promise<void> | void;
   handleThemeChange: (theme: ThemeMode) => Promise<void> | void;
   handleUpdateAnalysisSettings: (
     updates: unknown,
@@ -282,6 +283,7 @@ export class SettingsController {
       language: this.options.language,
       legendFontSizeDraft: this.drafts.legendFontSizeDraft,
       onLanguageChange: this.options.handleLanguageChange,
+      onResetLayoutState: this.options.handleResetLayoutState,
       onThemeChange: this.options.handleThemeChange,
       originHealthToast: this.drafts.originHealthToast,
       originSettings: this.originSettings,

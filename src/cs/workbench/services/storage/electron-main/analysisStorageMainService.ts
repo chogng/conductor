@@ -5,15 +5,8 @@ import type {
 } from "../common/storage.js";
 import { createConfigurableJsonStorage } from "../../../../platform/storage/electron-main/configurableJsonStorage.js";
 import { createJsonStorageDocument } from "../../../../platform/storage/electron-main/jsonStorageDocument.js";
-import {
-  jsonFileExists,
-  readJsonFile,
-  removeJsonFileIfExists,
-  writeJsonFile,
-} from "../../../../platform/storage/electron-main/jsonFileStorage.js";
 
 import {
-  LEGACY_SETTINGS_FILENAME_SUFFIX,
   SETTINGS_FILENAME,
   STORE_CONFIG_FILENAME,
   TEMPLATE_FILENAME,
@@ -82,77 +75,19 @@ export function createAnalysisStorageMainService(
     return storage.getRelatedPath(TEMPLATE_FILENAME);
   }
 
-  function getLegacySettingsPath() {
-    return storage.getRelatedPathWithPrimaryNameSuffix(
-      LEGACY_SETTINGS_FILENAME_SUFFIX,
-    );
-  }
-
-  function extractLegacySettings(raw) {
-    if (!raw || typeof raw !== "object") return null;
-
-    const next = { ...raw };
-    delete next.templates;
-    return next;
-  }
-
-  function ensureCurrentPersistenceLayout() {
-    const settingsPath = getStorePath();
-    const templatePath = getTemplatePath();
-    const legacySettingsPath = getLegacySettingsPath();
-    const currentSettingsRaw = readJsonFile<Record<string, unknown>>(settingsPath);
-    const legacySettingsRaw = readJsonFile<Record<string, unknown>>(legacySettingsPath);
-    const currentSettingsHasTemplates = Array.isArray(currentSettingsRaw?.templates);
-    const templateExists = jsonFileExists(templatePath);
-
-    if (!templateExists && currentSettingsHasTemplates) {
-      writeJsonFile(
-        templatePath,
-        normalizeStoreData({ templates: currentSettingsRaw.templates }),
-      );
-      clearStoreCache();
-    }
-
-    if (legacySettingsRaw) {
-      writeJsonFile(settingsPath, normalizeAnalysisSettings(legacySettingsRaw));
-      removeJsonFileIfExists(legacySettingsPath);
-      clearSettingsCache();
-    } else if (currentSettingsHasTemplates) {
-      writeJsonFile(
-        settingsPath,
-        normalizeAnalysisSettings(extractLegacySettings(currentSettingsRaw)),
-      );
-      clearSettingsCache();
-    } else if (currentSettingsRaw && typeof currentSettingsRaw === "object") {
-      const normalizedCurrentSettings = normalizeAnalysisSettings(
-        currentSettingsRaw,
-      );
-      const rawSerialized = JSON.stringify(currentSettingsRaw);
-      const normalizedSerialized = JSON.stringify(normalizedCurrentSettings);
-      if (rawSerialized !== normalizedSerialized) {
-        writeJsonFile(settingsPath, normalizedCurrentSettings);
-        clearSettingsCache();
-      }
-    }
-  }
-
   function readStore() {
-    ensureCurrentPersistenceLayout();
     return templateDocument.readOrCreateDefault();
   }
 
   function writeStore(nextStore) {
-    ensureCurrentPersistenceLayout();
     return templateDocument.write(nextStore);
   }
 
   function tryReadSettingsFile() {
-    ensureCurrentPersistenceLayout();
     return settingsDocument.tryRead();
   }
 
   function writeSettings(nextSettings) {
-    ensureCurrentPersistenceLayout();
     return settingsDocument.write(nextSettings);
   }
 
@@ -223,8 +158,6 @@ export function createAnalysisStorageMainService(
   }
 
   function setPersistencePath(nextPath) {
-    ensureCurrentPersistenceLayout();
-
     const info = storage.setCustomPath(
       typeof nextPath === "string" ? nextPath : null,
       [{ fileName: TEMPLATE_FILENAME, label: "template" }],

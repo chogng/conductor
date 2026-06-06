@@ -30,6 +30,7 @@ import {
   WorkbenchAuxiliaryBarPaneId,
   type AuxiliaryBarPaneContainerInput,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
+import type { IStorageService } from "src/cs/platform/storage/common/storage";
 
 export {
   SIDEBAR_DEFAULT_WIDTH_PX,
@@ -126,11 +127,11 @@ const hasSidebar = (activeView: LayoutView): boolean =>
 
 export class Layout extends Disposable {
   private readonly navigation = this._register(new WorkbenchLayoutNavigation());
-  private readonly sidebarPart = this._register(new WorkbenchSidebarPart());
+  private readonly sidebarPart: WorkbenchSidebarPart;
   private readonly auxiliaryBarPart = this._register(new WorkbenchAuxiliaryBarPart());
   private readonly splitView = this._register(new MutableDisposable<SplitView>());
   private readonly main = document.createElement("div");
-  private readonly sidebar = this.sidebarPart.element;
+  private readonly sidebar: HTMLElement;
   private readonly auxiliaryBar = this.auxiliaryBarPart.element;
   private readonly overlay = document.createElement("div");
   private readonly controller = document.createElement("div");
@@ -143,9 +144,12 @@ export class Layout extends Disposable {
   constructor(
     parent?: HTMLElement,
     private readonly workbenchLayoutService?: IWorkbenchLayoutService,
+    storageService?: IStorageService,
   ) {
     super();
 
+    this.sidebarPart = this._register(new WorkbenchSidebarPart(storageService));
+    this.sidebar = this.sidebarPart.element;
     this.element.className = "workbench_layout";
     this.main.className = "workbench_layout_main";
     this.overlay.className = "workbench_layout_overlay";
@@ -214,6 +218,12 @@ export class Layout extends Disposable {
     }
 
     this.parts = parts;
+    this.render();
+  }
+
+  public resetLayoutState(): void {
+    this.workbenchLayoutService?.resetLayoutState();
+    this.sidebarPart.resetWidth();
     this.render();
   }
 

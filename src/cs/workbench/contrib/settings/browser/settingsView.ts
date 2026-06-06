@@ -215,6 +215,21 @@ export class SettingsView {
       })),
     );
 
+    const layoutCard = card("analysis-settings-layout-card", "settings-card-block");
+    layoutCard.append(
+      headingBlock(
+        displayText(localize("settings_layout_title", "Layout"), "Layout"),
+        displayText(localize("settings_layout_desc", "Reset sidebar width and hidden workbench parts."), "Reset sidebar width and hidden workbench parts."),
+      ),
+      div("settings-actions-end", this.createButton({
+        id: "analysis-settings-layout-reset-btn",
+        label: displayText(localize("settings_layout_reset_btn", "Reset Layout"), "Reset Layout"),
+        onClick: () => void this.options.onResetLayoutState(),
+        variant: "secondary",
+      })),
+    );
+    container.append(layoutCard);
+
     const backgroundCard = card("analysis-settings-background-card", "settings-card-block");
     const colorInput = document.createElement("input");
     colorInput.id = "analysis-settings-background-color-input";

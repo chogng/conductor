@@ -8,5 +8,6 @@ import "src/cs/platform/contextkey/browser/contextKeyService";
 import "src/cs/platform/contextview/browser/contextMenuService";
 import "src/cs/platform/contextview/browser/contextViewService";
 import "src/cs/platform/hover/browser/hoverService";
+import "src/cs/platform/storage/browser/storageService";
 
 //#endregion

@@ -112,6 +112,7 @@ export type SettingsViewProps = {
   fileNameMatchingSettings: FileNameMatchingSettings;
   language: LanguagePreference;
   onLanguageChange: (language: LanguagePreference) => Promise<void> | void;
+  onResetLayoutState: () => Promise<void> | void;
   theme: ThemeMode;
   onThemeChange: (theme: ThemeMode) => Promise<void> | void;
   originSettings: OriginSettings;

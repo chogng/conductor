@@ -11,6 +11,7 @@ import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs"
 import type { IFileService } from "src/cs/platform/files/common/files";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
+import type { IStorageService } from "src/cs/platform/storage/common/storage";
 import type {
   IContextKey,
   IContextKeyService,
@@ -124,6 +125,7 @@ import {
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { NotificationToasts } from "src/cs/workbench/browser/parts/notifications/notificationsToasts";
 import { registerNotificationCommands } from "src/cs/workbench/browser/parts/notifications/notificationsCommands";
+import { ResetLayoutStateCommandId } from "src/cs/workbench/services/layout/browser/layoutConstants";
 
 export type WorkbenchTitlebarState = {
   readonly enabled?: boolean;
@@ -162,6 +164,7 @@ export type WorkbenchOptions = {
   readonly filesService?: IFileService;
   readonly pathService?: IPathService;
   readonly seriesLabelService?: ISeriesLabelServiceType;
+  readonly storageService?: IStorageService;
   readonly layoutService?: IWorkbenchLayoutService;
   readonly viewsService?: IViewsService;
   readonly id?: string;
@@ -284,7 +287,7 @@ export class Workbench extends Layout {
   }
 
   constructor(parent: HTMLElement, options: WorkbenchOptions = {}) {
-    super(undefined, options.layoutService);
+    super(undefined, options.layoutService, options.storageService);
 
     this.window = this._register(new WorkbenchWindow(parent, {
       ...options,
@@ -320,6 +323,9 @@ export class Workbench extends Layout {
     }
     if (!options.seriesLabelService) {
       throw new Error("Workbench requires ISeriesLabelService.");
+    }
+    if (!options.storageService) {
+      throw new Error("Workbench requires IStorageService.");
     }
     if (!options.layoutService) {
       throw new Error("Workbench requires IWorkbenchLayoutService.");
@@ -395,6 +401,11 @@ export class Workbench extends Layout {
       ...options,
       titlebarState: createTitlebarState(options.titlebarState),
     });
+  }
+
+  public override resetLayoutState(): void {
+    super.resetLayoutState();
+    this.renderWorkbench();
   }
 
   private renderWorkbench(): void {
@@ -1087,6 +1098,9 @@ export class Workbench extends Layout {
       analysisSettings: state.analysisSettings,
       analysisSettingsLoaded: state.analysisSettingsLoaded,
       handleLanguageChange: state.handleLanguageChange,
+      handleResetLayoutState: async () => {
+        await this.commandService.executeCommand(ResetLayoutStateCommandId);
+      },
       handleThemeChange: state.handleThemeChange,
       handleUpdateAnalysisSettings: state.handleUpdateAnalysisSettings,
       isWindowsDesktopShell: windowState.isWindowsDesktopShell,

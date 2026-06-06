@@ -18,6 +18,7 @@ export type SettingsViewPaneProps = {
   analysisSettings: AnalysisSettings | null;
   analysisSettingsLoaded: boolean;
   handleLanguageChange: (language: LanguagePreference) => Promise<void> | void;
+  handleResetLayoutState: () => Promise<void> | void;
   handleThemeChange: (theme: ThemeMode) => Promise<void> | void;
   handleUpdateAnalysisSettings: (
     updates: unknown,
@@ -61,6 +62,7 @@ const toControllerOptions = ({
   analysisSettings,
   analysisSettingsLoaded,
   handleLanguageChange,
+  handleResetLayoutState,
   handleThemeChange,
   handleUpdateAnalysisSettings,
   isWindowsDesktopShell,
@@ -72,6 +74,7 @@ const toControllerOptions = ({
   analysisSettings,
   analysisSettingsLoaded,
   handleLanguageChange,
+  handleResetLayoutState,
   handleThemeChange,
   handleUpdateAnalysisSettings,
   isWindowsDesktopShell,
