@@ -46,51 +46,33 @@
 }
 
 .origin_export_toolbar_header {
-
     display: flex;
-
     flex-direction: column;
-
     align-items: stretch;
-
-    gap: 0.75rem
+    gap: 12px
 }
 
 .origin_export_toolbar_controls {
-
     display: flex;
-
     min-width: 0;
-
     flex-direction: column;
-
     align-items: stretch;
-
-    gap: 0.5rem
+    gap: 8px
 }
 
 .origin_export_toolbar_actions {
-
-    display: flex;
-
-    flex-wrap: wrap;
-
-    align-items: center;
-
-    gap: 0.5rem
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+    gap: 8px
 }
 
 .origin_export_toolbar_field {
-
     display: grid;
-
     min-width: 0;
-
-    grid-template-columns: 4.25rem minmax(0, 1fr);
-
+    grid-template-columns: minmax(min(104px, 38%), 34%) minmax(0, 1fr);
     align-items: center;
-
-    gap: 0.5rem
+    gap: 8px
 }
 
 .origin_export_toolbar_label {
@@ -128,13 +110,9 @@
 }
 
 .origin_export_toolbar_button_row {
-
     display: grid;
-
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-
-    gap: 0.375rem;
-
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 6px;
     overflow: visible
 }
 
@@ -157,14 +135,21 @@
 }
 
 .origin_export_toolbar_chip_group {
-
     display: flex;
-
+    min-width: 0;
     flex-wrap: wrap;
-
     align-items: center;
+    gap: 4px
+}
 
-    gap: 0.25rem
+.origin_export_toolbar_action_button {
+    min-width: 0
+}
+
+.origin_export_toolbar_action_button_content {
+    justify-content: center;
+    white-space: normal;
+    text-align: center
 }
 
 .origin_export_toolbar_toggle {

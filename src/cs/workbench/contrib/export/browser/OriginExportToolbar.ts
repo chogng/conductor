@@ -296,17 +296,23 @@ const createCurveSelector = ({
 };
 
 const createToolbarButton = ({
+  className,
+  contentClassName,
   id,
   label,
   onClick,
   variant,
 }: {
+  className?: string;
+  contentClassName?: string;
   id?: string;
   label: string;
   onClick: () => void;
   variant: "primary" | "secondary";
 }): HTMLButtonElement => {
   const button = createButton({
+    className,
+    contentClassName,
     id,
     label,
     size: "sm",
@@ -432,12 +438,16 @@ const createOriginExportToolbar = ({
   const actions = document.createElement("div");
   actions.className = "origin_export_toolbar_actions";
   actions.appendChild(createToolbarButton({
+    className: "origin_export_toolbar_action_button",
+    contentClassName: "origin_export_toolbar_action_button_content",
     id: "analysis-origin-open-btn",
     label: localize("open_in_origin", "Open in Origin"),
     onClick: () => void onOpenInOrigin(),
     variant: "primary",
   }));
   actions.appendChild(createToolbarButton({
+    className: "origin_export_toolbar_action_button",
+    contentClassName: "origin_export_toolbar_action_button_content",
     label: localize("export_origin_zip", "Export ZIP package"),
     onClick: () => void onExportOriginZip(),
     variant: "secondary",
