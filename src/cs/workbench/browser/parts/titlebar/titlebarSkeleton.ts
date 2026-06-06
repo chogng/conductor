@@ -34,7 +34,7 @@ const createSkeletonIcon = (className = ""): HTMLElement =>
       "div",
       `titlebar-icon-button pointer-events-none ${className}`.trim(),
     ),
-    [createElement("div", "workbench_titlebar_skeleton_icon_dot")],
+    [createElement("div", "titlebar-skeleton-icon-dot")],
   );
 
 const createSkeletonWindowControl = (className = ""): HTMLElement =>
@@ -43,7 +43,7 @@ const createSkeletonWindowControl = (className = ""): HTMLElement =>
       "div",
       `titlebar-window-button pointer-events-none ${className}`.trim(),
     ),
-    [createElement("div", "workbench_titlebar_skeleton_control_dot")],
+    [createElement("div", "titlebar-skeleton-control-dot")],
   );
 
 export const createWorkbenchTitlebarSkeletonElement = ({
@@ -66,7 +66,7 @@ export const createWorkbenchTitlebarSkeletonElement = ({
     appendChildren(createElement("div", "titlebar-center"), [
       createElement(
         "div",
-        "workbench_titlebar_skeleton_file_select",
+        "titlebar-skeleton-file-select",
       ),
     ]),
     appendChildren(createElement("div", "titlebar-controls"), [

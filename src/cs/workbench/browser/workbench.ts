@@ -17,7 +17,10 @@ import type {
 } from "src/cs/platform/contextkey/common/contextkey";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
-import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
+import {
+  Parts,
+  type IWorkbenchLayoutService,
+} from "src/cs/workbench/services/layout/browser/layoutService";
 import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import {
   isLanguageCode,
@@ -35,7 +38,7 @@ import {
 } from "src/cs/workbench/common/contextkeys";
 import { Layout, type LayoutView } from "src/cs/workbench/browser/layout";
 import {
-  WORKBENCH_TITLEBAR_COMMAND_BAR_ID,
+  WORKBENCH_TITLEBAR_ID,
   type WorkbenchTitlebarProps,
 } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import {
@@ -125,6 +128,7 @@ export type WorkbenchTitlebarState = {
   readonly analysisFileOptions?: WorkbenchTitlebarProps["analysisFileOptions"];
   readonly canNavigateBack?: boolean;
   readonly canNavigateForward?: boolean;
+  readonly isSidebarVisible?: boolean;
   readonly onAnalysisFileChange?: (fileId: string) => void;
   readonly onAnalysisIntent?: () => void;
   readonly onCloseWindow?: () => void;
@@ -132,6 +136,7 @@ export type WorkbenchTitlebarState = {
   readonly onNavigateBack?: () => void;
   readonly onNavigateForward?: () => void;
   readonly onPageChange?: (page: LayoutView) => void;
+  readonly onToggleSidebar?: () => void;
   readonly onToggleMaximizeWindow?: () => void;
   readonly showAnalysisFileSelector?: boolean;
   readonly updateVersion?: string | null;
@@ -169,12 +174,13 @@ export const createTitlebarState = (
 ): WorkbenchTitlebarProps | undefined =>
   state && state.enabled !== false
     ? {
-        id: WORKBENCH_TITLEBAR_COMMAND_BAR_ID,
+        id: WORKBENCH_TITLEBAR_ID,
         activePage: state.activePage,
         analysisActiveFileId: state.analysisActiveFileId,
         analysisFileOptions: state.analysisFileOptions,
         canNavigateBack: state.canNavigateBack,
         canNavigateForward: state.canNavigateForward,
+        isSidebarVisible: state.isSidebarVisible,
         onAnalysisFileChange: state.onAnalysisFileChange,
         onAnalysisIntent: state.onAnalysisIntent,
         onCloseWindow: state.onCloseWindow,
@@ -182,6 +188,7 @@ export const createTitlebarState = (
         onNavigateBack: state.onNavigateBack,
         onNavigateForward: state.onNavigateForward,
         onPageChange: state.onPageChange,
+        onToggleSidebar: state.onToggleSidebar,
         onToggleMaximizeWindow: state.onToggleMaximizeWindow,
         showAnalysisFileSelector: state.showAnalysisFileSelector,
         updateAction: {
@@ -241,6 +248,7 @@ export class Workbench extends Layout {
   private readonly analysisFileService: IAnalysisFileService;
   private readonly filesService: IFileService;
   private readonly contextMenuService: IContextMenuService;
+  private readonly layoutService: IWorkbenchLayoutService;
   private readonly pathService: IPathService;
   private readonly viewsService: IViewsService;
   private readonly tableService: ITableService;
@@ -304,6 +312,9 @@ export class Workbench extends Layout {
     if (!options.pathService) {
       throw new Error("Workbench requires IPathService.");
     }
+    if (!options.layoutService) {
+      throw new Error("Workbench requires IWorkbenchLayoutService.");
+    }
     if (!options.viewsService) {
       throw new Error("Workbench requires IViewsService.");
     }
@@ -318,6 +329,7 @@ export class Workbench extends Layout {
     this.dialogsService = options.dialogsService;
     this.contextMenuService = options.contextMenuService;
     this.commandService = options.commandService;
+    this.layoutService = options.layoutService;
     this.activeWorkbenchViewContext = ActiveWorkbenchViewContext.bindTo(options.contextKeyService);
     this.activeWorkbenchMainPartContext = ActiveWorkbenchMainPartContext.bindTo(options.contextKeyService);
     this.activeAuxiliaryBarViewContext = ActiveAuxiliaryBarViewContext.bindTo(options.contextKeyService);
@@ -476,11 +488,13 @@ export class Workbench extends Layout {
       canNavigateBack: state.layoutState.canNavigateBack,
       canNavigateForward: state.layoutState.canNavigateForward,
       enabled: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
+      isSidebarVisible: this.sidebarVisible,
       onCloseWindow: () => closeWindow(),
       onMinimizeWindow: () => minimizeWindow(),
       onNavigateBack: () => this.handleNavigateBack(),
       onNavigateForward: () => this.handleNavigateForward(),
       onPageChange: (page) => this.handlePageAction(page),
+      onToggleSidebar: () => this.handleToggleSidebar(),
       onToggleMaximizeWindow: () => toggleWindowMaximized(),
     };
   }
@@ -503,23 +517,27 @@ export class Workbench extends Layout {
     const isAnalysisActive = this.activeMainPart === "chart";
 
     if (isWorkbenchActive) {
-      void this.viewsService.openViewContainer(WorkbenchViewContainers.files);
+      if (this.sidebarVisible) {
+        void this.viewsService.openViewContainer(WorkbenchViewContainers.files);
+      } else {
+        this.viewsService.closeViewContainer(WorkbenchViewContainers.files);
+      }
       void this.viewsService.openViewContainer(WorkbenchViewContainers.main);
       void this.viewsService.openViewContainer(WorkbenchViewContainers.auxiliarybar);
       this.viewsService.closeViewContainer(WorkbenchViewContainers.settings);
     } else {
-      this.viewsService.closeViewContainer(WorkbenchViewContainers.files);
       this.viewsService.closeViewContainer(WorkbenchViewContainers.main);
       this.viewsService.closeViewContainer(WorkbenchViewContainers.auxiliarybar);
       void this.viewsService.openViewContainer(WorkbenchViewContainers.settings);
     }
 
-    this.viewsService.setViewVisible(this.filesPane.id, isWorkbenchActive);
+    this.viewsService.setViewVisible(this.filesPane.id, isWorkbenchActive && this.sidebarVisible);
     if (this.table.view) {
       this.viewsService.setViewVisible(this.table.view.id, isWorkbenchActive && !isAnalysisActive);
     }
     this.viewsService.setViewVisible(this.analysis.id, isWorkbenchActive && isAnalysisActive);
     this.viewsService.setViewVisible(this.settings.id, isSettingsActive);
+    this.updateSidebar(isWorkbenchActive && this.sidebarVisible);
     this.updateAuxiliaryBar(isWorkbenchActive);
   }
 
@@ -535,6 +553,19 @@ export class Workbench extends Layout {
     for (const view of AuxiliaryBarViews) {
       this.viewsService.closeView(view.viewId);
     }
+  }
+
+  private updateSidebar(visible: boolean): void {
+    const container = this.viewsService.getActiveViewPaneContainerWithId(WorkbenchViewContainers.files);
+    if (!container) {
+      return;
+    }
+
+    this.updateSidebarPaneContainer({
+      actions: visible ? this.filesPane.getActions() : [],
+      container,
+      title: visible ? localize("files.explorerSection", "Explorer") : "",
+    });
   }
 
   private updateAuxiliaryBar(visible: boolean): void {
@@ -733,6 +764,14 @@ export class Workbench extends Layout {
     }
 
     this.showMainPart(page === "analysis" ? "chart" : "table");
+  }
+
+  private handleToggleSidebar(): void {
+    this.layoutService.setPartHidden(
+      this.layoutService.isVisible(Parts.SIDEBAR_PART),
+      Parts.SIDEBAR_PART,
+    );
+    this.renderWorkbench();
   }
 
   private readonly handleAnalysisFileSelected = (fileId: string | null): void => {

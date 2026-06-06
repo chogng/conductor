@@ -8,6 +8,11 @@ import type {
   WorkbenchTitlebarWindowAction,
 } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 
+export const WorkbenchTitlebarNavActionIds = {
+  back: "workbench-titlebar-nav-back-button",
+  forward: "workbench-titlebar-nav-forward-button",
+} as const;
+
 export const normalizeWorkbenchTitlebarAnalysisFileOptions = (
   options: WorkbenchTitlebarAnalysisFileOption[] | undefined,
 ): WorkbenchTitlebarAnalysisFileOption[] =>
@@ -25,12 +30,12 @@ export const createWorkbenchTitlebarNavActions = (
   canNavigateForward: boolean,
 ): WorkbenchTitlebarNavAction[] => [
   {
-    id: "analysis-window-nav-back-btn",
+    id: WorkbenchTitlebarNavActionIds.back,
     title: localize("menu_page_back", "Back"),
     isDisabled: !canNavigateBack,
   },
   {
-    id: "analysis-window-nav-forward-btn",
+    id: WorkbenchTitlebarNavActionIds.forward,
     title: localize("menu_page_forward", "Forward"),
     isDisabled: !canNavigateForward,
   },

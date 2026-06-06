@@ -330,6 +330,8 @@
   "severityPrefix.error": "错误：{label}",
   "severityPrefix.info": "信息：{label}",
   "severityPrefix.warning": "警告：{label}",
+  "sidebar.hide": "隐藏侧边栏",
+  "sidebar.show": "显示侧边栏",
   "tab_data": "导入与提取",
   "table.ariaLabel": "表格",
   "table.header.actions": "表格操作",

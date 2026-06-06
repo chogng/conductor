@@ -366,6 +366,8 @@
   "severityPrefix.error": "Error: {label}",
   "severityPrefix.info": "Info: {label}",
   "severityPrefix.warning": "Warning: {label}",
+  "sidebar.hide": "Hide Side Bar",
+  "sidebar.show": "Show Side Bar",
   "tab_data": "Import & Extraction",
   "table.ariaLabel": "Table",
   "table.header.actions": "Table actions",

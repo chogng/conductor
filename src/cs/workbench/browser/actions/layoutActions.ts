@@ -9,9 +9,9 @@ export type VisitedLayoutViewsState = {
 };
 
 export const LayoutViewSwitchIds: Record<LayoutView, string> = {
-  data: "analysis-window-data-btn",
-  analysis: "analysis-window-analysis-btn",
-  settings: "analysis-window-settings-btn",
+  data: "workbench-titlebar-data-button",
+  analysis: "workbench-titlebar-analysis-button",
+  settings: "workbench-titlebar-settings-button",
 };
 
 export const INITIAL_VISITED_VIEWS_STATE: VisitedLayoutViewsState = {

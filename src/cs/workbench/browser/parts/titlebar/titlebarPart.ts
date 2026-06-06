@@ -7,6 +7,7 @@ import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LayoutViewSwitchIds } from "src/cs/workbench/browser/actions/layoutActions";
 import type { LayoutView } from "src/cs/workbench/browser/layout";
 import { localize } from "src/cs/nls";
+import { createWorkbenchSidebarToggleAction } from "src/cs/workbench/browser/parts/sidebar/sidebarActions";
 import {
   createWorkbenchTitlebarNavActions,
   createWorkbenchTitlebarPageActions,
@@ -14,6 +15,7 @@ import {
   getWorkbenchTitlebarUpdateLabel,
   getWorkbenchTitlebarUpdateTitle,
   normalizeWorkbenchTitlebarAnalysisFileOptions,
+  WorkbenchTitlebarNavActionIds,
 } from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 
 const WORKBENCH_TITLEBAR_APP_ICON_SVG =
@@ -24,9 +26,9 @@ export const WORKBENCH_TITLEBAR_DRAG_REGION_STYLE = {
   WebkitAppRegion: "drag",
 };
 
-export const WORKBENCH_TITLEBAR_COMMAND_BAR_ID = "analysis-desktop-command-bar";
+export const WORKBENCH_TITLEBAR_ID = "workbench-titlebar";
 
-const WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID = "analysis-window-update-btn";
+const WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID = "workbench-titlebar-update-button";
 
 export type WorkbenchTitlebarActivePage =
   | LayoutView
@@ -69,6 +71,7 @@ export type WorkbenchTitlebarProps = {
   canNavigateBack?: boolean;
   canNavigateForward?: boolean;
   id?: string;
+  isSidebarVisible?: boolean;
   onAnalysisFileChange?: (fileId: string) => void;
   onAnalysisIntent?: () => void;
   onCloseWindow?: () => void;
@@ -76,6 +79,7 @@ export type WorkbenchTitlebarProps = {
   onNavigateBack?: () => void;
   onNavigateForward?: () => void;
   onPageChange?: (page: LayoutView) => void;
+  onToggleSidebar?: () => void;
   onToggleMaximizeWindow?: () => void;
   showAnalysisFileSelector?: boolean;
   updateAction?: WorkbenchTitlebarUpdateAction;
@@ -242,7 +246,7 @@ const createFileSelector = ({
     className: "titlebar-file-select",
   });
   const select = createElement("select", {
-    id: "analysis-window-file-select",
+    id: "workbench-titlebar-file-select",
     className: "titlebar-file-select-native neutral-select",
     "aria-label": localize("titlebar.analysisFileAriaLabel", "Analysis file"),
   });
@@ -269,7 +273,8 @@ export const createWorkbenchTitlebarElement = (
     analysisFileOptions = [],
     canNavigateBack = false,
     canNavigateForward = false,
-    id = "workbench-titlebar",
+    id = WORKBENCH_TITLEBAR_ID,
+    isSidebarVisible = true,
     onAnalysisFileChange,
     onAnalysisIntent,
     onCloseWindow,
@@ -277,6 +282,7 @@ export const createWorkbenchTitlebarElement = (
     onNavigateBack,
     onNavigateForward,
     onPageChange,
+    onToggleSidebar,
     onToggleMaximizeWindow,
     showAnalysisFileSelector = false,
     updateAction,
@@ -311,9 +317,23 @@ export const createWorkbenchTitlebarElement = (
   const navControls = createElement("div", {
     className: "titlebar-controls titlebar-controls--nav",
   });
+  const sidebarAction = createWorkbenchSidebarToggleAction(isSidebarVisible);
+  const sidebarButton = createIconButton(
+    {
+      id: sidebarAction.id,
+      "aria-label": sidebarAction.title,
+      "aria-pressed": sidebarAction.isActive,
+      title: sidebarAction.title,
+      className: "titlebar-icon-button",
+    },
+    createLxIcon(sidebarAction.icon, 14, "opacity-80"),
+    onToggleSidebar,
+  );
+  setupTooltipHover(sidebarButton, sidebarAction.title, hoverStore);
+  navControls.appendChild(sidebarButton);
 
   for (const action of navActions) {
-    const isBack = action.id === "analysis-window-nav-back-btn";
+    const isBack = action.id === WorkbenchTitlebarNavActionIds.back;
 
     const button = createIconButton(
       {
@@ -403,7 +423,7 @@ export const createWorkbenchTitlebarElement = (
           : createSvgIcon(14, "M18 6 6 18|M6 6l12 12");
     const button = createIconButton(
       {
-        id: `analysis-window-${action.id}-btn`,
+        id: `workbench-titlebar-${action.id}-button`,
         "aria-label": action.title,
         title: action.title,
         className: `titlebar-window-button ${
@@ -437,7 +457,7 @@ export class WorkbenchTitlebarPart {
     }
 
     const contentArea = createElement("div", {
-      className: "workbench_titlebar_part",
+      className: "titlebar-part",
     });
     parent.replaceChildren(contentArea);
     this.contentArea = contentArea;
