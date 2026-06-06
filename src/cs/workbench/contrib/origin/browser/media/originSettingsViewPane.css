@@ -101,21 +101,19 @@
   display: none;
 }
 
-.export_settings_view_field {
+.export_settings_view_field,
+.export_settings_view_row {
   display: grid;
+  min-height: 30px;
   min-width: 0;
   grid-template-columns: minmax(min(104px, 38%), 34%) minmax(0, 1fr);
-  align-items: start;
+  align-items: center;
   column-gap: 12px;
   row-gap: 4px;
 }
 
-.export_settings_view_row {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: minmax(min(104px, 38%), 34%) minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
+.export_settings_view_field_with_hint {
+  align-items: start;
 }
 
 .export_settings_view_label {
@@ -125,7 +123,7 @@
   color: rgb(var(--text-secondary) / 1);
 }
 
-.export_settings_view_field > .export_settings_view_label {
+.export_settings_view_field_with_hint > .export_settings_view_label {
   padding-top: 7px;
 }
 

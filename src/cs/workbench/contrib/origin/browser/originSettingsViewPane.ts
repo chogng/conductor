@@ -365,7 +365,7 @@ const createSettingsField = ({
   readonly label: string;
 }): HTMLElement => {
   const field = document.createElement("div");
-  field.className = "export_settings_view_field";
+  field.className = hint ? "export_settings_view_field export_settings_view_field_with_hint" : "export_settings_view_field";
 
   const label = document.createElement("label");
   label.className = "export_settings_view_label";
