@@ -22,6 +22,7 @@ import {
 } from "../../platform/windows/electron-main/windowImpl.js";
 import { defaultBrowserWindowOptions } from "../../platform/windows/electron-main/windows.js";
 import { createStorageMainService } from "../../workbench/services/storage/electron-main/storageMainService.js";
+import { deleteLegacyUserStorageFiles } from "../../workbench/services/storage/electron-main/storageCleanup.js";
 import {
   assertOriginExePath,
   normalizeOriginExePath,
@@ -940,6 +941,26 @@ function getAnalysisHomeDir() {
   return path.join(app.getPath("home"), ".device");
 }
 
+function getConductorUserDataHomeDir() {
+  return path.join(app.getPath("userData"), "User");
+}
+
+let didCleanLegacyUserStorage = false;
+
+function ensureLegacyUserStorageCleaned() {
+  if (didCleanLegacyUserStorage) {
+    return;
+  }
+
+  didCleanLegacyUserStorage = true;
+  deleteLegacyUserStorageFiles(getAnalysisHomeDir());
+}
+
+function getConductorStoreHomeDir() {
+  ensureLegacyUserStorageCleaned();
+  return getConductorUserDataHomeDir();
+}
+
 function getAnalysisTempRootDir() {
   return path.join(app.getPath("temp"), "conductor");
 }
@@ -1242,7 +1263,7 @@ async function handleExcelReadConvertedCsv(_event, payload) {
 }
 
 const conductorStore = createStorageMainService({
-  getHomeDir: getAnalysisHomeDir,
+  getHomeDir: getConductorStoreHomeDir,
 });
 
 function configureRuntimeCachePath() {
@@ -1304,6 +1325,7 @@ function resolveNativeHostEnvironment(sender) {
     platform: process.platform,
     isPackaged: app.isPackaged,
     appVersion: app.getVersion(),
+    userDataPath: app.getPath("userData"),
   };
 }
 

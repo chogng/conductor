@@ -50,6 +50,11 @@ export class DiskFileSystemProviderChannel implements IServerChannel<string> {
           URI.revive(args[0]),
           (args[1] as IReadFileOptions | undefined) ?? {},
         ) as Promise<T>;
+      case "writeFile":
+        return this.provider.writeFile(
+          URI.revive(args[0]),
+          String(args[1] ?? ""),
+        ) as Promise<T>;
       case "realpath":
         return this.provider.realpath(URI.revive(args[0])) as Promise<T>;
       case "watch":

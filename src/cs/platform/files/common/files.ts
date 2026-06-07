@@ -61,6 +61,7 @@ export interface IFileService {
   exists(resource: URI): Promise<boolean>;
   readDir(resource: URI): Promise<readonly [string, FileType][]>;
   readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent>;
+  writeFile(resource: URI, content: string): Promise<void>;
   realpath(resource: URI): Promise<URI>;
   stat(resource: URI): Promise<IFileStat>;
   watch(resource: URI, options?: IWatchOptions): IDisposable;
@@ -72,6 +73,7 @@ export interface IFileSystemProvider {
   exists(resource: URI): Promise<boolean>;
   readDir(resource: URI): Promise<readonly [string, FileType][]>;
   readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent>;
+  writeFile(resource: URI, content: string): Promise<void>;
   realpath(resource: URI): Promise<URI>;
   stat(resource: URI): Promise<IFileStat>;
   watch(resource: URI, options?: IWatchOptions): IDisposable;

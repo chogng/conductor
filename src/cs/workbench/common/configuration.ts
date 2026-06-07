@@ -1,41 +1,12 @@
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { localize } from "src/cs/nls";
+import {
+  ConfigurationScope,
+  type IConfigurationNode,
+} from "src/cs/platform/configuration/common/configurationRegistry";
 import { Registry } from "src/cs/platform/registry/common/platform";
 
-export const enum ConfigurationScope {
-  APPLICATION = 1,
-  MACHINE,
-  APPLICATION_MACHINE,
-  WINDOW,
-  RESOURCE,
-  LANGUAGE_OVERRIDABLE,
-  MACHINE_OVERRIDABLE,
-}
-
-export interface IConfigurationPropertySchema {
-  readonly type?: string | readonly string[];
-  readonly default?: unknown;
-  readonly description?: string;
-  readonly markdownDescription?: string;
-  readonly enum?: readonly unknown[];
-  readonly enumDescriptions?: readonly string[];
-  readonly items?: IConfigurationPropertySchema;
-  readonly pattern?: string;
-  readonly patternErrorMessage?: string;
-  readonly scope?: ConfigurationScope;
-  readonly tags?: readonly string[];
-  readonly included?: boolean;
-  readonly restricted?: boolean;
-}
-
-export interface IConfigurationNode {
-  readonly id?: string;
-  readonly order?: number;
-  readonly title?: string;
-  readonly type?: string;
-  readonly scope?: ConfigurationScope;
-  readonly properties?: Record<string, IConfigurationPropertySchema>;
-}
+export { ConfigurationScope, type IConfigurationNode };
 
 export const applicationConfigurationNodeBase = Object.freeze<IConfigurationNode>({
   id: "application",

@@ -10,5 +10,6 @@ import "src/cs/platform/platform.browser.main";
 
 import "src/cs/platform/ipc/electron-browser/mainProcessService";
 import "src/cs/platform/native/electron-browser/nativeHostService";
+import "src/cs/platform/configuration/electron-browser/configurationService";
 
 //#endregion

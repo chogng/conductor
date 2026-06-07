@@ -55,4 +55,23 @@ suite("platform/files/test/node/diskFileSystemProvider", () => {
       fs.rmSync(root, { force: true, recursive: true });
     }
   });
+
+  test("DiskFileSystemProvider writes files and creates parent folders", async () => {
+    const root = createTempDir();
+    try {
+      const filePath = path.join(root, "User", "settings.json");
+      const provider = new DiskFileSystemProvider();
+      const changes: string[] = [];
+      provider.onDidFilesChange(events => {
+        changes.push(...events.map(event => `${event.resource.fsPath}:${event.type}`));
+      });
+
+      await provider.writeFile(URI.file(filePath), "{\n  \"editor.tabSize\": 2\n}\n");
+
+      assert.equal(fs.readFileSync(filePath, "utf8"), "{\n  \"editor.tabSize\": 2\n}\n");
+      assert.deepEqual(changes, [`${filePath}:1`]);
+    } finally {
+      fs.rmSync(root, { force: true, recursive: true });
+    }
+  });
 });

@@ -95,6 +95,19 @@ export class DiskFileSystemProvider {
     };
   }
 
+  public async writeFile(resource: URI, content: string): Promise<void> {
+    const target = this.toFilePath(resource);
+    const didExist = await this.exists(resource);
+
+    await fs.promises.mkdir(path.dirname(target), { recursive: true });
+    await fs.promises.writeFile(target, content, "utf8");
+
+    this.onDidFilesChangeEmitter.fire([{
+      resource,
+      type: didExist ? FileChangeType.UPDATED : FileChangeType.ADDED,
+    }]);
+  }
+
   public async realpath(resource: URI): Promise<URI> {
     const target = await fs.promises.realpath(this.toFilePath(resource));
     return URI.file(path.normalize(target));

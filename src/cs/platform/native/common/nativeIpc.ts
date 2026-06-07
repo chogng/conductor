@@ -24,4 +24,5 @@ export interface INativeHostEnvironment {
     readonly platform: string;
     readonly isPackaged: boolean;
     readonly appVersion: string | null;
+    readonly userDataPath: string | null;
 }

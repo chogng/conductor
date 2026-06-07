@@ -43,6 +43,10 @@ suite("platform/files/test/common/fileService", () => {
       };
     }
 
+    public async writeFile(resource: URI, _content: string): Promise<void> {
+      this.seenPaths.push(URI.revive(resource).path);
+    }
+
     public async realpath(resource: URI): Promise<URI> {
       this.seenPaths.push(URI.revive(resource).path);
       return resource;

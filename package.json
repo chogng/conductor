@@ -7,6 +7,7 @@
   "scripts": {
     "sync:nls": "node --experimental-strip-types build/lib/nls.ts",
     "verify:icons": "node scripts/verify-icons.mjs",
+    "verify:legacy-user-storage": "node scripts/verify-legacy-user-storage.mjs",
     "verify:nls": "node --experimental-strip-types build/lib/nls.ts",
     "generate:icons": "node scripts/run-powershell.mjs scripts/generate-icons.ps1",
     "verify:rs-worker-artifacts": "node scripts/verify-rs-worker-artifacts.mjs",

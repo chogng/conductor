@@ -56,6 +56,10 @@ export class FileService extends Disposable implements IFileService {
     return this.withProvider(resource).readFile(resource, options);
   }
 
+  public writeFile(resource: URI, content: string): Promise<void> {
+    return this.withProvider(resource).writeFile(resource, content);
+  }
+
   public realpath(resource: URI): Promise<URI> {
     return this.withProvider(resource).realpath(resource);
   }

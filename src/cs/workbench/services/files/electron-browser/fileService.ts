@@ -52,6 +52,10 @@ export class ElectronBrowserFileService extends Disposable implements IFileServi
     return this.channel.call("readFile", [resource, options ?? {}]);
   }
 
+  public writeFile(resource: URI, content: string): Promise<void> {
+    return this.channel.call("writeFile", [resource, content]);
+  }
+
   public realpath(resource: URI): Promise<URI> {
     return this.channel.call("realpath", [resource]);
   }

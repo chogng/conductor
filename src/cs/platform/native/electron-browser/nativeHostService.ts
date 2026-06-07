@@ -87,6 +87,7 @@ function normalizeNativeHostEnvironment(value: unknown): INativeHostEnvironment 
         platform: typeof record.platform === "string" ? record.platform : "",
         isPackaged: record.isPackaged === true,
         appVersion: typeof record.appVersion === "string" ? record.appVersion : null,
+        userDataPath: typeof record.userDataPath === "string" ? record.userDataPath : null,
     };
 }
 
