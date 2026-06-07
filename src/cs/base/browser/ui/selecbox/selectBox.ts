@@ -7,6 +7,8 @@ import { LxIcon } from "src/cs/base/common/lxicon";
 
 import "src/cs/base/browser/ui/selecbox/selectBox.css";
 
+const SELECTBOX_SURFACE_WIDTH = "--ui-selectbox-surface-width";
+
 export type SelectBoxOption<T extends string> = {
     readonly disabled?: boolean;
     readonly label: string;
@@ -52,12 +54,14 @@ export class SelectBox<T extends string> extends Disposable {
             onDidChangeVisibility: visible => {
                 this.button.setAttribute("aria-expanded", visible ? "true" : "false");
                 if (visible) {
+                    this.syncSurfaceWidth();
                     this.contentView.show();
                     this.focusSelectedOption();
                     return;
                 }
 
                 this.optionDisposables.clear();
+                this.contentView.domNode.style.removeProperty(SELECTBOX_SURFACE_WIDTH);
                 this.contentView.hide();
             },
         }));
@@ -88,6 +92,7 @@ export class SelectBox<T extends string> extends Disposable {
         this.options = options;
         this.renderButton();
         this.syncOptionSelection();
+        this.syncSurfaceWidth();
         this.contentView.update({
             anchor: this.button,
             className: getSurfaceClassName(options.surfaceClassName),
@@ -129,6 +134,7 @@ export class SelectBox<T extends string> extends Disposable {
     private renderOptions(container: HTMLElement): void {
         this.optionDisposables.clear();
         container.classList.add("ui-selectbox__surface");
+        this.syncSurfaceWidth(this.measureOptionsWidth(container));
 
         const list = document.createElement("div");
         list.className = "ui-selectbox__list";
@@ -243,6 +249,33 @@ export class SelectBox<T extends string> extends Disposable {
             button.setAttribute("aria-selected", selected ? "true" : "false");
         }
     }
+
+    private syncSurfaceWidth(optionsWidth = 0): void {
+        if (this.options.matchAnchorWidth === false) {
+            this.contentView.domNode.style.removeProperty(SELECTBOX_SURFACE_WIDTH);
+            return;
+        }
+
+        const width = Math.max(Math.round(this.button.offsetWidth), Math.ceil(optionsWidth));
+        if (width > 0) {
+            this.contentView.domNode.style.setProperty(SELECTBOX_SURFACE_WIDTH, `${width}px`);
+        }
+    }
+
+    private measureOptionsWidth(container: HTMLElement): number {
+        const widthControl = document.createElement("span");
+        widthControl.className = "ui-selectbox__width-control";
+        container.append(widthControl);
+
+        let width = 0;
+        for (const option of this.options.options) {
+            widthControl.textContent = option.label;
+            width = Math.max(width, widthControl.getBoundingClientRect().width);
+        }
+
+        widthControl.remove();
+        return width + getHorizontalBoxSize(container);
+    }
 }
 
 export function createSelectBox<T extends string>(options: SelectBoxOptions<T>): SelectBox<T> {
@@ -262,4 +295,20 @@ function getButtonClassName(className: string | undefined): string {
 
 function getSurfaceClassName(className: string | undefined): string {
     return className ?? "";
+}
+
+function getHorizontalBoxSize(element: HTMLElement): number {
+    const style = element.ownerDocument.defaultView?.getComputedStyle(element);
+    if (!style) {
+        return 0;
+    }
+
+    return getCssPixelValue(style.paddingLeft)
+        + getCssPixelValue(style.paddingRight)
+        + getCssPixelValue(style.borderLeftWidth)
+        + getCssPixelValue(style.borderRightWidth);
+}
+
+function getCssPixelValue(value: string): number {
+    return Number.parseFloat(value || "0") || 0;
 }

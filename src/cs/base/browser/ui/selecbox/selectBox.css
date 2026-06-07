@@ -42,13 +42,16 @@
 
 .ui-selectbox__surface {
   box-sizing: border-box;
-  width: 100%;
   border: 1px solid rgb(var(--border) / 0.82);
   border-radius: 8px;
   background-color: rgb(var(--bg-surface) / 0.98);
   padding: 4px;
   backdrop-filter: blur(18px);
   box-shadow: var(--shadow-menu);
+}
+
+.context-view.ui-selectbox__surface {
+  width: var(--ui-selectbox-surface-width, 100%);
 }
 
 .ui-selectbox__list {
@@ -75,6 +78,18 @@
   font-weight: 400;
   line-height: 16px;
   outline: none;
+}
+
+.ui-selectbox__width-control {
+  position: absolute;
+  visibility: hidden;
+  padding: 0 11px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .ui-selectbox__option[data-selected="true"] {
