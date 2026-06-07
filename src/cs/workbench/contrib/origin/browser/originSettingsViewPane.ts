@@ -4,7 +4,7 @@ import { localize } from "src/cs/nls";
 
 import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import { createSelectBox } from "src/cs/base/browser/ui/selecbox/selectBox";
+import { createSelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
 import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { createSwitch } from "src/cs/base/browser/ui/switch/switch";
 import { DisposableStore, toDisposable } from "src/cs/base/common/lifecycle";
@@ -580,7 +580,7 @@ const createSettingsDropdown = <T extends string>({
     id,
     onDidSelect: onSelect,
     options,
-    surfaceClassName: "origin_settings_dropdown_surface",
+    dropdownClassName: "origin_settings_dropdown_surface",
     value,
   });
   store.add(select);

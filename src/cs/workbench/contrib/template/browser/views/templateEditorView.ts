@@ -2,7 +2,7 @@ import { createButton } from "src/cs/base/browser/ui/button/button";
 import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { addDisposableListener } from "src/cs/base/browser/dom";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import { createSelectBox, type SelectBox } from "src/cs/base/browser/ui/selecbox/selectBox";
+import { createSelectBox, type SelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
@@ -405,7 +405,7 @@ export class TemplateEditorView {
         className: "template_form_selectbox",
         onDidSelect: onSelect,
         options,
-        surfaceClassName: "template_form_selectbox_surface",
+        dropdownClassName: "template_form_selectbox_surface",
         value,
       }),
     };
@@ -431,7 +431,7 @@ export class TemplateEditorView {
       className: "template_form_selectbox",
       onDidSelect: field.onSelect,
       options,
-      surfaceClassName: "template_form_selectbox_surface",
+      dropdownClassName: "template_form_selectbox_surface",
       value,
     });
   }

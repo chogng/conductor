@@ -5,9 +5,9 @@ import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 
-import "src/cs/base/browser/ui/selecbox/selectBox.css";
+import "src/cs/base/browser/ui/selectBox/selectBox.css";
 
-const SELECTBOX_SURFACE_WIDTH = "--ui-selectbox-surface-width";
+const SELECTBOX_DROPDOWN_WIDTH = "--ui-selectbox-dropdown-width";
 
 export type SelectBoxOption<T extends string> = {
     readonly disabled?: boolean;
@@ -22,7 +22,7 @@ export type SelectBoxOptions<T extends string> = {
     readonly matchAnchorWidth?: boolean;
     readonly onDidSelect: (value: T) => void;
     readonly options: readonly SelectBoxOption<T>[];
-    readonly surfaceClassName?: string;
+    readonly dropdownClassName?: string;
     readonly value: T;
 };
 
@@ -42,7 +42,7 @@ export class SelectBox<T extends string> extends Disposable {
 
         this.contentView = this._register(new ContextView({
             anchor: this.button,
-            className: getSurfaceClassName(options.surfaceClassName),
+            className: getDropdownClassName(options.dropdownClassName),
             matchAnchorWidth: options.matchAnchorWidth ?? true,
             render: container => this.renderOptions(container),
             role: "listbox",
@@ -54,14 +54,14 @@ export class SelectBox<T extends string> extends Disposable {
             onDidChangeVisibility: visible => {
                 this.button.setAttribute("aria-expanded", visible ? "true" : "false");
                 if (visible) {
-                    this.syncSurfaceWidth();
+                    this.syncDropdownWidth();
                     this.contentView.show();
                     this.focusSelectedOption();
                     return;
                 }
 
                 this.optionDisposables.clear();
-                this.contentView.domNode.style.removeProperty(SELECTBOX_SURFACE_WIDTH);
+                this.contentView.domNode.style.removeProperty(SELECTBOX_DROPDOWN_WIDTH);
                 this.contentView.hide();
             },
         }));
@@ -92,10 +92,10 @@ export class SelectBox<T extends string> extends Disposable {
         this.options = options;
         this.renderButton();
         this.syncOptionSelection();
-        this.syncSurfaceWidth();
+        this.syncDropdownWidth();
         this.contentView.update({
             anchor: this.button,
-            className: getSurfaceClassName(options.surfaceClassName),
+            className: getDropdownClassName(options.dropdownClassName),
             matchAnchorWidth: options.matchAnchorWidth ?? true,
             render: container => this.renderOptions(container),
         });
@@ -133,8 +133,8 @@ export class SelectBox<T extends string> extends Disposable {
 
     private renderOptions(container: HTMLElement): void {
         this.optionDisposables.clear();
-        container.classList.add("ui-selectbox__surface");
-        this.syncSurfaceWidth(this.measureOptionsWidth(container));
+        container.classList.add("ui-selectbox__dropdown");
+        this.syncDropdownWidth(this.measureOptionsWidth(container));
 
         const list = document.createElement("div");
         list.className = "ui-selectbox__list";
@@ -250,15 +250,15 @@ export class SelectBox<T extends string> extends Disposable {
         }
     }
 
-    private syncSurfaceWidth(optionsWidth = 0): void {
+    private syncDropdownWidth(optionsWidth = 0): void {
         if (this.options.matchAnchorWidth === false) {
-            this.contentView.domNode.style.removeProperty(SELECTBOX_SURFACE_WIDTH);
+            this.contentView.domNode.style.removeProperty(SELECTBOX_DROPDOWN_WIDTH);
             return;
         }
 
         const width = Math.max(Math.round(this.button.offsetWidth), Math.ceil(optionsWidth));
         if (width > 0) {
-            this.contentView.domNode.style.setProperty(SELECTBOX_SURFACE_WIDTH, `${width}px`);
+            this.contentView.domNode.style.setProperty(SELECTBOX_DROPDOWN_WIDTH, `${width}px`);
         }
     }
 
@@ -293,7 +293,7 @@ function getButtonClassName(className: string | undefined): string {
     return className ? `ui-selectbox ${className}` : "ui-selectbox";
 }
 
-function getSurfaceClassName(className: string | undefined): string {
+function getDropdownClassName(className: string | undefined): string {
     return className ?? "";
 }
 

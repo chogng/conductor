@@ -40,7 +40,7 @@
   color: rgb(var(--text-secondary) / 1);
 }
 
-.ui-selectbox__surface {
+.ui-selectbox__dropdown {
   box-sizing: border-box;
   border: 1px solid rgb(var(--border) / 0.82);
   border-radius: 8px;
@@ -50,8 +50,8 @@
   box-shadow: var(--shadow-menu);
 }
 
-.context-view.ui-selectbox__surface {
-  width: var(--ui-selectbox-surface-width, 100%);
+.context-view.ui-selectbox__dropdown {
+  width: var(--ui-selectbox-dropdown-width, 100%);
 }
 
 .ui-selectbox__list {
