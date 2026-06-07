@@ -34,6 +34,7 @@ import {
   type FileEntry,
   type FileSource,
   type FilesPaneRef,
+  type FilesViewMode,
 } from "src/cs/workbench/contrib/files/common/files";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
@@ -73,6 +74,7 @@ export type FilesControllerProps = {
   readonly commandService: ICommandServiceType;
   readonly filesService: IFileServiceType;
   files?: FileEntry[];
+  viewMode?: FilesViewMode;
   cleanedData?: CleanedEntry[];
   onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
   onFilesAdded?: (files: ImportSessionFileInfo[]) => void;
@@ -194,6 +196,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
       files: this.files,
       folderImportSupport: getFolderImportSupportForFileService(this.filesService),
       isDragging: this.isDragging,
+      viewMode: this.props.viewMode,
       onClearError: this.handleClearError,
       onDraggingChange: this.handleDraggingChange,
       onListScroll: this.handleListScroll,

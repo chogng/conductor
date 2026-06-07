@@ -5,6 +5,9 @@ export const FilesViewId = "workbench.files";
 export const ADD_FOLDER_ACTION_ID = "files.addFolder";
 export const MORE_ACTIONS_ACTION_ID = "files.moreActions";
 export const REMOVE_FOLDER_ACTION_ID = "files.removeFolder";
+export const TOGGLE_THUMBNAIL_VIEW_ACTION_ID = "files.toggleThumbnailView";
+
+export type FilesViewMode = "tree" | "thumbnail";
 
 const SUPPORTED_IMPORT_FILE_EXTENSIONS = new Set<string>(IMPORT_FILE_EXTENSIONS);
 const EXCEL_IMPORT_FILE_EXTENSIONS = new Set<string>([".xls", ".xlsx"]);

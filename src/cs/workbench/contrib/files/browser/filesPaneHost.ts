@@ -1,5 +1,9 @@
 import { localize } from "src/cs/nls";
-import { createMenuAction } from "src/cs/base/browser/ui/menu/menu";
+import {
+  createMenuAction,
+  createMenuItemLabel,
+} from "src/cs/base/browser/ui/menu/menu";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { toAction } from "src/cs/base/common/actions";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import type { WorkbenchSidebarAction } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
@@ -11,13 +15,16 @@ import {
 import {
   ADD_FOLDER_ACTION_ID,
   FilesViewId,
+  type FilesViewMode,
   MORE_ACTIONS_ACTION_ID,
   REMOVE_FOLDER_ACTION_ID,
+  TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
 } from "src/cs/workbench/contrib/files/common/files";
 
 export class FilesPaneHost extends ViewPane {
   private readonly host: HTMLDivElement;
   private readonly view: FilesPane;
+  private viewMode: FilesViewMode = "tree";
   private props: FilesPaneProps;
 
   constructor(props: FilesPaneProps) {
@@ -31,13 +38,13 @@ export class FilesPaneHost extends ViewPane {
     this.props = props;
     this.host = document.createElement("div");
     this.host.className = "files-pane-root";
-    this.view = new FilesPane(this.host, props);
+    this.view = new FilesPane(this.host, this.createViewProps(props));
     this.body.append(this.host);
   }
 
   public update(props: FilesPaneProps): void {
     this.props = props;
-    this.view.setProps(props);
+    this.view.setProps(this.createViewProps(props));
     if (
       this.element.isConnected &&
       this.element.clientHeight > 0 &&
@@ -77,10 +84,21 @@ export class FilesPaneHost extends ViewPane {
 
   private showMoreActions(anchor: HTMLElement, props: FilesPaneProps): void {
     const canRemoveFolder = hasFolder(props.files);
+    const isThumbnailView = this.viewMode === "thumbnail";
     props.contextMenuService.showContextMenu({
       autoSelectFirstItem: true,
       getAnchor: () => anchor,
       getActions: () => [
+        createMenuAction({
+          checked: isThumbnailView,
+          id: TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
+          label: localize("files.thumbnailView", "Thumbnail"),
+          left: createThumbnailViewMenuItemLabel(
+            localize("files.thumbnailView", "Thumbnail"),
+            isThumbnailView,
+          ),
+          run: () => this.setViewMode(isThumbnailView ? "tree" : "thumbnail"),
+        }),
         createMenuAction({
           icon: LxIcon.add,
           id: ADD_FOLDER_ACTION_ID,
@@ -96,6 +114,22 @@ export class FilesPaneHost extends ViewPane {
         }),
       ],
     });
+  }
+
+  private createViewProps(props: FilesPaneProps): FilesPaneProps {
+    return {
+      ...props,
+      viewMode: this.viewMode,
+    };
+  }
+
+  private setViewMode(viewMode: FilesViewMode): void {
+    if (this.viewMode === viewMode) {
+      return;
+    }
+
+    this.viewMode = viewMode;
+    this.view.setProps(this.createViewProps(this.props));
   }
 }
 
@@ -114,4 +148,12 @@ function hasFolder(files: FilesPaneProps["files"]): boolean {
     const relativePath = String(file.relativePath ?? "");
     return relativePath.includes("/");
   });
+}
+
+function createThumbnailViewMenuItemLabel(label: string, checked: boolean): HTMLSpanElement {
+  const indicator = document.createElement("span");
+  indicator.className = "ui-menu__check-indicator file-list-menu-check-indicator";
+  indicator.dataset.checked = checked ? "true" : "false";
+  indicator.append(createLxIcon({ icon: LxIcon.check, size: 14 }));
+  return createMenuItemLabel(label, indicator);
 }

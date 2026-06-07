@@ -3,7 +3,11 @@ import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { IFileService } from "src/cs/platform/files/common/files";
 import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
-import type { FileEntry, FilesPaneRef } from "src/cs/workbench/contrib/files/common/files";
+import type {
+  FileEntry,
+  FilesPaneRef,
+  FilesViewMode,
+} from "src/cs/workbench/contrib/files/common/files";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   FilesController,
@@ -19,6 +23,7 @@ export type FilesPaneProps = {
   readonly filesService: IFileService;
   readonly filesPaneRef: { current: FilesPaneRef | null };
   readonly files?: FileEntry[];
+  readonly viewMode?: FilesViewMode;
   readonly cleanedData?: CleanedEntry[];
   readonly onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
   readonly onFilesAdded?: (files: ImportSessionFileInfo[]) => void;
@@ -52,6 +57,7 @@ export class FilesPane implements IDisposable {
       commandService: props.commandService,
       files: props.files,
       filesService: props.filesService,
+      viewMode: props.viewMode,
       cleanedData: props.cleanedData,
       onFileImported: props.onFileImported,
       onFilesAdded: props.onFilesAdded,
@@ -73,6 +79,7 @@ export class FilesPane implements IDisposable {
       commandService: nextProps.commandService,
       files: nextProps.files,
       filesService: nextProps.filesService,
+      viewMode: nextProps.viewMode,
       cleanedData: nextProps.cleanedData,
       onFileImported: nextProps.onFileImported,
       onFilesAdded: nextProps.onFilesAdded,

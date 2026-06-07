@@ -85,6 +85,7 @@
   "files.openContainingFolder": "打开所在文件夹",
   "files.removeFolder": "移除文件夹",
   "files.revealInWindows": "在文件资源管理器中显示",
+  "files.thumbnailView": "缩略图",
   "help_changelog_current_body_1": "新增独立帮助窗口，用于查看更新日志和用户指南。",
   "help_changelog_current_body_2": "更新日志可继续维护在 src/cs/workbench/contrib/help/browser/helpContent.ts。",
   "help_changelog_current_title": "当前开发版本",

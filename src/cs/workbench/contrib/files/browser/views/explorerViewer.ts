@@ -21,7 +21,10 @@ import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle"
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import type { IAction } from "src/cs/base/common/actions";
 import { localize } from "src/cs/nls";
-import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
+import type {
+  FileEntry,
+  FilesViewMode,
+} from "src/cs/workbench/contrib/files/common/files";
 import { ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { FolderImportSupport } from "src/cs/platform/files/browser/webFileSystemAccess";
@@ -33,11 +36,15 @@ import {
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { FileKind } from "src/cs/workbench/contrib/files/common/getIconClasses";
 import { createEmptyView } from "src/cs/workbench/contrib/files/browser/views/emptyView";
-import { createThumbnailView } from "src/cs/workbench/contrib/thumbnail/browser/ThumbnailView";
+import {
+  createThumbnailView,
+  type CleanedFileLike,
+} from "src/cs/workbench/contrib/thumbnail/browser/ThumbnailView";
 
 export type ExplorerViewerProps = {
   readonly effectiveSelectedFileId?: string | null;
   readonly files: FileEntry[];
+  readonly viewMode?: FilesViewMode;
   readonly folderImportSupport?: FolderImportSupport;
   readonly onListScroll: (event: Event) => void;
   readonly onCreateFolder: (folderKey: string) => void;
@@ -142,6 +149,7 @@ export class ExplorerViewer implements IDisposable {
   private readonly disposables = new DisposableStore();
   private readonly hoverDisposables = new DisposableStore();
   private readonly treeView: ObjectTree<FileTreeNode, TreeItemTemplate>;
+  private readonly thumbnailHost: HTMLDivElement;
   private readonly hoverThumbnailCache = new Map<string, HoverThumbnailCacheEntry>();
   private hoverView: ContextView | null = null;
   private hoverAnchor: HTMLElement | null = null;
@@ -183,6 +191,9 @@ export class ExplorerViewer implements IDisposable {
         this.createTreeOptions(),
       ),
     );
+    this.thumbnailHost = document.createElement("div");
+    this.thumbnailHost.className = "file-list-thumbnail-grid";
+    host.append(this.thumbnailHost);
 
     this.disposables.add(
       addDisposableListener(host, "mouseover", this.handleListMouseOver),
@@ -208,8 +219,13 @@ export class ExplorerViewer implements IDisposable {
     const nextTreeSignature = this.createTreeSignature(nextProps.files);
     const shouldUpdateTree = nextTreeSignature !== this.treeModel.signature;
     const shouldUpdateOptions = previousSelectedFileId !== nextSelectedFileId;
+    const nextViewMode = nextProps.viewMode ?? "tree";
 
     this.props = nextProps;
+    const host = this.thumbnailHost.parentElement;
+    if (host) {
+      host.dataset.viewMode = nextViewMode;
+    }
 
     if (shouldUpdateTree) {
       this.updateTreeModel(nextTreeSignature);
@@ -226,6 +242,7 @@ export class ExplorerViewer implements IDisposable {
     }
 
     this.refreshVisibleHover();
+    this.renderThumbnailGrid();
   }
 
   dispose(): void {
@@ -442,6 +459,61 @@ export class ExplorerViewer implements IDisposable {
     ) {
       host.replaceChildren(template.content, template.actions);
     }
+  }
+
+  private renderThumbnailGrid(): void {
+    if ((this.props.viewMode ?? "tree") !== "thumbnail") {
+      this.thumbnailHost.replaceChildren();
+      return;
+    }
+
+    const files = this.getThumbnailFiles();
+    this.thumbnailHost.replaceChildren(
+      ...files.map(file => this.createThumbnailItem(file)),
+    );
+  }
+
+  private getThumbnailFiles(): CleanedFileLike[] {
+    const cleanedData = Array.isArray(this.props.cleanedData) ? this.props.cleanedData : [];
+    if (!cleanedData.length) {
+      return this.props.files.map(file => ({
+        curveFilterField: null,
+        curveFilterKey: null,
+        curveType: file.curveType ?? undefined,
+        curveTypeConfidence: file.curveTypeConfidence,
+        fileId: file.fileId,
+        fileName: file.fileName,
+      }));
+    }
+
+    const fileIds = new Set(
+      this.props.files
+        .map(file => String(file.fileId ?? "").trim())
+        .filter(Boolean),
+    );
+    if (!fileIds.size) {
+      return cleanedData;
+    }
+
+    return cleanedData.filter(file => fileIds.has(String(file.fileId ?? "").trim()));
+  }
+
+  private createThumbnailItem(file: CleanedFileLike): HTMLButtonElement {
+    const fileName = String(file.fileName ?? file.fileId ?? "");
+    const fileId = String(file.fileId ?? "").trim();
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "file-list-thumbnail-item";
+    item.setAttribute(
+      "aria-label",
+      localize("import.fileItemAriaLabel", "File {fileName}", { fileName }),
+    );
+    item.append(createThumbnailView({
+      file,
+      isActive: fileId === (this.props.effectiveSelectedFileId ?? null),
+    }));
+    item.addEventListener("click", () => this.props.onSelectFile(fileId || null));
+    return item;
   }
 
   private createFileItemTemplate(host: HTMLElement): FileItemTemplate {
