@@ -7,7 +7,10 @@ import {
   normalizePlotAxisSettings,
   type PlotAxisSettings,
 } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
-import { createMainPlotCanvas } from "src/cs/workbench/contrib/plot/browser/mainPlotCanvas";
+import {
+  createMainPlotCanvas,
+  type MainPlotCanvasProps,
+} from "src/cs/workbench/contrib/plot/browser/mainPlotCanvas";
 import type { MainPlotRenderModel } from "src/cs/workbench/contrib/plot/browser/mainPlotRenderModel";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 
@@ -25,18 +28,18 @@ export type MainPlotView = {
   readonly dispose: () => void;
 };
 
-export const createMainPlotView = ({
+export const createMainPlotCanvasProps = ({
   model,
   originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS,
   plotAxisSettings,
   legendLabels,
   plotType,
-}: MainPlotViewProps): MainPlotView => {
+}: MainPlotViewProps): MainPlotCanvasProps => {
   const axisSettings = normalizePlotAxisSettings(
     plotAxisSettings,
     DEFAULT_PLOT_AXIS_SETTINGS,
   );
-  const element = createMainPlotCanvas({
+  return {
     activeFile: model.activeFile,
     curveLineWidth: Number(originOpenPlotOptions.lineWidth) || DEFAULT_ORIGIN_PLOT_OPTIONS.lineWidth,
     curvePlotType: Number(originOpenPlotOptions.type ?? DEFAULT_ORIGIN_PLOT_OPTIONS.type),
@@ -67,11 +70,15 @@ export const createMainPlotView = ({
     xTickDigits: 4,
     yDomain: model.yDomain,
     yScaleMode: "linear",
-  });
+  };
+};
+
+export const createMainPlotView = (props: MainPlotViewProps): MainPlotView => {
+  const element = createMainPlotCanvas(createMainPlotCanvasProps(props));
 
   return {
     dispose: () => element.dispose(),
     element,
-    model,
+    model: props.model,
   };
 };

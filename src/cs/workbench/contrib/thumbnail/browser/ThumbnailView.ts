@@ -4,6 +4,14 @@
   type CanvasMultiLinePlotProps,
 } from "src/cs/workbench/contrib/plot/browser/CanvasMultiLinePlot";
 import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
+import type { CalculatedData } from "src/cs/workbench/contrib/calculation/common/calculatedData";
+import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
+import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
+import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
+import {
+  drawThumbnailPlotBitmap,
+} from "src/cs/workbench/contrib/thumbnail/browser/thumbnailPlotBitmap";
+import type { IThumbnailService } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
 
 export type CleanedFileLike = {
   fileId?: string;
@@ -27,6 +35,11 @@ export type CleanedFileLike = {
 
 export type ThumbnailViewProps = {
   file: CleanedFileLike;
+  originOpenPlotOptions?: OriginPlotOptions;
+  plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
+  plotModel?: CalculatedData | null;
+  plotType?: PlotType;
+  thumbnailService?: Pick<IThumbnailService, "drawPlotThumbnail"> | null;
   isActive?: boolean;
   isOriginSelected?: boolean;
   showOriginSelectionBadge?: boolean;
@@ -43,6 +56,11 @@ const ThumbnailView = (props: ThumbnailViewProps): HTMLElement => createThumbnai
 
 export const createThumbnailView = ({
   file,
+  originOpenPlotOptions,
+  plotAxisSettings,
+  plotModel = null,
+  plotType = "iv",
+  thumbnailService = null,
   isActive = false,
   isOriginSelected = false,
   originSelectedBadgeLabel = "SELECT",
@@ -61,6 +79,11 @@ export const createThumbnailView = ({
 
   root.append(createHeader(file), createChartThumbnail({
     file,
+    originOpenPlotOptions,
+    plotAxisSettings,
+    plotModel,
+    plotType,
+    thumbnailService,
     isOriginSelected,
     originSelectedBadgeLabel,
     showOriginSelectionBadge,
@@ -117,6 +140,11 @@ const createMetaText = (file: CleanedFileLike): string => {
 
 const createChartThumbnail = ({
   file,
+  originOpenPlotOptions,
+  plotAxisSettings,
+  plotModel,
+  plotType,
+  thumbnailService,
   isOriginSelected,
   originSelectedBadgeLabel,
   showOriginSelectionBadge,
@@ -128,6 +156,11 @@ const createChartThumbnail = ({
   yUnitLabel,
 }: {
   readonly file: CleanedFileLike;
+  readonly originOpenPlotOptions?: OriginPlotOptions;
+  readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
+  readonly plotModel: CalculatedData | null;
+  readonly plotType: PlotType;
+  readonly thumbnailService: Pick<IThumbnailService, "drawPlotThumbnail"> | null;
   readonly isOriginSelected: boolean;
   readonly originSelectedBadgeLabel: string;
   readonly showOriginSelectionBadge: boolean;
@@ -141,21 +174,32 @@ const createChartThumbnail = ({
   const root = document.createElement("div");
   root.className = "thumbnail_view_chart";
   root.style.aspectRatio = "16 / 9";
-  root.append(
-    createCanvasMultiLinePlot({
-      xGroups: file.xGroups,
-      series: file.series,
-      domain: file.domain,
-      xScaleFactor: xUnitFactor,
-      xUnitLabel,
-      yScaleFactor: yUnitFactor,
-      yScaleType: yScale === "log" ? "log" : "linear",
-      yLogCurrentMode,
-      yUnitLabel,
-      title: file.fileName ?? file.fileId ?? "",
-      className: "thumbnail_view_chart_canvas",
-    }),
-  );
+  if (plotModel) {
+    root.append(createMainPlotThumbnailCanvas({
+      file,
+      originOpenPlotOptions,
+      plotAxisSettings,
+      plotModel,
+      plotType,
+      thumbnailService,
+    }));
+  } else {
+    root.append(
+      createCanvasMultiLinePlot({
+        xGroups: file.xGroups,
+        series: file.series,
+        domain: file.domain,
+        xScaleFactor: xUnitFactor,
+        xUnitLabel,
+        yScaleFactor: yUnitFactor,
+        yScaleType: yScale === "log" ? "log" : "linear",
+        yLogCurrentMode,
+        yUnitLabel,
+        title: file.fileName ?? file.fileId ?? "",
+        className: "thumbnail_view_chart_canvas",
+      }),
+    );
+  }
 
   if (showOriginSelectionBadge && isOriginSelected) {
     const badge = document.createElement("div");
@@ -164,16 +208,53 @@ const createChartThumbnail = ({
     root.append(badge);
   }
 
-  const range = resolvePreviewPlotYDataRange({
-    series: file?.series,
-    yScaleType: yScale === "log" ? "log" : "linear",
-    yLogCurrentMode,
-  });
+  const range = plotModel
+    ? { min: plotModel.yDomain[0], max: plotModel.yDomain[1] }
+    : resolvePreviewPlotYDataRange({
+      series: file?.series,
+      yScaleType: yScale === "log" ? "log" : "linear",
+      yLogCurrentMode,
+    });
   const labels = createYAxisRangeLabels(range, yUnitFactor, yUnitLabel);
   if (labels) {
     root.append(labels);
   }
   return root;
+};
+
+const createMainPlotThumbnailCanvas = ({
+  file,
+  originOpenPlotOptions,
+  plotAxisSettings,
+  plotModel,
+  plotType,
+  thumbnailService,
+}: {
+  readonly file: CleanedFileLike;
+  readonly originOpenPlotOptions?: OriginPlotOptions;
+  readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
+  readonly plotModel: CalculatedData;
+  readonly plotType: PlotType;
+  readonly thumbnailService: Pick<IThumbnailService, "drawPlotThumbnail"> | null;
+}): HTMLCanvasElement => {
+  const canvas = document.createElement("canvas");
+  canvas.className = "thumbnail_view_chart_canvas";
+  canvas.title = file.fileName ?? file.fileId ?? "";
+  queueMicrotask(() => {
+    const options = {
+      model: plotModel,
+      originOpenPlotOptions,
+      plotAxisSettings,
+      plotType,
+    };
+    if (thumbnailService) {
+      thumbnailService.drawPlotThumbnail(canvas, options);
+      return;
+    }
+
+    drawThumbnailPlotBitmap({ canvas, options });
+  });
+  return canvas;
 };
 
 const createYAxisRangeLabels = (

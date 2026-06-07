@@ -1,5 +1,4 @@
 import { addDisposableListener } from "src/cs/base/browser/dom";
-import ContextView from "src/cs/base/browser/ui/contextview/contextview";
 import { CountBadge } from "src/cs/base/browser/ui/countbadge/countBadge";
 import { createDropdownButton } from "src/cs/base/browser/ui/dropdown/dropdown";
 import {
@@ -18,8 +17,13 @@ import {
 } from "src/cs/base/browser/ui/tree/objectTree";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { AnchorAxisAlignment, AnchorPosition } from "src/cs/base/common/layout";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import type { IAction } from "src/cs/base/common/actions";
+import type {
+  IContextViewService,
+  IOpenContextView,
+} from "src/cs/platform/contextview/browser/contextView";
 import { localize } from "src/cs/nls";
 import type {
   FileEntry,
@@ -27,6 +31,12 @@ import type {
 } from "src/cs/workbench/contrib/files/common/files";
 import { ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import {
+  getCalculatedData,
+  type CalculatedData,
+  type CalculatedDataByKey,
+} from "src/cs/workbench/contrib/calculation/common/calculatedData";
+import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { FolderImportSupport } from "src/cs/platform/files/browser/webFileSystemAccess";
 import {
   buildFileTree,
@@ -40,9 +50,18 @@ import {
   createThumbnailView,
   type CleanedFileLike,
 } from "src/cs/workbench/contrib/thumbnail/browser/ThumbnailView";
+import type { IThumbnailService } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
+import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
+import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 
 export type ExplorerViewerProps = {
   readonly effectiveSelectedFileId?: string | null;
+  readonly activePlotType?: PlotType;
+  readonly calculatedDataByKey?: CalculatedDataByKey;
+  readonly contextViewService: IContextViewService;
+  readonly originOpenPlotOptions?: OriginPlotOptions;
+  readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
+  readonly thumbnailService: IThumbnailService;
   readonly files: FileEntry[];
   readonly viewMode?: FilesViewMode;
   readonly folderImportSupport?: FolderImportSupport;
@@ -106,6 +125,7 @@ type HoverThumbnailCacheEntry = {
   readonly file: CleanedEntry;
   readonly isActive: boolean;
   readonly node: HTMLElement;
+  readonly plotModel: CalculatedData | null;
   lastUsed: number;
 };
 
@@ -147,15 +167,16 @@ const appendIcon = (
 
 export class ExplorerViewer implements IDisposable {
   private readonly disposables = new DisposableStore();
-  private readonly hoverDisposables = new DisposableStore();
   private readonly treeView: ObjectTree<FileTreeNode, TreeItemTemplate>;
   private readonly thumbnailHost: HTMLDivElement;
   private readonly hoverThumbnailCache = new Map<string, HoverThumbnailCacheEntry>();
-  private hoverView: ContextView | null = null;
+  private hoverView: IOpenContextView | null = null;
+  private hoverContextViewElement: HTMLElement | null = null;
   private hoverAnchor: HTMLElement | null = null;
   private hoverContent: HoverContent | null = null;
   private hoverHideTimeout: ReturnType<typeof setTimeout> | null = null;
   private hoverLayoutFrame: number | null = null;
+  private hoverViewToken = 0;
   private hoverCacheUse = 0;
   private expandedKeys: string[] = [];
   private knownFolderKeys = new Set<string>();
@@ -220,8 +241,12 @@ export class ExplorerViewer implements IDisposable {
     const shouldUpdateTree = nextTreeSignature !== this.treeModel.signature;
     const shouldUpdateOptions = previousSelectedFileId !== nextSelectedFileId;
     const nextViewMode = nextProps.viewMode ?? "tree";
+    const shouldClearPlotCache = this.shouldClearThumbnailPlotCache(this.props, nextProps);
 
     this.props = nextProps;
+    if (shouldClearPlotCache) {
+      this.clearThumbnailCaches();
+    }
     const host = this.thumbnailHost.parentElement;
     if (host) {
       host.dataset.viewMode = nextViewMode;
@@ -248,10 +273,8 @@ export class ExplorerViewer implements IDisposable {
   dispose(): void {
     this.cancelFileItemHoverHide();
     this.cancelFileItemHoverLayout();
-    this.hoverView?.dispose();
-    this.hoverView = null;
-    this.hoverThumbnailCache.clear();
-    this.hoverDisposables.dispose();
+    this.closeFileItemHoverView();
+    this.clearThumbnailCaches();
     this.disposables.dispose();
   }
 
@@ -511,6 +534,11 @@ export class ExplorerViewer implements IDisposable {
     item.append(createThumbnailView({
       file,
       isActive: fileId === (this.props.effectiveSelectedFileId ?? null),
+      originOpenPlotOptions: this.props.originOpenPlotOptions,
+      plotAxisSettings: this.props.plotAxisSettings,
+      plotModel: this.getThumbnailPlotModel(fileId),
+      plotType: this.props.activePlotType ?? "iv",
+      thumbnailService: this.props.thumbnailService,
     }));
     item.addEventListener("click", () => this.props.onSelectFile(fileId || null));
     return item;
@@ -733,7 +761,7 @@ export class ExplorerViewer implements IDisposable {
 
     return Boolean(
       item?.contains(target) ||
-      this.hoverView?.domNode.contains(target),
+      this.hoverContextViewElement?.contains(target),
     );
   }
 
@@ -784,40 +812,57 @@ export class ExplorerViewer implements IDisposable {
     this.cancelFileItemHoverHide();
     this.hoverAnchor = item;
     this.hoverContent = content;
-    const hoverView = this.ensureHoverView(item);
-    hoverView.update({
-      align: "left",
-      anchor: item,
-      className: content.processedFile
-        ? "file-list-hover file-list-hover--thumbnail"
-        : "file-list-hover",
-      render: (container) => this.renderHoverContent(container),
-    });
-    hoverView.show();
+    this.openFileItemHoverView(item, content);
   }
 
-  private ensureHoverView(anchor: HTMLElement): ContextView {
-    if (this.hoverView) {
-      return this.hoverView;
-    }
+  private openFileItemHoverView(item: HTMLElement, content: HoverContent): void {
+    const token = this.hoverViewToken + 1;
+    this.hoverViewToken = token;
+    const classNames = content.processedFile
+      ? ["file-list-hover", "file-list-hover--thumbnail"]
+      : ["file-list-hover"];
 
-    this.hoverView = new ContextView({
-      align: "left",
-      anchor,
-      className: "file-list-hover",
-      host: this.hoverHost,
-      render: (container) => this.renderHoverContent(container),
-      role: "tooltip",
-      side: "right",
-      zIndex: 40,
+    this.hoverView = this.props.contextViewService.showContextView({
+      anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL,
+      anchorPosition: AnchorPosition.RIGHT,
+      canRelayout: true,
+      getAnchor: () => item,
+      layer: 40,
+      render: (container) => this.renderFileItemHoverView(container, classNames),
+      onHide: () => {
+        if (this.hoverViewToken === token) {
+          this.hoverView = null;
+          this.hoverContextViewElement = null;
+        }
+      },
+    }, this.hoverHost);
+  }
+
+  private renderFileItemHoverView(
+    container: HTMLElement,
+    classNames: readonly string[],
+  ): IDisposable {
+    const disposables = new DisposableStore();
+    this.hoverContextViewElement = container;
+    container.classList.add(...classNames);
+    container.setAttribute("role", "tooltip");
+    disposables.add(
+      addDisposableListener(container, "mouseover", this.handleHoverMouseOver),
+    );
+    disposables.add(
+      addDisposableListener(container, "mouseout", this.handleHoverMouseOut),
+    );
+    disposables.add({
+      dispose: () => {
+        container.classList.remove("file-list-hover", "file-list-hover--thumbnail");
+        container.removeAttribute("role");
+        if (this.hoverContextViewElement === container) {
+          this.hoverContextViewElement = null;
+        }
+      },
     });
-    this.hoverDisposables.add(
-      addDisposableListener(this.hoverView.domNode, "mouseover", this.handleHoverMouseOver),
-    );
-    this.hoverDisposables.add(
-      addDisposableListener(this.hoverView.domNode, "mouseout", this.handleHoverMouseOut),
-    );
-    return this.hoverView;
+    this.renderHoverContent(container);
+    return disposables;
   }
 
   private resolveHoverContent(item: HTMLElement): HoverContent | null {
@@ -859,9 +904,14 @@ export class ExplorerViewer implements IDisposable {
   private getHoverThumbnail(file: CleanedEntry, isActive: boolean): HTMLElement {
     const fileId = String(file.fileId ?? file.fileName ?? "").trim();
     const cacheKey = fileId || "__unknown__";
+    const plotModel = this.getThumbnailPlotModel(fileId);
     const cached = this.hoverThumbnailCache.get(cacheKey);
     this.hoverCacheUse += 1;
-    if (cached?.file === file && cached.isActive === isActive) {
+    if (
+      cached?.file === file &&
+      cached.isActive === isActive &&
+      cached.plotModel === plotModel
+    ) {
       cached.lastUsed = this.hoverCacheUse;
       return cached.node;
     }
@@ -869,6 +919,11 @@ export class ExplorerViewer implements IDisposable {
     const node = createThumbnailView({
       file,
       isActive,
+      originOpenPlotOptions: this.props.originOpenPlotOptions,
+      plotAxisSettings: this.props.plotAxisSettings,
+      plotModel,
+      plotType: this.props.activePlotType ?? "iv",
+      thumbnailService: this.props.thumbnailService,
     });
     cached?.node.remove();
     this.hoverThumbnailCache.set(cacheKey, {
@@ -876,9 +931,38 @@ export class ExplorerViewer implements IDisposable {
       isActive,
       lastUsed: this.hoverCacheUse,
       node,
+      plotModel,
     });
     this.trimHoverThumbnailCache();
     return node;
+  }
+
+  private getThumbnailPlotModel(fileId: string): CalculatedData | null {
+    return getCalculatedData(
+      this.props.calculatedDataByKey,
+      this.props.activePlotType ?? "iv",
+      fileId,
+    );
+  }
+
+  private clearThumbnailCaches(): void {
+    for (const entry of this.hoverThumbnailCache.values()) {
+      entry.node.remove();
+    }
+    this.hoverThumbnailCache.clear();
+    this.props.thumbnailService.clear();
+  }
+
+  private shouldClearThumbnailPlotCache(
+    previous: ExplorerViewerProps,
+    next: ExplorerViewerProps,
+  ): boolean {
+    return (
+      previous.activePlotType !== next.activePlotType ||
+      previous.calculatedDataByKey !== next.calculatedDataByKey ||
+      previous.originOpenPlotOptions !== next.originOpenPlotOptions ||
+      previous.plotAxisSettings !== next.plotAxisSettings
+    );
   }
 
   private trimHoverThumbnailCache(): void {
@@ -926,7 +1010,7 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    this.hoverView.layout();
+    this.props.contextViewService.layout();
   }
 
   private hideFileItemHover(item?: HTMLElement): void {
@@ -938,6 +1022,19 @@ export class ExplorerViewer implements IDisposable {
     this.cancelFileItemHoverLayout();
     this.hoverAnchor = null;
     this.hoverContent = null;
-    this.hoverView?.hide();
+    this.closeFileItemHoverView();
+  }
+
+  private closeFileItemHoverView(): void {
+    if (!this.hoverView) {
+      this.hoverContextViewElement = null;
+      return;
+    }
+
+    this.hoverViewToken += 1;
+    const view = this.hoverView;
+    this.hoverView = null;
+    this.hoverContextViewElement = null;
+    view.close();
   }
 }

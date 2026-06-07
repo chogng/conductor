@@ -151,6 +151,11 @@ export type MainPlotCanvasElement = HTMLElement & {
   readonly dispose: () => void;
 };
 
+export type MainPlotCanvasSize = {
+  readonly height: number;
+  readonly width: number;
+};
+
 type PlotRect = {
   bottom: number;
   height: number;
@@ -382,17 +387,22 @@ const drawHoverOverlay = (
   context.restore();
 };
 
-const drawMainPlotCanvas = (
+export const drawMainPlotCanvas = (
   canvas: HTMLCanvasElement,
   props: MainPlotCanvasProps,
+  size?: MainPlotCanvasSize,
 ): {
   plotRect: PlotRect;
   scale: ChartScale;
   yKey: PlotYKey;
 } | null => {
   const container = canvas.parentElement;
-  const width = Math.max(320, container?.clientWidth || canvas.clientWidth || 720);
-  const height = Math.max(220, container?.clientHeight || canvas.clientHeight || 420);
+  const width = size
+    ? Math.max(1, Number(size.width) || 0)
+    : Math.max(320, container?.clientWidth || canvas.clientWidth || 720);
+  const height = size
+    ? Math.max(1, Number(size.height) || 0)
+    : Math.max(220, container?.clientHeight || canvas.clientHeight || 420);
   const context = applyCanvasSize(canvas, width, height);
   if (!context) return null;
 

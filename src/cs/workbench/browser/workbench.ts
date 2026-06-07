@@ -9,7 +9,10 @@ import type {
 } from "src/cs/platform/language/common/language";
 import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
-import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
+import type {
+  IContextMenuService,
+  IContextViewService,
+} from "src/cs/platform/contextview/browser/contextView";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { IStorageService } from "src/cs/platform/storage/common/storage";
 import type {
@@ -86,6 +89,7 @@ import type {
   ITemplateApplyService,
   ITemplateService,
 } from "src/cs/workbench/contrib/template/common/template";
+import type { IThumbnailService } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
 import {
   CoreSettingsController,
   createCoreSettingsState,
@@ -160,6 +164,7 @@ export type WorkbenchOptions = {
   readonly commandService?: ICommandService;
   readonly contextKeyService?: IContextKeyService;
   readonly contextMenuService?: IContextMenuService;
+  readonly contextViewService?: IContextViewService;
   readonly dialogsService?: IFileDialogService;
   readonly filesService?: IFileService;
   readonly pathService?: IPathService;
@@ -173,6 +178,7 @@ export type WorkbenchOptions = {
   readonly style?: WorkbenchStyle;
   readonly templateApplyService?: ITemplateApplyService;
   readonly templateService?: ITemplateService;
+  readonly thumbnailService?: IThumbnailService;
   readonly tableService?: ITableService;
   readonly titlebarState?: WorkbenchTitlebarState;
 };
@@ -256,6 +262,7 @@ export class Workbench extends Layout {
   private readonly analysisFileService: IAnalysisFileService;
   private readonly filesService: IFileService;
   private readonly contextMenuService: IContextMenuService;
+  private readonly contextViewService: IContextViewService;
   private readonly layoutService: IWorkbenchLayoutService;
   private readonly pathService: IPathService;
   private readonly seriesLabelService: ISeriesLabelServiceType;
@@ -263,6 +270,7 @@ export class Workbench extends Layout {
   private readonly tableService: ITableService;
   private readonly templateApplyService: ITemplateApplyService;
   private readonly templateService: ITemplateService;
+  private readonly thumbnailService: IThumbnailService;
   private readonly templateImportController: TemplateImportController;
   private readonly auxiliaryBarModel = new AuxiliaryBarModel();
   private readonly coreSettingsController: CoreSettingsController;
@@ -312,6 +320,9 @@ export class Workbench extends Layout {
     if (!options.contextMenuService) {
       throw new Error("Workbench requires IContextMenuService.");
     }
+    if (!options.contextViewService) {
+      throw new Error("Workbench requires IContextViewService.");
+    }
     if (!options.commandService) {
       throw new Error("Workbench requires ICommandService.");
     }
@@ -339,10 +350,14 @@ export class Workbench extends Layout {
     if (!options.templateService) {
       throw new Error("Workbench requires ITemplateService.");
     }
+    if (!options.thumbnailService) {
+      throw new Error("Workbench requires IThumbnailService.");
+    }
     this.filesService = options.filesService;
     this.analysisFileService = options.analysisFileService;
     this.dialogsService = options.dialogsService;
     this.contextMenuService = options.contextMenuService;
+    this.contextViewService = options.contextViewService;
     this.commandService = options.commandService;
     this.layoutService = options.layoutService;
     this.activeWorkbenchViewContext = ActiveWorkbenchViewContext.bindTo(options.contextKeyService);
@@ -354,6 +369,7 @@ export class Workbench extends Layout {
     this.tableService = options.tableService;
     this.templateApplyService = options.templateApplyService;
     this.templateService = options.templateService;
+    this.thumbnailService = options.thumbnailService;
     this._register(this.createNotificationsHandlers());
     this.templateImportController = new TemplateImportController(
       this.dialogsService,
@@ -861,13 +877,19 @@ export class Workbench extends Layout {
 
     return {
       analysisFileService: this.analysisFileService,
+      activePlotType: this.activePlotType,
+      calculatedDataByKey: snapshot.calculatedDataByKey,
       commandService: this.commandService,
       contextMenuService: this.contextMenuService,
+      contextViewService: this.contextViewService,
       filesPaneRef: this.filesPaneRef,
       files: isChartMode
         ? createChartExplorerFiles(snapshot.sourceFiles, snapshot.cleanedData)
         : snapshot.sourceFiles,
       filesService: this.filesService,
+      originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
+      plotAxisSettings: this.coreSettingsState.conductorSettings?.plotAxisSettings,
+      thumbnailService: this.thumbnailService,
       cleanedData: snapshot.cleanedData,
       onFileImported: sessionActions.handleFileImported,
       onFilesAdded: sessionActions.handleFilesAdded,

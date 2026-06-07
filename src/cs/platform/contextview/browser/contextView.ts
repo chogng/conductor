@@ -1,7 +1,7 @@
 import type { IMouseEvent } from "src/cs/base/browser/mouseEvent";
 import type { IAction, IActionRunner } from "src/cs/base/common/actions";
 import type { Event } from "src/cs/base/common/event";
-import type { AnchorAlignment, AnchorAxisAlignment } from "src/cs/base/common/layout";
+import type { AnchorAlignment, AnchorAxisAlignment, AnchorPosition } from "src/cs/base/common/layout";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 
@@ -26,6 +26,7 @@ export interface IContextViewProvider {
 export interface IContextViewDelegate {
     readonly anchorAlignment?: AnchorAlignment;
     readonly anchorAxisAlignment?: AnchorAxisAlignment;
+    readonly anchorPosition?: AnchorPosition;
     readonly canRelayout?: boolean;
     readonly layer?: number;
     getAnchor(): HTMLElement | IAnchor;

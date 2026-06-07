@@ -103,7 +103,7 @@ export class ContextViewService extends Disposable implements IContextViewServic
         }, anchor, {
             anchorAlignment: this.delegate.anchorAlignment ?? AnchorAlignment.LEFT,
             anchorAxisAlignment: this.delegate.anchorAxisAlignment ?? AnchorAxisAlignment.VERTICAL,
-            anchorPosition: AnchorPosition.BELOW,
+            anchorPosition: this.delegate.anchorPosition ?? AnchorPosition.BELOW,
         });
 
         this.element.style.top = `${layout.top}px`;

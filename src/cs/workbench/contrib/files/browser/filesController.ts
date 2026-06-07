@@ -2,6 +2,7 @@ import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import type { ICommandService as ICommandServiceType } from "src/cs/platform/commands/common/commands";
+import type { IContextViewService as IContextViewServiceType } from "src/cs/platform/contextview/browser/contextView";
 import type { IFileService as IFileServiceType } from "src/cs/platform/files/common/files";
 import type { IAction } from "src/cs/base/common/actions";
 import { localize } from "src/cs/nls";
@@ -37,6 +38,11 @@ import {
   type FilesViewMode,
 } from "src/cs/workbench/contrib/files/common/files";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { CalculatedDataByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
+import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
+import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
+import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
+import type { IThumbnailService } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
 import {
   buildImportErrorMessage,
   collectDroppedFiles,
@@ -72,7 +78,13 @@ type FirstPreparedImport = {
 export type FilesControllerProps = {
   readonly analysisFileService: IAnalysisFileServiceType;
   readonly commandService: ICommandServiceType;
+  readonly contextViewService: IContextViewServiceType;
   readonly filesService: IFileServiceType;
+  activePlotType?: PlotType;
+  calculatedDataByKey?: CalculatedDataByKey;
+  originOpenPlotOptions?: OriginPlotOptions;
+  plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
+  thumbnailService: IThumbnailService;
   files?: FileEntry[];
   viewMode?: FilesViewMode;
   cleanedData?: CleanedEntry[];
@@ -192,6 +204,12 @@ export class FilesController implements FilesPaneRef, IDisposable {
   private createExplorerViewProps(): ExplorerViewProps {
     return {
       effectiveSelectedFileId: this.effectiveSelectedFileId,
+      activePlotType: this.props.activePlotType,
+      calculatedDataByKey: this.props.calculatedDataByKey,
+      contextViewService: this.props.contextViewService,
+      originOpenPlotOptions: this.props.originOpenPlotOptions,
+      plotAxisSettings: this.props.plotAxisSettings,
+      thumbnailService: this.props.thumbnailService,
       error: this.error,
       files: this.files,
       folderImportSupport: getFolderImportSupportForFileService(this.filesService),

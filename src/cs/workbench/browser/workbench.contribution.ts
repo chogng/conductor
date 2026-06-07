@@ -36,6 +36,8 @@ import {
 import {
   IContextMenuService,
   type IContextMenuService as IContextMenuServiceType,
+  IContextViewService,
+  type IContextViewService as IContextViewServiceType,
 } from "src/cs/platform/contextview/browser/contextView";
 import {
   IContextKeyService,
@@ -80,6 +82,10 @@ import {
   ISeriesLabelService,
   type ISeriesLabelService as ISeriesLabelServiceType,
 } from "src/cs/workbench/services/seriesLabels/common/seriesLabels";
+import {
+  IThumbnailService,
+  type IThumbnailService as IThumbnailServiceType,
+} from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
 import { ResetLayoutStateCommandId } from "src/cs/workbench/services/layout/browser/layoutConstants";
 
 export const WorkbenchContributionId = "workbench.browser.workbench";
@@ -121,6 +127,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @IFileService filesService: IFileServiceType,
     @IFileDialogService dialogsService: IFileDialogServiceType,
     @IContextMenuService contextMenuService: IContextMenuServiceType,
+    @IContextViewService contextViewService: IContextViewServiceType,
     @IContextKeyService contextKeyService: IContextKeyServiceType,
     @ICommandService commandService: ICommandServiceType,
     @IPathService pathService: IPathServiceType,
@@ -129,6 +136,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @ITemplateApplyService templateApplyService: ITemplateApplyServiceType,
     @ITemplateService templateService: ITemplateServiceType,
     @ISeriesLabelService seriesLabelService: ISeriesLabelServiceType,
+    @IThumbnailService thumbnailService: IThumbnailServiceType,
     @IStorageService storageService: IStorageServiceType,
     @IInstantiationService instantiationService: IInstantiationServiceType,
   ) {
@@ -147,6 +155,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       commandService,
       contextKeyService,
       contextMenuService,
+      contextViewService,
       filesService,
       pathService,
       layoutService,
@@ -156,6 +165,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       tableService,
       templateApplyService,
       templateService,
+      thumbnailService,
     }));
     this._register(CommandsRegistry.registerCommand({
       id: ResetLayoutStateCommandId,
