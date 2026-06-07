@@ -1,5 +1,9 @@
 import { URI } from "src/cs/base/common/uri";
 import { localize } from "src/cs/nls";
+import {
+  CommandsRegistry,
+  type ICommandHandler,
+} from "src/cs/platform/commands/common/commands";
 import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import {
   collectDataTransferFiles,
@@ -16,10 +20,16 @@ import {
   collectFolderImportFiles,
   type FolderFileReadFailure,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
-import type { FileSource } from "src/cs/workbench/contrib/files/common/files";
+import type { FilesPaneHost } from "src/cs/workbench/contrib/files/browser/filesPaneHost";
+import {
+  FilesViewId,
+  TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
+  type FileSource,
+} from "src/cs/workbench/contrib/files/common/files";
 import type { ImportFilePrepareFailure } from "src/cs/workbench/services/analysisFile/browser/importPipeline";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
+import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 
 export type FolderImportFiles = {
   readonly files: FileSource[];
@@ -129,6 +139,19 @@ export const showCreateFolderUnsupported = (): void => {
     type: "info",
   });
 };
+
+export const toggleThumbnailViewHandler: ICommandHandler = async (accessor) => {
+  const viewsService = accessor.get(IViewsService);
+  const view = viewsService.getViewWithId<FilesPaneHost>(FilesViewId)
+    ?? await viewsService.openView<FilesPaneHost>(FilesViewId, false);
+
+  view?.toggleViewMode();
+};
+
+CommandsRegistry.registerCommand({
+  id: TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
+  handler: toggleThumbnailViewHandler,
+});
 
 export const buildImportErrorMessage = ({
   failedFiles,
