@@ -1,5 +1,5 @@
 import { localize } from "src/cs/nls";
-import type { MutableState } from "src/cs/workbench/contrib/session/browser/sessionContext";
+import type { MutableState } from "src/cs/workbench/services/session/common/session";
 import {
   ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES,
   attachOriginCsvPaths,
