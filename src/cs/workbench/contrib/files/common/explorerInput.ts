@@ -1,8 +1,8 @@
-import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
+﻿import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
 import type {
   CleanedEntry,
   SessionFile,
-} from "src/cs/workbench/contrib/session/common/sessionTypes";
+} from "src/cs/workbench/services/session/common/sessionTypes";
 
 const getFileId = (file: Pick<FileEntry, "fileId">): string =>
   String(file?.fileId ?? "").trim();

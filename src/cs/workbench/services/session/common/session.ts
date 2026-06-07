@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Session owns the current workbench data table. Source files, cleaned files,
  * calculated curves, metadata, preview state, and template state all live here
  * so chart, parameters, export, and template code do not keep parallel copies.
@@ -17,7 +17,7 @@ import type {
   PreviewFile,
   PreviewRowsRequest,
   SessionFile,
-} from "src/cs/workbench/contrib/session/common/sessionTypes";
+} from "src/cs/workbench/services/session/common/sessionTypes";
 import type { TemplateSelectionsByFileId } from "src/cs/workbench/contrib/template/common/templateSelection";
 import type {
   CurveData,
@@ -26,7 +26,7 @@ import type {
   FileMetadata,
   FileMetadataUpdate,
   MetadataState,
-} from "src/cs/workbench/services/metadata/common/metadata";
+} from "src/cs/workbench/services/session/common/metadata";
 
 export const ISessionService = createDecorator<ISessionService>("sessionService");
 

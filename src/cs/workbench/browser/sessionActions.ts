@@ -9,7 +9,7 @@ import type {
   CleanedEntry,
   ProcessingStatus,
   SessionFile,
-} from "src/cs/workbench/contrib/session/common/sessionTypes";
+} from "src/cs/workbench/services/session/common/sessionTypes";
 import {
   removeTemplateSelectionsForFiles,
   type TemplateSelectionsByFileId,

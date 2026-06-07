@@ -1,7 +1,7 @@
-import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
+﻿import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import type { AnalysisPanelProps } from "src/cs/workbench/contrib/chart/browser/analysisPanel";
-import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { CleanedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 
 export const resolveActiveFile = ({
   activeFileId,

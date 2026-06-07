@@ -1,6 +1,6 @@
-import assert from "assert";
+﻿import assert from "assert";
 
-import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { CleanedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 
 import {
   createParametersViewState,

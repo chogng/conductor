@@ -1,9 +1,9 @@
-import type JSZip from "jszip";
+﻿import type JSZip from "jszip";
 import type {
   SsManualRanges,
   SsMethod,
 } from "src/cs/workbench/services/session/common/session";
-import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { CleanedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { ResolveCsvCurveLabelForSeries } from "src/cs/workbench/contrib/export/browser/export";
 
 type ExportModule = typeof import("./export");

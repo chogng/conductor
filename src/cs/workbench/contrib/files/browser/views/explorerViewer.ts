@@ -1,4 +1,4 @@
-import { addDisposableListener } from "src/cs/base/browser/dom";
+﻿import { addDisposableListener } from "src/cs/base/browser/dom";
 import { CountBadge } from "src/cs/base/browser/ui/countbadge/countBadge";
 import { createDropdownButton } from "src/cs/base/browser/ui/dropdown/dropdown";
 import {
@@ -37,7 +37,7 @@ import {
 } from "src/cs/workbench/contrib/files/common/files";
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 import { ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
-import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { CleanedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 import {
   getCalculatedData,
   type CalculatedData,

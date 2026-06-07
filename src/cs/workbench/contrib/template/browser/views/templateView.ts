@@ -1,11 +1,11 @@
-import {
+﻿import {
   createMenuAction,
   createMenuItemLabel,
 } from "src/cs/base/browser/ui/menu/menu";
 import { Separator, type IAction } from "src/cs/base/common/actions";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
-import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import type {
   ISessionService as ISessionServiceType,
   SessionContextValue,

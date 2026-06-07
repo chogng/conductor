@@ -1,4 +1,4 @@
-import type { IDisposable } from "src/cs/base/common/lifecycle";
+﻿import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type {
   IContextMenuService,
@@ -12,7 +12,7 @@ import type {
   FilesPaneRef,
 } from "src/cs/workbench/contrib/files/common/files";
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
-import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { CleanedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { CalculatedDataByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";

@@ -1,9 +1,9 @@
-import { localize } from "src/cs/nls";
+﻿import { localize } from "src/cs/nls";
 import type {
   AnalysisFileAssessment,
   IAnalysisFileService,
 } from "src/cs/workbench/services/analysisFile/common/analysisFile";
-import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import {
   buildItemKey,
   type FileEntry,

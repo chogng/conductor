@@ -1,4 +1,4 @@
-import { localize } from "src/cs/nls";
+﻿import { localize } from "src/cs/nls";
 import {
   getCardClassName,
   type CardVariant,
@@ -14,7 +14,7 @@ import { LxIcon } from "src/cs/base/common/lxicon";
 import type {
   CleanedEntry,
   ProcessingStatus,
-} from "src/cs/workbench/contrib/session/common/sessionTypes";
+} from "src/cs/workbench/services/session/common/sessionTypes";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import type { CalculatedDataByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";

@@ -1,4 +1,4 @@
-import {
+﻿import {
   calculateGmPoints,
   calculateIvPoints,
   calculateSsPoints,
@@ -9,7 +9,7 @@ import { PlotTypes, type PlotType } from "src/cs/workbench/contrib/plot/common/p
 import type {
   CleanedEntry,
   CleanedSeries,
-} from "src/cs/workbench/contrib/session/common/sessionTypes";
+} from "src/cs/workbench/services/session/common/sessionTypes";
 
 export type SourcePoint = {
   readonly x: number;

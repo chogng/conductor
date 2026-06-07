@@ -1,4 +1,4 @@
-import type { MutableState } from "src/cs/workbench/services/session/common/session";
+﻿import type { MutableState } from "src/cs/workbench/services/session/common/session";
 import {
   isPerfEnabled,
   logPerf,
@@ -10,7 +10,7 @@ import type {
   AnalysisResultsByFileId,
   CleanedEntry,
   ProcessingStatus,
-} from "src/cs/workbench/contrib/session/common/sessionTypes";
+} from "src/cs/workbench/services/session/common/sessionTypes";
 import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import { loadConvertedCsvFile } from "src/cs/workbench/services/analysisFile/browser/fileConversion";
 

@@ -1,4 +1,4 @@
-// Browser implementation of the session data table. This is the only mutable
+﻿// Browser implementation of the session data table. This is the only mutable
 // owner for imported files, calculated curves, and metadata in the workbench.
 // Keep metadata updates here so chart, calculation, parameters, and export read
 // one session snapshot instead of synchronizing through a second service.
@@ -12,7 +12,7 @@ import type {
   PreviewFile,
   PreviewRowsRequest,
   SessionFile,
-} from "src/cs/workbench/contrib/session/common/sessionTypes";
+} from "src/cs/workbench/services/session/common/sessionTypes";
 import type { CalculatedDataByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { TemplateSelectionsByFileId } from "src/cs/workbench/contrib/template/common/templateSelection";
 import {
@@ -24,7 +24,7 @@ import {
   type FileMetadata,
   type FileMetadataUpdate,
   type MetadataState,
-} from "src/cs/workbench/services/metadata/common/metadata";
+} from "src/cs/workbench/services/session/common/metadata";
 import {
   ISessionService,
   type IonIoffManualTargetsByFileId,

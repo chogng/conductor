@@ -1,4 +1,4 @@
-import {
+﻿import {
   createParameterRows,
   type CalculatedParameterRowData,
   type SsConfidence,
@@ -9,7 +9,7 @@ import {
 } from "src/cs/workbench/contrib/calculation/common/firstCalculation";
 import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
 import { localize } from "src/cs/nls";
-import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { CleanedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 
 export {
   createParameterRows,

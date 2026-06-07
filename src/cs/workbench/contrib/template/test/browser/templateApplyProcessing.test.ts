@@ -1,11 +1,11 @@
-import assert from "assert";
+﻿import assert from "assert";
 
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import type {
   CleanedEntry,
   ProcessingStatus,
-} from "src/cs/workbench/contrib/session/common/sessionTypes";
+} from "src/cs/workbench/services/session/common/sessionTypes";
 import type { StateSetter } from "src/cs/workbench/services/session/common/session";
 import {
   startProcessingJob,

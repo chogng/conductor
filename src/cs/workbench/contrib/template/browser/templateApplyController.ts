@@ -1,4 +1,4 @@
-import { localize, type NLSVars } from "src/cs/nls";
+﻿import { localize, type NLSVars } from "src/cs/nls";
 import type {
   MutableState,
   StateSetter,
@@ -18,7 +18,7 @@ import type {
   CleanedEntry,
   ProcessingStatus,
   SessionFile,
-} from "src/cs/workbench/contrib/session/common/sessionTypes";
+} from "src/cs/workbench/services/session/common/sessionTypes";
 import type {
   ProcessingJobOptions,
   ProcessingQueueItem,

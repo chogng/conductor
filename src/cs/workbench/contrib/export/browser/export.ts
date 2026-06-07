@@ -8,7 +8,7 @@ import {
 } from "src/cs/workbench/contrib/calculation/common/firstCalculation";
 import { getCachedSsFitAuto } from "../../calculation/common/analysisCacheAccess.ts";
 import { getExcelColumnLabel } from "../common/columnLabels.ts";
-import type { CleanedEntry, CleanedSeries } from "../../session/common/sessionTypes.ts";
+import type { CleanedEntry, CleanedSeries } from "src/cs/workbench/services/session/common/sessionTypes";
 export type {
   OriginExportMode,
   OriginSelectionExport,

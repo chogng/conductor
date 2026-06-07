@@ -1,4 +1,4 @@
-import { localize } from "src/cs/nls";
+﻿import { localize } from "src/cs/nls";
 
 import type { OriginCurveExportSeriesOption, OriginExportContentOption } from "src/cs/workbench/contrib/export/browser/OriginExportToolbar";
 import type { OriginFilteredCanvasKind, OriginCanvasExportScope } from "src/cs/workbench/contrib/export/browser/originCanvasExport";
@@ -9,7 +9,7 @@ import type {
 import type {
   CleanedEntry,
   CleanedSeries,
-} from "src/cs/workbench/contrib/session/common/sessionTypes";
+} from "src/cs/workbench/services/session/common/sessionTypes";
 
 export type ExportPaneState = {
   isExportListCanvasSelectionMode: boolean;

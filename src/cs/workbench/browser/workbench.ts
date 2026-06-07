@@ -1,4 +1,4 @@
-import {
+﻿import {
   DisposableStore,
   toDisposable,
   type IDisposable,
@@ -82,7 +82,7 @@ import {
   TemplateApplyController,
   type TemplateApplyControllerInput,
 } from "src/cs/workbench/contrib/template/browser/templateApplyController";
-import { createSessionActions } from "src/cs/workbench/contrib/session/browser/sessionActions";
+import { createSessionActions } from "src/cs/workbench/browser/sessionActions";
 import type {
   ISessionService as ISessionServiceType,
   SessionSnapshot,
@@ -132,11 +132,11 @@ import {
   type XUnit,
   type YUnit,
 } from "src/cs/workbench/contrib/plot/common/units";
-import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { CleanedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 import type {
   CurveKey,
   CurveYScale,
-} from "src/cs/workbench/services/metadata/common/metadata";
+} from "src/cs/workbench/services/session/common/metadata";
 import type { IWorkbenchViewModeService } from "src/cs/workbench/services/views/common/workbenchViewModeService";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {

@@ -1,5 +1,5 @@
-import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
+﻿import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
+import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { MutableState } from "src/cs/workbench/services/session/common/session";
 import type { RustPreviewCellRequest } from "src/cs/workbench/contrib/table/browser/rows/rustCells";
 import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";

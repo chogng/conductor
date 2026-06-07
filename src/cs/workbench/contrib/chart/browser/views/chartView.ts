@@ -29,7 +29,7 @@ import type {
 import type {
   CleanedEntry,
   ProcessingStatus,
-} from "src/cs/workbench/contrib/session/common/sessionTypes";
+} from "src/cs/workbench/services/session/common/sessionTypes";
 
 import "src/cs/workbench/contrib/chart/browser/views/media/chartView.css";
 
