@@ -44,7 +44,7 @@ export const createEmptyTemplateConfig = (
 export const normalizeXDataEndValue = (value: unknown): string => {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
-  if (raw.toLowerCase() === "end") return "End";
+  if (raw.toLowerCase() === "end") return "";
   return raw;
 };
 
@@ -56,7 +56,7 @@ export const cloneTemplateConfig = (
 
   return {
     ...cloned,
-    xDataEnd: xDataEnd || (cloned.xDataStart.trim() ? "End" : ""),
+    xDataEnd,
     yColumns: Array.isArray(config?.yColumns) ? [...config.yColumns] : [],
   };
 };
@@ -65,8 +65,7 @@ export const normalizeTemplateConfigRecord = (
   source: Partial<TemplateConfig> & Record<string, unknown>,
 ): TemplateConfig => {
   const xDataStart = String(source?.xDataStart ?? "");
-  const xDataEndRaw = normalizeXDataEndValue(source?.xDataEnd);
-  const xDataEnd = !xDataEndRaw ? (xDataStart.trim() ? "End" : "") : xDataEndRaw;
+  const xDataEnd = normalizeXDataEndValue(source?.xDataEnd);
 
   return createEmptyTemplateConfig({
     name: String(source?.name ?? ""),

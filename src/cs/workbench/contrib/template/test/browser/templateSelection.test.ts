@@ -70,6 +70,26 @@ suite("workbench/contrib/template/test/browser/templateSelection", () => {
 
     assert.deepEqual(
       resolveTemplateCellSelectionUpdate(
+        { rowIndex: 0, colIndex: 2 },
+        "xPointsPerGroup",
+      ),
+      {
+        xPointsPerGroup: "C1",
+      },
+    );
+
+    assert.deepEqual(
+      resolveTemplateCellSelectionUpdate(
+        { rowIndex: 4, colIndex: 5 },
+        "xSegmentCount",
+      ),
+      {
+        xSegmentCount: "F5",
+      },
+    );
+
+    assert.deepEqual(
+      resolveTemplateCellSelectionUpdate(
         { rowIndex: 5, colIndex: 4 },
         null,
       ),
@@ -84,7 +104,7 @@ suite("workbench/contrib/template/test/browser/templateSelection", () => {
       legendPrefix: "",
       name: "",
       stopOnError: false,
-      xDataEnd: "End",
+      xDataEnd: "",
       xDataStart: "B3",
       xPointsPerGroup: "",
       xSegmentCount: "",
@@ -105,6 +125,18 @@ suite("workbench/contrib/template/test/browser/templateSelection", () => {
         { fileId: "file", sheetId: "sheet", rowIndex: 0, colIndex: 0 },
       ),
       { fileId: "file", sheetId: "sheet", rowIndex: 2, colIndex: 1 },
+    );
+
+    assert.deepEqual(
+      resolveTemplateCellSelection(
+        {
+          ...config,
+          xSegmentCount: "C1",
+        },
+        "xSegmentCount",
+        { fileId: "file", sheetId: "sheet", rowIndex: 0, colIndex: 0 },
+      ),
+      { fileId: "file", sheetId: "sheet", rowIndex: 0, colIndex: 2 },
     );
 
     assert.equal(

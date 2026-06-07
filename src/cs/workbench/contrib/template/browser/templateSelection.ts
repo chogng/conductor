@@ -65,6 +65,12 @@ export const resolveTemplateCellSelectionUpdate = (
     case "xDataEnd":
       updates.xDataEnd = cellLabel;
       break;
+    case "xSegmentCount":
+      updates.xSegmentCount = cellLabel;
+      break;
+    case "xPointsPerGroup":
+      updates.xPointsPerGroup = cellLabel;
+      break;
     case "yLegendStart":
       updates.yLegendStart = cellLabel;
       break;

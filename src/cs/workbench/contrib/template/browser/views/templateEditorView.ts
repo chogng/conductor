@@ -10,7 +10,13 @@ import { localize } from "src/cs/nls";
 import { X_UNIT_VALUES, Y_UNIT_VALUES } from "src/cs/workbench/contrib/plot/common/units";
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
 
-export type TemplatePickFieldName = "xDataStart" | "xDataEnd" | "yLegendStart" | "yLegendCount";
+export type TemplatePickFieldName =
+  | "xDataStart"
+  | "xDataEnd"
+  | "xSegmentCount"
+  | "xPointsPerGroup"
+  | "yLegendStart"
+  | "yLegendCount";
 
 type TemplateStringFieldName = Exclude<
   {
@@ -44,13 +50,16 @@ export type TemplateEditorViewOptions = {
 };
 
 export type TemplateEditorViewState = {
+  readonly activePickField: TemplatePickFieldName | null;
   readonly config: TemplateConfig;
   readonly selectedYColumnLabels: readonly string[];
 };
 
-const PICKABLE_TEMPLATE_FIELDS = new Set<string>([
+const PICKABLE_TEMPLATE_FIELDS: ReadonlySet<TemplateEditorInputName> = new Set([
   "xDataStart",
   "xDataEnd",
+  "xSegmentCount",
+  "xPointsPerGroup",
   "yLegendStart",
   "yLegendCount",
 ]);
@@ -93,6 +102,7 @@ export class TemplateEditorView {
   private readonly yUnit: SelectField<TemplateConfig["yUnit"]>;
   private readonly yColumnsSummary: HTMLElement;
   private readonly yColumnsClearButton: HTMLButtonElement;
+  private readonly focusInputValues = new Map<TemplateEditorInputName, string>();
 
   constructor(
     private readonly options: TemplateEditorViewOptions,
@@ -128,7 +138,7 @@ export class TemplateEditorView {
       fullWidth: true,
     });
     const xDataStartInput = this.createField(xFields, localize("template_x_start", "Start"), "xDataStart", {
-      placeholder: "A2",
+      placeholder: localize("template_cell_placeholder", "Click or enter a cell"),
     });
     const xDataEndInput = this.createField(xFields, localize("template_x_end", "End"), "xDataEnd", {
       placeholder: "End",
@@ -270,7 +280,7 @@ export class TemplateEditorView {
     const values: Record<keyof typeof this.inputs, string> = {
       name: config.name,
       xDataStart: config.xDataStart,
-      xDataEnd: config.xDataEnd,
+      xDataEnd: getTemplateInputValue("xDataEnd", config.xDataEnd),
       xSegmentCount: config.xSegmentCount,
       xPointsPerGroup: config.xPointsPerGroup,
       bottomTitle: config.bottomTitle,
@@ -285,6 +295,7 @@ export class TemplateEditorView {
       if (input.value !== values[key]) {
         input.value = values[key];
       }
+      this.setPickFieldActive(input, key === state.activePickField);
     }
 
     this.updateDropdownField(this.xSegmentationMode, {
@@ -380,23 +391,52 @@ export class TemplateEditorView {
         }
       }
     }));
+    this.disposables.add(addDisposableListener(input, "keydown", (event) => {
+      if (event.isComposing) {
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.acceptInput(input, name, isPickableField);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.cancelInput(input, name, isPickableField);
+      }
+    }));
     this.disposables.add(addDisposableListener(input, "focus", () => {
+      this.focusInputValues.set(name, input.value);
       this.options.onPickFieldFocus(
         isPickableField ? name as TemplatePickFieldName : null,
       );
     }));
-    if (name === "xDataEnd") {
-      this.disposables.add(addDisposableListener(input, "blur", () => {
-        if (!input.value.trim()) {
-          this.options.onUpdateConfig({ xDataEnd: "End" });
-        }
-      }));
-    }
     if (options.fullWidth) {
       field.className = `${field.className} template_field--full`;
     }
     container.append(field);
     return input;
+  }
+
+  private acceptInput(input: HTMLInputElement, name: TemplateEditorInputName, isPickableField: boolean): void {
+    this.focusInputValues.delete(name);
+    input.blur();
+    if (isPickableField) {
+      this.options.onPickFieldFocus(null);
+    }
+  }
+
+  private cancelInput(input: HTMLInputElement, name: TemplateEditorInputName, isPickableField: boolean): void {
+    const previousValue = this.focusInputValues.get(name) ?? "";
+    this.focusInputValues.delete(name);
+    if (input.value !== previousValue) {
+      input.value = previousValue;
+      this.options.onUpdateConfig({ [name]: previousValue });
+    }
+    input.blur();
+    if (isPickableField) {
+      this.options.onPickFieldFocus(null);
+    }
   }
 
   private createSelectField<T extends string>(
@@ -474,6 +514,13 @@ export class TemplateEditorView {
     field.classList.toggle("template_field--hidden", hidden);
     field.setAttribute("aria-hidden", hidden ? "true" : "false");
     input.disabled = hidden;
+  }
+
+  private setPickFieldActive(input: HTMLInputElement, active: boolean): void {
+    const field = input.closest(".inputbox_field") as HTMLElement | null;
+    if (!field) return;
+
+    field.dataset.picking = active ? "true" : "false";
   }
 }
 
@@ -583,5 +630,13 @@ const createField = ({
 };
 
 const getTemplateFieldId = (name: string): string => `template_editor_${name}`;
+
+const getTemplateInputValue = (
+  name: TemplateEditorInputName,
+  value: string,
+): string =>
+  name === "xDataEnd" && value.trim().toLowerCase() === "end"
+    ? ""
+    : value;
 
 const labelToId = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");

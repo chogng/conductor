@@ -43,6 +43,15 @@
   width: 100%;
 }
 
+.template_field .inputbox_field[data-picking="true"] {
+  border-color: rgb(var(--accent) / 1);
+}
+
+html[data-nav="keyboard"] .template_field .inputbox_field[data-picking="true"]::after {
+  border-color: rgb(var(--accent-terracotta) / 1);
+  opacity: 0.5;
+}
+
 .template_form_section {
   display: flex;
   min-width: 0;

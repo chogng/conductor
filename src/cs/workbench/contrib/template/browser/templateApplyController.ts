@@ -41,6 +41,9 @@ type ExtractionMeta = {
   groupSizePreview?: number;
   groups?: number;
   pointsRawUpper?: string;
+  segmentCountCell?: boolean;
+  segmentCountPreview?: number;
+  segmentsRawUpper?: string;
   total?: number | null;
 };
 
@@ -195,15 +198,22 @@ const buildExtractionStartFeedback = ({
   warnings?: string[];
 }): ExtractionFeedback => {
   const groupSizePreview = Number(meta.groupSizePreview);
+  const segmentCountPreview = Number(meta.segmentCountPreview);
   const fixedGroupSize = Number(meta.groupSize);
   const fixedGroupCount = Number(meta.groups);
-  const groupSizeText = meta.groupSizeCell
-    ? localize("extract_points_from_cell", "points from {cell}", { cell: meta.pointsRawUpper || "" })
-    : Number.isInteger(fixedGroupSize) && fixedGroupSize > 0
-      ? localize("extract_points_fixed", "points={points}", { points: fixedGroupSize })
-      : localize("extract_points_fixed", "points={points}", { points: "-" });
+  const groupSizeText = meta.segmentCountCell
+    ? localize("extract_segments_from_cell", "segments from {cell}", { cell: meta.segmentsRawUpper || "" })
+    : meta.groupSizeCell
+      ? localize("extract_points_from_cell", "points from {cell}", { cell: meta.pointsRawUpper || "" })
+      : Number.isInteger(fixedGroupSize) && fixedGroupSize > 0
+        ? localize("extract_points_fixed", "points={points}", { points: fixedGroupSize })
+        : localize("extract_points_fixed", "points={points}", { points: "-" });
   const groupsText =
-    meta.groupSizeCell &&
+    meta.segmentCountCell &&
+    Number.isInteger(segmentCountPreview) &&
+    segmentCountPreview > 0
+      ? localize("extract_groups_suffix", ", {groups} group(s)", { groups: segmentCountPreview })
+      : meta.groupSizeCell &&
     Number.isInteger(groupSizePreview) &&
     groupSizePreview > 0
       ? localize("extract_groups_suffix", ", {groups} group(s)", {

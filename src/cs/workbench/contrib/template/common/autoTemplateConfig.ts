@@ -42,7 +42,7 @@ export const buildAutoTemplateConfig = (
     bottomTitle: plan.bottomTitle,
     leftTitle: plan.leftTitle,
     legendPrefix: plan.legendPrefix,
-    xDataEnd: "End",
+    xDataEnd: "",
     xDataStart: toCellLabel(plan.dataStartRowIndex, plan.xCol),
     xPointsPerGroup: normalizedGroupSize !== null ? String(normalizedGroupSize) : "",
     xSegmentationMode: plan.xSegmentationMode,

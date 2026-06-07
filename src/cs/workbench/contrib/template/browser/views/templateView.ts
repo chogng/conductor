@@ -322,16 +322,6 @@ export class TemplateView {
       ...updates,
     };
 
-    if (
-      updates.xDataStart !== undefined &&
-      String(next.xDataStart ?? "").trim() &&
-      !String(current.xDataEnd ?? "").trim() &&
-      updates.xDataEnd === undefined
-    ) {
-      next.xDataEnd = "End";
-      changed = true;
-    }
-
     if (Array.isArray(updates.yColumns)) {
       changed = !areColumnIndexesEqual(current.yColumns, updates.yColumns);
       next.yColumns = updates.yColumns;
@@ -482,6 +472,7 @@ export class TemplateView {
         onPickFieldFocus: (field) => {
           this.activePickField = field;
           this.syncTableActiveCell({ clearInvalid: Boolean(field) });
+          this.updateEditorView();
         },
         onSave: () => {
           void this.handleSaveTemplate();
@@ -513,6 +504,7 @@ export class TemplateView {
   private getEditorViewState() {
     const config = this.getEffectiveTemplateConfig();
     return {
+      activePickField: this.activePickField,
       config,
       selectedYColumnLabels: normalizeColumnIndexes(config.yColumns).map((column) => toColumnLabel(column)),
     };

@@ -52,6 +52,7 @@ type ExtractionConfig = {
   yLegendStep?: number;
   yLegendTarget?: "auto" | "yColumn" | "group";
   groupSizeCell?: CellRef;
+  segmentCountCell?: CellRef;
   groupSize?: number | null;
   groups?: number | null;
   segmentCount?: number | null;
@@ -59,12 +60,15 @@ type ExtractionConfig = {
 
 type ExtractionMeta = {
   pointsRawUpper: string;
+  segmentsRawUpper: string;
   groupSizeCell: boolean;
+  segmentCountCell: boolean;
   groupSize: number | null;
   groups: number | null;
   segmentCount: number | null;
   total: number | null;
   groupSizePreview: number | null;
+  segmentCountPreview: number | null;
 };
 
 type PrepareExtractionResult =
@@ -161,7 +165,7 @@ export function prepareExtraction({
       message: msg(
         "extractSetXEndOrUseEnd",
         null,
-        "Please set X Data end cell (e.g. A1408) or use 'End' to read until the last preview row.",
+        "Please set X Data end cell (e.g. A1408) or leave it empty to read until the last preview row.",
       ),
     };
   }
@@ -199,7 +203,9 @@ export function prepareExtraction({
   let groups: number | null = null;
   let segmentCount: number | null = null;
   let groupSizeCell: CellRef | null = null;
+  let segmentCountCell: CellRef | null = null;
   let groupSizePreview: number | null = null;
+  let segmentCountPreview: number | null = null;
   const pointsRaw = String(normalizedConfig?.xPointsPerGroup ?? "").trim();
   const segmentsRaw = String(normalizedConfig?.xSegmentCount ?? "").trim();
   const segmentationMode = resolveXSegmentationMode(
@@ -212,34 +218,77 @@ export function prepareExtraction({
     getPreviewRow,
   });
   if (segmentationMode === "segments") {
-    const segments = Number(segmentsRaw);
-    if (!Number.isInteger(segments) || segments <= 0) {
-      return {
-        ok: false,
-        type: "warning",
-        message: msg(
-          "extractXSegmentsPositiveInt",
-          null,
-          "Segments must be a positive integer.",
-        ),
-      };
-    }
-    segmentCount = segments;
+    const segmentsCell = parseCellRef(segmentsRaw);
     const totalForValidation = total ?? autoSuggestion?.total ?? null;
-    if (totalForValidation !== null) {
-      if (segments > totalForValidation || totalForValidation % segments !== 0) {
+    if (segmentsCell) {
+      segmentCountCell = segmentsCell;
+      const previewRow =
+        typeof getPreviewRow === "function" ? getPreviewRow(segmentsCell.rowIndex) : null;
+      if (previewRow) {
+        const previewCells = Array.isArray(previewRow) ? previewRow : [];
+        const raw = previewCells[segmentsCell.colIndex];
+        const parsed = parseNumberStrict(raw);
+        const asInt = parsed !== null && Number.isInteger(parsed) ? parsed : null;
+
+        if (asInt === null || asInt <= 0) {
+          return {
+            ok: false,
+            type: "warning",
+            message: msg(
+              "extractSegmentsCellPositiveInt",
+              { cell: segmentsRaw.toUpperCase() },
+              `Segments cell ${segmentsRaw.toUpperCase()} must contain a positive integer.`,
+            ),
+          };
+        }
+        if (totalForValidation !== null) {
+          if (asInt > totalForValidation || totalForValidation % asInt !== 0) {
+            return {
+              ok: false,
+              type: "warning",
+              message: msg(
+                "extractXNotDivisibleBySegmentsFromCell",
+                {
+                  total: totalForValidation,
+                  segments: asInt,
+                  cell: segmentsRaw.toUpperCase(),
+                },
+                `X range has ${totalForValidation} points, which is not divisible by segments=${asInt} (from ${segmentsRaw.toUpperCase()}).`,
+              ),
+            };
+          }
+        }
+        segmentCountPreview = asInt;
+      }
+    } else {
+      const segments = Number(segmentsRaw);
+      if (!Number.isInteger(segments) || segments <= 0) {
         return {
           ok: false,
           type: "warning",
           message: msg(
-            "extractXNotDivisibleBySegments",
-            { total: totalForValidation, segments },
-            `X range has ${totalForValidation} points, which is not divisible by segments=${segments}.`,
+            "extractXSegmentsPositiveIntOrCell",
+            null,
+            "Segments must be a positive integer (or a cell like B2).",
           ),
         };
       }
-      groups = segments;
-      groupSize = totalForValidation / segments;
+      segmentCount = segments;
+      if (totalForValidation !== null) {
+        if (segments > totalForValidation || totalForValidation % segments !== 0) {
+          return {
+            ok: false,
+            type: "warning",
+            message: msg(
+              "extractXNotDivisibleBySegments",
+              { total: totalForValidation, segments },
+              `X range has ${totalForValidation} points, which is not divisible by segments=${segments}.`,
+            ),
+          };
+        }
+        groups = segments;
+        groupSize = totalForValidation / segments;
+      }
     }
   } else if (segmentationMode === "auto") {
     if (
@@ -344,7 +393,7 @@ export function prepareExtraction({
     }
   }
 
-  if (!groupSizeCell) {
+  if (!groupSizeCell && !segmentCountCell) {
     if (
       Number.isInteger(segmentCount) &&
       (segmentCount as number) > 0 &&
@@ -556,6 +605,11 @@ export function prepareExtraction({
 
   if (groupSizeCell) {
     extractionConfig.groupSizeCell = groupSizeCell;
+  } else if (segmentCountCell) {
+    extractionConfig.segmentCountCell = segmentCountCell;
+    extractionConfig.groupSize = null;
+    extractionConfig.groups = null;
+    extractionConfig.segmentCount = null;
   } else if (segmentationMode === "auto") {
     // In auto mode, grouping must be inferred per file in the worker.
     // Do not freeze preview-derived group values into the shared batch config.
@@ -576,12 +630,15 @@ export function prepareExtraction({
     extractionConfig,
     meta: {
       pointsRawUpper: String(pointsRaw).toUpperCase(),
+      segmentsRawUpper: String(segmentsRaw).toUpperCase(),
       groupSizeCell: Boolean(groupSizeCell),
+      segmentCountCell: Boolean(segmentCountCell),
       groupSize,
       groups,
       segmentCount,
       total,
       groupSizePreview,
+      segmentCountPreview,
     },
   };
 }

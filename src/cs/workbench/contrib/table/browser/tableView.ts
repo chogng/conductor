@@ -17,6 +17,7 @@ export type TableViewProps = {
 
 type BodyCell = {
   readonly element: HTMLTableCellElement;
+  appliedActive?: boolean;
   appliedHighlighted?: boolean;
   appliedHidden?: boolean;
   appliedSelected?: boolean;
@@ -54,7 +55,6 @@ export class TableView {
   private readonly content = document.createElement("div");
   private readonly table = document.createElement("table");
   private readonly bodyRows = document.createElement("tbody");
-  private readonly activeCell = document.createElement("div");
   private readonly scrollArea = new Scrollbar({
     axis: "both",
     className: "table_view_scroll_area",
@@ -67,6 +67,7 @@ export class TableView {
   private headerColumnCount = 0;
   private bodyRowCount = 0;
   private bodyColumnCount = 0;
+  private renderedInputKey: string | null = null;
   private renderedZoomPercent: number | null = null;
   private renderedSourceKey: string | null = null;
   private appliedCellState: AppliedCellState | null = null;
@@ -86,14 +87,11 @@ export class TableView {
     this.headerContent.className = "table_view_grid_header_content";
     this.content.className = "table_view_content";
     this.table.className = "table_view_grid";
-    this.activeCell.className = "table_view_active_cell";
-    this.activeCell.hidden = true;
-    this.activeCell.setAttribute("aria-hidden", "true");
     this.headerCorner.setAttribute("aria-hidden", "true");
     this.headerScroll.append(this.headerContent);
     this.header.append(this.headerCorner, this.headerScroll);
     this.table.append(this.bodyRows);
-    this.content.append(this.table, this.activeCell);
+    this.content.append(this.table);
     this.body.append(this.header, this.scrollArea.element);
     this.element.append(this.body);
     this.store.add(addDisposableListener(this.headerContent, EventType.CLICK, event => {
@@ -103,15 +101,22 @@ export class TableView {
       this.onBodyClick(event as MouseEvent);
     }));
     this.bindTableState(props.tableModel);
+    this.renderedInputKey = getTableViewInputKey(props);
     this.render();
   }
 
   public update(props: TableViewProps): void {
     const previousModel = this.props.tableModel;
+    const nextInputKey = getTableViewInputKey(props);
     this.props = props;
     if (previousModel !== props.tableModel) {
       this.bindTableState(props.tableModel);
     }
+    if (previousModel === props.tableModel && this.renderedInputKey === nextInputKey) {
+      return;
+    }
+
+    this.renderedInputKey = nextInputKey;
     this.render();
   }
 
@@ -127,7 +132,7 @@ export class TableView {
   }
 
   public focus(): void {
-    this.element.focus();
+    this.element.focus({ preventScroll: true });
   }
 
   public scrollHorizontally(delta: number): boolean {
@@ -420,12 +425,12 @@ export class TableView {
         const row = this.bodyGrid[rowIndex];
         for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
           this.updateCellState(row.cells[colIndex], {
+            active: isActiveCell(activeCell, rowIndex, colIndex),
             highlighted: highlightedColumns.has(colIndex),
             selected: selectedColumns.has(colIndex),
           });
         }
       }
-      this.syncActiveCell(activeCell);
       this.appliedCellState = next;
       return;
     }
@@ -436,36 +441,49 @@ export class TableView {
     for (const colIndex of changedColumns) {
       for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
         this.updateCellState(this.bodyGrid[rowIndex].cells[colIndex], {
+          active: isActiveCell(activeCell, rowIndex, colIndex),
           highlighted: highlightedColumns.has(colIndex),
           selected: selectedColumns.has(colIndex),
         });
       }
     }
 
-    this.syncActiveCell(activeCell);
+    this.syncActiveCells(previous.activeCell, activeCell, next);
     this.appliedCellState = next;
   }
 
-  private syncActiveCell(activeCell: ActiveCell | null): void {
+  private syncActiveCells(
+    previous: ActiveCell | null,
+    next: ActiveCell | null,
+    state: Pick<AppliedCellState, "highlightedColumns" | "selectedColumns">,
+  ): void {
+    if (areActiveCellsEqual(previous, next)) {
+      return;
+    }
+
+    this.updateActiveCellState(previous, false, state);
+    this.updateActiveCellState(next, true, state);
+  }
+
+  private updateActiveCellState(
+    activeCell: ActiveCell | null,
+    active: boolean,
+    state: Pick<AppliedCellState, "highlightedColumns" | "selectedColumns">,
+  ): void {
     if (!activeCell) {
-      this.activeCell.hidden = true;
-      this.activeCell.style.transform = "";
       return;
     }
 
-    const cell = this.bodyGrid[activeCell.rowIndex]?.cells[activeCell.colIndex]?.element;
+    const cell = this.bodyGrid[activeCell.rowIndex]?.cells[activeCell.colIndex];
     if (!cell) {
-      this.activeCell.hidden = true;
-      this.activeCell.style.transform = "";
       return;
     }
 
-    const cellRect = cell.getBoundingClientRect();
-    const contentRect = this.content.getBoundingClientRect();
-    this.activeCell.style.width = `${cellRect.width}px`;
-    this.activeCell.style.height = `${cellRect.height}px`;
-    this.activeCell.hidden = false;
-    this.activeCell.style.transform = `translate3d(${cellRect.left - contentRect.left}px, ${cellRect.top - contentRect.top}px, 0)`;
+    this.updateCellState(cell, {
+      active,
+      highlighted: state.highlightedColumns.has(activeCell.colIndex),
+      selected: state.selectedColumns.has(activeCell.colIndex),
+    });
   }
 
   private syncHeaderColumns(
@@ -510,11 +528,17 @@ export class TableView {
   private updateCellState(
     cell: BodyCell,
     state: {
+      readonly active: boolean;
       readonly highlighted: boolean;
       readonly selected: boolean;
     },
   ): void {
     const element = cell.element;
+
+    if (cell.appliedActive !== state.active) {
+      element.dataset.active = state.active ? "true" : "false";
+      cell.appliedActive = state.active;
+    }
 
     if (cell.appliedSelected !== state.selected) {
       element.dataset.selected = state.selected ? "true" : "false";
@@ -645,6 +669,26 @@ const setHidden = (element: HTMLElement, hidden: boolean): boolean => {
   return true;
 };
 
+const getTableViewInputKey = ({
+  tableState,
+  zoomPercent,
+}: TableViewProps): string => {
+  const file = tableState.file;
+  return [
+    zoomPercent,
+    tableState.selectedFileId ?? "",
+    tableState.selectedSheetId ?? "",
+    tableState.sourceKey ?? "",
+    tableState.loadState.state,
+    tableState.loadState.message,
+    file?.fileId ?? "",
+    file?.sheetId ?? "",
+    file?.sourceKey ?? "",
+    file?.rowCount ?? "",
+    file?.columnCount ?? "",
+  ].join("\u001f");
+};
+
 const toColumnSet = (
   columnIndexes: readonly number[] | undefined,
   columnCount: number,
@@ -685,6 +729,26 @@ const normalizeActiveCell = (
     colIndex,
     rowIndex,
   };
+};
+
+const isActiveCell = (
+  activeCell: ActiveCell | null,
+  rowIndex: number,
+  colIndex: number,
+): boolean =>
+  activeCell?.rowIndex === rowIndex &&
+  activeCell.colIndex === colIndex;
+
+const areActiveCellsEqual = (
+  first: ActiveCell | null,
+  second: ActiveCell | null,
+): boolean => {
+  if (!first || !second) {
+    return !first && !second;
+  }
+
+  return first.rowIndex === second.rowIndex &&
+    first.colIndex === second.colIndex;
 };
 
 const getChangedColumns = (

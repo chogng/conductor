@@ -260,10 +260,12 @@ export class ViewPaneContainer implements IViewPaneContainer {
 
     this.visiblePaneIds.set(viewId, visible);
     const changed = pane.setVisible(this.visible && visible);
-    this.renderViews();
-    if (changed) {
-      this.onDidChangeViewVisibilityEmitter.fire(pane);
+    if (!changed) {
+      return false;
     }
+
+    this.renderViews();
+    this.onDidChangeViewVisibilityEmitter.fire(pane);
     this.layout();
     return changed;
   }

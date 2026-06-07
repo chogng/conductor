@@ -1102,6 +1102,34 @@ fn process_file(
         }
         group_size = Some(points);
         groups = Some(expected_total / points);
+    } else if let Some((cell_row, cell_col)) = json_cell_ref(config.get("segmentCountCell")) {
+        let segments = read_cell_number(dataset, cell_row, cell_col).and_then(|value| {
+            if value > 0.0 && value.fract().abs() <= f64::EPSILON {
+                Some(value as usize)
+            } else {
+                None
+            }
+        });
+        let segments = segments.ok_or_else(|| {
+            format!(
+                "{}: Segments cell {}{} must contain a positive integer.",
+                dataset.file_name,
+                excel_column_label(cell_col),
+                cell_row + 1
+            )
+        })?;
+        if segments > expected_total || expected_total % segments != 0 {
+            return Err(format!(
+                "{}: X range has {} points, which is not divisible by segments={} (from {}{}).",
+                dataset.file_name,
+                expected_total,
+                segments,
+                excel_column_label(cell_col),
+                cell_row + 1
+            ));
+        }
+        groups = Some(segments);
+        group_size = Some(expected_total / segments);
     } else if segmentation_mode == "auto" {
         if let Some((meta_group_size, meta_groups)) = infer_metadata_group_shape(dataset, start_row)
         {
@@ -1669,6 +1697,27 @@ fn resolve_export_group_shape(
         }
         group_size = Some(points);
         groups = Some(expected_total / points);
+    } else if let Some((cell_row, cell_col)) = json_cell_ref(config.get("segmentCountCell")) {
+        let segments = read_cell_number(dataset, cell_row, cell_col).and_then(|value| {
+            if value > 0.0 && value.fract().abs() <= f64::EPSILON {
+                Some(value as usize)
+            } else {
+                None
+            }
+        });
+        let segments = segments.ok_or_else(|| {
+            format!(
+                "{}: Segments cell {}{} must contain a positive integer.",
+                dataset.file_name,
+                excel_column_label(cell_col),
+                cell_row + 1
+            )
+        })?;
+        if segments > expected_total || expected_total % segments != 0 {
+            return Err("Invalid config: segment count cell does not divide row range".to_string());
+        }
+        groups = Some(segments);
+        group_size = Some(expected_total / segments);
     } else if segmentation_mode == "auto" {
         if let Some((meta_group_size, meta_groups)) = infer_metadata_group_shape(dataset, start_row)
         {
