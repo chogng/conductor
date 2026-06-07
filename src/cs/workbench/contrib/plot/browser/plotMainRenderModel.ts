@@ -1,6 +1,6 @@
-import type { MainPlotSeries } from "src/cs/workbench/contrib/plot/browser/mainPlotCanvas";
+﻿import type { PlotMainSeries } from "src/cs/workbench/contrib/plot/browser/plotMainChart";
 
-export type MainPlotRenderModel = {
+export type PlotMainRenderModel = {
   readonly activeFile: Partial<{
     fileId: string;
     fileName: string;
@@ -8,7 +8,7 @@ export type MainPlotRenderModel = {
     yLabel: string;
   }> | null;
   readonly pointsCount: number;
-  readonly seriesList: MainPlotSeries[];
+  readonly seriesList: PlotMainSeries[];
   readonly xDomain: [number, number];
   readonly xUnitLabel: string;
   readonly yDomain: [number, number];

@@ -1,4 +1,4 @@
-import {
+﻿import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   type OriginPlotOptions,
 } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
@@ -8,33 +8,33 @@ import {
   type PlotAxisSettings,
 } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import {
-  createMainPlotCanvas,
-  type MainPlotCanvasProps,
-} from "src/cs/workbench/contrib/plot/browser/mainPlotCanvas";
-import type { MainPlotRenderModel } from "src/cs/workbench/contrib/plot/browser/mainPlotRenderModel";
+  createPlotMainChart,
+  type PlotMainChartProps,
+} from "src/cs/workbench/contrib/plot/browser/plotMainChart";
+import type { PlotMainRenderModel } from "src/cs/workbench/contrib/plot/browser/plotMainRenderModel";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 
-export type MainPlotViewProps = {
-  readonly model: MainPlotRenderModel;
+export type PlotMainViewProps = {
+  readonly model: PlotMainRenderModel;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly legendLabels?: Readonly<Record<string, string>>;
   readonly plotType: PlotType;
 };
 
-export type MainPlotView = {
+export type PlotMainView = {
   readonly element: HTMLElement;
-  readonly model: MainPlotRenderModel;
+  readonly model: PlotMainRenderModel;
   readonly dispose: () => void;
 };
 
-export const createMainPlotCanvasProps = ({
+export const createPlotMainChartProps = ({
   model,
   originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS,
   plotAxisSettings,
   legendLabels,
   plotType,
-}: MainPlotViewProps): MainPlotCanvasProps => {
+}: PlotMainViewProps): PlotMainChartProps => {
   const axisSettings = normalizePlotAxisSettings(
     plotAxisSettings,
     DEFAULT_PLOT_AXIS_SETTINGS,
@@ -73,8 +73,8 @@ export const createMainPlotCanvasProps = ({
   };
 };
 
-export const createMainPlotView = (props: MainPlotViewProps): MainPlotView => {
-  const element = createMainPlotCanvas(createMainPlotCanvasProps(props));
+export const createPlotMainView = (props: PlotMainViewProps): PlotMainView => {
+  const element = createPlotMainChart(createPlotMainChartProps(props));
 
   return {
     dispose: () => element.dispose(),

@@ -3,6 +3,10 @@
   padLogDomain,
 } from "src/cs/workbench/contrib/plot/browser/plotViewModel";
 
+// Plot contrib owns drawing primitives, scale/domain resolution, and render models.
+// Workbench features such as thumbnails may consume these drawing capabilities, but
+// file selection, card state, badges, and feature-specific lifecycle stay with the caller.
+// 
 import "src/cs/workbench/contrib/plot/browser/media/plot.css";
 
 type Padding = {
@@ -12,22 +16,22 @@ type Padding = {
   left: number;
 };
 
-type PreviewPlotDomain = {
+type PlotThumbnailDomain = {
   x?: [number, number] | number[];
   y?: [number, number] | number[];
 };
 
-type PreviewPlotSeries = {
+type PlotThumbnailSeries = {
   name?: string;
   groupIndex?: number;
   y?: ArrayLike<unknown> | null;
   [key: string]: unknown;
 };
 
-export type CanvasMultiLinePlotProps = {
+export type PlotThumbnailProps = {
   xGroups?: number[][];
-  series?: PreviewPlotSeries[];
-  domain?: PreviewPlotDomain | null;
+  series?: PlotThumbnailSeries[];
+  domain?: PlotThumbnailDomain | null;
   xScaleFactor?: number;
   xUnitLabel?: string;
   yScaleFactor?: number;
@@ -41,19 +45,19 @@ export type CanvasMultiLinePlotProps = {
 
 const DEFAULT_PADDING: Padding = { top: 20, right: 10, bottom: 10, left: 10 };
 
-type ResolvedPreviewDomain = {
+type ResolvedPlotThumbnailDomain = {
   x: [number, number];
   y: [number, number];
   effectiveYScaleType: "linear" | "log";
 };
 
-type ResolvedPreviewYDataRange = {
+type ResolvedPlotThumbnailYDataRange = {
   min: number | null;
   max: number | null;
 };
 
 const normalizeDomainTuple = (
-  raw: PreviewPlotDomain[keyof PreviewPlotDomain] | null | undefined,
+  raw: PlotThumbnailDomain[keyof PlotThumbnailDomain] | null | undefined,
 ): [number, number] | null => {
   const start = Number(raw?.[0]);
   const end = Number(raw?.[1]);
@@ -64,7 +68,7 @@ const normalizeDomainTuple = (
   return [lo, hi];
 };
 
-const resolvePreviewYForScale = (
+const resolvePlotThumbnailYForScale = (
   value: unknown,
   yScaleType: "linear" | "log",
   yLogCurrentMode: "all" | "positive" = "all",
@@ -77,14 +81,14 @@ const resolvePreviewYForScale = (
   return abs > 0 ? abs : null;
 };
 
-export const resolvePreviewPlotYDataRange = ({
+export const resolvePlotThumbnailYDataRange = ({
   series,
   yScaleType,
   yLogCurrentMode = "all",
 }: Pick<
-  CanvasMultiLinePlotProps,
+  PlotThumbnailProps,
   "series" | "yScaleType" | "yLogCurrentMode"
->): ResolvedPreviewYDataRange => {
+>): ResolvedPlotThumbnailYDataRange => {
   const resolvedYScaleType = String(yScaleType ?? "linear") === "log" ? "log" : "linear";
   let minY = Infinity;
   let maxY = -Infinity;
@@ -92,7 +96,7 @@ export const resolvePreviewPlotYDataRange = ({
     const yArr = plotSeries?.y;
     if (!yArr) continue;
     for (let index = 0; index < (yArr.length ?? 0); index++) {
-      const yVal = resolvePreviewYForScale(
+      const yVal = resolvePlotThumbnailYForScale(
         yArr[index],
         resolvedYScaleType,
         yLogCurrentMode,
@@ -108,16 +112,16 @@ export const resolvePreviewPlotYDataRange = ({
   };
 };
 
-export const resolvePreviewPlotDomain = ({
+export const resolvePlotThumbnailDomain = ({
   xGroups,
   series,
   domain,
   yScaleType,
   yLogCurrentMode = "all",
 }: Pick<
-  CanvasMultiLinePlotProps,
+  PlotThumbnailProps,
   "xGroups" | "series" | "domain" | "yScaleType" | "yLogCurrentMode"
->): ResolvedPreviewDomain => {
+>): ResolvedPlotThumbnailDomain => {
   const explicitXDomain = normalizeDomainTuple(domain?.x);
   const explicitYDomain = normalizeDomainTuple(domain?.y);
   let minX = Infinity;
@@ -138,7 +142,7 @@ export const resolvePreviewPlotDomain = ({
     const yArr = plotSeries?.y;
     if (!yArr) continue;
     for (let index = 0; index < (yArr.length ?? 0); index++) {
-      const yVal = resolvePreviewYForScale(
+      const yVal = resolvePlotThumbnailYForScale(
         yArr[index],
         wantsLogScale ? "log" : "linear",
         yLogCurrentMode,
@@ -168,10 +172,10 @@ export const resolvePreviewPlotDomain = ({
   };
 };
 
-const CanvasMultiLinePlot = (props: CanvasMultiLinePlotProps): any =>
-  createCanvasMultiLinePlot(props);
+const PlotThumbnail = (props: PlotThumbnailProps): HTMLElement =>
+  createPlotThumbnail(props);
 
-export const createCanvasMultiLinePlot = ({
+export const createPlotThumbnail = ({
   className = "",
   domain,
   padding = DEFAULT_PADDING,
@@ -180,18 +184,18 @@ export const createCanvasMultiLinePlot = ({
   xGroups = [],
   yLogCurrentMode = "all",
   yScaleType = "linear",
-}: CanvasMultiLinePlotProps): HTMLElement => {
+}: PlotThumbnailProps): HTMLElement => {
   const root = document.createElement("div");
-  root.className = `canvas_multi_line_plot ${className}`.trim();
+  root.className = `plot_thumbnail ${className}`.trim();
   if (title) {
     root.title = title;
   }
 
   const canvas = document.createElement("canvas");
-  canvas.className = "canvas_multi_line_plot_canvas";
+  canvas.className = "plot_thumbnail_canvas";
   root.append(canvas);
 
-  const resolvedDomain = resolvePreviewPlotDomain({
+  const resolvedDomain = resolvePlotThumbnailDomain({
     domain,
     series,
     xGroups,
@@ -199,7 +203,7 @@ export const createCanvasMultiLinePlot = ({
     yScaleType,
   });
   queueMicrotask(() =>
-    drawPreviewPlot(canvas, {
+    drawPlotThumbnail(canvas, {
       padding,
       resolvedDomain,
       series,
@@ -209,7 +213,7 @@ export const createCanvasMultiLinePlot = ({
   return root;
 };
 
-const drawPreviewPlot = (
+const drawPlotThumbnail = (
   canvas: HTMLCanvasElement,
   {
     padding,
@@ -218,8 +222,8 @@ const drawPreviewPlot = (
     xGroups,
   }: {
     readonly padding: Padding;
-    readonly resolvedDomain: ResolvedPreviewDomain;
-    readonly series: PreviewPlotSeries[];
+    readonly resolvedDomain: ResolvedPlotThumbnailDomain;
+    readonly series: PlotThumbnailSeries[];
     readonly xGroups: number[][];
   },
 ): void => {
@@ -277,4 +281,4 @@ const drawPreviewPlot = (
 const getColor = (index: number): string =>
   ["#60a5fa", "#f97316", "#22c55e", "#e879f9", "#f43f5e"][index % 5];
 
-export default CanvasMultiLinePlot;
+export default PlotThumbnail;

@@ -1,4 +1,4 @@
-import type { MainPlotPoint, MainPlotSeries } from "src/cs/workbench/contrib/plot/browser/mainPlotCanvas";
+﻿import type { PlotMainPoint, PlotMainSeries } from "src/cs/workbench/contrib/plot/browser/plotMainChart";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
 
 export type PlotYKey = "y" | "yPositive" | "yAbsPositive" | "ySignedLogPositive";
@@ -10,7 +10,7 @@ export type PlotReadoutEntry = {
   readonly y: number;
 };
 
-export const resolvePlotPointY = (point: MainPlotPoint, key: PlotYKey): number | null => {
+export const resolvePlotPointY = (point: PlotMainPoint, key: PlotYKey): number | null => {
   const value = Number(point[key]);
   if (Number.isFinite(value)) return value;
   if (key === "yAbsPositive") {
@@ -25,13 +25,13 @@ export const resolvePlotPointY = (point: MainPlotPoint, key: PlotYKey): number |
 };
 
 export const getPlotReadoutAtX = (
-  seriesList: readonly MainPlotSeries[] | null | undefined,
+  seriesList: readonly PlotMainSeries[] | null | undefined,
   xRaw: number,
   yKey: PlotYKey,
 ): PlotReadoutEntry[] => {
   const entries: PlotReadoutEntry[] = [];
   for (const [seriesIndex, series] of (seriesList ?? []).entries()) {
-    let nearest: MainPlotPoint | null = null;
+    let nearest: PlotMainPoint | null = null;
     let nearestDistance = Number.POSITIVE_INFINITY;
     for (const point of series.data ?? []) {
       const x = Number(point?.x);

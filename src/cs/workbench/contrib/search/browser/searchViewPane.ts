@@ -1,6 +1,6 @@
-import { localize } from "src/cs/nls";
+﻿import { localize } from "src/cs/nls";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
-import type { MainPlotRenderModel } from "src/cs/workbench/contrib/plot/browser/mainPlotRenderModel";
+import type { PlotMainRenderModel } from "src/cs/workbench/contrib/plot/browser/plotMainRenderModel";
 import { SearchViewId } from "src/cs/workbench/contrib/search/common/search";
 import { createSearchView } from "src/cs/workbench/contrib/search/browser/searchView";
 
@@ -25,7 +25,7 @@ export class SearchViewPane extends ViewPane {
     this.body.append(this.pane);
   }
 
-  renderSearch(model: MainPlotRenderModel | null): void {
+  renderSearch(model: PlotMainRenderModel | null): void {
     this.content.replaceChildren(createSearchView(model));
   }
 

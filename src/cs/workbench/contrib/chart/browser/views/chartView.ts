@@ -1,6 +1,6 @@
 ﻿import { localize } from "src/cs/nls";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
-import { createMainPlotView } from "src/cs/workbench/contrib/plot/browser/mainPlotView";
+import { createPlotMainView } from "src/cs/workbench/contrib/plot/browser/plotMainView";
 import {
   createSecondCalculatedData,
   getCalculatedData,
@@ -103,13 +103,13 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
     props.legendLabels ?? {},
   );
 
-  const chartPlotView = createMainPlotView({
+  const chartPlotView = createPlotMainView({
     model: filteredData,
     originOpenPlotOptions: props.originOpenPlotOptions,
     plotAxisSettings: props.plotAxisSettings,
     plotType: activePlotType,
   });
-  const inspectorPlotView = createMainPlotView({
+  const inspectorPlotView = createPlotMainView({
     model: createSecondCalculatedData(filteredData),
     originOpenPlotOptions: props.originOpenPlotOptions,
     plotAxisSettings: props.plotAxisSettings,

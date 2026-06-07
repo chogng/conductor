@@ -1,12 +1,12 @@
-import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
+﻿import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { localize } from "src/cs/nls";
 import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
-import type { MainPlotRenderModel } from "src/cs/workbench/contrib/plot/browser/mainPlotRenderModel";
+import type { PlotMainRenderModel } from "src/cs/workbench/contrib/plot/browser/plotMainRenderModel";
 import { getPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
 import { searchSeriesAtX, type SearchPoint } from "src/cs/workbench/contrib/search/browser/searchModel";
 
 export const createSearchView = (
-  model: MainPlotRenderModel | null,
+  model: PlotMainRenderModel | null,
 ): HTMLElement => {
   const section = document.createElement("section");
   section.className = "search_pane";

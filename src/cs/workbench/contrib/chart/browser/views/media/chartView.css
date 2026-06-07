@@ -139,7 +139,7 @@
   aspect-ratio: 16 / 5;
 }
 
-.chart_view_host .main_plot_canvas {
+.chart_view_host .plot_main_chart {
   min-height: 0;
 }
 

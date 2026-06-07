@@ -1,4 +1,4 @@
-import type { MainPlotPoint, MainPlotSeries } from "src/cs/workbench/contrib/plot/browser/mainPlotCanvas";
+﻿import type { PlotMainPoint, PlotMainSeries } from "src/cs/workbench/contrib/plot/browser/plotMainChart";
 
 export type SearchPointStatus = "empty" | "outOfRange" | "ready";
 
@@ -17,7 +17,7 @@ type FinitePoint = {
 };
 
 export const searchSeriesAtX = (
-  seriesList: readonly MainPlotSeries[],
+  seriesList: readonly PlotMainSeries[],
   x: number,
 ): SearchPoint[] => {
   if (!Number.isFinite(x)) return [];
@@ -36,7 +36,7 @@ export const searchSeriesAtX = (
 };
 
 const searchPoint = (
-  points: readonly MainPlotPoint[],
+  points: readonly PlotMainPoint[],
   x: number,
 ): { readonly status: SearchPointStatus; readonly y: number | null } => {
   const finitePoints = getFinitePoints(points);
@@ -70,7 +70,7 @@ const searchPoint = (
   return { status: "outOfRange", y: null };
 };
 
-const getFinitePoints = (points: readonly MainPlotPoint[]): FinitePoint[] =>
+const getFinitePoints = (points: readonly PlotMainPoint[]): FinitePoint[] =>
   points
     .map((point) => {
       const x = point?.x;

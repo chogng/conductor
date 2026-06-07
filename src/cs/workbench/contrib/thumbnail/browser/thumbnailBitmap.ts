@@ -1,14 +1,14 @@
-import type {
+﻿import type {
   CalculatedData,
 } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import {
-  drawMainPlotCanvas,
-  type MainPlotCanvasProps,
-} from "src/cs/workbench/contrib/plot/browser/mainPlotCanvas";
-import { createMainPlotCanvasProps } from "src/cs/workbench/contrib/plot/browser/mainPlotView";
+  drawPlotMainChart,
+  type PlotMainChartProps,
+} from "src/cs/workbench/contrib/plot/browser/plotMainChart";
+import { createPlotMainChartProps } from "src/cs/workbench/contrib/plot/browser/plotMainView";
 
 export type ThumbnailBitmapOptions = {
   readonly model: CalculatedData;
@@ -43,7 +43,7 @@ export const createThumbnailBitmapCache = (
   let use = 0;
 
   const get = (options: ThumbnailBitmapOptions): HTMLCanvasElement => {
-    const renderProps = createMainPlotCanvasProps({
+    const renderProps = createPlotMainChartProps({
       model: options.model,
       originOpenPlotOptions: options.originOpenPlotOptions,
       plotAxisSettings: options.plotAxisSettings,
@@ -105,7 +105,7 @@ export const drawThumbnailBitmap = ({
   context.clearRect(0, 0, width, height);
   const bitmap = cache?.get(options) ??
     createBitmap(
-      createMainPlotCanvasProps({
+      createPlotMainChartProps({
         model: options.model,
         originOpenPlotOptions: options.originOpenPlotOptions,
         plotAxisSettings: options.plotAxisSettings,
@@ -117,11 +117,11 @@ export const drawThumbnailBitmap = ({
 };
 
 const createBitmap = (
-  renderProps: MainPlotCanvasProps,
+  renderProps: PlotMainChartProps,
   size: SourceSize,
 ): HTMLCanvasElement => {
   const canvas = document.createElement("canvas");
-  drawMainPlotCanvas(canvas, renderProps, size);
+  drawPlotMainChart(canvas, renderProps, size);
   return canvas;
 };
 
@@ -131,7 +131,7 @@ const createCacheKey = ({
   size,
 }: {
   readonly modelSignature: string;
-  readonly renderProps: MainPlotCanvasProps;
+  readonly renderProps: PlotMainChartProps;
   readonly size: SourceSize;
 }): string => [
   modelSignature,

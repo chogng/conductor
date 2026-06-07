@@ -1,8 +1,8 @@
 ﻿import {
-  createCanvasMultiLinePlot,
-  resolvePreviewPlotYDataRange,
-  type CanvasMultiLinePlotProps,
-} from "src/cs/workbench/contrib/plot/browser/CanvasMultiLinePlot";
+  createPlotThumbnail,
+  resolvePlotThumbnailYDataRange,
+  type PlotThumbnailProps,
+} from "src/cs/workbench/contrib/plot/browser/plotThumbnail";
 import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
 import type { CalculatedData } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
@@ -25,7 +25,7 @@ export type CleanedFileLike = {
   };
   xAxisRole?: "vg" | "vd" | null;
   xGroups?: number[][];
-  series?: CanvasMultiLinePlotProps["series"];
+  series?: PlotThumbnailProps["series"];
   domain?: {
     x?: [number, number];
     y?: [number, number];
@@ -152,7 +152,7 @@ const createChartThumbnail = ({
   root.className = "thumbnail_view_chart";
   root.style.aspectRatio = "16 / 9";
   if (plotModel) {
-    root.append(createMainPlotThumbnailCanvas({
+    root.append(createPlotMainThumbnailCanvas({
       file,
       originOpenPlotOptions,
       plotAxisSettings,
@@ -162,7 +162,7 @@ const createChartThumbnail = ({
     }));
   } else {
     root.append(
-      createCanvasMultiLinePlot({
+      createPlotThumbnail({
         xGroups: file.xGroups,
         series: file.series,
         domain: file.domain,
@@ -187,7 +187,7 @@ const createChartThumbnail = ({
 
   const range = plotModel
     ? { min: plotModel.yDomain[0], max: plotModel.yDomain[1] }
-    : resolvePreviewPlotYDataRange({
+    : resolvePlotThumbnailYDataRange({
       series: file?.series,
       yScaleType: yScale === "log" ? "log" : "linear",
       yLogCurrentMode,
@@ -199,7 +199,7 @@ const createChartThumbnail = ({
   return root;
 };
 
-const createMainPlotThumbnailCanvas = ({
+const createPlotMainThumbnailCanvas = ({
   file,
   originOpenPlotOptions,
   plotAxisSettings,

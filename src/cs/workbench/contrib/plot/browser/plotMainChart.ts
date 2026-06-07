@@ -1,4 +1,4 @@
-import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
+﻿import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
 import {
   getPlotReadoutAtX,
@@ -10,7 +10,7 @@ import { PlotHoverWidget } from "src/cs/workbench/contrib/plot/browser/plotHover
 
 import "src/cs/workbench/contrib/plot/browser/media/plot.css";
 
-export type MainPlotPoint = {
+export type PlotMainPoint = {
   x?: number | null;
   y?: number | null;
   yPositive?: number | null;
@@ -19,12 +19,12 @@ export type MainPlotPoint = {
   [key: string]: number | string | null | undefined;
 };
 
-export type MainPlotSeries = {
+export type PlotMainSeries = {
   id: string;
   name: string;
   tooltipName?: string;
   color?: string;
-  data: MainPlotPoint[];
+  data: PlotMainPoint[];
   [key: string]: unknown;
 };
 
@@ -90,7 +90,7 @@ type VthFitOverlay = {
   y2: number;
 };
 
-export type MainPlotCanvasProps = {
+export type PlotMainChartProps = {
   plotType?: string;
   curveLineWidth?: number;
   curvePlotType?: number;
@@ -100,7 +100,7 @@ export type MainPlotCanvasProps = {
     xLabel: string;
     yLabel: string;
   }> | null;
-  seriesList: MainPlotSeries[];
+  seriesList: PlotMainSeries[];
   xDomain: [number, number];
   xTicks?: number[] | null;
   plotXFactor: number;
@@ -117,7 +117,7 @@ export type MainPlotCanvasProps = {
   plotYFactor: number;
   plotYUnitLabel: string;
   focusedSeriesId?: string | null;
-  focusedFitLine?: MainPlotPoint[] | null;
+  focusedFitLine?: PlotMainPoint[] | null;
   vthFitOverlays?: VthFitOverlay[];
   focusedSeriesColor?: string;
   highlightOverlays?: HighlightOverlay[];
@@ -147,11 +147,11 @@ export type MainPlotCanvasProps = {
   onYAxisLabelChange?: (nextLabel: string) => void;
 };
 
-export type MainPlotCanvasElement = HTMLElement & {
+export type PlotMainChartElement = HTMLElement & {
   readonly dispose: () => void;
 };
 
-export type MainPlotCanvasSize = {
+export type PlotMainChartSize = {
   readonly height: number;
   readonly width: number;
 };
@@ -190,9 +190,9 @@ const normalizeDomain = (domain: readonly number[]): [number, number] => {
 };
 
 const resolvePlotYKey = (
-  effectiveYScale: MainPlotCanvasProps["effectiveYScale"],
-  yScaleMode: MainPlotCanvasProps["yScaleMode"],
-  yLogCurrentMode: MainPlotCanvasProps["yLogCurrentMode"],
+  effectiveYScale: PlotMainChartProps["effectiveYScale"],
+  yScaleMode: PlotMainChartProps["yScaleMode"],
+  yLogCurrentMode: PlotMainChartProps["yLogCurrentMode"],
 ): PlotYKey => {
   if (effectiveYScale === "logAbs" || yScaleMode === "logAbs") return "yAbsPositive";
   if (effectiveYScale === "log" || yScaleMode === "log") {
@@ -387,10 +387,10 @@ const drawHoverOverlay = (
   context.restore();
 };
 
-export const drawMainPlotCanvas = (
+export const drawPlotMainChart = (
   canvas: HTMLCanvasElement,
-  props: MainPlotCanvasProps,
-  size?: MainPlotCanvasSize,
+  props: PlotMainChartProps,
+  size?: PlotMainChartSize,
 ): {
   plotRect: PlotRect;
   scale: ChartScale;
@@ -581,29 +581,29 @@ export const drawMainPlotCanvas = (
   return { plotRect, scale, yKey };
 };
 
-export const createMainPlotCanvas = (props: MainPlotCanvasProps): MainPlotCanvasElement => {
-  const root = document.createElement("div") as unknown as MainPlotCanvasElement;
-  root.className = "main_plot_canvas";
+export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartElement => {
+  const root = document.createElement("div") as unknown as PlotMainChartElement;
+  root.className = "plot_main_chart";
 
   const canvas = document.createElement("canvas");
-  canvas.className = "main_plot_canvas_canvas";
+  canvas.className = "plot_main_chart_canvas";
   root.appendChild(canvas);
 
   const hoverCanvas = document.createElement("canvas");
-  hoverCanvas.className = "main_plot_canvas_hover_canvas";
+  hoverCanvas.className = "plot_main_chart_hover_canvas";
   root.appendChild(hoverCanvas);
 
   const hoverWidget = new PlotHoverWidget(root);
 
   let disposed = false;
   let animationFrame = 0;
-  let rendered = drawMainPlotCanvas(canvas, props);
+  let rendered = drawPlotMainChart(canvas, props);
   const render = (): void => {
     animationFrame = 0;
     if (disposed) {
       return;
     }
-    rendered = drawMainPlotCanvas(canvas, props);
+    rendered = drawPlotMainChart(canvas, props);
     clearHoverOverlay(hoverCanvas);
   };
   const requestRender = (): void => {
@@ -617,7 +617,7 @@ export const createMainPlotCanvas = (props: MainPlotCanvasProps): MainPlotCanvas
   queueMicrotask(requestRender);
 
   canvas.addEventListener("mousemove", (event) => {
-    rendered ??= drawMainPlotCanvas(canvas, props);
+    rendered ??= drawPlotMainChart(canvas, props);
     if (!rendered) return;
 
     const rect = canvas.getBoundingClientRect();
@@ -671,6 +671,6 @@ export const createMainPlotCanvas = (props: MainPlotCanvasProps): MainPlotCanvas
   return root;
 };
 
-const MainPlotCanvas = (props: MainPlotCanvasProps): HTMLElement => createMainPlotCanvas(props);
+const PlotMainChart = (props: PlotMainChartProps): HTMLElement => createPlotMainChart(props);
 
-export default MainPlotCanvas;
+export default PlotMainChart;
