@@ -40,7 +40,7 @@
 
     --tw-border-opacity: 1;
 
-    border-color: rgb(var(--accent-terracotta) / var(--tw-border-opacity, 1));
+    border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
 
     background-color: rgb(var(--accent) / 0.05)
 }

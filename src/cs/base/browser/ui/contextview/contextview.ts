@@ -2,24 +2,23 @@ import { addDisposableListener, getClientArea, getContentWidth, getDomRect, getE
 import { anchoredLayout, rectFromDomRect } from "src/cs/base/common/layout";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 
-import "src/cs/base/browser/ui/contentView/contentView.css";
+import "src/cs/base/browser/ui/contextview/contextview.css";
 
-export type ContentViewAlign = "left" | "center" | "right";
-export type ContentViewSide = "bottom" | "right";
-type ResolvedContentViewSide = "top" | "bottom" | "right" | "left";
-type ContentViewVariant = "surface" | "menu";
+export type ContextViewAlign = "left" | "center" | "right";
+export type ContextViewSide = "bottom" | "right";
+type ResolvedContextViewSide = "top" | "bottom" | "right" | "left";
 
-export type ContentViewProvider = {
-    showContextView(delegate: ContentViewDelegate, container?: HTMLElement): ContentViewHandle;
+export type ContextViewProvider = {
+    showContextView(delegate: ContextViewDelegate, container?: HTMLElement): ContextViewHandle;
     hideContextView(data?: unknown): void;
     layout(): void;
 };
 
-export type ContentViewHandle = {
+export type ContextViewHandle = {
     close(): void;
 };
 
-export type ContentViewDelegate = {
+export type ContextViewDelegate = {
     canRelayout?: boolean;
     getAnchor(): HTMLElement;
     render(container: HTMLElement): IDisposable | null;
@@ -27,46 +26,40 @@ export type ContentViewDelegate = {
     onHide?(data?: unknown): void;
 };
 
-export type ContentViewOptions = {
-    align?: ContentViewAlign;
+export type ContextViewOptions = {
+    align?: ContextViewAlign;
     anchor: HTMLElement;
     ariaOrientation?: "vertical" | "horizontal";
     className?: string;
-    contextViewProvider?: ContentViewProvider;
+    contextViewProvider?: ContextViewProvider;
     host?: HTMLElement;
     matchAnchorWidth?: boolean;
     menuId?: string;
     render: (container: HTMLElement) => void;
     role?: string;
-    side?: ContentViewSide;
+    side?: ContextViewSide;
     triggerId?: string;
-    variant?: ContentViewVariant;
     zIndex?: number;
 };
 
-const CONTENT_VIEW_GAP_PX = 8;
+const CONTEXT_VIEW_GAP_PX = 8;
 const VIEWPORT_PADDING_PX = 8;
 
-export class ContentView implements IDisposable {
+export class ContextView implements IDisposable {
     private readonly disposables = new DisposableStore();
     private readonly element: HTMLDivElement;
-    private readonly surface: HTMLDivElement;
     private readonly host: HTMLElement;
-    private options: ContentViewOptions;
-    private providerHandle: ContentViewHandle | undefined;
+    private options: ContextViewOptions;
+    private providerHandle: ContextViewHandle | undefined;
     private isOpen = false;
-    private side: ResolvedContentViewSide = "bottom";
+    private side: ResolvedContextViewSide = "bottom";
 
-    constructor(options: ContentViewOptions) {
+    constructor(options: ContextViewOptions) {
         this.options = options;
         this.host = options.host ?? document.body;
 
         this.element = document.createElement("div");
         this.element.tabIndex = -1;
-        this.element.dataset.style = "contentview";
-
-        this.surface = document.createElement("div");
-        this.element.appendChild(this.surface);
         this.applyOptions();
     }
 
@@ -126,7 +119,7 @@ export class ContentView implements IDisposable {
         this.element.remove();
     }
 
-    public update(options: Partial<ContentViewOptions>): void {
+    public update(options: Partial<ContextViewOptions>): void {
         this.options = { ...this.options, ...options };
         this.applyOptions();
 
@@ -141,7 +134,7 @@ export class ContentView implements IDisposable {
 
     public dispose(): void {
         this.hide();
-        reset(this.surface);
+        reset(this.element);
     }
 
     public readonly layout = (): void => {
@@ -157,13 +150,13 @@ export class ContentView implements IDisposable {
         const anchorWidth = Math.max(0, anchorRect.width);
         const viewportDimension = getClientArea(window);
         const maxWidth = Math.max(0, viewportDimension.width - VIEWPORT_PADDING_PX * 2);
-        const contentViewSize = getElementSize(this.element);
+        const contextViewSize = getElementSize(this.element);
         const contentWidth = Math.max(
-            getContentWidth(this.surface) || 0,
+            getContentWidth(this.element) || 0,
             this.element.scrollWidth || 0,
             this.element.offsetWidth || 0,
         );
-        const contentViewWidth = this.options.matchAnchorWidth
+        const contextViewWidth = this.options.matchAnchorWidth
             ? Math.min(Math.max(contentWidth, anchorWidth), maxWidth)
             : Math.min(contentWidth, maxWidth);
 
@@ -176,10 +169,10 @@ export class ContentView implements IDisposable {
             },
             anchor: anchorRect,
             view: {
-                width: contentViewWidth,
-                height: contentViewSize.height,
+                width: contextViewWidth,
+                height: contextViewSize.height,
             },
-            gap: CONTENT_VIEW_GAP_PX,
+            gap: CONTEXT_VIEW_GAP_PX,
             padding: VIEWPORT_PADDING_PX,
             align: this.options.align ?? "left",
             side: this.options.side ?? "bottom",
@@ -234,29 +227,25 @@ export class ContentView implements IDisposable {
             this.element.removeAttribute("aria-labelledby");
         }
 
-        const classNames = ["content-view__surface"];
-        if (this.options.variant === "menu") {
-            classNames.push("content-view__surface--menu");
-        }
+        const classNames = ["context-view"];
         if (this.options.className) {
             classNames.push(this.options.className);
         }
-        this.surface.className = classNames.join(" ");
+        this.element.className = classNames.join(" ");
         this.applyState();
     }
 
     private applyState(): void {
         this.element.dataset.state = this.isOpen ? "open" : "closed";
         this.element.setAttribute("aria-hidden", this.isOpen ? "false" : "true");
-        this.element.className = this.isOpen ? "content-view__portal--open" : "content-view__portal--closed";
-        this.surface.classList.toggle("content-view__surface--open", this.isOpen);
-        this.surface.classList.toggle("content-view__surface--closed", !this.isOpen);
+        this.element.classList.toggle("context-view--open", this.isOpen);
+        this.element.classList.toggle("context-view--closed", !this.isOpen);
     }
 
     private render(): void {
-        reset(this.surface);
-        this.options.render(this.surface);
+        reset(this.element);
+        this.options.render(this.element);
     }
 }
 
-export default ContentView;
+export default ContextView;

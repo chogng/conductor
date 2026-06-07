@@ -1,5 +1,5 @@
 import { addDisposableListener } from "src/cs/base/browser/dom";
-import ContentView from "src/cs/base/browser/ui/contentView/contentView";
+import ContextView from "src/cs/base/browser/ui/contextview/contextview";
 import { CountBadge } from "src/cs/base/browser/ui/countbadge/countBadge";
 import { createDropdownButton } from "src/cs/base/browser/ui/dropdown/dropdown";
 import {
@@ -97,6 +97,7 @@ type HoverContent = {
 
 type HoverThumbnailCacheEntry = {
   readonly file: CleanedEntry;
+  readonly isActive: boolean;
   readonly node: HTMLElement;
   lastUsed: number;
 };
@@ -142,7 +143,7 @@ export class ExplorerViewer implements IDisposable {
   private readonly hoverDisposables = new DisposableStore();
   private readonly treeView: ObjectTree<FileTreeNode, TreeItemTemplate>;
   private readonly hoverThumbnailCache = new Map<string, HoverThumbnailCacheEntry>();
-  private hoverView: ContentView | null = null;
+  private hoverView: ContextView | null = null;
   private hoverAnchor: HTMLElement | null = null;
   private hoverContent: HoverContent | null = null;
   private hoverHideTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -723,12 +724,12 @@ export class ExplorerViewer implements IDisposable {
     hoverView.show();
   }
 
-  private ensureHoverView(anchor: HTMLElement): ContentView {
+  private ensureHoverView(anchor: HTMLElement): ContextView {
     if (this.hoverView) {
       return this.hoverView;
     }
 
-    this.hoverView = new ContentView({
+    this.hoverView = new ContextView({
       align: "left",
       anchor,
       className: "file-list-hover",
@@ -788,9 +789,8 @@ export class ExplorerViewer implements IDisposable {
     const cacheKey = fileId || "__unknown__";
     const cached = this.hoverThumbnailCache.get(cacheKey);
     this.hoverCacheUse += 1;
-    if (cached?.file === file) {
+    if (cached?.file === file && cached.isActive === isActive) {
       cached.lastUsed = this.hoverCacheUse;
-      cached.node.classList.toggle("thumbnail_view--active", isActive);
       return cached.node;
     }
 
@@ -798,8 +798,10 @@ export class ExplorerViewer implements IDisposable {
       file,
       isActive,
     });
+    cached?.node.remove();
     this.hoverThumbnailCache.set(cacheKey, {
       file,
+      isActive,
       lastUsed: this.hoverCacheUse,
       node,
     });

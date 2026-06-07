@@ -1,8 +1,10 @@
 import { $, addDisposableListener, append, EventType } from "src/cs/base/browser/dom";
+import type { IManagedHover } from "src/cs/base/browser/ui/hover/hover";
+import { getBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { Action, type IAction, type IActionRunner } from "src/cs/base/common/actions";
 import { Emitter } from "src/cs/base/common/event";
 import { AnchorAlignment } from "src/cs/base/common/layout";
-import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
+import { Disposable, MutableDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import type { IContextMenuDelegate, IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import { DropdownMenu, isActionProvider, type IActionProvider, type IDropdownMenuOptions, type ILabelRenderer } from "src/cs/base/browser/ui/dropdown/dropdown";
 
@@ -30,6 +32,7 @@ export class DropdownMenuActionViewItem extends Disposable {
     private actionItem: HTMLElement | undefined;
     private context: unknown;
     private focusable = true;
+    private readonly tooltipHover = this._register(new MutableDisposable<IManagedHover>());
 
     private readonly onDidChangeVisibilityEmitter = this._register(new Emitter<boolean>());
     public readonly onDidChangeVisibility = this.onDidChangeVisibilityEmitter.event;
@@ -153,8 +156,21 @@ export class DropdownMenuActionViewItem extends Disposable {
     }
 
     protected updateTooltip(): void {
-        if (this.element) {
-            this.element.title = this.action.tooltip || this.action.label;
+        if (!this.element) {
+            return;
+        }
+
+        const tooltip = this.action.tooltip || this.action.label;
+        if (tooltip) {
+            if (!this.tooltipHover.current) {
+                this.tooltipHover.current = getBaseLayerHoverDelegate().setupManagedHover(this.element, tooltip);
+            }
+            else {
+                this.tooltipHover.current.update(tooltip);
+            }
+        }
+        else {
+            this.tooltipHover.clear();
         }
     }
 
@@ -188,6 +204,7 @@ export interface IActionWithDropdownActionViewItemOptions {
 export class ActionWithDropdownActionViewItem extends Disposable {
     private primaryElement: HTMLElement | undefined;
     private dropdownMenuActionViewItem: DropdownMenuActionViewItem | undefined;
+    private readonly primaryTooltipHover = this._register(new MutableDisposable<IManagedHover>());
 
     constructor(
         private readonly context: unknown,
@@ -201,7 +218,7 @@ export class ActionWithDropdownActionViewItem extends Disposable {
     public render(container: HTMLElement): void {
         this.primaryElement = append(container, $("a.action-label"));
         this.primaryElement.textContent = this.action.label;
-        this.primaryElement.title = this.action.tooltip || this.action.label;
+        this.updatePrimaryTooltip();
         this.primaryElement.setAttribute("role", "button");
         this.primaryElement.tabIndex = 0;
 
@@ -266,5 +283,24 @@ export class ActionWithDropdownActionViewItem extends Disposable {
             this.primaryElement.tabIndex = focusable ? 0 : -1;
         }
         this.dropdownMenuActionViewItem?.setFocusable(focusable);
+    }
+
+    private updatePrimaryTooltip(): void {
+        if (!this.primaryElement) {
+            return;
+        }
+
+        const tooltip = this.action.tooltip || this.action.label;
+        if (tooltip) {
+            if (!this.primaryTooltipHover.current) {
+                this.primaryTooltipHover.current = getBaseLayerHoverDelegate().setupManagedHover(this.primaryElement, tooltip);
+            }
+            else {
+                this.primaryTooltipHover.current.update(tooltip);
+            }
+        }
+        else {
+            this.primaryTooltipHover.clear();
+        }
     }
 }

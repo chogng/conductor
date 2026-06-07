@@ -1,11 +1,13 @@
 import { $, addDisposableListener, append, EventType } from "src/cs/base/browser/dom";
-import { ContentView } from "src/cs/base/browser/ui/contentView/contentView";
+import { ContextView } from "src/cs/base/browser/ui/contextview/contextview";
+import type { IManagedHover } from "src/cs/base/browser/ui/hover/hover";
+import { getBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import type { IAction, IActionRunner } from "src/cs/base/common/actions";
 import { ActionRunner } from "src/cs/base/common/actions";
 import { Emitter } from "src/cs/base/common/event";
 import { AnchorAlignment } from "src/cs/base/common/layout";
-import { Disposable, DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { Disposable, DisposableStore, MutableDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import type { LxIconDefinition } from "src/cs/base/common/lxicon";
 import type { IContextMenuDelegate, IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 
@@ -24,6 +26,7 @@ export class BaseDropdown extends ActionRunner {
     private readonly dropdownElement: HTMLElement;
     private labelElement: HTMLElement | undefined;
     private visible = false;
+    private readonly tooltipHover = this._register(new MutableDisposable<IManagedHover>());
 
     private readonly onDidChangeVisibilityEmitter = this._register(new Emitter<boolean>());
     public readonly onDidChangeVisibility = this.onDidChangeVisibilityEmitter.event;
@@ -79,8 +82,20 @@ export class BaseDropdown extends ActionRunner {
     }
 
     public set tooltip(tooltip: string) {
-        if (this.labelElement) {
-            this.labelElement.title = tooltip;
+        if (!this.labelElement) {
+            return;
+        }
+
+        if (tooltip) {
+            if (!this.tooltipHover.current) {
+                this.tooltipHover.current = getBaseLayerHoverDelegate().setupManagedHover(this.labelElement, tooltip);
+            }
+            else {
+                this.tooltipHover.current.update(tooltip);
+            }
+        }
+        else {
+            this.tooltipHover.clear();
         }
     }
 
@@ -238,7 +253,7 @@ export type DropdownButtonOptions = {
 
 export class DropdownButton extends Disposable {
     private readonly button: HTMLButtonElement;
-    private readonly contentView: ContentView;
+    private readonly contentView: ContextView;
     private readonly dropdown: Dropdown;
     private readonly closeEventDisposables = this._register(new DisposableStore());
     private readonly renderDisposables = this._register(new DisposableStore());
@@ -251,12 +266,11 @@ export class DropdownButton extends Disposable {
         this.button.type = "button";
         this.button.setAttribute("aria-haspopup", "menu");
 
-        this.contentView = this._register(new ContentView({
+        this.contentView = this._register(new ContextView({
             anchor: this.button,
             className: classNames("conductor-dropdown-surface", options.surfaceClassName),
             matchAnchorWidth: options.matchAnchorWidth ?? true,
             render: container => this.renderContent(container),
-            variant: "menu",
         }));
 
         this.dropdown = this._register(new Dropdown({

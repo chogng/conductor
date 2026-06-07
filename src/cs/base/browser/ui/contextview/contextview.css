@@ -1,0 +1,7 @@
+.context-view {
+    position: absolute;
+}
+
+.context-view--closed {
+    pointer-events: none;
+}

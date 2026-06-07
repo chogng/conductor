@@ -11,6 +11,8 @@ import { createDecorator } from "src/cs/platform/instantiation/common/instantiat
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { ManagedHoverWidget } from "src/cs/platform/hover/browser/updatableHoverWidget";
 
+const ManagedHoverDelay = 700;
+
 export const IHoverService = createDecorator<IHoverService>("hoverService");
 
 export interface IHoverService extends IHoverDelegate {
@@ -84,7 +86,7 @@ class ManagedHover extends Disposable implements IManagedHover {
 
   private schedule(): void {
     this.clearTimer();
-    this.showTimer = this.target.ownerDocument.defaultView?.setTimeout(() => this.show(), this.options.delay ?? 300) ?? 0;
+    this.showTimer = this.target.ownerDocument.defaultView?.setTimeout(() => this.show(), this.options.delay ?? ManagedHoverDelay) ?? 0;
   }
 
   private suppress(): void {

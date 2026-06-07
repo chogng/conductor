@@ -1,5 +1,5 @@
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
-import { ContentView } from "src/cs/base/browser/ui/contentView/contentView";
+import { ContextView } from "src/cs/base/browser/ui/contextview/contextview";
 import { Dropdown } from "src/cs/base/browser/ui/dropdown/dropdown";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
@@ -26,7 +26,7 @@ export type SelectBoxOptions<T extends string> = {
 
 export class SelectBox<T extends string> extends Disposable {
     private readonly button: HTMLButtonElement;
-    private readonly contentView: ContentView;
+    private readonly contentView: ContextView;
     private readonly dropdown: Dropdown;
     private readonly optionDisposables = this._register(new DisposableStore());
     private options: SelectBoxOptions<T>;
@@ -38,13 +38,12 @@ export class SelectBox<T extends string> extends Disposable {
         this.button.type = "button";
         this.button.setAttribute("aria-haspopup", "listbox");
 
-        this.contentView = this._register(new ContentView({
+        this.contentView = this._register(new ContextView({
             anchor: this.button,
             className: getSurfaceClassName(options.surfaceClassName),
             matchAnchorWidth: options.matchAnchorWidth ?? true,
             render: container => this.renderOptions(container),
             role: "listbox",
-            variant: "menu",
         }));
 
         this.dropdown = this._register(new Dropdown({
@@ -262,5 +261,5 @@ function getButtonClassName(className: string | undefined): string {
 }
 
 function getSurfaceClassName(className: string | undefined): string {
-    return className ? `conductor-dropdown-surface ${className}` : "conductor-dropdown-surface";
+    return className ?? "";
 }
