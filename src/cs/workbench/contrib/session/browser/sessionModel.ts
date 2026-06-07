@@ -18,6 +18,7 @@ import type {
   TemplateConfig,
   TemplateMode,
 } from "src/cs/workbench/contrib/session/browser/sessionContext";
+import type { TemplateSelectionsByFileId } from "src/cs/workbench/contrib/template/common/templateSelection";
 
 type SessionSnapshot = {
   readonly sourceFiles: SessionFile[];
@@ -28,6 +29,7 @@ type SessionSnapshot = {
   readonly analysisResults: AnalysisResultsByFileId;
   readonly templateMode: TemplateMode;
   readonly selectedTemplateId: string | null;
+  readonly fileTemplateSelectionsByFileId: TemplateSelectionsByFileId;
   readonly templateConfig: TemplateConfig;
   readonly previewFile: PreviewFile | null;
   readonly previewStatus: PreviewStatus;
@@ -80,6 +82,7 @@ export class SessionModel {
     analysisResults: {},
     templateMode: "select",
     selectedTemplateId: null,
+    fileTemplateSelectionsByFileId: {},
     templateConfig: createTemplateConfig(),
     previewFile: null,
     previewStatus: createPreviewStatus(),
@@ -123,6 +126,8 @@ export class SessionModel {
     this.update("templateMode", value);
   readonly setSelectedTemplateId: StateSetter<string | null> = (value) =>
     this.update("selectedTemplateId", value);
+  readonly setFileTemplateSelectionsByFileId: StateSetter<TemplateSelectionsByFileId> =
+    (value) => this.update("fileTemplateSelectionsByFileId", value);
   readonly setTemplateConfig: StateSetter<TemplateConfig> = (value) =>
     this.update("templateConfig", value);
   readonly setPreviewFile: StateSetter<PreviewFile | null> = (value) =>
@@ -173,6 +178,7 @@ export class SessionModel {
       setAnalysisResults: this.setAnalysisResults,
       setTemplateMode: this.setTemplateMode,
       setSelectedTemplateId: this.setSelectedTemplateId,
+      setFileTemplateSelectionsByFileId: this.setFileTemplateSelectionsByFileId,
       setTemplateConfig: this.setTemplateConfig,
       setPreviewFile: this.setPreviewFile,
       setPreviewStatus: this.setPreviewStatus,

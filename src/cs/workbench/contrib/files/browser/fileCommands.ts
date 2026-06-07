@@ -15,6 +15,7 @@ import {
   detectFolderImportSupport,
   type FolderImportSupport,
 } from "src/cs/platform/files/browser/webFileSystemAccess";
+import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import { createFileSource } from "src/cs/workbench/contrib/files/browser/fileActions";
 import {
   collectFolderImportFiles,
@@ -23,6 +24,9 @@ import {
 import type { FilesPaneHost } from "src/cs/workbench/contrib/files/browser/filesPaneHost";
 import {
   FilesViewId,
+  REMOVE_FILE_ITEM_COMMAND_ID,
+  RENAME_FILE_ITEM_COMMAND_ID,
+  SET_FILE_TEMPLATE_COMMAND_ID,
   TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
   type FileSource,
 } from "src/cs/workbench/contrib/files/common/files";
@@ -30,6 +34,7 @@ import type { ImportFilePrepareFailure } from "src/cs/workbench/services/analysi
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
+import type { TemplateSelection } from "src/cs/workbench/contrib/template/common/templateSelection";
 
 export type FolderImportFiles = {
   readonly files: FileSource[];
@@ -152,6 +157,90 @@ CommandsRegistry.registerCommand({
   id: TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
   handler: toggleThumbnailViewHandler,
 });
+
+export const removeFileItemHandler: ICommandHandler<[unknown]> = (
+  accessor,
+  fileId,
+) => {
+  const normalizedFileId = normalizeCommandFileId(fileId);
+  if (!normalizedFileId) {
+    return;
+  }
+
+  getFilesPaneHost(accessor)?.removeFile(normalizedFileId);
+};
+
+CommandsRegistry.registerCommand({
+  id: REMOVE_FILE_ITEM_COMMAND_ID,
+  handler: removeFileItemHandler,
+});
+
+export const renameFileItemHandler: ICommandHandler<[unknown]> = (
+  _accessor,
+  fileId,
+) => {
+  if (!normalizeCommandFileId(fileId)) {
+    return;
+  }
+
+  notificationService.showToast({
+    id: "files.renameUnsupported",
+    message: localize(
+      "files.renameUnsupported",
+      "Renaming imported files is not available yet.",
+    ),
+    type: "info",
+  });
+};
+
+CommandsRegistry.registerCommand({
+  id: RENAME_FILE_ITEM_COMMAND_ID,
+  handler: renameFileItemHandler,
+});
+
+export const setFileTemplateHandler: ICommandHandler<[unknown, unknown]> = (
+  accessor,
+  fileId,
+  selection,
+) => {
+  const normalizedFileId = normalizeCommandFileId(fileId);
+  if (!normalizedFileId || !isTemplateSelection(selection)) {
+    return;
+  }
+
+  getFilesPaneHost(accessor)?.setFileTemplateSelection(
+    normalizedFileId,
+    selection,
+  );
+};
+
+CommandsRegistry.registerCommand({
+  id: SET_FILE_TEMPLATE_COMMAND_ID,
+  handler: setFileTemplateHandler,
+});
+
+const getFilesPaneHost = (accessor: ServicesAccessor): FilesPaneHost | null =>
+  accessor.get(IViewsService).getViewWithId<FilesPaneHost>(FilesViewId);
+
+const normalizeCommandFileId = (fileId: unknown): string | null => {
+  const normalized = String(fileId ?? "").trim();
+  return normalized || null;
+};
+
+const isTemplateSelection = (value: unknown): value is TemplateSelection => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  if (candidate.kind === "auto") {
+    return true;
+  }
+
+  return candidate.kind === "template" &&
+    typeof candidate.templateId === "string" &&
+    candidate.templateId.trim().length > 0;
+};
 
 export const buildImportErrorMessage = ({
   failedFiles,

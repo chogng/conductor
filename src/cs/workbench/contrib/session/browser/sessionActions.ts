@@ -10,6 +10,10 @@ import type {
   ProcessingStatus,
   SessionFile,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import {
+  removeTemplateSelectionsForFiles,
+  type TemplateSelectionsByFileId,
+} from "src/cs/workbench/contrib/template/common/templateSelection";
 
 type UseSessionActionsOptions = {
   clearPreviewState: (options?: { clearSelection?: boolean }) => void;
@@ -31,6 +35,7 @@ type UseSessionActionsOptions = {
   setSourceFiles: StateSetter<SessionFile[]>;
   setSelectedPreviewFileId: StateSetter<string | null>;
   setSelectedPreviewSheetId: StateSetter<string | null>;
+  setFileTemplateSelectionsByFileId: StateSetter<TemplateSelectionsByFileId>;
   setIonIoffManualTargetsByFileId: StateSetter<IonIoffManualTargetsByFileId>;
   setSsManualRanges: StateSetter<SsManualRanges>;
 };
@@ -55,6 +60,7 @@ export const createSessionActions = ({
   setSourceFiles,
   setSelectedPreviewFileId,
   setSelectedPreviewSheetId,
+  setFileTemplateSelectionsByFileId,
   setIonIoffManualTargetsByFileId,
   setSsManualRanges,
 }: UseSessionActionsOptions) => {
@@ -89,6 +95,7 @@ export const createSessionActions = ({
       setAnalysisResults({});
       setSourceFiles([]);
       setSelectedPreviewSheetId(null);
+      setFileTemplateSelectionsByFileId({});
       setIonIoffManualTargetsByFileId({});
       setSsManualRanges({});
       resetPreviewWorker();
@@ -129,6 +136,7 @@ export const createSessionActions = ({
 
       setCleanedData([]);
       setAnalysisResults({});
+      setFileTemplateSelectionsByFileId({});
       setIonIoffManualTargetsByFileId({});
       setSsManualRanges({});
       resetPreviewWorker();
@@ -162,6 +170,9 @@ export const createSessionActions = ({
       delete next[fileId];
       return next;
     });
+    setFileTemplateSelectionsByFileId((prev) =>
+      removeTemplateSelectionsForFiles(prev, [fileId])
+    );
     setIonIoffManualTargetsByFileId((prev) => {
       if (!prev?.[fileId]) return prev;
       const next = { ...prev };
@@ -215,6 +226,9 @@ export const createSessionActions = ({
       }
       return changed ? next : prev;
     });
+    setFileTemplateSelectionsByFileId((prev) =>
+      removeTemplateSelectionsForFiles(prev, removedFileIds)
+    );
     setIonIoffManualTargetsByFileId((prev) => {
       let changed = false;
       const next = { ...prev };

@@ -2,6 +2,7 @@ import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { URI } from "src/cs/base/common/uri";
 import type { ICommandService as ICommandServiceType } from "src/cs/platform/commands/common/commands";
+import type { IContextMenuService as IContextMenuServiceType } from "src/cs/platform/contextview/browser/contextView";
 import type { IContextViewService as IContextViewServiceType } from "src/cs/platform/contextview/browser/contextView";
 import type { IFileService as IFileServiceType } from "src/cs/platform/files/common/files";
 import type { IAction } from "src/cs/base/common/actions";
@@ -44,6 +45,14 @@ import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/o
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import type { IThumbnailService } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
+import type {
+  TemplateSelection,
+  TemplateSelectionsByFileId,
+} from "src/cs/workbench/contrib/template/common/templateSelection";
+import type {
+  ITemplateService,
+  TemplateRecord,
+} from "src/cs/workbench/contrib/template/common/template";
 import {
   buildImportErrorMessage,
   collectDroppedFiles,
@@ -79,6 +88,7 @@ type FirstPreparedImport = {
 export type FilesControllerProps = {
   readonly analysisFileService: IAnalysisFileServiceType;
   readonly commandService: ICommandServiceType;
+  readonly contextMenuService: Pick<IContextMenuServiceType, "showContextMenu">;
   readonly contextViewService: IContextViewServiceType;
   readonly filesService: IFileServiceType;
   activePlotType?: PlotType;
@@ -86,6 +96,10 @@ export type FilesControllerProps = {
   originOpenPlotOptions?: OriginPlotOptions;
   plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   thumbnailService: IThumbnailService;
+  currentTemplateLabel?: string;
+  currentTemplateSelection?: TemplateSelection;
+  fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
+  templateService: ITemplateService;
   files?: FileEntry[];
   mode?: WorkbenchMainPart;
   viewMode?: FilesViewMode;
@@ -96,6 +110,7 @@ export type FilesControllerProps = {
   onFileRemoved?: (fileId: string) => void;
   onFilesRemoved?: (fileIds: string[]) => void;
   onFileSelected?: (fileId: string | null) => void;
+  onFileTemplateSelectionChanged?: (fileId: string, selection: TemplateSelection) => void;
   selectedFileId?: string | null;
 };
 
@@ -124,6 +139,9 @@ export class FilesController implements FilesPaneRef, IDisposable {
   private readonly analysisFileService: IAnalysisFileServiceType;
   private readonly commandService: ICommandServiceType;
   private readonly filesService: IFileServiceType;
+  private templateLoadRunId = 0;
+  private templateRecords: TemplateRecord[] = [];
+  private isTemplateListLoading = false;
 
   constructor(
     host: HTMLElement,
@@ -141,6 +159,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
 
     this.explorerView = new ExplorerView(host, this.createExplorerViewProps());
     this.listRef.current = this.explorerView.getListHandle();
+    this.loadTemplates();
   }
 
   get hasFiles(): boolean {
@@ -162,12 +181,25 @@ export class FilesController implements FilesPaneRef, IDisposable {
     this.handleRemoveFolder(`folder:${folderPath}`);
   }
 
+  removeFile(fileId: string): void {
+    this.handleRemoveFile(fileId);
+  }
+
+  setFileTemplateSelection(fileId: string, selection: TemplateSelection): void {
+    this.handleSetFileTemplateSelection(fileId, selection);
+  }
+
   setProps(nextProps: FilesControllerProps): void {
     const previousSelectedFileId = this.props.selectedFileId ?? null;
+    const previousTemplateService = this.props.templateService;
     this.props = nextProps;
 
     if ((nextProps.selectedFileId ?? null) !== previousSelectedFileId) {
       this.optimisticSelectedFileId = nextProps.selectedFileId ?? null;
+    }
+    if (nextProps.templateService !== previousTemplateService) {
+      this.templateRecords = [];
+      this.loadTemplates();
     }
 
     this.handleFileCountEffects();
@@ -208,10 +240,17 @@ export class FilesController implements FilesPaneRef, IDisposable {
       effectiveSelectedFileId: this.effectiveSelectedFileId,
       activePlotType: this.props.activePlotType,
       calculatedDataByKey: this.props.calculatedDataByKey,
+      commandService: this.commandService,
       contextViewService: this.props.contextViewService,
+      contextMenuService: this.props.contextMenuService,
       originOpenPlotOptions: this.props.originOpenPlotOptions,
       plotAxisSettings: this.props.plotAxisSettings,
       thumbnailService: this.props.thumbnailService,
+      currentTemplateLabel: this.props.currentTemplateLabel,
+      currentTemplateSelection: this.props.currentTemplateSelection,
+      fileTemplateSelectionsByFileId: this.props.fileTemplateSelectionsByFileId,
+      isTemplateListLoading: this.isTemplateListLoading,
+      templateRecords: this.templateRecords,
       error: this.error,
       files: this.files,
       folderImportSupport: getFolderImportSupportForFileService(this.filesService),
@@ -222,8 +261,8 @@ export class FilesController implements FilesPaneRef, IDisposable {
       onDraggingChange: this.handleDraggingChange,
       onListScroll: this.handleListScroll,
       onCreateFolder: this.handleCreateFolder,
-      onRemoveFile: this.handleRemoveFile,
       onRemoveFolder: this.handleRemoveFolder,
+      onRequestTemplates: this.loadTemplates,
       onDropFiles: this.handleDropFiles,
       onOpenFolderDialog: this.handleOpenFolderDialog,
       onSelectFile: this.handleSelectFile,
@@ -412,6 +451,44 @@ export class FilesController implements FilesPaneRef, IDisposable {
 
   private readonly handleCreateFolder = (_folderKey: string): void => {
     showCreateFolderUnsupported();
+  };
+
+  private readonly handleSetFileTemplateSelection = (
+    fileId: string,
+    selection: TemplateSelection,
+  ): void => {
+    this.props.onFileTemplateSelectionChanged?.(fileId, selection);
+  };
+
+  private readonly loadTemplates = (): void => {
+    if (this.isTemplateListLoading) {
+      return;
+    }
+
+    const runId = this.templateLoadRunId + 1;
+    this.templateLoadRunId = runId;
+    this.isTemplateListLoading = true;
+    this.syncView();
+
+    this.props.templateService.getTemplates()
+      .then((templates) => {
+        if (this.disposed || this.templateLoadRunId !== runId) {
+          return;
+        }
+
+        this.templateRecords = templates;
+        this.isTemplateListLoading = false;
+        this.syncView();
+      })
+      .catch((error) => {
+        if (this.disposed || this.templateLoadRunId !== runId) {
+          return;
+        }
+
+        this.isTemplateListLoading = false;
+        console.error("Failed to load templates for file context menu.", error);
+        this.syncView();
+      });
   };
 
   private removeFiles(fileIds: readonly string[]): void {

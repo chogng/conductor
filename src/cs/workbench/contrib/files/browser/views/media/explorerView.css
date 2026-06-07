@@ -429,7 +429,8 @@
   width: 160px;
 }
 
-.file-list-hover {
+.file-list-hover,
+.context-view.fixed.file-list-hover {
   box-sizing: border-box;
   border: 1px solid rgb(var(--border) / 1);
   border-radius: 6px;
@@ -438,28 +439,51 @@
   color: rgb(var(--text-primary) / 1);
 }
 
-.file-list-hover.file-list-hover--assessment {
+.file-list-hover.file-list-hover--assessment,
+.context-view.fixed.file-list-hover.file-list-hover--assessment {
   padding: 7px 9px;
   background-color: #ffffff;
 }
 
-.file-list-hover.file-list-hover--thumbnail {
+.file-list-hover.file-list-hover--thumbnail,
+.context-view.fixed.file-list-hover.file-list-hover--thumbnail {
   width: min(360px, 44vw);
   max-width: min(360px, 44vw);
   padding: 8px;
 }
 
-.file-list-hover-summary {
-  overflow-wrap: normal;
+.file-list-hover-assessment {
+  display: grid;
+  gap: 4px;
+  margin: 0;
   font-size: 12px;
   line-height: 1.35;
 }
 
-.file-list-hover-summary[data-warning="true"] {
+.file-list-hover-assessment-row {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 6px;
+}
+
+.file-list-hover-assessment-label {
+  margin: 0;
+  color: rgb(var(--text-secondary) / 1);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.file-list-hover-assessment-value {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.file-list-hover-assessment[data-warning="true"] {
   color: rgb(217 119 6 / 1);
 }
 
-.file-list-hover-summary[data-warning="true"]:is(.dark *) {
+.file-list-hover-assessment[data-warning="true"]:is(.dark *) {
   color: rgb(251 191 36 / 1);
 }
 

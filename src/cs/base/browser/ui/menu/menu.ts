@@ -145,7 +145,8 @@ export function createMenuAction(options: MenuActionOptions): IAction {
 
 export function createMenuActionFromAction(
     action: IAction,
-    overrides: Pick<MenuActionOptions, "checked" | "left" | "right" | "run">,
+    overrides: Pick<MenuActionOptions, "checked" | "left" | "right" | "run"> &
+        Partial<Pick<MenuActionOptions, "onMouseEnter">>,
 ): IAction {
     const data = getMenuItemData(action);
     return createMenuAction({
@@ -156,7 +157,7 @@ export function createMenuActionFromAction(
         id: action.id,
         label: action.label,
         left: overrides.left ?? data?.left,
-        onMouseEnter: data?.onMouseEnter,
+        onMouseEnter: overrides.onMouseEnter ?? data?.onMouseEnter,
         right: overrides.right ?? data?.right,
         rightAction: data?.rightAction,
         role: data?.role,

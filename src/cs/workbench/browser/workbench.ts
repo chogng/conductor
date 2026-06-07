@@ -90,6 +90,10 @@ import type {
   ITemplateApplyService,
   ITemplateService,
 } from "src/cs/workbench/contrib/template/common/template";
+import {
+  createTemplateSelection,
+  type TemplateSelection,
+} from "src/cs/workbench/contrib/template/common/templateSelection";
 import type { IThumbnailService } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
 import {
   CoreSettingsController,
@@ -834,6 +838,21 @@ export class Workbench extends Layout {
     this.renderWorkbench();
   };
 
+  private readonly handleFileTemplateSelectionChanged = (
+    fileId: string,
+    selection: TemplateSelection,
+  ): void => {
+    const normalizedFileId = String(fileId ?? "").trim();
+    if (!normalizedFileId) {
+      return;
+    }
+
+    this.session.setFileTemplateSelectionsByFileId((previous) => ({
+      ...previous,
+      [normalizedFileId]: selection,
+    }));
+  };
+
   private showMainPart(part: WorkbenchMainPart): void {
     if (this.activeMainPart !== part) {
       this.activeMainPart = part;
@@ -870,9 +889,14 @@ export class Workbench extends Layout {
       setSourceFiles: this.session.setSourceFiles,
       setSelectedPreviewFileId: this.session.setSelectedPreviewFileId,
       setSelectedPreviewSheetId: this.session.setSelectedPreviewSheetId,
+      setFileTemplateSelectionsByFileId: this.session.setFileTemplateSelectionsByFileId,
       setSsManualRanges: this.session.setSsManualRanges,
     });
     const isChartMode = this.activeMainPart === "chart";
+    const currentTemplateSelection = createTemplateSelection(snapshot.selectedTemplateId);
+    const currentTemplateLabel = currentTemplateSelection.kind === "auto"
+      ? localize("template_auto_extraction", "Auto extraction")
+      : snapshot.templateConfig.name || currentTemplateSelection.templateId;
 
     return {
       analysisFileService: this.analysisFileService,
@@ -890,12 +914,17 @@ export class Workbench extends Layout {
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
       plotAxisSettings: this.coreSettingsState.conductorSettings?.plotAxisSettings,
       thumbnailService: this.thumbnailService,
+      templateService: this.templateService,
+      currentTemplateLabel,
+      currentTemplateSelection,
+      fileTemplateSelectionsByFileId: snapshot.fileTemplateSelectionsByFileId,
       cleanedData: snapshot.cleanedData,
       onFileImported: sessionActions.handleFileImported,
       onFilesAdded: sessionActions.handleFilesAdded,
       onFilesReplaced: sessionActions.handleFilesReplaced,
       onFileRemoved: sessionActions.handleFileRemoved,
       onFilesRemoved: sessionActions.handleFilesRemoved,
+      onFileTemplateSelectionChanged: this.handleFileTemplateSelectionChanged,
       onFileSelected: isChartMode
         ? this.handleAnalysisFileSelected
         : sessionActions.handleFileSelected,

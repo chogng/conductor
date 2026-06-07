@@ -18,6 +18,11 @@ import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/o
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import type { IThumbnailService } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
+import type { ITemplateService } from "src/cs/workbench/contrib/template/common/template";
+import type {
+  TemplateSelection,
+  TemplateSelectionsByFileId,
+} from "src/cs/workbench/contrib/template/common/templateSelection";
 import {
   FilesController,
   type ImportSessionFileInfo,
@@ -32,11 +37,15 @@ export type FilesPaneProps = {
   readonly contextViewService: IContextViewService;
   readonly filesService: IFileService;
   readonly filesPaneRef: { current: FilesPaneRef | null };
+  readonly templateService: ITemplateService;
   readonly activePlotType?: PlotType;
   readonly calculatedDataByKey?: CalculatedDataByKey;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly thumbnailService: IThumbnailService;
+  readonly currentTemplateLabel?: string;
+  readonly currentTemplateSelection?: TemplateSelection;
+  readonly fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
   readonly files?: FileEntry[];
   readonly mode?: WorkbenchMainPart;
   readonly viewMode?: FilesViewMode;
@@ -47,6 +56,7 @@ export type FilesPaneProps = {
   readonly onFileRemoved?: (fileId: string) => void;
   readonly onFilesRemoved?: (fileIds: string[]) => void;
   readonly onFileSelected?: (fileId: string | null) => void;
+  readonly onFileTemplateSelectionChanged?: (fileId: string, selection: TemplateSelection) => void;
   readonly selectedFileId?: string | null;
 };
 
@@ -71,6 +81,7 @@ export class FilesPane implements IDisposable {
     this.controller = new FilesController(this.sessionHost, {
       analysisFileService: props.analysisFileService,
       commandService: props.commandService,
+      contextMenuService: props.contextMenuService,
       contextViewService: props.contextViewService,
       files: props.files,
       filesService: props.filesService,
@@ -79,6 +90,10 @@ export class FilesPane implements IDisposable {
       originOpenPlotOptions: props.originOpenPlotOptions,
       plotAxisSettings: props.plotAxisSettings,
       thumbnailService: props.thumbnailService,
+      templateService: props.templateService,
+      currentTemplateLabel: props.currentTemplateLabel,
+      currentTemplateSelection: props.currentTemplateSelection,
+      fileTemplateSelectionsByFileId: props.fileTemplateSelectionsByFileId,
       mode: props.mode,
       viewMode: props.viewMode,
       cleanedData: props.cleanedData,
@@ -88,6 +103,7 @@ export class FilesPane implements IDisposable {
       onFileRemoved: props.onFileRemoved,
       onFilesRemoved: props.onFilesRemoved,
       onFileSelected: props.onFileSelected,
+      onFileTemplateSelectionChanged: props.onFileTemplateSelectionChanged,
       selectedFileId: props.selectedFileId,
     });
 
@@ -100,6 +116,7 @@ export class FilesPane implements IDisposable {
     this.controller.setProps({
       analysisFileService: nextProps.analysisFileService,
       commandService: nextProps.commandService,
+      contextMenuService: nextProps.contextMenuService,
       contextViewService: nextProps.contextViewService,
       files: nextProps.files,
       filesService: nextProps.filesService,
@@ -108,6 +125,10 @@ export class FilesPane implements IDisposable {
       originOpenPlotOptions: nextProps.originOpenPlotOptions,
       plotAxisSettings: nextProps.plotAxisSettings,
       thumbnailService: nextProps.thumbnailService,
+      templateService: nextProps.templateService,
+      currentTemplateLabel: nextProps.currentTemplateLabel,
+      currentTemplateSelection: nextProps.currentTemplateSelection,
+      fileTemplateSelectionsByFileId: nextProps.fileTemplateSelectionsByFileId,
       mode: nextProps.mode,
       viewMode: nextProps.viewMode,
       cleanedData: nextProps.cleanedData,
@@ -117,6 +138,7 @@ export class FilesPane implements IDisposable {
       onFileRemoved: nextProps.onFileRemoved,
       onFilesRemoved: nextProps.onFilesRemoved,
       onFileSelected: nextProps.onFileSelected,
+      onFileTemplateSelectionChanged: nextProps.onFileTemplateSelectionChanged,
       selectedFileId: nextProps.selectedFileId,
     });
   }
@@ -125,8 +147,16 @@ export class FilesPane implements IDisposable {
     this.controller.openFileDialog();
   }
 
+  removeFile(fileId: string): void {
+    this.controller.removeFile(fileId);
+  }
+
   removeSelectedFolder(): void {
     this.controller.removeSelectedFolder();
+  }
+
+  setFileTemplateSelection(fileId: string, selection: TemplateSelection): void {
+    this.controller.setFileTemplateSelection(fileId, selection);
   }
 
   layout(height: number, width: number): void {

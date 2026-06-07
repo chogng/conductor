@@ -19,15 +19,20 @@ import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMa
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { AnchorAxisAlignment, AnchorPosition } from "src/cs/base/common/layout";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
-import type { IAction } from "src/cs/base/common/actions";
+import { SubmenuAction, type IAction } from "src/cs/base/common/actions";
+import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type {
+  IContextMenuService,
   IContextViewService,
   IOpenContextView,
 } from "src/cs/platform/contextview/browser/contextView";
 import { localize } from "src/cs/nls";
-import type {
-  FileEntry,
-  FilesViewMode,
+import {
+  type FileEntry,
+  type FilesViewMode,
+  REMOVE_FILE_ITEM_COMMAND_ID,
+  RENAME_FILE_ITEM_COMMAND_ID,
+  SET_FILE_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/common/files";
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 import { ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
@@ -54,15 +59,30 @@ import {
 import type { IThumbnailService } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
+import {
+  createTemplateSelection,
+  getTemplateSelectionId,
+  resolveTemplateSelectionForFile,
+  type TemplateSelection,
+  type TemplateSelectionsByFileId,
+} from "src/cs/workbench/contrib/template/common/templateSelection";
+import type { TemplateRecord } from "src/cs/workbench/contrib/template/common/template";
 
 export type ExplorerViewerProps = {
   readonly effectiveSelectedFileId?: string | null;
   readonly activePlotType?: PlotType;
   readonly calculatedDataByKey?: CalculatedDataByKey;
+  readonly commandService: Pick<ICommandService, "executeCommand">;
+  readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly contextViewService: IContextViewService;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly thumbnailService: IThumbnailService;
+  readonly currentTemplateLabel?: string;
+  readonly currentTemplateSelection?: TemplateSelection;
+  readonly fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
+  readonly isTemplateListLoading?: boolean;
+  readonly templateRecords?: readonly TemplateRecord[];
   readonly files: FileEntry[];
   readonly mode?: WorkbenchMainPart;
   readonly viewMode?: FilesViewMode;
@@ -70,8 +90,8 @@ export type ExplorerViewerProps = {
   readonly onListScroll: (event: Event) => void;
   readonly onCreateFolder: (folderKey: string) => void;
   readonly onOpenFileDialog: () => void;
-  readonly onRemoveFile: (fileId: string | null) => void;
   readonly onRemoveFolder: (folderKey: string) => void;
+  readonly onRequestTemplates?: () => void;
   readonly onSelectFile: (fileId: string | null) => void;
   readonly cleanedData?: CleanedEntry[];
 };
@@ -84,7 +104,10 @@ const HOVER_THUMBNAIL_CACHE_LIMIT = 12;
 type FileItemAssessment = {
   readonly label: string;
   readonly isWarning: boolean;
-  readonly summary: string;
+  readonly type: string;
+  readonly confidence: string;
+  readonly reasons: string;
+  readonly template: string;
 };
 
 type FileItemTemplate = {
@@ -122,7 +145,10 @@ type HoverContent =
   | {
     readonly kind: "assessment";
     readonly isWarning: boolean;
-    readonly summary: string;
+    readonly type: string;
+    readonly confidence: string;
+    readonly reasons: string;
+    readonly template: string;
   }
   | {
     readonly kind: "thumbnail";
@@ -138,27 +164,49 @@ type HoverThumbnailCacheEntry = {
   lastUsed: number;
 };
 
-const createFileItemAssessment = (fileEntry: FileEntry): FileItemAssessment | null => {
+const createFileItemAssessment = (
+  fileEntry: FileEntry,
+  templateLabel: string,
+): FileItemAssessment | null => {
   if (!fileEntry?.curveType) {
     return null;
   }
 
   const curveType = String(fileEntry.curveType).trim();
   const confidence = fileEntry?.curveTypeConfidence
-    ? ` (${String(fileEntry.curveTypeConfidence).trim()})`
-    : "";
-  const summary = localize("files.autoSummary", "Auto detected: {curveType}{confidence}", {
-    curveType,
-    confidence,
-  });
+    ? String(fileEntry.curveTypeConfidence).trim()
+    : localize("files.autoUnknown", "Unknown");
+  const reasons = (fileEntry.curveTypeReasons ?? [])
+    .map(reason => String(reason).trim())
+    .filter(Boolean)
+    .join(" ");
 
   return {
     label: curveType,
     isWarning:
       fileEntry?.curveTypeNeedsTemplate === true ||
       fileEntry?.curveTypeConfidence === "low",
-    summary,
+    type: curveType,
+    confidence,
+    reasons: reasons || localize("files.autoNoReason", "Not available"),
+    template: templateLabel,
   };
+};
+
+const createAssessmentRow = (label: string, value: string): HTMLElement => {
+  const row = document.createElement("div");
+  row.className = "file-list-hover-assessment-row";
+
+  const term = document.createElement("dt");
+  term.className = "file-list-hover-assessment-label";
+  term.textContent = label;
+
+  const description = document.createElement("dd");
+  description.className = "file-list-hover-assessment-value";
+  description.textContent = value;
+
+  row.append(term, description);
+  return row;
 };
 
 const appendIcon = (
@@ -238,6 +286,9 @@ export class ExplorerViewer implements IDisposable {
     this.disposables.add(
       addDisposableListener(host, "focusout", this.handleListFocusOut),
     );
+    this.disposables.add(
+      addDisposableListener(host, "contextmenu", this.handleListContextMenu),
+    );
   }
 
   getListHandle(): ListHandle {
@@ -247,7 +298,7 @@ export class ExplorerViewer implements IDisposable {
   setProps(nextProps: ExplorerViewerProps): void {
     const previousSelectedFileId = this.props.effectiveSelectedFileId ?? null;
     const nextSelectedFileId = nextProps.effectiveSelectedFileId ?? null;
-    const nextTreeSignature = this.createTreeSignature(nextProps.files);
+    const nextTreeSignature = this.createTreeSignature(nextProps.files, nextProps);
     const shouldUpdateTree = nextTreeSignature !== this.treeModel.signature;
     const shouldUpdateOptions = previousSelectedFileId !== nextSelectedFileId;
     const nextViewMode = nextProps.viewMode ?? "tree";
@@ -289,7 +340,7 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private createTreeOptions(
-    signature = this.createTreeSignature(this.props.files),
+    signature = this.createTreeSignature(this.props.files, this.props),
   ): IObjectTreeOptions<FileTreeNode, TreeItemTemplate> {
     this.updateTreeModel(signature);
     const { folderKeys, items } = this.treeModel;
@@ -332,16 +383,35 @@ export class ExplorerViewer implements IDisposable {
     return this.treeModel.folderKeys.filter((key) => !expanded.has(key));
   }
 
-  private createTreeSignature(files: readonly FileEntry[]): string {
-    return files.map((entry) => [
-      entry.fileId ?? "",
-      entry.itemKey ?? "",
-      entry.relativePath ?? "",
-      getFileName(entry),
-      entry.curveType ?? "",
-      entry.curveTypeConfidence ?? "",
-      entry.curveTypeNeedsTemplate === true ? "1" : "0",
-    ].join("\u001f")).join("\u001e");
+  private createTreeSignature(
+    files: readonly FileEntry[],
+    props: ExplorerViewerProps,
+  ): string {
+    const currentTemplateSelectionId = getTemplateSelectionId(
+      props.currentTemplateSelection ?? { kind: "auto" },
+    );
+    const templateRecordsSignature = (props.templateRecords ?? [])
+      .map(template => `${String(template.id ?? "")}:${String(template.name ?? "")}`)
+      .join("\u001d");
+    return [
+      currentTemplateSelectionId,
+      props.currentTemplateLabel ?? "",
+      templateRecordsSignature,
+      files.map((entry) => [
+        entry.fileId ?? "",
+        entry.itemKey ?? "",
+        entry.relativePath ?? "",
+        getFileName(entry),
+        entry.curveType ?? "",
+        entry.curveTypeConfidence ?? "",
+        entry.curveTypeNeedsTemplate === true ? "1" : "0",
+        getTemplateSelectionId(
+          props.fileTemplateSelectionsByFileId?.[entry.fileId ?? ""] ??
+            props.currentTemplateSelection ??
+            { kind: "auto" },
+        ),
+      ].join("\u001f")).join("\u001e"),
+    ].join("\u001c");
   }
 
   private updateTreeModel(signature: string): void {
@@ -374,6 +444,118 @@ export class ExplorerViewer implements IDisposable {
 
     this.props.onSelectFile(element.entry?.fileId ?? null);
   };
+
+  private readonly handleListContextMenu = (event: MouseEvent): void => {
+    const item = this.getFileItemFromEvent(event);
+    if (!item) {
+      return;
+    }
+
+    const fileId = item.dataset.fileId ?? "";
+    if (!fileId) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.hideFileItemHover(item);
+    this.props.onRequestTemplates?.();
+
+    this.props.contextMenuService.showContextMenu({
+      getAnchor: () => ({
+        x: event.clientX,
+        y: event.clientY,
+        width: 2,
+        height: 2,
+      }),
+      getActions: () => this.createFileContextActions(fileId),
+      getCheckedActionsRepresentation: () => "radio",
+    });
+  };
+
+  private createFileContextActions(fileId: string): IAction[] {
+    return [
+      createMenuAction({
+        id: REMOVE_FILE_ITEM_COMMAND_ID,
+        label: localize("files.item.delete", "Delete"),
+        run: () => {
+          void this.props.commandService.executeCommand(
+            REMOVE_FILE_ITEM_COMMAND_ID,
+            fileId,
+          );
+        },
+      }),
+      createMenuAction({
+        enabled: false,
+        id: RENAME_FILE_ITEM_COMMAND_ID,
+        label: localize("files.item.rename", "Rename"),
+        run: () => {
+          void this.props.commandService.executeCommand(
+            RENAME_FILE_ITEM_COMMAND_ID,
+            fileId,
+          );
+        },
+      }),
+      new SubmenuAction(
+        SET_FILE_TEMPLATE_COMMAND_ID,
+        localize("files.item.setTemplate", "Set Template To"),
+        this.createTemplateContextActions(fileId),
+      ),
+    ];
+  }
+
+  private createTemplateContextActions(fileId: string): IAction[] {
+    const currentSelection = this.resolveFileTemplateSelection(fileId);
+    const currentSelectionId = getTemplateSelectionId(currentSelection);
+    const actions: IAction[] = [
+      createMenuAction({
+        checked: currentSelection.kind === "auto",
+        id: "files.item.setTemplate.auto",
+        label: localize("template_auto_extraction", "Auto extraction"),
+        run: () => {
+          void this.props.commandService.executeCommand(
+            SET_FILE_TEMPLATE_COMMAND_ID,
+            fileId,
+            { kind: "auto" },
+          );
+        },
+        selected: currentSelection.kind === "auto",
+      }),
+    ];
+
+    const templates = this.props.templateRecords ?? [];
+    for (const template of templates) {
+      const templateId = String(template.id ?? "").trim();
+      if (!templateId) {
+        continue;
+      }
+
+      actions.push(createMenuAction({
+        checked: currentSelectionId === templateId,
+        id: `files.item.setTemplate.${templateId}`,
+        label: template.name || templateId,
+        run: () => {
+          void this.props.commandService.executeCommand(
+            SET_FILE_TEMPLATE_COMMAND_ID,
+            fileId,
+            createTemplateSelection(templateId),
+          );
+        },
+        selected: currentSelectionId === templateId,
+      }));
+    }
+
+    if (this.props.isTemplateListLoading) {
+      actions.push(createMenuAction({
+        enabled: false,
+        id: "files.item.setTemplate.loading",
+        label: localize("files.item.templatesLoading", "Loading templates..."),
+        run: () => {},
+      }));
+    }
+
+    return actions;
+  }
 
   private readonly renderEmpty = (container: HTMLElement): void => {
     container.replaceChildren(
@@ -430,22 +612,57 @@ export class ExplorerViewer implements IDisposable {
     template.folder.actionButton.dispose();
   };
 
+  private resolveFileTemplateLabel(fileEntry: FileEntry): string {
+    const selection = this.resolveFileTemplateSelection(fileEntry.fileId);
+    const currentSelection = this.props.currentTemplateSelection ?? {
+      kind: "auto",
+    };
+
+    if (selection.kind === "auto") {
+      return localize("template_auto_extraction", "Auto extraction");
+    }
+
+    if (
+      currentSelection.kind === "template" &&
+      selection.templateId === currentSelection.templateId
+    ) {
+      return this.props.currentTemplateLabel || selection.templateId;
+    }
+
+    return this.props.templateRecords?.find(template => template.id === selection.templateId)?.name ||
+      selection.templateId;
+  }
+
+  private resolveFileTemplateSelection(fileId: string | null | undefined): TemplateSelection {
+    const currentSelection: TemplateSelection = this.props.currentTemplateSelection ?? {
+      kind: "auto",
+    };
+    return resolveTemplateSelectionForFile(
+      fileId,
+      this.props.fileTemplateSelectionsByFileId ?? {},
+      currentSelection,
+    );
+  }
+
   private renderFileItem(
     fileEntry: FileEntry,
     isSelected: boolean,
     template: FileItemTemplate,
   ): void {
     const fileName = getFileName(fileEntry);
-    const assessment = createFileItemAssessment(fileEntry);
+    const assessment = createFileItemAssessment(
+      fileEntry,
+      this.resolveFileTemplateLabel(fileEntry),
+    );
     const { host } = template;
 
     host.className = "file-list-item";
     delete host.dataset.expanded;
+    host.removeAttribute("title");
     host.setAttribute(
       "aria-label",
       localize("import.fileItemAriaLabel", "File {fileName}", { fileName }),
     );
-    host.title = fileName;
     if (isSelected) {
       host.dataset.selected = "true";
     } else {
@@ -457,10 +674,16 @@ export class ExplorerViewer implements IDisposable {
       delete host.dataset.fileId;
     }
     if (assessment) {
-      host.dataset.autoSummary = assessment.summary;
+      host.dataset.autoType = assessment.type;
+      host.dataset.autoConfidence = assessment.confidence;
+      host.dataset.autoReasons = assessment.reasons;
+      host.dataset.autoTemplate = assessment.template;
       host.dataset.autoWarning = assessment.isWarning ? "true" : "false";
     } else {
-      delete host.dataset.autoSummary;
+      delete host.dataset.autoType;
+      delete host.dataset.autoConfidence;
+      delete host.dataset.autoReasons;
+      delete host.dataset.autoTemplate;
       delete host.dataset.autoWarning;
     }
 
@@ -479,12 +702,11 @@ export class ExplorerViewer implements IDisposable {
       {
         extraClasses: ["explorer-item"],
         fileKind: FileKind.FILE,
-        title: fileName,
       },
     );
     if (assessment) {
       template.assessment.textContent = assessment.label;
-      template.assessment.title = assessment.summary;
+      template.assessment.removeAttribute("title");
       template.assessment.dataset.warning = assessment.isWarning ? "true" : "false";
       template.assessment.hidden = false;
     } else {
@@ -591,7 +813,10 @@ export class ExplorerViewer implements IDisposable {
     };
     removeButton.addEventListener("click", (event) => {
       event.stopPropagation();
-      this.props.onRemoveFile(template.fileId);
+      void this.props.commandService.executeCommand(
+        REMOVE_FILE_ITEM_COMMAND_ID,
+        template.fileId,
+      );
     });
     appendIcon(removeButton, LxIcon.close);
 
@@ -661,7 +886,10 @@ export class ExplorerViewer implements IDisposable {
     host.className = "file-list-folder-item";
     host.title = node.name;
     host.removeAttribute("aria-label");
-    delete host.dataset.autoSummary;
+    delete host.dataset.autoType;
+    delete host.dataset.autoConfidence;
+    delete host.dataset.autoReasons;
+    delete host.dataset.autoTemplate;
     delete host.dataset.autoWarning;
     delete host.dataset.fileId;
     delete host.dataset.itemKey;
@@ -891,7 +1119,7 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private resolveHoverContent(item: HTMLElement): HoverContent | null {
-    const summary = item.dataset.autoSummary ?? "";
+    const type = item.dataset.autoType ?? "";
     if (this.props.mode === "chart") {
       const processedFile = this.getProcessedFile(item.dataset.fileId);
       if (processedFile) {
@@ -903,14 +1131,17 @@ export class ExplorerViewer implements IDisposable {
       }
     }
 
-    if (!summary) {
+    if (!type) {
       return null;
     }
 
     return {
       kind: "assessment",
       isWarning: item.dataset.autoWarning === "true",
-      summary,
+      type,
+      confidence: item.dataset.autoConfidence ?? "",
+      reasons: item.dataset.autoReasons ?? "",
+      template: item.dataset.autoTemplate ?? "",
     };
   }
 
@@ -928,11 +1159,16 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    const summaryElement = document.createElement("div");
-    summaryElement.className = "file-list-hover-summary";
-    summaryElement.dataset.warning = content.isWarning ? "true" : "false";
-    summaryElement.textContent = content.summary;
-    container.appendChild(summaryElement);
+    const details = document.createElement("dl");
+    details.className = "file-list-hover-assessment";
+    details.dataset.warning = content.isWarning ? "true" : "false";
+    details.append(
+      createAssessmentRow(localize("files.autoTypeLabel", "Type:"), content.type),
+      createAssessmentRow(localize("files.autoConfidenceLabel", "Confidence:"), content.confidence),
+      createAssessmentRow(localize("files.autoReasonLabel", "Basis:"), content.reasons),
+      createAssessmentRow(localize("files.autoTemplateLabel", "Template:"), content.template),
+    );
+    container.appendChild(details);
   }
 
   private getHoverThumbnail(file: CleanedEntry, isActive: boolean): HTMLElement {

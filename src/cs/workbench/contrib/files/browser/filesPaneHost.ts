@@ -16,6 +16,7 @@ import {
   REMOVE_FOLDER_ACTION_ID,
   TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
 } from "src/cs/workbench/contrib/files/common/files";
+import type { TemplateSelection } from "src/cs/workbench/contrib/template/common/templateSelection";
 
 export class FilesPaneHost extends ViewPane {
   private readonly host: HTMLDivElement;
@@ -53,6 +54,10 @@ export class FilesPaneHost extends ViewPane {
   public dispose(): void {
     this.view.dispose();
     super.dispose();
+  }
+
+  public removeFile(fileId: string): void {
+    this.view.removeFile(fileId);
   }
 
   protected override layoutBody(height: number, width: number): void {
@@ -119,6 +124,10 @@ export class FilesPaneHost extends ViewPane {
 
   public toggleViewMode(): void {
     this.setViewMode(this.viewMode === "thumbnail" ? "tree" : "thumbnail");
+  }
+
+  public setFileTemplateSelection(fileId: string, selection: TemplateSelection): void {
+    this.view.setFileTemplateSelection(fileId, selection);
   }
 
   private setViewMode(viewMode: FilesViewMode): void {

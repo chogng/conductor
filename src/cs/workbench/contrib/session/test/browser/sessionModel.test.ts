@@ -74,6 +74,20 @@ suite("workbench/contrib/session/test/browser/sessionModel", () => {
     dispose();
   });
 
+  test("SessionModel stores file template selections", () => {
+    const session = new SessionModel();
+
+    session.setFileTemplateSelectionsByFileId({
+      "file-a": { kind: "template", templateId: "template-a" },
+      "file-b": { kind: "auto" },
+    });
+
+    assert.deepEqual(session.getSnapshot().fileTemplateSelectionsByFileId, {
+      "file-a": { kind: "template", templateId: "template-a" },
+      "file-b": { kind: "auto" },
+    });
+  });
+
   test("SessionModel notifies each active subscription", () => {
     const session = new SessionModel();
     let firstChangeCount = 0;

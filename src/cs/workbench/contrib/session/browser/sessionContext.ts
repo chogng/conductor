@@ -6,6 +6,7 @@
   SessionFile,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { CalculatedDataByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
+import type { TemplateSelectionsByFileId } from "src/cs/workbench/contrib/template/common/templateSelection";
 
 export type MutableState<T> = {
   current: T;
@@ -83,6 +84,8 @@ export type SessionContextValue = {
   setTemplateMode: StateSetter<TemplateMode>;
   selectedTemplateId: string | null;
   setSelectedTemplateId: StateSetter<string | null>;
+  fileTemplateSelectionsByFileId: TemplateSelectionsByFileId;
+  setFileTemplateSelectionsByFileId: StateSetter<TemplateSelectionsByFileId>;
   templateConfig: TemplateConfig;
   setTemplateConfig: StateSetter<TemplateConfig>;
   previewFile: PreviewFile | null;
