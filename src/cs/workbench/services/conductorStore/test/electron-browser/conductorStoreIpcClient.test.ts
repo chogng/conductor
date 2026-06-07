@@ -1,9 +1,9 @@
 import * as assert from "assert";
 
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
-import { requestDesktopStore } from "src/cs/workbench/services/storage/electron-sandbox/storageService";
+import { requestConductorStore } from "src/cs/workbench/services/conductorStore/electron-browser/conductorStoreIpcClient";
 
-suite("workbench/services/storage/electron-sandbox/storageService", () => {
+suite("workbench/services/conductorStore/electron-browser/conductorStoreIpcClient", () => {
   const originalWindow = globalThis.window;
 
   teardown(() => {
@@ -31,16 +31,16 @@ suite("workbench/services/storage/electron-sandbox/storageService", () => {
       writable: true,
     });
 
-    await requestDesktopStore("/templates");
-    await requestDesktopStore("/templates", {
+    await requestConductorStore("/templates");
+    await requestConductorStore("/templates", {
       body: JSON.stringify({ name: "Template" }),
       method: "POST",
     });
-    await requestDesktopStore("/settings", {
+    await requestConductorStore("/settings", {
       body: JSON.stringify({ theme: "dark" }),
       method: "PATCH",
     });
-    await requestDesktopStore("/persistence-path", {
+    await requestConductorStore("/persistence-path", {
       body: JSON.stringify({ path: "C:\\Data" }),
       method: "PATCH",
     });
@@ -61,7 +61,7 @@ suite("workbench/services/storage/electron-sandbox/storageService", () => {
     });
 
     assert.deepStrictEqual(
-      await requestDesktopStore("/persistence-path"),
+      await requestConductorStore("/persistence-path"),
       { isConfigurable: false },
     );
   });

@@ -21,8 +21,8 @@ import {
   getCurrentBootThemeSnapshot,
 } from "../../platform/windows/electron-main/windowImpl.js";
 import { defaultBrowserWindowOptions } from "../../platform/windows/electron-main/windows.js";
-import { createStorageMainService } from "../../workbench/services/storage/electron-main/storageMainService.js";
-import { deleteLegacyUserStorageFiles } from "../../workbench/services/storage/electron-main/storageCleanup.js";
+import { createConductorStoreMainService } from "../../workbench/services/conductorStore/electron-main/conductorStoreMainService.js";
+import { deleteLegacyConductorStoreFiles } from "../../workbench/services/conductorStore/electron-main/conductorStoreCleanup.js";
 import {
   assertOriginExePath,
   normalizeOriginExePath,
@@ -953,7 +953,7 @@ function ensureLegacyUserStorageCleaned() {
   }
 
   didCleanLegacyUserStorage = true;
-  deleteLegacyUserStorageFiles(getAnalysisHomeDir());
+  deleteLegacyConductorStoreFiles(getAnalysisHomeDir());
 }
 
 function getConductorStoreHomeDir() {
@@ -1262,7 +1262,7 @@ async function handleExcelReadConvertedCsv(_event, payload) {
   }
 }
 
-const conductorStore = createStorageMainService({
+const conductorStore = createConductorStoreMainService({
   getHomeDir: getConductorStoreHomeDir,
 });
 

@@ -1,13 +1,13 @@
 import {
-  DESKTOP_STORE_UNAVAILABLE,
-  requestDesktopStore,
-} from "src/cs/workbench/services/storage/electron-sandbox/storageService";
+  CONDUCTOR_STORE_UNAVAILABLE,
+  requestConductorStore,
+} from "src/cs/workbench/services/conductorStore/electron-browser/conductorStoreIpcClient";
 
 const isDesktopStoreUnavailableError = (error: unknown): boolean =>
   error instanceof Error &&
-  error.message === DESKTOP_STORE_UNAVAILABLE;
+  error.message === CONDUCTOR_STORE_UNAVAILABLE;
 
-class StoreClient {
+class ConductorStoreClient {
   async getTemplates(): Promise<unknown> {
     return this.requestStore("/templates");
   }
@@ -43,7 +43,7 @@ class StoreClient {
     options: RequestInit = {},
   ): Promise<T> {
     try {
-      return (await requestDesktopStore(endpoint, options)) as T;
+      return (await requestConductorStore(endpoint, options)) as T;
     } catch (error) {
       if (isDesktopStoreUnavailableError(error)) {
         throw new Error(
@@ -56,4 +56,4 @@ class StoreClient {
   }
 }
 
-export const storeClient = new StoreClient();
+export const conductorStoreClient = new ConductorStoreClient();

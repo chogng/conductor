@@ -1,14 +1,14 @@
 import {
-  DESKTOP_STORE_UNAVAILABLE,
-  type DesktopStore,
-  getDesktopStore,
-  getDesktopStoreMethod,
-} from "src/cs/workbench/services/storage/electron-sandbox/storageService";
+  CONDUCTOR_STORE_UNAVAILABLE,
+  type ConductorStoreBridge,
+  getConductorStoreBridge,
+  getConductorStoreMethod,
+} from "src/cs/workbench/services/conductorStore/electron-browser/conductorStoreIpcClient";
 
 const wrapSettingsStoreError = (error: unknown): never => {
   if (
     error instanceof Error &&
-    error.message === DESKTOP_STORE_UNAVAILABLE
+    error.message === CONDUCTOR_STORE_UNAVAILABLE
   ) {
     throw new Error(
       "Desktop store bridge unavailable. Conductor settings are persisted only via desktop config.json.",
@@ -18,8 +18,8 @@ const wrapSettingsStoreError = (error: unknown): never => {
   throw error;
 };
 
-const requireDesktopSettingsStore = (): DesktopStore => {
-  const store = getDesktopStore();
+const requireDesktopSettingsStore = (): ConductorStoreBridge => {
+  const store = getConductorStoreBridge();
   if (!store) {
     throw new Error(
       "Desktop store bridge unavailable. Conductor settings are persisted only via desktop config.json.",
@@ -33,7 +33,7 @@ export const getSettings = async (): Promise<unknown> => {
   const store = requireDesktopSettingsStore();
 
   try {
-    return await getDesktopStoreMethod(
+    return await getConductorStoreMethod(
       store,
       "getConductorSettings",
     )();
@@ -48,7 +48,7 @@ export const updateSettings = async (
   const store = requireDesktopSettingsStore();
 
   try {
-    return await getDesktopStoreMethod(
+    return await getConductorStoreMethod(
       store,
       "updateConductorSettings",
     )(updates);

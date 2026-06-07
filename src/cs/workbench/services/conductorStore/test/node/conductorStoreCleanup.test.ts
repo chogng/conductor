@@ -3,9 +3,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { deleteLegacyUserStorageFiles } from "src/cs/workbench/services/storage/electron-main/storageCleanup";
+import { deleteLegacyConductorStoreFiles } from "src/cs/workbench/services/conductorStore/electron-main/conductorStoreCleanup";
 
-suite("workbench/services/storage/node/storageCleanup", () => {
+suite("workbench/services/conductorStore/node/conductorStoreCleanup", () => {
   function createTempDir(): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), "conductor-storage-cleanup-"));
   }
@@ -20,7 +20,7 @@ suite("workbench/services/storage/node/storageCleanup", () => {
       fs.writeFileSync(path.join(legacyHomeDir, "store-path.json"), "{\"customStorePath\":null}", "utf8");
       fs.writeFileSync(path.join(legacyHomeDir, "keep.json"), "{}", "utf8");
 
-      const deleted = deleteLegacyUserStorageFiles(legacyHomeDir).map(filePath => path.basename(filePath)).sort();
+      const deleted = deleteLegacyConductorStoreFiles(legacyHomeDir).map(filePath => path.basename(filePath)).sort();
 
       assert.deepEqual(deleted, ["config.json", "store-path.json", "template.json"]);
       assert.equal(fs.existsSync(path.join(legacyHomeDir, "config.json")), false);
@@ -38,7 +38,7 @@ suite("workbench/services/storage/node/storageCleanup", () => {
 			const legacyHomeDir = path.join(root, ".device");
 			fs.mkdirSync(path.join(legacyHomeDir, "template.json"), { recursive: true });
 
-			const deleted = deleteLegacyUserStorageFiles(legacyHomeDir);
+			const deleted = deleteLegacyConductorStoreFiles(legacyHomeDir);
 
 			assert.deepEqual(deleted, []);
 			assert.equal(fs.statSync(path.join(legacyHomeDir, "template.json")).isDirectory(), true);

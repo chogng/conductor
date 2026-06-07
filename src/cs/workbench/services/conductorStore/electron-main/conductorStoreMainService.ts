@@ -1,8 +1,8 @@
 // @ts-nocheck
 import type {
-  StoreOptions,
-  IStorageService,
-} from "../common/storage.js";
+  ConductorStoreOptions,
+  IConductorStoreService,
+} from "../common/conductorStore.js";
 import { createConfigurableJsonStorage } from "../../../../platform/storage/electron-main/configurableJsonStorage.js";
 import { createJsonStorageDocument } from "../../../../platform/storage/electron-main/jsonStorageDocument.js";
 
@@ -19,10 +19,10 @@ import {
   normalizeStoredTemplates,
   normalizeStoreData,
   toTemplateNameKey,
-} from "../common/schema.js";
-export function createStorageMainService(
-  options: StoreOptions,
-): IStorageService {
+} from "../common/conductorStoreSchema.js";
+export function createConductorStoreMainService(
+  options: ConductorStoreOptions,
+): IConductorStoreService {
   const input = options && typeof options === "object" ? options : {};
   const getHomeDir =
     typeof input.getHomeDir === "function" ? input.getHomeDir : null;

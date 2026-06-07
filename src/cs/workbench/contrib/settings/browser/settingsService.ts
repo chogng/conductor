@@ -1,6 +1,6 @@
 import { localize } from "src/cs/nls";
 import { formatOriginBridgeError } from "src/cs/workbench/contrib/origin/common/originBridgeError";
-import { storeClient } from "src/cs/workbench/services/storage/electron-sandbox/storeClient";
+import { conductorStoreClient } from "src/cs/workbench/services/conductorStore/electron-browser/conductorStoreClient";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
   getDesktopOriginBridge,
@@ -49,11 +49,11 @@ export class BrowserSettingsService implements ISettingsServiceType {
   }
 
   public async getPersistencePath(): Promise<PersistencePathInfo | null> {
-    return toPersistencePathInfo(await storeClient.getPersistencePath());
+    return toPersistencePathInfo(await conductorStoreClient.getPersistencePath());
   }
 
   public async choosePersistencePath(): Promise<PersistencePathInfo | null> {
-    return toPersistencePathInfo(await storeClient.choosePersistencePath());
+    return toPersistencePathInfo(await conductorStoreClient.choosePersistencePath());
   }
 
   public async getOriginExePath(): Promise<string> {

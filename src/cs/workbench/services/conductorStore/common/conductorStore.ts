@@ -1,21 +1,21 @@
-export type StoreOptions = {
+export type ConductorStoreOptions = {
   getHomeDir: () => string;
 };
 
-export type PersistenceInfo = {
+export type ConductorStorePersistenceInfo = {
   currentPath: string;
   defaultPath: string;
   isCustom: boolean;
   isConfigurable: boolean;
 };
 
-export interface IStorageService {
+export interface IConductorStoreService {
   getHomeDir(): string;
-  getPersistenceInfo(): PersistenceInfo;
+  getPersistenceInfo(): ConductorStorePersistenceInfo;
   getConductorSettings(): Record<string, unknown>;
   patchConductorSettings(updates: unknown): Record<string, unknown>;
   getTemplates(): unknown[];
   upsertTemplate(payload: unknown): unknown;
   deleteTemplate(id: unknown): { success: true };
-  setPersistencePath(nextPath: unknown): PersistenceInfo;
+  setPersistencePath(nextPath: unknown): ConductorStorePersistenceInfo;
 }

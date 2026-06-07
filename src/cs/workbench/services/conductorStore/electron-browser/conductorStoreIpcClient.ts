@@ -15,11 +15,11 @@ type StoreMethod = (typeof REQUIRED_STORE_METHODS)[number];
 
 type JsonRecord = Record<string, unknown>;
 type PersistencePathInfo = JsonRecord & { isConfigurable?: boolean };
-export type DesktopStore = {
+export type ConductorStoreBridge = {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
 };
 
-export const DESKTOP_STORE_UNAVAILABLE =
+export const CONDUCTOR_STORE_UNAVAILABLE =
   "Desktop store bridge unavailable.";
 
 const parseJsonBody = (body: unknown): JsonRecord | null => {
@@ -41,17 +41,17 @@ const parseJsonBody = (body: unknown): JsonRecord | null => {
   }
 };
 
-export const getDesktopStore = (): DesktopStore | null => {
+export const getConductorStoreBridge = (): ConductorStoreBridge | null => {
   if (typeof window === "undefined") return null;
 
-  const ipcRenderer = window.conductor?.ipcRenderer as DesktopStore | undefined;
+  const ipcRenderer = window.conductor?.ipcRenderer as ConductorStoreBridge | undefined;
   if (!ipcRenderer || typeof ipcRenderer.invoke !== "function") return null;
 
   return ipcRenderer;
 };
 
-export const getDesktopStoreMethod = (
-  ipcRenderer: DesktopStore,
+export const getConductorStoreMethod = (
+  ipcRenderer: ConductorStoreBridge,
   method: StoreMethod,
 ): ((...args: unknown[]) => unknown) => {
   const channel = resolveStoreChannel(method);
@@ -86,7 +86,7 @@ function resolveStoreChannel(
       return { name: workbenchIpcChannels.persistencePathChoose };
   }
 
-  throw new Error(`${DESKTOP_STORE_UNAVAILABLE} (${method})`);
+  throw new Error(`${CONDUCTOR_STORE_UNAVAILABLE} (${method})`);
 }
 
 const normalizePersistencePathInfo = (info: unknown): PersistencePathInfo => ({
@@ -94,7 +94,7 @@ const normalizePersistencePathInfo = (info: unknown): PersistencePathInfo => ({
   isConfigurable: true,
 });
 
-export const requestDesktopStore = async (
+export const requestConductorStore = async (
   endpoint: string,
   options: RequestInit = {},
 ): Promise<unknown> => {
@@ -103,7 +103,7 @@ export const requestDesktopStore = async (
   const isTemplateItemEndpoint =
     endpoint.startsWith("/templates/");
 
-  const store = getDesktopStore();
+  const store = getConductorStoreBridge();
   if (!store) {
     if (isStoreEndpoint("templates") && method === "GET") {
       return [];
@@ -117,18 +117,18 @@ export const requestDesktopStore = async (
       return { isConfigurable: false };
     }
 
-    throw new Error(DESKTOP_STORE_UNAVAILABLE);
+    throw new Error(CONDUCTOR_STORE_UNAVAILABLE);
   }
 
   if (isStoreEndpoint("templates") && method === "GET") {
-    return getDesktopStoreMethod(
+    return getConductorStoreMethod(
       store,
       "getTemplates",
     )();
   }
 
   if (isStoreEndpoint("templates") && method === "POST") {
-    return getDesktopStoreMethod(
+    return getConductorStoreMethod(
       store,
       "createTemplate",
     )(
@@ -138,21 +138,21 @@ export const requestDesktopStore = async (
 
   if (isTemplateItemEndpoint && method === "DELETE") {
     const id = endpoint.split("/")[2];
-    return getDesktopStoreMethod(
+    return getConductorStoreMethod(
       store,
       "deleteTemplate",
     )(id);
   }
 
   if (isStoreEndpoint("settings") && method === "GET") {
-    return getDesktopStoreMethod(
+    return getConductorStoreMethod(
       store,
       "getConductorSettings",
     )();
   }
 
   if (isStoreEndpoint("settings") && method === "PATCH") {
-    return getDesktopStoreMethod(
+    return getConductorStoreMethod(
       store,
       "updateConductorSettings",
     )(
@@ -161,7 +161,7 @@ export const requestDesktopStore = async (
   }
 
   if (isStoreEndpoint("persistence-path") && method === "GET") {
-    const info = await getDesktopStoreMethod(
+    const info = await getConductorStoreMethod(
       store,
       "getPersistencePath",
     )();
@@ -171,7 +171,7 @@ export const requestDesktopStore = async (
   if (isStoreEndpoint("persistence-path") && method === "PATCH") {
     const payload = parseJsonBody(options.body) || {};
     const path = typeof payload.path === "string" ? payload.path : "";
-    const info = await getDesktopStoreMethod(
+    const info = await getConductorStoreMethod(
       store,
       "updatePersistencePath",
     )(path);
@@ -182,7 +182,7 @@ export const requestDesktopStore = async (
     endpoint === "/persistence-path/choose" &&
     method === "POST"
   ) {
-    const info = await getDesktopStoreMethod(
+    const info = await getConductorStoreMethod(
       store,
       "choosePersistencePath",
     )();

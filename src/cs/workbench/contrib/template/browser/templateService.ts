@@ -9,7 +9,7 @@ import {
 } from "src/cs/workbench/contrib/template/common/template";
 import { filterUserTemplateRecords } from "src/cs/workbench/contrib/template/common/templateRecords";
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
-import { storeClient } from "src/cs/workbench/services/storage/electron-sandbox/storeClient";
+import { conductorStoreClient } from "src/cs/workbench/services/conductorStore/electron-browser/conductorStoreClient";
 
 export class BrowserTemplateService implements ITemplateService {
   public declare readonly _serviceBrand: undefined;
@@ -19,16 +19,16 @@ export class BrowserTemplateService implements ITemplateService {
   }
 
   async getTemplates(): Promise<TemplateRecord[]> {
-    const remote = await storeClient.getTemplates();
+    const remote = await conductorStoreClient.getTemplates();
     return filterUserTemplateRecords(remote) as TemplateRecord[];
   }
 
   async deleteTemplate(id: string): Promise<void> {
-    await storeClient.deleteTemplate(id);
+    await conductorStoreClient.deleteTemplate(id);
   }
 
   async saveTemplate(template: TemplateConfig): Promise<TemplateRecord> {
-    const saved = await storeClient.createTemplate({
+    const saved = await conductorStoreClient.createTemplate({
       ...template,
     });
     return isTemplateRecord(saved) ? saved : template;
