@@ -86,7 +86,6 @@ import type {
   ITableService,
   TableModel,
 } from "src/cs/workbench/contrib/table/common/tableService";
-import type { IFilesViewModeService } from "src/cs/workbench/contrib/files/browser/filesViewModeService";
 import type {
   ITemplateApplyService,
   ITemplateService,
@@ -120,12 +119,14 @@ import { OriginSettingsViewPane } from "src/cs/workbench/contrib/origin/browser/
 import { OriginExportSettingsViewId } from "src/cs/workbench/contrib/origin/common/origin";
 import { SearchViewPane } from "src/cs/workbench/contrib/search/browser/searchViewPane";
 import { SearchViewId } from "src/cs/workbench/contrib/search/common/search";
+import { createPlotMainRenderModel } from "src/cs/workbench/contrib/plot/browser/plotMainRenderModel";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   ISeriesLabelService,
   type ISeriesLabelService as ISeriesLabelServiceType,
 } from "src/cs/workbench/services/seriesLabels/common/seriesLabels";
+import type { IWorkbenchViewModeService } from "src/cs/workbench/services/views/common/workbenchViewModeService";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
   closeWindow,
@@ -183,8 +184,8 @@ export type WorkbenchOptions = {
   readonly templateApplyService?: ITemplateApplyService;
   readonly templateService?: ITemplateService;
   readonly thumbnailService?: IThumbnailService;
-  readonly filesViewModeService?: IFilesViewModeService;
   readonly tableService?: ITableService;
+  readonly workbenchViewModeService?: IWorkbenchViewModeService;
   readonly titlebarState?: WorkbenchTitlebarState;
 };
 
@@ -236,7 +237,7 @@ const getInitialLanguagePreference = (): LanguagePreference => {
     : "system";
 };
 
-const resolveInitialMainPart = (
+const resolveInitialWorkbenchViewMode = (
   snapshot: WorkbenchSessionSnapshot,
 ): WorkbenchMainPart =>
   snapshot.cleanedData.length > 0 ? "chart" : "table";
@@ -276,7 +277,7 @@ export class Workbench extends Layout {
   private readonly templateApplyService: ITemplateApplyService;
   private readonly templateService: ITemplateService;
   private readonly thumbnailService: IThumbnailService;
-  private readonly filesViewModeService: IFilesViewModeService;
+  private readonly workbenchViewModeService: IWorkbenchViewModeService;
   private readonly templateImportController: TemplateImportController;
   private readonly auxiliaryBarModel = new AuxiliaryBarModel();
   private readonly coreSettingsController: CoreSettingsController;
@@ -284,9 +285,6 @@ export class Workbench extends Layout {
   private theme: ThemeMode = isThemeMode(window.__CONDUCTOR_INITIAL_THEME__)
     ? window.__CONDUCTOR_INITIAL_THEME__
     : "system";
-  private activeMainPart: WorkbenchMainPart = resolveInitialMainPart(
-    this.session.getSnapshot(),
-  );
   private activePlotType: PlotType = "iv";
   private selectedAnalysisFileId: string | null = null;
   private originMode: OriginExportMode = "merged";
@@ -298,6 +296,10 @@ export class Workbench extends Layout {
 
   public get contentElement(): HTMLElement {
     return this.window.contentElement;
+  }
+
+  private get workbenchViewMode(): WorkbenchMainPart {
+    return this.workbenchViewModeService.viewMode;
   }
 
   constructor(parent: HTMLElement, options: WorkbenchOptions = {}) {
@@ -359,8 +361,8 @@ export class Workbench extends Layout {
     if (!options.thumbnailService) {
       throw new Error("Workbench requires IThumbnailService.");
     }
-    if (!options.filesViewModeService) {
-      throw new Error("Workbench requires IFilesViewModeService.");
+    if (!options.workbenchViewModeService) {
+      throw new Error("Workbench requires IWorkbenchViewModeService.");
     }
     this.filesService = options.filesService;
     this.analysisFileService = options.analysisFileService;
@@ -379,7 +381,9 @@ export class Workbench extends Layout {
     this.templateApplyService = options.templateApplyService;
     this.templateService = options.templateService;
     this.thumbnailService = options.thumbnailService;
-    this.filesViewModeService = options.filesViewModeService;
+    this.workbenchViewModeService = options.workbenchViewModeService;
+    const initialViewMode = resolveInitialWorkbenchViewMode(this.session.getSnapshot());
+    this.workbenchViewModeService.setViewMode(initialViewMode);
     this._register(this.createNotificationsHandlers());
     this.templateImportController = new TemplateImportController(
       this.dialogsService,
@@ -391,15 +395,12 @@ export class Workbench extends Layout {
       templateApplyService: this.templateApplyService,
       batchSessionUpdate: this.session.batch,
       onExtractionError: () => undefined,
-      showResults: () => this.showMainPart("chart"),
+      showResults: () => this.showWorkbenchViewMode("chart"),
       setAnalysisResults: this.session.setAnalysisResults,
       setCleanedData: this.session.setCleanedData,
     }));
     this.templateApply.update(this.getTemplateApplyInput());
     this.filesPane = this._register(new FilesPaneHost(this.getFilesPaneProps()));
-    this._register(this.filesViewModeService.onDidChangeViewMode(() => {
-      this.filesPane.update(this.getFilesPaneProps());
-    }));
     this.table = getWorkbenchContribution<TableContribution>(TableContributionId);
     this.templateViewPane = this._register(new TemplateViewPane(this.getTemplateViewPaneProps()));
     this.templateAuxiliaryBarViewPane = this._register(new TemplateAuxiliaryBarViewPane(
@@ -418,10 +419,14 @@ export class Workbench extends Layout {
       this.coreSettingsState = state;
       this.settings.update(this.getSettingsProps());
     }));
+    this._register(this.workbenchViewModeService.onDidChangeViewMode(() => {
+      this.renderWorkbench();
+    }));
     this._register({
       dispose: this.session.subscribe(() => this.renderWorkbench()),
     });
     this.coreSettingsState = this.coreSettingsController.getState();
+    this.resetToView(initialViewMode);
     this.renderWorkbench();
   }
 
@@ -457,7 +462,7 @@ export class Workbench extends Layout {
     ));
     this.templateAuxiliaryBarViewPane.update(
       this.templateViewPane.configElement,
-      getAuxiliaryBarTitleForMode(this.activeMainPart, snapshot.templateMode),
+      getAuxiliaryBarTitleForMode(this.workbenchViewMode, snapshot.templateMode),
     );
     this.analysis.update(this.getAnalysisProps(snapshot, this.templateApply));
     this.settings.update(this.getSettingsProps());
@@ -466,9 +471,9 @@ export class Workbench extends Layout {
     this.renderAuxiliaryBarView(snapshot);
     this.setParts({
       sidebar: this.getViewContainerElement(WorkbenchViewContainers.files, this.filesPane.element),
-      data: this.getViewContainerElement(
+      workbench: this.getViewContainerElement(
         WorkbenchViewContainers.main,
-        this.activeMainPart === "chart" ? this.analysis.element : this.table.element,
+        this.workbenchViewMode === "chart" ? this.analysis.element : this.table.element,
       ),
       auxiliaryBar: this.getViewContainerElement(
         WorkbenchViewContainers.auxiliarybar,
@@ -531,9 +536,7 @@ export class Workbench extends Layout {
     const state = this.state;
     const activePage = state.activeView === "settings"
       ? "settings"
-      : this.activeMainPart === "chart"
-        ? "analysis"
-        : "data";
+      : this.workbenchViewMode;
     return {
       activePage,
       canNavigateBack: state.layoutState.canNavigateBack,
@@ -565,7 +568,7 @@ export class Workbench extends Layout {
 
     const isSettingsActive = this.activeView === "settings";
     const isWorkbenchActive = !isSettingsActive;
-    const isAnalysisActive = this.activeMainPart === "chart";
+    const isAnalysisActive = this.workbenchViewMode === "chart";
 
     if (isWorkbenchActive) {
       if (this.sidebarVisible) {
@@ -592,9 +595,9 @@ export class Workbench extends Layout {
 
   private updateContextKeys(): void {
     this.activeWorkbenchViewContext?.set(this.activeView);
-    this.activeWorkbenchMainPartContext?.set(this.activeMainPart);
+    this.activeWorkbenchMainPartContext?.set(this.workbenchViewMode);
     this.activeAuxiliaryBarViewContext?.set(
-      this.auxiliaryBarModel.getActiveView(this.activeMainPart),
+      this.auxiliaryBarModel.getActiveView(this.workbenchViewMode),
     );
   }
 
@@ -625,7 +628,7 @@ export class Workbench extends Layout {
     }
 
     const state = this.auxiliaryBarModel.update({
-      mode: this.activeMainPart,
+      mode: this.workbenchViewMode,
       onDidChangeActiveView: () => this.handleAuxiliaryBarActiveViewChange(),
       templateMode: this.session.getSnapshot().templateMode,
       visible,
@@ -655,7 +658,7 @@ export class Workbench extends Layout {
     const props = this.getAuxiliaryBarViewInput(snapshot);
     const activeFile = this.resolveActiveFile(snapshot);
 
-    switch (this.auxiliaryBarModel.getActiveView(this.activeMainPart)) {
+    switch (this.auxiliaryBarModel.getActiveView(this.workbenchViewMode)) {
       case "template":
         break;
       case "parameters":
@@ -686,11 +689,12 @@ export class Workbench extends Layout {
       return;
     }
 
-    view.renderSearch(getCalculatedData(
+    const model = getCalculatedData(
       snapshot.calculatedDataByKey,
       this.activePlotType,
       this.getActiveAnalysisFileId(snapshot),
-    ));
+    );
+    view.renderSearch(model ? createPlotMainRenderModel(model) : null);
   }
 
   private renderExportView(activeFile: CleanedEntry | null): void {
@@ -772,7 +776,7 @@ export class Workbench extends Layout {
   }
 
   private getActiveAuxiliaryBarElement(): HTMLElement | null {
-    const viewId = this.auxiliaryBarModel.getActiveViewId(this.activeMainPart);
+    const viewId = this.auxiliaryBarModel.getActiveViewId(this.workbenchViewMode);
     return viewId ? this.viewsService.getViewWithId(viewId)?.element ?? null : null;
   }
 
@@ -814,7 +818,7 @@ export class Workbench extends Layout {
       return;
     }
 
-    this.showMainPart(page === "analysis" ? "chart" : "table");
+    this.showWorkbenchViewMode(page);
   }
 
   private handleToggleSidebar(): void {
@@ -863,14 +867,15 @@ export class Workbench extends Layout {
     }));
   };
 
-  private showMainPart(part: WorkbenchMainPart): void {
-    if (this.activeMainPart !== part) {
-      this.activeMainPart = part;
+  private showWorkbenchViewMode(viewMode: WorkbenchMainPart): void {
+    const previousViewMode = this.workbenchViewMode;
+    if (this.activeView !== viewMode) {
+      this.navigateToView(viewMode);
     }
-    if (this.activeView !== "data") {
-      this.navigateToView("data");
+    this.workbenchViewModeService.setViewMode(viewMode);
+    if (previousViewMode === viewMode) {
+      this.renderWorkbench();
     }
-    this.renderWorkbench();
   }
 
   private getFilesPaneProps(
@@ -902,7 +907,7 @@ export class Workbench extends Layout {
       setFileTemplateSelectionsByFileId: this.session.setFileTemplateSelectionsByFileId,
       setSsManualRanges: this.session.setSsManualRanges,
     });
-    const isChartMode = this.activeMainPart === "chart";
+    const isChartMode = this.workbenchViewMode === "chart";
     const currentTemplateSelection = createTemplateSelection(snapshot.selectedTemplateId);
     const currentTemplateLabel = currentTemplateSelection.kind === "auto"
       ? localize("template_auto_extraction", "Auto extraction")
@@ -920,11 +925,10 @@ export class Workbench extends Layout {
         ? createChartExplorerFiles(snapshot.sourceFiles, snapshot.cleanedData)
         : snapshot.sourceFiles,
       filesService: this.filesService,
-      mode: this.activeMainPart,
+      mode: this.workbenchViewMode,
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
       plotAxisSettings: this.coreSettingsState.conductorSettings?.plotAxisSettings,
       thumbnailService: this.thumbnailService,
-      viewMode: this.filesViewModeService.viewMode,
       templateService: this.templateService,
       currentTemplateLabel,
       currentTemplateSelection,

@@ -1,6 +1,7 @@
 ﻿import { localize } from "src/cs/nls";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import { createPlotMainView } from "src/cs/workbench/contrib/plot/browser/plotMainView";
+import { createPlotMainRenderModel } from "src/cs/workbench/contrib/plot/browser/plotMainRenderModel";
 import {
   createSecondCalculatedData,
   getCalculatedData,
@@ -42,6 +43,14 @@ export type ChartViewProps = {
   showFileSelect?: boolean;
   hiddenLegendKeys?: readonly string[];
   legendLabels?: Readonly<Record<string, string>>;
+  inspectorXAxisLabelOverride?: string;
+  inspectorYAxisLabelOverride?: string;
+  onInspectorXAxisLabelChange?: (nextLabel: string) => void;
+  onInspectorYAxisLabelChange?: (nextLabel: string) => void;
+  onXAxisLabelChange?: (nextLabel: string) => void;
+  onYAxisLabelChange?: (nextLabel: string) => void;
+  xAxisLabelOverride?: string;
+  yAxisLabelOverride?: string;
   setIonIoffMethod?: (next: IonIoffMethod) => void;
   setIonIoffManualTargetsByFileId?: StateSetter<IonIoffManualTargetsByFileId>;
   ssMethod?: SsMethod;
@@ -104,16 +113,24 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   );
 
   const chartPlotView = createPlotMainView({
-    model: filteredData,
+    model: createPlotMainRenderModel(filteredData),
+    onXAxisLabelChange: props.onXAxisLabelChange,
+    onYAxisLabelChange: props.onYAxisLabelChange,
     originOpenPlotOptions: props.originOpenPlotOptions,
     plotAxisSettings: props.plotAxisSettings,
     plotType: activePlotType,
+    xAxisLabelOverride: props.xAxisLabelOverride,
+    yAxisLabelOverride: props.yAxisLabelOverride,
   });
   const inspectorPlotView = createPlotMainView({
-    model: createSecondCalculatedData(filteredData),
+    model: createPlotMainRenderModel(createSecondCalculatedData(filteredData)),
+    onXAxisLabelChange: props.onInspectorXAxisLabelChange,
+    onYAxisLabelChange: props.onInspectorYAxisLabelChange,
     originOpenPlotOptions: props.originOpenPlotOptions,
     plotAxisSettings: props.plotAxisSettings,
     plotType: activePlotType,
+    xAxisLabelOverride: props.inspectorXAxisLabelOverride,
+    yAxisLabelOverride: props.inspectorYAxisLabelOverride,
   });
 
   const chartHost = document.createElement("div");

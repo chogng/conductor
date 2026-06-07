@@ -182,11 +182,11 @@ const createLxIcon = (
 const createDefaultPageActionIcon = (
   action: WorkbenchTitlebarPageAction,
 ): SVGSVGElement => {
-  if (action.id === "data") {
+  if (action.id === "table") {
     return createLxIcon(LxIcon.downloadTray, 14, "opacity-80");
   }
 
-  if (action.id === "analysis") {
+  if (action.id === "chart") {
     return createLxIcon(LxIcon.analysis, 14, "opacity-80");
   }
 
@@ -390,10 +390,10 @@ export const createWorkbenchTitlebarElement = (
     const button = createIconButton(
       {
         id:
-          action.id === "data"
-            ? LayoutViewSwitchIds.data
-            : action.id === "analysis"
-              ? LayoutViewSwitchIds.analysis
+          action.id === "table"
+            ? LayoutViewSwitchIds.table
+            : action.id === "chart"
+              ? LayoutViewSwitchIds.chart
               : action.id === "settings"
                 ? LayoutViewSwitchIds.settings
                 : undefined,
@@ -406,7 +406,7 @@ export const createWorkbenchTitlebarElement = (
     );
     setupTooltipHover(button, action.title, hoverStore);
 
-    if (action.id === "analysis") {
+    if (action.id === "chart") {
       button.addEventListener("mouseenter", () => onAnalysisIntent?.());
       button.addEventListener("focus", () => onAnalysisIntent?.());
     }

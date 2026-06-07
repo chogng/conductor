@@ -56,11 +56,15 @@ export const createThumbnailView = ({
   yScale = "linear",
 }: ThumbnailViewProps): HTMLElement => {
   const root = document.createElement("div");
+  const title = file.fileName ?? file.fileId ?? "";
   const classes = [
     "thumbnail_view",
     isActive ? "thumbnail_view--active" : "",
   ].filter(Boolean);
   root.className = classes.join(" ");
+  if (title) {
+    root.title = title;
+  }
 
   root.append(createHeader(file), createChartThumbnail({
     file,
@@ -142,7 +146,6 @@ const createChartThumbnail = ({
         domain: file.domain,
         yScaleType: yScale === "log" ? "log" : "linear",
         yLogCurrentMode,
-        title: file.fileName ?? file.fileId ?? "",
         className: "thumbnail_view_chart_canvas",
       }),
     );

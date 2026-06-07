@@ -1,12 +1,12 @@
-﻿import type { PlotMainSeries } from "src/cs/workbench/contrib/plot/browser/plotMainChart";
+import type { PlotMainSeries } from "src/cs/workbench/contrib/plot/browser/plotMainChart";
+
+export type PlotMainAxisLabels = Partial<{
+  xLabel: unknown;
+  yLabel: unknown;
+}>;
 
 export type PlotMainRenderModel = {
-  readonly activeFile: Partial<{
-    fileId: string;
-    fileName: string;
-    xLabel: string;
-    yLabel: string;
-  }> | null;
+  readonly axisLabels: PlotMainAxisLabels | null;
   readonly pointsCount: number;
   readonly seriesList: PlotMainSeries[];
   readonly xDomain: [number, number];
@@ -14,3 +14,26 @@ export type PlotMainRenderModel = {
   readonly yDomain: [number, number];
   readonly yUnitLabel: string;
 };
+
+export const createPlotMainRenderModel = (source: {
+  readonly activeFile?: PlotMainAxisLabels | null;
+  readonly pointsCount: number;
+  readonly seriesList: PlotMainSeries[];
+  readonly xDomain: [number, number];
+  readonly xUnitLabel: string;
+  readonly yDomain: [number, number];
+  readonly yUnitLabel: string;
+}): PlotMainRenderModel => ({
+  axisLabels: source.activeFile
+    ? {
+        xLabel: source.activeFile.xLabel,
+        yLabel: source.activeFile.yLabel,
+      }
+    : null,
+  pointsCount: source.pointsCount,
+  seriesList: source.seriesList,
+  xDomain: source.xDomain,
+  xUnitLabel: source.xUnitLabel,
+  yDomain: source.yDomain,
+  yUnitLabel: source.yUnitLabel,
+});

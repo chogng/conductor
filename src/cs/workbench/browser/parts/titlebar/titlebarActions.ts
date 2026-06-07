@@ -45,14 +45,14 @@ export const createWorkbenchTitlebarPageActions = (
   activePage: WorkbenchTitlebarActivePage,
 ): WorkbenchTitlebarPageAction[] => [
   {
-    id: "data",
+    id: "table",
     title: localize("tab_data", "Import & Extraction"),
-    isActive: activePage === "data",
+    isActive: activePage === "table",
   },
   {
-    id: "analysis",
+    id: "chart",
     title: localize("analysis.visualization", "Analysis & Visualization"),
-    isActive: activePage === "analysis",
+    isActive: activePage === "chart",
   },
   {
     id: "settings",

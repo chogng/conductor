@@ -16,10 +16,14 @@ import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 
 export type PlotMainViewProps = {
   readonly model: PlotMainRenderModel;
+  readonly onXAxisLabelChange?: (nextLabel: string) => void;
+  readonly onYAxisLabelChange?: (nextLabel: string) => void;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly legendLabels?: Readonly<Record<string, string>>;
   readonly plotType: PlotType;
+  readonly xAxisLabelOverride?: string;
+  readonly yAxisLabelOverride?: string;
 };
 
 export type PlotMainView = {
@@ -30,17 +34,21 @@ export type PlotMainView = {
 
 export const createPlotMainChartProps = ({
   model,
+  onXAxisLabelChange,
+  onYAxisLabelChange,
   originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS,
   plotAxisSettings,
   legendLabels,
   plotType,
+  xAxisLabelOverride,
+  yAxisLabelOverride,
 }: PlotMainViewProps): PlotMainChartProps => {
   const axisSettings = normalizePlotAxisSettings(
     plotAxisSettings,
     DEFAULT_PLOT_AXIS_SETTINGS,
   );
   return {
-    activeFile: model.activeFile,
+    axisLabels: model.axisLabels,
     curveLineWidth: Number(originOpenPlotOptions.lineWidth) || DEFAULT_ORIGIN_PLOT_OPTIONS.lineWidth,
     curvePlotType: Number(originOpenPlotOptions.type ?? DEFAULT_ORIGIN_PLOT_OPTIONS.type),
     effectiveYScale: "linear",
@@ -55,6 +63,8 @@ export const createPlotMainChartProps = ({
     showMajorTicks: axisSettings.showMajorTicks,
     showMinorTicks: axisSettings.showMinorTicks,
     minorTickCount: axisSettings.minorTickCount === "" ? undefined : axisSettings.minorTickCount,
+    onXAxisLabelChange,
+    onYAxisLabelChange,
     tickLabelFontSize: axisSettings.tickLabelFontSize === "" ? undefined : axisSettings.tickLabelFontSize,
     axisTitleFontSize: axisSettings.axisTitleFontSize === "" ? undefined : axisSettings.axisTitleFontSize,
     legendLabels,
@@ -66,9 +76,11 @@ export const createPlotMainChartProps = ({
       strokeOpacity: 0.8,
     },
     xDomain: model.xDomain,
+    xAxisLabelOverride,
     xLabelInterval: 1,
     xTickDigits: 4,
     yDomain: model.yDomain,
+    yAxisLabelOverride,
     yScaleMode: "linear",
   };
 };

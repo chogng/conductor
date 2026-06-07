@@ -36,7 +36,6 @@ export type PlotThumbnailProps = PlotThumbnailData & {
   yScaleType?: "linear" | "log";
   yLogCurrentMode?: "all" | "positive";
   padding?: Padding;
-  title?: string;
   className?: string;
 };
 
@@ -139,16 +138,12 @@ export const createPlotThumbnail = ({
   domain,
   padding = DEFAULT_PADDING,
   series = [],
-  title,
   xGroups = [],
   yLogCurrentMode = "all",
   yScaleType = "linear",
 }: PlotThumbnailProps): HTMLElement => {
   const root = document.createElement("div");
   root.className = `plot_thumbnail ${className}`.trim();
-  if (title) {
-    root.title = title;
-  }
 
   const canvas = document.createElement("canvas");
   canvas.className = "plot_thumbnail_canvas";

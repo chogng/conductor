@@ -12,7 +12,6 @@ import {
   navigateLayoutBack,
   navigateLayoutForward,
   navigateToLayoutPage,
-  resetVisitedAnalysisLayoutView,
   resolveLayoutView,
   type VisitedLayoutViewsState,
 } from "src/cs/workbench/browser/actions/layoutActions";
@@ -31,6 +30,7 @@ import {
   type AuxiliaryBarPaneContainerInput,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 import type { IStorageService } from "src/cs/platform/storage/common/storage";
+import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 
 export {
   SIDEBAR_DEFAULT_WIDTH_PX,
@@ -44,15 +44,15 @@ export const TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX = 250;
 
 export type LayoutParts = {
   readonly controller?: Node | null;
-  readonly data?: Node | null;
-  readonly analysis?: Node | null;
+  readonly workbench?: Node | null;
   readonly settings?: Node | null;
   readonly overlay?: Node | null;
   readonly sidebar?: Node | null;
   readonly auxiliaryBar?: Node | null;
 };
 
-export type LayoutView = "data" | "analysis" | "settings";
+export type LayoutView = WorkbenchMainPart | "settings";
+type LayoutPane = "workbench" | "settings";
 
 export type LayoutNavigationState = {
   activeView: LayoutView;
@@ -63,12 +63,11 @@ export type LayoutNavigationState = {
 export type ViewPaneDefinition = {
   labelledBy: string;
   paneId: string;
-  view: LayoutView;
+  view: LayoutPane;
 };
 
 export type LayoutStateInput = {
   activeView: LayoutView;
-  hasVisitedAnalysisView: boolean;
   hasVisitedSettingsView: boolean;
   historyIndex: number;
   historyLength: number;
@@ -82,27 +81,21 @@ export type ViewPaneState = ViewPaneDefinition & {
 export type LayoutState = ReturnType<typeof getLayoutState>;
 
 export const INITIAL_LAYOUT_NAVIGATION_STATE: LayoutNavigationState = {
-  activeView: "data",
-  history: ["data"],
+  activeView: "table",
+  history: ["table"],
   historyIndex: 0,
 };
 
-const LayoutPaneIds: Record<LayoutView, string> = {
-  data: "analysis-viewpane-data",
-  analysis: "analysis-viewpane-analysis",
-  settings: "analysis-viewpane-settings",
+const LayoutPaneIds: Record<LayoutPane, string> = {
+  workbench: "workbench-viewpane-main",
+  settings: "workbench-viewpane-settings",
 };
 
-export const VIEW_PANES: Record<LayoutView, ViewPaneDefinition> = {
-  data: {
-    labelledBy: LayoutViewSwitchIds.data,
-    paneId: LayoutPaneIds.data,
-    view: "data",
-  },
-  analysis: {
-    labelledBy: LayoutViewSwitchIds.analysis,
-    paneId: LayoutPaneIds.analysis,
-    view: "analysis",
+export const VIEW_PANES: Record<LayoutPane, ViewPaneDefinition> = {
+  workbench: {
+    labelledBy: LayoutViewSwitchIds.table,
+    paneId: LayoutPaneIds.workbench,
+    view: "workbench",
   },
   settings: {
     labelledBy: LayoutViewSwitchIds.settings,
@@ -122,8 +115,8 @@ export const setWorkbenchSidebarPortal = (
 export const useWorkbenchSidebarPortal = (): HTMLElement | null =>
   workbenchSidebarPortal;
 
-const hasSidebar = (activeView: LayoutView): boolean =>
-  activeView === "data" || activeView === "analysis";
+const isWorkbenchView = (activeView: LayoutView): activeView is WorkbenchMainPart =>
+  activeView !== "settings";
 
 export class Layout extends Disposable {
   private readonly navigation = this._register(new WorkbenchLayoutNavigation());
@@ -204,12 +197,12 @@ export class Layout extends Disposable {
     this.navigation.navigateToView(view);
   }
 
-  public selectView(view: string): void {
-    this.navigation.selectView(view);
+  public resetToView(view: LayoutView): void {
+    this.navigation.resetToView(view);
   }
 
-  public resetAnalysisViewVisit(): void {
-    this.navigation.resetAnalysisViewVisit();
+  public selectView(view: string): void {
+    this.navigation.selectView(view);
   }
 
   public setParts(parts: LayoutParts): void {
@@ -239,7 +232,7 @@ export class Layout extends Disposable {
     appendIfPresent(this.overlay, this.parts.overlay);
 
     if (this.shouldRenderSidebar()) {
-      appendIfPresent(this.sidebar, this.activeView === "data"
+      appendIfPresent(this.sidebar, isWorkbenchView(this.activeView)
         ? this.parts.sidebar
         : null);
     }
@@ -247,7 +240,7 @@ export class Layout extends Disposable {
     if (this.shouldRenderSplit()) {
       appendIfPresent(
         this.auxiliaryBar,
-        this.activeView === "data" ? this.parts.auxiliaryBar : null,
+        isWorkbenchView(this.activeView) ? this.parts.auxiliaryBar : null,
       );
       this.renderSplit();
       setWorkbenchSidebarPortal(null);
@@ -277,30 +270,18 @@ export class Layout extends Disposable {
 
   private renderMain(): void {
     const state = this.navigation.getState().layoutState;
-    const dataPane = state.panes.data;
-    const analysisPane = state.panes.analysis;
+    const workbenchPane = state.panes.workbench;
     const settingsPane = state.panes.settings;
 
     appendIfPresent(
       this.main,
       createPane({
-        children: this.parts.data,
-        isActive: dataPane.isActive,
-        labelledBy: dataPane.labelledBy,
-        paneId: dataPane.paneId,
+        children: this.parts.workbench,
+        isActive: workbenchPane.isActive,
+        labelledBy: workbenchPane.labelledBy,
+        paneId: workbenchPane.paneId,
       }),
     );
-    if (analysisPane.shouldMount) {
-      appendIfPresent(
-        this.main,
-        createPane({
-          children: this.parts.analysis,
-          isActive: analysisPane.isActive,
-          labelledBy: analysisPane.labelledBy,
-          paneId: analysisPane.paneId,
-        }),
-      );
-    }
     if (settingsPane.shouldMount) {
       appendIfPresent(
         this.main,
@@ -367,7 +348,7 @@ export class Layout extends Disposable {
         minSize: 320,
       });
 
-      if (this.activeView === "data" && this.parts.auxiliaryBar) {
+      if (isWorkbenchView(this.activeView) && this.parts.auxiliaryBar) {
         panes.push(this.auxiliaryBarPart.createDefaultSplitPane());
       }
 
@@ -385,7 +366,7 @@ export class Layout extends Disposable {
       minSize: MAIN_MIN_WIDTH_PX,
     });
 
-    if (this.activeView === "data" && this.parts.auxiliaryBar) {
+    if (isWorkbenchView(this.activeView) && this.parts.auxiliaryBar) {
       panes.push(this.auxiliaryBarPart.createSplitPane());
     }
 
@@ -406,7 +387,7 @@ export class Layout extends Disposable {
     const auxiliaryBarIndex = this.shouldRenderSidebar() ? 2 : 1;
     const nextAuxiliaryBarWidth = sizes[auxiliaryBarIndex];
     if (
-      this.activeView === "data" &&
+      isWorkbenchView(this.activeView) &&
       this.parts.auxiliaryBar &&
       Number.isFinite(nextAuxiliaryBarWidth)
     ) {
@@ -437,12 +418,12 @@ export class Layout extends Disposable {
   }
 
   private shouldRenderSidebar(): boolean {
-    return hasSidebar(this.activeView) && this.isPartVisible(Parts.SIDEBAR_PART);
+    return isWorkbenchView(this.activeView) && this.isPartVisible(Parts.SIDEBAR_PART);
   }
 
   private shouldRenderSplit(): boolean {
-    return hasSidebar(this.activeView) &&
-      (this.shouldRenderSidebar() || (this.activeView === "data" && Boolean(this.parts.auxiliaryBar)));
+    return isWorkbenchView(this.activeView) &&
+      (this.shouldRenderSidebar() || Boolean(this.parts.auxiliaryBar));
   }
 
   private isPartVisible(part: Parts): boolean {
@@ -452,29 +433,26 @@ export class Layout extends Disposable {
 
 export const getLayoutState = ({
   activeView,
-  hasVisitedAnalysisView,
   hasVisitedSettingsView,
   historyIndex,
   historyLength,
 }: LayoutStateInput) => {
-  const isDataActive = activeView === "data";
-  const isAnalysisActive = activeView === "analysis";
   const isSettingsActive = activeView === "settings";
+  const isWorkbenchActive = !isSettingsActive;
+  const workbenchLabelledBy = activeView === "chart"
+    ? LayoutViewSwitchIds.chart
+    : LayoutViewSwitchIds.table;
 
   return {
     activeView,
     canNavigateBack: historyIndex > 0,
     canNavigateForward: historyIndex < historyLength - 1,
     panes: {
-      data: {
-        ...VIEW_PANES.data,
-        isActive: isDataActive,
+      workbench: {
+        ...VIEW_PANES.workbench,
+        labelledBy: workbenchLabelledBy,
+        isActive: isWorkbenchActive,
         shouldMount: true,
-      },
-      analysis: {
-        ...VIEW_PANES.analysis,
-        isActive: isAnalysisActive,
-        shouldMount: isAnalysisActive || hasVisitedAnalysisView,
       },
       settings: {
         ...VIEW_PANES.settings,
@@ -515,16 +493,19 @@ export class WorkbenchLayoutNavigation extends Disposable {
     this.setNavigation(navigateLayoutForward(this.navigation));
   }
 
+  public resetToView(nextView: LayoutView): void {
+    this.setNavigation({
+      activeView: nextView,
+      history: [nextView],
+      historyIndex: 0,
+    });
+  }
+
   public selectView(nextView: string): void {
     const resolvedView = resolveLayoutView(nextView);
     if (resolvedView) {
       this.navigateToView(resolvedView);
     }
-  }
-
-  public resetAnalysisViewVisit(): void {
-    this.visitedViews = resetVisitedAnalysisLayoutView(this.visitedViews);
-    this.fireStateChange();
   }
 
   private setNavigation(nextNavigation: LayoutNavigationState): void {
@@ -550,7 +531,6 @@ export class WorkbenchLayoutNavigation extends Disposable {
       activeView,
       layoutState: getLayoutState({
         activeView,
-        hasVisitedAnalysisView: this.visitedViews.hasVisitedAnalysisView,
         hasVisitedSettingsView: this.visitedViews.hasVisitedSettingsView,
         historyIndex: this.navigation.historyIndex,
         historyLength: this.navigation.history.length,
@@ -621,8 +601,7 @@ const areLayoutPartsEqual = (
   right: LayoutParts,
 ): boolean =>
   (left.controller ?? null) === (right.controller ?? null) &&
-  (left.data ?? null) === (right.data ?? null) &&
-  (left.analysis ?? null) === (right.analysis ?? null) &&
+  (left.workbench ?? null) === (right.workbench ?? null) &&
   (left.settings ?? null) === (right.settings ?? null) &&
   (left.overlay ?? null) === (right.overlay ?? null) &&
   (left.sidebar ?? null) === (right.sidebar ?? null) &&

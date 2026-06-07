@@ -1,5 +1,10 @@
-﻿import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
+import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
+import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
+import { drawPlotAxis, resolveLabelWithUnit } from "src/cs/workbench/contrib/plot/browser/plotAxis";
+import { PlotAxisTitleView } from "src/cs/workbench/contrib/plot/browser/plotAxisTitleView";
+import { drawPlotFrame } from "src/cs/workbench/contrib/plot/browser/plotFrame";
+import { drawPlotGrid } from "src/cs/workbench/contrib/plot/browser/plotGrid";
 import {
   getPlotReadoutAtX,
   resolvePlotPointY,
@@ -7,6 +12,12 @@ import {
   type PlotYKey,
 } from "src/cs/workbench/contrib/plot/browser/plotReadoutModel";
 import { PlotHoverWidget } from "src/cs/workbench/contrib/plot/browser/plotHoverWidget";
+import {
+  clamp,
+  createPlotMainLayout,
+  type ChartScale,
+  type PlotRect,
+} from "src/cs/workbench/contrib/plot/common/plotMainLayout";
 
 import "src/cs/workbench/contrib/plot/browser/media/plot.css";
 
@@ -94,11 +105,9 @@ export type PlotMainChartProps = {
   plotType?: string;
   curveLineWidth?: number;
   curvePlotType?: number;
-  activeFile?: Partial<{
-    fileId: string;
-    fileName: string;
-    xLabel: string;
-    yLabel: string;
+  axisLabels?: Partial<{
+    xLabel: unknown;
+    yLabel: unknown;
   }> | null;
   seriesList: PlotMainSeries[];
   xDomain: [number, number];
@@ -157,40 +166,6 @@ export type PlotMainChartSize = {
   readonly width: number;
 };
 
-type PlotRect = {
-  bottom: number;
-  height: number;
-  left: number;
-  right: number;
-  top: number;
-  width: number;
-};
-
-type ChartScale = {
-  xToPixel: (value: number) => number;
-  yToPixel: (value: number) => number;
-  pixelToX: (value: number) => number;
-};
-
-const DEFAULT_TICK_LABEL_FONT_SIZE = 11;
-const DEFAULT_AXIS_TITLE_FONT_SIZE = 12;
-const DEFAULT_MARGIN = { top: 20, right: 20, bottom: 46, left: 64 };
-const PREVIEW_MARGIN = { top: 10, right: 10, bottom: 10, left: 10 };
-
-const clamp = (value: number, min: number, max: number): number =>
-  Math.min(max, Math.max(min, value));
-
-const isFiniteNumber = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value);
-
-const normalizeDomain = (domain: readonly number[]): [number, number] => {
-  const left = Number(domain[0]);
-  const right = Number(domain[1]);
-  if (!Number.isFinite(left) || !Number.isFinite(right)) return [0, 1];
-  if (left === right) return [left - 0.5, right + 0.5];
-  return [Math.min(left, right), Math.max(left, right)];
-};
-
 const resolvePlotYKey = (
   effectiveYScale: PlotMainChartProps["effectiveYScale"],
   yScaleMode: PlotMainChartProps["yScaleMode"],
@@ -201,66 +176,6 @@ const resolvePlotYKey = (
     return yLogCurrentMode === "positive" ? "yPositive" : "yAbsPositive";
   }
   return "y";
-};
-
-const resolveLabelWithUnit = (label: unknown, unit: unknown, fallback: string): string => {
-  const text = String(label ?? "").trim() || fallback;
-  const unitText = String(unit ?? "").trim();
-  if (!unitText || text.includes("(")) return text;
-  return `${text} (${unitText})`;
-};
-
-const createTicks = (domain: [number, number], requested?: number[] | null): number[] => {
-  if (Array.isArray(requested) && requested.length) {
-    return requested.map(Number).filter(Number.isFinite);
-  }
-
-  const [min, max] = domain;
-  const step = (max - min) / 4;
-  if (!Number.isFinite(step) || step <= 0) return [min, max];
-  return [0, 1, 2, 3, 4].map((index) => min + step * index);
-};
-
-const createMinorTicks = (
-  majorTicks: number[],
-  domain: [number, number],
-  countRaw: unknown,
-): number[] => {
-  const count = Math.max(1, Math.min(20, Math.round(Number(countRaw) || 1)));
-  if (majorTicks.length < 2) return [];
-
-  const ticks: number[] = [];
-  const [min, max] = normalizeDomain(domain);
-  for (let index = 0; index < majorTicks.length - 1; index++) {
-    const left = majorTicks[index]!;
-    const right = majorTicks[index + 1]!;
-    const step = (right - left) / (count + 1);
-    if (!Number.isFinite(step) || step <= 0) continue;
-    for (let minorIndex = 1; minorIndex <= count; minorIndex++) {
-      const tick = left + step * minorIndex;
-      if (tick > min && tick < max) {
-        ticks.push(tick);
-      }
-    }
-  }
-  return ticks;
-};
-
-const createScale = (
-  plotRect: PlotRect,
-  xDomainRaw: [number, number],
-  yDomainRaw: [number, number],
-): ChartScale => {
-  const xDomain = normalizeDomain(xDomainRaw);
-  const yDomain = normalizeDomain(yDomainRaw);
-  const xSpan = xDomain[1] - xDomain[0] || 1;
-  const ySpan = yDomain[1] - yDomain[0] || 1;
-
-  return {
-    xToPixel: (value) => plotRect.left + ((value - xDomain[0]) / xSpan) * plotRect.width,
-    yToPixel: (value) => plotRect.bottom - ((value - yDomain[0]) / ySpan) * plotRect.height,
-    pixelToX: (value) => xDomain[0] + ((value - plotRect.left) / plotRect.width) * xSpan,
-  };
 };
 
 const applyCanvasSize = (canvas: HTMLCanvasElement, width: number, height: number): CanvasRenderingContext2D | null => {
@@ -409,48 +324,15 @@ export const drawPlotMainChart = (
   if (!context) return null;
 
   const showAxes = props.showAxes !== false;
-  const margin = showAxes ? DEFAULT_MARGIN : PREVIEW_MARGIN;
-  const plotRect: PlotRect = {
-    left: margin.left,
-    top: margin.top,
-    right: width - margin.right,
-    bottom: height - margin.bottom,
-    width: Math.max(1, width - margin.left - margin.right),
-    height: Math.max(1, height - margin.top - margin.bottom),
-  };
-  const scale = createScale(plotRect, props.xDomain, props.yDomain);
-  const xTicks = showAxes ? createTicks(props.xDomain, props.xTicks) : [];
-  const yTicks = showAxes ? createTicks(props.yDomain, props.yTicks) : [];
-  const xMinorTicks = !showAxes || props.showMinorTicks === false
-    ? []
-    : createMinorTicks(xTicks, props.xDomain, props.minorTickCount);
-  const yMinorTicks = !showAxes || props.showMinorTicks === false
-    ? []
-    : createMinorTicks(yTicks, props.yDomain, props.minorTickCount);
+  const layout = createPlotMainLayout(width, height, props);
+  const { plotRect, scale } = layout;
   const yKey = resolvePlotYKey(props.effectiveYScale, props.yScaleMode, props.yLogCurrentMode);
 
   context.fillStyle = "rgba(255,255,255,0)";
   context.fillRect(0, 0, width, height);
 
   if (showAxes && props.showGrid !== false) {
-    context.save();
-    context.strokeStyle = "rgba(148, 163, 184, 0.28)";
-    context.lineWidth = 1;
-    for (const tick of xTicks) {
-      const x = scale.xToPixel(tick);
-      context.beginPath();
-      context.moveTo(x, plotRect.top);
-      context.lineTo(x, plotRect.bottom);
-      context.stroke();
-    }
-    for (const tick of yTicks) {
-      const y = scale.yToPixel(tick);
-      context.beginPath();
-      context.moveTo(plotRect.left, y);
-      context.lineTo(plotRect.right, y);
-      context.stroke();
-    }
-    context.restore();
+    drawPlotGrid(context, layout);
   }
 
   for (const overlay of props.highlightOverlays ?? []) {
@@ -464,67 +346,8 @@ export const drawPlotMainChart = (
   }
 
   if (showAxes) {
-    const tickFontSize = props.tickLabelFontSize ?? DEFAULT_TICK_LABEL_FONT_SIZE;
-    const axisFontSize = props.axisTitleFontSize ?? DEFAULT_AXIS_TITLE_FONT_SIZE;
-    const xAxisLabel = resolveLabelWithUnit(props.xAxisLabelOverride ?? props.activeFile?.xLabel, props.plotXUnitLabel, "X");
-    const yAxisLabel = resolveLabelWithUnit(props.yAxisLabelOverride ?? props.activeFile?.yLabel, props.plotYUnitLabel, "Y");
-
-    context.save();
-    context.strokeStyle = "rgba(100, 116, 139, 0.8)";
-    context.lineWidth = 1;
-    context.strokeRect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
-    if (props.showMinorTicks !== false) {
-      context.beginPath();
-      for (const tick of xMinorTicks) {
-        const x = scale.xToPixel(tick);
-        context.moveTo(x, plotRect.bottom);
-        context.lineTo(x, plotRect.bottom + 4);
-      }
-      for (const tick of yMinorTicks) {
-        const y = scale.yToPixel(tick);
-        context.moveTo(plotRect.left - 4, y);
-        context.lineTo(plotRect.left, y);
-      }
-      context.stroke();
-    }
-    if (props.showMajorTicks !== false) {
-      context.beginPath();
-      for (const tick of xTicks) {
-        const x = scale.xToPixel(tick);
-        context.moveTo(x, plotRect.bottom);
-        context.lineTo(x, plotRect.bottom + 6);
-      }
-      for (const tick of yTicks) {
-        const y = scale.yToPixel(tick);
-        context.moveTo(plotRect.left - 6, y);
-        context.lineTo(plotRect.left, y);
-      }
-      context.stroke();
-    }
-    context.fillStyle = "rgba(71, 85, 105, 0.95)";
-    context.font = `${tickFontSize}px sans-serif`;
-    context.textAlign = "center";
-    context.textBaseline = "top";
-    for (const tick of xTicks) {
-      context.fillText(formatNumber(tick * props.plotXFactor, { digits: props.xTickDigits }), scale.xToPixel(tick), plotRect.bottom + 8);
-    }
-    context.textAlign = "right";
-    context.textBaseline = "middle";
-    const yDigits = Math.max(2, Math.min(6, props.xTickDigits));
-    for (const tick of yTicks) {
-      context.fillText(formatNumber(tick * props.plotYFactor, { digits: yDigits }), plotRect.left - 8, scale.yToPixel(tick));
-    }
-
-    context.font = `${axisFontSize}px sans-serif`;
-    context.textAlign = "center";
-    context.textBaseline = "bottom";
-    context.fillText(xAxisLabel, plotRect.left + plotRect.width / 2, height - 8);
-    context.save();
-    context.translate(14, plotRect.top + plotRect.height / 2);
-    context.rotate(-Math.PI / 2);
-    context.fillText(yAxisLabel, 0, 0);
-    context.restore();
-    context.restore();
+    drawPlotFrame(context, plotRect);
+    drawPlotAxis(context, layout, props);
   }
 
   const lineWidth = Math.max(1, Number(props.curveLineWidth) || 2);
@@ -591,6 +414,7 @@ export const drawPlotMainChart = (
 export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartElement => {
   const root = document.createElement("div") as unknown as PlotMainChartElement;
   root.className = "plot_main_chart";
+  const store = new DisposableStore();
 
   const canvas = document.createElement("canvas");
   canvas.className = "plot_main_chart_canvas";
@@ -599,6 +423,27 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
   const hoverCanvas = document.createElement("canvas");
   hoverCanvas.className = "plot_main_chart_hover_canvas";
   root.appendChild(hoverCanvas);
+
+  const axisTitleView = props.showAxes === false
+    ? null
+    : new PlotAxisTitleView({
+      fontSize: props.axisTitleFontSize,
+      onXTitleChange: props.onXAxisLabelChange,
+      onYTitleChange: props.onYAxisLabelChange,
+      xTitle: resolveLabelWithUnit(
+        props.xAxisLabelOverride ?? props.axisLabels?.xLabel,
+        props.plotXUnitLabel,
+        "X",
+      ),
+      yTitle: resolveLabelWithUnit(
+        props.yAxisLabelOverride ?? props.axisLabels?.yLabel,
+        props.plotYUnitLabel,
+        "Y",
+      ),
+    });
+  if (axisTitleView) {
+    root.append(axisTitleView.element);
+  }
 
   const hoverWidget = new PlotHoverWidget(root);
 
@@ -623,7 +468,7 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
   resizeObserver.observe(root);
   queueMicrotask(requestRender);
 
-  canvas.addEventListener("mousemove", (event) => {
+  store.add(addDisposableListener(canvas, EventType.MOUSE_MOVE, (event) => {
     rendered ??= drawPlotMainChart(canvas, props);
     if (!rendered) return;
 
@@ -656,11 +501,11 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
       plotYFactor: props.plotYFactor,
       xDigits: props.xTooltipDigits ?? props.xTickDigits,
     });
-  });
-  canvas.addEventListener("mouseleave", () => {
+  }));
+  store.add(addDisposableListener(canvas, EventType.MOUSE_LEAVE, () => {
     clearHoverOverlay(hoverCanvas);
     hoverWidget.hide();
-  });
+  }));
 
   Object.defineProperty(root, "dispose", {
     value: (): void => {
@@ -670,6 +515,8 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
         animationFrame = 0;
       }
       resizeObserver.disconnect();
+      store.dispose();
+      axisTitleView?.dispose();
       hoverWidget.dispose();
       root.replaceChildren();
     },

@@ -9,6 +9,7 @@ import {
   type PlotMainChartProps,
 } from "src/cs/workbench/contrib/plot/browser/plotMainChart";
 import { createPlotMainChartProps } from "src/cs/workbench/contrib/plot/browser/plotMainView";
+import { createPlotMainRenderModel } from "src/cs/workbench/contrib/plot/browser/plotMainRenderModel";
 
 export type ThumbnailBitmapOptions = {
   readonly model: CalculatedData;
@@ -127,7 +128,7 @@ const createBitmap = (
 
 const createThumbnailChartProps = (options: ThumbnailBitmapOptions): PlotMainChartProps => ({
   ...createPlotMainChartProps({
-    model: options.model,
+    model: createPlotMainRenderModel(options.model),
     originOpenPlotOptions: options.originOpenPlotOptions,
     plotAxisSettings: options.plotAxisSettings,
     plotType: options.plotType,
@@ -152,8 +153,8 @@ const createCacheKey = ({
   size.width,
   size.height,
   window.devicePixelRatio || 1,
-  renderProps.activeFile?.xLabel ?? "",
-  renderProps.activeFile?.yLabel ?? "",
+  renderProps.axisLabels?.xLabel ?? "",
+  renderProps.axisLabels?.yLabel ?? "",
   renderProps.plotXUnitLabel ?? "",
   renderProps.plotYUnitLabel ?? "",
   renderProps.curveLineWidth ?? "",

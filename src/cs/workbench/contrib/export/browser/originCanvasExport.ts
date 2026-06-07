@@ -23,7 +23,7 @@ import {
   getXUnitMeta,
   getYUnitMeta,
 } from "src/cs/workbench/contrib/plot/common/units";
-import { createFileSelectionPool } from "src/cs/workbench/contrib/thumbnail/browser/fileSelectionModel";
+import { createOriginCanvasSelection } from "src/cs/workbench/contrib/export/browser/originCanvasSelection";
 
 export type OriginCanvasExportScope =
   | "current"
@@ -158,7 +158,7 @@ export const createOriginCanvasExport = ({
     })
     .filter(Boolean);
   const originCanvasOptionIds = originCanvasOptions.map((item: any) => item?.key);
-  const fileSelection = createFileSelectionPool({
+  const canvasSelection = createOriginCanvasSelection({
     availableFileIds: originCanvasOptionIds,
     initialSelectedFileIds: [effectiveActiveFileId],
   });
@@ -266,7 +266,7 @@ export const createOriginCanvasExport = ({
       return new Set(normalizeIds(originCanvasOptions.map((item: any) => item?.key)));
     }
 
-    return new Set(normalizeIds(fileSelection.selectedFileIds));
+    return new Set(normalizeIds(canvasSelection.selectedFileIds));
   })();
 
   const selectedOriginCanvasKeySet = (() => {
@@ -869,7 +869,7 @@ export const createOriginCanvasExport = ({
   return {
     activeOriginSeries,
     clearAllOriginSeriesSelections,
-    clearOriginCanvasSelection: fileSelection.clearFileSelection,
+    clearOriginCanvasSelection: canvasSelection.clearFileSelection,
     collectMatchingOriginSeriesAcrossFiles,
     clearOriginSeriesSelectionForActiveFile,
     clearOriginSeriesSelectionForFile,
@@ -879,19 +879,19 @@ export const createOriginCanvasExport = ({
     originCanvasOptions,
     originCanvasExportScope: canvasExportScope,
     originExportMode: resolvedOriginExportMode,
-    replaceOriginCanvasSelection: fileSelection.replaceFileSelection,
+    replaceOriginCanvasSelection: canvasSelection.replaceFileSelection,
     replaceMatchingOriginSeriesAcrossFiles,
     scopedOriginCanvasKeySet,
     selectAllOriginSeriesForActiveFile,
     selectAllOriginSeriesForFile,
-    selectAllOriginCanvases: fileSelection.selectAllFiles,
+    selectAllOriginCanvases: canvasSelection.selectAllFiles,
     selectedOriginCollectionEntries,
     selectedOriginCanvasKeySet,
     selectedOriginCanvases,
     selectedOriginSeriesCountByFile,
     selectedOriginSeriesKeySet,
     selectedOriginSeriesTotalCount,
-    toggleOriginCanvasSelection: fileSelection.toggleFileSelection,
+    toggleOriginCanvasSelection: canvasSelection.toggleFileSelection,
     toggleOriginSeriesSelection,
     toggleOriginSeriesSelectionForFile,
     getSelectedOriginSeriesKeySetForFile,
