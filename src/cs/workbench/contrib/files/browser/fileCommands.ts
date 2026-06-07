@@ -27,6 +27,7 @@ import {
   FilesViewId,
   REMOVE_FILE_ITEM_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
+  SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
   TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
   type FileSource,
@@ -214,6 +215,29 @@ export const setFileTemplateHandler: ICommandHandler<[unknown, unknown]> = (
 CommandsRegistry.registerCommand({
   id: SET_FILE_TEMPLATE_COMMAND_ID,
   handler: setFileTemplateHandler,
+});
+export const sliceFileWithTemplateHandler: ICommandHandler<[unknown, unknown]> = (
+  _accessor,
+  fileId,
+  selection,
+) => {
+  if (!normalizeCommandFileId(fileId) || !isTemplateSelection(selection)) {
+    return;
+  }
+
+  notificationService.showToast({
+    id: "files.sliceWithTemplateUnsupported",
+    message: localize(
+      "files.sliceWithTemplateUnsupported",
+      "Slicing imported files with a template is not available yet.",
+    ),
+    type: "info",
+  });
+};
+
+CommandsRegistry.registerCommand({
+  id: SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
+  handler: sliceFileWithTemplateHandler,
 });
 
 const getFilesPaneHost = (accessor: ServicesAccessor): FilesPaneHost | null =>

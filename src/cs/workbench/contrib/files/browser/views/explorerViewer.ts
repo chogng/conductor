@@ -28,6 +28,7 @@ import type {
 } from "src/cs/platform/contextview/browser/contextView";
 import { localize } from "src/cs/nls";
 import {
+  SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
   type FileEntry,
   type FilesViewMode,
   REMOVE_FILE_ITEM_COMMAND_ID,
@@ -506,23 +507,43 @@ export class ExplorerViewer implements IDisposable {
       }),
       new SubmenuAction(
         SET_FILE_TEMPLATE_COMMAND_ID,
-        localize("files.item.setTemplate", "Set Template To"),
-        this.createTemplateContextActions(fileId),
+        localize("files.item.setTemplate", "Set with Template"),
+        this.createTemplateContextActions({
+          actionPrefix: SET_FILE_TEMPLATE_COMMAND_ID,
+          commandId: SET_FILE_TEMPLATE_COMMAND_ID,
+          fileId,
+        }),
+      ),
+      new SubmenuAction(
+        SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
+        localize("files.item.sliceWithTemplate", "Slice with Template"),
+        this.createTemplateContextActions({
+          actionPrefix: SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
+          commandId: SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
+          fileId,
+        }),
       ),
     ];
   }
 
-  private createTemplateContextActions(fileId: string): IAction[] {
+  private createTemplateContextActions({
+    actionPrefix,
+    commandId,
+    fileId,
+  }: {
+    readonly actionPrefix: string;
+    readonly commandId: string;
+    readonly fileId: string;
     const currentSelection = this.resolveFileTemplateSelection(fileId);
     const currentSelectionId = getTemplateSelectionId(currentSelection);
     const actions: IAction[] = [
       createMenuAction({
         checked: currentSelection.kind === "auto",
-        id: "files.item.setTemplate.auto",
+        id: `${actionPrefix}.auto`,
         label: localize("template_auto_extraction", "Auto extraction"),
         run: () => {
           void this.props.commandService.executeCommand(
-            SET_FILE_TEMPLATE_COMMAND_ID,
+            commandId,
             fileId,
             { kind: "auto" },
           );
@@ -540,11 +561,11 @@ export class ExplorerViewer implements IDisposable {
 
       actions.push(createMenuAction({
         checked: currentSelectionId === templateId,
-        id: `files.item.setTemplate.${templateId}`,
+        id: `${actionPrefix}.${templateId}`,
         label: template.name || templateId,
         run: () => {
           void this.props.commandService.executeCommand(
-            SET_FILE_TEMPLATE_COMMAND_ID,
+            commandId,
             fileId,
             createTemplateSelection(templateId),
           );
@@ -556,7 +577,7 @@ export class ExplorerViewer implements IDisposable {
     if (this.props.isTemplateListLoading) {
       actions.push(createMenuAction({
         enabled: false,
-        id: "files.item.setTemplate.loading",
+        id: `${actionPrefix}.loading`,
         label: localize("files.item.templatesLoading", "Loading templates..."),
         run: () => {},
       }));
