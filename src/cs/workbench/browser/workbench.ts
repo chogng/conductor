@@ -86,6 +86,7 @@ import type {
   ITableService,
   TableModel,
 } from "src/cs/workbench/contrib/table/common/tableService";
+import type { IFilesViewModeService } from "src/cs/workbench/contrib/files/browser/filesViewModeService";
 import type {
   ITemplateApplyService,
   ITemplateService,
@@ -182,6 +183,7 @@ export type WorkbenchOptions = {
   readonly templateApplyService?: ITemplateApplyService;
   readonly templateService?: ITemplateService;
   readonly thumbnailService?: IThumbnailService;
+  readonly filesViewModeService?: IFilesViewModeService;
   readonly tableService?: ITableService;
   readonly titlebarState?: WorkbenchTitlebarState;
 };
@@ -274,6 +276,7 @@ export class Workbench extends Layout {
   private readonly templateApplyService: ITemplateApplyService;
   private readonly templateService: ITemplateService;
   private readonly thumbnailService: IThumbnailService;
+  private readonly filesViewModeService: IFilesViewModeService;
   private readonly templateImportController: TemplateImportController;
   private readonly auxiliaryBarModel = new AuxiliaryBarModel();
   private readonly coreSettingsController: CoreSettingsController;
@@ -356,6 +359,9 @@ export class Workbench extends Layout {
     if (!options.thumbnailService) {
       throw new Error("Workbench requires IThumbnailService.");
     }
+    if (!options.filesViewModeService) {
+      throw new Error("Workbench requires IFilesViewModeService.");
+    }
     this.filesService = options.filesService;
     this.analysisFileService = options.analysisFileService;
     this.dialogsService = options.dialogsService;
@@ -373,6 +379,7 @@ export class Workbench extends Layout {
     this.templateApplyService = options.templateApplyService;
     this.templateService = options.templateService;
     this.thumbnailService = options.thumbnailService;
+    this.filesViewModeService = options.filesViewModeService;
     this._register(this.createNotificationsHandlers());
     this.templateImportController = new TemplateImportController(
       this.dialogsService,
@@ -390,6 +397,9 @@ export class Workbench extends Layout {
     }));
     this.templateApply.update(this.getTemplateApplyInput());
     this.filesPane = this._register(new FilesPaneHost(this.getFilesPaneProps()));
+    this._register(this.filesViewModeService.onDidChangeViewMode(() => {
+      this.filesPane.update(this.getFilesPaneProps());
+    }));
     this.table = getWorkbenchContribution<TableContribution>(TableContributionId);
     this.templateViewPane = this._register(new TemplateViewPane(this.getTemplateViewPaneProps()));
     this.templateAuxiliaryBarViewPane = this._register(new TemplateAuxiliaryBarViewPane(
@@ -914,6 +924,7 @@ export class Workbench extends Layout {
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
       plotAxisSettings: this.coreSettingsState.conductorSettings?.plotAxisSettings,
       thumbnailService: this.thumbnailService,
+      viewMode: this.filesViewModeService.viewMode,
       templateService: this.templateService,
       currentTemplateLabel,
       currentTemplateSelection,

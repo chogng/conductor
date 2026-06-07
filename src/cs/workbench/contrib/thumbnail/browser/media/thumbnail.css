@@ -47,12 +47,14 @@
   position: relative;
   min-height: 120px;
   width: 100%;
-  background-color: rgb(var(--bg-page) / 1);
+  background-color: transparent;
 }
 
 .thumbnail_view_chart_canvas {
   position: absolute;
   inset: 0;
+  height: 100%;
+  width: 100%;
 }
 
 .thumbnail_view_selection_badge {
@@ -65,19 +67,4 @@
   color: rgb(255 255 255 / 1);
   font-size: 10px;
   font-weight: 600;
-}
-
-.thumbnail_view_axis_range {
-  position: absolute;
-  right: 4px;
-  bottom: 4px;
-  border-radius: 6px;
-  background-color: rgb(0 0 0 / 0.5);
-  padding: 2px 6px;
-  color: rgb(255 255 255 / 1);
-  font-size: 10px;
-}
-
-.thumbnail_view_axis_range > :not([hidden]) ~ :not([hidden]) {
-  margin-top: 2px;
 }

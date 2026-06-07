@@ -11,7 +11,6 @@ import {
 import {
   ADD_FOLDER_ACTION_ID,
   FilesViewId,
-  type FilesViewMode,
   MORE_ACTIONS_ACTION_ID,
   REMOVE_FOLDER_ACTION_ID,
   TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
@@ -21,7 +20,6 @@ import type { TemplateSelection } from "src/cs/workbench/contrib/template/common
 export class FilesPaneHost extends ViewPane {
   private readonly host: HTMLDivElement;
   private readonly view: FilesPane;
-  private viewMode: FilesViewMode = "tree";
   private props: FilesPaneProps;
 
   constructor(props: FilesPaneProps) {
@@ -35,13 +33,13 @@ export class FilesPaneHost extends ViewPane {
     this.props = props;
     this.host = document.createElement("div");
     this.host.className = "files-pane-root";
-    this.view = new FilesPane(this.host, this.createViewProps(props));
+    this.view = new FilesPane(this.host, props);
     this.body.append(this.host);
   }
 
   public update(props: FilesPaneProps): void {
     this.props = props;
-    this.view.setProps(this.createViewProps(props));
+    this.view.setProps(props);
     if (
       this.element.isConnected &&
       this.element.clientHeight > 0 &&
@@ -85,7 +83,7 @@ export class FilesPaneHost extends ViewPane {
 
   private showMoreActions(anchor: HTMLElement, props: FilesPaneProps): void {
     const canRemoveFolder = hasFolder(props.files);
-    const isThumbnailView = this.viewMode === "thumbnail";
+    const isThumbnailView = props.viewMode === "thumbnail";
     props.contextMenuService.showContextMenu({
       autoSelectFirstItem: true,
       getAnchor: () => anchor,
@@ -115,28 +113,8 @@ export class FilesPaneHost extends ViewPane {
     });
   }
 
-  private createViewProps(props: FilesPaneProps): FilesPaneProps {
-    return {
-      ...props,
-      viewMode: this.viewMode,
-    };
-  }
-
-  public toggleViewMode(): void {
-    this.setViewMode(this.viewMode === "thumbnail" ? "tree" : "thumbnail");
-  }
-
   public setFileTemplateSelection(fileId: string, selection: TemplateSelection): void {
     this.view.setFileTemplateSelection(fileId, selection);
-  }
-
-  private setViewMode(viewMode: FilesViewMode): void {
-    if (this.viewMode === viewMode) {
-      return;
-    }
-
-    this.viewMode = viewMode;
-    this.view.setProps(this.createViewProps(this.props));
   }
 }
 

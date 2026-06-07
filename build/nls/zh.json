@@ -462,6 +462,5 @@
   "originZip.error.emptyEntry": "Origin ZIP 条目缺少 CSV 内容。",
   "originZip.error.invalidEntryPath": "Origin ZIP 条目路径不可读取。",
   "originZip.error.saveFailed": "保存 Origin ZIP 失败。",
-  "plot_hover_more_entries": "另有 {count} 条",
   "preview_worker_failed": "预览 worker 执行失败。"
 }

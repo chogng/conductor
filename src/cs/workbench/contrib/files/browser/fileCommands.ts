@@ -22,6 +22,7 @@ import {
   type FolderFileReadFailure,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import type { FilesPaneHost } from "src/cs/workbench/contrib/files/browser/filesPaneHost";
+import { IFilesViewModeService } from "src/cs/workbench/contrib/files/browser/filesViewModeService";
 import {
   FilesViewId,
   REMOVE_FILE_ITEM_COMMAND_ID,
@@ -145,12 +146,8 @@ export const showCreateFolderUnsupported = (): void => {
   });
 };
 
-export const toggleThumbnailViewHandler: ICommandHandler = async (accessor) => {
-  const viewsService = accessor.get(IViewsService);
-  const view = viewsService.getViewWithId<FilesPaneHost>(FilesViewId)
-    ?? await viewsService.openView<FilesPaneHost>(FilesViewId, false);
-
-  view?.toggleViewMode();
+export const toggleThumbnailViewHandler: ICommandHandler = (accessor) => {
+  accessor.get(IFilesViewModeService).toggleViewMode();
 };
 
 CommandsRegistry.registerCommand({

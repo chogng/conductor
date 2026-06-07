@@ -174,7 +174,7 @@
 }
 
 .file-list-item:hover {
-  background-color: rgb(var(--bg-page) / 1);
+  background-color: #ffffff;
 }
 
 .file-list-item[data-selected="true"] {
@@ -439,17 +439,18 @@
   color: rgb(var(--text-primary) / 1);
 }
 
+/* Assessment hover is text content, so it keeps content-driven width. */
 .file-list-hover.file-list-hover--assessment,
 .context-view.fixed.file-list-hover.file-list-hover--assessment {
   padding: 7px 9px;
   background-color: #ffffff;
 }
 
+/* Thumbnail hover width is set by ExplorerViewer.getWidth; CSS owns only shell appearance. */
 .file-list-hover.file-list-hover--thumbnail,
 .context-view.fixed.file-list-hover.file-list-hover--thumbnail {
-  width: min(360px, 44vw);
-  max-width: min(360px, 44vw);
-  padding: 8px;
+  background-color: #fff;
+  padding: 7px 9px;
 }
 
 .file-list-hover-assessment {

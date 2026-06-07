@@ -1,4 +1,3 @@
-import { localize } from "src/cs/nls";
 import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
 import type { PlotReadoutEntry } from "src/cs/workbench/contrib/plot/browser/plotReadoutModel";
 
@@ -13,7 +12,6 @@ type PlotHoverWidgetOptions = {
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
-const MAX_VISIBLE_ENTRIES = 8;
 const PLOT_HOVER_MARGIN = 8;
 const PLOT_HOVER_GAP = 12;
 
@@ -74,17 +72,8 @@ export class PlotHoverWidget {
     });
     content.push(title);
 
-    const visibleEntries = entries.slice(0, MAX_VISIBLE_ENTRIES);
-    for (const entry of visibleEntries) {
+    for (const entry of entries) {
       content.push(this.createEntryRow(entry, options.plotYFactor));
-    }
-
-    const hiddenCount = entries.length - visibleEntries.length;
-    if (hiddenCount > 0) {
-      const more = document.createElement("div");
-      more.className = "plot_hover_widget_more";
-      more.textContent = localize("plot_hover_more_entries", "+ {count} more", { count: hiddenCount });
-      content.push(more);
     }
 
     return content;

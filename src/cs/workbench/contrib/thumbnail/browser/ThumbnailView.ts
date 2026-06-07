@@ -1,9 +1,7 @@
 ﻿import {
   createPlotThumbnail,
-  resolvePlotThumbnailYDataRange,
-  type PlotThumbnailProps,
+  type PlotThumbnailData,
 } from "src/cs/workbench/contrib/plot/browser/plotThumbnail";
-import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
 import type { CalculatedData } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
@@ -13,7 +11,7 @@ import {
 } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailBitmap";
 import type { IThumbnailService } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
 
-export type CleanedFileLike = {
+export type CleanedFileLike = PlotThumbnailData & {
   fileId?: string;
   fileName?: string;
   yUnit?: string;
@@ -24,12 +22,6 @@ export type CleanedFileLike = {
     sampledPoints?: number | null;
   };
   xAxisRole?: "vg" | "vd" | null;
-  xGroups?: number[][];
-  series?: PlotThumbnailProps["series"];
-  domain?: {
-    x?: [number, number];
-    y?: [number, number];
-  };
 };
 
 export type ThumbnailViewProps = {
@@ -43,10 +35,6 @@ export type ThumbnailViewProps = {
   isOriginSelected?: boolean;
   showOriginSelectionBadge?: boolean;
   originSelectedBadgeLabel?: string;
-  xUnitFactor?: number;
-  xUnitLabel?: string;
-  yUnitFactor?: number;
-  yUnitLabel?: string;
   yScale?: string;
   yLogCurrentMode?: "all" | "positive";
 };
@@ -64,17 +52,15 @@ export const createThumbnailView = ({
   isOriginSelected = false,
   originSelectedBadgeLabel = "SELECT",
   showOriginSelectionBadge = false,
-  xUnitFactor = 1,
-  xUnitLabel = "V",
   yLogCurrentMode = "all",
   yScale = "linear",
-  yUnitFactor = 1,
-  yUnitLabel = "A",
 }: ThumbnailViewProps): HTMLElement => {
   const root = document.createElement("div");
-  root.className = isActive
-    ? "thumbnail_view thumbnail_view--active"
-    : "thumbnail_view";
+  const classes = [
+    "thumbnail_view",
+    isActive ? "thumbnail_view--active" : "",
+  ].filter(Boolean);
+  root.className = classes.join(" ");
 
   root.append(createHeader(file), createChartThumbnail({
     file,
@@ -86,12 +72,8 @@ export const createThumbnailView = ({
     isOriginSelected,
     originSelectedBadgeLabel,
     showOriginSelectionBadge,
-    xUnitFactor,
-    xUnitLabel,
     yLogCurrentMode,
     yScale,
-    yUnitFactor,
-    yUnitLabel,
   }));
   return root;
 };
@@ -125,12 +107,8 @@ const createChartThumbnail = ({
   isOriginSelected,
   originSelectedBadgeLabel,
   showOriginSelectionBadge,
-  xUnitFactor,
-  xUnitLabel,
   yLogCurrentMode,
   yScale,
-  yUnitFactor,
-  yUnitLabel,
 }: {
   readonly file: CleanedFileLike;
   readonly originOpenPlotOptions?: OriginPlotOptions;
@@ -141,12 +119,8 @@ const createChartThumbnail = ({
   readonly isOriginSelected: boolean;
   readonly originSelectedBadgeLabel: string;
   readonly showOriginSelectionBadge: boolean;
-  readonly xUnitFactor: number;
-  readonly xUnitLabel: string;
   readonly yLogCurrentMode: "all" | "positive";
   readonly yScale: string;
-  readonly yUnitFactor: number;
-  readonly yUnitLabel: string;
 }): HTMLElement => {
   const root = document.createElement("div");
   root.className = "thumbnail_view_chart";
@@ -166,12 +140,8 @@ const createChartThumbnail = ({
         xGroups: file.xGroups,
         series: file.series,
         domain: file.domain,
-        xScaleFactor: xUnitFactor,
-        xUnitLabel,
-        yScaleFactor: yUnitFactor,
         yScaleType: yScale === "log" ? "log" : "linear",
         yLogCurrentMode,
-        yUnitLabel,
         title: file.fileName ?? file.fileId ?? "",
         className: "thumbnail_view_chart_canvas",
       }),
@@ -183,18 +153,6 @@ const createChartThumbnail = ({
     badge.className = "thumbnail_view_selection_badge";
     badge.textContent = originSelectedBadgeLabel;
     root.append(badge);
-  }
-
-  const range = plotModel
-    ? { min: plotModel.yDomain[0], max: plotModel.yDomain[1] }
-    : resolvePlotThumbnailYDataRange({
-      series: file?.series,
-      yScaleType: yScale === "log" ? "log" : "linear",
-      yLogCurrentMode,
-    });
-  const labels = createYAxisRangeLabels(range, yUnitFactor, yUnitLabel);
-  if (labels) {
-    root.append(labels);
   }
   return root;
 };
@@ -217,7 +175,7 @@ const createPlotMainThumbnailCanvas = ({
   const canvas = document.createElement("canvas");
   canvas.className = "thumbnail_view_chart_canvas";
   canvas.title = file.fileName ?? file.fileId ?? "";
-  queueMicrotask(() => {
+  requestAnimationFrame(() => {
     const options = {
       model: plotModel,
       originOpenPlotOptions,
@@ -232,37 +190,6 @@ const createPlotMainThumbnailCanvas = ({
     drawThumbnailBitmap({ canvas, options });
   });
   return canvas;
-};
-
-const createYAxisRangeLabels = (
-  range: { min: number | null; max: number | null },
-  factor: number,
-  unitLabel: string,
-): HTMLElement | null => {
-  const min = Number(range.min);
-  const max = Number(range.max);
-  const hasMin = Number.isFinite(min);
-  const hasMax = Number.isFinite(max);
-  if (!hasMin && !hasMax) {
-    return null;
-  }
-
-  const suffix = unitLabel ? ` ${unitLabel}` : "";
-  const root = document.createElement("div");
-  root.className = "thumbnail_view_axis_range";
-  if (hasMin) {
-    root.append(createRangeLine(`ymin:${formatNumber(min * factor, { digits: 3 })}${suffix}`));
-  }
-  if (hasMax) {
-    root.append(createRangeLine(`ymax:${formatNumber(max * factor, { digits: 3 })}${suffix}`));
-  }
-  return root;
-};
-
-const createRangeLine = (text: string): HTMLElement => {
-  const line = document.createElement("div");
-  line.textContent = text;
-  return line;
 };
 
 export default ThumbnailView;

@@ -3,10 +3,8 @@
   padLogDomain,
 } from "src/cs/workbench/contrib/plot/browser/plotViewModel";
 
-// Plot contrib owns drawing primitives, scale/domain resolution, and render models.
-// Workbench features such as thumbnails may consume these drawing capabilities, but
-// file selection, card state, badges, and feature-specific lifecycle stay with the caller.
-// 
+// Plot thumbnail owns the lightweight plot rendering used in compact previews.
+// Callers own file metadata, selection state, badges, labels, and lifecycle.
 import "src/cs/workbench/contrib/plot/browser/media/plot.css";
 
 type Padding = {
@@ -28,16 +26,15 @@ type PlotThumbnailSeries = {
   [key: string]: unknown;
 };
 
-export type PlotThumbnailProps = {
+export type PlotThumbnailData = {
   xGroups?: number[][];
   series?: PlotThumbnailSeries[];
   domain?: PlotThumbnailDomain | null;
-  xScaleFactor?: number;
-  xUnitLabel?: string;
-  yScaleFactor?: number;
+};
+
+export type PlotThumbnailProps = PlotThumbnailData & {
   yScaleType?: "linear" | "log";
   yLogCurrentMode?: "all" | "positive";
-  yUnitLabel?: string;
   padding?: Padding;
   title?: string;
   className?: string;
@@ -48,12 +45,6 @@ const DEFAULT_PADDING: Padding = { top: 20, right: 10, bottom: 10, left: 10 };
 type ResolvedPlotThumbnailDomain = {
   x: [number, number];
   y: [number, number];
-  effectiveYScaleType: "linear" | "log";
-};
-
-type ResolvedPlotThumbnailYDataRange = {
-  min: number | null;
-  max: number | null;
 };
 
 const normalizeDomainTuple = (
@@ -79,37 +70,6 @@ const resolvePlotThumbnailYForScale = (
   if (yLogCurrentMode === "positive") return num > 0 ? num : null;
   const abs = Math.abs(num);
   return abs > 0 ? abs : null;
-};
-
-export const resolvePlotThumbnailYDataRange = ({
-  series,
-  yScaleType,
-  yLogCurrentMode = "all",
-}: Pick<
-  PlotThumbnailProps,
-  "series" | "yScaleType" | "yLogCurrentMode"
->): ResolvedPlotThumbnailYDataRange => {
-  const resolvedYScaleType = String(yScaleType ?? "linear") === "log" ? "log" : "linear";
-  let minY = Infinity;
-  let maxY = -Infinity;
-  for (const plotSeries of series ?? []) {
-    const yArr = plotSeries?.y;
-    if (!yArr) continue;
-    for (let index = 0; index < (yArr.length ?? 0); index++) {
-      const yVal = resolvePlotThumbnailYForScale(
-        yArr[index],
-        resolvedYScaleType,
-        yLogCurrentMode,
-      );
-      if (yVal === null) continue;
-      minY = Math.min(minY, yVal);
-      maxY = Math.max(maxY, yVal);
-    }
-  }
-  return {
-    min: Number.isFinite(minY) ? minY : null,
-    max: Number.isFinite(maxY) ? maxY : null,
-  };
 };
 
 export const resolvePlotThumbnailDomain = ({
@@ -168,7 +128,6 @@ export const resolvePlotThumbnailDomain = ({
         ? padLinearDomain(minX, maxX)
         : [0, 1]),
     y: yDomainResolved,
-    effectiveYScaleType: wantsLogScale ? "log" : "linear",
   };
 };
 
@@ -202,7 +161,7 @@ export const createPlotThumbnail = ({
     yLogCurrentMode,
     yScaleType,
   });
-  queueMicrotask(() =>
+  requestAnimationFrame(() =>
     drawPlotThumbnail(canvas, {
       padding,
       resolvedDomain,
@@ -227,13 +186,10 @@ const drawPlotThumbnail = (
     readonly xGroups: number[][];
   },
 ): void => {
-  const width = Math.max(1, canvas.clientWidth || 320);
-  const height = Math.max(1, canvas.clientHeight || 160);
+  const { width, height } = resolveCanvasSize(canvas, 320, 160);
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(width * dpr);
   canvas.height = Math.round(height * dpr);
-  canvas.style.width = `${width}px`;
-  canvas.style.height = `${height}px`;
 
   const context = canvas.getContext("2d");
   if (!context) return;
@@ -246,9 +202,6 @@ const drawPlotThumbnail = (
   const plotHeight = Math.max(1, height - padding.top - padding.bottom);
   const [xMin, xMax] = resolvedDomain.x;
   const [yMin, yMax] = resolvedDomain.y;
-
-  context.strokeStyle = "rgba(148, 163, 184, 0.35)";
-  context.strokeRect(plotLeft + 0.5, plotTop + 0.5, plotWidth - 1, plotHeight - 1);
 
   series.forEach((item, seriesIndex) => {
     const yArr = item.y;
@@ -276,6 +229,19 @@ const drawPlotThumbnail = (
       context.stroke();
     }
   });
+};
+
+const resolveCanvasSize = (
+  canvas: HTMLCanvasElement,
+  fallbackWidth: number,
+  fallbackHeight: number,
+): { height: number; width: number } => {
+  const rect = canvas.getBoundingClientRect();
+  const parentRect = canvas.parentElement?.getBoundingClientRect();
+  return {
+    height: Math.max(1, rect.height || parentRect?.height || canvas.clientHeight || fallbackHeight),
+    width: Math.max(1, rect.width || parentRect?.width || canvas.clientWidth || fallbackWidth),
+  };
 };
 
 const getColor = (index: number): string =>

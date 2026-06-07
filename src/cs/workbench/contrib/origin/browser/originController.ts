@@ -58,10 +58,20 @@ export type OriginExportPlanLike = {
 };
 
 export type OriginCsvJob = JsonRecord & {
+  capabilities?: OriginCsvJobCapabilities;
   csv?: {
     name?: string;
     path?: string;
     text?: string;
+  };
+};
+
+export type OriginCsvJobCapabilities = {
+  axis?: JsonRecord;
+  import?: JsonRecord;
+  plot?: JsonRecord;
+  style?: {
+    commands: string[];
   };
 };
 

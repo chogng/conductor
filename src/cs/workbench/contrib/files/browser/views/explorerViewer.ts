@@ -99,7 +99,15 @@ export type ExplorerViewerProps = {
 const getFileName = getTreeFileName;
 const FILE_ROW_HEIGHT = 28;
 const FILE_HOVER_HIDE_DELAY_MS = 120;
+const FILE_HOVER_THUMBNAIL_WIDTH = 360;
+const FILE_HOVER_THUMBNAIL_VIEWPORT_RATIO = 0.44;
 const HOVER_THUMBNAIL_CACHE_LIMIT = 12;
+
+const getFileHoverThumbnailWidth = (): number =>
+  Math.max(1, Math.min(
+    FILE_HOVER_THUMBNAIL_WIDTH,
+    Math.floor(window.innerWidth * FILE_HOVER_THUMBNAIL_VIEWPORT_RATIO),
+  ));
 
 type FileItemAssessment = {
   readonly label: string;
@@ -1067,7 +1075,8 @@ export class ExplorerViewer implements IDisposable {
   private openFileItemHoverView(item: HTMLElement, content: HoverContent): void {
     const token = this.hoverViewToken + 1;
     this.hoverViewToken = token;
-    const classNames = content.kind === "thumbnail"
+    const isThumbnailHover = content.kind === "thumbnail";
+    const classNames = isThumbnailHover
       ? ["file-list-hover", "file-list-hover--thumbnail"]
       : ["file-list-hover", "file-list-hover--assessment"];
 
@@ -1076,6 +1085,9 @@ export class ExplorerViewer implements IDisposable {
       anchorPosition: AnchorPosition.RIGHT,
       canRelayout: true,
       getAnchor: () => item,
+      getWidth: isThumbnailHover
+        ? getFileHoverThumbnailWidth
+        : undefined,
       layer: 40,
       render: (container) => this.renderFileItemHoverView(container, classNames),
       onHide: () => {
@@ -1119,18 +1131,32 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private resolveHoverContent(item: HTMLElement): HoverContent | null {
-    const type = item.dataset.autoType ?? "";
     if (this.props.mode === "chart") {
-      const processedFile = this.getProcessedFile(item.dataset.fileId);
-      if (processedFile) {
-        return {
-          kind: "thumbnail",
-          isSelected: item.dataset.selected === "true",
-          processedFile,
-        };
-      }
+      return this.resolveThumbnailHoverContent(item);
     }
 
+    return this.resolveAssessmentHoverContent(item);
+  }
+
+  private resolveThumbnailHoverContent(item: HTMLElement): HoverContent | null {
+    if ((this.props.viewMode ?? "tree") === "thumbnail") {
+      return null;
+    }
+
+    const processedFile = this.getProcessedFile(item.dataset.fileId);
+    if (!processedFile) {
+      return null;
+    }
+
+    return {
+      kind: "thumbnail",
+      isSelected: item.dataset.selected === "true",
+      processedFile,
+    };
+  }
+
+  private resolveAssessmentHoverContent(item: HTMLElement): HoverContent | null {
+    const type = item.dataset.autoType ?? "";
     if (!type) {
       return null;
     }

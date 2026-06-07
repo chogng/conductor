@@ -247,7 +247,6 @@
   "parameters_empty_unsupported_curve": "No parameters for this curve type.",
   "parameters_table_actions": "Parameter table actions",
   "parameters_toolbar_aria_label": "Parameter table",
-  "plot_hover_more_entries": "+ {count} more",
   "preview_empty_hint": "Select a file to preview",
   "preview_loading": "Loading preview...",
   "preview_loading_hint": "Parsing CSV preview, please wait.",

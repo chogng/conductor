@@ -127,6 +127,7 @@ export type PlotMainChartProps = {
   interactiveSeriesXs?: number[];
   currentBiasInteraction?: CurrentBiasInteractionConfig | null;
   ssInteraction?: SsInteractionConfig | null;
+  showAxes?: boolean;
   showGrid?: boolean;
   showMajorTicks?: boolean;
   showMinorTicks?: boolean;
@@ -174,6 +175,7 @@ type ChartScale = {
 const DEFAULT_TICK_LABEL_FONT_SIZE = 11;
 const DEFAULT_AXIS_TITLE_FONT_SIZE = 12;
 const DEFAULT_MARGIN = { top: 20, right: 20, bottom: 46, left: 64 };
+const PREVIEW_MARGIN = { top: 10, right: 10, bottom: 10, left: 10 };
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
@@ -406,33 +408,31 @@ export const drawPlotMainChart = (
   const context = applyCanvasSize(canvas, width, height);
   if (!context) return null;
 
+  const showAxes = props.showAxes !== false;
+  const margin = showAxes ? DEFAULT_MARGIN : PREVIEW_MARGIN;
   const plotRect: PlotRect = {
-    left: DEFAULT_MARGIN.left,
-    top: DEFAULT_MARGIN.top,
-    right: width - DEFAULT_MARGIN.right,
-    bottom: height - DEFAULT_MARGIN.bottom,
-    width: Math.max(1, width - DEFAULT_MARGIN.left - DEFAULT_MARGIN.right),
-    height: Math.max(1, height - DEFAULT_MARGIN.top - DEFAULT_MARGIN.bottom),
+    left: margin.left,
+    top: margin.top,
+    right: width - margin.right,
+    bottom: height - margin.bottom,
+    width: Math.max(1, width - margin.left - margin.right),
+    height: Math.max(1, height - margin.top - margin.bottom),
   };
   const scale = createScale(plotRect, props.xDomain, props.yDomain);
-  const xTicks = createTicks(props.xDomain, props.xTicks);
-  const yTicks = createTicks(props.yDomain, props.yTicks);
-  const xMinorTicks = props.showMinorTicks === false
+  const xTicks = showAxes ? createTicks(props.xDomain, props.xTicks) : [];
+  const yTicks = showAxes ? createTicks(props.yDomain, props.yTicks) : [];
+  const xMinorTicks = !showAxes || props.showMinorTicks === false
     ? []
     : createMinorTicks(xTicks, props.xDomain, props.minorTickCount);
-  const yMinorTicks = props.showMinorTicks === false
+  const yMinorTicks = !showAxes || props.showMinorTicks === false
     ? []
     : createMinorTicks(yTicks, props.yDomain, props.minorTickCount);
   const yKey = resolvePlotYKey(props.effectiveYScale, props.yScaleMode, props.yLogCurrentMode);
-  const tickFontSize = props.tickLabelFontSize ?? DEFAULT_TICK_LABEL_FONT_SIZE;
-  const axisFontSize = props.axisTitleFontSize ?? DEFAULT_AXIS_TITLE_FONT_SIZE;
-  const xAxisLabel = resolveLabelWithUnit(props.xAxisLabelOverride ?? props.activeFile?.xLabel, props.plotXUnitLabel, "X");
-  const yAxisLabel = resolveLabelWithUnit(props.yAxisLabelOverride ?? props.activeFile?.yLabel, props.plotYUnitLabel, "Y");
 
   context.fillStyle = "rgba(255,255,255,0)";
   context.fillRect(0, 0, width, height);
 
-  if (props.showGrid !== false) {
+  if (showAxes && props.showGrid !== false) {
     context.save();
     context.strokeStyle = "rgba(148, 163, 184, 0.28)";
     context.lineWidth = 1;
@@ -463,62 +463,69 @@ export const drawPlotMainChart = (
     }
   }
 
-  context.save();
-  context.strokeStyle = "rgba(100, 116, 139, 0.8)";
-  context.lineWidth = 1;
-  context.strokeRect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
-  if (props.showMinorTicks !== false) {
-    context.beginPath();
-    for (const tick of xMinorTicks) {
-      const x = scale.xToPixel(tick);
-      context.moveTo(x, plotRect.bottom);
-      context.lineTo(x, plotRect.bottom + 4);
-    }
-    for (const tick of yMinorTicks) {
-      const y = scale.yToPixel(tick);
-      context.moveTo(plotRect.left - 4, y);
-      context.lineTo(plotRect.left, y);
-    }
-    context.stroke();
-  }
-  if (props.showMajorTicks !== false) {
-    context.beginPath();
-    for (const tick of xTicks) {
-      const x = scale.xToPixel(tick);
-      context.moveTo(x, plotRect.bottom);
-      context.lineTo(x, plotRect.bottom + 6);
-    }
-    for (const tick of yTicks) {
-      const y = scale.yToPixel(tick);
-      context.moveTo(plotRect.left - 6, y);
-      context.lineTo(plotRect.left, y);
-    }
-    context.stroke();
-  }
-  context.fillStyle = "rgba(71, 85, 105, 0.95)";
-  context.font = `${tickFontSize}px sans-serif`;
-  context.textAlign = "center";
-  context.textBaseline = "top";
-  for (const tick of xTicks) {
-    context.fillText(formatNumber(tick * props.plotXFactor, { digits: props.xTickDigits }), scale.xToPixel(tick), plotRect.bottom + 8);
-  }
-  context.textAlign = "right";
-  context.textBaseline = "middle";
-  const yDigits = Math.max(2, Math.min(6, props.xTickDigits));
-  for (const tick of yTicks) {
-    context.fillText(formatNumber(tick * props.plotYFactor, { digits: yDigits }), plotRect.left - 8, scale.yToPixel(tick));
-  }
+  if (showAxes) {
+    const tickFontSize = props.tickLabelFontSize ?? DEFAULT_TICK_LABEL_FONT_SIZE;
+    const axisFontSize = props.axisTitleFontSize ?? DEFAULT_AXIS_TITLE_FONT_SIZE;
+    const xAxisLabel = resolveLabelWithUnit(props.xAxisLabelOverride ?? props.activeFile?.xLabel, props.plotXUnitLabel, "X");
+    const yAxisLabel = resolveLabelWithUnit(props.yAxisLabelOverride ?? props.activeFile?.yLabel, props.plotYUnitLabel, "Y");
 
-  context.font = `${axisFontSize}px sans-serif`;
-  context.textAlign = "center";
-  context.textBaseline = "bottom";
-  context.fillText(xAxisLabel, plotRect.left + plotRect.width / 2, height - 8);
-  context.save();
-  context.translate(14, plotRect.top + plotRect.height / 2);
-  context.rotate(-Math.PI / 2);
-  context.fillText(yAxisLabel, 0, 0);
-  context.restore();
-  context.restore();
+    context.save();
+    context.strokeStyle = "rgba(100, 116, 139, 0.8)";
+    context.lineWidth = 1;
+    context.strokeRect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
+    if (props.showMinorTicks !== false) {
+      context.beginPath();
+      for (const tick of xMinorTicks) {
+        const x = scale.xToPixel(tick);
+        context.moveTo(x, plotRect.bottom);
+        context.lineTo(x, plotRect.bottom + 4);
+      }
+      for (const tick of yMinorTicks) {
+        const y = scale.yToPixel(tick);
+        context.moveTo(plotRect.left - 4, y);
+        context.lineTo(plotRect.left, y);
+      }
+      context.stroke();
+    }
+    if (props.showMajorTicks !== false) {
+      context.beginPath();
+      for (const tick of xTicks) {
+        const x = scale.xToPixel(tick);
+        context.moveTo(x, plotRect.bottom);
+        context.lineTo(x, plotRect.bottom + 6);
+      }
+      for (const tick of yTicks) {
+        const y = scale.yToPixel(tick);
+        context.moveTo(plotRect.left - 6, y);
+        context.lineTo(plotRect.left, y);
+      }
+      context.stroke();
+    }
+    context.fillStyle = "rgba(71, 85, 105, 0.95)";
+    context.font = `${tickFontSize}px sans-serif`;
+    context.textAlign = "center";
+    context.textBaseline = "top";
+    for (const tick of xTicks) {
+      context.fillText(formatNumber(tick * props.plotXFactor, { digits: props.xTickDigits }), scale.xToPixel(tick), plotRect.bottom + 8);
+    }
+    context.textAlign = "right";
+    context.textBaseline = "middle";
+    const yDigits = Math.max(2, Math.min(6, props.xTickDigits));
+    for (const tick of yTicks) {
+      context.fillText(formatNumber(tick * props.plotYFactor, { digits: yDigits }), plotRect.left - 8, scale.yToPixel(tick));
+    }
+
+    context.font = `${axisFontSize}px sans-serif`;
+    context.textAlign = "center";
+    context.textBaseline = "bottom";
+    context.fillText(xAxisLabel, plotRect.left + plotRect.width / 2, height - 8);
+    context.save();
+    context.translate(14, plotRect.top + plotRect.height / 2);
+    context.rotate(-Math.PI / 2);
+    context.fillText(yAxisLabel, 0, 0);
+    context.restore();
+    context.restore();
+  }
 
   const lineWidth = Math.max(1, Number(props.curveLineWidth) || 2);
   for (const [seriesIndex, series] of (props.seriesList ?? []).entries()) {
