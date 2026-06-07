@@ -1,10 +1,11 @@
 // Builds the normalized render model consumed by the plot main view.
 import type { PlotMainSeries } from "src/cs/workbench/contrib/plot/browser/plotMainChart";
 
-export type PlotMainAxisLabels = Partial<{
-  xLabel: unknown;
-  yLabel: unknown;
-}>;
+export type PlotMainAxisLabels = {
+  readonly [key: string]: unknown;
+  readonly xLabel?: unknown;
+  readonly yLabel?: unknown;
+};
 
 export type PlotMainRenderModel = {
   readonly axisLabels: PlotMainAxisLabels | null;

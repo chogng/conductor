@@ -1,4 +1,4 @@
-import type { MutableState } from "src/cs/workbench/contrib/session/browser/sessionContext";
+import type { MutableState } from "src/cs/workbench/services/session/common/session";
 import {
   isPerfEnabled,
   logPerf,

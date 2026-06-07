@@ -23,8 +23,9 @@ import type {
   IonIoffMethod,
   SsManualRanges,
   SsMethod,
-} from "src/cs/workbench/contrib/session/browser/sessionContext";
+} from "src/cs/workbench/services/session/common/session";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
+import type { XUnit, YUnit } from "src/cs/workbench/contrib/plot/common/units";
 import { createChartView, type ChartPane } from "src/cs/workbench/contrib/chart/browser/views/chartView";
 
 type StateSetter<T> = (next: T | ((previous: T) => T)) => void;
@@ -41,6 +42,18 @@ export type ChartViewLazyProps = {
   ionIoffManualTargetsByFileId?: IonIoffManualTargetsByFileId;
   onActiveFileIdChange?: (nextFileId: string | null) => void;
   showFileSelect?: boolean;
+  xUnitByFileId?: Readonly<Record<string, string>>;
+  yUnitByFileId?: Readonly<Record<string, string>>;
+  yScaleByFileId?: Readonly<Record<string, string>>;
+  onPlotUnitChange?: (
+    fileId: string,
+    axis: "x" | "y",
+    unit: XUnit | YUnit,
+  ) => Promise<unknown> | void;
+  onPlotYScaleChange?: (
+    fileId: string,
+    scale: "linear" | "log",
+  ) => Promise<unknown> | void;
   hiddenLegendKeys?: readonly string[];
   legendLabels?: Readonly<Record<string, string>>;
   onLegendLabelChange?: (
@@ -97,10 +110,15 @@ export class AnalysisPanel {
     this.element.replaceChildren();
     this.element.remove();
   }
+
+  public editAxisTitle(pane: ChartPane, axis: "x" | "y"): boolean {
+    return this.content?.editAxisTitle?.(pane, axis) ?? false;
+  }
 }
 
 type DisposableContent = HTMLElement & {
   readonly dispose?: () => void;
+  readonly editAxisTitle?: (pane: ChartPane, axis: "x" | "y") => boolean;
 };
 
 const disposeContent = (content: DisposableContent | null): void => {

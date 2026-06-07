@@ -22,15 +22,21 @@ export type PlotMainViewProps = {
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly legendLabels?: Readonly<Record<string, string>>;
+  readonly plotXFactor?: number;
+  readonly plotXUnitLabel?: string;
+  readonly plotYFactor?: number;
+  readonly plotYUnitLabel?: string;
   readonly plotType: PlotType;
   readonly xAxisLabelOverride?: string;
   readonly yAxisLabelOverride?: string;
+  readonly yScaleMode?: "linear" | "log";
 };
 
 export type PlotMainView = {
   readonly element: HTMLElement;
   readonly model: PlotMainRenderModel;
   readonly dispose: () => void;
+  readonly editAxisTitle: (axis: "x" | "y") => boolean;
 };
 
 export const createPlotMainChartProps = ({
@@ -40,9 +46,14 @@ export const createPlotMainChartProps = ({
   originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS,
   plotAxisSettings,
   legendLabels,
+  plotXFactor = 1,
+  plotXUnitLabel,
+  plotYFactor = 1,
+  plotYUnitLabel,
   plotType,
   xAxisLabelOverride,
   yAxisLabelOverride,
+  yScaleMode = "linear",
 }: PlotMainViewProps): PlotMainChartProps => {
   const axisSettings = normalizePlotAxisSettings(
     plotAxisSettings,
@@ -52,14 +63,14 @@ export const createPlotMainChartProps = ({
     axisLabels: model.axisLabels,
     curveLineWidth: Number(originOpenPlotOptions.lineWidth) || DEFAULT_ORIGIN_PLOT_OPTIONS.lineWidth,
     curvePlotType: Number(originOpenPlotOptions.type ?? DEFAULT_ORIGIN_PLOT_OPTIONS.type),
-    effectiveYScale: "linear",
+    effectiveYScale: yScaleMode,
     focusedSeriesColor: "#2563eb",
     highlightOverlays: [],
     plotType,
-    plotXFactor: 1,
-    plotXUnitLabel: model.xUnitLabel,
-    plotYFactor: 1,
-    plotYUnitLabel: model.yUnitLabel,
+    plotXFactor,
+    plotXUnitLabel: plotXUnitLabel ?? model.xUnitLabel,
+    plotYFactor,
+    plotYUnitLabel: plotYUnitLabel ?? model.yUnitLabel,
     showGrid: axisSettings.showGrid,
     showMajorTicks: axisSettings.showMajorTicks,
     showMinorTicks: axisSettings.showMinorTicks,
@@ -82,7 +93,7 @@ export const createPlotMainChartProps = ({
     xTickDigits: 4,
     yDomain: model.yDomain,
     yAxisLabelOverride,
-    yScaleMode: "linear",
+    yScaleMode,
   };
 };
 
@@ -91,6 +102,7 @@ export const createPlotMainView = (props: PlotMainViewProps): PlotMainView => {
 
   return {
     dispose: () => element.dispose(),
+    editAxisTitle: (axis) => element.editAxisTitle(axis),
     element,
     model: props.model,
   };

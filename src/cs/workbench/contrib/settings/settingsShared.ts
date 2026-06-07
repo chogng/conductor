@@ -6,7 +6,7 @@ import type {
   IonIoffManualTargetsByFileId,
   IonIoffMethod,
   SsMethod,
-} from "src/cs/workbench/contrib/session/browser/sessionContext";
+} from "src/cs/workbench/services/session/common/session";
 import { originService } from "src/cs/workbench/services/origin/browser/originService";
 
 export type ConductorSettings = {
@@ -48,6 +48,7 @@ export type ConductorSettings = {
   defaultYScaleForSpecial?: "linear" | "log";
   defaultYScaleForTransfer?: "linear" | "log";
   plotAxisSettings?: Record<string, unknown>;
+  xUnitByFileId?: Record<string, "V" | "mV">;
   yUnitByFileId?: Record<
     string,
     "A" | "mA" | "uA" | "nA" | "pA" | "F" | "mF" | "uF" | "nF" | "pF"

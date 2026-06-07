@@ -1,7 +1,7 @@
 import { localize } from "src/cs/nls";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import type { MutableState } from "src/cs/workbench/contrib/session/browser/sessionContext";
+import type { MutableState } from "src/cs/workbench/services/session/common/session";
 import type {
   SessionFile,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";

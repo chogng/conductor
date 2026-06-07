@@ -13,7 +13,7 @@ import {
 import type {
   IonIoffMethod,
   SsMethod,
-} from "src/cs/workbench/contrib/session/browser/sessionContext";
+} from "src/cs/workbench/services/session/common/session";
 import { getSettings, updateSettings } from "src/cs/workbench/contrib/settings/settingsService";
 import {
   getInitialSettingsSnapshot,

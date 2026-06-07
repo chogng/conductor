@@ -1,12 +1,12 @@
 import assert from "assert";
 
-import { SessionModel } from "src/cs/workbench/contrib/session/browser/sessionModel";
+import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import type {
   CleanedEntry,
   ProcessingStatus,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
-import type { StateSetter } from "src/cs/workbench/contrib/session/browser/sessionContext";
+import type { StateSetter } from "src/cs/workbench/services/session/common/session";
 import {
   startProcessingJob,
   startRuleProcessingJob,
@@ -61,7 +61,7 @@ suite("workbench/contrib/template/test/browser/templateApplyProcessing", () => {
   } as unknown as IAnalysisFileService;
 
   const createProcessingHarness = () => {
-    const session = new SessionModel();
+    const session = new SessionService();
     let sessionChangeCount = 0;
     const disposeSession = session.subscribe(() => {
       sessionChangeCount += 1;

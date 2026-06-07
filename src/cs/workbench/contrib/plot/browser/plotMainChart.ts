@@ -160,6 +160,7 @@ export type PlotMainChartProps = {
 
 export type PlotMainChartElement = HTMLElement & {
   readonly dispose: () => void;
+  readonly editAxisTitle: (axis: "x" | "y") => boolean;
 };
 
 export type PlotMainChartSize = {
@@ -305,6 +306,32 @@ const drawHoverOverlay = (
   context.restore();
 };
 
+const resolvePlotYDomain = (
+  props: PlotMainChartProps,
+  yKey: PlotYKey,
+): [number, number] => {
+  if (props.effectiveYScale !== "log" && props.effectiveYScale !== "logAbs" && props.yScaleMode !== "log" && props.yScaleMode !== "logAbs") {
+    return props.yDomain;
+  }
+
+  const values: number[] = [];
+  for (const series of props.seriesList ?? []) {
+    for (const point of series.data ?? []) {
+      const y = resolvePlotPointY(point, yKey);
+      if (y !== null && Number.isFinite(y) && y > 0) {
+        values.push(y);
+      }
+    }
+  }
+  if (!values.length) {
+    return [1e-12, 1];
+  }
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  return min === max ? [min / 10, max * 10] : [min, max];
+};
+
 export const drawPlotMainChart = (
   canvas: HTMLCanvasElement,
   props: PlotMainChartProps,
@@ -324,10 +351,13 @@ export const drawPlotMainChart = (
   const context = applyCanvasSize(canvas, width, height);
   if (!context) return null;
 
-  const showAxes = props.showAxes !== false;
-  const layout = createPlotMainLayout(width, height, props);
-  const { plotRect, scale } = layout;
   const yKey = resolvePlotYKey(props.effectiveYScale, props.yScaleMode, props.yLogCurrentMode);
+  const showAxes = props.showAxes !== false;
+  const layout = createPlotMainLayout(width, height, {
+    ...props,
+    yDomain: resolvePlotYDomain(props, yKey),
+  });
+  const { plotRect, scale } = layout;
 
   context.fillStyle = "rgba(255,255,255,0)";
   context.fillRect(0, 0, width, height);
@@ -521,6 +551,9 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
       hoverWidget.dispose();
       root.replaceChildren();
     },
+  });
+  Object.defineProperty(root, "editAxisTitle", {
+    value: (axis: "x" | "y"): boolean => axisTitleView?.editAxisTitle(axis) ?? false,
   });
 
   return root;

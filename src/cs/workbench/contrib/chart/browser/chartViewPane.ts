@@ -19,6 +19,7 @@ import {
 import { createFileSelect, resolveActiveFile } from "src/cs/workbench/contrib/chart/browser/chartFileSelect";
 import { createLegendPopover, getLegendContext, isSameLegendContext, type LegendContext } from "src/cs/workbench/contrib/chart/browser/chartLegend";
 import { sameDetailPanes, toAnalysisPanelProps, toggleDetailPane, type ChartDetailPane } from "src/cs/workbench/contrib/chart/browser/chartPaneState";
+import { createChartUnitControls, type ChartUnitAxis, type ChartUnitControlState, type ChartYScale } from "src/cs/workbench/contrib/chart/browser/chartUnitControls";
 import {
   createSecondCalculatedData,
   getCalculatedData,
@@ -26,6 +27,7 @@ import {
 } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import { resolveLabelWithUnit } from "src/cs/workbench/contrib/plot/browser/plotAxis";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
+import { normalizeXUnit, normalizeYUnit, type XUnit, type YUnit } from "src/cs/workbench/contrib/plot/common/units";
 
 import "src/cs/workbench/contrib/chart/browser/media/chart.css";
 
@@ -104,6 +106,10 @@ export class ChartViewPane extends ViewPane {
     super.dispose();
   }
 
+  public editAxisTitle(pane: "chart" | "inspector", axis: "x" | "y"): boolean {
+    return this.analysisPanel.editAxisTitle(pane, axis);
+  }
+
   private renderHeader(props: AnalysisPanelProps): void {
     this.headerStore.clear();
     this.legendAction = null;
@@ -122,6 +128,16 @@ export class ChartViewPane extends ViewPane {
       onDidChangePlotType: (plotType) => this.setActivePlotType(plotType),
       store: this.headerStore,
     }));
+
+    const unitState = this.getUnitControlState(props);
+    if (unitState) {
+      this.headerActions.append(createChartUnitControls({
+        onDidChangeScale: (fileId, scale) => this.updatePlotYScale(fileId, scale),
+        onDidChangeUnit: (fileId, axis, unit) => this.updatePlotUnit(fileId, axis, unit),
+        state: unitState,
+        store: this.headerStore,
+      }));
+    }
 
     this.headerActions.append(this.createHeaderActions(props));
 
@@ -198,7 +214,7 @@ export class ChartViewPane extends ViewPane {
 
     return {
       axis,
-      defaultTitle: this.getDefaultAxisTitle(data, axis),
+      defaultTitle: this.getDefaultAxisTitle(data, axis, props),
       fileId,
       pane,
       plotType: this.getActivePlotType(),
@@ -225,10 +241,67 @@ export class ChartViewPane extends ViewPane {
     this.updateAnalysisPanel(this.props);
   }
 
-  private getDefaultAxisTitle(data: CalculatedData, axis: "x" | "y"): string {
+  private updatePlotUnit(
+    fileId: string,
+    axis: ChartUnitAxis,
+    unit: XUnit | YUnit,
+  ): void {
+    this.props.onPlotUnitChange?.(fileId, axis, unit);
+  }
+
+  private updatePlotYScale(fileId: string, scale: ChartYScale): void {
+    this.props.onPlotYScaleChange?.(fileId, scale);
+  }
+
+  private getUnitControlState(props: AnalysisPanelProps): ChartUnitControlState | null {
+    const sourceData = getCalculatedData(
+      props.calculatedDataByKey,
+      this.getActivePlotType(),
+      props.activeFileId,
+    );
+    const fileId = String(sourceData?.source.fileId ?? "").trim();
+    if (!sourceData || !fileId) {
+      return null;
+    }
+
+    const sourceXUnit = normalizeXUnit(sourceData.activeFile?.xUnit, "V") || "V";
+    const sourceYUnit = normalizeYUnit(sourceData.activeFile?.yUnit, "A") || "A";
+    const xUnit = normalizeXUnit(props.xUnitByFileId?.[fileId], sourceXUnit) || sourceXUnit;
+    const yUnit = normalizeYUnit(props.yUnitByFileId?.[fileId], sourceYUnit) || sourceYUnit;
+    const yScale = props.yScaleByFileId?.[fileId] === "log" ? "log" : "linear";
+
+    return {
+      fileId,
+      xUnit,
+      yScale,
+      yUnit,
+    };
+  }
+
+  private getDefaultAxisTitle(
+    data: CalculatedData,
+    axis: "x" | "y",
+    props: AnalysisPanelProps,
+  ): string {
     return axis === "x"
-      ? resolveLabelWithUnit(data.activeFile?.xLabel, data.xUnitLabel, "X")
-      : resolveLabelWithUnit(data.activeFile?.yLabel, data.yUnitLabel, "Y");
+      ? resolveLabelWithUnit(data.activeFile?.xLabel, this.getDisplayXUnit(data, props), "X")
+      : resolveLabelWithUnit(data.activeFile?.yLabel, this.getDisplayYUnit(data, props) ?? data.yUnitLabel, "Y");
+  }
+
+  private getDisplayXUnit(data: CalculatedData, props: AnalysisPanelProps): XUnit {
+    const fileId = String(data.source.fileId ?? "").trim();
+    const sourceUnit = normalizeXUnit(data.xUnitLabel, "V") || "V";
+    return normalizeXUnit(fileId ? props.xUnitByFileId?.[fileId] : undefined, sourceUnit) || sourceUnit;
+  }
+
+  private getDisplayYUnit(data: CalculatedData, props: AnalysisPanelProps): YUnit | undefined {
+    const sourceUnit = normalizeYUnit(data.yUnitLabel);
+    if (!sourceUnit) {
+      return undefined;
+    }
+
+    const fileId = String(data.source.fileId ?? "").trim();
+    return normalizeYUnit(fileId ? props.yUnitByFileId?.[fileId] : undefined, sourceUnit) || sourceUnit;
   }
 
   private updateAnalysisPanelTabState(): void {

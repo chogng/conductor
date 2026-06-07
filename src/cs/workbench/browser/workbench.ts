@@ -32,7 +32,10 @@ import {
   resolveLanguageCode,
 } from "src/cs/platform/language/common/language";
 import { localize } from "src/cs/nls";
-import { getCalculatedData } from "src/cs/workbench/contrib/calculation/common/calculatedData";
+import {
+  getCalculatedData,
+  type CalculatedData,
+} from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
@@ -79,9 +82,11 @@ import {
   TemplateApplyController,
   type TemplateApplyControllerInput,
 } from "src/cs/workbench/contrib/template/browser/templateApplyController";
-import { SessionModel } from "src/cs/workbench/contrib/session/browser/sessionModel";
-import { defaultSessionModel } from "src/cs/workbench/contrib/session/browser/session";
 import { createSessionActions } from "src/cs/workbench/contrib/session/browser/sessionActions";
+import type {
+  ISessionService as ISessionServiceType,
+  SessionSnapshot,
+} from "src/cs/workbench/services/session/common/session";
 import type {
   ITableService,
   TableModel,
@@ -121,11 +126,17 @@ import { SearchViewPane } from "src/cs/workbench/contrib/search/browser/searchVi
 import { SearchViewId } from "src/cs/workbench/contrib/search/common/search";
 import { createPlotMainRenderModel } from "src/cs/workbench/contrib/plot/browser/plotMainRenderModel";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
-import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
-  ISeriesLabelService,
-  type ISeriesLabelService as ISeriesLabelServiceType,
-} from "src/cs/workbench/services/seriesLabels/common/seriesLabels";
+  normalizeXUnit,
+  normalizeYUnit,
+  type XUnit,
+  type YUnit,
+} from "src/cs/workbench/contrib/plot/common/units";
+import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type {
+  CurveKey,
+  CurveYScale,
+} from "src/cs/workbench/services/metadata/common/metadata";
 import type { IWorkbenchViewModeService } from "src/cs/workbench/services/views/common/workbenchViewModeService";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
@@ -161,7 +172,13 @@ export type WorkbenchTitlebarState = {
   readonly onInstallUpdate?: () => void;
 };
 
-type WorkbenchSessionSnapshot = ReturnType<SessionModel["getSnapshot"]>;
+type WorkbenchSessionSnapshot = SessionSnapshot;
+
+type FileMetadataStateByFileId = {
+  readonly xUnitByFileId: Record<string, string>;
+  readonly yScaleByFileId: Record<string, CurveYScale>;
+  readonly yUnitByFileId: Record<string, string>;
+};
 
 export type WorkbenchOptions = {
   readonly className?: string;
@@ -173,7 +190,7 @@ export type WorkbenchOptions = {
   readonly dialogsService?: IFileDialogService;
   readonly filesService?: IFileService;
   readonly pathService?: IPathService;
-  readonly seriesLabelService?: ISeriesLabelServiceType;
+  readonly sessionService?: ISessionServiceType;
   readonly storageService?: IStorageService;
   readonly layoutService?: IWorkbenchLayoutService;
   readonly viewsService?: IViewsService;
@@ -248,7 +265,7 @@ export class Workbench extends Layout {
   private language: LanguageCode = getInitialLanguage();
   private languagePreference: LanguagePreference = getInitialLanguagePreference();
   private readonly filesPaneRef: { current: FilesPaneRef | null } = { current: null };
-  private readonly session = defaultSessionModel;
+  private readonly session: ISessionServiceType;
   private readonly filesPane: FilesPaneHost;
   private readonly commandService: ICommandService;
   private readonly activeWorkbenchViewContext: IContextKey<string> | null = null;
@@ -271,7 +288,6 @@ export class Workbench extends Layout {
   private readonly contextViewService: IContextViewService;
   private readonly layoutService: IWorkbenchLayoutService;
   private readonly pathService: IPathService;
-  private readonly seriesLabelService: ISeriesLabelServiceType;
   private readonly viewsService: IViewsService;
   private readonly tableService: ITableService;
   private readonly templateApplyService: ITemplateApplyService;
@@ -293,6 +309,7 @@ export class Workbench extends Layout {
   private curveMode: OriginCurveExportMode = "all";
   private selectedContentKeys: OriginExportContentKey[] = ["iv"];
   private selectedCurveKeys = new Set<string>();
+  private isSyncingMetadata = false;
 
   public get contentElement(): HTMLElement {
     return this.window.contentElement;
@@ -311,8 +328,10 @@ export class Workbench extends Layout {
       showSkeleton: false,
     }));
     this.notifications = this._register(new NotificationToasts());
-    this._register(toDisposableSession(this.session));
     this.mount(this.window.contentElement);
+    if (!options.sessionService) {
+      throw new Error("Workbench requires ISessionService.");
+    }
     if (!options.tableService) {
       throw new Error("Workbench requires ITableService.");
     }
@@ -339,9 +358,6 @@ export class Workbench extends Layout {
     }
     if (!options.pathService) {
       throw new Error("Workbench requires IPathService.");
-    }
-    if (!options.seriesLabelService) {
-      throw new Error("Workbench requires ISeriesLabelService.");
     }
     if (!options.storageService) {
       throw new Error("Workbench requires IStorageService.");
@@ -375,7 +391,8 @@ export class Workbench extends Layout {
     this.activeWorkbenchMainPartContext = ActiveWorkbenchMainPartContext.bindTo(options.contextKeyService);
     this.activeAuxiliaryBarViewContext = ActiveAuxiliaryBarViewContext.bindTo(options.contextKeyService);
     this.pathService = options.pathService;
-    this.seriesLabelService = options.seriesLabelService;
+    this.session = options.sessionService;
+    this._register(toDisposableSession(this.session));
     this.viewsService = options.viewsService;
     this.tableService = options.tableService;
     this.templateApplyService = options.templateApplyService;
@@ -444,7 +461,7 @@ export class Workbench extends Layout {
 
   private renderWorkbench(): void {
     const snapshot = this.session.getSnapshot();
-    this.seriesLabelService.prune(snapshot.cleanedData);
+    this.syncMetadata(snapshot);
     this.clearStaleAnalysisFileSelection(snapshot);
     const tableModel = this.getTableModel(snapshot);
     this.templateApply.update(this.getTemplateApplyInput(snapshot, tableModel));
@@ -960,6 +977,7 @@ export class Workbench extends Layout {
       onTemplateApplied: processing.handleTemplateApplied,
       onTemplateAppliedIncremental: processing.handleTemplateAppliedIncremental,
       onUpdateSettings: this.coreSettingsState.updateConductorSettings,
+      sessionService: this.session,
       sourceFiles: snapshot.sourceFiles,
       tableModel,
       templateImportController: this.templateImportController,
@@ -974,17 +992,172 @@ export class Workbench extends Layout {
     };
   }
 
+  private syncMetadata(snapshot: WorkbenchSessionSnapshot): void {
+    if (this.isSyncingMetadata) {
+      return;
+    }
+
+    this.isSyncingMetadata = true;
+    try {
+      this.session.batch(() => {
+        const liveFileIds: string[] = [];
+        const liveKeys: CurveKey[] = [];
+        for (const file of snapshot.cleanedData) {
+          const fileId = String(file?.fileId ?? "").trim();
+          if (!fileId) {
+            continue;
+          }
+
+          liveFileIds.push(fileId);
+          const templateSelection = snapshot.fileTemplateSelectionsByFileId[fileId];
+          this.session.setFileMetadata({
+            fileId,
+            kind: String(file?.curveType ?? "unknown"),
+            sourceFileName: file.fileName,
+            templateId: templateSelection?.kind === "template"
+              ? templateSelection.templateId
+              : undefined,
+            x: {
+              label: String(file?.xLabel ?? ""),
+              role: String(file?.xAxisRole ?? ""),
+              unit: this.getFileMetadataXUnit(fileId, file),
+            },
+            y: {
+              label: String(file?.yLabel ?? ""),
+              role: String(file?.yAxisRole ?? ""),
+              scale: this.getMetadataYScale(fileId),
+              unit: this.getFileMetadataYUnit(fileId, file),
+            },
+          });
+        }
+
+        for (const data of Object.values(snapshot.calculatedDataByKey)) {
+          const fileId = this.getCalculatedFileId(data);
+          if (!fileId) {
+            continue;
+          }
+
+          for (const series of data.seriesList) {
+            const key = this.getCurveKey(fileId, data.kind, series.id);
+            liveKeys.push(key);
+            this.session.setCurveData({
+              ...key,
+              points: series.data.map((point) => ({
+                x: point.x,
+                y: point.y,
+                yAbsPositive: point.yAbsPositive,
+                yPositive: point.yPositive,
+              })),
+              signature: `${data.signature}:${series.id}`,
+              xDomain: data.xDomain,
+              yDomain: data.yDomain,
+            });
+
+          }
+        }
+
+        this.session.pruneMetadata(liveFileIds, liveKeys);
+        this.session.pruneSeriesLabels(snapshot.cleanedData);
+      });
+    } finally {
+      this.isSyncingMetadata = false;
+    }
+  }
+
+  private getFileMetadataStateByFileId(
+    snapshot: WorkbenchSessionSnapshot,
+  ): FileMetadataStateByFileId {
+    const settings = this.coreSettingsState.conductorSettings;
+    const xUnitByFileId: Record<string, string> = {
+      ...(settings?.xUnitByFileId ?? {}),
+    };
+    const yUnitByFileId: Record<string, string> = {
+      ...(settings?.yUnitByFileId ?? {}),
+    };
+    const yScaleByFileId: Record<string, CurveYScale> = {
+      ...(settings?.yScaleByFileId ?? {}),
+    };
+
+    for (const file of snapshot.cleanedData) {
+      const fileId = String(file?.fileId ?? "").trim();
+      if (!fileId) {
+        continue;
+      }
+
+      const metadata = this.session.getFileMetadata(fileId);
+      if (metadata?.x.unit) {
+        xUnitByFileId[fileId] = metadata.x.unit;
+      }
+      if (metadata?.y.unit) {
+        yUnitByFileId[fileId] = metadata.y.unit;
+      }
+      if (metadata?.y.scale) {
+        yScaleByFileId[fileId] = metadata.y.scale;
+      }
+    }
+
+    return {
+      xUnitByFileId,
+      yScaleByFileId,
+      yUnitByFileId,
+    };
+  }
+
+  private getCalculatedFileId(data: CalculatedData): string {
+    return String(data.source.fileId ?? data.activeFile?.fileId ?? "").trim();
+  }
+
+  private getCurveKey(fileId: string, kind: string, seriesId: string): CurveKey {
+    const normalizedKind = String(kind ?? "").trim() || "unknown";
+    const normalizedSeriesId = String(seriesId ?? "").trim() || "series";
+    return {
+      curveKind: normalizedKind,
+      fileId,
+      seriesId: normalizedSeriesId,
+    };
+  }
+
+  private getFileMetadataXUnit(fileId: string, file: CleanedEntry): string {
+    const sourceUnit = normalizeXUnit(file.xUnit, "V") || "V";
+    return normalizeXUnit(
+      this.coreSettingsState.conductorSettings?.xUnitByFileId?.[fileId],
+      sourceUnit,
+    ) || sourceUnit;
+  }
+
+  private getFileMetadataYUnit(fileId: string, file: CleanedEntry): string {
+    const sourceUnit = normalizeYUnit(file.yUnit);
+    if (!sourceUnit) {
+      return String(file.yUnit ?? "").trim();
+    }
+
+    return normalizeYUnit(
+      this.coreSettingsState.conductorSettings?.yUnitByFileId?.[fileId],
+      sourceUnit,
+    ) || sourceUnit;
+  }
+
+  private getMetadataYScale(fileId: string): CurveYScale {
+    return this.coreSettingsState.conductorSettings?.yScaleByFileId?.[fileId] === "log"
+      ? "log"
+      : "linear";
+  }
+
   private getAnalysisProps(
     snapshot = this.session.getSnapshot(),
     processing = this.templateApply,
   ) {
+    const activeFileId = this.getActiveAnalysisFileId(snapshot);
+    const metadataState = this.getFileMetadataStateByFileId(snapshot);
     return {
-      activeFileId: this.getActiveAnalysisFileId(snapshot),
+      activeFileId,
       activePlotType: this.activePlotType,
-      legendLabels: this.seriesLabelService.getLabels(this.getActiveAnalysisFileId(snapshot) ?? ""),
+      legendLabels: this.session.getSeriesLabels(activeFileId ?? ""),
       onActiveFileIdChange: this.handleAnalysisFileSelected,
       onActivePlotTypeChange: this.setActivePlotType,
       onLegendLabelChange: this.updateLegendLabel,
+      onPlotUnitChange: this.updatePlotUnit,
+      onPlotYScaleChange: this.updatePlotYScale,
       calculatedDataByKey: snapshot.calculatedDataByKey,
       cleanedData: snapshot.cleanedData,
       onPlotAxisSettingsChange: this.updatePlotAxisSettings,
@@ -994,10 +1167,14 @@ export class Workbench extends Layout {
       processingStatus: processing.processingStatus,
       showFileSelect: false,
       shouldMountCharts: false,
+      xUnitByFileId: metadataState.xUnitByFileId,
+      yScaleByFileId: metadataState.yScaleByFileId,
+      yUnitByFileId: metadataState.yUnitByFileId,
     };
   }
 
   private getAuxiliaryBarViewInput(snapshot = this.session.getSnapshot()) {
+    const metadataState = this.getFileMetadataStateByFileId(snapshot);
     return {
       activeFileId: this.getActiveAnalysisFileId(snapshot),
       calculatedDataByKey: snapshot.calculatedDataByKey,
@@ -1006,6 +1183,9 @@ export class Workbench extends Layout {
       onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
       plotAxisSettings: this.coreSettingsState.conductorSettings?.plotAxisSettings,
+      xUnitByFileId: metadataState.xUnitByFileId,
+      yScaleByFileId: metadataState.yScaleByFileId,
+      yUnitByFileId: metadataState.yUnitByFileId,
     };
   }
 
@@ -1023,13 +1203,12 @@ export class Workbench extends Layout {
     seriesId: string,
     label: string | null,
   ): void => {
-    this.seriesLabelService.setLabel(fileId, seriesId, label);
-    this.renderWorkbench();
+    this.session.setSeriesLabel(fileId, seriesId, label);
   };
 
   private readonly resolveCurveLabelForSeries = (
-    ...args: Parameters<ISeriesLabelServiceType["resolveLabel"]>
-  ): string => this.seriesLabelService.resolveLabel(...args);
+    ...args: Parameters<ISessionServiceType["resolveSeriesLabel"]>
+  ): string => this.session.resolveSeriesLabel(...args);
 
   private resolveActiveFile(snapshot = this.session.getSnapshot()): CleanedEntry | null {
     const activeFileId = this.getActiveAnalysisFileId(snapshot);
@@ -1081,6 +1260,44 @@ export class Workbench extends Layout {
         ...(updates as Record<string, unknown>),
       },
     });
+  };
+
+  private readonly updatePlotUnit = async (
+    fileId: string,
+    axis: "x" | "y",
+    unit: XUnit | YUnit,
+  ): Promise<void> => {
+    const normalizedFileId = String(fileId ?? "").trim();
+    if (!normalizedFileId) {
+      return;
+    }
+
+    const key = axis === "x" ? "xUnitByFileId" : "yUnitByFileId";
+    await this.coreSettingsState.updateConductorSettings({
+      [key]: {
+        ...(this.coreSettingsState.conductorSettings?.[key] ?? {}),
+        [normalizedFileId]: unit,
+      },
+    });
+    this.renderWorkbench();
+  };
+
+  private readonly updatePlotYScale = async (
+    fileId: string,
+    scale: "linear" | "log",
+  ): Promise<void> => {
+    const normalizedFileId = String(fileId ?? "").trim();
+    if (!normalizedFileId) {
+      return;
+    }
+
+    await this.coreSettingsState.updateConductorSettings({
+      yScaleByFileId: {
+        ...(this.coreSettingsState.conductorSettings?.yScaleByFileId ?? {}),
+        [normalizedFileId]: scale === "log" ? "log" : "linear",
+      },
+    });
+    this.renderWorkbench();
   };
 
   private getActiveAnalysisFileId(snapshot = this.session.getSnapshot()): string | null {
@@ -1257,7 +1474,7 @@ const applyThemeMode = (theme: ThemeMode): void => {
   document.documentElement.style.colorScheme = resolvedTheme;
 };
 
-const toDisposableSession = (session: SessionModel) => toDisposable(() => {
+const toDisposableSession = (session: ISessionServiceType) => toDisposable(() => {
   session.previewWorkerRef.current?.terminate();
   session.previewWorkerRef.current = null;
 });

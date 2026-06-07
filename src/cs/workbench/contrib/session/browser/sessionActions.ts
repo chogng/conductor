@@ -3,7 +3,7 @@ import type {
   PreviewStatus,
   StateSetter,
   SsManualRanges,
-} from "./sessionContext";
+} from "src/cs/workbench/services/session/common/session";
 import type {
   AnalysisResultsByFileId,
   CleanedEntry,

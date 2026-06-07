@@ -1,8 +1,16 @@
 // Owns editable x and y axis title widgets for the plot main chart.
-import { InlineEditableTextWidget } from "src/cs/base/browser/ui/inlineEditableText/inlineEditableText";
+
+import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
+import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { localize } from "src/cs/nls";
 
 type PlotAxis = "x" | "y";
+
+type AxisEditState = {
+  readonly axis: PlotAxis;
+  readonly store: DisposableStore;
+};
 
 export type PlotAxisTitleViewOptions = {
   readonly fontSize?: number;
@@ -15,62 +23,39 @@ export type PlotAxisTitleViewOptions = {
 export class PlotAxisTitleView {
   public readonly element = document.createElement("div");
 
+  private readonly disposables = new DisposableStore();
   private readonly xElement = document.createElement("div");
   private readonly yElement = document.createElement("div");
-  private readonly xWidget: InlineEditableTextWidget;
-  private readonly yWidget: InlineEditableTextWidget;
-  private xDraft = "";
-  private yDraft = "";
-  private xEditing = false;
-  private yEditing = false;
+  private readonly xText = document.createElement("span");
+  private readonly yText = document.createElement("span");
+  private editState: AxisEditState | null = null;
   private options: PlotAxisTitleViewOptions;
 
   public constructor(options: PlotAxisTitleViewOptions) {
     this.options = options;
-    this.xDraft = options.xTitle;
-    this.yDraft = options.yTitle;
     this.element.className = "plot_main_chart_axis_titles";
     this.xElement.className = "plot_main_chart_axis_title plot_main_chart_axis_title--x";
     this.yElement.className = "plot_main_chart_axis_title plot_main_chart_axis_title--y";
-    this.xWidget = new InlineEditableTextWidget(this.createWidgetOptions("x"));
-    this.yWidget = new InlineEditableTextWidget(this.createWidgetOptions("y"));
-    this.xElement.append(this.xWidget.element);
-    this.yElement.append(this.yWidget.element);
+    this.xText.className = "plot_main_chart_axis_title_text";
+    this.yText.className = "plot_main_chart_axis_title_text plot_main_chart_axis_title_text--y";
+    this.xElement.append(this.xText);
+    this.yElement.append(this.yText);
     this.element.append(this.xElement, this.yElement);
+    this.disposables.add(addDisposableListener(this.xText, EventType.DBLCLICK, () => this.startEdit("x")));
+    this.disposables.add(addDisposableListener(this.yText, EventType.DBLCLICK, () => this.startEdit("y")));
+    this.disposables.add(addDisposableListener(this.xText, EventType.KEY_DOWN, (event) => this.handleTextKeyDown(event, "x")));
+    this.disposables.add(addDisposableListener(this.yText, EventType.KEY_DOWN, (event) => this.handleTextKeyDown(event, "y")));
     this.render();
   }
 
   public dispose(): void {
-    this.xWidget.dispose();
-    this.yWidget.dispose();
+    this.stopEdit();
+    this.disposables.dispose();
     this.element.remove();
   }
 
-  private createWidgetOptions(axis: PlotAxis) {
-    const isX = axis === "x";
-    const title = isX ? this.options.xTitle : this.options.yTitle;
-    const draftTitle = isX ? this.xDraft : this.yDraft;
-    const editing = isX ? this.xEditing : this.yEditing;
-    const canEdit = this.canEdit(axis);
-    return {
-      className: `plot_main_chart_axis_title_widget plot_main_chart_axis_title_widget--${axis}`,
-      displayClassName: "plot_main_chart_axis_title_input",
-      draftValue: draftTitle,
-      editing,
-      inputClassName: "plot_main_chart_axis_title_input",
-      onCancel: () => this.cancelEdit(axis),
-      onChange: (nextTitle: string) => this.setDraft(axis, nextTitle),
-      onCommit: () => this.commitEdit(axis),
-      onStartEdit: () => {
-        if (canEdit) {
-          this.startEdit(axis);
-        }
-      },
-      title: canEdit
-        ? localize("plot_axis_title_edit", "Double-click to edit axis title")
-        : this.getAriaLabel(axis),
-      value: title,
-    };
+  public editAxisTitle(axis: PlotAxis): boolean {
+    return this.startEdit(axis);
   }
 
   private render(): void {
@@ -80,63 +65,128 @@ export class PlotAxisTitleView {
       this.element.style.removeProperty("--plot-axis-title-font-size");
     }
 
-    this.xWidget.update(this.createWidgetOptions("x"));
-    this.yWidget.update(this.createWidgetOptions("y"));
-    this.xWidget.inputElement.setAttribute("aria-label", this.getAriaLabel("x"));
-    this.yWidget.inputElement.setAttribute("aria-label", this.getAriaLabel("y"));
-    this.xWidget.inputElement.tabIndex = this.canEdit("x") ? 0 : -1;
-    this.yWidget.inputElement.tabIndex = this.canEdit("y") ? 0 : -1;
+    this.xText.textContent = this.options.xTitle;
+    this.yText.textContent = this.options.yTitle;
+    this.xText.setAttribute("aria-label", this.getAriaLabel("x"));
+    this.yText.setAttribute("aria-label", this.getAriaLabel("y"));
+    this.setTextEditState(this.xText, this.canEdit("x"));
+    this.setTextEditState(this.yText, this.canEdit("y"));
+    this.xText.title = this.canEdit("x")
+      ? localize("plot_axis_title_edit", "Double-click to edit axis title")
+      : this.getAriaLabel("x");
+    this.yText.title = this.canEdit("y")
+      ? localize("plot_axis_title_edit", "Double-click to edit axis title")
+      : this.getAriaLabel("y");
   }
 
-  private startEdit(axis: PlotAxis): void {
-    if (axis === "x") {
-      this.xEditing = true;
-      this.xDraft = this.options.xTitle;
-    } else {
-      this.yEditing = true;
-      this.yDraft = this.options.yTitle;
-    }
-    this.render();
-  }
-
-  private cancelEdit(axis: PlotAxis): void {
-    if (axis === "x") {
-      this.xEditing = false;
-      this.xDraft = this.options.xTitle;
-    } else {
-      this.yEditing = false;
-      this.yDraft = this.options.yTitle;
-    }
-    this.render();
-  }
-
-  private commitEdit(axis: PlotAxis): void {
-    if (axis === "x") {
-      const nextTitle = this.xDraft.trim() || this.options.xTitle;
-      this.xEditing = false;
-      this.xDraft = nextTitle;
-      this.render();
-      if (nextTitle !== this.options.xTitle) {
-        this.options.onXTitleChange?.(nextTitle);
-      }
+  private setTextEditState(element: HTMLElement, canEdit: boolean): void {
+    if (canEdit) {
+      element.setAttribute("role", "button");
+      element.tabIndex = 0;
       return;
     }
 
-    const nextTitle = this.yDraft.trim() || this.options.yTitle;
-    this.yEditing = false;
-    this.yDraft = nextTitle;
-    this.render();
-    if (nextTitle !== this.options.yTitle) {
-      this.options.onYTitleChange?.(nextTitle);
-    }
+    element.removeAttribute("role");
+    element.tabIndex = -1;
   }
 
-  private setDraft(axis: PlotAxis, nextTitle: string): void {
-    if (axis === "x") {
-      this.xDraft = nextTitle;
-    } else {
-      this.yDraft = nextTitle;
+  private handleTextKeyDown(event: KeyboardEvent, axis: PlotAxis): void {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
     }
+
+    event.preventDefault();
+    this.startEdit(axis);
+  }
+
+  private startEdit(axis: PlotAxis): boolean {
+    if (!this.canEdit(axis)) {
+      return false;
+    }
+
+    if (this.editState?.axis === axis) {
+      return true;
+    }
+
+    this.stopEdit();
+
+    const host = axis === "x" ? this.xElement : this.yElement;
+    const text = axis === "x" ? this.xText : this.yText;
+    const currentTitle = axis === "x" ? this.options.xTitle : this.options.yTitle;
+    const store = new DisposableStore();
+    const editorWidth = this.getEditorWidth(axis, text);
+    const inputField = createInputBoxField({
+      ariaLabel: this.getAriaLabel(axis),
+      className: `plot_main_chart_axis_title_editor plot_main_chart_axis_title_editor--${axis}`,
+      fieldClassName: "plot_main_chart_axis_title_editor_field",
+      inputClassName: "plot_main_chart_axis_title_editor_input",
+      value: currentTitle,
+    });
+    let isDone = false;
+    inputField.element.style.width = `${editorWidth}px`;
+
+    const done = (commit: boolean): void => {
+      if (isDone) {
+        return;
+      }
+
+      isDone = true;
+      const nextTitle = inputField.input.value.trim() || currentTitle;
+      store.dispose();
+      inputField.element.remove();
+      text.style.display = "";
+      this.editState = null;
+      if (commit && nextTitle !== currentTitle) {
+        if (axis === "x") {
+          this.options.onXTitleChange?.(nextTitle);
+        } else {
+          this.options.onYTitleChange?.(nextTitle);
+        }
+      }
+    };
+
+    text.style.display = "none";
+    host.append(inputField.element);
+    this.editState = { axis, store };
+    store.add(addDisposableListener(inputField.input, EventType.KEY_DOWN, (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        done(true);
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        done(false);
+      }
+    }));
+    store.add(addDisposableListener(inputField.input, EventType.BLUR, () => done(true)));
+
+    inputField.input.focus();
+    inputField.input.select();
+    return true;
+  }
+
+  private getEditorWidth(axis: PlotAxis, text: HTMLElement): number {
+    if (axis === "y") {
+      return 220;
+    }
+
+    return Math.max(72, Math.min(320, Math.ceil(text.getBoundingClientRect().width) + 16));
+  }
+
+  private stopEdit(): void {
+    if (!this.editState) {
+      return;
+    }
+
+    const state = this.editState;
+    this.editState = null;
+    state.store.dispose();
+    this.xElement.querySelector(".plot_main_chart_axis_title_editor")?.remove();
+    this.yElement.querySelector(".plot_main_chart_axis_title_editor")?.remove();
+    this.xText.style.display = "";
+    this.yText.style.display = "";
   }
 
   private canEdit(axis: PlotAxis): boolean {

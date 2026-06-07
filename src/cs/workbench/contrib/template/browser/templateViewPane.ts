@@ -5,6 +5,7 @@ import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessio
 import type { ITemplateService } from "src/cs/workbench/contrib/template/common/template";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
+import type { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
   TemplateView,
   type TemplateViewOptions,
@@ -21,6 +22,7 @@ export type TemplateViewPaneProps = {
   readonly onTemplateApplied?: TemplateViewOptions["onTemplateApplied"];
   readonly onTemplateAppliedIncremental?: TemplateViewOptions["onTemplateAppliedIncremental"];
   readonly onUpdateSettings?: TemplateViewOptions["onUpdateSettings"];
+  readonly sessionService: ISessionService;
   readonly sourceFiles?: SessionFile[];
   readonly tableModel?: TemplateViewOptions["tableModel"];
   readonly templateImportController: TemplateImportController;

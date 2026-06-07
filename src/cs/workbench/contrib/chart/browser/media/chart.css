@@ -56,6 +56,44 @@
   gap: 2px;
 }
 
+.chart_unit_controls {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.chart_unit_field {
+  display: inline-flex;
+  box-sizing: border-box;
+  height: 28px;
+  align-items: center;
+  gap: 4px;
+  color: rgb(var(--text-secondary) / 1);
+}
+
+.chart_unit_label {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.chart_unit_select {
+  box-sizing: border-box;
+  height: 28px;
+  min-width: 54px;
+  border-radius: 6px;
+  background-color: rgb(var(--bg-page) / 0.72);
+  padding: 0 6px;
+}
+
+.chart_scale_select {
+  min-width: 76px;
+}
+
+.chart_unit_select_surface {
+  z-index: 10;
+}
+
 .chart_view_header_icon_btn {
   box-sizing: border-box;
   width: 28px;

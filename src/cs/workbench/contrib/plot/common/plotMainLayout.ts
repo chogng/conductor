@@ -30,10 +30,11 @@ export type PlotMainLayoutOptions = {
   readonly xDomain: [number, number];
   readonly xTicks?: readonly number[] | null;
   readonly yDomain: [number, number];
+  readonly yScaleMode?: "linear" | "log" | "logAbs";
   readonly yTicks?: readonly number[] | null;
 };
 
-const DEFAULT_MARGIN = { top: 20, right: 20, bottom: 46, left: 64 };
+const DEFAULT_MARGIN = { top: 20, right: 20, bottom: 74, left: 96 };
 const PREVIEW_MARGIN = { top: 10, right: 10, bottom: 10, left: 10 };
 
 export const clamp = (value: number, min: number, max: number): number =>
@@ -59,6 +60,40 @@ export const createTicks = (
   const step = (max - min) / 4;
   if (!Number.isFinite(step) || step <= 0) return [min, max];
   return [0, 1, 2, 3, 4].map((index) => min + step * index);
+};
+
+const normalizeLogDomain = (domain: readonly number[]): [number, number] => {
+  const [min, max] = normalizeDomain(domain);
+  const positiveMin = min > 0 ? min : Number.NaN;
+  const positiveMax = max > 0 ? max : Number.NaN;
+  if (Number.isFinite(positiveMin) && Number.isFinite(positiveMax) && positiveMin !== positiveMax) {
+    return [positiveMin, positiveMax];
+  }
+  if (Number.isFinite(positiveMax) && positiveMax > 0) {
+    return [positiveMax / 10, positiveMax];
+  }
+  return [1e-12, 1];
+};
+
+const createLogTicks = (
+  domain: [number, number],
+  requested?: readonly number[] | null,
+): number[] => {
+  if (Array.isArray(requested) && requested.length) {
+    return requested.map(Number).filter((value) => Number.isFinite(value) && value > 0);
+  }
+
+  const [min, max] = normalizeLogDomain(domain);
+  const minPower = Math.floor(Math.log10(min));
+  const maxPower = Math.ceil(Math.log10(max));
+  const ticks: number[] = [];
+  for (let power = minPower; power <= maxPower; power++) {
+    const tick = 10 ** power;
+    if (tick >= min && tick <= max) {
+      ticks.push(tick);
+    }
+  }
+  return ticks.length ? ticks : [min, max];
 };
 
 export const createMinorTicks = (
@@ -90,15 +125,23 @@ export const createScale = (
   plotRect: PlotRect,
   xDomainRaw: [number, number],
   yDomainRaw: [number, number],
+  yScaleMode: "linear" | "log" = "linear",
 ): ChartScale => {
   const xDomain = normalizeDomain(xDomainRaw);
-  const yDomain = normalizeDomain(yDomainRaw);
+  const yDomain = yScaleMode === "log"
+    ? normalizeLogDomain(yDomainRaw)
+    : normalizeDomain(yDomainRaw);
   const xSpan = xDomain[1] - xDomain[0] || 1;
-  const ySpan = yDomain[1] - yDomain[0] || 1;
+  const yMin = yScaleMode === "log" ? Math.log10(yDomain[0]) : yDomain[0];
+  const yMax = yScaleMode === "log" ? Math.log10(yDomain[1]) : yDomain[1];
+  const ySpan = yMax - yMin || 1;
 
   return {
     xToPixel: (value) => plotRect.left + ((value - xDomain[0]) / xSpan) * plotRect.width,
-    yToPixel: (value) => plotRect.bottom - ((value - yDomain[0]) / ySpan) * plotRect.height,
+    yToPixel: (value) => {
+      const y = yScaleMode === "log" ? Math.log10(value) : value;
+      return plotRect.bottom - ((y - yMin) / ySpan) * plotRect.height;
+    },
     pixelToX: (value) => xDomain[0] + ((value - plotRect.left) / plotRect.width) * xSpan,
   };
 };
@@ -118,15 +161,27 @@ export const createPlotMainLayout = (
     width: Math.max(1, width - margin.left - margin.right),
     height: Math.max(1, height - margin.top - margin.bottom),
   };
-  const scale = createScale(plotRect, options.xDomain, options.yDomain);
+  const yScaleMode = options.yScaleMode === "log" || options.yScaleMode === "logAbs"
+    ? "log"
+    : "linear";
+  const yDomain = yScaleMode === "log"
+    ? normalizeLogDomain(options.yDomain)
+    : options.yDomain;
+  const scale = createScale(plotRect, options.xDomain, yDomain, yScaleMode);
   const xTicks = showAxes ? createTicks(options.xDomain, options.xTicks) : [];
-  const yTicks = showAxes ? createTicks(options.yDomain, options.yTicks) : [];
+  const yTicks = showAxes
+    ? yScaleMode === "log"
+      ? createLogTicks(yDomain, options.yTicks)
+      : createTicks(yDomain, options.yTicks)
+    : [];
   const xMinorTicks = !showAxes || options.showMinorTicks === false
     ? []
     : createMinorTicks(xTicks, options.xDomain, options.minorTickCount);
   const yMinorTicks = !showAxes || options.showMinorTicks === false
     ? []
-    : createMinorTicks(yTicks, options.yDomain, options.minorTickCount);
+    : yScaleMode === "log"
+      ? []
+      : createMinorTicks(yTicks, yDomain, options.minorTickCount);
 
   return {
     plotRect,

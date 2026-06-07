@@ -79,9 +79,9 @@ import {
   type ITemplateService as ITemplateServiceType,
 } from "src/cs/workbench/contrib/template/common/template";
 import {
-  ISeriesLabelService,
-  type ISeriesLabelService as ISeriesLabelServiceType,
-} from "src/cs/workbench/services/seriesLabels/common/seriesLabels";
+  ISessionService,
+  type ISessionService as ISessionServiceType,
+} from "src/cs/workbench/services/session/common/session";
 import {
   IThumbnailService,
   type IThumbnailService as IThumbnailServiceType,
@@ -139,7 +139,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @IViewsService viewsService: IViewsServiceType,
     @ITemplateApplyService templateApplyService: ITemplateApplyServiceType,
     @ITemplateService templateService: ITemplateServiceType,
-    @ISeriesLabelService seriesLabelService: ISeriesLabelServiceType,
+    @ISessionService sessionService: ISessionServiceType,
     @IThumbnailService thumbnailService: IThumbnailServiceType,
     @IWorkbenchViewModeService workbenchViewModeService: IWorkbenchViewModeServiceType,
     @IStorageService storageService: IStorageServiceType,
@@ -165,7 +165,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       pathService,
       layoutService,
       viewsService,
-      seriesLabelService,
+      sessionService,
       storageService,
       tableService,
       templateApplyService,

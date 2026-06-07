@@ -45,6 +45,7 @@ type ConductorSettings = JsonRecord & {
   onboardingCompleted: boolean;
   onboardingAutoStartDismissed: boolean;
   stopOnErrorDefault: boolean;
+  xUnitByFileId: Record<string, string>;
   yUnitByFileId: Record<string, string>;
   yScaleByFileId: Record<string, string>;
   defaultYScaleForTransfer: string;
@@ -225,6 +226,7 @@ const Y_UNITS = new Set([
   "nF",
   "pF",
 ]);
+const X_UNITS = new Set(["V", "mV"]);
 const Y_SCALES = new Set(["linear", "log"]);
 const DEFAULT_Y_SCALE = "linear";
 const THEMES = new Set(["system", "light", "dark"]);
@@ -251,6 +253,7 @@ export const DEFAULT_SETTINGS: ConductorSettings = {
   onboardingCompleted: false,
   onboardingAutoStartDismissed: false,
   stopOnErrorDefault: false,
+  xUnitByFileId: {},
   yUnitByFileId: {},
   yScaleByFileId: {},
   defaultYScaleForTransfer: "log",
@@ -478,6 +481,23 @@ function normalizeYUnitByFileIdMap(value: unknown): Record<string, string> {
   return next;
 }
 
+function normalizeXUnitByFileIdMap(value: unknown): Record<string, string> {
+  const raw = isRecord(value) ? value : {};
+  const next: Record<string, string> = {};
+
+  for (const [fileId, unit] of Object.entries(raw)) {
+    const normalizedFileId =
+      typeof fileId === "string" && fileId.trim() ? fileId.trim() : "";
+    if (!normalizedFileId) continue;
+    next[normalizedFileId] =
+      typeof unit === "string" && X_UNITS.has(unit)
+        ? unit
+        : "V";
+  }
+
+  return next;
+}
+
 function normalizeXSegmentationMode(mode: unknown): string {
   const normalizedMode =
     typeof mode === "string" ? mode.trim().toLowerCase() : "";
@@ -543,6 +563,7 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     ? next.ssMethodDefault
     : DEFAULT_SETTINGS.ssMethodDefault;
 
+  const xUnitByFileId = normalizeXUnitByFileIdMap(next.xUnitByFileId);
   const yUnitByFileId = normalizeYUnitByFileIdMap(next.yUnitByFileId);
   const yScaleByFileId = normalizeYScaleByFileIdMap(next.yScaleByFileId);
   const theme = isSetValue(THEMES, next.theme)
@@ -644,6 +665,7 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     onboardingCompleted,
     onboardingAutoStartDismissed,
     stopOnErrorDefault,
+    xUnitByFileId,
     yUnitByFileId,
     yScaleByFileId,
     theme,

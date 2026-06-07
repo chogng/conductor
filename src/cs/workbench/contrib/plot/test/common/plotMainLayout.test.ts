@@ -30,8 +30,9 @@ suite("workbench/contrib/plot/test/common/plotMainLayout", () => {
       xDomain: [0, 10],
       yDomain: [0, 100],
     });
-    assert.equal(layout.plotRect.left, 64);
+    assert.equal(layout.plotRect.left, 96);
     assert.equal(layout.plotRect.top, 20);
+    assert.equal(layout.plotRect.bottom, 326);
     assert.equal(layout.xTicks.length, 5);
     assert.equal(layout.yTicks.length, 5);
     assert.equal(layout.xMinorTicks.length, 4);

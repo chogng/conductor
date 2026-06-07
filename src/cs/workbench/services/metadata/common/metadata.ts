@@ -1,19 +1,21 @@
 /*
- * Curve metadata owns the real semantic meaning of a curve. These fields are
- * allowed to participate in calculation, parameter extraction, export, and
- * chart rendering. Do not use this type for transient UI choices.
+ * File metadata owns the real semantic meaning shared by every curve in one
+ * imported file. Axis labels, units, scale, source file name, template id, and
+ * source curve kind belong here because they participate in calculation,
+ * parameter extraction, export, and chart rendering.
  *
- * Curve data owns the measured or derived points for that same curve. It should
- * stay numeric and should not carry DOM state, selection state, or formatting.
+ * Curve data owns the measured or derived points for one plotted series. The
+ * key is fileId + curveKind + seriesId, using the source series identity
+ * directly instead of inventing a second curve id.
  *
- * Curve view state owns visual-only choices such as legend visibility, color,
- * and display title overrides. Moving a field here means changing it must not
+ * Series labels own user label overrides for the source series in one file.
+ * They are keyed by fileId + seriesId so derived IV/GM/SS/VTH curves reuse the
+ * same source label instead of duplicating label state per curve kind.
+ *
+ * Curve view state owns visual-only choices for one plotted curve, such as
+ * legend visibility and color. Moving a field here means changing it must not
  * change the scientific calculation result.
  */
-import type { Event } from "src/cs/base/common/event";
-import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-
-export const ICurveMetadataService = createDecorator<ICurveMetadataService>("curveMetadataService");
 
 export type CurveAxis = "x" | "y";
 
@@ -33,8 +35,9 @@ export type CurveKind =
 export type CurveYScale = "linear" | "log";
 
 export type CurveKey = {
-  readonly curveId: string;
+  readonly curveKind: CurveKind;
   readonly fileId: string;
+  readonly seriesId: string;
 };
 
 export type CurveAxisMetadata = {
@@ -47,8 +50,9 @@ export type CurveYAxisMetadata = CurveAxisMetadata & {
   readonly scale?: CurveYScale;
 };
 
-export type CurveMetadata = CurveKey & {
-  readonly kind: CurveKind;
+export type FileMetadata = {
+  readonly fileId: string;
+  readonly kind?: CurveKind;
   readonly sourceFileName?: string;
   readonly templateId?: string;
   readonly x: CurveAxisMetadata;
@@ -63,47 +67,44 @@ export type CurvePoint = {
 
 export type CurveData = CurveKey & {
   readonly points: readonly CurvePoint[];
+  readonly signature?: string;
   readonly xDomain?: readonly [number, number];
   readonly yDomain?: readonly [number, number];
 };
 
 export type CurveViewState = {
-  readonly axisTitleOverrides?: Partial<Record<CurveAxis, string>>;
   readonly color?: string;
   readonly hidden?: boolean;
-  readonly legendLabel?: string;
 };
 
 export type CurveModel = CurveKey & {
   readonly data?: CurveData;
-  readonly metadata?: CurveMetadata;
+  readonly fileMetadata?: FileMetadata;
   readonly viewState: CurveViewState;
 };
 
-export type CurveMetadataUpdate =
-  Partial<Omit<CurveMetadata, "curveId" | "fileId" | "x" | "y">> & {
+export type MetadataState = {
+  readonly curveViewStateByKey: Record<string, CurveViewState>;
+  readonly curvesByKey: Record<string, CurveData>;
+  readonly filesById: Record<string, FileMetadata>;
+  readonly seriesLabelsByFileId: Record<string, Record<string, string>>;
+};
+
+export type FileMetadataUpdate =
+  Partial<Omit<FileMetadata, "fileId" | "x" | "y">> & {
     readonly x?: Partial<CurveAxisMetadata>;
     readonly y?: Partial<CurveYAxisMetadata>;
   };
 
-export type CurveChangeKind = "data" | "delete" | "metadata" | "prune" | "viewState";
+export const createEmptyMetadataState = (): MetadataState => ({
+  curveViewStateByKey: {},
+  curvesByKey: {},
+  filesById: {},
+  seriesLabelsByFileId: {},
+});
 
-export type CurveChangeEvent = CurveKey & {
-  readonly kind: CurveChangeKind;
-};
-
-export interface ICurveMetadataService {
-  readonly _serviceBrand: undefined;
-  readonly onDidChangeCurve: Event<CurveChangeEvent>;
-
-  clearCurve(key: CurveKey): void;
-  getCurveData(key: CurveKey): CurveData | undefined;
-  getCurveMetadata(key: CurveKey): CurveMetadata | undefined;
-  getCurveModel(key: CurveKey): CurveModel | undefined;
-  getCurveViewState(key: CurveKey): CurveViewState;
-  prune(fileIds: readonly string[]): void;
-  setCurveData(data: CurveData): void;
-  setCurveMetadata(metadata: CurveMetadata): void;
-  updateCurveMetadata(key: CurveKey, updates: CurveMetadataUpdate): void;
-  updateCurveViewState(key: CurveKey, updates: CurveViewState): void;
-}
+export const getCurveKey = (key: CurveKey): string => [
+  key.fileId,
+  key.curveKind,
+  key.seriesId,
+].map(encodeURIComponent).join(":");

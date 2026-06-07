@@ -6,6 +6,10 @@ import { Separator, type IAction } from "src/cs/base/common/actions";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type {
+  ISessionService as ISessionServiceType,
+  SessionContextValue,
+} from "src/cs/workbench/services/session/common/session";
 import {
   createEmptyTemplateConfig,
   cloneTemplateConfig,
@@ -13,7 +17,6 @@ import {
   toTemplateNameKey,
   type TemplateConfig,
 } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
-import { getSession, defaultSessionModel } from "src/cs/workbench/contrib/session/browser/session";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import {
   validateTemplateForSave,
@@ -30,10 +33,6 @@ import type {
 } from "src/cs/workbench/contrib/template/common/template";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
-import {
-  showTemplateEditor,
-  showTemplateManagement,
-} from "src/cs/workbench/contrib/template/browser/templateCommands";
 import type { TableModel, TableSelection } from "src/cs/workbench/contrib/table/common/tableService";
 import { TemplateApplyView } from "src/cs/workbench/contrib/template/browser/views/templateApplyView";
 import {
@@ -53,6 +52,7 @@ import "src/cs/workbench/contrib/template/browser/views/media/templateView.css";
 
 export type TemplateViewOptions = {
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
+  readonly sessionService: ISessionServiceType;
   readonly templateImportController: TemplateImportController;
   readonly templateService: ITemplateService;
   sourceFiles?: SessionFile[];
@@ -116,7 +116,8 @@ export const createTemplateApplyViewState = ({
 
 const importTemplates = async (
   payload: unknown,
-  session: ReturnType<typeof getSession>,
+  session: SessionContextValue,
+  sessionService: ISessionServiceType,
   templateService: ITemplateService,
 ) => {
   const entry = payload && typeof payload === "object"
@@ -177,7 +178,7 @@ const importTemplates = async (
       cachedTemplates = [saved];
     }
     
-    defaultSessionModel.batch(() => {
+    sessionService.batch(() => {
       session.setSelectedTemplateId(typeof saved.id === "string" ? saved.id : null);
       session.setTemplateConfig(cloneTemplateConfig(saved));
     });
@@ -225,7 +226,9 @@ export class TemplateView {
   }
 
   private get session() {
-    return getSession();
+    return this.props.sessionService.createContextValue(
+      this.props.sessionService.getSnapshot(),
+    );
   }
 
   public update(props: TemplateViewOptions): void {
@@ -391,7 +394,7 @@ export class TemplateView {
       .then((remote) => {
         cachedTemplates = remote;
         templatesLoading = false;
-        defaultSessionModel.emitChange();
+        this.props.sessionService.emitChange();
       })
       .catch((err) => {
         templatesLoading = false;
@@ -481,7 +484,7 @@ export class TemplateView {
   private updateApplyOptions(updates: Partial<Pick<TemplateConfig, "stopOnError">>): void {
     const config = this.getEffectiveTemplateConfig();
     this.stopOnErrorDraft = updates.stopOnError ?? config.stopOnError;
-    defaultSessionModel.emitChange();
+    this.props.sessionService.emitChange();
   }
 
   private async deleteSelectedTemplate(): Promise<void> {
@@ -501,7 +504,7 @@ export class TemplateView {
         cachedTemplates = cachedTemplates.filter((template) => template.id !== selectedTemplateId);
       }
       const config = this.getEffectiveTemplateConfig();
-      defaultSessionModel.batch(() => {
+      this.props.sessionService.batch(() => {
         this.session.setSelectedTemplateId(AUTO_TEMPLATE_ID);
         this.session.setTemplateConfig(createEmptyTemplateConfig({
           stopOnError: templateConfig.stopOnError,
@@ -582,7 +585,12 @@ export class TemplateView {
   private async importTemplateFromDialog(): Promise<void> {
     try {
       await this.props.templateImportController.importTemplateFromDialog(
-        (payload) => importTemplates(payload, this.session, this.props.templateService),
+        (payload) => importTemplates(
+          payload,
+          this.session,
+          this.props.sessionService,
+          this.props.templateService,
+        ),
       );
     } catch (err) {
       showToast(localize("template_import_failed", "Failed to import template: {error}", { error: String(err) }), "error");
@@ -591,13 +599,13 @@ export class TemplateView {
 
   private createTemplateDraft(): void {
     const config = this.getEffectiveTemplateConfig();
-    defaultSessionModel.batch(() => {
+    this.props.sessionService.batch(() => {
       this.session.setSelectedTemplateId(null);
       this.session.setTemplateConfig(createEmptyTemplateConfig({
         stopOnError: config.stopOnError,
       }));
       this.stopOnErrorDraft = config.stopOnError;
-      showTemplateEditor();
+      this.session.setTemplateMode("save");
     });
   }
 
@@ -607,18 +615,18 @@ export class TemplateView {
       return;
     }
 
-    defaultSessionModel.batch(() => {
+    this.props.sessionService.batch(() => {
       this.session.setSelectedTemplateId(templateId);
       this.session.setTemplateConfig(cloneTemplateConfig(template));
       this.stopOnErrorDraft = Boolean(template.stopOnError);
-      showTemplateEditor();
+      this.session.setTemplateMode("save");
     });
   }
 
   private selectTemplate(templateId: string): void {
     const config = this.getEffectiveTemplateConfig();
     if (isAutoTemplateId(templateId)) {
-      defaultSessionModel.batch(() => {
+      this.props.sessionService.batch(() => {
         this.session.setSelectedTemplateId(AUTO_TEMPLATE_ID);
         this.session.setTemplateConfig(createEmptyTemplateConfig({
           stopOnError: config.stopOnError,
@@ -628,7 +636,7 @@ export class TemplateView {
     } else {
       const found = cachedTemplates?.find((template) => template.id === templateId);
       if (found) {
-        defaultSessionModel.batch(() => {
+        this.props.sessionService.batch(() => {
           this.session.setSelectedTemplateId(typeof found.id === "string" ? found.id : null);
           this.session.setTemplateConfig(cloneTemplateConfig(found));
           this.stopOnErrorDraft = Boolean(found.stopOnError);
@@ -691,11 +699,11 @@ export class TemplateView {
         cachedTemplates = [saved];
       }
 
-      defaultSessionModel.batch(() => {
+      this.props.sessionService.batch(() => {
         this.session.setSelectedTemplateId(typeof saved.id === "string" ? saved.id : null);
         this.session.setTemplateConfig(cloneTemplateConfig(saved));
         this.stopOnErrorDraft = Boolean(saved.stopOnError);
-        showTemplateManagement();
+        this.session.setTemplateMode("select");
       });
       showToast(localize("template_saved", "Template saved"), "success");
     } catch (err) {
@@ -705,8 +713,8 @@ export class TemplateView {
 
   private cancelSaveMode(): void {
     const config = this.getEffectiveTemplateConfig();
-    defaultSessionModel.batch(() => {
-      showTemplateManagement();
+    this.props.sessionService.batch(() => {
+      this.session.setTemplateMode("select");
       if (
         this.session.selectedTemplateId &&
         !isAutoTemplateId(this.session.selectedTemplateId) &&

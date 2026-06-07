@@ -2,7 +2,7 @@ import { localize, type NLSVars } from "src/cs/nls";
 import type {
   MutableState,
   StateSetter,
-} from "src/cs/workbench/contrib/session/browser/sessionContext";
+} from "src/cs/workbench/services/session/common/session";
 import { prepareExtraction } from "src/cs/workbench/contrib/template/common/extractionValidation";
 import { isAutoTemplateConfig } from "src/cs/workbench/contrib/template/common/autoTemplate";
 import { normalizeExtractionErrorDetails } from "src/cs/workbench/contrib/template/common/extractionErrors";
