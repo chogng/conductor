@@ -1,4 +1,5 @@
 import { approxEqual, parseFiniteNumber } from "../../../common/cellText.ts";
+import { parseCellLabel } from "./templateCellRef.ts";
 
 export type XSegmentationMode = "auto" | "points" | "segments";
 
@@ -21,31 +22,11 @@ export type XAutoSegmentationSuggestion = {
   total: number;
 };
 
-const CELL_REF_RE = /^([A-Z]+)([1-9]\d*)$/i;
 const MIN_GROUP_SIZE = 2;
 const DEFAULT_MAX_SCAN_ROWS = 8000;
 const DEFAULT_MIN_GROUPS = 2;
 const DEFAULT_REPEAT_THRESHOLD = 0.9;
-
-const parseCellRef = (value: unknown): CellRef | null => {
-  const text = String(value ?? "").trim().toUpperCase();
-  if (!text) return null;
-  const match = text.match(CELL_REF_RE);
-  if (!match) return null;
-
-  const row = Number(match[2]);
-  if (!Number.isInteger(row) || row <= 0) return null;
-
-  let colIndex = 0;
-  for (const char of match[1]) {
-    colIndex = colIndex * 26 + (char.charCodeAt(0) - 64);
-  }
-
-  return {
-    rowIndex: row - 1,
-    colIndex: colIndex - 1,
-  };
-};
+const parseCellRef = (value: unknown): CellRef | null => parseCellLabel(value);
 
 const normalizePreviewRowCount = (value: unknown): number | null => {
   const rowCount = Number(value);

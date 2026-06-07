@@ -1,5 +1,6 @@
 import { AUTO_TEMPLATE_CONFIG_FIELD } from "./autoTemplate.ts";
 import type { AutoExtractionBlock, AutoExtractionPlan } from "./autoTemplatePlan.ts";
+import { toCellLabel } from "./templateCellRef.ts";
 
 type AutoWorkerBlockConfig = Pick<
   AutoExtractionBlock,
@@ -27,20 +28,6 @@ const formatCompactNumber = (value: number | null | undefined): string => {
   return `${Number(Number(value).toPrecision(12))}`;
 };
 
-const toCellRef = (rowIndex: number, colIndex: number): string =>
-  `${toColumnLabel(colIndex)}${rowIndex + 1}`;
-
-const toColumnLabel = (colIndex: number): string => {
-  let value = Math.max(0, Math.floor(Number(colIndex) || 0)) + 1;
-  let label = "";
-  while (value > 0) {
-    const remainder = (value - 1) % 26;
-    label = String.fromCharCode(65 + remainder) + label;
-    value = Math.floor((value - 1) / 26);
-  }
-  return label;
-};
-
 // Shared serializer used by the template UI. This intentionally mirrors the
 // worker config model so auto-detected plans remain editable by users.
 export const buildAutoTemplateConfig = (
@@ -56,7 +43,7 @@ export const buildAutoTemplateConfig = (
     leftTitle: plan.leftTitle,
     legendPrefix: plan.legendPrefix,
     xDataEnd: "End",
-    xDataStart: toCellRef(plan.dataStartRowIndex, plan.xCol),
+    xDataStart: toCellLabel(plan.dataStartRowIndex, plan.xCol),
     xPointsPerGroup: normalizedGroupSize !== null ? String(normalizedGroupSize) : "",
     xSegmentationMode: plan.xSegmentationMode,
     xUnit: plan.xUnit,
@@ -64,7 +51,7 @@ export const buildAutoTemplateConfig = (
     yLegendCount: plan.legendCount !== null ? String(plan.legendCount) : "",
     yLegendStart:
       plan.legendStartColIndex !== null && plan.legendStartRowIndex !== null
-        ? toCellRef(plan.legendStartRowIndex, plan.legendStartColIndex)
+        ? toCellLabel(plan.legendStartRowIndex, plan.legendStartColIndex)
         : plan.legendStartValue ?? "",
     yLegendStep: plan.legendStep !== null ? formatCompactNumber(plan.legendStep) : "",
     yLegendTarget: plan.legendTarget,

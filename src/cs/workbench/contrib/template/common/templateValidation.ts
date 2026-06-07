@@ -1,8 +1,7 @@
 import { localize } from "src/cs/nls";
 import type { TemplateConfig } from "./templateManagerUtils";
 import { normalizeYUnit } from "src/cs/workbench/contrib/plot/common/units";
-
-const CELL_REF_RE = /^([A-Z]+)([1-9][0-9]*)$/;
+import { isCellLabel } from "./templateCellRef.ts";
 
 export const Y_COLUMNS_REQUIRED_MESSAGE =
   "Y Data must be selected from the columns in the preview header.";
@@ -36,7 +35,7 @@ type VarPairValidation = {
 };
 
 export function isA1CellRef(value: unknown): boolean {
-  return CELL_REF_RE.test(String(value || "").trim().toUpperCase());
+  return isCellLabel(value);
 }
 
 export function normalizeVarKeyword(raw: unknown): string {
@@ -44,7 +43,7 @@ export function normalizeVarKeyword(raw: unknown): string {
   if (!trimmed) return "";
 
   const upper = trimmed.toUpperCase();
-  if (CELL_REF_RE.test(upper)) return upper;
+  if (isCellLabel(upper)) return upper;
   return trimmed;
 }
 

@@ -43,6 +43,7 @@ import {
   areTableCellsEqual,
   areColumnIndexesEqual,
   normalizeColumnIndexes,
+  resolveTemplateCellSelection,
   resolveTemplateCellSelectionUpdate,
   resolveTemplateColumnSelectionUpdate,
   toColumnLabel,
@@ -239,14 +240,15 @@ export class TemplateView {
     this.syncStopOnErrorDraft();
 
     const nextMode = this.session.templateMode;
-    this.syncTableColumnState();
     if (this.mode !== nextMode) {
       this.mode = nextMode;
       if (nextMode === "select") {
         this.activePickField = null;
+        this.syncTableActiveCell();
       }
       this.configElement.replaceChildren(nextMode === "select" ? this.getApplyView().element : this.getEditorView().element);
     }
+    this.syncTableSelectionState();
 
     if (nextMode === "select") {
       this.updateApplyView();
@@ -350,14 +352,14 @@ export class TemplateView {
 
     this.stopOnErrorDraft = next.stopOnError;
     this.session.setTemplateConfig(next);
-    this.syncTableColumnState();
+    this.syncTableSelectionState();
     this.updateEditorView();
   }
 
-  private syncTableColumnState(): void {
+  private syncTableSelectionState(): void {
     const columns = normalizeColumnIndexes(this.getEffectiveTemplateConfig().yColumns);
-    this.tableModel?.clearHighlight();
     this.syncTableSelectedColumns(columns);
+    this.syncTableActiveCell();
   }
 
   private syncTableSelectedColumns(columns: readonly number[]): void {
@@ -369,6 +371,40 @@ export class TemplateView {
     this.tableModel?.setSelection({
       ...selection,
       selectedColumns: columns,
+    });
+  }
+
+  private syncTableActiveCell(options: { clearInvalid?: boolean } = {}): void {
+    const tableModel = this.tableModel;
+    if (!tableModel) {
+      return;
+    }
+
+    const selection = tableModel.getSelection();
+    const activeCell = resolveTemplateCellSelection(
+      this.getEffectiveTemplateConfig(),
+      this.activePickField,
+      selection.activeCell,
+    );
+
+    if (!activeCell) {
+      tableModel.clearHighlight();
+      if (options.clearInvalid && selection.activeCell) {
+        tableModel.setSelection({
+          ...selection,
+          activeCell: null,
+        });
+      }
+      return;
+    }
+
+    if (areTableCellsEqual(selection.activeCell, activeCell)) {
+      return;
+    }
+
+    tableModel.setSelection({
+      ...selection,
+      activeCell,
     });
   }
 
@@ -445,6 +481,7 @@ export class TemplateView {
         onClearYColumns: () => this.clearYColumns(),
         onPickFieldFocus: (field) => {
           this.activePickField = field;
+          this.syncTableActiveCell({ clearInvalid: Boolean(field) });
         },
         onSave: () => {
           void this.handleSaveTemplate();

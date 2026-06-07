@@ -1,11 +1,10 @@
 import { localize, type NLSVars } from "src/cs/nls";
+import { parseCellLabel } from "src/cs/workbench/contrib/template/common/templateCellRef";
 import { validateTemplateForApply } from "src/cs/workbench/contrib/template/common/templateValidation";
 import {
   inferXSegmentationSuggestionFromPreview,
   resolveXSegmentationMode,
 } from "src/cs/workbench/contrib/template/common/xSegmentation";
-
-const CELL_REF_RE = /^([A-Z]+)(\d+)$/;
 
 type CellRef = {
   rowIndex: number;
@@ -83,26 +82,7 @@ type PrepareExtractionResult =
       meta: ExtractionMeta;
     };
 
-function parseCellRef(value: unknown): CellRef | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim().toUpperCase();
-  if (!trimmed) return null;
-
-  const match = trimmed.match(CELL_REF_RE);
-  if (!match) return null;
-
-  const colLabel = match[1];
-  const rowNumber = Number(match[2]);
-  if (!Number.isInteger(rowNumber) || rowNumber < 1) return null;
-
-  let colIndex = 0;
-  for (let i = 0; i < colLabel.length; i++) {
-    colIndex = colIndex * 26 + (colLabel.charCodeAt(i) - 64);
-  }
-  colIndex -= 1;
-
-  return { rowIndex: rowNumber - 1, colIndex };
-}
+const parseCellRef = (value: unknown): CellRef | null => parseCellLabel(value);
 
 function parseNumberStrict(raw: unknown): number | null {
   if (raw === null || raw === undefined) return null;

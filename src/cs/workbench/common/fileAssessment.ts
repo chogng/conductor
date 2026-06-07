@@ -1,7 +1,8 @@
-// File assessment infers curve type, axis role, confidence, and whether a
-// template is needed from import metadata and preview rows. Template selection
-// and extraction logic live under contrib/template.
-
+/* 
+ * File assessment infers curve type, axis role, confidence, and whether a
+ * template is needed from import metadata and preview rows. Template selection
+ * and extraction logic live under contrib/template.
+ */
 
 import {
   computeSpan,

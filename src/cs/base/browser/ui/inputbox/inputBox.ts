@@ -3,6 +3,7 @@ import "src/cs/base/browser/ui/inputbox/inputBox.css";
 type InputBoxOptions = {
   readonly ariaDescribedBy?: string;
   readonly ariaLabel?: string;
+  readonly ariaLabelledBy?: string;
   readonly autoComplete?: string;
   readonly className?: string;
   readonly disabled?: boolean;
@@ -72,6 +73,9 @@ const updateInputBox = (
   }
   if (options.ariaLabel !== undefined) {
     input.setAttribute("aria-label", options.ariaLabel);
+  }
+  if (options.ariaLabelledBy !== undefined) {
+    setOptionalAttribute(input, "aria-labelledby", options.ariaLabelledBy);
   }
   if (options.ariaDescribedBy !== undefined) {
     setOptionalAttribute(input, "aria-describedby", options.ariaDescribedBy);

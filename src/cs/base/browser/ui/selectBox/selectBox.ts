@@ -17,6 +17,7 @@ export type SelectBoxOption<T extends string> = {
 
 export type SelectBoxOptions<T extends string> = {
     readonly ariaLabel?: string;
+    readonly ariaLabelledBy?: string;
     readonly className?: string;
     readonly id?: string;
     readonly matchAnchorWidth?: boolean;
@@ -118,6 +119,12 @@ export class SelectBox<T extends string> extends Disposable {
         }
         else {
             this.button.removeAttribute("aria-label");
+        }
+        if (this.options.ariaLabelledBy) {
+            this.button.setAttribute("aria-labelledby", this.options.ariaLabelledBy);
+        }
+        else {
+            this.button.removeAttribute("aria-labelledby");
         }
 
         const label = document.createElement("span");

@@ -1,6 +1,11 @@
 import type { TableCell, TableSelection } from "src/cs/workbench/contrib/table/common/tableService";
 import type { TemplatePickFieldName } from "src/cs/workbench/contrib/template/browser/views/templateEditorView";
+import {
+  parseCellLabel,
+  toCellLabel,
+} from "src/cs/workbench/contrib/template/common/templateCellRef";
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
+export { toColumnLabel } from "src/cs/workbench/contrib/template/common/templateCellRef";
 
 export const normalizeColumnIndexes = (columns: readonly number[] | undefined): number[] =>
   Array.from(new Set(
@@ -21,20 +26,6 @@ export const areColumnIndexesEqual = (
 
   return normalizedFirst.every((value, index) => value === normalizedSecond[index]);
 };
-
-export const toColumnLabel = (colIndex: number): string => {
-  let value = Math.max(0, Math.floor(Number(colIndex) || 0)) + 1;
-  let label = "";
-  while (value > 0) {
-    const remainder = (value - 1) % 26;
-    label = String.fromCharCode(65 + remainder) + label;
-    value = Math.floor((value - 1) / 26);
-  }
-  return label;
-};
-
-const toCellLabel = (rowIndex: number, colIndex: number): string =>
-  `${toColumnLabel(colIndex)}${Math.max(0, Math.floor(Number(rowIndex) || 0)) + 1}`;
 
 export const areTableCellsEqual = (
   first: TableCell | null | undefined,
@@ -83,4 +74,26 @@ export const resolveTemplateCellSelectionUpdate = (
   }
 
   return updates;
+};
+
+export const resolveTemplateCellSelection = (
+  config: TemplateConfig,
+  activePickField: TemplatePickFieldName | null,
+  currentCell: TableCell | null | undefined,
+): TableCell | null => {
+  if (!activePickField) {
+    return null;
+  }
+
+  const parsedCell = parseCellLabel(config[activePickField]);
+  if (!parsedCell) {
+    return null;
+  }
+
+  return {
+    colIndex: parsedCell.colIndex,
+    fileId: currentCell?.fileId ?? null,
+    rowIndex: parsedCell.rowIndex,
+    sheetId: currentCell?.sheetId ?? null,
+  };
 };

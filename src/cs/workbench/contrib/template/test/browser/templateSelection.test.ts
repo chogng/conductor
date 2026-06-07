@@ -1,9 +1,11 @@
 import assert from "assert";
 
+import type { TemplateConfig } from "../../common/templateManagerUtils.ts";
 import {
   areTableCellsEqual,
   areColumnIndexesEqual,
   normalizeColumnIndexes,
+  resolveTemplateCellSelection,
   resolveTemplateCellSelectionUpdate,
   resolveTemplateColumnSelectionUpdate,
   toColumnLabel,
@@ -72,6 +74,49 @@ suite("workbench/contrib/template/test/browser/templateSelection", () => {
         null,
       ),
       {},
+    );
+  });
+
+  test("template selection resolves focused field back to active cell", () => {
+    const config: TemplateConfig = {
+      bottomTitle: "",
+      leftTitle: "",
+      legendPrefix: "",
+      name: "",
+      stopOnError: false,
+      xDataEnd: "End",
+      xDataStart: "B3",
+      xPointsPerGroup: "",
+      xSegmentCount: "",
+      xSegmentationMode: "auto",
+      xUnit: "V",
+      yColumns: [],
+      yLegendCount: "",
+      yLegendStart: "",
+      yLegendStep: "",
+      yLegendTarget: "auto",
+      yUnit: "A",
+    };
+
+    assert.deepEqual(
+      resolveTemplateCellSelection(
+        config,
+        "xDataStart",
+        { fileId: "file", sheetId: "sheet", rowIndex: 0, colIndex: 0 },
+      ),
+      { fileId: "file", sheetId: "sheet", rowIndex: 2, colIndex: 1 },
+    );
+
+    assert.equal(
+      resolveTemplateCellSelection(
+        {
+          ...config,
+          xDataStart: "not-a-cell",
+        },
+        "xDataStart",
+        null,
+      ),
+      null,
     );
   });
 });

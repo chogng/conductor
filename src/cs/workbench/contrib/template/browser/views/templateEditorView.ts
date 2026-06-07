@@ -150,6 +150,14 @@ export class TemplateEditorView {
     const yColumnsField = document.createElement("div");
     yColumnsField.className = "template_selection_field";
 
+    const yColumnsFieldLabel = document.createElement("span");
+    yColumnsFieldLabel.className = "template_field_label";
+    yColumnsFieldLabel.textContent = localize("template_y_columns", "Y columns");
+    yColumnsField.append(yColumnsFieldLabel);
+
+    const yColumnsContent = document.createElement("div");
+    yColumnsContent.className = "template_selection_content";
+
     const yColumnsHeader = document.createElement("div");
     yColumnsHeader.className = "template_selection_header";
 
@@ -170,7 +178,8 @@ export class TemplateEditorView {
     this.yColumnsSummary = document.createElement("p");
     this.yColumnsSummary.className = "template_selection_summary";
     this.yColumnsSummary.setAttribute("aria-live", "polite");
-    yColumnsField.append(yColumnsHeader, this.yColumnsSummary);
+    yColumnsContent.append(yColumnsHeader, this.yColumnsSummary);
+    yColumnsField.append(yColumnsContent);
     yFields.append(yColumnsField);
 
     this.inputs = {
@@ -349,7 +358,9 @@ export class TemplateEditorView {
       placeholder?: string;
     } = {},
   ): HTMLInputElement {
+    const inputId = getTemplateFieldId(name);
     const field = createField({
+      id: inputId,
       label,
       name,
       placeholder: options.placeholder,
@@ -358,10 +369,16 @@ export class TemplateEditorView {
     const isPickableField = PICKABLE_TEMPLATE_FIELDS.has(name);
     const input = field.querySelector("input") as HTMLInputElement;
     this.disposables.add(addDisposableListener(input, "input", () => {
-      if (isPickableField) {
-        this.options.onPickFieldFocus(null);
-      }
+      const shouldRestoreFocus = document.activeElement === input;
+      const selectionStart = input.selectionStart;
+      const selectionEnd = input.selectionEnd;
       this.options.onUpdateConfig({ [name]: input.value });
+      if (shouldRestoreFocus && document.activeElement !== input) {
+        input.focus();
+        if (selectionStart !== null && selectionEnd !== null) {
+          input.setSelectionRange(selectionStart, selectionEnd);
+        }
+      }
     }));
     this.disposables.add(addDisposableListener(input, "focus", () => {
       this.options.onPickFieldFocus(
@@ -389,20 +406,27 @@ export class TemplateEditorView {
     value: T,
     onSelect: (value: T) => void,
   ): SelectField<T> {
-    const wrapper = document.createElement("label");
+    const fieldId = `template_editor_${labelToId(label)}`;
+    const labelId = `${fieldId}_label`;
+    const wrapper = document.createElement("div");
     wrapper.className = "template_field";
 
     const labelElement = document.createElement("span");
+    labelElement.id = labelId;
     labelElement.className = "template_field_label";
     labelElement.textContent = label;
     wrapper.append(labelElement);
 
     const field: SelectField<T> = {
       ariaLabel: label,
+      id: fieldId,
+      labelId,
       onSelect,
       select: createSelectBox({
         ariaLabel: label,
+        ariaLabelledBy: labelId,
         className: "template_form_selectbox",
+        id: fieldId,
         onDidSelect: onSelect,
         options,
         dropdownClassName: "template_form_selectbox_surface",
@@ -428,7 +452,9 @@ export class TemplateEditorView {
   ): void {
     field.select.update({
       ariaLabel: field.ariaLabel,
+      ariaLabelledBy: field.labelId,
       className: "template_form_selectbox",
+      id: field.id,
       onDidSelect: field.onSelect,
       options,
       dropdownClassName: "template_form_selectbox_surface",
@@ -453,6 +479,8 @@ export class TemplateEditorView {
 
 type SelectField<T extends string> = {
   ariaLabel: string;
+  id: string;
+  labelId: string;
   onSelect: (value: T) => void;
   select: SelectBox<T>;
 };
@@ -521,24 +549,30 @@ class TemplateFormSection {
 }
 
 const createField = ({
+  id,
   label,
   name,
   placeholder,
   value,
 }: {
+  id: string;
   label: string;
   name: TemplateStringFieldName;
   placeholder?: string;
   value: string;
 }): HTMLElement => {
-  const wrapper = document.createElement("label");
+  const wrapper = document.createElement("div");
   wrapper.className = "template_field";
 
   const labelElement = document.createElement("span");
+  const labelId = `${id}_label`;
+  labelElement.id = labelId;
   labelElement.className = "template_field_label";
   labelElement.textContent = label;
 
   const inputField = createInputBoxField({
+    ariaLabelledBy: labelId,
+    id,
     name: String(name),
     placeholder,
     value,
@@ -547,3 +581,7 @@ const createField = ({
   wrapper.append(labelElement, inputField.element);
   return wrapper;
 };
+
+const getTemplateFieldId = (name: string): string => `template_editor_${name}`;
+
+const labelToId = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
