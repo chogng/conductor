@@ -1,3 +1,4 @@
+/* Styles the floating readout shown while hovering over the plot main chart. */
 .plot_hover_widget {
     pointer-events: none;
     position: absolute;

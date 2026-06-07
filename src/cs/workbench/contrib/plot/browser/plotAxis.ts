@@ -1,3 +1,5 @@
+// Draws plot axes and resolves axis labels for the main chart canvas.
+
 import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
 import type { PlotMainLayout } from "src/cs/workbench/contrib/plot/common/plotMainLayout";
 import type { PlotMainChartProps } from "src/cs/workbench/contrib/plot/browser/plotMainChart";

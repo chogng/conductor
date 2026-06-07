@@ -1,4 +1,5 @@
-﻿import {
+﻿// Adapts plot render data and settings into the main chart view props.
+import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   type OriginPlotOptions,
 } from "src/cs/workbench/contrib/origin/common/originPlotOptions";

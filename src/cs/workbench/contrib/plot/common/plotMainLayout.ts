@@ -1,3 +1,4 @@
+// Computes the main plot chart layout, scale functions, and axis tick positions.
 export type PlotRect = {
   readonly bottom: number;
   readonly height: number;

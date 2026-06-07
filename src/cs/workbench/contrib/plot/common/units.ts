@@ -1,3 +1,4 @@
+// Defines supported plot units and resolves axis unit labels from raw metadata.
 const CURRENT_Y_UNIT_VALUES = [
   "A",
   "mA",

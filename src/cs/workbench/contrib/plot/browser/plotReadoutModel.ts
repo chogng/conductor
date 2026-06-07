@@ -1,4 +1,5 @@
-﻿import type { PlotMainPoint, PlotMainSeries } from "src/cs/workbench/contrib/plot/browser/plotMainChart";
+﻿// Resolves hovered plot point readout entries from chart series data.
+import type { PlotMainPoint, PlotMainSeries } from "src/cs/workbench/contrib/plot/browser/plotMainChart";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
 
 export type PlotYKey = "y" | "yPositive" | "yAbsPositive" | "ySignedLogPositive";

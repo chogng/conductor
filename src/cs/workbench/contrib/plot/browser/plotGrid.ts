@@ -1,3 +1,4 @@
+// Draws x and y grid lines for the plot area on the main chart canvas.
 import type { PlotMainLayout } from "src/cs/workbench/contrib/plot/common/plotMainLayout";
 
 export const drawPlotGrid = (

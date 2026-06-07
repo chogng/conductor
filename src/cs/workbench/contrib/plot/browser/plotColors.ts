@@ -1,3 +1,4 @@
+// Provides the default plot color palette and series color resolution.
 export const COLORS = [
   "#515151",
   "#F14040",

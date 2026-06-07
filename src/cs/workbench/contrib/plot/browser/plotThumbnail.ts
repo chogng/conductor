@@ -1,9 +1,9 @@
-﻿import {
+﻿// Owns the lightweight plot rendering used in compact previews.
+import {
   padLinearDomain,
   padLogDomain,
 } from "src/cs/workbench/contrib/plot/browser/plotViewModel";
 
-// Plot thumbnail owns the lightweight plot rendering used in compact previews.
 // Callers own file metadata, selection state, badges, labels, and lifecycle.
 import "src/cs/workbench/contrib/plot/browser/media/plot.css";
 

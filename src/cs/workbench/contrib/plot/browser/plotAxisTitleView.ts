@@ -1,3 +1,4 @@
+// Owns editable x and y axis title widgets for the plot main chart.
 import { InlineEditableTextWidget } from "src/cs/base/browser/ui/inlineEditableText/inlineEditableText";
 import { localize } from "src/cs/nls";
 

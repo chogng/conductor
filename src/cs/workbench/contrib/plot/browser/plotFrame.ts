@@ -1,3 +1,4 @@
+// Draws the outer frame around the plot area on the main chart canvas.
 import type { PlotRect } from "src/cs/workbench/contrib/plot/common/plotMainLayout";
 
 export const drawPlotFrame = (

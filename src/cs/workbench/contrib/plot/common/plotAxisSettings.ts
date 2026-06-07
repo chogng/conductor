@@ -1,3 +1,4 @@
+// Defines default plot axis settings and normalizes persisted or user-provided settings.
 export type PlotAxisSettings = {
   xMin: string;
   xMax: string;

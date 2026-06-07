@@ -1,3 +1,4 @@
+// Renders and positions the floating readout for hovered plot points.
 import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
 import type { PlotReadoutEntry } from "src/cs/workbench/contrib/plot/browser/plotReadoutModel";
 

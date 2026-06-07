@@ -1,3 +1,4 @@
+// Computes plot domains, ticks, and point models shared by chart and thumbnail rendering.
 type PlotPoint = {
   x: number | null;
   y: number | null;

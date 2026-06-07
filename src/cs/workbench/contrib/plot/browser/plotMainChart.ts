@@ -1,3 +1,4 @@
+// Owns the interactive main plot chart, canvas drawing, hover handling, and axis title editing.
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";

@@ -1,3 +1,4 @@
+// Builds the normalized render model consumed by the plot main view.
 import type { PlotMainSeries } from "src/cs/workbench/contrib/plot/browser/plotMainChart";
 
 export type PlotMainAxisLabels = Partial<{

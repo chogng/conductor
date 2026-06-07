@@ -1,4 +1,5 @@
-﻿.plot_thumbnail {
+﻿/* Styles the plot contribution thumbnails, main chart canvas layers, hover overlay, and editable axis titles. */
+.plot_thumbnail {
     position: relative;
     height: 100%;
     width: 100%;
