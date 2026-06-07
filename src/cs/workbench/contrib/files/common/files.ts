@@ -10,9 +10,9 @@ export const TOGGLE_THUMBNAIL_VIEW_ACTION_ID = "files.toggleThumbnailView";
 export const REMOVE_FILE_ITEM_COMMAND_ID = "files.item.delete";
 export const RENAME_FILE_ITEM_COMMAND_ID = "files.item.rename";
 export const SET_FILE_TEMPLATE_COMMAND_ID = "files.item.setTemplate";
-
 export const SLICE_FILE_WITH_TEMPLATE_COMMAND_ID = "files.item.sliceWithTemplate";
-export type FilesViewMode = "tree" | "thumbnail";
+
+export type FilesViewLayout = "tree" | "thumbnail";
 
 const SUPPORTED_IMPORT_FILE_EXTENSIONS = new Set<string>(IMPORT_FILE_EXTENSIONS);
 const EXCEL_IMPORT_FILE_EXTENSIONS = new Set<string>([".xls", ".xlsx"]);

@@ -35,6 +35,71 @@
     z-index: 2;
 }
 
+.plot_main_chart_axis_titles {
+    position: absolute;
+    inset: 0px;
+    z-index: 3;
+    pointer-events: none;
+}
+
+.plot_main_chart_axis_title {
+    pointer-events: none;
+    position: absolute;
+    display: flex;
+    min-width: 0px;
+    justify-content: center;
+}
+
+.plot_main_chart_axis_title--x {
+    right: 20px;
+    bottom: 4px;
+    left: 64px;
+}
+
+.plot_main_chart_axis_title--y {
+    top: 20px;
+    bottom: 46px;
+    left: 0px;
+    width: 32px;
+    align-items: center;
+}
+
+.plot_main_chart_axis_title_widget.inline-editable-text {
+    pointer-events: auto;
+    width: auto;
+    max-width: min(100%, 320px);
+    height: 24px;
+    flex: 0 1 auto;
+    justify-content: center;
+    padding: 0px 6px;
+}
+
+.plot_main_chart_axis_title_widget--y.inline-editable-text {
+    width: 220px;
+    max-width: 220px;
+    transform: rotate(-90deg);
+}
+
+.plot_main_chart_axis_title_widget.inline-editable-text--display {
+    background-color: transparent;
+}
+
+.plot_main_chart_axis_title_widget.inline-editable-text--editing {
+    background-color: rgb(var(--bg-page) / 0.96);
+    box-shadow: 0px 0px 0px 1px rgb(var(--border) / 0.95);
+}
+
+.plot_main_chart_axis_title_input.inline-editable-text__input {
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--plot-axis-title-font-size, 12px);
+    line-height: 18px;
+    font-weight: 500;
+    color: rgb(var(--text-primary) / 1);
+}
+
 .plot_axis_settings_card {
     display: flex;
     height: 100%;

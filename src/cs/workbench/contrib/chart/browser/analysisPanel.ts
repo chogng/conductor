@@ -48,6 +48,14 @@ export type ChartViewLazyProps = {
     seriesId: string,
     label: string | null,
   ) => void;
+  inspectorXAxisLabelOverride?: string;
+  inspectorYAxisLabelOverride?: string;
+  onInspectorXAxisLabelChange?: (nextLabel: string) => void;
+  onInspectorYAxisLabelChange?: (nextLabel: string) => void;
+  onXAxisLabelChange?: (nextLabel: string) => void;
+  onYAxisLabelChange?: (nextLabel: string) => void;
+  xAxisLabelOverride?: string;
+  yAxisLabelOverride?: string;
   setIonIoffMethod?: (next: IonIoffMethod) => void;
   setIonIoffManualTargetsByFileId?: StateSetter<IonIoffManualTargetsByFileId>;
   ssMethod?: SsMethod;

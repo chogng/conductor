@@ -28,12 +28,12 @@ import type {
 } from "src/cs/platform/contextview/browser/contextView";
 import { localize } from "src/cs/nls";
 import {
-  SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
   type FileEntry,
-  type FilesViewMode,
+  type FilesViewLayout,
   REMOVE_FILE_ITEM_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
+  SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/common/files";
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 import { ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
@@ -86,7 +86,7 @@ export type ExplorerViewerProps = {
   readonly templateRecords?: readonly TemplateRecord[];
   readonly files: FileEntry[];
   readonly mode?: WorkbenchMainPart;
-  readonly viewMode?: FilesViewMode;
+  readonly viewLayout?: FilesViewLayout;
   readonly folderImportSupport?: FolderImportSupport;
   readonly onListScroll: (event: Event) => void;
   readonly onCreateFolder: (folderKey: string) => void;
@@ -310,7 +310,7 @@ export class ExplorerViewer implements IDisposable {
     const nextTreeSignature = this.createTreeSignature(nextProps.files, nextProps);
     const shouldUpdateTree = nextTreeSignature !== this.treeModel.signature;
     const shouldUpdateOptions = previousSelectedFileId !== nextSelectedFileId;
-    const nextViewMode = nextProps.viewMode ?? "tree";
+    const nextViewLayout = getEffectiveViewLayout(nextProps);
     const shouldClearPlotCache = this.shouldClearThumbnailPlotCache(this.props, nextProps);
 
     this.props = nextProps;
@@ -319,7 +319,7 @@ export class ExplorerViewer implements IDisposable {
     }
     const host = this.thumbnailHost.parentElement;
     if (host) {
-      host.dataset.viewMode = nextViewMode;
+      host.dataset.viewLayout = nextViewLayout;
     }
 
     if (shouldUpdateTree) {
@@ -534,6 +534,7 @@ export class ExplorerViewer implements IDisposable {
     readonly actionPrefix: string;
     readonly commandId: string;
     readonly fileId: string;
+  }): IAction[] {
     const currentSelection = this.resolveFileTemplateSelection(fileId);
     const currentSelectionId = getTemplateSelectionId(currentSelection);
     const actions: IAction[] = [
@@ -757,7 +758,7 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private renderThumbnailGrid(): void {
-    if ((this.props.viewMode ?? "tree") !== "thumbnail") {
+    if (getEffectiveViewLayout(this.props) !== "thumbnail") {
       this.thumbnailHost.replaceChildren();
       return;
     }
@@ -1160,7 +1161,7 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private resolveThumbnailHoverContent(item: HTMLElement): HoverContent | null {
-    if ((this.props.viewMode ?? "tree") === "thumbnail") {
+    if (getEffectiveViewLayout(this.props) === "thumbnail") {
       return null;
     }
 
@@ -1354,4 +1355,10 @@ export class ExplorerViewer implements IDisposable {
     this.hoverContextViewElement = null;
     view.close();
   }
+}
+
+function getEffectiveViewLayout(
+  props: Pick<ExplorerViewerProps, "mode" | "viewLayout">,
+): FilesViewLayout {
+  return props.mode === "chart" ? props.viewLayout ?? "tree" : "tree";
 }

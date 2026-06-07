@@ -87,9 +87,9 @@ import {
   type IThumbnailService as IThumbnailServiceType,
 } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
 import {
-  IFilesViewModeService,
-  type IFilesViewModeService as IFilesViewModeServiceType,
-} from "src/cs/workbench/contrib/files/browser/filesViewModeService";
+  IWorkbenchViewModeService,
+  type IWorkbenchViewModeService as IWorkbenchViewModeServiceType,
+} from "src/cs/workbench/services/views/common/workbenchViewModeService";
 import { ResetLayoutStateCommandId } from "src/cs/workbench/services/layout/browser/layoutConstants";
 
 export const WorkbenchContributionId = "workbench.browser.workbench";
@@ -141,7 +141,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @ITemplateService templateService: ITemplateServiceType,
     @ISeriesLabelService seriesLabelService: ISeriesLabelServiceType,
     @IThumbnailService thumbnailService: IThumbnailServiceType,
-    @IFilesViewModeService filesViewModeService: IFilesViewModeServiceType,
+    @IWorkbenchViewModeService workbenchViewModeService: IWorkbenchViewModeServiceType,
     @IStorageService storageService: IStorageServiceType,
     @IInstantiationService instantiationService: IInstantiationServiceType,
   ) {
@@ -171,7 +171,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       templateApplyService,
       templateService,
       thumbnailService,
-      filesViewModeService,
+      workbenchViewModeService,
     }));
     this._register(CommandsRegistry.registerCommand({
       id: ResetLayoutStateCommandId,

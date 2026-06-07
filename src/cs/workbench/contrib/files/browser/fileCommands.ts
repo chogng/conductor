@@ -22,13 +22,12 @@ import {
   type FolderFileReadFailure,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import type { FilesPaneHost } from "src/cs/workbench/contrib/files/browser/filesPaneHost";
-import { IFilesViewModeService } from "src/cs/workbench/contrib/files/browser/filesViewModeService";
 import {
   FilesViewId,
   REMOVE_FILE_ITEM_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
-  SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
+  SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
   TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
   type FileSource,
 } from "src/cs/workbench/contrib/files/common/files";
@@ -147,8 +146,12 @@ export const showCreateFolderUnsupported = (): void => {
   });
 };
 
-export const toggleThumbnailViewHandler: ICommandHandler = (accessor) => {
-  accessor.get(IFilesViewModeService).toggleViewMode();
+export const toggleThumbnailViewHandler: ICommandHandler = async (accessor) => {
+  const viewsService = accessor.get(IViewsService);
+  const view = viewsService.getViewWithId<FilesPaneHost>(FilesViewId)
+    ?? await viewsService.openView<FilesPaneHost>(FilesViewId, false);
+
+  view?.toggleViewLayout();
 };
 
 CommandsRegistry.registerCommand({
@@ -216,6 +219,7 @@ CommandsRegistry.registerCommand({
   id: SET_FILE_TEMPLATE_COMMAND_ID,
   handler: setFileTemplateHandler,
 });
+
 export const sliceFileWithTemplateHandler: ICommandHandler<[unknown, unknown]> = (
   _accessor,
   fileId,

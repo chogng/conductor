@@ -34,11 +34,11 @@
   height: 100%;
 }
 
-.file-list-host[data-view-mode="thumbnail"] .file-list-tree {
+.file-list-host[data-view-layout="thumbnail"] .file-list-tree {
   display: none;
 }
 
-.file-list-host:not([data-view-mode="thumbnail"]) .file-list-thumbnail-grid {
+.file-list-host:not([data-view-layout="thumbnail"]) .file-list-thumbnail-grid {
   display: none;
 }
 

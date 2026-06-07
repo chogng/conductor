@@ -11,6 +11,7 @@ import {
 import {
   ADD_FOLDER_ACTION_ID,
   FilesViewId,
+  type FilesViewLayout,
   MORE_ACTIONS_ACTION_ID,
   REMOVE_FOLDER_ACTION_ID,
   TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
@@ -20,6 +21,7 @@ import type { TemplateSelection } from "src/cs/workbench/contrib/template/common
 export class FilesPaneHost extends ViewPane {
   private readonly host: HTMLDivElement;
   private readonly view: FilesPane;
+  private viewLayout: FilesViewLayout = "tree";
   private props: FilesPaneProps;
 
   constructor(props: FilesPaneProps) {
@@ -33,13 +35,13 @@ export class FilesPaneHost extends ViewPane {
     this.props = props;
     this.host = document.createElement("div");
     this.host.className = "files-pane-root";
-    this.view = new FilesPane(this.host, props);
+    this.view = new FilesPane(this.host, this.createViewProps(props));
     this.body.append(this.host);
   }
 
   public update(props: FilesPaneProps): void {
     this.props = props;
-    this.view.setProps(props);
+    this.view.setProps(this.createViewProps(props));
     if (
       this.element.isConnected &&
       this.element.clientHeight > 0 &&
@@ -83,13 +85,15 @@ export class FilesPaneHost extends ViewPane {
 
   private showMoreActions(anchor: HTMLElement, props: FilesPaneProps): void {
     const canRemoveFolder = hasFolder(props.files);
-    const isThumbnailView = props.viewMode === "thumbnail";
+    const isChartMode = props.mode === "chart";
+    const isThumbnailView = isChartMode && this.viewLayout === "thumbnail";
     props.contextMenuService.showContextMenu({
       autoSelectFirstItem: true,
       getAnchor: () => anchor,
       getActions: () => [
         createMenuAction({
           checked: isThumbnailView,
+          enabled: isChartMode,
           id: TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
           label: localize("files.thumbnailView", "Thumbnail"),
           run: () => {
@@ -115,6 +119,29 @@ export class FilesPaneHost extends ViewPane {
 
   public setFileTemplateSelection(fileId: string, selection: TemplateSelection): void {
     this.view.setFileTemplateSelection(fileId, selection);
+  }
+
+  public toggleViewLayout(): void {
+    if (this.props.mode !== "chart") {
+      return;
+    }
+    this.setViewLayout(this.viewLayout === "thumbnail" ? "tree" : "thumbnail");
+  }
+
+  private createViewProps(props: FilesPaneProps): FilesPaneProps {
+    return {
+      ...props,
+      viewLayout: this.viewLayout,
+    };
+  }
+
+  private setViewLayout(viewLayout: FilesViewLayout): void {
+    if (this.viewLayout === viewLayout) {
+      return;
+    }
+
+    this.viewLayout = viewLayout;
+    this.view.setProps(this.createViewProps(this.props));
   }
 }
 

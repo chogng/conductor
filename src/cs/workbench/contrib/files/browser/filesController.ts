@@ -35,8 +35,8 @@ import {
 import {
   type FileEntry,
   type FileSource,
+  type FilesViewLayout,
   type FilesPaneRef,
-  type FilesViewMode,
 } from "src/cs/workbench/contrib/files/common/files";
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
@@ -102,7 +102,7 @@ export type FilesControllerProps = {
   templateService: ITemplateService;
   files?: FileEntry[];
   mode?: WorkbenchMainPart;
-  viewMode?: FilesViewMode;
+  viewLayout?: FilesViewLayout;
   cleanedData?: CleanedEntry[];
   onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
   onFilesAdded?: (files: ImportSessionFileInfo[]) => void;
@@ -256,7 +256,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
       folderImportSupport: getFolderImportSupportForFileService(this.filesService),
       isDragging: this.isDragging,
       mode: this.props.mode,
-      viewMode: this.props.viewMode,
+      viewLayout: this.props.viewLayout,
       onClearError: this.handleClearError,
       onDraggingChange: this.handleDraggingChange,
       onListScroll: this.handleListScroll,

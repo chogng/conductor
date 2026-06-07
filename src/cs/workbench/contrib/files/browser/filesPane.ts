@@ -8,8 +8,8 @@ import type { IFileService } from "src/cs/platform/files/common/files";
 import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import type {
   FileEntry,
+  FilesViewLayout,
   FilesPaneRef,
-  FilesViewMode,
 } from "src/cs/workbench/contrib/files/common/files";
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
@@ -48,7 +48,7 @@ export type FilesPaneProps = {
   readonly fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
   readonly files?: FileEntry[];
   readonly mode?: WorkbenchMainPart;
-  readonly viewMode?: FilesViewMode;
+  readonly viewLayout?: FilesViewLayout;
   readonly cleanedData?: CleanedEntry[];
   readonly onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
   readonly onFilesAdded?: (files: ImportSessionFileInfo[]) => void;
@@ -95,7 +95,7 @@ export class FilesPane implements IDisposable {
       currentTemplateSelection: props.currentTemplateSelection,
       fileTemplateSelectionsByFileId: props.fileTemplateSelectionsByFileId,
       mode: props.mode,
-      viewMode: props.viewMode,
+      viewLayout: props.viewLayout,
       cleanedData: props.cleanedData,
       onFileImported: props.onFileImported,
       onFilesAdded: props.onFilesAdded,
@@ -130,7 +130,7 @@ export class FilesPane implements IDisposable {
       currentTemplateSelection: nextProps.currentTemplateSelection,
       fileTemplateSelectionsByFileId: nextProps.fileTemplateSelectionsByFileId,
       mode: nextProps.mode,
-      viewMode: nextProps.viewMode,
+      viewLayout: nextProps.viewLayout,
       cleanedData: nextProps.cleanedData,
       onFileImported: nextProps.onFileImported,
       onFilesAdded: nextProps.onFilesAdded,

@@ -7,7 +7,6 @@ import "src/cs/workbench/contrib/sash/browser/sash.contribution";
 import "src/cs/workbench/contrib/search/browser/search.contribution";
 import "src/cs/workbench/contrib/settings/browser/settings.contribution";
 import "src/cs/workbench/contrib/table/browser/table.contribution";
-import "src/cs/workbench/contrib/files/browser/filesViewModeService";
 import "src/cs/workbench/contrib/files/browser/fileCommands";
 import "src/cs/workbench/contrib/workspaces/browser/workspaceCommands";
 import "src/cs/workbench/services/analysisFile/browser/analysisFile.contribution";

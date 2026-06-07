@@ -19,9 +19,23 @@ import {
 import { createFileSelect, resolveActiveFile } from "src/cs/workbench/contrib/chart/browser/chartFileSelect";
 import { createLegendPopover, getLegendContext, isSameLegendContext, type LegendContext } from "src/cs/workbench/contrib/chart/browser/chartLegend";
 import { sameDetailPanes, toAnalysisPanelProps, toggleDetailPane, type ChartDetailPane } from "src/cs/workbench/contrib/chart/browser/chartPaneState";
+import {
+  createSecondCalculatedData,
+  getCalculatedData,
+  type CalculatedData,
+} from "src/cs/workbench/contrib/calculation/common/calculatedData";
+import { resolveLabelWithUnit } from "src/cs/workbench/contrib/plot/browser/plotAxis";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 
 import "src/cs/workbench/contrib/chart/browser/media/chart.css";
+
+type AxisTitleContext = {
+  readonly axis: "x" | "y";
+  readonly defaultTitle: string;
+  readonly fileId: string;
+  readonly pane: "chart" | "inspector";
+  readonly plotType: PlotType;
+};
 
 export class ChartViewPane extends ViewPane {
   private readonly previewPart: HTMLElement;
@@ -34,6 +48,7 @@ export class ChartViewPane extends ViewPane {
   private legendAction: Action | null = null;
   private legendPopover: HTMLElement | null = null;
   private legendContext: LegendContext | null = null;
+  private readonly axisTitlesByContext = new Map<string, string>();
   private readonly hiddenLegendKeysByContext = new Map<string, readonly string[]>();
   private fallbackActivePlotType: PlotType = "iv";
   private visibleDetailPanes: readonly ChartDetailPane[] = ["inspector"];
@@ -48,13 +63,7 @@ export class ChartViewPane extends ViewPane {
       headerVisible: false,
     });
     this.props = props;
-    this.analysisPanel = new AnalysisPanel(toAnalysisPanelProps(
-      props,
-      this.getActivePlotType(),
-      this.visibleDetailPanes,
-      this.getHiddenLegendKeys(this.getCurrentLegendContext(props)),
-      this.getLegendLabels(this.getCurrentLegendContext(props)),
-    ));
+    this.analysisPanel = new AnalysisPanel(this.getAnalysisPanelProps(props));
     this.updateAnalysisPanelTabState();
     this.headerTabs.className = "chart_view_header_tabs";
     this.headerActions.className = "chart_view_header_actions";
@@ -135,13 +144,91 @@ export class ChartViewPane extends ViewPane {
 
   private updateAnalysisPanel(props: AnalysisPanelProps): void {
     this.updateAnalysisPanelTabState();
-    this.analysisPanel.update(toAnalysisPanelProps(
-      props,
+    this.analysisPanel.update(this.getAnalysisPanelProps(props));
+  }
+
+  private getAnalysisPanelProps(props: AnalysisPanelProps): AnalysisPanelProps {
+    const legendContext = this.getCurrentLegendContext(props);
+    const chartXTitleContext = this.getAxisTitleContext(props, "chart", "x");
+    const chartYTitleContext = this.getAxisTitleContext(props, "chart", "y");
+    const inspectorXTitleContext = this.getAxisTitleContext(props, "inspector", "x");
+    const inspectorYTitleContext = this.getAxisTitleContext(props, "inspector", "y");
+    return {
+      ...toAnalysisPanelProps(
+        props,
+        this.getActivePlotType(),
+        this.visibleDetailPanes,
+        this.getHiddenLegendKeys(legendContext),
+        this.getLegendLabels(legendContext),
+      ),
+      inspectorXAxisLabelOverride: this.getAxisTitle(inspectorXTitleContext),
+      inspectorYAxisLabelOverride: this.getAxisTitle(inspectorYTitleContext),
+      onInspectorXAxisLabelChange: inspectorXTitleContext
+        ? (nextTitle) => this.updateAxisTitle(inspectorXTitleContext, nextTitle)
+        : undefined,
+      onInspectorYAxisLabelChange: inspectorYTitleContext
+        ? (nextTitle) => this.updateAxisTitle(inspectorYTitleContext, nextTitle)
+        : undefined,
+      onXAxisLabelChange: chartXTitleContext
+        ? (nextTitle) => this.updateAxisTitle(chartXTitleContext, nextTitle)
+        : undefined,
+      onYAxisLabelChange: chartYTitleContext
+        ? (nextTitle) => this.updateAxisTitle(chartYTitleContext, nextTitle)
+        : undefined,
+      xAxisLabelOverride: this.getAxisTitle(chartXTitleContext),
+      yAxisLabelOverride: this.getAxisTitle(chartYTitleContext),
+    };
+  }
+
+  private getAxisTitleContext(
+    props: AnalysisPanelProps,
+    pane: "chart" | "inspector",
+    axis: "x" | "y",
+  ): AxisTitleContext | null {
+    const sourceData = getCalculatedData(
+      props.calculatedDataByKey,
       this.getActivePlotType(),
-      this.visibleDetailPanes,
-      this.getHiddenLegendKeys(this.getCurrentLegendContext(props)),
-      this.getLegendLabels(this.getCurrentLegendContext(props)),
-    ));
+      props.activeFileId,
+    );
+    const fileId = String(sourceData?.source.fileId ?? "").trim();
+    if (!sourceData || !fileId) {
+      return null;
+    }
+    const data = pane === "inspector" ? createSecondCalculatedData(sourceData) : sourceData;
+
+    return {
+      axis,
+      defaultTitle: this.getDefaultAxisTitle(data, axis),
+      fileId,
+      pane,
+      plotType: this.getActivePlotType(),
+    };
+  }
+
+  private getAxisTitle(context: AxisTitleContext | null): string | undefined {
+    if (!context) {
+      return undefined;
+    }
+
+    return this.axisTitlesByContext.get(this.getAxisTitleStateKey(context)) ?? context.defaultTitle;
+  }
+
+  private updateAxisTitle(context: AxisTitleContext, nextTitle: string): void {
+    const normalizedTitle = nextTitle.trim();
+    const key = this.getAxisTitleStateKey(context);
+    if (!normalizedTitle || normalizedTitle === context.defaultTitle) {
+      this.axisTitlesByContext.delete(key);
+    } else {
+      this.axisTitlesByContext.set(key, normalizedTitle);
+    }
+
+    this.updateAnalysisPanel(this.props);
+  }
+
+  private getDefaultAxisTitle(data: CalculatedData, axis: "x" | "y"): string {
+    return axis === "x"
+      ? resolveLabelWithUnit(data.activeFile?.xLabel, data.xUnitLabel, "X")
+      : resolveLabelWithUnit(data.activeFile?.yLabel, data.yUnitLabel, "Y");
   }
 
   private updateAnalysisPanelTabState(): void {
@@ -384,6 +471,10 @@ export class ChartViewPane extends ViewPane {
 
   private getLegendStateKey(context: LegendContext): string {
     return `${context.fileId}:${context.plotType}`;
+  }
+
+  private getAxisTitleStateKey(context: AxisTitleContext): string {
+    return `${context.fileId}:${context.plotType}:${context.pane}:${context.axis}`;
   }
 }
 
