@@ -209,10 +209,38 @@
 
 .file-list-item-actions {
   display: flex;
-  width: 24px;
+  max-width: 50%;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
+  gap: 4px;
+  padding-left: 4px;
+}
+
+.file-list-item-assessment {
+  display: inline-flex;
+  max-width: 82px;
+  min-width: 0;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgb(var(--border) / 1);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: rgb(var(--text-secondary) / 1);
+  font-size: 10px;
+  line-height: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-list-item-assessment[data-warning="true"] {
+  border-color: rgb(217 119 6 / 0.45);
+  color: rgb(217 119 6 / 1);
+}
+
+.file-list-item-assessment[data-warning="true"]:is(.dark *) {
+  border-color: rgb(251 191 36 / 0.45);
+  color: rgb(251 191 36 / 1);
 }
 
 .file-list-item-remove {
@@ -402,21 +430,22 @@
 }
 
 .file-list-hover {
+  box-sizing: border-box;
   border: 1px solid rgb(var(--border) / 1);
   border-radius: 6px;
   background-color: rgb(var(--bg-surface) / 1);
   box-shadow: var(--shadow-lg);
-  padding: 7px 9px;
   color: rgb(var(--text-primary) / 1);
+}
+
+.file-list-hover.file-list-hover--assessment {
+  padding: 7px 9px;
 }
 
 .file-list-hover.file-list-hover--thumbnail {
   width: min(360px, 44vw);
   max-width: min(360px, 44vw);
-  border-color: transparent;
-  background-color: transparent;
-  box-shadow: none;
-  padding: 0;
+  padding: 8px;
 }
 
 .file-list-hover-summary {

@@ -1,6 +1,7 @@
 import { toAction, type IAction } from "src/cs/base/common/actions";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
+import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 import { ExportViewId } from "src/cs/workbench/contrib/export/common/export";
 import { OriginExportSettingsViewId } from "src/cs/workbench/contrib/origin/common/origin";
 import { ParametersViewId } from "src/cs/workbench/contrib/parameters/common/parameters";
@@ -8,7 +9,7 @@ import { SearchViewId } from "src/cs/workbench/contrib/search/common/search";
 import { TemplateAuxiliaryBarViewId } from "src/cs/workbench/contrib/template/common/template";
 
 export type AuxiliaryBarView = "template" | "search" | "export" | "parameters" | "settings";
-export type AuxiliaryBarMode = "table" | "chart";
+export type AuxiliaryBarMode = WorkbenchMainPart;
 export type TemplateAuxiliaryBarMode = "select" | "save";
 
 export type AuxiliaryBarViewDescriptor = {

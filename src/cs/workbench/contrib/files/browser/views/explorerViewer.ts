@@ -29,6 +29,7 @@ import type {
   FileEntry,
   FilesViewMode,
 } from "src/cs/workbench/contrib/files/common/files";
+import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 import { ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
@@ -63,6 +64,7 @@ export type ExplorerViewerProps = {
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly thumbnailService: IThumbnailService;
   readonly files: FileEntry[];
+  readonly mode?: WorkbenchMainPart;
   readonly viewMode?: FilesViewMode;
   readonly folderImportSupport?: FolderImportSupport;
   readonly onListScroll: (event: Event) => void;
@@ -79,13 +81,15 @@ const FILE_ROW_HEIGHT = 28;
 const FILE_HOVER_HIDE_DELAY_MS = 120;
 const HOVER_THUMBNAIL_CACHE_LIMIT = 12;
 
-type FileItemMeta = {
+type FileItemAssessment = {
+  readonly label: string;
   readonly isWarning: boolean;
   readonly summary: string;
 };
 
 type FileItemTemplate = {
   readonly actions: HTMLDivElement;
+  readonly assessment: HTMLSpanElement;
   readonly content: HTMLDivElement;
   fileId: string | null;
   readonly host: HTMLElement;
@@ -114,12 +118,17 @@ type TreeModelCache = {
   readonly signature: string;
 };
 
-type HoverContent = {
-  readonly isSelected: boolean;
-  readonly isWarning: boolean;
-  readonly processedFile: CleanedEntry | null;
-  readonly summary: string;
-};
+type HoverContent =
+  | {
+    readonly kind: "assessment";
+    readonly isWarning: boolean;
+    readonly summary: string;
+  }
+  | {
+    readonly kind: "thumbnail";
+    readonly isSelected: boolean;
+    readonly processedFile: CleanedEntry;
+  };
 
 type HoverThumbnailCacheEntry = {
   readonly file: CleanedEntry;
@@ -129,7 +138,7 @@ type HoverThumbnailCacheEntry = {
   lastUsed: number;
 };
 
-const getFileItemMeta = (fileEntry: FileEntry): FileItemMeta | null => {
+const createFileItemAssessment = (fileEntry: FileEntry): FileItemAssessment | null => {
   if (!fileEntry?.curveType) {
     return null;
   }
@@ -144,6 +153,7 @@ const getFileItemMeta = (fileEntry: FileEntry): FileItemMeta | null => {
   });
 
   return {
+    label: curveType,
     isWarning:
       fileEntry?.curveTypeNeedsTemplate === true ||
       fileEntry?.curveTypeConfidence === "low",
@@ -426,7 +436,7 @@ export class ExplorerViewer implements IDisposable {
     template: FileItemTemplate,
   ): void {
     const fileName = getFileName(fileEntry);
-    const meta = getFileItemMeta(fileEntry);
+    const assessment = createFileItemAssessment(fileEntry);
     const { host } = template;
 
     host.className = "file-list-item";
@@ -446,9 +456,9 @@ export class ExplorerViewer implements IDisposable {
     } else {
       delete host.dataset.fileId;
     }
-    if (meta) {
-      host.dataset.autoSummary = meta.summary;
-      host.dataset.autoWarning = meta.isWarning ? "true" : "false";
+    if (assessment) {
+      host.dataset.autoSummary = assessment.summary;
+      host.dataset.autoWarning = assessment.isWarning ? "true" : "false";
     } else {
       delete host.dataset.autoSummary;
       delete host.dataset.autoWarning;
@@ -472,6 +482,17 @@ export class ExplorerViewer implements IDisposable {
         title: fileName,
       },
     );
+    if (assessment) {
+      template.assessment.textContent = assessment.label;
+      template.assessment.title = assessment.summary;
+      template.assessment.dataset.warning = assessment.isWarning ? "true" : "false";
+      template.assessment.hidden = false;
+    } else {
+      template.assessment.textContent = "";
+      template.assessment.removeAttribute("title");
+      delete template.assessment.dataset.warning;
+      template.assessment.hidden = true;
+    }
     template.removeButton.setAttribute(
       "aria-label",
       localize("import.removeFileButtonLabel", "Remove {fileName}", { fileName }),
@@ -503,7 +524,6 @@ export class ExplorerViewer implements IDisposable {
         curveFilterField: null,
         curveFilterKey: null,
         curveType: file.curveType ?? undefined,
-        curveTypeConfidence: file.curveTypeConfidence,
         fileId: file.fileId,
         fileName: file.fileName,
       }));
@@ -553,12 +573,16 @@ export class ExplorerViewer implements IDisposable {
 
     const actions = document.createElement("div");
     actions.className = "file-list-item-actions";
+    const assessment = document.createElement("span");
+    assessment.className = "file-list-item-assessment";
+    assessment.hidden = true;
 
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "file-list-item-remove";
     const template: FileItemTemplate = {
       actions,
+      assessment,
       content,
       fileId: null,
       host,
@@ -571,7 +595,7 @@ export class ExplorerViewer implements IDisposable {
     });
     appendIcon(removeButton, LxIcon.close);
 
-    actions.appendChild(removeButton);
+    actions.append(assessment, removeButton);
     return template;
   }
 
@@ -745,10 +769,7 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private hasFileItemHoverContent(item: HTMLElement): boolean {
-    return Boolean(
-      this.getProcessedFile(item.dataset.fileId) ||
-      item.dataset.autoSummary,
-    );
+    return this.resolveHoverContent(item) !== null;
   }
 
   private isInsideFileHover(
@@ -818,9 +839,9 @@ export class ExplorerViewer implements IDisposable {
   private openFileItemHoverView(item: HTMLElement, content: HoverContent): void {
     const token = this.hoverViewToken + 1;
     this.hoverViewToken = token;
-    const classNames = content.processedFile
+    const classNames = content.kind === "thumbnail"
       ? ["file-list-hover", "file-list-hover--thumbnail"]
-      : ["file-list-hover"];
+      : ["file-list-hover", "file-list-hover--assessment"];
 
     this.hoverView = this.props.contextViewService.showContextView({
       anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL,
@@ -854,7 +875,11 @@ export class ExplorerViewer implements IDisposable {
     );
     disposables.add({
       dispose: () => {
-        container.classList.remove("file-list-hover", "file-list-hover--thumbnail");
+        container.classList.remove(
+          "file-list-hover",
+          "file-list-hover--assessment",
+          "file-list-hover--thumbnail",
+        );
         container.removeAttribute("role");
         if (this.hoverContextViewElement === container) {
           this.hoverContextViewElement = null;
@@ -867,15 +892,24 @@ export class ExplorerViewer implements IDisposable {
 
   private resolveHoverContent(item: HTMLElement): HoverContent | null {
     const summary = item.dataset.autoSummary ?? "";
-    const processedFile = this.getProcessedFile(item.dataset.fileId);
-    if (!processedFile && !summary) {
+    if (this.props.mode === "chart") {
+      const processedFile = this.getProcessedFile(item.dataset.fileId);
+      if (processedFile) {
+        return {
+          kind: "thumbnail",
+          isSelected: item.dataset.selected === "true",
+          processedFile,
+        };
+      }
+    }
+
+    if (!summary) {
       return null;
     }
 
     return {
-      isSelected: item.dataset.selected === "true",
+      kind: "assessment",
       isWarning: item.dataset.autoWarning === "true",
-      processedFile,
       summary,
     };
   }
@@ -886,7 +920,7 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    if (content.processedFile) {
+    if (content.kind === "thumbnail") {
       container.appendChild(this.getHoverThumbnail(
         content.processedFile,
         content.isSelected,

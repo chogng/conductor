@@ -39,6 +39,7 @@ import {
   ActiveAuxiliaryBarViewContext,
   ActiveWorkbenchMainPartContext,
   ActiveWorkbenchViewContext,
+  type WorkbenchMainPart,
 } from "src/cs/workbench/common/contextkeys";
 import { Layout, type LayoutView } from "src/cs/workbench/browser/layout";
 import {
@@ -154,8 +155,6 @@ export type WorkbenchTitlebarState = {
   readonly onInstallUpdate?: () => void;
 };
 
-type WorkbenchMainPart = "table" | "chart";
-
 type WorkbenchSessionSnapshot = ReturnType<SessionModel["getSnapshot"]>;
 
 export type WorkbenchOptions = {
@@ -246,7 +245,7 @@ export class Workbench extends Layout {
   private readonly filesPane: FilesPaneHost;
   private readonly commandService: ICommandService;
   private readonly activeWorkbenchViewContext: IContextKey<string> | null = null;
-  private readonly activeWorkbenchMainPartContext: IContextKey<string> | null = null;
+  private readonly activeWorkbenchMainPartContext: IContextKey<WorkbenchMainPart | ""> | null = null;
   private readonly activeAuxiliaryBarViewContext: IContextKey<string> | null = null;
   private readonly table: TableContribution;
   private readonly templateViewPane: TemplateViewPane;
@@ -887,6 +886,7 @@ export class Workbench extends Layout {
         ? createChartExplorerFiles(snapshot.sourceFiles, snapshot.cleanedData)
         : snapshot.sourceFiles,
       filesService: this.filesService,
+      mode: this.activeMainPart,
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
       plotAxisSettings: this.coreSettingsState.conductorSettings?.plotAxisSettings,
       thumbnailService: this.thumbnailService,

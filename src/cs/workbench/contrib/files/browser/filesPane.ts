@@ -11,6 +11,7 @@ import type {
   FilesPaneRef,
   FilesViewMode,
 } from "src/cs/workbench/contrib/files/common/files";
+import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { CalculatedDataByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
@@ -37,6 +38,7 @@ export type FilesPaneProps = {
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly thumbnailService: IThumbnailService;
   readonly files?: FileEntry[];
+  readonly mode?: WorkbenchMainPart;
   readonly viewMode?: FilesViewMode;
   readonly cleanedData?: CleanedEntry[];
   readonly onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
@@ -77,6 +79,7 @@ export class FilesPane implements IDisposable {
       originOpenPlotOptions: props.originOpenPlotOptions,
       plotAxisSettings: props.plotAxisSettings,
       thumbnailService: props.thumbnailService,
+      mode: props.mode,
       viewMode: props.viewMode,
       cleanedData: props.cleanedData,
       onFileImported: props.onFileImported,
@@ -105,6 +108,7 @@ export class FilesPane implements IDisposable {
       originOpenPlotOptions: nextProps.originOpenPlotOptions,
       plotAxisSettings: nextProps.plotAxisSettings,
       thumbnailService: nextProps.thumbnailService,
+      mode: nextProps.mode,
       viewMode: nextProps.viewMode,
       cleanedData: nextProps.cleanedData,
       onFileImported: nextProps.onFileImported,

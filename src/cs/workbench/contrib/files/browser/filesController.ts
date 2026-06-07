@@ -37,6 +37,7 @@ import {
   type FilesPaneRef,
   type FilesViewMode,
 } from "src/cs/workbench/contrib/files/common/files";
+import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { CalculatedDataByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
@@ -86,6 +87,7 @@ export type FilesControllerProps = {
   plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   thumbnailService: IThumbnailService;
   files?: FileEntry[];
+  mode?: WorkbenchMainPart;
   viewMode?: FilesViewMode;
   cleanedData?: CleanedEntry[];
   onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
@@ -214,6 +216,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
       files: this.files,
       folderImportSupport: getFolderImportSupportForFileService(this.filesService),
       isDragging: this.isDragging,
+      mode: this.props.mode,
       viewMode: this.props.viewMode,
       onClearError: this.handleClearError,
       onDraggingChange: this.handleDraggingChange,

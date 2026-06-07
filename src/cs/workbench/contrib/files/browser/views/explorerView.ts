@@ -97,6 +97,7 @@ export class ExplorerView implements IDisposable {
       thumbnailService: this.props.thumbnailService,
       files: this.props.files,
       folderImportSupport: this.props.folderImportSupport,
+      mode: this.props.mode,
       viewMode: this.props.viewMode,
       onListScroll: this.props.onListScroll,
       onCreateFolder: this.props.onCreateFolder,
