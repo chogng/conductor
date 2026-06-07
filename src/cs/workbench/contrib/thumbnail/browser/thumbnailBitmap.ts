@@ -10,17 +10,17 @@ import {
 } from "src/cs/workbench/contrib/plot/browser/mainPlotCanvas";
 import { createMainPlotCanvasProps } from "src/cs/workbench/contrib/plot/browser/mainPlotView";
 
-export type ThumbnailPlotBitmapOptions = {
+export type ThumbnailBitmapOptions = {
   readonly model: CalculatedData;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly plotType: PlotType;
 };
 
-export type ThumbnailPlotBitmapCache = {
+export type ThumbnailBitmapCache = {
   readonly clear: () => void;
   readonly dispose: () => void;
-  readonly get: (options: ThumbnailPlotBitmapOptions) => HTMLCanvasElement;
+  readonly get: (options: ThumbnailBitmapOptions) => HTMLCanvasElement;
 };
 
 type CacheEntry = {
@@ -36,28 +36,13 @@ type SourceSize = {
 const DEFAULT_SOURCE_SIZE: SourceSize = { width: 720, height: 420 };
 const DEFAULT_CACHE_LIMIT = 48;
 
-export const createThumbnailPlotBitmapCache = (
+export const createThumbnailBitmapCache = (
   limit = DEFAULT_CACHE_LIMIT,
-): ThumbnailPlotBitmapCache => {
+): ThumbnailBitmapCache => {
   const entries = new Map<string, CacheEntry>();
-  const modelIds = new WeakMap<object, number>();
-  let nextModelId = 1;
   let use = 0;
 
-  const getModelId = (model: CalculatedData): number => {
-    const key = model as unknown as object;
-    const cached = modelIds.get(key);
-    if (cached) {
-      return cached;
-    }
-
-    const next = nextModelId;
-    nextModelId += 1;
-    modelIds.set(key, next);
-    return next;
-  };
-
-  const get = (options: ThumbnailPlotBitmapOptions): HTMLCanvasElement => {
+  const get = (options: ThumbnailBitmapOptions): HTMLCanvasElement => {
     const renderProps = createMainPlotCanvasProps({
       model: options.model,
       originOpenPlotOptions: options.originOpenPlotOptions,
@@ -65,7 +50,7 @@ export const createThumbnailPlotBitmapCache = (
       plotType: options.plotType,
     });
     const key = createCacheKey({
-      modelId: getModelId(options.model),
+      modelSignature: options.model.signature,
       renderProps,
       size: DEFAULT_SOURCE_SIZE,
     });
@@ -77,7 +62,7 @@ export const createThumbnailPlotBitmapCache = (
       return cached.canvas;
     }
 
-    const canvas = createPlotBitmap(renderProps, DEFAULT_SOURCE_SIZE);
+    const canvas = createBitmap(renderProps, DEFAULT_SOURCE_SIZE);
     entries.set(key, { canvas, lastUsed: use });
     trimCache(entries, limit);
     return canvas;
@@ -94,14 +79,14 @@ export const createThumbnailPlotBitmapCache = (
   };
 };
 
-export const drawThumbnailPlotBitmap = ({
+export const drawThumbnailBitmap = ({
   cache,
   canvas,
   options,
 }: {
-  readonly cache?: ThumbnailPlotBitmapCache | null;
+  readonly cache?: ThumbnailBitmapCache | null;
   readonly canvas: HTMLCanvasElement;
-  readonly options: ThumbnailPlotBitmapOptions;
+  readonly options: ThumbnailBitmapOptions;
 }): void => {
   const width = Math.max(1, canvas.clientWidth || 320);
   const height = Math.max(1, canvas.clientHeight || 180);
@@ -119,7 +104,7 @@ export const drawThumbnailPlotBitmap = ({
   context.setTransform(dpr, 0, 0, dpr, 0, 0);
   context.clearRect(0, 0, width, height);
   const bitmap = cache?.get(options) ??
-    createPlotBitmap(
+    createBitmap(
       createMainPlotCanvasProps({
         model: options.model,
         originOpenPlotOptions: options.originOpenPlotOptions,
@@ -131,7 +116,7 @@ export const drawThumbnailPlotBitmap = ({
   context.drawImage(bitmap, 0, 0, width, height);
 };
 
-const createPlotBitmap = (
+const createBitmap = (
   renderProps: MainPlotCanvasProps,
   size: SourceSize,
 ): HTMLCanvasElement => {
@@ -141,19 +126,23 @@ const createPlotBitmap = (
 };
 
 const createCacheKey = ({
-  modelId,
+  modelSignature,
   renderProps,
   size,
 }: {
-  readonly modelId: number;
+  readonly modelSignature: string;
   readonly renderProps: MainPlotCanvasProps;
   readonly size: SourceSize;
 }): string => [
-  modelId,
+  modelSignature,
   renderProps.plotType ?? "",
   size.width,
   size.height,
   window.devicePixelRatio || 1,
+  renderProps.activeFile?.xLabel ?? "",
+  renderProps.activeFile?.yLabel ?? "",
+  renderProps.plotXUnitLabel ?? "",
+  renderProps.plotYUnitLabel ?? "",
   renderProps.curveLineWidth ?? "",
   renderProps.curvePlotType ?? "",
   renderProps.showGrid ?? "",

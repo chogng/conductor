@@ -1,4 +1,7 @@
-import type { CalculatedData } from "src/cs/workbench/contrib/calculation/common/calculatedData";
+import {
+  createCalculatedDataSignature,
+  type CalculatedData,
+} from "src/cs/workbench/contrib/calculation/common/calculatedData";
 
 export const filterCalculatedDataSeries = (
   model: CalculatedData,
@@ -15,12 +18,22 @@ export const filterCalculatedDataSeries = (
   }
 
   const points = seriesList.flatMap((series) => series.data);
-  return {
-    ...model,
+  const xDomain = getFiniteDomain(points.map((point) => Number(point.x)), model.xDomain);
+  const yDomain = getFiniteDomain(points.map((point) => Number(point.y)), model.yDomain);
+  const nextModel = {
+    activeFile: model.activeFile,
+    kind: model.kind,
     pointsCount: points.length,
     seriesList,
-    xDomain: getFiniteDomain(points.map((point) => Number(point.x)), model.xDomain),
-    yDomain: getFiniteDomain(points.map((point) => Number(point.y)), model.yDomain),
+    source: model.source,
+    xDomain,
+    xUnitLabel: model.xUnitLabel,
+    yDomain,
+    yUnitLabel: model.yUnitLabel,
+  };
+  return {
+    ...nextModel,
+    signature: createCalculatedDataSignature(nextModel),
   };
 };
 

@@ -9,8 +9,8 @@ import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/o
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import {
-  drawThumbnailPlotBitmap,
-} from "src/cs/workbench/contrib/thumbnail/browser/thumbnailPlotBitmap";
+  drawThumbnailBitmap,
+} from "src/cs/workbench/contrib/thumbnail/browser/thumbnailBitmap";
 import type { IThumbnailService } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
 
 export type CleanedFileLike = {
@@ -20,7 +20,6 @@ export type CleanedFileLike = {
   curveFilterKey?: string | null;
   curveFilterField?: string | null;
   curveType?: string;
-  curveTypeConfidence?: "high" | "medium" | "low";
   x?: {
     sampledPoints?: number | null;
   };
@@ -110,32 +109,10 @@ const createHeader = (file: CleanedFileLike): HTMLElement => {
   title.className = "thumbnail_view_title";
   title.textContent = file.fileName ?? file.fileId ?? "";
 
-  const meta = document.createElement("div");
-  meta.className = "thumbnail_view_meta";
-  const metaText = document.createElement("div");
-  metaText.id = `thumbnail-series-${toSafeIdSuffix(file?.fileId ?? file?.fileName)}`;
-  metaText.className = "thumbnail_view_meta_text";
-  metaText.textContent = createMetaText(file);
-  meta.append(metaText);
-  main.append(title, meta);
+  main.append(title);
   row.append(main);
   root.append(row);
   return root;
-};
-
-const createMetaText = (file: CleanedFileLike): string => {
-  const seriesCount = Array.isArray(file?.series) ? file.series.length : 0;
-  const sampledPoints = file?.x?.sampledPoints ?? null;
-  const parts = [`series:${seriesCount}`];
-  if (sampledPoints) {
-    parts.push(`points: ${sampledPoints}`);
-  }
-  if (file.curveType) {
-    parts.push(
-      `Type:${file.curveType}${file.curveTypeConfidence ? ` (${file.curveTypeConfidence})` : ""}`,
-    );
-  }
-  return parts.join(" | ");
 };
 
 const createChartThumbnail = ({
@@ -252,7 +229,7 @@ const createMainPlotThumbnailCanvas = ({
       return;
     }
 
-    drawThumbnailPlotBitmap({ canvas, options });
+    drawThumbnailBitmap({ canvas, options });
   });
   return canvas;
 };
@@ -286,14 +263,6 @@ const createRangeLine = (text: string): HTMLElement => {
   const line = document.createElement("div");
   line.textContent = text;
   return line;
-};
-
-const toSafeIdSuffix = (value: string | undefined): string => {
-  const normalized = (value ?? "").trim();
-  if (!normalized) {
-    return "unknown";
-  }
-  return normalized.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
 };
 
 export default ThumbnailView;

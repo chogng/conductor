@@ -11,6 +11,7 @@ suite("workbench/contrib/chart/test/common/chartLegendVisibility", () => {
 
     assert.deepEqual(filtered.seriesList.map((series) => series.id), ["series-a"]);
     assert.equal(filtered.pointsCount, 2);
+    assert.notEqual(filtered.signature, model.signature);
     assert.deepEqual(filtered.xDomain, [0, 1]);
     assert.deepEqual(filtered.yDomain, [10, 20]);
   });
@@ -51,6 +52,7 @@ const createModel = (): CalculatedData => ({
       name: "B",
     },
   ],
+  signature: "model-signature",
   source: {
     fileId: "file-a",
     inputKind: "cleaned",

@@ -89,7 +89,9 @@ export class FilesPaneHost extends ViewPane {
           checked: isThumbnailView,
           id: TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
           label: localize("files.thumbnailView", "Thumbnail"),
-          run: () => this.setViewMode(isThumbnailView ? "tree" : "thumbnail"),
+          run: () => {
+            void props.commandService.executeCommand(TOGGLE_THUMBNAIL_VIEW_ACTION_ID);
+          },
         }),
         createMenuAction({
           icon: LxIcon.add,
@@ -113,6 +115,10 @@ export class FilesPaneHost extends ViewPane {
       ...props,
       viewMode: this.viewMode,
     };
+  }
+
+  public toggleViewMode(): void {
+    this.setViewMode(this.viewMode === "thumbnail" ? "tree" : "thumbnail");
   }
 
   private setViewMode(viewMode: FilesViewMode): void {

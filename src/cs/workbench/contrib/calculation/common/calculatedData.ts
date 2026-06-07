@@ -42,6 +42,7 @@ export type CalculatedData = {
   readonly kind: CalculatedDataKind;
   readonly pointsCount: number;
   readonly seriesList: CalculatedSeries[];
+  readonly signature: string;
   readonly source: CalculatedDataSource;
   readonly xDomain: [number, number];
   readonly xUnitLabel: string;
@@ -123,19 +124,35 @@ export const createCalculatedDataForFile = ({
   const activeFile = file;
   const seriesList = createCalculatedSeries(activeFile, plotType);
   const points = seriesList.flatMap((series) => series.data);
+  const source = {
+    fileId: fileId ?? resolveSourceFileId(activeFile),
+    inputKind: "cleaned" as const,
+  };
+  const xDomain = getFiniteDomain(points.map((point) => Number(point.x)), [0, 1]);
+  const xUnitLabel = String(activeFile?.xUnit ?? "");
+  const yDomain = getFiniteDomain(points.map((point) => Number(point.y)), [0, 1]);
+  const yUnitLabel = getCalculatedYUnitLabel(plotType, activeFile);
   return {
     activeFile,
     kind: plotType,
     pointsCount: points.length,
     seriesList,
-    source: {
-      fileId: fileId ?? resolveSourceFileId(activeFile),
-      inputKind: "cleaned",
-    },
-    xDomain: getFiniteDomain(points.map((point) => Number(point.x)), [0, 1]),
-    xUnitLabel: String(activeFile?.xUnit ?? ""),
-    yDomain: getFiniteDomain(points.map((point) => Number(point.y)), [0, 1]),
-    yUnitLabel: getCalculatedYUnitLabel(plotType, activeFile),
+    signature: createCalculatedDataSignature({
+      activeFile,
+      kind: plotType,
+      pointsCount: points.length,
+      seriesList,
+      source,
+      xDomain,
+      xUnitLabel,
+      yDomain,
+      yUnitLabel,
+    }),
+    source,
+    xDomain,
+    xUnitLabel,
+    yDomain,
+    yUnitLabel,
   };
 };
 
@@ -231,21 +248,97 @@ export const createSecondCalculatedData = (
     })
     .filter((series): series is CalculatedSeries => series !== null);
   const points = seriesList.flatMap((series) => series.data);
+  const source = {
+    fileId: sourceData.source.fileId,
+    inputKind: sourceKind,
+  };
+  const xDomain = getFiniteDomain(points.map((point) => Number(point.x)), sourceData.xDomain);
+  const yDomain = getFiniteDomain(points.map((point) => Number(point.y)), [0, 1]);
+  const yUnitLabel = getSecondCalculatedYUnitLabel(sourceData);
 
   return {
     activeFile: sourceData.activeFile,
     kind: "secondDerivative",
     pointsCount: points.length,
     seriesList,
-    source: {
-      fileId: sourceData.source.fileId,
-      inputKind: sourceKind,
-    },
-    xDomain: getFiniteDomain(points.map((point) => Number(point.x)), sourceData.xDomain),
+    signature: createCalculatedDataSignature({
+      activeFile: sourceData.activeFile,
+      kind: "secondDerivative",
+      pointsCount: points.length,
+      seriesList,
+      source,
+      xDomain,
+      xUnitLabel: sourceData.xUnitLabel,
+      yDomain,
+      yUnitLabel,
+    }),
+    source,
+    xDomain,
     xUnitLabel: sourceData.xUnitLabel,
-    yDomain: getFiniteDomain(points.map((point) => Number(point.y)), [0, 1]),
-    yUnitLabel: getSecondCalculatedYUnitLabel(sourceData),
+    yDomain,
+    yUnitLabel,
   };
+};
+
+export const createCalculatedDataSignature = ({
+  activeFile,
+  kind,
+  pointsCount,
+  seriesList,
+  source,
+  xDomain,
+  xUnitLabel,
+  yDomain,
+  yUnitLabel,
+}: {
+  readonly activeFile: CleanedEntry | null;
+  readonly kind: CalculatedDataKind;
+  readonly pointsCount: number;
+  readonly seriesList: readonly CalculatedSeries[];
+  readonly source: CalculatedDataSource;
+  readonly xDomain: readonly [number, number];
+  readonly xUnitLabel: string;
+  readonly yDomain: readonly [number, number];
+  readonly yUnitLabel: string;
+}): string => {
+  let hash = 0x811c9dc5;
+  const add = (value: unknown): void => {
+    const text = String(value ?? "");
+    for (let index = 0; index < text.length; index += 1) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 0x01000193);
+    }
+    hash ^= 31;
+    hash = Math.imul(hash, 0x01000193);
+  };
+
+  add(kind);
+  add(pointsCount);
+  add(source.fileId);
+  add(source.inputKind);
+  add(activeFile?.xLabel);
+  add(activeFile?.yLabel);
+  add(xDomain[0]);
+  add(xDomain[1]);
+  add(xUnitLabel);
+  add(yDomain[0]);
+  add(yDomain[1]);
+  add(yUnitLabel);
+
+  for (const series of seriesList) {
+    add(series.kind);
+    add(series.id);
+    add(series.name);
+    add(series.data.length);
+    for (const point of series.data) {
+      add(point.x);
+      add(point.y);
+      add(point.yPositive);
+      add(point.yAbsPositive);
+    }
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, "0");
 };
 
 const resolveSeriesId = (

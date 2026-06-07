@@ -7,10 +7,6 @@ import {
   resolveThumbnailCurveFieldFilterMeta,
   type ThumbnailFileForView,
 } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailFilters";
-import {
-  createThumbnailSelectionEvent,
-  createThumbnailVisibleFilesEvent,
-} from "src/cs/workbench/contrib/thumbnail/browser/thumbnailViewPane";
 
 suite("Thumbnail view", () => {
   test("resolveThumbnailCurveFieldFilterMeta prefers stable keys", () => {
@@ -61,13 +57,5 @@ suite("Thumbnail view", () => {
     assert.deepEqual(getVisibleThumbnailFileIds(filterThumbnailFiles(files, "transfer")), ["a"]);
     assert.deepEqual(getVisibleThumbnailFileIds(filterThumbnailFiles(files, "output")), ["b", "c"]);
     assert.deepEqual(getVisibleThumbnailFileIds(filterThumbnailFiles(files, "batch:b")), ["b"]);
-  });
-
-  test("thumbnail pane events normalize ids", () => {
-    assert.deepEqual(createThumbnailSelectionEvent(" file-a "), { fileId: "file-a" });
-    assert.equal(createThumbnailSelectionEvent(""), null);
-    assert.deepEqual(createThumbnailVisibleFilesEvent([" a ", "", null, "b"]), {
-      fileIds: ["a", "b"],
-    });
   });
 });

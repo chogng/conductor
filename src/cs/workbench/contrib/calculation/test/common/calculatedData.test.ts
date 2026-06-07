@@ -50,6 +50,8 @@ suite("workbench/contrib/calculation/test/common/calculatedData", () => {
     assert.equal(model.pointsCount, 3);
     assert.deepEqual(model.xDomain, [-1, 1]);
     assert.deepEqual(model.yDomain, [-2, 2]);
+    assert.equal(typeof model.signature, "string");
+    assert.notEqual(model.signature, "");
     assert.deepEqual(
       model.seriesList[0].data.map((point) => point.yAbsPositive),
       [2, null, 2],
@@ -188,6 +190,22 @@ suite("workbench/contrib/calculation/test/common/calculatedData", () => {
     ]);
 
     assert.equal(getCalculatedData(byKey, "iv")?.activeFile?.fileId, "file-a");
+  });
+
+  test("createCalculatedData signature changes when point data changes", () => {
+    const left = createCalculatedData({
+      activeFileId: "file-a",
+      plotType: "iv",
+      cleanedData: [createFile({ series: [{ id: "series-a", groupIndex: 0, y: [1, 2, 4] }] })],
+    });
+    const right = createCalculatedData({
+      activeFileId: "file-a",
+      plotType: "iv",
+      cleanedData: [createFile({ series: [{ id: "series-a", groupIndex: 0, y: [1, 3, 4] }] })],
+    });
+
+    assert.deepEqual(left.yDomain, right.yDomain);
+    assert.notEqual(left.signature, right.signature);
   });
 
   test("createSecondCalculatedData derives drawable second-pass data from calculated data", () => {
