@@ -140,6 +140,13 @@
   align-items: center;
   justify-content: center;
   color: currentColor;
+  visibility: hidden;
+  width: 14px;
+  height: 14px;
+}
+
+.ui-actionbar__label.checked .ui-menu__check-indicator {
+  visibility: visible;
 }
 
 .ui-menu__item-label {

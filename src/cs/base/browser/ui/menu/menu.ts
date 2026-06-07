@@ -331,6 +331,25 @@ class MenuActionViewItem extends BaseActionViewItem {
         }
     }
 
+    protected override updateChecked(): void {
+        if (!this.label) {
+            return;
+        }
+
+        const checked = this.action.checked;
+        this.label.classList.toggle("checked", !!checked);
+        if (checked !== undefined) {
+            this.label.setAttribute("role", "menuitemcheckbox");
+            this.label.setAttribute("aria-checked", checked ? "true" : "false");
+            this.label.removeAttribute("aria-pressed");
+            return;
+        }
+
+        this.label.setAttribute("role", this.data?.role ?? "menuitem");
+        this.label.removeAttribute("aria-checked");
+        this.label.removeAttribute("aria-pressed");
+    }
+
     protected override async run(event: MouseEvent): Promise<void> {
         await super.run(event);
         if (this.data?.autoHide !== false) {

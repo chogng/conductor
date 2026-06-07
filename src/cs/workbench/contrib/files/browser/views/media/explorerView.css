@@ -70,15 +70,6 @@
   outline-offset: 2px;
 }
 
-.file-list-menu-check-indicator {
-  width: 14px;
-  height: 14px;
-}
-
-.file-list-menu-check-indicator[data-checked="false"] {
-  visibility: hidden;
-}
-
 .file-list.dragging {
   background-color: rgb(var(--accent) / 0.05);
 }

@@ -101,7 +101,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
                 continue;
             }
 
-            const checkedRepresentation = action.checked
+            const checkedRepresentation = action.checked !== undefined
                 ? delegate.getCheckedActionsRepresentation?.(action) ?? "checkbox"
                 : undefined;
             menu.appendItem(createMenuActionFromAction(action, {

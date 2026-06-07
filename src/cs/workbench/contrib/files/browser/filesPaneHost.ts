@@ -1,9 +1,5 @@
 import { localize } from "src/cs/nls";
-import {
-  createMenuAction,
-  createMenuItemLabel,
-} from "src/cs/base/browser/ui/menu/menu";
-import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { createMenuAction } from "src/cs/base/browser/ui/menu/menu";
 import { toAction } from "src/cs/base/common/actions";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import type { WorkbenchSidebarAction } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
@@ -93,10 +89,6 @@ export class FilesPaneHost extends ViewPane {
           checked: isThumbnailView,
           id: TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
           label: localize("files.thumbnailView", "Thumbnail"),
-          left: createThumbnailViewMenuItemLabel(
-            localize("files.thumbnailView", "Thumbnail"),
-            isThumbnailView,
-          ),
           run: () => this.setViewMode(isThumbnailView ? "tree" : "thumbnail"),
         }),
         createMenuAction({
@@ -148,12 +140,4 @@ function hasFolder(files: FilesPaneProps["files"]): boolean {
     const relativePath = String(file.relativePath ?? "");
     return relativePath.includes("/");
   });
-}
-
-function createThumbnailViewMenuItemLabel(label: string, checked: boolean): HTMLSpanElement {
-  const indicator = document.createElement("span");
-  indicator.className = "ui-menu__check-indicator file-list-menu-check-indicator";
-  indicator.dataset.checked = checked ? "true" : "false";
-  indicator.append(createLxIcon({ icon: LxIcon.check, size: 14 }));
-  return createMenuItemLabel(label, indicator);
 }
