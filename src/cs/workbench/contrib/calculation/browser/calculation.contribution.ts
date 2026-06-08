@@ -3,16 +3,18 @@
   toDisposable,
 } from "src/cs/base/common/lifecycle";
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from "src/cs/workbench/common/contributions";
-import { createCalculatedDataByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
+import {
+  createCalculatedPlotsByKeyFromRecords,
+  createCalculatedDataRecordInputSignature,
+} from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import { CalculationContributionId } from "src/cs/workbench/contrib/calculation/common/calculation";
-import type { CleanedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 import {
   ISessionService,
   type ISessionService as ISessionServiceType,
 } from "src/cs/workbench/services/session/common/session";
 
 export class CalculationContribution extends Disposable implements IWorkbenchContribution {
-  private cleanedData: readonly CleanedEntry[] | null = null;
+  private inputSignature: string | null = null;
 
   constructor(
     @ISessionService private readonly sessionService: ISessionServiceType,
@@ -25,13 +27,17 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
 
   private update(): void {
     const snapshot = this.sessionService.getSnapshot();
-    if (snapshot.cleanedData === this.cleanedData) {
+    const inputSignature = createCalculatedDataRecordInputSignature(
+      snapshot.filesById,
+      snapshot.fileOrder,
+    );
+    if (inputSignature === this.inputSignature) {
       return;
     }
 
-    this.cleanedData = snapshot.cleanedData;
-    this.sessionService.setCalculatedDataByKey(
-      createCalculatedDataByKey(snapshot.cleanedData),
+    this.inputSignature = inputSignature;
+    this.sessionService.replaceCalculatedCurves(
+      createCalculatedPlotsByKeyFromRecords(snapshot.filesById, snapshot.fileOrder),
     );
   }
 }

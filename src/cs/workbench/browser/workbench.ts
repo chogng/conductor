@@ -34,7 +34,6 @@ import {
 import { localize } from "src/cs/nls";
 import {
   getCalculatedData,
-  type CalculatedData,
 } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
@@ -65,10 +64,18 @@ import {
   WorkbenchWindow,
 } from "src/cs/workbench/browser/window";
 import ChartViewPane from "src/cs/workbench/contrib/chart/browser/chartViewPane";
+import { createChartFileOptionsFromRecords } from "src/cs/workbench/contrib/chart/browser/chartFileSelect";
 import {
   createOriginCurveOptions,
+  createOriginCurveOptionsFromRecord,
   ORIGIN_EXPORT_CONTENT_OPTIONS,
 } from "src/cs/workbench/contrib/export/browser/exportModel";
+import {
+  createExportProcessedFilesFromRecords,
+} from "src/cs/workbench/contrib/export/browser/export";
+import {
+  BrowserExportService,
+} from "src/cs/workbench/contrib/export/browser/exportService";
 import { TemplateAuxiliaryBarViewPane } from "src/cs/workbench/contrib/template/browser/templateAuxiliaryBarViewPane";
 import TemplateViewPane from "src/cs/workbench/contrib/template/browser/templateViewPane";
 import { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
@@ -77,7 +84,7 @@ import type { TableContribution } from "src/cs/workbench/contrib/table/browser/t
 import { TableContributionId } from "src/cs/workbench/contrib/table/common/table";
 import { FilesPaneHost } from "src/cs/workbench/contrib/files/browser/filesPaneHost";
 import type { FilesPaneRef } from "src/cs/workbench/contrib/files/common/files";
-import { createChartExplorerFiles } from "src/cs/workbench/contrib/files/common/explorerInput";
+import { createChartExplorerFilesFromRecords } from "src/cs/workbench/contrib/files/common/explorerInput";
 import {
   TemplateApplyController,
   type TemplateApplyControllerInput,
@@ -87,6 +94,19 @@ import type {
   ISessionService as ISessionServiceType,
   SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
+import {
+  getSelectedTemplateIdFromViewState,
+  getTemplateFormStateFromViewState,
+  getTemplateModeFromViewState,
+  getTemplateSelectionsFromViewState,
+  resolveFileIdFromTarget,
+  type FileRecord,
+} from "src/cs/workbench/services/session/common/sessionModel";
+import {
+  createSessionReadModel,
+  hasFileRecordAnalysisData,
+  type SessionReadModel,
+} from "src/cs/workbench/services/session/common/sessionReadModel";
 import type {
   ITableService,
   TableModel,
@@ -112,11 +132,18 @@ import type {
   OriginCurveExportMode,
   OriginFilteredCanvasKind,
 } from "src/cs/workbench/contrib/export/browser/originCanvasExport";
-import type {
+import {
+  buildOriginExportPlan,
+  type OriginYAxisScaleMode,
+  type OriginExportPlan,
   OriginExportContentKey,
   OriginExportMode,
 } from "src/cs/workbench/contrib/export/common/originSelectionExport";
 import { ExportViewId } from "src/cs/workbench/contrib/export/common/export";
+import {
+  exportOriginZip,
+  type OriginDisplayRange,
+} from "src/cs/workbench/contrib/origin/browser/originController";
 import { ParametersViewPane } from "src/cs/workbench/contrib/parameters/browser/parametersViewPane";
 import { createParametersViewState } from "src/cs/workbench/contrib/parameters/browser/parametersModel";
 import { ParametersViewId } from "src/cs/workbench/contrib/parameters/common/parameters";
@@ -127,16 +154,15 @@ import { SearchViewId } from "src/cs/workbench/contrib/search/common/search";
 import { createPlotMainRenderModel } from "src/cs/workbench/contrib/plot/browser/plotMainRenderModel";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import {
+  getXUnitMeta,
+  getYUnitMeta,
   normalizeXUnit,
   normalizeYUnit,
   type XUnit,
   type YUnit,
 } from "src/cs/workbench/contrib/plot/common/units";
-import type { CleanedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
-import type {
-  CurveKey,
-  CurveYScale,
-} from "src/cs/workbench/services/session/common/metadata";
+import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
+import type { CurveYScale } from "src/cs/workbench/services/session/common/fileSemantics";
 import type { IWorkbenchViewModeService } from "src/cs/workbench/services/views/common/workbenchViewModeService";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
@@ -174,11 +200,28 @@ export type WorkbenchTitlebarState = {
 
 type WorkbenchSessionSnapshot = SessionSnapshot;
 
-type FileMetadataStateByFileId = {
+type FileAxisSettingsByFileId = {
   readonly xUnitByFileId: Record<string, string>;
   readonly yScaleByFileId: Record<string, CurveYScale>;
   readonly yUnitByFileId: Record<string, string>;
 };
+
+type OriginExportFile = {
+  readonly calculationCache?: unknown;
+  readonly curveType?: string;
+  readonly fileId?: string;
+  readonly fileName?: string;
+  readonly series?: ProcessedEntry["series"];
+  readonly xAxisRole?: string;
+  readonly xGroups?: number[][];
+  readonly xLabel?: string;
+  readonly xUnit?: string;
+  readonly yLabel?: string;
+  readonly yUnit?: string;
+  readonly [key: string]: unknown;
+};
+
+type OriginExportSeries = NonNullable<OriginExportFile["series"]>[number];
 
 export type WorkbenchOptions = {
   readonly className?: string;
@@ -257,7 +300,7 @@ const getInitialLanguagePreference = (): LanguagePreference => {
 const resolveInitialWorkbenchViewMode = (
   snapshot: WorkbenchSessionSnapshot,
 ): WorkbenchMainPart =>
-  snapshot.cleanedData.length > 0 ? "chart" : "table";
+  createSessionReadModel(snapshot).hasAnalysisData ? "chart" : "table";
 
 export class Workbench extends Layout {
   private readonly window: WorkbenchWindow;
@@ -295,6 +338,16 @@ export class Workbench extends Layout {
   private readonly thumbnailService: IThumbnailService;
   private readonly workbenchViewModeService: IWorkbenchViewModeService;
   private readonly templateImportController: TemplateImportController;
+  private readonly exportService = new BrowserExportService();
+  private readonly originChartXRangeRef: { current: OriginDisplayRange | null } = { current: null };
+  private readonly originChartYRangeRef: {
+    current: {
+      max: number;
+      min: number;
+      mode: "linear" | "log";
+      step?: number | null;
+    } | null;
+  } = { current: null };
   private readonly auxiliaryBarModel = new AuxiliaryBarModel();
   private readonly coreSettingsController: CoreSettingsController;
   private coreSettingsState: CoreSettingsState = createCoreSettingsState();
@@ -302,14 +355,13 @@ export class Workbench extends Layout {
     ? window.__CONDUCTOR_INITIAL_THEME__
     : "system";
   private activePlotType: PlotType = "iv";
-  private selectedAnalysisFileId: string | null = null;
   private originMode: OriginExportMode = "merged";
   private canvasScope: OriginCanvasExportScope = "current";
   private filteredKind: OriginFilteredCanvasKind = "output";
   private curveMode: OriginCurveExportMode = "all";
   private selectedContentKeys: OriginExportContentKey[] = ["iv"];
   private selectedCurveKeys = new Set<string>();
-  private isSyncingMetadata = false;
+  private isSyncingFileSemantics = false;
 
   public get contentElement(): HTMLElement {
     return this.window.contentElement;
@@ -411,10 +463,10 @@ export class Workbench extends Layout {
       analysisFileService: this.analysisFileService,
       templateApplyService: this.templateApplyService,
       batchSessionUpdate: this.session.batch,
+      commitProcessedFile: this.session.commitProcessedFile,
       onExtractionError: () => undefined,
+      resetProcessedData: this.session.resetProcessedData,
       showResults: () => this.showWorkbenchViewMode("chart"),
-      setAnalysisResults: this.session.setAnalysisResults,
-      setCleanedData: this.session.setCleanedData,
     }));
     this.templateApply.update(this.getTemplateApplyInput());
     this.filesPane = this._register(new FilesPaneHost(this.getFilesPaneProps()));
@@ -461,31 +513,41 @@ export class Workbench extends Layout {
 
   private renderWorkbench(): void {
     const snapshot = this.session.getSnapshot();
-    this.syncMetadata(snapshot);
-    this.clearStaleAnalysisFileSelection(snapshot);
-    const tableModel = this.getTableModel(snapshot);
-    this.templateApply.update(this.getTemplateApplyInput(snapshot, tableModel));
+    const readModel = createSessionReadModel(snapshot);
+    this.syncFileSemantics(snapshot, readModel);
+    const tableModel = this.getTableModel(snapshot, readModel);
+    this.templateApply.update(this.getTemplateApplyInput(
+      snapshot,
+      readModel,
+      tableModel,
+    ));
 
     this.filesPane.update(this.getFilesPaneProps(
       snapshot,
+      readModel,
       tableModel,
       this.templateApply,
     ));
     this.table.update(this.getTableProps(tableModel));
     this.templateViewPane.update(this.getTemplateViewPaneProps(
       snapshot,
+      readModel,
       tableModel,
       this.templateApply,
     ));
     this.templateAuxiliaryBarViewPane.update(
       this.templateViewPane.configElement,
-      getAuxiliaryBarTitleForMode(this.workbenchViewMode, snapshot.templateMode),
+      getAuxiliaryBarTitleForMode(this.workbenchViewMode, getTemplateModeFromViewState(snapshot.viewState)),
     );
-    this.analysis.update(this.getAnalysisProps(snapshot, this.templateApply));
+    this.analysis.update(this.getAnalysisProps(
+      snapshot,
+      this.templateApply,
+      readModel,
+    ));
     this.settings.update(this.getSettingsProps());
     this.updateViewContainers();
     this.updateContextKeys();
-    this.renderAuxiliaryBarView(snapshot);
+    this.renderAuxiliaryBarView(snapshot, readModel);
     this.setParts({
       sidebar: this.getViewContainerElement(WorkbenchViewContainers.files, this.filesPane.element),
       workbench: this.getViewContainerElement(
@@ -647,7 +709,7 @@ export class Workbench extends Layout {
     const state = this.auxiliaryBarModel.update({
       mode: this.workbenchViewMode,
       onDidChangeActiveView: () => this.handleAuxiliaryBarActiveViewChange(),
-      templateMode: this.session.getSnapshot().templateMode,
+      templateMode: getTemplateModeFromViewState(this.session.getSnapshot().viewState),
       visible,
     });
     this.updateAuxiliaryBarPaneContainer({
@@ -667,22 +729,26 @@ export class Workbench extends Layout {
     this.layoutVisibleViewContainers();
   }
 
-  private renderAuxiliaryBarView(snapshot = this.session.getSnapshot()): void {
+  private renderAuxiliaryBarView(
+    snapshot = this.session.getSnapshot(),
+    readModel = createSessionReadModel(snapshot),
+  ): void {
     if (this.activeView === "settings") {
       return;
     }
 
-    const props = this.getAuxiliaryBarViewInput(snapshot);
-    const activeFile = this.resolveActiveFile(snapshot);
+    const props = this.getAuxiliaryBarViewInput(snapshot, readModel);
+    const activeFile = readModel.activeProcessedFile;
+    const activeFileRecord = readModel.activeAnalysisFileRecord;
 
     switch (this.auxiliaryBarModel.getActiveView(this.workbenchViewMode)) {
       case "template":
         break;
       case "parameters":
-        this.renderParametersView(activeFile);
+        this.renderParametersView(activeFile, activeFileRecord);
         break;
       case "search":
-        this.renderSearchView(snapshot);
+        this.renderSearchView(snapshot, readModel);
         break;
       case "settings":
         this.viewsService.getViewWithId<OriginSettingsViewPane>(OriginExportSettingsViewId)?.update({
@@ -695,50 +761,66 @@ export class Workbench extends Layout {
         break;
       case "export":
       default:
-        this.renderExportView(activeFile);
+        this.renderExportView(activeFile, activeFileRecord, snapshot, readModel);
         break;
     }
   }
 
-  private renderSearchView(snapshot = this.session.getSnapshot()): void {
+  private renderSearchView(
+    snapshot = this.session.getSnapshot(),
+    readModel = createSessionReadModel(snapshot),
+  ): void {
     const view = this.viewsService.getViewWithId<SearchViewPane>(SearchViewId);
     if (!view) {
       return;
     }
 
     const model = getCalculatedData(
-      snapshot.calculatedDataByKey,
+      readModel.calculatedPlotsByKey,
       this.activePlotType,
-      this.getActiveAnalysisFileId(snapshot),
+      readModel.activeAnalysisFileId,
     );
     view.renderSearch(model ? createPlotMainRenderModel(model) : null);
   }
 
-  private renderExportView(activeFile: CleanedEntry | null): void {
+  private renderExportView(
+    activeFile: ProcessedEntry | null,
+    activeFileRecord: FileRecord | null,
+    snapshot = this.session.getSnapshot(),
+    readModel = createSessionReadModel(snapshot),
+  ): void {
     const view = this.viewsService.getViewWithId<ExportViewPane>(ExportViewId);
     if (!view) {
       return;
     }
 
-    if (activeFile) {
-      this.syncCurveSelection(activeFile);
-    } else {
-      this.selectedCurveKeys = new Set();
-    }
-
-    const curveOptions = activeFile
+    const curveOptions = activeFileRecord
+      ? createOriginCurveOptionsFromRecord(
+        activeFileRecord,
+        (fileId, seriesId, fallback) =>
+          this.session.getSeriesLabel(fileId, seriesId) ?? fallback,
+      )
+      : activeFile
       ? createOriginCurveOptions(activeFile, this.resolveCurveLabelForSeries)
       : [];
+    this.syncCurveSelection(curveOptions);
+    const scopedFiles = this.resolveOriginExportFiles(snapshot, readModel);
+    const scopedFileIds = scopedFiles
+      .map((file) => String(file?.fileId ?? "").trim())
+      .filter(Boolean);
+    const hasMixedExportYScales = new Set(
+      scopedFiles.map((file) => this.resolveOriginYScaleForFile(snapshot, file)),
+    ).size > 1;
     view.render({
       curveOptions,
-      hasMixedExportYScales: false,
+      hasMixedExportYScales,
       mode: this.originMode,
-      onExportOriginZip: () => undefined,
+      onExportOriginZip: this.handleExportOriginZip,
       onModeChange: (next) => {
         this.originMode = next;
         this.renderWorkbench();
       },
-      onOpenInOrigin: () => undefined,
+      onOpenInOrigin: this.handleOpenInOrigin,
       onSelectedCurveOptionKeysChange: (nextKeys) => {
         this.selectedCurveKeys = new Set(nextKeys);
         this.renderWorkbench();
@@ -751,7 +833,7 @@ export class Workbench extends Layout {
         matchedSeriesCount: 0,
       }),
       resolvedCurveExportMode: this.curveMode,
-      scopedFileIds: activeFile?.fileId ? [activeFile.fileId] : [],
+      scopedFileIds,
       selectedContentKeys: this.selectedContentKeys,
       selectedCurveOptionKeySet: this.selectedCurveKeys,
       setContentKeys: (next) => {
@@ -777,13 +859,250 @@ export class Workbench extends Layout {
     });
   }
 
-  private renderParametersView(activeFile: CleanedEntry | null): void {
+  private readonly handleOpenInOrigin = async (): Promise<void> => {
+    const snapshot = this.session.getSnapshot();
+    const readModel = createSessionReadModel(snapshot);
+    await this.exportService.openInOrigin({
+      buildCsvExportRequest: () => null,
+      buildPayloads: () => this.buildOriginExportPayloads(snapshot, readModel),
+      exportOriginZipFallback: () =>
+        exportOriginZip({
+          buildCsvExportRequest: () => null,
+          buildPayloads: () => this.buildOriginExportPayloads(snapshot, readModel),
+        }),
+      originAxisSettings: this.coreSettingsState.conductorSettings?.plotAxisSettings,
+      originChartXRangeRef: this.originChartXRangeRef,
+      originChartYRangeRef: this.originChartYRangeRef,
+      originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
+      showToast: this.showOriginExportToast,
+    });
+  };
+
+  private readonly handleExportOriginZip = async (): Promise<void> => {
+    const snapshot = this.session.getSnapshot();
+    const readModel = createSessionReadModel(snapshot);
+    await this.exportService.exportOriginZip({
+      exportOriginZipFallback: () =>
+        exportOriginZip({
+          buildCsvExportRequest: () => null,
+          buildPayloads: () => this.buildOriginExportPayloads(snapshot, readModel),
+        }),
+      showToast: this.showOriginExportToast,
+    });
+  };
+
+  private buildOriginExportPayloads(
+    snapshot: WorkbenchSessionSnapshot,
+    readModel: SessionReadModel,
+  ): OriginExportPlan {
+    const files = this.resolveOriginExportFiles(snapshot, readModel);
+    if (!files.length) {
+      throw new Error(localize("origin_select_canvas", "Please select at least one thumbnail first."));
+    }
+
+    const plan = buildOriginExportPlan(
+      files,
+      this.createSelectedOriginSeriesIdsByFile(files),
+      this.originMode,
+      (file) => this.resolveOriginYScaleForFile(snapshot, file),
+      (file) => getXUnitMeta(this.resolveOriginXUnitForFile(snapshot, file)).factor,
+      (file) => getYUnitMeta(this.resolveOriginYUnitForFile(snapshot, file)).factor,
+      (file) => getYUnitMeta(this.resolveOriginYUnitForFile(snapshot, file)).label,
+      (file, series, index) =>
+        this.resolveOriginCurveLabel(file as OriginExportFile, series, index),
+      (file, axis) => this.resolveOriginAxisTitleForFile(snapshot, file, axis),
+      (file, y) =>
+        this.resolveOriginYScaleForFile(snapshot, file) === "log"
+          ? Math.abs(y)
+          : y,
+      this.selectedContentKeys.length ? this.selectedContentKeys : ["iv"],
+    );
+    if (!plan.payloads.length) {
+      throw new Error(localize("origin_select_curve", "Please select a curve first."));
+    }
+    return plan;
+  }
+
+  private resolveOriginExportFiles(
+    snapshot: WorkbenchSessionSnapshot,
+    readModel: SessionReadModel,
+  ): OriginExportFile[] {
+    const processedFiles = createExportProcessedFilesFromRecords(
+      snapshot.filesById,
+      snapshot.fileOrder,
+    ).map((file) => this.createOriginExportFile(file));
+    if (!processedFiles.length) {
+      return [];
+    }
+
+    if (this.canvasScope === "all") {
+      return processedFiles;
+    }
+
+    if (this.canvasScope === "filtered") {
+      return processedFiles.filter((file) => this.isOriginFilteredCanvas(file));
+    }
+
+    const activeFileId = String(readModel.activeAnalysisFileId ?? "").trim();
+    const activeFile = activeFileId
+      ? processedFiles.find((file) => String(file.fileId ?? "") === activeFileId)
+      : null;
+    return activeFile ? [activeFile] : [];
+  }
+
+  private createOriginExportFile(file: ProcessedEntry): OriginExportFile {
+    const xAxisRole = String(file.xAxisRole ?? "").trim();
+    return {
+      ...file,
+      curveType: file.curveType ? String(file.curveType) : undefined,
+      xAxisRole: xAxisRole || undefined,
+    };
+  }
+
+  private resolveOriginCurveLabel(
+    file: OriginExportFile | null | undefined,
+    series: OriginExportSeries | null | undefined,
+    index: number,
+  ): string {
+    const override = this.session.getSeriesLabel(
+      String(file?.fileId ?? ""),
+      String(series?.id ?? ""),
+    );
+    if (override) {
+      return override;
+    }
+
+    const legendValue = String(series?.legendValue ?? "").trim();
+    if (legendValue) {
+      return legendValue;
+    }
+
+    const name = String(series?.name ?? series?.label ?? "").trim();
+    return name || `Series ${index + 1}`;
+  }
+
+  private createSelectedOriginSeriesIdsByFile(
+    files: readonly OriginExportFile[],
+  ): Record<string, string[]> {
+    if (this.curveMode !== "select") {
+      return {};
+    }
+
+    const selectedByFile: Record<string, string[]> = {};
+    for (const file of files) {
+      const fileId = String(file.fileId ?? "").trim();
+      if (!fileId) {
+        continue;
+      }
+      selectedByFile[fileId] = (Array.isArray(file.series) ? file.series : [])
+        .map((series) => String(series.id ?? "").trim())
+        .filter((seriesId) => Boolean(seriesId) && this.selectedCurveKeys.has(seriesId));
+    }
+    return selectedByFile;
+  }
+
+  private resolveOriginXUnitForFile(
+    snapshot: WorkbenchSessionSnapshot,
+    file: OriginExportFile | null | undefined,
+  ): string {
+    const fileId = String(file?.fileId ?? "").trim();
+    if (!fileId) {
+      return String(file?.xUnit ?? "V");
+    }
+
+    const axisSettings = this.getFileAxisSettingsByFileId(snapshot);
+    return axisSettings.xUnitByFileId[fileId] ?? String(file?.xUnit ?? "V");
+  }
+
+  private resolveOriginYUnitForFile(
+    snapshot: WorkbenchSessionSnapshot,
+    file: OriginExportFile | null | undefined,
+  ): string {
+    const fileId = String(file?.fileId ?? "").trim();
+    if (!fileId) {
+      return String(file?.yUnit ?? "A");
+    }
+
+    const axisSettings = this.getFileAxisSettingsByFileId(snapshot);
+    return axisSettings.yUnitByFileId[fileId] ?? String(file?.yUnit ?? "A");
+  }
+
+  private resolveOriginYScaleForFile(
+    snapshot: WorkbenchSessionSnapshot,
+    file: OriginExportFile | null | undefined,
+  ): OriginYAxisScaleMode {
+    const fileId = String(file?.fileId ?? "").trim();
+    if (!fileId) {
+      return "linear";
+    }
+
+    const axisSettings = this.getFileAxisSettingsByFileId(snapshot);
+    return axisSettings.yScaleByFileId[fileId] === "log" ? "log" : "linear";
+  }
+
+  private resolveOriginAxisTitleForFile(
+    snapshot: WorkbenchSessionSnapshot,
+    file: OriginExportFile | null | undefined,
+    axis: "x" | "y",
+  ): string {
+    const fileId = String(file?.fileId ?? "").trim();
+    const record = fileId ? snapshot.filesById[fileId] : undefined;
+    if (axis === "x") {
+      return String(
+        record?.axis?.x.label ??
+          record?.templateRun?.config.bottomTitle ??
+          file?.xLabel ??
+          "",
+      );
+    }
+
+    return String(
+      record?.axis?.y.label ??
+        record?.templateRun?.config.leftTitle ??
+        file?.yLabel ??
+        "",
+    );
+  }
+
+  private isOriginFilteredCanvas(file: OriginExportFile): boolean {
+    const targetFamily = this.filteredKind;
+    const xAxisRole = String(file.xAxisRole ?? "").trim().toLowerCase();
+    if (targetFamily === "transfer" && xAxisRole === "vg") {
+      return true;
+    }
+    if (targetFamily === "output" && xAxisRole === "vd") {
+      return true;
+    }
+
+    const curveType = String(file.curveType ?? "").trim().toLowerCase();
+    return Boolean(curveType && curveType.includes(targetFamily));
+  }
+
+  private readonly showOriginExportToast = (
+    message: string,
+    type?: unknown,
+  ): void => {
+    const toastType =
+      type === "error" || type === "warning" || type === "info" || type === "success"
+        ? type
+        : "success";
+    notificationService.showToast({
+      id: "workbench.originExport",
+      message,
+      type: toastType,
+    });
+  };
+
+  private renderParametersView(
+    activeFile: ProcessedEntry | null,
+    activeFileRecord: FileRecord | null,
+  ): void {
     const view = this.viewsService.getViewWithId<ParametersViewPane>(ParametersViewId);
     if (!view) {
       return;
     }
 
-    const state = createParametersViewState(activeFile);
+    const state = createParametersViewState(activeFile, activeFileRecord);
     if (state.kind === "empty") {
       view.renderEmpty(state.message);
       return;
@@ -797,10 +1116,10 @@ export class Workbench extends Layout {
     return viewId ? this.viewsService.getViewWithId(viewId)?.element ?? null : null;
   }
 
-  private syncCurveSelection(activeFile: CleanedEntry): void {
-    const curveKeys = new Set(
-      createOriginCurveOptions(activeFile, this.resolveCurveLabelForSeries).map((option) => option.key),
-    );
+  private syncCurveSelection(
+    curveOptions: ReturnType<typeof createOriginCurveOptions>,
+  ): void {
+    const curveKeys = new Set(curveOptions.map((option) => option.key));
     this.selectedCurveKeys = new Set(
       this.selectedCurveKeys.size > 0
         ? [...this.selectedCurveKeys].filter((key) => curveKeys.has(key))
@@ -848,25 +1167,23 @@ export class Workbench extends Layout {
 
   private readonly handleAnalysisFileSelected = (fileId: string | null): void => {
     const nextFileId = String(fileId ?? "").trim() || null;
+    const snapshot = this.session.getSnapshot();
     if (!nextFileId) {
-      if (this.selectedAnalysisFileId !== null) {
-        this.selectedAnalysisFileId = null;
-        this.renderWorkbench();
+      if (snapshot.activeTarget.kind !== "none") {
+        this.session.setActiveTarget({ kind: "none" });
       }
       return;
     }
 
-    const snapshot = this.session.getSnapshot();
-    if (!this.hasAnalysisFile(snapshot, nextFileId)) {
+    if (!hasFileRecordAnalysisData(snapshot.filesById[nextFileId])) {
       return;
     }
 
-    if (this.selectedAnalysisFileId === nextFileId) {
+    if (resolveFileIdFromTarget(snapshot.activeTarget) === nextFileId) {
       return;
     }
 
-    this.selectedAnalysisFileId = nextFileId;
-    this.renderWorkbench();
+    this.session.setActiveTarget({ kind: "file", fileId: nextFileId });
   };
 
   private readonly handleFileTemplateSelectionChanged = (
@@ -897,50 +1214,55 @@ export class Workbench extends Layout {
 
   private getFilesPaneProps(
     snapshot = this.session.getSnapshot(),
-    tableModel = this.getTableModel(snapshot),
+    readModel = createSessionReadModel(snapshot),
+    tableModel = this.getTableModel(snapshot, readModel),
     processing = this.templateApply,
   ) {
+    const rawFiles = readModel.rawFiles;
     const sessionActions = createSessionActions({
+      addRawFiles: this.session.addRawFiles,
+      clearSessionData: this.session.clearSessionData,
       clearPreviewState: tableModel.clearState,
       disposePreviewFileCache: tableModel.disposeFileCache,
       invalidatePreviewRequests: tableModel.invalidateRequests,
-      previewFile: snapshot.previewFile,
+      previewFile: readModel.previewFile,
       previewLoadingMessage: localize("preview_loading", "Loading preview..."),
-      cleanedData: snapshot.cleanedData,
+      hasSessionData: readModel.hasSessionData,
       processingStatus: processing.processingStatus,
-      sourceFiles: snapshot.sourceFiles,
+      rawFiles,
       removeQueuedProcessingFile: processing.removeQueuedProcessingFile,
       runInBatch: this.session.batch,
       resetPreviewWorker: tableModel.resetWorker,
       resetProcessingWorker: processing.resetProcessingWorker,
-      selectedPreviewFileId: snapshot.selectedPreviewFileId,
-      setIonIoffManualTargetsByFileId: this.session.setIonIoffManualTargetsByFileId,
-      setAnalysisResults: this.session.setAnalysisResults,
-      setCleanedData: this.session.setCleanedData,
+      removeFiles: this.session.removeFiles,
+      replaceRawFiles: this.session.replaceRawFiles,
+      activeTarget: snapshot.activeTarget,
+      setActiveTarget: this.session.setActiveTarget,
       setPreviewStatus: this.session.setPreviewStatus,
-      setSourceFiles: this.session.setSourceFiles,
-      setSelectedPreviewFileId: this.session.setSelectedPreviewFileId,
-      setSelectedPreviewSheetId: this.session.setSelectedPreviewSheetId,
-      setFileTemplateSelectionsByFileId: this.session.setFileTemplateSelectionsByFileId,
-      setSsManualRanges: this.session.setSsManualRanges,
     });
     const isChartMode = this.workbenchViewMode === "chart";
-    const currentTemplateSelection = createTemplateSelection(snapshot.selectedTemplateId);
+    const templateFormState = getTemplateFormStateFromViewState(snapshot.viewState);
+    const fileTemplateSelectionsByFileId = getTemplateSelectionsFromViewState(snapshot.viewState);
+    const currentTemplateSelection = createTemplateSelection(getSelectedTemplateIdFromViewState(snapshot.viewState));
     const currentTemplateLabel = currentTemplateSelection.kind === "auto"
       ? localize("template_auto_extraction", "Auto extraction")
-      : snapshot.templateConfig.name || currentTemplateSelection.templateId;
+      : templateFormState.name || currentTemplateSelection.templateId;
 
     return {
       analysisFileService: this.analysisFileService,
       activePlotType: this.activePlotType,
-      calculatedDataByKey: snapshot.calculatedDataByKey,
+      calculatedPlotsByKey: readModel.calculatedPlotsByKey,
       commandService: this.commandService,
       contextMenuService: this.contextMenuService,
       contextViewService: this.contextViewService,
       filesPaneRef: this.filesPaneRef,
       files: isChartMode
-        ? createChartExplorerFiles(snapshot.sourceFiles, snapshot.cleanedData)
-        : snapshot.sourceFiles,
+        ? createChartExplorerFilesFromRecords(
+          snapshot.filesById,
+          snapshot.fileOrder,
+          rawFiles,
+        )
+        : rawFiles,
       filesService: this.filesService,
       mode: this.workbenchViewMode,
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
@@ -949,8 +1271,8 @@ export class Workbench extends Layout {
       templateService: this.templateService,
       currentTemplateLabel,
       currentTemplateSelection,
-      fileTemplateSelectionsByFileId: snapshot.fileTemplateSelectionsByFileId,
-      cleanedData: snapshot.cleanedData,
+      fileTemplateSelectionsByFileId,
+      thumbnailFiles: readModel.processedFiles,
       onFileImported: sessionActions.handleFileImported,
       onFilesAdded: sessionActions.handleFilesAdded,
       onFilesReplaced: sessionActions.handleFilesReplaced,
@@ -961,14 +1283,15 @@ export class Workbench extends Layout {
         ? this.handleAnalysisFileSelected
         : sessionActions.handleFileSelected,
       selectedFileId: isChartMode
-        ? this.getActiveAnalysisFileId(snapshot)
-        : snapshot.selectedPreviewFileId,
+        ? readModel.activeAnalysisFileId
+        : readModel.activeTargetFileId,
     };
   }
 
   private getTemplateViewPaneProps(
     snapshot = this.session.getSnapshot(),
-    tableModel = this.getTableModel(snapshot),
+    readModel = createSessionReadModel(snapshot),
+    tableModel = this.getTableModel(snapshot, readModel),
     processing = this.templateApply,
   ) {
     return {
@@ -978,7 +1301,7 @@ export class Workbench extends Layout {
       onTemplateAppliedIncremental: processing.handleTemplateAppliedIncremental,
       onUpdateSettings: this.coreSettingsState.updateConductorSettings,
       sessionService: this.session,
-      sourceFiles: snapshot.sourceFiles,
+      rawFiles: readModel.rawFiles,
       tableModel,
       templateImportController: this.templateImportController,
       templateService: this.templateService,
@@ -992,81 +1315,71 @@ export class Workbench extends Layout {
     };
   }
 
-  private syncMetadata(snapshot: WorkbenchSessionSnapshot): void {
-    if (this.isSyncingMetadata) {
+  private syncFileSemantics(
+    snapshot: WorkbenchSessionSnapshot,
+    readModel = createSessionReadModel(snapshot),
+  ): void {
+    if (this.isSyncingFileSemantics) {
       return;
     }
 
-    this.isSyncingMetadata = true;
+    this.isSyncingFileSemantics = true;
     try {
       this.session.batch(() => {
         const liveFileIds: string[] = [];
-        const liveKeys: CurveKey[] = [];
-        for (const file of snapshot.cleanedData) {
-          const fileId = String(file?.fileId ?? "").trim();
-          if (!fileId) {
-            continue;
+        const syncedFileIds = new Set<string>();
+        const syncRecordFile = (fileId: string): void => {
+          if (syncedFileIds.has(fileId)) {
+            return;
+          }
+          syncedFileIds.add(fileId);
+
+          const file = snapshot.filesById[fileId];
+          if (!hasFileRecordAnalysisData(file)) {
+            return;
           }
 
-          liveFileIds.push(fileId);
-          const templateSelection = snapshot.fileTemplateSelectionsByFileId[fileId];
-          this.session.setFileMetadata({
-            fileId,
-            kind: String(file?.curveType ?? "unknown"),
-            sourceFileName: file.fileName,
+          liveFileIds.push(file.id);
+          const templateSelection =
+            file.templateRun?.selection ??
+            getTemplateSelectionsFromViewState(snapshot.viewState)[file.id] ??
+            createTemplateSelection(getSelectedTemplateIdFromViewState(snapshot.viewState));
+          this.session.setFileSemantics({
+            fileId: file.id,
+            kind: file.assessment.baseFamily ?? "unknown",
+            sourceFileName: file.raw.fileName,
             templateId: templateSelection?.kind === "template"
               ? templateSelection.templateId
               : undefined,
             x: {
-              label: String(file?.xLabel ?? ""),
-              role: String(file?.xAxisRole ?? ""),
-              unit: this.getFileMetadataXUnit(fileId, file),
+              label: String(file.axis?.x.label ?? file.templateRun?.config.bottomTitle ?? ""),
+              role: String(file.axis?.x.role ?? ""),
+              unit: this.getFileRecordSemanticXUnit(file.id, file),
             },
             y: {
-              label: String(file?.yLabel ?? ""),
-              role: String(file?.yAxisRole ?? ""),
-              scale: this.getMetadataYScale(fileId),
-              unit: this.getFileMetadataYUnit(fileId, file),
+              label: String(file.axis?.y.label ?? file.templateRun?.config.leftTitle ?? ""),
+              role: String(file.axis?.y.role ?? ""),
+              scale: file.axis?.y.scale ?? this.getSemanticYScale(file.id),
+              unit: this.getFileRecordSemanticYUnit(file.id, file),
             },
           });
+        };
+
+        for (const fileId of readModel.processedFileIds) {
+          syncRecordFile(fileId);
         }
 
-        for (const data of Object.values(snapshot.calculatedDataByKey)) {
-          const fileId = this.getCalculatedFileId(data);
-          if (!fileId) {
-            continue;
-          }
-
-          for (const series of data.seriesList) {
-            const key = this.getCurveKey(fileId, data.kind, series.id);
-            liveKeys.push(key);
-            this.session.setCurveData({
-              ...key,
-              points: series.data.map((point) => ({
-                x: point.x,
-                y: point.y,
-                yAbsPositive: point.yAbsPositive,
-                yPositive: point.yPositive,
-              })),
-              signature: `${data.signature}:${series.id}`,
-              xDomain: data.xDomain,
-              yDomain: data.yDomain,
-            });
-
-          }
-        }
-
-        this.session.pruneMetadata(liveFileIds, liveKeys);
-        this.session.pruneSeriesLabels(snapshot.cleanedData);
+        this.session.pruneFileSemantics(liveFileIds, []);
+        this.session.pruneSeriesLabelsByRecords(snapshot.filesById, snapshot.fileOrder);
       });
     } finally {
-      this.isSyncingMetadata = false;
+      this.isSyncingFileSemantics = false;
     }
   }
 
-  private getFileMetadataStateByFileId(
+  private getFileAxisSettingsByFileId(
     snapshot: WorkbenchSessionSnapshot,
-  ): FileMetadataStateByFileId {
+  ): FileAxisSettingsByFileId {
     const settings = this.coreSettingsState.conductorSettings;
     const xUnitByFileId: Record<string, string> = {
       ...(settings?.xUnitByFileId ?? {}),
@@ -1078,22 +1391,38 @@ export class Workbench extends Layout {
       ...(settings?.yScaleByFileId ?? {}),
     };
 
-    for (const file of snapshot.cleanedData) {
-      const fileId = String(file?.fileId ?? "").trim();
-      if (!fileId) {
-        continue;
+    const seenFileIds = new Set<string>();
+    const applyFile = (fileId: string): void => {
+      if (seenFileIds.has(fileId)) {
+        return;
+      }
+      seenFileIds.add(fileId);
+
+      const file = snapshot.filesById[fileId];
+      if (!file) {
+        return;
       }
 
-      const metadata = this.session.getFileMetadata(fileId);
-      if (metadata?.x.unit) {
-        xUnitByFileId[fileId] = metadata.x.unit;
+      const semantics = this.session.getFileSemantics(fileId);
+      const xUnit = file.axis?.x.unit ?? file.templateRun?.config.xUnit ?? semantics?.x.unit;
+      const yUnit = file.axis?.y.unit ?? file.templateRun?.config.yUnit ?? semantics?.y.unit;
+      const yScale = file.axis?.y.scale ?? semantics?.y.scale;
+      if (xUnit && !xUnitByFileId[fileId]) {
+        xUnitByFileId[fileId] = xUnit;
       }
-      if (metadata?.y.unit) {
-        yUnitByFileId[fileId] = metadata.y.unit;
+      if (yUnit && !yUnitByFileId[fileId]) {
+        yUnitByFileId[fileId] = yUnit;
       }
-      if (metadata?.y.scale) {
-        yScaleByFileId[fileId] = metadata.y.scale;
+      if (yScale && !yScaleByFileId[fileId]) {
+        yScaleByFileId[fileId] = yScale;
       }
+    };
+
+    for (const fileId of snapshot.fileOrder) {
+      applyFile(fileId);
+    }
+    for (const fileId of Object.keys(snapshot.filesById)) {
+      applyFile(fileId);
     }
 
     return {
@@ -1103,32 +1432,22 @@ export class Workbench extends Layout {
     };
   }
 
-  private getCalculatedFileId(data: CalculatedData): string {
-    return String(data.source.fileId ?? data.activeFile?.fileId ?? "").trim();
-  }
-
-  private getCurveKey(fileId: string, kind: string, seriesId: string): CurveKey {
-    const normalizedKind = String(kind ?? "").trim() || "unknown";
-    const normalizedSeriesId = String(seriesId ?? "").trim() || "series";
-    return {
-      curveKind: normalizedKind,
-      fileId,
-      seriesId: normalizedSeriesId,
-    };
-  }
-
-  private getFileMetadataXUnit(fileId: string, file: CleanedEntry): string {
-    const sourceUnit = normalizeXUnit(file.xUnit, "V") || "V";
+  private getFileRecordSemanticXUnit(fileId: string, file: FileRecord): string {
+    const sourceUnit = normalizeXUnit(
+      file.axis?.x.unit ?? file.templateRun?.config.xUnit,
+      "V",
+    ) || "V";
     return normalizeXUnit(
       this.coreSettingsState.conductorSettings?.xUnitByFileId?.[fileId],
       sourceUnit,
     ) || sourceUnit;
   }
 
-  private getFileMetadataYUnit(fileId: string, file: CleanedEntry): string {
-    const sourceUnit = normalizeYUnit(file.yUnit);
+  private getFileRecordSemanticYUnit(fileId: string, file: FileRecord): string {
+    const rawUnit = file.axis?.y.unit ?? file.templateRun?.config.yUnit;
+    const sourceUnit = normalizeYUnit(rawUnit);
     if (!sourceUnit) {
-      return String(file.yUnit ?? "").trim();
+      return String(rawUnit ?? "").trim();
     }
 
     return normalizeYUnit(
@@ -1137,7 +1456,7 @@ export class Workbench extends Layout {
     ) || sourceUnit;
   }
 
-  private getMetadataYScale(fileId: string): CurveYScale {
+  private getSemanticYScale(fileId: string): CurveYScale {
     return this.coreSettingsState.conductorSettings?.yScaleByFileId?.[fileId] === "log"
       ? "log"
       : "linear";
@@ -1146,20 +1465,25 @@ export class Workbench extends Layout {
   private getAnalysisProps(
     snapshot = this.session.getSnapshot(),
     processing = this.templateApply,
+    readModel = createSessionReadModel(snapshot),
   ) {
-    const activeFileId = this.getActiveAnalysisFileId(snapshot);
-    const metadataState = this.getFileMetadataStateByFileId(snapshot);
+    const activeFileId = readModel.activeAnalysisFileId;
+    const axisSettings = this.getFileAxisSettingsByFileId(snapshot);
     return {
       activeFileId,
       activePlotType: this.activePlotType,
+      chartFileOptions: createChartFileOptionsFromRecords(
+        snapshot.filesById,
+        snapshot.fileOrder,
+      ),
+      hasAnalysisData: Boolean(activeFileId),
       legendLabels: this.session.getSeriesLabels(activeFileId ?? ""),
       onActiveFileIdChange: this.handleAnalysisFileSelected,
       onActivePlotTypeChange: this.setActivePlotType,
       onLegendLabelChange: this.updateLegendLabel,
       onPlotUnitChange: this.updatePlotUnit,
       onPlotYScaleChange: this.updatePlotYScale,
-      calculatedDataByKey: snapshot.calculatedDataByKey,
-      cleanedData: snapshot.cleanedData,
+      calculatedPlotsByKey: readModel.calculatedPlotsByKey,
       onPlotAxisSettingsChange: this.updatePlotAxisSettings,
       onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
@@ -1167,25 +1491,33 @@ export class Workbench extends Layout {
       processingStatus: processing.processingStatus,
       showFileSelect: false,
       shouldMountCharts: false,
-      xUnitByFileId: metadataState.xUnitByFileId,
-      yScaleByFileId: metadataState.yScaleByFileId,
-      yUnitByFileId: metadataState.yUnitByFileId,
+      xUnitByFileId: axisSettings.xUnitByFileId,
+      yScaleByFileId: axisSettings.yScaleByFileId,
+      yUnitByFileId: axisSettings.yUnitByFileId,
     };
   }
 
-  private getAuxiliaryBarViewInput(snapshot = this.session.getSnapshot()) {
-    const metadataState = this.getFileMetadataStateByFileId(snapshot);
+  private getAuxiliaryBarViewInput(
+    snapshot = this.session.getSnapshot(),
+    readModel = createSessionReadModel(snapshot),
+  ) {
+    const axisSettings = this.getFileAxisSettingsByFileId(snapshot);
+    const activeFileId = readModel.activeAnalysisFileId;
     return {
-      activeFileId: this.getActiveAnalysisFileId(snapshot),
-      calculatedDataByKey: snapshot.calculatedDataByKey,
-      cleanedData: snapshot.cleanedData,
+      activeFileId,
+      chartFileOptions: createChartFileOptionsFromRecords(
+        snapshot.filesById,
+        snapshot.fileOrder,
+      ),
+      calculatedPlotsByKey: readModel.calculatedPlotsByKey,
+      hasAnalysisData: Boolean(activeFileId),
       onPlotAxisSettingsChange: this.updatePlotAxisSettings,
       onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
       plotAxisSettings: this.coreSettingsState.conductorSettings?.plotAxisSettings,
-      xUnitByFileId: metadataState.xUnitByFileId,
-      yScaleByFileId: metadataState.yScaleByFileId,
-      yUnitByFileId: metadataState.yUnitByFileId,
+      xUnitByFileId: axisSettings.xUnitByFileId,
+      yScaleByFileId: axisSettings.yScaleByFileId,
+      yUnitByFileId: axisSettings.yUnitByFileId,
     };
   }
 
@@ -1209,16 +1541,6 @@ export class Workbench extends Layout {
   private readonly resolveCurveLabelForSeries = (
     ...args: Parameters<ISessionServiceType["resolveSeriesLabel"]>
   ): string => this.session.resolveSeriesLabel(...args);
-
-  private resolveActiveFile(snapshot = this.session.getSnapshot()): CleanedEntry | null {
-    const activeFileId = this.getActiveAnalysisFileId(snapshot);
-    const normalizedActiveFileId = String(activeFileId ?? "").trim();
-    return (
-      snapshot.cleanedData.find((file) => String(file?.fileId ?? "") === normalizedActiveFileId) ??
-      snapshot.cleanedData[0] ??
-      null
-    );
-  }
 
   private readonly updateOriginPlotOptions = async (updates: unknown): Promise<void> => {
     if (!updates || typeof updates !== "object") {
@@ -1300,43 +1622,16 @@ export class Workbench extends Layout {
     this.renderWorkbench();
   };
 
-  private getActiveAnalysisFileId(snapshot = this.session.getSnapshot()): string | null {
-    const candidateIds = [
-      this.selectedAnalysisFileId,
-      snapshot.selectedPreviewFileId,
-    ];
-    for (const selectedFileId of candidateIds) {
-      if (selectedFileId && this.hasAnalysisFile(snapshot, selectedFileId)) {
-        return selectedFileId;
-      }
-    }
-
-    return snapshot.cleanedData[0]?.fileId ?? null;
-  }
-
-  private hasAnalysisFile(
-    snapshot: WorkbenchSessionSnapshot,
-    fileId: string,
-  ): boolean {
-    return snapshot.cleanedData.some(
-      (file) => String(file?.fileId ?? "") === fileId,
-    );
-  }
-
-  private clearStaleAnalysisFileSelection(snapshot = this.session.getSnapshot()): void {
-    const selectedFileId = this.selectedAnalysisFileId;
-    if (selectedFileId && !this.hasAnalysisFile(snapshot, selectedFileId)) {
-      this.selectedAnalysisFileId = null;
-    }
-  }
-
-  private getTableModel(snapshot = this.session.getSnapshot()) {
+  private getTableModel(
+    snapshot = this.session.getSnapshot(),
+    readModel = createSessionReadModel(snapshot),
+  ) {
     return this.tableService.update({
       cacheFileIdRef: this.session.previewCacheFileIdRef,
       analysisFileService: this.analysisFileService,
       cacheFileLruRef: this.session.previewCacheFileLruRef,
-      file: snapshot.previewFile,
-      loadState: snapshot.previewStatus,
+      file: readModel.previewFile,
+      loadState: readModel.previewStatus,
       loadedChunksByFileIdRef: this.session.previewLoadedChunksByFileIdRef,
       loadedChunksRef: this.session.previewLoadedChunksRef,
       requestIdRef: this.session.previewRequestIdRef,
@@ -1345,27 +1640,29 @@ export class Workbench extends Layout {
       rowsRequestIdRef: this.session.previewRowsRequestIdRef,
       rowsRequestsRef: this.session.previewRowsRequestsRef,
       workerRef: this.session.previewWorkerRef,
-      sourceFiles: snapshot.sourceFiles,
-      selectedFileId: snapshot.selectedPreviewFileId,
-      selectedSheetId: snapshot.selectedPreviewSheetId,
+      rawFiles: readModel.rawFiles,
+      selectedFileId: readModel.activeTargetFileId,
+      selectedSheetId: readModel.activeTargetSheetId,
+      viewSelection: snapshot.viewState.table?.selection,
       setFile: this.session.setPreviewFile,
       setLoadState: this.session.setPreviewStatus,
-      setSelectedFileId: this.session.setSelectedPreviewFileId,
-      setSelectedSheetId: this.session.setSelectedPreviewSheetId,
+      setActiveTarget: this.session.setActiveTarget,
+      setViewSelection: this.session.setTableSelection,
     });
   }
 
   private getTemplateApplyInput(
     snapshot = this.session.getSnapshot(),
-    tableModel: TableModel = this.getTableModel(snapshot),
+    readModel = createSessionReadModel(snapshot),
+    tableModel: TableModel = this.getTableModel(snapshot, readModel),
   ): TemplateApplyControllerInput {
     return {
-      activeFileId: snapshot.cleanedData[0]?.fileId ?? null,
+      activeFileId: readModel.activeTargetFileId ?? readModel.activeAnalysisFileId,
       getTableRow: tableModel.getRow,
       hasSourceFile: tableModel.hasSourceFile,
-      previewFile: snapshot.previewFile,
-      cleanedData: snapshot.cleanedData,
-      sourceFiles: snapshot.sourceFiles,
+      previewFile: readModel.previewFile,
+      processedFileIds: readModel.processedFileIds,
+      rawFiles: readModel.rawFiles,
     };
   }
 

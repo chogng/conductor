@@ -3,7 +3,6 @@ import type { LanguagePreference } from "src/cs/platform/language/common/languag
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type { Feedback } from "src/cs/workbench/contrib/settings/common/feedback";
 import type {
-  IonIoffManualTargetsByFileId,
   IonIoffMethod,
   SsMethod,
 } from "src/cs/workbench/services/session/common/session";
@@ -32,9 +31,6 @@ export type ConductorSettings = {
   originRuntimeCleanupEnabled?: boolean;
   originRuntimeFailedRetentionDays?: number;
   originRuntimeKeepSuccessJobs?: number;
-  ionIoffManualIoffX?: number | string;
-  ionIoffManualIonX?: number | string;
-  ionIoffManualTargetsByFileId?: IonIoffManualTargetsByFileId;
   ionIoffMethodDefault?: IonIoffMethod;
   ssIdHigh?: number | string;
   ssIdLow?: number | string;

@@ -37,11 +37,11 @@ import {
 } from "src/cs/workbench/contrib/files/common/files";
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 import { ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
-import type { CleanedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
+import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 import {
   getCalculatedData,
   type CalculatedData,
-  type CalculatedDataByKey,
+  type CalculatedPlotsByKey,
 } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { FolderImportSupport } from "src/cs/platform/files/browser/webFileSystemAccess";
@@ -55,7 +55,7 @@ import { FileKind } from "src/cs/workbench/contrib/files/common/getIconClasses";
 import { createEmptyView } from "src/cs/workbench/contrib/files/browser/views/emptyView";
 import {
   createThumbnailView,
-  type CleanedFileLike,
+  type ProcessedFileLike,
 } from "src/cs/workbench/contrib/thumbnail/browser/ThumbnailView";
 import type { IThumbnailService } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
@@ -72,7 +72,7 @@ import type { TemplateRecord } from "src/cs/workbench/contrib/template/common/te
 export type ExplorerViewerProps = {
   readonly effectiveSelectedFileId?: string | null;
   readonly activePlotType?: PlotType;
-  readonly calculatedDataByKey?: CalculatedDataByKey;
+  readonly calculatedPlotsByKey?: CalculatedPlotsByKey;
   readonly commandService: Pick<ICommandService, "executeCommand">;
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly contextViewService: IContextViewService;
@@ -94,7 +94,7 @@ export type ExplorerViewerProps = {
   readonly onRemoveFolder: (folderKey: string) => void;
   readonly onRequestTemplates?: () => void;
   readonly onSelectFile: (fileId: string | null) => void;
-  readonly cleanedData?: CleanedEntry[];
+  readonly thumbnailFiles?: ProcessedEntry[];
 };
 
 const getFileName = getTreeFileName;
@@ -162,11 +162,11 @@ type HoverContent =
   | {
     readonly kind: "thumbnail";
     readonly isSelected: boolean;
-    readonly processedFile: CleanedEntry;
+    readonly processedFile: ProcessedEntry;
   };
 
 type HoverThumbnailCacheEntry = {
-  readonly file: CleanedEntry;
+  readonly file: ProcessedEntry;
   readonly isActive: boolean;
   readonly node: HTMLElement;
   readonly plotModel: CalculatedData | null;
@@ -769,9 +769,9 @@ export class ExplorerViewer implements IDisposable {
     );
   }
 
-  private getThumbnailFiles(): CleanedFileLike[] {
-    const cleanedData = Array.isArray(this.props.cleanedData) ? this.props.cleanedData : [];
-    if (!cleanedData.length) {
+  private getThumbnailFiles(): ProcessedFileLike[] {
+    const thumbnailFiles = Array.isArray(this.props.thumbnailFiles) ? this.props.thumbnailFiles : [];
+    if (!thumbnailFiles.length) {
       return this.props.files.map(file => ({
         curveFilterField: null,
         curveFilterKey: null,
@@ -787,13 +787,13 @@ export class ExplorerViewer implements IDisposable {
         .filter(Boolean),
     );
     if (!fileIds.size) {
-      return cleanedData;
+      return thumbnailFiles;
     }
 
-    return cleanedData.filter(file => fileIds.has(String(file.fileId ?? "").trim()));
+    return thumbnailFiles.filter(file => fileIds.has(String(file.fileId ?? "").trim()));
   }
 
-  private createThumbnailItem(file: CleanedFileLike): HTMLButtonElement {
+  private createThumbnailItem(file: ProcessedFileLike): HTMLButtonElement {
     const fileName = String(file.fileName ?? file.fileId ?? "");
     const fileId = String(file.fileId ?? "").trim();
     const item = document.createElement("button");
@@ -1016,13 +1016,13 @@ export class ExplorerViewer implements IDisposable {
     return item instanceof HTMLElement ? item : null;
   }
 
-  private getProcessedFile(fileId: string | null | undefined): CleanedEntry | null {
+  private getProcessedFile(fileId: string | null | undefined): ProcessedEntry | null {
     const normalizedFileId = String(fileId ?? "").trim();
     if (!normalizedFileId) {
       return null;
     }
 
-    return (Array.isArray(this.props.cleanedData) ? this.props.cleanedData : [])
+    return (Array.isArray(this.props.thumbnailFiles) ? this.props.thumbnailFiles : [])
       .find((entry) => String(entry?.fileId ?? "").trim() === normalizedFileId) ?? null;
   }
 
@@ -1219,7 +1219,7 @@ export class ExplorerViewer implements IDisposable {
     container.appendChild(details);
   }
 
-  private getHoverThumbnail(file: CleanedEntry, isActive: boolean): HTMLElement {
+  private getHoverThumbnail(file: ProcessedEntry, isActive: boolean): HTMLElement {
     const fileId = String(file.fileId ?? file.fileName ?? "").trim();
     const cacheKey = fileId || "__unknown__";
     const plotModel = this.getThumbnailPlotModel(fileId);
@@ -1257,7 +1257,7 @@ export class ExplorerViewer implements IDisposable {
 
   private getThumbnailPlotModel(fileId: string): CalculatedData | null {
     return getCalculatedData(
-      this.props.calculatedDataByKey,
+      this.props.calculatedPlotsByKey,
       this.props.activePlotType ?? "iv",
       fileId,
     );
@@ -1277,7 +1277,7 @@ export class ExplorerViewer implements IDisposable {
   ): boolean {
     return (
       previous.activePlotType !== next.activePlotType ||
-      previous.calculatedDataByKey !== next.calculatedDataByKey ||
+      previous.calculatedPlotsByKey !== next.calculatedPlotsByKey ||
       previous.originOpenPlotOptions !== next.originOpenPlotOptions ||
       previous.plotAxisSettings !== next.plotAxisSettings
     );
@@ -1362,3 +1362,4 @@ function getEffectiveViewLayout(
 ): FilesViewLayout {
   return props.mode === "chart" ? props.viewLayout ?? "tree" : "tree";
 }
+

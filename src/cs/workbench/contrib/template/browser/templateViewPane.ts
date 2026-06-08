@@ -23,7 +23,7 @@ export type TemplateViewPaneProps = {
   readonly onTemplateAppliedIncremental?: TemplateViewOptions["onTemplateAppliedIncremental"];
   readonly onUpdateSettings?: TemplateViewOptions["onUpdateSettings"];
   readonly sessionService: ISessionService;
-  readonly sourceFiles?: SessionFile[];
+  readonly rawFiles?: SessionFile[];
   readonly tableModel?: TemplateViewOptions["tableModel"];
   readonly templateImportController: TemplateImportController;
   readonly templateService: ITemplateService;
@@ -47,7 +47,7 @@ export class TemplateViewPane extends ViewPane {
     });
     this.templateView = new TemplateView({
       ...props,
-      sourceFiles: props.sourceFiles ?? [],
+      rawFiles: props.rawFiles ?? [],
     });
 
     this.previewPart = createPreviewPart({
@@ -62,7 +62,7 @@ export class TemplateViewPane extends ViewPane {
   public update(props: TemplateViewPaneProps): void {
     this.templateView.update({
       ...props,
-      sourceFiles: props.sourceFiles ?? [],
+      rawFiles: props.rawFiles ?? [],
     });
   }
 

@@ -3,7 +3,7 @@
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import type {
-  CleanedEntry,
+  ProcessedEntry,
   ProcessingStatus,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { StateSetter } from "src/cs/workbench/services/session/common/session";
@@ -96,8 +96,8 @@ suite("workbench/contrib/template/test/browser/templateApplyProcessing", () => {
         processingStopOnErrorRef: createRef(false),
         processingWorkerRef: createRef<Worker | null>(null),
         removedQueuedFileIdsRef: createRef<Set<string>>(new Set()),
-        setAnalysisResults: session.setAnalysisResults,
-        setCleanedData: session.setCleanedData,
+        commitProcessedFile: session.commitProcessedFile,
+        resetProcessedData: session.resetProcessedData,
         setProcessingStatus: (next: Parameters<StateSetter<ProcessingStatus>>[0]) => {
           processingStatus = resolveNext(next, processingStatus);
         },
@@ -110,9 +110,14 @@ suite("workbench/contrib/template/test/browser/templateApplyProcessing", () => {
     };
   };
 
-  const createProcessedFile = (fileId: string): CleanedEntry => ({
+  const createProcessedFile = (fileId: string): ProcessedEntry => ({
     analysisCache: {
-      series: {},
+      version: 2,
+      series: {
+        "series-1": {
+          gm: [{ x: 0, y: 1 }],
+        },
+      },
     },
     analysisCacheTouchedAt: 1,
     fileId,
@@ -123,31 +128,48 @@ suite("workbench/contrib/template/test/browser/templateApplyProcessing", () => {
     await withTestWorker(async () => {
       const harness = createProcessingHarness();
       const processed = createProcessedFile("file-a");
+      const extractionConfig = {
+        endRow: 2,
+        groupSize: 2,
+        startRow: 1,
+        xSegmentationMode: "points",
+        yCols: [1],
+      };
 
       startProcessingJob({
         ...harness.options,
-        extractionConfig: {},
+        extractionConfig,
         queue: [{
           file: {},
           fileId: "file-a",
           fileName: "file-a.csv",
           normalizedCsvPath: "file-a.csv",
         }],
-        resetCleanedData: true,
+        resetProcessedDataBeforeRun: true,
         tryProcessFileWithRust: async () => processed,
       });
 
-      assert.equal(harness.sessionChangeCount, 1);
+      assert.equal(harness.sessionChangeCount, 0);
 
       await waitForAsyncJob();
 
       const snapshot = harness.session.getSnapshot();
-      assert.equal(harness.sessionChangeCount, 2);
+      assert.equal(harness.sessionChangeCount, 1);
       assert.equal(harness.showResultsCount, 1);
       assert.equal(harness.processingStatus.state, "done");
-      assert.equal(snapshot.cleanedData.length, 1);
-      assert.equal(snapshot.cleanedData[0], processed);
-      assert.equal(snapshot.analysisResults["file-a"]?.fileId, "file-a");
+      assert.deepEqual(snapshot.fileOrder, ["file-a"]);
+      assert.equal(snapshot.filesById["file-a"].raw.fileName, "file-a.csv");
+      assert.equal(snapshot.filesById["file-a"].templateRun?.config.xDataStart, 1);
+      assert.equal(snapshot.filesById["file-a"].templateRun?.config.xDataEnd, 2);
+      assert.deepEqual(snapshot.filesById["file-a"].templateRun?.config.yColumns, [1]);
+      assert.equal(
+        snapshot.filesById["file-a"].calculationCache?.entriesByKey["gm:series-1"]?.kind,
+        "gm",
+      );
+      assert.deepEqual(
+        snapshot.filesById["file-a"].calculationCache?.entriesByKey["gm:series-1"]?.value,
+        [{ x: 0, y: 1 }],
+      );
       harness.dispose();
     });
   });
@@ -174,17 +196,24 @@ suite("workbench/contrib/template/test/browser/templateApplyProcessing", () => {
         tryProcessFileWithRust: async () => processed,
       });
 
-      assert.equal(harness.sessionChangeCount, 1);
+      assert.equal(harness.sessionChangeCount, 0);
 
       await waitForAsyncJob();
 
       const snapshot = harness.session.getSnapshot();
-      assert.equal(harness.sessionChangeCount, 2);
+      assert.equal(harness.sessionChangeCount, 1);
       assert.equal(harness.showResultsCount, 1);
       assert.equal(harness.processingStatus.state, "done");
-      assert.equal(snapshot.cleanedData.length, 1);
-      assert.equal(snapshot.cleanedData[0], processed);
-      assert.equal(snapshot.analysisResults["file-b"]?.fileId, "file-b");
+      assert.deepEqual(snapshot.fileOrder, ["file-b"]);
+      assert.equal(snapshot.filesById["file-b"].raw.fileName, "file-b.csv");
+      assert.equal(
+        snapshot.filesById["file-b"].calculationCache?.entriesByKey["gm:series-1"]?.kind,
+        "gm",
+      );
+      assert.deepEqual(
+        snapshot.filesById["file-b"].calculationCache?.entriesByKey["gm:series-1"]?.value,
+        [{ x: 0, y: 1 }],
+      );
       harness.dispose();
     });
   });
@@ -219,7 +248,7 @@ suite("workbench/contrib/template/test/browser/templateApplyProcessing", () => {
         tryProcessFileWithRust: async ({ entry }) => createProcessedFile(entry.fileId),
       });
 
-      assert.equal(harness.sessionChangeCount, 1);
+      assert.equal(harness.sessionChangeCount, 0);
 
       await waitForAsyncJob();
 
@@ -227,13 +256,19 @@ suite("workbench/contrib/template/test/browser/templateApplyProcessing", () => {
       assert.equal(harness.processingStatus.state, "done");
       assert.equal(harness.processingStatus.processed, 2);
       assert.equal(harness.showResultsCount, 1);
-      assert.deepEqual(
-        snapshot.cleanedData.map((file) => file.fileId),
-        ["file-a", "file-b"],
+      assert.deepEqual(snapshot.fileOrder, ["file-a", "file-b"]);
+      assert.equal(snapshot.filesById["file-a"].raw.fileName, "file-a.csv");
+      assert.equal(snapshot.filesById["file-b"].raw.fileName, "file-b.csv");
+      assert.equal(
+        snapshot.filesById["file-a"].calculationCache?.entriesByKey["gm:series-1"]?.kind,
+        "gm",
       );
-      assert.equal(snapshot.analysisResults["file-a"]?.fileId, "file-a");
-      assert.equal(snapshot.analysisResults["file-b"]?.fileId, "file-b");
+      assert.equal(
+        snapshot.filesById["file-b"].calculationCache?.entriesByKey["gm:series-1"]?.kind,
+        "gm",
+      );
       harness.dispose();
     });
   });
 });
+

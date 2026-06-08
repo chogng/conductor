@@ -6,7 +6,7 @@ import {
   createSecondCalculatedData,
   getCalculatedData,
   type CalculatedData,
-  type CalculatedDataByKey,
+  type CalculatedPlotsByKey,
 } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
@@ -21,19 +21,10 @@ import {
 import { createEmptyView } from "src/cs/workbench/contrib/chart/browser/views/emptyView";
 import { filterCalculatedDataSeries } from "src/cs/workbench/contrib/chart/common/chartLegendVisibility";
 import type {
-  IonIoffManualTargetsByFileId,
-  IonIoffMethod,
-  SsManualRanges,
-  SsMethod,
-} from "src/cs/workbench/services/session/common/session";
-import type {
-  CleanedEntry,
   ProcessingStatus,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 
 import "src/cs/workbench/contrib/chart/browser/views/media/chartView.css";
-
-type StateSetter<T> = (next: T | ((previous: T) => T)) => void;
 
 export type ChartPane = "chart" | "inspector";
 
@@ -41,12 +32,10 @@ export type ChartViewProps = {
   visiblePanes?: readonly ChartPane[];
   activePlotType?: PlotType;
   onActivePlotTypeChange?: (next: PlotType) => void;
-  cleanedData: CleanedEntry[];
-  calculatedDataByKey?: CalculatedDataByKey;
+  hasAnalysisData?: boolean;
+  calculatedPlotsByKey?: CalculatedPlotsByKey;
   processingStatus?: Partial<ProcessingStatus>;
   activeFileId?: string | null;
-  ionIoffMethod?: IonIoffMethod;
-  ionIoffManualTargetsByFileId?: IonIoffManualTargetsByFileId;
   onActiveFileIdChange?: (nextFileId: string | null) => void;
   showFileSelect?: boolean;
   xUnitByFileId?: Readonly<Record<string, string>>;
@@ -71,14 +60,6 @@ export type ChartViewProps = {
   onYAxisLabelChange?: (nextLabel: string) => void;
   xAxisLabelOverride?: string;
   yAxisLabelOverride?: string;
-  setIonIoffMethod?: (next: IonIoffMethod) => void;
-  setIonIoffManualTargetsByFileId?: StateSetter<IonIoffManualTargetsByFileId>;
-  ssMethod?: SsMethod;
-  setSsMethod?: (next: SsMethod) => void;
-  ssShowFitLine?: boolean;
-  setSsShowFitLine?: (next: boolean) => void;
-  ssManualRanges?: SsManualRanges;
-  setSsManualRanges?: (next: SsManualRanges) => void;
   originOpenPlotOptions?: OriginPlotOptions;
   onOriginOpenPlotOptionsChange?: (updates: unknown) => Promise<unknown> | void;
   plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
@@ -93,8 +74,8 @@ export type ChartViewElement = HTMLElement & {
 export const createChartView = (props: ChartViewProps): ChartViewElement => {
   const {
     activePlotType = "iv",
-    calculatedDataByKey,
-    cleanedData = [],
+    calculatedPlotsByKey,
+    hasAnalysisData = false,
     processingStatus,
     activeFileId: controlledActiveFileId = undefined,
   } = props;
@@ -103,7 +84,7 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   root.className = "chart_view";
   root.setAttribute("aria-label", localize("analysis.visualization", "Analysis & Visualization"));
 
-  if (!cleanedData.length) {
+  if (!hasAnalysisData) {
     root.append(createEmptyView({
       hint: processingStatus?.state === "processing"
         ? localize("analysis_processing_hint", "Extracting and preparing chart data, please wait.")
@@ -116,7 +97,7 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   }
 
   const calculatedData = getCalculatedData(
-    calculatedDataByKey,
+    calculatedPlotsByKey,
     activePlotType,
     controlledActiveFileId,
   );

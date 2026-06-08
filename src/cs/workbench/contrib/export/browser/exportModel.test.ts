@@ -1,7 +1,10 @@
 import assert from "assert";
 
+import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
+
 import {
   createExportPaneState,
+  createOriginCurveOptionsFromRecord,
   getCanvasScopeSummary,
   getExportSelectionSummary,
 } from "./exportModel.ts";
@@ -94,4 +97,63 @@ suite("workbench/contrib/export/browser/exportModel", () => {
       "separate",
     );
   });
+
+  test("createOriginCurveOptionsFromRecord uses canonical series order", () => {
+    assert.deepEqual(
+      createOriginCurveOptionsFromRecord(
+        createFileRecord(),
+        (_fileId, seriesId, fallback) =>
+          seriesId === "series-b" ? "Edited B" : fallback,
+      ),
+      [
+        {
+          key: "series-a",
+          label: "Vd=0.1",
+          sourceFileId: "file-a",
+          sourceSeriesId: "series-a",
+        },
+        {
+          key: "series-b",
+          label: "Edited B",
+          sourceFileId: "file-a",
+          sourceSeriesId: "series-b",
+        },
+      ],
+    );
+  });
+});
+
+const createFileRecord = (): FileRecord => ({
+  assessment: {
+    baseFamily: "iv",
+  },
+  baseCandidateOrder: [],
+  baseCandidatesById: {},
+  curvesByKey: {},
+  id: "file-a",
+  metricsByKey: {},
+  raw: {
+    fileId: "file-a",
+    fileName: "file-a.csv",
+    tableOrder: [],
+    tablesById: {},
+  },
+  seriesById: {
+    "series-a": {
+      fileId: "file-a",
+      groupIndex: 0,
+      id: "series-a",
+      legendValue: "Vd=0.1",
+      y: [1],
+    },
+    "series-b": {
+      fileId: "file-a",
+      groupIndex: 1,
+      id: "series-b",
+      name: "Source B",
+      y: [2],
+    },
+  },
+  seriesOrder: ["series-a", "series-b"],
+  xGroups: [[0], [1]],
 });

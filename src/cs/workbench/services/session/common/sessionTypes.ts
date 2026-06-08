@@ -1,4 +1,4 @@
-export type SessionFile = {
+﻿export type SessionFile = {
   file?: unknown;
   fileId?: string;
   fileName?: string;
@@ -20,7 +20,7 @@ export type SessionFile = {
   [key: string]: unknown;
 };
 
-export type CleanedSeries = {
+export type ProcessedSeries = {
   id?: string;
   name?: string;
   groupIndex?: number;
@@ -29,12 +29,12 @@ export type CleanedSeries = {
   [key: string]: unknown;
 };
 
-export type CleanedDomain = {
+export type ProcessedDomain = {
   x?: [number, number];
   y?: [number, number];
 };
 
-export type CleanedEntry = {
+export type ProcessedEntry = {
   fileId?: string;
   fileName?: string;
   curveFilterKey?: string | null;
@@ -52,24 +52,17 @@ export type CleanedEntry = {
     | "shape"
     | null;
   supportsSs?: boolean;
+  calculationCache?: unknown;
   xUnit?: string;
   x?: {
     sampledPoints?: number | null;
     [key: string]: unknown;
   };
   xGroups?: number[][];
-  series?: CleanedSeries[];
-  domain?: CleanedDomain;
+  series?: ProcessedSeries[];
+  domain?: ProcessedDomain;
   [key: string]: unknown;
 };
-
-export type AnalysisFileResults = {
-  fileId: string;
-  analysisCache?: unknown;
-  touchedAt?: number;
-};
-
-export type AnalysisResultsByFileId = Record<string, AnalysisFileResults>;
 
 export type PreviewFile = {
   fileId: string;
@@ -99,3 +92,4 @@ export type ProcessingStatus = {
   processed: number;
   total: number;
 };
+

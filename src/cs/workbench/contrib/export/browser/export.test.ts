@@ -1,5 +1,16 @@
 import assert from "assert";
-import { buildCsvExports, buildSsMetricsCsv } from "./export.ts";
+import type {
+  BaseCurveKey,
+  FileRecord,
+  MetricKey,
+} from "src/cs/workbench/services/session/common/sessionModel";
+
+import {
+  buildCsvExports,
+  buildCsvExportsFromRecords,
+  buildSsMetricsCsv,
+  buildSsMetricsCsvFromRecords,
+} from "./export.ts";
 import {
   buildOriginExportPlan,
   buildOriginExportsByMode,
@@ -42,9 +53,81 @@ suite("workbench/contrib/export/browser/export", () => {
     );
   });
 
+  test("buildCsvExportsFromRecords writes canonical base curves", () => {
+    const exports = buildCsvExportsFromRecords(
+      {
+        "file-a": createFileRecord("transfer"),
+      },
+      ["file-a"],
+      (_file, series) => series.id === "series-a" ? "Edited Legend" : "",
+    );
+
+    assert.equal(exports.length, 1);
+    assert.equal(exports[0].filename, "file_a.csv");
+    assert.equal(
+      exports[0].csvText,
+      "Edited Legend X,Edited Legend\r\n0,1\r\n1,10\r\n2,100",
+    );
+  });
+
+  test("buildSsMetricsCsvFromRecords uses canonical IV mode", () => {
+    const csv = buildSsMetricsCsvFromRecords({
+      filesById: {
+        "file-a": createFileRecord("output"),
+      },
+      fileOrder: ["file-a"],
+      ssMethod: "auto",
+    });
+
+    const rows = csv.split(/\r?\n/);
+    const headers = rows[0].split(",");
+    const values = rows[1].split(",");
+    const byHeader = Object.fromEntries(headers.map((header, index) => [header, values[index]]));
+
+    assert.equal(byHeader.file_id, "file-a");
+    assert.equal(byHeader.series_id, "series-a");
+    assert.equal(byHeader.ss, "");
+    assert.equal(byHeader.ss_ok, "false");
+    assert.equal(byHeader.ss_reason, "not_transfer_curve");
+  });
+
+  test("buildSsMetricsCsvFromRecords uses canonical manual SS range input", () => {
+    const file = createFileRecord("transfer");
+    const metricKey = "subthreshold:series-a:ss:manual" as MetricKey;
+    file.metricInputsByKey = {
+      [metricKey]: {
+        fileId: "file-a",
+        metricKey,
+        range: {
+          x1: 0,
+          x2: 2,
+        },
+        seriesId: "series-a",
+        source: "manual",
+      },
+    };
+
+    const csv = buildSsMetricsCsvFromRecords({
+      filesById: {
+        "file-a": file,
+      },
+      fileOrder: ["file-a"],
+      ssMethod: "manual",
+    });
+
+    const rows = csv.split(/\r?\n/);
+    const headers = rows[0].split(",");
+    const values = rows[1].split(",");
+    const byHeader = Object.fromEntries(headers.map((header, index) => [header, values[index]]));
+
+    assert.equal(byHeader.file_id, "file-a");
+    assert.equal(byHeader.series_id, "series-a");
+    assert.equal(byHeader.ss_range_source, "manual");
+  });
+
   test("buildSsMetricsCsv does not compute SS for output curves", () => {
     const csv = buildSsMetricsCsv({
-      cleanedData: [
+      processedFiles: [
         {
           fileId: "output-file",
           fileName: "output.csv",
@@ -77,7 +160,7 @@ suite("workbench/contrib/export/browser/export", () => {
 
   test("buildSsMetricsCsv reuses cached Rust SS auto fits", () => {
     const csv = buildSsMetricsCsv({
-      cleanedData: [
+      processedFiles: [
         {
           fileId: "transfer-file",
           fileName: "transfer.csv",
@@ -93,11 +176,13 @@ suite("workbench/contrib/export/browser/export", () => {
               y: [NaN, NaN, NaN],
             },
           ],
-          analysisCache: {
-            version: 2,
-            series: {
-              "curve-transfer": {
-                ssFitAuto: {
+          calculationCache: {
+            fileId: "transfer-file",
+            entriesByKey: {
+              "ssFitAuto:curve-transfer": {
+                inputSignatures: [],
+                kind: "ssFitAuto",
+                value: {
                   strict: {
                     ok: true,
                     ss: 77,
@@ -825,12 +910,18 @@ suite("workbench/contrib/export/browser/export", () => {
               y: [NaN, NaN, NaN],
             },
           ],
-          analysisCache: {
-            version: 2,
-            series: {
-              "curve-cache": {
-                gm: [{ x: 1.5, y: -42 }],
-                ssFitAuto: {
+          calculationCache: {
+            fileId: "transfer-cache",
+            entriesByKey: {
+              "gm:curve-cache": {
+                inputSignatures: [],
+                kind: "gm",
+                value: [{ x: 1.5, y: -42 }],
+              },
+              "ssFitAuto:curve-cache": {
+                inputSignatures: [],
+                kind: "ssFitAuto",
+                value: {
                   strict: {
                     ok: true,
                     ss: 88,
@@ -842,7 +933,11 @@ suite("workbench/contrib/export/browser/export", () => {
                     reason: "ok",
                   },
                 },
-                baseCurrent: {
+              },
+              "baseCurrent:curve-cache": {
+                inputSignatures: [],
+                kind: "baseCurrent",
+                value: {
                   candidateWindows: [{ key: "minCurrent" }, { key: "maxCurrent" }],
                   ion: 5e-6,
                   ioff: 1e-9,
@@ -1286,3 +1381,71 @@ suite("workbench/contrib/export/browser/export", () => {
     assert.match(plan.payloads[1].sheetName, /Log$/);
   });
 });
+
+const createFileRecord = (ivMode: "transfer" | "output"): FileRecord => {
+  const fileId = "file-a";
+  const seriesId = "series-a";
+  const curveKey = `base:iv:${ivMode}:series-a` as BaseCurveKey;
+  return {
+    assessment: {
+      baseFamily: "iv",
+      baseFamilyConfidence: "high",
+    },
+    axis: {
+      x: {
+        label: ivMode === "transfer" ? "Gate Voltage" : "Drain Voltage",
+        role: ivMode === "transfer" ? "vg" : "vd",
+        unit: "V",
+      },
+      y: {
+        label: "Drain Current",
+        role: "id",
+        scale: "linear",
+        unit: "A",
+      },
+    },
+    baseCandidateOrder: [],
+    baseCandidatesById: {},
+    curvesByKey: {
+      [curveKey]: {
+        curveFamily: "iv",
+        curveGeneration: "base",
+        fileId,
+        ivMode,
+        lineage: {
+          baseFamily: "iv",
+          baseSeries: { fileId, seriesId },
+          curveGeneration: "base",
+          ivMode,
+        },
+        points: [
+          { x: 0, y: 1 },
+          { x: 1, y: 10 },
+          { x: 2, y: 100 },
+        ],
+        seriesId,
+        signature: "base-signature",
+      },
+    },
+    id: fileId,
+    metricsByKey: {},
+    raw: {
+      fileId,
+      fileName: "file_a.csv",
+      tableOrder: [],
+      tablesById: {},
+    },
+    seriesById: {
+      [seriesId]: {
+        fileId,
+        groupIndex: 0,
+        id: seriesId,
+        legendValue: "Vd=0.1",
+        y: [1, 10, 100],
+        yCol: 1,
+      },
+    },
+    seriesOrder: [seriesId],
+    xGroups: [[0, 1, 2]],
+  };
+};

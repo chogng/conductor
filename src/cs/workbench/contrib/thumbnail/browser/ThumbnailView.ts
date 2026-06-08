@@ -11,7 +11,7 @@ import {
 } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailBitmap";
 import type { IThumbnailService } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
 
-export type CleanedFileLike = PlotThumbnailData & {
+export type ProcessedFileLike = PlotThumbnailData & {
   fileId?: string;
   fileName?: string;
   yUnit?: string;
@@ -25,7 +25,7 @@ export type CleanedFileLike = PlotThumbnailData & {
 };
 
 export type ThumbnailViewProps = {
-  file: CleanedFileLike;
+  file: ProcessedFileLike;
   originOpenPlotOptions?: OriginPlotOptions;
   plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   plotModel?: CalculatedData | null;
@@ -82,7 +82,7 @@ export const createThumbnailView = ({
   return root;
 };
 
-const createHeader = (file: CleanedFileLike): HTMLElement => {
+const createHeader = (file: ProcessedFileLike): HTMLElement => {
   const root = document.createElement("div");
   root.className = "thumbnail_view_header";
 
@@ -114,7 +114,7 @@ const createChartThumbnail = ({
   yLogCurrentMode,
   yScale,
 }: {
-  readonly file: CleanedFileLike;
+  readonly file: ProcessedFileLike;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly plotModel: CalculatedData | null;
@@ -168,7 +168,7 @@ const createPlotMainThumbnailCanvas = ({
   plotType,
   thumbnailService,
 }: {
-  readonly file: CleanedFileLike;
+  readonly file: ProcessedFileLike;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly plotModel: CalculatedData;

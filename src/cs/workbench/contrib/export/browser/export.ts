@@ -1,4 +1,4 @@
-import Papa from "papaparse";
+﻿import Papa from "papaparse";
 import {
   classifySsFit,
   computeSubthresholdSwingFitAuto,
@@ -6,9 +6,16 @@ import {
   isTransferLikeFile,
   resolveAutoSsSelection,
 } from "src/cs/workbench/contrib/calculation/common/firstCalculation";
-import { getCachedSsFitAuto } from "../../calculation/common/analysisCacheAccess.ts";
+import { getCachedSsFitAuto } from "../../calculation/common/calculationCacheAccess.ts";
 import { getExcelColumnLabel } from "../common/columnLabels.ts";
-import type { CleanedEntry, CleanedSeries } from "src/cs/workbench/services/session/common/sessionTypes";
+import type {
+  BaseCurveRecord,
+  FileId,
+  FileRecord,
+} from "src/cs/workbench/services/session/common/sessionModel";
+import type { ProcessedEntry, ProcessedSeries } from "src/cs/workbench/services/session/common/sessionTypes";
+
+type ProcessedFileEntry = ProcessedEntry;
 export type {
   OriginExportMode,
   OriginSelectionExport,
@@ -20,12 +27,12 @@ export {
   isOriginExportMode,
 } from "../common/originSelectionExport.ts";
 
-type SsManualRangeEntry = {
-  x1?: number;
-  x2?: number;
+type ManualSsRangeEntry = {
+  x1?: number | null;
+  x2?: number | null;
 };
 
-type SsManualRanges = Record<string, Record<string, SsManualRangeEntry>>;
+type ManualSsRangesByFileId = Record<string, Record<string, ManualSsRangeEntry>>;
 
 type SsFit = Partial<{
   ok: boolean;
@@ -88,8 +95,8 @@ export const createUniqueFileNameResolver = (): ((
 };
 
 export type ResolveCsvCurveLabelForSeries = (
-  file: CleanedEntry,
-  series: CleanedSeries,
+  file: ProcessedFileEntry,
+  series: ProcessedSeries,
   index: number,
 ) => string;
 
@@ -100,8 +107,70 @@ type CsvSeriesGroup = {
   yArr: number[];
 };
 
+export const createExportProcessedFilesFromRecords = (
+  filesById: Record<FileId, FileRecord>,
+  fileOrder: readonly FileId[],
+): ProcessedFileEntry[] => {
+  const seen = new Set<FileId>();
+  const entries: ProcessedFileEntry[] = [];
+  const pushFile = (fileId: FileId): void => {
+    if (seen.has(fileId)) {
+      return;
+    }
+    seen.add(fileId);
+
+    const file = filesById[fileId];
+    if (!file || (!file.seriesOrder.length && !collectBaseCurves(file).length)) {
+      return;
+    }
+
+    entries.push(createExportProcessedFileFromRecord(file));
+  };
+
+  for (const fileId of fileOrder) {
+    pushFile(fileId);
+  }
+  for (const fileId of Object.keys(filesById)) {
+    pushFile(fileId);
+  }
+
+  return entries;
+};
+
+export const buildCsvExportsFromRecords = (
+  filesById: Record<FileId, FileRecord>,
+  fileOrder: readonly FileId[],
+  resolveCurveLabelForSeries?: ResolveCsvCurveLabelForSeries,
+): Array<{
+  csvText: string;
+  filename: string;
+  xyPairCount: number;
+}> =>
+  buildCsvExports(
+    createExportProcessedFilesFromRecords(filesById, fileOrder),
+    resolveCurveLabelForSeries,
+  );
+
+export const buildSsMetricsCsvFromRecords = ({
+  filesById,
+  fileOrder,
+  manualSsRangesByFileId,
+  ssMethod,
+}: {
+  filesById: Record<FileId, FileRecord>;
+  fileOrder: readonly FileId[];
+  manualSsRangesByFileId?: unknown;
+  ssMethod?: unknown;
+}): string =>
+  buildSsMetricsCsv({
+    processedFiles: createExportProcessedFilesFromRecords(filesById, fileOrder),
+    manualSsRangesByFileId: manualSsRangesByFileId ??
+      createManualSsRangesFromRecords(filesById, fileOrder),
+    ssMethod,
+  });
+
 export const buildCsvExports = (
-  cleanedData: CleanedEntry[] = [],
+  processedFiles: ProcessedFileEntry[] = [],
   resolveCurveLabelForSeries?: ResolveCsvCurveLabelForSeries,
 ): Array<{
   csvText: string;
@@ -112,12 +181,12 @@ export const buildCsvExports = (
   const exports: Array<{ csvText: string; filename: string; xyPairCount: number }> =
     [];
 
-  for (const file of cleanedData) {
+  for (const file of processedFiles) {
     const originalFileName = file?.fileName ?? "export";
     const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
     const seriesList = Array.isArray(file?.series) ? file.series : [];
 
-    const seriesByYCol = new Map<number, CleanedSeries[]>();
+    const seriesByYCol = new Map<number, ProcessedSeries[]>();
     for (const series of seriesList) {
       const yCol = Number(series?.yCol);
       if (!Number.isInteger(yCol)) continue;
@@ -220,11 +289,11 @@ const buildPoints = (xArr?: number[], yArr?: number[]): Array<{ x: number; y: nu
 };
 
 const getOrComputeSsFitAuto = (
-  file: CleanedEntry,
-  series: CleanedSeries,
+  file: ProcessedFileEntry,
+  series: ProcessedSeries,
   points: Array<{ x: number; y: number }>,
 ): Partial<{ strict: SsFit; suggested: SsFit }> | null | undefined => {
-  const cached = getCachedSsFitAuto(file as any, series) as
+  const cached = getCachedSsFitAuto(file, series) as
     | Partial<{ strict: SsFit; suggested: SsFit }>
     | null
     | undefined;
@@ -234,15 +303,180 @@ const getOrComputeSsFitAuto = (
     | undefined);
 };
 
+const collectBaseCurves = (file: FileRecord): BaseCurveRecord[] => {
+  const curves = Object.values(file.curvesByKey).filter(
+    (curve): curve is BaseCurveRecord => curve.curveGeneration === "base",
+  );
+  if (!curves.length) {
+    return [];
+  }
+
+  const used = new Set<BaseCurveRecord>();
+  const ordered: BaseCurveRecord[] = [];
+  const pushCurve = (curve: BaseCurveRecord): void => {
+    if (used.has(curve)) {
+      return;
+    }
+    used.add(curve);
+    ordered.push(curve);
+  };
+
+  for (const seriesId of file.seriesOrder) {
+    for (const curve of curves) {
+      if (curve.seriesId === seriesId) {
+        pushCurve(curve);
+      }
+    }
+  }
+  for (const curve of curves) {
+    pushCurve(curve);
+  }
+
+  return ordered;
+};
+
+const createManualSsRangesFromRecords = (
+  filesById: Record<FileId, FileRecord>,
+  fileOrder: readonly FileId[],
+): ManualSsRangesByFileId => {
+  const ranges: ManualSsRangesByFileId = {};
+  const seen = new Set<FileId>();
+  const pushFile = (fileId: FileId): void => {
+    if (seen.has(fileId)) {
+      return;
+    }
+    seen.add(fileId);
+
+    const file = filesById[fileId];
+    if (!file) {
+      return;
+    }
+
+    for (const input of Object.values(file.metricInputsByKey ?? {})) {
+      if (
+        input.source !== "manual" ||
+        !input.metricKey.startsWith("subthreshold:") ||
+        !input.range
+      ) {
+        continue;
+      }
+
+      ranges[file.id] = ranges[file.id] ?? {};
+      ranges[file.id][input.seriesId] = {
+        x1: input.range.x1 ?? null,
+        x2: input.range.x2 ?? null,
+      };
+    }
+  };
+
+  for (const fileId of fileOrder) {
+    pushFile(fileId);
+  }
+  for (const fileId of Object.keys(filesById)) {
+    pushFile(fileId);
+  }
+  return ranges;
+};
+
+const createExportProcessedFileFromRecord = (file: FileRecord): ProcessedFileEntry => {
+  const curves = collectBaseCurves(file);
+  if (curves.length) {
+    return createExportProcessedFileFromCurves(file, curves);
+  }
+
+  return {
+    curveType: file.assessment.baseFamily ?? undefined,
+    curveTypeConfidence: file.assessment.baseFamilyConfidence,
+    curveTypeReasons: file.assessment.baseFamilyReasons,
+    calculationCache: file.calculationCache,
+    fileId: file.id,
+    fileName: file.raw.fileName,
+    series: file.seriesOrder
+      .map((seriesId, index): ProcessedSeries | null => {
+        const series = file.seriesById[seriesId];
+        if (!series) {
+          return null;
+        }
+
+        return {
+          groupIndex: series.groupIndex,
+          id: series.id || `series-${index + 1}`,
+          legendValue: series.legendValue,
+          name: series.labelOverride ?? series.name ?? series.legendValue,
+          y: series.y,
+          yCol: Number.isInteger(Number(series.yCol)) ? series.yCol : index + 1,
+        };
+      })
+      .filter((series): series is ProcessedSeries => Boolean(series)),
+    supportsSs: file.assessment.baseFamily === "iv" && hasTransferCurve(file),
+    xAxisRole: normalizeExportXAxisRole(file.axis?.x.role),
+    xGroups: file.xGroups,
+    xUnit: file.axis?.x.unit ?? file.templateRun?.config.xUnit,
+    yUnit: file.axis?.y.unit ?? file.templateRun?.config.yUnit,
+    xLabel: file.axis?.x.label,
+    yLabel: file.axis?.y.label,
+  };
+};
+
+const createExportProcessedFileFromCurves = (
+  file: FileRecord,
+  curves: readonly BaseCurveRecord[],
+): ProcessedFileEntry => ({
+  curveType: file.assessment.baseFamily ?? undefined,
+  curveTypeConfidence: file.assessment.baseFamilyConfidence,
+  curveTypeReasons: file.assessment.baseFamilyReasons,
+  calculationCache: file.calculationCache,
+  fileId: file.id,
+  fileName: file.raw.fileName,
+  series: curves.map((curve, index): ProcessedSeries => {
+    const series = file.seriesById[curve.seriesId];
+    return {
+      groupIndex: index,
+      id: curve.seriesId || `series-${index + 1}`,
+      legendValue: series?.legendValue,
+      name: series?.labelOverride ?? series?.name ?? series?.legendValue,
+      y: curve.points.map((point) => point.y),
+      yCol: Number.isInteger(Number(series?.yCol)) ? series?.yCol : index + 1,
+    };
+  }),
+  supportsSs: file.assessment.baseFamily === "iv" && curves.some((curve) => curve.ivMode === "transfer"),
+  xAxisRole: normalizeExportXAxisRole(file.axis?.x.role),
+  xGroups: curves.map((curve) => curve.points.map((point) => point.x)),
+  xUnit: file.axis?.x.unit ?? file.templateRun?.config.xUnit,
+  yUnit: file.axis?.y.unit ?? file.templateRun?.config.yUnit,
+  xLabel: file.axis?.x.label,
+  yLabel: file.axis?.y.label,
+});
+
+const hasTransferCurve = (file: FileRecord): boolean =>
+  Object.values(file.curvesByKey).some(
+    (curve) =>
+      curve.curveGeneration === "base" &&
+      curve.curveFamily === "iv" &&
+      curve.ivMode === "transfer",
+  );
+
+const normalizeExportXAxisRole = (role: unknown): ProcessedFileEntry["xAxisRole"] => {
+  const normalized = String(role ?? "").trim().toLowerCase();
+  if (normalized === "vg" || normalized === "gate" || normalized === "gatevoltage") {
+    return "vg";
+  }
+  if (normalized === "vd" || normalized === "drain" || normalized === "drainvoltage") {
+    return "vd";
+  }
+  return null;
+};
+
 export const buildSsMetricsCsv = ({
-  cleanedData = [],
-  ssManualRanges,
+  processedFiles,
+  manualSsRangesByFileId,
   ssMethod,
 }: {
-  cleanedData?: CleanedEntry[];
-  ssManualRanges?: unknown;
+  processedFiles?: ProcessedFileEntry[];
+  manualSsRangesByFileId?: unknown;
   ssMethod?: unknown;
 }): string => {
+  const files = processedFiles ?? [];
   const fields = [
     "ss_conf_version",
     "file_id",
@@ -267,12 +501,12 @@ export const buildSsMetricsCsv = ({
   const rows: Array<Record<string, string | number>> = [];
   const confVersion = "ssfit_v1";
   const manualRanges =
-    ssManualRanges && typeof ssManualRanges === "object"
-      ? (ssManualRanges as SsManualRanges)
+    manualSsRangesByFileId && typeof manualSsRangesByFileId === "object"
+      ? (manualSsRangesByFileId as ManualSsRangesByFileId)
       : {};
   const methodDefault = String(ssMethod || "auto");
 
-  for (const file of cleanedData) {
+  for (const file of files) {
     const fileId = file?.fileId ?? "";
     const fileName = file?.fileName ?? "";
     const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
@@ -375,3 +609,4 @@ export const buildSsMetricsCsv = ({
   const data = rows.map((row) => fields.map((field) => row?.[field] ?? ""));
   return Papa.unparse({ fields, data });
 };
+

@@ -1,19 +1,13 @@
 ﻿/*
- * Session owns the current workbench data table. Source files, cleaned files,
- * calculated curves, metadata, preview state, and template state all live here
- * so chart, parameters, export, and template code do not keep parallel copies.
- *
- * Metadata is a table inside the session. File metadata is keyed by fileId, and
- * curve data/view state is keyed by fileId + curveKind + seriesId. Do not add a
- * second metadata service that stores another copy of this state.
+ * Session owns the current workbench data table. Canonical facts live in
+ * filesById/fileOrder, activeTarget, and viewState.
  */
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { CalculatedDataByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
+import type { CalculatedPlotsByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type {
-  AnalysisResultsByFileId,
-  CleanedEntry,
-  CleanedSeries,
+  ProcessedEntry,
+  ProcessedSeries,
   PreviewFile,
   PreviewRowsRequest,
   SessionFile,
@@ -23,10 +17,23 @@ import type {
   CurveData,
   CurveKey,
   CurveViewState,
-  FileMetadata,
-  FileMetadataUpdate,
-  MetadataState,
-} from "src/cs/workbench/services/session/common/metadata";
+  FileSemantics,
+  FileSemanticsUpdate,
+} from "src/cs/workbench/services/session/common/fileSemantics";
+import type {
+  FileId,
+  FileRecord,
+  IonIoffMethod,
+  MetricInputRecord,
+  MetricKey,
+  SessionTarget,
+  SessionViewState,
+  SsMethod,
+  TablePreviewStatusRecord,
+  TableSelection,
+  TemplateFormState,
+  TemplateMode,
+} from "src/cs/workbench/services/session/common/sessionModel";
 
 export const ISessionService = createDecorator<ISessionService>("sessionService");
 
@@ -34,93 +41,52 @@ export type MutableState<T> = {
   current: T;
 };
 
-export type TemplateMode = "select" | "save";
-export type PreviewStatusState = "idle" | "loading" | "ready";
-export type SsMethod = "auto" | "manual";
+export type { IonIoffMethod, SsMethod, TemplateFormState, TemplateMode };
 
-export type TemplateConfig = {
-  name: string;
-  xDataStart: string;
-  xDataEnd: string;
-  xSegmentationMode: "auto" | "points" | "segments";
-  xSegmentCount: string;
-  xPointsPerGroup: string;
-  xUnit: string;
-  yLegendStart: string;
-  yLegendCount: string;
-  yLegendStep: string;
-  yLegendTarget: "auto" | "yColumn" | "group";
-  yUnit: string;
-  stopOnError: boolean;
-  bottomTitle: string;
-  leftTitle: string;
-  legendPrefix: string;
-  yColumns: number[];
-};
-
-export type PreviewStatus = {
-  state: PreviewStatusState;
-  message: string;
-};
-
-export type IonIoffMethod = "auto" | "manual";
-
-export type IonIoffManualTargets = {
-  ionX: string;
-  ioffX: string;
-};
-
-export type IonIoffManualTargetsBySeriesId = Record<
-  string,
-  IonIoffManualTargets
->;
-
-export type IonIoffManualTargetsByFileId = Record<
-  string,
-  IonIoffManualTargetsBySeriesId
->;
-
-export type SsManualRange = {
-  x1: unknown;
-  x2: unknown;
-};
-
-export type SsManualRanges = Record<string, Record<string, SsManualRange>>;
+export type PreviewStatus = TablePreviewStatusRecord;
 
 export type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
-export type SessionSnapshot = {
-  readonly sourceFiles: SessionFile[];
-  readonly selectedPreviewFileId: string | null;
-  readonly selectedPreviewSheetId: string | null;
-  readonly cleanedData: CleanedEntry[];
-  readonly calculatedDataByKey: CalculatedDataByKey;
-  readonly metadata: MetadataState;
-  readonly analysisResults: AnalysisResultsByFileId;
-  readonly templateMode: TemplateMode;
-  readonly selectedTemplateId: string | null;
-  readonly fileTemplateSelectionsByFileId: TemplateSelectionsByFileId;
-  readonly templateConfig: TemplateConfig;
-  readonly previewFile: PreviewFile | null;
-  readonly previewStatus: PreviewStatus;
-  readonly ionIoffMethod: IonIoffMethod;
-  readonly ionIoffManualTargetsByFileId: IonIoffManualTargetsByFileId;
-  readonly ssMethod: SsMethod;
-  readonly ssShowFitLine: boolean;
-  readonly ssManualRanges: SsManualRanges;
+export type CommitProcessedFileOptions = {
+  readonly activeFileId?: unknown;
+  readonly appliedTemplateConfig?: unknown;
 };
 
-export type SessionContextValue = SessionSnapshot & {
-  setSourceFiles: StateSetter<SessionFile[]>;
-  setSelectedPreviewFileId: StateSetter<string | null>;
-  setSelectedPreviewSheetId: StateSetter<string | null>;
-  setCleanedData: StateSetter<CleanedEntry[]>;
-  setCalculatedDataByKey: StateSetter<CalculatedDataByKey>;
-  setAnalysisResults: StateSetter<AnalysisResultsByFileId>;
+export type SessionSnapshot = {
+  readonly version: 1;
+  readonly filesById: Record<FileId, FileRecord>;
+  readonly fileOrder: FileId[];
+  readonly activeTarget: SessionTarget;
+  readonly viewState: SessionViewState;
+};
+
+export type SessionContextSnapshot = Pick<
+  SessionSnapshot,
+  | "version"
+  | "filesById"
+  | "fileOrder"
+  | "activeTarget"
+  | "viewState"
+>;
+
+export type SessionContextValue = SessionContextSnapshot & {
+  setActiveTarget: StateSetter<SessionTarget>;
+  setTableSelection: StateSetter<TableSelection | undefined>;
+  setViewState: StateSetter<SessionViewState>;
+  addRawFiles(files: readonly SessionFile[]): void;
+  replaceRawFiles(files: readonly SessionFile[]): void;
+  removeFiles(fileIds: readonly string[]): void;
+  clearSessionData(): void;
+  replaceCalculatedCurves(plotsByKey: CalculatedPlotsByKey): void;
+  commitProcessedFile(
+    file: ProcessedEntry | null | undefined,
+    options?: CommitProcessedFileOptions,
+  ): void;
+  resetProcessedData(): void;
   setTemplateMode: StateSetter<TemplateMode>;
   setSelectedTemplateId: StateSetter<string | null>;
   setFileTemplateSelectionsByFileId: StateSetter<TemplateSelectionsByFileId>;
-  setTemplateConfig: StateSetter<TemplateConfig>;
+  setTemplateFormState: StateSetter<TemplateFormState>;
   setPreviewFile: StateSetter<PreviewFile | null>;
   setPreviewStatus: StateSetter<PreviewStatus>;
   previewWorkerRef: MutableState<Worker | null>;
@@ -136,10 +102,8 @@ export type SessionContextValue = SessionSnapshot & {
   previewCacheFileIdRef: MutableState<string | null>;
   previewCacheFileLruRef: MutableState<Set<string>>;
   setIonIoffMethod: StateSetter<IonIoffMethod>;
-  setIonIoffManualTargetsByFileId: StateSetter<IonIoffManualTargetsByFileId>;
   setSsMethod: StateSetter<SsMethod>;
   setSsShowFitLine: StateSetter<boolean>;
-  setSsManualRanges: StateSetter<SsManualRanges>;
 };
 
 export interface ISessionService {
@@ -157,45 +121,61 @@ export interface ISessionService {
   readonly previewCacheFileIdRef: MutableState<string | null>;
   readonly previewCacheFileLruRef: MutableState<Set<string>>;
 
-  readonly setSourceFiles: StateSetter<SessionFile[]>;
-  readonly setSelectedPreviewFileId: StateSetter<string | null>;
-  readonly setSelectedPreviewSheetId: StateSetter<string | null>;
-  readonly setCleanedData: StateSetter<CleanedEntry[]>;
-  readonly setCalculatedDataByKey: StateSetter<CalculatedDataByKey>;
-  readonly setAnalysisResults: StateSetter<AnalysisResultsByFileId>;
+  readonly setActiveTarget: StateSetter<SessionTarget>;
+  readonly setTableSelection: StateSetter<TableSelection | undefined>;
+  readonly setViewState: StateSetter<SessionViewState>;
   readonly setTemplateMode: StateSetter<TemplateMode>;
   readonly setSelectedTemplateId: StateSetter<string | null>;
   readonly setFileTemplateSelectionsByFileId: StateSetter<TemplateSelectionsByFileId>;
-  readonly setTemplateConfig: StateSetter<TemplateConfig>;
+  readonly setTemplateFormState: StateSetter<TemplateFormState>;
   readonly setPreviewFile: StateSetter<PreviewFile | null>;
   readonly setPreviewStatus: StateSetter<PreviewStatus>;
   readonly setIonIoffMethod: StateSetter<IonIoffMethod>;
-  readonly setIonIoffManualTargetsByFileId: StateSetter<IonIoffManualTargetsByFileId>;
+  readonly setMetricInput: (input: MetricInputRecord) => void;
+  readonly clearMetricInput: (fileId: string, metricKey: MetricKey) => void;
   readonly setSsMethod: StateSetter<SsMethod>;
   readonly setSsShowFitLine: StateSetter<boolean>;
-  readonly setSsManualRanges: StateSetter<SsManualRanges>;
 
   batch(callback: () => void): void;
+  addRawFiles(files: readonly SessionFile[]): void;
   clearCurve(key: CurveKey): void;
+  clearSessionData(): void;
   createContextValue(snapshot: SessionSnapshot): SessionContextValue;
   emitChange(): void;
   getCurveData(key: CurveKey): CurveData | undefined;
   getCurveViewState(key: CurveKey): CurveViewState;
-  getFileMetadata(fileId: string): FileMetadata | undefined;
+  getFileSemantics(fileId: string): FileSemantics | undefined;
   getSeriesLabel(fileId: string, seriesId: string): string | undefined;
   getSeriesLabels(fileId: string): Readonly<Record<string, string>>;
   getSnapshot(): SessionSnapshot;
-  pruneMetadata(fileIds: readonly string[], curveKeys: readonly CurveKey[]): void;
-  pruneSeriesLabels(files: readonly CleanedEntry[]): void;
+  pruneFileSemantics(fileIds: readonly string[], curveKeys: readonly CurveKey[]): void;
+  pruneSeriesLabels(files: readonly ProcessedEntry[]): void;
+  pruneSeriesLabelsByRecords(
+    filesById: Readonly<Record<FileId, FileRecord>>,
+    fileOrder: readonly FileId[],
+  ): void;
+  removeFiles(fileIds: readonly string[]): void;
+  replaceCalculatedCurves(plotsByKey: CalculatedPlotsByKey): void;
+  replaceRawFiles(files: readonly SessionFile[]): void;
   resolveSeriesLabel(
-    file: CleanedEntry | null | undefined,
-    series: CleanedSeries | null | undefined,
+    file: ProcessedEntry | null | undefined,
+    series: ProcessedSeries | null | undefined,
     index: number,
   ): string;
+  commitProcessedFile(
+    file: ProcessedEntry | null | undefined,
+    options?: CommitProcessedFileOptions,
+  ): void;
+  resetProcessedData(): void;
   setCurveData(data: CurveData): void;
-  setFileMetadata(metadata: FileMetadata): void;
+  setFileSemantics(semantics: FileSemantics): void;
   setSeriesLabel(fileId: string, seriesId: string, label: string | null): void;
   subscribe(listener: () => void): () => void;
   updateCurveViewState(key: CurveKey, updates: CurveViewState): void;
-  updateFileMetadata(fileId: string, updates: FileMetadataUpdate): void;
+  updateFileSemantics(fileId: string, updates: FileSemanticsUpdate): void;
 }
+
+
+
+
+

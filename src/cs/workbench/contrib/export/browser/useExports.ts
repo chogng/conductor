@@ -1,17 +1,25 @@
 ﻿import type JSZip from "jszip";
+import type { SsMethod } from "src/cs/workbench/services/session/common/session";
 import type {
-  SsManualRanges,
-  SsMethod,
-} from "src/cs/workbench/services/session/common/session";
-import type { CleanedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
+  FileId,
+  FileRecord,
+} from "src/cs/workbench/services/session/common/sessionModel";
+import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { ResolveCsvCurveLabelForSeries } from "src/cs/workbench/contrib/export/browser/export";
 
 type ExportModule = typeof import("./export");
+type ProcessedFileEntry = ProcessedEntry;
+type ManualSsRangesByFileId = Record<
+  string,
+  Record<string, { x1?: number | null; x2?: number | null }>
+>;
 
 type UseExportsOptions = {
-  cleanedData?: CleanedEntry[];
+  fileOrder?: FileId[];
+  filesById?: Record<FileId, FileRecord>;
+  processedFiles?: ProcessedFileEntry[];
   resolveCurveLabelForSeries?: ResolveCsvCurveLabelForSeries;
-  ssManualRanges?: SsManualRanges;
+  manualSsRangesByFileId?: ManualSsRangesByFileId;
   ssMethod?: SsMethod;
 };
 
@@ -37,30 +45,43 @@ const loadExportDependencies = async () => {
     JSZip: jsZipModule.default,
     buildCsvExports:
       exportModule.buildCsvExports as ExportModule["buildCsvExports"],
+    buildCsvExportsFromRecords:
+      exportModule.buildCsvExportsFromRecords as ExportModule["buildCsvExportsFromRecords"],
     buildSsMetricsCsv:
       exportModule.buildSsMetricsCsv as ExportModule["buildSsMetricsCsv"],
+    buildSsMetricsCsvFromRecords:
+      exportModule.buildSsMetricsCsvFromRecords as ExportModule["buildSsMetricsCsvFromRecords"],
     triggerBlobDownload:
       exportModule.triggerBlobDownload as ExportModule["triggerBlobDownload"],
   };
 };
 
 export const createExports = ({
-  cleanedData = [],
+  fileOrder = [],
+  filesById = {},
+  processedFiles,
   resolveCurveLabelForSeries,
-  ssManualRanges,
+  manualSsRangesByFileId,
   ssMethod,
 }: UseExportsOptions) => {
+  const hasRecordInput = Object.keys(filesById).length > 0;
+  const processedFileEntries = processedFiles ?? [];
+
   const handleExport = async () => {
-    if (cleanedData.length === 0) return;
+    if (!hasRecordInput && processedFileEntries.length === 0) return;
 
     const {
       JSZip,
       buildCsvExports,
+      buildCsvExportsFromRecords,
       buildSsMetricsCsv,
+      buildSsMetricsCsvFromRecords,
       triggerBlobDownload,
     } = await loadExportDependencies();
 
-    const exports = buildCsvExports(cleanedData, resolveCurveLabelForSeries);
+    const exports = hasRecordInput
+      ? buildCsvExportsFromRecords(filesById, fileOrder, resolveCurveLabelForSeries)
+      : buildCsvExports(processedFileEntries, resolveCurveLabelForSeries);
     if (exports.length === 0) return;
 
     const zip = new JSZip();
@@ -71,11 +92,18 @@ export const createExports = ({
     zip.file(
       "metrics.csv",
       "\uFEFF" +
-        buildSsMetricsCsv({
-          cleanedData,
-          ssManualRanges,
-          ssMethod,
-        }),
+        (hasRecordInput
+          ? buildSsMetricsCsvFromRecords({
+            fileOrder,
+            filesById,
+            manualSsRangesByFileId,
+            ssMethod,
+          })
+          : buildSsMetricsCsv({
+            processedFiles: processedFileEntries,
+            manualSsRangesByFileId,
+            ssMethod,
+          })),
     );
 
     const zipBlob = await zip.generateAsync({
@@ -88,15 +116,18 @@ export const createExports = ({
   };
 
   const handleExportOrigin = async () => {
-    if (cleanedData.length === 0) return;
+    if (!hasRecordInput && processedFileEntries.length === 0) return;
 
     const {
       JSZip,
       buildCsvExports,
+      buildCsvExportsFromRecords,
       triggerBlobDownload,
     } = await loadExportDependencies();
 
-    const exports = buildCsvExports(cleanedData, resolveCurveLabelForSeries);
+    const exports = hasRecordInput
+      ? buildCsvExportsFromRecords(filesById, fileOrder, resolveCurveLabelForSeries)
+      : buildCsvExports(processedFileEntries, resolveCurveLabelForSeries);
     if (exports.length === 0) return;
 
     const zip = new JSZip();
@@ -128,3 +159,4 @@ export const createExports = ({
 };
 
 export const useExports = createExports;
+

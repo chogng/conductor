@@ -50,6 +50,10 @@ import {
   IAnalysisFileService,
   type IAnalysisFileService as IAnalysisFileServiceType,
 } from "src/cs/workbench/services/analysisFile/common/analysisFile";
+import type {
+  SessionTarget,
+  TableSelection as SessionViewTableSelection,
+} from "src/cs/workbench/services/session/common/sessionModel";
 
 type SetStateAction<T> = T | ((previous: T) => T);
 type Dispatch<T> = (value: T) => void;
@@ -252,7 +256,7 @@ const createTableSourceEntry = (entry: SessionFile): TableSourceEntry | null => 
     entry,
     sheetName: getEntrySheetName(entry),
     source,
-    sourceKey: toTableSourceKey(source),
+    sourceKey: readEntryString(entry, "sourceKey") ?? toTableSourceKey(source),
   };
 };
 
@@ -260,6 +264,125 @@ const isTableFileForSource = (
   file: TableFile | null | undefined,
   sourceKey: string | null | undefined,
 ): boolean => Boolean(file?.sourceKey && sourceKey && file.sourceKey === sourceKey);
+
+const tableSelectionFromViewSelection = (
+  selection: SessionViewTableSelection | undefined,
+): TableSelection => {
+  if (!selection) {
+    return normalizeTableSelection(null);
+  }
+
+  if (selection.kind === "cell") {
+    return normalizeTableSelection({
+      activeCell: {
+        fileId: selection.fileId,
+        sheetId: selection.sheetId,
+        rowIndex: selection.cell.rowIndex,
+        colIndex: selection.cell.colIndex,
+      },
+    });
+  }
+
+  return normalizeTableSelection({
+    ranges: [{
+      fileId: selection.fileId,
+      sheetId: selection.sheetId,
+      startRow: selection.range.startRow,
+      endRow: selection.range.endRow,
+      startCol: selection.range.startCol,
+      endCol: selection.range.endCol,
+    }],
+  });
+};
+
+const viewSelectionFromTableSelection = (
+  selection: TableSelection,
+  source: TableSource | null,
+): SessionViewTableSelection | undefined => {
+  const activeCell = normalizeTableCell(selection.activeCell);
+  if (activeCell) {
+    const location = resolveViewTableSelectionLocation(
+      activeCell.fileId,
+      activeCell.sheetId,
+      source,
+    );
+    return location
+      ? {
+          kind: "cell",
+          ...location,
+          cell: {
+            rowIndex: activeCell.rowIndex,
+            colIndex: activeCell.colIndex,
+          },
+        }
+      : undefined;
+  }
+
+  const range = selection.ranges?.[0];
+  if (!range) {
+    return undefined;
+  }
+
+  const location = resolveViewTableSelectionLocation(
+    range.fileId,
+    range.sheetId,
+    source,
+  );
+  return location
+    ? {
+        kind: "range",
+        ...location,
+        range: {
+          startRow: range.startRow,
+          endRow: range.endRow,
+          startCol: range.startCol,
+          endCol: range.endCol,
+        },
+      }
+    : undefined;
+};
+
+const resolveViewTableSelectionLocation = (
+  fileId: string | null | undefined,
+  sheetId: string | null | undefined,
+  source: TableSource | null,
+): { fileId: string; sheetId: string } | null => {
+  const resolvedFileId = normalizeText(fileId) ?? normalizeText(source?.fileId);
+  const resolvedSheetId =
+    normalizeText(sheetId) ??
+    normalizeText(source?.sheetId) ??
+    resolvedFileId;
+  return resolvedFileId && resolvedSheetId
+    ? { fileId: resolvedFileId, sheetId: resolvedSheetId }
+    : null;
+};
+
+const normalizeText = (value: unknown): string | undefined => {
+  const text = String(value ?? "").trim();
+  return text || undefined;
+};
+
+const areViewTableSelectionsEqual = (
+  first: SessionViewTableSelection | undefined,
+  second: SessionViewTableSelection | undefined,
+): boolean => {
+  if (!first || !second) {
+    return !first && !second;
+  }
+  if (first.kind !== second.kind || first.fileId !== second.fileId || first.sheetId !== second.sheetId) {
+    return false;
+  }
+  if (first.kind === "cell") {
+    return second.kind === "cell" &&
+      first.cell.rowIndex === second.cell.rowIndex &&
+      first.cell.colIndex === second.cell.colIndex;
+  }
+  return second.kind === "range" &&
+    first.range.startRow === second.range.startRow &&
+    first.range.endRow === second.range.endRow &&
+    first.range.startCol === second.range.startCol &&
+    first.range.endCol === second.range.endCol;
+};
 
 type PreviewResultPayload = {
   requestId: number;
@@ -297,11 +420,12 @@ type WorkerMessage =
 type UseTableOptions = TableInput;
 type CreateTableOptions = {
   analysisFileService?: IAnalysisFileServiceType;
-  sourceFiles?: SessionFile[];
+  rawFiles?: SessionFile[];
   selectedFileId?: string | null;
   selectedSheetId?: string | null;
-  setSelectedFileId?: Dispatch<SetStateAction<string | null>>;
-  setSelectedSheetId?: Dispatch<SetStateAction<string | null>>;
+  setActiveTarget?: Dispatch<SetStateAction<SessionTarget>>;
+  viewSelection?: SessionViewTableSelection;
+  setViewSelection?: Dispatch<SetStateAction<SessionViewTableSelection | undefined>>;
   file?: TableFile | null;
   loadState?: TableLoadState;
   setFile?: Dispatch<SetStateAction<TableFile | null>>;
@@ -333,11 +457,12 @@ const PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS = Math.max(
 
 const createTableModel = ({
   analysisFileService,
-  sourceFiles = [],
+  rawFiles = [],
   selectedFileId = null,
   selectedSheetId = null,
-  setSelectedFileId = () => {},
-  setSelectedSheetId = () => {},
+  setActiveTarget = () => {},
+  viewSelection,
+  setViewSelection = () => {},
   file = null,
   setFile = () => {},
   setLoadState = () => {},
@@ -357,10 +482,8 @@ const createTableModel = ({
     throw new Error("Table model requires IAnalysisFileService.");
   }
 
-  const selectedPreviewFileId = selectedFileId;
-  const selectedPreviewSheetId = selectedSheetId;
-  const setSelectedPreviewFileId = setSelectedFileId;
-  const setSelectedPreviewSheetId = setSelectedSheetId;
+  const activeFileId = selectedFileId;
+  const activeSheetId = selectedSheetId;
   const previewFile = file;
   const setPreviewFile = setFile;
   const setPreviewStatus = setLoadState;
@@ -381,13 +504,15 @@ const createTableModel = ({
     notifyRowsVersion,
     subscribeRowsVersion,
   } = memoValue(() => useRowsVersion(), []);
-  const selectionRef = getMutableState<TableSelection>(normalizeTableSelection(null));
+  const selectionRef = getMutableState<TableSelection>(
+    tableSelectionFromViewSelection(viewSelection),
+  );
   const highlightRef = getMutableState<TableHighlight>({});
   const revealCellRef = getMutableState<TableCell | null>(null);
   const selectionSubscribersRef = getMutableState(new Set<(selection: TableSelection) => void>());
 
-  const deferredSelectedPreviewFileId = readImmediateValue(selectedPreviewFileId);
-  const deferredSelectedPreviewSheetId = readImmediateValue(selectedPreviewSheetId);
+  const deferredActiveFileId = readImmediateValue(activeFileId);
+  const deferredActiveSheetId = readImmediateValue(activeSheetId);
   const previewStatusRef = getMutableState<TableLoadState>(previewStatus);
   const previewFileRef = getMutableState<TableFile | null>(previewFile);
   const previewPendingChunksByFileIdRef = getMutableState<Map<string, Set<number>>>(
@@ -399,14 +524,14 @@ const createTableModel = ({
   const sourceEntries = memoValue(() => {
     const entries: TableSourceEntry[] = [];
 
-    for (const entry of Array.isArray(sourceFiles) ? sourceFiles : []) {
+    for (const entry of Array.isArray(rawFiles) ? rawFiles : []) {
       const sourceEntry = createTableSourceEntry(entry);
       if (!sourceEntry) continue;
       entries.push(sourceEntry);
     }
 
     return entries;
-  }, [sourceFiles]);
+  }, [rawFiles]);
 
   const sourcesByKey = memoValue(() => {
     const map = new Map<string, TableSourceEntry>();
@@ -427,18 +552,18 @@ const createTableModel = ({
   }, [sourceEntries]);
 
   const selectedSource = memoValue((): TableSourceEntry | null => {
-    if (!deferredSelectedPreviewFileId) {
+    if (!deferredActiveFileId) {
       return null;
     }
 
-    const fileSources = sourcesByFileId.get(deferredSelectedPreviewFileId);
+    const fileSources = sourcesByFileId.get(deferredActiveFileId);
     if (!fileSources?.length) {
       return null;
     }
 
-    if (deferredSelectedPreviewSheetId) {
+    if (deferredActiveSheetId) {
       const selectedSheetSource = fileSources.find(
-        (sourceEntry) => sourceEntry.source.sheetId === deferredSelectedPreviewSheetId,
+        (sourceEntry) => sourceEntry.source.sheetId === deferredActiveSheetId,
       );
       if (selectedSheetSource) {
         return selectedSheetSource;
@@ -447,12 +572,12 @@ const createTableModel = ({
 
     return fileSources[0] ?? null;
   }, [
-    deferredSelectedPreviewFileId,
-    deferredSelectedPreviewSheetId,
+    deferredActiveFileId,
+    deferredActiveSheetId,
     sourcesByFileId,
   ]);
 
-  const selectedPreviewSourceKey = selectedSource?.sourceKey ?? null;
+  const activeSourceKey = selectedSource?.sourceKey ?? null;
   const sourcesByKeyRef = getMutableState(new Map<string, TableSourceEntry>());
   const sourcesByFileIdRef = getMutableState(new Map<string, TableSourceEntry[]>());
 
@@ -481,7 +606,27 @@ const createTableModel = ({
         // A broken consumer must not prevent table state from following the file.
       }
     }
-  }, [selectedPreviewSourceKey]);
+    setViewSelection(undefined);
+  }, [activeSourceKey, setViewSelection]);
+
+  runEffect(() => {
+    if (areViewTableSelectionsEqual(
+      viewSelectionFromTableSelection(selectionRef.current, selectedSource?.source ?? null),
+      viewSelection,
+    )) {
+      return;
+    }
+
+    const nextSelection = tableSelectionFromViewSelection(viewSelection);
+    selectionRef.current = nextSelection;
+    for (const callback of Array.from(selectionSubscribersRef.current)) {
+      try {
+        callback(nextSelection);
+      } catch {
+        // A broken consumer must not prevent table selection from following session view state.
+      }
+    }
+  }, [selectedSource, selectionRef, selectionSubscribersRef, viewSelection]);
 
   const clearPendingPreviewRequest = memoCallback((requestId: number) => {
     if (requestId === previewRequestIdRef.current) {
@@ -633,8 +778,7 @@ const createTableModel = ({
       pendingPreviewFileIdRef.current = null;
 
       if (clearSelection) {
-        setSelectedPreviewFileId(null);
-        setSelectedPreviewSheetId(null);
+        setActiveTarget({ kind: "none" });
       }
 
       clearAllPreviewCaches();
@@ -643,8 +787,7 @@ const createTableModel = ({
       clearAllPreviewCaches,
       setPreviewFile,
       setPreviewStatus,
-      setSelectedPreviewFileId,
-      setSelectedPreviewSheetId,
+      setActiveTarget,
     ],
   );
 
@@ -933,7 +1076,7 @@ const createTableModel = ({
   }, [clearAllPreviewCaches, invalidatePreviewRequests, resetPreviewWorker]);
 
   runEffect(() => {
-    if (!sourceFiles.length) {
+    if (!rawFiles.length) {
       invalidatePreviewRequests();
       clearPreviewState({ clearSelection: true });
       return;
@@ -1120,14 +1263,14 @@ const createTableModel = ({
   }, [
     activatePreviewFileCache,
     clearPreviewState,
-    deferredSelectedPreviewFileId,
-    deferredSelectedPreviewSheetId,
+    deferredActiveFileId,
+    deferredActiveSheetId,
     getOrCreatePreviewWorker,
     invalidatePreviewRequests,
     mergePreviewSeedRows,
     previewFile?.sourceKey,
     previewRequestIdRef,
-    sourceFiles,
+    rawFiles,
     selectedSource,
     setPreviewStatus,
     touchPreviewFileCache,
@@ -1500,8 +1643,14 @@ const createTableModel = ({
           // A broken consumer must not prevent table selection from updating.
         }
       }
+      setViewSelection(
+        viewSelectionFromTableSelection(
+          normalizedSelection,
+          selectedSource?.source ?? null,
+        ),
+      );
     },
-    [selectionRef, selectionSubscribersRef],
+    [selectedSource, selectionRef, selectionSubscribersRef, setViewSelection],
   );
 
   const getHighlight = memoCallback(
@@ -1541,10 +1690,10 @@ const createTableModel = ({
     (): TableState => {
       const currentFile = previewFileRef.current;
       const selectedFileSources =
-        sourcesByFileIdRef.current.get(String(selectedPreviewFileId ?? "")) ?? [];
-      const selectedSourceForName = selectedPreviewSheetId
+        sourcesByFileIdRef.current.get(String(activeFileId ?? "")) ?? [];
+      const selectedSourceForName = activeSheetId
         ? selectedFileSources.find(
-            (sourceEntry) => sourceEntry.source.sheetId === selectedPreviewSheetId,
+            (sourceEntry) => sourceEntry.source.sheetId === activeSheetId,
           ) ?? selectedFileSources[0] ?? null
         : selectedFileSources[0] ?? null;
       const selectedFileName = selectedSourceForName?.entry.fileName ?? "";
@@ -1555,7 +1704,7 @@ const createTableModel = ({
       const selectedDisplayName = selectedSheetName
         ? `${selectedFileName} / ${selectedSheetName}`
         : selectedFileName;
-      const hasCurrentSource = isTableFileForSource(currentFile, selectedPreviewSourceKey);
+      const hasCurrentSource = isTableFileForSource(currentFile, activeSourceKey);
       const fileName = formatTableFileName(
         hasCurrentSource ? currentFileName : selectedDisplayName,
       );
@@ -1568,18 +1717,18 @@ const createTableModel = ({
         file: hasCurrentSource ? currentFile : null,
         fileName,
         loadState: previewStatusRef.current,
-        selectedFileId: selectedPreviewFileId ?? null,
-        selectedSheetId: selectedPreviewSheetId ?? null,
+        selectedFileId: activeFileId ?? null,
+        selectedSheetId: activeSheetId ?? null,
         source: selectedSource?.source ?? null,
-        sourceKey: selectedPreviewSourceKey,
+        sourceKey: activeSourceKey,
       };
     },
     [
       previewFileRef,
       previewStatusRef,
-      selectedPreviewFileId,
-      selectedPreviewSheetId,
-      selectedPreviewSourceKey,
+      activeFileId,
+      activeSheetId,
+      activeSourceKey,
       selectedSource,
       sourcesByFileIdRef,
     ],

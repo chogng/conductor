@@ -11,35 +11,26 @@ import {
   type LxIconStyle,
 } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { LxIcon } from "src/cs/base/common/lxicon";
-import type {
-  CleanedEntry,
-  ProcessingStatus,
-} from "src/cs/workbench/services/session/common/sessionTypes";
+import type { ProcessingStatus } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
-import type { CalculatedDataByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
-import type {
-  IonIoffManualTargetsByFileId,
-  IonIoffMethod,
-  SsManualRanges,
-  SsMethod,
-} from "src/cs/workbench/services/session/common/session";
+import type { CalculatedPlotsByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { XUnit, YUnit } from "src/cs/workbench/contrib/plot/common/units";
 import { createChartView, type ChartPane } from "src/cs/workbench/contrib/chart/browser/views/chartView";
-
-type StateSetter<T> = (next: T | ((previous: T) => T)) => void;
 
 export type ChartViewLazyProps = {
   visiblePanes?: readonly ChartPane[];
   activePlotType?: PlotType;
   onActivePlotTypeChange?: (next: PlotType) => void;
-  cleanedData: CleanedEntry[];
-  calculatedDataByKey?: CalculatedDataByKey;
+  hasAnalysisData?: boolean;
+  chartFileOptions?: readonly {
+    fileId: string;
+    fileName: string;
+  }[];
+  calculatedPlotsByKey?: CalculatedPlotsByKey;
   processingStatus?: Partial<ProcessingStatus>;
   activeFileId?: string | null;
-  ionIoffMethod?: IonIoffMethod;
-  ionIoffManualTargetsByFileId?: IonIoffManualTargetsByFileId;
   onActiveFileIdChange?: (nextFileId: string | null) => void;
   showFileSelect?: boolean;
   xUnitByFileId?: Readonly<Record<string, string>>;
@@ -69,14 +60,6 @@ export type ChartViewLazyProps = {
   onYAxisLabelChange?: (nextLabel: string) => void;
   xAxisLabelOverride?: string;
   yAxisLabelOverride?: string;
-  setIonIoffMethod?: (next: IonIoffMethod) => void;
-  setIonIoffManualTargetsByFileId?: StateSetter<IonIoffManualTargetsByFileId>;
-  ssMethod?: SsMethod;
-  setSsMethod?: (next: SsMethod) => void;
-  ssShowFitLine?: boolean;
-  setSsShowFitLine?: (next: boolean) => void;
-  ssManualRanges?: SsManualRanges;
-  setSsManualRanges?: (next: SsManualRanges) => void;
   originOpenPlotOptions?: OriginPlotOptions;
   onOriginOpenPlotOptionsChange?: (updates: unknown) => Promise<unknown> | void;
   plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
@@ -127,12 +110,12 @@ const disposeContent = (content: DisposableContent | null): void => {
 
 const createAnalysisPanelContent = (props: AnalysisPanelProps): DisposableContent => {
   const {
-    cleanedData = [],
+    hasAnalysisData = false,
     processingStatus,
     shouldMountCharts = false,
   } = props;
 
-  if (cleanedData.length > 0) {
+  if (hasAnalysisData) {
     if (shouldMountCharts) {
       return createAnalysisStatusCard({
         id: "analysis-analysis-loading-card",
@@ -144,7 +127,6 @@ const createAnalysisPanelContent = (props: AnalysisPanelProps): DisposableConten
 
     return createChartView({
       ...props,
-      cleanedData,
     });
   }
 
@@ -154,7 +136,6 @@ const createAnalysisPanelContent = (props: AnalysisPanelProps): DisposableConten
 
   return createChartView({
     ...props,
-    cleanedData,
   });
 };
 

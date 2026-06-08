@@ -90,7 +90,7 @@ export class ExplorerView implements IDisposable {
     return {
       effectiveSelectedFileId: this.props.effectiveSelectedFileId,
       activePlotType: this.props.activePlotType,
-      calculatedDataByKey: this.props.calculatedDataByKey,
+      calculatedPlotsByKey: this.props.calculatedPlotsByKey,
       commandService: this.props.commandService,
       contextMenuService: this.props.contextMenuService,
       contextViewService: this.props.contextViewService,
@@ -112,7 +112,7 @@ export class ExplorerView implements IDisposable {
       onRemoveFolder: this.props.onRemoveFolder,
       onRequestTemplates: this.props.onRequestTemplates,
       onSelectFile: this.props.onSelectFile,
-      cleanedData: this.props.cleanedData,
+      thumbnailFiles: this.props.thumbnailFiles,
     };
   }
 

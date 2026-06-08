@@ -213,6 +213,13 @@ export class TemplateEditorView {
         placeholder: "Vd",
       }),
     };
+    this.disposables.add(addDisposableListener(this.element, "focusin", (event) => {
+      if (!(event.target instanceof HTMLInputElement)) {
+        return;
+      }
+
+      this.handleInputFocus(event.target);
+    }));
 
     this.xUnit = this.createSelectField(
       optionalFields,
@@ -405,17 +412,25 @@ export class TemplateEditorView {
         this.cancelInput(input, name, isPickableField);
       }
     }));
-    this.disposables.add(addDisposableListener(input, "focus", () => {
-      this.focusInputValues.set(name, input.value);
-      this.options.onPickFieldFocus(
-        isPickableField ? name as TemplatePickFieldName : null,
-      );
-    }));
     if (options.fullWidth) {
       field.className = `${field.className} template_field--full`;
     }
     container.append(field);
     return input;
+  }
+
+  private handleInputFocus(input: HTMLInputElement): void {
+    const entry = (Object.entries(this.inputs) as Array<[TemplateEditorInputName, HTMLInputElement]>)
+      .find(([, candidate]) => candidate === input);
+    if (!entry) {
+      return;
+    }
+
+    const [name] = entry;
+    this.focusInputValues.set(name, input.value);
+    this.options.onPickFieldFocus(
+      PICKABLE_TEMPLATE_FIELDS.has(name) ? name as TemplatePickFieldName : null,
+    );
   }
 
   private acceptInput(input: HTMLInputElement, name: TemplateEditorInputName, isPickableField: boolean): void {

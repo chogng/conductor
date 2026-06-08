@@ -12,8 +12,8 @@ import type {
   FilesPaneRef,
 } from "src/cs/workbench/contrib/files/common/files";
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
-import type { CleanedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
-import type { CalculatedDataByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
+import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
+import type { CalculatedPlotsByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
@@ -39,7 +39,7 @@ export type FilesPaneProps = {
   readonly filesPaneRef: { current: FilesPaneRef | null };
   readonly templateService: ITemplateService;
   readonly activePlotType?: PlotType;
-  readonly calculatedDataByKey?: CalculatedDataByKey;
+  readonly calculatedPlotsByKey?: CalculatedPlotsByKey;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly thumbnailService: IThumbnailService;
@@ -49,7 +49,7 @@ export type FilesPaneProps = {
   readonly files?: FileEntry[];
   readonly mode?: WorkbenchMainPart;
   readonly viewLayout?: FilesViewLayout;
-  readonly cleanedData?: CleanedEntry[];
+  readonly thumbnailFiles?: ProcessedEntry[];
   readonly onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
   readonly onFilesAdded?: (files: ImportSessionFileInfo[]) => void;
   readonly onFilesReplaced?: (files: ImportSessionFileInfo[]) => void;
@@ -86,7 +86,7 @@ export class FilesPane implements IDisposable {
       files: props.files,
       filesService: props.filesService,
       activePlotType: props.activePlotType,
-      calculatedDataByKey: props.calculatedDataByKey,
+      calculatedPlotsByKey: props.calculatedPlotsByKey,
       originOpenPlotOptions: props.originOpenPlotOptions,
       plotAxisSettings: props.plotAxisSettings,
       thumbnailService: props.thumbnailService,
@@ -96,7 +96,7 @@ export class FilesPane implements IDisposable {
       fileTemplateSelectionsByFileId: props.fileTemplateSelectionsByFileId,
       mode: props.mode,
       viewLayout: props.viewLayout,
-      cleanedData: props.cleanedData,
+      thumbnailFiles: props.thumbnailFiles,
       onFileImported: props.onFileImported,
       onFilesAdded: props.onFilesAdded,
       onFilesReplaced: props.onFilesReplaced,
@@ -121,7 +121,7 @@ export class FilesPane implements IDisposable {
       files: nextProps.files,
       filesService: nextProps.filesService,
       activePlotType: nextProps.activePlotType,
-      calculatedDataByKey: nextProps.calculatedDataByKey,
+      calculatedPlotsByKey: nextProps.calculatedPlotsByKey,
       originOpenPlotOptions: nextProps.originOpenPlotOptions,
       plotAxisSettings: nextProps.plotAxisSettings,
       thumbnailService: nextProps.thumbnailService,
@@ -131,7 +131,7 @@ export class FilesPane implements IDisposable {
       fileTemplateSelectionsByFileId: nextProps.fileTemplateSelectionsByFileId,
       mode: nextProps.mode,
       viewLayout: nextProps.viewLayout,
-      cleanedData: nextProps.cleanedData,
+      thumbnailFiles: nextProps.thumbnailFiles,
       onFileImported: nextProps.onFileImported,
       onFilesAdded: nextProps.onFilesAdded,
       onFilesReplaced: nextProps.onFilesReplaced,
@@ -198,3 +198,4 @@ export class FilesPane implements IDisposable {
     return { body, sessionHost };
   }
 }
+

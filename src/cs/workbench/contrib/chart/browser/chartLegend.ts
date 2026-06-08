@@ -19,7 +19,7 @@ export const getLegendContext = (
   plotType: PlotType,
 ): LegendContext | null => {
   const calculatedData = getCalculatedData(
-    props.calculatedDataByKey,
+    props.calculatedPlotsByKey,
     plotType,
     props.activeFileId,
   );

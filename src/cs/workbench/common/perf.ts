@@ -72,17 +72,99 @@ export const startPerf = (
 const countArrayLength = (value: unknown): number =>
   Array.isArray(value) ? value.length : 0;
 
-const summarizeAnalysisCache = (file: any): PerfMeta => {
-  const rawSeries = file?.analysisCache?.series;
-  if (!rawSeries || typeof rawSeries !== "object" || Array.isArray(rawSeries)) {
-    return {
-      analysisCacheEstimatedBytes: 0,
-      analysisCacheGmPoints: 0,
-      analysisCacheSeriesCount: 0,
-      analysisCacheSsPoints: 0,
-    };
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const createEmptyCalculationCacheSummary = (): PerfMeta => ({
+  calculationCacheEstimatedBytes: 0,
+  calculationCacheGmPoints: 0,
+  calculationCacheSeriesCount: 0,
+  calculationCacheSsPoints: 0,
+});
+
+const createCalculationCacheSummary = ({
+  baseCurrentCount,
+  gmPoints,
+  seriesCount,
+  ssFitAutoCount,
+  ssPoints,
+}: {
+  baseCurrentCount: number;
+  gmPoints: number;
+  seriesCount: number;
+  ssFitAutoCount: number;
+  ssPoints: number;
+}): PerfMeta => {
+  const curvePointCount = gmPoints + ssPoints;
+  const estimatedBytes =
+    // gm/local SS points are small point objects with up to four numeric fields.
+    curvePointCount * 4 * 8 +
+    // ssFitAuto and baseCurrent are compact objects; this is intentionally approximate.
+    (ssFitAutoCount + baseCurrentCount) * 512;
+
+  return {
+    calculationCacheBaseCurrentCount: baseCurrentCount,
+    calculationCacheEstimatedBytes: estimatedBytes,
+    calculationCacheGmPoints: gmPoints,
+    calculationCacheSeriesCount: seriesCount,
+    calculationCacheSsFitAutoCount: ssFitAutoCount,
+    calculationCacheSsPoints: ssPoints,
+  };
+};
+
+const summarizeCanonicalCalculationCache = (
+  cache: Record<string, unknown>,
+): PerfMeta | null => {
+  const entriesByKey = cache.entriesByKey;
+  if (!isObjectRecord(entriesByKey)) {
+    return null;
   }
 
+  let gmPoints = 0;
+  let ssFitAutoCount = 0;
+  let ssPoints = 0;
+  let baseCurrentCount = 0;
+  const seriesIds = new Set<string>();
+
+  for (const [key, value] of Object.entries(entriesByKey)) {
+    if (!isObjectRecord(value)) {
+      continue;
+    }
+
+    const kind = String(value.kind ?? "");
+    const colonIndex = key.indexOf(":");
+    if (colonIndex >= 0 && key.length > colonIndex + 1) {
+      seriesIds.add(key.slice(colonIndex + 1));
+    }
+
+    if (kind === "baseCurrent") {
+      baseCurrentCount += 1;
+    } else if (kind === "gm") {
+      gmPoints += countArrayLength(value.value);
+    } else if (kind === "localSs") {
+      ssPoints += countArrayLength(value.value);
+    } else if (kind === "ssFitAuto") {
+      ssFitAutoCount += 1;
+    }
+  }
+
+  return createCalculationCacheSummary({
+    baseCurrentCount,
+    gmPoints,
+    seriesCount: seriesIds.size,
+    ssFitAutoCount,
+    ssPoints,
+  });
+};
+
+const summarizeLegacyCalculationCachePayload = (
+  payload: unknown,
+): PerfMeta | null => {
+  if (!isObjectRecord(payload) || !isObjectRecord(payload.series)) {
+    return null;
+  }
+
+  const rawSeries = payload.series;
   let gmPoints = 0;
   let seriesCount = 0;
   let ssFitAutoCount = 0;
@@ -90,46 +172,50 @@ const summarizeAnalysisCache = (file: any): PerfMeta => {
   let baseCurrentCount = 0;
 
   for (const result of Object.values(rawSeries)) {
-    if (!result || typeof result !== "object") continue;
+    if (!isObjectRecord(result)) continue;
     seriesCount += 1;
-    const seriesResult = result as {
-      baseCurrent?: unknown;
-      gm?: unknown;
-      ss?: unknown;
-      ssFitAuto?: unknown;
-    };
-    gmPoints += countArrayLength(seriesResult.gm);
-    ssPoints += countArrayLength(seriesResult.ss);
-    if (seriesResult.ssFitAuto) ssFitAutoCount += 1;
-    if (seriesResult.baseCurrent) baseCurrentCount += 1;
+    gmPoints += countArrayLength(result.gm);
+    ssPoints += countArrayLength(result.ss);
+    if (result.ssFitAuto) ssFitAutoCount += 1;
+    if (result.baseCurrent) baseCurrentCount += 1;
   }
 
-  const curvePointCount = gmPoints + ssPoints;
-  const estimatedBytes =
-    // gm/ss points are small point objects with up to four numeric fields.
-    curvePointCount * 4 * 8 +
-    // ssFitAuto and baseCurrent are compact objects; this is intentionally approximate.
-    (ssFitAutoCount + baseCurrentCount) * 512;
-
-  return {
-    analysisCacheBaseCurrentCount: baseCurrentCount,
-    analysisCacheEstimatedBytes: estimatedBytes,
-    analysisCacheGmPoints: gmPoints,
-    analysisCacheSeriesCount: seriesCount,
-    analysisCacheSsFitAutoCount: ssFitAutoCount,
-    analysisCacheSsPoints: ssPoints,
-  };
+  return createCalculationCacheSummary({
+    baseCurrentCount,
+    gmPoints,
+    seriesCount,
+    ssFitAutoCount,
+    ssPoints,
+  });
 };
 
-export const summarizeProcessedFile = (file: any): PerfMeta => {
-  const series = Array.isArray(file?.series) ? file.series : [];
-  const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
-  const sampledPoints = Number(file?.x?.sampledPoints);
+const summarizeCalculationCache = (file: unknown): PerfMeta => {
+  if (!isObjectRecord(file)) {
+    return createEmptyCalculationCacheSummary();
+  }
+
+  if (isObjectRecord(file.calculationCache)) {
+    const canonicalSummary = summarizeCanonicalCalculationCache(file.calculationCache);
+    if (canonicalSummary) {
+      return canonicalSummary;
+    }
+  }
+
+  return summarizeLegacyCalculationCachePayload(file["analysisCache"]) ??
+    createEmptyCalculationCacheSummary();
+};
+
+export const summarizeProcessedFile = (file: unknown): PerfMeta => {
+  const record = isObjectRecord(file) ? file : {};
+  const series = Array.isArray(record.series) ? record.series : [];
+  const xGroups = Array.isArray(record.xGroups) ? record.xGroups : [];
+  const xRecord = isObjectRecord(record.x) ? record.x : {};
+  const sampledPoints = Number(xRecord.sampledPoints);
 
   return {
-    ...summarizeAnalysisCache(file),
-    fileId: file?.fileId ?? null,
-    fileName: file?.fileName ?? null,
+    ...summarizeCalculationCache(file),
+    fileId: record.fileId ?? null,
+    fileName: record.fileName ?? null,
     groups: xGroups.length,
     sampledPoints: Number.isFinite(sampledPoints) ? sampledPoints : null,
     seriesCount: series.length,

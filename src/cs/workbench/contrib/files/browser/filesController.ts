@@ -39,8 +39,8 @@ import {
   type FilesPaneRef,
 } from "src/cs/workbench/contrib/files/common/files";
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
-import type { CleanedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
-import type { CalculatedDataByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
+import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
+import type { CalculatedPlotsByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
@@ -92,7 +92,7 @@ export type FilesControllerProps = {
   readonly contextViewService: IContextViewServiceType;
   readonly filesService: IFileServiceType;
   activePlotType?: PlotType;
-  calculatedDataByKey?: CalculatedDataByKey;
+  calculatedPlotsByKey?: CalculatedPlotsByKey;
   originOpenPlotOptions?: OriginPlotOptions;
   plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   thumbnailService: IThumbnailService;
@@ -103,7 +103,7 @@ export type FilesControllerProps = {
   files?: FileEntry[];
   mode?: WorkbenchMainPart;
   viewLayout?: FilesViewLayout;
-  cleanedData?: CleanedEntry[];
+  thumbnailFiles?: ProcessedEntry[];
   onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
   onFilesAdded?: (files: ImportSessionFileInfo[]) => void;
   onFilesReplaced?: (files: ImportSessionFileInfo[]) => void;
@@ -239,7 +239,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
     return {
       effectiveSelectedFileId: this.effectiveSelectedFileId,
       activePlotType: this.props.activePlotType,
-      calculatedDataByKey: this.props.calculatedDataByKey,
+      calculatedPlotsByKey: this.props.calculatedPlotsByKey,
       commandService: this.commandService,
       contextViewService: this.props.contextViewService,
       contextMenuService: this.props.contextMenuService,
@@ -266,7 +266,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
       onDropFiles: this.handleDropFiles,
       onOpenFolderDialog: this.handleOpenFolderDialog,
       onSelectFile: this.handleSelectFile,
-      cleanedData: this.props.cleanedData,
+      thumbnailFiles: this.props.thumbnailFiles,
     };
   }
 
@@ -1310,3 +1310,4 @@ function formatExternalChangesMessage(changes: WorkspaceExternalChanges): string
     { summary: parts.join(", ") },
   );
 }
+

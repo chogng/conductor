@@ -1,14 +1,12 @@
 ﻿import type { MutableState } from "src/cs/workbench/services/session/common/session";
 import {
   isPerfEnabled,
-  logPerf,
   startPerf,
   summarizeProcessedFile,
 } from "src/cs/workbench/common/perf";
+import type { CommitProcessedFileOptions } from "src/cs/workbench/services/session/common/session";
 import type {
-  AnalysisFileResults,
-  AnalysisResultsByFileId,
-  CleanedEntry,
+  ProcessedEntry,
   ProcessingStatus,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
@@ -39,7 +37,7 @@ export type TryProcessFileWithRust = (input: {
   entry: ProcessingQueueItem;
   extractionConfig: unknown;
   messageType: ProcessingMessageType;
-}) => Promise<CleanedEntry | null>;
+}) => Promise<ProcessedEntry | null>;
 
 type SchedulerRefs = {
   processingJobIdRef: MutableState<number>;
@@ -56,8 +54,11 @@ type SchedulerCallbacks = {
   onWorkerErrorPayload?: (payload: unknown) => void;
   hasSourceFile: (fileId: string | null | undefined) => boolean;
   showResults: () => void;
-  setAnalysisResults: StateSetter<AnalysisResultsByFileId>;
-  setCleanedData: StateSetter<CleanedEntry[]>;
+  commitProcessedFile: (
+    file: ProcessedEntry | null | undefined,
+    options?: CommitProcessedFileOptions,
+  ) => void;
+  resetProcessedData: () => void;
   setProcessingStatus: StateSetter<ProcessingStatus>;
 };
 
@@ -68,7 +69,7 @@ export type ProcessingJobOptions = SchedulerRefs &
     extractionConfig: unknown;
     messageType?: ProcessingMessageType;
     queue: ProcessingQueueItem[];
-    resetCleanedData: boolean;
+    resetProcessedDataBeforeRun: boolean;
     stopOnError: boolean;
     tryProcessFileWithRust: TryProcessFileWithRust;
   };
@@ -85,8 +86,6 @@ export type RuleProcessingJobOptions = SchedulerRefs &
   };
 
 const RUST_PROCESSING_CONCURRENCY = 2;
-const CACHE_SINGLE_FILE_BUDGET_BYTES = 32 * 1024 * 1024;
-const CACHE_TOTAL_BUDGET_BYTES = 64 * 1024 * 1024;
 
 const isRustCapableProcessingEntry = (entry: ProcessingQueueItem): boolean =>
   Boolean(
@@ -108,169 +107,6 @@ const resolveProcessingFallbackFile = async (
     normalizedCsvPath: entry.normalizedCsvPath,
   });
   return loaded ?? entry.file;
-};
-
-const getEstimatedAnalysisCacheBytes = (file: unknown): number => {
-  const summary = summarizeProcessedFile(file);
-  const value = Number(summary.analysisCacheEstimatedBytes);
-  return Number.isFinite(value) && value > 0 ? value : 0;
-};
-
-const getAnalysisCacheTouchedAt = (file: unknown): number => {
-  const value = Number((file as any)?.analysisCacheTouchedAt);
-  return Number.isFinite(value) && value > 0 ? value : 0;
-};
-
-const getAnalysisFileResults = (
-  file: CleanedEntry | null | undefined,
-): AnalysisFileResults | null => {
-  const fileId = String(file?.fileId ?? "").trim();
-  if (!fileId || !file || typeof file !== "object") return null;
-
-  const record = file as Record<string, unknown>;
-  if (record.analysisCache === undefined) return null;
-
-  const touchedAt = Number(record.analysisCacheTouchedAt);
-  return {
-    fileId,
-    analysisCache: record.analysisCache,
-    touchedAt: Number.isFinite(touchedAt) && touchedAt > 0 ? touchedAt : undefined,
-  };
-};
-
-const commitAnalysisResults = (
-  setAnalysisResults: StateSetter<AnalysisResultsByFileId>,
-  file: CleanedEntry | null | undefined,
-): void => {
-  const results = getAnalysisFileResults(file);
-  if (!results) return;
-
-  setAnalysisResults((previous) => ({
-    ...(previous || {}),
-    [results.fileId]: results,
-  }));
-};
-
-const hasPrunableAnalysisCurves = (file: unknown): boolean => {
-  const rawSeries = (file as any)?.analysisCache?.series;
-  if (!rawSeries || typeof rawSeries !== "object" || Array.isArray(rawSeries)) {
-    return false;
-  }
-  return Object.values(rawSeries).some((entry: any) => {
-    return Array.isArray(entry?.gm) || Array.isArray(entry?.ss);
-  });
-};
-
-const pruneAnalysisCacheCurves = (file: CleanedEntry): CleanedEntry => {
-  const analysisCache = (file as any)?.analysisCache;
-  const rawSeries = analysisCache?.series;
-  if (!rawSeries || typeof rawSeries !== "object" || Array.isArray(rawSeries)) {
-    return file;
-  }
-
-  const nextSeries: Record<string, unknown> = {};
-  for (const [seriesId, entry] of Object.entries(rawSeries)) {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-      nextSeries[seriesId] = entry;
-      continue;
-    }
-    const { gm: _gm, ss: _ss, ...rest } = entry as Record<string, unknown>;
-    nextSeries[seriesId] = rest;
-  }
-
-  return {
-    ...file,
-    analysisCache: {
-      ...analysisCache,
-      curvesPruned: true,
-      series: nextSeries,
-    },
-  };
-};
-
-const applyAnalysisCacheBudget = (
-  files: CleanedEntry[],
-  activeFileId: unknown = null,
-): CleanedEntry[] => {
-  if (!Array.isArray(files) || files.length === 0) return files;
-
-  let totalBytes = 0;
-  const estimatedBytes = files.map((file) => {
-    const bytes = getEstimatedAnalysisCacheBytes(file);
-    totalBytes += bytes;
-    return bytes;
-  });
-
-  const activeFileKey = String(activeFileId ?? "").trim();
-  const pruneOrder = files
-    .map((file, index) => ({
-      index,
-      isActive:
-        activeFileKey.length > 0 &&
-        String((file as any)?.fileId ?? "") === activeFileKey,
-      touchedAt: getAnalysisCacheTouchedAt(file),
-    }))
-    .sort((a, b) => {
-      if (a.isActive !== b.isActive) return a.isActive ? 1 : -1;
-      if (a.touchedAt !== b.touchedAt) return a.touchedAt - b.touchedAt;
-      return a.index - b.index;
-    });
-
-  const pruneIndexes = new Set<number>();
-  for (const { index } of pruneOrder) {
-    if (
-      estimatedBytes[index] > CACHE_SINGLE_FILE_BUDGET_BYTES &&
-      hasPrunableAnalysisCurves(files[index])
-    ) {
-      pruneIndexes.add(index);
-    }
-  }
-
-  let projectedTotalBytes = totalBytes;
-  for (const index of pruneIndexes) {
-    projectedTotalBytes -= estimatedBytes[index] ?? 0;
-  }
-
-  if (projectedTotalBytes > CACHE_TOTAL_BUDGET_BYTES) {
-    for (const { index } of pruneOrder) {
-      if (projectedTotalBytes <= CACHE_TOTAL_BUDGET_BYTES) break;
-      if (pruneIndexes.has(index)) continue;
-      if (!hasPrunableAnalysisCurves(files[index])) continue;
-      pruneIndexes.add(index);
-      projectedTotalBytes -= estimatedBytes[index] ?? 0;
-    }
-  }
-
-  if (pruneIndexes.size === 0) return files;
-
-  let prunedBytes = 0;
-  let prunedFiles = 0;
-  const nextFiles = files.map((file, index) => {
-    if (!pruneIndexes.has(index)) return file;
-    prunedBytes += estimatedBytes[index] ?? 0;
-    prunedFiles += 1;
-    return pruneAnalysisCacheCurves(file);
-  });
-
-  const prunedFileIds = nextFiles
-    .map((file, index) =>
-      pruneIndexes.has(index) ? String((file as any)?.fileId ?? "") : "",
-    )
-    .filter(Boolean);
-
-  logPerf("processing:analysis-cache-prune", {
-    activeFileId: activeFileKey || null,
-    prunedBytes,
-    prunedFileIds,
-    prunedFiles,
-    totalBeforeBytes: totalBytes,
-    totalAfterBytes: nextFiles.reduce(
-      (sum, file) => sum + getEstimatedAnalysisCacheBytes(file),
-      0,
-    ),
-  });
-
-  return nextFiles;
 };
 
 const createProcessingWorker = () =>
@@ -339,10 +175,10 @@ export const startProcessingJob = ({
   queue,
   hasSourceFile,
   removedQueuedFileIdsRef,
-  resetCleanedData,
+  resetProcessedDataBeforeRun,
   showResults,
-  setAnalysisResults,
-  setCleanedData,
+  commitProcessedFile,
+  resetProcessedData,
   setProcessingStatus,
   stopOnError,
   tryProcessFileWithRust,
@@ -361,7 +197,7 @@ export const startProcessingJob = ({
   const finishBatchPerf = startPerf("processing:batch", {
     fileCount: workQueue.length,
     mode: messageType,
-    resetCleanedData,
+    resetProcessedDataBeforeRun,
     stopOnError,
   });
   const filePerfFinishers = new Map<
@@ -375,10 +211,9 @@ export const startProcessingJob = ({
     showResults();
   };
 
-  if (resetCleanedData) {
+  if (resetProcessedDataBeforeRun) {
     updateSession(() => {
-      setCleanedData([]);
-      setAnalysisResults({});
+      resetProcessedData();
     });
   }
   removedQueuedFileIdsRef.current = new Set();
@@ -486,10 +321,10 @@ export const startProcessingJob = ({
             filePerfFinishers.delete(nextFileId);
           }
           updateSession(() => {
-            commitAnalysisResults(setAnalysisResults, rustProcessed);
-            setCleanedData((prev) =>
-              applyAnalysisCacheBudget([...prev, rustProcessed], activeFileId),
-            );
+            commitProcessedFile(rustProcessed, {
+              activeFileId,
+              appliedTemplateConfig: extractionConfig,
+            });
           });
           setProcessingStatus((prev) => ({
             ...prev,
@@ -558,13 +393,10 @@ export const startProcessingJob = ({
         filePerfFinishers.delete(nextFileId);
       }
       updateSession(() => {
-        commitAnalysisResults(setAnalysisResults, nextProcessed as CleanedEntry);
-        setCleanedData((prev) =>
-          applyAnalysisCacheBudget(
-            [...prev, nextProcessed as CleanedEntry],
-            activeFileId,
-          ),
-        );
+        commitProcessedFile(nextProcessed as ProcessedEntry, {
+          activeFileId,
+          appliedTemplateConfig: extractionConfig,
+        });
       });
       setProcessingStatus((prev) => ({
         ...prev,
@@ -632,8 +464,8 @@ export const startRuleProcessingJob = ({
   hasSourceFile,
   removedQueuedFileIdsRef,
   showResults,
-  setAnalysisResults,
-  setCleanedData,
+  commitProcessedFile,
+  resetProcessedData,
   setProcessingStatus,
   stopOnError,
   tryProcessFileWithRust,
@@ -658,8 +490,7 @@ export const startRuleProcessingJob = ({
 
   if (!incremental) {
     updateSession(() => {
-      setCleanedData([]);
-      setAnalysisResults({});
+      resetProcessedData();
     });
   }
   removedQueuedFileIdsRef.current = new Set();
@@ -691,6 +522,7 @@ export const startRuleProcessingJob = ({
     string,
     (meta?: Record<string, unknown>) => void
   >();
+  const extractionConfigByFileId = new Map<string, unknown>();
   let hasShownResults = false;
   const showResultsOnce = () => {
     if (hasShownResults) return;
@@ -734,6 +566,7 @@ export const startRuleProcessingJob = ({
         (entry) => entry.fileId !== nextEntry.fileId,
       );
       if (removedQueuedFileIdsRef.current.has(nextEntry.fileId)) continue;
+      extractionConfigByFileId.set(nextEntry.fileId, extractionConfig);
 
       activeCount += 1;
       filePerfFinishers.set(
@@ -761,6 +594,7 @@ export const startRuleProcessingJob = ({
               source: "rust",
             });
             filePerfFinishers.delete(nextFileId);
+            extractionConfigByFileId.delete(nextFileId);
             processedCount += 1;
             activeCount = Math.max(0, activeCount - 1);
             setProcessingStatus((prev) => ({
@@ -777,12 +611,13 @@ export const startRuleProcessingJob = ({
               source: "rust",
             });
             filePerfFinishers.delete(nextFileId);
+            extractionConfigByFileId.delete(nextFileId);
           }
           updateSession(() => {
-            commitAnalysisResults(setAnalysisResults, rustProcessed);
-            setCleanedData((prev) =>
-              applyAnalysisCacheBudget([...prev, rustProcessed], activeFileId),
-            );
+            commitProcessedFile(rustProcessed, {
+              activeFileId,
+              appliedTemplateConfig: extractionConfig,
+            });
           });
           processedCount += 1;
           activeCount = Math.max(0, activeCount - 1);
@@ -845,14 +680,17 @@ export const startRuleProcessingJob = ({
         );
         filePerfFinishers.delete(nextFileId);
       }
+      const appliedTemplateConfig = nextFileId
+        ? extractionConfigByFileId.get(nextFileId)
+        : undefined;
+      if (nextFileId) {
+        extractionConfigByFileId.delete(nextFileId);
+      }
       updateSession(() => {
-        commitAnalysisResults(setAnalysisResults, nextProcessed as CleanedEntry);
-        setCleanedData((prev) =>
-          applyAnalysisCacheBudget(
-            [...prev, nextProcessed as CleanedEntry],
-            activeFileId,
-          ),
-        );
+        commitProcessedFile(nextProcessed as ProcessedEntry, {
+          activeFileId,
+          appliedTemplateConfig,
+        });
       });
       processedCount += 1;
       activeCount = Math.max(0, activeCount - 1);
@@ -871,6 +709,7 @@ export const startRuleProcessingJob = ({
           message: payload?.message ?? null,
         });
         filePerfFinishers.delete(errorFileId);
+        extractionConfigByFileId.delete(errorFileId);
       }
       onWorkerErrorPayload?.(payload);
       processedCount += 1;
@@ -897,3 +736,4 @@ export const startRuleProcessingJob = ({
 
   launchNext();
 };
+

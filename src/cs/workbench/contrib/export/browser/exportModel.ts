@@ -7,9 +7,10 @@ import type {
   OriginExportMode,
 } from "src/cs/workbench/contrib/export/common/originSelectionExport";
 import type {
-  CleanedEntry,
-  CleanedSeries,
+  ProcessedEntry,
+  ProcessedSeries,
 } from "src/cs/workbench/services/session/common/sessionTypes";
+import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
 
 export type ExportPaneState = {
   isExportListCanvasSelectionMode: boolean;
@@ -26,10 +27,10 @@ export const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
 ];
 
 export const createOriginCurveOptions = (
-  file: CleanedEntry,
+  file: ProcessedEntry,
   resolveCurveLabelForSeries: (
-    file: CleanedEntry,
-    series: CleanedSeries,
+    file: ProcessedEntry,
+    series: ProcessedSeries,
     index: number,
   ) => string = (_file, series, index) =>
     String(series?.name ?? `Series ${index + 1}`),
@@ -42,6 +43,30 @@ export const createOriginCurveOptions = (
         key: seriesId,
         label: resolveCurveLabelForSeries(file, series, index),
         sourceFileId: String(file?.fileId ?? ""),
+        sourceSeriesId: seriesId,
+      };
+    })
+    .filter((option): option is OriginCurveExportSeriesOption => Boolean(option));
+
+export const createOriginCurveOptionsFromRecord = (
+  file: FileRecord,
+  resolveSeriesLabel: (fileId: string, seriesId: string, fallback: string, index: number) => string =
+    (_fileId, _seriesId, fallback, index) => fallback || `Series ${index + 1}`,
+): OriginCurveExportSeriesOption[] =>
+  file.seriesOrder
+    .map((seriesId, index) => {
+      const series = file.seriesById[seriesId];
+      if (!series) return null;
+      const fallback = String(
+        series.labelOverride ??
+          series.legendValue ??
+          series.name ??
+          `Series ${index + 1}`,
+      );
+      return {
+        key: seriesId,
+        label: resolveSeriesLabel(file.id, seriesId, fallback, index),
+        sourceFileId: file.id,
         sourceSeriesId: seriesId,
       };
     })
@@ -121,3 +146,4 @@ export const getExportSelectionSummary = ({
         files: selectedCanvasCount,
       })
     : separateCanvasScopeSummary;
+

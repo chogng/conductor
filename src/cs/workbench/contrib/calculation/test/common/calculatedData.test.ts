@@ -1,9 +1,17 @@
 import assert from "assert";
 
+import type {
+  BaseCurveKey,
+  DerivedCurveKey,
+  FileRecord,
+} from "src/cs/workbench/services/session/common/sessionModel";
+
 import {
   createCalculatedData,
-  createCalculatedDataByKey,
   createCalculatedDataKey,
+  createCalculatedDataRecordInputSignature,
+  createCalculatedPlotsByKey,
+  createCalculatedPlotsByKeyFromRecords,
   createCalculatedSeries,
   createSecondCalculatedData,
   getCalculatedData,
@@ -32,7 +40,7 @@ suite("workbench/contrib/calculation/test/common/calculatedData", () => {
     const model = createCalculatedData({
       activeFileId: "file-b",
       plotType: "iv",
-      cleanedData: [
+      processedFiles: [
         createFile(),
         createFile({
           fileId: "file-b",
@@ -44,7 +52,7 @@ suite("workbench/contrib/calculation/test/common/calculatedData", () => {
 
     assert.equal(model.activeFile?.fileId, "file-b");
     assert.equal(model.kind, "iv");
-    assert.deepEqual(model.source, { fileId: "file-b", inputKind: "cleaned" });
+    assert.deepEqual(model.source, { fileId: "file-b", inputKind: "processed" });
     assert.equal(model.seriesList.length, 1);
     assert.equal(model.seriesList[0].kind, "iv");
     assert.equal(model.pointsCount, 3);
@@ -150,7 +158,7 @@ suite("workbench/contrib/calculation/test/common/calculatedData", () => {
     const model = createCalculatedData({
       activeFileId: "missing",
       plotType: "iv",
-      cleanedData: [
+      processedFiles: [
         createFile({
           xGroups: [[]],
           series: [{ id: "series-a", groupIndex: 0, y: [] }],
@@ -163,8 +171,8 @@ suite("workbench/contrib/calculation/test/common/calculatedData", () => {
     assert.deepEqual(model.yDomain, [0, 1]);
   });
 
-  test("createCalculatedDataByKey stores each file and plot type in session-friendly keys", () => {
-    const byKey = createCalculatedDataByKey([
+  test("createCalculatedPlotsByKey stores each file and plot type in session-friendly keys", () => {
+    const byKey = createCalculatedPlotsByKey([
       createFile(),
       createFile({ fileId: "file-b" }),
     ]);
@@ -183,8 +191,74 @@ suite("workbench/contrib/calculation/test/common/calculatedData", () => {
     );
   });
 
+  test("createCalculatedPlotsByKeyFromRecords builds drawable data from canonical records", () => {
+    const byKey = createCalculatedPlotsByKeyFromRecords(
+      { "file-a": createFileRecord() },
+      ["file-a"],
+    );
+    const iv = getCalculatedData(byKey, "iv", "file-a");
+    const gm = getCalculatedData(byKey, "gm", "file-a");
+
+    assert.equal(iv?.activeFile?.fileId, "file-a");
+    assert.deepEqual(iv?.source, { fileId: "file-a", inputKind: "record" });
+    assert.equal(iv?.seriesList[0]?.id, "series-a");
+    assert.equal(iv?.seriesList[0]?.name, "Vd=0.1");
+    assert.deepEqual(
+      iv?.seriesList[0]?.data.map((point) => point.y),
+      [1, 2, 4],
+    );
+    assert.deepEqual(
+      gm?.seriesList[0]?.data.map((point) => point.y),
+      [1, 1.5, 2],
+    );
+    assert.equal(iv?.xUnitLabel, "V");
+    assert.equal(iv?.yUnitLabel, "A");
+  });
+
+  test("createCalculatedDataRecordInputSignature ignores derived curve cache writes", () => {
+    const file = createFileRecord();
+    const signature = createCalculatedDataRecordInputSignature(
+      { "file-a": file },
+      ["file-a"],
+    );
+    const derivedKey = "derived:gm:default:series-a" as DerivedCurveKey;
+    const withDerived: FileRecord = {
+      ...file,
+      curvesByKey: {
+        ...file.curvesByKey,
+        [derivedKey]: {
+          curveFamily: "gm",
+          curveGeneration: "derived",
+          fileId: "file-a",
+          lineage: {
+            curveGeneration: "derived",
+            derivedFamily: "gm",
+            inputCurve: {
+              curveKey: "base:iv:transfer:series-a" as BaseCurveKey,
+              fileId: "file-a",
+              seriesId: "series-a",
+              signature: "base-signature",
+            },
+          },
+          points: [
+            { x: 0, y: 1 },
+            { x: 1, y: 1.5 },
+            { x: 2, y: 2 },
+          ],
+          seriesId: "series-a",
+          signature: "derived-signature",
+        },
+      },
+    };
+
+    assert.equal(
+      createCalculatedDataRecordInputSignature({ "file-a": withDerived }, ["file-a"]),
+      signature,
+    );
+  });
+
   test("getCalculatedData falls back to the first file for a plot type", () => {
-    const byKey = createCalculatedDataByKey([
+    const byKey = createCalculatedPlotsByKey([
       createFile(),
       createFile({ fileId: "file-b" }),
     ]);
@@ -196,12 +270,12 @@ suite("workbench/contrib/calculation/test/common/calculatedData", () => {
     const left = createCalculatedData({
       activeFileId: "file-a",
       plotType: "iv",
-      cleanedData: [createFile({ series: [{ id: "series-a", groupIndex: 0, y: [1, 2, 4] }] })],
+      processedFiles: [createFile({ series: [{ id: "series-a", groupIndex: 0, y: [1, 2, 4] }] })],
     });
     const right = createCalculatedData({
       activeFileId: "file-a",
       plotType: "iv",
-      cleanedData: [createFile({ series: [{ id: "series-a", groupIndex: 0, y: [1, 3, 4] }] })],
+      processedFiles: [createFile({ series: [{ id: "series-a", groupIndex: 0, y: [1, 3, 4] }] })],
     });
 
     assert.deepEqual(left.yDomain, right.yDomain);
@@ -212,7 +286,7 @@ suite("workbench/contrib/calculation/test/common/calculatedData", () => {
     const source = createCalculatedData({
       activeFileId: "file-a",
       plotType: "gm",
-      cleanedData: [createFile()],
+      processedFiles: [createFile()],
     });
     const second = createSecondCalculatedData(source);
 
@@ -225,3 +299,74 @@ suite("workbench/contrib/calculation/test/common/calculatedData", () => {
     );
   });
 });
+
+const createFileRecord = (): FileRecord => {
+  const fileId = "file-a";
+  const seriesId = "series-a";
+  const curveKey = "base:iv:transfer:series-a" as BaseCurveKey;
+  return {
+    assessment: {
+      baseFamily: "iv",
+      baseFamilyConfidence: "high",
+    },
+    axis: {
+      x: {
+        label: "Gate Voltage",
+        role: "vg",
+        unit: "V",
+      },
+      y: {
+        label: "Drain Current",
+        role: "id",
+        scale: "linear",
+        unit: "A",
+      },
+    },
+    baseCandidateOrder: [],
+    baseCandidatesById: {},
+    curvesByKey: {
+      [curveKey]: {
+        curveFamily: "iv",
+        curveGeneration: "base",
+        fileId,
+        ivMode: "transfer",
+        lineage: {
+          baseFamily: "iv",
+          baseSeries: { fileId, seriesId },
+          curveGeneration: "base",
+          ivMode: "transfer",
+        },
+        points: [
+          { x: 0, y: 1 },
+          { x: 1, y: 2 },
+          { x: 2, y: 4 },
+        ],
+        seriesId,
+        signature: "base-signature",
+      },
+    },
+    domain: {
+      x: [0, 2],
+      y: [1, 4],
+    },
+    id: fileId,
+    metricsByKey: {},
+    raw: {
+      fileId,
+      fileName: "file-a.csv",
+      tableOrder: [],
+      tablesById: {},
+    },
+    seriesById: {
+      [seriesId]: {
+        fileId,
+        groupIndex: 0,
+        id: seriesId,
+        legendValue: "Vd=0.1",
+        y: [1, 2, 4],
+      },
+    },
+    seriesOrder: [seriesId],
+    xGroups: [[0, 1, 2]],
+  };
+};

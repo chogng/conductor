@@ -5,8 +5,8 @@
   isTransferLikeFile,
 } from "src/cs/workbench/contrib/calculation/common/firstCalculation";
 import type {
-  CleanedEntry,
-  CleanedSeries,
+  ProcessedEntry,
+  ProcessedSeries,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 
 export type SsConfidence = "high" | "low" | "fail" | string;
@@ -52,7 +52,7 @@ type SsFitResult = {
 };
 
 export const createParameterRows = (
-  file: CleanedEntry,
+  file: ProcessedEntry,
 ): Array<CalculatedParameterRowData & { id?: unknown }> => {
   const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
   const seriesList = Array.isArray(file?.series) ? file.series : [];
@@ -120,7 +120,7 @@ const createSourcePoints = (
 };
 
 const resolveSeriesName = (
-  series: CleanedSeries,
+  series: ProcessedSeries,
   index: number,
 ): { header: string | null; value: string } => {
   for (const candidate of [series?.legendValue, series?.name]) {
@@ -198,3 +198,4 @@ const isArrayLike = (value: unknown): value is ArrayLike<unknown> =>
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
+

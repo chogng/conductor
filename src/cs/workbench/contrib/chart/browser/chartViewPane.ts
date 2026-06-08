@@ -16,7 +16,10 @@ import {
   ChartHeaderActionViewItem,
   getHeaderActionIcon,
 } from "src/cs/workbench/contrib/chart/browser/chartActions";
-import { createFileSelect, resolveActiveFile } from "src/cs/workbench/contrib/chart/browser/chartFileSelect";
+import {
+  createFileSelect,
+  resolveActiveChartFileOption,
+} from "src/cs/workbench/contrib/chart/browser/chartFileSelect";
 import { createLegendPopover, getLegendContext, isSameLegendContext, type LegendContext } from "src/cs/workbench/contrib/chart/browser/chartLegend";
 import { sameDetailPanes, toAnalysisPanelProps, toggleDetailPane, type ChartDetailPane } from "src/cs/workbench/contrib/chart/browser/chartPaneState";
 import { createChartUnitControls, type ChartUnitAxis, type ChartUnitControlState, type ChartYScale } from "src/cs/workbench/contrib/chart/browser/chartUnitControls";
@@ -113,8 +116,8 @@ export class ChartViewPane extends ViewPane {
   private renderHeader(props: AnalysisPanelProps): void {
     this.headerStore.clear();
     this.legendAction = null;
-    const activeFile = resolveActiveFile(props);
-    const isEmpty = !props.cleanedData.length;
+    const activeFile = resolveActiveChartFileOption(props);
+    const isEmpty = props.hasAnalysisData !== true;
     this.previewPart.dataset.headerVisible = isEmpty ? "false" : "true";
     this.headerTabs.replaceChildren();
     this.headerActions.replaceChildren();
@@ -202,7 +205,7 @@ export class ChartViewPane extends ViewPane {
     axis: "x" | "y",
   ): AxisTitleContext | null {
     const sourceData = getCalculatedData(
-      props.calculatedDataByKey,
+      props.calculatedPlotsByKey,
       this.getActivePlotType(),
       props.activeFileId,
     );
@@ -255,7 +258,7 @@ export class ChartViewPane extends ViewPane {
 
   private getUnitControlState(props: AnalysisPanelProps): ChartUnitControlState | null {
     const sourceData = getCalculatedData(
-      props.calculatedDataByKey,
+      props.calculatedPlotsByKey,
       this.getActivePlotType(),
       props.activeFileId,
     );

@@ -1,5 +1,5 @@
-/*
- * File metadata owns the real semantic meaning shared by every curve in one
+﻿/*
+ * File semantics own the real scientific meaning shared by every curve in one
  * imported file. Axis labels, units, scale, source file name, template id, and
  * source curve kind belong here because they participate in calculation,
  * parameter extraction, export, and chart rendering.
@@ -24,13 +24,17 @@ export type CurveKind =
   | "gm"
   | "ss"
   | "vth"
+  | "localSs"
+  | "thresholdFit"
+  | "subthresholdFit"
+  | "secondDerivative"
   | "cv"
   | "cf"
   | "pv"
+  | "it"
   | "transfer"
   | "output"
-  | "unknown"
-  | (string & {});
+  | "unknown";
 
 export type CurveYScale = "linear" | "log";
 
@@ -40,23 +44,23 @@ export type CurveKey = {
   readonly seriesId: string;
 };
 
-export type CurveAxisMetadata = {
+export type CurveAxisSemantics = {
   readonly label?: string;
   readonly role?: string;
   readonly unit?: string;
 };
 
-export type CurveYAxisMetadata = CurveAxisMetadata & {
+export type CurveYAxisSemantics = CurveAxisSemantics & {
   readonly scale?: CurveYScale;
 };
 
-export type FileMetadata = {
+export type FileSemantics = {
   readonly fileId: string;
   readonly kind?: CurveKind;
   readonly sourceFileName?: string;
   readonly templateId?: string;
-  readonly x: CurveAxisMetadata;
-  readonly y: CurveYAxisMetadata;
+  readonly x: CurveAxisSemantics;
+  readonly y: CurveYAxisSemantics;
 };
 
 export type CurvePoint = {
@@ -79,32 +83,14 @@ export type CurveViewState = {
 
 export type CurveModel = CurveKey & {
   readonly data?: CurveData;
-  readonly fileMetadata?: FileMetadata;
+  readonly fileSemantics?: FileSemantics;
   readonly viewState: CurveViewState;
 };
 
-export type MetadataState = {
-  readonly curveViewStateByKey: Record<string, CurveViewState>;
-  readonly curvesByKey: Record<string, CurveData>;
-  readonly filesById: Record<string, FileMetadata>;
-  readonly seriesLabelsByFileId: Record<string, Record<string, string>>;
-};
-
-export type FileMetadataUpdate =
-  Partial<Omit<FileMetadata, "fileId" | "x" | "y">> & {
-    readonly x?: Partial<CurveAxisMetadata>;
-    readonly y?: Partial<CurveYAxisMetadata>;
+export type FileSemanticsUpdate =
+  Partial<Omit<FileSemantics, "fileId" | "x" | "y">> & {
+    readonly x?: Partial<CurveAxisSemantics>;
+    readonly y?: Partial<CurveYAxisSemantics>;
   };
 
-export const createEmptyMetadataState = (): MetadataState => ({
-  curveViewStateByKey: {},
-  curvesByKey: {},
-  filesById: {},
-  seriesLabelsByFileId: {},
-});
 
-export const getCurveKey = (key: CurveKey): string => [
-  key.fileId,
-  key.curveKind,
-  key.seriesId,
-].map(encodeURIComponent).join(":");

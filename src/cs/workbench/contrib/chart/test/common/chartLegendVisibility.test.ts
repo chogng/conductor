@@ -55,7 +55,7 @@ const createModel = (): CalculatedData => ({
   signature: "model-signature",
   source: {
     fileId: "file-a",
-    inputKind: "cleaned",
+    inputKind: "processed",
   },
   xDomain: [-2, 1],
   xUnitLabel: "V",
