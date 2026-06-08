@@ -275,10 +275,13 @@ npm run dist:desktop:exe
 
 项目图标：
 
-- `build/icons/icon.png`
-- `build/icons/icon.icns`
-- `build/icons/icon.ico`
-- `build/appx/*.png`（Microsoft Store/AppX manifest 使用的磁贴和 logo 资源）
+- `resources/win32/icon-2160.png`（桌面端生成资源的源图）
+- `resources/win32/icon-*.png`（Windows 生成 PNG 变体，含桌面窗口图标 `icon-150.png`）
+- `resources/win32/icon.ico`
+- `resources/win32/header.bmp` 和 `resources/win32/sidebar.bmp`
+- `resources/win32/appx/*.png`（Microsoft Store/AppX manifest 使用的磁贴和 logo 资源）
+- `resources/darwin/icon.icns`
+- `resources/linux/icon.png`
 
 这些文件作为仓库内置的构建资源直接使用，可通过下面命令校验：
 

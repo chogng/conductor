@@ -314,7 +314,6 @@ Workflow structure:
 - Desktop packaging checks run in `desktop-ci.yml`.
 - Rust-sidecar checks run in `rust-ci.yml`.
 - Python Origin worker checks run in `python-worker-ci.yml`.
-- GitHub Pages deployment in `pages.yml` publishes the static privacy policy site from `public/`.
 
 ## Microsoft Store
 
@@ -345,11 +344,13 @@ the assigned package identity values into `build.appx` in `package.json`.
 
 Project icons:
 
-- `build/icons/icon-2160.png` (source for generated desktop assets)
-- `build/icons/icon.png`
-- `build/icons/icon.icns`
-- `build/icons/icon.ico`
-- `build/appx/*.png` (Microsoft Store/AppX manifest tile and logo assets)
+- `resources/win32/icon-2160.png` (source for generated desktop assets)
+- `resources/win32/icon-*.png` (generated Windows PNG variants, including `icon-150.png` for the desktop window icon)
+- `resources/win32/icon.ico`
+- `resources/win32/header.bmp` and `resources/win32/sidebar.bmp`
+- `resources/win32/appx/*.png` (Microsoft Store/AppX manifest tile and logo assets)
+- `resources/darwin/icon.icns`
+- `resources/linux/icon.png`
 
 These files are treated as checked-in build assets. Verify them with:
 

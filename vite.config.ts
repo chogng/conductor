@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vite";
@@ -17,6 +18,10 @@ const desktopWorkbenchHtmlPath = fileURLToPath(
 const helpWindowHtmlPath = fileURLToPath(
   new URL("./src/cs/workbench/contrib/help/browser/helpWindow.html", import.meta.url),
 );
+const serverFaviconPath = fileURLToPath(
+  new URL("./resources/server/favicon.ico", import.meta.url),
+);
+const serverFaviconPublicPath = "/resources/server/favicon.ico";
 
 const webClientServerPlugin = (): Plugin => {
   const workbenchPath = getBrowserWorkbenchPath(false);
@@ -31,6 +36,20 @@ const webClientServerPlugin = (): Plugin => {
         }
 
         const url = new URL(req.url, "http://localhost");
+        if (url.pathname === serverFaviconPublicPath) {
+          try {
+            const content = fs.readFileSync(serverFaviconPath);
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "image/x-icon");
+            res.setHeader("Cache-Control", "no-cache");
+            res.end(content);
+          } catch {
+            res.statusCode = 404;
+            res.end();
+          }
+          return;
+        }
+
         if (!shouldRouteToBrowserWorkbench(url.pathname) || url.pathname === workbenchPath) {
           next();
           return;
@@ -39,6 +58,13 @@ const webClientServerPlugin = (): Plugin => {
         res.statusCode = 302;
         res.setHeader("Location", `${workbenchPath}${url.search}`);
         res.end();
+      });
+    },
+    generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: "resources/server/favicon.ico",
+        source: fs.readFileSync(serverFaviconPath),
       });
     },
   };

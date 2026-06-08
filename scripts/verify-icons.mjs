@@ -4,8 +4,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const iconDir = path.join(rootDir, "build", "icons");
-const appxDir = path.join(rootDir, "build", "appx");
+const win32ResourceDir = path.join(rootDir, "resources", "win32");
+const darwinResourceDir = path.join(rootDir, "resources", "darwin");
+const linuxResourceDir = path.join(rootDir, "resources", "linux");
+const appxDir = path.join(win32ResourceDir, "appx");
 const packageJsonPath = path.join(rootDir, "package.json");
 
 const requiredPngSizes = [16, 20, 24, 32, 40, 48, 64, 70, 71, 128, 150, 256, 300, 512, 1024, 1080, 2160];
@@ -83,7 +85,7 @@ const readBmpSize = (filePath) => {
 
 let newestIconMtime = 0;
 for (const size of requiredPngSizes) {
-  const filePath = path.join(iconDir, `icon-${size}.png`);
+  const filePath = path.join(win32ResourceDir, `icon-${size}.png`);
   const stat = ensureFile(filePath);
   const dimensions = readPngSize(filePath);
   if (dimensions.width !== size || dimensions.height !== size) {
@@ -92,7 +94,7 @@ for (const size of requiredPngSizes) {
   newestIconMtime = Math.max(newestIconMtime, stat.mtimeMs);
 }
 
-const iconPngPath = path.join(iconDir, "icon.png");
+const iconPngPath = path.join(linuxResourceDir, "icon.png");
 const iconPngStat = ensureFile(iconPngPath);
 const iconPngDimensions = readPngSize(iconPngPath);
 if (iconPngDimensions.width !== 1024 || iconPngDimensions.height !== 1024) {
@@ -100,7 +102,7 @@ if (iconPngDimensions.width !== 1024 || iconPngDimensions.height !== 1024) {
 }
 newestIconMtime = Math.max(newestIconMtime, iconPngStat.mtimeMs);
 
-const sourceIconPath = path.join(iconDir, "icon-2160.png");
+const sourceIconPath = path.join(win32ResourceDir, "icon-2160.png");
 const sourceIconStat = ensureFile(sourceIconPath);
 const sourceIconDimensions = readPngSize(sourceIconPath);
 if (sourceIconDimensions.width !== 2160 || sourceIconDimensions.height !== 2160) {
@@ -108,7 +110,7 @@ if (sourceIconDimensions.width !== 2160 || sourceIconDimensions.height !== 2160)
 }
 newestIconMtime = Math.max(newestIconMtime, sourceIconStat.mtimeMs);
 
-const iconIcoPath = path.join(iconDir, "icon.ico");
+const iconIcoPath = path.join(win32ResourceDir, "icon.ico");
 const iconIcoStat = ensureFile(iconIcoPath);
 const icoSizes = readIcoSizes(iconIcoPath);
 for (const size of requiredIcoSizes) {
@@ -118,7 +120,7 @@ for (const size of requiredIcoSizes) {
 }
 newestIconMtime = Math.max(newestIconMtime, iconIcoStat.mtimeMs);
 
-const iconIcnsPath = path.join(iconDir, "icon.icns");
+const iconIcnsPath = path.join(darwinResourceDir, "icon.icns");
 ensureFile(iconIcnsPath);
 
 for (const [name, [width, height]] of Object.entries(requiredAppxAssets)) {
@@ -126,39 +128,39 @@ for (const [name, [width, height]] of Object.entries(requiredAppxAssets)) {
   const stat = ensureFile(filePath);
   const dimensions = readPngSize(filePath);
   if (dimensions.width !== width || dimensions.height !== height) {
-    fail(`Wrong AppX asset dimensions for build/appx/${name}: ${dimensions.width}x${dimensions.height}`);
+    fail(`Wrong AppX asset dimensions for resources/win32/appx/${name}: ${dimensions.width}x${dimensions.height}`);
   }
   newestIconMtime = Math.max(newestIconMtime, stat.mtimeMs);
 }
 
-const installerHeaderPath = path.join(rootDir, "build", "installer", "header.bmp");
-const installerSidebarPath = path.join(rootDir, "build", "installer", "sidebar.bmp");
+const installerHeaderPath = path.join(win32ResourceDir, "header.bmp");
+const installerSidebarPath = path.join(win32ResourceDir, "sidebar.bmp");
 const installerHeaderStat = ensureFile(installerHeaderPath);
 const installerSidebarStat = ensureFile(installerSidebarPath);
 const installerHeaderSize = readBmpSize(installerHeaderPath);
 const installerSidebarSize = readBmpSize(installerSidebarPath);
 if (installerHeaderSize.width !== 150 || installerHeaderSize.height !== 57) {
-  fail(`Wrong BMP dimensions for build/installer/header.bmp: ${installerHeaderSize.width}x${installerHeaderSize.height}`);
+  fail(`Wrong BMP dimensions for resources/win32/header.bmp: ${installerHeaderSize.width}x${installerHeaderSize.height}`);
 }
 if (installerSidebarSize.width !== 164 || installerSidebarSize.height !== 314) {
-  fail(`Wrong BMP dimensions for build/installer/sidebar.bmp: ${installerSidebarSize.width}x${installerSidebarSize.height}`);
+  fail(`Wrong BMP dimensions for resources/win32/sidebar.bmp: ${installerSidebarSize.width}x${installerSidebarSize.height}`);
 }
 newestIconMtime = Math.max(newestIconMtime, installerHeaderStat.mtimeMs, installerSidebarStat.mtimeMs);
 
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
 const buildConfig = packageJson.build || {};
-const expectedIco = "build/icons/icon.ico";
-const expectedPng = "build/icons/icon.png";
-const expectedIcns = "build/icons/icon.icns";
+const expectedIco = "icon.ico";
+const expectedPng = "../linux/icon.png";
+const expectedIcns = "../darwin/icon.icns";
 
 const expectedPackagePaths = {
   "build.win.icon": expectedIco,
   "build.nsis.installerIcon": expectedIco,
   "build.nsis.uninstallerIcon": expectedIco,
   "build.nsis.installerHeaderIcon": expectedIco,
-  "build.nsis.installerHeader": "build/installer/header.bmp",
-  "build.nsis.installerSidebar": "build/installer/sidebar.bmp",
-  "build.nsis.uninstallerSidebar": "build/installer/sidebar.bmp",
+  "build.nsis.installerHeader": "header.bmp",
+  "build.nsis.installerSidebar": "sidebar.bmp",
+  "build.nsis.uninstallerSidebar": "sidebar.bmp",
   "build.linux.icon": expectedPng,
   "build.mac.icon": expectedIcns,
 };
@@ -174,9 +176,11 @@ for (const [label, expected] of Object.entries(expectedPackagePaths)) {
 }
 
 const extraResourceHasIcons = Array.isArray(buildConfig.extraResources)
-  && buildConfig.extraResources.some((entry) => entry?.from === "build/icons" && entry?.to === "build/icons");
+  && buildConfig.extraResources.some((entry) => entry?.from === "resources/win32" && entry?.to === "resources/win32")
+  && buildConfig.extraResources.some((entry) => entry?.from === "resources/darwin" && entry?.to === "resources/darwin")
+  && buildConfig.extraResources.some((entry) => entry?.from === "resources/linux" && entry?.to === "resources/linux");
 if (!extraResourceHasIcons) {
-  fail('build.extraResources must include {"from":"build/icons","to":"build/icons"}');
+  fail('build.extraResources must include win32, darwin, and linux resource directories.');
 }
 
 console.log(

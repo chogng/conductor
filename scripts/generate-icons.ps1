@@ -231,9 +231,10 @@ function Write-InstallerSidebar {
 }
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$iconDir = Resolve-ProjectPath "build\icons"
-$appxDir = Resolve-ProjectPath "build\appx"
-$installerDir = Resolve-ProjectPath "build\installer"
+$win32Dir = Resolve-ProjectPath "resources\win32"
+$darwinDir = Resolve-ProjectPath "resources\darwin"
+$linuxDir = Resolve-ProjectPath "resources\linux"
+$appxDir = Join-Path $win32Dir "appx"
 $packageJsonPath = Resolve-ProjectPath "package.json"
 
 if (-not (Test-Path -LiteralPath $packageJsonPath)) {
@@ -241,7 +242,7 @@ if (-not (Test-Path -LiteralPath $packageJsonPath)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($SourceIcon)) {
-  $SourceIcon = Resolve-ProjectPath "build\icons\icon-2160.png"
+  $SourceIcon = Resolve-ProjectPath "resources\win32\icon-2160.png"
 } elseif (-not [System.IO.Path]::IsPathRooted($SourceIcon)) {
   $SourceIcon = Resolve-ProjectPath $SourceIcon
 }
@@ -263,30 +264,31 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
   Fail "version is empty"
 }
 
-New-Item -ItemType Directory -Force -Path $iconDir, $appxDir, $installerDir | Out-Null
+New-Item -ItemType Directory -Force -Path $win32Dir, $darwinDir, $linuxDir, $appxDir | Out-Null
 Add-Type -AssemblyName System.Drawing
 
 $source = [System.Drawing.Bitmap]::FromFile($SourceIcon)
 try {
   $pngSizes = @(16, 20, 24, 32, 40, 48, 64, 70, 71, 128, 150, 256, 300, 512, 1024, 1080)
   foreach ($size in $pngSizes) {
-    Save-ResizedPng -Source $source -Size $size -OutputPath (Join-Path $iconDir "icon-$size.png")
+    Save-ResizedPng -Source $source -Size $size -OutputPath (Join-Path $win32Dir "icon-$size.png")
   }
 
-  Save-ResizedPng -Source $source -Size 1024 -OutputPath (Join-Path $iconDir "icon.png")
-  Write-MultiSizeIco -Source $source -OutputPath (Join-Path $iconDir "icon.ico")
+  Save-ResizedPng -Source $source -Size 1024 -OutputPath (Join-Path $linuxDir "icon.png")
+  Write-MultiSizeIco -Source $source -OutputPath (Join-Path $win32Dir "icon.ico")
   Save-AppxPng -Source $source -Width 44 -Height 44 -IconSize 44 -OutputPath (Join-Path $appxDir "Square44x44Logo.png")
   Save-AppxPng -Source $source -Width 50 -Height 50 -IconSize 50 -OutputPath (Join-Path $appxDir "StoreLogo.png")
   Save-AppxPng -Source $source -Width 71 -Height 71 -IconSize 71 -OutputPath (Join-Path $appxDir "SmallTile.png")
   Save-AppxPng -Source $source -Width 150 -Height 150 -IconSize 150 -OutputPath (Join-Path $appxDir "Square150x150Logo.png")
   Save-AppxPng -Source $source -Width 310 -Height 150 -IconSize 150 -OutputPath (Join-Path $appxDir "Wide310x150Logo.png")
   Save-AppxPng -Source $source -Width 310 -Height 310 -IconSize 310 -OutputPath (Join-Path $appxDir "LargeTile.png")
-  Write-InstallerHeader -Source $source -OutputPath (Join-Path $installerDir "header.bmp")
-  Write-InstallerSidebar -Source $source -OutputPath (Join-Path $installerDir "sidebar.bmp") -DisplayVersion $Version
+  Write-InstallerHeader -Source $source -OutputPath (Join-Path $win32Dir "header.bmp")
+  Write-InstallerSidebar -Source $source -OutputPath (Join-Path $win32Dir "sidebar.bmp") -DisplayVersion $Version
 } finally {
   $source.Dispose()
 }
 
 Write-Host "[generate-icons] Source: $SourceIcon"
 Write-Host "[generate-icons] Version: $Version"
-Write-Host "[generate-icons] Updated build/icons, build/appx and build/installer assets."
+Write-Host "[generate-icons] Updated resources/win32 and resources/linux generated assets."
+Write-Host "[generate-icons] Keep the macOS icon at resources/darwin/icon.icns in sync with the source artwork."

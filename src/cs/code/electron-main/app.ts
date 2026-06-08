@@ -169,14 +169,6 @@ const MAIN_MESSAGES = {
 };
 const DEFAULT_WORKBENCH_BACKGROUND_COLOR = "#f3f4f6";
 const WORKBENCH_BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
-const DEMO_FILE_NAMES = [
-  "demo-01.csv",
-  "demo-02.csv",
-  "demo-03.csv",
-  "demo-04.csv",
-  "demo-05.csv",
-  "demo-06.csv",
-];
 const ORIGIN_DETECTION_CACHE_TTL_MS = 60 * 1000;
 const BOOT_WINDOW_SETTLE_MS = 80;
 const BOOT_UI_READY_FALLBACK_MS = 3500;
@@ -360,6 +352,12 @@ function getAppRootPath() {
 }
 
 function resolveDesktopWindowIconPath() {
+  const platformResourceDir =
+    process.platform === "win32"
+      ? "win32"
+      : process.platform === "darwin"
+        ? "darwin"
+        : "linux";
   const iconFileName =
     process.platform === "win32"
       ? "icon-150.png"
@@ -370,15 +368,25 @@ function resolveDesktopWindowIconPath() {
   const resourcesPath = getResourcesPath();
   const candidates = app.isPackaged
     ? [
+        path.join(resourcesPath, "resources", platformResourceDir, iconFileName),
         path.join(resourcesPath, "build", "icons", iconFileName),
         path.join(resourcesPath, "app.asar.unpacked", "build", "icons", iconFileName),
       ]
-    : [path.join(resourcesPath, "build", "icons", iconFileName)];
+    : [
+        path.join(resourcesPath, "resources", platformResourceDir, iconFileName),
+        path.join(resourcesPath, "build", "icons", iconFileName),
+      ];
 
   return resolveFirstExistingPath(candidates) ?? undefined;
 }
 
 function resolveTrayIconPath() {
+  const platformResourceDir =
+    process.platform === "win32"
+      ? "win32"
+      : process.platform === "darwin"
+        ? "darwin"
+        : "linux";
   const iconFileName =
     process.platform === "win32"
       ? "icon.ico"
@@ -389,10 +397,14 @@ function resolveTrayIconPath() {
   const resourcesPath = getResourcesPath();
   const candidates = app.isPackaged
     ? [
+        path.join(resourcesPath, "resources", platformResourceDir, iconFileName),
         path.join(resourcesPath, "build", "icons", iconFileName),
         path.join(resourcesPath, "app.asar.unpacked", "build", "icons", iconFileName),
       ]
-    : [path.join(resourcesPath, "build", "icons", iconFileName)];
+    : [
+        path.join(resourcesPath, "resources", platformResourceDir, iconFileName),
+        path.join(resourcesPath, "build", "icons", iconFileName),
+      ];
 
   return resolveFirstExistingPath(candidates) ?? resolveDesktopWindowIconPath();
 }
@@ -977,61 +989,6 @@ function getRustExcelJobRootDir() {
   return path.join(getAnalysisHomeDir(), "rust-xls-jobs");
 }
 
-function getAnalysisDemoDir() {
-  return path.join(getAnalysisHomeDir(), "demo");
-}
-
-function resolveAnalysisDemoSourceDir() {
-  const appRootPath = getAppRootPath();
-  const candidates = app.isPackaged
-    ? [
-        path.join(getResourcesPath(), "demo"),
-        path.join(appRootPath, "dist", "demo"),
-      ]
-    : [
-        path.join(appRootPath, "public", "demo"),
-        path.join(appRootPath, "dist", "demo"),
-      ];
-
-  return resolveFirstExistingPath(candidates);
-}
-
-function ensureAnalysisDemoFiles() {
-  const sourceDir = resolveAnalysisDemoSourceDir();
-  if (!sourceDir) {
-    console.warn("[demo] Demo source directory was not found.");
-    return { demoDir: getAnalysisDemoDir(), filePaths: [] };
-  }
-
-  const demoDir = getAnalysisDemoDir();
-  fs.mkdirSync(demoDir, { recursive: true });
-
-  const filePaths = [];
-  for (const fileName of DEMO_FILE_NAMES) {
-    const sourcePath = path.join(sourceDir, fileName);
-    const targetPath = path.join(demoDir, fileName);
-    if (!fs.existsSync(sourcePath)) continue;
-
-    let shouldCopy = true;
-    try {
-      if (fs.existsSync(targetPath)) {
-        const sourceStat = fs.statSync(sourcePath);
-        const targetStat = fs.statSync(targetPath);
-        shouldCopy = sourceStat.size !== targetStat.size;
-      }
-    } catch {
-      shouldCopy = true;
-    }
-
-    if (shouldCopy) {
-      fs.copyFileSync(sourcePath, targetPath);
-    }
-    filePaths.push(targetPath);
-  }
-
-  return { demoDir, filePaths };
-}
-
 function normalizeAbsoluteFilePath(rawPath) {
   const normalized = typeof rawPath === "string" ? rawPath.trim() : "";
   if (!normalized || !path.isAbsolute(normalized)) return "";
@@ -1296,21 +1253,8 @@ function handleConductorSettingsGet() {
 }
 
 function handleAnalysisDemoFilesGet() {
-  const { demoDir, filePaths } = ensureAnalysisDemoFiles();
   return {
-    demoDir,
-    files: filePaths
-      .filter((filePath) => fs.existsSync(filePath))
-      .map((filePath) => {
-        const stat = fs.statSync(filePath);
-        return {
-          fileName: path.basename(filePath),
-          path: filePath,
-          text: fs.readFileSync(filePath, "utf8"),
-          size: stat.size,
-          lastModified: stat.mtimeMs,
-        };
-      }),
+    files: [],
   };
 }
 
@@ -2601,7 +2545,6 @@ if (hasSingleInstanceLock) {
   }
   configureRuntimeCachePath();
   runSharedProcessStartupContributions(createSharedProcessContributionContext());
-  ensureAnalysisDemoFiles();
   createAppTray();
   updateService = createUpdateService();
   helpWindowMainService = new HelpWindowMainService({

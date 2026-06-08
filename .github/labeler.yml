@@ -59,12 +59,6 @@ release:
           - ".github/release.yml"
           - ".github/workflows/release-*.yml"
 
-pages:
-  - changed-files:
-      - any-glob-to-any-file:
-          - ".github/workflows/pages.yml"
-          - "public/**"
-
 test:
   - changed-files:
       - any-glob-to-any-file:

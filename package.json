@@ -83,7 +83,7 @@
       "zh-CN"
     ],
     "directories": {
-      "buildResources": "build",
+      "buildResources": "resources/win32",
       "output": "release"
     },
     "toolsets": {
@@ -108,12 +108,16 @@
         "to": "workers/py"
       },
       {
-        "from": "build/icons",
-        "to": "build/icons"
+        "from": "resources/win32",
+        "to": "resources/win32"
       },
       {
-        "from": "public/demo",
-        "to": "demo"
+        "from": "resources/darwin",
+        "to": "resources/darwin"
+      },
+      {
+        "from": "resources/linux",
+        "to": "resources/linux"
       }
     ],
     "asar": true,
@@ -127,7 +131,7 @@
       }
     ],
     "mac": {
-      "icon": "build/icons/icon.icns",
+      "icon": "../darwin/icon.icns",
       "category": "public.app-category.utilities",
       "target": [
         "dmg",
@@ -135,7 +139,7 @@
       ]
     },
     "win": {
-      "icon": "build/icons/icon.ico",
+      "icon": "icon.ico",
       "artifactName": "Conductor-Studio-${version}-windows-${arch}-portable.${ext}",
       "signAndEditExecutable": true,
       "target": [
@@ -156,17 +160,17 @@
     },
     "nsis": {
       "artifactName": "Conductor-Studio-${version}-windows-${arch}-setup.${ext}",
-      "installerIcon": "build/icons/icon.ico",
-      "uninstallerIcon": "build/icons/icon.ico",
-      "installerHeaderIcon": "build/icons/icon.ico",
-      "installerHeader": "build/installer/header.bmp",
-      "installerSidebar": "build/installer/sidebar.bmp",
-      "uninstallerSidebar": "build/installer/sidebar.bmp",
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "installerHeaderIcon": "icon.ico",
+      "installerHeader": "header.bmp",
+      "installerSidebar": "sidebar.bmp",
+      "uninstallerSidebar": "sidebar.bmp",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     },
     "linux": {
-      "icon": "build/icons/icon.png",
+      "icon": "../linux/icon.png",
       "category": "Utility",
       "target": [
         "AppImage",
