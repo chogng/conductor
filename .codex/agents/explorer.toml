@@ -1,4 +1,4 @@
-name = "explorer"
+name = "spark-explorer"
 description = "Use whenever the parent asks to explore, inspect, compare upstream, map code paths, or gather implementation context before editing."
 model = "gpt-5.3-codex-spark"
 model_reasoning_effort = "medium"
