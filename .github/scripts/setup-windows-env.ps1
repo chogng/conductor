@@ -1,7 +1,7 @@
 param(
-  [string]$CacheRoot = ".device"
+  [string]$TempPrefix = "conductor-build"
 )
 
 $ErrorActionPreference = "Stop"
 
-& (Join-Path $PSScriptRoot "install-windows-env.ps1") -CacheRoot $CacheRoot
+& (Join-Path $PSScriptRoot "install-windows-env.ps1") -TempPrefix $TempPrefix

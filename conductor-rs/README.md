@@ -16,7 +16,7 @@ Rust worker 有两种运行方式：
 
 桌面端通过 `src/cs/code/electron-main/app.ts` 和 `src/cs/code/electron-main/analysisRustMain.ts` 注册 IPC handler，再由 `desktop/preload-import.ts` 暴露给 renderer。renderer 侧统一从 `src/cs/workbench/services/analysisFile/...` 调用。
 
-构建时 `scripts/build-rs-worker.ps1` 会把 release 产物复制到 `workers/rs/rs-worker.exe`。打包时 `package.json` 会把 `workers/rs` 放进应用资源。browser 侧的导入评估 WASM 由 `scripts/build-rs-assessment-wasm.ps1` 生成到 `src/cs/workbench/services/analysisFile/browser/assessment.wasm`。
+构建时 `scripts/build-rs-worker.ps1` 会把 Cargo target/cache 写到 `.build/cache/rs-worker-target/`，再把 release 产物复制到 `workers/rs/rs-worker.exe`。打包时 `package.json` 会把 `workers/rs` 放进应用资源。browser 侧的导入评估 WASM 使用 `.build/cache/rs-wasm-target/` 作为 Cargo target/cache，并由 `scripts/build-rs-assessment-wasm.ps1` 生成到 `src/cs/workbench/services/analysisFile/browser/assessment.wasm`。
 
 ## 已经由 Rust 负责的部分
 

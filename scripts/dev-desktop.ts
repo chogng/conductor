@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// Internal helper for scripts/code.*. It owns the Conductor-specific dev loop:
+// Vite, desktop TypeScript watch, Electron launch, and restart handling.
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { readdirSync, watch } from "node:fs";

@@ -10,7 +10,7 @@ import {
 } from "../src/cs/workbench/contrib/export/common/originSelectionExport.ts";
 
 const ROOT = process.cwd();
-const OUTPUT_DIR = path.join(ROOT, ".tooling", "rust-origin-export-compat");
+const OUTPUT_DIR = path.join(ROOT, ".build", "verify", "rust-origin-export");
 const RUST_CSV_DIR = path.join(OUTPUT_DIR, "rust-csv");
 const EXPECTED_DIR = path.join(OUTPUT_DIR, "expected");
 const FILES_PATH = path.join(OUTPUT_DIR, "files.json");

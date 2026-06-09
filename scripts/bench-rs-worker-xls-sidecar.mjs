@@ -8,13 +8,7 @@ const ROOT = process.cwd();
 const WORKER_FILE_NAME = process.platform === "win32" ? "rs-worker.exe" : "rs-worker";
 const DEFAULT_EXE_CANDIDATES = [
   path.join(ROOT, "workers", "rs", WORKER_FILE_NAME),
-  path.join(
-    ROOT,
-    "conductor-rs",
-    "target",
-    "release",
-    WORKER_FILE_NAME,
-  ),
+  path.join(ROOT, ".build", "cache", "rs-worker-target", "release", WORKER_FILE_NAME),
 ];
 
 const rootsFromEnv = () =>
@@ -144,7 +138,7 @@ for (const root of selectedRoots) {
 allFiles.sort((a, b) => a.localeCompare(b));
 
 const exePath = await findRsWorkerExe();
-const tempRoot = path.join(ROOT, ".tooling", "rs-worker-xls-sidecar-bench");
+const tempRoot = path.join(ROOT, ".build", "bench", "rs-worker-xls-sidecar");
 await fs.rm(tempRoot, { force: true, recursive: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

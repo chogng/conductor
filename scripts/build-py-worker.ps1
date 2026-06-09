@@ -54,14 +54,14 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
-$DeviceDir = Join-Path $ProjectRoot ".device"
-New-Item -ItemType Directory -Path $DeviceDir -Force | Out-Null
+$buildCacheRoot = Join-Path $ProjectRoot ".build\cache\py-worker"
+New-Item -ItemType Directory -Path $buildCacheRoot -Force | Out-Null
 
-# Keep tool caches under .device/ (avoids user profile caches).
-$env:UV_CACHE_DIR = Join-Path $DeviceDir "uv-cache"
-$env:UV_PYTHON_INSTALL_DIR = Join-Path $DeviceDir "uv-python"
-$env:PYINSTALLER_CONFIG_DIR = Join-Path $DeviceDir "pyinstaller-cache"
-$tempDir = Join-Path $DeviceDir "tmp"
+# Keep build caches under the repo-local build cache; packaged runtime data uses userData.
+$env:UV_CACHE_DIR = Join-Path $buildCacheRoot "uv-cache"
+$env:UV_PYTHON_INSTALL_DIR = Join-Path $buildCacheRoot "uv-python"
+$env:PYINSTALLER_CONFIG_DIR = Join-Path $buildCacheRoot "pyinstaller-cache"
+$tempDir = Join-Path $buildCacheRoot "tmp"
 $env:TEMP = $tempDir
 $env:TMP = $tempDir
 New-Item -ItemType Directory -Force -Path `
@@ -90,10 +90,10 @@ $VenvDir = Resolve-PathOrDefault -Value $VenvDir -Fallback (Join-Path $ProjectRo
 if (-not [System.IO.Path]::IsPathRooted($VenvDir)) {
   $VenvDir = Join-Path $ProjectRoot $VenvDir
 }
-$BuildWorkDir = Join-Path $DeviceDir "py-workers\\pyinstaller\\csv\\work"
-$SpecDir = Join-Path $DeviceDir "py-workers\\pyinstaller\\csv\\spec"
-$BuildInfoPath = Join-Path $DeviceDir "py-workers\\pyinstaller\\csv\\worker-build-info.json"
-$VersionInfoPath = Join-Path $DeviceDir "py-workers\\pyinstaller\\csv\\worker-version-info.txt"
+$BuildWorkDir = Join-Path $buildCacheRoot "py-workers\\pyinstaller\\csv\\work"
+$SpecDir = Join-Path $buildCacheRoot "py-workers\\pyinstaller\\csv\\spec"
+$BuildInfoPath = Join-Path $buildCacheRoot "py-workers\\pyinstaller\\csv\\worker-build-info.json"
+$VersionInfoPath = Join-Path $buildCacheRoot "py-workers\\pyinstaller\\csv\\worker-version-info.txt"
 
 New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
 New-Item -ItemType Directory -Path $BuildWorkDir -Force | Out-Null

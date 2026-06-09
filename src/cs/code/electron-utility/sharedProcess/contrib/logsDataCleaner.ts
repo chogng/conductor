@@ -76,6 +76,6 @@ export const cleanSharedProcessLogs = (context: SharedProcessContributionContext
   const desktopLogPath = path.join(context.analysisHomeDir, DESKTOP_LOG_FILE_NAME);
   truncateLargeDesktopLog(context, desktopLogPath);
 
-  // Future rotating loggers should write under .device/logs so retention stays localized.
+  // Future rotating loggers should write under analysisHomeDir/logs so retention stays localized.
   cleanStaleLogDirectory(context, path.join(context.analysisHomeDir, "logs"));
 };

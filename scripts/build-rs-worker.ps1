@@ -32,7 +32,7 @@ if (-not [System.IO.Path]::IsPathRooted($DistDir)) {
   $DistDir = Join-Path $ProjectRoot $DistDir
 }
 if ([string]::IsNullOrWhiteSpace($TargetDir)) {
-  $TargetDir = Join-Path $ProjectRoot ".tooling\conductor-rs-target"
+  $TargetDir = Join-Path $ProjectRoot ".build\cache\rs-worker-target"
 }
 if (-not [System.IO.Path]::IsPathRooted($TargetDir)) {
   $TargetDir = Join-Path $ProjectRoot $TargetDir

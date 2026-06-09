@@ -22,15 +22,15 @@ function Ensure-LastExitCodeZero {
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $projectRoot
 
-$deviceDir = Join-Path $projectRoot ".device"
-New-Item -ItemType Directory -Force -Path $deviceDir | Out-Null
+$buildCacheRoot = Join-Path $projectRoot ".build\cache\conductor-build"
+New-Item -ItemType Directory -Force -Path $buildCacheRoot | Out-Null
 
-# Keep all build caches/temp under .device/ (avoids %TEMP% / user profile caches).
-$env:UV_CACHE_DIR = Join-Path $deviceDir "uv-cache"
-$env:UV_PYTHON_INSTALL_DIR = Join-Path $deviceDir "uv-python"
-$env:ELECTRON_CACHE = Join-Path $deviceDir "electron-cache"
-$env:ELECTRON_BUILDER_CACHE = Join-Path $deviceDir "electron-builder-cache"
-$env:npm_config_cache = Join-Path $deviceDir "npm-cache"
+# Keep all build caches under the repo-local build cache; runtime data belongs in userData.
+$env:UV_CACHE_DIR = Join-Path $buildCacheRoot "uv-cache"
+$env:UV_PYTHON_INSTALL_DIR = Join-Path $buildCacheRoot "uv-python"
+$env:ELECTRON_CACHE = Join-Path $buildCacheRoot "electron-cache"
+$env:ELECTRON_BUILDER_CACHE = Join-Path $buildCacheRoot "electron-builder-cache"
+$env:npm_config_cache = Join-Path $buildCacheRoot "npm-cache"
 
 New-Item -ItemType Directory -Force -Path `
   $env:UV_CACHE_DIR, `

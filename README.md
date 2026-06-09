@@ -93,14 +93,32 @@ http://localhost:5173
 Start Electron dev mode:
 
 ```bash
-npm run dev:desktop
+./scripts/code.sh
+```
+
+On Windows:
+
+```bat
+scripts\code.bat
 ```
 
 This flow:
 
-1. builds the Electron main/preload code with `npm run build:desktop:core`
-2. starts the Vite dev server
-3. launches the Electron app
+1. sets desktop development environment variables
+2. builds and watches Electron main/preload code
+3. starts the Vite dev server
+4. launches and restarts the Electron app as desktop output changes
+
+The shared orchestration lives in `scripts/dev-desktop.ts`; `scripts/code.sh`
+and `scripts/code.bat` are the upstream-style user-facing entry scripts. See
+[`docs/desktop-dev.md`](./docs/desktop-dev.md) for the responsibility split and
+long-term direction.
+
+Legacy direct entry:
+
+```bash
+npm run dev:desktop
+```
 
 Useful scripts:
 
@@ -206,6 +224,9 @@ Default local worker virtual environment:
 .venv-py-workers/
 ```
 
+Rebuildable npm/Python/Rust build caches live under `.build/cache/`; packaged
+worker artifacts live under `workers/`.
+
 Build the worker:
 
 ```powershell
@@ -275,9 +296,9 @@ Desktop stores templates and settings separately:
 Default location:
 
 ```text
-~/.device/template.json
-~/.device/config.json
-~/.device/store-path.json
+<userData>/User/template.json
+<userData>/User/config.json
+<userData>/User/store-path.json
 ```
 
 If a custom config path is used, for example `D:\DeviceAnalysis\config.json`, the sibling files are stored alongside it.

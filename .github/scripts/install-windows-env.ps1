@@ -1,10 +1,11 @@
 param(
-  [string]$CacheRoot = ".device"
+  [string]$TempPrefix = "conductor-build"
 )
 
 $ErrorActionPreference = "Stop"
 
-$cacheRootPath = Join-Path $env:GITHUB_WORKSPACE $CacheRoot
+$repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$cacheRootPath = Join-Path $repoRoot ".build\cache\$TempPrefix"
 New-Item -ItemType Directory -Force -Path $cacheRootPath | Out-Null
 
 $envMap = [ordered]@{

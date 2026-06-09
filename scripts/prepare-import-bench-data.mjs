@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const DEFAULT_ROWS = 293_000;
-const DEFAULT_OUT_DIR = path.join(process.cwd(), ".tooling", "import-bench-data");
+const DEFAULT_OUT_DIR = path.join(process.cwd(), ".build", "bench", "import-data");
 
 const parseArgs = (args) => {
   const options = {

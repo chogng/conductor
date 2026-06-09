@@ -12,9 +12,10 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $CrateDir = Join-Path $ProjectRoot "conductor-rs\worker"
-$RsWorkerExe = Join-Path $ProjectRoot "conductor-rs\target\release\rs-worker.exe"
+$RsTargetDir = Join-Path $ProjectRoot ".build\cache\rs-worker-target"
+$RsWorkerExe = Join-Path $RsTargetDir "release\rs-worker.exe"
 $PackagedRsWorkerExe = Join-Path $ProjectRoot "workers\rs\rs-worker.exe"
-$BenchDir = Join-Path $ProjectRoot ".tooling\rust-origin-export-compat"
+$BenchDir = Join-Path $ProjectRoot ".build\verify\rust-origin-export"
 $FilesPath = Join-Path $BenchDir "files.json"
 $ProcessRequestsPath = Join-Path $BenchDir "process-requests.jsonl"
 $ProcessResultsPath = Join-Path $BenchDir "process-results.jsonl"
@@ -27,7 +28,7 @@ if ($Mode -eq "export" -and -not (Test-Path -LiteralPath $ExportRequestsPath)) {
 
 Push-Location $CrateDir
 try {
-  cargo build --quiet --release -p worker
+  cargo build --quiet --release -p worker --target-dir $RsTargetDir
   if ($LASTEXITCODE -ne 0) {
     throw "Rust origin-export release build failed with exit code $LASTEXITCODE"
   }

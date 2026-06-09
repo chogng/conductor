@@ -21,8 +21,7 @@ const resolveWorkerPath = async () => {
   const candidates = [
     envPath,
     path.join(ROOT, "workers", "rs", WORKER_FILE_NAME),
-    path.join(ROOT, ".tooling", "conductor-rs-target", "release", WORKER_FILE_NAME),
-    path.join(ROOT, "conductor-rs", "target", "release", WORKER_FILE_NAME),
+    path.join(ROOT, ".build", "cache", "rs-worker-target", "release", WORKER_FILE_NAME),
   ].filter(Boolean);
 
   for (const candidate of candidates) {

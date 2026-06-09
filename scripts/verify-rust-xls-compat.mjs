@@ -13,14 +13,15 @@ const DEFAULT_RUST_EXE = path.join(
   "rs",
   WORKER_FILE_NAME,
 );
-const LEGACY_RUST_EXE = path.join(
+const CARGO_TARGET_RUST_EXE = path.join(
   ROOT,
-  "conductor-rs",
-  "target",
+  ".build",
+  "cache",
+  "rs-worker-target",
   "release",
   WORKER_FILE_NAME,
 );
-const OUTPUT_DIR = path.join(ROOT, ".tooling", "rust-xls-compat");
+const OUTPUT_DIR = path.join(ROOT, ".build", "verify", "rust-xls");
 const RUST_CSV_DIR = path.join(OUTPUT_DIR, "rust-csv");
 const REPORT_PATH = path.join(OUTPUT_DIR, "report.json");
 
@@ -157,9 +158,9 @@ const assessCsvText = async (csvText, fileName) => {
 
 const main = async () => {
   const rustExe = process.env.RUST_XLS_BENCH_EXE || DEFAULT_RUST_EXE;
-  const rsWorkerExe = fs.existsSync(LEGACY_RUST_EXE) ? LEGACY_RUST_EXE : rustExe;
+  const rsWorkerExe = fs.existsSync(CARGO_TARGET_RUST_EXE) ? CARGO_TARGET_RUST_EXE : rustExe;
   if (!fs.existsSync(rsWorkerExe)) {
-    throw new Error(`Built rs-worker was not found: ${rustExe} or ${LEGACY_RUST_EXE}`);
+    throw new Error(`Built rs-worker was not found: ${rustExe} or ${CARGO_TARGET_RUST_EXE}`);
   }
 
   fs.rmSync(OUTPUT_DIR, { force: true, recursive: true });

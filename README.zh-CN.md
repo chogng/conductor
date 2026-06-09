@@ -62,14 +62,31 @@ http://localhost:5173
 启动 Electron 开发模式：
 
 ```bash
-npm run dev:desktop
+./scripts/code.sh
+```
+
+Windows：
+
+```bat
+scripts\code.bat
 ```
 
 该流程会：
 
-1. 使用 `npm run build:desktop:core` 构建 Electron main/preload 代码
-2. 启动 Vite 开发服务器
-3. 启动 Electron 应用
+1. 设置桌面开发环境变量
+2. 构建并 watch Electron main/preload 代码
+3. 启动 Vite 开发服务器
+4. 启动 Electron，并在桌面输出变化时重启
+
+共享编排逻辑在 `scripts/dev-desktop.ts`；`scripts/code.sh` 和
+`scripts/code.bat` 是对齐上游命名的用户入口。职责划分和长期方向见
+[`docs/desktop-dev.md`](./docs/desktop-dev.md)。
+
+旧的直接入口仍可使用：
+
+```bash
+npm run dev:desktop
+```
 
 常用脚本：
 
@@ -157,6 +174,9 @@ ${productName}-${version}-${os}-${arch}.${ext}
 .venv-py-workers/
 ```
 
+可重建的 npm/Python/Rust 构建缓存放在 `.build/cache/`；打包产物放在
+`workers/`。
+
 构建 worker：
 
 ```powershell
@@ -226,9 +246,9 @@ workers/py/origin-csv-worker/origin-csv-worker.exe --worker-version
 默认位置：
 
 ```text
-~/.device/template.json
-~/.device/config.json
-~/.device/store-path.json
+<userData>/User/template.json
+<userData>/User/config.json
+<userData>/User/store-path.json
 ```
 
 如果使用自定义配置路径，例如 `D:\DeviceAnalysis\config.json`，相关文件会保存在同一目录下。

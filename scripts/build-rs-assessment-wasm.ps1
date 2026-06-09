@@ -18,7 +18,7 @@ if (-not (Test-Path -LiteralPath $CargoToml)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($TargetDir)) {
-  $TargetDir = Join-Path $ProjectRoot ".tooling\conductor-rs-wasm-target"
+  $TargetDir = Join-Path $ProjectRoot ".build\cache\rs-wasm-target"
 }
 if (-not [System.IO.Path]::IsPathRooted($TargetDir)) {
   $TargetDir = Join-Path $ProjectRoot $TargetDir

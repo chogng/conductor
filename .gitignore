@@ -16,6 +16,7 @@ out-test
 dist-ssr
 release
 target/
+.build/
 *.local
 
 # Server runtime data
@@ -58,7 +59,7 @@ conductor-py/.pyi_zip_spec/
 # Project-local tooling env (conda/node caches)
 .tooling/
 
-# Device Analysis runtime cache/log directory
+# Legacy local runtime data
 .device/
 
 # Python bytecode cache

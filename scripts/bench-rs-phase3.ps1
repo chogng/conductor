@@ -12,7 +12,8 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $CrateDir = Join-Path $ProjectRoot "conductor-rs\worker"
-$BenchDir = Join-Path $ProjectRoot ".tooling\device-analysis-phase3-bench"
+$RsTargetDir = Join-Path $ProjectRoot ".build\cache\rs-worker-target"
+$BenchDir = Join-Path $ProjectRoot ".build\bench\device-analysis-phase3"
 if ($RequestSet -eq "analysis") {
   $RequestsPath = Join-Path $BenchDir "analysis-requests.jsonl"
   $ResultsPath = Join-Path $BenchDir "rust-analysis-results.jsonl"
@@ -22,7 +23,7 @@ if ($RequestSet -eq "analysis") {
   $ResultsPath = Join-Path $BenchDir "rust-results.jsonl"
   $TimingPath = Join-Path $BenchDir "rust-process-timing.json"
 }
-$RsWorkerExe = Join-Path $ProjectRoot "conductor-rs\target\release\rs-worker.exe"
+$RsWorkerExe = Join-Path $RsTargetDir "release\rs-worker.exe"
 
 if (-not (Test-Path -LiteralPath $RequestsPath)) {
   throw "Phase 3 benchmark requests were not prepared: $RequestsPath"
@@ -30,7 +31,7 @@ if (-not (Test-Path -LiteralPath $RequestsPath)) {
 
 Push-Location $CrateDir
 try {
-  cargo build --quiet --release
+  cargo build --quiet --release --target-dir $RsTargetDir
   if ($LASTEXITCODE -ne 0) {
     throw "Phase 3 Rust release build failed with exit code $LASTEXITCODE"
   }

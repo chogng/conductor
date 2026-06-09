@@ -14,7 +14,7 @@ import {
 } from "../src/cs/workbench/contrib/plot/browser/plotViewModel.ts";
 
 const ROOT = process.cwd();
-const OUTPUT_DIR = path.join(ROOT, ".tooling", "device-analysis-phase3-bench");
+const OUTPUT_DIR = path.join(ROOT, ".build", "bench", "device-analysis-phase3");
 const REQUESTS_PATH = path.join(OUTPUT_DIR, "requests.jsonl");
 const RUST_RESULTS_PATH = path.join(OUTPUT_DIR, "rust-results.jsonl");
 const REQUESTS_PATH = path.join(OUTPUT_DIR, "analysis-requests.jsonl");

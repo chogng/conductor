@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const rootDir = path.resolve(import.meta.dirname, "..", "..");
 const win32ResourceDir = path.join(rootDir, "resources", "win32");
 const darwinResourceDir = path.join(rootDir, "resources", "darwin");
 const linuxResourceDir = path.join(rootDir, "resources", "linux");

@@ -10,9 +10,9 @@ import {
 } from "../src/cs/workbench/contrib/calculation/common/firstCalculation.ts";
 
 const ROOT = process.cwd();
-const PHASE3_DIR = path.join(ROOT, ".tooling", "device-analysis-phase3-bench");
+const PHASE3_DIR = path.join(ROOT, ".build", "bench", "device-analysis-phase3");
 const PHASE3_RESULTS_PATH = path.join(PHASE3_DIR, "rust-results.jsonl");
-const OUTPUT_DIR = path.join(ROOT, ".tooling", "rust-ss-auto-compat");
+const OUTPUT_DIR = path.join(ROOT, ".build", "verify", "rust-ss-auto");
 const REQUESTS_PATH = path.join(OUTPUT_DIR, "requests.jsonl");
 const BASELINE_PATH = path.join(OUTPUT_DIR, "ts-baseline.json");
 const RUST_RESULTS_PATH = path.join(OUTPUT_DIR, "rust-results.jsonl");

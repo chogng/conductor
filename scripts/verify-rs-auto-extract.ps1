@@ -10,9 +10,10 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $CrateDir = Join-Path $ProjectRoot "conductor-rs\worker"
-$RequestsPath = Join-Path $ProjectRoot ".tooling\rust-auto-extraction-compat\requests.jsonl"
-$ResultsPath = Join-Path $ProjectRoot ".tooling\rust-auto-extraction-compat\rust-results.jsonl"
-$RsWorkerExe = Join-Path $ProjectRoot "conductor-rs\target\release\rs-worker.exe"
+$RsTargetDir = Join-Path $ProjectRoot ".build\cache\rs-worker-target"
+$RequestsPath = Join-Path $ProjectRoot ".build\verify\rust-auto-extraction\requests.jsonl"
+$ResultsPath = Join-Path $ProjectRoot ".build\verify\rust-auto-extraction\rust-results.jsonl"
+$RsWorkerExe = Join-Path $RsTargetDir "release\rs-worker.exe"
 $PackagedRsWorkerExe = Join-Path $ProjectRoot "workers\rs\rs-worker.exe"
 
 if (-not (Test-Path -LiteralPath $RequestsPath)) {
@@ -21,7 +22,7 @@ if (-not (Test-Path -LiteralPath $RequestsPath)) {
 
 Push-Location $CrateDir
 try {
-  cargo build --quiet --release
+  cargo build --quiet --release --target-dir $RsTargetDir
   if ($LASTEXITCODE -ne 0) {
     throw "Rust auto extraction release build failed with exit code $LASTEXITCODE"
   }

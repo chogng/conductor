@@ -14,7 +14,6 @@ export default defineConfig([
     'originbridge',
     'origin/bin',
     'origin/dist',
-    '.device',
     '.tooling',
     '.venv-origin-workers',
     '.venv-py-workers',

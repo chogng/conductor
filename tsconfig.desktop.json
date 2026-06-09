@@ -18,6 +18,7 @@
   },
   "include": [
     "desktop/**/*.ts",
+    "src/main.ts",
     "src/bootstrap-*.ts",
     "src/cs/nls.ts",
     "src/cs/code/electron-main/**/*.ts",

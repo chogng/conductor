@@ -16,6 +16,8 @@ export interface IProductConfiguration {
   readonly nameShort: string;
   readonly nameLong: string;
   readonly appId: string;
+  readonly dataFolderName: string;
+  readonly portable?: string;
   readonly version: string;
 }
 
@@ -33,5 +35,7 @@ export const product: IProductConfiguration = {
   nameShort: pkg.build?.productName ?? "Conductor Studio",
   nameLong: pkg.build?.productName ?? "Conductor Studio",
   appId: pkg.build?.appId ?? "com.conductor.desktop",
+  dataFolderName: "Conductor Studio",
+  portable: "data",
   version: pkg.version ?? "0.0.0",
 };

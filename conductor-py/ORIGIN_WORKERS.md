@@ -13,7 +13,8 @@ Worker dependencies are installed into a project-local virtual environment by de
 - `.venv-py-workers/` (gitignored)
 
 The Python worker build requires `uv`. It selects the requested Python version
-through `uv`, stores managed Python builds under `.device/uv-python/`, and
+through `uv`, stores managed Python builds under the repo-local build cache
+(`.build/cache/py-worker/uv-python/`), and
 installs worker packages with `uv pip` instead of relying on `pip` inside the
 virtual environment.
 

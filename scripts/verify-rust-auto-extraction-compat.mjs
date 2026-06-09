@@ -3,7 +3,7 @@ import path from "node:path";
 import { inferAutoExtraction } from "../src/cs/workbench/contrib/template/common/autoTemplatePlan.ts";
 
 const ROOT = process.cwd();
-const OUTPUT_DIR = path.join(ROOT, ".tooling", "rust-auto-extraction-compat");
+const OUTPUT_DIR = path.join(ROOT, ".build", "verify", "rust-auto-extraction");
 const REQUESTS_PATH = path.join(OUTPUT_DIR, "requests.jsonl");
 const BASELINE_PATH = path.join(OUTPUT_DIR, "ts-baseline.json");
 const RUST_RESULTS_PATH = path.join(OUTPUT_DIR, "rust-results.jsonl");
