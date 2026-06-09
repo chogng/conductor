@@ -112,13 +112,13 @@ const createRsWorker = () => {
 
 const countArrayLength = (value) => (Array.isArray(value) ? value.length : 0);
 
-const hydrateAnalysisCacheRef = async (file) => {
-  const ref = file?.analysisCacheRef;
+const hydrateCalculationCacheRef = async (file) => {
+  const ref = file?.calculationCacheRef;
   if (!ref || typeof ref !== "object" || ref.format !== "json") return file;
   if (typeof ref.path !== "string" || !path.isAbsolute(ref.path)) return file;
   const text = await fs.readFile(ref.path, "utf8");
   file.analysisCache = JSON.parse(text);
-  delete file.analysisCacheRef;
+  delete file.calculationCacheRef;
   return file;
 };
 
@@ -225,13 +225,13 @@ try {
     );
     try {
       const result = await rsWorker.send("processFileAuto", {
-        analysisCachePath: path.join(tempDir, "analysis-cache.json"),
+        calculationCachePath: path.join(tempDir, "calculation-cache.json"),
         fileId: `analysis-cache-${index}`,
         fileName: path.basename(filePath),
         maxPoints: 600,
         path: filePath,
       });
-      await hydrateAnalysisCacheRef(result);
+      await hydrateCalculationCacheRef(result);
       const summary = summarizeAnalysisCache(result);
       if (!summary.series) {
         failures.push({

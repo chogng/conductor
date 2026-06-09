@@ -1078,7 +1078,7 @@ function isReadableOriginStreamExportPath(filePath) {
 async function hydrateRustProcessingResultRefs(result, tempDir = null) {
   if (!result || typeof result !== "object" || Array.isArray(result)) return result;
 
-  const ref = result.analysisCacheRef;
+  const ref = result.calculationCacheRef;
   const refPath =
     ref && typeof ref === "object" && typeof ref.path === "string"
       ? normalizeAbsoluteFilePath(ref.path)
@@ -1086,7 +1086,7 @@ async function hydrateRustProcessingResultRefs(result, tempDir = null) {
   if (refPath && ref?.format === "json") {
     const text = await fs.promises.readFile(refPath, "utf8");
     result.analysisCache = JSON.parse(text);
-    delete result.analysisCacheRef;
+    delete result.calculationCacheRef;
   }
 
   if (tempDir) {

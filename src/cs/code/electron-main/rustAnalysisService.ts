@@ -210,12 +210,12 @@ export class RustAnalysisService implements IRustAnalysisService {
 
     const startedAt = Date.now();
     const tempDir = this.options.createRustProcessingResultTempDir(request.fileId);
-    const analysisCachePath = path.join(tempDir, "analysis-cache.json");
+    const calculationCachePath = path.join(tempDir, "calculation-cache.json");
     try {
       const result = await this.options.rustWorkerRuntime.sendProcessingCommand(
         request.auto ? "processFileAuto" : "processFile",
         {
-          analysisCachePath,
+          calculationCachePath,
           config: request.config,
           curveFilterField: request.curveFilterField,
           curveFilterKey: request.curveFilterKey,

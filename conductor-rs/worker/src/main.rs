@@ -56,7 +56,7 @@ use utils::*;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct EngineRequest {
-    analysis_cache_path: Option<String>,
+    calculation_cache_path: Option<String>,
     cells: Option<Vec<EngineCellRequest>>,
     col_index: Option<usize>,
     columns: Option<Vec<OriginExportColumnRequest>>,
@@ -1031,7 +1031,7 @@ fn process_file(
     curve_filter_key: Option<&str>,
     curve_filter_field: Option<&str>,
     max_points_raw: Option<usize>,
-    analysis_cache_path: Option<&str>,
+    calculation_cache_path: Option<&str>,
 ) -> Result<Value, String> {
     let segmentation_mode = json_string(config.get("xSegmentationMode")).to_ascii_lowercase();
     let file_name_vg_keywords =
@@ -1383,7 +1383,7 @@ fn process_file(
     } else {
         "low"
     };
-    let analysis_cache = if !analysis_series.is_empty() {
+    let calculation_cache = if !analysis_series.is_empty() {
         Some(json!({
             "source": "rust-process-precompute",
             "series": analysis::analyze_series_batch(
@@ -1400,17 +1400,17 @@ fn process_file(
     } else {
         None
     };
-    let analysis_cache_ref =
-        if let (Some(cache), Some(cache_path)) = (analysis_cache.as_ref(), analysis_cache_path) {
+    let calculation_cache_ref =
+        if let (Some(cache), Some(cache_path)) = (calculation_cache.as_ref(), calculation_cache_path) {
             let path = PathBuf::from(cache_path);
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent)
-                    .map_err(|error| format!("failed to create analysis cache dir: {}", error))?;
+                    .map_err(|error| format!("failed to create calculation cache dir: {}", error))?;
             }
             let bytes = serde_json::to_vec(cache)
-                .map_err(|error| format!("failed to encode analysis cache: {}", error))?;
+                .map_err(|error| format!("failed to encode calculation cache: {}", error))?;
             fs::write(&path, &bytes)
-                .map_err(|error| format!("failed to write analysis cache: {}", error))?;
+                .map_err(|error| format!("failed to write calculation cache: {}", error))?;
             Some(json!({
                 "format": "json",
                 "path": path.to_string_lossy(),
@@ -1461,8 +1461,8 @@ fn process_file(
             "x": pad_domain(min_x, max_x),
             "y": pad_domain(min_y, max_y),
         },
-        "analysisCache": if analysis_cache_ref.is_some() { Value::Null } else { analysis_cache.unwrap_or(Value::Null) },
-        "analysisCacheRef": analysis_cache_ref,
+        "analysisCache": if calculation_cache_ref.is_some() { Value::Null } else { calculation_cache.unwrap_or(Value::Null) },
+        "calculationCacheRef": calculation_cache_ref,
         "source": "rust-engine",
     }))
 }
@@ -1474,7 +1474,7 @@ fn process_auto_configured_file(
     curve_filter_key: Option<&str>,
     curve_filter_field: Option<&str>,
     max_points_raw: Option<usize>,
-    analysis_cache_path: Option<&str>,
+    calculation_cache_path: Option<&str>,
 ) -> Result<Value, String> {
     let blocks = config
         .get("blocks")
@@ -1489,7 +1489,7 @@ fn process_auto_configured_file(
             curve_filter_key,
             curve_filter_field,
             max_points_raw,
-            analysis_cache_path,
+            calculation_cache_path,
         );
     }
 
@@ -1642,12 +1642,12 @@ fn process_auto_configured_file(
             }),
         );
         object.insert("analysisCache".to_string(), Value::Null);
-        object.insert("analysisCacheRef".to_string(), Value::Null);
+        object.insert("calculationCacheRef".to_string(), Value::Null);
     }
 
-    if analysis_cache_path.is_some() {
+    if calculation_cache_path.is_some() {
         // The merged block result intentionally skips writing a partial per-block
-        // analysis cache; chart analysis can be rebuilt from the merged series.
+        // calculation cache; chart analysis can be rebuilt from the merged series.
     }
     Ok(merged)
 }
@@ -2640,7 +2640,7 @@ fn handle_request(
                 request.curve_filter_key.as_deref(),
                 request.curve_filter_field.as_deref(),
                 request.max_points,
-                request.analysis_cache_path.as_deref(),
+                request.calculation_cache_path.as_deref(),
             )
         }
         "processFileAuto" => {
@@ -2676,7 +2676,7 @@ fn handle_request(
                 request.curve_filter_key.as_deref(),
                 request.curve_filter_field.as_deref(),
                 request.max_points,
-                request.analysis_cache_path.as_deref(),
+                request.calculation_cache_path.as_deref(),
             )?;
             if let Some(object) = processed.as_object_mut() {
                 object.insert("autoConfig".to_string(), config);
