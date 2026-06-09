@@ -395,3 +395,6 @@ If Windows downloads are being flagged as unsafe by SmartScreen or Defender, the
 
 This project is licensed under the GNU Affero General Public License v3.0 only
 (`AGPL-3.0-only`). See [LICENSE.txt](./LICENSE.txt) for details.
+
+This project includes portions derived from Code - OSS / Visual Studio Code.
+See [NOTICE.txt](./NOTICE.txt) for preserved upstream notices.

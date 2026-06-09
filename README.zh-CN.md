@@ -322,3 +322,6 @@ npm run verify:icons
 
 本项目采用 GNU Affero General Public License v3.0 only（`AGPL-3.0-only`）
 授权。详见 [LICENSE.txt](./LICENSE.txt)。
+
+本项目包含源自 Code - OSS / Visual Studio Code 的部分。保留的上游声明
+见 [NOTICE.txt](./NOTICE.txt)。
