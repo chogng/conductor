@@ -5,7 +5,7 @@ import {
   type IConfigurationOverrides,
   type IConfigurationValue,
 } from "src/cs/platform/configuration/common/configuration";
-import { getUserSettingsResource } from "src/cs/platform/configuration/common/configurationResources";
+import { getUserSettingsResource } from "src/cs/platform/environment/common/environmentService";
 import {
   Configuration,
   ConfigurationModel,

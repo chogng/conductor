@@ -6,7 +6,7 @@ import { URI } from "src/cs/base/common/uri";
 import {
   ConfigurationTarget,
 } from "src/cs/platform/configuration/common/configuration";
-import { getUserSettingsResource } from "src/cs/platform/configuration/common/configurationResources";
+import { getUserSettingsResource } from "src/cs/platform/environment/common/environmentService";
 import { ElectronBrowserConfigurationService } from "src/cs/platform/configuration/electron-browser/configurationService";
 import {
   FileChangeType,
