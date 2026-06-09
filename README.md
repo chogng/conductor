@@ -390,3 +390,8 @@ Common variables:
 - Windows: `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD`
 
 If Windows downloads are being flagged as unsafe by SmartScreen or Defender, the root fix is to ship signed binaries from a stable certificate. This repository's Windows release workflow reads `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD`, and optional `WIN_CSC_SUBJECT_NAME` from GitHub Actions secrets.
+
+## License
+
+This project is licensed under the GNU Affero General Public License v3.0 only
+(`AGPL-3.0-only`). See [LICENSE.txt](./LICENSE.txt) for details.

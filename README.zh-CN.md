@@ -317,3 +317,8 @@ npm run verify:icons
 
 - macOS：`CSC_LINK`、`CSC_KEY_PASSWORD`，可选 `CSC_NAME`
 - Windows：`WIN_CSC_LINK`、`WIN_CSC_KEY_PASSWORD`
+
+## License
+
+本项目采用 GNU Affero General Public License v3.0 only（`AGPL-3.0-only`）
+授权。详见 [LICENSE.txt](./LICENSE.txt)。
