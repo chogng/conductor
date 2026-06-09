@@ -11,6 +11,7 @@ import {
   ipcMain,
   Menu,
   nativeTheme,
+  session,
   shell,
   Tray,
 } from "electron";
@@ -986,7 +987,7 @@ function getOriginRuntimeStorageDir() {
 }
 
 function getRustExcelJobRootDir() {
-  return path.join(getAnalysisHomeDir(), "rust-xls-jobs");
+  return path.join(getAnalysisTempRootDir(), "rust-xls-jobs");
 }
 
 function normalizeAbsoluteFilePath(rawPath) {
@@ -1015,11 +1016,11 @@ function resolveRustExcelConverterPath() {
   });
 }
 
-function createRustAnalysisResultTempDir(fileId) {
+function createRustProcessingResultTempDir(fileId) {
   const safeFileId = String(fileId || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
   const root = getAnalysisTempRootDir();
   fs.mkdirSync(root, { recursive: true });
-  return fs.mkdtempSync(path.join(root, `${safeFileId}-`));
+  return fs.mkdtempSync(path.join(root, `rust-process-${safeFileId}-`));
 }
 
 function createRustAnalysisOriginExportTempPath(fileId, csvName) {
@@ -1074,7 +1075,7 @@ function isReadableOriginStreamExportPath(filePath) {
   }
 }
 
-async function hydrateRustAnalysisResultRefs(result, tempDir = null) {
+async function hydrateRustProcessingResultRefs(result, tempDir = null) {
   if (!result || typeof result !== "object" || Array.isArray(result)) return result;
 
   const ref = result.analysisCacheRef;
@@ -1179,7 +1180,7 @@ function readRustExcelConvertManifest(manifestPath) {
 function isRustConvertedCsvPath(filePath) {
   const normalized = normalizeAbsoluteFilePath(filePath);
   if (!normalized || path.extname(normalized).toLowerCase() !== ".csv") return false;
-  const root = path.normalize(path.join(getAnalysisHomeDir(), "rust-xls-jobs"));
+  const root = path.normalize(getRustExcelJobRootDir());
   const relative = path.relative(root, normalized);
   return Boolean(relative) && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
@@ -1224,7 +1225,7 @@ const conductorStore = createConductorStoreMainService({
 });
 
 function configureRuntimeCachePath() {
-  const cacheDir = path.join(getAnalysisHomeDir(), "cache");
+  const cacheDir = path.join(app.getPath("userData"), "Cache");
   if (!fs.existsSync(cacheDir)) {
     fs.mkdirSync(cacheDir, { recursive: true });
   }
@@ -1234,6 +1235,20 @@ function configureRuntimeCachePath() {
   } catch (error) {
     console.warn("[runtime] Failed to set cache path:", error?.message || error);
   }
+}
+
+function configureCodeCachePath() {
+  const codeCachePath = process.env.CONDUCTOR_CODE_CACHE_PATH;
+  if (!codeCachePath) {
+    return;
+  }
+
+  const defaultSession = session.defaultSession;
+  if (typeof defaultSession.setCodeCachePath !== "function") {
+    return;
+  }
+
+  defaultSession.setCodeCachePath(path.join(codeCachePath, "chrome"));
 }
 
 function handleTemplatesGet() {
@@ -2544,6 +2559,7 @@ if (hasSingleInstanceLock) {
     Menu.setApplicationMenu(null);
   }
   configureRuntimeCachePath();
+  configureCodeCachePath();
   runSharedProcessStartupContributions(createSharedProcessContributionContext());
   createAppTray();
   updateService = createUpdateService();
@@ -2604,8 +2620,8 @@ if (hasSingleInstanceLock) {
     ipcMain,
     rustAnalysisService: new RustAnalysisService({
       createRustAnalysisOriginExportTempPath,
-      createRustAnalysisResultTempDir,
-      hydrateRustAnalysisResultRefs,
+      createRustProcessingResultTempDir,
+      hydrateRustProcessingResultRefs,
       isRustProcessFileConfigSupported,
       isSupportedRustAnalysisInputPath,
       rustWorkerRuntime,

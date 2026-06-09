@@ -19,8 +19,8 @@ import type {
 
 type RustAnalysisServiceHelpers = {
   createRustAnalysisOriginExportTempPath: (fileId: string, csvName: string) => string;
-  createRustAnalysisResultTempDir: (fileId: string) => string;
-  hydrateRustAnalysisResultRefs: (result: unknown, tempDir?: string | null) => Promise<unknown>;
+  createRustProcessingResultTempDir: (fileId: string) => string;
+  hydrateRustProcessingResultRefs: (result: unknown, tempDir?: string | null) => Promise<unknown>;
   isRustProcessFileConfigSupported: (config: RustProcessConfig | null) => boolean;
   isSupportedRustAnalysisInputPath: (filePath: string) => boolean;
 };
@@ -209,7 +209,7 @@ export class RustAnalysisService implements IRustAnalysisService {
     }
 
     const startedAt = Date.now();
-    const tempDir = this.options.createRustAnalysisResultTempDir(request.fileId);
+    const tempDir = this.options.createRustProcessingResultTempDir(request.fileId);
     const analysisCachePath = path.join(tempDir, "analysis-cache.json");
     try {
       const result = await this.options.rustWorkerRuntime.sendProcessingCommand(
@@ -225,7 +225,7 @@ export class RustAnalysisService implements IRustAnalysisService {
           path: request.inputPath,
         },
       );
-      await this.options.hydrateRustAnalysisResultRefs(result, tempDir);
+      await this.options.hydrateRustProcessingResultRefs(result, tempDir);
       if (result && typeof result === "object" && !Array.isArray(result)) {
         const resultObject = result as {
           autoConfig?: unknown;
