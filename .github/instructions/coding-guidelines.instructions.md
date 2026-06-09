@@ -1,0 +1,366 @@
+---
+description: Coding guidelines for Conductor workbench contributions — commands vs actions, Action vs Action2, files/explorer/import naming, service component names, and migration boundaries.
+applyTo: 'src/cs/**'
+---
+# Coding Guidelines
+
+Use these rules when adding or refactoring Conductor workbench code. They follow the same intent as the VS Code codebase: keep command entry, UI affordances, service state, view rendering, and platform capability separated.
+
+## 1. Decide whether the change is a command, an action, or a local UI action
+
+Before choosing `CommandsRegistry.registerCommand(...)`, `registerAction2(...)`, or a runtime `Action`, first classify the user need.
+
+Ask:
+
+1. Is this a callable logical operation that other code may execute without UI?
+2. Does it need a button, menu item, context menu item, keybinding, or Command Palette entry?
+3. Does the UI object itself need mutable runtime state such as `label`, `tooltip`, `enabled`, `checked`, or `onDidChange`?
+
+Use this decision table:
+
+| Need | Prefer | Reason |
+| --- | --- | --- |
+| Callable logic entry only | `CommandsRegistry.registerCommand(...)` | Command is the lowest executable entry point. It may have metadata but does not imply UI placement. |
+| Button/menu/keybinding/Command Palette/context menu | `registerAction2(class X extends Action2 { ... })` | `Action2` declares command id, title, menu, keybinding, category, precondition/when, and telemetry semantics in one registration. |
+| A UI component needs a mutable clickable object | `new Action(...)` or a class implementing `IAction` | Runtime `Action` is an action instance with mutable state and change events. |
+| View-local click handler with no reuse and no cross-service effect | Local callback | Do not create a command for temporary DOM-only behavior. |
+
+## 2. Command is the executable base layer
+
+A command is the lowest shared executable entry point.
+
+Use `CommandsRegistry.registerCommand(...)` when:
+
+- the operation is callable from tests, controllers, or another command;
+- there is no UI metadata yet;
+- the command should not automatically appear in a menu, toolbar, Command Palette, or keybinding;
+- the operation is internal or migration-only.
+
+Command handlers should only normalize input and dispatch to services/controllers.
+
+```ts
+CommandsRegistry.registerCommand({
+  id: ExplorerCommandId.RemoveResource,
+  metadata: {
+    description: localize('explorer.removeResource', 'Remove Resource'),
+  },
+  handler: (accessor, rawTarget?: unknown) => {
+    const explorerService = accessor.get(IExplorerService);
+    const target = normalizeExplorerTarget(rawTarget)
+      ?? explorerService.getFocusedTarget();
+
+    if (!target) {
+      return;
+    }
+
+    explorerService.removeResources([target.resourceId]);
+  },
+});
+```
+
+Do not put business logic in the handler. The handler is not the owner of Explorer state, Session state, Plot state, or Table state.
+
+## 3. Action2 is a declarative command contribution
+
+Use `Action2` with `registerAction2(...)` when the feature needs UI registration semantics.
+
+Typical `Action2` responsibilities:
+
+- declare command id;
+- provide title and optional short title;
+- place the command in menus or context menus;
+- expose the command to the Command Palette;
+- define keybindings;
+- define `when` / `precondition` context-key rules;
+- attach category / f1 / telemetry semantics.
+
+Pattern:
+
+```ts
+registerAction2(class ToggleExplorerThumbnailLayoutAction extends Action2 {
+  constructor() {
+    super({
+      id: ExplorerCommandId.ToggleThumbnailLayout,
+      title: localize2('explorer.toggleThumbnailLayout', 'Toggle Thumbnail View'),
+      category: localize2('explorer.category', 'Explorer'),
+      f1: true,
+      menu: [{ id: MenuId.ViewTitle, when: ExplorerContextKeys.visible }],
+      keybinding: {
+        primary: KeyMod.CtrlCmd | KeyCode.KeyT,
+        when: ExplorerContextKeys.focused,
+        weight: KeybindingWeight.WorkbenchContrib,
+      },
+    });
+  }
+
+  run(accessor: ServicesAccessor): void {
+    accessor.get(ICommandService).executeCommand(ExplorerCommandId.ToggleThumbnailLayout);
+  }
+});
+```
+
+`Action2` should delegate to a command or service. It should not duplicate command logic.
+
+## 4. Runtime Action is a mutable UI action object
+
+Runtime `Action` is an object instance used by UI components. It can carry mutable state such as:
+
+- `label`;
+- `tooltip`;
+- `enabled`;
+- `checked`;
+- CSS class/icon data;
+- `onDidChange` notifications.
+
+Use runtime `Action` when an ActionBar, button, dropdown, menu adapter, or component expects an `IAction` object and needs live state updates.
+
+Pattern:
+
+```ts
+const action = new Action(
+  ChartActionId.ToggleLegend,
+  localize('chart.toggleLegend', 'Legend'),
+  'chart-legend-action',
+  chartService.canToggleLegend,
+  () => chartService.toggleLegend(),
+);
+
+chartService.onDidChangeChartState(() => {
+  action.enabled = chartService.canToggleLegend;
+  action.checked = chartService.isLegendVisible;
+});
+```
+
+Do not try to replace this with `Action2` if the UI component needs a live `IAction` instance.
+
+## 5. Action and Action2 are not interchangeable
+
+Remember:
+
+```txt
+Action  = a runtime action object
+Action2 = a declarative command/menu/keybinding registration
+```
+
+`Action2` eventually registers a command, but it is not itself a mutable UI object. `Action` is still valid for UI component integration even if new command contributions prefer `Action2`.
+
+Practical rule:
+
+- new command/menu/keybinding/Command Palette entry -> prefer `Action2`;
+- local UI object with changing enabled/checked/label state -> use `Action` / `IAction`;
+- bare callable operation -> use `CommandsRegistry.registerCommand(...)`.
+
+## 6. Do not register UI actions before understanding the user intent
+
+Do not start by asking “should I use Action2?” Start by asking what the user can do.
+
+Examples:
+
+| User need | Correct entry |
+| --- | --- |
+| User clicks Explorer toolbar import button | `Action2` or view action executes `ExplorerCommandId.ImportResources` |
+| TemplateApplyController needs to run import logic internally | command or direct controller/service call, no Action2 required |
+| Test wants to invoke a behavior without UI | command or service method |
+| A chart legend button changes enabled/checked live | runtime `Action` may be correct |
+| A table row hover expands a temporary popover | local callback, no command/action |
+
+## 7. Command handlers dispatch to services, not views
+
+The target architecture is:
+
+```txt
+button/menu/keybinding/context menu
+  -> Action2 or UI action
+  -> command id
+  -> command handler
+  -> controller if workflow is multi-step
+  -> service method
+  -> service/session event
+  -> view render
+```
+
+Do not make command handlers reach into view objects after migration.
+
+Allowed during migration:
+
+```ts
+accessor.get(IViewsService).getViewWithId<FilesPaneHost>(FilesViewId)?.removeFile(fileId);
+```
+
+Target state:
+
+```ts
+accessor.get(IExplorerService).removeResources([resourceId]);
+```
+
+If a command currently calls `FilesPaneHost`, mark it as migration-only and move the state/action into `IExplorerService` or a workflow controller.
+
+## 8. Files vs Explorer vs FileService naming
+
+Do not collapse these names.
+
+| Name | Meaning | Use when |
+| --- | --- | --- |
+| `IFileService` | Platform filesystem capability | read, write, stat, watch, provider registration, path-backed IO. |
+| `files` module | Workbench feature area for imported data files and file-related contributions | contribution folder, import/export workflow, compatibility with existing `contrib/files`. |
+| `IExplorerService` | Left resource tree / Explorer interaction state | tree model, selected resource, expanded folders, drag/drop import orchestration, layout mode. |
+| `ExplorerView` / `ExplorerViewer` | UI view/rendering of the left Explorer | DOM, ObjectTree, row templates, hover, context menu rendering. |
+| `fileImportExport.ts` | Files import/export scenario workflows | folder collection, external upload/download workflow, bridge to Explorer/import conversion. |
+| `fileConverter.ts` | Raw conversion utility/module | CSV/XLS/XLSX/clipboard -> raw table rows/artifacts. |
+
+Rule:
+
+```txt
+Disk/filesystem API      -> IFileService
+Left resource tree       -> IExplorerService / ExplorerView
+Overall workbench module -> files
+Import/export workflow   -> fileImportExport / fileConverter, not a new IFileImportService by default
+```
+
+## 9. Do not invent `IFileImportService` unless the abstraction is proven
+
+Do not introduce `IFileImportService` as the default target now.
+
+Current direction:
+
+- `fileImportPipeline.ts` can retire;
+- `fileConversion.ts` and `xlsxConversionWorker.ts` should converge into `fileConverter.ts` or `fileConverter.worker.ts`;
+- `filePreviewService.ts` is optional and should be re-evaluated after TableService owns raw table preview;
+- desktop/browser upload workflows belong to files import/export workflows, not a generalized import service by default;
+- Explorer orchestrates user intent, conversion code converts, Session commits canonical records.
+
+Preferred shape:
+
+```txt
+contrib/files/browser/fileImportExport.ts
+  collect folder/import/export sources; scenario workflow helpers
+
+services/files/browser/fileConverter.ts
+  convert a source into FileImportResult / RawTableRecord payloads
+
+services/files/browser/fileConverter.worker.ts
+  optional worker for xls/xlsx conversion
+
+services/explorer/browser/explorerImportController.ts
+  dialog/drop/progress/notification orchestration
+
+services/session/browser/sessionService.ts
+  commitFileImport(...)
+```
+
+Do not make `fileConverter` commit session. Do not make Explorer parse xlsx. Do not make Session read files from disk.
+
+## 10. Import naming rule
+
+When naming import code, distinguish feature scope from view scope.
+
+Use `files import` when referring to the overall workbench feature:
+
+- import files;
+- import folder;
+- file import/export workflow;
+- CSV/Excel/Clipboard conversion.
+
+Use `explorer import` only when the import action belongs to the left Explorer UI surface:
+
+- Explorer drag/drop;
+- Explorer toolbar import;
+- Explorer resource selection after import.
+
+Examples:
+
+| Proposed name | Use? | Reason |
+| --- | --- | --- |
+| `fileImportExport.ts` | Yes | Existing files-module scenario workflow. |
+| `fileConverter.ts` | Yes | Describes conversion, not UI or service ownership. |
+| `explorerImportController.ts` | Yes | Orchestrates Explorer-originated import UX. |
+| `IFileImportService` | No by default | Too broad; no stable interface need yet. |
+| `FileView` | No | The left side is Explorer. |
+| `ExplorerView` | Yes | Matches actual UI role. |
+
+## 11. Manager naming rules
+
+Avoid manager chains.
+
+Do not write:
+
+```txt
+ExplorerManager
+  ImportManager
+  SelectionManager
+  FolderManager
+  ThumbnailManager
+```
+
+Use explicit roles:
+
+```txt
+ExplorerService
+  owns ExplorerState
+
+ExplorerImportController
+  coordinates picker/drop/progress/import workflow
+
+ExplorerTreeModel
+  pure tree projection
+
+ExplorerSelectionStore
+  local mutable selection/focus store if needed
+
+ThumbnailService
+  thumbnail bitmap/render cache owner
+```
+
+Allowed component suffixes:
+
+| Suffix | Meaning |
+| --- | --- |
+| `Service` | DI boundary and long-lived state owner. |
+| `Controller` | User/workflow orchestration; may coordinate dialogs, progress, workers, and multiple services. |
+| `Store` | Local mutable state holder, usually service-local or view-local. |
+| `Model` | Pure projection/read model/render model; no side effects. |
+| `Provider` | External capability provider. |
+| `Reader` | Data reader with a narrow read-only purpose. |
+| `Adapter` | Converts legacy/new shapes across boundaries. |
+| `Planner` | Builds an execution/export/render plan without performing it. |
+| `Cache` | Rebuildable memoized data, never canonical truth. |
+
+Only use `Manager` when none of these names is accurate. That should be rare.
+
+## 12. Service and contribution dependencies
+
+Allowed direction:
+
+```txt
+platform service -> no workbench imports
+workbench service -> platform services + session snapshots + other service interfaces
+contrib command/action -> service interfaces
+view -> service/view model props and commands
+```
+
+Avoid:
+
+```txt
+service -> view
+service -> CommandsRegistry
+session -> table/chart/template UI state
+converter -> assessment/template/plot logic
+plot -> chart DOM
+chart -> raw table parsing
+```
+
+## 13. Migration comments
+
+When keeping legacy code during migration, annotate the boundary:
+
+```ts
+// TODO(conductor-architecture): Migration bridge.
+// This command currently calls FilesPaneHost because IExplorerService is not wired yet.
+// Move the behavior into IExplorerService and keep this handler as argument normalization only.
+```
+
+Do not leave ambiguous generic TODOs such as:
+
+```ts
+// TODO: clean up later
+```

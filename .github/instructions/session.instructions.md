@@ -1,192 +1,198 @@
 ---
-description: Architecture documentation for CS Session. Use when working in `src/cs/workbench/services/session`
+description: Session service — canonical records, commit API, snapshots, read models, and change events. Use when working under `src/cs/workbench/services/session`.
 applyTo: 'src/cs/workbench/services/session/**'
 ---
+# Session
 
-ISessionService
-  对外接口：别人能调用什么
+`SessionService` is the canonical in-memory ledger for the current analysis session.
 
-SessionService
-  实现类：真正负责更新、提交、发事件
+It is not a view state store and not an orchestration service for every UI action.
 
-SessionModel
-  内部数据：当前 session 到底有哪些 file/raw table/assessment/block/curve/metric
+## Concepts
 
-SessionSnapshot
-  对外只读快照：别人能安全读取什么
+| Name | Meaning |
+| --- | --- |
+| `ISessionService` | Public service interface: snapshot, events, and commit methods. |
+| `SessionService` | Browser implementation and only mutator of `SessionModel`. |
+| `SessionModel` | Internal canonical data state. |
+| `SessionSnapshot` | Read-only data exposed to consumers. |
+| `SessionReadModel` | Derived projection for common read patterns. |
+| `SessionChangeEvent` | Specific invalidation event after canonical changes. |
 
-## ISessionService
+## Core files
 
-`src/cs/workbench/services/session/common/sessionService.ts` 
-- 定义接口 ISessionService
+| File | Responsibility |
+| --- | --- |
+| `src/cs/workbench/services/session/common/session.ts` | Defines `ISessionService`, `SessionSnapshot`, commit input types, public events. No implementation. |
+| `src/cs/workbench/services/session/common/sessionModel.ts` | Defines canonical records: `SessionModel`, `FileRecord`, series, curves, metrics, template run, calculation cache. |
+| `src/cs/workbench/services/session/common/sessionEvents.ts` | Defines `SessionChangeEvent`, reasons, affected ids, event helper types. |
+| `src/cs/workbench/services/session/common/sessionReadModel.ts` | Builds read-only projections: raw tables by id, assessments, active file fallback, curves by family, metrics by series. No mutation. |
+| `src/cs/workbench/services/session/common/sessionModelAdapter.ts` | Temporary compatibility adapter from legacy `SessionFile`/`ProcessedEntry` shapes. Shrink over time. |
+| `src/cs/workbench/services/session/browser/sessionService.ts` | Owns mutable model, validates commits, increments versions, emits specific events. |
 
-## SessionService
+## Public interface shape
 
-`src/cs/workbench/services/session/browser/sessionService.ts` 
-- 定义 SessionService 实现，负责更新、提交、发事件
-- SessionModel 是 SessionService 内部维护的 canonical domain state，用来集中保存当前 session 的文件、原始表、assessment、measurement blocks、series、curves、metrics，以及少量跨视图协调状态 activeTarget。
-- SessionService 是 sessionModel 的唯一修改者，负责维护 sessionModel 的更新和变更通知。SessionModel 是 session 的 canonical state，包含 session 里所有的数据。外部只能通过 getSnapshot() 读取 sessionModel 快照，不能直接修改 sessionModel
-- SessionService 内部维护一个可变的 sessionModel，当有更新时，更新这个 sessionModel，并通过 onDidChangeSession 事件通知外部
-SessionModel 不是 service。
-SessionModel 不包含业务动作。
-SessionModel 不对外暴露可变引用。
-SessionModel 只描述 session 当前保存了哪些 canonical data。
+```ts
+export interface ISessionService {
+  readonly _serviceBrand: undefined;
+  readonly onDidChangeSession: Event<SessionChangeEvent>;
 
-只有 SessionService 可以修改 SessionModel。
-外部模块只能通过 ISessionService 读取 snapshot 或提交更新请求。
+  getSnapshot(): SessionSnapshot;
 
-## SessionModel
+  commitFileImport(result: FileImportResult): void;
+  commitRawTableAssessment(result: RawTableAssessmentRecord): void;
+  commitTemplateRun(input: CommitTemplateRunInput): void;
+  commitCurves(input: CommitCurvesInput): void;
+  commitMetrics(input: CommitMetricsInput): void;
 
-`src/cs/workbench/services/session/common/sessionModel.ts` 
-- 定义唯一真相源
-- 它定义 session 里“到底有什么”。
-- SessionModel 里包含了 session 里所有的数据，外部只能getsnapshot()读不能改
-- SessionModel 里不包含 service cache、worker lifecycle、request state等非 canonical 数据。
-- SessionModel 里不包含 view state，view state 可以逐步拆出去，放在对应的 service 或 contrib 里。
-- SessionModel 里不包含 UI 状态，UI 状态可以放在 contrib 里
+  setMetricInput(input: MetricInputRecord): void;
+  clearMetricInput(fileId: FileId, metricKey: MetricKey): void;
 
-```typescript
-export type SessionModel = {
-  readonly version: 1;
-
-  readonly filesById: Record<FileId, FileRecord>;
-  readonly fileOrder: FileId[];
-
-  readonly rawTablesById: Record<RawTableId, RawTableRecord>;
-  readonly rawTableVersionsById: Record<RawTableId, number>;
-
-  readonly assessmentsByRawTableId: Record<RawTableId, RawTableAssessmentRecord>;
-
-  readonly seriesById: Record<SeriesId, SeriesRecord>;
-  readonly seriesOrder: SeriesId[];
-
-  readonly curvesByKey: Record<CurveKey, CurveRecord>;
-  readonly metricsByKey: Record<MetricKey, MetricRecord>;
-
-  readonly activeTarget: SessionTarget;
-};
+  removeFiles(fileIds: readonly FileId[]): void;
+  clearSession(): void;
+}
 ```
 
-* info:
-viewState 建议逐步从 SessionModel 里拆出去。现在 SessionViewState 同时包含 table/template/parameters/chart/curves UI 状态。
-你的新方向下，更符合 VSCode 的拆法是：
+## Canonical data only
 
-table view state      -> contrib/table 或 services/table
-template view state   -> contrib/template
-parameters view state -> contrib/parameters
-chart view state      -> services/chart 或 contrib/chart
-curves visibility     -> services/chart
+Session may store:
 
-Session 可以保留 activeTarget，但不要继续拥有所有 UI view state。
+- files and raw tables;
+- raw table versions;
+- assessment records;
+- measurement blocks;
+- template run records;
+- series;
+- curves;
+- metrics;
+- metric inputs that affect calculation;
+- rebuildable calculation cache.
 
-### activeTarget
+Session must not store:
 
-```typescript
-export type SessionTarget =
-  | { readonly kind: "none" }
-  | { readonly kind: "file"; readonly fileId: FileId }
-  | {
-      readonly kind: "rawTable";
-      readonly fileId: FileId;
-      readonly rawTableId: RawTableId;
-    }
-  | {
-      readonly kind: "rawTableRange";
-      readonly fileId: FileId;
-      readonly rawTableId: RawTableId;
-      readonly range: RangeRef;
-    }
-  | {
-      readonly kind: "measurementBlock";
-      readonly fileId: FileId;
-      readonly measurementBlockId: MeasurementBlockId;
-    }
-  | {
-      readonly kind: "series";
-      readonly fileId: FileId;
-      readonly measurementBlockId: MeasurementBlockId;
-      readonly seriesId: SeriesId;
-    }
-  | {
-      readonly kind: "curve";
-      readonly fileId: FileId;
-      readonly curveKey: CurveKey;
-    }
-  | {
-      readonly kind: "metric";
-      readonly fileId: FileId;
-      readonly metricKey: MetricKey;
-    };
+- `SessionViewState`;
+- table selection/focus/scroll;
+- chart zoom/legend/popover state;
+- active plot tab;
+- template form draft state;
+- search query;
+- export dialog option state;
+- worker refs or request ids;
+- row cache or thumbnail cache.
+
+## Active target rule
+
+Do not add a global `activeTarget` as the owner of all interactions.
+
+Use service-specific active state:
+
+```txt
+Explorer selected resource -> IExplorerService
+Table selected cell/range  -> ITableService
+Plot active plot type      -> IPlotService
+Chart active pane/popover  -> IChartService
+Parameters selected metric -> IParametersService
+Search selected result     -> ISearchService
+Export selected options    -> IExportService
 ```
-- activeTarget 是跨 Table / Chart / Parameters / Search 共用的当前对象。
-- 所以它可以留在 SessionModel。
 
-sessionmodel 里应该放什么，不应该放什么？
-应该放：
+Use `CommandTarget` for command arguments.
 
-files
-raw tables
-raw table versions
-assessment results
-measurement blocks
-series
-curves
-metrics
-activeTarget 非必须
+## Commit rules
 
-不应该放：
+- Every canonical mutation goes through `SessionService`.
+- Every commit validates affected file/raw table/curve ids.
+- Assessment commits must check `sourceRawTableVersion`.
+- Raw table replacement invalidates stale assessments, template runs, curves, and metrics for that raw table.
+- Events include affected ids; consumers should ignore unrelated changes.
 
-viewState
-UI state
-table scroll
-chart zoom
-legend 展开状态
-template panel 展开状态
-worker lifecycle
-request state
-service cache
-- chart zoom / legend 展开 / table scroll / template panel 展开状态
+## Command entry and dispatch
+
+`ISessionService` is not a user-workflow dispatcher. Commands may call session commit methods, but only after another service/controller has produced a domain result.
+
+Recommended command boundaries:
+
+| Command | Preferred owner | Session method |
+| --- | --- | --- |
+| clear session | Explorer or Workbench global command | `ISessionService.clearSession()` |
+| remove file/resource | Explorer command | `ISessionService.removeFiles(...)` through `IExplorerService` |
+| commit import | Explorer/import controller | `ISessionService.commitFileImport(...)` |
+| commit assessment | Assessment contribution/command | `ISessionService.commitRawTableAssessment(...)` |
+| commit template/curves | Template service/controller | `ISessionService.commitTemplateRun(...)`, `commitCurves(...)` |
+| commit metric input | Parameters service | `ISessionService.setMetricInput(...)` |
+
+Do not add commands that mutate internal `SessionModel` fields directly. Use explicit commit APIs.
+
+## Do not
+
+- Do not expose mutable `SessionModel`.
+- Do not let views call internal adapter functions.
+- Do not emit `Event<void>` for all changes after migration.
+- Do not make `SessionService` call Chart/Table/Template directly.
+- Do not store service caches or UI state in `FileRecord`.
 
 
-## 说人话：
-SessionModel 就是当前项目/当前分析会话的内存账本。
-SessionService 负责改账本。
-ISessionService 是别人找 SessionService 办事的窗口。
-SessionSnapshot 是别人看到的账本复印件。
+## Canonical record fields
 
-activeTarget 是账本里一个特殊的字段，记录了当前用户正在看的/操作的对象，可以是一个文件、一张表、一个测量块、一条曲线等等。UI 可以根据 activeTarget 的变化自动切换显示内容。但他不该存在，因为在vscode中，应该是各领域 / 各 view / 各 service 维护自己的 active / focus / selection
-需要联动的人订阅对应 service 的事件
-不要把所有 active 状态塞进一个全局 SessionModel
+### `SessionModel`
 
-更准确一点，不是“所有人各自乱存”，而是谁拥有这个 UI/领域对象，谁维护它的 active 状态。
+| Field | Meaning |
+| --- | --- |
+| `schemaVersion` | Shape/migration version. |
+| `sessionVersion` | Increments on canonical data changes. |
+| `filesById` | Canonical file lifecycle records. |
+| `fileOrder` | Stable file display/processing order. |
 
-VSCode 里 editor 相关的 active 状态归 IEditorService，它对外暴露 onDidActiveEditorChange、activeEditorPane、activeEditor、activeTextEditorControl 等；这说明 active editor 是 editor service 的领域状态，不是一个全局 session model 字段。
+### `FileRecord`
 
-list/table/tree 这类控件也类似。VSCode 的 IListService 只记录 lastFocusedList，ListService 在 list focus 时更新它；具体 selection 仍然主要由对应 list/tree/table widget 自己维护，不是塞到某个全局 model 里。
+| Field | Meaning |
+| --- | --- |
+| `id` | File id. |
+| `name` | Display name. |
+| `kind` | Source kind: csv/excel/clipboard/manual/unknown. |
+| `raw` | Raw file facts and raw tables. |
+| `rawTableVersionsById` | Per-table raw version for cache/assessment invalidation. |
+| `assessmentsByRawTableId` | Latest assessment per raw table. |
+| `measurementBlocksById` | Flattened measurement blocks for lookup. |
+| `measurementBlockOrder` | Stable block order. |
+| `templateRunsById` | Template execution records. |
+| `latestTemplateRunId` | Current/latest run. |
+| `seriesById` | Series produced from template/assessment/calculation. |
+| `seriesOrder` | Stable series order. |
+| `curvesByKey` | Base/derived/second-derived curves. |
+| `metricsByKey` | Computed parameter metrics. |
+| `metricsBySeriesId` | Lookup from series to metrics. |
+| `metricInputsByKey` | Manual inputs that affect parameter computation. |
+| `calculationCache` | Rebuildable calculation cache. |
 
-所以你这里应该改成：
+### `CurveRecord`
 
-SessionModel
-  保存 canonical data：
-  files
-  rawTables
-  assessments
-  measurementBlocks
-  series
-  curves
-  metrics
+| Field | Meaning |
+| --- | --- |
+| `fileId` | Parent file. |
+| `seriesId` | Source series. |
+| `curveGeneration` | Base/derived/second-derived. |
+| `curveFamily` | IV/CV/CF/PV/IT/gm/localSs/thresholdFit/etc. |
+| `ivMode` | Transfer/output for base IV curves. |
+| `itMode` | IT mode for base IT curves. |
+| `lineage` | Source provenance. |
+| `points` | Numeric x/y points. |
+| `channels` | Optional derived channels such as positive/abs/log. |
+| `domain` | Optional precomputed numeric domain. |
+| `signature` | Invalidation signature. |
+| `sourceRange` | Optional raw table provenance. |
 
-TableService / TableView
-  保存当前 table selection / focused row / focused range
+### `MetricRecord`
 
-ChartService / ChartView
-  保存当前 active curve / visible curves / hover point / zoom display state
+| Field | Meaning |
+| --- | --- |
+| `key` | Stable metric id. |
+| `fileId` | Parent file. |
+| `seriesId` | Target series. |
+| `metricFamily` | current/derivative/threshold/subthreshold. |
+| `contextKey` | Configuration/context discriminator. |
+| `inputCurves` | Curves used as input. |
+| `inputSignatures` | Signatures used for invalidation. |
+| `algorithm` | Algorithm provenance. |
+| `value` | Family-specific metric value record. |
 
-ParametersService / ParametersView
-  保存当前 active metric / selected parameter row
-
-SearchService / SearchView
-  保存当前 search query / selected result
-
-TemplateService / TemplateView
-  保存当前 template selection / pending config
