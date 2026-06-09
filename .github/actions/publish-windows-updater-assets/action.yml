@@ -20,4 +20,4 @@ runs:
     - name: Publish updater assets
       shell: pwsh
       run: |
-        & (Join-Path $env:GITHUB_WORKSPACE ".github\scripts\publish-windows-updater-assets.ps1") -ReleaseTag "${{ inputs.release-tag }}" -UpdateRepo "${{ inputs.update-repo }}" -ReleaseDir "${{ inputs.release-dir }}"
+        & (Join-Path $env:GITHUB_WORKSPACE "build\win32\publish-updater-assets.ps1") -ReleaseTag "${{ inputs.release-tag }}" -UpdateRepo "${{ inputs.update-repo }}" -ReleaseDir "${{ inputs.release-dir }}"

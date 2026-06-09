@@ -11,7 +11,9 @@
     "noEmit": true
   },
   "include": [
+    "build/lib/**/*.ts",
     "build/npm/**/*.ts",
+    "build/win32/**/*.ts",
     "scripts/**/*.ts",
     "src/cs/server/node/**/*.ts",
     "vite.config.ts"

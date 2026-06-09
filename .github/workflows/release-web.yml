@@ -1,0 +1,104 @@
+name: Release Web
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.5.2)"
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout (tag push)
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Checkout (manual)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag }}
+
+      - name: Resolve release tag
+        id: release_meta
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          fi
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Guard source repository
+        shell: pwsh
+        run: |
+          & build/github/verify-source-repository.ps1
+
+      - name: Verify tag matches package.json version
+        shell: pwsh
+        run: |
+          & build/github/verify-release-tag.ps1 -Tag "${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web artifacts
+        run: npm run dist:web
+
+      - name: Prepare web release assets
+        shell: pwsh
+        run: |
+          $packageJson = Get-Content -Raw -Path "package.json" | ConvertFrom-Json
+          $version = [string]$packageJson.version
+          $releaseDir = Join-Path $PWD "release"
+          New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
+
+          $zipPath = Join-Path $releaseDir "Conductor-Studio-$version-web.zip"
+          if (Test-Path -LiteralPath $zipPath) {
+            Remove-Item -LiteralPath $zipPath -Force
+          }
+          Compress-Archive -Path "dist/*" -DestinationPath $zipPath
+
+          $hash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $zipName = Split-Path -Leaf $zipPath
+          Set-Content -Path (Join-Path $releaseDir "SHA256SUMS-web.txt") -Value ("{0}  {1}" -f $hash, $zipName) -Encoding ascii
+
+      - name: Mirror release assets to source repository
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release_meta.outputs.tag }}
+          SOURCE_REPO: chogng/conductor
+        run: |
+          & build/github/upload-release-assets.ps1 -ReleaseTag $env:RELEASE_TAG -SourceRepo $env:SOURCE_REPO
+
+      - name: Summarize release assets
+        shell: pwsh
+        run: |
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '## Web release extras'
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Built the static web bundle and uploaded `Conductor-Studio-*-web.zip`.'
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Source repo (`chogng/conductor`): mirrored web release assets and `SHA256SUMS-web.txt`.'

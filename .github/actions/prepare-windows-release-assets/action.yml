@@ -22,4 +22,4 @@ runs:
       id: signature
       shell: pwsh
       run: |
-        & (Join-Path $env:GITHUB_WORKSPACE ".github\scripts\build-windows-release-assets.ps1") -ReleaseDir "${{ inputs.release-dir }}"
+        & (Join-Path $env:GITHUB_WORKSPACE "build\win32\build-release-assets.ps1") -ReleaseDir "${{ inputs.release-dir }}"

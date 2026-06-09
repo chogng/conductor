@@ -52,12 +52,12 @@ jobs:
       - name: Guard source repository
         shell: pwsh
         run: |
-          & .github\scripts\verify-source-repository.ps1
+          & build\github\verify-source-repository.ps1
 
       - name: Verify tag matches package.json version
         shell: pwsh
         run: |
-          & .github\scripts\verify-release-tag.ps1 -Tag "${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          & build\github\verify-release-tag.ps1 -Tag "${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
 
       - name: Install dependencies
         run: npm ci
@@ -84,25 +84,7 @@ jobs:
           RELEASE_TAG: ${{ steps.release_meta.outputs.tag }}
           SOURCE_REPO: chogng/conductor
         run: |
-          # Private repo keeps full release set for internal traceability and rollback.
-          $assets = Get-ChildItem -Path "release" -File | Sort-Object Name
-          if (-not $assets) {
-            throw "No release assets found in release/."
-          }
-
-          gh release view $env:RELEASE_TAG -R $env:SOURCE_REPO *> $null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $env:RELEASE_TAG --title $env:RELEASE_TAG --generate-notes -R $env:SOURCE_REPO
-            if ($LASTEXITCODE -ne 0) {
-              throw "Failed to create release $env:RELEASE_TAG in $env:SOURCE_REPO."
-            }
-          }
-
-          $assetPaths = $assets | ForEach-Object { $_.FullName }
-          gh release upload $env:RELEASE_TAG $assetPaths --clobber -R $env:SOURCE_REPO
-          if ($LASTEXITCODE -ne 0) {
-            throw "Failed to upload release assets to $env:SOURCE_REPO."
-          }
+          & build\github\upload-release-assets.ps1 -ReleaseTag $env:RELEASE_TAG -SourceRepo $env:SOURCE_REPO
 
       - name: Summarize release assets
         shell: pwsh

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import { mkdirSync } from "node:fs";
 
 const isWin = process.platform === "win32";
 
@@ -25,6 +26,7 @@ if (isWin) {
 } else {
   // Origin workers are Windows .exe builds (pywin32/originpro). Skip on non-Windows.
   console.log("[build:desktop] Skipping Origin worker build (Windows-only).");
+  mkdirSync("workers/py", { recursive: true });
 }
 
 {

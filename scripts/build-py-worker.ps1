@@ -249,7 +249,7 @@ $pyinstallerArgs = @(
   $EntryScript
 )
 
-$iconPath = Join-Path $ProjectRoot "build\icons\icon.ico"
+$iconPath = Join-Path $ProjectRoot "resources\win32\icon.ico"
 if (Test-Path -LiteralPath $iconPath) {
   $pyinstallerArgs = $pyinstallerArgs[0..10] + @("--icon", $iconPath) + $pyinstallerArgs[11..($pyinstallerArgs.Length - 1)]
 }

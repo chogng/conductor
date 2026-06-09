@@ -17,7 +17,7 @@ runs:
     - name: Configure Windows CI cache environment
       shell: pwsh
       run: |
-        & (Join-Path $env:GITHUB_WORKSPACE ".github\scripts\install-windows-env.ps1")
+        & (Join-Path $env:GITHUB_WORKSPACE "build\win32\install-windows-env.ps1")
 
     - name: Setup Node
       uses: actions/setup-node@v6

@@ -54,9 +54,12 @@ release:
   - changed-files:
       - any-glob-to-any-file:
           - "release/**"
+          - "build/github/**"
+          - "build/win32/**"
           - "scripts/release-*.ps1"
           - "docs/desktop-auto-update.md"
           - ".github/release.yml"
+          - ".github/workflows/release.yml"
           - ".github/workflows/release-*.yml"
 
 test:

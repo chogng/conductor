@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.5.2)"
+        required: true
+        type: string
+      target:
+        description: "Release target to dispatch"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - windows
+          - darwin
+          - web
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag }}
+
+      - name: Verify tag matches package.json version
+        shell: pwsh
+        run: |
+          & build/github/verify-release-tag.ps1 -Tag "${{ inputs.tag }}"
+
+      - name: Dispatch selected release workflows
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+
+          dispatch_workflow() {
+            local workflow="$1"
+            gh workflow run "$workflow" --ref "$RELEASE_TAG" -f "tag=$RELEASE_TAG"
+          }
+
+          if [[ "$TARGET" == "all" || "$TARGET" == "windows" ]]; then
+            dispatch_workflow "release-windows.yml"
+          fi
+
+          if [[ "$TARGET" == "all" || "$TARGET" == "darwin" ]]; then
+            dispatch_workflow "release-darwin.yml"
+          fi
+
+          if [[ "$TARGET" == "all" || "$TARGET" == "web" ]]; then
+            dispatch_workflow "release-web.yml"
+          fi

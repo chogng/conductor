@@ -11,9 +11,13 @@ on:
       - "build/win32/verify-auto-update-config.ts"
       - "package.json"
       - "package-lock.json"
+      - "build/github/upload-release-assets.ps1"
       - "tsconfig.desktop.json"
       - "vite.config.js"
       - ".github/workflows/desktop-ci.yml"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/release-darwin.yml"
+      - ".github/workflows/release-web.yml"
       - ".github/workflows/release-windows.yml"
   workflow_dispatch:
 
