@@ -9,9 +9,9 @@ import type { FileRecord } from "src/cs/workbench/services/session/common/sessio
 import {
   createChartExplorerFiles,
   createChartExplorerFilesFromRecords,
-} from "src/cs/workbench/contrib/files/common/explorerInput";
+} from "src/cs/workbench/contrib/files/common/explorerModel";
 
-suite("workbench/contrib/files/common/explorerInput", () => {
+suite("workbench/contrib/files/common/explorerModel", () => {
   test("createChartExplorerFiles projects processed files with source paths", () => {
     const files = createChartExplorerFiles(
       [

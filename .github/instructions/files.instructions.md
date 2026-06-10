@@ -131,10 +131,15 @@ Explorer UI owns:
 - Explorer resource tree state;
 - selected Explorer resource;
 - expanded/collapsed folder keys;
+- both Explorer presentation layouts: `tree` and `thumbnail`;
 - tree vs thumbnail layout mode;
+- the Explorer more actionbar placement for switching layouts;
+- tree item hover triggers, hover timing, anchors, context-view containers, positioning, and dismissal;
 - file/folder commands and context menu dispatch;
 - drag/drop/dialog/clipboard source collection orchestration;
 - coordinating source collection, file conversion, file transfer helpers, and committing successful conversion results through `ISessionService`.
+
+Explorer consumes thumbnail UI for thumbnail layout cards and tree-layout hover previews. Thumbnail content is rendered by `src/cs/workbench/contrib/thumbnail`; Explorer owns the trigger, container, selection, file item actions, and lifecycle.
 
 Files service conversion modules own:
 
@@ -163,7 +168,7 @@ It does not own:
 | `src/cs/workbench/contrib/files/browser/explorerService.ts` | Owns Explorer UI state/model coordination, subscribes to filesystem/session/template/plot changes as needed, emits Explorer events, orchestrates source collection/conversion workflows. | Filesystem/session snapshots/events, commands, source inputs. | Explorer pane input, selection/layout events, session conversion commits. | Render DOM, parse CSV/XLS/XLSX, or own canonical session records. |
 | `src/cs/workbench/contrib/files/common/explorerModel.ts` | Defines Explorer resource/item model and tree model helpers. | File/session facts, Explorer configuration. | Explorer resources/items for the Files UI. | Parse data files, store raw table rows, or become a platform file stat model. |
 | `src/cs/workbench/contrib/files/browser/filesPaneHost.ts` | Hosts Explorer inside the Files container and wires sidebar actions. | Explorer services and pane input. | Rendered files sidebar pane. | Own canonical data or bypass `IExplorerService` for state. |
-| `src/cs/workbench/contrib/files/browser/views/explorerViewer.ts` | Renders tree/list/thumbnail resources, context menus, row templates, and hover content. | Explorer pane/view model. | DOM presentation and user intents. | Parse files, mutate session directly, or build canonical plot data. |
+| `src/cs/workbench/contrib/files/browser/views/explorerViewer.ts` | Renders tree/list/thumbnail resources, context menus, row templates, Explorer-owned hover containers, and thumbnail UI content supplied by thumbnail contribution. | Explorer pane/view model, thumbnail UI factory/rendering surface props. | DOM presentation and user intents. | Parse files, mutate session directly, build canonical plot data, or own thumbnail bitmap/cache rendering. |
 | `src/cs/platform/files/common/files.ts` | Defines `IFileService`, `IFileSystemProvider`, `FileType`, file stat/read/write/watch contracts, and the service decorator. | URI/provider inputs. | Filesystem facts and provider events. | Import workbench services, parse data files, or own Explorer/source workflow state. |
 | `src/cs/platform/files/common/fileService.ts` | Implements the common `IFileService` provider registry and read/write/stat/watch dispatch. | Provider registrations and URI operations. | Filesystem facts and provider-backed file operations. | Depend on workbench services, Explorer state, or Conductor conversion/session semantics. |
 | `src/cs/platform/files/common/io.ts` | Defines common read range and stream/range option types. | None; type-only. | Platform IO contracts. | Import DOM, Electron, or workbench modules. |
@@ -256,11 +261,105 @@ Explorer view code should:
 
 - render object tree rows and thumbnails;
 - manage row templates and context menu presentation;
+- own tree/list hover trigger, hover timing, anchor, context-view container, positioning, and dismissal;
+- call thumbnail UI factories for thumbnail card and hover-preview content;
 - call commands or service methods for user actions;
 - not read raw table rows directly;
 - not build plot models directly.
 
 Thumbnail mode is an Explorer layout mode, not a `FilterViewPane`. Filtering or narrowing thumbnail inputs is Explorer business logic unless a shared view-level filter widget is intentionally introduced.
+
+## Explorer Tree/Thumbnail Wiring
+
+Tree and thumbnail are two Explorer presentations over the same resource model. They must share Explorer selection, file item actions, and source workflow wiring.
+
+Selection wiring:
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant ExplorerViewer
+    participant FilesController
+    participant ExplorerPaneInput as Explorer pane input
+    participant ExplorerService as IExplorerService
+
+    alt tree layout
+        User->>ExplorerViewer: select tree file item
+        ExplorerViewer->>FilesController: onSelectFile(fileId)
+    else thumbnail layout
+        User->>ExplorerViewer: click thumbnail file item
+        ExplorerViewer->>FilesController: onSelectFile(fileId)
+    end
+    FilesController->>ExplorerPaneInput: onFileSelected(fileId)
+    ExplorerPaneInput->>ExplorerService: select({ kind, fileId, candidateFileIds }, reveal?)
+    ExplorerService-->>ExplorerPaneInput: selected file id
+    ExplorerPaneInput-->>FilesController: pane input with selectedFileId
+    FilesController->>ExplorerViewer: setProps({ selectedFileId })
+```
+
+File item action wiring:
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant ExplorerViewer
+    participant CommandService as ICommandService
+    participant FilesAction as existing files Action2
+    participant FilesCommand as existing files command handler
+    participant ExplorerFiles as Explorer/files service or workflow
+
+    alt tree layout
+        User->>ExplorerViewer: invoke file item action
+    else thumbnail layout
+        User->>ExplorerViewer: invoke same file item action
+    end
+    ExplorerViewer->>CommandService: executeCommand(existing files action id, fileId, args)
+    CommandService->>FilesAction: run(accessor, fileId, args)
+    FilesAction->>FilesCommand: handler(accessor, fileId, args)
+    FilesCommand->>ExplorerFiles: call existing Explorer/files service or workflow API
+```
+
+Tree item hover thumbnail preview wiring:
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant ExplorerViewer
+    participant ContextViewService as IContextViewService
+    participant HoverContainer as Explorer hover context-view container
+    participant ThumbnailView as thumbnail UI factory
+    participant ThumbnailRenderer as thumbnail rendering surface
+
+    User->>ExplorerViewer: hover tree/list file item
+    ExplorerViewer->>ExplorerViewer: resolve hover file + plot model
+    ExplorerViewer->>ContextViewService: showContextView({ getAnchor, render, getWidth }, hoverHost)
+    ContextViewService-->>ExplorerViewer: IOpenContextView
+    ExplorerViewer->>HoverContainer: create Explorer-owned hover shell
+    ExplorerViewer->>ThumbnailView: create thumbnail preview content
+    ThumbnailView->>ThumbnailRenderer: render thumbnail from plot model
+    User->>ExplorerViewer: leave item or hover container
+    ExplorerViewer->>ContextViewService: hide/dismiss context view
+```
+
+Layout toggle wiring:
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant FilesPaneHost
+    participant CommandService as ICommandService
+    participant ThumbnailCommand as thumbnail layout toggle command
+    participant ExplorerService as IExplorerService
+
+    User->>FilesPaneHost: click Explorer more actionbar Thumbnail
+    FilesPaneHost->>CommandService: executeCommand(TOGGLE_THUMBNAIL_VIEW_ACTION_ID)
+    CommandService->>ThumbnailCommand: run handler
+    ThumbnailCommand->>ExplorerService: toggleViewLayout()
+    ExplorerService-->>FilesPaneHost: onDidChangeViewLayout(viewLayout)
+    FilesPaneHost->>ExplorerViewer: render tree or thumbnail layout
+```
+
+Explorer owns the more actionbar placement and `IExplorerService.viewLayout`. The thumbnail contribution owns the thumbnail-specific toggle action/command and thumbnail UI/rendering content. Do not add duplicate Explorer file item commands for thumbnail layout.
 
 ## Explorer Command Entry and Dispatch
 
@@ -316,6 +415,7 @@ Conductor-specific commands should follow the upstream registration and handler 
 - Resource removal commands should be action/handler code that derives Explorer context and calls the appropriate session or file operation. Add an `IExplorerService` method only when the operation mutates Explorer view/model state rather than canonical session/file state.
 - Select/reveal behavior should use the upstream-shaped `IExplorerService.select(resource, reveal?)` and `IExplorerView.selectResource(...)` vocabulary.
 - Tree/thumbnail layout is Conductor-specific view state. Keep it local to Explorer view/service state and do not document an upstream-style `setLayout(...)` method unless that method actually exists.
+- The Explorer more actionbar may execute the thumbnail contribution's layout toggle command, but Explorer file item actions remain in the shared files action/command set for both tree and thumbnail layouts.
 - File template selection belongs to Template canonical state. Explorer can host the action or expose local UI state, but should not own template selection semantics.
 
 ## Type Contracts
@@ -469,3 +569,6 @@ FileViewImport
 - Do not let Session read files from disk.
 - Do not put Explorer, source collection, conversion, or import semantics into `platform/files` command handlers.
 - Do not expose Explorer UI state from `IFileService`.
+- Do not create thumbnail-specific duplicates of Explorer file item actions or commands.
+- Do not move tree item hover trigger, timing, anchors, context-view placement, or dismissal into thumbnail contribution code.
+- Do not move thumbnail bitmap/cache rendering into Explorer/files code; Explorer provides containers and user-intent wiring, thumbnail renders thumbnail content.

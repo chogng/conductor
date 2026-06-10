@@ -6,5 +6,6 @@ when you coding, see the upstream architechture [`C:\Users\lanxi\Desktop\vscode`
 
 when migrates the responsibility, see the [Migration Rules](.github/migration-rules.md).
 
-when you coding, see the [Coding Guidelines](.github/instructions/coding-guidelines.instructions.md)
+before you write or edit any code, you MUST first read the [Coding Guidelines](.github/instructions/coding-guidelines.instructions.md).
 
+when coding under a path with a matching `.github/instructions/*.instructions.md` file, read that instruction before editing code in that area.

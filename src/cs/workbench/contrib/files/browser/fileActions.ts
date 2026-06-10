@@ -12,7 +12,6 @@ import {
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
   SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
-  TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
 } from "src/cs/workbench/contrib/files/common/files";
 import {
   addFolderHandler,
@@ -21,7 +20,6 @@ import {
   renameFileItemHandler,
   setFileTemplateHandler,
   sliceFileWithTemplateHandler,
-  toggleThumbnailViewHandler,
 } from "src/cs/workbench/contrib/files/browser/fileCommands";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
@@ -37,19 +35,6 @@ export const showCreateFolderUnsupported = (): void => {
 };
 
 function registerFileActions(): void {
-  registerAction2(class ToggleThumbnailViewAction extends Action2 {
-    public constructor() {
-      super({
-        id: TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
-        title: localize("files.thumbnailView", "Thumbnail"),
-      });
-    }
-
-    public run(accessor: ServicesAccessor): void {
-      void toggleThumbnailViewHandler(accessor);
-    }
-  });
-
   registerAction2(class AddFolderAction extends Action2 {
     public constructor() {
       super({

@@ -83,11 +83,11 @@ import {
   TemplateApplyController,
 } from "src/cs/workbench/services/template/browser/templateApplyController";
 import { createTemplateApplyInput } from "src/cs/workbench/services/template/browser/templateApplyInput";
-import { createExplorerPaneInput } from "src/cs/workbench/contrib/files/browser/explorerPaneInput";
 import {
+  createExplorerPaneInput,
   reconcileExplorerSessionSelection,
   resolveExplorerSessionSelection,
-} from "src/cs/workbench/contrib/files/browser/explorerSessionWorkflow";
+} from "src/cs/workbench/contrib/files/browser/explorerPaneInput";
 import type {
   ISessionService as ISessionServiceType,
   SessionSnapshot,

@@ -10,7 +10,6 @@ import {
   removeFileItemHandler,
   removeFolderHandler,
   setFileTemplateHandler,
-  toggleThumbnailViewHandler,
 } from "../../browser/fileCommands.ts";
 
 suite("workbench/contrib/files/test/browser/fileCommands", () => {
@@ -57,17 +56,6 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       },
     });
     removalListener.dispose();
-  });
-
-  test("thumbnail command toggles explorer layout state", async () => {
-    const explorerService = new ExplorerService();
-    const accessor = createAccessor([
-      [IExplorerService, explorerService],
-    ]);
-
-    await toggleThumbnailViewHandler(accessor);
-
-    assert.equal(explorerService.viewLayout, "thumbnail");
   });
 
   test("folder commands delegate to explorer workflow requests", () => {

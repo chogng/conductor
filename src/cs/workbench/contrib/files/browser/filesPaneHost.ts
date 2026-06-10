@@ -30,8 +30,8 @@ import {
   ADD_FOLDER_ACTION_ID,
   MORE_ACTIONS_ACTION_ID,
   REMOVE_FOLDER_ACTION_ID,
-  TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
 } from "src/cs/workbench/contrib/files/common/files";
+import { TOGGLE_THUMBNAIL_VIEW_ACTION_ID } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
 import {
   ExplorerViewId,
   IExplorerService,

@@ -19,6 +19,7 @@ import {
 import {
   getExplorerFolderPath,
   isExplorerPathInFolder,
+  resolveExplorerSelectedFileId,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
   type FilesViewLayout,
@@ -43,14 +44,9 @@ import {
   showCreateFolderUnsupported,
 } from "src/cs/workbench/contrib/files/browser/fileActions";
 import {
+  FileSourceWorkflow,
   getFolderImportSupportForFileService,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
-import {
-  ExplorerImportController,
-} from "src/cs/workbench/contrib/files/browser/explorerImportController";
-import {
-  resolveExplorerSelectedFileId,
-} from "src/cs/workbench/contrib/files/browser/explorerSessionWorkflow";
 import type {
   FileConverterBackend,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
@@ -97,7 +93,7 @@ export type {
 export class FilesController implements IDisposable {
   private readonly listRef: { current: ListHandle | null } = { current: null };
   private readonly shouldAutoScrollToBottomRef = { current: true };
-  private readonly importController: ExplorerImportController;
+  private readonly sourceWorkflow: FileSourceWorkflow;
   private explorerView: ExplorerView | null = null;
   private props: FilesControllerProps;
   private internalFiles: PreparedFileImportEntry[] = [];
@@ -125,7 +121,7 @@ export class FilesController implements IDisposable {
     this.commandService = props.commandService;
     this.explorerService = props.explorerService;
     this.filesService = props.filesService;
-    this.importController = new ExplorerImportController({
+    this.sourceWorkflow = new FileSourceWorkflow({
       commandService: this.commandService,
       fileConverterBackendService: props.fileConverterBackendService,
       filesService: this.filesService,
@@ -176,7 +172,7 @@ export class FilesController implements IDisposable {
   private openFileDialog(): void {
     this.error = null;
     this.syncView();
-    this.importController.openFolderDialog();
+    this.sourceWorkflow.openFolderDialog();
   }
 
   private removeSelectedFolder(): void {
@@ -216,7 +212,7 @@ export class FilesController implements IDisposable {
     this.explorerFolderImportListener.dispose();
     this.explorerSelectedFolderRemovalListener.dispose();
     this.explorerRemovalListener.dispose();
-    this.importController.dispose();
+    this.sourceWorkflow.dispose();
     this.explorerView?.dispose();
     this.explorerView = null;
     this.listRef.current = null;
@@ -340,11 +336,11 @@ export class FilesController implements IDisposable {
   };
 
   private readonly handleDropFiles = (dataTransfer: DataTransfer | null): void => {
-    this.importController.importDroppedFiles(dataTransfer);
+    this.sourceWorkflow.importDroppedFiles(dataTransfer);
   }
 
   private readonly handleOpenFolderDialog = (): void => {
-    this.importController.openFolderDialog();
+    this.sourceWorkflow.openFolderDialog();
   };
 
   private readonly handleSelectFile = (fileId: string | null): void => {
@@ -358,7 +354,7 @@ export class FilesController implements IDisposable {
       return;
     }
 
-    this.importController.rememberRemovedFiles([normalizedFileId]);
+    this.sourceWorkflow.rememberRemovedFiles([normalizedFileId]);
     this.notifyExplorerFilesRemoved([normalizedFileId]);
     this.removeFiles([normalizedFileId]);
     this.handleFileCountEffects();
@@ -382,7 +378,7 @@ export class FilesController implements IDisposable {
     }
 
     const fileIds = [...removedFileIds];
-    this.importController.rememberRemovedFiles(fileIds);
+    this.sourceWorkflow.rememberRemovedFiles(fileIds);
     this.notifyExplorerFilesRemoved(fileIds);
     this.removeFiles(fileIds);
 

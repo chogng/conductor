@@ -53,9 +53,9 @@ import {
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { createEmptyView } from "src/cs/workbench/contrib/files/browser/views/emptyView";
 import {
-  createExplorerThumbnailView,
-  type ProcessedFileLike,
-} from "src/cs/workbench/contrib/files/browser/views/explorerThumbnailView";
+  createThumbnailView,
+  type ThumbnailFileLike,
+} from "src/cs/workbench/contrib/thumbnail/browser/thumbnailView";
 import type { IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
@@ -792,7 +792,7 @@ export class ExplorerViewer implements IDisposable {
     );
   }
 
-  private getThumbnailFiles(): ProcessedFileLike[] {
+  private getThumbnailFiles(): ThumbnailFileLike[] {
     const thumbnailFiles = Array.isArray(this.props.thumbnailFiles) ? this.props.thumbnailFiles : [];
     if (!thumbnailFiles.length) {
       return this.props.files.map(file => ({
@@ -816,7 +816,7 @@ export class ExplorerViewer implements IDisposable {
     return thumbnailFiles.filter(file => fileIds.has(String(file.fileId ?? "").trim()));
   }
 
-  private createThumbnailItem(file: ProcessedFileLike): HTMLButtonElement {
+  private createThumbnailItem(file: ThumbnailFileLike): HTMLButtonElement {
     const fileName = String(file.fileName ?? file.fileId ?? "");
     const fileId = String(file.fileId ?? "").trim();
     const item = document.createElement("button");
@@ -826,7 +826,7 @@ export class ExplorerViewer implements IDisposable {
       "aria-label",
       localize("import.fileItemAriaLabel", "File {fileName}", { fileName }),
     );
-    item.append(createExplorerThumbnailView({
+    item.append(createThumbnailView({
       file,
       isActive: fileId === (this.props.selectedFileId ?? null),
       originOpenPlotOptions: this.props.originOpenPlotOptions,
@@ -1257,7 +1257,7 @@ export class ExplorerViewer implements IDisposable {
       return cached.node;
     }
 
-    const node = createExplorerThumbnailView({
+    const node = createThumbnailView({
       file,
       isActive,
       originOpenPlotOptions: this.props.originOpenPlotOptions,

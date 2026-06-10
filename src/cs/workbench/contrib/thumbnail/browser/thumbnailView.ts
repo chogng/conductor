@@ -4,13 +4,11 @@
 
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
+import type { PlotMainRenderModelSource } from "src/cs/workbench/services/plot/common/plotModel";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
-import type {
-  IThumbnailService,
-  ThumbnailBitmapOptions,
-} from "src/cs/workbench/services/thumbnail/common/thumbnail";
+import type { IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 
-export type ProcessedFileLike = {
+export type ThumbnailFileLike = {
   fileId?: string;
   fileName?: string;
   yUnit?: string;
@@ -23,13 +21,15 @@ export type ProcessedFileLike = {
   xAxisRole?: "vg" | "vd" | null;
 };
 
-export type ExplorerThumbnailPlotModel = ThumbnailBitmapOptions["model"];
+export type ThumbnailPlotModel = PlotMainRenderModelSource & {
+  readonly signature: string;
+};
 
-export type ExplorerThumbnailViewProps = {
-  file: ProcessedFileLike;
+export type ThumbnailViewProps = {
+  file: ThumbnailFileLike;
   originOpenPlotOptions?: OriginPlotOptions;
   plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
-  plotModel?: ExplorerThumbnailPlotModel | null;
+  plotModel?: ThumbnailPlotModel | null;
   plotType?: PlotType;
   thumbnailService?: Pick<IThumbnailService, "drawPlotThumbnail"> | null;
   isActive?: boolean;
@@ -38,7 +38,7 @@ export type ExplorerThumbnailViewProps = {
   originSelectedBadgeLabel?: string;
 };
 
-export const createExplorerThumbnailView = ({
+export const createThumbnailView = ({
   file,
   originOpenPlotOptions,
   plotAxisSettings,
@@ -49,7 +49,7 @@ export const createExplorerThumbnailView = ({
   isOriginSelected = false,
   originSelectedBadgeLabel = "SELECT",
   showOriginSelectionBadge = false,
-}: ExplorerThumbnailViewProps): HTMLElement => {
+}: ThumbnailViewProps): HTMLElement => {
   const root = document.createElement("div");
   const title = file.fileName ?? file.fileId ?? "";
   const classes = [
@@ -75,7 +75,7 @@ export const createExplorerThumbnailView = ({
   return root;
 };
 
-const createHeader = (file: ProcessedFileLike): HTMLElement => {
+const createHeader = (file: ThumbnailFileLike): HTMLElement => {
   const root = document.createElement("div");
   root.className = "thumbnail_view_header";
 
@@ -105,10 +105,10 @@ const createChartThumbnail = ({
   originSelectedBadgeLabel,
   showOriginSelectionBadge,
 }: {
-  readonly file: ProcessedFileLike;
+  readonly file: ThumbnailFileLike;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
-  readonly plotModel: ExplorerThumbnailPlotModel | null;
+  readonly plotModel: ThumbnailPlotModel | null;
   readonly plotType: PlotType;
   readonly thumbnailService: Pick<IThumbnailService, "drawPlotThumbnail"> | null;
   readonly isOriginSelected: boolean;
@@ -146,10 +146,10 @@ const createPlotMainThumbnailCanvas = ({
   plotType,
   thumbnailService,
 }: {
-  readonly file: ProcessedFileLike;
+  readonly file: ThumbnailFileLike;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
-  readonly plotModel: ExplorerThumbnailPlotModel;
+  readonly plotModel: ThumbnailPlotModel;
   readonly plotType: PlotType;
   readonly thumbnailService: Pick<IThumbnailService, "drawPlotThumbnail">;
 }): HTMLCanvasElement => {

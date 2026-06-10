@@ -4,7 +4,7 @@
 
 import assert from "assert";
 
-import { createExplorerSessionWorkflow } from "src/cs/workbench/contrib/files/browser/explorerSessionWorkflow";
+import { createExplorerSessionWorkflow } from "src/cs/workbench/contrib/files/browser/explorerPaneInput";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import type {
@@ -13,7 +13,7 @@ import type {
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 
-suite("workbench/contrib/files/browser/explorerSessionWorkflow", () => {
+suite("workbench/contrib/files/browser/explorerPaneInput session workflow", () => {
   test("replacing imported files selects the first file and resets preview state", () => {
     const session = new SessionService();
     const importedFile = createImportedSessionFile({
