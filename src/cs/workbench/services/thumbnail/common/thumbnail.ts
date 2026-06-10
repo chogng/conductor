@@ -10,30 +10,6 @@ import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plo
 export const IThumbnailService = createDecorator<IThumbnailService>("thumbnailService");
 export const ThumbnailContributionId = "workbench.contrib.thumbnail";
 
-export type ThumbnailRequest = {
-	readonly fileId: string;
-	readonly height: number;
-	readonly plotType: PlotType;
-	readonly settingsSignature: string;
-	readonly width: number;
-};
-
-export type ThumbnailCacheKey = {
-	readonly fileId: string;
-	readonly plotModelSignature: string;
-	readonly size: {
-		readonly height: number;
-		readonly width: number;
-	};
-	readonly theme?: string;
-};
-
-export type ThumbnailResult = {
-	readonly createdAt: number;
-	readonly diagnostics: readonly string[];
-	readonly key: ThumbnailCacheKey;
-};
-
 export type ThumbnailBitmapOptions = {
 	readonly model: PlotMainRenderModelSource & {
 		readonly signature: string;

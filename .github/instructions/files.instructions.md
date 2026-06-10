@@ -135,11 +135,12 @@ Explorer UI owns:
 - tree vs thumbnail layout mode;
 - the Explorer more actionbar placement for switching layouts;
 - tree item hover triggers, hover timing, anchors, context-view containers, positioning, and dismissal;
+- thumbnail file visibility/filtering before thumbnail UI is rendered;
 - file/folder commands and context menu dispatch;
 - drag/drop/dialog/clipboard source collection orchestration;
 - coordinating source collection, file conversion, file transfer helpers, and committing successful conversion results through `ISessionService`.
 
-Explorer consumes thumbnail UI for thumbnail layout cards and tree-layout hover previews. Thumbnail content is rendered by `src/cs/workbench/contrib/thumbnail`; Explorer owns the trigger, container, selection, file item actions, and lifecycle.
+Explorer consumes thumbnail UI for thumbnail layout cards and tree-layout hover previews. Thumbnail content is rendered by `src/cs/workbench/contrib/thumbnail`; Explorer owns the trigger, container, selection, file item actions, file visibility filtering, and lifecycle.
 
 Files service conversion modules own:
 
@@ -263,11 +264,14 @@ Explorer view code should:
 - manage row templates and context menu presentation;
 - own tree/list hover trigger, hover timing, anchor, context-view container, positioning, and dismissal;
 - call thumbnail UI factories for thumbnail card and hover-preview content;
+- narrow thumbnail files from Explorer view-model inputs before rendering cards;
+- clear only Explorer-owned thumbnail DOM/hover caches on prop changes;
 - call commands or service methods for user actions;
 - not read raw table rows directly;
 - not build plot models directly.
 
 Thumbnail mode is an Explorer layout mode, not a `FilterViewPane`. Filtering or narrowing thumbnail inputs is Explorer business logic unless a shared view-level filter widget is intentionally introduced.
+Explorer view rerenders must not call `IThumbnailService.clear()` as a generic invalidation step. Thumbnail bitmap cache invalidation belongs to the thumbnail service cache key/signature logic or to an explicit thumbnail cache command.
 
 ## Explorer Tree/Thumbnail Wiring
 
@@ -572,3 +576,5 @@ FileViewImport
 - Do not create thumbnail-specific duplicates of Explorer file item actions or commands.
 - Do not move tree item hover trigger, timing, anchors, context-view placement, or dismissal into thumbnail contribution code.
 - Do not move thumbnail bitmap/cache rendering into Explorer/files code; Explorer provides containers and user-intent wiring, thumbnail renders thumbnail content.
+- Do not put thumbnail file visibility/filter helpers under `workbench/services/thumbnail`; Explorer/files owns those view-model decisions.
+- Do not clear `IThumbnailService` global bitmap cache from Explorer view prop-change handling.

@@ -323,7 +323,7 @@ export class ExplorerViewer implements IDisposable {
 
     this.props = nextProps;
     if (shouldClearPlotCache) {
-      this.clearThumbnailCaches();
+      this.clearHoverThumbnailCache();
     }
     const host = this.thumbnailHost.parentElement;
     if (host) {
@@ -372,7 +372,7 @@ export class ExplorerViewer implements IDisposable {
     this.cancelFileItemHoverHide();
     this.cancelFileItemHoverLayout();
     this.closeFileItemHoverView();
-    this.clearThumbnailCaches();
+    this.clearHoverThumbnailCache();
     this.disposables.dispose();
   }
 
@@ -1285,12 +1285,11 @@ export class ExplorerViewer implements IDisposable {
       : null;
   }
 
-  private clearThumbnailCaches(): void {
+  private clearHoverThumbnailCache(): void {
     for (const entry of this.hoverThumbnailCache.values()) {
       entry.node.remove();
     }
     this.hoverThumbnailCache.clear();
-    this.props.thumbnailService.clear();
   }
 
   private shouldClearThumbnailPlotCache(
