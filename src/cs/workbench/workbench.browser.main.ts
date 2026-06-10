@@ -30,7 +30,6 @@ import "src/cs/workbench/services/template/browser/templateService";
 import "src/cs/workbench/services/thumbnail/browser/thumbnailService";
 import "src/cs/workbench/services/views/browser/viewDescriptorService";
 import "src/cs/workbench/services/views/browser/viewsService";
-import "src/cs/workbench/services/views/browser/workbenchViewModeService";
 import "src/cs/workbench/services/table/browser/tableService";
 
 //#endregion

@@ -51,6 +51,35 @@ Views registry/model
 
 Concrete `ViewPane` subclasses own feature UI/content, feature service subscriptions, feature actions, and feature-specific rendering.
 
+## Service naming and API rules
+
+Use explicit names for view runtime orchestration.
+
+- The workbench-level runtime orchestration service is `ViewsService`.
+- If the service is exposed through dependency injection or another explicit contract, name that contract `IViewsService`.
+- Do not introduce additional workbench-wide services for view orchestration unless the responsibility is genuinely separate from `ViewsService`.
+
+Use workbench concepts in `ViewsService` APIs.
+
+```ts
+interface IViewsService {
+	openView(id: string, focus?: boolean): Promise<IView | undefined>;
+	openViewContainer(id: string): Promise<IViewContainer | undefined>;
+	isViewVisible(id: string): boolean;
+	getViewContainerByViewId(id: string): ViewContainer | undefined;
+}
+```
+
+Acceptable `ViewsService` parameters and return types are workbench view concepts such as view ids, container ids, descriptors, visibility state, and container/model objects. `ViewsService` should not expose feature-specific operations such as:
+
+```ts
+refreshFilesView(): void;
+setCurrentDevice(deviceId: string): void;
+recomputeAnalysis(): Promise<void>;
+```
+
+Feature services stay feature-owned. A concrete `ViewPane` may depend on feature services to render content and react to feature data, but `ViewsService` and `ViewPaneContainer` should not create feature services, subscribe to feature data, or expose feature-specific commands.
+
 ## Migration rules
 
 Do not move concrete view subscriptions into `ViewPaneContainer` just because multiple views need disposal. If the subscription belongs to the feature pane, register it on the pane.

@@ -26,7 +26,6 @@ export class SearchViewPane extends ViewPane {
       title: localize("search_heading", "Search"),
       className: "auxiliarybar_view_pane search_view_pane",
       bodyClassName: "workbench-part-view-pane__body",
-      headerVisible: false,
     });
     this.pane.className = "search_view";
     this.content.className = "search_view_content";

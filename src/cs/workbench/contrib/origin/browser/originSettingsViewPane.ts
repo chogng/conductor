@@ -49,7 +49,6 @@ export class OriginSettingsViewPane extends ViewPane {
       title: localize("chart_curve_settings_title", "Origin Settings"),
       className: "auxiliarybar_view_pane origin_settings_view_pane",
       bodyClassName: "workbench-part-view-pane__body",
-      headerVisible: false,
     });
     this.pane.className = "origin_settings_pane";
     this.pane.append(this.scrollArea.element);

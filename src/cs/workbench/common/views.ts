@@ -441,7 +441,6 @@ export interface IView extends IDisposable {
   isVisible(): boolean;
   isBodyVisible(): boolean;
   setVisible(visible: boolean): boolean;
-  setExpanded(expanded: boolean): boolean;
   getProgressIndicator(): unknown | undefined;
 }
 

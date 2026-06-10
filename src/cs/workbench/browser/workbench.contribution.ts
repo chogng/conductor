@@ -104,10 +104,6 @@ import {
   ISessionService,
   type ISessionService as ISessionServiceType,
 } from "src/cs/workbench/services/session/common/session";
-import {
-  IWorkbenchViewModeService,
-  type IWorkbenchViewModeService as IWorkbenchViewModeServiceType,
-} from "src/cs/workbench/services/views/common/workbenchViewModeService";
 import { ResetLayoutStateCommandId } from "src/cs/workbench/services/layout/browser/layoutConstants";
 
 export const WorkbenchContributionId = "workbench.browser.workbench";
@@ -163,7 +159,6 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @ITemplateApplyService templateApplyService: ITemplateApplyServiceType,
     @ITemplateService templateService: ITemplateServiceType,
     @ISessionService sessionService: ISessionServiceType,
-    @IWorkbenchViewModeService workbenchViewModeService: IWorkbenchViewModeServiceType,
     @IStorageService storageService: IStorageServiceType,
     @IInstantiationService instantiationService: IInstantiationServiceType,
   ) {
@@ -197,7 +192,6 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       tableService,
       templateApplyService,
       templateService,
-      workbenchViewModeService,
     }));
     this._register(CommandsRegistry.registerCommand({
       id: ResetLayoutStateCommandId,

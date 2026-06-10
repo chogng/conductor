@@ -24,7 +24,6 @@ export class SettingsViewPane extends ViewPane {
       title: localize("settings.title", "Settings"),
       className: "settings-view-pane",
       bodyClassName: "workbench-part-view-pane__body",
-      headerVisible: false,
     });
     this._register(this.settingsService.onDidChangeSettingsViewInput(input => {
       this.update(input);

@@ -51,7 +51,6 @@ export class ParametersViewPane extends ViewPane {
       title: localize("analysis_views_parameters", "Parameters"),
       className: "auxiliarybar_view_pane parameters_view_pane",
       bodyClassName: "workbench-part-view-pane__body",
-      headerVisible: false,
     });
     this.pane.className = "parameters_pane";
     this.view.className = "parameters_view";

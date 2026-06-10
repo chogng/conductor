@@ -85,7 +85,6 @@ export class TableViewPane extends ViewPane {
       title: localize("table.ariaLabel", "Table"),
       className: "table-view-pane-root",
       bodyClassName: "workbench-part-view-pane__body",
-      headerVisible: false,
     });
     this.zoomControl = this.createZoomControl();
     this.actionBar = new ActionBar({

@@ -51,7 +51,6 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
       title: TEMPLATE_TITLE,
       className: "auxiliarybar_view_pane template_auxiliarybar_view_pane",
       bodyClassName: "workbench-part-view-pane__body",
-      headerVisible: false,
     });
     this.body.setAttribute("aria-label", TEMPLATE_TITLE);
     this.content.className = "template_pane template_pane--auxiliary";

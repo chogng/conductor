@@ -2,6 +2,8 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+//#region imports
+
 import {
   DisposableStore,
   type IDisposable,
@@ -111,6 +113,7 @@ import type { TemplateSelection } from "src/cs/workbench/services/template/commo
 import {
   CoreSettingsController,
   createCoreSettingsState,
+  type CoreSettingsControllerOptions,
   type CoreSettingsState,
 } from "src/cs/workbench/services/settings/browser/coreSettingsController";
 import type { OriginExportPlan } from "src/cs/workbench/services/export/common/originExport";
@@ -121,6 +124,7 @@ import {
   exportOriginZip,
   type OriginDisplayRange,
 } from "src/cs/workbench/services/origin/browser/originController";
+import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type {
   PlotAxisTitleContext,
   PlotType,
@@ -135,7 +139,6 @@ import {
   type FileAxisSettingsByFileId,
 } from "src/cs/workbench/services/session/browser/fileSemanticsSync";
 import { createChartViewInput } from "src/cs/workbench/services/chart/browser/chartViewInput";
-import type { IWorkbenchViewModeService } from "src/cs/workbench/services/views/common/workbenchViewModeService";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
   closeWindow,
@@ -147,6 +150,10 @@ import { notificationService } from "src/cs/workbench/services/notification/comm
 import { NotificationToasts } from "src/cs/workbench/browser/parts/notifications/notificationsToasts";
 import { registerNotificationCommands } from "src/cs/workbench/browser/parts/notifications/notificationsCommands";
 import { ResetLayoutStateCommandId } from "src/cs/workbench/services/layout/browser/layoutConstants";
+
+//#endregion
+
+//#region types and startup helpers
 
 export type WorkbenchTitlebarState = {
   readonly enabled?: boolean;
@@ -199,7 +206,6 @@ export type WorkbenchOptions = {
   readonly templateProcessingBackendService?: ITemplateProcessingBackendService;
   readonly templateService?: ITemplateService;
   readonly tableService?: ITableService;
-  readonly workbenchViewModeService?: IWorkbenchViewModeService;
   readonly titlebarState?: WorkbenchTitlebarState;
 };
 
@@ -256,7 +262,11 @@ const resolveInitialWorkbenchViewMode = (
 ): WorkbenchMainPart =>
   createSessionReadModel(snapshot).hasAnalysisData ? "chart" : "table";
 
+//#endregion
+
 export class Workbench extends Layout {
+  //#region state and dependencies
+
   private readonly window: WorkbenchWindow;
   private readonly notifications: NotificationToasts;
   private language: LanguageCode = getInitialLanguage();
@@ -282,7 +292,6 @@ export class Workbench extends Layout {
   private readonly templateApplyService: ITemplateApplyService;
   private readonly templateProcessingBackendService: ITemplateProcessingBackendService;
   private readonly templateService: ITemplateService;
-  private readonly workbenchViewModeService: IWorkbenchViewModeService;
   private readonly exportService: IExportService;
   private readonly originChartXRangeRef: { current: OriginDisplayRange | null } = { current: null };
   private readonly originChartYRangeRef: {
@@ -301,13 +310,14 @@ export class Workbench extends Layout {
     : "system";
   private tableStateListener: (() => void) | null = null;
   private tableStateModel: TableModel | null = null;
+  private workbenchViewMode: WorkbenchMainPart = "table";
+
+  //#endregion
+
+  //#region lifecycle and rendering
 
   public get contentElement(): HTMLElement {
     return this.window.contentElement;
-  }
-
-  private get workbenchViewMode(): WorkbenchMainPart {
-    return this.workbenchViewModeService.viewMode;
   }
 
   private get activePlotType(): PlotType {
@@ -384,9 +394,6 @@ export class Workbench extends Layout {
     if (!options.templateService) {
       throw new Error("Workbench requires ITemplateService.");
     }
-    if (!options.workbenchViewModeService) {
-      throw new Error("Workbench requires IWorkbenchViewModeService.");
-    }
     this.filesService = options.filesService;
     this.chartService = options.chartService;
     this.dialogsService = options.dialogsService;
@@ -415,9 +422,8 @@ export class Workbench extends Layout {
     this.templateApplyService = options.templateApplyService;
     this.templateProcessingBackendService = options.templateProcessingBackendService;
     this.templateService = options.templateService;
-    this.workbenchViewModeService = options.workbenchViewModeService;
     const initialViewMode = resolveInitialWorkbenchViewMode(this.session.getSnapshot());
-    this.workbenchViewModeService.setViewMode(initialViewMode);
+    this.workbenchViewMode = initialViewMode;
     this._register(this.createNotificationsHandlers());
     this.templateApply = this._register(new TemplateApplyController({
       sessionService: this.session,
@@ -433,9 +439,6 @@ export class Workbench extends Layout {
     this._register(this.coreSettingsController.onDidChangeState((state) => {
       this.coreSettingsState = state;
       this.settingsService.updateSettingsViewInput(this.getSettingsProps());
-    }));
-    this._register(this.workbenchViewModeService.onDidChangeViewMode(() => {
-      this.renderWorkbench();
     }));
     this._register(this.explorerService.onDidChangeSelection(() => {
       this.renderWorkbench();
@@ -599,6 +602,10 @@ export class Workbench extends Layout {
       onToggleMaximizeWindow: () => toggleWindowMaximized(),
     };
   }
+
+  //#endregion
+
+  //#region view containers and visible parts
 
   private updateViewContainers(): void {
     const isSettingsActive = this.activeView === "settings";
@@ -831,6 +838,10 @@ export class Workbench extends Layout {
     return element instanceof HTMLElement ? element : fallback;
   }
 
+  //#endregion
+
+  //#region navigation
+
   private handleNavigateBack(): void {
     this.navigateBack();
     this.renderWorkbench();
@@ -883,11 +894,15 @@ export class Workbench extends Layout {
     if (this.activeView !== viewMode) {
       this.navigateToView(viewMode);
     }
-    this.workbenchViewModeService.setViewMode(viewMode);
+    this.workbenchViewMode = viewMode;
     if (previousViewMode === viewMode) {
       this.renderWorkbench();
     }
   }
+
+  //#endregion
+
+  //#region view inputs and selection
 
   private getSelectedAnalysisFileId(readModel: SessionReadModel): string | null {
     return resolveExplorerSessionSelection(this.explorerService, readModel).selectedAnalysisFileId;
@@ -1025,6 +1040,10 @@ export class Workbench extends Layout {
     });
   }
 
+  //#endregion
+
+  //#region plot and settings mutations
+
   private readonly setActivePlotType = (plotType: PlotType): void => {
     this.plotService.setActivePlotType(plotType);
   };
@@ -1089,12 +1108,12 @@ export class Workbench extends Layout {
       : fallback;
   };
 
-  private readonly updateOriginPlotOptions = async (updates: unknown): Promise<void> => {
+  private readonly updateOriginPlotOptions = async (updates: Partial<OriginPlotOptions>): Promise<void> => {
     if (!updates || typeof updates !== "object") {
       return;
     }
 
-    const plotUpdates = updates as Partial<CoreSettingsState["originOpenPlotOptions"]>;
+    const plotUpdates = updates;
     const settingsUpdates: Record<string, unknown> = {};
     if (plotUpdates.type !== undefined) {
       settingsUpdates.originPlotTypeDefault = plotUpdates.type;
@@ -1118,7 +1137,7 @@ export class Workbench extends Layout {
     await this.coreSettingsState.updateConductorSettings(settingsUpdates);
   };
 
-  private readonly updatePlotAxisSettings = async (updates: unknown): Promise<void> => {
+  private readonly updatePlotAxisSettings = async (updates: Record<string, unknown>): Promise<void> => {
     if (!updates || typeof updates !== "object") {
       return;
     }
@@ -1169,6 +1188,10 @@ export class Workbench extends Layout {
     this.renderWorkbench();
   };
 
+  //#endregion
+
+  //#region derived models and settings
+
   private getTableModel(
     snapshot = this.session.getSnapshot(),
     readModel = createSessionReadModel(snapshot),
@@ -1218,7 +1241,7 @@ export class Workbench extends Layout {
     };
   }
 
-  private getCoreSettingsOptions() {
+  private getCoreSettingsOptions(): CoreSettingsControllerOptions {
     return {
       applyAppearanceSettings: (settings) =>
         this.setAppearance(normalizeWorkbenchAppearance(settings)),
@@ -1288,7 +1311,11 @@ export class Workbench extends Layout {
       }
     }
   };
+
+  //#endregion
 }
+
+//#region local helpers
 
 const getSeriesLabelsFromRecord = (
   file: FileRecord | null | undefined,
@@ -1335,3 +1362,5 @@ const applyThemeMode = (theme: ThemeMode): void => {
   document.documentElement.classList.add(resolvedTheme);
   document.documentElement.style.colorScheme = resolvedTheme;
 };
+
+//#endregion

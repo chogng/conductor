@@ -71,7 +71,6 @@ export class FilesPaneHost extends ViewPane {
       title: localize("files.explorerSection", "Explorer"),
       className: "files-view-pane",
       bodyClassName: "workbench-part-view-pane__body",
-      headerVisible: false,
     });
     this.host = document.createElement("div");
     this.host.className = "files-pane-root";

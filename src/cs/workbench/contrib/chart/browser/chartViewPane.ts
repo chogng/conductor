@@ -63,7 +63,6 @@ export class ChartViewPane extends ViewPane {
       title: localize("analysis.visualization", "Analysis & Visualization"),
       className: "chart-view-pane-root",
       bodyClassName: "workbench-part-view-pane__body",
-      headerVisible: false,
     });
     this.analysisPanel = new AnalysisPanel(this.getAnalysisPanelProps(this.props));
     this.updateAnalysisPanelTabState();

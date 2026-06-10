@@ -69,7 +69,6 @@ export class ExportViewPane extends ViewPane {
       title: localize("analysis_views_export", "Export"),
       className: "auxiliarybar_view_pane export_view_pane",
       bodyClassName: "workbench-part-view-pane__body",
-      headerVisible: false,
     });
     this.pane.className = "export_pane";
     this.view.className = "export_view";

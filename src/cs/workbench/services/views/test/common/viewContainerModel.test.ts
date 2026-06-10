@@ -24,10 +24,6 @@ class TestView implements IView {
     return false;
   }
 
-  public setExpanded(): boolean {
-    return false;
-  }
-
   public getProgressIndicator(): unknown | undefined {
     return undefined;
   }
