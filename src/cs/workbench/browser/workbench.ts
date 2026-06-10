@@ -1,6 +1,9 @@
-﻿import {
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import {
   DisposableStore,
-  toDisposable,
   type IDisposable,
 } from "src/cs/base/common/lifecycle";
 import type {
@@ -9,10 +12,6 @@ import type {
 } from "src/cs/platform/language/common/language";
 import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
-import type {
-  IContextMenuService,
-  IContextViewService,
-} from "src/cs/platform/contextview/browser/contextView";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { IStorageService } from "src/cs/platform/storage/common/storage";
 import type {
@@ -20,7 +19,24 @@ import type {
   IContextKeyService,
 } from "src/cs/platform/contextkey/common/contextkey";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
-import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
+import {
+  ChartViewId,
+  type IChartService,
+} from "src/cs/workbench/services/chart/common/chart";
+import {
+  ExplorerViewId,
+  type IExplorerService,
+} from "src/cs/workbench/services/explorer/common/explorer";
+import type { IParametersService } from "src/cs/workbench/services/parameters/common/parameters";
+import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
+import type { ISearchService } from "src/cs/workbench/services/search/common/search";
+import {
+  SettingsViewId,
+  type ISettingsService,
+} from "src/cs/workbench/services/settings/common/settings";
+import type {
+  ITemplateProcessingBackendService,
+} from "src/cs/workbench/services/template/common/templateProcessingBackend";
 import {
   Parts,
   type IWorkbenchLayoutService,
@@ -32,9 +48,6 @@ import {
   resolveLanguageCode,
 } from "src/cs/platform/language/common/language";
 import { localize } from "src/cs/nls";
-import {
-  getCalculatedData,
-} from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
@@ -50,7 +63,6 @@ import {
 } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import {
   AuxiliaryBarViews,
-  getAuxiliaryBarTitleForMode,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
 import { AuxiliaryBarModel } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarModel";
 import type { WorkbenchStyle } from "src/cs/workbench/browser/style";
@@ -63,46 +75,26 @@ import {
   getWorkbenchWindowState,
   WorkbenchWindow,
 } from "src/cs/workbench/browser/window";
-import ChartViewPane from "src/cs/workbench/contrib/chart/browser/chartViewPane";
-import { createChartFileOptionsFromRecords } from "src/cs/workbench/contrib/chart/browser/chartFileSelect";
-import {
-  createOriginCurveOptions,
-  createOriginCurveOptionsFromRecord,
-  ORIGIN_EXPORT_CONTENT_OPTIONS,
-} from "src/cs/workbench/contrib/export/browser/exportModel";
-import {
-  createExportProcessedFilesFromRecords,
-} from "src/cs/workbench/contrib/export/browser/export";
-import {
-  BrowserExportService,
-} from "src/cs/workbench/contrib/export/browser/exportService";
-import { TemplateAuxiliaryBarViewPane } from "src/cs/workbench/contrib/template/browser/templateAuxiliaryBarViewPane";
-import TemplateViewPane from "src/cs/workbench/contrib/template/browser/templateViewPane";
-import { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
-import { getWorkbenchContribution } from "src/cs/workbench/common/contributions";
-import type { TableContribution } from "src/cs/workbench/contrib/table/browser/table.contribution";
-import { TableContributionId } from "src/cs/workbench/contrib/table/common/table";
-import { FilesPaneHost } from "src/cs/workbench/contrib/files/browser/filesPaneHost";
-import type { FilesPaneRef } from "src/cs/workbench/contrib/files/common/files";
-import { createChartExplorerFilesFromRecords } from "src/cs/workbench/contrib/files/common/explorerInput";
+import { TableViewId } from "src/cs/workbench/services/table/common/table";
+import { createExplorerAnalysisFileOptionsFromRecords } from "src/cs/workbench/services/explorer/common/explorerAnalysisFileOptions";
 import {
   TemplateApplyController,
-  type TemplateApplyControllerInput,
-} from "src/cs/workbench/contrib/template/browser/templateApplyController";
-import { createSessionActions } from "src/cs/workbench/browser/sessionActions";
+} from "src/cs/workbench/services/template/browser/templateApplyController";
+import { createTemplateApplyInput } from "src/cs/workbench/services/template/browser/templateApplyInput";
+import { createExplorerPaneInput } from "src/cs/workbench/services/explorer/browser/explorerPaneInput";
+import {
+  reconcileExplorerSessionSelection,
+  resolveExplorerSessionSelection,
+} from "src/cs/workbench/services/explorer/common/explorerSessionSelection";
 import type {
   ISessionService as ISessionServiceType,
   SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
 import {
-  getSelectedTemplateIdFromViewState,
-  getTemplateFormStateFromViewState,
-  getTemplateModeFromViewState,
-  getTemplateSelectionsFromViewState,
-  resolveFileIdFromTarget,
   type FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
+  createProcessedEntryFromFileRecord,
   createSessionReadModel,
   hasFileRecordAnalysisData,
   type SessionReadModel,
@@ -110,64 +102,45 @@ import {
 import type {
   ITableService,
   TableModel,
-} from "src/cs/workbench/contrib/table/common/tableService";
+} from "src/cs/workbench/services/table/common/table";
 import type {
   ITemplateApplyService,
   ITemplateService,
-} from "src/cs/workbench/contrib/template/common/template";
-import {
-  createTemplateSelection,
-  type TemplateSelection,
-} from "src/cs/workbench/contrib/template/common/templateSelection";
-import type { IThumbnailService } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
+} from "src/cs/workbench/services/template/common/template";
+import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 import {
   CoreSettingsController,
   createCoreSettingsState,
   type CoreSettingsState,
-} from "src/cs/workbench/contrib/settings/browser/coreSettingsController";
-import { SettingsViewPane } from "src/cs/workbench/contrib/settings/browser/settingsViewPane";
-import { ExportViewPane } from "src/cs/workbench/contrib/export/browser/exportViewPane";
-import type {
-  OriginCanvasExportScope,
-  OriginCurveExportMode,
-  OriginFilteredCanvasKind,
-} from "src/cs/workbench/contrib/export/browser/originCanvasExport";
+} from "src/cs/workbench/services/settings/browser/coreSettingsController";
+import type { OriginExportPlan } from "src/cs/workbench/services/export/common/originExport";
 import {
-  buildOriginExportPlan,
-  type OriginYAxisScaleMode,
-  type OriginExportPlan,
-  OriginExportContentKey,
-  OriginExportMode,
-} from "src/cs/workbench/contrib/export/common/originSelectionExport";
-import { ExportViewId } from "src/cs/workbench/contrib/export/common/export";
+  type IExportService,
+} from "src/cs/workbench/services/export/common/export";
 import {
   exportOriginZip,
   type OriginDisplayRange,
-} from "src/cs/workbench/contrib/origin/browser/originController";
-import { ParametersViewPane } from "src/cs/workbench/contrib/parameters/browser/parametersViewPane";
-import { createParametersViewState } from "src/cs/workbench/contrib/parameters/browser/parametersModel";
-import { ParametersViewId } from "src/cs/workbench/contrib/parameters/common/parameters";
-import { OriginSettingsViewPane } from "src/cs/workbench/contrib/origin/browser/originSettingsViewPane";
-import { OriginExportSettingsViewId } from "src/cs/workbench/contrib/origin/common/origin";
-import { SearchViewPane } from "src/cs/workbench/contrib/search/browser/searchViewPane";
-import { SearchViewId } from "src/cs/workbench/contrib/search/common/search";
-import { createPlotMainRenderModel } from "src/cs/workbench/contrib/plot/browser/plotMainRenderModel";
-import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
+} from "src/cs/workbench/services/origin/browser/originController";
+import type {
+  PlotAxisTitleContext,
+  PlotType,
+} from "src/cs/workbench/services/plot/common/plot";
+import type { XUnit, YUnit } from "src/cs/workbench/services/plot/common/units";
+import type {
+  ProcessedEntry,
+  ProcessedSeries,
+} from "src/cs/workbench/services/session/common/sessionTypes";
 import {
-  getXUnitMeta,
-  getYUnitMeta,
-  normalizeXUnit,
-  normalizeYUnit,
-  type XUnit,
-  type YUnit,
-} from "src/cs/workbench/contrib/plot/common/units";
-import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
-import type { CurveYScale } from "src/cs/workbench/services/session/common/fileSemantics";
+  getFileAxisSettingsByFileId,
+  type FileAxisSettingsByFileId,
+} from "src/cs/workbench/services/session/browser/fileSemanticsSync";
+import { createChartViewInput } from "src/cs/workbench/services/chart/browser/chartViewInput";
 import type { IWorkbenchViewModeService } from "src/cs/workbench/services/views/common/workbenchViewModeService";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
   closeWindow,
   minimizeWindow,
+  reloadWindow,
   toggleWindowMaximized,
 } from "src/cs/workbench/browser/actions/windowActions";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
@@ -200,50 +173,31 @@ export type WorkbenchTitlebarState = {
 
 type WorkbenchSessionSnapshot = SessionSnapshot;
 
-type FileAxisSettingsByFileId = {
-  readonly xUnitByFileId: Record<string, string>;
-  readonly yScaleByFileId: Record<string, CurveYScale>;
-  readonly yUnitByFileId: Record<string, string>;
-};
-
-type OriginExportFile = {
-  readonly calculationCache?: unknown;
-  readonly curveType?: string;
-  readonly fileId?: string;
-  readonly fileName?: string;
-  readonly series?: ProcessedEntry["series"];
-  readonly xAxisRole?: string;
-  readonly xGroups?: number[][];
-  readonly xLabel?: string;
-  readonly xUnit?: string;
-  readonly yLabel?: string;
-  readonly yUnit?: string;
-  readonly [key: string]: unknown;
-};
-
-type OriginExportSeries = NonNullable<OriginExportFile["series"]>[number];
-
 export type WorkbenchOptions = {
   readonly className?: string;
-  readonly analysisFileService?: IAnalysisFileService;
+  readonly chartService?: IChartService;
   readonly commandService?: ICommandService;
   readonly contextKeyService?: IContextKeyService;
-  readonly contextMenuService?: IContextMenuService;
-  readonly contextViewService?: IContextViewService;
   readonly dialogsService?: IFileDialogService;
+  readonly explorerService?: IExplorerService;
+  readonly exportService?: IExportService;
   readonly filesService?: IFileService;
   readonly pathService?: IPathService;
   readonly sessionService?: ISessionServiceType;
   readonly storageService?: IStorageService;
   readonly layoutService?: IWorkbenchLayoutService;
+  readonly parametersService?: IParametersService;
+  readonly plotService?: IPlotService;
+  readonly searchService?: ISearchService;
+  readonly settingsService?: ISettingsService;
   readonly viewsService?: IViewsService;
   readonly id?: string;
   readonly showDesktopCommandBar?: boolean;
   readonly showSkeleton?: boolean;
   readonly style?: WorkbenchStyle;
   readonly templateApplyService?: ITemplateApplyService;
+  readonly templateProcessingBackendService?: ITemplateProcessingBackendService;
   readonly templateService?: ITemplateService;
-  readonly thumbnailService?: IThumbnailService;
   readonly tableService?: ITableService;
   readonly workbenchViewModeService?: IWorkbenchViewModeService;
   readonly titlebarState?: WorkbenchTitlebarState;
@@ -307,38 +261,29 @@ export class Workbench extends Layout {
   private readonly notifications: NotificationToasts;
   private language: LanguageCode = getInitialLanguage();
   private languagePreference: LanguagePreference = getInitialLanguagePreference();
-  private readonly filesPaneRef: { current: FilesPaneRef | null } = { current: null };
   private readonly session: ISessionServiceType;
-  private readonly filesPane: FilesPaneHost;
   private readonly commandService: ICommandService;
   private readonly activeWorkbenchViewContext: IContextKey<string> | null = null;
   private readonly activeWorkbenchMainPartContext: IContextKey<WorkbenchMainPart | ""> | null = null;
   private readonly activeAuxiliaryBarViewContext: IContextKey<string> | null = null;
-  private readonly table: TableContribution;
-  private readonly templateViewPane: TemplateViewPane;
-  private readonly templateAuxiliaryBarViewPane: TemplateAuxiliaryBarViewPane;
-  private readonly exportViewPane: ExportViewPane;
-  private readonly searchViewPane: SearchViewPane;
-  private readonly parametersViewPane: ParametersViewPane;
-  private readonly originSettingsViewPane: OriginSettingsViewPane;
-  private readonly analysis: ChartViewPane;
-  private readonly settings: SettingsViewPane;
   private readonly templateApply: TemplateApplyController;
   private readonly dialogsService: IFileDialogService;
-  private readonly analysisFileService: IAnalysisFileService;
+  private readonly chartService: IChartService;
+  private readonly explorerService: IExplorerService;
   private readonly filesService: IFileService;
-  private readonly contextMenuService: IContextMenuService;
-  private readonly contextViewService: IContextViewService;
   private readonly layoutService: IWorkbenchLayoutService;
+  private readonly parametersService: IParametersService;
+  private readonly plotService: IPlotService;
+  private readonly searchService: ISearchService;
+  private readonly settingsService: ISettingsService;
   private readonly pathService: IPathService;
   private readonly viewsService: IViewsService;
   private readonly tableService: ITableService;
   private readonly templateApplyService: ITemplateApplyService;
+  private readonly templateProcessingBackendService: ITemplateProcessingBackendService;
   private readonly templateService: ITemplateService;
-  private readonly thumbnailService: IThumbnailService;
   private readonly workbenchViewModeService: IWorkbenchViewModeService;
-  private readonly templateImportController: TemplateImportController;
-  private readonly exportService = new BrowserExportService();
+  private readonly exportService: IExportService;
   private readonly originChartXRangeRef: { current: OriginDisplayRange | null } = { current: null };
   private readonly originChartYRangeRef: {
     current: {
@@ -354,14 +299,8 @@ export class Workbench extends Layout {
   private theme: ThemeMode = isThemeMode(window.__CONDUCTOR_INITIAL_THEME__)
     ? window.__CONDUCTOR_INITIAL_THEME__
     : "system";
-  private activePlotType: PlotType = "iv";
-  private originMode: OriginExportMode = "merged";
-  private canvasScope: OriginCanvasExportScope = "current";
-  private filteredKind: OriginFilteredCanvasKind = "output";
-  private curveMode: OriginCurveExportMode = "all";
-  private selectedContentKeys: OriginExportContentKey[] = ["iv"];
-  private selectedCurveKeys = new Set<string>();
-  private isSyncingFileSemantics = false;
+  private tableStateListener: (() => void) | null = null;
+  private tableStateModel: TableModel | null = null;
 
   public get contentElement(): HTMLElement {
     return this.window.contentElement;
@@ -369,6 +308,10 @@ export class Workbench extends Layout {
 
   private get workbenchViewMode(): WorkbenchMainPart {
     return this.workbenchViewModeService.viewMode;
+  }
+
+  private get activePlotType(): PlotType {
+    return this.plotService.getState().activePlotType;
   }
 
   constructor(parent: HTMLElement, options: WorkbenchOptions = {}) {
@@ -387,20 +330,20 @@ export class Workbench extends Layout {
     if (!options.tableService) {
       throw new Error("Workbench requires ITableService.");
     }
-    if (!options.analysisFileService) {
-      throw new Error("Workbench requires IAnalysisFileService.");
-    }
     if (!options.filesService) {
       throw new Error("Workbench requires IFileService.");
+    }
+    if (!options.chartService) {
+      throw new Error("Workbench requires IChartService.");
     }
     if (!options.dialogsService) {
       throw new Error("Workbench requires IFileDialogService.");
     }
-    if (!options.contextMenuService) {
-      throw new Error("Workbench requires IContextMenuService.");
+    if (!options.explorerService) {
+      throw new Error("Workbench requires IExplorerService.");
     }
-    if (!options.contextViewService) {
-      throw new Error("Workbench requires IContextViewService.");
+    if (!options.exportService) {
+      throw new Error("Workbench requires IExportService.");
     }
     if (!options.commandService) {
       throw new Error("Workbench requires ICommandService.");
@@ -417,83 +360,99 @@ export class Workbench extends Layout {
     if (!options.layoutService) {
       throw new Error("Workbench requires IWorkbenchLayoutService.");
     }
+    if (!options.parametersService) {
+      throw new Error("Workbench requires IParametersService.");
+    }
+    if (!options.plotService) {
+      throw new Error("Workbench requires IPlotService.");
+    }
+    if (!options.searchService) {
+      throw new Error("Workbench requires ISearchService.");
+    }
+    if (!options.settingsService) {
+      throw new Error("Workbench requires ISettingsService.");
+    }
     if (!options.viewsService) {
       throw new Error("Workbench requires IViewsService.");
     }
     if (!options.templateApplyService) {
       throw new Error("Workbench requires ITemplateApplyService.");
     }
+    if (!options.templateProcessingBackendService) {
+      throw new Error("Workbench requires ITemplateProcessingBackendService.");
+    }
     if (!options.templateService) {
       throw new Error("Workbench requires ITemplateService.");
-    }
-    if (!options.thumbnailService) {
-      throw new Error("Workbench requires IThumbnailService.");
     }
     if (!options.workbenchViewModeService) {
       throw new Error("Workbench requires IWorkbenchViewModeService.");
     }
     this.filesService = options.filesService;
-    this.analysisFileService = options.analysisFileService;
+    this.chartService = options.chartService;
     this.dialogsService = options.dialogsService;
-    this.contextMenuService = options.contextMenuService;
-    this.contextViewService = options.contextViewService;
+    this.explorerService = options.explorerService;
+    this.exportService = options.exportService;
     this.commandService = options.commandService;
     this.layoutService = options.layoutService;
+    this.parametersService = options.parametersService;
+    this.plotService = options.plotService;
+    this.searchService = options.searchService;
+    this.settingsService = options.settingsService;
     this.activeWorkbenchViewContext = ActiveWorkbenchViewContext.bindTo(options.contextKeyService);
     this.activeWorkbenchMainPartContext = ActiveWorkbenchMainPartContext.bindTo(options.contextKeyService);
     this.activeAuxiliaryBarViewContext = ActiveAuxiliaryBarViewContext.bindTo(options.contextKeyService);
     this.pathService = options.pathService;
     this.session = options.sessionService;
-    this._register(toDisposableSession(this.session));
     this.viewsService = options.viewsService;
     this.tableService = options.tableService;
+    this._register({
+      dispose: () => {
+        this.tableStateListener?.();
+        this.tableStateListener = null;
+        this.tableStateModel = null;
+      },
+    });
     this.templateApplyService = options.templateApplyService;
+    this.templateProcessingBackendService = options.templateProcessingBackendService;
     this.templateService = options.templateService;
-    this.thumbnailService = options.thumbnailService;
     this.workbenchViewModeService = options.workbenchViewModeService;
     const initialViewMode = resolveInitialWorkbenchViewMode(this.session.getSnapshot());
     this.workbenchViewModeService.setViewMode(initialViewMode);
     this._register(this.createNotificationsHandlers());
-    this.templateImportController = new TemplateImportController(
-      this.dialogsService,
-      this.filesService,
-      this.pathService,
-    );
     this.templateApply = this._register(new TemplateApplyController({
-      analysisFileService: this.analysisFileService,
+      sessionService: this.session,
+      templateProcessingBackendService: this.templateProcessingBackendService,
       templateApplyService: this.templateApplyService,
-      batchSessionUpdate: this.session.batch,
-      commitProcessedFile: this.session.commitProcessedFile,
       onExtractionError: () => undefined,
-      resetProcessedData: this.session.resetProcessedData,
       showResults: () => this.showWorkbenchViewMode("chart"),
     }));
     this.templateApply.update(this.getTemplateApplyInput());
-    this.filesPane = this._register(new FilesPaneHost(this.getFilesPaneProps()));
-    this.table = getWorkbenchContribution<TableContribution>(TableContributionId);
-    this.templateViewPane = this._register(new TemplateViewPane(this.getTemplateViewPaneProps()));
-    this.templateAuxiliaryBarViewPane = this._register(new TemplateAuxiliaryBarViewPane(
-      this.templateViewPane.configElement,
-    ));
-    this.exportViewPane = this._register(new ExportViewPane());
-    this.searchViewPane = this._register(new SearchViewPane());
-    this.parametersViewPane = this._register(new ParametersViewPane());
-    this.originSettingsViewPane = this._register(new OriginSettingsViewPane());
-    this.analysis = this._register(new ChartViewPane(this.getAnalysisProps()));
-    this.settings = this._register(new SettingsViewPane(this.getSettingsProps()));
     this.coreSettingsController = this._register(
       new CoreSettingsController(this.getCoreSettingsOptions()),
     );
     this._register(this.coreSettingsController.onDidChangeState((state) => {
       this.coreSettingsState = state;
-      this.settings.update(this.getSettingsProps());
+      this.settingsService.updateSettingsViewInput(this.getSettingsProps());
     }));
     this._register(this.workbenchViewModeService.onDidChangeViewMode(() => {
       this.renderWorkbench();
     }));
-    this._register({
-      dispose: this.session.subscribe(() => this.renderWorkbench()),
-    });
+    this._register(this.explorerService.onDidChangeSelection(() => {
+      this.renderWorkbench();
+    }));
+    this._register(this.parametersService.onDidChangeParametersState(() => {
+      this.renderWorkbench();
+    }));
+    this._register(this.plotService.onDidChangePlotState(() => {
+      this.renderWorkbench();
+    }));
+    this._register(this.exportService.onDidChangeExportState(() => {
+      this.renderWorkbench();
+    }));
+    this._register(this.templateService.onDidChangeTemplateState(() => {
+      this.renderWorkbench();
+    }));
+    this._register(this.session.onDidChangeSession(() => this.renderWorkbench()));
     this.coreSettingsState = this.coreSettingsController.getState();
     this.resetToView(initialViewMode);
     this.renderWorkbench();
@@ -514,52 +473,49 @@ export class Workbench extends Layout {
   private renderWorkbench(): void {
     const snapshot = this.session.getSnapshot();
     const readModel = createSessionReadModel(snapshot);
-    this.syncFileSemantics(snapshot, readModel);
+    reconcileExplorerSessionSelection(this.explorerService, readModel);
     const tableModel = this.getTableModel(snapshot, readModel);
+    this.bindTableModelState(tableModel);
     this.templateApply.update(this.getTemplateApplyInput(
       snapshot,
       readModel,
       tableModel,
     ));
 
-    this.filesPane.update(this.getFilesPaneProps(
+    this.explorerService.updatePaneInput(this.getExplorerPaneInput(
       snapshot,
       readModel,
       tableModel,
       this.templateApply,
     ));
-    this.table.update(this.getTableProps(tableModel));
-    this.templateViewPane.update(this.getTemplateViewPaneProps(
+    this.tableService.updateViewInput(this.getTableProps(tableModel));
+    this.templateService.updateViewInput(this.getTemplateViewInput(
       snapshot,
       readModel,
       tableModel,
       this.templateApply,
     ));
-    this.templateAuxiliaryBarViewPane.update(
-      this.templateViewPane.configElement,
-      getAuxiliaryBarTitleForMode(this.workbenchViewMode, getTemplateModeFromViewState(snapshot.viewState)),
-    );
-    this.analysis.update(this.getAnalysisProps(
+    this.chartService.updateViewInput(this.getAnalysisProps(
       snapshot,
       this.templateApply,
       readModel,
     ));
-    this.settings.update(this.getSettingsProps());
-    this.updateViewContainers();
+    this.settingsService.updateSettingsViewInput(this.getSettingsProps());
     this.updateContextKeys();
+    this.updateViewContainers();
     this.renderAuxiliaryBarView(snapshot, readModel);
     this.setParts({
-      sidebar: this.getViewContainerElement(WorkbenchViewContainers.files, this.filesPane.element),
+      sidebar: this.getViewContainerElement(WorkbenchViewContainers.files, null),
       workbench: this.getViewContainerElement(
         WorkbenchViewContainers.main,
-        this.workbenchViewMode === "chart" ? this.analysis.element : this.table.element,
+        this.workbenchViewMode === "chart" ? this.getChartViewElement() : this.getTableViewElement(),
       ),
       auxiliaryBar: this.getViewContainerElement(
         WorkbenchViewContainers.auxiliarybar,
         this.getActiveAuxiliaryBarElement(),
       ),
       overlay: this.notifications.element,
-      settings: this.getViewContainerElement(WorkbenchViewContainers.settings, this.settings.element),
+      settings: this.getViewContainerElement(WorkbenchViewContainers.settings, null),
     });
     this.layoutVisibleViewContainers();
     this.window.update({
@@ -568,6 +524,18 @@ export class Workbench extends Layout {
       showDesktopCommandBar: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
       showSkeleton: false,
       titlebarState: createTitlebarState(this.getTitlebarState()),
+    });
+  }
+
+  private bindTableModelState(tableModel: TableModel): void {
+    if (this.tableStateModel === tableModel) {
+      return;
+    }
+
+    this.tableStateListener?.();
+    this.tableStateModel = tableModel;
+    this.tableStateListener = tableModel.onDidChangeState(() => {
+      this.renderWorkbench();
     });
   }
 
@@ -633,18 +601,6 @@ export class Workbench extends Layout {
   }
 
   private updateViewContainers(): void {
-    this.viewsService.addViewToContainer(WorkbenchViewContainers.files, this.filesPane);
-    if (this.table.view) {
-      this.viewsService.addViewToContainer(WorkbenchViewContainers.main, this.table.view);
-    }
-    this.viewsService.addViewToContainer(WorkbenchViewContainers.main, this.analysis);
-    this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.templateAuxiliaryBarViewPane);
-    this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.exportViewPane);
-    this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.searchViewPane);
-    this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.parametersViewPane);
-    this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.originSettingsViewPane);
-    this.viewsService.addViewToContainer(WorkbenchViewContainers.settings, this.settings);
-
     const isSettingsActive = this.activeView === "settings";
     const isWorkbenchActive = !isSettingsActive;
     const isAnalysisActive = this.workbenchViewMode === "chart";
@@ -662,12 +618,10 @@ export class Workbench extends Layout {
       void this.viewsService.openViewContainer(WorkbenchViewContainers.settings);
     }
 
-    this.viewsService.setViewVisible(this.filesPane.id, isWorkbenchActive && this.sidebarVisible);
-    if (this.table.view) {
-      this.viewsService.setViewVisible(this.table.view.id, isWorkbenchActive && !isAnalysisActive);
-    }
-    this.viewsService.setViewVisible(this.analysis.id, isWorkbenchActive && isAnalysisActive);
-    this.viewsService.setViewVisible(this.settings.id, isSettingsActive);
+    this.viewsService.setViewVisible(ExplorerViewId, isWorkbenchActive && this.sidebarVisible);
+    this.viewsService.setViewVisible(TableViewId, isWorkbenchActive && !isAnalysisActive);
+    this.viewsService.setViewVisible(ChartViewId, isWorkbenchActive && isAnalysisActive);
+    this.viewsService.setViewVisible(SettingsViewId, isSettingsActive);
     this.updateSidebar(isWorkbenchActive && this.sidebarVisible);
     this.updateAuxiliaryBar(isWorkbenchActive);
   }
@@ -693,10 +647,17 @@ export class Workbench extends Layout {
     }
 
     this.updateSidebarPaneContainer({
-      actions: visible ? this.filesPane.getActions() : [],
+      actions: visible ? this.getFilesViewActions() : [],
       container,
       title: visible ? localize("files.explorerSection", "Explorer") : "",
     });
+  }
+
+  private getFilesViewActions() {
+    const filesView = this.viewsService.getViewWithId(ExplorerViewId) as
+      | { getActions?: () => readonly never[] }
+      | null;
+    return filesView?.getActions?.() ?? [];
   }
 
   private updateAuxiliaryBar(visible: boolean): void {
@@ -709,7 +670,7 @@ export class Workbench extends Layout {
     const state = this.auxiliaryBarModel.update({
       mode: this.workbenchViewMode,
       onDidChangeActiveView: () => this.handleAuxiliaryBarActiveViewChange(),
-      templateMode: getTemplateModeFromViewState(this.session.getSnapshot().viewState),
+      templateMode: this.templateService.getState().mode,
       visible,
     });
     this.updateAuxiliaryBarPaneContainer({
@@ -724,6 +685,7 @@ export class Workbench extends Layout {
   }
 
   private handleAuxiliaryBarActiveViewChange(): void {
+    this.updateContextKeys();
     this.updateViewContainers();
     this.renderAuxiliaryBarView();
     this.layoutVisibleViewContainers();
@@ -738,22 +700,21 @@ export class Workbench extends Layout {
     }
 
     const props = this.getAuxiliaryBarViewInput(snapshot, readModel);
-    const activeFile = readModel.activeProcessedFile;
-    const activeFileRecord = readModel.activeAnalysisFileRecord;
+    const activeFile = this.getSelectedProcessedFile(snapshot, readModel);
+    const activeFileRecord = this.getSelectedAnalysisFileRecord(snapshot, readModel);
 
     switch (this.auxiliaryBarModel.getActiveView(this.workbenchViewMode)) {
       case "template":
         break;
       case "parameters":
-        this.renderParametersView(activeFile, activeFileRecord);
+        this.renderParametersView(snapshot, this.getSelectedAnalysisFileId(readModel));
         break;
       case "search":
         this.renderSearchView(snapshot, readModel);
         break;
       case "settings":
-        this.viewsService.getViewWithId<OriginSettingsViewPane>(OriginExportSettingsViewId)?.update({
+        this.settingsService.updateOriginSettingsViewInput({
           axisSettings: props.plotAxisSettings,
-          contextMenuService: this.contextMenuService,
           onAxisChange: props.onPlotAxisSettingsChange,
           onChange: props.onOriginOpenPlotOptionsChange,
           options: props.originOpenPlotOptions,
@@ -770,17 +731,10 @@ export class Workbench extends Layout {
     snapshot = this.session.getSnapshot(),
     readModel = createSessionReadModel(snapshot),
   ): void {
-    const view = this.viewsService.getViewWithId<SearchViewPane>(SearchViewId);
-    if (!view) {
-      return;
-    }
-
-    const model = getCalculatedData(
-      readModel.calculatedPlotsByKey,
-      this.activePlotType,
-      readModel.activeAnalysisFileId,
-    );
-    view.renderSearch(model ? createPlotMainRenderModel(model) : null);
+    this.searchService.setPlotModel(this.plotService.getPlotMainRenderModel({
+      fileId: this.getSelectedAnalysisFileId(readModel),
+      snapshot,
+    }));
   }
 
   private renderExportView(
@@ -789,80 +743,17 @@ export class Workbench extends Layout {
     snapshot = this.session.getSnapshot(),
     readModel = createSessionReadModel(snapshot),
   ): void {
-    const view = this.viewsService.getViewWithId<ExportViewPane>(ExportViewId);
-    if (!view) {
-      return;
-    }
-
-    const curveOptions = activeFileRecord
-      ? createOriginCurveOptionsFromRecord(
-        activeFileRecord,
-        (fileId, seriesId, fallback) =>
-          this.session.getSeriesLabel(fileId, seriesId) ?? fallback,
-      )
-      : activeFile
-      ? createOriginCurveOptions(activeFile, this.resolveCurveLabelForSeries)
-      : [];
-    this.syncCurveSelection(curveOptions);
-    const scopedFiles = this.resolveOriginExportFiles(snapshot, readModel);
-    const scopedFileIds = scopedFiles
-      .map((file) => String(file?.fileId ?? "").trim())
-      .filter(Boolean);
-    const hasMixedExportYScales = new Set(
-      scopedFiles.map((file) => this.resolveOriginYScaleForFile(snapshot, file)),
-    ).size > 1;
-    view.render({
-      curveOptions,
-      hasMixedExportYScales,
-      mode: this.originMode,
-      onExportOriginZip: this.handleExportOriginZip,
-      onModeChange: (next) => {
-        this.originMode = next;
-        this.renderWorkbench();
-      },
-      onOpenInOrigin: this.handleOpenInOrigin,
-      onSelectedCurveOptionKeysChange: (nextKeys) => {
-        this.selectedCurveKeys = new Set(nextKeys);
-        this.renderWorkbench();
-      },
-      originCanvasExportScope: this.canvasScope,
-      originExportContentOptions: ORIGIN_EXPORT_CONTENT_OPTIONS,
-      originFilteredCanvasKind: this.filteredKind,
-      replaceMatchingOriginSeriesAcrossFiles: () => ({
-        matchedFileCount: 0,
-        matchedSeriesCount: 0,
-      }),
-      resolvedCurveExportMode: this.curveMode,
-      scopedFileIds,
-      selectedContentKeys: this.selectedContentKeys,
-      selectedCurveOptionKeySet: this.selectedCurveKeys,
-      setContentKeys: (next) => {
-        this.selectedContentKeys =
-          typeof next === "function" ? next(this.selectedContentKeys) : next;
-        this.renderWorkbench();
-      },
-      setOriginCanvasExportScope: (next) => {
-        this.canvasScope =
-          typeof next === "function" ? next(this.canvasScope) : next;
-        this.renderWorkbench();
-      },
-      setOriginFilteredCanvasKind: (next) => {
-        this.filteredKind =
-          typeof next === "function" ? next(this.filteredKind) : next;
-        this.renderWorkbench();
-      },
-      setResolvedCurveExportMode: (next) => {
-        this.curveMode = next;
-        this.renderWorkbench();
-      },
-      showFilteredCanvasKindSelect: true,
+    this.exportService.updateViewState({
+      activeFile,
+      activeFileId: this.getSelectedAnalysisFileId(readModel),
+      activeFileRecord,
+      axisSettings: this.getFileAxisSettingsByFileId(snapshot),
+      resolveProcessedSeriesLabel: this.resolveCurveLabelForSeries,
+      resolveRecordSeriesLabel: (fileId, seriesId, fallback) =>
+        this.getSeriesLabel(snapshot, fileId, seriesId) ?? fallback,
+      snapshot,
     });
-  }
-
-  private readonly handleOpenInOrigin = async (): Promise<void> => {
-    const snapshot = this.session.getSnapshot();
-    const readModel = createSessionReadModel(snapshot);
-    await this.exportService.openInOrigin({
+    this.exportService.updateOriginExportExecutionContext({
       buildCsvExportRequest: () => null,
       buildPayloads: () => this.buildOriginExportPayloads(snapshot, readModel),
       exportOriginZipFallback: () =>
@@ -876,206 +767,19 @@ export class Workbench extends Layout {
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
       showToast: this.showOriginExportToast,
     });
-  };
-
-  private readonly handleExportOriginZip = async (): Promise<void> => {
-    const snapshot = this.session.getSnapshot();
-    const readModel = createSessionReadModel(snapshot);
-    await this.exportService.exportOriginZip({
-      exportOriginZipFallback: () =>
-        exportOriginZip({
-          buildCsvExportRequest: () => null,
-          buildPayloads: () => this.buildOriginExportPayloads(snapshot, readModel),
-        }),
-      showToast: this.showOriginExportToast,
-    });
-  };
+  }
 
   private buildOriginExportPayloads(
     snapshot: WorkbenchSessionSnapshot,
     readModel: SessionReadModel,
   ): OriginExportPlan {
-    const files = this.resolveOriginExportFiles(snapshot, readModel);
-    if (!files.length) {
-      throw new Error(localize("origin_select_canvas", "Please select at least one thumbnail first."));
-    }
-
-    const plan = buildOriginExportPlan(
-      files,
-      this.createSelectedOriginSeriesIdsByFile(files),
-      this.originMode,
-      (file) => this.resolveOriginYScaleForFile(snapshot, file),
-      (file) => getXUnitMeta(this.resolveOriginXUnitForFile(snapshot, file)).factor,
-      (file) => getYUnitMeta(this.resolveOriginYUnitForFile(snapshot, file)).factor,
-      (file) => getYUnitMeta(this.resolveOriginYUnitForFile(snapshot, file)).label,
-      (file, series, index) =>
-        this.resolveOriginCurveLabel(file as OriginExportFile, series, index),
-      (file, axis) => this.resolveOriginAxisTitleForFile(snapshot, file, axis),
-      (file, y) =>
-        this.resolveOriginYScaleForFile(snapshot, file) === "log"
-          ? Math.abs(y)
-          : y,
-      this.selectedContentKeys.length ? this.selectedContentKeys : ["iv"],
-    );
-    if (!plan.payloads.length) {
-      throw new Error(localize("origin_select_curve", "Please select a curve first."));
-    }
-    return plan;
-  }
-
-  private resolveOriginExportFiles(
-    snapshot: WorkbenchSessionSnapshot,
-    readModel: SessionReadModel,
-  ): OriginExportFile[] {
-    const processedFiles = createExportProcessedFilesFromRecords(
-      snapshot.filesById,
-      snapshot.fileOrder,
-    ).map((file) => this.createOriginExportFile(file));
-    if (!processedFiles.length) {
-      return [];
-    }
-
-    if (this.canvasScope === "all") {
-      return processedFiles;
-    }
-
-    if (this.canvasScope === "filtered") {
-      return processedFiles.filter((file) => this.isOriginFilteredCanvas(file));
-    }
-
-    const activeFileId = String(readModel.activeAnalysisFileId ?? "").trim();
-    const activeFile = activeFileId
-      ? processedFiles.find((file) => String(file.fileId ?? "") === activeFileId)
-      : null;
-    return activeFile ? [activeFile] : [];
-  }
-
-  private createOriginExportFile(file: ProcessedEntry): OriginExportFile {
-    const xAxisRole = String(file.xAxisRole ?? "").trim();
-    return {
-      ...file,
-      curveType: file.curveType ? String(file.curveType) : undefined,
-      xAxisRole: xAxisRole || undefined,
-    };
-  }
-
-  private resolveOriginCurveLabel(
-    file: OriginExportFile | null | undefined,
-    series: OriginExportSeries | null | undefined,
-    index: number,
-  ): string {
-    const override = this.session.getSeriesLabel(
-      String(file?.fileId ?? ""),
-      String(series?.id ?? ""),
-    );
-    if (override) {
-      return override;
-    }
-
-    const legendValue = String(series?.legendValue ?? "").trim();
-    if (legendValue) {
-      return legendValue;
-    }
-
-    const name = String(series?.name ?? series?.label ?? "").trim();
-    return name || `Series ${index + 1}`;
-  }
-
-  private createSelectedOriginSeriesIdsByFile(
-    files: readonly OriginExportFile[],
-  ): Record<string, string[]> {
-    if (this.curveMode !== "select") {
-      return {};
-    }
-
-    const selectedByFile: Record<string, string[]> = {};
-    for (const file of files) {
-      const fileId = String(file.fileId ?? "").trim();
-      if (!fileId) {
-        continue;
-      }
-      selectedByFile[fileId] = (Array.isArray(file.series) ? file.series : [])
-        .map((series) => String(series.id ?? "").trim())
-        .filter((seriesId) => Boolean(seriesId) && this.selectedCurveKeys.has(seriesId));
-    }
-    return selectedByFile;
-  }
-
-  private resolveOriginXUnitForFile(
-    snapshot: WorkbenchSessionSnapshot,
-    file: OriginExportFile | null | undefined,
-  ): string {
-    const fileId = String(file?.fileId ?? "").trim();
-    if (!fileId) {
-      return String(file?.xUnit ?? "V");
-    }
-
-    const axisSettings = this.getFileAxisSettingsByFileId(snapshot);
-    return axisSettings.xUnitByFileId[fileId] ?? String(file?.xUnit ?? "V");
-  }
-
-  private resolveOriginYUnitForFile(
-    snapshot: WorkbenchSessionSnapshot,
-    file: OriginExportFile | null | undefined,
-  ): string {
-    const fileId = String(file?.fileId ?? "").trim();
-    if (!fileId) {
-      return String(file?.yUnit ?? "A");
-    }
-
-    const axisSettings = this.getFileAxisSettingsByFileId(snapshot);
-    return axisSettings.yUnitByFileId[fileId] ?? String(file?.yUnit ?? "A");
-  }
-
-  private resolveOriginYScaleForFile(
-    snapshot: WorkbenchSessionSnapshot,
-    file: OriginExportFile | null | undefined,
-  ): OriginYAxisScaleMode {
-    const fileId = String(file?.fileId ?? "").trim();
-    if (!fileId) {
-      return "linear";
-    }
-
-    const axisSettings = this.getFileAxisSettingsByFileId(snapshot);
-    return axisSettings.yScaleByFileId[fileId] === "log" ? "log" : "linear";
-  }
-
-  private resolveOriginAxisTitleForFile(
-    snapshot: WorkbenchSessionSnapshot,
-    file: OriginExportFile | null | undefined,
-    axis: "x" | "y",
-  ): string {
-    const fileId = String(file?.fileId ?? "").trim();
-    const record = fileId ? snapshot.filesById[fileId] : undefined;
-    if (axis === "x") {
-      return String(
-        record?.axis?.x.label ??
-          record?.templateRun?.config.bottomTitle ??
-          file?.xLabel ??
-          "",
-      );
-    }
-
-    return String(
-      record?.axis?.y.label ??
-        record?.templateRun?.config.leftTitle ??
-        file?.yLabel ??
-        "",
-    );
-  }
-
-  private isOriginFilteredCanvas(file: OriginExportFile): boolean {
-    const targetFamily = this.filteredKind;
-    const xAxisRole = String(file.xAxisRole ?? "").trim().toLowerCase();
-    if (targetFamily === "transfer" && xAxisRole === "vg") {
-      return true;
-    }
-    if (targetFamily === "output" && xAxisRole === "vd") {
-      return true;
-    }
-
-    const curveType = String(file.curveType ?? "").trim().toLowerCase();
-    return Boolean(curveType && curveType.includes(targetFamily));
+    return this.exportService.buildOriginExportPlan({
+      activeFileId: this.getSelectedAnalysisFileId(readModel),
+      axisSettings: this.getFileAxisSettingsByFileId(snapshot),
+      resolveSeriesLabel: (fileId, seriesId, fallback) =>
+        this.getSeriesLabel(snapshot, fileId, seriesId) ?? fallback,
+      snapshot,
+    });
   }
 
   private readonly showOriginExportToast = (
@@ -1094,21 +798,13 @@ export class Workbench extends Layout {
   };
 
   private renderParametersView(
-    activeFile: ProcessedEntry | null,
-    activeFileRecord: FileRecord | null,
+    snapshot: WorkbenchSessionSnapshot,
+    activeFileId: string | null,
   ): void {
-    const view = this.viewsService.getViewWithId<ParametersViewPane>(ParametersViewId);
-    if (!view) {
-      return;
-    }
-
-    const state = createParametersViewState(activeFile, activeFileRecord);
-    if (state.kind === "empty") {
-      view.renderEmpty(state.message);
-      return;
-    }
-
-    view.renderParameters(state);
+    this.parametersService.updateViewState({
+      fileId: activeFileId,
+      snapshot,
+    });
   }
 
   private getActiveAuxiliaryBarElement(): HTMLElement | null {
@@ -1116,15 +812,12 @@ export class Workbench extends Layout {
     return viewId ? this.viewsService.getViewWithId(viewId)?.element ?? null : null;
   }
 
-  private syncCurveSelection(
-    curveOptions: ReturnType<typeof createOriginCurveOptions>,
-  ): void {
-    const curveKeys = new Set(curveOptions.map((option) => option.key));
-    this.selectedCurveKeys = new Set(
-      this.selectedCurveKeys.size > 0
-        ? [...this.selectedCurveKeys].filter((key) => curveKeys.has(key))
-        : [...curveKeys],
-    );
+  private getTableViewElement(): HTMLElement | null {
+    return this.viewsService.getViewWithId(TableViewId)?.element ?? null;
+  }
+
+  private getChartViewElement(): HTMLElement | null {
+    return this.viewsService.getViewWithId(ChartViewId)?.element ?? null;
   }
 
   private layoutVisibleViewContainers(): void {
@@ -1134,7 +827,8 @@ export class Workbench extends Layout {
   }
 
   private getViewContainerElement(containerId: string, fallback: HTMLElement | null): HTMLElement | null {
-    return this.viewsService.getViewContainerElement(containerId) ?? fallback;
+    const element = this.viewsService.getViewContainerElement(containerId);
+    return element instanceof HTMLElement ? element : fallback;
   }
 
   private handleNavigateBack(): void {
@@ -1169,9 +863,7 @@ export class Workbench extends Layout {
     const nextFileId = String(fileId ?? "").trim() || null;
     const snapshot = this.session.getSnapshot();
     if (!nextFileId) {
-      if (snapshot.activeTarget.kind !== "none") {
-        this.session.setActiveTarget({ kind: "none" });
-      }
+      this.explorerService.clearSelection("analysis");
       return;
     }
 
@@ -1179,26 +871,11 @@ export class Workbench extends Layout {
       return;
     }
 
-    if (resolveFileIdFromTarget(snapshot.activeTarget) === nextFileId) {
-      return;
-    }
-
-    this.session.setActiveTarget({ kind: "file", fileId: nextFileId });
-  };
-
-  private readonly handleFileTemplateSelectionChanged = (
-    fileId: string,
-    selection: TemplateSelection,
-  ): void => {
-    const normalizedFileId = String(fileId ?? "").trim();
-    if (!normalizedFileId) {
-      return;
-    }
-
-    this.session.setFileTemplateSelectionsByFileId((previous) => ({
-      ...previous,
-      [normalizedFileId]: selection,
-    }));
+    this.explorerService.selectFile(
+      "analysis",
+      nextFileId,
+      createSessionReadModel(snapshot).processedFileIds,
+    );
   };
 
   private showWorkbenchViewMode(viewMode: WorkbenchMainPart): void {
@@ -1212,83 +889,57 @@ export class Workbench extends Layout {
     }
   }
 
-  private getFilesPaneProps(
+  private getSelectedAnalysisFileId(readModel: SessionReadModel): string | null {
+    return resolveExplorerSessionSelection(this.explorerService, readModel).selectedAnalysisFileId;
+  }
+
+  private getSelectedAnalysisFileRecord(
+    snapshot: WorkbenchSessionSnapshot,
+    readModel = createSessionReadModel(snapshot),
+  ): FileRecord | null {
+    const activeFileId = this.getSelectedAnalysisFileId(readModel);
+    return activeFileId ? snapshot.filesById[activeFileId] ?? null : null;
+  }
+
+  private getSelectedProcessedFile(
+    snapshot: WorkbenchSessionSnapshot,
+    readModel = createSessionReadModel(snapshot),
+  ): ProcessedEntry | null {
+    const fileRecord = this.getSelectedAnalysisFileRecord(snapshot, readModel);
+    return fileRecord ? createProcessedEntryFromFileRecord(fileRecord) : null;
+  }
+
+  private getExplorerPaneInput(
     snapshot = this.session.getSnapshot(),
     readModel = createSessionReadModel(snapshot),
     tableModel = this.getTableModel(snapshot, readModel),
     processing = this.templateApply,
   ) {
-    const rawFiles = readModel.rawFiles;
-    const sessionActions = createSessionActions({
-      addRawFiles: this.session.addRawFiles,
-      clearSessionData: this.session.clearSessionData,
-      clearPreviewState: tableModel.clearState,
-      disposePreviewFileCache: tableModel.disposeFileCache,
-      invalidatePreviewRequests: tableModel.invalidateRequests,
-      previewFile: readModel.previewFile,
-      previewLoadingMessage: localize("preview_loading", "Loading preview..."),
-      hasSessionData: readModel.hasSessionData,
-      processingStatus: processing.processingStatus,
-      rawFiles,
-      removeQueuedProcessingFile: processing.removeQueuedProcessingFile,
-      runInBatch: this.session.batch,
-      resetPreviewWorker: tableModel.resetWorker,
-      resetProcessingWorker: processing.resetProcessingWorker,
-      removeFiles: this.session.removeFiles,
-      replaceRawFiles: this.session.replaceRawFiles,
-      activeTarget: snapshot.activeTarget,
-      setActiveTarget: this.session.setActiveTarget,
-      setPreviewStatus: this.session.setPreviewStatus,
-    });
-    const isChartMode = this.workbenchViewMode === "chart";
-    const templateFormState = getTemplateFormStateFromViewState(snapshot.viewState);
-    const fileTemplateSelectionsByFileId = getTemplateSelectionsFromViewState(snapshot.viewState);
-    const currentTemplateSelection = createTemplateSelection(getSelectedTemplateIdFromViewState(snapshot.viewState));
-    const currentTemplateLabel = currentTemplateSelection.kind === "auto"
-      ? localize("template_auto_extraction", "Auto extraction")
-      : templateFormState.name || currentTemplateSelection.templateId;
-
-    return {
-      analysisFileService: this.analysisFileService,
+    return createExplorerPaneInput({
       activePlotType: this.activePlotType,
-      calculatedPlotsByKey: readModel.calculatedPlotsByKey,
-      commandService: this.commandService,
-      contextMenuService: this.contextMenuService,
-      contextViewService: this.contextViewService,
-      filesPaneRef: this.filesPaneRef,
-      files: isChartMode
-        ? createChartExplorerFilesFromRecords(
-          snapshot.filesById,
-          snapshot.fileOrder,
-          rawFiles,
-        )
-        : rawFiles,
-      filesService: this.filesService,
+      explorerService: this.explorerService,
       mode: this.workbenchViewMode,
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
       plotAxisSettings: this.coreSettingsState.conductorSettings?.plotAxisSettings,
-      thumbnailService: this.thumbnailService,
-      templateService: this.templateService,
-      currentTemplateLabel,
-      currentTemplateSelection,
-      fileTemplateSelectionsByFileId,
-      thumbnailFiles: readModel.processedFiles,
-      onFileImported: sessionActions.handleFileImported,
-      onFilesAdded: sessionActions.handleFilesAdded,
-      onFilesReplaced: sessionActions.handleFilesReplaced,
-      onFileRemoved: sessionActions.handleFileRemoved,
-      onFilesRemoved: sessionActions.handleFilesRemoved,
-      onFileTemplateSelectionChanged: this.handleFileTemplateSelectionChanged,
-      onFileSelected: isChartMode
-        ? this.handleAnalysisFileSelected
-        : sessionActions.handleFileSelected,
-      selectedFileId: isChartMode
-        ? readModel.activeAnalysisFileId
-        : readModel.activeTargetFileId,
-    };
+      plotService: this.plotService,
+      processing: {
+        processingStatus: processing.processingStatus,
+        removeQueuedProcessingFile: processing.removeQueuedProcessingFile,
+        resetProcessingWorker: processing.resetProcessingWorker,
+      },
+      readModel,
+      session: {
+        clearSession: this.session.clearSession,
+        commitFileImport: this.session.commitFileImport,
+        removeFiles: this.session.removeFiles,
+      },
+      snapshot,
+      tableModel,
+      templateState: this.templateService.getState(),
+    });
   }
 
-  private getTemplateViewPaneProps(
+  private getTemplateViewInput(
     snapshot = this.session.getSnapshot(),
     readModel = createSessionReadModel(snapshot),
     tableModel = this.getTableModel(snapshot, readModel),
@@ -1296,15 +947,11 @@ export class Workbench extends Layout {
   ) {
     return {
       conductorSettings: this.coreSettingsState.conductorSettings,
-      contextMenuService: this.contextMenuService,
       onTemplateApplied: processing.handleTemplateApplied,
       onTemplateAppliedIncremental: processing.handleTemplateAppliedIncremental,
       onUpdateSettings: this.coreSettingsState.updateConductorSettings,
-      sessionService: this.session,
       rawFiles: readModel.rawFiles,
       tableModel,
-      templateImportController: this.templateImportController,
-      templateService: this.templateService,
     };
   }
 
@@ -1315,151 +962,13 @@ export class Workbench extends Layout {
     };
   }
 
-  private syncFileSemantics(
-    snapshot: WorkbenchSessionSnapshot,
-    readModel = createSessionReadModel(snapshot),
-  ): void {
-    if (this.isSyncingFileSemantics) {
-      return;
-    }
-
-    this.isSyncingFileSemantics = true;
-    try {
-      this.session.batch(() => {
-        const liveFileIds: string[] = [];
-        const syncedFileIds = new Set<string>();
-        const syncRecordFile = (fileId: string): void => {
-          if (syncedFileIds.has(fileId)) {
-            return;
-          }
-          syncedFileIds.add(fileId);
-
-          const file = snapshot.filesById[fileId];
-          if (!hasFileRecordAnalysisData(file)) {
-            return;
-          }
-
-          liveFileIds.push(file.id);
-          const templateSelection =
-            file.templateRun?.selection ??
-            getTemplateSelectionsFromViewState(snapshot.viewState)[file.id] ??
-            createTemplateSelection(getSelectedTemplateIdFromViewState(snapshot.viewState));
-          this.session.setFileSemantics({
-            fileId: file.id,
-            kind: file.assessment.baseFamily ?? "unknown",
-            sourceFileName: file.raw.fileName,
-            templateId: templateSelection?.kind === "template"
-              ? templateSelection.templateId
-              : undefined,
-            x: {
-              label: String(file.axis?.x.label ?? file.templateRun?.config.bottomTitle ?? ""),
-              role: String(file.axis?.x.role ?? ""),
-              unit: this.getFileRecordSemanticXUnit(file.id, file),
-            },
-            y: {
-              label: String(file.axis?.y.label ?? file.templateRun?.config.leftTitle ?? ""),
-              role: String(file.axis?.y.role ?? ""),
-              scale: file.axis?.y.scale ?? this.getSemanticYScale(file.id),
-              unit: this.getFileRecordSemanticYUnit(file.id, file),
-            },
-          });
-        };
-
-        for (const fileId of readModel.processedFileIds) {
-          syncRecordFile(fileId);
-        }
-
-        this.session.pruneFileSemantics(liveFileIds, []);
-        this.session.pruneSeriesLabelsByRecords(snapshot.filesById, snapshot.fileOrder);
-      });
-    } finally {
-      this.isSyncingFileSemantics = false;
-    }
-  }
-
   private getFileAxisSettingsByFileId(
     snapshot: WorkbenchSessionSnapshot,
   ): FileAxisSettingsByFileId {
-    const settings = this.coreSettingsState.conductorSettings;
-    const xUnitByFileId: Record<string, string> = {
-      ...(settings?.xUnitByFileId ?? {}),
-    };
-    const yUnitByFileId: Record<string, string> = {
-      ...(settings?.yUnitByFileId ?? {}),
-    };
-    const yScaleByFileId: Record<string, CurveYScale> = {
-      ...(settings?.yScaleByFileId ?? {}),
-    };
-
-    const seenFileIds = new Set<string>();
-    const applyFile = (fileId: string): void => {
-      if (seenFileIds.has(fileId)) {
-        return;
-      }
-      seenFileIds.add(fileId);
-
-      const file = snapshot.filesById[fileId];
-      if (!file) {
-        return;
-      }
-
-      const semantics = this.session.getFileSemantics(fileId);
-      const xUnit = file.axis?.x.unit ?? file.templateRun?.config.xUnit ?? semantics?.x.unit;
-      const yUnit = file.axis?.y.unit ?? file.templateRun?.config.yUnit ?? semantics?.y.unit;
-      const yScale = file.axis?.y.scale ?? semantics?.y.scale;
-      if (xUnit && !xUnitByFileId[fileId]) {
-        xUnitByFileId[fileId] = xUnit;
-      }
-      if (yUnit && !yUnitByFileId[fileId]) {
-        yUnitByFileId[fileId] = yUnit;
-      }
-      if (yScale && !yScaleByFileId[fileId]) {
-        yScaleByFileId[fileId] = yScale;
-      }
-    };
-
-    for (const fileId of snapshot.fileOrder) {
-      applyFile(fileId);
-    }
-    for (const fileId of Object.keys(snapshot.filesById)) {
-      applyFile(fileId);
-    }
-
-    return {
-      xUnitByFileId,
-      yScaleByFileId,
-      yUnitByFileId,
-    };
-  }
-
-  private getFileRecordSemanticXUnit(fileId: string, file: FileRecord): string {
-    const sourceUnit = normalizeXUnit(
-      file.axis?.x.unit ?? file.templateRun?.config.xUnit,
-      "V",
-    ) || "V";
-    return normalizeXUnit(
-      this.coreSettingsState.conductorSettings?.xUnitByFileId?.[fileId],
-      sourceUnit,
-    ) || sourceUnit;
-  }
-
-  private getFileRecordSemanticYUnit(fileId: string, file: FileRecord): string {
-    const rawUnit = file.axis?.y.unit ?? file.templateRun?.config.yUnit;
-    const sourceUnit = normalizeYUnit(rawUnit);
-    if (!sourceUnit) {
-      return String(rawUnit ?? "").trim();
-    }
-
-    return normalizeYUnit(
-      this.coreSettingsState.conductorSettings?.yUnitByFileId?.[fileId],
-      sourceUnit,
-    ) || sourceUnit;
-  }
-
-  private getSemanticYScale(fileId: string): CurveYScale {
-    return this.coreSettingsState.conductorSettings?.yScaleByFileId?.[fileId] === "log"
-      ? "log"
-      : "linear";
+    return getFileAxisSettingsByFileId({
+      conductorSettings: this.coreSettingsState.conductorSettings,
+      snapshot,
+    });
   }
 
   private getAnalysisProps(
@@ -1467,67 +976,65 @@ export class Workbench extends Layout {
     processing = this.templateApply,
     readModel = createSessionReadModel(snapshot),
   ) {
-    const activeFileId = readModel.activeAnalysisFileId;
-    const axisSettings = this.getFileAxisSettingsByFileId(snapshot);
-    return {
+    const activeFileId = this.getSelectedAnalysisFileId(readModel);
+    return createChartViewInput({
       activeFileId,
       activePlotType: this.activePlotType,
-      chartFileOptions: createChartFileOptionsFromRecords(
+      axisSettings: this.getFileAxisSettingsByFileId(snapshot),
+      chartFileOptions: createExplorerAnalysisFileOptionsFromRecords(
         snapshot.filesById,
         snapshot.fileOrder,
       ),
-      hasAnalysisData: Boolean(activeFileId),
-      legendLabels: this.session.getSeriesLabels(activeFileId ?? ""),
+      legendLabels: this.getLegendLabelsForFile(snapshot, activeFileId ?? ""),
       onActiveFileIdChange: this.handleAnalysisFileSelected,
       onActivePlotTypeChange: this.setActivePlotType,
       onLegendLabelChange: this.updateLegendLabel,
+      onPlotAxisTitleChange: this.updatePlotAxisTitle,
       onPlotUnitChange: this.updatePlotUnit,
       onPlotYScaleChange: this.updatePlotYScale,
-      calculatedPlotsByKey: readModel.calculatedPlotsByKey,
       onPlotAxisSettingsChange: this.updatePlotAxisSettings,
       onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
       plotAxisSettings: this.coreSettingsState.conductorSettings?.plotAxisSettings,
+      plotService: this.plotService,
       processingStatus: processing.processingStatus,
       showFileSelect: false,
       shouldMountCharts: false,
-      xUnitByFileId: axisSettings.xUnitByFileId,
-      yScaleByFileId: axisSettings.yScaleByFileId,
-      yUnitByFileId: axisSettings.yUnitByFileId,
-    };
+    });
   }
 
   private getAuxiliaryBarViewInput(
     snapshot = this.session.getSnapshot(),
     readModel = createSessionReadModel(snapshot),
   ) {
-    const axisSettings = this.getFileAxisSettingsByFileId(snapshot);
-    const activeFileId = readModel.activeAnalysisFileId;
-    return {
+    const activeFileId = this.getSelectedAnalysisFileId(readModel);
+    return createChartViewInput({
       activeFileId,
-      chartFileOptions: createChartFileOptionsFromRecords(
+      activePlotType: this.activePlotType,
+      axisSettings: this.getFileAxisSettingsByFileId(snapshot),
+      chartFileOptions: createExplorerAnalysisFileOptionsFromRecords(
         snapshot.filesById,
         snapshot.fileOrder,
       ),
-      calculatedPlotsByKey: readModel.calculatedPlotsByKey,
-      hasAnalysisData: Boolean(activeFileId),
+      onPlotAxisTitleChange: this.updatePlotAxisTitle,
       onPlotAxisSettingsChange: this.updatePlotAxisSettings,
       onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
       plotAxisSettings: this.coreSettingsState.conductorSettings?.plotAxisSettings,
-      xUnitByFileId: axisSettings.xUnitByFileId,
-      yScaleByFileId: axisSettings.yScaleByFileId,
-      yUnitByFileId: axisSettings.yUnitByFileId,
-    };
+      plotService: this.plotService,
+    });
   }
 
   private readonly setActivePlotType = (plotType: PlotType): void => {
-    if (this.activePlotType === plotType) {
-      return;
-    }
+    this.plotService.setActivePlotType(plotType);
+  };
 
-    this.activePlotType = plotType;
-    this.renderWorkbench();
+  private readonly updatePlotAxisTitle = (
+    context: PlotAxisTitleContext,
+    title: string,
+    defaultTitle: string,
+  ): void => {
+    this.plotService.setAxisTitleOverride(context, title, defaultTitle);
   };
 
   private readonly updateLegendLabel = (
@@ -1535,12 +1042,52 @@ export class Workbench extends Layout {
     seriesId: string,
     label: string | null,
   ): void => {
-    this.session.setSeriesLabel(fileId, seriesId, label);
+    this.plotService.setLegendLabel(fileId, seriesId, label);
   };
 
+  private getLegendLabelsForFile(
+    snapshot: WorkbenchSessionSnapshot,
+    fileId: string,
+  ): Readonly<Record<string, string>> {
+    const normalizedFileId = String(fileId ?? "").trim();
+    if (!normalizedFileId) {
+      return {};
+    }
+
+    const legacyLabels = getSeriesLabelsFromRecord(snapshot.filesById[normalizedFileId]);
+    return {
+      ...legacyLabels,
+      ...this.plotService.getLegendLabels(normalizedFileId),
+    };
+  }
+
+  private getSeriesLabel(
+    snapshot: WorkbenchSessionSnapshot,
+    fileId: string,
+    seriesId: string,
+  ): string | undefined {
+    const normalizedFileId = String(fileId ?? "").trim();
+    const normalizedSeriesId = String(seriesId ?? "").trim();
+    if (!normalizedFileId || !normalizedSeriesId) {
+      return undefined;
+    }
+
+    return this.plotService.getLegendLabels(normalizedFileId)[normalizedSeriesId] ??
+      snapshot.filesById[normalizedFileId]?.seriesById[normalizedSeriesId]?.labelOverride;
+  }
+
   private readonly resolveCurveLabelForSeries = (
-    ...args: Parameters<ISessionServiceType["resolveSeriesLabel"]>
-  ): string => this.session.resolveSeriesLabel(...args);
+    file: ProcessedEntry | null | undefined,
+    series: ProcessedSeries | null | undefined,
+    index: number,
+  ): string => {
+    const fallback = resolveFallbackSeriesLabel(series, index);
+    const fileId = String(file?.fileId ?? "").trim();
+    const seriesId = String(series?.id ?? "").trim();
+    return fileId && seriesId
+      ? this.getSeriesLabel(this.session.getSnapshot(), fileId, seriesId) ?? fallback
+      : fallback;
+  };
 
   private readonly updateOriginPlotOptions = async (updates: unknown): Promise<void> => {
     if (!updates || typeof updates !== "object") {
@@ -1627,27 +1174,8 @@ export class Workbench extends Layout {
     readModel = createSessionReadModel(snapshot),
   ) {
     return this.tableService.update({
-      cacheFileIdRef: this.session.previewCacheFileIdRef,
-      analysisFileService: this.analysisFileService,
-      cacheFileLruRef: this.session.previewCacheFileLruRef,
-      file: readModel.previewFile,
-      loadState: readModel.previewStatus,
-      loadedChunksByFileIdRef: this.session.previewLoadedChunksByFileIdRef,
-      loadedChunksRef: this.session.previewLoadedChunksRef,
-      requestIdRef: this.session.previewRequestIdRef,
-      rowsCacheByFileIdRef: this.session.previewRowsCacheByFileIdRef,
-      rowsCacheRef: this.session.previewRowsCacheRef,
-      rowsRequestIdRef: this.session.previewRowsRequestIdRef,
-      rowsRequestsRef: this.session.previewRowsRequestsRef,
-      workerRef: this.session.previewWorkerRef,
       rawFiles: readModel.rawFiles,
-      selectedFileId: readModel.activeTargetFileId,
-      selectedSheetId: readModel.activeTargetSheetId,
-      viewSelection: snapshot.viewState.table?.selection,
-      setFile: this.session.setPreviewFile,
-      setLoadState: this.session.setPreviewStatus,
-      setActiveTarget: this.session.setActiveTarget,
-      setViewSelection: this.session.setTableSelection,
+      selectedFileId: resolveExplorerSessionSelection(this.explorerService, readModel).selectedRawFileId,
     });
   }
 
@@ -1655,15 +1183,12 @@ export class Workbench extends Layout {
     snapshot = this.session.getSnapshot(),
     readModel = createSessionReadModel(snapshot),
     tableModel: TableModel = this.getTableModel(snapshot, readModel),
-  ): TemplateApplyControllerInput {
-    return {
-      activeFileId: readModel.activeTargetFileId ?? readModel.activeAnalysisFileId,
-      getTableRow: tableModel.getRow,
-      hasSourceFile: tableModel.hasSourceFile,
-      previewFile: readModel.previewFile,
-      processedFileIds: readModel.processedFileIds,
-      rawFiles: readModel.rawFiles,
-    };
+  ) {
+    return createTemplateApplyInput({
+      readModel,
+      tableModel,
+      templateState: this.templateService.getState(),
+    });
   }
 
   private getSettingsProps() {
@@ -1695,15 +1220,29 @@ export class Workbench extends Layout {
 
   private getCoreSettingsOptions() {
     return {
+      applyAppearanceSettings: (settings) =>
+        this.setAppearance(normalizeWorkbenchAppearance(settings)),
       language: this.languagePreference,
-      setAppearance: this.setAppearance,
-      setIonIoffMethod: () => undefined,
-      setSsMethod: () => undefined,
-      setSsShowFitLine: () => undefined,
+      reloadWorkbench: this.reloadWorkbench,
+      setIonIoffMethod: method => this.parametersService.setIonIoffMethod(method),
+      setSsMethod: method => this.parametersService.setSsMethod(method),
+      setSsShowFitLine: enabled => this.parametersService.setShowFitLine(enabled),
       setTheme: this.setTheme,
       theme: this.theme,
     };
   }
+
+  private readonly reloadWorkbench = (): void => {
+    const conductor = window.conductor as
+      | { ipcRenderer?: { send?: (channel: string, ...args: unknown[]) => void } }
+      | undefined;
+    if (typeof conductor?.ipcRenderer?.send === "function") {
+      reloadWindow();
+      return;
+    }
+
+    window.location.reload();
+  };
 
   private createMessagePane(titleText: string, descriptionText: string): HTMLElement {
     const root = document.createElement("div");
@@ -1751,6 +1290,32 @@ export class Workbench extends Layout {
   };
 }
 
+const getSeriesLabelsFromRecord = (
+  file: FileRecord | null | undefined,
+): Readonly<Record<string, string>> => {
+  const labels: Record<string, string> = {};
+  for (const [seriesId, series] of Object.entries(file?.seriesById ?? {})) {
+    const label = String(series.labelOverride ?? "").trim();
+    if (label) {
+      labels[seriesId] = label;
+    }
+  }
+  return labels;
+};
+
+const resolveFallbackSeriesLabel = (
+  series: ProcessedSeries | null | undefined,
+  index: number,
+): string => {
+  const legendValue = String(series?.legendValue ?? "").trim();
+  if (legendValue) {
+    return legendValue;
+  }
+
+  const name = String(series?.name ?? "").trim();
+  return name || `Series ${index + 1}`;
+};
+
 const isThemeMode = (value: unknown): value is ThemeMode =>
   value === "light" || value === "dark" || value === "system";
 
@@ -1770,8 +1335,3 @@ const applyThemeMode = (theme: ThemeMode): void => {
   document.documentElement.classList.add(resolvedTheme);
   document.documentElement.style.colorScheme = resolvedTheme;
 };
-
-const toDisposableSession = (session: ISessionServiceType) => toDisposable(() => {
-  session.previewWorkerRef.current?.terminate();
-  session.previewWorkerRef.current = null;
-});

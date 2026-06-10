@@ -7,8 +7,8 @@ import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import { localize } from "src/cs/nls";
-import { X_UNIT_VALUES, Y_UNIT_VALUES } from "src/cs/workbench/contrib/plot/common/units";
-import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
+import { X_UNIT_VALUES, Y_UNIT_VALUES } from "src/cs/workbench/services/plot/common/units";
+import type { TemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 
 export type TemplatePickFieldName =
   | "xDataStart"

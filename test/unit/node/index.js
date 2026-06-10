@@ -98,7 +98,7 @@ const collectTests = (directory) => {
     if (relative.startsWith("cs/base/test/browser/")) {
       return;
     }
-    if (/(^|\/)(electron-main|electron-utility)(\/|$)/.test(relative)) {
+    if (relative.startsWith("cs/code/electron-main/") || relative.startsWith("cs/code/electron-utility/")) {
       return;
     }
 
@@ -133,8 +133,8 @@ visit(outSrcRoot, (filePath) => {
 rewriteNlsForTests();
 
 copyAsset(
-  path.join(workspace, "src/cs/workbench/services/analysisFile/browser/assessment.wasm"),
-  path.join(outRoot, "src/cs/workbench/services/analysisFile/browser/assessment.wasm"),
+  path.join(workspace, "src/cs/workbench/services/assessment/browser/assessment.wasm"),
+  path.join(outRoot, "src/cs/workbench/services/assessment/browser/assessment.wasm"),
 );
 
 const nlsSetup = createNlsTestSetup();

@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import { localize } from "src/cs/nls";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
@@ -13,7 +17,7 @@ import {
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
 import { ParametersViewPane } from "src/cs/workbench/contrib/parameters/browser/parametersViewPane";
-import { ParametersViewId } from "src/cs/workbench/contrib/parameters/common/parameters";
+import { ParametersViewId } from "src/cs/workbench/services/parameters/common/parameters";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);

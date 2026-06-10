@@ -1,6 +1,8 @@
-import AnalysisPanel, {
-  type AnalysisPanelProps,
-} from "src/cs/workbench/contrib/chart/browser/analysisPanel";
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import AnalysisPanel from "src/cs/workbench/contrib/chart/browser/analysisPanel";
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { Action, toAction, type IAction } from "src/cs/base/common/actions";
@@ -8,7 +10,7 @@ import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
-import { ChartViewId } from "src/cs/workbench/contrib/chart/common/chart";
+import { ChartViewId } from "src/cs/workbench/services/chart/common/chart";
 import { createPlotTabs, getPlotPanelId, getPlotTabId } from "src/cs/workbench/contrib/chart/browser/chartPlotTabs";
 import {
   CHART_INSPECTOR_ACTION_ID,
@@ -18,29 +20,26 @@ import {
 } from "src/cs/workbench/contrib/chart/browser/chartActions";
 import {
   createFileSelect,
-  resolveActiveChartFileOption,
 } from "src/cs/workbench/contrib/chart/browser/chartFileSelect";
-import { createLegendPopover, getLegendContext, isSameLegendContext, type LegendContext } from "src/cs/workbench/contrib/chart/browser/chartLegend";
-import { sameDetailPanes, toAnalysisPanelProps, toggleDetailPane, type ChartDetailPane } from "src/cs/workbench/contrib/chart/browser/chartPaneState";
+import { resolveActiveChartFileOption } from "src/cs/workbench/services/chart/common/chartFileOptions";
+import { createLegendPopover, getLegendContext, type LegendContext } from "src/cs/workbench/contrib/chart/browser/chartLegend";
+import { toAnalysisPanelProps } from "src/cs/workbench/contrib/chart/browser/chartPaneState";
 import { createChartUnitControls, type ChartUnitAxis, type ChartUnitControlState, type ChartYScale } from "src/cs/workbench/contrib/chart/browser/chartUnitControls";
+import type {
+  PlotAxisTitleContext,
+  PlotDisplayModel,
+  PlotType,
+} from "src/cs/workbench/services/plot/common/plot";
+import type { XUnit, YUnit } from "src/cs/workbench/services/plot/common/units";
 import {
-  createSecondCalculatedData,
-  getCalculatedData,
-  type CalculatedData,
-} from "src/cs/workbench/contrib/calculation/common/calculatedData";
-import { resolveLabelWithUnit } from "src/cs/workbench/contrib/plot/browser/plotAxis";
-import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
-import { normalizeXUnit, normalizeYUnit, type XUnit, type YUnit } from "src/cs/workbench/contrib/plot/common/units";
+  IChartService,
+  type ChartAxisTitleEditRequest,
+  type ChartDetailPane,
+  type IChartService as IChartServiceType,
+} from "src/cs/workbench/services/chart/common/chart";
+import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 
 import "src/cs/workbench/contrib/chart/browser/media/chart.css";
-
-type AxisTitleContext = {
-  readonly axis: "x" | "y";
-  readonly defaultTitle: string;
-  readonly fileId: string;
-  readonly pane: "chart" | "inspector";
-  readonly plotType: PlotType;
-};
 
 export class ChartViewPane extends ViewPane {
   private readonly previewPart: HTMLElement;
@@ -53,13 +52,12 @@ export class ChartViewPane extends ViewPane {
   private legendAction: Action | null = null;
   private legendPopover: HTMLElement | null = null;
   private legendContext: LegendContext | null = null;
-  private readonly axisTitlesByContext = new Map<string, string>();
-  private readonly hiddenLegendKeysByContext = new Map<string, readonly string[]>();
   private fallbackActivePlotType: PlotType = "iv";
-  private visibleDetailPanes: readonly ChartDetailPane[] = ["inspector"];
-  private props: AnalysisPanelProps;
+  private props: ChartViewInput = EMPTY_CHART_VIEW_INPUT;
 
-  constructor(props: AnalysisPanelProps) {
+  constructor(
+    @IChartService private readonly chartService: IChartServiceType,
+  ) {
     super({
       id: ChartViewId,
       title: localize("analysis.visualization", "Analysis & Visualization"),
@@ -67,8 +65,7 @@ export class ChartViewPane extends ViewPane {
       bodyClassName: "workbench-part-view-pane__body",
       headerVisible: false,
     });
-    this.props = props;
-    this.analysisPanel = new AnalysisPanel(this.getAnalysisPanelProps(props));
+    this.analysisPanel = new AnalysisPanel(this.getAnalysisPanelProps(this.props));
     this.updateAnalysisPanelTabState();
     this.headerTabs.className = "chart_view_header_tabs";
     this.headerActions.className = "chart_view_header_actions";
@@ -89,11 +86,24 @@ export class ChartViewPane extends ViewPane {
       this.closeLegendPopover();
       this.headerActions.querySelector<HTMLButtonElement>(`[data-action-id="${CHART_LEGEND_ACTION_ID}"]`)?.focus();
     }));
+    this.paneStore.add(this.chartService.onDidChangeChartState(() => {
+      this.renderHeader(this.props);
+      this.updateAnalysisPanel(this.props);
+      this.refreshLegendPopover();
+    }));
+    this.paneStore.add(this.chartService.onDidChangeChartViewInput(input => {
+      if (input) {
+        this.update(input);
+      }
+    }));
+    this.paneStore.add(this.chartService.onDidRequestAxisTitleEdit(request => {
+      this.editAxisTitleRequest(request);
+    }));
     this.body.append(this.previewPart);
-    this.update(props);
+    this.update(this.chartService.getViewInput() ?? this.props);
   }
 
-  public update(props: AnalysisPanelProps): void {
+  public update(props: ChartViewInput): void {
     this.props = props;
     this.closeStaleLegendPopover(props);
     this.renderHeader(props);
@@ -104,16 +114,17 @@ export class ChartViewPane extends ViewPane {
     this.paneStore.dispose();
     this.headerStore.dispose();
     this.analysisPanel.dispose();
+    this.disposeLegendPopover();
     this.content.replaceChildren();
     this.previewPart.remove();
     super.dispose();
   }
 
-  public editAxisTitle(pane: "chart" | "inspector", axis: "x" | "y"): boolean {
-    return this.analysisPanel.editAxisTitle(pane, axis);
+  private editAxisTitleRequest(request: ChartAxisTitleEditRequest): void {
+    this.analysisPanel.editAxisTitle(request.pane, request.axis);
   }
 
-  private renderHeader(props: AnalysisPanelProps): void {
+  private renderHeader(props: ChartViewInput): void {
     this.headerStore.clear();
     this.legendAction = null;
     const activeFile = resolveActiveChartFileOption(props);
@@ -161,87 +172,73 @@ export class ChartViewPane extends ViewPane {
     this.updateAnalysisPanel(this.props);
   }
 
-  private updateAnalysisPanel(props: AnalysisPanelProps): void {
+  private updateAnalysisPanel(props: ChartViewInput): void {
     this.updateAnalysisPanelTabState();
     this.analysisPanel.update(this.getAnalysisPanelProps(props));
   }
 
-  private getAnalysisPanelProps(props: AnalysisPanelProps): AnalysisPanelProps {
+  private getAnalysisPanelProps(props: ChartViewInput): ChartViewInput {
     const legendContext = this.getCurrentLegendContext(props);
-    const chartXTitleContext = this.getAxisTitleContext(props, "chart", "x");
-    const chartYTitleContext = this.getAxisTitleContext(props, "chart", "y");
-    const inspectorXTitleContext = this.getAxisTitleContext(props, "inspector", "x");
-    const inspectorYTitleContext = this.getAxisTitleContext(props, "inspector", "y");
-    return {
-      ...toAnalysisPanelProps(
-        props,
-        this.getActivePlotType(),
-        this.visibleDetailPanes,
-        this.getHiddenLegendKeys(legendContext),
-        this.getLegendLabels(legendContext),
-      ),
-      inspectorXAxisLabelOverride: this.getAxisTitle(inspectorXTitleContext),
-      inspectorYAxisLabelOverride: this.getAxisTitle(inspectorYTitleContext),
-      onInspectorXAxisLabelChange: inspectorXTitleContext
-        ? (nextTitle) => this.updateAxisTitle(inspectorXTitleContext, nextTitle)
-        : undefined,
-      onInspectorYAxisLabelChange: inspectorYTitleContext
-        ? (nextTitle) => this.updateAxisTitle(inspectorYTitleContext, nextTitle)
-        : undefined,
-      onXAxisLabelChange: chartXTitleContext
-        ? (nextTitle) => this.updateAxisTitle(chartXTitleContext, nextTitle)
-        : undefined,
-      onYAxisLabelChange: chartYTitleContext
-        ? (nextTitle) => this.updateAxisTitle(chartYTitleContext, nextTitle)
-        : undefined,
-      xAxisLabelOverride: this.getAxisTitle(chartXTitleContext),
-      yAxisLabelOverride: this.getAxisTitle(chartYTitleContext),
-    };
-  }
-
-  private getAxisTitleContext(
-    props: AnalysisPanelProps,
-    pane: "chart" | "inspector",
-    axis: "x" | "y",
-  ): AxisTitleContext | null {
-    const sourceData = getCalculatedData(
-      props.calculatedPlotsByKey,
+    const hiddenLegendKeys = this.getHiddenLegendKeys(legendContext);
+    const legendLabels = this.getLegendLabels(legendContext);
+    const baseProps = toAnalysisPanelProps(
+      props,
       this.getActivePlotType(),
-      props.activeFileId,
+      this.chartService.getState().visibleDetailPanes,
+      hiddenLegendKeys,
+      legendLabels,
     );
-    const fileId = String(sourceData?.source.fileId ?? "").trim();
-    if (!sourceData || !fileId) {
-      return null;
-    }
-    const data = pane === "inspector" ? createSecondCalculatedData(sourceData) : sourceData;
-
+    const plotDisplayModel = props.createPlotDisplayModel?.({
+      hiddenLegendKeys,
+      legendLabels,
+    }) ?? props.plotDisplayModel ?? null;
+    const displayProps = {
+      ...baseProps,
+      plotDisplayModel,
+    };
     return {
-      axis,
-      defaultTitle: this.getDefaultAxisTitle(data, axis, props),
-      fileId,
-      pane,
-      plotType: this.getActivePlotType(),
+      ...displayProps,
+      inspectorXAxisLabelOverride: plotDisplayModel?.inspector.xAxisTitle,
+      inspectorYAxisLabelOverride: plotDisplayModel?.inspector.yAxisTitle,
+      onInspectorXAxisLabelChange: plotDisplayModel
+        ? (nextTitle) => this.updateAxisTitle(
+            plotDisplayModel.inspector.xAxisTitleContext,
+            nextTitle,
+            plotDisplayModel.inspector.defaultXAxisTitle,
+          )
+        : undefined,
+      onInspectorYAxisLabelChange: plotDisplayModel
+        ? (nextTitle) => this.updateAxisTitle(
+            plotDisplayModel.inspector.yAxisTitleContext,
+            nextTitle,
+            plotDisplayModel.inspector.defaultYAxisTitle,
+          )
+        : undefined,
+      onXAxisLabelChange: plotDisplayModel
+        ? (nextTitle) => this.updateAxisTitle(
+            plotDisplayModel.chart.xAxisTitleContext,
+            nextTitle,
+            plotDisplayModel.chart.defaultXAxisTitle,
+          )
+        : undefined,
+      onYAxisLabelChange: plotDisplayModel
+        ? (nextTitle) => this.updateAxisTitle(
+            plotDisplayModel.chart.yAxisTitleContext,
+            nextTitle,
+            plotDisplayModel.chart.defaultYAxisTitle,
+          )
+        : undefined,
+      xAxisLabelOverride: plotDisplayModel?.chart.xAxisTitle,
+      yAxisLabelOverride: plotDisplayModel?.chart.yAxisTitle,
     };
   }
 
-  private getAxisTitle(context: AxisTitleContext | null): string | undefined {
-    if (!context) {
-      return undefined;
-    }
-
-    return this.axisTitlesByContext.get(this.getAxisTitleStateKey(context)) ?? context.defaultTitle;
-  }
-
-  private updateAxisTitle(context: AxisTitleContext, nextTitle: string): void {
-    const normalizedTitle = nextTitle.trim();
-    const key = this.getAxisTitleStateKey(context);
-    if (!normalizedTitle || normalizedTitle === context.defaultTitle) {
-      this.axisTitlesByContext.delete(key);
-    } else {
-      this.axisTitlesByContext.set(key, normalizedTitle);
-    }
-
-    this.updateAnalysisPanel(this.props);
+  private updateAxisTitle(
+    context: PlotAxisTitleContext,
+    nextTitle: string,
+    defaultTitle: string,
+  ): void {
+    this.props.onPlotAxisTitleChange?.(context, nextTitle, defaultTitle);
   }
 
   private updatePlotUnit(
@@ -256,55 +253,14 @@ export class ChartViewPane extends ViewPane {
     this.props.onPlotYScaleChange?.(fileId, scale);
   }
 
-  private getUnitControlState(props: AnalysisPanelProps): ChartUnitControlState | null {
-    const sourceData = getCalculatedData(
-      props.calculatedPlotsByKey,
-      this.getActivePlotType(),
-      props.activeFileId,
-    );
-    const fileId = String(sourceData?.source.fileId ?? "").trim();
-    if (!sourceData || !fileId) {
-      return null;
-    }
-
-    const sourceXUnit = normalizeXUnit(sourceData.activeFile?.xUnit, "V") || "V";
-    const sourceYUnit = normalizeYUnit(sourceData.activeFile?.yUnit, "A") || "A";
-    const xUnit = normalizeXUnit(props.xUnitByFileId?.[fileId], sourceXUnit) || sourceXUnit;
-    const yUnit = normalizeYUnit(props.yUnitByFileId?.[fileId], sourceYUnit) || sourceYUnit;
-    const yScale = props.yScaleByFileId?.[fileId] === "log" ? "log" : "linear";
-
-    return {
-      fileId,
-      xUnit,
-      yScale,
-      yUnit,
-    };
+  private getUnitControlState(props: ChartViewInput): ChartUnitControlState | null {
+    return this.getPlotDisplayModel(props)?.unitControl ?? null;
   }
 
-  private getDefaultAxisTitle(
-    data: CalculatedData,
-    axis: "x" | "y",
-    props: AnalysisPanelProps,
-  ): string {
-    return axis === "x"
-      ? resolveLabelWithUnit(data.activeFile?.xLabel, this.getDisplayXUnit(data, props), "X")
-      : resolveLabelWithUnit(data.activeFile?.yLabel, this.getDisplayYUnit(data, props) ?? data.yUnitLabel, "Y");
-  }
-
-  private getDisplayXUnit(data: CalculatedData, props: AnalysisPanelProps): XUnit {
-    const fileId = String(data.source.fileId ?? "").trim();
-    const sourceUnit = normalizeXUnit(data.xUnitLabel, "V") || "V";
-    return normalizeXUnit(fileId ? props.xUnitByFileId?.[fileId] : undefined, sourceUnit) || sourceUnit;
-  }
-
-  private getDisplayYUnit(data: CalculatedData, props: AnalysisPanelProps): YUnit | undefined {
-    const sourceUnit = normalizeYUnit(data.yUnitLabel);
-    if (!sourceUnit) {
-      return undefined;
-    }
-
-    const fileId = String(data.source.fileId ?? "").trim();
-    return normalizeYUnit(fileId ? props.yUnitByFileId?.[fileId] : undefined, sourceUnit) || sourceUnit;
+  private getPlotDisplayModel(props: ChartViewInput): PlotDisplayModel | null {
+    return props.plotDisplayModel ??
+      props.createPlotDisplayModel?.({}) ??
+      null;
   }
 
   private updateAnalysisPanelTabState(): void {
@@ -313,7 +269,7 @@ export class ChartViewPane extends ViewPane {
     this.analysisPanel.element.setAttribute("aria-labelledby", getPlotTabId(this.getActivePlotType()));
   }
 
-  private createHeaderActions(props: AnalysisPanelProps): HTMLElement {
+  private createHeaderActions(props: ChartViewInput): HTMLElement {
     const actionBar = new ActionBar({
       ariaLabel: localize("chart_header_actions", "Chart actions"),
       actionViewItemProvider: (action, options) => new ChartHeaderActionViewItem(
@@ -349,7 +305,7 @@ export class ChartViewPane extends ViewPane {
     readonly label: string;
     readonly pane: ChartDetailPane;
   }): IAction {
-    const isActive = this.visibleDetailPanes.includes(pane);
+    const isActive = this.chartService.getState().visibleDetailPanes.includes(pane);
     return toAction({
       checked: isActive,
       id,
@@ -361,7 +317,7 @@ export class ChartViewPane extends ViewPane {
     });
   }
 
-  private createLegendAction(props: AnalysisPanelProps): IAction | null {
+  private createLegendAction(props: ChartViewInput): IAction | null {
     const legendContext = this.getCurrentLegendContext(props);
     if (!legendContext) {
       return null;
@@ -373,20 +329,11 @@ export class ChartViewPane extends ViewPane {
       "",
       true,
       (): void => {
-        if (this.legendPopover) {
-          this.closeLegendPopover();
-          return;
-        }
-        const legend = createLegendPopover(props, legendContext, {
-          hiddenLegendKeys: this.getHiddenLegendKeys(legendContext),
-          legendLabels: this.getLegendLabels(legendContext),
-          onToggleLegendItem: (legendKey) => this.toggleLegendItem(legendContext, legendKey),
-          onEditLegendItem: (legendKey, currentLabel) => this.editLegendItem(legendContext, legendKey, currentLabel),
-        });
-        this.legendPopover = legend;
-        this.legendContext = legendContext;
-        this.previewPart.append(legend);
-        legendAction.checked = true;
+        const contextKey = this.getLegendStateKey(legendContext);
+        const currentContextKey = this.chartService.getState().legendPopoverContextKey;
+        this.chartService.setLegendPopoverContextKey(
+          currentContextKey === contextKey ? null : contextKey,
+        );
       },
     );
     legendAction.checked = this.isLegendPopoverCurrent(props);
@@ -397,6 +344,11 @@ export class ChartViewPane extends ViewPane {
   }
 
   private closeLegendPopover(): void {
+    this.chartService.setLegendPopoverContextKey(null);
+    this.disposeLegendPopover();
+  }
+
+  private disposeLegendPopover(): void {
     this.legendPopover?.remove();
     this.legendPopover = null;
     this.legendContext = null;
@@ -405,25 +357,34 @@ export class ChartViewPane extends ViewPane {
     }
   }
 
-  private closeStaleLegendPopover(props: AnalysisPanelProps): void {
-    if (this.legendPopover && !this.isLegendPopoverCurrent(props)) {
+  private closeStaleLegendPopover(props: ChartViewInput): void {
+    const currentContext = this.getCurrentLegendContext(props);
+    const currentContextKey = currentContext ? this.getLegendStateKey(currentContext) : null;
+    const openContextKey = this.chartService.getState().legendPopoverContextKey;
+    if (openContextKey && openContextKey !== currentContextKey) {
       this.closeLegendPopover();
+      return;
+    }
+
+    if (!openContextKey) {
+      this.disposeLegendPopover();
     }
   }
 
-  private isLegendPopoverCurrent(props: AnalysisPanelProps): boolean {
+  private isLegendPopoverCurrent(props: ChartViewInput): boolean {
     const currentContext = this.getCurrentLegendContext(props);
-    const legendContext = this.legendContext;
-    if (!this.legendPopover || !legendContext || !currentContext) {
+    if (!currentContext) {
       return false;
     }
-    return isSameLegendContext(legendContext, currentContext);
+    return this.chartService.getState().legendPopoverContextKey ===
+      this.getLegendStateKey(currentContext);
   }
 
   private refreshLegendPopover(): void {
     const context = this.getCurrentLegendContext(this.props);
-    if (!this.legendPopover || !context) {
-      this.closeLegendPopover();
+    const openContextKey = this.chartService.getState().legendPopoverContextKey;
+    if (!context || openContextKey !== this.getLegendStateKey(context)) {
+      this.disposeLegendPopover();
       return;
     }
 
@@ -433,7 +394,7 @@ export class ChartViewPane extends ViewPane {
       onToggleLegendItem: (legendKey) => this.toggleLegendItem(context, legendKey),
       onEditLegendItem: (legendKey, currentLabel) => this.editLegendItem(context, legendKey, currentLabel),
     });
-    this.legendPopover.remove();
+    this.legendPopover?.remove();
     this.legendPopover = legend;
     this.legendContext = context;
     this.previewPart.append(legend);
@@ -472,42 +433,22 @@ export class ChartViewPane extends ViewPane {
 
   private toggleLegendItem(context: LegendContext, legendKey: string): void {
     const key = this.getLegendStateKey(context);
-    if (!context.seriesList.some((series) => series.id === legendKey)) {
-      return;
-    }
-
-    const current = this.getHiddenLegendKeys(context);
-    const next = current.includes(legendKey)
-      ? current.filter((item) => item !== legendKey)
-      : [...current, legendKey];
-    if (next.length) {
-      this.hiddenLegendKeysByContext.set(key, next);
-    } else {
-      this.hiddenLegendKeysByContext.delete(key);
-    }
-
-    this.renderHeader(this.props);
-    this.updateAnalysisPanel(this.props);
-    this.refreshLegendPopover();
+    this.chartService.toggleHiddenLegendKey(
+      key,
+      legendKey,
+      context.seriesList.map(series => series.id),
+    );
   }
 
   private toggleVisibleDetailPane(pane: ChartDetailPane): void {
-    const next = toggleDetailPane(this.visibleDetailPanes, pane);
-
-    if (sameDetailPanes(next, this.visibleDetailPanes)) {
-      return;
-    }
-
-    this.visibleDetailPanes = next;
-    this.renderHeader(this.props);
-    this.updateAnalysisPanel(this.props);
+    this.chartService.toggleDetailPane(pane);
   }
 
   private getActivePlotType(): PlotType {
     return this.props.activePlotType ?? this.fallbackActivePlotType;
   }
 
-  private getCurrentLegendContext(props: AnalysisPanelProps): LegendContext | null {
+  private getCurrentLegendContext(props: ChartViewInput): LegendContext | null {
     return getLegendContext(props, this.getActivePlotType());
   }
 
@@ -517,16 +458,10 @@ export class ChartViewPane extends ViewPane {
     }
 
     const key = this.getLegendStateKey(context);
-    const liveLegendKeys = new Set(context.seriesList.map((series) => series.id));
-    const hidden = (this.hiddenLegendKeysByContext.get(key) ?? [])
-      .filter((legendKey) => liveLegendKeys.has(legendKey));
-    if (!hidden.length) {
-      this.hiddenLegendKeysByContext.delete(key);
-      return [];
-    }
-
-    this.hiddenLegendKeysByContext.set(key, hidden);
-    return hidden;
+    return this.chartService.getHiddenLegendKeys(
+      key,
+      context.seriesList.map(series => series.id),
+    );
   }
 
   private getLegendLabels(context: LegendContext | null): Readonly<Record<string, string>> {
@@ -548,10 +483,14 @@ export class ChartViewPane extends ViewPane {
   private getLegendStateKey(context: LegendContext): string {
     return `${context.fileId}:${context.plotType}`;
   }
-
-  private getAxisTitleStateKey(context: AxisTitleContext): string {
-    return `${context.fileId}:${context.plotType}:${context.pane}:${context.axis}`;
-  }
 }
+
+const EMPTY_CHART_VIEW_INPUT: ChartViewInput = {
+  activeFileId: null,
+  activePlotType: "iv",
+  chartFileOptions: [],
+  hasAnalysisData: false,
+  shouldMountCharts: false,
+};
 
 export default ChartViewPane;

@@ -1,344 +1,66 @@
-﻿// Browser implementation of the session data table. This is the only mutable
-// owner for imported files, calculated curves, and file semantics in the workbench.
-// Keep file semantics updates here so chart, calculation, parameters, and export read
-// one session snapshot instead of synchronizing through a second service.
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// Browser implementation of the session data table. This is the only mutable
+// owner for canonical imported files, assessments, template runs, curves, and metrics.
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import type {
-  ProcessedEntry,
-  ProcessedSeries,
-  PreviewFile,
-  PreviewRowsRequest,
-  SessionFile,
-} from "src/cs/workbench/services/session/common/sessionTypes";
-import type { CalculatedPlotsByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
-import type {
-  TemplateSelection,
-  TemplateSelectionsByFileId,
-} from "src/cs/workbench/contrib/template/common/templateSelection";
 import {
-  type CurveData,
-  type CurveKey,
-  type CurveKind,
-  type CurveViewState,
-  type FileSemantics,
-  type FileSemanticsUpdate,
-} from "src/cs/workbench/services/session/common/fileSemantics";
-import {
-  createEmptySessionViewState,
-  createFileTarget,
-  createNoneTarget,
-  createSheetTarget,
-  getIonIoffMethodFromViewState,
-  getSelectedTemplateIdFromViewState,
-  getSsMethodFromViewState,
-  getSsShowFitLineFromViewState,
-  getTemplateFormStateFromViewState,
-  getTemplateModeFromViewState,
-  getTemplateSelectionsFromViewState,
-  isSameSessionTarget,
+  createEmptySessionModel,
+  type CurveGeneration,
   type CurveKey as SessionCurveKey,
   type CurveRecord,
   type FileId,
   type FileRecord,
   type MetricInputRecord,
   type MetricKey,
-  type SessionTarget,
-  type SessionViewState,
-  type TableSelection,
-  type TemplateSelectionsByFileIdRecord,
+  type MetricRecord,
+  type RawRecord,
+  type TableRecord,
+  type TableRowStoreRecord,
+  type TemplateRunRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
-  createCanonicalCurveKeyFromCurveKey,
-  createRawFilesFromRecords,
-  mergeCurveDataIntoRecords,
-  mergeFileSemanticsIntoRecords,
-  mergeProcessedFileIntoRecords,
-  mergeRawFilesIntoRecords,
-  pruneCurveDataRecords,
-  removeCurveDataFromRecords,
-  replaceCalculatedCurvesInRecords,
   resetProcessedRecords,
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import {
   ISessionService,
-  type IonIoffMethod,
-  type CommitProcessedFileOptions,
-  type MutableState,
-  type PreviewStatus,
-  type SessionContextValue,
+  type CommitCurvesInput,
+  type CommitMetricsInput,
+  type CommitTemplateRunInput,
   type SessionSnapshot,
-  type SsMethod,
-  type StateSetter,
-  type TemplateFormState,
-  type TemplateMode,
   type ISessionService as ISessionServiceType,
 } from "src/cs/workbench/services/session/common/session";
-
-const createRef = <T,>(current: T): MutableState<T> => ({ current });
-
-const createPreviewStatus = (): PreviewStatus => ({
-  state: "idle",
-  message: "",
-});
-
-const normalizePreviewStatus = (status: PreviewStatus): PreviewStatus => ({
-  state: status.state === "loading" || status.state === "ready" ? status.state : "idle",
-  message: String(status.message ?? ""),
-});
-
-const CURVE_KIND_VALUES = new Set<CurveKind>([
-  "iv",
-  "gm",
-  "ss",
-  "vth",
-  "localSs",
-  "thresholdFit",
-  "subthresholdFit",
-  "secondDerivative",
-  "cv",
-  "cf",
-  "pv",
-  "it",
-  "transfer",
-  "output",
-  "unknown",
-]);
-
-const normalizeCurveKind = (value: unknown): CurveKind => {
-  const text = normalizeOptionalText(value);
-  return text && CURVE_KIND_VALUES.has(text as CurveKind)
-    ? text as CurveKind
-    : "unknown";
-};
-
-const isSamePreviewStatus = (
-  current: PreviewStatus,
-  next: PreviewStatus,
-): boolean => current.state === next.state && current.message === next.message;
-
-const isDefaultPreviewStatus = (status: PreviewStatus): boolean =>
-  status.state === "idle" && status.message === "";
-
-const resolveNext = <T,>(value: T | ((previous: T) => T), previous: T): T =>
-  typeof value === "function"
-    ? (value as (previous: T) => T)(previous)
-    : value;
-
-type TemplateViewState = NonNullable<SessionViewState["template"]>;
-type ParametersViewState = NonNullable<SessionViewState["parameters"]>;
-
-const updateTemplateViewState = (
-  viewState: SessionViewState,
-  updates: TemplateViewState,
-): SessionViewState => ({
-  ...viewState,
-  template: {
-    ...viewState.template,
-    ...updates,
-  },
-});
-
-const updateParametersViewState = (
-  viewState: SessionViewState,
-  updates: ParametersViewState,
-): SessionViewState => ({
-  ...viewState,
-  parameters: {
-    ...viewState.parameters,
-    ...updates,
-  },
-});
-
-const updateTemplateSelectionsInViewState = (
-  viewState: SessionViewState,
-  selectionsByFileId: TemplateSelectionsByFileIdRecord,
-): SessionViewState =>
-  updateTemplateViewState(viewState, { selectionsByFileId });
-
-const createDataResetViewState = (
-  viewState: SessionViewState,
-): SessionViewState => {
-  const hasTemplateSelections = Boolean(viewState.template?.selectionsByFileId);
-  if (!viewState.table && !viewState.chart && !viewState.curves && !hasTemplateSelections) {
-    return viewState;
-  }
-
-  const next: SessionViewState = {};
-  if (viewState.template) {
-    const { selectionsByFileId, ...template } = viewState.template;
-    if (Object.keys(template).length > 0) {
-      next.template = template;
-    }
-  }
-  if (viewState.parameters && Object.keys(viewState.parameters).length > 0) {
-    next.parameters = viewState.parameters;
-  }
-
-  return next;
-};
-
-const removeTemplateSelectionsFromViewState = (
-  viewState: SessionViewState,
-  removedFileIds: ReadonlySet<string>,
-): SessionViewState => {
-  const previous = getTemplateSelectionsFromViewState(viewState);
-  const next = filterRecord(previous, (fileId) => !removedFileIds.has(fileId));
-  return next === previous
-    ? viewState
-    : updateTemplateSelectionsInViewState(viewState, next);
-};
+import {
+  createSessionChangeEvent,
+  type SessionAffectedRecords,
+  type SessionChangeEvent,
+  type SessionChangeReason,
+} from "src/cs/workbench/services/session/common/sessionEvents";
+import type {
+  FileImportResult,
+  ImportedFileRecord,
+} from "src/cs/workbench/services/files/common/files";
+import type {
+  RawTableRecord,
+} from "src/cs/workbench/services/files/common/rawTable";
+import type {
+  RawTableAssessmentRecord,
+} from "src/cs/workbench/services/assessment/common/assessment";
+import type {
+  MeasurementBlockRecord,
+} from "src/cs/workbench/services/assessment/common/measurement";
 
 export class SessionService extends Disposable implements ISessionServiceType {
   public declare readonly _serviceBrand: undefined;
 
-  private readonly onDidChangeSessionEmitter = this._register(new Emitter<void>());
+  private readonly onDidChangeSessionEmitter = this._register(new Emitter<SessionChangeEvent>());
   public readonly onDidChangeSession = this.onDidChangeSessionEmitter.event;
 
-  private snapshot: SessionSnapshot = {
-    version: 1,
-    filesById: {},
-    fileOrder: [],
-    activeTarget: createNoneTarget(),
-    viewState: createEmptySessionViewState(),
-  };
+  private snapshot: SessionSnapshot = createEmptySessionModel();
 
-  private batchDepth = 0;
-  private hasPendingChange = false;
-
-  readonly previewWorkerRef = createRef<Worker | null>(null);
-  readonly previewRequestIdRef = createRef(0);
-  readonly previewRowsRequestIdRef = createRef(0);
-  readonly previewRowsRequestsRef = createRef(new Map<number, PreviewRowsRequest>());
-  readonly previewRowsCacheByFileIdRef = createRef(
-    new Map<string, Map<number, unknown[]>>(),
-  );
-  readonly previewLoadedChunksByFileIdRef = createRef(new Map<string, Set<number>>());
-  readonly previewRowsCacheRef = createRef(new Map<number, unknown[]>());
-  readonly previewLoadedChunksRef = createRef(new Set<number>());
-  readonly previewCacheFileIdRef = createRef<string | null>(null);
-  readonly previewCacheFileLruRef = createRef(new Set<string>());
-
-  readonly setActiveTarget: StateSetter<SessionTarget> = (value) => {
-    const next = normalizeSessionTarget(resolveNext(value, this.snapshot.activeTarget));
-    this.updateActiveTarget(next);
-  };
-  readonly setTableSelection: StateSetter<TableSelection | undefined> = (value) => {
-    this.setViewState((previous) => {
-      const currentSelection = previous.table?.selection;
-      const nextSelection = resolveNext(value, currentSelection);
-      if (Object.is(currentSelection, nextSelection)) {
-        return previous;
-      }
-
-      const table = { ...previous.table };
-      if (nextSelection) {
-        table.selection = nextSelection;
-      } else {
-        delete table.selection;
-      }
-
-      return {
-        ...previous,
-        table,
-      };
-    });
-  };
-  readonly setViewState: StateSetter<SessionViewState> = (value) =>
-    this.update("viewState", value);
-  readonly setTemplateMode: StateSetter<TemplateMode> = (value) => {
-    this.setViewState((previous) => {
-      const current = getTemplateModeFromViewState(previous);
-      const next = resolveNext(value, current);
-      return current === next
-        ? previous
-        : updateTemplateViewState(previous, { mode: next });
-    });
-  };
-  readonly setSelectedTemplateId: StateSetter<string | null> = (value) => {
-    this.setViewState((previous) => {
-      const current = getSelectedTemplateIdFromViewState(previous);
-      const next = resolveNext(value, current);
-      return current === next
-        ? previous
-        : updateTemplateViewState(previous, { selectedTemplateId: next });
-    });
-  };
-  readonly setFileTemplateSelectionsByFileId: StateSetter<TemplateSelectionsByFileId> =
-    (value) => {
-      const previous = getTemplateSelectionsFromViewState(this.snapshot.viewState);
-      const next = resolveNext(value, previous);
-      if (Object.is(previous, next)) {
-        return;
-      }
-
-      this.replaceSnapshot({
-        ...this.snapshot,
-        viewState: updateTemplateSelectionsInViewState(this.snapshot.viewState, next),
-        filesById: applyTemplateSelectionsToRecords(this.snapshot.filesById, next),
-      });
-    };
-  readonly setTemplateFormState: StateSetter<TemplateFormState> = (value) => {
-    this.setViewState((previous) => {
-      const current = getTemplateFormStateFromViewState(previous);
-      const next = resolveNext(value, current);
-      return Object.is(current, next)
-        ? previous
-        : updateTemplateViewState(previous, { formState: next });
-    });
-  };
-  readonly setPreviewFile: StateSetter<PreviewFile | null> = (value) => {
-    this.setViewState((previous) => {
-      const current = previous.table?.previewFile ?? null;
-      const next = resolveNext(value, current);
-      if (Object.is(current, next)) {
-        return previous;
-      }
-
-      const table = { ...previous.table };
-      if (next) {
-        table.previewFile = next;
-      } else {
-        delete table.previewFile;
-      }
-
-      return {
-        ...previous,
-        table,
-      };
-    });
-  };
-  readonly setPreviewStatus: StateSetter<PreviewStatus> = (value) => {
-    this.setViewState((previous) => {
-      const current = previous.table?.previewStatus ?? createPreviewStatus();
-      const next = normalizePreviewStatus(resolveNext(value, current));
-      if (isSamePreviewStatus(current, next)) {
-        return previous;
-      }
-
-      const table = { ...previous.table };
-      if (isDefaultPreviewStatus(next)) {
-        delete table.previewStatus;
-      } else {
-        table.previewStatus = next;
-      }
-
-      return {
-        ...previous,
-        table,
-      };
-    });
-  };
-  readonly setIonIoffMethod: StateSetter<IonIoffMethod> = (value) => {
-    this.setViewState((previous) => {
-      const current = getIonIoffMethodFromViewState(previous);
-      const next = resolveNext(value, current);
-      return current === next
-        ? previous
-        : updateParametersViewState(previous, { ionIoffMethod: next });
-    });
-  };
   readonly setMetricInput = (input: MetricInputRecord): void => {
     const normalized = normalizeMetricInput(input);
     if (!normalized) {
@@ -367,6 +89,10 @@ export class SessionService extends Disposable implements ISessionServiceType {
           },
         },
       },
+    }, "metricInputsChanged", {
+      fileIds: [normalized.fileId],
+      metricKeys: [normalized.metricKey],
+      seriesIds: [normalized.seriesId],
     });
   };
   readonly clearMetricInput = (fileId: string, metricKey: MetricKey): void => {
@@ -390,112 +116,257 @@ export class SessionService extends Disposable implements ISessionServiceType {
             : undefined,
         },
       },
+    }, "metricInputsChanged", {
+      fileIds: [normalizedFileId],
+      metricKeys: [normalizedMetricKey],
     });
   };
-  readonly setSsMethod: StateSetter<SsMethod> = (value) => {
-    this.setViewState((previous) => {
-      const current = getSsMethodFromViewState(previous);
-      const next = resolveNext(value, current);
-      return current === next
-        ? previous
-        : updateParametersViewState(previous, { ssMethod: next });
-    });
-  };
-  readonly setSsShowFitLine: StateSetter<boolean> = (value) => {
-    this.setViewState((previous) => {
-      const current = getSsShowFitLineFromViewState(previous);
-      const next = resolveNext(value, current);
-      return current === next
-        ? previous
-        : updateParametersViewState(previous, { ssShowFitLine: next });
-    });
-  };
-
-  public subscribe = (listener: () => void): (() => void) => {
-    const disposable = this.onDidChangeSession(listener);
-    return () => disposable.dispose();
-  };
-
   public getSnapshot = (): SessionSnapshot => {
     return this.snapshot;
   };
 
-  public batch = (callback: () => void): void => {
-    this.batchDepth += 1;
-    try {
-      callback();
-    } finally {
-      this.batchDepth -= 1;
-      if (this.batchDepth === 0 && this.hasPendingChange) {
-        this.hasPendingChange = false;
-        this.emitChange();
-      }
-    }
-  };
-
-  public createContextValue(snapshot: SessionSnapshot): SessionContextValue {
-    return {
-      version: snapshot.version,
-      filesById: snapshot.filesById,
-      fileOrder: snapshot.fileOrder,
-      activeTarget: snapshot.activeTarget,
-      viewState: snapshot.viewState,
-      setActiveTarget: this.setActiveTarget,
-      setTableSelection: this.setTableSelection,
-      setViewState: this.setViewState,
-      addRawFiles: this.addRawFiles,
-      replaceRawFiles: this.replaceRawFiles,
-      removeFiles: this.removeFiles,
-      clearSessionData: this.clearSessionData,
-      replaceCalculatedCurves: this.replaceCalculatedCurves,
-      commitProcessedFile: this.commitProcessedFile,
-      resetProcessedData: this.resetProcessedData,
-      setTemplateMode: this.setTemplateMode,
-      setSelectedTemplateId: this.setSelectedTemplateId,
-      setFileTemplateSelectionsByFileId: this.setFileTemplateSelectionsByFileId,
-      setTemplateFormState: this.setTemplateFormState,
-      setPreviewFile: this.setPreviewFile,
-      setPreviewStatus: this.setPreviewStatus,
-      previewWorkerRef: this.previewWorkerRef,
-      previewRequestIdRef: this.previewRequestIdRef,
-      previewRowsRequestIdRef: this.previewRowsRequestIdRef,
-      previewRowsRequestsRef: this.previewRowsRequestsRef,
-      previewRowsCacheByFileIdRef: this.previewRowsCacheByFileIdRef,
-      previewLoadedChunksByFileIdRef: this.previewLoadedChunksByFileIdRef,
-      previewRowsCacheRef: this.previewRowsCacheRef,
-      previewLoadedChunksRef: this.previewLoadedChunksRef,
-      previewCacheFileIdRef: this.previewCacheFileIdRef,
-      previewCacheFileLruRef: this.previewCacheFileLruRef,
-      setIonIoffMethod: this.setIonIoffMethod,
-      setSsMethod: this.setSsMethod,
-      setSsShowFitLine: this.setSsShowFitLine,
-    };
-  }
-
-  public addRawFiles = (files: readonly SessionFile[]): void => {
-    const nextFiles = normalizeSessionFiles(files);
-    if (!nextFiles.length) {
+  public commitFileImport = (result: FileImportResult): void => {
+    const importedRecords = result.files
+      .map(createFileRecordFromImportedFile)
+      .filter((record): record is FileRecord => Boolean(record));
+    if (!importedRecords.length) {
       return;
     }
 
-    const nextRecords = mergeRawFilesIntoRecords(
-      this.snapshot.filesById,
-      this.snapshot.fileOrder,
-      nextFiles,
-    );
+    const nextFilesById: Record<FileId, FileRecord> = { ...this.snapshot.filesById };
+    let nextFileOrder = this.snapshot.fileOrder.filter(fileId => Boolean(nextFilesById[fileId]));
+    for (const record of importedRecords) {
+      nextFilesById[record.id] = record;
+      if (!nextFileOrder.includes(record.id)) {
+        nextFileOrder = [...nextFileOrder, record.id];
+      }
+    }
+
     this.replaceSnapshot({
       ...this.snapshot,
-      ...nextRecords,
+      filesById: nextFilesById,
+      fileOrder: nextFileOrder,
+    }, "rawTablesChanged", {
+      fileIds: importedRecords.map(record => record.id),
+      rawTableIds: importedRecords.flatMap(record => record.raw.tableOrder),
     });
   };
 
-  public replaceRawFiles = (files: readonly SessionFile[]): void => {
-    const nextRecords = mergeRawFilesIntoRecords({}, [], normalizeSessionFiles(files));
+  public commitRawTableAssessment = (assessment: RawTableAssessmentRecord): void => {
+    const fileId = normalizeId(assessment.fileId);
+    const rawTableId = normalizeId(assessment.rawTableId);
+    const file = fileId ? this.snapshot.filesById[fileId] : undefined;
+    if (!file || !rawTableId || !file.raw.tablesById[rawTableId]) {
+      return;
+    }
+
+    const rawTableVersion = file.rawTableVersionsById?.[rawTableId] ?? 0;
+    if (rawTableVersion !== assessment.sourceRawTableVersion) {
+      return;
+    }
+
+    const measurementBlocksById = removeMeasurementBlocksForRawTable(
+      file.measurementBlocksById ?? {},
+      rawTableId,
+    );
+    const measurementBlockOrder = file.measurementBlockOrder.filter(blockId =>
+      Boolean(measurementBlocksById[blockId])
+    );
+    const committedBlocks: MeasurementBlockRecord[] = [];
+    for (const block of assessment.blocks) {
+      const normalizedBlock = normalizeMeasurementBlock(block, fileId, rawTableId);
+      if (!normalizedBlock) {
+        continue;
+      }
+
+      measurementBlocksById[normalizedBlock.id] = normalizedBlock;
+      committedBlocks.push(normalizedBlock);
+    }
+    const committedBlockIds = getUniqueIds(committedBlocks.map(block => block.id));
+    const committedAssessment: RawTableAssessmentRecord = {
+      ...assessment,
+      fileId,
+      rawTableId,
+      blocks: committedBlocks,
+    };
+
     this.replaceSnapshot({
       ...this.snapshot,
-      ...nextRecords,
-      activeTarget: createNoneTarget(),
-      viewState: createDataResetViewState(this.snapshot.viewState),
+      filesById: {
+        ...this.snapshot.filesById,
+        [fileId]: {
+          ...file,
+          assessmentsByRawTableId: {
+            ...(file.assessmentsByRawTableId ?? {}),
+            [rawTableId]: committedAssessment,
+          },
+          measurementBlocksById,
+          measurementBlockOrder: [...measurementBlockOrder, ...committedBlockIds],
+        },
+      },
+    }, "assessmentChanged", {
+      fileIds: [fileId],
+      rawTableIds: [rawTableId],
+    });
+  };
+
+  public commitTemplateRun = (input: CommitTemplateRunInput): void => {
+    if (isClearTemplateOutputCommitInput(input)) {
+      this.clearTemplateOutput(input.fileIds);
+      return;
+    }
+
+    const templateRunInput = getTemplateRunFromCommitInput(input);
+    const templateRun = templateRunInput ? normalizeTemplateRunRecord(templateRunInput) : null;
+    const file = templateRun ? this.snapshot.filesById[templateRun.fileId] : undefined;
+    if (!templateRun || !file) {
+      return;
+    }
+    const payload = getTemplateRunCommitPayload(input);
+
+    const current = file.templateRunsById[templateRun.id];
+    if (
+      current === templateRun &&
+      file.latestTemplateRunId === templateRun.id &&
+      !payload
+    ) {
+      return;
+    }
+    const fileName = payload?.fileName ? normalizeId(payload.fileName) : null;
+    const nextFile: FileRecord = {
+      ...file,
+      ...(payload && "calculationCache" in payload ? { calculationCache: payload.calculationCache } : {}),
+      ...(payload?.seriesById ? { seriesById: { ...payload.seriesById } } : {}),
+      ...(payload?.seriesOrder ? { seriesOrder: [...payload.seriesOrder] } : {}),
+      ...(fileName
+        ? {
+            name: fileName,
+            raw: {
+              ...file.raw,
+              fileName,
+            },
+          }
+        : {}),
+      templateRunsById: {
+        ...file.templateRunsById,
+        [templateRun.id]: templateRun,
+      },
+      latestTemplateRunId: templateRun.id,
+    };
+
+    this.replaceSnapshot({
+      ...this.snapshot,
+      filesById: {
+        ...this.snapshot.filesById,
+        [templateRun.fileId]: nextFile,
+      },
+    }, "templateRunChanged", {
+      curveKeys: templateRun.outputCurveKeys,
+      fileIds: [templateRun.fileId],
+      seriesIds: templateRun.outputSeriesIds,
+    });
+  };
+
+  public commitCurves = (input: CommitCurvesInput): void => {
+    const fileId = normalizeId(input.fileId);
+    const file = fileId ? this.snapshot.filesById[fileId] : undefined;
+    if (!file) {
+      return;
+    }
+
+    const replaceGenerations = new Set<CurveGeneration>(
+      Array.isArray(input.replaceGenerations) ? input.replaceGenerations : [],
+    );
+    let changed = Boolean(input.replace);
+    const curvesByKey: Record<SessionCurveKey, CurveRecord> = {};
+    if (!input.replace) {
+      for (const [curveKey, curve] of Object.entries(file.curvesByKey) as Array<[SessionCurveKey, CurveRecord]>) {
+        if (replaceGenerations.has(curve.curveGeneration)) {
+          changed = true;
+          continue;
+        }
+        curvesByKey[curveKey] = curve;
+      }
+    }
+    const committedCurveKeys: SessionCurveKey[] = [];
+    const committedSeriesIds: string[] = [];
+    for (const curve of Array.isArray(input.curves) ? input.curves : []) {
+      if (curve.fileId !== fileId) {
+        continue;
+      }
+
+      const curveKey = createCurveRecordKey(curve);
+      changed ||= curvesByKey[curveKey] !== curve;
+      curvesByKey[curveKey] = curve;
+      committedCurveKeys.push(curveKey);
+      committedSeriesIds.push(curve.seriesId);
+    }
+    if (!changed) {
+      return;
+    }
+
+    this.replaceSnapshot({
+      ...this.snapshot,
+      filesById: {
+        ...this.snapshot.filesById,
+        [fileId]: {
+          ...file,
+          curvesByKey,
+        },
+      },
+    }, "curvesChanged", {
+      curveKeys: uniqueStrings(committedCurveKeys),
+      fileIds: [fileId],
+      seriesIds: uniqueStrings(committedSeriesIds),
+    });
+  };
+
+  public commitMetrics = (input: CommitMetricsInput): void => {
+    const fileId = normalizeId(input.fileId);
+    const file = fileId ? this.snapshot.filesById[fileId] : undefined;
+    if (!file) {
+      return;
+    }
+
+    let changed = Boolean(
+      input.replace &&
+        (Object.keys(file.metricsByKey).length > 0 || file.metricsBySeriesId),
+    );
+    const metricsByKey = input.replace ? {} : { ...file.metricsByKey };
+    const metricsBySeriesId = input.replace ? {} : cloneMetricsBySeriesId(file.metricsBySeriesId);
+    const committedMetricKeys: MetricKey[] = [];
+    const committedSeriesIds: string[] = [];
+    for (const metric of Array.isArray(input.metrics) ? input.metrics : []) {
+      if (metric.fileId !== fileId || !normalizeMetricKey(metric.key)) {
+        continue;
+      }
+
+      changed ||= metricsByKey[metric.key] !== metric;
+      metricsByKey[metric.key] = metric;
+      appendMetricKey(metricsBySeriesId, metric.seriesId, metric.key);
+      committedMetricKeys.push(metric.key);
+      committedSeriesIds.push(metric.seriesId);
+    }
+    if (!changed) {
+      return;
+    }
+
+    this.replaceSnapshot({
+      ...this.snapshot,
+      filesById: {
+        ...this.snapshot.filesById,
+        [fileId]: {
+          ...file,
+          metricsByKey,
+          metricsBySeriesId: Object.keys(metricsBySeriesId).length
+            ? metricsBySeriesId
+            : undefined,
+        },
+      },
+    }, "metricsChanged", {
+      fileIds: [fileId],
+      metricKeys: uniqueStrings(committedMetricKeys),
+      seriesIds: uniqueStrings(committedSeriesIds),
     });
   };
 
@@ -512,22 +383,9 @@ export class SessionService extends Disposable implements ISessionServiceType {
     const nextFileOrder = this.snapshot.fileOrder.filter((fileId) =>
       !removedFileIds.has(fileId)
     );
-    const nextViewState = removeTemplateSelectionsFromViewState(
-      this.snapshot.viewState,
-      removedFileIds,
-    );
-    const nextActiveTarget = shouldClearActiveTarget(
-      this.snapshot.activeTarget,
-      removedFileIds,
-    )
-      ? createNoneTarget()
-      : this.snapshot.activeTarget;
-
     if (
       nextFilesById === this.snapshot.filesById &&
-      nextFileOrder === this.snapshot.fileOrder &&
-      nextViewState === this.snapshot.viewState &&
-      nextActiveTarget === this.snapshot.activeTarget
+      nextFileOrder === this.snapshot.fileOrder
     ) {
       return;
     }
@@ -536,18 +394,15 @@ export class SessionService extends Disposable implements ISessionServiceType {
       ...this.snapshot,
       filesById: nextFilesById,
       fileOrder: nextFileOrder,
-      activeTarget: nextActiveTarget,
-      viewState: nextViewState,
+    }, "filesRemoved", {
+      fileIds: [...removedFileIds],
     });
   };
 
-  public clearSessionData = (): void => {
-    const nextViewState = createDataResetViewState(this.snapshot.viewState);
+  public clearSession = (): void => {
     if (
       Object.keys(this.snapshot.filesById).length === 0 &&
-      this.snapshot.fileOrder.length === 0 &&
-      isSameSessionTarget(this.snapshot.activeTarget, createNoneTarget()) &&
-      nextViewState === this.snapshot.viewState
+      this.snapshot.fileOrder.length === 0
     ) {
       return;
     }
@@ -556,534 +411,263 @@ export class SessionService extends Disposable implements ISessionServiceType {
       ...this.snapshot,
       filesById: {},
       fileOrder: [],
-      activeTarget: createNoneTarget(),
-      viewState: nextViewState,
+    }, "sessionCleared", {
+      fileIds: getSnapshotFileIds(this.snapshot),
     });
   };
 
-  public replaceCalculatedCurves = (
-    plotsByKey: CalculatedPlotsByKey,
-  ): void => {
-    const nextRecords = replaceCalculatedCurvesInRecords(
-      this.snapshot.filesById,
-      this.snapshot.fileOrder,
-      plotsByKey,
-    );
-    this.replaceSnapshot({
-      ...this.snapshot,
-      ...nextRecords,
-    });
-  };
-
-  public resetProcessedData = (): void => {
-    if (
-      this.snapshot.fileOrder.every((fileId) => {
-        const file = this.snapshot.filesById[fileId];
-        return !file ||
-          file.seriesOrder.length === 0 &&
-            Object.keys(file.curvesByKey).every((key) =>
-              file.curvesByKey[key as SessionCurveKey]?.curveGeneration !== "base"
-            ) &&
-            Object.keys(file.metricsByKey).length === 0 &&
-            !file.calculationCache &&
-            !file.templateRun;
-      })
-    ) {
-      return;
-    }
-
+  private clearTemplateOutput(fileIds?: readonly string[]): void {
     const nextRecords = resetProcessedRecords(
       this.snapshot.filesById,
       this.snapshot.fileOrder,
+      fileIds,
     );
+    if (nextRecords.filesById === this.snapshot.filesById) {
+      return;
+    }
+
     this.replaceSnapshot({
       ...this.snapshot,
       ...nextRecords,
-    });
-  };
-
-  public commitProcessedFile = (
-    file: ProcessedEntry | null | undefined,
-    options: CommitProcessedFileOptions = {},
-  ): void => {
-    if (!file || typeof file !== "object") {
-      return;
-    }
-
-    const normalizedFileId = normalizeId(file.fileId);
-    if (!normalizedFileId) {
-      return;
-    }
-
-    const nextRecords = mergeProcessedFileIntoRecords(
-      this.snapshot.filesById,
-      this.snapshot.fileOrder,
-      file,
-      this.snapshot,
-      options,
-    );
-    this.replaceSnapshot({
-      ...this.snapshot,
-      ...nextRecords,
-    });
-  };
-
-  public getFileSemantics(fileId: string): FileSemantics | undefined {
-    const normalizedFileId = normalizeId(fileId);
-    if (!normalizedFileId) {
-      return undefined;
-    }
-
-    const record = this.snapshot.filesById[normalizedFileId];
-    return record ? createFileSemanticsFromRecord(record) : undefined;
-  }
-
-  public setFileSemantics(semantics: FileSemantics): void {
-    const normalized = normalizeFileSemantics(semantics);
-    if (!normalized) {
-      return;
-    }
-
-    const current = this.getFileSemantics(normalized.fileId);
-    if (isSameFileSemantics(current, normalized)) {
-      return;
-    }
-
-    const nextRecords = mergeFileSemanticsIntoRecords(
-      this.snapshot.filesById,
-      this.snapshot.fileOrder,
-      normalized,
-    );
-    this.replaceSnapshot({
-      ...this.snapshot,
-      ...nextRecords,
+    }, "templateRunChanged", {
+      fileIds: fileIds ? uniqueStrings(fileIds.map(normalizeId)) : getSnapshotFileIds(this.snapshot),
     });
   }
 
-  public updateFileSemantics(fileId: string, updates: FileSemanticsUpdate): void {
-    const normalizedFileId = normalizeId(fileId);
-    if (!normalizedFileId) {
-      return;
-    }
-
-    const current = this.getFileSemantics(normalizedFileId);
-    if (!current) {
-      return;
-    }
-
-    this.setFileSemantics({
-      ...current,
-      ...updates,
-      fileId: current.fileId,
-      x: {
-        ...current.x,
-        ...updates.x,
-      },
-      y: {
-        ...current.y,
-        ...updates.y,
-      },
-    });
-  }
-
-  public getCurveData(key: CurveKey): CurveData | undefined {
-    const normalizedKey = normalizeKey(key);
-    if (!normalizedKey) {
-      return undefined;
-    }
-
-    const canonicalKey = createCanonicalCurveKeyFromCurveKey(normalizedKey);
-    const record = canonicalKey
-      ? this.snapshot.filesById[normalizedKey.fileId]?.curvesByKey[canonicalKey]
-      : undefined;
-    return record ? createCurveDataFromRecord(normalizedKey, record) : undefined;
-  }
-
-  public setCurveData(data: CurveData): void {
-    const normalized = normalizeData(data);
-    if (!normalized) {
-      return;
-    }
-
-    const current = this.getCurveData(normalized);
-    if (isSameData(current, normalized)) {
-      return;
-    }
-
-    const nextRecords = mergeCurveDataIntoRecords(
-      this.snapshot.filesById,
-      this.snapshot.fileOrder,
-      normalized,
-    );
-    this.replaceSnapshot({
-      ...this.snapshot,
-      ...nextRecords,
-    });
-  }
-
-  public getCurveViewState(key: CurveKey): CurveViewState {
-    const normalizedKey = normalizeKey(key);
-    if (!normalizedKey) {
-      return {};
-    }
-
-    const canonicalKey = createCanonicalCurveKeyFromCurveKey(normalizedKey);
-    if (canonicalKey) {
-      const viewState = this.snapshot.viewState.curves?.[canonicalKey];
-      if (viewState) {
-        return viewState;
-      }
-    }
-
-    return {};
-  }
-
-  public updateCurveViewState(key: CurveKey, updates: CurveViewState): void {
-    const normalizedKey = normalizeKey(key);
-    if (!normalizedKey) {
-      return;
-    }
-
-    const current = this.getCurveViewState(normalizedKey);
-    const next: CurveViewState = {
-      ...current,
-      ...updates,
+  private replaceSnapshot(
+    snapshot: SessionSnapshot,
+    reason: SessionChangeReason,
+    affected: SessionAffectedRecords = {},
+  ): void {
+    const nextSnapshot: SessionSnapshot = {
+      ...snapshot,
+      schemaVersion: 1,
+      sessionVersion: this.snapshot.sessionVersion + 1,
     };
-    if (isSameViewState(current, next)) {
-      return;
-    }
-
-    const canonicalKey = createCanonicalCurveKeyFromCurveKey(normalizedKey);
-    if (!canonicalKey) {
-      return;
-    }
-
-    const nextViewState = canonicalKey
-      ? {
-          ...this.snapshot.viewState,
-          curves: {
-            ...this.snapshot.viewState.curves,
-            [canonicalKey]: next,
-          },
-        }
-      : this.snapshot.viewState;
-
-    this.replaceSnapshot({
-      ...this.snapshot,
-      viewState: nextViewState,
-    });
+    this.snapshot = nextSnapshot;
+    this.queueChange(createSessionChangeEvent(
+      reason,
+      nextSnapshot.sessionVersion,
+      affected,
+    ));
   }
 
-  public getSeriesLabel(fileId: string, seriesId: string): string | undefined {
-    const normalizedFileId = normalizeId(fileId);
-    const normalizedSeriesId = normalizeId(seriesId);
-    if (!normalizedFileId || !normalizedSeriesId) {
-      return undefined;
-    }
-
-    return this.snapshot.filesById[normalizedFileId]
-      ?.seriesById[normalizedSeriesId]
-      ?.labelOverride;
+  private queueChange(event: SessionChangeEvent): void {
+    this.onDidChangeSessionEmitter.fire(event);
   }
 
-  public getSeriesLabels(fileId: string): Readonly<Record<string, string>> {
-    const normalizedFileId = normalizeId(fileId);
-    if (!normalizedFileId) {
-      return {};
-    }
-
-    const labels: Record<string, string> = {};
-    const file = this.snapshot.filesById[normalizedFileId];
-    for (const [seriesId, series] of Object.entries(file?.seriesById ?? {})) {
-      const label = normalizeOptionalText(series.labelOverride);
-      if (label) {
-        labels[seriesId] = label;
-      }
-    }
-    return labels;
-  }
-
-  public setSeriesLabel(fileId: string, seriesId: string, label: string | null): void {
-    const normalizedFileId = normalizeId(fileId);
-    const normalizedSeriesId = normalizeId(seriesId);
-    if (!normalizedFileId || !normalizedSeriesId) {
-      return;
-    }
-
-    const normalizedLabel = normalizeOptionalText(label) ?? "";
-    if ((this.getSeriesLabel(normalizedFileId, normalizedSeriesId) ?? "") === normalizedLabel) {
-      return;
-    }
-
-    const nextFilesById = setSeriesLabelInRecords(
-      this.snapshot.filesById,
-      normalizedFileId,
-      normalizedSeriesId,
-      normalizedLabel,
-    );
-    if (nextFilesById === this.snapshot.filesById) {
-      return;
-    }
-
-    this.replaceSnapshot({
-      ...this.snapshot,
-      filesById: nextFilesById,
-    });
-  }
-
-  public resolveSeriesLabel(
-    file: ProcessedEntry | null | undefined,
-    series: ProcessedSeries | null | undefined,
-    index: number,
-  ): string {
-    const override = this.getSeriesLabel(
-      normalizeId(file?.fileId),
-      normalizeId(series?.id),
-    );
-    if (override) {
-      return override;
-    }
-
-    const legendValue = normalizeOptionalText(series?.legendValue);
-    if (legendValue) {
-      return legendValue;
-    }
-
-    const name = normalizeOptionalText(series?.name);
-    return name ?? `Series ${index + 1}`;
-  }
-
-  public pruneSeriesLabels(files: readonly ProcessedEntry[]): void {
-    const liveFileIds = new Set(
-      files
-        .map((file) => normalizeId(file.fileId))
-        .filter((fileId): fileId is string => Boolean(fileId)),
-    );
-    const liveSeriesIdsByFileId = new Map<string, Set<string>>();
-    for (const file of files) {
-      const fileId = normalizeId(file.fileId);
-      if (!fileId) {
-        continue;
-      }
-
-      liveSeriesIdsByFileId.set(fileId, new Set(
-        (Array.isArray(file.series) ? file.series : [])
-          .map((series) => normalizeId(series.id))
-          .filter((seriesId): seriesId is string => Boolean(seriesId)),
-      ));
-    }
-
-    this.pruneSeriesLabelsByLiveSets(liveFileIds, liveSeriesIdsByFileId);
-  }
-
-  public pruneSeriesLabelsByRecords(
-    filesById: Readonly<Record<FileId, FileRecord>>,
-    fileOrder: readonly FileId[],
-  ): void {
-    const liveFileIds = new Set<string>();
-    const liveSeriesIdsByFileId = new Map<string, Set<string>>();
-    const seenFileIds = new Set<string>();
-    const collectFile = (fileId: FileId): void => {
-      const normalizedFileId = normalizeId(fileId);
-      if (!normalizedFileId || seenFileIds.has(normalizedFileId)) {
-        return;
-      }
-      seenFileIds.add(normalizedFileId);
-
-      const file = filesById[normalizedFileId];
-      if (!file) {
-        return;
-      }
-
-      liveFileIds.add(normalizedFileId);
-      liveSeriesIdsByFileId.set(normalizedFileId, new Set(
-        file.seriesOrder
-          .map((seriesId) => normalizeId(seriesId))
-          .filter((seriesId): seriesId is string => Boolean(seriesId)),
-      ));
-    };
-
-    for (const fileId of fileOrder) {
-      collectFile(fileId);
-    }
-    for (const fileId of Object.keys(filesById)) {
-      collectFile(fileId);
-    }
-
-    this.pruneSeriesLabelsByLiveSets(liveFileIds, liveSeriesIdsByFileId);
-  }
-
-  private pruneSeriesLabelsByLiveSets(
-    liveFileIds: ReadonlySet<string>,
-    liveSeriesIdsByFileId: ReadonlyMap<string, ReadonlySet<string>>,
-  ): void {
-    const nextFilesById = pruneSeriesLabelRecords(
-      this.snapshot.filesById,
-      liveFileIds,
-      liveSeriesIdsByFileId,
-    );
-    if (nextFilesById === this.snapshot.filesById) {
-      return;
-    }
-
-    this.replaceSnapshot({
-      ...this.snapshot,
-      filesById: nextFilesById,
-    });
-  }
-
-  public clearCurve(key: CurveKey): void {
-    const normalizedKey = normalizeKey(key);
-    if (!normalizedKey) {
-      return;
-    }
-
-    const canonicalKey = createCanonicalCurveKeyFromCurveKey(normalizedKey);
-    const canonicalCurve = canonicalKey
-      ? this.snapshot.filesById[normalizedKey.fileId]?.curvesByKey[canonicalKey]
-      : undefined;
-    const canonicalViewState = canonicalKey
-      ? this.snapshot.viewState.curves?.[canonicalKey]
-      : undefined;
-    if (
-      !canonicalCurve &&
-      !canonicalViewState
-    ) {
-      return;
-    }
-
-    const nextRecords = removeCurveDataFromRecords(
-      this.snapshot.filesById,
-      this.snapshot.fileOrder,
-      normalizedKey,
-    );
-    const nextViewCurves = canonicalKey
-      ? { ...this.snapshot.viewState.curves }
-      : this.snapshot.viewState.curves;
-    if (canonicalKey && nextViewCurves) {
-      delete nextViewCurves[canonicalKey];
-    }
-
-    this.replaceSnapshot({
-      ...this.snapshot,
-      ...nextRecords,
-      viewState: canonicalKey
-        ? {
-            ...this.snapshot.viewState,
-            curves: nextViewCurves,
-          }
-        : this.snapshot.viewState,
-    });
-  }
-
-  public pruneFileSemantics(fileIds: readonly string[], curveKeys: readonly CurveKey[]): void {
-    const liveFileIds = new Set(fileIds.map(normalizeId).filter((fileId): fileId is string => Boolean(fileId)));
-    const liveCurveIds = new Set(
-      curveKeys
-        .map(normalizeKey)
-        .filter((key): key is CurveKey => Boolean(key))
-        .map(createCanonicalCurveKeyFromCurveKey)
-        .filter((key): key is SessionCurveKey => Boolean(key)),
-    );
-    const curveRecords = pruneCurveDataRecords(
-      this.snapshot.filesById,
-      this.snapshot.fileOrder,
-      liveFileIds,
-      liveCurveIds,
-    );
-    const nextCanonicalFilesById = pruneSemanticsOnlyRecords(
-      curveRecords.filesById,
-      liveFileIds,
-    );
-    const nextViewState = pruneCurveViewState(
-      this.snapshot.viewState,
-      liveCurveIds,
-    );
-
-    if (
-      nextCanonicalFilesById === this.snapshot.filesById &&
-      nextViewState === this.snapshot.viewState
-    ) {
-      return;
-    }
-
-    this.replaceSnapshot({
-      ...this.snapshot,
-      filesById: nextCanonicalFilesById,
-      fileOrder: this.snapshot.fileOrder.filter((fileId) => nextCanonicalFilesById[fileId]),
-      viewState: nextViewState,
-    });
-  }
-
-  private updateActiveTarget(activeTarget: SessionTarget): void {
-    if (isSameSessionTarget(this.snapshot.activeTarget, activeTarget)) {
-      return;
-    }
-
-    this.replaceSnapshot({
-      ...this.snapshot,
-      activeTarget,
-    });
-  }
-
-  private update<K extends keyof SessionSnapshot>(
-    key: K,
-    value: SessionSnapshot[K] | ((previous: SessionSnapshot[K]) => SessionSnapshot[K]),
-  ): void {
-    const previous = this.snapshot[key];
-    const next = resolveNext(value, previous);
-    if (Object.is(previous, next)) return;
-
-    this.replaceSnapshot({
-      ...this.snapshot,
-      [key]: next,
-    });
-  }
-
-  private replaceSnapshot(snapshot: SessionSnapshot): void {
-    this.snapshot = snapshot;
-    if (this.batchDepth > 0) {
-      this.hasPendingChange = true;
-      return;
-    }
-
-    this.emitChange();
-  }
-
-  public emitChange = (): void => {
-    this.onDidChangeSessionEmitter.fire();
-  };
 }
 
-const normalizeFileSemantics = (semantics: FileSemantics): FileSemantics | null => {
-  const fileId = normalizeId(semantics.fileId);
+const createFileRecordFromImportedFile = (
+  importedFile: ImportedFileRecord,
+): FileRecord | null => {
+  const fileId = normalizeId(importedFile.id || importedFile.raw.fileId);
   if (!fileId) {
     return null;
   }
 
+  const raw = createRawRecordFromImportedFile(fileId, importedFile);
+  if (!raw.tableOrder.length) {
+    return null;
+  }
+
   return {
-    ...semantics,
-    fileId,
-    kind: normalizeCurveKind(semantics.kind),
-    sourceFileName: normalizeOptionalText(semantics.sourceFileName),
-    templateId: normalizeOptionalText(semantics.templateId),
-    x: normalizeAxisSemantics(semantics.x),
-    y: {
-      ...normalizeAxisSemantics(semantics.y),
-      scale: semantics.y.scale === "log" ? "log" : "linear",
-    },
+    id: fileId,
+    kind: importedFile.kind,
+    name: normalizeOptionalText(importedFile.name) ??
+      normalizeOptionalText(importedFile.raw.fileName) ??
+      fileId,
+    raw,
+    rawTableVersionsById: createInitialRawTableVersions(raw.tableOrder),
+    assessmentsByRawTableId: {},
+    measurementBlocksById: {},
+    measurementBlockOrder: [],
+    templateRunsById: {},
+    seriesById: {},
+    seriesOrder: [],
+    curvesByKey: {},
+    metricsByKey: {},
   };
 };
 
-const normalizeSessionFiles = (
-  files: readonly SessionFile[],
-): SessionFile[] =>
-  (Array.isArray(files) ? files : [])
-    .filter((file): file is SessionFile =>
-      Boolean(file) &&
-      typeof file === "object" &&
-      normalizeId(file.fileId).length > 0
-    );
+const createRawRecordFromImportedFile = (
+  fileId: string,
+  importedFile: ImportedFileRecord,
+): RawRecord => {
+  const tablesById: Record<string, TableRecord> = {};
+  const tableOrder: string[] = [];
+  const pushRawTable = (rawTableId: string): void => {
+    const normalizedRawTableId = normalizeId(rawTableId);
+    if (!normalizedRawTableId || tablesById[normalizedRawTableId]) {
+      return;
+    }
+
+    const rawTable = importedFile.raw.rawTablesById[normalizedRawTableId];
+    if (!rawTable) {
+      return;
+    }
+
+    const table = createTableRecordFromRawTable(fileId, rawTable);
+    if (!table) {
+      return;
+    }
+
+    tablesById[table.sheetId] = table;
+    tableOrder.push(table.sheetId);
+  };
+
+  for (const rawTableId of importedFile.raw.rawTableOrder) {
+    pushRawTable(rawTableId);
+  }
+  for (const rawTableId of Object.keys(importedFile.raw.rawTablesById)) {
+    pushRawTable(rawTableId);
+  }
+
+  return {
+    fileId,
+    fileName: normalizeOptionalText(importedFile.raw.fileName) ??
+      normalizeOptionalText(importedFile.name) ??
+      fileId,
+    file: importedFile.raw.rawFile ?? undefined,
+    size: importedFile.raw.size,
+    lastModified: importedFile.raw.lastModified,
+    relativePath: importedFile.raw.relativePath ?? null,
+    filePath: importedFile.raw.filePath ?? null,
+    normalizedCsvPath: getSingleNormalizedCsvPath(
+      tableOrder.map(rawTableId => importedFile.raw.rawTablesById[rawTableId]),
+    ),
+    tablesById,
+    tableOrder,
+  };
+};
+
+const createTableRecordFromRawTable = (
+  fileId: string,
+  rawTable: RawTableRecord,
+): TableRecord | null => {
+  const rawTableId = normalizeId(rawTable.rawTableId);
+  if (!rawTableId) {
+    return null;
+  }
+
+  return {
+    fileId,
+    sheetId: rawTableId,
+    sheetName: rawTable.source.kind === "excelSheet"
+      ? rawTable.source.sheetName ?? null
+      : null,
+    tableKey: rawTableId,
+    rowStore: createTableRowStore(rawTable),
+    rowCount: Math.max(0, Math.floor(rawTable.rowCount)),
+    columnCount: Math.max(0, Math.floor(rawTable.columnCount)),
+    maxCellLengths: [...rawTable.maxCellLengths ?? []],
+  };
+};
+
+const createTableRowStore = (
+  rawTable: RawTableRecord,
+): TableRowStoreRecord => rawTable.rows.kind === "normalizedCsv"
+  ? {
+      kind: "external",
+      normalizedCsvPath: rawTable.rows.normalizedCsvPath,
+      tableKey: rawTable.rawTableId,
+    }
+  : {
+      kind: "memory",
+      rows: rawTable.rows.values,
+    };
+
+const createInitialRawTableVersions = (
+  rawTableOrder: readonly string[],
+): Record<string, number> => {
+  const versions: Record<string, number> = {};
+  for (const rawTableId of rawTableOrder) {
+    versions[rawTableId] = 1;
+  }
+
+  return versions;
+};
+
+const getUniqueIds = (ids: readonly string[]): string[] => {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const id of ids) {
+    if (seen.has(id)) {
+      continue;
+    }
+
+    seen.add(id);
+    result.push(id);
+  }
+
+  return result;
+};
+
+const getSingleNormalizedCsvPath = (
+  rawTables: readonly (RawTableRecord | undefined)[],
+): string | null => {
+  const paths = rawTables
+    .map(rawTable => rawTable?.rows.kind === "normalizedCsv"
+      ? rawTable.rows.normalizedCsvPath
+      : null)
+    .filter((path): path is string => Boolean(path));
+
+  return paths.length === 1 ? paths[0] : null;
+};
+
+const removeMeasurementBlocksForRawTable = (
+  measurementBlocksById: Readonly<Record<string, MeasurementBlockRecord>>,
+  rawTableId: string,
+): Record<string, MeasurementBlockRecord> => {
+  const next: Record<string, MeasurementBlockRecord> = {};
+  for (const [blockId, block] of Object.entries(measurementBlocksById)) {
+    if (block.rawTableId !== rawTableId) {
+      next[blockId] = block;
+    }
+  }
+
+  return next;
+};
+
+const normalizeMeasurementBlock = (
+  block: MeasurementBlockRecord,
+  fileId: string,
+  rawTableId: string,
+): MeasurementBlockRecord | null => {
+  const blockId = normalizeId(block.id);
+  if (!blockId) {
+    return null;
+  }
+
+  return {
+    ...block,
+    id: blockId,
+    fileId,
+    rawTableId,
+  };
+};
+
+const getSnapshotFileIds = (
+  snapshot: SessionSnapshot,
+): readonly FileId[] => uniqueStrings([
+  ...snapshot.fileOrder,
+  ...Object.keys(snapshot.filesById),
+]);
+
+const uniqueStrings = <T extends string>(values: readonly T[]): readonly T[] => {
+  const result: T[] = [];
+  const seen = new Set<T>();
+  for (const value of values) {
+    if (!value || seen.has(value)) {
+      continue;
+    }
+
+    seen.add(value);
+    result.push(value);
+  }
+
+  return result;
+};
 
 const normalizeFileIdSet = (fileIds: readonly string[]): Set<string> =>
   new Set(
@@ -1092,10 +676,66 @@ const normalizeFileIdSet = (fileIds: readonly string[]): Set<string> =>
       .filter((fileId) => fileId.length > 0),
   );
 
-const shouldClearActiveTarget = (
-  target: SessionTarget,
-  removedFileIds: ReadonlySet<string>,
-): boolean => target.kind !== "none" && removedFileIds.has(target.fileId);
+type TemplateRunCommitPayload = Extract<CommitTemplateRunInput, { readonly run: TemplateRunRecord }>;
+
+const getTemplateRunFromCommitInput = (
+  input: CommitTemplateRunInput,
+): TemplateRunRecord | null =>
+  isClearTemplateOutputCommitInput(input)
+    ? null
+    : isTemplateRunCommitPayload(input)
+      ? input.run
+      : input;
+
+const getTemplateRunCommitPayload = (
+  input: CommitTemplateRunInput,
+): TemplateRunCommitPayload | null =>
+  isClearTemplateOutputCommitInput(input)
+    ? null
+    : isTemplateRunCommitPayload(input)
+      ? input
+      : null;
+
+const isTemplateRunCommitPayload = (
+  input: CommitTemplateRunInput,
+): input is TemplateRunCommitPayload =>
+  Boolean(input && typeof input === "object" && "run" in input);
+
+const isClearTemplateOutputCommitInput = (
+  input: CommitTemplateRunInput,
+): input is Extract<CommitTemplateRunInput, { readonly kind: "clearTemplateOutput" }> =>
+  Boolean(input && typeof input === "object" && "kind" in input && input.kind === "clearTemplateOutput");
+
+const normalizeTemplateRunRecord = (
+  input: TemplateRunRecord,
+): TemplateRunRecord | null => {
+  const id = normalizeId(input.id);
+  const fileId = normalizeId(input.fileId);
+  if (!id || !fileId) {
+    return null;
+  }
+
+  return {
+    ...input,
+    id,
+    fileId,
+    sourceBlockIds: uniqueStrings(
+      (Array.isArray(input.sourceBlockIds) ? input.sourceBlockIds : [])
+        .map(normalizeId),
+    ),
+    outputSeriesIds: uniqueStrings(
+      (Array.isArray(input.outputSeriesIds) ? input.outputSeriesIds : [])
+        .map(normalizeId),
+    ),
+    outputCurveKeys: uniqueStrings(
+      (Array.isArray(input.outputCurveKeys) ? input.outputCurveKeys : [])
+        .map(normalizeId),
+    ) as SessionCurveKey[],
+    appliedAt: Number.isFinite(Number(input.appliedAt)) ? Number(input.appliedAt) : 0,
+    warnings: readTextArray(input.warnings),
+    errors: readTextArray(input.errors),
+  };
+};
 
 const normalizeMetricInput = (
   input: MetricInputRecord,
@@ -1127,6 +767,49 @@ const normalizeMetricInput = (
 const normalizeMetricKey = (value: unknown): MetricKey | null => {
   const key = normalizeId(value);
   return key ? key as MetricKey : null;
+};
+
+const createCurveRecordKey = (curve: CurveRecord): SessionCurveKey => {
+  switch (curve.curveGeneration) {
+    case "base": {
+      const mode = curve.curveFamily === "iv"
+        ? curve.ivMode ?? "default"
+        : curve.curveFamily === "it"
+          ? curve.itMode ?? "default"
+          : "default";
+      return `base:${curve.curveFamily}:${mode}:${curve.seriesId}` as SessionCurveKey;
+    }
+    case "derived":
+      return `derived:${curve.curveFamily}:default:${curve.seriesId}` as SessionCurveKey;
+    case "secondDerived":
+      return `secondDerived:${curve.curveFamily}:default:${curve.seriesId}` as SessionCurveKey;
+  }
+};
+
+const cloneMetricsBySeriesId = (
+  metricsBySeriesId: Record<string, MetricKey[]> | undefined,
+): Record<string, MetricKey[]> => {
+  const next: Record<string, MetricKey[]> = {};
+  for (const [seriesId, keys] of Object.entries(metricsBySeriesId ?? {})) {
+    next[seriesId] = [...keys];
+  }
+  return next;
+};
+
+const appendMetricKey = (
+  metricsBySeriesId: Record<string, MetricKey[]>,
+  seriesId: string,
+  metricKey: MetricKey,
+): void => {
+  const normalizedSeriesId = normalizeId(seriesId);
+  if (!normalizedSeriesId) {
+    return;
+  }
+
+  const keys = metricsBySeriesId[normalizedSeriesId] ?? [];
+  if (!keys.includes(metricKey)) {
+    metricsBySeriesId[normalizedSeriesId] = [...keys, metricKey];
+  }
 };
 
 const normalizeMetricInputRange = (
@@ -1165,6 +848,11 @@ const parseMetricInputNumber = (value: unknown): number | null => {
   return Number.isFinite(number) ? number : null;
 };
 
+const readTextArray = (value: readonly string[] | undefined): string[] =>
+  (Array.isArray(value) ? value : [])
+    .map(normalizeOptionalText)
+    .filter((item): item is string => Boolean(item));
+
 const isSameMetricInput = (
   current: MetricInputRecord | undefined,
   next: MetricInputRecord,
@@ -1192,280 +880,8 @@ const isSameNumberRecord = (
   return nextKeys.every((key) => current?.[key] === next?.[key]);
 };
 
-const setSeriesLabelInRecords = (
-  filesById: Readonly<Record<FileId, FileRecord>>,
-  fileId: string,
-  seriesId: string,
-  label: string,
-): Record<FileId, FileRecord> => {
-  const file = filesById[fileId];
-  const series = file?.seriesById[seriesId];
-  if (!file || !series) {
-    return filesById as Record<FileId, FileRecord>;
-  }
-
-  if ((series.labelOverride ?? "") === label) {
-    return filesById as Record<FileId, FileRecord>;
-  }
-
-  const nextSeries = label
-    ? { ...series, labelOverride: label }
-    : { ...series, labelOverride: undefined };
-  return {
-    ...filesById,
-    [fileId]: {
-      ...file,
-      seriesById: {
-        ...file.seriesById,
-        [seriesId]: nextSeries,
-      },
-    },
-  };
-};
-
-const pruneSeriesLabelRecords = (
-  filesById: Readonly<Record<FileId, FileRecord>>,
-  liveFileIds: ReadonlySet<string>,
-  liveSeriesIdsByFileId: ReadonlyMap<string, ReadonlySet<string>>,
-): Record<FileId, FileRecord> => {
-  let changed = false;
-  const nextFilesById: Record<FileId, FileRecord> = {};
-  for (const [fileId, file] of Object.entries(filesById)) {
-    const liveSeriesIds = liveSeriesIdsByFileId.get(fileId) ?? new Set<string>();
-    let fileChanged = false;
-    const nextSeriesById = { ...file.seriesById };
-    for (const [seriesId, series] of Object.entries(file.seriesById)) {
-      if (liveFileIds.has(fileId) && liveSeriesIds.has(seriesId)) {
-        continue;
-      }
-
-      if (series.labelOverride !== undefined) {
-        fileChanged = true;
-        nextSeriesById[seriesId] = { ...series, labelOverride: undefined };
-      }
-    }
-
-    changed ||= fileChanged;
-    nextFilesById[fileId] = fileChanged
-      ? {
-          ...file,
-          seriesById: nextSeriesById,
-        }
-      : file;
-  }
-
-  return changed ? nextFilesById : filesById as Record<FileId, FileRecord>;
-};
-
-const pruneCurveViewState = (
-  viewState: SessionViewState,
-  liveCurveKeys: ReadonlySet<SessionCurveKey>,
-): SessionViewState => {
-  if (!viewState.curves) {
-    return viewState;
-  }
-
-  const curves = filterRecord(viewState.curves, (curveKey) =>
-    liveCurveKeys.has(curveKey as SessionCurveKey)
-  );
-  return curves === viewState.curves
-    ? viewState
-    : {
-        ...viewState,
-        curves,
-      };
-};
-
-const applyTemplateSelectionsToRecords = (
-  filesById: Readonly<Record<FileId, FileRecord>>,
-  selectionsByFileId: Readonly<Record<string, TemplateSelection>>,
-): Record<FileId, FileRecord> => {
-  let changed = false;
-  const nextFilesById: Record<FileId, FileRecord> = {};
-  for (const [fileId, file] of Object.entries(filesById)) {
-    const templateRun = file.templateRun;
-    if (!templateRun) {
-      nextFilesById[fileId] = file;
-      continue;
-    }
-
-    const selection = selectionsByFileId[fileId] ?? { kind: "auto" as const };
-    if (
-      templateRun.selection.kind === selection.kind &&
-      (templateRun.selection.kind !== "template" ||
-        selection.kind !== "template" ||
-        templateRun.selection.templateId === selection.templateId)
-    ) {
-      nextFilesById[fileId] = file;
-      continue;
-    }
-
-    changed = true;
-    nextFilesById[fileId] = {
-      ...file,
-      templateRun: {
-        ...templateRun,
-        selection,
-        mode: selection.kind === "auto" ? "auto" : "manual",
-      },
-    };
-  }
-
-  return changed ? nextFilesById : { ...filesById };
-};
-
-const createFileSemanticsFromRecord = (
-  file: FileRecord,
-  fallback?: FileSemantics,
-): FileSemantics => ({
-  fileId: file.id,
-  kind: file.assessment.baseFamily ?? fallback?.kind ?? "unknown",
-  sourceFileName: file.raw.fileName ?? fallback?.sourceFileName,
-  templateId: file.templateRun?.selection.kind === "template"
-    ? file.templateRun.selection.templateId
-    : fallback?.templateId,
-  x: {
-    ...fallback?.x,
-    ...file.axis?.x,
-  },
-  y: {
-    ...fallback?.y,
-    ...file.axis?.y,
-    scale: file.axis?.y.scale ?? fallback?.y.scale ?? "linear",
-  },
-});
-
-const createCurveDataFromRecord = (
-  key: CurveKey,
-  curve: CurveRecord,
-): CurveData => ({
-  curveKind: key.curveKind,
-  fileId: curve.fileId,
-  seriesId: curve.seriesId,
-  points: curve.points,
-  signature: curve.signature,
-  xDomain: curve.domain?.x,
-  yDomain: curve.domain?.y,
-});
-
-const pruneSemanticsOnlyRecords = (
-  filesById: Readonly<Record<FileId, FileRecord>>,
-  liveFileIds: ReadonlySet<string>,
-): Record<FileId, FileRecord> => {
-  let changed = false;
-  const nextFilesById: Record<FileId, FileRecord> = {};
-  for (const [fileId, file] of Object.entries(filesById)) {
-    if (!liveFileIds.has(fileId) && isSemanticsOnlyRecord(file)) {
-      changed = true;
-      continue;
-    }
-
-    nextFilesById[fileId] = file;
-  }
-
-  return changed ? nextFilesById : filesById as Record<FileId, FileRecord>;
-};
-
-const isSemanticsOnlyRecord = (file: FileRecord): boolean =>
-  !file.templateRun &&
-  file.seriesOrder.length === 0 &&
-  file.xGroups.length === 0 &&
-  file.baseCandidateOrder.length === 0 &&
-  !hasRawImportContent(file);
-
-const hasRawImportContent = (file: FileRecord): boolean =>
-  file.raw.file !== undefined ||
-  Boolean(
-    file.raw.filePath ||
-    file.raw.normalizedCsvPath ||
-    file.raw.rawKey ||
-    file.raw.relativePath,
-  ) ||
-  hasRawTableContent(file);
-
-const hasRawTableContent = (file: FileRecord): boolean =>
-  Object.values(file.raw.tablesById).some((table) =>
-    table.rowCount > 0 ||
-    table.columnCount > 0 ||
-    table.rowStore !== undefined ||
-    table.sheetId !== file.id ||
-    table.sheetName != null
-  );
-
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
-
-const normalizeData = (data: CurveData): CurveData | null => {
-  const key = normalizeKey(data);
-  if (!key) {
-    return null;
-  }
-
-  return {
-    ...data,
-    ...key,
-    points: data.points.filter((point) =>
-      Number.isFinite(Number(point.x)) &&
-      Number.isFinite(Number(point.y)),
-    ),
-    signature: normalizeOptionalText(data.signature),
-  };
-};
-
-const normalizeAxisSemantics = (axis: { readonly label?: string; readonly role?: string; readonly unit?: string }): {
-  readonly label?: string;
-  readonly role?: string;
-  readonly unit?: string;
-} => {
-  const label = normalizeOptionalText(axis.label);
-  const role = normalizeOptionalText(axis.role);
-  const unit = normalizeOptionalText(axis.unit);
-  return {
-    ...(label ? { label } : {}),
-    ...(role ? { role } : {}),
-    ...(unit ? { unit } : {}),
-  };
-};
-
-const normalizeKey = (key: CurveKey): CurveKey | null => {
-  const fileId = normalizeId(key.fileId);
-  const curveKind = normalizeCurveKind(key.curveKind);
-  const seriesId = normalizeId(key.seriesId);
-  return fileId && seriesId ? { curveKind, fileId, seriesId } : null;
-};
-
-const normalizeSessionTarget = (target: SessionTarget): SessionTarget => {
-  switch (target.kind) {
-    case "none":
-      return createNoneTarget();
-    case "file": {
-      const fileId = normalizeNullableId(target.fileId);
-      return fileId ? createFileTarget(fileId) : createNoneTarget();
-    }
-    case "sheet": {
-      const fileId = normalizeNullableId(target.fileId);
-      const sheetId = normalizeNullableId(target.sheetId);
-      return fileId && sheetId ? createSheetTarget(fileId, sheetId) : createNoneTarget();
-    }
-    case "series": {
-      const fileId = normalizeNullableId(target.fileId);
-      const seriesId = normalizeNullableId(target.seriesId);
-      return fileId && seriesId
-        ? { kind: "series", fileId, seriesId }
-        : createNoneTarget();
-    }
-    case "curve": {
-      const fileId = normalizeNullableId(target.fileId);
-      const curveKey = normalizeNullableId(target.curveKey);
-      return fileId && curveKey
-        ? { kind: "curve", fileId, curveKey: curveKey as SessionCurveKey }
-        : createNoneTarget();
-    }
-  }
-};
-
-const normalizeNullableId = (value: unknown): string | null =>
-  normalizeOptionalText(value) ?? null;
 
 const normalizeId = (value: unknown): string => String(value ?? "").trim();
 
@@ -1473,36 +889,6 @@ const normalizeOptionalText = (value: unknown): string | undefined => {
   const text = String(value ?? "").trim();
   return text || undefined;
 };
-
-const isSameFileSemantics = (
-  current: FileSemantics | undefined,
-  next: FileSemantics,
-): boolean =>
-  Boolean(current) &&
-  current?.kind === next.kind &&
-  current?.sourceFileName === next.sourceFileName &&
-  current?.templateId === next.templateId &&
-  current?.x.label === next.x.label &&
-  current?.x.role === next.x.role &&
-  current?.x.unit === next.x.unit &&
-  current?.y.label === next.y.label &&
-  current?.y.role === next.y.role &&
-  current?.y.scale === next.y.scale &&
-  current?.y.unit === next.y.unit;
-
-const isSameData = (
-  current: CurveData | undefined,
-  next: CurveData,
-): boolean =>
-  Boolean(current?.signature) &&
-  current?.signature === next.signature;
-
-const isSameViewState = (
-  current: CurveViewState,
-  next: CurveViewState,
-): boolean =>
-  current.color === next.color &&
-  current.hidden === next.hidden;
 
 const filterRecord = <T,>(
   record: Record<string, T>,

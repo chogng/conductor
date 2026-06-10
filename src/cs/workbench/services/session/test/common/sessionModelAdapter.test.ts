@@ -7,7 +7,12 @@ import {
   replaceCalculatedCurvesInRecords,
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
-import { createDefaultTemplateFormState } from "src/cs/workbench/services/session/common/sessionModel";
+import { getLatestTemplateRunRecord } from "src/cs/workbench/services/session/common/sessionModel";
+import {
+  getFileRecordAxisProjection,
+  getFileRecordCurveType,
+} from "src/cs/workbench/services/session/common/sessionRecordProjection";
+import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 
 suite("workbench/services/session/test/common/sessionModelAdapter", () => {
   test("projects canonical raw records back to raw file entries", () => {
@@ -41,6 +46,16 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
     ]);
 
     assert.deepEqual(records.fileOrder, ["file-a", "file-b"]);
+    assert.deepEqual(
+      Object.fromEntries(Object.entries(records.filesById).map(([fileId, file]) => [
+        fileId,
+        { kind: file.kind, name: file.name },
+      ])),
+      {
+        "file-a": { kind: "excel", name: "Transfer.xlsx" },
+        "file-b": { kind: "csv", name: "Output.csv" },
+      },
+    );
 
     const rawFiles = createRawFilesFromRecords(records.filesById, records.fileOrder);
     assert.deepEqual(
@@ -86,8 +101,8 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
       fileId: "file-a",
       fileName: "Transfer.csv",
     }]);
-    const templateFormState = {
-      ...createDefaultTemplateFormState(),
+    const templateConfig = {
+      ...createEmptyTemplateConfig(),
       name: "Transfer Template",
       xDataStart: "12",
       xDataEnd: "48",
@@ -102,20 +117,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
       legendPrefix: "Vd=",
       yColumns: [2, 3],
     };
-    const snapshot = createSnapshot({
-      ...rawRecords,
-      viewState: {
-        template: {
-          selectionsByFileId: {
-            "file-a": {
-              kind: "template",
-              templateId: "template-a",
-            },
-          },
-          formState: templateFormState,
-        },
-      },
-    });
+    const snapshot = createSnapshot(rawRecords);
     const processedRecords = mergeProcessedFileIntoRecords(
       rawRecords.filesById,
       rawRecords.fileOrder,
@@ -150,6 +152,10 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
         analysisCacheTouchedAt: 123,
       },
       snapshot,
+      {
+        appliedTemplateConfig: templateConfig,
+        appliedTemplateSelection: { kind: "template", templateId: "template-a" },
+      },
     );
     const calculatedRecords = replaceCalculatedCurvesInRecords(
       processedRecords.filesById,
@@ -206,24 +212,29 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
 
     const record = calculatedRecords.filesById["file-a"];
 
-    assert.equal(record.templateRun?.selection.kind, "template");
+    const templateRun = getLatestTemplateRunRecord(record);
+    assert.equal(templateRun?.selection.kind, "template");
     assert.equal(
-      record.templateRun?.selection.kind === "template"
-        ? record.templateRun.selection.templateId
+      templateRun?.selection.kind === "template"
+        ? templateRun.selection.templateId
         : null,
       "template-a",
     );
-    assert.equal(record.templateRun?.config.name, "Transfer Template");
-    assert.equal(record.templateRun?.config.xDataStart, 12);
-    assert.equal(record.templateRun?.config.xDataEnd, 48);
-    assert.equal(record.templateRun?.config.xPointsPerGroup, 2);
-    assert.equal(record.templateRun?.config.yLegendStep, 0.5);
-    assert.deepEqual(record.templateRun?.config.yColumns, [2, 3]);
-    assert.equal(record.axis?.x.label, "Gate Voltage");
-    assert.equal(record.axis?.x.role, "vg");
-    assert.equal(record.axis?.x.unit, "mV");
-    assert.equal(record.axis?.y.label, "Drain Current");
-    assert.equal(record.axis?.y.unit, "uA");
+    assert.equal(templateRun?.fileId, "file-a");
+    assert.equal(record.latestTemplateRunId, templateRun?.id);
+    assert.equal(record.templateRunsById[templateRun?.id ?? ""], templateRun);
+    assert.equal(templateRun?.config.name, "Transfer Template");
+    assert.equal(templateRun?.config.xDataStart, 12);
+    assert.equal(templateRun?.config.xDataEnd, 48);
+    assert.equal(templateRun?.config.xPointsPerGroup, 2);
+    assert.equal(templateRun?.config.yLegendStep, 0.5);
+    assert.deepEqual(templateRun?.config.yColumns, [2, 3]);
+    const axis = getFileRecordAxisProjection(record);
+    assert.equal(axis.xLabel, "Gate Voltage");
+    assert.equal(axis.xAxisRole, "vg");
+    assert.equal(axis.xUnit, "mV");
+    assert.equal(axis.yLabel, "Drain Current");
+    assert.equal(axis.yUnit, "uA");
     assert.equal(record.seriesById["series-1"].id, "series-1");
     assert.deepEqual(record.curvesByKey["base:iv:transfer:series-1"].points, [
       { x: 0, y: 1e-9 },
@@ -295,20 +306,17 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
     );
     const record = processedRecords.filesById["file-a"];
 
-    assert.equal(record.assessment.baseFamily, "iv");
+    assert.equal(getFileRecordCurveType(record), "transfer");
     assert.deepEqual(record.curvesByKey["base:iv:transfer:series-1"].points, [
       { x: 0, y: 1e-9 },
       { x: 1, y: 1e-6 },
     ]);
   });
 
-  test("falls back to raw assessment when processed result omits curve type", () => {
+  test("infers base curves from x axis role when processed result omits curve type", () => {
     const rawRecords = mergeRawFilesIntoRecords({}, [], [{
       fileId: "file-a",
       fileName: "Transfer.csv",
-      curveType: "transfer (vg)",
-      curveTypeConfidence: "high",
-      curveTypeReasons: ["metadata"],
     }]);
     const processedRecords = mergeProcessedFileIntoRecords(
       rawRecords.filesById,
@@ -328,8 +336,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
     );
     const record = processedRecords.filesById["file-a"];
 
-    assert.equal(record.assessment.baseFamily, "iv");
-    assert.equal(record.assessment.baseFamilyConfidence, "high");
+    assert.equal(getFileRecordCurveType(record), "transfer");
     assert.deepEqual(record.curvesByKey["base:iv:transfer:series-1"].points, [
       { x: 0, y: 1e-9 },
       { x: 1, y: 1e-6 },
@@ -356,16 +363,12 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
           y: [1e-9, 1e-6],
         }],
       },
-      createSnapshot({
-        ...rawRecords,
-        viewState: {
-          template: {
-            selectedTemplateId: "template-a",
-          },
-        },
-      }),
+      createSnapshot(rawRecords),
+      {
+        appliedTemplateSelection: { kind: "template", templateId: "template-a" },
+      },
     );
-    const templateRun = processedRecords.filesById["file-a"].templateRun;
+    const templateRun = getLatestTemplateRunRecord(processedRecords.filesById["file-a"]);
 
     assert.equal(templateRun?.selection.kind, "template");
     assert.equal(
@@ -397,23 +400,10 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
           y: [1e-9, 1e-6],
         }],
       },
-      createSnapshot({
-        ...rawRecords,
-        viewState: {
-          template: {
-            selectedTemplateId: "template-a",
-            formState: {
-              ...createDefaultTemplateFormState(),
-              name: "Manual Transfer",
-              xDataStart: "",
-              xDataEnd: "",
-              yColumns: [],
-            },
-          },
-        },
-      }),
+      createSnapshot(rawRecords),
       {
         appliedTemplateConfig: {
+          name: "Manual Transfer",
           bottomTitle: "Vg",
           endRow: 2,
           groupSize: 2,
@@ -427,7 +417,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
         },
       },
     );
-    const config = processedRecords.filesById["file-a"].templateRun?.config;
+    const config = getLatestTemplateRunRecord(processedRecords.filesById["file-a"])?.config;
 
     assert.equal(config?.name, "Manual Transfer");
     assert.equal(config?.xDataStart, 1);
@@ -446,11 +436,10 @@ const createSnapshot = (
   overrides: Partial<SessionSnapshot> = {},
 ): SessionSnapshot => {
   return {
-    version: 1,
+    schemaVersion: 1,
+    sessionVersion: 0,
     filesById: {},
     fileOrder: [],
-    activeTarget: { kind: "none" },
-    viewState: {},
     ...overrides,
   };
 };

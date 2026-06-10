@@ -1,4 +1,8 @@
-﻿import { addDisposableListener } from "src/cs/base/browser/dom";
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import { addDisposableListener } from "src/cs/base/browser/dom";
 import { CountBadge } from "src/cs/base/browser/ui/countbadge/countBadge";
 import { createDropdownButton } from "src/cs/base/browser/ui/dropdown/dropdown";
 import {
@@ -28,7 +32,6 @@ import type {
 } from "src/cs/platform/contextview/browser/contextView";
 import { localize } from "src/cs/nls";
 import {
-  type FileEntry,
   type FilesViewLayout,
   REMOVE_FILE_ITEM_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
@@ -36,43 +39,40 @@ import {
   SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/common/files";
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
-import { ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
+import type { ExplorerThumbnailPlotModel } from "src/cs/workbench/services/explorer/common/explorerPaneViewInput";
+import { FileKind, ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
 import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
-import {
-  getCalculatedData,
-  type CalculatedData,
-  type CalculatedPlotsByKey,
-} from "src/cs/workbench/contrib/calculation/common/calculatedData";
-import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
+import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type { FolderImportSupport } from "src/cs/platform/files/browser/webFileSystemAccess";
 import {
-  buildFileTree,
-  collectFileTreeFolderKeys,
-  getTreeFileName,
-  type FileTreeNode,
-} from "src/cs/workbench/contrib/files/common/explorerModel";
-import { FileKind } from "src/cs/workbench/contrib/files/common/getIconClasses";
+  buildExplorerTree,
+  collectExplorerFolderKeys,
+  getExplorerTreeFileName,
+  type ExplorerFileEntry,
+  type ExplorerTreeNode,
+} from "src/cs/workbench/services/explorer/common/explorerModel";
 import { createEmptyView } from "src/cs/workbench/contrib/files/browser/views/emptyView";
 import {
-  createThumbnailView,
+  createExplorerThumbnailView,
+  type ExplorerThumbnailPlotModel,
   type ProcessedFileLike,
-} from "src/cs/workbench/contrib/thumbnail/browser/ThumbnailView";
-import type { IThumbnailService } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
-import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
-import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
+} from "src/cs/workbench/contrib/files/browser/views/explorerThumbnailView";
+import type { IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
+import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
+import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 import {
   createTemplateSelection,
   getTemplateSelectionId,
   resolveTemplateSelectionForFile,
   type TemplateSelection,
   type TemplateSelectionsByFileId,
-} from "src/cs/workbench/contrib/template/common/templateSelection";
-import type { TemplateRecord } from "src/cs/workbench/contrib/template/common/template";
+} from "src/cs/workbench/services/template/common/templateSelection";
+import type { TemplateRecord } from "src/cs/workbench/services/template/common/template";
 
 export type ExplorerViewerProps = {
-  readonly effectiveSelectedFileId?: string | null;
+  readonly selectedFileId?: string | null;
+  readonly expandedFolderKeys?: readonly string[];
   readonly activePlotType?: PlotType;
-  readonly calculatedPlotsByKey?: CalculatedPlotsByKey;
   readonly commandService: Pick<ICommandService, "executeCommand">;
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly contextViewService: IContextViewService;
@@ -84,20 +84,25 @@ export type ExplorerViewerProps = {
   readonly fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
   readonly isTemplateListLoading?: boolean;
   readonly templateRecords?: readonly TemplateRecord[];
-  readonly files: FileEntry[];
+  readonly files: ExplorerFileEntry[];
   readonly mode?: WorkbenchMainPart;
   readonly viewLayout?: FilesViewLayout;
   readonly folderImportSupport?: FolderImportSupport;
   readonly onListScroll: (event: Event) => void;
   readonly onCreateFolder: (folderKey: string) => void;
+  readonly onFolderExpansionChange?: (expandedFolderKeys: readonly string[]) => void;
+  readonly onFolderKeysChange?: (folderKeys: readonly string[]) => readonly string[] | void;
   readonly onOpenFileDialog: () => void;
   readonly onRemoveFolder: (folderKey: string) => void;
   readonly onRequestTemplates?: () => void;
   readonly onSelectFile: (fileId: string | null) => void;
   readonly thumbnailFiles?: ProcessedEntry[];
+  readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
 };
 
-const getFileName = getTreeFileName;
+type FileTreeNode = ExplorerTreeNode<ExplorerFileEntry>;
+
+const getFileName = getExplorerTreeFileName;
 const FILE_ROW_HEIGHT = 28;
 const FILE_HOVER_HIDE_DELAY_MS = 120;
 const FILE_HOVER_THUMBNAIL_WIDTH = 360;
@@ -169,12 +174,12 @@ type HoverThumbnailCacheEntry = {
   readonly file: ProcessedEntry;
   readonly isActive: boolean;
   readonly node: HTMLElement;
-  readonly plotModel: CalculatedData | null;
+  readonly plotModel: ExplorerThumbnailPlotModel | null;
   lastUsed: number;
 };
 
 const createFileItemAssessment = (
-  fileEntry: FileEntry,
+  fileEntry: ExplorerFileEntry,
   templateLabel: string,
 ): FileItemAssessment | null => {
   if (!fileEntry?.curveType) {
@@ -245,8 +250,6 @@ export class ExplorerViewer implements IDisposable {
   private hoverLayoutFrame: number | null = null;
   private hoverViewToken = 0;
   private hoverCacheUse = 0;
-  private expandedKeys: string[] = [];
-  private knownFolderKeys = new Set<string>();
   private treeModel: TreeModelCache = {
     folderKeys: [],
     items: [],
@@ -305,11 +308,17 @@ export class ExplorerViewer implements IDisposable {
   }
 
   setProps(nextProps: ExplorerViewerProps): void {
-    const previousSelectedFileId = this.props.effectiveSelectedFileId ?? null;
-    const nextSelectedFileId = nextProps.effectiveSelectedFileId ?? null;
+    const previousSelectedFileId = this.props.selectedFileId ?? null;
+    const nextSelectedFileId = nextProps.selectedFileId ?? null;
+    const previousExpandedFolderKeys = this.props.expandedFolderKeys ?? [];
+    const nextExpandedFolderKeys = nextProps.expandedFolderKeys ?? [];
     const nextTreeSignature = this.createTreeSignature(nextProps.files, nextProps);
     const shouldUpdateTree = nextTreeSignature !== this.treeModel.signature;
     const shouldUpdateOptions = previousSelectedFileId !== nextSelectedFileId;
+    const shouldUpdateFolderExpansion = !areStringArraysEqual(
+      previousExpandedFolderKeys,
+      nextExpandedFolderKeys,
+    );
     const nextViewLayout = getEffectiveViewLayout(nextProps);
     const shouldClearPlotCache = this.shouldClearThumbnailPlotCache(this.props, nextProps);
 
@@ -324,15 +333,35 @@ export class ExplorerViewer implements IDisposable {
 
     if (shouldUpdateTree) {
       this.updateTreeModel(nextTreeSignature);
-      this.updateExpandedFolders(this.treeModel.folderKeys);
+      const reconciledExpandedFolderKeys =
+        this.props.onFolderKeysChange?.(this.treeModel.folderKeys) ??
+        nextExpandedFolderKeys;
       this.treeView.updateOptions({
-        collapsedKeys: this.getCollapsedFolderKeys(),
+        collapsedKeys: this.getCollapsedFolderKeys(
+          this.treeModel.folderKeys,
+          reconciledExpandedFolderKeys,
+        ),
         selectedKey: nextSelectedFileId,
       });
       this.treeView.setChildren(this.treeModel.items);
+    } else if (shouldUpdateOptions && shouldUpdateFolderExpansion) {
+      this.treeView.updateOptions({
+        collapsedKeys: this.getCollapsedFolderKeys(
+          this.treeModel.folderKeys,
+          nextExpandedFolderKeys,
+        ),
+        selectedKey: nextSelectedFileId,
+      });
     } else if (shouldUpdateOptions) {
       this.treeView.updateOptions({
         selectedKey: nextSelectedFileId,
+      });
+    } else if (shouldUpdateFolderExpansion) {
+      this.treeView.updateOptions({
+        collapsedKeys: this.getCollapsedFolderKeys(
+          this.treeModel.folderKeys,
+          nextExpandedFolderKeys,
+        ),
       });
     }
 
@@ -353,7 +382,6 @@ export class ExplorerViewer implements IDisposable {
   ): IObjectTreeOptions<FileTreeNode, TreeItemTemplate> {
     this.updateTreeModel(signature);
     const { folderKeys, items } = this.treeModel;
-    this.updateExpandedFolders(folderKeys);
 
     return {
       className: "file-list-tree",
@@ -361,7 +389,10 @@ export class ExplorerViewer implements IDisposable {
       getChildren: this.getTreeNodeChildren,
       getKey: this.getTreeNodeKey,
       gap: 0,
-      collapsedKeys: this.getCollapsedFolderKeys(),
+      collapsedKeys: this.getCollapsedFolderKeys(
+        folderKeys,
+        this.props.expandedFolderKeys ?? [],
+      ),
       empty: this.renderEmpty,
       disposeEmpty: this.disposeEmpty,
       items,
@@ -370,30 +401,21 @@ export class ExplorerViewer implements IDisposable {
       onScroll: this.handleTreeScroll,
       onSelect: this.handleTreeSelect,
       renderer: this.treeRenderer,
-      selectedKey: this.props.effectiveSelectedFileId ?? null,
+      selectedKey: this.props.selectedFileId ?? null,
       viewportClassName: "file-list-tree-viewport",
     };
   }
 
-  private updateExpandedFolders(folderKeys: readonly string[]): void {
-    const expandedKeys = new Set(this.expandedKeys);
-    for (const key of folderKeys) {
-      if (!this.knownFolderKeys.has(key)) {
-        expandedKeys.add(key);
-      }
-    }
-
-    this.knownFolderKeys = new Set(folderKeys);
-    this.expandedKeys = [...expandedKeys];
-  }
-
-  private getCollapsedFolderKeys(): string[] {
-    const expanded = new Set(this.expandedKeys);
-    return this.treeModel.folderKeys.filter((key) => !expanded.has(key));
+  private getCollapsedFolderKeys(
+    folderKeys: readonly string[],
+    expandedFolderKeys: readonly string[],
+  ): string[] {
+    const expanded = new Set(expandedFolderKeys);
+    return folderKeys.filter((key) => !expanded.has(key));
   }
 
   private createTreeSignature(
-    files: readonly FileEntry[],
+    files: readonly ExplorerFileEntry[],
     props: ExplorerViewerProps,
   ): string {
     const currentTemplateSelectionId = getTemplateSelectionId(
@@ -428,9 +450,9 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    const items = buildFileTree(this.props.files);
+    const items = buildExplorerTree(this.props.files);
     this.treeModel = {
-      folderKeys: collectFileTreeFolderKeys(items),
+      folderKeys: collectExplorerFolderKeys(items),
       items,
       signature,
     };
@@ -438,7 +460,9 @@ export class ExplorerViewer implements IDisposable {
 
   private readonly handleTreeCollapseState = (collapsedKeys: string[]): void => {
     const collapsed = new Set(collapsedKeys);
-    this.expandedKeys = this.treeModel.folderKeys.filter((key) => !collapsed.has(key));
+    this.props.onFolderExpansionChange?.(
+      this.treeModel.folderKeys.filter((key) => !collapsed.has(key)),
+    );
   };
 
   private readonly handleTreeScroll = (event: Event): void => {
@@ -615,7 +639,7 @@ export class ExplorerViewer implements IDisposable {
     if (element.entry) {
       this.renderFileItem(
         element.entry,
-        this.props.effectiveSelectedFileId === element.entry.fileId,
+        this.props.selectedFileId === element.entry.fileId,
         template.file,
       );
     }
@@ -642,7 +666,7 @@ export class ExplorerViewer implements IDisposable {
     template.folder.actionButton.dispose();
   };
 
-  private resolveFileTemplateLabel(fileEntry: FileEntry): string {
+  private resolveFileTemplateLabel(fileEntry: ExplorerFileEntry): string {
     const selection = this.resolveFileTemplateSelection(fileEntry.fileId);
     const currentSelection = this.props.currentTemplateSelection ?? {
       kind: "auto",
@@ -675,7 +699,7 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private renderFileItem(
-    fileEntry: FileEntry,
+    fileEntry: ExplorerFileEntry,
     isSelected: boolean,
     template: FileItemTemplate,
   ): void {
@@ -803,9 +827,9 @@ export class ExplorerViewer implements IDisposable {
       "aria-label",
       localize("import.fileItemAriaLabel", "File {fileName}", { fileName }),
     );
-    item.append(createThumbnailView({
+    item.append(createExplorerThumbnailView({
       file,
-      isActive: fileId === (this.props.effectiveSelectedFileId ?? null),
+      isActive: fileId === (this.props.selectedFileId ?? null),
       originOpenPlotOptions: this.props.originOpenPlotOptions,
       plotAxisSettings: this.props.plotAxisSettings,
       plotModel: this.getThumbnailPlotModel(fileId),
@@ -1234,7 +1258,7 @@ export class ExplorerViewer implements IDisposable {
       return cached.node;
     }
 
-    const node = createThumbnailView({
+    const node = createExplorerThumbnailView({
       file,
       isActive,
       originOpenPlotOptions: this.props.originOpenPlotOptions,
@@ -1255,12 +1279,11 @@ export class ExplorerViewer implements IDisposable {
     return node;
   }
 
-  private getThumbnailPlotModel(fileId: string): CalculatedData | null {
-    return getCalculatedData(
-      this.props.calculatedPlotsByKey,
-      this.props.activePlotType ?? "iv",
-      fileId,
-    );
+  private getThumbnailPlotModel(fileId: string): ExplorerThumbnailPlotModel | null {
+    const normalizedFileId = String(fileId ?? "").trim();
+    return normalizedFileId
+      ? this.props.thumbnailPlotModelsByFileId?.[normalizedFileId] ?? null
+      : null;
   }
 
   private clearThumbnailCaches(): void {
@@ -1277,7 +1300,7 @@ export class ExplorerViewer implements IDisposable {
   ): boolean {
     return (
       previous.activePlotType !== next.activePlotType ||
-      previous.calculatedPlotsByKey !== next.calculatedPlotsByKey ||
+      previous.thumbnailPlotModelsByFileId !== next.thumbnailPlotModelsByFileId ||
       previous.originOpenPlotOptions !== next.originOpenPlotOptions ||
       previous.plotAxisSettings !== next.plotAxisSettings
     );
@@ -1363,3 +1386,19 @@ function getEffectiveViewLayout(
   return props.mode === "chart" ? props.viewLayout ?? "tree" : "tree";
 }
 
+function areStringArraysEqual(
+  first: readonly string[],
+  second: readonly string[],
+): boolean {
+  if (first.length !== second.length) {
+    return false;
+  }
+
+  for (let index = 0; index < first.length; index += 1) {
+    if (first[index] !== second[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}

@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { ActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
@@ -12,6 +16,7 @@ import {
   renderParametersView,
   type ParametersViewOptions,
 } from "src/cs/workbench/contrib/parameters/browser/parametersView";
+import type { ParametersViewState } from "src/cs/workbench/services/parameters/common/parameterModel";
 import {
   renderRcCurveHeaderView,
   renderRcCurveRowsView,
@@ -20,7 +25,11 @@ import {
   type RcCurveRow,
 } from "src/cs/workbench/contrib/parameters/browser/rcAnalysisView";
 import type { RcCurveChartSeries } from "src/cs/workbench/contrib/parameters/browser/rcAnalysisModel";
-import { ParametersViewId } from "src/cs/workbench/contrib/parameters/common/parameters";
+import {
+  IParametersService,
+  ParametersViewId,
+  type IParametersService as IParametersServiceType,
+} from "src/cs/workbench/services/parameters/common/parameters";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
 import "src/cs/workbench/contrib/parameters/browser/media/parametersView.css";
@@ -34,7 +43,9 @@ export class ParametersViewPane extends ViewPane {
   private readonly view = document.createElement("div");
   private readonly content = document.createElement("div");
 
-  constructor() {
+  constructor(
+    @IParametersService private readonly parametersService: IParametersServiceType,
+  ) {
     super({
       id: ParametersViewId,
       title: localize("analysis_views_parameters", "Parameters"),
@@ -48,6 +59,19 @@ export class ParametersViewPane extends ViewPane {
     this.view.append(this.content);
     this.pane.append(this.view);
     this.body.append(this.pane);
+    this._register(this.parametersService.onDidChangeParametersViewState(state => {
+      this.renderViewState(state);
+    }));
+    this.renderViewState(this.parametersService.getViewState());
+  }
+
+  private renderViewState(state: ParametersViewState): void {
+    if (state.kind === "empty") {
+      this.renderEmpty(state.message);
+      return;
+    }
+
+    this.renderParameters(state);
   }
 
   renderParameters(options: ParametersViewOptions): void {

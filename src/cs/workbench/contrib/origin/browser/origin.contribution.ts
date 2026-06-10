@@ -13,7 +13,7 @@ import {
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
 import { OriginSettingsViewPane } from "src/cs/workbench/contrib/origin/browser/originSettingsViewPane";
-import { OriginExportSettingsViewId } from "src/cs/workbench/contrib/origin/common/origin";
+import { OriginExportSettingsViewId } from "src/cs/workbench/services/origin/common/origin";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);

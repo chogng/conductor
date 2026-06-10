@@ -10,3 +10,5 @@ export type NotificationToastState = {
   message: string;
   type: NotificationToastType;
 };
+
+export const IDLE_FEEDBACK: Feedback = { type: "idle", message: "" };

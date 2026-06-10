@@ -1,8 +1,13 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 // Owns the interactive main plot chart, canvas drawing, hover handling, and axis title editing.
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
-import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
-import { drawPlotAxis, resolveLabelWithUnit } from "src/cs/workbench/contrib/plot/browser/plotAxis";
+import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
+import { resolveLabelWithUnit } from "src/cs/workbench/services/plot/common/plotAxisLabels";
+import { drawPlotAxis } from "src/cs/workbench/contrib/plot/browser/plotAxis";
 import { PlotAxisTitleView } from "src/cs/workbench/contrib/plot/browser/plotAxisTitleView";
 import { drawPlotFrame } from "src/cs/workbench/contrib/plot/browser/plotFrame";
 import { drawPlotGrid } from "src/cs/workbench/contrib/plot/browser/plotGrid";
@@ -18,26 +23,17 @@ import {
   createPlotMainLayout,
   type ChartScale,
   type PlotRect,
-} from "src/cs/workbench/contrib/plot/common/plotMainLayout";
+} from "src/cs/workbench/services/plot/common/plotMainLayout";
+import type {
+  PlotMainPoint,
+  PlotMainSeries,
+} from "src/cs/workbench/services/plot/common/plotModel";
 
 import "src/cs/workbench/contrib/plot/browser/media/plot.css";
 
-export type PlotMainPoint = {
-  x?: number | null;
-  y?: number | null;
-  yPositive?: number | null;
-  yAbsPositive?: number | null;
-  ySignedLogPositive?: number | null;
-  [key: string]: number | string | null | undefined;
-};
-
-export type PlotMainSeries = {
-  id: string;
-  name: string;
-  tooltipName?: string;
-  color?: string;
-  data: PlotMainPoint[];
-  [key: string]: unknown;
+export type {
+  PlotMainPoint,
+  PlotMainSeries,
 };
 
 type SsOverlay = {
@@ -110,7 +106,7 @@ export type PlotMainChartProps = {
     xLabel: unknown;
     yLabel: unknown;
   }> | null;
-  seriesList: PlotMainSeries[];
+  seriesList: readonly PlotMainSeries[];
   xDomain: [number, number];
   xTicks?: number[] | null;
   plotXFactor: number;
@@ -127,7 +123,7 @@ export type PlotMainChartProps = {
   plotYFactor: number;
   plotYUnitLabel: string;
   focusedSeriesId?: string | null;
-  focusedFitLine?: PlotMainPoint[] | null;
+  focusedFitLine?: readonly PlotMainPoint[] | null;
   vthFitOverlays?: VthFitOverlay[];
   focusedSeriesColor?: string;
   highlightOverlays?: HighlightOverlay[];

@@ -139,8 +139,8 @@ npm run test:unit
 
 Import test and benchmark data:
 
-- Unit and smoke-style import coverage should use small repository fixtures under
-  `src/cs/workbench/services/analysisFile/test/fixtures`.
+- Unit and smoke-style import coverage should use inline data or small fixtures
+  colocated with the owning `src/cs/workbench/services/*/test` suite.
 - Stress and performance runs should use generated data or an explicit external
   data root, not committed large files.
 - Generate deterministic large CSV inputs with `npm run bench:import:data`.

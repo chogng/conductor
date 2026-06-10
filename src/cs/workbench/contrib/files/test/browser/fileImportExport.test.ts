@@ -7,9 +7,23 @@ import type {
   FileSystemHandle,
 } from "../../../../../platform/files/browser/webFileSystemAccess.ts";
 import { FileService } from "../../../../../platform/files/common/fileService.ts";
-import { collectFolderImportFiles } from "../../browser/fileImportExport.ts";
+import {
+  canImportFolderWithFileService,
+  collectFolderImportFiles,
+  getFolderImportSupportForFileService,
+} from "../../browser/fileImportExport.ts";
 
 suite("workbench/contrib/files/test/browser/fileImportExport", () => {
+  test("folder import does not require browser folder picker for non-HTML file services", () => {
+    const filesService = new FileService();
+
+    assert.deepEqual(
+      getFolderImportSupportForFileService(filesService),
+      { reason: null, supported: true },
+    );
+    assert.equal(canImportFolderWithFileService(filesService), true);
+  });
+
   function createFileHandle(name: string, text: string): FileSystemFileHandle {
     return {
       kind: "file",

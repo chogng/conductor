@@ -40,29 +40,30 @@ suite("workbench/services/conductorStore/electron-browser/conductorStoreIpcClien
       body: JSON.stringify({ theme: "dark" }),
       method: "PATCH",
     });
-    await requestConductorStore("/persistence-path", {
-      body: JSON.stringify({ path: "C:\\Data" }),
-      method: "PATCH",
-    });
 
     assert.deepStrictEqual(calls, [
       { channel: workbenchIpcChannels.templatesGet, args: [] },
       { channel: workbenchIpcChannels.templatesCreate, args: [{ name: "Template" }] },
       { channel: workbenchIpcChannels.settingsPatch, args: [{ theme: "dark" }] },
-      { channel: workbenchIpcChannels.persistencePathSet, args: [{ path: "C:\\Data" }] },
     ]);
   });
 
-  test("returns non-configurable persistence path when desktop store is unavailable", async () => {
+  test("rejects removed persistence path endpoint", async () => {
     Object.defineProperty(globalThis, "window", {
       configurable: true,
-      value: {},
+      value: {
+        conductor: {
+          ipcRenderer: {
+            invoke: async () => ({}),
+          },
+        },
+      },
       writable: true,
     });
 
-    assert.deepStrictEqual(
-      await requestConductorStore("/persistence-path"),
-      { isConfigurable: false },
+    await assert.rejects(
+      () => requestConductorStore("/persistence-path"),
+      /Desktop store endpoint not implemented/,
     );
   });
 });

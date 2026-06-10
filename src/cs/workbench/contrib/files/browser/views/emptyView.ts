@@ -8,7 +8,7 @@ import {
 } from "src/cs/platform/files/browser/webFileSystemAccess";
 import {
   getFolderImportUnsupportedMessage,
-} from "src/cs/workbench/contrib/files/browser/fileCommands";
+} from "src/cs/workbench/contrib/files/browser/fileImportExport";
 
 export type EmptyViewOptions = {
   readonly onImportFiles: () => void;

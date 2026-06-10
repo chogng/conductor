@@ -4,7 +4,6 @@ import type {
   AnalyzeRcRequest,
   DisposeFileRequest,
   ExportOriginCsvRequest,
-  InferAutoExtractionRequest,
   IRustAnalysisService,
   OpenFileRequest,
   PreviewMetaRequest,
@@ -22,7 +21,6 @@ type RegisterAnalysisRustHandlersOptions = {
     | "analysisRustEngineAnalyzeRc"
     | "analysisRustEngineDispose"
     | "analysisRustEngineExportOriginCsv"
-    | "analysisRustEngineInferAutoExtraction"
     | "analysisRustEngineOpen"
     | "analysisRustEnginePreviewMeta"
     | "analysisRustEnginePreviewRows"
@@ -159,19 +157,6 @@ export const registerAnalysisRustHandlers = ({
     return rustAnalysisService.readCells(request);
   };
 
-  const handleAnalysisRustEngineInferAutoExtraction = async (
-    _event: IpcMainInvokeEvent,
-    payload: unknown,
-  ) => {
-    const record = readObject(payload);
-    const request: InferAutoExtractionRequest = {
-      fileId: readString(record?.fileId),
-      fileName: readString(record?.fileName),
-      inputPath: normalizeAbsoluteFilePath(record?.path),
-    };
-    return rustAnalysisService.inferAutoExtraction(request);
-  };
-
   const handleAnalysisRustEngineProcessFile = async (
     _event: IpcMainInvokeEvent,
     payload: unknown,
@@ -262,10 +247,6 @@ export const registerAnalysisRustHandlers = ({
     handleAnalysisRustEngineReadCells,
   );
   ipcMain.handle(
-    ipcChannels.analysisRustEngineInferAutoExtraction,
-    handleAnalysisRustEngineInferAutoExtraction,
-  );
-  ipcMain.handle(
     ipcChannels.analysisRustEngineProcessFile,
     handleAnalysisRustEngineProcessFile,
   );
@@ -289,7 +270,6 @@ export const registerAnalysisRustHandlers = ({
       ipcMain.removeHandler(ipcChannels.analysisRustEnginePreviewRows);
       ipcMain.removeHandler(ipcChannels.analysisRustEngineReadCell);
       ipcMain.removeHandler(ipcChannels.analysisRustEngineReadCells);
-      ipcMain.removeHandler(ipcChannels.analysisRustEngineInferAutoExtraction);
       ipcMain.removeHandler(ipcChannels.analysisRustEngineProcessFile);
       ipcMain.removeHandler(ipcChannels.analysisRustEngineAnalyzeRc);
       ipcMain.removeHandler(ipcChannels.analysisRustEngineExportOriginCsv);

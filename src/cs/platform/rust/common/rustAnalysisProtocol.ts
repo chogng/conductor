@@ -51,12 +51,6 @@ export type ReadCellsRequest = {
   fileId: string;
 };
 
-export type InferAutoExtractionRequest = {
-  fileId: string;
-  fileName: string;
-  inputPath: string;
-};
-
 export type ProcessFileRequest = {
   auto: boolean;
   config: RustProcessConfig | null;
@@ -99,7 +93,6 @@ export interface IRustAnalysisService {
   analyzeRc(request: AnalyzeRcRequest): Promise<RustAnalysisResponse>;
   disposeFile(request: DisposeFileRequest): Promise<RustAnalysisResponse>;
   exportOriginCsv(request: ExportOriginCsvRequest): Promise<RustAnalysisResponse>;
-  inferAutoExtraction(request: InferAutoExtractionRequest): Promise<RustAnalysisResponse>;
   openFile(request: OpenFileRequest): Promise<RustAnalysisResponse>;
   previewMeta(request: PreviewMetaRequest): Promise<RustAnalysisResponse>;
   previewRows(request: PreviewRowsRequest): Promise<RustAnalysisResponse>;

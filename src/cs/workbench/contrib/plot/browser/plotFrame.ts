@@ -1,5 +1,9 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 // Draws the outer frame around the plot area on the main chart canvas.
-import type { PlotRect } from "src/cs/workbench/contrib/plot/common/plotMainLayout";
+import type { PlotRect } from "src/cs/workbench/services/plot/common/plotMainLayout";
 
 export const drawPlotFrame = (
   context: CanvasRenderingContext2D,

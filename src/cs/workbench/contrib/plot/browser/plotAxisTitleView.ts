@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 // Owns editable x and y axis title widgets for the plot main chart.
 
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";

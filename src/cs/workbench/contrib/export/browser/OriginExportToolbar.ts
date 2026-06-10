@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import { localize } from "src/cs/nls";
 import { createButton } from "src/cs/base/browser/ui/button/button";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
@@ -14,26 +18,16 @@ import {
   isOriginExportMode,
   type OriginExportContentKey,
   type OriginExportMode,
-} from "src/cs/workbench/contrib/export/common/originSelectionExport";
+} from "src/cs/workbench/services/export/common/originExport";
 import type {
   OriginCanvasExportScope,
   OriginCurveExportMode,
   OriginFilteredCanvasKind,
-} from "src/cs/workbench/contrib/export/browser/originCanvasExport";
-
-export type OriginExportContentOption = {
-  group: "basic" | "derived";
-  key: OriginExportContentKey;
-  label: string;
-};
-
-export type OriginCurveExportSeriesOption = {
-  key: string;
-  label: string;
-  sourceFileId: string;
-  sourceSeriesId: string;
-};
-
+} from "src/cs/workbench/services/export/common/export";
+import type {
+  OriginCurveExportSeriesOption,
+  OriginExportContentOption,
+} from "src/cs/workbench/services/export/common/exportModel";
 
 export type ReplaceMatchingOriginSeriesAcrossFilesFn = (options: {
   fileIds?: unknown[];

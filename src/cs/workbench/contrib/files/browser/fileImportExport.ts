@@ -1,6 +1,12 @@
 import { URI } from "src/cs/base/common/uri";
 import { toSlashes } from "src/cs/base/common/extpath";
+import { isWindows } from "src/cs/base/common/platform";
 import { basename, joinPath } from "src/cs/base/common/resources";
+import {
+  collectDataTransferFiles,
+  getPathForFile,
+  type DataTransferFile,
+} from "src/cs/platform/dnd/browser/dnd";
 import {
   FileType,
   type IFileContent,
@@ -12,8 +18,20 @@ import {
   isExcelImportFileName,
   isSupportedImportFileName,
   type FileSource,
-  type PathFileSource,
-} from "src/cs/workbench/contrib/files/common/files";
+} from "src/cs/workbench/services/files/common/files";
+import type {
+  FolderFileCollection,
+  FolderFileCollectionBatch,
+  FolderFileReadFailure,
+  FolderImportFileSource,
+  FolderImportFiles,
+} from "src/cs/workbench/services/files/common/folderImport";
+import {
+  canImportFolderWithFileService,
+  getFolderImportSupportForFileService,
+  getFolderImportUnsupportedMessage,
+  pickImportFolder,
+} from "src/cs/workbench/services/files/browser/folderImportDialog";
 import {
   FOLDER_IMPORT_STAT_CONCURRENCY,
 } from "src/cs/workbench/contrib/files/browser/fileConstants";
@@ -22,27 +40,22 @@ export {
   buildFileIdentityKey,
   buildItemKey,
   type FileSource,
-} from "src/cs/workbench/contrib/files/common/files";
+} from "src/cs/workbench/services/files/common/files";
+export type {
+  FolderFileCollection,
+  FolderFileCollectionBatch,
+  FolderFileReadFailure,
+  FolderImportFileSource,
+  FolderImportFiles,
+} from "src/cs/workbench/services/files/common/folderImport";
+export {
+  canImportFolderWithFileService,
+  getFolderImportSupportForFileService,
+  getFolderImportUnsupportedMessage,
+  pickImportFolder,
+} from "src/cs/workbench/services/files/browser/folderImportDialog";
 
 const MAX_FOLDER_WALK_DEPTH = 32;
-export type FolderImportFileSource = PathFileSource & {
-  readonly loadFile: () => Promise<File>;
-};
-
-export type FolderFileReadFailure = {
-  readonly fileName: string;
-  readonly message: string;
-  readonly relativePath: string;
-};
-
-export type FolderFileCollection = {
-  readonly files: FolderImportFileSource[];
-  readonly readFailures: FolderFileReadFailure[];
-};
-
-export type FolderFileCollectionBatch = {
-  readonly files: FolderImportFileSource[];
-};
 
 type CollectFolderImportFilesOptions = {
   readonly onBatch?: (batch: FolderFileCollectionBatch) => Promise<void> | void;
@@ -53,6 +66,85 @@ type FolderFileStatTask = {
   readonly name: string;
   readonly relativePath: string;
   readonly resource: URI;
+};
+
+const isAbsoluteFilePath = (filePath: string): boolean => {
+  if (isWindows) {
+    return /^[a-zA-Z]:[\\/]/.test(filePath) || filePath.startsWith("\\\\");
+  }
+
+  return filePath.startsWith("/");
+};
+
+export const createFileSource = (
+  file: File,
+  relativePath?: string | null,
+  resource?: URI | null,
+): FileSource => {
+  const resourcePath = String(resource?.fsPath ?? "").trim();
+  if (resource && resourcePath && isAbsoluteFilePath(resourcePath)) {
+    return {
+      file,
+      fileName: file.name,
+      kind: "path",
+      lastModified: file.lastModified,
+      relativePath,
+      resource,
+      size: file.size,
+    };
+  }
+
+  const filePath = String(getPathForFile(file) ?? "").trim();
+  if (filePath && isAbsoluteFilePath(filePath)) {
+    return {
+      file,
+      fileName: file.name,
+      kind: "path",
+      lastModified: file.lastModified,
+      relativePath,
+      resource: URI.file(filePath),
+      size: file.size,
+    };
+  }
+
+  return {
+    file,
+    kind: "data",
+    relativePath,
+    resource: null,
+  };
+};
+
+const createDroppedFileSource = ({
+  file,
+  relativePath,
+}: DataTransferFile): FileSource => createFileSource(file, relativePath);
+
+export const collectDroppedFiles = async (
+  dataTransfer: DataTransfer,
+): Promise<FileSource[]> =>
+  (await collectDataTransferFiles(dataTransfer)).map(createDroppedFileSource);
+
+export const pickFolderImportFiles = async ({
+  dialogsService,
+  filesService,
+  pathService,
+}: {
+  readonly dialogsService: Parameters<typeof pickImportFolder>[0]["dialogsService"];
+  readonly filesService: IFileService;
+  readonly pathService: Parameters<typeof pickImportFolder>[0]["pathService"];
+}): Promise<FolderImportFiles | null> => {
+  const folder = await pickImportFolder({ dialogsService, pathService });
+  if (!folder) {
+    return null;
+  }
+
+  const result = await collectFolderImportFiles(folder, filesService);
+  return {
+    files: result.files,
+    folder,
+    readFailures: result.readFailures,
+  };
 };
 
 function joinResourcePath(parent: URI, name: string): URI {

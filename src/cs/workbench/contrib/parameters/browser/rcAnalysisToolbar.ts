@@ -1,6 +1,6 @@
 import { localize } from "src/cs/nls";
 import { createButton } from "src/cs/base/browser/ui/button/button";
-import type { OriginCurveExportSeriesOption } from "src/cs/workbench/contrib/export/browser/OriginExportToolbar";
+import type { OriginCurveExportSeriesOption } from "src/cs/workbench/services/export/common/exportModel";
 
 export type RcAnalysisToolbarOptions = {
   biasOptions: OriginCurveExportSeriesOption[];

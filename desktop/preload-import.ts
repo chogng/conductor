@@ -40,10 +40,6 @@ export function createDesktopImportBridge(ipcRenderer: IpcRenderer) {
       return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEngineReadCells, payload);
     },
 
-    async inferAnalysisFileAutoExtractionWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEngineInferAutoExtraction, payload);
-    },
-
     async processAnalysisFileWithRust(payload: unknown) {
       return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEngineProcessFile, payload);
     },

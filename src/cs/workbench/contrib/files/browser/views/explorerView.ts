@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import { localize } from "src/cs/nls";
 import { DragAndDropObserver } from "src/cs/base/browser/dom";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
@@ -54,10 +58,6 @@ export class ExplorerView implements IDisposable {
     return this.explorerViewer.getListHandle();
   }
 
-  openFileDialog(): void {
-    this.props.onOpenFolderDialog();
-  }
-
   setProps(nextProps: ExplorerViewProps): void {
     this.props = nextProps;
     this.render();
@@ -88,9 +88,9 @@ export class ExplorerView implements IDisposable {
 
   private createViewerProps(): ExplorerViewerProps {
     return {
-      effectiveSelectedFileId: this.props.effectiveSelectedFileId,
+      selectedFileId: this.props.selectedFileId,
+      expandedFolderKeys: this.props.expandedFolderKeys,
       activePlotType: this.props.activePlotType,
-      calculatedPlotsByKey: this.props.calculatedPlotsByKey,
       commandService: this.props.commandService,
       contextMenuService: this.props.contextMenuService,
       contextViewService: this.props.contextViewService,
@@ -108,11 +108,14 @@ export class ExplorerView implements IDisposable {
       viewLayout: this.props.viewLayout,
       onListScroll: this.props.onListScroll,
       onCreateFolder: this.props.onCreateFolder,
-      onOpenFileDialog: () => this.openFileDialog(),
+      onFolderExpansionChange: this.props.onFolderExpansionChange,
+      onFolderKeysChange: this.props.onFolderKeysChange,
+      onOpenFileDialog: this.props.onOpenFolderDialog,
       onRemoveFolder: this.props.onRemoveFolder,
       onRequestTemplates: this.props.onRequestTemplates,
       onSelectFile: this.props.onSelectFile,
       thumbnailFiles: this.props.thumbnailFiles,
+      thumbnailPlotModelsByFileId: this.props.thumbnailPlotModelsByFileId,
     };
   }
 

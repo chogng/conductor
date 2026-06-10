@@ -17,8 +17,8 @@ Conductor Studio  is built with a layered architecture using TypeScript, web API
 - `src/cs/platform/` - Platform services and dependency injection infrastructure
 - `src/cs/workbench/` - Main application workbench for web and desktop
   - `workbench/browser/` - Core workbench UI components (parts, layout, actions)
-  - `workbench/services/` - Service implementations
-  - `workbench/contrib/` - Feature contributions (git, debug, search, terminal, etc.)
+  - `workbench/services/` - Shared workbench capabilities with service contracts and DI boundaries
+  - `workbench/contrib/` - Feature-owned contributions and domain logic
 - `src/cs/code/` - Electron main process specific implementation
 - `src/cs/server/` - Server specific implementation
 

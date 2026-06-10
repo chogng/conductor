@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import "src/cs/base/browser/ui/iconLabel/iconLabelStyles";
 
 import {
@@ -7,10 +11,14 @@ import {
 } from "src/cs/base/browser/ui/iconLabel/iconLabel";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
-import {
-  FileKind,
-  getIconClasses,
-} from "src/cs/workbench/contrib/files/common/getIconClasses";
+
+export const FileKind = {
+  FILE: "file",
+  FOLDER: "folder",
+  ROOT_FOLDER: "rootFolder",
+} as const;
+
+export type FileKind = (typeof FileKind)[keyof typeof FileKind];
 
 export type ResourceLabelProps = {
   readonly name?: string;
@@ -103,6 +111,54 @@ const getResourceName = (resource: string | null | undefined): string => {
   return slashIndex >= 0 ? normalized.slice(slashIndex + 1) : normalized;
 };
 
+export function getIconClasses(
+  resource: unknown,
+  fileKind: FileKind = FileKind.FILE,
+): string[] {
+  const classes =
+    fileKind === FileKind.ROOT_FOLDER
+      ? ["rootfolder-icon"]
+      : fileKind === FileKind.FOLDER
+        ? ["folder-icon"]
+        : ["file-icon"];
+  const path = String(resource ?? "").trim().replace(/\\/g, "/");
+  if (!path) {
+    return classes;
+  }
+
+  const match = path.match(fileIconDirectoryRegex);
+  const parent = match?.[1];
+  const rawName = match?.[2] ?? path;
+  const name = fileIconSelectorEscape(rawName.toLowerCase());
+  if (parent) {
+    classes.push(`${fileIconSelectorEscape(parent.toLowerCase())}-name-dir-icon`);
+  }
+
+  if (fileKind === FileKind.ROOT_FOLDER) {
+    classes.push(`${name}-root-name-folder-icon`);
+    return classes;
+  }
+
+  if (fileKind === FileKind.FOLDER) {
+    classes.push(`${name}-name-folder-icon`);
+    return classes;
+  }
+
+  classes.push(`${name}-name-file-icon`, "name-file-icon");
+  if (name.length <= 255) {
+    const dotSegments = name.split(".");
+    for (let index = 1; index < dotSegments.length; index += 1) {
+      classes.push(`${dotSegments.slice(index).join(".")}-ext-file-icon`);
+    }
+  }
+  classes.push("ext-file-icon");
+  return classes;
+}
+
+export function fileIconSelectorEscape(value: string): string {
+  return value.replace(/\s/g, "/");
+}
+
 const getResourceIcon = (
   iconClasses: readonly string[],
   fileKind: FileKind,
@@ -117,3 +173,5 @@ const getResourceIcon = (
     ? LxIcon.xlsGreen
     : LxIcon.csvGreen;
 };
+
+const fileIconDirectoryRegex = /(?:\/|^)(?:([^/]+)\/)?([^/]+)$/;

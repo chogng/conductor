@@ -23,7 +23,6 @@ import {
 } from "../../platform/windows/electron-main/windowImpl.js";
 import { defaultBrowserWindowOptions } from "../../platform/windows/electron-main/windows.js";
 import { createConductorStoreMainService } from "../../workbench/services/conductorStore/electron-main/conductorStoreMainService.js";
-import { deleteLegacyConductorStoreFiles } from "../../workbench/services/conductorStore/electron-main/conductorStoreCleanup.js";
 import {
   assertOriginExePath,
   normalizeOriginExePath,
@@ -57,10 +56,10 @@ import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from "../../platform/files/common/file
 import { DiskFileSystemProvider } from "../../platform/files/node/diskFileSystemProvider.js";
 import { registerAnalysisRustHandlers } from "./analysisRustMain.js";
 import { RustAnalysisService } from "./rustAnalysisService.js";
-import { HelpWindowMainService } from "../../workbench/contrib/help/electron-main/helpWindowMainService.js";
+import { HelpWindowMainService } from "../../workbench/services/help/electron-main/helpWindowMainService.js";
 import {
   normalizeHelpWindowKind,
-} from "../../workbench/contrib/help/common/helpWindow.js";
+} from "../../workbench/services/help/common/helpWindow.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -121,7 +120,6 @@ const MAIN_MESSAGES = {
     "help.windowUpdateLogTitle": "Conductor Studio Update Log",
     "originCsv.saveDialogTitle": "Save Origin CSV ZIP",
     "originCsv.zipFilter": "ZIP",
-    "settings.selectUserConfigDialogTitle": "Select user config file path",
     "tray.backgroundContinueMessage": "The app is still running in the background. You can restore or quit it from the system tray.",
     "tray.checkForUpdates": "Check for Updates",
     "tray.hideWindow": "Hide Window",
@@ -148,7 +146,6 @@ const MAIN_MESSAGES = {
     "help.windowUpdateLogTitle": "Conductor Studio 更新日志",
     "originCsv.saveDialogTitle": "保存 Origin CSV ZIP",
     "originCsv.zipFilter": "ZIP",
-    "settings.selectUserConfigDialogTitle": "选择用户配置文件路径",
     "tray.backgroundContinueMessage": "应用仍在后台运行，可从系统托盘恢复或退出。",
     "tray.checkForUpdates": "检查更新",
     "tray.hideWindow": "隐藏窗口",
@@ -958,19 +955,7 @@ function getConductorUserDataHomeDir() {
   return path.join(app.getPath("userData"), "User");
 }
 
-let didCleanLegacyUserStorage = false;
-
-function ensureLegacyUserStorageCleaned() {
-  if (didCleanLegacyUserStorage) {
-    return;
-  }
-
-  didCleanLegacyUserStorage = true;
-  deleteLegacyConductorStoreFiles(getAnalysisHomeDir());
-}
-
 function getConductorStoreHomeDir() {
-  ensureLegacyUserStorageCleaned();
   return getConductorUserDataHomeDir();
 }
 
@@ -1311,6 +1296,7 @@ function createSharedProcessContributionContext() {
   return {
     analysisHomeDir: getAnalysisHomeDir(),
     analysisTempRootDir: getAnalysisTempRootDir(),
+    conductorUserDataHomeDir: getConductorUserDataHomeDir(),
     originRuntimeStorageDir: getOriginRuntimeStorageDir(),
     rustExcelJobRootDir: getRustExcelJobRootDir(),
     log: (message: string) => {
@@ -1382,10 +1368,6 @@ function handleHelpWindowOpen(_event, payload) {
   );
   helpWindowMainService?.open(kind);
   return { ok: true };
-}
-
-function handlePersistencePathGet() {
-  return conductorStore.getPersistenceInfo();
 }
 
 async function handleExcelConvertRust(_event, payload) {
@@ -1670,37 +1652,8 @@ async function handleAnalysisOriginZipSave(event, payload) {
   }
 }
 
-function handlePersistencePathSet(_event, payload) {
-  const rawPath =
-    payload && typeof payload === "object" ? payload.path : payload;
-  return conductorStore.setPersistencePath(rawPath);
-}
-
 async function handleNativeHostOpenDialog(event, options) {
   return nativeHostMainService.showOpenDialog(event.sender, options);
-}
-
-async function handlePersistencePathChoose(event) {
-  const currentInfo = conductorStore.getPersistenceInfo();
-  const win = BrowserWindow.fromWebContents(event.sender) ?? null;
-
-  const result = await dialog.showSaveDialog(win || undefined, {
-    title: mainMessage("settings.selectUserConfigDialogTitle"),
-    defaultPath: currentInfo.currentPath,
-    buttonLabel: mainMessage("dialog.confirm"),
-    filters: [
-      { name: "JSON", extensions: ["json"] },
-      { name: mainMessage("dialog.allFiles"), extensions: ["*"] },
-    ],
-    properties: ["createDirectory", "showOverwriteConfirmation"],
-  });
-
-  if (result.canceled || !result.filePath) {
-    return { ...currentInfo, cancelled: true };
-  }
-
-  const updated = conductorStore.setPersistencePath(result.filePath);
-  return { ...updated, cancelled: false };
 }
 
 function getOriginExePathFromSettings() {
@@ -2608,9 +2561,6 @@ if (hasSingleInstanceLock) {
   ipcMain.handle(ipcChannels.templatesDelete, handleTemplatesDelete);
   ipcMain.handle(ipcChannels.settingsGet, handleConductorSettingsGet);
   ipcMain.handle(ipcChannels.settingsPatch, handleConductorSettingsPatch);
-  ipcMain.handle(ipcChannels.persistencePathGet, handlePersistencePathGet);
-  ipcMain.handle(ipcChannels.persistencePathSet, handlePersistencePathSet);
-  ipcMain.handle(ipcChannels.persistencePathChoose, handlePersistencePathChoose);
   ipcMain.handle(ipcChannels.importPrepareRust, handleImportPrepareRust);
   ipcMain.handle(ipcChannels.excelConvertRust, handleExcelConvertRust);
   ipcMain.handle(ipcChannels.excelReadConvertedCsv, handleExcelReadConvertedCsv);
@@ -2699,9 +2649,6 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.templatesDelete);
   ipcMain.removeHandler(ipcChannels.settingsGet);
   ipcMain.removeHandler(ipcChannels.settingsPatch);
-  ipcMain.removeHandler(ipcChannels.persistencePathGet);
-  ipcMain.removeHandler(ipcChannels.persistencePathSet);
-  ipcMain.removeHandler(ipcChannels.persistencePathChoose);
   ipcMain.removeHandler(ipcChannels.importPrepareRust);
   ipcMain.removeHandler(ipcChannels.excelConvertRust);
   ipcMain.removeHandler(ipcChannels.excelReadConvertedCsv);

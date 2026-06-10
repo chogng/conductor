@@ -1,7 +1,25 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import { localize } from "src/cs/nls";
 import { createMenuAction } from "src/cs/base/browser/ui/menu/menu";
 import { toAction } from "src/cs/base/common/actions";
 import { LxIcon } from "src/cs/base/common/lxicon";
+import {
+  ICommandService,
+  type ICommandService as ICommandServiceType,
+} from "src/cs/platform/commands/common/commands";
+import {
+  IContextMenuService,
+  IContextViewService,
+  type IContextMenuService as IContextMenuServiceType,
+  type IContextViewService as IContextViewServiceType,
+} from "src/cs/platform/contextview/browser/contextView";
+import {
+  IFileService,
+  type IFileService as IFileServiceType,
+} from "src/cs/platform/files/common/files";
 import type { WorkbenchSidebarAction } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import {
@@ -10,38 +28,75 @@ import {
 } from "src/cs/workbench/contrib/files/browser/filesPane";
 import {
   ADD_FOLDER_ACTION_ID,
-  FilesViewId,
-  type FilesViewLayout,
   MORE_ACTIONS_ACTION_ID,
   REMOVE_FOLDER_ACTION_ID,
   TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
 } from "src/cs/workbench/contrib/files/common/files";
-import type { TemplateSelection } from "src/cs/workbench/contrib/template/common/templateSelection";
+import {
+  ExplorerViewId,
+  IExplorerService,
+  type IExplorerService as IExplorerServiceType,
+} from "src/cs/workbench/services/explorer/common/explorer";
+import type { ExplorerPaneInput } from "src/cs/workbench/services/explorer/common/explorerPaneViewInput";
+import {
+  IFileConverterBackendService,
+  type FileConverterBackend,
+} from "src/cs/workbench/services/files/common/fileConverterBackend";
+import {
+  ITemplateService,
+  type ITemplateService as ITemplateServiceType,
+} from "src/cs/workbench/services/template/common/template";
+import {
+  IThumbnailService,
+  type IThumbnailService as IThumbnailServiceType,
+} from "src/cs/workbench/services/thumbnail/common/thumbnail";
 
 export class FilesPaneHost extends ViewPane {
   private readonly host: HTMLDivElement;
-  private readonly view: FilesPane;
-  private viewLayout: FilesViewLayout = "tree";
-  private props: FilesPaneProps;
+  private view: FilesPane | null = null;
+  private input: ExplorerPaneInput | null = null;
 
-  constructor(props: FilesPaneProps) {
+  constructor(
+    @ICommandService private readonly commandService: ICommandServiceType,
+    @IContextMenuService private readonly contextMenuService: IContextMenuServiceType,
+    @IContextViewService private readonly contextViewService: IContextViewServiceType,
+    @IExplorerService private readonly explorerService: IExplorerServiceType,
+    @IFileConverterBackendService private readonly fileConverterBackendService: FileConverterBackend,
+    @IFileService private readonly filesService: IFileServiceType,
+    @IThumbnailService private readonly thumbnailService: IThumbnailServiceType,
+    @ITemplateService private readonly templateService: ITemplateServiceType,
+  ) {
     super({
-      id: FilesViewId,
+      id: ExplorerViewId,
       title: localize("files.explorerSection", "Explorer"),
       className: "files-view-pane",
       bodyClassName: "workbench-part-view-pane__body",
       headerVisible: false,
     });
-    this.props = props;
     this.host = document.createElement("div");
     this.host.className = "files-pane-root";
-    this.view = new FilesPane(this.host, this.createViewProps(props));
     this.body.append(this.host);
+    this._register(this.explorerService.onDidChangePaneInput(input => {
+      this.update(input);
+    }));
+    this._register(this.explorerService.onDidChangeViewLayout(() => {
+      this.update(this.input);
+    }));
+    this.update(this.explorerService.getPaneInput());
   }
 
-  public update(props: FilesPaneProps): void {
-    this.props = props;
-    this.view.setProps(this.createViewProps(props));
+  public update(input: ExplorerPaneInput | null): void {
+    this.input = input;
+    if (!input) {
+      return;
+    }
+
+    const props = this.createViewProps(input);
+    if (!this.view) {
+      this.view = new FilesPane(this.host, props);
+    } else {
+      this.view.setProps(props);
+    }
     if (
       this.element.isConnected &&
       this.element.clientHeight > 0 &&
@@ -52,12 +107,9 @@ export class FilesPaneHost extends ViewPane {
   }
 
   public dispose(): void {
-    this.view.dispose();
+    this.view?.dispose();
+    this.view = null;
     super.dispose();
-  }
-
-  public removeFile(fileId: string): void {
-    this.view.removeFile(fileId);
   }
 
   protected override layoutBody(height: number, width: number): void {
@@ -65,7 +117,7 @@ export class FilesPaneHost extends ViewPane {
     this.body.style.width = `${width}px`;
     this.host.style.height = `${height}px`;
     this.host.style.width = `${width}px`;
-    this.view.layout(height, width);
+    this.view?.layout(height, width);
   }
 
   public getActions(): readonly WorkbenchSidebarAction[] {
@@ -76,7 +128,7 @@ export class FilesPaneHost extends ViewPane {
           label: localize("files.moreActions", "More Actions"),
           tooltip: localize("files.moreActions", "More Actions"),
           class: "sidebar_header_action",
-          run: (event) => this.showMoreActions(getActionAnchor(event), this.props),
+          run: (event) => this.showMoreActions(getActionAnchor(event), this.createViewProps(this.input)),
         }),
         icon: LxIcon.moreHorizontal,
       } satisfies WorkbenchSidebarAction,
@@ -86,7 +138,7 @@ export class FilesPaneHost extends ViewPane {
   private showMoreActions(anchor: HTMLElement, props: FilesPaneProps): void {
     const canRemoveFolder = hasFolder(props.files);
     const isChartMode = props.mode === "chart";
-    const isThumbnailView = isChartMode && this.viewLayout === "thumbnail";
+    const isThumbnailView = isChartMode && props.explorerService.viewLayout === "thumbnail";
     props.contextMenuService.showContextMenu({
       autoSelectFirstItem: true,
       getAnchor: () => anchor,
@@ -104,46 +156,53 @@ export class FilesPaneHost extends ViewPane {
           icon: LxIcon.add,
           id: ADD_FOLDER_ACTION_ID,
           label: localize("files.addFolder", "Add Folder"),
-          run: () => this.view.openFileDialog(),
+          run: () => {
+            void props.commandService.executeCommand(ADD_FOLDER_ACTION_ID);
+          },
         }),
         createMenuAction({
           enabled: canRemoveFolder,
           icon: LxIcon.remove,
           id: REMOVE_FOLDER_ACTION_ID,
           label: localize("files.removeFolder", "Remove Folder"),
-          run: () => this.view.removeSelectedFolder(),
+          run: () => {
+            void props.commandService.executeCommand(REMOVE_FOLDER_ACTION_ID);
+          },
         }),
       ],
     });
   }
 
-  public setFileTemplateSelection(fileId: string, selection: TemplateSelection): void {
-    this.view.setFileTemplateSelection(fileId, selection);
-  }
-
-  public toggleViewLayout(): void {
-    if (this.props.mode !== "chart") {
-      return;
-    }
-    this.setViewLayout(this.viewLayout === "thumbnail" ? "tree" : "thumbnail");
-  }
-
-  private createViewProps(props: FilesPaneProps): FilesPaneProps {
+  private createViewProps(input: ExplorerPaneInput | null): FilesPaneProps {
+    const props = input ?? EMPTY_EXPLORER_PANE_INPUT;
     return {
       ...props,
-      viewLayout: this.viewLayout,
+      commandService: this.commandService,
+      contextMenuService: this.contextMenuService,
+      contextViewService: this.contextViewService,
+      explorerService: this.explorerService,
+      fileConverterBackendService: this.fileConverterBackendService,
+      filesService: this.filesService,
+      thumbnailService: this.thumbnailService,
+      templateService: this.templateService,
+      viewLayout: this.explorerService.viewLayout,
     };
   }
-
-  private setViewLayout(viewLayout: FilesViewLayout): void {
-    if (this.viewLayout === viewLayout) {
-      return;
-    }
-
-    this.viewLayout = viewLayout;
-    this.view.setProps(this.createViewProps(this.props));
-  }
 }
+
+const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {
+  files: [],
+  mode: "table",
+  onFileImported: () => undefined,
+  onFileRemoved: () => undefined,
+  onFileSelected: () => undefined,
+  onFilesAdded: () => undefined,
+  onFilesRemoved: () => undefined,
+  onFilesReplaced: () => undefined,
+  selectedFileId: null,
+  selectionKind: "raw",
+  thumbnailFiles: [],
+};
 
 function getActionAnchor(event: unknown): HTMLElement {
   if (

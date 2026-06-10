@@ -1,4 +1,8 @@
-﻿import {
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import {
   createMenuAction,
   createMenuItemLabel,
 } from "src/cs/base/browser/ui/menu/menu";
@@ -6,39 +10,32 @@ import { Separator, type IAction } from "src/cs/base/common/actions";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
-import type {
-  ISessionService as ISessionServiceType,
-  SessionContextValue,
-} from "src/cs/workbench/services/session/common/session";
-import {
-  getSelectedTemplateIdFromViewState,
-  getTemplateFormStateFromViewState,
-  getTemplateModeFromViewState,
-} from "src/cs/workbench/services/session/common/sessionModel";
 import {
   createEmptyTemplateConfig,
   cloneTemplateConfig,
   normalizeTemplateConfigRecord,
   toTemplateNameKey,
   type TemplateConfig,
-} from "src/cs/workbench/contrib/template/common/templateManagerUtils";
+} from "src/cs/workbench/services/template/common/templateConfigUtils";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import {
   validateTemplateForSave,
   validateTemplateForApply,
-} from "src/cs/workbench/contrib/template/common/templateValidation";
+} from "src/cs/workbench/services/template/common/templateValidation";
 import {
   AUTO_TEMPLATE_CONFIG_FIELD,
   AUTO_TEMPLATE_ID,
   isAutoTemplateId,
-} from "src/cs/workbench/contrib/template/common/autoTemplate";
+} from "src/cs/workbench/services/template/common/autoTemplate";
 import type {
   ITemplateService,
+  TemplateMode,
   TemplateRecord,
-} from "src/cs/workbench/contrib/template/common/template";
+} from "src/cs/workbench/services/template/common/template";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
-import type { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
-import type { TableModel, TableSelection } from "src/cs/workbench/contrib/table/common/tableService";
+import type { TemplateImportController } from "src/cs/workbench/services/template/browser/templateImportController";
+import type { TableModel, TableSelection } from "src/cs/workbench/services/table/common/table";
+import { toColumnLabel } from "src/cs/workbench/services/template/common/templateCellRef";
 import { TemplateApplyView } from "src/cs/workbench/contrib/template/browser/views/templateApplyView";
 import {
   TemplateEditorView,
@@ -51,14 +48,12 @@ import {
   resolveTemplateCellSelection,
   resolveTemplateCellSelectionUpdate,
   resolveTemplateColumnSelectionUpdate,
-  toColumnLabel,
 } from "src/cs/workbench/contrib/template/browser/templateSelection";
 
 import "src/cs/workbench/contrib/template/browser/views/media/templateView.css";
 
 export type TemplateViewOptions = {
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
-  readonly sessionService: ISessionServiceType;
   readonly templateImportController: TemplateImportController;
   readonly templateService: ITemplateService;
   rawFiles?: SessionFile[];
@@ -122,8 +117,6 @@ export const createTemplateApplyViewState = ({
 
 const importTemplates = async (
   payload: unknown,
-  session: SessionContextValue,
-  sessionService: ISessionServiceType,
   templateService: ITemplateService,
 ) => {
   const entry = payload && typeof payload === "object"
@@ -184,9 +177,9 @@ const importTemplates = async (
       cachedTemplates = [saved];
     }
     
-    sessionService.batch(() => {
-      session.setSelectedTemplateId(typeof saved.id === "string" ? saved.id : null);
-      session.setTemplateFormState(cloneTemplateConfig(saved));
+    templateService.updateState({
+      selectedTemplateId: typeof saved.id === "string" ? saved.id : null,
+      formState: cloneTemplateConfig(saved),
     });
     showToast(localize("template_imported", "Template imported"), "success");
   } catch (err) {
@@ -231,22 +224,16 @@ export class TemplateView {
     this.update(props);
   }
 
-  private get session() {
-    return this.props.sessionService.createContextValue(
-      this.props.sessionService.getSnapshot(),
-    );
+  private readTemplateMode(): TemplateMode {
+    return this.props.templateService.getState().mode;
   }
 
-  private readTemplateMode() {
-    return getTemplateModeFromViewState(this.session.viewState);
-  }
-
-  private readSelectedTemplateId() {
-    return getSelectedTemplateIdFromViewState(this.session.viewState);
+  private readSelectedTemplateId(): string | null {
+    return this.props.templateService.getState().selectedTemplateId;
   }
 
   private readTemplateFormState(): TemplateConfig {
-    return getTemplateFormStateFromViewState(this.session.viewState);
+    return this.props.templateService.getState().formState;
   }
 
   public update(props: TemplateViewOptions): void {
@@ -358,7 +345,7 @@ export class TemplateView {
     }
 
     this.stopOnErrorDraft = next.stopOnError;
-    this.session.setTemplateFormState(next);
+    this.props.templateService.setFormState(next);
     this.syncTableSelectionState();
     this.updateEditorView();
   }
@@ -437,7 +424,8 @@ export class TemplateView {
       .then((remote) => {
         cachedTemplates = remote;
         templatesLoading = false;
-        this.props.sessionService.emitChange();
+        this.updateApplyView();
+        this.updateEditorView();
       })
       .catch((err) => {
         templatesLoading = false;
@@ -530,7 +518,8 @@ export class TemplateView {
   private updateApplyOptions(updates: Partial<Pick<TemplateConfig, "stopOnError">>): void {
     const config = this.getEffectiveTemplateFormState();
     this.stopOnErrorDraft = updates.stopOnError ?? config.stopOnError;
-    this.props.sessionService.emitChange();
+    this.updateApplyView();
+    this.updateEditorView();
   }
 
   private async deleteSelectedTemplate(): Promise<void> {
@@ -551,12 +540,12 @@ export class TemplateView {
         cachedTemplates = cachedTemplates.filter((template) => template.id !== selectedTemplateId);
       }
       const config = this.getEffectiveTemplateFormState();
-      this.props.sessionService.batch(() => {
-        this.session.setSelectedTemplateId(AUTO_TEMPLATE_ID);
-        this.session.setTemplateFormState(createEmptyTemplateConfig({
+      this.stopOnErrorDraft = config.stopOnError;
+      this.props.templateService.updateState({
+        selectedTemplateId: AUTO_TEMPLATE_ID,
+        formState: createEmptyTemplateConfig({
           stopOnError: templateFormState.stopOnError,
-        }));
-        this.stopOnErrorDraft = config.stopOnError;
+        }),
       });
       showToast(localize("template_deleted", "Template deleted"), "success");
     } catch (err) {
@@ -634,8 +623,6 @@ export class TemplateView {
       await this.props.templateImportController.importTemplateFromDialog(
         (payload) => importTemplates(
           payload,
-          this.session,
-          this.props.sessionService,
           this.props.templateService,
         ),
       );
@@ -646,13 +633,13 @@ export class TemplateView {
 
   private createTemplateDraft(): void {
     const config = this.getEffectiveTemplateFormState();
-    this.props.sessionService.batch(() => {
-      this.session.setSelectedTemplateId(null);
-      this.session.setTemplateFormState(createEmptyTemplateConfig({
+    this.stopOnErrorDraft = config.stopOnError;
+    this.props.templateService.updateState({
+      selectedTemplateId: null,
+      formState: createEmptyTemplateConfig({
         stopOnError: config.stopOnError,
-      }));
-      this.stopOnErrorDraft = config.stopOnError;
-      this.session.setTemplateMode("save");
+      }),
+      mode: "save",
     });
   }
 
@@ -662,31 +649,31 @@ export class TemplateView {
       return;
     }
 
-    this.props.sessionService.batch(() => {
-      this.session.setSelectedTemplateId(templateId);
-      this.session.setTemplateFormState(cloneTemplateConfig(template));
-      this.stopOnErrorDraft = Boolean(template.stopOnError);
-      this.session.setTemplateMode("save");
+    this.stopOnErrorDraft = Boolean(template.stopOnError);
+    this.props.templateService.updateState({
+      selectedTemplateId: templateId,
+      formState: cloneTemplateConfig(template),
+      mode: "save",
     });
   }
 
   private selectTemplate(templateId: string): void {
     const config = this.getEffectiveTemplateFormState();
     if (isAutoTemplateId(templateId)) {
-      this.props.sessionService.batch(() => {
-        this.session.setSelectedTemplateId(AUTO_TEMPLATE_ID);
-        this.session.setTemplateFormState(createEmptyTemplateConfig({
+      this.stopOnErrorDraft = config.stopOnError;
+      this.props.templateService.updateState({
+        selectedTemplateId: AUTO_TEMPLATE_ID,
+        formState: createEmptyTemplateConfig({
           stopOnError: config.stopOnError,
-        }));
-        this.stopOnErrorDraft = config.stopOnError;
+        }),
       });
     } else {
       const found = cachedTemplates?.find((template) => template.id === templateId);
       if (found) {
-        this.props.sessionService.batch(() => {
-          this.session.setSelectedTemplateId(typeof found.id === "string" ? found.id : null);
-          this.session.setTemplateFormState(cloneTemplateConfig(found));
-          this.stopOnErrorDraft = Boolean(found.stopOnError);
+        this.stopOnErrorDraft = Boolean(found.stopOnError);
+        this.props.templateService.updateState({
+          selectedTemplateId: typeof found.id === "string" ? found.id : null,
+          formState: cloneTemplateConfig(found),
         });
       }
     }
@@ -746,11 +733,11 @@ export class TemplateView {
         cachedTemplates = [saved];
       }
 
-      this.props.sessionService.batch(() => {
-        this.session.setSelectedTemplateId(typeof saved.id === "string" ? saved.id : null);
-        this.session.setTemplateFormState(cloneTemplateConfig(saved));
-        this.stopOnErrorDraft = Boolean(saved.stopOnError);
-        this.session.setTemplateMode("select");
+      this.stopOnErrorDraft = Boolean(saved.stopOnError);
+      this.props.templateService.updateState({
+        selectedTemplateId: typeof saved.id === "string" ? saved.id : null,
+        formState: cloneTemplateConfig(saved),
+        mode: "select",
       });
       showToast(localize("template_saved", "Template saved"), "success");
     } catch (err) {
@@ -761,24 +748,28 @@ export class TemplateView {
   private cancelSaveMode(): void {
     const config = this.getEffectiveTemplateFormState();
     const selectedTemplateId = this.readSelectedTemplateId();
-    this.props.sessionService.batch(() => {
-      this.session.setTemplateMode("select");
-      if (
-        selectedTemplateId &&
-        !isAutoTemplateId(selectedTemplateId) &&
-        cachedTemplates
-      ) {
-        const found = cachedTemplates.find((template) => template.id === selectedTemplateId);
-        if (found) {
-          this.session.setTemplateFormState(cloneTemplateConfig(found));
-          this.stopOnErrorDraft = Boolean(found.stopOnError);
-        }
-      } else {
-        this.session.setTemplateFormState(createEmptyTemplateConfig({
-          stopOnError: config.stopOnError,
-        }));
-        this.stopOnErrorDraft = config.stopOnError;
+    if (
+      selectedTemplateId &&
+      !isAutoTemplateId(selectedTemplateId) &&
+      cachedTemplates
+    ) {
+      const found = cachedTemplates.find((template) => template.id === selectedTemplateId);
+      if (found) {
+        this.stopOnErrorDraft = Boolean(found.stopOnError);
+        this.props.templateService.updateState({
+          mode: "select",
+          formState: cloneTemplateConfig(found),
+        });
+        return;
       }
+    }
+
+    this.stopOnErrorDraft = config.stopOnError;
+    this.props.templateService.updateState({
+      mode: "select",
+      formState: createEmptyTemplateConfig({
+        stopOnError: config.stopOnError,
+      }),
     });
   }
 }

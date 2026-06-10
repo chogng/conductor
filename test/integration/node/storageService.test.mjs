@@ -2,13 +2,13 @@ import assert from "assert";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createStorageMainService } from "../../../desktop-dist/src/cs/workbench/services/storage/electron-main/storageMainService.js";
+import { createConductorStoreMainService } from "../../../desktop-dist/src/cs/workbench/services/conductorStore/electron-main/conductorStoreMainService.js";
 
 const readJson = (filePath) => JSON.parse(fs.readFileSync(filePath, "utf8"));
 
-test("analysis storage service preserves settings defaults without eagerly writing config", () => {
+test("conductor store preserves settings defaults without eagerly writing config", () => {
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "analysis-storage-"));
-  const service = createStorageMainService({ getHomeDir: () => homeDir });
+  const service = createConductorStoreMainService({ getHomeDir: () => homeDir });
 
   const settings = service.getConductorSettings();
   assert.equal(settings.theme, "system");
@@ -18,9 +18,9 @@ test("analysis storage service preserves settings defaults without eagerly writi
   assert.equal(readJson(path.join(homeDir, "config.json")).theme, "dark");
 });
 
-test("analysis storage service creates templates and migrates configured paths", () => {
+test("conductor store creates templates in the default user data path", () => {
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "analysis-storage-"));
-  const service = createStorageMainService({ getHomeDir: () => homeDir });
+  const service = createConductorStoreMainService({ getHomeDir: () => homeDir });
 
   const saved = service.upsertTemplate({
     name: "Default",
@@ -33,11 +33,5 @@ test("analysis storage service creates templates and migrates configured paths",
 
   const oldTemplatePath = path.join(homeDir, "template.json");
   assert.equal(fs.existsSync(oldTemplatePath), true);
-
-  const customDir = fs.mkdtempSync(path.join(os.tmpdir(), "analysis-storage-custom-"));
-  const customConfigPath = path.join(customDir, "config.json");
-  const info = service.setPersistencePath(customConfigPath);
-  assert.equal(info.currentPath, customConfigPath);
-  assert.equal(fs.existsSync(path.join(customDir, "template.json")), true);
-  assert.equal(readJson(path.join(customDir, "template.json")).templates[0].name, "Default");
+  assert.equal(readJson(oldTemplatePath).templates[0].name, "Default");
 });

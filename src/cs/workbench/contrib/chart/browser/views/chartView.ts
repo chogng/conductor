@@ -1,70 +1,22 @@
-﻿import { localize } from "src/cs/nls";
-import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
-import { createPlotMainView } from "src/cs/workbench/contrib/plot/browser/plotMainView";
-import { createPlotMainRenderModel } from "src/cs/workbench/contrib/plot/browser/plotMainRenderModel";
-import {
-  createSecondCalculatedData,
-  getCalculatedData,
-  type CalculatedData,
-  type CalculatedPlotsByKey,
-} from "src/cs/workbench/contrib/calculation/common/calculatedData";
-import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
-import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
-import {
-  getXUnitMeta,
-  getYUnitMeta,
-  normalizeXUnit,
-  normalizeYUnit,
-  type XUnit,
-  type YUnit,
-} from "src/cs/workbench/contrib/plot/common/units";
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import { localize } from "src/cs/nls";
+import { createPlotMainView } from "src/cs/workbench/contrib/plot/browser/plotView";
+import type {
+  ChartPane,
+  ChartViewInput,
+} from "src/cs/workbench/services/chart/common/chartViewInput";
 import { createEmptyView } from "src/cs/workbench/contrib/chart/browser/views/emptyView";
-import { filterCalculatedDataSeries } from "src/cs/workbench/contrib/chart/common/chartLegendVisibility";
 import type {
   ProcessingStatus,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 
 import "src/cs/workbench/contrib/chart/browser/views/media/chartView.css";
 
-export type ChartPane = "chart" | "inspector";
-
-export type ChartViewProps = {
-  visiblePanes?: readonly ChartPane[];
-  activePlotType?: PlotType;
-  onActivePlotTypeChange?: (next: PlotType) => void;
-  hasAnalysisData?: boolean;
-  calculatedPlotsByKey?: CalculatedPlotsByKey;
-  processingStatus?: Partial<ProcessingStatus>;
-  activeFileId?: string | null;
-  onActiveFileIdChange?: (nextFileId: string | null) => void;
-  showFileSelect?: boolean;
-  xUnitByFileId?: Readonly<Record<string, string>>;
-  yUnitByFileId?: Readonly<Record<string, string>>;
-  yScaleByFileId?: Readonly<Record<string, string>>;
-  onPlotUnitChange?: (
-    fileId: string,
-    axis: "x" | "y",
-    unit: XUnit | YUnit,
-  ) => Promise<unknown> | void;
-  onPlotYScaleChange?: (
-    fileId: string,
-    scale: "linear" | "log",
-  ) => Promise<unknown> | void;
-  hiddenLegendKeys?: readonly string[];
-  legendLabels?: Readonly<Record<string, string>>;
-  inspectorXAxisLabelOverride?: string;
-  inspectorYAxisLabelOverride?: string;
-  onInspectorXAxisLabelChange?: (nextLabel: string) => void;
-  onInspectorYAxisLabelChange?: (nextLabel: string) => void;
-  onXAxisLabelChange?: (nextLabel: string) => void;
-  onYAxisLabelChange?: (nextLabel: string) => void;
-  xAxisLabelOverride?: string;
-  yAxisLabelOverride?: string;
-  originOpenPlotOptions?: OriginPlotOptions;
-  onOriginOpenPlotOptionsChange?: (updates: unknown) => Promise<unknown> | void;
-  plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
-  onPlotAxisSettingsChange?: (updates: unknown) => Promise<unknown> | void;
-};
+export type { ChartPane };
+export type ChartViewProps = ChartViewInput;
 
 export type ChartViewElement = HTMLElement & {
   readonly dispose?: () => void;
@@ -74,10 +26,9 @@ export type ChartViewElement = HTMLElement & {
 export const createChartView = (props: ChartViewProps): ChartViewElement => {
   const {
     activePlotType = "iv",
-    calculatedPlotsByKey,
     hasAnalysisData = false,
+    plotDisplayModel = null,
     processingStatus,
-    activeFileId: controlledActiveFileId = undefined,
   } = props;
   const visiblePanes = normalizeVisiblePanes(props.visiblePanes);
   const root = document.createElement("section") as ChartViewElement;
@@ -96,12 +47,7 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
     return root;
   }
 
-  const calculatedData = getCalculatedData(
-    calculatedPlotsByKey,
-    activePlotType,
-    controlledActiveFileId,
-  );
-  if (!calculatedData) {
+  if (!plotDisplayModel) {
     root.append(createEmptyView({
       hint: localize("analysis_calculation_hint", "Preparing chart calculations, please wait."),
       title: localize("analysis_calculation", "Calculating chart data..."),
@@ -109,45 +55,35 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
     return root;
   }
 
-  const filteredData = applyLegendLabels(
-    filterCalculatedDataSeries(calculatedData, props.hiddenLegendKeys ?? []),
-    props.legendLabels ?? {},
-  );
-  const displayUnits = resolveDisplayUnits(filteredData, props);
-  const yScale = resolveYScale(filteredData, props);
-  const inspectorYUnitLabel = displayUnits.yUnit
-    ? `d(${displayUnits.yUnit})/dx`
-    : undefined;
-
   const chartPlotView = createPlotMainView({
-    model: createPlotMainRenderModel(filteredData),
+    model: plotDisplayModel.chart.model,
     onXAxisLabelChange: props.onXAxisLabelChange,
     onYAxisLabelChange: props.onYAxisLabelChange,
     originOpenPlotOptions: props.originOpenPlotOptions,
     plotAxisSettings: props.plotAxisSettings,
     plotType: activePlotType,
-    plotXFactor: displayUnits.xFactor,
-    plotXUnitLabel: displayUnits.xUnit,
-    plotYFactor: displayUnits.yFactor,
-    plotYUnitLabel: displayUnits.yUnit,
+    plotXFactor: plotDisplayModel.chart.plotXFactor,
+    plotXUnitLabel: plotDisplayModel.chart.plotXUnitLabel,
+    plotYFactor: plotDisplayModel.chart.plotYFactor,
+    plotYUnitLabel: plotDisplayModel.chart.plotYUnitLabel,
     xAxisLabelOverride: props.xAxisLabelOverride,
     yAxisLabelOverride: props.yAxisLabelOverride,
-    yScaleMode: yScale,
+    yScaleMode: plotDisplayModel.chart.yScaleMode,
   });
   const inspectorPlotView = createPlotMainView({
-    model: createPlotMainRenderModel(createSecondCalculatedData(filteredData)),
+    model: plotDisplayModel.inspector.model,
     onXAxisLabelChange: props.onInspectorXAxisLabelChange,
     onYAxisLabelChange: props.onInspectorYAxisLabelChange,
     originOpenPlotOptions: props.originOpenPlotOptions,
     plotAxisSettings: props.plotAxisSettings,
     plotType: activePlotType,
-    plotXFactor: displayUnits.xFactor,
-    plotXUnitLabel: displayUnits.xUnit,
-    plotYFactor: displayUnits.yFactor,
-    plotYUnitLabel: inspectorYUnitLabel,
+    plotXFactor: plotDisplayModel.inspector.plotXFactor,
+    plotXUnitLabel: plotDisplayModel.inspector.plotXUnitLabel,
+    plotYFactor: plotDisplayModel.inspector.plotYFactor,
+    plotYUnitLabel: plotDisplayModel.inspector.plotYUnitLabel,
     xAxisLabelOverride: props.inspectorXAxisLabelOverride,
     yAxisLabelOverride: props.inspectorYAxisLabelOverride,
-    yScaleMode: yScale,
+    yScaleMode: plotDisplayModel.inspector.yScaleMode,
   });
 
   const chartHost = document.createElement("div");
@@ -195,63 +131,6 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   });
 
   return root;
-};
-
-const resolveYScale = (
-  data: CalculatedData,
-  props: Pick<ChartViewProps, "yScaleByFileId">,
-): "linear" | "log" => {
-  const fileId = String(data.source.fileId ?? "").trim();
-  return fileId && props.yScaleByFileId?.[fileId] === "log" ? "log" : "linear";
-};
-
-export const resolveDisplayUnits = (
-  data: CalculatedData,
-  props: Pick<ChartViewProps, "xUnitByFileId" | "yUnitByFileId">,
-): {
-  readonly xFactor: number;
-  readonly xUnit: XUnit | undefined;
-  readonly yFactor: number;
-  readonly yUnit: YUnit | undefined;
-} => {
-  const fileId = String(data.source.fileId ?? "").trim();
-  const sourceXUnit = normalizeXUnit(data.xUnitLabel, "V") || "V";
-  const sourceYUnit = normalizeYUnit(data.yUnitLabel);
-  const xUnit = normalizeXUnit(
-    fileId ? props.xUnitByFileId?.[fileId] : undefined,
-    sourceXUnit,
-  ) || sourceXUnit;
-  const yUnit = sourceYUnit
-    ? normalizeYUnit(
-        fileId ? props.yUnitByFileId?.[fileId] : undefined,
-        sourceYUnit,
-      ) || sourceYUnit
-    : undefined;
-
-  return {
-    xFactor: getXUnitMeta(xUnit).factor,
-    xUnit,
-    yFactor: yUnit ? getYUnitMeta(yUnit).factor : 1,
-    yUnit,
-  };
-};
-
-const applyLegendLabels = (
-  data: CalculatedData,
-  legendLabels: Readonly<Record<string, string>>,
-): CalculatedData => {
-  const labels = Object.keys(legendLabels);
-  if (!labels.length) {
-    return data;
-  }
-
-  return {
-    ...data,
-    seriesList: data.seriesList.map((series) => ({
-      ...series,
-      name: legendLabels[series.id] ?? series.name,
-    })),
-  };
 };
 
 const normalizeVisiblePanes = (

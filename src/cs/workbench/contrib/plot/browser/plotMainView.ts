@@ -1,19 +1,23 @@
-﻿// Adapts plot render data and settings into the main chart view props.
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// Adapts plot render data and settings into the main chart view props.
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   type OriginPlotOptions,
-} from "src/cs/workbench/contrib/origin/common/originPlotOptions";
-import {
-  DEFAULT_PLOT_AXIS_SETTINGS,
-  normalizePlotAxisSettings,
-  type PlotAxisSettings,
-} from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
+} from "src/cs/workbench/services/origin/common/originPlotOptions";
 import {
   createPlotMainChart,
   type PlotMainChartProps,
 } from "src/cs/workbench/contrib/plot/browser/plotMainChart";
-import type { PlotMainRenderModel } from "src/cs/workbench/contrib/plot/browser/plotMainRenderModel";
-import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
+import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
+import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
+import {
+  DEFAULT_PLOT_AXIS_SETTINGS,
+  normalizePlotAxisSettings,
+  type PlotAxisSettings,
+} from "src/cs/workbench/services/plot/common/plotSettings";
 
 export type PlotMainViewProps = {
   readonly model: PlotMainRenderModel;

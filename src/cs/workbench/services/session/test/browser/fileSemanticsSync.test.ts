@@ -1,0 +1,78 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from "assert";
+
+import {
+	getFileAxisSettingsByFileId,
+} from "src/cs/workbench/services/session/browser/fileSemanticsSync";
+import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
+import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
+
+suite("workbench/services/session/test/browser/fileSemanticsSync", () => {
+	test("builds axis unit settings from settings first, then template records", () => {
+		const file = createFileRecord();
+		const snapshot = createSnapshot(file);
+
+		const axisSettings = getFileAxisSettingsByFileId({
+			conductorSettings: {
+				xUnitByFileId: { "file-a": "mV" },
+				yScaleByFileId: { "file-a": "log" },
+			},
+			snapshot,
+		});
+
+		assert.deepEqual(axisSettings, {
+			xUnitByFileId: { "file-a": "mV" },
+			yScaleByFileId: { "file-a": "log" },
+			yUnitByFileId: { "file-a": "A" },
+		});
+	});
+});
+
+const createSnapshot = (file: FileRecord): SessionSnapshot => ({
+	fileOrder: [file.id],
+	filesById: {
+		[file.id]: file,
+	},
+	schemaVersion: 1,
+	sessionVersion: 1,
+});
+
+const createFileRecord = (): FileRecord => ({
+	curvesByKey: {},
+	id: "file-a",
+	latestTemplateRunId: "template-run:file-a",
+	raw: {
+		fileName: "raw.csv",
+	},
+	seriesById: {},
+	seriesOrder: ["series-a"],
+	templateRunsById: {
+		"template-run:file-a": {
+			appliedAt: 1,
+			config: {
+				name: "Template",
+				stopOnError: true,
+				xDataEnd: 2,
+				xDataStart: 1,
+				xSegmentationMode: "auto",
+				xUnit: "V",
+				yColumns: [1],
+				yLegendTarget: "auto",
+				yUnit: "A",
+			},
+			configFingerprint: "template",
+			errors: [],
+			fileId: "file-a",
+			id: "template-run:file-a",
+			mode: "auto",
+			outputCurveKeys: [],
+			outputSeriesIds: [],
+			selection: { kind: "auto" },
+			sourceBlockIds: [],
+			warnings: [],
+		},
+	},
+}) as FileRecord;

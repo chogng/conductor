@@ -4,10 +4,14 @@ import {
   normalizeOriginPlotOptions,
   normalizeOriginPostCommands,
   originPostCommandsToMultiline,
-} from "src/cs/workbench/contrib/origin/common/originPlotOptions";
-import { normalizePlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
-import { normalizeFileNameFieldSeparators } from "src/cs/workbench/contrib/template/common/fileNameMatching";
-import type { Feedback, NotificationToastState } from "src/cs/workbench/contrib/settings/common/feedback";
+} from "src/cs/workbench/services/origin/common/originPlotOptions";
+import { normalizePlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
+import { normalizeFileNameFieldSeparators } from "src/cs/workbench/services/template/common/fileNameMatching";
+import {
+  IDLE_FEEDBACK,
+  type Feedback,
+  type NotificationToastState,
+} from "src/cs/workbench/contrib/settings/common/feedback";
 import type { LanguagePreference } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type {
@@ -17,26 +21,26 @@ import type {
   FileNameMatchingSettings,
   OriginSettings,
   SettingsSectionId,
-  StorageSettings,
   WindowCloseSettings,
 } from "src/cs/workbench/contrib/settings/settingsViewTypes";
 import {
-  IDLE_FEEDBACK,
   normalizeBoundedInt,
   normalizeTrimmedString,
   ORIGIN_CLEANUP_DEFAULTS,
-  type ConductorSettings,
-  type PersistencePathInfo,
-} from "src/cs/workbench/contrib/settings/settingsShared";
-import type { ISettingsService, SettingsServiceOptions } from "src/cs/workbench/contrib/settings/common/settings";
+} from "src/cs/workbench/services/settings/browser/settingsShared";
+import type {
+  ConductorSettings,
+  ISettingsService,
+  SettingsServiceOptions,
+} from "src/cs/workbench/services/settings/common/settings";
 import { SettingsView, type SettingsViewOptions } from "src/cs/workbench/contrib/settings/browser/settingsView";
 import {
   DEFAULT_WORKBENCH_BACKGROUND_COLOR,
   normalizeWorkbenchAppearance,
   normalizeWorkbenchBackgroundColor,
 } from "src/cs/workbench/browser/appearance";
-import { BrowserHelpWindowService } from "src/cs/workbench/contrib/help/browser/helpWindowService";
-import type { HelpWindowKind } from "src/cs/workbench/contrib/help/common/helpWindow";
+import { BrowserHelpWindowService } from "src/cs/workbench/services/help/browser/helpWindowService";
+import type { HelpWindowKind } from "src/cs/workbench/services/help/common/helpWindow";
 
 export type SettingsControllerOptions = {
   appUpdateSettings: AppUpdateSettings;
@@ -79,10 +83,6 @@ export class SettingsController {
   private readonly view: SettingsView;
   private disposed = false;
   private originPathRequested = false;
-  private persistencePathInfo: PersistencePathInfo | null = null;
-  private persistencePathLoading = false;
-  private persistencePathSaving = false;
-  private persistencePathFeedback: Feedback = IDLE_FEEDBACK;
   private originExePath = "";
   private originPathLoading = true;
   private originPathSaving = false;
@@ -109,7 +109,6 @@ export class SettingsController {
     this.originExePath = normalizeTrimmedString(options.conductorSettings?.originExePath);
     this.drafts = this.createDraftState();
     this.view = new SettingsView(container, this.createViewOptions());
-    void this.loadPersistencePath();
     this.syncOriginPath();
   }
 
@@ -207,28 +206,6 @@ export class SettingsController {
     void this.loadOriginPath();
   }
 
-  private async loadPersistencePath(): Promise<void> {
-    this.persistencePathLoading = true;
-    this.render();
-    try {
-      this.persistencePathInfo = await this.service.getPersistencePath();
-      this.persistencePathFeedback = IDLE_FEEDBACK;
-    }
-    catch (error) {
-      this.persistencePathInfo = null;
-      this.persistencePathFeedback = {
-        type: "error",
-        message: localize("settings_storage_load_failed", "Failed to load user config path: {error}", {
-          error: this.service.errorMessage(error),
-        }),
-      };
-    }
-    finally {
-      this.persistencePathLoading = false;
-      this.render();
-    }
-  }
-
   private async loadOriginPath(): Promise<void> {
     this.originPathLoading = true;
     this.render();
@@ -315,7 +292,6 @@ export class SettingsController {
         this.drafts.xyPairsDraft = value;
       },
       settingsSections: this.settingsSections,
-      storageSettings: this.storageSettings,
       theme: this.options.theme,
       themeModeOptions: this.themeModeOptions,
       tickLabelFontSizeDraft: this.drafts.tickLabelFontSizeDraft,
@@ -370,17 +346,6 @@ export class SettingsController {
       return value;
     }
     return this.settings.defaultYScaleForSpecial === "log" ? "log" : "linear";
-  }
-
-  private get storageSettings(): StorageSettings {
-    return {
-      currentPath: String(this.persistencePathInfo?.currentPath ?? ""),
-      feedback: this.persistencePathFeedback,
-      isLoading: this.persistencePathLoading,
-      isConfigurable: Boolean(this.persistencePathInfo) && this.persistencePathInfo?.isConfigurable !== false,
-      isSaving: this.persistencePathSaving,
-      onChoosePath: () => this.choosePersistencePath(),
-    };
   }
 
   private get fileNameMatchingSettings(): FileNameMatchingSettings {
@@ -548,34 +513,6 @@ export class SettingsController {
 
   private label(key: string, fallback: string): string {
     return localize(key, fallback);
-  }
-
-  private async choosePersistencePath(): Promise<void> {
-    this.persistencePathSaving = true;
-    this.persistencePathFeedback = IDLE_FEEDBACK;
-    this.render();
-    try {
-      const info = await this.service.choosePersistencePath();
-      this.persistencePathInfo = info;
-      if (!info?.cancelled) {
-        this.persistencePathFeedback = {
-          type: "success",
-          message: localize("settings_storage_choose_saved", "User config path updated."),
-        };
-      }
-    }
-    catch (error) {
-      this.persistencePathFeedback = {
-        type: "error",
-        message: localize("settings_storage_choose_failed", "Failed to update user config path: {error}", {
-          error: this.service.errorMessage(error),
-        }),
-      };
-    }
-    finally {
-      this.persistencePathSaving = false;
-      this.render();
-    }
   }
 
   private async chooseOriginExePath(): Promise<void> {

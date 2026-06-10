@@ -1,105 +1,107 @@
-﻿import assert from "assert";
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from "assert";
 
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
-import { createRawFilesFromRecords } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import {
-  getSelectedTemplateIdFromViewState,
-  getTemplateFormStateFromViewState,
-  getTemplateModeFromViewState,
-  getTemplateSelectionsFromViewState,
-} from "src/cs/workbench/services/session/common/sessionModel";
+  createCalculatedCurveRecordsByFile,
+  createProcessedFileSessionCommit,
+  createRawFilesFromRecords,
+} from "src/cs/workbench/services/session/common/sessionModelAdapter";
+import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
+import type { CalculatedPlotsByKey } from "src/cs/workbench/services/calculation/common/calculatedData";
 import type {
-  FileRecord,
+  FileImportResult,
+  ImportedFileRecord,
+} from "src/cs/workbench/services/files/common/files";
+import type { CommitTemplateOutputOptions } from "src/cs/workbench/services/session/common/session";
+import type {
+  CurveRecord,
+  MetricRecord,
   MetricKey,
+  TemplateRunRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
+import { getLatestTemplateRunRecord } from "src/cs/workbench/services/session/common/sessionModel";
+import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
+import type {
+  ProcessedEntry,
+  SessionFile,
+} from "src/cs/workbench/services/session/common/sessionTypes";
+import {
+  getFileRecordAxisProjection,
+  getFileRecordCurveType,
+  getFileRecordXGroups,
+} from "src/cs/workbench/services/session/common/sessionRecordProjection";
 
 suite("workbench/services/session/test/browser/sessionService", () => {
-  test("batches multiple state writes into one notification", () => {
+  test("reports typed change events with snapshot versions", () => {
     const session = new SessionService();
-    let changeCount = 0;
-    const dispose = session.subscribe(() => {
-      changeCount += 1;
+    const events: SessionChangeEvent[] = [];
+    const disposable = session.onDidChangeSession(event => {
+      events.push(event);
     });
 
-    session.batch(() => {
-      session.addRawFiles([{ fileId: "file-a", fileName: "Raw A.csv" }]);
-      session.setTemplateMode("save");
-    });
+    assert.equal(session.getSnapshot().schemaVersion, 1);
+    assert.equal(session.getSnapshot().sessionVersion, 0);
 
-    assert.equal(changeCount, 1);
-    dispose();
-  });
+    commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw A.csv" }]);
 
-  test("keeps nested writes in the same batch notification", () => {
-    const session = new SessionService();
-    let changeCount = 0;
-    const dispose = session.subscribe(() => {
-      changeCount += 1;
-    });
-
-    session.batch(() => {
-      session.setTemplateMode("save");
-      session.batch(() => {
-        session.setSelectedTemplateId("template-a");
-        session.setTemplateFormState((previous) => ({
-          ...previous,
-          name: "Template A",
-        }));
-      });
-    });
-
-    const snapshot = session.getSnapshot();
-    assert.equal(changeCount, 1);
-    assert.equal(getTemplateModeFromViewState(snapshot.viewState), "save");
-    assert.equal(getSelectedTemplateIdFromViewState(snapshot.viewState), "template-a");
-    assert.equal(getTemplateFormStateFromViewState(snapshot.viewState).name, "Template A");
-    dispose();
+    assert.deepEqual(events, [{
+      fileIds: ["file-a"],
+      rawTableIds: ["file-a"],
+      reason: "rawTablesChanged",
+      sessionVersion: 1,
+    }]);
+    assert.equal(session.getSnapshot().sessionVersion, 1);
+    disposable.dispose();
   });
 
   test("subscription dispose stops future notifications", () => {
     const session = new SessionService();
     let changeCount = 0;
-    const dispose = session.subscribe(() => {
+    const dispose = subscribeForTest(session, () => {
       changeCount += 1;
     });
 
-    session.setTemplateMode("save");
+    commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw A.csv" }]);
     dispose();
-    session.setTemplateMode("select");
+    commitRawFilesForTest(session, [{ fileId: "file-b", fileName: "Raw B.csv" }]);
 
     assert.equal(changeCount, 1);
-    assert.equal(getTemplateModeFromViewState(session.getSnapshot().viewState), "select");
+    assert.deepEqual(session.getSnapshot().fileOrder, ["file-a", "file-b"]);
   });
 
   test("skips notifications when the value is unchanged", () => {
     const session = new SessionService();
     let changeCount = 0;
-    const dispose = session.subscribe(() => {
+    const dispose = subscribeForTest(session, () => {
       changeCount += 1;
     });
 
-    session.setTemplateMode("select");
-    session.setSelectedTemplateId(null);
+    session.removeFiles([]);
 
     assert.equal(changeCount, 0);
     dispose();
   });
 
-  test("initializes canonical target and view state", () => {
+  test("initializes canonical session records", () => {
     const session = new SessionService();
 
-    assert.deepEqual(session.getSnapshot().activeTarget, { kind: "none" });
-    assert.deepEqual(session.getSnapshot().viewState, {});
+    assert.deepEqual(session.getSnapshot().filesById, {});
+    assert.deepEqual(session.getSnapshot().fileOrder, []);
   });
 
-  test("omits legacy buckets from the view context", () => {
+  test("omits legacy buckets from the session snapshot", () => {
     const session = new SessionService();
 
-    session.addRawFiles([{ fileId: "file-a", fileName: "Raw A.csv" }]);
-    const context = session.createContextValue(session.getSnapshot()) as Record<string, unknown>;
+    commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw A.csv" }]);
+    const context = session.getSnapshot() as Record<string, unknown>;
 
     assert.equal("filesById" in context, true);
     assert.equal("fileOrder" in context, true);
+    assert.equal("resetProcessedData" in context, false);
     assert.equal("sourceFiles" in context, false);
     assert.equal("cleanedData" in context, false);
     assert.equal("calculatedDataByKey" in context, false);
@@ -114,129 +116,28 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.equal("ionIoffMethod" in context, false);
     assert.equal("ssMethod" in context, false);
     assert.equal("ssShowFitLine" in context, false);
+    assert.equal("viewState" in context, false);
+    assert.equal("setViewState" in context, false);
   });
 
-  test("normalizes and stores active target", () => {
-    const session = new SessionService();
-    let changeCount = 0;
-    const dispose = session.subscribe(() => {
-      changeCount += 1;
-    });
-
-    session.setActiveTarget({
-      kind: "sheet",
-      fileId: " file-a ",
-      sheetId: " sheet-1 ",
-    });
-
-    assert.equal(changeCount, 1);
-    assert.deepEqual(session.getSnapshot().activeTarget, {
-      kind: "sheet",
-      fileId: "file-a",
-      sheetId: "sheet-1",
-    });
-
-    session.setActiveTarget((previous) => previous);
-
-    assert.equal(changeCount, 1);
-    dispose();
-  });
-
-  test("stores view-local state separately from active target", () => {
+  test("stores applied template selection in canonical template run", () => {
     const session = new SessionService();
 
-    session.setActiveTarget({ kind: "file", fileId: "file-a" });
-    session.setTableSelection({
-      kind: "range",
+    commitTemplateOutputForTest(session, {
       fileId: "file-a",
-      sheetId: "sheet-1",
-      range: {
-        startRow: 1,
-        endRow: 2,
-        startCol: 3,
-        endCol: 4,
-      },
+      xGroups: [[0]],
+      series: [{
+        id: "series-1",
+        groupIndex: 0,
+        y: [1],
+      }],
+    }, {
+      appliedTemplateSelection: { kind: "template", templateId: "template-a" },
     });
 
-    assert.deepEqual(session.getSnapshot().activeTarget, {
-      kind: "file",
-      fileId: "file-a",
-    });
-    assert.deepEqual(session.getSnapshot().viewState.table?.selection, {
-      kind: "range",
-      fileId: "file-a",
-      sheetId: "sheet-1",
-      range: {
-        startRow: 1,
-        endRow: 2,
-        startCol: 3,
-        endCol: 4,
-      },
-    });
-
-    session.setTableSelection(undefined);
-
-    assert.deepEqual(session.getSnapshot().activeTarget, {
-      kind: "file",
-      fileId: "file-a",
-    });
-    assert.deepEqual(session.getSnapshot().viewState, {
-      table: {},
-    });
-  });
-
-  test("stores arbitrary view state without changing active target", () => {
-    const session = new SessionService();
-
-    session.setActiveTarget({ kind: "file", fileId: "file-a" });
-    session.setViewState({
-      table: {
-        loading: true,
-      },
-      chart: {
-        selectedCurveKeys: [
-          "base:iv:transfer:series-1",
-        ],
-      },
-      curves: {
-        "base:iv:transfer:series-1": {
-          hidden: true,
-        },
-      },
-    });
-
-    assert.deepEqual(session.getSnapshot().activeTarget, {
-      kind: "file",
-      fileId: "file-a",
-    });
-    assert.deepEqual(session.getSnapshot().viewState, {
-      table: {
-        loading: true,
-      },
-      chart: {
-        selectedCurveKeys: [
-          "base:iv:transfer:series-1",
-        ],
-      },
-      curves: {
-        "base:iv:transfer:series-1": {
-          hidden: true,
-        },
-      },
-    });
-  });
-
-  test("stores file template selections", () => {
-    const session = new SessionService();
-
-    session.setFileTemplateSelectionsByFileId({
-      "file-a": { kind: "template", templateId: "template-a" },
-      "file-b": { kind: "auto" },
-    });
-
-    assert.deepEqual(getTemplateSelectionsFromViewState(session.getSnapshot().viewState), {
-      "file-a": { kind: "template", templateId: "template-a" },
-      "file-b": { kind: "auto" },
+    assert.deepEqual(getLatestTemplateRunRecord(session.getSnapshot().filesById["file-a"])?.selection, {
+      kind: "template",
+      templateId: "template-a",
     });
   });
 
@@ -244,7 +145,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     const session = new SessionService();
     const metricKey = "current:series-1:base" as MetricKey;
 
-    session.commitProcessedFile({
+    commitTemplateOutputForTest(session, {
       fileId: "file-a",
       xGroups: [[0]],
       series: [{
@@ -283,7 +184,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   test("projects raw and processed fields into canonical file records", () => {
     const session = new SessionService();
 
-    session.addRawFiles([{
+    commitRawFilesForTest(session, [{
       fileId: "file-a",
       fileName: "Transfer.csv",
       sheetId: "sheet-1",
@@ -295,10 +196,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
       curveTypeConfidence: "high",
       curveTypeReasons: ["metadata"],
     }]);
-    session.setFileTemplateSelectionsByFileId({
-      "file-a": { kind: "template", templateId: "template-a" },
-    });
-    session.commitProcessedFile({
+    commitTemplateOutputForTest(session, {
       fileId: "file-a",
       fileName: "Transfer.csv",
       curveType: "transfer",
@@ -316,6 +214,8 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         x: [0, 1],
         y: [1e-9, 1e-6],
       },
+    }, {
+      appliedTemplateSelection: { kind: "template", templateId: "template-a" },
     });
 
     const snapshot = session.getSnapshot();
@@ -325,12 +225,12 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.deepEqual(snapshot.fileOrder, ["file-a"]);
     assert.equal(record.raw.tablesById["sheet-1"].sheetName, "Sweep");
     assert.equal(record.raw.tablesById["sheet-1"].rowCount, 4);
-    assert.equal(record.assessment.baseFamily, "iv");
-    assert.equal(record.assessment.baseFamilyConfidence, "high");
-    assert.equal(record.templateRun?.selection.kind, "template");
+    assert.equal(getFileRecordCurveType(record), "transfer");
+    assert.equal(getLatestTemplateRunRecord(record)?.selection.kind, "template");
     assert.equal(record.seriesById["series-1"].legendValue, "Vd=1");
-    assert.equal(record.axis?.x.unit, "V");
-    assert.equal(record.axis?.y.unit, "A");
+    const axis = getFileRecordAxisProjection(record);
+    assert.equal(axis.xUnit, "V");
+    assert.equal(axis.yUnit, "A");
     assert.equal(curve.curveGeneration, "base");
     assert.equal(curve.curveFamily, "iv");
     assert.equal(curve.ivMode, "transfer");
@@ -341,10 +241,146 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.deepEqual(curve.domain?.yLog10Abs, [-9, -6]);
   });
 
+  test("commits template runs, curves, and metrics through explicit APIs", () => {
+    const session = new SessionService();
+    const events: SessionChangeEvent[] = [];
+    const dispose = session.onDidChangeSession(event => {
+      events.push(event);
+    });
+    commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw.csv" }]);
+    events.length = 0;
+
+    const curve: CurveRecord = {
+      fileId: "file-a",
+      seriesId: "series-1",
+      curveGeneration: "base",
+      curveFamily: "iv",
+      ivMode: "transfer",
+      lineage: {
+        curveGeneration: "base",
+        baseFamily: "iv",
+        ivMode: "transfer",
+        baseSeries: { fileId: "file-a", seriesId: "series-1" },
+      },
+      points: [{ x: 0, y: 1 }],
+      signature: "curve-signature",
+    };
+    const derivedCurve: CurveRecord = {
+      fileId: "file-a",
+      seriesId: "series-1",
+      curveGeneration: "derived",
+      curveFamily: "gm",
+      lineage: {
+        curveGeneration: "derived",
+        derivedFamily: "gm",
+        inputCurve: {
+          fileId: "file-a",
+          seriesId: "series-1",
+          curveKey: "base:iv:transfer:series-1",
+          signature: "curve-signature",
+        },
+      },
+      points: [{ x: 0, y: 2 }],
+      signature: "derived-signature",
+    };
+    const metricKey = "current:series-1:base" as MetricKey;
+    const metric: MetricRecord = {
+      key: metricKey,
+      fileId: "file-a",
+      seriesId: "series-1",
+      metricFamily: "current",
+      contextKey: "base",
+      inputCurves: [],
+      inputSignatures: [],
+      value: {
+        method: "auto",
+        ion: null,
+        xAtIon: null,
+        ioff: null,
+        xAtIoff: null,
+        ionIoff: null,
+        candidateWindows: [],
+      },
+    };
+    const templateRun: TemplateRunRecord = {
+      id: "run-a",
+      fileId: "file-a",
+      selection: { kind: "auto" },
+      config: {
+        xDataStart: 0,
+        xDataEnd: 1,
+        xSegmentationMode: "auto",
+        yLegendTarget: "auto",
+        stopOnError: false,
+        yColumns: [1],
+      },
+      sourceBlockIds: ["block-a"],
+      outputSeriesIds: ["series-1"],
+      outputCurveKeys: ["base:iv:transfer:series-1"],
+      configFingerprint: "config-a",
+      mode: "auto",
+      appliedAt: 1,
+      warnings: [],
+      errors: [],
+    };
+
+    session.commitTemplateRun(templateRun);
+    session.commitCurves({ fileId: "file-a", curves: [curve, derivedCurve] });
+    session.commitCurves({
+      fileId: "file-a",
+      curves: [],
+      replaceGenerations: ["derived"],
+    });
+    session.commitMetrics({ fileId: "file-a", metrics: [metric] });
+
+    const record = session.getSnapshot().filesById["file-a"];
+    assert.deepEqual(getLatestTemplateRunRecord(record), templateRun);
+    assert.equal(record.curvesByKey["base:iv:transfer:series-1"], curve);
+    assert.equal(record.curvesByKey["derived:gm:default:series-1"], undefined);
+    assert.equal(record.metricsByKey[metricKey], metric);
+    assert.deepEqual(record.metricsBySeriesId?.["series-1"], [metricKey]);
+    assert.deepEqual(events.map(event => event.reason), [
+      "templateRunChanged",
+      "curvesChanged",
+      "curvesChanged",
+      "metricsChanged",
+    ]);
+    dispose.dispose();
+  });
+
+  test("clears template output through the template commit API", () => {
+    const session = new SessionService();
+
+    commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw.csv" }]);
+    commitTemplateOutputForTest(session, {
+      fileId: "file-a",
+      fileName: "Processed.csv",
+      curveType: "transfer",
+      xGroups: [[0, 1]],
+      series: [{
+        id: "series-1",
+        groupIndex: 0,
+        y: [1, 2],
+      }],
+    });
+
+    session.commitTemplateRun({ kind: "clearTemplateOutput" });
+
+    const record = session.getSnapshot().filesById["file-a"];
+    assert.deepEqual(session.getSnapshot().fileOrder, ["file-a"]);
+    assert.deepEqual(Object.keys(record.raw.tablesById), ["file-a"]);
+    assert.equal(getLatestTemplateRunRecord(record), undefined);
+    assert.deepEqual(getFileRecordXGroups(record), []);
+    assert.deepEqual(record.seriesOrder, []);
+    assert.equal(record.curvesByKey["base:iv:transfer:series-1"], undefined);
+    assert.deepEqual(record.metricsByKey, {});
+    assert.equal(record.calculationCache, undefined);
+  });
+
   test("adds and replaces raw files through canonical session methods", () => {
     const session = new SessionService();
 
-    session.addRawFiles([
+    commitRawFilesForTest(session, [
       {
         fileId: "file-a",
         fileName: "Raw A.csv",
@@ -354,9 +390,11 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     ]);
 
     assert.deepEqual(session.getSnapshot().fileOrder, ["file-a"]);
+    assert.equal(session.getSnapshot().filesById["file-a"].name, "Raw A.csv");
+    assert.equal(session.getSnapshot().filesById["file-a"].kind, "csv");
     assert.equal(session.getSnapshot().filesById["file-a"].raw.fileName, "Raw A.csv");
 
-    session.commitProcessedFile({
+    commitTemplateOutputForTest(session, {
       fileId: "file-a",
       fileName: "Processed A.csv",
       curveType: "transfer",
@@ -367,11 +405,8 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         y: [1, 2],
       }],
     });
-    session.setFileTemplateSelectionsByFileId({
-      "file-a": { kind: "auto" },
-    });
 
-    session.replaceRawFiles([
+    replaceImportedFilesForTest(session, [
       {
         fileId: "file-b",
         fileName: "Raw B.csv",
@@ -382,10 +417,92 @@ suite("workbench/services/session/test/browser/sessionService", () => {
 
     const snapshot = session.getSnapshot();
     assert.deepEqual(snapshot.fileOrder, ["file-b"]);
+    assert.equal(snapshot.filesById["file-b"].name, "Raw B.csv");
+    assert.equal(snapshot.filesById["file-b"].kind, "csv");
     assert.equal(snapshot.filesById["file-b"].raw.fileName, "Raw B.csv");
     assert.deepEqual(snapshot.filesById["file-b"].seriesOrder, []);
-    assert.deepEqual(getTemplateSelectionsFromViewState(snapshot.viewState), {});
     assert.equal(snapshot.filesById["file-a"], undefined);
+  });
+
+  test("commits file import results as canonical raw table records", () => {
+    const session = new SessionService();
+    const result: FileImportResult = {
+      createdAt: 123,
+      diagnostics: [],
+      files: [{
+        id: "file-a",
+        kind: "excel",
+        name: "Transfer.xlsx",
+        raw: {
+          fileId: "file-a",
+          fileName: "Transfer.xlsx",
+          lastModified: 456,
+          rawTablesById: {
+            "sheet-1": {
+              columnCount: 2,
+              fileId: "file-a",
+              maxCellLengths: [2, 4],
+              rawTableId: "sheet-1",
+              rowCount: 2,
+              rows: {
+                kind: "inline",
+                values: [["Vg", "Id"], ["0", "1e-9"]],
+              },
+              source: {
+                kind: "excelSheet",
+                sheetIndex: 0,
+                sheetName: "Sweep",
+              },
+            },
+          },
+          rawTableOrder: ["sheet-1"],
+          size: 789,
+        },
+      }],
+    };
+
+    session.commitFileImport(result);
+
+    const file = session.getSnapshot().filesById["file-a"];
+    const table = file.raw.tablesById["sheet-1"];
+    assert.deepEqual(session.getSnapshot().fileOrder, ["file-a"]);
+    assert.equal(file.name, "Transfer.xlsx");
+    assert.equal(file.kind, "excel");
+    assert.equal(file.raw.fileName, "Transfer.xlsx");
+    assert.equal(file.raw.size, 789);
+    assert.equal(table.sheetName, "Sweep");
+    assert.equal(table.rowCount, 2);
+    assert.deepEqual(table.maxCellLengths, [2, 4]);
+    assert.deepEqual(table.rowStore, {
+      kind: "memory",
+      rows: [["Vg", "Id"], ["0", "1e-9"]],
+    });
+    assert.deepEqual(file.rawTableVersionsById, { "sheet-1": 1 });
+    assert.deepEqual(file.assessmentsByRawTableId, {});
+  });
+
+  test("commits raw table assessment when source version matches", () => {
+    const session = new SessionService();
+    session.commitFileImport(createSingleRawTableImportResult());
+    const assessment = createRawTableAssessment(1);
+
+    session.commitRawTableAssessment(assessment);
+
+    const file = session.getSnapshot().filesById["file-a"];
+    assert.equal(file.assessmentsByRawTableId["table-a"].sourceRawTableVersion, 1);
+    assert.deepEqual(file.measurementBlockOrder, ["block-a"]);
+    assert.equal(file.measurementBlocksById["block-a"].family, "iv");
+  });
+
+  test("ignores stale raw table assessment versions", () => {
+    const session = new SessionService();
+    session.commitFileImport(createSingleRawTableImportResult());
+
+    session.commitRawTableAssessment(createRawTableAssessment(0));
+
+    const file = session.getSnapshot().filesById["file-a"];
+    assert.deepEqual(file.assessmentsByRawTableId, {});
+    assert.deepEqual(file.measurementBlockOrder, []);
   });
 
   test("keeps imported file handles and source keys through raw canonical projection", () => {
@@ -396,7 +513,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
       size: 24,
     };
 
-    session.replaceRawFiles([{
+    replaceImportedFilesForTest(session, [{
       file: sourceFile,
       fileId: "file-a",
       fileName: "Transfer.csv",
@@ -421,36 +538,14 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.deepEqual(rawFiles[0].maxCellLengths, [2, 4]);
   });
 
-  test("does not prune raw-only imported files before preview metadata loads", () => {
-    const session = new SessionService();
-    const sourceFile = {
-      lastModified: 123,
-      name: "Transfer.csv",
-      size: 24,
-    };
-
-    session.replaceRawFiles([{
-      file: sourceFile,
-      fileId: "file-a",
-      fileName: "Transfer.csv",
-      sourceKey: "transfer.csv::24::123",
-    }]);
-
-    session.pruneFileSemantics([], []);
-
-    const snapshot = session.getSnapshot();
-    assert.deepEqual(snapshot.fileOrder, ["file-a"]);
-    assert.equal(snapshot.filesById["file-a"].raw.file, sourceFile);
-  });
-
   test("removes files through one session owner", () => {
     const session = new SessionService();
 
-    session.addRawFiles([
+    commitRawFilesForTest(session, [
       { fileId: "file-a", fileName: "Raw A.csv" },
       { fileId: "file-b", fileName: "Raw B.csv" },
     ]);
-    session.commitProcessedFile({
+    commitTemplateOutputForTest(session, {
       fileId: "file-a",
       fileName: "Processed A.csv",
       curveType: "transfer",
@@ -469,7 +564,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         },
       },
     });
-    session.replaceCalculatedCurves({
+    replaceDerivedCurvesForTest(session, {
       "iv:file-a": {
         activeFile: { fileId: "file-a" },
         kind: "iv",
@@ -485,16 +580,6 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         yDomain: [0, 1],
         yUnitLabel: "A",
       },
-    });
-    session.setFileSemantics({
-      fileId: "file-a",
-      kind: "iv",
-      x: { unit: "V" },
-      y: { scale: "linear", unit: "A" },
-    });
-    session.setSeriesLabel("file-a", "series-1", "Edited");
-    session.setFileTemplateSelectionsByFileId({
-      "file-a": { kind: "auto" },
     });
     const currentMetricKey = "current:series-1:base" as MetricKey;
     const subthresholdMetricKey = "subthreshold:series-1:ss:manual" as MetricKey;
@@ -532,22 +617,18 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         x2: 1,
       },
     );
-    session.setActiveTarget({ kind: "file", fileId: "file-a" });
-
     session.removeFiles(["file-a"]);
 
     const snapshot = session.getSnapshot();
     assert.deepEqual(snapshot.fileOrder, ["file-b"]);
     assert.equal(snapshot.filesById["file-b"].raw.fileName, "Raw B.csv");
     assert.equal(snapshot.filesById["file-a"], undefined);
-    assert.deepEqual(getTemplateSelectionsFromViewState(snapshot.viewState), {});
-    assert.deepEqual(snapshot.activeTarget, { kind: "none" });
   });
 
   test("replaces calculated curves through the session owner", () => {
     const session = new SessionService();
 
-    session.commitProcessedFile({
+    commitTemplateOutputForTest(session, {
       fileId: "file-a",
       fileName: "Processed A.csv",
       curveType: "transfer",
@@ -559,7 +640,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         y: [1, 2],
       }],
     });
-    session.replaceCalculatedCurves({
+    replaceDerivedCurvesForTest(session, {
       "gm:file-a": {
         activeFile: null,
         kind: "gm",
@@ -599,7 +680,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   test("replaces calculated curve records instead of accumulating stale derived curves", () => {
     const session = new SessionService();
 
-    session.commitProcessedFile({
+    commitTemplateOutputForTest(session, {
       fileId: "file-a",
       fileName: "Processed A.csv",
       curveType: "transfer",
@@ -611,7 +692,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         y: [1, 2],
       }],
     });
-    session.replaceCalculatedCurves({
+    replaceDerivedCurvesForTest(session, {
       "gm:file-a": {
         activeFile: null,
         kind: "gm",
@@ -636,7 +717,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         yUnitLabel: "S",
       },
     });
-    session.replaceCalculatedCurves({});
+    replaceDerivedCurvesForTest(session, {});
 
     const curvesByKey = session.getSnapshot().filesById["file-a"].curvesByKey;
     assert.equal(curvesByKey["derived:gm:default:series-1"], undefined);
@@ -646,7 +727,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   test("keeps calculated iv read models out of canonical base curves", () => {
     const session = new SessionService();
 
-    session.commitProcessedFile({
+    commitTemplateOutputForTest(session, {
       fileId: "file-a",
       fileName: "Processed A.csv",
       curveType: "transfer",
@@ -658,7 +739,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         y: [1, 2],
       }],
     });
-    session.replaceCalculatedCurves({
+    replaceDerivedCurvesForTest(session, {
       "iv:file-a": {
         activeFile: null,
         kind: "iv",
@@ -689,353 +770,265 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.equal(curvesByKey["base:iv:default:series-1"], undefined);
   });
 
-  test("clears session data without resetting global template form state", () => {
+  test("clears session data", () => {
     const session = new SessionService();
 
-    session.addRawFiles([{ fileId: "file-a", fileName: "Raw A.csv" }]);
-    session.setTemplateFormState((previous) => ({
-      ...previous,
-      name: "Keep Template Draft",
-    }));
-    session.setPreviewFile({
-      fileId: "file-a",
-      fileName: "Raw A.csv",
-      rowCount: 1,
-      columnCount: 1,
-      maxCellLengths: [1],
-    });
-    assert.equal(session.getSnapshot().viewState.table?.previewFile?.fileId, "file-a");
-    session.setActiveTarget({ kind: "file", fileId: "file-a" });
-    session.setViewState((previous) => ({
-      ...previous,
-      table: {
-        loading: true,
-      },
-    }));
-
-    session.clearSessionData();
+    commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw A.csv" }]);
+    session.clearSession();
 
     const snapshot = session.getSnapshot();
     assert.deepEqual(snapshot.filesById, {});
     assert.deepEqual(snapshot.fileOrder, []);
-    assert.deepEqual(snapshot.activeTarget, { kind: "none" });
-    assert.equal(snapshot.viewState.table, undefined);
-    assert.equal(getTemplateFormStateFromViewState(snapshot.viewState).name, "Keep Template Draft");
   });
 
   test("notifies each active subscription", () => {
     const session = new SessionService();
     let firstChangeCount = 0;
     let secondChangeCount = 0;
-    const disposeFirst = session.subscribe(() => {
+    const disposeFirst = subscribeForTest(session, () => {
       firstChangeCount += 1;
     });
-    const disposeSecond = session.subscribe(() => {
+    const disposeSecond = subscribeForTest(session, () => {
       secondChangeCount += 1;
     });
 
-    session.setTemplateMode("save");
+    commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw A.csv" }]);
     disposeFirst();
-    session.setTemplateMode("select");
+    session.removeFiles(["file-a"]);
 
     assert.equal(firstChangeCount, 1);
     assert.equal(secondChangeCount, 2);
     disposeSecond();
   });
 
-  test("restores notification state after thrown batch callback", () => {
-    const session = new SessionService();
-    let changeCount = 0;
-    const dispose = session.subscribe(() => {
-      changeCount += 1;
-    });
-
-    assert.throws(
-      () => {
-        session.batch(() => {
-          session.setTemplateMode("save");
-          throw new Error("fail batch");
-        });
-      },
-      /fail batch/,
-    );
-
-    assert.equal(changeCount, 1);
-    assert.equal(getTemplateModeFromViewState(session.getSnapshot().viewState), "save");
-
-    session.setSelectedTemplateId("template-a");
-
-    assert.equal(changeCount, 2);
-    assert.equal(getSelectedTemplateIdFromViewState(session.getSnapshot().viewState), "template-a");
-    dispose();
-  });
-
-  test("stores file semantics and curve data in canonical records", () => {
-    const session = new SessionService();
-    let changes = 0;
-    session.subscribe(() => changes++);
-
-    session.batch(() => {
-      session.setFileSemantics({
-        fileId: " file-a ",
-        kind: "iv",
-        sourceFileName: "Output.csv",
-        x: {
-          label: "Vd",
-          unit: "V",
-        },
-        y: {
-          label: "Id",
-          scale: "log",
-          unit: "A",
-        },
-      });
-      session.setCurveData({
-        curveKind: "iv",
-        fileId: "file-a",
-        seriesId: "series-1",
-        points: [
-          { x: 0, y: 1 },
-          { x: 1, y: 2 },
-        ],
-        signature: "sig:series-1",
-      });
-    });
-
-    const semantics = session.getFileSemantics("file-a");
-    const curve = session.getCurveData({
-      curveKind: "iv",
-      fileId: "file-a",
-      seriesId: "series-1",
-    });
-
-    assert.equal(changes, 1);
-    assert.equal(semantics?.fileId, "file-a");
-    assert.equal(semantics?.x.unit, "V");
-    assert.equal(semantics?.y.scale, "log");
-    assert.equal(curve?.points.length, 2);
-    assert.equal(session.getSnapshot().filesById["file-a"].axis?.x.unit, "V");
-  });
-
-  test("updates file semantics without duplicating curve-level axis state", () => {
-    const session = new SessionService();
-    session.setFileSemantics({
-      fileId: "file-a",
-      kind: "iv",
-      x: {
-        label: "Vd",
-        unit: "V",
-      },
-      y: {
-        label: "Id",
-        scale: "linear",
-        unit: "A",
-      },
-    });
-
-    session.updateFileSemantics("file-a", {
-      x: { unit: "mV" },
-      y: { scale: "log" },
-    });
-
-    const semantics = session.getFileSemantics("file-a");
-    assert.equal(semantics?.x.label, "Vd");
-    assert.equal(semantics?.x.unit, "mV");
-    assert.equal(semantics?.y.label, "Id");
-    assert.equal(semantics?.y.scale, "log");
-  });
-
-  test("prunes stale file semantics by file id and curve key", () => {
-    const session = new SessionService();
-    session.batch(() => {
-      session.setFileSemantics({
-        fileId: "file-a",
-        kind: "iv",
-        x: { unit: "V" },
-        y: { scale: "linear", unit: "A" },
-      });
-      session.setFileSemantics({
-        fileId: "file-b",
-        kind: "iv",
-        x: { unit: "V" },
-        y: { scale: "linear", unit: "A" },
-      });
-      session.setCurveData({
-        curveKind: "iv",
-        fileId: "file-a",
-        seriesId: "series-1",
-        points: [{ x: 0, y: 1 }],
-      });
-      session.setCurveData({
-        curveKind: "iv",
-        fileId: "file-b",
-        seriesId: "series-2",
-        points: [{ x: 0, y: 2 }],
-      });
-    });
-
-    session.pruneFileSemantics([
-      "file-a",
-    ], [{
-      curveKind: "iv",
-      fileId: "file-a",
-      seriesId: "series-1",
-    }]);
-
-    assert.ok(session.getFileSemantics("file-a"));
-    assert.equal(session.getFileSemantics("file-b"), undefined);
-    assert.ok(session.getCurveData({
-      curveKind: "iv",
-      fileId: "file-a",
-      seriesId: "series-1",
-    }));
-    assert.equal(session.getCurveData({
-      curveKind: "iv",
-      fileId: "file-b",
-      seriesId: "series-2",
-    }), undefined);
-  });
-
-  test("stores series labels and resolves overrides before source labels", () => {
-    const session = new SessionService();
-
-    session.commitProcessedFile({
-      fileId: "file-a",
-      xGroups: [[0]],
-      series: [{ id: "series-a", groupIndex: 0, y: [1] }],
-    });
-    session.setSeriesLabel("file-a", "series-a", "Edited Label");
-
-    assert.equal(session.getSeriesLabel("file-a", "series-a"), "Edited Label");
-    assert.deepEqual(session.getSeriesLabels("file-a"), {
-      "series-a": "Edited Label",
-    });
-    assert.equal(
-      session.resolveSeriesLabel(
-        { fileId: "file-a" },
-        { id: "series-a", legendValue: "Vg=0", name: "Source Label" },
-        0,
-      ),
-      "Edited Label",
-    );
-  });
-
-  test("resolves series label fallback from legend value, name, and series index", () => {
-    const session = new SessionService();
-
-    assert.equal(
-      session.resolveSeriesLabel({ fileId: "file-a" }, { id: "series-a", legendValue: "Vg=0" }, 0),
-      "Vg=0",
-    );
-    assert.equal(
-      session.resolveSeriesLabel({ fileId: "file-a" }, { id: "series-a", name: "Source Label" }, 0),
-      "Source Label",
-    );
-    assert.equal(
-      session.resolveSeriesLabel({ fileId: "file-a" }, { id: "series-a" }, 2),
-      "Series 3",
-    );
-  });
-
-  test("prunes stale series labels", () => {
-    const session = new SessionService();
-
-    session.commitProcessedFile({
-      fileId: "file-a",
-      xGroups: [[0]],
-      series: [
-        { id: "series-a", groupIndex: 0, y: [1] },
-        { id: "series-b", groupIndex: 0, y: [2] },
-      ],
-    });
-    session.commitProcessedFile({
-      fileId: "file-b",
-      xGroups: [[0]],
-      series: [{ id: "series-c", groupIndex: 0, y: [3] }],
-    });
-    session.setSeriesLabel("file-a", "series-a", "Edited A");
-    session.setSeriesLabel("file-a", "series-b", "Edited B");
-    session.setSeriesLabel("file-b", "series-c", "Edited C");
-    session.pruneSeriesLabels([
-      {
-        fileId: "file-a",
-        series: [{ id: "series-a" }],
-      },
-    ]);
-
-    assert.deepEqual(session.getSeriesLabels("file-a"), {
-      "series-a": "Edited A",
-    });
-    assert.deepEqual(session.getSeriesLabels("file-b"), {});
-    assert.equal(
-      session.getSnapshot().filesById["file-a"].seriesById["series-a"].labelOverride,
-      "Edited A",
-    );
-  });
-
-  test("prunes stale series labels from canonical file records", () => {
-    const session = new SessionService();
-
-    session.commitProcessedFile({
-      fileId: "file-a",
-      xGroups: [[0]],
-      series: [
-        { id: "series-a", groupIndex: 0, y: [1] },
-        { id: "series-b", groupIndex: 0, y: [2] },
-      ],
-    });
-    session.commitProcessedFile({
-      fileId: "file-b",
-      xGroups: [[0]],
-      series: [{ id: "series-c", groupIndex: 0, y: [3] }],
-    });
-    session.setSeriesLabel("file-a", "series-a", "Edited A");
-    session.setSeriesLabel("file-a", "series-b", "Edited B");
-    session.setSeriesLabel("file-b", "series-c", "Edited C");
-    session.pruneSeriesLabelsByRecords(
-      {
-        "file-a": createFileRecord("file-a", ["series-a"]),
-      },
-      ["file-a"],
-    );
-
-    assert.deepEqual(session.getSeriesLabels("file-a"), {
-      "series-a": "Edited A",
-    });
-    assert.deepEqual(session.getSeriesLabels("file-b"), {});
-  });
 });
 
-const createFileRecord = (
-  fileId: string,
-  seriesOrder: readonly string[],
-): FileRecord => ({
-  assessment: {
-    baseFamily: "iv",
-  },
-  baseCandidateOrder: [],
-  baseCandidatesById: {},
-  curvesByKey: {},
-  id: fileId,
-  metricsByKey: {},
-  raw: {
-    fileId,
-    fileName: `${fileId}.csv`,
-    tableOrder: [],
-    tablesById: {},
-  },
-  seriesById: Object.fromEntries(seriesOrder.map((seriesId) => [
-    seriesId,
-    {
+const subscribeForTest = (
+  session: SessionService,
+  listener: (event: SessionChangeEvent) => void,
+): (() => void) => {
+  const disposable = session.onDidChangeSession(listener);
+  return () => disposable.dispose();
+};
+
+const commitRawFilesForTest = (
+  session: SessionService,
+  files: readonly SessionFile[],
+): void => {
+  session.commitFileImport(createFileImportResultForTest(files));
+};
+
+const replaceImportedFilesForTest = (
+  session: SessionService,
+  files: readonly SessionFile[],
+): void => {
+  session.clearSession();
+  commitRawFilesForTest(session, files);
+};
+
+const createFileImportResultForTest = (
+  files: readonly SessionFile[],
+): FileImportResult => ({
+  createdAt: 1,
+  diagnostics: [],
+  files: files
+    .map(createImportedFileRecordForTest)
+    .filter((file): file is ImportedFileRecord => Boolean(file)),
+});
+
+const createImportedFileRecordForTest = (
+  file: SessionFile,
+): ImportedFileRecord | null => {
+  const fileId = String(file.fileId ?? "").trim();
+  if (!fileId) {
+    return null;
+  }
+
+  const fileName = String(file.fileName ?? fileId).trim() || fileId;
+  const rawTableId = normalizeOptionalTestText(file.sheetId) ??
+    normalizeOptionalTestText(file.sourceKey) ??
+    fileId;
+  const sheetName = normalizeOptionalTestText(file.sheetName) ??
+    normalizeOptionalTestText(file.worksheetName);
+  const rowCount = Math.max(0, Math.floor(Number(file.rowCount) || 0));
+  const columnCount = Math.max(0, Math.floor(Number(file.columnCount) || 0));
+  return {
+    id: fileId,
+    kind: /\.xlsx?$/i.test(fileName) ? "excel" : "csv",
+    name: fileName,
+    raw: {
       fileId,
-      groupIndex: 0,
-      id: seriesId,
-      y: [],
+      fileName,
+      filePath: typeof file.sourcePath === "string" ? file.sourcePath : null,
+      lastModified: readRecordNumber(file.file, "lastModified") ?? undefined,
+      rawFile: file.file,
+      rawTablesById: {
+        [rawTableId]: {
+          columnCount,
+          fileId,
+          maxCellLengths: Array.isArray(file.maxCellLengths) ? file.maxCellLengths : [],
+          rawTableId,
+          rowCount,
+          rows: file.normalizedCsvPath
+            ? {
+                formatVersion: 1,
+                kind: "normalizedCsv",
+                normalizedCsvPath: file.normalizedCsvPath,
+              }
+            : {
+                kind: "inline",
+                values: [],
+              },
+          source: sheetName || /\.xlsx?$/i.test(fileName)
+            ? {
+                kind: "excelSheet",
+                sheetIndex: 0,
+                sheetName,
+              }
+            : {
+                kind: "csv",
+              },
+        },
+      },
+      rawTableOrder: [rawTableId],
+      relativePath: file.relativePath ?? null,
+      size: readRecordNumber(file.file, "size") ?? undefined,
     },
-  ])),
-  seriesOrder: [...seriesOrder],
-  xGroups: [],
+  };
+};
+
+const commitTemplateOutputForTest = (
+  session: SessionService,
+  file: ProcessedEntry | null | undefined,
+  options: CommitTemplateOutputOptions = {},
+): void => {
+  if (!file || typeof file !== "object") {
+    return;
+  }
+
+  const fileId = String(file.fileId ?? "").trim();
+  if (!fileId) {
+    return;
+  }
+
+  if (!session.getSnapshot().filesById[fileId]) {
+    commitRawFilesForTest(session, [{
+      fileId,
+      fileName: String(file.fileName ?? fileId),
+    }]);
+  }
+
+  const commit = createProcessedFileSessionCommit(
+    session.getSnapshot(),
+    file,
+    options,
+  );
+  if (!commit) {
+    return;
+  }
+
+  session.commitTemplateRun(commit.templateRun);
+  session.commitCurves(commit.curves);
+  session.commitMetrics(commit.metrics);
+};
+
+const replaceDerivedCurvesForTest = (
+  session: SessionService,
+  plotsByKey: CalculatedPlotsByKey,
+): void => {
+  const recordsByFileId = createCalculatedCurveRecordsByFile(plotsByKey);
+  const fileIds = new Set([
+    ...Object.keys(session.getSnapshot().filesById),
+    ...Object.keys(recordsByFileId),
+  ]);
+  for (const fileId of fileIds) {
+    session.commitCurves({
+      fileId,
+      curves: recordsByFileId[fileId] ?? [],
+      replaceGenerations: ["derived", "secondDerived"],
+    });
+  }
+};
+
+const createSingleRawTableImportResult = (): FileImportResult => ({
+  createdAt: 123,
+  diagnostics: [],
+  files: [{
+    id: "file-a",
+    kind: "csv",
+    name: "Transfer.csv",
+    raw: {
+      fileId: "file-a",
+      fileName: "Transfer.csv",
+      rawTablesById: {
+        "table-a": {
+          columnCount: 2,
+          fileId: "file-a",
+          maxCellLengths: [2, 4],
+          rawTableId: "table-a",
+          rowCount: 2,
+          rows: {
+            kind: "inline",
+            values: [["Vg", "Id"], ["0", "1e-9"]],
+          },
+          source: {
+            kind: "csv",
+          },
+        },
+      },
+      rawTableOrder: ["table-a"],
+    },
+  }],
 });
+
+const createRawTableAssessment = (
+  sourceRawTableVersion: number,
+): RawTableAssessmentRecord => ({
+  blocks: [{
+    columnCount: 2,
+    columns: {
+      columns: [],
+    },
+    diagnosticCodes: [],
+    family: "iv",
+    fileId: "file-a",
+    id: "block-a",
+    label: "Block A",
+    rawTableId: "table-a",
+    rowCount: 1,
+    source: {
+      fullRange: {
+        endCol: 1,
+        endRow: 1,
+        startCol: 0,
+        startRow: 0,
+      },
+    },
+  }],
+  createdAt: 456,
+  diagnostics: [],
+  fileId: "file-a",
+  groups: [],
+  rawTableId: "table-a",
+  sourceRawTableVersion,
+});
+
+const readRecordNumber = (
+  record: unknown,
+  key: string,
+): number | undefined => {
+  if (!record || typeof record !== "object") {
+    return undefined;
+  }
+
+  const value = (record as Record<string, unknown>)[key];
+  return Number.isFinite(Number(value)) ? Number(value) : undefined;
+};
+
+const normalizeOptionalTestText = (value: unknown): string | null => {
+  const text = String(value ?? "").trim();
+  return text || null;
+};
 
 
 

@@ -1,14 +1,13 @@
 // @ts-nocheck
+import path from "node:path";
 import type {
   ConductorStoreOptions,
   IConductorStoreService,
 } from "../common/conductorStore.js";
-import { createConfigurableJsonStorage } from "../../../../platform/storage/electron-main/configurableJsonStorage.js";
 import { createJsonStorageDocument } from "../../../../platform/storage/electron-main/jsonStorageDocument.js";
 
 import {
   SETTINGS_FILENAME,
-  STORE_CONFIG_FILENAME,
   TEMPLATE_FILENAME,
   DEFAULT_SETTINGS,
   applyStartupConductorDefaults,
@@ -31,11 +30,7 @@ export function createConductorStoreMainService(
     throw new Error("Store requires getHomeDir().");
   }
 
-  const storage = createConfigurableJsonStorage({
-    getHomeDir,
-    primaryFileName: SETTINGS_FILENAME,
-    configFileName: STORE_CONFIG_FILENAME,
-  });
+  const getStoragePath = (fileName) => path.join(getHomeDir(), fileName);
 
   function cloneStoreData(store) {
     return normalizeStoreData(store);
@@ -63,16 +58,12 @@ export function createConductorStoreMainService(
     settingsDocument.clear();
   }
 
-  function getPersistenceInfo() {
-    return storage.getPersistenceInfo();
-  }
-
   function getStorePath() {
-    return storage.getCurrentPath();
+    return getStoragePath(SETTINGS_FILENAME);
   }
 
   function getTemplatePath() {
-    return storage.getRelatedPath(TEMPLATE_FILENAME);
+    return getStoragePath(TEMPLATE_FILENAME);
   }
 
   function readStore() {
@@ -157,25 +148,12 @@ export function createConductorStoreMainService(
     return { success: true };
   }
 
-  function setPersistencePath(nextPath) {
-    const info = storage.setCustomPath(
-      typeof nextPath === "string" ? nextPath : null,
-      [{ fileName: TEMPLATE_FILENAME, label: "template" }],
-      "settings",
-    );
-    clearStoreCache();
-    clearSettingsCache();
-    return info;
-  }
-
   return {
     getHomeDir,
-    getPersistenceInfo,
     getConductorSettings,
     patchConductorSettings,
     getTemplates,
     upsertTemplate,
     deleteTemplate,
-    setPersistencePath,
   };
 }

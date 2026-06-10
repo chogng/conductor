@@ -1,11 +1,10 @@
-import type { TableCell, TableSelection } from "src/cs/workbench/contrib/table/common/tableService";
+import type { TableCell, TableSelection } from "src/cs/workbench/services/table/common/table";
 import type { TemplatePickFieldName } from "src/cs/workbench/contrib/template/browser/views/templateEditorView";
 import {
   parseCellLabel,
   toCellLabel,
-} from "src/cs/workbench/contrib/template/common/templateCellRef";
-import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
-export { toColumnLabel } from "src/cs/workbench/contrib/template/common/templateCellRef";
+} from "src/cs/workbench/services/template/common/templateCellRef";
+import type { TemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 
 export const normalizeColumnIndexes = (columns: readonly number[] | undefined): number[] =>
   Array.from(new Set(

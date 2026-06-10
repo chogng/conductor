@@ -1,7 +1,7 @@
 import { localize } from "src/cs/nls";
 import { append, reset } from "src/cs/base/browser/dom";
 import { createButton as createActionButton } from "src/cs/base/browser/ui/button/button";
-import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/contrib/template/common/fileNameMatching";
+import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/template/common/fileNameMatching";
 import type { NotificationToastState } from "src/cs/workbench/contrib/settings/common/feedback";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import type {
@@ -11,10 +11,9 @@ import type {
   OriginSettings,
   SettingsViewProps,
   SettingsSectionId,
-  StorageSettings,
   WindowCloseSettings,
 } from "src/cs/workbench/contrib/settings/settingsViewTypes";
-import type { HelpWindowKind } from "src/cs/workbench/contrib/help/common/helpWindow";
+import type { HelpWindowKind } from "src/cs/workbench/services/help/common/helpWindow";
 import "src/cs/base/browser/ui/inputbox/inputBox.css";
 import "src/cs/workbench/contrib/settings/browser/media/settingsView.css";
 
@@ -194,7 +193,6 @@ export class SettingsView {
     container.append(
       this.createDefaults(this.options.chartDefaultSettings),
       this.createChartDefaults(this.options.chartDefaultSettings),
-      this.createStorage(this.options.storageSettings),
       this.createFileNameMatching(this.options.fileNameMatchingSettings),
     );
   }
@@ -404,28 +402,6 @@ export class SettingsView {
       })),
     );
     container.appendChild(grid);
-    return container;
-  }
-
-  private createStorage(settings: StorageSettings): HTMLElement {
-    const container = card("settings-storage-card", "settings-card-block");
-    container.appendChild(headingBlock(localize("settings_storage_title", "User Configuration Path"), localize("settings_storage_desc", "Choose where templates and settings are stored.")));
-    const controls = div("settings-path-controls");
-    controls.id = "settings-origin-path-controls";
-    controls.append(
-      div("settings-path-value",
-        text("p", "settings-path-text", settings.currentPath || (settings.isLoading ? localize("settings_storage_loading", "Loading...") : settings.isConfigurable ? localize("settings_storage_unavailable", "User config path unavailable.") : localize("settings_storage_not_configurable_hint", "Path configuration is available in desktop app only."))),
-      ),
-      this.createButton({
-        id: "settings-persistence-path-choose-btn",
-        label: localize("settings_storage_choose_path_btn", "Choose Path"),
-        onClick: settings.onChoosePath,
-        disabled: !settings.isConfigurable || settings.isSaving,
-        variant: "primary",
-      }),
-    );
-    container.appendChild(controls);
-    appendFeedback(container, settings.feedback);
     return container;
   }
 

@@ -1,5 +1,9 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 // Renders and positions the floating readout for hovered plot points.
-import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
+import { formatNumber } from "src/cs/workbench/services/calculation/common/numberFormat";
 import type { PlotReadoutEntry } from "src/cs/workbench/contrib/plot/browser/plotReadoutModel";
 
 import "src/cs/workbench/contrib/plot/browser/plotHoverWidget.css";

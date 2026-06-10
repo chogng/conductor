@@ -1,4 +1,8 @@
-﻿import { localize } from "src/cs/nls";
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import { localize } from "src/cs/nls";
 import {
   getCardClassName,
   type CardVariant,
@@ -12,75 +16,20 @@ import {
 } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import type { ProcessingStatus } from "src/cs/workbench/services/session/common/sessionTypes";
-import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
-import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
-import type { CalculatedPlotsByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
-import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
-import type { XUnit, YUnit } from "src/cs/workbench/contrib/plot/common/units";
+import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import { createChartView, type ChartPane } from "src/cs/workbench/contrib/chart/browser/views/chartView";
-
-export type ChartViewLazyProps = {
-  visiblePanes?: readonly ChartPane[];
-  activePlotType?: PlotType;
-  onActivePlotTypeChange?: (next: PlotType) => void;
-  hasAnalysisData?: boolean;
-  chartFileOptions?: readonly {
-    fileId: string;
-    fileName: string;
-  }[];
-  calculatedPlotsByKey?: CalculatedPlotsByKey;
-  processingStatus?: Partial<ProcessingStatus>;
-  activeFileId?: string | null;
-  onActiveFileIdChange?: (nextFileId: string | null) => void;
-  showFileSelect?: boolean;
-  xUnitByFileId?: Readonly<Record<string, string>>;
-  yUnitByFileId?: Readonly<Record<string, string>>;
-  yScaleByFileId?: Readonly<Record<string, string>>;
-  onPlotUnitChange?: (
-    fileId: string,
-    axis: "x" | "y",
-    unit: XUnit | YUnit,
-  ) => Promise<unknown> | void;
-  onPlotYScaleChange?: (
-    fileId: string,
-    scale: "linear" | "log",
-  ) => Promise<unknown> | void;
-  hiddenLegendKeys?: readonly string[];
-  legendLabels?: Readonly<Record<string, string>>;
-  onLegendLabelChange?: (
-    fileId: string,
-    seriesId: string,
-    label: string | null,
-  ) => void;
-  inspectorXAxisLabelOverride?: string;
-  inspectorYAxisLabelOverride?: string;
-  onInspectorXAxisLabelChange?: (nextLabel: string) => void;
-  onInspectorYAxisLabelChange?: (nextLabel: string) => void;
-  onXAxisLabelChange?: (nextLabel: string) => void;
-  onYAxisLabelChange?: (nextLabel: string) => void;
-  xAxisLabelOverride?: string;
-  yAxisLabelOverride?: string;
-  originOpenPlotOptions?: OriginPlotOptions;
-  onOriginOpenPlotOptionsChange?: (updates: unknown) => Promise<unknown> | void;
-  plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
-  onPlotAxisSettingsChange?: (updates: unknown) => Promise<unknown> | void;
-};
-
-export type AnalysisPanelProps = ChartViewLazyProps & {
-  shouldMountCharts?: boolean;
-};
 
 export class AnalysisPanel {
   public readonly element: HTMLElement;
   private content: DisposableContent | null = null;
 
-  constructor(props: AnalysisPanelProps) {
+  constructor(props: ChartViewInput) {
     this.element = document.createElement("section");
     this.element.className = "chart_panel";
     this.update(props);
   }
 
-  public update(props: AnalysisPanelProps): void {
+  public update(props: ChartViewInput): void {
     this.element.setAttribute("aria-label", localize("analysis_visualization", "Analysis & Visualization"));
     disposeContent(this.content);
     this.content = createAnalysisPanelContent(props);
@@ -108,7 +57,7 @@ const disposeContent = (content: DisposableContent | null): void => {
   content?.dispose?.();
 };
 
-const createAnalysisPanelContent = (props: AnalysisPanelProps): DisposableContent => {
+const createAnalysisPanelContent = (props: ChartViewInput): DisposableContent => {
   const {
     hasAnalysisData = false,
     processingStatus,

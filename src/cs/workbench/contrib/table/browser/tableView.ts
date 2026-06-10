@@ -7,7 +7,7 @@ import type {
   TableModel,
   TableSelection,
   TableState,
-} from "src/cs/workbench/contrib/table/common/tableService";
+} from "src/cs/workbench/services/table/common/table";
 
 export type TableViewProps = {
   readonly tableModel: TableModel;
@@ -63,6 +63,7 @@ export class TableView {
   });
   private disposeSelectionListener: (() => void) | null = null;
   private disposeRowsVersionListener: (() => void) | null = null;
+  private disposeStateListener: (() => void) | null = null;
   private readonly bodyGrid: BodyRow[] = [];
   private headerColumnCount = 0;
   private bodyRowCount = 0;
@@ -125,6 +126,8 @@ export class TableView {
     this.disposeSelectionListener = null;
     this.disposeRowsVersionListener?.();
     this.disposeRowsVersionListener = null;
+    this.disposeStateListener?.();
+    this.disposeStateListener = null;
     this.store.dispose();
     this.scrollArea.dispose();
     this.element.replaceChildren();
@@ -159,11 +162,20 @@ export class TableView {
   private bindTableState(tableModel: TableModel): void {
     this.disposeSelectionListener?.();
     this.disposeRowsVersionListener?.();
+    this.disposeStateListener?.();
     this.disposeSelectionListener = tableModel.onDidChangeSelection(() => {
       this.syncSelectionState();
     });
     this.disposeRowsVersionListener = tableModel.subscribeRowsVersion(() => {
       this.syncRows();
+    });
+    this.disposeStateListener = tableModel.onDidChangeState(() => {
+      this.props = {
+        ...this.props,
+        tableState: tableModel.getState(),
+      };
+      this.renderedInputKey = getTableViewInputKey(this.props);
+      this.render();
     });
   }
 

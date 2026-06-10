@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import { localize } from "src/cs/nls";
 import {
   renderCalculatedParametersRows,
@@ -6,7 +10,7 @@ import {
 import {
   formatMetricValue,
   getSsMetricText,
-} from "src/cs/workbench/contrib/parameters/browser/parametersModel";
+} from "src/cs/workbench/services/parameters/common/parameterModel";
 
 export type ParametersViewOptions = RenderCalculatedParametersRowsOptions & {
   gmMetricHeader: string;

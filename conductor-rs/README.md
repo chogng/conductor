@@ -14,9 +14,9 @@ Rust worker 有两种运行方式：
 - 一次性 Excel 转换：`rs-worker.exe --convert-one <xls/xlsx> --out <csv> --manifest <json>`
 - 常驻 stdio 引擎：`rs-worker.exe --stdio-worker`
 
-桌面端通过 `src/cs/code/electron-main/app.ts` 和 `src/cs/code/electron-main/analysisRustMain.ts` 注册 IPC handler，再由 `desktop/preload-import.ts` 暴露给 renderer。renderer 侧统一从 `src/cs/workbench/services/analysisFile/...` 调用。
+桌面端通过 `src/cs/code/electron-main/app.ts` 和 `src/cs/code/electron-main/analysisRustMain.ts` 注册 IPC handler，再由 `desktop/preload-import.ts` 暴露给 renderer。renderer 侧按职责从 `services/files`、`services/assessment`、`services/table`、`services/template`、`services/parameters` 调用，不再通过统一的 `analysisFile` 服务入口。
 
-构建时 `scripts/build-rs-worker.ps1` 会把 Cargo target/cache 写到 `.build/cache/rs-worker-target/`，再把 release 产物复制到 `workers/rs/rs-worker.exe`。打包时 `package.json` 会把 `workers/rs` 放进应用资源。browser 侧的导入评估 WASM 使用 `.build/cache/rs-wasm-target/` 作为 Cargo target/cache，并由 `scripts/build-rs-assessment-wasm.ps1` 生成到 `src/cs/workbench/services/analysisFile/browser/assessment.wasm`。
+构建时 `scripts/build-rs-worker.ps1` 会把 Cargo target/cache 写到 `.build/cache/rs-worker-target/`，再把 release 产物复制到 `workers/rs/rs-worker.exe`。打包时 `package.json` 会把 `workers/rs` 放进应用资源。browser 侧的导入评估 WASM 使用 `.build/cache/rs-wasm-target/` 作为 Cargo target/cache，并由 `scripts/build-rs-assessment-wasm.ps1` 生成到 `src/cs/workbench/services/assessment/browser/assessment.wasm`。
 
 ## 已经由 Rust 负责的部分
 
@@ -38,8 +38,8 @@ Rust worker 有两种运行方式：
 
 前端/桌面边界：
 
-- renderer 侧入口在 `src/cs/workbench/services/analysisFile/browser/fileConversion.ts`。
-- Electron renderer 实现是 `src/cs/workbench/services/analysisFile/electron-browser/analysisFileService.ts`。
+- renderer 侧转换入口在 `src/cs/workbench/services/files/browser/fileConverter.ts`，Explorer 导入编排在 `src/cs/workbench/contrib/files/browser/explorerImportPipeline.ts`。
+- Electron renderer 实现是 `src/cs/workbench/services/files/electron-browser/fileConverterBackendService.ts`。
 - Electron main handler 在 `src/cs/code/electron-main/app.ts`。
 - 如果请求 `returnCsvText=false`，桌面端会保留转换后的 CSV 临时路径，后续可通过 `readConvertedCsv` 读取。
 
@@ -84,9 +84,9 @@ Rust worker 有两种运行方式：
 
 renderer 使用：
 
-- `src/cs/workbench/services/analysisFile/browser/fileFilter.ts`：导入门禁。
-- `src/cs/workbench/services/analysisFile/browser/fileConversion.ts`：调用 Rust prepare。
-- `src/cs/workbench/services/analysisFile/browser/importPipeline.ts`：组装 files/session 消费的数据。
+- `src/cs/workbench/services/files/browser/pendingImportFiles.ts`：导入门禁。
+- `src/cs/workbench/services/files/browser/fileConverter.ts`：调用 Rust prepare 并生成 raw table import payload。
+- `src/cs/workbench/contrib/files/browser/explorerImportPipeline.ts`：组装 Explorer/files workflow 消费的数据。
 
 ### 4. 大表预览和按需读单元格
 
@@ -112,7 +112,6 @@ renderer 使用：
 
 - stdio command：`inferAutoExtraction`
 - 内部 command：`inferAutoWorkerConfig`
-- Electron IPC：`rust:infer-auto-extraction`
 
 职责：
 
@@ -245,9 +244,9 @@ renderer 使用：
 
 - 自动提取、曲线分类、处理、分析、导出仍有 TS 版本作为兼容基准和 fallback。
 - 相关 TS 测试仍是迁移时的行为锚点，例如：
-  - `src/cs/workbench/services/analysisFile/test/importFileAssessment.test.ts`
-  - `src/cs/workbench/services/analysisFile/test/fileAssessment.test.ts`
-  - `src/cs/workbench/contrib/table/browser/rows/rustCells.test.ts`
+  - `src/cs/workbench/services/assessment/test/browser/importFileAssessment.test.ts`
+  - `src/cs/workbench/services/assessment/test/common/fileAssessment.test.ts`
+  - `src/cs/workbench/services/table/test/browser/tableService.test.ts`
   - `src/cs/workbench/contrib/diagnostics/common/analysisMath.test.ts`
   - `src/cs/workbench/contrib/export/browser/export.test.ts`
 

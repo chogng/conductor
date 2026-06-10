@@ -2,10 +2,10 @@ import {
   createNLSConfiguration,
   setNLSConfiguration,
 } from "src/cs/nls";
-import { createHelpContent, type HelpContent } from "src/cs/workbench/contrib/help/browser/helpContent";
-import type { HelpWindowKind } from "src/cs/workbench/contrib/help/common/helpWindow";
+import { createHelpContent, type HelpContent } from "src/cs/workbench/services/help/browser/helpContent";
+import type { HelpWindowKind } from "src/cs/workbench/services/help/common/helpWindow";
 
-import "src/cs/workbench/contrib/help/browser/media/helpWindow.css";
+import "src/cs/workbench/services/help/browser/media/helpWindow.css";
 import "src/cs/workbench/contrib/help/test/browser/helpWindow.fixture.css";
 
 const kinds: readonly HelpWindowKind[] = ["changelog", "guide"];

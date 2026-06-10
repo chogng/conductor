@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import { Disposable } from "src/cs/base/common/lifecycle";
 import {
   registerWorkbenchContribution2,
@@ -5,10 +9,10 @@ import {
   type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
 import {
-  IAnalysisFileService,
   AnalysisFileLifecycleContributionId,
-  type IAnalysisFileService as IAnalysisFileServiceType,
-} from "src/cs/workbench/services/analysisFile/common/analysisFile";
+  IAnalysisResourceDisposalService,
+  type IAnalysisResourceDisposalService as IAnalysisResourceDisposalServiceType,
+} from "src/cs/workbench/services/analysisFile/common/analysisResourceDisposal";
 import {
   ILifecycleService,
   WillShutdownJoinerOrder,
@@ -18,18 +22,19 @@ import { localize } from "src/cs/nls";
 
 export class AnalysisFileLifecycleContribution extends Disposable implements IWorkbenchContribution {
   public constructor(
-    @IAnalysisFileService private readonly analysisFileService: IAnalysisFileServiceType,
+    @IAnalysisResourceDisposalService private readonly analysisResourceDisposalService:
+      IAnalysisResourceDisposalServiceType,
     @ILifecycleService lifecycleService: ILifecycleServiceType,
   ) {
     super();
 
     this._register(lifecycleService.onWillShutdown(event => {
-      if (!this.analysisFileService.canDisposeFile()) {
+      if (!this.analysisResourceDisposalService.canDisposeAnalysisResources()) {
         return;
       }
 
       event.join(
-        () => this.analysisFileService.disposeFile({ clear: true }).then(() => undefined),
+        () => this.analysisResourceDisposalService.disposeAnalysisResources({ clear: true }),
         {
           id: "analysisFile.clearRustPreviewFiles",
           label: localize("analysisFile.clearRustPreviewFiles", "Clear Rust preview files"),

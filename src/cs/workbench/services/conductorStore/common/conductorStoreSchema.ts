@@ -206,7 +206,6 @@ function normalizeOriginExePath(inputPath: unknown): string | null {
 }
 export const TEMPLATE_FILENAME = "template.json";
 export const SETTINGS_FILENAME = "config.json";
-export const STORE_CONFIG_FILENAME = "store-path.json";
 const SS_METHODS = new Set(["auto", "manual"]);
 const ORIGIN_EXPORT_MODES = new Set([
   "merged",

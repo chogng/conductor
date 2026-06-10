@@ -1,12 +1,16 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import assert from "assert";
 
 import { URI } from "../../../../../base/common/uri.ts";
 import {
   buildFileSourceIdentityKey,
   type FileEntry,
-} from "../../../../../workbench/contrib/files/common/files.ts";
-import type { FolderImportFileSource } from "../../../../../workbench/contrib/files/browser/fileImportExport.ts";
-import { resolveWorkspaceExternalChanges } from "../../browser/externalChanges.ts";
+} from "../../../../../workbench/services/files/common/files.ts";
+import type { FolderImportFileSource } from "../../../../../workbench/services/files/common/folderImport.ts";
+import { resolveWorkspaceExternalChanges } from "../../../../../workbench/services/workspaces/common/externalChanges.ts";
 
 suite("workbench/contrib/workspaces/test/browser/externalChanges", () => {
   test("detects external additions, modifications, and deletions", () => {

@@ -9,7 +9,7 @@ import {
 } from "src/cs/base/browser/ui/tab/tab";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
-import { isPlotType, PlotTypes, type PlotType } from "src/cs/workbench/contrib/plot/common/plot";
+import { isPlotType, PlotTypes, type PlotType } from "src/cs/workbench/services/plot/common/plot";
 
 type ChartPlotTabOption = TabOptionBase & {
   readonly label: string;

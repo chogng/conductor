@@ -1,21 +1,14 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 // Draws plot axes and resolves axis labels for the main chart canvas.
 
-import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
-import type { PlotMainLayout } from "src/cs/workbench/contrib/plot/common/plotMainLayout";
+import { formatNumber } from "src/cs/workbench/services/calculation/common/numberFormat";
+import type { PlotMainLayout } from "src/cs/workbench/services/plot/common/plotMainLayout";
 import type { PlotMainChartProps } from "src/cs/workbench/contrib/plot/browser/plotMainChart";
 
 const DEFAULT_TICK_LABEL_FONT_SIZE = 11;
-
-export const resolveLabelWithUnit = (
-  label: unknown,
-  unit: unknown,
-  fallback: string,
-): string => {
-  const text = String(label ?? "").trim() || fallback;
-  const unitText = String(unit ?? "").trim();
-  if (!unitText || text.includes("(")) return text;
-  return `${text} (${unitText})`;
-};
 
 export const drawPlotAxis = (
   context: CanvasRenderingContext2D,

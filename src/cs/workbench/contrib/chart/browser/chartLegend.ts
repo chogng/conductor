@@ -1,36 +1,32 @@
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
-import type { AnalysisPanelProps } from "src/cs/workbench/contrib/chart/browser/analysisPanel";
-import { getCalculatedData, type CalculatedSeries } from "src/cs/workbench/contrib/calculation/common/calculatedData";
-import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
-import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
+import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
+import type { PlotMainSeries } from "src/cs/workbench/services/plot/common/plotModel";
+import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
+import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
 
 const DEFAULT_LEGEND_FONT_SIZE = 12;
 
 export type LegendContext = {
   readonly fileId: string;
   readonly plotType: PlotType;
-  readonly seriesList: CalculatedSeries[];
+  readonly seriesList: readonly PlotMainSeries[];
 };
 
 export const getLegendContext = (
-  props: AnalysisPanelProps,
+  props: ChartViewInput,
   plotType: PlotType,
 ): LegendContext | null => {
-  const calculatedData = getCalculatedData(
-    props.calculatedPlotsByKey,
-    plotType,
-    props.activeFileId,
-  );
-  if (!calculatedData?.seriesList.length) {
+  const model = props.plotLegendModel?.plotType === plotType ? props.plotLegendModel : null;
+  if (!model?.seriesList.length) {
     return null;
   }
 
   return {
-    fileId: String(calculatedData.source.fileId ?? ""),
+    fileId: model.fileId,
     plotType,
-    seriesList: calculatedData.seriesList,
+    seriesList: model.seriesList,
   };
 };
 
@@ -114,7 +110,7 @@ const renderLegend = (
 };
 
 export const createLegendPopover = (
-  props: AnalysisPanelProps,
+  props: ChartViewInput,
   context: LegendContext,
   options: {
     readonly hiddenLegendKeys?: readonly string[];

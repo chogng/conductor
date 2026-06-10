@@ -1,6 +1,7 @@
 import assert from "assert";
 
-import type { TemplateConfig } from "../../common/templateManagerUtils.ts";
+import { toColumnLabel } from "src/cs/workbench/services/template/common/templateCellRef";
+import type { TemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import {
   areTableCellsEqual,
   areColumnIndexesEqual,
@@ -8,7 +9,6 @@ import {
   resolveTemplateCellSelection,
   resolveTemplateCellSelectionUpdate,
   resolveTemplateColumnSelectionUpdate,
-  toColumnLabel,
 } from "../../browser/templateSelection.ts";
 
 suite("workbench/contrib/template/test/browser/templateSelection", () => {

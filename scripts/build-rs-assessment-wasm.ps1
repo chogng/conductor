@@ -49,6 +49,6 @@ if (-not (Test-Path -LiteralPath $sourceWasm)) {
   throw "Built assessment WASM not found: $sourceWasm"
 }
 
-$targetWasm = Join-Path $ProjectRoot "src\cs\workbench\services\analysisFile\browser\assessment.wasm"
+$targetWasm = Join-Path $ProjectRoot "src\cs\workbench\services\assessment\browser\assessment.wasm"
 Copy-Item -LiteralPath $sourceWasm -Destination $targetWasm -Force
 Write-Host "[build-rs-assessment-wasm] Copied assessment WASM to $targetWasm"

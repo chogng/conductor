@@ -6,15 +6,11 @@ const REQUIRED_STORE_METHODS = [
   "deleteTemplate",
   "getConductorSettings",
   "updateConductorSettings",
-  "getPersistencePath",
-  "updatePersistencePath",
-  "choosePersistencePath",
 ] as const;
 
 type StoreMethod = (typeof REQUIRED_STORE_METHODS)[number];
 
 type JsonRecord = Record<string, unknown>;
-type PersistencePathInfo = JsonRecord & { isConfigurable?: boolean };
 export type ConductorStoreBridge = {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
 };
@@ -78,21 +74,10 @@ function resolveStoreChannel(
       return { name: workbenchIpcChannels.settingsGet };
     case "updateConductorSettings":
       return { name: workbenchIpcChannels.settingsPatch };
-    case "getPersistencePath":
-      return { name: workbenchIpcChannels.persistencePathGet };
-    case "updatePersistencePath":
-      return { name: workbenchIpcChannels.persistencePathSet, wrapPath: true };
-    case "choosePersistencePath":
-      return { name: workbenchIpcChannels.persistencePathChoose };
   }
 
   throw new Error(`${CONDUCTOR_STORE_UNAVAILABLE} (${method})`);
 }
-
-const normalizePersistencePathInfo = (info: unknown): PersistencePathInfo => ({
-  ...(info || {}),
-  isConfigurable: true,
-});
 
 export const requestConductorStore = async (
   endpoint: string,
@@ -111,10 +96,6 @@ export const requestConductorStore = async (
 
     if (isStoreEndpoint("settings") && method === "GET") {
       return {};
-    }
-
-    if (isStoreEndpoint("persistence-path") && method === "GET") {
-      return { isConfigurable: false };
     }
 
     throw new Error(CONDUCTOR_STORE_UNAVAILABLE);
@@ -158,35 +139,6 @@ export const requestConductorStore = async (
     )(
       parseJsonBody(options.body) || {},
     );
-  }
-
-  if (isStoreEndpoint("persistence-path") && method === "GET") {
-    const info = await getConductorStoreMethod(
-      store,
-      "getPersistencePath",
-    )();
-    return normalizePersistencePathInfo(info);
-  }
-
-  if (isStoreEndpoint("persistence-path") && method === "PATCH") {
-    const payload = parseJsonBody(options.body) || {};
-    const path = typeof payload.path === "string" ? payload.path : "";
-    const info = await getConductorStoreMethod(
-      store,
-      "updatePersistencePath",
-    )(path);
-    return normalizePersistencePathInfo(info);
-  }
-
-  if (
-    endpoint === "/persistence-path/choose" &&
-    method === "POST"
-  ) {
-    const info = await getConductorStoreMethod(
-      store,
-      "choosePersistencePath",
-    )();
-    return normalizePersistencePathInfo(info);
   }
 
   throw new Error(`Desktop store endpoint not implemented: ${method} ${endpoint}`);

@@ -1,12 +1,16 @@
-﻿import type {
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import type {
   CalculatedData,
   CalculatedPlotsByKey,
   CalculatedSeries,
-} from "src/cs/workbench/contrib/calculation/common/calculatedData";
+} from "src/cs/workbench/services/calculation/common/calculatedData";
 import {
   createParameterRows,
   type CalculatedParameterRowData,
-} from "src/cs/workbench/contrib/calculation/common/calculatedParameters";
+} from "src/cs/workbench/services/calculation/common/calculatedParameters";
 import type {
   CurveData,
   CurveKey as LegacyCurveKey,
@@ -17,19 +21,16 @@ import type {
   SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import type {
+  CommitCurvesInput,
+  CommitMetricsInput,
+  CommitTemplateRunInput,
   SessionSnapshot,
-  TemplateFormState,
 } from "src/cs/workbench/services/session/common/session";
 import {
-  getTemplateFormStateFromViewState,
-  getSelectedTemplateIdFromViewState,
-  getTemplateSelectionsFromViewState,
-} from "src/cs/workbench/services/session/common/sessionModel";
-import {
-  createTemplateSelection,
-} from "src/cs/workbench/contrib/template/common/templateSelection";
+  createEmptyTemplateConfig,
+  type TemplateConfig,
+} from "src/cs/workbench/services/template/common/templateConfigUtils";
 import type {
-  AxisRecord,
   BaseCurveFamily,
   CacheKey,
   CalculationCacheEntry,
@@ -50,12 +51,20 @@ import type {
   SeriesRecord,
   SeriesId,
   TemplateConfigRecord,
+  TemplateRunId,
+  TemplateRunRecord,
+  TemplateSelectionRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
+import { getLatestTemplateRunRecord } from "src/cs/workbench/services/session/common/sessionModel";
+import {
+  getFileRecordCurveType,
+} from "src/cs/workbench/services/session/common/sessionRecordProjection";
 
 const CALCULATION_CACHE_PAYLOAD_VERSION = 2;
 
 type MergeProcessedFileOptions = {
   readonly appliedTemplateConfig?: unknown;
+  readonly appliedTemplateSelection?: TemplateSelectionRecord;
 };
 
 type ProcessedCalculationCachePayload = {
@@ -64,17 +73,24 @@ type ProcessedCalculationCachePayload = {
   touchedAt?: number;
 };
 
+export type ProcessedFileSessionCommit = {
+  readonly templateRun: CommitTemplateRunInput;
+  readonly curves: CommitCurvesInput;
+  readonly metrics: CommitMetricsInput;
+};
+
 const createEmptyFileRecord = (fileId: string, fileName: string): FileRecord => {
   const raw = createRawRecord(fileId, fileName);
   return {
     id: fileId,
+    kind: inferFileKindFromFileName(fileName),
+    name: fileName,
     raw,
-    assessment: {
-      baseFamily: null,
-    },
-    baseCandidatesById: {},
-    baseCandidateOrder: [],
-    xGroups: [],
+    rawTableVersionsById: createRawTableVersions(raw.tableOrder),
+    assessmentsByRawTableId: {},
+    measurementBlocksById: {},
+    measurementBlockOrder: [],
+    templateRunsById: {},
     seriesById: {},
     seriesOrder: [],
     curvesByKey: {},
@@ -109,6 +125,8 @@ const mergeSourceFileRecord = (
   const fileId = readRecordString(sourceFile, "fileId") ?? record.id;
   const fileName = readRecordString(sourceFile, "fileName") ?? record.raw.fileName;
   const sheetId = resolveSourceSheetId(sourceFile, fileId);
+  const nextNormalizedCsvPath = readRecordString(sourceFile, "normalizedCsvPath") ??
+    record.raw.normalizedCsvPath;
   const tableRecord = {
     fileId,
     sheetId,
@@ -134,9 +152,32 @@ const mergeSourceFileRecord = (
   const tableOrder = tableOrderBase.includes(sheetId)
     ? tableOrderBase
     : [...tableOrderBase, sheetId];
+  const changedRawTableIds = new Set<string>();
+  const previousTable = record.raw.tablesById[sheetId];
+  if (
+    !areTableRecordsEqual(previousTable, tableRecord) ||
+    record.raw.normalizedCsvPath !== nextNormalizedCsvPath
+  ) {
+    changedRawTableIds.add(sheetId);
+  }
+  if (shouldDropDefaultTable) {
+    changedRawTableIds.add(fileId);
+  }
+  const rawTableVersionsById = createRawTableVersions(
+    tableOrder,
+    record.rawTableVersionsById,
+    changedRawTableIds,
+  );
+  const retainedAssessmentRecords = retainRawTableAssessmentRecords(
+    record,
+    new Set(tableOrder),
+    changedRawTableIds,
+  );
 
   return {
     ...record,
+    kind: inferFileKindFromFileName(fileName),
+    name: fileName,
     raw: {
       ...record.raw,
       fileId,
@@ -149,12 +190,12 @@ const mergeSourceFileRecord = (
       relativePath: readRecordString(sourceFile, "relativePath") ??
         record.raw.relativePath,
       filePath: readRecordString(sourceFile, "sourcePath") ?? record.raw.filePath,
-      normalizedCsvPath: readRecordString(sourceFile, "normalizedCsvPath") ??
-        record.raw.normalizedCsvPath,
+      normalizedCsvPath: nextNormalizedCsvPath,
       tablesById,
       tableOrder,
     },
-    assessment: createAssessmentFromRecord(sourceFile, record.assessment),
+    rawTableVersionsById,
+    ...retainedAssessmentRecords,
   };
 };
 
@@ -170,6 +211,91 @@ const isEmptyDefaultTable = (
   table.rowCount === 0 &&
   table.columnCount === 0 &&
   table.maxCellLengths.length === 0;
+
+const createRawTableVersions = (
+  rawTableOrder: readonly string[],
+  previousVersions: Readonly<Record<string, number>> = {},
+  changedRawTableIds: ReadonlySet<string> = new Set<string>(),
+): Record<string, number> => {
+  const versions: Record<string, number> = {};
+  for (const rawTableId of rawTableOrder) {
+    const previousVersion = Math.max(0, Math.floor(previousVersions[rawTableId] ?? 0));
+    versions[rawTableId] = changedRawTableIds.has(rawTableId)
+      ? previousVersion + 1
+      : previousVersion;
+  }
+
+  return versions;
+};
+
+const areTableRecordsEqual = (
+  current: RawRecord["tablesById"][string] | undefined,
+  next: RawRecord["tablesById"][string],
+): boolean =>
+  current !== undefined &&
+  current.fileId === next.fileId &&
+  current.sheetId === next.sheetId &&
+  current.sheetName === next.sheetName &&
+  current.tableKey === next.tableKey &&
+  current.rowCount === next.rowCount &&
+  current.columnCount === next.columnCount &&
+  areNumberArraysEqual(current.maxCellLengths, next.maxCellLengths);
+
+const retainRawTableAssessmentRecords = (
+  record: FileRecord,
+  liveRawTableIds: ReadonlySet<string>,
+  changedRawTableIds: ReadonlySet<string>,
+): Pick<FileRecord, "assessmentsByRawTableId" | "measurementBlocksById" | "measurementBlockOrder"> => {
+  const assessmentsByRawTableId = filterRecord(
+    record.assessmentsByRawTableId ?? {},
+    rawTableId => liveRawTableIds.has(rawTableId) && !changedRawTableIds.has(rawTableId),
+  );
+  const measurementBlocksById = filterRecord(
+    record.measurementBlocksById ?? {},
+    (_blockId, block) =>
+      liveRawTableIds.has(block.rawTableId) &&
+      !changedRawTableIds.has(block.rawTableId),
+  );
+
+  return {
+    assessmentsByRawTableId,
+    measurementBlocksById,
+    measurementBlockOrder: (record.measurementBlockOrder ?? []).filter(blockId =>
+      Boolean(measurementBlocksById[blockId])
+    ),
+  };
+};
+
+const areNumberArraysEqual = (
+  current: readonly number[],
+  next: readonly number[],
+): boolean => {
+  if (current.length !== next.length) {
+    return false;
+  }
+
+  for (let index = 0; index < current.length; index += 1) {
+    if (current[index] !== next[index]) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+const filterRecord = <T>(
+  record: Readonly<Record<string, T>>,
+  predicate: (key: string, value: T) => boolean,
+): Record<string, T> => {
+  const next: Record<string, T> = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (predicate(key, value)) {
+      next[key] = value;
+    }
+  }
+
+  return next;
+};
 
 export const mergeRawFilesIntoRecords = (
   filesById: Readonly<Record<FileId, FileRecord>>,
@@ -225,7 +351,7 @@ export const createRawFilesFromRecords = (
 ): SessionFile[] => {
   const rawFiles: SessionFile[] = [];
   for (const file of getOrderedFileRecords(filesById, fileOrder)) {
-    const baseFile = {
+    const baseFile: SessionFile = {
       file: file.raw.file,
       fileId: file.id,
       fileName: file.raw.fileName,
@@ -233,9 +359,7 @@ export const createRawFilesFromRecords = (
       rawKey: file.raw.rawKey,
       relativePath: file.raw.relativePath ?? null,
       sourcePath: file.raw.filePath ?? null,
-      curveType: file.assessment.baseFamily,
-      curveTypeConfidence: file.assessment.baseFamilyConfidence,
-      curveTypeReasons: file.assessment.baseFamilyReasons,
+      curveType: getFileRecordCurveType(file) ?? null,
     };
     const pushedTableIds = new Set<string>();
     const pushTable = (tableId: string): void => {
@@ -251,6 +375,7 @@ export const createRawFilesFromRecords = (
 
       rawFiles.push({
         ...baseFile,
+        ...createRawFileAssessmentSummary(file, tableId),
         sheetId: table.sheetId,
         sheetName: table.sheetName ?? null,
         sourceKey: table.tableKey,
@@ -267,18 +392,112 @@ export const createRawFilesFromRecords = (
       pushTable(tableId);
     }
     if (!pushedTableIds.size) {
-      rawFiles.push(baseFile);
+      rawFiles.push({
+        ...baseFile,
+        ...createRawFileAssessmentSummary(file),
+      });
     }
   }
 
   return rawFiles;
 };
 
+type RawFileAssessmentSummary = Pick<
+  SessionFile,
+  | "curveType"
+  | "curveTypeConfidence"
+  | "curveTypeNeedsTemplate"
+  | "curveTypeReasons"
+  | "xAxisRole"
+  | "xAxisRoleSource"
+>;
+
+const createRawFileAssessmentSummary = (
+  file: FileRecord,
+  rawTableId?: string,
+): RawFileAssessmentSummary => {
+  const rawAssessment = rawTableId
+    ? file.assessmentsByRawTableId?.[rawTableId]
+    : undefined;
+  const block = rawAssessment?.blocks.find((candidate) => candidate.family !== "unknown") ??
+    rawAssessment?.blocks[0] ??
+    (rawTableId
+      ? undefined
+      : file.measurementBlockOrder
+          .map((blockId) => file.measurementBlocksById[blockId])
+          .find(Boolean));
+  const xAxisRole = createXAxisRoleFromMeasurementBlock(block);
+  const curveType = createCurveTypeFromMeasurementBlock(block, xAxisRole) ??
+    getFileRecordCurveType(file);
+  const reasons = rawAssessment?.diagnostics
+    ?.map((diagnostic) => normalizeOptionalText(diagnostic.message))
+    .filter((message): message is string => Boolean(message));
+
+  return {
+    curveType: curveType ?? null,
+    curveTypeConfidence: normalizeBlockConfidence(block?.confidence),
+    curveTypeNeedsTemplate: block ? block.family === "unknown" : undefined,
+    curveTypeReasons: reasons?.length ? reasons : undefined,
+    xAxisRole,
+    xAxisRoleSource: xAxisRole ? "metadata" : null,
+  };
+};
+
+const createCurveTypeFromMeasurementBlock = (
+  block: FileRecord["measurementBlocksById"][string] | undefined,
+  xAxisRole: SessionFile["xAxisRole"],
+): string | null => {
+  if (!block || block.family === "unknown") {
+    return null;
+  }
+  if (block.family === "iv") {
+    if (block.ivMode === "transfer") {
+      return xAxisRole === "vg" ? "transfer (vg)" : "transfer";
+    }
+    if (block.ivMode === "output") {
+      return xAxisRole === "vd" ? "output (vd)" : "output";
+    }
+    return "iv";
+  }
+  return block.family;
+};
+
+const createXAxisRoleFromMeasurementBlock = (
+  block: FileRecord["measurementBlocksById"][string] | undefined,
+): SessionFile["xAxisRole"] => {
+  if (!block || block.family !== "iv") {
+    return null;
+  }
+  if (block.ivMode === "transfer") {
+    return "vg";
+  }
+  if (block.ivMode === "output") {
+    return "vd";
+  }
+  return null;
+};
+
+const normalizeBlockConfidence = (
+  value: number | undefined,
+): SessionFile["curveTypeConfidence"] | undefined => {
+  if (!Number.isFinite(value)) {
+    return undefined;
+  }
+  const confidence = Number(value);
+  if (confidence >= 0.8) {
+    return "high";
+  }
+  if (confidence >= 0.5) {
+    return "medium";
+  }
+  return "low";
+};
+
 export const mergeProcessedFileIntoRecords = (
   filesById: Readonly<Record<FileId, FileRecord>>,
   fileOrder: readonly FileId[],
   file: ProcessedEntry,
-  snapshot: SessionSnapshot,
+  _snapshot: SessionSnapshot,
   options: MergeProcessedFileOptions = {},
 ): Pick<SessionSnapshot, "filesById" | "fileOrder"> => {
   const fileId = readRecordString(file, "fileId");
@@ -297,7 +516,6 @@ export const mergeProcessedFileIntoRecords = (
   let record = mergeProcessedFileRecord(
     stripProcessedFileRecord(current),
     file,
-    snapshot,
     options,
   );
   const cachePayload = getProcessedCalculationCachePayload(file);
@@ -314,17 +532,90 @@ export const mergeProcessedFileIntoRecords = (
   };
 };
 
-export const resetProcessedRecords = (
-  filesById: Readonly<Record<FileId, FileRecord>>,
-  fileOrder: readonly FileId[],
-): Pick<SessionSnapshot, "filesById" | "fileOrder"> => {
-  const nextFilesById: Record<FileId, FileRecord> = {};
-  for (const [fileId, file] of Object.entries(filesById)) {
-    nextFilesById[fileId] = stripProcessedFileRecord(file);
+export const createProcessedFileSessionCommit = (
+  snapshot: SessionSnapshot,
+  file: ProcessedEntry | null | undefined,
+  options: MergeProcessedFileOptions = {},
+): ProcessedFileSessionCommit | null => {
+  if (!file || typeof file !== "object") {
+    return null;
+  }
+
+  const fileId = readRecordString(file, "fileId");
+  if (!fileId) {
+    return null;
+  }
+
+  const current = snapshot.filesById[fileId] ??
+    createEmptyFileRecord(
+      fileId,
+      readRecordString(file, "fileName") ?? fileId,
+    );
+  let record = mergeProcessedFileRecord(
+    stripProcessedFileRecord(current),
+    file,
+    options,
+  );
+  const cachePayload = getProcessedCalculationCachePayload(file);
+  if (cachePayload) {
+    record = mergeCalculationCacheRecord(record, cachePayload);
+  }
+
+  const templateRun = getLatestTemplateRunRecord(record);
+  if (!templateRun) {
+    return null;
   }
 
   return {
-    filesById: nextFilesById,
+    templateRun: {
+      run: templateRun,
+      calculationCache: record.calculationCache,
+      fileName: record.raw.fileName,
+      seriesById: record.seriesById,
+      seriesOrder: record.seriesOrder,
+    },
+    curves: {
+      fileId,
+      curves: Object.values(record.curvesByKey).filter((curve) =>
+        curve.curveGeneration === "base"
+      ),
+      replaceGenerations: ["base"],
+    },
+    metrics: {
+      fileId,
+      metrics: Object.values(record.metricsByKey),
+      replace: true,
+    },
+  };
+};
+
+export const resetProcessedRecords = (
+  filesById: Readonly<Record<FileId, FileRecord>>,
+  fileOrder: readonly FileId[],
+  fileIds?: readonly FileId[],
+): Pick<SessionSnapshot, "filesById" | "fileOrder"> => {
+  const targetFileIds = fileIds
+    ? new Set(fileIds.map(normalizeId).filter(Boolean))
+    : null;
+  const nextFilesById: Record<FileId, FileRecord> = {};
+  let changed = false;
+  for (const [fileId, file] of Object.entries(filesById)) {
+    if (targetFileIds && !targetFileIds.has(fileId)) {
+      nextFilesById[fileId] = file;
+      continue;
+    }
+
+    if (hasProcessedFileRecord(file)) {
+      nextFilesById[fileId] = stripProcessedFileRecord(file);
+      changed = true;
+      continue;
+    }
+
+    nextFilesById[fileId] = file;
+  }
+
+  return {
+    filesById: changed ? nextFilesById : filesById as Record<FileId, FileRecord>,
     fileOrder: [...fileOrder],
   };
 };
@@ -353,12 +644,7 @@ export const replaceCalculatedCurvesInRecords = (
 
     let record = nextFilesById[fileId] ??
       createEmptyFileRecord(fileId, calculatedData.activeFile?.fileName ?? fileId);
-    for (const series of calculatedData.seriesList) {
-      const curve = createCurveRecordFromCalculatedSeries(calculatedData, series, fileId);
-      if (!curve || curve.curveGeneration === "base") {
-        continue;
-      }
-
+    for (const curve of createCalculatedCurveRecords(calculatedData, fileId)) {
       record = {
         ...record,
         curvesByKey: {
@@ -375,6 +661,45 @@ export const replaceCalculatedCurvesInRecords = (
     filesById: nextFilesById,
     fileOrder: nextFileOrder.filter((fileId) => nextFilesById[fileId]),
   };
+};
+
+export const createCalculatedCurveRecordsByFile = (
+  plotsByKey: CalculatedPlotsByKey,
+): Record<FileId, CurveRecord[]> => {
+  const recordsByFileId: Record<FileId, CurveRecord[]> = {};
+  for (const calculatedData of Object.values(plotsByKey)) {
+    const fileId = normalizeId(calculatedData.source.fileId ?? calculatedData.activeFile?.fileId);
+    if (!fileId) {
+      continue;
+    }
+
+    const records = createCalculatedCurveRecords(calculatedData, fileId);
+    if (records.length) {
+      recordsByFileId[fileId] = [
+        ...(recordsByFileId[fileId] ?? []),
+        ...records,
+      ];
+    }
+  }
+
+  return recordsByFileId;
+};
+
+const createCalculatedCurveRecords = (
+  calculatedData: CalculatedData,
+  fileId: FileId,
+): CurveRecord[] => {
+  const curves: CurveRecord[] = [];
+  for (const series of calculatedData.seriesList) {
+    const curve = createCurveRecordFromCalculatedSeries(calculatedData, series, fileId);
+    if (!curve || curve.curveGeneration === "base") {
+      continue;
+    }
+
+    curves.push(curve);
+  }
+
+  return curves;
 };
 
 export const mergeFileSemanticsIntoRecords = (
@@ -565,12 +890,10 @@ const appendCalculatedFileOrder = (
 
 const stripProcessedFileRecord = (file: FileRecord): FileRecord => ({
   ...file,
-  templateRun: undefined,
-  axis: undefined,
-  xGroups: [],
+  templateRunsById: {},
+  latestTemplateRunId: undefined,
   seriesById: {},
   seriesOrder: [],
-  domain: undefined,
   curvesByKey: filterCurveRecords(file.curvesByKey, (_key, curve) =>
     curve.curveGeneration !== "base"
   ),
@@ -579,6 +902,17 @@ const stripProcessedFileRecord = (file: FileRecord): FileRecord => ({
   metricInputsByKey: undefined,
   calculationCache: undefined,
 });
+
+const hasProcessedFileRecord = (file: FileRecord): boolean =>
+  Object.keys(file.templateRunsById).length > 0 ||
+  file.latestTemplateRunId !== undefined ||
+  Object.keys(file.seriesById).length > 0 ||
+  file.seriesOrder.length > 0 ||
+  Object.values(file.curvesByKey).some(curve => curve.curveGeneration === "base") ||
+  Object.keys(file.metricsByKey).length > 0 ||
+  file.metricsBySeriesId !== undefined ||
+  file.metricInputsByKey !== undefined ||
+  file.calculationCache !== undefined;
 
 const filterCurveRecords = (
   curvesByKey: Readonly<Record<SessionCurveKey, CurveRecord>>,
@@ -721,12 +1055,15 @@ const getProcessedCalculationCachePayload = (
 const mergeProcessedFileRecord = (
   record: FileRecord,
   processedFile: ProcessedEntry,
-  snapshot: SessionSnapshot,
   options: MergeProcessedFileOptions = {},
 ): FileRecord => {
   const fileId = readRecordString(processedFile, "fileId") ?? record.id;
-  const axis = createAxisRecordFromProcessedFile(processedFile, snapshot);
-  const assessment = createAssessmentFromRecord(processedFile, record.assessment);
+  const emptyTemplateConfig = createEmptyTemplateConfig();
+  const templateConfig = createTemplateConfigRecordFromAppliedConfig(
+    options.appliedTemplateConfig,
+    emptyTemplateConfig,
+    processedFile,
+  );
   const xGroups = readNumberMatrix(processedFile.xGroups);
   const seriesById: Record<string, SeriesRecord> = {};
   const seriesOrder: string[] = [];
@@ -734,14 +1071,14 @@ const mergeProcessedFileRecord = (
   const metricsByKey: Record<MetricKey, MetricRecord> = {};
   const metricsBySeriesId: Record<SeriesId, MetricKey[]> = {};
   const curveType = readRecordString(processedFile, "curveType");
-  const family = inferBaseCurveFamily(curveType) ?? assessment.baseFamily;
   const ivMode = inferIvCurveMode(
     curveType ??
       readRecordString(processedFile, "curveFilterKey") ??
       readRecordString(processedFile, "curveFilterField"),
-    readRecordString(processedFile, "xAxisRole") ?? axis.x.role,
+    readRecordString(processedFile, "xAxisRole"),
   );
   const itMode = inferItCurveMode(curveType);
+  const family = inferBaseCurveFamily(curveType) ?? (ivMode ? "iv" : itMode ? "it" : null);
 
   for (const [index, sourceSeries] of (processedFile.series ?? []).entries()) {
     const seriesId = readRecordString(sourceSeries, "id") ?? `series-${index + 1}`;
@@ -808,38 +1145,44 @@ const mergeProcessedFileRecord = (
     metricsBySeriesId[seriesId] = keys;
   }
 
-  const templateFormState = getTemplateFormStateFromViewState(snapshot.viewState);
-  const templateConfig = createTemplateConfigRecordFromAppliedConfig(
-    options.appliedTemplateConfig,
-    templateFormState,
-  );
+  const latestTemplateRun = getLatestTemplateRunRecord(record);
   const templateSelection =
-    getTemplateSelectionsFromViewState(snapshot.viewState)[fileId] ??
-    createTemplateSelection(getSelectedTemplateIdFromViewState(snapshot.viewState));
+    options.appliedTemplateSelection ??
+    latestTemplateRun?.selection ??
+    { kind: "auto" as const };
+  const fileName = readRecordString(processedFile, "fileName") ?? record.raw.fileName;
+  const configFingerprint = JSON.stringify(
+    options.appliedTemplateConfig ?? emptyTemplateConfig,
+  );
+  const appliedAt = readNumber(processedFile, "appliedAt") ?? 0;
+  const templateRun = createTemplateRunRecord({
+    appliedAt,
+    config: templateConfig,
+    configFingerprint,
+    errors: readStringArray(processedFile.errors),
+    fileId,
+    mode: templateSelection.kind === "auto" ? "auto" : "manual",
+    outputCurveKeys: Object.keys(curvesByKey) as SessionCurveKey[],
+    outputSeriesIds: seriesOrder,
+    selection: templateSelection,
+    sourceBlockIds: readStringArray(processedFile.sourceBlockIds),
+    warnings: readStringArray(processedFile.warnings),
+  });
 
   return {
     ...record,
+    name: fileName,
     raw: {
       ...record.raw,
-      fileName: readRecordString(processedFile, "fileName") ?? record.raw.fileName,
+      fileName,
     },
-    assessment,
-    templateRun: {
-      selection: templateSelection,
-      config: templateConfig,
-      configFingerprint: JSON.stringify(
-        options.appliedTemplateConfig ?? templateFormState,
-      ),
-      mode: templateSelection.kind === "auto" ? "auto" : "manual",
-      appliedAt: readNumber(processedFile, "appliedAt") ?? 0,
-      warnings: readStringArray(processedFile.warnings),
-      errors: readStringArray(processedFile.errors),
+    templateRunsById: {
+      ...record.templateRunsById,
+      [templateRun.id]: templateRun,
     },
-    axis,
-    xGroups,
+    latestTemplateRunId: templateRun.id,
     seriesById,
     seriesOrder,
-    domain: createDomainFromProcessedFile(processedFile),
     curvesByKey: {
       ...record.curvesByKey,
       ...curvesByKey,
@@ -855,42 +1198,108 @@ const mergeProcessedFileRecord = (
   };
 };
 
+const createTemplateRunRecord = ({
+  appliedAt,
+  config,
+  configFingerprint,
+  errors,
+  fileId,
+  mode,
+  outputCurveKeys,
+  outputSeriesIds,
+  selection,
+  sourceBlockIds,
+  warnings,
+}: {
+  readonly appliedAt: number;
+  readonly config: TemplateConfigRecord;
+  readonly configFingerprint: string;
+  readonly errors: readonly string[];
+  readonly fileId: FileId;
+  readonly mode: TemplateRunRecord["mode"];
+  readonly outputCurveKeys: readonly SessionCurveKey[];
+  readonly outputSeriesIds: readonly SeriesId[];
+  readonly selection: TemplateSelectionRecord;
+  readonly sourceBlockIds: readonly string[];
+  readonly warnings: readonly string[];
+}): TemplateRunRecord => {
+  const id = createTemplateRunId(fileId, appliedAt, configFingerprint);
+  return {
+    id,
+    fileId,
+    selection,
+    config,
+    sourceBlockIds: [...sourceBlockIds],
+    outputSeriesIds: [...outputSeriesIds],
+    outputCurveKeys: [...outputCurveKeys],
+    configFingerprint,
+    mode,
+    appliedAt,
+    warnings: [...warnings],
+    errors: [...errors],
+  };
+};
+
+const createTemplateRunId = (
+  fileId: FileId,
+  appliedAt: number,
+  configFingerprint: string,
+): TemplateRunId =>
+  `template-run:${fileId}:${Math.max(0, Math.floor(appliedAt))}:${hashString(configFingerprint)}`;
+
+const hashString = (value: string): string => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+};
+
 const mergeFileSemanticsRecord = (
   record: FileRecord,
   semantics: FileSemantics,
 ): FileRecord => {
-  const baseFamily = inferBaseCurveFamily(semantics.kind);
+  const fileName = normalizeOptionalText(semantics.sourceFileName) ?? record.raw.fileName;
+  const latestTemplateRun = getLatestTemplateRunRecord(record);
+  const nextTemplateRun = semantics.templateId && latestTemplateRun
+    ? {
+        ...latestTemplateRun,
+        selection: {
+          kind: "template" as const,
+          templateId: semantics.templateId,
+        },
+        mode: "manual" as const,
+      }
+    : undefined;
   return {
     ...record,
+    name: fileName,
     raw: {
       ...record.raw,
-      fileName: normalizeOptionalText(semantics.sourceFileName) ?? record.raw.fileName,
+      fileName,
     },
-    assessment: {
-      ...record.assessment,
-      baseFamily: baseFamily ?? record.assessment.baseFamily,
-    },
-    templateRun: semantics.templateId && record.templateRun
+    ...(nextTemplateRun
       ? {
-          ...record.templateRun,
-          selection: {
-            kind: "template",
-            templateId: semantics.templateId,
+          templateRunsById: {
+            ...record.templateRunsById,
+            [nextTemplateRun.id]: nextTemplateRun,
           },
-          mode: "manual",
+          latestTemplateRunId: nextTemplateRun.id,
         }
-      : record.templateRun,
-    axis: {
-      x: {
-        ...record.axis?.x,
-        ...semantics.x,
-      },
-      y: {
-        ...record.axis?.y,
-        ...semantics.y,
-      },
-    },
+      : {}),
   };
+};
+
+const inferFileKindFromFileName = (fileName: unknown): FileRecord["kind"] => {
+  const normalized = String(fileName ?? "").trim().toLowerCase();
+  if (/\.(xls|xlsx)$/.test(normalized)) {
+    return "excel";
+  }
+  if (/\.csv$/.test(normalized)) {
+    return "csv";
+  }
+  return "unknown";
 };
 
 type MetricProjectionInput = {
@@ -1163,49 +1572,8 @@ const setSeriesLabelOverride = (
   },
 });
 
-const createAssessmentFromRecord = (
-  record: Record<string, unknown>,
-  fallback: FileRecord["assessment"],
-): FileRecord["assessment"] => {
-  const reasons = readStringArray(record.curveTypeReasons);
-  return {
-    baseFamily: inferBaseCurveFamily(readRecordString(record, "curveType")) ??
-      fallback.baseFamily,
-    baseFamilyConfidence: normalizeConfidence(
-      readRecordString(record, "curveTypeConfidence"),
-    ) ?? fallback.baseFamilyConfidence,
-    baseFamilyReasons: reasons.length ? reasons : fallback.baseFamilyReasons,
-  };
-};
-
-const createAxisRecordFromProcessedFile = (
-  file: ProcessedEntry,
-  snapshot: SessionSnapshot,
-): AxisRecord => {
-  const templateFormState = getTemplateFormStateFromViewState(snapshot.viewState);
-  return {
-    x: {
-      label: readRecordString(file, "xLabel") ??
-        readRecordString(file, "bottomTitle") ??
-        normalizeOptionalText(templateFormState.bottomTitle),
-      role: readRecordString(file, "xAxisRole"),
-      unit: readRecordString(file, "xUnit") ??
-        normalizeOptionalText(templateFormState.xUnit),
-    },
-    y: {
-      label: readRecordString(file, "yLabel") ??
-        readRecordString(file, "leftTitle") ??
-        normalizeOptionalText(templateFormState.leftTitle),
-      role: readRecordString(file, "yAxisRole"),
-      unit: readRecordString(file, "yUnit") ??
-        normalizeOptionalText(templateFormState.yUnit),
-      scale: "linear",
-    },
-  };
-};
-
 const createTemplateConfigRecord = (
-  config: TemplateFormState,
+  config: TemplateConfig,
 ): TemplateConfigRecord => ({
   name: normalizeOptionalText(config.name),
   xDataStart: parseNumberOr(config.xDataStart, 0),
@@ -1228,11 +1596,16 @@ const createTemplateConfigRecord = (
 
 const createTemplateConfigRecordFromAppliedConfig = (
   config: unknown,
-  fallback: TemplateFormState,
+  fallback: TemplateConfig,
+  processedFile?: ProcessedEntry,
 ): TemplateConfigRecord => {
   const fallbackRecord = createTemplateConfigRecord(fallback);
+  const processedConfig = createTemplateConfigFallbackFromProcessedFile(processedFile);
   if (!isObjectRecord(config)) {
-    return fallbackRecord;
+    return {
+      ...fallbackRecord,
+      ...processedConfig,
+    };
   }
 
   const yCols = readNumberArray(config.yCols);
@@ -1261,7 +1634,9 @@ const createTemplateConfigRecordFromAppliedConfig = (
       readConfigNumber(config, "xPointsPerGroup") ??
       readConfigNumber(config, "groupSize") ??
       fallbackRecord.xPointsPerGroup,
-    xUnit: normalizeOptionalText(config.xUnit) ?? fallbackRecord.xUnit,
+    xUnit: normalizeOptionalText(config.xUnit) ??
+      processedConfig.xUnit ??
+      fallbackRecord.xUnit,
     yLegendStart:
       readConfigNumber(config, "yLegendStart") ??
       readConfigNumber(config, "yLegendStartValue") ??
@@ -1276,18 +1651,40 @@ const createTemplateConfigRecordFromAppliedConfig = (
       config.yLegendTarget,
       fallbackRecord.yLegendTarget,
     ),
-    yUnit: normalizeOptionalText(config.yUnit) ?? fallbackRecord.yUnit,
+    yUnit: normalizeOptionalText(config.yUnit) ??
+      processedConfig.yUnit ??
+      fallbackRecord.yUnit,
     stopOnError:
       typeof config.stopOnError === "boolean"
         ? config.stopOnError
         : fallbackRecord.stopOnError,
     bottomTitle:
-      normalizeOptionalText(config.bottomTitle) ?? fallbackRecord.bottomTitle,
+      normalizeOptionalText(config.bottomTitle) ??
+      processedConfig.bottomTitle ??
+      fallbackRecord.bottomTitle,
     leftTitle:
-      normalizeOptionalText(config.leftTitle) ?? fallbackRecord.leftTitle,
+      normalizeOptionalText(config.leftTitle) ??
+      processedConfig.leftTitle ??
+      fallbackRecord.leftTitle,
     legendPrefix:
       normalizeOptionalText(config.legendPrefix) ?? fallbackRecord.legendPrefix,
     yColumns: yColumns.length ? yColumns : fallbackRecord.yColumns,
+  };
+};
+
+const createTemplateConfigFallbackFromProcessedFile = (
+  processedFile: ProcessedEntry | undefined,
+): Partial<TemplateConfigRecord> => {
+  if (!processedFile) {
+    return {};
+  }
+  return {
+    bottomTitle: readRecordString(processedFile, "bottomTitle") ??
+      readRecordString(processedFile, "xLabel"),
+    leftTitle: readRecordString(processedFile, "leftTitle") ??
+      readRecordString(processedFile, "yLabel"),
+    xUnit: readRecordString(processedFile, "xUnit"),
+    yUnit: readRecordString(processedFile, "yUnit"),
   };
 };
 
@@ -1616,13 +2013,6 @@ const inferDerivedCurveFamily = (
       return null;
   }
 };
-
-const normalizeConfidence = (
-  value: string | undefined,
-): "high" | "medium" | "low" | undefined =>
-  value === "high" || value === "medium" || value === "low"
-    ? value
-    : undefined;
 
 const readRecordString = (
   record: Record<string, unknown> | null | undefined,

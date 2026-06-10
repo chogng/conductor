@@ -1,12 +1,18 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
-import { TableCommandId } from "src/cs/workbench/contrib/table/common/table";
-import { runTableCommand } from "src/cs/workbench/contrib/table/browser/tableCommands";
-import type TableViewPane from "src/cs/workbench/contrib/table/browser/tableViewPane";
+import {
+  TableCommandId,
+} from "src/cs/workbench/services/table/common/table";
+import type { ICommandService } from "src/cs/platform/commands/common/commands";
 
 export type TableGestureHost = {
+  readonly commandService: Pick<ICommandService, "executeCommand">;
   readonly element: HTMLElement | null;
-  readonly view: TableViewPane | null;
+  scrollHorizontally(delta: number): boolean;
 };
 
 export class TableGestures extends Disposable {
@@ -39,15 +45,14 @@ export class TableGestures extends Disposable {
     }
 
     const commandId = delta < 0 ? TableCommandId.zoomIn : TableCommandId.zoomOut;
-    if (runTableCommand(this.host.view, commandId)) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
+    event.preventDefault();
+    event.stopPropagation();
+    void this.host.commandService.executeCommand(commandId);
   }
 
   private onHorizontalWheel(event: WheelEvent): void {
     const delta = event.deltaX !== 0 ? event.deltaX : event.deltaY;
-    if (delta === 0 || !this.host.view?.scrollHorizontally(delta)) {
+    if (delta === 0 || !this.host.scrollHorizontally(delta)) {
       return;
     }
 

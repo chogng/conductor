@@ -6,7 +6,7 @@ import {
   Y_UNIT_VALUES,
   type XUnit,
   type YUnit,
-} from "src/cs/workbench/contrib/plot/common/units";
+} from "src/cs/workbench/services/plot/common/units";
 
 export type ChartUnitAxis = "x" | "y";
 export type ChartYScale = "linear" | "log";

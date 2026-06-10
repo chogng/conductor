@@ -2,7 +2,7 @@ import assert from "assert";
 
 import {
   getCalculatedData,
-} from "src/cs/workbench/contrib/calculation/common/calculatedData";
+} from "src/cs/workbench/services/calculation/common/calculatedData";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import {
   mergeProcessedFileIntoRecords,
@@ -13,7 +13,7 @@ import {
 } from "src/cs/workbench/services/session/common/sessionReadModel";
 
 suite("workbench/services/session/test/common/sessionReadModel", () => {
-  test("projects raw imports with active target and preview state", () => {
+  test("projects raw imports", () => {
     const records = mergeRawFilesIntoRecords({}, [], [{
       fileId: "file-a",
       fileName: "Raw Transfer.csv",
@@ -26,36 +26,12 @@ suite("workbench/services/session/test/common/sessionReadModel", () => {
     }]);
     const snapshot = createSnapshot({
       ...records,
-      activeTarget: { kind: "file", fileId: "file-a" },
-      viewState: {
-        table: {
-          previewFile: {
-            fileId: "file-a",
-            fileName: "Raw Transfer.csv",
-            sheetId: "sheet-1",
-            sheetName: "Data",
-            sourceKey: "file-a:sheet-1",
-            rowCount: 20,
-            columnCount: 4,
-            maxCellLengths: [1, 2, 3, 4],
-          },
-          previewStatus: {
-            state: "ready",
-            message: "",
-          },
-        },
-      },
     });
 
     const readModel = createSessionReadModel(snapshot);
 
-    assert.equal(readModel.activeTargetFileId, "file-a");
-    assert.equal(readModel.activeTargetSheetId, null);
-    assert.equal(readModel.activeAnalysisFileId, null);
     assert.equal(readModel.hasSessionData, true);
     assert.equal(readModel.hasAnalysisData, false);
-    assert.equal(readModel.previewFile?.sourceKey, "file-a:sheet-1");
-    assert.equal(readModel.previewStatus.state, "ready");
     assert.deepEqual(
       readModel.rawFiles.map((file) => ({
         fileId: file.fileId,
@@ -71,14 +47,13 @@ suite("workbench/services/session/test/common/sessionReadModel", () => {
     assert.deepEqual(readModel.processedFileIds, []);
   });
 
-  test("projects processed curves and calculated plots from the same target", () => {
+  test("projects processed curves and calculated plots", () => {
     const rawRecords = mergeRawFilesIntoRecords({}, [], [{
       fileId: "file-a",
       fileName: "Transfer.csv",
     }]);
     const rawSnapshot = createSnapshot({
       ...rawRecords,
-      activeTarget: { kind: "file", fileId: "file-a" },
     });
     const processedRecords = mergeProcessedFileIntoRecords(
       rawRecords.filesById,
@@ -103,7 +78,6 @@ suite("workbench/services/session/test/common/sessionReadModel", () => {
     );
     const snapshot = createSnapshot({
       ...processedRecords,
-      activeTarget: { kind: "file", fileId: "file-a" },
     });
 
     const readModel = createSessionReadModel(snapshot);
@@ -113,15 +87,12 @@ suite("workbench/services/session/test/common/sessionReadModel", () => {
       "file-a",
     );
 
-    assert.equal(readModel.activeTargetFileId, "file-a");
-    assert.equal(readModel.activeAnalysisFileId, "file-a");
     assert.deepEqual(readModel.processedFileIds, ["file-a"]);
     assert.equal(readModel.hasAnalysisData, true);
-    assert.equal(readModel.activeAnalysisFileRecord?.id, "file-a");
-    assert.equal(readModel.activeProcessedFile?.fileId, "file-a");
-    assert.equal(readModel.activeProcessedFile?.supportsSs, true);
-    assert.equal(readModel.activeProcessedFile?.series?.[0]?.id, "series-1");
-    assert.deepEqual(readModel.activeProcessedFile?.xGroups, [[0, 1, 2]]);
+    assert.equal(readModel.processedFiles[0]?.fileId, "file-a");
+    assert.equal(readModel.processedFiles[0]?.supportsSs, true);
+    assert.equal(readModel.processedFiles[0]?.series?.[0]?.id, "series-1");
+    assert.deepEqual(readModel.processedFiles[0]?.xGroups, [[0, 1, 2]]);
     assert.equal(ivData?.source.fileId, "file-a");
     assert.equal(ivData?.seriesList[0]?.id, "series-1");
     assert.deepEqual(
@@ -134,10 +105,9 @@ suite("workbench/services/session/test/common/sessionReadModel", () => {
 const createSnapshot = (
   overrides: Partial<SessionSnapshot> = {},
 ): SessionSnapshot => ({
-  version: 1,
+  schemaVersion: 1,
+  sessionVersion: 0,
   filesById: {},
   fileOrder: [],
-  activeTarget: { kind: "none" },
-  viewState: {},
   ...overrides,
 });

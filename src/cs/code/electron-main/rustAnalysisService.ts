@@ -5,7 +5,6 @@ import type {
   AnalyzeRcRequest,
   DisposeFileRequest,
   ExportOriginCsvRequest,
-  InferAutoExtractionRequest,
   IRustAnalysisService,
   OpenFileRequest,
   PreviewMetaRequest,
@@ -168,30 +167,6 @@ export class RustAnalysisService implements IRustAnalysisService {
       return buildFailure(
         "RUST_ENGINE_READ_CELLS_FAILED",
         (error as Error)?.message || "rs-worker failed to read cells.",
-        startedAt,
-      );
-    }
-  }
-
-  public async inferAutoExtraction(
-    request: InferAutoExtractionRequest,
-  ): Promise<RustAnalysisResponse> {
-    if (!request.fileId || !request.inputPath || !this.options.isSupportedRustAnalysisInputPath(request.inputPath)) {
-      return buildFailure(AnalysisErrorCode.InvalidPath, "Invalid analysis file path.");
-    }
-
-    const startedAt = Date.now();
-    try {
-      const result = await this.options.rustWorkerRuntime.sendCommand("inferAutoExtraction", {
-        fileId: request.fileId,
-        fileName: request.fileName || path.basename(request.inputPath),
-        path: request.inputPath,
-      });
-      return buildSuccess(startedAt, result, "rust");
-    } catch (error) {
-      return buildFailure(
-        "RUST_ENGINE_INFER_AUTO_EXTRACTION_FAILED",
-        (error as Error)?.message || "rs-worker failed to infer auto extraction.",
         startedAt,
       );
     }

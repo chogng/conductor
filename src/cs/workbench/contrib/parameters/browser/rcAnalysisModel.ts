@@ -1,7 +1,12 @@
-﻿import { localize } from "src/cs/nls";
-import { getPlotColor } from "../../plot/browser/plotColors.ts";
-import { buildNiceTicks, padLinearDomain } from "../../plot/browser/plotViewModel.ts";
-import { formatNumber } from "../../calculation/common/numberFormat.ts";
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import { localize } from "src/cs/nls";
+import { getPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
+import { formatNumber } from "src/cs/workbench/services/calculation/common/numberFormat";
+import { buildNiceTicks, padLinearDomain } from "src/cs/workbench/services/plot/common/plotTicks";
+import type { RcAnalyzeDevice } from "src/cs/workbench/services/parameters/common/rcAnalysisBackend";
 
 export type RcCurveChartPoint = {
   rc: number;
@@ -35,17 +40,6 @@ export type RcAnalyzeRow = {
   width?: unknown;
   x?: unknown;
   y?: unknown;
-};
-
-export type RcAnalyzeDevice = {
-  fileId: unknown;
-  label: string;
-  length: number;
-  seriesId: unknown;
-  vds: number;
-  width: number;
-  x: number[];
-  y: number[];
 };
 
 type RcSummaryLike = {

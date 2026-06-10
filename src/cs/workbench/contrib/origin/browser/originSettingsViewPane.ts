@@ -9,30 +9,28 @@ import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { createSwitch } from "src/cs/base/browser/ui/switch/switch";
 import { DisposableStore, toDisposable } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
-import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
   type OriginPlotOptions,
-} from "src/cs/workbench/contrib/origin/common/originPlotOptions";
-import { OriginExportSettingsViewId } from "src/cs/workbench/contrib/origin/common/origin";
+} from "src/cs/workbench/services/origin/common/originPlotOptions";
+import { OriginExportSettingsViewId } from "src/cs/workbench/services/origin/common/origin";
 import {
   DEFAULT_PLOT_AXIS_SETTINGS,
   normalizePlotAxisSettings,
   type PlotAxisSettings,
-} from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
+} from "src/cs/workbench/services/plot/common/plotSettings";
+import {
+  ISettingsService,
+  type ISettingsService as ISettingsServiceType,
+  type OriginSettingsViewInput,
+} from "src/cs/workbench/services/settings/common/settings";
 
 import "src/cs/workbench/contrib/origin/browser/media/originSettingsViewPane.css";
 import "src/cs/workbench/browser/parts/views/media/views.css";
 
-export type OriginSettingsViewPaneOptions = {
-  readonly axisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
-  readonly contextMenuService: Pick<IContextMenuService, "showContextMenu" | "hideContextMenu">;
-  readonly onAxisChange?: (updates: Record<string, unknown>) => void | Promise<void>;
-  readonly onChange?: (updates: Partial<OriginPlotOptions>) => void | Promise<void>;
-  readonly options?: OriginPlotOptions;
-};
+export type OriginSettingsViewPaneOptions = OriginSettingsViewInput;
 
 export class OriginSettingsViewPane extends ViewPane {
   private readonly collapsedSectionIds = new Set<string>(["origin-advanced-plot-settings"]);
@@ -43,7 +41,9 @@ export class OriginSettingsViewPane extends ViewPane {
     viewportClassName: "origin_settings_scroll_viewport",
   });
 
-  constructor() {
+  constructor(
+    @ISettingsService private readonly settingsService: ISettingsServiceType,
+  ) {
     super({
       id: OriginExportSettingsViewId,
       title: localize("chart_curve_settings_title", "Origin Settings"),
@@ -54,6 +54,10 @@ export class OriginSettingsViewPane extends ViewPane {
     this.pane.className = "origin_settings_pane";
     this.pane.append(this.scrollArea.element);
     this.body.append(this.pane);
+    this._register(this.settingsService.onDidChangeOriginSettingsViewInput(input => {
+      this.update(input);
+    }));
+    this.update(this.settingsService.getOriginSettingsViewInput());
   }
 
   public update({

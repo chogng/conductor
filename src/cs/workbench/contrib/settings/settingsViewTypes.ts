@@ -45,15 +45,6 @@ export type OriginSettings = {
   onRunCleanupNow: () => Promise<void> | void;
 };
 
-export type StorageSettings = {
-  currentPath: string;
-  feedback: Feedback;
-  isLoading: boolean;
-  isConfigurable: boolean;
-  isSaving: boolean;
-  onChoosePath: () => Promise<void> | void;
-};
-
 export type AppUpdateSettings = {
   currentVersion?: string | null;
   isAvailable: boolean;
@@ -116,7 +107,6 @@ export type SettingsViewProps = {
   theme: ThemeMode;
   onThemeChange: (theme: ThemeMode) => Promise<void> | void;
   originSettings: OriginSettings;
-  storageSettings: StorageSettings;
   windowCloseSettings: WindowCloseSettings;
 };
 

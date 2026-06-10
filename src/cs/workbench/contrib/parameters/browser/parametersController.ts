@@ -1,24 +1,13 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import { localize } from "src/cs/nls";
 import {
   createRcAnalyzeDevices,
-  type RcAnalyzeDevice,
   type RcAnalyzeRow,
 } from "./rcAnalysisModel.ts";
-
-type RcAnalysisFileService = {
-  analyzeRc(payload: {
-    devices: RcAnalyzeDevice[];
-    options: {
-      maxGridPoints: number;
-      minAbsCurrent: number;
-      minDevices: number;
-      normalizeByWidth: boolean;
-      selectedVg: number | null;
-    };
-  }): Promise<unknown>;
-  canAnalyzeRc(): boolean;
-};
-
+import type { RcAnalysisBackend } from "src/cs/workbench/services/parameters/common/rcAnalysisBackend";
 
 export type RunRcAnalysisResult =
   | {
@@ -48,16 +37,16 @@ const getRcErrorMessage = (response: Record<string, unknown>): string => {
 
 export type RunRcAnalysisOptions = {
   curveProbeX: number | null;
-  analysisFileService: RcAnalysisFileService;
+  rcAnalysisBackendService: RcAnalysisBackend;
   rows: RcAnalyzeRow[];
 };
 
 export const runRcAnalysis = async ({
   curveProbeX,
-  analysisFileService,
+  rcAnalysisBackendService,
   rows,
 }: RunRcAnalysisOptions): Promise<RunRcAnalysisResult> => {
-  if (!analysisFileService.canAnalyzeRc()) {
+  if (!rcAnalysisBackendService.canAnalyzeRc()) {
     return {
       error: localize("rc_error_bridge_unavailable", "Rust Rc bridge is unavailable."),
       ok: false,
@@ -80,7 +69,7 @@ export const runRcAnalysis = async ({
   }
 
   try {
-    const response = await analysisFileService.analyzeRc({
+    const response = await rcAnalysisBackendService.analyzeRc({
       devices,
       options: {
         maxGridPoints: 240,

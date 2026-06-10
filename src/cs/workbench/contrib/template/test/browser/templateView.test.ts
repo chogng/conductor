@@ -1,7 +1,7 @@
 import assert from "assert";
 
-import { createEmptyTemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
-import { AUTO_TEMPLATE_ID } from "src/cs/workbench/contrib/template/common/autoTemplate";
+import { AUTO_TEMPLATE_ID } from "src/cs/workbench/services/template/common/autoTemplate";
+import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import { createTemplateApplyViewState } from "src/cs/workbench/contrib/template/browser/views/templateView";
 
 suite("workbench/contrib/template/test/browser/templateView", () => {

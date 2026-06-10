@@ -13,7 +13,7 @@ import {
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
 import { ExportViewPane } from "src/cs/workbench/contrib/export/browser/exportViewPane";
-import { ExportViewId } from "src/cs/workbench/contrib/export/common/export";
+import { ExportViewId } from "src/cs/workbench/services/export/common/export";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);

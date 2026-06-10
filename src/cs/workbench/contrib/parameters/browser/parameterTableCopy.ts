@@ -1,10 +1,14 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import { localize } from "src/cs/nls";
 import type { RenderCalculatedParametersRowsOptions } from "src/cs/workbench/contrib/parameters/browser/calculatedParametersRow";
 import {
   formatMetricValue,
   getSsMetricText,
   type CalculatedParameterRowData,
-} from "src/cs/workbench/contrib/parameters/browser/parametersModel";
+} from "src/cs/workbench/services/parameters/common/parameterModel";
 
 export type ParameterTableCopyOptions = RenderCalculatedParametersRowsOptions & {
   gmMetricHeader: string;

@@ -29,7 +29,7 @@ export interface IViewsService {
   openViewContainer(id: string, focus?: boolean): Promise<ViewContainer | null>;
   closeViewContainer(id: string): void;
   getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null;
-  getViewContainerElement(id: string): HTMLElement | null;
+  getViewContainerElement(id: string): unknown | null;
   getActiveViewPaneContainerWithId(viewContainerId: string): IViewPaneContainer | null;
   getFocusedView(): IViewDescriptor | null;
   getFocusedViewName(): string;

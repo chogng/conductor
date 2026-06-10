@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import type { IActionViewItem } from "src/cs/base/browser/ui/actionbar/actionViewItem";
@@ -11,16 +15,28 @@ import {
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
+import {
+  ICommandService,
+  type ICommandService as ICommandServiceType,
+} from "src/cs/platform/commands/common/commands";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
+import { registerTableActions } from "src/cs/workbench/contrib/table/browser/tableActions";
+import { registerTableGestures } from "src/cs/workbench/contrib/table/browser/tableGestures";
 import { TableView, type TableViewProps } from "src/cs/workbench/contrib/table/browser/tableView";
-import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
-import type { TableModel, TableState } from "src/cs/workbench/contrib/table/common/tableService";
+import {
+  ITableService,
+  TABLE_DEFAULT_ZOOM_PERCENT,
+  TABLE_MAX_ZOOM_PERCENT,
+  TABLE_MIN_ZOOM_PERCENT,
+  TableCommandId,
+  TableViewId,
+  type ITableService as ITableServiceType,
+  type TableViewInput,
+} from "src/cs/workbench/services/table/common/table";
+import type { TableModel, TableState } from "src/cs/workbench/services/table/common/table";
 
-export type TableViewPaneProps = {
-  readonly tableModel: TableModel;
-  readonly tableState: TableState;
-};
+export type TableViewPaneProps = TableViewInput;
 
 type HeaderMode = "empty" | "file";
 
@@ -38,10 +54,6 @@ type ZoomControl = {
   readonly value: HTMLSpanElement;
 };
 
-const DEFAULT_ZOOM_PERCENT = 100;
-const MIN_ZOOM_PERCENT = 50;
-const MAX_ZOOM_PERCENT = 200;
-const ZOOM_STEP_PERCENT = 10;
 const ZOOM_CONTROL_ACTION_ID = "table.header.zoom";
 
 export class TableViewPane extends ViewPane {
@@ -60,12 +72,14 @@ export class TableViewPane extends ViewPane {
     run: () => undefined,
   });
   private readonly zoomControl: ZoomControl;
-  private readonly view: TableView;
-  private props: TableViewPaneProps;
+  private view: TableView | null = null;
+  private props: TableViewPaneProps | null = null;
   private headerMode: HeaderMode | null = null;
-  private zoomPercent = DEFAULT_ZOOM_PERCENT;
 
-  constructor(props: TableViewPaneProps) {
+  constructor(
+    @ITableService private readonly tableService: ITableServiceType,
+    @ICommandService private readonly commandService: ICommandServiceType,
+  ) {
     super({
       id: TableViewId,
       title: localize("table.ariaLabel", "Table"),
@@ -73,8 +87,6 @@ export class TableViewPane extends ViewPane {
       bodyClassName: "workbench-part-view-pane__body",
       headerVisible: false,
     });
-    this.props = props;
-    this.view = new TableView(toViewProps(props, this.zoomPercent));
     this.zoomControl = this.createZoomControl();
     this.actionBar = new ActionBar({
       ariaLabel: localize("table.header.actions", "Table actions"),
@@ -93,7 +105,6 @@ export class TableViewPane extends ViewPane {
     this.renderHeaderActions();
     this.headerTitle.append(this.headerLeft, this.headerCenter);
     this.headerRight.append(this.dimensions, this.actionBar.domNode);
-    this.content.append(this.view.element);
     this.previewPart = createPreviewPart({
       id: TableViewId,
       ariaLabel: localize("table.ariaLabel", "Table"),
@@ -103,12 +114,34 @@ export class TableViewPane extends ViewPane {
       titleContent: this.headerTitle,
     });
     this.body.append(this.previewPart);
-    this.update(props);
+    this._register(registerTableActions({
+      commandService: this.commandService,
+      element: this.element,
+    }));
+    this._register(registerTableGestures({
+      commandService: this.commandService,
+      element: this.element,
+      scrollHorizontally: delta => this.scrollHorizontally(delta),
+    }));
+    this._register(this.tableService.onDidChangeTableViewInput(input => {
+      if (input) {
+        this.update(input);
+      }
+    }));
+    const input = this.tableService.getViewInput();
+    if (input) {
+      this.update(input);
+    }
   }
 
   public update(props: TableViewPaneProps): void {
     this.props = props;
-    this.view.update(toViewProps(props, this.zoomPercent));
+    if (!this.view) {
+      this.view = new TableView(toViewProps(props));
+      this.content.append(this.view.element);
+    } else {
+      this.view.update(toViewProps(props));
+    }
     const { dimensions, fileName, mode, shouldUpdateDimensions } = getHeaderState(props);
     this.updateHeaderMode(mode);
     this.updateHeaderCenter(fileName, mode === "file");
@@ -116,7 +149,8 @@ export class TableViewPane extends ViewPane {
   }
 
   public dispose(): void {
-    this.view.dispose();
+    this.view?.dispose();
+    this.view = null;
     this.store.dispose();
     this.content.replaceChildren();
     this.previewPart.remove();
@@ -146,10 +180,10 @@ export class TableViewPane extends ViewPane {
     });
 
     this.store.add(addDisposableListener(decreaseButton, EventType.CLICK, () => {
-      this.zoomOut();
+      void this.commandService.executeCommand(TableCommandId.zoomOut);
     }));
     this.store.add(addDisposableListener(increaseButton, EventType.CLICK, () => {
-      this.zoomIn();
+      void this.commandService.executeCommand(TableCommandId.zoomIn);
     }));
 
     element.append(decreaseButton, value, increaseButton);
@@ -161,55 +195,8 @@ export class TableViewPane extends ViewPane {
     };
   }
 
-  private setZoomPercent(value: number): void {
-    const nextZoomPercent = clampZoomPercent(value);
-    if (nextZoomPercent === this.zoomPercent) {
-      return;
-    }
-
-    this.zoomPercent = nextZoomPercent;
-    this.view.update(toViewProps(this.props, this.zoomPercent));
-    this.updateZoomControl();
-  }
-
-  public zoomIn(): void {
-    this.setZoomPercent(this.zoomPercent + ZOOM_STEP_PERCENT);
-  }
-
-  public zoomOut(): void {
-    this.setZoomPercent(this.zoomPercent - ZOOM_STEP_PERCENT);
-  }
-
-  public resetZoom(): void {
-    this.setZoomPercent(DEFAULT_ZOOM_PERCENT);
-  }
-
-  public selectAllColumns(): void {
-    const tableFile = this.props.tableState.file;
-    const columnCount = Math.max(0, Math.floor(Number(tableFile?.columnCount) || 0));
-    if (columnCount === 0) {
-      return;
-    }
-
-    const selectedColumns: number[] = [];
-    for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
-      selectedColumns.push(colIndex);
-    }
-    const selection = this.props.tableModel.getSelection();
-    this.props.tableModel.setSelection({
-      ...selection,
-      selectedColumns,
-    });
-    this.view.focus();
-  }
-
-  public clearSelection(): void {
-    this.props.tableModel.setSelection(null);
-    this.view.focus();
-  }
-
   public scrollHorizontally(delta: number): boolean {
-    return this.view.scrollHorizontally(delta);
+    return this.view?.scrollHorizontally(delta) ?? false;
   }
 
   private updateHeaderMode(mode: HeaderMode): void {
@@ -243,9 +230,10 @@ export class TableViewPane extends ViewPane {
   }
 
   private updateZoomControl(): void {
-    setText(this.zoomControl.value, `${this.zoomPercent}%`);
-    setDisabled(this.zoomControl.decreaseButton, this.zoomPercent <= MIN_ZOOM_PERCENT);
-    setDisabled(this.zoomControl.increaseButton, this.zoomPercent >= MAX_ZOOM_PERCENT);
+    const zoomPercent = this.props?.tableState.zoomPercent ?? TABLE_DEFAULT_ZOOM_PERCENT;
+    setText(this.zoomControl.value, `${zoomPercent}%`);
+    setDisabled(this.zoomControl.decreaseButton, zoomPercent <= TABLE_MIN_ZOOM_PERCENT);
+    setDisabled(this.zoomControl.increaseButton, zoomPercent >= TABLE_MAX_ZOOM_PERCENT);
   }
 }
 
@@ -350,9 +338,6 @@ const createZoomButton = ({
   return button;
 };
 
-const clampZoomPercent = (value: number): number =>
-  Math.min(MAX_ZOOM_PERCENT, Math.max(MIN_ZOOM_PERCENT, value));
-
 const getHeaderLabel = (mode: HeaderMode): string => {
   switch (mode) {
     case "file":
@@ -376,10 +361,9 @@ const getHeaderState = ({ tableState }: TableViewPaneProps): HeaderState => {
 
 const toViewProps = (
   props: TableViewPaneProps,
-  zoomPercent: number,
 ): TableViewProps => ({
   ...props,
-  zoomPercent,
+  zoomPercent: props.tableState.zoomPercent,
 });
 
 export default TableViewPane;

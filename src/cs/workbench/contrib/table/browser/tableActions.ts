@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import {
   addDisposableListener,
   EventType,
@@ -7,13 +11,12 @@ import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import {
   TableCommandId,
   type TableCommandId as TableCommandIdValue,
-} from "src/cs/workbench/contrib/table/common/table";
-import { runTableCommand } from "src/cs/workbench/contrib/table/browser/tableCommands";
-import type TableViewPane from "src/cs/workbench/contrib/table/browser/tableViewPane";
+} from "src/cs/workbench/services/table/common/table";
+import type { ICommandService } from "src/cs/platform/commands/common/commands";
 
 export type TableActionHost = {
+  readonly commandService: Pick<ICommandService, "executeCommand">;
   readonly element: HTMLElement | null;
-  readonly view: TableViewPane | null;
 };
 
 export class TableActions extends Disposable {
@@ -34,10 +37,9 @@ export class TableActions extends Disposable {
       return;
     }
 
-    if (runTableCommand(this.host.view, commandId)) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
+    event.preventDefault();
+    event.stopPropagation();
+    void this.host.commandService.executeCommand(commandId);
   }
 
   private isTableFocusTarget(target: EventTarget | null): boolean {

@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import assert from "assert";
 
 import { runRcAnalysis } from "./parametersController.ts";
@@ -19,7 +23,7 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
   test("runRcAnalysis rejects unavailable bridge before building payload", async () => {
     const result = await runRcAnalysis({
       curveProbeX: null,
-      analysisFileService: {
+      rcAnalysisBackendService: {
         canAnalyzeRc: () => false,
         analyzeRc: async () => {
           throw new Error("unexpected");
@@ -37,7 +41,7 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
   test("runRcAnalysis validates rows before bridge call", async () => {
     const result = await runRcAnalysis({
       curveProbeX: null,
-      analysisFileService: {
+      rcAnalysisBackendService: {
         canAnalyzeRc: () => true,
         analyzeRc: async () => {
           throw new Error("unexpected");
@@ -52,7 +56,7 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
     });
   });
 
-  test("runRcAnalysis passes normalized devices to import service", async () => {
+  test("runRcAnalysis passes normalized devices to rc analysis backend", async () => {
     let payload: {
       devices: unknown[];
       options: {
@@ -62,7 +66,7 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
     } | undefined;
     const result = await runRcAnalysis({
       curveProbeX: 1.5,
-      analysisFileService: {
+      rcAnalysisBackendService: {
         canAnalyzeRc: () => true,
         analyzeRc: async (nextPayload) => {
           payload = nextPayload;
@@ -89,7 +93,7 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
     assert.deepEqual(
       await runRcAnalysis({
         curveProbeX: null,
-        analysisFileService: {
+        rcAnalysisBackendService: {
           canAnalyzeRc: () => true,
           analyzeRc: async () => ({ ok: false, message: "fit failed" }),
         },
@@ -104,7 +108,7 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
     assert.deepEqual(
       await runRcAnalysis({
         curveProbeX: null,
-        analysisFileService: {
+        rcAnalysisBackendService: {
           canAnalyzeRc: () => true,
           analyzeRc: async () => {
             throw new Error("bridge failed");

@@ -25,19 +25,6 @@ class ConductorStoreClient {
     });
   }
 
-  async getPersistencePath(): Promise<unknown> {
-    return this.requestStore("/persistence-path");
-  }
-
-  async choosePersistencePath(): Promise<unknown> {
-    return this.requestStore(
-      "/persistence-path/choose",
-      {
-        method: "POST",
-      },
-    );
-  }
-
   async requestStore<T = unknown>(
     endpoint: string,
     options: RequestInit = {},

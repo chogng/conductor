@@ -5,6 +5,7 @@
     Delete "$PROFILE\.device\template.json"
     Delete "$PROFILE\.device\store-path.json"
     Delete "$PROFILE\.device\*.settings.json"
+    # Legacy runtime cache location; current cache lives under Electron userData.
     RMDir /r "$PROFILE\.device\cache"
     RMDir /r "$PROFILE\.device\demo"
     RMDir /r "$PROFILE\.device\origin"

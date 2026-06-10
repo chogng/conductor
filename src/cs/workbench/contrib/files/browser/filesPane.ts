@@ -1,28 +1,37 @@
-﻿import type { IDisposable } from "src/cs/base/common/lifecycle";
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type {
   IContextMenuService,
   IContextViewService,
 } from "src/cs/platform/contextview/browser/contextView";
 import type { IFileService } from "src/cs/platform/files/common/files";
-import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import type {
-  FileEntry,
+  ExplorerSelectionKind,
+  IExplorerService,
+} from "src/cs/workbench/services/explorer/common/explorer";
+import type {
+  FileConverterBackend,
+} from "src/cs/workbench/services/files/common/fileConverterBackend";
+import type {
   FilesViewLayout,
-  FilesPaneRef,
 } from "src/cs/workbench/contrib/files/common/files";
+import type { ExplorerFileEntry } from "src/cs/workbench/services/explorer/common/explorerModel";
+import type { ExplorerThumbnailPlotModel } from "src/cs/workbench/services/explorer/common/explorerPaneViewInput";
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
-import type { CalculatedPlotsByKey } from "src/cs/workbench/contrib/calculation/common/calculatedData";
-import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
-import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
-import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
-import type { IThumbnailService } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
-import type { ITemplateService } from "src/cs/workbench/contrib/template/common/template";
+import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
+import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
+import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
+import type { IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
+import type { ITemplateService } from "src/cs/workbench/services/template/common/template";
 import type {
   TemplateSelection,
   TemplateSelectionsByFileId,
-} from "src/cs/workbench/contrib/template/common/templateSelection";
+} from "src/cs/workbench/services/template/common/templateSelection";
 import {
   FilesController,
   type ImportSessionFileInfo,
@@ -31,33 +40,33 @@ import {
 import "src/cs/workbench/contrib/files/browser/views/media/filesPane.css";
 
 export type FilesPaneProps = {
-  readonly analysisFileService: IAnalysisFileService;
+  readonly fileConverterBackendService: FileConverterBackend;
   readonly commandService: ICommandService;
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly contextViewService: IContextViewService;
+  readonly explorerService: IExplorerService;
+  readonly selectionKind: ExplorerSelectionKind;
   readonly filesService: IFileService;
-  readonly filesPaneRef: { current: FilesPaneRef | null };
   readonly templateService: ITemplateService;
   readonly activePlotType?: PlotType;
-  readonly calculatedPlotsByKey?: CalculatedPlotsByKey;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly thumbnailService: IThumbnailService;
   readonly currentTemplateLabel?: string;
   readonly currentTemplateSelection?: TemplateSelection;
   readonly fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
-  readonly files?: FileEntry[];
+  readonly files?: ExplorerFileEntry[];
   readonly mode?: WorkbenchMainPart;
   readonly viewLayout?: FilesViewLayout;
   readonly thumbnailFiles?: ProcessedEntry[];
+  readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
   readonly onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
+  readonly onFileSelected: (fileId: string | null) => void;
   readonly onFilesAdded?: (files: ImportSessionFileInfo[]) => void;
   readonly onFilesReplaced?: (files: ImportSessionFileInfo[]) => void;
   readonly onFileRemoved?: (fileId: string) => void;
   readonly onFilesRemoved?: (fileIds: string[]) => void;
-  readonly onFileSelected?: (fileId: string | null) => void;
-  readonly onFileTemplateSelectionChanged?: (fileId: string, selection: TemplateSelection) => void;
-  readonly selectedFileId?: string | null;
+  readonly selectedFileId: string | null;
 };
 
 export class FilesPane implements IDisposable {
@@ -79,14 +88,15 @@ export class FilesPane implements IDisposable {
     this.host.appendChild(this.body);
 
     this.controller = new FilesController(this.sessionHost, {
-      analysisFileService: props.analysisFileService,
+      fileConverterBackendService: props.fileConverterBackendService,
       commandService: props.commandService,
       contextMenuService: props.contextMenuService,
       contextViewService: props.contextViewService,
+      explorerService: props.explorerService,
+      selectionKind: props.selectionKind,
       files: props.files,
       filesService: props.filesService,
       activePlotType: props.activePlotType,
-      calculatedPlotsByKey: props.calculatedPlotsByKey,
       originOpenPlotOptions: props.originOpenPlotOptions,
       plotAxisSettings: props.plotAxisSettings,
       thumbnailService: props.thumbnailService,
@@ -97,31 +107,29 @@ export class FilesPane implements IDisposable {
       mode: props.mode,
       viewLayout: props.viewLayout,
       thumbnailFiles: props.thumbnailFiles,
+      thumbnailPlotModelsByFileId: props.thumbnailPlotModelsByFileId,
       onFileImported: props.onFileImported,
+      onFileSelected: props.onFileSelected,
       onFilesAdded: props.onFilesAdded,
       onFilesReplaced: props.onFilesReplaced,
       onFileRemoved: props.onFileRemoved,
       onFilesRemoved: props.onFilesRemoved,
-      onFileSelected: props.onFileSelected,
-      onFileTemplateSelectionChanged: props.onFileTemplateSelectionChanged,
       selectedFileId: props.selectedFileId,
     });
-
-    props.filesPaneRef.current = this.controller;
   }
 
   setProps(nextProps: FilesPaneProps): void {
     this.props = nextProps;
-    nextProps.filesPaneRef.current = this.controller;
     this.controller.setProps({
-      analysisFileService: nextProps.analysisFileService,
+      fileConverterBackendService: nextProps.fileConverterBackendService,
       commandService: nextProps.commandService,
       contextMenuService: nextProps.contextMenuService,
       contextViewService: nextProps.contextViewService,
+      explorerService: nextProps.explorerService,
+      selectionKind: nextProps.selectionKind,
       files: nextProps.files,
       filesService: nextProps.filesService,
       activePlotType: nextProps.activePlotType,
-      calculatedPlotsByKey: nextProps.calculatedPlotsByKey,
       originOpenPlotOptions: nextProps.originOpenPlotOptions,
       plotAxisSettings: nextProps.plotAxisSettings,
       thumbnailService: nextProps.thumbnailService,
@@ -132,31 +140,15 @@ export class FilesPane implements IDisposable {
       mode: nextProps.mode,
       viewLayout: nextProps.viewLayout,
       thumbnailFiles: nextProps.thumbnailFiles,
+      thumbnailPlotModelsByFileId: nextProps.thumbnailPlotModelsByFileId,
       onFileImported: nextProps.onFileImported,
+      onFileSelected: nextProps.onFileSelected,
       onFilesAdded: nextProps.onFilesAdded,
       onFilesReplaced: nextProps.onFilesReplaced,
       onFileRemoved: nextProps.onFileRemoved,
       onFilesRemoved: nextProps.onFilesRemoved,
-      onFileSelected: nextProps.onFileSelected,
-      onFileTemplateSelectionChanged: nextProps.onFileTemplateSelectionChanged,
       selectedFileId: nextProps.selectedFileId,
     });
-  }
-
-  openFileDialog(): void {
-    this.controller.openFileDialog();
-  }
-
-  removeFile(fileId: string): void {
-    this.controller.removeFile(fileId);
-  }
-
-  removeSelectedFolder(): void {
-    this.controller.removeSelectedFolder();
-  }
-
-  setFileTemplateSelection(fileId: string, selection: TemplateSelection): void {
-    this.controller.setFileTemplateSelection(fileId, selection);
   }
 
   layout(height: number, width: number): void {
@@ -175,9 +167,6 @@ export class FilesPane implements IDisposable {
     }
 
     this.disposed = true;
-    if (this.props.filesPaneRef.current === this.controller) {
-      this.props.filesPaneRef.current = null;
-    }
     this.controller.dispose();
     this.host.classList.remove("files-pane");
     this.body.remove();

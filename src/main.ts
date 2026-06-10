@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 
 import { app } from "electron";
 
@@ -31,13 +32,54 @@ const userDataPath = getUserDataPath(args, product.nameShort);
 
 app.setPath("userData", userDataPath);
 
+const codeCachePath = getCodeCachePath();
+
 if (portable.isPortable) {
   app.setAppLogsPath(path.join(userDataPath, "logs"));
 }
 
 app.once("ready", () => {
-  void import("./cs/code/electron-main/main.js").catch(error => {
+  void startup().catch(error => {
     console.error(error);
     app.exit(1);
   });
 });
+
+async function startup(): Promise<void> {
+  const resolvedCodeCachePath = await mkdirpIgnoreError(codeCachePath);
+  process.env["CONDUCTOR_CODE_CACHE_PATH"] = resolvedCodeCachePath || "";
+
+  await import("./cs/code/electron-main/main.js");
+}
+
+function getCodeCachePath(): string | undefined {
+  if (process.argv.indexOf("--no-cached-data") > 0) {
+    return undefined;
+  }
+
+  if (process.env["CONDUCTOR_DEV"]) {
+    return undefined;
+  }
+
+  // Code cache is keyed by build commit so upgraded builds cannot reuse stale
+  // V8/Electron cache data generated from a different application bundle.
+  const commit = product.commit;
+  if (!commit) {
+    return undefined;
+  }
+
+  return path.join(userDataPath, "CachedData", commit);
+}
+
+async function mkdirpIgnoreError(dir: string | undefined): Promise<string | undefined> {
+  if (typeof dir === "string") {
+    try {
+      await fs.promises.mkdir(dir, { recursive: true });
+      return dir;
+    } catch {
+      return undefined;
+    }
+  }
+
+  return undefined;
+}

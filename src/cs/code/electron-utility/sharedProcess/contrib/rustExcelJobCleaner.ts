@@ -6,9 +6,9 @@ const RUST_EXCEL_JOB_DIR_NAME = "rust-xls-jobs";
 
 const isExpectedRustExcelJobDir = (context: SharedProcessContributionContext) => {
   const targetPath = path.resolve(context.rustExcelJobRootDir);
-  const analysisHome = path.resolve(context.analysisHomeDir);
+  const tempRoot = path.resolve(context.analysisTempRootDir);
   return (
-    path.dirname(targetPath) === analysisHome &&
+    path.dirname(targetPath) === tempRoot &&
     path.basename(targetPath) === RUST_EXCEL_JOB_DIR_NAME
   );
 };

@@ -1,43 +1,61 @@
-import { Disposable, MutableDisposable } from "src/cs/base/common/lifecycle";
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Disposable } from "src/cs/base/common/lifecycle";
+import { localize } from "src/cs/nls";
+import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
+import { Registry } from "src/cs/platform/registry/common/platform";
 import {
   registerWorkbenchContribution2,
   WorkbenchPhase,
   type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
-import { TableContributionId } from "src/cs/workbench/contrib/table/common/table";
-import TableViewPane, {
-  type TableViewPaneProps,
-} from "src/cs/workbench/contrib/table/browser/tableViewPane";
-import { registerTableActions } from "src/cs/workbench/contrib/table/browser/tableActions";
-import { registerTableGestures } from "src/cs/workbench/contrib/table/browser/tableGestures";
+import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
+import {
+  Extensions as ViewExtensions,
+  type IViewContainersRegistry,
+  type IViewsRegistry,
+} from "src/cs/workbench/common/views";
+import {
+  TableContributionId,
+  TableViewId,
+} from "src/cs/workbench/services/table/common/table";
+import TableViewPane from "src/cs/workbench/contrib/table/browser/tableViewPane";
+import { registerTableCommands } from "src/cs/workbench/contrib/table/browser/tableCommands";
 
 import "src/cs/workbench/contrib/table/browser/media/tableView.css";
 
 export class TableContribution extends Disposable implements IWorkbenchContribution {
-  private readonly pane = this._register(new MutableDisposable<TableViewPane>());
-
   public constructor() {
     super();
-    this._register(registerTableActions(this));
-    this._register(registerTableGestures(this));
-  }
-
-  public get element(): HTMLElement | null {
-    return this.pane.current?.element ?? null;
-  }
-
-  public get view(): TableViewPane | null {
-    return this.pane.current ?? null;
-  }
-
-  public update(props: TableViewPaneProps): void {
-    if (!this.pane.current) {
-      this.pane.current = new TableViewPane(props);
-      return;
-    }
-
-    this.pane.current.update(props);
+    registerTableView();
+    this._register(registerTableCommands());
   }
 }
 
-registerWorkbenchContribution2(TableContributionId, TableContribution, WorkbenchPhase.AfterRestored);
+let tableViewRegistered = false;
+
+function registerTableView(): void {
+  if (tableViewRegistered) {
+    return;
+  }
+
+  const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
+  const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+  const container = viewContainersRegistry.get(WorkbenchViewContainers.main);
+  if (!container) {
+    return;
+  }
+
+  tableViewRegistered = true;
+  viewsRegistry.registerViews([{
+    id: TableViewId,
+    name: localize("table.ariaLabel", "Table"),
+    ctorDescriptor: new SyncDescriptor(TableViewPane),
+    hideByDefault: false,
+    order: 0,
+  }], container);
+}
+
+registerWorkbenchContribution2(TableContributionId, TableContribution, WorkbenchPhase.BlockStartup);

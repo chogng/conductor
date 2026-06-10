@@ -1,5 +1,9 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 // Draws x and y grid lines for the plot area on the main chart canvas.
-import type { PlotMainLayout } from "src/cs/workbench/contrib/plot/common/plotMainLayout";
+import type { PlotMainLayout } from "src/cs/workbench/services/plot/common/plotMainLayout";
 
 export const drawPlotGrid = (
   context: CanvasRenderingContext2D,

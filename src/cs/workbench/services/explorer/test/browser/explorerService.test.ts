@@ -1,0 +1,260 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from "assert";
+
+import { ExplorerService } from "src/cs/workbench/services/explorer/browser/explorerService";
+import type { ExplorerSelectionChangeEvent } from "src/cs/workbench/services/explorer/common/explorer";
+
+suite("workbench/services/explorer/test/browser/explorerService", () => {
+  test("stores raw and analysis selections independently", () => {
+    const service = new ExplorerService();
+    const events: ExplorerSelectionChangeEvent[] = [];
+    const disposable = service.onDidChangeSelection(event => {
+      events.push(event);
+    });
+
+    service.setSelectedRawFileId(" raw-a ");
+    service.setSelectedAnalysisFileId("analysis-a");
+
+    assert.equal(service.selectedRawFileId, "raw-a");
+    assert.equal(service.selectedAnalysisFileId, "analysis-a");
+    assert.deepEqual(events, [
+      { kind: "raw", selectedFileId: "raw-a" },
+      { kind: "analysis", selectedFileId: "analysis-a" },
+    ]);
+    disposable.dispose();
+  });
+
+  test("does not emit duplicate selection changes", () => {
+    const service = new ExplorerService();
+    let changeCount = 0;
+    const disposable = service.onDidChangeSelection(() => {
+      changeCount += 1;
+    });
+
+    service.setSelectedRawFileId("file-a");
+    service.setSelectedRawFileId(" file-a ");
+
+    assert.equal(changeCount, 1);
+    disposable.dispose();
+  });
+
+  test("resolves selected ids against current candidates", () => {
+    const service = new ExplorerService();
+
+    assert.equal(service.resolveSelectedRawFileId(["file-a", "file-b"]), "file-a");
+    assert.equal(service.selectedRawFileId, null);
+
+    service.setSelectedRawFileId("file-b");
+    assert.equal(service.resolveSelectedRawFileId(["file-a", "file-b"]), "file-b");
+    assert.equal(service.resolveSelectedRawFileId(["file-a"]), "file-a");
+    assert.equal(service.selectedRawFileId, "file-b");
+    assert.equal(service.resolveSelectedRawFileId([]), null);
+  });
+
+  test("reconciles selected ids into explorer service state", () => {
+    const service = new ExplorerService();
+    const events: ExplorerSelectionChangeEvent[] = [];
+    const disposable = service.onDidChangeSelection(event => {
+      events.push(event);
+    });
+
+    assert.equal(service.reconcileSelectedRawFileId(["file-a", "file-b"]), "file-a");
+    assert.equal(service.selectedRawFileId, "file-a");
+    assert.equal(service.reconcileSelectedRawFileId(["file-b", "file-c"]), "file-b");
+    assert.equal(service.selectedRawFileId, "file-b");
+    assert.equal(service.reconcileSelection("analysis", ["analysis-a"]), "analysis-a");
+    assert.equal(service.selectedAnalysisFileId, "analysis-a");
+    assert.equal(service.reconcileSelectedRawFileId([]), null);
+    assert.equal(service.selectedRawFileId, null);
+
+    assert.deepEqual(events, [
+      { kind: "raw", selectedFileId: "file-a" },
+      { kind: "raw", selectedFileId: "file-b" },
+      { kind: "analysis", selectedFileId: "analysis-a" },
+      { kind: "raw", selectedFileId: null },
+    ]);
+    disposable.dispose();
+  });
+
+  test("reconciles raw and analysis session selections together", () => {
+    const service = new ExplorerService();
+
+    assert.deepEqual(
+      service.reconcileSessionSelection({
+        analysisFileIds: ["analysis-a"],
+        rawFileIds: ["raw-a", "raw-b"],
+      }),
+      {
+        selectedAnalysisFileId: "analysis-a",
+        selectedRawFileId: "raw-a",
+      },
+    );
+
+    service.setSelectedRawFileId("raw-b");
+    service.setSelectedAnalysisFileId("analysis-b");
+
+    assert.deepEqual(
+      service.reconcileSessionSelection({
+        analysisFileIds: ["analysis-a"],
+        rawFileIds: ["raw-a", "raw-b"],
+      }),
+      {
+        selectedAnalysisFileId: "analysis-a",
+        selectedRawFileId: "raw-b",
+      },
+    );
+  });
+
+  test("selects files through explorer-owned candidate validation", () => {
+    const service = new ExplorerService();
+
+    assert.equal(
+      service.selectFile("raw", "file-b", ["file-a", "file-b"]),
+      "file-b",
+    );
+    assert.equal(
+      service.selectFile("raw", "file-c", ["file-a"]),
+      "file-b",
+    );
+    assert.equal(service.selectedRawFileId, "file-b");
+  });
+
+  test("updates selection after selected files are removed", () => {
+    const service = new ExplorerService();
+
+    service.setSelectedRawFileId("file-b");
+
+    assert.equal(
+      service.removeFileIdsFromSelection({
+        kind: "raw",
+        remainingFileIds: ["file-a", "file-c"],
+        removedFileIds: ["file-b"],
+      }),
+      "file-a",
+    );
+    assert.equal(service.selectedRawFileId, "file-a");
+
+    service.clearSelection("raw");
+    assert.equal(
+      service.removeFileIdsFromSelection({
+        kind: "raw",
+        remainingFileIds: ["file-c"],
+        removedFileIds: ["file-a"],
+      }),
+      null,
+    );
+    assert.equal(service.selectedRawFileId, null);
+  });
+
+  test("owns explorer view layout", () => {
+    const service = new ExplorerService();
+    const layouts: string[] = [];
+    const disposable = service.onDidChangeViewLayout(layout => {
+      layouts.push(layout);
+    });
+
+    assert.equal(service.viewLayout, "tree");
+
+    service.toggleViewLayout();
+    service.setViewLayout("thumbnail");
+    service.toggleViewLayout();
+
+    assert.equal(service.viewLayout, "tree");
+    assert.deepEqual(layouts, ["thumbnail", "tree"]);
+    disposable.dispose();
+  });
+
+  test("owns expanded folder keys", () => {
+    const service = new ExplorerService();
+    const events: readonly string[][] = [];
+    const disposable = service.onDidChangeExpandedFolderKeys(event => {
+      events.push([...event.expandedFolderKeys]);
+    });
+
+    assert.deepEqual(
+      service.reconcileExpandedFolderKeys(["folder:a", "folder:b"]),
+      ["folder:a", "folder:b"],
+    );
+    service.setExpandedFolderKeys(["folder:b"]);
+
+    assert.deepEqual(service.expandedFolderKeys, ["folder:b"]);
+    assert.deepEqual(
+      service.getCollapsedFolderKeys(["folder:a", "folder:b"]),
+      ["folder:a"],
+    );
+    assert.deepEqual(
+      service.reconcileExpandedFolderKeys(["folder:a", "folder:b", "folder:c"]),
+      ["folder:b", "folder:c"],
+    );
+    assert.deepEqual(events, [
+      ["folder:a", "folder:b"],
+      ["folder:b"],
+      ["folder:b", "folder:c"],
+    ]);
+    disposable.dispose();
+  });
+
+  test("normalizes file removal requests", () => {
+    const service = new ExplorerService();
+    const removedFileIds: string[] = [];
+    const disposable = service.onDidRequestFileRemoval(request => {
+      removedFileIds.push(request.fileId);
+    });
+
+    service.requestFileRemoval(" file-a ");
+    service.requestFileRemoval(" ");
+
+    assert.deepEqual(removedFileIds, ["file-a"]);
+    disposable.dispose();
+  });
+
+  test("emits folder workflow requests", () => {
+    const service = new ExplorerService();
+    let importRequests = 0;
+    let removalRequests = 0;
+    const importListener = service.onDidRequestFolderImport(() => {
+      importRequests += 1;
+    });
+    const removalListener = service.onDidRequestSelectedFolderRemoval(() => {
+      removalRequests += 1;
+    });
+
+    service.requestFolderImport();
+    service.requestSelectedFolderRemoval();
+
+    assert.equal(importRequests, 1);
+    assert.equal(removalRequests, 1);
+    importListener.dispose();
+    removalListener.dispose();
+  });
+
+  test("publishes Explorer pane input", () => {
+    const service = new ExplorerService();
+    const inputs = [];
+    const disposable = service.onDidChangePaneInput(input => {
+      inputs.push(input);
+    });
+    const input = {
+      files: [],
+      mode: "table",
+      onFileImported: () => undefined,
+      onFileRemoved: () => undefined,
+      onFileSelected: () => undefined,
+      onFilesAdded: () => undefined,
+      onFilesRemoved: () => undefined,
+      onFilesReplaced: () => undefined,
+      selectedFileId: null,
+      selectionKind: "raw",
+      thumbnailFiles: [],
+    } as const;
+
+    service.updatePaneInput(input);
+
+    assert.equal(service.getPaneInput(), input);
+    assert.deepEqual(inputs, [input]);
+    disposable.dispose();
+  });
+});

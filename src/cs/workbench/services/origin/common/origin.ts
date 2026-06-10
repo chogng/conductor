@@ -1,6 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 
 export const IOriginService = createDecorator<IOriginService>("originService");
+
+export const OriginExportSettingsViewId = "workbench.origin.exportSettings";
 
 export type OriginHealthResult = {
   logPath?: string;
@@ -26,6 +32,20 @@ export type OriginZipSaveResult = {
   ok?: boolean;
   zipPath?: string;
   [key: string]: unknown;
+};
+
+export type OriginDisplayRange = {
+  max: number;
+  min: number;
+  step?: number | null;
+};
+
+export type OriginZipExportResult = {
+  canvasCount: number;
+  curveCount: number;
+  mixedYScales?: boolean;
+  mode?: string;
+  zipName: string;
 };
 
 export interface IOriginService {

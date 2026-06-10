@@ -1,13 +1,33 @@
-﻿import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
-import { localize } from "src/cs/nls";
-import { formatNumber } from "src/cs/workbench/contrib/calculation/common/numberFormat";
-import type { PlotMainRenderModel } from "src/cs/workbench/contrib/plot/browser/plotMainRenderModel";
-import { getPlotColor } from "src/cs/workbench/contrib/plot/browser/plotColors";
-import { searchSeriesAtX, type SearchPoint } from "src/cs/workbench/contrib/search/browser/searchModel";
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
 
-export const createSearchView = (
-  model: PlotMainRenderModel | null,
-): HTMLElement => {
+import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
+import { localize } from "src/cs/nls";
+import { formatNumber } from "src/cs/workbench/services/calculation/common/numberFormat";
+import { getPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
+import type {
+  SearchPoint,
+  SearchState,
+} from "src/cs/workbench/services/search/common/search";
+import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
+
+export type SearchViewInput = {
+  readonly model: PlotMainRenderModel | null;
+  readonly searchState: SearchState;
+  readonly onQueryTextChange: (text: string) => void;
+  readonly onSearchPlotModelAtText: (
+    model: PlotMainRenderModel | null,
+    text: string,
+  ) => readonly SearchPoint[] | null;
+};
+
+export const createSearchView = ({
+  model,
+  searchState,
+  onQueryTextChange,
+  onSearchPlotModelAtText,
+}: SearchViewInput): HTMLElement => {
   const section = document.createElement("section");
   section.className = "search_pane";
   section.setAttribute("aria-label", localize("search_heading", "Search"));
@@ -25,7 +45,7 @@ export const createSearchView = (
     disabled: !model,
     inputClassName: "search_input_native",
     type: "number",
-    value: model ? formatInputValue(resolveInitialX(model.xDomain)) : "",
+    value: model ? getSearchInputValue(searchState, model) : "",
   });
   const input = inputField.input;
   input.step = "any";
@@ -52,13 +72,12 @@ export const createSearchView = (
   }
 
   const render = () => {
-    const x = parseSearchX(input.value);
-    if (x === null) {
+    const results = onSearchPlotModelAtText(model, input.value);
+    if (!results) {
       body.replaceChildren(createSearchEmpty(localize("search_invalid_x", "Enter a numeric X value.")));
       return;
     }
 
-    const results = searchSeriesAtX(model.seriesList, x);
     if (!results.length) {
       body.replaceChildren(createSearchEmpty(localize("search_no_series", "No series available.")));
       return;
@@ -67,11 +86,22 @@ export const createSearchView = (
     body.replaceChildren(...results.map((result, index) => createSearchResult(result, index)));
   };
 
-  input.addEventListener("input", render);
+  input.addEventListener("input", () => {
+    onQueryTextChange(input.value);
+    render();
+  });
   render();
 
   section.append(control, body);
   return section;
+};
+
+const getSearchInputValue = (
+  searchState: SearchState,
+  model: PlotMainRenderModel,
+): string => {
+  const queryText = searchState.query.text;
+  return queryText === "" ? formatInputValue(resolveInitialX(model.xDomain)) : queryText;
 };
 
 const createSearchResult = (result: SearchPoint, index: number): HTMLElement => {
@@ -98,43 +128,36 @@ const createSearchResult = (result: SearchPoint, index: number): HTMLElement => 
 const createSearchEmpty = (message: string): HTMLElement => {
   const empty = document.createElement("div");
   empty.className = "search_empty";
-  empty.setAttribute("role", "status");
   empty.textContent = message;
   return empty;
 };
 
-const formatSearchValue = (result: SearchPoint): string => {
-  if (result.status === "empty") {
-    return localize("search_empty_series", "No data");
-  }
-  if (result.status === "outOfRange") {
-    return localize("search_out_of_range", "Out of range");
-  }
-  return formatNumber(result.y, { digits: 4 });
-};
-
-const resolveInitialX = (domain: readonly [number, number] | undefined): number | null => {
-  if (!domain) return null;
+const resolveInitialX = (domain: readonly [number, number]): number => {
   const min = Number(domain[0]);
   const max = Number(domain[1]);
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
-  return min <= 0 && max >= 0 ? 0 : (min + max) / 2;
+  if (!Number.isFinite(min)) {
+    return 0;
+  }
+  if (!Number.isFinite(max)) {
+    return min;
+  }
+  return (min + max) / 2;
 };
 
-const formatInputValue = (value: number | null): string =>
-  value === null ? "" : String(Number(value.toPrecision(12)));
+const formatInputValue = (value: number): string =>
+  Number.isFinite(value) ? String(Number(value.toPrecision(8))) : "";
 
-const parseSearchX = (value: string): number | null => {
-  const text = value.trim();
-  if (!text) return null;
-  const x = Number(text);
-  return Number.isFinite(x) ? x : null;
+const formatDomain = (domain: readonly [number, number]): string =>
+  `${formatNumber(domain[0], { digits: 4 })} - ${formatNumber(domain[1], { digits: 4 })}`;
+
+const formatSearchValue = (result: SearchPoint): string => {
+  if (result.status === "empty") {
+    return localize("search_missing", "Missing");
+  }
+  if (result.status === "outOfRange") {
+    return localize("search_out_of_range", "Out of Range");
+  }
+  const yText = result.y === null ? "" : formatNumber(result.y, { digits: 6 });
+  const xText = result.x === null ? "" : formatNumber(result.x, { digits: 6 });
+  return xText ? `${yText} @ ${xText}` : yText;
 };
-
-const formatDomain = (domain: readonly [number, number] | undefined): string =>
-  domain && domain.length >= 2
-    ? `${formatDomainNumber(domain[0])} - ${formatDomainNumber(domain[1])}`
-    : "";
-
-const formatDomainNumber = (value: number): string =>
-  Number.isFinite(value) ? Number(value).toPrecision(4) : "";

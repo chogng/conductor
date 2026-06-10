@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import {
   formatMetricValue,
   getCurrentTooltip,
@@ -8,7 +12,7 @@ import {
   type CurrentTooltipBuilder,
   type SsConfidence,
   type SsTooltipBuilder,
-} from "src/cs/workbench/contrib/parameters/browser/parametersModel";
+} from "src/cs/workbench/services/parameters/common/parameterModel";
 
 export type RenderCalculatedParametersRowsOptions = {
   buildCurrentTooltip?: CurrentTooltipBuilder;

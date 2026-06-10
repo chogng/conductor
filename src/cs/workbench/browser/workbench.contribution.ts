@@ -8,7 +8,7 @@ import { Workbench } from "src/cs/workbench/browser/workbench";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import { createAuxiliaryBarActionViewItem } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 import { createSidebarActionViewItem } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
-import { hideWorkbenchSplash } from "src/cs/workbench/contrib/splash/browser/partsSplash";
+import { hideWorkbenchSplash } from "src/cs/workbench/browser/parts/splash/partsSplash";
 import {
   IFileDialogService,
   type IFileDialogService as IFileDialogServiceType,
@@ -22,6 +22,34 @@ import {
   type IPathService as IPathServiceType,
 } from "src/cs/workbench/services/path/common/pathService";
 import {
+  IChartService,
+  type IChartService as IChartServiceType,
+} from "src/cs/workbench/services/chart/common/chart";
+import {
+  IParametersService,
+  type IParametersService as IParametersServiceType,
+} from "src/cs/workbench/services/parameters/common/parameters";
+import {
+  IPlotService,
+  type IPlotService as IPlotServiceType,
+} from "src/cs/workbench/services/plot/common/plot";
+import {
+  ISearchService,
+  type ISearchService as ISearchServiceType,
+} from "src/cs/workbench/services/search/common/search";
+import {
+  ISettingsService,
+  type ISettingsService as ISettingsServiceType,
+} from "src/cs/workbench/services/settings/common/settings";
+import {
+  IExplorerService,
+  type IExplorerService as IExplorerServiceType,
+} from "src/cs/workbench/services/explorer/common/explorer";
+import {
+  IExportService,
+  type IExportService as IExportServiceType,
+} from "src/cs/workbench/services/export/common/export";
+import {
   IWorkbenchLayoutService,
   type IWorkbenchLayoutService as IWorkbenchLayoutServiceType,
 } from "src/cs/workbench/services/layout/browser/layoutService";
@@ -30,15 +58,9 @@ import {
   type IViewsService as IViewsServiceType,
 } from "src/cs/workbench/services/views/common/viewsService";
 import {
-  IAnalysisFileService,
-  type IAnalysisFileService as IAnalysisFileServiceType,
-} from "src/cs/workbench/services/analysisFile/common/analysisFile";
-import {
-  IContextMenuService,
-  type IContextMenuService as IContextMenuServiceType,
-  IContextViewService,
-  type IContextViewService as IContextViewServiceType,
-} from "src/cs/platform/contextview/browser/contextView";
+  ITemplateProcessingBackendService,
+  type ITemplateProcessingBackendService as ITemplateProcessingBackendServiceType,
+} from "src/cs/workbench/services/template/common/templateProcessingBackend";
 import {
   IContextKeyService,
   type IContextKeyService as IContextKeyServiceType,
@@ -71,21 +93,17 @@ import {
 import {
   ITableService,
   type ITableService as ITableServiceType,
-} from "src/cs/workbench/contrib/table/common/tableService";
+} from "src/cs/workbench/services/table/common/table";
 import {
   ITemplateApplyService,
   ITemplateService,
   type ITemplateApplyService as ITemplateApplyServiceType,
   type ITemplateService as ITemplateServiceType,
-} from "src/cs/workbench/contrib/template/common/template";
+} from "src/cs/workbench/services/template/common/template";
 import {
   ISessionService,
   type ISessionService as ISessionServiceType,
 } from "src/cs/workbench/services/session/common/session";
-import {
-  IThumbnailService,
-  type IThumbnailService as IThumbnailServiceType,
-} from "src/cs/workbench/contrib/thumbnail/browser/thumbnailService";
 import {
   IWorkbenchViewModeService,
   type IWorkbenchViewModeService as IWorkbenchViewModeServiceType,
@@ -127,20 +145,24 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
 
   constructor(
     @ITableService tableService: ITableServiceType,
-    @IAnalysisFileService analysisFileService: IAnalysisFileServiceType,
+    @ITemplateProcessingBackendService templateProcessingBackendService: ITemplateProcessingBackendServiceType,
     @IFileService filesService: IFileServiceType,
     @IFileDialogService dialogsService: IFileDialogServiceType,
-    @IContextMenuService contextMenuService: IContextMenuServiceType,
-    @IContextViewService contextViewService: IContextViewServiceType,
     @IContextKeyService contextKeyService: IContextKeyServiceType,
     @ICommandService commandService: ICommandServiceType,
+    @IChartService chartService: IChartServiceType,
+    @IExplorerService explorerService: IExplorerServiceType,
+    @IExportService exportService: IExportServiceType,
+    @IParametersService parametersService: IParametersServiceType,
+    @IPlotService plotService: IPlotServiceType,
+    @ISearchService searchService: ISearchServiceType,
+    @ISettingsService settingsService: ISettingsServiceType,
     @IPathService pathService: IPathServiceType,
     @IWorkbenchLayoutService layoutService: IWorkbenchLayoutServiceType,
     @IViewsService viewsService: IViewsServiceType,
     @ITemplateApplyService templateApplyService: ITemplateApplyServiceType,
     @ITemplateService templateService: ITemplateServiceType,
     @ISessionService sessionService: ISessionServiceType,
-    @IThumbnailService thumbnailService: IThumbnailServiceType,
     @IWorkbenchViewModeService workbenchViewModeService: IWorkbenchViewModeServiceType,
     @IStorageService storageService: IStorageServiceType,
     @IInstantiationService instantiationService: IInstantiationServiceType,
@@ -155,13 +177,18 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     }
 
     this.workbench = this._register(new Workbench(root, {
-      analysisFileService,
+      templateProcessingBackendService,
       dialogsService,
       commandService,
+      chartService,
       contextKeyService,
-      contextMenuService,
-      contextViewService,
+      explorerService,
+      exportService,
       filesService,
+      parametersService,
+      plotService,
+      searchService,
+      settingsService,
       pathService,
       layoutService,
       viewsService,
@@ -170,7 +197,6 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       tableService,
       templateApplyService,
       templateService,
-      thumbnailService,
       workbenchViewModeService,
     }));
     this._register(CommandsRegistry.registerCommand({

@@ -76,17 +76,6 @@ export type CurveData = CurveKey & {
   readonly yDomain?: readonly [number, number];
 };
 
-export type CurveViewState = {
-  readonly color?: string;
-  readonly hidden?: boolean;
-};
-
-export type CurveModel = CurveKey & {
-  readonly data?: CurveData;
-  readonly fileSemantics?: FileSemantics;
-  readonly viewState: CurveViewState;
-};
-
 export type FileSemanticsUpdate =
   Partial<Omit<FileSemantics, "fileId" | "x" | "y">> & {
     readonly x?: Partial<CurveAxisSemantics>;
