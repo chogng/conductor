@@ -35,6 +35,15 @@ The core architecture follows these principles:
 3. **Follow imports**: Check what files import the problematic module
 4. **Check test files**: Often reveal usage patterns and expected behavior
 
+## Shell Notes
+
+- Treat the default terminal as PowerShell-compatible. Do not assume `&&` is available; use separate commands, `$LASTEXITCODE`, or `cmd /c ...` when needed.
+
+```powershell
+git add -A
+if ($LASTEXITCODE -eq 0) { git commit -m "msg" }
+```
+
 ## Validating TypeScript changes
 
 MANDATORY: Always check for compilation errors before running any tests or validation scripts, or declaring work complete, then fix all compilation errors before moving forward.
