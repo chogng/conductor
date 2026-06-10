@@ -14,7 +14,7 @@ import {
   createWorkbenchTitlebarWindowActions,
   getWorkbenchTitlebarUpdateLabel,
   getWorkbenchTitlebarUpdateTitle,
-  normalizeWorkbenchTitlebarAnalysisFileOptions,
+  normalizeWorkbenchTitlebarFileOptions,
   WorkbenchTitlebarNavActionIds,
 } from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 
@@ -34,7 +34,7 @@ export type WorkbenchTitlebarActivePage =
   | LayoutView
   | string;
 
-export type WorkbenchTitlebarAnalysisFileOption = {
+export type WorkbenchTitlebarFileOption = {
   value: string;
   label: string;
 };
@@ -66,13 +66,13 @@ export type WorkbenchTitlebarWindowAction = {
 
 export type WorkbenchTitlebarProps = {
   activePage: WorkbenchTitlebarActivePage;
-  analysisActiveFileId?: string | null;
-  analysisFileOptions?: WorkbenchTitlebarAnalysisFileOption[];
+  activeFileId?: string | null;
+  fileOptions?: WorkbenchTitlebarFileOption[];
   canNavigateBack?: boolean;
   canNavigateForward?: boolean;
   id?: string;
   isSidebarVisible?: boolean;
-  onAnalysisFileChange?: (fileId: string) => void;
+  onFileChange?: (fileId: string) => void;
   onAnalysisIntent?: () => void;
   onCloseWindow?: () => void;
   onMinimizeWindow?: () => void;
@@ -81,7 +81,7 @@ export type WorkbenchTitlebarProps = {
   onPageChange?: (page: LayoutView) => void;
   onToggleSidebar?: () => void;
   onToggleMaximizeWindow?: () => void;
-  showAnalysisFileSelector?: boolean;
+  showFileSelector?: boolean;
   updateAction?: WorkbenchTitlebarUpdateAction;
 };
 
@@ -239,7 +239,7 @@ const createFileSelector = ({
   onChange,
 }: {
   activeFileId: string | null;
-  options: WorkbenchTitlebarAnalysisFileOption[];
+  options: WorkbenchTitlebarFileOption[];
   onChange?: (fileId: string) => void;
 }): HTMLElement => {
   const wrapper = createElement("div", {
@@ -248,7 +248,7 @@ const createFileSelector = ({
   const select = createElement("select", {
     id: "workbench-titlebar-file-select",
     className: "titlebar-file-select-native neutral-select",
-    "aria-label": localize("titlebar.analysisFileAriaLabel", "Analysis file"),
+    "aria-label": localize("titlebar.fileAriaLabel", "File"),
   });
 
   select.value = activeFileId ?? "";
@@ -269,13 +269,13 @@ const createFileSelector = ({
 export const createWorkbenchTitlebarElement = (
   {
     activePage,
-    analysisActiveFileId = null,
-    analysisFileOptions = [],
+    activeFileId = null,
+    fileOptions = [],
     canNavigateBack = false,
     canNavigateForward = false,
     id = WORKBENCH_TITLEBAR_ID,
     isSidebarVisible = true,
-    onAnalysisFileChange,
+    onFileChange,
     onAnalysisIntent,
     onCloseWindow,
     onMinimizeWindow,
@@ -284,13 +284,13 @@ export const createWorkbenchTitlebarElement = (
     onPageChange,
     onToggleSidebar,
     onToggleMaximizeWindow,
-    showAnalysisFileSelector = false,
+    showFileSelector = false,
     updateAction,
   }: WorkbenchTitlebarProps,
   hoverStore?: DisposableStore,
 ): HTMLElement => {
-  const normalizedAnalysisFileOptions =
-    normalizeWorkbenchTitlebarAnalysisFileOptions(analysisFileOptions);
+  const normalizedFileOptions =
+    normalizeWorkbenchTitlebarFileOptions(fileOptions);
   const navActions = createWorkbenchTitlebarNavActions(
     canNavigateBack,
     canNavigateForward,
@@ -354,12 +354,12 @@ export const createWorkbenchTitlebarElement = (
     className: "titlebar-center",
   });
 
-  if (showAnalysisFileSelector && normalizedAnalysisFileOptions.length > 0) {
+  if (showFileSelector && normalizedFileOptions.length > 0) {
     center.appendChild(
       createFileSelector({
-        activeFileId: analysisActiveFileId,
-        options: normalizedAnalysisFileOptions,
-        onChange: onAnalysisFileChange,
+        activeFileId: activeFileId,
+        options: normalizedFileOptions,
+        onChange: onFileChange,
       }),
     );
   }

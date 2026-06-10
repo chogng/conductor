@@ -8,7 +8,7 @@ type PointLike = {
   y?: unknown;
 };
 
-type AnalysisFileLike = {
+type MetricSourceFileLike = {
   supportsSs?: unknown;
   xAxisRole?: unknown;
   curveType?: unknown;
@@ -320,7 +320,7 @@ const buildEmptyBaseCurrentMetrics = (): BaseCurrentMetrics => ({
 });
 
 export const isTransferLikeFile = (
-  file: AnalysisFileLike | null | undefined,
+  file: MetricSourceFileLike | null | undefined,
 ): boolean => {
   const curveType = normalizeCurveTypeToken(file?.curveType);
   if (isNonIvSpecialCurveType(curveType)) return false;
@@ -337,7 +337,7 @@ export const isTransferLikeFile = (
 };
 
 export const isOutputLikeFile = (
-  file: AnalysisFileLike | null | undefined,
+  file: MetricSourceFileLike | null | undefined,
 ): boolean => {
   const curveType = normalizeCurveTypeToken(file?.curveType);
   if (isNonIvSpecialCurveType(curveType)) return false;
@@ -362,7 +362,7 @@ export const computeBaseCurrentMetrics = ({
   manualTargets?: IonIoffManualTargets | null;
   method?: IonIoffMethod;
   points: PointLike[];
-  sourceFile?: AnalysisFileLike | null;
+  sourceFile?: MetricSourceFileLike | null;
 }): BaseCurrentMetrics => {
   if (!isTransferLikeFile(sourceFile)) {
     return buildEmptyBaseCurrentMetrics();

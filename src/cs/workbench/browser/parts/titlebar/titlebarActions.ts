@@ -1,7 +1,7 @@
 import { localize } from "src/cs/nls";
 import type {
   WorkbenchTitlebarActivePage,
-  WorkbenchTitlebarAnalysisFileOption,
+  WorkbenchTitlebarFileOption,
   WorkbenchTitlebarNavAction,
   WorkbenchTitlebarPageAction,
   WorkbenchTitlebarUpdateAction,
@@ -13,9 +13,9 @@ export const WorkbenchTitlebarNavActionIds = {
   forward: "workbench-titlebar-nav-forward-button",
 } as const;
 
-export const normalizeWorkbenchTitlebarAnalysisFileOptions = (
-  options: WorkbenchTitlebarAnalysisFileOption[] | undefined,
-): WorkbenchTitlebarAnalysisFileOption[] =>
+export const normalizeWorkbenchTitlebarFileOptions = (
+  options: WorkbenchTitlebarFileOption[] | undefined,
+): WorkbenchTitlebarFileOption[] =>
   Array.isArray(options)
     ? options.filter(
         (option) =>

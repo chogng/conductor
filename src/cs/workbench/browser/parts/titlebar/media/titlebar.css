@@ -38,7 +38,7 @@
   width: 16px;
 }
 
-/* Center region: active analysis file selector. */
+/* Center region: active file selector. */
 .titlebar-center {
   align-items: center;
   display: flex;

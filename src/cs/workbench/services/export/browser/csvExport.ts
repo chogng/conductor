@@ -62,7 +62,7 @@ type SsClassification = Partial<{
   ss_reason: string;
 }>;
 
-export const sanitizeAnalysisFilename = (name: unknown): string =>
+export const sanitizeExportFilename = (name: unknown): string =>
   String(name || "export")
     .replace(/[/\\?%*:|"<>]/g, "_")
     .replace(/\s+/g, " ")
@@ -266,7 +266,7 @@ export const buildCsvExports = (
       }
 
       const csvText = Papa.unparse(rows);
-      const base = sanitizeAnalysisFilename(originalFileName).replace(
+      const base = sanitizeExportFilename(originalFileName).replace(
         /\.csv$/i,
         "",
       );

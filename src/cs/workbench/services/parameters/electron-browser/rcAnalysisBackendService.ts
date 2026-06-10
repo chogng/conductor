@@ -18,7 +18,7 @@ type DesktopIpcRenderer = {
 };
 
 type RcAnalysisBridge = {
-  analyzeAnalysisFileRcWithRust?: (payload: RcAnalyzePayload) => Promise<RcAnalysisResultPayload>;
+  analyzeFileRcWithRust?: (payload: RcAnalyzePayload) => Promise<RcAnalysisResultPayload>;
 };
 
 const getServiceUnavailableMessage = (): string =>
@@ -108,8 +108,8 @@ export class ElectronRcAnalysisBackendService extends Disposable implements IRcA
 
   public analyzeRc(payload: RcAnalyzePayload): Promise<RcAnalysisResultPayload> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("analyzeAnalysisFileRcWithRust")) {
-      return getBridgeMethod(bridge, "analyzeAnalysisFileRcWithRust")(payload)
+    if (bridge && hasBridgeMethod("analyzeFileRcWithRust")) {
+      return getBridgeMethod(bridge, "analyzeFileRcWithRust")(payload)
         .then(localizeRcAnalysisResponse);
     }
 
@@ -118,7 +118,7 @@ export class ElectronRcAnalysisBackendService extends Disposable implements IRcA
   }
 
   public canAnalyzeRc(): boolean {
-    return hasBridgeMethod("analyzeAnalysisFileRcWithRust") || hasIpcRenderer();
+    return hasBridgeMethod("analyzeFileRcWithRust") || hasIpcRenderer();
   }
 }
 

@@ -12,8 +12,8 @@ import type { SessionReadModel } from "src/cs/workbench/services/session/common/
 export const createExplorerSessionSelectionInput = (
   readModel: SessionReadModel,
 ): ExplorerSessionSelectionInput => ({
-  analysisFileIds: readModel.processedFileIds,
-  rawFileIds: readModel.rawFiles.map(file => file.fileId),
+  processedFileIds: readModel.processedFileIds,
+  rawFileIds: readModel.rawFiles.flatMap(file => file.fileId ? [file.fileId] : []),
 });
 
 export const resolveExplorerSessionSelection = (

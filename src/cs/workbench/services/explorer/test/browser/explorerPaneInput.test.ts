@@ -152,7 +152,7 @@ suite("workbench/services/explorer/browser/explorerPaneInput", () => {
     assert.equal(cleared, 1);
   });
 
-  test("creates chart mode input from analysis file projection", () => {
+  test("creates chart mode input from file projection", () => {
     const session = new SessionService();
     commitRawFilesForTest(session, [
       {
@@ -216,11 +216,11 @@ suite("workbench/services/explorer/browser/explorerPaneInput", () => {
     assert.deepEqual(input.plotAxisSettings, { x: { show: true } });
 
     input.onFileSelected("file-a");
-    assert.equal(explorerService.selectedAnalysisFileId, "file-a");
+    assert.equal(explorerService.selectedProcessedFileId, "file-a");
     input.onFileSelected("raw-only");
-    assert.equal(explorerService.selectedAnalysisFileId, "file-a");
+    assert.equal(explorerService.selectedProcessedFileId, "file-a");
     input.onFileSelected(null);
-    assert.equal(explorerService.selectedAnalysisFileId, null);
+    assert.equal(explorerService.selectedProcessedFileId, null);
   });
 });
 

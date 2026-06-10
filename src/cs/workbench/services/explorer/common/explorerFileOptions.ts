@@ -7,17 +7,17 @@ import type {
 	FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 
-export type ExplorerAnalysisFileOption = {
+export type ExplorerFileOption = {
 	readonly fileId: string;
 	readonly fileName: string;
 };
 
-export function createExplorerAnalysisFileOptionsFromRecords(
+export function createExplorerFileOptionsFromRecords(
 	filesById: Record<FileId, FileRecord>,
 	fileOrder: readonly FileId[],
-): ExplorerAnalysisFileOption[] {
+): ExplorerFileOption[] {
 	const seen = new Set<FileId>();
-	const options: ExplorerAnalysisFileOption[] = [];
+	const options: ExplorerFileOption[] = [];
 	const pushFile = (fileId: FileId): void => {
 		if (seen.has(fileId)) {
 			return;

@@ -208,7 +208,7 @@ export const resolveRustOriginCsvYTransformForPayload = (
   return fallbackTransform;
 };
 
-const sanitizeAnalysisFilename = (name: unknown): string =>
+const sanitizeExportFilename = (name: unknown): string =>
   String(name || "export")
     .replace(/[/\\?%*:|"<>]/g, "_")
     .replace(/\s+/g, " ")
@@ -804,7 +804,7 @@ export const buildOriginCanvasExport = (
   if (!curveEntries.length) return null;
 
   const canvasName = String(canvas?.fileName ?? "export");
-  const csvBase = `${sanitizeAnalysisFilename(canvasName)
+  const csvBase = `${sanitizeExportFilename(canvasName)
     .replace(/\.csv$/i, "")
     .trim() || "export"}__selected_curves`;
   const xAxisTitle = resolveAxisTitleWithUnit(
@@ -866,7 +866,7 @@ export const buildOriginSelectionExport = (
   if (!curveEntries.length) return null;
 
   const firstCanvasName = String(liveCanvases[0]?.fileName ?? "export");
-  const sanitizedFirstBase = sanitizeAnalysisFilename(firstCanvasName)
+  const sanitizedFirstBase = sanitizeExportFilename(firstCanvasName)
     .replace(/\.csv$/i, "")
     .trim();
   const canvasCount = liveCanvases.length;
@@ -927,7 +927,7 @@ const buildOriginWorkbookSheetsExports = (
   if (!liveCanvases.length) return [];
 
   const firstCanvasName = String(liveCanvases[0]?.fileName ?? "export");
-  const sanitizedFirstBase = sanitizeAnalysisFilename(firstCanvasName)
+  const sanitizedFirstBase = sanitizeExportFilename(firstCanvasName)
     .replace(/\.csv$/i, "")
     .trim();
   const workbookName =
@@ -1216,7 +1216,7 @@ const buildMetricsWorksheetExports = (
         (supportsOutput || supportsTransfer) &&
         Boolean(file?.originExportOmitIvCsvText);
       const csvText = omitCsvText ? "" : "\uFEFF" + Papa.unparse(csvRows);
-      const fileName = sanitizeAnalysisFilename(file?.fileName ?? "export")
+      const fileName = sanitizeExportFilename(file?.fileName ?? "export")
         .replace(/\.csv$/i, "")
         .trim();
       const workbookName = sanitizeOriginDisplayName(fileName || "workbook");
@@ -1618,7 +1618,7 @@ export const buildOriginExportPlan = (
 
   const firstCanvasName = String(liveCanvases[0]?.fileName ?? "export");
   const workbookName = sanitizeOriginDisplayName(
-    `Mixed-scale export ${sanitizeAnalysisFilename(firstCanvasName).replace(/\.csv$/i, "").trim() || "export"}`,
+    `Mixed-scale export ${sanitizeExportFilename(firstCanvasName).replace(/\.csv$/i, "").trim() || "export"}`,
   );
   const payloads = Array.from(groupedCanvases.entries())
     .sort(([left], [right]) => left.localeCompare(right))

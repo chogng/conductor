@@ -78,7 +78,7 @@ import {
   WorkbenchWindow,
 } from "src/cs/workbench/browser/window";
 import { TableViewId } from "src/cs/workbench/services/table/common/table";
-import { createExplorerAnalysisFileOptionsFromRecords } from "src/cs/workbench/services/explorer/common/explorerAnalysisFileOptions";
+import { createExplorerFileOptionsFromRecords } from "src/cs/workbench/services/explorer/common/explorerFileOptions";
 import {
   TemplateApplyController,
 } from "src/cs/workbench/services/template/browser/templateApplyController";
@@ -158,12 +158,12 @@ import { ResetLayoutStateCommandId } from "src/cs/workbench/services/layout/brow
 export type WorkbenchTitlebarState = {
   readonly enabled?: boolean;
   readonly activePage: LayoutView;
-  readonly analysisActiveFileId?: string | null;
-  readonly analysisFileOptions?: WorkbenchTitlebarProps["analysisFileOptions"];
+  readonly activeFileId?: string | null;
+  readonly fileOptions?: WorkbenchTitlebarProps["fileOptions"];
   readonly canNavigateBack?: boolean;
   readonly canNavigateForward?: boolean;
   readonly isSidebarVisible?: boolean;
-  readonly onAnalysisFileChange?: (fileId: string) => void;
+  readonly onFileChange?: (fileId: string) => void;
   readonly onAnalysisIntent?: () => void;
   readonly onCloseWindow?: () => void;
   readonly onMinimizeWindow?: () => void;
@@ -172,7 +172,7 @@ export type WorkbenchTitlebarState = {
   readonly onPageChange?: (page: LayoutView) => void;
   readonly onToggleSidebar?: () => void;
   readonly onToggleMaximizeWindow?: () => void;
-  readonly showAnalysisFileSelector?: boolean;
+  readonly showFileSelector?: boolean;
   readonly updateVersion?: string | null;
   readonly isUpdateReadyToInstall?: boolean;
   readonly onInstallUpdate?: () => void;
@@ -216,12 +216,12 @@ export const createTitlebarState = (
     ? {
         id: WORKBENCH_TITLEBAR_ID,
         activePage: state.activePage,
-        analysisActiveFileId: state.analysisActiveFileId,
-        analysisFileOptions: state.analysisFileOptions,
+        activeFileId: state.activeFileId,
+        fileOptions: state.fileOptions,
         canNavigateBack: state.canNavigateBack,
         canNavigateForward: state.canNavigateForward,
         isSidebarVisible: state.isSidebarVisible,
-        onAnalysisFileChange: state.onAnalysisFileChange,
+        onFileChange: state.onFileChange,
         onAnalysisIntent: state.onAnalysisIntent,
         onCloseWindow: state.onCloseWindow,
         onMinimizeWindow: state.onMinimizeWindow,
@@ -230,7 +230,7 @@ export const createTitlebarState = (
         onPageChange: state.onPageChange,
         onToggleSidebar: state.onToggleSidebar,
         onToggleMaximizeWindow: state.onToggleMaximizeWindow,
-        showAnalysisFileSelector: state.showAnalysisFileSelector,
+        showFileSelector: state.showFileSelector,
         updateAction: {
           isVisible: Boolean(state.isUpdateReadyToInstall),
           isReadyToInstall: state.isUpdateReadyToInstall,
@@ -708,13 +708,13 @@ export class Workbench extends Layout {
 
     const props = this.getAuxiliaryBarViewInput(snapshot, readModel);
     const activeFile = this.getSelectedProcessedFile(snapshot, readModel);
-    const activeFileRecord = this.getSelectedAnalysisFileRecord(snapshot, readModel);
+    const activeFileRecord = this.getSelectedProcessedFileRecord(snapshot, readModel);
 
     switch (this.auxiliaryBarModel.getActiveView(this.workbenchViewMode)) {
       case "template":
         break;
       case "parameters":
-        this.renderParametersView(snapshot, this.getSelectedAnalysisFileId(readModel));
+        this.renderParametersView(snapshot, this.getSelectedProcessedFileId(readModel));
         break;
       case "search":
         this.renderSearchView(snapshot, readModel);
@@ -739,7 +739,7 @@ export class Workbench extends Layout {
     readModel = createSessionReadModel(snapshot),
   ): void {
     this.searchService.setPlotModel(this.plotService.getPlotMainRenderModel({
-      fileId: this.getSelectedAnalysisFileId(readModel),
+      fileId: this.getSelectedProcessedFileId(readModel),
       snapshot,
     }));
   }
@@ -752,7 +752,7 @@ export class Workbench extends Layout {
   ): void {
     this.exportService.updateViewState({
       activeFile,
-      activeFileId: this.getSelectedAnalysisFileId(readModel),
+      activeFileId: this.getSelectedProcessedFileId(readModel),
       activeFileRecord,
       axisSettings: this.getFileAxisSettingsByFileId(snapshot),
       resolveProcessedSeriesLabel: this.resolveCurveLabelForSeries,
@@ -781,7 +781,7 @@ export class Workbench extends Layout {
     readModel: SessionReadModel,
   ): OriginExportPlan {
     return this.exportService.buildOriginExportPlan({
-      activeFileId: this.getSelectedAnalysisFileId(readModel),
+      activeFileId: this.getSelectedProcessedFileId(readModel),
       axisSettings: this.getFileAxisSettingsByFileId(snapshot),
       resolveSeriesLabel: (fileId, seriesId, fallback) =>
         this.getSeriesLabel(snapshot, fileId, seriesId) ?? fallback,
@@ -870,7 +870,7 @@ export class Workbench extends Layout {
     this.renderWorkbench();
   }
 
-  private readonly handleAnalysisFileSelected = (fileId: string | null): void => {
+  private readonly handleProcessedFileSelected = (fileId: string | null): void => {
     const nextFileId = String(fileId ?? "").trim() || null;
     const snapshot = this.session.getSnapshot();
     if (!nextFileId) {
@@ -904,15 +904,15 @@ export class Workbench extends Layout {
 
   //#region view inputs and selection
 
-  private getSelectedAnalysisFileId(readModel: SessionReadModel): string | null {
-    return resolveExplorerSessionSelection(this.explorerService, readModel).selectedAnalysisFileId;
+  private getSelectedProcessedFileId(readModel: SessionReadModel): string | null {
+    return resolveExplorerSessionSelection(this.explorerService, readModel).selectedProcessedFileId;
   }
 
-  private getSelectedAnalysisFileRecord(
+  private getSelectedProcessedFileRecord(
     snapshot: WorkbenchSessionSnapshot,
     readModel = createSessionReadModel(snapshot),
   ): FileRecord | null {
-    const activeFileId = this.getSelectedAnalysisFileId(readModel);
+    const activeFileId = this.getSelectedProcessedFileId(readModel);
     return activeFileId ? snapshot.filesById[activeFileId] ?? null : null;
   }
 
@@ -920,7 +920,7 @@ export class Workbench extends Layout {
     snapshot: WorkbenchSessionSnapshot,
     readModel = createSessionReadModel(snapshot),
   ): ProcessedEntry | null {
-    const fileRecord = this.getSelectedAnalysisFileRecord(snapshot, readModel);
+    const fileRecord = this.getSelectedProcessedFileRecord(snapshot, readModel);
     return fileRecord ? createProcessedEntryFromFileRecord(fileRecord) : null;
   }
 
@@ -991,17 +991,17 @@ export class Workbench extends Layout {
     processing = this.templateApply,
     readModel = createSessionReadModel(snapshot),
   ) {
-    const activeFileId = this.getSelectedAnalysisFileId(readModel);
+    const activeFileId = this.getSelectedProcessedFileId(readModel);
     return createChartViewInput({
       activeFileId,
       activePlotType: this.activePlotType,
       axisSettings: this.getFileAxisSettingsByFileId(snapshot),
-      chartFileOptions: createExplorerAnalysisFileOptionsFromRecords(
+      chartFileOptions: createExplorerFileOptionsFromRecords(
         snapshot.filesById,
         snapshot.fileOrder,
       ),
       legendLabels: this.getLegendLabelsForFile(snapshot, activeFileId ?? ""),
-      onActiveFileIdChange: this.handleAnalysisFileSelected,
+      onActiveFileIdChange: this.handleProcessedFileSelected,
       onActivePlotTypeChange: this.setActivePlotType,
       onLegendLabelChange: this.updateLegendLabel,
       onPlotAxisTitleChange: this.updatePlotAxisTitle,
@@ -1022,12 +1022,12 @@ export class Workbench extends Layout {
     snapshot = this.session.getSnapshot(),
     readModel = createSessionReadModel(snapshot),
   ) {
-    const activeFileId = this.getSelectedAnalysisFileId(readModel);
+    const activeFileId = this.getSelectedProcessedFileId(readModel);
     return createChartViewInput({
       activeFileId,
       activePlotType: this.activePlotType,
       axisSettings: this.getFileAxisSettingsByFileId(snapshot),
-      chartFileOptions: createExplorerAnalysisFileOptionsFromRecords(
+      chartFileOptions: createExplorerFileOptionsFromRecords(
         snapshot.filesById,
         snapshot.fileOrder,
       ),

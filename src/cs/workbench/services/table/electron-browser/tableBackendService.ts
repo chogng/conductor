@@ -22,10 +22,10 @@ type DesktopIpcRenderer = {
 };
 
 type TableBridge = {
-  disposeAnalysisFileWithRust?: (payload: unknown) => Promise<unknown>;
-  getAnalysisFilePreviewRowsWithRust?: (payload: unknown) => Promise<TableBackendResultPayload>;
-  openAnalysisFileWithRust?: (payload: unknown) => Promise<TableBackendResultPayload>;
-  readAnalysisFileCellsWithRust?: (payload: unknown) => Promise<TableBackendResultPayload>;
+  disposeFileWithRust?: (payload: unknown) => Promise<unknown>;
+  getFilePreviewRowsWithRust?: (payload: unknown) => Promise<TableBackendResultPayload>;
+  openFileWithRust?: (payload: unknown) => Promise<TableBackendResultPayload>;
+  readFileCellsWithRust?: (payload: unknown) => Promise<TableBackendResultPayload>;
 };
 
 const getServiceUnavailableMessage = (): string =>
@@ -34,21 +34,21 @@ const getServiceUnavailableMessage = (): string =>
 const getTableBackendErrorMessage = (code: unknown): string => {
   switch (code) {
     case "ANALYSIS_FILE_NOT_FOUND":
-      return localize("tableBackend.error.fileNotFound", "Analysis file was not found.");
+      return localize("tableBackend.error.fileNotFound", "File was not found.");
     case "INVALID_ANALYSIS_CELLS":
       return localize("tableBackend.error.invalidCells", "Invalid analysis cells request.");
     case "INVALID_ANALYSIS_FILE_ID":
-      return localize("tableBackend.error.invalidFileId", "Missing analysis file id.");
+      return localize("tableBackend.error.invalidFileId", "Missing file id.");
     case "INVALID_ANALYSIS_PATH":
-      return localize("tableBackend.error.invalidPath", "Invalid analysis file path.");
+      return localize("tableBackend.error.invalidPath", "Invalid file path.");
     case "RUST_ENGINE_OPEN_FAILED":
-      return localize("tableBackend.error.openFailed", "Failed to open analysis file.");
+      return localize("tableBackend.error.openFailed", "Failed to open file.");
     case "RUST_ENGINE_PREVIEW_ROWS_FAILED":
       return localize("tableBackend.error.previewRowsFailed", "Failed to read preview rows.");
     case "RUST_ENGINE_READ_CELLS_FAILED":
       return localize("tableBackend.error.readCellsFailed", "Failed to read analysis cells.");
     case "RUST_ENGINE_DISPOSE_FAILED":
-      return localize("tableBackend.error.disposeFailed", "Failed to release analysis file.");
+      return localize("tableBackend.error.disposeFailed", "Failed to release file.");
   }
 
   return localize("tableBackend.error.engineFailed", "Analysis engine failed.");
@@ -132,19 +132,19 @@ export class ElectronTableBackendService extends Disposable implements ITableBac
   }
 
   public canDisposeFile(): boolean {
-    return hasBridgeMethod("disposeAnalysisFileWithRust") || hasIpcRenderer();
+    return hasBridgeMethod("disposeFileWithRust") || hasIpcRenderer();
   }
 
   public canGetPreviewRows(): boolean {
-    return hasBridgeMethod("getAnalysisFilePreviewRowsWithRust") || hasIpcRenderer();
+    return hasBridgeMethod("getFilePreviewRowsWithRust") || hasIpcRenderer();
   }
 
   public canOpenFile(): boolean {
-    return hasBridgeMethod("openAnalysisFileWithRust") || hasIpcRenderer();
+    return hasBridgeMethod("openFileWithRust") || hasIpcRenderer();
   }
 
   public canReadCells(): boolean {
-    return hasBridgeMethod("readAnalysisFileCellsWithRust") || hasIpcRenderer();
+    return hasBridgeMethod("readFileCellsWithRust") || hasIpcRenderer();
   }
 
   public canReadConvertedCsv(): boolean {
@@ -153,8 +153,8 @@ export class ElectronTableBackendService extends Disposable implements ITableBac
 
   public disposeFile(payload: unknown): Promise<unknown> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("disposeAnalysisFileWithRust")) {
-      return getBridgeMethod(bridge, "disposeAnalysisFileWithRust")(payload)
+    if (bridge && hasBridgeMethod("disposeFileWithRust")) {
+      return getBridgeMethod(bridge, "disposeFileWithRust")(payload)
         .then(localizeTableBackendResponse);
     }
 
@@ -164,8 +164,8 @@ export class ElectronTableBackendService extends Disposable implements ITableBac
 
   public getPreviewRows(payload: unknown): Promise<TableBackendResultPayload> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("getAnalysisFilePreviewRowsWithRust")) {
-      return getBridgeMethod(bridge, "getAnalysisFilePreviewRowsWithRust")(payload)
+    if (bridge && hasBridgeMethod("getFilePreviewRowsWithRust")) {
+      return getBridgeMethod(bridge, "getFilePreviewRowsWithRust")(payload)
         .then(localizeTableBackendResponse);
     }
 
@@ -175,8 +175,8 @@ export class ElectronTableBackendService extends Disposable implements ITableBac
 
   public openFile(payload: unknown): Promise<TableBackendResultPayload> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("openAnalysisFileWithRust")) {
-      return getBridgeMethod(bridge, "openAnalysisFileWithRust")(payload)
+    if (bridge && hasBridgeMethod("openFileWithRust")) {
+      return getBridgeMethod(bridge, "openFileWithRust")(payload)
         .then(localizeTableBackendResponse);
     }
 
@@ -186,8 +186,8 @@ export class ElectronTableBackendService extends Disposable implements ITableBac
 
   public readCells(payload: unknown): Promise<TableBackendResultPayload> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("readAnalysisFileCellsWithRust")) {
-      return getBridgeMethod(bridge, "readAnalysisFileCellsWithRust")(payload)
+    if (bridge && hasBridgeMethod("readFileCellsWithRust")) {
+      return getBridgeMethod(bridge, "readFileCellsWithRust")(payload)
         .then(localizeTableBackendResponse);
     }
 

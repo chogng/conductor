@@ -40,19 +40,19 @@ export type ExplorerFileRemovalRequest = {
 
 export type ExplorerSessionSelectionInput = {
   readonly rawFileIds: readonly string[];
-  readonly analysisFileIds: readonly string[];
+  readonly processedFileIds: readonly string[];
 };
 
 export type ExplorerSessionSelection = {
   readonly selectedRawFileId: string | null;
-  readonly selectedAnalysisFileId: string | null;
+  readonly selectedProcessedFileId: string | null;
 };
 
 export interface IExplorerService {
   readonly _serviceBrand: undefined;
 
   readonly selectedRawFileId: string | null;
-  readonly selectedAnalysisFileId: string | null;
+  readonly selectedProcessedFileId: string | null;
   readonly expandedFolderKeys: readonly string[];
   readonly viewLayout: ExplorerViewLayout;
   readonly onDidChangeSelection: Event<ExplorerSelectionChangeEvent>;
@@ -75,14 +75,14 @@ export interface IExplorerService {
   requestSelectedFolderRemoval(): void;
   requestFileRemoval(fileId: string): void;
   setSelectedRawFileId(fileId: string | null): void;
-  setSelectedAnalysisFileId(fileId: string | null): void;
+  setSelectedProcessedFileId(fileId: string | null): void;
   setViewLayout(viewLayout: ExplorerViewLayout): void;
   toggleViewLayout(): void;
   resolveSelectedFileId(kind: ExplorerSelectionKind, fileIds: readonly string[]): string | null;
   resolveSelectedRawFileId(fileIds: readonly string[]): string | null;
-  resolveSelectedAnalysisFileId(fileIds: readonly string[]): string | null;
+  resolveSelectedProcessedFileId(fileIds: readonly string[]): string | null;
   reconcileSelectedRawFileId(fileIds: readonly string[]): string | null;
-  reconcileSelectedAnalysisFileId(fileIds: readonly string[]): string | null;
+  reconcileSelectedProcessedFileId(fileIds: readonly string[]): string | null;
   resolveSessionSelection(input: ExplorerSessionSelectionInput): ExplorerSessionSelection;
   reconcileSessionSelection(input: ExplorerSessionSelectionInput): ExplorerSessionSelection;
   getPaneInput(): ExplorerPaneInput | null;

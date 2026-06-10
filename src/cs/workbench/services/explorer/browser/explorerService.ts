@@ -49,7 +49,7 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
     return this.selectionStore.getSelectedFileId("raw");
   }
 
-  public get selectedAnalysisFileId(): string | null {
+  public get selectedProcessedFileId(): string | null {
     return this.selectionStore.getSelectedFileId("analysis");
   }
 
@@ -143,7 +143,7 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
     this.selectFile("raw", fileId);
   }
 
-  public setSelectedAnalysisFileId(fileId: string | null): void {
+  public setSelectedProcessedFileId(fileId: string | null): void {
     this.selectFile("analysis", fileId);
   }
 
@@ -164,7 +164,7 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
     return this.resolveSelectedFileId("raw", fileIds);
   }
 
-  public resolveSelectedAnalysisFileId(fileIds: readonly string[]): string | null {
+  public resolveSelectedProcessedFileId(fileIds: readonly string[]): string | null {
     return this.resolveSelectedFileId("analysis", fileIds);
   }
 
@@ -172,7 +172,7 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
     return this.reconcileSelection("raw", fileIds);
   }
 
-  public reconcileSelectedAnalysisFileId(fileIds: readonly string[]): string | null {
+  public reconcileSelectedProcessedFileId(fileIds: readonly string[]): string | null {
     return this.reconcileSelection("analysis", fileIds);
   }
 
@@ -182,14 +182,14 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
 
   public resolveSessionSelection(input: ExplorerSessionSelectionInput): ExplorerSessionSelection {
     return {
-      selectedAnalysisFileId: this.resolveSelectedAnalysisFileId(input.analysisFileIds),
+      selectedProcessedFileId: this.resolveSelectedProcessedFileId(input.processedFileIds),
       selectedRawFileId: this.resolveSelectedRawFileId(input.rawFileIds),
     };
   }
 
   public reconcileSessionSelection(input: ExplorerSessionSelectionInput): ExplorerSessionSelection {
     return {
-      selectedAnalysisFileId: this.reconcileSelectedAnalysisFileId(input.analysisFileIds),
+      selectedProcessedFileId: this.reconcileSelectedProcessedFileId(input.processedFileIds),
       selectedRawFileId: this.reconcileSelectedRawFileId(input.rawFileIds),
     };
   }

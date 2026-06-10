@@ -16,10 +16,10 @@ suite("workbench/services/explorer/test/browser/explorerService", () => {
     });
 
     service.setSelectedRawFileId(" raw-a ");
-    service.setSelectedAnalysisFileId("analysis-a");
+    service.setSelectedProcessedFileId("analysis-a");
 
     assert.equal(service.selectedRawFileId, "raw-a");
-    assert.equal(service.selectedAnalysisFileId, "analysis-a");
+    assert.equal(service.selectedProcessedFileId, "analysis-a");
     assert.deepEqual(events, [
       { kind: "raw", selectedFileId: "raw-a" },
       { kind: "analysis", selectedFileId: "analysis-a" },
@@ -66,7 +66,7 @@ suite("workbench/services/explorer/test/browser/explorerService", () => {
     assert.equal(service.reconcileSelectedRawFileId(["file-b", "file-c"]), "file-b");
     assert.equal(service.selectedRawFileId, "file-b");
     assert.equal(service.reconcileSelection("analysis", ["analysis-a"]), "analysis-a");
-    assert.equal(service.selectedAnalysisFileId, "analysis-a");
+    assert.equal(service.selectedProcessedFileId, "analysis-a");
     assert.equal(service.reconcileSelectedRawFileId([]), null);
     assert.equal(service.selectedRawFileId, null);
 
@@ -84,25 +84,25 @@ suite("workbench/services/explorer/test/browser/explorerService", () => {
 
     assert.deepEqual(
       service.reconcileSessionSelection({
-        analysisFileIds: ["analysis-a"],
+        processedFileIds: ["analysis-a"],
         rawFileIds: ["raw-a", "raw-b"],
       }),
       {
-        selectedAnalysisFileId: "analysis-a",
+        selectedProcessedFileId: "analysis-a",
         selectedRawFileId: "raw-a",
       },
     );
 
     service.setSelectedRawFileId("raw-b");
-    service.setSelectedAnalysisFileId("analysis-b");
+    service.setSelectedProcessedFileId("analysis-b");
 
     assert.deepEqual(
       service.reconcileSessionSelection({
-        analysisFileIds: ["analysis-a"],
+        processedFileIds: ["analysis-a"],
         rawFileIds: ["raw-a", "raw-b"],
       }),
       {
-        selectedAnalysisFileId: "analysis-a",
+        selectedProcessedFileId: "analysis-a",
         selectedRawFileId: "raw-b",
       },
     );

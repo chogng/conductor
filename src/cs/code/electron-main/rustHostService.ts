@@ -67,7 +67,7 @@ export class RustHostService implements IRustAnalysisService {
 
   public async openFile(request: OpenFileRequest): Promise<RustAnalysisResponse> {
     if (!request.fileId || !request.inputPath || !this.options.isSupportedInputPath(request.inputPath)) {
-      return buildFailure(ErrorCode.InvalidPath, "Invalid analysis file path.");
+      return buildFailure(ErrorCode.InvalidPath, "Invalid file path.");
     }
 
     try {
@@ -78,7 +78,7 @@ export class RustHostService implements IRustAnalysisService {
     } catch (error) {
       return buildFailure(
         ErrorCode.FileNotFound,
-        (error as Error)?.message || "Analysis file not found.",
+        (error as Error)?.message || "File not found.",
       );
     }
 
@@ -174,7 +174,7 @@ export class RustHostService implements IRustAnalysisService {
 
   public async processFile(request: ProcessFileRequest): Promise<RustAnalysisResponse> {
     if (!request.fileId || !request.inputPath || !this.options.isSupportedInputPath(request.inputPath)) {
-      return buildFailure(ErrorCode.InvalidPath, "Invalid analysis file path.");
+      return buildFailure(ErrorCode.InvalidPath, "Invalid file path.");
     }
     if (!request.auto && !this.options.isRustProcessFileConfigSupported(request.config)) {
       return buildFailure(
@@ -256,7 +256,7 @@ export class RustHostService implements IRustAnalysisService {
       (request.metricKind === "output" || request.metricKind === "transfer") &&
       request.metricSeries.length > 0;
     if (!request.fileId || !request.inputPath || !this.options.isSupportedInputPath(request.inputPath)) {
-      return buildFailure(ErrorCode.InvalidPath, "Invalid analysis file path.");
+      return buildFailure(ErrorCode.InvalidPath, "Invalid file path.");
     }
     if (!this.options.isRustProcessFileConfigSupported(request.config) || (!request.columns.length && !hasRustSeries)) {
       return buildFailure(

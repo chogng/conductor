@@ -22,7 +22,7 @@ type DesktopIpcRenderer = {
 };
 
 type DesktopTemplateProcessingApi = {
-  processAnalysisFileWithRust?: (payload: unknown) => Promise<TemplateProcessingResultPayload>;
+  processFileWithRust?: (payload: unknown) => Promise<TemplateProcessingResultPayload>;
 };
 
 const getServiceUnavailableMessage = (): string =>
@@ -31,7 +31,7 @@ const getServiceUnavailableMessage = (): string =>
 const getTemplateProcessingErrorMessage = (code: unknown): string => {
   switch (code) {
     case "RUST_ENGINE_PROCESS_FAILED":
-      return localize("templateProcessing.error.processFailed", "Failed to process analysis file.");
+      return localize("templateProcessing.error.processFailed", "Failed to process file.");
     case "RUST_ENGINE_PROCESS_UNSUPPORTED_CONFIG":
       return localize(
         "templateProcessing.error.processUnsupportedConfig",
@@ -123,7 +123,7 @@ export class ElectronTemplateProcessingBackendService
   }
 
   public canProcessFile(): boolean {
-    return hasBridgeMethod("processAnalysisFileWithRust") || hasIpcRenderer();
+    return hasBridgeMethod("processFileWithRust") || hasIpcRenderer();
   }
 
   public canReadConvertedCsv(): boolean {
@@ -132,8 +132,8 @@ export class ElectronTemplateProcessingBackendService
 
   public processFile(payload: unknown): Promise<TemplateProcessingResultPayload> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("processAnalysisFileWithRust")) {
-      return getBridgeMethod(bridge, "processAnalysisFileWithRust")(payload)
+    if (bridge && hasBridgeMethod("processFileWithRust")) {
+      return getBridgeMethod(bridge, "processFileWithRust")(payload)
         .then(localizeTemplateProcessingResponse);
     }
 

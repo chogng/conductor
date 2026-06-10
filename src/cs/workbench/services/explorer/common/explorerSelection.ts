@@ -13,12 +13,12 @@ import type {
  */
 export class ExplorerSelectionStore {
 	private currentRawFileId: string | null = null;
-	private currentAnalysisFileId: string | null = null;
+	private currentProcessedFileId: string | null = null;
 
 	public getSelectedFileId(kind: ExplorerSelectionKind): string | null {
 		return kind === "raw"
 			? this.currentRawFileId
-			: this.currentAnalysisFileId;
+			: this.currentProcessedFileId;
 	}
 
 	public setSelection(selection: ExplorerSelectionRequest): {
@@ -97,7 +97,7 @@ export class ExplorerSelectionStore {
 		if (kind === "raw") {
 			this.currentRawFileId = nextFileId;
 		} else {
-			this.currentAnalysisFileId = nextFileId;
+			this.currentProcessedFileId = nextFileId;
 		}
 
 		return {

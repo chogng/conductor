@@ -160,35 +160,35 @@ function createDesktopImportBridge(ipcRenderer: IpcRenderer) {
       return ipcRenderer.invoke(workbenchIpcChannels.excelReadConvertedCsv, payload);
     },
 
-    async getAnalysisFileDemoFiles() {
+    async getFileDemoFiles() {
       return ipcRenderer.invoke(workbenchIpcChannels.analysisDemoFilesGet);
     },
 
-    async openAnalysisFileWithRust(payload: unknown) {
+    async openFileWithRust(payload: unknown) {
       return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEngineOpen, payload);
     },
 
-    async getAnalysisFilePreviewMetaWithRust(payload: unknown) {
+    async getFilePreviewMetaWithRust(payload: unknown) {
       return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEnginePreviewMeta, payload);
     },
 
-    async getAnalysisFilePreviewRowsWithRust(payload: unknown) {
+    async getFilePreviewRowsWithRust(payload: unknown) {
       return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEnginePreviewRows, payload);
     },
 
-    async readAnalysisFileCellWithRust(payload: unknown) {
+    async readFileCellWithRust(payload: unknown) {
       return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEngineReadCell, payload);
     },
 
-    async readAnalysisFileCellsWithRust(payload: unknown) {
+    async readFileCellsWithRust(payload: unknown) {
       return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEngineReadCells, payload);
     },
 
-    async processAnalysisFileWithRust(payload: unknown) {
+    async processFileWithRust(payload: unknown) {
       return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEngineProcessFile, payload);
     },
 
-    async analyzeAnalysisFileRcWithRust(payload: unknown) {
+    async analyzeFileRcWithRust(payload: unknown) {
       return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEngineAnalyzeRc, payload);
     },
 
@@ -200,7 +200,7 @@ function createDesktopImportBridge(ipcRenderer: IpcRenderer) {
       return ipcRenderer.invoke(workbenchIpcChannels.analysisOriginZipSave, payload);
     },
 
-    async disposeAnalysisFileWithRust(payload: unknown) {
+    async disposeFileWithRust(payload: unknown) {
       return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEngineDispose, payload);
     },
   };
