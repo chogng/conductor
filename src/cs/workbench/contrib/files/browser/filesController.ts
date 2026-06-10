@@ -48,6 +48,9 @@ import {
 import {
   ExplorerImportController,
 } from "src/cs/workbench/contrib/files/browser/explorerImportController";
+import {
+  resolveExplorerSelectedFileId,
+} from "src/cs/workbench/contrib/files/browser/explorerSessionWorkflow";
 import type {
   FileConverterBackend,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
@@ -404,11 +407,19 @@ export class FilesController implements IDisposable {
       return;
     }
 
-    this.explorerService.removeFileIdsFromSelection({
+    const currentFileId = this.props.selectionKind === "analysis"
+      ? this.explorerService.selectedProcessedFileId
+      : this.explorerService.selectedRawFileId;
+    if (!currentFileId || !fileIds.includes(currentFileId)) {
+      return;
+    }
+
+    const remainingFileIds = this.fileIds.filter(fileId => !fileIds.includes(fileId));
+    this.explorerService.select({
+      candidateFileIds: remainingFileIds,
+      fileId: resolveExplorerSelectedFileId(null, remainingFileIds),
       kind: this.props.selectionKind,
-      remainingFileIds: this.fileIds.filter(fileId => !fileIds.includes(fileId)),
-      removedFileIds: fileIds,
-    });
+    }, "force");
   }
 
   private readonly loadTemplates = (): void => {

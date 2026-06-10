@@ -199,7 +199,7 @@ suite("workbench/contrib/files/browser/explorerSessionWorkflow", () => {
         String(file.fileName),
       )),
     });
-    explorerService.setSelectedRawFileId("file-a");
+    explorerService.select({ kind: "raw", fileId: "file-a" });
 
     const workflow = createExplorerSessionWorkflow({
       clearSession: session.clearSession,

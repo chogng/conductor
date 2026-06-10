@@ -16,8 +16,8 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       events.push(event);
     });
 
-    service.setSelectedRawFileId(" raw-a ");
-    service.setSelectedProcessedFileId("analysis-a");
+    service.select({ kind: "raw", fileId: " raw-a " });
+    service.select({ kind: "analysis", fileId: "analysis-a" });
 
     assert.equal(service.selectedRawFileId, "raw-a");
     assert.equal(service.selectedProcessedFileId, "analysis-a");
@@ -35,78 +35,11 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       changeCount += 1;
     });
 
-    service.setSelectedRawFileId("file-a");
-    service.setSelectedRawFileId(" file-a ");
+    service.select({ kind: "raw", fileId: "file-a" });
+    service.select({ kind: "raw", fileId: " file-a " });
 
     assert.equal(changeCount, 1);
     disposable.dispose();
-  });
-
-  test("resolves selected ids against current candidates", () => {
-    const service = new ExplorerService();
-
-    assert.equal(service.resolveSelectedRawFileId(["file-a", "file-b"]), "file-a");
-    assert.equal(service.selectedRawFileId, null);
-
-    service.setSelectedRawFileId("file-b");
-    assert.equal(service.resolveSelectedRawFileId(["file-a", "file-b"]), "file-b");
-    assert.equal(service.resolveSelectedRawFileId(["file-a"]), "file-a");
-    assert.equal(service.selectedRawFileId, "file-b");
-    assert.equal(service.resolveSelectedRawFileId([]), null);
-  });
-
-  test("reconciles selected ids into explorer service state", () => {
-    const service = new ExplorerService();
-    const events: ExplorerSelectionChangeEvent[] = [];
-    const disposable = service.onDidChangeSelection(event => {
-      events.push(event);
-    });
-
-    assert.equal(service.reconcileSelectedRawFileId(["file-a", "file-b"]), "file-a");
-    assert.equal(service.selectedRawFileId, "file-a");
-    assert.equal(service.reconcileSelectedRawFileId(["file-b", "file-c"]), "file-b");
-    assert.equal(service.selectedRawFileId, "file-b");
-    assert.equal(service.reconcileSelection("analysis", ["analysis-a"]), "analysis-a");
-    assert.equal(service.selectedProcessedFileId, "analysis-a");
-    assert.equal(service.reconcileSelectedRawFileId([]), null);
-    assert.equal(service.selectedRawFileId, null);
-
-    assert.deepEqual(events, [
-      { kind: "raw", selectedFileId: "file-a" },
-      { kind: "raw", selectedFileId: "file-b" },
-      { kind: "analysis", selectedFileId: "analysis-a" },
-      { kind: "raw", selectedFileId: null },
-    ]);
-    disposable.dispose();
-  });
-
-  test("reconciles raw and analysis session selections together", () => {
-    const service = new ExplorerService();
-
-    assert.deepEqual(
-      service.reconcileSessionSelection({
-        processedFileIds: ["analysis-a"],
-        rawFileIds: ["raw-a", "raw-b"],
-      }),
-      {
-        selectedProcessedFileId: "analysis-a",
-        selectedRawFileId: "raw-a",
-      },
-    );
-
-    service.setSelectedRawFileId("raw-b");
-    service.setSelectedProcessedFileId("analysis-b");
-
-    assert.deepEqual(
-      service.reconcileSessionSelection({
-        processedFileIds: ["analysis-a"],
-        rawFileIds: ["raw-a", "raw-b"],
-      }),
-      {
-        selectedProcessedFileId: "analysis-a",
-        selectedRawFileId: "raw-b",
-      },
-    );
   });
 
   test("selects files through explorer-owned candidate validation", () => {
@@ -129,33 +62,6 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       "file-b",
     );
     assert.equal(service.selectedRawFileId, "file-b");
-  });
-
-  test("updates selection after selected files are removed", () => {
-    const service = new ExplorerService();
-
-    service.setSelectedRawFileId("file-b");
-
-    assert.equal(
-      service.removeFileIdsFromSelection({
-        kind: "raw",
-        remainingFileIds: ["file-a", "file-c"],
-        removedFileIds: ["file-b"],
-      }),
-      "file-a",
-    );
-    assert.equal(service.selectedRawFileId, "file-a");
-
-    service.clearSelection("raw");
-    assert.equal(
-      service.removeFileIdsFromSelection({
-        kind: "raw",
-        remainingFileIds: ["file-c"],
-        removedFileIds: ["file-a"],
-      }),
-      null,
-    );
-    assert.equal(service.selectedRawFileId, null);
   });
 
   test("owns explorer view layout", () => {

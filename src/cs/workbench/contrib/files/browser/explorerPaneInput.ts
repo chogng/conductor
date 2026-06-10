@@ -6,7 +6,10 @@ import type {
 	IExplorerService,
 } from "src/cs/workbench/contrib/files/common/explorer";
 import { createChartExplorerFilesFromRecords } from "src/cs/workbench/contrib/files/common/explorerInput";
-import { createExplorerSessionWorkflow } from "src/cs/workbench/contrib/files/browser/explorerSessionWorkflow";
+import {
+	createExplorerSessionWorkflow,
+	resolveExplorerSelectedFileId,
+} from "src/cs/workbench/contrib/files/browser/explorerSessionWorkflow";
 import type {
 	ExplorerPaneInput,
 	ExplorerThumbnailPlotModel,
@@ -111,7 +114,12 @@ export const createExplorerPaneInput = ({
 			snapshot,
 		})
 		: undefined;
-	const selectedFileId = explorerService.resolveSelectedFileId(selectionKind, fileIds);
+	const selectedFileId = resolveExplorerSelectedFileId(
+		selectionKind === "analysis"
+			? explorerService.selectedProcessedFileId
+			: explorerService.selectedRawFileId,
+		fileIds,
+	);
 	const currentTemplate = createCurrentTemplateSelectionDisplay({
 		formName: templateState.formState.name,
 		selectedTemplateId: templateState.selectedTemplateId,
@@ -120,7 +128,7 @@ export const createExplorerPaneInput = ({
 		? (fileId: string | null): void => {
 			const nextFileId = String(fileId ?? "").trim() || null;
 			if (!nextFileId) {
-				explorerService.clearSelection("analysis");
+				explorerService.select({ kind: "analysis", fileId: null });
 				return;
 			}
 

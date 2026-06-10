@@ -87,7 +87,7 @@ import { createExplorerPaneInput } from "src/cs/workbench/contrib/files/browser/
 import {
   reconcileExplorerSessionSelection,
   resolveExplorerSessionSelection,
-} from "src/cs/workbench/contrib/files/common/explorerSessionSelection";
+} from "src/cs/workbench/contrib/files/browser/explorerSessionWorkflow";
 import type {
   ISessionService as ISessionServiceType,
   SessionSnapshot,
@@ -874,7 +874,7 @@ export class Workbench extends Layout {
     const nextFileId = String(fileId ?? "").trim() || null;
     const snapshot = this.session.getSnapshot();
     if (!nextFileId) {
-      this.explorerService.clearSelection("analysis");
+      this.explorerService.select({ kind: "analysis", fileId: null });
       return;
     }
 

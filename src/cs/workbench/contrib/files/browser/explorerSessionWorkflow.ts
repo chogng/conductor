@@ -6,10 +6,14 @@ import type {
   ProcessingStatus,
   SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
+import type { SessionReadModel } from "src/cs/workbench/services/session/common/sessionReadModel";
 import type {
   ExplorerImportedSessionFile,
 } from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
-import type { IExplorerService } from "src/cs/workbench/contrib/files/common/explorer";
+import type {
+  ExplorerSelectionKind,
+  IExplorerService,
+} from "src/cs/workbench/contrib/files/common/explorer";
 import type {
   FileImportResult,
   ImportedFileRecord,
@@ -20,10 +24,24 @@ import {
 
 type ExplorerSelectionService = Pick<
   IExplorerService,
-  | "clearSelection"
-  | "removeFileIdsFromSelection"
-  | "resolveSelectedRawFileId"
+  | "selectedProcessedFileId"
   | "select"
+  | "selectedRawFileId"
+>;
+
+export type ExplorerSessionSelection = {
+  readonly selectedRawFileId: string | null;
+  readonly selectedProcessedFileId: string | null;
+};
+
+type ExplorerSessionSelectionInput = {
+  readonly rawFileIds: readonly string[];
+  readonly processedFileIds: readonly string[];
+};
+
+type ExplorerSelectionState = Pick<
+  IExplorerService,
+  | "selectedProcessedFileId"
   | "selectedRawFileId"
 >;
 
@@ -42,6 +60,54 @@ type ExplorerSessionWorkflowOptions = {
   resetPreviewWorker: () => void;
   resetProcessingWorker: () => void;
   removeFiles: (fileIds: readonly string[]) => void;
+};
+
+export const createExplorerSessionSelectionInput = (
+  readModel: SessionReadModel,
+): ExplorerSessionSelectionInput => ({
+  processedFileIds: readModel.processedFileIds,
+  rawFileIds: readModel.rawFiles.flatMap(file => file.fileId ? [file.fileId] : []),
+});
+
+export const resolveExplorerSessionSelection = (
+  explorerService: ExplorerSelectionState,
+  readModel: SessionReadModel,
+): ExplorerSessionSelection => {
+  const input = createExplorerSessionSelectionInput(readModel);
+  return {
+    selectedProcessedFileId: resolveExplorerSelectedFileId(
+      explorerService.selectedProcessedFileId,
+      input.processedFileIds,
+    ),
+    selectedRawFileId: resolveExplorerSelectedFileId(
+      explorerService.selectedRawFileId,
+      input.rawFileIds,
+    ),
+  };
+};
+
+export const reconcileExplorerSessionSelection = (
+  explorerService: IExplorerService,
+  readModel: SessionReadModel,
+): ExplorerSessionSelection => {
+  const input = createExplorerSessionSelectionInput(readModel);
+  const selectedProcessedFileId = reconcileExplorerSelectedFileId(
+    explorerService,
+    "analysis",
+    explorerService.selectedProcessedFileId,
+    input.processedFileIds,
+  );
+  const selectedRawFileId = reconcileExplorerSelectedFileId(
+    explorerService,
+    "raw",
+    explorerService.selectedRawFileId,
+    input.rawFileIds,
+  );
+
+  return {
+    selectedProcessedFileId,
+    selectedRawFileId,
+  };
 };
 
 export function createExplorerSessionWorkflow({
@@ -66,7 +132,7 @@ export function createExplorerSessionWorkflow({
       .filter(fileId => fileId.length > 0);
   const getSelectedRawFileId = (files: readonly SessionFile[] = rawFiles): string | null =>
     explorerService.selectedRawFileId ??
-    explorerService.resolveSelectedRawFileId(getRawFileIds(files));
+    resolveExplorerSelectedFileId(null, getRawFileIds(files));
 
   const preparePreviewSelection = (options?: { clearCurrentPreview?: boolean }) => {
     invalidatePreviewRequests();
@@ -96,7 +162,7 @@ export function createExplorerSessionWorkflow({
     clearPreviewState({ clearSelection: true });
 
     clearSession();
-    explorerService.clearSelection("raw");
+    explorerService.select({ kind: "raw", fileId: null });
     resetPreviewWorker();
   };
 
@@ -171,18 +237,26 @@ export function createExplorerSessionWorkflow({
       return;
     }
 
-    const previousSelectedFileId = explorerService.resolveSelectedRawFileId(getRawFileIds());
+    const previousSelectedFileId = resolveExplorerSelectedFileId(
+      explorerService.selectedRawFileId,
+      getRawFileIds(),
+    );
     const remainingFiles = rawFiles.filter(entry =>
       !removedFileIds.has(String(entry.fileId ?? "").trim())
     );
-    let nextSelectedFileId: string | null = previousSelectedFileId;
+    const remainingFileIds = getRawFileIds(remainingFiles);
 
     removeFiles([...removedFileIds]);
-    nextSelectedFileId = explorerService.removeFileIdsFromSelection({
-      kind: "raw",
-      remainingFileIds: getRawFileIds(remainingFiles),
+    const nextSelectedFileId = resolveExplorerSelectionAfterRemoval({
+      currentFileId: explorerService.selectedRawFileId,
+      remainingFileIds,
       removedFileIds: [...removedFileIds],
     });
+    explorerService.select({
+      candidateFileIds: remainingFileIds,
+      fileId: nextSelectedFileId,
+      kind: "raw",
+    }, "force");
 
     if (processingStatus.state === "processing") {
       for (const fileId of removedFileIds) {
@@ -209,11 +283,14 @@ export function createExplorerSessionWorkflow({
 
   const handleFileSelected = (fileId: string | null) => {
     if (!fileId) {
-      explorerService.clearSelection("raw");
+      explorerService.select({ kind: "raw", fileId: null });
       return;
     }
 
-    const previousSelectedFileId = explorerService.resolveSelectedRawFileId(getRawFileIds());
+    const previousSelectedFileId = resolveExplorerSelectedFileId(
+      explorerService.selectedRawFileId,
+      getRawFileIds(),
+    );
     const nextSelectedFileId = explorerService.select({
       candidateFileIds: getRawFileIds(),
       fileId,
@@ -245,4 +322,77 @@ const getImportedFileRecords = (
   files: readonly ExplorerImportedSessionFile[],
 ): readonly ImportedFileRecord[] => {
   return files.map(file => file.importRecord);
+};
+
+export const resolveExplorerSelectedFileId = (
+  selectedFileId: string | null,
+  fileIds: readonly string[],
+): string | null => {
+  const candidates = getNormalizedExplorerFileIds(fileIds);
+  const normalizedSelectedFileId = normalizeExplorerFileId(selectedFileId);
+  if (normalizedSelectedFileId && candidates.includes(normalizedSelectedFileId)) {
+    return normalizedSelectedFileId;
+  }
+
+  return candidates[0] ?? null;
+};
+
+const reconcileExplorerSelectedFileId = (
+  explorerService: Pick<IExplorerService, "select">,
+  kind: ExplorerSelectionKind,
+  selectedFileId: string | null,
+  fileIds: readonly string[],
+): string | null => {
+  const nextSelectedFileId = resolveExplorerSelectedFileId(selectedFileId, fileIds);
+  explorerService.select({
+    candidateFileIds: fileIds,
+    fileId: nextSelectedFileId,
+    kind,
+  });
+  return nextSelectedFileId;
+};
+
+const resolveExplorerSelectionAfterRemoval = ({
+  currentFileId,
+  remainingFileIds,
+  removedFileIds,
+}: {
+  readonly currentFileId: string | null;
+  readonly remainingFileIds: readonly string[];
+  readonly removedFileIds: readonly string[];
+}): string | null => {
+  const removed = new Set(getNormalizedExplorerFileIds(removedFileIds));
+  const remaining = getNormalizedExplorerFileIds(remainingFileIds)
+    .filter(fileId => !removed.has(fileId));
+  const current = normalizeExplorerFileId(currentFileId);
+  if (!current) {
+    return null;
+  }
+
+  return removed.has(current)
+    ? remaining[0] ?? null
+    : resolveExplorerSelectedFileId(current, remaining);
+};
+
+const getNormalizedExplorerFileIds = (
+  fileIds: readonly string[],
+): readonly string[] => {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const fileId of fileIds) {
+    const normalized = normalizeExplorerFileId(fileId);
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    result.push(normalized);
+  }
+
+  return result;
+};
+
+const normalizeExplorerFileId = (fileId: unknown): string | null => {
+  const normalized = String(fileId ?? "").trim();
+  return normalized || null;
 };

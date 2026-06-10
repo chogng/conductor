@@ -105,7 +105,7 @@ suite("workbench/contrib/files/browser/explorerPaneInput", () => {
         columnCount: 2,
       },
     ]);
-    explorerService.setSelectedRawFileId("file-a");
+    explorerService.select({ kind: "raw", fileId: "file-a" });
     let cleared = 0;
     let invalidated = 0;
     const snapshot = session.getSnapshot();

@@ -15,17 +15,12 @@ import {
   type ExplorerFileRemovalRequest,
   type ExplorerRevealMode,
   type ExplorerSelectionKind,
-  type ExplorerSelectionRemoval,
-  type ExplorerSelectionRequest,
   type ExplorerSelectionTarget,
-  type ExplorerSessionSelection,
-  type ExplorerSessionSelectionInput,
   type IExplorerView,
   type ExplorerViewLayout,
   type IExplorerService as IExplorerServiceType,
 } from "src/cs/workbench/contrib/files/common/explorer";
 import type { ExplorerPaneInput } from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
-import { ExplorerSelectionStore } from "src/cs/workbench/contrib/files/common/explorerSelection";
 
 export class ExplorerService extends Disposable implements IExplorerServiceType {
   public declare readonly _serviceBrand: undefined;
@@ -45,7 +40,8 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
   private readonly onDidRequestFileRemovalEmitter = this._register(new Emitter<ExplorerFileRemovalRequest>());
   public readonly onDidRequestFileRemoval = this.onDidRequestFileRemovalEmitter.event;
 
-  private readonly selectionStore = new ExplorerSelectionStore();
+  private currentRawFileId: string | null = null;
+  private currentProcessedFileId: string | null = null;
   private currentExpandedFolderKeys: readonly string[] = [];
   private knownFolderKeys: readonly string[] = [];
   private currentViewLayout: ExplorerViewLayout = "tree";
@@ -58,11 +54,11 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
   };
 
   public get selectedRawFileId(): string | null {
-    return this.selectionStore.getSelectedFileId("raw");
+    return this.getSelectedFileId("raw");
   }
 
   public get selectedProcessedFileId(): string | null {
-    return this.selectionStore.getSelectedFileId("analysis");
+    return this.getSelectedFileId("analysis");
   }
 
   public get expandedFolderKeys(): readonly string[] {
@@ -92,11 +88,7 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
   }
 
   public select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): string | null {
-    const selectedFileId = this.applySelection({
-      candidateFileIds: target.candidateFileIds,
-      kind: target.kind,
-      selectedFileId: target.fileId,
-    });
+    const selectedFileId = this.applySelection(target);
     for (const view of this.views) {
       view.selectResource?.(target, reveal);
     }
@@ -125,10 +117,6 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
     }
   }
 
-  public clearSelection(kind: ExplorerSelectionKind): void {
-    this.fireSelectionChange(kind, this.selectionStore.clearSelection(kind));
-  }
-
   public setExpandedFolderKeys(folderKeys: readonly string[]): void {
     this.applyExpandedFolderKeys(normalizeExplorerFolderKeys(folderKeys));
   }
@@ -150,22 +138,10 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
     return this.currentExpandedFolderKeys;
   }
 
-  public reconcileSelection(kind: ExplorerSelectionKind, fileIds: readonly string[]): string | null {
-    const result = this.selectionStore.reconcileSelection(kind, fileIds);
-    this.fireSelectionChange(kind, result);
-    return result.selectedFileId;
-  }
-
   public getCollapsedFolderKeys(folderKeys: readonly string[]): readonly string[] {
     const expandedFolderKeys = new Set(this.currentExpandedFolderKeys);
     return normalizeExplorerFolderKeys(folderKeys)
       .filter(folderKey => !expandedFolderKeys.has(folderKey));
-  }
-
-  public removeFileIdsFromSelection(selection: ExplorerSelectionRemoval): string | null {
-    const result = this.selectionStore.removeFileIdsFromSelection(selection);
-    this.fireSelectionChange(selection.kind, result);
-    return result.selectedFileId;
   }
 
   public requestFolderImport(): void {
@@ -177,20 +153,12 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
   }
 
   public requestFileRemoval(fileId: string): void {
-    const normalizedFileId = this.selectionStore.normalizeFileId(fileId);
+    const normalizedFileId = normalizeExplorerFileId(fileId);
     if (!normalizedFileId) {
       return;
     }
 
     this.onDidRequestFileRemovalEmitter.fire({ fileId: normalizedFileId });
-  }
-
-  public setSelectedRawFileId(fileId: string | null): void {
-    this.select({ kind: "raw", fileId });
-  }
-
-  public setSelectedProcessedFileId(fileId: string | null): void {
-    this.select({ kind: "analysis", fileId });
   }
 
   public setViewLayout(viewLayout: ExplorerViewLayout): void {
@@ -206,40 +174,6 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
     this.setViewLayout(this.currentViewLayout === "thumbnail" ? "tree" : "thumbnail");
   }
 
-  public resolveSelectedRawFileId(fileIds: readonly string[]): string | null {
-    return this.resolveSelectedFileId("raw", fileIds);
-  }
-
-  public resolveSelectedProcessedFileId(fileIds: readonly string[]): string | null {
-    return this.resolveSelectedFileId("analysis", fileIds);
-  }
-
-  public reconcileSelectedRawFileId(fileIds: readonly string[]): string | null {
-    return this.reconcileSelection("raw", fileIds);
-  }
-
-  public reconcileSelectedProcessedFileId(fileIds: readonly string[]): string | null {
-    return this.reconcileSelection("analysis", fileIds);
-  }
-
-  public resolveSelectedFileId(kind: ExplorerSelectionKind, fileIds: readonly string[]): string | null {
-    return this.selectionStore.resolveSelectedFileId(kind, fileIds);
-  }
-
-  public resolveSessionSelection(input: ExplorerSessionSelectionInput): ExplorerSessionSelection {
-    return {
-      selectedProcessedFileId: this.resolveSelectedProcessedFileId(input.processedFileIds),
-      selectedRawFileId: this.resolveSelectedRawFileId(input.rawFileIds),
-    };
-  }
-
-  public reconcileSessionSelection(input: ExplorerSessionSelectionInput): ExplorerSessionSelection {
-    return {
-      selectedProcessedFileId: this.reconcileSelectedProcessedFileId(input.processedFileIds),
-      selectedRawFileId: this.reconcileSelectedRawFileId(input.rawFileIds),
-    };
-  }
-
   public getPaneInput(): ExplorerPaneInput | null {
     return this.paneInput;
   }
@@ -249,10 +183,49 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
     this.onDidChangePaneInputEmitter.fire(input);
   }
 
-  private applySelection(selection: ExplorerSelectionRequest): string | null {
-    const result = this.selectionStore.select(selection);
-    this.fireSelectionChange(selection.kind, result);
+  private applySelection(target: ExplorerSelectionTarget): string | null {
+    const nextFileId = normalizeExplorerFileId(target.fileId);
+    if (nextFileId && target.candidateFileIds) {
+      const candidates = getNormalizedExplorerFileIds(target.candidateFileIds);
+      if (!candidates.includes(nextFileId)) {
+        return this.getSelectedFileId(target.kind);
+      }
+    }
+
+    const result = this.setSelectedFileId(target.kind, nextFileId);
+    this.fireSelectionChange(target.kind, result);
     return result.selectedFileId;
+  }
+
+  private getSelectedFileId(kind: ExplorerSelectionKind): string | null {
+    return kind === "raw"
+      ? this.currentRawFileId
+      : this.currentProcessedFileId;
+  }
+
+  private setSelectedFileId(kind: ExplorerSelectionKind, fileId: string | null): {
+    readonly changed: boolean;
+    readonly selectedFileId: string | null;
+  } {
+    const nextFileId = normalizeExplorerFileId(fileId);
+    const currentFileId = this.getSelectedFileId(kind);
+    if (currentFileId === nextFileId) {
+      return {
+        changed: false,
+        selectedFileId: nextFileId,
+      };
+    }
+
+    if (kind === "raw") {
+      this.currentRawFileId = nextFileId;
+    } else {
+      this.currentProcessedFileId = nextFileId;
+    }
+
+    return {
+      changed: true,
+      selectedFileId: nextFileId,
+    };
   }
 
   private fireSelectionChange(
@@ -315,3 +288,26 @@ function areStringArraysEqual(
 
   return true;
 }
+
+const getNormalizedExplorerFileIds = (
+  fileIds: readonly string[],
+): readonly string[] => {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const fileId of fileIds) {
+    const normalized = normalizeExplorerFileId(fileId);
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    result.push(normalized);
+  }
+
+  return result;
+};
+
+const normalizeExplorerFileId = (fileId: unknown): string | null => {
+  const normalized = String(fileId ?? "").trim();
+  return normalized || null;
+};

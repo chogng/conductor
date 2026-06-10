@@ -23,12 +23,6 @@ export type ExplorerFolderExpansionChangeEvent = {
   readonly expandedFolderKeys: readonly string[];
 };
 
-export type ExplorerSelectionRequest = {
-  readonly kind: ExplorerSelectionKind;
-  readonly selectedFileId: string | null;
-  readonly candidateFileIds?: readonly string[];
-};
-
 export type ExplorerSelectionTarget = {
   readonly kind: ExplorerSelectionKind;
   readonly fileId: string | null;
@@ -61,24 +55,8 @@ export interface IExplorerView {
   refresh?(): void;
 }
 
-export type ExplorerSelectionRemoval = {
-  readonly kind: ExplorerSelectionKind;
-  readonly removedFileIds: readonly string[];
-  readonly remainingFileIds: readonly string[];
-};
-
 export type ExplorerFileRemovalRequest = {
   readonly fileId: string;
-};
-
-export type ExplorerSessionSelectionInput = {
-  readonly rawFileIds: readonly string[];
-  readonly processedFileIds: readonly string[];
-};
-
-export type ExplorerSessionSelection = {
-  readonly selectedRawFileId: string | null;
-  readonly selectedProcessedFileId: string | null;
 };
 
 export interface IExplorerService {
@@ -103,26 +81,14 @@ export interface IExplorerService {
   setToCopy(resources: readonly ExplorerSelectionTarget[], isCut: boolean): void;
   applyBulkEdit(): Promise<void>;
   refresh(): Promise<void>;
-  clearSelection(kind: ExplorerSelectionKind): void;
   setExpandedFolderKeys(folderKeys: readonly string[]): void;
   reconcileExpandedFolderKeys(folderKeys: readonly string[]): readonly string[];
-  reconcileSelection(kind: ExplorerSelectionKind, fileIds: readonly string[]): string | null;
   getCollapsedFolderKeys(folderKeys: readonly string[]): readonly string[];
-  removeFileIdsFromSelection(selection: ExplorerSelectionRemoval): string | null;
   requestFolderImport(): void;
   requestSelectedFolderRemoval(): void;
   requestFileRemoval(fileId: string): void;
-  setSelectedRawFileId(fileId: string | null): void;
-  setSelectedProcessedFileId(fileId: string | null): void;
   setViewLayout(viewLayout: ExplorerViewLayout): void;
   toggleViewLayout(): void;
-  resolveSelectedFileId(kind: ExplorerSelectionKind, fileIds: readonly string[]): string | null;
-  resolveSelectedRawFileId(fileIds: readonly string[]): string | null;
-  resolveSelectedProcessedFileId(fileIds: readonly string[]): string | null;
-  reconcileSelectedRawFileId(fileIds: readonly string[]): string | null;
-  reconcileSelectedProcessedFileId(fileIds: readonly string[]): string | null;
-  resolveSessionSelection(input: ExplorerSessionSelectionInput): ExplorerSessionSelection;
-  reconcileSessionSelection(input: ExplorerSessionSelectionInput): ExplorerSessionSelection;
   getPaneInput(): ExplorerPaneInput | null;
   updatePaneInput(input: ExplorerPaneInput): void;
 }
