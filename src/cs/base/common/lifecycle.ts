@@ -65,14 +65,14 @@ export class DisposableStore implements IDisposable {
 export abstract class Disposable implements IDisposable {
     public static readonly None = Object.freeze<IDisposable>({ dispose() {} });
 
-    private readonly store = new DisposableStore();
+    private readonly disposableStore = new DisposableStore();
 
     protected _register<T extends IDisposable>(disposable: T): T {
-        return this.store.add(disposable);
+        return this.disposableStore.add(disposable);
     }
 
     public dispose(): void {
-        this.store.dispose();
+        this.disposableStore.dispose();
     }
 }
 

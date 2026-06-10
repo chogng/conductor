@@ -1,7 +1,7 @@
 import { addDisposableListener } from "src/cs/base/browser/dom";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Emitter, type Event } from "src/cs/base/common/event";
-import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { Disposable } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import type { IView } from "src/cs/workbench/common/views";
 
@@ -20,17 +20,17 @@ export type ViewPaneOptions = {
   readonly titleClassName?: string;
 };
 
-export class ViewPane implements IView {
+export class ViewPane extends Disposable implements IView {
   public readonly id: string;
   public readonly body: HTMLElement;
   public readonly element: HTMLElement;
   public readonly onDidChangeCollapsed: Event<boolean>;
-  private readonly disposables = new DisposableStore();
   private readonly header: HTMLButtonElement;
-  private readonly onDidChangeCollapsedEmitter = new Emitter<boolean>();
+  private readonly onDidChangeCollapsedEmitter = this._register(new Emitter<boolean>());
   private collapsed: boolean;
 
   constructor(options: ViewPaneOptions) {
+    super();
     this.collapsed = Boolean(options.collapsed);
     this.onDidChangeCollapsed = this.onDidChangeCollapsedEmitter.event;
 
@@ -59,10 +59,9 @@ export class ViewPane implements IView {
     this.body.className = this.getBodyClassName(options.bodyClassName);
     this.body.hidden = this.collapsed;
 
-    this.disposables.add(addDisposableListener(this.header, "click", () => {
+    this._register(addDisposableListener(this.header, "click", () => {
       this.setExpanded(this.collapsed);
     }));
-    this.disposables.add(this.onDidChangeCollapsedEmitter);
 
     this.header.append(icon, title);
     if (options.headerVisible === false) {
@@ -142,8 +141,8 @@ export class ViewPane implements IView {
 
   protected layoutBody(_height: number, _width: number): void {}
 
-  public dispose(): void {
-    this.disposables.dispose();
+  public override dispose(): void {
+    super.dispose();
     this.element.replaceChildren();
     this.element.remove();
   }
