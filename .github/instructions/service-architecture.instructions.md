@@ -64,9 +64,9 @@ Use runtime folders consistently.
 | Service | Canonical owner | Primary input | Primary output | Must not do |
 | --- | --- | --- | --- | --- |
 | `ICommandService` | `src/cs/platform/commands` | command id + args | command dispatch, command events | domain state, UI rendering, session records |
-| `IFileService` | `src/cs/platform/files` | URI / filesystem provider | file bytes, stat, watch events | Explorer state, import semantics, raw tables |
+| `IFileService` | `src/cs/platform/files` | URI / filesystem provider | file bytes, stat, watch events | Explorer UI state, import semantics, raw tables |
 | `IExplorerService` | `src/cs/workbench/services/explorer` | user file/folder actions, session snapshot | Explorer model/state, selected resource, import orchestration | filesystem primitives, table parsing, assessment |
-| `fileConverter.ts` / files import-export workflow | `src/cs/workbench/services/files` | CSV/Excel/Clipboard source | `FileImportResult`, `RawTableRecord` | IV/CV judgement, block detection, session mutation |
+| `fileConverter.ts` / files import-export workflow | `src/cs/workbench/services/files` | CSV/Excel/Clipboard source | `FileImportResult`, `RawTableRecord` | Explorer UI state, IV/CV judgement, block detection, session mutation |
 | `IAssessmentService` | `src/cs/workbench/services/assessment` | `RawTableRecord` | groups, blocks, column roles, diagnostics | template execution, plotting, UI state |
 | `ISessionService` | `src/cs/workbench/services/session` | commit requests | canonical records, snapshot, change events | view state, worker refs, request cache, rendering |
 | `ITableService` | `src/cs/workbench/services/table` | session snapshot, raw table refs | table model, row preview, selection/highlight state | block detection, template execution |
@@ -222,7 +222,7 @@ Examples:
 
 | State | Owner |
 | --- | --- |
-| selected resource in the left Explorer | `IExplorerService` |
+| selected resource in Explorer | `IExplorerService` |
 | active table cell/range | `ITableService` |
 | active plot type / visible plotted series | `IPlotService` |
 | chart detail pane / legend popover | `IChartService` |
@@ -236,7 +236,7 @@ Use `CommandTarget` as a command argument, not as global session state.
 
 ```mermaid
 sequenceDiagram
-    participant View as ExplorerView
+    participant View as Explorer view
     participant Explorer as IExplorerService
     participant FileImport as fileConverter/files import-export workflow
     participant Session as ISessionService
@@ -252,7 +252,7 @@ sequenceDiagram
     Assessment->>Session: commitRawTableAssessment(result)
 ```
 
-`fileConverter.ts` / files import-export workflow converts external resources into raw table facts. It does not decide whether the data is IV/CV/CF/PV/IT.
+`IExplorerService` is the Explorer UI-state and import-orchestration service. `fileConverter.ts` / files import-export workflow converts external resources into raw table facts. It does not decide whether the data is IV/CV/CF/PV/IT.
 
 ## Assessment flow
 
@@ -457,7 +457,7 @@ src/cs/workbench/services/parameters/
 ```
 
 
-src/cs/workbench/contrib/explorer-or-files/
+src/cs/workbench/contrib/files/
   browser/explorerCommands.ts        # target name; current migration file may be fileCommands.ts
   browser/explorerActions.ts
   browser/explorer.contribution.ts
@@ -524,7 +524,7 @@ Views stay in `contrib/*`. Services own state and domain models.
 
 ## Migration order
 
-1. Split platform `IFileService`, Explorer, and file import naming.
+1. Settle the files capability / Explorer UI boundary while keeping platform `IFileService` and files import conversion as separate lower-level responsibilities.
 2. Move raw table records to `services/files/common/rawTable.ts`.
 3. Move assessment records and service API to `services/assessment`.
 4. Shrink `ISessionService` to snapshot/events/commit methods.

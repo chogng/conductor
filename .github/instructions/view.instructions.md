@@ -8,6 +8,19 @@ Use this document when creating, migrating, or debugging workbench views, view p
 
 Conductor's view layer is intentionally close to VS Code's workbench concepts, but some local implementations are simplified. When migrating from upstream, verify that the local abstraction still carries the inherited capabilities that upstream code assumes.
 
+## Current Conductor boundary
+
+Do not assume Conductor's `ViewPane` has the same responsibility as upstream VS Code's `ViewPane`.
+
+In the current Conductor implementation:
+
+- `ViewPaneContainer` owns the rendered container title bar, container actions, active view selection, view collection, and container layout.
+- `ViewPane` owns one view body shell, accessible label, focus behavior, visibility, pane-local layout hook, and pane disposal.
+- `ViewPaneOptions.title` is the view body's accessible label. It does not render a visual title bar.
+- Concrete feature views may render feature-specific headers inside their body, but those headers are not the shared workbench view title bar.
+
+Only move title bar, action, progress, filter, welcome, or collapsed-pane responsibilities into `ViewPane` after explicitly deciding to migrate toward the upstream stacked/collapsible pane model.
+
 ## Overview
 
 The workbench view system has four runtime layers.
@@ -25,9 +38,9 @@ The registry and descriptors are declarative. They describe what containers and 
 
 `ViewsService` turns descriptors into live objects. It is the bridge between the declarative registry/model layer and rendered workbench parts.
 
-`ViewPaneContainer` is the rendered container surface. It manages a set of panes as a group and forwards layout and visibility changes to them.
+`ViewPaneContainer` is the rendered container surface. It manages a set of panes as a group, renders the shared container title bar/actions when enabled, and forwards layout and visibility changes to panes.
 
-`ViewPane` is the rendered pane shell. It provides the common pane contract that concrete feature views build on.
+`ViewPane` is the rendered view body shell. It provides the common pane contract that concrete feature views build on, but it does not render the shared title bar in the current architecture.
 
 Concrete feature views are the leaf layer. They render feature-specific DOM, subscribe to feature services, and expose feature actions.
 
@@ -45,9 +58,9 @@ Views registry/model
 
 `ViewsService` owns registry/model wiring, instantiation, visibility bookkeeping, focus context keys, and the mapping between view ids and container ids. It should not know about feature-specific subscriptions or pane internals.
 
-`ViewPaneContainer` owns a collection of views or panes. It adds, removes, lays out, hides, shows, and orders panes inside one container. It should not manage the internal subscriptions of a concrete feature view.
+`ViewPaneContainer` owns a collection of views or panes. It adds, removes, lays out, hides, shows, and orders panes inside one container. It owns the shared container title area. It should not manage the internal subscriptions of a concrete feature view.
 
-`ViewPane` owns one pane shell: pane DOM, body/header structure, collapsed state, focus behavior, layout hooks, and pane-local lifecycle helpers.
+`ViewPane` owns one pane shell: pane DOM, body structure, accessible label, focus behavior, layout hooks, and pane-local lifecycle helpers.
 
 Concrete `ViewPane` subclasses own feature UI/content, feature service subscriptions, feature actions, and feature-specific rendering.
 
@@ -87,6 +100,8 @@ Do not move concrete view subscriptions into `ViewPaneContainer` just because mu
 Do not create a separate ad hoc lifecycle pattern in every concrete pane to work around a missing base capability. If many `ViewPane` subclasses need the same lifecycle, layout, focus, action, or context-key capability, add it to `ViewPane` or the appropriate shared base abstraction.
 
 When migrating from VS Code, check the upstream inheritance chain before copying a pattern. Upstream `ViewPane` inherits capabilities through `Pane`, including `_register`/disposable lifecycle behavior. If Conductor's simplified local `ViewPane` does not have the same inherited capability, decide whether to add the capability to the local base class before changing concrete views.
+
+When migrating upstream view title bar behavior, first decide whether the responsibility belongs to Conductor's `ViewPaneContainer` or whether the local architecture is intentionally moving toward upstream `ViewPane extends Pane`. Do not add a second shared title bar to `ViewPane` while `ViewPaneContainer` still renders one.
 
 Do not mechanically replace imports or copy upstream class bodies without checking:
 

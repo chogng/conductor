@@ -195,16 +195,16 @@ accessor.get(IExplorerService).removeResources([resourceId]);
 
 If a command currently calls `FilesPaneHost`, mark it as migration-only and move the state/action into `IExplorerService` or a workflow controller.
 
-## 8. Files vs Explorer vs FileService naming
+## 8. Files capability vs Explorer UI vs FileService naming
 
-Do not collapse these names.
+Follow the upstream shape: files is the capability and feature/container area; Explorer is the primary UI view inside it. Do not introduce a second files-view service parallel to `IExplorerService`.
 
 | Name | Meaning | Use when |
 | --- | --- | --- |
 | `IFileService` | Platform filesystem capability | read, write, stat, watch, provider registration, path-backed IO. |
-| `files` module | Workbench feature area for imported data files and file-related contributions | contribution folder, import/export workflow, compatibility with existing `contrib/files`. |
-| `IExplorerService` | Left resource tree / Explorer interaction state | tree model, selected resource, expanded folders, drag/drop import orchestration, layout mode. |
-| `ExplorerView` / `ExplorerViewer` | UI view/rendering of the left Explorer | DOM, ObjectTree, row templates, hover, context menu rendering. |
+| `files` module | Workbench files capability and feature/container area for imported data files and file-related contributions | contribution folder, files container host, import/export workflow, compatibility with existing `contrib/files`. |
+| `IExplorerService` | Explorer interaction state | tree model, selected resource, expanded folders, drag/drop import orchestration, layout mode. |
+| `ExplorerView` / `ExplorerViewer` | UI view/rendering inside the files container | DOM, ObjectTree, row templates, hover, context menu rendering. |
 | `fileImportExport.ts` | Files import/export scenario workflows | folder collection, external upload/download workflow, bridge to Explorer/import conversion. |
 | `fileConverter.ts` | Raw conversion utility/module | CSV/XLS/XLSX/clipboard -> raw table rows/artifacts. |
 
@@ -212,8 +212,8 @@ Rule:
 
 ```txt
 Disk/filesystem API      -> IFileService
-Left resource tree       -> IExplorerService / ExplorerView
-Overall workbench module -> files
+Explorer UI state       -> IExplorerService / ExplorerView
+Files capability area   -> files
 Import/export workflow   -> fileImportExport / fileConverter, not a new IFileImportService by default
 ```
 
@@ -242,26 +242,26 @@ services/files/browser/fileConverter.worker.ts
   optional worker for xls/xlsx conversion
 
 services/explorer/browser/explorerImportController.ts
-  dialog/drop/progress/notification orchestration
+  dialog/drop/progress/notification orchestration for Explorer
 
 services/session/browser/sessionService.ts
   commitFileImport(...)
 ```
 
-Do not make `fileConverter` commit session. Do not make Explorer parse xlsx. Do not make Session read files from disk.
+Do not make `fileConverter` commit session. Do not make Explorer view or service code parse xlsx. Do not make Session read files from disk.
 
 ## 10. Import naming rule
 
-When naming import code, distinguish feature scope from view scope.
+When naming import code, distinguish files capability from Explorer UI orchestration and raw conversion.
 
-Use `files import` when referring to the overall workbench feature:
+Use `files import` when referring to the overall files capability:
 
 - import files;
 - import folder;
 - file import/export workflow;
 - CSV/Excel/Clipboard conversion.
 
-Use `explorer import` only when the import action belongs to the left Explorer UI surface:
+Use `explorer import` when naming the controller/view path that handles Explorer-originated UX inside the files container:
 
 - Explorer drag/drop;
 - Explorer toolbar import;
@@ -273,9 +273,9 @@ Examples:
 | --- | --- | --- |
 | `fileImportExport.ts` | Yes | Existing files-module scenario workflow. |
 | `fileConverter.ts` | Yes | Describes conversion, not UI or service ownership. |
-| `explorerImportController.ts` | Yes | Orchestrates Explorer-originated import UX. |
+| `explorerImportController.ts` | Yes | Orchestrates import UX from the Explorer view path. |
 | `IFileImportService` | No by default | Too broad; no stable interface need yet. |
-| `FileView` | No | The left side is Explorer. |
+| `FileView` | No | Use Files container / Explorer view terminology instead. |
 | `ExplorerView` | Yes | Matches actual UI role. |
 
 ## 11. Manager naming rules
