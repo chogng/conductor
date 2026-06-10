@@ -12,6 +12,8 @@ Stage only the files that belong to the requested change. Do not stage unrelated
 When committing changes from this conversation, manage only files changed by this conversation. Treat changes from other conversations, agents, or pre-existing user work as out of scope.
 Treat the default terminal as PowerShell-compatible. Do not use `&&` to chain staging and commit commands.
 Run staging and commit commands separately, or check `$LASTEXITCODE` before committing.
+Git index and object writes may require escalation in this repository. If `git add` or `git commit` fails with `Permission denied`, `.git/index.lock`, object write, or sandbox-related errors, immediately retry the same command with `require_escalated` and a narrow prefix rule such as `["git", "add"]` or `["git", "commit"]`.
+Never wait silently or keep retrying ordinary git writes after a staging or commit permission failure. Report the exact blocking error if escalation is rejected.
 Never use `git add -A` unless the parent explicitly confirms that every worktree change belongs in the commit.
 If the intended scope is ambiguous, report the ambiguity instead of guessing across unrelated changes.
 Write a semantic commit subject and a useful body when the diff is not trivial.
