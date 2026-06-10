@@ -23,21 +23,12 @@ import {
 } from "../../platform/windows/electron-main/windowImpl.js";
 import { defaultBrowserWindowOptions } from "../../platform/windows/electron-main/windows.js";
 import { createConductorStoreMainService } from "../../workbench/services/conductorStore/electron-main/conductorStoreMainService.js";
-import {
-  assertOriginExePath,
-  normalizeOriginExePath,
-} from "../../../../desktop/origin-runner/core.js";
 import { workbenchIpcChannels as ipcChannels } from "../../workbench/common/ipcChannels.js";
-import {
-  DEFAULT_ORIGIN_PLOT_OPTIONS,
-  normalizeNonEmptyString,
-  normalizeOriginCommandList,
-  normalizeOriginPlotOptions,
-} from "../../../../desktop/origin-plot-options.js";
 import {
   runSharedProcessShutdownContributions,
   runSharedProcessStartupContributions,
 } from "../electron-utility/sharedProcess/sharedProcessMain.js";
+import { registerOriginMainHandlers } from "../../platform/origin/electron-main/originMainHandlers.js";
 import { Win32UpdateService } from "../../platform/update/electron-main/updateService.win32.js";
 import { DialogMainService } from "../../platform/dialogs/electron-main/dialogMainService.js";
 import { NativeHostMainService } from "../../platform/native/electron-main/nativeHostMainService.js";
@@ -60,9 +51,11 @@ import { RustAnalysisService } from "./rustAnalysisService.js";
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-// app.ts is compiled to desktop-dist/src/cs/code/electron-main, while preload
-// and legacy desktop helper modules are still emitted under desktop-dist/desktop.
-const desktopRuntimeDir = path.resolve(__dirname, "../../../../desktop");
+// app.ts is compiled to desktop-dist/src/cs/code/electron-main.
+const desktopPreloadPath = path.resolve(
+  __dirname,
+  "../../base/parts/sandbox/electron-browser/preload.js",
+);
 
 // Native desktop application body, equivalent in role to VS Code's code/electron-main/app.ts.
 // Keep BrowserWindow, IPC registration, updater, tray, and local worker lifecycle here until a
@@ -72,8 +65,6 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.quit();
 }
-
-let originRunnerModulePromise = null;
 
 function getMainLanguage() {
   try {
@@ -163,7 +154,6 @@ const MAIN_MESSAGES = {
 };
 const DEFAULT_WORKBENCH_BACKGROUND_COLOR = "#f3f4f6";
 const WORKBENCH_BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
-const ORIGIN_DETECTION_CACHE_TTL_MS = 60 * 1000;
 const BOOT_WINDOW_SETTLE_MS = 80;
 const BOOT_UI_READY_FALLBACK_MS = 3500;
 const RUST_PROCESSING_POOL_SIZE = Math.max(
@@ -177,7 +167,7 @@ const rustWorkerRuntime = new RustWorkerRuntime({
   isWindows,
   processingPoolSize: RUST_PROCESSING_POOL_SIZE,
   resolveExecutablePath: () => resolveRustWorkerExecutablePath({
-    desktopRuntimeDir,
+    appRootPath: getAppRootPath(),
     env: process.env,
     isDev,
     platform: process.platform,
@@ -191,13 +181,12 @@ const nativeHostMainService = new NativeHostMainService(dialogMainService);
 let mainWindow = null;
 let appTray = null;
 let rustHandlers = null;
+let originHandlers = null;
 let mainWindowBootExpansionPromise = null;
 let mainWindowBootShown = false;
 let startupGatePromise = null;
 let updateService: Win32UpdateService | null = null;
 let isAppQuitting = false;
-let originDetectionCache = null;
-let originDetectionPromise = null;
 const desktopProcessStartMs = Date.now();
 
 function isTruthyEnvFlag(value) {
@@ -323,14 +312,6 @@ function logDesktopDiagnostic(stage: string, payload: unknown = "") {
   appendDesktopDiagnosticLog(message);
 }
 
-const loadOriginRunnerModule = async () => {
-  if (!originRunnerModulePromise) {
-    originRunnerModulePromise = import("../../../../desktop/origin-runner.js");
-  }
-
-  return originRunnerModulePromise;
-};
-
 function getResourcesPath() {
   if (!app.isPackaged) {
     return app.getAppPath();
@@ -447,7 +428,7 @@ function resolveFirstExistingPath(candidates) {
 }
 
 function resolveOriginCsvWorkerPath() {
-  const envPath = normalizeOriginExePath(process.env.ORIGIN_CSV_WORKER_PATH);
+  const envPath = normalizeAbsoluteFilePath(process.env.ORIGIN_CSV_WORKER_PATH);
   if (!app.isPackaged) {
     // Dev mode should use the source Python worker by default.
     // Use ORIGIN_CSV_WORKER_PATH only when explicitly smoke-testing the built EXE.
@@ -484,462 +465,6 @@ function resolveOriginCsvWorkerPath() {
 
 const ORIGIN_CSV_SCRIPT_PATH = isDev ? resolveOriginCsvScriptPath() : null;
 const ORIGIN_CSV_WORKER_PATH = resolveOriginCsvWorkerPath();
-
-/**
- * @typedef {{
- *   import?: {workbookLongName?: string, columnLabels?: {longNames?: string[], units?: string[], comments?: string[], designations?: string[]}, preCommands?: string[], postCommands?: string[]},
- *   plot?: {command?: string, preCommands?: string[], postCommands?: string[]},
- *   graph?: {preCommands?: string[], postCommands?: string[]},
- *   style?: {commands?: string[]},
- *   axis?: {commands?: string[]},
- *   commands?: {preCommands?: string[], postCommands?: string[]},
- * }} OriginCapabilitiesOptions
- */
-function assertOriginCapabilitiesObject(value, fieldPath) {
-  if (value == null) return {};
-  if (typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`Invalid Origin capabilities at '${fieldPath}': expected object.`);
-  }
-  return value;
-}
-
-function assertOriginCapabilitiesAllowedKeys(section, allowedKeys, fieldPath) {
-  const sectionObj = assertOriginCapabilitiesObject(section, fieldPath);
-  const allowed = new Set(allowedKeys);
-  for (const key of Object.keys(sectionObj)) {
-    if (!allowed.has(key)) {
-      throw new Error(`Invalid Origin capabilities field '${fieldPath}.${key}'.`);
-    }
-  }
-  return sectionObj;
-}
-
-function assertOriginCapabilitiesString(value, fieldPath) {
-  if (value == null) return;
-  if (typeof value !== "string") {
-    throw new Error(`Invalid Origin capabilities at '${fieldPath}': expected string.`);
-  }
-}
-
-function assertOriginCapabilitiesCommandList(value, fieldPath) {
-  if (value == null) return;
-  if (typeof value === "string") return;
-  if (!Array.isArray(value)) {
-    throw new Error(`Invalid Origin capabilities at '${fieldPath}': expected string or string array.`);
-  }
-  for (let i = 0; i < value.length; i += 1) {
-    if (typeof value[i] !== "string") {
-      throw new Error(
-        `Invalid Origin capabilities at '${fieldPath}[${i}]': expected string.`,
-      );
-    }
-  }
-}
-
-function assertOriginCapabilitiesStringList(value, fieldPath) {
-  if (value == null) return;
-  if (!Array.isArray(value)) {
-    throw new Error(`Invalid Origin capabilities at '${fieldPath}': expected string array.`);
-  }
-  for (let i = 0; i < value.length; i += 1) {
-    if (typeof value[i] !== "string") {
-      throw new Error(
-        `Invalid Origin capabilities at '${fieldPath}[${i}]': expected string.`,
-      );
-    }
-  }
-}
-
-function assertOriginCapabilitiesNumber(value, fieldPath) {
-  if (value == null) return;
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error(`Invalid Origin capabilities at '${fieldPath}': expected finite number.`);
-  }
-}
-
-function validateOriginCapabilitiesPayload(rawCapabilities) {
-  if (rawCapabilities == null) return;
-
-  const root = assertOriginCapabilitiesAllowedKeys(
-    rawCapabilities,
-    [
-      "import",
-      "plot",
-      "graph",
-      "style",
-      "axis",
-      "commands",
-      "preCommands",
-      "postCommands",
-    ],
-    "capabilities",
-  );
-
-  const importSection = assertOriginCapabilitiesAllowedKeys(
-    root.import,
-    ["workbookLongName", "longName", "columnLabels", "preCommands", "beforeCommands", "postCommands", "afterCommands"],
-    "capabilities.import",
-  );
-  const plotSection = assertOriginCapabilitiesAllowedKeys(
-    root.plot,
-    ["command", "plotCommand", "preCommands", "beforeCommands", "postCommands", "afterCommands", "postPlotCommands"],
-    "capabilities.plot",
-  );
-  const graphSection = assertOriginCapabilitiesAllowedKeys(
-    root.graph,
-    ["preCommands", "beforeCommands", "postCommands", "afterCommands"],
-    "capabilities.graph",
-  );
-  const styleSection = assertOriginCapabilitiesAllowedKeys(
-    root.style,
-    ["commands", "postCommands"],
-    "capabilities.style",
-  );
-  const axisSection = assertOriginCapabilitiesAllowedKeys(
-    root.axis,
-    ["commands", "postCommands", "limits"],
-    "capabilities.axis",
-  );
-  const commandsSection = assertOriginCapabilitiesAllowedKeys(
-    root.commands,
-    ["preCommands", "beforeCommands", "postCommands", "afterCommands"],
-    "capabilities.commands",
-  );
-  const importColumnLabels = assertOriginCapabilitiesAllowedKeys(
-    importSection.columnLabels,
-    ["longNames", "units", "comments", "designations"],
-    "capabilities.import.columnLabels",
-  );
-  const axisLimits = assertOriginCapabilitiesAllowedKeys(
-    axisSection.limits,
-    ["x", "y"],
-    "capabilities.axis.limits",
-  );
-  const axisXLimits = assertOriginCapabilitiesAllowedKeys(
-    axisLimits.x,
-    ["from", "to", "step", "scale"],
-    "capabilities.axis.limits.x",
-  );
-  const axisYLimits = assertOriginCapabilitiesAllowedKeys(
-    axisLimits.y,
-    ["from", "to", "step", "scale"],
-    "capabilities.axis.limits.y",
-  );
-
-  assertOriginCapabilitiesString(importSection.workbookLongName, "capabilities.import.workbookLongName");
-  assertOriginCapabilitiesString(importSection.longName, "capabilities.import.longName");
-  assertOriginCapabilitiesString(plotSection.command, "capabilities.plot.command");
-  assertOriginCapabilitiesString(plotSection.plotCommand, "capabilities.plot.plotCommand");
-  assertOriginCapabilitiesStringList(importColumnLabels.longNames, "capabilities.import.columnLabels.longNames");
-  assertOriginCapabilitiesStringList(importColumnLabels.units, "capabilities.import.columnLabels.units");
-  assertOriginCapabilitiesStringList(importColumnLabels.comments, "capabilities.import.columnLabels.comments");
-  assertOriginCapabilitiesStringList(importColumnLabels.designations, "capabilities.import.columnLabels.designations");
-  assertOriginCapabilitiesNumber(axisXLimits.from, "capabilities.axis.limits.x.from");
-  assertOriginCapabilitiesNumber(axisXLimits.to, "capabilities.axis.limits.x.to");
-  assertOriginCapabilitiesNumber(axisXLimits.step, "capabilities.axis.limits.x.step");
-  assertOriginCapabilitiesString(axisXLimits.scale, "capabilities.axis.limits.x.scale");
-  assertOriginCapabilitiesNumber(axisYLimits.from, "capabilities.axis.limits.y.from");
-  assertOriginCapabilitiesNumber(axisYLimits.to, "capabilities.axis.limits.y.to");
-  assertOriginCapabilitiesNumber(axisYLimits.step, "capabilities.axis.limits.y.step");
-  assertOriginCapabilitiesString(axisYLimits.scale, "capabilities.axis.limits.y.scale");
-
-  assertOriginCapabilitiesCommandList(root.preCommands, "capabilities.preCommands");
-  assertOriginCapabilitiesCommandList(root.postCommands, "capabilities.postCommands");
-  assertOriginCapabilitiesCommandList(importSection.preCommands, "capabilities.import.preCommands");
-  assertOriginCapabilitiesCommandList(importSection.beforeCommands, "capabilities.import.beforeCommands");
-  assertOriginCapabilitiesCommandList(importSection.postCommands, "capabilities.import.postCommands");
-  assertOriginCapabilitiesCommandList(importSection.afterCommands, "capabilities.import.afterCommands");
-  assertOriginCapabilitiesCommandList(plotSection.preCommands, "capabilities.plot.preCommands");
-  assertOriginCapabilitiesCommandList(plotSection.beforeCommands, "capabilities.plot.beforeCommands");
-  assertOriginCapabilitiesCommandList(plotSection.postCommands, "capabilities.plot.postCommands");
-  assertOriginCapabilitiesCommandList(plotSection.afterCommands, "capabilities.plot.afterCommands");
-  assertOriginCapabilitiesCommandList(plotSection.postPlotCommands, "capabilities.plot.postPlotCommands");
-  assertOriginCapabilitiesCommandList(graphSection.preCommands, "capabilities.graph.preCommands");
-  assertOriginCapabilitiesCommandList(graphSection.beforeCommands, "capabilities.graph.beforeCommands");
-  assertOriginCapabilitiesCommandList(graphSection.postCommands, "capabilities.graph.postCommands");
-  assertOriginCapabilitiesCommandList(graphSection.afterCommands, "capabilities.graph.afterCommands");
-  assertOriginCapabilitiesCommandList(styleSection.commands, "capabilities.style.commands");
-  assertOriginCapabilitiesCommandList(styleSection.postCommands, "capabilities.style.postCommands");
-  assertOriginCapabilitiesCommandList(axisSection.commands, "capabilities.axis.commands");
-  assertOriginCapabilitiesCommandList(axisSection.postCommands, "capabilities.axis.postCommands");
-  assertOriginCapabilitiesCommandList(commandsSection.preCommands, "capabilities.commands.preCommands");
-  assertOriginCapabilitiesCommandList(commandsSection.beforeCommands, "capabilities.commands.beforeCommands");
-  assertOriginCapabilitiesCommandList(commandsSection.postCommands, "capabilities.commands.postCommands");
-  assertOriginCapabilitiesCommandList(commandsSection.afterCommands, "capabilities.commands.afterCommands");
-}
-
-/**
- * @param {unknown} rawCapabilities
- * @returns {OriginCapabilitiesOptions | null}
- */
-function normalizeOriginCapabilitiesPayload(rawCapabilities) {
-  if (rawCapabilities != null) {
-    validateOriginCapabilitiesPayload(rawCapabilities);
-  }
-
-  const raw =
-    rawCapabilities && typeof rawCapabilities === "object" && !Array.isArray(rawCapabilities)
-      ? rawCapabilities
-      : null;
-  if (!raw) return null;
-
-  const pickSection = (sectionValue) =>
-    sectionValue && typeof sectionValue === "object" ? sectionValue : {};
-
-  const importSection = pickSection(raw.import);
-  const plotSection = pickSection(raw.plot);
-  const graphSection = pickSection(raw.graph);
-  const styleSection = pickSection(raw.style);
-  const axisSection = pickSection(raw.axis);
-  const commandsSection = pickSection(raw.commands);
-
-  const importWorkbookLongName = normalizeNonEmptyString(
-    importSection.workbookLongName ?? importSection.longName,
-    "",
-  );
-  const importColumnLabelsRaw =
-    importSection.columnLabels && typeof importSection.columnLabels === "object"
-      ? importSection.columnLabels
-      : {};
-  const importColumnLongNames = Array.isArray(importColumnLabelsRaw.longNames)
-    ? importColumnLabelsRaw.longNames
-        .filter((item) => typeof item === "string")
-        .map((item) => item.trim())
-    : [];
-  const importColumnUnits = Array.isArray(importColumnLabelsRaw.units)
-    ? importColumnLabelsRaw.units
-        .filter((item) => typeof item === "string")
-        .map((item) => item.trim())
-    : [];
-  const importColumnComments = Array.isArray(importColumnLabelsRaw.comments)
-    ? importColumnLabelsRaw.comments
-        .filter((item) => typeof item === "string")
-        .map((item) => item.trim())
-    : [];
-  const importColumnDesignations = Array.isArray(importColumnLabelsRaw.designations)
-    ? importColumnLabelsRaw.designations
-        .filter((item) => typeof item === "string")
-        .map((item) => item.trim())
-    : [];
-  const importPreCommands = normalizeOriginCommandList(
-    importSection.preCommands ?? importSection.beforeCommands,
-  );
-  const importPostCommands = normalizeOriginCommandList(
-    importSection.postCommands ?? importSection.afterCommands,
-  );
-
-  const plotCommand = normalizeNonEmptyString(
-    plotSection.command ?? plotSection.plotCommand,
-    "",
-  );
-  const plotPreCommands = normalizeOriginCommandList(
-    plotSection.preCommands ?? plotSection.beforeCommands,
-  );
-  const plotPostCommands = normalizeOriginCommandList(
-    plotSection.postCommands ?? plotSection.afterCommands ?? plotSection.postPlotCommands,
-  );
-
-  const graphPreCommands = normalizeOriginCommandList(
-    graphSection.preCommands ?? graphSection.beforeCommands,
-  );
-  const graphPostCommands = normalizeOriginCommandList(
-    graphSection.postCommands ?? graphSection.afterCommands,
-  );
-
-  const styleCommands = normalizeOriginCommandList(
-    styleSection.commands ?? styleSection.postCommands,
-  );
-  const axisCommands = normalizeOriginCommandList(
-    axisSection.commands ?? axisSection.postCommands,
-  );
-  const axisLimitsRaw =
-    axisSection.limits && typeof axisSection.limits === "object"
-      ? axisSection.limits
-      : {};
-  const normalizeAxisLimitShape = (value) => {
-    const source = value && typeof value === "object" ? value : {};
-    const from = Number.isFinite(source.from) ? Number(source.from) : undefined;
-    const to = Number.isFinite(source.to) ? Number(source.to) : undefined;
-    const step = Number.isFinite(source.step) ? Number(source.step) : undefined;
-    const scale = normalizeNonEmptyString(source.scale, "");
-    if (
-      from === undefined &&
-      to === undefined &&
-      step === undefined &&
-      !scale
-    ) {
-      return null;
-    }
-    const normalizedAxis: {
-      from?: number;
-      to?: number;
-      step?: number;
-      scale?: string;
-    } = {};
-    if (from !== undefined) normalizedAxis.from = from;
-    if (to !== undefined) normalizedAxis.to = to;
-    if (step !== undefined) normalizedAxis.step = step;
-    if (scale) normalizedAxis.scale = scale;
-    return normalizedAxis;
-  };
-  const axisLimitsNormalized = {
-    x: normalizeAxisLimitShape(axisLimitsRaw.x),
-    y: normalizeAxisLimitShape(axisLimitsRaw.y),
-  };
-
-  const globalPreCommands = normalizeOriginCommandList(
-    raw.preCommands ??
-      commandsSection.preCommands ??
-      commandsSection.beforeCommands,
-  );
-  const globalPostCommands = normalizeOriginCommandList(
-    raw.postCommands ??
-      commandsSection.postCommands ??
-      commandsSection.afterCommands,
-  );
-
-  const normalized: any = {};
-
-  if (
-    importWorkbookLongName ||
-    importColumnLongNames.length ||
-    importColumnUnits.length ||
-    importColumnComments.length ||
-    importColumnDesignations.length ||
-    importPreCommands.length ||
-    importPostCommands.length
-  ) {
-    normalized.import = {};
-    if (importWorkbookLongName) normalized.import.workbookLongName = importWorkbookLongName;
-    if (importColumnLongNames.length || importColumnUnits.length || importColumnComments.length || importColumnDesignations.length) {
-      normalized.import.columnLabels = {};
-      if (importColumnLongNames.length) normalized.import.columnLabels.longNames = importColumnLongNames;
-      if (importColumnUnits.length) normalized.import.columnLabels.units = importColumnUnits;
-      if (importColumnComments.length) normalized.import.columnLabels.comments = importColumnComments;
-      if (importColumnDesignations.length) normalized.import.columnLabels.designations = importColumnDesignations;
-    }
-    if (importPreCommands.length) normalized.import.preCommands = importPreCommands;
-    if (importPostCommands.length) normalized.import.postCommands = importPostCommands;
-  }
-
-  if (plotCommand || plotPreCommands.length || plotPostCommands.length) {
-    normalized.plot = {};
-    if (plotCommand) normalized.plot.command = plotCommand;
-    if (plotPreCommands.length) normalized.plot.preCommands = plotPreCommands;
-    if (plotPostCommands.length) normalized.plot.postCommands = plotPostCommands;
-  }
-
-  if (graphPreCommands.length || graphPostCommands.length) {
-    normalized.graph = {};
-    if (graphPreCommands.length) normalized.graph.preCommands = graphPreCommands;
-    if (graphPostCommands.length) normalized.graph.postCommands = graphPostCommands;
-  }
-
-  if (styleCommands.length) {
-    normalized.style = { commands: styleCommands };
-  }
-
-  if (axisCommands.length || axisLimitsNormalized.x || axisLimitsNormalized.y) {
-    normalized.axis = { commands: axisCommands };
-    if (axisLimitsNormalized.x || axisLimitsNormalized.y) {
-      normalized.axis.limits = {};
-      if (axisLimitsNormalized.x) normalized.axis.limits.x = axisLimitsNormalized.x;
-      if (axisLimitsNormalized.y) normalized.axis.limits.y = axisLimitsNormalized.y;
-    }
-  }
-
-  if (globalPreCommands.length || globalPostCommands.length) {
-    normalized.commands = {};
-    if (globalPreCommands.length) normalized.commands.preCommands = globalPreCommands;
-    if (globalPostCommands.length) normalized.commands.postCommands = globalPostCommands;
-  }
-
-  return Object.keys(normalized).length ? normalized : null;
-}
-
-/**
- * @param {unknown} payload
- * @param {OriginPlotOptions} [plotDefaults]
- */
-function normalizeOriginCsvPayload(payload, plotDefaults = undefined) {
-  const raw = payload && typeof payload === "object" ? payload : {};
-  const csv = raw.csv && typeof raw.csv === "object" ? raw.csv : {};
-  const workbook =
-    raw.workbook && typeof raw.workbook === "object" ? raw.workbook : {};
-  const sheet = raw.sheet && typeof raw.sheet === "object" ? raw.sheet : {};
-  const plot = raw.plot && typeof raw.plot === "object" ? raw.plot : {};
-  const resolvedPlotDefaults = plotDefaults ?? DEFAULT_ORIGIN_PLOT_OPTIONS;
-  const capabilities = normalizeOriginCapabilitiesPayload(
-    raw.capabilities ?? raw.originCapabilities,
-  );
-
-  const csvName = normalizeNonEmptyString(
-    raw.csvName ?? csv.name,
-    "origin.csv",
-  );
-  const csvPath = normalizeOriginExePath(raw.csvPath ?? csv.path);
-  const csvText =
-    typeof raw.csvText === "string"
-      ? raw.csvText
-      : typeof csv.text === "string"
-        ? csv.text
-        : "";
-  const importMode = normalizeNonEmptyString(raw.importMode, "new-book");
-  const workbookName = normalizeNonEmptyString(
-    raw.workbookName ??
-      workbook.longName ??
-      raw.seriesName ??
-      sheet.longName,
-    "",
-  );
-  const workbookKey = normalizeNonEmptyString(
-    raw.workbookKey ?? workbook.key,
-    "",
-  );
-  const sheetName = normalizeNonEmptyString(
-    raw.sheetName ?? sheet.longName ?? sheet.name,
-    "",
-  );
-  const sheetShortName = normalizeNonEmptyString(
-    raw.sheetShortName ?? sheet.name,
-    "",
-  );
-  const normalizedPlot = normalizeOriginPlotOptions(
-    {
-      plotCommand: plot.command ?? plot.plotCommand ?? raw.plotCommand,
-      plotType: plot.type ?? plot.plotType ?? raw.plotType,
-      postPlotCommands: plot.postCommands ?? plot.postPlotCommands ?? raw.postPlotCommands,
-      lineWidth: plot.lineWidth ?? plot.linewidth ?? plot.line_width ?? raw.lineWidth ?? raw.linewidth ?? raw.line_width,
-      xyPairs: plot.xyPairs ?? raw.xyPairs,
-    },
-    resolvedPlotDefaults,
-  );
-  const rawPlotCommand = plot.command ?? plot.plotCommand ?? raw.plotCommand;
-  if (typeof rawPlotCommand === "string" && rawPlotCommand.trim()) {
-    normalizedPlot.plotCommand = rawPlotCommand.trim();
-  }
-
-  return {
-    csvName,
-    csvPath,
-    csvText,
-    importMode,
-    workbookKey,
-    workbookName,
-    sheetName,
-    sheetShortName,
-    capabilities,
-    skipPlot: plot.skip === true || plot.skipPlot === true || raw.skipPlot === true,
-    ...normalizedPlot,
-  };
-}
-
-function normalizeOriginCsvBatchPayload(payload, plotDefaults = undefined) {
-  const raw = payload && typeof payload === "object" ? payload : {};
-  const jobs = Array.isArray(raw.jobs) ? raw.jobs : [];
-  if (!jobs.length) return [];
-  return jobs.map((job) => normalizeOriginCsvPayload(job, plotDefaults));
-}
 
 function getHomeDir() {
   return path.join(app.getPath("home"), ".device");
@@ -987,7 +512,7 @@ function isSupportedRustInputPath(filePath) {
 
 function resolveRustExcelConverterPath() {
   return resolveRustWorkerExecutablePath({
-    desktopRuntimeDir,
+    appRootPath: getAppRootPath(),
     env: process.env,
     isDev,
     platform: process.platform,
@@ -1619,7 +1144,7 @@ async function handleAnalysisOriginZipSave(event, payload) {
       fs.createWriteStream(zipPath),
     );
     try {
-      await tryRunOriginRuntimeCleanup();
+      await originHandlers?.runRuntimeCleanup();
     } catch (cleanupError) {
       console.warn("[origin-cleanup] ZIP cleanup failed:", cleanupError);
     }
@@ -1639,41 +1164,6 @@ async function handleAnalysisOriginZipSave(event, payload) {
 
 async function handleNativeHostOpenDialog(event, options) {
   return nativeHostMainService.showOpenDialog(event.sender, options);
-}
-
-function getOriginExePathFromSettings() {
-  const settings = conductorStore.getConductorSettings();
-  return normalizeOriginExePath(settings?.originExePath);
-}
-
-function saveOriginExePathToSettings(originExePath) {
-  originDetectionCache = null;
-  originDetectionPromise = null;
-  const normalizedPath = normalizeOriginExePath(originExePath);
-  const settings = conductorStore.patchConductorSettings({
-    originExePath: normalizedPath,
-  });
-  return settings.originExePath ?? null;
-}
-
-function getOriginRuntimeCleanupPolicyFromSettings() {
-  const settings = conductorStore.getConductorSettings();
-  return {
-    enabled: Boolean(settings?.originRuntimeCleanupEnabled),
-    keepSuccessJobs: Number(settings?.originRuntimeKeepSuccessJobs),
-    failedRetentionDays: Number(settings?.originRuntimeFailedRetentionDays),
-  };
-}
-
-function getOriginPlotOptionsFromSettings() {
-  const settings = conductorStore.getConductorSettings();
-  return normalizeOriginPlotOptions({
-    plotCommand: settings?.originPlotCommandDefault,
-    plotType: settings?.originPlotTypeDefault,
-    postPlotCommands: settings?.originPlotPostCommandsDefault,
-    lineWidth: settings?.originPlotLineWidthDefault,
-    xyPairs: settings?.originPlotXyPairsDefault,
-  });
 }
 
 function logOriginDetectionResult(context, result) {
@@ -1711,238 +1201,6 @@ function logOriginDetectionResult(context, result) {
     console.warn(message);
   }
   appendDesktopDiagnosticLog(message);
-}
-
-async function detectOriginExecutablePathCached() {
-  const now = Date.now();
-  if (
-    originDetectionCache &&
-    now - originDetectionCache.createdAt < ORIGIN_DETECTION_CACHE_TTL_MS
-  ) {
-    return originDetectionCache.result;
-  }
-
-  if (!originDetectionPromise) {
-    originDetectionPromise = Promise.resolve()
-      .then(async () => {
-        const { detectOriginExecutablePathDetailed } = await loadOriginRunnerModule();
-        const result = await detectOriginExecutablePathDetailed();
-        originDetectionCache = {
-          createdAt: Date.now(),
-          result,
-        };
-        return result;
-      })
-      .finally(() => {
-        originDetectionPromise = null;
-      });
-  }
-
-  return originDetectionPromise;
-}
-
-async function tryRunOriginRuntimeCleanup({ force = false, clearAll = false } = {}) {
-  const { runOriginRuntimeCleanup } = await loadOriginRunnerModule();
-  return runOriginRuntimeCleanup({
-    runtimeRootDir: getOriginRuntimeRootDir(),
-    policy: getOriginRuntimeCleanupPolicyFromSettings(),
-    force,
-    clearAll,
-  });
-}
-
-async function handleOriginExeGet() {
-  const configured = getOriginExePathFromSettings();
-  if (configured) {
-    try {
-      return assertOriginExePath(configured);
-    } catch {
-      // Fall through to auto detection.
-    }
-  }
-
-  const detectResult = await detectOriginExecutablePathCached();
-  logOriginDetectionResult("originExeGet", detectResult);
-  if (detectResult.path) {
-    return saveOriginExePathToSettings(detectResult.path);
-  }
-
-  return null;
-}
-
-function handleOriginExeSet(_event, payload) {
-  const rawPath =
-    payload && typeof payload === "object" ? payload.path : payload;
-  const validated = assertOriginExePath(rawPath);
-  return saveOriginExePathToSettings(validated);
-}
-
-async function handleOriginExePick(event) {
-  if (!isWindows) return null;
-
-  const win = BrowserWindow.fromWebContents(event.sender) ?? null;
-  const { pickOriginExecutable } = await loadOriginRunnerModule();
-  const pickedPath = await pickOriginExecutable({
-    dialog,
-    ownerWindow: win,
-    defaultPath: getOriginExePathFromSettings(),
-  });
-
-  if (!pickedPath) return null;
-  return saveOriginExePathToSettings(pickedPath);
-}
-
-async function resolveOriginExePath(event) {
-  const configured = getOriginExePathFromSettings();
-  if (configured) {
-    try {
-      return assertOriginExePath(configured);
-    } catch {
-      // Fall through to auto detection + picker.
-    }
-  }
-
-  const detectResult = await detectOriginExecutablePathCached();
-  logOriginDetectionResult("resolveOriginExePath", detectResult);
-  if (detectResult.path) {
-    return saveOriginExePathToSettings(detectResult.path);
-  }
-
-  return handleOriginExePick(event);
-}
-
-async function resolveOriginExePathForHealthCheck(event, payload) {
-  const rawPath =
-    payload && typeof payload === "object" ? payload.path : payload;
-  if (typeof rawPath === "string" && rawPath.trim()) {
-    const validated = assertOriginExePath(rawPath);
-    return saveOriginExePathToSettings(validated);
-  }
-
-  const configured = await handleOriginExeGet();
-  if (configured) {
-    return configured;
-  }
-
-  const allowPick = Boolean(payload && typeof payload === "object" && payload.allowPick);
-  if (allowPick) {
-    const picked = await resolveOriginExePath(event);
-    if (picked) return picked;
-  }
-
-  throw new Error("__ORIGIN_EXE_REQUIRED__");
-}
-
-async function handleOriginHealthCheck(event, payload) {
-  if (!isWindows) {
-    throw new Error("Origin integration is only available on Windows desktop.");
-  }
-
-  const originExePath = await resolveOriginExePathForHealthCheck(event, payload);
-  const { runOriginHealthCheck } = await loadOriginRunnerModule();
-
-  try {
-    return await runOriginHealthCheck({
-      originExePath,
-      workerScriptPath: ORIGIN_CSV_SCRIPT_PATH,
-      workerExecutablePath: ORIGIN_CSV_WORKER_PATH,
-      runtimeRootDir: getOriginRuntimeRootDir(),
-    });
-  } finally {
-    try {
-      await tryRunOriginRuntimeCleanup();
-    } catch (cleanupError) {
-      console.warn("[origin-cleanup] Health check cleanup failed:", cleanupError);
-    }
-  }
-}
-
-async function handleOriginRunCsv(event, payload) {
-  if (!isWindows) {
-    throw new Error("Origin integration is only available on Windows desktop.");
-  }
-
-  const plotDefaults = getOriginPlotOptionsFromSettings();
-  const normalizedBatchJobs = normalizeOriginCsvBatchPayload(payload, plotDefaults);
-  const normalizedPayload = normalizedBatchJobs.length
-    ? null
-    : normalizeOriginCsvPayload(payload, plotDefaults);
-
-  const originExePath = await resolveOriginExePath(event);
-  if (!originExePath) {
-    throw new Error("__ORIGIN_EXE_REQUIRED__");
-  }
-
-  const { runOriginCsvBatchJob, runOriginCsvJob } = await loadOriginRunnerModule();
-
-  try {
-    if (normalizedBatchJobs.length) {
-      return await runOriginCsvBatchJob({
-        jobs: normalizedBatchJobs,
-        originExePath,
-        workerScriptPath: ORIGIN_CSV_SCRIPT_PATH,
-        workerExecutablePath: ORIGIN_CSV_WORKER_PATH,
-        runtimeRootDir: getOriginRuntimeRootDir(),
-      });
-    }
-
-    const {
-      csvName,
-      csvPath,
-      csvText,
-      importMode,
-      workbookKey,
-      workbookName,
-      sheetName,
-      sheetShortName,
-      plotType,
-      xyPairs,
-      plotCommand,
-      postPlotCommands,
-      lineWidth,
-      capabilities,
-    } =
-      normalizedPayload;
-
-    if (!csvPath && !csvText.trim()) {
-      throw new Error("CSV payload is missing.");
-    }
-
-    return await runOriginCsvJob({
-      csvName,
-      csvPath,
-      csvText,
-      importMode,
-      workbookKey,
-      workbookName,
-      sheetName,
-      sheetShortName,
-      plotType,
-      xyPairs,
-      plotCommand,
-      postPlotCommands,
-      lineWidth,
-      capabilities,
-      originExePath,
-      workerScriptPath: ORIGIN_CSV_SCRIPT_PATH,
-      workerExecutablePath: ORIGIN_CSV_WORKER_PATH,
-      runtimeRootDir: getOriginRuntimeRootDir(),
-    });
-  } finally {
-    try {
-      await tryRunOriginRuntimeCleanup();
-    } catch (cleanupError) {
-      console.warn("[origin-cleanup] CSV cleanup failed:", cleanupError);
-    }
-  }
-}
-
-async function handleOriginRuntimeCleanupRun() {
-  if (!isWindows) {
-    throw new Error("Origin integration is only available on Windows desktop.");
-  }
-
-  return tryRunOriginRuntimeCleanup({ force: true, clearAll: true });
 }
 
 function getAutoUpdateDialogWindow() {
@@ -2130,7 +1388,7 @@ function createMainWindow() {
   const windowIcon = resolveDesktopWindowIconPath();
   mainWindowBootShown = false;
   const themeSnapshot = syncBootWindowTheme();
-  const preloadPath = path.join(desktopRuntimeDir, "preload.js");
+  const preloadPath = desktopPreloadPath;
 
   const win = new BrowserWindow(defaultBrowserWindowOptions({
     icon: windowIcon,
@@ -2144,7 +1402,7 @@ function createMainWindow() {
     preload: preloadPath,
     cwd: process.cwd(),
     dirname: __dirname,
-    desktopRuntimeDir,
+    desktopPreloadPath,
   });
 
   if (process.platform !== "darwin") {
@@ -2553,15 +1811,17 @@ if (hasSingleInstanceLock) {
     ipcChannels.analysisOriginZipSave,
     handleAnalysisOriginZipSave,
   );
-  ipcMain.handle(ipcChannels.originExeGet, handleOriginExeGet);
-  ipcMain.handle(ipcChannels.originExeSet, handleOriginExeSet);
-  ipcMain.handle(ipcChannels.originExePick, handleOriginExePick);
-  ipcMain.handle(ipcChannels.originHealthCheck, handleOriginHealthCheck);
-  ipcMain.handle(ipcChannels.originRunCsv, handleOriginRunCsv);
-  ipcMain.handle(
-    ipcChannels.originRuntimeCleanupRun,
-    handleOriginRuntimeCleanupRun,
-  );
+  originHandlers = registerOriginMainHandlers({
+    conductorStore,
+    dialog,
+    ipcChannels,
+    ipcMain,
+    isWindows,
+    logDetectionResult: logOriginDetectionResult,
+    originCsvScriptPath: ORIGIN_CSV_SCRIPT_PATH,
+    originCsvWorkerPath: ORIGIN_CSV_WORKER_PATH,
+    runtimeRootDir: getOriginRuntimeRootDir,
+  });
   nativeTheme.on("updated", syncBootWindowTheme);
   void prepareStartupGate();
   const window = createMainWindow();
@@ -2595,6 +1855,8 @@ app.on("will-quit", () => {
   stopAllRustEngines();
   rustHandlers?.dispose();
   rustHandlers = null;
+  originHandlers?.dispose();
+  originHandlers = null;
   if (appTray) {
     appTray.destroy();
     appTray = null;
@@ -2625,11 +1887,5 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.excelReadConvertedCsv);
   ipcMain.removeHandler(ipcChannels.analysisDemoFilesGet);
   ipcMain.removeHandler(ipcChannels.analysisOriginZipSave);
-  ipcMain.removeHandler(ipcChannels.originExeGet);
-  ipcMain.removeHandler(ipcChannels.originExeSet);
-  ipcMain.removeHandler(ipcChannels.originExePick);
-  ipcMain.removeHandler(ipcChannels.originHealthCheck);
-  ipcMain.removeHandler(ipcChannels.originRunCsv);
-  ipcMain.removeHandler(ipcChannels.originRuntimeCleanupRun);
 });
 }

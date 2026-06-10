@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 const ORIGIN_ERROR_PREFIX = "__ORIGIN_ERROR__:";
 
 export type OriginErrorPayload = {
@@ -98,5 +102,4 @@ export function parseWorkerErrorPayload(rawText: unknown): OriginErrorPayload | 
   }
   return { message: raw };
 }
-
 

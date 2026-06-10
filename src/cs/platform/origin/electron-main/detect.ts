@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -272,5 +276,4 @@ export async function detectOriginExecutablePathDetailed(): Promise<OriginDetect
     probes,
   };
 }
-
 

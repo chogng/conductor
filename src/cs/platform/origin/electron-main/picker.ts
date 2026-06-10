@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import { assertOriginExePath } from "./core.js";
 import type { BaseWindow, OpenDialogOptions, dialog as electronDialog } from "electron";
 
@@ -29,4 +33,3 @@ export async function pickOriginExecutable({
 
   return assertOriginExePath(result.filePaths[0]);
 }
-

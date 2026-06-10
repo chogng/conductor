@@ -1,10 +1,10 @@
 import assert from "assert";
-import { runProcess } from "../../../desktop-dist/desktop/origin-runner/core.js";
+import { runProcess } from "../../../desktop-dist/src/cs/platform/origin/electron-main/core.js";
 import {
   appendOriginCapabilitiesWorkerArgs,
   appendOriginPlotWorkerArgs,
   buildOriginCsvWorkerArgs,
-} from "../../../desktop-dist/desktop/origin-runner/runners.js";
+} from "../../../desktop-dist/src/cs/platform/origin/electron-main/runners.js";
 
 test("runProcess resolves process output and exit code", async () => {
   const result = await runProcess(

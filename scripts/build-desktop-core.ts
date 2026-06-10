@@ -3,7 +3,7 @@
  *  Copyright (c) Conductor Studio contributors. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { getVersion } from '../build/lib/git.ts';
@@ -63,7 +63,12 @@ const resetBootstrapMetaOutput = (): void => {
 	}
 };
 
+const removeLegacyDesktopOutput = (): void => {
+	rmSync(path.join(desktopDistDir, 'desktop'), { recursive: true, force: true });
+};
+
 resetBootstrapMetaOutput();
+removeLegacyDesktopOutput();
 
 if (isWatch) {
 	const proc = spawn(tscCmd, tscArgs, { stdio: ['inherit', 'pipe', 'pipe'] });

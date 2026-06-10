@@ -1,6 +1,10 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import type { IpcRenderer } from "electron";
 
-import { workbenchIpcChannels } from "../src/cs/workbench/common/ipcChannels.js";
+import { workbenchIpcChannels } from "../../../../workbench/common/ipcChannels.js";
 
 export function createDesktopImportBridge(ipcRenderer: IpcRenderer) {
   return {

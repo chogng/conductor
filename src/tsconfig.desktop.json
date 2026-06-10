@@ -10,12 +10,13 @@
     "strict": false
   },
   "include": [
-    "../desktop/**/*.ts",
     "./main.ts",
     "./bootstrap-*.ts",
+    "./cs/base/parts/sandbox/electron-browser/preload.ts",
     "./cs/nls.ts",
     "./cs/code/electron-main/**/*.ts",
     "./cs/code/electron-utility/**/*.ts",
+    "./cs/platform/origin/electron-main/**/*.ts",
     "./cs/platform/storage/electron-main/**/*.ts",
     "./cs/platform/theme/electron-main/**/*.ts",
     "./cs/platform/windows/electron-main/**/*.ts",

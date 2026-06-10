@@ -1,8 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import type { ContextBridge, IpcRenderer, WebUtils } from "electron";
 
 import {
   type ISandboxConfiguration,
-} from "../src/cs/base/parts/sandbox/common/sandboxTypes.js";
+} from "../common/sandboxTypes.js";
 
 type IpcListener = (event: Electron.IpcRendererEvent, ...args: unknown[]) => void;
 

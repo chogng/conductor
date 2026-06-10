@@ -23,7 +23,7 @@ type RustWorkerSlot = {
 };
 
 export type RustWorkerExecutableResolverOptions = {
-  desktopRuntimeDir: string;
+  appRootPath: string;
   env: NodeJS.ProcessEnv;
   isDev: boolean;
   platform: NodeJS.Platform;
@@ -58,7 +58,7 @@ const formatMissingWorkerMessage = (platform: NodeJS.Platform): string => {
 };
 
 export const resolveRustWorkerExecutablePath = ({
-  desktopRuntimeDir,
+  appRootPath,
   env,
   isDev,
   platform,
@@ -76,8 +76,7 @@ export const resolveRustWorkerExecutablePath = ({
     path.join(resourcesPath, "workers", "rs", workerFileName),
     isDev
       ? path.join(
-          desktopRuntimeDir,
-          "..",
+          appRootPath,
           ".tooling",
           "conductor-rs-target",
           "release",
@@ -86,8 +85,7 @@ export const resolveRustWorkerExecutablePath = ({
       : "",
     isDev
       ? path.join(
-          desktopRuntimeDir,
-          "..",
+          appRootPath,
           "conductor-rs",
           "target",
           "release",
