@@ -65,8 +65,8 @@ Use runtime folders consistently.
 | --- | --- | --- | --- | --- |
 | `ICommandService` | `src/cs/platform/commands` | command id + args | command dispatch, command events | domain state, UI rendering, session records |
 | `IFileService` | `src/cs/platform/files` | URI / filesystem provider | file bytes, stat, watch events | Explorer UI state, import semantics, raw tables |
-| `IExplorerService` | `src/cs/workbench/services/explorer` | user file/folder actions, session snapshot | Explorer model/state, selected resource, import orchestration | filesystem primitives, table parsing, assessment |
-| `fileConverter.ts` / files import-export workflow | `src/cs/workbench/services/files` | CSV/Excel/Clipboard source | `FileImportResult`, `RawTableRecord` | Explorer UI state, IV/CV judgement, block detection, session mutation |
+| `IExplorerService` | `src/cs/workbench/contrib/files` | Explorer view/model events, command context, session/file facts | Explorer model/state, context, select/reveal, edit/copy state, refresh | filesystem primitives, table parsing, assessment, canonical session ownership |
+| `fileConverter.ts` / files source workflow | `src/cs/workbench/services/files` | CSV/Excel/Clipboard source | `FileConversionResult`, `RawTableRecord` | Explorer UI state, IV/CV judgement, block detection, session mutation |
 | `IAssessmentService` | `src/cs/workbench/services/assessment` | `RawTableRecord` | groups, blocks, column roles, diagnostics | template execution, plotting, UI state |
 | `ISessionService` | `src/cs/workbench/services/session` | commit requests | canonical records, snapshot, change events | view state, worker refs, request cache, rendering |
 | `ITableService` | `src/cs/workbench/services/table` | session snapshot, raw table refs | table model, row preview, selection/highlight state | block detection, template execution |
@@ -125,8 +125,9 @@ Read `commands.instructions.md` before adding command IDs or handlers.
 ```mermaid
 flowchart TD
     User[Command / Action / View] --> Explorer[IExplorerService]
-    Explorer --> Import[fileConverter/files import-export workflow]
-    Import --> Raw[FileImportResult / RawTableRecord]
+    Explorer --> Import[fileImportExport.ts source collection]
+    Import --> Converter[fileConverter.ts]
+    Converter --> Raw[FileConversionResult / RawTableRecord]
     Explorer --> Session[ISessionService.commitFileImport]
 
     Session --> Snapshot[SessionSnapshot]
@@ -238,13 +239,16 @@ Use `CommandTarget` as a command argument, not as global session state.
 sequenceDiagram
     participant View as Explorer view
     participant Explorer as IExplorerService
-    participant FileImport as fileConverter/files import-export workflow
+    participant Source as fileImportExport.ts
+    participant Converter as fileConverter.ts
     participant Session as ISessionService
     participant Assessment as IAssessmentService
 
-    View->>Explorer: importResources(files/folders/clipboard)
-    Explorer->>FileImport: importSources(sources)
-    FileImport-->>Explorer: FileImportResult
+    View->>Explorer: add data command/action
+    Explorer->>Source: collect sources / file transfer helpers
+    Source-->>Explorer: FileSource[]
+    Explorer->>Converter: convert sources
+    Converter-->>Explorer: FileConversionResult
     Explorer->>Session: commitFileImport(result)
     Session-->>Assessment: rawTablesChanged event
     Assessment->>Session: getSnapshot()
@@ -252,7 +256,7 @@ sequenceDiagram
     Assessment->>Session: commitRawTableAssessment(result)
 ```
 
-`IExplorerService` is the Explorer UI-state and import-orchestration service. `fileConverter.ts` / files import-export workflow converts external resources into raw table facts. It does not decide whether the data is IV/CV/CF/PV/IT.
+`IExplorerService` is the Explorer UI-state service under `workbench/contrib/files`, following the upstream Files feature shape. `fileImportExport.ts` collects sources or handles file transfer. `fileConverter.ts` converts external data sources into raw table facts. It does not decide whether the data is IV/CV/CF/PV/IT.
 
 ## Assessment flow
 
@@ -374,25 +378,21 @@ export type SessionChangeEvent =
 ```txt
 src/cs/platform/files/
   common/files.ts
+  common/fileService.ts
   common/io.ts
   browser/webFileSystemAccess.ts
   browser/htmlFileSystemProvider.ts
-  electron-browser/fileService.ts
-
-src/cs/workbench/services/explorer/
-  common/explorer.ts
-  common/explorerModel.ts
-  browser/explorerService.ts
-  browser/explorer.contribution.ts
+  electron-main/*
 
 src/cs/workbench/services/files/
   common/files.ts
+  common/fileConverterBackend.ts
   common/rawTable.ts
-  browser/fileImportService.ts
   browser/fileConverter.ts
+  browser/fileConverterBackendService.ts
   browser/fileConverter.worker.ts
-  # migration-only legacy: importPipeline.ts / fileConversion.ts / xlsxConversionWorker.ts
   browser/rawTableRowsReader.ts
+  electron-browser/fileConverterBackendService.ts
 
 src/cs/workbench/services/assessment/
   common/assessment.ts
@@ -458,9 +458,15 @@ src/cs/workbench/services/parameters/
 
 
 src/cs/workbench/contrib/files/
-  browser/explorerCommands.ts        # target name; current migration file may be fileCommands.ts
-  browser/explorerActions.ts
-  browser/explorer.contribution.ts
+  browser/files.ts
+  browser/explorerService.ts
+  common/explorerModel.ts
+  browser/fileCommands.ts
+  browser/fileActions.ts
+  browser/fileActions.contribution.ts
+  browser/fileImportExport.ts
+  electron-browser/fileCommands.ts
+  electron-browser/fileActions.contribution.ts
   browser/views/explorerView.ts
   browser/views/explorerViewer.ts
 
@@ -530,7 +536,7 @@ Views stay in `contrib/*`. Services own state and domain models.
 4. Shrink `ISessionService` to snapshot/events/commit methods.
 5. Move table/template/chart/parameters/search/export view state into their services.
 6. Add `IPlotService` and route chart/thumbnail/export through plot render models.
-7. Remove `IAnalysisFileService` after file import, assessment, preview, and template worker boundaries are separated.
+7. Keep file conversion, assessment, preview, and template worker boundaries separated under their domain services.
 8. Add command/action/controller files for each feature and route UI entries through service dispatch.
 9. Reduce `Workbench` to layout/view hosting and contribution wiring.
 
@@ -540,4 +546,4 @@ Views stay in `contrib/*`. Services own state and domain models.
 - If a new field describes how a panel looks, it belongs in that panel's service or view.
 - If a service needs row bytes, use raw table refs and row readers; do not re-import files.
 - If Chart needs data, ask Plot; do not read session curves directly from Chart.
-- If Explorer needs filesystem bytes, ask `IFileService`; if it needs import conversion, ask `fileConverter.ts` / files import-export workflow.
+- If Explorer needs filesystem bytes, ask `IFileService`; if it needs source collection or file conversion, use `fileImportExport.ts` and `fileConverter.ts` through the Files workflow.

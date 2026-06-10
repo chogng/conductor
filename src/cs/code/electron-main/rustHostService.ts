@@ -60,7 +60,7 @@ const buildFailure = (
   message,
 });
 
-export class RustAnalysisService implements IRustAnalysisService {
+export class RustHostService implements IRustAnalysisService {
   constructor(
     private readonly options: ServiceOptions,
   ) {}

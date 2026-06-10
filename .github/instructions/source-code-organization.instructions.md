@@ -37,6 +37,19 @@ Within each layer, code is organized by runtime environment:
 - `cs/workbench/services` — core services (not contrib-specific)
 - `cs/workbench/contrib` — feature contributions
 
+## Upstream Shape Rule
+
+The upstream architecture at `C:\Users\lanxi\Desktop\vscode` is the default source of truth when a Conductor responsibility has a VS Code counterpart.
+
+Before documenting or introducing a target file, service method, class, or contribution entry:
+
+- verify the upstream path;
+- verify exported symbols and public method names;
+- prefer the upstream API shape when the responsibility exists upstream;
+- label Conductor-specific additions explicitly instead of giving them upstream-looking names.
+
+Do not invent service methods, filenames, controllers, or model classes from a conceptual responsibility when upstream already has a concrete shape. For example, if upstream Explorer exposes `IExplorerService.select(...)`, do not document a conceptual `setSelection(...)` replacement unless Conductor intentionally adds a new API and explains why.
+
 ### Contribution Rules
 
 - No dependency from outside `contrib/` into `contrib/`

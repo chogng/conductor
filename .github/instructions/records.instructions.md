@@ -23,15 +23,15 @@ Every new record type must answer these questions:
 
 ## File and raw table records
 
-### `FileImportResult`
+### `FileConversionResult`
 
-Owner: `fileConverter.ts` / files import-export workflow produces it; `ISessionService` commits it. Canonical after commit as `FileRecord.raw`.
+Owner: `fileConverter.ts` produces it; `ISessionService` commits it. Canonical after commit as `FileRecord.raw`.
 
 | Field | Type | Meaning | Required | Notes |
 | --- | --- | --- | --- | --- |
-| `files` | `readonly ImportedFileRecord[]` | Imported workbook/file records ready for session commit. | Yes | One Excel workbook should produce one imported file record. |
+| `files` | `readonly ImportedFileRecord[]` | Converted workbook/file records ready for session commit. | Yes | One Excel workbook should produce one imported file record. |
 | `diagnostics` | `readonly FileImportDiagnostic[]` | Non-fatal import warnings/errors. | Yes | Do not encode IV/CV assessment here. |
-| `createdAt` | `number` | Import result timestamp. | Yes | Useful for debugging only; not a semantic version. |
+| `createdAt` | `number` | Conversion result timestamp. | Yes | Useful for debugging only; not a semantic version. |
 
 ### `ImportedFileRecord`
 
@@ -60,7 +60,7 @@ Owner: committed inside `FileRecord`. Mutated only by `SessionService` when impo
 
 ### `RawTableRecord`
 
-Owner: `SessionService` after file import. Producer: `fileConverter.ts` / files import-export workflow. Consumers: `AssessmentService`, `TableService`, `SearchService`, export/debug tools.
+Owner: `SessionService` after file import. Producer: `fileConverter.ts` through the Files source/conversion workflow. Consumers: `AssessmentService`, `TableService`, `SearchService`, export/debug tools.
 
 | Field | Type | Meaning | Required | Notes |
 | --- | --- | --- | --- | --- |
@@ -532,4 +532,3 @@ Derived from `MetricRecord` and plot/session context.
 | `unit` | `string | undefined` | Display unit. |
 | `editable` | `boolean` | Whether manual input can edit this row. |
 | `sourceRange` | `RawTableRangeRef | undefined` | Optional provenance. |
-

@@ -1,6 +1,6 @@
 ---
 description: Rust execution branch guidelines for Conductor desktop - how electron-browser service implementations call Rust, which stages Rust may take over, what data may cross the Rust/TypeScript boundary, and how results are normalized back into domain records.
-applyTo: 'src/cs/workbench/services/{files,assessment,table,template,plot,parameters,export,origin,search}/**,src/cs/platform/rust/**,src/cs/code/electron-main/{analysisRustMain.ts,rustAnalysisService.ts,app.ts},src/cs/base/parts/sandbox/electron-browser/preload.ts,conductor-rs/**'
+applyTo: 'src/cs/workbench/services/{files,assessment,table,template,plot,parameters,export,origin,search}/**,src/cs/platform/rust/**,src/cs/code/electron-main/{rustHostChannels.ts,rustHostService.ts,app.ts},src/cs/base/parts/sandbox/electron-browser/preload.ts,conductor-rs/**'
 ---
 # Rust Execution Branch
 
@@ -26,8 +26,6 @@ Do not create a parallel Rust command layer, Rust view layer, or Rust session la
 
 ## Naming rule
 
-Do not propagate legacy `analysisFile` names into new code. The old analysis-file surface is migration debt and must retreat behind domain services.
-
 Do not add names like:
 
 ```txt
@@ -36,15 +34,13 @@ RustBackend
 FileConverterBackend
 processWithRust
 applyTemplateWithRust
-analysisFileService
-AnalysisFileBridge
 ```
 
 Prefer domain names that match the browser implementation:
 
 ```txt
-services/files/browser/fileConverter.ts
-services/files/electron-browser/fileConverter.ts
+services/files/browser/fileConverterBackendService.ts
+services/files/electron-browser/fileConverterBackendService.ts
 
 services/table/browser/tableRowsReader.ts
 services/table/electron-browser/tableRowsReader.ts
@@ -140,7 +136,7 @@ Only return data at stable stage boundaries. Do not return intermediate arrays j
 
 | Stage | TS owner | Desktop Rust branch may do | Return to TS | Do not return by default |
 | --- | --- | --- | --- | --- |
-| File conversion | `files/electron-browser/fileConverter.ts` | CSV/XLS/XLSX parse, sheet split, normalized CSV artifact creation | `FileImportResult`-compatible descriptors, `RawTableRecord` metadata, `normalizedCsvPath`, manifest, diagnostics | full CSV text, full workbook data |
+| File conversion | `files/electron-browser/fileConverterBackendService.ts` behind `IFileConverterBackendService` | CSV/XLS/XLSX parse, sheet split, normalized CSV artifact creation | `FileConversionResult`-compatible descriptors, `RawTableRecord` metadata, `normalizedCsvPath`, manifest, diagnostics | full CSV text, full workbook data |
 | Assessment | `assessment/electron-browser/assessmentService.ts` | block/group/header/data/column-role/sweep inference | `RawTableAssessmentRecord` | raw rows |
 | Table preview | `table/electron-browser/tableRowsReader.ts` | row chunk reads, cell reads, raw table metadata reads | bounded rows chunk or selected cell values | whole table |
 | Template apply | `template/electron-browser/templateApplyService.ts` | auto extraction, curve/series extraction, template process | `TemplateRunRecord`, `SeriesRecord` descriptors, curve descriptors/handles, diagnostics | full curve points unless small/fallback |
@@ -165,7 +161,7 @@ Example:
 
 ```txt
 Rust import result
-  -> FileImportResult / RawTableRecord
+  -> FileConversionResult / RawTableRecord
 
 Rust assessment result
   -> RawTableAssessmentRecord
@@ -353,27 +349,22 @@ Dispose or invalidate Rust-held data when:
 
 TypeScript session is the recovery source. If the Rust worker restarts, services should lazily reopen normalized CSV artifacts and recompute curve/metric handles from `FileRecord`, `RawTableRecord`, `RawTableAssessmentRecord`, and `TemplateRunRecord` descriptors.
 
-## Migration from analysisFile
+## Desktop Branch Targets
 
-Legacy names may exist temporarily in compatibility files, but new architecture must not expand them.
-
-Migration direction:
+Use these domain-specific desktop branches for Rust-backed heavy work:
 
 ```txt
-services/analysisFile/browser/fileConversion.ts
-  -> services/files/browser/fileConverter.ts
-  -> services/files/electron-browser/fileConverter.ts
+services/files/electron-browser/fileConverterBackendService.ts
+  file conversion backend and normalized CSV reads
 
-services/analysisFile/browser/importPipeline.ts
-  -> ExplorerImportController + fileImportExport.ts + fileConverter.ts
+workbench/contrib/files/browser/fileActions.ts
+workbench/contrib/files/browser/fileImportExport.ts
+  Explorer add-data command/action flow and source collection
 
-services/analysisFile/electron-browser/analysisFileService.ts
-  -> domain-specific electron-browser implementations:
-       files/fileConverter.ts
-       table/tableRowsReader.ts
-       template/templateApplyService.ts
-       export/exportService.ts
-       parameters/metric calculator helpers
+services/table/electron-browser/tableRowsReader.ts
+services/template/electron-browser/templateApplyService.ts
+services/export/electron-browser/exportService.ts
+services/parameters/electron-browser/*
 ```
 
 Preload/main process bridge method names can remain as compatibility IPC surface until replaced. Workbench domain code should wrap them behind domain names.
@@ -383,7 +374,7 @@ Preload/main process bridge method names can remain as compatibility IPC surface
 If a new `electron-browser` file uses Rust heavily, use a short comment. Do not encode Rust into every class or method name.
 
 ```ts
-// Desktop implementation of file conversion. Uses conductor-rs for workbook conversion and normalized CSV artifacts; returns FileImportResult-compatible descriptors.
+// Desktop implementation of file conversion. Uses conductor-rs for workbook conversion and normalized CSV artifacts; returns FileConversionResult-compatible descriptors.
 ```
 
 ## Do not
@@ -395,4 +386,3 @@ If a new `electron-browser` file uses Rust heavily, use a short comment. Do not 
 - Do not prefix new workbench records with `Rust` when the record is canonical.
 - Do not let Rust commit session.
 - Do not return large payloads when an artifact path, handle, descriptor, preview slice, or plot frame is enough.
-- Do not keep `analysisFile` names in new service boundaries.

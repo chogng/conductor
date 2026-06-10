@@ -66,7 +66,7 @@ Recommended files:
 
 | File | Responsibility |
 | --- | --- |
-| `src/cs/workbench/contrib/files/browser/explorerCommands.ts` | Toggle Explorer tree/thumbnail layout. |
+| `src/cs/workbench/contrib/files/browser/fileCommands.ts` / `fileActions.ts` | Toggle Explorer tree/thumbnail layout through the Files action/command path. |
 | `src/cs/workbench/contrib/thumbnail/browser/thumbnailCommands.ts` | Optional refresh/clear thumbnail cache commands. |
 | `src/cs/workbench/services/thumbnail/browser/thumbnailService.ts` | Render/cache thumbnails from plot models. |
 
@@ -115,4 +115,3 @@ thumbnail.refresh command
 | `bitmap` | Canvas/image/bitmap output. |
 | `createdAt` | Creation timestamp. |
 | `diagnostics` | Render warnings/errors. |
-

@@ -58,7 +58,7 @@ const normalizeAbsoluteFilePath = (rawPath: unknown): string => {
   return path.normalize(normalized);
 };
 
-export const registerAnalysisRustHandlers = ({
+export const registerRustHostChannels = ({
   ipcChannels,
   ipcMain,
   rustService,

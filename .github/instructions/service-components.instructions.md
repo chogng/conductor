@@ -13,9 +13,9 @@ Do not create vague nested managers such as `ExplorerManager` containing `Import
 | Name suffix | Use when | Owns state? | Example | Must not do |
 | --- | --- | --- | --- | --- |
 | `Service` | The component is injectable and owns domain or service state. | Yes, when state belongs to the domain. | `ExplorerService`, `PlotService` | Depend on views or DOM. |
-| `Controller` | The component coordinates a user workflow, command, dialog, notification, or worker operation. | Only transient workflow state. | `ExplorerImportController`, `TemplateApplyController` | Become the canonical owner of records. |
-| `Model` | The component is a pure data shape or projection builder. | No long-lived mutable state. | `ExplorerTreeModel`, `PlotRenderModel` | Call services or mutate session. |
-| `Store` | The component owns local service state with events. | Yes, but only local service/view-service state. | `ExplorerSelectionStore`, `PlotSettingsStore` | Store canonical records that belong in Session. |
+| `Controller` | The component coordinates a user workflow, command, dialog, notification, or worker operation. | Only transient workflow state. | `TemplateApplyController` | Become the canonical owner of records; create upstream-looking controllers when an upstream file shape already exists. |
+| `Model` | The component is a pure data shape or projection builder. | No long-lived mutable state. | `explorerModel.ts`, `PlotRenderModel` | Call services or mutate session. |
+| `Store` | The component owns local service state with events. | Yes, but only local service/view-service state. | `PlotSettingsStore` | Store canonical records that belong in Session; extract Explorer selection state before `ExplorerService` proves insufficient. |
 | `Registry` | The component maps ids to handlers/providers/descriptors. | Registry entries only. | `PlotRendererRegistry` | Orchestrate workflows. |
 | `Provider` | The component supplies external data/capability behind an interface. | Usually no canonical state. | `RawTableRowsProvider`, `FileSystemProvider` | Interpret measurement semantics. |
 | `Reader` | The component reads data from an existing source. | Cache only if explicitly stated. | `RawTableRowsReader` | Own import state. |
@@ -29,14 +29,11 @@ If a component seems to need sub-managers, split by responsibility instead of ne
 ExplorerService
   owns ExplorerState and emits Explorer events
 
-ExplorerImportController
-  handles open/drop/import workflow
+fileActions.ts / fileActions.contribution.ts
+  register and implement Explorer commands/actions
 
-ExplorerTreeModel
-  builds FileTreeNode[] from snapshot/explorer state
-
-ExplorerSelectionStore
-  owns local selection/focus if it is not canonical
+common/explorerModel.ts
+  defines Explorer resource/item model and tree helpers
 ```
 
 Do not use this shape:
@@ -86,8 +83,8 @@ A helper is allowed when its owner and lifetime are explicit:
 
 | Helper | Allowed responsibility |
 | --- | --- |
-| `ExplorerTreeModel` | Build tree nodes from `SessionSnapshot + ExplorerState`. |
-| `ExplorerImportController` | Open dialogs, collect dropped files, call import service, commit session. |
+| `common/explorerModel.ts` | Define Explorer resource/item model and tree helpers. |
+| `fileActions.ts` / `fileImportExport.ts` workflow helpers | Open dialogs, collect dropped files, call conversion helpers, commit session. |
 | `RawTableRowsReader` | Read rows from inline or normalized CSV storage. |
 | `AssessmentWasmAdapter` | Convert WASM input/output only. |
 | `TemplateApplyPlanner` | Create a deterministic apply plan from template config and assessment blocks. |
@@ -109,8 +106,8 @@ Use explicit ownership instead:
 
 ```txt
 ExplorerService owns ExplorerState.
-ExplorerImportController coordinates import workflow.
-fileConverter.ts / files import-export workflow converts files into raw table records.
+fileActions.ts / fileImportExport.ts coordinate Explorer add-data workflows.
+fileConverter.ts converts files into raw table records.
 SessionService commits canonical imported records.
 PlotService owns plot state and render models.
 ChartService owns chart shell state only.

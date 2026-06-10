@@ -45,8 +45,8 @@ import {
 import { DiskFileSystemProviderChannel } from "../../platform/files/electron-main/diskFileSystemProviderServer.js";
 import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from "../../platform/files/common/files.js";
 import { DiskFileSystemProvider } from "../../platform/files/node/diskFileSystemProvider.js";
-import { registerAnalysisRustHandlers } from "./analysisRustMain.js";
-import { RustAnalysisService } from "./rustAnalysisService.js";
+import { registerRustHostChannels } from "./rustHostChannels.js";
+import { RustHostService } from "./rustHostService.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -1795,10 +1795,10 @@ if (hasSingleInstanceLock) {
   ipcMain.handle(ipcChannels.excelConvertRust, handleExcelConvertRust);
   ipcMain.handle(ipcChannels.excelReadConvertedCsv, handleExcelReadConvertedCsv);
   ipcMain.handle(ipcChannels.analysisDemoFilesGet, handleAnalysisDemoFilesGet);
-  rustHandlers = registerAnalysisRustHandlers({
+  rustHandlers = registerRustHostChannels({
     ipcChannels,
     ipcMain,
-    rustService: new RustAnalysisService({
+    rustService: new RustHostService({
       createOriginExportTempPath: createRustOriginExportTempPath,
       createRustProcessingResultTempDir,
       hydrateRustProcessingResultRefs,

@@ -40,25 +40,24 @@ Command handlers should only normalize input and dispatch to services/controller
 
 ```ts
 CommandsRegistry.registerCommand({
-  id: ExplorerCommandId.RemoveResource,
+  id: ExplorerCommandId.RevealResource,
   metadata: {
-    description: localize('explorer.removeResource', 'Remove Resource'),
+    description: localize('explorer.revealResource', 'Reveal Resource'),
   },
-  handler: (accessor, rawTarget?: unknown) => {
+  handler: async (accessor, rawResource?: unknown) => {
     const explorerService = accessor.get(IExplorerService);
-    const target = normalizeExplorerTarget(rawTarget)
-      ?? explorerService.getFocusedTarget();
+    const resource = normalizeExplorerResource(rawResource);
 
-    if (!target) {
+    if (!resource) {
       return;
     }
 
-    explorerService.removeResources([target.resourceId]);
+    await explorerService.select(resource, 'force');
   },
 });
 ```
 
-Do not put business logic in the handler. The handler is not the owner of Explorer state, Session state, Plot state, or Table state.
+Do not put business logic in the handler. The handler is not the owner of Explorer state, Session state, Plot state, or Table state. When a feature has an upstream counterpart, use the actual upstream service surface. Do not invent service methods from a conceptual responsibility; mark any Conductor-specific API explicitly.
 
 ## 3. Action2 is a declarative command contribution
 
@@ -158,7 +157,7 @@ Examples:
 
 | User need | Correct entry |
 | --- | --- |
-| User clicks Explorer toolbar import button | `Action2` or view action executes `ExplorerCommandId.ImportResources` |
+| User clicks Explorer toolbar import button | `Action2` or view action executes a Conductor-specific add-data command registered from `fileActions.contribution.ts` |
 | TemplateApplyController needs to run import logic internally | command or direct controller/service call, no Action2 required |
 | Test wants to invoke a behavior without UI | command or service method |
 | A chart legend button changes enabled/checked live | runtime `Action` may be correct |
@@ -187,13 +186,13 @@ Allowed during migration:
 accessor.get(IViewsService).getViewWithId<FilesPaneHost>(FilesViewId)?.removeFile(fileId);
 ```
 
-Target state:
+Target state should use the actual upstream-shaped service surface for Explorer view/model behavior:
 
 ```ts
-accessor.get(IExplorerService).removeResources([resourceId]);
+accessor.get(IExplorerService).select(resource, 'force');
 ```
 
-If a command currently calls `FilesPaneHost`, mark it as migration-only and move the state/action into `IExplorerService` or a workflow controller.
+If a command currently calls `FilesPaneHost`, mark it as migration-only and move Explorer view/model behavior into `IExplorerService` or the upstream-aligned action/handler path. Do not create placeholder methods such as `removeResources(...)`, `setSelection(...)`, or `setLayout(...)` unless the new API is explicitly Conductor-specific and justified.
 
 ## 8. Files capability vs Explorer UI vs FileService naming
 
@@ -202,10 +201,10 @@ Follow the upstream shape: files is the capability and feature/container area; E
 | Name | Meaning | Use when |
 | --- | --- | --- |
 | `IFileService` | Platform filesystem capability | read, write, stat, watch, provider registration, path-backed IO. |
-| `files` module | Workbench files capability and feature/container area for imported data files and file-related contributions | contribution folder, files container host, import/export workflow, compatibility with existing `contrib/files`. |
-| `IExplorerService` | Explorer interaction state | tree model, selected resource, expanded folders, drag/drop import orchestration, layout mode. |
+| `files` module | Workbench files capability and feature/container area for data files and file-related contributions | contribution folder, files container host, source collection/file transfer workflow, compatibility with existing `contrib/files`. |
+| `IExplorerService` | Explorer interaction state | tree model, selected/revealed resource, expanded folders, drag/drop source workflow state, layout mode. |
 | `ExplorerView` / `ExplorerViewer` | UI view/rendering inside the files container | DOM, ObjectTree, row templates, hover, context menu rendering. |
-| `fileImportExport.ts` | Files import/export scenario workflows | folder collection, external upload/download workflow, bridge to Explorer/import conversion. |
+| `fileImportExport.ts` | File transfer and source collection helpers | folder/drop/dialog source collection, external upload/download workflow, bridge to conversion without owning parsing. |
 | `fileConverter.ts` | Raw conversion utility/module | CSV/XLS/XLSX/clipboard -> raw table rows/artifacts. |
 
 Rule:
@@ -214,7 +213,8 @@ Rule:
 Disk/filesystem API      -> IFileService
 Explorer UI state       -> IExplorerService / ExplorerView
 Files capability area   -> files
-Import/export workflow   -> fileImportExport / fileConverter, not a new IFileImportService by default
+Source collection        -> fileImportExport
+Data conversion          -> fileConverter, not a new IFileImportService by default
 ```
 
 ## 9. Do not invent `IFileImportService` unless the abstraction is proven
@@ -226,23 +226,27 @@ Current direction:
 - `fileImportPipeline.ts` can retire;
 - `fileConversion.ts` and `xlsxConversionWorker.ts` should converge into `fileConverter.ts` or `fileConverter.worker.ts`;
 - `filePreviewService.ts` is optional and should be re-evaluated after TableService owns raw table preview;
-- desktop/browser upload workflows belong to files import/export workflows, not a generalized import service by default;
+- desktop/browser upload workflows belong to file transfer/source collection helpers, not a generalized import service by default;
 - Explorer orchestrates user intent, conversion code converts, Session commits canonical records.
 
 Preferred shape:
 
 ```txt
 contrib/files/browser/fileImportExport.ts
-  collect folder/import/export sources; scenario workflow helpers
+  collect file/drop/folder sources and host upload/download/file-transfer helpers
 
 services/files/browser/fileConverter.ts
-  convert a source into FileImportResult / RawTableRecord payloads
+  convert data sources into FileConversionResult / RawTableRecord payloads
 
 services/files/browser/fileConverter.worker.ts
   optional worker for xls/xlsx conversion
 
-services/explorer/browser/explorerImportController.ts
-  dialog/drop/progress/notification orchestration for Explorer
+contrib/files/browser/fileActions.ts
+contrib/files/browser/fileActions.contribution.ts
+  register and implement Explorer add-data actions and commands
+
+contrib/files/common/explorerModel.ts
+  define Explorer resource/item model and tree helpers
 
 services/session/browser/sessionService.ts
   commitFileImport(...)
@@ -254,26 +258,30 @@ Do not make `fileConverter` commit session. Do not make Explorer view or service
 
 When naming import code, distinguish files capability from Explorer UI orchestration and raw conversion.
 
-Use `files import` when referring to the overall files capability:
+Use user-facing `Import` labels when the user is adding data files:
 
 - import files;
 - import folder;
-- file import/export workflow;
+- add/import data files;
 - CSV/Excel/Clipboard conversion.
 
-Use `explorer import` when naming the controller/view path that handles Explorer-originated UX inside the files container:
+Use precise internal names for the actual responsibility:
 
-- Explorer drag/drop;
-- Explorer toolbar import;
-- Explorer resource selection after import.
+- source collection;
+- file conversion;
+- file transfer / upload / download;
+- session commit;
+- Explorer selection/reveal.
 
 Examples:
 
 | Proposed name | Use? | Reason |
 | --- | --- | --- |
-| `fileImportExport.ts` | Yes | Existing files-module scenario workflow. |
+| `fileImportExport.ts` | Yes | Upstream-aligned file transfer/source collection helper. |
 | `fileConverter.ts` | Yes | Describes conversion, not UI or service ownership. |
-| `explorerImportController.ts` | Yes | Orchestrates import UX from the Explorer view path. |
+| `fileActions.ts` | Yes | Upstream-aligned action/handler location. |
+| `fileActions.contribution.ts` | Yes | Upstream-aligned command/menu/keybinding/action registration location. |
+| `explorerImportController.ts` | No by default | Prefer upstream-aligned `fileActions.ts` / `fileImportExport.ts` workflow helpers before adding a controller. |
 | `IFileImportService` | No by default | Too broad; no stable interface need yet. |
 | `FileView` | No | Use Files container / Explorer view terminology instead. |
 | `ExplorerView` | Yes | Matches actual UI role. |
@@ -296,16 +304,13 @@ Use explicit roles:
 
 ```txt
 ExplorerService
-  owns ExplorerState
+  owns Explorer view/model state and upstream-shaped Explorer operations
 
-ExplorerImportController
-  coordinates picker/drop/progress/import workflow
+fileActions.ts / fileActions.contribution.ts
+  register and implement Explorer commands/actions
 
-ExplorerTreeModel
-  pure tree projection
-
-ExplorerSelectionStore
-  local mutable selection/focus store if needed
+common/explorerModel.ts
+  Explorer resource/item model and tree helpers
 
 ThumbnailService
   thumbnail bitmap/render cache owner

@@ -39,7 +39,7 @@ export interface ISessionService {
 
   getSnapshot(): SessionSnapshot;
 
-  commitFileImport(result: FileImportResult): void;
+  commitFileImport(result: FileConversionResult): void;
   commitRawTableAssessment(result: RawTableAssessmentRecord): void;
   commitTemplateRun(input: CommitTemplateRunInput): void;
   commitCurves(input: CommitCurvesInput): void;
@@ -195,4 +195,3 @@ Do not add commands that mutate internal `SessionModel` fields directly. Use exp
 | `inputSignatures` | Signatures used for invalidation. |
 | `algorithm` | Algorithm provenance. |
 | `value` | Family-specific metric value record. |
-

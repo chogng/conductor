@@ -1,5 +1,5 @@
 ---
-description: Command entry and service dispatch architecture — command IDs, handlers, actions, controllers, contribution registration, target normalization, and how commands call services without mutating views or session models directly.
+description: Command entry and service dispatch architecture - command IDs, handlers, actions, controllers, contribution registration, target normalization, and how commands call services without mutating views or session models directly.
 applyTo: 'src/cs/workbench/**/{*Commands.ts,*Actions.ts,*.contribution.ts,*Controller.ts},src/cs/platform/commands/**'
 ---
 # Commands and Dispatch
@@ -121,9 +121,9 @@ const target = normalizeTableRangeTarget(rawTarget)
 
 | Command family | Command file | Target owner | Handler delegates to | Notes |
 | --- | --- | --- | --- | --- |
-| Explorer import/remove/select/toggle thumbnail | `contrib/files/browser/explorerCommands.ts` or migration `fileCommands.ts` | `IExplorerService` | `IExplorerService`, `file import/export workflow or file converter`, `ISessionService` through Explorer | Explorer commands should stop reaching into `FilesPaneHost` after migration; handlers should delegate to `IExplorerService` or an Explorer import controller. |
+| Explorer add-data/remove/select/toggle layout | `contrib/files/browser/fileCommands.ts` plus `fileActions.ts` / `fileActions.contribution.ts` | Explorer action/handler or `IExplorerService` for view/model behavior | Upstream-shaped `IExplorerService` methods, session/file services, or focused source/conversion helpers | Explorer commands should stop reaching into `FilesPaneHost` after migration. Do not invent placeholder Explorer service methods when the behavior belongs to an action/handler or another domain service. |
 | File system read/write/watch | platform services, not workbench commands by default | `IFileService` | `IFileService` | Low-level filesystem capability; not Explorer state. |
-| Raw import conversion | Explorer controller/service | `file import/export workflow or file converter` | `file import/export workflow or file converter.importSources` | No user-facing command should call conversion and session separately unless it is a dedicated import controller. |
+| Raw import conversion | Explorer action/source workflow, not a user-facing command by default | `workbench/services/files` conversion contracts | `fileConverter.ts` through Explorer source workflow | No user-facing command should call conversion and session separately. Conversion returns `FileConversionResult`/`RawTableRecord`; Explorer workflow commits successful results. |
 | Re-assess raw table | `assessmentCommands.ts` | `IAssessmentService` | `IAssessmentService.assessRawTable`, then `ISessionService.commitRawTableAssessment` | Optional developer/user command. Assessment remains the only block detector. |
 | Table reveal/copy/select | `tableCommands.ts` | `ITableService` | `ITableService` | Commands may also use `IExplorerService` or `ISearchService` target refs. |
 | Template save/delete/import/apply | `templateCommands.ts` | `ITemplateService` / `ITemplateApplyService` | Template service or controller | Apply is a multi-step workflow; controller is acceptable. |
@@ -221,6 +221,7 @@ flowchart TD
 - Do not make `SessionService` dispatch user workflows; it should commit canonical state and emit events.
 - Do not make `ChartService` own plot commands. Plot commands belong to `IPlotService`.
 - Do not make Explorer commands call `IFileService` and `ISessionService` directly for full import; use `IExplorerService` or an import controller.
+- Do not make Explorer commands call `fileConverter.ts` directly; Explorer import workflow owns source collection, conversion, diagnostics, and session commit ordering.
 
 
 ## Command target fields
@@ -252,4 +253,3 @@ A controller should expose workflow inputs instead of owning records.
 | `onProgress` | Optional progress callback. |
 
 Long-lived canonical fields belong to services/session, not controllers.
-

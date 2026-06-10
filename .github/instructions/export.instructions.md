@@ -1,10 +1,10 @@
 ---
-description: Export service — Origin/CSV/export plan construction from session records and plot models. Use when working under `src/cs/workbench/services/export` or export views.
+description: Origin Export service - Origin/CSV export plan construction from session records and plot models. Use when working under `src/cs/workbench/services/export` or export views.
 applyTo: 'src/cs/workbench/services/export/**,src/cs/workbench/contrib/export/**,src/cs/workbench/contrib/origin/**'
 ---
-# Export
+# Origin Export
 
-Export builds export plans and payloads. It is not Chart and not Plot.
+Origin Export builds export plans and payloads. It is not Chart and not Plot.
 
 ## Ownership
 
