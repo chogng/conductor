@@ -39,8 +39,6 @@ import {
   normalizeWorkbenchAppearance,
   normalizeWorkbenchBackgroundColor,
 } from "src/cs/workbench/browser/appearance";
-import { BrowserHelpWindowService } from "src/cs/workbench/services/help/browser/helpWindowService";
-import type { HelpWindowKind } from "src/cs/workbench/services/help/common/helpWindow";
 
 export type SettingsControllerOptions = {
   appUpdateSettings: AppUpdateSettings;
@@ -79,7 +77,6 @@ type SettingsDraftState = {
 
 export class SettingsController {
   private readonly service: ISettingsService;
-  private readonly helpWindowService = new BrowserHelpWindowService();
   private readonly view: SettingsView;
   private disposed = false;
   private originPathRequested = false;
@@ -255,8 +252,6 @@ export class SettingsController {
       fileNameFieldSeparatorsDraft: this.drafts.fileNameFieldSeparatorsDraft,
       fileNameMatchingSettings: this.fileNameMatchingSettings,
       handleCheckForUpdates: () => void this.checkForUpdates(),
-      handleOpenHelpWindow: kind => void this.openHelpWindow(kind),
-      canOpenHelpWindow: this.helpWindowService.canOpenHelpWindow(),
       language: this.options.language,
       originLegendFontSizeDraft: this.drafts.originLegendFontSizeDraft,
       onLanguageChange: this.options.handleLanguageChange,
@@ -742,9 +737,5 @@ export class SettingsController {
       this.drafts.appUpdateChecking = false;
       this.render();
     }
-  }
-
-  private async openHelpWindow(kind: HelpWindowKind): Promise<void> {
-    await this.helpWindowService.openHelpWindow(kind);
   }
 }

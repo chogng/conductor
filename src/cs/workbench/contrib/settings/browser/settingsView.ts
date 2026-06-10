@@ -13,7 +13,6 @@ import type {
   SettingsSectionId,
   WindowCloseSettings,
 } from "src/cs/workbench/contrib/settings/settingsViewTypes";
-import type { HelpWindowKind } from "src/cs/workbench/services/help/common/helpWindow";
 import "src/cs/base/browser/ui/inputbox/inputBox.css";
 import "src/cs/workbench/contrib/settings/browser/media/settingsView.css";
 
@@ -26,7 +25,6 @@ export type SettingsViewOptions = SettingsViewProps & {
   activeSettingsSection: SettingsSectionId;
   appUpdateChecking: boolean;
   axisTitleFontSizeDraft: string;
-  canOpenHelpWindow: boolean;
   cleanupEnabledOptions: SelectOption[];
   cleanupFailedDaysOptions: SelectOption[];
   cleanupKeepSuccessOptions: SelectOption[];
@@ -35,7 +33,6 @@ export type SettingsViewOptions = SettingsViewProps & {
   closeOriginHealthToast: () => void;
   fileNameFieldSeparatorsDraft: string;
   handleCheckForUpdates: () => void;
-  handleOpenHelpWindow: (kind: HelpWindowKind) => void;
   originLegendFontSizeDraft: string;
   originHealthToast: NotificationToastState;
   plotCommandDraft: string;
@@ -327,22 +324,6 @@ export class SettingsView {
         disabled: !appUpdateSettings.isAvailable || this.options.appUpdateChecking,
         variant: "secondary",
       })),
-      cardRow("settings-help-card", localize("settings_help_title", "Help"), div("settings-button-row",
-        this.createButton({
-          id: "settings-update-log-btn",
-          label: localize("settings_help_update_log", "Update Log"),
-          onClick: () => this.options.handleOpenHelpWindow("changelog"),
-          disabled: !this.options.canOpenHelpWindow,
-          variant: "secondary",
-        }),
-        this.createButton({
-          id: "settings-user-guide-btn",
-          label: localize("settings_help_user_guide", "User Guide"),
-          onClick: () => this.options.handleOpenHelpWindow("guide"),
-          disabled: !this.options.canOpenHelpWindow,
-          variant: "secondary",
-        }),
-      )),
     );
   }
 

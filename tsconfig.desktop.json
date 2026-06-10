@@ -26,8 +26,6 @@
     "src/cs/platform/storage/electron-main/**/*.ts",
     "src/cs/platform/theme/electron-main/**/*.ts",
     "src/cs/platform/windows/electron-main/**/*.ts",
-    "src/cs/workbench/contrib/help/common/**/*.ts",
-    "src/cs/workbench/contrib/help/electron-main/**/*.ts",
     "src/cs/workbench/services/storage/common/**/*.ts",
     "src/cs/workbench/services/storage/electron-main/**/*.ts"
   ]
