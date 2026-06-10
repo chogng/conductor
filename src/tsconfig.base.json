@@ -1,10 +1,9 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "baseUrl": "..",
     "paths": {
-      "cs/*": ["src/cs/*"],
-      "src/*": ["src/*"]
+      "cs/*": ["./cs/*"],
+      "src/*": ["./*"]
     },
     "resolveJsonModule": true,
     "skipLibCheck": true
