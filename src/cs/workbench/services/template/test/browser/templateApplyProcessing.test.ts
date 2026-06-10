@@ -255,7 +255,7 @@ suite("workbench/services/template/test/browser/templateApplyProcessing", () => 
           normalizedCsvPath: "file-a.csv",
         }],
         clearTemplateOutputBeforeRun: true,
-        tryProcessFileWithRust: async () => processed,
+        tryProcessFileWithBackend: async () => processed,
       });
 
       assert.equal(harness.sessionChangeCount, 0);
@@ -303,7 +303,7 @@ suite("workbench/services/template/test/browser/templateApplyProcessing", () => 
           queue: [entry],
         }],
         incremental: false,
-        tryProcessFileWithRust: async () => processed,
+        tryProcessFileWithBackend: async () => processed,
       });
 
       assert.equal(harness.sessionChangeCount, 0);
@@ -358,7 +358,7 @@ suite("workbench/services/template/test/browser/templateApplyProcessing", () => 
           queue: entries,
         }],
         incremental: false,
-        tryProcessFileWithRust: async ({ entry }) => createProcessedFile(entry.fileId),
+        tryProcessFileWithBackend: async ({ entry }) => createProcessedFile(entry.fileId),
       });
 
       assert.equal(harness.sessionChangeCount, 0);

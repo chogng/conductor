@@ -1,6 +1,6 @@
 ---
 description: Rust execution branch guidelines for Conductor desktop - how electron-browser service implementations call Rust, which stages Rust may take over, what data may cross the Rust/TypeScript boundary, and how results are normalized back into domain records.
-applyTo: 'src/cs/workbench/services/**/electron-browser/**,src/cs/code/electron-main/**,src/cs/base/parts/sandbox/electron-browser/preload*.ts,conductor-rs/**'
+applyTo: 'src/cs/workbench/services/{files,assessment,table,template,plot,parameters,export,origin,search}/**,src/cs/platform/rust/**,src/cs/code/electron-main/{analysisRustMain.ts,rustAnalysisService.ts,app.ts},src/cs/base/parts/sandbox/electron-browser/preload.ts,conductor-rs/**'
 ---
 # Rust Execution Branch
 

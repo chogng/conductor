@@ -44,7 +44,7 @@ export type PreparedRuleProcessingGroup = {
   queue: ProcessingQueueItem[];
 };
 
-export type TryProcessFileWithRust = (input: {
+export type TryProcessFileWithBackend = (input: {
   entry: ProcessingQueueItem;
   extractionConfig: unknown;
   messageType: ProcessingMessageType;
@@ -99,7 +99,7 @@ export type ProcessingJobOptions = SchedulerRefs &
     clearTemplateOutputBeforeRun: boolean;
     stopOnError: boolean;
     templateSelection?: TemplateSelection;
-    tryProcessFileWithRust: TryProcessFileWithRust;
+    tryProcessFileWithBackend: TryProcessFileWithBackend;
   };
 
 export type RuleProcessingJobOptions = SchedulerRefs &
@@ -111,10 +111,10 @@ export type RuleProcessingJobOptions = SchedulerRefs &
     incremental: boolean;
     stopOnError: boolean;
     templateSelection?: TemplateSelection;
-    tryProcessFileWithRust: TryProcessFileWithRust;
+    tryProcessFileWithBackend: TryProcessFileWithBackend;
   };
 
-const RUST_PROCESSING_CONCURRENCY = 2;
+const BACKEND_PROCESSING_CONCURRENCY = 2;
 
 const resolveAppliedTemplateSelection = (
   fileId: unknown,
@@ -127,7 +127,7 @@ const resolveAppliedTemplateSelection = (
     : currentSelection ?? { kind: "auto" };
 };
 
-const isRustCapableProcessingEntry = (entry: ProcessingQueueItem): boolean =>
+const isBackendCapableProcessingEntry = (entry: ProcessingQueueItem): boolean =>
   Boolean(
     (typeof entry?.normalizedCsvPath === "string" &&
       entry.normalizedCsvPath.trim()) ||
@@ -150,7 +150,7 @@ const resolveProcessingFallbackFile = async (
 };
 
 const createProcessingWorker = () =>
-  new Worker(new URL("./analysis.worker.ts", import.meta.url), {
+  new Worker(new URL("./templateProcessing.worker.ts", import.meta.url), {
     type: "module",
   });
 
@@ -221,7 +221,7 @@ export const startProcessingJob = ({
   setProcessingStatus,
   stopOnError,
   templateSelection,
-  tryProcessFileWithRust,
+  tryProcessFileWithBackend,
 }: ProcessingJobOptions) => {
   if (!Array.isArray(queue) || queue.length === 0) return;
 
@@ -291,14 +291,14 @@ export const startProcessingJob = ({
     if (finishing || jobId !== processingJobIdRef.current) return;
 
     while (
-      activeCount < RUST_PROCESSING_CONCURRENCY &&
+      activeCount < BACKEND_PROCESSING_CONCURRENCY &&
       processingQueueRef.current.length > 0
     ) {
       const candidate = processingQueueRef.current[0];
       if (
         activeCount > 0 &&
         candidate &&
-        !isRustCapableProcessingEntry(candidate)
+        !isBackendCapableProcessingEntry(candidate)
       ) {
         break;
       }
@@ -318,19 +318,19 @@ export const startProcessingJob = ({
       );
 
       void (async () => {
-        const rustProcessed = await tryProcessFileWithRust({
+        const backendProcessed = await tryProcessFileWithBackend({
           entry: nextEntry,
           extractionConfig,
           messageType,
         });
         if (jobId !== processingJobIdRef.current) return;
-        if (rustProcessed) {
-          const nextFileId = rustProcessed.fileId;
+        if (backendProcessed) {
+          const nextFileId = backendProcessed.fileId;
           if (nextFileId && !hasSourceFile(nextFileId)) {
             filePerfFinishers.get(nextFileId)?.({
               skipped: "removed-before-result",
-              ...summarizeProcessedFile(rustProcessed),
-              source: "rust",
+              ...summarizeProcessedFile(backendProcessed),
+              source: "backend",
             });
             filePerfFinishers.delete(nextFileId);
             setProcessingStatus((prev) => ({
@@ -346,12 +346,12 @@ export const startProcessingJob = ({
           hasAnyProcessedResult = true;
           if (nextFileId) {
             filePerfFinishers.get(nextFileId)?.({
-              ...summarizeProcessedFile(rustProcessed),
-              source: "rust",
+              ...summarizeProcessedFile(backendProcessed),
+              source: "backend",
             });
             filePerfFinishers.delete(nextFileId);
           }
-          commitTemplateOutput(rustProcessed, {
+          commitTemplateOutput(backendProcessed, {
             appliedTemplateConfig: extractionConfig,
             appliedTemplateSelection: resolveAppliedTemplateSelection(
               nextFileId,
@@ -504,7 +504,7 @@ export const startRuleProcessingJob = ({
   setProcessingStatus,
   stopOnError,
   templateSelection,
-  tryProcessFileWithRust,
+  tryProcessFileWithBackend,
 }: RuleProcessingJobOptions) => {
   if (!groupedPrepared.length || !finalQueue.length) return;
 
@@ -576,12 +576,12 @@ export const startRuleProcessingJob = ({
   const launchNext = () => {
     if (finishing || jobId !== processingJobIdRef.current) return;
 
-    while (activeCount < RUST_PROCESSING_CONCURRENCY && ruleQueue.length > 0) {
+    while (activeCount < BACKEND_PROCESSING_CONCURRENCY && ruleQueue.length > 0) {
       const candidate = ruleQueue[0];
       if (
         activeCount > 0 &&
         candidate &&
-        !isRustCapableProcessingEntry(candidate.entry)
+        !isBackendCapableProcessingEntry(candidate.entry)
       ) {
         break;
       }
@@ -606,19 +606,19 @@ export const startRuleProcessingJob = ({
         }),
       );
       void (async () => {
-        const rustProcessed = await tryProcessFileWithRust({
+        const backendProcessed = await tryProcessFileWithBackend({
           entry: nextEntry,
           extractionConfig,
           messageType: "processFile",
         });
         if (jobId !== processingJobIdRef.current) return;
-        if (rustProcessed) {
-          const nextFileId = rustProcessed.fileId;
+        if (backendProcessed) {
+          const nextFileId = backendProcessed.fileId;
           if (nextFileId && !hasSourceFile(nextFileId)) {
             filePerfFinishers.get(nextFileId)?.({
               skipped: "removed-before-result",
-              ...summarizeProcessedFile(rustProcessed),
-              source: "rust",
+              ...summarizeProcessedFile(backendProcessed),
+              source: "backend",
             });
             filePerfFinishers.delete(nextFileId);
             extractionConfigByFileId.delete(nextFileId);
@@ -634,13 +634,13 @@ export const startRuleProcessingJob = ({
           hasAnyProcessedResult = true;
           if (nextFileId) {
             filePerfFinishers.get(nextFileId)?.({
-              ...summarizeProcessedFile(rustProcessed),
-              source: "rust",
+              ...summarizeProcessedFile(backendProcessed),
+              source: "backend",
             });
             filePerfFinishers.delete(nextFileId);
             extractionConfigByFileId.delete(nextFileId);
           }
-          commitTemplateOutput(rustProcessed, {
+          commitTemplateOutput(backendProcessed, {
             appliedTemplateConfig: extractionConfig,
             appliedTemplateSelection: resolveAppliedTemplateSelection(
               nextFileId,

@@ -611,7 +611,7 @@ export class TemplateApplyController {
     };
   };
 
-  private readonly tryProcessFileWithRust = async ({
+  private readonly tryProcessFileWithBackend = async ({
     entry,
     extractionConfig,
     messageType,
@@ -714,7 +714,7 @@ export class TemplateApplyController {
       clearTemplateOutput: this.clearTemplateOutput,
       setProcessingStatus: this.setProcessingStatus,
       stopOnError,
-      tryProcessFileWithRust: this.tryProcessFileWithRust,
+      tryProcessFileWithBackend: this.tryProcessFileWithBackend,
     });
   };
 
@@ -905,7 +905,7 @@ export class TemplateApplyController {
       clearTemplateOutput: this.clearTemplateOutput,
       setProcessingStatus: this.setProcessingStatus,
       stopOnError: Boolean(config?.stopOnError),
-      tryProcessFileWithRust: this.tryProcessFileWithRust,
+      tryProcessFileWithBackend: this.tryProcessFileWithBackend,
     });
 
     return buildExtractionStartFeedback({

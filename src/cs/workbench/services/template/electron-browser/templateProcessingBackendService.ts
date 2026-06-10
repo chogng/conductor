@@ -21,7 +21,7 @@ type DesktopIpcRenderer = {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
 };
 
-type TemplateProcessingBridge = {
+type DesktopTemplateProcessingApi = {
   processAnalysisFileWithRust?: (payload: unknown) => Promise<TemplateProcessingResultPayload>;
 };
 
@@ -59,29 +59,29 @@ const localizeTemplateProcessingResponse = <T>(response: T): T => {
   return response;
 };
 
-function getBridge(): TemplateProcessingBridge | null {
+function getBridge(): DesktopTemplateProcessingApi | null {
   const bridge = (
     globalThis.window as Window & {
-      desktopImport?: TemplateProcessingBridge;
+      desktopImport?: DesktopTemplateProcessingApi;
     } | undefined
   )?.desktopImport;
   return bridge && typeof bridge === "object" ? bridge : null;
 }
 
-function hasBridgeMethod<K extends keyof TemplateProcessingBridge>(key: K): boolean {
+function hasBridgeMethod<K extends keyof DesktopTemplateProcessingApi>(key: K): boolean {
   return typeof getBridge()?.[key] === "function";
 }
 
-function getBridgeMethod<K extends keyof TemplateProcessingBridge>(
-  bridge: TemplateProcessingBridge,
+function getBridgeMethod<K extends keyof DesktopTemplateProcessingApi>(
+  bridge: DesktopTemplateProcessingApi,
   key: K,
-): NonNullable<TemplateProcessingBridge[K]> {
+): NonNullable<DesktopTemplateProcessingApi[K]> {
   const method = bridge[key];
   if (typeof method !== "function") {
     throw new Error(`${getServiceUnavailableMessage()} (${String(key)})`);
   }
 
-  return method as NonNullable<TemplateProcessingBridge[K]>;
+  return method as NonNullable<DesktopTemplateProcessingApi[K]>;
 }
 
 function getIpcRenderer(): DesktopIpcRenderer {
