@@ -5,6 +5,7 @@
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
   isExcelFileImportSourceName,
+  type ImportFileData,
 } from "src/cs/workbench/services/files/common/files";
 import type {
   ConvertedCsvReaderService,
@@ -38,7 +39,7 @@ export type FileConverterSource =
 export type FileConverterMetadata = {
   readonly fileName: string;
   readonly lastModified: number;
-  readonly loadFile?: () => Promise<File>;
+  readonly loadFile?: () => Promise<ImportFileData>;
   readonly size: number;
 };
 
@@ -163,6 +164,22 @@ const convertBrowserFile = async (
   };
 };
 
+const getBrowserFileMimeType = (fileName: string): string =>
+  isExcelFileImportSourceName(fileName)
+    ? "application/octet-stream"
+    : "text/csv;charset=utf-8";
+
+const toBrowserFile = async (file: ImportFileData): Promise<File> => {
+  if (file instanceof File) {
+    return file;
+  }
+
+  return new File([await file.arrayBuffer()], file.name, {
+    lastModified: Number.isFinite(file.lastModified) ? file.lastModified : Date.now(),
+    type: getBrowserFileMimeType(file.name),
+  });
+};
+
 export const loadConvertedCsvFile = async ({
   convertedCsvReaderService,
   fallbackFile,
@@ -204,17 +221,17 @@ export const loadConvertedCsvFile = async ({
 
 export const convertImportFile = async (
   fileConverterBackend: FileConverterBackend,
-  file: File | null,
+  file: ImportFileData | null,
   source: FileConverterSource,
   metadata: FileConverterMetadata,
 ): Promise<ConvertedImportFile> => {
   const sourcePath = source.kind === "path" ? source.path.trim() : null;
   const loadBrowserFile = async (): Promise<File> => {
     if (file) {
-      return file;
+      return toBrowserFile(file);
     }
     if (metadata.loadFile) {
-      return metadata.loadFile();
+      return toBrowserFile(await metadata.loadFile());
     }
     throw new FileConvertError(
       `File content is unavailable for ${metadata.fileName}.`,
@@ -289,7 +306,7 @@ export const convertImportFile = async (
       normalizedCsvPath,
       normalizedSizeBytes,
       rustDurationMs: result.durationMs ?? null,
-      source: result.source ?? "rust",
+      source: "rust",
     });
 
     return {

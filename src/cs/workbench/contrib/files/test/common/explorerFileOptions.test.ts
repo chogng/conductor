@@ -58,9 +58,11 @@ function createFileRecord(
 			}
 			: {},
 		id: fileId,
+		kind: "csv",
 		measurementBlockOrder: [],
 		measurementBlocksById: {},
 		metricsByKey: {},
+		name: `${fileId}.csv`,
 		raw: {
 			fileId,
 			fileName: `${fileId}.csv`,

@@ -34,7 +34,7 @@ import type {
 } from "src/cs/workbench/services/template/common/templateSelection";
 import {
   FilesController,
-  type ImportSessionFileInfo,
+  type PreparedFileImportInfo,
 } from "src/cs/workbench/contrib/files/browser/filesController";
 
 import "src/cs/workbench/contrib/files/browser/views/media/filesPane.css";
@@ -60,10 +60,10 @@ export type FilesPaneProps = {
   readonly viewLayout?: FilesViewLayout;
   readonly thumbnailFiles?: ProcessedEntry[];
   readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
-  readonly onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
+  readonly onFileImported?: (fileInfo: PreparedFileImportInfo) => void;
   readonly onFileSelected: (fileId: string | null) => void;
-  readonly onFilesAdded?: (files: ImportSessionFileInfo[]) => void;
-  readonly onFilesReplaced?: (files: ImportSessionFileInfo[]) => void;
+  readonly onFilesAdded?: (files: PreparedFileImportInfo[]) => void;
+  readonly onFilesReplaced?: (files: PreparedFileImportInfo[]) => void;
   readonly onFileRemoved?: (fileId: string) => void;
   readonly onFilesRemoved?: (fileIds: string[]) => void;
   readonly selectedFileId: string | null;

@@ -10,6 +10,8 @@ import {
   type ExplorerFolderExpansionChangeEvent,
   type ExplorerSelectionChangeEvent,
   type ExplorerContext,
+  type ExplorerCopyState,
+  type ExplorerEditableData,
   type ExplorerFileRemovalRequest,
   type ExplorerRevealMode,
   type ExplorerSelectionKind,
@@ -49,6 +51,11 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
   private currentViewLayout: ExplorerViewLayout = "tree";
   private paneInput: ExplorerPaneInput | null = null;
   private readonly views = new Set<IExplorerView>();
+  private editable: ExplorerEditableData | null = null;
+  private toCopy: ExplorerCopyState = {
+    isCut: false,
+    resources: [],
+  };
 
   public get selectedRawFileId(): string | null {
     return this.selectionStore.getSelectedFileId("raw");
@@ -68,9 +75,11 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
 
   public getContext(): ExplorerContext {
     return {
+      editable: this.editable,
       expandedFolderKeys: this.currentExpandedFolderKeys,
       selectedProcessedFileId: this.selectedProcessedFileId,
       selectedRawFileId: this.selectedRawFileId,
+      toCopy: this.toCopy,
       viewLayout: this.currentViewLayout,
     };
   }
@@ -83,7 +92,7 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
   }
 
   public select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): string | null {
-    const result = this.setSelection({
+    const selectedFileId = this.applySelection({
       candidateFileIds: target.candidateFileIds,
       kind: target.kind,
       selectedFileId: target.fileId,
@@ -91,7 +100,29 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
     for (const view of this.views) {
       view.selectResource?.(target, reveal);
     }
-    return result.selectedFileId;
+    return selectedFileId;
+  }
+
+  public setEditable(data: ExplorerEditableData | null): void {
+    this.editable = data;
+  }
+
+  public setToCopy(resources: readonly ExplorerSelectionTarget[], isCut: boolean): void {
+    this.toCopy = {
+      isCut,
+      resources: [...resources],
+    };
+  }
+
+  public async applyBulkEdit(): Promise<void> {
+    this.setEditable(null);
+    this.setToCopy([], false);
+  }
+
+  public async refresh(): Promise<void> {
+    for (const view of this.views) {
+      view.refresh?.();
+    }
   }
 
   public clearSelection(kind: ExplorerSelectionKind): void {
@@ -218,8 +249,8 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
     this.onDidChangePaneInputEmitter.fire(input);
   }
 
-  private setSelection(selection: ExplorerSelectionRequest): string | null {
-    const result = this.selectionStore.setSelection(selection);
+  private applySelection(selection: ExplorerSelectionRequest): string | null {
+    const result = this.selectionStore.select(selection);
     this.fireSelectionChange(selection.kind, result);
     return result.selectedFileId;
   }

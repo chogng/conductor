@@ -142,9 +142,11 @@ const createFileRecord = (
       }
       : {},
     id: fileId,
+    kind: "csv",
     measurementBlockOrder: [],
     measurementBlocksById: {},
     metricsByKey: {},
+    name: "canonical.csv",
     raw: {
       fileId,
       fileName: "canonical.csv",

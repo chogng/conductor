@@ -42,6 +42,18 @@ export type ExplorerContext = {
   readonly selectedProcessedFileId: string | null;
   readonly expandedFolderKeys: readonly string[];
   readonly viewLayout: ExplorerViewLayout;
+  readonly editable: ExplorerEditableData | null;
+  readonly toCopy: ExplorerCopyState;
+};
+
+export type ExplorerEditableData = {
+  readonly resource: ExplorerSelectionTarget;
+  readonly isEditing: boolean;
+};
+
+export type ExplorerCopyState = {
+  readonly resources: readonly ExplorerSelectionTarget[];
+  readonly isCut: boolean;
 };
 
 export interface IExplorerView {
@@ -87,6 +99,10 @@ export interface IExplorerService {
   getContext(): ExplorerContext;
   registerView(view: IExplorerView): IDisposable;
   select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): string | null;
+  setEditable(data: ExplorerEditableData | null): void;
+  setToCopy(resources: readonly ExplorerSelectionTarget[], isCut: boolean): void;
+  applyBulkEdit(): Promise<void>;
+  refresh(): Promise<void>;
   clearSelection(kind: ExplorerSelectionKind): void;
   setExpandedFolderKeys(folderKeys: readonly string[]): void;
   reconcileExpandedFolderKeys(folderKeys: readonly string[]): readonly string[];

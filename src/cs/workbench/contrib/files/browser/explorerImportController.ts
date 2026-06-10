@@ -33,19 +33,13 @@ import {
   type FolderFileReadFailure,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import {
-  type ImportFilePrepareFailure,
-  type PreparedImportFile,
-} from "src/cs/workbench/contrib/files/browser/explorerImportPipeline";
-import {
-  prepareFirstExplorerImportFile,
-  prepareRemainingExplorerImportFiles,
-} from "src/cs/workbench/contrib/files/browser/explorerImportBatch";
-import {
   buildImportErrorMessage,
-} from "src/cs/workbench/contrib/files/browser/explorerImportDiagnostics";
-import {
   collectPendingImportFiles,
+  prepareFirstPendingImportFile,
+  prepareRemainingPendingImportFiles,
+  type FileImportPrepareFailure,
   type PendingImportFile,
+  type PreparedFileImport,
 } from "src/cs/workbench/services/files/browser/pendingImportFiles";
 
 export type ExplorerImportControllerOptions = {
@@ -55,12 +49,12 @@ export type ExplorerImportControllerOptions = {
   readonly getFiles: () => readonly ExplorerFileEntry[];
   readonly getSelectedRelativePath: () => string | null;
   readonly isDisposed: () => boolean;
-  readonly onAppendPreparedFiles: (preparedFiles: readonly PreparedImportFile[]) => void;
+  readonly onAppendPreparedFiles: (preparedFiles: readonly PreparedFileImport[]) => void;
   readonly onDraggingChange: (isDragging: boolean) => void;
   readonly onErrorChange: (error: string | null) => void;
   readonly onRemoveFiles: (fileIds: readonly string[]) => void;
   readonly onReplacePreparedFiles: (
-    preparedFiles: readonly PreparedImportFile[],
+    preparedFiles: readonly PreparedFileImport[],
     selectedFileId: string | null,
   ) => void;
   readonly syncView: () => void;
@@ -178,7 +172,7 @@ export class ExplorerImportController implements IDisposable {
     this.options.onErrorChange(null);
     this.options.syncView();
 
-    const failedFiles: ImportFilePrepareFailure[] = [];
+    const failedFiles: FileImportPrepareFailure[] = [];
     const canApplyResult = (): boolean =>
       !this.options.isDisposed() &&
       runId === this.importRunId &&
@@ -212,7 +206,7 @@ export class ExplorerImportController implements IDisposable {
     const selectedRelativePath = options.preserveSelection
       ? this.options.getSelectedRelativePath()
       : null;
-    const firstImport = await prepareFirstExplorerImportFile({
+    const firstImport = await prepareFirstPendingImportFile({
       canApplyResult,
       failedFiles,
       fileConverterBackend: this.options.fileConverterBackendService,
@@ -230,7 +224,7 @@ export class ExplorerImportController implements IDisposable {
     }
 
     if (canApplyResult()) {
-      acceptedCount += await prepareRemainingExplorerImportFiles({
+      acceptedCount += await prepareRemainingPendingImportFiles({
         canApplyResult,
         failedFiles,
         fileConverterBackend: this.options.fileConverterBackendService,
@@ -265,7 +259,7 @@ export class ExplorerImportController implements IDisposable {
       currentCount: 0,
       source: "folder",
     });
-    const failedFiles: ImportFilePrepareFailure[] = [];
+    const failedFiles: FileImportPrepareFailure[] = [];
     const canApplyResult = (): boolean =>
       !this.options.isDisposed() && runId === this.importRunId;
     let acceptedCount = 0;
@@ -283,7 +277,7 @@ export class ExplorerImportController implements IDisposable {
             return;
           }
 
-          acceptedCount += await prepareRemainingExplorerImportFiles({
+          acceptedCount += await prepareRemainingPendingImportFiles({
             canApplyResult,
             failedFiles,
             fileConverterBackend: this.options.fileConverterBackendService,
@@ -317,7 +311,7 @@ export class ExplorerImportController implements IDisposable {
             return;
           }
 
-          const firstImport = await prepareFirstExplorerImportFile({
+          const firstImport = await prepareFirstPendingImportFile({
             canApplyResult,
             failedFiles,
             fileConverterBackend: this.options.fileConverterBackendService,
@@ -586,7 +580,7 @@ export class ExplorerImportController implements IDisposable {
       !this.options.isDisposed() &&
       runId === this.importRunId &&
       (!options.shouldContinue || options.shouldContinue());
-    const failedFiles: ImportFilePrepareFailure[] = [];
+    const failedFiles: FileImportPrepareFailure[] = [];
     const {
       hasAnyUnsupportedFiles,
       pendingImportFiles,
@@ -595,7 +589,7 @@ export class ExplorerImportController implements IDisposable {
     let acceptedCount = 0;
 
     if (pendingImportFiles.length > 0) {
-      acceptedCount = await prepareRemainingExplorerImportFiles({
+      acceptedCount = await prepareRemainingPendingImportFiles({
         canApplyResult,
         failedFiles,
         fileConverterBackend: this.options.fileConverterBackendService,
@@ -624,7 +618,7 @@ export class ExplorerImportController implements IDisposable {
 
   private logImportDiagnostics(
     source: "folder" | "files" | "workspace",
-    failedFiles: readonly ImportFilePrepareFailure[],
+    failedFiles: readonly FileImportPrepareFailure[],
     readFailures: readonly FolderFileReadFailure[] = [],
   ): void {
     if (failedFiles.length === 0 && readFailures.length === 0) {

@@ -23,7 +23,7 @@ type ExplorerSelectionService = Pick<
   | "clearSelection"
   | "removeFileIdsFromSelection"
   | "resolveSelectedRawFileId"
-  | "selectFile"
+  | "select"
   | "selectedRawFileId"
 >;
 

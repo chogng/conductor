@@ -21,7 +21,7 @@ export class ExplorerSelectionStore {
 			: this.currentProcessedFileId;
 	}
 
-	public setSelection(selection: ExplorerSelectionRequest): {
+	public select(selection: ExplorerSelectionRequest): {
 		readonly changed: boolean;
 		readonly selectedFileId: string | null;
 	} {

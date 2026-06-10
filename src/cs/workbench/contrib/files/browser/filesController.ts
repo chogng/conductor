@@ -41,7 +41,7 @@ import type {
 } from "src/cs/workbench/services/template/common/template";
 import {
   showCreateFolderUnsupported,
-} from "src/cs/workbench/contrib/files/browser/explorerCommands";
+} from "src/cs/workbench/contrib/files/browser/fileActions";
 import {
   getFolderImportSupportForFileService,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
@@ -52,10 +52,10 @@ import type {
   FileConverterBackend,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import {
-  type ImportSessionFileEntry,
-  type ImportSessionFileInfo,
-  type PreparedImportFile,
-} from "src/cs/workbench/contrib/files/browser/explorerImportPipeline";
+  type PreparedFileImport,
+  type PreparedFileImportEntry,
+  type PreparedFileImportInfo,
+} from "src/cs/workbench/services/files/browser/pendingImportFiles";
 
 export type FilesControllerProps = {
   readonly fileConverterBackendService: FileConverterBackend;
@@ -78,17 +78,17 @@ export type FilesControllerProps = {
   viewLayout?: FilesViewLayout;
   thumbnailFiles?: ProcessedEntry[];
   thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
-  onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
+  onFileImported?: (fileInfo: PreparedFileImportInfo) => void;
   onFileSelected: (fileId: string | null) => void;
-  onFilesAdded?: (files: ImportSessionFileInfo[]) => void;
-  onFilesReplaced?: (files: ImportSessionFileInfo[]) => void;
+  onFilesAdded?: (files: PreparedFileImportInfo[]) => void;
+  onFilesReplaced?: (files: PreparedFileImportInfo[]) => void;
   onFileRemoved?: (fileId: string) => void;
   onFilesRemoved?: (fileIds: string[]) => void;
   selectedFileId: string | null;
 };
 
 export type {
-  ImportSessionFileInfo,
+  PreparedFileImportInfo,
 };
 
 export class FilesController implements IDisposable {
@@ -97,7 +97,7 @@ export class FilesController implements IDisposable {
   private readonly importController: ExplorerImportController;
   private explorerView: ExplorerView | null = null;
   private props: FilesControllerProps;
-  private internalFiles: ImportSessionFileEntry[] = [];
+  private internalFiles: PreparedFileImportEntry[] = [];
   private error: string | null = null;
   private isDragging = false;
   private prevFileCount = 0;
@@ -459,8 +459,8 @@ export class FilesController implements IDisposable {
   }
 
   private replaceImportedFiles(
-    fileEntries: ImportSessionFileEntry[],
-    importedFiles: ImportSessionFileInfo[],
+    fileEntries: PreparedFileImportEntry[],
+    importedFiles: PreparedFileImportInfo[],
     selectedFileId: string | null = importedFiles[0]?.fileId ?? null,
   ): void {
     if (!this.isControlled) {
@@ -480,8 +480,8 @@ export class FilesController implements IDisposable {
   }
 
   private appendImportedFiles(
-    fileEntries: ImportSessionFileEntry[],
-    importedFiles: ImportSessionFileInfo[],
+    fileEntries: PreparedFileImportEntry[],
+    importedFiles: PreparedFileImportInfo[],
   ): void {
     if (importedFiles.length === 0) {
       return;
@@ -503,7 +503,7 @@ export class FilesController implements IDisposable {
     }
   }
 
-  private appendPreparedImportFiles(preparedFiles: readonly PreparedImportFile[]): void {
+  private appendPreparedImportFiles(preparedFiles: readonly PreparedFileImport[]): void {
     this.appendImportedFiles(
       preparedFiles.map(prepared => prepared.fileEntry),
       preparedFiles.map(prepared => prepared.fileInfo),
@@ -511,7 +511,7 @@ export class FilesController implements IDisposable {
   }
 
   private replacePreparedImportFiles(
-    preparedFiles: readonly PreparedImportFile[],
+    preparedFiles: readonly PreparedFileImport[],
     selectedFileId: string | null,
   ): void {
     this.replaceImportedFiles(

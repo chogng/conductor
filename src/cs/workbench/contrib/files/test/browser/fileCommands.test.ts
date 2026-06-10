@@ -3,17 +3,17 @@ import assert from "assert";
 import type { ServicesAccessor, ServiceIdentifier } from "../../../../../platform/instantiation/common/instantiation.ts";
 import { ExplorerService } from "../../../../../workbench/contrib/files/browser/explorerService.ts";
 import { IExplorerService } from "../../../../../workbench/contrib/files/common/explorer.ts";
-import { ITemplateService, type ITemplateService as ITemplateServiceType } from "../../../template/common/template.ts";
-import type { TemplateSelection } from "../../../template/common/templateSelection.ts";
+import { ITemplateService, type ITemplateService as ITemplateServiceType } from "src/cs/workbench/services/template/common/template";
+import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 import {
   addFolderHandler,
   removeFileItemHandler,
   removeFolderHandler,
   setFileTemplateHandler,
   toggleThumbnailViewHandler,
-} from "../../browser/explorerCommands.ts";
+} from "../../browser/fileCommands.ts";
 
-suite("workbench/contrib/files/test/browser/explorerCommands", () => {
+suite("workbench/contrib/files/test/browser/fileCommands", () => {
   test("file item commands delegate to owning services", () => {
     const explorerService = new ExplorerService();
     let removedFileId: string | null = null;

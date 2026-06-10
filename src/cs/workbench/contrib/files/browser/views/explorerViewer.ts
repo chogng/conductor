@@ -54,7 +54,6 @@ import {
 import { createEmptyView } from "src/cs/workbench/contrib/files/browser/views/emptyView";
 import {
   createExplorerThumbnailView,
-  type ExplorerThumbnailPlotModel,
   type ProcessedFileLike,
 } from "src/cs/workbench/contrib/files/browser/views/explorerThumbnailView";
 import type { IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";

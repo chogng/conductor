@@ -11,7 +11,7 @@ import {
   type IViewContainersRegistry,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
-import "src/cs/workbench/contrib/files/browser/explorerCommands";
+import "src/cs/workbench/contrib/files/browser/fileActions.contribution";
 import { FilesPaneHost } from "src/cs/workbench/contrib/files/browser/filesPaneHost";
 import { ExplorerViewId } from "src/cs/workbench/contrib/files/common/explorer";
 

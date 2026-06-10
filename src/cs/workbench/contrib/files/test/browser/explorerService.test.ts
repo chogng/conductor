@@ -6,6 +6,7 @@ import assert from "assert";
 
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import type { ExplorerSelectionChangeEvent } from "src/cs/workbench/contrib/files/common/explorer";
+import type { ExplorerPaneInput } from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
 
 suite("workbench/contrib/files/test/browser/explorerService", () => {
   test("stores raw and analysis selections independently", () => {
@@ -112,11 +113,19 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     const service = new ExplorerService();
 
     assert.equal(
-      service.selectFile("raw", "file-b", ["file-a", "file-b"]),
+      service.select({
+        candidateFileIds: ["file-a", "file-b"],
+        fileId: "file-b",
+        kind: "raw",
+      }, "force"),
       "file-b",
     );
     assert.equal(
-      service.selectFile("raw", "file-c", ["file-a"]),
+      service.select({
+        candidateFileIds: ["file-a"],
+        fileId: "file-c",
+        kind: "raw",
+      }, "force"),
       "file-b",
     );
     assert.equal(service.selectedRawFileId, "file-b");
@@ -169,7 +178,7 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
 
   test("owns expanded folder keys", () => {
     const service = new ExplorerService();
-    const events: readonly string[][] = [];
+    const events: string[][] = [];
     const disposable = service.onDidChangeExpandedFolderKeys(event => {
       events.push([...event.expandedFolderKeys]);
     });
@@ -233,11 +242,11 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
 
   test("publishes Explorer pane input", () => {
     const service = new ExplorerService();
-    const inputs = [];
+    const inputs: Array<ExplorerPaneInput | null> = [];
     const disposable = service.onDidChangePaneInput(input => {
       inputs.push(input);
     });
-    const input = {
+    const input: ExplorerPaneInput = {
       files: [],
       mode: "table",
       onFileImported: () => undefined,
@@ -249,7 +258,7 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       selectedFileId: null,
       selectionKind: "raw",
       thumbnailFiles: [],
-    } as const;
+    };
 
     service.updatePaneInput(input);
 

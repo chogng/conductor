@@ -2,62 +2,24 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import type { ICommandHandler } from "src/cs/platform/commands/common/commands";
 import { localize } from "src/cs/nls";
-import {
-  CommandsRegistry,
-  type ICommandHandler,
-} from "src/cs/platform/commands/common/commands";
-import {
-  ADD_FOLDER_ACTION_ID,
-  REMOVE_FILE_ITEM_COMMAND_ID,
-  REMOVE_FOLDER_ACTION_ID,
-  RENAME_FILE_ITEM_COMMAND_ID,
-  SET_FILE_TEMPLATE_COMMAND_ID,
-  SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
-  TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
-} from "src/cs/workbench/contrib/files/common/files";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { IExplorerService } from "src/cs/workbench/contrib/files/common/explorer";
 import { ITemplateService } from "src/cs/workbench/services/template/common/template";
 import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 
-export const showCreateFolderUnsupported = (): void => {
-  notificationService.showToast({
-    id: "files.createFolderUnsupported",
-    message: localize(
-      "files.createFolderUnsupported",
-      "The current import list does not support creating empty folders yet.",
-    ),
-    type: "info",
-  });
-};
-
 export const toggleThumbnailViewHandler: ICommandHandler = async (accessor) => {
   accessor.get(IExplorerService).toggleViewLayout();
 };
-
-CommandsRegistry.registerCommand({
-  id: TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
-  handler: toggleThumbnailViewHandler,
-});
 
 export const addFolderHandler: ICommandHandler = accessor => {
   accessor.get(IExplorerService).requestFolderImport();
 };
 
-CommandsRegistry.registerCommand({
-  id: ADD_FOLDER_ACTION_ID,
-  handler: addFolderHandler,
-});
-
 export const removeFolderHandler: ICommandHandler = accessor => {
   accessor.get(IExplorerService).requestSelectedFolderRemoval();
 };
-
-CommandsRegistry.registerCommand({
-  id: REMOVE_FOLDER_ACTION_ID,
-  handler: removeFolderHandler,
-});
 
 export const removeFileItemHandler: ICommandHandler<[unknown]> = (
   accessor,
@@ -70,11 +32,6 @@ export const removeFileItemHandler: ICommandHandler<[unknown]> = (
 
   accessor.get(IExplorerService).requestFileRemoval(normalizedFileId);
 };
-
-CommandsRegistry.registerCommand({
-  id: REMOVE_FILE_ITEM_COMMAND_ID,
-  handler: removeFileItemHandler,
-});
 
 export const renameFileItemHandler: ICommandHandler<[unknown]> = (
   _accessor,
@@ -94,11 +51,6 @@ export const renameFileItemHandler: ICommandHandler<[unknown]> = (
   });
 };
 
-CommandsRegistry.registerCommand({
-  id: RENAME_FILE_ITEM_COMMAND_ID,
-  handler: renameFileItemHandler,
-});
-
 export const setFileTemplateHandler: ICommandHandler<[unknown, unknown]> = (
   accessor,
   fileId,
@@ -115,11 +67,6 @@ export const setFileTemplateHandler: ICommandHandler<[unknown, unknown]> = (
     [normalizedFileId]: selection,
   }));
 };
-
-CommandsRegistry.registerCommand({
-  id: SET_FILE_TEMPLATE_COMMAND_ID,
-  handler: setFileTemplateHandler,
-});
 
 export const sliceFileWithTemplateHandler: ICommandHandler<[unknown, unknown]> = (
   _accessor,
@@ -139,11 +86,6 @@ export const sliceFileWithTemplateHandler: ICommandHandler<[unknown, unknown]> =
     type: "info",
   });
 };
-
-CommandsRegistry.registerCommand({
-  id: SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
-  handler: sliceFileWithTemplateHandler,
-});
 
 const normalizeCommandFileId = (fileId: unknown): string | null => {
   const normalized = String(fileId ?? "").trim();
