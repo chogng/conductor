@@ -6,6 +6,12 @@ Conductor Studio 是一款面向半导体器件测试数据的桌面优先分析
 
 它适合实验室里反复出现的测试格式：先导入一批文件，告诉 Conductor Studio X/Y 数据、图例和标签在哪里，把这套规则保存成模板，后续同类实验就能直接复用。
 
+## 文档入口
+
+- [项目 Wiki](https://github.com/chogng/conductor/wiki)：架构、源码组织、迁移规则、Rust 执行分支、服务 ownership 和 agent 协作说明。
+- [仓库说明](./.github/conductor-instructions.md)：本地编码规范和验证要求。
+- [迁移规则](https://github.com/chogng/conductor/wiki/Migration-Rules)：在模块或服务之间迁移责任前应先阅读。
+
 ## 它解决什么问题
 
 - **批量导入器件测试数据**：导入 CSV 和 Excel 文件，预览大表格，把一组实验文件放在同一个工作区里处理，而不是逐个文件手工整理。
@@ -80,7 +86,7 @@ scripts\code.bat
 
 共享编排逻辑在 `scripts/dev-desktop.ts`；`scripts/code.sh` 和
 `scripts/code.bat` 是对齐上游命名的用户入口。职责划分和长期方向见
-[`docs/desktop-dev.md`](./docs/desktop-dev.md)。
+[项目 Wiki](https://github.com/chogng/conductor/wiki) 中的架构和责任边界说明。
 
 旧的直接入口仍可使用：
 

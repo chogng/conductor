@@ -10,6 +10,12 @@ It is built for lab workflows where the same measurement format appears again
 and again: import a batch once, teach Conductor Studio where the X/Y data and labels
 live, save that rule as a template, then reuse it across future experiments.
 
+## Documentation
+
+- [Project wiki](https://github.com/chogng/conductor/wiki): architecture, source organization, migration rules, Rust execution branch, service ownership, and agent collaboration.
+- [Repository instructions](./.github/conductor-instructions.md): local coding guidelines and validation expectations.
+- [Migration rules](https://github.com/chogng/conductor/wiki/Migration-Rules): required reading before moving responsibility between modules or services.
+
 ## What It Helps With
 
 - **Batch device data intake**: import CSV and Excel files, preview large tables,
@@ -111,8 +117,8 @@ This flow:
 
 The shared orchestration lives in `scripts/dev-desktop.ts`; `scripts/code.sh`
 and `scripts/code.bat` are the upstream-style user-facing entry scripts. See
-[`docs/desktop-dev.md`](./docs/desktop-dev.md) for the responsibility split and
-long-term direction.
+the [project wiki](https://github.com/chogng/conductor/wiki) for architecture
+and responsibility-boundary notes.
 
 Legacy direct entry:
 
