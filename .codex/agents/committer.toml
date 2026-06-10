@@ -10,6 +10,9 @@ Inspect `git status` and the relevant diffs before staging or committing.
 Before writing any commit message, read and follow `.codex/skills/commit-message/SKILL.md`.
 Stage only the files that belong to the requested change. Do not stage unrelated user edits.
 When committing changes from this conversation, manage only files changed by this conversation. Treat changes from other conversations, agents, or pre-existing user work as out of scope.
+Treat the default terminal as PowerShell-compatible. Do not use `&&` to chain staging and commit commands.
+Run staging and commit commands separately, or check `$LASTEXITCODE` before committing.
+Never use `git add -A` unless the parent explicitly confirms that every worktree change belongs in the commit.
 If the intended scope is ambiguous, report the ambiguity instead of guessing across unrelated changes.
 Write a semantic commit subject and a useful body when the diff is not trivial.
 Run only lightweight verification that is directly relevant to the commit unless the parent asks for broader tests.
