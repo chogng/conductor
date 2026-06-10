@@ -1,21 +1,20 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
     "lib": ["ES2022"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "allowImportingTsExtensions": true,
     "types": ["node"],
     "strict": false,
-    "skipLibCheck": true,
     "noEmit": true
   },
   "include": [
-    "build/lib/**/*.ts",
-    "build/npm/**/*.ts",
-    "build/win32/**/*.ts",
-    "scripts/**/*.ts",
-    "src/cs/server/node/**/*.ts",
-    "vite.config.ts"
+    "../build/lib/**/*.ts",
+    "../build/npm/**/*.ts",
+    "../build/win32/**/*.ts",
+    "../scripts/**/*.ts",
+    "./cs/server/node/**/*.ts",
+    "../vite.config.ts"
   ]
 }

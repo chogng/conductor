@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "..",
+    "outDir": "../desktop-dist",
+    "types": ["node"],
+    "strict": false
+  },
+  "include": [
+    "../desktop/**/*.ts",
+    "./main.ts",
+    "./bootstrap-*.ts",
+    "./cs/nls.ts",
+    "./cs/code/electron-main/**/*.ts",
+    "./cs/code/electron-utility/**/*.ts",
+    "./cs/platform/storage/electron-main/**/*.ts",
+    "./cs/platform/theme/electron-main/**/*.ts",
+    "./cs/platform/windows/electron-main/**/*.ts",
+    "./cs/workbench/services/storage/common/**/*.ts",
+    "./cs/workbench/services/storage/electron-main/**/*.ts"
+  ]
+}

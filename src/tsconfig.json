@@ -1,6 +1,6 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -10,15 +10,18 @@
     "allowJs": true,
     "checkJs": false,
     "isolatedModules": true,
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
     "noEmit": true,
-    "types": ["vite/client", "mocha"],
-    "paths": {
-      "cs/*": ["./src/cs/*"],
-      "src/*": ["./src/*"]
-    }
+    "types": ["vite/client", "mocha"]
   },
-  "include": ["src"],
-  "exclude": ["src/cs/code/electron-main", "src/cs/code/electron-utility"]
+  "include": [
+    "./**/*.ts",
+    "./**/*.d.ts"
+  ],
+  "exclude": [
+    "./main.ts",
+    "./bootstrap-*.ts",
+    "./cs/code/electron-main",
+    "./cs/code/electron-utility",
+    "./cs/server/node"
+  ]
 }
