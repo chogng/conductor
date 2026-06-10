@@ -22,8 +22,8 @@ const packageMarker = new RegExp(
 const isWin = process.platform === 'win32';
 const tscCmd = isWin ? 'cmd.exe' : 'npx';
 const tscArgs = isWin
-	? ['/d', '/s', '/c', 'npx', 'tsc', '-p', 'tsconfig.desktop.json', ...tscExtraArgs]
-	: ['tsc', '-p', 'tsconfig.desktop.json', ...tscExtraArgs];
+	? ['/d', '/s', '/c', 'npx', 'tsc', '-p', 'src/tsconfig.desktop.json', ...tscExtraArgs]
+	: ['tsc', '-p', 'src/tsconfig.desktop.json', ...tscExtraArgs];
 
 const inlinePackageConfiguration = (throwOnMissingMarker: boolean): void => {
 	mkdirSync(desktopDistDir, { recursive: true });

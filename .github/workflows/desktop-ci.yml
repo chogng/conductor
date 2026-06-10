@@ -12,7 +12,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "build/github/upload-release-assets.ps1"
-      - "tsconfig.desktop.json"
+      - "src/tsconfig.desktop.json"
       - "vite.config.js"
       - ".github/workflows/desktop-ci.yml"
       - ".github/workflows/release.yml"
