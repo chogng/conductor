@@ -44,7 +44,7 @@ import {
 import {
   IExplorerService,
   type IExplorerService as IExplorerServiceType,
-} from "src/cs/workbench/services/explorer/common/explorer";
+} from "src/cs/workbench/contrib/files/common/explorer";
 import {
   IExportService,
   type IExportService as IExportServiceType,

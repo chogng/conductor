@@ -39,7 +39,7 @@ import {
   SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/common/files";
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
-import type { ExplorerThumbnailPlotModel } from "src/cs/workbench/services/explorer/common/explorerPaneViewInput";
+import type { ExplorerThumbnailPlotModel } from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
 import { FileKind, ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
 import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
@@ -50,7 +50,7 @@ import {
   getExplorerTreeFileName,
   type ExplorerFileEntry,
   type ExplorerTreeNode,
-} from "src/cs/workbench/services/explorer/common/explorerModel";
+} from "src/cs/workbench/contrib/files/common/explorerModel";
 import { createEmptyView } from "src/cs/workbench/contrib/files/browser/views/emptyView";
 import {
   createExplorerThumbnailView,

@@ -36,8 +36,8 @@ import {
   ExplorerViewId,
   IExplorerService,
   type IExplorerService as IExplorerServiceType,
-} from "src/cs/workbench/services/explorer/common/explorer";
-import type { ExplorerPaneInput } from "src/cs/workbench/services/explorer/common/explorerPaneViewInput";
+} from "src/cs/workbench/contrib/files/common/explorer";
+import type { ExplorerPaneInput } from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
 import {
   IFileConverterBackendService,
   type FileConverterBackend,

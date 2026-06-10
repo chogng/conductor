@@ -11,7 +11,7 @@ import type { IFileService as IFileServiceType } from "src/cs/platform/files/com
 import type {
   ExplorerSelectionKind,
   IExplorerService as IExplorerServiceType,
-} from "src/cs/workbench/services/explorer/common/explorer";
+} from "src/cs/workbench/contrib/files/common/explorer";
 import {
   ExplorerView,
   type ExplorerViewProps,
@@ -19,12 +19,12 @@ import {
 import {
   getExplorerFolderPath,
   isExplorerPathInFolder,
-} from "src/cs/workbench/services/explorer/common/explorerModel";
+} from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
   type FilesViewLayout,
 } from "src/cs/workbench/contrib/files/common/files";
-import type { ExplorerFileEntry } from "src/cs/workbench/services/explorer/common/explorerModel";
-import type { ExplorerThumbnailPlotModel } from "src/cs/workbench/services/explorer/common/explorerPaneViewInput";
+import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
+import type { ExplorerThumbnailPlotModel } from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
@@ -55,7 +55,7 @@ import {
   type ImportSessionFileEntry,
   type ImportSessionFileInfo,
   type PreparedImportFile,
-} from "src/cs/workbench/services/explorer/browser/explorerImportPipeline";
+} from "src/cs/workbench/contrib/files/browser/explorerImportPipeline";
 
 export type FilesControllerProps = {
   readonly fileConverterBackendService: FileConverterBackend;

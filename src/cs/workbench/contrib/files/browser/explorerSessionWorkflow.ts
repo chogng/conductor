@@ -8,8 +8,8 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import type {
   ExplorerImportedSessionFile,
-} from "src/cs/workbench/services/explorer/common/explorerPaneViewInput";
-import type { IExplorerService } from "src/cs/workbench/services/explorer/common/explorer";
+} from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
+import type { IExplorerService } from "src/cs/workbench/contrib/files/common/explorer";
 import type {
   FileImportResult,
   ImportedFileRecord,
@@ -106,7 +106,11 @@ export function createExplorerSessionWorkflow({
     commitImportedFiles([fileInfo], "append");
     if (importedFileId && !selectedRawFileId) {
       preparePreviewSelection();
-      explorerService.selectFile("raw", importedFileId, getRawFileIds([...rawFiles, fileInfo]));
+      explorerService.select({
+        candidateFileIds: getRawFileIds([...rawFiles, fileInfo]),
+        fileId: importedFileId,
+        kind: "raw",
+      }, "force");
     }
   };
 
@@ -120,7 +124,11 @@ export function createExplorerSessionWorkflow({
     commitImportedFiles(files, "append");
     if (!selectedRawFileId && nextSelectedFileId) {
       preparePreviewSelection();
-      explorerService.selectFile("raw", nextSelectedFileId, getRawFileIds([...rawFiles, ...files]));
+      explorerService.select({
+        candidateFileIds: getRawFileIds([...rawFiles, ...files]),
+        fileId: nextSelectedFileId,
+        kind: "raw",
+      }, "force");
     }
   };
 
@@ -142,7 +150,11 @@ export function createExplorerSessionWorkflow({
     if (nextSelectedFileId) {
       preparePreviewSelection();
     }
-    explorerService.selectFile("raw", nextSelectedFileId, getRawFileIds(files));
+    explorerService.select({
+      candidateFileIds: getRawFileIds(files),
+      fileId: nextSelectedFileId,
+      kind: "raw",
+    }, "force");
   };
 
   const handleFileRemoved = (fileId: string) => {
@@ -202,7 +214,11 @@ export function createExplorerSessionWorkflow({
     }
 
     const previousSelectedFileId = explorerService.resolveSelectedRawFileId(getRawFileIds());
-    const nextSelectedFileId = explorerService.selectFile("raw", fileId, getRawFileIds());
+    const nextSelectedFileId = explorerService.select({
+      candidateFileIds: getRawFileIds(),
+      fileId,
+      kind: "raw",
+    }, "force");
     const isSelectionChanging = Boolean(nextSelectedFileId) &&
       previousSelectedFileId !== nextSelectedFileId;
     if (isSelectionChanging) {

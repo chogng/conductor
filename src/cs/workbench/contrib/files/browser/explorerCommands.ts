@@ -17,7 +17,7 @@ import {
   TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
 } from "src/cs/workbench/contrib/files/common/files";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
-import { IExplorerService } from "src/cs/workbench/services/explorer/common/explorer";
+import { IExplorerService } from "src/cs/workbench/contrib/files/common/explorer";
 import { ITemplateService } from "src/cs/workbench/services/template/common/template";
 import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 

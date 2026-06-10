@@ -17,7 +17,7 @@ import "src/cs/workbench/workbench.common.main";
 import "src/cs/workbench/services/assessment/browser/assessmentService";
 import "src/cs/workbench/services/lifecycle/browser/lifecycleService";
 import "src/cs/workbench/services/chart/browser/chartService";
-import "src/cs/workbench/services/explorer/browser/explorerService";
+import "src/cs/workbench/contrib/files/browser/explorerService";
 import "src/cs/workbench/services/export/browser/exportService";
 import "src/cs/workbench/services/layout/browser/layoutService";
 import "src/cs/workbench/services/origin/browser/originService";

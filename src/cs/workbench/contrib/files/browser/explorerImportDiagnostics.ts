@@ -4,7 +4,7 @@
 
 import { localize } from "src/cs/nls";
 import type { FolderFileReadFailure } from "src/cs/workbench/services/files/common/folderImport";
-import type { ImportFilePrepareFailure } from "src/cs/workbench/services/explorer/browser/explorerImportPipeline";
+import type { ImportFilePrepareFailure } from "src/cs/workbench/contrib/files/browser/explorerImportPipeline";
 
 export const buildImportErrorMessage = ({
   failedFiles,

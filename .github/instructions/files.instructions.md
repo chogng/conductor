@@ -1,6 +1,6 @@
 ---
 description: Files capability and Explorer UI architecture - platform file system boundary, files workbench capability, Explorer view state, file/folder commands, source collection, CSV/XLS/XLSX/clipboard conversion, raw table records, and file transfer boundaries.
-applyTo: 'src/cs/platform/files/**,src/cs/workbench/services/files/**,src/cs/workbench/services/explorer/**,src/cs/workbench/contrib/files/**'
+applyTo: 'src/cs/platform/files/**,src/cs/workbench/services/files/**,src/cs/workbench/contrib/files/**'
 ---
 # Files Capability / Explorer UI
 
@@ -34,7 +34,7 @@ workbench/contrib/files
 
 Do not introduce `IFileViewService` or `IFilesExplorerService`. The view-state service is `IExplorerService`, and it belongs to `workbench/contrib/files` like upstream. Do not introduce `IFileImportService` by default; keep file conversion as focused files-domain modules under `workbench/services/files`.
 
-The instruction `applyTo` still includes `workbench/services/explorer/**` only for migration coverage. New target Explorer service code should use `workbench/contrib/files/**`; new conversion/raw-table helpers should use `workbench/services/files/**`.
+The legacy `workbench/services/explorer/**` location has been retired. Explorer service code should use `workbench/contrib/files/**`; conversion/raw-table helpers should use `workbench/services/files/**`.
 
 ## Layer Boundaries
 
@@ -119,7 +119,7 @@ Forbidden:
   platform/files -> workbench/contrib/*
 ```
 
-`workbench/services/explorer` is a migration-only legacy location. Do not introduce new dependencies on it; new Explorer service code belongs under `workbench/contrib/files`.
+`workbench/services/explorer` is retired. Do not introduce new dependencies on it; Explorer service code belongs under `workbench/contrib/files`.
 
 `IFileService` returns filesystem facts. `IExplorerService` decides how those facts become Explorer resources. `fileConverter.ts` decides how collected data sources become raw table records.
 

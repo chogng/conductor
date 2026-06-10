@@ -4,15 +4,15 @@
 
 import assert from "assert";
 
-import { createExplorerPaneInput } from "src/cs/workbench/services/explorer/browser/explorerPaneInput";
-import { ExplorerService } from "src/cs/workbench/services/explorer/browser/explorerService";
+import { createExplorerPaneInput } from "src/cs/workbench/contrib/files/browser/explorerPaneInput";
+import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import { DEFAULT_ORIGIN_PLOT_OPTIONS } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { createProcessedFileSessionCommit } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import { createSessionReadModel } from "src/cs/workbench/services/session/common/sessionReadModel";
 import type {
   ExplorerImportedSessionFile,
-} from "src/cs/workbench/services/explorer/common/explorerPaneViewInput";
+} from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
 import type {
   FileImportResult,
   ImportedFileRecord,
@@ -27,7 +27,7 @@ import { createTemplateSelection } from "src/cs/workbench/services/template/comm
 
 type ExplorerPaneTableModel = Parameters<typeof createExplorerPaneInput>[0]["tableModel"];
 
-suite("workbench/services/explorer/browser/explorerPaneInput", () => {
+suite("workbench/contrib/files/browser/explorerPaneInput", () => {
   test("creates raw mode input and routes imports through explorer selection", () => {
     const session = new SessionService();
     const explorerService = new ExplorerService();

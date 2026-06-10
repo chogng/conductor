@@ -6,7 +6,7 @@ import type {
 	ExplorerSelectionKind,
 	ExplorerSelectionRemoval,
 	ExplorerSelectionRequest,
-} from "src/cs/workbench/services/explorer/common/explorer";
+} from "src/cs/workbench/contrib/files/common/explorer";
 
 /**
  * Stores Explorer-owned resource selection and applies candidate/removal rules.

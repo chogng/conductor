@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ExplorerViewLayout } from "src/cs/workbench/services/explorer/common/explorer";
+import type { ExplorerViewLayout } from "src/cs/workbench/contrib/files/common/explorer";
 
 export const FilesViewId = "workbench.files";
 export const ADD_FOLDER_ACTION_ID = "files.addFolder";

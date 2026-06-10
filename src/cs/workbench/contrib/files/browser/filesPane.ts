@@ -12,15 +12,15 @@ import type { IFileService } from "src/cs/platform/files/common/files";
 import type {
   ExplorerSelectionKind,
   IExplorerService,
-} from "src/cs/workbench/services/explorer/common/explorer";
+} from "src/cs/workbench/contrib/files/common/explorer";
 import type {
   FileConverterBackend,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import type {
   FilesViewLayout,
 } from "src/cs/workbench/contrib/files/common/files";
-import type { ExplorerFileEntry } from "src/cs/workbench/services/explorer/common/explorerModel";
-import type { ExplorerThumbnailPlotModel } from "src/cs/workbench/services/explorer/common/explorerPaneViewInput";
+import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
+import type { ExplorerThumbnailPlotModel } from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";

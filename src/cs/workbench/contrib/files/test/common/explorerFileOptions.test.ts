@@ -4,10 +4,10 @@
 
 import assert from "assert";
 
-import { createExplorerFileOptionsFromRecords } from "src/cs/workbench/services/explorer/common/explorerFileOptions";
+import { createExplorerFileOptionsFromRecords } from "src/cs/workbench/contrib/files/common/explorerFileOptions";
 import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
 
-suite("workbench/services/explorer/common/explorerFileOptions", () => {
+suite("workbench/contrib/files/common/explorerFileOptions", () => {
 	test("createExplorerFileOptionsFromRecords projects canonical files in order", () => {
 		assert.deepEqual(
 			createExplorerFileOptionsFromRecords(

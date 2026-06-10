@@ -6,3 +6,5 @@ The upstream architechture [`C:\Users\lanxi\Desktop\vscode`] is worth referring 
 
 when migrates the responsibility, see the [Migration Rules](.github/migration-rules.md).
 
+when you coding, see the [Coding Guidelines](.github/instructions/coding-guidelines.instructions.md)
+

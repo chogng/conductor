@@ -14,10 +14,10 @@ import type { PendingImportFile } from "src/cs/workbench/services/files/browser/
 import {
   prepareFirstExplorerImportFile,
   prepareRemainingExplorerImportFiles,
-} from "src/cs/workbench/services/explorer/browser/explorerImportBatch";
-import type { ImportFilePrepareFailure } from "src/cs/workbench/services/explorer/browser/explorerImportPipeline";
+} from "src/cs/workbench/contrib/files/browser/explorerImportBatch";
+import type { ImportFilePrepareFailure } from "src/cs/workbench/contrib/files/browser/explorerImportPipeline";
 
-suite("workbench/services/explorer/test/browser/explorerImportBatch", () => {
+suite("workbench/contrib/files/test/browser/explorerImportBatch", () => {
   test("prepares the selected relative path first", async () => {
     const failedFiles: ImportFilePrepareFailure[] = [];
     const result = await prepareFirstExplorerImportFile({

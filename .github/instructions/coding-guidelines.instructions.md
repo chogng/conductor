@@ -38,6 +38,10 @@ Use `CommandsRegistry.registerCommand(...)` when:
 
 Command handlers should only normalize input and dispatch to services/controllers.
 
+When an upstream feature exposes a service method for a user operation, preserve that split: register commands/actions for workbench entry points, and keep the operation on the service. Command handlers should normalize inputs and call the service method; they should not become the owner of selection, focus, layout, or workflow state.
+
+Example: upstream Explorer reveal/select commands call `IExplorerService.select(resource, reveal?)`. The command is the executable entry point, while Explorer selection/reveal state remains owned by the Explorer service/view.
+
 ```ts
 CommandsRegistry.registerCommand({
   id: ExplorerCommandId.RevealResource,

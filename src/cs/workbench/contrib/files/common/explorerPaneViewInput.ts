@@ -3,8 +3,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
-import type { ExplorerSelectionKind } from "src/cs/workbench/services/explorer/common/explorer";
-import type { ExplorerFileEntry } from "src/cs/workbench/services/explorer/common/explorerModel";
+import type { ExplorerSelectionKind } from "src/cs/workbench/contrib/files/common/explorer";
+import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModelSource } from "src/cs/workbench/services/plot/common/plotModel";

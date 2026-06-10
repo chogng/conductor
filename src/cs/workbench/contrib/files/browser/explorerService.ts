@@ -3,23 +3,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from "src/cs/base/common/event";
-import { Disposable } from "src/cs/base/common/lifecycle";
+import { Disposable, toDisposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
   IExplorerService,
   type ExplorerFolderExpansionChangeEvent,
   type ExplorerSelectionChangeEvent,
+  type ExplorerContext,
   type ExplorerFileRemovalRequest,
+  type ExplorerRevealMode,
   type ExplorerSelectionKind,
   type ExplorerSelectionRemoval,
   type ExplorerSelectionRequest,
+  type ExplorerSelectionTarget,
   type ExplorerSessionSelection,
   type ExplorerSessionSelectionInput,
+  type IExplorerView,
   type ExplorerViewLayout,
   type IExplorerService as IExplorerServiceType,
-} from "src/cs/workbench/services/explorer/common/explorer";
-import type { ExplorerPaneInput } from "src/cs/workbench/services/explorer/common/explorerPaneViewInput";
-import { ExplorerSelectionStore } from "src/cs/workbench/services/explorer/common/explorerSelection";
+} from "src/cs/workbench/contrib/files/common/explorer";
+import type { ExplorerPaneInput } from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
+import { ExplorerSelectionStore } from "src/cs/workbench/contrib/files/common/explorerSelection";
 
 export class ExplorerService extends Disposable implements IExplorerServiceType {
   public declare readonly _serviceBrand: undefined;
@@ -44,6 +48,7 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
   private knownFolderKeys: readonly string[] = [];
   private currentViewLayout: ExplorerViewLayout = "tree";
   private paneInput: ExplorerPaneInput | null = null;
+  private readonly views = new Set<IExplorerView>();
 
   public get selectedRawFileId(): string | null {
     return this.selectionStore.getSelectedFileId("raw");
@@ -61,21 +66,31 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
     return this.currentViewLayout;
   }
 
-  public selectFile(
-    kind: ExplorerSelectionKind,
-    fileId: string | null,
-    candidateFileIds?: readonly string[],
-  ): string | null {
-    return this.setSelection({
-      candidateFileIds,
-      kind,
-      selectedFileId: fileId,
+  public getContext(): ExplorerContext {
+    return {
+      expandedFolderKeys: this.currentExpandedFolderKeys,
+      selectedProcessedFileId: this.selectedProcessedFileId,
+      selectedRawFileId: this.selectedRawFileId,
+      viewLayout: this.currentViewLayout,
+    };
+  }
+
+  public registerView(view: IExplorerView) {
+    this.views.add(view);
+    return toDisposable(() => {
+      this.views.delete(view);
     });
   }
 
-  public setSelection(selection: ExplorerSelectionRequest): string | null {
-    const result = this.selectionStore.setSelection(selection);
-    this.fireSelectionChange(selection.kind, result);
+  public select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): string | null {
+    const result = this.setSelection({
+      candidateFileIds: target.candidateFileIds,
+      kind: target.kind,
+      selectedFileId: target.fileId,
+    });
+    for (const view of this.views) {
+      view.selectResource?.(target, reveal);
+    }
     return result.selectedFileId;
   }
 
@@ -140,11 +155,11 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
   }
 
   public setSelectedRawFileId(fileId: string | null): void {
-    this.selectFile("raw", fileId);
+    this.select({ kind: "raw", fileId });
   }
 
   public setSelectedProcessedFileId(fileId: string | null): void {
-    this.selectFile("analysis", fileId);
+    this.select({ kind: "analysis", fileId });
   }
 
   public setViewLayout(viewLayout: ExplorerViewLayout): void {
@@ -201,6 +216,12 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
   public updatePaneInput(input: ExplorerPaneInput): void {
     this.paneInput = input;
     this.onDidChangePaneInputEmitter.fire(input);
+  }
+
+  private setSelection(selection: ExplorerSelectionRequest): string | null {
+    const result = this.selectionStore.setSelection(selection);
+    this.fireSelectionChange(selection.kind, result);
+    return result.selectedFileId;
   }
 
   private fireSelectionChange(

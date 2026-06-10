@@ -4,13 +4,13 @@
 
 import type {
 	IExplorerService,
-} from "src/cs/workbench/services/explorer/common/explorer";
-import { createChartExplorerFilesFromRecords } from "src/cs/workbench/services/explorer/common/explorerInput";
-import { createExplorerSessionWorkflow } from "src/cs/workbench/services/explorer/browser/explorerSessionWorkflow";
+} from "src/cs/workbench/contrib/files/common/explorer";
+import { createChartExplorerFilesFromRecords } from "src/cs/workbench/contrib/files/common/explorerInput";
+import { createExplorerSessionWorkflow } from "src/cs/workbench/contrib/files/browser/explorerSessionWorkflow";
 import type {
 	ExplorerPaneInput,
 	ExplorerThumbnailPlotModel,
-} from "src/cs/workbench/services/explorer/common/explorerPaneViewInput";
+} from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { SessionReadModel } from "src/cs/workbench/services/session/common/sessionReadModel";
 import type { ProcessingStatus } from "src/cs/workbench/services/session/common/sessionTypes";
@@ -124,7 +124,11 @@ export const createExplorerPaneInput = ({
 				return;
 			}
 
-			explorerService.selectFile("analysis", nextFileId, readModel.processedFileIds);
+			explorerService.select({
+				candidateFileIds: readModel.processedFileIds,
+				fileId: nextFileId,
+				kind: "analysis",
+			}, "force");
 		}
 		: explorerSessionWorkflow.handleFileSelected;
 

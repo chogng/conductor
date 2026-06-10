@@ -8,7 +8,7 @@ import {
   preparePendingImportFile,
   type ImportFilePrepareFailure,
   type PreparedImportFile,
-} from "src/cs/workbench/services/explorer/browser/explorerImportPipeline";
+} from "src/cs/workbench/contrib/files/browser/explorerImportPipeline";
 
 const EXPLORER_IMPORT_APPEND_BATCH_SIZE = 32;
 const EXPLORER_IMPORT_PREPARE_CONCURRENCY = 8;

@@ -6,7 +6,7 @@ import type {
   ExplorerSessionSelection,
   ExplorerSessionSelectionInput,
   IExplorerService,
-} from "src/cs/workbench/services/explorer/common/explorer";
+} from "src/cs/workbench/contrib/files/common/explorer";
 import type { SessionReadModel } from "src/cs/workbench/services/session/common/sessionReadModel";
 
 export const createExplorerSessionSelectionInput = (

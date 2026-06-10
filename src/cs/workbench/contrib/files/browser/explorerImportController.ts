@@ -23,7 +23,7 @@ import {
   WORKSPACE_EXTERNAL_CHANGES_TOAST_ID,
   type WorkspaceExternalChanges,
 } from "src/cs/workbench/services/workspaces/common/workspaces";
-import type { ExplorerFileEntry } from "src/cs/workbench/services/explorer/common/explorerModel";
+import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { FileSource } from "src/cs/workbench/services/files/common/files";
 import type { FileConverterBackend } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import {
@@ -35,14 +35,14 @@ import {
 import {
   type ImportFilePrepareFailure,
   type PreparedImportFile,
-} from "src/cs/workbench/services/explorer/browser/explorerImportPipeline";
+} from "src/cs/workbench/contrib/files/browser/explorerImportPipeline";
 import {
   prepareFirstExplorerImportFile,
   prepareRemainingExplorerImportFiles,
-} from "src/cs/workbench/services/explorer/browser/explorerImportBatch";
+} from "src/cs/workbench/contrib/files/browser/explorerImportBatch";
 import {
   buildImportErrorMessage,
-} from "src/cs/workbench/services/explorer/browser/explorerImportDiagnostics";
+} from "src/cs/workbench/contrib/files/browser/explorerImportDiagnostics";
 import {
   collectPendingImportFiles,
   type PendingImportFile,

@@ -4,10 +4,10 @@
 
 import assert from "assert";
 
-import { ExplorerService } from "src/cs/workbench/services/explorer/browser/explorerService";
-import type { ExplorerSelectionChangeEvent } from "src/cs/workbench/services/explorer/common/explorer";
+import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
+import type { ExplorerSelectionChangeEvent } from "src/cs/workbench/contrib/files/common/explorer";
 
-suite("workbench/services/explorer/test/browser/explorerService", () => {
+suite("workbench/contrib/files/test/browser/explorerService", () => {
   test("stores raw and analysis selections independently", () => {
     const service = new ExplorerService();
     const events: ExplorerSelectionChangeEvent[] = [];

@@ -4,16 +4,16 @@
 
 import assert from "assert";
 
-import { createExplorerSessionWorkflow } from "src/cs/workbench/services/explorer/browser/explorerSessionWorkflow";
-import { ExplorerService } from "src/cs/workbench/services/explorer/browser/explorerService";
+import { createExplorerSessionWorkflow } from "src/cs/workbench/contrib/files/browser/explorerSessionWorkflow";
+import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import type {
   ExplorerImportedSessionFile,
-} from "src/cs/workbench/services/explorer/common/explorerPaneViewInput";
+} from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 
-suite("workbench/services/explorer/browser/explorerSessionWorkflow", () => {
+suite("workbench/contrib/files/browser/explorerSessionWorkflow", () => {
   test("replacing imported files selects the first file and resets preview state", () => {
     const session = new SessionService();
     const importedFile = createImportedSessionFile({

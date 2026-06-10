@@ -1,8 +1,8 @@
 import assert from "assert";
 
 import type { ServicesAccessor, ServiceIdentifier } from "../../../../../platform/instantiation/common/instantiation.ts";
-import { ExplorerService } from "../../../../../workbench/services/explorer/browser/explorerService.ts";
-import { IExplorerService } from "../../../../../workbench/services/explorer/common/explorer.ts";
+import { ExplorerService } from "../../../../../workbench/contrib/files/browser/explorerService.ts";
+import { IExplorerService } from "../../../../../workbench/contrib/files/common/explorer.ts";
 import { ITemplateService, type ITemplateService as ITemplateServiceType } from "../../../template/common/template.ts";
 import type { TemplateSelection } from "../../../template/common/templateSelection.ts";
 import {

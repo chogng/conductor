@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ExplorerFileEntry } from "src/cs/workbench/services/explorer/common/explorerModel";
+import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type {
   ProcessedEntry,
   SessionFile,

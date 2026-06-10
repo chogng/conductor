@@ -13,7 +13,7 @@ import {
 } from "src/cs/workbench/common/views";
 import "src/cs/workbench/contrib/files/browser/explorerCommands";
 import { FilesPaneHost } from "src/cs/workbench/contrib/files/browser/filesPaneHost";
-import { ExplorerViewId } from "src/cs/workbench/services/explorer/common/explorer";
+import { ExplorerViewId } from "src/cs/workbench/contrib/files/common/explorer";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);

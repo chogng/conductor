@@ -13,12 +13,12 @@ import type {
 import {
   createImportedFileRecord,
 } from "src/cs/workbench/services/files/browser/fileImportResult";
-import type { ExplorerFileEntry } from "src/cs/workbench/services/explorer/common/explorerModel";
+import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
   ImportPrepareError,
   type ImportFileSource,
   prepareImportFile,
-} from "src/cs/workbench/services/explorer/browser/explorerFilePreparation";
+} from "src/cs/workbench/contrib/files/browser/explorerFilePreparation";
 import type { FileConverterBackend } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import type {
   PendingImportFile,

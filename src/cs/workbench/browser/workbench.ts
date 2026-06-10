@@ -28,7 +28,7 @@ import {
 import {
   ExplorerViewId,
   type IExplorerService,
-} from "src/cs/workbench/services/explorer/common/explorer";
+} from "src/cs/workbench/contrib/files/common/explorer";
 import type { IParametersService } from "src/cs/workbench/services/parameters/common/parameters";
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import type { ISearchService } from "src/cs/workbench/services/search/common/search";
@@ -78,16 +78,16 @@ import {
   WorkbenchWindow,
 } from "src/cs/workbench/browser/window";
 import { TableViewId } from "src/cs/workbench/services/table/common/table";
-import { createExplorerFileOptionsFromRecords } from "src/cs/workbench/services/explorer/common/explorerFileOptions";
+import { createExplorerFileOptionsFromRecords } from "src/cs/workbench/contrib/files/common/explorerFileOptions";
 import {
   TemplateApplyController,
 } from "src/cs/workbench/services/template/browser/templateApplyController";
 import { createTemplateApplyInput } from "src/cs/workbench/services/template/browser/templateApplyInput";
-import { createExplorerPaneInput } from "src/cs/workbench/services/explorer/browser/explorerPaneInput";
+import { createExplorerPaneInput } from "src/cs/workbench/contrib/files/browser/explorerPaneInput";
 import {
   reconcileExplorerSessionSelection,
   resolveExplorerSessionSelection,
-} from "src/cs/workbench/services/explorer/common/explorerSessionSelection";
+} from "src/cs/workbench/contrib/files/common/explorerSessionSelection";
 import type {
   ISessionService as ISessionServiceType,
   SessionSnapshot,
@@ -882,11 +882,11 @@ export class Workbench extends Layout {
       return;
     }
 
-    this.explorerService.selectFile(
-      "analysis",
-      nextFileId,
-      createSessionReadModel(snapshot).processedFileIds,
-    );
+    this.explorerService.select({
+      candidateFileIds: createSessionReadModel(snapshot).processedFileIds,
+      fileId: nextFileId,
+      kind: "analysis",
+    }, "force");
   };
 
   private showWorkbenchViewMode(viewMode: WorkbenchMainPart): void {

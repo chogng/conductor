@@ -3,8 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Event } from "src/cs/base/common/event";
+import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { ExplorerPaneInput } from "src/cs/workbench/services/explorer/common/explorerPaneViewInput";
+import type { ExplorerPaneInput } from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
 
 export const IExplorerService = createDecorator<IExplorerService>("explorerService");
 export const ExplorerViewId = "workbench.files";
@@ -27,6 +28,26 @@ export type ExplorerSelectionRequest = {
   readonly selectedFileId: string | null;
   readonly candidateFileIds?: readonly string[];
 };
+
+export type ExplorerSelectionTarget = {
+  readonly kind: ExplorerSelectionKind;
+  readonly fileId: string | null;
+  readonly candidateFileIds?: readonly string[];
+};
+
+export type ExplorerRevealMode = boolean | "force";
+
+export type ExplorerContext = {
+  readonly selectedRawFileId: string | null;
+  readonly selectedProcessedFileId: string | null;
+  readonly expandedFolderKeys: readonly string[];
+  readonly viewLayout: ExplorerViewLayout;
+};
+
+export interface IExplorerView {
+  selectResource?(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): void;
+  refresh?(): void;
+}
 
 export type ExplorerSelectionRemoval = {
   readonly kind: ExplorerSelectionKind;
@@ -63,8 +84,9 @@ export interface IExplorerService {
   readonly onDidRequestSelectedFolderRemoval: Event<void>;
   readonly onDidRequestFileRemoval: Event<ExplorerFileRemovalRequest>;
 
-  selectFile(kind: ExplorerSelectionKind, fileId: string | null, candidateFileIds?: readonly string[]): string | null;
-  setSelection(selection: ExplorerSelectionRequest): string | null;
+  getContext(): ExplorerContext;
+  registerView(view: IExplorerView): IDisposable;
+  select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): string | null;
   clearSelection(kind: ExplorerSelectionKind): void;
   setExpandedFolderKeys(folderKeys: readonly string[]): void;
   reconcileExpandedFolderKeys(folderKeys: readonly string[]): readonly string[];
