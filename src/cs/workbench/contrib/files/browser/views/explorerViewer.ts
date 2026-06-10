@@ -88,7 +88,6 @@ export type ExplorerViewerProps = {
   readonly viewLayout?: FilesViewLayout;
   readonly folderImportSupport?: FolderImportSupport;
   readonly onListScroll: (event: Event) => void;
-  readonly onCreateFolder: (folderKey: string) => void;
   readonly onFolderExpansionChange?: (expandedFolderKeys: readonly string[]) => void;
   readonly onFolderKeysChange?: (folderKeys: readonly string[]) => readonly string[] | void;
   readonly onOpenFileDialog: () => void;
@@ -969,13 +968,6 @@ export class ExplorerViewer implements IDisposable {
         label: localize("files.removeFolder", "Remove Folder"),
         left: createMenuItemLabel(localize("files.removeFolder", "Remove Folder"), LxIcon.remove),
         run: () => this.props.onRemoveFolder(node.key),
-        tabIndex: 0,
-      }),
-      createMenuAction({
-        id: "files.folder.create",
-        label: localize("files.createFolder", "New Folder"),
-        left: createMenuItemLabel(localize("files.createFolder", "New Folder"), LxIcon.add),
-        run: () => this.props.onCreateFolder(node.key),
         tabIndex: 0,
       }),
     ];

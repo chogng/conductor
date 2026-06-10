@@ -5,11 +5,13 @@
 import assert from "assert";
 
 import {
-  createFileImportResultFromRecords,
   createImportedFileRecord,
-} from "src/cs/workbench/services/files/browser/fileImportResult";
+} from "src/cs/workbench/services/files/browser/fileConverter";
+import {
+  createFileImportResultFromRecords,
+} from "src/cs/workbench/services/files/common/files";
 
-suite("workbench/services/files/test/browser/fileImportResult", () => {
+suite("workbench/services/files/test/browser/fileConverter import records", () => {
   test("creates inline raw table records from imported CSV files", async () => {
     const file = new File(["Vg,Id\n0,1e-9"], "Transfer.csv", {
       lastModified: 123,
@@ -78,5 +80,51 @@ suite("workbench/services/files/test/browser/fileImportResult", () => {
       sheetIndex: 0,
       sheetName: null,
     });
+  });
+
+  test("creates one raw table per imported Excel sheet", async () => {
+    const file = new File([""], "Workbook.xlsx", {
+      lastModified: 123,
+      type: "text/csv",
+    });
+
+    const record = await createImportedFileRecord({
+      file,
+      fileId: "file-a",
+      fileName: "Workbook.xlsx",
+      sourcePath: "C:/data/Workbook.xlsx",
+      tables: [
+        {
+          rawTableId: "sheet-forward",
+          rows: [["Vg", "Id"], ["0", "1"]],
+          sheetIndex: 0,
+          sheetName: "Forward",
+        },
+        {
+          columnCount: 2,
+          maxCellLengths: [2, 4],
+          normalizedCsvPath: "C:/tmp/reverse.csv",
+          rawTableId: "sheet-reverse",
+          rowCount: 2,
+          sheetIndex: 1,
+          sheetName: "Reverse",
+        },
+      ],
+    });
+
+    assert.deepEqual(record.raw.rawTableOrder, ["sheet-forward", "sheet-reverse"]);
+    assert.deepEqual(record.raw.rawTablesById["sheet-forward"].source, {
+      kind: "excelSheet",
+      originalPath: "C:/data/Workbook.xlsx",
+      sheetIndex: 0,
+      sheetName: "Forward",
+    });
+    assert.deepEqual(record.raw.rawTablesById["sheet-reverse"].rows, {
+      formatVersion: 1,
+      kind: "normalizedCsv",
+      normalizedCsvPath: "C:/tmp/reverse.csv",
+    });
+    assert.equal(record.raw.rawTablesById["sheet-reverse"].rowCount, 2);
+    assert.equal(record.raw.rawTablesById["sheet-reverse"].columnCount, 2);
   });
 });

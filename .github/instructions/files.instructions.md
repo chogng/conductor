@@ -147,6 +147,7 @@ Files service conversion modules own:
 - reading source metadata supplied by Explorer workflow code;
 - converting CSV, XLS, XLSX, clipboard, or manual inputs into raw table facts;
 - generating one `RawTableRecord` per CSV table or Excel sheet;
+- accepting backend `sheets` metadata when a converter can emit multiple worksheet CSV payloads;
 - writing or referencing normalized CSV artifacts;
 - returning conversion diagnostics;
 - producing `FileConversionResult` for `ISessionService.commitFileImport(...)`.
@@ -180,9 +181,15 @@ It does not own:
 | `src/cs/workbench/services/files/electron-browser/*` | Other workbench renderer-side desktop files service bridges such as disk provider clients/watchers. | IPC/filesystem service dependencies. | Registered workbench file providers and watcher clients. | Add Explorer state, command/menu registration, or UI workflow semantics. |
 | `src/cs/workbench/services/files/common/rawTable.ts` | Defines raw table records: `RangeRef`, `RawTableRangeRef`, `RawTableRecord`, `RawTableRowsRecord`, `RawTableSourceRecord`. | None; type-only. | Shared raw table types. | Import browser APIs, parse files, or define assessment fields. |
 | `src/cs/workbench/services/files/common/files.ts` | Defines source/conversion data contracts: `FileImportInput`, `FileConversionResult`, `FileImportDiagnostic`, source kinds. | None; type-only. | Source/conversion contracts. | Define `IFileImportService` unless a stable service boundary is intentionally added later. |
-| `src/cs/workbench/services/files/browser/fileConverter.ts` | Converts CSV/XLS/XLSX/clipboard/manual sources into `FileConversionResult`. | `FileImportInput`, source bytes/path metadata, optional converter worker. | `FileConversionResult`, `RawTableRecord`, normalized CSV refs, diagnostics. | Call `IAssessmentService`, commit session, touch Explorer state, or render preview. |
+| `src/cs/workbench/services/files/browser/fileConverter.ts` | Converts CSV/XLS/XLSX/clipboard/manual sources into session-ready raw import facts. | `FileImportInput`, source bytes/path metadata, optional converter worker. | `FileConversionResult`, `ImportedFileRecord`, `RawTableRecord`, normalized CSV refs, diagnostics. | Call `IAssessmentService`, commit session, touch Explorer state, or render preview. |
 | `src/cs/workbench/services/files/browser/fileConverter.worker.ts` | Optional worker for expensive workbook conversion. | Workbook bytes / file reference. | Per-sheet raw table payloads or normalized CSV artifact refs. | Own UI state or session state. |
-| `src/cs/workbench/contrib/files/browser/fileImportExport.ts` | File transfer and source collection helpers: folder walking, `FileSource[]` collection, external upload/download scenario utilities. | `IFileService`, URI/file sources, folder resources. | `FileSource[]`, read failures, download/upload side effects. | Become a generic import service or parse assessment semantics. |
+| `src/cs/workbench/contrib/files/browser/fileImportExport.ts` | File transfer and source collection helpers: folder picker support, folder walking, `FileSource[]` collection, pending conversion queue, external upload/download scenario utilities. | `IFileService`, URI/file sources, folder resources, `fileConverter.ts` conversion output. | `FileSource[]`, prepared imported files, read/prepare failures, download/upload side effects. | Become a generic import service, parse CSV/XLS/XLSX directly, or parse assessment semantics. |
+
+Current implementation note: the session/import result path supports multiple
+raw tables per imported workbook when `fileConverter.ts` receives sheet
+metadata. The bundled Rust and WASM Excel converters currently export the first
+worksheet only, so true multi-sheet import also requires extending those
+converter backends to emit one sheet descriptor per worksheet.
 
 ## Data File Workflow
 
@@ -391,6 +398,25 @@ Recommended files:
 | `src/cs/workbench/contrib/files/electron-browser/fileCommands.ts` | Desktop-only Files command helpers such as reveal in OS. Follows upstream native split. |
 | `src/cs/workbench/contrib/files/electron-browser/fileActions.contribution.ts` | Desktop-only command/menu/action registration for native Files actions. Do not put Rust conversion branching here. |
 | `src/cs/workbench/contrib/files/browser/fileImportExport.ts` | Upstream-aligned target for external file transfer plus Conductor source collection helpers. Use this for dialog/drop/folder source collection helpers instead of creating a generic import controller. |
+
+Empty folders are Explorer presentation state only when backed by imported file
+paths. Do not create placeholder session records for empty folders; if a folder
+contains no supported raw table files, it should not appear as canonical session
+data.
+
+Do not split thin files out of `fileImportExport.ts` just to name internal
+steps such as pending import queues, folder-import dialogs, or folder-import
+types. Those are source workflow details owned by `contrib/files`. In
+particular, do not reintroduce `pendingImportFiles.ts`,
+`folderImportDialog.ts`, or `folderImport.ts` unless a new reusable boundary is
+proven by non-Explorer callers.
+
+Do not split thin files out of `fileConverter.ts` just to wrap raw import record
+creation. Normalized CSV/worksheet payloads becoming `ImportedFileRecord` and
+`RawTableRecord` is part of conversion output shaping. Keep the trivial
+`FileImportResult` wrapper in `services/files/common/files.ts`; keep raw table
+row reading in `rawTableRowsReader` because table/assessment consumers use that
+boundary after session commit.
 
 Command handlers should use the actual upstream-shaped `IExplorerService` surface when the behavior is Explorer view/model state:
 

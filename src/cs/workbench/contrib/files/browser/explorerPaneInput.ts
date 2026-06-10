@@ -25,12 +25,12 @@ import type {
 import type { TableModel } from "src/cs/workbench/services/table/common/table";
 import type { TemplateState } from "src/cs/workbench/services/template/common/template";
 import type {
-	FileImportResult,
-	ImportedFileRecord,
+  FileImportResult,
+  ImportedFileRecord,
 } from "src/cs/workbench/services/files/common/files";
 import {
-	createFileImportResultFromRecords,
-} from "src/cs/workbench/services/files/browser/fileImportResult";
+  createFileImportResultFromRecords,
+} from "src/cs/workbench/services/files/common/files";
 import {
 	createCurrentTemplateSelectionDisplay,
 } from "src/cs/workbench/services/template/common/templateSelection";

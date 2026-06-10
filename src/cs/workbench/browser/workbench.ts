@@ -109,7 +109,6 @@ import type {
   ITemplateApplyService,
   ITemplateService,
 } from "src/cs/workbench/services/template/common/template";
-import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 import {
   CoreSettingsController,
   createCoreSettingsState,

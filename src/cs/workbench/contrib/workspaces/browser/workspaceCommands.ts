@@ -9,7 +9,7 @@ import { IPathService } from "src/cs/workbench/services/path/common/pathService"
 import {
   canImportFolderWithFileService,
   pickImportFolder,
-} from "src/cs/workbench/services/files/browser/folderImportDialog";
+} from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import { ADD_WORKSPACE_FOLDER_COMMAND_ID } from "src/cs/workbench/services/workspaces/common/workspaces";
 
 export const addWorkspaceFolderHandler: ICommandHandler<[], Promise<URI | null>> = async (accessor) => {

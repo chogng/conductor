@@ -14,11 +14,22 @@ export type FileConverterPreparedFile = {
 	readonly normalizedCsvPath?: string | null;
 	readonly normalizedSizeBytes?: number;
 	readonly ok?: boolean;
+	readonly sheets?: readonly FileConverterPreparedSheet[];
 	readonly sourceName?: string;
 	readonly sourcePath?: string;
 	readonly sourceSizeBytes?: number;
 	readonly code?: string;
 	readonly message?: string;
+};
+
+export type FileConverterPreparedSheet = {
+	readonly columnCount?: number;
+	readonly csvText?: string;
+	readonly maxCellLengths?: readonly number[];
+	readonly normalizedCsvPath?: string | null;
+	readonly rowCount?: number;
+	readonly sheetIndex?: number | null;
+	readonly sheetName?: string | null;
 };
 
 export type FileConverterConvertedCsv = {

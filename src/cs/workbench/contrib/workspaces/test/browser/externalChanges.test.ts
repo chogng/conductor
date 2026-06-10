@@ -9,7 +9,7 @@ import {
   buildFileSourceIdentityKey,
   type FileEntry,
 } from "../../../../../workbench/services/files/common/files.ts";
-import type { FolderImportFileSource } from "../../../../../workbench/services/files/common/folderImport.ts";
+import type { FolderImportFileSource } from "../../../../../workbench/services/files/common/files.ts";
 import { resolveWorkspaceExternalChanges } from "../../../../../workbench/services/workspaces/common/externalChanges.ts";
 
 suite("workbench/contrib/workspaces/test/browser/externalChanges", () => {

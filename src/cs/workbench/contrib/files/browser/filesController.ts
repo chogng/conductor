@@ -41,20 +41,15 @@ import type {
   TemplateRecord,
 } from "src/cs/workbench/services/template/common/template";
 import {
-  showCreateFolderUnsupported,
-} from "src/cs/workbench/contrib/files/browser/fileActions";
-import {
   FileSourceWorkflow,
   getFolderImportSupportForFileService,
+  type PreparedFileImport,
+  type PreparedFileImportEntry,
+  type PreparedFileImportInfo,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import type {
   FileConverterBackend,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
-import {
-  type PreparedFileImport,
-  type PreparedFileImportEntry,
-  type PreparedFileImportInfo,
-} from "src/cs/workbench/services/files/browser/pendingImportFiles";
 
 export type FilesControllerProps = {
   readonly fileConverterBackendService: FileConverterBackend;
@@ -261,7 +256,6 @@ export class FilesController implements IDisposable {
       onClearError: this.handleClearError,
       onDraggingChange: this.handleDraggingChange,
       onListScroll: this.handleListScroll,
-      onCreateFolder: this.handleCreateFolder,
       onFolderExpansionChange: this.handleFolderExpansionChange,
       onFolderKeysChange: this.handleFolderKeysChange,
       onRemoveFolder: this.handleRemoveFolder,
@@ -384,10 +378,6 @@ export class FilesController implements IDisposable {
 
     this.handleFileCountEffects();
     this.syncView();
-  };
-
-  private readonly handleCreateFolder = (_folderKey: string): void => {
-    showCreateFolderUnsupported();
   };
 
   private readonly handleFolderExpansionChange = (expandedFolderKeys: readonly string[]): void => {

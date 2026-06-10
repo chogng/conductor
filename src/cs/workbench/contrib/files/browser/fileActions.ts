@@ -21,19 +21,6 @@ import {
   setFileTemplateHandler,
   sliceFileWithTemplateHandler,
 } from "src/cs/workbench/contrib/files/browser/fileCommands";
-import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
-
-export const showCreateFolderUnsupported = (): void => {
-  notificationService.showToast({
-    id: "files.createFolderUnsupported",
-    message: localize(
-      "files.createFolderUnsupported",
-      "The current import list does not support creating empty folders yet.",
-    ),
-    type: "info",
-  });
-};
-
 function registerFileActions(): void {
   registerAction2(class AddFolderAction extends Action2 {
     public constructor() {

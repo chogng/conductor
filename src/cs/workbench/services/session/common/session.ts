@@ -83,4 +83,3 @@ export interface ISessionService {
   getSnapshot(): SessionSnapshot;
   removeFiles(fileIds: readonly string[]): void;
 }
-

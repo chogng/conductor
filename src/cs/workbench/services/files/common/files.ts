@@ -85,6 +85,31 @@ export type PathFileSource = {
 
 export type FileSource = DataFileSource | PathFileSource;
 
+export type FolderImportFileSource = PathFileSource & {
+  readonly loadFile: () => Promise<ImportFileData>;
+};
+
+export type FolderFileReadFailure = {
+  readonly fileName: string;
+  readonly message: string;
+  readonly relativePath: string;
+};
+
+export type FolderFileCollection = {
+  readonly files: FolderImportFileSource[];
+  readonly readFailures: FolderFileReadFailure[];
+};
+
+export type FolderFileCollectionBatch = {
+  readonly files: FolderImportFileSource[];
+};
+
+export type FolderImportFiles = {
+  readonly files: FileSource[];
+  readonly folder: URI;
+  readonly readFailures: FolderFileReadFailure[];
+};
+
 export const buildFileIdentityKey = (
   file: ImportFileData | null | undefined,
   relativePath?: string | null,
@@ -198,6 +223,18 @@ export type FileImportResult = {
   readonly diagnostics: readonly FileImportDiagnostic[];
   readonly createdAt: number;
 };
+
+export const createFileImportResultFromRecords = (
+  files: readonly ImportedFileRecord[],
+  options: {
+    readonly createdAt?: number;
+    readonly diagnostics?: readonly FileImportDiagnostic[];
+  } = {},
+): FileImportResult => ({
+  createdAt: options.createdAt ?? Date.now(),
+  diagnostics: [...(options.diagnostics ?? [])],
+  files: [...files],
+});
 
 export const isExcelFileImportSourceName = (fileName: string): boolean =>
   /\.(xls|xlsx)$/i.test(fileName);

@@ -20,7 +20,6 @@ export type ExplorerViewProps = Omit<ExplorerViewerProps, "onOpenFileDialog"> & 
   readonly error?: string | null;
   readonly isDragging: boolean;
   readonly onClearError: () => void;
-  readonly onCreateFolder: (folderKey: string) => void;
   readonly onDraggingChange: (isDragging: boolean) => void;
   readonly onDropFiles: (dataTransfer: DataTransfer | null) => void;
   readonly onOpenFolderDialog: () => void;
@@ -107,7 +106,6 @@ export class ExplorerView implements IDisposable {
       mode: this.props.mode,
       viewLayout: this.props.viewLayout,
       onListScroll: this.props.onListScroll,
-      onCreateFolder: this.props.onCreateFolder,
       onFolderExpansionChange: this.props.onFolderExpansionChange,
       onFolderKeysChange: this.props.onFolderKeysChange,
       onOpenFileDialog: this.props.onOpenFolderDialog,

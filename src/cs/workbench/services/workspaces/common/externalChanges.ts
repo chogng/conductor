@@ -5,10 +5,8 @@
 import {
   buildFileSourceIdentityKey,
   type FileEntry,
+  type FolderImportFileSource,
 } from "src/cs/workbench/services/files/common/files";
-import type {
-  FolderImportFileSource,
-} from "src/cs/workbench/services/files/common/folderImport";
 import {
   createWorkspaceSourcePathKey,
   type WorkspaceExternalChange,
