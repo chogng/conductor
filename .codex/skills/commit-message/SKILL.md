@@ -7,14 +7,16 @@ description: Write structured semantic commit messages that explain changes by f
 
 Use this skill when writing or reviewing a commit message for `conductor`.
 
-The commit message must be useful after the context of the thread is gone. Keep the subject concise, then use the body to explain what changed by domain, feature area, or responsibility boundary.
+The commit message must be useful after the context of the thread is gone. Keep the message as short as possible while preserving the important context.
 
 ## Rules
 
 - Prefer a semantic prefix: `feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `perf:`, or `test:`.
 - Keep the subject line short and specific.
-- Include a body unless the diff is truly trivial.
-- Structure the body as bullets grouped by the changed area or capability, not by edit chronology.
+- Use only a subject when a trivial single-surface change is fully explained by that subject.
+- Add a body when the diff changes workflow, ownership, behavior, runtime boundaries, tests, or more than one meaningful area.
+- Use grouped bullets only when there are multiple distinct surfaces to explain; avoid bullets that merely repeat the subject.
+- Structure body bullets by the changed area or capability, not by edit chronology.
 - Each bullet should describe the net behavior or architectural outcome, not the step-by-step edit history.
 - Cover every meaningful changed surface: user-facing behavior, service/model ownership, runtime or IPC boundary, CSS/UI state, tests, build scripts, and cleanup.
 - If several areas changed, use one bullet per area. Do not collapse unrelated work into one vague sentence.
