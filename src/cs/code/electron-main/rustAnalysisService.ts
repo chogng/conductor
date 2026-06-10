@@ -16,19 +16,19 @@ import type {
   RustProcessConfig,
 } from "../../platform/rust/common/rustAnalysisProtocol.js";
 
-type RustAnalysisServiceHelpers = {
-  createRustAnalysisOriginExportTempPath: (fileId: string, csvName: string) => string;
+type ServiceHelpers = {
+  createOriginExportTempPath: (fileId: string, csvName: string) => string;
   createRustProcessingResultTempDir: (fileId: string) => string;
   hydrateRustProcessingResultRefs: (result: unknown, tempDir?: string | null) => Promise<unknown>;
   isRustProcessFileConfigSupported: (config: RustProcessConfig | null) => boolean;
-  isSupportedRustAnalysisInputPath: (filePath: string) => boolean;
+  isSupportedInputPath: (filePath: string) => boolean;
 };
 
-type RustAnalysisServiceOptions = RustAnalysisServiceHelpers & {
+type ServiceOptions = ServiceHelpers & {
   rustWorkerRuntime: IRustWorkerService;
 };
 
-const AnalysisErrorCode = {
+const ErrorCode = {
   FileNotFound: "ANALYSIS_FILE_NOT_FOUND",
   InvalidCell: "INVALID_ANALYSIS_CELL",
   InvalidCells: "INVALID_ANALYSIS_CELLS",
@@ -62,22 +62,22 @@ const buildFailure = (
 
 export class RustAnalysisService implements IRustAnalysisService {
   constructor(
-    private readonly options: RustAnalysisServiceOptions,
+    private readonly options: ServiceOptions,
   ) {}
 
   public async openFile(request: OpenFileRequest): Promise<RustAnalysisResponse> {
-    if (!request.fileId || !request.inputPath || !this.options.isSupportedRustAnalysisInputPath(request.inputPath)) {
-      return buildFailure(AnalysisErrorCode.InvalidPath, "Invalid analysis file path.");
+    if (!request.fileId || !request.inputPath || !this.options.isSupportedInputPath(request.inputPath)) {
+      return buildFailure(ErrorCode.InvalidPath, "Invalid analysis file path.");
     }
 
     try {
       const stat = fs.statSync(request.inputPath);
       if (!stat.isFile()) {
-        return buildFailure(AnalysisErrorCode.InvalidPath, "Analysis path is not a file.");
+        return buildFailure(ErrorCode.InvalidPath, "Analysis path is not a file.");
       }
     } catch (error) {
       return buildFailure(
-        AnalysisErrorCode.FileNotFound,
+        ErrorCode.FileNotFound,
         (error as Error)?.message || "Analysis file not found.",
       );
     }
@@ -102,7 +102,7 @@ export class RustAnalysisService implements IRustAnalysisService {
 
   public async previewRows(request: PreviewRowsRequest): Promise<RustAnalysisResponse> {
     if (!request.fileId) {
-      return buildFailure(AnalysisErrorCode.InvalidFileId, "Missing file id.");
+      return buildFailure(ErrorCode.InvalidFileId, "Missing file id.");
     }
 
     const startedAt = Date.now();
@@ -120,7 +120,7 @@ export class RustAnalysisService implements IRustAnalysisService {
 
   public async previewMeta(request: PreviewMetaRequest): Promise<RustAnalysisResponse> {
     if (!request.fileId) {
-      return buildFailure(AnalysisErrorCode.InvalidFileId, "Missing file id.");
+      return buildFailure(ErrorCode.InvalidFileId, "Missing file id.");
     }
 
     const startedAt = Date.now();
@@ -138,7 +138,7 @@ export class RustAnalysisService implements IRustAnalysisService {
 
   public async readCell(request: ReadCellRequest): Promise<RustAnalysisResponse> {
     if (!request.fileId) {
-      return buildFailure(AnalysisErrorCode.InvalidCell, "Invalid analysis cell request.");
+      return buildFailure(ErrorCode.InvalidCell, "Invalid analysis cell request.");
     }
 
     const startedAt = Date.now();
@@ -156,7 +156,7 @@ export class RustAnalysisService implements IRustAnalysisService {
 
   public async readCells(request: ReadCellsRequest): Promise<RustAnalysisResponse> {
     if (!request.fileId || !request.cells.length) {
-      return buildFailure(AnalysisErrorCode.InvalidCells, "Invalid analysis cells request.");
+      return buildFailure(ErrorCode.InvalidCells, "Invalid analysis cells request.");
     }
 
     const startedAt = Date.now();
@@ -173,8 +173,8 @@ export class RustAnalysisService implements IRustAnalysisService {
   }
 
   public async processFile(request: ProcessFileRequest): Promise<RustAnalysisResponse> {
-    if (!request.fileId || !request.inputPath || !this.options.isSupportedRustAnalysisInputPath(request.inputPath)) {
-      return buildFailure(AnalysisErrorCode.InvalidPath, "Invalid analysis file path.");
+    if (!request.fileId || !request.inputPath || !this.options.isSupportedInputPath(request.inputPath)) {
+      return buildFailure(ErrorCode.InvalidPath, "Invalid analysis file path.");
     }
     if (!request.auto && !this.options.isRustProcessFileConfigSupported(request.config)) {
       return buildFailure(
@@ -255,8 +255,8 @@ export class RustAnalysisService implements IRustAnalysisService {
     const hasRustSeries =
       (request.metricKind === "output" || request.metricKind === "transfer") &&
       request.metricSeries.length > 0;
-    if (!request.fileId || !request.inputPath || !this.options.isSupportedRustAnalysisInputPath(request.inputPath)) {
-      return buildFailure(AnalysisErrorCode.InvalidPath, "Invalid analysis file path.");
+    if (!request.fileId || !request.inputPath || !this.options.isSupportedInputPath(request.inputPath)) {
+      return buildFailure(ErrorCode.InvalidPath, "Invalid analysis file path.");
     }
     if (!this.options.isRustProcessFileConfigSupported(request.config) || (!request.columns.length && !hasRustSeries)) {
       return buildFailure(
@@ -281,7 +281,7 @@ export class RustAnalysisService implements IRustAnalysisService {
     );
 
     const startedAt = Date.now();
-    const outputPath = this.options.createRustAnalysisOriginExportTempPath(request.fileId, request.csvName);
+    const outputPath = this.options.createOriginExportTempPath(request.fileId, request.csvName);
     try {
       const result = await this.options.rustWorkerRuntime.sendProcessingCommand(
         "exportOriginCsv",

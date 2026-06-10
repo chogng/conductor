@@ -190,7 +190,7 @@ const dialogMainService = new DialogMainService();
 const nativeHostMainService = new NativeHostMainService(dialogMainService);
 let mainWindow = null;
 let appTray = null;
-let analysisRustHandlers = null;
+let rustHandlers = null;
 let mainWindowBootExpansionPromise = null;
 let mainWindowBootShown = false;
 let startupGatePromise = null;
@@ -941,7 +941,7 @@ function normalizeOriginCsvBatchPayload(payload, plotDefaults = undefined) {
   return jobs.map((job) => normalizeOriginCsvPayload(job, plotDefaults));
 }
 
-function getAnalysisHomeDir() {
+function getHomeDir() {
   return path.join(app.getPath("home"), ".device");
 }
 
@@ -953,12 +953,12 @@ function getConductorStoreHomeDir() {
   return getConductorUserDataHomeDir();
 }
 
-function getAnalysisTempRootDir() {
+function getTempRootDir() {
   return path.join(app.getPath("temp"), "conductor");
 }
 
 function getOriginRuntimeRootDir() {
-  return getAnalysisTempRootDir();
+  return getTempRootDir();
 }
 
 function getOriginRuntimeStorageDir() {
@@ -966,7 +966,7 @@ function getOriginRuntimeStorageDir() {
 }
 
 function getRustExcelJobRootDir() {
-  return path.join(getAnalysisTempRootDir(), "rust-xls-jobs");
+  return path.join(getTempRootDir(), "rust-xls-jobs");
 }
 
 function normalizeAbsoluteFilePath(rawPath) {
@@ -980,7 +980,7 @@ function isSupportedRustExcelInputPath(filePath) {
   return ext === ".xls" || ext === ".xlsx";
 }
 
-function isSupportedRustAnalysisInputPath(filePath) {
+function isSupportedRustInputPath(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   return ext === ".csv";
 }
@@ -997,12 +997,12 @@ function resolveRustExcelConverterPath() {
 
 function createRustProcessingResultTempDir(fileId) {
   const safeFileId = String(fileId || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
-  const root = getAnalysisTempRootDir();
+  const root = getTempRootDir();
   fs.mkdirSync(root, { recursive: true });
   return fs.mkdtempSync(path.join(root, `rust-process-${safeFileId}-`));
 }
 
-function createRustAnalysisOriginExportTempPath(fileId, csvName) {
+function createRustOriginExportTempPath(fileId, csvName) {
   const safeFileId = String(fileId || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
   const safeCsvName = String(csvName || "origin.csv")
     .replace(/[/\\?%*:|"<>]+/g, "_")
@@ -1074,7 +1074,7 @@ async function hydrateRustProcessingResultRefs(result, tempDir = null) {
   return result;
 }
 
-function stopAllRustAnalysisEngines() {
+function stopAllRustEngines() {
   rustWorkerRuntime.stop();
 }
 
@@ -1288,8 +1288,8 @@ function handleWorkbenchBootstrapSettingsGet(event) {
 
 function createSharedProcessContributionContext() {
   return {
-    analysisHomeDir: getAnalysisHomeDir(),
-    analysisTempRootDir: getAnalysisTempRootDir(),
+    analysisHomeDir: getHomeDir(),
+    analysisTempRootDir: getTempRootDir(),
     conductorUserDataHomeDir: getConductorUserDataHomeDir(),
     originRuntimeStorageDir: getOriginRuntimeStorageDir(),
     rustExcelJobRootDir: getRustExcelJobRootDir(),
@@ -1497,7 +1497,7 @@ async function handleImportPrepareRust(_event, payload) {
     };
   }
 
-  if (!isSupportedRustAnalysisInputPath(inputPath)) {
+  if (!isSupportedRustInputPath(inputPath)) {
     return {
       ok: false,
       code: "UNSUPPORTED_IMPORT_FORMAT",
@@ -2080,7 +2080,7 @@ function updateTrayMenu() {
         label: mainMessage("tray.quit"),
         click: () => {
           isAppQuitting = true;
-          stopAllRustAnalysisEngines();
+          stopAllRustEngines();
           app.quit();
         },
       },
@@ -2424,7 +2424,7 @@ function runWindowCommand(win, command) {
     }
 
     isAppQuitting = true;
-    stopAllRustAnalysisEngines();
+    stopAllRustEngines();
     app.quit();
   }
 }
@@ -2537,15 +2537,15 @@ if (hasSingleInstanceLock) {
   ipcMain.handle(ipcChannels.excelConvertRust, handleExcelConvertRust);
   ipcMain.handle(ipcChannels.excelReadConvertedCsv, handleExcelReadConvertedCsv);
   ipcMain.handle(ipcChannels.analysisDemoFilesGet, handleAnalysisDemoFilesGet);
-  analysisRustHandlers = registerAnalysisRustHandlers({
+  rustHandlers = registerAnalysisRustHandlers({
     ipcChannels,
     ipcMain,
-    rustAnalysisService: new RustAnalysisService({
-      createRustAnalysisOriginExportTempPath,
+    rustService: new RustAnalysisService({
+      createOriginExportTempPath: createRustOriginExportTempPath,
       createRustProcessingResultTempDir,
       hydrateRustProcessingResultRefs,
       isRustProcessFileConfigSupported,
-      isSupportedRustAnalysisInputPath,
+      isSupportedInputPath: isSupportedRustInputPath,
       rustWorkerRuntime,
     }),
   });
@@ -2578,13 +2578,13 @@ if (hasSingleInstanceLock) {
 app.on("window-all-closed", () => {
   if (process.platform === "darwin") return;
   if (appTray && !isAppQuitting) return;
-  stopAllRustAnalysisEngines();
+  stopAllRustEngines();
   app.quit();
 });
 
 app.on("before-quit", () => {
   isAppQuitting = true;
-  stopAllRustAnalysisEngines();
+  stopAllRustEngines();
 });
 
 app.on("will-quit", () => {
@@ -2592,9 +2592,9 @@ app.on("will-quit", () => {
   updateService?.stopPolling();
   nativeTheme.removeListener("updated", syncBootWindowTheme);
   runSharedProcessShutdownContributions(createSharedProcessContributionContext());
-  stopAllRustAnalysisEngines();
-  analysisRustHandlers?.dispose();
-  analysisRustHandlers = null;
+  stopAllRustEngines();
+  rustHandlers?.dispose();
+  rustHandlers = null;
   if (appTray) {
     appTray.destroy();
     appTray = null;

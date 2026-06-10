@@ -22,7 +22,6 @@ import "src/cs/workbench/services/files/electron-browser/fileConverterBackendSer
 import "src/cs/workbench/services/table/electron-browser/tableBackendService.ts";
 import "src/cs/workbench/services/template/electron-browser/templateProcessingBackendService.ts";
 import "src/cs/workbench/services/parameters/electron-browser/rcAnalysisBackendService.ts";
-import "src/cs/workbench/services/analysisFile/electron-browser/analysisResourceDisposalService.ts";
 import "src/cs/workbench/services/path/electron-browser/pathService.ts";
 
 //#endregion

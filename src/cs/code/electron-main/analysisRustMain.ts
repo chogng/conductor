@@ -15,7 +15,7 @@ import type {
 } from "../../platform/rust/common/rustAnalysisProtocol.js";
 import type { workbenchIpcChannels } from "../../workbench/common/ipcChannels.js";
 
-type RegisterAnalysisRustHandlersOptions = {
+type RegisterRustHandlersOptions = {
   ipcChannels: Pick<
     typeof workbenchIpcChannels,
     | "analysisRustEngineAnalyzeRc"
@@ -29,10 +29,10 @@ type RegisterAnalysisRustHandlersOptions = {
     | "analysisRustEngineReadCells"
   >;
   ipcMain: IpcMain;
-  rustAnalysisService: IRustAnalysisService;
+  rustService: IRustAnalysisService;
 };
 
-const normalizeAnalysisCellIndex = (value: unknown): number | null => {
+const normalizeCellIndex = (value: unknown): number | null => {
   const index = Math.floor(Number(value));
   return Number.isInteger(index) && index >= 0 ? index : null;
 };
@@ -45,7 +45,7 @@ const readObject = (value: unknown): Record<string, unknown> | null =>
     ? value as Record<string, unknown>
     : null;
 
-const AnalysisErrorCode = {
+const ErrorCode = {
   InvalidCell: "INVALID_ANALYSIS_CELL",
   InvalidCells: "INVALID_ANALYSIS_CELLS",
 } as const;
@@ -61,9 +61,9 @@ const normalizeAbsoluteFilePath = (rawPath: unknown): string => {
 export const registerAnalysisRustHandlers = ({
   ipcChannels,
   ipcMain,
-  rustAnalysisService,
-}: RegisterAnalysisRustHandlersOptions): { dispose(): void } => {
-  const handleAnalysisRustEngineOpen = async (
+  rustService,
+}: RegisterRustHandlersOptions): { dispose(): void } => {
+  const handleRustEngineOpen = async (
     _event: IpcMainInvokeEvent,
     payload: unknown,
   ) => {
@@ -74,10 +74,10 @@ export const registerAnalysisRustHandlers = ({
       inputPath: normalizeAbsoluteFilePath(record?.path),
       seedRows: Math.max(0, Math.min(5000, Math.floor(Number(record?.seedRows) || 0))),
     };
-    return rustAnalysisService.openFile(request);
+    return rustService.openFile(request);
   };
 
-  const handleAnalysisRustEnginePreviewRows = async (
+  const handleRustEnginePreviewRows = async (
     _event: IpcMainInvokeEvent,
     payload: unknown,
   ) => {
@@ -88,10 +88,10 @@ export const registerAnalysisRustHandlers = ({
       fileId: readString(record?.fileId),
       startRow,
     };
-    return rustAnalysisService.previewRows(request);
+    return rustService.previewRows(request);
   };
 
-  const handleAnalysisRustEnginePreviewMeta = async (
+  const handleRustEnginePreviewMeta = async (
     _event: IpcMainInvokeEvent,
     payload: unknown,
   ) => {
@@ -99,21 +99,21 @@ export const registerAnalysisRustHandlers = ({
     const request: PreviewMetaRequest = {
       fileId: readString(record?.fileId),
     };
-    return rustAnalysisService.previewMeta(request);
+    return rustService.previewMeta(request);
   };
 
-  const handleAnalysisRustEngineReadCell = async (
+  const handleRustEngineReadCell = async (
     _event: IpcMainInvokeEvent,
     payload: unknown,
   ) => {
     const record = readObject(payload);
-    const rowIndex = normalizeAnalysisCellIndex(record?.rowIndex);
-    const colIndex = normalizeAnalysisCellIndex(record?.colIndex);
+    const rowIndex = normalizeCellIndex(record?.rowIndex);
+    const colIndex = normalizeCellIndex(record?.colIndex);
 
     if (!readString(record?.fileId) || rowIndex === null || colIndex === null) {
       return {
         ok: false,
-        code: AnalysisErrorCode.InvalidCell,
+        code: ErrorCode.InvalidCell,
         message: "Invalid analysis cell request.",
       };
     }
@@ -123,10 +123,10 @@ export const registerAnalysisRustHandlers = ({
       fileId: readString(record?.fileId),
       rowIndex,
     };
-    return rustAnalysisService.readCell(request);
+    return rustService.readCell(request);
   };
 
-  const handleAnalysisRustEngineReadCells = async (
+  const handleRustEngineReadCells = async (
     _event: IpcMainInvokeEvent,
     payload: unknown,
   ) => {
@@ -136,8 +136,8 @@ export const registerAnalysisRustHandlers = ({
       : [];
     const cells = rawCells
       .map((cell) => ({
-        colIndex: normalizeAnalysisCellIndex(cell?.colIndex),
-        rowIndex: normalizeAnalysisCellIndex(cell?.rowIndex),
+        colIndex: normalizeCellIndex(cell?.colIndex),
+        rowIndex: normalizeCellIndex(cell?.rowIndex),
       }))
       .filter((cell) => cell.rowIndex !== null && cell.colIndex !== null)
       .slice(0, 5000);
@@ -145,7 +145,7 @@ export const registerAnalysisRustHandlers = ({
     if (!readString(record?.fileId) || !cells.length || cells.length !== rawCells.length) {
       return {
         ok: false,
-        code: AnalysisErrorCode.InvalidCells,
+        code: ErrorCode.InvalidCells,
         message: "Invalid analysis cells request.",
       };
     }
@@ -154,10 +154,10 @@ export const registerAnalysisRustHandlers = ({
       cells: cells as Array<{ colIndex: number; rowIndex: number }>,
       fileId: readString(record?.fileId),
     };
-    return rustAnalysisService.readCells(request);
+    return rustService.readCells(request);
   };
 
-  const handleAnalysisRustEngineProcessFile = async (
+  const handleRustEngineProcessFile = async (
     _event: IpcMainInvokeEvent,
     payload: unknown,
   ) => {
@@ -173,10 +173,10 @@ export const registerAnalysisRustHandlers = ({
       inputPath: normalizeAbsoluteFilePath(record?.path),
       maxPoints: Math.max(2, Math.floor(Number(record?.maxPoints) || 600)),
     };
-    return rustAnalysisService.processFile(request);
+    return rustService.processFile(request);
   };
 
-  const handleAnalysisRustEngineAnalyzeRc = async (
+  const handleRustEngineAnalyzeRc = async (
     _event: IpcMainInvokeEvent,
     payload: unknown,
   ) => {
@@ -185,10 +185,10 @@ export const registerAnalysisRustHandlers = ({
       devices: Array.isArray(record?.devices) ? record.devices : [],
       options: readObject(record?.options) ?? {},
     };
-    return rustAnalysisService.analyzeRc(request);
+    return rustService.analyzeRc(request);
   };
 
-  const handleAnalysisRustEngineExportOriginCsv = async (
+  const handleRustEngineExportOriginCsv = async (
     _event: IpcMainInvokeEvent,
     payload: unknown,
   ) => {
@@ -211,10 +211,10 @@ export const registerAnalysisRustHandlers = ({
       yScaleFactor: record?.yScaleFactor,
       yTransform: record?.yTransform,
     };
-    return rustAnalysisService.exportOriginCsv(request);
+    return rustService.exportOriginCsv(request);
   };
 
-  const handleAnalysisRustEngineDispose = async (
+  const handleRustEngineDispose = async (
     _event: IpcMainInvokeEvent,
     payload: unknown,
   ) => {
@@ -223,44 +223,44 @@ export const registerAnalysisRustHandlers = ({
       clear: record?.clear === true,
       fileId: readString(record?.fileId),
     };
-    return rustAnalysisService.disposeFile(request);
+    return rustService.disposeFile(request);
   };
 
   ipcMain.handle(
     ipcChannels.analysisRustEngineOpen,
-    handleAnalysisRustEngineOpen,
+    handleRustEngineOpen,
   );
   ipcMain.handle(
     ipcChannels.analysisRustEnginePreviewMeta,
-    handleAnalysisRustEnginePreviewMeta,
+    handleRustEnginePreviewMeta,
   );
   ipcMain.handle(
     ipcChannels.analysisRustEnginePreviewRows,
-    handleAnalysisRustEnginePreviewRows,
+    handleRustEnginePreviewRows,
   );
   ipcMain.handle(
     ipcChannels.analysisRustEngineReadCell,
-    handleAnalysisRustEngineReadCell,
+    handleRustEngineReadCell,
   );
   ipcMain.handle(
     ipcChannels.analysisRustEngineReadCells,
-    handleAnalysisRustEngineReadCells,
+    handleRustEngineReadCells,
   );
   ipcMain.handle(
     ipcChannels.analysisRustEngineProcessFile,
-    handleAnalysisRustEngineProcessFile,
+    handleRustEngineProcessFile,
   );
   ipcMain.handle(
     ipcChannels.analysisRustEngineAnalyzeRc,
-    handleAnalysisRustEngineAnalyzeRc,
+    handleRustEngineAnalyzeRc,
   );
   ipcMain.handle(
     ipcChannels.analysisRustEngineExportOriginCsv,
-    handleAnalysisRustEngineExportOriginCsv,
+    handleRustEngineExportOriginCsv,
   );
   ipcMain.handle(
     ipcChannels.analysisRustEngineDispose,
-    handleAnalysisRustEngineDispose,
+    handleRustEngineDispose,
   );
 
   return {

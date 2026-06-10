@@ -7,7 +7,7 @@ import "src/cs/workbench/contrib/sash/browser/sash.contribution";
 import "src/cs/workbench/contrib/table/browser/table.contribution";
 import "src/cs/workbench/contrib/workspaces/browser/workspaces.contribution";
 import "src/cs/workbench/services/files/browser/rawTableRowsReaderService";
-import "src/cs/workbench/services/analysisFile/browser/analysisFile.contribution";
+import "src/cs/workbench/services/table/browser/tablePreviewLifecycle.contribution";
 import "src/cs/workbench/services/assessment/browser/assessment.contribution";
 import "src/cs/workbench/browser/workbench.contribution";
 import "src/cs/workbench/contrib/files/browser/files.contribution";
