@@ -52,6 +52,12 @@ Only code referenced from entry point files is loaded:
 - `workbench.desktop.main.ts` — desktop-only
 - `workbench.web.main.ts` — web-only
 
+### Large Entry Files
+
+For large entry-point or boundary files such as `preload.ts`, `workbench.*.main.ts`, and `electron-main/app.ts`, prefer `//#region ...` / `//#endregion` sections to group related responsibilities.
+
+Use regions for architectural grouping, not to hide small unrelated helpers. Keep actual Electron preload entry files obvious: use `preload.ts` for the main window and add `preload-aux.ts` only when an auxiliary window preload is actually registered.
+
 ## Dependency Injection
 
 Services are consumed via constructor injection with decorator identifiers:
