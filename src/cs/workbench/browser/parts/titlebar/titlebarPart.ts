@@ -14,23 +14,30 @@ import { InstantiationType, registerSingleton } from "src/cs/platform/instantiat
 import {
   IWorkbenchLayoutService,
   Parts,
-  type LayoutView,
   type IWorkbenchLayoutService as IWorkbenchLayoutServiceType,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import { localize } from "src/cs/nls";
-import { createWorkbenchSidebarToggleAction } from "src/cs/workbench/browser/parts/sidebar/sidebarActions";
-import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutActions";
-import { WindowCommandId } from "src/cs/workbench/browser/actions/windowActions";
-import { WorkbenchCommandsCommandId } from "src/cs/workbench/contrib/commands/common/commands";
+import {
+  createWorkbenchTitlebarNavActions,
+  createWorkbenchTitlebarPageActions,
+  createWorkbenchTitlebarQuickAccessAction,
+  createWorkbenchTitlebarSidebarAction,
+  createWorkbenchTitlebarWindowActions,
+  getWorkbenchTitlebarUpdateLabel,
+  getWorkbenchTitlebarUpdateTitle,
+  normalizeWorkbenchTitlebarFileOptions,
+  WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS,
+  WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID,
+  WorkbenchTitlebarNavActionIds,
+  type WorkbenchTitlebarPageAction,
+} from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 import {
   getWorkbenchWindowState,
   ITitleService,
   type ITitleService as ITitleServiceType,
-  type WorkbenchTitlebarActivePage,
   type WorkbenchTitlebarFileOption,
   type WorkbenchTitlebarProps,
   type WorkbenchTitlebarState,
-  type WorkbenchTitlebarUpdateAction,
 } from "src/cs/workbench/services/title/browser/titleService";
 
 const WORKBENCH_TITLEBAR_APP_ICON_SVG =
@@ -42,122 +49,6 @@ export const WORKBENCH_TITLEBAR_DRAG_REGION_STYLE = {
 };
 
 export const WORKBENCH_TITLEBAR_ID = "workbench-titlebar";
-
-const WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID = "workbench-titlebar-update-button";
-const WORKBENCH_TITLEBAR_QUICK_ACCESS_BUTTON_ID = "workbench-titlebar-quick-access-button";
-const WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS: Record<LayoutView, string> = {
-  table: "workbench-titlebar-table-button",
-  chart: "workbench-titlebar-chart-button",
-  settings: "workbench-titlebar-settings-button",
-};
-
-export type WorkbenchTitlebarNavAction = {
-  commandId: string;
-  id: string;
-  title: string;
-  isDisabled: boolean;
-};
-
-export type WorkbenchTitlebarPageAction = {
-  commandId: string;
-  id: LayoutView;
-  title: string;
-  isActive: boolean;
-};
-
-export type WorkbenchTitlebarWindowAction = {
-  commandId: string;
-  id: "minimize" | "maximize" | "close";
-  title: string;
-  isDanger?: boolean;
-};
-
-const WorkbenchTitlebarNavActionIds = {
-  back: "workbench-titlebar-nav-back-button",
-  forward: "workbench-titlebar-nav-forward-button",
-} as const;
-
-const normalizeWorkbenchTitlebarFileOptions = (
-  options: WorkbenchTitlebarFileOption[] | undefined,
-): WorkbenchTitlebarFileOption[] =>
-  Array.isArray(options)
-    ? options.filter(
-        (option) =>
-          !!option &&
-          typeof option.value === "string" &&
-          typeof option.label === "string",
-      )
-    : [];
-
-const createWorkbenchTitlebarNavActions = (
-  canNavigateBack: boolean,
-  canNavigateForward: boolean,
-): WorkbenchTitlebarNavAction[] => [
-  {
-    commandId: WorkbenchLayoutCommandId.navigateBack,
-    id: WorkbenchTitlebarNavActionIds.back,
-    title: localize("menu_page_back", "Back"),
-    isDisabled: !canNavigateBack,
-  },
-  {
-    commandId: WorkbenchLayoutCommandId.navigateForward,
-    id: WorkbenchTitlebarNavActionIds.forward,
-    title: localize("menu_page_forward", "Forward"),
-    isDisabled: !canNavigateForward,
-  },
-];
-
-const createWorkbenchTitlebarPageActions = (
-  activePage: WorkbenchTitlebarActivePage,
-): WorkbenchTitlebarPageAction[] => [
-  {
-    commandId: WorkbenchLayoutCommandId.showTable,
-    id: "table",
-    title: localize("titlebar.mode.table", "Table"),
-    isActive: activePage === "table",
-  },
-  {
-    commandId: WorkbenchLayoutCommandId.showChart,
-    id: "chart",
-    title: localize("titlebar.mode.chart", "Chart"),
-    isActive: activePage === "chart",
-  },
-];
-
-const createWorkbenchTitlebarWindowActions =
-(): WorkbenchTitlebarWindowAction[] => [
-  {
-    commandId: WindowCommandId.minimizeWindow,
-    id: "minimize",
-    title: localize("menu_window_minimize", "Minimize Window"),
-  },
-  {
-    commandId: WindowCommandId.toggleMaximizeWindow,
-    id: "maximize",
-    title: localize("menu_window_maximize", "Maximize / Restore"),
-  },
-  {
-    commandId: WindowCommandId.closeWindow,
-    id: "close",
-    title: localize("menu_window_close", "Close Window"),
-    isDanger: true,
-  },
-];
-
-const getWorkbenchTitlebarUpdateLabel = (): string =>
-  localize("menu_update_available", "Update");
-
-const getWorkbenchTitlebarUpdateTitle = (
-  updateAction?: WorkbenchTitlebarUpdateAction,
-): string => {
-  const label = getWorkbenchTitlebarUpdateLabel();
-  const version =
-    typeof updateAction?.version === "string" && updateAction.version.trim()
-      ? updateAction.version.trim()
-      : "";
-
-  return version ? `${label} (${version})` : label;
-};
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
@@ -344,25 +235,25 @@ const createQuickAccessButton = (
   commandService?: ICommandServiceType,
   hoverStore?: DisposableStore,
 ): HTMLButtonElement => {
-  const title = localize("titlebar.quickAccess", "Search Commands");
+  const action = createWorkbenchTitlebarQuickAccessAction();
   const button = createIconButton(
     {
-      id: WORKBENCH_TITLEBAR_QUICK_ACCESS_BUTTON_ID,
-      "aria-label": title,
-      title,
+      id: action.id,
+      "aria-label": action.title,
+      title: action.title,
       className: "titlebar-quick-access-button",
     },
-    createLxIcon(LxIcon.search, 14, "opacity-80"),
+    createLxIcon(action.icon, 14, "opacity-80"),
     () => {
-      void commandService?.executeCommand(WorkbenchCommandsCommandId.showCommands);
+      void commandService?.executeCommand(action.commandId);
     },
   );
 
   const label = document.createElement("span");
   label.className = "titlebar-quick-access-label";
-  label.textContent = title;
+  label.textContent = action.title;
   button.appendChild(label);
-  setupTooltipHover(button, title, hoverStore);
+  setupTooltipHover(button, action.title, hoverStore);
 
   return button;
 };
@@ -412,7 +303,7 @@ export const createWorkbenchTitlebarElement = (
   const navControls = createElement("div", {
     className: "titlebar-controls titlebar-controls--nav",
   });
-  const sidebarAction = createWorkbenchSidebarToggleAction(isSidebarVisible);
+  const sidebarAction = createWorkbenchTitlebarSidebarAction(isSidebarVisible);
   const sidebarButton = createIconButton(
     {
       id: sidebarAction.id,
@@ -423,7 +314,7 @@ export const createWorkbenchTitlebarElement = (
     },
     createLxIcon(sidebarAction.icon, 14, "opacity-80"),
     () => {
-      void commandService?.executeCommand(WorkbenchLayoutCommandId.toggleSidebar);
+      void commandService?.executeCommand(sidebarAction.commandId);
     },
   );
   setupTooltipHover(sidebarButton, sidebarAction.title, hoverStore);
