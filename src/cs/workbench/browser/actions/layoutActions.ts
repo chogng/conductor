@@ -1,19 +1,11 @@
 import { localize } from "src/cs/nls";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
+import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
 import {
   IWorkbenchLayoutService,
   Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
-
-export const WorkbenchLayoutCommandId = {
-  navigateBack: "workbench.action.navigateBack",
-  navigateForward: "workbench.action.navigateForward",
-  showTable: "workbench.action.showTable",
-  showChart: "workbench.action.showChart",
-  showSettings: "workbench.action.showSettings",
-  toggleSidebar: "workbench.action.toggleSidebar",
-} as const;
 
 class NavigateBackAction extends Action2 {
   public constructor() {

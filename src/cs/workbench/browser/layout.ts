@@ -20,6 +20,7 @@ import {
   WorkbenchAuxiliaryBarPaneId,
   type AuxiliaryBarPaneContainerInput,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
+import { WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS } from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 import type { IStorageService } from "src/cs/platform/storage/common/storage";
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 
@@ -79,20 +80,14 @@ const LayoutPaneIds: Record<LayoutPane, string> = {
   settings: "workbench-viewpane-settings",
 };
 
-const WorkbenchTitlebarPageButtonIds: Record<LayoutView, string> = {
-  table: "workbench-titlebar-table-button",
-  chart: "workbench-titlebar-chart-button",
-  settings: "workbench-titlebar-settings-button",
-};
-
 export const VIEW_PANES: Record<LayoutPane, ViewPaneDefinition> = {
   workbench: {
-    labelledBy: WorkbenchTitlebarPageButtonIds.table,
+    labelledBy: WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS.table,
     paneId: LayoutPaneIds.workbench,
     view: "workbench",
   },
   settings: {
-    labelledBy: WorkbenchTitlebarPageButtonIds.settings,
+    labelledBy: WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS.settings,
     paneId: LayoutPaneIds.settings,
     view: "settings",
   },
@@ -456,8 +451,8 @@ export const getLayoutState = ({
   const isSettingsActive = activeView === "settings";
   const isWorkbenchActive = !isSettingsActive;
   const workbenchLabelledBy = activeMainPart === "chart"
-    ? WorkbenchTitlebarPageButtonIds.chart
-    : WorkbenchTitlebarPageButtonIds.table;
+    ? WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS.chart
+    : WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS.table;
 
   return {
     activeView,

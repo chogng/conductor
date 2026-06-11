@@ -71,14 +71,12 @@ suite("workbench/browser/titleService", () => {
       activePage: state?.activePage,
       canNavigateBack: state?.canNavigateBack,
       canNavigateForward: state?.canNavigateForward,
-      commandService: state?.commandService,
       isSidebarVisible: state?.isSidebarVisible,
       changeCount,
     }, {
       activePage: "chart",
       canNavigateBack: true,
       canNavigateForward: false,
-      commandService: testCommandService,
       isSidebarVisible: true,
       changeCount: 2,
     });

@@ -1,7 +1,6 @@
 import type { Event } from "src/cs/base/common/event";
 import { isNative, isWindows } from "src/cs/base/common/platform";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
-import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
 import { getWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
@@ -26,28 +25,6 @@ export type WorkbenchTitlebarFileOption = {
   readonly label: string;
 };
 
-export type WorkbenchTitlebarUpdateAction = {
-  readonly isVisible: boolean;
-  readonly isReadyToInstall?: boolean;
-  readonly version?: string | null;
-  readonly onClick?: () => void;
-};
-
-export type WorkbenchTitlebarProps = {
-  readonly activePage: WorkbenchTitlebarActivePage;
-  readonly activeFileId?: string | null;
-  readonly canNavigateBack?: boolean;
-  readonly canNavigateForward?: boolean;
-  readonly commandService?: ICommandService;
-  readonly fileOptions?: WorkbenchTitlebarFileOption[];
-  readonly id?: string;
-  readonly isSidebarVisible?: boolean;
-  readonly onChartIntent?: () => void;
-  readonly onFileChange?: (fileId: string) => void;
-  readonly showFileSelector?: boolean;
-  readonly updateAction?: WorkbenchTitlebarUpdateAction;
-};
-
 export type WorkbenchTitlebarState = {
   readonly activeFileId?: string | null;
   readonly activePage?: LayoutView;
@@ -70,7 +47,7 @@ export interface ITitleService {
   readonly onDidChangeTitlebarState: Event<void>;
 
   attachTitlebarPart(parent: HTMLElement): IDisposable;
-  getTitlebarState(): WorkbenchTitlebarProps | undefined;
+  getTitlebarState(): WorkbenchTitlebarState | undefined;
   layout(): void;
   updateTitlebarState(state?: WorkbenchTitlebarState): void;
 }

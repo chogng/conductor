@@ -5,16 +5,11 @@ import {
 } from "src/cs/platform/native/common/nativeIpc";
 import { localize } from "src/cs/nls";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
+import { WindowCommandId } from "src/cs/workbench/browser/actions/windowCommands";
 
 type WindowIpcRenderer = {
   send(channel: string, ...args: readonly unknown[]): void;
 };
-
-export const WindowCommandId = {
-  minimizeWindow: "workbench.action.minimizeWindow",
-  toggleMaximizeWindow: "workbench.action.toggleMaximizeWindow",
-  closeWindow: "workbench.action.closeWindow",
-} as const;
 
 const getWindowIpcRenderer = (): WindowIpcRenderer | undefined => {
   const conductor = window.conductor as

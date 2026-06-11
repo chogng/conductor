@@ -24,26 +24,14 @@ import {
   type IWorkbenchLayoutService as IWorkbenchLayoutServiceType,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import { localize } from "src/cs/nls";
-import {
-  createWorkbenchTitlebarNavActions,
-  createWorkbenchTitlebarPageActions,
-  createWorkbenchTitlebarQuickAccessAction,
-  createWorkbenchTitlebarSidebarAction,
-  createWorkbenchTitlebarWindowActions,
-  getWorkbenchTitlebarUpdateLabel,
-  getWorkbenchTitlebarUpdateTitle,
-  normalizeWorkbenchTitlebarFileOptions,
-  WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS,
-  WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID,
-  WorkbenchTitlebarNavActionIds,
-  type WorkbenchTitlebarPageAction,
-} from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
+import * as WorkbenchTitlebarActions from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
+import type { WorkbenchTitlebarPageButton } from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 import {
   getWorkbenchWindowState,
   ITitleService,
   type ITitleService as ITitleServiceType,
+  type WorkbenchTitlebarActivePage,
   type WorkbenchTitlebarFileOption,
-  type WorkbenchTitlebarProps,
   type WorkbenchTitlebarState,
 } from "src/cs/workbench/services/title/browser/titleService";
 
@@ -58,6 +46,20 @@ export const WORKBENCH_TITLEBAR_DRAG_REGION_STYLE = {
 export const WORKBENCH_TITLEBAR_ID = "workbench-titlebar";
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+
+type WorkbenchTitlebarUpdateAction = {
+  readonly isVisible: boolean;
+  readonly isReadyToInstall?: boolean;
+  readonly version?: string | null;
+  readonly onClick?: () => void;
+};
+
+type WorkbenchTitlebarProps = Omit<WorkbenchTitlebarState, "activePage"> & {
+  readonly activePage: WorkbenchTitlebarActivePage;
+  readonly commandService?: ICommandServiceType;
+  readonly id?: string;
+  readonly updateAction?: WorkbenchTitlebarUpdateAction;
+};
 
 const appendChildren = <T extends HTMLElement | SVGElement>(
   parent: T,
@@ -152,7 +154,7 @@ const createLxIcon = (
 };
 
 const createDefaultPageActionIcon = (
-  action: WorkbenchTitlebarPageAction,
+  action: WorkbenchTitlebarPageButton,
 ): SVGSVGElement => {
   if (action.id === "table") {
     return createLxIcon(LxIcon.downloadTray, 14, "opacity-80");
@@ -356,7 +358,8 @@ const createQuickAccessButton = (
   commandService?: ICommandServiceType,
   hoverStore?: DisposableStore,
 ): HTMLButtonElement => {
-  const action = createWorkbenchTitlebarQuickAccessAction();
+  const action =
+    WorkbenchTitlebarActions.createWorkbenchTitlebarQuickAccessButton();
   const button = createIconButton(
     {
       id: action.id,
@@ -399,34 +402,41 @@ class WorkbenchTitlebarView extends Disposable {
   }
 
   public update(props: WorkbenchTitlebarProps): void {
-    const navActions = createWorkbenchTitlebarNavActions(
-      props.canNavigateBack ?? false,
-      props.canNavigateForward ?? false,
-    );
-    const pageActions = createWorkbenchTitlebarPageActions(props.activePage);
-    const sidebarAction = createWorkbenchTitlebarSidebarAction(
-      props.isSidebarVisible ?? true,
-    );
+    const navButtons =
+      WorkbenchTitlebarActions.createWorkbenchTitlebarNavButtons(
+        props.canNavigateBack ?? false,
+        props.canNavigateForward ?? false,
+      );
+    const pageButtons =
+      WorkbenchTitlebarActions.createWorkbenchTitlebarPageButtons(
+        props.activePage,
+      );
+    const sidebarButton =
+      WorkbenchTitlebarActions.createWorkbenchTitlebarSidebarButton(
+        props.isSidebarVisible ?? true,
+      );
 
-    this.refs.sidebarAction.label = sidebarAction.title;
-    this.refs.sidebarAction.tooltip = sidebarAction.title;
-    this.refs.sidebarAction.checked = sidebarAction.isActive;
+    this.refs.sidebarAction.label = sidebarButton.title;
+    this.refs.sidebarAction.tooltip = sidebarButton.title;
+    this.refs.sidebarAction.checked = sidebarButton.isActive;
 
-    for (const action of navActions) {
-      const runtimeAction = this.refs.navActions.get(action.id);
+    for (const button of navButtons) {
+      const runtimeAction = this.refs.navActions.get(button.id);
       if (runtimeAction) {
-        runtimeAction.label = action.title;
-        runtimeAction.tooltip = action.title;
-        runtimeAction.enabled = !action.isDisabled;
+        runtimeAction.label = button.title;
+        runtimeAction.tooltip = button.title;
+        runtimeAction.enabled = !button.isDisabled;
       }
     }
 
-    for (const action of pageActions) {
-      const runtimeAction = this.refs.pageActions.get(action.id);
+    for (const button of pageButtons) {
+      const runtimeAction = this.refs.pageActions.get(button.id);
       if (runtimeAction) {
-        runtimeAction.label = action.title;
-        runtimeAction.tooltip = action.title;
-        runtimeAction.class = action.isActive ? "titlebar-page-button--active" : "";
+        runtimeAction.label = button.title;
+        runtimeAction.tooltip = button.title;
+        runtimeAction.class = button.isActive
+          ? "titlebar-page-button--active"
+          : "";
       }
     }
 
@@ -455,13 +465,15 @@ const createWorkbenchTitlebarView = (
   hoverStore?: DisposableStore,
 ): WorkbenchTitlebarView => {
   const normalizedFileOptions =
-    normalizeWorkbenchTitlebarFileOptions(fileOptions);
-  const navActions = createWorkbenchTitlebarNavActions(
+    WorkbenchTitlebarActions.normalizeWorkbenchTitlebarFileOptions(fileOptions);
+  const navButtons = WorkbenchTitlebarActions.createWorkbenchTitlebarNavButtons(
     canNavigateBack,
     canNavigateForward,
   );
-  const pageActions = createWorkbenchTitlebarPageActions(activePage);
-  const windowActions = createWorkbenchTitlebarWindowActions();
+  const pageButtons =
+    WorkbenchTitlebarActions.createWorkbenchTitlebarPageButtons(activePage);
+  const windowButtons =
+    WorkbenchTitlebarActions.createWorkbenchTitlebarWindowButtons();
   const header = createElement("header", {
     id,
     className: "titlebar-root",
@@ -488,31 +500,35 @@ const createWorkbenchTitlebarView = (
     "titlebar-controls titlebar-controls--nav",
   );
   actionBarDisposables.push(navActionBar);
-  const sidebarAction = createWorkbenchTitlebarSidebarAction(isSidebarVisible);
+  const sidebarButton =
+    WorkbenchTitlebarActions.createWorkbenchTitlebarSidebarButton(
+      isSidebarVisible,
+    );
   const sidebarRuntimeAction = createTitlebarRuntimeAction({
-    commandId: sidebarAction.commandId,
+    commandId: sidebarButton.commandId,
     commandService,
-    icon: sidebarAction.icon,
-    id: sidebarAction.id,
-    title: sidebarAction.title,
+    icon: sidebarButton.icon,
+    id: sidebarButton.id,
+    title: sidebarButton.title,
   });
   actionBarDisposables.push(sidebarRuntimeAction);
-  sidebarRuntimeAction.checked = sidebarAction.isActive;
+  sidebarRuntimeAction.checked = sidebarButton.isActive;
   navActionBar.push(sidebarRuntimeAction, { label: false });
 
-  for (const action of navActions) {
-    const isBack = action.id === WorkbenchTitlebarNavActionIds.back;
+  for (const button of navButtons) {
+    const isBack =
+      button.id === WorkbenchTitlebarActions.WorkbenchTitlebarNavButtonIds.back;
     const runtimeAction = createTitlebarRuntimeAction({
-      commandId: action.commandId,
+      commandId: button.commandId,
       commandService,
       icon: isBack ? LxIcon.arrowLeft : LxIcon.arrowRight,
-      id: action.id,
-      title: action.title,
+      id: button.id,
+      title: button.title,
     });
     actionBarDisposables.push(runtimeAction);
-    runtimeAction.enabled = !action.isDisabled;
+    runtimeAction.enabled = !button.isDisabled;
     navActionBar.push(runtimeAction, { label: false });
-    navActionsById.set(action.id, runtimeAction);
+    navActionsById.set(button.id, runtimeAction);
   }
 
   const center = createElement("div", {
@@ -536,62 +552,67 @@ const createWorkbenchTitlebarView = (
   });
 
   if (updateAction?.isVisible === true) {
+    const updateTitle =
+      WorkbenchTitlebarActions.getWorkbenchTitlebarUpdateTitle(updateAction);
     const updateButton = createElement("button", {
-      id: WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID,
+      id: WorkbenchTitlebarActions.WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID,
       type: "button",
-      "aria-label": getWorkbenchTitlebarUpdateTitle(updateAction),
-      title: getWorkbenchTitlebarUpdateTitle(updateAction),
+      "aria-label": updateTitle,
+      title: updateTitle,
       className: "titlebar-action-button",
     });
-    updateButton.textContent = getWorkbenchTitlebarUpdateLabel();
+    updateButton.textContent =
+      WorkbenchTitlebarActions.getWorkbenchTitlebarUpdateLabel();
     updateButton.addEventListener("click", () => updateAction.onClick?.());
-    setupTooltipHover(updateButton, getWorkbenchTitlebarUpdateTitle(updateAction), hoverStore);
+    setupTooltipHover(updateButton, updateTitle, hoverStore);
     rightControls.appendChild(updateButton);
   }
 
   const pageActionBar = createTitlebarActionBar("titlebar-controls");
   actionBarDisposables.push(pageActionBar);
-  for (const action of pageActions) {
+  for (const button of pageButtons) {
     const runtimeAction = createTitlebarRuntimeAction({
-      commandId: action.commandId,
+      commandId: button.commandId,
       commandService,
-      icon: () => createDefaultPageActionIcon(action),
-      id: WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS[action.id],
-      onIntent: action.id === "chart" ? onChartIntent : undefined,
-      title: action.title,
+      icon: () => createDefaultPageActionIcon(button),
+      id: WorkbenchTitlebarActions.WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS[
+        button.id
+      ],
+      onIntent: button.id === "chart" ? onChartIntent : undefined,
+      title: button.title,
     });
     actionBarDisposables.push(runtimeAction);
-    runtimeAction.class = action.isActive ? "titlebar-page-button--active" : "";
+    runtimeAction.class = button.isActive ? "titlebar-page-button--active" : "";
 
     pageActionBar.push(runtimeAction, { label: false });
-    pageActionsById.set(action.id, runtimeAction);
+    pageActionsById.set(button.id, runtimeAction);
   }
   rightControls.appendChild(pageActionBar.domNode);
 
-  for (const action of windowActions) {
+  for (const button of windowButtons) {
     const icon =
-      action.id === "minimize"
+      button.id === "minimize"
         ? createSvgIcon(14, "M5 12h14")
-        : action.id === "maximize"
+        : button.id === "maximize"
           ? createSvgIcon(12, "M5 5h14v14H5z")
           : createSvgIcon(14, "M18 6 6 18|M6 6l12 12");
-    const button = createIconButton(
+    const buttonElement = createIconButton(
       {
-        id: `workbench-titlebar-${action.id}-button`,
-        "aria-label": action.title,
-        title: action.title,
+        id: `workbench-titlebar-${button.id}-button`,
+        "aria-label": button.title,
+        title: button.title,
         className: `titlebar-window-button ${
-          action.isDanger ? "titlebar-window-button--close" : ""
+          button.isDanger ? "titlebar-window-button--close" : ""
         }`.trim(),
       },
       icon,
       () => {
-        void commandService?.executeCommand(action.commandId);
+        void commandService?.executeCommand(button.commandId);
       },
     );
-    setupTooltipHover(button, action.title, hoverStore);
+    setupTooltipHover(buttonElement, button.title, hoverStore);
 
-    rightControls.appendChild(button);
+    rightControls.appendChild(buttonElement);
   }
 
   return new WorkbenchTitlebarView(
@@ -615,8 +636,10 @@ const sameFileOptions = (
   prevOptions: WorkbenchTitlebarFileOption[] | undefined,
   nextOptions: WorkbenchTitlebarFileOption[] | undefined,
 ): boolean => {
-  const prev = normalizeWorkbenchTitlebarFileOptions(prevOptions);
-  const next = normalizeWorkbenchTitlebarFileOptions(nextOptions);
+  const prev =
+    WorkbenchTitlebarActions.normalizeWorkbenchTitlebarFileOptions(prevOptions);
+  const next =
+    WorkbenchTitlebarActions.normalizeWorkbenchTitlebarFileOptions(nextOptions);
   if (prev.length !== next.length) {
     return false;
   }
@@ -728,13 +751,13 @@ export class BrowserTitleService extends Disposable implements ITitleServiceType
     const disposables = new DisposableStore();
     const part = new WorkbenchTitlebarPart(parent);
     const render = (): void => {
-      const state = this.getTitlebarState();
-      if (!state) {
+      const props = this.getTitlebarProps();
+      if (!props) {
         part.clear();
         return;
       }
 
-      part.update(state);
+      part.update(props);
       part.layout();
     };
 
@@ -745,7 +768,7 @@ export class BrowserTitleService extends Disposable implements ITitleServiceType
     return disposables;
   }
 
-  public getTitlebarState(): WorkbenchTitlebarProps | undefined {
+  public getTitlebarState(): WorkbenchTitlebarState | undefined {
     const state = this.titlebarState;
     const navigation = this.layoutService.getWorkbenchNavigationState();
     const windowState = getWorkbenchWindowState();
@@ -756,7 +779,6 @@ export class BrowserTitleService extends Disposable implements ITitleServiceType
     }
 
     return {
-      id: WORKBENCH_TITLEBAR_ID,
       activeFileId: state.activeFileId,
       activePage: state.activePage ?? navigation.activeMainPart,
       canNavigateBack:
@@ -764,14 +786,31 @@ export class BrowserTitleService extends Disposable implements ITitleServiceType
       canNavigateForward:
         state.canNavigateForward ??
         navigation.historyIndex < navigation.historyLength - 1,
-      commandService: this.commandService,
       fileOptions: state.fileOptions,
       isSidebarVisible:
         state.isSidebarVisible ??
         this.layoutService.isVisible(Parts.SIDEBAR_PART),
+      isUpdateReadyToInstall: state.isUpdateReadyToInstall,
       onChartIntent: state.onChartIntent,
       onFileChange: state.onFileChange,
+      onInstallUpdate: state.onInstallUpdate,
       showFileSelector: state.showFileSelector,
+      updateVersion: state.updateVersion,
+    };
+  }
+
+  private getTitlebarProps(): WorkbenchTitlebarProps | undefined {
+    const state = this.getTitlebarState();
+
+    if (!state) {
+      return undefined;
+    }
+
+    return {
+      ...state,
+      activePage: state.activePage ?? "table",
+      id: WORKBENCH_TITLEBAR_ID,
+      commandService: this.commandService,
       updateAction: {
         isVisible: Boolean(state.isUpdateReadyToInstall),
         isReadyToInstall: state.isUpdateReadyToInstall,
