@@ -19,12 +19,7 @@ import { product } from "../../../bootstrap-meta.js";
 import { Server as ElectronIPCServer } from "../../base/parts/ipc/electron-main/ipc.electron.js";
 import { Event } from "../../base/common/event.js";
 import type { IServerChannel } from "../../base/parts/ipc/common/ipc.js";
-import {
-  applyWindowThemeSnapshot,
-  defaultBrowserWindowOptions,
-  getCurrentBootThemeSnapshot,
-  updateWindowControlsOverlay,
-} from "../../platform/window/electron-main/window.js";
+import { DesktopWindowMain } from "../../platform/window/electron-main/window.js";
 import { createConductorStoreMainService } from "../../workbench/services/conductorStore/electron-main/conductorStoreMainService.js";
 import { workbenchIpcChannels as ipcChannels } from "../../workbench/common/ipcChannels.js";
 import {
@@ -38,9 +33,9 @@ import { NativeHostMainService } from "../../platform/native/electron-main/nativ
 import { registerContextMenuListener } from "../../base/parts/contextmenu/electron-main/contextmenu.js";
 import {
   nativeHostBootstrapIpcChannels,
-  nativeHostBootstrapWindowCommands,
   workbenchBootstrapIpcChannels,
 } from "../../base/parts/sandbox/common/sandboxTypes.js";
+import { isNativeWindowCommand } from "../../platform/window/common/window.js";
 import {
   resolveRustWorkerExecutablePath,
   RustWorkerRuntime,
@@ -156,6 +151,7 @@ const MAIN_MESSAGES = {
   },
 };
 const DEFAULT_WORKBENCH_BACKGROUND_COLOR = "#f3f4f6";
+const desktopWindowMain = new DesktopWindowMain(DEFAULT_WORKBENCH_BACKGROUND_COLOR);
 const WORKBENCH_BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 const BOOT_WINDOW_SETTLE_MS = 80;
 const BOOT_UI_READY_FALLBACK_MS = 3500;
@@ -192,15 +188,6 @@ let updateService: Win32UpdateService | null = null;
 let isAppQuitting = false;
 const desktopProcessStartMs = Date.now();
 const nativeHostChannelName = "nativeHost";
-
-const nativeWindowCommands = {
-  toggleDevTools: nativeHostBootstrapWindowCommands.toggleDevTools,
-  reloadWindow: "reloadWindow",
-  closeWindow: "closeWindow",
-  minimizeWindow: "minimizeWindow",
-  maximizeWindow: "maximizeWindow",
-  unmaximizeWindow: "unmaximizeWindow",
-} as const;
 
 function isTruthyEnvFlag(value) {
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -264,13 +251,15 @@ function formatDiagnosticValue(value) {
 
 function getThemeSnapshotFromStore() {
   const settings = conductorStore.getConductorSettings();
-  return getCurrentBootThemeSnapshot(settings?.theme);
+  return desktopWindowMain.getThemeSnapshot(settings?.theme);
 }
 
 function syncBootWindowTheme() {
   const snapshot = getThemeSnapshotFromStore();
-  applyWindowThemeSnapshot(mainWindow, snapshot);
-  applyDesktopAppearanceToWindow(mainWindow, getAppearanceFromStore());
+  desktopWindowMain.applyWindowStyle(mainWindow, {
+    appearance: getAppearanceFromStore(),
+    themeSnapshot: snapshot,
+  });
   return snapshot;
 }
 
@@ -291,26 +280,6 @@ function getAppearanceFromStore() {
     backgroundColor: normalizeWorkbenchBackgroundColor(settings?.backgroundColor),
     transparentChrome: settings?.transparentChrome === true,
   };
-}
-
-function applyDesktopAppearanceToWindow(win, appearance) {
-  if (!win || win.isDestroyed()) return;
-
-  const backgroundColor = normalizeWorkbenchBackgroundColor(appearance?.backgroundColor);
-  const transparentChrome = appearance?.transparentChrome === true;
-  const canSetMaterial =
-    process.platform === "win32" &&
-    typeof win.setBackgroundMaterial === "function";
-
-  if (canSetMaterial) {
-    try {
-      win.setBackgroundMaterial(transparentChrome ? "mica" : "none");
-    } catch {
-      // Native material is best-effort; CSS transparency remains available.
-    }
-  }
-
-  win.setBackgroundColor(transparentChrome ? "#00000000" : backgroundColor);
 }
 
 function logDesktopDiagnostic(stage: string, payload: unknown = "") {
@@ -865,7 +834,7 @@ function createNativeHostChannel(): IServerChannel<string> {
         const rawOptions = args[0];
         if (win && rawOptions && typeof rawOptions === "object") {
           const options = rawOptions as Record<string, unknown>;
-          updateWindowControlsOverlay(win, {
+          desktopWindowMain.updateWindowControls(win, {
             height: typeof options.height === "number" && Number.isFinite(options.height)
               ? Math.max(0, Math.round(options.height))
               : undefined,
@@ -880,14 +849,7 @@ function createNativeHostChannel(): IServerChannel<string> {
         return undefined as T;
       }
 
-      if (
-        command === nativeWindowCommands.toggleDevTools ||
-        command === nativeWindowCommands.reloadWindow ||
-        command === nativeWindowCommands.minimizeWindow ||
-        command === nativeWindowCommands.maximizeWindow ||
-        command === nativeWindowCommands.unmaximizeWindow ||
-        command === nativeWindowCommands.closeWindow
-      ) {
+      if (isNativeWindowCommand(command)) {
         runWindowCommand(win, command);
         return undefined as T;
       }
@@ -956,10 +918,12 @@ function handleConductorSettingsPatch(_event, updates) {
     ("backgroundColor" in updates || "transparentChrome" in updates)
   ) {
     const appearance = {
-      backgroundColor: updated?.backgroundColor,
-      transparentChrome: updated?.transparentChrome,
+      backgroundColor: typeof updated?.backgroundColor === "string"
+        ? updated.backgroundColor
+        : undefined,
+      transparentChrome: updated?.transparentChrome === true,
     };
-    applyDesktopAppearanceToWindow(mainWindow, appearance);
+    desktopWindowMain.applyWindowStyle(mainWindow, { appearance });
   }
   return updated;
 }
@@ -970,13 +934,15 @@ function handleDesktopAppearanceSet(event, payload) {
     return null;
   }
 
-  applyDesktopAppearanceToWindow(win, {
-    backgroundColor:
-      payload && typeof payload === "object"
-        ? payload.backgroundColor
-        : undefined,
-    transparentChrome:
-      payload && typeof payload === "object" && payload.transparentChrome === true,
+  desktopWindowMain.applyWindowStyle(win, {
+    appearance: {
+      backgroundColor:
+        payload && typeof payload === "object" && typeof payload.backgroundColor === "string"
+          ? payload.backgroundColor
+          : undefined,
+      transparentChrome:
+        payload && typeof payload === "object" && payload.transparentChrome === true,
+    },
   });
 
   return { ok: true };
@@ -1488,7 +1454,7 @@ function createMainWindow() {
   const themeSnapshot = syncBootWindowTheme();
   const preloadPath = desktopPreloadPath;
 
-  const win = new BrowserWindow(defaultBrowserWindowOptions({
+  const win = new BrowserWindow(desktopWindowMain.createBrowserWindowOptions({
     icon: windowIcon,
     isDev,
     preload: preloadPath,
@@ -1519,8 +1485,10 @@ function createMainWindow() {
   });
 
   mainWindow = win;
-  applyWindowThemeSnapshot(mainWindow, themeSnapshot);
-  applyDesktopAppearanceToWindow(mainWindow, getAppearanceFromStore());
+  desktopWindowMain.applyWindowStyle(mainWindow, {
+    appearance: getAppearanceFromStore(),
+    themeSnapshot,
+  });
   win.on("close", (event) => {
     if (isAppQuitting) return;
     if (process.platform === "darwin") return;
@@ -1741,49 +1709,21 @@ function handleWorkbenchBootstrapUiReady(event, payload) {
 }
 
 function runWindowCommand(win, command) {
-  if (!win || win.isDestroyed()) return;
+  if (!isNativeWindowCommand(command)) return;
 
-  if (command === nativeWindowCommands.toggleDevTools) {
-    if (win.webContents.isDevToolsOpened()) {
-      win.webContents.closeDevTools();
-      return;
-    }
-    win.webContents.openDevTools({ mode: "detach" });
-    return;
-  }
-
-  if (command === nativeWindowCommands.reloadWindow) {
-    win.webContents.reload();
-    return;
-  }
-
-  if (command === nativeWindowCommands.minimizeWindow) {
-    win.minimize();
-    updateTrayMenu();
-    return;
-  }
-
-  if (command === nativeWindowCommands.maximizeWindow) {
-    win.maximize();
-    return;
-  }
-
-  if (command === nativeWindowCommands.unmaximizeWindow) {
-    win.unmaximize();
-    return;
-  }
-
-  if (command === nativeWindowCommands.closeWindow) {
-    if (shouldMinimizeToTrayOnWindowClose()) {
-      hideMainWindowToTray(win, { showTrayHint: true });
+  desktopWindowMain.runCommand(win, command, {
+    minimizeToTray: (targetWindow) => {
+      hideMainWindowToTray(targetWindow, { showTrayHint: true });
       updateTrayMenu();
-      return;
-    }
-
-    isAppQuitting = true;
-    stopAllRustEngines();
-    app.quit();
-  }
+    },
+    onDidMinimize: () => updateTrayMenu(),
+    quit: () => {
+      isAppQuitting = true;
+      stopAllRustEngines();
+      app.quit();
+    },
+    shouldMinimizeToTrayOnClose: shouldMinimizeToTrayOnWindowClose,
+  });
 }
 
 function handleNativeWindowCommand(event, payload) {

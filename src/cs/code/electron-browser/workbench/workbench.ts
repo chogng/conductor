@@ -12,10 +12,9 @@ import { Registry } from "src/cs/platform/registry/common/platform";
 import { setBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { IHoverService } from "src/cs/platform/hover/browser/hoverService";
 import {
-  nativeHostBootstrapIpcChannels,
-  nativeHostBootstrapWindowCommands,
   workbenchBootstrapIpcChannels,
 } from "src/cs/base/parts/sandbox/common/sandboxTypes";
+import { toggleDevTools } from "src/cs/platform/window/electron-browser/window";
 import {
   Extensions,
   type IWorkbenchContributionsRegistry,
@@ -272,11 +271,7 @@ const logInitialRenderDiagnostics = (logBoot: BootLogger) => {
 
 const prepareWorkbench = (logBoot: BootLogger, isBootProfileEnabled: boolean) => {
   installNavigationModeListeners();
-  installWindowDeveloperKeybindings(() => {
-    ipcRenderer.send(nativeHostBootstrapIpcChannels.windowCommand, {
-      command: nativeHostBootstrapWindowCommands.toggleDevTools,
-    });
-  });
+  installWindowDeveloperKeybindings(toggleDevTools);
 
   const initialSettings = resolveInitialSettings();
   const languagePreference = isLanguagePreference(initialSettings?.language)
