@@ -481,6 +481,21 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.deepEqual(file.assessmentsByRawTableId, {});
   });
 
+  test("increments raw table versions when imported files replace an existing source", () => {
+    const session = new SessionService();
+
+    session.commitFileImport(createSingleRawTableImportResult());
+    session.commitFileImport(createSingleRawTableImportResult());
+
+    const file = session.getSnapshot().filesById["file-a"];
+    const rawFiles = createRawFilesFromRecords(
+      session.getSnapshot().filesById,
+      session.getSnapshot().fileOrder,
+    );
+    assert.deepEqual(file.rawTableVersionsById, { "table-a": 2 });
+    assert.equal(rawFiles[0]?.sourceVersion, 2);
+  });
+
   test("commits raw table assessment when source version matches", () => {
     const session = new SessionService();
     session.commitFileImport(createSingleRawTableImportResult());
@@ -1029,6 +1044,5 @@ const normalizeOptionalTestText = (value: unknown): string | null => {
   const text = String(value ?? "").trim();
   return text || null;
 };
-
 
 

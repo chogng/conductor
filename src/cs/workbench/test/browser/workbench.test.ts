@@ -7,6 +7,7 @@ import assert from "assert";
 import {
   createExplorerPaneInput,
   createExplorerSessionWorkflow,
+  resolveInitialWorkbenchViewMode,
 } from "src/cs/workbench/browser/workbench";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import type {
@@ -143,6 +144,32 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.deepEqual(input.plotAxisSettings, { x: { show: true } });
 
     assert.equal(explorerService.selectedProcessedFileId, null);
+  });
+});
+
+suite("workbench/browser/workbench initial mode", () => {
+  test("starts in table mode even when the session already has chart data", () => {
+    const session = new SessionService();
+    commitRawFilesForTest(session, [{
+      fileId: "file-a",
+      fileName: "Processed A.csv",
+      rowCount: 2,
+      columnCount: 2,
+    }]);
+    commitTemplateOutputForTest(session, {
+      curveType: "transfer",
+      fileId: "file-a",
+      fileName: "Processed A.csv",
+      series: [{
+        groupIndex: 0,
+        id: "series-a",
+        y: [1, 2],
+      }],
+      xGroups: [[0, 1]],
+    });
+
+    assert.equal(createSessionReadModel(session.getSnapshot()).hasChartData, true);
+    assert.equal(resolveInitialWorkbenchViewMode(session.getSnapshot()), "table");
   });
 });
 

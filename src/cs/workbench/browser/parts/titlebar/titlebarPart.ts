@@ -167,7 +167,7 @@ const createDefaultPageActionIcon = (
   }
 
   if (action.id === "chart") {
-    return createLxIcon(LxIcon.analysis, 14, "opacity-80");
+    return createLxIcon(LxIcon.chart, 14, "opacity-80");
   }
 
   if (action.id === "settings") {

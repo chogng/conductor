@@ -97,7 +97,7 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 			activeFileId: "file-a",
 			activePlotType: "iv" as const,
 			chartFileOptions: [{ fileId: "file-a", fileName: "file-a.csv" }],
-			hasAnalysisData: true,
+			hasChartData: true,
 		};
 		const inputs: unknown[] = [];
 		const disposable = service.onDidChangeChartViewInput(nextInput => {
@@ -139,7 +139,7 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 
 		assert.equal(input.activeFileId, "file-a");
 		assert.equal(input.activePlotType, "gm");
-		assert.equal(input.hasAnalysisData, true);
+		assert.equal(input.hasChartData, true);
 		assert.deepEqual(input.chartFileOptions, [{ fileId: "file-a", fileName: "file-a.csv" }]);
 		assert.deepEqual(input.legendLabels, { "series-a": "Device A" });
 		assert.equal((legendInput as PlotMainRenderModelInput | null)?.fileId, "file-a");

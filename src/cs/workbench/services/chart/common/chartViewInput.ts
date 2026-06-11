@@ -21,7 +21,7 @@ export type ChartViewInput = {
 	readonly visiblePanes?: readonly ChartPane[];
 	readonly activePlotType?: PlotType;
 	readonly onActivePlotTypeChange?: (next: PlotType) => void;
-	readonly hasAnalysisData?: boolean;
+	readonly hasChartData?: boolean;
 	readonly chartFileOptions?: readonly ChartFileOption[];
 	readonly createPlotDisplayModel?: (request: PlotDisplayModelRequest) => PlotDisplayModel | null;
 	readonly plotDisplayModel?: PlotDisplayModel | null;

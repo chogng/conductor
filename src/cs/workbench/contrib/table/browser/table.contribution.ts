@@ -4,6 +4,7 @@
 
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
+import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
 import {
@@ -12,6 +13,7 @@ import {
   type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
+import { ActiveWorkbenchMainPartContext } from "src/cs/workbench/common/contextkeys";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,
@@ -23,7 +25,6 @@ import {
 } from "src/cs/workbench/services/table/common/table";
 import TableViewPane from "src/cs/workbench/contrib/table/browser/tableViewPane";
 import { registerTableCommands } from "src/cs/workbench/contrib/table/browser/tableCommands";
-import { DropIntoTableController } from "src/cs/workbench/contrib/table/browser/dropIntoTableController";
 
 import "src/cs/workbench/contrib/table/browser/media/tableView.css";
 
@@ -56,8 +57,10 @@ function registerTableView(): void {
     ctorDescriptor: new SyncDescriptor(TableViewPane),
     hideByDefault: false,
     order: 0,
+    when: ContextKeyExpr.and(
+      ActiveWorkbenchMainPartContext.isEqualTo("table"),
+    ),
   }], container);
 }
 
 registerWorkbenchContribution2(TableContributionId, TableContribution, WorkbenchPhase.BlockStartup);
-registerWorkbenchContribution2(DropIntoTableController.ID, DropIntoTableController, WorkbenchPhase.BlockStartup);

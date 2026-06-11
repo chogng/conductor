@@ -4,6 +4,7 @@
   fileName?: string;
   normalizedCsvPath?: string | null;
   relativePath?: string | null;
+  sourceVersion?: number;
   sourcePath?: string | null;
   curveType?: string | null;
   curveTypeConfidence?: "high" | "medium" | "low";
@@ -69,4 +70,3 @@ export type ProcessingStatus = {
   processed: number;
   total: number;
 };
-

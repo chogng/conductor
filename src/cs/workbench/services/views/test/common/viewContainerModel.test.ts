@@ -85,4 +85,47 @@ suite("workbench/services/views/common/viewContainerModel", () => {
     model.dispose();
     contextKeyService.dispose();
   });
+
+  test("switches mutually exclusive workbench main views from mode context", () => {
+    const contextKeyService = new ContextKeyService();
+    const model = new ViewContainerModel({
+      ctorDescriptor: new SyncDescriptor(TestViewPaneContainer),
+      id: "workbench.main",
+      title: "Workbench",
+    } satisfies ViewContainer, contextKeyService);
+
+    model.add([
+      {
+        viewDescriptor: {
+          ctorDescriptor: new SyncDescriptor(TestView),
+          id: "workbench.table",
+          name: "Table",
+          order: 0,
+          when: ContextKeyExpr.equals("activeWorkbenchMainPart", "table"),
+        },
+      },
+      {
+        viewDescriptor: {
+          ctorDescriptor: new SyncDescriptor(TestView),
+          id: "workbench.chart",
+          name: "Chart",
+          order: 10,
+          when: ContextKeyExpr.equals("activeWorkbenchMainPart", "chart"),
+        },
+      },
+    ]);
+
+    assert.deepStrictEqual(model.visibleViewDescriptors.map(view => view.id), []);
+
+    contextKeyService.setContext("activeWorkbenchMainPart", "table");
+
+    assert.deepStrictEqual(model.visibleViewDescriptors.map(view => view.id), ["workbench.table"]);
+
+    contextKeyService.setContext("activeWorkbenchMainPart", "chart");
+
+    assert.deepStrictEqual(model.visibleViewDescriptors.map(view => view.id), ["workbench.chart"]);
+
+    model.dispose();
+    contextKeyService.dispose();
+  });
 });

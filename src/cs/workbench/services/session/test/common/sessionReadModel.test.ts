@@ -31,7 +31,7 @@ suite("workbench/services/session/test/common/sessionReadModel", () => {
     const readModel = createSessionReadModel(snapshot);
 
     assert.equal(readModel.hasSessionData, true);
-    assert.equal(readModel.hasAnalysisData, false);
+    assert.equal(readModel.hasChartData, false);
     assert.deepEqual(
       readModel.rawFiles.map((file) => ({
         fileId: file.fileId,
@@ -88,7 +88,7 @@ suite("workbench/services/session/test/common/sessionReadModel", () => {
     );
 
     assert.deepEqual(readModel.processedFileIds, ["file-a"]);
-    assert.equal(readModel.hasAnalysisData, true);
+    assert.equal(readModel.hasChartData, true);
     assert.equal(readModel.processedFiles[0]?.fileId, "file-a");
     assert.equal(readModel.processedFiles[0]?.supportsSs, true);
     assert.equal(readModel.processedFiles[0]?.series?.[0]?.id, "series-1");

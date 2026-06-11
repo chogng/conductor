@@ -105,6 +105,8 @@ export const lxAdd = registerLxIcon("add", renderAdd);
 
 export const lxAnalysis = registerLxIcon("analysis", renderAnalysis);
 
+export const lxChart = registerLxIcon("chart", renderAnalysis);
+
 export const lxArrowLeft = registerLxIcon("arrow-left", renderArrowLeft);
 
 export const lxArrowRight = registerLxIcon("arrow-right", renderArrowRight);
@@ -166,6 +168,7 @@ export const LxIcon = {
   analysis: lxAnalysis,
   arrowLeft: lxArrowLeft,
   arrowRight: lxArrowRight,
+  chart: lxChart,
   check: lxCheck,
   checkCircle: lxCheckCircle,
   chevronDown: lxChevronDown,

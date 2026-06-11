@@ -299,7 +299,7 @@ const getOptionalString = (value: unknown): string | undefined => {
 	return text || undefined;
 };
 
-const hasFileRecordAnalysisData = (file: FileRecord): boolean =>
+const hasFileRecordChartData = (file: FileRecord): boolean =>
 	collectFileRecordBaseCurves(file).length > 0;
 
 export const createChartExplorerFilesFromRecords = (
@@ -324,7 +324,7 @@ export const createChartExplorerFilesFromRecords = (
 		orderedFileIds.add(fileId);
 
 		const file = filesById[fileId];
-		if (!file || !hasFileRecordAnalysisData(file)) {
+		if (!file || !hasFileRecordChartData(file)) {
 			return;
 		}
 

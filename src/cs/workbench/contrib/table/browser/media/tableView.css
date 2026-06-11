@@ -19,16 +19,6 @@
   overflow: hidden;
 }
 
-.table_view_pane.dragging::after {
-  content: "";
-  position: absolute;
-  z-index: 20;
-  inset: 0;
-  border: 0;
-  background: rgb(var(--accent) / 0.08);
-  pointer-events: none;
-}
-
 .table_view_body {
   --table-view-zoom: 1;
   --table-view-row-header-width: calc(48px * var(--table-view-zoom));

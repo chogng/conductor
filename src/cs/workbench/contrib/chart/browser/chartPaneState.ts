@@ -5,7 +5,7 @@ import type {
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type { ChartDetailPane } from "src/cs/workbench/services/chart/common/chart";
 
-export const toAnalysisPanelProps = (
+export const toChartPanelProps = (
   props: ChartViewInput,
   activePlotType: PlotType,
   visibleDetailPanes: readonly ChartDetailPane[],

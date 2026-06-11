@@ -241,7 +241,7 @@ Do not put thumbnail command handlers in `src/cs/workbench/contrib/files/browser
 
 - Do not duplicate plot domain/downsampling logic in thumbnail code.
 - Do not store thumbnail cache in Session.
-- Do not import ChartViewPane or AnalysisPanel to render thumbnails.
+- Do not import ChartViewPane or ChartPanel to render thumbnails.
 - Do not create `files/browser/views/thumbnail` for reusable thumbnail components.
 - Do not use `explorerThumbnail...` names for files or exported UI symbols inside `contrib/thumbnail`.
 - Do not move Explorer selection or layout state into thumbnail contribution code.

@@ -102,7 +102,7 @@ import {
 import {
   createProcessedEntryFromFileRecord,
   createSessionReadModel,
-  hasFileRecordAnalysisData,
+  hasFileRecordChartData,
   type SessionReadModel,
 } from "src/cs/workbench/services/session/common/sessionReadModel";
 import type {
@@ -216,10 +216,9 @@ const getInitialLanguagePreference = (): LanguagePreference => {
     : "system";
 };
 
-const resolveInitialWorkbenchViewMode = (
-  snapshot: WorkbenchSessionSnapshot,
-): WorkbenchMainPart =>
-  createSessionReadModel(snapshot).hasAnalysisData ? "chart" : "table";
+export const resolveInitialWorkbenchViewMode = (
+  _snapshot: WorkbenchSessionSnapshot,
+): WorkbenchMainPart => "table";
 
 //#endregion
 
@@ -468,7 +467,7 @@ export class Workbench extends Layout {
       tableModel,
       this.templateApply,
     ));
-    this.chartService.updateViewInput(this.getAnalysisProps(
+    this.chartService.updateViewInput(this.getChartProps(
       snapshot,
       this.templateApply,
       readModel,
@@ -492,7 +491,7 @@ export class Workbench extends Layout {
     });
     this.layoutVisibleViewContainers();
     this.window.update({
-      id: "analysis-page",
+      id: "workbench-page",
       className: "workbench_root",
       showDesktopCommandBar: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
       showSkeleton: false,
@@ -515,7 +514,7 @@ export class Workbench extends Layout {
   protected override onDidRenderLayout(): void {
     this.layoutVisibleViewContainers();
     this.window.update({
-      id: "analysis-page",
+      id: "workbench-page",
       className: "workbench_root",
       showDesktopCommandBar: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
       showSkeleton: false,
@@ -559,7 +558,7 @@ export class Workbench extends Layout {
   private updateViewContainers(): void {
     const isSettingsActive = this.activeView === "settings";
     const isWorkbenchActive = !isSettingsActive;
-    const isAnalysisActive = this.activeWorkbenchMainPart === "chart";
+    const isChartActive = this.activeWorkbenchMainPart === "chart";
 
     if (isWorkbenchActive) {
       if (this.sidebarVisible) {
@@ -575,8 +574,8 @@ export class Workbench extends Layout {
     }
 
     this.viewsService.setViewVisible(ExplorerViewId, isWorkbenchActive && this.sidebarVisible);
-    this.viewsService.setViewVisible(TableViewId, isWorkbenchActive && !isAnalysisActive);
-    this.viewsService.setViewVisible(ChartViewId, isWorkbenchActive && isAnalysisActive);
+    this.viewsService.setViewVisible(TableViewId, isWorkbenchActive && !isChartActive);
+    this.viewsService.setViewVisible(ChartViewId, isWorkbenchActive && isChartActive);
     this.viewsService.setViewVisible(SettingsViewId, isSettingsActive);
     this.updateSidebar(isWorkbenchActive && this.sidebarVisible);
     this.updateAuxiliaryBar(isWorkbenchActive);
@@ -799,7 +798,7 @@ export class Workbench extends Layout {
       return;
     }
 
-    if (!hasFileRecordAnalysisData(snapshot.filesById[nextFileId])) {
+    if (!hasFileRecordChartData(snapshot.filesById[nextFileId])) {
       return;
     }
 
@@ -904,7 +903,7 @@ export class Workbench extends Layout {
     });
   }
 
-  private getAnalysisProps(
+  private getChartProps(
     snapshot = this.session.getSnapshot(),
     processing = this.templateApply,
     readModel = createSessionReadModel(snapshot),

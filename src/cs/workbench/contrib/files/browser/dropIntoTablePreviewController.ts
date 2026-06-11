@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DragAndDropObserver } from "src/cs/base/browser/dom";
-import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
+import { Disposable, DisposableStore, toDisposable } from "src/cs/base/common/lifecycle";
 import type { IWorkbenchContribution } from "src/cs/workbench/common/contributions";
 import type { IView } from "src/cs/workbench/common/views";
 import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
@@ -19,15 +19,21 @@ import { createSessionReadModel } from "src/cs/workbench/services/session/common
 import { TableViewId } from "src/cs/workbench/services/table/common/table";
 import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 
-type TableDropTargetView = IView & {
+type TablePreviewDropTargetView = IView & {
   readonly getDropTargetElement: () => HTMLElement;
 };
 
-export class DropIntoTableController extends Disposable implements IWorkbenchContribution {
-  public static readonly ID = "workbench.contrib.table.dropIntoTable";
+type TablePreviewDropTargetRegistration = {
+  readonly store: DisposableStore;
+  readonly target: HTMLElement;
+};
 
-  private readonly tableDropStore = this._register(new DisposableStore());
-  private tableDropTarget: HTMLElement | null = null;
+const TABLE_PREVIEW_DRAGGING_CLASS_NAME = "workbench_preview_area_part--dragging";
+
+export class DropIntoTablePreviewController extends Disposable implements IWorkbenchContribution {
+  public static readonly ID = "workbench.contrib.files.dropIntoTablePreview";
+
+  private dropTargetRegistration: TablePreviewDropTargetRegistration | null = null;
 
   public constructor(
     @IViewsService private readonly viewsService: IViewsService,
@@ -38,32 +44,51 @@ export class DropIntoTableController extends Disposable implements IWorkbenchCon
     super();
     this._register(this.viewsService.onDidChangeViewVisibility(({ id }) => {
       if (id === TableViewId) {
-        this.attachToTableDropTarget();
+        this.attachToTablePreviewDropTarget();
       }
     }));
-    this.attachToTableDropTarget();
+    this._register(toDisposable(() => {
+      this.disposeDropTarget();
+    }));
+    this.attachToTablePreviewDropTarget();
   }
 
-  private attachToTableDropTarget(): void {
+  private attachToTablePreviewDropTarget(): void {
     const view = this.viewsService.getViewWithId(TableViewId);
-    if (!isTableDropTargetView(view)) {
+    if (!isTablePreviewDropTargetView(view)) {
+      this.disposeDropTarget();
       return;
     }
 
     const target = view.getDropTargetElement();
-    if (this.tableDropTarget === target) {
+    if (this.dropTargetRegistration?.target === target) {
       return;
     }
 
-    this.tableDropStore.clear();
-    this.tableDropTarget = target;
-    this.tableDropStore.add(new DragAndDropObserver(target, {
+    this.disposeDropTarget();
+    const store = new DisposableStore();
+    store.add(new DragAndDropObserver(target, {
       onDragEnter: event => this.onDragEnter(event, target),
       onDragLeave: () => this.setDragging(target, false),
       onDragOver: event => this.onDragOver(event, target),
       onDrop: event => void this.onDrop(event, target),
       onDragEnd: () => this.setDragging(target, false),
     }));
+    this.dropTargetRegistration = {
+      store,
+      target,
+    };
+  }
+
+  private disposeDropTarget(): void {
+    const registration = this.dropTargetRegistration;
+    if (!registration) {
+      return;
+    }
+
+    this.setDragging(registration.target, false);
+    registration.store.dispose();
+    this.dropTargetRegistration = null;
   }
 
   private onDragEnter(event: DragEvent, target: HTMLElement): void {
@@ -91,7 +116,7 @@ export class DropIntoTableController extends Disposable implements IWorkbenchCon
   }
 
   private setDragging(target: HTMLElement, isDragging: boolean): void {
-    target.classList.toggle("dragging", isDragging);
+    target.classList.toggle(TABLE_PREVIEW_DRAGGING_CLASS_NAME, isDragging);
   }
 
   private async importDroppedFiles(dataTransfer: DataTransfer | null): Promise<void> {
@@ -113,11 +138,11 @@ export class DropIntoTableController extends Disposable implements IWorkbenchCon
       preparedFiles.map(prepared => prepared.fileInfo.importRecord),
     ));
 
-    this.selectImportedTableFile(preparedFiles);
+    this.selectImportedRawFile(preparedFiles);
     this.showImportError(errorMessage);
   }
 
-  private selectImportedTableFile(preparedFiles: readonly PreparedFileImport[]): void {
+  private selectImportedRawFile(preparedFiles: readonly PreparedFileImport[]): void {
     const readModel = createSessionReadModel(this.sessionService.getSnapshot());
     const rawFileIds = readModel.rawFiles
       .map(file => String(file.fileId ?? "").trim())
@@ -140,12 +165,12 @@ export class DropIntoTableController extends Disposable implements IWorkbenchCon
     }
 
     notificationService.showToast({
-      id: "dropIntoTable.importError",
+      id: "dropIntoTablePreview.importError",
       message,
       type: "warning",
     });
   }
 }
 
-const isTableDropTargetView = (view: IView | null): view is TableDropTargetView =>
+const isTablePreviewDropTargetView = (view: IView | null): view is TablePreviewDropTargetView =>
   Boolean(view && "getDropTargetElement" in view && typeof view.getDropTargetElement === "function");

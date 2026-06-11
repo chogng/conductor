@@ -100,7 +100,7 @@ export const createCalculatedPlotsByKeyFromRecords = (
 ): CalculatedPlotsByKey => {
   const next: CalculatedPlotsByKey = {};
   for (const file of getOrderedFileRecords(filesById, fileOrder)) {
-    if (!hasFileRecordAnalysisData(file)) {
+    if (!hasFileRecordChartData(file)) {
       continue;
     }
 
@@ -121,7 +121,7 @@ export const createCalculatedDataRecordInputSignature = (
 ): string => {
   const parts: string[] = [];
   for (const file of getOrderedFileRecords(filesById, fileOrder)) {
-    if (!hasFileRecordAnalysisData(file)) {
+    if (!hasFileRecordChartData(file)) {
       continue;
     }
 
@@ -294,7 +294,7 @@ const getOrderedFileRecords = (
   return files;
 };
 
-const hasFileRecordAnalysisData = (file: FileRecord): boolean =>
+const hasFileRecordChartData = (file: FileRecord): boolean =>
   collectFileRecordBaseCurves(file).length > 0;
 
 const createCalculatedSeriesFromFileRecord = (
@@ -659,4 +659,3 @@ const getFiniteDomain = (
   const max = Math.max(...finite);
   return min === max ? [min - 0.5, max + 0.5] : [min, max];
 };
-

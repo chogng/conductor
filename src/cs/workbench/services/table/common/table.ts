@@ -74,6 +74,7 @@ export type TableFile = {
 	sheetId?: string | null;
 	sheetName?: string | null;
 	sourceKey?: string;
+	sourceVersion?: number;
 	rowCount: number;
 	columnCount: number;
 	maxCellLengths: number[];

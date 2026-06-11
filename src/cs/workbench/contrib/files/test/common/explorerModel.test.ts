@@ -107,7 +107,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     assert.deepEqual(
       createChartExplorerFilesFromRecords(
         {
-          "raw-only": createFileRecord("raw-only", { hasAnalysisData: false }),
+          "raw-only": createFileRecord("raw-only", { hasChartData: false }),
         },
         ["raw-only"],
       ),
@@ -154,12 +154,12 @@ suite("workbench/contrib/files/common/explorerModel", () => {
 
 const createFileRecord = (
   fileId: string,
-  options: { readonly hasAnalysisData?: boolean } = {},
+  options: { readonly hasChartData?: boolean } = {},
 ): FileRecord => {
-  const hasAnalysisData = options.hasAnalysisData ?? true;
+  const hasChartData = options.hasChartData ?? true;
   return {
     assessmentsByRawTableId: {},
-    curvesByKey: hasAnalysisData
+    curvesByKey: hasChartData
       ? {
         "base:iv:transfer:series-1": {
           curveFamily: "iv",
@@ -195,7 +195,7 @@ const createFileRecord = (
       tablesById: {},
     },
     rawTableVersionsById: {},
-    seriesById: hasAnalysisData
+    seriesById: hasChartData
       ? {
         "series-1": {
           fileId,
@@ -205,7 +205,7 @@ const createFileRecord = (
         },
       }
       : {},
-    seriesOrder: hasAnalysisData ? ["series-1"] : [],
+    seriesOrder: hasChartData ? ["series-1"] : [],
     templateRunsById: {},
   };
 };

@@ -28,7 +28,7 @@ import type {
 
 export type SessionReadModel = {
   readonly calculatedPlotsByKey: CalculatedPlotsByKey;
-  readonly hasAnalysisData: boolean;
+  readonly hasChartData: boolean;
   readonly hasSessionData: boolean;
   readonly processedFileIds: FileId[];
   readonly processedFiles: ProcessedEntry[];
@@ -53,7 +53,7 @@ export const createSessionReadModel = (
       snapshot.filesById,
       snapshot.fileOrder,
     ),
-    hasAnalysisData: processedFileIds.length > 0,
+    hasChartData: processedFileIds.length > 0,
     hasSessionData: rawFiles.length > 0 || processedFileIds.length > 0,
     processedFileIds,
     processedFiles,
@@ -61,7 +61,7 @@ export const createSessionReadModel = (
   };
 };
 
-export const hasFileRecordAnalysisData = (
+export const hasFileRecordChartData = (
   file: FileRecord | undefined,
 ): boolean =>
   Boolean(
@@ -75,7 +75,7 @@ export const createProcessedEntriesFromRecords = (
 ): ProcessedEntry[] => {
   const entries: ProcessedEntry[] = [];
   for (const file of getOrderedFileRecords(filesById, fileOrder)) {
-    if (hasFileRecordAnalysisData(file)) {
+    if (hasFileRecordChartData(file)) {
       entries.push(createProcessedEntryFromFileRecord(file));
     }
   }
@@ -108,7 +108,7 @@ export const collectBaseCurveRecords = (
 
 const getProcessedFileIds = (snapshot: SessionSnapshot): FileId[] =>
   getOrderedFileRecords(snapshot.filesById, snapshot.fileOrder)
-    .filter(hasFileRecordAnalysisData)
+    .filter(hasFileRecordChartData)
     .map((file) => file.id);
 
 const getOrderedFileRecords = (

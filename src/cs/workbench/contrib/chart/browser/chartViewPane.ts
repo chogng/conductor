@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import AnalysisPanel from "src/cs/workbench/contrib/chart/browser/analysisPanel";
+import ChartPanel from "src/cs/workbench/contrib/chart/browser/chartPanel";
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { Action, toAction, type IAction } from "src/cs/base/common/actions";
@@ -23,7 +23,7 @@ import {
 } from "src/cs/workbench/contrib/chart/browser/chartFileSelect";
 import { resolveActiveChartFileOption } from "src/cs/workbench/services/chart/common/chartFileOptions";
 import { createLegendPopover, getLegendContext, type LegendContext } from "src/cs/workbench/contrib/chart/browser/chartLegend";
-import { toAnalysisPanelProps } from "src/cs/workbench/contrib/chart/browser/chartPaneState";
+import { toChartPanelProps } from "src/cs/workbench/contrib/chart/browser/chartPaneState";
 import { createChartUnitControls, type ChartUnitAxis, type ChartUnitControlState, type ChartYScale } from "src/cs/workbench/contrib/chart/browser/chartUnitControls";
 import type {
   PlotAxisTitleContext,
@@ -48,7 +48,7 @@ export class ChartViewPane extends ViewPane {
   private readonly paneStore = new DisposableStore();
   private readonly headerStore = new DisposableStore();
   private readonly content = document.createElement("div");
-  private readonly analysisPanel: AnalysisPanel;
+  private readonly chartPanel: ChartPanel;
   private legendAction: Action | null = null;
   private legendPopover: HTMLElement | null = null;
   private legendContext: LegendContext | null = null;
@@ -60,19 +60,19 @@ export class ChartViewPane extends ViewPane {
   ) {
     super({
       id: ChartViewId,
-      title: localize("analysis.visualization", "Analysis & Visualization"),
+      title: localize("chart", "Chart"),
       className: "chart-view-pane-root",
       bodyClassName: "workbench-part-view-pane__body",
     });
-    this.analysisPanel = new AnalysisPanel(this.getAnalysisPanelProps(this.props));
-    this.updateAnalysisPanelTabState();
+    this.chartPanel = new ChartPanel(this.getChartPanelProps(this.props));
+    this.updateChartPanelTabState();
     this.headerTabs.className = "chart_view_header_tabs";
     this.headerActions.className = "chart_view_header_actions";
     this.content.className = "chart_view_pane_content";
-    this.content.append(this.analysisPanel.element);
+    this.content.append(this.chartPanel.element);
     this.previewPart = createPreviewPart({
       id: ChartViewId,
-      ariaLabel: localize("analysis.visualization", "Analysis & Visualization"),
+      ariaLabel: localize("chart", "Chart"),
       actionbarContent: this.headerActions,
       className: "chart_view_pane",
       children: this.content,
@@ -87,7 +87,7 @@ export class ChartViewPane extends ViewPane {
     }));
     this.paneStore.add(this.chartService.onDidChangeChartState(() => {
       this.renderHeader(this.props);
-      this.updateAnalysisPanel(this.props);
+      this.updateChartPanel(this.props);
       this.refreshLegendPopover();
     }));
     this.paneStore.add(this.chartService.onDidChangeChartViewInput(input => {
@@ -106,13 +106,13 @@ export class ChartViewPane extends ViewPane {
     this.props = props;
     this.closeStaleLegendPopover(props);
     this.renderHeader(props);
-    this.updateAnalysisPanel(props);
+    this.updateChartPanel(props);
   }
 
   public dispose(): void {
     this.paneStore.dispose();
     this.headerStore.dispose();
-    this.analysisPanel.dispose();
+    this.chartPanel.dispose();
     this.disposeLegendPopover();
     this.content.replaceChildren();
     this.previewPart.remove();
@@ -120,14 +120,14 @@ export class ChartViewPane extends ViewPane {
   }
 
   private editAxisTitleRequest(request: ChartAxisTitleEditRequest): void {
-    this.analysisPanel.editAxisTitle(request.pane, request.axis);
+    this.chartPanel.editAxisTitle(request.pane, request.axis);
   }
 
   private renderHeader(props: ChartViewInput): void {
     this.headerStore.clear();
     this.legendAction = null;
     const activeFile = resolveActiveChartFileOption(props);
-    const isEmpty = props.hasAnalysisData !== true;
+    const isEmpty = props.hasChartData !== true;
     this.previewPart.dataset.headerVisible = isEmpty ? "false" : "true";
     this.headerTabs.replaceChildren();
     this.headerActions.replaceChildren();
@@ -168,19 +168,19 @@ export class ChartViewPane extends ViewPane {
     this.props.onActivePlotTypeChange?.(plotType);
     this.closeLegendPopover();
     this.renderHeader(this.props);
-    this.updateAnalysisPanel(this.props);
+    this.updateChartPanel(this.props);
   }
 
-  private updateAnalysisPanel(props: ChartViewInput): void {
-    this.updateAnalysisPanelTabState();
-    this.analysisPanel.update(this.getAnalysisPanelProps(props));
+  private updateChartPanel(props: ChartViewInput): void {
+    this.updateChartPanelTabState();
+    this.chartPanel.update(this.getChartPanelProps(props));
   }
 
-  private getAnalysisPanelProps(props: ChartViewInput): ChartViewInput {
+  private getChartPanelProps(props: ChartViewInput): ChartViewInput {
     const legendContext = this.getCurrentLegendContext(props);
     const hiddenLegendKeys = this.getHiddenLegendKeys(legendContext);
     const legendLabels = this.getLegendLabels(legendContext);
-    const baseProps = toAnalysisPanelProps(
+    const baseProps = toChartPanelProps(
       props,
       this.getActivePlotType(),
       this.chartService.getState().visibleDetailPanes,
@@ -262,10 +262,10 @@ export class ChartViewPane extends ViewPane {
       null;
   }
 
-  private updateAnalysisPanelTabState(): void {
-    this.analysisPanel.element.id = getPlotPanelId(this.getActivePlotType());
-    this.analysisPanel.element.setAttribute("role", "tabpanel");
-    this.analysisPanel.element.setAttribute("aria-labelledby", getPlotTabId(this.getActivePlotType()));
+  private updateChartPanelTabState(): void {
+    this.chartPanel.element.id = getPlotPanelId(this.getActivePlotType());
+    this.chartPanel.element.setAttribute("role", "tabpanel");
+    this.chartPanel.element.setAttribute("aria-labelledby", getPlotTabId(this.getActivePlotType()));
   }
 
   private createHeaderActions(props: ChartViewInput): HTMLElement {
@@ -426,7 +426,7 @@ export class ChartViewPane extends ViewPane {
       legendKey,
       nextLabel === defaultLabel ? null : nextLabel,
     );
-    this.updateAnalysisPanel(this.props);
+    this.updateChartPanel(this.props);
     this.refreshLegendPopover();
   }
 
@@ -488,7 +488,7 @@ const EMPTY_CHART_VIEW_INPUT: ChartViewInput = {
   activeFileId: null,
   activePlotType: "iv",
   chartFileOptions: [],
-  hasAnalysisData: false,
+  hasChartData: false,
   shouldMountCharts: false,
 };
 

@@ -39,7 +39,7 @@ export const getHeaderActionIcon = (actionId: string): LxIconDefinition => {
     return LxIcon.legend;
   }
   if (actionId === CHART_INSPECTOR_ACTION_ID) {
-    return LxIcon.analysis;
+    return LxIcon.chart;
   }
   return LxIcon.search;
 };

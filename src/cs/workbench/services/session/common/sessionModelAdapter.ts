@@ -379,6 +379,7 @@ export const createRawFilesFromRecords = (
         sheetId: table.sheetId,
         sheetName: table.sheetName ?? null,
         sourceKey: table.tableKey,
+        sourceVersion: file.rawTableVersionsById?.[tableId] ?? 0,
         rowCount: table.rowCount,
         columnCount: table.columnCount,
         maxCellLengths: table.maxCellLengths,
@@ -2102,7 +2103,6 @@ const normalizeOptionalText = (value: unknown): string | undefined => {
   const text = String(value ?? "").trim();
   return text || undefined;
 };
-
 
 
 

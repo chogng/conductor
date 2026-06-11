@@ -4,9 +4,11 @@
 
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
+import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from "src/cs/workbench/common/contributions";
+import { ActiveWorkbenchMainPartContext } from "src/cs/workbench/common/contextkeys";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
   Extensions as ViewExtensions,
@@ -46,10 +48,13 @@ function registerChartView(): void {
   chartViewRegistered = true;
   viewsRegistry.registerViews([{
     id: ChartViewId,
-    name: localize("analysis.visualization", "Analysis & Visualization"),
+    name: localize("chart", "Chart"),
     ctorDescriptor: new SyncDescriptor(ChartViewPane),
     hideByDefault: false,
     order: 10,
+    when: ContextKeyExpr.and(
+      ActiveWorkbenchMainPartContext.isEqualTo("chart"),
+    ),
   }], container);
 }
 

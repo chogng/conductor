@@ -40,7 +40,7 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
     icon: LxIcon.search,
     mode: "chart",
     viewId: SearchViewId,
-    labelKey: "analysis_views_search",
+    labelKey: "chart_views_search",
     label: "Search",
   },
   {
@@ -48,7 +48,7 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
     icon: LxIcon.origin,
     mode: "chart",
     viewId: ExportViewId,
-    labelKey: "analysis_views_export",
+    labelKey: "chart_views_export",
     label: "Export",
   },
   {
@@ -56,7 +56,7 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
     icon: LxIcon.parameters,
     mode: "chart",
     viewId: ParametersViewId,
-    labelKey: "analysis_views_parameters",
+    labelKey: "chart_views_parameters",
     label: "Parameters",
   },
   {
@@ -84,7 +84,7 @@ export const getAuxiliaryBarTitleForMode = (
   templateMode: TemplateAuxiliaryBarMode,
 ): string => {
   if (mode === "chart") {
-    return localize("auxiliarybar_chart_title", "Analysis & Visualization");
+    return localize("auxiliarybar_chart_title", "Chart");
   }
 
   return templateMode === "save"

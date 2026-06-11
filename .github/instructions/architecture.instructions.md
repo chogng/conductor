@@ -637,7 +637,7 @@ flowchart TD
     Plot --> PlotState[PlotState: active plot type, unit, scale, visibility]
     Plot --> PlotModel[PlotRenderModel]
     PlotModel --> Chart[IChartService]
-    Chart --> ChartView[ChartView / AnalysisPanel]
+    Chart --> ChartView[ChartView / ChartPanel]
     PlotModel --> Thumbnail[IThumbnailService]
     PlotModel --> Export[IExportService]
 ```

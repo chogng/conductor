@@ -136,7 +136,10 @@ export class SessionService extends Disposable implements ISessionServiceType {
     const nextFilesById: Record<FileId, FileRecord> = { ...this.snapshot.filesById };
     let nextFileOrder = this.snapshot.fileOrder.filter(fileId => Boolean(nextFilesById[fileId]));
     for (const record of importedRecords) {
-      nextFilesById[record.id] = record;
+      nextFilesById[record.id] = preserveRawTableVersionContinuity(
+        record,
+        nextFilesById[record.id],
+      );
       if (!nextFileOrder.includes(record.id)) {
         nextFileOrder = [...nextFileOrder, record.id];
       }
@@ -588,6 +591,29 @@ const createInitialRawTableVersions = (
   return versions;
 };
 
+const preserveRawTableVersionContinuity = (
+  record: FileRecord,
+  previous: FileRecord | undefined,
+): FileRecord => {
+  if (!previous) {
+    return record;
+  }
+
+  const rawTableVersionsById: Record<string, number> = {};
+  for (const rawTableId of record.raw.tableOrder) {
+    const previousVersion = Math.max(
+      0,
+      Math.floor(Number(previous.rawTableVersionsById?.[rawTableId]) || 0),
+    );
+    rawTableVersionsById[rawTableId] = previousVersion + 1;
+  }
+
+  return {
+    ...record,
+    rawTableVersionsById,
+  };
+};
+
 const getUniqueIds = (ids: readonly string[]): string[] => {
   const result: string[] = [];
   const seen = new Set<string>();
@@ -910,7 +936,6 @@ const filterRecord = <T,>(
 };
 
 registerSingleton(ISessionService, SessionService, InstantiationType.Delayed);
-
 
 
 

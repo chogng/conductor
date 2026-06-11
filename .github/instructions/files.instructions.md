@@ -370,13 +370,13 @@ Table drop import wiring:
 sequenceDiagram
     actor User
     participant TableViewPane
-    participant DropController as table drop controller
+    participant DropController as table preview drop controller
     participant SourceHelpers as fileImportExport.ts helpers
     participant Session as ISessionService
     participant ExplorerService as IExplorerService
 
-    User->>TableViewPane: drop files/folder on table area
-    DropController->>TableViewPane: register drop observer on drop target
+    User->>TableViewPane: drop files/folder on table preview area
+    DropController->>TableViewPane: register drop observer on table drop target
     DropController->>SourceHelpers: collectDroppedFiles / prepare pending imports
     SourceHelpers-->>DropController: prepared imports
     DropController->>Session: commitFileImport(result)

@@ -16,7 +16,7 @@ If a change concerns series data, domains, units, y-scale, plot type, visibility
 - chart detail pane visibility;
 - legend/inspector popover UI state;
 - chart header action state;
-- embedding and updating `PlotMainView` / `AnalysisPanel`;
+- embedding and updating `PlotMainView` / `ChartPanel`;
 - commands that affect chart shell UI.
 
 It consumes:
@@ -41,7 +41,7 @@ It does not own:
 | `src/cs/workbench/services/chart/browser/chartService.ts` | Owns chart shell state, subscribes to `IPlotService`, prepares chart view input. No raw session data extraction. |
 | `src/cs/workbench/services/chart/browser/chart.contribution.ts` | Registers chart service and chart lifecycle contribution. |
 | `src/cs/workbench/contrib/chart/browser/chartViewPane.ts` | View pane shell. Hosts header, actions, detail pane, and plot view. Delegates data to services. |
-| `src/cs/workbench/contrib/chart/browser/analysisPanel.ts` | Chart panel composition. Receives plot/chart props. No session reads. |
+| `src/cs/workbench/contrib/chart/browser/chartPanel.ts` | Chart panel composition. Receives plot/chart props. No session reads. |
 | `src/cs/workbench/contrib/chart/browser/chartActions.ts` | Chart shell actions: inspector, legend, pane toggles. Handlers call `IChartService` or `IPlotService`. |
 | `src/cs/workbench/contrib/chart/browser/chartFileSelect.ts` | UI selector adapter. Target: ask Explorer/Plot services for options instead of reading session directly. |
 
@@ -131,4 +131,3 @@ If a chart header button changes plot type, it should execute a plot command, no
 | `onToggleInspector` | Callback to chart service. |
 
 Chart state is shell state. Plot data, units, scale, series visibility, domains, and labels belong to Plot.
-

@@ -19,7 +19,7 @@ import type { ProcessingStatus } from "src/cs/workbench/services/session/common/
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import { createChartView, type ChartPane } from "src/cs/workbench/contrib/chart/browser/views/chartView";
 
-export class AnalysisPanel {
+export class ChartPanel {
   public readonly element: HTMLElement;
   private content: DisposableContent | null = null;
 
@@ -30,9 +30,9 @@ export class AnalysisPanel {
   }
 
   public update(props: ChartViewInput): void {
-    this.element.setAttribute("aria-label", localize("analysis_visualization", "Analysis & Visualization"));
+    this.element.setAttribute("aria-label", localize("chart", "Chart"));
     disposeContent(this.content);
-    this.content = createAnalysisPanelContent(props);
+    this.content = createChartPanelContent(props);
     this.element.replaceChildren(this.content);
   }
 
@@ -57,20 +57,20 @@ const disposeContent = (content: DisposableContent | null): void => {
   content?.dispose?.();
 };
 
-const createAnalysisPanelContent = (props: ChartViewInput): DisposableContent => {
+const createChartPanelContent = (props: ChartViewInput): DisposableContent => {
   const {
-    hasAnalysisData = false,
+    hasChartData = false,
     processingStatus,
     shouldMountCharts = false,
   } = props;
 
-  if (hasAnalysisData) {
+  if (hasChartData) {
     if (shouldMountCharts) {
-      return createAnalysisStatusCard({
-        id: "analysis-analysis-loading-card",
+      return createChartStatusCard({
+        id: "chart-loading-card",
         iconClassName: "status-icon--muted status-icon--pulse",
-        message: localize("analysis_loading", "Loading analysis charts..."),
-        hint: localize("analysis_loading_hint", "Preparing visualization modules, please wait."),
+        message: localize("chart_loading", "Loading charts..."),
+        hint: localize("chart_loading_hint", "Preparing chart modules, please wait."),
       });
     }
 
@@ -94,11 +94,11 @@ const createProcessingCard = (
   const processed = processingStatus.processed ?? 0;
   const total = Math.max(1, processingStatus.total ?? 0);
   const percent = Math.min(100, Math.round((processed / total) * 100));
-  const card = createAnalysisStatusCard({
-    id: "analysis-processing-card",
+  const card = createChartStatusCard({
+    id: "chart-processing-card",
     iconClassName: "status-icon--muted status-icon--pulse",
-    message: localize("analysis_processing", "Processing analysis data..."),
-    hint: localize("analysis_processing_hint", "Extracting and preparing chart data, please wait."),
+    message: localize("chart_processing", "Processing chart data..."),
+    hint: localize("chart_processing_hint", "Extracting and preparing chart data, please wait."),
   });
 
   const progress = document.createElement("div");
@@ -109,7 +109,7 @@ const createProcessingCard = (
     "processing-progress-label";
 
   const processedLabel = document.createElement("span");
-  processedLabel.textContent = localize("analysis_processing_progress", "{processed}/{total} files processed", {
+  processedLabel.textContent = localize("chart_processing_progress", "{processed}/{total} files processed", {
     processed,
     total: processingStatus.total ?? 0,
   });
@@ -130,7 +130,7 @@ const createProcessingCard = (
   return card;
 };
 
-const createAnalysisStatusCard = ({
+const createChartStatusCard = ({
   hint,
   iconClassName,
   id,
@@ -148,7 +148,7 @@ const createAnalysisStatusCard = ({
   });
   card.append(
     createLocalLxIcon({
-      icon: LxIcon.analysis,
+      icon: LxIcon.chart,
       size: 48,
       className: `status-icon ${iconClassName}`,
     }),
@@ -204,4 +204,4 @@ const createText = (
   return element;
 };
 
-export default AnalysisPanel;
+export default ChartPanel;

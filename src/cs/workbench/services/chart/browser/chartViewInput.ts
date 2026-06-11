@@ -72,7 +72,7 @@ export const createChartViewInput = (
 				axisSettings,
 				fileId: activeFileId,
 			}),
-		hasAnalysisData: Boolean(activeFileId),
+		hasChartData: Boolean(activeFileId),
 		legendLabels: options.legendLabels,
 		onActiveFileIdChange: options.onActiveFileIdChange,
 		onActivePlotTypeChange: options.onActivePlotTypeChange,

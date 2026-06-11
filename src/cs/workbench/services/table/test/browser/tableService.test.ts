@@ -293,6 +293,38 @@ suite("workbench/services/table/browser/tableService", () => {
     service.dispose();
   });
 
+  test("clears preview lifecycle when the selected source version changes", () => {
+    const service = new TableService(createTableBackendService({
+      canOpenFile: () => false,
+    }) as never);
+    const rawFiles = [{
+      file: {},
+      fileId: "file-a",
+      fileName: "Raw.csv",
+      sourceKey: "file-a",
+      sourceVersion: 2,
+    }];
+
+    const model = service.update({
+      file: {
+        columnCount: 2,
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        maxCellLengths: [1, 1],
+        rowCount: 2,
+        sourceKey: "file-a",
+        sourceVersion: 1,
+      },
+      rawFiles,
+      source: { fileId: "file-a" },
+    });
+
+    assert.equal(model.getState().selectedFileId, "file-a");
+    assert.equal(model.getState().file, null);
+    assert.equal(model.getState().loadState.state, "loading");
+    service.dispose();
+  });
+
   test("executes table commands through service view input", () => {
     const service = new TableService(createTableBackendService() as never);
     const model = service.update({

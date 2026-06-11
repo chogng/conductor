@@ -225,6 +225,7 @@ type TableSourceEntry = {
   readonly entry: SessionFile;
   readonly source: TableSource;
   readonly sourceKey: string;
+  readonly sourceVersion: number;
   readonly sheetName: string | null;
 };
 
@@ -258,6 +259,7 @@ const createTableSourceEntry = (entry: SessionFile): TableSourceEntry | null => 
     entry,
     sheetName: getEntrySheetName(entry),
     source,
+    sourceVersion: normalizeSourceVersion(entry.sourceVersion),
     sourceKey: readEntryString(entry, "sourceKey") ?? toTableSourceKey(source),
   };
 };
@@ -266,6 +268,34 @@ const isTableFileForSource = (
   file: TableFile | null | undefined,
   sourceKey: string | null | undefined,
 ): boolean => Boolean(file?.sourceKey && sourceKey && file.sourceKey === sourceKey);
+
+const isTableFileForSourceEntry = (
+  file: TableFile | null | undefined,
+  source: TableSourceEntry | null | undefined,
+): boolean =>
+  Boolean(source) &&
+  isTableFileForSource(file, source?.sourceKey) &&
+  normalizeSourceVersion(file?.sourceVersion) === normalizeSourceVersion(source?.sourceVersion);
+
+const areTableFilesEqual = (
+  current: TableFile | null | undefined,
+  next: TableFile,
+): boolean =>
+  current?.fileId === next.fileId &&
+  current?.fileName === next.fileName &&
+  current?.sheetId === next.sheetId &&
+  current?.sheetName === next.sheetName &&
+  current?.sourceKey === next.sourceKey &&
+  normalizeSourceVersion(current?.sourceVersion) === normalizeSourceVersion(next.sourceVersion) &&
+  current?.rowCount === next.rowCount &&
+  current?.columnCount === next.columnCount &&
+  current?.maxCellLengths.length === next.maxCellLengths.length &&
+  (current?.maxCellLengths.every(
+    (cellLength, index) => cellLength === next.maxCellLengths[index],
+  ) ?? false);
+
+const normalizeSourceVersion = (value: unknown): number =>
+  Math.max(0, Math.floor(Number(value) || 0));
 
 type PreviewResultPayload = {
   requestId: number;
@@ -507,6 +537,9 @@ const createTableModel = ({
   ]);
 
   const activeSourceKey = selectedSource?.sourceKey ?? null;
+  const activeSourceSignature = selectedSource
+    ? `${selectedSource.sourceKey}:${selectedSource.sourceVersion}`
+    : null;
   const sourcesByKeyRef = createTableRef(new Map<string, TableSourceEntry>());
   const sourcesByFileIdRef = createTableRef(new Map<string, TableSourceEntry[]>());
 
@@ -551,7 +584,7 @@ const createTableModel = ({
         // A broken consumer must not prevent table state from following the file.
       }
     }
-  }, [activeSourceKey]);
+  }, [activeSourceSignature]);
 
   const clearPendingPreviewRequest = memoCallback((requestId: number) => {
     if (requestId === previewRequestIdRef.current) {
@@ -730,14 +763,16 @@ const createTableModel = ({
   runEffect(() => {
     invalidatePreviewRequests();
 
-    if (!activeSourceKey || !isTableFileForSource(previewFileRef.current, activeSourceKey)) {
+    if (!selectedSource || !isTableFileForSourceEntry(previewFileRef.current, selectedSource)) {
       clearPreviewState();
     }
   }, [
     activeSourceKey,
+    activeSourceSignature,
     clearPreviewState,
     invalidatePreviewRequests,
     previewFileRef,
+    selectedSource,
   ]);
 
   const disposePreviewSourceCache = memoCallback(
@@ -859,6 +894,7 @@ const createTableModel = ({
           sheetId: sourceEntry?.source.sheetId ?? previewPayload.sheetId ?? null,
           sheetName: sourceEntry?.sheetName ?? previewPayload.sheetName ?? null,
           sourceKey: sourceKey ?? undefined,
+          sourceVersion: sourceEntry?.sourceVersion,
           rowCount: Number(previewPayload.rowCount) || 0,
           columnCount: Number(previewPayload.columnCount) || 0,
           maxCellLengths,
@@ -866,18 +902,7 @@ const createTableModel = ({
         const currentPreviewFile = previewFileRef.current;
         const hasSamePreviewFile =
           isTableFileForSource(currentPreviewFile, sourceKey) &&
-          currentPreviewFile?.fileId === nextPreviewFile.fileId &&
-          currentPreviewFile?.fileName === nextPreviewFile.fileName &&
-          currentPreviewFile?.sheetId === nextPreviewFile.sheetId &&
-          currentPreviewFile?.sheetName === nextPreviewFile.sheetName &&
-          currentPreviewFile?.rowCount === nextPreviewFile.rowCount &&
-          currentPreviewFile?.columnCount === nextPreviewFile.columnCount &&
-          currentPreviewFile?.maxCellLengths.length ===
-            nextPreviewFile.maxCellLengths.length &&
-          (currentPreviewFile?.maxCellLengths.every(
-            (cellLength, index) => cellLength === nextPreviewFile.maxCellLengths[index],
-          ) ??
-            false);
+          areTableFilesEqual(currentPreviewFile, nextPreviewFile);
         const shouldUpdatePreviewStatus =
           previewStatusRef.current.state !== "ready" ||
           previewStatusRef.current.message !== "";
@@ -1034,16 +1059,19 @@ const createTableModel = ({
     const targetSource = selectedSource;
     const targetFile = targetSource?.entry ?? null;
     const targetSourceKey = targetSource?.sourceKey ?? null;
+    const targetSourceSignature = targetSource
+      ? `${targetSource.sourceKey}:${targetSource.sourceVersion}`
+      : null;
     if (!targetSource || !targetFile?.file || !targetFile?.fileId || !targetSourceKey) return;
-    if (isTableFileForSource(previewFileRef.current, targetSourceKey)) return;
-    if (pendingPreviewFileIdRef.current === targetSourceKey) return;
+    if (isTableFileForSourceEntry(previewFileRef.current, targetSource)) return;
+    if (pendingPreviewFileIdRef.current === targetSourceSignature) return;
 
     const previewTargetSource = targetSource;
     const previewTargetFile = targetFile;
     const previewTargetSourceKey = targetSourceKey;
     const requestId = previewRequestIdRef.current + 1;
     previewRequestIdRef.current = requestId;
-    pendingPreviewFileIdRef.current = previewTargetSourceKey;
+    pendingPreviewFileIdRef.current = targetSourceSignature;
 
     runImmediately(() => {
       setPreviewStatus({ state: "loading", message: localize("preview_loading", "Loading preview...") });
@@ -1123,6 +1151,7 @@ const createTableModel = ({
             sheetId: previewTargetSource.source.sheetId ?? previewPayload.sheetId ?? null,
             sheetName: previewTargetSource.sheetName ?? previewPayload.sheetName ?? null,
             sourceKey,
+            sourceVersion: previewTargetSource.sourceVersion,
             rowCount: Number(previewPayload.rowCount) || 0,
             columnCount: Number(previewPayload.columnCount) || 0,
             maxCellLengths,
@@ -1132,18 +1161,7 @@ const createTableModel = ({
             const currentPreviewFile = previewFileRef.current;
             const hasSamePreviewFile =
               isTableFileForSource(currentPreviewFile, sourceKey) &&
-              currentPreviewFile?.fileId === nextPreviewFile.fileId &&
-              currentPreviewFile?.fileName === nextPreviewFile.fileName &&
-              currentPreviewFile?.sheetId === nextPreviewFile.sheetId &&
-              currentPreviewFile?.sheetName === nextPreviewFile.sheetName &&
-              currentPreviewFile?.rowCount === nextPreviewFile.rowCount &&
-              currentPreviewFile?.columnCount === nextPreviewFile.columnCount &&
-              currentPreviewFile?.maxCellLengths.length ===
-                nextPreviewFile.maxCellLengths.length &&
-              (currentPreviewFile?.maxCellLengths.every(
-                (cellLength, index) => cellLength === nextPreviewFile.maxCellLengths[index],
-              ) ??
-                false);
+              areTableFilesEqual(currentPreviewFile, nextPreviewFile);
             const shouldUpdatePreviewStatus =
               previewStatusRef.current.state !== "ready" ||
               previewStatusRef.current.message !== "";
@@ -1172,19 +1190,7 @@ const createTableModel = ({
             if (
               !(
                 isTableFileForSource(previewFileRef.current, sourceKey) &&
-                previewFileRef.current?.fileId === nextPreviewFile.fileId &&
-                previewFileRef.current?.fileName === nextPreviewFile.fileName &&
-                previewFileRef.current?.sheetId === nextPreviewFile.sheetId &&
-                previewFileRef.current?.sheetName === nextPreviewFile.sheetName &&
-                previewFileRef.current?.rowCount === nextPreviewFile.rowCount &&
-                previewFileRef.current?.columnCount === nextPreviewFile.columnCount &&
-                previewFileRef.current?.maxCellLengths.length ===
-                  nextPreviewFile.maxCellLengths.length &&
-                (previewFileRef.current?.maxCellLengths.every(
-                  (cellLength, index) =>
-                    cellLength === nextPreviewFile.maxCellLengths[index],
-                ) ??
-                  false)
+                areTableFilesEqual(previewFileRef.current, nextPreviewFile)
               )
             ) {
               setPreviewFile(nextPreviewFile);
@@ -1616,7 +1622,7 @@ const createTableModel = ({
   const selectAllColumns = memoCallback(
     (): boolean => {
       const currentFile = previewFileRef.current;
-      if (!isTableFileForSource(currentFile, activeSourceKey)) {
+      if (!isTableFileForSourceEntry(currentFile, selectedSource)) {
         return false;
       }
 
@@ -1636,7 +1642,7 @@ const createTableModel = ({
       });
       return true;
     },
-    [activeSourceKey, previewFileRef, selectionRef, setSelection],
+    [previewFileRef, selectedSource, selectionRef, setSelection],
   );
 
   const setZoomPercent = memoCallback(
@@ -1719,7 +1725,7 @@ const createTableModel = ({
       const selectedDisplayName = selectedSheetName
         ? `${selectedFileName} / ${selectedSheetName}`
         : selectedFileName;
-      const hasCurrentSource = isTableFileForSource(currentFile, activeSourceKey);
+      const hasCurrentSource = isTableFileForSourceEntry(currentFile, selectedSource);
       const fileName = formatTableFileName(
         hasCurrentSource ? currentFileName : selectedDisplayName,
       );

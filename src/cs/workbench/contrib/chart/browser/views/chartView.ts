@@ -26,31 +26,31 @@ export type ChartViewElement = HTMLElement & {
 export const createChartView = (props: ChartViewProps): ChartViewElement => {
   const {
     activePlotType = "iv",
-    hasAnalysisData = false,
+    hasChartData = false,
     plotDisplayModel = null,
     processingStatus,
   } = props;
   const visiblePanes = normalizeVisiblePanes(props.visiblePanes);
   const root = document.createElement("section") as ChartViewElement;
   root.className = "chart_view";
-  root.setAttribute("aria-label", localize("analysis.visualization", "Analysis & Visualization"));
+  root.setAttribute("aria-label", localize("chart", "Chart"));
 
-  if (!hasAnalysisData) {
+  if (!hasChartData) {
     root.append(createEmptyView({
       hint: processingStatus?.state === "processing"
-        ? localize("analysis_processing_hint", "Extracting and preparing chart data, please wait.")
-        : localize("analysis.empty.hint", "Apply a template to generate chart data."),
+        ? localize("chart_processing_hint", "Extracting and preparing chart data, please wait.")
+        : localize("chart.empty.hint", "Apply a template to generate chart data."),
       title: processingStatus?.state === "processing"
-        ? localize("analysis_processing", "Processing analysis data...")
-        : localize("analysis.empty.title", "No analysis data"),
+        ? localize("chart_processing", "Processing chart data...")
+        : localize("chart.empty.title", "No chart data"),
     }));
     return root;
   }
 
   if (!plotDisplayModel) {
     root.append(createEmptyView({
-      hint: localize("analysis_calculation_hint", "Preparing chart calculations, please wait."),
-      title: localize("analysis_calculation", "Calculating chart data..."),
+      hint: localize("chart_calculation_hint", "Preparing chart calculations, please wait."),
+      title: localize("chart_calculation", "Calculating chart data..."),
     }));
     return root;
   }
