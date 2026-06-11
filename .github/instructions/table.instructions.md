@@ -109,7 +109,7 @@ Do not name the table input after another feature's selection state. The workben
 composition layer may derive a `TableSource` from Explorer/session state, but
 `ITableService` consumes table source input and owns its own preview lifecycle.
 This follows the cross-service selection mirroring rule in
-`service-architecture.instructions.md`: bridge by translating domain input,
+`architecture.instructions.md`: bridge by translating domain input,
 not by sharing selection state or calling another service's internals.
 
 ## Do not

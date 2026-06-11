@@ -27,6 +27,7 @@ The core architecture follows these principles:
 - **Dependency injection** - Services are injected through constructor parameters
     - If non-service parameters are needed, they need to come before the service parameters
 - **Contribution model** - Features contribute to registries and extension points
+- **Register, invoke, subscribe** - Capabilities are connected through contribution / registry / DI; user entries invoke services through commands/actions; state changes are announced through events, and consumers subscribe as needed before reading public state or service APIs.
 - **Cross-platform compatibility** - Abstractions separate platform-specific code
 
 ### Finding Related Code

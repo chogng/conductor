@@ -4,7 +4,6 @@ import {
   WorkbenchTitlebarPart,
   type WorkbenchTitlebarProps,
 } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
-import { renderWorkbenchTitlebarSkeleton } from "src/cs/workbench/browser/parts/titlebar/titlebarSkeleton";
 import { applyWorkbenchStyle, type WorkbenchStyle } from "src/cs/workbench/browser/style";
 import { getWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
 import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
@@ -176,7 +175,6 @@ export class WorkbenchWindow extends Disposable {
     "workbench_window_content",
   );
   private titlebarPart: WorkbenchTitlebarPart | undefined;
-  private clearTitlebarSkeleton: (() => void) | undefined;
 
   public readonly contentElement = this.contentHost;
 
@@ -224,19 +222,9 @@ export class WorkbenchWindow extends Disposable {
     }
 
     if (!titlebarState) {
-      this.titlebarPart?.dispose();
-      this.titlebarPart = undefined;
-
-      if (!this.clearTitlebarSkeleton) {
-        this.clearTitlebarSkeleton = renderWorkbenchTitlebarSkeleton(
-          this.titlebarHost,
-        );
-      }
+      this.clearTitlebar();
       return;
     }
-
-    this.clearTitlebarSkeleton?.();
-    this.clearTitlebarSkeleton = undefined;
 
     this.titlebarPart ??= new WorkbenchTitlebarPart(this.titlebarHost);
     this.titlebarPart.update(titlebarState);
@@ -256,8 +244,6 @@ export class WorkbenchWindow extends Disposable {
   }
 
   private clearTitlebar(): void {
-    this.clearTitlebarSkeleton?.();
-    this.clearTitlebarSkeleton = undefined;
     this.titlebarPart?.dispose();
     this.titlebarPart = undefined;
     this.titlebarHost.replaceChildren();

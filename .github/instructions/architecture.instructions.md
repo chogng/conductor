@@ -1,13 +1,273 @@
 ---
-description: Conductor Studio service architecture — layers, service ownership, session records, import/assessment/template/plot/chart flows, and migration rules. Reference when adding or refactoring services or contrib views.
+description: Conductor Studio architecture - registration/invocation/subscription, layers, ownership, session records, domain flows, and migration rules. Reference when adding or refactoring architecture, services, commands, contrib views, or state ownership.
 applyTo: 'src/cs/**'
 ---
-# Conductor Service Architecture
+# Conductor Architecture
 
-Canonical reference for Conductor Studio service boundaries.
+Canonical reference for Conductor Studio architecture and ownership boundaries.
 
-Use this file before adding a new service, moving a record, or wiring a feature through `workbench.ts`. Domain-specific details live in the matching `*.instructions.md` file.
+Use this file before adding a new service, moving a record, wiring a feature
+through `workbench.ts`, or deciding which component owns state. Domain-specific
+details live in the matching `*.instructions.md` file.
 
+Read this document in this order:
+
+1. Start with the core interaction model and owner rules.
+2. Check the layer and service map for the correct destination.
+3. Use the flow diagrams to preserve existing responsibility boundaries.
+4. Use the file layout and migration sections when moving code.
+
+## Core interaction model
+
+Conductor follows the VS Code module relationship:
+
+```txt
+contribution / registry / DI
+  -> register service / command / action / view / provider
+  -> user triggers command / action
+  -> command handler gets service
+  -> service method is called
+  -> service updates owned state
+  -> service fires onDidChangeXxx
+  -> listeners receive event
+  -> listeners read current service / model / view state
+  -> listeners update themselves
+```
+
+These three mechanisms are separate:
+
+| Mechanism | Purpose | Rule |
+| --- | --- | --- |
+| Registration | Connect a capability to the system. | Register services, commands, actions, views, providers, serializers, context keys, and contributions. Do not execute business logic or refresh UI from registration code. |
+| Invocation | Execute a capability after a user or caller entry point fires. | Commands/actions/controllers normalize input, get services, call public service APIs, and return results. They do not own long-lived state or mutate DOM/model internals. |
+| Subscription | Notify interested consumers after state changes. | Owners fire `onDidChangeXxx` events. Consumers subscribe, reread the public service/model/view state they need, and update themselves. |
+
+Compressed rule:
+
+```txt
+register
+  -> command/action invoked
+  -> service method called
+  -> owned state changed
+  -> event fired
+  -> listener notified
+  -> listener reads current state
+  -> listener updates itself
+```
+
+Registration files are access points, not business controllers. A
+`.contribution.ts` file may register commands, actions, menus, keybindings,
+views, workbench contributions, services, and small glue code. Complex logic
+belongs in the concrete owner: service, model, controller, provider, or view
+model.
+
+Command and action code is an entry layer, not a state owner. It may perform
+light argument validation, resolve a service, call a service API, and return the
+result. It must not hold long-lived state, directly mutate internal models,
+operate concrete DOM, or carry complex domain workflows.
+
+## State owner rule
+
+The owner of state is the only component that mutates that state.
+
+External modules interact through public APIs:
+
+```ts
+service.update(...);
+service.reset(...);
+service.refresh(...);
+service.getState();
+service.getViewState();
+```
+
+Do not mutate another owner's internals:
+
+```ts
+service._model.value = ...;
+service._items.clear();
+service._state.visible = false;
+```
+
+Naming of public methods is domain-specific. Do not force a generic abstraction
+only to make method names uniform.
+
+Service interfaces should expose methods and events, not mutable internal
+structure:
+
+```ts
+export interface IFeatureService {
+  readonly onDidChangeFeature: Event<FeatureChangeEvent>;
+
+  getState(): FeatureState;
+  run(input: FeatureInput): Promise<void>;
+  update(update: FeatureUpdate): void;
+}
+```
+
+Do not expose private owner state as API:
+
+```ts
+export interface IFeatureService {
+  _model: FeatureModel;
+  _state: FeatureState;
+  _items: Map<string, Item>;
+}
+```
+
+## Event rule
+
+Events are facts, not commands.
+
+Good event names describe what changed:
+
+```ts
+onDidChangeConfiguration
+onDidChangeContext
+onDidChangeModel
+onDidChangeSelection
+onDidChangeVisibility
+onDidChangeViewState
+```
+
+Bad event names describe what a consumer should do:
+
+```ts
+onShouldRefreshView
+onNeedRenderPanel
+onForceUpdateUI
+```
+
+If an event name contains `should`, `need`, or `force`, the owner is probably
+crossing the boundary and controlling consumers. The owner should fire a state
+change event; subscribers decide how to respond.
+
+Subscriptions must be disposed:
+
+```ts
+this._register(service.onDidChangeSomething(() => {
+  this.update();
+}));
+```
+
+Do not subscribe without owning the listener lifetime:
+
+```ts
+service.onDidChangeSomething(() => {
+  this.update();
+});
+```
+
+## View rule
+
+Views are usually state readers and event subscribers.
+
+Views may register with the view registry, get services, subscribe to service /
+model / context / configuration events, update DOM from current state, and
+translate user interaction into commands or service calls.
+
+Views must not directly mutate service internals, control other views, own the
+only source of business truth, or bypass command/service boundaries for domain
+actions.
+
+Preferred flow:
+
+```txt
+user interaction
+  -> command / service API
+  -> service updates state
+  -> service fires event
+  -> view receives event
+  -> view reads current state
+  -> view updates DOM
+```
+
+Avoid:
+
+```txt
+user interaction
+  -> view directly mutates service._model
+  -> view manually calls otherView.refresh()
+```
+
+## Selection rule
+
+Selection belongs to a concrete owner. It is not global by default.
+
+Typical owners:
+
+```txt
+editor owns editor selection
+tree owns tree selection
+list owns list selection
+quick pick owns quick pick selection
+specific view owns its own local selection
+```
+
+The selection owner exposes the matching API or event:
+
+```ts
+readonly onDidChangeSelection: Event<SelectionChangeEvent>;
+
+getSelection(): Selection;
+setSelection(selection: Selection): void;
+```
+
+Consumers that care about selection changes subscribe to the owning component's
+`onDidChangeSelection` event. Do not collapse local selection into a global
+center such as `GlobalSelectionService`, `ActiveTargetService`, or
+`UniversalSelectionState` unless it is truly a workbench-wide platform
+capability with a clear owner, lifecycle, and consumer boundary.
+
+## Model and view state rule
+
+Model state represents business or structural facts. View state represents a
+view's own presentation and interaction state, such as visibility, focus,
+selection, expanded/collapsed nodes, scroll position, layout state, filter text,
+and sort state.
+
+Do not mix model state and view state. Usually:
+
+```txt
+service / model owner maintains core state
+view / widget maintains local view state
+external consumers read necessary state through public APIs
+changes are announced through onDidChangeXxx
+```
+
+Before promoting state into a global service, answer:
+
+```txt
+Who produces this state?
+Who mutates it?
+Who owns its lifecycle?
+Is it truly shared across modules?
+Does the external caller need the state itself, or only a behavior API?
+```
+
+## Architecture checklist
+
+Use these checks when judging whether code follows the Conductor / VS Code
+style:
+
+```txt
+1. Is the capability registered through contribution / registry / DI?
+2. Does the user entry dispatch through command / action / service API?
+3. Is state mutated only by an explicit owner?
+4. Are changes announced through onDidChangeXxx instead of owner-controlled consumers?
+```
+
+Common bad smells:
+
+```txt
+view directly mutates service._model
+service directly calls view.render()
+command handler contains complex business logic
+contribution file becomes the business orchestrator
+event name expresses a UI instruction instead of a state change
+external module holds a mutable reference to owner internals
+local selection is prematurely promoted to global selection
+event subscription is not disposed
+```
 
 ## Record and component documentation rule
 
@@ -31,11 +291,11 @@ A file responsibility table must not stop at `FooManager`. It must say whether t
 
 Conductor follows the same ordered-layer idea as VS Code:
 
-1. **`base`** — utilities and UI primitives. No workbench service dependency.
-2. **`platform`** — process/platform services such as files, dialogs, commands, context keys, storage, instantiation.
-3. **`workbench/services`** — cross-feature domain services and canonical service APIs.
-4. **`workbench/contrib`** — feature contributions, views, commands, actions, and UI composition.
-5. **entry points** — files that import/register contributions and services.
+1. **`base`** - utilities and UI primitives. No workbench service dependency.
+2. **`platform`** - process/platform services such as files, dialogs, commands, context keys, storage, instantiation.
+3. **`workbench/services`** - cross-feature domain services and canonical service APIs.
+4. **`workbench/contrib`** - feature contributions, views, commands, actions, and UI composition.
+5. **entry points** - files that import/register contributions and services.
 
 Layer rule:
 
@@ -209,11 +469,12 @@ Do not put these in `SessionModel`:
 
 Use service-specific state for those.
 
-## Active, focus, and selection
+## Domain active and selection owners
 
-Do not create a global `activeTarget` as the owner of every active object.
+This section applies the earlier selection rule to Conductor domains. Do not
+create a global `activeTarget` as the owner of every active object.
 
-Use this rule:
+Use this mapping:
 
 ```txt
 The service that owns the interaction owns the active/focus/selection state.
@@ -490,8 +751,6 @@ src/cs/workbench/services/export/
 src/cs/workbench/services/parameters/
   common/parameters.ts
   browser/parametersService.ts
-```
-
 
 src/cs/workbench/contrib/files/
   browser/files.ts
@@ -541,28 +800,35 @@ src/cs/workbench/contrib/parameters/
   browser/parametersCommands.ts
   browser/parametersActions.ts
   browser/parameters.contribution.ts
+```
 
 Views stay in `contrib/*`. Services own state and domain models.
 
-## Contribution rules
+## Contribution and command ownership
 
-- Each contribution has one `.contribution.ts` entry point.
+- Each feature has one `.contribution.ts` entry point for registration.
+- Contribution files register services, views, commands, actions, menus,
+  keybindings, and workbench contributions. They do not become business
+  orchestrators.
+- Commands live in `contrib/<feature>/browser/*Commands.ts` because commands
+  are workbench entry points.
+- Actions live in `contrib/<feature>/browser/*Actions.ts` and invoke command
+  IDs or small service APIs.
+- Services expose methods that commands call. Services do not register UI
+  commands.
 - Commands/actions live beside the contribution that owns the UI entry.
+- If a command needs dialog/progress/notification orchestration, create a
+  controller beside the contribution.
+- Command handlers pass explicit targets to services whenever possible. If no
+  target is passed, ask the owning service for its own local active/selection
+  state.
 - Commands call services; commands do not mutate `SessionModel` directly.
 - Views render service state; views do not own canonical records.
-- Cross-feature dependencies go through `services/*/common/*.ts` interfaces or explicit common models.
+- Cross-feature dependencies go through `services/*/common/*.ts` interfaces or
+  explicit common models.
 - Do not import from another contribution's internal `browser/` files.
-
-
-## Command ownership rules
-
-- Commands live in `contrib/<feature>/browser/*Commands.ts` because commands are workbench entry points.
-- Services expose methods that commands call; services do not register UI commands.
-- Actions live in `contrib/<feature>/browser/*Actions.ts` and only invoke command IDs.
-- If a command needs dialog/progress/notification orchestration, create a controller beside the contribution.
-- The handler must pass explicit targets to services whenever possible.
-- If no target is passed, ask the owning service for its own local active/selection state.
-- Avoid handlers that call `IViewsService.getViewWithId(...)` to mutate a view. That is acceptable only as a temporary migration bridge.
+- Avoid handlers that call `IViewsService.getViewWithId(...)` to mutate a view.
+  That is acceptable only as a temporary migration bridge.
 
 ## Migration order
 

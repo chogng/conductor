@@ -468,11 +468,11 @@ export class ExplorerViewPane extends ViewPane {
   };
 
   private notifyExplorerFilesRemoved(fileIds: readonly string[]): void {
-    if (this.isControlled && this.paneInput.selectionKind === "raw") {
+    if (this.isControlled && this.paneInput.selectionKind === "table") {
       return;
     }
 
-    const currentFileId = this.paneInput.selectionKind === "analysis"
+    const currentFileId = this.paneInput.selectionKind === "chart"
       ? this.explorerService.selectedProcessedFileId
       : this.explorerService.selectedRawFileId;
     if (!currentFileId || !fileIds.includes(currentFileId)) {
@@ -647,7 +647,7 @@ const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {
   onFilesRemoved: () => undefined,
   onFilesReplaced: () => undefined,
   selectedFileId: null,
-  selectionKind: "raw",
+  selectionKind: "table",
   thumbnailFiles: [],
 };
 

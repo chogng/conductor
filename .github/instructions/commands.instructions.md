@@ -8,6 +8,20 @@ Commands are the public entry points for user intent. Services own state and dom
 
 Use this file when adding commands, menu items, toolbar buttons, context-menu entries, keyboard shortcuts, or controllers that coordinate services.
 
+## Command ID Naming
+
+Command and action IDs describe the owning operation, not the UI entry point
+that happens to invoke it. A titlebar button, toolbar button, sidebar item,
+context menu item, or keybinding should execute the same owner command instead
+of introducing a location-scoped command such as `titlebar.selectFile`.
+
+Use UI-location names only for DOM ids, CSS hooks, test selectors, or local
+runtime action ids that are not command ids.
+
+Workbench mode commands use the mode vocabulary: `table` and `chart`. Do not
+rename chart-mode file selection to a generic legacy label such as `analysis`,
+and do not hide a mode switch behind a titlebar-specific command name.
+
 
 ## Choosing Command, Action2, or runtime Action
 

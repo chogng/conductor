@@ -194,31 +194,6 @@
   color: #ffffff;
 }
 
-/* Boot skeleton placeholders shown before the workbench is ready. */
-.titlebar-skeleton-icon-dot {
-  background-color: currentColor;
-  border-radius: 9999px;
-  height: 14px;
-  opacity: 0.15;
-  width: 14px;
-}
-
-.titlebar-skeleton-control-dot {
-  background-color: currentColor;
-  border-radius: 9999px;
-  height: 12px;
-  opacity: 0.15;
-  width: 12px;
-}
-
-.titlebar-skeleton-file-select {
-  background: rgb(var(--bg-surface) / 0.7);
-  border: 1px solid rgb(var(--border));
-  border-radius: 9999px;
-  height: 28px;
-  width: 176px;
-}
-
 /* Compact titlebar menu primitives used by titlebar actions and overflow affordances. */
 .titlebar-menu-trigger {
   border: 1px solid transparent;

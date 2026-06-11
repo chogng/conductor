@@ -300,7 +300,7 @@ Explorer view rerenders must not call `IThumbnailService.clear()` as a generic i
 Tree and thumbnail are two Explorer presentations over the same resource model. They must share Explorer selection, file item actions, and source workflow wiring.
 
 Selection follows the cross-service mirroring rule from
-`service-architecture.instructions.md`: Explorer owns Explorer selection. Other
+`architecture.instructions.md`: Explorer owns Explorer selection. Other
 domains may derive their own target inputs from it through the workbench
 composition layer or a view bridge, but Explorer must not call another domain's
 private lifecycle methods such as table preview invalidation.
@@ -464,8 +464,9 @@ Do not reintroduce `explorerPaneInput.ts`, `explorerPaneViewInput.ts`, or
 `explorerFileOptions.ts` under `contrib/files`. Explorer pane input is an
 Explorer service payload type on `browser/files.ts`; Workbench-only projection
 from session, template, plot, and processing state belongs in the Workbench
-composition layer. Chart file options belong to chart common code, not
-Explorer/files.
+composition layer, preferably as local `workbench.ts` composition methods rather
+than a parallel Workbench Explorer pane helper file. Chart file
+options belong to chart common code, not Explorer/files.
 
 Command handlers should use the actual upstream-shaped `IExplorerService` surface when the behavior is Explorer view/model state:
 
@@ -497,6 +498,11 @@ Conductor-specific commands should follow the upstream registration and handler 
 - Add-data commands belong in `fileActions.ts` / `fileActions.contribution.ts`. They may call source collection helpers in `fileImportExport.ts`, conversion in `fileConverter.ts`, and session commit APIs. Name any new helper after the concrete workflow, not after a generic import service.
 - Resource removal commands should be action/handler code that derives Explorer context and calls the appropriate session or file operation. Add an `IExplorerService` method only when the operation mutates Explorer view/model state rather than canonical session/file state.
 - Select/reveal behavior should use the upstream-shaped `IExplorerService.select(resource, reveal?)` and `IExplorerView.selectResource(...)` vocabulary.
+- Explorer selection kind follows the workbench mode vocabulary: `table` and
+  `chart`. The selected table-mode file may map to raw data and the selected
+  chart-mode file may map to processed data, but command/action targets should
+  not be named `analysis` or `titlebar` when the actual owner is Explorer/files
+  or workbench mode switching.
 - Tree/thumbnail layout is Conductor-specific view state. Keep it local to Explorer view/service state and do not document an upstream-style `setLayout(...)` method unless that method actually exists.
 - The Explorer more actionbar may execute the thumbnail contribution's layout toggle command, but Explorer file item actions remain in the shared files action/command set for both tree and thumbnail layouts.
 - File template selection belongs to Template canonical state. Explorer can host the action or expose local UI state, but should not own template selection semantics.

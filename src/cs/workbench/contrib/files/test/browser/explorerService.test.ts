@@ -9,21 +9,21 @@ import type { ExplorerSelectionChangeEvent } from "src/cs/workbench/contrib/file
 import type { ExplorerPaneInput } from "src/cs/workbench/contrib/files/browser/files";
 
 suite("workbench/contrib/files/test/browser/explorerService", () => {
-  test("stores raw and analysis selections independently", () => {
+  test("stores table and chart selections independently", () => {
     const service = new ExplorerService();
     const events: ExplorerSelectionChangeEvent[] = [];
     const disposable = service.onDidChangeSelection(event => {
       events.push(event);
     });
 
-    service.select({ kind: "raw", fileId: " raw-a " });
-    service.select({ kind: "analysis", fileId: "analysis-a" });
+    service.select({ kind: "table", fileId: " table-a " });
+    service.select({ kind: "chart", fileId: "chart-a" });
 
-    assert.equal(service.selectedRawFileId, "raw-a");
-    assert.equal(service.selectedProcessedFileId, "analysis-a");
+    assert.equal(service.selectedRawFileId, "table-a");
+    assert.equal(service.selectedProcessedFileId, "chart-a");
     assert.deepEqual(events, [
-      { kind: "raw", selectedFileId: "raw-a" },
-      { kind: "analysis", selectedFileId: "analysis-a" },
+      { kind: "table", selectedFileId: "table-a" },
+      { kind: "chart", selectedFileId: "chart-a" },
     ]);
     disposable.dispose();
   });
@@ -35,8 +35,8 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       changeCount += 1;
     });
 
-    service.select({ kind: "raw", fileId: "file-a" });
-    service.select({ kind: "raw", fileId: " file-a " });
+    service.select({ kind: "table", fileId: "file-a" });
+    service.select({ kind: "table", fileId: " file-a " });
 
     assert.equal(changeCount, 1);
     disposable.dispose();
@@ -49,7 +49,7 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       service.select({
         candidateFileIds: ["file-a", "file-b"],
         fileId: "file-b",
-        kind: "raw",
+        kind: "table",
       }, "force"),
       "file-b",
     );
@@ -57,7 +57,7 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       service.select({
         candidateFileIds: ["file-a"],
         fileId: "file-c",
-        kind: "raw",
+        kind: "table",
       }, "force"),
       "file-b",
     );
@@ -161,7 +161,7 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       onFilesRemoved: () => undefined,
       onFilesReplaced: () => undefined,
       selectedFileId: null,
-      selectionKind: "raw",
+      selectionKind: "table",
       thumbnailFiles: [],
     };
 

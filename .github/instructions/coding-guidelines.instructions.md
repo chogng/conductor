@@ -38,6 +38,13 @@ Use `CommandsRegistry.registerCommand(...)` when:
 
 Command handlers should only normalize input and dispatch to services/controllers.
 
+Command/action IDs should name the owning operation, not the UI entry point
+that invokes it. Do not create ids such as `titlebar.selectFile` for behavior
+owned by Files/Explorer or workbench mode switching. UI-location names are
+acceptable for DOM ids, CSS hooks, and local test selectors, but shared
+commands should use owner/mode vocabulary such as `table`, `chart`, `files`,
+`explorer`, or the concrete service operation.
+
 When an upstream feature exposes a service method for a user operation, preserve that split: register commands/actions for workbench entry points, and keep the operation on the service. Command handlers should normalize inputs and call the service method; they should not become the owner of selection, focus, layout, or workflow state.
 
 Example: upstream Explorer reveal/select commands call `IExplorerService.select(resource, reveal?)`. The command is the executable entry point, while Explorer selection/reveal state remains owned by the Explorer service/view.
@@ -398,7 +405,34 @@ plot -> chart DOM
 chart -> raw table parsing
 ```
 
-## 14. Migration comments
+## 14. Register, invoke, subscribe
+
+Conductor's core interaction pattern is:
+
+```txt
+contribution / registry / DI
+  -> register service / command / action / view / provider
+  -> command/action invoked
+  -> service method called
+  -> owned state changed
+  -> event fired
+  -> listener reads current state and updates itself
+```
+
+Register capabilities before consumers need them. Commands and actions are entry
+layers that invoke service APIs; they are not state owners. Publish state changes
+through the owning service's events, and let consumers decide whether to
+subscribe and how to consume the owner's public state or service surface.
+
+Events are for broadcasting state changes and notifications. Do not use events
+as hidden command dispatch, workflow control flow, or a way to make one
+component mutate another component's private state.
+
+Read `architecture.instructions.md` for the full registration,
+invocation, subscription, owner, event, view, selection, model/view-state, and
+disposable rules.
+
+## 15. Migration comments
 
 When keeping legacy code during migration, annotate the boundary:
 
@@ -414,7 +448,7 @@ Do not leave ambiguous generic TODOs such as:
 // TODO: clean up later
 ```
 
-## 15. Shared values follow ownership
+## 16. Shared values follow ownership
 
 Shared constants should follow the same ownership and import-direction rules as
 code. A value should live with the component, service, contribution, or common

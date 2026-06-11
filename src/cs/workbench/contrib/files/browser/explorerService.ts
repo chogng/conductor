@@ -54,11 +54,11 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
   };
 
   public get selectedRawFileId(): string | null {
-    return this.getSelectedFileId("raw");
+    return this.getSelectedFileId("table");
   }
 
   public get selectedProcessedFileId(): string | null {
-    return this.getSelectedFileId("analysis");
+    return this.getSelectedFileId("chart");
   }
 
   public get expandedFolderKeys(): readonly string[] {
@@ -198,7 +198,7 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
   }
 
   private getSelectedFileId(kind: ExplorerSelectionKind): string | null {
-    return kind === "raw"
+    return kind === "table"
       ? this.currentRawFileId
       : this.currentProcessedFileId;
   }
@@ -216,7 +216,7 @@ export class ExplorerService extends Disposable implements IExplorerServiceType 
       };
     }
 
-    if (kind === "raw") {
+    if (kind === "table") {
       this.currentRawFileId = nextFileId;
     } else {
       this.currentProcessedFileId = nextFileId;

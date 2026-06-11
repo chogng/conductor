@@ -9,6 +9,7 @@ import "src/cs/workbench/contrib/workspaces/browser/workspaces.contribution";
 import "src/cs/workbench/services/files/browser/rawTableRowsReaderService";
 import "src/cs/workbench/services/table/browser/tablePreviewLifecycle.contribution";
 import "src/cs/workbench/services/assessment/browser/assessment.contribution";
+import "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 import "src/cs/workbench/browser/workbench.contribution";
 import "src/cs/workbench/contrib/files/browser/files.contribution";
 import "src/cs/workbench/contrib/search/browser/search.contribution";

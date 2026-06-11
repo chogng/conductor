@@ -26,9 +26,18 @@ import {
   type IChartService,
 } from "src/cs/workbench/services/chart/common/chart";
 import {
+  type ExplorerImportedSessionFile,
+  type ExplorerPaneInput,
+  type ExplorerSelectionKind,
+  type ExplorerThumbnailPlotModel,
   ExplorerViewId,
   type IExplorerService,
 } from "src/cs/workbench/contrib/files/browser/files";
+import {
+  createChartExplorerFilesFromRecords,
+  resolveExplorerSelectionAfterRemoval,
+  resolveExplorerSelectedFileId,
+} from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { IParametersService } from "src/cs/workbench/services/parameters/common/parameters";
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import type { ISearchService } from "src/cs/workbench/services/search/common/search";
@@ -40,7 +49,6 @@ import type {
   ITemplateProcessingBackendService,
 } from "src/cs/workbench/services/template/common/templateProcessingBackend";
 import {
-  Parts,
   type LayoutView,
   type IWorkbenchLayoutService,
 } from "src/cs/workbench/services/layout/browser/layoutService";
@@ -84,11 +92,6 @@ import {
   TemplateApplyController,
 } from "src/cs/workbench/services/template/browser/templateApplyController";
 import { createTemplateApplyInput } from "src/cs/workbench/services/template/browser/templateApplyInput";
-import {
-  createExplorerPaneInput,
-  reconcileExplorerSessionSelection,
-  resolveExplorerSessionSelection,
-} from "src/cs/workbench/browser/workbenchExplorerPaneInput";
 import type {
   ISessionService as ISessionServiceType,
   SessionSnapshot,
@@ -110,7 +113,11 @@ import type {
 import type {
   ITemplateApplyService,
   ITemplateService,
+  TemplateState,
 } from "src/cs/workbench/services/template/common/template";
+import {
+  createCurrentTemplateSelectionDisplay,
+} from "src/cs/workbench/services/template/common/templateSelection";
 import {
   CoreSettingsController,
   createCoreSettingsState,
@@ -130,11 +137,21 @@ import type {
   PlotAxisTitleContext,
   PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
+import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 import type { XUnit, YUnit } from "src/cs/workbench/services/plot/common/units";
 import type {
+  ProcessingStatus,
   ProcessedEntry,
   ProcessedSeries,
+  SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
+import type {
+  FileImportResult,
+  ImportedFileRecord,
+} from "src/cs/workbench/services/files/common/files";
+import {
+  createFileImportResultFromRecords,
+} from "src/cs/workbench/services/files/common/files";
 import {
   getFileAxisSettingsByFileId,
   type FileAxisSettingsByFileId,
@@ -142,10 +159,7 @@ import {
 import { createChartViewInput } from "src/cs/workbench/services/chart/browser/chartViewInput";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
-  closeWindow,
-  minimizeWindow,
   reloadWindow,
-  toggleWindowMaximized,
 } from "src/cs/workbench/browser/actions/windowActions";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { NotificationToasts } from "src/cs/workbench/browser/parts/notifications/notificationsToasts";
@@ -162,16 +176,10 @@ export type WorkbenchTitlebarState = {
   readonly fileOptions?: WorkbenchTitlebarProps["fileOptions"];
   readonly canNavigateBack?: boolean;
   readonly canNavigateForward?: boolean;
+  readonly commandService?: ICommandService;
   readonly isSidebarVisible?: boolean;
   readonly onFileChange?: (fileId: string) => void;
-  readonly onAnalysisIntent?: () => void;
-  readonly onCloseWindow?: () => void;
-  readonly onMinimizeWindow?: () => void;
-  readonly onNavigateBack?: () => void;
-  readonly onNavigateForward?: () => void;
-  readonly onPageChange?: (page: LayoutView) => void;
-  readonly onToggleSidebar?: () => void;
-  readonly onToggleMaximizeWindow?: () => void;
+  readonly onChartIntent?: () => void;
   readonly showFileSelector?: boolean;
   readonly updateVersion?: string | null;
   readonly isUpdateReadyToInstall?: boolean;
@@ -220,16 +228,10 @@ export const createTitlebarState = (
         fileOptions: state.fileOptions,
         canNavigateBack: state.canNavigateBack,
         canNavigateForward: state.canNavigateForward,
+        commandService: state.commandService,
         isSidebarVisible: state.isSidebarVisible,
         onFileChange: state.onFileChange,
-        onAnalysisIntent: state.onAnalysisIntent,
-        onCloseWindow: state.onCloseWindow,
-        onMinimizeWindow: state.onMinimizeWindow,
-        onNavigateBack: state.onNavigateBack,
-        onNavigateForward: state.onNavigateForward,
-        onPageChange: state.onPageChange,
-        onToggleSidebar: state.onToggleSidebar,
-        onToggleMaximizeWindow: state.onToggleMaximizeWindow,
+        onChartIntent: state.onChartIntent,
         showFileSelector: state.showFileSelector,
         updateAction: {
           isVisible: Boolean(state.isUpdateReadyToInstall),
@@ -588,15 +590,9 @@ export class Workbench extends Layout {
       activePage: state.activeMainPart,
       canNavigateBack: state.layoutState.canNavigateBack,
       canNavigateForward: state.layoutState.canNavigateForward,
+      commandService: this.commandService,
       enabled: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
       isSidebarVisible: this.sidebarVisible,
-      onCloseWindow: () => closeWindow(),
-      onMinimizeWindow: () => minimizeWindow(),
-      onNavigateBack: () => this.handleNavigateBack(),
-      onNavigateForward: () => this.handleNavigateForward(),
-      onPageChange: (page) => this.handlePageAction(page),
-      onToggleSidebar: () => this.handleToggleSidebar(),
-      onToggleMaximizeWindow: () => toggleWindowMaximized(),
     };
   }
 
@@ -839,39 +835,11 @@ export class Workbench extends Layout {
 
   //#region navigation
 
-  private handleNavigateBack(): void {
-    this.navigateBack();
-    this.renderWorkbench();
-  }
-
-  private handleNavigateForward(): void {
-    this.navigateForward();
-    this.renderWorkbench();
-  }
-
-  private handlePageAction(page: LayoutView): void {
-    if (page === "settings") {
-      this.navigateToView(page);
-      this.renderWorkbench();
-      return;
-    }
-
-    this.showWorkbenchViewMode(page);
-  }
-
-  private handleToggleSidebar(): void {
-    this.layoutService.setPartHidden(
-      this.layoutService.isVisible(Parts.SIDEBAR_PART),
-      Parts.SIDEBAR_PART,
-    );
-    this.renderWorkbench();
-  }
-
   private readonly handleProcessedFileSelected = (fileId: string | null): void => {
     const nextFileId = String(fileId ?? "").trim() || null;
     const snapshot = this.session.getSnapshot();
     if (!nextFileId) {
-      this.explorerService.select({ kind: "analysis", fileId: null });
+      this.explorerService.select({ kind: "chart", fileId: null });
       return;
     }
 
@@ -882,7 +850,7 @@ export class Workbench extends Layout {
     this.explorerService.select({
       candidateFileIds: createSessionReadModel(snapshot).processedFileIds,
       fileId: nextFileId,
-      kind: "analysis",
+      kind: "chart",
     }, "force");
   };
 
@@ -1307,10 +1275,386 @@ export class Workbench extends Layout {
     }
   };
 
-  //#endregion
+//#endregion
 }
 
 //#region local helpers
+
+type ExplorerPaneSessionInput = {
+  readonly clearSession: () => void;
+  readonly commitFileImport: (result: FileImportResult) => void;
+  readonly removeFiles: (fileIds: readonly string[]) => void;
+};
+
+type ExplorerPaneProcessingInput = {
+  readonly processingStatus?: Partial<ProcessingStatus>;
+  readonly removeQueuedProcessingFile: (fileId: string) => void;
+  readonly resetProcessingWorker: () => void;
+};
+
+type CreateExplorerPaneInputOptions = {
+  readonly activePlotType: PlotType;
+  readonly explorerService: IExplorerService;
+  readonly mode: WorkbenchMainPart;
+  readonly originOpenPlotOptions?: OriginPlotOptions;
+  readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
+  readonly plotService: Pick<IPlotService, "getCalculatedData">;
+  readonly processing: ExplorerPaneProcessingInput;
+  readonly readModel: SessionReadModel;
+  readonly session: ExplorerPaneSessionInput;
+  readonly snapshot: SessionSnapshot;
+  readonly templateState: TemplateState;
+};
+
+type ExplorerSelectionService = Pick<
+  IExplorerService,
+  | "selectedProcessedFileId"
+  | "select"
+  | "selectedRawFileId"
+>;
+
+type ExplorerSessionSelection = {
+  readonly selectedRawFileId: string | null;
+  readonly selectedProcessedFileId: string | null;
+};
+
+type ExplorerSessionSelectionInput = {
+  readonly rawFileIds: readonly string[];
+  readonly processedFileIds: readonly string[];
+};
+
+type ExplorerSelectionState = Pick<
+  IExplorerService,
+  | "selectedProcessedFileId"
+  | "selectedRawFileId"
+>;
+
+type ExplorerSessionWorkflowOptions = {
+  clearSession: () => void;
+  commitFileImport: (result: FileImportResult) => void;
+  explorerService: ExplorerSelectionService;
+  hasSessionData?: boolean;
+  processingStatus?: Partial<ProcessingStatus>;
+  rawFiles?: SessionFile[];
+  removeQueuedProcessingFile: (fileId: string) => void;
+  resetProcessingWorker: () => void;
+  removeFiles: (fileIds: readonly string[]) => void;
+};
+
+const createExplorerSessionSelectionInput = (
+  readModel: SessionReadModel,
+): ExplorerSessionSelectionInput => ({
+  processedFileIds: readModel.processedFileIds,
+  rawFileIds: readModel.rawFiles.flatMap(file => file.fileId ? [file.fileId] : []),
+});
+
+const resolveExplorerSessionSelection = (
+  explorerService: ExplorerSelectionState,
+  readModel: SessionReadModel,
+): ExplorerSessionSelection => {
+  const input = createExplorerSessionSelectionInput(readModel);
+  return {
+    selectedProcessedFileId: resolveExplorerSelectedFileId(
+      explorerService.selectedProcessedFileId,
+      input.processedFileIds,
+    ),
+    selectedRawFileId: resolveExplorerSelectedFileId(
+      explorerService.selectedRawFileId,
+      input.rawFileIds,
+    ),
+  };
+};
+
+const reconcileExplorerSessionSelection = (
+  explorerService: IExplorerService,
+  readModel: SessionReadModel,
+): ExplorerSessionSelection => {
+  const input = createExplorerSessionSelectionInput(readModel);
+  const selectedProcessedFileId = reconcileExplorerSelectedFileId(
+    explorerService,
+    "chart",
+    explorerService.selectedProcessedFileId,
+    input.processedFileIds,
+  );
+  const selectedRawFileId = reconcileExplorerSelectedFileId(
+    explorerService,
+    "table",
+    explorerService.selectedRawFileId,
+    input.rawFileIds,
+  );
+
+  return {
+    selectedProcessedFileId,
+    selectedRawFileId,
+  };
+};
+
+export function createExplorerSessionWorkflow({
+  clearSession,
+  commitFileImport,
+  explorerService,
+  hasSessionData = false,
+  processingStatus = { state: "idle" },
+  rawFiles = [],
+  removeQueuedProcessingFile,
+  resetProcessingWorker,
+  removeFiles,
+}: ExplorerSessionWorkflowOptions) {
+  const getRawFileIds = (files: readonly SessionFile[] = rawFiles): readonly string[] =>
+    files
+      .map(file => String(file.fileId ?? "").trim())
+      .filter(fileId => fileId.length > 0);
+  const getSelectedRawFileId = (files: readonly SessionFile[] = rawFiles): string | null =>
+    explorerService.selectedRawFileId ??
+    resolveExplorerSelectedFileId(null, getRawFileIds(files));
+
+  const hasData = hasSessionData || rawFiles.length > 0;
+
+  const commitImportedFiles = (
+    files: readonly ExplorerImportedSessionFile[],
+    mode: "append" | "replace",
+  ): void => {
+    const importRecords = getImportedFileRecords(files);
+    if (mode === "replace") {
+      clearSession();
+    }
+    commitFileImport(createFileImportResultFromRecords(importRecords));
+  };
+
+  const handleClearSession = () => {
+    if (!hasData) {
+      return;
+    }
+
+    resetProcessingWorker();
+    clearSession();
+    explorerService.select({ kind: "table", fileId: null });
+  };
+
+  const handleFileImported = (fileInfo: ExplorerImportedSessionFile) => {
+    const importedFileId = fileInfo?.fileId ?? null;
+    const selectedRawFileId = getSelectedRawFileId();
+    commitImportedFiles([fileInfo], "append");
+    if (importedFileId && !selectedRawFileId) {
+      explorerService.select({
+        candidateFileIds: getRawFileIds([...rawFiles, fileInfo]),
+        fileId: importedFileId,
+        kind: "table",
+      }, "force");
+    }
+  };
+
+  const handleFilesAdded = (files: ExplorerImportedSessionFile[]) => {
+    if (!files.length) {
+      return;
+    }
+
+    const selectedRawFileId = getSelectedRawFileId();
+    const nextSelectedFileId = selectedRawFileId ?? files[0]?.fileId ?? null;
+    commitImportedFiles(files, "append");
+    if (!selectedRawFileId && nextSelectedFileId) {
+      explorerService.select({
+        candidateFileIds: getRawFileIds([...rawFiles, ...files]),
+        fileId: nextSelectedFileId,
+        kind: "table",
+      }, "force");
+    }
+  };
+
+  const handleFilesReplaced = (files: ExplorerImportedSessionFile[]) => {
+    resetProcessingWorker();
+
+    const nextSelectedFileId = files[0]?.fileId ?? null;
+    commitImportedFiles(files, "replace");
+    explorerService.select({
+      candidateFileIds: getRawFileIds(files),
+      fileId: nextSelectedFileId,
+      kind: "table",
+    }, "force");
+  };
+
+  const handleFileRemoved = (fileId: string) => {
+    handleFilesRemoved([fileId]);
+  };
+
+  const handleFilesRemoved = (fileIds: readonly string[]) => {
+    const removedFileIds = new Set(
+      fileIds
+        .map((fileId) => String(fileId ?? "").trim())
+        .filter((fileId) => fileId.length > 0),
+    );
+    if (removedFileIds.size === 0) {
+      return;
+    }
+
+    const remainingFiles = rawFiles.filter(entry =>
+      !removedFileIds.has(String(entry.fileId ?? "").trim())
+    );
+    const remainingFileIds = getRawFileIds(remainingFiles);
+
+    removeFiles([...removedFileIds]);
+    const nextSelectedFileId = resolveExplorerSelectionAfterRemoval({
+      currentFileId: explorerService.selectedRawFileId,
+      remainingFileIds,
+      removedFileIds: [...removedFileIds],
+    });
+    explorerService.select({
+      candidateFileIds: remainingFileIds,
+      fileId: nextSelectedFileId,
+      kind: "table",
+    }, "force");
+
+    if (processingStatus.state === "processing") {
+      for (const fileId of removedFileIds) {
+        removeQueuedProcessingFile(fileId);
+      }
+    }
+  };
+
+  return {
+    handleClearSession,
+    handleFileImported,
+    handleFilesAdded,
+    handleFilesReplaced,
+    handleFileRemoved,
+    handleFilesRemoved,
+    hasSessionData: hasData,
+  };
+}
+
+export const createExplorerPaneInput = ({
+  activePlotType,
+  explorerService,
+  mode,
+  originOpenPlotOptions,
+  plotAxisSettings,
+  plotService,
+  processing,
+  readModel,
+  session,
+  snapshot,
+  templateState,
+}: CreateExplorerPaneInputOptions): ExplorerPaneInput => {
+  const rawFiles = readModel.rawFiles;
+  const sessionWorkflow = createExplorerSessionWorkflow({
+    clearSession: session.clearSession,
+    commitFileImport: session.commitFileImport,
+    explorerService,
+    hasSessionData: readModel.hasSessionData,
+    processingStatus: processing.processingStatus,
+    rawFiles,
+    removeQueuedProcessingFile: processing.removeQueuedProcessingFile,
+    resetProcessingWorker: processing.resetProcessingWorker,
+    removeFiles: session.removeFiles,
+  });
+  const isChartMode = mode === "chart";
+  const selectionKind: ExplorerSelectionKind = isChartMode ? "chart" : "table";
+  const files = isChartMode
+    ? createChartExplorerFilesFromRecords(
+      snapshot.filesById,
+      snapshot.fileOrder,
+      rawFiles,
+    )
+    : rawFiles;
+  const fileIds = getExplorerPaneFileIds(files);
+  const thumbnailPlotModelsByFileId = isChartMode
+    ? createThumbnailPlotModelsByFileId({
+      activePlotType,
+      fileIds: readModel.processedFileIds,
+      plotService,
+      snapshot,
+    })
+    : undefined;
+  const selectedFileId = resolveExplorerSelectedFileId(
+    selectionKind === "chart"
+      ? explorerService.selectedProcessedFileId
+      : explorerService.selectedRawFileId,
+    fileIds,
+  );
+  const currentTemplate = createCurrentTemplateSelectionDisplay({
+    formName: templateState.formState.name,
+    selectedTemplateId: templateState.selectedTemplateId,
+  });
+  return {
+    activePlotType,
+    currentTemplateLabel: currentTemplate.label,
+    currentTemplateSelection: currentTemplate.selection,
+    fileTemplateSelectionsByFileId: templateState.selectionsByFileId,
+    files,
+    mode,
+    onFileImported: sessionWorkflow.handleFileImported,
+    onFileRemoved: sessionWorkflow.handleFileRemoved,
+    onFilesAdded: sessionWorkflow.handleFilesAdded,
+    onFilesRemoved: sessionWorkflow.handleFilesRemoved,
+    onFilesReplaced: sessionWorkflow.handleFilesReplaced,
+    originOpenPlotOptions,
+    plotAxisSettings,
+    selectedFileId,
+    selectionKind,
+    thumbnailFiles: readModel.processedFiles,
+    thumbnailPlotModelsByFileId,
+  };
+};
+
+const getImportedFileRecords = (
+  files: readonly ExplorerImportedSessionFile[],
+): readonly ImportedFileRecord[] => {
+  return files.map(file => file.importRecord);
+};
+
+const reconcileExplorerSelectedFileId = (
+  explorerService: Pick<IExplorerService, "select">,
+  kind: ExplorerSelectionKind,
+  selectedFileId: string | null,
+  fileIds: readonly string[],
+): string | null => {
+  const nextSelectedFileId = resolveExplorerSelectedFileId(selectedFileId, fileIds);
+  explorerService.select({
+    candidateFileIds: fileIds,
+    fileId: nextSelectedFileId,
+    kind,
+  });
+  return nextSelectedFileId;
+};
+
+const getExplorerPaneFileIds = (
+  files: readonly { readonly fileId?: string | null }[],
+): readonly string[] => {
+  return files
+    .map(file => String(file.fileId ?? "").trim())
+    .filter(fileId => fileId.length > 0);
+};
+
+const createThumbnailPlotModelsByFileId = ({
+  activePlotType,
+  fileIds,
+  plotService,
+  snapshot,
+}: {
+  readonly activePlotType: PlotType;
+  readonly fileIds: readonly string[];
+  readonly plotService: Pick<IPlotService, "getCalculatedData">;
+  readonly snapshot: SessionSnapshot;
+}): Readonly<Record<string, ExplorerThumbnailPlotModel>> => {
+  const modelsByFileId: Record<string, ExplorerThumbnailPlotModel> = {};
+  for (const fileId of fileIds) {
+    const normalizedFileId = String(fileId ?? "").trim();
+    if (!normalizedFileId) {
+      continue;
+    }
+
+    const model = plotService.getCalculatedData({
+      fileId: normalizedFileId,
+      plotType: activePlotType,
+      snapshot,
+    });
+    if (model) {
+      modelsByFileId[normalizedFileId] = model;
+    }
+  }
+
+  return modelsByFileId;
+};
 
 const getSeriesLabelsFromRecord = (
   file: FileRecord | null | undefined,

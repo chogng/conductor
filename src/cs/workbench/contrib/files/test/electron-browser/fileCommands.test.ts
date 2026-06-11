@@ -32,7 +32,7 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
       onFilesRemoved: () => {},
       onFilesReplaced: () => {},
       selectedFileId: "source-file",
-      selectionKind: "raw",
+      selectionKind: "table",
       thumbnailFiles: [],
     });
 
@@ -66,7 +66,7 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
       onFilesRemoved: () => {},
       onFilesReplaced: () => {},
       selectedFileId: "file-1",
-      selectionKind: "raw",
+      selectionKind: "table",
       thumbnailFiles: [],
     });
 

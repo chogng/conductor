@@ -1,89 +1,164 @@
 import { localize } from "src/cs/nls";
-import type {
-  WorkbenchTitlebarActivePage,
-  WorkbenchTitlebarFileOption,
-  WorkbenchTitlebarNavAction,
-  WorkbenchTitlebarPageAction,
-  WorkbenchTitlebarUpdateAction,
-  WorkbenchTitlebarWindowAction,
-} from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
+import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
+import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
+import {
+  IWorkbenchLayoutService,
+  Parts,
+} from "src/cs/workbench/services/layout/browser/layoutService";
+import {
+  closeWindow,
+  minimizeWindow,
+  toggleWindowMaximized,
+} from "src/cs/workbench/browser/actions/windowActions";
 
-export const WorkbenchTitlebarNavActionIds = {
-  back: "workbench-titlebar-nav-back-button",
-  forward: "workbench-titlebar-nav-forward-button",
+export const WorkbenchCommandId = {
+  navigateBack: "workbench.action.navigateBack",
+  navigateForward: "workbench.action.navigateForward",
+  showTable: "workbench.action.showTable",
+  showChart: "workbench.action.showChart",
+  toggleSidebar: "workbench.action.toggleSidebar",
+  minimizeWindow: "workbench.action.minimizeWindow",
+  toggleMaximizeWindow: "workbench.action.toggleMaximizeWindow",
+  closeWindow: "workbench.action.closeWindow",
 } as const;
 
-export const normalizeWorkbenchTitlebarFileOptions = (
-  options: WorkbenchTitlebarFileOption[] | undefined,
-): WorkbenchTitlebarFileOption[] =>
-  Array.isArray(options)
-    ? options.filter(
-        (option) =>
-          !!option &&
-          typeof option.value === "string" &&
-          typeof option.label === "string",
-      )
-    : [];
+class NavigateBackAction extends Action2 {
+  public constructor() {
+    super({
+      id: WorkbenchCommandId.navigateBack,
+      title: localize("titlebar.navigateBack", "Back"),
+      metadata: {
+        description: localize("titlebar.navigateBackDescription", "Navigate to the previous workbench view."),
+      },
+    });
+  }
 
-export const createWorkbenchTitlebarNavActions = (
-  canNavigateBack: boolean,
-  canNavigateForward: boolean,
-): WorkbenchTitlebarNavAction[] => [
-  {
-    id: WorkbenchTitlebarNavActionIds.back,
-    title: localize("menu_page_back", "Back"),
-    isDisabled: !canNavigateBack,
-  },
-  {
-    id: WorkbenchTitlebarNavActionIds.forward,
-    title: localize("menu_page_forward", "Forward"),
-    isDisabled: !canNavigateForward,
-  },
-];
+  public run(accessor: ServicesAccessor): void {
+    accessor.get(IWorkbenchLayoutService).navigateBack();
+  }
+}
 
-export const createWorkbenchTitlebarPageActions = (
-  activePage: WorkbenchTitlebarActivePage,
-): WorkbenchTitlebarPageAction[] => [
-  {
-    id: "table",
-    title: localize("titlebar.mode.table", "Table"),
-    isActive: activePage === "table",
-  },
-  {
-    id: "chart",
-    title: localize("titlebar.mode.chart", "Chart"),
-    isActive: activePage === "chart",
-  },
-];
+class NavigateForwardAction extends Action2 {
+  public constructor() {
+    super({
+      id: WorkbenchCommandId.navigateForward,
+      title: localize("titlebar.navigateForward", "Forward"),
+      metadata: {
+        description: localize("titlebar.navigateForwardDescription", "Navigate to the next workbench view."),
+      },
+    });
+  }
 
-export const createWorkbenchTitlebarWindowActions =
-(): WorkbenchTitlebarWindowAction[] => [
-  {
-    id: "minimize",
-    title: localize("menu_window_minimize", "Minimize Window"),
-  },
-  {
-    id: "maximize",
-    title: localize("menu_window_maximize", "Maximize / Restore"),
-  },
-  {
-    id: "close",
-    title: localize("menu_window_close", "Close Window"),
-    isDanger: true,
-  },
-];
+  public run(accessor: ServicesAccessor): void {
+    accessor.get(IWorkbenchLayoutService).navigateForward();
+  }
+}
 
-export const getWorkbenchTitlebarUpdateLabel = (): string =>
-  localize("menu_update_available", "Update");
+class ShowTableAction extends Action2 {
+  public constructor() {
+    super({
+      id: WorkbenchCommandId.showTable,
+      title: localize("titlebar.mode.table", "Table"),
+      metadata: {
+        description: localize("titlebar.showTableDescription", "Show the table workbench view."),
+      },
+    });
+  }
 
-export const getWorkbenchTitlebarUpdateTitle = (
-  updateAction?: WorkbenchTitlebarUpdateAction,
-): string => {
-  const label = getWorkbenchTitlebarUpdateLabel();
-  const version =
-    typeof updateAction?.version === "string" && updateAction.version.trim()
-      ? updateAction.version.trim()
-      : "";
+  public run(accessor: ServicesAccessor): void {
+    accessor.get(IWorkbenchLayoutService).navigateToView("table");
+  }
+}
 
-  return version ? `${label} (${version})` : label;
-};
+class ShowChartAction extends Action2 {
+  public constructor() {
+    super({
+      id: WorkbenchCommandId.showChart,
+      title: localize("titlebar.mode.chart", "Chart"),
+      metadata: {
+        description: localize("titlebar.showChartDescription", "Show the chart workbench view."),
+      },
+    });
+  }
+
+  public run(accessor: ServicesAccessor): void {
+    accessor.get(IWorkbenchLayoutService).navigateToView("chart");
+  }
+}
+
+class ToggleSidebarAction extends Action2 {
+  public constructor() {
+    super({
+      id: WorkbenchCommandId.toggleSidebar,
+      title: localize("titlebar.toggleSidebar", "Toggle Sidebar"),
+      metadata: {
+        description: localize("titlebar.toggleSidebarDescription", "Toggle the workbench sidebar."),
+      },
+    });
+  }
+
+  public run(accessor: ServicesAccessor): void {
+    const layoutService = accessor.get(IWorkbenchLayoutService);
+    layoutService.setPartHidden(
+      layoutService.isVisible(Parts.SIDEBAR_PART),
+      Parts.SIDEBAR_PART,
+    );
+  }
+}
+
+class MinimizeWindowAction extends Action2 {
+  public constructor() {
+    super({
+      id: WorkbenchCommandId.minimizeWindow,
+      title: localize("menu_window_minimize", "Minimize Window"),
+      metadata: {
+        description: localize("titlebar.minimizeWindowDescription", "Minimize the current window."),
+      },
+    });
+  }
+
+  public run(): void {
+    minimizeWindow();
+  }
+}
+
+class ToggleMaximizeWindowAction extends Action2 {
+  public constructor() {
+    super({
+      id: WorkbenchCommandId.toggleMaximizeWindow,
+      title: localize("menu_window_maximize", "Maximize / Restore"),
+      metadata: {
+        description: localize("titlebar.toggleMaximizeWindowDescription", "Maximize or restore the current window."),
+      },
+    });
+  }
+
+  public run(): void {
+    toggleWindowMaximized();
+  }
+}
+
+class CloseWindowAction extends Action2 {
+  public constructor() {
+    super({
+      id: WorkbenchCommandId.closeWindow,
+      title: localize("menu_window_close", "Close Window"),
+      metadata: {
+        description: localize("titlebar.closeWindowDescription", "Close the current window."),
+      },
+    });
+  }
+
+  public run(): void {
+    closeWindow();
+  }
+}
+
+registerAction2(NavigateBackAction);
+registerAction2(NavigateForwardAction);
+registerAction2(ShowTableAction);
+registerAction2(ShowChartAction);
+registerAction2(ToggleSidebarAction);
+registerAction2(MinimizeWindowAction);
+registerAction2(ToggleMaximizeWindowAction);
+registerAction2(CloseWindowAction);

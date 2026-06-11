@@ -25,7 +25,7 @@ import type {
 export const IExplorerService = createDecorator<IExplorerService>("explorerService");
 export const ExplorerViewId = "workbench.files";
 
-export type ExplorerSelectionKind = "raw" | "analysis";
+export type ExplorerSelectionKind = WorkbenchMainPart;
 
 export type ExplorerViewLayout = FilesViewLayout;
 
