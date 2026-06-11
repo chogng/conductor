@@ -23,8 +23,9 @@ import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMa
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { AnchorAxisAlignment, AnchorPosition } from "src/cs/base/common/layout";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import { isMacintosh, isWindows } from "src/cs/base/common/platform";
 import { SubmenuAction, type IAction } from "src/cs/base/common/actions";
-import type { ICommandService } from "src/cs/platform/commands/common/commands";
+import { CommandsRegistry, type ICommandService } from "src/cs/platform/commands/common/commands";
 import type {
   IContextMenuService,
   IContextViewService,
@@ -33,13 +34,14 @@ import type {
 import { localize } from "src/cs/nls";
 import {
   type FilesViewLayout,
+  REVEAL_IN_OS_COMMAND_ID,
   REMOVE_FILE_ITEM_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
   SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/common/files";
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
-import type { ExplorerThumbnailPlotModel } from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
+import type { ExplorerThumbnailPlotModel } from "src/cs/workbench/contrib/files/browser/files";
 import { FileKind, ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
 import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
@@ -505,7 +507,7 @@ export class ExplorerViewer implements IDisposable {
   };
 
   private createFileContextActions(fileId: string): IAction[] {
-    return [
+    const actions: IAction[] = [
       createMenuAction({
         id: REMOVE_FILE_ITEM_COMMAND_ID,
         label: localize("files.item.delete", "Delete"),
@@ -546,6 +548,33 @@ export class ExplorerViewer implements IDisposable {
         }),
       ),
     ];
+
+    if (this.canRevealFileInOS(fileId)) {
+      actions.push(createMenuAction({
+        id: REVEAL_IN_OS_COMMAND_ID,
+        label: getRevealInOSLabel(),
+        run: () => {
+          void this.props.commandService.executeCommand(
+            REVEAL_IN_OS_COMMAND_ID,
+            fileId,
+          );
+        },
+      }));
+    }
+
+    return actions;
+  }
+
+  private canRevealFileInOS(fileId: string): boolean {
+    if (!CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND_ID)) {
+      return false;
+    }
+
+    const file = this.props.files.find(candidate => candidate.fileId === fileId);
+    return Boolean(
+      String(file?.sourcePath ?? "").trim() ||
+      String(file?.normalizedCsvPath ?? "").trim(),
+    );
   }
 
   private createTemplateContextActions({
@@ -1374,6 +1403,18 @@ function getEffectiveViewLayout(
   props: Pick<ExplorerViewerProps, "mode" | "viewLayout">,
 ): FilesViewLayout {
   return props.mode === "chart" ? props.viewLayout ?? "tree" : "tree";
+}
+
+function getRevealInOSLabel(): string {
+  if (isWindows) {
+    return localize("files.revealInWindows", "Reveal in File Explorer");
+  }
+
+  if (isMacintosh) {
+    return localize("files.revealInMac", "Reveal in Finder");
+  }
+
+  return localize("files.openContainingFolder", "Open Containing Folder");
 }
 
 function areStringArraysEqual(

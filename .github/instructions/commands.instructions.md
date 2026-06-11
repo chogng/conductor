@@ -28,7 +28,17 @@ Action2 = a declarative command/menu/keybinding registration
 Command = the executable entry point
 ```
 
-`Action2` often registers a command, but it does not replace runtime `Action`. New command/menu/keybinding work should usually use `Action2`; UI component action objects should still use `Action` when they need mutable runtime state.
+`Action2` registers a command with the same id as the action descriptor. This
+matches upstream: an `Action2` can be the command entry when the operation needs
+menu/keybinding/Command Palette metadata. Do not register
+`CommandsRegistry.registerCommand(...)` and `registerAction2(...)` with the same
+id.
+
+When there is no UI metadata, use `CommandsRegistry.registerCommand(...)`
+directly. When there is UI metadata, use `Action2` and keep `run(...)` small:
+normalize arguments if needed and delegate to a handler, controller, or service.
+Do not invent a second internal command id just to wrap every Action2 unless the
+operation genuinely needs a separate non-UI command surface.
 
 ## Command layers
 
@@ -53,9 +63,9 @@ Do not skip from a button directly into a view mutation when the action is a dom
 | File | Responsibility | Must not do |
 | --- | --- | --- |
 | `src/cs/platform/commands/common/commands.ts` | Defines `ICommandService`, `CommandsRegistry`, command metadata, command events. Platform-level only. | Import workbench services or contrib views. |
-| `src/cs/workbench/contrib/<feature>/browser/<feature>Commands.ts` | Registers command IDs and command handlers for a feature. Validates args, resolves services through `ServicesAccessor`, delegates. | Own long-lived state, mutate DOM, mutate `SessionModel` directly. |
-| `src/cs/workbench/contrib/<feature>/browser/<feature>Actions.ts` | Registers menu/action/keybinding/context-menu affordances for existing command IDs. | Reimplement command logic. |
-| `src/cs/workbench/contrib/<feature>/browser/<feature>.contribution.ts` | Entry point that imports/registers commands/actions, wires lifecycle contributions, and registers views. | Become a domain service or a large controller. |
+| `src/cs/workbench/contrib/<feature>/browser/<feature>Commands.ts` | Registers bare command IDs or exports command handlers for a feature. Validates args, resolves services through `ServicesAccessor`, delegates. | Own long-lived state, mutate DOM, mutate `SessionModel` directly. |
+| `src/cs/workbench/contrib/<feature>/browser/<feature>Actions.ts` | Defines `Action2` classes and runtime action helpers. `Action2.run(...)` may call command handlers, controllers, or services directly when that action id is the command id. | Reimplement substantial command logic. |
+| `src/cs/workbench/contrib/<feature>/browser/<feature>.contribution.ts` | Entry point that registers commands/actions/menu items/keybindings, wires lifecycle contributions, and registers views. | Become a domain service or a large controller. |
 | `src/cs/workbench/contrib/<feature>/browser/<feature>Controller.ts` | Optional coordinator for multi-step workflows: dialogs, progress, notifications, batching, worker start/stop. | Store canonical records or become a substitute service. |
 | `src/cs/workbench/services/<domain>/common/<domain>.ts` | Service interface, records, event types, command-facing target/input types if they are domain-level. | Register UI commands. |
 | `src/cs/workbench/services/<domain>/browser/<domain>Service.ts` | State owner and domain implementation. | Depend on views or command files. |
@@ -121,7 +131,7 @@ const target = normalizeTableRangeTarget(rawTarget)
 
 | Command family | Command file | Target owner | Handler delegates to | Notes |
 | --- | --- | --- | --- | --- |
-| Explorer add-data/remove/select/toggle layout | `contrib/files/browser/fileCommands.ts` plus `fileActions.ts` / `fileActions.contribution.ts` | Explorer action/handler or `IExplorerService` for view/model behavior | Upstream-shaped `IExplorerService` methods, session/file services, or focused source/conversion helpers | Explorer commands should stop reaching into `FilesPaneHost` after migration. Do not invent placeholder Explorer service methods when the behavior belongs to an action/handler or another domain service. |
+| Explorer add-data/remove/select/toggle layout | `contrib/files/browser/fileCommands.ts` plus `fileActions.ts` / `fileActions.contribution.ts` | Explorer action/handler or `IExplorerService` for view/model behavior | Upstream-shaped `IExplorerService` methods, session/file services, or focused source/conversion helpers | Explorer commands should not reach into `ExplorerViewPane` after migration. Do not invent placeholder Explorer service methods when the behavior belongs to an action/handler or another domain service. |
 | File system read/write/watch | platform services, not workbench commands by default | `IFileService` | `IFileService` | Low-level filesystem capability; not Explorer state. |
 | Raw import conversion | Explorer action/source workflow, not a user-facing command by default | `workbench/services/files` conversion contracts | `fileConverter.ts` through Explorer source workflow | No user-facing command should call conversion and session separately. Conversion returns `FileConversionResult`/`RawTableRecord`; Explorer workflow commits successful results. |
 | Re-assess raw table | `assessmentCommands.ts` | `IAssessmentService` | `IAssessmentService.assessRawTable`, then `ISessionService.commitRawTableAssessment` | Optional developer/user command. Assessment remains the only block detector. |

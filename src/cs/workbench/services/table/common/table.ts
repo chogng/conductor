@@ -136,8 +136,7 @@ export type TableState = {
 export type TableInput = {
 	tableBackendService?: TableBackendPreviewProvider;
 	rawFiles?: SessionFile[];
-	selectedFileId?: string | null;
-	selectedSheetId?: string | null;
+	source?: TableSource | null;
 	file?: TableFile | null;
 	loadState?: TableLoadState;
 	setFile?: Dispatch<SetStateAction<TableFile | null>>;

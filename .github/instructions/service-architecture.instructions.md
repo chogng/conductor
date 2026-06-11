@@ -233,6 +233,42 @@ Examples:
 
 Use `CommandTarget` as a command argument, not as global session state.
 
+## Cross-service selection mirroring
+
+When one service needs to reflect another service's active item, keep ownership
+with the original service and mirror through an explicit bridge. Do not move the
+state into a shared object, do not name the receiving service input after the
+source service's state, and do not make the source service call the receiving
+service's private lifecycle methods.
+
+Upstream Explorer/Editor pattern:
+
+```txt
+EditorService owns activeEditor.
+ExplorerView listens to EditorService.onDidActiveEditorChange.
+ExplorerView derives the active editor resource.
+ExplorerView calls ExplorerService.select(resource, reveal).
+ExplorerService owns Explorer selection/reveal and calls ExplorerView.selectResource(...).
+```
+
+Important consequences:
+
+- Editor does not own Explorer tree selection.
+- Explorer does not store editor active state as its canonical state.
+- Explorer service does not subscribe to editor and mutate unrelated domains.
+- The bridge translates between domain terms: editor resource -> explorer resource.
+- Commands may bridge domains, but the target service still owns its state.
+
+Use the same rule for Conductor domains:
+
+```txt
+Explorer owns selected Explorer resource.
+Table owns current TableSource, preview lifecycle, and table selection.
+Workbench or a feature view may translate selected Explorer resource -> TableSource.
+TableService.update(...) receives source: TableSource | null, not selectedFileId.
+Files/Explorer must not call Table preview invalidation or row-cache methods.
+```
+
 ## Import flow
 
 ```mermaid

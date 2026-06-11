@@ -125,7 +125,7 @@ A blank workbench can happen when a view contribution fails during startup befor
 One known failure mode was:
 
 ```txt
-FilesPaneHost extends ViewPane
+ExplorerViewPane extends ViewPane
   -> constructor calls this._register(...)
   -> local ViewPane did not provide _register
   -> contribution creation throws

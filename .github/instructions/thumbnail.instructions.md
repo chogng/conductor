@@ -98,20 +98,20 @@ Layout toggle command sequence:
 ```mermaid
 sequenceDiagram
     actor User
-    participant FilesPaneHost
+    participant ExplorerViewPane
     participant CommandService as ICommandService
     participant ThumbnailAction as ToggleThumbnailViewAction
     participant ThumbnailCommand as toggleThumbnailViewHandler
     participant ExplorerService as IExplorerService
 
-    User->>FilesPaneHost: click Explorer more actionbar Thumbnail
-    FilesPaneHost->>CommandService: executeCommand(TOGGLE_THUMBNAIL_VIEW_ACTION_ID)
+    User->>ExplorerViewPane: click Explorer more actionbar Thumbnail
+    ExplorerViewPane->>CommandService: executeCommand(TOGGLE_THUMBNAIL_VIEW_ACTION_ID)
     CommandService->>ThumbnailAction: run(accessor)
     ThumbnailAction->>ThumbnailCommand: toggleThumbnailViewHandler(accessor)
     ThumbnailCommand->>ExplorerService: toggleViewLayout()
-    ExplorerService-->>FilesPaneHost: onDidChangeViewLayout(viewLayout)
-    FilesPaneHost->>FilesPaneHost: update Explorer props
-    FilesPaneHost->>ExplorerViewer: render tree or thumbnail layout
+    ExplorerService-->>ExplorerViewPane: onDidChangeViewLayout(viewLayout)
+    ExplorerViewPane->>ExplorerViewPane: update Explorer props
+    ExplorerViewPane->>ExplorerViewer: render tree or thumbnail layout
 ```
 
 Selection sequence:
@@ -120,22 +120,21 @@ Selection sequence:
 sequenceDiagram
     actor User
     participant ExplorerViewer
-    participant FilesController
-    participant ExplorerPaneInput as Explorer pane input
+    participant ExplorerViewPane
     participant ExplorerService as IExplorerService
+    participant Workbench
 
     alt tree layout
         User->>ExplorerViewer: select tree file item
-        ExplorerViewer->>FilesController: onSelectFile(fileId)
+        ExplorerViewer->>ExplorerViewPane: onSelectFile(fileId)
     else thumbnail layout
         User->>ExplorerViewer: click thumbnail file item
-        ExplorerViewer->>FilesController: onSelectFile(fileId)
+        ExplorerViewer->>ExplorerViewPane: onSelectFile(fileId)
     end
-    FilesController->>ExplorerPaneInput: onFileSelected(fileId)
-    ExplorerPaneInput->>ExplorerService: select({ kind, fileId, candidateFileIds }, reveal?)
-    ExplorerService-->>ExplorerPaneInput: selected file id
-    ExplorerPaneInput-->>FilesController: pane input with selectedFileId
-    FilesController->>ExplorerViewer: setProps({ selectedFileId })
+    ExplorerViewPane->>ExplorerService: select({ kind, fileId, candidateFileIds }, reveal?)
+    ExplorerService-->>Workbench: onDidChangeSelection({ kind, selectedFileId })
+    Workbench->>ExplorerService: updatePaneInput({ selectedFileId, files, ... })
+    ExplorerViewPane->>ExplorerViewer: setProps({ selectedFileId })
     ExplorerViewer->>ExplorerViewer: createThumbnailView({ isActive })
 ```
 

@@ -7,6 +7,7 @@ import { Disposable, toDisposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
   IExplorerService,
+  type ExplorerPaneInput,
   type ExplorerFolderExpansionChangeEvent,
   type ExplorerSelectionChangeEvent,
   type ExplorerContext,
@@ -19,8 +20,7 @@ import {
   type IExplorerView,
   type ExplorerViewLayout,
   type IExplorerService as IExplorerServiceType,
-} from "src/cs/workbench/contrib/files/common/explorer";
-import type { ExplorerPaneInput } from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
+} from "src/cs/workbench/contrib/files/browser/files";
 
 export class ExplorerService extends Disposable implements IExplorerServiceType {
   public declare readonly _serviceBrand: undefined;

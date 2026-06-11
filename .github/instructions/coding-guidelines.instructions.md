@@ -184,10 +184,10 @@ button/menu/keybinding/context menu
 
 Do not make command handlers reach into view objects after migration.
 
-Allowed during migration:
+Legacy migration bridge, now avoided:
 
 ```ts
-accessor.get(IViewsService).getViewWithId<FilesPaneHost>(FilesViewId)?.removeFile(fileId);
+accessor.get(IViewsService).getViewWithId<ExplorerViewPane>(ExplorerViewId)?.refresh();
 ```
 
 Target state should use the actual upstream-shaped service surface for Explorer view/model behavior:
@@ -196,7 +196,11 @@ Target state should use the actual upstream-shaped service surface for Explorer 
 accessor.get(IExplorerService).select(resource, 'force');
 ```
 
-If a command currently calls `FilesPaneHost`, mark it as migration-only and move Explorer view/model behavior into `IExplorerService` or the upstream-aligned action/handler path. Do not create placeholder methods such as `removeResources(...)`, `setSelection(...)`, or `setLayout(...)` unless the new API is explicitly Conductor-specific and justified.
+If a command currently calls an Explorer view object directly, mark it as
+migration-only and move Explorer view/model behavior into `IExplorerService` or
+the upstream-aligned action/handler path. Do not create placeholder methods such
+as `removeResources(...)`, `setSelection(...)`, or `setLayout(...)` unless the
+new API is explicitly Conductor-specific and justified.
 
 ## 8. Files capability vs Explorer UI vs FileService naming
 
@@ -336,7 +340,43 @@ Allowed component suffixes:
 
 Only use `Manager` when none of these names is accurate. That should be rare.
 
-## 12. Service and contribution dependencies
+## 12. Cross-service selection mirroring
+
+When one domain needs to reflect another domain's active item, keep ownership
+with the original domain and mirror through an explicit bridge. Do not move the
+state into a shared object, do not name the receiving service input after the
+source service's state, and do not make the source service call the receiving
+service's private lifecycle methods.
+
+Use the upstream Explorer/Editor pattern:
+
+```txt
+EditorService owns activeEditor.
+ExplorerView listens to EditorService.onDidActiveEditorChange.
+ExplorerView derives the active editor resource.
+ExplorerView calls ExplorerService.select(resource, reveal).
+ExplorerService owns Explorer selection/reveal and calls ExplorerView.selectResource(...).
+```
+
+Applied to Conductor:
+
+```txt
+Explorer owns selected Explorer resource.
+Table owns current TableSource, preview lifecycle, and table selection.
+Workbench or a feature view may translate selected Explorer resource -> TableSource.
+TableService.update(...) receives source: TableSource | null, not selectedFileId.
+Files/Explorer must not call Table preview invalidation or row-cache methods.
+```
+
+Practical rules:
+
+- The owner service names state in its own vocabulary.
+- A bridge translates source-domain state into target-domain input.
+- Commands may bridge domains, but the target service still owns its state.
+- Do not add callback fields to pane input just to bounce a selection across services.
+- Do not call another service's cache invalidation, preview reset, worker reset, or private lifecycle methods from a source-domain selection handler.
+
+## 13. Service and contribution dependencies
 
 Allowed direction:
 
@@ -358,13 +398,13 @@ plot -> chart DOM
 chart -> raw table parsing
 ```
 
-## 13. Migration comments
+## 14. Migration comments
 
 When keeping legacy code during migration, annotate the boundary:
 
 ```ts
 // TODO(conductor-architecture): Migration bridge.
-// This command currently calls FilesPaneHost because IExplorerService is not wired yet.
+// This command currently calls ExplorerViewPane because IExplorerService is not wired yet.
 // Move the behavior into IExplorerService and keep this handler as argument normalization only.
 ```
 

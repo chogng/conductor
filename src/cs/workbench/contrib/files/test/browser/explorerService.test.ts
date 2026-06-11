@@ -5,8 +5,8 @@
 import assert from "assert";
 
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
-import type { ExplorerSelectionChangeEvent } from "src/cs/workbench/contrib/files/common/explorer";
-import type { ExplorerPaneInput } from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
+import type { ExplorerSelectionChangeEvent } from "src/cs/workbench/contrib/files/browser/files";
+import type { ExplorerPaneInput } from "src/cs/workbench/contrib/files/browser/files";
 
 suite("workbench/contrib/files/test/browser/explorerService", () => {
   test("stores raw and analysis selections independently", () => {
@@ -157,7 +157,6 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       mode: "table",
       onFileImported: () => undefined,
       onFileRemoved: () => undefined,
-      onFileSelected: () => undefined,
       onFilesAdded: () => undefined,
       onFilesRemoved: () => undefined,
       onFilesReplaced: () => undefined,

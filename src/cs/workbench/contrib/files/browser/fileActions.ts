@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from "src/cs/nls";
-import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
+import { Action2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import {
   ADD_FOLDER_ACTION_ID,
@@ -21,84 +21,99 @@ import {
   setFileTemplateHandler,
   sliceFileWithTemplateHandler,
 } from "src/cs/workbench/contrib/files/browser/fileCommands";
-function registerFileActions(): void {
-  registerAction2(class AddFolderAction extends Action2 {
-    public constructor() {
-      super({
-        id: ADD_FOLDER_ACTION_ID,
-        title: localize("files.addFolder", "Add Folder"),
-      });
-    }
 
-    public run(accessor: ServicesAccessor): void {
-      addFolderHandler(accessor);
-    }
-  });
+export class AddFolderAction extends Action2 {
+  public constructor() {
+    super({
+      id: ADD_FOLDER_ACTION_ID,
+      title: localize("files.addFolder", "Add Folder"),
+      metadata: {
+        description: localize("files.actions.addFolder", "Open the Explorer folder import workflow."),
+      },
+    });
+  }
 
-  registerAction2(class RemoveFolderAction extends Action2 {
-    public constructor() {
-      super({
-        id: REMOVE_FOLDER_ACTION_ID,
-        title: localize("files.removeFolder", "Remove Folder"),
-      });
-    }
-
-    public run(accessor: ServicesAccessor): void {
-      removeFolderHandler(accessor);
-    }
-  });
-
-  registerAction2(class RemoveFileItemAction extends Action2 {
-    public constructor() {
-      super({
-        id: REMOVE_FILE_ITEM_COMMAND_ID,
-        title: localize("files.item.delete", "Delete"),
-      });
-    }
-
-    public run(accessor: ServicesAccessor, fileId: unknown): void {
-      removeFileItemHandler(accessor, fileId);
-    }
-  });
-
-  registerAction2(class RenameFileItemAction extends Action2 {
-    public constructor() {
-      super({
-        id: RENAME_FILE_ITEM_COMMAND_ID,
-        title: localize("files.item.rename", "Rename"),
-      });
-    }
-
-    public run(accessor: ServicesAccessor, fileId: unknown): void {
-      renameFileItemHandler(accessor, fileId);
-    }
-  });
-
-  registerAction2(class SetFileTemplateAction extends Action2 {
-    public constructor() {
-      super({
-        id: SET_FILE_TEMPLATE_COMMAND_ID,
-        title: localize("files.item.setTemplate", "Set with Template"),
-      });
-    }
-
-    public run(accessor: ServicesAccessor, fileId: unknown, selection: unknown): void {
-      setFileTemplateHandler(accessor, fileId, selection);
-    }
-  });
-
-  registerAction2(class SliceFileWithTemplateAction extends Action2 {
-    public constructor() {
-      super({
-        id: SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
-        title: localize("files.item.sliceWithTemplate", "Slice with Template"),
-      });
-    }
-
-    public run(accessor: ServicesAccessor, fileId: unknown, selection: unknown): void {
-      sliceFileWithTemplateHandler(accessor, fileId, selection);
-    }
-  });
+  public run(accessor: ServicesAccessor): void {
+    addFolderHandler(accessor);
+  }
 }
 
-registerFileActions();
+export class RemoveFolderAction extends Action2 {
+  public constructor() {
+    super({
+      id: REMOVE_FOLDER_ACTION_ID,
+      title: localize("files.removeFolder", "Remove Folder"),
+      metadata: {
+        description: localize("files.actions.removeFolder", "Remove the selected imported folder."),
+      },
+    });
+  }
+
+  public run(accessor: ServicesAccessor): void {
+    removeFolderHandler(accessor);
+  }
+}
+
+export class RemoveFileItemAction extends Action2 {
+  public constructor() {
+    super({
+      id: REMOVE_FILE_ITEM_COMMAND_ID,
+      title: localize("files.item.delete", "Delete"),
+      metadata: {
+        description: localize("files.actions.removeFileItem", "Remove an imported file from the Explorer."),
+      },
+    });
+  }
+
+  public run(accessor: ServicesAccessor, fileId: unknown): void {
+    removeFileItemHandler(accessor, fileId);
+  }
+}
+
+export class RenameFileItemAction extends Action2 {
+  public constructor() {
+    super({
+      id: RENAME_FILE_ITEM_COMMAND_ID,
+      title: localize("files.item.rename", "Rename"),
+      metadata: {
+        description: localize("files.actions.renameFileItem", "Rename an imported file in the Explorer."),
+      },
+    });
+  }
+
+  public run(accessor: ServicesAccessor, fileId: unknown): void {
+    renameFileItemHandler(accessor, fileId);
+  }
+}
+
+export class SetFileTemplateAction extends Action2 {
+  public constructor() {
+    super({
+      id: SET_FILE_TEMPLATE_COMMAND_ID,
+      title: localize("files.item.setTemplate", "Set with Template"),
+      metadata: {
+        description: localize("files.actions.setFileTemplate", "Set a template selection for an imported file."),
+      },
+    });
+  }
+
+  public run(accessor: ServicesAccessor, fileId: unknown, selection: unknown): void {
+    setFileTemplateHandler(accessor, fileId, selection);
+  }
+}
+
+export class SliceFileWithTemplateAction extends Action2 {
+  public constructor() {
+    super({
+      id: SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
+      title: localize("files.item.sliceWithTemplate", "Slice with Template"),
+      metadata: {
+        description: localize("files.actions.sliceFileWithTemplate", "Slice an imported file with a template."),
+      },
+    });
+  }
+
+  public run(accessor: ServicesAccessor, fileId: unknown, selection: unknown): void {
+    sliceFileWithTemplateHandler(accessor, fileId, selection);
+  }
+}

@@ -48,7 +48,7 @@ suite("workbench/services/table/browser/tableService", () => {
         normalizedCsvPath: "C:/tmp/raw.csv",
         sourceKey: "source-key-a",
       }],
-      selectedFileId: "file-a",
+      source: { fileId: "file-a" },
       setFile: (value) => {
         previewFile = typeof value === "function" ? value(previewFile) : value;
       },
@@ -154,7 +154,7 @@ suite("workbench/services/table/browser/tableService", () => {
         fileName: "Raw.csv",
         sheetId: "sheet-a",
       }],
-      selectedFileId: "file-a",
+      source: { fileId: "file-a" },
     });
 
     events.length = 0;
@@ -221,7 +221,7 @@ suite("workbench/services/table/browser/tableService", () => {
         fileId: "file-a",
         fileName: "Raw.csv",
       }],
-      selectedFileId: "file-a",
+      source: { fileId: "file-a" },
     });
 
     assert.equal(model.selectAllColumns(), true);
@@ -236,7 +236,7 @@ suite("workbench/services/table/browser/tableService", () => {
         fileId: "file-a",
         fileName: "Raw.csv",
       }],
-      selectedFileId: "file-a",
+      source: { fileId: "file-a" },
     });
     const input = {
       tableModel: model,
@@ -252,6 +252,44 @@ suite("workbench/services/table/browser/tableService", () => {
     assert.equal(service.getViewInput(), input);
     assert.deepEqual(inputs, [input]);
     disposable.dispose();
+    service.dispose();
+  });
+
+  test("owns preview lifecycle when the selected source changes", () => {
+    const service = new TableService(createTableBackendService() as never);
+    const rawFiles = [
+      {
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw A.csv",
+      },
+      {
+        file: {},
+        fileId: "file-b",
+        fileName: "Raw B.csv",
+      },
+    ];
+    service.update({
+      file: {
+        columnCount: 2,
+        fileId: "file-a",
+        fileName: "Raw A.csv",
+        maxCellLengths: [1, 1],
+        rowCount: 2,
+        sourceKey: "file-a",
+      },
+      rawFiles,
+      source: { fileId: "file-a" },
+    });
+
+    const model = service.update({
+      rawFiles,
+      source: { fileId: "file-b" },
+    });
+
+    assert.equal(model.getState().selectedFileId, "file-b");
+    assert.equal(model.getState().file, null);
+    assert.equal(model.getState().loadState.state, "loading");
     service.dispose();
   });
 
@@ -271,7 +309,7 @@ suite("workbench/services/table/browser/tableService", () => {
         fileId: "file-a",
         fileName: "Raw.csv",
       }],
-      selectedFileId: "file-a",
+      source: { fileId: "file-a" },
     });
 
     assert.equal(service.executeCommand(TableCommandId.zoomIn), false);

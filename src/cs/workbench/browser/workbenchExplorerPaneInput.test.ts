@@ -4,7 +4,7 @@
 
 import assert from "assert";
 
-import { createExplorerPaneInput } from "src/cs/workbench/contrib/files/browser/explorerPaneInput";
+import { createExplorerPaneInput } from "src/cs/workbench/browser/workbenchExplorerPaneInput";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import { DEFAULT_ORIGIN_PLOT_OPTIONS } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
@@ -12,7 +12,7 @@ import { createProcessedFileSessionCommit } from "src/cs/workbench/services/sess
 import { createSessionReadModel } from "src/cs/workbench/services/session/common/sessionReadModel";
 import type {
   ExplorerImportedSessionFile,
-} from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
+} from "src/cs/workbench/contrib/files/browser/files";
 import type {
   FileImportResult,
   ImportedFileRecord,
@@ -21,22 +21,13 @@ import type {
   ProcessedEntry,
   SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
-import type { TableState } from "src/cs/workbench/services/table/common/table";
 import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import { createTemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 
-type ExplorerPaneTableModel = Parameters<typeof createExplorerPaneInput>[0]["tableModel"];
-
-suite("workbench/contrib/files/browser/explorerPaneInput", () => {
+suite("workbench/browser/workbenchExplorerPaneInput", () => {
   test("creates raw mode input and routes imports through explorer selection", () => {
     const session = new SessionService();
     const explorerService = new ExplorerService();
-    let invalidated = 0;
-    const tableModel = createTableModel({
-      invalidateRequests: () => {
-        invalidated += 1;
-      },
-    });
     const importedFile = createImportedSessionFileForTest({
       fileId: "file-a",
       fileName: "Raw A.csv",
@@ -56,7 +47,6 @@ suite("workbench/contrib/files/browser/explorerPaneInput", () => {
       readModel: createSessionReadModel(session.getSnapshot()),
       session,
       snapshot: session.getSnapshot(),
-      tableModel,
       templateState: {
         formState: createEmptyTemplateConfig({ name: "Template A" }),
         mode: "select",
@@ -85,71 +75,6 @@ suite("workbench/contrib/files/browser/explorerPaneInput", () => {
 
     assert.deepEqual(session.getSnapshot().fileOrder, ["file-a"]);
     assert.equal(explorerService.selectedRawFileId, "file-a");
-    assert.equal(invalidated, 1);
-  });
-
-  test("routes raw selection through Explorer preview workflow", () => {
-    const session = new SessionService();
-    const explorerService = new ExplorerService();
-    commitRawFilesForTest(session, [
-      {
-        fileId: "file-a",
-        fileName: "Raw A.csv",
-        rowCount: 2,
-        columnCount: 2,
-      },
-      {
-        fileId: "file-b",
-        fileName: "Raw B.csv",
-        rowCount: 2,
-        columnCount: 2,
-      },
-    ]);
-    explorerService.select({ kind: "raw", fileId: "file-a" });
-    let cleared = 0;
-    let invalidated = 0;
-    const snapshot = session.getSnapshot();
-    const readModel = createSessionReadModel(snapshot);
-    const input = createExplorerPaneInput({
-      activePlotType: "iv",
-      explorerService,
-      mode: "table",
-      plotService: createPlotService(),
-      processing: {
-        removeQueuedProcessingFile: () => undefined,
-        resetProcessingWorker: () => undefined,
-      },
-      readModel,
-      session,
-      snapshot,
-      tableModel: createTableModel({
-        clearState: () => {
-          cleared += 1;
-        },
-        getState: () => ({
-          ...createTableState(),
-          file: { fileId: "file-a" } as TableState["file"],
-        }),
-        invalidateRequests: () => {
-          invalidated += 1;
-        },
-      }),
-      templateState: {
-        formState: createEmptyTemplateConfig(),
-        mode: "select",
-        selectedTemplateId: null,
-        selectionsByFileId: {},
-      },
-    });
-
-    assert.equal(input.selectionKind, "raw");
-    assert.equal(input.selectedFileId, "file-a");
-
-    input.onFileSelected("file-b");
-
-    assert.equal(explorerService.selectedRawFileId, "file-b");
-    assert.equal(invalidated, 1);
-    assert.equal(cleared, 1);
   });
 
   test("creates chart mode input from file projection", () => {
@@ -197,7 +122,6 @@ suite("workbench/contrib/files/browser/explorerPaneInput", () => {
       readModel,
       session,
       snapshot,
-      tableModel: createTableModel(),
       templateState: {
         formState: createEmptyTemplateConfig(),
         mode: "select",
@@ -215,11 +139,6 @@ suite("workbench/contrib/files/browser/explorerPaneInput", () => {
     assert.equal(input.originOpenPlotOptions, DEFAULT_ORIGIN_PLOT_OPTIONS);
     assert.deepEqual(input.plotAxisSettings, { x: { show: true } });
 
-    input.onFileSelected("file-a");
-    assert.equal(explorerService.selectedProcessedFileId, "file-a");
-    input.onFileSelected("raw-only");
-    assert.equal(explorerService.selectedProcessedFileId, "file-a");
-    input.onFileSelected(null);
     assert.equal(explorerService.selectedProcessedFileId, null);
   });
 });
@@ -335,25 +254,3 @@ const createImportedFileRecordForTest = (
     },
   };
 };
-
-const createTableModel = (
-  overrides: Partial<ExplorerPaneTableModel> = {},
-): ExplorerPaneTableModel => ({
-  clearState: () => undefined,
-  disposeFileCache: () => undefined,
-  getState: () => createTableState(),
-  invalidateRequests: () => undefined,
-  resetWorker: () => undefined,
-  ...overrides,
-});
-
-const createTableState = (): TableState => ({
-  file: null,
-  fileName: "",
-  loadState: {
-    message: "",
-    state: "idle",
-  },
-  selectedFileId: null,
-  zoomPercent: 100,
-});

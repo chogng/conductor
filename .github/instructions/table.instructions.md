@@ -18,12 +18,14 @@ Table shows raw tables and assessment block ranges. It does not identify measure
 - block table preview model;
 - table loading status;
 - row request lifecycle and worker lifecycle.
+- preview invalidation when the selected table source changes.
 
 It consumes:
 
 - session snapshot for raw table metadata and assessment ranges;
 - file import/raw table row reader for row bytes;
 - assessment result for block ranges and column role display.
+- current `TableSource` input from the workbench composition layer.
 
 It does not own:
 
@@ -94,6 +96,22 @@ table.revealRawRange command
 
 Search result navigation may dispatch to table commands when the result points to `RawTableRangeRef`.
 
+Input flow:
+
+```ts
+tableService.update({
+  rawFiles,
+  source: { fileId, sheetId },
+});
+```
+
+Do not name the table input after another feature's selection state. The workbench
+composition layer may derive a `TableSource` from Explorer/session state, but
+`ITableService` consumes table source input and owns its own preview lifecycle.
+This follows the cross-service selection mirroring rule in
+`service-architecture.instructions.md`: bridge by translating domain input,
+not by sharing selection state or calling another service's internals.
+
 ## Do not
 
 - Do not detect headers or block boundaries in table code.
@@ -138,4 +156,3 @@ Search result navigation may dispatch to table commands when the result points t
 | `selectedColumns` | Selected raw columns. |
 
 Selection is table state, not session canonical data.
-

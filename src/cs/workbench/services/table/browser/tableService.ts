@@ -336,8 +336,7 @@ const PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS = Math.max(
 const createTableModel = ({
   tableBackendService,
   rawFiles = [],
-  selectedFileId = null,
-  selectedSheetId = null,
+  source = null,
   file,
   setFile,
   setLoadState,
@@ -357,8 +356,8 @@ const createTableModel = ({
     throw new Error("Table model requires ITableBackendService.");
   }
 
-  const activeFileId = selectedFileId;
-  const activeSheetId = selectedSheetId;
+  const activeFileId = source?.fileId ?? null;
+  const activeSheetId = source?.sheetId ?? null;
   const hasControlledPreviewFile = file !== undefined;
   const hasControlledPreviewStatus = loadState !== undefined;
   const previewFile = file ?? null;
@@ -727,6 +726,19 @@ const createTableModel = ({
       setPreviewStatus,
     ],
   );
+
+  runEffect(() => {
+    invalidatePreviewRequests();
+
+    if (!activeSourceKey || !isTableFileForSource(previewFileRef.current, activeSourceKey)) {
+      clearPreviewState();
+    }
+  }, [
+    activeSourceKey,
+    clearPreviewState,
+    invalidatePreviewRequests,
+    previewFileRef,
+  ]);
 
   const disposePreviewSourceCache = memoCallback(
     (sourceKey: string) => {

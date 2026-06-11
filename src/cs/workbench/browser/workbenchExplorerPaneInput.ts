@@ -3,26 +3,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type {
+	ExplorerImportedSessionFile,
 	ExplorerSelectionKind,
+	ExplorerPaneInput,
+	ExplorerThumbnailPlotModel,
 	IExplorerService,
-} from "src/cs/workbench/contrib/files/common/explorer";
+} from "src/cs/workbench/contrib/files/browser/files";
 import {
 	createChartExplorerFilesFromRecords,
 	resolveExplorerSelectionAfterRemoval,
 	resolveExplorerSelectedFileId,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
-import type {
-	ExplorerImportedSessionFile,
-	ExplorerPaneInput,
-	ExplorerThumbnailPlotModel,
-} from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { SessionReadModel } from "src/cs/workbench/services/session/common/sessionReadModel";
 import type {
 	ProcessingStatus,
 	SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
-import type { TableModel } from "src/cs/workbench/services/table/common/table";
 import type { TemplateState } from "src/cs/workbench/services/template/common/template";
 import type {
   FileImportResult,
@@ -65,14 +62,6 @@ export type CreateExplorerPaneInputOptions = {
 	readonly readModel: SessionReadModel;
 	readonly session: ExplorerPaneSessionInput;
 	readonly snapshot: SessionSnapshot;
-	readonly tableModel: Pick<
-		TableModel,
-		| "clearState"
-		| "disposeFileCache"
-		| "getState"
-		| "invalidateRequests"
-		| "resetWorker"
-	>;
 	readonly templateState: TemplateState;
 };
 
@@ -102,16 +91,11 @@ type ExplorerSelectionState = Pick<
 type ExplorerSessionWorkflowOptions = {
 	clearSession: () => void;
 	commitFileImport: (result: FileImportResult) => void;
-	clearPreviewState: (options?: { clearSelection?: boolean }) => void;
-	disposePreviewFileCache: (fileId: string) => void;
-	invalidatePreviewRequests: () => void;
 	explorerService: ExplorerSelectionService;
-	previewFile?: { fileId?: string } | null;
 	hasSessionData?: boolean;
 	processingStatus?: Partial<ProcessingStatus>;
 	rawFiles?: SessionFile[];
 	removeQueuedProcessingFile: (fileId: string) => void;
-	resetPreviewWorker: () => void;
 	resetProcessingWorker: () => void;
 	removeFiles: (fileIds: readonly string[]) => void;
 };
@@ -167,16 +151,11 @@ export const reconcileExplorerSessionSelection = (
 export function createExplorerSessionWorkflow({
 	clearSession,
 	commitFileImport,
-	clearPreviewState,
-	disposePreviewFileCache,
-	invalidatePreviewRequests,
 	explorerService,
-	previewFile = null,
 	hasSessionData = false,
 	processingStatus = { state: "idle" },
 	rawFiles = [],
 	removeQueuedProcessingFile,
-	resetPreviewWorker,
 	resetProcessingWorker,
 	removeFiles,
 }: ExplorerSessionWorkflowOptions) {
@@ -188,14 +167,7 @@ export function createExplorerSessionWorkflow({
 		explorerService.selectedRawFileId ??
 		resolveExplorerSelectedFileId(null, getRawFileIds(files));
 
-	const preparePreviewSelection = (options?: { clearCurrentPreview?: boolean }) => {
-		invalidatePreviewRequests();
-		if (options?.clearCurrentPreview) {
-			clearPreviewState();
-		}
-	};
-
-	const hasData = hasSessionData || rawFiles.length > 0 || previewFile !== null;
+	const hasData = hasSessionData || rawFiles.length > 0;
 
 	const commitImportedFiles = (
 		files: readonly ExplorerImportedSessionFile[],
@@ -214,12 +186,8 @@ export function createExplorerSessionWorkflow({
 		}
 
 		resetProcessingWorker();
-		invalidatePreviewRequests();
-		clearPreviewState({ clearSelection: true });
-
 		clearSession();
 		explorerService.select({ kind: "raw", fileId: null });
-		resetPreviewWorker();
 	};
 
 	const handleFileImported = (fileInfo: ExplorerImportedSessionFile) => {
@@ -227,7 +195,6 @@ export function createExplorerSessionWorkflow({
 		const selectedRawFileId = getSelectedRawFileId();
 		commitImportedFiles([fileInfo], "append");
 		if (importedFileId && !selectedRawFileId) {
-			preparePreviewSelection();
 			explorerService.select({
 				candidateFileIds: getRawFileIds([...rawFiles, fileInfo]),
 				fileId: importedFileId,
@@ -245,7 +212,6 @@ export function createExplorerSessionWorkflow({
 		const nextSelectedFileId = selectedRawFileId ?? files[0]?.fileId ?? null;
 		commitImportedFiles(files, "append");
 		if (!selectedRawFileId && nextSelectedFileId) {
-			preparePreviewSelection();
 			explorerService.select({
 				candidateFileIds: getRawFileIds([...rawFiles, ...files]),
 				fileId: nextSelectedFileId,
@@ -256,22 +222,9 @@ export function createExplorerSessionWorkflow({
 
 	const handleFilesReplaced = (files: ExplorerImportedSessionFile[]) => {
 		resetProcessingWorker();
-		invalidatePreviewRequests();
-		clearPreviewState({ clearSelection: true });
-
-		for (const file of rawFiles) {
-			if (file?.fileId) {
-				disposePreviewFileCache(file.fileId);
-			}
-		}
-
-		resetPreviewWorker();
 
 		const nextSelectedFileId = files[0]?.fileId ?? null;
 		commitImportedFiles(files, "replace");
-		if (nextSelectedFileId) {
-			preparePreviewSelection();
-		}
 		explorerService.select({
 			candidateFileIds: getRawFileIds(files),
 			fileId: nextSelectedFileId,
@@ -293,10 +246,6 @@ export function createExplorerSessionWorkflow({
 			return;
 		}
 
-		const previousSelectedFileId = resolveExplorerSelectedFileId(
-			explorerService.selectedRawFileId,
-			getRawFileIds(),
-		);
 		const remainingFiles = rawFiles.filter(entry =>
 			!removedFileIds.has(String(entry.fileId ?? "").trim())
 		);
@@ -319,47 +268,6 @@ export function createExplorerSessionWorkflow({
 				removeQueuedProcessingFile(fileId);
 			}
 		}
-
-		if (previewFile?.fileId && removedFileIds.has(previewFile.fileId)) {
-			clearPreviewState();
-		}
-
-		for (const fileId of removedFileIds) {
-			disposePreviewFileCache(fileId);
-		}
-
-		if (
-			previousSelectedFileId &&
-			removedFileIds.has(previousSelectedFileId) &&
-			nextSelectedFileId
-		) {
-			preparePreviewSelection();
-		}
-	};
-
-	const handleFileSelected = (fileId: string | null) => {
-		if (!fileId) {
-			explorerService.select({ kind: "raw", fileId: null });
-			return;
-		}
-
-		const previousSelectedFileId = resolveExplorerSelectedFileId(
-			explorerService.selectedRawFileId,
-			getRawFileIds(),
-		);
-		const nextSelectedFileId = explorerService.select({
-			candidateFileIds: getRawFileIds(),
-			fileId,
-			kind: "raw",
-		}, "force");
-		const isSelectionChanging = Boolean(nextSelectedFileId) &&
-			previousSelectedFileId !== nextSelectedFileId;
-		if (isSelectionChanging) {
-			const previewFileId = previewFile?.fileId ?? null;
-			preparePreviewSelection({
-				clearCurrentPreview: Boolean(previewFileId) && previewFileId !== nextSelectedFileId,
-			});
-		}
 	};
 
 	return {
@@ -369,7 +277,6 @@ export function createExplorerSessionWorkflow({
 		handleFilesReplaced,
 		handleFileRemoved,
 		handleFilesRemoved,
-		handleFileSelected,
 		hasSessionData: hasData,
 	};
 }
@@ -385,23 +292,17 @@ export const createExplorerPaneInput = ({
 	readModel,
 	session,
 	snapshot,
-	tableModel,
 	templateState,
 }: CreateExplorerPaneInputOptions): ExplorerPaneInput => {
 	const rawFiles = readModel.rawFiles;
 	const sessionWorkflow = createExplorerSessionWorkflow({
 		clearSession: session.clearSession,
 		commitFileImport: session.commitFileImport,
-		clearPreviewState: tableModel.clearState,
-		disposePreviewFileCache: tableModel.disposeFileCache,
-		invalidatePreviewRequests: tableModel.invalidateRequests,
 		explorerService,
-		previewFile: tableModel.getState().file,
 		hasSessionData: readModel.hasSessionData,
 		processingStatus: processing.processingStatus,
 		rawFiles,
 		removeQueuedProcessingFile: processing.removeQueuedProcessingFile,
-		resetPreviewWorker: tableModel.resetWorker,
 		resetProcessingWorker: processing.resetProcessingWorker,
 		removeFiles: session.removeFiles,
 	});
@@ -433,22 +334,6 @@ export const createExplorerPaneInput = ({
 		formName: templateState.formState.name,
 		selectedTemplateId: templateState.selectedTemplateId,
 	});
-	const onFileSelected = isChartMode
-		? (fileId: string | null): void => {
-			const nextFileId = String(fileId ?? "").trim() || null;
-			if (!nextFileId) {
-				explorerService.select({ kind: "analysis", fileId: null });
-				return;
-			}
-
-			explorerService.select({
-				candidateFileIds: readModel.processedFileIds,
-				fileId: nextFileId,
-				kind: "analysis",
-			}, "force");
-		}
-		: sessionWorkflow.handleFileSelected;
-
 	return {
 		activePlotType,
 		currentTemplateLabel: currentTemplate.label,
@@ -458,7 +343,6 @@ export const createExplorerPaneInput = ({
 		mode,
 		onFileImported: sessionWorkflow.handleFileImported,
 		onFileRemoved: sessionWorkflow.handleFileRemoved,
-		onFileSelected,
 		onFilesAdded: sessionWorkflow.handleFilesAdded,
 		onFilesRemoved: sessionWorkflow.handleFilesRemoved,
 		onFilesReplaced: sessionWorkflow.handleFilesReplaced,

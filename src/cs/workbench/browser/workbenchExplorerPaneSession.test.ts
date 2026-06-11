@@ -4,17 +4,17 @@
 
 import assert from "assert";
 
-import { createExplorerSessionWorkflow } from "src/cs/workbench/contrib/files/browser/explorerPaneInput";
+import { createExplorerSessionWorkflow } from "src/cs/workbench/browser/workbenchExplorerPaneInput";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import type {
   ExplorerImportedSessionFile,
-} from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
+} from "src/cs/workbench/contrib/files/browser/files";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 
-suite("workbench/contrib/files/browser/explorerPaneInput session workflow", () => {
-  test("replacing imported files selects the first file and resets preview state", () => {
+suite("workbench/browser/workbenchExplorerPaneInput session workflow", () => {
+  test("replacing imported files selects the first file and resets processing state", () => {
     const session = new SessionService();
     const importedFile = createImportedSessionFile({
       file: {},
@@ -25,27 +25,16 @@ suite("workbench/contrib/files/browser/explorerPaneInput session workflow", () =
       rowCount: 2,
       columnCount: 2,
     });
-    let invalidated = 0;
-    let resetPreviewWorkerCount = 0;
     let resetProcessingWorkerCount = 0;
     const explorerService = new ExplorerService();
 
     const workflow = createExplorerSessionWorkflow({
       clearSession: session.clearSession,
-      clearPreviewState: () => undefined,
       commitFileImport: session.commitFileImport,
-      disposePreviewFileCache: () => undefined,
-      invalidatePreviewRequests: () => {
-        invalidated += 1;
-      },
       explorerService,
-      previewFile: null,
       rawFiles: [],
       removeFiles: session.removeFiles,
       removeQueuedProcessingFile: () => undefined,
-      resetPreviewWorker: () => {
-        resetPreviewWorkerCount += 1;
-      },
       resetProcessingWorker: () => {
         resetProcessingWorkerCount += 1;
       },
@@ -56,8 +45,6 @@ suite("workbench/contrib/files/browser/explorerPaneInput session workflow", () =
     const snapshot = session.getSnapshot();
     assert.deepEqual(snapshot.fileOrder, ["file-a"]);
     assert.equal(explorerService.selectedRawFileId, "file-a");
-    assert.equal(invalidated, 2);
-    assert.equal(resetPreviewWorkerCount, 1);
     assert.equal(resetProcessingWorkerCount, 1);
   });
 
@@ -70,23 +57,15 @@ suite("workbench/contrib/files/browser/explorerPaneInput session workflow", () =
       rowCount: 2,
       columnCount: 2,
     });
-    let invalidated = 0;
     const explorerService = new ExplorerService();
 
     const workflow = createExplorerSessionWorkflow({
       clearSession: session.clearSession,
-      clearPreviewState: () => undefined,
       commitFileImport: session.commitFileImport,
-      disposePreviewFileCache: () => undefined,
-      invalidatePreviewRequests: () => {
-        invalidated += 1;
-      },
       explorerService,
-      previewFile: null,
       rawFiles: [],
       removeFiles: session.removeFiles,
       removeQueuedProcessingFile: () => undefined,
-      resetPreviewWorker: () => undefined,
       resetProcessingWorker: () => undefined,
     });
 
@@ -95,7 +74,6 @@ suite("workbench/contrib/files/browser/explorerPaneInput session workflow", () =
     const snapshot = session.getSnapshot();
     assert.deepEqual(snapshot.fileOrder, ["file-a"]);
     assert.equal(explorerService.selectedRawFileId, "file-a");
-    assert.equal(invalidated, 1);
   });
 
   test("adding more files preserves selection from an earlier replace in the same workflow", () => {
@@ -118,16 +96,11 @@ suite("workbench/contrib/files/browser/explorerPaneInput session workflow", () =
 
     const workflow = createExplorerSessionWorkflow({
       clearSession: session.clearSession,
-      clearPreviewState: () => undefined,
       commitFileImport: session.commitFileImport,
-      disposePreviewFileCache: () => undefined,
-      invalidatePreviewRequests: () => undefined,
       explorerService,
-      previewFile: null,
       rawFiles: [],
       removeFiles: session.removeFiles,
       removeQueuedProcessingFile: () => undefined,
-      resetPreviewWorker: () => undefined,
       resetProcessingWorker: () => undefined,
     });
 
@@ -150,16 +123,11 @@ suite("workbench/contrib/files/browser/explorerPaneInput session workflow", () =
 
     const workflow = createExplorerSessionWorkflow({
       clearSession: session.clearSession,
-      clearPreviewState: () => undefined,
       commitFileImport: session.commitFileImport,
-      disposePreviewFileCache: () => undefined,
-      invalidatePreviewRequests: () => undefined,
       explorerService,
-      previewFile: null,
       rawFiles: [],
       removeFiles: session.removeFiles,
       removeQueuedProcessingFile: () => undefined,
-      resetPreviewWorker: () => undefined,
       resetProcessingWorker: () => undefined,
     });
 
@@ -203,16 +171,11 @@ suite("workbench/contrib/files/browser/explorerPaneInput session workflow", () =
 
     const workflow = createExplorerSessionWorkflow({
       clearSession: session.clearSession,
-      clearPreviewState: () => undefined,
       commitFileImport: session.commitFileImport,
-      disposePreviewFileCache: () => undefined,
-      invalidatePreviewRequests: () => undefined,
       explorerService,
-      previewFile: null,
       rawFiles: files,
       removeFiles: session.removeFiles,
       removeQueuedProcessingFile: () => undefined,
-      resetPreviewWorker: () => undefined,
       resetProcessingWorker: () => undefined,
     });
 

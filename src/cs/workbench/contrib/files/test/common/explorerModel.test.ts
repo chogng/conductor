@@ -7,6 +7,7 @@ import assert from "assert";
 import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
 
 import {
+  buildExplorerTree,
   createChartExplorerFiles,
   createChartExplorerFilesFromRecords,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
@@ -112,6 +113,42 @@ suite("workbench/contrib/files/common/explorerModel", () => {
       ),
       [],
     );
+  });
+
+  test("buildExplorerTree nests related files by configured patterns", () => {
+    const tree = buildExplorerTree(
+      [
+        {
+          fileId: "parent",
+          fileName: "device.csv",
+          relativePath: "batch/device.csv",
+        },
+        {
+          fileId: "child",
+          fileName: "device.meta.csv",
+          relativePath: "batch/device.meta.csv",
+        },
+        {
+          fileId: "other-dir-child",
+          fileName: "device.meta.csv",
+          relativePath: "other/device.meta.csv",
+        },
+      ],
+      {
+        fileNestingPatterns: [["*.csv", ["$(basename).meta.csv"]]],
+      },
+    );
+
+    assert.deepEqual(tree.map(node => node.name), ["batch", "other"]);
+    const batch = tree[0];
+    assert.equal(batch.kind, "folder");
+    assert.deepEqual(batch.children?.map(node => node.name), ["device.csv"]);
+    assert.deepEqual(batch.children?.[0].children?.map(node => node.name), [
+      "device.meta.csv",
+    ]);
+
+    const other = tree[1];
+    assert.deepEqual(other.children?.map(node => node.name), ["device.meta.csv"]);
   });
 });
 

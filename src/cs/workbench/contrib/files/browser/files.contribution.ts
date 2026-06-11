@@ -12,8 +12,8 @@ import {
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
 import "src/cs/workbench/contrib/files/browser/fileActions.contribution";
-import { FilesPaneHost } from "src/cs/workbench/contrib/files/browser/filesPaneHost";
-import { ExplorerViewId } from "src/cs/workbench/contrib/files/common/explorer";
+import { ExplorerViewPane } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
+import { ExplorerViewId } from "src/cs/workbench/contrib/files/browser/files";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
@@ -23,7 +23,7 @@ if (container) {
   viewsRegistry.registerViews([{
     id: ExplorerViewId,
     name: localize("files.explorerSection", "Explorer"),
-    ctorDescriptor: new SyncDescriptor(FilesPaneHost),
+    ctorDescriptor: new SyncDescriptor(ExplorerViewPane),
     hideByDefault: false,
     order: 0,
   }], container);

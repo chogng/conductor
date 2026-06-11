@@ -18,6 +18,10 @@ import {
 	collectFileRecordBaseCurves,
 	getFileRecordCurveType,
 } from "src/cs/workbench/services/session/common/sessionRecordProjection";
+import {
+	ExplorerFileNestingTrie,
+	type ExplorerFileNestingPattern,
+} from "src/cs/workbench/contrib/files/common/explorerFileNestingTrie";
 
 export type ExplorerFileEntry = {
 	readonly file?: unknown;
@@ -40,6 +44,10 @@ export type ExplorerTreeNode<TEntry extends ExplorerFileEntry = ExplorerFileEntr
 	readonly key: string;
 	readonly kind: "folder" | "file";
 	readonly name: string;
+};
+
+export type ExplorerTreeOptions = {
+	readonly fileNestingPatterns?: readonly ExplorerFileNestingPattern[];
 };
 
 type MutableExplorerTreeNode<TEntry extends ExplorerFileEntry> = {
@@ -96,6 +104,7 @@ export const getExplorerTreeFileName = getExplorerFileName;
 
 export const buildExplorerTree = <TEntry extends ExplorerFileEntry>(
 	entries: readonly TEntry[],
+	options: ExplorerTreeOptions = {},
 ): ExplorerTreeNode<TEntry>[] => {
 	const roots: MutableExplorerTreeNode<TEntry>[] = [];
 	const folders = new Map<string, MutableExplorerTreeNode<TEntry>>();
@@ -138,7 +147,85 @@ export const buildExplorerTree = <TEntry extends ExplorerFileEntry>(
 		});
 	}
 
+	applyExplorerFileNesting(roots, options.fileNestingPatterns);
 	return roots.sort(compareExplorerTreeNodes).map(freezeExplorerTreeNode);
+};
+
+const applyExplorerFileNesting = <TEntry extends ExplorerFileEntry>(
+	nodes: MutableExplorerTreeNode<TEntry>[],
+	patterns: readonly ExplorerFileNestingPattern[] | undefined,
+	dirname = "",
+): void => {
+	if (!patterns?.length) {
+		return;
+	}
+
+	const fileNodes = nodes.filter(node => node.kind === "file");
+	if (fileNodes.length > 1) {
+		nestExplorerFileNodes(nodes, fileNodes, patterns, dirname);
+	}
+
+	for (const node of nodes) {
+		if (node.kind !== "folder" || !node.children?.length) {
+			continue;
+		}
+
+		const childDirname = dirname ? `${dirname}/${node.name}` : node.name;
+		applyExplorerFileNesting(node.children, patterns, childDirname);
+	}
+};
+
+const nestExplorerFileNodes = <TEntry extends ExplorerFileEntry>(
+	nodes: MutableExplorerTreeNode<TEntry>[],
+	fileNodes: readonly MutableExplorerTreeNode<TEntry>[],
+	patterns: readonly ExplorerFileNestingPattern[],
+	dirname: string,
+): void => {
+	const nodesByName = new Map<string, MutableExplorerTreeNode<TEntry>[]>();
+	for (const node of fileNodes) {
+		const existing = nodesByName.get(node.name);
+		if (existing) {
+			existing.push(node);
+		} else {
+			nodesByName.set(node.name, [node]);
+		}
+	}
+
+	const nesting = new ExplorerFileNestingTrie(patterns).nest(
+		[...nodesByName.keys()],
+		dirname,
+	);
+	const nestedNodes = new Set<MutableExplorerTreeNode<TEntry>>();
+
+	for (const [parentName, childNames] of nesting.entries()) {
+		const parent = nodesByName.get(parentName)?.[0];
+		if (!parent || childNames.size === 0) {
+			continue;
+		}
+
+		for (const childName of childNames) {
+			const child = nodesByName.get(childName)?.[0];
+			if (!child || child === parent || nestedNodes.has(child)) {
+				continue;
+			}
+
+			if (!parent.children) {
+				parent.children = [];
+			}
+			parent.children.push(child);
+			nestedNodes.add(child);
+		}
+	}
+
+	if (nestedNodes.size === 0) {
+		return;
+	}
+
+	for (let index = nodes.length - 1; index >= 0; index -= 1) {
+		if (nestedNodes.has(nodes[index])) {
+			nodes.splice(index, 1);
+		}
+	}
 };
 
 export const collectExplorerFolderKeys = <TEntry extends ExplorerFileEntry>(

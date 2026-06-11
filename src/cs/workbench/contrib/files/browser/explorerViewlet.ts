@@ -2,44 +2,27 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from "src/cs/nls";
+import { createMenuAction } from "src/cs/base/browser/ui/menu/menu";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
-import type { IDisposable } from "src/cs/base/common/lifecycle";
-import type { ICommandService as ICommandServiceType } from "src/cs/platform/commands/common/commands";
-import type { IContextMenuService as IContextMenuServiceType } from "src/cs/platform/contextview/browser/contextView";
-import type { IContextViewService as IContextViewServiceType } from "src/cs/platform/contextview/browser/contextView";
-import type { IFileService as IFileServiceType } from "src/cs/platform/files/common/files";
-import type {
-  ExplorerSelectionKind,
-  IExplorerService as IExplorerServiceType,
-} from "src/cs/workbench/contrib/files/common/explorer";
+import { toAction } from "src/cs/base/common/actions";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import {
-  ExplorerView,
-  type ExplorerViewProps,
-} from "src/cs/workbench/contrib/files/browser/views/explorerView";
+  ICommandService,
+  type ICommandService as ICommandServiceType,
+} from "src/cs/platform/commands/common/commands";
 import {
-  getExplorerFolderPath,
-  isExplorerPathInFolder,
-  resolveExplorerSelectedFileId,
-} from "src/cs/workbench/contrib/files/common/explorerModel";
+  IContextMenuService,
+  IContextViewService,
+  type IContextMenuService as IContextMenuServiceType,
+  type IContextViewService as IContextViewServiceType,
+} from "src/cs/platform/contextview/browser/contextView";
 import {
-  type FilesViewLayout,
-} from "src/cs/workbench/contrib/files/common/files";
-import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
-import type { ExplorerThumbnailPlotModel } from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
-import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
-import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
-import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
-import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
-import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
-import type { IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
-import type {
-  TemplateSelection,
-  TemplateSelectionsByFileId,
-} from "src/cs/workbench/services/template/common/templateSelection";
-import type {
-  ITemplateService,
-  TemplateRecord,
-} from "src/cs/workbench/services/template/common/template";
+  IFileService,
+  type IFileService as IFileServiceType,
+} from "src/cs/platform/files/common/files";
+import type { WorkbenchSidebarAction } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
+import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import {
   FileSourceWorkflow,
   getFolderImportSupportForFileService,
@@ -47,78 +30,96 @@ import {
   type PreparedFileImportEntry,
   type PreparedFileImportInfo,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
-import type {
-  FileConverterBackend,
+import {
+  ExplorerView,
+  type ExplorerViewProps,
+} from "src/cs/workbench/contrib/files/browser/views/explorerView";
+import {
+  ADD_FOLDER_ACTION_ID,
+  MORE_ACTIONS_ACTION_ID,
+  REMOVE_FOLDER_ACTION_ID,
+  type FilesViewLayout,
+} from "src/cs/workbench/contrib/files/common/files";
+import {
+  ExplorerViewId,
+  type ExplorerPaneInput,
+  IExplorerService,
+  type IExplorerService as IExplorerServiceType,
+} from "src/cs/workbench/contrib/files/browser/files";
+import {
+  getExplorerFolderPath,
+  isExplorerPathInFolder,
+  resolveExplorerSelectedFileId,
+  type ExplorerFileEntry,
+} from "src/cs/workbench/contrib/files/common/explorerModel";
+import { TOGGLE_THUMBNAIL_VIEW_ACTION_ID } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
+import {
+  IFileConverterBackendService,
+  type FileConverterBackend,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
+import {
+  IThumbnailService,
+  type IThumbnailService as IThumbnailServiceType,
+} from "src/cs/workbench/services/thumbnail/common/thumbnail";
+import {
+  ITemplateService,
+  type ITemplateService as ITemplateServiceType,
+  type TemplateRecord,
+} from "src/cs/workbench/services/template/common/template";
 
-export type FilesControllerProps = {
-  readonly fileConverterBackendService: FileConverterBackend;
-  readonly commandService: ICommandServiceType;
-  readonly contextMenuService: Pick<IContextMenuServiceType, "showContextMenu">;
-  readonly contextViewService: IContextViewServiceType;
-  readonly explorerService: IExplorerServiceType;
-  readonly selectionKind: ExplorerSelectionKind;
-  readonly filesService: IFileServiceType;
-  activePlotType?: PlotType;
-  originOpenPlotOptions?: OriginPlotOptions;
-  plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
-  thumbnailService: IThumbnailService;
-  currentTemplateLabel?: string;
-  currentTemplateSelection?: TemplateSelection;
-  fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
-  templateService: ITemplateService;
-  files?: ExplorerFileEntry[];
-  mode?: WorkbenchMainPart;
-  viewLayout?: FilesViewLayout;
-  thumbnailFiles?: ProcessedEntry[];
-  thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
-  onFileImported?: (fileInfo: PreparedFileImportInfo) => void;
-  onFileSelected: (fileId: string | null) => void;
-  onFilesAdded?: (files: PreparedFileImportInfo[]) => void;
-  onFilesReplaced?: (files: PreparedFileImportInfo[]) => void;
-  onFileRemoved?: (fileId: string) => void;
-  onFilesRemoved?: (fileIds: string[]) => void;
-  selectedFileId: string | null;
-};
+import "src/cs/workbench/contrib/files/browser/views/media/explorerViewlet.css";
 
-export type {
-  PreparedFileImportInfo,
-};
-
-export class FilesController implements IDisposable {
+export class ExplorerViewPane extends ViewPane {
+  private readonly root: HTMLDivElement;
+  private readonly content: HTMLDivElement;
+  private readonly explorerHost: HTMLDivElement;
   private readonly listRef: { current: ListHandle | null } = { current: null };
   private readonly shouldAutoScrollToBottomRef = { current: true };
   private readonly sourceWorkflow: FileSourceWorkflow;
   private explorerView: ExplorerView | null = null;
-  private props: FilesControllerProps;
+  private input: ExplorerPaneInput | null = null;
   private internalFiles: PreparedFileImportEntry[] = [];
   private error: string | null = null;
   private isDragging = false;
   private prevFileCount = 0;
   private disposed = false;
-  private readonly commandService: ICommandServiceType;
-  private readonly explorerService: IExplorerServiceType;
-  private readonly explorerSelectionListener: IDisposable;
-  private readonly explorerFolderExpansionListener: IDisposable;
-  private readonly explorerFolderImportListener: IDisposable;
-  private readonly explorerSelectedFolderRemovalListener: IDisposable;
-  private readonly explorerRemovalListener: IDisposable;
-  private readonly filesService: IFileServiceType;
   private templateLoadRunId = 0;
   private templateRecords: TemplateRecord[] = [];
   private isTemplateListLoading = false;
 
   constructor(
-    host: HTMLElement,
-    props: FilesControllerProps,
+    @ICommandService private readonly commandService: ICommandServiceType,
+    @IContextMenuService private readonly contextMenuService: IContextMenuServiceType,
+    @IContextViewService private readonly contextViewService: IContextViewServiceType,
+    @IExplorerService private readonly explorerService: IExplorerServiceType,
+    @IFileConverterBackendService private readonly fileConverterBackendService: FileConverterBackend,
+    @IFileService private readonly filesService: IFileServiceType,
+    @IThumbnailService private readonly thumbnailService: IThumbnailServiceType,
+    @ITemplateService private readonly templateService: ITemplateServiceType,
   ) {
-    this.props = props;
-    this.commandService = props.commandService;
-    this.explorerService = props.explorerService;
-    this.filesService = props.filesService;
+    super({
+      id: ExplorerViewId,
+      title: localize("files.explorerSection", "Explorer"),
+      className: "files-view-pane",
+      bodyClassName: "workbench-part-view-pane__body",
+    });
+
+    this.root = document.createElement("div");
+    this.root.className = "files-pane files-pane-root";
+
+    this.content = document.createElement("div");
+    this.content.className = "files-pane-body";
+
+    this.explorerHost = document.createElement("div");
+    this.explorerHost.className = "files-pane-session-host";
+
+    this.content.append(this.explorerHost);
+    this.root.append(this.content);
+    this.body.append(this.root);
+
     this.sourceWorkflow = new FileSourceWorkflow({
       commandService: this.commandService,
-      fileConverterBackendService: props.fileConverterBackendService,
+      fileConverterBackendService: this.fileConverterBackendService,
       filesService: this.filesService,
       getFiles: () => this.files,
       getSelectedRelativePath: () => this.getSelectedRelativePath(),
@@ -130,95 +131,115 @@ export class FilesController implements IDisposable {
       onErrorChange: error => {
         this.error = error;
       },
-      onRemoveFiles: fileIds => this.removeImportedFilesFromController(fileIds),
+      onRemoveFiles: fileIds => this.removeImportedFilesFromExplorer(fileIds),
       onReplacePreparedFiles: (preparedFiles, selectedFileId) => {
         this.replacePreparedImportFiles(preparedFiles, selectedFileId);
       },
       syncView: () => this.syncView(),
     });
-    this.explorerSelectionListener = this.explorerService.onDidChangeSelection(() => {
+
+    this._register(this.explorerService.onDidChangePaneInput(input => {
+      this.update(input);
+    }));
+    this._register(this.explorerService.onDidChangeViewLayout(() => {
+      this.update(this.input);
+    }));
+    this._register(this.explorerService.onDidChangeSelection(() => {
       this.syncView();
-    });
-    this.explorerFolderExpansionListener = this.explorerService.onDidChangeExpandedFolderKeys(() => {
+    }));
+    this._register(this.explorerService.onDidChangeExpandedFolderKeys(() => {
       this.syncView();
-    });
-    this.explorerFolderImportListener = this.explorerService.onDidRequestFolderImport(() => {
+    }));
+    this._register(this.explorerService.onDidRequestFolderImport(() => {
       this.openFileDialog();
-    });
-    this.explorerSelectedFolderRemovalListener = this.explorerService.onDidRequestSelectedFolderRemoval(() => {
+    }));
+    this._register(this.explorerService.onDidRequestSelectedFolderRemoval(() => {
       this.removeSelectedFolder();
-    });
-    this.explorerRemovalListener = this.explorerService.onDidRequestFileRemoval(request => {
+    }));
+    this._register(this.explorerService.onDidRequestFileRemoval(request => {
       if (this.fileIds.includes(request.fileId)) {
         this.handleRemoveFile(request.fileId);
       }
-    });
-    this.prevFileCount = this.files.length;
+    }));
 
-    this.explorerView = new ExplorerView(host, this.createExplorerViewProps());
-    this.listRef.current = this.explorerView.getListHandle();
+    this.update(this.explorerService.getPaneInput());
     this.loadTemplates();
   }
 
-  get hasFiles(): boolean {
-    return this.files.length > 0;
-  }
-
-  private openFileDialog(): void {
-    this.error = null;
-    this.syncView();
-    this.sourceWorkflow.openFolderDialog();
-  }
-
-  private removeSelectedFolder(): void {
-    const folderPath = this.getSelectedFolderPath() ?? this.getFirstFolderPath();
-    if (!folderPath) {
+  public update(input: ExplorerPaneInput | null): void {
+    this.input = input;
+    if (!input) {
       return;
     }
 
-    this.handleRemoveFolder(`folder:${folderPath}`);
-  }
-
-  setProps(nextProps: FilesControllerProps): void {
-    const previousTemplateService = this.props.templateService;
-    this.props = nextProps;
-
-    if (nextProps.templateService !== previousTemplateService) {
-      this.templateRecords = [];
-      this.loadTemplates();
+    this.handleFileCountEffects();
+    if (!this.explorerView) {
+      this.explorerView = new ExplorerView(this.explorerHost, this.createExplorerViewProps());
+      this.listRef.current = this.explorerView.getListHandle();
+    } else {
+      this.explorerView.setProps(this.createExplorerViewProps());
     }
 
-    this.handleFileCountEffects();
-    this.syncView();
+    if (
+      this.element.isConnected &&
+      this.element.clientHeight > 0 &&
+      this.element.clientWidth > 0
+    ) {
+      this.layout(this.element.clientHeight, this.element.clientWidth);
+    }
   }
 
-  layout(height?: number, width?: number): void {
-    this.listRef.current?.layout(height, width);
-  }
-
-  dispose(): void {
+  public override dispose(): void {
     if (this.disposed) {
       return;
     }
 
     this.disposed = true;
-    this.explorerSelectionListener.dispose();
-    this.explorerFolderExpansionListener.dispose();
-    this.explorerFolderImportListener.dispose();
-    this.explorerSelectedFolderRemovalListener.dispose();
-    this.explorerRemovalListener.dispose();
     this.sourceWorkflow.dispose();
     this.explorerView?.dispose();
     this.explorerView = null;
     this.listRef.current = null;
+    super.dispose();
+  }
+
+  protected override layoutBody(height: number, width: number): void {
+    this.body.style.height = `${height}px`;
+    this.body.style.width = `${width}px`;
+    this.root.style.height = `${height}px`;
+    this.root.style.width = `${width}px`;
+    this.content.style.height = `${height}px`;
+    this.content.style.width = `${width}px`;
+    this.explorerHost.style.height = `${height}px`;
+    this.explorerHost.style.width = `${width}px`;
+    this.listRef.current?.layout(height, width);
+  }
+
+  public getActions(): readonly WorkbenchSidebarAction[] {
+    return [
+      {
+        ...toAction({
+          id: MORE_ACTIONS_ACTION_ID,
+          label: localize("files.moreActions", "More Actions"),
+          tooltip: localize("files.moreActions", "More Actions"),
+          class: "sidebar_header_action",
+          run: (event) => this.showMoreActions(getActionAnchor(event)),
+        }),
+        icon: LxIcon.moreHorizontal,
+      } satisfies WorkbenchSidebarAction,
+    ];
+  }
+
+  private get paneInput(): ExplorerPaneInput {
+    return this.input ?? EMPTY_EXPLORER_PANE_INPUT;
   }
 
   private get files(): ExplorerFileEntry[] {
-    return Array.isArray(this.props.files) ? this.props.files : this.internalFiles;
+    const inputFiles = this.input?.files;
+    return Array.isArray(inputFiles) ? inputFiles : this.internalFiles;
   }
 
   private get isControlled(): boolean {
-    return Array.isArray(this.props.files);
+    return Array.isArray(this.input?.files);
   }
 
   private get fileIds(): readonly string[] {
@@ -228,31 +249,36 @@ export class FilesController implements IDisposable {
   }
 
   private get selectedFileId(): string | null {
-    return this.props.selectedFileId;
+    return this.paneInput.selectedFileId;
+  }
+
+  private get viewLayout(): FilesViewLayout {
+    return this.explorerService.viewLayout;
   }
 
   private createExplorerViewProps(): ExplorerViewProps {
+    const input = this.paneInput;
     return {
       selectedFileId: this.selectedFileId,
       expandedFolderKeys: this.explorerService.expandedFolderKeys,
-      activePlotType: this.props.activePlotType,
+      activePlotType: input.activePlotType,
       commandService: this.commandService,
-      contextViewService: this.props.contextViewService,
-      contextMenuService: this.props.contextMenuService,
-      originOpenPlotOptions: this.props.originOpenPlotOptions,
-      plotAxisSettings: this.props.plotAxisSettings,
-      thumbnailService: this.props.thumbnailService,
-      currentTemplateLabel: this.props.currentTemplateLabel,
-      currentTemplateSelection: this.props.currentTemplateSelection,
-      fileTemplateSelectionsByFileId: this.props.fileTemplateSelectionsByFileId,
+      contextViewService: this.contextViewService,
+      contextMenuService: this.contextMenuService,
+      originOpenPlotOptions: input.originOpenPlotOptions,
+      plotAxisSettings: input.plotAxisSettings,
+      thumbnailService: this.thumbnailService,
+      currentTemplateLabel: input.currentTemplateLabel,
+      currentTemplateSelection: input.currentTemplateSelection,
+      fileTemplateSelectionsByFileId: input.fileTemplateSelectionsByFileId,
       isTemplateListLoading: this.isTemplateListLoading,
       templateRecords: this.templateRecords,
       error: this.error,
       files: this.files,
       folderImportSupport: getFolderImportSupportForFileService(this.filesService),
       isDragging: this.isDragging,
-      mode: this.props.mode,
-      viewLayout: this.props.viewLayout,
+      mode: input.mode,
+      viewLayout: this.viewLayout,
       onClearError: this.handleClearError,
       onDraggingChange: this.handleDraggingChange,
       onListScroll: this.handleListScroll,
@@ -263,8 +289,8 @@ export class FilesController implements IDisposable {
       onDropFiles: this.handleDropFiles,
       onOpenFolderDialog: this.handleOpenFolderDialog,
       onSelectFile: this.handleSelectFile,
-      thumbnailFiles: this.props.thumbnailFiles,
-      thumbnailPlotModelsByFileId: this.props.thumbnailPlotModelsByFileId,
+      thumbnailFiles: input.thumbnailFiles,
+      thumbnailPlotModelsByFileId: input.thumbnailPlotModelsByFileId,
     };
   }
 
@@ -289,6 +315,59 @@ export class FilesController implements IDisposable {
     }
 
     this.prevFileCount = nextCount;
+  }
+
+  private openFileDialog(): void {
+    this.error = null;
+    this.syncView();
+    this.sourceWorkflow.openFolderDialog();
+  }
+
+  private removeSelectedFolder(): void {
+    const folderPath = this.getSelectedFolderPath() ?? this.getFirstFolderPath();
+    if (!folderPath) {
+      return;
+    }
+
+    this.handleRemoveFolder(`folder:${folderPath}`);
+  }
+
+  private showMoreActions(anchor: HTMLElement): void {
+    const canRemoveFolder = hasFolder(this.files);
+    const isChartMode = this.paneInput.mode === "chart";
+    const isThumbnailView = isChartMode && this.viewLayout === "thumbnail";
+    this.contextMenuService.showContextMenu({
+      autoSelectFirstItem: true,
+      getAnchor: () => anchor,
+      getActions: () => [
+        createMenuAction({
+          checked: isThumbnailView,
+          enabled: isChartMode,
+          id: TOGGLE_THUMBNAIL_VIEW_ACTION_ID,
+          label: localize("files.thumbnailView", "Thumbnail"),
+          run: () => {
+            void this.commandService.executeCommand(TOGGLE_THUMBNAIL_VIEW_ACTION_ID);
+          },
+        }),
+        createMenuAction({
+          icon: LxIcon.add,
+          id: ADD_FOLDER_ACTION_ID,
+          label: localize("files.addFolder", "Add Folder"),
+          run: () => {
+            void this.commandService.executeCommand(ADD_FOLDER_ACTION_ID);
+          },
+        }),
+        createMenuAction({
+          enabled: canRemoveFolder,
+          icon: LxIcon.remove,
+          id: REMOVE_FOLDER_ACTION_ID,
+          label: localize("files.removeFolder", "Remove Folder"),
+          run: () => {
+            void this.commandService.executeCommand(REMOVE_FOLDER_ACTION_ID);
+          },
+        }),
+      ],
+    });
   }
 
   private readonly handleClearError = (): void => {
@@ -331,14 +410,14 @@ export class FilesController implements IDisposable {
 
   private readonly handleDropFiles = (dataTransfer: DataTransfer | null): void => {
     this.sourceWorkflow.importDroppedFiles(dataTransfer);
-  }
+  };
 
   private readonly handleOpenFolderDialog = (): void => {
     this.sourceWorkflow.openFolderDialog();
   };
 
   private readonly handleSelectFile = (fileId: string | null): void => {
-    this.props.onFileSelected(fileId);
+    this.selectFile(fileId, "force");
     this.syncView();
   };
 
@@ -389,11 +468,11 @@ export class FilesController implements IDisposable {
   };
 
   private notifyExplorerFilesRemoved(fileIds: readonly string[]): void {
-    if (this.isControlled && this.props.selectionKind === "raw") {
+    if (this.isControlled && this.paneInput.selectionKind === "raw") {
       return;
     }
 
-    const currentFileId = this.props.selectionKind === "analysis"
+    const currentFileId = this.paneInput.selectionKind === "analysis"
       ? this.explorerService.selectedProcessedFileId
       : this.explorerService.selectedRawFileId;
     if (!currentFileId || !fileIds.includes(currentFileId)) {
@@ -404,7 +483,7 @@ export class FilesController implements IDisposable {
     this.explorerService.select({
       candidateFileIds: remainingFileIds,
       fileId: resolveExplorerSelectedFileId(null, remainingFileIds),
-      kind: this.props.selectionKind,
+      kind: this.paneInput.selectionKind,
     }, "force");
   }
 
@@ -418,7 +497,7 @@ export class FilesController implements IDisposable {
     this.isTemplateListLoading = true;
     this.syncView();
 
-    this.props.templateService.getTemplates()
+    this.templateService.getTemplates()
       .then((templates) => {
         if (this.disposed || this.templateLoadRunId !== runId) {
           return;
@@ -445,13 +524,13 @@ export class FilesController implements IDisposable {
       this.internalFiles = this.internalFiles.filter((entry) => !removedFileIds.has(entry.fileId ?? ""));
     }
 
-    if (this.props.onFilesRemoved) {
-      this.props.onFilesRemoved([...fileIds]);
+    if (this.paneInput.onFilesRemoved) {
+      this.paneInput.onFilesRemoved([...fileIds]);
       return;
     }
 
     for (const fileId of fileIds) {
-      this.props.onFileRemoved?.(fileId);
+      this.paneInput.onFileRemoved?.(fileId);
     }
   }
 
@@ -462,16 +541,16 @@ export class FilesController implements IDisposable {
   ): void {
     if (!this.isControlled) {
       this.internalFiles = [...fileEntries];
-      this.props.onFileSelected(selectedFileId);
+      this.selectFile(selectedFileId, "force");
       this.handleFileCountEffects();
       this.syncView();
     }
 
-    if (this.props.onFilesReplaced) {
-      this.props.onFilesReplaced(importedFiles);
+    if (this.paneInput.onFilesReplaced) {
+      this.paneInput.onFilesReplaced(importedFiles);
     } else {
       for (const fileInfo of importedFiles) {
-        this.props.onFileImported?.(fileInfo);
+        this.paneInput.onFileImported?.(fileInfo);
       }
     }
   }
@@ -490,13 +569,13 @@ export class FilesController implements IDisposable {
       this.syncView();
     }
 
-    if (this.props.onFilesAdded) {
-      this.props.onFilesAdded(importedFiles);
+    if (this.paneInput.onFilesAdded) {
+      this.paneInput.onFilesAdded(importedFiles);
       return;
     }
 
     for (const fileInfo of importedFiles) {
-      this.props.onFileImported?.(fileInfo);
+      this.paneInput.onFileImported?.(fileInfo);
     }
   }
 
@@ -518,7 +597,7 @@ export class FilesController implements IDisposable {
     );
   }
 
-  private removeImportedFilesFromController(fileIds: readonly string[]): void {
+  private removeImportedFilesFromExplorer(fileIds: readonly string[]): void {
     this.notifyExplorerFilesRemoved(fileIds);
     this.removeFiles(fileIds);
     this.handleFileCountEffects();
@@ -550,6 +629,43 @@ export class FilesController implements IDisposable {
     return null;
   }
 
+  private selectFile(fileId: string | null, reveal?: "force"): string | null {
+    return this.explorerService.select({
+      candidateFileIds: this.fileIds,
+      fileId: normalizeFileId(fileId),
+      kind: this.paneInput.selectionKind,
+    }, reveal);
+  }
+}
+
+const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {
+  files: [],
+  mode: "table",
+  onFileImported: () => undefined,
+  onFileRemoved: () => undefined,
+  onFilesAdded: () => undefined,
+  onFilesRemoved: () => undefined,
+  onFilesReplaced: () => undefined,
+  selectedFileId: null,
+  selectionKind: "raw",
+  thumbnailFiles: [],
+};
+
+function getActionAnchor(event: unknown): HTMLElement {
+  if (
+    event instanceof MouseEvent &&
+    event.currentTarget instanceof HTMLElement
+  ) {
+    return event.currentTarget;
+  }
+  return document.body;
+}
+
+function hasFolder(files: readonly ExplorerFileEntry[]): boolean {
+  return files.some(file => {
+    const relativePath = String(file.relativePath ?? "");
+    return relativePath.includes("/");
+  });
 }
 
 function normalizeRelativePath(value: unknown): string | null {
@@ -575,4 +691,3 @@ function getTopLevelFolderPath(relativePath: unknown): string | null {
 
   return normalized.slice(0, slashIndex);
 }
-

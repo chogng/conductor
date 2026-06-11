@@ -28,7 +28,7 @@ import {
 import {
   ExplorerViewId,
   type IExplorerService,
-} from "src/cs/workbench/contrib/files/common/explorer";
+} from "src/cs/workbench/contrib/files/browser/files";
 import type { IParametersService } from "src/cs/workbench/services/parameters/common/parameters";
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import type { ISearchService } from "src/cs/workbench/services/search/common/search";
@@ -78,7 +78,7 @@ import {
   WorkbenchWindow,
 } from "src/cs/workbench/browser/window";
 import { TableViewId } from "src/cs/workbench/services/table/common/table";
-import { createExplorerFileOptionsFromRecords } from "src/cs/workbench/contrib/files/common/explorerFileOptions";
+import { createChartFileOptionsFromRecords } from "src/cs/workbench/services/chart/common/chartFileOptions";
 import {
   TemplateApplyController,
 } from "src/cs/workbench/services/template/browser/templateApplyController";
@@ -87,7 +87,7 @@ import {
   createExplorerPaneInput,
   reconcileExplorerSessionSelection,
   resolveExplorerSessionSelection,
-} from "src/cs/workbench/contrib/files/browser/explorerPaneInput";
+} from "src/cs/workbench/browser/workbenchExplorerPaneInput";
 import type {
   ISessionService as ISessionServiceType,
   SessionSnapshot,
@@ -104,6 +104,7 @@ import {
 import type {
   ITableService,
   TableModel,
+  TableSource,
 } from "src/cs/workbench/services/table/common/table";
 import type {
   ITemplateApplyService,
@@ -487,7 +488,6 @@ export class Workbench extends Layout {
     this.explorerService.updatePaneInput(this.getExplorerPaneInput(
       snapshot,
       readModel,
-      tableModel,
       this.templateApply,
     ));
     this.tableService.updateViewInput(this.getTableProps(tableModel));
@@ -926,7 +926,6 @@ export class Workbench extends Layout {
   private getExplorerPaneInput(
     snapshot = this.session.getSnapshot(),
     readModel = createSessionReadModel(snapshot),
-    tableModel = this.getTableModel(snapshot, readModel),
     processing = this.templateApply,
   ) {
     return createExplorerPaneInput({
@@ -948,7 +947,6 @@ export class Workbench extends Layout {
         removeFiles: this.session.removeFiles,
       },
       snapshot,
-      tableModel,
       templateState: this.templateService.getState(),
     });
   }
@@ -995,7 +993,7 @@ export class Workbench extends Layout {
       activeFileId,
       activePlotType: this.activePlotType,
       axisSettings: this.getFileAxisSettingsByFileId(snapshot),
-      chartFileOptions: createExplorerFileOptionsFromRecords(
+      chartFileOptions: createChartFileOptionsFromRecords(
         snapshot.filesById,
         snapshot.fileOrder,
       ),
@@ -1026,7 +1024,7 @@ export class Workbench extends Layout {
       activeFileId,
       activePlotType: this.activePlotType,
       axisSettings: this.getFileAxisSettingsByFileId(snapshot),
-      chartFileOptions: createExplorerFileOptionsFromRecords(
+      chartFileOptions: createChartFileOptionsFromRecords(
         snapshot.filesById,
         snapshot.fileOrder,
       ),
@@ -1195,9 +1193,10 @@ export class Workbench extends Layout {
     snapshot = this.session.getSnapshot(),
     readModel = createSessionReadModel(snapshot),
   ) {
+    const selectedRawFileId = resolveExplorerSessionSelection(this.explorerService, readModel).selectedRawFileId;
     return this.tableService.update({
       rawFiles: readModel.rawFiles,
-      selectedFileId: resolveExplorerSessionSelection(this.explorerService, readModel).selectedRawFileId,
+      source: createRawTableSource(selectedRawFileId),
     });
   }
 
@@ -1360,6 +1359,11 @@ const applyThemeMode = (theme: ThemeMode): void => {
   document.documentElement.classList.remove("light", "dark");
   document.documentElement.classList.add(resolvedTheme);
   document.documentElement.style.colorScheme = resolvedTheme;
+};
+
+const createRawTableSource = (fileId: string | null): TableSource | null => {
+  const normalizedFileId = String(fileId ?? "").trim();
+  return normalizedFileId ? { fileId: normalizedFileId } : null;
 };
 
 //#endregion

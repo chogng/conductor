@@ -5,14 +5,57 @@
 import type { Event } from "src/cs/base/common/event";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { ExplorerPaneInput } from "src/cs/workbench/contrib/files/common/explorerPaneViewInput";
+import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
+import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
+import type { FilesViewLayout } from "src/cs/workbench/contrib/files/common/files";
+import type { ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
+import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
+import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
+import type { PlotMainRenderModelSource } from "src/cs/workbench/services/plot/common/plotModel";
+import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
+import type {
+  ProcessedEntry,
+  SessionFile,
+} from "src/cs/workbench/services/session/common/sessionTypes";
+import type {
+  TemplateSelection,
+  TemplateSelectionsByFileId,
+} from "src/cs/workbench/services/template/common/templateSelection";
 
 export const IExplorerService = createDecorator<IExplorerService>("explorerService");
 export const ExplorerViewId = "workbench.files";
 
 export type ExplorerSelectionKind = "raw" | "analysis";
 
-export type ExplorerViewLayout = "tree" | "thumbnail";
+export type ExplorerViewLayout = FilesViewLayout;
+
+export type ExplorerThumbnailPlotModel = PlotMainRenderModelSource & {
+  readonly signature: string;
+};
+
+export type ExplorerImportedSessionFile = SessionFile & {
+  readonly importRecord: ImportedFileRecord;
+};
+
+export type ExplorerPaneInput = {
+  readonly activePlotType?: PlotType;
+  readonly currentTemplateLabel?: string;
+  readonly currentTemplateSelection?: TemplateSelection;
+  readonly fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
+  readonly files: ExplorerFileEntry[];
+  readonly mode: WorkbenchMainPart;
+  readonly onFileImported: (fileInfo: ExplorerImportedSessionFile) => void;
+  readonly onFileRemoved: (fileId: string) => void;
+  readonly onFilesAdded: (files: ExplorerImportedSessionFile[]) => void;
+  readonly onFilesRemoved: (fileIds: string[]) => void;
+  readonly onFilesReplaced: (files: ExplorerImportedSessionFile[]) => void;
+  readonly originOpenPlotOptions?: OriginPlotOptions;
+  readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
+  readonly selectedFileId: string | null;
+  readonly selectionKind: ExplorerSelectionKind;
+  readonly thumbnailFiles: ProcessedEntry[];
+  readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
+};
 
 export type ExplorerSelectionChangeEvent = {
   readonly kind: ExplorerSelectionKind;

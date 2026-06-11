@@ -2,10 +2,10 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ICommandHandler } from "src/cs/platform/commands/common/commands";
 import { localize } from "src/cs/nls";
+import type { ICommandHandler } from "src/cs/platform/commands/common/commands";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
-import { IExplorerService } from "src/cs/workbench/contrib/files/common/explorer";
+import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import { ITemplateService } from "src/cs/workbench/services/template/common/template";
 import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 
