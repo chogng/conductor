@@ -515,7 +515,50 @@ When a value appears to be needed across layers, first check whether one layer
 should consume an owner API instead of importing the value directly. Prefer
 upstream-shaped ownership over parallel exported constants.
 
-## 18. No local patches over owner behavior
+## 18. Root-cause fix discipline
+
+Bug fixes must start from the behavior owner, not from the visible symptom.
+
+Before editing code for a bug, write down the concrete chain:
+
+```txt
+user symptom
+  -> UI/event entry point
+  -> command/action/controller/widget path
+  -> service/component/primitive that owns the state or lifecycle
+  -> incorrect owner behavior
+```
+
+If the chain crosses shared infrastructure such as hover, context menus,
+ActionBar, dropdowns, view containers, layout, commands, storage, file service,
+or session events, the shared infrastructure is the first fix candidate. Do not
+change an individual view, CSS rule, button, or caller until you have proven
+that the local surface owns the behavior.
+
+When the owner has a VS Code upstream counterpart, inspect the upstream
+implementation under `C:\Users\lanxi\Desktop\vscode` before editing. The fix
+should preserve upstream semantics and API shape unless Conductor has an
+explicit product reason to diverge. If diverging, state the reason in the
+implementation notes or final response.
+
+Do not call the work complete until the regression test exercises the owner
+contract or the original shared path. A test that only asserts the local symptom
+is acceptable only when the local component is the owner. For cross-cutting
+bugs, add or update tests at the shared owner boundary and, when practical, add
+one integration-style test for the original UI path that exposed the bug.
+
+Root-cause fixes should change the owner semantics. Workarounds should be
+rejected unless they are explicitly temporary, documented as migration bridges,
+and paired with an owner-level follow-up. Examples of workarounds:
+
+```txt
+local boolean flags that duplicate platform lifecycle
+CSS that hides a widget instead of fixing when it is shown
+caller-specific guards around a shared service bug
+new command IDs or service methods that bypass the existing owner
+```
+
+## 19. No local patches over owner behavior
 
 Do not fix cross-cutting behavior with a local workaround when an owning
 service, platform primitive, or upstream-shaped lifecycle already exists.

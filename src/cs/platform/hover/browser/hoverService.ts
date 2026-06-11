@@ -24,12 +24,14 @@ class ManagedHover extends Disposable implements IManagedHover {
   private readonly hoverWidget: ManagedHoverWidget;
   private showTimer = 0;
   private suppressUntil = 0;
+  private visible = false;
   private content: IManagedHoverContentOrFactory;
 
   constructor(
     private readonly target: HTMLElement,
     content: IManagedHoverContentOrFactory,
     private readonly options: IManagedHoverOptions = {},
+    private readonly onDispose?: () => void,
   ) {
     super();
     this.content = content;
@@ -58,14 +60,17 @@ class ManagedHover extends Disposable implements IManagedHover {
 
     const content = this.resolveContent();
     if (!content) {
+      this.hide();
       return;
     }
 
     this.hoverWidget.show(content);
+    this.visible = true;
   }
 
   public hide(): void {
     this.clearTimer();
+    this.visible = false;
     this.hoverWidget.hide();
   }
 
@@ -76,10 +81,13 @@ class ManagedHover extends Disposable implements IManagedHover {
       this.hide();
       return;
     }
-    this.hoverWidget.show(resolved);
+    if (this.visible) {
+      this.hoverWidget.show(resolved);
+    }
   }
 
   public override dispose(): void {
+    this.onDispose?.();
     this.hide();
     super.dispose();
   }
@@ -123,7 +131,13 @@ class BrowserHoverService extends Disposable implements IHoverService {
     content: IManagedHoverContentOrFactory,
     options?: IManagedHoverOptions,
   ): IManagedHover {
-    return this.managedHovers.add(new ManagedHover(target, content, options));
+    const hover = new ManagedHover(
+      target,
+      content,
+      options,
+      () => this.managedHovers.delete(hover),
+    );
+    return this.managedHovers.add(hover);
   }
 }
 
