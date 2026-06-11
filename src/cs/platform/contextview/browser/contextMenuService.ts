@@ -27,6 +27,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
     private readonly menuDisposables = this._register(new DisposableStore());
     private readonly submenuDisposables = this._register(new DisposableStore());
     private activeDelegate: IContextMenuDelegate | undefined;
+    private blockElement: HTMLElement | null = null;
     private submenuActionId: string | null = null;
     private submenuContainer: HTMLElement | null = null;
 
@@ -62,6 +63,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
                 container.classList.add("ui-menu-container");
                 const menu = this.renderMenu(delegate, actions);
                 container.append(menu.domNode);
+                this.showMouseBlock(container);
                 this.menuDisposables.add(menu);
                 this.layoutMenuFocus(delegate);
                 return Disposable.None;
@@ -221,6 +223,18 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
         this.closeDisposables.clear();
 
         const contextViewElement = this.contextViewService.getContextViewElement();
+        const blockElement = this.blockElement;
+        if (blockElement) {
+            this.closeDisposables.add(addElementListener(blockElement, "mousedown", event => {
+                event.stopPropagation();
+                this.hide(true);
+            }));
+            this.closeDisposables.add(addElementListener(blockElement, "contextmenu", event => {
+                event.preventDefault();
+                event.stopPropagation();
+                this.hide(true);
+            }));
+        }
         this.closeDisposables.add(addDocumentListener("mousedown", event => {
             const target = event.target;
             if (!(target instanceof Node)) {
@@ -243,6 +257,27 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
                 this.hide(true);
             }
         }));
+    }
+
+    private showMouseBlock(contextViewElement: HTMLElement): void {
+        this.hideMouseBlock();
+
+        const block = document.createElement("div");
+        block.className = "context-view-block";
+        block.style.position = "fixed";
+        block.style.left = "0";
+        block.style.top = "0";
+        block.style.width = "100vw";
+        block.style.height = "100vh";
+        block.style.cursor = "initial";
+        block.style.zIndex = String(getContextViewZIndex(contextViewElement) - 1);
+        document.body.appendChild(block);
+        this.blockElement = block;
+    }
+
+    private hideMouseBlock(): void {
+        this.blockElement?.remove();
+        this.blockElement = null;
     }
 
     private layoutMenuFocus(delegate: IContextMenuDelegate): void {
@@ -272,6 +307,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
         this.activeDelegate = undefined;
         this.closeDisposables.clear();
         this.hideSubmenu();
+        this.hideMouseBlock();
         this.menuDisposables.clear();
         delegate.onHide?.(didCancel);
         this.onDidHideContextMenuEmitter.fire();

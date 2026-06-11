@@ -491,7 +491,7 @@ export class ExplorerViewer implements IDisposable {
 
     event.preventDefault();
     event.stopPropagation();
-    this.hideFileItemHover(item);
+    this.hideFileItemHover();
     this.props.onRequestTemplates?.();
 
     this.props.contextMenuService.showContextMenu({

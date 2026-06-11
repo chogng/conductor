@@ -514,3 +514,39 @@ Use these rules before extracting constants:
 When a value appears to be needed across layers, first check whether one layer
 should consume an owner API instead of importing the value directly. Prefer
 upstream-shaped ownership over parallel exported constants.
+
+## 18. No local patches over owner behavior
+
+Do not fix cross-cutting behavior with a local workaround when an owning
+service, platform primitive, or upstream-shaped lifecycle already exists.
+
+If a bug appears in one view but is caused by shared infrastructure or a shared
+interaction contract, first identify the owner and fix or consume that owner.
+The local view may subscribe to the owner for its own state cleanup, but it must
+not become the source of truth for the shared behavior.
+
+Avoid patterns such as:
+
+```ts
+// Bad: local flag duplicates a platform menu lifecycle.
+private isFileContextMenuOpen = false;
+
+showLocalContextMenu() {
+  this.isFileContextMenuOpen = true;
+  contextMenuService.showContextMenu({
+    onHide: () => this.isFileContextMenuOpen = false,
+  });
+}
+```
+
+Prefer:
+
+```ts
+// Good: local state follows the owner event.
+this._register(contextMenuService.onDidShowContextMenu(() => this.hideHover()));
+this._register(contextMenuService.onDidHideContextMenu(() => this.updateHoverState()));
+```
+
+For platform-wide interaction behavior, prefer an upstream-aligned platform fix
+over feature-specific guards. Feature code should only handle feature-owned
+cleanup or presentation state after consuming the platform event/API.
