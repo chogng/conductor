@@ -161,12 +161,13 @@ class TestViewContainerModel implements IViewContainerModel {
   private readonly visibleDescriptors: IViewDescriptor[] = [];
   private readonly onDidAddVisibleViewDescriptorsEmitter = new Emitter<readonly IAddedViewDescriptorRef[]>();
   public readonly onDidAddVisibleViewDescriptors = this.onDidAddVisibleViewDescriptorsEmitter.event;
-  public readonly onDidRemoveVisibleViewDescriptors: IViewContainerModel["onDidRemoveVisibleViewDescriptors"] = noneEvent();
+  private readonly onDidRemoveVisibleViewDescriptorsEmitter = new Emitter<readonly IViewDescriptorRef[]>();
+  public readonly onDidRemoveVisibleViewDescriptors = this.onDidRemoveVisibleViewDescriptorsEmitter.event;
   public readonly onDidMoveVisibleViewDescriptors: IViewContainerModel["onDidMoveVisibleViewDescriptors"] = noneEvent();
 
   public constructor(
     public readonly viewContainer: ViewContainer,
-    viewDescriptor: IViewDescriptor,
+    private readonly viewDescriptor: IViewDescriptor,
   ) {
     this.allViewDescriptors = [viewDescriptor];
     this.activeViewDescriptors = [viewDescriptor];
@@ -185,8 +186,27 @@ class TestViewContainerModel implements IViewContainerModel {
     }]);
   }
 
-  public isVisible(): boolean { return true; }
-  public setVisible(): void {}
+  public isVisible(viewId: string): boolean {
+    return this.visibleDescriptors.some(viewDescriptor => viewDescriptor.id === viewId);
+  }
+
+  public setVisible(viewId: string, visible: boolean): void {
+    const index = this.visibleDescriptors.findIndex(viewDescriptor => viewDescriptor.id === viewId);
+    if (visible) {
+      if (index === -1 && viewId === this.viewDescriptor.id) {
+        this.addVisibleViewDescriptor(this.viewDescriptor);
+      }
+      return;
+    }
+
+    if (index !== -1) {
+      const [viewDescriptor] = this.visibleDescriptors.splice(index, 1);
+      this.onDidRemoveVisibleViewDescriptorsEmitter.fire([{
+        index,
+        viewDescriptor,
+      }]);
+    }
+  }
   public isCollapsed(): boolean { return false; }
   public setCollapsed(): void {}
   public getSize(): number | undefined { return undefined; }
@@ -302,6 +322,52 @@ suite("workbench/services/views/browser/ViewsService", () => {
     assert.equal(viewIdDuringVisibilityEvent, viewDescriptor.id);
 
     listener.dispose();
+    viewsService.dispose();
+    instantiationService.dispose();
+    layoutService.dispose();
+    contextKeyService.dispose();
+    storageService.dispose();
+  });
+
+  test("setViewVisible materializes descriptor views that start hidden", () => {
+    const viewDescriptor: IViewDescriptor = {
+      ctorDescriptor: new SyncDescriptor(TestView),
+      hideByDefault: true,
+      id: "test.view",
+      name: "Test",
+    };
+    const container: ViewContainer = {
+      ctorDescriptor: new SyncDescriptor(TestViewPaneContainer),
+      id: "test.container",
+      title: "Test",
+    };
+    const storageService = new TestStorageService();
+    const contextKeyService = new ContextKeyService();
+    const layoutService = new BrowserWorkbenchLayoutService(storageService);
+    const services = new ServiceCollection();
+    const instantiationService = new InstantiationService(services);
+    const descriptorService = new TestViewDescriptorService(container, viewDescriptor);
+
+    services.set(IStorageService, storageService);
+    services.set(IContextKeyService, contextKeyService);
+    services.set(IWorkbenchLayoutService, layoutService);
+    services.set(IInstantiationService, instantiationService);
+    services.set(IViewDescriptorService, descriptorService);
+
+    const viewsService = new ViewsService(
+      descriptorService,
+      contextKeyService,
+      instantiationService,
+      layoutService,
+    );
+
+    assert.equal(viewsService.getViewWithId(viewDescriptor.id), null);
+
+    assert.equal(viewsService.setViewVisible(viewDescriptor.id, true), true);
+
+    assert.equal(viewsService.getViewWithId(viewDescriptor.id)?.id, viewDescriptor.id);
+    assert.equal(viewsService.isViewVisible(viewDescriptor.id), true);
+
     viewsService.dispose();
     instantiationService.dispose();
     layoutService.dispose();

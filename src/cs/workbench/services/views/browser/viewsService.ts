@@ -217,7 +217,15 @@ export class ViewsService extends Disposable implements IViewsServiceType {
   public setViewVisible(id: string, visible: boolean): boolean {
     const view = this.viewsById.get(id);
     if (!view) {
-      return false;
+      const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
+      if (!viewContainer) {
+        return false;
+      }
+
+      const model = this.viewDescriptorService.getViewContainerModel(viewContainer);
+      const wasVisible = model.isVisible(id);
+      model.setVisible(id, visible);
+      return wasVisible !== model.isVisible(id);
     }
 
     this.visibleAddedViews.set(id, visible);
