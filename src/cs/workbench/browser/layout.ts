@@ -1,4 +1,3 @@
-import { Emitter } from "src/cs/base/common/event";
 import { Disposable, MutableDisposable } from "src/cs/base/common/lifecycle";
 import { DisposableResizeObserver, getWindow } from "src/cs/base/browser/dom";
 import SplitView, {
@@ -6,18 +5,10 @@ import SplitView, {
   type SplitViewResizeEvent,
 } from "src/cs/base/browser/ui/splitview/splitview";
 import {
-  INITIAL_VISITED_VIEWS_STATE,
-  LayoutViewSwitchIds,
-  markVisitedLayoutView,
-  navigateLayoutBack,
-  navigateLayoutForward,
-  navigateToLayoutPage,
-  resolveLayoutView,
-  type VisitedLayoutViewsState,
-} from "src/cs/workbench/browser/actions/layoutActions";
-import {
   Parts,
   type IWorkbenchLayoutService,
+  type IWorkbenchNavigationState,
+  type LayoutView,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
   WorkbenchSidebarPaneId,
@@ -37,6 +28,7 @@ export {
   SIDEBAR_MAX_WIDTH_PX,
   SIDEBAR_MIN_WIDTH_PX,
 } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
+export type { LayoutView } from "src/cs/workbench/services/layout/browser/layoutService";
 
 export const MAIN_MIN_WIDTH_PX = 220;
 export const WORKBENCH_STACK_LAYOUT_THRESHOLD_PX = 860;
@@ -51,14 +43,7 @@ export type LayoutParts = {
   readonly auxiliaryBar?: Node | null;
 };
 
-export type LayoutView = WorkbenchMainPart | "settings";
 type LayoutPane = "workbench" | "settings";
-
-export type LayoutNavigationState = {
-  activeView: LayoutView;
-  history: LayoutView[];
-  historyIndex: number;
-};
 
 export type ViewPaneDefinition = {
   labelledBy: string;
@@ -67,6 +52,7 @@ export type ViewPaneDefinition = {
 };
 
 export type LayoutStateInput = {
+  activeMainPart: WorkbenchMainPart;
   activeView: LayoutView;
   hasVisitedSettingsView: boolean;
   historyIndex: number;
@@ -80,10 +66,12 @@ export type ViewPaneState = ViewPaneDefinition & {
 
 export type LayoutState = ReturnType<typeof getLayoutState>;
 
-export const INITIAL_LAYOUT_NAVIGATION_STATE: LayoutNavigationState = {
+const DEFAULT_WORKBENCH_NAVIGATION_STATE: IWorkbenchNavigationState = {
+  activeMainPart: "table",
   activeView: "table",
-  history: ["table"],
+  hasVisitedSettingsView: false,
   historyIndex: 0,
+  historyLength: 1,
 };
 
 const LayoutPaneIds: Record<LayoutPane, string> = {
@@ -91,14 +79,20 @@ const LayoutPaneIds: Record<LayoutPane, string> = {
   settings: "workbench-viewpane-settings",
 };
 
+const WorkbenchTitlebarPageButtonIds: Record<LayoutView, string> = {
+  table: "workbench-titlebar-table-button",
+  chart: "workbench-titlebar-chart-button",
+  settings: "workbench-titlebar-settings-button",
+};
+
 export const VIEW_PANES: Record<LayoutPane, ViewPaneDefinition> = {
   workbench: {
-    labelledBy: LayoutViewSwitchIds.table,
+    labelledBy: WorkbenchTitlebarPageButtonIds.table,
     paneId: LayoutPaneIds.workbench,
     view: "workbench",
   },
   settings: {
-    labelledBy: LayoutViewSwitchIds.settings,
+    labelledBy: WorkbenchTitlebarPageButtonIds.settings,
     paneId: LayoutPaneIds.settings,
     view: "settings",
   },
@@ -119,7 +113,6 @@ const isWorkbenchView = (activeView: LayoutView): activeView is WorkbenchMainPar
   activeView !== "settings";
 
 export class Layout extends Disposable {
-  private readonly navigation = this._register(new WorkbenchLayoutNavigation());
   private readonly sidebarPart: WorkbenchSidebarPart;
   private readonly auxiliaryBarPart = this._register(new WorkbenchAuxiliaryBarPart());
   private readonly splitView = this._register(new MutableDisposable<SplitView>());
@@ -151,7 +144,9 @@ export class Layout extends Disposable {
       this.mount(parent);
     }
 
-    this._register(this.navigation.onDidChangeState(() => this.render()));
+    if (this.workbenchLayoutService) {
+      this._register(this.workbenchLayoutService.onDidChangeWorkbenchNavigation(() => this.render()));
+    }
     this._register(this.sidebarPart.onDidChangeWidth(() => this.render()));
     this._register(this.auxiliaryBarPart.onDidChangeWidth(() => this.render()));
     if (this.workbenchLayoutService) {
@@ -174,11 +169,15 @@ export class Layout extends Disposable {
   }
 
   public get activeView(): LayoutView {
-    return this.navigation.getState().activeView;
+    return this.workbenchLayoutService?.activeView ?? "table";
+  }
+
+  public get activeWorkbenchMainPart(): WorkbenchMainPart {
+    return this.workbenchLayoutService?.activeWorkbenchMainPart ?? "table";
   }
 
   public get state(): WorkbenchLayoutNavigationState {
-    return this.navigation.getState();
+    return this.createLayoutNavigationState();
   }
 
   public get sidebarVisible(): boolean {
@@ -186,23 +185,23 @@ export class Layout extends Disposable {
   }
 
   public navigateBack(): void {
-    this.navigation.navigateBack();
+    this.workbenchLayoutService?.navigateBack();
   }
 
   public navigateForward(): void {
-    this.navigation.navigateForward();
+    this.workbenchLayoutService?.navigateForward();
   }
 
   public navigateToView(view: LayoutView): void {
-    this.navigation.navigateToView(view);
+    this.workbenchLayoutService?.navigateToView(view);
   }
 
   public resetToView(view: LayoutView): void {
-    this.navigation.resetToView(view);
+    this.workbenchLayoutService?.resetToView(view);
   }
 
   public selectView(view: string): void {
-    this.navigation.selectView(view);
+    this.workbenchLayoutService?.selectView(view);
   }
 
   public setParts(parts: LayoutParts): void {
@@ -269,7 +268,7 @@ export class Layout extends Disposable {
   }
 
   private renderMain(): void {
-    const state = this.navigation.getState().layoutState;
+    const state = this.state.layoutState;
     const workbenchPane = state.panes.workbench;
     const settingsPane = state.panes.settings;
 
@@ -429,9 +428,26 @@ export class Layout extends Disposable {
   private isPartVisible(part: Parts): boolean {
     return this.workbenchLayoutService?.isVisible(part) ?? true;
   }
+
+  private createLayoutNavigationState(): WorkbenchLayoutNavigationState {
+    const state = this.workbenchLayoutService?.getWorkbenchNavigationState() ??
+      DEFAULT_WORKBENCH_NAVIGATION_STATE;
+
+    return {
+      ...state,
+      layoutState: getLayoutState({
+        activeMainPart: state.activeMainPart,
+        activeView: state.activeView,
+        hasVisitedSettingsView: state.hasVisitedSettingsView,
+        historyIndex: state.historyIndex,
+        historyLength: state.historyLength,
+      }),
+    };
+  }
 }
 
 export const getLayoutState = ({
+  activeMainPart,
   activeView,
   hasVisitedSettingsView,
   historyIndex,
@@ -439,9 +455,9 @@ export const getLayoutState = ({
 }: LayoutStateInput) => {
   const isSettingsActive = activeView === "settings";
   const isWorkbenchActive = !isSettingsActive;
-  const workbenchLabelledBy = activeView === "chart"
-    ? LayoutViewSwitchIds.chart
-    : LayoutViewSwitchIds.table;
+  const workbenchLabelledBy = activeMainPart === "chart"
+    ? WorkbenchTitlebarPageButtonIds.chart
+    : WorkbenchTitlebarPageButtonIds.table;
 
   return {
     activeView,
@@ -463,102 +479,8 @@ export const getLayoutState = ({
   };
 };
 
-export class WorkbenchLayoutNavigation extends Disposable {
-  private navigation = INITIAL_LAYOUT_NAVIGATION_STATE;
-  private visitedViews = INITIAL_VISITED_VIEWS_STATE;
-  private readonly onDidChangeStateEmitter = this._register(
-    new Emitter<WorkbenchLayoutNavigationState>(),
-  );
-
-  public readonly onDidChangeState = this.onDidChangeStateEmitter.event;
-
-  constructor() {
-    super();
-    this.markActiveViewVisited();
-  }
-
-  public getState(): WorkbenchLayoutNavigationState {
-    return this.createState();
-  }
-
-  public navigateToView(nextView: LayoutView): void {
-    this.setNavigation(navigateToLayoutPage(this.navigation, nextView));
-  }
-
-  public navigateBack(): void {
-    this.setNavigation(navigateLayoutBack(this.navigation));
-  }
-
-  public navigateForward(): void {
-    this.setNavigation(navigateLayoutForward(this.navigation));
-  }
-
-  public resetToView(nextView: LayoutView): void {
-    this.setNavigation({
-      activeView: nextView,
-      history: [nextView],
-      historyIndex: 0,
-    });
-  }
-
-  public selectView(nextView: string): void {
-    const resolvedView = resolveLayoutView(nextView);
-    if (resolvedView) {
-      this.navigateToView(resolvedView);
-    }
-  }
-
-  private setNavigation(nextNavigation: LayoutNavigationState): void {
-    if (nextNavigation === this.navigation) {
-      return;
-    }
-    this.navigation = nextNavigation;
-    this.markActiveViewVisited();
-    this.blurActiveElement();
-    this.fireStateChange();
-  }
-
-  private markActiveViewVisited(): void {
-    this.visitedViews = markVisitedLayoutView(
-      this.visitedViews,
-      this.navigation.activeView,
-    );
-  }
-
-  private createState(): WorkbenchLayoutNavigationState {
-    const activeView = this.navigation.activeView;
-    return {
-      activeView,
-      layoutState: getLayoutState({
-        activeView,
-        hasVisitedSettingsView: this.visitedViews.hasVisitedSettingsView,
-        historyIndex: this.navigation.historyIndex,
-        historyLength: this.navigation.history.length,
-      }),
-      visitedViews: this.visitedViews,
-    };
-  }
-
-  private fireStateChange(): void {
-    this.onDidChangeStateEmitter.fire(this.createState());
-  }
-
-  private blurActiveElement(): void {
-    const activeElement = document.activeElement;
-    if (
-      activeElement &&
-      activeElement instanceof HTMLElement &&
-      typeof activeElement.blur === "function"
-    ) {
-      activeElement.blur();
-    }
-  }
-}
-
-export type WorkbenchLayoutNavigationState = {
-  activeView: LayoutView;
+export type WorkbenchLayoutNavigationState = IWorkbenchNavigationState & {
   layoutState: LayoutState;
-  visitedViews: VisitedLayoutViewsState;
 };
 
 const createPane = ({

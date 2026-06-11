@@ -20,7 +20,6 @@ import {
   BrowserWorkbenchLayoutService,
   Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
-import { WorkbenchPartHiddenStoragePrefix } from "src/cs/workbench/services/layout/browser/layoutConstants";
 
 class TestStorageService extends AbstractStorageService {
   private readonly values = new Map<string, string>();
@@ -74,6 +73,26 @@ suite("workbench/browser/layout", () => {
     assert.ok(TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX < SIDEBAR_DEFAULT_WIDTH_PX);
   });
 
+  test("navigation owns active workbench main part separately from settings page", () => {
+    const storage = new TestStorageService();
+    const service = new BrowserWorkbenchLayoutService(storage);
+
+    service.navigateToView("chart");
+    assert.equal(service.getWorkbenchNavigationState().activeView, "chart");
+    assert.equal(service.getWorkbenchNavigationState().activeMainPart, "chart");
+
+    service.navigateToView("settings");
+    assert.equal(service.getWorkbenchNavigationState().activeView, "settings");
+    assert.equal(service.getWorkbenchNavigationState().activeMainPart, "chart");
+
+    service.navigateToView("table");
+    assert.equal(service.getWorkbenchNavigationState().activeView, "table");
+    assert.equal(service.getWorkbenchNavigationState().activeMainPart, "table");
+
+    service.dispose();
+    storage.dispose();
+  });
+
   test("layout state reset restores hidden workbench parts", () => {
     const storage = new TestStorageService();
     const service = new BrowserWorkbenchLayoutService(storage);
@@ -83,7 +102,7 @@ suite("workbench/browser/layout", () => {
     assert.equal(service.isVisible(Parts.SIDEBAR_PART), false);
     assert.equal(
       storage.getBoolean(
-        `${WorkbenchPartHiddenStoragePrefix}${Parts.SIDEBAR_PART}`,
+        `workbench.part.hidden.${Parts.SIDEBAR_PART}`,
         StorageScope.PROFILE,
       ),
       true,
@@ -94,7 +113,7 @@ suite("workbench/browser/layout", () => {
     assert.equal(service.isVisible(Parts.SIDEBAR_PART), true);
     assert.equal(
       storage.getBoolean(
-        `${WorkbenchPartHiddenStoragePrefix}${Parts.SIDEBAR_PART}`,
+        `workbench.part.hidden.${Parts.SIDEBAR_PART}`,
         StorageScope.PROFILE,
       ),
       undefined,

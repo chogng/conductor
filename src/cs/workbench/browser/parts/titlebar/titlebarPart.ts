@@ -4,8 +4,7 @@ import {
 import { getBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
-import { LayoutViewSwitchIds } from "src/cs/workbench/browser/actions/layoutActions";
-import type { LayoutView } from "src/cs/workbench/browser/layout";
+import type { LayoutView } from "src/cs/workbench/services/layout/browser/layoutService";
 import { localize } from "src/cs/nls";
 import { createWorkbenchSidebarToggleAction } from "src/cs/workbench/browser/parts/sidebar/sidebarActions";
 import {
@@ -29,6 +28,11 @@ export const WORKBENCH_TITLEBAR_DRAG_REGION_STYLE = {
 export const WORKBENCH_TITLEBAR_ID = "workbench-titlebar";
 
 const WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID = "workbench-titlebar-update-button";
+const WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS: Record<LayoutView, string> = {
+  table: "workbench-titlebar-table-button",
+  chart: "workbench-titlebar-chart-button",
+  settings: "workbench-titlebar-settings-button",
+};
 
 export type WorkbenchTitlebarActivePage =
   | LayoutView
@@ -389,14 +393,7 @@ export const createWorkbenchTitlebarElement = (
     }`.trim();
     const button = createIconButton(
       {
-        id:
-          action.id === "table"
-            ? LayoutViewSwitchIds.table
-            : action.id === "chart"
-              ? LayoutViewSwitchIds.chart
-              : action.id === "settings"
-                ? LayoutViewSwitchIds.settings
-                : undefined,
+        id: WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS[action.id],
         "aria-label": action.title,
         title: action.title,
         className,

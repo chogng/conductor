@@ -41,6 +41,7 @@ import type {
 } from "src/cs/workbench/services/template/common/templateProcessingBackend";
 import {
   Parts,
+  type LayoutView,
   type IWorkbenchLayoutService,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
@@ -58,7 +59,7 @@ import {
   ActiveWorkbenchViewContext,
   type WorkbenchMainPart,
 } from "src/cs/workbench/common/contextkeys";
-import { Layout, type LayoutView } from "src/cs/workbench/browser/layout";
+import { Layout } from "src/cs/workbench/browser/layout";
 import {
   WORKBENCH_TITLEBAR_ID,
   type WorkbenchTitlebarProps,
@@ -149,7 +150,6 @@ import {
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { NotificationToasts } from "src/cs/workbench/browser/parts/notifications/notificationsToasts";
 import { registerNotificationCommands } from "src/cs/workbench/browser/parts/notifications/notificationsCommands";
-import { ResetLayoutStateCommandId } from "src/cs/workbench/services/layout/browser/layoutConstants";
 
 //#endregion
 
@@ -310,7 +310,6 @@ export class Workbench extends Layout {
     : "system";
   private tableStateListener: (() => void) | null = null;
   private tableStateModel: TableModel | null = null;
-  private workbenchViewMode: WorkbenchMainPart = "table";
 
   //#endregion
 
@@ -423,7 +422,6 @@ export class Workbench extends Layout {
     this.templateProcessingBackendService = options.templateProcessingBackendService;
     this.templateService = options.templateService;
     const initialViewMode = resolveInitialWorkbenchViewMode(this.session.getSnapshot());
-    this.workbenchViewMode = initialViewMode;
     this._register(this.createNotificationsHandlers());
     this.templateApply = this._register(new TemplateApplyController({
       sessionService: this.session,
@@ -453,6 +451,9 @@ export class Workbench extends Layout {
       this.renderWorkbench();
     }));
     this._register(this.templateService.onDidChangeTemplateState(() => {
+      this.renderWorkbench();
+    }));
+    this._register(this.layoutService.onDidChangeWorkbenchNavigation(() => {
       this.renderWorkbench();
     }));
     this._register(this.session.onDidChangeSession(() => this.renderWorkbench()));
@@ -510,7 +511,7 @@ export class Workbench extends Layout {
       sidebar: this.getViewContainerElement(WorkbenchViewContainers.files, null),
       workbench: this.getViewContainerElement(
         WorkbenchViewContainers.main,
-        this.workbenchViewMode === "chart" ? this.getChartViewElement() : this.getTableViewElement(),
+        this.activeWorkbenchMainPart === "chart" ? this.getChartViewElement() : this.getTableViewElement(),
       ),
       auxiliaryBar: this.getViewContainerElement(
         WorkbenchViewContainers.auxiliarybar,
@@ -583,11 +584,8 @@ export class Workbench extends Layout {
 
   private getTitlebarState(): WorkbenchTitlebarState {
     const state = this.state;
-    const activePage = state.activeView === "settings"
-      ? "settings"
-      : this.workbenchViewMode;
     return {
-      activePage,
+      activePage: state.activeMainPart,
       canNavigateBack: state.layoutState.canNavigateBack,
       canNavigateForward: state.layoutState.canNavigateForward,
       enabled: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
@@ -609,7 +607,7 @@ export class Workbench extends Layout {
   private updateViewContainers(): void {
     const isSettingsActive = this.activeView === "settings";
     const isWorkbenchActive = !isSettingsActive;
-    const isAnalysisActive = this.workbenchViewMode === "chart";
+    const isAnalysisActive = this.activeWorkbenchMainPart === "chart";
 
     if (isWorkbenchActive) {
       if (this.sidebarVisible) {
@@ -634,9 +632,9 @@ export class Workbench extends Layout {
 
   private updateContextKeys(): void {
     this.activeWorkbenchViewContext?.set(this.activeView);
-    this.activeWorkbenchMainPartContext?.set(this.workbenchViewMode);
+    this.activeWorkbenchMainPartContext?.set(this.activeWorkbenchMainPart);
     this.activeAuxiliaryBarViewContext?.set(
-      this.auxiliaryBarModel.getActiveView(this.workbenchViewMode),
+      this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart),
     );
   }
 
@@ -674,7 +672,7 @@ export class Workbench extends Layout {
     }
 
     const state = this.auxiliaryBarModel.update({
-      mode: this.workbenchViewMode,
+      mode: this.activeWorkbenchMainPart,
       onDidChangeActiveView: () => this.handleAuxiliaryBarActiveViewChange(),
       templateMode: this.templateService.getState().mode,
       visible,
@@ -709,7 +707,7 @@ export class Workbench extends Layout {
     const activeFile = this.getSelectedProcessedFile(snapshot, readModel);
     const activeFileRecord = this.getSelectedProcessedFileRecord(snapshot, readModel);
 
-    switch (this.auxiliaryBarModel.getActiveView(this.workbenchViewMode)) {
+    switch (this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart)) {
       case "template":
         break;
       case "parameters":
@@ -814,7 +812,7 @@ export class Workbench extends Layout {
   }
 
   private getActiveAuxiliaryBarElement(): HTMLElement | null {
-    const viewId = this.auxiliaryBarModel.getActiveViewId(this.workbenchViewMode);
+    const viewId = this.auxiliaryBarModel.getActiveViewId(this.activeWorkbenchMainPart);
     return viewId ? this.viewsService.getViewWithId(viewId)?.element ?? null : null;
   }
 
@@ -889,11 +887,10 @@ export class Workbench extends Layout {
   };
 
   private showWorkbenchViewMode(viewMode: WorkbenchMainPart): void {
-    const previousViewMode = this.workbenchViewMode;
+    const previousViewMode = this.activeWorkbenchMainPart;
     if (this.activeView !== viewMode) {
       this.navigateToView(viewMode);
     }
-    this.workbenchViewMode = viewMode;
     if (previousViewMode === viewMode) {
       this.renderWorkbench();
     }
@@ -931,7 +928,7 @@ export class Workbench extends Layout {
     return createExplorerPaneInput({
       activePlotType: this.activePlotType,
       explorerService: this.explorerService,
-      mode: this.workbenchViewMode,
+      mode: this.activeWorkbenchMainPart,
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
       plotAxisSettings: this.coreSettingsState.conductorSettings?.plotAxisSettings,
       plotService: this.plotService,
@@ -1228,7 +1225,7 @@ export class Workbench extends Layout {
       conductorSettingsLoaded: state.conductorSettingsLoaded,
       handleLanguageChange: state.handleLanguageChange,
       handleResetLayoutState: async () => {
-        await this.commandService.executeCommand(ResetLayoutStateCommandId);
+        this.resetLayoutState();
       },
       handleThemeChange: state.handleThemeChange,
       updateConductorSettings: state.updateConductorSettings,

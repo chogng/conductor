@@ -10,11 +10,11 @@ import {
   StorageTarget,
   type IStorageService,
 } from "src/cs/platform/storage/common/storage";
-import { WorkbenchLayoutStorageKeys } from "src/cs/workbench/services/layout/browser/layoutConstants";
 import type { IViewPaneContainer } from "src/cs/workbench/common/views";
 
 export const WorkbenchSidebarClassName = "workbench_layout_sidebar";
 export const WorkbenchSidebarPaneId = "workbench-sidebar";
+const WorkbenchSidebarWidthStorageKey = "workbench.sidebar.width";
 
 export const SIDEBAR_DEFAULT_WIDTH_PX = 300;
 export const SIDEBAR_MIN_WIDTH_PX = 170;
@@ -99,7 +99,7 @@ export class WorkbenchSidebarPart extends Disposable {
 
     this.layout = this._register(new WorkbenchSidebarLayout(
       this.storageService?.getNumber(
-        WorkbenchLayoutStorageKeys.sidebarWidth,
+        WorkbenchSidebarWidthStorageKey,
         StorageScope.PROFILE,
         SIDEBAR_DEFAULT_WIDTH_PX,
       ),
@@ -107,7 +107,7 @@ export class WorkbenchSidebarPart extends Disposable {
     this.onDidChangeWidth = this.layout.onDidChangeWidth;
     this._register(this.layout.onDidChangeWidth((width) => {
       this.storageService?.store(
-        WorkbenchLayoutStorageKeys.sidebarWidth,
+        WorkbenchSidebarWidthStorageKey,
         width,
         StorageScope.PROFILE,
         StorageTarget.USER,
@@ -125,7 +125,7 @@ export class WorkbenchSidebarPart extends Disposable {
 
   public resetWidth(): void {
     this.storageService?.remove(
-      WorkbenchLayoutStorageKeys.sidebarWidth,
+      WorkbenchSidebarWidthStorageKey,
       StorageScope.PROFILE,
     );
     this.layout.resize(SIDEBAR_DEFAULT_WIDTH_PX);

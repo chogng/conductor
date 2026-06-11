@@ -413,3 +413,28 @@ Do not leave ambiguous generic TODOs such as:
 ```ts
 // TODO: clean up later
 ```
+
+## 15. Shared values follow ownership
+
+Shared constants should follow the same ownership and import-direction rules as
+code. A value should live with the component, service, contribution, or common
+contract that owns its meaning.
+
+Use these rules before extracting constants:
+
+- Keep implementation details private to the file or module that owns the
+  behavior, even when the value is reused locally.
+- Export values from a service or common contract only when callers genuinely
+  depend on that value as part of the API.
+- Keep UI ids, labels, CSS hooks, and aria relationships with the UI surface or
+  contribution that renders or registers them.
+- Keep storage keys with the service or part that reads and writes the stored
+  state, unless the key is intentionally part of a migration or persistence
+  contract.
+- Do not add a separate constants module merely to avoid deciding ownership.
+  A constants-only file is appropriate only when it represents a real shared
+  contract for that folder or domain.
+
+When a value appears to be needed across layers, first check whether one layer
+should consume an owner API instead of importing the value directly. Prefer
+upstream-shaped ownership over parallel exported constants.

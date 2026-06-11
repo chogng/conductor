@@ -30,7 +30,6 @@ import {
 } from "src/cs/workbench/browser/appearance";
 import { installWindowDeveloperKeybindings } from "src/cs/workbench/browser/actions/windowActions";
 import { getStorageKey, StorageScope } from "src/cs/platform/storage/common/storage";
-import { WorkbenchLayoutStorageKeys } from "src/cs/workbench/services/layout/browser/layoutConstants";
 
 declare global {
   interface Window {
@@ -50,8 +49,9 @@ const DEFAULT_THEME: ThemeMode = "system";
 const DEFAULT_SIDEBAR_WIDTH = 300;
 const MIN_SIDEBAR_WIDTH = 170;
 const MAX_SIDEBAR_WIDTH = Number.POSITIVE_INFINITY;
+const WORKBENCH_SIDEBAR_WIDTH_STORAGE_KEY = "workbench.sidebar.width";
 const SIDEBAR_STORAGE_KEY = getStorageKey(
-  WorkbenchLayoutStorageKeys.sidebarWidth,
+  WORKBENCH_SIDEBAR_WIDTH_STORAGE_KEY,
   StorageScope.PROFILE,
 );
 

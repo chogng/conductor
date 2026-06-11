@@ -104,9 +104,9 @@ import {
   ISessionService,
   type ISessionService as ISessionServiceType,
 } from "src/cs/workbench/services/session/common/session";
-import { ResetLayoutStateCommandId } from "src/cs/workbench/services/layout/browser/layoutConstants";
 
 export const WorkbenchContributionId = "workbench.browser.workbench";
+const ResetLayoutStateCommandId = "workbench.action.resetLayoutState";
 
 const markBootUiReady = (source: string) => {
   hideWorkbenchSplash();

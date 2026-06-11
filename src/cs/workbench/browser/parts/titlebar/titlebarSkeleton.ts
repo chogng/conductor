@@ -74,7 +74,6 @@ export const createWorkbenchTitlebarSkeletonElement = ({
       createSkeletonIcon(),
       createSkeletonIcon(),
       createSkeletonIcon(),
-      createSkeletonIcon(),
       createSkeletonWindowControl(),
       createSkeletonWindowControl(),
       createSkeletonWindowControl("titlebar-window-button--close"),
