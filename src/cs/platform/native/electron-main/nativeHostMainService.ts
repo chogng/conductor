@@ -21,6 +21,16 @@ export class NativeHostMainService {
     );
   }
 
+  public showOpenDialogForWindow(
+    win: BrowserWindow | null | undefined,
+    options: unknown,
+  ): Promise<NativeOpenDialogResult> {
+    return this.dialogMainService.showOpenDialog(
+      options,
+      win && !win.isDestroyed() ? win : undefined,
+    );
+  }
+
   public showItemInFolder(filePath: unknown): void {
     const normalizedPath = typeof filePath === "string" ? filePath.trim() : "";
     if (!normalizedPath) {

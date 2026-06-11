@@ -1,33 +1,74 @@
-import { Disposable } from "src/cs/base/common/lifecycle";
-import { mainWindow } from "src/cs/base/browser/window";
-import { ipcRenderer } from "src/cs/base/parts/sandbox/electron-browser/globals";
-import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import type { IChannel } from "../../../base/parts/ipc/common/ipc.js";
 import {
-    INativeHostService,
     type INativeHostService as INativeHostServiceType,
     type INativeOpenDialogOptions,
     type INativeOpenDialogResult,
     type INativeWindowControlsOptions,
-} from "src/cs/platform/native/common/native";
-import {
-    nativeHostIpcChannels,
-    nativeWindowCommands,
-    type INativeHostEnvironment,
-    type NativeWindowCommand,
-} from "src/cs/platform/native/common/nativeIpc";
+} from "./native.js";
 
-export class NativeHostService extends Disposable implements INativeHostServiceType {
+export interface INativeHostMainProcessService {
+    getChannel(channelName: string): IChannel;
+}
+
+export const nativeHostChannelName = "nativeHost";
+
+export const nativeHostIpcChannels = {
+    environmentGet: "conductor:nativeHost:environment:get",
+    openDialog: "conductor:nativeHost:openDialog",
+    showItemInFolder: "conductor:nativeHost:showItemInFolder",
+    windowCommand: "conductor:nativeHost:windowCommand",
+    windowControlsUpdate: "conductor:nativeHost:windowControls:update",
+    windowState: "conductor:nativeHost:windowState",
+} as const;
+
+export const nativeWindowCommands = {
+    toggleDevTools: "toggleDevTools",
+    reloadWindow: "reloadWindow",
+    closeWindow: "closeWindow",
+    minimizeWindow: "minimizeWindow",
+    maximizeWindow: "maximizeWindow",
+    unmaximizeWindow: "unmaximizeWindow",
+} as const;
+
+export type NativeWindowCommand = (typeof nativeWindowCommands)[keyof typeof nativeWindowCommands];
+
+export interface INativeWindowCommandPayload {
+    readonly command: NativeWindowCommand;
+}
+
+export interface INativeWindowControlsUpdatePayload {
+    readonly height?: number;
+    readonly backgroundColor?: string;
+    readonly foregroundColor?: string;
+}
+
+export interface INativeHostEnvironment {
+    readonly isDesktop: boolean;
+    readonly platform: string;
+    readonly isPackaged: boolean;
+    readonly appVersion: string | null;
+    readonly userDataPath: string | null;
+}
+
+export class NativeHostService implements INativeHostServiceType {
     public declare readonly _serviceBrand: undefined;
 
-    public readonly windowId = mainWindow.conductorWindowId;
+    private readonly channel: IChannel;
+
+    constructor(
+        mainProcessService: INativeHostMainProcessService,
+        public readonly windowId = 1,
+    ) {
+        this.channel = mainProcessService.getChannel(nativeHostChannelName);
+    }
 
     public async getEnvironment(): Promise<INativeHostEnvironment> {
-        const environment = await ipcRenderer.invoke(nativeHostIpcChannels.environmentGet);
+        const environment = await this.channel.call("getEnvironment");
         return normalizeNativeHostEnvironment(environment);
     }
 
     public async showOpenDialog(options: INativeOpenDialogOptions): Promise<INativeOpenDialogResult> {
-        const result = await ipcRenderer.invoke(nativeHostIpcChannels.openDialog, options);
+        const result = await this.channel.call("showOpenDialog", options);
         return normalizeOpenDialogResult(result);
     }
 
@@ -37,7 +78,7 @@ export class NativeHostService extends Disposable implements INativeHostServiceT
             return;
         }
 
-        ipcRenderer.send(nativeHostIpcChannels.showItemInFolder, { path: filePath });
+        void this.channel.call("showItemInFolder", filePath).catch(() => undefined);
     }
 
     public toggleDevTools(): void {
@@ -49,7 +90,7 @@ export class NativeHostService extends Disposable implements INativeHostServiceT
     }
 
     public async isMaximized(): Promise<boolean> {
-        const result = await ipcRenderer.invoke(nativeHostIpcChannels.windowState);
+        const result = await this.channel.call("isMaximized");
         return !!(result && typeof result === "object" && (result as { isMaximized?: unknown }).isMaximized === true);
     }
 
@@ -70,11 +111,11 @@ export class NativeHostService extends Disposable implements INativeHostServiceT
     }
 
     public updateWindowControls(options: INativeWindowControlsOptions): void {
-        ipcRenderer.send(nativeHostIpcChannels.windowControlsUpdate, normalizeWindowControlsOptions(options));
+        void this.channel.call("updateWindowControls", normalizeWindowControlsOptions(options)).catch(() => undefined);
     }
 
     private sendWindowCommand(command: NativeWindowCommand): void {
-        ipcRenderer.send(nativeHostIpcChannels.windowCommand, { command });
+        void this.channel.call("windowCommand", command).catch(() => undefined);
     }
 }
 
@@ -120,7 +161,3 @@ function normalizeNativeHostEnvironment(value: unknown): INativeHostEnvironment 
         userDataPath: typeof record.userDataPath === "string" ? record.userDataPath : null,
     };
 }
-
-export const nativeHostService = new NativeHostService();
-
-registerSingleton(INativeHostService, NativeHostService, InstantiationType.Delayed);

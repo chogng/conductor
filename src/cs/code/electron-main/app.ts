@@ -17,6 +17,8 @@ import {
 } from "electron";
 import { product } from "../../../bootstrap-meta.js";
 import { Server as ElectronIPCServer } from "../../base/parts/ipc/electron-main/ipc.electron.js";
+import { Event } from "../../base/common/event.js";
+import type { IServerChannel } from "../../base/parts/ipc/common/ipc.js";
 import {
   applyWindowThemeSnapshot,
   getCurrentBootThemeSnapshot,
@@ -36,9 +38,10 @@ import { NativeHostMainService } from "../../platform/native/electron-main/nativ
 import { registerContextMenuListener } from "../../base/parts/contextmenu/electron-main/contextmenu.js";
 import { workbenchBootstrapIpcChannels } from "../../base/parts/sandbox/common/sandboxTypes.js";
 import {
+  nativeHostChannelName,
   nativeHostIpcChannels,
   nativeWindowCommands,
-} from "../../platform/native/common/nativeIpc.js";
+} from "../../platform/native/common/nativeHostService.js";
 import {
   resolveRustWorkerExecutablePath,
   RustWorkerRuntime,
@@ -780,6 +783,10 @@ function handleAnalysisDemoFilesGet() {
 
 function resolveNativeHostEnvironment(sender) {
   const win = BrowserWindow.fromWebContents(sender);
+  return resolveNativeHostEnvironmentForWindow(win);
+}
+
+function resolveNativeHostEnvironmentForWindow(win) {
   if (!win || win.isDestroyed()) {
     return null;
   }
@@ -795,6 +802,74 @@ function resolveNativeHostEnvironment(sender) {
 
 function handleNativeHostEnvironmentGet(event) {
   event.returnValue = resolveNativeHostEnvironment(event.sender);
+}
+
+function getNativeHostChannelWindow(ctx) {
+  const windowIdMatch = /^window:(\d+)$/.exec(String(ctx ?? ""));
+  if (!windowIdMatch) {
+    return null;
+  }
+
+  const windowId = Number(windowIdMatch[1]);
+  const win = windowId > 0 ? BrowserWindow.fromId(windowId) : null;
+  return win && !win.isDestroyed() ? win : null;
+}
+
+function createNativeHostChannel(): IServerChannel<string> {
+  return {
+    call: async <T>(ctx: string, command: string, arg?: unknown): Promise<T> => {
+      const win = getNativeHostChannelWindow(ctx);
+
+      if (command === "getEnvironment") {
+        return resolveNativeHostEnvironmentForWindow(win) as T;
+      }
+
+      if (command === "showOpenDialog") {
+        if (!win) {
+          return { canceled: true, filePaths: [] } as T;
+        }
+        return nativeHostMainService.showOpenDialogForWindow(win, arg) as Promise<T>;
+      }
+
+      if (command === "showItemInFolder") {
+        if (!win) {
+          return undefined as T;
+        }
+        nativeHostMainService.showItemInFolder(arg);
+        return undefined as T;
+      }
+
+      if (command === "isMaximized") {
+        return {
+          isMaximized: !!win && win.isMaximized(),
+        } as T;
+      }
+
+      if (command === "updateWindowControls") {
+        if (win && arg && typeof arg === "object") {
+          const options = arg as Record<string, unknown>;
+          updateWindowControlsOverlay(win, {
+            height: typeof options.height === "number" ? options.height : undefined,
+            backgroundColor: typeof options.backgroundColor === "string"
+              ? options.backgroundColor
+              : undefined,
+            foregroundColor: typeof options.foregroundColor === "string"
+              ? options.foregroundColor
+              : undefined,
+          });
+        }
+        return undefined as T;
+      }
+
+      if (command === "windowCommand") {
+        runWindowCommand(win, arg);
+        return undefined as T;
+      }
+
+      throw new Error(`Unknown native host command: ${command}`);
+    },
+    listen: <T>() => Event.None as Event<T>,
+  };
 }
 
 function handleWorkbenchBootstrapSettingsGet(event) {
@@ -1792,17 +1867,14 @@ if (hasSingleInstanceLock) {
     LOCAL_FILE_SYSTEM_CHANNEL_NAME,
     new DiskFileSystemProviderChannel(localFileSystemProvider),
   );
+  mainProcessServer.registerChannel(nativeHostChannelName, createNativeHostChannel());
 
   ipcMain.on("desktop-command", handleDesktopCommand);
   ipcMain.on(nativeHostIpcChannels.windowCommand, handleNativeWindowCommand);
-  ipcMain.on(nativeHostIpcChannels.windowControlsUpdate, handleNativeWindowControlsUpdate);
-  ipcMain.handle(nativeHostIpcChannels.windowState, handleNativeWindowStateGet);
   registerContextMenuListener();
   ipcMain.handle(nativeHostIpcChannels.environmentGet, event =>
     resolveNativeHostEnvironment(event.sender),
   );
-  ipcMain.handle(nativeHostIpcChannels.openDialog, handleNativeHostOpenDialog);
-  ipcMain.on(nativeHostIpcChannels.showItemInFolder, handleNativeHostShowItemInFolder);
   ipcMain.on(nativeHostIpcChannels.environmentGet, handleNativeHostEnvironmentGet);
   ipcMain.on(ipcChannels.desktopAutoUpdateStatusGet, handleDesktopAutoUpdateStatusGet);
   ipcMain.on(workbenchBootstrapIpcChannels.settingsGet, handleWorkbenchBootstrapSettingsGet);
@@ -1894,11 +1966,7 @@ app.on("will-quit", () => {
   }
   ipcMain.removeListener("desktop-command", handleDesktopCommand);
   ipcMain.removeListener(nativeHostIpcChannels.windowCommand, handleNativeWindowCommand);
-  ipcMain.removeListener(nativeHostIpcChannels.windowControlsUpdate, handleNativeWindowControlsUpdate);
-  ipcMain.removeHandler(nativeHostIpcChannels.windowState);
   ipcMain.removeHandler(nativeHostIpcChannels.environmentGet);
-  ipcMain.removeHandler(nativeHostIpcChannels.openDialog);
-  ipcMain.removeListener(nativeHostIpcChannels.showItemInFolder, handleNativeHostShowItemInFolder);
   ipcMain.removeListener(nativeHostIpcChannels.environmentGet, handleNativeHostEnvironmentGet);
   ipcMain.removeListener(
     ipcChannels.desktopAutoUpdateStatusGet,

@@ -15,7 +15,7 @@ import { workbenchBootstrapIpcChannels } from "src/cs/base/parts/sandbox/common/
 import {
   nativeHostIpcChannels,
   nativeWindowCommands,
-} from "src/cs/platform/native/common/nativeIpc";
+} from "src/cs/platform/native/common/nativeHostService";
 import {
   Extensions,
   type IWorkbenchContributionsRegistry,

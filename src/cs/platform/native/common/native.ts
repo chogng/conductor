@@ -1,5 +1,5 @@
-import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { INativeHostEnvironment } from "src/cs/platform/native/common/nativeIpc";
+import { createDecorator } from "../../instantiation/common/instantiation.js";
+import type { INativeHostEnvironment } from "./nativeHostService.js";
 
 export const INativeHostService = createDecorator<INativeHostService>("nativeHostService");
 

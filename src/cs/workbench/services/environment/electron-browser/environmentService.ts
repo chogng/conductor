@@ -1,7 +1,7 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { isNative, isWindows } from "src/cs/base/common/platform";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import { NativeHostService } from "src/cs/platform/native/electron-browser/nativeHostService";
+import { INativeHostService, type INativeHostService as INativeHostServiceType } from "src/cs/platform/native/common/native";
 import { getWorkbenchEnvironment, setWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
 import {
     IWorkbenchEnvironmentService,
@@ -12,9 +12,9 @@ import {
 export class WorkbenchEnvironmentService extends Disposable implements IWorkbenchEnvironmentServiceType {
     public declare readonly _serviceBrand: undefined;
 
-    private readonly nativeHostService = this._register(new NativeHostService());
-
-    constructor() {
+    constructor(
+        @INativeHostService private readonly nativeHostService: INativeHostServiceType,
+    ) {
         super();
 
         void this.refreshEnvironment();

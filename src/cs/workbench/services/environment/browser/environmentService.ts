@@ -1,5 +1,5 @@
 import { normalizeWorkbenchEnvironment, type WorkbenchEnvironment } from "src/cs/workbench/services/environment/common/environmentService";
-import { nativeHostIpcChannels } from "src/cs/platform/native/common/nativeIpc";
+import { nativeHostIpcChannels } from "src/cs/platform/native/common/nativeHostService";
 
 type SyncIpcRenderer = {
     sendSync(channel: string, ...args: unknown[]): unknown;

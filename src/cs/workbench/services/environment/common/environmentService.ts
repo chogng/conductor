@@ -1,5 +1,5 @@
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { INativeHostEnvironment } from "src/cs/platform/native/common/nativeIpc";
+import type { INativeHostEnvironment } from "src/cs/platform/native/common/nativeHostService";
 
 export type WorkbenchEnvironment = INativeHostEnvironment;
 

@@ -13,7 +13,7 @@ import type {
   INativeOpenDialogResult,
   INativeWindowControlsOptions,
 } from "src/cs/platform/native/common/native";
-import type { INativeHostEnvironment } from "src/cs/platform/native/common/nativeIpc";
+import type { INativeHostEnvironment } from "src/cs/platform/native/common/nativeHostService";
 import { BrowserTitleService } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import {
   BrowserWorkbenchLayoutService,
