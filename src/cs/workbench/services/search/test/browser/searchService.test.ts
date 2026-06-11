@@ -176,6 +176,7 @@ const createFileRecord = (): FileRecord => ({
 		},
 	},
 	id: "file-a",
+	kind: "unknown",
 	measurementBlockOrder: ["block-a"],
 	measurementBlocksById: {
 		"block-a": {
@@ -223,6 +224,7 @@ const createFileRecord = (): FileRecord => ({
 			},
 		},
 	},
+	name: "alpha.csv",
 	raw: {
 		fileId: "file-a",
 		fileName: "alpha.csv",

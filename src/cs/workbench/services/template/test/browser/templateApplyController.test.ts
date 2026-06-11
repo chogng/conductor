@@ -70,7 +70,6 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     });
 
     controller.update({
-      activeFileId: "file-a",
       getTableRow: (rowIndex) => {
         readRows.push(rowIndex);
         return rowIndex === 0 ? ["points", "2"] : null;

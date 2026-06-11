@@ -41,12 +41,22 @@ const createSnapshot = (file: FileRecord): SessionSnapshot => ({
 });
 
 const createFileRecord = (): FileRecord => ({
+	assessmentsByRawTableId: {},
 	curvesByKey: {},
 	id: "file-a",
+	kind: "unknown",
 	latestTemplateRunId: "template-run:file-a",
+	measurementBlockOrder: [],
+	measurementBlocksById: {},
+	metricsByKey: {},
+	name: "raw.csv",
 	raw: {
+		fileId: "file-a",
 		fileName: "raw.csv",
+		tableOrder: [],
+		tablesById: {},
 	},
+	rawTableVersionsById: {},
 	seriesById: {},
 	seriesOrder: ["series-a"],
 	templateRunsById: {
@@ -75,4 +85,4 @@ const createFileRecord = (): FileRecord => ({
 			warnings: [],
 		},
 	},
-}) as FileRecord;
+});

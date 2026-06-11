@@ -75,7 +75,7 @@ suite("workbench/services/table/browser/tableService", () => {
       sheetName: null,
       sourceKey: "source-key-a",
     });
-    assert.equal(previewFile?.sourceKey, "source-key-a");
+    assert.equal((previewFile as TableFile | null)?.sourceKey, "source-key-a");
     assert.equal(loadState.state, "ready");
     assert.equal(model.getState().file?.sourceKey, "source-key-a");
     assert.equal(model.getState().loadState.state, "ready");
@@ -332,10 +332,12 @@ const createTableBackendService = (
   canDisposeFile: () => false,
   canGetPreviewRows: () => false,
   canOpenFile: () => true,
+  canReadConvertedCsv: () => false,
   canReadCells: () => false,
   disposeFile: async () => ({}),
   getPreviewRows: async () => ({}),
   openFile: async () => ({}),
+  readConvertedCsv: async () => ({ ok: false }),
   readCells: async () => ({}),
   ...overrides,
 });

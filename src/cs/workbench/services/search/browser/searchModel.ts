@@ -8,8 +8,8 @@ import type {
 } from "src/cs/workbench/services/search/common/search";
 
 export type SearchSeriesPoint = {
-  readonly x: unknown;
-  readonly y: unknown;
+  readonly x?: unknown;
+  readonly y?: unknown;
 };
 
 export type SearchSeriesInput = {

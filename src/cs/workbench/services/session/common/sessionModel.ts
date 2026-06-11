@@ -6,7 +6,7 @@ export type FileId = string;
 export type SheetId = string;
 export type SeriesId = string;
 export type TemplateRunId = string;
-export type CacheKey = string & { readonly __brand: "CacheKey" };
+export type CacheKey = string;
 export type FileKind = FileImportSourceKind;
 
 export type CurveGeneration = "base" | "derived" | "secondDerived";
@@ -67,10 +67,10 @@ export type FileRecord = {
   latestTemplateRunId?: TemplateRunId;
   seriesById: Record<SeriesId, SeriesRecord>;
   seriesOrder: SeriesId[];
-  curvesByKey: Record<CurveKey, CurveRecord>;
-  metricsByKey: Record<MetricKey, MetricRecord>;
+  curvesByKey: Record<string, CurveRecord>;
+  metricsByKey: Record<string, MetricRecord>;
   metricsBySeriesId?: Record<SeriesId, MetricKey[]>;
-  metricInputsByKey?: Record<MetricKey, MetricInputRecord>;
+  metricInputsByKey?: Record<string, MetricInputRecord>;
   calculationCache?: CalculationCacheRecord;
 };
 

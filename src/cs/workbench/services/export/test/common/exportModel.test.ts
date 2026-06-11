@@ -162,9 +162,11 @@ const createFileRecord = (): FileRecord => ({
     },
   },
   id: "file-a",
+  kind: "unknown",
   measurementBlockOrder: [],
   measurementBlocksById: {},
   metricsByKey: {},
+  name: "file-a.csv",
   raw: {
     fileId: "file-a",
     fileName: "file-a.csv",

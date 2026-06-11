@@ -59,17 +59,15 @@ export class PlotService extends Disposable implements IPlotServiceType {
   };
 
   constructor(
-    @ISessionService private readonly sessionService?: ISessionServiceType,
+    @ISessionService private readonly sessionService: ISessionServiceType,
   ) {
     super();
 
-    if (this.sessionService) {
-      this._register(this.sessionService.onDidChangeSession(event => {
-        if (shouldInvalidatePlotModelsForSessionChange(event)) {
-          this.onDidChangePlotStateEmitter.fire(this.state);
-        }
-      }));
-    }
+    this._register(this.sessionService.onDidChangeSession(event => {
+      if (shouldInvalidatePlotModelsForSessionChange(event)) {
+        this.onDidChangePlotStateEmitter.fire(this.state);
+      }
+    }));
   }
 
   public getState(): PlotState {
@@ -130,7 +128,9 @@ export class PlotService extends Disposable implements IPlotServiceType {
     );
     const displayUnits = resolveDisplayUnits(chartData, input.axisSettings);
     const yScaleMode = resolveYScale(chartData, input.axisSettings);
-    const inspectorData = createSecondCalculatedData(chartData);
+    const inspectorData = createSecondCalculatedData(
+      filterCalculatedDataSeries(chartData, input.hiddenLegendKeys ?? []),
+    );
     const inspectorYUnitLabel = displayUnits.yUnit
       ? `d(${displayUnits.yUnit})/dx`
       : undefined;

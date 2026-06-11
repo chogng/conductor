@@ -102,17 +102,26 @@ type ProcessedWorkerSeries = Record<string, unknown> & {
     readonly groupIndex?: unknown;
     readonly id?: unknown;
     readonly name?: unknown;
-    readonly y?: readonly unknown[];
+    readonly y: readonly unknown[] | Float64Array;
 };
 type ProcessedWorkerFile = Record<string, unknown> & {
-    readonly series?: readonly ProcessedWorkerSeries[];
-    readonly xGroups?: readonly (readonly number[])[];
+    readonly series: readonly ProcessedWorkerSeries[];
+    readonly xGroups: readonly (readonly number[] | Float64Array)[];
     readonly y?: {
         readonly columnLabels?: readonly unknown[];
         readonly columns?: readonly unknown[];
     };
 };
-const workerScope = self as DedicatedWorkerGlobalScope;
+type TemplateWorkerScope = {
+    onmessage:
+        | ((event: MessageEvent<{
+            readonly payload?: Record<string, unknown>;
+            readonly type?: string;
+        }>) => unknown)
+        | null;
+    postMessage(message: unknown, transfer?: Transferable[]): void;
+};
+const workerScope = self as unknown as TemplateWorkerScope;
 // fileId -> preview metadata + sparse row index for fast range reads
 // {
 //   file, fileName, fileSize, lastModified,
@@ -124,6 +133,20 @@ const workerScope = self as DedicatedWorkerGlobalScope;
 //   parseQueue: Promise<void>,
 // }
 const previewCacheByFileId = new Map<string, PreviewCache>();
+const collectProcessedTransferables = (processed: ProcessedWorkerFile): Transferable[] => {
+    const transfer: Transferable[] = [];
+    for (const xArr of processed.xGroups) {
+        if (xArr instanceof Float64Array) {
+            transfer.push(xArr.buffer);
+        }
+    }
+    for (const series of processed.series) {
+        if (series.y instanceof Float64Array) {
+            transfer.push(series.y.buffer);
+        }
+    }
+    return transfer;
+};
 const getExcelColumnLabel = (index: unknown): string => {
     let label = "";
     let i = Math.floor(Number(index));
@@ -208,10 +231,12 @@ const createLocalizedError = (
     messageParams: unknown,
     fallbackMessage: unknown,
 ): LocalizedError => {
-    const err = new Error(fallbackMessage || String(messageKey || "Unknown error")) as LocalizedError;
+    const err = new Error(String(fallbackMessage || messageKey || "Unknown error")) as LocalizedError;
     err.messageKey = typeof messageKey === "string" ? messageKey : null;
     err.messageParams =
-        messageParams && typeof messageParams === "object" ? messageParams : null;
+        messageParams && typeof messageParams === "object"
+            ? messageParams as Record<string, unknown>
+            : null;
     return err;
 };
 const padDomain = (min: unknown, max: unknown): [number, number] => {
@@ -466,17 +491,19 @@ const ensurePreviewCache = async (
     }
     // Backwards-compat: callers historically used maxCacheRows=0 to mean "cache everything".
     // We now keep only a small warm cache, and rely on a sparse row index for fast random access.
-    const warmCacheRows = Number.isFinite(maxCacheRows) && maxCacheRows > 0
-        ? Math.min(5000, Math.floor(maxCacheRows))
+    const maxCacheRowsNumber = Number(maxCacheRows);
+    const indexStrideRowsNumber = Number(indexStrideRows);
+    const warmCacheRows = Number.isFinite(maxCacheRowsNumber) && maxCacheRowsNumber > 0
+        ? Math.min(5000, Math.floor(maxCacheRowsNumber))
         : PREVIEW_ROW_CACHE_CHUNK_DEFAULT * 4;
     const meta = await buildPreviewMetadataAndIndex(file, {
-        indexStrideRows: Number.isFinite(indexStrideRows) && indexStrideRows > 0
-            ? indexStrideRows
+        indexStrideRows: Number.isFinite(indexStrideRowsNumber) && indexStrideRowsNumber > 0
+            ? indexStrideRowsNumber
             : PREVIEW_INDEX_STRIDE_ROWS_DEFAULT,
         warmCacheRows,
     });
-    const stride = Number.isFinite(indexStrideRows) && indexStrideRows > 0
-        ? Math.max(200, Math.floor(indexStrideRows))
+    const stride = Number.isFinite(indexStrideRowsNumber) && indexStrideRowsNumber > 0
+        ? Math.max(200, Math.floor(indexStrideRowsNumber))
         : PREVIEW_INDEX_STRIDE_ROWS_DEFAULT;
     const next = {
         file,
@@ -517,7 +544,7 @@ async function parsePreviewRowsRange(cache: PreviewCache, startRow: unknown, end
         let collected = 0;
         const rows: CsvRow[] = [];
         let done = false;
-        Papa.parse(blob, {
+        Papa.parse(blob as unknown as File, {
             header: false,
             skipEmptyLines: true,
             step: (results: Papa.ParseStepResult<CsvRow>, parser: Papa.Parser) => {
@@ -567,10 +594,10 @@ async function ensureChunk(cache: PreviewCache, chunkStart: unknown, chunkEnd: u
     const start = Math.max(0, Math.floor(Number(chunkStart) || 0));
     if (cache.chunkCache.has(start)) {
         touchChunk(cache, start);
-        return cache.chunkCache.get(start);
+        return cache.chunkCache.get(start) ?? [];
     }
     if (cache.inflightChunks.has(start)) {
-        return await cache.inflightChunks.get(start);
+        return await (cache.inflightChunks.get(start) ?? Promise.resolve([]));
     }
     const promise = enqueueParse(cache, async () => {
         const rows = await parsePreviewRowsRange(cache, start, chunkEnd);
@@ -622,15 +649,18 @@ const readXValuesForAutoGroupShape = async ({
     startRow: unknown;
     xCol: unknown;
 }): Promise<number[]> => {
-    const rows = await getPreviewRows(cache, startRow, endRow + 1);
+    const startRowIndex = Math.max(0, Math.floor(Number(startRow) || 0));
+    const endRowIndex = Math.max(startRowIndex, Math.floor(Number(endRow) || startRowIndex));
+    const xColIndex = Math.max(0, Math.floor(Number(xCol) || 0));
+    const rows = await getPreviewRows(cache, startRowIndex, endRowIndex + 1);
     const xValues: number[] = new Array(rows.length);
     for (let i = 0; i < rows.length; i += 1) {
         const row = Array.isArray(rows[i]) ? rows[i] : [];
-        const xRaw = row[xCol];
+        const xRaw = row[xColIndex];
         const xVal = parseNumberStrict(xRaw);
         if (xVal === null) {
-            const rowIndex = startRow + i;
-            const cellRef = `${getExcelColumnLabel(xCol)}${rowIndex + 1}`;
+            const rowIndex = startRowIndex + i;
+            const cellRef = `${getExcelColumnLabel(xColIndex)}${rowIndex + 1}`;
             throw new Error(`${fileName}: Invalid X at ${cellRef} (${JSON.stringify(xRaw ?? "")}).`);
         }
         xValues[i] = xVal;
@@ -810,8 +840,9 @@ const processFile = async (
     }
     const expectedTotal = endRow - startRow + 1;
     if (groupSizeCell && typeof groupSizeCell === "object") {
-        const cellRow = Number(groupSizeCell?.rowIndex);
-        const cellCol = Number(groupSizeCell?.colIndex);
+        const groupSizeCellRecord = groupSizeCell as { readonly colIndex?: unknown; readonly rowIndex?: unknown };
+        const cellRow = Number(groupSizeCellRecord.rowIndex);
+        const cellCol = Number(groupSizeCellRecord.colIndex);
         if (!Number.isInteger(cellRow) || cellRow < 0) {
             throw new Error("Invalid config: groupSizeCell.rowIndex");
         }
@@ -1050,8 +1081,9 @@ const processFile = async (
     let yLegendRowToIndex: Map<number, number> | null = null;
     let yLegendRowCaptured = false;
     if (yLegendStartCell && typeof yLegendStartCell === "object") {
-        const startLegendRow = Number(yLegendStartCell?.rowIndex);
-        const startLegendCol = Number(yLegendStartCell?.colIndex);
+        const yLegendStartCellRecord = yLegendStartCell as { readonly colIndex?: unknown; readonly rowIndex?: unknown };
+        const startLegendRow = Number(yLegendStartCellRecord.rowIndex);
+        const startLegendCol = Number(yLegendStartCellRecord.colIndex);
         if (Number.isInteger(startLegendRow) &&
             startLegendRow >= 0 &&
             Number.isInteger(startLegendCol) &&
@@ -1250,14 +1282,15 @@ const processFile = async (
     const legendVarToken = var2Token;
     let effectiveBottomTitle = bottomTitle;
     let effectiveLegendPrefix = legendPrefix;
-    const targetPoints = Math.min(groupSize, Math.max(2, Number.isFinite(maxPoints) ? maxPoints : DEFAULT_MAX_POINTS));
+    const maxPointsNumber = Number(maxPoints);
+    const targetPoints = Math.min(groupSize, Math.max(2, Number.isFinite(maxPointsNumber) ? maxPointsNumber : DEFAULT_MAX_POINTS));
     const sampleIdx = buildUniformSampleIndices(groupSize, targetPoints);
     let minX = Infinity;
     let maxX = -Infinity;
     let minY = Infinity;
     let maxY = -Infinity;
-    const xGroups = [];
-    const series = [];
+    const xGroups: Float64Array[] = [];
+    const series: ProcessedWorkerSeries[] = [];
     for (let g = 0; g < groups; g++) {
         const xFull = xFullByGroup[g];
         const xDown = new Float64Array(targetPoints);
@@ -1397,7 +1430,7 @@ const buildBlockProcessConfig = (
     config: Record<string, unknown>,
     block: AutoBlockConfig,
 ): Record<string, unknown> => {
-    const nextConfig = {
+    const nextConfig: Record<string, unknown> = {
         ...config,
         bottomTitle: block?.bottomTitle ?? config?.bottomTitle,
         xCol: block?.xCol,
@@ -1422,14 +1455,15 @@ const processAutoConfiguredFile = async (
     options: ProcessFileOptions,
 ) => {
     const blocks = Array.isArray(config?.blocks)
-        ? config.blocks.filter(
-              (block: unknown): block is AutoBlockConfig =>
-                  Boolean(block) &&
-                  typeof block === "object" &&
-                  Number.isInteger(Number(block?.xCol)) &&
-                  Array.isArray(block?.yCols) &&
-                  block.yCols.length > 0,
-          )
+        ? config.blocks.filter((block: unknown): block is AutoBlockConfig => {
+              if (!block || typeof block !== "object") {
+                  return false;
+              }
+              const blockConfig = block as AutoBlockConfig;
+              return Number.isInteger(Number(blockConfig.xCol)) &&
+                  Array.isArray(blockConfig.yCols) &&
+                  blockConfig.yCols.length > 0;
+          })
         : [];
     if (blocks.length <= 1) {
         return await processFile(file, fileId, fileName, config, options);
@@ -1457,7 +1491,7 @@ const processAutoConfiguredFile = async (
         return await processFile(file, fileId, fileName, config, options);
     }
 
-    const xGroups: Array<readonly number[]> = [];
+    const xGroups: Array<readonly number[] | Float64Array> = [];
     const series: ProcessedWorkerSeries[] = [];
     let minX = Infinity;
     let maxX = -Infinity;
@@ -1484,8 +1518,8 @@ const processAutoConfiguredFile = async (
             yColumnLabels.push(label);
         }
         for (const item of blockProcessed.series ?? []) {
-        for (const yVal of item.y ?? []) {
-                if (!Number.isFinite(yVal)) continue;
+            for (const yVal of item.y ?? []) {
+                if (typeof yVal !== "number" || !Number.isFinite(yVal)) continue;
                 if (yVal < minY) minY = yVal;
                 if (yVal > maxY) maxY = yVal;
             }
@@ -1532,7 +1566,7 @@ workerScope.onmessage = async (event: MessageEvent<{
         if (type === "preview") {
             // Backwards-compatible: acts as "previewInit" and returns preview metadata.
             const requestId = payload?.requestId ?? null;
-            const file = payload?.file ?? null;
+            const file = payload?.file instanceof File ? payload.file : null;
             const fileId = payload?.fileId ?? null;
             const maxCacheRowsRaw = payload?.maxPreviewRows;
             if (!file)
@@ -1560,15 +1594,16 @@ workerScope.onmessage = async (event: MessageEvent<{
         }
         if (type === "previewRows") {
             const requestId = payload?.requestId ?? null;
-            const fileId = payload?.fileId ?? null;
+            const fileId = String(payload?.fileId ?? "");
             const startRowRaw = payload?.startRow;
             const endRowRaw = payload?.endRow;
             const cache = previewCacheByFileId.get(fileId);
             if (!cache)
                 throw new Error("Preview cache not ready. Please init first.");
             const startRow = Math.max(0, Math.floor(Number(startRowRaw) || 0));
-            const endRow = Math.max(startRow, Math.min(cache.rowCount, Math.floor(Number.isFinite(endRowRaw) && endRowRaw > 0
-                ? endRowRaw
+            const endRowNumber = Number(endRowRaw);
+            const endRow = Math.max(startRow, Math.min(cache.rowCount, Math.floor(Number.isFinite(endRowNumber) && endRowNumber > 0
+                ? endRowNumber
                 : startRow + PREVIEW_ROW_CACHE_CHUNK_DEFAULT)));
             const rows = await getPreviewRows(cache, startRow, endRow);
             workerScope.postMessage({
@@ -1583,7 +1618,7 @@ workerScope.onmessage = async (event: MessageEvent<{
             return;
         }
         if (type === "previewDispose") {
-            const fileId = payload?.fileId ?? null;
+            const fileId = String(payload?.fileId ?? "");
             if (fileId)
                 previewCacheByFileId.delete(fileId);
             workerScope.postMessage({
@@ -1596,14 +1631,15 @@ workerScope.onmessage = async (event: MessageEvent<{
             const shouldLogPerf = Boolean(payload?.perfEnabled) || isPerfEnabled();
             const finishAutoPerf = startPerf("worker:auto-config", {
                 fileId: payload?.fileId ?? null,
-                fileName: payload?.fileName ?? payload?.file?.name ?? null,
+                fileName: payload?.fileName ?? (payload?.file instanceof File ? payload.file.name : null),
             }, { force: shouldLogPerf });
             const jobId = payload?.jobId ?? null;
-            const file = payload?.file ?? null;
+            const file = payload?.file instanceof File ? payload.file : null;
             const fileId = payload?.fileId ?? null;
-            const fileName = payload?.fileName ?? file?.name ?? "Unknown file";
-            const maxPoints = Number.isFinite(payload?.maxPoints)
-                ? payload.maxPoints
+            const fileName = String(payload?.fileName ?? file?.name ?? "Unknown file");
+            const maxPointsRaw = Number(payload?.maxPoints);
+            const maxPoints = Number.isFinite(maxPointsRaw)
+                ? maxPointsRaw
                 : DEFAULT_MAX_POINTS;
             if (!file)
                 throw new Error("Missing file for processing.");
@@ -1625,7 +1661,7 @@ workerScope.onmessage = async (event: MessageEvent<{
             }
             const autoExtraction = inferAutoExtraction({
                 assessment,
-                fileName,
+                fileName: String(fileName),
                 rows: previewRows,
                 totalRowCount: previewCache.rowCount,
             });
@@ -1649,23 +1685,22 @@ workerScope.onmessage = async (event: MessageEvent<{
                     perfEnabled: shouldLogPerf,
                 },
             );
-            const transfer = [];
-            for (const xArr of processed.xGroups)
-                transfer.push(xArr.buffer);
-            for (const s of processed.series)
-                transfer.push(s.y.buffer);
+            const transfer = collectProcessedTransferables(processed);
             workerScope.postMessage({ type: "processResult", payload: { jobId, processed } }, transfer);
             return;
         }
         if (type === "processFile") {
             const shouldLogPerf = Boolean(payload?.perfEnabled) || isPerfEnabled();
             const jobId = payload?.jobId ?? null;
-            const file = payload?.file ?? null;
+            const file = payload?.file instanceof File ? payload.file : null;
             const fileId = payload?.fileId ?? null;
-            const fileName = payload?.fileName ?? file?.name ?? "Unknown file";
-            const config = payload?.config ?? {};
-            const maxPoints = Number.isFinite(payload?.maxPoints)
-                ? payload.maxPoints
+            const fileName = String(payload?.fileName ?? file?.name ?? "Unknown file");
+            const config = payload?.config && typeof payload.config === "object"
+                ? payload.config as Record<string, unknown>
+                : {};
+            const maxPointsRaw = Number(payload?.maxPoints);
+            const maxPoints = Number.isFinite(maxPointsRaw)
+                ? maxPointsRaw
                 : DEFAULT_MAX_POINTS;
             if (!file)
                 throw new Error("Missing file for processing.");
@@ -1678,11 +1713,7 @@ workerScope.onmessage = async (event: MessageEvent<{
                 maxPoints,
                 perfEnabled: shouldLogPerf,
             });
-            const transfer = [];
-            for (const xArr of processed.xGroups)
-                transfer.push(xArr.buffer);
-            for (const s of processed.series)
-                transfer.push(s.y.buffer);
+            const transfer = collectProcessedTransferables(processed);
             workerScope.postMessage({ type: "processResult", payload: { jobId, processed } }, transfer);
             return;
         }
@@ -1699,7 +1730,7 @@ workerScope.onmessage = async (event: MessageEvent<{
                 requestId: payload?.requestId ?? null,
                 jobId: payload?.jobId ?? null,
                 fileId: payload?.fileId ?? null,
-                fileName: payload?.fileName ?? payload?.file?.name ?? null,
+                fileName: payload?.fileName ?? (payload?.file instanceof File ? payload.file.name : null),
                 message: err instanceof Error ? err.message : String(err),
                 messageKey: typeof errMeta?.messageKey === "string"
                     ? errMeta.messageKey

@@ -246,10 +246,12 @@ const createCanonicalFileRecord = (
       },
     },
     id: fileId,
+    kind: "unknown",
     latestTemplateRunId: "run-a",
     measurementBlockOrder: [],
     measurementBlocksById: {},
     metricsByKey,
+    name: "file-a.csv",
     metricsBySeriesId: {
       [seriesId]: [currentKey, derivativeKey, thresholdKey, subthresholdKey],
     },

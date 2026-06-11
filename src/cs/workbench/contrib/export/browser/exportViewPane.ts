@@ -108,7 +108,13 @@ export class ExportViewPane extends ViewPane {
       scopedFileIds: viewState.scopedFileIds,
       selectedContentKeys: [...exportState.selectedContentKeys],
       selectedCurveOptionKeySet: new Set(exportState.selectedCurveKeys),
-      setContentKeys: this.exportService.setContentKeys,
+      setContentKeys: value => {
+        if (typeof value === "function") {
+          this.exportService.setContentKeys(previous => value([...previous]));
+          return;
+        }
+        this.exportService.setContentKeys(value);
+      },
       setOriginCanvasExportScope: this.exportService.setCanvasScope,
       setOriginFilteredCanvasKind: this.exportService.setFilteredKind,
       setResolvedCurveExportMode: next => this.exportService.setCurveMode(next),

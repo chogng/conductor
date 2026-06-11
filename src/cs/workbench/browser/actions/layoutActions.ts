@@ -19,6 +19,7 @@ class NavigateBackAction extends Action2 {
     super({
       id: WorkbenchLayoutCommandId.navigateBack,
       title: localize("workbench.navigateBack", "Back"),
+      f1: true,
       metadata: {
         description: localize("workbench.navigateBackDescription", "Navigate to the previous workbench view."),
       },
@@ -35,6 +36,7 @@ class NavigateForwardAction extends Action2 {
     super({
       id: WorkbenchLayoutCommandId.navigateForward,
       title: localize("workbench.navigateForward", "Forward"),
+      f1: true,
       metadata: {
         description: localize("workbench.navigateForwardDescription", "Navigate to the next workbench view."),
       },
@@ -51,6 +53,7 @@ class ShowTableAction extends Action2 {
     super({
       id: WorkbenchLayoutCommandId.showTable,
       title: localize("workbench.mode.table", "Table"),
+      f1: true,
       metadata: {
         description: localize("workbench.showTableDescription", "Show the table workbench view."),
       },
@@ -67,6 +70,7 @@ class ShowChartAction extends Action2 {
     super({
       id: WorkbenchLayoutCommandId.showChart,
       title: localize("workbench.mode.chart", "Chart"),
+      f1: true,
       metadata: {
         description: localize("workbench.showChartDescription", "Show the chart workbench view."),
       },
@@ -83,6 +87,7 @@ class ToggleSidebarAction extends Action2 {
     super({
       id: WorkbenchLayoutCommandId.toggleSidebar,
       title: localize("workbench.toggleSidebar", "Toggle Sidebar"),
+      f1: true,
       metadata: {
         description: localize("workbench.toggleSidebarDescription", "Toggle the workbench sidebar."),
       },

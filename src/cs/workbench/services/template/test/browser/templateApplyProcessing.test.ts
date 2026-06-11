@@ -105,7 +105,6 @@ suite("workbench/services/template/test/browser/templateApplyProcessing", () => 
         return showResultsCount;
       },
       options: {
-        activeFileId: null,
         templateProcessingBackendService,
         hasSourceFile: () => true,
         onWorkerErrorPayload: () => undefined,
@@ -114,7 +113,7 @@ suite("workbench/services/template/test/browser/templateApplyProcessing", () => 
         processingStopOnErrorRef: createRef(false),
         processingWorkerRef: createRef<Worker | null>(null),
         removedQueuedFileIdsRef: createRef<Set<string>>(new Set()),
-        commitTemplateOutput: (file: ProcessedEntry | null | undefined, options) => {
+        commitTemplateOutput: (file: ProcessedEntry | null | undefined, options: Parameters<typeof createProcessedFileSessionCommit>[2]) => {
           const commit = createProcessedFileSessionCommit(
             session.getSnapshot(),
             file,
@@ -351,7 +350,6 @@ suite("workbench/services/template/test/browser/templateApplyProcessing", () => 
 
       startRuleProcessingJob({
         ...harness.options,
-        activeFileId: "file-a",
         finalQueue: entries,
         groupedPrepared: [{
           extractionConfig: { group: "transfer" },

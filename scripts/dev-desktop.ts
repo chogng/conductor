@@ -27,7 +27,6 @@ const devServerWarmupPaths = [
   "/src/cs/workbench/workbench.common.main.ts",
   "/src/cs/workbench/workbench.browser.main.ts",
   "/src/cs/workbench/workbench.desktop.main.ts",
-  "/src/cs/workbench/workbench.contributions.main.ts",
   "/src/cs/nls.ts",
   "/build/nls/en.json",
   "/build/nls/zh.json",

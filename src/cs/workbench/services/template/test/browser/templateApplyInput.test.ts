@@ -18,21 +18,21 @@ suite("workbench/services/template/test/browser/templateApplyInput", () => {
 				rawFiles: [{ fileId: "file-a", fileName: "raw.csv" }],
 			} as SessionReadModel,
 			tableModel: {
-				getRow: rowIndex => `row-${rowIndex}`,
+				getRow: (rowIndex: number) => [`row-${rowIndex}`],
 				getState: () => ({ file: previewFile }),
-				hasSourceFile: fileId => fileId === "file-a",
-			} as Pick<TableModel, "getRow" | "getState" | "hasSourceFile">,
+				hasSourceFile: (fileId: string | null | undefined) => fileId === "file-a",
+			} as unknown as Pick<TableModel, "getRow" | "getState" | "hasSourceFile">,
 			templateState: {
 				formState: {},
 				mode: "select",
 				selectedTemplateId: "template-a",
 				selectionsByFileId: {
-					"file-a": { kind: "auto" },
+				"file-a": { kind: "auto" },
 				},
-			} as TemplateState,
+			} as unknown as TemplateState,
 		});
 
-		assert.equal(input.getTableRow(2), "row-2");
+		assert.deepEqual(input.getTableRow(2), ["row-2"]);
 		assert.equal(input.hasSourceFile("file-a"), true);
 		assert.equal(input.previewFile, previewFile);
 		assert.deepEqual(input.processedFileIds, ["file-b"]);

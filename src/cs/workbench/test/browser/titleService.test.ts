@@ -6,6 +6,7 @@ import {
   StorageScope,
 } from "src/cs/platform/storage/common/storage";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
+import type { ICommandEvent } from "src/cs/platform/commands/common/commands";
 import { BrowserTitleService } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import {
   BrowserWorkbenchLayoutService,
@@ -45,8 +46,8 @@ class TestStorageService extends AbstractStorageService {
 
 const testCommandService: ICommandService = {
   _serviceBrand: undefined,
-  onDidExecuteCommand: Event.None,
-  onWillExecuteCommand: Event.None,
+  onDidExecuteCommand: Event.None as Event<ICommandEvent>,
+  onWillExecuteCommand: Event.None as Event<ICommandEvent>,
   executeCommand: async () => undefined,
 };
 

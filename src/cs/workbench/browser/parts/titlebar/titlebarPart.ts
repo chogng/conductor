@@ -21,6 +21,7 @@ import { localize } from "src/cs/nls";
 import { createWorkbenchSidebarToggleAction } from "src/cs/workbench/browser/parts/sidebar/sidebarActions";
 import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutActions";
 import { WindowCommandId } from "src/cs/workbench/browser/actions/windowActions";
+import { WorkbenchCommandsCommandId } from "src/cs/workbench/contrib/commands/common/commands";
 import {
   getWorkbenchWindowState,
   ITitleService,
@@ -43,6 +44,7 @@ export const WORKBENCH_TITLEBAR_DRAG_REGION_STYLE = {
 export const WORKBENCH_TITLEBAR_ID = "workbench-titlebar";
 
 const WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID = "workbench-titlebar-update-button";
+const WORKBENCH_TITLEBAR_QUICK_ACCESS_BUTTON_ID = "workbench-titlebar-quick-access-button";
 const WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS: Record<LayoutView, string> = {
   table: "workbench-titlebar-table-button",
   chart: "workbench-titlebar-chart-button",
@@ -338,6 +340,33 @@ const createFileSelector = ({
   return wrapper;
 };
 
+const createQuickAccessButton = (
+  commandService?: ICommandServiceType,
+  hoverStore?: DisposableStore,
+): HTMLButtonElement => {
+  const title = localize("titlebar.quickAccess", "Search Commands");
+  const button = createIconButton(
+    {
+      id: WORKBENCH_TITLEBAR_QUICK_ACCESS_BUTTON_ID,
+      "aria-label": title,
+      title,
+      className: "titlebar-quick-access-button",
+    },
+    createLxIcon(LxIcon.search, 14, "opacity-80"),
+    () => {
+      void commandService?.executeCommand(WorkbenchCommandsCommandId.showCommands);
+    },
+  );
+
+  const label = document.createElement("span");
+  label.className = "titlebar-quick-access-label";
+  label.textContent = title;
+  button.appendChild(label);
+  setupTooltipHover(button, title, hoverStore);
+
+  return button;
+};
+
 export const createWorkbenchTitlebarElement = (
   {
     activePage,
@@ -423,6 +452,8 @@ export const createWorkbenchTitlebarElement = (
   const center = createElement("div", {
     className: "titlebar-center",
   });
+
+  center.appendChild(createQuickAccessButton(commandService, hoverStore));
 
   if (showFileSelector && normalizedFileOptions.length > 0) {
     center.appendChild(

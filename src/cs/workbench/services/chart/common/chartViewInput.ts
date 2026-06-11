@@ -60,8 +60,8 @@ export type ChartViewInput = {
 	readonly xAxisLabelOverride?: string;
 	readonly yAxisLabelOverride?: string;
 	readonly originOpenPlotOptions?: OriginPlotOptions;
-	readonly onOriginOpenPlotOptionsChange?: (updates: unknown) => Promise<unknown> | void;
+	readonly onOriginOpenPlotOptionsChange?: (updates: Partial<OriginPlotOptions>) => Promise<void> | void;
 	readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
-	readonly onPlotAxisSettingsChange?: (updates: unknown) => Promise<unknown> | void;
+	readonly onPlotAxisSettingsChange?: (updates: Record<string, unknown>) => Promise<void> | void;
 	readonly shouldMountCharts?: boolean;
 };

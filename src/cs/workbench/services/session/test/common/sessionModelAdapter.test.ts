@@ -270,7 +270,10 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
     );
     assert.equal(record.metricsByKey["current:series-1:base"].metricFamily, "current");
     assert.equal(record.metricsByKey["derivative:series-1:gm"].metricFamily, "derivative");
-    assert.equal(record.metricsByKey["derivative:series-1:gm"].value.kind, "gm");
+    const derivativeMetric = record.metricsByKey["derivative:series-1:gm"];
+    if (derivativeMetric.metricFamily === "derivative") {
+      assert.equal(derivativeMetric.value.kind, "gm");
+    }
     assert.equal(
       record.metricsByKey["subthreshold:series-1:ss:auto"].metricFamily,
       "subthreshold",

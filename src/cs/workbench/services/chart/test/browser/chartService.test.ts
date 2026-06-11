@@ -142,14 +142,14 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 		assert.equal(input.hasAnalysisData, true);
 		assert.deepEqual(input.chartFileOptions, [{ fileId: "file-a", fileName: "file-a.csv" }]);
 		assert.deepEqual(input.legendLabels, { "series-a": "Device A" });
-		assert.equal(legendInput?.fileId, "file-a");
+		assert.equal((legendInput as PlotMainRenderModelInput | null)?.fileId, "file-a");
 
 		input.createPlotDisplayModel?.({ hiddenLegendKeys: ["series-b"] });
 
-		assert.equal(displayInput?.fileId, "file-a");
-		assert.deepEqual(displayInput?.axisSettings, {
+		assert.equal((displayInput as PlotDisplayModelInput | null)?.fileId, "file-a");
+		assert.deepEqual((displayInput as PlotDisplayModelInput | null)?.axisSettings, {
 			xUnitByFileId: { "file-a": "mV" },
 		});
-		assert.deepEqual(displayInput?.hiddenLegendKeys, ["series-b"]);
+		assert.deepEqual((displayInput as PlotDisplayModelInput | null)?.hiddenLegendKeys, ["series-b"]);
 	});
 });

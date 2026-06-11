@@ -58,7 +58,7 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
 
   test("runRcAnalysis passes normalized devices to rc analysis backend", async () => {
     let payload: {
-      devices: unknown[];
+      devices: readonly unknown[];
       options: {
         minDevices: number;
         selectedVg: number | null;

@@ -3,8 +3,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from "assert";
+import { Event } from "src/cs/base/common/event";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
-import { createSessionChangeEvent, type SessionChangeReason } from "src/cs/workbench/services/session/common/sessionEvents";
+import type { ISessionService } from "src/cs/workbench/services/session/common/session";
+import {
+  createSessionChangeEvent,
+  type SessionChangeEvent,
+  type SessionChangeReason,
+} from "src/cs/workbench/services/session/common/sessionEvents";
 import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
 import {
   PlotService,
@@ -13,7 +19,7 @@ import {
 
 suite("workbench/services/plot/test/browser/plotService", () => {
   test("owns active plot type outside session", () => {
-    const service = new PlotService();
+    const service = new PlotService(createSessionServiceStub());
     let changeCount = 0;
     const disposable = service.onDidChangePlotState(() => {
       changeCount += 1;
@@ -28,7 +34,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
   });
 
   test("creates display models with legend visibility, labels, units, and scale", () => {
-    const service = new PlotService();
+    const service = new PlotService(createSessionServiceStub());
     const displayModel = service.getPlotDisplayModel({
       axisSettings: {
         xUnitByFileId: { "file-a": "mV" },
@@ -57,7 +63,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
   });
 
   test("owns axis title overrides by plot context", () => {
-    const service = new PlotService();
+    const service = new PlotService(createSessionServiceStub());
     const snapshot = createSnapshot();
     const initial = service.getPlotDisplayModel({ snapshot });
     assert.equal(initial?.chart.xAxisTitle, "Gate (V)");
@@ -107,6 +113,21 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       );
     }
   });
+});
+
+const createSessionServiceStub = (): ISessionService => ({
+  _serviceBrand: undefined,
+  onDidChangeSession: Event.None as Event<SessionChangeEvent>,
+  clearMetricInput: () => undefined,
+  clearSession: () => undefined,
+  commitCurves: () => undefined,
+  commitFileImport: () => undefined,
+  commitMetrics: () => undefined,
+  commitRawTableAssessment: () => undefined,
+  commitTemplateRun: () => undefined,
+  getSnapshot: createSnapshot,
+  removeFiles: () => undefined,
+  setMetricInput: () => undefined,
 });
 
 const createSnapshot = (): SessionSnapshot => ({
@@ -159,10 +180,12 @@ const createFileRecord = (): FileRecord => ({
     },
   },
   id: "file-a",
+  kind: "unknown",
   latestTemplateRunId: "run-a",
   measurementBlockOrder: [],
   measurementBlocksById: {},
   metricsByKey: {},
+  name: "file-a.csv",
   raw: {
     fileId: "file-a",
     fileName: "file-a.csv",

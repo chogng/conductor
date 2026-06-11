@@ -40,7 +40,7 @@ export const isSameLegendContext = (
 
 const renderLegend = (
   container: HTMLElement,
-  seriesList: readonly CalculatedSeries[],
+  seriesList: readonly PlotMainSeries[],
   hiddenLegendKeys: readonly string[] = [],
   legendLabels: Readonly<Record<string, string>> = {},
   onToggleLegendItem?: (legendKey: string) => void,

@@ -22,6 +22,7 @@ export type PlotSeriesVisibilityModel = {
   readonly activeFile?: {
     readonly xLabel?: unknown;
     readonly yLabel?: unknown;
+    readonly [key: string]: unknown;
   } | null;
   readonly kind?: unknown;
   readonly pointsCount: number;

@@ -29,8 +29,8 @@ export type CreateChartViewInputOptions = {
 		seriesId: string,
 		label: string | null,
 	) => void;
-	readonly onOriginOpenPlotOptionsChange?: (updates: unknown) => Promise<unknown> | void;
-	readonly onPlotAxisSettingsChange?: (updates: unknown) => Promise<unknown> | void;
+	readonly onOriginOpenPlotOptionsChange?: (updates: Partial<OriginPlotOptions>) => Promise<void> | void;
+	readonly onPlotAxisSettingsChange?: (updates: Record<string, unknown>) => Promise<void> | void;
 	readonly onPlotAxisTitleChange?: (
 		context: PlotAxisTitleContext,
 		title: string,

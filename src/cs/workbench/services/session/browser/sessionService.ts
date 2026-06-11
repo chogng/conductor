@@ -654,7 +654,7 @@ const getSnapshotFileIds = (
   ...Object.keys(snapshot.filesById),
 ]);
 
-const uniqueStrings = <T extends string>(values: readonly T[]): readonly T[] => {
+const uniqueStrings = <T extends string>(values: readonly T[]): T[] => {
   const result: T[] = [];
   const seen = new Set<T>();
   for (const value of values) {

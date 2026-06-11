@@ -26,7 +26,9 @@ suite("workbench/services/template/common/extractionValidation", () => {
       },
     });
 
-    assert.equal(result.ok, false);
+    if (result.ok) {
+      assert.fail("Expected extraction to fail.");
+    }
     assert.match(result.message, /extractPointsCellPositiveInt/);
   });
 
@@ -83,7 +85,9 @@ suite("workbench/services/template/common/extractionValidation", () => {
       },
     });
 
-    assert.equal(result.ok, false);
+    if (result.ok) {
+      assert.fail("Expected extraction to fail.");
+    }
     assert.match(result.message, /extractSegmentsCellPositiveInt/);
   });
 });

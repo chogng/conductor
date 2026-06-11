@@ -11,7 +11,7 @@ export const parseFiniteNumber = (value: unknown): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-export const computeSpan = (values: number[]): number | null => {
+export const computeSpan = (values: readonly number[]): number | null => {
   const finiteValues = values.filter((value) => Number.isFinite(value));
   if (finiteValues.length < 2) return null;
   return Math.max(...finiteValues) - Math.min(...finiteValues);

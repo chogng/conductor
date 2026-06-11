@@ -45,6 +45,7 @@ import {
   getLatestTemplateRunRecord,
   type FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
+import { getFileRecordAxisProjection } from "src/cs/workbench/services/session/common/sessionRecordProjection";
 import type {
   ProcessedEntry,
 } from "src/cs/workbench/services/session/common/sessionTypes";
@@ -363,10 +364,11 @@ export class BrowserExportService extends Disposable implements IExportServiceTy
     axis: "x" | "y",
   ): string {
     const record = this.resolveOriginFileRecord(input, file);
+    const axisProjection = record ? getFileRecordAxisProjection(record) : undefined;
     const templateRun = record ? getLatestTemplateRunRecord(record) : undefined;
     if (axis === "x") {
       return String(
-        record?.axis?.x.label ??
+        axisProjection?.xLabel ??
           templateRun?.config.bottomTitle ??
           file?.xLabel ??
           "",
@@ -374,7 +376,7 @@ export class BrowserExportService extends Disposable implements IExportServiceTy
     }
 
     return String(
-      record?.axis?.y.label ??
+      axisProjection?.yLabel ??
         templateRun?.config.leftTitle ??
         file?.yLabel ??
         "",

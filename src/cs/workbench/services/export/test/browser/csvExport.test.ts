@@ -1414,10 +1414,12 @@ const createFileRecord = (ivMode: "transfer" | "output"): FileRecord => {
       },
     },
     id: fileId,
+    kind: "unknown",
     latestTemplateRunId: "run-a",
     measurementBlockOrder: [],
     measurementBlocksById: {},
     metricsByKey: {},
+    name: "file_a.csv",
     raw: {
       fileId,
       fileName: "file_a.csv",
