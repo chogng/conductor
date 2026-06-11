@@ -68,6 +68,20 @@ live, save that rule as a template, then reuse it across future experiments.
 - Because an OS crash or force-kill can skip shutdown cleanup, startup cleanup is
   part of the privacy model and should be kept if the runtime location changes.
 
+Path summary:
+
+| Kind | Default location | Persistence | Notes |
+| --- | --- | --- | --- |
+| User data root | macOS: `~/Library/Application Support/Conductor Studio` | persistent | Overridden by `CONDUCTOR_PORTABLE` or `--user-data-dir`. |
+| Templates and settings | `<userData>/User/` | persistent | Includes `template.json`, `config.json`, and `store-path.json`. |
+| Electron runtime cache | `<userData>/Cache/` | rebuildable | Set through `app.setPath("cache", ...)`. |
+| Electron/V8 code cache | `<userData>/CachedData/<commit>/chrome/` | rebuildable | Disabled in desktop dev mode and with `--no-cached-data`. |
+| App logs in portable mode | `<userData>/logs/` | persistent | Only redirected here when portable mode is active. |
+| Shared temp root | `<temp>/conductor/` | temporary | Based on `app.getPath("temp")`; portable mode can redirect temp through `<portable>/tmp`. |
+| Origin runtime temp data | `<temp>/conductor/origin/` | temporary | Used for Origin handoff jobs, CSV intermediates, worker logs, and stream jobs. |
+| Rust processing temp data | `<temp>/conductor/rust-process-*` | temporary | Per-request processing output such as `calculation-cache.json`. |
+| Rust Excel temp jobs | `<temp>/conductor/rust-xls-jobs/` | temporary | Used by desktop Excel conversion jobs. |
+
 ## Requirements
 
 - Node.js 22+
@@ -183,19 +197,33 @@ Packaging note:
 
 ## Environment Variables
 
-Copy `.env.example` to `.env.local` when needed.
+Create `.env.local` manually when needed for Vite-exposed browser flags. Desktop
+runtime variables are read from the shell environment instead of Vite env
+files.
 
 ```env
-VITE_WS_URL=
-VITE_ORIGINBRIDGE_API_BASE_URL=
-VITE_DA_PREVIEW_CANVAS=0
+VITE_ANALYSIS_PERF=0
+
 CONDUCTOR_UPDATE_URL=
+CONDUCTOR_PORTABLE=
+ORIGIN_EXE_PATH=
+ORIGIN_PYTHON=
+ORIGIN_CSV_WORKER_PATH=
+CONDUCTOR_RUST_PROCESSING_POOL_SIZE=2
 ```
 
 Notes:
 
-- `VITE_ORIGINBRIDGE_API_BASE_URL` is mainly for local OriginBridge integration.
+- `VITE_ANALYSIS_PERF=1` enables analysis performance logging in the browser.
 - `CONDUCTOR_UPDATE_URL` overrides the packaged auto-update source at runtime.
+- `CONDUCTOR_PORTABLE` points desktop runtime data to a portable data root; if
+  `<portable>/tmp` exists, temp files also move there.
+- `ORIGIN_EXE_PATH` and `ORIGIN_PYTHON` override Origin executable / Python
+  detection for local desktop testing.
+- `ORIGIN_CSV_WORKER_PATH` is mainly for smoke-testing a built worker EXE in dev
+  mode.
+- `CONDUCTOR_RUST_PROCESSING_POOL_SIZE` overrides the desktop Rust processing
+  pool size.
 
 ## Desktop Artifacts
 
@@ -306,6 +334,17 @@ Default location:
 <userData>/User/config.json
 <userData>/User/store-path.json
 ```
+
+`<userData>` expands by platform:
+
+```text
+macOS:   ~/Library/Application Support/Conductor Studio
+Windows: %APPDATA%\Conductor Studio
+Linux:   ~/.config/Conductor Studio
+```
+
+On macOS, `~/Library` is the hidden `Library` folder inside the current user's
+home directory.
 
 If a custom config path is used, for example `D:\DeviceAnalysis\config.json`, the sibling files are stored alongside it.
 

@@ -37,6 +37,32 @@ Conductor Studio 是一款面向半导体器件测试数据的桌面优先分析
 - 打包版本内置 Rust Excel converter 和 Python Origin CSV worker。
 - 支持 Electron Builder 打包、Windows 发布产物和自动更新。
 
+## 本地数据和临时文件
+
+- 模板、设置以及已配置的 Origin 可执行文件路径等持久化数据，保存在
+  Conductor Studio 的 user data 目录下。
+- Origin 运行时任务文件属于敏感的临时中转数据。CSV 中间文件和 Origin
+  worker 日志写入系统临时目录下的 `conductor/origin`，而不是持久化的
+  user data 目录。
+- 桌面应用会在启动时和正常退出时清理 Origin 运行时临时目录，以减少导出
+  中间文件在磁盘上的停留时间，同时保留模板和设置。
+- 如果系统崩溃或强制结束进程，退出时清理可能不会执行，所以启动时清理是
+  这套隐私模型的一部分；如果以后调整运行时目录，也需要保留这层行为。
+
+路径总览：
+
+| 类型 | 默认位置 | 是否持久化 | 说明 |
+| --- | --- | --- | --- |
+| user data 根目录 | macOS: `~/Library/Application Support/Conductor Studio` | 持久化 | 可被 `CONDUCTOR_PORTABLE` 或 `--user-data-dir` 覆盖。 |
+| 模板和设置 | `<userData>/User/` | 持久化 | 包含 `template.json`、`config.json` 和 `store-path.json`。 |
+| Electron 运行时缓存 | `<userData>/Cache/` | 可重建 | 通过 `app.setPath("cache", ...)` 设置。 |
+| Electron/V8 code cache | `<userData>/CachedData/<commit>/chrome/` | 可重建 | 桌面开发模式和 `--no-cached-data` 下不会启用。 |
+| portable 模式下的日志 | `<userData>/logs/` | 持久化 | 只在 portable 模式启用时重定向到这里。 |
+| 公共临时根目录 | `<temp>/conductor/` | 临时 | 基于 `app.getPath("temp")`；portable 模式下可通过 `<portable>/tmp` 一起重定向。 |
+| Origin 运行时临时数据 | `<temp>/conductor/origin/` | 临时 | 用于 Origin 中转任务、CSV 中间文件、worker 日志和 stream jobs。 |
+| Rust 处理临时数据 | `<temp>/conductor/rust-process-*` | 临时 | 单次处理请求的中间输出，例如 `calculation-cache.json`。 |
+| Rust Excel 临时任务 | `<temp>/conductor/rust-xls-jobs/` | 临时 | 用于桌面端 Excel 转换任务。 |
+
 ## 环境要求
 
 - Node.js 22+
@@ -133,19 +159,30 @@ npm run test:unit
 
 ## 环境变量
 
-需要时将 `.env.example` 复制为 `.env.local`。
+如果需要 Vite 暴露给浏览器端的开关，可手动创建 `.env.local`。桌面
+运行时变量则直接从启动进程的 shell 环境读取，而不是从 Vite env 文件读取。
 
 ```env
-VITE_WS_URL=
-VITE_ORIGINBRIDGE_API_BASE_URL=
-VITE_DA_PREVIEW_CANVAS=0
+VITE_ANALYSIS_PERF=0
+
 CONDUCTOR_UPDATE_URL=
+CONDUCTOR_PORTABLE=
+ORIGIN_EXE_PATH=
+ORIGIN_PYTHON=
+ORIGIN_CSV_WORKER_PATH=
+CONDUCTOR_RUST_PROCESSING_POOL_SIZE=2
 ```
 
 说明：
 
-- `VITE_ORIGINBRIDGE_API_BASE_URL` 主要用于本地 OriginBridge 集成。
+- `VITE_ANALYSIS_PERF=1` 会在浏览器端开启 analysis 性能日志。
 - `CONDUCTOR_UPDATE_URL` 会在运行时覆盖打包应用的自动更新源。
+- `CONDUCTOR_PORTABLE` 会把桌面端运行数据切到 portable 数据根目录；如果
+  `<portable>/tmp` 存在，临时文件也会一起切过去。
+- `ORIGIN_EXE_PATH` 和 `ORIGIN_PYTHON` 可用于本地桌面调试时覆盖 Origin
+  可执行文件 / Python 的自动探测结果。
+- `ORIGIN_CSV_WORKER_PATH` 主要用于开发模式下对构建后的 worker EXE 做冒烟测试。
+- `CONDUCTOR_RUST_PROCESSING_POOL_SIZE` 可覆盖桌面端 Rust 处理池大小。
 
 ## 桌面端产物
 
@@ -256,6 +293,16 @@ workers/py/origin-csv-worker/origin-csv-worker.exe --worker-version
 <userData>/User/config.json
 <userData>/User/store-path.json
 ```
+
+`<userData>` 会按平台展开为：
+
+```text
+macOS:   ~/Library/Application Support/Conductor Studio
+Windows: %APPDATA%\Conductor Studio
+Linux:   ~/.config/Conductor Studio
+```
+
+在 macOS 上，`~/Library` 指的是当前用户主目录下的隐藏 `Library` 文件夹。
 
 如果使用自定义配置路径，例如 `D:\DeviceAnalysis\config.json`，相关文件会保存在同一目录下。
 
