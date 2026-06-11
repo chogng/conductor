@@ -14,6 +14,7 @@ import type {
 } from "src/cs/platform/language/common/language";
 import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
+import type { INativeHostService } from "src/cs/platform/native/common/native";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { IStorageService } from "src/cs/platform/storage/common/storage";
 import type {
@@ -157,9 +158,6 @@ import {
 } from "src/cs/workbench/services/session/browser/fileSemanticsSync";
 import { createChartViewInput } from "src/cs/workbench/services/chart/browser/chartViewInput";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
-import {
-  reloadWindow,
-} from "src/cs/workbench/browser/actions/windowActions";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { NotificationToasts } from "src/cs/workbench/browser/parts/notifications/notificationsToasts";
 import { registerNotificationCommands } from "src/cs/workbench/browser/parts/notifications/notificationsCommands";
@@ -183,6 +181,7 @@ export type WorkbenchOptions = {
   readonly sessionService?: ISessionServiceType;
   readonly storageService?: IStorageService;
   readonly layoutService?: IWorkbenchLayoutService;
+  readonly nativeHostService?: INativeHostService;
   readonly parametersService?: IParametersService;
   readonly plotService?: IPlotService;
   readonly searchService?: ISearchService;
@@ -242,6 +241,7 @@ export class Workbench extends Layout {
   private readonly explorerService: IExplorerService;
   private readonly filesService: IFileService;
   private readonly layoutService: IWorkbenchLayoutService;
+  private readonly nativeHostService?: INativeHostService;
   private readonly parametersService: IParametersService;
   private readonly plotService: IPlotService;
   private readonly searchService: ISearchService;
@@ -364,6 +364,7 @@ export class Workbench extends Layout {
     this.exportService = options.exportService;
     this.commandService = options.commandService;
     this.layoutService = options.layoutService;
+    this.nativeHostService = options.nativeHostService;
     this.parametersService = options.parametersService;
     this.plotService = options.plotService;
     this.searchService = options.searchService;
@@ -1174,11 +1175,8 @@ export class Workbench extends Layout {
   }
 
   private readonly reloadWorkbench = (): void => {
-    const conductor = window.conductor as
-      | { ipcRenderer?: { send?: (channel: string, ...args: unknown[]) => void } }
-      | undefined;
-    if (typeof conductor?.ipcRenderer?.send === "function") {
-      reloadWindow();
+    if (this.nativeHostService) {
+      this.nativeHostService.reloadWindow();
       return;
     }
 

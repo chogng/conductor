@@ -441,7 +441,8 @@ flowchart TD
     CommandService --> LayoutActions[browser/actions/layoutActions.ts]
     CommandService --> WindowActions[browser/actions/windowActions.ts]
     LayoutActions --> Layout
-    WindowActions --> NativeWindow[Native window command]
+    WindowActions --> NativeHost[INativeHostService]
+    NativeHost --> NativeWindow[Native window command]
 ```
 
 `IWorkbenchLayoutService` owns active view, table/chart mode, navigation

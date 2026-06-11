@@ -13,6 +13,10 @@ import { setBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDel
 import { IHoverService } from "src/cs/platform/hover/browser/hoverService";
 import { workbenchBootstrapIpcChannels } from "src/cs/base/parts/sandbox/common/sandboxTypes";
 import {
+  nativeHostIpcChannels,
+  nativeWindowCommands,
+} from "src/cs/platform/native/common/nativeIpc";
+import {
   Extensions,
   type IWorkbenchContributionsRegistry,
 } from "src/cs/workbench/common/contributions";
@@ -268,7 +272,11 @@ const logInitialRenderDiagnostics = (logBoot: BootLogger) => {
 
 const prepareWorkbench = (logBoot: BootLogger, isBootProfileEnabled: boolean) => {
   installNavigationModeListeners();
-  installWindowDeveloperKeybindings();
+  installWindowDeveloperKeybindings(() => {
+    ipcRenderer.send(nativeHostIpcChannels.windowCommand, {
+      command: nativeWindowCommands.toggleDevTools,
+    });
+  });
 
   const initialSettings = resolveInitialSettings();
   const languagePreference = isLanguagePreference(initialSettings?.language)

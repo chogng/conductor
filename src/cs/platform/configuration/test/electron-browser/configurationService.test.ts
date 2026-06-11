@@ -113,9 +113,11 @@ class TestNativeHostService implements INativeHostService {
   public showItemInFolder(): void {}
   public toggleDevTools(): void {}
   public reloadWindow(): void {}
+  public async isMaximized(): Promise<boolean> { return false; }
+  public maximizeWindow(): void {}
+  public unmaximizeWindow(): void {}
   public closeWindow(): void {}
   public minimizeWindow(): void {}
-  public toggleWindowMaximized(): void {}
 }
 
 suite("platform/configuration/electron-browser/configurationService", () => {

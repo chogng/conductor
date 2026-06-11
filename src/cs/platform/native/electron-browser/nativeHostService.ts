@@ -47,16 +47,25 @@ export class NativeHostService extends Disposable implements INativeHostServiceT
         this.sendWindowCommand(nativeWindowCommands.reloadWindow);
     }
 
+    public async isMaximized(): Promise<boolean> {
+        const result = await ipcRenderer.invoke(nativeHostIpcChannels.windowState);
+        return !!(result && typeof result === "object" && (result as { isMaximized?: unknown }).isMaximized === true);
+    }
+
+    public maximizeWindow(): void {
+        this.sendWindowCommand(nativeWindowCommands.maximizeWindow);
+    }
+
+    public unmaximizeWindow(): void {
+        this.sendWindowCommand(nativeWindowCommands.unmaximizeWindow);
+    }
+
     public closeWindow(): void {
         this.sendWindowCommand(nativeWindowCommands.closeWindow);
     }
 
     public minimizeWindow(): void {
         this.sendWindowCommand(nativeWindowCommands.minimizeWindow);
-    }
-
-    public toggleWindowMaximized(): void {
-        this.sendWindowCommand(nativeWindowCommands.toggleWindowMaximized);
     }
 
     private sendWindowCommand(command: NativeWindowCommand): void {

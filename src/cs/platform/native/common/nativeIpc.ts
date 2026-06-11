@@ -3,6 +3,7 @@ export const nativeHostIpcChannels = {
     openDialog: "conductor:nativeHost:openDialog",
     showItemInFolder: "conductor:nativeHost:showItemInFolder",
     windowCommand: "conductor:nativeHost:windowCommand",
+    windowState: "conductor:nativeHost:windowState",
 } as const;
 
 export const nativeWindowCommands = {
@@ -10,7 +11,8 @@ export const nativeWindowCommands = {
     reloadWindow: "reloadWindow",
     closeWindow: "closeWindow",
     minimizeWindow: "minimizeWindow",
-    toggleWindowMaximized: "toggleWindowMaximized",
+    maximizeWindow: "maximizeWindow",
+    unmaximizeWindow: "unmaximizeWindow",
 } as const;
 
 export type NativeWindowCommand = (typeof nativeWindowCommands)[keyof typeof nativeWindowCommands];

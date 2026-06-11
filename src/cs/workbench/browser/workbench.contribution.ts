@@ -79,6 +79,10 @@ import {
   type IStorageService as IStorageServiceType,
 } from "src/cs/platform/storage/common/storage";
 import {
+  INativeHostService,
+  type INativeHostService as INativeHostServiceType,
+} from "src/cs/platform/native/common/native";
+import {
   IInstantiationService,
   type IInstantiationService as IInstantiationServiceType,
 } from "src/cs/platform/instantiation/common/instantiation";
@@ -165,6 +169,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @ITemplateService templateService: ITemplateServiceType,
     @ISessionService sessionService: ISessionServiceType,
     @IStorageService storageService: IStorageServiceType,
+    @INativeHostService nativeHostService: INativeHostServiceType | undefined,
     @IInstantiationService instantiationService: IInstantiationServiceType,
   ) {
     super();
@@ -191,6 +196,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       settingsService,
       pathService,
       layoutService,
+      nativeHostService,
       titleService,
       viewsService,
       sessionService,

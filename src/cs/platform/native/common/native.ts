@@ -39,7 +39,9 @@ export interface INativeHostService {
     showItemInFolder(path: string): void;
     toggleDevTools(): void;
     reloadWindow(): void;
+    isMaximized(): Promise<boolean>;
+    maximizeWindow(): void;
+    unmaximizeWindow(): void;
     closeWindow(): void;
     minimizeWindow(): void;
-    toggleWindowMaximized(): void;
 }

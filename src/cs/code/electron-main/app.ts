@@ -1665,12 +1665,13 @@ function runWindowCommand(win, command) {
     return;
   }
 
-  if (command === nativeWindowCommands.toggleWindowMaximized) {
-    if (win.isMaximized()) {
-      win.unmaximize();
-      return;
-    }
+  if (command === nativeWindowCommands.maximizeWindow) {
     win.maximize();
+    return;
+  }
+
+  if (command === nativeWindowCommands.unmaximizeWindow) {
+    win.unmaximize();
     return;
   }
 
@@ -1693,6 +1694,13 @@ function handleNativeWindowCommand(event, payload) {
   if (!command) return;
 
   runWindowCommand(BrowserWindow.fromWebContents(event.sender), command);
+}
+
+function handleNativeWindowStateGet(event) {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  return {
+    isMaximized: !!win && !win.isDestroyed() && win.isMaximized(),
+  };
 }
 
 function handleDesktopCommand(event, payload) {
@@ -1766,6 +1774,7 @@ if (hasSingleInstanceLock) {
 
   ipcMain.on("desktop-command", handleDesktopCommand);
   ipcMain.on(nativeHostIpcChannels.windowCommand, handleNativeWindowCommand);
+  ipcMain.handle(nativeHostIpcChannels.windowState, handleNativeWindowStateGet);
   registerContextMenuListener();
   ipcMain.handle(nativeHostIpcChannels.environmentGet, event =>
     resolveNativeHostEnvironment(event.sender),
@@ -1863,6 +1872,7 @@ app.on("will-quit", () => {
   }
   ipcMain.removeListener("desktop-command", handleDesktopCommand);
   ipcMain.removeListener(nativeHostIpcChannels.windowCommand, handleNativeWindowCommand);
+  ipcMain.removeHandler(nativeHostIpcChannels.windowState);
   ipcMain.removeHandler(nativeHostIpcChannels.environmentGet);
   ipcMain.removeHandler(nativeHostIpcChannels.openDialog);
   ipcMain.removeListener(nativeHostIpcChannels.showItemInFolder, handleNativeHostShowItemInFolder);

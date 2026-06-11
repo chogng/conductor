@@ -1,49 +1,20 @@
-import {
-  nativeHostIpcChannels,
-  nativeWindowCommands,
-  type NativeWindowCommand,
-} from "src/cs/platform/native/common/nativeIpc";
 import { localize } from "src/cs/nls";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
+import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
+import {
+  INativeHostService,
+  type INativeHostService as INativeHostServiceType,
+} from "src/cs/platform/native/common/native";
 import { WindowCommandId } from "src/cs/workbench/browser/actions/windowCommands";
 
-type WindowIpcRenderer = {
-  send(channel: string, ...args: readonly unknown[]): void;
-};
+const getNativeHostService = (
+  accessor: ServicesAccessor,
+): INativeHostServiceType | undefined =>
+  accessor.get(INativeHostService) as INativeHostServiceType | undefined;
 
-const getWindowIpcRenderer = (): WindowIpcRenderer | undefined => {
-  const conductor = window.conductor as
-    | { ipcRenderer?: WindowIpcRenderer }
-    | undefined;
-
-  return conductor?.ipcRenderer;
-};
-
-const sendWindowCommand = (command: NativeWindowCommand): void => {
-  getWindowIpcRenderer()?.send(nativeHostIpcChannels.windowCommand, { command });
-};
-
-export const toggleDevTools = (): void => {
-  sendWindowCommand(nativeWindowCommands.toggleDevTools);
-};
-
-export const reloadWindow = (): void => {
-  sendWindowCommand(nativeWindowCommands.reloadWindow);
-};
-
-export const closeWindow = (): void => {
-  sendWindowCommand(nativeWindowCommands.closeWindow);
-};
-
-export const minimizeWindow = (): void => {
-  sendWindowCommand(nativeWindowCommands.minimizeWindow);
-};
-
-export const toggleWindowMaximized = (): void => {
-  sendWindowCommand(nativeWindowCommands.toggleWindowMaximized);
-};
-
-export const installWindowDeveloperKeybindings = (): (() => void) => {
+export const installWindowDeveloperKeybindings = (
+  toggleDevTools: () => void,
+): (() => void) => {
   const listener = (event: KeyboardEvent) => {
     if (event.defaultPrevented || event.altKey || event.metaKey) return;
 
@@ -72,8 +43,8 @@ class MinimizeWindowAction extends Action2 {
     });
   }
 
-  public run(): void {
-    minimizeWindow();
+  public run(accessor: ServicesAccessor): void {
+    getNativeHostService(accessor)?.minimizeWindow();
   }
 }
 
@@ -89,8 +60,18 @@ class ToggleMaximizeWindowAction extends Action2 {
     });
   }
 
-  public run(): void {
-    toggleWindowMaximized();
+  public async run(accessor: ServicesAccessor): Promise<void> {
+    const nativeHostService = getNativeHostService(accessor);
+    if (!nativeHostService) {
+      return;
+    }
+
+    if (await nativeHostService.isMaximized()) {
+      nativeHostService.unmaximizeWindow();
+      return;
+    }
+
+    nativeHostService.maximizeWindow();
   }
 }
 
@@ -106,8 +87,8 @@ class CloseWindowAction extends Action2 {
     });
   }
 
-  public run(): void {
-    closeWindow();
+  public run(accessor: ServicesAccessor): void {
+    getNativeHostService(accessor)?.closeWindow();
   }
 }
 
