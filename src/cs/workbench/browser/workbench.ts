@@ -1176,7 +1176,7 @@ export class Workbench extends Layout {
 
   private readonly reloadWorkbench = (): void => {
     if (this.nativeHostService) {
-      this.nativeHostService.reloadWindow();
+      void this.nativeHostService.reloadWindow().catch(() => undefined);
       return;
     }
 

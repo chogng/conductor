@@ -43,8 +43,8 @@ class MinimizeWindowAction extends Action2 {
     });
   }
 
-  public run(accessor: ServicesAccessor): void {
-    getNativeHostService(accessor)?.minimizeWindow();
+  public async run(accessor: ServicesAccessor): Promise<void> {
+    await getNativeHostService(accessor)?.minimizeWindow();
   }
 }
 
@@ -67,11 +67,11 @@ class ToggleMaximizeWindowAction extends Action2 {
     }
 
     if (await nativeHostService.isMaximized()) {
-      nativeHostService.unmaximizeWindow();
+      await nativeHostService.unmaximizeWindow();
       return;
     }
 
-    nativeHostService.maximizeWindow();
+    await nativeHostService.maximizeWindow();
   }
 }
 
@@ -87,8 +87,8 @@ class CloseWindowAction extends Action2 {
     });
   }
 
-  public run(accessor: ServicesAccessor): void {
-    getNativeHostService(accessor)?.closeWindow();
+  public async run(accessor: ServicesAccessor): Promise<void> {
+    await getNativeHostService(accessor)?.closeWindow();
   }
 }
 

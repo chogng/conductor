@@ -49,13 +49,13 @@ export interface INativeHostService {
 
     getEnvironment(): Promise<INativeHostEnvironment>;
     showOpenDialog(options: INativeOpenDialogOptions): Promise<INativeOpenDialogResult>;
-    showItemInFolder(path: string): void;
-    toggleDevTools(): void;
-    reloadWindow(): void;
+    showItemInFolder(path: string): Promise<void>;
+    toggleDevTools(): Promise<void>;
+    reloadWindow(): Promise<void>;
     isMaximized(): Promise<boolean>;
-    maximizeWindow(): void;
-    unmaximizeWindow(): void;
-    closeWindow(): void;
-    minimizeWindow(): void;
-    updateWindowControls(options: INativeWindowControlsOptions): void;
+    maximizeWindow(): Promise<void>;
+    unmaximizeWindow(): Promise<void>;
+    closeWindow(): Promise<void>;
+    minimizeWindow(): Promise<void>;
+    updateWindowControls(options: INativeWindowControlsOptions): Promise<void>;
 }

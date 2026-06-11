@@ -7,14 +7,18 @@ import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/ex
 export const revealResourcesInOS = (
   resources: readonly URI[],
   nativeHostService: INativeHostService,
-): void => {
+): Promise<void> => {
+  const revealPromises: Promise<void>[] = [];
+
   for (const resource of resources) {
     if (resource.scheme !== "file") {
       continue;
     }
 
-    nativeHostService.showItemInFolder(resource.fsPath);
+    revealPromises.push(nativeHostService.showItemInFolder(resource.fsPath));
   }
+
+  return Promise.all(revealPromises).then(() => undefined);
 };
 
 export const resolveRevealResources = (

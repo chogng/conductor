@@ -462,11 +462,11 @@ class WorkbenchTitlebarView extends Disposable {
 
     const style = getComputedStyle(this.element);
     const height = Math.round(this.element.getBoundingClientRect().height) || 38;
-    this.nativeHostService.updateWindowControls({
+    void this.nativeHostService.updateWindowControls({
       height,
       backgroundColor: style.backgroundColor,
       foregroundColor: style.color,
-    });
+    }).catch(() => undefined);
   }
 }
 

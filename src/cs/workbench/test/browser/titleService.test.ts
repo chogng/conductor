@@ -72,15 +72,15 @@ const testNativeHostService: INativeHostService = {
     canceled: true,
     filePaths: [],
   }),
-  showItemInFolder: () => undefined,
-  toggleDevTools: () => undefined,
-  reloadWindow: () => undefined,
+  showItemInFolder: async () => undefined,
+  toggleDevTools: async () => undefined,
+  reloadWindow: async () => undefined,
   isMaximized: async () => false,
-  maximizeWindow: () => undefined,
-  unmaximizeWindow: () => undefined,
-  closeWindow: () => undefined,
-  minimizeWindow: () => undefined,
-  updateWindowControls: (_options: INativeWindowControlsOptions) => undefined,
+  maximizeWindow: async () => undefined,
+  unmaximizeWindow: async () => undefined,
+  closeWindow: async () => undefined,
+  minimizeWindow: async () => undefined,
+  updateWindowControls: async (_options: INativeWindowControlsOptions) => undefined,
 };
 
 suite("workbench/browser/titleService", () => {

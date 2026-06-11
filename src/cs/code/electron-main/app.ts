@@ -36,11 +36,11 @@ import { Win32UpdateService } from "../../platform/update/electron-main/updateSe
 import { DialogMainService } from "../../platform/dialogs/electron-main/dialogMainService.js";
 import { NativeHostMainService } from "../../platform/native/electron-main/nativeHostMainService.js";
 import { registerContextMenuListener } from "../../base/parts/contextmenu/electron-main/contextmenu.js";
-import { workbenchBootstrapIpcChannels } from "../../base/parts/sandbox/common/sandboxTypes.js";
 import {
   nativeHostBootstrapIpcChannels,
   nativeHostBootstrapWindowCommands,
-} from "../../platform/native/common/nativeHostBootstrap.js";
+  workbenchBootstrapIpcChannels,
+} from "../../base/parts/sandbox/common/sandboxTypes.js";
 import {
   resolveRustWorkerExecutablePath,
   RustWorkerRuntime,
@@ -824,10 +824,19 @@ function getNativeHostChannelWindow(ctx) {
   return win && !win.isDestroyed() ? win : null;
 }
 
+function getNativeHostChannelArgs(arg: unknown): readonly unknown[] {
+  if (Array.isArray(arg)) {
+    return arg;
+  }
+
+  return typeof arg === "undefined" ? [] : [arg];
+}
+
 function createNativeHostChannel(): IServerChannel<string> {
   return {
     call: async <T>(ctx: string, command: string, arg?: unknown): Promise<T> => {
       const win = getNativeHostChannelWindow(ctx);
+      const args = getNativeHostChannelArgs(arg);
 
       if (command === "getEnvironment") {
         return resolveNativeHostEnvironmentForWindow(win) as T;
@@ -837,28 +846,29 @@ function createNativeHostChannel(): IServerChannel<string> {
         if (!win) {
           return { canceled: true, filePaths: [] } as T;
         }
-        return nativeHostMainService.showOpenDialogForWindow(win, arg) as Promise<T>;
+        return nativeHostMainService.showOpenDialogForWindow(win, args[0]) as Promise<T>;
       }
 
       if (command === "showItemInFolder") {
         if (!win) {
           return undefined as T;
         }
-        nativeHostMainService.showItemInFolder(arg);
+        nativeHostMainService.showItemInFolder(args[0]);
         return undefined as T;
       }
 
       if (command === "isMaximized") {
-        return {
-          isMaximized: !!win && win.isMaximized(),
-        } as T;
+        return (!!win && win.isMaximized()) as unknown as T;
       }
 
       if (command === "updateWindowControls") {
-        if (win && arg && typeof arg === "object") {
-          const options = arg as Record<string, unknown>;
+        const rawOptions = args[0];
+        if (win && rawOptions && typeof rawOptions === "object") {
+          const options = rawOptions as Record<string, unknown>;
           updateWindowControlsOverlay(win, {
-            height: typeof options.height === "number" ? options.height : undefined,
+            height: typeof options.height === "number" && Number.isFinite(options.height)
+              ? Math.max(0, Math.round(options.height))
+              : undefined,
             backgroundColor: typeof options.backgroundColor === "string"
               ? options.backgroundColor
               : undefined,

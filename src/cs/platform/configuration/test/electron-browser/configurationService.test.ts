@@ -110,15 +110,15 @@ class TestNativeHostService implements INativeHostService {
     return { canceled: true, filePaths: [] };
   }
 
-  public showItemInFolder(): void {}
-  public toggleDevTools(): void {}
-  public reloadWindow(): void {}
+  public async showItemInFolder(): Promise<void> {}
+  public async toggleDevTools(): Promise<void> {}
+  public async reloadWindow(): Promise<void> {}
   public async isMaximized(): Promise<boolean> { return false; }
-  public maximizeWindow(): void {}
-  public unmaximizeWindow(): void {}
-  public closeWindow(): void {}
-  public minimizeWindow(): void {}
-  public updateWindowControls(): void {}
+  public async maximizeWindow(): Promise<void> {}
+  public async unmaximizeWindow(): Promise<void> {}
+  public async closeWindow(): Promise<void> {}
+  public async minimizeWindow(): Promise<void> {}
+  public async updateWindowControls(): Promise<void> {}
 }
 
 suite("platform/configuration/electron-browser/configurationService", () => {

@@ -11,11 +11,11 @@ import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceC
 import { Registry } from "src/cs/platform/registry/common/platform";
 import { setBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { IHoverService } from "src/cs/platform/hover/browser/hoverService";
-import { workbenchBootstrapIpcChannels } from "src/cs/base/parts/sandbox/common/sandboxTypes";
 import {
   nativeHostBootstrapIpcChannels,
   nativeHostBootstrapWindowCommands,
-} from "src/cs/platform/native/common/nativeHostBootstrap";
+  workbenchBootstrapIpcChannels,
+} from "src/cs/base/parts/sandbox/common/sandboxTypes";
 import {
   Extensions,
   type IWorkbenchContributionsRegistry,

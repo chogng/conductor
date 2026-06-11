@@ -10,7 +10,7 @@ class DesktopNativeHostService extends NativeHostService {
   constructor(
     @IMainProcessService mainProcessService: IMainProcessServiceType,
   ) {
-    super(mainProcessService, mainWindow.conductorWindowId);
+    super(mainWindow.conductorWindowId, mainProcessService);
   }
 }
 

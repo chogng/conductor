@@ -31,6 +31,55 @@ export interface IChannelClient {
     getChannel<T extends IChannel>(channelName: string): T;
 }
 
+export namespace ProxyChannel {
+    export interface ICreateProxyServiceOptions {
+        readonly context?: unknown;
+        readonly properties?: Map<string, unknown>;
+    }
+
+    export function toService<T extends object>(channel: IChannel, options?: ICreateProxyServiceOptions): T {
+        return new Proxy({}, {
+            get(_target: T, propKey: PropertyKey): unknown {
+                if (typeof propKey !== "string") {
+                    throw new Error(`Property not found: ${String(propKey)}`);
+                }
+
+                if (options?.properties?.has(propKey)) {
+                    return options.properties.get(propKey);
+                }
+
+                if (propertyIsDynamicEvent(propKey)) {
+                    return (arg: unknown) => channel.listen(propKey, arg);
+                }
+
+                if (propertyIsEvent(propKey)) {
+                    return channel.listen(propKey);
+                }
+
+                return (...args: unknown[]) => {
+                    const methodArgs = typeof options?.context === "undefined" || options.context === null
+                        ? args
+                        : [options.context, ...args];
+
+                    return channel.call(propKey, methodArgs);
+                };
+            },
+        }) as T;
+    }
+
+    function propertyIsEvent(name: string): boolean {
+        return name[0] === "o" && name[1] === "n" && isUpperAsciiLetter(name.charCodeAt(2));
+    }
+
+    function propertyIsDynamicEvent(name: string): boolean {
+        return name.startsWith("onDynamic") && isUpperAsciiLetter(name.charCodeAt(9));
+    }
+
+    function isUpperAsciiLetter(code: number): boolean {
+        return code >= 65 && code <= 90;
+    }
+}
+
 export interface Client<TContext> {
     readonly ctx: TContext;
 }

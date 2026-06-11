@@ -18,10 +18,10 @@ export const REVEAL_IN_OS_LABEL = isWindows
 export const revealInOSHandler = (
   accessor: ServicesAccessor,
   target?: unknown,
-): void => {
+): Promise<void> => {
   const nativeHostService = accessor.get(INativeHostService) as INativeHostServiceType;
   const resources = resolveRevealResources(accessor, target);
-  revealResourcesInOS(resources, nativeHostService);
+  return revealResourcesInOS(resources, nativeHostService);
 };
 
 class RevealInOSAction extends Action2 {
@@ -37,8 +37,8 @@ class RevealInOSAction extends Action2 {
     });
   }
 
-  public run(accessor: ServicesAccessor, target?: unknown): void {
-    revealInOSHandler(accessor, target);
+  public run(accessor: ServicesAccessor, target?: unknown): Promise<void> {
+    return revealInOSHandler(accessor, target);
   }
 }
 
