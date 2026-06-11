@@ -149,6 +149,25 @@ export type FirstPreparedFileImport = {
   } | null;
 };
 
+export type PreparedFileSourcesImport = {
+  readonly errorMessage: string | null;
+  readonly preparedFiles: readonly PreparedFileImport[];
+};
+
+export type PrepareFileSourcesForImportOptions = {
+  readonly canApplyResult?: () => boolean;
+  readonly fileConverterBackend: FileConverterBackend;
+  readonly selectedRelativePath?: string | null;
+  readonly sources: readonly FileSource[];
+};
+
+export type PrepareDroppedFilesForImportOptions = Omit<
+  PrepareFileSourcesForImportOptions,
+  "sources"
+> & {
+  readonly dataTransfer: DataTransfer | null;
+};
+
 export type FileSourceWorkflowOptions = {
   readonly commandService: Pick<ICommandService, "executeCommand">;
   readonly fileConverterBackendService: FileConverterBackend;
@@ -1151,6 +1170,69 @@ export const buildImportErrorMessage = ({
   }
 
   return errors.length > 0 ? errors.join("\n\n") : null;
+};
+
+export const prepareDroppedFilesForImport = async ({
+  dataTransfer,
+  ...options
+}: PrepareDroppedFilesForImportOptions): Promise<PreparedFileSourcesImport> =>
+  prepareFileSourcesForImport({
+    ...options,
+    sources: dataTransfer ? await collectDroppedFiles(dataTransfer) : [],
+  });
+
+export const prepareFileSourcesForImport = async ({
+  canApplyResult = () => true,
+  fileConverterBackend,
+  selectedRelativePath = null,
+  sources,
+}: PrepareFileSourcesForImportOptions): Promise<PreparedFileSourcesImport> => {
+  const failedFiles: FileImportPrepareFailure[] = [];
+  const {
+    hasAnyUnsupportedFiles,
+    pendingImportFiles,
+  } = collectPendingImportFiles([...sources]);
+
+  if (pendingImportFiles.length === 0) {
+    return {
+      errorMessage: buildImportErrorMessage({
+        failedFiles,
+        hasAnyUnsupportedFiles,
+      }),
+      preparedFiles: [],
+    };
+  }
+
+  const preparedFiles: PreparedFileImport[] = [];
+  const firstImport = await prepareFirstPendingImportFile({
+    canApplyResult,
+    failedFiles,
+    fileConverterBackend,
+    pendingImportFiles,
+    selectedRelativePath,
+  });
+  if (firstImport.result) {
+    preparedFiles.push(firstImport.result.prepared);
+  }
+
+  await prepareRemainingPendingImportFiles({
+    canApplyResult,
+    failedFiles,
+    fileConverterBackend,
+    onPreparedFiles: nextPreparedFiles => {
+      preparedFiles.push(...nextPreparedFiles);
+    },
+    pendingImportFiles,
+    skippedIndexes: firstImport.attemptedIndexes,
+  });
+
+  return {
+    errorMessage: buildImportErrorMessage({
+      failedFiles,
+      hasAnyUnsupportedFiles,
+    }),
+    preparedFiles,
+  };
 };
 
 const createFileId = (): string => {

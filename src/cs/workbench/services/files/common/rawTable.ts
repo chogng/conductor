@@ -27,15 +27,6 @@ export type RawTableSourceRecord =
       readonly originalPath?: string | null;
     }
   | {
-      readonly kind: "clipboard";
-      readonly pastedAt: number;
-      readonly label?: string | null;
-    }
-  | {
-      readonly kind: "manual";
-      readonly label?: string | null;
-    }
-  | {
       readonly kind: "unknown";
     };
 

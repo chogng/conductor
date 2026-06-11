@@ -475,5 +475,12 @@
   "originZip.error.emptyEntry": "Origin ZIP 条目缺少 CSV 内容。",
   "originZip.error.invalidEntryPath": "Origin ZIP 条目路径不可读取。",
   "originZip.error.saveFailed": "保存 Origin ZIP 失败。",
-  "preview_worker_failed": "预览 worker 执行失败。"
+  "preview_worker_failed": "预览 worker 执行失败。",
+  "configureDefaultDrop.description": "打开首选拖放操作设置。",
+  "configureDefaultPaste.description": "打开首选粘贴操作设置。",
+  "dropKind": "拖放编辑的类型标识符。",
+  "dropPreferredDescription": "配置拖放内容时优先使用的编辑类型。\n\n这是一个有序的编辑类型列表，将使用第一个可用的首选类型编辑。",
+  "editorConfigurationTitle": "编辑器",
+  "pasteKind": "粘贴编辑的类型标识符。",
+  "pastePreferredDescription": "配置粘贴内容时优先使用的编辑类型。\n\n这是一个有序的编辑类型列表，将使用第一个可用的首选类型编辑。"
 }

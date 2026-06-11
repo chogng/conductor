@@ -23,6 +23,7 @@ import {
 } from "src/cs/workbench/services/table/common/table";
 import TableViewPane from "src/cs/workbench/contrib/table/browser/tableViewPane";
 import { registerTableCommands } from "src/cs/workbench/contrib/table/browser/tableCommands";
+import { DropIntoTableController } from "src/cs/workbench/contrib/table/browser/dropIntoTableController";
 
 import "src/cs/workbench/contrib/table/browser/media/tableView.css";
 
@@ -59,3 +60,4 @@ function registerTableView(): void {
 }
 
 registerWorkbenchContribution2(TableContributionId, TableContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(DropIntoTableController.ID, DropIntoTableController, WorkbenchPhase.BlockStartup);

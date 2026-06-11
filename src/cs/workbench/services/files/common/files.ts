@@ -152,8 +152,6 @@ export const buildItemKey = (
 export type FileImportSourceKind =
   | "csv"
   | "excel"
-  | "clipboard"
-  | "manual"
   | "unknown";
 
 export type FileImportSource =
@@ -169,16 +167,6 @@ export type FileImportSource =
       readonly kind: "file";
       readonly file: ImportFileData;
       readonly relativePath?: string | null;
-    }
-  | {
-      readonly kind: "clipboard";
-      readonly label?: string | null;
-      readonly rows: readonly (readonly string[])[];
-    }
-  | {
-      readonly kind: "manual";
-      readonly label?: string | null;
-      readonly rows: readonly (readonly string[])[];
     };
 
 export type FileImportDiagnosticSeverity = "info" | "warning" | "error";

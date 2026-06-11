@@ -364,6 +364,25 @@ sequenceDiagram
     FilesCommand->>ExplorerFiles: call existing Explorer/files service or workflow API
 ```
 
+Table drop import wiring:
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant TableViewPane
+    participant DropController as table drop controller
+    participant SourceHelpers as fileImportExport.ts helpers
+    participant Session as ISessionService
+    participant ExplorerService as IExplorerService
+
+    User->>TableViewPane: drop files/folder on table area
+    DropController->>TableViewPane: register drop observer on drop target
+    DropController->>SourceHelpers: collectDroppedFiles / prepare pending imports
+    SourceHelpers-->>DropController: prepared imports
+    DropController->>Session: commitFileImport(result)
+    DropController->>ExplorerService: select({ kind: table, fileId }, force)
+```
+
 Tree item hover thumbnail preview wiring:
 
 ```mermaid

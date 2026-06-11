@@ -71,6 +71,7 @@ import "src/cs/workbench/contrib/sash/browser/sash.contribution";
 import "src/cs/workbench/contrib/table/browser/table.contribution";
 import "src/cs/workbench/contrib/workspaces/browser/workspaces.contribution";
 import "src/cs/workbench/contrib/quickaccess/browser/quickAccess.contribution";
+import "src/cs/workbench/contrib/dropOrPasteInto/browser/dropOrPasteInto.contribution";
 import "src/cs/workbench/contrib/files/browser/files.contribution";
 import "src/cs/workbench/contrib/search/browser/search.contribution";
 import "src/cs/workbench/contrib/settings/browser/settings.contribution";

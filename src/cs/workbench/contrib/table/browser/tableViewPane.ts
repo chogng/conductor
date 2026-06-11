@@ -198,6 +198,10 @@ export class TableViewPane extends ViewPane {
     return this.view?.scrollHorizontally(delta) ?? false;
   }
 
+  public getDropTargetElement(): HTMLElement {
+    return this.previewPart;
+  }
+
   private updateHeaderMode(mode: HeaderMode): void {
     if (this.headerMode === mode) {
       return;
