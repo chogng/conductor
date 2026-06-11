@@ -297,6 +297,21 @@ Conductor follows the same ordered-layer idea as VS Code:
 4. **`workbench/contrib`** - feature contributions, views, commands, actions, and UI composition.
 5. **entry points** - files that import/register contributions and services.
 
+Entry-point imports are loading and registration statements. Group them by the
+owner of the implementation being registered:
+
+```txt
+workbench services        -> workbench/services/** service implementations
+workbench service contributions -> workbench/services/**/*.contribution.ts
+workbench contrib services -> contrib-owned DI services such as IExplorerService
+workbench browser contributions -> workbench/browser action/contribution registration
+workbench contributions   -> feature contribution/action/command registration
+```
+
+Do not move a service into `workbench/services` only because an entry point
+imports it for DI registration. `IExplorerService` is a service, but its owner
+is the Files Explorer UI under `workbench/contrib/files`.
+
 Layer rule:
 
 ```txt

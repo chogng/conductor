@@ -36,6 +36,13 @@ Do not introduce `IFileViewService` or `IFilesExplorerService`. The view-state s
 
 The legacy `workbench/services/explorer/**` location has been retired. Explorer service code should use `workbench/contrib/files/**`; conversion/raw-table helpers should use `workbench/services/files/**`.
 
+Entry-point registration should preserve this distinction. Import
+`contrib/files/browser/explorerService` from a `workbench contrib services`
+region when the browser workbench needs to run the Explorer DI registration.
+Do not place that import under a `workbench services` region, and do not move
+Explorer code into `workbench/services/files` just to make the entry-point
+section look homogeneous.
+
 ## Layer Boundaries
 
 Use these three locations for different responsibilities:

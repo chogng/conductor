@@ -52,14 +52,28 @@ Do not invent service methods, filenames, controllers, or model classes from a c
 
 ### Contribution Rules
 
-- No dependency from outside `contrib/` into `contrib/`
+- Lower layers and unrelated features must not depend on `contrib/` internals.
 - Each contribution has a single `.contribution.ts` entry point
-- Contributions expose internal API from a single common file
+- Contributions expose shared API from the contribution-owned contract file
 - Cross-contribution dependencies use that common API — never reach into internals
+
+Workbench entry points and composition code are allowed to import contribution
+registration modules and public contribution contracts when they are wiring the
+workbench together. This does not move the contribution's ownership into
+`workbench/services`.
+
+Example: `IExplorerService` and `ExplorerService` belong to
+`workbench/contrib/files` because Explorer is Files feature UI state. An entry
+point may import `contrib/files/browser/explorerService` to run its
+`registerSingleton(...)`, but that import should be grouped as a contrib-owned
+service registration, not under the core `workbench/services` section.
 
 ## Entry Points
 
 Only code referenced from entry point files is loaded:
+
+`workbench.browser.main.ts` contains browser renderer registrations shared by
+both web and desktop entry points.
 
 - `workbench.common.main.ts` — shared dependencies
 - `workbench.desktop.main.ts` — desktop-only
@@ -70,6 +84,18 @@ Only code referenced from entry point files is loaded:
 For large entry-point or boundary files such as `preload.ts`, `workbench.*.main.ts`, and `electron-main/app.ts`, prefer `//#region ...` / `//#endregion` sections to group related responsibilities.
 
 Use regions for architectural grouping, not to hide small unrelated helpers. Keep actual Electron preload entry files obvious: use `preload.ts` for the main window and add `preload-aux.ts` only when an auxiliary window preload is actually registered.
+
+Keep entry-point regions aligned with ownership:
+
+- `workbench services` imports implementations from `workbench/services/**`.
+- `workbench service contributions` imports lifecycle registration files from `workbench/services/**/*.contribution.ts`.
+- `workbench contrib services` imports DI service implementations owned by a contribution, such as `contrib/files/browser/explorerService`.
+- `workbench browser contributions` imports core workbench browser action and contribution registration files.
+- `workbench contributions` imports `.contribution.ts` registration files, actions, commands, and feature contribution entry points.
+
+Do not move a service implementation into `workbench/services` only because it
+uses DI. Location follows ownership, while the entry point region explains why
+the import exists.
 
 ## Dependency Injection
 
