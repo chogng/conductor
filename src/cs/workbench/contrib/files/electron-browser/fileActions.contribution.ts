@@ -1,10 +1,7 @@
 import { isMacintosh, isWindows } from "src/cs/base/common/platform";
 import { localize } from "src/cs/nls";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
-import {
-  INativeHostService,
-  type INativeHostService as INativeHostServiceType,
-} from "src/cs/platform/native/common/native";
+import { INativeHostService } from "src/cs/platform/native/common/native";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import { REVEAL_IN_OS_COMMAND_ID } from "src/cs/workbench/contrib/files/common/files";
 import { revealResourcesInOS, resolveRevealResources } from "src/cs/workbench/contrib/files/electron-browser/fileCommands";
@@ -19,7 +16,7 @@ export const revealInOSHandler = (
   accessor: ServicesAccessor,
   target?: unknown,
 ): Promise<void> => {
-  const nativeHostService = accessor.get(INativeHostService) as INativeHostServiceType;
+  const nativeHostService = accessor.get(INativeHostService);
   const resources = resolveRevealResources(accessor, target);
   return revealResourcesInOS(resources, nativeHostService);
 };

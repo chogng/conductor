@@ -4,7 +4,7 @@ import { CommandsRegistry } from "../../../../../platform/commands/common/comman
 import type { ServicesAccessor, ServiceIdentifier } from "../../../../../platform/instantiation/common/instantiation.ts";
 import { ExplorerService } from "../../../../../workbench/contrib/files/browser/explorerService.ts";
 import { IExplorerService } from "../../../../../workbench/contrib/files/browser/files.ts";
-import { ITemplateService, type ITemplateService as ITemplateServiceType } from "src/cs/workbench/services/template/common/template";
+import { ITemplateService } from "src/cs/workbench/services/template/common/template";
 import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 import {
   ADD_FOLDER_ACTION_ID,
@@ -41,7 +41,7 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
           templateSelection = { fileId: "file-1", selection };
         }
       },
-    } as unknown as ITemplateServiceType;
+    } as unknown as ITemplateService;
     const accessor = createAccessor([
       [IExplorerService, explorerService],
       [ITemplateService, templateService],
@@ -117,7 +117,7 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
           templateSelection = { fileId: "file-2", selection };
         }
       },
-    } as unknown as ITemplateServiceType;
+    } as unknown as ITemplateService;
     const accessor = createAccessor([
       [IExplorerService, explorerService],
       [ITemplateService, templateService],

@@ -6,21 +6,19 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
 	IFileConverterBackendService,
-	type IFileConverterBackendService as IFileConverterBackendServiceType,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import { readRawTableRows } from "src/cs/workbench/services/files/browser/rawTableRowsReader";
 import {
 	IRawTableRowsReaderService,
-	type IRawTableRowsReaderService as IRawTableRowsReaderServiceType,
 	type RawTableRows,
 	type RawTableRowsReadInput,
 } from "src/cs/workbench/services/files/common/rawTableRowsReader";
 
-export class RawTableRowsReaderService extends Disposable implements IRawTableRowsReaderServiceType {
+export class RawTableRowsReaderService extends Disposable implements IRawTableRowsReaderService {
 	public declare readonly _serviceBrand: undefined;
 
 	public constructor(
-		@IFileConverterBackendService private readonly convertedCsvReaderService: IFileConverterBackendServiceType,
+		@IFileConverterBackendService private readonly convertedCsvReaderService: IFileConverterBackendService,
 	) {
 		super();
 	}

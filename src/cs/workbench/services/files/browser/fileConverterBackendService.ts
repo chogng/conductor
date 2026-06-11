@@ -9,7 +9,6 @@ import {
 	IFileConverterBackendService,
 	type FileConverterConvertedCsv,
 	type FileConverterPreparedFile,
-	type IFileConverterBackendService as IFileConverterBackendServiceType,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
 
 const getServiceUnavailableMessage = (): string =>
@@ -19,7 +18,7 @@ function unavailable(): Promise<never> {
 	return Promise.reject(new Error(getServiceUnavailableMessage()));
 }
 
-export class FileConverterBackendService extends Disposable implements IFileConverterBackendServiceType {
+export class FileConverterBackendService extends Disposable implements IFileConverterBackendService {
 	public declare readonly _serviceBrand: undefined;
 
 	public canPrepareFile(): boolean {

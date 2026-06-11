@@ -19,10 +19,9 @@ import {
   type ExplorerSelectionTarget,
   type IExplorerView,
   type ExplorerViewLayout,
-  type IExplorerService as IExplorerServiceType,
 } from "src/cs/workbench/contrib/files/browser/files";
 
-export class ExplorerService extends Disposable implements IExplorerServiceType {
+export class ExplorerService extends Disposable implements IExplorerService {
   public declare readonly _serviceBrand: undefined;
 
   private readonly onDidChangeSelectionEmitter = this._register(new Emitter<ExplorerSelectionChangeEvent>());

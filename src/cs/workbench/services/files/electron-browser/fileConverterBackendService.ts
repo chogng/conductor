@@ -12,7 +12,6 @@ import {
   IFileConverterBackendService,
   type FileConverterConvertedCsv,
   type FileConverterPreparedFile,
-  type IFileConverterBackendService as IFileConverterBackendServiceType,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
 
 type DesktopIpcRenderer = {
@@ -78,7 +77,7 @@ function invoke<T>(channel: string, payload?: unknown): Promise<T> {
   return getIpcRenderer().invoke(channel, payload) as Promise<T>;
 }
 
-export class ElectronFileConverterBackendService extends Disposable implements IFileConverterBackendServiceType {
+export class ElectronFileConverterBackendService extends Disposable implements IFileConverterBackendService {
   public declare readonly _serviceBrand: undefined;
 
   public canPrepareFile(): boolean {

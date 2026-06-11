@@ -2,7 +2,7 @@ import assert from "assert";
 
 import { CommandsRegistry } from "../../../../../platform/commands/common/commands.ts";
 import type { ServicesAccessor, ServiceIdentifier } from "../../../../../platform/instantiation/common/instantiation.ts";
-import { INativeHostService, type INativeHostService as INativeHostServiceType } from "../../../../../platform/native/common/native.ts";
+import { INativeHostService } from "../../../../../platform/native/common/native.ts";
 import { ExplorerService } from "../../browser/explorerService.ts";
 import { IExplorerService } from "../../browser/files.ts";
 import { REVEAL_IN_OS_COMMAND_ID } from "../../common/files.ts";
@@ -76,7 +76,7 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
       showItemInFolder: (path: string) => {
         revealedPath = path;
       },
-    } as unknown as INativeHostServiceType;
+    } as unknown as INativeHostService;
     const accessor = createAccessor([
       [IExplorerService, explorerService],
       [INativeHostService, nativeHostService],
