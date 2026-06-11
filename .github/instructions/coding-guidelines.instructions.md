@@ -383,7 +383,49 @@ Practical rules:
 - Do not add callback fields to pane input just to bounce a selection across services.
 - Do not call another service's cache invalidation, preview reset, worker reset, or private lifecycle methods from a source-domain selection handler.
 
-## 13. Service and contribution dependencies
+## 13. Service dependency import style
+
+Follow the upstream VS Code service symbol pattern for DI services. A service
+identifier usually exports both a runtime decorator value and a TypeScript
+interface with the same name:
+
+```ts
+export const IFileService = createDecorator<IFileService>('fileService');
+
+export interface IFileService {
+  // service API
+}
+```
+
+Consumers should import that service symbol once and use the same name in both
+positions:
+
+```ts
+import { IFileService } from 'src/cs/platform/files/common/files';
+
+class ExplorerViewPane {
+  constructor(
+    @IFileService private readonly fileService: IFileService,
+  ) { }
+}
+```
+
+Do not split the same DI service symbol into a value import plus an aliased type
+import:
+
+```ts
+import {
+  IFileService,
+  type IFileService as IFileServiceType,
+} from 'src/cs/platform/files/common/files';
+```
+
+Use `type` imports for pure type-only symbols that have no runtime role, such
+as records, props, options, and helper interfaces. Named imports from a module
+may still mix runtime values and `type` entries when different exported symbols
+are needed.
+
+## 14. Service and contribution dependencies
 
 Allowed direction:
 
@@ -405,7 +447,7 @@ plot -> chart DOM
 chart -> raw table parsing
 ```
 
-## 14. Register, invoke, subscribe
+## 15. Register, invoke, subscribe
 
 Conductor's core interaction pattern is:
 
@@ -432,7 +474,7 @@ Read `architecture.instructions.md` for the full registration,
 invocation, subscription, owner, event, view, selection, model/view-state, and
 disposable rules.
 
-## 15. Migration comments
+## 16. Migration comments
 
 When keeping legacy code during migration, annotate the boundary:
 
@@ -448,7 +490,7 @@ Do not leave ambiguous generic TODOs such as:
 // TODO: clean up later
 ```
 
-## 16. Shared values follow ownership
+## 17. Shared values follow ownership
 
 Shared constants should follow the same ownership and import-direction rules as
 code. A value should live with the component, service, contribution, or common

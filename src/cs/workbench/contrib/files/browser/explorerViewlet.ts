@@ -7,20 +7,12 @@ import { createMenuAction } from "src/cs/base/browser/ui/menu/menu";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import { toAction } from "src/cs/base/common/actions";
 import { LxIcon } from "src/cs/base/common/lxicon";
-import {
-  ICommandService,
-  type ICommandService as ICommandServiceType,
-} from "src/cs/platform/commands/common/commands";
+import { ICommandService } from "src/cs/platform/commands/common/commands";
 import {
   IContextMenuService,
   IContextViewService,
-  type IContextMenuService as IContextMenuServiceType,
-  type IContextViewService as IContextViewServiceType,
 } from "src/cs/platform/contextview/browser/contextView";
-import {
-  IFileService,
-  type IFileService as IFileServiceType,
-} from "src/cs/platform/files/common/files";
+import { IFileService } from "src/cs/platform/files/common/files";
 import type { WorkbenchSidebarAction } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import {
@@ -42,9 +34,8 @@ import {
 } from "src/cs/workbench/contrib/files/common/files";
 import {
   ExplorerViewId,
-  type ExplorerPaneInput,
   IExplorerService,
-  type IExplorerService as IExplorerServiceType,
+  type ExplorerPaneInput,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
   getExplorerFolderPath,
@@ -57,13 +48,9 @@ import {
   IFileConverterBackendService,
   type FileConverterBackend,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
-import {
-  IThumbnailService,
-  type IThumbnailService as IThumbnailServiceType,
-} from "src/cs/workbench/services/thumbnail/common/thumbnail";
+import { IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
   ITemplateService,
-  type ITemplateService as ITemplateServiceType,
   type TemplateRecord,
 } from "src/cs/workbench/services/template/common/template";
 
@@ -88,14 +75,14 @@ export class ExplorerViewPane extends ViewPane {
   private isTemplateListLoading = false;
 
   constructor(
-    @ICommandService private readonly commandService: ICommandServiceType,
-    @IContextMenuService private readonly contextMenuService: IContextMenuServiceType,
-    @IContextViewService private readonly contextViewService: IContextViewServiceType,
-    @IExplorerService private readonly explorerService: IExplorerServiceType,
+    @ICommandService private readonly commandService: ICommandService,
+    @IContextMenuService private readonly contextMenuService: IContextMenuService,
+    @IContextViewService private readonly contextViewService: IContextViewService,
+    @IExplorerService private readonly explorerService: IExplorerService,
     @IFileConverterBackendService private readonly fileConverterBackendService: FileConverterBackend,
-    @IFileService private readonly filesService: IFileServiceType,
-    @IThumbnailService private readonly thumbnailService: IThumbnailServiceType,
-    @ITemplateService private readonly templateService: ITemplateServiceType,
+    @IFileService private readonly filesService: IFileService,
+    @IThumbnailService private readonly thumbnailService: IThumbnailService,
+    @ITemplateService private readonly templateService: ITemplateService,
   ) {
     super({
       id: ExplorerViewId,

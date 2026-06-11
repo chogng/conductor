@@ -113,4 +113,9 @@ class MyComponent {
 }
 ```
 
+Import DI service symbols once, using the same name for the runtime decorator
+and the TypeScript service interface. Do not split one service symbol into
+`IMyService` plus `type IMyService as IMyServiceType`; reserve `type` imports
+for symbols that are purely type-only.
+
 Services are provided via `registerSingleton(IMyService, MyServiceImpl, InstantiationType.Delayed)`.

@@ -3,12 +3,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IAction } from "src/cs/base/common/actions";
-import type { IDisposable } from "src/cs/base/common/lifecycle";
-import { URI } from "src/cs/base/common/uri";
 import { toSlashes } from "src/cs/base/common/extpath";
+import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { isWindows } from "src/cs/base/common/platform";
 import { basename, joinPath } from "src/cs/base/common/resources";
-import type { ICommandService as ICommandServiceType } from "src/cs/platform/commands/common/commands";
+import { URI } from "src/cs/base/common/uri";
+import { localize } from "src/cs/nls";
+import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import {
   collectDataTransferFiles,
@@ -26,14 +27,18 @@ import {
   type IFileStat,
   type IFileService,
 } from "src/cs/platform/files/common/files";
-import { localize } from "src/cs/nls";
 import { startPerf } from "src/cs/workbench/common/perf";
+import {
+  FOLDER_IMPORT_STAT_CONCURRENCY,
+  MAX_FOLDER_WALK_DEPTH,
+} from "src/cs/workbench/contrib/files/browser/fileConstants";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
   buildFileSourceIdentityKey,
   buildItemKey,
   isExcelImportFileName,
   isSupportedImportFileName,
+  type FileSource,
   type FolderFileCollection,
   type FolderFileCollectionBatch,
   type FolderFileReadFailure,
@@ -41,16 +46,7 @@ import {
   type FolderImportFiles,
   type ImportedFileRecord,
   type ImportFileData,
-  type FileSource,
 } from "src/cs/workbench/services/files/common/files";
-import type { FileConverterBackend } from "src/cs/workbench/services/files/common/fileConverterBackend";
-import type {
-  IPathService,
-} from "src/cs/workbench/services/path/common/pathService";
-import {
-  FOLDER_IMPORT_STAT_CONCURRENCY,
-  MAX_FOLDER_WALK_DEPTH,
-} from "src/cs/workbench/contrib/files/browser/fileConstants";
 import {
   convertImportFile,
   createImportedFileRecord,
@@ -58,12 +54,12 @@ import {
   type ConvertedImportSheet,
   type FileConverterSource,
 } from "src/cs/workbench/services/files/browser/fileConverter";
+import type { FileConverterBackend } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import { WorkspaceWatcher } from "src/cs/workbench/services/workspaces/browser/workspaceWatcher";
-import {
-  resolveWorkspaceExternalChanges,
-} from "src/cs/workbench/services/workspaces/common/externalChanges";
+import { resolveWorkspaceExternalChanges } from "src/cs/workbench/services/workspaces/common/externalChanges";
 import {
   ADD_WORKSPACE_FOLDER_COMMAND_ID,
   createWorkspaceSourcePathKey,
@@ -154,7 +150,7 @@ export type FirstPreparedFileImport = {
 };
 
 export type FileSourceWorkflowOptions = {
-  readonly commandService: Pick<ICommandServiceType, "executeCommand">;
+  readonly commandService: Pick<ICommandService, "executeCommand">;
   readonly fileConverterBackendService: FileConverterBackend;
   readonly filesService: IFileService;
   readonly getFiles: () => readonly ExplorerFileEntry[];
