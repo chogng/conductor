@@ -30,6 +30,12 @@ export interface INativeOpenDialogResult {
     readonly filePaths: readonly string[];
 }
 
+export interface INativeWindowControlsOptions {
+    readonly height?: number;
+    readonly backgroundColor?: string;
+    readonly foregroundColor?: string;
+}
+
 export interface INativeHostService {
     readonly _serviceBrand: undefined;
     readonly windowId: number;
@@ -44,4 +50,5 @@ export interface INativeHostService {
     unmaximizeWindow(): void;
     closeWindow(): void;
     minimizeWindow(): void;
+    updateWindowControls(options: INativeWindowControlsOptions): void;
 }

@@ -7,6 +7,7 @@ import {
     type INativeHostService as INativeHostServiceType,
     type INativeOpenDialogOptions,
     type INativeOpenDialogResult,
+    type INativeWindowControlsOptions,
 } from "src/cs/platform/native/common/native";
 import {
     nativeHostIpcChannels,
@@ -68,9 +69,29 @@ export class NativeHostService extends Disposable implements INativeHostServiceT
         this.sendWindowCommand(nativeWindowCommands.minimizeWindow);
     }
 
+    public updateWindowControls(options: INativeWindowControlsOptions): void {
+        ipcRenderer.send(nativeHostIpcChannels.windowControlsUpdate, normalizeWindowControlsOptions(options));
+    }
+
     private sendWindowCommand(command: NativeWindowCommand): void {
         ipcRenderer.send(nativeHostIpcChannels.windowCommand, { command });
     }
+}
+
+function normalizeWindowControlsOptions(
+    options: INativeWindowControlsOptions,
+): INativeWindowControlsOptions {
+    return {
+        height: typeof options.height === "number" && Number.isFinite(options.height)
+            ? Math.max(0, Math.round(options.height))
+            : undefined,
+        backgroundColor: typeof options.backgroundColor === "string"
+            ? options.backgroundColor
+            : undefined,
+        foregroundColor: typeof options.foregroundColor === "string"
+            ? options.foregroundColor
+            : undefined,
+    };
 }
 
 function normalizeOpenDialogResult(value: unknown): INativeOpenDialogResult {

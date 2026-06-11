@@ -22,6 +22,8 @@ export function defaultBrowserWindowOptions({
   preload,
   themeSnapshot,
 }: IDefaultBrowserWindowOptions): BrowserWindowConstructorOptions {
+  const hideNativeWindowsTitlebar = process.platform === "win32";
+
   return {
     width: MAIN_WINDOW_BOUNDS.width,
     height: MAIN_WINDOW_BOUNDS.height,
@@ -31,8 +33,16 @@ export function defaultBrowserWindowOptions({
     backgroundColor: themeSnapshot.backgroundColor,
     autoHideMenuBar: true,
     center: true,
-    frame: process.platform !== "win32",
+    frame: !hideNativeWindowsTitlebar,
     show: false,
+    titleBarOverlay: hideNativeWindowsTitlebar
+      ? {
+          color: themeSnapshot.backgroundColor,
+          symbolColor: themeSnapshot.foregroundColor,
+          height: 38,
+        }
+      : undefined,
+    titleBarStyle: hideNativeWindowsTitlebar ? "hidden" : undefined,
     webPreferences: {
       preload,
       contextIsolation: true,

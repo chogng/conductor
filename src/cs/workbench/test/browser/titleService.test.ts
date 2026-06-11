@@ -7,6 +7,13 @@ import {
 } from "src/cs/platform/storage/common/storage";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { ICommandEvent } from "src/cs/platform/commands/common/commands";
+import type {
+  INativeHostService,
+  INativeOpenDialogOptions,
+  INativeOpenDialogResult,
+  INativeWindowControlsOptions,
+} from "src/cs/platform/native/common/native";
+import type { INativeHostEnvironment } from "src/cs/platform/native/common/nativeIpc";
 import { BrowserTitleService } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import {
   BrowserWorkbenchLayoutService,
@@ -51,11 +58,36 @@ const testCommandService: ICommandService = {
   executeCommand: async () => undefined,
 };
 
+const testNativeHostService: INativeHostService = {
+  _serviceBrand: undefined,
+  windowId: 1,
+  getEnvironment: async (): Promise<INativeHostEnvironment> => ({
+    appVersion: "test",
+    isDesktop: true,
+    isPackaged: false,
+    platform: "win32",
+    userDataPath: null,
+  }),
+  showOpenDialog: async (_options: INativeOpenDialogOptions): Promise<INativeOpenDialogResult> => ({
+    canceled: true,
+    filePaths: [],
+  }),
+  showItemInFolder: () => undefined,
+  toggleDevTools: () => undefined,
+  reloadWindow: () => undefined,
+  isMaximized: async () => false,
+  maximizeWindow: () => undefined,
+  unmaximizeWindow: () => undefined,
+  closeWindow: () => undefined,
+  minimizeWindow: () => undefined,
+  updateWindowControls: (_options: INativeWindowControlsOptions) => undefined,
+};
+
 suite("workbench/browser/titleService", () => {
   test("publishes titlebar state from the layout owner", () => {
     const storage = new TestStorageService();
     const layoutService = new BrowserWorkbenchLayoutService(storage);
-    const titleService = new BrowserTitleService(testCommandService, layoutService);
+    const titleService = new BrowserTitleService(testCommandService, layoutService, testNativeHostService);
     let changeCount = 0;
 
     const listener = titleService.onDidChangeTitlebarState(() => {
@@ -90,7 +122,7 @@ suite("workbench/browser/titleService", () => {
   test("reflects sidebar visibility without owning layout state", () => {
     const storage = new TestStorageService();
     const layoutService = new BrowserWorkbenchLayoutService(storage);
-    const titleService = new BrowserTitleService(testCommandService, layoutService);
+    const titleService = new BrowserTitleService(testCommandService, layoutService, testNativeHostService);
 
     titleService.updateTitlebarState({ enabled: true });
     layoutService.setPartHidden(true, Parts.SIDEBAR_PART);

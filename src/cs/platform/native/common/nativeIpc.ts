@@ -3,6 +3,7 @@ export const nativeHostIpcChannels = {
     openDialog: "conductor:nativeHost:openDialog",
     showItemInFolder: "conductor:nativeHost:showItemInFolder",
     windowCommand: "conductor:nativeHost:windowCommand",
+    windowControlsUpdate: "conductor:nativeHost:windowControls:update",
     windowState: "conductor:nativeHost:windowState",
 } as const;
 
@@ -19,6 +20,12 @@ export type NativeWindowCommand = (typeof nativeWindowCommands)[keyof typeof nat
 
 export interface INativeWindowCommandPayload {
     readonly command: NativeWindowCommand;
+}
+
+export interface INativeWindowControlsUpdatePayload {
+    readonly height?: number;
+    readonly backgroundColor?: string;
+    readonly foregroundColor?: string;
 }
 
 export interface INativeHostEnvironment {

@@ -1,7 +1,6 @@
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
-import { WindowCommandId } from "src/cs/workbench/browser/actions/windowCommands";
 import { createWorkbenchSidebarToggleButton } from "src/cs/workbench/browser/parts/sidebar/sidebarActions";
 import { QuickAccessCommandId } from "src/cs/workbench/contrib/quickaccess/common/quickAccessCommands";
 import type { LayoutView } from "src/cs/workbench/services/layout/browser/layoutService";
@@ -45,13 +44,6 @@ export type WorkbenchTitlebarQuickAccessButton = {
   readonly icon: LxIconDefinition;
   readonly id: string;
   readonly title: string;
-};
-
-export type WorkbenchTitlebarWindowButton = {
-  readonly commandId: string;
-  readonly id: "minimize" | "maximize" | "close";
-  readonly title: string;
-  readonly isDanger?: boolean;
 };
 
 export type WorkbenchTitlebarActivePage = LayoutView | string;
@@ -125,26 +117,6 @@ export const createWorkbenchTitlebarQuickAccessButton =
   id: WORKBENCH_TITLEBAR_QUICK_ACCESS_BUTTON_ID,
   title: localize("titlebar.quickAccess", "Search Commands"),
 });
-
-export const createWorkbenchTitlebarWindowButtons =
-(): WorkbenchTitlebarWindowButton[] => [
-  {
-    commandId: WindowCommandId.minimizeWindow,
-    id: "minimize",
-    title: localize("menu_window_minimize", "Minimize Window"),
-  },
-  {
-    commandId: WindowCommandId.toggleMaximizeWindow,
-    id: "maximize",
-    title: localize("menu_window_maximize", "Maximize / Restore"),
-  },
-  {
-    commandId: WindowCommandId.closeWindow,
-    id: "close",
-    title: localize("menu_window_close", "Close Window"),
-    isDanger: true,
-  },
-];
 
 export const getWorkbenchTitlebarUpdateLabel = (): string =>
   localize("menu_update_available", "Update");

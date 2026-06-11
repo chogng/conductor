@@ -118,6 +118,7 @@ class TestNativeHostService implements INativeHostService {
   public unmaximizeWindow(): void {}
   public closeWindow(): void {}
   public minimizeWindow(): void {}
+  public updateWindowControls(): void {}
 }
 
 suite("platform/configuration/electron-browser/configurationService", () => {

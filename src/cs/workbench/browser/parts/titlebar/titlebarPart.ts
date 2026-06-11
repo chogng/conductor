@@ -19,6 +19,10 @@ import { Emitter } from "src/cs/base/common/event";
 import { ICommandService, type ICommandService as ICommandServiceType } from "src/cs/platform/commands/common/commands";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
+  INativeHostService,
+  type INativeHostService as INativeHostServiceType,
+} from "src/cs/platform/native/common/native";
+import {
   IWorkbenchLayoutService,
   Parts,
   type IWorkbenchLayoutService as IWorkbenchLayoutServiceType,
@@ -58,6 +62,8 @@ type WorkbenchTitlebarProps = Omit<WorkbenchTitlebarState, "activePage"> & {
   readonly activePage: WorkbenchTitlebarActivePage;
   readonly commandService?: ICommandServiceType;
   readonly id?: string;
+  readonly nativeHostService?: INativeHostServiceType;
+  readonly reserveWindowControls?: boolean;
   readonly updateAction?: WorkbenchTitlebarUpdateAction;
 };
 
@@ -393,6 +399,7 @@ class WorkbenchTitlebarView extends Disposable {
   public constructor(
     public readonly element: HTMLElement,
     private readonly refs: WorkbenchTitlebarViewRefs,
+    private readonly nativeHostService: INativeHostServiceType | undefined,
     disposables: readonly IDisposable[],
   ) {
     super();
@@ -444,6 +451,22 @@ class WorkbenchTitlebarView extends Disposable {
     if (this.refs.fileSelect && this.refs.fileSelect.value !== activeFileId) {
       this.refs.fileSelect.value = activeFileId;
     }
+
+    this.syncWindowControls();
+  }
+
+  public syncWindowControls(): void {
+    if (!this.nativeHostService) {
+      return;
+    }
+
+    const style = getComputedStyle(this.element);
+    const height = Math.round(this.element.getBoundingClientRect().height) || 38;
+    this.nativeHostService.updateWindowControls({
+      height,
+      backgroundColor: style.backgroundColor,
+      foregroundColor: style.color,
+    });
   }
 }
 
@@ -457,8 +480,10 @@ const createWorkbenchTitlebarView = (
     commandService,
     id = WORKBENCH_TITLEBAR_ID,
     isSidebarVisible = true,
+    nativeHostService,
     onFileChange,
     onChartIntent,
+    reserveWindowControls = false,
     showFileSelector = false,
     updateAction,
   }: WorkbenchTitlebarProps,
@@ -472,8 +497,6 @@ const createWorkbenchTitlebarView = (
   );
   const pageButtons =
     WorkbenchTitlebarActions.createWorkbenchTitlebarPageButtons(activePage);
-  const windowButtons =
-    WorkbenchTitlebarActions.createWorkbenchTitlebarWindowButtons();
   const header = createElement("header", {
     id,
     className: "titlebar-root",
@@ -589,30 +612,11 @@ const createWorkbenchTitlebarView = (
   }
   rightControls.appendChild(pageActionBar.domNode);
 
-  for (const button of windowButtons) {
-    const icon =
-      button.id === "minimize"
-        ? createSvgIcon(14, "M5 12h14")
-        : button.id === "maximize"
-          ? createSvgIcon(12, "M5 5h14v14H5z")
-          : createSvgIcon(14, "M18 6 6 18|M6 6l12 12");
-    const buttonElement = createIconButton(
-      {
-        id: `workbench-titlebar-${button.id}-button`,
-        "aria-label": button.title,
-        title: button.title,
-        className: `titlebar-window-button ${
-          button.isDanger ? "titlebar-window-button--close" : ""
-        }`.trim(),
-      },
-      icon,
-      () => {
-        void commandService?.executeCommand(button.commandId);
-      },
-    );
-    setupTooltipHover(buttonElement, button.title, hoverStore);
-
-    rightControls.appendChild(buttonElement);
+  if (reserveWindowControls) {
+    rightControls.appendChild(createElement("div", {
+      className: "titlebar-window-controls-spacer",
+      "aria-hidden": "true",
+    }));
   }
 
   return new WorkbenchTitlebarView(
@@ -623,6 +627,7 @@ const createWorkbenchTitlebarView = (
       pageActions: pageActionsById,
       sidebarAction: sidebarRuntimeAction,
     },
+    nativeHostService,
     actionBarDisposables,
   );
 };
@@ -693,11 +698,13 @@ export class WorkbenchTitlebarPart {
       this.hoverStore.clear();
       this.titlebarView = createWorkbenchTitlebarView(props, this.hoverStore);
       contentArea.replaceChildren(this.titlebarView.element);
+      this.titlebarView.syncWindowControls();
       this.renderedProps = props;
       return;
     }
 
     this.titlebarView?.update(props);
+    this.titlebarView?.syncWindowControls();
     this.renderedProps = props;
   }
 
@@ -710,7 +717,7 @@ export class WorkbenchTitlebarPart {
   }
 
   layout(): void {
-    // The titlebar is CSS-sized today; keep the lifecycle hook explicit.
+    this.titlebarView?.syncWindowControls();
   }
 
   dispose(): void {
@@ -734,6 +741,7 @@ export class BrowserTitleService extends Disposable implements ITitleServiceType
   public constructor(
     @ICommandService private readonly commandService: ICommandServiceType,
     @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutServiceType,
+    @INativeHostService private readonly nativeHostService: INativeHostServiceType,
   ) {
     super();
 
@@ -806,11 +814,14 @@ export class BrowserTitleService extends Disposable implements ITitleServiceType
       return undefined;
     }
 
+    const windowState = getWorkbenchWindowState();
     return {
       ...state,
       activePage: state.activePage ?? "table",
       id: WORKBENCH_TITLEBAR_ID,
       commandService: this.commandService,
+      nativeHostService: this.nativeHostService,
+      reserveWindowControls: windowState.isWindowsDesktopShell,
       updateAction: {
         isVisible: Boolean(state.isUpdateReadyToInstall),
         isReadyToInstall: state.isUpdateReadyToInstall,

@@ -20,6 +20,7 @@ import { Server as ElectronIPCServer } from "../../base/parts/ipc/electron-main/
 import {
   applyWindowThemeSnapshot,
   getCurrentBootThemeSnapshot,
+  updateWindowControlsOverlay,
 } from "../../platform/windows/electron-main/windowImpl.js";
 import { defaultBrowserWindowOptions } from "../../platform/windows/electron-main/windows.js";
 import { createConductorStoreMainService } from "../../workbench/services/conductorStore/electron-main/conductorStoreMainService.js";
@@ -1703,6 +1704,26 @@ function handleNativeWindowStateGet(event) {
   };
 }
 
+function handleNativeWindowControlsUpdate(event, payload) {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) {
+    return;
+  }
+
+  const options = payload && typeof payload === "object"
+    ? payload
+    : {};
+  updateWindowControlsOverlay(win, {
+    height: typeof options.height === "number" ? options.height : undefined,
+    backgroundColor: typeof options.backgroundColor === "string"
+      ? options.backgroundColor
+      : undefined,
+    foregroundColor: typeof options.foregroundColor === "string"
+      ? options.foregroundColor
+      : undefined,
+  });
+}
+
 function handleDesktopCommand(event, payload) {
   const command =
     payload && typeof payload.command === "string" ? payload.command : "";
@@ -1774,6 +1795,7 @@ if (hasSingleInstanceLock) {
 
   ipcMain.on("desktop-command", handleDesktopCommand);
   ipcMain.on(nativeHostIpcChannels.windowCommand, handleNativeWindowCommand);
+  ipcMain.on(nativeHostIpcChannels.windowControlsUpdate, handleNativeWindowControlsUpdate);
   ipcMain.handle(nativeHostIpcChannels.windowState, handleNativeWindowStateGet);
   registerContextMenuListener();
   ipcMain.handle(nativeHostIpcChannels.environmentGet, event =>
@@ -1872,6 +1894,7 @@ app.on("will-quit", () => {
   }
   ipcMain.removeListener("desktop-command", handleDesktopCommand);
   ipcMain.removeListener(nativeHostIpcChannels.windowCommand, handleNativeWindowCommand);
+  ipcMain.removeListener(nativeHostIpcChannels.windowControlsUpdate, handleNativeWindowControlsUpdate);
   ipcMain.removeHandler(nativeHostIpcChannels.windowState);
   ipcMain.removeHandler(nativeHostIpcChannels.environmentGet);
   ipcMain.removeHandler(nativeHostIpcChannels.openDialog);
