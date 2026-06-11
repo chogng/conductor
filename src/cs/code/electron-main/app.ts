@@ -21,10 +21,10 @@ import { Event } from "../../base/common/event.js";
 import type { IServerChannel } from "../../base/parts/ipc/common/ipc.js";
 import {
   applyWindowThemeSnapshot,
+  defaultBrowserWindowOptions,
   getCurrentBootThemeSnapshot,
   updateWindowControlsOverlay,
-} from "../../platform/windows/electron-main/windowImpl.js";
-import { defaultBrowserWindowOptions } from "../../platform/windows/electron-main/windows.js";
+} from "../../platform/window/electron-main/window.js";
 import { createConductorStoreMainService } from "../../workbench/services/conductorStore/electron-main/conductorStoreMainService.js";
 import { workbenchIpcChannels as ipcChannels } from "../../workbench/common/ipcChannels.js";
 import {
