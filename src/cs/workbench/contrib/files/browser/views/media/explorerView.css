@@ -71,16 +71,17 @@
 }
 
 .file-list.dragging {
-  background-color: rgb(var(--accent) / 0.05);
+  background-color: transparent;
 }
 
 .file-list.dragging::after {
   content: "";
   position: absolute;
-  inset: 3px;
+  z-index: 20;
+  inset: 0;
+  border: 0;
+  background: rgb(var(--accent) / 0.08);
   pointer-events: none;
-  border: 1px solid rgb(var(--accent) / 0.55);
-  border-radius: 4px;
 }
 
 .file-list.idle {
