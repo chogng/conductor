@@ -264,7 +264,7 @@ export class ExplorerViewer implements IDisposable {
   private readonly treeRenderer: ITreeRenderer<FileTreeNode, TreeItemTemplate>;
 
   constructor(
-    host: HTMLElement,
+    private readonly host: HTMLElement,
     private readonly hoverHost: HTMLElement,
     props: ExplorerViewerProps,
     private readonly labels: ResourceLabels,
@@ -278,28 +278,28 @@ export class ExplorerViewer implements IDisposable {
     };
     this.treeView = this.disposables.add(
       new ObjectTree<FileTreeNode, TreeItemTemplate>(
-        host,
+        this.host,
         this.createTreeOptions(),
       ),
     );
     this.thumbnailHost = document.createElement("div");
     this.thumbnailHost.className = "file-list-thumbnail-grid";
-    host.append(this.thumbnailHost);
+    this.host.append(this.thumbnailHost);
 
     this.disposables.add(
-      addDisposableListener(host, "mouseover", this.handleListMouseOver),
+      addDisposableListener(this.host, "mouseover", this.handleListMouseOver),
     );
     this.disposables.add(
-      addDisposableListener(host, "mouseout", this.handleListMouseOut),
+      addDisposableListener(this.host, "mouseout", this.handleListMouseOut),
     );
     this.disposables.add(
-      addDisposableListener(host, "focusin", this.handleListFocusIn),
+      addDisposableListener(this.host, "focusin", this.handleListFocusIn),
     );
     this.disposables.add(
-      addDisposableListener(host, "focusout", this.handleListFocusOut),
+      addDisposableListener(this.host, "focusout", this.handleListFocusOut),
     );
     this.disposables.add(
-      addDisposableListener(host, "contextmenu", this.handleListContextMenu),
+      addDisposableListener(this.host, "contextmenu", this.handleListContextMenu),
     );
   }
 
@@ -326,10 +326,7 @@ export class ExplorerViewer implements IDisposable {
     if (shouldClearPlotCache) {
       this.clearHoverThumbnailCache();
     }
-    const host = this.thumbnailHost.parentElement;
-    if (host) {
-      host.dataset.viewLayout = nextViewLayout;
-    }
+    this.host.dataset.viewLayout = nextViewLayout;
 
     if (shouldUpdateTree) {
       this.updateTreeModel(nextTreeSignature);

@@ -199,9 +199,17 @@ export class ViewsService extends Disposable implements IViewsServiceType {
       return null;
     }
 
+    const existingView = viewPaneContainer.getView(view.id);
+    if (existingView) {
+      this.viewsById.set(existingView.id, existingView);
+      this.viewContainerIdsByViewId.set(existingView.id, containerId);
+      this.applyAddedViewVisibility(containerId);
+      return existingView;
+    }
+
+    this.viewsById.set(view.id, view);
+    this.viewContainerIdsByViewId.set(view.id, containerId);
     const addedView = viewPaneContainer.addView(view, { dispose: false });
-    this.viewsById.set(addedView.id, addedView);
-    this.viewContainerIdsByViewId.set(addedView.id, containerId);
     this.applyAddedViewVisibility(containerId);
     return addedView;
   }
@@ -398,9 +406,10 @@ export class ViewsService extends Disposable implements IViewsServiceType {
     }
 
     const view = this.instantiationService.createInstance(viewDescriptor.ctorDescriptor);
-    viewPaneContainer.addView(view);
+    const containerId = this.getViewContainerId(viewPaneContainer);
     this.viewsById.set(view.id, view);
-    this.viewContainerIdsByViewId.set(view.id, this.getViewContainerId(viewPaneContainer));
+    this.viewContainerIdsByViewId.set(view.id, containerId);
+    viewPaneContainer.addView(view);
   }
 
   private removeView(viewPaneContainer: IViewPaneContainer, viewId: string): void {

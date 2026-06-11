@@ -42,7 +42,7 @@ export class ExplorerView implements IDisposable {
     this.viewport = dom.viewport;
     const labels = new ResourceLabels();
     this.explorerViewer = this.disposables.add(
-      new ExplorerViewer(dom.listHost, this.root, this.createViewerProps(), labels),
+      new ExplorerViewer(dom.filledRoot, this.root, this.createViewerProps(), labels),
     );
     this.disposables.add(labels);
     this.disposables.add(createFileIconThemableTreeContainerScope(this.root));
@@ -119,7 +119,6 @@ export class ExplorerView implements IDisposable {
 
   private createDom(): {
     readonly filledRoot: HTMLDivElement;
-    readonly listHost: HTMLDivElement;
     readonly root: HTMLDivElement;
     readonly viewport: HTMLDivElement;
   } {
@@ -132,14 +131,10 @@ export class ExplorerView implements IDisposable {
     const filledRoot = document.createElement("div");
     filledRoot.className = "file-list-tree-root";
 
-    const listHost = document.createElement("div");
-    listHost.className = "file-list-host";
-    filledRoot.appendChild(listHost);
-
     viewport.append(filledRoot);
     root.append(viewport);
 
-    return { filledRoot, listHost, root, viewport };
+    return { filledRoot, root, viewport };
   }
 
   private readonly handleDragEnter = (event: DragEvent): void => {
