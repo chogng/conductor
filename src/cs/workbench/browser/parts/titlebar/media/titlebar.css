@@ -152,6 +152,20 @@
   margin-left: 16px;
 }
 
+.titlebar-actionbar {
+  flex: 0 0 auto;
+  height: 100%;
+}
+
+.titlebar-actionbar .ui-actionbar__items {
+  gap: 0;
+  height: 100%;
+}
+
+.titlebar-actionbar .ui-actionbar__item {
+  height: 100%;
+}
+
 /* Navigation and page-switch buttons. */
 .titlebar-icon-button {
   align-items: center;

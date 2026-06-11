@@ -1,6 +1,13 @@
 import {
   normalizeLxIconSvgMarkup,
 } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
+import { Action, type IAction } from "src/cs/base/common/actions";
+import {
+  ActionViewItem,
+  type IActionViewItem,
+  type IActionViewItemOptions,
+} from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import { getBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import {
@@ -184,6 +191,120 @@ const createIconButton = (
   return button;
 };
 
+type WorkbenchTitlebarRuntimeAction = Action & {
+  readonly icon: LxIconDefinition | (() => SVGSVGElement);
+  readonly onIntent?: () => void;
+  readonly titlebarClassName: string;
+};
+
+const isWorkbenchTitlebarRuntimeAction = (
+  action: IAction,
+): action is WorkbenchTitlebarRuntimeAction =>
+  action instanceof Action &&
+  "icon" in action &&
+  "titlebarClassName" in action;
+
+const createTitlebarRuntimeAction = ({
+  commandId,
+  commandService,
+  icon,
+  id,
+  onIntent,
+  title,
+  titlebarClassName = "titlebar-icon-button",
+}: {
+  readonly commandId: string;
+  readonly commandService?: ICommandServiceType;
+  readonly icon: LxIconDefinition | (() => SVGSVGElement);
+  readonly id: string;
+  readonly onIntent?: () => void;
+  readonly title: string;
+  readonly titlebarClassName?: string;
+}): WorkbenchTitlebarRuntimeAction => {
+  const action = new Action(
+    id,
+    title,
+    "",
+    true,
+    () => {
+      void commandService?.executeCommand(commandId);
+    },
+  ) as WorkbenchTitlebarRuntimeAction;
+  Object.defineProperties(action, {
+    icon: {
+      value: icon,
+    },
+    onIntent: {
+      value: onIntent,
+    },
+    titlebarClassName: {
+      value: titlebarClassName,
+    },
+  });
+  action.tooltip = title;
+  return action;
+};
+
+class TitlebarActionViewItem extends ActionViewItem {
+  constructor(
+    action: WorkbenchTitlebarRuntimeAction,
+    options: IActionViewItemOptions,
+  ) {
+    super(undefined, action, {
+      ...options,
+      label: false,
+    });
+  }
+
+  public override render(container: HTMLElement): void {
+    super.render(container);
+    if (!this.label || !isWorkbenchTitlebarRuntimeAction(this.action)) {
+      return;
+    }
+
+    this.label.id = this.action.id;
+
+    if (this.action.onIntent) {
+      this.label.addEventListener("mouseenter", this.action.onIntent);
+      this.label.addEventListener("focus", this.action.onIntent);
+    }
+  }
+
+  protected override updateClass(): void {
+    if (!this.label || !isWorkbenchTitlebarRuntimeAction(this.action)) {
+      return;
+    }
+
+    this.label.className = this.action.titlebarClassName;
+    if (this.action.class) {
+      this.label.classList.add(...this.action.class.split(/\s+/g).filter(Boolean));
+    }
+  }
+
+  protected override updateLabel(): void {
+    super.updateLabel();
+    if (!this.label || !isWorkbenchTitlebarRuntimeAction(this.action)) {
+      return;
+    }
+
+    const icon = typeof this.action.icon === "function"
+      ? this.action.icon()
+      : createLxIcon(this.action.icon, 14, "opacity-80");
+    this.label.replaceChildren(icon);
+  }
+}
+
+const createTitlebarActionBar = (
+  contentClassName: string,
+): ActionBar => new ActionBar({
+  className: "titlebar-actionbar",
+  contentClassName,
+  actionViewItemProvider: (action, options): IActionViewItem | undefined =>
+    isWorkbenchTitlebarRuntimeAction(action)
+      ? new TitlebarActionViewItem(action, options)
+      : undefined,
+});
+
 const setupTooltipHover = (
   target: HTMLElement,
   tooltip: string,
@@ -206,7 +327,7 @@ const createFileSelector = ({
   activeFileId: string | null;
   options: WorkbenchTitlebarFileOption[];
   onChange?: (fileId: string) => void;
-}): HTMLElement => {
+}): { readonly element: HTMLElement; readonly select: HTMLSelectElement } => {
   const wrapper = createElement("div", {
     className: "titlebar-file-select",
   });
@@ -228,7 +349,7 @@ const createFileSelector = ({
   }
 
   wrapper.appendChild(select);
-  return wrapper;
+  return { element: wrapper, select };
 };
 
 const createQuickAccessButton = (
@@ -258,7 +379,65 @@ const createQuickAccessButton = (
   return button;
 };
 
-export const createWorkbenchTitlebarElement = (
+type WorkbenchTitlebarViewRefs = {
+  readonly sidebarAction: WorkbenchTitlebarRuntimeAction;
+  readonly navActions: ReadonlyMap<string, WorkbenchTitlebarRuntimeAction>;
+  readonly pageActions: ReadonlyMap<string, WorkbenchTitlebarRuntimeAction>;
+  readonly fileSelect?: HTMLSelectElement;
+};
+
+class WorkbenchTitlebarView extends Disposable {
+  public constructor(
+    public readonly element: HTMLElement,
+    private readonly refs: WorkbenchTitlebarViewRefs,
+    disposables: readonly IDisposable[],
+  ) {
+    super();
+    for (const disposable of disposables) {
+      this._register(disposable);
+    }
+  }
+
+  public update(props: WorkbenchTitlebarProps): void {
+    const navActions = createWorkbenchTitlebarNavActions(
+      props.canNavigateBack ?? false,
+      props.canNavigateForward ?? false,
+    );
+    const pageActions = createWorkbenchTitlebarPageActions(props.activePage);
+    const sidebarAction = createWorkbenchTitlebarSidebarAction(
+      props.isSidebarVisible ?? true,
+    );
+
+    this.refs.sidebarAction.label = sidebarAction.title;
+    this.refs.sidebarAction.tooltip = sidebarAction.title;
+    this.refs.sidebarAction.checked = sidebarAction.isActive;
+
+    for (const action of navActions) {
+      const runtimeAction = this.refs.navActions.get(action.id);
+      if (runtimeAction) {
+        runtimeAction.label = action.title;
+        runtimeAction.tooltip = action.title;
+        runtimeAction.enabled = !action.isDisabled;
+      }
+    }
+
+    for (const action of pageActions) {
+      const runtimeAction = this.refs.pageActions.get(action.id);
+      if (runtimeAction) {
+        runtimeAction.label = action.title;
+        runtimeAction.tooltip = action.title;
+        runtimeAction.class = action.isActive ? "titlebar-page-button--active" : "";
+      }
+    }
+
+    const activeFileId = props.activeFileId ?? "";
+    if (this.refs.fileSelect && this.refs.fileSelect.value !== activeFileId) {
+      this.refs.fileSelect.value = activeFileId;
+    }
+  }
+}
+
+const createWorkbenchTitlebarView = (
   {
     activePage,
     activeFileId = null,
@@ -274,7 +453,7 @@ export const createWorkbenchTitlebarElement = (
     updateAction,
   }: WorkbenchTitlebarProps,
   hoverStore?: DisposableStore,
-): HTMLElement => {
+): WorkbenchTitlebarView => {
   const normalizedFileOptions =
     normalizeWorkbenchTitlebarFileOptions(fileOptions);
   const navActions = createWorkbenchTitlebarNavActions(
@@ -300,44 +479,40 @@ export const createWorkbenchTitlebarElement = (
     createElement("div", { className: "titlebar-brand" }),
     [brandIcon],
   );
-  const navControls = createElement("div", {
-    className: "titlebar-controls titlebar-controls--nav",
-  });
-  const sidebarAction = createWorkbenchTitlebarSidebarAction(isSidebarVisible);
-  const sidebarButton = createIconButton(
-    {
-      id: sidebarAction.id,
-      "aria-label": sidebarAction.title,
-      "aria-pressed": sidebarAction.isActive,
-      title: sidebarAction.title,
-      className: "titlebar-icon-button",
-    },
-    createLxIcon(sidebarAction.icon, 14, "opacity-80"),
-    () => {
-      void commandService?.executeCommand(sidebarAction.commandId);
-    },
+  const actionBarDisposables: IDisposable[] = [];
+  const navActionsById = new Map<string, WorkbenchTitlebarRuntimeAction>();
+  const pageActionsById = new Map<string, WorkbenchTitlebarRuntimeAction>();
+  let fileSelect: HTMLSelectElement | undefined;
+
+  const navActionBar = createTitlebarActionBar(
+    "titlebar-controls titlebar-controls--nav",
   );
-  setupTooltipHover(sidebarButton, sidebarAction.title, hoverStore);
-  navControls.appendChild(sidebarButton);
+  actionBarDisposables.push(navActionBar);
+  const sidebarAction = createWorkbenchTitlebarSidebarAction(isSidebarVisible);
+  const sidebarRuntimeAction = createTitlebarRuntimeAction({
+    commandId: sidebarAction.commandId,
+    commandService,
+    icon: sidebarAction.icon,
+    id: sidebarAction.id,
+    title: sidebarAction.title,
+  });
+  actionBarDisposables.push(sidebarRuntimeAction);
+  sidebarRuntimeAction.checked = sidebarAction.isActive;
+  navActionBar.push(sidebarRuntimeAction, { label: false });
 
   for (const action of navActions) {
     const isBack = action.id === WorkbenchTitlebarNavActionIds.back;
-
-    const button = createIconButton(
-      {
-        id: action.id,
-        "aria-label": action.title,
-        title: action.title,
-        className: "titlebar-icon-button",
-        disabled: action.isDisabled,
-      },
-      createLxIcon(isBack ? LxIcon.arrowLeft : LxIcon.arrowRight, 14, "opacity-80"),
-      () => {
-        void commandService?.executeCommand(action.commandId);
-      },
-    );
-    setupTooltipHover(button, action.title, hoverStore);
-    navControls.appendChild(button);
+    const runtimeAction = createTitlebarRuntimeAction({
+      commandId: action.commandId,
+      commandService,
+      icon: isBack ? LxIcon.arrowLeft : LxIcon.arrowRight,
+      id: action.id,
+      title: action.title,
+    });
+    actionBarDisposables.push(runtimeAction);
+    runtimeAction.enabled = !action.isDisabled;
+    navActionBar.push(runtimeAction, { label: false });
+    navActionsById.set(action.id, runtimeAction);
   }
 
   const center = createElement("div", {
@@ -347,13 +522,13 @@ export const createWorkbenchTitlebarElement = (
   center.appendChild(createQuickAccessButton(commandService, hoverStore));
 
   if (showFileSelector && normalizedFileOptions.length > 0) {
-    center.appendChild(
-      createFileSelector({
-        activeFileId: activeFileId,
-        options: normalizedFileOptions,
-        onChange: onFileChange,
-      }),
-    );
+    const selector = createFileSelector({
+      activeFileId: activeFileId,
+      options: normalizedFileOptions,
+      onChange: onFileChange,
+    });
+    center.appendChild(selector.element);
+    fileSelect = selector.select;
   }
 
   const rightControls = createElement("div", {
@@ -374,32 +549,24 @@ export const createWorkbenchTitlebarElement = (
     rightControls.appendChild(updateButton);
   }
 
+  const pageActionBar = createTitlebarActionBar("titlebar-controls");
+  actionBarDisposables.push(pageActionBar);
   for (const action of pageActions) {
-    const pageActionIcon = createDefaultPageActionIcon(action);
-    const className = `titlebar-icon-button ${
-      action.isActive ? "titlebar-page-button--active" : ""
-    }`.trim();
-    const button = createIconButton(
-      {
-        id: WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS[action.id],
-        "aria-label": action.title,
-        title: action.title,
-        className,
-      },
-      pageActionIcon,
-      () => {
-        void commandService?.executeCommand(action.commandId);
-      },
-    );
-    setupTooltipHover(button, action.title, hoverStore);
+    const runtimeAction = createTitlebarRuntimeAction({
+      commandId: action.commandId,
+      commandService,
+      icon: () => createDefaultPageActionIcon(action),
+      id: WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS[action.id],
+      onIntent: action.id === "chart" ? onChartIntent : undefined,
+      title: action.title,
+    });
+    actionBarDisposables.push(runtimeAction);
+    runtimeAction.class = action.isActive ? "titlebar-page-button--active" : "";
 
-    if (action.id === "chart") {
-      button.addEventListener("mouseenter", () => onChartIntent?.());
-      button.addEventListener("focus", () => onChartIntent?.());
-    }
-
-    rightControls.appendChild(button);
+    pageActionBar.push(runtimeAction, { label: false });
+    pageActionsById.set(action.id, runtimeAction);
   }
+  rightControls.appendChild(pageActionBar.domNode);
 
   for (const action of windowActions) {
     const icon =
@@ -427,12 +594,58 @@ export const createWorkbenchTitlebarElement = (
     rightControls.appendChild(button);
   }
 
-  return appendChildren(header, [brand, navControls, center, rightControls]);
+  return new WorkbenchTitlebarView(
+    appendChildren(header, [brand, navActionBar.domNode, center, rightControls]),
+    {
+      fileSelect,
+      navActions: navActionsById,
+      pageActions: pageActionsById,
+      sidebarAction: sidebarRuntimeAction,
+    },
+    actionBarDisposables,
+  );
 };
+
+export const createWorkbenchTitlebarElement = (
+  props: WorkbenchTitlebarProps,
+  hoverStore?: DisposableStore,
+): HTMLElement => createWorkbenchTitlebarView(props, hoverStore).element;
+
+const sameFileOptions = (
+  prevOptions: WorkbenchTitlebarFileOption[] | undefined,
+  nextOptions: WorkbenchTitlebarFileOption[] | undefined,
+): boolean => {
+  const prev = normalizeWorkbenchTitlebarFileOptions(prevOptions);
+  const next = normalizeWorkbenchTitlebarFileOptions(nextOptions);
+  if (prev.length !== next.length) {
+    return false;
+  }
+
+  return prev.every((option, index) =>
+    option.value === next[index]?.value &&
+    option.label === next[index]?.label,
+  );
+};
+
+const shouldRecreateTitlebar = (
+  prev: WorkbenchTitlebarProps,
+  next: WorkbenchTitlebarProps,
+): boolean =>
+  prev.id !== next.id ||
+  prev.commandService !== next.commandService ||
+  prev.showFileSelector !== next.showFileSelector ||
+  prev.onFileChange !== next.onFileChange ||
+  prev.onChartIntent !== next.onChartIntent ||
+  prev.updateAction?.isVisible !== next.updateAction?.isVisible ||
+  prev.updateAction?.version !== next.updateAction?.version ||
+  prev.updateAction?.onClick !== next.updateAction?.onClick ||
+  !sameFileOptions(prev.fileOptions, next.fileOptions);
 
 export class WorkbenchTitlebarPart {
   private contentArea: HTMLElement | null = null;
   private readonly hoverStore = new DisposableStore();
+  private renderedProps: WorkbenchTitlebarProps | undefined;
+  private titlebarView: WorkbenchTitlebarView | undefined;
 
   constructor(private readonly parent: HTMLElement) {}
 
@@ -452,13 +665,25 @@ export class WorkbenchTitlebarPart {
 
   update(props: WorkbenchTitlebarProps): void {
     const contentArea = this.createContentArea();
-    this.hoverStore.clear();
-    contentArea.replaceChildren(createWorkbenchTitlebarElement(props, this.hoverStore));
+    if (!this.renderedProps || shouldRecreateTitlebar(this.renderedProps, props)) {
+      this.titlebarView?.dispose();
+      this.hoverStore.clear();
+      this.titlebarView = createWorkbenchTitlebarView(props, this.hoverStore);
+      contentArea.replaceChildren(this.titlebarView.element);
+      this.renderedProps = props;
+      return;
+    }
+
+    this.titlebarView?.update(props);
+    this.renderedProps = props;
   }
 
   clear(): void {
+    this.titlebarView?.dispose();
     this.hoverStore.clear();
     this.contentArea?.replaceChildren();
+    this.renderedProps = undefined;
+    this.titlebarView = undefined;
   }
 
   layout(): void {
