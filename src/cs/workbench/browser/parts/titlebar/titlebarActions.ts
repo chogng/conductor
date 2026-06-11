@@ -1,6 +1,6 @@
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
-import { WorkbenchCommandsCommandId } from "src/cs/workbench/contrib/commands/common/commands";
+import { QuickAccessCommandId } from "src/cs/workbench/contrib/quickaccess/common/quickAccessCommands";
 import { createWorkbenchSidebarToggleAction } from "src/cs/workbench/browser/parts/sidebar/sidebarActions";
 import type { LayoutView } from "src/cs/workbench/services/layout/browser/layoutService";
 import type {
@@ -129,7 +129,7 @@ export const createWorkbenchTitlebarPageActions = (
 
 export const createWorkbenchTitlebarQuickAccessAction =
 (): WorkbenchTitlebarQuickAccessAction => ({
-  commandId: WorkbenchCommandsCommandId.showCommands,
+  commandId: QuickAccessCommandId.showCommands,
   icon: LxIcon.search,
   id: WORKBENCH_TITLEBAR_QUICK_ACCESS_BUTTON_ID,
   title: localize("titlebar.quickAccess", "Search Commands"),

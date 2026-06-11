@@ -68,6 +68,12 @@ point may import `contrib/files/browser/explorerService` to run its
 `registerSingleton(...)`, but that import should be grouped as a contrib-owned
 service registration, not under the core `workbench/services` section.
 
+Example: `platform/quickinput` owns the reusable quick input widget and service.
+`workbench/contrib/quickaccess` owns quick access command/provider registration
+that uses `IQuickInputService`. Do not move quick access into
+`workbench/services` or rename the contribution to quickinput unless a distinct
+shared workbench service responsibility appears.
+
 ## Entry Points
 
 Only code referenced from entry point files is loaded:

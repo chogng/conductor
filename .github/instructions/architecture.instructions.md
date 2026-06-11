@@ -340,6 +340,7 @@ Use runtime folders consistently.
 | --- | --- | --- | --- | --- |
 | `ICommandService` | `src/cs/platform/commands` | command id + args | command dispatch, command events | domain state, UI rendering, session records |
 | `IFileService` | `src/cs/platform/files` | URI / filesystem provider | file bytes, stat, watch events | Explorer UI state, import semantics, raw tables |
+| `IQuickInputService` | `src/cs/platform/quickinput` | quick pick items, placeholder, labels | generic quick input / quick pick UI, filtering, keyboard navigation, selected item result | command collection, feature-specific quick access providers, workbench domain state |
 | `IWorkbenchLayoutService` | `src/cs/workbench/services/layout` | workbench layout commands, part visibility updates, navigation requests | active workbench view, active table/chart mode, navigation history, part visibility events | Explorer selection, table/chart data state, titlebar rendering |
 | `ITitleService` | `src/cs/workbench/services/title` | layout/window chrome state and optional titlebar view-state overrides | titlebar render state, titlebar part attachment, titlebar change events | own table/chart mode, own file selection, register layout/window commands |
 | `IExplorerService` | `src/cs/workbench/contrib/files` | Explorer view/model events, command context, session/file facts | Explorer model/state, context, select/reveal, edit/copy state, refresh | filesystem primitives, table parsing, assessment, canonical session ownership |
@@ -716,6 +717,11 @@ src/cs/platform/files/
   browser/htmlFileSystemProvider.ts
   electron-main/*
 
+src/cs/platform/quickinput/
+  common/quickInput.ts
+  browser/quickInputService.ts
+  browser/media/quickInput.css
+
 src/cs/workbench/services/files/
   common/files.ts
   common/fileConverterBackend.ts
@@ -806,6 +812,11 @@ src/cs/workbench/contrib/files/
   browser/views/explorerView.ts
   browser/views/explorerViewer.ts
 
+src/cs/workbench/contrib/quickaccess/
+  common/quickAccessCommands.ts
+  browser/commandsQuickAccess.ts
+  browser/quickAccess.contribution.ts
+
 src/cs/workbench/contrib/table/
   browser/tableCommands.ts
   browser/tableActions.ts
@@ -851,6 +862,20 @@ src/cs/workbench/browser/parts/titlebar/
 ```
 
 Views stay in `contrib/*`. Services own state and domain models.
+
+Quick Input / Quick Access boundary:
+
+- `platform/quickinput` owns the generic quick input UI infrastructure:
+  overlay, input, list rendering, filtering, keyboard navigation, focus, and
+  returning a selected item.
+- `workbench/contrib/quickaccess` is a workbench contribution built on that
+  infrastructure. It may register quick access command IDs and providers such
+  as command search, but it must call `IQuickInputService` for the picker UI.
+- Do not create `workbench/services/quickaccess` for command quick access
+  unless there is a proven shared workbench-domain state owner. Command quick
+  access is an entry/provider, not a service.
+- Do not rename `contrib/quickaccess` to `quickinput`; quickinput is the
+  platform primitive, quickaccess is the workbench feature that uses it.
 
 ## Contribution and command ownership
 
