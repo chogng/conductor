@@ -54,6 +54,10 @@ import {
   type IWorkbenchLayoutService as IWorkbenchLayoutServiceType,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
+  ITitleService,
+  type ITitleService as ITitleServiceType,
+} from "src/cs/workbench/services/title/browser/titleService";
+import {
   IViewsService,
   type IViewsService as IViewsServiceType,
 } from "src/cs/workbench/services/views/common/viewsService";
@@ -155,6 +159,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @ISettingsService settingsService: ISettingsServiceType,
     @IPathService pathService: IPathServiceType,
     @IWorkbenchLayoutService layoutService: IWorkbenchLayoutServiceType,
+    @ITitleService titleService: ITitleServiceType,
     @IViewsService viewsService: IViewsServiceType,
     @ITemplateApplyService templateApplyService: ITemplateApplyServiceType,
     @ITemplateService templateService: ITemplateServiceType,
@@ -186,6 +191,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       settingsService,
       pathService,
       layoutService,
+      titleService,
       viewsService,
       sessionService,
       storageService,

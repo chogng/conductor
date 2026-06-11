@@ -37,6 +37,7 @@ import "src/cs/workbench/services/table/browser/tableService";
 //#region --- workbench browser
 
 import "src/cs/workbench/browser/style";
+import "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 
 //#endregion
 

@@ -49,7 +49,6 @@ import type {
   ITemplateProcessingBackendService,
 } from "src/cs/workbench/services/template/common/templateProcessingBackend";
 import {
-  type LayoutView,
   type IWorkbenchLayoutService,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
@@ -69,9 +68,10 @@ import {
 } from "src/cs/workbench/common/contextkeys";
 import { Layout } from "src/cs/workbench/browser/layout";
 import {
-  WORKBENCH_TITLEBAR_ID,
-  type WorkbenchTitlebarProps,
-} from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
+  getWorkbenchWindowState,
+  type ITitleService,
+  type WorkbenchTitlebarState,
+} from "src/cs/workbench/services/title/browser/titleService";
 import {
   AuxiliaryBarViews,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
@@ -83,7 +83,6 @@ import {
   type WorkbenchAppearance,
 } from "src/cs/workbench/browser/appearance";
 import {
-  getWorkbenchWindowState,
   WorkbenchWindow,
 } from "src/cs/workbench/browser/window";
 import { TableViewId } from "src/cs/workbench/services/table/common/table";
@@ -169,23 +168,6 @@ import { registerNotificationCommands } from "src/cs/workbench/browser/parts/not
 
 //#region types and startup helpers
 
-export type WorkbenchTitlebarState = {
-  readonly enabled?: boolean;
-  readonly activePage: LayoutView;
-  readonly activeFileId?: string | null;
-  readonly fileOptions?: WorkbenchTitlebarProps["fileOptions"];
-  readonly canNavigateBack?: boolean;
-  readonly canNavigateForward?: boolean;
-  readonly commandService?: ICommandService;
-  readonly isSidebarVisible?: boolean;
-  readonly onFileChange?: (fileId: string) => void;
-  readonly onChartIntent?: () => void;
-  readonly showFileSelector?: boolean;
-  readonly updateVersion?: string | null;
-  readonly isUpdateReadyToInstall?: boolean;
-  readonly onInstallUpdate?: () => void;
-};
-
 type WorkbenchSessionSnapshot = SessionSnapshot;
 
 export type WorkbenchOptions = {
@@ -214,33 +196,9 @@ export type WorkbenchOptions = {
   readonly templateProcessingBackendService?: ITemplateProcessingBackendService;
   readonly templateService?: ITemplateService;
   readonly tableService?: ITableService;
+  readonly titleService?: ITitleService;
   readonly titlebarState?: WorkbenchTitlebarState;
 };
-
-export const createTitlebarState = (
-  state: WorkbenchTitlebarState | undefined,
-): WorkbenchTitlebarProps | undefined =>
-  state && state.enabled !== false
-    ? {
-        id: WORKBENCH_TITLEBAR_ID,
-        activePage: state.activePage,
-        activeFileId: state.activeFileId,
-        fileOptions: state.fileOptions,
-        canNavigateBack: state.canNavigateBack,
-        canNavigateForward: state.canNavigateForward,
-        commandService: state.commandService,
-        isSidebarVisible: state.isSidebarVisible,
-        onFileChange: state.onFileChange,
-        onChartIntent: state.onChartIntent,
-        showFileSelector: state.showFileSelector,
-        updateAction: {
-          isVisible: Boolean(state.isUpdateReadyToInstall),
-          isReadyToInstall: state.isUpdateReadyToInstall,
-          version: state.updateVersion,
-          onClick: state.onInstallUpdate,
-        },
-      }
-    : undefined;
 
 const getSystemLanguage = (): string | undefined =>
   typeof navigator === "undefined" ? undefined : navigator.language;
@@ -294,6 +252,7 @@ export class Workbench extends Layout {
   private readonly templateApplyService: ITemplateApplyService;
   private readonly templateProcessingBackendService: ITemplateProcessingBackendService;
   private readonly templateService: ITemplateService;
+  private readonly titleService: ITitleService;
   private readonly exportService: IExportService;
   private readonly originChartXRangeRef: { current: OriginDisplayRange | null } = { current: null };
   private readonly originChartYRangeRef: {
@@ -330,8 +289,8 @@ export class Workbench extends Layout {
 
     this.window = this._register(new WorkbenchWindow(parent, {
       ...options,
-      titlebarState: createTitlebarState(options.titlebarState),
       showSkeleton: false,
+      titleService: options.titleService,
     }));
     this.notifications = this._register(new NotificationToasts());
     this.mount(this.window.contentElement);
@@ -395,6 +354,9 @@ export class Workbench extends Layout {
     if (!options.templateService) {
       throw new Error("Workbench requires ITemplateService.");
     }
+    if (!options.titleService) {
+      throw new Error("Workbench requires ITitleService.");
+    }
     this.filesService = options.filesService;
     this.chartService = options.chartService;
     this.dialogsService = options.dialogsService;
@@ -423,6 +385,8 @@ export class Workbench extends Layout {
     this.templateApplyService = options.templateApplyService;
     this.templateProcessingBackendService = options.templateProcessingBackendService;
     this.templateService = options.templateService;
+    this.titleService = options.titleService;
+    this.titleService.updateTitlebarState(options.titlebarState);
     const initialViewMode = resolveInitialWorkbenchViewMode(this.session.getSnapshot());
     this._register(this.createNotificationsHandlers());
     this.templateApply = this._register(new TemplateApplyController({
@@ -465,9 +429,12 @@ export class Workbench extends Layout {
   }
 
   update(options: WorkbenchOptions = {}): void {
+    if ("titlebarState" in options) {
+      this.titleService.updateTitlebarState(options.titlebarState);
+    }
     this.window.update({
       ...options,
-      titlebarState: createTitlebarState(options.titlebarState),
+      titleService: options.titleService ?? this.titleService,
     });
   }
 
@@ -528,7 +495,7 @@ export class Workbench extends Layout {
       className: "workbench_root",
       showDesktopCommandBar: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
       showSkeleton: false,
-      titlebarState: createTitlebarState(this.getTitlebarState()),
+      titleService: this.titleService,
     });
   }
 
@@ -551,7 +518,7 @@ export class Workbench extends Layout {
       className: "workbench_root",
       showDesktopCommandBar: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
       showSkeleton: false,
-      titlebarState: createTitlebarState(this.getTitlebarState()),
+      titleService: this.titleService,
     });
   }
 
@@ -582,18 +549,6 @@ export class Workbench extends Layout {
     }));
 
     return disposables;
-  }
-
-  private getTitlebarState(): WorkbenchTitlebarState {
-    const state = this.state;
-    return {
-      activePage: state.activeMainPart,
-      canNavigateBack: state.layoutState.canNavigateBack,
-      canNavigateForward: state.layoutState.canNavigateForward,
-      commandService: this.commandService,
-      enabled: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
-      isSidebarVisible: this.sidebarVisible,
-    };
   }
 
   //#endregion

@@ -325,6 +325,8 @@ Use runtime folders consistently.
 | --- | --- | --- | --- | --- |
 | `ICommandService` | `src/cs/platform/commands` | command id + args | command dispatch, command events | domain state, UI rendering, session records |
 | `IFileService` | `src/cs/platform/files` | URI / filesystem provider | file bytes, stat, watch events | Explorer UI state, import semantics, raw tables |
+| `IWorkbenchLayoutService` | `src/cs/workbench/services/layout` | workbench layout commands, part visibility updates, navigation requests | active workbench view, active table/chart mode, navigation history, part visibility events | Explorer selection, table/chart data state, titlebar rendering |
+| `ITitleService` | `src/cs/workbench/services/title` | layout/window chrome state and optional titlebar view-state overrides | titlebar render state, titlebar part attachment, titlebar change events | own table/chart mode, own file selection, register layout/window commands |
 | `IExplorerService` | `src/cs/workbench/contrib/files` | Explorer view/model events, command context, session/file facts | Explorer model/state, context, select/reveal, edit/copy state, refresh | filesystem primitives, table parsing, assessment, canonical session ownership |
 | `fileConverter.ts` / files source workflow | `src/cs/workbench/services/files` | CSV/Excel/Clipboard source | `FileConversionResult`, `RawTableRecord` | Explorer UI state, IV/CV judgement, block detection, session mutation |
 | `IAssessmentService` | `src/cs/workbench/services/assessment` | `RawTableRecord` | groups, blocks, column roles, diagnostics | template execution, plotting, UI state |
@@ -412,6 +414,24 @@ flowchart TD
 ```
 
 Key rule: **Plot is the drawing domain consumer. Chart is a host for plot rendering.**
+
+## Workbench chrome flow
+
+```mermaid
+flowchart TD
+    Layout[IWorkbenchLayoutService] --> Title[ITitleService]
+    Title --> Titlebar[WorkbenchTitlebarPart]
+    Titlebar --> CommandService[ICommandService.executeCommand]
+    CommandService --> LayoutActions[browser/actions/layoutActions.ts]
+    CommandService --> WindowActions[browser/actions/windowActions.ts]
+    LayoutActions --> Layout
+    WindowActions --> NativeWindow[Native window command]
+```
+
+`IWorkbenchLayoutService` owns active view, table/chart mode, navigation
+history, and part visibility. `ITitleService` consumes that public state and
+publishes titlebar render state. `WorkbenchTitlebarPart` renders chrome and
+invokes command ids; it does not register commands or own mode/file state.
 
 ## Canonical session state
 
@@ -706,6 +726,12 @@ src/cs/workbench/services/session/
   common/sessionEvents.ts
   browser/sessionService.ts
 
+src/cs/workbench/services/layout/
+  browser/layoutService.ts
+
+src/cs/workbench/services/title/
+  browser/titleService.ts
+
 src/cs/workbench/services/table/
   common/table.ts
   browser/tableService.ts
@@ -800,6 +826,13 @@ src/cs/workbench/contrib/parameters/
   browser/parametersCommands.ts
   browser/parametersActions.ts
   browser/parameters.contribution.ts
+
+src/cs/workbench/browser/actions/
+  layoutActions.ts
+  windowActions.ts
+
+src/cs/workbench/browser/parts/titlebar/
+  titlebarPart.ts
 ```
 
 Views stay in `contrib/*`. Services own state and domain models.

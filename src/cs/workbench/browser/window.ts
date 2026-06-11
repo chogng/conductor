@@ -1,22 +1,14 @@
-import { Disposable } from "src/cs/base/common/lifecycle";
-import { isNative, isWindows } from "src/cs/base/common/platform";
 import {
-  WorkbenchTitlebarPart,
-  type WorkbenchTitlebarProps,
-} from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
+  Disposable,
+  type IDisposable,
+} from "src/cs/base/common/lifecycle";
+import {
+  shouldShowDesktopCommandBar,
+  type ITitleService,
+} from "src/cs/workbench/services/title/browser/titleService";
 import { applyWorkbenchStyle, type WorkbenchStyle } from "src/cs/workbench/browser/style";
-import { getWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
-import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
 
 import "src/cs/workbench/browser/media/window.css";
-
-export type WorkbenchWindowState = {
-  readonly environment: IWorkbenchEnvironmentService["environment"];
-  readonly isAppUpdatePreviewEnabled: boolean;
-  readonly isDesktopChromePreviewEnabled: boolean;
-  readonly isPackagedWindowsDesktopShell: boolean;
-  readonly isWindowsDesktopShell: boolean;
-};
 
 export type WorkbenchWindowOptions = {
   readonly className?: string;
@@ -24,48 +16,8 @@ export type WorkbenchWindowOptions = {
   readonly showDesktopCommandBar?: boolean;
   readonly showSkeleton?: boolean;
   readonly style?: WorkbenchStyle;
-  readonly titlebarState?: WorkbenchTitlebarProps;
+  readonly titleService?: ITitleService;
 };
-
-const snapshotEnvironmentService: IWorkbenchEnvironmentService = {
-  _serviceBrand: undefined,
-  get environment() {
-    return getWorkbenchEnvironment();
-  },
-  get isDesktop() {
-    return this.environment?.isDesktop === true;
-  },
-  get isWindowsDesktop() {
-    if (this.environment) {
-      return this.environment.isDesktop === true && this.environment.platform === "win32";
-    }
-
-    return isNative && isWindows;
-  },
-  get isPackaged() {
-    return this.environment?.isPackaged === true;
-  },
-};
-
-export const getWorkbenchWindowState = (
-  environmentService: IWorkbenchEnvironmentService = snapshotEnvironmentService,
-): WorkbenchWindowState => {
-  return {
-    environment: environmentService.environment,
-    isAppUpdatePreviewEnabled:
-      (environmentService.isWindowsDesktop && environmentService.isPackaged) ||
-      import.meta.env.DEV,
-    isDesktopChromePreviewEnabled:
-      environmentService.isWindowsDesktop || import.meta.env.DEV,
-    isPackagedWindowsDesktopShell:
-      environmentService.isWindowsDesktop && environmentService.isPackaged,
-    isWindowsDesktopShell: environmentService.isWindowsDesktop,
-  };
-};
-
-export const shouldShowDesktopCommandBar =
-  typeof window !== "undefined" &&
-  getWorkbenchWindowState().isWindowsDesktopShell;
 
 const createElement = <K extends keyof HTMLElementTagNameMap>(
   tagName: K,
@@ -174,7 +126,8 @@ export class WorkbenchWindow extends Disposable {
     "div",
     "workbench_window_content",
   );
-  private titlebarPart: WorkbenchTitlebarPart | undefined;
+  private titlebarPart: IDisposable | undefined;
+  private attachedTitleService: ITitleService | undefined;
 
   public readonly contentElement = this.contentHost;
 
@@ -200,7 +153,7 @@ export class WorkbenchWindow extends Disposable {
       showDesktopCommandBar = shouldShowDesktopCommandBar,
       showSkeleton = true,
       style,
-      titlebarState,
+      titleService,
     } = options;
 
     this.element.id = id ?? "";
@@ -208,27 +161,31 @@ export class WorkbenchWindow extends Disposable {
       `workbench_window ${className}`.trim();
     applyWorkbenchStyle(this.element, style);
 
-    this.renderTitlebar(showDesktopCommandBar, titlebarState);
+    this.renderTitlebar(showDesktopCommandBar, titleService);
     this.renderSkeleton(showSkeleton, showDesktopCommandBar);
   }
 
   private renderTitlebar(
     showDesktopCommandBar: boolean,
-    titlebarState: WorkbenchTitlebarProps | undefined,
+    titleService: ITitleService | undefined,
   ): void {
     if (!showDesktopCommandBar) {
       this.clearTitlebar();
       return;
     }
 
-    if (!titlebarState) {
+    if (!titleService) {
       this.clearTitlebar();
       return;
     }
 
-    this.titlebarPart ??= new WorkbenchTitlebarPart(this.titlebarHost);
-    this.titlebarPart.update(titlebarState);
-    this.titlebarPart.layout();
+    if (this.attachedTitleService !== titleService) {
+      this.clearTitlebar();
+      this.attachedTitleService = titleService;
+      this.titlebarPart = titleService.attachTitlebarPart(this.titlebarHost);
+    }
+
+    titleService.layout();
   }
 
   private renderSkeleton(
@@ -246,6 +203,7 @@ export class WorkbenchWindow extends Disposable {
   private clearTitlebar(): void {
     this.titlebarPart?.dispose();
     this.titlebarPart = undefined;
+    this.attachedTitleService = undefined;
     this.titlebarHost.replaceChildren();
   }
 
