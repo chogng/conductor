@@ -19,11 +19,11 @@ import {
   type IWatchOptions,
 } from "src/cs/platform/files/common/files";
 import type {
+  INativeHostEnvironment,
   INativeHostService,
   INativeOpenDialogOptions,
   INativeOpenDialogResult,
 } from "src/cs/platform/native/common/native";
-import type { INativeHostEnvironment } from "src/cs/platform/native/common/nativeHostService";
 
 class MemoryFileService implements IFileService {
   declare readonly _serviceBrand: undefined;

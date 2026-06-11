@@ -8,12 +8,12 @@ import {
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { ICommandEvent } from "src/cs/platform/commands/common/commands";
 import type {
+  INativeHostEnvironment,
   INativeHostService,
   INativeOpenDialogOptions,
   INativeOpenDialogResult,
   INativeWindowControlsOptions,
 } from "src/cs/platform/native/common/native";
-import type { INativeHostEnvironment } from "src/cs/platform/native/common/nativeHostService";
 import { BrowserTitleService } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import {
   BrowserWorkbenchLayoutService,

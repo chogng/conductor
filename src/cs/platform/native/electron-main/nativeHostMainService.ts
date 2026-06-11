@@ -1,4 +1,4 @@
-import { BrowserWindow, shell, type WebContents } from "electron";
+import { BrowserWindow, shell } from "electron";
 import { DialogMainService } from "../../dialogs/electron-main/dialogMainService.js";
 
 type NativeOpenDialogResult = {
@@ -10,16 +10,6 @@ export class NativeHostMainService {
   constructor(
     private readonly dialogMainService: DialogMainService,
   ) {}
-
-  public showOpenDialog(
-    sender: WebContents,
-    options: unknown,
-  ): Promise<NativeOpenDialogResult> {
-    return this.dialogMainService.showOpenDialog(
-      options,
-      BrowserWindow.fromWebContents(sender) ?? undefined,
-    );
-  }
 
   public showOpenDialogForWindow(
     win: BrowserWindow | null | undefined,

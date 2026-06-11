@@ -1,54 +1,16 @@
 import type { IChannel } from "../../../base/parts/ipc/common/ipc.js";
-import {
-    type INativeHostService as INativeHostServiceType,
-    type INativeOpenDialogOptions,
-    type INativeOpenDialogResult,
-    type INativeWindowControlsOptions,
-} from "./native.js";
+import type { INativeHostService as INativeHostServiceType } from "./native.js";
 
-export interface INativeHostMainProcessService {
+type NativeHostEnvironment = Awaited<ReturnType<INativeHostServiceType["getEnvironment"]>>;
+type NativeOpenDialogOptions = Parameters<INativeHostServiceType["showOpenDialog"]>[0];
+type NativeOpenDialogResult = Awaited<ReturnType<INativeHostServiceType["showOpenDialog"]>>;
+type NativeWindowControlsOptions = Parameters<INativeHostServiceType["updateWindowControls"]>[0];
+
+interface INativeHostMainProcessService {
     getChannel(channelName: string): IChannel;
 }
 
-export const nativeHostChannelName = "nativeHost";
-
-export const nativeHostIpcChannels = {
-    environmentGet: "conductor:nativeHost:environment:get",
-    openDialog: "conductor:nativeHost:openDialog",
-    showItemInFolder: "conductor:nativeHost:showItemInFolder",
-    windowCommand: "conductor:nativeHost:windowCommand",
-    windowControlsUpdate: "conductor:nativeHost:windowControls:update",
-    windowState: "conductor:nativeHost:windowState",
-} as const;
-
-export const nativeWindowCommands = {
-    toggleDevTools: "toggleDevTools",
-    reloadWindow: "reloadWindow",
-    closeWindow: "closeWindow",
-    minimizeWindow: "minimizeWindow",
-    maximizeWindow: "maximizeWindow",
-    unmaximizeWindow: "unmaximizeWindow",
-} as const;
-
-export type NativeWindowCommand = (typeof nativeWindowCommands)[keyof typeof nativeWindowCommands];
-
-export interface INativeWindowCommandPayload {
-    readonly command: NativeWindowCommand;
-}
-
-export interface INativeWindowControlsUpdatePayload {
-    readonly height?: number;
-    readonly backgroundColor?: string;
-    readonly foregroundColor?: string;
-}
-
-export interface INativeHostEnvironment {
-    readonly isDesktop: boolean;
-    readonly platform: string;
-    readonly isPackaged: boolean;
-    readonly appVersion: string | null;
-    readonly userDataPath: string | null;
-}
+const nativeHostChannelName = "nativeHost";
 
 export class NativeHostService implements INativeHostServiceType {
     public declare readonly _serviceBrand: undefined;
@@ -62,12 +24,12 @@ export class NativeHostService implements INativeHostServiceType {
         this.channel = mainProcessService.getChannel(nativeHostChannelName);
     }
 
-    public async getEnvironment(): Promise<INativeHostEnvironment> {
+    public async getEnvironment(): Promise<NativeHostEnvironment> {
         const environment = await this.channel.call("getEnvironment");
         return normalizeNativeHostEnvironment(environment);
     }
 
-    public async showOpenDialog(options: INativeOpenDialogOptions): Promise<INativeOpenDialogResult> {
+    public async showOpenDialog(options: NativeOpenDialogOptions): Promise<NativeOpenDialogResult> {
         const result = await this.channel.call("showOpenDialog", options);
         return normalizeOpenDialogResult(result);
     }
@@ -82,11 +44,11 @@ export class NativeHostService implements INativeHostServiceType {
     }
 
     public toggleDevTools(): void {
-        this.sendWindowCommand(nativeWindowCommands.toggleDevTools);
+        void this.channel.call("toggleDevTools").catch(() => undefined);
     }
 
     public reloadWindow(): void {
-        this.sendWindowCommand(nativeWindowCommands.reloadWindow);
+        void this.channel.call("reloadWindow").catch(() => undefined);
     }
 
     public async isMaximized(): Promise<boolean> {
@@ -95,33 +57,29 @@ export class NativeHostService implements INativeHostServiceType {
     }
 
     public maximizeWindow(): void {
-        this.sendWindowCommand(nativeWindowCommands.maximizeWindow);
+        void this.channel.call("maximizeWindow").catch(() => undefined);
     }
 
     public unmaximizeWindow(): void {
-        this.sendWindowCommand(nativeWindowCommands.unmaximizeWindow);
+        void this.channel.call("unmaximizeWindow").catch(() => undefined);
     }
 
     public closeWindow(): void {
-        this.sendWindowCommand(nativeWindowCommands.closeWindow);
+        void this.channel.call("closeWindow").catch(() => undefined);
     }
 
     public minimizeWindow(): void {
-        this.sendWindowCommand(nativeWindowCommands.minimizeWindow);
+        void this.channel.call("minimizeWindow").catch(() => undefined);
     }
 
-    public updateWindowControls(options: INativeWindowControlsOptions): void {
+    public updateWindowControls(options: NativeWindowControlsOptions): void {
         void this.channel.call("updateWindowControls", normalizeWindowControlsOptions(options)).catch(() => undefined);
-    }
-
-    private sendWindowCommand(command: NativeWindowCommand): void {
-        void this.channel.call("windowCommand", command).catch(() => undefined);
     }
 }
 
 function normalizeWindowControlsOptions(
-    options: INativeWindowControlsOptions,
-): INativeWindowControlsOptions {
+    options: NativeWindowControlsOptions,
+): NativeWindowControlsOptions {
     return {
         height: typeof options.height === "number" && Number.isFinite(options.height)
             ? Math.max(0, Math.round(options.height))
@@ -135,7 +93,7 @@ function normalizeWindowControlsOptions(
     };
 }
 
-function normalizeOpenDialogResult(value: unknown): INativeOpenDialogResult {
+function normalizeOpenDialogResult(value: unknown): NativeOpenDialogResult {
     const record = value && typeof value === "object" && !Array.isArray(value)
         ? value as Record<string, unknown>
         : {};
@@ -148,7 +106,7 @@ function normalizeOpenDialogResult(value: unknown): INativeOpenDialogResult {
     };
 }
 
-function normalizeNativeHostEnvironment(value: unknown): INativeHostEnvironment {
+function normalizeNativeHostEnvironment(value: unknown): NativeHostEnvironment {
     const record = value && typeof value === "object" && !Array.isArray(value)
         ? value as Record<string, unknown>
         : {};

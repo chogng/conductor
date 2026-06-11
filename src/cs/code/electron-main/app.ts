@@ -38,10 +38,9 @@ import { NativeHostMainService } from "../../platform/native/electron-main/nativ
 import { registerContextMenuListener } from "../../base/parts/contextmenu/electron-main/contextmenu.js";
 import { workbenchBootstrapIpcChannels } from "../../base/parts/sandbox/common/sandboxTypes.js";
 import {
-  nativeHostChannelName,
-  nativeHostIpcChannels,
-  nativeWindowCommands,
-} from "../../platform/native/common/nativeHostService.js";
+  nativeHostBootstrapIpcChannels,
+  nativeHostBootstrapWindowCommands,
+} from "../../platform/native/common/nativeHostBootstrap.js";
 import {
   resolveRustWorkerExecutablePath,
   RustWorkerRuntime,
@@ -192,6 +191,16 @@ let startupGatePromise = null;
 let updateService: Win32UpdateService | null = null;
 let isAppQuitting = false;
 const desktopProcessStartMs = Date.now();
+const nativeHostChannelName = "nativeHost";
+
+const nativeWindowCommands = {
+  toggleDevTools: nativeHostBootstrapWindowCommands.toggleDevTools,
+  reloadWindow: "reloadWindow",
+  closeWindow: "closeWindow",
+  minimizeWindow: "minimizeWindow",
+  maximizeWindow: "maximizeWindow",
+  unmaximizeWindow: "unmaximizeWindow",
+} as const;
 
 function isTruthyEnvFlag(value) {
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -861,8 +870,15 @@ function createNativeHostChannel(): IServerChannel<string> {
         return undefined as T;
       }
 
-      if (command === "windowCommand") {
-        runWindowCommand(win, arg);
+      if (
+        command === nativeWindowCommands.toggleDevTools ||
+        command === nativeWindowCommands.reloadWindow ||
+        command === nativeWindowCommands.minimizeWindow ||
+        command === nativeWindowCommands.maximizeWindow ||
+        command === nativeWindowCommands.unmaximizeWindow ||
+        command === nativeWindowCommands.closeWindow
+      ) {
+        runWindowCommand(win, command);
         return undefined as T;
       }
 
@@ -1236,10 +1252,6 @@ async function handleAnalysisOriginZipSave(event, payload) {
       message: error?.message || "Failed to save Origin CSV ZIP.",
     };
   }
-}
-
-async function handleNativeHostOpenDialog(event, options) {
-  return nativeHostMainService.showOpenDialog(event.sender, options);
 }
 
 function logOriginDetectionResult(context, result) {
@@ -1772,33 +1784,6 @@ function handleNativeWindowCommand(event, payload) {
   runWindowCommand(BrowserWindow.fromWebContents(event.sender), command);
 }
 
-function handleNativeWindowStateGet(event) {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  return {
-    isMaximized: !!win && !win.isDestroyed() && win.isMaximized(),
-  };
-}
-
-function handleNativeWindowControlsUpdate(event, payload) {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win || win.isDestroyed()) {
-    return;
-  }
-
-  const options = payload && typeof payload === "object"
-    ? payload
-    : {};
-  updateWindowControlsOverlay(win, {
-    height: typeof options.height === "number" ? options.height : undefined,
-    backgroundColor: typeof options.backgroundColor === "string"
-      ? options.backgroundColor
-      : undefined,
-    foregroundColor: typeof options.foregroundColor === "string"
-      ? options.foregroundColor
-      : undefined,
-  });
-}
-
 function handleDesktopCommand(event, payload) {
   const command =
     payload && typeof payload.command === "string" ? payload.command : "";
@@ -1828,16 +1813,6 @@ function handleDesktopAutoUpdateStatusGet(event) {
     isStoreManaged: false,
     message: null,
   };
-}
-
-function handleNativeHostShowItemInFolder(_event, payload) {
-  const filePath =
-    payload && typeof payload === "object" && typeof payload.path === "string"
-      ? payload.path
-      : typeof payload === "string"
-        ? payload
-        : "";
-  nativeHostMainService.showItemInFolder(filePath);
 }
 
 if (hasSingleInstanceLock) {
@@ -1870,12 +1845,12 @@ if (hasSingleInstanceLock) {
   mainProcessServer.registerChannel(nativeHostChannelName, createNativeHostChannel());
 
   ipcMain.on("desktop-command", handleDesktopCommand);
-  ipcMain.on(nativeHostIpcChannels.windowCommand, handleNativeWindowCommand);
+  ipcMain.on(nativeHostBootstrapIpcChannels.windowCommand, handleNativeWindowCommand);
   registerContextMenuListener();
-  ipcMain.handle(nativeHostIpcChannels.environmentGet, event =>
+  ipcMain.handle(nativeHostBootstrapIpcChannels.environmentGet, event =>
     resolveNativeHostEnvironment(event.sender),
   );
-  ipcMain.on(nativeHostIpcChannels.environmentGet, handleNativeHostEnvironmentGet);
+  ipcMain.on(nativeHostBootstrapIpcChannels.environmentGet, handleNativeHostEnvironmentGet);
   ipcMain.on(ipcChannels.desktopAutoUpdateStatusGet, handleDesktopAutoUpdateStatusGet);
   ipcMain.on(workbenchBootstrapIpcChannels.settingsGet, handleWorkbenchBootstrapSettingsGet);
   ipcMain.handle(workbenchBootstrapIpcChannels.uiReady, handleWorkbenchBootstrapUiReady);
@@ -1965,9 +1940,9 @@ app.on("will-quit", () => {
     appTray = null;
   }
   ipcMain.removeListener("desktop-command", handleDesktopCommand);
-  ipcMain.removeListener(nativeHostIpcChannels.windowCommand, handleNativeWindowCommand);
-  ipcMain.removeHandler(nativeHostIpcChannels.environmentGet);
-  ipcMain.removeListener(nativeHostIpcChannels.environmentGet, handleNativeHostEnvironmentGet);
+  ipcMain.removeListener(nativeHostBootstrapIpcChannels.windowCommand, handleNativeWindowCommand);
+  ipcMain.removeHandler(nativeHostBootstrapIpcChannels.environmentGet);
+  ipcMain.removeListener(nativeHostBootstrapIpcChannels.environmentGet, handleNativeHostEnvironmentGet);
   ipcMain.removeListener(
     ipcChannels.desktopAutoUpdateStatusGet,
     handleDesktopAutoUpdateStatusGet,

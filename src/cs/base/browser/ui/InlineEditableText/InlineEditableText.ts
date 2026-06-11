@@ -3,4 +3,4 @@ export {
   InlineEditableTextWidget as default,
   type InlineEditableTextWidgetOptions,
   type InlineEditableTextWidgetStyle,
-} from "src/cs/base/browser/ui/inlineEditableText/inlineEditableTextWidget";
+} from "src/cs/base/browser/ui/InlineEditableText/inlineEditableTextWidget";

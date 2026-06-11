@@ -1,5 +1,4 @@
 import { createDecorator } from "../../instantiation/common/instantiation.js";
-import type { INativeHostEnvironment } from "./nativeHostService.js";
 
 export const INativeHostService = createDecorator<INativeHostService>("nativeHostService");
 
@@ -34,6 +33,14 @@ export interface INativeWindowControlsOptions {
     readonly height?: number;
     readonly backgroundColor?: string;
     readonly foregroundColor?: string;
+}
+
+export interface INativeHostEnvironment {
+    readonly isDesktop: boolean;
+    readonly platform: string;
+    readonly isPackaged: boolean;
+    readonly appVersion: string | null;
+    readonly userDataPath: string | null;
 }
 
 export interface INativeHostService {

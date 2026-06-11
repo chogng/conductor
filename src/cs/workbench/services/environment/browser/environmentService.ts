@@ -1,5 +1,5 @@
 import { normalizeWorkbenchEnvironment, type WorkbenchEnvironment } from "src/cs/workbench/services/environment/common/environmentService";
-import { nativeHostIpcChannels } from "src/cs/platform/native/common/nativeHostService";
+import { nativeHostBootstrapIpcChannels } from "src/cs/platform/native/common/nativeHostBootstrap";
 
 type SyncIpcRenderer = {
     sendSync(channel: string, ...args: unknown[]): unknown;
@@ -22,7 +22,7 @@ function readInitialWorkbenchEnvironment(): WorkbenchEnvironment | null {
     }
 
     try {
-        return normalizeWorkbenchEnvironment(ipcRenderer.sendSync(nativeHostIpcChannels.environmentGet));
+        return normalizeWorkbenchEnvironment(ipcRenderer.sendSync(nativeHostBootstrapIpcChannels.environmentGet));
     } catch {
         return null;
     }
