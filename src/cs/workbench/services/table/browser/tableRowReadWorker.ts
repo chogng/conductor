@@ -23,11 +23,20 @@ type TableRowsRequest = {
   readonly startRow?: number;
 };
 
+type TableDisposeRequest = {
+  readonly clear?: boolean;
+  readonly fileId?: string;
+  readonly sourceKey?: string;
+};
+
 type WorkerRequest =
   | { readonly type: "tablePreview"; readonly payload?: TablePreviewRequest }
-  | { readonly type: "tableRows"; readonly payload?: TableRowsRequest };
+  | { readonly type: "tableRows"; readonly payload?: TableRowsRequest }
+  | { readonly type: "tableDispose"; readonly payload?: TableDisposeRequest };
 
 const rowsBySourceKey = new Map<string, unknown[][]>();
+const sourceVersions = new Map<string, number>();
+let clearVersion = 0;
 
 const toInteger = (value: unknown, fallback: number): number => {
   const numberValue = Math.floor(Number(value));
@@ -61,6 +70,13 @@ const getMaxCellLengths = (rows: readonly unknown[][]): number[] => {
   return lengths;
 };
 
+const getCurrentSourceVersion = (sourceKey: string): number =>
+  sourceVersions.get(sourceKey) ?? 0;
+
+const bumpSourceVersion = (sourceKey: string): void => {
+  sourceVersions.set(sourceKey, getCurrentSourceVersion(sourceKey) + 1);
+};
+
 const postError = (requestId: number, error: unknown): void => {
   const message = error instanceof Error && error.message.trim()
     ? error.message
@@ -84,6 +100,8 @@ const handleTablePreview = async (payload: TablePreviewRequest = {}): Promise<vo
       throw new Error("Preview file is unavailable.");
     }
 
+    const expectedClearVersion = clearVersion;
+    const expectedSourceVersion = getCurrentSourceVersion(sourceKey);
     const text = await file.text();
     const parsed = Papa.parse<unknown[]>(text, {
       skipEmptyLines: false,
@@ -96,6 +114,13 @@ const handleTablePreview = async (payload: TablePreviewRequest = {}): Promise<vo
     const maxSeedRows = Math.max(0, toInteger(payload.maxSeedRows, rows.length));
     const seedRows = rows.slice(0, maxSeedRows);
     const maxCellLengths = getMaxCellLengths(rows);
+    if (
+      expectedClearVersion !== clearVersion ||
+      expectedSourceVersion !== getCurrentSourceVersion(sourceKey)
+    ) {
+      return;
+    }
+
     rowsBySourceKey.set(sourceKey, rows);
 
     self.postMessage({
@@ -117,6 +142,23 @@ const handleTablePreview = async (payload: TablePreviewRequest = {}): Promise<vo
   } catch (error) {
     postError(requestId, error);
   }
+};
+
+const handleTableDispose = (payload: TableDisposeRequest = {}): void => {
+  if (payload.clear) {
+    clearVersion += 1;
+    rowsBySourceKey.clear();
+    sourceVersions.clear();
+    return;
+  }
+
+  const sourceKey = getSourceKey(payload);
+  if (!sourceKey) {
+    return;
+  }
+
+  bumpSourceVersion(sourceKey);
+  rowsBySourceKey.delete(sourceKey);
 };
 
 const handleTableRows = (payload: TableRowsRequest = {}): void => {
@@ -151,5 +193,10 @@ self.onmessage = (event: MessageEvent<WorkerRequest>): void => {
 
   if (message?.type === "tableRows") {
     handleTableRows(message.payload);
+    return;
+  }
+
+  if (message?.type === "tableDispose") {
+    handleTableDispose(message.payload);
   }
 };

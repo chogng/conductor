@@ -411,6 +411,140 @@ suite("workbench/services/table/browser/tableService", () => {
     assert.deepEqual(model.getSelection().selectedColumns, [0, 1]);
     service.dispose();
   });
+
+  test("clears worker preview cache when preview state is cleared", () => {
+    const workerMessages: unknown[] = [];
+    const model = createTableModelWithScope({
+      tableBackendService: createTableBackendService({
+        canOpenFile: () => false,
+      }),
+      workerRef: {
+        current: {
+          postMessage: (message: unknown) => {
+            workerMessages.push(message);
+          },
+          terminate: () => undefined,
+        },
+      },
+    });
+
+    workerMessages.length = 0;
+    model.clearState();
+
+    assert.deepEqual(workerMessages, [{
+      type: "previewDispose",
+      payload: { clear: true },
+    }]);
+  });
+
+  test("disposes stale backend preview files after source changes", async () => {
+    let resolveFirstOpen:
+      | ((value: Awaited<ReturnType<TableBackendPreviewProvider["openFile"]>>) => void)
+      | null = null;
+    let openFileCount = 0;
+    const disposePayloads: unknown[] = [];
+    const tableBackendService = createTableBackendService({
+      canDisposeFile: () => true,
+      disposeFile: async (payload) => {
+        disposePayloads.push(payload);
+        return {};
+      },
+      openFile: async () => {
+        openFileCount += 1;
+        if (openFileCount === 1) {
+          return new Promise(resolve => {
+            resolveFirstOpen = resolve;
+          });
+        }
+
+        return new Promise(() => undefined);
+      },
+    });
+    const service = new TableService(tableBackendService as never);
+    const rawFiles = [
+      {
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw A.csv",
+        normalizedCsvPath: "C:/tmp/raw-a.csv",
+        sourceKey: "source-key-a",
+      },
+      {
+        file: {},
+        fileId: "file-b",
+        fileName: "Raw B.csv",
+        normalizedCsvPath: "C:/tmp/raw-b.csv",
+        sourceKey: "source-key-b",
+      },
+    ];
+
+    service.update({
+      rawFiles,
+      source: { fileId: "file-a" },
+    });
+    service.update({
+      rawFiles,
+      source: { fileId: "file-b" },
+    });
+
+    assert.ok(resolveFirstOpen);
+    resolveFirstOpen({
+      ok: true,
+      result: {
+        columnCount: 2,
+        fileId: "source-key-a",
+        fileName: "Raw A.csv",
+        maxCellLengths: [1, 1],
+        rowCount: 2,
+        seedRows: [["x", "y"], [1, 2]],
+        seedStartRow: 0,
+        sourceKey: "source-key-a",
+      },
+    });
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.equal(
+      disposePayloads.some(payload =>
+        (payload as { fileId?: unknown }).fileId === "source-key-a"),
+      true,
+    );
+    service.dispose();
+  });
+
+  test("clears published table view input on dispose", () => {
+    const service = new TableService(createTableBackendService() as never);
+    const model = service.update({
+      file: {
+        columnCount: 2,
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        maxCellLengths: [1, 1],
+        rowCount: 2,
+        sourceKey: "file-a",
+      },
+      rawFiles: [{
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw.csv",
+      }],
+      source: { fileId: "file-a" },
+    });
+    const input = {
+      tableModel: model,
+      tableState: model.getState(),
+    };
+    const inputs: unknown[] = [];
+    service.onDidChangeTableViewInput(nextInput => {
+      inputs.push(nextInput);
+    });
+
+    service.updateViewInput(input);
+    service.dispose();
+
+    assert.equal(service.getViewInput(), null);
+    assert.equal(service.executeCommand(TableCommandId.zoomIn), false);
+    assert.deepEqual(inputs, [input, null]);
+  });
 });
 
 const createTableBackendService = (

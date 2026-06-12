@@ -542,6 +542,7 @@ const createTableModel = ({
     : null;
   const sourcesByKeyRef = createTableRef(new Map<string, TableSourceEntry>());
   const sourcesByFileIdRef = createTableRef(new Map<string, TableSourceEntry[]>());
+  const activeSourceKeyRef = createTableRef<string | null>(activeSourceKey);
 
   runEffect(() => {
     sourcesByKeyRef.current = sourcesByKey;
@@ -550,6 +551,10 @@ const createTableModel = ({
   runEffect(() => {
     sourcesByFileIdRef.current = sourcesByFileId;
   }, [sourcesByFileId]);
+
+  runEffect(() => {
+    activeSourceKeyRef.current = activeSourceKey;
+  }, [activeSourceKey]);
 
   runEffect(() => {
     let changed = false;
@@ -687,7 +692,7 @@ const createTableModel = ({
       if (typeof fileId !== "string" || !fileId) return;
 
       previewWorkerRef.current?.postMessage({
-        type: "previewDispose",
+        type: "tableDispose",
         payload: { fileId },
       });
       backendOpenedSourceKeysRef.current.delete(fileId);
@@ -704,6 +709,10 @@ const createTableModel = ({
   }, [assignCurrentPreviewCache, notifyTableRowsCacheChanged]);
 
   const clearAllPreviewCaches = memoCallback(() => {
+    previewWorkerRef.current?.postMessage({
+      type: "tableDispose",
+      payload: { clear: true },
+    });
     tableRowsCacheByFileIdRef.current = new Map();
     previewLoadedChunksByFileIdRef.current = new Map();
     previewCacheFileLruRef.current = new Set();
@@ -721,6 +730,7 @@ const createTableModel = ({
     previewCacheFileLruRef,
     previewLoadedChunksByFileIdRef,
     tableRowsCacheByFileIdRef,
+    previewWorkerRef,
     tableBackendService,
   ]);
 
@@ -1081,6 +1091,9 @@ const createTableModel = ({
             previewTargetFile.file instanceof File ? previewTargetFile.file.lastModified : null,
           normalizedCsvPath: previewTargetFile.normalizedCsvPath,
         })) ?? previewTargetFile.file;
+      if (requestId !== previewRequestIdRef.current) {
+        return;
+      }
 
       worker.postMessage({
         type: "tablePreview",
@@ -1149,6 +1162,13 @@ const createTableModel = ({
             maxCellLengths,
           };
 
+          if (requestId !== previewRequestIdRef.current) {
+            if (sourceKey && sourceKey !== activeSourceKeyRef.current) {
+              postPreviewDispose(sourceKey);
+            }
+            return;
+          }
+
           if (sourceKey) {
             const currentPreviewFile = previewFileRef.current;
             const hasSamePreviewFile =
@@ -1171,9 +1191,6 @@ const createTableModel = ({
                 ? previewPayload.seedRows
                 : [],
             );
-          }
-          if (requestId !== previewRequestIdRef.current) {
-            return;
           }
 
           activatePreviewFileCache(sourceKey);
@@ -1210,11 +1227,13 @@ const createTableModel = ({
   }, [
     activatePreviewFileCache,
     activeSourceSignature,
+    activeSourceKeyRef,
     backendOpenedSourceKeysRef,
     deferredActiveFileId,
     deferredActiveSheetId,
     getOrCreatePreviewWorker,
     mergePreviewSeedRows,
+    postPreviewDispose,
     previewFileRef,
     previewRequestIdRef,
     setPreviewStatus,
@@ -1831,6 +1850,15 @@ export class TableService extends Disposable implements ITableServiceType {
       ...toBrowserTableOptions(options),
       tableBackendService: options.tableBackendService ?? this.tableBackendService,
     }));
+  }
+
+  public override dispose(): void {
+    if (this.viewInput) {
+      this.viewInput = null;
+      this.onDidChangeTableViewInputEmitter.fire(null);
+    }
+
+    super.dispose();
   }
 
   public getViewInput(): TableViewInput | null {
