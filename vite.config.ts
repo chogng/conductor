@@ -19,6 +19,11 @@ const serverFaviconPath = fileURLToPath(
   new URL("./resources/server/favicon.ico", import.meta.url),
 );
 const serverFaviconPublicPath = "/resources/server/favicon.ico";
+const esbuildTsconfigRaw = {
+  compilerOptions: {
+    experimentalDecorators: true,
+  },
+};
 
 const webClientServerPlugin = (): Plugin => {
   const workbenchPath = getBrowserWorkbenchPath(false);
@@ -70,6 +75,9 @@ const webClientServerPlugin = (): Plugin => {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [webClientServerPlugin()],
+  esbuild: {
+    tsconfigRaw: esbuildTsconfigRaw,
+  },
   resolve: {
     alias: {
       cs: fileURLToPath(new URL("./src/cs", import.meta.url)),
@@ -80,7 +88,10 @@ export default defineConfig({
     format: "es",
   },
   optimizeDeps: {
-    exclude: ["cogicon"],
+    esbuildOptions: {
+      tsconfigRaw: esbuildTsconfigRaw,
+    },
+    exclude: ["@chogng/lxicon", "cogicon"],
   },
   build: {
     rollupOptions: {
@@ -102,19 +113,7 @@ export default defineConfig({
     },
   },
   server: {
-    host: true,
-    warmup: {
-      clientFiles: [
-        "./src/cs/code/browser/workbench/workbench.ts",
-        "./src/cs/code/electron-browser/workbench/workbench.ts",
-        "./src/cs/workbench/workbench.common.main.ts",
-        "./src/cs/workbench/workbench.browser.main.ts",
-        "./src/cs/workbench/workbench.desktop.main.ts",
-        "./src/cs/nls.ts",
-        "./build/nls/en.json",
-        "./build/nls/zh.json",
-      ],
-    },
+    host: "localhost",
     proxy: {
       "/api": {
         target: "http://localhost:3001",
