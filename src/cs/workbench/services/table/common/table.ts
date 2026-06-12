@@ -117,7 +117,7 @@ export interface ITableBackendService extends TableBackendPreviewProvider {
 	readonly _serviceBrand: undefined;
 }
 
-export type RustPreviewCellRequest = {
+export type TableCellReadRequest = {
 	colIndex: number;
 	rowIndex: number;
 };
@@ -160,7 +160,7 @@ export type TableModel = {
 	disposeFileCache: (fileId: string) => void;
 	ensureCells: (
 		fileId: string,
-		cells: RustPreviewCellRequest[],
+		cells: TableCellReadRequest[],
 	) => Promise<void>;
 	ensureRows: (
 		fileId: string,

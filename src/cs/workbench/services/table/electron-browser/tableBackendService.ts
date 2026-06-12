@@ -2,6 +2,9 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+// Desktop implementation of table row/cell access. Heavy data stages are executed
+// by conductor-rs through Electron IPC/preload and normalized behind ITableBackendService.
+
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";

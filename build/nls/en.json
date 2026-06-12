@@ -339,7 +339,7 @@
   "sidebar.hide": "Hide Side Bar",
   "sidebar.show": "Show Side Bar",
   "table.ariaLabel": "Table",
-  "table.clearRustPreviewFiles": "Clear Rust preview files",
+  "table.clearTemporaryFiles": "Clear Table Temporary Files",
   "table.commands.clearSelection": "Clear table selection",
   "table.commands.resetZoom": "Reset table zoom",
   "table.commands.selectAllColumns": "Select all table columns",

@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { localize } from "src/cs/nls";
 import {
 	registerWorkbenchContribution2,
 	WorkbenchPhase,
@@ -17,11 +18,12 @@ import {
 	ITableBackendService,
 	type ITableBackendService as ITableBackendServiceType,
 } from "src/cs/workbench/services/table/common/table";
-import { localize } from "src/cs/nls";
 
-const TablePreviewLifecycleContributionId = "workbench.contrib.tablePreviewLifecycle";
+const TableBackendLifecycleContributionId = "workbench.contrib.tableBackendLifecycle";
 
-export class TablePreviewLifecycleContribution extends Disposable implements IWorkbenchContribution {
+// Cleans runtime files exposed through ITableBackendService. In desktop builds those
+// files are Rust-held artifacts; the browser implementation simply reports no cleanup.
+export class TableBackendLifecycleContribution extends Disposable implements IWorkbenchContribution {
 	public constructor(
 		@ITableBackendService private readonly tableBackendService: ITableBackendServiceType,
 		@ILifecycleService lifecycleService: ILifecycleServiceType,
@@ -36,8 +38,8 @@ export class TablePreviewLifecycleContribution extends Disposable implements IWo
 			event.join(
 				() => this.tableBackendService.disposeFile({ clear: true }).then(() => undefined),
 				{
-					id: "table.clearRustPreviewFiles",
-					label: localize("table.clearRustPreviewFiles", "Clear Rust preview files"),
+					id: "table.clearTemporaryFiles",
+					label: localize("table.clearTemporaryFiles", "Clear Table Temporary Files"),
 					order: WillShutdownJoinerOrder.Last,
 				},
 			);
@@ -46,7 +48,7 @@ export class TablePreviewLifecycleContribution extends Disposable implements IWo
 }
 
 registerWorkbenchContribution2(
-	TablePreviewLifecycleContributionId,
-	TablePreviewLifecycleContribution as new (...args: unknown[]) => IWorkbenchContribution,
+	TableBackendLifecycleContributionId,
+	TableBackendLifecycleContribution as new (...args: unknown[]) => IWorkbenchContribution,
 	WorkbenchPhase.BlockStartup,
 );

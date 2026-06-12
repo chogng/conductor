@@ -20,6 +20,7 @@ import {
   type ITableService as ITableServiceType,
   type ITableBackendService as ITableBackendServiceType,
   type TableCell,
+  type TableCellReadRequest,
   type TableFile,
   type TableHighlight,
   type TableInput,
@@ -43,19 +44,18 @@ import {
   collectMissingChunkRanges,
   clearChunkRows,
   hasChunkRowsInCache,
-  isPreviewRowsResultForRequest,
+  isTableRowBatchResultForRequest,
   mergeChunkRangeRows,
-  sanitizePreviewRows,
+  sanitizeTableRowBatch,
   TABLE_MAX_CACHED_FILES,
   TABLE_MAX_CACHED_UI_ROWS_PER_FILE,
   TABLE_UI_CHUNK_SIZE_ROWS,
-} from "src/cs/workbench/services/table/browser/tableRowsModel";
+  createTableRowCacheVersion,
+} from "src/cs/workbench/services/table/browser/tableRowCacheModel";
 import {
-  buildRustPreviewCellRequests,
-  rowsFromRustPreviewCells,
-  type RustPreviewCellRequest,
-} from "src/cs/workbench/services/table/browser/preview/rustPreviewCells";
-import { useRowsVersion } from "src/cs/workbench/services/table/browser/previewRowsVersion";
+  buildTableCellReadRequests,
+  rowsFromTableCellReads,
+} from "src/cs/workbench/services/table/browser/tableCellReadModel";
 import { loadConvertedCsvFile } from "src/cs/workbench/services/files/browser/fileConverter";
 type SetStateAction<T> = T | ((previous: T) => T);
 type Dispatch<T> = (value: T) => void;
@@ -417,7 +417,7 @@ const createTableModel = ({
     getRowsVersion,
     notifyRowsVersion,
     subscribeRowsVersion,
-  } = memoValue(() => useRowsVersion(), []);
+  } = memoValue(() => createTableRowCacheVersion(), []);
   const selectionRef = createTableRef<TableSelection>(
     normalizeTableSelection(null),
   );
@@ -434,7 +434,7 @@ const createTableModel = ({
   const previewPendingChunksByFileIdRef = createTableRef<Map<string, Set<number>>>(
     new Map(),
   );
-  const rustPreviewFileIdsRef = createTableRef<Set<string>>(new Set());
+  const backendOpenedSourceKeysRef = createTableRef<Set<string>>(new Set());
   const pendingPreviewFileIdRef = createTableRef<string | null>(null);
 
   const notifyStateChanged = memoCallback(
@@ -627,7 +627,7 @@ const createTableModel = ({
   const mergePreviewSeedRows = memoCallback(
     (fileId: string, startRow: number, rows: unknown[][]) => {
       if (!fileId) return false;
-      const safeRows = sanitizePreviewRows(rows);
+      const safeRows = sanitizeTableRowBatch(rows);
       if (!safeRows.length) return false;
 
       const { loadedChunks, rowCache } = getOrCreatePreviewFileCaches(fileId);
@@ -690,12 +690,12 @@ const createTableModel = ({
         type: "previewDispose",
         payload: { fileId },
       });
-      rustPreviewFileIdsRef.current.delete(fileId);
+      backendOpenedSourceKeysRef.current.delete(fileId);
       if (tableBackendService.canDisposeFile()) {
         void tableBackendService.disposeFile({ fileId });
       }
     },
-    [previewWorkerRef],
+    [backendOpenedSourceKeysRef, previewWorkerRef, tableBackendService],
   );
 
   const resetCurrentPreviewCache = memoCallback(() => {
@@ -708,7 +708,7 @@ const createTableModel = ({
     previewLoadedChunksByFileIdRef.current = new Map();
     previewCacheFileLruRef.current = new Set();
     previewPendingChunksByFileIdRef.current = new Map();
-    rustPreviewFileIdsRef.current = new Set();
+    backendOpenedSourceKeysRef.current = new Set();
     if (tableBackendService.canDisposeFile()) {
       void tableBackendService.disposeFile({ clear: true });
     }
@@ -717,9 +717,11 @@ const createTableModel = ({
   }, [
     assignCurrentPreviewCache,
     notifyPreviewRowsCacheChanged,
+    backendOpenedSourceKeysRef,
     previewCacheFileLruRef,
     previewLoadedChunksByFileIdRef,
     previewRowsCacheByFileIdRef,
+    tableBackendService,
   ]);
 
   const invalidatePreviewRequests = memoCallback(() => {
@@ -946,9 +948,9 @@ const createTableModel = ({
             0,
             Math.floor(Number(rowsPayload.startRow) || 0),
           );
-          const rows = sanitizePreviewRows(rowsPayload.rows);
+          const rows = sanitizeTableRowBatch(rowsPayload.rows);
 
-          const isMatched = isPreviewRowsResultForRequest({
+          const isMatched = isTableRowBatchResultForRequest({
             requestFileId: pendingRequest.fileId,
             requestStartRow: pendingRequest.startRow,
             payloadFileId: fileId,
@@ -1015,7 +1017,7 @@ const createTableModel = ({
 
   const createPreviewWorker = memoCallback(() => {
     const worker = new Worker(
-      new URL("./tableRowsWorker.ts", import.meta.url),
+      new URL("./tableRowReadWorker.ts", import.meta.url),
       { type: "module" },
     );
 
@@ -1095,7 +1097,7 @@ const createTableModel = ({
       });
     };
 
-    const rustInputPath =
+    const backendInputPath =
       typeof previewTargetFile.normalizedCsvPath === "string" &&
       previewTargetFile.normalizedCsvPath.trim()
         ? previewTargetFile.normalizedCsvPath.trim()
@@ -1103,12 +1105,12 @@ const createTableModel = ({
             previewTargetFile.sourcePath.trim().toLowerCase().endsWith(".csv")
           ? previewTargetFile.sourcePath.trim()
           : null;
-    if (rustInputPath && tableBackendService.canOpenFile()) {
+    if (backendInputPath && tableBackendService.canOpenFile()) {
       void tableBackendService
-      .openFile({
+        .openFile({
           fileId: previewTargetSourceKey,
           fileName: previewTargetFile.fileName ?? "",
-          path: rustInputPath,
+          path: backendInputPath,
           seedRows: TABLE_MAX_CACHED_UI_ROWS_PER_FILE,
           sheetId: previewTargetSource.source.sheetId ?? null,
           sheetName: previewTargetSource.sheetName,
@@ -1160,7 +1162,7 @@ const createTableModel = ({
           }
 
           if (sourceKey) {
-            rustPreviewFileIdsRef.current.add(sourceKey);
+            backendOpenedSourceKeysRef.current.add(sourceKey);
             touchPreviewFileCache({ fileId: sourceKey });
             mergePreviewSeedRows(
               sourceKey,
@@ -1208,6 +1210,7 @@ const createTableModel = ({
   }, [
     activatePreviewFileCache,
     activeSourceSignature,
+    backendOpenedSourceKeysRef,
     deferredActiveFileId,
     deferredActiveSheetId,
     getOrCreatePreviewWorker,
@@ -1280,7 +1283,7 @@ const createTableModel = ({
       };
 
       if (
-        rustPreviewFileIdsRef.current.has(sourceKey) &&
+        backendOpenedSourceKeysRef.current.has(sourceKey) &&
         tableBackendService.canGetPreviewRows()
       ) {
         return tableBackendService
@@ -1293,14 +1296,14 @@ const createTableModel = ({
           .then((response: any) => {
             if (!response?.ok || !response?.result) return [];
             const rowsPayload = response.result as PreviewRowsResultPayload;
-            const rows = sanitizePreviewRows(rowsPayload.rows);
+            const rows = sanitizeTableRowBatch(rowsPayload.rows);
             const payloadFileId =
               typeof rowsPayload.fileId === "string" ? rowsPayload.fileId : "";
             const payloadStartRow = Math.max(
               0,
               Math.floor(Number(rowsPayload.startRow) || 0),
             );
-            const isMatched = isPreviewRowsResultForRequest({
+            const isMatched = isTableRowBatchResultForRequest({
               requestFileId: sourceKey,
               requestStartRow: start,
               payloadFileId,
@@ -1322,7 +1325,7 @@ const createTableModel = ({
   );
 
   const ensureTableCells = memoCallback(
-    async (fileId: string, cells: RustPreviewCellRequest[]) => {
+    async (fileId: string, cells: TableCellReadRequest[]) => {
       const sourceKey = resolveRequestSourceKey(fileId);
       if (!sourceKey || !Array.isArray(cells) || !cells.length) return;
       const currentPreviewFile = previewFileRef.current;
@@ -1357,10 +1360,10 @@ const createTableModel = ({
       if (!requestedRows.size) return;
 
       if (
-        rustPreviewFileIdsRef.current.has(sourceKey) &&
+        backendOpenedSourceKeysRef.current.has(sourceKey) &&
         tableBackendService.canReadCells()
       ) {
-        const requestCells = buildRustPreviewCellRequests({
+        const requestCells = buildTableCellReadRequests({
           columnCount,
           rowIndices: requestedRows,
         });
@@ -1373,7 +1376,7 @@ const createTableModel = ({
             });
             if (response?.ok && response?.result) {
               const result = response.result as { cells?: unknown };
-              const rowsByIndex = rowsFromRustPreviewCells({
+              const rowsByIndex = rowsFromTableCellReads({
                 cells: result.cells,
                 columnCount,
               });

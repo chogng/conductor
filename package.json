@@ -35,7 +35,7 @@
     "build": "npm run build:assessment-wasm && npm run build:xlsx-wasm && vite build --base ./",
     "dist:web": "npm run build",
     "lint": "eslint .",
-    "test:preview": "node --experimental-strip-types node_modules/mocha/bin/mocha.js --ui tdd src/cs/workbench/services/table/test/browser/preview/previewRowChunk.test.ts src/cs/workbench/services/table/test/browser/preview/previewSelectionNavigation.test.ts",
+    "test:table": "node --experimental-strip-types node_modules/mocha/bin/mocha.js --ui tdd src/cs/workbench/services/table/test/browser/tableRowCacheModel.test.ts src/cs/workbench/services/table/test/browser/tableCellReadModel.test.ts",
     "test:unit": "tsc -p src/tsconfig.test.json && node test/unit/node/index.js",
     "test:integration:browser": "node test/integration/browser/folderImport.test.mjs",
     "test:desktop-core": "npm run build:desktop:core && mocha --ui tdd test/integration/node/originRunner.test.mjs test/integration/node/analysisStorageService.test.mjs",
