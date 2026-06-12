@@ -16,10 +16,14 @@ import {
   PlotService,
   shouldInvalidatePlotModelsForSessionChange,
 } from "src/cs/workbench/services/plot/browser/plotService";
+import type {
+  ConductorSettings,
+  ISettingsService,
+} from "src/cs/workbench/services/settings/common/settings";
 
 suite("workbench/services/plot/test/browser/plotService", () => {
   test("owns active plot type outside session", () => {
-    const service = new PlotService(createSessionServiceStub());
+    const service = new PlotService(createSessionServiceStub(), createSettingsServiceStub());
     let changeCount = 0;
     const disposable = service.onDidChangePlotState(() => {
       changeCount += 1;
@@ -34,13 +38,15 @@ suite("workbench/services/plot/test/browser/plotService", () => {
   });
 
   test("creates display models with legend visibility, labels, units, and scale", () => {
-    const service = new PlotService(createSessionServiceStub());
-    const displayModel = service.getPlotDisplayModel({
-      axisSettings: {
+    const service = new PlotService(
+      createSessionServiceStub(),
+      createSettingsServiceStub({
         xUnitByFileId: { "file-a": "mV" },
         yScaleByFileId: { "file-a": "log" },
         yUnitByFileId: { "file-a": "mA" },
-      },
+      }),
+    );
+    const displayModel = service.getPlotDisplayModel({
       hiddenLegendKeys: ["series-b"],
       legendLabels: { "series-a": "Edited A" },
       snapshot: createSnapshot(),
@@ -63,7 +69,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
   });
 
   test("owns axis title overrides by plot context", () => {
-    const service = new PlotService(createSessionServiceStub());
+    const service = new PlotService(createSessionServiceStub(), createSettingsServiceStub());
     const snapshot = createSnapshot();
     const initial = service.getPlotDisplayModel({ snapshot });
     assert.equal(initial?.chart.xAxisTitle, "Gate (V)");
@@ -113,6 +119,35 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       );
     }
   });
+
+  test("updates unit and scale settings through plot owner API", async () => {
+    const updates: unknown[] = [];
+    const service = new PlotService(
+      createSessionServiceStub(),
+      createSettingsServiceStub({
+        xUnitByFileId: { "file-b": "V" },
+        yScaleByFileId: {},
+        yUnitByFileId: {},
+      }, updates),
+    );
+    let changeCount = 0;
+    const disposable = service.onDidChangePlotState(() => {
+      changeCount += 1;
+    });
+
+    await service.setAxisUnit("file-a", "x", "mV");
+    await service.setAxisUnit("file-a", "y", "uA");
+    await service.setYScale("file-a", "log");
+    await service.setYScale("file-a", "log");
+
+    assert.deepEqual(updates, [
+      { xUnitByFileId: { "file-b": "V", "file-a": "mV" } },
+      { yUnitByFileId: { "file-a": "uA" } },
+      { yScaleByFileId: { "file-a": "log" } },
+    ]);
+    assert.equal(changeCount, 3);
+    disposable.dispose();
+  });
 });
 
 const createSessionServiceStub = (): ISessionService => ({
@@ -129,6 +164,31 @@ const createSessionServiceStub = (): ISessionService => ({
   removeFiles: () => undefined,
   setMetricInput: () => undefined,
 });
+
+const createSettingsServiceStub = (
+  initialSettings: ConductorSettings | null = {
+    xUnitByFileId: {},
+    yScaleByFileId: {},
+    yUnitByFileId: {},
+  },
+  updatesLog: unknown[] = [],
+): ISettingsService => {
+  let settings = initialSettings;
+  return {
+    _serviceBrand: undefined,
+    getConductorSettings: () => settings,
+    onDidChangeConductorSettings: Event.None,
+    onDidChangeSettingsViewInput: Event.None,
+    updateSettings: async (updates: unknown) => {
+      updatesLog.push(updates);
+      settings = {
+        ...(settings ?? {}),
+        ...(updates && typeof updates === "object" ? updates : {}),
+      };
+      return settings;
+    },
+  } as ISettingsService;
+};
 
 const createSnapshot = (): SessionSnapshot => ({
   fileOrder: ["file-a"],

@@ -17,19 +17,19 @@ import {
 import { LxIcon } from "src/cs/base/common/lxicon";
 import type { ProcessingStatus } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
-import { createChartView, type ChartPane } from "src/cs/workbench/contrib/chart/browser/views/chartView";
+import { createChartView, type ChartPane, type ChartViewProps } from "src/cs/workbench/contrib/chart/browser/views/chartView";
 
 export class ChartPanel {
   public readonly element: HTMLElement;
   private content: DisposableContent | null = null;
 
-  constructor(props: ChartViewInput) {
+  constructor(props: ChartViewProps) {
     this.element = document.createElement("section");
     this.element.className = "chart_panel";
     this.update(props);
   }
 
-  public update(props: ChartViewInput): void {
+  public update(props: ChartViewProps): void {
     this.element.setAttribute("aria-label", localize("chart.title", "Chart"));
     disposeContent(this.content);
     this.content = createChartPanelContent(props);
@@ -57,7 +57,7 @@ const disposeContent = (content: DisposableContent | null): void => {
   content?.dispose?.();
 };
 
-const createChartPanelContent = (props: ChartViewInput): DisposableContent => {
+const createChartPanelContent = (props: ChartViewProps): DisposableContent => {
   const {
     hasChartData = false,
     processingStatus,

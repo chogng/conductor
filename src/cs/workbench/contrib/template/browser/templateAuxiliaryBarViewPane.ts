@@ -15,8 +15,10 @@ import {
   IFileService,
   type IFileService as IFileServiceType,
 } from "src/cs/platform/files/common/files";
+import { ITableService } from "src/cs/workbench/services/table/common/table";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import {
+  ITemplateApplyWorkflowService,
   ITemplateService,
   TemplateAuxiliaryBarViewId,
   type ITemplateService as ITemplateServiceType,
@@ -44,6 +46,8 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
     @IFileDialogService dialogsService: IFileDialogServiceType,
     @IFileService filesService: IFileServiceType,
     @IPathService pathService: IPathServiceType,
+    @ITableService private readonly tableService: ITableService,
+    @ITemplateApplyWorkflowService private readonly templateApplyWorkflowService: ITemplateApplyWorkflowService,
     @ITemplateService private readonly templateService: ITemplateServiceType,
   ) {
     super({
@@ -101,6 +105,8 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
       ...input,
       contextMenuService: this.contextMenuService,
       rawFiles: input?.rawFiles ?? [],
+      tableService: this.tableService,
+      templateApplyWorkflowService: this.templateApplyWorkflowService,
       templateImportController: this.templateImportController,
       templateService: this.templateService,
     };

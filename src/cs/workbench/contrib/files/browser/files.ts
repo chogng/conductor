@@ -8,14 +8,12 @@ import { createDecorator } from "src/cs/platform/instantiation/common/instantiat
 import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { FilesViewLayout } from "src/cs/workbench/contrib/files/common/files";
-import type { ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModelSource } from "src/cs/workbench/services/plot/common/plotModel";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 import type {
   ProcessedEntry,
-  SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import type {
   TemplateSelection,
@@ -23,6 +21,7 @@ import type {
 } from "src/cs/workbench/services/template/common/templateSelection";
 
 export const IExplorerService = createDecorator<IExplorerService>("explorerService");
+export const IExplorerWorkflowService = createDecorator<IExplorerWorkflowService>("explorerWorkflowService");
 export const ExplorerViewId = "workbench.files";
 
 export type ExplorerSelectionKind = WorkbenchMainPart;
@@ -32,24 +31,6 @@ export type ExplorerViewLayout = FilesViewLayout;
 export type ExplorerThumbnailPlotModel = PlotMainRenderModelSource & {
   readonly signature: string;
 };
-
-export type ExplorerImportedSessionFile = SessionFile & {
-  readonly importRecord: ImportedFileRecord;
-};
-
-export type ExplorerImportedFilesChangeEvent =
-  | {
-      readonly reason: "added";
-      readonly files: readonly ExplorerImportedSessionFile[];
-    }
-  | {
-      readonly reason: "replaced";
-      readonly files: readonly ExplorerImportedSessionFile[];
-    }
-  | {
-      readonly reason: "removed";
-      readonly fileIds: readonly string[];
-    };
 
 export type ExplorerPaneInput = {
   readonly activePlotType?: PlotType;
@@ -107,10 +88,6 @@ export interface IExplorerView {
   refresh?(): void;
 }
 
-export type ExplorerFileRemovalRequest = {
-  readonly fileId: string;
-};
-
 export interface IExplorerService {
   readonly _serviceBrand: undefined;
 
@@ -122,16 +99,9 @@ export interface IExplorerService {
   readonly onDidChangeExpandedFolderKeys: Event<ExplorerFolderExpansionChangeEvent>;
   readonly onDidChangeViewLayout: Event<ExplorerViewLayout>;
   readonly onDidChangePaneInput: Event<ExplorerPaneInput | null>;
-  readonly onDidSubmitImportedFilesChange: Event<ExplorerImportedFilesChangeEvent>;
-  readonly onDidRequestFolderImport: Event<void>;
-  readonly onDidRequestSelectedFolderRemoval: Event<void>;
-  readonly onDidRequestFileRemoval: Event<ExplorerFileRemovalRequest>;
 
-  addImportedFiles(files: readonly ExplorerImportedSessionFile[]): void;
   getContext(): ExplorerContext;
   registerView(view: IExplorerView): IDisposable;
-  removeImportedFiles(fileIds: readonly string[]): void;
-  replaceImportedFiles(files: readonly ExplorerImportedSessionFile[]): void;
   select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): string | null;
   setEditable(data: ExplorerEditableData | null): void;
   setToCopy(resources: readonly ExplorerSelectionTarget[], isCut: boolean): void;
@@ -140,11 +110,23 @@ export interface IExplorerService {
   setExpandedFolderKeys(folderKeys: readonly string[]): void;
   reconcileExpandedFolderKeys(folderKeys: readonly string[]): readonly string[];
   getCollapsedFolderKeys(folderKeys: readonly string[]): readonly string[];
-  requestFolderImport(): void;
-  requestSelectedFolderRemoval(): void;
-  requestFileRemoval(fileId: string): void;
   setViewLayout(viewLayout: ExplorerViewLayout): void;
   toggleViewLayout(): void;
   getPaneInput(): ExplorerPaneInput | null;
   updatePaneInput(input: ExplorerPaneInput): void;
+}
+
+export interface ExplorerWorkflowHandler {
+  openFolderImport(): void;
+  removeSelectedFolder(): void;
+  removeFile(fileId: string): void;
+}
+
+export interface IExplorerWorkflowService {
+  readonly _serviceBrand: undefined;
+
+  registerHandler(handler: ExplorerWorkflowHandler): IDisposable;
+  openFolderImport(): void;
+  removeSelectedFolder(): void;
+  removeFile(fileId: string): void;
 }

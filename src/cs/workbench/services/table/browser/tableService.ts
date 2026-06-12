@@ -25,11 +25,9 @@ import {
   type TableViewInput,
   type TableLoadState,
   type TableModel,
-  type TableMutableRef,
   type TableRange,
   type TableRevealOptions,
   type TableRevealTarget,
-  type TableRowsRequest,
   type TableRevealMode,
   type TableSelection,
   type TableSelectionTarget,
@@ -62,6 +60,20 @@ import {
 import { loadConvertedCsvFile } from "src/cs/workbench/services/files/browser/fileConverter";
 type SetStateAction<T> = T | ((previous: T) => T);
 type Dispatch<T> = (value: T) => void;
+
+type TableMutableRef<T> = {
+  current: T;
+};
+
+type TableRowsRequest = {
+  fileId: string;
+  sheetId?: string | null;
+  sourceKey?: string;
+  startRow: number;
+  endRow: number;
+  reject: (error: unknown) => void;
+  resolve: (rows: unknown[][]) => void;
+};
 
 type EffectState = {
   cleanup?: () => void;
@@ -333,7 +345,24 @@ type WorkerMessage =
   | { type: "workerError"; payload: WorkerErrorPayload }
   | { type?: string; payload?: Record<string, unknown> | null };
 
-type UseTableOptions = Omit<TableInput, "workerRef"> & {
+export type CreateTableModelWithScopeOptions = TableInput & {
+  file?: TableFile | null;
+  loadState?: TableLoadState;
+  setFile?: Dispatch<SetStateAction<TableFile | null>>;
+  setLoadState?: Dispatch<SetStateAction<TableLoadState>>;
+  workerRef?: TableMutableRef<unknown | null>;
+  requestIdRef?: TableMutableRef<number>;
+  rowsRequestIdRef?: TableMutableRef<number>;
+  rowsRequestsRef?: TableMutableRef<Map<number, TableRowsRequest>>;
+  rowsCacheByFileIdRef?: TableMutableRef<Map<string, Map<number, unknown[]>>>;
+  loadedChunksByFileIdRef?: TableMutableRef<Map<string, Set<number>>>;
+  rowsCacheRef?: TableMutableRef<Map<number, unknown[]>>;
+  loadedChunksRef?: TableMutableRef<Set<number>>;
+  cacheFileIdRef?: TableMutableRef<string | null>;
+  cacheFileLruRef?: TableMutableRef<Set<string>>;
+};
+
+type UseTableOptions = Omit<CreateTableModelWithScopeOptions, "workerRef"> & {
   workerRef?: TableMutableRef<Worker | null>;
 };
 type CreateTableOptions = UseTableOptions;
@@ -1806,13 +1835,13 @@ const createTableModel = ({
   };
 };
 
-const toBrowserTableOptions = (options: TableInput): UseTableOptions => ({
+const toBrowserTableOptions = (options: CreateTableModelWithScopeOptions): UseTableOptions => ({
   ...options,
   workerRef: asBrowserWorkerRef(options.workerRef),
 });
 
 const asBrowserWorkerRef = (
-  workerRef: TableInput["workerRef"],
+  workerRef: CreateTableModelWithScopeOptions["workerRef"],
 ): TableMutableRef<Worker | null> | undefined => {
   if (!workerRef || typeof workerRef !== "object" || !("current" in workerRef)) {
     return undefined;
@@ -2039,7 +2068,7 @@ const resolveRevealCellForTarget = (
 };
 
 export const createTableModelWithScope = (
-  options: TableInput,
+  options: CreateTableModelWithScopeOptions,
 ): TableModel => {
   const browserOptions = toBrowserTableOptions(options);
   const scope = getTableStateScope(
@@ -2178,6 +2207,10 @@ export class TableService extends Disposable implements ITableService {
   }
 
   public updateViewInput(input: TableViewInput): void {
+    if (this.viewInput && isSameTableViewInput(this.viewInput, input)) {
+      return;
+    }
+
     this.viewInput = input;
     this.bindActiveTableModel(input.tableModel);
     this.onDidChangeTableViewInputEmitter.fire(input);
@@ -2219,3 +2252,42 @@ export const createTableModelForInput = (options: UseTableOptions): TableModel =
 };
 
 registerSingleton(ITableService, TableService, InstantiationType.Delayed);
+
+const isSameTableViewInput = (
+  current: TableViewInput,
+  next: TableViewInput,
+): boolean =>
+  current.tableModel === next.tableModel &&
+  isSameTableState(current.tableState, next.tableState);
+
+const isSameTableState = (
+  current: TableState,
+  next: TableState,
+): boolean =>
+  current.selectedFileId === next.selectedFileId &&
+  current.selectedSheetId === next.selectedSheetId &&
+  current.sourceKey === next.sourceKey &&
+  current.fileName === next.fileName &&
+  current.dimensions === next.dimensions &&
+  current.zoomPercent === next.zoomPercent &&
+  isSameTableSource(current.source, next.source) &&
+  areNullableTableFilesEqual(current.file, next.file) &&
+  areTableLoadStatesEqual(current.loadState, next.loadState);
+
+const isSameTableSource = (
+  current: TableSource | null | undefined,
+  next: TableSource | null | undefined,
+): boolean =>
+  current?.fileId === next?.fileId &&
+  current?.sheetId === next?.sheetId;
+
+const areNullableTableFilesEqual = (
+  current: TableFile | null | undefined,
+  next: TableFile | null | undefined,
+): boolean => {
+  if (!current || !next) {
+    return current === next;
+  }
+
+  return areTableFilesEqual(current, next);
+};

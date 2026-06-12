@@ -1,5 +1,4 @@
 import { Disposable, MutableDisposable } from "src/cs/base/common/lifecycle";
-import { DisposableResizeObserver, getWindow } from "src/cs/base/browser/dom";
 import SplitView, {
   type SplitViewPane,
   type SplitViewResizeEvent,
@@ -32,7 +31,6 @@ export {
 export type { LayoutView } from "src/cs/workbench/services/layout/browser/layoutService";
 
 export const MAIN_MIN_WIDTH_PX = 220;
-export const WORKBENCH_STACK_LAYOUT_THRESHOLD_PX = 860;
 export const TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX = 250;
 
 export type LayoutParts = {
@@ -118,7 +116,6 @@ export class Layout extends Disposable {
   private readonly controller = document.createElement("div");
   private readonly shell = document.createElement("div");
   private parts: LayoutParts = {};
-  private isStacked = false;
 
   public readonly element = document.createElement("div");
 
@@ -151,12 +148,6 @@ export class Layout extends Disposable {
         }
       }));
     }
-    this._register(
-      new DisposableResizeObserver(getWindow(this.element), () => {
-        this.syncResponsiveState();
-      }).observe(this.element),
-    );
-    this.syncResponsiveState();
   }
 
   public mount(parent: HTMLElement): void {
@@ -211,6 +202,7 @@ export class Layout extends Disposable {
   public resetLayoutState(): void {
     this.workbenchLayoutService?.resetLayoutState();
     this.sidebarPart.resetWidth();
+    this.splitView.clear();
     this.render();
   }
 
@@ -291,17 +283,13 @@ export class Layout extends Disposable {
 
   private renderSplit(): void {
     const panes = this.getSplitPanes();
-    const orientation = this.isStacked ? "vertical" : "horizontal";
-    const shellClassName = this.isStacked
-      ? "workbench_layout_shell workbench_layout_shell--stacked"
-      : "workbench_layout_shell";
 
     if (!this.splitView.current) {
       this.splitView.current = new SplitView({
         className: "workbench_layout_split",
         gap: 0,
         onDidResizeEnd: (event) => this.handleResizeEnd(event),
-        orientation,
+        orientation: "horizontal",
         panes,
       });
     } else {
@@ -309,7 +297,7 @@ export class Layout extends Disposable {
         className: "workbench_layout_split",
         gap: 0,
         onDidResizeEnd: (event) => this.handleResizeEnd(event),
-        orientation,
+        orientation: "horizontal",
         panes,
       });
     }
@@ -320,7 +308,7 @@ export class Layout extends Disposable {
     splitView
       .getPaneElement(WorkbenchAuxiliaryBarPaneId)
       ?.replaceChildren(this.auxiliaryBar);
-    this.shell.className = shellClassName;
+    this.shell.className = "workbench_layout_shell";
     this.shell.replaceChildren(splitView.element);
     this.element.replaceChildren(
       this.controller,
@@ -330,25 +318,6 @@ export class Layout extends Disposable {
   }
 
   private getSplitPanes(): readonly SplitViewPane[] {
-    if (this.isStacked) {
-      const panes: SplitViewPane[] = [];
-
-      if (this.shouldRenderSidebar()) {
-        panes.push(this.sidebarPart.createDefaultSplitPane());
-      }
-
-      panes.push({
-        id: "workbench-main",
-        minSize: 320,
-      });
-
-      if (isWorkbenchView(this.activeView) && this.parts.auxiliaryBar) {
-        panes.push(this.auxiliaryBarPart.createDefaultSplitPane());
-      }
-
-      return panes;
-    }
-
     const panes: SplitViewPane[] = [];
 
     if (this.shouldRenderSidebar()) {
@@ -368,7 +337,7 @@ export class Layout extends Disposable {
   }
 
   private handleResizeEnd({ sizes }: SplitViewResizeEvent): void {
-    if (this.isStacked || sizes.length < 1) {
+    if (sizes.length < 1) {
       return;
     }
 
@@ -387,18 +356,6 @@ export class Layout extends Disposable {
     ) {
       this.auxiliaryBarPart.resize(nextAuxiliaryBarWidth);
     }
-  }
-
-  private syncResponsiveState(): void {
-    const nextIsStacked =
-      this.element.clientWidth > 0 &&
-      this.element.clientWidth < WORKBENCH_STACK_LAYOUT_THRESHOLD_PX;
-    if (nextIsStacked === this.isStacked) {
-      return;
-    }
-
-    this.isStacked = nextIsStacked;
-    this.render();
   }
 
   override dispose(): void {

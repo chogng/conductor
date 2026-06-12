@@ -8,64 +8,88 @@ import {
   attachOriginCsvPaths,
   buildOriginCsvJobs,
   canRunOriginCsv,
+  exportOriginZip,
   fillMissingOriginCsvText,
   runOriginCsvJobs,
+  type OriginCsvRequestBuilder,
+  type OriginDisplayRange,
+  type OriginExportPlanLike,
+  type OriginPayloadBuilder,
   type OriginZipExportResult,
 } from "src/cs/workbench/services/origin/browser/originController";
-import type { OriginExportPlan } from "src/cs/workbench/services/export/common/originExport";
-import type {
-  OriginExportExecutionContext,
-  OriginMutableRef,
-} from "src/cs/workbench/services/export/common/export";
 import { formatOriginBridgeError } from "src/cs/workbench/services/export/common/originBridgeError";
+import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
-export type OriginControllerOptions = OriginExportExecutionContext & {
-  originBusyRef: OriginMutableRef<boolean>;
+export type OriginControllerOptions = {
+  readonly buildCsvExportRequest: OriginCsvRequestBuilder;
+  readonly buildPayloads: OriginPayloadBuilder;
+  readonly originAxisSettings: unknown;
+  readonly originBusyRef: { current: boolean };
+  readonly originChartXRange: OriginDisplayRange | null;
+  readonly originChartYRange: (OriginDisplayRange & { mode: "linear" | "log" }) | null;
+  readonly originOpenPlotOptions: unknown;
 };
 
-export type OpenInOriginOptions = OriginExportExecutionContext;
-export type ExportOriginZipOptions = Pick<
-  OriginExportExecutionContext,
-  "exportOriginZipFallback" | "showToast" 
->;
+export type OpenInOriginOptions = Omit<OriginControllerOptions, "originBusyRef">;
+export type ExportOriginZipOptions = {
+  readonly buildCsvExportRequest: OriginCsvRequestBuilder;
+  readonly buildPayloads: OriginPayloadBuilder;
+};
+
+const showOriginToast = (message: string, type?: unknown): void => {
+  const toastType =
+    type === "error" || type === "warning" || type === "info" || type === "success"
+      ? type
+      : "success";
+  notificationService.showToast({
+    id: "workbench.originExport",
+    message,
+    type: toastType,
+  });
+};
 
 const getOriginOpenSuccessMessage = (
-  result: OriginExportPlan,
+  result: OriginExportPlanLike,
 ): { message: string; type: "success" } => {
-  if (result.mode === "merged" && result.totalCanvasCount > 1) {
+  const mode = result.mode;
+  const totalCanvasCount = result.totalCanvasCount ?? result.payloads.length;
+  const totalCurveCount = result.totalCurveCount ?? totalCanvasCount;
+  const mixedYScales = Boolean(result.mixedYScales);
+
+  if (mode === "merged" && totalCanvasCount > 1) {
     return {
       message: localize("origin.open.combinedSuccess", "Origin launched, and {curves} curve(s) from {files} file(s) were summarized into one worksheet.", {
-        curves: result.totalCurveCount,
-        files: result.totalCanvasCount,
+        curves: totalCurveCount,
+        files: totalCanvasCount,
       }),
       type: "success",
     };
   }
 
-  if (result.mode === "workbookBooks" && result.totalCanvasCount > 1) {
+  if (mode === "workbookBooks" && totalCanvasCount > 1) {
     return {
       message: localize("origin.open.workbookBooksSuccess", "Origin export tasks submitted for {count} thumbnail(s) into different workbooks of the same Origin window.", {
-        count: result.totalCanvasCount,
+        count: totalCanvasCount,
       }),
       type: "success",
     };
   }
 
-  if (result.mode === "workbookSheets" && result.totalCanvasCount > 1) {
+  if (mode === "workbookSheets" && totalCanvasCount > 1) {
     return {
-      message: result.mixedYScales
+      message: mixedYScales
         ? "Mixed linear/log export was split into separate Origin worksheets."
         : localize("origin.open.workbookSheetsSuccess", "Origin export tasks submitted for {count} thumbnail(s) into different worksheets of the same workbook.", {
-            count: result.totalCanvasCount,
+            count: totalCanvasCount,
           }),
       type: "success",
     };
   }
 
-  if (result.mode === "separate" && result.totalCanvasCount > 1) {
+  if (mode === "separate" && totalCanvasCount > 1) {
     return {
       message: localize("origin.open.batchSuccess", "Origin export tasks submitted for {count} thumbnail(s), one standalone Origin window each.", {
-        count: result.totalCanvasCount,
+        count: totalCanvasCount,
       }),
       type: "success",
     };
@@ -172,13 +196,11 @@ const getFallbackZipSuccessMessage = ({
 export const runOpenInOrigin = async ({
   buildCsvExportRequest,
   buildPayloads,
-  exportOriginZipFallback,
   originAxisSettings,
   originBusyRef,
-  originChartXRangeRef,
-  originChartYRangeRef,
+  originChartXRange,
+  originChartYRange,
   originOpenPlotOptions,
-  showToast,
 }: OriginControllerOptions): Promise<void> => {
   if (originBusyRef.current) return;
 
@@ -195,8 +217,8 @@ export const runOpenInOrigin = async ({
       result.mode === "workbookBooks" || result.mode === "workbookSheets";
     const originCsvJobs = buildOriginCsvJobs({
       axisSettings: originAxisSettings,
-      chartXRange: originChartXRangeRef.current,
-      chartYRange: originChartYRangeRef.current,
+      chartXRange: originChartXRange,
+      chartYRange: originChartYRange,
       plan: result,
       plotOptions: originOpenPlotOptions,
     });
@@ -216,30 +238,33 @@ export const runOpenInOrigin = async ({
     });
 
     const success = getOriginOpenSuccessMessage(result);
-    showToast(success.message, success.type);
+    showOriginToast(success.message, success.type);
   } catch (err) {
     const detail = formatOriginBridgeError(err);
     const code = String(detail.code || "").trim().toUpperCase();
 
     if (detail.code === "ORIGIN_EXE_REQUIRED") {
-      showToast(localize("origin.executable.required", "Please select Origin executable path first."), "error");
+      showOriginToast(localize("origin.executable.required", "Please select Origin executable path first."), "error");
     } else if (ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES.has(code)) {
       const fallbackReason = getFallbackReason(detail);
       try {
-        const fallback = await exportOriginZipFallback();
+        const fallback = await exportOriginZip({
+          buildCsvExportRequest,
+          buildPayloads,
+        });
         if (!fallback) return;
 
         const success = getFallbackZipSuccessMessage({
           fallback,
           fallbackReason,
         });
-        showToast(success.message, success.type);
+        showOriginToast(success.message, success.type);
       } catch (fallbackErr) {
         const fallbackMessage =
           fallbackErr instanceof Error
             ? fallbackErr.message
             : String(fallbackErr ?? localize("common.unknownError", "Unknown error"));
-        showToast(
+        showOriginToast(
           localize("origin.open.fallbackZip.failed", "Auto open failed, and ZIP fallback export failed: {error}", {
             error: fallbackMessage,
           }),
@@ -247,7 +272,7 @@ export const runOpenInOrigin = async ({
         );
       }
     } else {
-      showToast(
+      showOriginToast(
         localize("origin.open.failed", "Failed to open in Origin: {error}", { error: detail.messageText }),
         "error",
       );
@@ -258,18 +283,21 @@ export const runOpenInOrigin = async ({
 };
 
 export const runExportOriginZip = async ({
-  exportOriginZipFallback,
-  showToast,
+  buildCsvExportRequest,
+  buildPayloads,
 }: ExportOriginZipOptions): Promise<void> => {
   try {
-    const exported = await exportOriginZipFallback();
+    const exported = await exportOriginZip({
+      buildCsvExportRequest,
+      buildPayloads,
+    });
     if (!exported) return;
 
     const success = getOriginZipSuccessMessage(exported);
-    showToast(success.message, success.type);
+    showOriginToast(success.message, success.type);
   } catch (err) {
     const message =
       err instanceof Error ? err.message : String(err ?? localize("common.unknownError", "Unknown error"));
-    showToast(localize("origin.open.fallbackZip.failed", "Auto open failed, and ZIP fallback export failed: {error}", { error: message }), "error");
+    showOriginToast(localize("origin.open.fallbackZip.failed", "Auto open failed, and ZIP fallback export failed: {error}", { error: message }), "error");
   }
 };

@@ -38,20 +38,22 @@ It does not own:
 | File | Responsibility |
 | --- | --- |
 | `src/cs/workbench/services/chart/common/chart.ts` | Defines `IChartService`, chart shell state, pane state, chart events, and chart commands. |
-| `src/cs/workbench/services/chart/browser/chartService.ts` | Owns chart shell state and publishes chart view input supplied from Plot/Workbench projections. No raw session data extraction. |
-| `src/cs/workbench/services/chart/browser/chart.contribution.ts` | Registers chart service and chart lifecycle contribution. |
-| `src/cs/workbench/contrib/chart/browser/chartViewPane.ts` | View pane shell. Hosts header, actions, detail pane, and plot view. Delegates data to services. |
+| `src/cs/workbench/services/chart/browser/chartService.ts` | Owns chart shell state and publishes chart shell input. No raw session data extraction, no Plot model creation, and no view-local request events. |
+| `src/cs/workbench/contrib/chart/browser/chart.contribution.ts` | Registers chart commands and the chart view contribution. |
+| `src/cs/workbench/contrib/chart/browser/chartViewPane.ts` | View pane shell. Hosts header, actions, detail pane, and plot view. Subscribes to owner services and rereads Plot/Settings state through public APIs. |
 | `src/cs/workbench/contrib/chart/browser/chartPanel.ts` | Chart panel composition. Receives plot/chart props. No session reads. |
 | `src/cs/workbench/contrib/chart/browser/chartActions.ts` | Chart shell actions: inspector, legend, pane toggles. Handlers call `IChartService` or `IPlotService`. |
+| `src/cs/workbench/contrib/chart/browser/chartTitleEditService.ts` | Conductor-specific workflow bridge for command-dispatched axis-title edit focus. It calls the registered `ChartViewPane` handler and does not own chart state. |
 | `src/cs/workbench/contrib/chart/browser/chartFileSelect.ts` | UI selector adapter. Target: ask Explorer/Plot services for options instead of reading session directly. |
 
 ## Flow
 
 ```mermaid
 flowchart TD
-    Plot[IPlotService] --> ChartService[IChartService]
-    ChartService --> ViewInput[ChartViewInput]
+    ChartService[IChartService] --> ViewInput[ChartViewInput: chart shell refs]
     ViewInput --> ChartViewPane[ChartViewPane]
+    Plot[IPlotService] --> ChartViewPane
+    Settings[ISettingsService] --> ChartViewPane
     ChartViewPane --> PlotView[PlotMainView]
     PlotView --> Canvas[Chart drawing widget]
 ```
@@ -89,6 +91,7 @@ Recommended files:
 | --- | --- |
 | `src/cs/workbench/contrib/chart/browser/chartCommands.ts` | Registers toggle legend, toggle inspector, focus chart, edit chart title commands. |
 | `src/cs/workbench/contrib/chart/browser/chartActions.ts` | Header buttons/menu entries for chart commands. |
+| `src/cs/workbench/contrib/chart/browser/chartTitleEditService.ts` | Explicit command-to-view workflow bridge for axis-title edit focus. |
 | `src/cs/workbench/services/chart/browser/chartService.ts` | Owns chart shell state and publishes chart view input. |
 
 Boundary:
@@ -96,6 +99,7 @@ Boundary:
 ```txt
 plot type / unit / scale / series visibility -> IPlotService
 legend popover / inspector pane / chart focus -> IChartService
+axis-title edit focus command -> IChartTitleEditService -> ChartViewPane registered handler
 ```
 
 If a chart header button changes plot type, it should execute a plot command, not a chart command.
@@ -106,20 +110,55 @@ Chart view plot-control wiring:
 sequenceDiagram
     actor User
     participant ChartViewPane
+    participant ExplorerService as IExplorerService
     participant PlotService as IPlotService
     participant Workbench
     participant ChartService as IChartService
 
-    User->>ChartViewPane: change plot type / edit axis title / edit legend label
-    ChartViewPane->>PlotService: setActivePlotType / setAxisTitleOverride / setLegendLabel
-    PlotService-->>Workbench: onDidChangePlotState
+    User->>ChartViewPane: select chart file
+    ChartViewPane->>ExplorerService: select({ kind: chart, fileId }, force)
+    ExplorerService-->>Workbench: onDidChangeSelection
     Workbench->>ChartService: updateViewInput(next input)
-    ChartService-->>ChartViewPane: onDidChangeChartViewInput
-    ChartViewPane->>ChartViewPane: render from current input and service state
+    User->>ChartViewPane: change plot type / unit / scale / edit axis title / edit legend label
+    ChartViewPane->>PlotService: setActivePlotType / setAxisUnit / setYScale / setAxisTitleOverride / setLegendLabel
+    PlotService-->>ChartViewPane: onDidChangePlotState
+    ChartViewPane->>PlotService: getPlotDisplayModel / getPlotLegendModel / getLegendLabels
+    ChartViewPane->>ChartViewPane: render from current service state
+```
+
+Axis-title edit focus command wiring:
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant CommandService as ICommandService
+    participant ChartCommand as chartCommands.ts
+    participant TitleEditService as IChartTitleEditService
+    participant ChartViewPane
+    participant ChartPanel
+
+    User->>CommandService: execute edit x/y axis title command
+    CommandService->>ChartCommand: handler(axis, pane)
+    ChartCommand->>TitleEditService: editAxisTitle({ axis, pane })
+    TitleEditService->>ChartViewPane: call registered handler
+    ChartViewPane->>ChartPanel: editAxisTitle(pane, axis)
 ```
 
 Do not pass Plot-owned behavior through `ChartViewInput` callbacks when
 `ChartViewPane` can call the `IPlotService` owner API directly.
+Do not pass Plot display models or legend models through `ChartViewInput`;
+`ChartViewPane` subscribes to `IPlotService` and rereads the current display
+model, legend model, and legend labels from Plot.
+Do not pass Explorer selection through `ChartViewInput` callbacks; chart file
+selection is translated by `ChartViewPane` into `IExplorerService.select(...)`.
+Do not pass settings mutations through `ChartViewInput`; settings panes write
+through `ISettingsService` owner APIs and only consume projected settings data.
+Do not pass plot rendering settings through Chart input when the chart view can
+read them from `ISettingsService`.
+Do not publish `onDidRequest*` events from `IChartService` for view-local focus
+workflows. Use an explicit contrib/chart workflow service and handler
+registration when a command needs the current chart view to focus or enter edit
+mode.
 
 ## Do not
 
@@ -135,24 +174,19 @@ Do not pass Plot-owned behavior through `ChartViewInput` callbacks when
 
 | Field | Meaning |
 | --- | --- |
-| `visibleDetailPanes` | Open panes such as inspector. |
-| `legendPopoverOpen` | Whether legend popover is open. |
-| `inspectorVisible` | Whether inspector pane is visible. |
-| `headerVisible` | Whether chart header/actions are visible. |
-| `lastRenderedPlotModelId` | Last plot render model shown by chart. |
+| `visibleDetailPanes` | Open detail panes such as inspector. |
+| `hiddenLegendKeysByContext` | Chart-owned legend visibility overrides keyed by file/plot context. |
+| `legendPopoverContextKey` | Current legend popover context key, or null when closed. |
 
 ### `ChartViewInput`
 
 | Field | Meaning |
 | --- | --- |
-| `visiblePanes` | Chart-owned visible pane ids such as chart and inspector. |
 | `activePlotType` | Plot type currently shown, from Plot state. |
 | `activeFileId` | File selected for chart display. |
 | `chartFileOptions` | File selector options projected for chart mode. |
-| `createPlotDisplayModel` | Plot display-model request function backed by `IPlotService`. |
-| `plotLegendModel` | Legend display model from `IPlotService`. |
 | `processingStatus` | Template processing status shown by chart UI. |
-| `plotAxisSettings` / `originOpenPlotOptions` | Workbench/core settings projected into chart controls. |
-| `onActiveFileIdChange` / settings callbacks | Temporary Workbench/settings bridges. Do not add Plot-owned behavior callbacks when `ChartViewPane` can call `IPlotService` directly. |
+| `showFileSelect` | Whether the chart header should show the chart file selector. |
+| `shouldMountCharts` | Whether chart rendering modules are still mounting. |
 
 Chart state is shell state. Plot data, units, scale, series visibility, domains, and labels belong to Plot.

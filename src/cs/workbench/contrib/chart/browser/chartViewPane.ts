@@ -21,7 +21,10 @@ import {
 import {
   createFileSelect,
 } from "src/cs/workbench/contrib/chart/browser/chartFileSelect";
-import { resolveActiveChartFileOption } from "src/cs/workbench/services/chart/common/chartFileOptions";
+import {
+  resolveActiveChartFileOption,
+  resolveChartFileOptions,
+} from "src/cs/workbench/services/chart/common/chartFileOptions";
 import { createLegendPopover, getLegendContext, type LegendContext } from "src/cs/workbench/contrib/chart/browser/chartLegend";
 import { toChartPanelProps } from "src/cs/workbench/contrib/chart/browser/chartPaneState";
 import { createChartUnitControls, type ChartUnitAxis, type ChartUnitControlState, type ChartYScale } from "src/cs/workbench/contrib/chart/browser/chartUnitControls";
@@ -33,11 +36,18 @@ import {
 } from "src/cs/workbench/services/plot/common/plot";
 import type { XUnit, YUnit } from "src/cs/workbench/services/plot/common/units";
 import {
+  getOriginOpenPlotOptions,
+  ISettingsService,
+} from "src/cs/workbench/services/settings/common/settings";
+import {
   IChartService,
   type ChartAxisTitleEditRequest,
   type ChartDetailPane,
 } from "src/cs/workbench/services/chart/common/chart";
+import { IChartTitleEditService } from "src/cs/workbench/contrib/chart/browser/chartTitleEditService";
+import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
+import type { ChartViewProps } from "src/cs/workbench/contrib/chart/browser/views/chartView";
 
 import "src/cs/workbench/contrib/chart/browser/media/chart.css";
 
@@ -57,7 +67,10 @@ export class ChartViewPane extends ViewPane {
 
   constructor(
     @IChartService private readonly chartService: IChartService,
+    @IChartTitleEditService private readonly chartTitleEditService: IChartTitleEditService,
+    @IExplorerService private readonly explorerService: IExplorerService,
     @IPlotService private readonly plotService: IPlotService,
+    @ISettingsService private readonly settingsService: ISettingsService,
   ) {
     super({
       id: ChartViewId,
@@ -91,13 +104,23 @@ export class ChartViewPane extends ViewPane {
       this.updateChartPanel(this.props);
       this.refreshLegendPopover();
     }));
+    this.paneStore.add(this.plotService.onDidChangePlotState(() => {
+      this.renderHeader(this.props);
+      this.updateChartPanel(this.props);
+      this.refreshLegendPopover();
+    }));
+    this.paneStore.add(this.settingsService.onDidChangeConductorSettings(() => {
+      this.renderHeader(this.props);
+      this.updateChartPanel(this.props);
+      this.refreshLegendPopover();
+    }));
     this.paneStore.add(this.chartService.onDidChangeChartViewInput(input => {
       if (input) {
         this.update(input);
       }
     }));
-    this.paneStore.add(this.chartService.onDidRequestAxisTitleEdit(request => {
-      this.editAxisTitleRequest(request);
+    this.paneStore.add(this.chartTitleEditService.registerHandler({
+      editAxisTitle: request => this.editAxisTitleRequest(request),
     }));
     this.body.append(this.previewPart);
     this.update(this.chartService.getViewInput() ?? this.props);
@@ -156,8 +179,21 @@ export class ChartViewPane extends ViewPane {
     this.headerActions.append(this.createHeaderActions(props));
 
     if (activeFile && props.showFileSelect !== false) {
-      this.headerActions.append(createFileSelect(props, activeFile, this.headerStore));
+      this.headerActions.append(createFileSelect(
+        props,
+        activeFile,
+        this.headerStore,
+        fileId => this.selectChartFile(fileId, props),
+      ));
     }
+  }
+
+  private selectChartFile(fileId: string | null, props: ChartViewInput): void {
+    this.explorerService.select({
+      candidateFileIds: resolveChartFileOptions(props).map(option => option.fileId),
+      fileId: normalizeChartFileId(fileId),
+      kind: "chart",
+    }, "force");
   }
 
   private setActivePlotType(plotType: PlotType): void {
@@ -177,7 +213,7 @@ export class ChartViewPane extends ViewPane {
     this.chartPanel.update(this.getChartPanelProps(props));
   }
 
-  private getChartPanelProps(props: ChartViewInput): ChartViewInput {
+  private getChartPanelProps(props: ChartViewInput): ChartViewProps {
     const legendContext = this.getCurrentLegendContext(props);
     const hiddenLegendKeys = this.getHiddenLegendKeys(legendContext);
     const legendLabels = this.getLegendLabels(legendContext);
@@ -185,15 +221,16 @@ export class ChartViewPane extends ViewPane {
       props,
       this.getActivePlotType(),
       this.chartService.getState().visibleDetailPanes,
+    );
+    const plotDisplayModel = this.getPlotDisplayModel(
+      props,
       hiddenLegendKeys,
       legendLabels,
     );
-    const plotDisplayModel = props.createPlotDisplayModel?.({
-      hiddenLegendKeys,
-      legendLabels,
-    }) ?? props.plotDisplayModel ?? null;
     const displayProps = {
       ...baseProps,
+      originOpenPlotOptions: getOriginOpenPlotOptions(this.settingsService.getConductorSettings()),
+      plotAxisSettings: this.settingsService.getConductorSettings()?.plotAxisSettings,
       plotDisplayModel,
     };
     return {
@@ -246,21 +283,28 @@ export class ChartViewPane extends ViewPane {
     axis: ChartUnitAxis,
     unit: XUnit | YUnit,
   ): void {
-    this.props.onPlotUnitChange?.(fileId, axis, unit);
+    void this.plotService.setAxisUnit(fileId, axis, unit);
   }
 
   private updatePlotYScale(fileId: string, scale: ChartYScale): void {
-    this.props.onPlotYScaleChange?.(fileId, scale);
+    void this.plotService.setYScale(fileId, scale);
   }
 
   private getUnitControlState(props: ChartViewInput): ChartUnitControlState | null {
     return this.getPlotDisplayModel(props)?.unitControl ?? null;
   }
 
-  private getPlotDisplayModel(props: ChartViewInput): PlotDisplayModel | null {
-    return props.plotDisplayModel ??
-      props.createPlotDisplayModel?.({}) ??
-      null;
+  private getPlotDisplayModel(
+    props: ChartViewInput,
+    hiddenLegendKeys: readonly string[] = [],
+    legendLabels: Readonly<Record<string, string>> = {},
+  ): PlotDisplayModel | null {
+    return this.plotService.getPlotDisplayModel({
+      fileId: props.activeFileId ?? null,
+      hiddenLegendKeys,
+      legendLabels,
+      plotType: this.getActivePlotType(),
+    });
   }
 
   private updateChartPanelTabState(): void {
@@ -388,7 +432,7 @@ export class ChartViewPane extends ViewPane {
       return;
     }
 
-    const legend = createLegendPopover(this.props, context, {
+    const legend = createLegendPopover(context, {
       hiddenLegendKeys: this.getHiddenLegendKeys(context),
       legendLabels: this.getLegendLabels(context),
       onToggleLegendItem: (legendKey) => this.toggleLegendItem(context, legendKey),
@@ -449,7 +493,14 @@ export class ChartViewPane extends ViewPane {
   }
 
   private getCurrentLegendContext(props: ChartViewInput): LegendContext | null {
-    return getLegendContext(props, this.getActivePlotType());
+    const plotType = this.getActivePlotType();
+    return getLegendContext(
+      this.plotService.getPlotLegendModel({
+        fileId: props.activeFileId ?? null,
+        plotType,
+      }),
+      plotType,
+    );
   }
 
   private getHiddenLegendKeys(context: LegendContext | null): readonly string[] {
@@ -470,7 +521,7 @@ export class ChartViewPane extends ViewPane {
     }
 
     const liveLegendKeys = new Set(context.seriesList.map((series) => series.id));
-    const labels = this.props.legendLabels ?? {};
+    const labels = this.plotService.getLegendLabels(context.fileId);
     const next: Record<string, string> = {};
     for (const [legendKey, label] of Object.entries(labels)) {
       if (liveLegendKeys.has(legendKey)) {
@@ -491,6 +542,11 @@ const EMPTY_CHART_VIEW_INPUT: ChartViewInput = {
   chartFileOptions: [],
   hasChartData: false,
   shouldMountCharts: false,
+};
+
+const normalizeChartFileId = (fileId: unknown): string | null => {
+  const normalized = String(fileId ?? "").trim();
+  return normalized || null;
 };
 
 export default ChartViewPane;

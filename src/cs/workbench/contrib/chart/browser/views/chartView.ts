@@ -8,6 +8,9 @@ import type {
   ChartPane,
   ChartViewInput,
 } from "src/cs/workbench/services/chart/common/chartViewInput";
+import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
+import type { PlotDisplayModel } from "src/cs/workbench/services/plot/common/plot";
+import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 import { createEmptyView } from "src/cs/workbench/contrib/chart/browser/views/emptyView";
 import type {
   ProcessingStatus,
@@ -16,7 +19,20 @@ import type {
 import "src/cs/workbench/contrib/chart/browser/views/media/chartView.css";
 
 export type { ChartPane };
-export type ChartViewProps = ChartViewInput;
+export type ChartViewProps = ChartViewInput & {
+  readonly inspectorXAxisLabelOverride?: string;
+  readonly inspectorYAxisLabelOverride?: string;
+  readonly onInspectorXAxisLabelChange?: (nextLabel: string) => void;
+  readonly onInspectorYAxisLabelChange?: (nextLabel: string) => void;
+  readonly onXAxisLabelChange?: (nextLabel: string) => void;
+  readonly onYAxisLabelChange?: (nextLabel: string) => void;
+  readonly originOpenPlotOptions?: OriginPlotOptions;
+  readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
+  readonly plotDisplayModel?: PlotDisplayModel | null;
+  readonly visiblePanes?: readonly ChartPane[];
+  readonly xAxisLabelOverride?: string;
+  readonly yAxisLabelOverride?: string;
+};
 
 export type ChartViewElement = HTMLElement & {
   readonly dispose?: () => void;

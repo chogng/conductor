@@ -28,6 +28,7 @@ import {
   isAutoTemplateId,
 } from "src/cs/workbench/services/template/common/autoTemplate";
 import type {
+  ITemplateApplyWorkflowService,
   ITemplateService,
   TemplateMode,
   TemplateRecord,
@@ -55,19 +56,20 @@ import "src/cs/workbench/contrib/template/browser/views/media/templateView.css";
 export type TemplateViewOptions = {
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly templateImportController: TemplateImportController;
+  readonly templateApplyWorkflowService: Pick<
+    ITemplateApplyWorkflowService,
+    | "applyTemplate"
+    | "applyTemplateIncremental"
+  >;
   readonly templateService: ITemplateService;
-  rawFiles?: SessionFile[];
-  tableService?: Pick<
+  readonly rawFiles?: SessionFile[];
+  readonly tableService?: Pick<
     ITableService,
     | "clearHighlight"
     | "getSelection"
     | "onDidChangeSelection"
     | "select"
   >;
-  onTemplateApplied?: (config: Record<string, unknown>) => unknown;
-  onTemplateAppliedIncremental?: (config: Record<string, unknown>) => unknown;
-  conductorSettings?: Record<string, unknown> | null;
-  onUpdateSettings?: (updates: Record<string, unknown>) => Promise<unknown> | unknown;
 };
 
 let cachedTemplates: TemplateRecord[] | null = null;
@@ -685,9 +687,15 @@ export class TemplateView {
     const selectedTemplateId = this.readSelectedTemplateId();
     if (!selectedTemplateId || isAutoTemplateId(selectedTemplateId)) {
       if (incremental) {
-        this.props.onTemplateAppliedIncremental?.({ ...config, [AUTO_TEMPLATE_CONFIG_FIELD]: true });
+        this.props.templateApplyWorkflowService.applyTemplateIncremental({
+          ...config,
+          [AUTO_TEMPLATE_CONFIG_FIELD]: true,
+        });
       } else {
-        this.props.onTemplateApplied?.({ ...config, [AUTO_TEMPLATE_CONFIG_FIELD]: true });
+        this.props.templateApplyWorkflowService.applyTemplate({
+          ...config,
+          [AUTO_TEMPLATE_CONFIG_FIELD]: true,
+        });
       }
       return;
     }
@@ -699,9 +707,13 @@ export class TemplateView {
     }
 
     if (incremental) {
-      this.props.onTemplateAppliedIncremental?.({ ...validation.normalized });
+      this.props.templateApplyWorkflowService.applyTemplateIncremental({
+        ...validation.normalized,
+      });
     } else {
-      this.props.onTemplateApplied?.({ ...validation.normalized });
+      this.props.templateApplyWorkflowService.applyTemplate({
+        ...validation.normalized,
+      });
     }
   }
 

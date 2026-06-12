@@ -23,7 +23,6 @@ import {
 } from "src/cs/workbench/services/plot/common/plotSettings";
 import {
   ISettingsService,
-  type ISettingsService as ISettingsServiceType,
   type OriginSettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
 
@@ -31,6 +30,10 @@ import "src/cs/workbench/contrib/origin/browser/media/originSettingsViewPane.css
 import "src/cs/workbench/browser/parts/views/media/views.css";
 
 export type OriginSettingsViewPaneOptions = OriginSettingsViewInput;
+
+type OriginSettingsChangeHandler = (
+  updates: Partial<OriginPlotOptions>,
+) => void | Promise<void>;
 
 export class OriginSettingsViewPane extends ViewPane {
   private readonly collapsedSectionIds = new Set<string>(["origin-advanced-plot-settings"]);
@@ -42,7 +45,7 @@ export class OriginSettingsViewPane extends ViewPane {
   });
 
   constructor(
-    @ISettingsService private readonly settingsService: ISettingsServiceType,
+    @ISettingsService private readonly settingsService: ISettingsService,
   ) {
     super({
       id: OriginExportSettingsViewId,
@@ -61,8 +64,6 @@ export class OriginSettingsViewPane extends ViewPane {
 
   public update({
     axisSettings,
-    onAxisChange,
-    onChange,
     options,
   }: OriginSettingsViewPaneOptions): void {
     this.renderStore.clear();
@@ -76,8 +77,12 @@ export class OriginSettingsViewPane extends ViewPane {
     view.append(createOriginSettingsView({
       axisSettings: normalizePlotAxisSettings(axisSettings, DEFAULT_PLOT_AXIS_SETTINGS),
       isSectionCollapsed: id => this.collapsedSectionIds.has(id),
-      onAxisChange,
-      onChange,
+      onAxisChange: updates => {
+        void this.settingsService.updatePlotAxisSettings(updates);
+      },
+      onChange: updates => {
+        void this.settingsService.updateOriginPlotOptions(updates);
+      },
       onSectionToggle: (id, collapsed) => {
         if (collapsed) {
           this.collapsedSectionIds.add(id);
@@ -513,7 +518,7 @@ const createAxisSettingsGroup = ({
 
 const createPlotTypeSelect = (
   options: OriginPlotOptions,
-  onChange: OriginSettingsViewPaneOptions["onChange"],
+  onChange: OriginSettingsChangeHandler | undefined,
   store: DisposableStore,
 ): HTMLElement =>
   createSettingsDropdown({
@@ -592,7 +597,7 @@ const createSettingsDropdown = <T extends string>({
 
 const createLineWidthInput = (
   options: OriginPlotOptions,
-  onChange: OriginSettingsViewPaneOptions["onChange"],
+  onChange: OriginSettingsChangeHandler | undefined,
   store: DisposableStore,
 ): HTMLElement => {
   const input = document.createElement("input");
@@ -735,7 +740,7 @@ const createTextInput = ({
 
 const createPostCommandsInput = (
   options: OriginPlotOptions,
-  onChange: OriginSettingsViewPaneOptions["onChange"],
+  onChange: OriginSettingsChangeHandler | undefined,
   store: DisposableStore,
 ): HTMLTextAreaElement => {
   const textarea = document.createElement("textarea");

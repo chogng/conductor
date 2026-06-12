@@ -42,6 +42,7 @@ It does not own:
 | `src/cs/workbench/services/table/common/table.ts` | Defines `ITableService`, `TableState`, `TableSelection`, `TableHighlight`, `TableSource`, row request types. |
 | `src/cs/workbench/services/table/common/tableModel.ts` | Pure table display model types: raw table view, block table view, column display metadata. |
 | `src/cs/workbench/services/table/browser/tableService.ts` | Owns table state, row caches, selection events, row paging, and table source switching. |
+| `src/cs/workbench/services/table/browser/tableDropTargetService.ts` | Browser-only registry for the table preview DOM drop target used by cross-feature drop controllers. No table data state. |
 | `src/cs/workbench/services/table/browser/tableRowCacheModel.ts` | Row chunking, row-cache merge/prune, loaded range calculation, and row-cache version notifications. |
 | `src/cs/workbench/services/table/browser/tableCellReadModel.ts` | Converts table cell-read payloads into cached row arrays. |
 | `src/cs/workbench/services/table/browser/tableBackendLifecycle.contribution.ts` | Clears table backend temporary files during workbench shutdown. The desktop implementation is Rust-backed, but the service contract stays runtime-neutral. |

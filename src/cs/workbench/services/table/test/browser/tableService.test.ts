@@ -248,6 +248,12 @@ suite("workbench/services/table/browser/tableService", () => {
     });
 
     service.updateViewInput(input);
+    service.updateViewInput({
+      tableModel: model,
+      tableState: {
+        ...model.getState(),
+      },
+    });
 
     assert.equal(service.getViewInput(), input);
     assert.deepEqual(inputs, [input]);
@@ -256,7 +262,7 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("owns preview lifecycle when the selected source changes", () => {
-    const service = new TableService(createTableBackendService() as never);
+    const scopeRef = { current: null };
     const rawFiles = [
       {
         file: {},
@@ -269,7 +275,7 @@ suite("workbench/services/table/browser/tableService", () => {
         fileName: "Raw B.csv",
       },
     ];
-    service.update({
+    createTableModelWithScope({
       file: {
         columnCount: 2,
         fileId: "file-a",
@@ -280,17 +286,20 @@ suite("workbench/services/table/browser/tableService", () => {
       },
       rawFiles,
       source: { fileId: "file-a" },
+      tableBackendService: createTableBackendService(),
+      workerRef: scopeRef,
     });
 
-    const model = service.update({
+    const model = createTableModelWithScope({
       rawFiles,
       source: { fileId: "file-b" },
+      tableBackendService: createTableBackendService(),
+      workerRef: scopeRef,
     });
 
     assert.equal(model.getState().selectedFileId, "file-b");
     assert.equal(model.getState().file, null);
     assert.equal(model.getState().loadState.state, "loading");
-    service.dispose();
   });
 
   test("keeps an active preview request across equivalent caller refreshes", async () => {
@@ -349,9 +358,6 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("clears preview lifecycle when the selected source version changes", () => {
-    const service = new TableService(createTableBackendService({
-      canOpenFile: () => false,
-    }) as never);
     const rawFiles = [{
       file: {},
       fileId: "file-a",
@@ -360,7 +366,7 @@ suite("workbench/services/table/browser/tableService", () => {
       sourceVersion: 2,
     }];
 
-    const model = service.update({
+    const model = createTableModelWithScope({
       file: {
         columnCount: 2,
         fileId: "file-a",
@@ -372,19 +378,21 @@ suite("workbench/services/table/browser/tableService", () => {
       },
       rawFiles,
       source: { fileId: "file-a" },
+      tableBackendService: createTableBackendService({
+        canOpenFile: () => false,
+      }),
     });
 
     assert.equal(model.getState().selectedFileId, "file-a");
     assert.equal(model.getState().file, null);
     assert.equal(model.getState().loadState.state, "loading");
-    service.dispose();
   });
 
   test("executes table commands through the service active model", () => {
     const service = new TableService(createTableBackendService() as never);
     assert.equal(service.executeCommand(TableCommandId.zoomIn), false);
 
-    const model = service.update({
+    const model = createReadyTableModel({
       file: {
         columnCount: 2,
         fileId: "file-a",
@@ -400,6 +408,7 @@ suite("workbench/services/table/browser/tableService", () => {
       }],
       source: { fileId: "file-a" },
     });
+    service.updateViewInput(createTableViewInput(model));
 
     assert.equal(service.executeCommand(TableCommandId.zoomIn), true);
     assert.equal(model.getState().zoomPercent, 110);
@@ -420,7 +429,7 @@ suite("workbench/services/table/browser/tableService", () => {
       cell: { colIndex: 0, rowIndex: 0 },
     }), false);
 
-    const model = service.update({
+    const model = createReadyTableModel({
       file: {
         columnCount: 3,
         fileId: "source-key-a",
@@ -439,6 +448,7 @@ suite("workbench/services/table/browser/tableService", () => {
       }],
       source: { fileId: "file-a", sheetId: "sheet-a" },
     });
+    service.updateViewInput(createTableViewInput(model));
 
     assert.deepEqual(service.getSelection(), normalizeTableSelection(null));
     assert.equal(service.select({
@@ -491,7 +501,7 @@ suite("workbench/services/table/browser/tableService", () => {
 
   test("clears table highlight through the service owner API", () => {
     const service = new TableService(createTableBackendService() as never);
-    const model = service.update({
+    const model = createReadyTableModel({
       file: {
         columnCount: 3,
         fileId: "file-a",
@@ -507,6 +517,7 @@ suite("workbench/services/table/browser/tableService", () => {
       }],
       source: { fileId: "file-a" },
     });
+    service.updateViewInput(createTableViewInput(model));
 
     model.highlightColumns([1, 2]);
     assert.deepEqual(model.getHighlight().columns, [1, 2]);
@@ -524,7 +535,7 @@ suite("workbench/services/table/browser/tableService", () => {
       cell: { colIndex: 0, rowIndex: 0 },
     }), false);
 
-    const model = service.update({
+    const model = createReadyTableModel({
       file: {
         columnCount: 3,
         fileId: "source-key-a",
@@ -543,6 +554,7 @@ suite("workbench/services/table/browser/tableService", () => {
       }],
       source: { fileId: "file-a", sheetId: "sheet-a" },
     });
+    service.updateViewInput(createTableViewInput(model));
 
     assert.equal(service.reveal({
       kind: "range",
@@ -587,7 +599,7 @@ suite("workbench/services/table/browser/tableService", () => {
     model.clearState();
 
     assert.deepEqual(workerMessages, [{
-      type: "previewDispose",
+      type: "tableDispose",
       payload: { clear: true },
     }]);
   });
@@ -642,8 +654,11 @@ suite("workbench/services/table/browser/tableService", () => {
       source: { fileId: "file-b" },
     });
 
-    assert.ok(resolveFirstOpen);
-    resolveFirstOpen({
+    assert.notEqual(resolveFirstOpen, null);
+    const completeFirstOpen = resolveFirstOpen as unknown as ((
+      value: Awaited<ReturnType<TableBackendPreviewProvider["openFile"]>>,
+    ) => void);
+    completeFirstOpen({
       ok: true,
       result: {
         columnCount: 2,
@@ -668,7 +683,7 @@ suite("workbench/services/table/browser/tableService", () => {
 
   test("clears published table view input on dispose", () => {
     const service = new TableService(createTableBackendService() as never);
-    const model = service.update({
+    const model = createReadyTableModel({
       file: {
         columnCount: 2,
         fileId: "file-a",
@@ -684,10 +699,7 @@ suite("workbench/services/table/browser/tableService", () => {
       }],
       source: { fileId: "file-a" },
     });
-    const input = {
-      tableModel: model,
-      tableState: model.getState(),
-    };
+    const input = createTableViewInput(model);
     const inputs: unknown[] = [];
     service.onDidChangeTableViewInput(nextInput => {
       inputs.push(nextInput);
@@ -716,4 +728,24 @@ const createTableBackendService = (
   readConvertedCsv: async () => ({ ok: false }),
   readCells: async () => ({}),
   ...overrides,
+});
+
+type CreateTableModelOptions = Parameters<typeof createTableModelWithScope>[0];
+
+const createReadyTableModel = ({
+  tableBackendService = createTableBackendService(),
+  workerRef = { current: null },
+  ...options
+}: CreateTableModelOptions) =>
+  createTableModelWithScope({
+    tableBackendService,
+    workerRef,
+    ...options,
+  });
+
+const createTableViewInput = (
+  tableModel: ReturnType<typeof createTableModelWithScope>,
+) => ({
+  tableModel,
+  tableState: tableModel.getState(),
 });

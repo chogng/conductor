@@ -50,25 +50,66 @@ export const getGridViewStyle = ({
     };
 };
 
-export const createGridView = ({
-  className = "",
-  gap = 0,
-  items,
-  orientation = "horizontal",
-  sizes,
-}: GridViewOptions): HTMLDivElement => {
-  const element = document.createElement("div");
-  element.className = getGridViewClassName(className);
-  element.dataset.orientation = orientation;
-  Object.assign(element.style, getGridViewStyle({ gap, orientation, sizes }));
+export class GridView {
+  public readonly element = document.createElement("div");
+  private readonly itemElements = new Map<string, HTMLElement>();
+  private options: GridViewOptions;
 
-  for (const item of items) {
-    const itemElement = document.createElement("div");
-    itemElement.className = getGridViewItemClassName(item.className);
-    itemElement.dataset.location = item.location.join(",");
-    itemElement.append(item.element);
-    element.append(itemElement);
+  constructor(options: GridViewOptions) {
+    this.options = options;
+    this.update(options);
   }
 
-  return element;
+  public update(options: GridViewOptions): void {
+    this.options = options;
+    this.applyRoot();
+    this.renderItems();
+  }
+
+  public layout({
+    gap = this.options.gap,
+    orientation = this.options.orientation,
+    sizes = this.options.sizes,
+  }: Partial<Pick<GridViewOptions, "gap" | "orientation" | "sizes">>): void {
+    Object.assign(
+      this.element.style,
+      getGridViewStyle({ gap, orientation, sizes }),
+    );
+  }
+
+  public getItemElement(location: GridLocation): HTMLElement | undefined {
+    return this.itemElements.get(toGridLocationKey(location));
+  }
+
+  private applyRoot(): void {
+    const { className = "", gap = 0, orientation = "horizontal", sizes } = this.options;
+    this.element.className = getGridViewClassName(className);
+    this.element.dataset.orientation = orientation;
+    Object.assign(this.element.style, getGridViewStyle({ gap, orientation, sizes }));
+  }
+
+  private renderItems(): void {
+    const nextKeys = new Set(this.options.items.map((item) => toGridLocationKey(item.location)));
+    for (const [key, element] of this.itemElements) {
+      if (!nextKeys.has(key)) {
+        element.remove();
+        this.itemElements.delete(key);
+      }
+    }
+
+    for (const item of this.options.items) {
+      const key = toGridLocationKey(item.location);
+      const itemElement = item.element;
+      itemElement.className = getGridViewItemClassName(item.className);
+      itemElement.dataset.location = key;
+      this.itemElements.set(key, itemElement);
+      this.element.append(itemElement);
+    }
+  }
 };
+
+export const createGridView = (options: GridViewOptions): HTMLDivElement =>
+  new GridView(options).element;
+
+const toGridLocationKey = (location: GridLocation): string =>
+  location.join(",");

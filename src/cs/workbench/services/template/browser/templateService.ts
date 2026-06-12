@@ -97,6 +97,10 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
   }
 
   updateViewInput(input: TemplateViewInput): void {
+    if (this.viewInput && isSameTemplateViewInput(this.viewInput, input)) {
+      return;
+    }
+
     this.viewInput = input;
     this.onDidChangeTemplateViewInputEmitter.fire(input);
   }
@@ -125,5 +129,25 @@ const isSameTemplateState = (
   current.selectedTemplateId === next.selectedTemplateId &&
   current.formState === next.formState &&
   current.selectionsByFileId === next.selectionsByFileId;
+
+const isSameTemplateViewInput = (
+  current: TemplateViewInput,
+  next: TemplateViewInput,
+): boolean =>
+  areRawFilesEqual(current.rawFiles ?? [], next.rawFiles ?? []);
+
+const areRawFilesEqual = (
+  current: NonNullable<TemplateViewInput["rawFiles"]>,
+  next: NonNullable<TemplateViewInput["rawFiles"]>,
+): boolean =>
+  current.length === next.length &&
+  current.every((file, index) =>
+    file.fileId === next[index]?.fileId &&
+    file.fileName === next[index]?.fileName &&
+    file.normalizedCsvPath === next[index]?.normalizedCsvPath &&
+    file.relativePath === next[index]?.relativePath &&
+    file.sourceKey === next[index]?.sourceKey &&
+    file.sourcePath === next[index]?.sourcePath &&
+    file.sourceVersion === next[index]?.sourceVersion);
 
 registerSingleton(ITemplateServiceId, BrowserTemplateService, InstantiationType.Delayed);

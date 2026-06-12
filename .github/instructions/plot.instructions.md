@@ -55,7 +55,7 @@ It does not own:
 ```mermaid
 flowchart TD
     Session[SessionSnapshot] --> PlotService[IPlotService]
-    PlotService --> Settings[PlotState]
+    PlotService --> State[PlotState]
     PlotService --> Model[PlotRenderModel]
     Model --> Chart[IChartService]
     Model --> Thumbnail[IThumbnailService]
@@ -68,18 +68,26 @@ flowchart TD
 ```ts
 export interface IPlotService {
   readonly _serviceBrand: undefined;
-  readonly onDidChangePlot: Event<PlotChangeEvent>;
+  readonly onDidChangePlotState: Event<PlotState>;
 
   getState(): PlotState;
+  getCalculatedData(input: PlotCalculatedDataInput): CalculatedData | null;
+  getLegendLabels(fileId: FileId): Readonly<Record<SeriesId, string>>;
+  getPlotDisplayModel(input: PlotDisplayModelInput): PlotDisplayModel | null;
+  getPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
+  getPlotMainRenderModel(input: PlotMainRenderModelInput): PlotMainRenderModel | null;
   setActivePlotType(plotType: PlotType): void;
-  setCurveVisibility(key: PlotCurveKey, visible: boolean): void;
-  setAxisUnit(fileId: FileId, axis: 'x' | 'y', unit: string): void;
-  setYScale(fileId: FileId, scale: 'linear' | 'log'): void;
-
-  getPlotModel(input: PlotModelInput): PlotRenderModel | null;
-  getPlotModelsForFiles(fileIds: readonly FileId[]): readonly PlotRenderModel[];
+  setAxisTitleOverride(context: PlotAxisTitleContext, title: string, defaultTitle: string): void;
+  setAxisUnit(fileId: FileId, axis: 'x' | 'y', unit: XUnit | YUnit): Promise<void>;
+  setLegendLabel(fileId: FileId, seriesId: SeriesId, label: string | null): void;
+  setYScale(fileId: FileId, scale: 'linear' | 'log'): Promise<void>;
 }
 ```
+
+`setAxisUnit` and `setYScale` are Plot owner APIs. Their current persistent
+backing is conductor settings, so `PlotService` writes through
+`ISettingsService` and then fires `onDidChangePlotState`. Chart views must call
+Plot, not settings, for these controls.
 
 ## Rules
 
@@ -105,7 +113,7 @@ Command flow:
 ```txt
 plot.setActivePlotType command
   -> IPlotService.setActivePlotType(type)
-  -> IPlotService.onDidChangePlot
+  -> IPlotService.onDidChangePlotState
   -> Chart/Thumbnail/Export/Search consumers update
 ```
 
@@ -126,15 +134,13 @@ Chart UI may expose buttons for these commands, but the target service remains `
 | Field | Meaning |
 | --- | --- |
 | `activePlotType` | Current plot family tab. |
-| `activeFileId` | File currently plotted. |
-| `visibleCurveKeys` | Explicit visible curves. |
-| `hiddenCurveKeys` | Curves hidden by the user. |
-| `focusedCurveKey` | Keyboard/legend focused curve. |
-| `hoveredCurveKey` | Pointer-hovered curve. |
-| `xUnitByFileId` | X unit overrides by file. |
-| `yUnitByFileId` | Y unit overrides by file. |
-| `yScaleByFileId` | Linear/log y-scale by file. |
 | `axisTitleOverridesByKey` | User axis title overrides. |
+| `legendLabelsByFileId` | User legend label overrides by file and series. |
+
+Per-file unit and scale choices are written through Plot owner APIs and
+currently persisted in conductor settings. `PlotService` consumes Settings and
+Session directly when building display models; callers do not pass axis
+settings through Chart input or render-model requests.
 
 ### `PlotRenderModel`
 

@@ -29,13 +29,6 @@ export const TABLE_MIN_ZOOM_PERCENT = 50;
 export const TABLE_MAX_ZOOM_PERCENT = 200;
 export const TABLE_ZOOM_STEP_PERCENT = 10;
 
-type SetStateAction<T> = T | ((previous: T) => T);
-type Dispatch<T> = (value: T) => void;
-
-export type TableMutableRef<T> = {
-	current: T;
-};
-
 export type TableCell = {
 	readonly fileId?: string | null;
 	readonly sheetId?: string | null;
@@ -100,16 +93,6 @@ export type TableLoadState = {
 	message: string;
 };
 
-export type TableRowsRequest = {
-	fileId: string;
-	sheetId?: string | null;
-	sourceKey?: string;
-	startRow: number;
-	endRow: number;
-	reject: (error: unknown) => void;
-	resolve: (rows: unknown[][]) => void;
-};
-
 export type TableBackendResultPayload = {
 	readonly message?: string;
 	readonly ok?: boolean;
@@ -153,20 +136,6 @@ export type TableInput = {
 	tableBackendService?: TableBackendPreviewProvider;
 	rawFiles?: SessionFile[];
 	source?: TableSource | null;
-	file?: TableFile | null;
-	loadState?: TableLoadState;
-	setFile?: Dispatch<SetStateAction<TableFile | null>>;
-	setLoadState?: Dispatch<SetStateAction<TableLoadState>>;
-	workerRef?: TableMutableRef<unknown | null>;
-	requestIdRef?: TableMutableRef<number>;
-	rowsRequestIdRef?: TableMutableRef<number>;
-	rowsRequestsRef?: TableMutableRef<Map<number, TableRowsRequest>>;
-	rowsCacheByFileIdRef?: TableMutableRef<Map<string, Map<number, unknown[]>>>;
-	loadedChunksByFileIdRef?: TableMutableRef<Map<string, Set<number>>>;
-	rowsCacheRef?: TableMutableRef<Map<number, unknown[]>>;
-	loadedChunksRef?: TableMutableRef<Set<number>>;
-	cacheFileIdRef?: TableMutableRef<string | null>;
-	cacheFileLruRef?: TableMutableRef<Set<string>>;
 };
 
 export type TableModel = {

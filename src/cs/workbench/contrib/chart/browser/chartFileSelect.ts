@@ -14,6 +14,7 @@ export function createFileSelect(
 	props: ChartViewInput,
 	activeFile: ChartFileOption,
 	store: DisposableStore,
+	onDidChangeFileId: (fileId: string | null) => void,
 ): HTMLSelectElement {
 	const select = document.createElement("select");
 	select.className = "chart_view_file_select dropdown-field dropdown-field--sm";
@@ -30,7 +31,7 @@ export function createFileSelect(
 		select.append(option);
 	}
 	store.add(addDisposableListener(select, EventType.CHANGE, () => {
-		props.onActiveFileIdChange?.(select.value || null);
+		onDidChangeFileId(select.value || null);
 	}));
 	return select;
 }

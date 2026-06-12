@@ -4,18 +4,15 @@ import type {
 } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type { ChartDetailPane } from "src/cs/workbench/services/chart/common/chart";
+import type { ChartViewProps } from "src/cs/workbench/contrib/chart/browser/views/chartView";
 
 export const toChartPanelProps = (
   props: ChartViewInput,
   activePlotType: PlotType,
   visibleDetailPanes: readonly ChartDetailPane[],
-  hiddenLegendKeys: readonly string[] = [],
-  legendLabels: Readonly<Record<string, string>> = {},
-): ChartViewInput => ({
+): ChartViewProps => ({
   ...props,
   activePlotType,
-  hiddenLegendKeys,
-  legendLabels,
   visiblePanes: toVisiblePanes(visibleDetailPanes),
 });
 

@@ -71,7 +71,7 @@ suite("workbench/contrib/parameters/browser/rcAnalysisModel", () => {
     );
     assert.equal(
       getRcStatusText({ error: "", isPending: false, rowCount: 3, summary: null }),
-      'rc_status_selected_curves:{"count":3}',
+      'parameters.rc.status.selectedCurves:{"count":3}',
     );
   });
 });

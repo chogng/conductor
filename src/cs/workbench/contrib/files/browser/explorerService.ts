@@ -7,15 +7,12 @@ import { Disposable, toDisposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
   IExplorerService,
-  type ExplorerImportedFilesChangeEvent,
-  type ExplorerImportedSessionFile,
   type ExplorerPaneInput,
   type ExplorerFolderExpansionChangeEvent,
   type ExplorerSelectionChangeEvent,
   type ExplorerContext,
   type ExplorerCopyState,
   type ExplorerEditableData,
-  type ExplorerFileRemovalRequest,
   type ExplorerRevealMode,
   type ExplorerSelectionKind,
   type ExplorerSelectionTarget,
@@ -34,14 +31,6 @@ export class ExplorerService extends Disposable implements IExplorerService {
   public readonly onDidChangeViewLayout = this.onDidChangeViewLayoutEmitter.event;
   private readonly onDidChangePaneInputEmitter = this._register(new Emitter<ExplorerPaneInput | null>());
   public readonly onDidChangePaneInput = this.onDidChangePaneInputEmitter.event;
-  private readonly onDidSubmitImportedFilesChangeEmitter = this._register(new Emitter<ExplorerImportedFilesChangeEvent>());
-  public readonly onDidSubmitImportedFilesChange = this.onDidSubmitImportedFilesChangeEmitter.event;
-  private readonly onDidRequestFolderImportEmitter = this._register(new Emitter<void>());
-  public readonly onDidRequestFolderImport = this.onDidRequestFolderImportEmitter.event;
-  private readonly onDidRequestSelectedFolderRemovalEmitter = this._register(new Emitter<void>());
-  public readonly onDidRequestSelectedFolderRemoval = this.onDidRequestSelectedFolderRemovalEmitter.event;
-  private readonly onDidRequestFileRemovalEmitter = this._register(new Emitter<ExplorerFileRemovalRequest>());
-  public readonly onDidRequestFileRemoval = this.onDidRequestFileRemovalEmitter.event;
 
   private currentRawFileId: string | null = null;
   private currentProcessedFileId: string | null = null;
@@ -72,18 +61,6 @@ export class ExplorerService extends Disposable implements IExplorerService {
     return this.currentViewLayout;
   }
 
-  public addImportedFiles(files: readonly ExplorerImportedSessionFile[]): void {
-    const normalizedFiles = normalizeExplorerImportedFiles(files);
-    if (!normalizedFiles.length) {
-      return;
-    }
-
-    this.onDidSubmitImportedFilesChangeEmitter.fire({
-      files: normalizedFiles,
-      reason: "added",
-    });
-  }
-
   public getContext(): ExplorerContext {
     return {
       editable: this.editable,
@@ -93,30 +70,6 @@ export class ExplorerService extends Disposable implements IExplorerService {
       toCopy: this.toCopy,
       viewLayout: this.currentViewLayout,
     };
-  }
-
-  public removeImportedFiles(fileIds: readonly string[]): void {
-    const normalizedFileIds = getNormalizedExplorerFileIds(fileIds);
-    if (!normalizedFileIds.length) {
-      return;
-    }
-
-    this.onDidSubmitImportedFilesChangeEmitter.fire({
-      fileIds: normalizedFileIds,
-      reason: "removed",
-    });
-  }
-
-  public replaceImportedFiles(files: readonly ExplorerImportedSessionFile[]): void {
-    const normalizedFiles = normalizeExplorerImportedFiles(files);
-    if (!normalizedFiles.length) {
-      return;
-    }
-
-    this.onDidSubmitImportedFilesChangeEmitter.fire({
-      files: normalizedFiles,
-      reason: "replaced",
-    });
   }
 
   public registerView(view: IExplorerView) {
@@ -189,23 +142,6 @@ export class ExplorerService extends Disposable implements IExplorerService {
       .filter(folderKey => !expandedFolderKeys.has(folderKey));
   }
 
-  public requestFolderImport(): void {
-    this.onDidRequestFolderImportEmitter.fire();
-  }
-
-  public requestSelectedFolderRemoval(): void {
-    this.onDidRequestSelectedFolderRemovalEmitter.fire();
-  }
-
-  public requestFileRemoval(fileId: string): void {
-    const normalizedFileId = normalizeExplorerFileId(fileId);
-    if (!normalizedFileId) {
-      return;
-    }
-
-    this.onDidRequestFileRemovalEmitter.fire({ fileId: normalizedFileId });
-  }
-
   public setViewLayout(viewLayout: ExplorerViewLayout): void {
     if (this.currentViewLayout === viewLayout) {
       return;
@@ -224,6 +160,10 @@ export class ExplorerService extends Disposable implements IExplorerService {
   }
 
   public updatePaneInput(input: ExplorerPaneInput): void {
+    if (this.paneInput && isSameExplorerPaneInput(this.paneInput, input)) {
+      return;
+    }
+
     this.paneInput = input;
     this.onDidChangePaneInputEmitter.fire(input);
   }
@@ -369,23 +309,126 @@ const normalizeExplorerFileId = (fileId: unknown): string | null => {
   return normalized || null;
 };
 
-const normalizeExplorerImportedFiles = (
-  files: readonly ExplorerImportedSessionFile[],
-): readonly ExplorerImportedSessionFile[] => {
-  const result: ExplorerImportedSessionFile[] = [];
-  const seen = new Set<string>();
-  for (const file of files) {
-    const fileId = normalizeExplorerFileId(file?.fileId);
-    if (!fileId || seen.has(fileId)) {
-      continue;
-    }
+const isSameExplorerPaneInput = (
+  current: ExplorerPaneInput,
+  next: ExplorerPaneInput,
+): boolean =>
+  current.activePlotType === next.activePlotType &&
+  current.currentTemplateLabel === next.currentTemplateLabel &&
+  current.mode === next.mode &&
+  current.selectedFileId === next.selectedFileId &&
+  current.selectionKind === next.selectionKind &&
+  isSameTemplateSelection(current.currentTemplateSelection, next.currentTemplateSelection) &&
+  areTemplateSelectionsEqual(
+    current.fileTemplateSelectionsByFileId ?? {},
+    next.fileTemplateSelectionsByFileId ?? {},
+  ) &&
+  areExplorerFilesEqual(current.files, next.files) &&
+  areOriginPlotOptionsEqual(current.originOpenPlotOptions, next.originOpenPlotOptions) &&
+  areShallowRecordsEqual(current.plotAxisSettings, next.plotAxisSettings) &&
+  areProcessedEntriesEqual(current.thumbnailFiles, next.thumbnailFiles) &&
+  areThumbnailPlotModelsEqual(
+    current.thumbnailPlotModelsByFileId ?? {},
+    next.thumbnailPlotModelsByFileId ?? {},
+  );
 
-    seen.add(fileId);
-    result.push(file.fileId === fileId ? file : {
-      ...file,
-      fileId,
-    });
+const isSameTemplateSelection = (
+  current: ExplorerPaneInput["currentTemplateSelection"],
+  next: ExplorerPaneInput["currentTemplateSelection"],
+): boolean =>
+  current?.kind === next?.kind &&
+  (
+    current?.kind !== "template" ||
+    (next?.kind === "template" && current.templateId === next.templateId)
+  );
+
+const areTemplateSelectionsEqual = (
+  current: NonNullable<ExplorerPaneInput["fileTemplateSelectionsByFileId"]>,
+  next: NonNullable<ExplorerPaneInput["fileTemplateSelectionsByFileId"]>,
+): boolean => {
+  const currentKeys = Object.keys(current).sort();
+  const nextKeys = Object.keys(next).sort();
+  return areStringArraysEqual(currentKeys, nextKeys) &&
+    currentKeys.every(key => isSameTemplateSelection(current[key], next[key]));
+};
+
+const areExplorerFilesEqual = (
+  current: ExplorerPaneInput["files"],
+  next: ExplorerPaneInput["files"],
+): boolean =>
+  current.length === next.length &&
+  current.every((file, index) => {
+    const nextFile = next[index];
+    return file.fileId === nextFile?.fileId &&
+      file.fileName === nextFile.fileName &&
+      file.itemKey === nextFile.itemKey &&
+      file.normalizedCsvPath === nextFile.normalizedCsvPath &&
+      file.relativePath === nextFile.relativePath &&
+      file.sourceKey === nextFile.sourceKey &&
+      file.sourcePath === nextFile.sourcePath &&
+      file.curveType === nextFile.curveType &&
+      file.curveTypeConfidence === nextFile.curveTypeConfidence &&
+      file.curveTypeNeedsTemplate === nextFile.curveTypeNeedsTemplate &&
+      areStringArraysEqual(file.curveTypeReasons ?? [], nextFile.curveTypeReasons ?? []);
+  });
+
+const areOriginPlotOptionsEqual = (
+  current: ExplorerPaneInput["originOpenPlotOptions"],
+  next: ExplorerPaneInput["originOpenPlotOptions"],
+): boolean =>
+  current?.command === next?.command &&
+  current?.legendFontSize === next?.legendFontSize &&
+  current?.lineWidth === next?.lineWidth &&
+  current?.type === next?.type &&
+  current?.xyPairs === next?.xyPairs &&
+  areStringArraysEqual(current?.postCommands ?? [], next?.postCommands ?? []);
+
+const areShallowRecordsEqual = (
+  current: ExplorerPaneInput["plotAxisSettings"],
+  next: ExplorerPaneInput["plotAxisSettings"],
+): boolean => {
+  if (current === next) {
+    return true;
+  }
+  if (!current || !next) {
+    return false;
   }
 
-  return result;
+  const currentKeys = Object.keys(current).sort();
+  const nextKeys = Object.keys(next).sort();
+  const currentRecord = current as Record<string, unknown>;
+  const nextRecord = next as Record<string, unknown>;
+  return areStringArraysEqual(currentKeys, nextKeys) &&
+    currentKeys.every(key => Object.is(currentRecord[key], nextRecord[key]));
+};
+
+const areProcessedEntriesEqual = (
+  current: ExplorerPaneInput["thumbnailFiles"],
+  next: ExplorerPaneInput["thumbnailFiles"],
+): boolean =>
+  current.length === next.length &&
+  current.every((file, index) => {
+    const nextFile = next[index];
+    return file.fileId === nextFile?.fileId &&
+      file.fileName === nextFile.fileName &&
+      file.curveFilterKey === nextFile.curveFilterKey &&
+      file.curveFilterField === nextFile.curveFilterField &&
+      file.curveType === nextFile.curveType &&
+      file.curveTypeConfidence === nextFile.curveTypeConfidence &&
+      file.curveTypeNeedsTemplate === nextFile.curveTypeNeedsTemplate &&
+      file.supportsSs === nextFile.supportsSs &&
+      file.xAxisRole === nextFile.xAxisRole &&
+      file.xAxisRoleSource === nextFile.xAxisRoleSource &&
+      file.xUnit === nextFile.xUnit &&
+      areStringArraysEqual(file.curveTypeReasons ?? [], nextFile.curveTypeReasons ?? []);
+  });
+
+const areThumbnailPlotModelsEqual = (
+  current: NonNullable<ExplorerPaneInput["thumbnailPlotModelsByFileId"]>,
+  next: NonNullable<ExplorerPaneInput["thumbnailPlotModelsByFileId"]>,
+): boolean => {
+  const currentKeys = Object.keys(current).sort();
+  const nextKeys = Object.keys(next).sort();
+  return areStringArraysEqual(currentKeys, nextKeys) &&
+    currentKeys.every(key => current[key]?.signature === next[key]?.signature);
 };

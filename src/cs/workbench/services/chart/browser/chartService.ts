@@ -7,7 +7,6 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
 	IChartService,
-	type ChartAxisTitleEditRequest,
 	type ChartDetailPane,
 	type ChartState,
 	type IChartService as IChartServiceType,
@@ -23,8 +22,6 @@ export class ChartService extends Disposable implements IChartServiceType {
 		this._register(new Emitter<ChartViewInput | null>());
 	public readonly onDidChangeChartViewInput =
 		this.onDidChangeChartViewInputEmitter.event;
-	private readonly onDidRequestAxisTitleEditEmitter = this._register(new Emitter<ChartAxisTitleEditRequest>());
-	public readonly onDidRequestAxisTitleEdit = this.onDidRequestAxisTitleEditEmitter.event;
 
 	private state: ChartState = {
 		visibleDetailPanes: ["inspector"],
@@ -42,6 +39,10 @@ export class ChartService extends Disposable implements IChartServiceType {
 	}
 
 	public updateViewInput(input: ChartViewInput): void {
+		if (this.viewInput && isSameChartViewInput(this.viewInput, input)) {
+			return;
+		}
+
 		this.viewInput = input;
 		this.onDidChangeChartViewInputEmitter.fire(input);
 	}
@@ -53,12 +54,6 @@ export class ChartService extends Disposable implements IChartServiceType {
 		this.updateState({
 			visibleDetailPanes: normalizeDetailPanes(nextVisibleDetailPanes),
 		});
-	}
-
-	public requestAxisTitleEdit(request: ChartAxisTitleEditRequest): void {
-		const axis = request.axis === "y" ? "y" : "x";
-		const pane = request.pane === "inspector" ? "inspector" : "chart";
-		this.onDidRequestAxisTitleEditEmitter.fire({ axis, pane });
 	}
 
 	public setLegendPopoverContextKey(contextKey: string | null): void {
@@ -181,5 +176,37 @@ const areStringArraysEqual = (
 ): boolean =>
 	first.length === second.length &&
 	first.every((value, index) => value === second[index]);
+
+const isSameChartViewInput = (
+	current: ChartViewInput,
+	next: ChartViewInput,
+): boolean =>
+	current.activeFileId === next.activeFileId &&
+	current.activePlotType === next.activePlotType &&
+	current.hasChartData === next.hasChartData &&
+	current.showFileSelect === next.showFileSelect &&
+	current.shouldMountCharts === next.shouldMountCharts &&
+	isSameProcessingStatus(current.processingStatus, next.processingStatus) &&
+	areChartFileOptionsEqual(
+		current.chartFileOptions ?? [],
+		next.chartFileOptions ?? [],
+	);
+
+const isSameProcessingStatus = (
+	current: ChartViewInput["processingStatus"],
+	next: ChartViewInput["processingStatus"],
+): boolean =>
+	current?.state === next?.state &&
+	current?.processed === next?.processed &&
+	current?.total === next?.total;
+
+const areChartFileOptionsEqual = (
+	first: NonNullable<ChartViewInput["chartFileOptions"]>,
+	second: NonNullable<ChartViewInput["chartFileOptions"]>,
+): boolean =>
+	first.length === second.length &&
+	first.every((option, index) =>
+		option.fileId === second[index]?.fileId &&
+		option.fileName === second[index]?.fileName);
 
 registerSingleton(IChartService, ChartService, InstantiationType.Delayed);

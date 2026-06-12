@@ -10,7 +10,6 @@ suite("workbench/services/template/browser/templateService", () => {
   test("publishes template view input", () => {
     const service = new BrowserTemplateService();
     const input = {
-      conductorSettings: { theme: "light" },
       rawFiles: [{
         file: {},
         fileId: "file-a",
@@ -23,6 +22,13 @@ suite("workbench/services/template/browser/templateService", () => {
     });
 
     service.updateViewInput(input);
+    service.updateViewInput({
+      rawFiles: [{
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw.csv",
+      }],
+    });
 
     assert.equal(service.getViewInput(), input);
     assert.deepEqual(inputs, [input]);

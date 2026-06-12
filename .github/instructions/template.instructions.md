@@ -12,9 +12,15 @@ Template consumes assessment. It does not decide whether a table is IV/CV/CF/PV/
 
 - template CRUD and persistence;
 - template selection rules;
+- template form state and template selections;
+- publishing template view input.
+
+`ITemplateApplyWorkflowService` owns:
+
 - template run planning;
-- applying templates to assessment blocks;
+- applying templates to session raw files and assessment blocks;
 - producing `TemplateRunRecord`, series, base curves, and warnings/errors;
+- consuming current table/session/template input through `update(...)`;
 - coordinating with `ITemplateApplyService` for worker execution.
 
 `ITemplateApplyService` owns:
@@ -43,7 +49,7 @@ Template does not own:
 | `src/cs/workbench/services/template/browser/templateApplyPlanner.ts` | Builds run plan from assessment blocks and config. Pure enough to test. |
 | `src/cs/workbench/services/template/browser/template.contribution.ts` | Registers services and template lifecycle contribution. |
 | `src/cs/workbench/contrib/template/browser/templateViewPane.ts` | Template UI shell. Renders service state and sends commands. |
-| `src/cs/workbench/services/template/browser/templateApplyController.ts` | Template apply controller. Coordinates apply workflow around service boundaries; target is to keep it thin and service-facing. |
+| `src/cs/workbench/services/template/browser/templateApplyController.ts` | Template apply workflow service/controller. Coordinates apply workflow around service boundaries; target is to keep it thin and service-facing. |
 
 ## Flow
 
@@ -52,6 +58,8 @@ flowchart TD
     Snapshot[SessionSnapshot] --> Template[ITemplateService]
     Template --> Assessment[Assessment blocks]
     Template --> Config[TemplateConfig]
+    Workbench --> Workflow[ITemplateApplyWorkflowService.update]
+    TemplateView --> Workflow
     Assessment --> Planner[TemplateApplyPlanner]
     Config --> Planner
     Planner --> Worker[ITemplateApplyService]
@@ -63,8 +71,21 @@ flowchart TD
 
 - Template reads block source ranges and column maps from assessment.
 - Template may ask Table for currently selected range only as explicit user input.
+  Template UI consumes `ITableService` directly from its DI view pane for table
+  selection/highlight. Do not pass `ITableService` through `TemplateViewInput`.
+- Template apply is an owner API on `ITemplateApplyWorkflowService`. Template UI
+  invokes `applyTemplate(...)` / `applyTemplateIncremental(...)`; do not pass
+  Workbench apply callbacks through `TemplateViewInput`.
+- Template apply may consume the current table preview through injected
+  `ITableService` public state/model APIs. Do not pass table row readers,
+  source-existence callbacks, or table model methods through
+  `TemplateApplyWorkflowInput`.
 - Template result records should include config fingerprint and source block ids.
 - Re-running a template replaces only affected template output.
+- Template processing cleanup consumes `SessionChangeEvent`: `filesRemoved`
+  removes affected queued files, and `sessionCleared` terminates and resets the
+  active processing worker. Do not route this cleanup through Explorer submit
+  events or Workbench-only callbacks.
 
 ## Command entry and dispatch
 
@@ -76,7 +97,7 @@ Recommended files:
 | --- | --- |
 | `src/cs/workbench/contrib/template/browser/templateCommands.ts` | Registers save/delete/import/apply/select template commands. |
 | `src/cs/workbench/contrib/template/browser/templateActions.ts` | UI actions that execute template commands. |
-| `src/cs/workbench/services/template/browser/templateApplyController.ts` | Coordinates apply workflow, worker boundary, notifications, and session batching. |
+| `src/cs/workbench/services/template/browser/templateApplyController.ts` | Coordinates apply workflow, worker boundary, notifications, and session batching through `ITemplateApplyWorkflowService`. |
 | `src/cs/workbench/services/template/browser/templateService.ts` | Template management and state. |
 | `src/cs/workbench/services/template/browser/templateApplyService.ts` | Worker/service boundary for template application. |
 
@@ -84,7 +105,7 @@ Apply command flow:
 
 ```txt
 template.apply command
-  -> TemplateApplyController
+  -> ITemplateApplyWorkflowService
   -> ITemplateService / ITemplateApplyService
   -> assessment blocks from SessionSnapshot
   -> TemplateRunRecord + curves/series
@@ -159,5 +180,5 @@ The command/controller must not re-detect table structure.
 | --- | --- |
 | `TemplateService` | Template CRUD, selection state, run APIs. |
 | `TemplateApplyService` | Worker lifecycle boundary. |
-| `TemplateApplyController` | User workflow coordination: apply, progress, notification, batching. |
+| `TemplateApplyWorkflowService` / `TemplateApplyController` | User workflow coordination: apply, progress, notification, batching. |
 | `TemplateApplyPlanner` | Pure plan from config + assessment blocks. |

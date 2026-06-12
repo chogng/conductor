@@ -136,4 +136,34 @@ suite("workbench/browser/titleService", () => {
     layoutService.dispose();
     storage.dispose();
   });
+
+  test("publishes titlebar command ids as state values", () => {
+    const storage = new TestStorageService();
+    const layoutService = new BrowserWorkbenchLayoutService(storage);
+    const titleService = new BrowserTitleService(testCommandService, layoutService, testNativeHostService);
+
+    titleService.updateTitlebarState({
+      chartIntentCommandId: "chart.intent",
+      enabled: true,
+      fileSelectionCommandId: "files.select",
+      installUpdateCommandId: "update.install",
+      isUpdateReadyToInstall: true,
+    });
+
+    const state = titleService.getTitlebarState();
+
+    assert.deepEqual({
+      chartIntentCommandId: state?.chartIntentCommandId,
+      fileSelectionCommandId: state?.fileSelectionCommandId,
+      installUpdateCommandId: state?.installUpdateCommandId,
+    }, {
+      chartIntentCommandId: "chart.intent",
+      fileSelectionCommandId: "files.select",
+      installUpdateCommandId: "update.install",
+    });
+
+    titleService.dispose();
+    layoutService.dispose();
+    storage.dispose();
+  });
 });

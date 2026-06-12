@@ -1,10 +1,9 @@
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
-import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type { PlotMainSeries } from "src/cs/workbench/services/plot/common/plotModel";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
-import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
+import type { PlotLegendModel, PlotType } from "src/cs/workbench/services/plot/common/plot";
 
 const DEFAULT_LEGEND_FONT_SIZE = 12;
 
@@ -15,18 +14,18 @@ export type LegendContext = {
 };
 
 export const getLegendContext = (
-  props: ChartViewInput,
+  model: PlotLegendModel | null,
   plotType: PlotType,
 ): LegendContext | null => {
-  const model = props.plotLegendModel?.plotType === plotType ? props.plotLegendModel : null;
-  if (!model?.seriesList.length) {
+  const legendModel = model?.plotType === plotType ? model : null;
+  if (!legendModel?.seriesList.length) {
     return null;
   }
 
   return {
-    fileId: model.fileId,
+    fileId: legendModel.fileId,
     plotType,
-    seriesList: model.seriesList,
+    seriesList: legendModel.seriesList,
   };
 };
 
@@ -110,7 +109,6 @@ const renderLegend = (
 };
 
 export const createLegendPopover = (
-  props: ChartViewInput,
   context: LegendContext,
   options: {
     readonly hiddenLegendKeys?: readonly string[];

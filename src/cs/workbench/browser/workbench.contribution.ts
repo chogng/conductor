@@ -5,6 +5,7 @@ import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors
 import { Registry } from "src/cs/platform/registry/common/platform";
 import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
 import { Workbench } from "src/cs/workbench/browser/workbench";
+import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import { createAuxiliaryBarActionViewItem } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 import { createSidebarActionViewItem } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
@@ -62,10 +63,6 @@ import {
   type IViewsService as IViewsServiceType,
 } from "src/cs/workbench/services/views/common/viewsService";
 import {
-  ITemplateProcessingBackendService,
-  type ITemplateProcessingBackendService as ITemplateProcessingBackendServiceType,
-} from "src/cs/workbench/services/template/common/templateProcessingBackend";
-import {
   IContextKeyService,
   type IContextKeyService as IContextKeyServiceType,
 } from "src/cs/platform/contextkey/common/contextkey";
@@ -103,9 +100,8 @@ import {
   type ITableService as ITableServiceType,
 } from "src/cs/workbench/services/table/common/table";
 import {
-  ITemplateApplyService,
+  ITemplateApplyWorkflowService,
   ITemplateService,
-  type ITemplateApplyService as ITemplateApplyServiceType,
   type ITemplateService as ITemplateServiceType,
 } from "src/cs/workbench/services/template/common/template";
 import {
@@ -114,7 +110,6 @@ import {
 } from "src/cs/workbench/services/session/common/session";
 
 export const WorkbenchContributionId = "workbench.browser.workbench";
-const ResetLayoutStateCommandId = "workbench.action.resetLayoutState";
 
 const markBootUiReady = (source: string) => {
   hideWorkbenchSplash();
@@ -149,7 +144,6 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
 
   constructor(
     @ITableService tableService: ITableServiceType,
-    @ITemplateProcessingBackendService templateProcessingBackendService: ITemplateProcessingBackendServiceType,
     @IFileService filesService: IFileServiceType,
     @IFileDialogService dialogsService: IFileDialogServiceType,
     @IContextKeyService contextKeyService: IContextKeyServiceType,
@@ -165,7 +159,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @IWorkbenchLayoutService layoutService: IWorkbenchLayoutServiceType,
     @ITitleService titleService: ITitleServiceType,
     @IViewsService viewsService: IViewsServiceType,
-    @ITemplateApplyService templateApplyService: ITemplateApplyServiceType,
+    @ITemplateApplyWorkflowService templateApplyWorkflowService: ITemplateApplyWorkflowService,
     @ITemplateService templateService: ITemplateServiceType,
     @ISessionService sessionService: ISessionServiceType,
     @IStorageService storageService: IStorageServiceType,
@@ -182,7 +176,6 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     }
 
     this.workbench = this._register(new Workbench(root, {
-      templateProcessingBackendService,
       dialogsService,
       commandService,
       chartService,
@@ -202,11 +195,11 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       sessionService,
       storageService,
       tableService,
-      templateApplyService,
+      templateApplyWorkflowService,
       templateService,
     }));
     this._register(CommandsRegistry.registerCommand({
-      id: ResetLayoutStateCommandId,
+      id: WorkbenchLayoutCommandId.resetLayoutState,
       handler: () => this.workbench.resetLayoutState(),
       metadata: {
         description: localize("workbench.commands.resetLayoutState", "Reset workbench layout state"),

@@ -23,7 +23,10 @@ workbench/services/files/fileConverter.ts
   Conductor import conversion: CSV/XLS/XLSX/clipboard -> FileConversionResult / RawTableRecord payloads
 
 workbench/contrib/files/IExplorerService
-  Explorer UI state inside the Files container: resource tree, selection, expansion, tree/thumbnail layout, source collection/conversion workflow orchestration
+  Explorer UI state inside the Files container: resource tree, selection, expansion, tree/thumbnail layout
+
+workbench/contrib/files/IExplorerWorkflowService
+  Conductor-specific command entry for view-local Explorer source/removal workflows
 
 workbench/contrib/files/common/explorerModel.ts
   Explorer resource/item model and tree helpers shared by Explorer service and views
@@ -173,11 +176,13 @@ It does not own:
 
 | File | Responsibility | Inputs | Outputs | Must not do |
 | --- | --- | --- | --- | --- |
-| `src/cs/workbench/contrib/files/browser/files.ts` | Defines `IExplorerService`, `IExplorerView`, command target helpers, Explorer selection/focus service contract. | None or type-only service imports. | Explorer UI-state service contract. | Define filesystem provider contracts or raw conversion records. |
+| `src/cs/workbench/contrib/files/browser/files.ts` | Defines `IExplorerService`, `IExplorerWorkflowService`, `IExplorerView`, command target helpers, Explorer selection/focus/workflow service contracts. | None or type-only service imports. | Explorer UI-state and workflow entry service contracts. | Define filesystem provider contracts or raw conversion records. |
 | `src/cs/workbench/contrib/files/browser/explorerService.ts` | Owns Explorer UI state/model coordination, selection/reveal, edit/copy state, layout, expansion, and Explorer pane input publication. | Explorer resources, session/read-model projections supplied by composition code, commands, view events. | Explorer pane input, selection/layout/expansion/edit events, context and view registration. | Render DOM, parse CSV/XLS/XLSX, commit session, or own canonical session records. |
+| `src/cs/workbench/contrib/files/browser/explorerWorkflowService.ts` | Conductor-specific command/workflow bridge for Explorer view-local add-folder and removal workflows. | File action commands and the current `ExplorerViewPane` workflow handler. | Explicit workflow method dispatch to the registered handler. | Own Explorer state, publish request events, parse files, commit session, or become a generic import service. |
 | `src/cs/workbench/contrib/files/common/explorerModel.ts` | Defines Explorer resource/item model and tree model helpers. | File/session facts, Explorer configuration. | Explorer resources/items for the Files UI. | Parse data files, store raw table rows, or become a platform file stat model. |
 | `src/cs/workbench/contrib/files/common/explorerFileNestingTrie.ts` | Implements upstream-shaped Explorer file nesting pattern matching. | Parent/child file nesting patterns and direct sibling file names. | Parent -> nested children filename map for Explorer display only. | Read session, parse files, mutate Explorer state, or decide import/conversion behavior. |
-| `src/cs/workbench/contrib/files/browser/explorerViewlet.ts` | Upstream-aligned Files/Explorer viewlet entry for the Explorer pane and sidebar actions inside the generic Files container. | Explorer services and pane input. | Rendered Explorer pane. | Own canonical data or bypass `IExplorerService` for state. |
+| `src/cs/workbench/contrib/files/browser/explorerViewlet.ts` | Upstream-aligned Files/Explorer viewlet entry for the Explorer pane and sidebar actions exposed through the view action surface consumed by `ViewPaneContainer`. | Explorer services and pane input. | Rendered Explorer pane and view-local sidebar actions. | Own canonical data or bypass `IExplorerService` for state. |
+| `src/cs/workbench/contrib/files/browser/explorerSessionImport.ts` | Explorer workflow helper that commits prepared conversion results through `ISessionService` and then asks `IExplorerService.select(...)` to own raw-file selection. | Prepared imports from `FileSourceWorkflow`, Explorer selection service, session commit service. | Session file import commit plus explicit Explorer selection result. | Become a generic import service, parse files, own canonical session records, or select by mutating pane input/callbacks. |
 | `src/cs/workbench/contrib/files/browser/views/explorerViewer.ts` | Renders tree/list/thumbnail resources, context menus, row templates, Explorer-owned hover containers, and thumbnail UI content supplied by thumbnail contribution. | Explorer pane/view model, thumbnail UI factory/rendering surface props. | DOM presentation and user intents. | Parse files, mutate session directly, build canonical plot data, or own thumbnail bitmap/cache rendering. |
 | `src/cs/platform/files/common/files.ts` | Defines `IFileService`, `IFileSystemProvider`, `FileType`, file stat/read/write/watch contracts, and the service decorator. | URI/provider inputs. | Filesystem facts and provider events. | Import workbench services, parse data files, or own Explorer/source workflow state. |
 | `src/cs/platform/files/common/fileService.ts` | Implements the common `IFileService` provider registry and read/write/stat/watch dispatch. | Provider registrations and URI operations. | Filesystem facts and provider-backed file operations. | Depend on workbench services, Explorer state, or Conductor conversion/session semantics. |
@@ -259,8 +264,9 @@ flowchart TD
 
 ```txt
 User drop/dialog/clipboard/folder
-  -> Explorer command
-  -> IExplorerService / Files source workflow
+  -> Explorer command or view gesture
+  -> IExplorerWorkflowService for command entry, or ExplorerViewPane for direct view gesture
+  -> ExplorerViewPane registered FileSourceWorkflow handler
   -> fileImportExport.ts collects FileSource[]
   -> fileConverter.ts converts sources
   -> FileConversionResult
@@ -276,7 +282,9 @@ Workbench commands that need filesystem access should call a workbench service o
 
 ```txt
 Explorer import folder command
-  -> IExplorerService / fileActions.ts or fileImportExport.ts workflow helper
+  -> fileActions.ts / fileCommands.ts
+  -> IExplorerWorkflowService.openFolderImport()
+  -> ExplorerViewPane registered FileSourceWorkflow handler
   -> IFileDialogService + IFileService
   -> fileImportExport.ts source collection / fileConverter.ts conversion
   -> ISessionService.commitFileImport
@@ -321,13 +329,13 @@ private lifecycle methods such as table preview invalidation.
 Workbench composition code may project session/read-model facts into Explorer
 view input. It must not smuggle add/remove/replace session callbacks through
 `ExplorerPaneInput`, and it must not route canonical session mutations through
-submit-style Explorer service events. The bridge that owns the source workflow
-context calls `ISessionService` directly for commit/remove operations, then
-lets `SessionChangeEvent` subscribers consume the new snapshot. Optional UI
+submit-style Explorer service events. The caller that owns the source workflow
+result calls `ISessionService` directly for commit/remove operations, then lets
+`SessionChangeEvent` subscribers consume the new snapshot. Optional UI
 follow-up such as Explorer selection must call the target owner API
 (`IExplorerService.select(...)`); optional mode handoff must call
-`IWorkbenchLayoutService`. Projection code must not live in
-`contrib/files` once it needs session, template, plot, or table composition.
+`IWorkbenchLayoutService`. Workbench projection code must stay in the workbench
+composition layer when it needs session, template, plot, or table composition.
 It must not accept `TableModel`, `TableSource`, or table preview lifecycle
 callbacks. Table preview state is owned by `ITableService`.
 
@@ -363,7 +371,9 @@ sequenceDiagram
     participant CommandService as ICommandService
     participant FilesAction as existing files Action2
     participant FilesCommand as existing files command handler
-    participant ExplorerFiles as Explorer/files service or workflow
+    participant WorkflowService as IExplorerWorkflowService
+    participant ExplorerViewPane
+    participant ExplorerService as IExplorerService
 
     alt tree layout
         User->>ExplorerViewer: invoke file item action
@@ -373,7 +383,9 @@ sequenceDiagram
     ExplorerViewer->>CommandService: executeCommand(existing files action id, fileId, args)
     CommandService->>FilesAction: run(accessor, fileId, args)
     FilesAction->>FilesCommand: handler(accessor, fileId, args)
-    FilesCommand->>ExplorerFiles: call existing Explorer/files service or workflow API
+    FilesCommand->>WorkflowService: removeFile(fileId) for removal workflow
+    WorkflowService->>ExplorerViewPane: call registered workflow handler
+    ExplorerViewPane->>ExplorerService: select(...) if removal changes selection
 ```
 
 Table drop import wiring:
@@ -382,17 +394,22 @@ Table drop import wiring:
 sequenceDiagram
     actor User
     participant TableViewPane
+    participant DropTargetService as ITableDropTargetService
     participant DropController as table preview drop controller
     participant SourceHelpers as fileImportExport.ts helpers
+    participant CommitHelper as explorerSessionImport.ts
     participant Session as ISessionService
     participant ExplorerService as IExplorerService
 
     User->>TableViewPane: drop files/folder on table preview area
-    DropController->>TableViewPane: register drop observer on table drop target
+    TableViewPane->>DropTargetService: registerDropTargetElement(preview part)
+    DropController->>DropTargetService: subscribe onDidChangeDropTarget
+    DropController->>DropController: attach observer to published target
     DropController->>SourceHelpers: collectDroppedFiles / prepare pending imports
     SourceHelpers-->>DropController: prepared imports
-    DropController->>Session: commitFileImport(result)
-    DropController->>ExplorerService: select({ kind: table, fileId }, force)
+    DropController->>CommitHelper: commitExplorerSessionImport(append)
+    CommitHelper->>Session: commitFileImport(result)
+    CommitHelper->>ExplorerService: select({ kind: table, fileId }, force)
 ```
 
 Sidebar raw import mode handoff wiring:
@@ -402,19 +419,20 @@ sequenceDiagram
     actor User
     participant ExplorerView
     participant SourceWorkflow as FileSourceWorkflow
-    participant ImportBridge as Workbench/import bridge
+    participant ExplorerPane as ExplorerViewPane
     participant ExplorerService as IExplorerService
     participant Session as ISessionService
+    participant Subscribers as Session subscribers
     participant Layout as IWorkbenchLayoutService
 
     User->>ExplorerView: drop raw files on sidebar while chart mode is active
     ExplorerView->>SourceWorkflow: importDroppedFiles(dataTransfer)
     SourceWorkflow-->>ExplorerView: prepared imported files
-    ExplorerView->>ImportBridge: prepared files
-    ImportBridge->>Session: commitFileImport(result)
-    Session-->>ImportBridge: onDidChangeSession consumed by subscribers
-    ImportBridge->>ExplorerService: select({ kind: table, fileId }, force)
-    ImportBridge->>Layout: navigateToView(table)
+    ExplorerView->>ExplorerPane: prepared files
+    ExplorerPane->>Session: commitFileImport(result)
+    Session-->>Subscribers: onDidChangeSession
+    ExplorerPane->>ExplorerService: select({ kind: table, fileId }, force)
+    ExplorerPane->>Layout: navigateToView(table)
 ```
 
 Tree item hover thumbnail preview wiring:
@@ -469,7 +487,7 @@ When a feature is invoked through the workbench command/action system, use the u
 fileActions.contribution.ts
   registers CommandsRegistry / MenuRegistry / keybindings / registerAction2 entries
   -> fileActions.ts or fileCommands.ts
-  -> IExplorerService
+  -> IExplorerService for Explorer state, or IExplorerWorkflowService for view-local source/removal workflow
   -> workbench/services/files helpers when non-UI file work is needed
 ```
 
@@ -479,9 +497,10 @@ Recommended files:
 
 | File | Responsibility |
 | --- | --- |
-| `src/cs/workbench/contrib/files/browser/fileCommands.ts` | Upstream-aligned target for Files/Explorer command handlers. Validates command args, resolves `IExplorerService`, and delegates. |
+| `src/cs/workbench/contrib/files/browser/fileCommands.ts` | Upstream-aligned target for Files/Explorer command handlers. Validates command args, resolves `IExplorerService` or `IExplorerWorkflowService` by owner, and delegates. |
 | `src/cs/workbench/contrib/files/browser/fileActions.ts` | Upstream-aligned target for actions, command helpers, context-menu behavior, and small UI workflow helpers. |
 | `src/cs/workbench/contrib/files/browser/fileActions.contribution.ts` | Upstream-aligned contribution entry that imports/registers file commands/actions. |
+| `src/cs/workbench/contrib/files/browser/explorerWorkflowService.ts` | Conductor-specific bridge for command-dispatched Explorer workflows whose actual implementation is view-local, such as opening the folder picker or removing the selected imported folder. |
 | `src/cs/workbench/contrib/files/electron-browser/fileCommands.ts` | Desktop-only Files command helpers such as reveal in OS. Follows upstream native split. |
 | `src/cs/workbench/contrib/files/electron-browser/fileActions.contribution.ts` | Desktop-only command/menu/action registration for native Files actions. If `workbench.desktop.main.ts` imports this file, it must actually register the desktop command/action; do not leave only exported constants or detached handlers. Do not put Rust conversion branching here. |
 | `src/cs/workbench/contrib/files/browser/fileImportExport.ts` | Upstream-aligned target for external file transfer plus Conductor source collection helpers. Use this for dialog/drop/folder source collection helpers instead of creating a generic import controller. |
@@ -515,10 +534,13 @@ adapter for Explorer props, service subscriptions, or source workflow callbacks.
 Those responsibilities belong to `ExplorerViewPane` and `ExplorerView`, matching
 the upstream Explorer shape: the ViewPane listens to `IExplorerService`,
 subscribes to Explorer/session-derived pane input, and consumes it to update the
-Explorer view. `ExplorerViewPane` may instantiate `FileSourceWorkflow` as a
-private view helper, but that helper must remain callback-based and view-local.
-Do not put cross-service table/template/assessment lifecycle ownership in
-Explorer view code.
+Explorer view. The generic `ViewPaneContainer` may consume `IView.getActions()`
+from the active view for header action rendering; Workbench composition code
+must not reach into `ExplorerViewPane` with `IViewsService.getViewWithId(...)`
+only to collect sidebar actions. `ExplorerViewPane` may instantiate
+`FileSourceWorkflow` as a private view helper, but that helper must remain
+callback-based and view-local. Do not put cross-service
+table/template/assessment lifecycle ownership in Explorer view code.
 
 Do not reintroduce `explorerPaneInput.ts`, `explorerPaneViewInput.ts`, or
 `explorerFileOptions.ts` under `contrib/files`. Explorer pane input is an
@@ -537,9 +559,9 @@ handler: async (accessor, resource) => {
 }
 ```
 
-For Conductor-specific add-data workflows, define the command/action in `fileActions.ts` / `fileActions.contribution.ts`, then delegate to a precisely named source-collection/conversion workflow. Do not document placeholder methods such as `importResources(...)` as if they were upstream Explorer APIs.
+For Conductor-specific add-data workflows, define the command/action in `fileActions.ts` / `fileActions.contribution.ts`, then delegate to `IExplorerWorkflowService` when the actual workflow is view-local. The registered `ExplorerViewPane` handler may run `FileSourceWorkflow`, which collects sources, converts files, and commits prepared results through `ISessionService`. Do not document placeholder methods such as `importResources(...)` as if they were upstream Explorer APIs.
 
-Explorer commands should not call `ExplorerViewPane` methods after migration. If a command currently reaches a view through `IViewsService.getViewWithId(...)`, treat it as a temporary compatibility bridge and move the behavior into `IExplorerService`.
+Explorer commands should not reach `ExplorerViewPane` through `IViewsService.getViewWithId(...)`. For Explorer state behavior, move the behavior into `IExplorerService`. For view-local source/removal workflow, use `IExplorerWorkflowService` and let `ExplorerViewPane` register the handler explicitly; do not publish `onDidRequest*` events from `IExplorerService`.
 
 Upstream command shape:
 
@@ -555,8 +577,8 @@ Upstream command shape:
 
 Conductor-specific commands should follow the upstream registration and handler shape without pretending that upstream has the same API:
 
-- Add-data commands belong in `fileActions.ts` / `fileActions.contribution.ts`. They may call source collection helpers in `fileImportExport.ts`, conversion in `fileConverter.ts`, and session commit APIs. Name any new helper after the concrete workflow, not after a generic import service.
-- Resource removal commands should be action/handler code that derives Explorer context and calls the appropriate session or file operation. Add an `IExplorerService` method only when the operation mutates Explorer view/model state rather than canonical session/file state.
+- Add-data commands belong in `fileActions.ts` / `fileActions.contribution.ts`. They call `IExplorerWorkflowService.openFolderImport()` when the command starts the view-local folder picker/source workflow. The registered workflow handler may call source collection helpers in `fileImportExport.ts`, conversion in `fileConverter.ts`, and session commit APIs. Name any new helper after the concrete workflow, not after a generic import service.
+- Resource removal commands should be action/handler code that derives Explorer context and calls the appropriate owner. Use `IExplorerWorkflowService.removeFile(...)` or `removeSelectedFolder()` for current view-local imported-source removal. Add an `IExplorerService` method only when the operation mutates Explorer view/model state rather than canonical session/file state.
 - Select/reveal behavior should use the upstream-shaped `IExplorerService.select(resource, reveal?)` and `IExplorerView.selectResource(...)` vocabulary.
 - Explorer selection kind follows the workbench mode vocabulary: `table` and
   `chart`. The selected table-mode file may map to raw data and the selected
@@ -666,11 +688,12 @@ Use these components instead of nested managers:
 
 | Component | Responsibility |
 | --- | --- |
-| `ExplorerService` | Owns Explorer state, exposes selection/layout/source workflow state events. |
+| `ExplorerService` | Owns Explorer state, exposes selection/layout/pane input state events. |
+| `ExplorerWorkflowService` | Dispatches command-initiated Explorer source/removal workflows to the current registered `ExplorerViewPane` handler. It is not a state owner and must not publish request events. |
 | `fileActions.ts` / `fileImportExport.ts` workflow helpers | Coordinate dialogs/drop/folder source collection, file transfer/source helpers, `fileConverter.ts`, progress/notification, then return prepared imports or conversion results to the workflow caller. The caller commits through `ISessionService`; do not route commit through pane input callbacks or Explorer service submit events. |
 | `common/explorerModel.ts` | Defines Explorer resource/item model and tree helpers. Do not create a separate `ExplorerTreeModel` class unless the upstream-style model file becomes too large. |
 | `common/explorerFileNestingTrie.ts` | Owns Explorer file nesting pattern matching only. `explorerModel.ts` applies its output to tree nodes. |
-| `ExplorerViewPane` | ViewPane host that listens to Explorer service events, consumes Explorer pane input, owns sidebar actions, and coordinates Explorer source workflow callbacks. |
+| `ExplorerViewPane` | ViewPane host that listens to Explorer service events, consumes Explorer pane input, exposes sidebar actions through `IView.getActions()`, and coordinates Explorer source workflow callbacks. |
 | `ExplorerView` | DOM shell for drag/drop and view hosting. |
 | `ExplorerViewer` | Tree/thumbnail renderer. |
 
@@ -686,6 +709,7 @@ Good names:
 
 ```txt
 explorerViewlet.ts
+explorerWorkflowService.ts
 ExplorerView
 ExplorerViewer
 fileActions.ts

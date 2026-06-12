@@ -32,18 +32,22 @@ import "src/cs/workbench/services/parameters/browser/parametersService";
 import "src/cs/workbench/services/plot/browser/plotService";
 import "src/cs/workbench/services/search/browser/searchService";
 import "src/cs/workbench/services/session/browser/sessionService";
+import "src/cs/workbench/services/template/browser/templateApplyController";
 import "src/cs/workbench/services/template/browser/templateApplyService";
 import "src/cs/workbench/services/template/browser/templateService";
 import "src/cs/workbench/services/thumbnail/browser/thumbnailService";
 import "src/cs/workbench/services/views/browser/viewDescriptorService";
 import "src/cs/workbench/services/views/browser/viewsService";
+import "src/cs/workbench/services/table/browser/tableDropTargetService";
 import "src/cs/workbench/services/table/browser/tableService";
 
 //#endregion
 
 //#region --- workbench contrib services
 
+import "src/cs/workbench/contrib/chart/browser/chartTitleEditService";
 import "src/cs/workbench/contrib/files/browser/explorerService";
+import "src/cs/workbench/contrib/files/browser/explorerWorkflowService";
 
 //#endregion
 

@@ -5,14 +5,11 @@
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
-import OriginExportToolbar, {
-  type ReplaceMatchingOriginSeriesAcrossFilesFn,
-} from "src/cs/workbench/contrib/export/browser/OriginExportToolbar";
+import OriginExportToolbar from "src/cs/workbench/contrib/export/browser/OriginExportToolbar";
 import {
   ExportViewId,
   IExportService,
   type ExportViewState,
-  type IExportService as IExportServiceType,
   OriginCanvasExportScope,
   OriginCurveExportMode,
   OriginFilteredCanvasKind,
@@ -43,9 +40,7 @@ export type ExportViewOptions = {
   originCanvasExportScope: OriginCanvasExportScope;
   originExportContentOptions: OriginExportContentOption[];
   originFilteredCanvasKind: OriginFilteredCanvasKind;
-  replaceMatchingOriginSeriesAcrossFiles: ReplaceMatchingOriginSeriesAcrossFilesFn;
   resolvedCurveExportMode: OriginCurveExportMode;
-  scopedFileIds: string[];
   selectedContentKeys: OriginExportContentKey[];
   selectedCurveOptionKeySet: Set<string>;
   setContentKeys: StateSetter<OriginExportContentKey[]>;
@@ -62,7 +57,7 @@ export class ExportViewPane extends ViewPane {
   private readonly content = document.createElement("div");
 
   constructor(
-    @IExportService private readonly exportService: IExportServiceType,
+    @IExportService private readonly exportService: IExportService,
   ) {
     super({
       id: ExportViewId,
@@ -100,12 +95,7 @@ export class ExportViewPane extends ViewPane {
       originCanvasExportScope: exportState.canvasScope,
       originExportContentOptions: ORIGIN_EXPORT_CONTENT_OPTIONS,
       originFilteredCanvasKind: exportState.filteredKind,
-      replaceMatchingOriginSeriesAcrossFiles: () => ({
-        matchedFileCount: 0,
-        matchedSeriesCount: 0,
-      }),
       resolvedCurveExportMode: exportState.curveMode,
-      scopedFileIds: viewState.scopedFileIds,
       selectedContentKeys: [...exportState.selectedContentKeys],
       selectedCurveOptionKeySet: new Set(exportState.selectedCurveKeys),
       setContentKeys: value => {

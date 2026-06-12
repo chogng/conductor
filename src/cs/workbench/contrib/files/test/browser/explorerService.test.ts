@@ -7,7 +7,6 @@ import assert from "assert";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import type {
   ExplorerPaneInput,
-  type ExplorerImportedFilesChangeEvent,
   ExplorerSelectionChangeEvent,
   ExplorerSelectionTarget,
 } from "src/cs/workbench/contrib/files/browser/files";
@@ -156,40 +155,6 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     disposable.dispose();
   });
 
-  test("normalizes file removal requests", () => {
-    const service = new ExplorerService();
-    const removedFileIds: string[] = [];
-    const disposable = service.onDidRequestFileRemoval(request => {
-      removedFileIds.push(request.fileId);
-    });
-
-    service.requestFileRemoval(" file-a ");
-    service.requestFileRemoval(" ");
-
-    assert.deepEqual(removedFileIds, ["file-a"]);
-    disposable.dispose();
-  });
-
-  test("emits folder workflow requests", () => {
-    const service = new ExplorerService();
-    let importRequests = 0;
-    let removalRequests = 0;
-    const importListener = service.onDidRequestFolderImport(() => {
-      importRequests += 1;
-    });
-    const removalListener = service.onDidRequestSelectedFolderRemoval(() => {
-      removalRequests += 1;
-    });
-
-    service.requestFolderImport();
-    service.requestSelectedFolderRemoval();
-
-    assert.equal(importRequests, 1);
-    assert.equal(removalRequests, 1);
-    importListener.dispose();
-    removalListener.dispose();
-  });
-
   test("publishes Explorer pane input", () => {
     const service = new ExplorerService();
     const inputs: Array<ExplorerPaneInput | null> = [];
@@ -205,65 +170,17 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     };
 
     service.updatePaneInput(input);
+    service.updatePaneInput({
+      files: [],
+      mode: "table",
+      selectedFileId: null,
+      selectionKind: "table",
+      thumbnailFiles: [],
+    });
 
     assert.equal(service.getPaneInput(), input);
     assert.deepEqual(inputs, [input]);
     disposable.dispose();
   });
 
-  test("publishes imported files changes through explorer owner API", () => {
-    const service = new ExplorerService();
-    const events: ExplorerImportedFilesChangeEvent[] = [];
-    const disposable = service.onDidSubmitImportedFilesChange(event => {
-      events.push(event);
-    });
-
-    service.addImportedFiles([{
-      fileId: " file-a ",
-      fileName: "File A.csv",
-      importRecord: createImportedFileRecordForTest("file-a"),
-    }]);
-    service.replaceImportedFiles([{
-      fileId: "file-b",
-      fileName: "File B.csv",
-      importRecord: createImportedFileRecordForTest("file-b"),
-    }]);
-    service.removeImportedFiles([" file-a ", "file-a", ""]);
-
-    assert.deepEqual(events, [
-      {
-        files: [{
-          fileId: "file-a",
-          fileName: "File A.csv",
-          importRecord: createImportedFileRecordForTest("file-a"),
-        }],
-        reason: "added",
-      },
-      {
-        files: [{
-          fileId: "file-b",
-          fileName: "File B.csv",
-          importRecord: createImportedFileRecordForTest("file-b"),
-        }],
-        reason: "replaced",
-      },
-      {
-        fileIds: ["file-a"],
-        reason: "removed",
-      },
-    ]);
-    disposable.dispose();
-  });
-});
-
-const createImportedFileRecordForTest = (fileId: string) => ({
-  id: fileId,
-  kind: "csv" as const,
-  name: `${fileId}.csv`,
-  raw: {
-    fileId,
-    fileName: `${fileId}.csv`,
-    rawTableOrder: [fileId],
-    rawTablesById: {},
-  },
 });

@@ -1,9 +1,7 @@
 import { DisposableResizeObserver, getWindow } from "src/cs/base/browser/dom";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import {
-  getGridViewClassName,
-  getGridViewItemClassName,
-  getGridViewStyle,
+  GridView,
 } from "src/cs/base/browser/ui/grid/gridview";
 import Sash, {
   getGlobalSashSize,
@@ -18,6 +16,7 @@ export type SplitViewPaneLayout = {
   readonly defaultSize?: number;
   readonly maxSize?: number;
   readonly minSize?: number;
+  readonly proportionalLayout?: boolean;
   readonly size?: number;
 };
 
@@ -58,6 +57,9 @@ export const getPaneMaxSize = (pane: SplitViewPaneLayout): number =>
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(Math.max(value, min), max);
 
+const usesProportionalLayout = (pane: SplitViewPaneLayout): boolean =>
+  pane.proportionalLayout ?? true;
+
 const getNormalizeResizeOrder = (
   panes: readonly SplitViewPaneLayout[],
 ): number[] => {
@@ -80,19 +82,27 @@ export const normalizeSplitViewSizes = (
   panes: readonly SplitViewPaneLayout[],
   previousSizes: readonly number[],
   availableSize: number,
+  previousAvailableSize = 0,
 ): number[] => {
   if (!panes.length) {
     return [];
   }
 
   const fallbackSize = availableSize > 0 ? availableSize / panes.length : 0;
-  const sizes = panes.map((pane, index) =>
-    clamp(
-      pane.size ?? previousSizes[index] ?? pane.defaultSize ?? fallbackSize,
-      getPaneMinSize(pane),
-      getPaneMaxSize(pane),
-    ),
-  );
+  const canUseProportions =
+    previousAvailableSize > 0 &&
+    availableSize > 0 &&
+    previousSizes.length === panes.length &&
+    Math.abs(previousAvailableSize - availableSize) >= 0.5;
+  const proportionalScale = canUseProportions ? availableSize / previousAvailableSize : 1;
+  const sizes = panes.map((pane, index) => {
+    const previousSize = previousSizes[index];
+    const rawSize = canUseProportions && typeof previousSize === "number" && usesProportionalLayout(pane)
+      ? previousSize * proportionalScale
+      : previousSize ?? pane.size ?? pane.defaultSize ?? fallbackSize;
+
+    return clamp(rawSize, getPaneMinSize(pane), getPaneMaxSize(pane));
+  });
 
   let delta = availableSize - sizes.reduce((sum, size) => sum + size, 0);
   if (Math.abs(delta) < 0.5) {
@@ -176,6 +186,7 @@ type DragState = {
 export class SplitView implements IDisposable {
   public readonly element: HTMLDivElement;
   private readonly viewportElement: HTMLDivElement;
+  private readonly gridView: GridView;
   private readonly gridElement: HTMLDivElement;
   private readonly store = new DisposableStore();
   private readonly paneElements = new Map<string, HTMLDivElement>();
@@ -185,13 +196,20 @@ export class SplitView implements IDisposable {
   private options: SplitViewOptions;
   private resizingPaneIndex: number | null = null;
   private sizes: readonly number[] = [];
+  private availableSize = 0;
   private sashOrientation: SashDragOrientation | null = null;
 
   public constructor(options: SplitViewOptions) {
     this.options = options;
     this.element = document.createElement("div");
     this.viewportElement = document.createElement("div");
-    this.gridElement = document.createElement("div");
+    this.gridView = new GridView({
+      className: "ui-split-view__grid",
+      items: [],
+      orientation: options.orientation,
+      sizes: [],
+    });
+    this.gridElement = this.gridView.element;
     this.viewportElement.append(this.gridElement);
     this.element.append(this.viewportElement);
     this.store.add(
@@ -232,8 +250,6 @@ export class SplitView implements IDisposable {
       Object.assign(this.element.style, style);
     }
     this.viewportElement.className = "ui-split-view__viewport";
-    this.gridElement.className = getGridViewClassName("ui-split-view__grid");
-    this.gridElement.dataset.orientation = orientation;
   }
 
   private renderPanes(): void {
@@ -251,9 +267,19 @@ export class SplitView implements IDisposable {
         paneElement = document.createElement("div");
         this.paneElements.set(pane.id, paneElement);
       }
-      paneElement.className = getGridViewItemClassName(getSplitViewPaneClassName(pane.className));
-      this.gridElement.append(paneElement);
     }
+
+    this.gridView.update({
+      className: "ui-split-view__grid",
+      gap: this.options.gap,
+      items: this.options.panes.map((pane, index) => ({
+        className: getSplitViewPaneClassName(pane.className),
+        element: this.paneElements.get(pane.id)!,
+        location: [index],
+      })),
+      orientation: this.options.orientation,
+      sizes: this.sizes,
+    });
   }
 
   private updateContainerSize(): void {
@@ -265,8 +291,10 @@ export class SplitView implements IDisposable {
 
   private normalizeSizes(): void {
     const { gap = 0, panes } = this.options;
+    const previousAvailableSize = this.availableSize;
     const availableSize = Math.max(0, this.containerSize - Math.max(0, panes.length - 1) * gap);
-    const nextSizes = normalizeSplitViewSizes(panes, this.sizes, availableSize);
+    const nextSizes = normalizeSplitViewSizes(panes, this.sizes, availableSize, previousAvailableSize);
+    this.availableSize = availableSize;
     if (!areSplitViewSizesEqual(this.sizes, nextSizes)) {
       this.sizes = nextSizes;
     }
@@ -274,7 +302,7 @@ export class SplitView implements IDisposable {
 
   private layout(): void {
     const { gap = 0, orientation = "horizontal", panes } = this.options;
-    Object.assign(this.gridElement.style, getGridViewStyle({ gap, orientation, sizes: this.sizes }));
+    this.gridView.layout({ gap, orientation, sizes: this.sizes });
     this.layoutViewport();
     this.layoutSashes();
 

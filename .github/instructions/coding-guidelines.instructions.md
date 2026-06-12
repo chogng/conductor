@@ -393,6 +393,13 @@ fires the matching `onDidChangeXxx` event, and lets subscribers reread public
 state. Commands, actions, views, and gestures may construct targets and invoke
 owner APIs, but they are entry/translation layers, not state owners.
 
+Practical rule: who owns a state is who updates that state. Consumers may
+render, mirror, or derive from the owner after subscribing to `onDidChangeXxx`,
+but they must not receive owner mutation callbacks or owner data-builder
+functions through pane input/view input/context objects. If a consumer needs a
+change, it calls the owner's public API; if it needs the latest value, it
+rereads the owner's public state/model after the event.
+
 Examples by responsibility:
 
 | Responsibility | Owner API location | Entry/consumer behavior |

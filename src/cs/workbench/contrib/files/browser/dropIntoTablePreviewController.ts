@@ -5,23 +5,17 @@
 import { DragAndDropObserver } from "src/cs/base/browser/dom";
 import { Disposable, DisposableStore, toDisposable } from "src/cs/base/common/lifecycle";
 import type { IWorkbenchContribution } from "src/cs/workbench/common/contributions";
-import type { IView } from "src/cs/workbench/common/views";
 import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import {
+  commitExplorerSessionImport,
+} from "src/cs/workbench/contrib/files/browser/explorerSessionImport";
+import {
   prepareDroppedFilesForImport,
-  type PreparedFileImport,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import { IFileConverterBackendService } from "src/cs/workbench/services/files/common/fileConverterBackend";
-import { createFileImportResultFromRecords } from "src/cs/workbench/services/files/common/files";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
-import { createSessionReadModel } from "src/cs/workbench/services/session/common/sessionReadModel";
-import { TableViewId } from "src/cs/workbench/services/table/common/table";
-import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
-
-type TablePreviewDropTargetView = IView & {
-  readonly getDropTargetElement: () => HTMLElement;
-};
+import { ITableDropTargetService } from "src/cs/workbench/services/table/browser/tableDropTargetService";
 
 type TablePreviewDropTargetRegistration = {
   readonly store: DisposableStore;
@@ -36,31 +30,27 @@ export class DropIntoTablePreviewController extends Disposable implements IWorkb
   private dropTargetRegistration: TablePreviewDropTargetRegistration | null = null;
 
   public constructor(
-    @IViewsService private readonly viewsService: IViewsService,
+    @ITableDropTargetService private readonly tableDropTargetService: ITableDropTargetService,
     @ISessionService private readonly sessionService: ISessionService,
     @IExplorerService private readonly explorerService: IExplorerService,
     @IFileConverterBackendService private readonly fileConverterBackendService: IFileConverterBackendService,
   ) {
     super();
-    this._register(this.viewsService.onDidChangeViewVisibility(({ id }) => {
-      if (id === TableViewId) {
-        this.attachToTablePreviewDropTarget();
-      }
+    this._register(this.tableDropTargetService.onDidChangeDropTarget(target => {
+      this.attachToTablePreviewDropTarget(target);
     }));
     this._register(toDisposable(() => {
       this.disposeDropTarget();
     }));
-    this.attachToTablePreviewDropTarget();
+    this.attachToTablePreviewDropTarget(this.tableDropTargetService.getDropTargetElement());
   }
 
-  private attachToTablePreviewDropTarget(): void {
-    const view = this.viewsService.getViewWithId(TableViewId);
-    if (!isTablePreviewDropTargetView(view)) {
+  private attachToTablePreviewDropTarget(target: HTMLElement | null): void {
+    if (!target) {
       this.disposeDropTarget();
       return;
     }
 
-    const target = view.getDropTargetElement();
     if (this.dropTargetRegistration?.target === target) {
       return;
     }
@@ -134,29 +124,13 @@ export class DropIntoTablePreviewController extends Disposable implements IWorkb
       return;
     }
 
-    this.sessionService.commitFileImport(createFileImportResultFromRecords(
-      preparedFiles.map(prepared => prepared.fileInfo.importRecord),
-    ));
-
-    this.selectImportedRawFile(preparedFiles);
+    commitExplorerSessionImport({
+      explorerService: this.explorerService,
+      importedFiles: preparedFiles.map(prepared => prepared.fileInfo),
+      mode: "append",
+      sessionService: this.sessionService,
+    });
     this.showImportError(errorMessage);
-  }
-
-  private selectImportedRawFile(preparedFiles: readonly PreparedFileImport[]): void {
-    const readModel = createSessionReadModel(this.sessionService.getSnapshot());
-    const rawFileIds = readModel.rawFiles
-      .map(file => String(file.fileId ?? "").trim())
-      .filter(fileId => fileId.length > 0);
-    const selectedFileId = this.explorerService.selectedRawFileId ?? preparedFiles[0]?.fileInfo.fileId ?? null;
-    if (!selectedFileId) {
-      return;
-    }
-
-    this.explorerService.select({
-      candidateFileIds: rawFileIds,
-      fileId: selectedFileId,
-      kind: "table",
-    }, "force");
   }
 
   private showImportError(message: string | null): void {
@@ -171,6 +145,3 @@ export class DropIntoTablePreviewController extends Disposable implements IWorkb
     });
   }
 }
-
-const isTablePreviewDropTargetView = (view: IView | null): view is TablePreviewDropTargetView =>
-  Boolean(view && "getDropTargetElement" in view && typeof view.getDropTargetElement === "function");

@@ -437,6 +437,7 @@ export interface IView extends IDisposable {
   readonly element: HTMLElement;
 
   focus(): void;
+  getActions?(): readonly IAction[];
   layout?(height: number, width: number): void;
   isVisible(): boolean;
   isBodyVisible(): boolean;

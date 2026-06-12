@@ -301,10 +301,26 @@ export class ViewPaneContainer implements IViewPaneContainer {
   }
 
   private renderTitleArea(): void {
+    const actions = this.getTitleActions();
     this.titleElement.textContent = this.containerTitle;
     this.actionBar.clear();
-    this.actionBar.push([...this.primaryActions, ...this.secondaryActions]);
-    this.header.hidden = !this.renderHeader || (!this.containerTitle && this.primaryActions.length === 0 && this.secondaryActions.length === 0);
+    this.actionBar.push(actions);
+    this.header.hidden = !this.renderHeader || (!this.containerTitle && actions.length === 0);
+  }
+
+  private getTitleActions(): readonly IAction[] {
+    return [
+      ...this.primaryActions,
+      ...this.getActiveViewActions(),
+      ...this.secondaryActions,
+    ];
+  }
+
+  private getActiveViewActions(): readonly IAction[] {
+    const activeView = this.activeViewId
+      ? this.panes.get(this.activeViewId)
+      : undefined;
+    return activeView?.getActions?.() ?? [];
   }
 
   private isPaneVisible(viewId: string): boolean {
@@ -357,6 +373,7 @@ export class ViewPaneContainer implements IViewPaneContainer {
       }
     }
     this.body.replaceChildren(...visibleViews);
+    this.renderTitleArea();
   }
 
   private getElementClassName(className = ""): string {

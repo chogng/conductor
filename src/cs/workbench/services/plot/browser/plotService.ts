@@ -14,9 +14,8 @@ import {
 import { isPlotType } from "src/cs/workbench/services/plot/common/plot";
 import {
   IPlotService,
+  type PlotAxis,
   type PlotAxisTitleContext,
-  type IPlotService as IPlotServiceType,
-  type PlotAxisSettingsByFileId,
   type PlotCalculatedDataInput,
   type PlotDisplayModel,
   type PlotDisplayModelInput,
@@ -34,6 +33,8 @@ import {
   getYUnitMeta,
   normalizeXUnit,
   normalizeYUnit,
+  type XUnit,
+  type YUnit,
 } from "src/cs/workbench/services/plot/common/units";
 import type {
   FileId,
@@ -41,12 +42,16 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
   ISessionService,
-  type ISessionService as ISessionServiceType,
   type SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
+import { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
+import {
+  getFileAxisSettingsByFileId,
+  type FileAxisSettingsByFileId,
+} from "src/cs/workbench/services/session/browser/fileSemanticsSync";
 
-export class PlotService extends Disposable implements IPlotServiceType {
+export class PlotService extends Disposable implements IPlotService {
   public declare readonly _serviceBrand: undefined;
 
   private readonly onDidChangePlotStateEmitter = this._register(new Emitter<PlotState>());
@@ -59,7 +64,8 @@ export class PlotService extends Disposable implements IPlotServiceType {
   };
 
   constructor(
-    @ISessionService private readonly sessionService: ISessionServiceType,
+    @ISessionService private readonly sessionService: ISessionService,
+    @ISettingsService private readonly settingsService: ISettingsService,
   ) {
     super();
 
@@ -67,6 +73,9 @@ export class PlotService extends Disposable implements IPlotServiceType {
       if (shouldInvalidatePlotModelsForSessionChange(event)) {
         this.onDidChangePlotStateEmitter.fire(this.state);
       }
+    }));
+    this._register(this.settingsService.onDidChangeConductorSettings(() => {
+      this.onDidChangePlotStateEmitter.fire(this.state);
     }));
   }
 
@@ -116,7 +125,12 @@ export class PlotService extends Disposable implements IPlotServiceType {
   }
 
   public getPlotDisplayModel(input: PlotDisplayModelInput): PlotDisplayModel | null {
-    const calculatedData = this.getCalculatedData(input);
+    const snapshot = this.resolveSnapshot(input.snapshot);
+    const calculatedData = this.getCalculatedData({
+      fileId: input.fileId,
+      plotType: input.plotType,
+      snapshot: snapshot ?? undefined,
+    });
     const fileId = String(calculatedData?.source.fileId ?? "").trim();
     if (!calculatedData || !fileId) {
       return null;
@@ -126,8 +140,9 @@ export class PlotService extends Disposable implements IPlotServiceType {
       filterCalculatedDataSeries(calculatedData, input.hiddenLegendKeys ?? []),
       input.legendLabels ?? {},
     );
-    const displayUnits = resolveDisplayUnits(chartData, input.axisSettings);
-    const yScaleMode = resolveYScale(chartData, input.axisSettings);
+    const axisSettings = snapshot ? this.getAxisSettings(snapshot) : undefined;
+    const displayUnits = resolveDisplayUnits(chartData, axisSettings);
+    const yScaleMode = resolveYScale(chartData, axisSettings);
     const inspectorData = createSecondCalculatedData(
       filterCalculatedDataSeries(chartData, input.hiddenLegendKeys ?? []),
     );
@@ -211,7 +226,7 @@ export class PlotService extends Disposable implements IPlotServiceType {
         yScaleMode,
       },
       plotType: chartData.kind as PlotType,
-      unitControl: createUnitControlModel(chartData, input.axisSettings),
+      unitControl: createUnitControlModel(chartData, axisSettings),
     };
   }
 
@@ -253,6 +268,80 @@ export class PlotService extends Disposable implements IPlotServiceType {
     this.updateState({
       activePlotType: plotType,
     });
+  }
+
+  public async setAxisUnit(
+    fileId: FileId,
+    axis: PlotAxis,
+    unit: XUnit | YUnit,
+  ): Promise<void> {
+    const normalizedFileId = normalizeStateKey(fileId);
+    if (!normalizedFileId) {
+      return;
+    }
+
+    if (axis === "x") {
+      const normalizedUnit = normalizeXUnit(unit);
+      if (!normalizedUnit) {
+        return;
+      }
+
+      const current = this.settingsService.getConductorSettings()?.xUnitByFileId ?? {};
+      if (current[normalizedFileId] === normalizedUnit) {
+        return;
+      }
+
+      await this.settingsService.updateSettings({
+        xUnitByFileId: {
+          ...current,
+          [normalizedFileId]: normalizedUnit,
+        },
+      });
+      this.onDidChangePlotStateEmitter.fire(this.state);
+      return;
+    }
+
+    const normalizedUnit = normalizeYUnit(unit);
+    if (!normalizedUnit) {
+      return;
+    }
+
+    const current = this.settingsService.getConductorSettings()?.yUnitByFileId ?? {};
+    if (current[normalizedFileId] === normalizedUnit) {
+      return;
+    }
+
+    await this.settingsService.updateSettings({
+      yUnitByFileId: {
+        ...current,
+        [normalizedFileId]: normalizedUnit,
+      },
+    });
+    this.onDidChangePlotStateEmitter.fire(this.state);
+  }
+
+  public async setYScale(
+    fileId: FileId,
+    scale: "linear" | "log",
+  ): Promise<void> {
+    const normalizedFileId = normalizeStateKey(fileId);
+    if (!normalizedFileId) {
+      return;
+    }
+
+    const normalizedScale = scale === "log" ? "log" : "linear";
+    const current = this.settingsService.getConductorSettings()?.yScaleByFileId ?? {};
+    if (current[normalizedFileId] === normalizedScale) {
+      return;
+    }
+
+    await this.settingsService.updateSettings({
+      yScaleByFileId: {
+        ...current,
+        [normalizedFileId]: normalizedScale,
+      },
+    });
+    this.onDidChangePlotStateEmitter.fire(this.state);
   }
 
   public setLegendLabel(
@@ -316,6 +405,13 @@ export class PlotService extends Disposable implements IPlotServiceType {
   private resolveSnapshot(snapshot: SessionSnapshot | undefined): SessionSnapshot | null {
     return snapshot ?? this.sessionService?.getSnapshot() ?? null;
   }
+
+  private getAxisSettings(snapshot: SessionSnapshot): FileAxisSettingsByFileId {
+    return getFileAxisSettingsByFileId({
+      conductorSettings: this.settingsService.getConductorSettings(),
+      snapshot,
+    });
+  }
 }
 
 export const shouldInvalidatePlotModelsForSessionChange = (
@@ -377,7 +473,7 @@ const normalizeStateKey = (value: unknown): string =>
 
 const resolveDisplayUnits = (
   data: CalculatedData,
-  axisSettings: PlotAxisSettingsByFileId | undefined,
+  axisSettings: FileAxisSettingsByFileId | undefined,
 ): {
   readonly xFactor: number;
   readonly xUnit: string | undefined;
@@ -408,7 +504,7 @@ const resolveDisplayUnits = (
 
 const createUnitControlModel = (
   data: CalculatedData,
-  axisSettings: PlotAxisSettingsByFileId | undefined,
+  axisSettings: FileAxisSettingsByFileId | undefined,
 ): PlotDisplayModel["unitControl"] => {
   const fileId = String(data.source.fileId ?? "").trim();
   if (!fileId) {
@@ -427,7 +523,7 @@ const createUnitControlModel = (
 
 const resolveYScale = (
   data: CalculatedData,
-  axisSettings: PlotAxisSettingsByFileId | undefined,
+  axisSettings: FileAxisSettingsByFileId | undefined,
 ): "linear" | "log" => {
   const fileId = String(data.source.fileId ?? "").trim();
   return fileId && axisSettings?.yScaleByFileId?.[fileId] === "log" ? "log" : "linear";

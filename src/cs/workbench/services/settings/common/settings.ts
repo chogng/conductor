@@ -6,7 +6,11 @@ import type { Event } from "src/cs/base/common/event";
 import type { LanguagePreference } from "src/cs/platform/language/common/language";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
-import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
+import {
+  DEFAULT_ORIGIN_PLOT_OPTIONS,
+  normalizeOriginPlotOptions,
+  type OriginPlotOptions,
+} from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type {
   OriginCleanupResult,
   OriginHealthResult,
@@ -71,62 +75,85 @@ export const SettingsViewId = "workbench.settings";
 
 export const ISettingsService = createDecorator<ISettingsService>("settingsService");
 
-export type SettingsServiceOptions = {
-  updateConductorSettings: (
-    updates: unknown,
-  ) => Promise<ConductorSettings | null>;
-  isWindowsDesktopShell: boolean;
-  mergeConductorSettings: (nextSettings: ConductorSettings | null) => void;
+export type SettingsStore = {
+  getSettings: () => Promise<unknown>;
+  updateSettings: (updates: unknown) => Promise<unknown>;
 };
 
 export type SettingsAppUpdateInput = {
   readonly currentVersion: string | null;
   readonly isAvailable: boolean;
-  readonly onCheckForUpdates: () => Promise<boolean> | boolean;
+};
+
+export type SettingsServiceOptions = {
+  appUpdateSettings: SettingsAppUpdateInput;
+  applyAppearanceSettings: (settings: ConductorSettings | null) => void;
+  checkForUpdates: () => Promise<boolean> | boolean;
+  isWindowsDesktopShell: boolean;
+  language: LanguagePreference;
+  reloadWorkbench: () => void;
+  setIonIoffMethod: (method: IonIoffMethod) => void;
+  setSsMethod: (method: SsMethod) => void;
+  setSsShowFitLine: (enabled: boolean) => void;
+  setTheme: (theme: ThemeMode) => void;
+  settingsStore?: SettingsStore;
+  theme: ThemeMode;
 };
 
 export type SettingsViewInput = {
   readonly appUpdateSettings: SettingsAppUpdateInput;
   readonly conductorSettings: ConductorSettings | null;
   readonly conductorSettingsLoaded: boolean;
-  readonly handleLanguageChange: (language: LanguagePreference) => Promise<void> | void;
-  readonly handleResetLayoutState: () => Promise<void> | void;
-  readonly handleThemeChange: (theme: ThemeMode) => Promise<void> | void;
-  readonly updateConductorSettings: (
-    updates: unknown,
-  ) => Promise<ConductorSettings | null>;
   readonly isWindowsDesktopShell: boolean;
   readonly language: LanguagePreference;
-  readonly mergeConductorSettings: (nextSettings: ConductorSettings | null) => void;
   readonly theme: ThemeMode;
 };
 
 export type OriginSettingsViewInput = {
   readonly axisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
-  readonly onAxisChange?: (updates: Record<string, unknown>) => void | Promise<void>;
-  readonly onChange?: (updates: Partial<OriginPlotOptions>) => void | Promise<void>;
   readonly options?: OriginPlotOptions;
 };
 
 export interface ISettingsService {
   readonly _serviceBrand: undefined;
 
+  readonly onDidChangeConductorSettings: Event<ConductorSettings | null>;
   readonly onDidChangeOriginSettingsViewInput: Event<OriginSettingsViewInput>;
   readonly onDidChangeSettingsViewInput: Event<SettingsViewInput>;
 
   canCheckOriginHealth(): boolean;
   canManageOrigin(): boolean;
   canRunOriginCleanup(): boolean;
+  checkForUpdates(): Promise<boolean>;
   checkOriginHealth(path: string): Promise<OriginHealthResult>;
   chooseOriginExePath(): Promise<string>;
   errorMessage(error: unknown): string;
   formatOriginError(error: unknown): string;
+  getConductorSettings(): ConductorSettings | null;
   getOriginExePath(): Promise<string>;
   getOriginSettingsViewInput(): OriginSettingsViewInput;
   getSettingsViewInput(): SettingsViewInput | null;
+  mergeConductorSettings(nextSettings: ConductorSettings | null): void;
   runOriginCleanup(): Promise<OriginCleanupResult>;
+  setLanguage(language: LanguagePreference): Promise<void>;
+  setTheme(theme: ThemeMode): Promise<void>;
   update(options: SettingsServiceOptions): void;
-  updateOriginSettingsViewInput(input: OriginSettingsViewInput): void;
-  updateSettingsViewInput(input: SettingsViewInput): void;
+  updateOriginPlotOptions(updates: Partial<OriginPlotOptions>): Promise<ConductorSettings | null>;
+  updatePlotAxisSettings(updates: Record<string, unknown>): Promise<ConductorSettings | null>;
   updateSettings(updates: unknown): Promise<ConductorSettings | null>;
 }
+
+export const getOriginOpenPlotOptions = (
+  settings: ConductorSettings | null,
+): OriginPlotOptions =>
+  normalizeOriginPlotOptions(
+    {
+      command: settings?.originPlotCommandDefault,
+      postCommands: settings?.originPlotPostCommandsDefault,
+      type: settings?.originPlotTypeDefault,
+      lineWidth: settings?.originPlotLineWidthDefault,
+      legendFontSize: settings?.originPlotLegendFontSizeDefault,
+      xyPairs: settings?.originPlotXyPairsDefault,
+    },
+    DEFAULT_ORIGIN_PLOT_OPTIONS,
+  );

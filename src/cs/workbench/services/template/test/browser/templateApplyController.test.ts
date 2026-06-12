@@ -4,10 +4,16 @@
 
 import assert from "assert";
 
+import {
+  Emitter,
+  Event,
+} from "src/cs/base/common/event";
 import type {
   ISessionService,
   SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
+import type { ITableService } from "src/cs/workbench/services/table/common/table";
+import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import type { ITemplateApplyService } from "src/cs/workbench/services/template/common/template";
 import {
   TemplateApplyController,
@@ -26,6 +32,7 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     const queuedFileIds: string[][] = [];
     const controller = new TemplateApplyController({
       sessionService: createSessionService(),
+      tableService: createTableService(),
       templateProcessingBackendService: createTemplateProcessingBackend(),
       showResults: () => undefined,
       templateApplyService: createTemplateApplyService(queuedFileIds),
@@ -37,9 +44,6 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     };
 
     controller.update({
-      getTableRow: () => null,
-      hasSourceFile: () => true,
-      previewFile: null,
       processedFileIds: ["file-a", "file-c"],
       rawFiles: [
         createSessionFile("file-a"),
@@ -64,20 +68,21 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     const readRows: number[] = [];
     const controller = new TemplateApplyController({
       sessionService: createSessionService(),
+      tableService: createTableService({
+        getRow: (rowIndex) => {
+          readRows.push(rowIndex);
+          return rowIndex === 0 ? ["points", "2"] : null;
+        },
+        previewFile: {
+          rowCount: 3,
+        },
+      }),
       templateProcessingBackendService: createTemplateProcessingBackend(),
       showResults: () => undefined,
       templateApplyService: createTemplateApplyService(queuedFileIds, startedJobs),
     });
 
     controller.update({
-      getTableRow: (rowIndex) => {
-        readRows.push(rowIndex);
-        return rowIndex === 0 ? ["points", "2"] : null;
-      },
-      hasSourceFile: () => true,
-      previewFile: {
-        rowCount: 3,
-      },
       processedFileIds: [],
       rawFiles: [createSessionFile("file-a")],
     });
@@ -122,6 +127,47 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     assert.equal(extractionConfig.xUnit, "V");
     assert.equal(extractionConfig.yUnit, "A");
   });
+
+  test("removes queued processing files from session removal events", () => {
+    const queuedFileIds: string[][] = [];
+    const sessionEvents = new Emitter<SessionChangeEvent>();
+    const controller = new TemplateApplyController({
+      sessionService: createSessionService(sessionEvents),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds, [], {
+        markProcessing: true,
+      }),
+    });
+
+    controller.update({
+      processedFileIds: [],
+      rawFiles: [
+        createSessionFile("file-a"),
+        createSessionFile("file-b"),
+      ],
+    });
+
+    controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    });
+    sessionEvents.fire({
+      fileIds: ["file-b"],
+      reason: "filesRemoved",
+      sessionVersion: 2,
+    });
+
+    assert.deepEqual(queuedFileIds, [["file-a", "file-b"]]);
+    assert.deepEqual(controller.processingStatus, {
+      processed: 0,
+      state: "processing",
+      total: 1,
+    });
+    controller.dispose();
+    sessionEvents.dispose();
+  });
 });
 
 const createSessionFile = (fileId: string) => ({
@@ -137,9 +183,30 @@ const createTemplateProcessingBackend = (): TemplateProcessingBackend => ({
   readConvertedCsv: async () => ({}),
 });
 
-const createSessionService = (): Pick<
+const createTableService = ({
+  getRow = () => null,
+  previewFile = null,
+}: {
+  readonly getRow?: (rowIndex: number) => unknown;
+  readonly previewFile?: unknown;
+} = {}): Pick<ITableService, "getViewInput"> => ({
+  getViewInput: () => ({
+    tableModel: {
+      getRow,
+      getState: () => ({ file: previewFile }),
+    },
+  } as ReturnType<ITableService["getViewInput"]>),
+});
+
+const createSessionService = (
+  sessionEvents?: Emitter<SessionChangeEvent>,
+): Pick<
   ISessionService,
-  "commitCurves" | "commitMetrics" | "commitTemplateRun" | "getSnapshot"
+  | "commitCurves"
+  | "commitMetrics"
+  | "commitTemplateRun"
+  | "getSnapshot"
+  | "onDidChangeSession"
 > => ({
   commitCurves: () => undefined,
   commitMetrics: () => undefined,
@@ -150,11 +217,15 @@ const createSessionService = (): Pick<
     schemaVersion: 1,
     sessionVersion: 1,
   }),
+  onDidChangeSession: sessionEvents?.event ?? Event.None as Event<SessionChangeEvent>,
 });
 
 const createTemplateApplyService = (
   queuedFileIds: string[][],
   startedJobs: ProcessingJobOptions[] = [],
+  serviceOptions: {
+    readonly markProcessing?: boolean;
+  } = {},
 ): ITemplateApplyService<
   ProcessingJobOptions,
   RuleProcessingJobOptions,
@@ -162,9 +233,17 @@ const createTemplateApplyService = (
   Worker | null
 > => ({
   _serviceBrand: undefined,
-  startProcessingJob: (options) => {
-    queuedFileIds.push(options.queue.map((entry) => entry.fileId));
-    startedJobs.push(options);
+  startProcessingJob: (jobOptions) => {
+    queuedFileIds.push(jobOptions.queue.map((entry) => entry.fileId));
+    startedJobs.push(jobOptions);
+    if (serviceOptions.markProcessing) {
+      jobOptions.processingQueueRef.current = [...jobOptions.queue];
+      jobOptions.setProcessingStatus({
+        processed: 0,
+        state: "processing",
+        total: jobOptions.queue.length,
+      });
+    }
   },
   startRuleProcessingJob: () => undefined,
   terminateProcessingWorker: () => undefined,

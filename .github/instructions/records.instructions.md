@@ -338,15 +338,12 @@ Owner: `PlotService`. Service state, not session canonical data.
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `activePlotType` | `PlotType` | Current plot family shown. |
-| `activeFileId` | `FileId | null` | File currently plotted. |
-| `visibleCurveKeys` | `readonly CurveKey[] | undefined` | Explicit visible curves; absent means default visibility. |
-| `hiddenCurveKeys` | `readonly CurveKey[] | undefined` | Curves hidden by user. |
-| `focusedCurveKey` | `CurveKey | null` | Keyboard/legend focus. |
-| `hoveredCurveKey` | `CurveKey | null` | Pointer hover. |
-| `xUnitByFileId` | `Record<FileId, string>` | X display unit overrides. |
-| `yUnitByFileId` | `Record<FileId, string>` | Y display unit overrides. |
-| `yScaleByFileId` | `Record<FileId, 'linear' | 'log'>` | Y scale overrides. |
 | `axisTitleOverridesByKey` | `Record<string, string>` | User axis-title overrides. |
+| `legendLabelsByFileId` | `Record<FileId, Record<SeriesId, string>>` | User legend label overrides by file and series. |
+
+Per-file unit and scale choices are mutated through `IPlotService` and
+currently persisted in conductor settings, then supplied to Plot as
+`PlotAxisSettingsByFileId` when building render models.
 
 ### `PlotRenderModel`
 
@@ -402,10 +399,8 @@ Owner: `ChartService`. Service/view-shell state only.
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `visibleDetailPanes` | `readonly ChartDetailPane[]` | Open chart detail panes, for example inspector. |
-| `legendPopoverOpen` | `boolean` | Legend popover visibility. |
-| `inspectorVisible` | `boolean` | Inspector visibility. |
-| `headerVisible` | `boolean` | Header/action visibility. |
-| `lastRenderedPlotModelId` | `string | null` | Last plot model rendered by Chart. |
+| `hiddenLegendKeysByContext` | `Record<string, readonly string[]>` | Chart-owned legend visibility overrides keyed by file/plot context. |
+| `legendPopoverContextKey` | `string | null` | Current legend popover context key, or null when closed. |
 
 ## Table state
 

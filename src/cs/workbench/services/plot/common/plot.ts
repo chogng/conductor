@@ -48,12 +48,6 @@ export type PlotCalculatedDataInput = {
 
 export type PlotMainRenderModelInput = PlotCalculatedDataInput;
 
-export type PlotAxisSettingsByFileId = {
-  readonly xUnitByFileId?: Readonly<Record<string, string>>;
-  readonly yScaleByFileId?: Readonly<Record<string, string>>;
-  readonly yUnitByFileId?: Readonly<Record<string, string>>;
-};
-
 export type PlotLegendModel = {
   readonly fileId: FileId;
   readonly plotType: PlotType;
@@ -66,9 +60,7 @@ export type PlotDisplayModelRequest = {
 };
 
 export type PlotDisplayModelInput = PlotCalculatedDataInput &
-  PlotDisplayModelRequest & {
-    readonly axisSettings?: PlotAxisSettingsByFileId;
-  };
+  PlotDisplayModelRequest;
 
 export type PlotPaneDisplayModel = {
   readonly defaultXAxisTitle: string;
@@ -111,6 +103,8 @@ export interface IPlotService {
   getPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
   getPlotMainRenderModel(input: PlotMainRenderModelInput): PlotMainRenderModel | null;
   setAxisTitleOverride(context: PlotAxisTitleContext, title: string, defaultTitle: string): void;
+  setAxisUnit(fileId: FileId, axis: PlotAxis, unit: XUnit | YUnit): Promise<void>;
   setActivePlotType(plotType: PlotType): void;
   setLegendLabel(fileId: FileId, seriesId: SeriesId, label: string | null): void;
+  setYScale(fileId: FileId, scale: "linear" | "log"): Promise<void>;
 }

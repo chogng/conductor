@@ -15,6 +15,7 @@ import {
 import { IFileService } from "src/cs/platform/files/common/files";
 import type { WorkbenchSidebarAction } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
+import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
   FileSourceWorkflow,
   getFolderImportSupportForFileService,
@@ -35,11 +36,13 @@ import {
 import {
   ExplorerViewId,
   IExplorerService,
+  IExplorerWorkflowService,
   type ExplorerPaneInput,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
   getExplorerFolderPath,
   isExplorerPathInFolder,
+  resolveExplorerSelectionAfterRemoval,
   resolveExplorerSelectedFileId,
   type ExplorerFileEntry,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
@@ -48,6 +51,10 @@ import {
   IFileConverterBackendService,
   type FileConverterBackend,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
+import {
+  commitExplorerSessionImport,
+} from "src/cs/workbench/contrib/files/browser/explorerSessionImport";
+import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import { IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
   ITemplateService,
@@ -79,8 +86,11 @@ export class ExplorerViewPane extends ViewPane {
     @IContextMenuService private readonly contextMenuService: IContextMenuService,
     @IContextViewService private readonly contextViewService: IContextViewService,
     @IExplorerService private readonly explorerService: IExplorerService,
+    @IExplorerWorkflowService private readonly explorerWorkflowService: IExplorerWorkflowService,
     @IFileConverterBackendService private readonly fileConverterBackendService: FileConverterBackend,
     @IFileService private readonly filesService: IFileService,
+    @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+    @ISessionService private readonly sessionService: ISessionService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @ITemplateService private readonly templateService: ITemplateService,
   ) {
@@ -137,16 +147,14 @@ export class ExplorerViewPane extends ViewPane {
     this._register(this.explorerService.onDidChangeExpandedFolderKeys(() => {
       this.syncView();
     }));
-    this._register(this.explorerService.onDidRequestFolderImport(() => {
-      this.openFileDialog();
-    }));
-    this._register(this.explorerService.onDidRequestSelectedFolderRemoval(() => {
-      this.removeSelectedFolder();
-    }));
-    this._register(this.explorerService.onDidRequestFileRemoval(request => {
-      if (this.fileIds.includes(request.fileId)) {
-        this.handleRemoveFile(request.fileId);
-      }
+    this._register(this.explorerWorkflowService.registerHandler({
+      openFolderImport: () => this.openFileDialog(),
+      removeSelectedFolder: () => this.removeSelectedFolder(),
+      removeFile: fileId => {
+        if (this.fileIds.includes(fileId)) {
+          this.handleRemoveFile(fileId);
+        }
+      },
     }));
 
     this.update(this.explorerService.getPaneInput());
@@ -400,7 +408,7 @@ export class ExplorerViewPane extends ViewPane {
   };
 
   private readonly handleOpenFolderDialog = (): void => {
-    this.sourceWorkflow.openFolderDialog();
+    this.openFileDialog();
   };
 
   private readonly handleSelectFile = (fileId: string | null): void => {
@@ -455,10 +463,6 @@ export class ExplorerViewPane extends ViewPane {
   };
 
   private notifyExplorerFilesRemoved(fileIds: readonly string[]): void {
-    if (this.isControlled && this.paneInput.selectionKind === "table") {
-      return;
-    }
-
     const currentFileId = this.paneInput.selectionKind === "chart"
       ? this.explorerService.selectedProcessedFileId
       : this.explorerService.selectedRawFileId;
@@ -506,12 +510,20 @@ export class ExplorerViewPane extends ViewPane {
   };
 
   private removeFiles(fileIds: readonly string[]): void {
+    const normalizedFileIds = getNormalizedFileIds(fileIds);
+    if (!normalizedFileIds.length) {
+      return;
+    }
+
     if (!this.isControlled) {
-      const removedFileIds = new Set(fileIds);
+      const removedFileIds = new Set(normalizedFileIds);
       this.internalFiles = this.internalFiles.filter((entry) => !removedFileIds.has(entry.fileId ?? ""));
     }
 
-    this.explorerService.removeImportedFiles(fileIds);
+    this.sessionService.removeFiles(normalizedFileIds);
+    if (this.paneInput.selectionKind !== "table") {
+      this.selectRawFileAfterRemoval(normalizedFileIds);
+    }
   }
 
   private replaceImportedFiles(
@@ -521,12 +533,24 @@ export class ExplorerViewPane extends ViewPane {
   ): void {
     if (!this.isControlled) {
       this.internalFiles = [...fileEntries];
-      this.selectFile(selectedFileId, "force");
       this.handleFileCountEffects();
       this.syncView();
     }
 
-    this.explorerService.replaceImportedFiles(importedFiles);
+    const importResult = commitExplorerSessionImport({
+      explorerService: this.explorerService,
+      importedFiles,
+      mode: "replace",
+      selectedFileId,
+      sessionService: this.sessionService,
+    });
+    if (!importResult.importedFileIds.length) {
+      return;
+    }
+
+    if (importResult.shouldNavigateToTable) {
+      this.navigateToTableAfterImport();
+    }
   }
 
   private appendImportedFiles(
@@ -543,7 +567,19 @@ export class ExplorerViewPane extends ViewPane {
       this.syncView();
     }
 
-    this.explorerService.addImportedFiles(importedFiles);
+    const importResult = commitExplorerSessionImport({
+      explorerService: this.explorerService,
+      importedFiles,
+      mode: "append",
+      sessionService: this.sessionService,
+    });
+    if (!importResult.importedFileIds.length) {
+      return;
+    }
+
+    if (importResult.shouldNavigateToTable) {
+      this.navigateToTableAfterImport();
+    }
   }
 
   private appendPreparedImportFiles(preparedFiles: readonly PreparedFileImport[]): void {
@@ -603,6 +639,33 @@ export class ExplorerViewPane extends ViewPane {
       kind: this.paneInput.selectionKind,
     }, reveal);
   }
+
+  private selectRawFileAfterRemoval(fileIds: readonly string[]): void {
+    const removedFileIds = getNormalizedFileIds(fileIds);
+    if (!removedFileIds.length) {
+      return;
+    }
+
+    const removedFileIdSet = new Set(removedFileIds);
+    const remainingFileIds = getSessionRawFileIds(this.sessionService)
+      .filter(fileId => !removedFileIdSet.has(fileId));
+    const nextSelectedFileId = resolveExplorerSelectionAfterRemoval({
+      currentFileId: this.explorerService.selectedRawFileId,
+      remainingFileIds,
+      removedFileIds,
+    });
+    this.explorerService.select({
+      candidateFileIds: remainingFileIds,
+      fileId: nextSelectedFileId,
+      kind: "table",
+    }, "force");
+  }
+
+  private navigateToTableAfterImport(): void {
+    if (this.layoutService.activeWorkbenchMainPart === "chart") {
+      this.layoutService.navigateToView("table");
+    }
+  }
 }
 
 const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {
@@ -638,6 +701,39 @@ function normalizeRelativePath(value: unknown): string | null {
 function normalizeFileId(value: unknown): string | null {
   const fileId = String(value ?? "").trim();
   return fileId || null;
+}
+
+function getNormalizedFileIds(values: readonly string[]): readonly string[] {
+  return uniqueFileIds(
+    values
+      .map(value => normalizeFileId(value))
+      .filter((fileId): fileId is string => Boolean(fileId)),
+  );
+}
+
+function getSessionRawFileIds(
+  sessionService: Pick<ISessionService, "getSnapshot">,
+): readonly string[] {
+  const snapshot = sessionService.getSnapshot();
+  return snapshot.fileOrder
+    .map(fileId => normalizeFileId(fileId))
+    .filter((fileId): fileId is string => Boolean(fileId && snapshot.filesById[fileId]));
+}
+
+function uniqueFileIds(values: readonly string[]): readonly string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const fileId = normalizeFileId(value);
+    if (!fileId || seen.has(fileId)) {
+      continue;
+    }
+
+    seen.add(fileId);
+    result.push(fileId);
+  }
+
+  return result;
 }
 
 function getTopLevelFolderPath(relativePath: unknown): string | null {

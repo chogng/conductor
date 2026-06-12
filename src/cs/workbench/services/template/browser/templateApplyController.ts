@@ -3,10 +3,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, type NLSVars } from "src/cs/nls";
-import type {
-  CommitTemplateOutputOptions,
-  ISessionService as ISessionServiceType,
+import type { IDisposable } from "src/cs/base/common/lifecycle";
+import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import {
+  ISessionService,
+  type CommitTemplateOutputOptions,
 } from "src/cs/workbench/services/session/common/session";
+import { ITableService } from "src/cs/workbench/services/table/common/table";
+import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
+import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import {
   createProcessedFileSessionCommit,
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
@@ -14,10 +19,6 @@ import { prepareExtraction } from "src/cs/workbench/services/template/common/ext
 import { isAutoTemplateConfig } from "src/cs/workbench/services/template/common/autoTemplate";
 import { normalizeExtractionErrorDetails } from "src/cs/workbench/services/template/common/extractionErrors";
 import { stableStringify } from "src/cs/workbench/services/template/common/templateStableKey";
-import type {
-  TemplateSelection,
-  TemplateSelectionsByFileId,
-} from "src/cs/workbench/services/template/common/templateSelection";
 import {
   mergeTemplateProcessingAssessment,
 } from "src/cs/workbench/services/template/common/templateProcessingAssessment";
@@ -30,7 +31,6 @@ import {
 import type {
   ProcessedEntry,
   ProcessingStatus,
-  SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import type {
   ProcessingJobOptions,
@@ -39,9 +39,14 @@ import type {
   TemplateWorkerRef,
 } from "src/cs/workbench/services/template/browser/templateApplyProcessing";
 import { buildTemplateProcessingQueue } from "src/cs/workbench/services/template/browser/templateApplyPlanner";
-import type { ITemplateApplyService } from "src/cs/workbench/services/template/common/template";
-import type {
-  TemplateProcessingBackend,
+import {
+  ITemplateApplyService,
+  ITemplateApplyWorkflowService,
+  type TemplateApplyWorkflowInput,
+} from "src/cs/workbench/services/template/common/template";
+import {
+  ITemplateProcessingBackendService,
+  type TemplateProcessingBackend,
 } from "src/cs/workbench/services/template/common/templateProcessingBackend";
 
 type ExtractionErrorEntry = {
@@ -88,21 +93,16 @@ type StartExtractionJobOptions = {
   stopOnError: boolean;
 };
 
-export type TemplateApplyControllerInput = {
-  getTableRow: (rowIndex: number) => unknown;
-  previewFile: unknown;
-  processedFileIds?: readonly string[];
-  rawFiles?: SessionFile[];
-  templateSelection?: TemplateSelection;
-  fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
-  hasSourceFile: (fileId: string | null | undefined) => boolean;
-};
-
 type TemplateApplyControllerOptions = {
   sessionService: Pick<
-    ISessionServiceType,
-    "commitCurves" | "commitMetrics" | "commitTemplateRun" | "getSnapshot"
+    ISessionService,
+    | "commitCurves"
+    | "commitMetrics"
+    | "commitTemplateRun"
+    | "getSnapshot"
+      | "onDidChangeSession"
   >;
+  tableService: Pick<ITableService, "getViewInput">;
   templateProcessingBackendService: TemplateProcessingBackend;
   templateApplyService: ITemplateApplyService<
     ProcessingJobOptions,
@@ -173,7 +173,7 @@ const resolveRuleCurveFilterInfo = (rule: {
 
 const resolveProcessedFileIds = ({
   processedFileIds,
-}: TemplateApplyControllerInput): Set<string> => {
+}: TemplateApplyWorkflowInput): Set<string> => {
   return new Set(
     (Array.isArray(processedFileIds) ? processedFileIds : [])
       .map((fileId) => String(fileId ?? "").trim())
@@ -320,7 +320,8 @@ export class TemplateApplyController {
   private readonly processingStopOnErrorRef = createTemplateWorkerRef(false);
   private readonly removedQueuedFileIdsRef = createTemplateWorkerRef<Set<string>>(new Set());
   private readonly lastAppliedTemplateConfigFingerprintRef = createTemplateWorkerRef<string | null>(null);
-  private input: TemplateApplyControllerInput;
+  private readonly sessionChangeDisposable: IDisposable;
+  private input: TemplateApplyWorkflowInput;
   private _processingStatus: ProcessingStatus = {
     state: "idle",
     processed: 0,
@@ -330,12 +331,10 @@ export class TemplateApplyController {
   constructor(
     private readonly options: TemplateApplyControllerOptions,
   ) {
+    this.sessionChangeDisposable = options.sessionService.onDidChangeSession(this.handleSessionChanged);
     this.input = {
-      getTableRow: () => null,
-      previewFile: null,
       processedFileIds: [],
       rawFiles: [],
-      hasSourceFile: () => false,
     };
   }
 
@@ -343,11 +342,12 @@ export class TemplateApplyController {
     return this._processingStatus;
   }
 
-  public update(input: TemplateApplyControllerInput): void {
+  public update(input: TemplateApplyWorkflowInput): void {
     this.input = input;
   }
 
   public dispose(): void {
+    this.sessionChangeDisposable.dispose();
     this.options.templateApplyService.terminateProcessingWorker(this.processingWorkerRef);
   }
 
@@ -386,6 +386,21 @@ export class TemplateApplyController {
     }));
   };
 
+  private readonly handleSessionChanged = (event: SessionChangeEvent): void => {
+    if (event.reason === "sessionCleared") {
+      this.resetProcessingWorker();
+      return;
+    }
+
+    if (event.reason !== "filesRemoved" || !event.fileIds?.length) {
+      return;
+    }
+
+    for (const fileId of event.fileIds) {
+      this.removeQueuedProcessingFile(fileId);
+    }
+  };
+
   private readonly commitTemplateOutput = (
     file: ProcessedEntry | null | undefined,
     options?: CommitTemplateOutputOptions,
@@ -406,6 +421,14 @@ export class TemplateApplyController {
 
   private readonly clearTemplateOutput = (): void => {
     this.options.sessionService.commitTemplateRun({ kind: "clearTemplateOutput" });
+  };
+
+  private readonly hasSourceFile = (fileId: string | null | undefined): boolean => {
+    const normalizedFileId = String(fileId ?? "").trim();
+    return Boolean(
+      normalizedFileId &&
+      this.options.sessionService.getSnapshot().filesById[normalizedFileId],
+    );
   };
 
   public readonly handleTemplateApplied = (config: Record<string, unknown>) => {
@@ -586,11 +609,12 @@ export class TemplateApplyController {
   private readonly prepareExtractionRun = (
     config: Record<string, unknown>,
   ): PreparedExtractionResult => {
-    const { getTableRow, previewFile, rawFiles = [] } = this.input;
+    const { rawFiles = [] } = this.input;
+    const tableModel = this.options.tableService.getViewInput()?.tableModel ?? null;
     const prepared = prepareExtraction({
       config,
-      getPreviewRow: getTableRow,
-      previewFile,
+      getPreviewRow: rowIndex => tableModel?.getRow(rowIndex) ?? null,
+      previewFile: tableModel?.getState().file ?? null,
       rawData: rawFiles,
     }) as PreparedExtractionResult & {
       extractionConfig?: unknown;
@@ -689,7 +713,6 @@ export class TemplateApplyController {
   }: StartExtractionJobOptions): void => {
     const {
       fileTemplateSelectionsByFileId,
-      hasSourceFile,
       templateSelection,
     } = this.input;
     this.options.templateApplyService.startProcessingJob({
@@ -705,7 +728,7 @@ export class TemplateApplyController {
       processingStopOnErrorRef: this.processingStopOnErrorRef,
       processingWorkerRef: this.processingWorkerRef,
       queue,
-      hasSourceFile,
+      hasSourceFile: this.hasSourceFile,
       removedQueuedFileIdsRef: this.removedQueuedFileIdsRef,
       clearTemplateOutputBeforeRun,
       showResults: this.options.showResults,
@@ -725,7 +748,6 @@ export class TemplateApplyController {
     const {
       fileTemplateSelectionsByFileId,
       rawFiles = [],
-      hasSourceFile,
       templateSelection,
     } = this.input;
 
@@ -897,7 +919,7 @@ export class TemplateApplyController {
       processingQueueRef: this.processingQueueRef,
       processingStopOnErrorRef: this.processingStopOnErrorRef,
       processingWorkerRef: this.processingWorkerRef,
-      hasSourceFile,
+      hasSourceFile: this.hasSourceFile,
       removedQueuedFileIdsRef: this.removedQueuedFileIdsRef,
       showResults: this.options.showResults,
       templateSelection,
@@ -918,3 +940,45 @@ export class TemplateApplyController {
     });
   };
 }
+
+export class BrowserTemplateApplyWorkflowService
+  extends TemplateApplyController
+  implements ITemplateApplyWorkflowService {
+  public declare readonly _serviceBrand: undefined;
+
+  constructor(
+    @ISessionService sessionService: ISessionService,
+    @ITableService tableService: ITableService,
+    @ITemplateProcessingBackendService templateProcessingBackendService: ITemplateProcessingBackendService,
+    @ITemplateApplyService templateApplyService: ITemplateApplyService<
+      ProcessingJobOptions,
+      RuleProcessingJobOptions,
+      TemplateWorkerRef<Worker | null>,
+      Worker | null
+    >,
+    @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+  ) {
+    super({
+      sessionService,
+      tableService,
+      templateApplyService,
+      templateProcessingBackendService,
+      onExtractionError: () => undefined,
+      showResults: () => layoutService.navigateToView("chart"),
+    });
+  }
+
+  public applyTemplate(config: Record<string, unknown>): unknown {
+    return this.handleTemplateApplied(config);
+  }
+
+  public applyTemplateIncremental(config: Record<string, unknown>): unknown {
+    return this.handleTemplateAppliedIncremental(config);
+  }
+}
+
+registerSingleton(
+  ITemplateApplyWorkflowService,
+  BrowserTemplateApplyWorkflowService,
+  InstantiationType.Delayed,
+);

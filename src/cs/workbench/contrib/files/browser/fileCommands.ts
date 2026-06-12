@@ -5,16 +5,16 @@
 import { localize } from "src/cs/nls";
 import type { ICommandHandler } from "src/cs/platform/commands/common/commands";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
-import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
+import { IExplorerWorkflowService } from "src/cs/workbench/contrib/files/browser/files";
 import { ITemplateService } from "src/cs/workbench/services/template/common/template";
 import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 
 export const addFolderHandler: ICommandHandler = accessor => {
-  accessor.get(IExplorerService).requestFolderImport();
+  accessor.get(IExplorerWorkflowService).openFolderImport();
 };
 
 export const removeFolderHandler: ICommandHandler = accessor => {
-  accessor.get(IExplorerService).requestSelectedFolderRemoval();
+  accessor.get(IExplorerWorkflowService).removeSelectedFolder();
 };
 
 export const removeFileItemHandler: ICommandHandler<[unknown]> = (
@@ -26,7 +26,7 @@ export const removeFileItemHandler: ICommandHandler<[unknown]> = (
     return;
   }
 
-  accessor.get(IExplorerService).requestFileRemoval(normalizedFileId);
+  accessor.get(IExplorerWorkflowService).removeFile(normalizedFileId);
 };
 
 export const renameFileItemHandler: ICommandHandler<[unknown]> = (

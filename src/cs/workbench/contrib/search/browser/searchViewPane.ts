@@ -8,7 +8,6 @@ import { createSearchView } from "src/cs/workbench/contrib/search/browser/search
 import {
   ISearchService,
   SearchViewId,
-  type ISearchService as ISearchServiceType,
 } from "src/cs/workbench/services/search/common/search";
 
 import "src/cs/workbench/browser/parts/views/media/views.css";
@@ -19,7 +18,7 @@ export class SearchViewPane extends ViewPane {
   private readonly content = document.createElement("div");
 
   constructor(
-    @ISearchService private readonly searchService: ISearchServiceType,
+    @ISearchService private readonly searchService: ISearchService,
   ) {
     super({
       id: SearchViewId,
@@ -32,6 +31,9 @@ export class SearchViewPane extends ViewPane {
     this.pane.append(this.content);
     this.body.append(this.pane);
     this._register(this.searchService.onDidChangeSearchPlotModel(() => {
+      this.renderSearch();
+    }));
+    this._register(this.searchService.onDidChangeSearchState(() => {
       this.renderSearch();
     }));
     this.renderSearch();

@@ -7,14 +7,8 @@ import assert from "assert";
 import { createChartViewInput } from "src/cs/workbench/services/chart/browser/chartViewInput";
 import { ChartService } from "src/cs/workbench/services/chart/browser/chartService";
 import type {
-	ChartAxisTitleEditRequest,
 	ChartState,
 } from "src/cs/workbench/services/chart/common/chart";
-import type {
-	IPlotService,
-	PlotDisplayModelInput,
-	PlotMainRenderModelInput,
-} from "src/cs/workbench/services/plot/common/plot";
 
 suite("workbench/services/chart/test/browser/chartService", () => {
 	test("owns chart shell state outside session", () => {
@@ -74,23 +68,6 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 		service.dispose();
 	});
 
-	test("owns chart axis title edit requests", () => {
-		const service = new ChartService();
-		const requests: ChartAxisTitleEditRequest[] = [];
-		const disposable = service.onDidRequestAxisTitleEdit(request => {
-			requests.push(request);
-		});
-
-		service.requestAxisTitleEdit({ axis: "y", pane: "inspector" });
-
-		assert.deepEqual(requests, [
-			{ axis: "y", pane: "inspector" },
-		]);
-
-		disposable.dispose();
-		service.dispose();
-	});
-
 	test("publishes chart view input", () => {
 		const service = new ChartService();
 		const input = {
@@ -105,6 +82,10 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 		});
 
 		service.updateViewInput(input);
+		service.updateViewInput({
+			...input,
+			chartFileOptions: [{ fileId: "file-a", fileName: "file-a.csv" }],
+		});
 
 		assert.equal(service.getViewInput(), input);
 		assert.deepEqual(inputs, [input]);
@@ -112,44 +93,19 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 		service.dispose();
 	});
 
-	test("creates chart view input through plot service", () => {
-		let displayInput: PlotDisplayModelInput | null = null;
-		let legendInput: PlotMainRenderModelInput | null = null;
-		const plotService = {
-			getPlotDisplayModel: (input: PlotDisplayModelInput) => {
-				displayInput = input;
-				return null;
-			},
-			getPlotLegendModel: (input: PlotMainRenderModelInput) => {
-				legendInput = input;
-				return null;
-			},
-		} as IPlotService;
-
+	test("creates chart view input without plot-owned data", () => {
 		const input = createChartViewInput({
 			activeFileId: "file-a",
 			activePlotType: "gm",
-			axisSettings: {
-				xUnitByFileId: { "file-a": "mV" },
-			},
 			chartFileOptions: [{ fileId: "file-a", fileName: "file-a.csv" }],
-			legendLabels: { "series-a": "Device A" },
-			plotService,
 		});
 
 		assert.equal(input.activeFileId, "file-a");
 		assert.equal(input.activePlotType, "gm");
 		assert.equal(input.hasChartData, true);
 		assert.deepEqual(input.chartFileOptions, [{ fileId: "file-a", fileName: "file-a.csv" }]);
-		assert.deepEqual(input.legendLabels, { "series-a": "Device A" });
-		assert.equal((legendInput as PlotMainRenderModelInput | null)?.fileId, "file-a");
-
-		input.createPlotDisplayModel?.({ hiddenLegendKeys: ["series-b"] });
-
-		assert.equal((displayInput as PlotDisplayModelInput | null)?.fileId, "file-a");
-		assert.deepEqual((displayInput as PlotDisplayModelInput | null)?.axisSettings, {
-			xUnitByFileId: { "file-a": "mV" },
-		});
-		assert.deepEqual((displayInput as PlotDisplayModelInput | null)?.hiddenLegendKeys, ["series-b"]);
+		assert.equal("createPlotDisplayModel" in input, false);
+		assert.equal("plotDisplayModel" in input, false);
+		assert.equal("plotLegendModel" in input, false);
 	});
 });

@@ -60,7 +60,7 @@ suite("workbench/services/export/common/exportModel", () => {
         originFilteredCanvasKind: "output",
         selectedCanvasCount: 3,
       }),
-      'origin_canvas_scope_summary_filtered:{"count":3,"kind":"origin.filteredCanvasKind.output"}',
+      'origin.canvasScope.summary.filtered:{"count":3,"kind":"origin.filteredCanvasKind.output"}',
     );
     assert.equal(
       getCanvasScopeSummary({
@@ -68,7 +68,7 @@ suite("workbench/services/export/common/exportModel", () => {
         originFilteredCanvasKind: "transfer",
         selectedCanvasCount: 5,
       }),
-      'origin_canvas_scope_summary_all:{"count":5}',
+      'origin.canvasScope.summary.all:{"count":5}',
     );
     assert.equal(
       getCanvasScopeSummary({
@@ -76,7 +76,7 @@ suite("workbench/services/export/common/exportModel", () => {
         originFilteredCanvasKind: "transfer",
         selectedCanvasCount: 2,
       }),
-      'origin_canvas_scope_summary_selected:{"count":2}',
+      'origin.canvasScope.summary.selected:{"count":2}',
     );
   });
 
@@ -88,7 +88,7 @@ suite("workbench/services/export/common/exportModel", () => {
         selectedOriginSeriesTotalCount: 7,
         separateCanvasScopeSummary: "separate",
       }),
-      'origin_collection_summary:{"curves":7,"files":2}',
+      'origin.collection.summary:{"curves":7,"files":2}',
     );
 
     assert.equal(

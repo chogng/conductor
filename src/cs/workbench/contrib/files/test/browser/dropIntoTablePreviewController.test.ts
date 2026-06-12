@@ -5,21 +5,17 @@
 import assert from "assert";
 
 import { Emitter, Event as BaseEvent } from "src/cs/base/common/event";
-import type { IView, IViewDescriptor, IViewPaneContainer, ViewContainer } from "src/cs/workbench/common/views";
 import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import { DropIntoTablePreviewController } from "src/cs/workbench/contrib/files/browser/dropIntoTablePreviewController";
 import { IFileConverterBackendService } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
-import { TableViewId } from "src/cs/workbench/services/table/common/table";
-import { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
+import type { ITableDropTargetService } from "src/cs/workbench/services/table/browser/tableDropTargetService";
 
 suite("workbench/contrib/files/test/browser/dropIntoTablePreviewController", () => {
   test("accepts dragover on the table preview target", () => {
     const tableTarget = createTestElement();
-    const viewsService = new TestViewsService([
-      new TestDropTargetView(TableViewId, tableTarget),
-    ]);
-    const controller = createController(viewsService);
+    const dropTargetService = new TestTableDropTargetService(tableTarget);
+    const controller = createController(dropTargetService);
 
     try {
       assertDragOverAccepted(tableTarget);
@@ -30,15 +26,14 @@ suite("workbench/contrib/files/test/browser/dropIntoTablePreviewController", () 
 
   test("attaches the table preview target added after construction", () => {
     const tableTarget = createTestElement();
-    const viewsService = new TestViewsService([]);
-    const controller = createController(viewsService);
+    const dropTargetService = new TestTableDropTargetService(null);
+    const controller = createController(dropTargetService);
 
     try {
       const beforeAttach = dispatchDragEvent(tableTarget, "dragover");
       assert.equal(beforeAttach.defaultPrevented, false);
 
-      viewsService.addView(new TestDropTargetView(TableViewId, tableTarget));
-      viewsService.fireVisibility(TableViewId, true);
+      dropTargetService.setDropTargetElement(tableTarget);
 
       assertDragOverAccepted(tableTarget);
     } finally {
@@ -47,142 +42,38 @@ suite("workbench/contrib/files/test/browser/dropIntoTablePreviewController", () 
   });
 });
 
-class TestDropTargetView implements IView {
-  public readonly element = createTestElement();
-  private visible = true;
-
-  public constructor(
-    public readonly id: string,
-    private readonly dropTarget: HTMLElement,
-  ) {}
-
-  public getDropTargetElement(): HTMLElement {
-    return this.dropTarget;
-  }
-
-  public focus(): void {}
-
-  public isVisible(): boolean {
-    return this.visible;
-  }
-
-  public isBodyVisible(): boolean {
-    return this.visible;
-  }
-
-  public setVisible(visible: boolean): boolean {
-    if (this.visible === visible) {
-      return false;
-    }
-
-    this.visible = visible;
-    return true;
-  }
-
-  public getProgressIndicator(): undefined {
-    return undefined;
-  }
-
-  public dispose(): void {}
-}
-
-class TestViewsService implements IViewsService {
+class TestTableDropTargetService implements ITableDropTargetService {
   public declare readonly _serviceBrand: undefined;
 
-  private readonly views = new Map<string, IView>();
-  private readonly onDidChangeViewVisibilityEmitter = new Emitter<{
-    readonly id: string;
-    readonly visible: boolean;
-  }>();
+  private readonly onDidChangeDropTargetEmitter = new Emitter<HTMLElement | null>();
+  public readonly onDidChangeDropTarget = this.onDidChangeDropTargetEmitter.event;
 
-  public readonly onDidChangeViewContainerVisibility =
-    BaseEvent.None as IViewsService["onDidChangeViewContainerVisibility"];
-  public readonly onDidChangeViewVisibility = this.onDidChangeViewVisibilityEmitter.event;
-  public readonly onDidChangeFocusedView =
-    BaseEvent.None as IViewsService["onDidChangeFocusedView"];
+  public constructor(private dropTargetElement: HTMLElement | null) {}
 
-  public constructor(views: readonly IView[]) {
-    for (const view of views) {
-      this.addView(view);
-    }
+  public getDropTargetElement(): HTMLElement | null {
+    return this.dropTargetElement;
   }
 
-  public addView(view: IView): void {
-    this.views.set(view.id, view);
+  public setDropTargetElement(element: HTMLElement | null): void {
+    this.dropTargetElement = element;
+    this.onDidChangeDropTargetEmitter.fire(element);
   }
 
-  public fireVisibility(id: string, visible: boolean): void {
-    this.onDidChangeViewVisibilityEmitter.fire({ id, visible });
-  }
-
-  public isViewContainerVisible(): boolean {
-    return false;
-  }
-
-  public isViewContainerActive(): boolean {
-    return false;
-  }
-
-  public async openViewContainer(): Promise<ViewContainer | null> {
-    return null;
-  }
-
-  public closeViewContainer(): void {}
-
-  public getVisibleViewContainer(): ViewContainer | null {
-    return null;
-  }
-
-  public getViewContainerElement(): null {
-    return null;
-  }
-
-  public getActiveViewPaneContainerWithId(): IViewPaneContainer | null {
-    return null;
-  }
-
-  public getFocusedView(): IViewDescriptor | null {
-    return null;
-  }
-
-  public getFocusedViewName(): string {
-    return "";
-  }
-
-  public addViewToContainer(): IView | null {
-    return null;
-  }
-
-  public setViewVisible(): boolean {
-    return false;
-  }
-
-  public isViewVisible(): boolean {
-    return false;
-  }
-
-  public async openView<T extends IView>(id: string): Promise<T | null> {
-    return this.getViewWithId<T>(id);
-  }
-
-  public closeView(): void {}
-
-  public getActiveViewWithId<T extends IView>(id: string): T | null {
-    return this.getViewWithId<T>(id);
-  }
-
-  public getViewWithId<T extends IView>(id: string): T | null {
-    return this.views.get(id) as T | undefined ?? null;
-  }
-
-  public getViewProgressIndicator(): undefined {
-    return undefined;
+  public registerDropTargetElement(element: HTMLElement) {
+    this.setDropTargetElement(element);
+    return {
+      dispose: () => {
+        if (this.dropTargetElement === element) {
+          this.setDropTargetElement(null);
+        }
+      },
+    };
   }
 }
 
-function createController(viewsService: IViewsService): DropIntoTablePreviewController {
+function createController(dropTargetService: ITableDropTargetService): DropIntoTablePreviewController {
   return new DropIntoTablePreviewController(
-    viewsService,
+    dropTargetService,
     createSessionService(),
     createExplorerService(),
     createFileConverterBackendService(),
@@ -281,9 +172,6 @@ function createExplorerService(): IExplorerService {
     onDidChangeExpandedFolderKeys: BaseEvent.None as IExplorerService["onDidChangeExpandedFolderKeys"],
     onDidChangeViewLayout: BaseEvent.None as IExplorerService["onDidChangeViewLayout"],
     onDidChangePaneInput: BaseEvent.None as IExplorerService["onDidChangePaneInput"],
-    onDidRequestFolderImport: BaseEvent.None as IExplorerService["onDidRequestFolderImport"],
-    onDidRequestSelectedFolderRemoval: BaseEvent.None as IExplorerService["onDidRequestSelectedFolderRemoval"],
-    onDidRequestFileRemoval: BaseEvent.None as IExplorerService["onDidRequestFileRemoval"],
     getContext: () => ({
       editable: null,
       expandedFolderKeys: [],
@@ -306,9 +194,6 @@ function createExplorerService(): IExplorerService {
     setExpandedFolderKeys: () => undefined,
     reconcileExpandedFolderKeys: () => [],
     getCollapsedFolderKeys: () => [],
-    requestFolderImport: () => undefined,
-    requestSelectedFolderRemoval: () => undefined,
-    requestFileRemoval: () => undefined,
     setViewLayout: () => undefined,
     toggleViewLayout: () => undefined,
     getPaneInput: () => null,

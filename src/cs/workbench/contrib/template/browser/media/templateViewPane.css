@@ -5,7 +5,7 @@
   flex-direction: column;
 }
 
-.workbench_layout_shell:not(.workbench_layout_shell--stacked) .template_pane--joined_auxiliarybar {
+.template_pane--joined_auxiliarybar {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
   border-right-width: 0;

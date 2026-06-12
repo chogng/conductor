@@ -23,6 +23,7 @@ import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/pr
 import { registerTableActions } from "src/cs/workbench/contrib/table/browser/tableActions";
 import { registerTableGestures } from "src/cs/workbench/contrib/table/browser/tableGestures";
 import { TableView, type TableViewProps } from "src/cs/workbench/contrib/table/browser/tableView";
+import { ITableDropTargetService } from "src/cs/workbench/services/table/browser/tableDropTargetService";
 import {
   ITableService,
   TABLE_DEFAULT_ZOOM_PERCENT,
@@ -76,6 +77,7 @@ export class TableViewPane extends ViewPane {
 
   constructor(
     @ITableService private readonly tableService: ITableService,
+    @ITableDropTargetService private readonly tableDropTargetService: ITableDropTargetService,
     @ICommandService private readonly commandService: ICommandService,
   ) {
     super({
@@ -111,6 +113,7 @@ export class TableViewPane extends ViewPane {
       titleContent: this.headerTitle,
     });
     this.body.append(this.previewPart);
+    this._register(this.tableDropTargetService.registerDropTargetElement(this.previewPart));
     this._register(registerTableActions({
       commandService: this.commandService,
       element: this.element,
@@ -194,10 +197,6 @@ export class TableViewPane extends ViewPane {
 
   public scrollHorizontally(delta: number): boolean {
     return this.view?.scrollHorizontally(delta) ?? false;
-  }
-
-  public getDropTargetElement(): HTMLElement {
-    return this.previewPart;
   }
 
   private updateHeaderMode(mode: HeaderMode): void {

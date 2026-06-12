@@ -32,13 +32,11 @@ export interface IChartService {
 
 	readonly onDidChangeChartState: Event<ChartState>;
 	readonly onDidChangeChartViewInput: Event<ChartViewInput | null>;
-	readonly onDidRequestAxisTitleEdit: Event<ChartAxisTitleEditRequest>;
 
 	getState(): ChartState;
 	getViewInput(): ChartViewInput | null;
 	updateViewInput(input: ChartViewInput): void;
 	toggleDetailPane(pane: ChartDetailPane): void;
-	requestAxisTitleEdit(request: ChartAxisTitleEditRequest): void;
 	setLegendPopoverContextKey(contextKey: string | null): void;
 	getHiddenLegendKeys(contextKey: string, liveLegendKeys: readonly string[]): readonly string[];
 	toggleHiddenLegendKey(contextKey: string, legendKey: string, liveLegendKeys: readonly string[]): void;

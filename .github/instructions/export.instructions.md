@@ -15,12 +15,14 @@ Origin Export builds export plans and payloads. It is not Chart and not Plot.
 - selected curves/content keys;
 - Origin/CSV payload planning;
 - mapping plot/session records into export payloads;
+- Origin export execution entry points such as open-in-Origin and ZIP export;
 - export validation and user-facing errors.
 
 It consumes:
 
 - `SessionSnapshot` for canonical records;
 - `IPlotService` for display-consistent plot models;
+- `ISettingsService` for export display settings;
 - `IParametersService` for parameter table output if exporting parameters;
 - platform file/dialog services for save/open actions when needed.
 
@@ -89,6 +91,13 @@ export view button or export.originZip command
 ```
 
 The command/controller should not rebuild plot domains; ask `IPlotService` or `IExportService`.
+
+Do not register a Workbench callback bag for export execution. Workbench may
+sync current selection/snapshot into `IExportService.updateViewState(...)`, but
+`IExportService.openInOrigin()` and `IExportService.exportOriginZip()` build
+their payloads by rereading Export-owned state plus Session, Plot, and Settings
+owner APIs. Notification/toast side effects belong to the export/origin
+execution path, not to a Workbench-supplied `showToast` callback.
 
 ## Do not
 

@@ -8,13 +8,19 @@ import type {
 	ExportState,
 	ExportViewState,
 } from "src/cs/workbench/services/export/common/export";
-import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
+import type {
+	ISessionService,
+	SessionSnapshot,
+} from "src/cs/workbench/services/session/common/session";
+import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
+import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
+import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 
 import { BrowserExportService } from "src/cs/workbench/services/export/browser/exportService";
 
 suite("workbench/services/export/browser/exportService", () => {
 	test("owns export option state outside session", () => {
-		const service = new BrowserExportService();
+		const service = createExportService();
 		const states: ExportState[] = [];
 		const disposable = service.onDidChangeExportState(state => {
 			states.push(state);
@@ -100,7 +106,7 @@ suite("workbench/services/export/browser/exportService", () => {
 	});
 
 	test("skips duplicate export option notifications", () => {
-		const service = new BrowserExportService();
+		const service = createExportService();
 		let changeCount = 0;
 		const disposable = service.onDidChangeExportState(() => {
 			changeCount += 1;
@@ -120,7 +126,7 @@ suite("workbench/services/export/browser/exportService", () => {
 	});
 
 	test("normalizes and syncs selected export curve keys", () => {
-		const service = new BrowserExportService();
+		const service = createExportService();
 
 		service.syncSelectedCurveKeys(["a", "b", "a"]);
 		assert.deepEqual(service.getState().selectedCurveKeys, ["a", "b"]);
@@ -133,7 +139,7 @@ suite("workbench/services/export/browser/exportService", () => {
 	});
 
 	test("publishes export view state from the service", () => {
-		const service = new BrowserExportService();
+		const service = createExportService();
 		const viewStates: ExportViewState[] = [];
 		const disposable = service.onDidChangeExportViewState(state => {
 			viewStates.push(state);
@@ -157,41 +163,58 @@ suite("workbench/services/export/browser/exportService", () => {
 		service.dispose();
 	});
 
-	test("runs Origin ZIP export from stored execution context", async () => {
-		const service = new BrowserExportService();
-		let fallbackCount = 0;
-		const toastMessages: string[] = [];
-
-		service.updateOriginExportExecutionContext({
-			buildCsvExportRequest: () => null,
-			buildPayloads: () => {
-				throw new Error("unused");
-			},
-			exportOriginZipFallback: async () => {
-				fallbackCount += 1;
-				return {
-					canvasCount: 1,
-					curveCount: 2,
-					mode: "merged",
-					zipName: "origin.zip",
-				};
-			},
-			originAxisSettings: null,
-			originChartXRangeRef: { current: null },
-			originChartYRangeRef: { current: null },
-			originOpenPlotOptions: null,
-			showToast: (message) => {
-				toastMessages.push(message);
+	test("resolves curve labels from plot owner state", () => {
+		const snapshot = createEmptySnapshot();
+		const service = createExportService(snapshot, {
+			"file-a": {
+				"series-a": "Plot Label",
 			},
 		});
 
-		await service.exportOriginZip();
+		const viewState = service.updateViewState({
+			activeFile: {
+				fileId: "file-a",
+				fileName: "file-a.csv",
+				series: [{
+					groupIndex: 0,
+					id: "series-a",
+					name: "Fallback Label",
+					y: [1],
+				}],
+				xGroups: [[0]],
+			} as ProcessedEntry,
+			activeFileId: "file-a",
+			snapshot,
+		});
 
-		assert.equal(fallbackCount, 1);
-		assert.equal(toastMessages.length, 1);
+		assert.deepEqual(viewState.curveOptions.map(option => option.label), ["Plot Label"]);
 		service.dispose();
 	});
 });
+
+const createExportService = (
+	snapshot: SessionSnapshot = createEmptySnapshot(),
+	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>> = {},
+): BrowserExportService =>
+	new BrowserExportService(
+		createSessionServiceStub(snapshot),
+		createSettingsServiceStub(),
+		createPlotServiceStub(legendLabelsByFileId),
+	);
+
+const createSessionServiceStub = (snapshot: SessionSnapshot): ISessionService => ({
+	getSnapshot: () => snapshot,
+} as ISessionService);
+
+const createSettingsServiceStub = (): ISettingsService => ({
+	getConductorSettings: () => null,
+} as ISettingsService);
+
+const createPlotServiceStub = (
+	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>>,
+): IPlotService => ({
+	getLegendLabels: (fileId: string) => legendLabelsByFileId[fileId] ?? {},
+} as IPlotService);
 
 const createEmptySnapshot = (): SessionSnapshot => ({
 	fileOrder: [],

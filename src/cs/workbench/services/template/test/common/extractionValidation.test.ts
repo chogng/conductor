@@ -29,7 +29,7 @@ suite("workbench/services/template/common/extractionValidation", () => {
     if (result.ok) {
       assert.fail("Expected extraction to fail.");
     }
-    assert.match(result.message, /extractPointsCellPositiveInt/);
+    assert.match(result.message, /template\.extraction\.pointsCellPositiveInt/);
   });
 
   test("segments mode accepts a segment count cell", () => {

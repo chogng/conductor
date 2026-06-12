@@ -2,8 +2,8 @@ import assert from "assert";
 
 import { CommandsRegistry } from "../../../../../platform/commands/common/commands.ts";
 import type { ServicesAccessor, ServiceIdentifier } from "../../../../../platform/instantiation/common/instantiation.ts";
-import { ExplorerService } from "../../../../../workbench/contrib/files/browser/explorerService.ts";
-import { IExplorerService } from "../../../../../workbench/contrib/files/browser/files.ts";
+import { ExplorerWorkflowService } from "../../../../../workbench/contrib/files/browser/explorerWorkflowService.ts";
+import { IExplorerWorkflowService } from "../../../../../workbench/contrib/files/browser/files.ts";
 import { ITemplateService } from "src/cs/workbench/services/template/common/template";
 import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 import {
@@ -24,13 +24,17 @@ import {
 
 suite("workbench/contrib/files/test/browser/fileCommands", () => {
   test("file item commands delegate to owning services", () => {
-    const explorerService = new ExplorerService();
+    const explorerWorkflowService = new ExplorerWorkflowService();
     let removedFileId: string | null = null;
     let templateSelection:
       | { readonly fileId: string; readonly selection: TemplateSelection }
       | null = null;
-    const removalListener = explorerService.onDidRequestFileRemoval(request => {
-      removedFileId = request.fileId;
+    const workflowRegistration = explorerWorkflowService.registerHandler({
+      openFolderImport: () => undefined,
+      removeSelectedFolder: () => undefined,
+      removeFile: fileId => {
+        removedFileId = fileId;
+      },
     });
     const templateService = {
       _serviceBrand: undefined,
@@ -43,7 +47,7 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       },
     } as unknown as ITemplateService;
     const accessor = createAccessor([
-      [IExplorerService, explorerService],
+      [IExplorerWorkflowService, explorerWorkflowService],
       [ITemplateService, templateService],
     ]);
 
@@ -65,21 +69,25 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
         templateId: "template-1",
       },
     });
-    removalListener.dispose();
+    workflowRegistration.dispose();
+    explorerWorkflowService.dispose();
   });
 
-  test("folder commands delegate to explorer workflow requests", () => {
-    const explorerService = new ExplorerService();
+  test("folder commands delegate to explorer workflow service", () => {
+    const explorerWorkflowService = new ExplorerWorkflowService();
     let importRequests = 0;
     let removalRequests = 0;
-    const importListener = explorerService.onDidRequestFolderImport(() => {
-      importRequests += 1;
-    });
-    const removalListener = explorerService.onDidRequestSelectedFolderRemoval(() => {
-      removalRequests += 1;
+    const workflowRegistration = explorerWorkflowService.registerHandler({
+      openFolderImport: () => {
+        importRequests += 1;
+      },
+      removeSelectedFolder: () => {
+        removalRequests += 1;
+      },
+      removeFile: () => undefined,
     });
     const accessor = createAccessor([
-      [IExplorerService, explorerService],
+      [IExplorerWorkflowService, explorerWorkflowService],
     ]);
 
     addFolderHandler(accessor);
@@ -87,26 +95,28 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
 
     assert.equal(importRequests, 1);
     assert.equal(removalRequests, 1);
-    importListener.dispose();
-    removalListener.dispose();
+    workflowRegistration.dispose();
+    explorerWorkflowService.dispose();
   });
 
   test("registered Action2 command entries delegate to files handlers", () => {
-    const explorerService = new ExplorerService();
+    const explorerWorkflowService = new ExplorerWorkflowService();
     let importRequests = 0;
     let removalRequests = 0;
     let removedFileId: string | null = null;
     let templateSelection:
       | { readonly fileId: string; readonly selection: TemplateSelection }
       | null = null;
-    const importListener = explorerService.onDidRequestFolderImport(() => {
-      importRequests += 1;
-    });
-    const folderRemovalListener = explorerService.onDidRequestSelectedFolderRemoval(() => {
-      removalRequests += 1;
-    });
-    const removalListener = explorerService.onDidRequestFileRemoval(request => {
-      removedFileId = request.fileId;
+    const workflowRegistration = explorerWorkflowService.registerHandler({
+      openFolderImport: () => {
+        importRequests += 1;
+      },
+      removeSelectedFolder: () => {
+        removalRequests += 1;
+      },
+      removeFile: fileId => {
+        removedFileId = fileId;
+      },
     });
     const templateService = {
       _serviceBrand: undefined,
@@ -119,7 +129,7 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       },
     } as unknown as ITemplateService;
     const accessor = createAccessor([
-      [IExplorerService, explorerService],
+      [IExplorerWorkflowService, explorerWorkflowService],
       [ITemplateService, templateService],
     ]);
 
@@ -147,9 +157,8 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     assert.ok(CommandsRegistry.getCommand(RENAME_FILE_ITEM_COMMAND_ID));
     assert.ok(CommandsRegistry.getCommand(SET_FILE_TEMPLATE_COMMAND_ID));
     assert.ok(CommandsRegistry.getCommand(SLICE_FILE_WITH_TEMPLATE_COMMAND_ID));
-    importListener.dispose();
-    folderRemovalListener.dispose();
-    removalListener.dispose();
+    workflowRegistration.dispose();
+    explorerWorkflowService.dispose();
   });
 });
 

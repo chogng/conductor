@@ -70,6 +70,26 @@ operate concrete DOM, or carry complex domain workflows.
 
 The owner of state is the only component that mutates that state.
 
+Upstream rule: who owns the state updates the state. A consumer does not take
+over mutation because it observed a change, rendered the state, or needs the
+derived result. It calls the owner's public API, then subscribes to the owner's
+`onDidChangeXxx` event and rereads the current owner state or model.
+
+Use this flow:
+
+```txt
+consumer intent
+  -> ownerService.update/select/set/run(...)
+  -> owner mutates owned state
+  -> owner fires onDidChangeXxx
+  -> subscribers reread owner public state/model
+  -> subscribers update their own UI or local view state
+```
+
+Do not invert the flow by passing owner behavior, owner data builders, or
+mutation callbacks through view input/context records so another component can
+update the owner indirectly.
+
 External modules interact through public APIs:
 
 ```ts

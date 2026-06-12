@@ -19,9 +19,13 @@ export type GridOptions = Omit<GridViewOptions, "items"> & {
 export const createGrid = ({ items, ...options }: GridOptions): HTMLDivElement =>
   createGridView({
     ...options,
-    items: items.map((item, index) => ({
-      className: item.className,
-      element: item.element,
-      location: [index],
-    })),
+    items: items.map((item, index) => {
+      const element = document.createElement("div");
+      element.append(item.element);
+      return {
+        className: item.className,
+        element,
+        location: [index],
+      };
+    }),
   });

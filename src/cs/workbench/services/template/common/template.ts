@@ -5,9 +5,14 @@
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { TemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import type { Event } from "src/cs/base/common/event";
-import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
-import type { ITableService } from "src/cs/workbench/services/table/common/table";
-import type { TemplateSelectionsByFileId } from "src/cs/workbench/services/template/common/templateSelection";
+import type {
+  ProcessingStatus,
+  SessionFile,
+} from "src/cs/workbench/services/session/common/sessionTypes";
+import type {
+  TemplateSelection,
+  TemplateSelectionsByFileId,
+} from "src/cs/workbench/services/template/common/templateSelection";
 
 export type {
   TemplateConfigRecord,
@@ -42,22 +47,20 @@ export type TemplateState = {
 export type TemplateStateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
 export type TemplateViewInput = {
-  readonly conductorSettings?: Record<string, unknown> | null;
-  readonly onTemplateApplied?: (config: Record<string, unknown>) => unknown;
-  readonly onTemplateAppliedIncremental?: (config: Record<string, unknown>) => unknown;
-  readonly onUpdateSettings?: (updates: Record<string, unknown>) => Promise<unknown> | unknown;
   readonly rawFiles?: SessionFile[];
-  readonly tableService?: Pick<
-    ITableService,
-    | "clearHighlight"
-    | "getSelection"
-    | "onDidChangeSelection"
-    | "select"
-  >;
+};
+
+export type TemplateApplyWorkflowInput = {
+  processedFileIds?: readonly string[];
+  rawFiles?: SessionFile[];
+  templateSelection?: TemplateSelection;
+  fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
 };
 
 export const ITemplateService = createDecorator<ITemplateService>("templateService");
 export const ITemplateApplyService = createDecorator<ITemplateApplyService>("templateApplyService");
+export const ITemplateApplyWorkflowService =
+  createDecorator<ITemplateApplyWorkflowService>("templateApplyWorkflowService");
 
 export interface ITemplateService {
   readonly _serviceBrand: undefined;
@@ -88,4 +91,14 @@ export interface ITemplateApplyService<
   startProcessingJob(options: TProcessingJobOptions): void;
   startRuleProcessingJob(options: TRuleProcessingJobOptions): void;
   terminateProcessingWorker(workerRef: TWorkerRef, worker?: TWorker): void;
+}
+
+export interface ITemplateApplyWorkflowService {
+  readonly _serviceBrand: undefined;
+
+  readonly processingStatus: ProcessingStatus;
+
+  applyTemplate(config: Record<string, unknown>): unknown;
+  applyTemplateIncremental(config: Record<string, unknown>): unknown;
+  update(input: TemplateApplyWorkflowInput): void;
 }

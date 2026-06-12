@@ -30,13 +30,13 @@ export type WorkbenchTitlebarState = {
   readonly activePage?: LayoutView;
   readonly canNavigateBack?: boolean;
   readonly canNavigateForward?: boolean;
+  readonly chartIntentCommandId?: string;
   readonly enabled?: boolean;
+  readonly fileSelectionCommandId?: string;
   readonly fileOptions?: WorkbenchTitlebarFileOption[];
+  readonly installUpdateCommandId?: string;
   readonly isSidebarVisible?: boolean;
   readonly isUpdateReadyToInstall?: boolean;
-  readonly onChartIntent?: () => void;
-  readonly onFileChange?: (fileId: string) => void;
-  readonly onInstallUpdate?: () => void;
   readonly showFileSelector?: boolean;
   readonly updateVersion?: string | null;
 };

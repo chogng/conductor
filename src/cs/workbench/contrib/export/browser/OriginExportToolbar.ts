@@ -29,17 +29,6 @@ import type {
   OriginExportContentOption,
 } from "src/cs/workbench/services/export/common/exportModel";
 
-export type ReplaceMatchingOriginSeriesAcrossFilesFn = (options: {
-  fileIds?: unknown[];
-  sourceSeriesRefs?: Array<{
-    fileId?: unknown;
-    seriesId?: unknown;
-  }>;
-}) => {
-  matchedFileCount: number;
-  matchedSeriesCount: number;
-};
-
 type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
 type OriginExportToolbarProps = {
@@ -53,9 +42,7 @@ type OriginExportToolbarProps = {
   originCanvasExportScope: OriginCanvasExportScope;
   originExportContentOptions: OriginExportContentOption[];
   originFilteredCanvasKind: OriginFilteredCanvasKind;
-  replaceMatchingOriginSeriesAcrossFiles: ReplaceMatchingOriginSeriesAcrossFilesFn;
   resolvedCurveExportMode: OriginCurveExportMode;
-  scopedFileIds: string[];
   selectedContentKeys: OriginExportContentKey[];
   selectedCurveOptionKeySet: Set<string>;
   setContentKeys: StateSetter<OriginExportContentKey[]>;
@@ -220,8 +207,6 @@ const createCurveSelector = ({
   selectedCurveOptionKeySet,
   mode,
   onSelectedCurveOptionKeysChange,
-  replaceMatchingOriginSeriesAcrossFiles,
-  scopedFileIds,
   setMode,
   store,
 }: {
@@ -229,8 +214,6 @@ const createCurveSelector = ({
   selectedCurveOptionKeySet: Set<string>;
   mode: OriginCurveExportMode;
   onSelectedCurveOptionKeysChange: (nextKeys: string[]) => void;
-  replaceMatchingOriginSeriesAcrossFiles: ReplaceMatchingOriginSeriesAcrossFilesFn;
-  scopedFileIds: string[];
   setMode: (next: OriginCurveExportMode) => void;
   store?: DisposableStore;
 }): HTMLElement => {
@@ -272,15 +255,6 @@ const createCurveSelector = ({
           : [...selectedKeys, key];
 
         onSelectedCurveOptionKeysChange(nextKeys);
-        replaceMatchingOriginSeriesAcrossFiles({
-          fileIds: scopedFileIds,
-          sourceSeriesRefs: curveOptions
-            .filter((item) => nextKeys.includes(String(item.key ?? "")))
-            .map((item) => ({
-              fileId: item.sourceFileId,
-              seriesId: item.sourceSeriesId,
-            })),
-        });
       },
     }));
   }
@@ -327,9 +301,7 @@ const createOriginExportToolbar = ({
   originCanvasExportScope,
   originExportContentOptions,
   originFilteredCanvasKind,
-  replaceMatchingOriginSeriesAcrossFiles,
   resolvedCurveExportMode,
-  scopedFileIds,
   selectedContentKeys,
   selectedCurveOptionKeySet,
   setContentKeys,
@@ -413,8 +385,6 @@ const createOriginExportToolbar = ({
       selectedCurveOptionKeySet,
       mode: resolvedCurveExportMode,
       onSelectedCurveOptionKeysChange,
-      replaceMatchingOriginSeriesAcrossFiles,
-      scopedFileIds,
       setMode: setResolvedCurveExportMode,
       store,
     }),

@@ -8,18 +8,19 @@ import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import {
   EDIT_CHART_X_AXIS_TITLE_COMMAND_ID,
   EDIT_CHART_Y_AXIS_TITLE_COMMAND_ID,
-  IChartService,
   type ChartAxis,
   type ChartAxisTitlePane,
-  type IChartService as IChartServiceType,
 } from "src/cs/workbench/services/chart/common/chart";
+import {
+  IChartTitleEditService,
+} from "src/cs/workbench/contrib/chart/browser/chartTitleEditService";
 
 export const registerChartCommands = (): IDisposable => {
   const disposables = new DisposableStore();
   disposables.add(CommandsRegistry.registerCommand({
     id: EDIT_CHART_X_AXIS_TITLE_COMMAND_ID,
     handler: (accessor, pane?: unknown) =>
-      editAxisTitle(accessor.get(IChartService), "x", pane),
+      editAxisTitle(accessor.get(IChartTitleEditService), "x", pane),
     metadata: {
       description: localize("chart.commands.editXAxisTitle", "Edit chart X axis title"),
     },
@@ -27,7 +28,7 @@ export const registerChartCommands = (): IDisposable => {
   disposables.add(CommandsRegistry.registerCommand({
     id: EDIT_CHART_Y_AXIS_TITLE_COMMAND_ID,
     handler: (accessor, pane?: unknown) =>
-      editAxisTitle(accessor.get(IChartService), "y", pane),
+      editAxisTitle(accessor.get(IChartTitleEditService), "y", pane),
     metadata: {
       description: localize("chart.commands.editYAxisTitle", "Edit chart Y axis title"),
     },
@@ -36,15 +37,14 @@ export const registerChartCommands = (): IDisposable => {
 };
 
 const editAxisTitle = (
-  chartService: IChartServiceType,
+  chartTitleEditService: IChartTitleEditService,
   axis: ChartAxis,
   pane: unknown,
 ): boolean => {
-  chartService.requestAxisTitleEdit({
+  return chartTitleEditService.editAxisTitle({
     axis,
     pane: readPane(pane),
   });
-  return true;
 };
 
 const readPane = (pane: unknown): ChartAxisTitlePane =>
