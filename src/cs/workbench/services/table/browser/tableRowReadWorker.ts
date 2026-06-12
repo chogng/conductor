@@ -4,18 +4,18 @@
 
 import Papa from "papaparse";
 
-type PreviewRequest = {
+type TablePreviewRequest = {
   readonly file?: File;
   readonly fileId?: string;
   readonly fileName?: string;
-  readonly maxPreviewRows?: number;
+  readonly maxSeedRows?: number;
   readonly requestId?: number;
   readonly sheetId?: string | null;
   readonly sheetName?: string | null;
   readonly sourceKey?: string;
 };
 
-type PreviewRowsRequest = {
+type TableRowsRequest = {
   readonly endRow?: number;
   readonly fileId?: string;
   readonly requestId?: number;
@@ -24,8 +24,8 @@ type PreviewRowsRequest = {
 };
 
 type WorkerRequest =
-  | { readonly type: "preview"; readonly payload?: PreviewRequest }
-  | { readonly type: "previewRows"; readonly payload?: PreviewRowsRequest };
+  | { readonly type: "tablePreview"; readonly payload?: TablePreviewRequest }
+  | { readonly type: "tableRows"; readonly payload?: TableRowsRequest };
 
 const rowsBySourceKey = new Map<string, unknown[][]>();
 
@@ -75,7 +75,7 @@ const postError = (requestId: number, error: unknown): void => {
   });
 };
 
-const handlePreview = async (payload: PreviewRequest = {}): Promise<void> => {
+const handleTablePreview = async (payload: TablePreviewRequest = {}): Promise<void> => {
   const requestId = toInteger(payload.requestId, 0);
   try {
     const sourceKey = getSourceKey(payload);
@@ -93,13 +93,13 @@ const handlePreview = async (payload: PreviewRequest = {}): Promise<void> => {
     }
 
     const rows = normalizeRows(parsed.data);
-    const maxPreviewRows = Math.max(0, toInteger(payload.maxPreviewRows, rows.length));
-    const seedRows = rows.slice(0, maxPreviewRows);
+    const maxSeedRows = Math.max(0, toInteger(payload.maxSeedRows, rows.length));
+    const seedRows = rows.slice(0, maxSeedRows);
     const maxCellLengths = getMaxCellLengths(rows);
     rowsBySourceKey.set(sourceKey, rows);
 
     self.postMessage({
-      type: "previewResult",
+      type: "tablePreviewResult",
       payload: {
         requestId,
         fileId: String(payload.fileId ?? sourceKey),
@@ -119,7 +119,7 @@ const handlePreview = async (payload: PreviewRequest = {}): Promise<void> => {
   }
 };
 
-const handlePreviewRows = (payload: PreviewRowsRequest = {}): void => {
+const handleTableRows = (payload: TableRowsRequest = {}): void => {
   const requestId = toInteger(payload.requestId, 0);
   try {
     const sourceKey = getSourceKey(payload);
@@ -128,7 +128,7 @@ const handlePreviewRows = (payload: PreviewRowsRequest = {}): void => {
     const endRow = Math.max(startRow, toInteger(payload.endRow, startRow));
 
     self.postMessage({
-      type: "previewRowsResult",
+      type: "tableRowsResult",
       payload: {
         requestId,
         fileId: String(payload.fileId ?? sourceKey),
@@ -144,12 +144,12 @@ const handlePreviewRows = (payload: PreviewRowsRequest = {}): void => {
 
 self.onmessage = (event: MessageEvent<WorkerRequest>): void => {
   const message = event.data;
-  if (message?.type === "preview") {
-    void handlePreview(message.payload);
+  if (message?.type === "tablePreview") {
+    void handleTablePreview(message.payload);
     return;
   }
 
-  if (message?.type === "previewRows") {
-    handlePreviewRows(message.payload);
+  if (message?.type === "tableRows") {
+    handleTableRows(message.payload);
   }
 };

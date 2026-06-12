@@ -297,7 +297,7 @@ const areTableFilesEqual = (
 const normalizeSourceVersion = (value: unknown): number =>
   Math.max(0, Math.floor(Number(value) || 0));
 
-type PreviewResultPayload = {
+type TablePreviewResultPayload = {
   requestId: number;
   fileId: string;
   fileName: string;
@@ -311,7 +311,7 @@ type PreviewResultPayload = {
   seedStartRow?: number;
 };
 
-type PreviewRowsResultPayload = {
+type TableRowsResultPayload = {
   requestId: number;
   fileId: string;
   sourceKey?: string;
@@ -325,8 +325,8 @@ type WorkerErrorPayload = {
 };
 
 type WorkerMessage =
-  | { type: "previewResult"; payload: PreviewResultPayload }
-  | { type: "previewRowsResult"; payload: PreviewRowsResultPayload }
+  | { type: "tablePreviewResult"; payload: TablePreviewResultPayload }
+  | { type: "tableRowsResult"; payload: TableRowsResultPayload }
   | { type: "workerError"; payload: WorkerErrorPayload }
   | { type?: string; payload?: Record<string, unknown> | null };
 
@@ -394,21 +394,21 @@ const createTableModel = ({
   const previewStatus = loadState ?? TABLE_LOAD_STATE_IDLE;
   const ownedPreviewWorkerRef = createTableRef<Worker | null>(null);
   const ownedPreviewRequestIdRef = createTableRef(0);
-  const ownedPreviewRowsRequestIdRef = createTableRef(0);
-  const ownedPreviewRowsRequestsRef = createTableRef(new Map<number, TableRowsRequest>());
-  const ownedPreviewRowsCacheByFileIdRef = createTableRef(new Map<string, Map<number, unknown[]>>());
+  const ownedTableRowsRequestIdRef = createTableRef(0);
+  const ownedTableRowsRequestsRef = createTableRef(new Map<number, TableRowsRequest>());
+  const ownedTableRowsCacheByFileIdRef = createTableRef(new Map<string, Map<number, unknown[]>>());
   const ownedPreviewLoadedChunksByFileIdRef = createTableRef(new Map<string, Set<number>>());
-  const ownedPreviewRowsCacheRef = createTableRef(new Map<number, unknown[]>());
+  const ownedTableRowsCacheRef = createTableRef(new Map<number, unknown[]>());
   const ownedPreviewLoadedChunksRef = createTableRef(new Set<number>());
   const ownedPreviewCacheFileIdRef = createTableRef<string | null>(null);
   const ownedPreviewCacheFileLruRef = createTableRef(new Set<string>());
   const previewWorkerRef = workerRef ?? ownedPreviewWorkerRef;
   const previewRequestIdRef = requestIdRef ?? ownedPreviewRequestIdRef;
-  const previewRowsRequestIdRef = rowsRequestIdRef ?? ownedPreviewRowsRequestIdRef;
-  const previewRowsRequestsRef = rowsRequestsRef ?? ownedPreviewRowsRequestsRef;
-  const previewRowsCacheByFileIdRef = rowsCacheByFileIdRef ?? ownedPreviewRowsCacheByFileIdRef;
+  const tableRowsRequestIdRef = rowsRequestIdRef ?? ownedTableRowsRequestIdRef;
+  const tableRowsRequestsRef = rowsRequestsRef ?? ownedTableRowsRequestsRef;
+  const tableRowsCacheByFileIdRef = rowsCacheByFileIdRef ?? ownedTableRowsCacheByFileIdRef;
   const previewLoadedChunksByFileIdRef = loadedChunksByFileIdRef ?? ownedPreviewLoadedChunksByFileIdRef;
-  const previewRowsCacheRef = rowsCacheRef ?? ownedPreviewRowsCacheRef;
+  const tableRowsCacheRef = rowsCacheRef ?? ownedTableRowsCacheRef;
   const previewLoadedChunksRef = loadedChunksRef ?? ownedPreviewLoadedChunksRef;
   const previewCacheFileIdRef = cacheFileIdRef ?? ownedPreviewCacheFileIdRef;
   const previewCacheFileLruRef = cacheFileLruRef ?? ownedPreviewCacheFileLruRef;
@@ -594,7 +594,7 @@ const createTableModel = ({
 
   const getOrCreatePreviewFileCaches = memoCallback(
     (fileId: string) => {
-      const cacheByFileId = previewRowsCacheByFileIdRef.current;
+      const cacheByFileId = tableRowsCacheByFileIdRef.current;
       const chunksByFileId = previewLoadedChunksByFileIdRef.current;
 
       let rowCache = cacheByFileId.get(fileId);
@@ -611,7 +611,7 @@ const createTableModel = ({
 
       return { loadedChunks, rowCache };
     },
-    [previewLoadedChunksByFileIdRef, previewRowsCacheByFileIdRef],
+    [previewLoadedChunksByFileIdRef, tableRowsCacheByFileIdRef],
   );
 
   const getOrCreatePendingChunks = memoCallback((fileId: string) => {
@@ -646,8 +646,8 @@ const createTableModel = ({
     [getOrCreatePreviewFileCaches],
   );
 
-  const cancelPendingPreviewRowRequests = memoCallback(() => {
-    const pendingRequests = previewRowsRequestsRef.current;
+  const cancelPendingTableRowRequests = memoCallback(() => {
+    const pendingRequests = tableRowsRequestsRef.current;
     for (const request of pendingRequests.values()) {
       try {
         request?.resolve?.([]);
@@ -658,9 +658,9 @@ const createTableModel = ({
 
     pendingRequests.clear();
     previewPendingChunksByFileIdRef.current = new Map();
-  }, [previewRowsRequestsRef]);
+  }, [tableRowsRequestsRef]);
 
-  const notifyPreviewRowsCacheChanged = memoCallback(() => {
+  const notifyTableRowsCacheChanged = memoCallback(() => {
     cancelRowsVersionNotification();
     notifyRowsVersion();
   }, [cancelRowsVersionNotification, notifyRowsVersion]);
@@ -676,10 +676,10 @@ const createTableModel = ({
       rowCache?: Map<number, unknown[]>;
     } = {}) => {
       previewCacheFileIdRef.current = fileId;
-      previewRowsCacheRef.current = rowCache;
+      tableRowsCacheRef.current = rowCache;
       previewLoadedChunksRef.current = loadedChunks;
     },
-    [previewCacheFileIdRef, previewLoadedChunksRef, previewRowsCacheRef],
+    [previewCacheFileIdRef, previewLoadedChunksRef, tableRowsCacheRef],
   );
 
   const postPreviewDispose = memoCallback(
@@ -700,11 +700,11 @@ const createTableModel = ({
 
   const resetCurrentPreviewCache = memoCallback(() => {
     assignCurrentPreviewCache();
-    notifyPreviewRowsCacheChanged();
-  }, [assignCurrentPreviewCache, notifyPreviewRowsCacheChanged]);
+    notifyTableRowsCacheChanged();
+  }, [assignCurrentPreviewCache, notifyTableRowsCacheChanged]);
 
   const clearAllPreviewCaches = memoCallback(() => {
-    previewRowsCacheByFileIdRef.current = new Map();
+    tableRowsCacheByFileIdRef.current = new Map();
     previewLoadedChunksByFileIdRef.current = new Map();
     previewCacheFileLruRef.current = new Set();
     previewPendingChunksByFileIdRef.current = new Map();
@@ -713,23 +713,23 @@ const createTableModel = ({
       void tableBackendService.disposeFile({ clear: true });
     }
     assignCurrentPreviewCache();
-    notifyPreviewRowsCacheChanged();
+    notifyTableRowsCacheChanged();
   }, [
     assignCurrentPreviewCache,
-    notifyPreviewRowsCacheChanged,
+    notifyTableRowsCacheChanged,
     backendOpenedSourceKeysRef,
     previewCacheFileLruRef,
     previewLoadedChunksByFileIdRef,
-    previewRowsCacheByFileIdRef,
+    tableRowsCacheByFileIdRef,
     tableBackendService,
   ]);
 
   const invalidatePreviewRequests = memoCallback(() => {
     previewRequestIdRef.current += 1;
-    cancelPendingPreviewRowRequests();
+    cancelPendingTableRowRequests();
     pendingPreviewFileIdRef.current = null;
     previewPendingChunksByFileIdRef.current = new Map();
-  }, [cancelPendingPreviewRowRequests, previewRequestIdRef]);
+  }, [cancelPendingTableRowRequests, previewRequestIdRef]);
 
   const clearPreviewState = memoCallback(
     ({ clearSelection = false }: { clearSelection?: boolean } = {}) => {
@@ -779,7 +779,7 @@ const createTableModel = ({
     (sourceKey: string) => {
       if (typeof sourceKey !== "string" || !sourceKey) return;
 
-      previewRowsCacheByFileIdRef.current.delete(sourceKey);
+      tableRowsCacheByFileIdRef.current.delete(sourceKey);
       previewLoadedChunksByFileIdRef.current.delete(sourceKey);
       previewCacheFileLruRef.current.delete(sourceKey);
       previewPendingChunksByFileIdRef.current.delete(sourceKey);
@@ -796,7 +796,7 @@ const createTableModel = ({
       previewCacheFileLruRef,
       previewLoadedChunksByFileIdRef,
       previewPendingChunksByFileIdRef,
-      previewRowsCacheByFileIdRef,
+      tableRowsCacheByFileIdRef,
       resetCurrentPreviewCache,
     ],
   );
@@ -873,8 +873,8 @@ const createTableModel = ({
     (event: MessageEvent<WorkerMessage>) => {
       const { type, payload } = event.data ?? {};
 
-      if (type === "previewResult" && payload) {
-        const previewPayload = payload as PreviewResultPayload;
+      if (type === "tablePreviewResult" && payload) {
+        const previewPayload = payload as TablePreviewResultPayload;
         if (previewPayload.requestId !== previewRequestIdRef.current) return;
         clearPendingPreviewRequest(previewPayload.requestId);
 
@@ -929,15 +929,15 @@ const createTableModel = ({
         return;
       }
 
-      if (type === "previewRowsResult" && payload) {
-        const rowsPayload = payload as PreviewRowsResultPayload;
+      if (type === "tableRowsResult" && payload) {
+        const rowsPayload = payload as TableRowsResultPayload;
         const requestId = Number(rowsPayload.requestId);
         if (!Number.isFinite(requestId)) return;
 
-        const pendingRequest = previewRowsRequestsRef.current.get(requestId);
+        const pendingRequest = tableRowsRequestsRef.current.get(requestId);
         if (!pendingRequest) return;
 
-        previewRowsRequestsRef.current.delete(requestId);
+        tableRowsRequestsRef.current.delete(requestId);
 
         const { reject, resolve } = pendingRequest;
 
@@ -984,14 +984,14 @@ const createTableModel = ({
 
         if (
           requestId !== previewRequestIdRef.current &&
-          !previewRowsRequestsRef.current.has(requestId)
+          !tableRowsRequestsRef.current.has(requestId)
         ) {
           return;
         }
 
-        if (previewRowsRequestsRef.current.has(requestId)) {
-          const pendingRequest = previewRowsRequestsRef.current.get(requestId);
-          previewRowsRequestsRef.current.delete(requestId);
+        if (tableRowsRequestsRef.current.has(requestId)) {
+          const pendingRequest = tableRowsRequestsRef.current.get(requestId);
+          tableRowsRequestsRef.current.delete(requestId);
           pendingRequest?.reject?.(new Error(errorMessage));
           return;
         }
@@ -1007,7 +1007,7 @@ const createTableModel = ({
       activatePreviewFileCache,
       clearPreviewState,
       mergePreviewSeedRows,
-      previewRowsRequestsRef,
+      tableRowsRequestsRef,
       previewRequestIdRef,
       setPreviewFile,
       clearPendingPreviewRequest,
@@ -1033,13 +1033,13 @@ const createTableModel = ({
   }, [createPreviewWorker, previewWorkerRef]);
 
   const resetPreviewWorker = memoCallback(() => {
-    cancelPendingPreviewRowRequests();
+    cancelPendingTableRowRequests();
 
     if (previewWorkerRef.current) {
       previewWorkerRef.current.terminate();
       previewWorkerRef.current = null;
     }
-  }, [cancelPendingPreviewRowRequests, previewWorkerRef]);
+  }, [cancelPendingTableRowRequests, previewWorkerRef]);
 
   runEffect(() => {
     return () => {
@@ -1083,7 +1083,7 @@ const createTableModel = ({
         })) ?? previewTargetFile.file;
 
       worker.postMessage({
-        type: "preview",
+        type: "tablePreview",
         payload: {
           requestId,
           fileId: previewTargetSourceKey,
@@ -1092,7 +1092,7 @@ const createTableModel = ({
           sheetId: previewTargetSource.source.sheetId ?? null,
           sheetName: previewTargetSource.sheetName,
           file: fallbackFile,
-          maxPreviewRows: TABLE_MAX_CACHED_UI_ROWS_PER_FILE,
+          maxSeedRows: TABLE_MAX_CACHED_UI_ROWS_PER_FILE,
         },
       });
     };
@@ -1127,7 +1127,7 @@ const createTableModel = ({
             return;
           }
 
-          const previewPayload = response.result as PreviewResultPayload;
+          const previewPayload = response.result as TablePreviewResultPayload;
           const maxCellLengths = Array.isArray(previewPayload.maxCellLengths)
             ? previewPayload.maxCellLengths.map((n) => Number(n) || 0)
             : [];
@@ -1225,9 +1225,9 @@ const createTableModel = ({
     (rowIndex: number): unknown[] | null => {
       const normalizedIndex = Number(rowIndex);
       if (!Number.isInteger(normalizedIndex) || normalizedIndex < 0) return null;
-      return previewRowsCacheRef.current.get(normalizedIndex) ?? null;
+      return tableRowsCacheRef.current.get(normalizedIndex) ?? null;
     },
-    [previewRowsCacheRef],
+    [tableRowsCacheRef],
   );
 
   const resolveRequestSourceKey = memoCallback(
@@ -1245,13 +1245,13 @@ const createTableModel = ({
     [previewFileRef],
   );
 
-  const requestPreviewRowsRange = memoCallback(
+  const requestTableRowsRange = memoCallback(
     (fileId: string, startRow: number, endRow: number): Promise<unknown[][]> => {
       const sourceKey = resolveRequestSourceKey(fileId);
       if (!sourceKey) return Promise.resolve([]);
 
-      const requestId = previewRowsRequestIdRef.current + 1;
-      previewRowsRequestIdRef.current = requestId;
+      const requestId = tableRowsRequestIdRef.current + 1;
+      tableRowsRequestIdRef.current = requestId;
 
       const start = Math.max(0, Math.floor(Number(startRow) || 0));
       const end = Math.max(start, Math.floor(Number(endRow) || start));
@@ -1261,7 +1261,7 @@ const createTableModel = ({
         if (!worker) return Promise.resolve([]);
 
         return new Promise<unknown[][]>((resolve, reject) => {
-          previewRowsRequestsRef.current.set(requestId, {
+          tableRowsRequestsRef.current.set(requestId, {
             endRow: end,
             fileId: sourceKey,
             reject,
@@ -1270,7 +1270,7 @@ const createTableModel = ({
             startRow: start,
           });
           worker.postMessage({
-            type: "previewRows",
+            type: "tableRows",
             payload: {
               requestId,
               fileId: sourceKey,
@@ -1295,7 +1295,7 @@ const createTableModel = ({
           })
           .then((response: any) => {
             if (!response?.ok || !response?.result) return [];
-            const rowsPayload = response.result as PreviewRowsResultPayload;
+            const rowsPayload = response.result as TableRowsResultPayload;
             const rows = sanitizeTableRowBatch(rowsPayload.rows);
             const payloadFileId =
               typeof rowsPayload.fileId === "string" ? rowsPayload.fileId : "";
@@ -1318,8 +1318,8 @@ const createTableModel = ({
     },
     [
       getOrCreatePreviewWorker,
-      previewRowsRequestIdRef,
-      previewRowsRequestsRef,
+      tableRowsRequestIdRef,
+      tableRowsRequestsRef,
       resolveRequestSourceKey,
     ],
   );
@@ -1391,7 +1391,7 @@ const createTableModel = ({
               }
             }
           } catch {
-            // Fall through to the existing preview-row path.
+            // Fall through to the existing table-row path.
           }
         }
       }
@@ -1409,7 +1409,7 @@ const createTableModel = ({
 
       let changed = false;
       for (const [rangeStart, rangeEnd] of ranges) {
-        const rows = await requestPreviewRowsRange(sourceKey, rangeStart, rangeEnd);
+        const rows = await requestTableRowsRange(sourceKey, rangeStart, rangeEnd);
         for (let index = 0; index < rows.length; index += 1) {
           rowCache.set(rangeStart + index, rows[index]);
           changed = true;
@@ -1425,7 +1425,7 @@ const createTableModel = ({
       notifyRowsVersion,
       previewCacheFileIdRef,
       previewFileRef,
-      requestPreviewRowsRange,
+      requestTableRowsRange,
       resolveRequestSourceKey,
     ],
   );
@@ -1475,7 +1475,7 @@ const createTableModel = ({
         maxRangeRows: PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS,
       });
 
-      let shouldNotifyPreviewRows = false;
+      let shouldNotifyTableRows = false;
       const requests: Array<Promise<void>> = [];
 
       for (const range of missingRanges) {
@@ -1502,7 +1502,7 @@ const createTableModel = ({
             attempt <= PREVIEW_ROWS_FETCH_MAX_ATTEMPTS;
             attempt += 1
           ) {
-            rows = await requestPreviewRowsRange(sourceKey, rangeStart, rangeEnd);
+            rows = await requestTableRowsRange(sourceKey, rangeStart, rangeEnd);
             if (rows.length === expectedRows) break;
           }
 
@@ -1521,7 +1521,7 @@ const createTableModel = ({
             previewCacheFileIdRef.current === sourceKey &&
             merged.mergedChunkStarts.length > 0
           ) {
-            shouldNotifyPreviewRows = true;
+            shouldNotifyTableRows = true;
           }
         })()
           .catch(() => {
@@ -1546,7 +1546,7 @@ const createTableModel = ({
       if (!requests.length) return;
       await Promise.all(requests);
 
-      if (shouldNotifyPreviewRows) {
+      if (shouldNotifyTableRows) {
         notifyRowsVersion();
       }
     },
@@ -1556,7 +1556,7 @@ const createTableModel = ({
       notifyRowsVersion,
       previewCacheFileIdRef,
       previewFileRef,
-      requestPreviewRowsRange,
+      requestTableRowsRange,
       resolveRequestSourceKey,
     ],
   );
@@ -1754,7 +1754,7 @@ const createTableModel = ({
   );
 
   return {
-    cancelPendingRowRequests: cancelPendingPreviewRowRequests,
+    cancelPendingRowRequests: cancelPendingTableRowRequests,
     clearHighlight,
     clearSelection,
     clearState: clearPreviewState,

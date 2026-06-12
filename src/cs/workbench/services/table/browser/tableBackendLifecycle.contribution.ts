@@ -12,12 +12,8 @@ import {
 import {
 	ILifecycleService,
 	WillShutdownJoinerOrder,
-	type ILifecycleService as ILifecycleServiceType,
 } from "src/cs/workbench/services/lifecycle/common/lifecycle";
-import {
-	ITableBackendService,
-	type ITableBackendService as ITableBackendServiceType,
-} from "src/cs/workbench/services/table/common/table";
+import { ITableBackendService } from "src/cs/workbench/services/table/common/table";
 
 const TableBackendLifecycleContributionId = "workbench.contrib.tableBackendLifecycle";
 
@@ -25,8 +21,8 @@ const TableBackendLifecycleContributionId = "workbench.contrib.tableBackendLifec
 // files are Rust-held artifacts; the browser implementation simply reports no cleanup.
 export class TableBackendLifecycleContribution extends Disposable implements IWorkbenchContribution {
 	public constructor(
-		@ITableBackendService private readonly tableBackendService: ITableBackendServiceType,
-		@ILifecycleService lifecycleService: ILifecycleServiceType,
+		@ITableBackendService private readonly tableBackendService: ITableBackendService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
 
