@@ -2,17 +2,13 @@ import { localize } from "src/cs/nls";
 import { append, reset } from "src/cs/base/browser/dom";
 import { createButton as createActionButton } from "src/cs/base/browser/ui/button/button";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/template/common/fileNameMatching";
-import type { NotificationToastState } from "src/cs/workbench/contrib/settings/common/feedback";
-import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import type { LanguagePreference } from "src/cs/platform/language/common/language";
+import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type {
-  ChartDefaultSettings,
-  AppUpdateSettings,
-  FileNameMatchingSettings,
-  OriginSettings,
-  SettingsViewProps,
-  SettingsSectionId,
-  WindowCloseSettings,
-} from "src/cs/workbench/contrib/settings/settingsViewTypes";
+  Feedback,
+  NotificationToastState,
+} from "src/cs/workbench/contrib/settings/common/feedback";
+import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import "src/cs/base/browser/ui/inputbox/inputBox.css";
 import "src/cs/workbench/contrib/settings/browser/media/settingsView.css";
 
@@ -20,6 +16,114 @@ type SelectOption = {
   label: string;
   value: string;
 };
+
+type OriginSettingsSectionProps = {
+  currentPath: string;
+  cleanupEnabled: boolean;
+  cleanupFailedRetentionDays: number;
+  cleanupFeedback?: Feedback;
+  cleanupKeepSuccessJobs: number;
+  cleanupRunning: boolean;
+  cleanupSaving: boolean;
+  feedback: Feedback;
+  isConfigurable: boolean;
+  isHealthCheckAvailable: boolean;
+  isCleanupAvailable: boolean;
+  isHealthChecking: boolean;
+  isLoading: boolean;
+  plotCommand: string;
+  plotFeedback?: Feedback;
+  plotPostCommandsText: string;
+  plotSaving: boolean;
+  plotType: number;
+  plotLineWidth: number;
+  plotLegendFontSize: number | "";
+  plotXyPairs: string;
+  isSaving: boolean;
+  onCheckHealth: () => Promise<void> | void;
+  onChoosePath: () => Promise<void> | void;
+  onCleanupEnabledChange: (enabled: boolean) => Promise<void> | void;
+  onCleanupFailedRetentionDaysChange: (
+    value: string | number,
+  ) => Promise<void> | void;
+  onCleanupKeepSuccessJobsChange: (
+    value: string | number,
+  ) => Promise<void> | void;
+  onPlotCommandChange: (value: string) => Promise<void> | void;
+  onPlotPostCommandsChange: (value: string) => Promise<void> | void;
+  onPlotTypeChange: (value: string | number) => Promise<void> | void;
+  onPlotLineWidthChange: (value: string | number) => Promise<void> | void;
+  onPlotLegendFontSizeChange: (value: string | number) => Promise<void> | void;
+  onPlotXyPairsChange: (value: string) => Promise<void> | void;
+  onRunCleanupNow: () => Promise<void> | void;
+};
+
+type AppUpdateSettings = {
+  currentVersion?: string | null;
+  isAvailable: boolean;
+  onCheckForUpdates: () => boolean | Promise<boolean>;
+};
+
+type WindowCloseSettings = {
+  behavior: "minimizeToTray" | "quit";
+  isSaving: boolean;
+  onBehaviorChange: (
+    behavior: "minimizeToTray" | "quit",
+  ) => Promise<void> | void;
+};
+
+type AppearanceSettings = {
+  backgroundColor: string;
+  backgroundColorDefault: string;
+  backgroundColorOptions: readonly string[];
+  isSaving: boolean;
+  transparentChrome: boolean;
+  onBackgroundColorChange: (value: string) => Promise<void> | void;
+  onBackgroundColorReset: () => Promise<void> | void;
+  onTransparentChromeChange: (enabled: boolean) => Promise<void> | void;
+};
+
+type FileNameMatchingSettings = {
+  feedback: Feedback;
+  fieldSeparators: string;
+  isSaving: boolean;
+  onFieldSeparatorsChange: (value: string) => Promise<void> | void;
+};
+
+type ChartDefaultSettings = {
+  defaultYScaleForCf: "linear" | "log";
+  defaultYScaleForCv: "linear" | "log";
+  defaultYScaleForOutput: "linear" | "log";
+  defaultYScaleForPv: "linear" | "log";
+  defaultYScaleForTransfer: "linear" | "log";
+  tickLabelFontSize: number | "";
+  axisTitleFontSize: number | "";
+  feedback: Feedback;
+  isSaving: boolean;
+  onDefaultYScaleForCfChange: (value: string) => Promise<void> | void;
+  onDefaultYScaleForCvChange: (value: string) => Promise<void> | void;
+  onDefaultYScaleForOutputChange: (value: string) => Promise<void> | void;
+  onDefaultYScaleForPvChange: (value: string) => Promise<void> | void;
+  onDefaultYScaleForTransferChange: (value: string) => Promise<void> | void;
+  onTickLabelFontSizeChange: (value: string | number) => Promise<void> | void;
+  onAxisTitleFontSizeChange: (value: string | number) => Promise<void> | void;
+};
+
+type SettingsViewProps = {
+  appearanceSettings: AppearanceSettings;
+  appUpdateSettings: AppUpdateSettings;
+  chartDefaultSettings: ChartDefaultSettings;
+  fileNameMatchingSettings: FileNameMatchingSettings;
+  language: LanguagePreference;
+  onLanguageChange: (language: LanguagePreference) => Promise<void> | void;
+  onResetLayoutState: () => Promise<void> | void;
+  theme: ThemeMode;
+  onThemeChange: (theme: ThemeMode) => Promise<void> | void;
+  originSettings: OriginSettingsSectionProps;
+  windowCloseSettings: WindowCloseSettings;
+};
+
+export type SettingsSectionId = "general" | "appearance" | "origin" | "about";
 
 export type SettingsViewOptions = SettingsViewProps & {
   activeSettingsSection: SettingsSectionId;
@@ -198,7 +302,7 @@ export class SettingsView {
     const { appearanceSettings } = this.options;
 
     container.append(
-      cardRow("settings-theme-card", displayText(localize("settings.theme.title", "Theme"), "Theme"), this.createSelect({
+      cardRow("settings-theme-card", localize("settings.theme.title", "Theme"), this.createSelect({
         id: "settings-theme-dropdown",
         value: this.options.theme,
         onChange: value => {
@@ -213,12 +317,12 @@ export class SettingsView {
     const layoutCard = card("settings-layout-card", "settings-card-block");
     layoutCard.append(
       headingBlock(
-        displayText(localize("settings.layout.title", "Layout"), "Layout"),
-        displayText(localize("settings.layout.description", "Reset sidebar width and hidden workbench parts."), "Reset sidebar width and hidden workbench parts."),
+        localize("settings.layout.title", "Layout"),
+        localize("settings.layout.description", "Reset sidebar width and hidden workbench parts."),
       ),
       div("settings-actions-end", this.createButton({
         id: "settings-layout-reset-btn",
-        label: displayText(localize("settings.layout.resetButton", "Reset Layout"), "Reset Layout"),
+        label: localize("settings.layout.resetButton", "Reset Layout"),
         onClick: () => void this.options.onResetLayoutState(),
         variant: "secondary",
       })),
@@ -254,12 +358,12 @@ export class SettingsView {
 
     backgroundCard.append(
       headingBlock(
-        displayText(localize("settings.background.title", "Background"), "Background"),
-        displayText(localize("settings.background.description", "Choose the workbench page background color."), "Choose the workbench page background color."),
+        localize("settings.background.title", "Background"),
+        localize("settings.background.description", "Choose the workbench page background color."),
       ),
       div("settings-color-controls", colorInput, swatches, this.createButton({
         id: "settings-background-reset-btn",
-        label: displayText(localize("settings.background.reset", "Reset"), "Reset"),
+        label: localize("settings.background.reset", "Reset"),
         onClick: () => void appearanceSettings.onBackgroundColorReset(),
         disabled:
           appearanceSettings.isSaving ||
@@ -272,12 +376,12 @@ export class SettingsView {
     container.append(
       cardRow(
         "settings-transparent-chrome-card",
-        displayText(localize("settings.transparentChrome.title", "Transparent page"), "Transparent page"),
+        localize("settings.transparentChrome.title", "Transparent page"),
         this.createToggle({
           checked: appearanceSettings.transparentChrome,
           disabled: appearanceSettings.isSaving,
           id: "settings-transparent-chrome-toggle",
-          label: displayText(localize("settings.transparentChrome.toggle", "Use Mica/transparent page"), "Use Mica/transparent page"),
+          label: localize("settings.transparentChrome.toggle", "Use Mica/transparent page"),
           onChange: checked => void appearanceSettings.onTransparentChromeChange(checked),
         }),
       ),
@@ -411,7 +515,7 @@ export class SettingsView {
     return container;
   }
 
-  private createPathControls(settings: OriginSettings): HTMLElement {
+  private createPathControls(settings: OriginSettingsSectionProps): HTMLElement {
     const controls = div("settings-path-controls");
     controls.append(
       div("settings-path-value",
@@ -435,7 +539,7 @@ export class SettingsView {
     return controls;
   }
 
-  private createOriginCleanupGrid(settings: OriginSettings): HTMLElement {
+  private createOriginCleanupGrid(settings: OriginSettingsSectionProps): HTMLElement {
     const grid = div("settings-grid settings-grid--three");
     grid.append(
       field(localize("settings.origin.cleanup.enableLabel", "Auto cleanup"), this.createSelect({
@@ -463,7 +567,7 @@ export class SettingsView {
     return grid;
   }
 
-  private createOriginPlot(settings: OriginSettings): HTMLElement {
+  private createOriginPlot(settings: OriginSettingsSectionProps): HTMLElement {
     const container = card("settings-origin-plot-card", "settings-card-block");
     container.appendChild(headingBlock(localize("settings.origin.plot.title", "Default Plot Settings"), localize("settings.origin.plot.description", "Used by \"Open in Origin\".")));
     container.append(
@@ -509,7 +613,7 @@ export class SettingsView {
     return container;
   }
 
-  private createPostCommandsField(settings: OriginSettings): HTMLElement {
+  private createPostCommandsField(settings: OriginSettingsSectionProps): HTMLElement {
     const container = div("settings-field");
     const textarea = document.createElement("textarea");
     textarea.id = "settings-origin-plot-post-commands-input";
@@ -675,10 +779,6 @@ function text<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, 
   element.className = className;
   element.textContent = value;
   return element;
-}
-
-function displayText(value: string, fallback: string): string {
-  return value.includes("_") ? fallback : value;
 }
 
 function appendFeedback(container: HTMLElement, feedback: { type: "idle" | "success" | "error"; message: string } | undefined): void {

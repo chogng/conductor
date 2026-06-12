@@ -1,17 +1,12 @@
 import { localize } from "src/cs/nls";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { SettingsViewId } from "src/cs/workbench/services/settings/common/settings";
-import {
-  SettingsController,
-  type SettingsControllerOptions,
-} from "src/cs/workbench/contrib/settings/browser/settingsController";
+import { SettingsController } from "src/cs/workbench/contrib/settings/browser/settingsController";
 import {
   ISettingsService,
   type ISettingsService as ISettingsServiceType,
   type SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
-
-export type SettingsViewPaneProps = SettingsViewInput;
 
 export class SettingsViewPane extends ViewPane {
   private controller: SettingsController | null = null;
@@ -34,15 +29,15 @@ export class SettingsViewPane extends ViewPane {
     }
   }
 
-  public update(options: SettingsViewPaneProps): void {
+  public update(options: SettingsViewInput): void {
     if (this.controller) {
-      this.controller.update(toControllerOptions(options));
+      this.controller.update(options);
       return;
     }
 
     this.controller = new SettingsController(
       this.body,
-      toControllerOptions(options),
+      options,
       this.settingsService,
     );
   }
@@ -53,29 +48,3 @@ export class SettingsViewPane extends ViewPane {
     super.dispose();
   }
 }
-
-const toControllerOptions = ({
-  appUpdateSettings,
-  conductorSettings,
-  conductorSettingsLoaded,
-  handleLanguageChange,
-  handleResetLayoutState,
-  handleThemeChange,
-  updateConductorSettings,
-  isWindowsDesktopShell,
-  language,
-  mergeConductorSettings,
-  theme,
-}: SettingsViewPaneProps): SettingsControllerOptions => ({
-  appUpdateSettings,
-  conductorSettings,
-  conductorSettingsLoaded,
-  handleLanguageChange,
-  handleResetLayoutState,
-  handleThemeChange,
-  updateConductorSettings,
-  isWindowsDesktopShell,
-  language,
-  mergeConductorSettings,
-  theme,
-});

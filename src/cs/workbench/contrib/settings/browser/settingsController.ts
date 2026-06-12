@@ -12,17 +12,11 @@ import {
   type Feedback,
   type NotificationToastState,
 } from "src/cs/workbench/contrib/settings/common/feedback";
-import type { LanguagePreference } from "src/cs/platform/language/common/language";
-import type { ThemeMode } from "src/cs/workbench/common/theme";
-import type {
-  AppearanceSettings,
-  ChartDefaultSettings,
-  AppUpdateSettings,
-  FileNameMatchingSettings,
-  OriginSettings,
-  SettingsSectionId,
-  WindowCloseSettings,
-} from "src/cs/workbench/contrib/settings/settingsViewTypes";
+import {
+  SettingsView,
+  type SettingsViewOptions,
+  type SettingsSectionId,
+} from "src/cs/workbench/contrib/settings/browser/settingsView";
 import {
   normalizeBoundedInt,
   normalizeTrimmedString,
@@ -32,29 +26,15 @@ import type {
   ConductorSettings,
   ISettingsService,
   SettingsServiceOptions,
+  SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
-import { SettingsView, type SettingsViewOptions } from "src/cs/workbench/contrib/settings/browser/settingsView";
 import {
   DEFAULT_WORKBENCH_BACKGROUND_COLOR,
   normalizeWorkbenchAppearance,
   normalizeWorkbenchBackgroundColor,
 } from "src/cs/workbench/browser/appearance";
 
-export type SettingsControllerOptions = {
-  appUpdateSettings: AppUpdateSettings;
-  conductorSettings: ConductorSettings | null;
-  conductorSettingsLoaded: boolean;
-  handleLanguageChange: (language: LanguagePreference) => Promise<void> | void;
-  handleResetLayoutState: () => Promise<void> | void;
-  handleThemeChange: (theme: ThemeMode) => Promise<void> | void;
-  updateConductorSettings: (
-    updates: unknown,
-  ) => Promise<ConductorSettings | null>;
-  isWindowsDesktopShell: boolean;
-  language: LanguagePreference;
-  mergeConductorSettings: (nextSettings: ConductorSettings | null) => void;
-  theme: ThemeMode;
-};
+type SettingsControllerOptions = SettingsViewInput;
 
 type SelectOption = {
   label: string;
@@ -242,10 +222,12 @@ export class SettingsController {
       cleanupKeepSuccessOptions: this.cleanupKeepSuccessOptions,
       cleanupToast: this.drafts.cleanupToast,
       closeCleanupToast: () => {
+        this.originCleanupFeedback = IDLE_FEEDBACK;
         this.drafts.cleanupToast = { ...this.drafts.cleanupToast, isVisible: false };
         this.render();
       },
       closeOriginHealthToast: () => {
+        this.originPathFeedback = IDLE_FEEDBACK;
         this.drafts.originHealthToast = { ...this.drafts.originHealthToast, isVisible: false };
         this.render();
       },
@@ -343,7 +325,7 @@ export class SettingsController {
     return this.settings.defaultYScaleForSpecial === "log" ? "log" : "linear";
   }
 
-  private get fileNameMatchingSettings(): FileNameMatchingSettings {
+  private get fileNameMatchingSettings(): SettingsViewOptions["fileNameMatchingSettings"] {
     return {
       feedback: this.fileNameMatchingFeedback,
       fieldSeparators: this.fileNameFieldSeparators,
@@ -352,7 +334,7 @@ export class SettingsController {
     };
   }
 
-  private get chartDefaultSettings(): ChartDefaultSettings {
+  private get chartDefaultSettings(): SettingsViewOptions["chartDefaultSettings"] {
     const axisSettings = this.axisSettings;
     return {
       defaultYScaleForCf: this.resolveSpecialYScale(this.settings.defaultYScaleForCf),
@@ -374,7 +356,7 @@ export class SettingsController {
     };
   }
 
-  private get windowCloseSettings(): WindowCloseSettings {
+  private get windowCloseSettings(): SettingsViewOptions["windowCloseSettings"] {
     return {
       behavior: this.settings.windowCloseBehavior === "quit" ? "quit" : "minimizeToTray",
       isSaving: this.windowCloseSaving,
@@ -382,7 +364,7 @@ export class SettingsController {
     };
   }
 
-  private get appearanceSettings(): AppearanceSettings {
+  private get appearanceSettings(): SettingsViewOptions["appearanceSettings"] {
     const appearance = normalizeWorkbenchAppearance(this.settings);
     return {
       backgroundColor: appearance.backgroundColor,
@@ -407,7 +389,7 @@ export class SettingsController {
     };
   }
 
-  private get originSettings(): OriginSettings {
+  private get originSettings(): SettingsViewOptions["originSettings"] {
     const cleanupConfig = this.cleanupConfig;
     const originPlotConfig = this.originPlotConfig;
     return {
@@ -499,15 +481,11 @@ export class SettingsController {
 
   private get settingsSections() {
     return [
-      { id: "general" as const, label: this.label("settings_nav_general", "General") },
-      { id: "appearance" as const, label: this.label("settings_nav_appearance", "Appearance") },
-      { id: "origin" as const, label: this.label("settings_nav_origin", "Origin") },
-      { id: "about" as const, label: this.label("settings_nav_about", "About") },
+      { id: "general" as const, label: localize("settings.nav.general", "General") },
+      { id: "appearance" as const, label: localize("settings.nav.appearance", "Appearance") },
+      { id: "origin" as const, label: localize("settings.nav.origin", "Origin") },
+      { id: "about" as const, label: localize("settings.nav.about", "About") },
     ];
-  }
-
-  private label(key: string, fallback: string): string {
-    return localize(key, fallback);
   }
 
   private async chooseOriginExePath(): Promise<void> {
@@ -534,6 +512,7 @@ export class SettingsController {
     }
     finally {
       this.originPathSaving = false;
+      this.syncOriginFeedback();
       this.render();
     }
   }
