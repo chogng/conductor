@@ -16,16 +16,12 @@ import {
   type IDisposable,
 } from "src/cs/base/common/lifecycle";
 import { Emitter } from "src/cs/base/common/event";
-import { ICommandService, type ICommandService as ICommandServiceType } from "src/cs/platform/commands/common/commands";
+import { ICommandService } from "src/cs/platform/commands/common/commands";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import {
-  INativeHostService,
-  type INativeHostService as INativeHostServiceType,
-} from "src/cs/platform/native/common/native";
+import { INativeHostService } from "src/cs/platform/native/common/native";
 import {
   IWorkbenchLayoutService,
   Parts,
-  type IWorkbenchLayoutService as IWorkbenchLayoutServiceType,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import { localize } from "src/cs/nls";
 import * as WorkbenchTitlebarActions from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
@@ -33,16 +29,19 @@ import type { WorkbenchTitlebarPageButton } from "src/cs/workbench/browser/parts
 import {
   getWorkbenchWindowState,
   ITitleService,
-  type ITitleService as ITitleServiceType,
   type WorkbenchTitlebarActivePage,
   type WorkbenchTitlebarFileOption,
   type WorkbenchTitlebarState,
 } from "src/cs/workbench/services/title/browser/titleService";
 
-const WORKBENCH_TITLEBAR_APP_ICON_SVG =
-  "<svg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'><g clip-path='url(#clip0_603_2)'><path d='M7.91992 1.02246C9.4735 1.02257 10.9072 1.53174 12.0665 2.39069C12.2996 2.56345 12.3108 2.90112 12.1056 3.10632L10.6672 4.54471C10.4891 4.72286 10.2078 4.73751 9.99299 4.60591C9.3893 4.2361 8.67972 4.02256 7.91992 4.02246C5.72275 4.02246 3.94141 5.8038 3.94141 8.00098C3.94167 10.1979 5.72291 11.9795 7.91992 11.9795C8.67978 11.9794 9.38932 11.7652 9.99302 11.3952C10.2078 11.2635 10.4891 11.2781 10.6672 11.4563L12.1056 12.8947C12.3108 13.0999 12.2996 13.4375 12.0665 13.6103C10.9072 14.4695 9.47358 14.9794 7.91992 14.9795C4.06605 14.9795 0.941667 11.8548 0.941406 8.00098C0.941406 4.14695 4.06589 1.02246 7.91992 1.02246Z' fill='url(#paint0_linear_603_2)'/><path d='M14 0.75C14.6904 0.75 15.25 1.30964 15.25 2V4.75781C15.2499 5.88482 14.8018 6.96577 14.0049 7.7627L13.7676 8L14.0049 8.2373C14.8018 9.03423 15.2499 10.1152 15.25 11.2422V14C15.25 14.6904 14.6904 15.25 14 15.25C13.3096 15.25 12.75 14.6904 12.75 14V11.2422C12.7499 10.7782 12.5654 10.333 12.2373 10.0049L11.4824 9.25H9.55957C9.19302 9.70674 8.6312 10 8 10C6.89543 10 6 9.10457 6 8C6 6.89543 6.89543 6 8 6C8.6312 6 9.19302 6.29326 9.55957 6.75H11.4824L12.2373 5.99512C12.5654 5.66704 12.7499 5.22178 12.75 4.75781V2C12.75 1.30964 13.3096 0.75 14 0.75Z' fill='url(#paint1_linear_603_2)'/></g><defs><linearGradient id='paint0_linear_603_2' x1='6.59619' y1='1.02246' x2='6.59619' y2='14.9795' gradientUnits='userSpaceOnUse'><stop stop-color='#DDB5FF'/><stop offset='0.490385' stop-color='#7252FF'/><stop offset='1' stop-color='#1B2AFF'/></linearGradient><linearGradient id='paint1_linear_603_2' x1='8' y1='6' x2='8' y2='10' gradientUnits='userSpaceOnUse'><stop stop-color='#DFBBFF'/><stop offset='1' stop-color='#0D00FF'/></linearGradient><clipPath id='clip0_603_2'><rect width='16' height='16' fill='white'/></clipPath></defs></svg>";
-export const WORKBENCH_TITLEBAR_APP_ICON_SRC =
-  `data:image/svg+xml,${encodeURIComponent(WORKBENCH_TITLEBAR_APP_ICON_SVG)}`;
+const WORKBENCH_TITLEBAR_APP_ICON_LIGHT_SVG =
+  "<svg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'><g clip-path='url(#clip0_conductor_titlebar_light)'><path d='M8 0L14.9282 4V12L8 16L1.0718 12V4L8 0Z' fill='black'/><path d='M8.00003 6L9.73208 7V9L8.00003 10L6.26798 9V7L8.00003 6Z' fill='white'/><path d='M8.00003 6L9.73208 7V9M8.00003 6L6.26798 7V9M8.00003 6L4.73205 4L3 5V11M8.00003 2L13.0001 5V7L9.73208 9L8.00003 10L6.26798 9M6.26798 9V13L8.00003 14L13.0001 11' stroke='white'/><circle cx='8' cy='2' r='1' fill='white'/><circle cx='3' cy='11' r='1' fill='white'/><circle cx='13' cy='11' r='1' fill='white'/></g><defs><clipPath id='clip0_conductor_titlebar_light'><rect width='16' height='16' fill='white'/></clipPath></defs></svg>";
+const WORKBENCH_TITLEBAR_APP_ICON_DARK_SVG =
+  "<svg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'><g clip-path='url(#clip0_conductor_titlebar_dark)'><rect width='16' height='16' fill='black'/><path d='M8 0L14.9282 4V12L8 16L1.0718 12V4L8 0Z' fill='white'/><path d='M8.00003 6L9.73208 7V9L8.00003 10L6.26798 9V7L8.00003 6Z' fill='black'/><path d='M8.00003 6L9.73208 7V9M8.00003 6L6.26798 7V9M8.00003 6L4.73205 4L3 5V11M8.00003 2L13.0001 5V7L9.73208 9L8.00003 10L6.26798 9M6.26798 9V13L8.00003 14L13.0001 11' stroke='black'/><circle cx='8' cy='2' r='0.5' fill='black' stroke='black'/><circle cx='3' cy='11' r='0.5' fill='black' stroke='black'/><circle cx='13' cy='11' r='0.5' fill='black' stroke='black'/></g><defs><clipPath id='clip0_conductor_titlebar_dark'><rect width='16' height='16' fill='white'/></clipPath></defs></svg>";
+export const WORKBENCH_TITLEBAR_APP_ICON_LIGHT_SRC =
+  `data:image/svg+xml,${encodeURIComponent(WORKBENCH_TITLEBAR_APP_ICON_LIGHT_SVG)}`;
+export const WORKBENCH_TITLEBAR_APP_ICON_DARK_SRC =
+  `data:image/svg+xml,${encodeURIComponent(WORKBENCH_TITLEBAR_APP_ICON_DARK_SVG)}`;
 export const WORKBENCH_TITLEBAR_DRAG_REGION_STYLE = {
   WebkitAppRegion: "drag",
 };
@@ -52,17 +51,17 @@ export const WORKBENCH_TITLEBAR_ID = "workbench-titlebar";
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
 type WorkbenchTitlebarUpdateAction = {
+  readonly commandId?: string;
   readonly isVisible: boolean;
   readonly isReadyToInstall?: boolean;
   readonly version?: string | null;
-  readonly onClick?: () => void;
 };
 
 type WorkbenchTitlebarProps = Omit<WorkbenchTitlebarState, "activePage"> & {
   readonly activePage: WorkbenchTitlebarActivePage;
-  readonly commandService?: ICommandServiceType;
+  readonly commandService?: ICommandService;
   readonly id?: string;
-  readonly nativeHostService?: INativeHostServiceType;
+  readonly nativeHostService?: INativeHostService;
   readonly reserveWindowControls?: boolean;
   readonly updateAction?: WorkbenchTitlebarUpdateAction;
 };
@@ -222,7 +221,7 @@ const createTitlebarRuntimeAction = ({
   titlebarClassName = "titlebar-icon-button",
 }: {
   readonly commandId: string;
-  readonly commandService?: ICommandServiceType;
+  readonly commandService?: ICommandService;
   readonly icon: LxIconDefinition | (() => SVGSVGElement);
   readonly id: string;
   readonly onIntent?: () => void;
@@ -329,12 +328,14 @@ const setupTooltipHover = (
 
 const createFileSelector = ({
   activeFileId,
+  commandId,
+  commandService,
   options,
-  onChange,
 }: {
   activeFileId: string | null;
+  commandId?: string;
+  commandService?: ICommandService;
   options: WorkbenchTitlebarFileOption[];
-  onChange?: (fileId: string) => void;
 }): { readonly element: HTMLElement; readonly select: HTMLSelectElement } => {
   const wrapper = createElement("div", {
     className: "titlebar-file-select",
@@ -346,7 +347,11 @@ const createFileSelector = ({
   });
 
   select.value = activeFileId ?? "";
-  select.addEventListener("change", () => onChange?.(select.value));
+  select.addEventListener("change", () => {
+    if (commandId) {
+      void commandService?.executeCommand(commandId, select.value);
+    }
+  });
 
   for (const option of options) {
     const optionElement = createElement("option", {
@@ -361,7 +366,7 @@ const createFileSelector = ({
 };
 
 const createQuickAccessButton = (
-  commandService?: ICommandServiceType,
+  commandService?: ICommandService,
   hoverStore?: DisposableStore,
 ): HTMLButtonElement => {
   const action =
@@ -399,7 +404,7 @@ class WorkbenchTitlebarView extends Disposable {
   public constructor(
     public readonly element: HTMLElement,
     private readonly refs: WorkbenchTitlebarViewRefs,
-    private readonly nativeHostService: INativeHostServiceType | undefined,
+    private readonly nativeHostService: INativeHostService | undefined,
     disposables: readonly IDisposable[],
   ) {
     super();
@@ -474,15 +479,15 @@ const createWorkbenchTitlebarView = (
   {
     activePage,
     activeFileId = null,
+    chartIntentCommandId,
     fileOptions = [],
+    fileSelectionCommandId,
     canNavigateBack = false,
     canNavigateForward = false,
     commandService,
     id = WORKBENCH_TITLEBAR_ID,
     isSidebarVisible = true,
     nativeHostService,
-    onFileChange,
-    onChartIntent,
     reserveWindowControls = false,
     showFileSelector = false,
     updateAction,
@@ -504,15 +509,21 @@ const createWorkbenchTitlebarView = (
 
   header.addEventListener("contextmenu", (event) => event.preventDefault());
 
-  const brandIcon = createElement("img", {
-    src: WORKBENCH_TITLEBAR_APP_ICON_SRC,
+  const brandIconLight = createElement("img", {
+    src: WORKBENCH_TITLEBAR_APP_ICON_LIGHT_SRC,
     alt: "",
     "aria-hidden": "true",
-    className: "titlebar-brand-icon",
+    className: "titlebar-brand-icon titlebar-brand-icon--light",
+  });
+  const brandIconDark = createElement("img", {
+    src: WORKBENCH_TITLEBAR_APP_ICON_DARK_SRC,
+    alt: "",
+    "aria-hidden": "true",
+    className: "titlebar-brand-icon titlebar-brand-icon--dark",
   });
   const brand = appendChildren(
     createElement("div", { className: "titlebar-brand" }),
-    [brandIcon],
+    [brandIconLight, brandIconDark],
   );
   const actionBarDisposables: IDisposable[] = [];
   const navActionsById = new Map<string, WorkbenchTitlebarRuntimeAction>();
@@ -563,8 +574,9 @@ const createWorkbenchTitlebarView = (
   if (showFileSelector && normalizedFileOptions.length > 0) {
     const selector = createFileSelector({
       activeFileId: activeFileId,
+      commandId: fileSelectionCommandId,
+      commandService,
       options: normalizedFileOptions,
-      onChange: onFileChange,
     });
     center.appendChild(selector.element);
     fileSelect = selector.select;
@@ -586,7 +598,11 @@ const createWorkbenchTitlebarView = (
     });
     updateButton.textContent =
       WorkbenchTitlebarActions.getWorkbenchTitlebarUpdateLabel();
-    updateButton.addEventListener("click", () => updateAction.onClick?.());
+    updateButton.addEventListener("click", () => {
+      if (updateAction.commandId) {
+        void commandService?.executeCommand(updateAction.commandId);
+      }
+    });
     setupTooltipHover(updateButton, updateTitle, hoverStore);
     rightControls.appendChild(updateButton);
   }
@@ -601,7 +617,11 @@ const createWorkbenchTitlebarView = (
       id: WorkbenchTitlebarActions.WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS[
         button.id
       ],
-      onIntent: button.id === "chart" ? onChartIntent : undefined,
+      onIntent: button.id === "chart" && chartIntentCommandId
+        ? () => {
+          void commandService?.executeCommand(chartIntentCommandId);
+        }
+        : undefined,
       title: button.title,
     });
     actionBarDisposables.push(runtimeAction);
@@ -662,11 +682,11 @@ const shouldRecreateTitlebar = (
   prev.id !== next.id ||
   prev.commandService !== next.commandService ||
   prev.showFileSelector !== next.showFileSelector ||
-  prev.onFileChange !== next.onFileChange ||
-  prev.onChartIntent !== next.onChartIntent ||
+  prev.fileSelectionCommandId !== next.fileSelectionCommandId ||
+  prev.chartIntentCommandId !== next.chartIntentCommandId ||
   prev.updateAction?.isVisible !== next.updateAction?.isVisible ||
   prev.updateAction?.version !== next.updateAction?.version ||
-  prev.updateAction?.onClick !== next.updateAction?.onClick ||
+  prev.updateAction?.commandId !== next.updateAction?.commandId ||
   !sameFileOptions(prev.fileOptions, next.fileOptions);
 
 export class WorkbenchTitlebarPart {
@@ -728,7 +748,7 @@ export class WorkbenchTitlebarPart {
   }
 }
 
-export class BrowserTitleService extends Disposable implements ITitleServiceType {
+export class BrowserTitleService extends Disposable implements ITitleService {
   public declare readonly _serviceBrand: undefined;
 
   private readonly onDidChangeTitlebarStateEmitter =
@@ -739,9 +759,9 @@ export class BrowserTitleService extends Disposable implements ITitleServiceType
     this.onDidChangeTitlebarStateEmitter.event;
 
   public constructor(
-    @ICommandService private readonly commandService: ICommandServiceType,
-    @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutServiceType,
-    @INativeHostService private readonly nativeHostService: INativeHostServiceType,
+    @ICommandService private readonly commandService: ICommandService,
+    @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+    @INativeHostService private readonly nativeHostService: INativeHostService,
   ) {
     super();
 
@@ -794,14 +814,14 @@ export class BrowserTitleService extends Disposable implements ITitleServiceType
       canNavigateForward:
         state.canNavigateForward ??
         navigation.historyIndex < navigation.historyLength - 1,
+      chartIntentCommandId: state.chartIntentCommandId,
+      fileSelectionCommandId: state.fileSelectionCommandId,
       fileOptions: state.fileOptions,
+      installUpdateCommandId: state.installUpdateCommandId,
       isSidebarVisible:
         state.isSidebarVisible ??
         this.layoutService.isVisible(Parts.SIDEBAR_PART),
       isUpdateReadyToInstall: state.isUpdateReadyToInstall,
-      onChartIntent: state.onChartIntent,
-      onFileChange: state.onFileChange,
-      onInstallUpdate: state.onInstallUpdate,
       showFileSelector: state.showFileSelector,
       updateVersion: state.updateVersion,
     };
@@ -823,10 +843,10 @@ export class BrowserTitleService extends Disposable implements ITitleServiceType
       nativeHostService: this.nativeHostService,
       reserveWindowControls: windowState.isWindowsDesktopShell,
       updateAction: {
+        commandId: state.installUpdateCommandId,
         isVisible: Boolean(state.isUpdateReadyToInstall),
         isReadyToInstall: state.isUpdateReadyToInstall,
         version: state.updateVersion,
-        onClick: state.onInstallUpdate,
       },
     };
   }

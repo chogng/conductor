@@ -38,6 +38,18 @@
   width: 16px;
 }
 
+.titlebar-brand-icon--dark {
+  display: none;
+}
+
+.dark .titlebar-brand-icon--light {
+  display: none;
+}
+
+.dark .titlebar-brand-icon--dark {
+  display: block;
+}
+
 /* Center region: active file selector. */
 .titlebar-center {
   align-items: center;
