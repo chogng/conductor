@@ -127,63 +127,16 @@ Chart UI may expose buttons for these commands, but the target service remains `
 - Do not compute assessment or template outputs here.
 
 
-## State and model fields
+## Field catalog
 
-### `PlotState`
-
-| Field | Meaning |
-| --- | --- |
-| `activePlotType` | Current plot family tab. |
-| `axisTitleOverridesByKey` | User axis title overrides. |
-| `legendLabelsByFileId` | User legend label overrides by file and series. |
+Use `records.instructions.md` for plot state and render-model field
+definitions: `PlotState`, `PlotRenderModel`, `PlotSeriesModel`, and
+`PlotAxisModel`.
 
 Per-file unit and scale choices are written through Plot owner APIs and
 currently persisted in conductor settings. `PlotService` consumes Settings and
 Session directly when building display models; callers do not pass axis
 settings through Chart input or render-model requests.
-
-### `PlotRenderModel`
-
-| Field | Meaning |
-| --- | --- |
-| `modelId` | Stable model/signature id. |
-| `fileId` | Source file. |
-| `plotType` | Rendered plot type. |
-| `seriesList` | Display-ready plot series. |
-| `axis` | Effective labels, units, domains, scale, ticks. |
-| `pointsCount` | Total rendered point count. |
-| `sourceCurveKeys` | Curves used to build this model. |
-| `signature` | Invalidation signature. |
-| `diagnostics` | Plot-specific warnings. |
-
-### `PlotSeriesModel`
-
-| Field | Meaning |
-| --- | --- |
-| `seriesId` | Source series id. |
-| `curveKey` | Source curve key. |
-| `label` | Display label. |
-| `points` | Display points after unit conversion/filter/downsample. |
-| `rawPointCount` | Point count before display processing. |
-| `visible` | Effective visibility. |
-| `focused` | Focus state. |
-| `sourceRange` | Optional raw table provenance. |
-
-### `PlotAxisModel`
-
-| Field | Meaning |
-| --- | --- |
-| `xLabel` | Effective x label. |
-| `yLabel` | Effective y label. |
-| `xUnitLabel` | Effective x unit label. |
-| `yUnitLabel` | Effective y unit label. |
-| `xFactor` | X unit conversion factor. |
-| `yFactor` | Y unit conversion factor. |
-| `xDomain` | Display x domain. |
-| `yDomain` | Display y domain. |
-| `yScale` | Linear/log scale. |
-| `xTicks` | Optional computed x ticks. |
-| `yTicks` | Optional computed y ticks. |
 
 ## Component split
 

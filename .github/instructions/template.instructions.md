@@ -128,57 +128,10 @@ The command/controller must not re-detect table structure.
 - Do not let TemplateView mutate session directly.
 
 
-## Record fields
+## Field catalog
 
-### `TemplateRecord`
-
-| Field | Meaning |
-| --- | --- |
-| `id` | Template id. |
-| `name` | Display name. |
-| `config` | Template configuration. |
-| `createdAt` | Creation timestamp. |
-| `updatedAt` | Last update timestamp. |
-| `source` | Built-in/user/imported origin. |
-
-### `TemplateConfig`
-
-| Field | Meaning |
-| --- | --- |
-| `xDataStart` | First x data row. |
-| `xDataEnd` | Last x data row. |
-| `xSegmentationMode` | Auto/points/segments. |
-| `xSegmentCount` | Number of x segments. |
-| `xPointsPerGroup` | Points per group. |
-| `xUnit` | X unit. |
-| `yLegendStart` | Starting legend value. |
-| `yLegendCount` | Legend count. |
-| `yLegendStep` | Legend step. |
-| `yLegendTarget` | Auto/yColumn/group legend source. |
-| `yUnit` | Y unit. |
-| `bottomTitle` | X axis title. |
-| `leftTitle` | Y axis title. |
-| `legendPrefix` | Legend prefix. |
-| `yColumns` | Y columns to extract. |
-| `stopOnError` | Stop run on extraction error. |
-
-### `TemplateRunRecord`
-
-| Field | Meaning |
-| --- | --- |
-| `id` | Template run id. |
-| `fileId` | Target file. |
-| `selection` | Auto/template/manual selection used. |
-| `config` | Effective config. |
-| `input` | Input ranges/blocks. |
-| `sourceBlockIds` | Blocks consumed by this run. |
-| `outputSeriesIds` | Series produced. |
-| `outputCurveKeys` | Curves produced. |
-| `configFingerprint` | Stable config signature. |
-| `mode` | Auto/manual/rule. |
-| `appliedAt` | Timestamp. |
-| `warnings` | Non-fatal warnings. |
-| `errors` | Errors. |
+Use `records.instructions.md` for template record field definitions:
+`TemplateRecord`, `TemplateConfig`, and `TemplateRunRecord`.
 
 ## Component split
 

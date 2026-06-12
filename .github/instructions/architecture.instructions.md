@@ -353,9 +353,15 @@ event subscription is not disposed
 
 ## Record and component documentation rule
 
-Every service document must describe records and state by fields, not just by type names. Use `records.instructions.md` for canonical field definitions and `service-components.instructions.md` for helper naming rules.
+Record and state field definitions are centralized in
+`records.instructions.md`. Module instruction files should not repeat full
+field tables unless the type is module-private and not yet ready for the shared
+catalog. Instead, module files should identify which records/state they own and
+link to the shared field catalog.
 
-Required format for every record/state/model section:
+When adding or materially changing a shared record/state/model entry in
+`records.instructions.md`, include the applicable metadata before the field
+table:
 
 ```txt
 Type name
@@ -363,9 +369,13 @@ Type name
   Producer
   Consumers
   Canonical or service-local
-  Field table
   Invalidation rule
+  Field table
 ```
+
+When a module file needs a local `Field catalog` section, keep it to a short
+pointer to the record/state names in `records.instructions.md` plus any
+module-specific owner or invalidation rule that is not already captured there.
 
 A file responsibility table must not stop at `FooManager`. It must say whether the file is a service, controller, store, model, provider, adapter, planner, reader, registry, or cache.
 

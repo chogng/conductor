@@ -136,66 +136,8 @@ should call `ISessionService`, and consumers should react to the resulting
 - Do not store service caches or UI state in `FileRecord`.
 
 
-## Canonical record fields
+## Field catalog
 
-### `SessionModel`
-
-| Field | Meaning |
-| --- | --- |
-| `schemaVersion` | Shape/migration version. |
-| `sessionVersion` | Increments on canonical data changes. |
-| `filesById` | Canonical file lifecycle records. |
-| `fileOrder` | Stable file display/processing order. |
-
-### `FileRecord`
-
-| Field | Meaning |
-| --- | --- |
-| `id` | File id. |
-| `name` | Display name. |
-| `kind` | Source kind: csv/excel/clipboard/manual/unknown. |
-| `raw` | Raw file facts and raw tables. |
-| `rawTableVersionsById` | Per-table raw version for cache/assessment invalidation. |
-| `assessmentsByRawTableId` | Latest assessment per raw table. |
-| `measurementBlocksById` | Flattened measurement blocks for lookup. |
-| `measurementBlockOrder` | Stable block order. |
-| `templateRunsById` | Template execution records. |
-| `latestTemplateRunId` | Current/latest run. |
-| `seriesById` | Series produced from template/assessment/calculation. |
-| `seriesOrder` | Stable series order. |
-| `curvesByKey` | Base/derived/second-derived curves. |
-| `metricsByKey` | Computed parameter metrics. |
-| `metricsBySeriesId` | Lookup from series to metrics. |
-| `metricInputsByKey` | Manual inputs that affect parameter computation. |
-| `calculationCache` | Rebuildable calculation cache. |
-
-### `CurveRecord`
-
-| Field | Meaning |
-| --- | --- |
-| `fileId` | Parent file. |
-| `seriesId` | Source series. |
-| `curveGeneration` | Base/derived/second-derived. |
-| `curveFamily` | IV/CV/CF/PV/IT/gm/localSs/thresholdFit/etc. |
-| `ivMode` | Transfer/output for base IV curves. |
-| `itMode` | IT mode for base IT curves. |
-| `lineage` | Source provenance. |
-| `points` | Numeric x/y points. |
-| `channels` | Optional derived channels such as positive/abs/log. |
-| `domain` | Optional precomputed numeric domain. |
-| `signature` | Invalidation signature. |
-| `sourceRange` | Optional raw table provenance. |
-
-### `MetricRecord`
-
-| Field | Meaning |
-| --- | --- |
-| `key` | Stable metric id. |
-| `fileId` | Parent file. |
-| `seriesId` | Target series. |
-| `metricFamily` | current/derivative/threshold/subthreshold. |
-| `contextKey` | Configuration/context discriminator. |
-| `inputCurves` | Curves used as input. |
-| `inputSignatures` | Signatures used for invalidation. |
-| `algorithm` | Algorithm provenance. |
-| `value` | Family-specific metric value record. |
+Use `records.instructions.md` for canonical session record field definitions:
+`SessionModel`, `FileRecord`, `SeriesRecord`, `CurveRecord`, and
+`MetricRecord`.

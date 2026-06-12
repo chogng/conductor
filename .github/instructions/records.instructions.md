@@ -23,6 +23,14 @@ Every new record type must answer these questions:
 
 ## File and raw table records
 
+### `FileImportInput`
+
+| Field | Type | Meaning | Required | Notes |
+| --- | --- | --- | --- | --- |
+| `sources` | `readonly FileImportSource[]` | Files, paths, clipboard payloads, or manual table payloads to convert. | Yes | Source collection belongs to Explorer/files workflow helpers. |
+| `importedAt` | `number` | Timestamp for diagnostics and replay/debug. | Yes | Not a semantic data version. |
+| `options` | `{ preferNormalizedCsv?: boolean; maxInlineBytes?: number } | undefined` | Conversion options such as normalized CSV preference or max inline size. | No | Conversion option state should not become Explorer UI state. |
+
 ### `FileConversionResult`
 
 Owner: `fileConverter.ts` produces it; `ISessionService` commits it. Canonical after commit as `FileRecord.raw`.
@@ -402,6 +410,20 @@ Owner: `ChartService`. Service/view-shell state only.
 | `hiddenLegendKeysByContext` | `Record<string, readonly string[]>` | Chart-owned legend visibility overrides keyed by file/plot context. |
 | `legendPopoverContextKey` | `string | null` | Current legend popover context key, or null when closed. |
 
+### `ChartViewInput`
+
+Owner: `ChartService`. Service-local view input snapshot. The change event only announces that the snapshot changed; consumers reread it from `IChartService.getViewInput()`.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `activePlotType` | `PlotType | undefined` | Plot type currently shown, projected from Plot state. |
+| `hasChartData` | `boolean | undefined` | Whether chart data is available for the active view. |
+| `activeFileId` | `FileId | null | undefined` | File selected for chart display. |
+| `chartFileOptions` | `readonly ChartFileOption[] | undefined` | File selector options projected for chart mode. |
+| `processingStatus` | `Partial<ProcessingStatus> | undefined` | Template or processing status shown by chart UI. |
+| `showFileSelect` | `boolean | undefined` | Whether the chart header should show the chart file selector. |
+| `shouldMountCharts` | `boolean | undefined` | Whether chart rendering modules are still mounting. |
+
 ## Table state
 
 ### `TableState`
@@ -430,6 +452,16 @@ Owner: `TableService`. Not session canonical data.
 | `rawTableId` | `RawTableId` | Raw table id. |
 | `measurementBlockId` | `MeasurementBlockId | undefined` | Block source if applicable. |
 | `range` | `RangeRef | undefined` | Explicit range if applicable. |
+
+### `TableSelection`
+
+Owner: `TableService`. Service-local state, not session canonical data.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `activeCell` | `TableCell | null | undefined` | Focused cell. |
+| `selectedColumns` | `readonly number[] | undefined` | Selected raw columns. |
+| `ranges` | `readonly TableRange[] | undefined` | Selected ranges. |
 
 ## Explorer state
 
@@ -466,6 +498,17 @@ Derived from session and explorer grouping state.
 
 ## Search records
 
+### `SearchQuery`
+
+Owner: `SearchService`. Service-local query state, not session canonical data.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `text` | `string` | User query text. |
+| `scope` | `SearchScope` | File/table/block/curve/metric search scope. |
+| `kinds` | `readonly SearchResultKind[]` | Result kinds to include. |
+| `caseSensitive` | `boolean` | Case-sensitive matching flag. |
+
 ### `SearchResult`
 
 | Field | Type | Meaning |
@@ -484,6 +527,20 @@ Derived from session and explorer grouping state.
 | `metricKey` | `MetricKey | undefined` | Related metric. |
 
 ## Export records
+
+### `ExportState`
+
+Owner: `ExportService`. Service-local export option state unless saved project
+export settings are intentionally introduced.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `originMode` | `OriginExportMode` | Origin export mode. |
+| `canvasScope` | `OriginCanvasExportScope` | Current/all/selected/filtered canvas export scope. |
+| `filteredKind` | `OriginFilteredCanvasKind` | Transfer/output filter for filtered export scope. |
+| `curveMode` | `OriginCurveExportMode` | Whether all curves or selected curves are exported. |
+| `selectedCurveKeys` | `readonly string[]` | Curves selected for export. |
+| `selectedContentKeys` | `readonly OriginExportContentKey[]` | Origin content categories to include. |
 
 ### `ExportPlan`
 

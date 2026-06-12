@@ -113,70 +113,9 @@ The command must not detect blocks itself.
 - Do not let Template/Table/Plot re-detect headers or sweep mode.
 
 
-## Record fields
+## Field catalog
 
-### `RawTableAssessmentRecord`
-
-| Field | Meaning |
-| --- | --- |
-| `fileId` | File containing the assessed table. |
-| `rawTableId` | Assessed raw table. |
-| `sourceRawTableVersion` | Raw table version used to produce this result; used to drop stale results. |
-| `groups` | Device/sample groups detected from the table. |
-| `blocks` | Measurement blocks detected from the table. |
-| `diagnostics` | Warnings/errors/info from assessment. |
-| `createdAt` | Assessment timestamp. |
-
-### `MeasurementGroupRecord`
-
-| Field | Meaning |
-| --- | --- |
-| `id` | Stable group id. |
-| `fileId` | Parent file id. |
-| `rawTableId` | Parent raw table id. |
-| `label` | Device/sample label, for example `1-HS`. |
-| `titleRange` | Optional raw range where the label came from. |
-| `blockIds` | Blocks belonging to this group. |
-| `confidence` | Optional group detection confidence. |
-
-### `MeasurementBlockRecord`
-
-| Field | Meaning |
-| --- | --- |
-| `id` | Stable measurement block id. |
-| `fileId` | Parent file id. |
-| `rawTableId` | Parent raw table id. |
-| `groupId` | Optional device/sample group id. |
-| `label` | Display label. |
-| `family` | IV/CV/CF/PV/IT/unknown. |
-| `ivMode` | Transfer/output for IV blocks only. |
-| `itMode` | Stability/transient/retention/etc. for IT blocks only. |
-| `source` | Full/header/data/title raw ranges. |
-| `columns` | Semantic column role mapping. |
-| `rowCount` | Data row count excluding header/title. |
-| `columnCount` | Physical block column count. |
-| `confidence` | Optional family/block confidence. |
-| `diagnosticCodes` | Related diagnostic codes. |
-
-### `MeasurementColumnRef`
-
-| Field | Meaning |
-| --- | --- |
-| `rawCol` | Absolute column index in the raw table. |
-| `headerText` | Original header text. |
-| `role` | Semantic role such as `vd`, `vg`, `id`, `ig`, `capacitance`, `time`. |
-| `unit` | Parsed unit. |
-| `sourceRange` | Header cell/range provenance. |
-| `confidence` | Optional column-role confidence. |
-
-### `AssessmentDiagnostic`
-
-| Field | Meaning |
-| --- | --- |
-| `severity` | `info`, `warning`, or `error`. |
-| `code` | Stable machine-readable diagnostic code. |
-| `message` | Human-readable message. |
-| `sourceRange` | Optional raw table location. |
-| `relatedBlockId` | Optional related block. |
-| `relatedGroupId` | Optional related group. |
-
+Use `records.instructions.md` for assessment record field definitions:
+`RawTableAssessmentRecord`, `MeasurementGroupRecord`,
+`MeasurementBlockRecord`, `RawBlockSourceRef`, `MeasurementColumnRef`,
+`MeasurementColumnMap`, and `AssessmentDiagnostic`.

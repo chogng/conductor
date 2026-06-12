@@ -162,39 +162,8 @@ table view input data path.
 - Do not call chart/plot directly from table selection logic. Use commands or explicit service APIs.
 
 
-## State and model fields
+## Field catalog
 
-### `TableState`
-
-| Field | Meaning |
-| --- | --- |
-| `source` | Current table source: raw table/block/range. |
-| `fileName` | Display file name. |
-| `rawTableName` | Sheet/table display name. |
-| `rowCount` | Current source row count. |
-| `columnCount` | Current source column count. |
-| `loadState` | Idle/loading/ready/error. |
-| `selection` | Active cell/ranges. |
-| `highlight` | Temporary highlighted columns/ranges. |
-| `revealCell` | Cell requested for scroll/reveal. |
-| `rowsVersion` | Increments when row cache changes. |
-
-### `TableSource`
-
-| Field | Meaning |
-| --- | --- |
-| `kind` | `rawTable`, `measurementBlock`, or `range`. |
-| `fileId` | File id. |
-| `rawTableId` | Raw table id. |
-| `measurementBlockId` | Block id when showing a block. |
-| `range` | Explicit range when showing a range. |
-
-### `TableSelection`
-
-| Field | Meaning |
-| --- | --- |
-| `activeCell` | Focused cell. |
-| `ranges` | Selected ranges. |
-| `selectedColumns` | Selected raw columns. |
-
-Selection is table state, not session canonical data.
+Use `records.instructions.md` for shared table state fields such as
+`TableState` and `TableSource`. Selection is table state, not session canonical
+data.

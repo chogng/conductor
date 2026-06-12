@@ -171,25 +171,12 @@ mode.
 - Do not store chart shell UI state in Session.
 
 
-## State fields
+## Field catalog
 
-### `ChartState`
+Use `records.instructions.md` for shared chart state fields such as
+`ChartState`. `ChartViewInput` is a Chart-owned view input snapshot: it may
+project Plot, Explorer, Settings, or processing facts for rendering, but it
+must not become a callback bag or a data path for Plot models.
 
-| Field | Meaning |
-| --- | --- |
-| `visibleDetailPanes` | Open detail panes such as inspector. |
-| `hiddenLegendKeysByContext` | Chart-owned legend visibility overrides keyed by file/plot context. |
-| `legendPopoverContextKey` | Current legend popover context key, or null when closed. |
-
-### `ChartViewInput`
-
-| Field | Meaning |
-| --- | --- |
-| `activePlotType` | Plot type currently shown, from Plot state. |
-| `activeFileId` | File selected for chart display. |
-| `chartFileOptions` | File selector options projected for chart mode. |
-| `processingStatus` | Template processing status shown by chart UI. |
-| `showFileSelect` | Whether the chart header should show the chart file selector. |
-| `shouldMountCharts` | Whether chart rendering modules are still mounting. |
-
-Chart state is shell state. Plot data, units, scale, series visibility, domains, and labels belong to Plot.
+Chart state is shell state. Plot data, units, scale, series visibility,
+domains, and labels belong to Plot.

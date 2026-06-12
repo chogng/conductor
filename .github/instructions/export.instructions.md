@@ -107,28 +107,8 @@ execution path, not to a Workbench-supplied `showToast` callback.
 - Do not put export option state in Session.
 
 
-## State and record fields
+## Field catalog
 
-### `ExportState`
-
-| Field | Meaning |
-| --- | --- |
-| `scope` | Current/all/selected/filtered. |
-| `format` | Origin/CSV/image/etc. |
-| `selectedCurveKeys` | Curves selected for export. |
-| `selectedMetricKeys` | Metrics selected for export. |
-| `contentKeys` | Content categories to include. |
-
-### `ExportPlan`
-
-| Field | Meaning |
-| --- | --- |
-| `id` | Plan id/signature. |
-| `scope` | Export scope. |
-| `format` | Export format. |
-| `fileIds` | Files included. |
-| `curveKeysByFileId` | Curves per file. |
-| `metricKeysByFileId` | Metrics per file. |
-| `plotModelIds` | Plot models used. |
-| `payloads` | Concrete payloads to write/open. |
-| `diagnostics` | Export warnings/errors. |
+Use `records.instructions.md` for shared export fields such as `ExportPlan`.
+Keep `ExportState` service-local unless saved project export settings are
+intentionally introduced.

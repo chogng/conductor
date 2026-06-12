@@ -222,73 +222,30 @@ converter backends to emit one sheet descriptor per worksheet.
 
 ```mermaid
 flowchart TD
-    UI[Explorer drop/dialog/clipboard] --> SourceWorkflow[Explorer source workflow/controller]
-    SourceWorkflow --> FileImportExport[fileImportExport.ts]
-    SourceWorkflow --> Converter[fileConverter.ts]
-    Converter --> RawTables["FileConversionResult + RawTableRecord[]"]
-    SourceWorkflow --> Session[ISessionService.commitFileImport]
-    Session --> Event[rawTablesChanged]
-    Event --> Assessment[IAssessmentService]
+    User[Explorer drop/dialog/clipboard/folder] --> Workflow[Explorer source workflow]
+    Workflow --> Source[fileImportExport.ts source collection]
+    Source --> Converter[fileConverter.ts]
+    Converter --> Result[FileConversionResult]
+    Workflow --> Session[ISessionService.commitFileImport]
+    Result --> Session
+    Session --> Consumers[SessionChangeEvent subscribers]
+    Consumers --> Assessment[IAssessmentService]
+    Consumers --> Explorer[Explorer resources]
+    Consumers --> Table[Table preview]
 ```
 
-Explorer owns the user-facing add-data surface, but the source
-workflow/controller is the bridge that coordinates source collection,
-conversion, session commit, and optional Explorer selection follow-up.
-`IExplorerService` remains the Explorer UI-state owner. `fileImportExport.ts`
-collects sources or handles file transfer. `fileConverter.ts` converts data
-sources. Session commits canonical records. Assessment interprets structure
-later.
+Explorer owns the user-facing add-data surface, but the source workflow is the
+bridge that coordinates source collection, conversion, session commit, and
+optional Explorer selection or mode follow-up. `IExplorerService` remains the
+Explorer UI-state owner. `fileImportExport.ts` collects sources or handles file
+transfer. `fileConverter.ts` converts data sources. Session commits canonical
+records. Assessment interprets structure later.
 
-Runtime chain:
+Use `FileConversionResult` only for converter output. It is not the result of
+the entire Explorer add-data workflow.
 
-```mermaid
-flowchart TD
-    User[User drop/dialog/clipboard/folder] --> Command[Explorer command/action/view event]
-    Command --> SourceWorkflow[Explorer source workflow/controller]
-    SourceWorkflow --> SourceCollection[fileImportExport.ts source collection]
-    SourceCollection --> Sources["FileSource[]"]
-    SourceWorkflow --> Converter[fileConverter.ts]
-    Sources --> Converter
-    Converter --> ConversionResult[FileConversionResult]
-    ConversionResult --> RawFiles[Converted file records]
-    ConversionResult --> RawTables["RawTableRecord[]"]
-    ConversionResult --> Diagnostics[Conversion diagnostics]
-    SourceWorkflow --> Commit[ISessionService.commitFileImport]
-    ConversionResult --> Commit
-    Commit --> SessionEvents[Session raw table/file changes]
-    SessionEvents --> Assessment[IAssessmentService]
-    SessionEvents --> ExplorerView[Explorer tree/resources]
-    SessionEvents --> Table[Table/raw preview]
-    Assessment --> Plot[Plot/thumbnail/export consumers]
-```
-
-```txt
-User drop/dialog/clipboard/folder
-  -> Explorer command or view gesture
-  -> IExplorerWorkflowService for command entry, or ExplorerViewPane for direct view gesture
-  -> ExplorerViewPane registered FileSourceWorkflow handler
-  -> fileImportExport.ts collects FileSource[]
-  -> fileConverter.ts converts sources
-  -> FileConversionResult
-  -> ISessionService.commitFileImport(...)
-  -> Session emits raw table/file changes
-  -> IAssessmentService interprets raw tables
-  -> Table / Explorer / Plot / Export consume derived state
-```
-
-Use `FileConversionResult` for the converter output. It is not the result of the whole Explorer add-data workflow; it is the session-ready raw file/table conversion result produced by `fileConverter.ts`.
-
-Workbench commands that need filesystem access should call a workbench service or controller, and that service/controller may depend on `IFileService`.
-
-```txt
-Explorer import folder command
-  -> fileActions.ts / fileCommands.ts
-  -> IExplorerWorkflowService.openFolderImport()
-  -> ExplorerViewPane registered FileSourceWorkflow handler
-  -> IFileDialogService + IFileService
-  -> fileImportExport.ts source collection / fileConverter.ts conversion
-  -> ISessionService.commitFileImport
-```
+Workbench commands that need filesystem access should call a workbench service
+or controller, and that service/controller may depend on `IFileService`.
 
 ## Explorer View Rules
 
@@ -340,143 +297,24 @@ follow-up such as Explorer selection must call the target owner API
 composition. It must not accept `TableModel`, `TableSource`, or table preview
 lifecycle callbacks. Table preview state is owned by `ITableService`.
 
-Selection wiring:
+Explorer-side wiring rules:
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant ExplorerViewer
-    participant ExplorerViewPane
-    participant ExplorerService as IExplorerService
-    participant DomainBridge as WorkbenchDomainBridge
+- Selection in tree and thumbnail layouts must call the same
+  `IExplorerService.select(...)` path.
+- File item actions in both layouts must execute the same Files/Explorer
+  action ids and command handlers.
+- Table-drop and sidebar-drop import flows may reuse files source helpers, but
+  the workflow caller commits through `ISessionService` and then asks
+  `IExplorerService` or `IWorkbenchLayoutService` for optional UI follow-up.
+- Explorer owns tree/list hover triggers, timing, anchor, positioning,
+  context-view container, and dismissal. Thumbnail owns the preview content
+  rendering inside that Explorer-owned container.
+- Explorer owns the more actionbar placement and `IExplorerService.viewLayout`.
+  The thumbnail contribution owns the thumbnail-specific toggle action/command
+  and thumbnail UI/rendering content.
 
-    alt tree layout
-        User->>ExplorerViewer: select tree file item
-        ExplorerViewer->>ExplorerViewPane: onSelectFile(fileId)
-    else thumbnail layout
-        User->>ExplorerViewer: click thumbnail file item
-        ExplorerViewer->>ExplorerViewPane: onSelectFile(fileId)
-    end
-    ExplorerViewPane->>ExplorerService: select({ kind, fileId, candidateFileIds }, reveal?)
-    ExplorerService-->>DomainBridge: onDidChangeSelection({ kind, selectedFileId })
-    DomainBridge->>ExplorerService: updatePaneInput({ selectedFileId, files, ... })
-    ExplorerViewPane->>ExplorerViewer: setProps({ selectedFileId })
-```
-
-File item action wiring:
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant ExplorerViewer
-    participant CommandService as ICommandService
-    participant FilesAction as existing files Action2
-    participant FilesCommand as existing files command handler
-    participant WorkflowService as IExplorerWorkflowService
-    participant ExplorerViewPane
-    participant ExplorerService as IExplorerService
-
-    alt tree layout
-        User->>ExplorerViewer: invoke file item action
-    else thumbnail layout
-        User->>ExplorerViewer: invoke same file item action
-    end
-    ExplorerViewer->>CommandService: executeCommand(existing files action id, fileId, args)
-    CommandService->>FilesAction: run(accessor, fileId, args)
-    FilesAction->>FilesCommand: handler(accessor, fileId, args)
-    FilesCommand->>WorkflowService: removeFile(fileId) for removal workflow
-    WorkflowService->>ExplorerViewPane: call registered workflow handler
-    ExplorerViewPane->>ExplorerService: select(...) if removal changes selection
-```
-
-Table drop import wiring:
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant TableViewPane
-    participant DropTargetService as ITableDropTargetService
-    participant DropController as table preview drop controller
-    participant SourceHelpers as fileImportExport.ts helpers
-    participant CommitHelper as explorerSessionImport.ts
-    participant Session as ISessionService
-    participant ExplorerService as IExplorerService
-
-    User->>TableViewPane: drop files/folder on table preview area
-    TableViewPane->>DropTargetService: registerDropTargetElement(preview part)
-    DropController->>DropTargetService: subscribe onDidChangeDropTarget
-    DropController->>DropController: attach observer to published target
-    DropController->>SourceHelpers: collectDroppedFiles / prepare pending imports
-    SourceHelpers-->>DropController: prepared imports
-    DropController->>CommitHelper: commitExplorerSessionImport(append)
-    CommitHelper->>Session: commitFileImport(result)
-    CommitHelper->>ExplorerService: select({ kind: table, fileId }, force)
-```
-
-Sidebar raw import mode handoff wiring:
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant ExplorerView
-    participant SourceWorkflow as FileSourceWorkflow
-    participant ExplorerPane as ExplorerViewPane
-    participant ExplorerService as IExplorerService
-    participant Session as ISessionService
-    participant Subscribers as Session subscribers
-    participant Layout as IWorkbenchLayoutService
-
-    User->>ExplorerView: drop raw files on sidebar while chart mode is active
-    ExplorerView->>SourceWorkflow: importDroppedFiles(dataTransfer)
-    SourceWorkflow-->>ExplorerView: prepared imported files
-    ExplorerView->>ExplorerPane: prepared files
-    ExplorerPane->>Session: commitFileImport(result)
-    Session-->>Subscribers: onDidChangeSession
-    ExplorerPane->>ExplorerService: select({ kind: table, fileId }, force)
-    ExplorerPane->>Layout: navigateToView(table)
-```
-
-Tree item hover thumbnail preview wiring:
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant ExplorerViewer
-    participant ContextViewService as IContextViewService
-    participant HoverContainer as Explorer hover context-view container
-    participant ThumbnailView as thumbnail UI factory
-    participant ThumbnailRenderer as thumbnail rendering surface
-
-    User->>ExplorerViewer: hover tree/list file item
-    ExplorerViewer->>ExplorerViewer: resolve hover file + plot model
-    ExplorerViewer->>ContextViewService: showContextView({ getAnchor, render, getWidth }, hoverHost)
-    ContextViewService-->>ExplorerViewer: IOpenContextView
-    ExplorerViewer->>HoverContainer: create Explorer-owned hover shell
-    ExplorerViewer->>ThumbnailView: create thumbnail preview content
-    ThumbnailView->>ThumbnailRenderer: render thumbnail from plot model
-    User->>ExplorerViewer: leave item or hover container
-    ExplorerViewer->>ContextViewService: hide/dismiss context view
-```
-
-Layout toggle wiring:
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant ExplorerViewPane
-    participant CommandService as ICommandService
-    participant ThumbnailCommand as thumbnail layout toggle command
-    participant ExplorerService as IExplorerService
-
-    User->>ExplorerViewPane: click Explorer more actionbar Thumbnail
-    ExplorerViewPane->>CommandService: executeCommand(TOGGLE_THUMBNAIL_VIEW_ACTION_ID)
-    CommandService->>ThumbnailCommand: run handler
-    ThumbnailCommand->>ExplorerService: toggleViewLayout()
-    ExplorerService-->>ExplorerViewPane: onDidChangeViewLayout(viewLayout)
-    ExplorerViewPane->>ExplorerViewer: render tree or thumbnail layout
-```
-
-Explorer owns the more actionbar placement and `IExplorerService.viewLayout`. The thumbnail contribution owns the thumbnail-specific toggle action/command and thumbnail UI/rendering content. Do not add duplicate Explorer file item commands for thumbnail layout.
+See `thumbnail.instructions.md` for the detailed thumbnail layout toggle,
+selection, file action, render, and hover sequence diagrams.
 
 ## Explorer Command Entry and Dispatch
 
@@ -591,98 +429,18 @@ Conductor-specific commands should follow the upstream registration and handler 
 - The Explorer more actionbar may execute the thumbnail contribution's layout toggle command, but Explorer file item actions remain in the shared files action/command set for both tree and thumbnail layouts.
 - File template selection belongs to Template canonical state. Explorer can host the action or expose local UI state, but should not own template selection semantics.
 
-## Type Contracts
+## Field catalog
 
-### `FileImportInput`
+Use `records.instructions.md` for shared files and Explorer field definitions:
+`FileConversionResult`, `ImportedFileRecord`, `RawRecord`,
+`RawTableRecord`, `RawTableSourceRecord`, `RawTableRowsRecord`,
+`ExplorerState`, and `ExplorerResource`.
 
-| Field | Meaning |
-| --- | --- |
-| `sources` | Files, paths, clipboard payloads, or manual table payloads to convert. |
-| `importedAt` | Timestamp for diagnostics and replay/debug. |
-| `options` | Conversion options such as normalized CSV preference or max inline size. |
-
-### `FileConversionResult`
-
-Use `FileConversionResult` for the output of `fileConverter.ts`.
-
-| Field | Meaning |
-| --- | --- |
-| `files` | Converted file records containing raw table facts. |
-| `diagnostics` | Source/conversion warnings and errors. |
-| `createdAt` | Conversion result timestamp for debugging/import chronology. |
-
-### `RawRecord`
-
-| Field | Meaning |
-| --- | --- |
-| `fileId` | Parent file/workbook id. |
-| `fileName` | Source/display name. |
-| `rawFile` | Optional opaque browser/native file handle. |
-| `size` | Source byte size. |
-| `lastModified` | Source modified timestamp. |
-| `relativePath` | Folder import path used by Explorer grouping. |
-| `filePath` | Native path when available. |
-| `rawTablesById` | Raw tables produced from this file. |
-| `rawTableOrder` | Stable sheet/table order. |
-
-### `RawTableRecord`
-
-| Field | Meaning |
-| --- | --- |
-| `fileId` | Parent file id. |
-| `rawTableId` | Raw table/sheet id. |
-| `source` | CSV/sheet/clipboard/manual source metadata. |
-| `rows` | Inline rows or normalized CSV storage reference. |
-| `rowCount` | Physical raw table row count. |
-| `columnCount` | Physical raw table column count. |
-| `maxCellLengths` | Display hint for table column widths. |
-
-### `RawTableRowsRecord`
-
-| Variant | Fields | Meaning |
-| --- | --- | --- |
-| `inline` | `values` | Rows stored directly in memory/session. |
-| `normalizedCsv` | `normalizedCsvPath`, `formatVersion` | Rows stored in an internal normalized CSV artifact. |
-
-### `ExplorerState`
-
-| Field | Meaning |
-| --- | --- |
-| `layout` | `tree` or `thumbnail` display mode. |
-| `selectedFileId` | Currently selected file in Explorer. |
-| `expandedFolderKeys` | Expanded tree folders. |
-| `folderOrder` | Optional user/imported folder ordering. |
-| `importState` | Current add-data/source collection and conversion state. Existing migration name may still say import. |
-| `error` | User-visible Explorer import error. |
-| `dragging` | Whether files are being dragged over Explorer. |
-
-### `ExplorerSourceState` / current `ExplorerImportState`
-
-Use `ExplorerSourceState` as the target name when introducing or renaming this contract. Existing migration code may still call it `ExplorerImportState`.
-
-| Variant | Meaning |
-| --- | --- |
-| `idle` | No active source workflow. |
-| `picking` | Open dialog is active. |
-| `collecting` | Folder/drop sources are being collected. |
-| `converting` / current `importing` | Files are being converted to raw tables. |
-| `committing` | Conversion result is being committed to session. |
-| `failed` | Workflow failed with message/diagnostics. |
-
-### `ExplorerResource`
-
-| Field | Meaning |
-| --- | --- |
-| `kind` | `folder`, `file`, `rawTable`, or `measurementBlock`. |
-| `key` | Stable tree key. |
-| `fileId` | File id for file/table/block resources. |
-| `rawTableId` | Raw table id for table/block resources. |
-| `measurementBlockId` | Measurement block id for block resources. |
-| `name` | Display name. |
-| `parentKey` | Parent tree key. |
-| `children` | Child resources. |
-| `diagnosticBadge` | Optional import/assessment badge. |
-| `thumbnailModelId` | Optional thumbnail reference. |
+Use `ExplorerSourceState` as the target name when introducing or renaming the
+Explorer source workflow state. Existing migration code may still call it
+`ExplorerImportState`. The state should describe source collection/conversion
+lifecycle only, for example idle, picking, collecting, converting, committing,
+or failed.
 
 ## Component Split
 

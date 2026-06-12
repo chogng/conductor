@@ -104,31 +104,8 @@ Search should navigate by explicit target refs, not by global session active sta
 - Do not make SearchView read session directly.
 
 
-## Record fields
+## Field catalog
 
-### `SearchQuery`
-
-| Field | Meaning |
-| --- | --- |
-| `text` | User query text. |
-| `scope` | File/table/block/curve/metric scope. |
-| `kinds` | Result kinds to include. |
-| `caseSensitive` | Case-sensitive matching flag. |
-
-### `SearchResult`
-
-| Field | Meaning |
-| --- | --- |
-| `id` | Stable result id for this query. |
-| `kind` | Raw cell/group/block/column/curve/metric. |
-| `fileId` | File id. |
-| `rawTableId` | Raw table id if applicable. |
-| `sourceRange` | Raw table range for reveal. |
-| `title` | Main display text. |
-| `preview` | Secondary display text. |
-| `score` | Ranking score. |
-| `groupId` | Related group. |
-| `measurementBlockId` | Related block. |
-| `curveKey` | Related curve. |
-| `metricKey` | Related metric. |
-
+Use `records.instructions.md` for shared search result fields such as
+`SearchResult`. Keep query state service-local to `ISearchService`; it is not
+session canonical data.

@@ -93,28 +93,7 @@ Only calculation-affecting manual inputs should become canonical session records
 - Do not use table raw rows directly unless a parameter algorithm explicitly requires it through a calculation service.
 
 
-## State and model fields
+## Field catalog
 
-### `ParametersState`
-
-| Field | Meaning |
-| --- | --- |
-| `activeMetricKey` | Focused metric row. |
-| `selectedMetricKeys` | Selected rows. |
-| `ionIoffMethod` | Auto/manual Ion-Ioff mode. |
-| `ssMethod` | Auto/manual SS mode. |
-| `showFitLine` | Whether fit overlays are visible. |
-
-### `ParameterRowModel`
-
-| Field | Meaning |
-| --- | --- |
-| `metricKey` | Source metric. |
-| `fileId` | Parent file. |
-| `seriesId` | Source series. |
-| `label` | Row label. |
-| `valueText` | Formatted value. |
-| `unit` | Display unit. |
-| `editable` | Whether manual editing is allowed. |
-| `sourceRange` | Optional raw provenance. |
-
+Use `records.instructions.md` for parameter state and row model field
+definitions: `ParametersState` and `ParameterRowModel`.
