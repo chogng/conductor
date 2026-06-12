@@ -17,8 +17,6 @@ import {
   TABLE_MIN_ZOOM_PERCENT,
   TABLE_ZOOM_STEP_PERCENT,
   TableCommandId,
-  type ITableService as ITableServiceType,
-  type ITableBackendService as ITableBackendServiceType,
   type TableCell,
   type TableCellReadRequest,
   type TableFile,
@@ -28,8 +26,13 @@ import {
   type TableLoadState,
   type TableModel,
   type TableMutableRef,
+  type TableRange,
+  type TableRevealOptions,
+  type TableRevealTarget,
   type TableRowsRequest,
+  type TableRevealMode,
   type TableSelection,
+  type TableSelectionTarget,
   type TableSource,
   type TableState,
   toTableSourceKey,
@@ -1818,6 +1821,217 @@ const asBrowserWorkerRef = (
   return workerRef as TableMutableRef<Worker | null>;
 };
 
+type TableTargetContext = {
+  readonly columnCount: number;
+  readonly file: TableFile;
+  readonly fileIds: ReadonlySet<string>;
+  readonly rowCount: number;
+  readonly sheetId: string | null;
+};
+
+const getTableTargetContext = (tableModel: TableModel): TableTargetContext | null => {
+  const state = tableModel.getState();
+  const file = state.file;
+  if (!file) {
+    return null;
+  }
+
+  const rowCount = Math.max(0, Math.floor(Number(file.rowCount) || 0));
+  const columnCount = Math.max(0, Math.floor(Number(file.columnCount) || 0));
+  const fileIds = new Set<string>();
+  for (const value of [
+    file.fileId,
+    file.sourceKey,
+    state.selectedFileId,
+    state.source?.fileId,
+    state.sourceKey,
+  ]) {
+    if (typeof value === "string" && value) {
+      fileIds.add(value);
+    }
+  }
+
+  const sheetId = firstString(file.sheetId, state.selectedSheetId, state.source?.sheetId);
+
+  return {
+    columnCount,
+    file,
+    fileIds,
+    rowCount,
+    sheetId,
+  };
+};
+
+const firstString = (...values: readonly unknown[]): string | null => {
+  for (const value of values) {
+    if (typeof value === "string" && value) {
+      return value;
+    }
+  }
+  return null;
+};
+
+const acceptsTargetFile = (
+  context: TableTargetContext,
+  fileId: string | null | undefined,
+): boolean =>
+  !fileId ||
+  context.fileIds.size === 0 ||
+  context.fileIds.has(fileId);
+
+const acceptsTargetSheet = (
+  context: TableTargetContext,
+  sheetId: string | null | undefined,
+): boolean =>
+  !sheetId ||
+  !context.sheetId ||
+  sheetId === context.sheetId;
+
+const normalizeTargetCell = (
+  tableModel: TableModel,
+  cell: TableCell,
+): TableCell | null => {
+  const context = getTableTargetContext(tableModel);
+  const normalizedCell = normalizeTableCell(cell);
+  if (!context || !normalizedCell) {
+    return null;
+  }
+
+  if (
+    context.rowCount <= 0 ||
+    context.columnCount <= 0 ||
+    normalizedCell.rowIndex >= context.rowCount ||
+    normalizedCell.colIndex >= context.columnCount ||
+    !acceptsTargetFile(context, normalizedCell.fileId) ||
+    !acceptsTargetSheet(context, normalizedCell.sheetId)
+  ) {
+    return null;
+  }
+
+  return {
+    ...normalizedCell,
+    fileId: context.file.fileId,
+    sheetId: context.sheetId,
+  };
+};
+
+const normalizeTargetRange = (
+  tableModel: TableModel,
+  range: TableRange,
+): TableRange | null => {
+  const context = getTableTargetContext(tableModel);
+  const normalizedRange = normalizeTableSelection({ ranges: [range] }).ranges?.[0];
+  if (!context || !normalizedRange) {
+    return null;
+  }
+
+  if (
+    context.rowCount <= 0 ||
+    context.columnCount <= 0 ||
+    normalizedRange.startRow >= context.rowCount ||
+    normalizedRange.startCol >= context.columnCount ||
+    !acceptsTargetFile(context, normalizedRange.fileId) ||
+    !acceptsTargetSheet(context, normalizedRange.sheetId)
+  ) {
+    return null;
+  }
+
+  const endRow = Math.min(normalizedRange.endRow, context.rowCount - 1);
+  const endCol = Math.min(normalizedRange.endCol, context.columnCount - 1);
+  if (endRow < normalizedRange.startRow || endCol < normalizedRange.startCol) {
+    return null;
+  }
+
+  return {
+    ...normalizedRange,
+    endCol,
+    endRow,
+    fileId: context.file.fileId,
+    sheetId: context.sheetId,
+  };
+};
+
+const normalizeTargetColumns = (
+  tableModel: TableModel,
+  columns: readonly number[],
+): number[] | null => {
+  const context = getTableTargetContext(tableModel);
+  if (!context || context.columnCount <= 0) {
+    return null;
+  }
+
+  const normalizedColumns = normalizeColumnIndexes(columns);
+  if (normalizedColumns.some((columnIndex) => columnIndex >= context.columnCount)) {
+    return null;
+  }
+
+  return normalizedColumns;
+};
+
+const resolveSelectionForTarget = (
+  tableModel: TableModel,
+  target: TableSelectionTarget,
+): TableSelection | null => {
+  const selection = tableModel.getSelection();
+
+  switch (target.kind) {
+    case "cell": {
+      const activeCell = normalizeTargetCell(tableModel, target.cell);
+      return activeCell
+        ? {
+            activeCell,
+            selectedColumns: selection.selectedColumns ?? [],
+          }
+        : null;
+    }
+    case "range": {
+      const range = normalizeTargetRange(tableModel, target.range);
+      return range
+        ? {
+            activeCell: {
+              colIndex: range.startCol,
+              fileId: range.fileId,
+              rowIndex: range.startRow,
+              sheetId: range.sheetId,
+            },
+            ranges: [range],
+            selectedColumns: selection.selectedColumns ?? [],
+          }
+        : null;
+    }
+    case "columns": {
+      const selectedColumns = normalizeTargetColumns(tableModel, target.columns);
+      return selectedColumns
+        ? {
+            ...selection,
+            selectedColumns,
+          }
+        : null;
+    }
+  }
+};
+
+const resolveRevealCellForTarget = (
+  tableModel: TableModel,
+  target: TableRevealTarget,
+): TableCell | null => {
+  switch (target.kind) {
+    case "cell":
+      return normalizeTargetCell(tableModel, target.cell);
+    case "range": {
+      const range = normalizeTargetRange(tableModel, target.range);
+      return range
+        ? {
+            colIndex: range.startCol,
+            fileId: range.fileId,
+            rowIndex: range.startRow,
+            sheetId: range.sheetId,
+          }
+        : null;
+    }
+  }
+};
+
 export const createTableModelWithScope = (
   options: TableInput,
 ): TableModel => {
@@ -1828,8 +2042,13 @@ export const createTableModelWithScope = (
   return runWithTableStateScope(scope, () => createTableModel(browserOptions));
 };
 
-export class TableService extends Disposable implements ITableServiceType {
+export class TableService extends Disposable implements ITableService {
   public declare readonly _serviceBrand: undefined;
+
+  private readonly onDidChangeSelectionEmitter =
+    this._register(new Emitter<TableSelection>());
+  public readonly onDidChangeSelection =
+    this.onDidChangeSelectionEmitter.event;
 
   private readonly onDidChangeTableViewInputEmitter =
     this._register(new Emitter<TableViewInput | null>());
@@ -1837,22 +2056,32 @@ export class TableService extends Disposable implements ITableServiceType {
     this.onDidChangeTableViewInputEmitter.event;
 
   private readonly scope = this._register(new TableStateScope());
+  private tableModel: TableModel | null = null;
   private viewInput: TableViewInput | null = null;
+  private selectionTableModel: TableModel | null = null;
+  private tableModelSelectionListener: (() => void) | null = null;
 
   public constructor(
-    @ITableBackendService private readonly tableBackendService: ITableBackendServiceType,
+    @ITableBackendService private readonly tableBackendService: ITableBackendService,
   ) {
     super();
   }
 
   public update(options: TableInput): TableModel {
-    return runWithTableStateScope(this.scope, () => createTableModel({
+    const tableModel = runWithTableStateScope(this.scope, () => createTableModel({
       ...toBrowserTableOptions(options),
       tableBackendService: options.tableBackendService ?? this.tableBackendService,
     }));
+    this.bindActiveTableModel(tableModel);
+    return tableModel;
   }
 
   public override dispose(): void {
+    this.tableModelSelectionListener?.();
+    this.tableModelSelectionListener = null;
+    this.selectionTableModel = null;
+    this.tableModel = null;
+
     if (this.viewInput) {
       this.viewInput = null;
       this.onDidChangeTableViewInputEmitter.fire(null);
@@ -1865,8 +2094,54 @@ export class TableService extends Disposable implements ITableServiceType {
     return this.viewInput;
   }
 
+  public getSelection(): TableSelection {
+    return this.getActiveTableModel()?.getSelection() ?? normalizeTableSelection(null);
+  }
+
+  public select(
+    target: TableSelectionTarget | null,
+    reveal?: TableRevealMode,
+  ): boolean {
+    const tableModel = this.getActiveTableModel();
+    if (!tableModel) {
+      return false;
+    }
+
+    if (!target) {
+      return tableModel.clearSelection();
+    }
+
+    const selection = resolveSelectionForTarget(tableModel, target);
+    if (!selection) {
+      return false;
+    }
+
+    tableModel.setSelection(selection);
+    if (reveal && target.kind !== "columns") {
+      this.revealTarget(tableModel, target);
+    }
+    return true;
+  }
+
+  public reveal(
+    target: TableRevealTarget | null,
+    _options: TableRevealOptions = {},
+  ): boolean {
+    const tableModel = this.getActiveTableModel();
+    if (!tableModel) {
+      return false;
+    }
+
+    if (!target) {
+      tableModel.revealCell(null);
+      return true;
+    }
+
+    return this.revealTarget(tableModel, target);
+  }
+
   public executeCommand(commandId: TableCommandId): boolean {
-    const tableModel = this.viewInput?.tableModel;
+    const tableModel = this.getActiveTableModel();
     if (!tableModel) {
       return false;
     }
@@ -1889,7 +2164,38 @@ export class TableService extends Disposable implements ITableServiceType {
 
   public updateViewInput(input: TableViewInput): void {
     this.viewInput = input;
+    this.bindActiveTableModel(input.tableModel);
     this.onDidChangeTableViewInputEmitter.fire(input);
+  }
+
+  private getActiveTableModel(): TableModel | null {
+    return this.tableModel ?? this.viewInput?.tableModel ?? null;
+  }
+
+  private revealTarget(
+    tableModel: TableModel,
+    target: TableRevealTarget,
+  ): boolean {
+    const cell = resolveRevealCellForTarget(tableModel, target);
+    if (!cell) {
+      return false;
+    }
+
+    tableModel.revealCell(cell);
+    return true;
+  }
+
+  private bindActiveTableModel(tableModel: TableModel): void {
+    this.tableModel = tableModel;
+    if (this.selectionTableModel === tableModel) {
+      return;
+    }
+
+    this.tableModelSelectionListener?.();
+    this.selectionTableModel = tableModel;
+    this.tableModelSelectionListener = tableModel.onDidChangeSelection((selection) => {
+      this.onDidChangeSelectionEmitter.fire(selection);
+    });
   }
 }
 

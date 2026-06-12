@@ -58,6 +58,21 @@ export type TableSelection = {
 	readonly ranges?: readonly TableRange[];
 };
 
+export type TableSelectionTarget =
+	| { readonly kind: "cell"; readonly cell: TableCell }
+	| { readonly kind: "range"; readonly range: TableRange }
+	| { readonly kind: "columns"; readonly columns: readonly number[] };
+
+export type TableRevealTarget =
+	| { readonly kind: "cell"; readonly cell: TableCell }
+	| { readonly kind: "range"; readonly range: TableRange };
+
+export type TableRevealMode = boolean | "force";
+
+export type TableRevealOptions = {
+	readonly reveal?: TableRevealMode;
+};
+
 export type TableHighlight = {
 	readonly columns?: readonly number[];
 	readonly ranges?: readonly TableRange[];
@@ -200,9 +215,13 @@ export const ITableService = createDecorator<ITableService>("tableService");
 
 export interface ITableService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangeSelection: Event<TableSelection>;
 	readonly onDidChangeTableViewInput: Event<TableViewInput | null>;
 	executeCommand(commandId: TableCommandId): boolean;
+	getSelection(): TableSelection;
 	getViewInput(): TableViewInput | null;
+	reveal(target: TableRevealTarget | null, options?: TableRevealOptions): boolean;
+	select(target: TableSelectionTarget | null, reveal?: TableRevealMode): boolean;
 	update(input: TableInput): TableModel;
 	updateViewInput(input: TableViewInput): void;
 }

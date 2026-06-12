@@ -73,6 +73,41 @@ export type TableSelection =
 
 Other services can request reveal/highlight through `ITableService`, not by mutating session.
 
+Follow the upstream owner-driven selection shape. A table cell, range, or column
+set is a pure target/ref. It must not expose `select()` or `reveal()` methods
+and must not know about services or views.
+
+Preferred shape:
+
+```ts
+tableService.select(target, reveal?);
+tableService.reveal(target, options?);
+tableModel.setSelection(selection);
+tableModel.revealCell(cell);
+```
+
+Where command-facing targets are pure records:
+
+```ts
+export type TableSelectionTarget =
+  | { readonly kind: "cell"; readonly cell: TableCell }
+  | { readonly kind: "range"; readonly range: TableRange }
+  | { readonly kind: "columns"; readonly columns: readonly number[] };
+```
+
+Do not use:
+
+```ts
+tableCell.select();
+tableRange.reveal();
+```
+
+The Table owner validates and normalizes targets, mutates table selection or
+reveal state, emits table selection/state events, and views rerender from the
+current Table model. Table commands and view gestures should normalize raw input
+into table targets and dispatch to `ITableService`/`TableModel`; they should
+not mutate DOM selection as the source of truth.
+
 ## Command entry and dispatch
 
 Table commands own table interactions, not raw parsing.
@@ -90,7 +125,7 @@ Command flow:
 ```txt
 table.revealRawRange command
   -> normalize RawTableRangeRef
-  -> ITableService.revealRange(ref)
+  -> ITableService.reveal(target) or ITableService.select(target, reveal?)
   -> ITableService event
   -> TableView render
 ```

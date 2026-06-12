@@ -115,6 +115,31 @@ CommandsRegistry.registerCommand({
 
 Use explicit command targets. Do not use a global session `activeTarget` as the universal dispatch input.
 
+Targets are pure records. They identify what the command acts on; they do not
+perform the action themselves. Command handlers, actions, and view gestures
+normalize unknown input into target records, then call the owner service,
+model, or controller.
+
+Prefer:
+
+```ts
+tableService.select(target, 'force');
+explorerService.select(resource, 'force');
+ownerService.update(target, update);
+```
+
+Avoid:
+
+```ts
+target.select();
+result.open();
+row.toggle();
+```
+
+If no explicit target is supplied, ask the owning service for its own current
+selection/focus/query state. Do not ask another view for DOM state, and do not
+store the target in Session unless it is canonical analysis data.
+
 ```ts
 export type CommandTarget =
   | { readonly kind: 'explorerResource'; readonly resourceId: ExplorerResourceId }

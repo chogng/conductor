@@ -6,6 +6,7 @@ import type {
 	CurveKey,
 	FileId,
 	MetricKey,
+	RawTableRef,
 	SheetId,
 	SeriesId,
 } from "src/cs/workbench/services/session/common/sessionModel";
@@ -23,6 +24,7 @@ export type SessionChangeReason =
 export type SessionAffectedRecords = {
 	readonly fileIds?: readonly FileId[];
 	readonly rawTableIds?: readonly SheetId[];
+	readonly rawTableRefs?: readonly RawTableRef[];
 	readonly seriesIds?: readonly SeriesId[];
 	readonly curveKeys?: readonly CurveKey[];
 	readonly metricKeys?: readonly MetricKey[];
@@ -48,6 +50,7 @@ const getDefinedAffectedRecords = (
 ): SessionAffectedRecords => ({
 	...(affected.fileIds?.length ? { fileIds: affected.fileIds } : {}),
 	...(affected.rawTableIds?.length ? { rawTableIds: affected.rawTableIds } : {}),
+	...(affected.rawTableRefs?.length ? { rawTableRefs: affected.rawTableRefs } : {}),
 	...(affected.seriesIds?.length ? { seriesIds: affected.seriesIds } : {}),
 	...(affected.curveKeys?.length ? { curveKeys: affected.curveKeys } : {}),
 	...(affected.metricKeys?.length ? { metricKeys: affected.metricKeys } : {}),

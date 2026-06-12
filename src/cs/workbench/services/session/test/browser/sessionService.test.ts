@@ -51,6 +51,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.deepEqual(events, [{
       fileIds: ["file-a"],
       rawTableIds: ["file-a"],
+      rawTableRefs: [{ fileId: "file-a", rawTableId: "file-a" }],
       reason: "rawTablesChanged",
       sessionVersion: 1,
     }]);
@@ -81,9 +82,47 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     });
 
     session.removeFiles([]);
+    session.removeFiles(["missing-file"]);
 
     assert.equal(changeCount, 0);
+    assert.equal(session.getSnapshot().sessionVersion, 0);
     dispose();
+  });
+
+  test("reports raw table refs on import change events", () => {
+    const session = new SessionService();
+    const events: SessionChangeEvent[] = [];
+    const dispose = session.onDidChangeSession(event => {
+      events.push(event);
+    });
+
+    commitRawFilesForTest(session, [
+      { fileId: "file-a", fileName: "Raw A.csv", sheetId: "data" },
+      { fileId: "file-b", fileName: "Raw B.csv", sheetId: "data" },
+    ]);
+
+    assert.deepEqual(events[0]?.rawTableRefs, [
+      { fileId: "file-a", rawTableId: "data" },
+      { fileId: "file-b", rawTableId: "data" },
+    ]);
+    assert.deepEqual(events[0]?.rawTableIds, ["data", "data"]);
+    dispose.dispose();
+  });
+
+  test("ignores removal requests for unknown file ids", () => {
+    const session = new SessionService();
+    commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw A.csv" }]);
+    let changeCount = 0;
+    const dispose = session.onDidChangeSession(() => {
+      changeCount += 1;
+    });
+
+    session.removeFiles(["missing-file"]);
+
+    assert.equal(changeCount, 0);
+    assert.equal(session.getSnapshot().sessionVersion, 1);
+    assert.deepEqual(session.getSnapshot().fileOrder, ["file-a"]);
+    dispose.dispose();
   });
 
   test("initializes canonical session records", () => {
@@ -1044,5 +1083,3 @@ const normalizeOptionalTestText = (value: unknown): string | null => {
   const text = String(value ?? "").trim();
   return text || null;
 };
-
-

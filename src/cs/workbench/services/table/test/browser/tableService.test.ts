@@ -380,8 +380,10 @@ suite("workbench/services/table/browser/tableService", () => {
     service.dispose();
   });
 
-  test("executes table commands through service view input", () => {
+  test("executes table commands through the service active model", () => {
     const service = new TableService(createTableBackendService() as never);
+    assert.equal(service.executeCommand(TableCommandId.zoomIn), false);
+
     const model = service.update({
       file: {
         columnCount: 2,
@@ -399,16 +401,134 @@ suite("workbench/services/table/browser/tableService", () => {
       source: { fileId: "file-a" },
     });
 
-    assert.equal(service.executeCommand(TableCommandId.zoomIn), false);
-    service.updateViewInput({
-      tableModel: model,
-      tableState: model.getState(),
-    });
-
     assert.equal(service.executeCommand(TableCommandId.zoomIn), true);
     assert.equal(model.getState().zoomPercent, 110);
     assert.equal(service.executeCommand(TableCommandId.selectAllColumns), true);
     assert.deepEqual(model.getSelection().selectedColumns, [0, 1]);
+    service.dispose();
+  });
+
+  test("selects table targets through the service owner API", () => {
+    const service = new TableService(createTableBackendService() as never);
+    const events: unknown[] = [];
+    const disposable = service.onDidChangeSelection(selection => {
+      events.push(selection);
+    });
+
+    assert.equal(service.select({
+      kind: "cell",
+      cell: { colIndex: 0, rowIndex: 0 },
+    }), false);
+
+    const model = service.update({
+      file: {
+        columnCount: 3,
+        fileId: "source-key-a",
+        fileName: "Raw.csv",
+        maxCellLengths: [1, 1, 1],
+        rowCount: 4,
+        sheetId: "sheet-a",
+        sourceKey: "source-key-a",
+      },
+      rawFiles: [{
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        sheetId: "sheet-a",
+        sourceKey: "source-key-a",
+      }],
+      source: { fileId: "file-a", sheetId: "sheet-a" },
+    });
+
+    assert.deepEqual(service.getSelection(), normalizeTableSelection(null));
+    assert.equal(service.select({
+      kind: "cell",
+      cell: {
+        colIndex: 2,
+        fileId: "file-a",
+        rowIndex: 1,
+        sheetId: "sheet-a",
+      },
+    }), true);
+    assert.deepEqual(model.getSelection().activeCell, {
+      colIndex: 2,
+      fileId: "source-key-a",
+      rowIndex: 1,
+      sheetId: "sheet-a",
+    });
+
+    assert.equal(service.select({
+      kind: "columns",
+      columns: [2, 0, 2],
+    }), true);
+    assert.deepEqual(model.getSelection().selectedColumns, [0, 2]);
+
+    const selectionBeforeInvalidTarget = model.getSelection();
+    assert.equal(service.select({
+      kind: "cell",
+      cell: { colIndex: 0, rowIndex: 9 },
+    }), false);
+    assert.equal(service.select({
+      kind: "columns",
+      columns: [4],
+    }), false);
+    assert.deepEqual(model.getSelection(), selectionBeforeInvalidTarget);
+
+    assert.equal(service.select(null), true);
+    assert.deepEqual(service.getSelection(), normalizeTableSelection(null));
+    assert.equal(events.length, 3);
+
+    disposable.dispose();
+    service.dispose();
+  });
+
+  test("reveals table targets through the service owner API", () => {
+    const service = new TableService(createTableBackendService() as never);
+    assert.equal(service.reveal({
+      kind: "cell",
+      cell: { colIndex: 0, rowIndex: 0 },
+    }), false);
+
+    const model = service.update({
+      file: {
+        columnCount: 3,
+        fileId: "source-key-a",
+        fileName: "Raw.csv",
+        maxCellLengths: [1, 1, 1],
+        rowCount: 4,
+        sheetId: "sheet-a",
+        sourceKey: "source-key-a",
+      },
+      rawFiles: [{
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        sheetId: "sheet-a",
+        sourceKey: "source-key-a",
+      }],
+      source: { fileId: "file-a", sheetId: "sheet-a" },
+    });
+
+    assert.equal(service.reveal({
+      kind: "range",
+      range: {
+        endCol: 2,
+        endRow: 3,
+        fileId: "file-a",
+        sheetId: "sheet-a",
+        startCol: 1,
+        startRow: 2,
+      },
+    }), true);
+    assert.deepEqual(model.getRevealCell(), {
+      colIndex: 1,
+      fileId: "source-key-a",
+      rowIndex: 2,
+      sheetId: "sheet-a",
+    });
+
+    assert.equal(service.reveal(null), true);
+    assert.equal(model.getRevealCell(), null);
     service.dispose();
   });
 

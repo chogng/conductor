@@ -114,6 +114,54 @@ export interface IFeatureService {
 }
 ```
 
+## Owner-driven target API rule
+
+For every `workbench/contrib` and `workbench/services` boundary, behavior lives
+on the owner service, model, controller, or primitive. Targets are pure
+reference/value objects.
+
+Use this shape when an operation acts on a domain target:
+
+```ts
+ownerService.select(target, reveal?);
+ownerService.reveal(target, options?);
+ownerService.open(target, options?);
+ownerService.update(target, update);
+ownerModel.setSelection(selection);
+```
+
+Do not turn target records into behavior objects:
+
+```ts
+target.select();
+cell.reveal();
+row.open();
+curve.toggle();
+```
+
+The owner validates and normalizes the target, mutates only its owned state,
+fires the matching `onDidChangeXxx` event, and lets subscribers reread public
+state. Commands, actions, views, and gestures may construct targets and invoke
+owner APIs, but they must not own the mutation or smuggle callbacks through
+pane input to make another component perform it.
+
+This applies across domains:
+
+```txt
+Explorer resource selection -> IExplorerService
+Table cell/range selection  -> ITableService
+Plot type/series visibility -> IPlotService
+Chart pane/legend state     -> IChartService
+Search query/result state   -> ISearchService
+Export option/curve state   -> IExportService
+Parameter row/input state   -> IParametersService
+```
+
+Use the domain's existing public method names when they already exist. Add a
+new method only when the owner boundary is clear, the target type is part of the
+owner's contract, and the API is explicitly Conductor-specific when no upstream
+counterpart exists.
+
 ## Event rule
 
 Events are facts, not commands.

@@ -5,8 +5,11 @@
 import assert from "assert";
 
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
-import type { ExplorerSelectionChangeEvent } from "src/cs/workbench/contrib/files/browser/files";
-import type { ExplorerPaneInput } from "src/cs/workbench/contrib/files/browser/files";
+import type {
+  ExplorerPaneInput,
+  ExplorerSelectionChangeEvent,
+  ExplorerSelectionTarget,
+} from "src/cs/workbench/contrib/files/browser/files";
 
 suite("workbench/contrib/files/test/browser/explorerService", () => {
   test("stores table and chart selections independently", () => {
@@ -62,6 +65,46 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
       "file-b",
     );
     assert.equal(service.selectedRawFileId, "file-b");
+  });
+
+  test("notifies views only with accepted selection targets", () => {
+    const service = new ExplorerService();
+    const viewSelections: Array<{
+      readonly reveal: unknown;
+      readonly target: ExplorerSelectionTarget;
+    }> = [];
+    const disposable = service.registerView({
+      selectResource: (target, reveal) => {
+        viewSelections.push({ reveal, target });
+      },
+    });
+
+    service.select({
+      candidateFileIds: ["file-b"],
+      fileId: " file-b ",
+      kind: "table",
+    }, "force");
+    service.select({
+      candidateFileIds: ["file-b"],
+      fileId: "file-b",
+      kind: "table",
+    });
+    service.select({
+      candidateFileIds: ["file-a"],
+      fileId: "file-c",
+      kind: "table",
+    }, "force");
+
+    assert.equal(service.selectedRawFileId, "file-b");
+    assert.deepEqual(viewSelections, [{
+      reveal: "force",
+      target: {
+        candidateFileIds: ["file-b"],
+        fileId: "file-b",
+        kind: "table",
+      },
+    }]);
+    disposable.dispose();
   });
 
   test("owns explorer view layout", () => {

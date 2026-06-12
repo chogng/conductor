@@ -347,7 +347,61 @@ Allowed component suffixes:
 
 Only use `Manager` when none of these names is accurate. That should be rare.
 
-## 12. Cross-service selection mirroring
+## 12. Owner-driven service APIs across contrib/services
+
+This rule applies to every `src/cs/workbench/contrib/**` and
+`src/cs/workbench/services/**` boundary, not only Files or Table.
+
+When code acts on a domain object, keep behavior on the owner service, model,
+controller, or primitive. The object being acted on is a pure target/value
+record. It does not call services, own side effects, or mutate state.
+
+Preferred shape:
+
+```txt
+ownerService.select(target, reveal?)
+ownerService.reveal(target, options?)
+ownerService.open(target, options?)
+ownerService.update(target, update)
+ownerModel.setSelection(selection)
+ownerController.run(input)
+```
+
+Avoid:
+
+```txt
+target.select()
+cell.reveal()
+row.open()
+curve.toggle()
+paneInput.onSelect(target)
+```
+
+Use domain-owned target names such as `ExplorerSelectionTarget`,
+`TableSelectionTarget`, `SearchResultTarget`, `PlotSeriesTarget`,
+`ExportCurveTarget`, or `ParameterRowTarget` when the target is part of the
+owner's public contract. Do not introduce these names as a parallel abstraction
+when an existing upstream-shaped method or local service API already expresses
+the operation.
+
+The owner validates and normalizes the target, mutates only its owned state,
+fires the matching `onDidChangeXxx` event, and lets subscribers reread public
+state. Commands, actions, views, and gestures may construct targets and invoke
+owner APIs, but they are entry/translation layers, not state owners.
+
+Examples by responsibility:
+
+| Responsibility | Owner API location | Entry/consumer behavior |
+| --- | --- | --- |
+| Explorer resource selection/reveal | `IExplorerService` | Commands/views pass an Explorer resource target. |
+| Table cell/range/column selection | `ITableService` or `TableModel` | Table gestures pass table targets; views render selection events. |
+| Plot type, scale, unit, series visibility | `IPlotService` | Chart/toolbars invoke Plot-owned APIs instead of mutating chart data. |
+| Chart pane, legend, inspector state | `IChartService` | Chart views invoke Chart-owned APIs and subscribe to chart state. |
+| Search query and selected result | `ISearchService` | Search views update query/result state through Search service. |
+| Export selected curves and options | `IExportService` | Export views pass export targets/options to Export service. |
+| Parameter row selection and metric input UI state | `IParametersService` | Parameter views invoke Parameters-owned APIs. |
+
+## 13. Cross-service selection mirroring
 
 When one domain needs to reflect another domain's active item, keep ownership
 with the original domain and mirror through an explicit bridge. Do not move the
@@ -375,6 +429,39 @@ TableService.update(...) receives source: TableSource | null, not selectedFileId
 Files/Explorer must not call Table preview invalidation or row-cache methods.
 ```
 
+For selection and reveal APIs, follow the upstream owner-driven shape:
+
+```txt
+ownerService.select(target, reveal?)
+ownerService.reveal(target, options?)
+```
+
+The selected target must be a pure reference/value object. It must not own side
+effects or call services itself.
+
+Prefer:
+
+```ts
+explorerService.select(resource, "force");
+tableService.select(target, "force");
+tableModel.setSelection(selection);
+```
+
+Avoid:
+
+```ts
+resource.select();
+tableCell.select();
+range.reveal();
+```
+
+Use explicit target names that belong to the owner domain, such as
+`ExplorerSelectionTarget`, `TableSelectionTarget`, `TableCell`, or
+`TableRange`. The service or model that owns the state validates the target,
+normalizes it, mutates selection state, fires `onDidChangeSelection`, and only
+then notifies views. Views and commands may create targets, but they must not
+turn target records into behavior objects.
+
 Practical rules:
 
 - The owner service names state in its own vocabulary.
@@ -383,7 +470,7 @@ Practical rules:
 - Do not add callback fields to pane input just to bounce a selection across services.
 - Do not call another service's cache invalidation, preview reset, worker reset, or private lifecycle methods from a source-domain selection handler.
 
-## 13. Service dependency import style
+## 14. Service dependency import style
 
 Follow the upstream VS Code service symbol pattern for DI services. A service
 identifier usually exports both a runtime decorator value and a TypeScript
@@ -425,7 +512,7 @@ as records, props, options, and helper interfaces. Named imports from a module
 may still mix runtime values and `type` entries when different exported symbols
 are needed.
 
-## 14. Service and contribution dependencies
+## 15. Service and contribution dependencies
 
 Allowed direction:
 
@@ -447,7 +534,7 @@ plot -> chart DOM
 chart -> raw table parsing
 ```
 
-## 15. Register, invoke, subscribe
+## 16. Register, invoke, subscribe
 
 Conductor's core interaction pattern is:
 
@@ -474,7 +561,7 @@ Read `architecture.instructions.md` for the full registration,
 invocation, subscription, owner, event, view, selection, model/view-state, and
 disposable rules.
 
-## 16. Migration comments
+## 17. Migration comments
 
 When keeping legacy code during migration, annotate the boundary:
 
@@ -490,7 +577,7 @@ Do not leave ambiguous generic TODOs such as:
 // TODO: clean up later
 ```
 
-## 17. Shared values follow ownership
+## 18. Shared values follow ownership
 
 Shared constants should follow the same ownership and import-direction rules as
 code. A value should live with the component, service, contribution, or common
@@ -515,7 +602,7 @@ When a value appears to be needed across layers, first check whether one layer
 should consume an owner API instead of importing the value directly. Prefer
 upstream-shaped ownership over parallel exported constants.
 
-## 18. Root-cause fix discipline
+## 19. Root-cause fix discipline
 
 Bug fixes must start from the behavior owner, not from the visible symptom.
 
@@ -558,7 +645,7 @@ caller-specific guards around a shared service bug
 new command IDs or service methods that bypass the existing owner
 ```
 
-## 19. No local patches over owner behavior
+## 20. No local patches over owner behavior
 
 Do not fix cross-cutting behavior with a local workaround when an owning
 service, platform primitive, or upstream-shaped lifecycle already exists.
@@ -594,7 +681,7 @@ For platform-wide interaction behavior, prefer an upstream-aligned platform fix
 over feature-specific guards. Feature code should only handle feature-owned
 cleanup or presentation state after consuming the platform event/API.
 
-## 20. NLS key naming
+## 21. NLS key naming
 
 NLS keys should describe stable product ownership and user-facing meaning, not
 the implementation class or file that currently renders the string.

@@ -159,6 +159,11 @@ export type TableRangeRef = {
   range: RangeRef;
 };
 
+export type RawTableRef = {
+  readonly fileId: FileId;
+  readonly rawTableId: SheetId;
+};
+
 export type DomainRecord = {
   x?: [number, number];
   y?: [number, number];

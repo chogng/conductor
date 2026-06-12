@@ -92,6 +92,35 @@ A helper is allowed when its owner and lifetime are explicit:
 | `ThumbnailCache` | Cache thumbnail render output keyed by plot model signature. |
 | `ExportPlanBuilder` | Build export plan from plot/session/export state. |
 
+## Owner APIs and target helpers
+
+For all `workbench/services/**` and `workbench/contrib/**` code, target/helper
+objects must not hide service behavior. A target helper may normalize,
+compare, serialize, or label a value. It must not call services, mutate owner
+state, register listeners, or own lifecycle.
+
+Prefer:
+
+```txt
+FeatureService owns state and exposes select/reveal/update/toggle methods.
+FeatureTarget is a pure record.
+featureTarget.ts normalizes or compares FeatureTarget values.
+FeatureView creates targets and calls FeatureService.
+```
+
+Avoid:
+
+```txt
+FeatureTarget.select()
+FeatureRow.toggle()
+FeatureCell.reveal()
+FeatureSelectionManager owns state beside FeatureService
+```
+
+If a helper needs public methods, events, disposal, and direct access to
+services, it is not a target helper. Make the ownership explicit as a service,
+controller, store, or model, and keep the public API on the owner boundary.
+
 ## Forbidden patterns
 
 Do not introduce these patterns:

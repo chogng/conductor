@@ -17,6 +17,7 @@ import {
   type MetricInputRecord,
   type MetricKey,
   type MetricRecord,
+  type RawTableRef,
   type RawRecord,
   type TableRecord,
   type TableRowStoreRecord,
@@ -144,6 +145,7 @@ export class SessionService extends Disposable implements ISessionServiceType {
         nextFileOrder = [...nextFileOrder, record.id];
       }
     }
+    const rawTableRefs = createRawTableRefs(importedRecords);
 
     this.replaceSnapshot({
       ...this.snapshot,
@@ -152,6 +154,7 @@ export class SessionService extends Disposable implements ISessionServiceType {
     }, "rawTablesChanged", {
       fileIds: importedRecords.map(record => record.id),
       rawTableIds: importedRecords.flatMap(record => record.raw.tableOrder),
+      rawTableRefs,
     });
   };
 
@@ -210,6 +213,7 @@ export class SessionService extends Disposable implements ISessionServiceType {
     }, "assessmentChanged", {
       fileIds: [fileId],
       rawTableIds: [rawTableId],
+      rawTableRefs: [{ fileId, rawTableId }],
     });
   };
 
@@ -378,17 +382,25 @@ export class SessionService extends Disposable implements ISessionServiceType {
     if (!removedFileIds.size) {
       return;
     }
+    const existingRemovedFileIds = [...removedFileIds].filter(fileId =>
+      Boolean(this.snapshot.filesById[fileId]) ||
+      this.snapshot.fileOrder.includes(fileId)
+    );
+    if (!existingRemovedFileIds.length) {
+      return;
+    }
+    const existingRemovedFileIdSet = new Set(existingRemovedFileIds);
 
     const nextFilesById = filterRecord(
       this.snapshot.filesById,
-      (fileId) => !removedFileIds.has(fileId),
+      (fileId) => !existingRemovedFileIdSet.has(fileId),
     );
     const nextFileOrder = this.snapshot.fileOrder.filter((fileId) =>
-      !removedFileIds.has(fileId)
+      !existingRemovedFileIdSet.has(fileId)
     );
     if (
       nextFilesById === this.snapshot.filesById &&
-      nextFileOrder === this.snapshot.fileOrder
+      areStringArraysEqual(nextFileOrder, this.snapshot.fileOrder)
     ) {
       return;
     }
@@ -398,7 +410,7 @@ export class SessionService extends Disposable implements ISessionServiceType {
       filesById: nextFilesById,
       fileOrder: nextFileOrder,
     }, "filesRemoved", {
-      fileIds: [...removedFileIds],
+      fileIds: existingRemovedFileIds,
     });
   };
 
@@ -589,6 +601,29 @@ const createInitialRawTableVersions = (
   }
 
   return versions;
+};
+
+const createRawTableRefs = (
+  records: readonly FileRecord[],
+): RawTableRef[] => {
+  const refs: RawTableRef[] = [];
+  const seen = new Set<string>();
+  for (const record of records) {
+    for (const rawTableId of record.raw.tableOrder) {
+      const key = `${record.id}\u0000${rawTableId}`;
+      if (!rawTableId || seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      refs.push({
+        fileId: record.id,
+        rawTableId,
+      });
+    }
+  }
+
+  return refs;
 };
 
 const preserveRawTableVersionContinuity = (
@@ -916,6 +951,17 @@ const normalizeOptionalText = (value: unknown): string | undefined => {
   return text || undefined;
 };
 
+const areStringArraysEqual = (
+  first: readonly string[],
+  second: readonly string[],
+): boolean => {
+  if (first.length !== second.length) {
+    return false;
+  }
+
+  return first.every((value, index) => value === second[index]);
+};
+
 const filterRecord = <T,>(
   record: Record<string, T>,
   predicate: (key: string, value: T) => boolean,
@@ -936,8 +982,6 @@ const filterRecord = <T,>(
 };
 
 registerSingleton(ISessionService, SessionService, InstantiationType.Delayed);
-
-
 
 
 

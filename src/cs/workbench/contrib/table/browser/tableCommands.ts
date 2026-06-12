@@ -6,7 +6,6 @@ import {
   TableCommandId,
   type TableCommandId as TableCommandIdValue,
   ITableService,
-  type ITableService as ITableServiceType,
 } from "src/cs/workbench/services/table/common/table";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
@@ -60,6 +59,6 @@ export const registerTableCommands = (): IDisposable => {
 };
 
 const runTableServiceCommand = (
-  tableService: ITableServiceType,
+  tableService: ITableService,
   commandId: TableCommandIdValue,
 ): boolean => tableService.executeCommand(commandId);

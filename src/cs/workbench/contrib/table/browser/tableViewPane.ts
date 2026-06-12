@@ -17,7 +17,6 @@ import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import {
   ICommandService,
-  type ICommandService as ICommandServiceType,
 } from "src/cs/platform/commands/common/commands";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
@@ -31,7 +30,6 @@ import {
   TABLE_MIN_ZOOM_PERCENT,
   TableCommandId,
   TableViewId,
-  type ITableService as ITableServiceType,
   type TableViewInput,
 } from "src/cs/workbench/services/table/common/table";
 import type { TableModel, TableState } from "src/cs/workbench/services/table/common/table";
@@ -77,8 +75,8 @@ export class TableViewPane extends ViewPane {
   private headerMode: HeaderMode | null = null;
 
   constructor(
-    @ITableService private readonly tableService: ITableServiceType,
-    @ICommandService private readonly commandService: ICommandServiceType,
+    @ITableService private readonly tableService: ITableService,
+    @ICommandService private readonly commandService: ICommandService,
   ) {
     super({
       id: TableViewId,
@@ -136,10 +134,10 @@ export class TableViewPane extends ViewPane {
   public update(props: TableViewPaneProps): void {
     this.props = props;
     if (!this.view) {
-      this.view = new TableView(toViewProps(props));
+      this.view = new TableView(toViewProps(props, this.tableService));
       this.content.append(this.view.element);
     } else {
-      this.view.update(toViewProps(props));
+      this.view.update(toViewProps(props, this.tableService));
     }
     const { dimensions, fileName, mode, shouldUpdateDimensions } = getHeaderState(props);
     this.updateHeaderMode(mode);
@@ -364,8 +362,10 @@ const getHeaderState = ({ tableState }: TableViewPaneProps): HeaderState => {
 
 const toViewProps = (
   props: TableViewPaneProps,
+  tableService: Pick<ITableService, "select">,
 ): TableViewProps => ({
   ...props,
+  tableService,
   zoomPercent: props.tableState.zoomPercent,
 });
 

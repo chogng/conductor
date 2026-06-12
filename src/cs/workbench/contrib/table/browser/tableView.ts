@@ -4,6 +4,7 @@ import { localize } from "src/cs/nls";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { createEmptyView } from "src/cs/workbench/contrib/table/browser/emptyView";
 import type {
+  ITableService,
   TableModel,
   TableSelection,
   TableState,
@@ -11,6 +12,7 @@ import type {
 
 export type TableViewProps = {
   readonly tableModel: TableModel;
+  readonly tableService: Pick<ITableService, "select">;
   readonly tableState: TableState;
   readonly zoomPercent: number;
 };
@@ -580,7 +582,10 @@ export class TableView {
     }
 
     const tableModel = this.props.tableModel;
-    tableModel.setSelection(toggleSelectedColumn(tableModel.getSelection(), colIndex));
+    this.props.tableService.select({
+      kind: "columns",
+      columns: toggleSelectedColumn(tableModel.getSelection(), colIndex),
+    });
     this.focus();
   }
 
@@ -606,12 +611,11 @@ export class TableView {
       return;
     }
 
-    const { tableModel, tableState } = this.props;
-    const selection = tableModel.getSelection();
+    const { tableService, tableState } = this.props;
     const tableFile = tableState.file;
-    tableModel.setSelection({
-      selectedColumns: selection.selectedColumns ?? [],
-      activeCell: {
+    tableService.select({
+      kind: "cell",
+      cell: {
         colIndex,
         fileId: tableFile?.fileId ?? null,
         rowIndex,
@@ -632,7 +636,7 @@ export class TableView {
 const toggleSelectedColumn = (
   selection: TableSelection,
   colIndex: number,
-): TableSelection => {
+): readonly number[] => {
   const columns = new Set(selection.selectedColumns ?? []);
   if (columns.has(colIndex)) {
     columns.delete(colIndex);
@@ -640,10 +644,7 @@ const toggleSelectedColumn = (
     columns.add(colIndex);
   }
 
-  return {
-    ...selection,
-    selectedColumns: Array.from(columns).sort((a, b) => a - b),
-  };
+  return Array.from(columns).sort((a, b) => a - b);
 };
 
 const getColumnLabel = (index: number): string => {

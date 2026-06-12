@@ -87,11 +87,17 @@ export class ExplorerService extends Disposable implements IExplorerService {
   }
 
   public select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): string | null {
-    const selectedFileId = this.applySelection(target);
-    for (const view of this.views) {
-      view.selectResource?.(target, reveal);
+    const result = this.applySelection(target);
+    if (result.accepted && (result.changed || reveal !== undefined)) {
+      const acceptedTarget: ExplorerSelectionTarget = {
+        ...target,
+        fileId: result.selectedFileId,
+      };
+      for (const view of this.views) {
+        view.selectResource?.(acceptedTarget, reveal);
+      }
     }
-    return selectedFileId;
+    return result.selectedFileId;
   }
 
   public setEditable(data: ExplorerEditableData | null): void {
@@ -182,18 +188,30 @@ export class ExplorerService extends Disposable implements IExplorerService {
     this.onDidChangePaneInputEmitter.fire(input);
   }
 
-  private applySelection(target: ExplorerSelectionTarget): string | null {
+  private applySelection(target: ExplorerSelectionTarget): {
+    readonly accepted: boolean;
+    readonly changed: boolean;
+    readonly selectedFileId: string | null;
+  } {
     const nextFileId = normalizeExplorerFileId(target.fileId);
     if (nextFileId && target.candidateFileIds) {
       const candidates = getNormalizedExplorerFileIds(target.candidateFileIds);
       if (!candidates.includes(nextFileId)) {
-        return this.getSelectedFileId(target.kind);
+        return {
+          accepted: false,
+          changed: false,
+          selectedFileId: this.getSelectedFileId(target.kind),
+        };
       }
     }
 
     const result = this.setSelectedFileId(target.kind, nextFileId);
     this.fireSelectionChange(target.kind, result);
-    return result.selectedFileId;
+    return {
+      accepted: true,
+      changed: result.changed,
+      selectedFileId: result.selectedFileId,
+    };
   }
 
   private getSelectedFileId(kind: ExplorerSelectionKind): string | null {
