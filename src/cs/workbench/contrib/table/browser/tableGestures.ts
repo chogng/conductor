@@ -4,9 +4,7 @@
 
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
-import {
-  TableCommandId,
-} from "src/cs/workbench/services/table/common/table";
+import { TableCommandId } from "src/cs/workbench/services/table/common/table";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 
 export type TableGestureHost = {
