@@ -43,7 +43,7 @@ Template does not own:
 | `src/cs/workbench/services/template/browser/templateApplyPlanner.ts` | Builds run plan from assessment blocks and config. Pure enough to test. |
 | `src/cs/workbench/services/template/browser/template.contribution.ts` | Registers services and template lifecycle contribution. |
 | `src/cs/workbench/contrib/template/browser/templateViewPane.ts` | Template UI shell. Renders service state and sends commands. |
-| `src/cs/workbench/contrib/template/browser/templateApplyController.ts` | Transitional controller. Target: thin command/controller layer that delegates to services. |
+| `src/cs/workbench/services/template/browser/templateApplyController.ts` | Template apply controller. Coordinates apply workflow around service boundaries; target is to keep it thin and service-facing. |
 
 ## Flow
 
@@ -76,7 +76,7 @@ Recommended files:
 | --- | --- |
 | `src/cs/workbench/contrib/template/browser/templateCommands.ts` | Registers save/delete/import/apply/select template commands. |
 | `src/cs/workbench/contrib/template/browser/templateActions.ts` | UI actions that execute template commands. |
-| `src/cs/workbench/contrib/template/browser/templateApplyController.ts` | Coordinates apply workflow, worker boundary, notifications, and session batching. |
+| `src/cs/workbench/services/template/browser/templateApplyController.ts` | Coordinates apply workflow, worker boundary, notifications, and session batching. |
 | `src/cs/workbench/services/template/browser/templateService.ts` | Template management and state. |
 | `src/cs/workbench/services/template/browser/templateApplyService.ts` | Worker/service boundary for template application. |
 
@@ -161,4 +161,3 @@ The command/controller must not re-detect table structure.
 | `TemplateApplyService` | Worker lifecycle boundary. |
 | `TemplateApplyController` | User workflow coordination: apply, progress, notification, batching. |
 | `TemplateApplyPlanner` | Pure plan from config + assessment blocks. |
-

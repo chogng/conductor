@@ -41,8 +41,8 @@ It does not own:
 | `src/cs/workbench/services/export/browser/exportService.ts` | Owns export option state, builds export plans, validates selection. |
 | `src/cs/workbench/services/export/browser/originExportService.ts` | Origin bridge: open in Origin, zip fallback, Origin-specific side effects. |
 | `src/cs/workbench/services/export/browser/csvExportService.ts` | CSV/export-file generation if needed. |
+| `src/cs/workbench/contrib/export/browser/export.contribution.ts` | Registers the Export auxiliary-bar view. |
 | `src/cs/workbench/contrib/export/browser/exportViewPane.ts` | Export UI shell. Renders service state and calls `IExportService`. |
-| `src/cs/workbench/contrib/export/browser/exportController.ts` | Transitional command/controller. Target: delegate to `IExportService`. |
 
 ## Flow
 
@@ -65,23 +65,25 @@ flowchart TD
 
 ## Command entry and dispatch
 
-Export commands own user-triggered export actions. ExportService owns export planning and payload generation.
+ExportService owns export planning, option state, and payload generation. View
+buttons may call `IExportService` directly. If export operations are exposed as
+Command Palette, menu, or keybinding entries, add command/action files that
+normalize arguments and delegate to `IExportService`.
 
 Recommended files:
 
 | File | Responsibility |
 | --- | --- |
-| `src/cs/workbench/contrib/export/browser/exportCommands.ts` | Registers export zip/open in Origin/copy export payload commands. |
-| `src/cs/workbench/contrib/export/browser/exportActions.ts` | Export view and menu actions. |
-| `src/cs/workbench/contrib/export/browser/exportController.ts` | Optional controller for save dialogs, notifications, and progress. |
+| `src/cs/workbench/contrib/export/browser/export.contribution.ts` | Registers the Export view contribution. |
+| `src/cs/workbench/contrib/export/browser/exportViewPane.ts` | Renders export controls and invokes `IExportService`. |
 | `src/cs/workbench/services/export/browser/exportService.ts` | Builds export plans from session and plot models. |
 
 Command flow:
 
 ```txt
-export.originZip command
-  -> ExportController
-  -> IExportService.buildExportPlan(options)
+export view button or export.originZip command
+  -> IExportService.exportOriginZip(options)
+  -> IExportService.buildOriginExportPlan(input)
   -> platform save/open side effect
   -> notification
 ```
@@ -121,4 +123,3 @@ The command/controller should not rebuild plot domains; ask `IPlotService` or `I
 | `plotModelIds` | Plot models used. |
 | `payloads` | Concrete payloads to write/open. |
 | `diagnostics` | Export warnings/errors. |
-

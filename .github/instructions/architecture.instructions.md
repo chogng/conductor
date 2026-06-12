@@ -189,6 +189,13 @@ If an event name contains `should`, `need`, or `force`, the owner is probably
 crossing the boundary and controlling consumers. The owner should fire a state
 change event; subscribers decide how to respond.
 
+A subscriber may bridge domains only by reading the source owner's public
+state and calling the target owner's public API. Do not use an event as a
+hidden command bus where one service fires `onDidSubmitXxx` only so another
+service mutates its own state. If a workflow has produced canonical data, call
+`ISessionService` directly; the resulting `SessionChangeEvent` is what
+downstream consumers subscribe to.
+
 Subscriptions must be disposed:
 
 ```ts
@@ -450,11 +457,12 @@ Read `commands.instructions.md` before adding command IDs or handlers.
 
 ```mermaid
 flowchart TD
-    User[Command / Action / View] --> Explorer[IExplorerService]
-    Explorer --> Import[fileImportExport.ts source collection]
+    User[Command / Action / View] --> FilesWorkflow[Explorer command/source workflow]
+    FilesWorkflow --> Explorer[IExplorerService selection/UI state]
+    FilesWorkflow --> Import[fileImportExport.ts source collection]
     Import --> Converter[fileConverter.ts]
     Converter --> Raw[FileConversionResult / RawTableRecord]
-    Explorer --> Session[ISessionService.commitFileImport]
+    FilesWorkflow --> Session[ISessionService.commitFileImport]
 
     Session --> Snapshot[SessionSnapshot]
     Session --> Events[SessionChangeEvent]
@@ -620,25 +628,33 @@ Files/Explorer must not call Table preview invalidation or row-cache methods.
 ```mermaid
 sequenceDiagram
     participant View as Explorer view
-    participant Explorer as IExplorerService
+    participant Workflow as Explorer source workflow/controller
     participant Source as fileImportExport.ts
     participant Converter as fileConverter.ts
     participant Session as ISessionService
+    participant Explorer as IExplorerService
     participant Assessment as IAssessmentService
 
-    View->>Explorer: add data command/action
-    Explorer->>Source: collect sources / file transfer helpers
-    Source-->>Explorer: FileSource[]
-    Explorer->>Converter: convert sources
-    Converter-->>Explorer: FileConversionResult
-    Explorer->>Session: commitFileImport(result)
+    View->>Workflow: add data command/action/drop
+    Workflow->>Source: collect sources / file transfer helpers
+    Source-->>Workflow: FileSource[]
+    Workflow->>Converter: convert sources
+    Converter-->>Workflow: FileConversionResult
+    Workflow->>Session: commitFileImport(result)
+    Workflow->>Explorer: select({ kind: table, fileId }, reveal?) when needed
     Session-->>Assessment: rawTablesChanged event
     Assessment->>Session: getSnapshot()
     Assessment->>Assessment: assessRawTable(rawTable)
     Assessment->>Session: commitRawTableAssessment(result)
 ```
 
-`IExplorerService` is the Explorer UI-state service under `workbench/contrib/files`, following the upstream Files feature shape. `fileImportExport.ts` collects sources or handles file transfer. `fileConverter.ts` converts external data sources into raw table facts. It does not decide whether the data is IV/CV/CF/PV/IT.
+`IExplorerService` is the Explorer UI-state service under
+`workbench/contrib/files`, following the upstream Files feature shape. The
+source workflow or controller coordinates user intent, source collection,
+conversion, session commit, and any optional Explorer selection follow-up.
+`fileImportExport.ts` collects sources or handles file transfer.
+`fileConverter.ts` converts external data sources into raw table facts. It
+does not decide whether the data is IV/CV/CF/PV/IT.
 
 ## Assessment flow
 

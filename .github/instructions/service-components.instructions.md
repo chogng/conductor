@@ -15,13 +15,13 @@ Do not create vague nested managers such as `ExplorerManager` containing `Import
 | `Service` | The component is injectable and owns domain or service state. | Yes, when state belongs to the domain. | `ExplorerService`, `PlotService` | Depend on views or DOM. |
 | `Controller` | The component coordinates a user workflow, command, dialog, notification, or worker operation. | Only transient workflow state. | `TemplateApplyController` | Become the canonical owner of records; create upstream-looking controllers when an upstream file shape already exists. |
 | `Model` | The component is a pure data shape or projection builder. | No long-lived mutable state. | `explorerModel.ts`, `PlotRenderModel` | Call services or mutate session. |
-| `Store` | The component owns local service state with events. | Yes, but only local service/view-service state. | `PlotSettingsStore` | Store canonical records that belong in Session; extract Explorer selection state before `ExplorerService` proves insufficient. |
-| `Registry` | The component maps ids to handlers/providers/descriptors. | Registry entries only. | `PlotRendererRegistry` | Orchestrate workflows. |
-| `Provider` | The component supplies external data/capability behind an interface. | Usually no canonical state. | `RawTableRowsProvider`, `FileSystemProvider` | Interpret measurement semantics. |
+| `Store` | The component owns local service state with events. | Yes, but only local service/view-service state. | `settingsStore.ts` | Store canonical records that belong in Session; extract Explorer selection state before `ExplorerService` proves insufficient. |
+| `Registry` | The component maps ids to handlers/providers/descriptors. | Registry entries only. | `ViewsRegistry` | Orchestrate workflows. |
+| `Provider` | The component supplies external data/capability behind an interface. | Usually no canonical state. | `IFileSystemProvider` | Interpret measurement semantics. |
 | `Reader` | The component reads data from an existing source. | Cache only if explicitly stated. | `RawTableRowsReader` | Own import state. |
-| `Adapter` | The component converts one representation to another. | No. | `AssessmentWasmAdapter`, `PlotModelAdapter` | Make domain decisions not encoded in input. |
-| `Planner` | The component creates an execution/export/apply plan from immutable input. | No. | `TemplateApplyPlanner`, `ExportPlanBuilder` | Start workers or mutate session. |
-| `Cache` | The component caches reproducible output. | Cache only. | `ThumbnailCache`, `PlotRenderCache` | Become the source of truth. |
+| `Adapter` | The component converts one representation to another. | No. | `sessionModelAdapter.ts` | Make domain decisions not encoded in input. |
+| `Planner` | The component creates an execution/export/apply plan from immutable input. | No. | `templateApplyPlanner.ts` | Start workers or mutate session. |
+| `Cache` | The component caches reproducible output. | Cache only. | `thumbnailBitmap.ts` cache keys | Become the source of truth. |
 
 If a component seems to need sub-managers, split by responsibility instead of nesting manager classes. Prefer this shape:
 
@@ -84,13 +84,13 @@ A helper is allowed when its owner and lifetime are explicit:
 | Helper | Allowed responsibility |
 | --- | --- |
 | `common/explorerModel.ts` | Define Explorer resource/item model and tree helpers. |
-| `fileActions.ts` / `fileImportExport.ts` workflow helpers | Open dialogs, collect dropped files, call conversion helpers, commit session. |
-| `RawTableRowsReader` | Read rows from inline or normalized CSV storage. |
-| `AssessmentWasmAdapter` | Convert WASM input/output only. |
-| `TemplateApplyPlanner` | Create a deterministic apply plan from template config and assessment blocks. |
-| `PlotRenderModelBuilder` | Build plot render model from session curves and plot state. |
-| `ThumbnailCache` | Cache thumbnail render output keyed by plot model signature. |
-| `ExportPlanBuilder` | Build export plan from plot/session/export state. |
+| `fileActions.ts` / `fileImportExport.ts` workflow helpers | Open dialogs, collect dropped files, call conversion helpers, and return prepared imports or conversion results to the workflow caller. |
+| `rawTableRowsReaderService.ts` | Read rows from inline or normalized CSV storage. |
+| `assessmentWasm.ts` | Load WASM and convert assessment input/output only. |
+| `templateApplyPlanner.ts` | Create a deterministic apply plan from template config and assessment blocks. |
+| `plotRenderModel.ts` | Build plot render models from session curves and plot state. |
+| `thumbnailBitmap.ts` | Render/cache thumbnail bitmap output keyed by plot model signature. |
+| `exportService.ts` | Build export plans from plot/session/export state. |
 
 ## Owner APIs and target helpers
 

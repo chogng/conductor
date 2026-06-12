@@ -22,7 +22,7 @@ If a change concerns series data, domains, units, y-scale, plot type, visibility
 It consumes:
 
 - `IPlotService` render models and plot state;
-- `IWorkbenchViewModeService` / layout services as needed;
+- `IWorkbenchLayoutService` / layout services as needed;
 - context menu/action services for UI presentation.
 
 It does not own:
@@ -38,7 +38,7 @@ It does not own:
 | File | Responsibility |
 | --- | --- |
 | `src/cs/workbench/services/chart/common/chart.ts` | Defines `IChartService`, chart shell state, pane state, chart events, and chart commands. |
-| `src/cs/workbench/services/chart/browser/chartService.ts` | Owns chart shell state, subscribes to `IPlotService`, prepares chart view input. No raw session data extraction. |
+| `src/cs/workbench/services/chart/browser/chartService.ts` | Owns chart shell state and publishes chart view input supplied from Plot/Workbench projections. No raw session data extraction. |
 | `src/cs/workbench/services/chart/browser/chart.contribution.ts` | Registers chart service and chart lifecycle contribution. |
 | `src/cs/workbench/contrib/chart/browser/chartViewPane.ts` | View pane shell. Hosts header, actions, detail pane, and plot view. Delegates data to services. |
 | `src/cs/workbench/contrib/chart/browser/chartPanel.ts` | Chart panel composition. Receives plot/chart props. No session reads. |
@@ -89,7 +89,7 @@ Recommended files:
 | --- | --- |
 | `src/cs/workbench/contrib/chart/browser/chartCommands.ts` | Registers toggle legend, toggle inspector, focus chart, edit chart title commands. |
 | `src/cs/workbench/contrib/chart/browser/chartActions.ts` | Header buttons/menu entries for chart commands. |
-| `src/cs/workbench/services/chart/browser/chartService.ts` | Owns chart shell state and subscribes to `IPlotService`. |
+| `src/cs/workbench/services/chart/browser/chartService.ts` | Owns chart shell state and publishes chart view input. |
 
 Boundary:
 
@@ -99,6 +99,27 @@ legend popover / inspector pane / chart focus -> IChartService
 ```
 
 If a chart header button changes plot type, it should execute a plot command, not a chart command.
+
+Chart view plot-control wiring:
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant ChartViewPane
+    participant PlotService as IPlotService
+    participant Workbench
+    participant ChartService as IChartService
+
+    User->>ChartViewPane: change plot type / edit axis title / edit legend label
+    ChartViewPane->>PlotService: setActivePlotType / setAxisTitleOverride / setLegendLabel
+    PlotService-->>Workbench: onDidChangePlotState
+    Workbench->>ChartService: updateViewInput(next input)
+    ChartService-->>ChartViewPane: onDidChangeChartViewInput
+    ChartViewPane->>ChartViewPane: render from current input and service state
+```
+
+Do not pass Plot-owned behavior through `ChartViewInput` callbacks when
+`ChartViewPane` can call the `IPlotService` owner API directly.
 
 ## Do not
 
@@ -124,10 +145,14 @@ If a chart header button changes plot type, it should execute a plot command, no
 
 | Field | Meaning |
 | --- | --- |
-| `plotModel` | `PlotRenderModel` to render. |
-| `chartState` | Chart shell state. |
-| `actions` | Header/menu actions. |
-| `onToggleLegend` | Callback to chart service. |
-| `onToggleInspector` | Callback to chart service. |
+| `visiblePanes` | Chart-owned visible pane ids such as chart and inspector. |
+| `activePlotType` | Plot type currently shown, from Plot state. |
+| `activeFileId` | File selected for chart display. |
+| `chartFileOptions` | File selector options projected for chart mode. |
+| `createPlotDisplayModel` | Plot display-model request function backed by `IPlotService`. |
+| `plotLegendModel` | Legend display model from `IPlotService`. |
+| `processingStatus` | Template processing status shown by chart UI. |
+| `plotAxisSettings` / `originOpenPlotOptions` | Workbench/core settings projected into chart controls. |
+| `onActiveFileIdChange` / settings callbacks | Temporary Workbench/settings bridges. Do not add Plot-owned behavior callbacks when `ChartViewPane` can call `IPlotService` directly. |
 
 Chart state is shell state. Plot data, units, scale, series visibility, domains, and labels belong to Plot.

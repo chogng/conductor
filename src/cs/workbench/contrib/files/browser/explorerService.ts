@@ -7,6 +7,8 @@ import { Disposable, toDisposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
   IExplorerService,
+  type ExplorerImportedFilesChangeEvent,
+  type ExplorerImportedSessionFile,
   type ExplorerPaneInput,
   type ExplorerFolderExpansionChangeEvent,
   type ExplorerSelectionChangeEvent,
@@ -32,6 +34,8 @@ export class ExplorerService extends Disposable implements IExplorerService {
   public readonly onDidChangeViewLayout = this.onDidChangeViewLayoutEmitter.event;
   private readonly onDidChangePaneInputEmitter = this._register(new Emitter<ExplorerPaneInput | null>());
   public readonly onDidChangePaneInput = this.onDidChangePaneInputEmitter.event;
+  private readonly onDidSubmitImportedFilesChangeEmitter = this._register(new Emitter<ExplorerImportedFilesChangeEvent>());
+  public readonly onDidSubmitImportedFilesChange = this.onDidSubmitImportedFilesChangeEmitter.event;
   private readonly onDidRequestFolderImportEmitter = this._register(new Emitter<void>());
   public readonly onDidRequestFolderImport = this.onDidRequestFolderImportEmitter.event;
   private readonly onDidRequestSelectedFolderRemovalEmitter = this._register(new Emitter<void>());
@@ -68,6 +72,18 @@ export class ExplorerService extends Disposable implements IExplorerService {
     return this.currentViewLayout;
   }
 
+  public addImportedFiles(files: readonly ExplorerImportedSessionFile[]): void {
+    const normalizedFiles = normalizeExplorerImportedFiles(files);
+    if (!normalizedFiles.length) {
+      return;
+    }
+
+    this.onDidSubmitImportedFilesChangeEmitter.fire({
+      files: normalizedFiles,
+      reason: "added",
+    });
+  }
+
   public getContext(): ExplorerContext {
     return {
       editable: this.editable,
@@ -77,6 +93,30 @@ export class ExplorerService extends Disposable implements IExplorerService {
       toCopy: this.toCopy,
       viewLayout: this.currentViewLayout,
     };
+  }
+
+  public removeImportedFiles(fileIds: readonly string[]): void {
+    const normalizedFileIds = getNormalizedExplorerFileIds(fileIds);
+    if (!normalizedFileIds.length) {
+      return;
+    }
+
+    this.onDidSubmitImportedFilesChangeEmitter.fire({
+      fileIds: normalizedFileIds,
+      reason: "removed",
+    });
+  }
+
+  public replaceImportedFiles(files: readonly ExplorerImportedSessionFile[]): void {
+    const normalizedFiles = normalizeExplorerImportedFiles(files);
+    if (!normalizedFiles.length) {
+      return;
+    }
+
+    this.onDidSubmitImportedFilesChangeEmitter.fire({
+      files: normalizedFiles,
+      reason: "replaced",
+    });
   }
 
   public registerView(view: IExplorerView) {
@@ -327,4 +367,25 @@ const getNormalizedExplorerFileIds = (
 const normalizeExplorerFileId = (fileId: unknown): string | null => {
   const normalized = String(fileId ?? "").trim();
   return normalized || null;
+};
+
+const normalizeExplorerImportedFiles = (
+  files: readonly ExplorerImportedSessionFile[],
+): readonly ExplorerImportedSessionFile[] => {
+  const result: ExplorerImportedSessionFile[] = [];
+  const seen = new Set<string>();
+  for (const file of files) {
+    const fileId = normalizeExplorerFileId(file?.fileId);
+    if (!fileId || seen.has(fileId)) {
+      continue;
+    }
+
+    seen.add(fileId);
+    result.push(file.fileId === fileId ? file : {
+      ...file,
+      fileId,
+    });
+  }
+
+  return result;
 };

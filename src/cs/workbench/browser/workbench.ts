@@ -27,6 +27,7 @@ import {
   type IChartService,
 } from "src/cs/workbench/services/chart/common/chart";
 import {
+  type ExplorerImportedFilesChangeEvent,
   type ExplorerImportedSessionFile,
   type ExplorerPaneInput,
   type ExplorerSelectionKind,
@@ -133,10 +134,7 @@ import {
   type OriginDisplayRange,
 } from "src/cs/workbench/services/origin/browser/originController";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
-import type {
-  PlotAxisTitleContext,
-  PlotType,
-} from "src/cs/workbench/services/plot/common/plot";
+import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 import type { XUnit, YUnit } from "src/cs/workbench/services/plot/common/units";
 import type {
@@ -407,6 +405,9 @@ export class Workbench extends Layout {
     this._register(this.explorerService.onDidChangeSelection(() => {
       this.renderWorkbench();
     }));
+    this._register(this.explorerService.onDidSubmitImportedFilesChange((event) => {
+      this.handleExplorerImportedFilesChange(event);
+    }));
     this._register(this.parametersService.onDidChangeParametersState(() => {
       this.renderWorkbench();
     }));
@@ -455,11 +456,7 @@ export class Workbench extends Layout {
       tableModel,
     ));
 
-    this.explorerService.updatePaneInput(this.getExplorerPaneInput(
-      snapshot,
-      readModel,
-      this.templateApply,
-    ));
+    this.explorerService.updatePaneInput(this.getExplorerPaneInput(snapshot, readModel));
     this.tableService.updateViewInput(this.getTableProps(tableModel));
     this.templateService.updateViewInput(this.getTemplateViewInput(
       snapshot,
@@ -808,6 +805,41 @@ export class Workbench extends Layout {
     }, "force");
   };
 
+  private handleExplorerImportedFilesChange(event: ExplorerImportedFilesChangeEvent): void {
+    const workflow = this.getExplorerSessionWorkflow();
+    switch (event.reason) {
+      case "added":
+        workflow.handleFilesAdded(event.files);
+        break;
+      case "replaced":
+        workflow.handleFilesReplaced(event.files);
+        break;
+      case "removed":
+        workflow.handleFilesRemoved(event.fileIds);
+        break;
+    }
+  }
+
+  private getExplorerSessionWorkflow(
+    snapshot = this.session.getSnapshot(),
+    readModel = createSessionReadModel(snapshot),
+  ) {
+    return createExplorerSessionWorkflow({
+      clearSession: this.session.clearSession,
+      commitFileImport: this.session.commitFileImport,
+      explorerService: this.explorerService,
+      hasSessionData: readModel.hasSessionData,
+      processingStatus: this.templateApply.processingStatus,
+      rawFiles: readModel.rawFiles,
+      removeFiles: this.session.removeFiles,
+      removeQueuedProcessingFile: this.templateApply.removeQueuedProcessingFile,
+      resetProcessingWorker: this.templateApply.resetProcessingWorker,
+      showTable: this.activeWorkbenchMainPart === "chart"
+        ? () => this.showWorkbenchViewMode("table")
+        : undefined,
+    });
+  }
+
   private showWorkbenchViewMode(viewMode: WorkbenchMainPart): void {
     const previousViewMode = this.activeWorkbenchMainPart;
     if (this.activeView !== viewMode) {
@@ -845,7 +877,6 @@ export class Workbench extends Layout {
   private getExplorerPaneInput(
     snapshot = this.session.getSnapshot(),
     readModel = createSessionReadModel(snapshot),
-    processing = this.templateApply,
   ) {
     return createExplorerPaneInput({
       activePlotType: this.activePlotType,
@@ -854,18 +885,7 @@ export class Workbench extends Layout {
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
       plotAxisSettings: this.coreSettingsState.conductorSettings?.plotAxisSettings,
       plotService: this.plotService,
-      processing: {
-        processingStatus: processing.processingStatus,
-        removeQueuedProcessingFile: processing.removeQueuedProcessingFile,
-        resetProcessingWorker: processing.resetProcessingWorker,
-      },
       readModel,
-      session: {
-        clearSession: this.session.clearSession,
-        commitFileImport: this.session.commitFileImport,
-        removeFiles: this.session.removeFiles,
-      },
-      showTable: () => this.showWorkbenchViewMode("table"),
       snapshot,
       templateState: this.templateService.getState(),
     });
@@ -918,9 +938,6 @@ export class Workbench extends Layout {
       ),
       legendLabels: this.getLegendLabelsForFile(snapshot, activeFileId ?? ""),
       onActiveFileIdChange: this.handleProcessedFileSelected,
-      onActivePlotTypeChange: this.setActivePlotType,
-      onLegendLabelChange: this.updateLegendLabel,
-      onPlotAxisTitleChange: this.updatePlotAxisTitle,
       onPlotUnitChange: this.updatePlotUnit,
       onPlotYScaleChange: this.updatePlotYScale,
       onPlotAxisSettingsChange: this.updatePlotAxisSettings,
@@ -947,7 +964,6 @@ export class Workbench extends Layout {
         snapshot.filesById,
         snapshot.fileOrder,
       ),
-      onPlotAxisTitleChange: this.updatePlotAxisTitle,
       onPlotAxisSettingsChange: this.updatePlotAxisSettings,
       onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
@@ -959,26 +975,6 @@ export class Workbench extends Layout {
   //#endregion
 
   //#region plot and settings mutations
-
-  private readonly setActivePlotType = (plotType: PlotType): void => {
-    this.plotService.setActivePlotType(plotType);
-  };
-
-  private readonly updatePlotAxisTitle = (
-    context: PlotAxisTitleContext,
-    title: string,
-    defaultTitle: string,
-  ): void => {
-    this.plotService.setAxisTitleOverride(context, title, defaultTitle);
-  };
-
-  private readonly updateLegendLabel = (
-    fileId: string,
-    seriesId: string,
-    label: string | null,
-  ): void => {
-    this.plotService.setLegendLabel(fileId, seriesId, label);
-  };
 
   private getLegendLabelsForFile(
     snapshot: WorkbenchSessionSnapshot,
@@ -1231,18 +1227,6 @@ export class Workbench extends Layout {
 
 //#region local helpers
 
-type ExplorerPaneSessionInput = {
-  readonly clearSession: () => void;
-  readonly commitFileImport: (result: FileImportResult) => void;
-  readonly removeFiles: (fileIds: readonly string[]) => void;
-};
-
-type ExplorerPaneProcessingInput = {
-  readonly processingStatus?: Partial<ProcessingStatus>;
-  readonly removeQueuedProcessingFile: (fileId: string) => void;
-  readonly resetProcessingWorker: () => void;
-};
-
 type CreateExplorerPaneInputOptions = {
   readonly activePlotType: PlotType;
   readonly explorerService: IExplorerService;
@@ -1250,10 +1234,7 @@ type CreateExplorerPaneInputOptions = {
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly plotService: Pick<IPlotService, "getCalculatedData">;
-  readonly processing: ExplorerPaneProcessingInput;
   readonly readModel: SessionReadModel;
-  readonly session: ExplorerPaneSessionInput;
-  readonly showTable?: () => void;
   readonly snapshot: SessionSnapshot;
   readonly templateState: TemplateState;
 };
@@ -1399,7 +1380,7 @@ export function createExplorerSessionWorkflow({
     showTable?.();
   };
 
-  const handleFilesAdded = (files: ExplorerImportedSessionFile[]) => {
+  const handleFilesAdded = (files: readonly ExplorerImportedSessionFile[]) => {
     if (!files.length) {
       return;
     }
@@ -1417,7 +1398,7 @@ export function createExplorerSessionWorkflow({
     showTable?.();
   };
 
-  const handleFilesReplaced = (files: ExplorerImportedSessionFile[]) => {
+  const handleFilesReplaced = (files: readonly ExplorerImportedSessionFile[]) => {
     resetProcessingWorker();
 
     const nextSelectedFileId = files[0]?.fileId ?? null;
@@ -1486,26 +1467,11 @@ export const createExplorerPaneInput = ({
   originOpenPlotOptions,
   plotAxisSettings,
   plotService,
-  processing,
   readModel,
-  session,
-  showTable,
   snapshot,
   templateState,
 }: CreateExplorerPaneInputOptions): ExplorerPaneInput => {
   const rawFiles = readModel.rawFiles;
-  const sessionWorkflow = createExplorerSessionWorkflow({
-    clearSession: session.clearSession,
-    commitFileImport: session.commitFileImport,
-    explorerService,
-    hasSessionData: readModel.hasSessionData,
-    processingStatus: processing.processingStatus,
-    rawFiles,
-    removeQueuedProcessingFile: processing.removeQueuedProcessingFile,
-    resetProcessingWorker: processing.resetProcessingWorker,
-    removeFiles: session.removeFiles,
-    showTable: mode === "chart" ? showTable : undefined,
-  });
   const isChartMode = mode === "chart";
   const selectionKind: ExplorerSelectionKind = isChartMode ? "chart" : "table";
   const files = isChartMode
@@ -1541,11 +1507,6 @@ export const createExplorerPaneInput = ({
     fileTemplateSelectionsByFileId: templateState.selectionsByFileId,
     files,
     mode,
-    onFileImported: sessionWorkflow.handleFileImported,
-    onFileRemoved: sessionWorkflow.handleFileRemoved,
-    onFilesAdded: sessionWorkflow.handleFilesAdded,
-    onFilesRemoved: sessionWorkflow.handleFilesRemoved,
-    onFilesReplaced: sessionWorkflow.handleFilesReplaced,
     originOpenPlotOptions,
     plotAxisSettings,
     selectedFileId,

@@ -37,6 +37,20 @@ export type ExplorerImportedSessionFile = SessionFile & {
   readonly importRecord: ImportedFileRecord;
 };
 
+export type ExplorerImportedFilesChangeEvent =
+  | {
+      readonly reason: "added";
+      readonly files: readonly ExplorerImportedSessionFile[];
+    }
+  | {
+      readonly reason: "replaced";
+      readonly files: readonly ExplorerImportedSessionFile[];
+    }
+  | {
+      readonly reason: "removed";
+      readonly fileIds: readonly string[];
+    };
+
 export type ExplorerPaneInput = {
   readonly activePlotType?: PlotType;
   readonly currentTemplateLabel?: string;
@@ -44,11 +58,6 @@ export type ExplorerPaneInput = {
   readonly fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
   readonly files: ExplorerFileEntry[];
   readonly mode: WorkbenchMainPart;
-  readonly onFileImported: (fileInfo: ExplorerImportedSessionFile) => void;
-  readonly onFileRemoved: (fileId: string) => void;
-  readonly onFilesAdded: (files: ExplorerImportedSessionFile[]) => void;
-  readonly onFilesRemoved: (fileIds: string[]) => void;
-  readonly onFilesReplaced: (files: ExplorerImportedSessionFile[]) => void;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly selectedFileId: string | null;
@@ -113,12 +122,16 @@ export interface IExplorerService {
   readonly onDidChangeExpandedFolderKeys: Event<ExplorerFolderExpansionChangeEvent>;
   readonly onDidChangeViewLayout: Event<ExplorerViewLayout>;
   readonly onDidChangePaneInput: Event<ExplorerPaneInput | null>;
+  readonly onDidSubmitImportedFilesChange: Event<ExplorerImportedFilesChangeEvent>;
   readonly onDidRequestFolderImport: Event<void>;
   readonly onDidRequestSelectedFolderRemoval: Event<void>;
   readonly onDidRequestFileRemoval: Event<ExplorerFileRemovalRequest>;
 
+  addImportedFiles(files: readonly ExplorerImportedSessionFile[]): void;
   getContext(): ExplorerContext;
   registerView(view: IExplorerView): IDisposable;
+  removeImportedFiles(fileIds: readonly string[]): void;
+  replaceImportedFiles(files: readonly ExplorerImportedSessionFile[]): void;
   select(target: ExplorerSelectionTarget, reveal?: ExplorerRevealMode): string | null;
   setEditable(data: ExplorerEditableData | null): void;
   setToCopy(resources: readonly ExplorerSelectionTarget[], isCut: boolean): void;

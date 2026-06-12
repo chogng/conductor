@@ -511,14 +511,7 @@ export class ExplorerViewPane extends ViewPane {
       this.internalFiles = this.internalFiles.filter((entry) => !removedFileIds.has(entry.fileId ?? ""));
     }
 
-    if (this.paneInput.onFilesRemoved) {
-      this.paneInput.onFilesRemoved([...fileIds]);
-      return;
-    }
-
-    for (const fileId of fileIds) {
-      this.paneInput.onFileRemoved?.(fileId);
-    }
+    this.explorerService.removeImportedFiles(fileIds);
   }
 
   private replaceImportedFiles(
@@ -533,13 +526,7 @@ export class ExplorerViewPane extends ViewPane {
       this.syncView();
     }
 
-    if (this.paneInput.onFilesReplaced) {
-      this.paneInput.onFilesReplaced(importedFiles);
-    } else {
-      for (const fileInfo of importedFiles) {
-        this.paneInput.onFileImported?.(fileInfo);
-      }
-    }
+    this.explorerService.replaceImportedFiles(importedFiles);
   }
 
   private appendImportedFiles(
@@ -556,14 +543,7 @@ export class ExplorerViewPane extends ViewPane {
       this.syncView();
     }
 
-    if (this.paneInput.onFilesAdded) {
-      this.paneInput.onFilesAdded(importedFiles);
-      return;
-    }
-
-    for (const fileInfo of importedFiles) {
-      this.paneInput.onFileImported?.(fileInfo);
-    }
+    this.explorerService.addImportedFiles(importedFiles);
   }
 
   private appendPreparedImportFiles(preparedFiles: readonly PreparedFileImport[]): void {
@@ -628,11 +608,6 @@ export class ExplorerViewPane extends ViewPane {
 const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {
   files: [],
   mode: "table",
-  onFileImported: () => undefined,
-  onFileRemoved: () => undefined,
-  onFilesAdded: () => undefined,
-  onFilesRemoved: () => undefined,
-  onFilesReplaced: () => undefined,
   selectedFileId: null,
   selectionKind: "table",
   thumbnailFiles: [],

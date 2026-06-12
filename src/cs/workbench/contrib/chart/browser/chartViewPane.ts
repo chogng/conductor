@@ -25,17 +25,17 @@ import { resolveActiveChartFileOption } from "src/cs/workbench/services/chart/co
 import { createLegendPopover, getLegendContext, type LegendContext } from "src/cs/workbench/contrib/chart/browser/chartLegend";
 import { toChartPanelProps } from "src/cs/workbench/contrib/chart/browser/chartPaneState";
 import { createChartUnitControls, type ChartUnitAxis, type ChartUnitControlState, type ChartYScale } from "src/cs/workbench/contrib/chart/browser/chartUnitControls";
-import type {
-  PlotAxisTitleContext,
-  PlotDisplayModel,
-  PlotType,
+import {
+  IPlotService,
+  type PlotAxisTitleContext,
+  type PlotDisplayModel,
+  type PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
 import type { XUnit, YUnit } from "src/cs/workbench/services/plot/common/units";
 import {
   IChartService,
   type ChartAxisTitleEditRequest,
   type ChartDetailPane,
-  type IChartService as IChartServiceType,
 } from "src/cs/workbench/services/chart/common/chart";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 
@@ -56,7 +56,8 @@ export class ChartViewPane extends ViewPane {
   private props: ChartViewInput = EMPTY_CHART_VIEW_INPUT;
 
   constructor(
-    @IChartService private readonly chartService: IChartServiceType,
+    @IChartService private readonly chartService: IChartService,
+    @IPlotService private readonly plotService: IPlotService,
   ) {
     super({
       id: ChartViewId,
@@ -165,7 +166,7 @@ export class ChartViewPane extends ViewPane {
     }
 
     this.fallbackActivePlotType = plotType;
-    this.props.onActivePlotTypeChange?.(plotType);
+    this.plotService.setActivePlotType(plotType);
     this.closeLegendPopover();
     this.renderHeader(this.props);
     this.updateChartPanel(this.props);
@@ -237,7 +238,7 @@ export class ChartViewPane extends ViewPane {
     nextTitle: string,
     defaultTitle: string,
   ): void {
-    this.props.onPlotAxisTitleChange?.(context, nextTitle, defaultTitle);
+    this.plotService.setAxisTitleOverride(context, nextTitle, defaultTitle);
   }
 
   private updatePlotUnit(
@@ -421,7 +422,7 @@ export class ChartViewPane extends ViewPane {
       return;
     }
 
-    this.props.onLegendLabelChange?.(
+    this.plotService.setLegendLabel(
       context.fileId,
       legendKey,
       nextLabel === defaultLabel ? null : nextLabel,

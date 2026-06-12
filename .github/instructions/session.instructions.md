@@ -115,13 +115,17 @@ Recommended command boundaries:
 | Command | Preferred owner | Session method |
 | --- | --- | --- |
 | clear session | Explorer or Workbench global command | `ISessionService.clearSession()` |
-| remove file/resource | Explorer command | `ISessionService.removeFiles(...)` through `IExplorerService` |
-| commit import | Explorer/import controller | `ISessionService.commitFileImport(...)` |
+| remove file/resource | Explorer action/controller after resolving Explorer context | `ISessionService.removeFiles(...)`; call `IExplorerService.select(...)` separately for Explorer selection follow-up |
+| commit import | Explorer source workflow/controller after conversion succeeds | `ISessionService.commitFileImport(...)` |
 | commit assessment | Assessment contribution/command | `ISessionService.commitRawTableAssessment(...)` |
 | commit template/curves | Template service/controller | `ISessionService.commitTemplateRun(...)`, `commitCurves(...)` |
 | commit metric input | Parameters service | `ISessionService.setMetricInput(...)` |
 
-Do not add commands that mutate internal `SessionModel` fields directly. Use explicit commit APIs.
+Do not add commands that mutate internal `SessionModel` fields directly. Use
+explicit commit APIs. Do not make another service fire a submit/request event
+only so Workbench can mutate Session; the caller that owns the workflow result
+should call `ISessionService`, and consumers should react to the resulting
+`SessionChangeEvent`.
 
 ## Do not
 

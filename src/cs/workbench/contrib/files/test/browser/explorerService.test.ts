@@ -7,6 +7,7 @@ import assert from "assert";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import type {
   ExplorerPaneInput,
+  type ExplorerImportedFilesChangeEvent,
   ExplorerSelectionChangeEvent,
   ExplorerSelectionTarget,
 } from "src/cs/workbench/contrib/files/browser/files";
@@ -198,11 +199,6 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     const input: ExplorerPaneInput = {
       files: [],
       mode: "table",
-      onFileImported: () => undefined,
-      onFileRemoved: () => undefined,
-      onFilesAdded: () => undefined,
-      onFilesRemoved: () => undefined,
-      onFilesReplaced: () => undefined,
       selectedFileId: null,
       selectionKind: "table",
       thumbnailFiles: [],
@@ -214,4 +210,60 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     assert.deepEqual(inputs, [input]);
     disposable.dispose();
   });
+
+  test("publishes imported files changes through explorer owner API", () => {
+    const service = new ExplorerService();
+    const events: ExplorerImportedFilesChangeEvent[] = [];
+    const disposable = service.onDidSubmitImportedFilesChange(event => {
+      events.push(event);
+    });
+
+    service.addImportedFiles([{
+      fileId: " file-a ",
+      fileName: "File A.csv",
+      importRecord: createImportedFileRecordForTest("file-a"),
+    }]);
+    service.replaceImportedFiles([{
+      fileId: "file-b",
+      fileName: "File B.csv",
+      importRecord: createImportedFileRecordForTest("file-b"),
+    }]);
+    service.removeImportedFiles([" file-a ", "file-a", ""]);
+
+    assert.deepEqual(events, [
+      {
+        files: [{
+          fileId: "file-a",
+          fileName: "File A.csv",
+          importRecord: createImportedFileRecordForTest("file-a"),
+        }],
+        reason: "added",
+      },
+      {
+        files: [{
+          fileId: "file-b",
+          fileName: "File B.csv",
+          importRecord: createImportedFileRecordForTest("file-b"),
+        }],
+        reason: "replaced",
+      },
+      {
+        fileIds: ["file-a"],
+        reason: "removed",
+      },
+    ]);
+    disposable.dispose();
+  });
+});
+
+const createImportedFileRecordForTest = (fileId: string) => ({
+  id: fileId,
+  kind: "csv" as const,
+  name: `${fileId}.csv`,
+  raw: {
+    fileId,
+    fileName: `${fileId}.csv`,
+    rawTableOrder: [fileId],
+    rawTablesById: {},
+  },
 });

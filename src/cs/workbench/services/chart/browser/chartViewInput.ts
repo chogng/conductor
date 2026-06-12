@@ -6,7 +6,6 @@ import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/
 import type {
 	IPlotService,
 	PlotAxisSettingsByFileId,
-	PlotAxisTitleContext,
 	PlotDisplayModelRequest,
 	PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
@@ -23,19 +22,8 @@ export type CreateChartViewInputOptions = {
 	readonly chartFileOptions: readonly ChartFileOption[];
 	readonly legendLabels?: Readonly<Record<string, string>>;
 	readonly onActiveFileIdChange?: (nextFileId: string | null) => void;
-	readonly onActivePlotTypeChange?: (next: PlotType) => void;
-	readonly onLegendLabelChange?: (
-		fileId: string,
-		seriesId: string,
-		label: string | null,
-	) => void;
 	readonly onOriginOpenPlotOptionsChange?: (updates: Partial<OriginPlotOptions>) => Promise<void> | void;
 	readonly onPlotAxisSettingsChange?: (updates: Record<string, unknown>) => Promise<void> | void;
-	readonly onPlotAxisTitleChange?: (
-		context: PlotAxisTitleContext,
-		title: string,
-		defaultTitle: string,
-	) => void;
 	readonly onPlotUnitChange?: (
 		fileId: string,
 		axis: "x" | "y",
@@ -75,11 +63,8 @@ export const createChartViewInput = (
 		hasChartData: Boolean(activeFileId),
 		legendLabels: options.legendLabels,
 		onActiveFileIdChange: options.onActiveFileIdChange,
-		onActivePlotTypeChange: options.onActivePlotTypeChange,
-		onLegendLabelChange: options.onLegendLabelChange,
 		onOriginOpenPlotOptionsChange: options.onOriginOpenPlotOptionsChange,
 		onPlotAxisSettingsChange: options.onPlotAxisSettingsChange,
-		onPlotAxisTitleChange: options.onPlotAxisTitleChange,
 		onPlotUnitChange: options.onPlotUnitChange,
 		onPlotYScaleChange: options.onPlotYScaleChange,
 		originOpenPlotOptions: options.originOpenPlotOptions,

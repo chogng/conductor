@@ -173,7 +173,7 @@ const target = normalizeTableRangeTarget(rawTarget)
 | Workbench navigation, mode switch, sidebar visibility, native window chrome | `browser/actions/layoutActions.ts` and `browser/actions/windowActions.ts` | `IWorkbenchLayoutService` for layout/mode/sidebar, native window host for window controls, `ITitleService` only for titlebar render state | Layout service methods or native window command helpers | `browser/parts/titlebar` renders buttons and invokes owner command ids. Do not register layout/window commands from titlebar files. |
 | Explorer add-data/remove/select/toggle layout | `contrib/files/browser/fileCommands.ts` plus `fileActions.ts` / `fileActions.contribution.ts` | Explorer action/handler or `IExplorerService` for view/model behavior | Upstream-shaped `IExplorerService` methods, session/file services, or focused source/conversion helpers | Explorer commands should not reach into `ExplorerViewPane` after migration. Do not invent placeholder Explorer service methods when the behavior belongs to an action/handler or another domain service. |
 | File system read/write/watch | platform services, not workbench commands by default | `IFileService` | `IFileService` | Low-level filesystem capability; not Explorer state. |
-| Raw import conversion | Explorer action/source workflow, not a user-facing command by default | `workbench/services/files` conversion contracts | `fileConverter.ts` through Explorer source workflow | No user-facing command should call conversion and session separately. Conversion returns `FileConversionResult`/`RawTableRecord`; Explorer workflow commits successful results. |
+| Raw import conversion | Explorer action/source workflow, not a user-facing command by default | `workbench/services/files` conversion contracts and `ISessionService` for canonical commit | `fileConverter.ts` through Explorer source workflow/controller | Command handlers should not inline conversion and session commit. Delegate to a source workflow/controller; after conversion succeeds, that workflow caller commits through `ISessionService` and lets session events notify consumers. |
 | Re-assess raw table | `assessmentCommands.ts` | `IAssessmentService` | `IAssessmentService.assessRawTable`, then `ISessionService.commitRawTableAssessment` | Optional developer/user command. Assessment remains the only block detector. |
 | Table reveal/copy/select | `tableCommands.ts` | `ITableService` | `ITableService` | Commands may also use `IExplorerService` or `ISearchService` target refs. |
 | Template save/delete/import/apply | `templateCommands.ts` | `ITemplateService` / `ITemplateApplyService` | Template service or controller | Apply is a multi-step workflow; controller is acceptable. |
@@ -270,8 +270,8 @@ flowchart TD
 - Do not register broad command handlers inside `workbench.ts` unless the command is truly global workbench behavior.
 - Do not make `SessionService` dispatch user workflows; it should commit canonical state and emit events.
 - Do not make `ChartService` own plot commands. Plot commands belong to `IPlotService`.
-- Do not make Explorer commands call `IFileService` and `ISessionService` directly for full import; use `IExplorerService` or an import controller.
-- Do not make Explorer commands call `fileConverter.ts` directly; Explorer import workflow owns source collection, conversion, diagnostics, and session commit ordering.
+- Do not make Explorer command handlers inline `IFileService`, conversion, and `ISessionService` calls for full import; delegate to an Explorer source workflow/controller.
+- Do not make Explorer commands call `fileConverter.ts` directly; Explorer source workflow owns source collection, conversion, diagnostics, and session commit ordering. `IExplorerService` remains the owner for Explorer UI state such as selection, reveal, layout, and context.
 
 
 ## Command target fields

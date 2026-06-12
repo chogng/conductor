@@ -238,11 +238,15 @@ Do not introduce `IFileImportService` as the default target now.
 
 Current direction:
 
-- `fileImportPipeline.ts` can retire;
-- `fileConversion.ts` and `xlsxConversionWorker.ts` should converge into `fileConverter.ts` or `fileConverter.worker.ts`;
-- `filePreviewService.ts` is optional and should be re-evaluated after TableService owns raw table preview;
-- desktop/browser upload workflows belong to file transfer/source collection helpers, not a generalized import service by default;
-- Explorer orchestrates user intent, conversion code converts, Session commits canonical records.
+- source collection and file transfer workflows belong in `fileImportExport.ts`
+  or an Explorer source workflow/controller;
+- CSV/XLS/XLSX/clipboard conversion belongs in `fileConverter.ts` or
+  `fileConverter.worker.ts`;
+- raw table preview belongs to `ITableService`, not to a files import service;
+- desktop/browser upload workflows belong to file transfer/source collection
+  helpers, not a generalized import service by default;
+- Explorer owns the user-facing intent surface, conversion code converts, and
+  the workflow caller commits canonical records through `ISessionService`.
 
 Preferred shape:
 

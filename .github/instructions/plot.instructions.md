@@ -184,10 +184,7 @@ Chart UI may expose buttons for these commands, but the target service remains `
 | Component | Responsibility |
 | --- | --- |
 | `PlotService` | Owns `PlotState`, subscribes to session, publishes render models. |
-| `PlotRenderModelBuilder` | Pure builder from session curves + plot state to `PlotRenderModel`. |
-| `PlotSettingsStore` | Optional local store for units, scale, visibility, active type. |
-| `PlotDomainCalculator` | Pure domain/tick calculations. |
-| `PlotModelAdapter` | Converts legacy calculated data into new plot models during migration. |
+| `plotRenderModel.ts` | Pure render-model builders from session curves + plot state to `PlotRenderModel`. |
+| `plotViewModel.ts` | Pure domain, tick, point-model, downsampling, and signed-log calculations. |
 
 Do not make Chart own these fields. Chart consumes them.
-

@@ -4,7 +4,6 @@
 
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type {
-	PlotAxisTitleContext,
 	PlotDisplayModel,
 	PlotDisplayModelRequest,
 	PlotLegendModel,
@@ -20,7 +19,6 @@ export type ChartPane = "chart" | "inspector";
 export type ChartViewInput = {
 	readonly visiblePanes?: readonly ChartPane[];
 	readonly activePlotType?: PlotType;
-	readonly onActivePlotTypeChange?: (next: PlotType) => void;
 	readonly hasChartData?: boolean;
 	readonly chartFileOptions?: readonly ChartFileOption[];
 	readonly createPlotDisplayModel?: (request: PlotDisplayModelRequest) => PlotDisplayModel | null;
@@ -39,18 +37,8 @@ export type ChartViewInput = {
 		fileId: string,
 		scale: "linear" | "log",
 	) => Promise<unknown> | void;
-	readonly onPlotAxisTitleChange?: (
-		context: PlotAxisTitleContext,
-		title: string,
-		defaultTitle: string,
-	) => void;
 	readonly hiddenLegendKeys?: readonly string[];
 	readonly legendLabels?: Readonly<Record<string, string>>;
-	readonly onLegendLabelChange?: (
-		fileId: string,
-		seriesId: string,
-		label: string | null,
-	) => void;
 	readonly inspectorXAxisLabelOverride?: string;
 	readonly inspectorYAxisLabelOverride?: string;
 	readonly onInspectorXAxisLabelChange?: (nextLabel: string) => void;
