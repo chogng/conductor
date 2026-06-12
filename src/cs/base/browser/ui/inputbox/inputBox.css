@@ -11,7 +11,7 @@
   border: 1px solid rgb(var(--border) / 1);
   border-radius: 8px;
   background-color: rgb(var(--bg-page) / 1);
-  padding: 0 12px;
+  padding: 0 10px;
   font-size: 12px;
   line-height: 16px;
   transition:
@@ -89,7 +89,7 @@ html[data-nav="keyboard"] .inputbox_field[data-state="enable"]:focus-within::aft
   flex: none;
   border-color: rgb(var(--border) / 1);
   background-color: rgb(var(--bg-page) / 1);
-  padding: 0 12px;
+  padding: 0 10px;
 }
 
 .inputbox_native.inputbox_field:focus {

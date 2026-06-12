@@ -49,7 +49,7 @@ export class TemplateApplyView {
 
     const dropdownLabel = document.createElement("span");
     dropdownLabel.className = "template_field_label";
-    dropdownLabel.textContent = localize("template_picker_label", "Template");
+    dropdownLabel.textContent = localize("template_picker_label", "模板名称");
     dropdownRow.append(dropdownLabel);
 
     const selectContainer = document.createElement("div");

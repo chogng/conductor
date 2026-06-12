@@ -137,6 +137,28 @@ export class TemplateEditorView {
     const nameInput = this.createField(templateFields, localize("template_name", "Template name"), "name", {
       fullWidth: true,
     });
+    const saveActions = document.createElement("div");
+    saveActions.className = "template_save_actions";
+
+    const saveButton = createButton({
+      label: localize("save_template", "Save template"),
+      size: "md",
+      variant: "primary",
+    });
+    saveButton.className = `${saveButton.className} template_button`;
+    this.disposables.add(addDisposableListener(saveButton, "click", () => this.options.onSave()));
+
+    const cancelButton = createButton({
+      label: localize("cancel", "Cancel"),
+      size: "md",
+      variant: "secondary",
+    });
+    cancelButton.className = `${cancelButton.className} template_button`;
+    this.disposables.add(addDisposableListener(cancelButton, "click", () => this.options.onCancel()));
+
+    saveActions.append(saveButton, cancelButton);
+    templateFields.append(saveActions);
+
     const xDataStartInput = this.createField(xFields, localize("template_x_start", "Start"), "xDataStart", {
       placeholder: localize("template_cell_placeholder", "Click or enter a cell"),
     });
@@ -253,32 +275,6 @@ export class TemplateEditorView {
 
     this.element.append(form);
 
-    const spacer = document.createElement("div");
-    spacer.className = "template_spacer";
-    this.element.append(spacer);
-
-    const saveActions = document.createElement("div");
-    saveActions.className = "template_save_actions";
-
-    const saveButton = createButton({
-      label: localize("save_template", "Save template"),
-      size: "md",
-      variant: "primary",
-    });
-    saveButton.className = `${saveButton.className} template_button`;
-    this.disposables.add(addDisposableListener(saveButton, "click", () => this.options.onSave()));
-
-    const cancelButton = createButton({
-      label: localize("cancel", "Cancel"),
-      size: "md",
-      variant: "secondary",
-    });
-    cancelButton.className = `${cancelButton.className} template_button`;
-    this.disposables.add(addDisposableListener(cancelButton, "click", () => this.options.onCancel()));
-
-    saveActions.append(saveButton, cancelButton);
-    this.element.append(saveActions);
-
     this.update(state);
   }
 
@@ -325,7 +321,7 @@ export class TemplateEditorView {
     const hasYColumns = state.selectedYColumnLabels.length > 0;
     this.yColumnsClearButton.hidden = !hasYColumns;
     this.yColumnsSummary.textContent = hasYColumns
-      ? localize("template_selected_y_columns", "Columns following X range: {columns}", {
+      ? localize("template_selected_y_columns", "已选中列：{columns}", {
           columns: state.selectedYColumnLabels.join(", "),
         })
       : localize("template_no_y_columns", "Select preview columns that follow the X range.");
