@@ -2086,7 +2086,7 @@ export class TableService extends Disposable implements ITableService {
     this.onDidChangeSelectionEmitter.event;
 
   private readonly onDidChangeTableViewInputEmitter =
-    this._register(new Emitter<TableViewInput | null>());
+    this._register(new Emitter<void>());
   public readonly onDidChangeTableViewInput =
     this.onDidChangeTableViewInputEmitter.event;
 
@@ -2119,7 +2119,7 @@ export class TableService extends Disposable implements ITableService {
 
     if (this.viewInput) {
       this.viewInput = null;
-      this.onDidChangeTableViewInputEmitter.fire(null);
+      this.onDidChangeTableViewInputEmitter.fire(undefined);
     }
 
     super.dispose();
@@ -2213,7 +2213,7 @@ export class TableService extends Disposable implements ITableService {
 
     this.viewInput = input;
     this.bindActiveTableModel(input.tableModel);
-    this.onDidChangeTableViewInputEmitter.fire(input);
+    this.onDidChangeTableViewInputEmitter.fire(undefined);
   }
 
   private getActiveTableModel(): TableModel | null {

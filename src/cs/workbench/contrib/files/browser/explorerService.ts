@@ -29,7 +29,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
   public readonly onDidChangeExpandedFolderKeys = this.onDidChangeExpandedFolderKeysEmitter.event;
   private readonly onDidChangeViewLayoutEmitter = this._register(new Emitter<ExplorerViewLayout>());
   public readonly onDidChangeViewLayout = this.onDidChangeViewLayoutEmitter.event;
-  private readonly onDidChangePaneInputEmitter = this._register(new Emitter<ExplorerPaneInput | null>());
+  private readonly onDidChangePaneInputEmitter = this._register(new Emitter<void>());
   public readonly onDidChangePaneInput = this.onDidChangePaneInputEmitter.event;
 
   private currentRawFileId: string | null = null;
@@ -165,7 +165,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
     }
 
     this.paneInput = input;
-    this.onDidChangePaneInputEmitter.fire(input);
+    this.onDidChangePaneInputEmitter.fire(undefined);
   }
 
   private applySelection(target: ExplorerSelectionTarget): {

@@ -31,7 +31,7 @@ export interface IChartService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeChartState: Event<ChartState>;
-	readonly onDidChangeChartViewInput: Event<ChartViewInput | null>;
+	readonly onDidChangeChartViewInput: Event<void>;
 
 	getState(): ChartState;
 	getViewInput(): ChartViewInput | null;

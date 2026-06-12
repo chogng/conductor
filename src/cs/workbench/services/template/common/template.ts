@@ -65,7 +65,7 @@ export const ITemplateApplyWorkflowService =
 export interface ITemplateService {
   readonly _serviceBrand: undefined;
   readonly onDidChangeTemplateState: Event<TemplateState>;
-  readonly onDidChangeTemplateViewInput: Event<TemplateViewInput | null>;
+  readonly onDidChangeTemplateViewInput: Event<void>;
 
   downloadTemplateBundle(bundle: unknown): string;
   getTemplates(): Promise<TemplateRecord[]>;

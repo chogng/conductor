@@ -122,7 +122,7 @@ sequenceDiagram
     participant ExplorerViewer
     participant ExplorerViewPane
     participant ExplorerService as IExplorerService
-    participant Workbench
+    participant DomainBridge as WorkbenchDomainBridge
 
     alt tree layout
         User->>ExplorerViewer: select tree file item
@@ -132,8 +132,8 @@ sequenceDiagram
         ExplorerViewer->>ExplorerViewPane: onSelectFile(fileId)
     end
     ExplorerViewPane->>ExplorerService: select({ kind, fileId, candidateFileIds }, reveal?)
-    ExplorerService-->>Workbench: onDidChangeSelection({ kind, selectedFileId })
-    Workbench->>ExplorerService: updatePaneInput({ selectedFileId, files, ... })
+    ExplorerService-->>DomainBridge: onDidChangeSelection({ kind, selectedFileId })
+    DomainBridge->>ExplorerService: updatePaneInput({ selectedFileId, files, ... })
     ExplorerViewPane->>ExplorerViewer: setProps({ selectedFileId })
     ExplorerViewer->>ExplorerViewer: createThumbnailView({ isActive })
 ```

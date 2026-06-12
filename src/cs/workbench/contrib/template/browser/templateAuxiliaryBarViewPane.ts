@@ -66,8 +66,8 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
     this.templateView = new TemplateView(this.createViewOptions(this.templateService.getViewInput()));
     this.content.append(this.templateView.configElement);
     this.body.append(this.content);
-    this._register(this.templateService.onDidChangeTemplateViewInput(input => {
-      this.update(input);
+    this._register(this.templateService.onDidChangeTemplateViewInput(() => {
+      this.update(this.templateService.getViewInput());
     }));
     this._register(this.templateService.onDidChangeTemplateState(() => {
       this.updateTitle();

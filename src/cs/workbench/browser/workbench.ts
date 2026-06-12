@@ -27,21 +27,13 @@ import {
   type IChartService,
 } from "src/cs/workbench/services/chart/common/chart";
 import {
-  type ExplorerPaneInput,
-  type ExplorerSelectionKind,
-  type ExplorerThumbnailPlotModel,
   ExplorerViewId,
   type IExplorerService,
 } from "src/cs/workbench/contrib/files/browser/files";
-import {
-  createChartExplorerFilesFromRecords,
-  resolveExplorerSelectedFileId,
-} from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { IParametersService } from "src/cs/workbench/services/parameters/common/parameters";
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import type { ISearchService } from "src/cs/workbench/services/search/common/search";
 import {
-  getOriginOpenPlotOptions,
   SettingsViewId,
   type ISettingsService,
   type SettingsServiceOptions,
@@ -83,9 +75,14 @@ import {
 import {
   WorkbenchWindow,
 } from "src/cs/workbench/browser/window";
-import { TableViewId } from "src/cs/workbench/services/table/common/table";
-import { createChartFileOptionsFromRecords } from "src/cs/workbench/services/chart/common/chartFileOptions";
-import { createTemplateApplyInput } from "src/cs/workbench/services/template/browser/templateApplyInput";
+import {
+  WorkbenchDomainBridge,
+  resolveExplorerSessionSelection,
+} from "src/cs/workbench/browser/workbenchDomainBridge";
+import {
+  TableViewId,
+  type ITableService,
+} from "src/cs/workbench/services/table/common/table";
 import type {
   ISessionService as ISessionServiceType,
   SessionSnapshot,
@@ -99,28 +96,15 @@ import {
   type SessionReadModel,
 } from "src/cs/workbench/services/session/common/sessionReadModel";
 import type {
-  ITableService,
-  TableModel,
-  TableSource,
-} from "src/cs/workbench/services/table/common/table";
-import type {
   ITemplateApplyWorkflowService,
   ITemplateService,
-  TemplateState,
 } from "src/cs/workbench/services/template/common/template";
-import {
-  createCurrentTemplateSelectionDisplay,
-} from "src/cs/workbench/services/template/common/templateSelection";
 import {
   type IExportService,
 } from "src/cs/workbench/services/export/common/export";
-import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
-import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
-import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 import type {
   ProcessedEntry,
 } from "src/cs/workbench/services/session/common/sessionTypes";
-import { createChartViewInput } from "src/cs/workbench/services/chart/browser/chartViewInput";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { NotificationToasts } from "src/cs/workbench/browser/parts/notifications/notificationsToasts";
@@ -214,12 +198,11 @@ export class Workbench extends Layout {
   private readonly templateService: ITemplateService;
   private readonly titleService: ITitleService;
   private readonly exportService: IExportService;
+  private readonly domainBridge: WorkbenchDomainBridge;
   private readonly auxiliaryBarModel = new AuxiliaryBarModel();
   private theme: ThemeMode = isThemeMode(window.__CONDUCTOR_INITIAL_THEME__)
     ? window.__CONDUCTOR_INITIAL_THEME__
     : "system";
-  private tableStateListener: (() => void) | null = null;
-  private tableStateModel: TableModel | null = null;
 
   //#endregion
 
@@ -227,10 +210,6 @@ export class Workbench extends Layout {
 
   public get contentElement(): HTMLElement {
     return this.window.contentElement;
-  }
-
-  private get activePlotType(): PlotType {
-    return this.plotService.getState().activePlotType;
   }
 
   constructor(parent: HTMLElement, options: WorkbenchOptions = {}) {
@@ -322,13 +301,6 @@ export class Workbench extends Layout {
     this.session = options.sessionService;
     this.viewsService = options.viewsService;
     this.tableService = options.tableService;
-    this._register({
-      dispose: () => {
-        this.tableStateListener?.();
-        this.tableStateListener = null;
-        this.tableStateModel = null;
-      },
-    });
     this.templateApplyWorkflowService = options.templateApplyWorkflowService;
     this.templateService = options.templateService;
     this.titleService = options.titleService;
@@ -336,7 +308,17 @@ export class Workbench extends Layout {
     const initialViewMode = resolveInitialWorkbenchViewMode(this.session.getSnapshot());
     this._register(this.createNotificationsHandlers());
     this.settingsService.update(this.getSettingsServiceOptions());
-    this.templateApplyWorkflowService.update(this.getTemplateApplyInput());
+    this.domainBridge = this._register(new WorkbenchDomainBridge({
+      chartService: this.chartService,
+      explorerService: this.explorerService,
+      layoutService: this.layoutService,
+      plotService: this.plotService,
+      sessionService: this.session,
+      settingsService: this.settingsService,
+      tableService: this.tableService,
+      templateApplyWorkflowService: this.templateApplyWorkflowService,
+      templateService: this.templateService,
+    }));
     this._register(this.settingsService.onDidChangeConductorSettings(() => {
       this.refreshWorkbench();
     }));
@@ -359,11 +341,10 @@ export class Workbench extends Layout {
       this.refreshWorkbench();
     }));
     this._register(this.session.onDidChangeSession(() => {
-      this.syncExplorerSessionSelection();
       this.refreshWorkbench();
     }));
-    this.syncExplorerSessionSelection();
     this.resetToView(initialViewMode);
+    this.domainBridge.sync();
     this.refreshWorkbench();
   }
 
@@ -385,21 +366,6 @@ export class Workbench extends Layout {
   private refreshWorkbench(): void {
     const snapshot = this.session.getSnapshot();
     const readModel = createSessionReadModel(snapshot);
-    const tableModel = this.getTableModel(snapshot, readModel);
-    this.bindTableModelState(tableModel);
-    this.templateApplyWorkflowService.update(this.getTemplateApplyInput(
-      snapshot,
-      readModel,
-    ));
-
-    this.explorerService.updatePaneInput(this.getExplorerPaneInput(snapshot, readModel));
-    this.tableService.updateViewInput(this.getTableProps(tableModel));
-    this.templateService.updateViewInput(this.getTemplateViewInput(readModel));
-    this.chartService.updateViewInput(this.getChartProps(
-      snapshot,
-      this.templateApplyWorkflowService,
-      readModel,
-    ));
     this.updateContextKeys();
     this.updateViewContainers();
     this.renderAuxiliaryBarView(snapshot, readModel);
@@ -427,18 +393,6 @@ export class Workbench extends Layout {
       showDesktopCommandBar: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
       showSkeleton: false,
       titleService: this.titleService,
-    });
-  }
-
-  private bindTableModelState(tableModel: TableModel): void {
-    if (this.tableStateModel === tableModel) {
-      return;
-    }
-
-    this.tableStateListener?.();
-    this.tableStateModel = tableModel;
-    this.tableStateListener = tableModel.onDidChangeState(() => {
-      this.refreshWorkbench();
     });
   }
 
@@ -672,13 +626,6 @@ export class Workbench extends Layout {
 
   //#region view inputs and selection
 
-  private syncExplorerSessionSelection(
-    snapshot = this.session.getSnapshot(),
-    readModel = createSessionReadModel(snapshot),
-  ): void {
-    reconcileExplorerSessionSelection(this.explorerService, readModel);
-  }
-
   private getSelectedProcessedFileId(readModel: SessionReadModel): string | null {
     return resolveExplorerSessionSelection(this.explorerService, readModel).selectedProcessedFileId;
   }
@@ -699,82 +646,9 @@ export class Workbench extends Layout {
     return fileRecord ? createProcessedEntryFromFileRecord(fileRecord) : null;
   }
 
-  private getExplorerPaneInput(
-    snapshot = this.session.getSnapshot(),
-    readModel = createSessionReadModel(snapshot),
-  ) {
-    const conductorSettings = this.settingsService.getConductorSettings();
-    return createExplorerPaneInput({
-      activePlotType: this.activePlotType,
-      explorerService: this.explorerService,
-      mode: this.activeWorkbenchMainPart,
-      originOpenPlotOptions: getOriginOpenPlotOptions(conductorSettings),
-      plotAxisSettings: conductorSettings?.plotAxisSettings,
-      plotService: this.plotService,
-      readModel,
-      snapshot,
-      templateState: this.templateService.getState(),
-    });
-  }
-
-  private getTemplateViewInput(
-    readModel = createSessionReadModel(this.session.getSnapshot()),
-  ) {
-    return {
-      rawFiles: readModel.rawFiles,
-    };
-  }
-
-  private getTableProps(tableModel = this.getTableModel()) {
-    return {
-      tableModel,
-      tableState: tableModel.getState(),
-    };
-  }
-
-  private getChartProps(
-    snapshot = this.session.getSnapshot(),
-    processing = this.templateApplyWorkflowService,
-    readModel = createSessionReadModel(snapshot),
-  ) {
-    const activeFileId = this.getSelectedProcessedFileId(readModel);
-    return createChartViewInput({
-      activeFileId,
-      activePlotType: this.activePlotType,
-      chartFileOptions: createChartFileOptionsFromRecords(
-        snapshot.filesById,
-        snapshot.fileOrder,
-      ),
-      processingStatus: processing.processingStatus,
-      showFileSelect: false,
-      shouldMountCharts: false,
-    });
-  }
-
   //#endregion
 
-  //#region derived models and settings
-
-  private getTableModel(
-    snapshot = this.session.getSnapshot(),
-    readModel = createSessionReadModel(snapshot),
-  ) {
-    const selectedRawFileId = resolveExplorerSessionSelection(this.explorerService, readModel).selectedRawFileId;
-    return this.tableService.update({
-      rawFiles: readModel.rawFiles,
-      source: createRawTableSource(selectedRawFileId),
-    });
-  }
-
-  private getTemplateApplyInput(
-    snapshot = this.session.getSnapshot(),
-    readModel = createSessionReadModel(snapshot),
-  ) {
-    return createTemplateApplyInput({
-      readModel,
-      templateState: this.templateService.getState(),
-    });
-  }
+  //#region settings
 
   private getSettingsServiceOptions(): SettingsServiceOptions {
     const windowState = getWorkbenchWindowState();
@@ -868,192 +742,6 @@ export class Workbench extends Layout {
 
 //#region local helpers
 
-type CreateExplorerPaneInputOptions = {
-  readonly activePlotType: PlotType;
-  readonly explorerService: IExplorerService;
-  readonly mode: WorkbenchMainPart;
-  readonly originOpenPlotOptions?: OriginPlotOptions;
-  readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
-  readonly plotService: Pick<IPlotService, "getCalculatedData">;
-  readonly readModel: SessionReadModel;
-  readonly snapshot: SessionSnapshot;
-  readonly templateState: TemplateState;
-};
-
-type ExplorerSessionSelection = {
-  readonly selectedRawFileId: string | null;
-  readonly selectedProcessedFileId: string | null;
-};
-
-type ExplorerSessionSelectionInput = {
-  readonly rawFileIds: readonly string[];
-  readonly processedFileIds: readonly string[];
-};
-
-type ExplorerSelectionState = Pick<
-  IExplorerService,
-  | "selectedProcessedFileId"
-  | "selectedRawFileId"
->;
-
-const createExplorerSessionSelectionInput = (
-  readModel: SessionReadModel,
-): ExplorerSessionSelectionInput => ({
-  processedFileIds: readModel.processedFileIds,
-  rawFileIds: readModel.rawFiles.flatMap(file => file.fileId ? [file.fileId] : []),
-});
-
-const resolveExplorerSessionSelection = (
-  explorerService: ExplorerSelectionState,
-  readModel: SessionReadModel,
-): ExplorerSessionSelection => {
-  const input = createExplorerSessionSelectionInput(readModel);
-  return {
-    selectedProcessedFileId: resolveExplorerSelectedFileId(
-      explorerService.selectedProcessedFileId,
-      input.processedFileIds,
-    ),
-    selectedRawFileId: resolveExplorerSelectedFileId(
-      explorerService.selectedRawFileId,
-      input.rawFileIds,
-    ),
-  };
-};
-
-const reconcileExplorerSessionSelection = (
-  explorerService: IExplorerService,
-  readModel: SessionReadModel,
-): ExplorerSessionSelection => {
-  const input = createExplorerSessionSelectionInput(readModel);
-  const selectedProcessedFileId = reconcileExplorerSelectedFileId(
-    explorerService,
-    "chart",
-    explorerService.selectedProcessedFileId,
-    input.processedFileIds,
-  );
-  const selectedRawFileId = reconcileExplorerSelectedFileId(
-    explorerService,
-    "table",
-    explorerService.selectedRawFileId,
-    input.rawFileIds,
-  );
-
-  return {
-    selectedProcessedFileId,
-    selectedRawFileId,
-  };
-};
-
-export const createExplorerPaneInput = ({
-  activePlotType,
-  explorerService,
-  mode,
-  originOpenPlotOptions,
-  plotAxisSettings,
-  plotService,
-  readModel,
-  snapshot,
-  templateState,
-}: CreateExplorerPaneInputOptions): ExplorerPaneInput => {
-  const rawFiles = readModel.rawFiles;
-  const isChartMode = mode === "chart";
-  const selectionKind: ExplorerSelectionKind = isChartMode ? "chart" : "table";
-  const files = isChartMode
-    ? createChartExplorerFilesFromRecords(
-      snapshot.filesById,
-      snapshot.fileOrder,
-      rawFiles,
-    )
-    : rawFiles;
-  const fileIds = getExplorerPaneFileIds(files);
-  const thumbnailPlotModelsByFileId = isChartMode
-    ? createThumbnailPlotModelsByFileId({
-      activePlotType,
-      fileIds: readModel.processedFileIds,
-      plotService,
-      snapshot,
-    })
-    : undefined;
-  const selectedFileId = resolveExplorerSelectedFileId(
-    selectionKind === "chart"
-      ? explorerService.selectedProcessedFileId
-      : explorerService.selectedRawFileId,
-    fileIds,
-  );
-  const currentTemplate = createCurrentTemplateSelectionDisplay({
-    formName: templateState.formState.name,
-    selectedTemplateId: templateState.selectedTemplateId,
-  });
-  return {
-    activePlotType,
-    currentTemplateLabel: currentTemplate.label,
-    currentTemplateSelection: currentTemplate.selection,
-    fileTemplateSelectionsByFileId: templateState.selectionsByFileId,
-    files,
-    mode,
-    originOpenPlotOptions,
-    plotAxisSettings,
-    selectedFileId,
-    selectionKind,
-    thumbnailFiles: readModel.processedFiles,
-    thumbnailPlotModelsByFileId,
-  };
-};
-
-const reconcileExplorerSelectedFileId = (
-  explorerService: Pick<IExplorerService, "select">,
-  kind: ExplorerSelectionKind,
-  selectedFileId: string | null,
-  fileIds: readonly string[],
-): string | null => {
-  const nextSelectedFileId = resolveExplorerSelectedFileId(selectedFileId, fileIds);
-  explorerService.select({
-    candidateFileIds: fileIds,
-    fileId: nextSelectedFileId,
-    kind,
-  });
-  return nextSelectedFileId;
-};
-
-const getExplorerPaneFileIds = (
-  files: readonly { readonly fileId?: string | null }[],
-): readonly string[] => {
-  return files
-    .map(file => String(file.fileId ?? "").trim())
-    .filter(fileId => fileId.length > 0);
-};
-
-const createThumbnailPlotModelsByFileId = ({
-  activePlotType,
-  fileIds,
-  plotService,
-  snapshot,
-}: {
-  readonly activePlotType: PlotType;
-  readonly fileIds: readonly string[];
-  readonly plotService: Pick<IPlotService, "getCalculatedData">;
-  readonly snapshot: SessionSnapshot;
-}): Readonly<Record<string, ExplorerThumbnailPlotModel>> => {
-  const modelsByFileId: Record<string, ExplorerThumbnailPlotModel> = {};
-  for (const fileId of fileIds) {
-    const normalizedFileId = String(fileId ?? "").trim();
-    if (!normalizedFileId) {
-      continue;
-    }
-
-    const model = plotService.getCalculatedData({
-      fileId: normalizedFileId,
-      plotType: activePlotType,
-      snapshot,
-    });
-    if (model) {
-      modelsByFileId[normalizedFileId] = model;
-    }
-  }
-
-  return modelsByFileId;
-};
-
 const isThemeMode = (value: unknown): value is ThemeMode =>
   value === "light" || value === "dark" || value === "system";
 
@@ -1072,11 +760,6 @@ const applyThemeMode = (theme: ThemeMode): void => {
   document.documentElement.classList.remove("light", "dark");
   document.documentElement.classList.add(resolvedTheme);
   document.documentElement.style.colorScheme = resolvedTheme;
-};
-
-const createRawTableSource = (fileId: string | null): TableSource | null => {
-  const normalizedFileId = String(fileId ?? "").trim();
-  return normalizedFileId ? { fileId: normalizedFileId } : null;
 };
 
 //#endregion

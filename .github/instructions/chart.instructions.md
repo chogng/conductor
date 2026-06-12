@@ -40,7 +40,7 @@ It does not own:
 | `src/cs/workbench/services/chart/common/chart.ts` | Defines `IChartService`, chart shell state, pane state, chart events, and chart commands. |
 | `src/cs/workbench/services/chart/browser/chartService.ts` | Owns chart shell state and publishes chart shell input. No raw session data extraction, no Plot model creation, and no view-local request events. |
 | `src/cs/workbench/contrib/chart/browser/chart.contribution.ts` | Registers chart commands and the chart view contribution. |
-| `src/cs/workbench/contrib/chart/browser/chartViewPane.ts` | View pane shell. Hosts header, actions, detail pane, and plot view. Subscribes to owner services and rereads Plot/Settings state through public APIs. |
+| `src/cs/workbench/contrib/chart/browser/chartViewPane.ts` | View pane shell. Hosts header, actions, detail pane, and plot view. Subscribes to owner services and rereads Chart/Plot/Settings state through public APIs. |
 | `src/cs/workbench/contrib/chart/browser/chartPanel.ts` | Chart panel composition. Receives plot/chart props. No session reads. |
 | `src/cs/workbench/contrib/chart/browser/chartActions.ts` | Chart shell actions: inspector, legend, pane toggles. Handlers call `IChartService` or `IPlotService`. |
 | `src/cs/workbench/contrib/chart/browser/chartTitleEditService.ts` | Conductor-specific workflow bridge for command-dispatched axis-title edit focus. It calls the registered `ChartViewPane` handler and does not own chart state. |
@@ -112,13 +112,13 @@ sequenceDiagram
     participant ChartViewPane
     participant ExplorerService as IExplorerService
     participant PlotService as IPlotService
-    participant Workbench
+    participant DomainBridge as WorkbenchDomainBridge
     participant ChartService as IChartService
 
     User->>ChartViewPane: select chart file
     ChartViewPane->>ExplorerService: select({ kind: chart, fileId }, force)
-    ExplorerService-->>Workbench: onDidChangeSelection
-    Workbench->>ChartService: updateViewInput(next input)
+    ExplorerService-->>DomainBridge: onDidChangeSelection
+    DomainBridge->>ChartService: updateViewInput(next input)
     User->>ChartViewPane: change plot type / unit / scale / edit axis title / edit legend label
     ChartViewPane->>PlotService: setActivePlotType / setAxisUnit / setYScale / setAxisTitleOverride / setLegendLabel
     PlotService-->>ChartViewPane: onDidChangePlotState
@@ -155,6 +155,9 @@ Do not pass settings mutations through `ChartViewInput`; settings panes write
 through `ISettingsService` owner APIs and only consume projected settings data.
 Do not pass plot rendering settings through Chart input when the chart view can
 read them from `ISettingsService`.
+`IChartService.onDidChangeChartViewInput` only tells the pane that the
+Chart-owned input snapshot changed; `ChartViewPane` must reread
+`IChartService.getViewInput()` instead of consuming input from the event.
 Do not publish `onDidRequest*` events from `IChartService` for view-local focus
 workflows. Use an explicit contrib/chart workflow service and handler
 registration when a command needs the current chart view to focus or enter edit

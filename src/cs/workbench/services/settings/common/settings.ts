@@ -118,8 +118,8 @@ export interface ISettingsService {
   readonly _serviceBrand: undefined;
 
   readonly onDidChangeConductorSettings: Event<ConductorSettings | null>;
-  readonly onDidChangeOriginSettingsViewInput: Event<OriginSettingsViewInput>;
-  readonly onDidChangeSettingsViewInput: Event<SettingsViewInput>;
+  readonly onDidChangeOriginSettingsViewInput: Event<void>;
+  readonly onDidChangeSettingsViewInput: Event<void>;
 
   canCheckOriginHealth(): boolean;
   canManageOrigin(): boolean;

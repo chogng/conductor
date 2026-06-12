@@ -89,9 +89,11 @@ export class GridView {
   }
 
   private renderItems(): void {
-    const nextKeys = new Set(this.options.items.map((item) => toGridLocationKey(item.location)));
+    const nextElementsByKey = new Map(
+      this.options.items.map((item) => [toGridLocationKey(item.location), item.element] as const),
+    );
     for (const [key, element] of this.itemElements) {
-      if (!nextKeys.has(key)) {
+      if (nextElementsByKey.get(key) !== element) {
         element.remove();
         this.itemElements.delete(key);
       }

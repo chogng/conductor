@@ -181,7 +181,7 @@ It does not own:
 | `src/cs/workbench/contrib/files/browser/explorerWorkflowService.ts` | Conductor-specific command/workflow bridge for Explorer view-local add-folder and removal workflows. | File action commands and the current `ExplorerViewPane` workflow handler. | Explicit workflow method dispatch to the registered handler. | Own Explorer state, publish request events, parse files, commit session, or become a generic import service. |
 | `src/cs/workbench/contrib/files/common/explorerModel.ts` | Defines Explorer resource/item model and tree model helpers. | File/session facts, Explorer configuration. | Explorer resources/items for the Files UI. | Parse data files, store raw table rows, or become a platform file stat model. |
 | `src/cs/workbench/contrib/files/common/explorerFileNestingTrie.ts` | Implements upstream-shaped Explorer file nesting pattern matching. | Parent/child file nesting patterns and direct sibling file names. | Parent -> nested children filename map for Explorer display only. | Read session, parse files, mutate Explorer state, or decide import/conversion behavior. |
-| `src/cs/workbench/contrib/files/browser/explorerViewlet.ts` | Upstream-aligned Files/Explorer viewlet entry for the Explorer pane and sidebar actions exposed through the view action surface consumed by `ViewPaneContainer`. | Explorer services and pane input. | Rendered Explorer pane and view-local sidebar actions. | Own canonical data or bypass `IExplorerService` for state. |
+| `src/cs/workbench/contrib/files/browser/explorerViewlet.ts` | Upstream-aligned Files/Explorer viewlet entry for the Explorer pane and sidebar actions exposed through the view action surface consumed by `ViewPaneContainer`. | Explorer services and pane input read through `IExplorerService.getPaneInput()`. | Rendered Explorer pane and view-local sidebar actions. | Own canonical data, consume pane input event payloads as data, or bypass `IExplorerService` for state. |
 | `src/cs/workbench/contrib/files/browser/explorerSessionImport.ts` | Explorer workflow helper that commits prepared conversion results through `ISessionService` and then asks `IExplorerService.select(...)` to own raw-file selection. | Prepared imports from `FileSourceWorkflow`, Explorer selection service, session commit service. | Session file import commit plus explicit Explorer selection result. | Become a generic import service, parse files, own canonical session records, or select by mutating pane input/callbacks. |
 | `src/cs/workbench/contrib/files/browser/views/explorerViewer.ts` | Renders tree/list/thumbnail resources, context menus, row templates, Explorer-owned hover containers, and thumbnail UI content supplied by thumbnail contribution. | Explorer pane/view model, thumbnail UI factory/rendering surface props. | DOM presentation and user intents. | Parse files, mutate session directly, build canonical plot data, or own thumbnail bitmap/cache rendering. |
 | `src/cs/platform/files/common/files.ts` | Defines `IFileService`, `IFileSystemProvider`, `FileType`, file stat/read/write/watch contracts, and the service decorator. | URI/provider inputs. | Filesystem facts and provider events. | Import workbench services, parse data files, or own Explorer/source workflow state. |
@@ -323,21 +323,22 @@ Tree and thumbnail are two Explorer presentations over the same resource model. 
 Selection follows the cross-service mirroring rule from
 `architecture.instructions.md`: Explorer owns Explorer selection. Other
 domains may derive their own target inputs from it through the workbench
-composition layer or a view bridge, but Explorer must not call another domain's
+domain bridge or a view bridge, but Explorer must not call another domain's
 private lifecycle methods such as table preview invalidation.
 
-Workbench composition code may project session/read-model facts into Explorer
-view input. It must not smuggle add/remove/replace session callbacks through
+`WorkbenchDomainBridge` may project session/read-model facts into Explorer
+view input by subscribing to source owner events and rereading source owner
+public state. It must not smuggle add/remove/replace session callbacks through
 `ExplorerPaneInput`, and it must not route canonical session mutations through
 submit-style Explorer service events. The caller that owns the source workflow
 result calls `ISessionService` directly for commit/remove operations, then lets
 `SessionChangeEvent` subscribers consume the new snapshot. Optional UI
 follow-up such as Explorer selection must call the target owner API
 (`IExplorerService.select(...)`); optional mode handoff must call
-`IWorkbenchLayoutService`. Workbench projection code must stay in the workbench
-composition layer when it needs session, template, plot, or table composition.
-It must not accept `TableModel`, `TableSource`, or table preview lifecycle
-callbacks. Table preview state is owned by `ITableService`.
+`IWorkbenchLayoutService`. Workbench-domain projection code must stay in
+`workbench/browser` when it needs session, template, plot, or table
+composition. It must not accept `TableModel`, `TableSource`, or table preview
+lifecycle callbacks. Table preview state is owned by `ITableService`.
 
 Selection wiring:
 
@@ -347,7 +348,7 @@ sequenceDiagram
     participant ExplorerViewer
     participant ExplorerViewPane
     participant ExplorerService as IExplorerService
-    participant Workbench
+    participant DomainBridge as WorkbenchDomainBridge
 
     alt tree layout
         User->>ExplorerViewer: select tree file item
@@ -357,8 +358,8 @@ sequenceDiagram
         ExplorerViewer->>ExplorerViewPane: onSelectFile(fileId)
     end
     ExplorerViewPane->>ExplorerService: select({ kind, fileId, candidateFileIds }, reveal?)
-    ExplorerService-->>Workbench: onDidChangeSelection({ kind, selectedFileId })
-    Workbench->>ExplorerService: updatePaneInput({ selectedFileId, files, ... })
+    ExplorerService-->>DomainBridge: onDidChangeSelection({ kind, selectedFileId })
+    DomainBridge->>ExplorerService: updatePaneInput({ selectedFileId, files, ... })
     ExplorerViewPane->>ExplorerViewer: setProps({ selectedFileId })
 ```
 
@@ -533,8 +534,9 @@ actual Explorer rendering stays in `views/explorerView.ts` /
 adapter for Explorer props, service subscriptions, or source workflow callbacks.
 Those responsibilities belong to `ExplorerViewPane` and `ExplorerView`, matching
 the upstream Explorer shape: the ViewPane listens to `IExplorerService`,
-subscribes to Explorer/session-derived pane input, and consumes it to update the
-Explorer view. The generic `ViewPaneContainer` may consume `IView.getActions()`
+subscribes to Explorer/session-derived pane input changes, rereads
+`IExplorerService.getPaneInput()`, and consumes that owner snapshot to update
+the Explorer view. The generic `ViewPaneContainer` may consume `IView.getActions()`
 from the active view for header action rendering; Workbench composition code
 must not reach into `ExplorerViewPane` with `IViewsService.getViewWithId(...)`
 only to collect sidebar actions. `ExplorerViewPane` may instantiate
@@ -545,10 +547,10 @@ table/template/assessment lifecycle ownership in Explorer view code.
 Do not reintroduce `explorerPaneInput.ts`, `explorerPaneViewInput.ts`, or
 `explorerFileOptions.ts` under `contrib/files`. Explorer pane input is an
 Explorer service payload type on `browser/files.ts`; Workbench-only projection
-from session, template, plot, and processing state belongs in the Workbench
-composition layer, preferably as local `workbench.ts` composition methods rather
-than a parallel Workbench Explorer pane helper file. Chart file
-options belong to chart common code, not Explorer/files.
+from session, template, plot, and processing state belongs in
+`src/cs/workbench/browser/workbenchDomainBridge.ts` or an equivalent explicit
+workbench-domain bridge, not in Explorer/files. Chart file options belong to
+chart common code, not Explorer/files.
 
 Command handlers should use the actual upstream-shaped `IExplorerService` surface when the behavior is Explorer view/model state:
 
@@ -688,12 +690,12 @@ Use these components instead of nested managers:
 
 | Component | Responsibility |
 | --- | --- |
-| `ExplorerService` | Owns Explorer state, exposes selection/layout/pane input state events. |
+| `ExplorerService` | Owns Explorer state, exposes selection/layout events and a pane input changed event plus `getPaneInput()`. |
 | `ExplorerWorkflowService` | Dispatches command-initiated Explorer source/removal workflows to the current registered `ExplorerViewPane` handler. It is not a state owner and must not publish request events. |
 | `fileActions.ts` / `fileImportExport.ts` workflow helpers | Coordinate dialogs/drop/folder source collection, file transfer/source helpers, `fileConverter.ts`, progress/notification, then return prepared imports or conversion results to the workflow caller. The caller commits through `ISessionService`; do not route commit through pane input callbacks or Explorer service submit events. |
 | `common/explorerModel.ts` | Defines Explorer resource/item model and tree helpers. Do not create a separate `ExplorerTreeModel` class unless the upstream-style model file becomes too large. |
 | `common/explorerFileNestingTrie.ts` | Owns Explorer file nesting pattern matching only. `explorerModel.ts` applies its output to tree nodes. |
-| `ExplorerViewPane` | ViewPane host that listens to Explorer service events, consumes Explorer pane input, exposes sidebar actions through `IView.getActions()`, and coordinates Explorer source workflow callbacks. |
+| `ExplorerViewPane` | ViewPane host that listens to Explorer service events, rereads Explorer pane input from `IExplorerService.getPaneInput()`, exposes sidebar actions through `IView.getActions()`, and coordinates Explorer source workflow callbacks. |
 | `ExplorerView` | DOM shell for drag/drop and view hosting. |
 | `ExplorerViewer` | Tree/thumbnail renderer. |
 

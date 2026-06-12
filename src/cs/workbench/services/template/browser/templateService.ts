@@ -30,7 +30,7 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
   private readonly onDidChangeTemplateStateEmitter = this._register(new Emitter<TemplateState>());
   public readonly onDidChangeTemplateState = this.onDidChangeTemplateStateEmitter.event;
   private readonly onDidChangeTemplateViewInputEmitter =
-    this._register(new Emitter<TemplateViewInput | null>());
+    this._register(new Emitter<void>());
   public readonly onDidChangeTemplateViewInput =
     this.onDidChangeTemplateViewInputEmitter.event;
 
@@ -102,7 +102,7 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
     }
 
     this.viewInput = input;
-    this.onDidChangeTemplateViewInputEmitter.fire(input);
+    this.onDidChangeTemplateViewInputEmitter.fire(undefined);
   }
 }
 

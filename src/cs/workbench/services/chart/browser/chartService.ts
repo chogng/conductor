@@ -19,7 +19,7 @@ export class ChartService extends Disposable implements IChartServiceType {
 	private readonly onDidChangeChartStateEmitter = this._register(new Emitter<ChartState>());
 	public readonly onDidChangeChartState = this.onDidChangeChartStateEmitter.event;
 	private readonly onDidChangeChartViewInputEmitter =
-		this._register(new Emitter<ChartViewInput | null>());
+		this._register(new Emitter<void>());
 	public readonly onDidChangeChartViewInput =
 		this.onDidChangeChartViewInputEmitter.event;
 
@@ -44,7 +44,7 @@ export class ChartService extends Disposable implements IChartServiceType {
 		}
 
 		this.viewInput = input;
-		this.onDidChangeChartViewInputEmitter.fire(input);
+		this.onDidChangeChartViewInputEmitter.fire(undefined);
 	}
 
 	public toggleDetailPane(pane: ChartDetailPane): void {

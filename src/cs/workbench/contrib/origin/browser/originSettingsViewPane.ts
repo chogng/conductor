@@ -56,8 +56,8 @@ export class OriginSettingsViewPane extends ViewPane {
     this.pane.className = "origin_settings_pane";
     this.pane.append(this.scrollArea.element);
     this.body.append(this.pane);
-    this._register(this.settingsService.onDidChangeOriginSettingsViewInput(input => {
-      this.update(input);
+    this._register(this.settingsService.onDidChangeOriginSettingsViewInput(() => {
+      this.update(this.settingsService.getOriginSettingsViewInput());
     }));
     this.update(this.settingsService.getOriginSettingsViewInput());
   }

@@ -58,7 +58,7 @@ flowchart TD
     Snapshot[SessionSnapshot] --> Template[ITemplateService]
     Template --> Assessment[Assessment blocks]
     Template --> Config[TemplateConfig]
-    Workbench --> Workflow[ITemplateApplyWorkflowService.update]
+    DomainBridge[WorkbenchDomainBridge] --> Workflow[ITemplateApplyWorkflowService.update]
     TemplateView --> Workflow
     Assessment --> Planner[TemplateApplyPlanner]
     Config --> Planner
@@ -76,6 +76,12 @@ flowchart TD
 - Template apply is an owner API on `ITemplateApplyWorkflowService`. Template UI
   invokes `applyTemplate(...)` / `applyTemplateIncremental(...)`; do not pass
   Workbench apply callbacks through `TemplateViewInput`.
+- `WorkbenchDomainBridge` may keep `TemplateViewInput` and
+  `TemplateApplyWorkflowInput` current by subscribing to session/template owner
+  events and rereading owner public state.
+- Template views subscribe to `ITemplateService.onDidChangeTemplateViewInput`
+  and then reread `ITemplateService.getViewInput()`. The event must not carry
+  `TemplateViewInput` as the data channel.
 - Template apply may consume the current table preview through injected
   `ITableService` public state/model APIs. Do not pass table row readers,
   source-existence callbacks, or table model methods through

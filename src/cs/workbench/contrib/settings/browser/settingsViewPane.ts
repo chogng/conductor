@@ -7,12 +7,14 @@ import {
   type ISettingsService as ISettingsServiceType,
   type SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
+import { ICommandService } from "src/cs/platform/commands/common/commands";
 
 export class SettingsViewPane extends ViewPane {
   private controller: SettingsController | null = null;
 
   constructor(
     @ISettingsService private readonly settingsService: ISettingsServiceType,
+    @ICommandService private readonly commandService: ICommandService,
   ) {
     super({
       id: SettingsViewId,
@@ -20,8 +22,11 @@ export class SettingsViewPane extends ViewPane {
       className: "settings-view-pane",
       bodyClassName: "workbench-part-view-pane__body",
     });
-    this._register(this.settingsService.onDidChangeSettingsViewInput(input => {
-      this.update(input);
+    this._register(this.settingsService.onDidChangeSettingsViewInput(() => {
+      const input = this.settingsService.getSettingsViewInput();
+      if (input) {
+        this.update(input);
+      }
     }));
     const input = this.settingsService.getSettingsViewInput();
     if (input) {
@@ -39,6 +44,7 @@ export class SettingsViewPane extends ViewPane {
       this.body,
       options,
       this.settingsService,
+      this.commandService,
     );
   }
 

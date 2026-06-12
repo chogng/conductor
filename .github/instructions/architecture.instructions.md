@@ -216,6 +216,13 @@ service mutates its own state. If a workflow has produced canonical data, call
 `ISessionService` directly; the resulting `SessionChangeEvent` is what
 downstream consumers subscribe to.
 
+When an owner stores a service-local view input or pane input snapshot, the
+change event is only the fact that the owner snapshot changed. Consumers must
+subscribe to the specific `onDidChange*Input` event and then reread
+`getViewInput()` / `getPaneInput()` from the owner. Do not send the full input
+snapshot through the event payload and do not consume event payloads as the data
+path.
+
 Subscriptions must be disposed:
 
 ```ts
@@ -638,7 +645,7 @@ Use the same rule for Conductor domains:
 ```txt
 Explorer owns selected Explorer resource.
 Table owns current TableSource, preview lifecycle, and table selection.
-Workbench or a feature view may translate selected Explorer resource -> TableSource.
+WorkbenchDomainBridge or a feature view may translate selected Explorer resource -> TableSource.
 TableService.update(...) receives source: TableSource | null, not selectedFileId.
 Files/Explorer must not call Table preview invalidation or row-cache methods.
 ```

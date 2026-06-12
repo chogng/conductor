@@ -98,7 +98,7 @@ export interface IExplorerService {
   readonly onDidChangeSelection: Event<ExplorerSelectionChangeEvent>;
   readonly onDidChangeExpandedFolderKeys: Event<ExplorerFolderExpansionChangeEvent>;
   readonly onDidChangeViewLayout: Event<ExplorerViewLayout>;
-  readonly onDidChangePaneInput: Event<ExplorerPaneInput | null>;
+  readonly onDidChangePaneInput: Event<void>;
 
   getContext(): ExplorerContext;
   registerView(view: IExplorerView): IDisposable;

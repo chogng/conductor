@@ -185,7 +185,7 @@ export const ITableService = createDecorator<ITableService>("tableService");
 export interface ITableService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeSelection: Event<TableSelection>;
-	readonly onDidChangeTableViewInput: Event<TableViewInput | null>;
+	readonly onDidChangeTableViewInput: Event<void>;
 	clearHighlight(): void;
 	executeCommand(commandId: TableCommandId): boolean;
 	getSelection(): TableSelection;

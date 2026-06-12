@@ -114,7 +114,8 @@ export class ChartViewPane extends ViewPane {
       this.updateChartPanel(this.props);
       this.refreshLegendPopover();
     }));
-    this.paneStore.add(this.chartService.onDidChangeChartViewInput(input => {
+    this.paneStore.add(this.chartService.onDidChangeChartViewInput(() => {
+      const input = this.chartService.getViewInput();
       if (input) {
         this.update(input);
       }

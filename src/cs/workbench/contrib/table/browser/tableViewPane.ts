@@ -123,7 +123,8 @@ export class TableViewPane extends ViewPane {
       element: this.element,
       scrollHorizontally: delta => this.scrollHorizontally(delta),
     }));
-    this._register(this.tableService.onDidChangeTableViewInput(input => {
+    this._register(this.tableService.onDidChangeTableViewInput(() => {
+      const input = this.tableService.getViewInput();
       if (input) {
         this.update(input);
       }

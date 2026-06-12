@@ -25,9 +25,10 @@ import {
 import type {
   ConductorSettings,
   ISettingsService,
-  SettingsServiceOptions,
   SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
+import type { ICommandService } from "src/cs/platform/commands/common/commands";
+import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
 import {
   DEFAULT_WORKBENCH_BACKGROUND_COLOR,
   normalizeWorkbenchAppearance,
@@ -79,10 +80,14 @@ export class SettingsController {
   private drafts: SettingsDraftState;
   private options: SettingsControllerOptions;
 
-  constructor(container: HTMLElement, options: SettingsControllerOptions, service: ISettingsService) {
+  constructor(
+    container: HTMLElement,
+    options: SettingsControllerOptions,
+    service: ISettingsService,
+    private readonly commandService: ICommandService,
+  ) {
     this.options = options;
     this.service = service;
-    this.service.update(this.createServiceOptions(options));
     this.originExePath = normalizeTrimmedString(options.conductorSettings?.originExePath);
     this.drafts = this.createDraftState();
     this.view = new SettingsView(container, this.createViewOptions());
@@ -92,7 +97,6 @@ export class SettingsController {
   update(options: SettingsControllerOptions): void {
     const previous = this.options;
     this.options = options;
-    this.service.update(this.createServiceOptions(options));
     this.syncDrafts(previous);
     this.syncOriginFeedback();
     this.syncOriginPath();
@@ -102,14 +106,6 @@ export class SettingsController {
   dispose(): void {
     this.disposed = true;
     this.view.dispose();
-  }
-
-  private createServiceOptions(options: SettingsControllerOptions): SettingsServiceOptions {
-    return {
-      updateConductorSettings: options.updateConductorSettings,
-      isWindowsDesktopShell: options.isWindowsDesktopShell,
-      mergeConductorSettings: options.mergeConductorSettings,
-    };
   }
 
   private createDraftState(): SettingsDraftState {
@@ -190,7 +186,7 @@ export class SettingsController {
       const configuredPath = await this.service.getOriginExePath();
       if (configuredPath) {
         this.originExePath = configuredPath;
-        this.options.mergeConductorSettings({ originExePath: configuredPath });
+        this.service.mergeConductorSettings({ originExePath: configuredPath });
       }
     }
     catch {
@@ -236,9 +232,11 @@ export class SettingsController {
       handleCheckForUpdates: () => void this.checkForUpdates(),
       language: this.options.language,
       originLegendFontSizeDraft: this.drafts.originLegendFontSizeDraft,
-      onLanguageChange: this.options.handleLanguageChange,
-      onResetLayoutState: this.options.handleResetLayoutState,
-      onThemeChange: this.options.handleThemeChange,
+      onLanguageChange: language => this.service.setLanguage(language),
+      onResetLayoutState: () => {
+        void this.commandService.executeCommand(WorkbenchLayoutCommandId.resetLayoutState);
+      },
+      onThemeChange: theme => this.service.setTheme(theme),
       originHealthToast: this.drafts.originHealthToast,
       originSettings: this.originSettings,
       plotCommandDraft: this.drafts.plotCommandDraft,
@@ -707,7 +705,7 @@ export class SettingsController {
     this.drafts.appUpdateChecking = true;
     this.render();
     try {
-      await this.options.appUpdateSettings.onCheckForUpdates();
+      await this.service.checkForUpdates();
     }
     catch {
       // Update check result is shown by desktop shell dialogs.

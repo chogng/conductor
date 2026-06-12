@@ -61,7 +61,6 @@ type OriginSettingsSectionProps = {
 type AppUpdateSettings = {
   currentVersion?: string | null;
   isAvailable: boolean;
-  onCheckForUpdates: () => boolean | Promise<boolean>;
 };
 
 type WindowCloseSettings = {

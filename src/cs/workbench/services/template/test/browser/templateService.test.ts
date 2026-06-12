@@ -16,9 +16,9 @@ suite("workbench/services/template/browser/templateService", () => {
         fileName: "Raw.csv",
       }],
     };
-    const inputs: unknown[] = [];
-    const disposable = service.onDidChangeTemplateViewInput(nextInput => {
-      inputs.push(nextInput);
+    let changeCount = 0;
+    const disposable = service.onDidChangeTemplateViewInput(() => {
+      changeCount += 1;
     });
 
     service.updateViewInput(input);
@@ -31,7 +31,7 @@ suite("workbench/services/template/browser/templateService", () => {
     });
 
     assert.equal(service.getViewInput(), input);
-    assert.deepEqual(inputs, [input]);
+    assert.equal(changeCount, 1);
     disposable.dispose();
     service.dispose();
   });

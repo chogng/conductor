@@ -157,9 +157,9 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
 
   test("publishes Explorer pane input", () => {
     const service = new ExplorerService();
-    const inputs: Array<ExplorerPaneInput | null> = [];
-    const disposable = service.onDidChangePaneInput(input => {
-      inputs.push(input);
+    let changeCount = 0;
+    const disposable = service.onDidChangePaneInput(() => {
+      changeCount += 1;
     });
     const input: ExplorerPaneInput = {
       files: [],
@@ -179,7 +179,7 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     });
 
     assert.equal(service.getPaneInput(), input);
-    assert.deepEqual(inputs, [input]);
+    assert.equal(changeCount, 1);
     disposable.dispose();
   });
 

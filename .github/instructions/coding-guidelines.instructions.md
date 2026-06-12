@@ -400,6 +400,11 @@ functions through pane input/view input/context objects. If a consumer needs a
 change, it calls the owner's public API; if it needs the latest value, it
 rereads the owner's public state/model after the event.
 
+For service-owned view input or pane input snapshots, expose a specific change
+event plus a getter. The event tells consumers the owner snapshot changed; it
+does not carry the snapshot as the data channel. Consumers must handle the event
+by calling `getViewInput()` or `getPaneInput()` on the owner.
+
 Examples by responsibility:
 
 | Responsibility | Owner API location | Entry/consumer behavior |
@@ -435,7 +440,7 @@ Applied to Conductor:
 ```txt
 Explorer owns selected Explorer resource.
 Table owns current TableSource, preview lifecycle, and table selection.
-Workbench or a feature view may translate selected Explorer resource -> TableSource.
+WorkbenchDomainBridge or a feature view may translate selected Explorer resource -> TableSource.
 TableService.update(...) receives source: TableSource | null, not selectedFileId.
 Files/Explorer must not call Table preview invalidation or row-cache methods.
 ```

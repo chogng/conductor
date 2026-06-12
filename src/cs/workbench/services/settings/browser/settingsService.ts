@@ -73,11 +73,11 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
   public readonly onDidChangeConductorSettings =
     this.onDidChangeConductorSettingsEmitter.event;
   private readonly onDidChangeOriginSettingsViewInputEmitter =
-    this._register(new Emitter<OriginSettingsViewInput>());
+    this._register(new Emitter<void>());
   public readonly onDidChangeOriginSettingsViewInput =
     this.onDidChangeOriginSettingsViewInputEmitter.event;
   private readonly onDidChangeSettingsViewInputEmitter =
-    this._register(new Emitter<SettingsViewInput>());
+    this._register(new Emitter<void>());
   public readonly onDidChangeSettingsViewInput =
     this.onDidChangeSettingsViewInputEmitter.event;
 
@@ -446,7 +446,7 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     }
 
     this.originSettingsViewInput = nextInput;
-    this.onDidChangeOriginSettingsViewInputEmitter.fire(nextInput);
+    this.onDidChangeOriginSettingsViewInputEmitter.fire(undefined);
   }
 
   private createSettingsViewInput(): SettingsViewInput {
@@ -471,7 +471,7 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     }
 
     this.settingsViewInput = nextInput;
-    this.onDidChangeSettingsViewInputEmitter.fire(nextInput);
+    this.onDidChangeSettingsViewInputEmitter.fire(undefined);
   }
 }
 

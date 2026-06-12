@@ -25,7 +25,7 @@ It consumes:
 - session snapshot for raw table metadata and assessment ranges;
 - file import/raw table row reader for row bytes;
 - assessment result for block ranges and column role display.
-- current `TableSource` input from the workbench composition layer.
+- current `TableSource` input from `WorkbenchDomainBridge`.
 
 It does not own:
 
@@ -142,12 +142,17 @@ tableService.update({
 });
 ```
 
-Do not name the table input after another feature's selection state. The workbench
-composition layer may derive a `TableSource` from Explorer/session state, but
+Do not name the table input after another feature's selection state.
+`WorkbenchDomainBridge` may derive a `TableSource` from Explorer/session state
+by subscribing to source owner events and rereading owner public state, but
 `ITableService` consumes table source input and owns its own preview lifecycle.
 This follows the cross-service selection mirroring rule in
-`architecture.instructions.md`: bridge by translating domain input,
-not by sharing selection state or calling another service's internals.
+`architecture.instructions.md`: bridge by translating domain input, not by
+sharing selection state or calling another service's internals.
+
+The table view subscribes to `ITableService.onDidChangeTableViewInput` and then
+rereads `ITableService.getViewInput()`. Do not use the event payload as the
+table view input data path.
 
 ## Do not
 

@@ -135,8 +135,8 @@ export class ExplorerViewPane extends ViewPane {
       syncView: () => this.syncView(),
     });
 
-    this._register(this.explorerService.onDidChangePaneInput(input => {
-      this.update(input);
+    this._register(this.explorerService.onDidChangePaneInput(() => {
+      this.update(this.explorerService.getPaneInput());
     }));
     this._register(this.explorerService.onDidChangeViewLayout(() => {
       this.update(this.input);

@@ -5,9 +5,11 @@
 import assert from "assert";
 
 import {
-  createExplorerPaneInput,
   resolveInitialWorkbenchViewMode,
 } from "src/cs/workbench/browser/workbench";
+import {
+  createExplorerPaneInput,
+} from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import type {
   FileImportResult,

@@ -7,7 +7,6 @@ import assert from "assert";
 import { BrowserSettingsService } from "src/cs/workbench/services/settings/browser/settingsService";
 import type {
   ConductorSettings,
-  OriginSettingsViewInput,
   SettingsServiceOptions,
   SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
@@ -15,9 +14,9 @@ import type {
 suite("workbench/services/settings/browser/settingsService", () => {
   test("publishes Origin settings view input from owned conductor settings", () => {
     const service = new BrowserSettingsService();
-    const events: OriginSettingsViewInput[] = [];
-    const disposable = service.onDidChangeOriginSettingsViewInput(input => {
-      events.push(input);
+    let changeCount = 0;
+    const disposable = service.onDidChangeOriginSettingsViewInput(() => {
+      changeCount += 1;
     });
 
     service.mergeConductorSettings({
@@ -30,7 +29,7 @@ suite("workbench/services/settings/browser/settingsService", () => {
     assert.deepEqual(input.axisSettings, { showGrid: true });
     assert.equal(input.options?.lineWidth, 2);
     assert.equal(input.options?.type, 201);
-    assert.deepEqual(events, [input]);
+    assert.equal(changeCount, 1);
     disposable.dispose();
   });
 
@@ -108,10 +107,10 @@ suite("workbench/services/settings/browser/settingsService", () => {
 
   test("publishes settings view input from owned conductor settings", () => {
     const service = new BrowserSettingsService();
-    const events: SettingsViewInput[] = [];
+    let changeCount = 0;
     const conductorSettingsEvents: unknown[] = [];
-    const disposable = service.onDidChangeSettingsViewInput(input => {
-      events.push(input);
+    const disposable = service.onDidChangeSettingsViewInput(() => {
+      changeCount += 1;
     });
     const conductorSettingsDisposable = service.onDidChangeConductorSettings(settings => {
       conductorSettingsEvents.push(settings);
@@ -135,7 +134,7 @@ suite("workbench/services/settings/browser/settingsService", () => {
       conductorSettings: { theme: "dark" },
       theme: "dark",
     }));
-    assert.equal(events.length, 2);
+    assert.equal(changeCount, 2);
     assert.deepEqual(conductorSettingsEvents, [{ theme: "dark" }]);
     disposable.dispose();
     conductorSettingsDisposable.dispose();
