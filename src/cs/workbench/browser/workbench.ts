@@ -464,7 +464,6 @@ export class Workbench extends Layout {
     this.templateService.updateViewInput(this.getTemplateViewInput(
       snapshot,
       readModel,
-      tableModel,
       this.templateApply,
     ));
     this.chartService.updateViewInput(this.getChartProps(
@@ -875,7 +874,6 @@ export class Workbench extends Layout {
   private getTemplateViewInput(
     snapshot = this.session.getSnapshot(),
     readModel = createSessionReadModel(snapshot),
-    tableModel = this.getTableModel(snapshot, readModel),
     processing = this.templateApply,
   ) {
     return {
@@ -884,7 +882,7 @@ export class Workbench extends Layout {
       onTemplateAppliedIncremental: processing.handleTemplateAppliedIncremental,
       onUpdateSettings: this.coreSettingsState.updateConductorSettings,
       rawFiles: readModel.rawFiles,
-      tableModel,
+      tableService: this.tableService,
     };
   }
 

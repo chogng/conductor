@@ -6,7 +6,7 @@ import { createDecorator } from "src/cs/platform/instantiation/common/instantiat
 import type { TemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import type { Event } from "src/cs/base/common/event";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
-import type { TableModel } from "src/cs/workbench/services/table/common/table";
+import type { ITableService } from "src/cs/workbench/services/table/common/table";
 import type { TemplateSelectionsByFileId } from "src/cs/workbench/services/template/common/templateSelection";
 
 export type {
@@ -47,12 +47,12 @@ export type TemplateViewInput = {
   readonly onTemplateAppliedIncremental?: (config: Record<string, unknown>) => unknown;
   readonly onUpdateSettings?: (updates: Record<string, unknown>) => Promise<unknown> | unknown;
   readonly rawFiles?: SessionFile[];
-  readonly tableModel?: Pick<
-    TableModel,
+  readonly tableService?: Pick<
+    ITableService,
     | "clearHighlight"
     | "getSelection"
     | "onDidChangeSelection"
-    | "setSelection"
+    | "select"
   >;
 };
 

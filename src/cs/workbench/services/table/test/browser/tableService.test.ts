@@ -463,6 +463,13 @@ suite("workbench/services/table/browser/tableService", () => {
     }), true);
     assert.deepEqual(model.getSelection().selectedColumns, [0, 2]);
 
+    assert.equal(service.select({
+      kind: "cell",
+      cell: null,
+    }), true);
+    assert.deepEqual(model.getSelection().activeCell, null);
+    assert.deepEqual(model.getSelection().selectedColumns, [0, 2]);
+
     const selectionBeforeInvalidTarget = model.getSelection();
     assert.equal(service.select({
       kind: "cell",
@@ -476,9 +483,37 @@ suite("workbench/services/table/browser/tableService", () => {
 
     assert.equal(service.select(null), true);
     assert.deepEqual(service.getSelection(), normalizeTableSelection(null));
-    assert.equal(events.length, 3);
+    assert.equal(events.length, 4);
 
     disposable.dispose();
+    service.dispose();
+  });
+
+  test("clears table highlight through the service owner API", () => {
+    const service = new TableService(createTableBackendService() as never);
+    const model = service.update({
+      file: {
+        columnCount: 3,
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        maxCellLengths: [1, 1, 1],
+        rowCount: 4,
+        sourceKey: "file-a",
+      },
+      rawFiles: [{
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw.csv",
+      }],
+      source: { fileId: "file-a" },
+    });
+
+    model.highlightColumns([1, 2]);
+    assert.deepEqual(model.getHighlight().columns, [1, 2]);
+
+    service.clearHighlight();
+
+    assert.deepEqual(model.getHighlight(), {});
     service.dispose();
   });
 

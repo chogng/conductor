@@ -59,7 +59,7 @@ export type TableSelection = {
 };
 
 export type TableSelectionTarget =
-	| { readonly kind: "cell"; readonly cell: TableCell }
+	| { readonly kind: "cell"; readonly cell: TableCell | null }
 	| { readonly kind: "range"; readonly range: TableRange }
 	| { readonly kind: "columns"; readonly columns: readonly number[] };
 
@@ -217,6 +217,7 @@ export interface ITableService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeSelection: Event<TableSelection>;
 	readonly onDidChangeTableViewInput: Event<TableViewInput | null>;
+	clearHighlight(): void;
 	executeCommand(commandId: TableCommandId): boolean;
 	getSelection(): TableSelection;
 	getViewInput(): TableViewInput | null;

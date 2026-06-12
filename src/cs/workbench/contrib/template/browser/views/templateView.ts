@@ -34,7 +34,7 @@ import type {
 } from "src/cs/workbench/services/template/common/template";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { TemplateImportController } from "src/cs/workbench/services/template/browser/templateImportController";
-import type { TableModel, TableSelection } from "src/cs/workbench/services/table/common/table";
+import type { ITableService, TableSelection } from "src/cs/workbench/services/table/common/table";
 import { toColumnLabel } from "src/cs/workbench/services/template/common/templateCellRef";
 import { TemplateApplyView } from "src/cs/workbench/contrib/template/browser/views/templateApplyView";
 import {
@@ -57,12 +57,12 @@ export type TemplateViewOptions = {
   readonly templateImportController: TemplateImportController;
   readonly templateService: ITemplateService;
   rawFiles?: SessionFile[];
-  tableModel?: Pick<
-    TableModel,
+  tableService?: Pick<
+    ITableService,
     | "clearHighlight"
     | "getSelection"
     | "onDidChangeSelection"
-    | "setSelection"
+    | "select"
   >;
   onTemplateApplied?: (config: Record<string, unknown>) => unknown;
   onTemplateAppliedIncremental?: (config: Record<string, unknown>) => unknown;
@@ -207,7 +207,7 @@ export class TemplateView {
   private activePickField: PickFieldName | null = null;
   private disposeTableSelectionListener: (() => void) | null = null;
   private lastTableSelection: TableSelection | null = null;
-  private tableModel: TemplateViewOptions["tableModel"] | null = null;
+  private tableService: TemplateViewOptions["tableService"] | null = null;
   private mode: "select" | "save" | null = null;
   private stopOnErrorDraft: boolean | null = null;
   private applyView: TemplateApplyView | null = null;
@@ -238,7 +238,7 @@ export class TemplateView {
 
   public update(props: TemplateViewOptions): void {
     this.props = props;
-    this.bindTableSelection(props.tableModel);
+    this.bindTableSelection(props.tableService);
 
     this.ensureTemplatesLoaded();
     this.syncStopOnErrorDraft();
@@ -265,7 +265,7 @@ export class TemplateView {
   public dispose(): void {
     this.disposeTableSelectionListener?.();
     this.disposeTableSelectionListener = null;
-    this.tableModel?.clearHighlight();
+    this.tableService?.clearHighlight();
     this.applyView?.dispose();
     this.editorView?.dispose();
     this.applyView = null;
@@ -288,23 +288,23 @@ export class TemplateView {
     };
   }
 
-  private bindTableSelection(tableModel: TemplateViewOptions["tableModel"]): void {
-    if (this.tableModel === tableModel) {
+  private bindTableSelection(tableService: TemplateViewOptions["tableService"]): void {
+    if (this.tableService === tableService) {
       return;
     }
 
     this.disposeTableSelectionListener?.();
     this.disposeTableSelectionListener = null;
-    this.tableModel?.clearHighlight();
+    this.tableService?.clearHighlight();
     this.lastTableSelection = null;
-    this.tableModel = tableModel ?? null;
+    this.tableService = tableService ?? null;
 
-    if (!tableModel) {
+    if (!tableService) {
       return;
     }
 
-    this.lastTableSelection = tableModel.getSelection();
-    this.disposeTableSelectionListener = tableModel.onDidChangeSelection((selection) => {
+    this.lastTableSelection = tableService.getSelection();
+    const disposable = tableService.onDidChangeSelection((selection) => {
       const previous = this.lastTableSelection;
       this.lastTableSelection = selection;
 
@@ -316,6 +316,7 @@ export class TemplateView {
         this.updateTemplateFormState(resolveTemplateCellSelectionUpdate(selection.activeCell, this.activePickField));
       }
     });
+    this.disposeTableSelectionListener = () => disposable.dispose();
   }
 
   private updateTemplateFormState(updates: Partial<TemplateConfig>): void {
@@ -357,24 +358,24 @@ export class TemplateView {
   }
 
   private syncTableSelectedColumns(columns: readonly number[]): void {
-    const selection = this.tableModel?.getSelection();
+    const selection = this.tableService?.getSelection();
     if (!selection || areColumnIndexesEqual(selection.selectedColumns, columns)) {
       return;
     }
 
-    this.tableModel?.setSelection({
-      ...selection,
-      selectedColumns: columns,
+    this.tableService?.select({
+      kind: "columns",
+      columns,
     });
   }
 
   private syncTableActiveCell(options: { clearInvalid?: boolean } = {}): void {
-    const tableModel = this.tableModel;
-    if (!tableModel) {
+    const tableService = this.tableService;
+    if (!tableService) {
       return;
     }
 
-    const selection = tableModel.getSelection();
+    const selection = tableService.getSelection();
     const activeCell = resolveTemplateCellSelection(
       this.getEffectiveTemplateFormState(),
       this.activePickField,
@@ -382,11 +383,11 @@ export class TemplateView {
     );
 
     if (!activeCell) {
-      tableModel.clearHighlight();
+      tableService.clearHighlight();
       if (options.clearInvalid && selection.activeCell) {
-        tableModel.setSelection({
-          ...selection,
-          activeCell: null,
+        tableService.select({
+          kind: "cell",
+          cell: null,
         });
       }
       return;
@@ -396,9 +397,9 @@ export class TemplateView {
       return;
     }
 
-    tableModel.setSelection({
-      ...selection,
-      activeCell,
+    tableService.select({
+      kind: "cell",
+      cell: activeCell,
     });
   }
 
@@ -495,14 +496,14 @@ export class TemplateView {
 
   private clearYColumns(): void {
     this.updateTemplateFormState({ yColumns: [] });
-    const selection = this.tableModel?.getSelection();
+    const selection = this.tableService?.getSelection();
     if (!selection || !selection.selectedColumns?.length) {
       return;
     }
 
-    this.tableModel?.setSelection({
-      ...selection,
-      selectedColumns: [],
+    this.tableService?.select({
+      kind: "columns",
+      columns: [],
     });
   }
 
@@ -773,4 +774,3 @@ export class TemplateView {
     });
   }
 }
-

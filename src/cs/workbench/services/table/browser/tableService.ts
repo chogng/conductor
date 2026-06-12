@@ -1976,6 +1976,12 @@ const resolveSelectionForTarget = (
 
   switch (target.kind) {
     case "cell": {
+      if (!target.cell) {
+        return {
+          ...selection,
+          activeCell: null,
+        };
+      }
       const activeCell = normalizeTargetCell(tableModel, target.cell);
       return activeCell
         ? {
@@ -2098,6 +2104,10 @@ export class TableService extends Disposable implements ITableService {
     return this.getActiveTableModel()?.getSelection() ?? normalizeTableSelection(null);
   }
 
+  public clearHighlight(): void {
+    this.getActiveTableModel()?.clearHighlight();
+  }
+
   public select(
     target: TableSelectionTarget | null,
     reveal?: TableRevealMode,
@@ -2117,8 +2127,13 @@ export class TableService extends Disposable implements ITableService {
     }
 
     tableModel.setSelection(selection);
-    if (reveal && target.kind !== "columns") {
+    if (reveal && target.kind === "range") {
       this.revealTarget(tableModel, target);
+    } else if (reveal && target.kind === "cell" && target.cell) {
+      this.revealTarget(tableModel, {
+        kind: "cell",
+        cell: target.cell,
+      });
     }
     return true;
   }
