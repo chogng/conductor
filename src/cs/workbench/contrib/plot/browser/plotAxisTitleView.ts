@@ -76,10 +76,10 @@ export class PlotAxisTitleView {
     this.setTextEditState(this.xText, this.canEdit("x"));
     this.setTextEditState(this.yText, this.canEdit("y"));
     this.xText.title = this.canEdit("x")
-      ? localize("plot_axis_title_edit", "Double-click to edit axis title")
+      ? localize("plot.axisTitle.edit", "Double-click to edit axis title")
       : this.getAriaLabel("x");
     this.yText.title = this.canEdit("y")
-      ? localize("plot_axis_title_edit", "Double-click to edit axis title")
+      ? localize("plot.axisTitle.edit", "Double-click to edit axis title")
       : this.getAriaLabel("y");
   }
 
@@ -201,7 +201,7 @@ export class PlotAxisTitleView {
 
   private getAriaLabel(axis: PlotAxis): string {
     return axis === "x"
-      ? localize("plot_x_axis_title", "X axis title")
-      : localize("plot_y_axis_title", "Y axis title");
+      ? localize("plot.axisTitle.x", "X axis title")
+      : localize("plot.axisTitle.y", "Y axis title");
   }
 }

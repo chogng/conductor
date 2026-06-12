@@ -26,12 +26,12 @@ export class TemplateImportController {
       defaultUri: this.pathService.userHome({ preferLocal: true }),
       filters: [
         {
-          name: localize("template_json_filter", "JSON templates"),
+          name: localize("template.import.jsonFilter", "JSON templates"),
           extensions: ["json"],
         },
       ],
-      openLabel: localize("template_import_open_label", "Import template"),
-      title: localize("template_import_dialog_title", "Import template"),
+      openLabel: localize("template.import.openLabel", "Import template"),
+      title: localize("template.import.dialogTitle", "Import template"),
     });
     const resource = resources?.[0];
     if (!resource) {

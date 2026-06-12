@@ -976,7 +976,7 @@ const createTableModel = ({
             ? errorPayload.message
             : "Unknown worker error";
         const errorMessage = localize(
-          "preview_worker_failed",
+          "table.preview.workerFailed",
           "Preview worker failed.",
         );
 
@@ -1064,7 +1064,7 @@ const createTableModel = ({
     pendingPreviewFileIdRef.current = targetSourceSignature;
 
     runImmediately(() => {
-      setPreviewStatus({ state: "loading", message: localize("preview_loading", "Loading preview...") });
+      setPreviewStatus({ state: "loading", message: localize("table.preview.loadingTitle", "Loading preview...") });
     });
 
     const postWorkerPreview = async () => {

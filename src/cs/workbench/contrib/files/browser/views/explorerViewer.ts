@@ -589,7 +589,7 @@ export class ExplorerViewer implements IDisposable {
       createMenuAction({
         checked: currentSelection.kind === "auto",
         id: `${actionPrefix}.auto`,
-        label: localize("template_auto_extraction", "Auto extraction"),
+        label: localize("template.autoExtraction", "Auto extraction"),
         run: () => {
           void this.props.commandService.executeCommand(
             commandId,
@@ -697,7 +697,7 @@ export class ExplorerViewer implements IDisposable {
     };
 
     if (selection.kind === "auto") {
-      return localize("template_auto_extraction", "Auto extraction");
+      return localize("template.autoExtraction", "Auto extraction");
     }
 
     if (
@@ -739,7 +739,7 @@ export class ExplorerViewer implements IDisposable {
     host.removeAttribute("title");
     host.setAttribute(
       "aria-label",
-      localize("import.fileItemAriaLabel", "File {fileName}", { fileName }),
+      localize("files.import.fileItemAriaLabel", "File {fileName}", { fileName }),
     );
     if (isSelected) {
       host.dataset.selected = "true";
@@ -795,7 +795,7 @@ export class ExplorerViewer implements IDisposable {
     }
     template.removeButton.setAttribute(
       "aria-label",
-      localize("import.removeFileButtonLabel", "Remove {fileName}", { fileName }),
+      localize("files.import.removeFileButtonLabel", "Remove {fileName}", { fileName }),
     );
     if (
       template.content.parentElement !== host ||
@@ -849,7 +849,7 @@ export class ExplorerViewer implements IDisposable {
     item.className = "file-list-thumbnail-item";
     item.setAttribute(
       "aria-label",
-      localize("import.fileItemAriaLabel", "File {fileName}", { fileName }),
+      localize("files.import.fileItemAriaLabel", "File {fileName}", { fileName }),
     );
     item.append(createThumbnailView({
       file,

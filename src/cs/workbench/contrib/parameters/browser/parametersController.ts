@@ -25,12 +25,12 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const getRcErrorMessage = (response: Record<string, unknown>): string => {
   switch (response.code) {
     case "RUST_ENGINE_RC_MISSING_DEVICES":
-      return localize("rc_error_no_devices", "Rc analysis requires at least one device.");
+      return localize("parameters.rc.error.noDevices", "Rc analysis requires at least one device.");
     case "RUST_ENGINE_RC_FAILED":
-      return localize("rc_error_analysis_failed", "Rc analysis failed.");
+      return localize("parameters.rc.error.analysisFailed", "Rc analysis failed.");
     default: {
       const message = String(response.message || "").trim();
-      return message || localize("rc_error_analysis_failed", "Rc analysis failed.");
+      return message || localize("parameters.rc.error.analysisFailed", "Rc analysis failed.");
     }
   }
 };
@@ -48,14 +48,14 @@ export const runRcAnalysis = async ({
 }: RunRcAnalysisOptions): Promise<RunRcAnalysisResult> => {
   if (!rcAnalysisBackendService.canAnalyzeRc()) {
     return {
-      error: localize("rc_error_bridge_unavailable", "Rust Rc bridge is unavailable."),
+      error: localize("parameters.rc.error.bridgeUnavailable", "Rust Rc bridge is unavailable."),
       ok: false,
     };
   }
 
   if (!rows.length) {
     return {
-      error: localize("rc_error_no_transfer_curves", "No transfer curves are available."),
+      error: localize("parameters.rc.error.noTransferCurves", "No transfer curves are available."),
       ok: false,
     };
   }
@@ -63,7 +63,7 @@ export const runRcAnalysis = async ({
   const devices = createRcAnalyzeDevices(rows);
   if (devices.length < 2) {
     return {
-      error: localize("rc_error_insufficient_devices", "Rc needs at least two valid devices; three or more is recommended."),
+      error: localize("parameters.rc.error.insufficientDevices", "Rc needs at least two valid devices; three or more is recommended."),
       ok: false,
     };
   }
@@ -92,7 +92,7 @@ export const runRcAnalysis = async ({
     return {
       error: error instanceof Error && error.message
         ? error.message
-        : localize("rc_error_analysis_failed", "Rc analysis failed."),
+        : localize("parameters.rc.error.analysisFailed", "Rc analysis failed."),
       ok: false,
     };
   }

@@ -24,7 +24,7 @@ export class InlineEditableTextWidget implements IDisposable {
   private readonly disposables = new DisposableStore();
   private readonly root = document.createElement("div");
   private readonly input = document.createElement("input");
-  private pendingExitAction: "commit" | "cancel" | null = null;
+  private pendingExitAction: "commit" | "common.cancel" | null = null;
   private options: InlineEditableTextWidgetOptions;
 
   public constructor(options: InlineEditableTextWidgetOptions) {
@@ -119,7 +119,7 @@ export class InlineEditableTextWidget implements IDisposable {
     const pendingAction = this.pendingExitAction;
     this.pendingExitAction = null;
 
-    if (pendingAction === "cancel") {
+    if (pendingAction === "common.cancel") {
       this.options.onCancel();
       return;
     }
@@ -137,7 +137,7 @@ export class InlineEditableTextWidget implements IDisposable {
 
     if (event.key === "Escape") {
       event.preventDefault();
-      this.pendingExitAction = "cancel";
+      this.pendingExitAction = "common.cancel";
       this.input.blur();
     }
   };

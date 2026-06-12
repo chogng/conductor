@@ -30,17 +30,17 @@ export const createSearchView = ({
 }: SearchViewInput): HTMLElement => {
   const section = document.createElement("section");
   section.className = "search_pane";
-  section.setAttribute("aria-label", localize("search_heading", "Search"));
+  section.setAttribute("aria-label", localize("search.heading", "Search"));
 
   const control = document.createElement("label");
   control.className = "search_control";
 
   const label = document.createElement("span");
   label.className = "search_label";
-  label.textContent = localize("search_x_input", "X value");
+  label.textContent = localize("search.xInput", "X value");
 
   const inputField = createInputBoxField({
-    ariaLabel: localize("search_x_input", "X value"),
+    ariaLabel: localize("search.xInput", "X value"),
     className: "search_input",
     disabled: !model,
     inputClassName: "search_input_native",
@@ -51,9 +51,9 @@ export const createSearchView = ({
   input.step = "any";
 
   const summary = document.createElement("span");
-  summary.className = "search_summary";
+  summary.className = "search.summary";
   if (model) {
-    summary.textContent = localize("search_summary", "{seriesCount} series, {pointsCount} points, X {xDomain}", {
+    summary.textContent = localize("search.summary", "{seriesCount} series, {pointsCount} points, X {xDomain}", {
       pointsCount: model.pointsCount,
       seriesCount: model.seriesList.length,
       xDomain: formatDomain(model.xDomain),
@@ -66,7 +66,7 @@ export const createSearchView = ({
   body.className = "search_results";
 
   if (!model) {
-    body.replaceChildren(createSearchEmpty(localize("search_empty_model", "No chart data to search.")));
+    body.replaceChildren(createSearchEmpty(localize("search.empty.model", "No chart data to search.")));
     section.append(control, body);
     return section;
   }
@@ -74,12 +74,12 @@ export const createSearchView = ({
   const render = () => {
     const results = onSearchPlotModelAtText(model, input.value);
     if (!results) {
-      body.replaceChildren(createSearchEmpty(localize("search_invalid_x", "Enter a numeric X value.")));
+      body.replaceChildren(createSearchEmpty(localize("search.invalidX", "Enter a numeric X value.")));
       return;
     }
 
     if (!results.length) {
-      body.replaceChildren(createSearchEmpty(localize("search_no_series", "No series available.")));
+      body.replaceChildren(createSearchEmpty(localize("search.noSeries", "No series available.")));
       return;
     }
 
@@ -152,10 +152,10 @@ const formatDomain = (domain: readonly [number, number]): string =>
 
 const formatSearchValue = (result: SearchPoint): string => {
   if (result.status === "empty") {
-    return localize("search_missing", "Missing");
+    return localize("search.missing", "Missing");
   }
   if (result.status === "outOfRange") {
-    return localize("search_out_of_range", "Out of Range");
+    return localize("search.outOfRange", "Out of Range");
   }
   const yText = result.y === null ? "" : formatNumber(result.y, { digits: 6 });
   const xText = result.x === null ? "" : formatNumber(result.x, { digits: 6 });

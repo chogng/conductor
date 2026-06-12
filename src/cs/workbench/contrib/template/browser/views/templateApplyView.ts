@@ -49,7 +49,7 @@ export class TemplateApplyView {
 
     const dropdownLabel = document.createElement("span");
     dropdownLabel.className = "template_field_label";
-    dropdownLabel.textContent = localize("template_picker_label", "模板名称");
+    dropdownLabel.textContent = localize("template.picker.label", "模板名称");
     dropdownRow.append(dropdownLabel);
 
     const selectContainer = document.createElement("div");
@@ -101,7 +101,7 @@ export class TemplateApplyView {
     });
 
     this.deleteButton = createButton({
-      label: localize("delete_template", "Delete template"),
+      label: localize("template.delete.label", "Delete template"),
       size: "sm",
       variant: "secondary",
     });
@@ -116,7 +116,7 @@ export class TemplateApplyView {
     applyActions.className = "template_apply_actions";
 
     const applyAllButton = createButton({
-      label: localize("apply_template", "Apply to All"),
+      label: localize("template.applyAll.label", "Apply to All"),
       size: "md",
       variant: "primary",
     });
@@ -124,7 +124,7 @@ export class TemplateApplyView {
     applyAllButton.addEventListener("click", () => this.options.onApplyTemplate(false));
 
     const applyNewButton = createButton({
-      label: localize("apply_new_files", "Apply to New"),
+      label: localize("template.applyNewFiles.label", "Apply to New"),
       size: "md",
       variant: "secondary",
     });
@@ -138,7 +138,7 @@ export class TemplateApplyView {
     importExportRow.className = "template_button_row template_button_row--inset";
 
     this.exportButton = createButton({
-      label: localize("template_export_btn", "Export templates"),
+      label: localize("template.export.button", "Export templates"),
       size: "sm",
       variant: "secondary",
     });
@@ -157,7 +157,7 @@ export class TemplateApplyView {
 
     this.stopSwitch = this.createToggleRow(
       togglesRow,
-      localize("template_stop_on_error", "Stop at first invalid item"),
+      localize("template.stopOnError", "Stop at first invalid item"),
       this.options.onStopOnErrorChange,
     );
 
@@ -168,11 +168,11 @@ export class TemplateApplyView {
 
     const autoTitle = document.createElement("h3");
     autoTitle.className = "template_auto_card_title";
-    autoTitle.textContent = localize("auto_extract_title", "Smart auto extraction");
+    autoTitle.textContent = localize("template.autoExtract.title", "Smart auto extraction");
 
     const autoDescription = document.createElement("p");
     autoDescription.className = "template_auto_card_description";
-    autoDescription.textContent = localize("auto_extract_desc", "The system analyzes imported file formats and extracts variables and related parameters automatically. Suitable for standard IV/CV data formats.");
+    autoDescription.textContent = localize("template.autoExtract.description", "The system analyzes imported file formats and extracts variables and related parameters automatically. Suitable for standard IV/CV data formats.");
 
     this.autoCard.append(autoTitle, autoDescription);
     this.element.append(this.autoCard);

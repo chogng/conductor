@@ -100,36 +100,36 @@ const appendTableHeader = (
   appendHeaderCell(groupRow, {
     className: `${GROUP_HEADER_CLASS} parameters_cell--on`,
     colSpan: 2,
-    text: localize("calc_group_on_state", "On-state"),
+    text: localize("parameters.metricGroups.onState", "On-state"),
   });
   appendHeaderCell(groupRow, {
     className: `${GROUP_HEADER_CLASS} parameters_cell--off`,
     colSpan: 2,
-    text: localize("calc_group_off_state", "Off-state"),
+    text: localize("parameters.metricGroups.offState", "Off-state"),
   });
   appendHeaderCell(groupRow, {
     className: GROUP_HEADER_CLASS,
-    text: localize("calc_group_ratio", "On/Off Ratio"),
+    text: localize("parameters.metricGroups.ratio", "On/Off Ratio"),
   });
   appendHeaderCell(groupRow, {
     className: `${GROUP_HEADER_CLASS} parameters_cell--derivative`,
     colSpan: 2,
-    text: localize("calc_group_derivative", "Derivative"),
+    text: localize("parameters.metricGroups.derivative", "Derivative"),
   });
   appendHeaderCell(groupRow, {
     className: `${GROUP_HEADER_CLASS} parameters_cell--threshold`,
     colSpan: 2,
-    text: localize("calc_group_threshold_voltage", "Threshold Voltage"),
+    text: localize("parameters.metricGroups.thresholdVoltage", "Threshold Voltage"),
   });
   appendHeaderCell(groupRow, {
     className: `${GROUP_HEADER_CLASS} parameters_cell--ss`,
     colSpan: 2,
-    text: localize("calc_group_ss", "Subthreshold"),
+    text: localize("parameters.metricGroups.subthreshold", "Subthreshold"),
   });
   appendHeaderCell(groupRow, {
     className: GROUP_HEADER_CLASS,
-    text: localize("calc_group_jon", "Current Density"),
-    title: localize("calc_group_jon_hint", "J = |I|/Area (if area is available)."),
+    text: localize("parameters.metricGroups.currentDensity", "Current Density"),
+    title: localize("parameters.metricGroups.currentDensityHint", "J = |I|/Area (if area is available)."),
   });
 
   const labelRow = document.createElement("tr");
@@ -141,12 +141,12 @@ const appendTableHeader = (
   appendHeaderCell(labelRow, { text: "Ion/Ioff" });
   appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--derivative`, text: gmMetricHeader });
   appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--derivative`, text: "x" });
-  const vthHint = localize("calc_group_threshold_voltage_hint", "sqrt(|Id|)-Vg linear extrapolation; V-shaped transfer curves are fitted by electron / hole branch.");
+  const vthHint = localize("parameters.metricGroups.thresholdVoltageHint", "sqrt(|Id|)-Vg linear extrapolation; V-shaped transfer curves are fitted by electron / hole branch.");
   appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--threshold`, text: "Vth,e", title: vthHint });
   appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--threshold`, text: "Vth,h", title: vthHint });
   appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--ss`, text: "SS" });
   appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--ss`, text: "x" });
-  appendHeaderCell(labelRow, { text: "Jon", title: localize("calc_group_jon_hint", "J = |I|/Area (if area is available).") });
+  appendHeaderCell(labelRow, { text: "Jon", title: localize("parameters.metricGroups.currentDensityHint", "J = |I|/Area (if area is available).") });
 
   thead.append(groupRow, labelRow);
   table.appendChild(thead);
@@ -157,7 +157,7 @@ const resolveSeriesHeader = (
 ): string => {
   const header = rows.find((row) => String(row?.legendHeader ?? "").trim())
     ?.legendHeader;
-  return String(header ?? "").trim() || localize("calc_group_series", "Series");
+  return String(header ?? "").trim() || localize("parameters.metricGroups.series", "Series");
 };
 
 const estimateSeriesColumnWidth = (

@@ -450,14 +450,14 @@ export class SettingsController {
 
   private get cleanupEnabledOptions(): SelectOption[] {
     return [
-      { value: "true", label: localize("settings_origin_cleanup_enable_on", "Enabled") },
-      { value: "false", label: localize("settings_origin_cleanup_enable_off", "Disabled") },
+      { value: "true", label: localize("settings.origin.cleanup.enableOn", "Enabled") },
+      { value: "false", label: localize("settings.origin.cleanup.enableOff", "Disabled") },
     ];
   }
 
   private get cleanupKeepSuccessOptions(): SelectOption[] {
     return [
-      { value: "0", label: `0 (${localize("common_clear", "Clear")})` },
+      { value: "0", label: `0 (${localize("common.clear", "Clear")})` },
       { value: "1", label: "1" },
       { value: "3", label: "3" },
       { value: "5", label: "5" },
@@ -477,23 +477,23 @@ export class SettingsController {
 
   private get themeModeOptions(): SelectOption[] {
     return [
-      { value: "system", label: localize("settings_theme_system", "System") },
-      { value: "light", label: localize("settings_theme_light", "Light") },
-      { value: "dark", label: localize("settings_theme_dark", "Dark") },
+      { value: "system", label: localize("settings.theme.system", "System") },
+      { value: "light", label: localize("settings.theme.light", "Light") },
+      { value: "dark", label: localize("settings.theme.dark", "Dark") },
     ];
   }
 
   private get windowCloseBehaviorOptions(): SelectOption[] {
     return [
-      { value: "minimizeToTray", label: localize("settings_close_behavior_minimize_to_tray", "Minimize to Tray") },
-      { value: "quit", label: localize("settings_close_behavior_quit", "Quit App") },
+      { value: "minimizeToTray", label: localize("settings.closeBehavior.minimizeToTray", "Minimize to Tray") },
+      { value: "quit", label: localize("settings.closeBehavior.quit", "Quit App") },
     ];
   }
 
   private get yScaleOptions(): SelectOption[] {
     return [
-      { value: "linear", label: localize("settings_y_scale_linear", "Linear") },
-      { value: "log", label: localize("settings_y_scale_log", "Log") },
+      { value: "linear", label: localize("settings.yScale.linear", "Linear") },
+      { value: "log", label: localize("settings.yScale.log", "Log") },
     ];
   }
 
@@ -520,14 +520,14 @@ export class SettingsController {
         this.originExePath = nextPath;
         this.originPathFeedback = {
           type: "success",
-          message: localize("settings_origin_choose_saved", "Origin executable path updated."),
+          message: localize("settings.origin.chooseSaved", "Origin executable path updated."),
         };
       }
     }
     catch (error) {
       this.originPathFeedback = {
         type: "error",
-        message: localize("settings_origin_choose_failed", "Failed to update Origin executable path: {error}", {
+        message: localize("settings.origin.chooseFailed", "Failed to update Origin executable path: {error}", {
           error: this.service.errorMessage(error),
         }),
       };
@@ -550,14 +550,14 @@ export class SettingsController {
       }
       this.originPathFeedback = {
         type: "success",
-        message: localize("settings_origin_check_success", "Origin connection check passed"),
+        message: localize("settings.origin.checkSuccess", "Origin connection check passed"),
       };
     }
     catch (error) {
       const detail = this.service.formatOriginError(error);
       this.originPathFeedback = {
         type: "error",
-        message: localize("settings_origin_check_failed", "Origin connection check failed: {error}", { error: detail }),
+        message: localize("settings.origin.checkFailed", "Origin connection check failed: {error}", { error: detail }),
       };
     }
     finally {
@@ -575,13 +575,13 @@ export class SettingsController {
       await this.service.updateSettings(updates);
       this.originCleanupFeedback = {
         type: "success",
-        message: localize("settings_origin_cleanup_saved", "Origin cleanup settings updated."),
+        message: localize("settings.origin.cleanup.saved", "Origin cleanup settings updated."),
       };
     }
     catch (error) {
       this.originCleanupFeedback = {
         type: "error",
-        message: localize("settings_origin_cleanup_save_failed", "Failed to update cleanup settings: {error}", { error: this.service.errorMessage(error) }),
+        message: localize("settings.origin.cleanup.saveFailed", "Failed to update cleanup settings: {error}", { error: this.service.errorMessage(error) }),
       };
     }
     finally {
@@ -599,13 +599,13 @@ export class SettingsController {
       await this.service.updateSettings(updates);
       this.originPlotFeedback = {
         type: "success",
-        message: localize("settings_origin_plot_saved", "Origin plot settings updated."),
+        message: localize("settings.origin.plot.saved", "Origin plot settings updated."),
       };
     }
     catch (error) {
       this.originPlotFeedback = {
         type: "error",
-        message: localize("settings_origin_plot_save_failed", "Failed to update plot settings: {error}", { error: this.service.errorMessage(error) }),
+        message: localize("settings.origin.plot.saveFailed", "Failed to update plot settings: {error}", { error: this.service.errorMessage(error) }),
       };
     }
     finally {
@@ -623,7 +623,7 @@ export class SettingsController {
       const removedTotal = Number(result?.removedTotal);
       this.originCleanupFeedback = {
         type: "success",
-        message: localize("settings_origin_cleanup_run_success", "Cleanup completed. Removed {count} job folder(s).", {
+        message: localize("settings.origin.cleanup.runSuccess", "Cleanup completed. Removed {count} job folder(s).", {
           count: Number.isFinite(removedTotal) && removedTotal >= 0 ? removedTotal : 0,
         }),
       };
@@ -631,7 +631,7 @@ export class SettingsController {
     catch (error) {
       this.originCleanupFeedback = {
         type: "error",
-        message: localize("settings_origin_cleanup_run_failed", "Cleanup failed: {error}", { error: this.service.errorMessage(error) }),
+        message: localize("settings.origin.cleanup.runFailed", "Cleanup failed: {error}", { error: this.service.errorMessage(error) }),
       };
     }
     finally {
@@ -649,13 +649,13 @@ export class SettingsController {
       await this.service.updateSettings({ fileNameFieldSeparators: normalizeFileNameFieldSeparators(value) });
       this.fileNameMatchingFeedback = {
         type: "success",
-        message: localize("settings_filename_matching_saved", "Filename field separators updated."),
+        message: localize("settings.filenameMatching.saved", "Filename field separators updated."),
       };
     }
     catch (error) {
       this.fileNameMatchingFeedback = {
         type: "error",
-        message: localize("settings_filename_matching_save_failed", "Failed to update filename field separators: {error}", { error: this.service.errorMessage(error) }),
+        message: localize("settings.filenameMatching.saveFailed", "Failed to update filename field separators: {error}", { error: this.service.errorMessage(error) }),
       };
     }
     finally {

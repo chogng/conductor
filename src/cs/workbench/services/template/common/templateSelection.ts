@@ -73,7 +73,7 @@ export const getTemplateSelectionLabel = (
   templates: readonly TemplateRecord[] | null | undefined,
 ): string => {
   if (selection.kind === "auto") {
-    return localize("template_auto_extraction", "Auto extraction");
+    return localize("template.autoExtraction", "Auto extraction");
   }
 
   return templates?.find((template) => template.id === selection.templateId)?.name ||
@@ -90,7 +90,7 @@ export const createCurrentTemplateSelectionDisplay = ({
   const selection = createTemplateSelection(selectedTemplateId);
   if (selection.kind === "auto") {
     return {
-      label: localize("template_auto_extraction", "Auto extraction"),
+      label: localize("template.autoExtraction", "Auto extraction"),
       selection,
     };
   }

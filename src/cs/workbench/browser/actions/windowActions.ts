@@ -35,7 +35,7 @@ class MinimizeWindowAction extends Action2 {
   public constructor() {
     super({
       id: WindowCommandId.minimizeWindow,
-      title: localize("menu_window_minimize", "Minimize Window"),
+      title: localize("menu.window.minimize", "Minimize Window"),
       f1: true,
       metadata: {
         description: localize("window.minimizeWindowDescription", "Minimize the current window."),
@@ -52,7 +52,7 @@ class ToggleMaximizeWindowAction extends Action2 {
   public constructor() {
     super({
       id: WindowCommandId.toggleMaximizeWindow,
-      title: localize("menu_window_maximize", "Maximize / Restore"),
+      title: localize("menu.window.maximize", "Maximize / Restore"),
       f1: true,
       metadata: {
         description: localize("window.toggleMaximizeWindowDescription", "Maximize or restore the current window."),
@@ -79,7 +79,7 @@ class CloseWindowAction extends Action2 {
   public constructor() {
     super({
       id: WindowCommandId.closeWindow,
-      title: localize("menu_window_close", "Close Window"),
+      title: localize("menu.window.close", "Close Window"),
       f1: true,
       metadata: {
         description: localize("window.closeWindowDescription", "Close the current window."),

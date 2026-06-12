@@ -83,8 +83,8 @@ const renderLegend = (
       edit.className = "chart_legend_edit";
       edit.type = "button";
       edit.disabled = !legendKey;
-      edit.title = localize("chart_legend_edit_label", "Edit legend label");
-      edit.setAttribute("aria-label", localize("chart_legend_edit_label_for", "Edit legend label for {label}", {
+      edit.title = localize("chart.legend.editLabel", "Edit legend label");
+      edit.setAttribute("aria-label", localize("chart.legend.editLabelFor", "Edit legend label for {label}", {
         label: labelText,
       }));
       edit.append(createLxIcon({
@@ -132,6 +132,6 @@ export const createLegendPopover = (
     options.onEditLegendItem,
   );
   legend.setAttribute("role", "dialog");
-  legend.setAttribute("aria-label", localize("chart_legend_heading", "Legend"));
+  legend.setAttribute("aria-label", localize("chart.legend.heading", "Legend"));
   return legend;
 };

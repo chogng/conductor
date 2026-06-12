@@ -48,7 +48,7 @@ function registerChartView(): void {
   chartViewRegistered = true;
   viewsRegistry.registerViews([{
     id: ChartViewId,
-    name: localize("chart", "Chart"),
+    name: localize("chart.title", "Chart"),
     ctorDescriptor: new SyncDescriptor(ChartViewPane),
     hideByDefault: false,
     order: 10,

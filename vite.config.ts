@@ -107,8 +107,6 @@ export default defineConfig({
       clientFiles: [
         "./src/cs/code/browser/workbench/workbench.ts",
         "./src/cs/code/electron-browser/workbench/workbench.ts",
-        "./src/cs/platform/platform.browser.main.ts",
-        "./src/cs/platform/platform.desktop.main.ts",
         "./src/cs/workbench/workbench.common.main.ts",
         "./src/cs/workbench/workbench.browser.main.ts",
         "./src/cs/workbench/workbench.desktop.main.ts",

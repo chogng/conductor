@@ -31,7 +31,7 @@ export const createPlotTabs = ({
   const tabs = document.createElement("div");
   tabs.className = getTabsMenuClassName("chart_view_tabs");
   tabs.setAttribute("role", "tablist");
-  tabs.setAttribute("aria-label", localize("chart_plot_tabs", "Chart plot tabs"));
+  tabs.setAttribute("aria-label", localize("chart.plotTabs.ariaLabel", "Chart plot tabs"));
 
   const normalizedTabs = normalizeTabsOptions<ChartPlotTabOption>({
     idBase: CHART_PLOT_ID_BASE,

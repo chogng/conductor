@@ -76,7 +76,7 @@ export const buildOriginLogMessage = (
 ): string => {
   const normalizedLogPath = normalizeTrimmedString(logPath);
   return normalizedLogPath
-    ? `${baseMessage} ${localize("origin_error_log_path", "Log: {path}", {
+    ? `${baseMessage} ${localize("origin.error.logPath", "Log: {path}", {
         path: normalizedLogPath,
       })}`
     : baseMessage;

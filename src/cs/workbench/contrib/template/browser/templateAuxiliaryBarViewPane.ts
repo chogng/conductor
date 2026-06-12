@@ -31,8 +31,8 @@ import {
 
 import "src/cs/workbench/contrib/template/browser/media/templateViewPane.css";
 
-const TEMPLATE_TITLE = localize("template_management_title", "Template Management");
-const TEMPLATE_EDITOR_TITLE = localize("template_editor_title", "Template Editor");
+const TEMPLATE_TITLE = localize("template.management.title", "Template Management");
+const TEMPLATE_EDITOR_TITLE = localize("template.editor.title", "Template Editor");
 
 export class TemplateAuxiliaryBarViewPane extends ViewPane {
   private readonly content = document.createElement("div");

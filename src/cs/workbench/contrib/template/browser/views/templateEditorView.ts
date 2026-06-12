@@ -68,18 +68,18 @@ const X_SEGMENTATION_OPTIONS: Array<{
   label: string;
   value: TemplateConfig["xSegmentationMode"];
 }> = [
-  { label: localize("template_x_mode_auto", "Auto"), value: "auto" },
-  { label: localize("template_x_mode_points", "Point count"), value: "points" },
-  { label: localize("template_x_mode_segments", "Segment count"), value: "segments" },
+  { label: localize("template.xMode.auto", "Auto"), value: "auto" },
+  { label: localize("template.xMode.points", "Point count"), value: "points" },
+  { label: localize("template.xMode.segments", "Segment count"), value: "segments" },
 ];
 
 const Y_LEGEND_TARGET_OPTIONS: Array<{
   label: string;
   value: TemplateConfig["yLegendTarget"];
 }> = [
-  { label: localize("template_y_target_auto", "Auto"), value: "auto" },
-  { label: localize("template_y_target_column", "Y column"), value: "yColumn" },
-  { label: localize("template_y_target_group", "Group"), value: "group" },
+  { label: localize("template.yTarget.auto", "Auto"), value: "auto" },
+  { label: localize("template.yTarget.column", "Y column"), value: "yColumn" },
+  { label: localize("template.yTarget.group", "Group"), value: "group" },
 ];
 
 const X_UNIT_OPTIONS: Array<{ label: string; value: TemplateConfig["xUnit"] }> = X_UNIT_VALUES.map((value) => ({
@@ -120,28 +120,28 @@ export class TemplateEditorView {
     );
     const xFields = this.createSection(
       form,
-      localize("template_x_section", "X"),
+      localize("template.sections.x", "X"),
       "x",
     );
     const yFields = this.createSection(
       form,
-      localize("template_y_section", "Y"),
+      localize("template.sections.y", "Y"),
       "y",
     );
     const optionalFields = this.createSection(
       form,
-      localize("template_optional_section", "Optional"),
+      localize("template.sections.optional", "Optional"),
       "optional",
     );
 
-    const nameInput = this.createField(templateFields, localize("template_name", "Template name"), "name", {
+    const nameInput = this.createField(templateFields, localize("template.fields.name", "Template name"), "name", {
       fullWidth: true,
     });
     const saveActions = document.createElement("div");
     saveActions.className = "template_save_actions";
 
     const saveButton = createButton({
-      label: localize("save_template", "Save template"),
+      label: localize("template.save.label", "Save template"),
       size: "md",
       variant: "primary",
     });
@@ -149,7 +149,7 @@ export class TemplateEditorView {
     this.disposables.add(addDisposableListener(saveButton, "click", () => this.options.onSave()));
 
     const cancelButton = createButton({
-      label: localize("cancel", "Cancel"),
+      label: localize("common.cancel", "Cancel"),
       size: "md",
       variant: "secondary",
     });
@@ -159,16 +159,16 @@ export class TemplateEditorView {
     saveActions.append(saveButton, cancelButton);
     templateFields.append(saveActions);
 
-    const xDataStartInput = this.createField(xFields, localize("template_x_start", "Start"), "xDataStart", {
-      placeholder: localize("template_cell_placeholder", "Click or enter a cell"),
+    const xDataStartInput = this.createField(xFields, localize("template.fields.xStart", "Start"), "xDataStart", {
+      placeholder: localize("template.fields.cellPlaceholder", "Click or enter a cell"),
     });
-    const xDataEndInput = this.createField(xFields, localize("template_x_end", "End"), "xDataEnd", {
+    const xDataEndInput = this.createField(xFields, localize("template.fields.xEnd", "End"), "xDataEnd", {
       placeholder: "End",
     });
 
     this.xSegmentationMode = this.createSelectField(
       xFields,
-      localize("template_x_segmentation_mode", "Grouping"),
+      localize("template.fields.xSegmentationMode", "Grouping"),
       X_SEGMENTATION_OPTIONS,
       state.config.xSegmentationMode,
       value => {
@@ -176,15 +176,15 @@ export class TemplateEditorView {
         this.updateXSegmentationFields(value);
       },
     );
-    const xSegmentCountInput = this.createField(xFields, localize("template_x_segment_count", "Segment count"), "xSegmentCount");
-    const xPointsPerGroupInput = this.createField(xFields, localize("template_x_points_per_group", "Point count"), "xPointsPerGroup");
+    const xSegmentCountInput = this.createField(xFields, localize("template.fields.xSegmentCount", "Segment count"), "xSegmentCount");
+    const xPointsPerGroupInput = this.createField(xFields, localize("template.fields.xPointsPerGroup", "Point count"), "xPointsPerGroup");
 
     const yColumnsField = document.createElement("div");
     yColumnsField.className = "template_selection_field";
 
     const yColumnsFieldLabel = document.createElement("span");
     yColumnsFieldLabel.className = "template_field_label";
-    yColumnsFieldLabel.textContent = localize("template_y_columns", "Y columns");
+    yColumnsFieldLabel.textContent = localize("template.fields.yColumns", "Y columns");
     yColumnsField.append(yColumnsFieldLabel);
 
     const yColumnsContent = document.createElement("div");
@@ -195,12 +195,12 @@ export class TemplateEditorView {
 
     const yColumnsLabel = document.createElement("span");
     yColumnsLabel.className = "template_selection_label";
-    yColumnsLabel.textContent = localize("template_y_columns", "Y columns");
+    yColumnsLabel.textContent = localize("template.fields.yColumns", "Y columns");
 
     this.yColumnsClearButton = document.createElement("button");
     this.yColumnsClearButton.type = "button";
     this.yColumnsClearButton.className = "template_selection_clear";
-    this.yColumnsClearButton.textContent = localize("template_clear_y_columns", "Clear");
+    this.yColumnsClearButton.textContent = localize("template.fields.clearYColumns", "Clear");
     this.disposables.add(addDisposableListener(this.yColumnsClearButton, "click", () => {
       this.options.onClearYColumns();
     }));
@@ -220,18 +220,18 @@ export class TemplateEditorView {
       xDataEnd: xDataEndInput,
       xSegmentCount: xSegmentCountInput,
       xPointsPerGroup: xPointsPerGroupInput,
-      bottomTitle: this.createField(optionalFields, localize("template_bottom_title", "X title"), "bottomTitle", {
+      bottomTitle: this.createField(optionalFields, localize("template.fields.bottomTitle", "X title"), "bottomTitle", {
         placeholder: "Vg",
       }),
-      yLegendStart: this.createField(yFields, localize("template_y_legend_start", "Legend Start"), "yLegendStart", {
+      yLegendStart: this.createField(yFields, localize("template.fields.yLegendStart", "Legend Start"), "yLegendStart", {
         placeholder: "B1",
       }),
-      yLegendCount: this.createField(yFields, localize("template_y_legend_count", "Legend Count"), "yLegendCount"),
-      yLegendStep: this.createField(yFields, localize("template_y_legend_step", "Legend Step"), "yLegendStep"),
-      leftTitle: this.createField(optionalFields, localize("template_left_title", "Y title"), "leftTitle", {
+      yLegendCount: this.createField(yFields, localize("template.fields.yLegendCount", "Legend Count"), "yLegendCount"),
+      yLegendStep: this.createField(yFields, localize("template.fields.yLegendStep", "Legend Step"), "yLegendStep"),
+      leftTitle: this.createField(optionalFields, localize("template.fields.leftTitle", "Y title"), "leftTitle", {
         placeholder: "Id",
       }),
-      legendPrefix: this.createField(yFields, localize("template_legend_prefix", "Legend prefix / Vd"), "legendPrefix", {
+      legendPrefix: this.createField(yFields, localize("template.fields.legendPrefix", "Legend prefix / Vd"), "legendPrefix", {
         placeholder: "Vd",
       }),
     };
@@ -245,7 +245,7 @@ export class TemplateEditorView {
 
     this.xUnit = this.createSelectField(
       optionalFields,
-      localize("template_x_unit", "X unit"),
+      localize("template.fields.xUnit", "X unit"),
       X_UNIT_OPTIONS,
       state.config.xUnit,
       value => {
@@ -255,7 +255,7 @@ export class TemplateEditorView {
 
     this.yUnit = this.createSelectField(
       optionalFields,
-      localize("template_y_unit", "Y unit"),
+      localize("template.fields.yUnit", "Y unit"),
       Y_UNIT_OPTIONS,
       state.config.yUnit,
       value => {
@@ -265,7 +265,7 @@ export class TemplateEditorView {
 
     this.yLegendTarget = this.createSelectField(
       yFields,
-      localize("template_y_legend_target", "Legend target"),
+      localize("template.fields.yLegendTarget", "Legend target"),
       Y_LEGEND_TARGET_OPTIONS,
       state.config.yLegendTarget,
       value => {
@@ -321,10 +321,10 @@ export class TemplateEditorView {
     const hasYColumns = state.selectedYColumnLabels.length > 0;
     this.yColumnsClearButton.hidden = !hasYColumns;
     this.yColumnsSummary.textContent = hasYColumns
-      ? localize("template_selected_y_columns", "已选中列：{columns}", {
+      ? localize("template.fields.selectedYColumns", "已选中列：{columns}", {
           columns: state.selectedYColumnLabels.join(", "),
         })
-      : localize("template_no_y_columns", "Select preview columns that follow the X range.");
+      : localize("template.validation.noYColumns", "Select preview columns that follow the X range.");
   }
 
   public dispose(): void {

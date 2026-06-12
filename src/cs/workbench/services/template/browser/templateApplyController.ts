@@ -197,30 +197,30 @@ const buildExtractionStartFeedback = ({
   const fixedGroupSize = Number(meta.groupSize);
   const fixedGroupCount = Number(meta.groups);
   const groupSizeText = meta.segmentCountCell
-    ? localize("extract_segments_from_cell", "segments from {cell}", { cell: meta.segmentsRawUpper || "" })
+    ? localize("template.extraction.segmentsFromCell", "segments from {cell}", { cell: meta.segmentsRawUpper || "" })
     : meta.groupSizeCell
-      ? localize("extract_points_from_cell", "points from {cell}", { cell: meta.pointsRawUpper || "" })
+      ? localize("template.extraction.pointsFromCell", "points from {cell}", { cell: meta.pointsRawUpper || "" })
       : Number.isInteger(fixedGroupSize) && fixedGroupSize > 0
-        ? localize("extract_points_fixed", "points={points}", { points: fixedGroupSize })
-        : localize("extract_points_fixed", "points={points}", { points: "-" });
+        ? localize("template.extraction.pointsFixed", "points={points}", { points: fixedGroupSize })
+        : localize("template.extraction.pointsFixed", "points={points}", { points: "-" });
   const groupsText =
     meta.segmentCountCell &&
     Number.isInteger(segmentCountPreview) &&
     segmentCountPreview > 0
-      ? localize("extract_groups_suffix", ", {groups} group(s)", { groups: segmentCountPreview })
+      ? localize("template.extraction.groupsSuffix", ", {groups} group(s)", { groups: segmentCountPreview })
       : meta.groupSizeCell &&
     Number.isInteger(groupSizePreview) &&
     groupSizePreview > 0
-      ? localize("extract_groups_suffix", ", {groups} group(s)", {
+      ? localize("template.extraction.groupsSuffix", ", {groups} group(s)", {
           groups: Math.max(0, Number(meta.total || 0) / groupSizePreview),
         })
       : !meta.groupSizeCell &&
           Number.isInteger(fixedGroupCount) &&
           fixedGroupCount > 0
-        ? localize("extract_groups_suffix", ", {groups} group(s)", { groups: fixedGroupCount })
+        ? localize("template.extraction.groupsSuffix", ", {groups} group(s)", { groups: fixedGroupCount })
         : "";
   const warningText = warnings.length
-    ? localize("extract_warnings_block", "\n\nWarnings:\n- {warnings}", { warnings: warnings.join("\n- ") })
+    ? localize("template.extraction.warningsBlock", "\n\nWarnings:\n- {warnings}", { warnings: warnings.join("\n- ") })
     : "";
 
   return {
@@ -241,7 +241,7 @@ const buildWorkerExtractionError = (payload: unknown): ExtractionErrorEntry => {
 
   return {
     fileName:
-      details.fileName || localize("import.unknownFile", "Unknown file"),
+      details.fileName || localize("files.import.unknownFile", "Unknown file"),
     message,
     messageKey: details.messageKey,
     messageParams: details.messageParams,
@@ -279,37 +279,37 @@ const getWorkerExtractionErrorMessage = ({
   const vars = toNLSVars(messageParams);
 
   switch (messageKey) {
-    case "extractPointsCellPositiveInt":
+    case "template.extraction.pointsCellPositiveInt":
       return localize(
-        "extractPointsCellPositiveInt",
+        "template.extraction.pointsCellPositiveInt",
         "Points cell {cell} must contain a positive integer.",
         vars,
       );
-    case "extractPointsCellTooLarge":
+    case "template.extraction.pointsCellTooLarge":
       return localize(
-        "extractPointsCellTooLarge",
+        "template.extraction.pointsCellTooLarge",
         "Points from {cell} ({points}) cannot be larger than the X range length ({total}).",
         vars,
       );
-    case "extractXNotDivisibleByPointsFromCell":
+    case "template.extraction.xNotDivisibleByPointsFromCell":
       return localize(
-        "extractXNotDivisibleByPointsFromCell",
+        "template.extraction.xNotDivisibleByPointsFromCell",
         "X range has {total} points, which is not divisible by points={points} (from {cell}).",
         vars,
       );
-    case "extractXNotDivisibleByPoints":
+    case "template.extraction.xNotDivisibleByPoints":
       return localize(
-        "extractXNotDivisibleByPoints",
+        "template.extraction.xNotDivisibleByPoints",
         "X range has {total} points, which is not divisible by points={points}.",
         vars,
       );
-    case "extractCurveTypeUndeterminedFromVarHints":
+    case "template.extraction.curveTypeUndeterminedFromVarHints":
       return localize(
-        "extractCurveTypeUndeterminedFromVarHints",
+        "template.extraction.curveTypeUndeterminedFromVarHints",
         "Unable to determine curve type from Var1/Var2 or nearby headers. Please check the template, or use file-name keywords.",
       );
     default:
-      return localize("extract_worker_failed", "Extraction worker failed.");
+      return localize("template.extraction.workerFailed", "Extraction worker failed.");
   }
 };
 
@@ -472,7 +472,7 @@ export class TemplateApplyController {
     if (isAutoTemplateConfig(config)) {
       if (this._processingStatus.state === "processing") {
         return {
-          message: localize("apply_to_new_files_busy", "Extraction is already running."),
+          message: localize("template.applyNewFiles.busy", "Extraction is already running."),
           ok: false,
           type: "warning" as const,
         };
@@ -481,7 +481,7 @@ export class TemplateApplyController {
       const lastFingerprint = this.lastAppliedTemplateConfigFingerprintRef.current;
       if (!lastFingerprint) {
         return {
-          message: localize("apply_to_new_files_requires_full_apply", "Apply to All first."),
+          message: localize("template.applyNewFiles.requiresFullApply", "Apply to All first."),
           ok: false,
           type: "warning" as const,
         };
@@ -489,7 +489,7 @@ export class TemplateApplyController {
 
       if (stableStringify(config) !== lastFingerprint) {
         return {
-          message: localize("apply_to_new_files_requires_same_config", "Template changed. Please Apply to All again."),
+          message: localize("template.applyNewFiles.requiresSameConfig", "Template changed. Please Apply to All again."),
           ok: false,
           type: "warning" as const,
         };
@@ -499,7 +499,7 @@ export class TemplateApplyController {
       const queue = buildTemplateProcessingQueue(rawFiles, processedIds);
       if (!queue.length) {
         return {
-          message: localize("apply_to_new_files_no_new", "No new files to extract."),
+          message: localize("template.applyNewFiles.noNewFiles", "No new files to extract."),
           ok: false,
           type: "warning" as const,
         };
@@ -523,7 +523,7 @@ export class TemplateApplyController {
 
     if (this._processingStatus.state === "processing") {
       return {
-        message: localize("apply_to_new_files_busy", "Extraction is already running."),
+        message: localize("template.applyNewFiles.busy", "Extraction is already running."),
         ok: false,
         type: "warning" as const,
       };
@@ -532,7 +532,7 @@ export class TemplateApplyController {
     const lastFingerprint = this.lastAppliedTemplateConfigFingerprintRef.current;
     if (!lastFingerprint) {
       return {
-        message: localize("apply_to_new_files_requires_full_apply", "Apply to All first."),
+        message: localize("template.applyNewFiles.requiresFullApply", "Apply to All first."),
         ok: false,
         type: "warning" as const,
       };
@@ -540,7 +540,7 @@ export class TemplateApplyController {
 
     if (stableStringify(config) !== lastFingerprint) {
       return {
-        message: localize("apply_to_new_files_requires_same_config", "Template changed. Please Apply to All again."),
+        message: localize("template.applyNewFiles.requiresSameConfig", "Template changed. Please Apply to All again."),
         ok: false,
         type: "warning" as const,
       };
@@ -550,7 +550,7 @@ export class TemplateApplyController {
     const queue = buildTemplateProcessingQueue(rawFiles, processedIds);
     if (!queue.length) {
       return {
-        message: localize("apply_to_new_files_no_new", "No new files to extract."),
+        message: localize("template.applyNewFiles.noNewFiles", "No new files to extract."),
         ok: false,
         type: "warning" as const,
       };
@@ -731,7 +731,7 @@ export class TemplateApplyController {
 
     if (incremental && this._processingStatus.state === "processing") {
       return {
-        message: localize("apply_to_new_files_busy", "Extraction is already running."),
+        message: localize("template.applyNewFiles.busy", "Extraction is already running."),
         ok: false,
         type: "warning",
       };
@@ -785,7 +785,7 @@ export class TemplateApplyController {
 
     if (!normalizedRules.length) {
       return {
-        message: localize("template_name", "Template name"),
+        message: localize("template.fields.name", "Template name"),
         ok: false,
         type: "warning",
       };
@@ -838,7 +838,7 @@ export class TemplateApplyController {
     const groupedEntries = Array.from(queueByTemplateName.entries());
     if (!groupedEntries.length) {
       return {
-        message: localize("apply_to_new_files_no_new", "No new files to extract."),
+        message: localize("template.applyNewFiles.noNewFiles", "No new files to extract."),
         ok: false,
         type: "warning",
       };
@@ -877,7 +877,7 @@ export class TemplateApplyController {
 
     if (!groupedPrepared.length || !finalQueue.length) {
       return {
-        message: localize("apply_to_new_files_no_new", "No new files to extract."),
+        message: localize("template.applyNewFiles.noNewFiles", "No new files to extract."),
         ok: false,
         type: "warning",
       };
@@ -918,4 +918,3 @@ export class TemplateApplyController {
     });
   };
 }
-

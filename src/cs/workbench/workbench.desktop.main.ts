@@ -1,8 +1,29 @@
 // Desktop renderer workbench registrations.
 
+import { mainWindow } from "src/cs/base/browser/window";
+import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import { IMainProcessService } from "src/cs/platform/ipc/common/mainProcessService";
+import { INativeHostService } from "src/cs/platform/native/common/native";
+import { NativeHostService } from "src/cs/platform/native/common/nativeHostService";
+
+class DesktopNativeHostService extends NativeHostService {
+	constructor(
+		@IMainProcessService mainProcessService: IMainProcessService,
+	) {
+		super(mainWindow.conductorWindowId, mainProcessService);
+	}
+}
+
 //#region --- platform desktop
 
-import "src/cs/platform/platform.desktop.main.ts";
+import "src/cs/platform/ipc/electron-browser/mainProcessService";
+import "src/cs/platform/configuration/electron-browser/configurationService";
+
+registerSingleton(
+	INativeHostService,
+	DesktopNativeHostService,
+	InstantiationType.Delayed,
+);
 
 //#endregion
 

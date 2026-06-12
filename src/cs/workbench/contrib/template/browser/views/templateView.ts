@@ -103,7 +103,7 @@ export const createTemplateApplyViewState = ({
   );
   const selectedTemplateLabel =
     !selectedTemplateId || isAutoTemplateId(selectedTemplateId)
-      ? localize("template_auto_extraction", "Auto extraction")
+      ? localize("template.autoExtraction", "Auto extraction")
       : templates?.find((template) => template.id === selectedTemplateId)?.name ||
         selectedTemplateId;
 
@@ -125,7 +125,7 @@ const importTemplates = async (
   
   const draft = normalizeTemplateConfigRecord(entry);
   if (!draft.name) {
-    showToast(localize("template_import_invalid_format", "Invalid template file format."), "warning");
+    showToast(localize("template.import.invalidFormat", "Invalid template file format."), "warning");
     return;
   }
 
@@ -140,7 +140,7 @@ const importTemplates = async (
         newName = `${draft.name}(${suffix})`;
       }
       const confirmMessage = localize(
-        "template_import_conflict",
+        "template.import.conflict",
         "Template \"{name}\" already exists.\nOK: import as \"{newName}\".\nCancel: overwrite the existing template.",
         { name: draft.name, newName },
       );
@@ -162,7 +162,7 @@ const importTemplates = async (
 
   const validation = validateTemplateForSave(draft);
   if (!validation.ok || !validation.normalized) {
-    showToast(validation.message || localize("template_invalid_configuration", "Invalid configuration"), "warning");
+    showToast(validation.message || localize("template.invalidConfiguration", "Invalid configuration"), "warning");
     return;
   }
 
@@ -181,15 +181,15 @@ const importTemplates = async (
       selectedTemplateId: typeof saved.id === "string" ? saved.id : null,
       formState: cloneTemplateConfig(saved),
     });
-    showToast(localize("template_imported", "Template imported"), "success");
+    showToast(localize("template.import.success", "Template imported"), "success");
   } catch (err) {
-    showToast(localize("template_import_failed", "Failed to import template: {error}", { error: String(err) }), "error");
+    showToast(localize("template.import.failed", "Failed to import template: {error}", { error: String(err) }), "error");
   }
 };
 
 const exportTemplate = (config: TemplateConfig, templateService: ITemplateService) => {
   if (!config.name) {
-    showToast(localize("template_export_requires_selection", "Please select a template to export."), "warning");
+    showToast(localize("template.export.requiresSelection", "Please select a template to export."), "warning");
     return;
   }
   const payload = {
@@ -430,7 +430,7 @@ export class TemplateView {
       .catch((err) => {
         templatesLoading = false;
         showToast(
-          localize("loadTemplatesFailed", "Failed to load templates: {error}", {
+          localize("template.loadFailed", "Failed to load templates: {error}", {
             error: err instanceof Error ? err.message : String(err),
           }),
           "error",
@@ -529,7 +529,7 @@ export class TemplateView {
       return;
     }
 
-    const confirmMsg = localize("template_delete_confirm", "Delete template \"{name}\"?", { name: templateFormState.name });
+    const confirmMsg = localize("template.delete.confirm", "Delete template \"{name}\"?", { name: templateFormState.name });
     if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm(confirmMsg)) {
       return;
     }
@@ -547,9 +547,9 @@ export class TemplateView {
           stopOnError: templateFormState.stopOnError,
         }),
       });
-      showToast(localize("template_deleted", "Template deleted"), "success");
+      showToast(localize("template.delete.success", "Template deleted"), "success");
     } catch (err) {
-      showToast(localize("template_delete_failed", "Failed to delete template: {error}", { error: String(err) }), "error");
+      showToast(localize("template.delete.failed", "Failed to delete template: {error}", { error: String(err) }), "error");
     }
   }
 
@@ -559,8 +559,8 @@ export class TemplateView {
       createMenuAction({
         checked: isAutoTemplateId(selectedTemplateId || AUTO_TEMPLATE_ID),
         id: "template.select.auto",
-        label: localize("template_auto_extraction", "Auto extraction"),
-        left: createMenuItemLabel(localize("template_auto_extraction", "Auto extraction")),
+        label: localize("template.autoExtraction", "Auto extraction"),
+        left: createMenuItemLabel(localize("template.autoExtraction", "Auto extraction")),
         run: () => this.selectTemplate(AUTO_TEMPLATE_ID),
         selected: isAutoTemplateId(selectedTemplateId || AUTO_TEMPLATE_ID),
         tabIndex: 0,
@@ -583,7 +583,7 @@ export class TemplateView {
         run: () => this.selectTemplate(templateId),
         rightAction: {
           icon: LxIcon.edit,
-          label: localize("template_edit", "Edit template"),
+          label: localize("template.edit", "Edit template"),
           onClick: () => this.editTemplate(template),
         },
         selected: selectedTemplateId === templateId,
@@ -596,16 +596,16 @@ export class TemplateView {
       new Separator(),
       createMenuAction({
         id: "template.create",
-        label: localize("template_create_new", "New Template..."),
+        label: localize("template.createNew", "New Template..."),
         className: "template_picker_menu_create",
-        left: createMenuItemLabel(localize("template_create_new", "New Template..."), LxIcon.add),
+        left: createMenuItemLabel(localize("template.createNew", "New Template..."), LxIcon.add),
         run: () => this.createTemplateDraft(),
         tabIndex: 0,
       }),
       createMenuAction({
         id: "template.import",
-        label: localize("template_import_btn", "Import templates"),
-        left: createMenuItemLabel(localize("template_import_btn", "Import templates"), LxIcon.download),
+        label: localize("template.import.button", "Import templates"),
+        left: createMenuItemLabel(localize("template.import.button", "Import templates"), LxIcon.download),
         run: () => this.promptTemplateImport(),
         tabIndex: 0,
       }),
@@ -627,7 +627,7 @@ export class TemplateView {
         ),
       );
     } catch (err) {
-      showToast(localize("template_import_failed", "Failed to import template: {error}", { error: String(err) }), "error");
+      showToast(localize("template.import.failed", "Failed to import template: {error}", { error: String(err) }), "error");
     }
   }
 
@@ -693,7 +693,7 @@ export class TemplateView {
 
     const validation = validateTemplateForApply(config);
     if (!validation.ok || !validation.normalized) {
-      showToast(validation.message || localize("template_invalid_configuration", "Invalid configuration"), "warning");
+      showToast(validation.message || localize("template.invalidConfiguration", "Invalid configuration"), "warning");
       return;
     }
 
@@ -708,13 +708,13 @@ export class TemplateView {
     const config = this.getEffectiveTemplateFormState();
     const name = config.name.trim();
     if (!name) {
-      showToast(localize("template_name_required", "Please enter a template name."), "warning");
+      showToast(localize("template.validation.nameRequired", "Please enter a template name."), "warning");
       return;
     }
 
     const validation = validateTemplateForSave(config);
     if (!validation.ok || !validation.normalized) {
-      showToast(validation.message || localize("template_invalid_configuration", "Invalid configuration"), "warning");
+      showToast(validation.message || localize("template.invalidConfiguration", "Invalid configuration"), "warning");
       return;
     }
 
@@ -739,9 +739,9 @@ export class TemplateView {
         formState: cloneTemplateConfig(saved),
         mode: "select",
       });
-      showToast(localize("template_saved", "Template saved"), "success");
+      showToast(localize("template.save.success", "Template saved"), "success");
     } catch (err) {
-      showToast(localize("template_save_failed", "Failed to save template: {error}", { error: String(err) }), "error");
+      showToast(localize("template.save.failed", "Failed to save template: {error}", { error: String(err) }), "error");
     }
   }
 

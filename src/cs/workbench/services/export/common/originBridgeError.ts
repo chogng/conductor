@@ -207,7 +207,7 @@ const inferOriginSuggestionKey = (
     .trim()
     .toUpperCase();
 
-  if (code === "ORIGIN_EXE_REQUIRED") return "origin_pick_exe_required";
+  if (code === "ORIGIN_EXE_REQUIRED") return "origin.executable.required";
   if (code === "ORIGIN_CSV_RUNNER_NOT_FOUND") return "origin_error_tip_csv_runner_missing";
   if (
     code === "ORIGIN_CSV_RUNNER_FAILED" ||
@@ -241,7 +241,7 @@ const inferOriginSuggestionKey = (
 
 const localizeOriginSuggestion = (suggestionKey: string): string => {
   switch (suggestionKey) {
-    case "origin_pick_exe_required":
+    case "origin.executable.required":
       return localize(suggestionKey, "Please select Origin executable path first.");
     case "origin_error_tip_csv_runner_missing":
       return localize(suggestionKey, "Origin CSV runner is missing. Reinstall or restore the worker files.");
@@ -260,7 +260,7 @@ const localizeOriginSuggestion = (suggestionKey: string): string => {
     case "origin_error_tip_manual_zip":
       return localize(suggestionKey, "Export the ZIP package instead, then import it manually in Origin.");
     default:
-      return localize("unknownError", "Unknown error");
+      return localize("common.unknownError", "Unknown error");
   }
 };
 
@@ -273,24 +273,24 @@ export const formatOriginBridgeError = (
 
   const message =
     detail.code === "ORIGIN_EXE_REQUIRED"
-      ? localize("origin_pick_exe_required", "Please select Origin executable path first.")
-      : detail.message || localize("unknownError", "Unknown error");
+      ? localize("origin.executable.required", "Please select Origin executable path first.")
+      : detail.message || localize("common.unknownError", "Unknown error");
 
   const chunks = [message];
   if (detail.stage) {
-    chunks.push(localize("origin_error_stage", "Stage: {stage}", { stage: detail.stage }));
+    chunks.push(localize("origin.error.stage", "Stage: {stage}", { stage: detail.stage }));
   }
   if (detail.hresult) {
-    chunks.push(localize("origin_error_hresult", "HRESULT: {hresult}", { hresult: detail.hresult }));
+    chunks.push(localize("origin.error.hresult", "HRESULT: {hresult}", { hresult: detail.hresult }));
   }
   if (detail.logPath) {
-    chunks.push(localize("origin_error_log_path", "Log: {path}", { path: detail.logPath }));
+    chunks.push(localize("origin.error.logPath", "Log: {path}", { path: detail.logPath }));
   }
   if (detail.originExe) {
-    chunks.push(localize("origin_error_origin_exe", "Origin EXE: {path}", { path: detail.originExe }));
+    chunks.push(localize("origin.error.originExe", "Origin EXE: {path}", { path: detail.originExe }));
   }
   if (detail.workerExe) {
-    chunks.push(localize("origin_error_worker_exe", "Origin CSV worker: {path}", { path: detail.workerExe }));
+    chunks.push(localize("origin.error.workerExe", "Origin CSV worker: {path}", { path: detail.workerExe }));
   }
   if (suggestionText && suggestionText !== suggestionKey) {
     chunks.push(suggestionText);

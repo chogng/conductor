@@ -22,7 +22,7 @@ const container = viewContainersRegistry.get(WorkbenchViewContainers.auxiliaryba
 if (container) {
   viewsRegistry.registerViews([{
     id: OriginExportSettingsViewId,
-    name: localize("chart_curve_settings_title", "Origin Settings"),
+    name: localize("origin.curveSettings.title", "Origin Settings"),
     ctorDescriptor: new SyncDescriptor(OriginSettingsViewPane),
     hideByDefault: true,
     order: 30,

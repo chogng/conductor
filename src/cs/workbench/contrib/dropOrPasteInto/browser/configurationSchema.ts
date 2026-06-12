@@ -19,12 +19,12 @@ const dropAsPreferenceSchema: IConfigurationPropertySchema = {
   type: "array",
   scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
   description: localize(
-    "dropPreferredDescription",
+    "dropOrPaste.drop.preferredDescription",
     "Configures the preferred type of edit to use when dropping content.\n\nThis is an ordered list of edit kinds. The first available edit of a preferred kind will be used.",
   ),
   default: [],
   items: {
-    description: localize("dropKind", "The kind identifier of the drop edit."),
+    description: localize("dropOrPaste.drop.kind", "The kind identifier of the drop edit."),
     type: "string",
   },
 };
@@ -33,12 +33,12 @@ const pasteAsPreferenceSchema: IConfigurationPropertySchema = {
   type: "array",
   scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
   description: localize(
-    "pastePreferredDescription",
+    "dropOrPaste.paste.preferredDescription",
     "Configures the preferred type of edit to use when pasting content.\n\nThis is an ordered list of edit kinds. The first available edit of a preferred kind will be used.",
   ),
   default: [],
   items: {
-    description: localize("pasteKind", "The kind identifier of the paste edit."),
+    description: localize("dropOrPaste.paste.kind", "The kind identifier of the paste edit."),
     type: "string",
   },
 };
@@ -46,7 +46,7 @@ const pasteAsPreferenceSchema: IConfigurationPropertySchema = {
 export const editorConfiguration = Object.freeze<IConfigurationNode>({
   id: "editor",
   order: 5,
-  title: localize("editorConfigurationTitle", "Editor"),
+  title: localize("configuration.editor.title", "Editor"),
   type: "object",
   properties: {
     [pasteAsPreferenceConfig]: pasteAsPreferenceSchema,

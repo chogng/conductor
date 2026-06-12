@@ -11,14 +11,14 @@ export { ConfigurationScope, type IConfigurationNode };
 export const applicationConfigurationNodeBase = Object.freeze<IConfigurationNode>({
   id: "application",
   order: 100,
-  title: localize("applicationConfigurationTitle", "Application"),
+  title: localize("configuration.application.title", "Application"),
   type: "object",
 });
 
 export const workbenchConfigurationNodeBase = Object.freeze<IConfigurationNode>({
   id: "workbench",
   order: 7,
-  title: localize("workbenchConfigurationTitle", "Workbench"),
+  title: localize("configuration.workbench.title", "Workbench"),
   type: "object",
 });
 
@@ -26,21 +26,21 @@ export const securityConfigurationNodeBase = Object.freeze<IConfigurationNode>({
   id: "security",
   order: 7,
   scope: ConfigurationScope.APPLICATION,
-  title: localize("securityConfigurationTitle", "Security"),
+  title: localize("configuration.security.title", "Security"),
   type: "object",
 });
 
 export const problemsConfigurationNodeBase = Object.freeze<IConfigurationNode>({
   id: "problems",
   order: 101,
-  title: localize("problemsConfigurationTitle", "Problems"),
+  title: localize("configuration.problems.title", "Problems"),
   type: "object",
 });
 
 export const windowConfigurationNodeBase = Object.freeze<IConfigurationNode>({
   id: "window",
   order: 8,
-  title: localize("windowConfigurationTitle", "Window"),
+  title: localize("configuration.window.title", "Window"),
   type: "object",
 });
 

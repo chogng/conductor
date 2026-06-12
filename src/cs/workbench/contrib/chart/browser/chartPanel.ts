@@ -30,7 +30,7 @@ export class ChartPanel {
   }
 
   public update(props: ChartViewInput): void {
-    this.element.setAttribute("aria-label", localize("chart", "Chart"));
+    this.element.setAttribute("aria-label", localize("chart.title", "Chart"));
     disposeContent(this.content);
     this.content = createChartPanelContent(props);
     this.element.replaceChildren(this.content);
@@ -69,8 +69,8 @@ const createChartPanelContent = (props: ChartViewInput): DisposableContent => {
       return createChartStatusCard({
         id: "chart-loading-card",
         iconClassName: "status-icon--muted status-icon--pulse",
-        message: localize("chart_loading", "Loading charts..."),
-        hint: localize("chart_loading_hint", "Preparing chart modules, please wait."),
+        message: localize("chart.loading.title", "Loading charts..."),
+        hint: localize("chart.loading.hint", "Preparing chart modules, please wait."),
       });
     }
 
@@ -97,8 +97,8 @@ const createProcessingCard = (
   const card = createChartStatusCard({
     id: "chart-processing-card",
     iconClassName: "status-icon--muted status-icon--pulse",
-    message: localize("chart_processing", "Processing chart data..."),
-    hint: localize("chart_processing_hint", "Extracting and preparing chart data, please wait."),
+    message: localize("chart.processing.title", "Processing chart data..."),
+    hint: localize("chart.processing.hint", "Extracting and preparing chart data, please wait."),
   });
 
   const progress = document.createElement("div");
@@ -109,7 +109,7 @@ const createProcessingCard = (
     "processing-progress-label";
 
   const processedLabel = document.createElement("span");
-  processedLabel.textContent = localize("chart_processing_progress", "{processed}/{total} files processed", {
+  processedLabel.textContent = localize("chart.processing.progress", "{processed}/{total} files processed", {
     processed,
     total: processingStatus.total ?? 0,
   });

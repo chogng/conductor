@@ -206,8 +206,8 @@ export class TableView {
       this.scrollArea.viewport.replaceChildren();
       this.scrollArea.viewport.append(createEmptyView({
         description: tableState.loadState.state === "loading"
-          ? tableState.loadState.message || localize("preview_loading_hint", "Parsing CSV preview, please wait.")
-          : localize("preview_empty_hint", "Select a file to preview"),
+          ? tableState.loadState.message || localize("table.preview.loadingHint", "Parsing CSV preview, please wait.")
+          : localize("table.preview.emptyHint", "Select a file to preview"),
       }));
       this.scrollArea.layout();
       return;
@@ -217,8 +217,8 @@ export class TableView {
       this.header.hidden = true;
       this.scrollArea.viewport.replaceChildren();
       this.scrollArea.viewport.append(createEmptyView({
-        title: localize("preview_loading", "Loading preview..."),
-        description: tableState.loadState.message || localize("preview_loading_hint", "Parsing CSV preview, please wait."),
+        title: localize("table.preview.loadingTitle", "Loading preview..."),
+        description: tableState.loadState.message || localize("table.preview.loadingHint", "Parsing CSV preview, please wait."),
       }));
       this.scrollArea.layout();
       return;
@@ -250,7 +250,7 @@ export class TableView {
     if (rowCount === 0 || columnCount === 0) {
       this.header.hidden = true;
       this.scrollArea.viewport.replaceChildren(createEmptyView({
-        description: localize("preview_empty_hint", "Select a file to preview"),
+        description: localize("table.preview.emptyHint", "Select a file to preview"),
       }));
       return true;
     }
@@ -281,7 +281,7 @@ export class TableView {
         button.className = "table_view_column_button";
         button.dataset.colIndex = String(colIndex);
         button.textContent = getColumnLabel(colIndex);
-        button.setAttribute("aria-label", localize("preview_toggle_column", "Toggle column {column}", {
+        button.setAttribute("aria-label", localize("table.preview.toggleColumn", "Toggle column {column}", {
           column: getColumnLabel(colIndex),
         }));
         cell.append(button);

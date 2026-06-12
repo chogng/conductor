@@ -38,12 +38,12 @@ export const createChartUnitControls = ({
 }): HTMLElement => {
   const root = document.createElement("div");
   root.className = "chart_unit_controls";
-  root.setAttribute("aria-label", localize("chart_units_label", "Chart units"));
+  root.setAttribute("aria-label", localize("chart.units.label", "Chart units"));
 
   root.append(
     createUnitSelect({
       axis: "x",
-      label: localize("chart_x_unit", "X"),
+      label: localize("chart.units.x", "X"),
       onDidChangeUnit,
       options: X_UNIT_VALUES,
       state,
@@ -52,7 +52,7 @@ export const createChartUnitControls = ({
     }),
     createUnitSelect({
       axis: "y",
-      label: localize("chart_y_unit", "Y"),
+      label: localize("chart.units.y", "Y"),
       onDidChangeUnit,
       options: Y_UNIT_VALUES,
       state,
@@ -86,14 +86,14 @@ const createScaleSelect = ({
 
   const text = document.createElement("span");
   text.className = "chart_unit_label";
-  text.textContent = localize("chart_y_scale", "Scale");
+  text.textContent = localize("chart.yScale.label", "Scale");
 
   const options: Array<{ readonly label: string; readonly value: ChartYScale }> = [
-    { label: localize("chart_y_scale_linear", "Linear"), value: "linear" },
-    { label: localize("chart_y_scale_log", "Log"), value: "log" },
+    { label: localize("chart.yScale.linear", "Linear"), value: "linear" },
+    { label: localize("chart.yScale.log", "Log"), value: "log" },
   ];
   const select = createSelectBox({
-    ariaLabel: localize("chart_y_scale_select_label", "Y scale"),
+    ariaLabel: localize("chart.yScale.selectLabel", "Y scale"),
     className: "chart_unit_select chart_scale_select",
     dropdownClassName: "chart_unit_select_surface",
     onDidSelect: value => onDidChangeScale(state.fileId, value),
@@ -135,7 +135,7 @@ const createUnitSelect = <T extends XUnit | YUnit>({
   text.textContent = label;
 
   const select = createSelectBox({
-    ariaLabel: localize("chart_unit_select_label", "{axis} unit", {
+    ariaLabel: localize("chart.units.selectLabel", "{axis} unit", {
       axis: label,
     }),
     className: "chart_unit_select",

@@ -140,7 +140,7 @@ export class BrowserExportService extends Disposable implements IExportServiceTy
   public buildOriginExportPlan(input: OriginExportPlanInput): OriginExportPlan {
     const files = this.resolveOriginExportFiles(input);
     if (!files.length) {
-      throw new Error(localize("origin_select_canvas", "Please select at least one thumbnail first."));
+      throw new Error(localize("origin.selection.canvasRequired", "Please select at least one thumbnail first."));
     }
 
     const plan = buildOriginExportPlan(
@@ -161,7 +161,7 @@ export class BrowserExportService extends Disposable implements IExportServiceTy
       this.state.selectedContentKeys,
     );
     if (!plan.payloads.length) {
-      throw new Error(localize("origin_select_curve", "Please select a curve first."));
+      throw new Error(localize("origin.selection.curveRequired", "Please select a curve first."));
     }
     return plan;
   }

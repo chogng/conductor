@@ -32,7 +32,7 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
     id: "template",
     mode: "table",
     viewId: TemplateAuxiliaryBarViewId,
-    labelKey: "template_management_title",
+    labelKey: "template.management.title",
     label: "Template Management",
   },
   {
@@ -40,7 +40,7 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
     icon: LxIcon.search,
     mode: "chart",
     viewId: SearchViewId,
-    labelKey: "chart_views_search",
+    labelKey: "chart.views.search",
     label: "Search",
   },
   {
@@ -48,7 +48,7 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
     icon: LxIcon.origin,
     mode: "chart",
     viewId: ExportViewId,
-    labelKey: "chart_views_export",
+    labelKey: "chart.views.export",
     label: "Export",
   },
   {
@@ -56,7 +56,7 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
     icon: LxIcon.parameters,
     mode: "chart",
     viewId: ParametersViewId,
-    labelKey: "chart_views_parameters",
+    labelKey: "chart.views.parameters",
     label: "Parameters",
   },
   {
@@ -64,7 +64,7 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
     icon: LxIcon.settings,
     mode: "chart",
     viewId: OriginExportSettingsViewId,
-    labelKey: "chart_curve_settings_title",
+    labelKey: "origin.curveSettings.title",
     label: "Origin Settings",
   },
 ];
@@ -84,12 +84,12 @@ export const getAuxiliaryBarTitleForMode = (
   templateMode: TemplateAuxiliaryBarMode,
 ): string => {
   if (mode === "chart") {
-    return localize("auxiliarybar_chart_title", "Chart");
+    return localize("auxiliarybar.chart.title", "Chart");
   }
 
   return templateMode === "save"
-    ? localize("template_editor_title", "Template Editor")
-    : localize("template_management_title", "Template Management");
+    ? localize("template.editor.title", "Template Editor")
+    : localize("template.management.title", "Template Management");
 };
 
 export const getAuxiliaryBarTitle = (mode: AuxiliaryBarMode): string =>

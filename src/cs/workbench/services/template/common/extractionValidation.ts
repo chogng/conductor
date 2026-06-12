@@ -333,7 +333,7 @@ export function prepareExtraction({
             ok: false,
             type: "warning",
             message: msg(
-              "extractPointsCellPositiveInt",
+              "template.extraction.pointsCellPositiveInt",
               { cell: String(pointsRaw).toUpperCase() },
               `Points cell ${String(pointsRaw).toUpperCase()} must contain a positive integer.`,
             ),
@@ -345,7 +345,7 @@ export function prepareExtraction({
               ok: false,
               type: "warning",
               message: msg(
-                "extractPointsCellTooLarge",
+                "template.extraction.pointsCellTooLarge",
                 { cell: String(pointsRaw).toUpperCase(), points: asInt, total },
                 `Points from ${String(pointsRaw).toUpperCase()} (${asInt}) cannot be larger than the X range length (${total}).`,
               ),
@@ -356,7 +356,7 @@ export function prepareExtraction({
               ok: false,
               type: "warning",
               message: msg(
-                "extractXNotDivisibleByPointsFromCell",
+                "template.extraction.xNotDivisibleByPointsFromCell",
                 {
                   total,
                   points: asInt,
@@ -426,7 +426,7 @@ export function prepareExtraction({
           ok: false,
           type: "warning",
           message: msg(
-            "extractXNotDivisibleByPoints",
+            "template.extraction.xNotDivisibleByPoints",
             { total, points: groupSize },
             `X range has ${total} points, which is not divisible by points=${groupSize}.`,
           ),

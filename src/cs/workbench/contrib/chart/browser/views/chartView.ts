@@ -33,15 +33,15 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   const visiblePanes = normalizeVisiblePanes(props.visiblePanes);
   const root = document.createElement("section") as ChartViewElement;
   root.className = "chart_view";
-  root.setAttribute("aria-label", localize("chart", "Chart"));
+  root.setAttribute("aria-label", localize("chart.title", "Chart"));
 
   if (!hasChartData) {
     root.append(createEmptyView({
       hint: processingStatus?.state === "processing"
-        ? localize("chart_processing_hint", "Extracting and preparing chart data, please wait.")
+        ? localize("chart.processing.hint", "Extracting and preparing chart data, please wait.")
         : localize("chart.empty.hint", "Apply a template to generate chart data."),
       title: processingStatus?.state === "processing"
-        ? localize("chart_processing", "Processing chart data...")
+        ? localize("chart.processing.title", "Processing chart data...")
         : localize("chart.empty.title", "No chart data"),
     }));
     return root;
@@ -49,8 +49,8 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
 
   if (!plotDisplayModel) {
     root.append(createEmptyView({
-      hint: localize("chart_calculation_hint", "Preparing chart calculations, please wait."),
-      title: localize("chart_calculation", "Calculating chart data..."),
+      hint: localize("chart.calculation.hint", "Preparing chart calculations, please wait."),
+      title: localize("chart.calculation.title", "Calculating chart data..."),
     }));
     return root;
   }

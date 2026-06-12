@@ -2,7 +2,14 @@
 
 //#region --- platform browser
 
-import "src/cs/platform/platform.browser.main";
+import "src/cs/base/browser/ui/lxicon/lxiconStyles";
+import "src/cs/platform/contextkey/browser/contextKeyService";
+import "src/cs/platform/contextview/browser/contextMenuService";
+import "src/cs/platform/contextview/browser/contextViewService";
+import "src/cs/platform/hover/browser/hoverService";
+import "src/cs/platform/quickinput/browser/media/quickInput.css";
+import "src/cs/platform/quickinput/browser/quickInputService";
+import "src/cs/platform/storage/browser/storageService";
 
 //#endregion
 

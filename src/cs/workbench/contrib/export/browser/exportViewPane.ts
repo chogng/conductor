@@ -66,7 +66,7 @@ export class ExportViewPane extends ViewPane {
   ) {
     super({
       id: ExportViewId,
-      title: localize("analysis_views_export", "Export"),
+      title: localize("chart.views.export", "Export"),
       className: "auxiliarybar_view_pane export_view_pane",
       bodyClassName: "workbench-part-view-pane__body",
     });

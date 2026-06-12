@@ -41,7 +41,7 @@ suite("workbench/contrib/template/test/browser/templateView", () => {
 
     assert.equal(state.canDeleteTemplate, false);
     assert.equal(state.canExportTemplate, false);
-    assert.equal(state.selectedTemplateLabel, "template_auto_extraction");
+    assert.equal(state.selectedTemplateLabel, "template.autoExtraction");
     assert.equal(state.stopOnError, true);
   });
 

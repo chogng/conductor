@@ -26,30 +26,30 @@ const getHeaderRows = ({
 }: Pick<ParameterTableCopyOptions, "gmMetricHeader" | "showTransferMetrics">): string[][] => {
   if (!showTransferMetrics) {
     return [
-      ["#", localize("calc_group_series", "Series"), gmMetricHeader, "x"],
+      ["#", localize("parameters.metricGroups.series", "Series"), gmMetricHeader, "x"],
     ];
   }
 
   return [
     [
       "#",
-      localize("calc_group_series", "Series"),
-      localize("calc_group_on_state", "On-state"),
+      localize("parameters.metricGroups.series", "Series"),
+      localize("parameters.metricGroups.onState", "On-state"),
       "",
-      localize("calc_group_off_state", "Off-state"),
+      localize("parameters.metricGroups.offState", "Off-state"),
       "",
-      localize("calc_group_ratio", "On/Off Ratio"),
-      localize("calc_group_derivative", "Derivative"),
+      localize("parameters.metricGroups.ratio", "On/Off Ratio"),
+      localize("parameters.metricGroups.derivative", "Derivative"),
       "",
-      localize("calc_group_threshold_voltage", "Threshold Voltage"),
+      localize("parameters.metricGroups.thresholdVoltage", "Threshold Voltage"),
       "",
-      localize("calc_group_ss", "Subthreshold"),
+      localize("parameters.metricGroups.subthreshold", "Subthreshold"),
       "",
-      localize("calc_group_jon", "Current Density"),
+      localize("parameters.metricGroups.currentDensity", "Current Density"),
     ],
     [
       "#",
-      localize("calc_group_series", "Series"),
+      localize("parameters.metricGroups.series", "Series"),
       "|I|on",
       "x",
       "|I|off",

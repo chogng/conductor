@@ -54,7 +54,7 @@ suite("workbench/contrib/parameters/browser/rcAnalysisModel", () => {
   test("getRcStatusText formats pending, error, summary, and selection states", () => {
     assert.equal(
       getRcStatusText({ error: "", isPending: true, rowCount: 2, summary: null }),
-      "rc_status_running",
+      "parameters.rc.status.running",
     );
     assert.equal(
       getRcStatusText({ error: "bad", isPending: false, rowCount: 2, summary: null }),

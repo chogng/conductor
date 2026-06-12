@@ -242,8 +242,8 @@ const createCurveSelector = ({
     store,
     value: mode,
     options: [
-      { value: "all", label: localize("origin_curve_export_mode_all", "All") },
-      { value: "select", label: localize("origin_curve_export_mode_select", "Select") },
+      { value: "all", label: localize("origin.curveExportMode.all", "All") },
+      { value: "select", label: localize("origin.curveExportMode.select", "Select") },
     ],
     onChange: (next) => setMode(next === "select" ? "select" : "all"),
   });
@@ -349,36 +349,36 @@ const createOriginExportToolbar = ({
   const toolbar = document.createElement("div");
   toolbar.className = "origin_export_toolbar_controls";
   toolbar.setAttribute("role", "toolbar");
-  toolbar.setAttribute("aria-label", localize("origin_export_toolbar_aria_label", "Export"));
+  toolbar.setAttribute("aria-label", localize("origin.export.toolbarAriaLabel", "Export"));
   header.appendChild(toolbar);
 
   toolbar.appendChild(createField(
-    localize("origin_export_mode_label", "Export mode"),
+    localize("origin.exportMode.label", "Export mode"),
     createDropdown<OriginExportMode>({
       id: "analysis-origin-export-mode-select",
       store,
       value: mode,
       options: [
-        { value: "merged", label: localize("origin_export_mode_merged", "New columns") },
-        { value: "workbookSheets", label: localize("origin_export_mode_workbook_sheets", "New worksheet") },
-        { value: "workbookBooks", label: localize("origin_export_mode_workbook_books", "New workbook") },
-        { value: "separate", label: localize("origin_export_mode_separate", "New window") },
+        { value: "merged", label: localize("origin.exportMode.merged", "New columns") },
+        { value: "workbookSheets", label: localize("origin.exportMode.workbookSheets", "New worksheet") },
+        { value: "workbookBooks", label: localize("origin.exportMode.workbookBooks", "New workbook") },
+        { value: "separate", label: localize("origin.exportMode.separate", "New window") },
       ],
       onChange: (next) => onModeChange(isOriginExportMode(next) ? next : "merged"),
     }),
   ));
 
   toolbar.appendChild(createField(
-    localize("origin_canvas_scope_label", "Scope"),
+    localize("origin.canvasScope.label", "Scope"),
     createDropdown<OriginCanvasExportScope>({
       id: "analysis-origin-canvas-scope-select",
       store,
       value: originCanvasExportScope,
       options: [
-        { value: "all", label: localize("origin_canvas_scope_all", "All") },
-        { value: "current", label: localize("origin_canvas_scope_current", "Current") },
-        { value: "filtered", label: localize("origin_canvas_scope_filtered", "Filtered") },
-        { value: "selected", label: localize("origin_canvas_scope_selected", "Choose") },
+        { value: "all", label: localize("origin.canvasScope.all", "All") },
+        { value: "current", label: localize("origin.canvasScope.current", "Current") },
+        { value: "filtered", label: localize("origin.canvasScope.filtered", "Filtered") },
+        { value: "selected", label: localize("origin.canvasScope.selected", "Choose") },
       ],
       onChange: (next) => {
         setOriginCanvasExportScope(
@@ -392,14 +392,14 @@ const createOriginExportToolbar = ({
 
   if (showFilteredCanvasKindSelect) {
     toolbar.appendChild(createField(
-      localize("origin_filtered_canvas_kind_label", "Type"),
+      localize("origin.filteredCanvasKind.label", "Type"),
       createDropdown<OriginFilteredCanvasKind>({
         id: "analysis-origin-filtered-canvas-kind-select",
         store,
         value: originFilteredCanvasKind,
         options: [
-          { value: "transfer", label: localize("origin_filtered_canvas_kind_transfer", "Transfer") },
-          { value: "output", label: localize("origin_filtered_canvas_kind_output", "Output") },
+          { value: "transfer", label: localize("origin.filteredCanvasKind.transfer", "Transfer") },
+          { value: "output", label: localize("origin.filteredCanvasKind.output", "Output") },
         ],
         onChange: (next) => setOriginFilteredCanvasKind(next === "transfer" ? "transfer" : "output"),
       }),
@@ -407,7 +407,7 @@ const createOriginExportToolbar = ({
   }
 
   toolbar.appendChild(createField(
-    localize("origin_curve_export_mode_label", "Export curves"),
+    localize("origin.curveExportMode.label", "Export curves"),
     createCurveSelector({
       curveOptions,
       selectedCurveOptionKeySet,
@@ -421,7 +421,7 @@ const createOriginExportToolbar = ({
   ));
 
   toolbar.appendChild(createField(
-    localize("origin_export_content_label", "Export content"),
+    localize("origin.export.contentLabel", "Export content"),
     createContentSelector({
       options: originExportContentOptions,
       selectedKeys: selectedContentKeys,
@@ -435,14 +435,14 @@ const createOriginExportToolbar = ({
     className: "origin_export_toolbar_action_button",
     contentClassName: "origin_export_toolbar_action_button_content",
     id: "analysis-origin-open-btn",
-    label: localize("open_in_origin", "Open in Origin"),
+    label: localize("origin.open.label", "Open in Origin"),
     onClick: () => void onOpenInOrigin(),
     variant: "primary",
   }));
   actions.appendChild(createToolbarButton({
     className: "origin_export_toolbar_action_button",
     contentClassName: "origin_export_toolbar_action_button_content",
-    label: localize("export_origin_zip", "Export ZIP package"),
+    label: localize("origin.zipExport.label", "Export ZIP package"),
     onClick: () => void onExportOriginZip(),
     variant: "secondary",
   }));
@@ -462,7 +462,7 @@ const createOriginExportToolbar = ({
     });
     icon.setAttribute("aria-hidden", "true");
     row.appendChild(icon);
-    appendText(row, "span", "", localize("origin_export_mode_mixed_y_scale_split_hint", "The current export list mixes Linear and Log Y scales. Origin cannot use both axis types in the same graph layer, so this New columns export will be split into multiple worksheets before plotting."));
+    appendText(row, "span", "", localize("origin.exportMode.mixedYScaleSplitHint", "The current export list mixes Linear and Log Y scales. Origin cannot use both axis types in the same graph layer, so this New columns export will be split into multiple worksheets before plotting."));
     box.appendChild(row);
     hint.appendChild(box);
     root.appendChild(hint);

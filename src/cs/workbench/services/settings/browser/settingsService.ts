@@ -133,14 +133,14 @@ export class BrowserSettingsService implements ISettingsServiceType {
   public formatOriginError(error: unknown): string {
     const detail = formatOriginBridgeError(error);
     if (detail.code === "ORIGIN_EXE_REQUIRED") {
-      return localize("origin_pick_exe_required", "Please select Origin executable path first.");
+      return localize("origin.executable.required", "Please select Origin executable path first.");
     }
 
     return detail.messageText;
   }
 
   public errorMessage(error: unknown): string {
-    return getErrorMessage(error) || localize("unknownError", "Unknown error");
+    return getErrorMessage(error) || localize("common.unknownError", "Unknown error");
   }
 }
 

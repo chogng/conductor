@@ -196,8 +196,8 @@ export const pickImportFolder = async ({
   const folders = await dialogsService.showOpenDialog({
     canSelectFolders: true,
     defaultUri: pathService.userHome({ preferLocal: true }),
-    title: localize("import.pickFolderTitle", "Select a folder to import"),
-    openLabel: localize("import.openFolderButton", "Open Folder"),
+    title: localize("files.import.pickFolderTitle", "Select a folder to import"),
+    openLabel: localize("files.import.openFolderButton", "Open Folder"),
   });
   const folder = folders?.[0] ? URI.revive(folders[0]) : null;
   return folder || null;
@@ -329,7 +329,7 @@ export class FileSourceWorkflow implements IDisposable {
       console.error("Failed to read files from the selected folder.", error);
 
       this.options.onErrorChange(localize(
-        "import.failedToReadSelectedFolder",
+        "files.import.failedToReadSelectedFolder",
         "Failed to read files from the selected folder.",
       ));
       this.options.syncView();
@@ -550,7 +550,7 @@ export class FileSourceWorkflow implements IDisposable {
 
   private getNoSupportedDroppedFilesError(): string {
     return localize(
-      "import.noSupportedDroppedFiles",
+      "files.import.noSupportedDroppedFiles",
       "No supported files found in the selected folder.",
     );
   }
@@ -596,7 +596,7 @@ export class FileSourceWorkflow implements IDisposable {
       }
 
       this.options.onErrorChange(localize(
-        "import.failedToRefreshFolder",
+        "files.import.failedToRefreshFolder",
         "Failed to refresh files from the selected folder.",
       ));
       this.options.syncView();
@@ -929,7 +929,7 @@ export const preparePendingImportFile = async (
   } catch (error) {
     const failure = toPrepareFailure(
       error,
-      pendingImportFile.sourceName || localize("import.unknownFile", "Unknown file"),
+      pendingImportFile.sourceName || localize("files.import.unknownFile", "Unknown file"),
     );
     finishFilePerf({
       code: failure.code,
@@ -1157,7 +1157,7 @@ export const buildImportErrorMessage = ({
   if (hasAnyUnsupportedFiles) {
     errors.push(
       localize(
-        "import.unsupportedFilesSkipped",
+        "files.import.unsupportedFilesSkipped",
         "Skipped unsupported files in the selected folder. Supported: .csv, .xls, .xlsx",
       ),
     );
@@ -1316,12 +1316,12 @@ const formatReadFailureMessage = (
   readFailures: readonly FolderFileReadFailure[],
 ): string => [
   localize(
-    "import.failedToReadFiles",
+    "files.import.failedToReadFiles",
     "Failed to read {count} file(s).",
     { count: readFailures.length },
   ),
   getReadFailureReason(readFailures),
-  localize("import.failedFileList", "Files:"),
+  localize("files.import.failedFileList", "Files:"),
   ...readFailures.map(file => file.relativePath || file.fileName),
 ].join("\n");
 
@@ -1331,7 +1331,7 @@ const getReadFailureReason = (
   const reasonCounts = new Map<string, number>();
   for (const file of readFailures) {
     const reason = file.message.trim() || localize(
-      "import.failureReasonReadUnknown",
+      "files.import.failureReasonReadUnknown",
       "The file could not be read.",
     );
     reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1);
@@ -1343,7 +1343,7 @@ const getReadFailureReason = (
 
   if (reasons.length === 1) {
     return localize(
-      "import.failedToReadReason",
+      "files.import.failedToReadReason",
       "Reason: {reason}",
       { reason: reasons[0].reason },
     );
@@ -1351,7 +1351,7 @@ const getReadFailureReason = (
 
   const shownReasons = reasons.slice(0, 2).map(({ count, reason }) =>
     localize(
-      "import.failedToReadReasonEntry",
+      "files.import.failedToReadReasonEntry",
       "{count} file(s): {reason}",
       { count, reason },
     )
@@ -1360,7 +1360,7 @@ const getReadFailureReason = (
   if (remainingCount > 0) {
     shownReasons.push(
       localize(
-        "import.moreReadFailureReasons",
+        "files.import.moreReadFailureReasons",
         "{count} more reason(s)",
         { count: remainingCount },
       ),
@@ -1368,7 +1368,7 @@ const getReadFailureReason = (
   }
 
   return localize(
-    "import.failedToReadReasons",
+    "files.import.failedToReadReasons",
     "Reasons: {reasons}",
     { reasons: shownReasons.join("; ") },
   );
@@ -1378,12 +1378,12 @@ const formatParseFailureMessage = (
   failedFiles: readonly FileImportPrepareFailure[],
 ): string => [
   localize(
-    "import.failedToParseFiles",
+    "files.import.failedToParseFiles",
     "Failed to parse {count} file(s).",
     { count: failedFiles.length },
   ),
   getImportErrorReason(failedFiles),
-  localize("import.failedFileList", "Files:"),
+  localize("files.import.failedFileList", "Files:"),
   ...failedFiles.map(file => file.fileName),
 ].join("\n");
 
@@ -1402,7 +1402,7 @@ const getImportErrorReason = (
 
   if (reasons.length === 1) {
     return localize(
-      "import.failedToParseReason",
+      "files.import.failedToParseReason",
       "Reason: {reason}",
       { reason: reasons[0].reason },
     );
@@ -1410,7 +1410,7 @@ const getImportErrorReason = (
 
   const shownReasons = reasons.slice(0, 2).map(({ count, reason }) =>
     localize(
-      "import.failedToParseReasonEntry",
+      "files.import.failedToParseReasonEntry",
       "{count} file(s): {reason}",
       { count, reason },
     )
@@ -1419,7 +1419,7 @@ const getImportErrorReason = (
   if (remainingCount > 0) {
     shownReasons.push(
       localize(
-        "import.moreParseFailureReasons",
+        "files.import.moreParseFailureReasons",
         "{count} more reason(s)",
         { count: remainingCount },
       ),
@@ -1427,7 +1427,7 @@ const getImportErrorReason = (
   }
 
   return localize(
-    "import.failedToParseReasons",
+    "files.import.failedToParseReasons",
     "Reasons: {reasons}",
     { reasons: shownReasons.join("; ") },
   );
@@ -1437,18 +1437,18 @@ const getPrepareFailureReason = (failure: FileImportPrepareFailure): string => {
   switch (failure.code) {
     case "UNRESOLVED_IMPORT_PATH":
       return localize(
-        "import.failureReasonUnresolvedPath",
+        "files.import.failureReasonUnresolvedPath",
         "The local file path could not be resolved.",
       );
     case "IMPORT_FILE_NOT_FOUND":
     case "EXCEL_FILE_NOT_FOUND":
       return localize(
-        "import.failureReasonFileNotFound",
+        "files.import.failureReasonFileNotFound",
         "The file no longer exists or cannot be read.",
       );
     case "RUST_CONVERTER_NOT_FOUND":
       return localize(
-        "import.failureReasonConverterMissing",
+        "files.import.failureReasonConverterMissing",
         "The Excel conversion component was not found.",
       );
     case "RUST_CONVERTER_FAILED":
@@ -1456,32 +1456,32 @@ const getPrepareFailureReason = (failure: FileImportPrepareFailure): string => {
     case "BROWSER_XLSX_CONVERSION_TIMEOUT":
     case "BROWSER_XLSX_FILE_TOO_LARGE":
       return localize(
-        "import.failureReasonExcelConversion",
+        "files.import.failureReasonExcelConversion",
         "Excel conversion failed.",
       );
     case "RUST_IMPORT_ASSESSMENT_FAILED":
       return localize(
-        "import.failureReasonAssessment",
+        "files.import.failureReasonAssessment",
         "The file could not be assessed for import.",
       );
     case "UNSUPPORTED_IMPORT_FORMAT":
       return localize(
-        "import.failureReasonUnsupportedFormat",
+        "files.import.failureReasonUnsupportedFormat",
         "The file format is not supported.",
       );
     case "EXCEL_CONVERSION_UNAVAILABLE":
       return localize(
-        "import.failureReasonExcelUnavailable",
+        "files.import.failureReasonExcelUnavailable",
         "Excel import requires a conversion component.",
       );
     case "RUST_IMPORT_PREPARE_FAILED":
       return localize(
-        "import.failureReasonPrepare",
+        "files.import.failureReasonPrepare",
         "Import preparation failed.",
       );
     default:
       return failure.message.trim() || localize(
-        "import.failureReasonUnknown",
+        "files.import.failureReasonUnknown",
         "Import preparation failed.",
       );
   }

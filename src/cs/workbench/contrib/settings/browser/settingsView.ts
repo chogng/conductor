@@ -86,7 +86,7 @@ export class SettingsView {
   constructor(container: HTMLElement, options: SettingsViewOptions) {
     this.root = document.createElement("section");
     this.root.className = "settings-view";
-    this.root.setAttribute("aria-label", localize("settings_section_aria_label", "Settings"));
+    this.root.setAttribute("aria-label", localize("settings.section.ariaLabel", "Settings"));
     container.appendChild(this.root);
     this.options = options;
     this.render();
@@ -94,7 +94,7 @@ export class SettingsView {
 
   update(options: SettingsViewOptions): void {
     this.options = options;
-    this.root.setAttribute("aria-label", localize("settings_section_aria_label", "Settings"));
+    this.root.setAttribute("aria-label", localize("settings.section.ariaLabel", "Settings"));
     this.render();
   }
 
@@ -119,7 +119,7 @@ export class SettingsView {
   private createNav(): HTMLElement {
     const aside = document.createElement("aside");
     aside.className = "settings-view-nav";
-    aside.setAttribute("aria-label", localize("settings_nav_aria_label", "Settings sections"));
+    aside.setAttribute("aria-label", localize("settings.nav.ariaLabel", "Settings sections"));
 
     const nav = document.createElement("nav");
     nav.className = "settings-view-nav-list";
@@ -160,7 +160,7 @@ export class SettingsView {
 
   private renderGeneral(container: HTMLElement): void {
     container.append(
-      cardRow("settings-language-card", localize("settings_language_title", "Language"), this.createSelect({
+      cardRow("settings-language-card", localize("settings.language.title", "Language"), this.createSelect({
         id: "settings-language-dropdown",
         value: this.options.language,
         onChange: value => {
@@ -169,12 +169,12 @@ export class SettingsView {
           }
         },
         options: [
-          { value: "system", label: localize("settings_language_system", "System") },
-          { value: "zh", label: localize("settings_language_zh", "Chinese") },
-          { value: "en", label: localize("settings_language_en", "English") },
+          { value: "system", label: localize("settings.language.system", "System") },
+          { value: "zh", label: localize("settings.language.zh", "Chinese") },
+          { value: "en", label: localize("settings.language.en", "English") },
         ],
       })),
-      cardRow("settings-close-behavior-card", localize("settings_close_behavior_title", "Close Window"), this.createSelect({
+      cardRow("settings-close-behavior-card", localize("settings.closeBehavior.title", "Close Window"), this.createSelect({
         id: "settings-close-behavior-dropdown",
         value: this.options.windowCloseSettings.behavior,
         onChange: value => {
@@ -198,7 +198,7 @@ export class SettingsView {
     const { appearanceSettings } = this.options;
 
     container.append(
-      cardRow("settings-theme-card", displayText(localize("settings_theme_title", "Theme"), "Theme"), this.createSelect({
+      cardRow("settings-theme-card", displayText(localize("settings.theme.title", "Theme"), "Theme"), this.createSelect({
         id: "settings-theme-dropdown",
         value: this.options.theme,
         onChange: value => {
@@ -213,12 +213,12 @@ export class SettingsView {
     const layoutCard = card("settings-layout-card", "settings-card-block");
     layoutCard.append(
       headingBlock(
-        displayText(localize("settings_layout_title", "Layout"), "Layout"),
-        displayText(localize("settings_layout_desc", "Reset sidebar width and hidden workbench parts."), "Reset sidebar width and hidden workbench parts."),
+        displayText(localize("settings.layout.title", "Layout"), "Layout"),
+        displayText(localize("settings.layout.description", "Reset sidebar width and hidden workbench parts."), "Reset sidebar width and hidden workbench parts."),
       ),
       div("settings-actions-end", this.createButton({
         id: "settings-layout-reset-btn",
-        label: displayText(localize("settings_layout_reset_btn", "Reset Layout"), "Reset Layout"),
+        label: displayText(localize("settings.layout.resetButton", "Reset Layout"), "Reset Layout"),
         onClick: () => void this.options.onResetLayoutState(),
         variant: "secondary",
       })),
@@ -254,12 +254,12 @@ export class SettingsView {
 
     backgroundCard.append(
       headingBlock(
-        displayText(localize("settings_background_title", "Background"), "Background"),
-        displayText(localize("settings_background_desc", "Choose the workbench page background color."), "Choose the workbench page background color."),
+        displayText(localize("settings.background.title", "Background"), "Background"),
+        displayText(localize("settings.background.description", "Choose the workbench page background color."), "Choose the workbench page background color."),
       ),
       div("settings-color-controls", colorInput, swatches, this.createButton({
         id: "settings-background-reset-btn",
-        label: displayText(localize("settings_background_reset", "Reset"), "Reset"),
+        label: displayText(localize("settings.background.reset", "Reset"), "Reset"),
         onClick: () => void appearanceSettings.onBackgroundColorReset(),
         disabled:
           appearanceSettings.isSaving ||
@@ -272,12 +272,12 @@ export class SettingsView {
     container.append(
       cardRow(
         "settings-transparent-chrome-card",
-        displayText(localize("settings_transparent_chrome_title", "Transparent page"), "Transparent page"),
+        displayText(localize("settings.transparentChrome.title", "Transparent page"), "Transparent page"),
         this.createToggle({
           checked: appearanceSettings.transparentChrome,
           disabled: appearanceSettings.isSaving,
           id: "settings-transparent-chrome-toggle",
-          label: displayText(localize("settings_transparent_chrome_toggle", "Use Mica/transparent page"), "Use Mica/transparent page"),
+          label: displayText(localize("settings.transparentChrome.toggle", "Use Mica/transparent page"), "Use Mica/transparent page"),
           onChange: checked => void appearanceSettings.onTransparentChromeChange(checked),
         }),
       ),
@@ -288,21 +288,21 @@ export class SettingsView {
     const { originSettings } = this.options;
     const pathCard = card("settings-origin-path-card", "settings-card-block");
     pathCard.append(
-      headingBlock(localize("settings_origin_title", "Origin Executable Path"), localize("settings_origin_desc", "Choose the Origin app used to open files.")),
+      headingBlock(localize("settings.origin.title", "Origin Executable Path"), localize("settings.origin.description", "Choose the Origin app used to open files.")),
       this.createPathControls(originSettings),
     );
     if (!originSettings.isConfigurable) {
-      pathCard.appendChild(text("p", "settings-description", localize("settings_origin_not_configurable_hint", "Origin path configuration is available in Windows desktop app only.")));
+      pathCard.appendChild(text("p", "settings-description", localize("settings.origin.notConfigurableHint", "Origin path configuration is available in Windows desktop app only.")));
     }
     container.appendChild(pathCard);
 
     const cleanupCard = card("settings-origin-cleanup-card", "settings-card-block");
     cleanupCard.append(
-      headingBlock(localize("settings_origin_cleanup_title", "Runtime Cleanup"), localize("settings_origin_cleanup_desc", "Manage automatic cleanup for Origin runtime cache.")),
+      headingBlock(localize("settings.origin.cleanup.title", "Runtime Cleanup"), localize("settings.origin.cleanup.description", "Manage automatic cleanup for Origin runtime cache.")),
       this.createOriginCleanupGrid(originSettings),
       div("settings-actions-end", this.createButton({
         id: "settings-origin-cleanup-run-btn",
-        label: originSettings.cleanupRunning ? localize("settings_origin_cleanup_running", "Cleaning...") : localize("settings_origin_cleanup_run_btn", "Run Cleanup Now"),
+        label: originSettings.cleanupRunning ? localize("settings.origin.cleanup.running", "Cleaning...") : localize("settings.origin.cleanup.runButton", "Run Cleanup Now"),
         onClick: () => void originSettings.onRunCleanupNow(),
         disabled: !originSettings.isCleanupAvailable || originSettings.cleanupRunning || originSettings.cleanupSaving,
         variant: "secondary",
@@ -316,10 +316,10 @@ export class SettingsView {
   private renderAbout(container: HTMLElement): void {
     const { appUpdateSettings } = this.options;
     container.append(
-      cardRow("settings-about-version-card", localize("settings_about_version_title", "Current Version"), text("p", "settings-code-value", appUpdateSettings.currentVersion || localize("settings_about_version_unknown", "Unknown"))),
-      cardRow("settings-app-update-card", localize("settings_app_update_title", "App Updates"), this.createButton({
+      cardRow("settings-about-version-card", localize("settings.about.versionTitle", "Current Version"), text("p", "settings-code-value", appUpdateSettings.currentVersion || localize("settings.about.versionUnknown", "Unknown"))),
+      cardRow("settings-app-update-card", localize("settings.appUpdate.title", "App Updates"), this.createButton({
         id: "settings-app-update-check-btn",
-        label: this.options.appUpdateChecking ? localize("settings_app_update_checking", "Checking...") : localize("settings_app_update_check_btn", "Check for Updates"),
+        label: this.options.appUpdateChecking ? localize("settings.appUpdate.checking", "Checking...") : localize("settings.appUpdate.checkButton", "Check for Updates"),
         onClick: this.options.handleCheckForUpdates,
         disabled: !appUpdateSettings.isAvailable || this.options.appUpdateChecking,
         variant: "secondary",
@@ -329,14 +329,14 @@ export class SettingsView {
 
   private createDefaults(settings: ChartDefaultSettings): HTMLElement {
     const container = card("settings-defaults-card", "settings-card-block");
-    container.appendChild(title(localize("settings_analysis_defaults_title", "Analysis Defaults")));
+    container.appendChild(title(localize("settings.chartScaleDefaults.title", "Chart Scale Defaults")));
     const grid = div("settings-grid settings-grid--five");
     const fields: Array<[string, string, keyof Pick<ChartDefaultSettings, "defaultYScaleForTransfer" | "defaultYScaleForOutput" | "defaultYScaleForCv" | "defaultYScaleForCf" | "defaultYScaleForPv">, (value: string) => void]> = [
-      ["settings-default-transfer-y-scale-select", localize("settings_analysis_defaults_transfer_curve", "Transfer"), "defaultYScaleForTransfer", value => void settings.onDefaultYScaleForTransferChange(value)],
-      ["settings-default-output-y-scale-select", localize("settings_analysis_defaults_output_curve", "Output"), "defaultYScaleForOutput", value => void settings.onDefaultYScaleForOutputChange(value)],
-      ["settings-default-cv-y-scale-select", localize("settings_analysis_defaults_cv_curve", "C-V"), "defaultYScaleForCv", value => void settings.onDefaultYScaleForCvChange(value)],
-      ["settings-default-cf-y-scale-select", localize("settings_analysis_defaults_cf_curve", "C-f"), "defaultYScaleForCf", value => void settings.onDefaultYScaleForCfChange(value)],
-      ["settings-default-pv-y-scale-select", localize("settings_analysis_defaults_pv_curve", "P-V"), "defaultYScaleForPv", value => void settings.onDefaultYScaleForPvChange(value)],
+      ["settings-default-transfer-y-scale-select", localize("settings.chartScaleDefaults.transferCurve", "Transfer"), "defaultYScaleForTransfer", value => void settings.onDefaultYScaleForTransferChange(value)],
+      ["settings-default-output-y-scale-select", localize("settings.chartScaleDefaults.outputCurve", "Output"), "defaultYScaleForOutput", value => void settings.onDefaultYScaleForOutputChange(value)],
+      ["settings-default-cv-y-scale-select", localize("settings.chartScaleDefaults.cvCurve", "C-V"), "defaultYScaleForCv", value => void settings.onDefaultYScaleForCvChange(value)],
+      ["settings-default-cf-y-scale-select", localize("settings.chartScaleDefaults.cfCurve", "C-f"), "defaultYScaleForCf", value => void settings.onDefaultYScaleForCfChange(value)],
+      ["settings-default-pv-y-scale-select", localize("settings.chartScaleDefaults.pvCurve", "P-V"), "defaultYScaleForPv", value => void settings.onDefaultYScaleForPvChange(value)],
     ];
     for (const [id, label, key, onChange] of fields) {
       grid.appendChild(field(label, this.createSelect({
@@ -354,10 +354,10 @@ export class SettingsView {
 
   private createChartDefaults(settings: ChartDefaultSettings): HTMLElement {
     const container = card("settings-chart-defaults-card", "settings-card-block");
-    container.appendChild(title(localize("settings_chart_defaults_title", "Chart Typography Defaults")));
+    container.appendChild(title(localize("settings.chartTypographyDefaults.title", "Chart Typography Defaults")));
     const grid = div("settings-grid settings-grid--three");
     grid.append(
-      field(localize("settings_chart_defaults_title_size", "Title"), this.createInput({
+      field(localize("settings.chartTypographyDefaults.titleSize", "Title"), this.createInput({
         id: "settings-default-title-font-size-input",
         value: this.options.axisTitleFontSizeDraft,
         onChange: this.options.setAxisTitleFontSizeDraft,
@@ -369,7 +369,7 @@ export class SettingsView {
         placeholder: "22",
         disabled: settings.isSaving,
       })),
-      field(localize("settings_chart_defaults_tick_label", "Tick label"), this.createInput({
+      field(localize("settings.chartTypographyDefaults.tickLabel", "Tick label"), this.createInput({
         id: "settings-default-tick-label-font-size-input",
         value: this.options.tickLabelFontSizeDraft,
         onChange: this.options.setTickLabelFontSizeDraft,
@@ -388,10 +388,10 @@ export class SettingsView {
 
   private createFileNameMatching(settings: FileNameMatchingSettings): HTMLElement {
     const container = card("settings-filename-matching-card", "settings-card-block");
-    container.appendChild(headingBlock(localize("settings_filename_matching_title", "Filename Field Matching"), localize("settings_filename_matching_desc", "Choose which separator characters split filename fields for template rules.")));
+    container.appendChild(headingBlock(localize("settings.filenameMatching.title", "Filename Field Matching"), localize("settings.filenameMatching.description", "Choose which separator characters split filename fields for template rules.")));
     const body = div("settings-field");
     body.append(
-      label(localize("settings_filename_matching_label", "Field separators")),
+      label(localize("settings.filenameMatching.label", "Field separators")),
       this.createInput({
         id: "settings-filename-separators-input",
         value: this.options.fileNameFieldSeparatorsDraft,
@@ -404,7 +404,7 @@ export class SettingsView {
         disabled: settings.isSaving,
         inputClassName: "font-mono",
       }),
-      text("p", "settings-hint", localize("settings_filename_matching_hint", "Each character acts as a separator. The default is {value}.", { value: DEFAULT_FILE_NAME_FIELD_SEPARATORS })),
+      text("p", "settings-hint", localize("settings.filenameMatching.hint", "Each character acts as a separator. The default is {value}.", { value: DEFAULT_FILE_NAME_FIELD_SEPARATORS })),
     );
     container.appendChild(body);
     appendFeedback(container, settings.feedback);
@@ -415,18 +415,18 @@ export class SettingsView {
     const controls = div("settings-path-controls");
     controls.append(
       div("settings-path-value",
-        text("p", "settings-path-text", settings.currentPath || (settings.isLoading ? localize("settings_origin_loading", "Loading...") : localize("settings_origin_not_configurable_hint", "Origin path configuration is available in Windows desktop app only."))),
+        text("p", "settings-path-text", settings.currentPath || (settings.isLoading ? localize("settings.origin.loading", "Loading...") : localize("settings.origin.notConfigurableHint", "Origin path configuration is available in Windows desktop app only."))),
       ),
       this.createButton({
         id: "settings-origin-path-choose-btn",
-        label: localize("settings_origin_choose_path_btn", "Choose Origin.exe"),
+        label: localize("settings.origin.choosePathButton", "Choose Origin.exe"),
         onClick: () => void settings.onChoosePath(),
         disabled: !settings.isConfigurable || settings.isSaving,
         variant: "primary",
       }),
       this.createButton({
         id: "settings-origin-health-check-btn",
-        label: settings.isHealthChecking ? localize("settings_origin_checking", "Checking...") : localize("settings_origin_check_btn", "Check Connection"),
+        label: settings.isHealthChecking ? localize("settings.origin.checking", "Checking...") : localize("settings.origin.checkButton", "Check Connection"),
         onClick: () => void settings.onCheckHealth(),
         disabled: !settings.isHealthCheckAvailable || settings.isLoading || settings.isSaving || settings.isHealthChecking,
         variant: "secondary",
@@ -438,21 +438,21 @@ export class SettingsView {
   private createOriginCleanupGrid(settings: OriginSettings): HTMLElement {
     const grid = div("settings-grid settings-grid--three");
     grid.append(
-      field(localize("settings_origin_cleanup_enable_label", "Auto cleanup"), this.createSelect({
+      field(localize("settings.origin.cleanup.enableLabel", "Auto cleanup"), this.createSelect({
         id: "settings-origin-cleanup-enabled-select",
         value: String(Boolean(settings.cleanupEnabled)),
         onChange: value => void settings.onCleanupEnabledChange(value === "true"),
         options: this.options.cleanupEnabledOptions,
         disabled: settings.cleanupSaving,
       })),
-      field(localize("settings_origin_cleanup_keep_success_label", "Keep successful jobs"), this.createSelect({
+      field(localize("settings.origin.cleanup.keepSuccessLabel", "Keep successful jobs"), this.createSelect({
         id: "settings-origin-cleanup-keep-success-select",
         value: String(settings.cleanupKeepSuccessJobs ?? 0),
         onChange: value => void settings.onCleanupKeepSuccessJobsChange(value),
         options: this.options.cleanupKeepSuccessOptions,
         disabled: settings.cleanupSaving,
       })),
-      field(localize("settings_origin_cleanup_failed_days_label", "Keep failed jobs (days)"), this.createSelect({
+      field(localize("settings.origin.cleanup.failedDaysLabel", "Keep failed jobs (days)"), this.createSelect({
         id: "settings-origin-cleanup-failed-days-select",
         value: String(settings.cleanupFailedRetentionDays ?? 7),
         onChange: value => void settings.onCleanupFailedRetentionDaysChange(value),
@@ -465,9 +465,9 @@ export class SettingsView {
 
   private createOriginPlot(settings: OriginSettings): HTMLElement {
     const container = card("settings-origin-plot-card", "settings-card-block");
-    container.appendChild(headingBlock(localize("settings_origin_plot_title", "Default Plot Settings"), localize("settings_origin_plot_desc", "Used by \"Open in Origin\".")));
+    container.appendChild(headingBlock(localize("settings.origin.plot.title", "Default Plot Settings"), localize("settings.origin.plot.description", "Used by \"Open in Origin\".")));
     container.append(
-      field(localize("settings_origin_plot_xy_pairs_label", "XY pairs"), this.createInput({
+      field(localize("settings.origin.plot.xyPairsLabel", "XY pairs"), this.createInput({
         id: "settings-origin-plot-xy-pairs-input",
         value: this.options.xyPairsDraft,
         onChange: this.options.setXyPairsDraft,
@@ -478,8 +478,8 @@ export class SettingsView {
           }
         },
         disabled: settings.plotSaving || !settings.isConfigurable,
-      }), localize("settings_origin_plot_xy_pairs_hint", "LabTalk expression, for example ((1,2)) or ((1,2),(3,4)).")),
-      field(localize("settings_origin_plot_command_label", "Plot command override"), this.createInput({
+      }), localize("settings.origin.plot.xyPairsHint", "LabTalk expression, for example ((1,2)) or ((1,2),(3,4)).")),
+      field(localize("settings.origin.plot.commandLabel", "Plot command override"), this.createInput({
         id: "settings-origin-plot-command-input",
         value: this.options.plotCommandDraft,
         onChange: this.options.setPlotCommandDraft,
@@ -490,8 +490,8 @@ export class SettingsView {
           }
         },
         disabled: settings.plotSaving || !settings.isConfigurable,
-      }), localize("settings_origin_plot_command_hint", "Optional full LabTalk command. If set, it overrides plot type and XY pairs.")),
-      field(localize("chart_legend_font_size", "Legend size"), this.createInput({
+      }), localize("settings.origin.plot.commandHint", "Optional full LabTalk command. If set, it overrides plot type and XY pairs.")),
+      field(localize("chart.legend.fontSize", "Legend size"), this.createInput({
         id: "settings-origin-legend-font-size-input",
         value: this.options.originLegendFontSizeDraft,
         onChange: this.options.setOriginLegendFontSizeDraft,
@@ -500,7 +500,7 @@ export class SettingsView {
             void settings.onPlotLegendFontSizeChange(this.options.originLegendFontSizeDraft.trim());
           }
         },
-        placeholder: localize("chart_axis_auto", "auto"),
+        placeholder: localize("chart.axis.auto", "auto"),
         disabled: settings.plotSaving || !settings.isConfigurable,
       })),
       this.createPostCommandsField(settings),
@@ -525,9 +525,9 @@ export class SettingsView {
       }
     });
     container.append(
-      label(localize("settings_origin_plot_post_commands_label", "Post-plot commands")),
+      label(localize("settings.origin.plot.postCommandsLabel", "Post-plot commands")),
       textarea,
-      text("p", "settings-hint", localize("settings_origin_plot_post_commands_hint", "One LabTalk command per line, executed after plotting.")),
+      text("p", "settings-hint", localize("settings.origin.plot.postCommandsHint", "One LabTalk command per line, executed after plotting.")),
     );
     return container;
   }

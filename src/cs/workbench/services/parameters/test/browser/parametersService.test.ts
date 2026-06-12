@@ -50,7 +50,7 @@ suite("workbench/services/parameters/test/browser/parametersService", () => {
 
     assert.deepEqual(viewState, {
       kind: "empty",
-      message: "parameters_empty_no_data",
+      message: "parameters.empty.noData",
     });
     assert.deepEqual(service.getViewState(), viewState);
     assert.deepEqual(viewStates, [viewState]);
@@ -74,7 +74,7 @@ suite("workbench/services/parameters/test/browser/parametersService", () => {
 
     assert.deepEqual(missingSelection, {
       kind: "empty",
-      message: "parameters_empty_no_data",
+      message: "parameters.empty.noData",
     });
     assert.equal(selectedFile.kind, "table");
     if (selectedFile.kind === "table") {

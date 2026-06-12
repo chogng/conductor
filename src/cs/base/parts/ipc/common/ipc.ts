@@ -111,7 +111,7 @@ export interface IIPCLogger {
 
 const enum RequestType {
     Call = "call",
-    Cancel = "cancel",
+    Cancel = "common.cancel",
     Listen = "listen",
     Dispose = "dispose",
 }

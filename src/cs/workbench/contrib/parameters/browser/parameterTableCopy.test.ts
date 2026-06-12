@@ -29,8 +29,8 @@ suite("workbench/contrib/parameters/browser/parameterTableCopy", () => {
         showTransferMetrics: true,
       }),
       [
-        "#\tcalc_group_series\tcalc_group_on_state\t\tcalc_group_off_state\t\tcalc_group_ratio\tcalc_group_derivative\t\tcalc_group_threshold_voltage\t\tcalc_group_ss\t\tcalc_group_jon",
-        "#\tcalc_group_series\t|I|on\tx\t|I|off\tx\tIon/Ioff\tgm\tx\tVth,e\tVth,h\tSS\tx\tJon",
+        "#\tparameters.metricGroups.series\tparameters.metricGroups.onState\t\tparameters.metricGroups.offState\t\tparameters.metricGroups.ratio\tparameters.metricGroups.derivative\t\tparameters.metricGroups.thresholdVoltage\t\tparameters.metricGroups.subthreshold\t\tparameters.metricGroups.currentDensity",
+        "#\tparameters.metricGroups.series\t|I|on\tx\t|I|off\tx\tIon/Ioff\tgm\tx\tVth,e\tVth,h\tSS\tx\tJon",
         "1\tcurve A\t2\t7\t4\t8\t3000\t1.2345\t6\t0.7\t-0.6\t78.91\t9\t5",
       ].join("\n"),
     );
@@ -44,7 +44,7 @@ suite("workbench/contrib/parameters/browser/parameterTableCopy", () => {
         showTransferMetrics: false,
       }),
       [
-        "#\tcalc_group_series\tgds\tx",
+        "#\tparameters.metricGroups.series\tgds\tx",
         "1\tcurve A\t...\t...",
       ].join("\n"),
     );

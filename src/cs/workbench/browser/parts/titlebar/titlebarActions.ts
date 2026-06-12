@@ -76,13 +76,13 @@ export const createWorkbenchTitlebarNavButtons = (
   {
     commandId: WorkbenchLayoutCommandId.navigateBack,
     id: WorkbenchTitlebarNavButtonIds.back,
-    title: localize("menu_page_back", "Back"),
+    title: localize("menu.page.back", "Back"),
     isDisabled: !canNavigateBack,
   },
   {
     commandId: WorkbenchLayoutCommandId.navigateForward,
     id: WorkbenchTitlebarNavButtonIds.forward,
-    title: localize("menu_page_forward", "Forward"),
+    title: localize("menu.page.forward", "Forward"),
     isDisabled: !canNavigateForward,
   },
 ];
@@ -119,7 +119,7 @@ export const createWorkbenchTitlebarQuickAccessButton =
 });
 
 export const getWorkbenchTitlebarUpdateLabel = (): string =>
-  localize("menu_update_available", "Update");
+  localize("menu.update.available", "Update");
 
 export const getWorkbenchTitlebarUpdateTitle = (
   updateAction?: WorkbenchTitlebarUpdateInfo,

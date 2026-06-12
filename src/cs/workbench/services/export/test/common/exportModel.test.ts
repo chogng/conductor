@@ -52,7 +52,7 @@ suite("workbench/services/export/common/exportModel", () => {
         originFilteredCanvasKind: "transfer",
         selectedCanvasCount: 1,
       }),
-      "origin_canvas_scope_summary_current",
+      "origin.canvasScope.summary.current",
     );
     assert.equal(
       getCanvasScopeSummary({
@@ -60,7 +60,7 @@ suite("workbench/services/export/common/exportModel", () => {
         originFilteredCanvasKind: "output",
         selectedCanvasCount: 3,
       }),
-      'origin_canvas_scope_summary_filtered:{"count":3,"kind":"origin_filtered_canvas_kind_output"}',
+      'origin_canvas_scope_summary_filtered:{"count":3,"kind":"origin.filteredCanvasKind.output"}',
     );
     assert.equal(
       getCanvasScopeSummary({

@@ -121,26 +121,26 @@ export const getCanvasScopeSummary = ({
   selectedCanvasCount: number;
 }): string => {
   if (originCanvasExportScope === "current") {
-    return localize("origin_canvas_scope_summary_current", "The current thumbnail will export as a single result unit.");
+    return localize("origin.canvasScope.summary.current", "The current thumbnail will export as a single result unit.");
   }
 
   if (originCanvasExportScope === "filtered") {
-    return localize("origin_canvas_scope_summary_filtered", "{count} {kind} thumbnails match the current filter.", {
+    return localize("origin.canvasScope.summary.filtered", "{count} {kind} thumbnails match the current filter.", {
       count: selectedCanvasCount,
       kind:
         originFilteredCanvasKind === "transfer"
-          ? localize("origin_filtered_canvas_kind_transfer", "Transfer")
-          : localize("origin_filtered_canvas_kind_output", "Output"),
+          ? localize("origin.filteredCanvasKind.transfer", "Transfer")
+          : localize("origin.filteredCanvasKind.output", "Output"),
     });
   }
 
   if (originCanvasExportScope === "all") {
-    return localize("origin_canvas_scope_summary_all", "All {count} thumbnails will export.", {
+    return localize("origin.canvasScope.summary.all", "All {count} thumbnails will export.", {
       count: selectedCanvasCount,
     });
   }
 
-  return localize("origin_canvas_scope_summary_selected", "{count} thumbnails are selected.", {
+  return localize("origin.canvasScope.summary.selected", "{count} thumbnails are selected.", {
     count: selectedCanvasCount,
   });
 };
@@ -157,7 +157,7 @@ export const getExportSelectionSummary = ({
   separateCanvasScopeSummary: string;
 }): string =>
   resolvedOriginExportMode === "merged"
-    ? localize("origin_collection_summary", "{curves} collected curve(s) from {files} file(s)", {
+    ? localize("origin.collection.summary", "{curves} collected curve(s) from {files} file(s)", {
         curves: selectedOriginSeriesTotalCount,
         files: selectedCanvasCount,
       })

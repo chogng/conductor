@@ -21,7 +21,7 @@ const container = viewContainersRegistry.get(WorkbenchViewContainers.auxiliaryba
 if (container) {
   viewsRegistry.registerViews([{
     id: TemplateAuxiliaryBarViewId,
-    name: localize("template_management_title", "Template Management"),
+    name: localize("template.management.title", "Template Management"),
     ctorDescriptor: new SyncDescriptor(TemplateAuxiliaryBarViewPane),
     hideByDefault: false,
     order: 0,

@@ -26,7 +26,7 @@ const container = viewContainersRegistry.get(WorkbenchViewContainers.auxiliaryba
 if (container) {
   viewsRegistry.registerViews([{
     id: ParametersViewId,
-    name: localize("analysis_views_parameters", "Parameters"),
+    name: localize("chart.views.parameters", "Parameters"),
     ctorDescriptor: new SyncDescriptor(ParametersViewPane),
     hideByDefault: true,
     order: 20,

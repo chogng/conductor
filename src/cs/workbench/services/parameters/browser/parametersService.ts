@@ -97,7 +97,7 @@ const createDefaultParametersState = (): ParametersState => ({
 
 const createDefaultParametersViewState = (): ParametersViewState => ({
   kind: "empty",
-  message: localize("parameters_empty_no_data", "No parameter data."),
+  message: localize("parameters.empty.noData", "No parameter data."),
 });
 
 const isSameParametersState = (

@@ -48,7 +48,7 @@ export class ParametersViewPane extends ViewPane {
   ) {
     super({
       id: ParametersViewId,
-      title: localize("analysis_views_parameters", "Parameters"),
+      title: localize("chart.views.parameters", "Parameters"),
       className: "auxiliarybar_view_pane parameters_view_pane",
       bodyClassName: "workbench-part-view-pane__body",
     });
@@ -82,14 +82,14 @@ export class ParametersViewPane extends ViewPane {
     const toolbar = document.createElement("div");
     toolbar.className = "parameters_table_toolbar";
     toolbar.setAttribute("role", "toolbar");
-    toolbar.setAttribute("aria-label", localize("parameters_toolbar_aria_label", "Parameter table"));
+    toolbar.setAttribute("aria-label", localize("parameters.toolbar.ariaLabel", "Parameter table"));
 
     const title = document.createElement("div");
     title.className = "parameters_table_toolbar_title";
-    title.textContent = localize("analysis_views_parameters", "Parameters");
+    title.textContent = localize("chart.views.parameters", "Parameters");
 
     const actionBar = this.renderStore.add(new ActionBar({
-      ariaLabel: localize("parameters_table_actions", "Parameter table actions"),
+      ariaLabel: localize("parameters.table.actions", "Parameter table actions"),
       className: "parameters_table_actionbar",
       actionViewItemProvider: (action, itemOptions) =>
         action.id === COPY_TABLE_ACTION_ID
@@ -98,8 +98,8 @@ export class ParametersViewPane extends ViewPane {
     }));
     actionBar.push(toAction({
       id: COPY_TABLE_ACTION_ID,
-      label: localize("parameters_copy_table", "Copy table"),
-      tooltip: localize("parameters_copy_table", "Copy table"),
+      label: localize("parameters.copyTable.label", "Copy table"),
+      tooltip: localize("parameters.copyTable.label", "Copy table"),
       enabled: options.rows.length > 0,
       run: () => void this.copyParameterTable(options),
     }));
@@ -155,7 +155,7 @@ export class ParametersViewPane extends ViewPane {
     if (options.rows.length === 0) {
       notificationService.showToast({
         id: "parameters.copyTable",
-        message: localize("parameters_copy_table_empty", "No parameter rows to copy."),
+        message: localize("parameters.copyTable.empty", "No parameter rows to copy."),
         type: "warning",
       });
       return;
@@ -165,13 +165,13 @@ export class ParametersViewPane extends ViewPane {
       await writeClipboardText(createParameterTableTsv(options));
       notificationService.showToast({
         id: "parameters.copyTable",
-        message: localize("parameters_copy_table_success", "Parameter table copied."),
+        message: localize("parameters.copyTable.success", "Parameter table copied."),
         type: "success",
       });
     } catch (error) {
       notificationService.showToast({
         id: "parameters.copyTable",
-        message: localize("parameters_copy_table_failed", "Failed to copy parameter table: {error}", {
+        message: localize("parameters.copyTable.failed", "Failed to copy parameter table: {error}", {
           error: error instanceof Error ? error.message : String(error),
         }),
         type: "error",
@@ -194,7 +194,7 @@ const writeClipboardText = async (text: string): Promise<void> => {
   textarea.select();
   try {
     if (!document.execCommand("copy")) {
-      throw new Error(localize("parameters_copy_table_failed_fallback", "Clipboard copy command failed."));
+      throw new Error(localize("parameters.copyTable.failedFallback", "Clipboard copy command failed."));
     }
   } finally {
     textarea.remove();

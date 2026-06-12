@@ -94,7 +94,7 @@ export const createParametersViewState = (
   if (canonicalState?.kind === "table" || !activeFile) {
     return canonicalState ?? {
       kind: "empty",
-      message: localize("parameters_empty_no_data", "No parameter data."),
+      message: localize("parameters.empty.noData", "No parameter data."),
     };
   }
 
@@ -103,7 +103,7 @@ export const createParametersViewState = (
   if (!isTransfer && !isOutput) {
     return {
       kind: "empty",
-      message: localize("parameters_empty_unsupported_curve", "No parameters for this curve type."),
+      message: localize("parameters.empty.unsupportedCurve", "No parameters for this curve type."),
     };
   }
 
@@ -111,7 +111,7 @@ export const createParametersViewState = (
   if (rows.length === 0) {
     return {
       kind: "empty",
-      message: localize("parameters_empty_no_rows", "No parameter rows."),
+      message: localize("parameters.empty.noRows", "No parameter rows."),
     };
   }
 

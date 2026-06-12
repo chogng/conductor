@@ -60,7 +60,7 @@ export class ChartViewPane extends ViewPane {
   ) {
     super({
       id: ChartViewId,
-      title: localize("chart", "Chart"),
+      title: localize("chart.title", "Chart"),
       className: "chart-view-pane-root",
       bodyClassName: "workbench-part-view-pane__body",
     });
@@ -72,7 +72,7 @@ export class ChartViewPane extends ViewPane {
     this.content.append(this.chartPanel.element);
     this.previewPart = createPreviewPart({
       id: ChartViewId,
-      ariaLabel: localize("chart", "Chart"),
+      ariaLabel: localize("chart.title", "Chart"),
       actionbarContent: this.headerActions,
       className: "chart_view_pane",
       children: this.content,
@@ -270,7 +270,7 @@ export class ChartViewPane extends ViewPane {
 
   private createHeaderActions(props: ChartViewInput): HTMLElement {
     const actionBar = new ActionBar({
-      ariaLabel: localize("chart_header_actions", "Chart actions"),
+      ariaLabel: localize("chart.header.actions", "Chart actions"),
       actionViewItemProvider: (action, options) => new ChartHeaderActionViewItem(
         action,
         getHeaderActionIcon(action.id),
@@ -284,7 +284,7 @@ export class ChartViewPane extends ViewPane {
       this.createLegendAction(props),
       this.createDetailPaneAction({
         id: CHART_INSPECTOR_ACTION_ID,
-        label: localize("chart_inspector_heading", "Inspector"),
+        label: localize("chart.inspector.heading", "Inspector"),
         pane: "inspector",
       }),
     ].filter((action): action is IAction => Boolean(action));
@@ -324,7 +324,7 @@ export class ChartViewPane extends ViewPane {
 
     const legendAction = new Action(
       CHART_LEGEND_ACTION_ID,
-      localize("chart_legend_heading", "Legend"),
+      localize("chart.legend.heading", "Legend"),
       "",
       true,
       (): void => {
@@ -336,7 +336,7 @@ export class ChartViewPane extends ViewPane {
       },
     );
     legendAction.checked = this.isLegendPopoverCurrent(props);
-    legendAction.tooltip = localize("chart_legend_tooltip", "Show chart legend");
+    legendAction.tooltip = localize("chart.legend.tooltip", "Show chart legend");
     this.headerStore.add(legendAction);
     this.legendAction = legendAction;
     return legendAction;
@@ -406,7 +406,7 @@ export class ChartViewPane extends ViewPane {
     }
 
     const nextLabel = window.prompt(
-      localize("chart_legend_edit_label_prompt", "Legend label"),
+      localize("chart.legend.editLabelPrompt", "Legend label"),
       currentLabel,
     );
     if (nextLabel === null) {

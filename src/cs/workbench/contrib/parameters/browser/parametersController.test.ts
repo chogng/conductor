@@ -33,7 +33,7 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
     });
 
     assert.deepEqual(result, {
-      error: "rc_error_bridge_unavailable",
+      error: "parameters.rc.error.bridgeUnavailable",
       ok: false,
     });
   });
@@ -51,7 +51,7 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
     });
 
     assert.deepEqual(result, {
-      error: "rc_error_insufficient_devices",
+      error: "parameters.rc.error.insufficientDevices",
       ok: false,
     });
   });

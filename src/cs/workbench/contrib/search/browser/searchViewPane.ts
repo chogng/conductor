@@ -23,7 +23,7 @@ export class SearchViewPane extends ViewPane {
   ) {
     super({
       id: SearchViewId,
-      title: localize("search_heading", "Search"),
+      title: localize("search.heading", "Search"),
       className: "auxiliarybar_view_pane search_view_pane",
       bodyClassName: "workbench-part-view-pane__body",
     });

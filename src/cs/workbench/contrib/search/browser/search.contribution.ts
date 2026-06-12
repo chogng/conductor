@@ -26,7 +26,7 @@ const container = viewContainersRegistry.get(WorkbenchViewContainers.auxiliaryba
 if (container) {
   viewsRegistry.registerViews([{
     id: SearchViewId,
-    name: localize("analysis_views_search", "Search"),
+    name: localize("chart.views.search", "Search"),
     ctorDescriptor: new SyncDescriptor(SearchViewPane),
     hideByDefault: true,
     order: 5,

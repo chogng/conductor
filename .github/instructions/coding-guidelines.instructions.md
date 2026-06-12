@@ -593,3 +593,50 @@ this._register(contextMenuService.onDidHideContextMenu(() => this.updateHoverSta
 For platform-wide interaction behavior, prefer an upstream-aligned platform fix
 over feature-specific guards. Feature code should only handle feature-owned
 cleanup or presentation state after consuming the platform event/API.
+
+## 20. NLS key naming
+
+NLS keys should describe stable product ownership and user-facing meaning, not
+the implementation class or file that currently renders the string.
+
+Use this shape:
+
+```txt
+domain.feature.message
+```
+
+Where:
+
+- `domain` is the owning feature or platform area, such as `files`, `chart`,
+  `table`, `template`, `quickInput`, or `titlebar`;
+- `feature` is an optional workflow, view, item group, or sub-feature, such as
+  `import`, `actions`, `item`, `commands`, or `mode`;
+- `message` names the specific stable text meaning, such as
+  `failedToReadFiles`, `pickFolderTitle`, `delete`, or `showCommands`.
+
+Prefer:
+
+```ts
+localize("files.import.failedToReadFiles", "Failed to read {count} file(s).")
+localize("files.item.delete", "Delete")
+localize("chart.views.search", "Search")
+localize("titlebar.mode.chart", "Chart")
+```
+
+Avoid broad, ownerless keys:
+
+```ts
+localize("import.failedToReadFiles", "Failed to read {count} file(s).")
+```
+
+Avoid implementation-shaped keys that would need to change when a class or file
+is refactored:
+
+```ts
+localize("fileImportExport.failedToReadFiles", "Failed to read {count} file(s).")
+```
+
+Use `files.import.*` for the Explorer data-file import/source-collection
+workflow. Keep top-level `files.*` for Files/Explorer-wide labels and
+`files.item.*` or `files.actions.*` for file item labels and command/action
+descriptions.
