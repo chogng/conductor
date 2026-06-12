@@ -293,6 +293,61 @@ suite("workbench/services/table/browser/tableService", () => {
     service.dispose();
   });
 
+  test("keeps an active preview request across equivalent caller refreshes", async () => {
+    let openFileCount = 0;
+    const service = new TableService(createTableBackendService({
+      openFile: async () => {
+        openFileCount += 1;
+        return {
+          ok: true,
+          result: {
+            fileId: "source-key-a",
+            sourceKey: "source-key-a",
+            fileName: "Raw.csv",
+            rowCount: 2,
+            columnCount: 2,
+            maxCellLengths: [1, 1],
+            seedStartRow: 0,
+            seedRows: [["x", "y"], [1, 2]],
+          },
+        };
+      },
+    }) as never);
+    const createRawFiles = () => [{
+      file: {},
+      fileId: "file-a",
+      fileName: "Raw.csv",
+      normalizedCsvPath: "C:/tmp/raw.csv",
+      sourceKey: "source-key-a",
+      sourceVersion: 1,
+    }];
+    let model = service.update({
+      rawFiles: createRawFiles(),
+      source: { fileId: "file-a" },
+    });
+    let refreshCount = 0;
+    const disposeListener = model.onDidChangeState(() => {
+      refreshCount += 1;
+      if (refreshCount > 8) {
+        assert.fail("Equivalent table refreshes should not restart preview indefinitely.");
+      }
+
+      model = service.update({
+        rawFiles: createRawFiles(),
+        source: { fileId: "file-a" },
+      });
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.equal(openFileCount, 1);
+    assert.equal(model.getState().loadState.state, "ready");
+    assert.equal(model.getState().file?.sourceKey, "source-key-a");
+    disposeListener();
+    service.dispose();
+  });
+
   test("clears preview lifecycle when the selected source version changes", () => {
     const service = new TableService(createTableBackendService({
       canOpenFile: () => false,

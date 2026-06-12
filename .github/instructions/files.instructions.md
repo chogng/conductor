@@ -383,6 +383,26 @@ sequenceDiagram
     DropController->>ExplorerService: select({ kind: table, fileId }, force)
 ```
 
+Sidebar raw import mode handoff wiring:
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant ExplorerView
+    participant SourceWorkflow as FileSourceWorkflow
+    participant Workbench as Workbench composition
+    participant Session as ISessionService
+    participant ExplorerService as IExplorerService
+    participant Layout as IWorkbenchLayoutService
+
+    User->>ExplorerView: drop raw files on sidebar while chart mode is active
+    ExplorerView->>SourceWorkflow: importDroppedFiles(dataTransfer)
+    SourceWorkflow-->>Workbench: onFilesReplaced / onFilesAdded(prepared files)
+    Workbench->>Session: commitFileImport(result)
+    Workbench->>ExplorerService: select({ kind: table, fileId }, force)
+    Workbench->>Layout: navigateToView(table)
+```
+
 Tree item hover thumbnail preview wiring:
 
 ```mermaid

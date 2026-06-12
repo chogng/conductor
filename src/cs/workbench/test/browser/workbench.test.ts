@@ -145,6 +145,131 @@ suite("workbench/browser/workbench Explorer pane input", () => {
 
     assert.equal(explorerService.selectedProcessedFileId, null);
   });
+
+  test("routes chart mode sidebar imports back to table mode", () => {
+    const session = new SessionService();
+    const explorerService = new ExplorerService();
+    const importedFile = createImportedSessionFileForTest({
+      fileId: "file-a",
+      fileName: "Raw A.csv",
+      rowCount: 2,
+      columnCount: 2,
+    });
+    let showTableCount = 0;
+
+    const input = createExplorerPaneInput({
+      activePlotType: "iv",
+      explorerService,
+      mode: "chart",
+      plotService: createPlotService(),
+      processing: {
+        removeQueuedProcessingFile: () => undefined,
+        resetProcessingWorker: () => undefined,
+      },
+      readModel: createSessionReadModel(session.getSnapshot()),
+      session,
+      showTable: () => {
+        showTableCount += 1;
+      },
+      snapshot: session.getSnapshot(),
+      templateState: {
+        formState: createEmptyTemplateConfig(),
+        mode: "select",
+        selectedTemplateId: null,
+        selectionsByFileId: {},
+      },
+    });
+
+    input.onFilesReplaced?.([importedFile]);
+
+    assert.deepEqual(session.getSnapshot().fileOrder, ["file-a"]);
+    assert.equal(explorerService.selectedRawFileId, "file-a");
+    assert.equal(showTableCount, 1);
+  });
+
+  test("keeps table mode sidebar imports on the current table view", () => {
+    const session = new SessionService();
+    const explorerService = new ExplorerService();
+    const importedFile = createImportedSessionFileForTest({
+      fileId: "file-a",
+      fileName: "Raw A.csv",
+      rowCount: 2,
+      columnCount: 2,
+    });
+    let showTableCount = 0;
+
+    const input = createExplorerPaneInput({
+      activePlotType: "iv",
+      explorerService,
+      mode: "table",
+      plotService: createPlotService(),
+      processing: {
+        removeQueuedProcessingFile: () => undefined,
+        resetProcessingWorker: () => undefined,
+      },
+      readModel: createSessionReadModel(session.getSnapshot()),
+      session,
+      showTable: () => {
+        showTableCount += 1;
+      },
+      snapshot: session.getSnapshot(),
+      templateState: {
+        formState: createEmptyTemplateConfig(),
+        mode: "select",
+        selectedTemplateId: null,
+        selectionsByFileId: {},
+      },
+    });
+
+    input.onFilesAdded?.([importedFile]);
+
+    assert.deepEqual(session.getSnapshot().fileOrder, ["file-a"]);
+    assert.equal(explorerService.selectedRawFileId, "file-a");
+    assert.equal(showTableCount, 0);
+  });
+
+  test("hands off a chart mode folder import once before appending remaining files", () => {
+    const session = new SessionService();
+    const explorerService = new ExplorerService();
+    const importedFiles = Array.from({ length: 128 }, (_value, index) =>
+      createImportedSessionFileForTest({
+        fileId: `file-${index}`,
+        fileName: `Raw ${index}.csv`,
+        rowCount: 2,
+        columnCount: 2,
+      })
+    );
+    let showTableCount = 0;
+    const createInput = (mode: "table" | "chart") => createExplorerPaneInput({
+      activePlotType: "iv",
+      explorerService,
+      mode,
+      plotService: createPlotService(),
+      processing: {
+        removeQueuedProcessingFile: () => undefined,
+        resetProcessingWorker: () => undefined,
+      },
+      readModel: createSessionReadModel(session.getSnapshot()),
+      session,
+      showTable: () => {
+        showTableCount += 1;
+      },
+      snapshot: session.getSnapshot(),
+      templateState: {
+        formState: createEmptyTemplateConfig(),
+        mode: "select",
+        selectedTemplateId: null,
+        selectionsByFileId: {},
+      },
+    });
+
+    createInput("chart").onFilesReplaced?.([importedFiles[0]]);
+    createInput("table").onFilesAdded?.(importedFiles.slice(1));
+
+    assert.equal(session.getSnapshot().fileOrder.length, importedFiles.length);
+    assert.equal(explorerService.selectedRawFileId, "file-0");
+    assert.equal(showTableCount, 1);
+  });
 });
 
 suite("workbench/browser/workbench initial mode", () => {
@@ -234,6 +359,38 @@ suite("workbench/browser/workbench Explorer session workflow", () => {
     const snapshot = session.getSnapshot();
     assert.deepEqual(snapshot.fileOrder, ["file-a"]);
     assert.equal(explorerService.selectedRawFileId, "file-a");
+  });
+
+  test("adding imported files can request table view after a successful import", () => {
+    const session = new SessionService();
+    const importedFile = createImportedSessionFileForTest({
+      file: {},
+      fileId: "file-a",
+      fileName: "Transfer.csv",
+      rowCount: 2,
+      columnCount: 2,
+    });
+    const explorerService = new ExplorerService();
+    let showTableCount = 0;
+
+    const workflow = createExplorerSessionWorkflow({
+      clearSession: session.clearSession,
+      commitFileImport: session.commitFileImport,
+      explorerService,
+      rawFiles: [],
+      removeFiles: session.removeFiles,
+      removeQueuedProcessingFile: () => undefined,
+      resetProcessingWorker: () => undefined,
+      showTable: () => {
+        showTableCount += 1;
+      },
+    });
+
+    workflow.handleFilesAdded([importedFile]);
+
+    assert.deepEqual(session.getSnapshot().fileOrder, ["file-a"]);
+    assert.equal(explorerService.selectedRawFileId, "file-a");
+    assert.equal(showTableCount, 1);
   });
 
   test("adding more files preserves selection from an earlier replace in the same workflow", () => {

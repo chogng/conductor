@@ -767,12 +767,10 @@ const createTableModel = ({
       clearPreviewState();
     }
   }, [
-    activeSourceKey,
     activeSourceSignature,
     clearPreviewState,
     invalidatePreviewRequests,
     previewFileRef,
-    selectedSource,
   ]);
 
   const disposePreviewSourceCache = memoCallback(
@@ -1050,18 +1048,10 @@ const createTableModel = ({
   }, [clearAllPreviewCaches, invalidatePreviewRequests, resetPreviewWorker]);
 
   runEffect(() => {
-    if (!rawFiles.length) {
-      invalidatePreviewRequests();
-      clearPreviewState({ clearSelection: true });
-      return;
-    }
-
     const targetSource = selectedSource;
     const targetFile = targetSource?.entry ?? null;
     const targetSourceKey = targetSource?.sourceKey ?? null;
-    const targetSourceSignature = targetSource
-      ? `${targetSource.sourceKey}:${targetSource.sourceVersion}`
-      : null;
+    const targetSourceSignature = activeSourceSignature;
     if (!targetSource || !targetFile?.file || !targetFile?.fileId || !targetSourceKey) return;
     if (isTableFileForSourceEntry(previewFileRef.current, targetSource)) return;
     if (pendingPreviewFileIdRef.current === targetSourceSignature) return;
@@ -1217,16 +1207,13 @@ const createTableModel = ({
     void postWorkerPreview();
   }, [
     activatePreviewFileCache,
-    clearPreviewState,
+    activeSourceSignature,
     deferredActiveFileId,
     deferredActiveSheetId,
     getOrCreatePreviewWorker,
-    invalidatePreviewRequests,
     mergePreviewSeedRows,
     previewFileRef,
     previewRequestIdRef,
-    rawFiles,
-    selectedSource,
     setPreviewStatus,
     touchPreviewFileCache,
   ]);

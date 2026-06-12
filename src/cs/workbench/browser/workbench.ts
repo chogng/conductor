@@ -866,6 +866,7 @@ export class Workbench extends Layout {
         commitFileImport: this.session.commitFileImport,
         removeFiles: this.session.removeFiles,
       },
+      showTable: () => this.showWorkbenchViewMode("table"),
       snapshot,
       templateState: this.templateService.getState(),
     });
@@ -1254,6 +1255,7 @@ type CreateExplorerPaneInputOptions = {
   readonly processing: ExplorerPaneProcessingInput;
   readonly readModel: SessionReadModel;
   readonly session: ExplorerPaneSessionInput;
+  readonly showTable?: () => void;
   readonly snapshot: SessionSnapshot;
   readonly templateState: TemplateState;
 };
@@ -1291,6 +1293,7 @@ type ExplorerSessionWorkflowOptions = {
   removeQueuedProcessingFile: (fileId: string) => void;
   resetProcessingWorker: () => void;
   removeFiles: (fileIds: readonly string[]) => void;
+  showTable?: () => void;
 };
 
 const createExplorerSessionSelectionInput = (
@@ -1351,6 +1354,7 @@ export function createExplorerSessionWorkflow({
   removeQueuedProcessingFile,
   resetProcessingWorker,
   removeFiles,
+  showTable,
 }: ExplorerSessionWorkflowOptions) {
   const getRawFileIds = (files: readonly SessionFile[] = rawFiles): readonly string[] =>
     files
@@ -1394,6 +1398,7 @@ export function createExplorerSessionWorkflow({
         kind: "table",
       }, "force");
     }
+    showTable?.();
   };
 
   const handleFilesAdded = (files: ExplorerImportedSessionFile[]) => {
@@ -1411,6 +1416,7 @@ export function createExplorerSessionWorkflow({
         kind: "table",
       }, "force");
     }
+    showTable?.();
   };
 
   const handleFilesReplaced = (files: ExplorerImportedSessionFile[]) => {
@@ -1423,6 +1429,7 @@ export function createExplorerSessionWorkflow({
       fileId: nextSelectedFileId,
       kind: "table",
     }, "force");
+    showTable?.();
   };
 
   const handleFileRemoved = (fileId: string) => {
@@ -1484,6 +1491,7 @@ export const createExplorerPaneInput = ({
   processing,
   readModel,
   session,
+  showTable,
   snapshot,
   templateState,
 }: CreateExplorerPaneInputOptions): ExplorerPaneInput => {
@@ -1498,6 +1506,7 @@ export const createExplorerPaneInput = ({
     removeQueuedProcessingFile: processing.removeQueuedProcessingFile,
     resetProcessingWorker: processing.resetProcessingWorker,
     removeFiles: session.removeFiles,
+    showTable: mode === "chart" ? showTable : undefined,
   });
   const isChartMode = mode === "chart";
   const selectionKind: ExplorerSelectionKind = isChartMode ? "chart" : "table";
