@@ -163,13 +163,12 @@
   box-sizing: border-box;
 }
 
-.file-list-item:hover {
+.file-list-tree .ui-list__row:hover {
   background-color: rgb(var(--border) / 1);
 }
 
-.file-list-item[data-selected="true"] {
+.file-list-tree .ui-list__row--selected {
   background-color: rgb(var(--accent) / 0.1);
-  color: rgb(var(--accent) / 1);
 }
 
 .file-list-item-content {
@@ -265,7 +264,7 @@
   color: rgb(239 68 68 / 1);
 }
 
-.file-list-item:hover .file-list-item-remove {
+.file-list-tree .ui-list__row:hover .file-list-item-remove {
   opacity: 1;
 }
 
@@ -399,7 +398,7 @@
   opacity: 1;
 }
 
-.file-list-folder-item:hover .file-list-folder-more,
+.file-list-tree .ui-list__row:hover .file-list-folder-more,
 .file-list-folder-more:focus-visible {
   opacity: 1;
 }
