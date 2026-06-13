@@ -112,6 +112,10 @@
   width: fit-content;
 }
 
+.settings-row-control > .settings-select {
+  width: 112px;
+}
+
 .settings-heading .settings-description {
   margin-top: 0.25rem;
 }
@@ -334,6 +338,10 @@
   .settings-row-control,
   .settings-color-controls,
   .settings-path-controls .settings-button {
+    width: 100%;
+  }
+
+  .settings-row-control > .settings-select {
     width: 100%;
   }
 }
