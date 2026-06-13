@@ -87,13 +87,8 @@ export type SettingsAppUpdateInput = {
 
 export type SettingsServiceOptions = {
   appUpdateSettings: SettingsAppUpdateInput;
-  checkForUpdates: () => Promise<boolean> | boolean;
   isWindowsDesktopShell: boolean;
   language: LanguagePreference;
-  reloadWorkbench: () => void;
-  setIonIoffMethod: (method: IonIoffMethod) => void;
-  setSsMethod: (method: SsMethod) => void;
-  setSsShowFitLine: (enabled: boolean) => void;
   settingsStore?: SettingsStore;
   theme: ThemeMode;
 };
@@ -122,7 +117,6 @@ export interface ISettingsService {
   canCheckOriginHealth(): boolean;
   canManageOrigin(): boolean;
   canRunOriginCleanup(): boolean;
-  checkForUpdates(): Promise<boolean>;
   checkOriginHealth(path: string): Promise<OriginHealthResult>;
   chooseOriginExePath(): Promise<string>;
   errorMessage(error: unknown): string;
@@ -133,8 +127,6 @@ export interface ISettingsService {
   getSettingsViewInput(): SettingsViewInput | null;
   mergeConductorSettings(nextSettings: ConductorSettings | null): void;
   runOriginCleanup(): Promise<OriginCleanupResult>;
-  setLanguage(language: LanguagePreference): Promise<void>;
-  setTheme(theme: ThemeMode): Promise<void>;
   update(options: SettingsServiceOptions): void;
   updateOriginPlotOptions(updates: Partial<OriginPlotOptions>): Promise<ConductorSettings | null>;
   updatePlotAxisSettings(updates: Record<string, unknown>): Promise<ConductorSettings | null>;

@@ -13,6 +13,8 @@ import {
 	type WorkbenchAppearance,
 } from "src/cs/workbench/services/themes/common/themeService";
 
+const WORKBENCH_TRANSPARENT_CHROME_CLASS = "workbench-transparent-chrome";
+
 export class BrowserWorkbenchThemeService extends Disposable implements IWorkbenchThemeService {
 	public declare readonly _serviceBrand: undefined;
 
@@ -154,8 +156,10 @@ export const applyWorkbenchAppearance = (
 		"--bg-page",
 		hexToRgbTriplet(appearance.backgroundColor),
 	);
-	document.documentElement.dataset.transparentChrome =
-		appearance.transparentChrome ? "true" : "false";
+	document.documentElement.classList.toggle(
+		WORKBENCH_TRANSPARENT_CHROME_CLASS,
+		appearance.transparentChrome,
+	);
 };
 
 const isSameAppearance = (

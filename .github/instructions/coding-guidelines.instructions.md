@@ -16,7 +16,9 @@ Before editing code, read:
    actions, menus, keybindings, controllers, or contribution wiring.
 4. `records.instructions.md` when adding or changing canonical records,
    service state, view models, command targets, or field names.
-5. `service-components.instructions.md` when introducing a service helper,
+5. `settings.instructions.md` when editing settings persistence, settings UI,
+   settings command dispatch, or settings-driven side effects.
+6. `service-components.instructions.md` when introducing a service helper,
    controller, store, model, provider, adapter, planner, reader, registry, or
    cache.
 
@@ -149,6 +151,12 @@ converter -> assessment/template/plot logic
 plot -> chart DOM
 chart -> raw table parsing
 ```
+
+## Import path style
+
+Use relative imports for local files within the same capability/module. Use
+`src/cs/...` imports when crossing capability or architecture boundaries. Keep
+nearby files consistent and avoid mixing both forms for the same dependency.
 
 ## Service import style
 

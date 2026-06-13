@@ -140,29 +140,13 @@ suite("workbench/services/settings/browser/settingsService", () => {
     conductorSettingsDisposable.dispose();
   });
 
-  test("dispatches settings behavior through service owner API", async () => {
+  test("persists settings patches through the settings store", async () => {
     const service = new BrowserSettingsService();
     const calls: unknown[] = [];
     let storedSettings: ConductorSettings = {};
 
     service.mergeConductorSettings({});
     service.update(createSettingsServiceOptions({
-      checkForUpdates: async () => {
-        calls.push(["checkForUpdates"]);
-        return true;
-      },
-      reloadWorkbench: () => {
-        calls.push(["reload"]);
-      },
-      setIonIoffMethod: method => {
-        calls.push(["ionIoff", method]);
-      },
-      setSsMethod: method => {
-        calls.push(["ss", method]);
-      },
-      setSsShowFitLine: enabled => {
-        calls.push(["fitLine", enabled]);
-      },
       settingsStore: {
         getSettings: async () => storedSettings,
         updateSettings: async (updates) => {
@@ -176,27 +160,24 @@ suite("workbench/services/settings/browser/settingsService", () => {
       },
     }));
 
-    assert.equal(await service.checkForUpdates(), true);
-    await service.setLanguage("zh");
-    await service.setTheme("dark");
-    service.mergeConductorSettings({
-      ionIoffMethodDefault: "manual",
-      originExePath: "Origin.exe",
-      ssMethodDefault: "manual",
-      ssShowFitLine: false,
+    await service.updateSettings({
+      fileNameFieldSeparators: "_",
+      language: "zh",
+      theme: "dark",
     });
-    await service.updateSettings({ fileNameFieldSeparators: "_" });
 
     assert.deepEqual(calls, [
-      ["checkForUpdates"],
-      ["update", { language: "zh" }],
-      ["reload"],
-      ["update", { theme: "dark" }],
-      ["ionIoff", "manual"],
-      ["ss", "manual"],
-      ["fitLine", false],
-      ["update", { fileNameFieldSeparators: "_" }],
+      ["update", {
+        fileNameFieldSeparators: "_",
+        language: "zh",
+        theme: "dark",
+      }],
     ]);
+    assert.deepEqual(service.getConductorSettings(), {
+      fileNameFieldSeparators: "_",
+      language: "zh",
+      theme: "dark",
+    });
   });
 });
 
@@ -207,13 +188,8 @@ const createSettingsServiceOptions = (
     currentVersion: "1.0.0",
     isAvailable: false,
   },
-  checkForUpdates: async () => false,
   isWindowsDesktopShell: false,
   language: "en",
-  reloadWorkbench: () => undefined,
-  setIonIoffMethod: () => undefined,
-  setSsMethod: () => undefined,
-  setSsShowFitLine: () => undefined,
   settingsStore: {
     getSettings: async () => ({}),
     updateSettings: async updates => updates,

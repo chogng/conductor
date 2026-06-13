@@ -158,7 +158,7 @@ const setTheme = async (
 		return;
 	}
 
-	await accessor.get(ISettingsService).setTheme(theme);
+	await accessor.get(ISettingsService).updateSettings({ theme });
 };
 
 const setWorkbenchBackground = async (

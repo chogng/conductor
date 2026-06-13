@@ -31,6 +31,7 @@ import { Win32UpdateService } from "../../platform/update/electron-main/updateSe
 import { DialogMainService } from "../../platform/dialogs/electron-main/dialogMainService.js";
 import { NativeHostMainService } from "../../platform/native/electron-main/nativeHostMainService.js";
 import { registerContextMenuListener } from "../../base/parts/contextmenu/electron-main/contextmenu.js";
+import { getThemeSnapshot } from "../../platform/theme/electron-main/themeMainService.js";
 import {
   nativeHostBootstrapIpcChannels,
   workbenchBootstrapIpcChannels,
@@ -94,7 +95,7 @@ const devUrl =
 const isWindowsStorePackage =
   process.platform === "win32" && Reflect.get(process, "windowsStore") === true;
 const APP_DISPLAY_NAME = product.nameLong;
-const APP_USER_MODEL_ID = product.appId;
+const APP_USER_MODEL_ID = isDev ? `${product.appId}.dev` : product.appId;
 
 const MAIN_MESSAGES = {
   en: {
@@ -247,18 +248,22 @@ function formatDiagnosticValue(value) {
   }
 }
 
-function getThemeSnapshotFromStore() {
+function getWindowThemeFromStore() {
   const settings = conductorStore.getConductorSettings();
-  return desktopWindowMain.getThemeSnapshot(settings?.theme);
+  const snapshot = getThemeSnapshot(settings?.theme);
+  return {
+    backgroundColor: snapshot.backgroundColor,
+    foregroundColor: snapshot.foregroundColor,
+  };
 }
 
 function syncBootWindowTheme() {
-  const snapshot = getThemeSnapshotFromStore();
+  const theme = getWindowThemeFromStore();
   desktopWindowMain.applyWindowStyle(mainWindow, {
     appearance: getAppearanceFromStore(),
-    themeSnapshot: snapshot,
+    theme,
   });
-  return snapshot;
+  return theme;
 }
 
 function normalizeWorkbenchBackgroundColor(value) {
@@ -1450,7 +1455,7 @@ function createMainWindow() {
   logDesktopBoot("create-window:start");
   const windowIcon = resolveDesktopWindowIconPath();
   mainWindowBootShown = false;
-  const themeSnapshot = syncBootWindowTheme();
+  const theme = syncBootWindowTheme();
   const preloadPath = desktopPreloadPath;
 
   const win = new BrowserWindow(desktopWindowMain.createBrowserWindowOptions({
@@ -1458,7 +1463,7 @@ function createMainWindow() {
     icon: windowIcon,
     isDev,
     preload: preloadPath,
-    themeSnapshot,
+    theme,
   }));
   logDesktopDiagnostic("window:create", {
     isDev,
@@ -1487,7 +1492,7 @@ function createMainWindow() {
   mainWindow = win;
   desktopWindowMain.applyWindowStyle(mainWindow, {
     appearance: getAppearanceFromStore(),
-    themeSnapshot,
+    theme,
   });
   win.on("close", (event) => {
     if (isAppQuitting) return;

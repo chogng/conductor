@@ -28,8 +28,9 @@ suite("workbench/contrib/themes/test/browser/themesCommands", () => {
 		const calls: unknown[] = [];
 		const accessor = createAccessor([
 			[ISettingsService, createSettingsService({
-				setTheme: async theme => {
-					calls.push(["setTheme", theme]);
+				updateSettings: async update => {
+					calls.push(["update", update]);
+					return null;
 				},
 			})],
 		]);
@@ -41,9 +42,9 @@ suite("workbench/contrib/themes/test/browser/themesCommands", () => {
 			const commandPaletteIds = getCommandPaletteIds();
 
 			assert.deepStrictEqual(calls, [
-				["setTheme", "light"],
-				["setTheme", "dark"],
-				["setTheme", "system"],
+				["update", { theme: "light" }],
+				["update", { theme: "dark" }],
+				["update", { theme: "system" }],
 			]);
 			assert.ok(commandPaletteIds.has(ThemeCommandId.setLightTheme));
 			assert.ok(commandPaletteIds.has(ThemeCommandId.setDarkTheme));
@@ -58,9 +59,6 @@ suite("workbench/contrib/themes/test/browser/themesCommands", () => {
 		const updates: unknown[] = [];
 		const accessor = createAccessor([
 			[ISettingsService, createSettingsService({
-				setTheme: async theme => {
-					updates.push({ theme });
-				},
 				updateSettings: async update => {
 					updates.push(update);
 					return null;
@@ -132,7 +130,6 @@ function createSettingsService(
 		canCheckOriginHealth: () => false,
 		canManageOrigin: () => false,
 		canRunOriginCleanup: () => false,
-		checkForUpdates: async () => false,
 		checkOriginHealth: async () => ({}),
 		chooseOriginExePath: async () => "",
 		errorMessage: error => String(error),
@@ -146,8 +143,6 @@ function createSettingsService(
 		onDidChangeOriginSettingsViewInput: () => ({ dispose: () => undefined }),
 		onDidChangeSettingsViewInput: () => ({ dispose: () => undefined }),
 		runOriginCleanup: async () => ({ removedTotal: 0 }),
-		setLanguage: async () => undefined,
-		setTheme: async () => undefined,
 		update: () => undefined,
 		updateOriginPlotOptions: async () => null,
 		updatePlotAxisSettings: async () => null,

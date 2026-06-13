@@ -21,6 +21,10 @@ import {
 import {
   createProcessedEntryFromFileRecord,
 } from "src/cs/workbench/services/session/common/sessionReadModel";
+import {
+  ISettingsService,
+  type ISettingsService as ISettingsServiceType,
+} from "src/cs/workbench/services/settings/common/settings";
 
 export class ParametersService extends Disposable implements IParametersServiceType {
   public declare readonly _serviceBrand: undefined;
@@ -32,6 +36,17 @@ export class ParametersService extends Disposable implements IParametersServiceT
 
   private state: ParametersState = createDefaultParametersState();
   private viewState: ParametersViewState = createDefaultParametersViewState();
+
+  constructor(
+    @ISettingsService private readonly settingsService: ISettingsServiceType,
+  ) {
+    super();
+
+    this.applySettings();
+    this._register(this.settingsService.onDidChangeConductorSettings(() => {
+      this.applySettings();
+    }));
+  }
 
   public getState(): ParametersState {
     return this.state;
@@ -71,6 +86,29 @@ export class ParametersService extends Disposable implements IParametersServiceT
 
   public setShowFitLine(showFitLine: boolean): void {
     this.updateState({ showFitLine });
+  }
+
+  private applySettings(): void {
+    const settings = this.settingsService.getConductorSettings();
+    const updates: Partial<ParametersState> = {};
+
+    if (
+      settings?.ionIoffMethodDefault === "auto" ||
+      settings?.ionIoffMethodDefault === "manual"
+    ) {
+      updates.ionIoffMethod = settings.ionIoffMethodDefault;
+    }
+    if (
+      settings?.ssMethodDefault === "auto" ||
+      settings?.ssMethodDefault === "manual"
+    ) {
+      updates.ssMethod = settings.ssMethodDefault;
+    }
+    if (typeof settings?.ssShowFitLine === "boolean") {
+      updates.showFitLine = settings.ssShowFitLine;
+    }
+
+    this.updateState(updates);
   }
 
   private updateState(updates: Partial<ParametersState>): void {

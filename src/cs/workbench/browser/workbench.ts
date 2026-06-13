@@ -8,10 +8,7 @@ import {
   DisposableStore,
   type IDisposable,
 } from "src/cs/base/common/lifecycle";
-import type {
-  LanguageCode,
-  LanguagePreference,
-} from "src/cs/platform/language/common/language";
+import type { LanguagePreference } from "src/cs/platform/language/common/language";
 import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
 import type { INativeHostService } from "src/cs/platform/native/common/native";
@@ -44,9 +41,7 @@ import {
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import {
-  isLanguageCode,
   isLanguagePreference,
-  resolveLanguageCode,
 } from "src/cs/platform/language/common/language";
 import { localize } from "src/cs/nls";
 import { isThemeMode } from "src/cs/workbench/common/theme";
@@ -140,14 +135,6 @@ export type WorkbenchOptions = {
   readonly titlebarState?: WorkbenchTitlebarState;
 };
 
-const getSystemLanguage = (): string | undefined =>
-  typeof navigator === "undefined" ? undefined : navigator.language;
-
-const getInitialLanguage = (): LanguageCode =>
-  isLanguageCode(window.__CONDUCTOR_INITIAL_LANGUAGE__)
-    ? window.__CONDUCTOR_INITIAL_LANGUAGE__
-    : resolveLanguageCode("system", getSystemLanguage());
-
 const getInitialLanguagePreference = (): LanguagePreference => {
   const settings = window.__CONDUCTOR_INITIAL_SETTINGS__;
   return settings &&
@@ -168,7 +155,6 @@ export class Workbench extends Layout {
 
   private readonly window: WorkbenchWindow;
   private readonly notifications: NotificationToasts;
-  private language: LanguageCode = getInitialLanguage();
   private languagePreference: LanguagePreference = getInitialLanguagePreference();
   private readonly session: ISessionServiceType;
   private readonly commandService: ICommandService;
@@ -181,7 +167,6 @@ export class Workbench extends Layout {
   private readonly explorerService: IExplorerService;
   private readonly filesService: IFileService;
   private readonly layoutService: IWorkbenchLayoutService;
-  private readonly nativeHostService?: INativeHostService;
   private readonly parametersService: IParametersService;
   private readonly plotService: IPlotService;
   private readonly searchService: ISearchService;
@@ -279,7 +264,6 @@ export class Workbench extends Layout {
     this.exportService = options.exportService;
     this.commandService = options.commandService;
     this.layoutService = options.layoutService;
-    this.nativeHostService = options.nativeHostService;
     this.parametersService = options.parametersService;
     this.plotService = options.plotService;
     this.searchService = options.searchService;
@@ -650,36 +634,13 @@ export class Workbench extends Layout {
             : null,
         isAvailable: windowState.isAppUpdatePreviewEnabled,
       },
-      checkForUpdates: this.checkForUpdates,
       isWindowsDesktopShell: windowState.isWindowsDesktopShell,
       language: this.languagePreference,
-      reloadWorkbench: this.reloadWorkbench,
-      setIonIoffMethod: method => this.parametersService.setIonIoffMethod(method),
-      setSsMethod: method => this.parametersService.setSsMethod(method),
-      setSsShowFitLine: enabled => this.parametersService.setShowFitLine(enabled),
       theme: isThemeMode(window.__CONDUCTOR_INITIAL_THEME__)
         ? window.__CONDUCTOR_INITIAL_THEME__
         : "system",
     };
   }
-
-  private readonly reloadWorkbench = (): void => {
-    if (this.nativeHostService) {
-      void this.nativeHostService.reloadWindow().catch(() => undefined);
-      return;
-    }
-
-    window.location.reload();
-  };
-
-  private readonly checkForUpdates = async (): Promise<boolean> => {
-    const desktopApp = (window as Window & {
-      readonly desktopApp?: {
-        checkForUpdatesAndInstall?: () => Promise<boolean> | boolean;
-      };
-    }).desktopApp;
-    return Boolean(await desktopApp?.checkForUpdatesAndInstall?.());
-  };
 
   private createMessagePane(titleText: string, descriptionText: string): HTMLElement {
     const root = document.createElement("div");

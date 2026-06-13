@@ -28,11 +28,13 @@ import type {
   SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
+import { WorkbenchCommandId } from "src/cs/workbench/browser/actions/workbenchCommands";
 import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
 import {
   DEFAULT_WORKBENCH_BACKGROUND_COLOR,
   normalizeWorkbenchAppearance,
   normalizeWorkbenchBackgroundColor,
+  ThemeCommandId,
 } from "src/cs/workbench/services/themes/common/themeService";
 
 type SettingsControllerOptions = SettingsViewInput;
@@ -232,11 +234,15 @@ export class SettingsController {
       handleCheckForUpdates: () => void this.checkForUpdates(),
       language: this.options.language,
       originLegendFontSizeDraft: this.drafts.originLegendFontSizeDraft,
-      onLanguageChange: language => this.service.setLanguage(language),
+      onLanguageChange: language => {
+        void this.commandService.executeCommand(WorkbenchCommandId.setLanguage, language);
+      },
       onResetLayoutState: () => {
         void this.commandService.executeCommand(WorkbenchLayoutCommandId.resetLayoutState);
       },
-      onThemeChange: theme => this.service.setTheme(theme),
+      onThemeChange: theme => {
+        void this.commandService.executeCommand(ThemeCommandId.setTheme, theme);
+      },
       originHealthToast: this.drafts.originHealthToast,
       originSettings: this.originSettings,
       plotCommandDraft: this.drafts.plotCommandDraft,
@@ -381,9 +387,7 @@ export class SettingsController {
       onBackgroundColorReset: () => this.updateAppearance({
         backgroundColor: DEFAULT_WORKBENCH_BACKGROUND_COLOR,
       }),
-      onTransparentChromeChange: value => this.updateAppearance({
-        transparentChrome: Boolean(value),
-      }),
+      onTransparentChromeChange: value => this.setTransparentChrome(Boolean(value)),
     };
   }
 
@@ -687,6 +691,18 @@ export class SettingsController {
     }
   }
 
+  private async setTransparentChrome(enabled: boolean): Promise<void> {
+    this.appearanceSaving = true;
+    this.render();
+    try {
+      await this.commandService.executeCommand(ThemeCommandId.setTransparentChrome, enabled);
+    }
+    finally {
+      this.appearanceSaving = false;
+      this.render();
+    }
+  }
+
   private async setWindowCloseBehavior(behavior: "minimizeToTray" | "quit"): Promise<void> {
     this.windowCloseSaving = true;
     this.render();
@@ -705,7 +721,7 @@ export class SettingsController {
     this.drafts.appUpdateChecking = true;
     this.render();
     try {
-      await this.service.checkForUpdates();
+      await this.commandService.executeCommand(WorkbenchCommandId.checkForUpdates);
     }
     catch {
       // Update check result is shown by desktop shell dialogs.

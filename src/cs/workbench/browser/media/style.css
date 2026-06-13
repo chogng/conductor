@@ -181,34 +181,16 @@ select {
   font: inherit;
 }
 
-html[data-transparent-chrome="true"],
-html[data-transparent-chrome="true"] body,
-html[data-transparent-chrome="true"] #root,
-html[data-transparent-chrome="true"] .workbench_root,
-html[data-transparent-chrome="true"] .workbench_window,
-html[data-transparent-chrome="true"] .workbench_window_body,
-html[data-transparent-chrome="true"] .workbench_window_content,
-html[data-transparent-chrome="true"] .workbench_layout,
-html[data-transparent-chrome="true"] .workbench_layout_shell,
-html[data-transparent-chrome="true"] .workbench_layout_split,
-html[data-transparent-chrome="true"] .ui-split-view,
-html[data-transparent-chrome="true"] .ui-split-view__viewport,
-html[data-transparent-chrome="true"] .ui-split-view__grid,
-html[data-transparent-chrome="true"] .ui-split-view__pane {
+html.workbench-transparent-chrome,
+html.workbench-transparent-chrome body,
+html.workbench-transparent-chrome #root,
+html.workbench-transparent-chrome .workbench_window,
+html.workbench-transparent-chrome .titlebar-root,
+html.workbench-transparent-chrome .workbench_layout_sidebar {
   background: transparent;
 }
 
-html[data-transparent-chrome="true"] .titlebar-root,
-html[data-transparent-chrome="true"].dark .titlebar-root {
-  background: transparent;
-}
-
-html[data-transparent-chrome="true"] .workbench_layout_sidebar {
-  background: transparent;
-  backdrop-filter: none;
-}
-
-html[data-transparent-chrome="true"] .workbench_layout_main {
+html.workbench-transparent-chrome .workbench_layout_main {
   background: rgb(var(--bg-page) / 1);
 }
 

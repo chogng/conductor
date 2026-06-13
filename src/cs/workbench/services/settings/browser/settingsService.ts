@@ -7,15 +7,10 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import {
   isLanguagePreference,
-  type LanguagePreference,
 } from "src/cs/platform/language/common/language";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { formatOriginBridgeError } from "src/cs/workbench/services/export/common/originBridgeError";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
-import type {
-  IonIoffMethod,
-  SsMethod,
-} from "src/cs/workbench/services/parameters/common/parameters";
 import {
   getDesktopOriginBridge,
   getErrorMessage,
@@ -52,13 +47,8 @@ const defaultOptions: SettingsServiceOptions = {
     currentVersion: null,
     isAvailable: false,
   },
-  checkForUpdates: async () => false,
   isWindowsDesktopShell: false,
   language: "system",
-  reloadWorkbench: () => {},
-  setIonIoffMethod: () => {},
-  setSsMethod: () => {},
-  setSsShowFitLine: () => {},
   settingsStore: defaultSettingsStore,
   theme: "system",
 };
@@ -82,9 +72,6 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
   private options: SettingsServiceOptions = defaultOptions;
   private conductorSettings: ConductorSettings | null;
   private conductorSettingsLoaded: boolean;
-  private appliedIonIoffMethod: IonIoffMethod | null = null;
-  private appliedSsMethod: SsMethod | null = null;
-  private appliedSsShowFitLine: boolean | null = null;
   private disposed = false;
   private loadingSettings = false;
   private originSettingsViewInput: OriginSettingsViewInput;
@@ -106,7 +93,6 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
 
   public update(options: SettingsServiceOptions): void {
     this.options = options;
-    this.applySettings(this.conductorSettings);
     this.publishSettingsViewInput();
     this.publishOriginSettingsViewInput();
 
@@ -210,47 +196,6 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     }, true);
   }
 
-  public async checkForUpdates(): Promise<boolean> {
-    return Boolean(await this.options.checkForUpdates());
-  }
-
-  public async setLanguage(language: LanguagePreference): Promise<void> {
-    if (!isLanguagePreference(language)) {
-      return;
-    }
-
-    const currentLanguage = this.conductorSettings?.language ?? this.options.language;
-    if (currentLanguage === language) {
-      return;
-    }
-
-    try {
-      await this.updateSettings({ language });
-      this.options.reloadWorkbench();
-    } catch {
-      // Keep UI responsive even if persistence fails.
-    }
-  }
-
-  public async setTheme(theme: ThemeMode): Promise<void> {
-    if (!isThemeMode(theme)) {
-      return;
-    }
-
-    const currentTheme = isThemeMode(this.conductorSettings?.theme)
-      ? this.conductorSettings.theme
-      : this.options.theme;
-    if (currentTheme === theme) {
-      return;
-    }
-
-    try {
-      await this.updateSettings({ theme });
-    } catch {
-      // Keep UI responsive even if persistence fails.
-    }
-  }
-
   public async updateOriginPlotOptions(
     updates: Partial<OriginPlotOptions>,
   ): Promise<ConductorSettings | null> {
@@ -335,22 +280,6 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     return this.options.settingsStore ?? defaultSettingsStore;
   }
 
-  private applySettings(settings: ConductorSettings | null): void {
-    const ionIoffMethodDefault = settings?.ionIoffMethodDefault;
-    if (ionIoffMethodDefault === "auto" || ionIoffMethodDefault === "manual") {
-      this.applyIonIoffMethod(ionIoffMethodDefault);
-    }
-
-    const ssMethodDefault = settings?.ssMethodDefault;
-    if (ssMethodDefault === "auto" || ssMethodDefault === "manual") {
-      this.applySsMethod(ssMethodDefault);
-    }
-
-    if (typeof settings?.ssShowFitLine === "boolean") {
-      this.applySsShowFitLine(settings.ssShowFitLine);
-    }
-  }
-
   private setConductorSettings(
     nextSettings: ConductorSettings | null,
     conductorSettingsLoaded: boolean,
@@ -365,7 +294,6 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     this.conductorSettingsLoaded = conductorSettingsLoaded;
 
     if (settingsChanged) {
-      this.applySettings(nextSettings);
       this.onDidChangeConductorSettingsEmitter.fire(nextSettings);
     }
 
@@ -373,33 +301,6 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     if (settingsChanged) {
       this.publishOriginSettingsViewInput();
     }
-  }
-
-  private applyIonIoffMethod(method: IonIoffMethod): void {
-    if (this.appliedIonIoffMethod === method) {
-      return;
-    }
-
-    this.appliedIonIoffMethod = method;
-    this.options.setIonIoffMethod(method);
-  }
-
-  private applySsMethod(method: SsMethod): void {
-    if (this.appliedSsMethod === method) {
-      return;
-    }
-
-    this.appliedSsMethod = method;
-    this.options.setSsMethod(method);
-  }
-
-  private applySsShowFitLine(enabled: boolean): void {
-    if (this.appliedSsShowFitLine === enabled) {
-      return;
-    }
-
-    this.appliedSsShowFitLine = enabled;
-    this.options.setSsShowFitLine(enabled);
   }
 
   private setConductorSettingsLoaded(conductorSettingsLoaded: boolean): void {
