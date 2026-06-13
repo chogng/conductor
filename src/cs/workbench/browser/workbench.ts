@@ -40,6 +40,7 @@ import {
 } from "src/cs/workbench/services/settings/common/settings";
 import {
   type IWorkbenchLayoutService,
+  type WorkbenchMainPart,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import {
@@ -54,8 +55,7 @@ import {
   ActiveAuxiliaryBarViewContext,
   ActiveWorkbenchMainPartContext,
   ActiveWorkbenchViewContext,
-  type WorkbenchMainPart,
-} from "src/cs/workbench/common/contextkeys";
+} from "src/cs/workbench/browser/contextkeys";
 import { Layout } from "src/cs/workbench/browser/layout";
 import {
   getWorkbenchWindowState,

@@ -11,7 +11,7 @@ import {
 import {
   ActiveAuxiliaryBarViewContext,
   ActiveWorkbenchMainPartContext,
-} from "src/cs/workbench/common/contextkeys";
+} from "src/cs/workbench/browser/contextkeys";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
   Extensions as ViewExtensions,

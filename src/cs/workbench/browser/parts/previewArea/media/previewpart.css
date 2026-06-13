@@ -12,6 +12,12 @@
   background-color: rgb(var(--bg-surface) / 1);
 }
 
+.workbench_layout_split--with-auxiliarybar .workbench_preview_area_part {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right-width: 0;
+}
+
 .workbench_preview_area_part--dragging::after {
   content: "";
   position: absolute;

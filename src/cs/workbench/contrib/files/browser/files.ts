@@ -5,7 +5,7 @@
 import type { Event } from "src/cs/base/common/event";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
+import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { FilesViewLayout } from "src/cs/workbench/contrib/files/common/files";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";

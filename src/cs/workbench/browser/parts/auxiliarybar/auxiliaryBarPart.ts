@@ -11,8 +11,8 @@ import {
   type AuxiliaryBarViewSwitchAction,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
 
-export const WorkbenchAuxiliaryBarClassName = "workbench_layout_auxiliarybar";
-export const WorkbenchAuxiliaryBarPaneId = "workbench-auxiliarybar";
+const AuxiliaryBarClassName = "workbench_layout_auxiliarybar";
+const AuxiliaryBarPaneId = "workbench-auxiliarybar";
 
 export const AUXILIARY_BAR_DEFAULT_WIDTH_PX = 250;
 export const AUXILIARY_BAR_MIN_WIDTH_PX = 170;
@@ -20,7 +20,7 @@ export const AUXILIARY_BAR_MAX_WIDTH_PX = Number.POSITIVE_INFINITY;
 
 export const createAuxiliaryBarPart = (): HTMLDivElement => {
   const element = document.createElement("div");
-  element.className = WorkbenchAuxiliaryBarClassName;
+  element.className = AuxiliaryBarClassName;
   return element;
 };
 
@@ -38,13 +38,13 @@ export const clampAuxiliaryBarWidth = (width: number): number =>
     Math.min(AUXILIARY_BAR_MAX_WIDTH_PX, Math.round(width)),
   );
 
-export type AuxiliaryBarPaneContainerInput = {
+type AuxiliaryBarPaneContainerInput = {
   readonly actions: readonly IAction[];
   readonly container: IViewPaneContainer;
   readonly title: string;
 };
 
-export class WorkbenchAuxiliaryBarLayout {
+class AuxiliaryBarLayout {
   private _width = AUXILIARY_BAR_DEFAULT_WIDTH_PX;
   private readonly onDidChangeWidthEmitter = new Emitter<number>();
 
@@ -68,19 +68,20 @@ export class WorkbenchAuxiliaryBarLayout {
   }
 }
 
-export const createAuxiliaryBarSplitPane = (
+const createAuxiliaryBarSplitPane = (
   size?: number,
 ): SplitViewPane => ({
-  id: WorkbenchAuxiliaryBarPaneId,
+  id: AuxiliaryBarPaneId,
   defaultSize: AUXILIARY_BAR_DEFAULT_WIDTH_PX,
   minSize: AUXILIARY_BAR_MIN_WIDTH_PX,
   maxSize: AUXILIARY_BAR_MAX_WIDTH_PX,
   ...(typeof size === "number" ? { size } : {}),
 });
 
-export class WorkbenchAuxiliaryBarPart extends Disposable {
-  private readonly layout = this._register(new WorkbenchAuxiliaryBarLayout());
+export class AuxiliaryBarPart extends Disposable {
+  private readonly layout = this._register(new AuxiliaryBarLayout());
 
+  public readonly paneId = AuxiliaryBarPaneId;
   public readonly element = createAuxiliaryBarPart();
   public readonly onDidChangeWidth = this.layout.onDidChangeWidth;
 
@@ -94,10 +95,6 @@ export class WorkbenchAuxiliaryBarPart extends Disposable {
 
   public createSplitPane(): SplitViewPane {
     return createAuxiliaryBarSplitPane(this.width);
-  }
-
-  public createDefaultSplitPane(): SplitViewPane {
-    return createAuxiliaryBarSplitPane();
   }
 
   public updatePaneContainer(input: AuxiliaryBarPaneContainerInput): void {

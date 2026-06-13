@@ -18,7 +18,6 @@ import {
   type ILayoutOffsetInfo,
   type ILayoutService as ILayoutServiceType,
 } from "src/cs/platform/layout/browser/layoutService";
-import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 
 export const IWorkbenchLayoutService = refineServiceDecorator<
   ILayoutServiceType,
@@ -48,6 +47,7 @@ export interface IPartVisibilityChangeEvent {
   readonly visible: boolean;
 }
 
+export type WorkbenchMainPart = "table" | "chart";
 export type LayoutView = WorkbenchMainPart | "settings";
 
 export interface IWorkbenchNavigationState {

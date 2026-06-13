@@ -40,7 +40,7 @@ import {
   SET_FILE_TEMPLATE_COMMAND_ID,
   SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/common/files";
-import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
+import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { ExplorerThumbnailPlotModel } from "src/cs/workbench/contrib/files/browser/files";
 import { FileKind, ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
 import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";

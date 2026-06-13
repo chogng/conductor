@@ -15,7 +15,7 @@ import {
   AUXILIARY_BAR_MAX_WIDTH_PX,
   AUXILIARY_BAR_MIN_WIDTH_PX,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
-import { WorkbenchSidebarLayout } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
+import { SidebarLayout } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import {
   BrowserWorkbenchLayoutService,
   Parts,
@@ -124,7 +124,7 @@ suite("workbench/browser/layout", () => {
   });
 
   test("sidebar layout clamps stored width input", () => {
-    const layout = new WorkbenchSidebarLayout(120);
+    const layout = new SidebarLayout(120);
 
     assert.equal(layout.width, SIDEBAR_MIN_WIDTH_PX);
 

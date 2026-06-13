@@ -8,7 +8,7 @@ import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from "src/cs/workbench/common/contributions";
-import { ActiveWorkbenchMainPartContext } from "src/cs/workbench/common/contextkeys";
+import { ActiveWorkbenchMainPartContext } from "src/cs/workbench/browser/contextkeys";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
   Extensions as ViewExtensions,

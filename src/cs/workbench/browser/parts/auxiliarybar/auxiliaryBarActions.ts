@@ -1,7 +1,7 @@
 import { toAction, type IAction } from "src/cs/base/common/actions";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
-import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
+import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import { ExportViewId } from "src/cs/workbench/services/export/common/export";
 import { OriginExportSettingsViewId } from "src/cs/workbench/services/origin/common/origin";
 import { ParametersViewId } from "src/cs/workbench/services/parameters/common/parameters";

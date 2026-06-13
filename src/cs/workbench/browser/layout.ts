@@ -8,20 +8,16 @@ import {
   type IWorkbenchLayoutService,
   type IWorkbenchNavigationState,
   type LayoutView,
+  type WorkbenchMainPart,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
-  WorkbenchSidebarPaneId,
-  WorkbenchSidebarPart,
-  type SidebarPaneContainerInput,
+  SidebarPart,
 } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import {
-  WorkbenchAuxiliaryBarPart,
-  WorkbenchAuxiliaryBarPaneId,
-  type AuxiliaryBarPaneContainerInput,
+  AuxiliaryBarPart,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 import { WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS } from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 import type { IStorageService } from "src/cs/platform/storage/common/storage";
-import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 
 export {
   SIDEBAR_DEFAULT_WIDTH_PX,
@@ -32,6 +28,9 @@ export type { LayoutView } from "src/cs/workbench/services/layout/browser/layout
 
 export const MAIN_MIN_WIDTH_PX = 220;
 export const TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX = 240;
+
+type SidebarPaneContainerInput = Parameters<SidebarPart["updatePaneContainer"]>[0];
+type AuxiliaryBarPaneContainerInput = Parameters<AuxiliaryBarPart["updatePaneContainer"]>[0];
 
 export type LayoutParts = {
   readonly controller?: Node | null;
@@ -106,8 +105,8 @@ const isWorkbenchView = (activeView: LayoutView): activeView is WorkbenchMainPar
   activeView !== "settings";
 
 export class Layout extends Disposable {
-  private readonly sidebarPart: WorkbenchSidebarPart;
-  private readonly auxiliaryBarPart = this._register(new WorkbenchAuxiliaryBarPart());
+  private readonly sidebarPart: SidebarPart;
+  private readonly auxiliaryBarPart = this._register(new AuxiliaryBarPart());
   private readonly splitView = this._register(new MutableDisposable<SplitView>());
   private readonly main = document.createElement("div");
   private readonly sidebar: HTMLElement;
@@ -126,7 +125,7 @@ export class Layout extends Disposable {
   ) {
     super();
 
-    this.sidebarPart = this._register(new WorkbenchSidebarPart(storageService));
+    this.sidebarPart = this._register(new SidebarPart(storageService));
     this.sidebar = this.sidebarPart.element;
     this.element.className = "workbench_layout";
     this.main.className = "workbench_layout_main";
@@ -283,10 +282,13 @@ export class Layout extends Disposable {
 
   private renderSplit(): void {
     const panes = this.getSplitPanes();
+    const splitClassName = this.hasAuxiliaryBarPane()
+      ? "workbench_layout_split workbench_layout_split--with-auxiliarybar"
+      : "workbench_layout_split";
 
     if (!this.splitView.current) {
       this.splitView.current = new SplitView({
-        className: "workbench_layout_split",
+        className: splitClassName,
         gap: 0,
         onDidResizeEnd: (event) => this.handleResizeEnd(event),
         orientation: "horizontal",
@@ -294,7 +296,7 @@ export class Layout extends Disposable {
       });
     } else {
       this.splitView.current.update({
-        className: "workbench_layout_split",
+        className: splitClassName,
         gap: 0,
         onDidResizeEnd: (event) => this.handleResizeEnd(event),
         orientation: "horizontal",
@@ -303,10 +305,10 @@ export class Layout extends Disposable {
     }
 
     const splitView = this.splitView.current;
-    splitView.getPaneElement(WorkbenchSidebarPaneId)?.replaceChildren(this.sidebar);
+    splitView.getPaneElement(this.sidebarPart.paneId)?.replaceChildren(this.sidebar);
     splitView.getPaneElement("workbench-main")?.replaceChildren(this.main);
     splitView
-      .getPaneElement(WorkbenchAuxiliaryBarPaneId)
+      .getPaneElement(this.auxiliaryBarPart.paneId)
       ?.replaceChildren(this.auxiliaryBar);
     this.shell.className = "workbench_layout_shell";
     this.shell.replaceChildren(splitView.element);
@@ -375,6 +377,10 @@ export class Layout extends Disposable {
   private shouldRenderSplit(): boolean {
     return isWorkbenchView(this.activeView) &&
       (this.shouldRenderSidebar() || Boolean(this.parts.auxiliaryBar));
+  }
+
+  private hasAuxiliaryBarPane(): boolean {
+    return isWorkbenchView(this.activeView) && Boolean(this.parts.auxiliaryBar);
   }
 
   private isPartVisible(part: Parts): boolean {

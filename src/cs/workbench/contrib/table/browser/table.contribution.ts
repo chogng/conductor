@@ -13,7 +13,7 @@ import {
   type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
-import { ActiveWorkbenchMainPartContext } from "src/cs/workbench/common/contextkeys";
+import { ActiveWorkbenchMainPartContext } from "src/cs/workbench/browser/contextkeys";
 import {
   Extensions as ViewExtensions,
   type IViewContainersRegistry,

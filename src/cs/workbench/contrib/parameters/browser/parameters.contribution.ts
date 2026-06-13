@@ -9,7 +9,7 @@ import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
 import {
   ActiveAuxiliaryBarViewContext,
   ActiveWorkbenchMainPartContext,
-} from "src/cs/workbench/common/contextkeys";
+} from "src/cs/workbench/browser/contextkeys";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
   Extensions as ViewExtensions,

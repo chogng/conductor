@@ -12,8 +12,8 @@ import {
 } from "src/cs/platform/storage/common/storage";
 import type { IViewPaneContainer } from "src/cs/workbench/common/views";
 
-export const WorkbenchSidebarClassName = "workbench_layout_sidebar";
-export const WorkbenchSidebarPaneId = "workbench-sidebar";
+const SidebarClassName = "workbench_layout_sidebar";
+const SidebarPaneId = "workbench-sidebar";
 const WorkbenchSidebarWidthStorageKey = "workbench.sidebar.width";
 
 export const SIDEBAR_DEFAULT_WIDTH_PX = 250;
@@ -24,7 +24,7 @@ export type WorkbenchSidebarAction = IAction & {
   readonly icon?: LxIconDefinition;
 };
 
-export type SidebarPaneContainerInput = {
+type SidebarPaneContainerInput = {
   readonly actions: readonly IAction[];
   readonly container: IViewPaneContainer;
   readonly title: string;
@@ -32,7 +32,7 @@ export type SidebarPaneContainerInput = {
 
 export const createSidebarPart = (): HTMLDivElement => {
   const element = document.createElement("div");
-  element.className = WorkbenchSidebarClassName;
+  element.className = SidebarClassName;
   return element;
 };
 
@@ -50,7 +50,7 @@ export const clampSidebarWidth = (width: number): number =>
     Math.min(SIDEBAR_MAX_WIDTH_PX, Math.round(width)),
   );
 
-export class WorkbenchSidebarLayout {
+export class SidebarLayout {
   private _width: number;
   private readonly onDidChangeWidthEmitter = new Emitter<number>();
 
@@ -78,26 +78,27 @@ export class WorkbenchSidebarLayout {
   }
 }
 
-export const createSidebarSplitPane = (
+const createSidebarSplitPane = (
   size?: number,
 ): SplitViewPane => ({
-  id: WorkbenchSidebarPaneId,
+  id: SidebarPaneId,
   defaultSize: SIDEBAR_DEFAULT_WIDTH_PX,
   minSize: SIDEBAR_MIN_WIDTH_PX,
   maxSize: SIDEBAR_MAX_WIDTH_PX,
   ...(typeof size === "number" ? { size } : {}),
 });
 
-export class WorkbenchSidebarPart extends Disposable {
-  private readonly layout: WorkbenchSidebarLayout;
+export class SidebarPart extends Disposable {
+  private readonly layout: SidebarLayout;
 
+  public readonly paneId = SidebarPaneId;
   public readonly element = createSidebarPart();
   public readonly onDidChangeWidth;
 
   constructor(private readonly storageService?: IStorageService) {
     super();
 
-    this.layout = this._register(new WorkbenchSidebarLayout(
+    this.layout = this._register(new SidebarLayout(
       this.storageService?.getNumber(
         WorkbenchSidebarWidthStorageKey,
         StorageScope.PROFILE,
@@ -133,10 +134,6 @@ export class WorkbenchSidebarPart extends Disposable {
 
   public createSplitPane(): SplitViewPane {
     return createSidebarSplitPane(this.width);
-  }
-
-  public createDefaultSplitPane(): SplitViewPane {
-    return createSidebarSplitPane();
   }
 
   public updatePaneContainer(input: SidebarPaneContainerInput): void {

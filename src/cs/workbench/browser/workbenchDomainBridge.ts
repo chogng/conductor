@@ -3,13 +3,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from "src/cs/base/common/lifecycle";
-import type { WorkbenchMainPart } from "src/cs/workbench/common/contextkeys";
 import {
   type ExplorerPaneInput,
   type ExplorerSelectionKind,
   type ExplorerThumbnailPlotModel,
   type IExplorerService,
 } from "src/cs/workbench/contrib/files/browser/files";
+import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
   createChartExplorerFilesFromRecords,
   resolveExplorerSelectedFileId,
