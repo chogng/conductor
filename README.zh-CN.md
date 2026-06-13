@@ -39,8 +39,14 @@ Conductor Studio 是一款面向半导体器件测试数据的桌面优先分析
 
 ## 本地数据和临时文件
 
+Conductor Studio 会把本地数据按 owner 和生命周期分到少数几个根目录。下面这些
+路径已经核对过：持久化用户数据、可重建的 Electron 缓存、构建缓存，以及敏感
+的运行时中转文件不会混用同一个生命周期。
+
 - 模板、设置以及已配置的 Origin 可执行文件路径等持久化数据，保存在
   Conductor Studio 的 user data 目录下。
+- 可重建的 Electron 缓存保存在 Electron user data 目录下，这样会跟随当前
+  profile 或 portable 数据根目录。
 - Origin 运行时任务文件属于敏感的临时中转数据。CSV 中间文件和 Origin
   worker 日志写入系统临时目录下的 `conductor/origin`，而不是持久化的
   user data 目录。
@@ -62,6 +68,7 @@ Conductor Studio 是一款面向半导体器件测试数据的桌面优先分析
 | Origin 运行时临时数据 | `<temp>/conductor/origin/` | 临时 | 用于 Origin 中转任务、CSV 中间文件、worker 日志和 stream jobs。 |
 | Rust 处理临时数据 | `<temp>/conductor/rust-process-*` | 临时 | 单次处理请求的中间输出，例如 `calculation-cache.json`。 |
 | Rust Excel 临时任务 | `<temp>/conductor/rust-xls-jobs/` | 临时 | 用于桌面端 Excel 转换任务。 |
+| 构建工具缓存 | `.build/cache/` | 可重建 | 本地或 CI 构建时使用的 npm、Python、Rust、Electron 和 Electron Builder 缓存。 |
 
 ## 环境要求
 

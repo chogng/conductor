@@ -57,8 +57,15 @@ live, save that rule as a template, then reuse it across future experiments.
 
 ## Local Data And Temporary Files
 
+Conductor Studio intentionally keeps local data in a small set of owner-specific
+roots. The paths below have been reviewed so persistent user data, rebuildable
+Electron caches, build caches, and sensitive runtime handoff files do not share
+the same lifecycle.
+
 - Persistent app data, including templates, settings, and the configured Origin
   executable path, is stored under the user data home used by Conductor Studio.
+- Rebuildable Electron caches stay under the Electron user data directory so
+  they follow the selected profile or portable data root.
 - Origin runtime job files are treated as sensitive temporary handoff data. CSV
   intermediates and Origin worker logs are written under the system Temp root at
   `conductor/origin` instead of the persistent user data directory.
@@ -81,6 +88,7 @@ Path summary:
 | Origin runtime temp data | `<temp>/conductor/origin/` | temporary | Used for Origin handoff jobs, CSV intermediates, worker logs, and stream jobs. |
 | Rust processing temp data | `<temp>/conductor/rust-process-*` | temporary | Per-request processing output such as `calculation-cache.json`. |
 | Rust Excel temp jobs | `<temp>/conductor/rust-xls-jobs/` | temporary | Used by desktop Excel conversion jobs. |
+| Build tool caches | `.build/cache/` | rebuildable | npm, Python, Rust, Electron, and Electron Builder caches used during local or CI builds. |
 
 ## Requirements
 
