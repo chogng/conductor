@@ -30,7 +30,25 @@ type DesktopWindowAppearance = {
   readonly transparentChrome?: boolean;
 };
 
+type DesktopWindowMaterial = NonNullable<
+  BrowserWindowConstructorOptions["backgroundMaterial"]
+>;
+type DesktopWindowVibrancy = NonNullable<Parameters<BrowserWindow["setVibrancy"]>[0]>;
+type DesktopWindowVisualEffectState = NonNullable<
+  BrowserWindowConstructorOptions["visualEffectState"]
+>;
+
+type DesktopWindowAppearanceStyle = {
+  readonly backgroundMaterial?: DesktopWindowMaterial;
+  readonly backgroundColor: string;
+  readonly titleBarOverlayColor: string;
+  readonly transparentChrome: boolean;
+  readonly vibrancy?: DesktopWindowVibrancy;
+  readonly visualEffectState?: DesktopWindowVisualEffectState;
+};
+
 type DefaultBrowserWindowOptions = {
+  readonly appearance?: DesktopWindowAppearance | null;
   readonly icon?: string;
   readonly isDev: boolean;
   readonly preload: string;
@@ -38,6 +56,9 @@ type DefaultBrowserWindowOptions = {
 };
 
 export class DesktopWindowMain {
+  private readonly windowAppearanceStyles =
+    new WeakMap<BrowserWindow, DesktopWindowAppearanceStyle>();
+
   constructor(
     private readonly defaultBackgroundColor: string,
   ) {}
@@ -47,12 +68,18 @@ export class DesktopWindowMain {
   }
 
   public createBrowserWindowOptions({
+    appearance,
     icon,
     isDev,
     preload,
     themeSnapshot,
   }: DefaultBrowserWindowOptions): BrowserWindowConstructorOptions {
     const hideNativeWindowsTitlebar = process.platform === "win32";
+    const appearanceStyle = resolveDesktopWindowAppearanceStyle(
+      appearance ?? null,
+      themeSnapshot.backgroundColor,
+      process.platform,
+    );
 
     return {
       width: DEFAULT_MAIN_WINDOW_SIZE.WIDTH,
@@ -60,19 +87,22 @@ export class DesktopWindowMain {
       minWidth: WindowMinimumSize.WIDTH,
       minHeight: WindowMinimumSize.HEIGHT,
       icon,
-      backgroundColor: themeSnapshot.backgroundColor,
+      backgroundColor: appearanceStyle.backgroundColor,
+      backgroundMaterial: appearanceStyle.backgroundMaterial,
       autoHideMenuBar: true,
       center: true,
       frame: !hideNativeWindowsTitlebar,
       show: false,
       titleBarOverlay: hideNativeWindowsTitlebar
         ? {
-            color: themeSnapshot.backgroundColor,
+            color: appearanceStyle.titleBarOverlayColor,
             symbolColor: themeSnapshot.foregroundColor,
             height: 38,
           }
         : undefined,
       titleBarStyle: hideNativeWindowsTitlebar ? "hidden" : undefined,
+      vibrancy: appearanceStyle.vibrancy,
+      visualEffectState: appearanceStyle.visualEffectState,
       webPreferences: {
         preload,
         contextIsolation: true,
@@ -94,12 +124,23 @@ export class DesktopWindowMain {
   ): void {
     if (!win || win.isDestroyed()) return;
 
+    const hasAppearance =
+      Object.prototype.hasOwnProperty.call(options, "appearance");
+    const appearanceStyle = hasAppearance
+      ? resolveDesktopWindowAppearanceStyle(
+          options.appearance ?? null,
+          this.defaultBackgroundColor,
+          process.platform,
+        )
+      : this.windowAppearanceStyles.get(win);
+
     if (options.themeSnapshot) {
-      applyThemeSnapshot(win, options.themeSnapshot);
+      applyThemeSnapshot(win, options.themeSnapshot, appearanceStyle);
     }
 
-    if (options.appearance) {
-      applyDesktopAppearance(win, options.appearance, this.defaultBackgroundColor);
+    if (hasAppearance && appearanceStyle) {
+      this.windowAppearanceStyles.set(win, appearanceStyle);
+      applyDesktopAppearance(win, appearanceStyle);
     }
   }
 
@@ -107,7 +148,13 @@ export class DesktopWindowMain {
     win: BrowserWindow | null | undefined,
     options: WindowControlsOverlayOptions,
   ): void {
-    updateWindowControlsOverlay(win, options);
+    updateWindowControlsOverlay(
+      win,
+      withAppearanceWindowControlsOverlay(
+        options,
+        win ? this.windowAppearanceStyles.get(win) : undefined,
+      ),
+    );
   }
 
   public runCommand(
@@ -166,14 +213,23 @@ export class DesktopWindowMain {
 function applyThemeSnapshot(
   win: BrowserWindow,
   snapshot: ThemeSnapshot,
+  appearanceStyle?: DesktopWindowAppearanceStyle,
 ): void {
-  if (typeof snapshot.backgroundColor === "string") {
-    win.setBackgroundColor(snapshot.backgroundColor);
+  const backgroundColor =
+    appearanceStyle?.backgroundColor ?? snapshot.backgroundColor;
+  if (typeof backgroundColor === "string") {
+    win.setBackgroundColor(backgroundColor);
   }
-  updateWindowControlsOverlay(win, {
-    backgroundColor: snapshot.backgroundColor,
-    foregroundColor: snapshot.foregroundColor,
-  });
+  updateWindowControlsOverlay(
+    win,
+    withAppearanceWindowControlsOverlay(
+      {
+        backgroundColor: snapshot.backgroundColor,
+        foregroundColor: snapshot.foregroundColor,
+      },
+      appearanceStyle,
+    ),
+  );
 }
 
 function updateWindowControlsOverlay(
@@ -193,25 +249,80 @@ function updateWindowControlsOverlay(
 
 function applyDesktopAppearance(
   win: BrowserWindow,
-  appearance: DesktopWindowAppearance,
-  defaultBackgroundColor: string,
+  style: DesktopWindowAppearanceStyle,
 ): void {
-  const backgroundColor = normalizeColorOption(appearance.backgroundColor)
-    ?? defaultBackgroundColor;
-  const transparentChrome = appearance.transparentChrome === true;
-  const canSetMaterial =
-    process.platform === "win32" &&
-    typeof win.setBackgroundMaterial === "function";
-
-  if (canSetMaterial) {
+  if (process.platform === "win32" && typeof win.setBackgroundMaterial === "function") {
     try {
-      win.setBackgroundMaterial(transparentChrome ? "mica" : "none");
+      win.setBackgroundMaterial(style.backgroundMaterial ?? "none");
     } catch {
       // Native material is best-effort; CSS transparency remains available.
     }
   }
 
-  win.setBackgroundColor(transparentChrome ? "#00000000" : backgroundColor);
+  if (process.platform === "darwin" && typeof win.setVibrancy === "function") {
+    win.setVibrancy(style.vibrancy ?? null);
+  }
+
+  win.setBackgroundColor(style.backgroundColor);
+  updateWindowControlsOverlay(win, {
+    backgroundColor: style.titleBarOverlayColor,
+  });
+}
+
+function withAppearanceWindowControlsOverlay(
+  options: WindowControlsOverlayOptions,
+  style: DesktopWindowAppearanceStyle | undefined,
+): WindowControlsOverlayOptions {
+  if (style?.transparentChrome !== true) {
+    return options;
+  }
+
+  return {
+    ...options,
+    backgroundColor: style.titleBarOverlayColor,
+  };
+}
+
+function resolveDesktopWindowAppearanceStyle(
+  appearance: DesktopWindowAppearance | null,
+  defaultBackgroundColor: string,
+  platform: NodeJS.Platform,
+): DesktopWindowAppearanceStyle {
+  const backgroundColor = normalizeColorOption(appearance?.backgroundColor)
+    ?? defaultBackgroundColor;
+
+  if (appearance?.transparentChrome !== true) {
+    return {
+      backgroundColor,
+      titleBarOverlayColor: backgroundColor,
+      transparentChrome: false,
+    };
+  }
+
+  if (platform === "win32") {
+    return {
+      backgroundMaterial: "mica",
+      backgroundColor: "rgba(0, 0, 0, 0)",
+      titleBarOverlayColor: "rgba(0, 0, 0, 0)",
+      transparentChrome: true,
+    };
+  }
+
+  if (platform === "darwin") {
+    return {
+      backgroundColor: "rgba(0, 0, 0, 0)",
+      titleBarOverlayColor: backgroundColor,
+      transparentChrome: true,
+      vibrancy: "sidebar",
+      visualEffectState: "followWindow",
+    };
+  }
+
+  return {
+    backgroundColor,
+    titleBarOverlayColor: backgroundColor,
+    transparentChrome: false,
+  };
 }
 
 function normalizeColorOption(value: string | undefined): string | undefined {

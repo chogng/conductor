@@ -1454,6 +1454,7 @@ function createMainWindow() {
   const preloadPath = desktopPreloadPath;
 
   const win = new BrowserWindow(desktopWindowMain.createBrowserWindowOptions({
+    appearance: getAppearanceFromStore(),
     icon: windowIcon,
     isDev,
     preload: preloadPath,

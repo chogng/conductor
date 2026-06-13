@@ -181,8 +181,20 @@ select {
   font: inherit;
 }
 
+html[data-transparent-chrome="true"],
 html[data-transparent-chrome="true"] body,
-html[data-transparent-chrome="true"] .workbench_window {
+html[data-transparent-chrome="true"] #root,
+html[data-transparent-chrome="true"] .workbench_root,
+html[data-transparent-chrome="true"] .workbench_window,
+html[data-transparent-chrome="true"] .workbench_window_body,
+html[data-transparent-chrome="true"] .workbench_window_content,
+html[data-transparent-chrome="true"] .workbench_layout,
+html[data-transparent-chrome="true"] .workbench_layout_shell,
+html[data-transparent-chrome="true"] .workbench_layout_split,
+html[data-transparent-chrome="true"] .ui-split-view,
+html[data-transparent-chrome="true"] .ui-split-view__viewport,
+html[data-transparent-chrome="true"] .ui-split-view__grid,
+html[data-transparent-chrome="true"] .ui-split-view__pane {
   background: transparent;
 }
 
@@ -191,35 +203,13 @@ html[data-transparent-chrome="true"].dark .titlebar-root {
   background: transparent;
 }
 
-html[data-transparent-chrome="true"] .workbench_layout_auxiliarybar,
-html[data-transparent-chrome="true"] .workbench_preview_area_part,
-html[data-transparent-chrome="true"] .settings-view-nav,
-html[data-transparent-chrome="true"] .settings-card,
-html[data-transparent-chrome="true"] .import-viewer-file-item,
-html[data-transparent-chrome="true"] .file-list-item,
-html[data-transparent-chrome="true"] .table_view_preview,
-html[data-transparent-chrome="true"] .template_tab_container,
-html[data-transparent-chrome="true"] .template_tab_container.tab_menu {
-  background: rgb(var(--bg-surface) / 0.58);
-  backdrop-filter: blur(18px);
-}
-
-html[data-transparent-chrome="true"] .workbench_layout_auxiliarybar,
-html[data-transparent-chrome="true"] .workbench_preview_area_part,
-html[data-transparent-chrome="true"] .settings-view-nav,
-html[data-transparent-chrome="true"] .settings-card {
-  box-shadow: none;
-}
-
-html[data-transparent-chrome="true"] .workbench_layout_shell,
-html[data-transparent-chrome="true"] .template_config_panel,
-html[data-transparent-chrome="true"] .workbench_window_content {
+html[data-transparent-chrome="true"] .workbench_layout_sidebar {
   background: transparent;
+  backdrop-filter: none;
 }
 
-html[data-transparent-chrome="true"] .table_view_grid th {
-  background: rgb(var(--bg-page) / 0.82);
-  backdrop-filter: blur(12px);
+html[data-transparent-chrome="true"] .workbench_layout_main {
+  background: rgb(var(--bg-page) / 1);
 }
 
 .workbench_root {
