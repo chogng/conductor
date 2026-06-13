@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import workbenchLogoUrl from "src/cs/workbench/browser/parts/splash/logo.svg";
+import workbenchLogoUrl from "../../../../../../resources/brand/conductor.svg";
 
 export type DesktopBootstrapSettings = {
   initialWorkbenchSettings?: {
@@ -57,35 +57,48 @@ const ensureSplashStyles = () => {
   inset: 0;
   z-index: 2147483647;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  background: #f5f4ef;
-  color: #222222;
-  font-family: var(--font-family-base, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-  font-size: 21px;
-  font-weight: 650;
-  line-height: 1.1;
+  background:
+    radial-gradient(120% 92% at 58% 54%, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.46) 42%, rgba(255, 255, 255, 0) 72%),
+    linear-gradient(152deg, #edf3fb 0%, #f8f8f4 45%, #fff0e7 100%);
+  color: #6f6f72;
   user-select: none;
 }
 
 #${SPLASH_ELEMENT_ID} img {
-  width: 58px;
-  height: 58px;
+  width: 54px;
+  height: 54px;
   object-fit: contain;
+  opacity: 0.72;
 }
 
 html.dark #${SPLASH_ELEMENT_ID},
 #${SPLASH_ELEMENT_ID}[data-theme="dark"] {
-  background: #0b0b0c;
-  color: #f5f4ef;
+  background:
+    radial-gradient(115% 88% at 58% 54%, rgba(79, 84, 96, 0.46) 0%, rgba(27, 29, 34, 0.38) 42%, rgba(9, 10, 12, 0) 72%),
+    linear-gradient(152deg, #111820 0%, #17181c 48%, #211917 100%);
+  color: #c7c7c9;
+}
+
+html.dark #${SPLASH_ELEMENT_ID} img,
+#${SPLASH_ELEMENT_ID}[data-theme="dark"] img {
+  filter: invert(1);
+  opacity: 0.74;
 }
 
 html.light #${SPLASH_ELEMENT_ID},
 #${SPLASH_ELEMENT_ID}[data-theme="light"] {
-  background: #f5f4ef;
-  color: #222222;
+  background:
+    radial-gradient(120% 92% at 58% 54%, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.46) 42%, rgba(255, 255, 255, 0) 72%),
+    linear-gradient(152deg, #edf3fb 0%, #f8f8f4 45%, #fff0e7 100%);
+  color: #6f6f72;
+}
+
+html.light #${SPLASH_ELEMENT_ID} img,
+#${SPLASH_ELEMENT_ID}[data-theme="light"] img {
+  filter: none;
+  opacity: 0.72;
 }
 `;
   document.head.appendChild(style);
@@ -101,11 +114,7 @@ const createSplashContent = (theme: "light" | "dark") => {
   logo.src = workbenchLogoUrl;
   logo.alt = "";
 
-  const brand = document.createElement("div");
-  brand.textContent = "Conductor Studio";
-
   splash.appendChild(logo);
-  splash.appendChild(brand);
   return splash;
 };
 
