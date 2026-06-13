@@ -7,8 +7,7 @@
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  border-top: 1px solid rgb(var(--border) / 1);
-  background-color: rgb(var(--bg-surface) / 1);
+  background-color: transparent;
 }
 
 .workbench_layout_sidebar .workbench-view-pane-container {

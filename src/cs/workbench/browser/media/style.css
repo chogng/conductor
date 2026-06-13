@@ -191,7 +191,6 @@ html[data-transparent-chrome="true"].dark .titlebar-root {
   background: transparent;
 }
 
-html[data-transparent-chrome="true"] .workbench_layout_sidebar,
 html[data-transparent-chrome="true"] .workbench_layout_auxiliarybar,
 html[data-transparent-chrome="true"] .workbench_preview_area_part,
 html[data-transparent-chrome="true"] .settings-view-nav,
@@ -205,7 +204,6 @@ html[data-transparent-chrome="true"] .template_tab_container.tab_menu {
   backdrop-filter: blur(18px);
 }
 
-html[data-transparent-chrome="true"] .workbench_layout_sidebar,
 html[data-transparent-chrome="true"] .workbench_layout_auxiliarybar,
 html[data-transparent-chrome="true"] .workbench_preview_area_part,
 html[data-transparent-chrome="true"] .settings-view-nav,
