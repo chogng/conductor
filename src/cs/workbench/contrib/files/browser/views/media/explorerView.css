@@ -104,10 +104,6 @@
   display: none;
 }
 
-.file-list-empty-import-button {
-  min-width: 132px;
-}
-
 .file-list.dragging .file-list-empty {
   padding: 0;
 }

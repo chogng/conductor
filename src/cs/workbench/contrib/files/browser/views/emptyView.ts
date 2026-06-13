@@ -29,12 +29,12 @@ export const createEmptyView = ({
 
   const support = folderImportSupport ?? detectFolderImportSupport();
   const importButton = createButton({
-    ariaLabel: localize("files.importFolderButton", "Import Folder"),
+    ariaLabel: localize("files.importFolderButton", "Open Folder"),
     className: "file-list-empty-import-button",
-    content: document.createTextNode(localize("files.importFolderButton", "Import Folder")),
+    content: document.createTextNode(localize("files.importFolderButton", "Open Folder")),
     disabled: !support.supported,
     size: "sm",
-    title: localize("files.importFolderButton", "Import Folder"),
+    title: localize("files.importFolderButton", "Open Folder"),
     variant: "primary",
   });
   importButton.addEventListener("click", onImportFiles);
