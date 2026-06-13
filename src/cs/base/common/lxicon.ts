@@ -1,6 +1,7 @@
 import {
   lxAdd as renderAdd,
   lxAnalysis as renderAnalysis,
+  lxAppearance as renderAppearance,
   lxArrowLeft as renderArrowLeft,
   lxArrowRight as renderArrowRight,
   lxCheck as renderCheck,
@@ -105,6 +106,8 @@ export const lxAdd = registerLxIcon("add", renderAdd);
 
 export const lxAnalysis = registerLxIcon("analysis", renderAnalysis);
 
+export const lxAppearance = registerLxIcon("appearance", renderAppearance);
+
 export const lxChart = registerLxIcon("chart", renderAnalysis);
 
 export const lxArrowLeft = registerLxIcon("arrow-left", renderArrowLeft);
@@ -166,6 +169,7 @@ export const LxIcon = {
   alertCircle: lxAlertCircle,
   alertTriangle: lxAlertTriangle,
   analysis: lxAnalysis,
+  appearance: lxAppearance,
   arrowLeft: lxArrowLeft,
   arrowRight: lxArrowRight,
   chart: lxChart,

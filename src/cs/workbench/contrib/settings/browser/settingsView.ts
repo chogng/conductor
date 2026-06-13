@@ -903,7 +903,7 @@ function getSettingsList(section: HTMLElement): HTMLElement {
 
 function settingsSectionIcon(sectionId: SettingsSectionId): LxIconDefinition {
   if (sectionId === "appearance") {
-    return LxIcon.layoutSidebarRightEmpty;
+    return LxIcon.appearance;
   }
 
   if (sectionId === "origin") {
