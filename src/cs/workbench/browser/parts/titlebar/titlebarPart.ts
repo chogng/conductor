@@ -34,14 +34,6 @@ import {
   type WorkbenchTitlebarState,
 } from "src/cs/workbench/services/title/browser/titleService";
 
-const WORKBENCH_TITLEBAR_APP_ICON_LIGHT_SVG =
-  "<svg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'><g clip-path='url(#clip0_conductor_titlebar_light)'><path d='M8 0L14.9282 4V12L8 16L1.0718 12V4L8 0Z' fill='black'/><path d='M8.00003 6L9.73208 7V9L8.00003 10L6.26798 9V7L8.00003 6Z' fill='white'/><path d='M8.00003 6L9.73208 7V9M8.00003 6L6.26798 7V9M8.00003 6L4.73205 4L3 5V11M8.00003 2L13.0001 5V7L9.73208 9L8.00003 10L6.26798 9M6.26798 9V13L8.00003 14L13.0001 11' stroke='white'/><circle cx='8' cy='2' r='1' fill='white'/><circle cx='3' cy='11' r='1' fill='white'/><circle cx='13' cy='11' r='1' fill='white'/></g><defs><clipPath id='clip0_conductor_titlebar_light'><rect width='16' height='16' fill='white'/></clipPath></defs></svg>";
-const WORKBENCH_TITLEBAR_APP_ICON_DARK_SVG =
-  "<svg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'><g clip-path='url(#clip0_conductor_titlebar_dark)'><rect width='16' height='16' fill='black'/><path d='M8 0L14.9282 4V12L8 16L1.0718 12V4L8 0Z' fill='white'/><path d='M8.00003 6L9.73208 7V9L8.00003 10L6.26798 9V7L8.00003 6Z' fill='black'/><path d='M8.00003 6L9.73208 7V9M8.00003 6L6.26798 7V9M8.00003 6L4.73205 4L3 5V11M8.00003 2L13.0001 5V7L9.73208 9L8.00003 10L6.26798 9M6.26798 9V13L8.00003 14L13.0001 11' stroke='black'/><circle cx='8' cy='2' r='0.5' fill='black' stroke='black'/><circle cx='3' cy='11' r='0.5' fill='black' stroke='black'/><circle cx='13' cy='11' r='0.5' fill='black' stroke='black'/></g><defs><clipPath id='clip0_conductor_titlebar_dark'><rect width='16' height='16' fill='white'/></clipPath></defs></svg>";
-export const WORKBENCH_TITLEBAR_APP_ICON_LIGHT_SRC =
-  `data:image/svg+xml,${encodeURIComponent(WORKBENCH_TITLEBAR_APP_ICON_LIGHT_SVG)}`;
-export const WORKBENCH_TITLEBAR_APP_ICON_DARK_SRC =
-  `data:image/svg+xml,${encodeURIComponent(WORKBENCH_TITLEBAR_APP_ICON_DARK_SVG)}`;
 export const WORKBENCH_TITLEBAR_DRAG_REGION_STYLE = {
   WebkitAppRegion: "drag",
 };
@@ -509,21 +501,13 @@ const createWorkbenchTitlebarView = (
 
   header.addEventListener("contextmenu", (event) => event.preventDefault());
 
-  const brandIconLight = createElement("img", {
-    src: WORKBENCH_TITLEBAR_APP_ICON_LIGHT_SRC,
-    alt: "",
+  const brandIcon = createElement("span", {
     "aria-hidden": "true",
-    className: "titlebar-brand-icon titlebar-brand-icon--light",
-  });
-  const brandIconDark = createElement("img", {
-    src: WORKBENCH_TITLEBAR_APP_ICON_DARK_SRC,
-    alt: "",
-    "aria-hidden": "true",
-    className: "titlebar-brand-icon titlebar-brand-icon--dark",
+    className: "titlebar-brand-icon",
   });
   const brand = appendChildren(
     createElement("div", { className: "titlebar-brand" }),
-    [brandIconLight, brandIconDark],
+    [brandIcon],
   );
   const actionBarDisposables: IDisposable[] = [];
   const navActionsById = new Map<string, WorkbenchTitlebarRuntimeAction>();

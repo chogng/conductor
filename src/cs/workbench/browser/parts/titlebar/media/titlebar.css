@@ -48,22 +48,13 @@
 }
 
 .titlebar-brand-icon {
+  background-image: url("../../../../../../../resources/brand/conductor.svg");
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: 16px;
   flex: 0 0 auto;
   height: 16px;
-  object-fit: contain;
   width: 16px;
-}
-
-.titlebar-brand-icon--dark {
-  display: none;
-}
-
-.dark .titlebar-brand-icon--light {
-  display: none;
-}
-
-.dark .titlebar-brand-icon--dark {
-  display: block;
 }
 
 /* Center region: active file selector. */
