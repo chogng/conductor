@@ -163,9 +163,6 @@ suite("workbench/services/settings/browser/settingsService", () => {
       setSsShowFitLine: enabled => {
         calls.push(["fitLine", enabled]);
       },
-      setTheme: theme => {
-        calls.push(["theme", theme]);
-      },
       settingsStore: {
         getSettings: async () => storedSettings,
         updateSettings: async (updates) => {
@@ -194,7 +191,6 @@ suite("workbench/services/settings/browser/settingsService", () => {
       ["checkForUpdates"],
       ["update", { language: "zh" }],
       ["reload"],
-      ["theme", "dark"],
       ["update", { theme: "dark" }],
       ["ionIoff", "manual"],
       ["ss", "manual"],
@@ -211,7 +207,6 @@ const createSettingsServiceOptions = (
     currentVersion: "1.0.0",
     isAvailable: false,
   },
-  applyAppearanceSettings: () => undefined,
   checkForUpdates: async () => false,
   isWindowsDesktopShell: false,
   language: "en",
@@ -219,7 +214,6 @@ const createSettingsServiceOptions = (
   setIonIoffMethod: () => undefined,
   setSsMethod: () => undefined,
   setSsShowFitLine: () => undefined,
-  setTheme: () => undefined,
   settingsStore: {
     getSettings: async () => ({}),
     updateSettings: async updates => updates,

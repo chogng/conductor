@@ -24,7 +24,7 @@ type ActiveQuickPick = {
 export class BrowserQuickInputService extends Disposable implements IQuickInputServiceType {
   public declare readonly _serviceBrand: undefined;
 
-  public readonly quickAccess = new QuickAccessController(this);
+  public readonly quickAccess: QuickAccessController = new QuickAccessController(this);
 
   private activeQuickPick: ActiveQuickPick | null = null;
 

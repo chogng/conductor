@@ -22,11 +22,10 @@ import {
   LifecyclePhase,
   type ILifecycleService as ILifecycleServiceType,
 } from "src/cs/workbench/services/lifecycle/common/lifecycle";
-import { startWorkbenchThemeContribution } from "src/cs/workbench/services/themes/browser/theme.contribution";
+import { normalizeWorkbenchAppearance } from "src/cs/workbench/services/themes/common/themeService";
 import {
   applyWorkbenchAppearance,
-  normalizeWorkbenchAppearance,
-} from "src/cs/workbench/browser/appearance";
+} from "src/cs/workbench/services/themes/browser/themeService";
 
 declare global {
   interface Window {
@@ -176,7 +175,6 @@ const bootstrapWorkbench = async (): Promise<void> => {
   startBrowserWorkbenchBoot(logBoot, isBootProfileEnabled);
   await import("src/cs/workbench/workbench.web.main.ts");
   startWorkbench();
-  startWorkbenchThemeContribution();
 };
 
 void bootstrapWorkbench();

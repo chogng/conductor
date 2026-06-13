@@ -33,7 +33,7 @@ import {
   DEFAULT_WORKBENCH_BACKGROUND_COLOR,
   normalizeWorkbenchAppearance,
   normalizeWorkbenchBackgroundColor,
-} from "src/cs/workbench/browser/appearance";
+} from "src/cs/workbench/services/themes/common/themeService";
 
 type SettingsControllerOptions = SettingsViewInput;
 

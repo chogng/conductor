@@ -87,7 +87,6 @@ export type SettingsAppUpdateInput = {
 
 export type SettingsServiceOptions = {
   appUpdateSettings: SettingsAppUpdateInput;
-  applyAppearanceSettings: (settings: ConductorSettings | null) => void;
   checkForUpdates: () => Promise<boolean> | boolean;
   isWindowsDesktopShell: boolean;
   language: LanguagePreference;
@@ -95,7 +94,6 @@ export type SettingsServiceOptions = {
   setIonIoffMethod: (method: IonIoffMethod) => void;
   setSsMethod: (method: SsMethod) => void;
   setSsShowFitLine: (enabled: boolean) => void;
-  setTheme: (theme: ThemeMode) => void;
   settingsStore?: SettingsStore;
   theme: ThemeMode;
 };

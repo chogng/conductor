@@ -48,7 +48,7 @@ import {
   resolveLanguageCode,
 } from "src/cs/platform/language/common/language";
 import { localize } from "src/cs/nls";
-import type { ThemeMode } from "src/cs/workbench/common/theme";
+import { isThemeMode } from "src/cs/workbench/common/theme";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
   ActiveAuxiliaryBarViewContext,
@@ -67,11 +67,6 @@ import {
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
 import { AuxiliaryBarModel } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarModel";
 import type { WorkbenchStyle } from "src/cs/workbench/browser/style";
-import {
-  applyWorkbenchAppearance,
-  normalizeWorkbenchAppearance,
-  type WorkbenchAppearance,
-} from "src/cs/workbench/browser/appearance";
 import {
   WorkbenchWindow,
 } from "src/cs/workbench/browser/window";
@@ -105,7 +100,6 @@ import {
 import type {
   ProcessedEntry,
 } from "src/cs/workbench/services/session/common/sessionTypes";
-import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { NotificationToasts } from "src/cs/workbench/browser/parts/notifications/notificationsToasts";
 import { registerNotificationCommands } from "src/cs/workbench/browser/parts/notifications/notificationsCommands";
@@ -200,10 +194,6 @@ export class Workbench extends Layout {
   private readonly exportService: IExportService;
   private readonly domainBridge: WorkbenchDomainBridge;
   private readonly auxiliaryBarModel = new AuxiliaryBarModel();
-  private theme: ThemeMode = isThemeMode(window.__CONDUCTOR_INITIAL_THEME__)
-    ? window.__CONDUCTOR_INITIAL_THEME__
-    : "system";
-
   //#endregion
 
   //#region lifecycle and rendering
@@ -660,8 +650,6 @@ export class Workbench extends Layout {
             : null,
         isAvailable: windowState.isAppUpdatePreviewEnabled,
       },
-      applyAppearanceSettings: (settings) =>
-        this.setAppearance(normalizeWorkbenchAppearance(settings)),
       checkForUpdates: this.checkForUpdates,
       isWindowsDesktopShell: windowState.isWindowsDesktopShell,
       language: this.languagePreference,
@@ -669,8 +657,9 @@ export class Workbench extends Layout {
       setIonIoffMethod: method => this.parametersService.setIonIoffMethod(method),
       setSsMethod: method => this.parametersService.setSsMethod(method),
       setSsShowFitLine: enabled => this.parametersService.setShowFitLine(enabled),
-      setTheme: this.setTheme,
-      theme: this.theme,
+      theme: isThemeMode(window.__CONDUCTOR_INITIAL_THEME__)
+        ? window.__CONDUCTOR_INITIAL_THEME__
+        : "system",
     };
   }
 
@@ -708,58 +697,5 @@ export class Workbench extends Layout {
     return root;
   }
 
-  private readonly setTheme = (theme: ThemeMode): void => {
-    if (this.theme === theme) {
-      return;
-    }
-
-    this.theme = theme;
-    window.__CONDUCTOR_INITIAL_THEME__ = theme;
-    applyThemeMode(theme);
-    this.settingsService.update(this.getSettingsServiceOptions());
-    this.refreshWorkbench();
-  };
-
-  private readonly setAppearance = (appearance: WorkbenchAppearance): void => {
-    const normalizedAppearance = normalizeWorkbenchAppearance(appearance);
-    applyWorkbenchAppearance(normalizedAppearance);
-    const ipcRenderer = window.conductor?.ipcRenderer as
-      | { invoke?: (channel: string, ...args: unknown[]) => Promise<unknown> }
-      | undefined;
-    if (typeof ipcRenderer?.invoke === "function") {
-      try {
-        void ipcRenderer.invoke(workbenchIpcChannels.desktopAppearanceSet, normalizedAppearance).catch(() => {
-          // Web and older desktop shells fall back to CSS-only appearance.
-        });
-      } catch {
-        // Web and older desktop shells fall back to CSS-only appearance.
-      }
-    }
-  };
-
 //#endregion
 }
-
-//#region local helpers
-
-const isThemeMode = (value: unknown): value is ThemeMode =>
-  value === "light" || value === "dark" || value === "system";
-
-const resolveThemeMode = (theme: ThemeMode): "light" | "dark" => {
-  if (theme === "light" || theme === "dark") {
-    return theme;
-  }
-
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
-};
-
-const applyThemeMode = (theme: ThemeMode): void => {
-  const resolvedTheme = resolveThemeMode(theme);
-  document.documentElement.classList.remove("light", "dark");
-  document.documentElement.classList.add(resolvedTheme);
-  document.documentElement.style.colorScheme = resolvedTheme;
-};
-
-//#endregion

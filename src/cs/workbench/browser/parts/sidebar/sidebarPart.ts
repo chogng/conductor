@@ -16,7 +16,7 @@ export const WorkbenchSidebarClassName = "workbench_layout_sidebar";
 export const WorkbenchSidebarPaneId = "workbench-sidebar";
 const WorkbenchSidebarWidthStorageKey = "workbench.sidebar.width";
 
-export const SIDEBAR_DEFAULT_WIDTH_PX = 300;
+export const SIDEBAR_DEFAULT_WIDTH_PX = 250;
 export const SIDEBAR_MIN_WIDTH_PX = 170;
 export const SIDEBAR_MAX_WIDTH_PX = Number.POSITIVE_INFINITY;
 

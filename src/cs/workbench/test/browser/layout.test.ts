@@ -55,13 +55,13 @@ class TestStorageService extends AbstractStorageService {
 suite("workbench/browser/layout", () => {
   test("sidebar width follows workbench part bounds", () => {
     assert.equal(SIDEBAR_MIN_WIDTH_PX, 170);
-    assert.equal(SIDEBAR_DEFAULT_WIDTH_PX, 300);
+    assert.equal(SIDEBAR_DEFAULT_WIDTH_PX, 250);
     assert.equal(SIDEBAR_MAX_WIDTH_PX, Number.POSITIVE_INFINITY);
   });
 
   test("auxiliary bar width follows workbench part bounds", () => {
     assert.equal(AUXILIARY_BAR_MIN_WIDTH_PX, 170);
-    assert.equal(AUXILIARY_BAR_DEFAULT_WIDTH_PX, 300);
+    assert.equal(AUXILIARY_BAR_DEFAULT_WIDTH_PX, 250);
     assert.equal(AUXILIARY_BAR_MAX_WIDTH_PX, Number.POSITIVE_INFINITY);
   });
 

@@ -52,7 +52,6 @@ const defaultOptions: SettingsServiceOptions = {
     currentVersion: null,
     isAvailable: false,
   },
-  applyAppearanceSettings: () => {},
   checkForUpdates: async () => false,
   isWindowsDesktopShell: false,
   language: "system",
@@ -60,7 +59,6 @@ const defaultOptions: SettingsServiceOptions = {
   setIonIoffMethod: () => {},
   setSsMethod: () => {},
   setSsShowFitLine: () => {},
-  setTheme: () => {},
   settingsStore: defaultSettingsStore,
   theme: "system",
 };
@@ -87,7 +85,6 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
   private appliedIonIoffMethod: IonIoffMethod | null = null;
   private appliedSsMethod: SsMethod | null = null;
   private appliedSsShowFitLine: boolean | null = null;
-  private appliedTheme: ThemeMode | null = null;
   private disposed = false;
   private loadingSettings = false;
   private originSettingsViewInput: OriginSettingsViewInput;
@@ -247,8 +244,6 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
       return;
     }
 
-    this.applyTheme(theme);
-
     try {
       await this.updateSettings({ theme });
     } catch {
@@ -341,13 +336,6 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
   }
 
   private applySettings(settings: ConductorSettings | null): void {
-    const nextTheme = settings?.theme;
-    if (isThemeMode(nextTheme)) {
-      this.applyTheme(nextTheme);
-    }
-
-    this.options.applyAppearanceSettings(settings);
-
     const ionIoffMethodDefault = settings?.ionIoffMethodDefault;
     if (ionIoffMethodDefault === "auto" || ionIoffMethodDefault === "manual") {
       this.applyIonIoffMethod(ionIoffMethodDefault);
@@ -385,15 +373,6 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     if (settingsChanged) {
       this.publishOriginSettingsViewInput();
     }
-  }
-
-  private applyTheme(theme: ThemeMode): void {
-    if (this.appliedTheme === theme) {
-      return;
-    }
-
-    this.appliedTheme = theme;
-    this.options.setTheme(theme);
   }
 
   private applyIonIoffMethod(method: IonIoffMethod): void {

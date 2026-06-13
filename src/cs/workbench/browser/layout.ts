@@ -31,7 +31,7 @@ export {
 export type { LayoutView } from "src/cs/workbench/services/layout/browser/layoutService";
 
 export const MAIN_MIN_WIDTH_PX = 220;
-export const TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX = 250;
+export const TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX = 240;
 
 export type LayoutParts = {
   readonly controller?: Node | null;

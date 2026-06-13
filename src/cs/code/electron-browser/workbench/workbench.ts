@@ -26,11 +26,10 @@ import {
   LifecyclePhase,
   type ILifecycleService as ILifecycleServiceType,
 } from "src/cs/workbench/services/lifecycle/common/lifecycle";
-import { startWorkbenchThemeContribution } from "src/cs/workbench/services/themes/browser/theme.contribution";
+import { normalizeWorkbenchAppearance } from "src/cs/workbench/services/themes/common/themeService";
 import {
   applyWorkbenchAppearance,
-  normalizeWorkbenchAppearance,
-} from "src/cs/workbench/browser/appearance";
+} from "src/cs/workbench/services/themes/browser/themeService";
 import { installWindowDeveloperKeybindings } from "src/cs/workbench/browser/actions/windowActions";
 import { getStorageKey, StorageScope } from "src/cs/platform/storage/common/storage";
 
@@ -49,7 +48,7 @@ declare global {
 type BootLogger = (stage: string, extra?: string) => void;
 
 const DEFAULT_THEME: ThemeMode = "system";
-const DEFAULT_SIDEBAR_WIDTH = 300;
+const DEFAULT_SIDEBAR_WIDTH = 250;
 const MIN_SIDEBAR_WIDTH = 170;
 const MAX_SIDEBAR_WIDTH = Number.POSITIVE_INFINITY;
 const WORKBENCH_SIDEBAR_WIDTH_STORAGE_KEY = "workbench.sidebar.width";
@@ -342,7 +341,6 @@ const bootstrapWorkbench = async (): Promise<void> => {
   prepareWorkbench(logBoot, isBootProfileEnabled);
   await import("src/cs/workbench/workbench.desktop.main.ts");
   startWorkbench();
-  startWorkbenchThemeContribution();
 };
 
 void bootstrapWorkbench();
