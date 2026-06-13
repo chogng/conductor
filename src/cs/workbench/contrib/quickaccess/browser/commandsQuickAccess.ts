@@ -1,4 +1,4 @@
-import { localize } from "src/cs/nls";
+import { PickerQuickAccessProvider } from "src/cs/platform/quickinput/browser/pickerQuickAccess";
 import { isLocalizedString, type ICommandActionTitle } from "src/cs/platform/action/common/action";
 import {
   isIMenuItem,
@@ -9,35 +9,43 @@ import {
 import {
   ICommandService,
 } from "src/cs/platform/commands/common/commands";
-import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import {
-  IQuickInputService,
-  type QuickPickItem,
-} from "src/cs/platform/quickinput/common/quickInput";
+  type QuickAccessItem,
+} from "src/cs/platform/quickinput/common/quickAccess";
 
-type QuickAccessCommand = QuickPickItem & {
+export const COMMANDS_QUICK_ACCESS_PREFIX = ">";
+
+type QuickAccessCommand = QuickAccessItem & {
   readonly id: string;
   readonly label: string;
   readonly description: string;
 };
 
-export const showCommandsQuickAccess = async (accessor: ServicesAccessor): Promise<void> => {
-  const quickInputService = accessor.get(IQuickInputService);
-  const commandService = accessor.get(ICommandService);
-  const command = await quickInputService.pick({
-    ariaLabel: localize("quickAccess.commandsAriaLabel", "Command search"),
-    emptyText: localize("quickAccess.empty", "No commands found"),
-    items: getQuickAccessCommands(),
-    placeholder: localize("quickAccess.placeholder", "Search commands"),
-  });
-  if (!command) {
-    return;
+export class CommandsQuickAccessProvider extends PickerQuickAccessProvider<QuickAccessCommand> {
+  public constructor(
+    @ICommandService private readonly commandService: ICommandService,
+  ) {
+    super();
   }
 
-  await commandService.executeCommand(command.id);
-};
+  protected getPicks(filter: string): readonly QuickAccessCommand[] {
+    const normalizedFilter = filter.trim().toLowerCase();
+    const commands = getQuickAccessCommands(commandId => {
+      void this.commandService.executeCommand(commandId);
+    });
+    if (!normalizedFilter) {
+      return commands;
+    }
 
-const getQuickAccessCommands = (): readonly QuickAccessCommand[] => {
+    return commands.filter(command =>
+      `${command.label} ${command.description} ${command.id}`.toLowerCase().includes(normalizedFilter),
+    );
+  }
+}
+
+const getQuickAccessCommands = (
+  runCommand: (commandId: string) => void,
+): readonly QuickAccessCommand[] => {
   const items = MenuRegistry.getMenuItems(MenuId.CommandPalette);
   const commands = new Map<string, QuickAccessCommand>();
 
@@ -46,7 +54,7 @@ const getQuickAccessCommands = (): readonly QuickAccessCommand[] => {
       continue;
     }
 
-    const command = createQuickAccessCommand(item);
+    const command = createQuickAccessCommand(item, runCommand);
     if (command) {
       commands.set(command.id, command);
     }
@@ -57,14 +65,19 @@ const getQuickAccessCommands = (): readonly QuickAccessCommand[] => {
   );
 };
 
-const createQuickAccessCommand = (item: IMenuItem): QuickAccessCommand | null => {
+const createQuickAccessCommand = (
+  item: IMenuItem,
+  runCommand: (commandId: string) => void,
+): QuickAccessCommand | null => {
   const label = titleToString(item.command.title);
   if (!item.command.id || !label) {
     return null;
   }
 
+  const commandId = item.command.id;
   return {
-    id: item.command.id,
+    accept: () => runCommand(commandId),
+    id: commandId,
     label,
     description: titleToString(item.command.category),
   };

@@ -145,7 +145,7 @@ suite("workbench/browser/titleService", () => {
     titleService.updateTitlebarState({
       chartIntentCommandId: "chart.intent",
       enabled: true,
-      fileSelectionCommandId: "files.select",
+      fileSelectionCommandId: "files.pick",
       installUpdateCommandId: "update.install",
       isUpdateReadyToInstall: true,
     });
@@ -158,7 +158,7 @@ suite("workbench/browser/titleService", () => {
       installUpdateCommandId: state?.installUpdateCommandId,
     }, {
       chartIntentCommandId: "chart.intent",
-      fileSelectionCommandId: "files.select",
+      fileSelectionCommandId: "files.pick",
       installUpdateCommandId: "update.install",
     });
 

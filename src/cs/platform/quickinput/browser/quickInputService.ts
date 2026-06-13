@@ -1,6 +1,7 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import { QuickAccessController } from "src/cs/platform/quickinput/browser/quickAccess";
 import {
   IQuickInputService,
   type IQuickInputService as IQuickInputServiceType,
@@ -20,6 +21,8 @@ type ActiveQuickPick = {
 
 export class BrowserQuickInputService extends Disposable implements IQuickInputServiceType {
   public declare readonly _serviceBrand: undefined;
+
+  public readonly quickAccess = new QuickAccessController(this);
 
   private activeQuickPick: ActiveQuickPick | null = null;
 

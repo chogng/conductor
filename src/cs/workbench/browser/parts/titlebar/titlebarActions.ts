@@ -112,10 +112,10 @@ export const createWorkbenchTitlebarPageButtons = (
 
 export const createWorkbenchTitlebarQuickAccessButton =
 (): WorkbenchTitlebarQuickAccessButton => ({
-  commandId: QuickAccessCommandId.showCommands,
+  commandId: QuickAccessCommandId.quickOpen,
   icon: LxIcon.search,
   id: WORKBENCH_TITLEBAR_QUICK_ACCESS_BUTTON_ID,
-  title: localize("titlebar.quickAccess", "Search Commands"),
+  title: localize("titlebar.quickAccess", "Quick Access"),
 });
 
 export const getWorkbenchTitlebarUpdateLabel = (): string =>
