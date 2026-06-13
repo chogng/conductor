@@ -3,6 +3,7 @@ import { append, reset } from "src/cs/base/browser/dom";
 import { createButton as createActionButton } from "src/cs/base/browser/ui/button/button";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { createSelectBox, type SelectBoxOption } from "src/cs/base/browser/ui/selectBox/selectBox";
+import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
@@ -196,6 +197,10 @@ const CLEANUP_TOAST_ID = "settings.cleanup";
 export class SettingsView {
   private readonly renderDisposables = new DisposableStore();
   private readonly root: HTMLElement;
+  private readonly contentScroll = new Scrollbar({
+    className: "settings-view-content-scroll",
+    viewportClassName: "settings-view-content-scroll-viewport",
+  });
   private transparentChromeSwitch: SwitchWidget | null = null;
   private options: SettingsViewOptions;
 
@@ -223,6 +228,7 @@ export class SettingsView {
 
   dispose(): void {
     this.renderDisposables.dispose();
+    this.contentScroll.dispose();
     notificationService.disposeToast(ORIGIN_HEALTH_TOAST_ID);
     notificationService.disposeToast(CLEANUP_TOAST_ID);
     this.root.remove();
@@ -233,6 +239,7 @@ export class SettingsView {
     this.transparentChromeSwitch = null;
     reset(this.root);
     this.root.appendChild(this.createLayout());
+    queueMicrotask(() => this.contentScroll.layout());
     this.updateToasts();
   }
 
@@ -243,9 +250,8 @@ export class SettingsView {
   }
 
   private createContentScroll(): HTMLElement {
-    const scroll = div("settings-view-content-scroll");
-    scroll.appendChild(this.createContent());
-    return scroll;
+    this.contentScroll.viewport.replaceChildren(this.createContent());
+    return this.contentScroll.element;
   }
 
   private createNav(): HTMLElement {
@@ -319,7 +325,7 @@ export class SettingsView {
       }
     });
 
-    aside.append(div("settings-view-nav-header", backButton, search), nav);
+    aside.append(div("settings-view-nav-header", backButton), search, nav);
     return aside;
   }
 
