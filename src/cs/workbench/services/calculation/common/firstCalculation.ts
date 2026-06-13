@@ -26,6 +26,9 @@ export {
   SS_CONF,
 } from "./curveCalculation.ts";
 export {
+  type IonIoffMethod,
+} from "./calculation.ts";
+export {
   computeBaseCurrentMetrics,
   isOutputLikeFile,
   isTransferLikeFile,
@@ -33,7 +36,6 @@ export {
   type CurrentWindowKind,
   type CurrentWindowMeta,
   type IonIoffManualTargets,
-  type IonIoffMethod,
 } from "./metricCalculation.ts";
 export {
   computeVthSqrtFits,

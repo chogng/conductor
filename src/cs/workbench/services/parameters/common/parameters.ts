@@ -11,17 +11,6 @@ import type { ParametersViewState } from "src/cs/workbench/services/parameters/c
 export const IParametersService = createDecorator<IParametersService>("parametersService");
 export const ParametersViewId = "workbench.parameters";
 
-export type IonIoffMethod = "auto" | "manual";
-export type SsMethod = "auto" | "manual";
-
-export type ParametersState = {
-  readonly activeMetricKey: string | null;
-  readonly selectedMetricKeys: readonly string[];
-  readonly ionIoffMethod: IonIoffMethod;
-  readonly ssMethod: SsMethod;
-  readonly showFitLine: boolean;
-};
-
 export type ParametersViewStateInput = {
   readonly fileId?: FileId | null;
   readonly snapshot: SessionSnapshot;
@@ -29,14 +18,9 @@ export type ParametersViewStateInput = {
 
 export interface IParametersService {
   readonly _serviceBrand: undefined;
-  readonly onDidChangeParametersState: Event<ParametersState>;
   readonly onDidChangeParametersViewState: Event<ParametersViewState>;
 
   createViewState(input: ParametersViewStateInput): ParametersViewState;
-  getState(): ParametersState;
   getViewState(): ParametersViewState;
   updateViewState(input: ParametersViewStateInput): ParametersViewState;
-  setIonIoffMethod(method: IonIoffMethod): void;
-  setSsMethod(method: SsMethod): void;
-  setShowFitLine(showFitLine: boolean): void;
 }

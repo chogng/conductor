@@ -5,6 +5,8 @@
 import assert from "assert";
 
 import { BrowserSettingsService } from "src/cs/workbench/services/settings/browser/settingsService";
+import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
+import { DEFAULT_PLOT_AXIS_SETTINGS } from "src/cs/workbench/services/plot/common/plotSettings";
 import type {
   ConductorSettings,
   SettingsServiceOptions,
@@ -48,18 +50,18 @@ suite("workbench/services/settings/browser/settingsService", () => {
     }));
 
     await service.updateOriginPlotOptions({
-      command: "plotxy",
-      legendFontSize: 12,
-      lineWidth: 2,
-      postCommands: ["layer -a"],
-      type: 201,
-      xyPairs: "((1,2))",
-    });
+      command: " plotxy ",
+      legendFontSize: "12",
+      lineWidth: "99",
+      postCommands: "layer -a\n\n",
+      type: "201",
+      xyPairs: " ((1,2)) ",
+    } as unknown as Partial<OriginPlotOptions>);
 
     assert.deepEqual(capturedUpdates, {
       originPlotCommandDefault: "plotxy",
       originPlotLegendFontSizeDefault: 12,
-      originPlotLineWidthDefault: 2,
+      originPlotLineWidthDefault: 20,
       originPlotPostCommandsDefault: ["layer -a"],
       originPlotTypeDefault: 201,
       originPlotXyPairsDefault: "((1,2))",
@@ -88,21 +90,46 @@ suite("workbench/services/settings/browser/settingsService", () => {
 
     await service.updatePlotAxisSettings({
       showGrid: true,
-      xMax: "10",
+      xMax: "10.5",
+      xTickCount: "99",
     });
 
     assert.deepEqual(capturedUpdates, {
       plotAxisSettings: {
+        ...DEFAULT_PLOT_AXIS_SETTINGS,
         showGrid: true,
-        xMax: "10",
+        xMax: "10.5",
+        xTickCount: 20,
         xMin: "0",
       },
     });
     assert.deepEqual(service.getConductorSettings()?.plotAxisSettings, {
+      ...DEFAULT_PLOT_AXIS_SETTINGS,
       showGrid: true,
-      xMax: "10",
+      xMax: "10.5",
+      xTickCount: 20,
       xMin: "0",
     });
+  });
+
+  test("ignores empty owner API updates", async () => {
+    const service = new BrowserSettingsService();
+    let updateCount = 0;
+    service.mergeConductorSettings({});
+    service.update(createSettingsServiceOptions({
+      settingsStore: {
+        getSettings: async () => ({}),
+        updateSettings: async updates => {
+          updateCount += 1;
+          return updates;
+        },
+      },
+    }));
+
+    await service.updateOriginPlotOptions({});
+    await service.updatePlotAxisSettings({});
+
+    assert.equal(updateCount, 0);
   });
 
   test("publishes settings view input from owned conductor settings", () => {

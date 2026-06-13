@@ -28,7 +28,6 @@ import type { RcCurveChartSeries } from "src/cs/workbench/contrib/parameters/bro
 import {
   IParametersService,
   ParametersViewId,
-  type IParametersService as IParametersServiceType,
 } from "src/cs/workbench/services/parameters/common/parameters";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
@@ -44,7 +43,7 @@ export class ParametersViewPane extends ViewPane {
   private readonly content = document.createElement("div");
 
   constructor(
-    @IParametersService private readonly parametersService: IParametersServiceType,
+    @IParametersService private readonly parametersService: IParametersService,
   ) {
     super({
       id: ParametersViewId,

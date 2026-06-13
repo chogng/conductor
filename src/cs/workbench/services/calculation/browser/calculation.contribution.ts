@@ -10,11 +10,11 @@ import {
   createCalculatedPlotsByKeyFromRecords,
   createCalculatedDataRecordInputSignature,
 } from "src/cs/workbench/services/calculation/common/calculatedData";
+import { createCalculatedMetricRecordsByFile } from "src/cs/workbench/services/calculation/common/calculatedMetrics";
 import { CalculationContributionId } from "src/cs/workbench/services/calculation/common/calculation";
 import { createCalculatedCurveRecordsByFile } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import {
   ISessionService,
-  type ISessionService as ISessionServiceType,
 } from "src/cs/workbench/services/session/common/session";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 
@@ -22,7 +22,7 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
   private inputSignature: string | null = null;
 
   constructor(
-    @ISessionService private readonly sessionService: ISessionServiceType,
+    @ISessionService private readonly sessionService: ISessionService,
   ) {
     super();
 
@@ -48,10 +48,15 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
     const curvesByFileId = createCalculatedCurveRecordsByFile(
       createCalculatedPlotsByKeyFromRecords(snapshot.filesById, snapshot.fileOrder),
     );
+    const metricsByFileId = createCalculatedMetricRecordsByFile(
+      snapshot.filesById,
+      snapshot.fileOrder,
+    );
     const fileIds = new Set([
       ...snapshot.fileOrder,
       ...Object.keys(snapshot.filesById),
       ...Object.keys(curvesByFileId),
+      ...Object.keys(metricsByFileId),
     ]);
 
     for (const fileId of fileIds) {
@@ -59,6 +64,11 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
         fileId,
         curves: curvesByFileId[fileId] ?? [],
         replaceGenerations: ["derived", "secondDerived"],
+      });
+      this.sessionService.commitMetrics({
+        fileId,
+        metrics: metricsByFileId[fileId] ?? [],
+        replace: true,
       });
     }
   }

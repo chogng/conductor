@@ -4,6 +4,7 @@ import {
   normalizeOriginPlotOptions,
   normalizeOriginPostCommands,
   originPostCommandsToMultiline,
+  type OriginPlotOptions,
 } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import { normalizePlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 import { normalizeFileNameFieldSeparators } from "src/cs/workbench/services/template/common/fileNameMatching";
@@ -33,7 +34,6 @@ import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layou
 import {
   DEFAULT_WORKBENCH_BACKGROUND_COLOR,
   normalizeWorkbenchAppearance,
-  normalizeWorkbenchBackgroundColor,
   ThemeCommandId,
 } from "src/cs/workbench/services/themes/common/themeService";
 
@@ -62,7 +62,7 @@ export class SettingsController {
   private readonly service: ISettingsService;
   private readonly view: SettingsView;
   private disposed = false;
-  private originPathRequested = false;
+  private originPathLoadRequest: string | null = null;
   private originExePath = "";
   private originPathLoading = true;
   private originPathSaving = false;
@@ -149,6 +149,7 @@ export class SettingsController {
 
   private showToastFromFeedback(feedback: Feedback, key: "originHealthToast" | "cleanupToast"): void {
     if (!feedback.message || feedback.type === "idle") {
+      this.drafts[key] = { ...this.drafts[key], isVisible: false };
       return;
     }
 
@@ -169,19 +170,26 @@ export class SettingsController {
     if (settingsOriginExePath) {
       this.originExePath = settingsOriginExePath;
       this.originPathLoading = false;
+      this.originPathLoadRequest = null;
       return;
     }
 
-    if (this.originPathRequested) {
+    if (!this.service.canManageOrigin()) {
       this.originPathLoading = false;
+      this.originPathLoadRequest = null;
       return;
     }
 
-    this.originPathRequested = true;
-    void this.loadOriginPath();
+    const loadRequest = `${this.options.isWindowsDesktopShell}`;
+    if (this.originPathLoadRequest === loadRequest) {
+      return;
+    }
+
+    this.originPathLoadRequest = loadRequest;
+    void this.loadOriginPath(loadRequest);
   }
 
-  private async loadOriginPath(): Promise<void> {
+  private async loadOriginPath(loadRequest: string): Promise<void> {
     this.originPathLoading = true;
     this.render();
     try {
@@ -190,9 +198,15 @@ export class SettingsController {
         this.originExePath = configuredPath;
         this.service.mergeConductorSettings({ originExePath: configuredPath });
       }
+      else if (this.originPathLoadRequest === loadRequest) {
+        this.originPathLoadRequest = null;
+      }
     }
     catch {
       this.originExePath = "";
+      if (this.originPathLoadRequest === loadRequest) {
+        this.originPathLoadRequest = null;
+      }
     }
     finally {
       this.originPathLoading = false;
@@ -384,12 +398,8 @@ export class SettingsController {
       ],
       isSaving: this.appearanceSaving,
       transparentChrome: appearance.transparentChrome,
-      onBackgroundColorChange: value => this.updateAppearance({
-        backgroundColor: normalizeWorkbenchBackgroundColor(value),
-      }),
-      onBackgroundColorReset: () => this.updateAppearance({
-        backgroundColor: DEFAULT_WORKBENCH_BACKGROUND_COLOR,
-      }),
+      onBackgroundColorChange: value => this.setWorkbenchBackground(value),
+      onBackgroundColorReset: () => this.resetWorkbenchBackground(),
       onTransparentChromeChange: value => this.setTransparentChrome(Boolean(value)),
     };
   }
@@ -425,12 +435,12 @@ export class SettingsController {
       onCleanupEnabledChange: value => this.updateOriginCleanup({ originRuntimeCleanupEnabled: Boolean(value) }),
       onCleanupFailedRetentionDaysChange: value => this.updateOriginCleanup({ originRuntimeFailedRetentionDays: normalizeBoundedInt(value, ORIGIN_CLEANUP_DEFAULTS.failedRetentionDays, 1, 365) }),
       onCleanupKeepSuccessJobsChange: value => this.updateOriginCleanup({ originRuntimeKeepSuccessJobs: normalizeBoundedInt(value, ORIGIN_CLEANUP_DEFAULTS.keepSuccessJobs, 0, 100) }),
-      onPlotCommandChange: value => this.updateOriginPlot({ originPlotCommandDefault: normalizeOriginPlotOptions({ command: value }).command }),
-      onPlotPostCommandsChange: value => this.updateOriginPlot({ originPlotPostCommandsDefault: normalizeOriginPostCommands(value) }),
-      onPlotTypeChange: value => this.updateOriginPlot({ originPlotTypeDefault: normalizeOriginPlotOptions({ type: value }, DEFAULT_ORIGIN_PLOT_OPTIONS).type }),
-      onPlotLineWidthChange: value => this.updateOriginPlot({ originPlotLineWidthDefault: normalizeOriginPlotOptions({ lineWidth: value }, DEFAULT_ORIGIN_PLOT_OPTIONS).lineWidth }),
-      onPlotLegendFontSizeChange: value => this.updateOriginPlot({ originPlotLegendFontSizeDefault: normalizeOriginPlotOptions({ legendFontSize: value }, DEFAULT_ORIGIN_PLOT_OPTIONS).legendFontSize }),
-      onPlotXyPairsChange: value => this.updateOriginPlot({ originPlotXyPairsDefault: normalizeOriginPlotOptions({ xyPairs: value }, DEFAULT_ORIGIN_PLOT_OPTIONS).xyPairs }),
+      onPlotCommandChange: value => this.updateOriginPlot({ command: normalizeOriginPlotOptions({ command: value }).command }),
+      onPlotPostCommandsChange: value => this.updateOriginPlot({ postCommands: normalizeOriginPostCommands(value) }),
+      onPlotTypeChange: value => this.updateOriginPlot({ type: normalizeOriginPlotOptions({ type: value }, DEFAULT_ORIGIN_PLOT_OPTIONS).type }),
+      onPlotLineWidthChange: value => this.updateOriginPlot({ lineWidth: normalizeOriginPlotOptions({ lineWidth: value }, DEFAULT_ORIGIN_PLOT_OPTIONS).lineWidth }),
+      onPlotLegendFontSizeChange: value => this.updateOriginPlot({ legendFontSize: normalizeOriginPlotOptions({ legendFontSize: value }, DEFAULT_ORIGIN_PLOT_OPTIONS).legendFontSize }),
+      onPlotXyPairsChange: value => this.updateOriginPlot({ xyPairs: normalizeOriginPlotOptions({ xyPairs: value }, DEFAULT_ORIGIN_PLOT_OPTIONS).xyPairs }),
       onRunCleanupNow: () => this.runOriginCleanup(),
     };
   }
@@ -494,8 +504,13 @@ export class SettingsController {
   }
 
   private async chooseOriginExePath(): Promise<void> {
+    if (!this.service.canManageOrigin() || this.originPathLoading || this.originPathSaving || this.originHealthChecking) {
+      return;
+    }
+
     this.originPathSaving = true;
     this.originPathFeedback = IDLE_FEEDBACK;
+    this.syncOriginFeedback();
     this.render();
     try {
       const nextPath = await this.service.chooseOriginExePath();
@@ -523,8 +538,13 @@ export class SettingsController {
   }
 
   private async checkOriginHealth(): Promise<void> {
+    if (!this.service.canCheckOriginHealth() || this.originPathSaving || this.originHealthChecking || this.originPathLoading) {
+      return;
+    }
+
     this.originHealthChecking = true;
     this.originPathFeedback = IDLE_FEEDBACK;
+    this.syncOriginFeedback();
     this.render();
     try {
       const health = await this.service.checkOriginHealth(this.originExePath);
@@ -554,6 +574,7 @@ export class SettingsController {
   private async updateOriginCleanup(updates: Record<string, unknown>): Promise<void> {
     this.originCleanupSaving = true;
     this.originCleanupFeedback = IDLE_FEEDBACK;
+    this.syncOriginFeedback();
     this.render();
     try {
       await this.service.updateSettings(updates);
@@ -575,12 +596,12 @@ export class SettingsController {
     }
   }
 
-  private async updateOriginPlot(updates: Record<string, unknown>): Promise<void> {
+  private async updateOriginPlot(updates: Partial<OriginPlotOptions>): Promise<void> {
     this.originPlotSaving = true;
     this.originPlotFeedback = IDLE_FEEDBACK;
     this.render();
     try {
-      await this.service.updateSettings(updates);
+      await this.service.updateOriginPlotOptions(updates);
       this.originPlotFeedback = {
         type: "success",
         message: localize("settings.origin.plot.saved", "Origin plot settings updated."),
@@ -601,6 +622,7 @@ export class SettingsController {
   private async runOriginCleanup(): Promise<void> {
     this.originCleanupRunning = true;
     this.originCleanupFeedback = IDLE_FEEDBACK;
+    this.syncOriginFeedback();
     this.render();
     try {
       const result = await this.service.runOriginCleanup();
@@ -649,11 +671,15 @@ export class SettingsController {
   }
 
   private async updateDefault(updates: Record<string, unknown>): Promise<void> {
+    await this.saveDefaults(() => this.service.updateSettings(updates));
+  }
+
+  private async saveDefaults(operation: () => Promise<unknown>): Promise<void> {
     this.defaultsSaving = true;
     this.defaultsFeedback = IDLE_FEEDBACK;
     this.render();
     try {
-      await this.service.updateSettings(updates);
+      await operation();
       this.defaultsFeedback = {
         type: "success",
         message: localize("conductorSettings.defaultsSaved", "Chart defaults saved."),
@@ -674,28 +700,34 @@ export class SettingsController {
   }
 
   private async updateAxisDefaults(updates: Record<string, unknown>): Promise<void> {
-    await this.updateDefault({
-      plotAxisSettings: normalizePlotAxisSettings({
-        ...this.axisSettings,
-        ...updates,
-      }, this.axisSettings),
-    });
+    await this.saveDefaults(() => this.service.updatePlotAxisSettings(normalizePlotAxisSettings({
+      ...this.axisSettings,
+      ...updates,
+    }, this.axisSettings)));
   }
 
-  private async updateAppearance(updates: Record<string, unknown>): Promise<void> {
+  private async setWorkbenchBackground(backgroundColor: string): Promise<void> {
+    await this.saveAppearance(() => this.commandService.executeCommand(ThemeCommandId.setWorkbenchBackground, backgroundColor));
+  }
+
+  private async resetWorkbenchBackground(): Promise<void> {
+    await this.saveAppearance(() => this.commandService.executeCommand(ThemeCommandId.resetWorkbenchBackground));
+  }
+
+  private async setTransparentChrome(enabled: boolean): Promise<void> {
+    await this.saveAppearance(() => this.commandService.executeCommand(ThemeCommandId.setTransparentChrome, enabled));
+  }
+
+  private async saveAppearance(operation: () => Promise<unknown>): Promise<void> {
     this.appearanceSaving = true;
     this.render();
     try {
-      await this.service.updateSettings(updates);
+      await operation();
     }
     finally {
       this.appearanceSaving = false;
       this.render();
     }
-  }
-
-  private async setTransparentChrome(enabled: boolean): Promise<void> {
-    await this.commandService.executeCommand(ThemeCommandId.setTransparentChrome, enabled);
   }
 
   private async setWindowCloseBehavior(behavior: "minimizeToTray" | "quit"): Promise<void> {

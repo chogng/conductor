@@ -197,7 +197,6 @@ const commitTemplateOutputForTest = (
 
   session.commitTemplateRun(commit.templateRun);
   session.commitCurves(commit.curves);
-  session.commitMetrics(commit.metrics);
 };
 
 const commitRawFilesForTest = (

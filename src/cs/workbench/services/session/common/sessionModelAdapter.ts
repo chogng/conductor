@@ -7,10 +7,6 @@ import type {
   CalculatedPlotsByKey,
   CalculatedSeries,
 } from "src/cs/workbench/services/calculation/common/calculatedData";
-import {
-  createParameterRows,
-  type CalculatedParameterRowData,
-} from "src/cs/workbench/services/calculation/common/calculatedParameters";
 import type {
   CurveData,
   CurveKey as LegacyCurveKey,
@@ -22,7 +18,6 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import type {
   CommitCurvesInput,
-  CommitMetricsInput,
   CommitTemplateRunInput,
   SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
@@ -34,10 +29,8 @@ import type {
   BaseCurveFamily,
   CacheKey,
   CalculationCacheEntry,
-  CurrentWindowRecord,
   CurveChannelsRecord,
   CurveKey as SessionCurveKey,
-  CurveRef,
   CurveRecord,
   DerivedCurveFamily,
   DomainRecord,
@@ -45,8 +38,6 @@ import type {
   FileRecord,
   ItCurveMode,
   IvCurveMode,
-  MetricKey,
-  MetricRecord,
   RawRecord,
   SeriesRecord,
   SeriesId,
@@ -76,7 +67,6 @@ type ProcessedCalculationCachePayload = {
 export type ProcessedFileSessionCommit = {
   readonly templateRun: CommitTemplateRunInput;
   readonly curves: CommitCurvesInput;
-  readonly metrics: CommitMetricsInput;
 };
 
 const createEmptyFileRecord = (fileId: string, fileName: string): FileRecord => {
@@ -582,11 +572,6 @@ export const createProcessedFileSessionCommit = (
       ),
       replaceGenerations: ["base"],
     },
-    metrics: {
-      fileId,
-      metrics: Object.values(record.metricsByKey),
-      replace: true,
-    },
   };
 };
 
@@ -1069,8 +1054,6 @@ const mergeProcessedFileRecord = (
   const seriesById: Record<string, SeriesRecord> = {};
   const seriesOrder: string[] = [];
   const curvesByKey: Record<SessionCurveKey, CurveRecord> = {};
-  const metricsByKey: Record<MetricKey, MetricRecord> = {};
-  const metricsBySeriesId: Record<SeriesId, MetricKey[]> = {};
   const curveType = readRecordString(processedFile, "curveType");
   const ivMode = inferIvCurveMode(
     curveType ??
@@ -1130,22 +1113,6 @@ const mergeProcessedFileRecord = (
     };
   }
 
-  const metricProjection = createMetricProjectionFromProcessedFile({
-    curvesByKey,
-    family,
-    file: processedFile,
-    fileId,
-    itMode,
-    ivMode,
-    seriesOrder,
-  });
-  for (const [key, metric] of Object.entries(metricProjection.metricsByKey)) {
-    metricsByKey[key as MetricKey] = metric;
-  }
-  for (const [seriesId, keys] of Object.entries(metricProjection.metricsBySeriesId)) {
-    metricsBySeriesId[seriesId] = keys;
-  }
-
   const latestTemplateRun = getLatestTemplateRunRecord(record);
   const templateSelection =
     options.appliedTemplateSelection ??
@@ -1188,14 +1155,6 @@ const mergeProcessedFileRecord = (
       ...record.curvesByKey,
       ...curvesByKey,
     },
-    metricsByKey: {
-      ...record.metricsByKey,
-      ...metricsByKey,
-    },
-    metricsBySeriesId: mergeMetricsBySeriesId(
-      record.metricsBySeriesId,
-      metricsBySeriesId,
-    ),
   };
 };
 
@@ -1301,261 +1260,6 @@ const inferFileKindFromFileName = (fileName: unknown): FileRecord["kind"] => {
     return "csv";
   }
   return "unknown";
-};
-
-type MetricProjectionInput = {
-  curvesByKey: Record<SessionCurveKey, CurveRecord>;
-  family: BaseCurveFamily | null;
-  file: ProcessedEntry;
-  fileId: string;
-  itMode: ItCurveMode | null;
-  ivMode: IvCurveMode | null;
-  seriesOrder: readonly string[];
-};
-
-type MetricProjection = {
-  metricsByKey: Record<MetricKey, MetricRecord>;
-  metricsBySeriesId: Record<SeriesId, MetricKey[]>;
-};
-
-const createMetricProjectionFromProcessedFile = ({
-  curvesByKey,
-  family,
-  file,
-  fileId,
-  itMode,
-  ivMode,
-  seriesOrder,
-}: MetricProjectionInput): MetricProjection => {
-  const metricsByKey: Record<MetricKey, MetricRecord> = {};
-  const metricsBySeriesId: Record<SeriesId, MetricKey[]> = {};
-  const derivativeKind = ivMode === "output" ? "gds" : "gm";
-
-  for (const [index, row] of createParameterRows(file).entries()) {
-    const seriesId = resolveMetricSeriesId(row, seriesOrder[index], index);
-    const inputCurve = family
-      ? createMetricInputCurveRef({
-          curvesByKey,
-          family,
-          fileId,
-          itMode,
-          ivMode,
-          seriesId,
-        })
-      : null;
-    const inputCurves = inputCurve ? [inputCurve] : [];
-    const inputSignatures = inputCurves
-      .map((curve) => curve.signature)
-      .filter((signature) => signature.length > 0);
-
-    appendMetric(metricsByKey, metricsBySeriesId, {
-      key: `current:${seriesId}:base` as MetricKey,
-      fileId,
-      seriesId,
-      metricFamily: "current",
-      contextKey: "base",
-      inputCurves,
-      inputSignatures,
-      algorithm: { id: "computeBaseCurrentMetrics" },
-      value: {
-        method: normalizeCurrentMethod(row.currentMethod),
-        ion: normalizeNumberOrNull(row.ion),
-        xAtIon: normalizeNumberOrNull(row.xAtIon),
-        ioff: normalizeNumberOrNull(row.ioff),
-        xAtIoff: normalizeNumberOrNull(row.xAtIoff),
-        ionIoff: normalizeNumberOrNull(row.ionIoff),
-        candidateWindows: normalizeCurrentWindows(row.currentCandidateWindows),
-        ionWindow: normalizeCurrentWindow(row.ionWindow),
-        ioffWindow: normalizeCurrentWindow(row.ioffWindow),
-      },
-    });
-
-    appendMetric(metricsByKey, metricsBySeriesId, {
-      key: `derivative:${seriesId}:${derivativeKind}` as MetricKey,
-      fileId,
-      seriesId,
-      metricFamily: "derivative",
-      contextKey: derivativeKind,
-      inputCurves,
-      inputSignatures,
-      algorithm: { id: "computeCentralDerivative" },
-      value: {
-        kind: derivativeKind,
-        maxAbs: normalizeNumberOrNull(row.gmMaxAbs),
-        xAtMaxAbs: normalizeNumberOrNull(row.xAtGmMaxAbs),
-      },
-    });
-
-    appendMetric(metricsByKey, metricsBySeriesId, {
-      key: `subthreshold:${seriesId}:ss:auto` as MetricKey,
-      fileId,
-      seriesId,
-      metricFamily: "subthreshold",
-      contextKey: "ss:auto",
-      inputCurves,
-      inputSignatures,
-      algorithm: { id: "computeSubthresholdSwingFitAuto" },
-      value: {
-        ss: normalizeNumberOrNull(row.ss),
-        confidence: normalizeSsConfidence(row.ssConfidence),
-        xAtSs: normalizeNumberOrNull(row.xAtSs),
-        method: "auto",
-      },
-    });
-
-    const thresholdVoltage = normalizeNumberOrNull(row.thresholdVoltage);
-    const thresholdVoltageElectron = normalizeNumberOrNull(row.thresholdVoltageElectron);
-    const thresholdVoltageHole = normalizeNumberOrNull(row.thresholdVoltageHole);
-    if (
-      thresholdVoltage !== null ||
-      thresholdVoltageElectron !== null ||
-      thresholdVoltageHole !== null
-    ) {
-      appendMetric(metricsByKey, metricsBySeriesId, {
-        key: `threshold:${seriesId}:vth` as MetricKey,
-        fileId,
-        seriesId,
-        metricFamily: "threshold",
-        contextKey: "vth",
-        inputCurves,
-        inputSignatures,
-        algorithm: { id: "computeVthSqrtFits" },
-        value: {
-          vth: thresholdVoltage,
-          electron: thresholdVoltageElectron,
-          hole: thresholdVoltageHole,
-          fitQuality: "good",
-        },
-      });
-    }
-  }
-
-  return {
-    metricsByKey,
-    metricsBySeriesId,
-  };
-};
-
-const appendMetric = (
-  metricsByKey: Record<MetricKey, MetricRecord>,
-  metricsBySeriesId: Record<SeriesId, MetricKey[]>,
-  metric: MetricRecord,
-): void => {
-  metricsByKey[metric.key] = metric;
-  metricsBySeriesId[metric.seriesId] = [
-    ...(metricsBySeriesId[metric.seriesId] ?? []),
-    metric.key,
-  ];
-};
-
-const createMetricInputCurveRef = ({
-  curvesByKey,
-  family,
-  fileId,
-  itMode,
-  ivMode,
-  seriesId,
-}: {
-  curvesByKey: Record<SessionCurveKey, CurveRecord>;
-  family: BaseCurveFamily;
-  fileId: string;
-  itMode: ItCurveMode | null;
-  ivMode: IvCurveMode | null;
-  seriesId: string;
-}): CurveRef => {
-  const curveKey = createBaseCurveKey(family, ivMode, itMode, seriesId);
-  return {
-    fileId,
-    seriesId,
-    curveKey,
-    signature: curvesByKey[curveKey]?.signature ?? "",
-  };
-};
-
-const resolveMetricSeriesId = (
-  row: CalculatedParameterRowData & { id?: unknown },
-  fallbackSeriesId: string | undefined,
-  index: number,
-): string => {
-  const rowId = normalizeId(row.id);
-  if (rowId) {
-    return rowId;
-  }
-  return fallbackSeriesId || `series-${index + 1}`;
-};
-
-const normalizeCurrentMethod = (
-  value: unknown,
-): "auto" | "manual" | "unavailable" =>
-  value === "manual" || value === "auto" ? value : "unavailable";
-
-const normalizeSsConfidence = (value: unknown): "high" | "low" | "fail" =>
-  value === "high" || value === "low" || value === "fail" ? value : "fail";
-
-const normalizeNumberOrNull = (value: unknown): number | null => {
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
-
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-};
-
-const normalizeCurrentWindows = (value: unknown): CurrentWindowRecord[] =>
-  Array.isArray(value)
-    ? value
-        .map(normalizeCurrentWindow)
-        .filter((window): window is CurrentWindowRecord => Boolean(window))
-    : [];
-
-const normalizeCurrentWindow = (value: unknown): CurrentWindowRecord | null => {
-  if (!isObjectRecord(value)) {
-    return null;
-  }
-
-  const key = normalizeCurrentWindowKey(value.key);
-  if (!key) {
-    return null;
-  }
-
-  return {
-    key,
-    label: normalizeOptionalText(value.label) ?? key,
-    current: normalizeNumberOrNull(value.current),
-    x: normalizeNumberOrNull(value.x),
-    x1: normalizeNumberOrNull(value.x1),
-    x2: normalizeNumberOrNull(value.x2),
-    targetX: normalizeNumberOrNull(value.targetX),
-    pointCount: Math.max(0, Math.floor(Number(value.pointCount) || 0)),
-  };
-};
-
-const normalizeCurrentWindowKey = (
-  value: unknown,
-): CurrentWindowRecord["key"] | null => {
-  switch (value) {
-    case "lowEnd":
-    case "highEnd":
-    case "maxCurrent":
-    case "minCurrent":
-    case "zeroBias":
-    case "manualIon":
-    case "manualIoff":
-      return value;
-    default:
-      return null;
-  }
-};
-
-const mergeMetricsBySeriesId = (
-  current: Record<SeriesId, MetricKey[]> | undefined,
-  next: Record<SeriesId, MetricKey[]>,
-): Record<SeriesId, MetricKey[]> | undefined => {
-  const merged = {
-    ...(current ?? {}),
-    ...next,
-  };
-  return Object.keys(merged).length ? merged : undefined;
 };
 
 const setSeriesLabelOverride = (
@@ -2103,8 +1807,5 @@ const normalizeOptionalText = (value: unknown): string | undefined => {
   const text = String(value ?? "").trim();
   return text || undefined;
 };
-
-
-
 
 

@@ -2,6 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 import { splitBidirectionalCurvePoints } from "./curveCalculation.ts";
+import type { IonIoffMethod } from "./calculation.ts";
 
 type PointLike = {
   x?: unknown;
@@ -25,8 +26,6 @@ type FiniteCurrentPoint = {
   absI: number;
   x: number;
 };
-
-export type IonIoffMethod = "auto" | "manual";
 
 export type IonIoffManualTargets = {
   ionX?: unknown;

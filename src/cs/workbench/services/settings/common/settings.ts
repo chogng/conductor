@@ -18,7 +18,7 @@ import type {
 import type {
   IonIoffMethod,
   SsMethod,
-} from "src/cs/workbench/services/parameters/common/parameters";
+} from "src/cs/workbench/services/calculation/common/calculation";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 
 export type { OriginCleanupResult, OriginHealthResult };

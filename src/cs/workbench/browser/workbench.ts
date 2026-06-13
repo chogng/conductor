@@ -299,7 +299,7 @@ export class Workbench extends Layout {
     this._register(this.explorerService.onDidChangeSelection(() => {
       this.refreshWorkbench();
     }));
-    this._register(this.parametersService.onDidChangeParametersState(() => {
+    this._register(this.parametersService.onDidChangeParametersViewState(() => {
       this.refreshWorkbench();
     }));
     this._register(this.plotService.onDidChangePlotState(() => {

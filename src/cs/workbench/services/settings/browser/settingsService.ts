@@ -10,7 +10,10 @@ import {
 } from "src/cs/platform/language/common/language";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { formatOriginBridgeError } from "src/cs/workbench/services/export/common/originBridgeError";
-import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
+import {
+  normalizeOriginPlotOptions,
+  type OriginPlotOptions,
+} from "src/cs/workbench/services/origin/common/originPlotOptions";
 import {
   getDesktopOriginBridge,
   getErrorMessage,
@@ -36,6 +39,7 @@ import {
   type SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
+import { normalizePlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 
 const defaultSettingsStore: SettingsStore = {
   getSettings: getPersistedSettings,
@@ -203,24 +207,33 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
       return this.getConductorSettings();
     }
 
+    const currentOptions = getOriginOpenPlotOptions(this.getConductorSettings());
+    const nextOptions = normalizeOriginPlotOptions({
+      ...currentOptions,
+      ...updates,
+    }, currentOptions);
     const settingsUpdates: Record<string, unknown> = {};
     if (updates.type !== undefined) {
-      settingsUpdates.originPlotTypeDefault = updates.type;
+      settingsUpdates.originPlotTypeDefault = nextOptions.type;
     }
     if (updates.lineWidth !== undefined) {
-      settingsUpdates.originPlotLineWidthDefault = updates.lineWidth;
+      settingsUpdates.originPlotLineWidthDefault = nextOptions.lineWidth;
     }
     if (updates.legendFontSize !== undefined) {
-      settingsUpdates.originPlotLegendFontSizeDefault = updates.legendFontSize;
+      settingsUpdates.originPlotLegendFontSizeDefault = nextOptions.legendFontSize;
     }
     if (updates.command !== undefined) {
-      settingsUpdates.originPlotCommandDefault = updates.command;
+      settingsUpdates.originPlotCommandDefault = nextOptions.command;
     }
     if (updates.postCommands !== undefined) {
-      settingsUpdates.originPlotPostCommandsDefault = updates.postCommands;
+      settingsUpdates.originPlotPostCommandsDefault = nextOptions.postCommands;
     }
     if (updates.xyPairs !== undefined) {
-      settingsUpdates.originPlotXyPairsDefault = updates.xyPairs;
+      settingsUpdates.originPlotXyPairsDefault = nextOptions.xyPairs;
+    }
+
+    if (Object.keys(settingsUpdates).length === 0) {
+      return this.getConductorSettings();
     }
 
     return this.updateSettings(settingsUpdates);
@@ -232,12 +245,18 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     if (!updates || typeof updates !== "object") {
       return this.getConductorSettings();
     }
+    if (Object.keys(updates).length === 0) {
+      return this.getConductorSettings();
+    }
+
+    const currentAxisSettings = normalizePlotAxisSettings(this.getConductorSettings()?.plotAxisSettings);
+    const nextAxisSettings = normalizePlotAxisSettings({
+      ...currentAxisSettings,
+      ...updates,
+    }, currentAxisSettings);
 
     return this.updateSettings({
-      plotAxisSettings: {
-        ...(this.getConductorSettings()?.plotAxisSettings ?? {}),
-        ...updates,
-      },
+      plotAxisSettings: nextAxisSettings,
     });
   }
 

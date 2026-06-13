@@ -203,13 +203,11 @@ const createSessionService = (
 ): Pick<
   ISessionService,
   | "commitCurves"
-  | "commitMetrics"
   | "commitTemplateRun"
   | "getSnapshot"
   | "onDidChangeSession"
 > => ({
   commitCurves: () => undefined,
-  commitMetrics: () => undefined,
   commitTemplateRun: () => undefined,
   getSnapshot: (): SessionSnapshot => ({
     fileOrder: [],

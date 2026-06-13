@@ -97,10 +97,9 @@ type TemplateApplyControllerOptions = {
   sessionService: Pick<
     ISessionService,
     | "commitCurves"
-    | "commitMetrics"
     | "commitTemplateRun"
     | "getSnapshot"
-      | "onDidChangeSession"
+    | "onDidChangeSession"
   >;
   tableService: Pick<ITableService, "getViewInput">;
   templateProcessingBackendService: TemplateProcessingBackend;
@@ -416,7 +415,6 @@ export class TemplateApplyController {
 
     this.options.sessionService.commitTemplateRun(commit.templateRun);
     this.options.sessionService.commitCurves(commit.curves);
-    this.options.sessionService.commitMetrics(commit.metrics);
   };
 
   private readonly clearTemplateOutput = (): void => {

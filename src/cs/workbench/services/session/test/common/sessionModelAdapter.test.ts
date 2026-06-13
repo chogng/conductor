@@ -268,21 +268,8 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
         },
       },
     );
-    assert.equal(record.metricsByKey["current:series-1:base"].metricFamily, "current");
-    assert.equal(record.metricsByKey["derivative:series-1:gm"].metricFamily, "derivative");
-    const derivativeMetric = record.metricsByKey["derivative:series-1:gm"];
-    if (derivativeMetric.metricFamily === "derivative") {
-      assert.equal(derivativeMetric.value.kind, "gm");
-    }
-    assert.equal(
-      record.metricsByKey["subthreshold:series-1:ss:auto"].metricFamily,
-      "subthreshold",
-    );
-    assert.deepEqual(record.metricsBySeriesId?.["series-1"], [
-      "current:series-1:base",
-      "derivative:series-1:gm",
-      "subthreshold:series-1:ss:auto",
-    ]);
+    assert.deepEqual(record.metricsByKey, {});
+    assert.equal(record.metricsBySeriesId, undefined);
   });
 
   test("materializes base curves from display curve type labels", () => {
@@ -446,4 +433,3 @@ const createSnapshot = (
     ...overrides,
   };
 };
-

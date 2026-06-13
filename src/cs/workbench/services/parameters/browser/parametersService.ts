@@ -12,44 +12,22 @@ import {
 import { localize } from "src/cs/nls";
 import {
   IParametersService,
-  type IonIoffMethod,
-  type IParametersService as IParametersServiceType,
-  type ParametersState,
   type ParametersViewStateInput,
-  type SsMethod,
 } from "src/cs/workbench/services/parameters/common/parameters";
 import {
   createProcessedEntryFromFileRecord,
 } from "src/cs/workbench/services/session/common/sessionReadModel";
-import {
-  ISettingsService,
-  type ISettingsService as ISettingsServiceType,
-} from "src/cs/workbench/services/settings/common/settings";
 
-export class ParametersService extends Disposable implements IParametersServiceType {
+export class ParametersService extends Disposable implements IParametersService {
   public declare readonly _serviceBrand: undefined;
 
-  private readonly onDidChangeParametersStateEmitter = this._register(new Emitter<ParametersState>());
-  public readonly onDidChangeParametersState = this.onDidChangeParametersStateEmitter.event;
   private readonly onDidChangeParametersViewStateEmitter = this._register(new Emitter<ParametersViewState>());
   public readonly onDidChangeParametersViewState = this.onDidChangeParametersViewStateEmitter.event;
 
-  private state: ParametersState = createDefaultParametersState();
   private viewState: ParametersViewState = createDefaultParametersViewState();
 
-  constructor(
-    @ISettingsService private readonly settingsService: ISettingsServiceType,
-  ) {
+  constructor() {
     super();
-
-    this.applySettings();
-    this._register(this.settingsService.onDidChangeConductorSettings(() => {
-      this.applySettings();
-    }));
-  }
-
-  public getState(): ParametersState {
-    return this.state;
   }
 
   public getViewState(): ParametersViewState {
@@ -76,77 +54,11 @@ export class ParametersService extends Disposable implements IParametersServiceT
     return viewState;
   }
 
-  public setIonIoffMethod(method: IonIoffMethod): void {
-    this.updateState({ ionIoffMethod: method });
-  }
-
-  public setSsMethod(method: SsMethod): void {
-    this.updateState({ ssMethod: method });
-  }
-
-  public setShowFitLine(showFitLine: boolean): void {
-    this.updateState({ showFitLine });
-  }
-
-  private applySettings(): void {
-    const settings = this.settingsService.getConductorSettings();
-    const updates: Partial<ParametersState> = {};
-
-    if (
-      settings?.ionIoffMethodDefault === "auto" ||
-      settings?.ionIoffMethodDefault === "manual"
-    ) {
-      updates.ionIoffMethod = settings.ionIoffMethodDefault;
-    }
-    if (
-      settings?.ssMethodDefault === "auto" ||
-      settings?.ssMethodDefault === "manual"
-    ) {
-      updates.ssMethod = settings.ssMethodDefault;
-    }
-    if (typeof settings?.ssShowFitLine === "boolean") {
-      updates.showFitLine = settings.ssShowFitLine;
-    }
-
-    this.updateState(updates);
-  }
-
-  private updateState(updates: Partial<ParametersState>): void {
-    const nextState: ParametersState = {
-      ...this.state,
-      ...updates,
-    };
-    if (isSameParametersState(this.state, nextState)) {
-      return;
-    }
-
-    this.state = nextState;
-    this.onDidChangeParametersStateEmitter.fire(nextState);
-  }
 }
-
-const createDefaultParametersState = (): ParametersState => ({
-  activeMetricKey: null,
-  selectedMetricKeys: [],
-  ionIoffMethod: "auto",
-  ssMethod: "auto",
-  showFitLine: true,
-});
 
 const createDefaultParametersViewState = (): ParametersViewState => ({
   kind: "empty",
   message: localize("parameters.empty.noData", "No parameter data."),
 });
-
-const isSameParametersState = (
-  current: ParametersState,
-  next: ParametersState,
-): boolean =>
-  current.activeMetricKey === next.activeMetricKey &&
-  current.ionIoffMethod === next.ionIoffMethod &&
-  current.ssMethod === next.ssMethod &&
-  current.showFitLine === next.showFitLine &&
-  current.selectedMetricKeys.length === next.selectedMetricKeys.length &&
-  current.selectedMetricKeys.every((key, index) => key === next.selectedMetricKeys[index]);
 
 registerSingleton(IParametersService, ParametersService, InstantiationType.Delayed);

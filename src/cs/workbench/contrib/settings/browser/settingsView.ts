@@ -646,7 +646,7 @@ export class SettingsView {
         id: "settings-origin-path-choose-btn",
         label: localize("settings.origin.choosePathButton", "Choose Origin.exe"),
         onClick: () => void settings.onChoosePath(),
-        disabled: !settings.isConfigurable || settings.isSaving,
+        disabled: !settings.isConfigurable || settings.isLoading || settings.isSaving || settings.isHealthChecking,
         variant: "primary",
       }),
       this.createButton({

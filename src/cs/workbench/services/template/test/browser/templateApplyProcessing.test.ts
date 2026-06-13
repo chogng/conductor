@@ -125,7 +125,6 @@ suite("workbench/services/template/test/browser/templateApplyProcessing", () => 
 
           session.commitTemplateRun(commit.templateRun);
           session.commitCurves(commit.curves);
-          session.commitMetrics(commit.metrics);
         },
         clearTemplateOutput: () => {
           session.commitTemplateRun({ kind: "clearTemplateOutput" });

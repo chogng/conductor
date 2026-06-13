@@ -29,7 +29,6 @@ import {
 } from "src/cs/workbench/services/chart/common/chart";
 import {
   IParametersService,
-  type IParametersService as IParametersServiceType,
 } from "src/cs/workbench/services/parameters/common/parameters";
 import {
   IPlotService,
@@ -153,7 +152,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @IChartService chartService: IChartServiceType,
     @IExplorerService explorerService: IExplorerServiceType,
     @IExportService exportService: IExportServiceType,
-    @IParametersService parametersService: IParametersServiceType,
+    @IParametersService parametersService: IParametersService,
     @IPlotService plotService: IPlotServiceType,
     @ISearchService searchService: ISearchServiceType,
     @ISettingsService settingsService: ISettingsServiceType,
