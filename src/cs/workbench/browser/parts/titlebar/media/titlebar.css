@@ -164,7 +164,6 @@
   align-items: center;
   display: flex;
   height: 100%;
-  -webkit-app-region: no-drag;
 }
 
 .titlebar-controls--nav {
@@ -197,6 +196,7 @@
   outline: none;
   transition: color 150ms ease, background-color 150ms ease;
   width: 38px;
+  -webkit-app-region: no-drag;
 }
 
 .titlebar-icon-button:hover {
@@ -228,6 +228,7 @@
   padding-left: 12px;
   padding-right: 12px;
   transition: color 150ms ease, background-color 150ms ease;
+  -webkit-app-region: no-drag;
 }
 
 .titlebar-action-button:hover {
