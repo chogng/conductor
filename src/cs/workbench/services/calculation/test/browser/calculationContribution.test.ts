@@ -17,7 +17,6 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       "rawTablesChanged",
       "assessmentChanged",
       "metricsChanged",
-      "metricInputsChanged",
     ] satisfies SessionChangeReason[]) {
       assert.equal(
         shouldUpdateCalculationForSessionChange(createSessionChangeEvent(reason, 1)),
@@ -32,6 +31,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       "templateRunChanged",
       "filesRemoved",
       "sessionCleared",
+      "metricInputsChanged",
     ] satisfies SessionChangeReason[]) {
       assert.equal(
         shouldUpdateCalculationForSessionChange(createSessionChangeEvent(reason, 1)),

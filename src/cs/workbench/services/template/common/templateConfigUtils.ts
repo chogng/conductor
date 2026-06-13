@@ -55,7 +55,25 @@ export const normalizeXDataEndValue = (value: unknown): string => {
 export const cloneTemplateConfig = (
   config: Partial<TemplateConfig>,
 ): TemplateConfig => {
-  const cloned = createEmptyTemplateConfig(config);
+  const cloned = createEmptyTemplateConfig({
+    bottomTitle: config.bottomTitle,
+    leftTitle: config.leftTitle,
+    legendPrefix: config.legendPrefix,
+    name: config.name,
+    stopOnError: config.stopOnError,
+    xDataEnd: config.xDataEnd,
+    xDataStart: config.xDataStart,
+    xPointsPerGroup: config.xPointsPerGroup,
+    xSegmentCount: config.xSegmentCount,
+    xSegmentationMode: config.xSegmentationMode,
+    xUnit: config.xUnit,
+    yColumns: config.yColumns,
+    yLegendCount: config.yLegendCount,
+    yLegendStart: config.yLegendStart,
+    yLegendStep: config.yLegendStep,
+    yLegendTarget: config.yLegendTarget,
+    yUnit: config.yUnit,
+  });
   const xDataEnd = normalizeXDataEndValue(cloned.xDataEnd);
 
   return {

@@ -6,6 +6,12 @@ import {
   createParameterRows,
   type CalculatedParameterRowData,
 } from "src/cs/workbench/services/calculation/common/calculatedParameters";
+import {
+  classifySsFit,
+  computeBaseCurrentMetrics,
+  computeSubthresholdSwingFitInRange,
+  isTransferLikeFile,
+} from "src/cs/workbench/services/calculation/common/firstCalculation";
 import type {
   BaseCurveFamily,
   CurrentWindowRecord,
@@ -17,6 +23,7 @@ import type {
   ItCurveMode,
   IvCurveMode,
   MetricKey,
+  MetricInputRecord,
   MetricRecord,
   SeriesId,
 } from "src/cs/workbench/services/session/common/sessionModel";
@@ -30,6 +37,9 @@ import {
 } from "src/cs/workbench/services/session/common/sessionRecordProjection";
 import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 
+type CurrentMetricValue = Extract<MetricRecord, { metricFamily: "current" }>["value"];
+type SubthresholdMetricRecord = Extract<MetricRecord, { metricFamily: "subthreshold" }>;
+
 export const createCalculatedMetricRecordsByFile = (
   filesById: Record<FileId, FileRecord>,
   fileOrder: readonly FileId[],
@@ -42,6 +52,39 @@ export const createCalculatedMetricRecordsByFile = (
     }
   }
   return metricsByFileId;
+};
+
+export const createCalculatedMetricRecordsInputSignature = (
+  filesById: Record<FileId, FileRecord>,
+  fileOrder: readonly FileId[],
+): string => {
+  const parts: string[] = [];
+  for (const file of getOrderedFileRecords(filesById, fileOrder)) {
+    if (!collectFileRecordBaseCurves(file).length) {
+      continue;
+    }
+
+    parts.push("file", file.id);
+    for (const input of Object.values(file.metricInputsByKey ?? {})
+      .sort((first, second) => first.metricKey.localeCompare(second.metricKey))) {
+      parts.push(
+        "input",
+        input.metricKey,
+        input.seriesId,
+        input.source,
+        input.configSignature ?? "",
+        String(input.range?.x1 ?? ""),
+        String(input.range?.x2 ?? ""),
+      );
+      for (const [key, value] of Object.entries(input.targets ?? {}).sort(([left], [right]) =>
+        left.localeCompare(right)
+      )) {
+        parts.push("target", key, String(value ?? ""));
+      }
+    }
+  }
+
+  return parts.join("\u001f");
 };
 
 export const createCalculatedMetricRecordsForFile = (
@@ -62,6 +105,11 @@ export const createCalculatedMetricRecordsForFile = (
 
   for (const [index, row] of createParameterRows(processedFile).entries()) {
     const seriesId = resolveMetricSeriesId(row, seriesOrder[index], index);
+    const currentKey = `current:${seriesId}:base` as MetricKey;
+    const subthresholdAutoKey = `subthreshold:${seriesId}:ss:auto` as MetricKey;
+    const subthresholdManualKey = `subthreshold:${seriesId}:ss:manual` as MetricKey;
+    const currentInput = file.metricInputsByKey?.[currentKey];
+    const subthresholdInput = file.metricInputsByKey?.[subthresholdManualKey];
     const inputCurve = family
       ? createMetricInputCurveRef({
           curvesByKey: file.curvesByKey,
@@ -76,27 +124,35 @@ export const createCalculatedMetricRecordsForFile = (
     const inputSignatures = inputCurves
       .map((curve) => curve.signature)
       .filter((signature) => signature.length > 0);
+    const baseCurve = inputCurve ? file.curvesByKey[inputCurve.curveKey] : undefined;
+    const currentValue = createCurrentMetricValue({
+      baseCurve,
+      input: currentInput,
+      processedFile,
+      row,
+    });
+    const subthresholdMetric = createSubthresholdMetric({
+      file,
+      input: subthresholdInput,
+      inputCurves,
+      inputSignatures,
+      processedFile,
+      row,
+      seriesId,
+      subthresholdAutoKey,
+      subthresholdManualKey,
+    });
 
     appendMetric(metricsByKey, {
-      key: `current:${seriesId}:base` as MetricKey,
+      key: currentKey,
       fileId: file.id,
       seriesId,
       metricFamily: "current",
       contextKey: "base",
       inputCurves,
-      inputSignatures,
+      inputSignatures: createMetricInputSignatures(inputSignatures, currentInput),
       algorithm: { id: "computeBaseCurrentMetrics" },
-      value: {
-        method: normalizeCurrentMethod(row.currentMethod),
-        ion: normalizeNumberOrNull(row.ion),
-        xAtIon: normalizeNumberOrNull(row.xAtIon),
-        ioff: normalizeNumberOrNull(row.ioff),
-        xAtIoff: normalizeNumberOrNull(row.xAtIoff),
-        ionIoff: normalizeNumberOrNull(row.ionIoff),
-        candidateWindows: normalizeCurrentWindows(row.currentCandidateWindows),
-        ionWindow: normalizeCurrentWindow(row.ionWindow),
-        ioffWindow: normalizeCurrentWindow(row.ioffWindow),
-      },
+      value: currentValue,
     });
 
     appendMetric(metricsByKey, {
@@ -115,22 +171,7 @@ export const createCalculatedMetricRecordsForFile = (
       },
     });
 
-    appendMetric(metricsByKey, {
-      key: `subthreshold:${seriesId}:ss:auto` as MetricKey,
-      fileId: file.id,
-      seriesId,
-      metricFamily: "subthreshold",
-      contextKey: "ss:auto",
-      inputCurves,
-      inputSignatures,
-      algorithm: { id: "computeSubthresholdSwingFitAuto" },
-      value: {
-        ss: normalizeNumberOrNull(row.ss),
-        confidence: normalizeSsConfidence(row.ssConfidence),
-        xAtSs: normalizeNumberOrNull(row.xAtSs),
-        method: "auto",
-      },
-    });
+    appendMetric(metricsByKey, subthresholdMetric);
 
     const thresholdVoltage = normalizeNumberOrNull(row.thresholdVoltage);
     const thresholdVoltageElectron = normalizeNumberOrNull(row.thresholdVoltageElectron);
@@ -177,6 +218,157 @@ const createProcessedEntryFromFileRecord = (file: FileRecord): ProcessedEntry =>
     yLabel: axis.yLabel,
     yUnit: axis.yUnit,
   };
+};
+
+const createCurrentMetricValue = ({
+  baseCurve,
+  input,
+  processedFile,
+  row,
+}: {
+  baseCurve: CurveRecord | undefined;
+  input: MetricInputRecord | undefined;
+  processedFile: ProcessedEntry;
+  row: CalculatedParameterRowData;
+}): CurrentMetricValue => {
+  if (input?.source === "manual" && input.targets) {
+    const metrics = computeBaseCurrentMetrics({
+      manualTargets: {
+        ionX: normalizeManualInputNumber(input.targets.ionX),
+        ioffX: normalizeManualInputNumber(input.targets.ioffX),
+      },
+      method: "manual",
+      points: baseCurve?.points ?? [],
+      sourceFile: processedFile,
+    });
+
+    return {
+      method: "manual",
+      ion: normalizeNumberOrNull(metrics.ion),
+      xAtIon: normalizeNumberOrNull(metrics.xAtIon),
+      ioff: normalizeNumberOrNull(metrics.ioff),
+      xAtIoff: normalizeNumberOrNull(metrics.xAtIoff),
+      ionIoff: normalizeNumberOrNull(metrics.ionIoff),
+      candidateWindows: normalizeCurrentWindows(metrics.candidateWindows),
+      ionWindow: normalizeCurrentWindow(metrics.ionWindow),
+      ioffWindow: normalizeCurrentWindow(metrics.ioffWindow),
+    };
+  }
+
+  return {
+    method: normalizeCurrentMethod(row.currentMethod),
+    ion: normalizeNumberOrNull(row.ion),
+    xAtIon: normalizeNumberOrNull(row.xAtIon),
+    ioff: normalizeNumberOrNull(row.ioff),
+    xAtIoff: normalizeNumberOrNull(row.xAtIoff),
+    ionIoff: normalizeNumberOrNull(row.ionIoff),
+    candidateWindows: normalizeCurrentWindows(row.currentCandidateWindows),
+    ionWindow: normalizeCurrentWindow(row.ionWindow),
+    ioffWindow: normalizeCurrentWindow(row.ioffWindow),
+  };
+};
+
+const createSubthresholdMetric = ({
+  file,
+  input,
+  inputCurves,
+  inputSignatures,
+  processedFile,
+  row,
+  seriesId,
+  subthresholdAutoKey,
+  subthresholdManualKey,
+}: {
+  file: FileRecord;
+  input: MetricInputRecord | undefined;
+  inputCurves: CurveRef[];
+  inputSignatures: string[];
+  processedFile: ProcessedEntry;
+  row: CalculatedParameterRowData;
+  seriesId: string;
+  subthresholdAutoKey: MetricKey;
+  subthresholdManualKey: MetricKey;
+}): SubthresholdMetricRecord => {
+  const inputCurve = inputCurves[0];
+  const baseCurve = inputCurve ? file.curvesByKey[inputCurve.curveKey] : undefined;
+  if (
+    input?.source === "manual" &&
+    input.range &&
+    isTransferLikeFile(processedFile)
+  ) {
+    const fit = computeSubthresholdSwingFitInRange(
+      baseCurve?.points ?? [],
+      normalizeManualInputNumber(input.range.x1),
+      normalizeManualInputNumber(input.range.x2),
+    ) as Record<string, unknown>;
+    const classification = classifySsFit("manual", fit) as Record<string, unknown>;
+    const ok = classification.ss_ok === true;
+    return {
+      key: subthresholdManualKey,
+      fileId: file.id,
+      seriesId,
+      metricFamily: "subthreshold",
+      contextKey: "ss:manual",
+      inputCurves,
+      inputSignatures: createMetricInputSignatures(inputSignatures, input),
+      algorithm: { id: "computeSubthresholdSwingFitInRange" },
+      value: {
+        ss: ok ? normalizeNumberOrNull(fit.ss) : null,
+        confidence: normalizeSsConfidence(classification.ss_confidence),
+        xAtSs: ok ? resolveFitMidpoint(fit) : null,
+        method: "manual",
+      },
+    };
+  }
+
+  return {
+    key: subthresholdAutoKey,
+    fileId: file.id,
+    seriesId,
+    metricFamily: "subthreshold",
+    contextKey: "ss:auto",
+    inputCurves,
+    inputSignatures,
+    algorithm: { id: "computeSubthresholdSwingFitAuto" },
+    value: {
+      ss: normalizeNumberOrNull(row.ss),
+      confidence: normalizeSsConfidence(row.ssConfidence),
+      xAtSs: normalizeNumberOrNull(row.xAtSs),
+      method: "auto",
+    },
+  };
+};
+
+const createMetricInputSignatures = (
+  inputSignatures: string[],
+  input: MetricInputRecord | undefined,
+): string[] => {
+  const inputSignature = input ? createMetricInputSignature(input) : null;
+  return inputSignature ? [...inputSignatures, inputSignature] : inputSignatures;
+};
+
+const createMetricInputSignature = (input: MetricInputRecord): string => {
+  const parts = [
+    "metricInput",
+    input.metricKey,
+    input.seriesId,
+    input.source,
+    input.configSignature ?? "",
+    String(input.range?.x1 ?? ""),
+    String(input.range?.x2 ?? ""),
+  ];
+  for (const [key, value] of Object.entries(input.targets ?? {}).sort(([left], [right]) =>
+    left.localeCompare(right)
+  )) {
+    parts.push(key, String(value ?? ""));
+  }
+  return parts.join(":");
+};
+
+const resolveFitMidpoint = (fit: Record<string, unknown>): number | null => {
+  const x1 = normalizeNumberOrNull(fit.x1);
+  const x2 = normalizeNumberOrNull(fit.x2);
+  return x1 !== null && x2 !== null ? (x1 + x2) / 2 : null;
 };
 
 const appendMetric = (
@@ -252,6 +444,9 @@ const normalizeNumberOrNull = (value: unknown): number | null => {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 };
+
+const normalizeManualInputNumber = (value: unknown): number | undefined =>
+  normalizeNumberOrNull(value) ?? undefined;
 
 const normalizeCurrentWindows = (value: unknown): CurrentWindowRecord[] =>
   Array.isArray(value)

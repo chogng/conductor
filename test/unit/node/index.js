@@ -18,6 +18,16 @@ const resolveCompiledImport = (fromFile, specifier) => {
     return null;
   }
 
+  if (specifier.startsWith(".")) {
+    const targetPath = path.resolve(path.dirname(fromFile), specifier);
+    if (existsSync(`${targetPath}.js`)) {
+      return `${specifier}.js`;
+    }
+    if (existsSync(path.join(targetPath, "index.js"))) {
+      return `${specifier.replace(/\/$/, "")}/index.js`;
+    }
+  }
+
   if (specifier.startsWith("src/")) {
     return toImportPath(fromFile, path.join(outRoot, `${specifier}.js`));
   }
@@ -37,14 +47,14 @@ const rewriteImports = (filePath) => {
     "$1 with { type: \"json\" }$2",
   );
   next = next.replace(
-    /(from\s+["'])(src\/[^"']+|cs\/[^"']+)(["'])/g,
+    /(from\s+["'])([^"']+)(["'])/g,
     (match, prefix, specifier, suffix) => {
       const resolved = resolveCompiledImport(filePath, specifier);
       return resolved ? `${prefix}${resolved}${suffix}` : match;
     },
   );
   next = next.replace(
-    /(import\s*\(\s*["'])(src\/[^"']+|cs\/[^"']+)(["']\s*\))/g,
+    /(import\s*\(\s*["'])([^"']+)(["']\s*\))/g,
     (match, prefix, specifier, suffix) => {
       const resolved = resolveCompiledImport(filePath, specifier);
       return resolved ? `${prefix}${resolved}${suffix}` : match;

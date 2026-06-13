@@ -10,7 +10,10 @@ import {
   createCalculatedPlotsByKeyFromRecords,
   createCalculatedDataRecordInputSignature,
 } from "src/cs/workbench/services/calculation/common/calculatedData";
-import { createCalculatedMetricRecordsByFile } from "src/cs/workbench/services/calculation/common/calculatedMetrics";
+import {
+  createCalculatedMetricRecordsByFile,
+  createCalculatedMetricRecordsInputSignature,
+} from "src/cs/workbench/services/calculation/common/calculatedMetrics";
 import { CalculationContributionId } from "src/cs/workbench/services/calculation/common/calculation";
 import { createCalculatedCurveRecordsByFile } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import {
@@ -37,6 +40,9 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
   private update(): void {
     const snapshot = this.sessionService.getSnapshot();
     const inputSignature = createCalculatedDataRecordInputSignature(
+      snapshot.filesById,
+      snapshot.fileOrder,
+    ) + "\u001e" + createCalculatedMetricRecordsInputSignature(
       snapshot.filesById,
       snapshot.fileOrder,
     );
@@ -81,13 +87,13 @@ export const shouldUpdateCalculationForSessionChange = (
     case "templateRunChanged":
     case "filesRemoved":
     case "sessionCleared":
+    case "metricInputsChanged":
       return true;
     case "curvesChanged":
       return hasBaseCurveChange(event);
     case "rawTablesChanged":
     case "assessmentChanged":
     case "metricsChanged":
-    case "metricInputsChanged":
       return false;
   }
 };
