@@ -1,9 +1,11 @@
 import { localize } from "src/cs/nls";
 import { append, reset } from "src/cs/base/browser/dom";
 import { createButton as createActionButton } from "src/cs/base/browser/ui/button/button";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { createSelectBox, type SelectBoxOption } from "src/cs/base/browser/ui/selectBox/selectBox";
 import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/template/common/fileNameMatching";
 import type { LanguagePreference } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
@@ -118,6 +120,7 @@ type SettingsViewProps = {
   fileNameMatchingSettings: FileNameMatchingSettings;
   language: LanguagePreference;
   onLanguageChange: (language: LanguagePreference) => Promise<void> | void;
+  onNavigateBack: () => Promise<void> | void;
   onResetLayoutState: () => Promise<void> | void;
   theme: ThemeMode;
   onThemeChange: (theme: ThemeMode) => Promise<void> | void;
@@ -162,6 +165,11 @@ export type SettingsViewOptions = SettingsViewProps & {
 type SelectOptionWithId = {
   id: SettingsSectionId;
   label: string;
+};
+
+type SettingsNavGroup = {
+  label: string;
+  sectionIds: readonly SettingsSectionId[];
 };
 
 type FieldOptions = {
@@ -230,8 +238,14 @@ export class SettingsView {
 
   private createLayout(): HTMLElement {
     const layout = div("settings-view-layout");
-    layout.append(this.createNav(), this.createContent());
+    layout.append(this.createNav(), this.createContentScroll());
     return layout;
+  }
+
+  private createContentScroll(): HTMLElement {
+    const scroll = div("settings-view-content-scroll");
+    scroll.appendChild(this.createContent());
+    return scroll;
   }
 
   private createNav(): HTMLElement {
@@ -239,24 +253,91 @@ export class SettingsView {
     aside.className = "settings-view-nav";
     aside.setAttribute("aria-label", localize("settings.nav.ariaLabel", "Settings sections"));
 
+    const backButton = document.createElement("button");
+    backButton.type = "button";
+    backButton.className = "settings-view-nav-back";
+    backButton.addEventListener("click", () => void this.options.onNavigateBack());
+    backButton.append(
+      createLxIcon({ className: "settings-view-nav-back-icon", icon: LxIcon.arrowLeft, size: 14 }),
+      text("span", "settings-view-nav-back-label", localize("settings.nav.back", "Back")),
+    );
+
+    const search = document.createElement("label");
+    search.className = "settings-view-search";
+    search.appendChild(createLxIcon({ className: "settings-view-search-icon", icon: LxIcon.search, size: 14 }));
+    const searchInput = document.createElement("input");
+    searchInput.className = "settings-view-search-input";
+    searchInput.type = "search";
+    searchInput.placeholder = localize("settings.nav.searchPlaceholder", "Search settings...");
+    searchInput.setAttribute("aria-label", localize("settings.nav.searchPlaceholder", "Search settings..."));
+    search.appendChild(searchInput);
+
     const nav = document.createElement("nav");
     nav.className = "settings-view-nav-list";
-    for (const section of this.options.settingsSections) {
-      const isActive = this.options.activeSettingsSection === section.id;
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "settings-view-nav-item";
-      button.dataset.selected = String(isActive);
-      if (isActive) {
-        button.setAttribute("aria-current", "page");
+    const buttons: HTMLButtonElement[] = [];
+    const groups = this.settingsNavGroups();
+    for (const group of groups) {
+      const groupElement = div("settings-view-nav-group");
+      const groupLabel = text("p", "settings-view-nav-group-label", group.label);
+      const groupItems = div("settings-view-nav-group-items");
+      for (const sectionId of group.sectionIds) {
+        const section = this.options.settingsSections.find(item => item.id === sectionId);
+        if (!section) {
+          continue;
+        }
+
+        const isActive = this.options.activeSettingsSection === section.id;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "settings-view-nav-item";
+        button.dataset.selected = String(isActive);
+        button.dataset.label = section.label.toLocaleLowerCase();
+        if (isActive) {
+          button.setAttribute("aria-current", "page");
+        }
+        button.append(
+          createLxIcon({ className: "settings-view-nav-item-icon", icon: settingsSectionIcon(section.id), size: 16 }),
+          text("span", "settings-view-nav-item-label", section.label),
+        );
+        button.addEventListener("click", () => this.options.setActiveSettingsSection(section.id));
+        buttons.push(button);
+        groupItems.appendChild(button);
       }
-      button.textContent = section.label;
-      button.addEventListener("click", () => this.options.setActiveSettingsSection(section.id));
-      nav.appendChild(button);
+      groupElement.append(groupLabel, groupItems);
+      nav.appendChild(groupElement);
     }
 
-    aside.appendChild(nav);
+    searchInput.addEventListener("input", () => {
+      const query = searchInput.value.trim().toLocaleLowerCase();
+      for (const button of buttons) {
+        button.hidden = Boolean(query) && !(button.dataset.label ?? "").includes(query);
+      }
+      for (const group of Array.from(nav.querySelectorAll<HTMLElement>(".settings-view-nav-group"))) {
+        const hasVisibleItem = Array.from(group.querySelectorAll<HTMLButtonElement>(".settings-view-nav-item"))
+          .some(button => !button.hidden);
+        group.hidden = !hasVisibleItem;
+      }
+    });
+
+    aside.append(div("settings-view-nav-header", backButton, search), nav);
     return aside;
+  }
+
+  private settingsNavGroups(): readonly SettingsNavGroup[] {
+    return [
+      {
+        label: localize("settings.nav.group.personal", "Personal"),
+        sectionIds: ["general", "appearance"],
+      },
+      {
+        label: localize("settings.nav.group.integrations", "Integrations"),
+        sectionIds: ["origin"],
+      },
+      {
+        label: localize("settings.nav.group.system", "System"),
+        sectionIds: ["about"],
+      },
+    ];
   }
 
   private createContent(): HTMLElement {
@@ -277,7 +358,7 @@ export class SettingsView {
   }
 
   private renderGeneral(container: HTMLElement): void {
-    container.append(
+    container.appendChild(settingsSection(localize("settings.nav.general", "General"),
       cardRow("settings-language-card", localize("settings.language.title", "Language"), this.createSelect({
         id: "settings-language-dropdown",
         value: this.options.language,
@@ -303,19 +384,25 @@ export class SettingsView {
         options: this.options.windowCloseBehaviorOptions,
         disabled: this.options.windowCloseSettings.isSaving,
       })),
-    );
+    ));
 
     container.append(
-      this.createDefaults(this.options.chartDefaultSettings),
-      this.createChartDefaults(this.options.chartDefaultSettings),
-      this.createFileNameMatching(this.options.fileNameMatchingSettings),
+      settingsSection(
+        localize("settings.chartDefaults.sectionTitle", "Chart"),
+        this.createDefaults(this.options.chartDefaultSettings),
+        this.createChartDefaults(this.options.chartDefaultSettings),
+      ),
+      settingsSection(
+        localize("settings.filenameMatching.sectionTitle", "Template"),
+        this.createFileNameMatching(this.options.fileNameMatchingSettings),
+      ),
     );
   }
 
   private renderAppearance(container: HTMLElement): void {
     const { appearanceSettings } = this.options;
 
-    container.append(
+    const appearanceSection = settingsSection(localize("settings.nav.appearance", "Appearance"),
       cardRow("settings-theme-card", localize("settings.theme.title", "Theme"), this.createSelect({
         id: "settings-theme-dropdown",
         value: this.options.theme,
@@ -327,23 +414,25 @@ export class SettingsView {
         options: this.options.themeModeOptions,
       })),
     );
+    const appearanceList = getSettingsList(appearanceSection);
+    container.appendChild(appearanceSection);
 
-    const layoutCard = card("settings-layout-card", "settings-card-block");
-    layoutCard.append(
+    const layoutCard = card("settings-layout-card", "settings-card-row");
+    layoutCard.appendChild(settingsSplitRow(
       headingBlock(
         localize("settings.layout.title", "Layout"),
         localize("settings.layout.description", "Reset sidebar width and hidden workbench parts."),
       ),
-      div("settings-actions-end", this.createButton({
+      div("settings-split-row-control settings-split-row-control--actions", this.createButton({
         id: "settings-layout-reset-btn",
         label: localize("settings.layout.resetButton", "Reset Layout"),
         onClick: () => void this.options.onResetLayoutState(),
         variant: "secondary",
       })),
-    );
-    container.append(layoutCard);
+    ));
+    appearanceList.appendChild(layoutCard);
 
-    const backgroundCard = card("settings-background-card", "settings-card-block");
+    const backgroundCard = card("settings-background-card", "settings-card-row");
     const colorInput = document.createElement("input");
     colorInput.id = "settings-background-color-input";
     colorInput.className = "settings-color-input";
@@ -370,24 +459,29 @@ export class SettingsView {
       swatches.append(button);
     }
 
-    backgroundCard.append(
+    backgroundCard.appendChild(settingsSplitRow(
       headingBlock(
         localize("settings.background.title", "Background"),
         localize("settings.background.description", "Choose the workbench page background color."),
       ),
-      div("settings-color-controls", colorInput, swatches, this.createButton({
-        id: "settings-background-reset-btn",
-        label: localize("settings.background.reset", "Reset"),
-        onClick: () => void appearanceSettings.onBackgroundColorReset(),
-        disabled:
-          appearanceSettings.isSaving ||
-          appearanceSettings.backgroundColor === appearanceSettings.backgroundColorDefault,
-        variant: "secondary",
-      })),
-    );
-    container.append(backgroundCard);
+      div("settings-split-row-control settings-split-row-control--stack", div(
+        "settings-color-controls",
+        colorInput,
+        swatches,
+        this.createButton({
+          id: "settings-background-reset-btn",
+          label: localize("settings.background.reset", "Reset"),
+          onClick: () => void appearanceSettings.onBackgroundColorReset(),
+          disabled:
+            appearanceSettings.isSaving ||
+            appearanceSettings.backgroundColor === appearanceSettings.backgroundColorDefault,
+          variant: "secondary",
+        }),
+      )),
+    ));
+    appearanceList.appendChild(backgroundCard);
 
-    container.append(
+    appearanceList.appendChild(
       cardRow(
         "settings-transparent-chrome-card",
         localize("settings.transparentChrome.title", "Translucent sidebar"),
@@ -417,7 +511,8 @@ export class SettingsView {
     if (!originSettings.isConfigurable) {
       pathCard.appendChild(text("p", "settings-description", localize("settings.origin.notConfigurableHint", "Origin path configuration is available in Windows desktop app only.")));
     }
-    container.appendChild(pathCard);
+    const originSection = settingsSection(localize("settings.nav.origin", "Origin"), pathCard);
+    const originList = getSettingsList(originSection);
 
     const cleanupCard = card("settings-origin-cleanup-card", "settings-card-block");
     cleanupCard.append(
@@ -431,14 +526,15 @@ export class SettingsView {
         variant: "secondary",
       })),
     );
-    container.appendChild(cleanupCard);
+    originList.appendChild(cleanupCard);
 
-    container.appendChild(this.createOriginPlot(originSettings));
+    originList.appendChild(this.createOriginPlot(originSettings));
+    container.appendChild(originSection);
   }
 
   private renderAbout(container: HTMLElement): void {
     const { appUpdateSettings } = this.options;
-    container.append(
+    container.appendChild(settingsSection(localize("settings.nav.about", "About"),
       cardRow("settings-about-version-card", localize("settings.about.versionTitle", "Current Version"), text("p", "settings-code-value", appUpdateSettings.currentVersion || localize("settings.about.versionUnknown", "Unknown"))),
       cardRow("settings-app-update-card", localize("settings.appUpdate.title", "App Updates"), this.createButton({
         id: "settings-app-update-check-btn",
@@ -447,7 +543,7 @@ export class SettingsView {
         disabled: !appUpdateSettings.isAvailable || this.options.appUpdateChecking,
         variant: "secondary",
       })),
-    );
+    ));
   }
 
   private createDefaults(settings: ChartDefaultSettings): HTMLElement {
@@ -776,11 +872,43 @@ function card(id: string, className: string): HTMLDivElement {
 
 function cardRow(id: string, titleText: string, control: Node): HTMLElement {
   const element = card(id, "settings-card-row");
-  element.appendChild(div("settings-row",
+  element.appendChild(settingsSplitRow(
     div("settings-row-title", title(titleText)),
     div("settings-row-control", control),
   ));
   return element;
+}
+
+function settingsSplitRow(content: Node, control: Node): HTMLElement {
+  return div("settings-row settings-split-row", content, control);
+}
+
+function settingsSection(titleText: string, ...rows: HTMLElement[]): HTMLElement {
+  return div("settings-section", title(titleText), div("settings-list", ...rows));
+}
+
+function getSettingsList(section: HTMLElement): HTMLElement {
+  const list = section.querySelector<HTMLElement>(".settings-list");
+  if (!list) {
+    throw new Error("Settings section is missing its list container.");
+  }
+  return list;
+}
+
+function settingsSectionIcon(sectionId: SettingsSectionId): LxIconDefinition {
+  if (sectionId === "appearance") {
+    return LxIcon.layoutSidebarRightEmpty;
+  }
+
+  if (sectionId === "origin") {
+    return LxIcon.origin;
+  }
+
+  if (sectionId === "about") {
+    return LxIcon.infoCircle;
+  }
+
+  return LxIcon.gear;
 }
 
 function title(value: string): HTMLElement {

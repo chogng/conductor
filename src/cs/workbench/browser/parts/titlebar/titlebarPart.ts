@@ -583,7 +583,7 @@ const createWorkbenchTitlebarView = (
   }
 
   const rightControls = createElement("div", {
-    className: "titlebar-controls",
+    className: "titlebar-right titlebar-controls",
   });
 
   if (updateAction?.isVisible === true) {
@@ -639,8 +639,13 @@ const createWorkbenchTitlebarView = (
     }));
   }
 
+  const leftControls = appendChildren(
+    createElement("div", { className: "titlebar-left" }),
+    [brand, navActionBar.domNode],
+  );
+
   return new WorkbenchTitlebarView(
-    appendChildren(header, [brand, navActionBar.domNode, center, rightControls]),
+    appendChildren(header, [leftControls, center, rightControls]),
     {
       fileSelect,
       navActions: navActionsById,

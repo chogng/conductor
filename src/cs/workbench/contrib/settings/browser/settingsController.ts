@@ -237,6 +237,9 @@ export class SettingsController {
       onLanguageChange: language => {
         void this.commandService.executeCommand(WorkbenchCommandId.setLanguage, language);
       },
+      onNavigateBack: () => {
+        void this.commandService.executeCommand(WorkbenchLayoutCommandId.navigateBack);
+      },
       onResetLayoutState: () => {
         void this.commandService.executeCommand(WorkbenchLayoutCommandId.resetLayoutState);
       },

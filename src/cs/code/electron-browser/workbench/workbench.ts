@@ -32,6 +32,10 @@ import {
 } from "src/cs/workbench/services/themes/browser/themeService";
 import { installWindowDeveloperKeybindings } from "src/cs/workbench/browser/actions/windowActions";
 import { getStorageKey, StorageScope } from "src/cs/platform/storage/common/storage";
+import {
+  bootstrapWorkbenchTheme,
+  showWorkbenchSplash,
+} from "src/cs/workbench/browser/parts/splash/partsSplash";
 
 declare global {
   interface Window {
@@ -296,6 +300,7 @@ const prepareWorkbench = (logBoot: BootLogger, isBootProfileEnabled: boolean) =>
   window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ = isBootProfileEnabled;
   window.__CONDUCTOR_BOOT_LOG__ = logBoot;
   window.__CONDUCTOR_BOOT_MARK_UI_READY__ = createBootUiReadyMarker(logBoot);
+  showWorkbenchSplash(bootstrapWorkbenchTheme());
 
   installEarlyErrorLogging(logBoot);
   applyBootSidebarWidth();
