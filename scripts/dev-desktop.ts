@@ -23,7 +23,6 @@ const devServerWarmupPaths = [
   "/src/cs/code/browser/workbench/workbench.ts",
   "/src/cs/code/electron-browser/workbench/workbench.ts",
   "/src/cs/workbench/workbench.common.main.ts",
-  "/src/cs/workbench/workbench.browser.main.ts",
   "/src/cs/workbench/workbench.desktop.main.ts",
   "/src/cs/nls.ts",
   "/build/nls/en.json",
@@ -233,9 +232,9 @@ const waitForServer = async (url: string, timeoutMs = 60_000) => {
 };
 
 const warmupDevServer = async (baseUrl: string) => {
+  const started = Date.now();
   for (const warmupPath of devServerWarmupPaths) {
     const warmupUrl = new URL(warmupPath, baseUrl).toString();
-    const started = Date.now();
     const response = await fetch(warmupUrl, {
       method: "GET",
       headers: {
@@ -250,11 +249,11 @@ const warmupDevServer = async (baseUrl: string) => {
     }
 
     await response.arrayBuffer();
-    logDesktopDevBoot(
-      "dev-server:warmup",
-      `(path=${warmupPath} duration=${Date.now() - started}ms)`,
-    );
   }
+  logDesktopDevBoot(
+    "dev-server:warmup:done",
+    `(requests=${devServerWarmupPaths.length} duration=${Date.now() - started}ms)`,
+  );
 };
 
 const stopProcessTreeOnWindows = (proc: ChildProcess | null, timeoutMs = 5_000) =>
