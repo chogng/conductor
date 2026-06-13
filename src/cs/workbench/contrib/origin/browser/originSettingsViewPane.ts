@@ -6,7 +6,7 @@ import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { createSelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
 import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollbar";
-import { createSwitch } from "src/cs/base/browser/ui/switch/switch";
+import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import { DisposableStore, toDisposable } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
@@ -35,10 +35,25 @@ type OriginSettingsChangeHandler = (
   updates: Partial<OriginPlotOptions>,
 ) => void | Promise<void>;
 
+type OriginAxisSwitchKey = "showGrid" | "showMajorTicks" | "showMinorTicks";
+
+type NormalizedOriginSettingsViewInput = {
+  readonly axisSettings: PlotAxisSettings;
+  readonly options: OriginPlotOptions;
+};
+
+const ORIGIN_AXIS_SWITCH_KEYS: readonly OriginAxisSwitchKey[] = [
+  "showGrid",
+  "showMajorTicks",
+  "showMinorTicks",
+];
+
 export class OriginSettingsViewPane extends ViewPane {
   private readonly collapsedSectionIds = new Set<string>(["origin-advanced-plot-settings"]);
   private readonly renderStore = new DisposableStore();
   private readonly pane = document.createElement("div");
+  private readonly axisSwitches: Partial<Record<OriginAxisSwitchKey, SwitchWidget>> = {};
+  private currentInput: NormalizedOriginSettingsViewInput | null = null;
   private readonly scrollArea = new Scrollbar({
     className: "origin_settings_scroll",
     viewportClassName: "origin_settings_scroll_viewport",
@@ -66,16 +81,29 @@ export class OriginSettingsViewPane extends ViewPane {
     axisSettings,
     options,
   }: OriginSettingsViewPaneOptions): void {
-    this.renderStore.clear();
     const normalizedOptions = normalizeOriginPlotOptions(
       options,
       DEFAULT_ORIGIN_PLOT_OPTIONS,
     );
+    const normalizedAxisSettings = normalizePlotAxisSettings(axisSettings, DEFAULT_PLOT_AXIS_SETTINGS);
+    const nextInput = {
+      axisSettings: normalizedAxisSettings,
+      options: normalizedOptions,
+    };
 
+    if (this.currentInput && canPatchOriginAxisSwitches(this.currentInput, nextInput)) {
+      this.currentInput = nextInput;
+      updateOriginAxisSwitches(this.axisSwitches, normalizedAxisSettings);
+      return;
+    }
+
+    this.renderStore.clear();
+    clearOriginAxisSwitches(this.axisSwitches);
     const view = document.createElement("div");
     view.className = "origin_settings_view";
     view.append(createOriginSettingsView({
-      axisSettings: normalizePlotAxisSettings(axisSettings, DEFAULT_PLOT_AXIS_SETTINGS),
+      axisSettings: normalizedAxisSettings,
+      axisSwitches: this.axisSwitches,
       isSectionCollapsed: id => this.collapsedSectionIds.has(id),
       onAxisChange: updates => {
         void this.settingsService.updatePlotAxisSettings(updates);
@@ -94,12 +122,15 @@ export class OriginSettingsViewPane extends ViewPane {
       options: normalizedOptions,
       store: this.renderStore,
     }));
+    this.currentInput = nextInput;
     this.scrollArea.viewport.replaceChildren(view);
     queueMicrotask(() => this.scrollArea.layout());
   }
 
   public override dispose(): void {
     this.scrollArea.viewport.replaceChildren();
+    this.currentInput = null;
+    clearOriginAxisSwitches(this.axisSwitches);
     this.renderStore.dispose();
     this.scrollArea.dispose();
     this.pane.remove();
@@ -107,8 +138,63 @@ export class OriginSettingsViewPane extends ViewPane {
   }
 }
 
+const canPatchOriginAxisSwitches = (
+  current: NormalizedOriginSettingsViewInput,
+  next: NormalizedOriginSettingsViewInput,
+): boolean =>
+  areOriginPlotOptionsEqual(current.options, next.options) &&
+  arePlotAxisSettingsEqualExcept(current.axisSettings, next.axisSettings, ORIGIN_AXIS_SWITCH_KEYS) &&
+  ORIGIN_AXIS_SWITCH_KEYS.some(key => current.axisSettings[key] !== next.axisSettings[key]);
+
+const areOriginPlotOptionsEqual = (
+  current: OriginPlotOptions,
+  next: OriginPlotOptions,
+): boolean =>
+  current.type === next.type &&
+  current.xyPairs === next.xyPairs &&
+  current.command === next.command &&
+  current.lineWidth === next.lineWidth &&
+  current.legendFontSize === next.legendFontSize &&
+  areStringArraysEqual(current.postCommands, next.postCommands);
+
+const areStringArraysEqual = (
+  current: readonly string[],
+  next: readonly string[],
+): boolean =>
+  current.length === next.length && current.every((value, index) => value === next[index]);
+
+const arePlotAxisSettingsEqualExcept = (
+  current: PlotAxisSettings,
+  next: PlotAxisSettings,
+  ignoredKeys: readonly OriginAxisSwitchKey[],
+): boolean =>
+  (Object.keys(DEFAULT_PLOT_AXIS_SETTINGS) as Array<keyof PlotAxisSettings>).every(key =>
+    ignoredKeys.includes(key as OriginAxisSwitchKey) || current[key] === next[key],
+  );
+
+const updateOriginAxisSwitches = (
+  switches: Partial<Record<OriginAxisSwitchKey, SwitchWidget>>,
+  axisSettings: PlotAxisSettings,
+): void => {
+  for (const key of ORIGIN_AXIS_SWITCH_KEYS) {
+    const widget = switches[key];
+    if (widget) {
+      widget.update({ checked: axisSettings[key] });
+    }
+  }
+};
+
+const clearOriginAxisSwitches = (
+  switches: Partial<Record<OriginAxisSwitchKey, SwitchWidget>>,
+): void => {
+  for (const key of ORIGIN_AXIS_SWITCH_KEYS) {
+    delete switches[key];
+  }
+};
+
 const createOriginSettingsView = ({
   axisSettings,
+  axisSwitches,
   isSectionCollapsed,
   onAxisChange,
   onChange,
@@ -117,6 +203,7 @@ const createOriginSettingsView = ({
   store,
 }: {
   readonly axisSettings: PlotAxisSettings;
+  readonly axisSwitches?: Partial<Record<OriginAxisSwitchKey, SwitchWidget>>;
   readonly isSectionCollapsed: (id: string) => boolean;
   readonly onAxisChange?: (updates: Record<string, unknown>) => void | Promise<void>;
   readonly onChange?: (updates: Partial<OriginPlotOptions>) => void | Promise<void>;
@@ -126,6 +213,11 @@ const createOriginSettingsView = ({
 }): HTMLElement => {
   const root = document.createElement("div");
   root.className = "origin_settings_view_content";
+  const registerAxisSwitch = (key: OriginAxisSwitchKey) => (widget: SwitchWidget): void => {
+    if (axisSwitches) {
+      axisSwitches[key] = widget;
+    }
+  };
 
   root.append(
     createSettingsSection({
@@ -150,6 +242,7 @@ const createOriginSettingsView = ({
         createSettingsRow({
           control: createBooleanSwitch({
             checked: axisSettings.showGrid,
+            onCreate: registerAxisSwitch("showGrid"),
             onChange: (checked) => void onAxisChange?.({ showGrid: checked }),
             store,
           }),
@@ -158,6 +251,7 @@ const createOriginSettingsView = ({
         createSettingsRow({
           control: createBooleanSwitch({
             checked: axisSettings.showMajorTicks,
+            onCreate: registerAxisSwitch("showMajorTicks"),
             onChange: (checked) => void onAxisChange?.({ showMajorTicks: checked }),
             store,
           }),
@@ -166,6 +260,7 @@ const createOriginSettingsView = ({
         createSettingsRow({
           control: createBooleanSwitch({
             checked: axisSettings.showMinorTicks,
+            onCreate: registerAxisSwitch("showMinorTicks"),
             onChange: (checked) => void onAxisChange?.({ showMinorTicks: checked }),
             store,
           }),
@@ -679,18 +774,21 @@ const createAxisTextInput = ({
 
 const createBooleanSwitch = ({
   checked,
+  onCreate,
   onChange,
   store,
 }: {
   readonly checked: boolean;
+  readonly onCreate?: (widget: SwitchWidget) => void;
   readonly onChange: (checked: boolean) => void;
   readonly store: DisposableStore;
 }): HTMLButtonElement => {
-  const button = createSwitch({ checked });
-  const listener = () => onChange(!checked);
-  button.addEventListener("click", listener);
-  store.add(toDisposable(() => button.removeEventListener("click", listener)));
-  return button;
+  const widget = store.add(new SwitchWidget({
+    checked,
+    onDidChangeChecked: onChange,
+  }));
+  onCreate?.(widget);
+  return widget.domNode;
 };
 
 const createTextInput = ({

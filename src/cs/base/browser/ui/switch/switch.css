@@ -72,12 +72,13 @@ html[data-nav="keyboard"] .ui-switch:focus-visible::after {
   box-shadow:
     0 1px 2px rgb(0 0 0 / 0.18),
     0 0 0 1px rgb(0 0 0 / 0.03);
-  transform: translateX(0);
-  transition: transform 170ms cubic-bezier(0.2, 0, 0, 1);
+  transform: translate3d(0, 0, 0);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
 }
 
 .ui-switch[data-state="checked"] .ui-switch__thumb {
-  transform: translateX(calc(var(--switch-width) - var(--switch-height)));
+  transform: translate3d(calc(var(--switch-width) - var(--switch-height)), 0, 0);
 }
 
 .dark .ui-switch {

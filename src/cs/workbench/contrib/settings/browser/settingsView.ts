@@ -2,7 +2,7 @@ import { localize } from "src/cs/nls";
 import { append, reset } from "src/cs/base/browser/dom";
 import { createButton as createActionButton } from "src/cs/base/browser/ui/button/button";
 import { createSelectBox, type SelectBoxOption } from "src/cs/base/browser/ui/selectBox/selectBox";
-import { createSwitch } from "src/cs/base/browser/ui/switch/switch";
+import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/template/common/fileNameMatching";
 import type { LanguagePreference } from "src/cs/platform/language/common/language";
@@ -188,6 +188,7 @@ const CLEANUP_TOAST_ID = "settings.cleanup";
 export class SettingsView {
   private readonly renderDisposables = new DisposableStore();
   private readonly root: HTMLElement;
+  private transparentChromeSwitch: SwitchWidget | null = null;
   private options: SettingsViewOptions;
 
   constructor(container: HTMLElement, options: SettingsViewOptions) {
@@ -200,6 +201,13 @@ export class SettingsView {
   }
 
   update(options: SettingsViewOptions): void {
+    if (canPatchTransparentChromeSwitch(this.options, options)) {
+      this.options = options;
+      this.patchTransparentChromeSwitch(options.appearanceSettings);
+      this.updateToasts();
+      return;
+    }
+
     this.options = options;
     this.root.setAttribute("aria-label", localize("settings.section.ariaLabel", "Settings"));
     this.render();
@@ -214,6 +222,7 @@ export class SettingsView {
 
   private render(): void {
     this.renderDisposables.clear();
+    this.transparentChromeSwitch = null;
     reset(this.root);
     this.root.appendChild(this.createLayout());
     this.updateToasts();
@@ -387,7 +396,12 @@ export class SettingsView {
           checked: appearanceSettings.transparentChrome,
           disabled: appearanceSettings.isSaving,
           id: "settings-transparent-chrome-toggle",
-          onChange: checked => void appearanceSettings.onTransparentChromeChange(checked),
+          onChange: checked => {
+            void appearanceSettings.onTransparentChromeChange(checked);
+          },
+          onCreate: widget => {
+            this.transparentChromeSwitch = widget;
+          },
         }),
       ),
     );
@@ -676,16 +690,34 @@ export class SettingsView {
     disabled?: boolean;
     id: string;
     onChange: (checked: boolean) => void;
+    onCreate?: (widget: SwitchWidget) => void;
   }): HTMLButtonElement {
-    const button = createSwitch({
+    const widget = this.renderDisposables.add(new SwitchWidget({
       checked: options.checked,
       className: "settings-switch",
       disabled: options.disabled,
       id: options.id,
+      onDidChangeChecked: options.onChange,
+    }));
+    widget.domNode.setAttribute("aria-label", options.ariaLabel);
+    options.onCreate?.(widget);
+    return widget.domNode;
+  }
+
+  private patchTransparentChromeSwitch(settings: AppearanceSettings): void {
+    const widget = this.transparentChromeSwitch;
+    if (!widget) {
+      this.render();
+      return;
+    }
+
+    widget.update({
+      checked: settings.transparentChrome,
+      className: "settings-switch",
+      disabled: settings.isSaving,
+      id: "settings-transparent-chrome-toggle",
     });
-    button.setAttribute("aria-label", options.ariaLabel);
-    button.addEventListener("click", () => options.onChange(!options.checked));
-    return button;
+    widget.domNode.setAttribute("aria-label", localize("settings.transparentChrome.title", "Translucent sidebar"));
   }
 
   private createButton(options: {
@@ -786,3 +818,26 @@ function appendFeedback(container: HTMLElement, feedback: { type: "idle" | "succ
 
   container.appendChild(text("p", feedback.type === "error" ? "settings-feedback settings-feedback--error" : "settings-feedback settings-feedback--success", feedback.message));
 }
+
+const canPatchTransparentChromeSwitch = (
+  current: SettingsViewOptions,
+  next: SettingsViewOptions,
+): boolean => {
+  if (current.activeSettingsSection !== "appearance" || next.activeSettingsSection !== "appearance") {
+    return false;
+  }
+
+  const currentAppearance = current.appearanceSettings;
+  const nextAppearance = next.appearanceSettings;
+  if (
+    current.theme !== next.theme ||
+    current.language !== next.language ||
+    currentAppearance.backgroundColor !== nextAppearance.backgroundColor ||
+    currentAppearance.backgroundColorDefault !== nextAppearance.backgroundColorDefault ||
+    currentAppearance.isSaving !== nextAppearance.isSaving
+  ) {
+    return false;
+  }
+
+  return currentAppearance.transparentChrome !== nextAppearance.transparentChrome;
+};

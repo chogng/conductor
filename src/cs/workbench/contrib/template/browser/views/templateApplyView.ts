@@ -2,14 +2,11 @@ import { createButton } from "src/cs/base/browser/ui/button/button";
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { DropdownMenu } from "src/cs/base/browser/ui/dropdown/dropdown";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import type { IAction } from "src/cs/base/common/actions";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
-import {
-  createSwitch as createBaseSwitch,
-  updateSwitch,
-} from "src/cs/base/browser/ui/switch/switch";
 import { localize } from "src/cs/nls";
 
 export type TemplateApplyViewOptions = {
@@ -28,10 +25,11 @@ export type TemplateApplyViewState = {
 
 export class TemplateApplyView {
   public readonly element: HTMLElement;
+  private readonly disposables = new DisposableStore();
   private readonly dropdownMenu: DropdownMenu;
   private readonly dropdownLabel: HTMLElement;
   private readonly deleteButton: HTMLButtonElement;
-  private readonly stopSwitch: HTMLButtonElement;
+  private readonly stopSwitch: SwitchWidget;
   private readonly autoCard: HTMLElement;
 
   constructor(
@@ -172,11 +170,12 @@ export class TemplateApplyView {
     this.dropdownLabel.parentElement?.setAttribute("aria-label", state.selectedTemplateLabel);
 
     this.deleteButton.style.display = state.canDeleteTemplate ? "" : "none";
-    updateSwitch(this.stopSwitch, { checked: state.stopOnError });
+    this.stopSwitch.update({ checked: state.stopOnError });
     this.autoCard.style.display = state.canDeleteTemplate ? "none" : "";
   }
 
   public dispose(): void {
+    this.disposables.dispose();
     this.dropdownMenu.dispose();
     this.element.replaceChildren();
     this.element.remove();
@@ -186,7 +185,7 @@ export class TemplateApplyView {
     container: HTMLElement,
     labelText: string,
     onToggle: (checked: boolean) => void,
-  ): HTMLButtonElement {
+  ): SwitchWidget {
     const row = document.createElement("div");
     row.className = "template_toggle_row";
     const title = document.createElement("div");
@@ -197,27 +196,13 @@ export class TemplateApplyView {
     title.append(label);
     const control = document.createElement("div");
     control.className = "template_toggle_control";
-    const toggle = createToggleSwitch(false, onToggle);
-    control.append(toggle);
+    const toggle = this.disposables.add(new SwitchWidget({
+      checked: false,
+      onDidChangeChecked: onToggle,
+    }));
+    control.append(toggle.domNode);
     row.append(title, control);
     container.append(row);
     return toggle;
   }
 }
-
-const createToggleSwitch = (
-  initialChecked: boolean,
-  onCheckedChange: (checked: boolean) => void,
-): HTMLButtonElement => {
-  const button = createBaseSwitch({
-    checked: initialChecked,
-  });
-  button.addEventListener("click", () => {
-    const nextChecked = button.getAttribute("aria-checked") !== "true";
-    updateSwitch(button, {
-      checked: nextChecked,
-    });
-    onCheckedChange(nextChecked);
-  });
-  return button;
-};

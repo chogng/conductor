@@ -692,15 +692,7 @@ export class SettingsController {
   }
 
   private async setTransparentChrome(enabled: boolean): Promise<void> {
-    this.appearanceSaving = true;
-    this.render();
-    try {
-      await this.commandService.executeCommand(ThemeCommandId.setTransparentChrome, enabled);
-    }
-    finally {
-      this.appearanceSaving = false;
-      this.render();
-    }
+    await this.commandService.executeCommand(ThemeCommandId.setTransparentChrome, enabled);
   }
 
   private async setWindowCloseBehavior(behavior: "minimizeToTray" | "quit"): Promise<void> {

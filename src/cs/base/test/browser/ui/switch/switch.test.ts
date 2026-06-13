@@ -1,6 +1,7 @@
 import assert from "assert";
 
 import { createSwitch, updateSwitch } from "../../../../browser/ui/switch/switch.ts";
+import { SwitchWidget } from "../../../../browser/ui/switch/switchWidget.ts";
 
 suite("base/test/browser/ui/switch/switch", () => {
   class FakeStyle {
@@ -109,5 +110,53 @@ suite("base/test/browser/ui/switch/switch", () => {
     assert.equal(button.getAttribute("data-state"), "unchecked");
     assert.equal(button.style.getPropertyValue("--switch-on"), "");
     assert.ok(button.querySelector(".ui-switch__thumb"));
+  });
+
+  test("SwitchWidget toggles, preserves options on update and disposes listener", () => {
+    const widget = new SwitchWidget({
+      checked: false,
+      className: "extra",
+      id: "widget-switch",
+    });
+    const changes: boolean[] = [];
+    widget.onDidChangeChecked(checked => changes.push(checked));
+
+    widget.domNode.click();
+
+    assert.deepEqual(changes, [true]);
+    assert.equal(widget.checked, true);
+    assert.equal(widget.domNode.className, "ui-switch extra");
+    assert.equal(widget.domNode.id, "widget-switch");
+    assert.equal(widget.domNode.getAttribute("aria-checked"), "true");
+
+    widget.update({ checked: false });
+
+    assert.equal(widget.checked, false);
+    assert.equal(widget.domNode.className, "ui-switch extra");
+    assert.equal(widget.domNode.id, "widget-switch");
+    assert.equal(widget.domNode.getAttribute("aria-checked"), "false");
+
+    widget.dispose();
+    widget.domNode.click();
+
+    assert.deepEqual(changes, [true]);
+    assert.equal(widget.checked, false);
+  });
+
+  test("SwitchWidget ignores clicks while disabled", () => {
+    const widget = new SwitchWidget({
+      checked: false,
+      disabled: true,
+    });
+    const changes: boolean[] = [];
+    widget.onDidChangeChecked(checked => changes.push(checked));
+
+    widget.domNode.click();
+
+    assert.deepEqual(changes, []);
+    assert.equal(widget.checked, false);
+    assert.equal(widget.domNode.getAttribute("aria-checked"), "false");
+
+    widget.dispose();
   });
 });
