@@ -164,7 +164,7 @@
 }
 
 .file-list-item:hover {
-  background-color: #ffffff;
+  background-color: rgb(var(--border) / 1);
 }
 
 .file-list-item[data-selected="true"] {
@@ -213,8 +213,9 @@
   min-width: 0;
   align-items: center;
   overflow: hidden;
-  border: 1px solid rgb(var(--border) / 1);
+
   border-radius: 4px;
+  background-color: rgb(var(--border) / 1);
   padding: 1px 5px;
   color: rgb(var(--text-secondary) / 1);
   font-size: 10px;
