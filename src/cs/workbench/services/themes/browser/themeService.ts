@@ -24,6 +24,7 @@ export class BrowserWorkbenchThemeService extends Disposable implements IWorkben
 	public readonly onDidChangeTheme = this.onDidChangeThemeEmitter.event;
 
 	private appearance = normalizeWorkbenchAppearance(null);
+	private appearanceApplicationId = 0;
 	private mediaQuery: MediaQueryList | null = null;
 	private started = false;
 	private theme: ThemeMode = this.getInitialTheme();
@@ -70,9 +71,9 @@ export class BrowserWorkbenchThemeService extends Disposable implements IWorkben
 			return;
 		}
 
+		const previousAppearance = this.appearance;
 		this.appearance = normalizedAppearance;
-		this.applyWorkbenchAppearance(normalizedAppearance);
-		this.applyDesktopAppearance(normalizedAppearance);
+		this.applyAppearanceInPaintOrder(previousAppearance, normalizedAppearance);
 		this.onDidChangeAppearanceEmitter.fire(undefined);
 	}
 
@@ -117,20 +118,46 @@ export class BrowserWorkbenchThemeService extends Disposable implements IWorkben
 		applyWorkbenchAppearance(appearance);
 	}
 
-	private applyDesktopAppearance(appearance: WorkbenchAppearance): void {
+	private applyAppearanceInPaintOrder(
+		previousAppearance: WorkbenchAppearance,
+		appearance: WorkbenchAppearance,
+	): void {
+		const applicationId = ++this.appearanceApplicationId;
+		const waitForDesktopBeforeTransparentCss =
+			!previousAppearance.transparentChrome && appearance.transparentChrome;
+
+		if (waitForDesktopBeforeTransparentCss) {
+			// Native transparency must be ready before CSS exposes transparent
+			// chrome, otherwise the window briefly shows the stale opaque layer.
+			void this.applyDesktopAppearance(appearance).finally(() => {
+				if (
+					applicationId === this.appearanceApplicationId &&
+					isSameAppearance(this.appearance, appearance)
+				) {
+					this.applyWorkbenchAppearance(appearance);
+				}
+			});
+			return;
+		}
+
+		this.applyWorkbenchAppearance(appearance);
+		void this.applyDesktopAppearance(appearance);
+	}
+
+	private applyDesktopAppearance(appearance: WorkbenchAppearance): Promise<unknown> {
 		const ipcRenderer = window.conductor?.ipcRenderer as
 			| { invoke?: (channel: string, ...args: unknown[]) => Promise<unknown> }
 			| undefined;
 		if (typeof ipcRenderer?.invoke !== "function") {
-			return;
+			return Promise.resolve(undefined);
 		}
 
 		try {
-			void ipcRenderer.invoke(workbenchIpcChannels.desktopAppearanceSet, appearance).catch(() => {
-				// Web and older desktop shells fall back to CSS-only appearance.
+			return ipcRenderer.invoke(workbenchIpcChannels.desktopAppearanceSet, appearance).catch(() => {
+				// Older shells may not expose desktop appearance IPC.
 			});
 		} catch {
-			// Web and older desktop shells fall back to CSS-only appearance.
+			return Promise.resolve(undefined);
 		}
 	}
 }

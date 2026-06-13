@@ -916,19 +916,8 @@ function handleConductorSettingsPatch(_event, updates) {
   ) {
     syncBootWindowTheme();
   }
-  if (
-    updates &&
-    typeof updates === "object" &&
-    ("backgroundColor" in updates || "transparentChrome" in updates)
-  ) {
-    const appearance = {
-      backgroundColor: typeof updated?.backgroundColor === "string"
-        ? updated.backgroundColor
-        : undefined,
-      transparentChrome: updated?.transparentChrome === true,
-    };
-    desktopWindowMain.applyWindowStyle(mainWindow, { appearance });
-  }
+  // Appearance is applied by the renderer theme service after it observes the
+  // persisted settings change, so native and CSS transparency stay ordered.
   return updated;
 }
 

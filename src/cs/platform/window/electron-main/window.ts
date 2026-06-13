@@ -15,6 +15,8 @@ const DEFAULT_MAIN_WINDOW_SIZE = {
   HEIGHT: 920,
 } as const;
 
+const TransparentWindowBackground = "rgba(0, 0, 0, 0)";
+
 type WindowControlsOverlayOptions = {
   readonly height?: number;
   readonly backgroundColor?: string;
@@ -222,13 +224,10 @@ function applyWindowTheme(
   }
   updateWindowControlsOverlay(
     win,
-    withAppearanceWindowControlsOverlay(
-      {
-        backgroundColor: theme.backgroundColor,
-        foregroundColor: theme.foregroundColor,
-      },
-      appearanceStyle,
-    ),
+    {
+      backgroundColor: appearanceStyle?.titleBarOverlayColor ?? theme.backgroundColor,
+      foregroundColor: theme.foregroundColor,
+    },
   );
 }
 
@@ -252,21 +251,40 @@ function applyDesktopAppearance(
   style: DesktopWindowAppearanceStyle,
   previousStyle?: DesktopWindowAppearanceStyle,
 ): void {
-  if (previousStyle?.transparentChrome === true && style.transparentChrome !== true) {
-    applyDesktopWindowBackground(win, style);
-    applyDesktopNativeMaterial(win, style);
+  if (shouldPaintBackgroundBeforeNativeMaterial(previousStyle, style)) {
+    applyDesktopWindowBackground(win, style, previousStyle);
+    applyDesktopNativeMaterial(win, style, previousStyle);
     return;
   }
 
-  applyDesktopNativeMaterial(win, style);
-  applyDesktopWindowBackground(win, style);
+  applyDesktopNativeMaterial(win, style, previousStyle);
+  applyDesktopWindowBackground(win, style, previousStyle);
+}
+
+function shouldPaintBackgroundBeforeNativeMaterial(
+  previousStyle: DesktopWindowAppearanceStyle | undefined,
+  style: DesktopWindowAppearanceStyle,
+): boolean {
+  // If native transparency is being removed, repaint the opaque layer first so
+  // DWM/AppKit never exposes the clear window background during the transition.
+  return previousStyle?.transparentChrome === true
+    && style.transparentChrome !== true
+    && (
+      previousStyle?.backgroundMaterial !== style.backgroundMaterial
+      || previousStyle?.vibrancy !== style.vibrancy
+    );
 }
 
 function applyDesktopNativeMaterial(
   win: BrowserWindow,
   style: DesktopWindowAppearanceStyle,
+  previousStyle?: DesktopWindowAppearanceStyle,
 ): void {
-  if (process.platform === "win32" && typeof win.setBackgroundMaterial === "function") {
+  if (
+    process.platform === "win32"
+    && previousStyle?.backgroundMaterial !== style.backgroundMaterial
+    && typeof win.setBackgroundMaterial === "function"
+  ) {
     try {
       win.setBackgroundMaterial(style.backgroundMaterial ?? "none");
     } catch {
@@ -274,7 +292,11 @@ function applyDesktopNativeMaterial(
     }
   }
 
-  if (process.platform === "darwin" && typeof win.setVibrancy === "function") {
+  if (
+    process.platform === "darwin"
+    && previousStyle?.vibrancy !== style.vibrancy
+    && typeof win.setVibrancy === "function"
+  ) {
     win.setVibrancy(style.vibrancy ?? null);
   }
 }
@@ -282,11 +304,16 @@ function applyDesktopNativeMaterial(
 function applyDesktopWindowBackground(
   win: BrowserWindow,
   style: DesktopWindowAppearanceStyle,
+  previousStyle?: DesktopWindowAppearanceStyle,
 ): void {
-  win.setBackgroundColor(style.backgroundColor);
-  updateWindowControlsOverlay(win, {
-    backgroundColor: style.titleBarOverlayColor,
-  });
+  if (previousStyle?.backgroundColor !== style.backgroundColor) {
+    win.setBackgroundColor(style.backgroundColor);
+  }
+  if (previousStyle?.titleBarOverlayColor !== style.titleBarOverlayColor) {
+    updateWindowControlsOverlay(win, {
+      backgroundColor: style.titleBarOverlayColor,
+    });
+  }
 }
 
 function withAppearanceWindowControlsOverlay(
@@ -310,8 +337,13 @@ function resolveDesktopWindowAppearanceStyle(
 ): DesktopWindowAppearanceStyle {
   const backgroundColor = normalizeColorOption(appearance?.backgroundColor)
     ?? defaultBackgroundColor;
+  const transparentChrome = appearance?.transparentChrome === true;
 
-  if (appearance?.transparentChrome !== true) {
+  if (platform === "win32") {
+    return resolveWin32DesktopWindowAppearanceStyle(backgroundColor, transparentChrome);
+  }
+
+  if (!transparentChrome) {
     return {
       backgroundColor,
       titleBarOverlayColor: backgroundColor,
@@ -319,18 +351,9 @@ function resolveDesktopWindowAppearanceStyle(
     };
   }
 
-  if (platform === "win32") {
-    return {
-      backgroundMaterial: "mica",
-      backgroundColor: "rgba(0, 0, 0, 0)",
-      titleBarOverlayColor: "rgba(0, 0, 0, 0)",
-      transparentChrome: true,
-    };
-  }
-
   if (platform === "darwin") {
     return {
-      backgroundColor: "rgba(0, 0, 0, 0)",
+      backgroundColor: TransparentWindowBackground,
       titleBarOverlayColor: backgroundColor,
       transparentChrome: true,
       vibrancy: "sidebar",
@@ -342,6 +365,23 @@ function resolveDesktopWindowAppearanceStyle(
     backgroundColor,
     titleBarOverlayColor: backgroundColor,
     transparentChrome: false,
+  };
+}
+
+function resolveWin32DesktopWindowAppearanceStyle(
+  backgroundColor: string,
+  transparentChrome: boolean,
+): DesktopWindowAppearanceStyle {
+  // Keep the Windows backdrop material stable. Runtime toggles of
+  // setBackgroundMaterial cause a full native repaint, so transparency is
+  // controlled by renderer CSS and the titlebar overlay instead.
+  return {
+    backgroundMaterial: "mica",
+    backgroundColor: TransparentWindowBackground,
+    titleBarOverlayColor: transparentChrome
+      ? TransparentWindowBackground
+      : backgroundColor,
+    transparentChrome,
   };
 }
 
