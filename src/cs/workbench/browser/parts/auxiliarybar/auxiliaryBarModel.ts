@@ -22,7 +22,8 @@ export type AuxiliaryBarState = {
 
 export type AuxiliaryBarInput = {
   readonly mode: AuxiliaryBarMode;
-  readonly onDidChangeActiveView: () => void;
+  readonly activeView: string;
+  readonly onDidChangeActiveView: (view: AuxiliaryBarView) => void;
   readonly templateMode: TemplateAuxiliaryBarMode;
   readonly visible: boolean;
 };
@@ -40,6 +41,9 @@ export class AuxiliaryBarModel {
   }
 
   public update(input: AuxiliaryBarInput): AuxiliaryBarState {
+    if (isAuxiliaryBarView(input.activeView)) {
+      this.setActiveView(input.activeView, input.mode);
+    }
     const activeView = this.resolveActiveView(input.mode);
     return {
       actions: input.visible && input.mode === "chart"
@@ -47,8 +51,9 @@ export class AuxiliaryBarModel {
             activeView,
             mode: input.mode,
             onSelect: (view) => {
-              if (this.setActiveView(view, input.mode)) {
-                input.onDidChangeActiveView();
+              const nextView = resolveAuxiliaryBarView(view, input.mode);
+              if (activeView !== nextView) {
+                input.onDidChangeActiveView(nextView);
               }
             },
           })
@@ -83,3 +88,6 @@ export class AuxiliaryBarModel {
     }));
   }
 }
+
+const isAuxiliaryBarView = (view: string): view is AuxiliaryBarView =>
+  AuxiliaryBarViews.some(candidate => candidate.id === view);

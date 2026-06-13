@@ -6,7 +6,14 @@ import { createDecorator } from "src/cs/platform/instantiation/common/instantiat
 
 export const IOriginService = createDecorator<IOriginService>("originService");
 
+export const OriginContributionId = "workbench.contrib.origin";
 export const OriginExportSettingsViewId = "workbench.origin.exportSettings";
+
+export const OriginCommandId = {
+	showExportSettings: "workbench.action.showOriginSettings",
+} as const;
+
+export type OriginCommandId = typeof OriginCommandId[keyof typeof OriginCommandId];
 
 export type OriginHealthResult = {
   logPath?: string;

@@ -2,10 +2,16 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
+import {
+  registerWorkbenchContribution2,
+  WorkbenchPhase,
+  type IWorkbenchContribution,
+} from "src/cs/workbench/common/contributions";
 import {
   ActiveAuxiliaryBarViewContext,
   ActiveWorkbenchMainPartContext,
@@ -16,14 +22,37 @@ import {
   type IViewContainersRegistry,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
+import { registerSearchCommands } from "src/cs/workbench/contrib/search/browser/searchCommands";
 import { SearchViewPane } from "src/cs/workbench/contrib/search/browser/searchViewPane";
-import { SearchViewId } from "src/cs/workbench/services/search/common/search";
+import {
+  SearchContributionId,
+  SearchViewId,
+} from "src/cs/workbench/services/search/common/search";
 
-const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
-const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-const container = viewContainersRegistry.get(WorkbenchViewContainers.auxiliarybar);
+export class SearchContribution extends Disposable implements IWorkbenchContribution {
+  public constructor() {
+    super();
 
-if (container) {
+    registerSearchView();
+    this._register(registerSearchCommands());
+  }
+}
+
+let searchViewRegistered = false;
+
+function registerSearchView(): void {
+  if (searchViewRegistered) {
+    return;
+  }
+
+  const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
+  const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+  const container = viewContainersRegistry.get(WorkbenchViewContainers.auxiliarybar);
+  if (!container) {
+    return;
+  }
+
+  searchViewRegistered = true;
   viewsRegistry.registerViews([{
     id: SearchViewId,
     name: localize("chart.views.search", "Search"),
@@ -36,3 +65,5 @@ if (container) {
     ),
   }], container);
 }
+
+registerWorkbenchContribution2(SearchContributionId, SearchContribution, WorkbenchPhase.BlockStartup);

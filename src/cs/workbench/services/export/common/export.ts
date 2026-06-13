@@ -24,7 +24,16 @@ import type {
 
 export const IExportService = createDecorator<IExportService>("exportService");
 
+export const ExportContributionId = "workbench.contrib.export";
 export const ExportViewId = "workbench.export";
+
+export const ExportCommandId = {
+	exportOriginZip: "workbench.action.exportOriginZip",
+	openInOrigin: "workbench.action.openInOrigin",
+	showExport: "workbench.action.showExport",
+} as const;
+
+export type ExportCommandId = typeof ExportCommandId[keyof typeof ExportCommandId];
 
 export type OriginCanvasExportScope =
   | "current"

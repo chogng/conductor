@@ -14,7 +14,14 @@ import type {
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 
 export const ISearchService = createDecorator<ISearchService>("searchService");
+export const SearchContributionId = "workbench.contrib.search";
 export const SearchViewId = "workbench.search";
+
+export const SearchCommandId = {
+	showSearch: "workbench.action.showSearch",
+} as const;
+
+export type SearchCommandId = typeof SearchCommandId[keyof typeof SearchCommandId];
 
 export type SearchScope =
 	| "all"

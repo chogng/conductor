@@ -340,6 +340,9 @@ export class Workbench extends Layout {
     this._register(this.layoutService.onDidChangeWorkbenchNavigation(() => {
       this.refreshWorkbench();
     }));
+    this._register(this.layoutService.onDidChangeActiveAuxiliaryBarView(() => {
+      this.refreshWorkbench();
+    }));
     this._register(this.session.onDidChangeSession(() => {
       this.refreshWorkbench();
     }));
@@ -366,8 +369,8 @@ export class Workbench extends Layout {
   private refreshWorkbench(): void {
     const snapshot = this.session.getSnapshot();
     const readModel = createSessionReadModel(snapshot);
-    this.updateContextKeys();
     this.updateViewContainers();
+    this.updateContextKeys();
     this.renderAuxiliaryBarView(snapshot, readModel);
     this.renderWorkbench();
   }
@@ -501,8 +504,9 @@ export class Workbench extends Layout {
     }
 
     const state = this.auxiliaryBarModel.update({
+      activeView: this.layoutService.activeAuxiliaryBarView,
       mode: this.activeWorkbenchMainPart,
-      onDidChangeActiveView: () => this.handleAuxiliaryBarActiveViewChange(),
+      onDidChangeActiveView: view => this.layoutService.selectAuxiliaryBarView(view),
       templateMode: this.templateService.getState().mode,
       visible,
     });
@@ -515,10 +519,6 @@ export class Workbench extends Layout {
     for (const view of state.views) {
       this.viewsService.setViewVisible(view.viewId, view.visible);
     }
-  }
-
-  private handleAuxiliaryBarActiveViewChange(): void {
-    this.refreshWorkbench();
   }
 
   private renderAuxiliaryBarView(

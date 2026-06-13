@@ -75,9 +75,11 @@ const INITIAL_LAYOUT_NAVIGATION_STATE: LayoutNavigationState = {
 export interface IWorkbenchLayoutService extends ILayoutServiceType {
   readonly _serviceBrand: undefined;
 
+  readonly onDidChangeActiveAuxiliaryBarView: EventType<string>;
   readonly onDidChangePartVisibility: EventType<IPartVisibilityChangeEvent>;
   readonly onDidChangeWorkbenchNavigation: EventType<IWorkbenchNavigationState>;
 
+  readonly activeAuxiliaryBarView: string;
   readonly activeView: LayoutView;
   readonly activeWorkbenchMainPart: WorkbenchMainPart;
 
@@ -85,6 +87,7 @@ export interface IWorkbenchLayoutService extends ILayoutServiceType {
   navigateBack(): void;
   navigateForward(): void;
   navigateToView(view: LayoutView): void;
+  selectAuxiliaryBarView(view: string): void;
   layout(): void;
   isVisible(part: Parts): boolean;
   resetLayoutState(): void;
@@ -110,6 +113,8 @@ export class BrowserWorkbenchLayoutService
     this._register(new Emitter<IPartVisibilityChangeEvent>());
   private readonly onDidChangeWorkbenchNavigationEmitter =
     this._register(new Emitter<IWorkbenchNavigationState>());
+  private readonly onDidChangeActiveAuxiliaryBarViewEmitter =
+    this._register(new Emitter<string>());
   private readonly visibleParts = new Set<Parts>([
     Parts.TITLEBAR_PART,
     Parts.SIDEBAR_PART,
@@ -120,6 +125,7 @@ export class BrowserWorkbenchLayoutService
   private navigation = INITIAL_LAYOUT_NAVIGATION_STATE;
   private hasVisitedSettingsView = false;
   private dimension: IDimension = Dimension.None;
+  private auxiliaryBarView = "";
 
   constructor(
     @IStorageService private readonly storageService: IStorageServiceType,
@@ -138,6 +144,8 @@ export class BrowserWorkbenchLayoutService
   public readonly onDidChangePartVisibility = this.onDidChangePartVisibilityEmitter.event;
   public readonly onDidChangeWorkbenchNavigation =
     this.onDidChangeWorkbenchNavigationEmitter.event;
+  public readonly onDidChangeActiveAuxiliaryBarView =
+    this.onDidChangeActiveAuxiliaryBarViewEmitter.event;
 
   public get mainContainer(): HTMLElement {
     return this.resolveMainContainer();
@@ -149,6 +157,10 @@ export class BrowserWorkbenchLayoutService
 
   public get activeView(): LayoutView {
     return this.navigation.activeView;
+  }
+
+  public get activeAuxiliaryBarView(): string {
+    return this.auxiliaryBarView;
   }
 
   public get activeWorkbenchMainPart(): WorkbenchMainPart {
@@ -201,6 +213,15 @@ export class BrowserWorkbenchLayoutService
 
   public navigateToView(view: LayoutView): void {
     this.setNavigation(navigateToLayoutPage(this.navigation, view));
+  }
+
+  public selectAuxiliaryBarView(view: string): void {
+    if (this.auxiliaryBarView === view) {
+      return;
+    }
+
+    this.auxiliaryBarView = view;
+    this.onDidChangeActiveAuxiliaryBarViewEmitter.fire(view);
   }
 
   public layout(): void {
@@ -259,6 +280,7 @@ export class BrowserWorkbenchLayoutService
         visible: true,
       });
     }
+    this.selectAuxiliaryBarView("");
   }
 
   public resetToView(view: LayoutView): void {
