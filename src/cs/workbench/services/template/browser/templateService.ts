@@ -16,8 +16,10 @@ import {
   type TemplateMode,
   type TemplateViewInput,
 } from "src/cs/workbench/services/template/common/template";
+import { isAutoTemplateId } from "src/cs/workbench/services/template/common/autoTemplate";
 import { filterUserTemplateRecords } from "src/cs/workbench/services/template/common/templateRecords";
 import {
+  cloneTemplateConfig,
   createEmptyTemplateConfig,
   type TemplateConfig,
 } from "src/cs/workbench/services/template/common/templateConfigUtils";
@@ -41,6 +43,75 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
     return downloadTemplateBundle(bundle);
   }
 
+  selectTemplate(template: TemplateRecord | null = null): boolean {
+    const stopOnError = getTemplateStopOnError(template, this.state.formState.stopOnError);
+    if (!template) {
+      this.updateState({
+        selectedTemplateId: null,
+        formState: createEmptyTemplateConfig({
+          stopOnError,
+        }),
+        mode: "select",
+      });
+      return true;
+    }
+
+    const templateId = getTemplateId(template);
+    if (!templateId) {
+      this.updateState({
+        selectedTemplateId: null,
+        formState: createEmptyTemplateConfig({
+          stopOnError,
+        }),
+        mode: "select",
+      });
+      return true;
+    }
+
+    this.updateState({
+      selectedTemplateId: templateId,
+      formState: cloneTemplateConfig(template),
+      mode: "select",
+    });
+    return true;
+  }
+
+  createTemplateDraft(template: Partial<TemplateConfig> | null = null): void {
+    this.updateState({
+      selectedTemplateId: null,
+      formState: createEmptyTemplateConfig({
+        stopOnError: getTemplateStopOnError(template, this.state.formState.stopOnError),
+      }),
+      mode: "save",
+    });
+  }
+
+  editTemplate(template: TemplateRecord): boolean {
+    const templateId = getTemplateId(template);
+    if (!templateId) {
+      return false;
+    }
+
+    this.updateState({
+      selectedTemplateId: templateId,
+      formState: cloneTemplateConfig(template),
+      mode: "save",
+    });
+    return true;
+  }
+
+  exportTemplate(template: TemplateRecord | TemplateConfig | null | undefined = this.state.formState): string | null {
+    if (!template?.name) {
+      return null;
+    }
+
+    return this.downloadTemplateBundle({
+      version: 1,
+      source: "conductor",
+      ...cloneTemplateConfig(template),
+    });
+  }
+
   getState(): TemplateState {
     return this.state;
   }
@@ -56,12 +127,14 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
 
   async deleteTemplate(id: string): Promise<void> {
     await conductorStoreClient.deleteTemplate(id);
+    this.markTemplateListChanged();
   }
 
   async saveTemplate(template: TemplateConfig): Promise<TemplateRecord> {
     const saved = await conductorStoreClient.createTemplate({
       ...template,
     });
+    this.markTemplateListChanged();
     return isTemplateRecord(saved) ? saved : template;
   }
 
@@ -104,16 +177,36 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
     this.viewInput = input;
     this.onDidChangeTemplateViewInputEmitter.fire(undefined);
   }
+
+  private markTemplateListChanged(): void {
+    this.updateState({
+      templateListVersion: this.state.templateListVersion + 1,
+    });
+  }
 }
 
 const isTemplateRecord = (value: unknown): value is TemplateRecord =>
   Boolean(value) && typeof value === "object";
+
+const getTemplateId = (template: TemplateRecord): string | null => {
+  const templateId = String(template.id ?? "").trim();
+  return templateId && !isAutoTemplateId(templateId) ? templateId : null;
+};
+
+const getTemplateStopOnError = (
+  template: Partial<TemplateConfig> | null,
+  fallback: boolean,
+): boolean =>
+  typeof template?.stopOnError === "boolean"
+    ? template.stopOnError
+    : fallback;
 
 const createDefaultTemplateState = (): TemplateState => ({
   mode: "select",
   selectedTemplateId: null,
   formState: createEmptyTemplateConfig(),
   selectionsByFileId: {},
+  templateListVersion: 0,
 });
 
 const resolveNext = <T,>(value: T | ((previous: T) => T), previous: T): T =>
@@ -128,7 +221,8 @@ const isSameTemplateState = (
   current.mode === next.mode &&
   current.selectedTemplateId === next.selectedTemplateId &&
   current.formState === next.formState &&
-  current.selectionsByFileId === next.selectionsByFileId;
+  current.selectionsByFileId === next.selectionsByFileId &&
+  current.templateListVersion === next.templateListVersion;
 
 const isSameTemplateViewInput = (
   current: TemplateViewInput,

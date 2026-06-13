@@ -22,6 +22,17 @@ export type {
 } from "src/cs/workbench/services/template/common/templateRun";
 
 export const TemplateAuxiliaryBarViewId = "workbench.template.auxiliarybar";
+export const TemplateCommandId = {
+  selectTemplate: "template.selectTemplate",
+  createTemplate: "template.createTemplate",
+  deleteTemplate: "template.deleteTemplate",
+  importTemplate: "template.importTemplate",
+  editTemplate: "template.editTemplate",
+  exportTemplate: "template.exportTemplate",
+} as const;
+
+export type TemplateCommandId =
+  typeof TemplateCommandId[keyof typeof TemplateCommandId];
 
 export type TemplateImportPayloadHandler = (
   payload: unknown,
@@ -42,6 +53,7 @@ export type TemplateState = {
   readonly selectedTemplateId: string | null;
   readonly formState: TemplateConfig;
   readonly selectionsByFileId: TemplateSelectionsByFileId;
+  readonly templateListVersion: number;
 };
 
 export type TemplateStateSetter<T> = (value: T | ((previous: T) => T)) => void;
@@ -68,6 +80,10 @@ export interface ITemplateService {
   readonly onDidChangeTemplateViewInput: Event<void>;
 
   downloadTemplateBundle(bundle: unknown): string;
+  selectTemplate(template?: TemplateRecord | null): boolean;
+  createTemplateDraft(template?: Partial<TemplateConfig> | null): void;
+  editTemplate(template: TemplateRecord): boolean;
+  exportTemplate(template?: TemplateRecord | TemplateConfig | null): string | null;
   getTemplates(): Promise<TemplateRecord[]>;
   getState(): TemplateState;
   getViewInput(): TemplateViewInput | null;

@@ -7,14 +7,7 @@ import {
   IContextMenuService,
   type IContextMenuService as IContextMenuServiceType,
 } from "src/cs/platform/contextview/browser/contextView";
-import {
-  IFileDialogService,
-  type IFileDialogService as IFileDialogServiceType,
-} from "src/cs/platform/dialogs/common/dialogs";
-import {
-  IFileService,
-  type IFileService as IFileServiceType,
-} from "src/cs/platform/files/common/files";
+import { ICommandService } from "src/cs/platform/commands/common/commands";
 import { ITableService } from "src/cs/workbench/services/table/common/table";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import {
@@ -24,8 +17,6 @@ import {
   type ITemplateService as ITemplateServiceType,
   type TemplateViewInput,
 } from "src/cs/workbench/services/template/common/template";
-import { IPathService, type IPathService as IPathServiceType } from "src/cs/workbench/services/path/common/pathService";
-import { TemplateImportController } from "src/cs/workbench/services/template/browser/templateImportController";
 import {
   TemplateView,
   type TemplateViewOptions,
@@ -38,14 +29,11 @@ const TEMPLATE_EDITOR_TITLE = localize("template.editor.title", "Template Editor
 
 export class TemplateAuxiliaryBarViewPane extends ViewPane {
   private readonly content = document.createElement("div");
-  private readonly templateImportController: TemplateImportController;
   private readonly templateView: TemplateView;
 
   constructor(
+    @ICommandService private readonly commandService: ICommandService,
     @IContextMenuService private readonly contextMenuService: IContextMenuServiceType,
-    @IFileDialogService dialogsService: IFileDialogServiceType,
-    @IFileService filesService: IFileServiceType,
-    @IPathService pathService: IPathServiceType,
     @ITableService private readonly tableService: ITableService,
     @ITemplateApplyWorkflowService private readonly templateApplyWorkflowService: ITemplateApplyWorkflowService,
     @ITemplateService private readonly templateService: ITemplateServiceType,
@@ -58,11 +46,6 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
     });
     this.body.setAttribute("aria-label", TEMPLATE_TITLE);
     this.content.className = "template_pane template_pane--auxiliary";
-    this.templateImportController = new TemplateImportController(
-      dialogsService,
-      filesService,
-      pathService,
-    );
     this.templateView = new TemplateView(this.createViewOptions(this.templateService.getViewInput()));
     this.content.append(this.templateView.configElement);
     this.body.append(this.content);
@@ -103,11 +86,11 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
   private createViewOptions(input: TemplateViewInput | null): TemplateViewOptions {
     return {
       ...input,
+      commandService: this.commandService,
       contextMenuService: this.contextMenuService,
       rawFiles: input?.rawFiles ?? [],
       tableService: this.tableService,
       templateApplyWorkflowService: this.templateApplyWorkflowService,
-      templateImportController: this.templateImportController,
       templateService: this.templateService,
     };
   }

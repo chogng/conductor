@@ -166,6 +166,10 @@
   color: rgb(var(--text-secondary) / 1);
 }
 
+.ui-menu__item-actionbar .ui-actionbar__items {
+  gap: 0;
+}
+
 .ui-menu__item-action:hover,
 .ui-menu__item-action:focus-visible {
   background-color: rgb(var(--bg-page) / 0.92);

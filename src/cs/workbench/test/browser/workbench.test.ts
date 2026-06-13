@@ -45,6 +45,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
         selectionsByFileId: {
           "file-a": createTemplateSelection("template-file"),
         },
+        templateListVersion: 0,
       },
     });
 
@@ -108,6 +109,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
         mode: "select",
         selectedTemplateId: null,
         selectionsByFileId: {},
+        templateListVersion: 0,
       },
     });
 

@@ -319,6 +319,21 @@ Owner: `SessionService` only. Canonical root.
 | `yColumns` | `readonly number[]` | Y columns to extract. |
 | `stopOnError` | `boolean` | Whether to stop on extraction error. |
 
+### `TemplateState`
+
+Owner: `TemplateService`. Service-local UI/workflow state, not session
+canonical data. Produced by template management commands and editor/apply view
+interactions. Consumers reread it through `ITemplateService.getState()` after
+`onDidChangeTemplateState`.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `mode` | `'select' | 'save'` | Whether the template panel shows apply controls or editor controls. |
+| `selectedTemplateId` | `string | null` | Current saved template id, or null for auto/new draft state. |
+| `formState` | `TemplateConfig` | Current template form configuration. |
+| `selectionsByFileId` | `TemplateSelectionsByFileId` | Per-file template selection overrides. |
+| `templateListVersion` | `number` | Increments when saved template persistence changes so views can reread the template list. |
+
 ### `TemplateRunRecord`
 
 | Field | Type | Meaning |

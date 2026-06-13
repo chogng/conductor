@@ -303,7 +303,6 @@ html[data-nav="keyboard"] .template_field .inputbox_field[data-picking="true"]::
   overflow: visible;
 }
 
-.template_button_row--inset,
 .template_apply_actions {
   padding-inline: 2px;
 }
@@ -316,10 +315,6 @@ html[data-nav="keyboard"] .template_field .inputbox_field[data-picking="true"]::
   font-size: 12px;
   line-height: 16px;
   font-weight: 500;
-}
-
-.template_button--full {
-  grid-column: 1 / -1;
 }
 
 .template_apply_actions {

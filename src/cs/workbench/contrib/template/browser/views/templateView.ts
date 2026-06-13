@@ -5,16 +5,17 @@
 import {
   createMenuAction,
   createMenuItemLabel,
+  type MenuItemAction,
 } from "src/cs/base/browser/ui/menu/menu";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Separator, type IAction } from "src/cs/base/common/actions";
-import { LxIcon } from "src/cs/base/common/lxicon";
+import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
+import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import {
   createEmptyTemplateConfig,
   cloneTemplateConfig,
-  normalizeTemplateConfigRecord,
-  toTemplateNameKey,
   type TemplateConfig,
 } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
@@ -27,6 +28,7 @@ import {
   AUTO_TEMPLATE_ID,
   isAutoTemplateId,
 } from "src/cs/workbench/services/template/common/autoTemplate";
+import { TemplateCommandId } from "src/cs/workbench/services/template/common/template";
 import type {
   ITemplateApplyWorkflowService,
   ITemplateService,
@@ -34,7 +36,6 @@ import type {
   TemplateRecord,
 } from "src/cs/workbench/services/template/common/template";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
-import type { TemplateImportController } from "src/cs/workbench/services/template/browser/templateImportController";
 import type { ITableService, TableSelection } from "src/cs/workbench/services/table/common/table";
 import { toColumnLabel } from "src/cs/workbench/services/template/common/templateCellRef";
 import { TemplateApplyView } from "src/cs/workbench/contrib/template/browser/views/templateApplyView";
@@ -54,8 +55,8 @@ import {
 import "src/cs/workbench/contrib/template/browser/views/media/templateView.css";
 
 export type TemplateViewOptions = {
+  readonly commandService: Pick<ICommandService, "executeCommand">;
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
-  readonly templateImportController: TemplateImportController;
   readonly templateApplyWorkflowService: Pick<
     ITemplateApplyWorkflowService,
     | "applyTemplate"
@@ -74,6 +75,7 @@ export type TemplateViewOptions = {
 
 let cachedTemplates: TemplateRecord[] | null = null;
 let templatesLoading = false;
+let cachedTemplatesVersion = -1;
 type PickFieldName = TemplatePickFieldName;
 const TEMPLATE_TOAST_ID = "template.notification";
 
@@ -111,95 +113,9 @@ export const createTemplateApplyViewState = ({
 
   return {
     canDeleteTemplate: isCustomTemplate,
-    canExportTemplate: Boolean(effectiveConfig.name),
     selectedTemplateLabel,
     stopOnError: effectiveConfig.stopOnError,
   };
-};
-
-const importTemplates = async (
-  payload: unknown,
-  templateService: ITemplateService,
-) => {
-  const entry = payload && typeof payload === "object"
-    ? payload as Record<string, unknown>
-    : {};
-  
-  const draft = normalizeTemplateConfigRecord(entry);
-  if (!draft.name) {
-    showToast(localize("template.import.invalidFormat", "Invalid template file format."), "warning");
-    return;
-  }
-
-  if (cachedTemplates) {
-    const nameKey = toTemplateNameKey(draft.name);
-    const conflict = cachedTemplates.some((template) => toTemplateNameKey(template.name) === nameKey);
-    if (conflict) {
-      let suffix = 1;
-      let newName = `${draft.name}(${suffix})`;
-      while (cachedTemplates.some((template) => toTemplateNameKey(template.name) === toTemplateNameKey(newName))) {
-        suffix++;
-        newName = `${draft.name}(${suffix})`;
-      }
-      const confirmMessage = localize(
-        "template.import.conflict",
-        "Template \"{name}\" already exists.\nOK: import as \"{newName}\".\nCancel: overwrite the existing template.",
-        { name: draft.name, newName },
-      );
-      const shouldRename = typeof window !== "undefined" && typeof window.confirm === "function" ? window.confirm(confirmMessage) : true;
-      if (shouldRename) {
-        draft.name = newName;
-      } else {
-        const confTemplate = cachedTemplates.find((template) => toTemplateNameKey(template.name) === nameKey);
-        if (confTemplate && confTemplate.id) {
-          try {
-            await templateService.deleteTemplate(confTemplate.id);
-          } catch {
-            // Best effort: import can still overwrite by name in storage.
-          }
-        }
-      }
-    }
-  }
-
-  const validation = validateTemplateForSave(draft);
-  if (!validation.ok || !validation.normalized) {
-    showToast(validation.message || localize("template.invalidConfiguration", "Invalid configuration"), "warning");
-    return;
-  }
-
-  try {
-    const saved = await templateService.saveTemplate({
-      ...validation.normalized,
-      name: draft.name,
-    });
-    if (cachedTemplates) {
-      cachedTemplates = [saved, ...cachedTemplates.filter((template) => template.id !== saved.id && toTemplateNameKey(template.name) !== toTemplateNameKey(saved.name))];
-    } else {
-      cachedTemplates = [saved];
-    }
-    
-    templateService.updateState({
-      selectedTemplateId: typeof saved.id === "string" ? saved.id : null,
-      formState: cloneTemplateConfig(saved),
-    });
-    showToast(localize("template.import.success", "Template imported"), "success");
-  } catch (err) {
-    showToast(localize("template.import.failed", "Failed to import template: {error}", { error: String(err) }), "error");
-  }
-};
-
-const exportTemplate = (config: TemplateConfig, templateService: ITemplateService) => {
-  if (!config.name) {
-    showToast(localize("template.export.requiresSelection", "Please select a template to export."), "warning");
-    return;
-  }
-  const payload = {
-    version: 1,
-    source: "conductor",
-    ...config,
-  };
-  templateService.downloadTemplateBundle(payload);
 };
 
 export class TemplateView {
@@ -214,6 +130,7 @@ export class TemplateView {
   private stopOnErrorDraft: boolean | null = null;
   private applyView: TemplateApplyView | null = null;
   private editorView: TemplateEditorView | null = null;
+  private stopOnErrorDraftSource: TemplateConfig | null = null;
 
   constructor(props: TemplateViewOptions) {
     this.props = props;
@@ -407,18 +324,16 @@ export class TemplateView {
 
   private syncStopOnErrorDraft(): void {
     const config = this.readTemplateFormState();
-    if (this.stopOnErrorDraft === null) {
+    if (this.stopOnErrorDraftSource !== config || this.readTemplateMode() !== "select") {
       this.stopOnErrorDraft = config.stopOnError;
+      this.stopOnErrorDraftSource = config;
       return;
-    }
-
-    if (this.mode !== "select") {
-      this.stopOnErrorDraft = config.stopOnError;
     }
   }
 
   private ensureTemplatesLoaded(): void {
-    if (cachedTemplates !== null || templatesLoading) {
+    const templateListVersion = this.props.templateService.getState().templateListVersion;
+    if ((cachedTemplates !== null && cachedTemplatesVersion === templateListVersion) || templatesLoading) {
       return;
     }
 
@@ -426,6 +341,7 @@ export class TemplateView {
     this.props.templateService.getTemplates()
       .then((remote) => {
         cachedTemplates = remote;
+        cachedTemplatesVersion = templateListVersion;
         templatesLoading = false;
         this.updateApplyView();
         this.updateEditorView();
@@ -450,7 +366,6 @@ export class TemplateView {
         onDeleteTemplate: () => {
           void this.deleteSelectedTemplate();
         },
-        onExportTemplate: () => exportTemplate(this.readTemplateFormState(), this.props.templateService),
         onStopOnErrorChange: (checked) => this.updateApplyOptions({ stopOnError: checked }),
       }, this.getApplyViewState());
     }
@@ -527,44 +442,26 @@ export class TemplateView {
 
   private async deleteSelectedTemplate(): Promise<void> {
     const selectedTemplateId = this.readSelectedTemplateId();
-    const templateFormState = this.readTemplateFormState();
-    if (!selectedTemplateId) {
+    const templateFormState = this.getEffectiveTemplateFormState();
+    if (!selectedTemplateId || isAutoTemplateId(selectedTemplateId)) {
       return;
     }
 
-    const confirmMsg = localize("template.delete.confirm", "Delete template \"{name}\"?", { name: templateFormState.name });
-    if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm(confirmMsg)) {
-      return;
-    }
-
-    try {
-      await this.props.templateService.deleteTemplate(selectedTemplateId);
-      if (cachedTemplates) {
-        cachedTemplates = cachedTemplates.filter((template) => template.id !== selectedTemplateId);
-      }
-      const config = this.getEffectiveTemplateFormState();
-      this.stopOnErrorDraft = config.stopOnError;
-      this.props.templateService.updateState({
-        selectedTemplateId: AUTO_TEMPLATE_ID,
-        formState: createEmptyTemplateConfig({
-          stopOnError: templateFormState.stopOnError,
-        }),
-      });
-      showToast(localize("template.delete.success", "Template deleted"), "success");
-    } catch (err) {
-      showToast(localize("template.delete.failed", "Failed to delete template: {error}", { error: String(err) }), "error");
-    }
+    await this.props.commandService.executeCommand(TemplateCommandId.deleteTemplate, {
+      ...templateFormState,
+      id: selectedTemplateId,
+    });
   }
 
   private createTemplateActions(): IAction[] {
     const selectedTemplateId = this.readSelectedTemplateId();
     const actions: IAction[] = [
       createMenuAction({
-        checked: isAutoTemplateId(selectedTemplateId || AUTO_TEMPLATE_ID),
         id: "template.select.auto",
         label: localize("template.autoExtraction", "Auto extraction"),
         left: createMenuItemLabel(localize("template.autoExtraction", "Auto extraction")),
-        run: () => this.selectTemplate(AUTO_TEMPLATE_ID),
+        run: () => this.selectTemplate(null),
+        right: isAutoTemplateId(selectedTemplateId || AUTO_TEMPLATE_ID) ? createTemplateMenuIcon(LxIcon.check) : undefined,
         selected: isAutoTemplateId(selectedTemplateId || AUTO_TEMPLATE_ID),
         tabIndex: 0,
         value: AUTO_TEMPLATE_ID,
@@ -579,16 +476,11 @@ export class TemplateView {
       }
 
       actions.push(createMenuAction({
-        checked: selectedTemplateId === templateId,
         id: `template.select.${templateId}`,
         label: template.name || templateId,
         left: createMenuItemLabel(template.name || templateId),
-        run: () => this.selectTemplate(templateId),
-        rightAction: {
-          icon: LxIcon.edit,
-          label: localize("template.edit", "Edit template"),
-          onClick: () => this.editTemplate(template),
-        },
+        run: () => this.selectTemplate(template),
+        rightActions: this.createTemplateItemActions(template),
         selected: selectedTemplateId === templateId,
         tabIndex: 0,
         value: templateId,
@@ -601,15 +493,19 @@ export class TemplateView {
         id: "template.create",
         label: localize("template.createNew", "New Template..."),
         className: "template_picker_menu_create",
-        left: createMenuItemLabel(localize("template.createNew", "New Template..."), LxIcon.add),
+        left: createMenuItemLabel(localize("template.createNew", "New Template...")),
+        right: createTemplateMenuIcon(LxIcon.add),
         run: () => this.createTemplateDraft(),
         tabIndex: 0,
       }),
       createMenuAction({
         id: "template.import",
         label: localize("template.import.button", "Import templates"),
-        left: createMenuItemLabel(localize("template.import.button", "Import templates"), LxIcon.download),
-        run: () => this.promptTemplateImport(),
+        left: createMenuItemLabel(localize("template.import.button", "Import templates")),
+        right: createTemplateMenuIcon(LxIcon.download),
+        run: () => {
+          void this.props.commandService.executeCommand(TemplateCommandId.importTemplate);
+        },
         tabIndex: 0,
       }),
     );
@@ -617,68 +513,51 @@ export class TemplateView {
     return actions;
   }
 
-  private promptTemplateImport(): void {
-    void this.importTemplateFromDialog();
-  }
-
-  private async importTemplateFromDialog(): Promise<void> {
-    try {
-      await this.props.templateImportController.importTemplateFromDialog(
-        (payload) => importTemplates(
-          payload,
-          this.props.templateService,
-        ),
-      );
-    } catch (err) {
-      showToast(localize("template.import.failed", "Failed to import template: {error}", { error: String(err) }), "error");
-    }
-  }
-
   private createTemplateDraft(): void {
     const config = this.getEffectiveTemplateFormState();
     this.stopOnErrorDraft = config.stopOnError;
-    this.props.templateService.updateState({
-      selectedTemplateId: null,
-      formState: createEmptyTemplateConfig({
-        stopOnError: config.stopOnError,
-      }),
-      mode: "save",
+    void this.props.commandService.executeCommand(TemplateCommandId.createTemplate, {
+      stopOnError: config.stopOnError,
     });
+  }
+
+  private createTemplateItemActions(template: TemplateRecord): MenuItemAction[] {
+    const templateId = String(template.id ?? "");
+    return [
+      {
+        id: `${TemplateCommandId.editTemplate}.${templateId || "template"}`,
+        icon: LxIcon.edit,
+        label: localize("template.edit", "Edit template"),
+        onClick: () => this.editTemplate(template),
+      },
+      {
+        id: `${TemplateCommandId.exportTemplate}.${templateId || "template"}`,
+        icon: LxIcon.download,
+        label: localize("template.export.button", "Export templates"),
+        onClick: () => this.exportTemplate(template),
+      },
+    ];
   }
 
   private editTemplate(template: TemplateRecord): void {
-    const templateId = String(template.id ?? "");
-    if (!templateId) {
-      return;
-    }
-
     this.stopOnErrorDraft = Boolean(template.stopOnError);
-    this.props.templateService.updateState({
-      selectedTemplateId: templateId,
-      formState: cloneTemplateConfig(template),
-      mode: "save",
-    });
+    void this.props.commandService.executeCommand(TemplateCommandId.editTemplate, template);
   }
 
-  private selectTemplate(templateId: string): void {
+  private exportTemplate(template: TemplateRecord | TemplateConfig): void {
+    void this.props.commandService.executeCommand(TemplateCommandId.exportTemplate, template);
+  }
+
+  private selectTemplate(template: TemplateRecord | null): void {
     const config = this.getEffectiveTemplateFormState();
-    if (isAutoTemplateId(templateId)) {
+    if (!template) {
       this.stopOnErrorDraft = config.stopOnError;
-      this.props.templateService.updateState({
-        selectedTemplateId: AUTO_TEMPLATE_ID,
-        formState: createEmptyTemplateConfig({
-          stopOnError: config.stopOnError,
-        }),
+      void this.props.commandService.executeCommand(TemplateCommandId.selectTemplate, {
+        stopOnError: config.stopOnError,
       });
     } else {
-      const found = cachedTemplates?.find((template) => template.id === templateId);
-      if (found) {
-        this.stopOnErrorDraft = Boolean(found.stopOnError);
-        this.props.templateService.updateState({
-          selectedTemplateId: typeof found.id === "string" ? found.id : null,
-          formState: cloneTemplateConfig(found),
-        });
-      }
+      this.stopOnErrorDraft = Boolean(template.stopOnError);
+      void this.props.commandService.executeCommand(TemplateCommandId.selectTemplate, template);
     }
   }
 
@@ -740,12 +619,6 @@ export class TemplateView {
         ...persistedTemplate,
       });
 
-      if (cachedTemplates) {
-        cachedTemplates = [saved, ...cachedTemplates.filter((template) => template.id !== saved.id && toTemplateNameKey(template.name) !== toTemplateNameKey(saved.name))];
-      } else {
-        cachedTemplates = [saved];
-      }
-
       this.stopOnErrorDraft = Boolean(saved.stopOnError);
       this.props.templateService.updateState({
         selectedTemplateId: typeof saved.id === "string" ? saved.id : null,
@@ -785,4 +658,12 @@ export class TemplateView {
       }),
     });
   }
+}
+
+function createTemplateMenuIcon(icon: LxIconDefinition): HTMLSpanElement {
+  const wrapper = document.createElement("span");
+  wrapper.className = "ui-menu__item-icon";
+  wrapper.setAttribute("aria-hidden", "true");
+  wrapper.append(createLxIcon({ icon, size: 14 }));
+  return wrapper;
 }

@@ -17,13 +17,11 @@ export type TemplateApplyViewOptions = {
   readonly createTemplateActions: () => IAction[];
   readonly onApplyTemplate: (incremental: boolean) => void;
   readonly onDeleteTemplate: () => void;
-  readonly onExportTemplate: () => void;
   readonly onStopOnErrorChange: (checked: boolean) => void;
 };
 
 export type TemplateApplyViewState = {
   readonly canDeleteTemplate: boolean;
-  readonly canExportTemplate: boolean;
   readonly selectedTemplateLabel: string;
   readonly stopOnError: boolean;
 };
@@ -33,7 +31,6 @@ export class TemplateApplyView {
   private readonly dropdownMenu: DropdownMenu;
   private readonly dropdownLabel: HTMLElement;
   private readonly deleteButton: HTMLButtonElement;
-  private readonly exportButton: HTMLButtonElement;
   private readonly stopSwitch: HTMLButtonElement;
   private readonly autoCard: HTMLElement;
 
@@ -134,20 +131,6 @@ export class TemplateApplyView {
     applyActions.append(applyAllButton, applyNewButton);
     this.element.append(applyActions);
 
-    const importExportRow = document.createElement("div");
-    importExportRow.className = "template_button_row template_button_row--inset";
-
-    this.exportButton = createButton({
-      label: localize("template.export.button", "Export templates"),
-      size: "sm",
-      variant: "secondary",
-    });
-    this.exportButton.className = `${this.exportButton.className} template_button template_button--full`;
-    this.exportButton.addEventListener("click", () => this.options.onExportTemplate());
-
-    importExportRow.append(this.exportButton);
-    this.element.append(importExportRow);
-
     const divider = document.createElement("div");
     divider.className = "template_divider";
     this.element.append(divider);
@@ -189,7 +172,6 @@ export class TemplateApplyView {
     this.dropdownLabel.parentElement?.setAttribute("aria-label", state.selectedTemplateLabel);
 
     this.deleteButton.style.display = state.canDeleteTemplate ? "" : "none";
-    this.exportButton.disabled = !state.canExportTemplate;
     updateSwitch(this.stopSwitch, { checked: state.stopOnError });
     this.autoCard.style.display = state.canDeleteTemplate ? "none" : "";
   }

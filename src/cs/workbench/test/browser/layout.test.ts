@@ -9,13 +9,13 @@ import {
   SIDEBAR_MAX_WIDTH_PX,
   SIDEBAR_MIN_WIDTH_PX,
   TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX,
-} from "./layout.ts";
+} from "src/cs/workbench/browser/layout";
 import {
   AUXILIARY_BAR_DEFAULT_WIDTH_PX,
   AUXILIARY_BAR_MAX_WIDTH_PX,
   AUXILIARY_BAR_MIN_WIDTH_PX,
-} from "./parts/auxiliarybar/auxiliaryBarPart.ts";
-import { WorkbenchSidebarLayout } from "./parts/sidebar/sidebarPart.ts";
+} from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
+import { WorkbenchSidebarLayout } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import {
   BrowserWorkbenchLayoutService,
   Parts,

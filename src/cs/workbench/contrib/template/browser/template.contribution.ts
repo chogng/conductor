@@ -11,8 +11,11 @@ import {
   type IViewContainersRegistry,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
+import { registerTemplateActions } from "src/cs/workbench/contrib/template/browser/templateActions";
 import { TemplateAuxiliaryBarViewPane } from "src/cs/workbench/contrib/template/browser/templateAuxiliaryBarViewPane";
 import { TemplateAuxiliaryBarViewId } from "src/cs/workbench/services/template/common/template";
+
+registerTemplateActions();
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);

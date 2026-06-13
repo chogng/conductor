@@ -20,6 +20,7 @@ export type MenuIcon = Node | (() => Node) | LxIconDefinition;
 export type MenuItemAction = {
     readonly className?: string;
     readonly icon?: MenuIcon;
+    readonly id?: string;
     readonly label: string;
     readonly onClick: (event: MouseEvent | KeyboardEvent) => void;
 };
@@ -44,6 +45,7 @@ type MenuActionOptions = {
     readonly onMouseEnter?: (event: MouseEvent) => void;
     readonly right?: Node | string;
     readonly rightAction?: MenuItemAction;
+    readonly rightActions?: readonly MenuItemAction[];
     readonly role?: "button" | "menuitem" | "presentation";
     readonly run: (event?: unknown) => unknown;
     readonly selected?: boolean;
@@ -58,6 +60,7 @@ type MenuItemData = {
     readonly onMouseEnter: ((event: MouseEvent) => void) | undefined;
     readonly right: Node | string | undefined;
     readonly rightAction: MenuItemAction | undefined;
+    readonly rightActions: readonly MenuItemAction[] | undefined;
     readonly role: "button" | "menuitem" | "presentation" | undefined;
     readonly selected: boolean;
     readonly tabIndex: number | undefined;
@@ -134,6 +137,7 @@ export function createMenuAction(options: MenuActionOptions): IAction {
         onMouseEnter: options.onMouseEnter,
         right: options.right,
         rightAction: options.rightAction,
+        rightActions: options.rightActions,
         role: options.role,
         selected: options.selected ?? false,
         tabIndex: options.tabIndex,
@@ -160,6 +164,7 @@ export function createMenuActionFromAction(
         onMouseEnter: overrides.onMouseEnter ?? data?.onMouseEnter,
         right: overrides.right ?? data?.right,
         rightAction: data?.rightAction,
+        rightActions: data?.rightActions,
         role: data?.role,
         run: overrides.run,
         selected: data?.selected,
@@ -286,11 +291,14 @@ class MenuActionViewItem extends BaseActionViewItem {
         if (this.data?.left !== undefined) {
             this.updateLabel();
         }
-        if (this.data?.right !== undefined || this.data?.rightAction) {
+        if (this.data?.right !== undefined || this.data?.rightAction || this.data?.rightActions?.length) {
             const right = document.createElement("span");
             right.className = "ui-menu__item-right";
             if (this.data.right !== undefined) {
                 append(right, this.data.right);
+            }
+            if (this.data.rightActions?.length) {
+                right.append(this.createActionBar(this.data.rightActions));
             }
             if (this.data.rightAction) {
                 right.append(this.createActionButton(this.data.rightAction));
@@ -378,6 +386,73 @@ class MenuActionViewItem extends BaseActionViewItem {
         }));
 
         return button;
+    }
+
+    private createActionBar(actions: readonly MenuItemAction[]): HTMLElement {
+        const actionBar = this._register(new ActionBar({
+            actionViewItemProvider: createMenuItemActionViewItem,
+            className: "ui-menu__item-actionbar",
+            role: "toolbar",
+        }));
+
+        actionBar.push(actions.map((item, index) => createMenuItemToolbarAction(item, this.action.id, index)), {
+            label: false,
+        });
+        this._register(actionBar.onDidRun(() => {
+            this.element?.dispatchEvent(new CustomEvent("menuitemactionrun", { bubbles: true }));
+        }));
+
+        return actionBar.domNode;
+    }
+}
+
+const menuToolbarActionData = new WeakMap<IAction, MenuItemAction>();
+
+function createMenuItemToolbarAction(
+    item: MenuItemAction,
+    ownerId: string,
+    index: number,
+): IAction {
+    const action: IAction = {
+        id: item.id ?? `${ownerId}.action.${index}`,
+        label: item.label,
+        tooltip: item.label,
+        class: item.className,
+        enabled: true,
+        run: event => item.onClick(event as MouseEvent | KeyboardEvent),
+    };
+    menuToolbarActionData.set(action, item);
+    return action;
+}
+
+const createMenuItemActionViewItem: IActionViewItemProvider = (action, options) =>
+    new MenuItemActionViewItem(action, options);
+
+class MenuItemActionViewItem extends BaseActionViewItem {
+    private readonly item = menuToolbarActionData.get(this.action);
+
+    constructor(
+        action: IAction,
+        options: IActionViewItemOptions,
+    ) {
+        super(undefined, action, options);
+    }
+
+    protected override updateClass(): void {
+        super.updateClass();
+        this.label?.classList.add("ui-menu__item-action");
+    }
+
+    protected override updateLabel(): void {
+        if (!this.label) {
+            return;
+        }
+
+        this.label.replaceChildren();
+        const icon = createIconNode(this.item?.icon);
+        if (icon) {
+            this.label.append(icon);
+        }
     }
 }
 
