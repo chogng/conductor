@@ -42,5 +42,6 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
     assert.equal(result.sourceRawTableVersion, 3);
     assert.equal(result.blocks.length, 1);
     assert.equal(result.blocks[0].fileId, "file-a");
+    assert.equal(result.blocks[0].confidence, 0.9);
   });
 });

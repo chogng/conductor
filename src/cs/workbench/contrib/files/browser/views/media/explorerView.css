@@ -322,7 +322,8 @@
 }
 
 .file-list-tree .ui-tree__item[data-expandable="false"] > .ui-tree__disclosure {
-  display: none;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .file-list-folder-item {

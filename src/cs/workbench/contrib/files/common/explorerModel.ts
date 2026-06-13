@@ -16,6 +16,7 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
 	collectFileRecordBaseCurves,
+	getFileRecordAxisProjection,
 	getFileRecordCurveType,
 } from "src/cs/workbench/services/session/common/sessionRecordProjection";
 import {
@@ -33,6 +34,7 @@ export type ExplorerFileEntry = {
 	readonly sourceKey?: string;
 	readonly sourcePath?: string | null;
 	readonly curveType?: string | null;
+	readonly curveTypeBadgeLabel?: string | null;
 	readonly curveTypeConfidence?: "high" | "medium" | "low";
 	readonly curveTypeNeedsTemplate?: boolean;
 	readonly curveTypeReasons?: readonly string[];
@@ -299,8 +301,52 @@ const getOptionalString = (value: unknown): string | undefined => {
 	return text || undefined;
 };
 
+const getOptionalNullableString = (value: unknown): string | null => {
+	const text = String(value ?? "").trim();
+	return text || null;
+};
+
+const getExplorerCurveTypeBadgeLabel = (
+	curveType: unknown,
+	xAxisRole: SessionFile["xAxisRole"],
+): string | null => {
+	const normalizedCurveType = getOptionalNullableString(curveType);
+	if (!normalizedCurveType) {
+		return null;
+	}
+	if (xAxisRole === "vg") {
+		return "transfer";
+	}
+	if (xAxisRole === "vd") {
+		return "output";
+	}
+	return normalizedCurveType;
+};
+
 const hasFileRecordChartData = (file: FileRecord): boolean =>
 	collectFileRecordBaseCurves(file).length > 0;
+
+export const createRawExplorerFiles = (
+	rawFiles: readonly SessionFile[],
+): ExplorerFileEntry[] =>
+	rawFiles.map(file => ({
+		file: file.file,
+		fileId: file.fileId,
+		fileName: file.fileName,
+		itemKey: getOptionalString(file.itemKey),
+		normalizedCsvPath: file.normalizedCsvPath,
+		relativePath: file.relativePath ?? null,
+		sourceKey: getOptionalString(file.sourceKey),
+		sourcePath: file.sourcePath,
+		curveType: file.curveType ?? null,
+		curveTypeBadgeLabel: getExplorerCurveTypeBadgeLabel(
+			file.curveType,
+			file.xAxisRole,
+		),
+		curveTypeConfidence: file.curveTypeConfidence,
+		curveTypeNeedsTemplate: file.curveTypeNeedsTemplate,
+		curveTypeReasons: file.curveTypeReasons,
+	}));
 
 export const createChartExplorerFilesFromRecords = (
 	filesById: Record<FileId, FileRecord>,
@@ -329,6 +375,10 @@ export const createChartExplorerFilesFromRecords = (
 		}
 
 		const rawFile = rawFileById.get(fileId);
+		const curveType = getFileRecordCurveType(file) ?? rawFile?.curveType ?? null;
+		const xAxisRole = getFileRecordAxisProjection(file).xAxisRole ??
+			rawFile?.xAxisRole ??
+			null;
 		files.push({
 			file: file.raw.file ?? rawFile?.file,
 			fileId,
@@ -338,7 +388,8 @@ export const createChartExplorerFilesFromRecords = (
 			relativePath: file.raw.relativePath ?? rawFile?.relativePath ?? null,
 			sourceKey: getOptionalString(rawFile?.sourceKey ?? file.raw.rawKey),
 			sourcePath: file.raw.filePath ?? rawFile?.sourcePath,
-			curveType: getFileRecordCurveType(file) ?? rawFile?.curveType ?? null,
+			curveType,
+			curveTypeBadgeLabel: getExplorerCurveTypeBadgeLabel(curveType, xAxisRole),
 			curveTypeConfidence: rawFile?.curveTypeConfidence,
 			curveTypeNeedsTemplate: rawFile?.curveTypeNeedsTemplate,
 			curveTypeReasons: rawFile?.curveTypeReasons,
@@ -375,6 +426,8 @@ export const createChartExplorerFiles = (
 		}
 
 		const rawFile = rawFileById.get(fileId);
+		const curveType = processedFile.curveType ?? rawFile?.curveType ?? null;
+		const xAxisRole = processedFile.xAxisRole ?? rawFile?.xAxisRole ?? null;
 		files.push({
 			file: rawFile?.file,
 			fileId,
@@ -384,7 +437,8 @@ export const createChartExplorerFiles = (
 			relativePath: rawFile?.relativePath ?? null,
 			sourceKey: getOptionalString(rawFile?.sourceKey),
 			sourcePath: rawFile?.sourcePath,
-			curveType: processedFile.curveType ?? rawFile?.curveType ?? null,
+			curveType,
+			curveTypeBadgeLabel: getExplorerCurveTypeBadgeLabel(curveType, xAxisRole),
 			curveTypeConfidence:
 				processedFile.curveTypeConfidence ?? rawFile?.curveTypeConfidence,
 			curveTypeNeedsTemplate:

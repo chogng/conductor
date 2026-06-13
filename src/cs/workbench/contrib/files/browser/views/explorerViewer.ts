@@ -178,15 +178,21 @@ type HoverThumbnailCacheEntry = {
   lastUsed: number;
 };
 
+const hasFileItemAssessment = (
+  fileEntry: ExplorerFileEntry,
+  reasons: string,
+): boolean =>
+  Boolean(
+    String(fileEntry.curveType ?? "").trim() ||
+      fileEntry.curveTypeConfidence ||
+      fileEntry.curveTypeNeedsTemplate === true ||
+      reasons,
+  );
+
 const createFileItemAssessment = (
   fileEntry: ExplorerFileEntry,
   templateLabel: string,
 ): FileItemAssessment | null => {
-  if (!fileEntry?.curveType) {
-    return null;
-  }
-
-  const curveType = String(fileEntry.curveType).trim();
   const confidence = fileEntry?.curveTypeConfidence
     ? String(fileEntry.curveTypeConfidence).trim()
     : localize("files.autoUnknown", "Unknown");
@@ -194,9 +200,17 @@ const createFileItemAssessment = (
     .map(reason => String(reason).trim())
     .filter(Boolean)
     .join(" ");
+  if (!hasFileItemAssessment(fileEntry, reasons)) {
+    return null;
+  }
+
+  const curveType =
+    String(fileEntry.curveType ?? "").trim() ||
+    localize("files.autoUnknown", "Unknown");
+  const label = String(fileEntry.curveTypeBadgeLabel ?? "").trim() || curveType;
 
   return {
-    label: curveType,
+    label,
     isWarning:
       fileEntry?.curveTypeNeedsTemplate === true ||
       fileEntry?.curveTypeConfidence === "low",
@@ -431,8 +445,10 @@ export class ExplorerViewer implements IDisposable {
         entry.relativePath ?? "",
         getFileName(entry),
         entry.curveType ?? "",
+        entry.curveTypeBadgeLabel ?? "",
         entry.curveTypeConfidence ?? "",
         entry.curveTypeNeedsTemplate === true ? "1" : "0",
+        (entry.curveTypeReasons ?? []).join("\u001d"),
         getTemplateSelectionId(
           props.fileTemplateSelectionsByFileId?.[entry.fileId ?? ""] ??
             props.currentTemplateSelection ??

@@ -79,6 +79,7 @@ export class AssessmentService extends Disposable implements IAssessmentServiceT
         columns: {
           columns: [],
         },
+        confidence: getAssessmentConfidenceScore(assessment),
         rowCount,
         columnCount,
         diagnosticCodes,
@@ -95,6 +96,23 @@ const getColumnCount = (rows: AssessmentRows): number => {
     columnCount = Math.max(columnCount, row.length);
   }
   return columnCount;
+};
+
+const getAssessmentConfidenceScore = (
+  assessment: ImportFileAssessment,
+): number => {
+  const confidence = assessment.curveTypeConfidence;
+  switch (confidence) {
+    case "high":
+      return 0.9;
+    case "medium":
+      return 0.6;
+    case "low":
+      return 0.3;
+  }
+
+  const exhaustive: never = confidence;
+  return exhaustive;
 };
 
 const getMeasurementFamily = (

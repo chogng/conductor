@@ -10,9 +10,47 @@ import {
   buildExplorerTree,
   createChartExplorerFiles,
   createChartExplorerFilesFromRecords,
+  createRawExplorerFiles,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 
 suite("workbench/contrib/files/common/explorerModel", () => {
+  test("createRawExplorerFiles projects consumed assessment labels", () => {
+    assert.deepEqual(
+      createRawExplorerFiles([
+        {
+          fileId: "raw-1",
+          fileName: "raw.csv",
+          itemKey: "raw-key",
+          relativePath: "batch/raw.csv",
+          sourceKey: "source-key",
+          sourcePath: "C:/data/raw.csv",
+          curveType: "output (vd)",
+          curveTypeConfidence: "medium",
+          curveTypeNeedsTemplate: false,
+          curveTypeReasons: ["Shape evidence matches output-style Id-Vd behavior."],
+          xAxisRole: "vd",
+        },
+      ]),
+      [
+        {
+          file: undefined,
+          fileId: "raw-1",
+          fileName: "raw.csv",
+          itemKey: "raw-key",
+          normalizedCsvPath: undefined,
+          relativePath: "batch/raw.csv",
+          sourceKey: "source-key",
+          sourcePath: "C:/data/raw.csv",
+          curveType: "output (vd)",
+          curveTypeBadgeLabel: "output",
+          curveTypeConfidence: "medium",
+          curveTypeNeedsTemplate: false,
+          curveTypeReasons: ["Shape evidence matches output-style Id-Vd behavior."],
+        },
+      ],
+    );
+  });
+
   test("createChartExplorerFiles projects processed files with source paths", () => {
     const files = createChartExplorerFiles(
       [
@@ -48,6 +86,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         sourceKey: "source-key",
         sourcePath: "C:/data/raw.csv",
         curveType: "iv",
+        curveTypeBadgeLabel: "iv",
         curveTypeConfidence: "high",
         curveTypeNeedsTemplate: undefined,
         curveTypeReasons: undefined,
@@ -96,6 +135,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         sourceKey: "source-key",
         sourcePath: "C:/canonical/raw.csv",
         curveType: "transfer",
+        curveTypeBadgeLabel: "transfer",
         curveTypeConfidence: "low",
         curveTypeNeedsTemplate: true,
         curveTypeReasons: undefined,

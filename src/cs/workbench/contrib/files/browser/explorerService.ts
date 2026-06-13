@@ -367,6 +367,7 @@ const areExplorerFilesEqual = (
       file.sourceKey === nextFile.sourceKey &&
       file.sourcePath === nextFile.sourcePath &&
       file.curveType === nextFile.curveType &&
+      file.curveTypeBadgeLabel === nextFile.curveTypeBadgeLabel &&
       file.curveTypeConfidence === nextFile.curveTypeConfidence &&
       file.curveTypeNeedsTemplate === nextFile.curveTypeNeedsTemplate &&
       areStringArraysEqual(file.curveTypeReasons ?? [], nextFile.curveTypeReasons ?? []);

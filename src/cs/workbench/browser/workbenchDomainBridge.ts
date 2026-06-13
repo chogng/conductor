@@ -12,6 +12,7 @@ import {
 import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
   createChartExplorerFilesFromRecords,
+  createRawExplorerFiles,
   resolveExplorerSelectedFileId,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
@@ -265,7 +266,7 @@ export const createExplorerPaneInput = ({
       snapshot.fileOrder,
       rawFiles,
     )
-    : rawFiles;
+    : createRawExplorerFiles(rawFiles);
   const fileIds = getExplorerPaneFileIds(files);
   const thumbnailPlotModelsByFileId = isChartMode
     ? createThumbnailPlotModelsByFileId({

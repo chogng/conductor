@@ -511,6 +511,25 @@ Derived from session and explorer grouping state.
 | `diagnosticBadge` | `string | undefined` | Optional assessment/import badge. |
 | `thumbnailModelId` | `string | undefined` | Optional thumbnail reference. |
 
+### `ExplorerFileEntry`
+
+Owner: `ExplorerService` stores the pane input snapshot; Workbench domain bridge
+produces it from session/read-model facts through `explorerModel.ts`.
+Canonical? No, it is an Explorer view model derived from session records.
+Invalidation: session/read-model facts, mode, and Explorer pane input signature.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `fileId` | `string | undefined` | Source file id for Explorer selection. |
+| `fileName` | `string | undefined` | Display file name. |
+| `relativePath` | `string | null | undefined` | Folder grouping path. |
+| `sourcePath` | `string | null | undefined` | Native/source path for file actions. |
+| `curveType` | `string | null | undefined` | Full assessed curve type shown in hover details. |
+| `curveTypeBadgeLabel` | `string | null | undefined` | Compact curve badge label already projected for Explorer rendering. Views consume this field and must not parse `curveType` text to derive it. |
+| `curveTypeConfidence` | `'high' | 'medium' | 'low' | undefined` | Assessment confidence projected from session/assessment. |
+| `curveTypeNeedsTemplate` | `boolean | undefined` | Whether the file needs manual/template handling. |
+| `curveTypeReasons` | `readonly string[] | undefined` | Assessment reason text for hover details. |
+
 ## Search records
 
 ### `SearchQuery`
