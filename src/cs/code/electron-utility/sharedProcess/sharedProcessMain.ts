@@ -8,6 +8,7 @@ import { cleanUnusedWorkspaceStorageData } from "./contrib/storageDataCleaner.js
 
 export interface SharedProcessContributionContext {
   readonly analysisHomeDir: string;
+  readonly desktopDiagnosticLogDir: string;
   readonly analysisTempRootDir: string;
   readonly conductorUserDataHomeDir: string;
   readonly originRuntimeStorageDir: string;

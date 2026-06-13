@@ -216,9 +216,7 @@ function logDesktopBoot(stage, extra = "") {
 function appendDesktopDiagnosticLog(message) {
   const timestamp = new Date().toISOString();
   const line = `${timestamp} ${message}\n`;
-  const candidateDirs = [
-    path.join(process.cwd(), ".device"),
-  ];
+  const candidateDirs = [];
 
   try {
     if (app?.isReady?.()) {
@@ -878,6 +876,7 @@ function handleWorkbenchBootstrapSettingsGet(event) {
 function createSharedProcessContributionContext() {
   return {
     analysisHomeDir: getHomeDir(),
+    desktopDiagnosticLogDir: app.getPath("userData"),
     analysisTempRootDir: getTempRootDir(),
     conductorUserDataHomeDir: getConductorUserDataHomeDir(),
     originRuntimeStorageDir: getOriginRuntimeStorageDir(),
