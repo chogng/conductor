@@ -19,6 +19,7 @@ export type SelectBoxOptions<T extends string> = {
     readonly ariaLabel?: string;
     readonly ariaLabelledBy?: string;
     readonly className?: string;
+    readonly disabled?: boolean;
     readonly id?: string;
     readonly matchAnchorWidth?: boolean;
     readonly onDidSelect: (value: T) => void;
@@ -109,6 +110,7 @@ export class SelectBox<T extends string> extends Disposable {
     private renderButton(): void {
         const selected = getSelectedOption(this.options.options, this.options.value);
         this.button.className = getButtonClassName(this.options.className);
+        this.button.disabled = this.options.disabled === true;
         this.button.setAttribute("aria-expanded", this.dropdown.isVisible() ? "true" : "false");
 
         if (this.options.id) {

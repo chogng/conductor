@@ -20,6 +20,15 @@
   background-color: rgb(var(--bg-surface-hover) / 0.72);
 }
 
+.ui-selectbox:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.ui-selectbox:disabled:hover {
+  background-color: rgb(var(--bg-page) / 1);
+}
+
 .ui-selectbox:focus-visible {
   border-color: rgb(var(--accent) / 0.72);
   box-shadow: 0 0 0 2px rgb(var(--accent) / 0.16);

@@ -1,6 +1,9 @@
 import { localize } from "src/cs/nls";
 import { append, reset } from "src/cs/base/browser/dom";
 import { createButton as createActionButton } from "src/cs/base/browser/ui/button/button";
+import { createSelectBox, type SelectBoxOption } from "src/cs/base/browser/ui/selectBox/selectBox";
+import { createSwitch } from "src/cs/base/browser/ui/switch/switch";
+import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/template/common/fileNameMatching";
 import type { LanguagePreference } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
@@ -183,6 +186,7 @@ const ORIGIN_HEALTH_TOAST_ID = "settings.originHealth";
 const CLEANUP_TOAST_ID = "settings.cleanup";
 
 export class SettingsView {
+  private readonly renderDisposables = new DisposableStore();
   private readonly root: HTMLElement;
   private options: SettingsViewOptions;
 
@@ -202,12 +206,14 @@ export class SettingsView {
   }
 
   dispose(): void {
+    this.renderDisposables.dispose();
     notificationService.disposeToast(ORIGIN_HEALTH_TOAST_ID);
     notificationService.disposeToast(CLEANUP_TOAST_ID);
     this.root.remove();
   }
 
   private render(): void {
+    this.renderDisposables.clear();
     reset(this.root);
     this.root.appendChild(this.createLayout());
     this.updateToasts();
@@ -375,12 +381,12 @@ export class SettingsView {
     container.append(
       cardRow(
         "settings-transparent-chrome-card",
-        localize("settings.transparentChrome.title", "Transparent page"),
-        this.createToggle({
+        localize("settings.transparentChrome.title", "Translucent sidebar"),
+        this.createSwitch({
+          ariaLabel: localize("settings.transparentChrome.title", "Translucent sidebar"),
           checked: appearanceSettings.transparentChrome,
           disabled: appearanceSettings.isSaving,
           id: "settings-transparent-chrome-toggle",
-          label: localize("settings.transparentChrome.toggle", "Use Mica/transparent page"),
           onChange: checked => void appearanceSettings.onTransparentChromeChange(checked),
         }),
       ),
@@ -635,20 +641,17 @@ export class SettingsView {
     return container;
   }
 
-  private createSelect(options: FieldOptions): HTMLSelectElement {
-    const select = document.createElement("select");
-    select.id = options.id;
-    select.className = "inputbox_field settings-select";
-    select.value = options.value;
-    select.disabled = options.disabled === true;
-    for (const option of options.options) {
-      const element = document.createElement("option");
-      element.value = option.value;
-      element.textContent = option.label;
-      select.appendChild(element);
-    }
-    select.addEventListener("change", () => options.onChange(select.value));
-    return select;
+  private createSelect(options: FieldOptions): HTMLButtonElement {
+    const select = createSelectBox({
+      id: options.id,
+      className: "settings-select",
+      disabled: options.disabled,
+      value: options.value,
+      options: options.options as readonly SelectBoxOption<string>[],
+      onDidSelect: options.onChange,
+    });
+    this.renderDisposables.add(select);
+    return select.domNode;
   }
 
   private createInput(options: TextInputOptions): HTMLInputElement {
@@ -667,26 +670,22 @@ export class SettingsView {
     return input;
   }
 
-  private createToggle(options: {
+  private createSwitch(options: {
+    ariaLabel: string;
     checked: boolean;
     disabled?: boolean;
     id: string;
-    label: string;
     onChange: (checked: boolean) => void;
-  }): HTMLLabelElement {
-    const labelElement = document.createElement("label");
-    labelElement.className = "settings-toggle";
-    const input = document.createElement("input");
-    input.id = options.id;
-    input.type = "checkbox";
-    input.checked = options.checked;
-    input.disabled = options.disabled === true;
-    input.addEventListener("change", () => options.onChange(input.checked));
-    labelElement.append(
-      input,
-      text("span", "settings-toggle-label", options.label),
-    );
-    return labelElement;
+  }): HTMLButtonElement {
+    const button = createSwitch({
+      checked: options.checked,
+      className: "settings-switch",
+      disabled: options.disabled,
+      id: options.id,
+    });
+    button.setAttribute("aria-label", options.ariaLabel);
+    button.addEventListener("click", () => options.onChange(!options.checked));
+    return button;
   }
 
   private createButton(options: {

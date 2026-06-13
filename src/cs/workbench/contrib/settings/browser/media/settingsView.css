@@ -223,7 +223,10 @@
 }
 
 .settings-select {
+  height: 30px;
   width: 100%;
+  padding: 0 10px;
+  font-weight: 500;
 }
 
 .settings-feedback {
@@ -298,34 +301,9 @@
   box-shadow: 0 0 0 2px rgb(var(--bg-surface)), 0 0 0 4px rgb(var(--text-primary) / 0.22);
 }
 
-.settings-toggle {
-  display: inline-flex;
-  height: 38px;
-  align-items: center;
-  gap: 0.5rem;
-  border-radius: 0.5rem;
-  border-width: 1px;
-  --tw-border-opacity: 1;
-  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
-  --tw-bg-opacity: 1;
-  background-color: rgb(var(--bg-page) / var(--tw-bg-opacity, 1));
-  padding-left: 0.75rem;
-  padding-right: 0.75rem;
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  --tw-text-opacity: 1;
-  color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
-}
-
-.settings-toggle input {
-  height: 1rem;
-  width: 1rem;
-}
-
-.settings-toggle-label {
-  white-space: nowrap;
+.settings-switch {
+  --switch-width: 40px;
+  --switch-height: 22px;
 }
 
 .settings-actions-end {
