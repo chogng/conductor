@@ -36,11 +36,17 @@
   color: rgb(var(--text-tertiary));
 }
 
+.quick-input-scroll-area {
+  flex: 1 1 auto;
+  max-height: calc(min(32rem, calc(100vh - 96px)) - 44px);
+}
+
 .quick-input-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  overflow-y: auto;
+  height: auto;
+  max-height: calc(min(32rem, calc(100vh - 96px)) - 44px);
   padding: 6px;
 }
 

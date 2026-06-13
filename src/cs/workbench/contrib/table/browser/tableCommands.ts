@@ -9,33 +9,34 @@ import {
 } from "src/cs/workbench/services/table/common/table";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
-import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
+import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
+import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 
 type TableCommandRegistration = {
   readonly id: TableCommandIdValue;
-  readonly description: string;
+  readonly title: string;
 };
 
 const tableCommandRegistrations: readonly TableCommandRegistration[] = [
   {
     id: TableCommandId.clearSelection,
-    description: localize("table.commands.clearSelection", "Clear table selection"),
+    title: localize("table.commands.clearSelection", "Clear table selection"),
   },
   {
     id: TableCommandId.resetZoom,
-    description: localize("table.commands.resetZoom", "Reset table zoom"),
+    title: localize("table.commands.resetZoom", "Reset table zoom"),
   },
   {
     id: TableCommandId.selectAllColumns,
-    description: localize("table.commands.selectAllColumns", "Select all table columns"),
+    title: localize("table.commands.selectAllColumns", "Select all table columns"),
   },
   {
     id: TableCommandId.zoomIn,
-    description: localize("table.commands.zoomIn", "Zoom in table"),
+    title: localize("table.commands.zoomIn", "Zoom in table"),
   },
   {
     id: TableCommandId.zoomOut,
-    description: localize("table.commands.zoomOut", "Zoom out table"),
+    title: localize("table.commands.zoomOut", "Zoom out table"),
   },
 ];
 
@@ -43,15 +44,25 @@ export const registerTableCommands = (): IDisposable => {
   const disposables = new DisposableStore();
 
   for (const command of tableCommandRegistrations) {
-    disposables.add(CommandsRegistry.registerCommand({
-      id: command.id,
-      handler: accessor => runTableServiceCommand(
-        accessor.get(ITableService),
-        command.id,
-      ),
-      metadata: {
-        description: command.description,
-      },
+    disposables.add(registerAction2(class TableCommandAction extends Action2 {
+      public constructor() {
+        super({
+          category: localize("table.commands.category", "Table"),
+          f1: true,
+          id: command.id,
+          title: command.title,
+          metadata: {
+            description: command.title,
+          },
+        });
+      }
+
+      public run(accessor: ServicesAccessor): boolean {
+        return runTableServiceCommand(
+          accessor.get(ITableService),
+          command.id,
+        );
+      }
     }));
   }
 

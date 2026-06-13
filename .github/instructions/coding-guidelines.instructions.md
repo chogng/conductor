@@ -80,6 +80,10 @@ Use `commands.instructions.md` for the full command/action rules. Quick checks:
 Do not register `CommandsRegistry.registerCommand(...)` and `registerAction2(...)`
 with the same id. `Action2` already registers a command.
 
+Command Palette visibility comes from `MenuId.CommandPalette`; do not make quick
+access scan bare `CommandsRegistry` entries to compensate for missing action/menu
+registration.
+
 Command and action IDs describe the owning operation, not the UI location that
 happens to invoke it. Avoid IDs such as `titlebar.selectFile` for behavior
 owned by Files/Explorer or workbench mode switching.

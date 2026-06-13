@@ -4,7 +4,8 @@
 
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
-import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
+import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
+import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import {
   EDIT_CHART_X_AXIS_TITLE_COMMAND_ID,
   EDIT_CHART_Y_AXIS_TITLE_COMMAND_ID,
@@ -17,21 +18,39 @@ import {
 
 export const registerChartCommands = (): IDisposable => {
   const disposables = new DisposableStore();
-  disposables.add(CommandsRegistry.registerCommand({
-    id: EDIT_CHART_X_AXIS_TITLE_COMMAND_ID,
-    handler: (accessor, pane?: unknown) =>
-      editAxisTitle(accessor.get(IChartTitleEditService), "x", pane),
-    metadata: {
-      description: localize("chart.commands.editXAxisTitle", "Edit chart X axis title"),
-    },
+  disposables.add(registerAction2(class EditChartXAxisTitleAction extends Action2 {
+    public constructor() {
+      super({
+        category: localize("chart.commands.category", "Chart"),
+        f1: true,
+        id: EDIT_CHART_X_AXIS_TITLE_COMMAND_ID,
+        title: localize("chart.commands.editXAxisTitle", "Edit chart X axis title"),
+        metadata: {
+          description: localize("chart.commands.editXAxisTitle", "Edit chart X axis title"),
+        },
+      });
+    }
+
+    public run(accessor: ServicesAccessor, pane?: unknown): boolean {
+      return editAxisTitle(accessor.get(IChartTitleEditService), "x", pane);
+    }
   }));
-  disposables.add(CommandsRegistry.registerCommand({
-    id: EDIT_CHART_Y_AXIS_TITLE_COMMAND_ID,
-    handler: (accessor, pane?: unknown) =>
-      editAxisTitle(accessor.get(IChartTitleEditService), "y", pane),
-    metadata: {
-      description: localize("chart.commands.editYAxisTitle", "Edit chart Y axis title"),
-    },
+  disposables.add(registerAction2(class EditChartYAxisTitleAction extends Action2 {
+    public constructor() {
+      super({
+        category: localize("chart.commands.category", "Chart"),
+        f1: true,
+        id: EDIT_CHART_Y_AXIS_TITLE_COMMAND_ID,
+        title: localize("chart.commands.editYAxisTitle", "Edit chart Y axis title"),
+        metadata: {
+          description: localize("chart.commands.editYAxisTitle", "Edit chart Y axis title"),
+        },
+      });
+    }
+
+    public run(accessor: ServicesAccessor, pane?: unknown): boolean {
+      return editAxisTitle(accessor.get(IChartTitleEditService), "y", pane);
+    }
   }));
   return disposables;
 };

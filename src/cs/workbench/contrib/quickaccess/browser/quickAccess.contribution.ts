@@ -1,10 +1,11 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { Registry } from "src/cs/platform/registry/common/platform";
+import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import {
-  CommandsRegistry,
   ICommandService,
 } from "src/cs/platform/commands/common/commands";
+import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import {
   QuickAccessExtensions,
   type IQuickAccessRegistry,
@@ -30,6 +31,44 @@ import {
 
 export const QuickAccessContributionId = "workbench.contrib.quickAccess";
 
+registerAction2(class QuickOpenAction extends Action2 {
+  public constructor() {
+    super({
+      category: localize("quickAccess.commands.category", "Quick Access"),
+      f1: true,
+      id: QuickAccessCommandId.quickOpen,
+      title: localize("workbench.commands.quickOpen", "Show quick access"),
+      metadata: {
+        description: localize("workbench.commands.quickOpen", "Show quick access"),
+      },
+    });
+  }
+
+  public run(accessor: ServicesAccessor, value?: unknown): void {
+    const quickInput = accessor.get(IQuickInputService);
+    quickInput.quickAccess.show(typeof value === "string" ? value : undefined);
+  }
+});
+
+registerAction2(class ShowCommandsAction extends Action2 {
+  public constructor() {
+    super({
+      category: localize("quickAccess.commands.category", "Quick Access"),
+      f1: true,
+      id: QuickAccessCommandId.showCommands,
+      title: localize("workbench.commands.showCommands", "Show available commands"),
+      metadata: {
+        description: localize("workbench.commands.showCommands", "Show available commands"),
+      },
+    });
+  }
+
+  public run(accessor: ServicesAccessor): void {
+    const quickInput = accessor.get(IQuickInputService);
+    quickInput.quickAccess.show(COMMANDS_QUICK_ACCESS_PREFIX);
+  }
+});
+
 class QuickAccessContribution extends Disposable implements IWorkbenchContribution {
   public constructor(
     @IQuickInputService quickInputService: IQuickInputService,
@@ -42,7 +81,7 @@ class QuickAccessContribution extends Disposable implements IWorkbenchContributi
     const registry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.QuickAccess);
     this._register(registry.registerQuickAccessProvider({
       prefix: "",
-      placeholder: localize("quickAccess.placeholder", "Quick access"),
+      placeholder: localize("quickAccess.placeholder", "Search commands/files"),
       provider: new DefaultQuickAccessProvider(quickInputService),
     }));
     this._register(registry.registerQuickAccessProvider({
@@ -54,27 +93,6 @@ class QuickAccessContribution extends Disposable implements IWorkbenchContributi
       prefix: COMMANDS_QUICK_ACCESS_PREFIX,
       placeholder: localize("quickAccess.commands.placeholder", "Search commands"),
       provider: new CommandsQuickAccessProvider(commandService),
-    }));
-
-    this._register(CommandsRegistry.registerCommand({
-      id: QuickAccessCommandId.quickOpen,
-      handler: (accessor, value?: unknown) => {
-        const quickInput = accessor.get(IQuickInputService);
-        quickInput.quickAccess.show(typeof value === "string" ? value : undefined);
-      },
-      metadata: {
-        description: localize("workbench.commands.quickOpen", "Show quick access"),
-      },
-    }));
-    this._register(CommandsRegistry.registerCommand({
-      id: QuickAccessCommandId.showCommands,
-      handler: accessor => {
-        const quickInput = accessor.get(IQuickInputService);
-        quickInput.quickAccess.show(COMMANDS_QUICK_ACCESS_PREFIX);
-      },
-      metadata: {
-        description: localize("workbench.commands.showCommands", "Show available commands"),
-      },
     }));
   }
 }

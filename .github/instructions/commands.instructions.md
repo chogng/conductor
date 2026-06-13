@@ -54,6 +54,27 @@ normalize arguments if needed and delegate to a handler, controller, or service.
 Do not invent a second internal command id just to wrap every Action2 unless the
 operation genuinely needs a separate non-UI command surface.
 
+## Command Palette visibility
+
+Follow the upstream VS Code path: the command palette is built from
+`MenuId.CommandPalette` menu actions, not by scanning
+`CommandsRegistry.getCommands()`.
+
+Use one of these registration paths for commands that should appear in command
+search:
+
+- `registerAction2(...)` with `f1: true`. This registers the executable command
+  and contributes it to `MenuId.CommandPalette`.
+- `MenuRegistry.addCommand(...)` or an explicit `MenuRegistry.appendMenuItem(...)`
+  only when the feature already owns lower-level menu wiring and `Action2` is
+  not the right abstraction.
+
+A bare `CommandsRegistry.registerCommand(...)` command is callable through
+`ICommandService`, but it is not automatically a user-visible command palette
+entry. Do not "fix" missing command search results by teaching the quick access
+provider to scan `CommandsRegistry`; register the missing user-visible
+operation as an action/menu contribution beside the feature owner instead.
+
 ## Command layers
 
 Use this ownership chain:
