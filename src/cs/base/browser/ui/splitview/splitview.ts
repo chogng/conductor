@@ -88,6 +88,18 @@ export const normalizeSplitViewSizes = (
     return [];
   }
 
+  const preferredSizes = panes.map((pane, index) =>
+    clamp(
+      previousSizes[index] ?? pane.size ?? pane.defaultSize ?? 0,
+      getPaneMinSize(pane),
+      getPaneMaxSize(pane),
+    ),
+  );
+
+  if (availableSize <= 0) {
+    return preferredSizes;
+  }
+
   const fallbackSize = availableSize > 0 ? availableSize / panes.length : 0;
   const canUseProportions =
     previousAvailableSize > 0 &&
@@ -129,6 +141,26 @@ export const normalizeSplitViewSizes = (
   }
 
   return sizes;
+};
+
+const preserveSplitViewSizesByPaneId = (
+  previousPanes: readonly SplitViewPane[],
+  previousSizes: readonly number[],
+  nextPanes: readonly SplitViewPane[],
+): number[] => {
+  if (!previousPanes.length || !previousSizes.length) {
+    return [];
+  }
+
+  const previousSizesById = new Map<string, number>();
+  for (let index = 0; index < previousPanes.length; index += 1) {
+    const size = previousSizes[index];
+    if (typeof size === "number") {
+      previousSizesById.set(previousPanes[index].id, size);
+    }
+  }
+
+  return nextPanes.map(pane => previousSizesById.get(pane.id) ?? pane.size ?? pane.defaultSize ?? 0);
 };
 
 export const resizeAdjacentSplitViewPanes = (
@@ -227,7 +259,11 @@ export class SplitView implements IDisposable {
   }
 
   public update(options: SplitViewOptions): void {
+    const previousPanes = this.options.panes;
     this.options = options;
+    if (!areSplitViewPaneIdsEqual(previousPanes, options.panes)) {
+      this.sizes = preserveSplitViewSizesByPaneId(previousPanes, this.sizes, options.panes);
+    }
     this.applyRoot();
     this.renderPanes();
     this.updateContainerSize();
@@ -431,3 +467,10 @@ const getSashOrientation = (
   orientation: SplitViewOrientation,
 ): SashDragOrientation =>
   orientation === "horizontal" ? "vertical" : "horizontal";
+
+const areSplitViewPaneIdsEqual = (
+  left: readonly SplitViewPane[],
+  right: readonly SplitViewPane[],
+): boolean =>
+  left.length === right.length &&
+  left.every((pane, index) => pane.id === right[index].id);
