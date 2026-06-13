@@ -10,20 +10,11 @@ import {
   type LayoutView,
   type WorkbenchMainPart,
 } from "src/cs/workbench/services/layout/browser/layoutService";
-import {
-  SidebarPart,
-} from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
-import {
-  AuxiliaryBarPart,
-} from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
+import { SidebarPart } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
+import { AuxiliaryBarPart } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 import { WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS } from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 import type { IStorageService } from "src/cs/platform/storage/common/storage";
 
-export {
-  SIDEBAR_DEFAULT_WIDTH_PX,
-  SIDEBAR_MAX_WIDTH_PX,
-  SIDEBAR_MIN_WIDTH_PX,
-} from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 export type { LayoutView } from "src/cs/workbench/services/layout/browser/layoutService";
 
 export const MAIN_MIN_WIDTH_PX = 220;

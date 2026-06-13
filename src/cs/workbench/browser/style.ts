@@ -1,4 +1,4 @@
-import { SIDEBAR_DEFAULT_WIDTH_PX } from "src/cs/workbench/browser/layout";
+import { SIDEBAR_DEFAULT_WIDTH_PX } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 
 import "src/cs/workbench/browser/media/style.css";
 import "src/cs/workbench/browser/media/part.css";

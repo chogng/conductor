@@ -5,9 +5,6 @@ import {
 } from "src/cs/platform/storage/common/storage";
 import {
   MAIN_MIN_WIDTH_PX,
-  SIDEBAR_DEFAULT_WIDTH_PX,
-  SIDEBAR_MAX_WIDTH_PX,
-  SIDEBAR_MIN_WIDTH_PX,
   TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX,
 } from "src/cs/workbench/browser/layout";
 import {
@@ -15,7 +12,12 @@ import {
   AUXILIARY_BAR_MAX_WIDTH_PX,
   AUXILIARY_BAR_MIN_WIDTH_PX,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
-import { SidebarLayout } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
+import {
+  SidebarLayout,
+  SIDEBAR_DEFAULT_WIDTH_PX,
+  SIDEBAR_MAX_WIDTH_PX,
+  SIDEBAR_MIN_WIDTH_PX,
+} from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import {
   BrowserWorkbenchLayoutService,
   Parts,

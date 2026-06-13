@@ -5,7 +5,6 @@ import {
   INativeHostService,
   type INativeHostService as INativeHostServiceType,
 } from "src/cs/platform/native/common/native";
-import { WindowCommandId } from "src/cs/workbench/browser/actions/windowCommands";
 
 const getNativeHostService = (
   accessor: ServicesAccessor,
@@ -31,54 +30,12 @@ export const installWindowDeveloperKeybindings = (
   return () => window.removeEventListener("keydown", listener);
 };
 
-class MinimizeWindowAction extends Action2 {
-  public constructor() {
-    super({
-      id: WindowCommandId.minimizeWindow,
-      title: localize("menu.window.minimize", "Minimize Window"),
-      f1: true,
-      metadata: {
-        description: localize("window.minimizeWindowDescription", "Minimize the current window."),
-      },
-    });
-  }
-
-  public async run(accessor: ServicesAccessor): Promise<void> {
-    await getNativeHostService(accessor)?.minimizeWindow();
-  }
-}
-
-class ToggleMaximizeWindowAction extends Action2 {
-  public constructor() {
-    super({
-      id: WindowCommandId.toggleMaximizeWindow,
-      title: localize("menu.window.maximize", "Maximize / Restore"),
-      f1: true,
-      metadata: {
-        description: localize("window.toggleMaximizeWindowDescription", "Maximize or restore the current window."),
-      },
-    });
-  }
-
-  public async run(accessor: ServicesAccessor): Promise<void> {
-    const nativeHostService = getNativeHostService(accessor);
-    if (!nativeHostService) {
-      return;
-    }
-
-    if (await nativeHostService.isMaximized()) {
-      await nativeHostService.unmaximizeWindow();
-      return;
-    }
-
-    await nativeHostService.maximizeWindow();
-  }
-}
-
 class CloseWindowAction extends Action2 {
+  public static readonly ID = "workbench.action.closeWindow";
+
   public constructor() {
     super({
-      id: WindowCommandId.closeWindow,
+      id: CloseWindowAction.ID,
       title: localize("menu.window.close", "Close Window"),
       f1: true,
       metadata: {
@@ -92,6 +49,4 @@ class CloseWindowAction extends Action2 {
   }
 }
 
-registerAction2(MinimizeWindowAction);
-registerAction2(ToggleMaximizeWindowAction);
 registerAction2(CloseWindowAction);
