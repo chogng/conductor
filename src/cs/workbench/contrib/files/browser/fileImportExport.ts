@@ -11,14 +11,14 @@ import { URI } from "src/cs/base/common/uri";
 import { localize } from "src/cs/nls";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
-import {
-  collectDataTransferFiles,
-  getPathForFile,
-  type DataTransferFile,
-} from "src/cs/platform/dnd/browser/dnd";
+import { getPathForFile } from "src/cs/platform/dnd/browser/dnd";
 import { HTMLFileSystemProvider } from "src/cs/platform/files/browser/htmlFileSystemProvider";
 import {
   detectFolderImportSupport,
+  WebFileSystemAccess,
+  type FileSystemDirectoryHandle,
+  type FileSystemFileHandle,
+  type FileSystemHandle,
   type FolderImportSupport,
 } from "src/cs/platform/files/browser/webFileSystemAccess";
 import {
@@ -400,10 +400,7 @@ export class FileSourceWorkflow implements IDisposable {
 
     if (firstImport.result && canApplyResult()) {
       const { prepared } = firstImport.result;
-      this.options.onReplacePreparedFiles(
-        [prepared],
-        prepared.fileInfo.fileId,
-      );
+      this.options.onAppendPreparedFiles([prepared]);
     }
 
     if (canApplyResult()) {
@@ -1529,6 +1526,40 @@ type FolderFileStatTask = {
   readonly resource: URI;
 };
 
+type DroppedFile = {
+  readonly file: File;
+  readonly relativePath?: string | null;
+};
+
+type WebkitFileSystemEntry = {
+  readonly isDirectory: boolean;
+  readonly isFile: boolean;
+  readonly name: string;
+};
+
+type WebkitFileSystemFileEntry = WebkitFileSystemEntry & {
+  readonly isFile: true;
+  file(
+    successCallback: (file: File) => void,
+    errorCallback?: () => void,
+  ): void;
+};
+
+type WebkitFileSystemDirectoryEntry = WebkitFileSystemEntry & {
+  readonly isDirectory: true;
+  createReader(): {
+    readEntries(
+      successCallback: (entries: WebkitFileSystemEntry[]) => void,
+      errorCallback?: () => void,
+    ): void;
+  };
+};
+
+type DataTransferItemWithFileSystemAccess = DataTransferItem & {
+  getAsFileSystemHandle?: () => Promise<FileSystemHandle | null>;
+  webkitGetAsEntry?: () => WebkitFileSystemEntry | null;
+};
+
 const isAbsoluteFilePath = (filePath: string): boolean => {
   if (isWindows) {
     return /^[a-zA-Z]:[\\/]/.test(filePath) || filePath.startsWith("\\\\");
@@ -1579,12 +1610,190 @@ export const createFileSource = (
 const createDroppedFileSource = ({
   file,
   relativePath,
-}: DataTransferFile): FileSource => createFileSource(file, relativePath);
+}: DroppedFile): FileSource => createFileSource(file, relativePath);
 
 export const collectDroppedFiles = async (
   dataTransfer: DataTransfer,
-): Promise<FileSource[]> =>
-  (await collectDataTransferFiles(dataTransfer)).map(createDroppedFileSource);
+): Promise<FileSource[]> => {
+  const droppedFiles: DroppedFile[] = [];
+  const items = Array.from(dataTransfer.items) as DataTransferItemWithFileSystemAccess[];
+
+  for (const item of items) {
+    const handle = await getDroppedFileSystemHandle(item);
+    if (handle) {
+      await collectFileSystemHandleFiles(handle, droppedFiles);
+      continue;
+    }
+
+    const entry = item.webkitGetAsEntry?.() ?? null;
+    if (entry) {
+      await collectWebkitEntryFiles(entry, droppedFiles);
+    }
+  }
+
+  const seenFiles = new Set(droppedFiles.map(({ file, relativePath }) =>
+    getDroppedFileKey(file, relativePath)
+  ));
+  for (const file of Array.from(dataTransfer.files)) {
+    const relativePath = file.name;
+    const key = getDroppedFileKey(file, relativePath);
+    if (seenFiles.has(key)) {
+      continue;
+    }
+
+    seenFiles.add(key);
+    droppedFiles.push({ file, relativePath });
+  }
+
+  return droppedFiles.map(createDroppedFileSource);
+};
+
+const getDroppedFileKey = (file: File, relativePath?: string | null): string =>
+  `${relativePath || file.name}::${file.size}::${file.lastModified}`;
+
+async function getDroppedFileSystemHandle(
+  item: DataTransferItemWithFileSystemAccess,
+): Promise<FileSystemHandle | null> {
+  if (typeof item.getAsFileSystemHandle !== "function") {
+    return null;
+  }
+
+  try {
+    const handle = await item.getAsFileSystemHandle();
+    return WebFileSystemAccess.isFileSystemHandle(handle) ? handle : null;
+  } catch {
+    return null;
+  }
+}
+
+async function collectFileSystemHandleFiles(
+  handle: FileSystemHandle,
+  files: DroppedFile[],
+  parentPath = "",
+): Promise<void> {
+  const relativePath = parentPath ? `${parentPath}/${handle.name}` : handle.name;
+
+  if (WebFileSystemAccess.isFileSystemFileHandle(handle)) {
+    const file = await tryReadFileSystemHandleFile(handle);
+    if (file) {
+      files.push({ file, relativePath });
+    }
+    return;
+  }
+
+  if (!WebFileSystemAccess.isFileSystemDirectoryHandle(handle)) {
+    return;
+  }
+
+  for (const child of await readDirectoryHandleChildren(handle)) {
+    await collectFileSystemHandleFiles(child, files, relativePath);
+  }
+}
+
+async function tryReadFileSystemHandleFile(
+  handle: FileSystemFileHandle,
+): Promise<File | null> {
+  try {
+    return await handle.getFile();
+  } catch {
+    return null;
+  }
+}
+
+async function readDirectoryHandleChildren(
+  handle: FileSystemDirectoryHandle,
+): Promise<FileSystemHandle[]> {
+  const children: FileSystemHandle[] = [];
+
+  try {
+    if (typeof handle.entries === "function") {
+      for await (const [, child] of handle.entries()) {
+        children.push(child);
+      }
+      return children;
+    }
+
+    if (typeof handle[Symbol.asyncIterator] === "function") {
+      for await (const [, child] of handle[Symbol.asyncIterator]()) {
+        children.push(child);
+      }
+      return children;
+    }
+
+    if (typeof handle.values === "function") {
+      for await (const child of handle.values()) {
+        children.push(child);
+      }
+    }
+  } catch {
+    return children;
+  }
+
+  return children;
+}
+
+async function collectWebkitEntryFiles(
+  entry: WebkitFileSystemEntry,
+  files: DroppedFile[],
+  parentPath = "",
+): Promise<void> {
+  const relativePath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+
+  if (entry.isFile) {
+    const file = await tryReadWebkitEntryFile(entry as WebkitFileSystemFileEntry);
+    if (file) {
+      files.push({ file, relativePath });
+    }
+    return;
+  }
+
+  if (!entry.isDirectory) {
+    return;
+  }
+
+  for (const child of await readAllWebkitDirectoryEntries(entry as WebkitFileSystemDirectoryEntry)) {
+    await collectWebkitEntryFiles(child, files, relativePath);
+  }
+}
+
+function tryReadWebkitEntryFile(
+  entry: WebkitFileSystemFileEntry,
+): Promise<File | null> {
+  return new Promise<File | null>((resolve) => {
+    try {
+      entry.file(
+        file => resolve(file),
+        () => resolve(null),
+      );
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function readAllWebkitDirectoryEntries(
+  entry: WebkitFileSystemDirectoryEntry,
+): Promise<WebkitFileSystemEntry[]> {
+  const reader = entry.createReader();
+  const collected: WebkitFileSystemEntry[] = [];
+
+  while (true) {
+    const batch = await new Promise<WebkitFileSystemEntry[]>((resolve) => {
+      try {
+        reader.readEntries(resolve, () => resolve([]));
+      } catch {
+        resolve([]);
+      }
+    });
+    if (!batch.length) {
+      break;
+    }
+
+    collected.push(...batch);
+  }
+
+  return collected;
+}
 
 export const pickFolderImportFiles = async ({
   dialogsService,

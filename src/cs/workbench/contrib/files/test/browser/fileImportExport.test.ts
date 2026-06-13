@@ -15,11 +15,14 @@ import type {
 } from "../../../../services/files/common/fileConverterBackend.ts";
 import {
   canImportFolderWithFileService,
+  collectDroppedFiles,
   collectFolderImportFiles,
+  FileSourceWorkflow,
   getFolderImportSupportForFileService,
   prepareFirstPendingImportFile,
   prepareRemainingPendingImportFiles,
   type FileImportPrepareFailure,
+  type FileSource,
   type PendingImportFile,
 } from "../../browser/fileImportExport.ts";
 
@@ -183,6 +186,53 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.equal(result.readFailures[0].message, "Permission denied");
   });
 
+  test("collectDroppedFiles reads file system handles before FileList fallback", async () => {
+    const file = createCsvFile("transfer.csv", "Vg,Id\n0,1");
+    const result = await collectDroppedFiles(createDataTransfer({
+      files: [file],
+      items: [{
+        getAsFileSystemHandle: async () => createStableFileHandle(file),
+      }],
+    }));
+
+    assert.deepEqual(result.map(source => source.relativePath), ["transfer.csv"]);
+    assert.equal(result.length, 1);
+  });
+
+  test("collectDroppedFiles preserves dropped directory relative paths", async () => {
+    const result = await collectDroppedFiles(createDataTransfer({
+      files: [],
+      items: [{
+        getAsFileSystemHandle: async () => createDirectoryHandle({
+          children: [
+            createDirectoryHandle({
+              children: [
+                createFileHandle("nested.csv", "Vg,Id\n0,1"),
+              ],
+              name: "child",
+            }),
+          ],
+          name: "root",
+        }),
+      }],
+    }));
+
+    assert.deepEqual(result.map(source => source.relativePath), ["root/child/nested.csv"]);
+  });
+
+  test("collectDroppedFiles falls back to webkit entries", async () => {
+    const result = await collectDroppedFiles(createDataTransfer({
+      files: [],
+      items: [{
+        webkitGetAsEntry: () => createWebkitDirectoryEntry("folder", [
+          createWebkitFileEntry(createCsvFile("A.csv", "Vg,Id\n0,1")),
+        ]),
+      }],
+    }));
+
+    assert.deepEqual(result.map(source => source.relativePath), ["folder/A.csv"]);
+  });
+
   test("prepares the selected relative path first", async () => {
     const failedFiles: FileImportPrepareFailure[] = [];
     const result = await prepareFirstPendingImportFile({
@@ -240,6 +290,44 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.deepEqual(appendedFileNames, ["A.csv", "B.csv", "C.csv"]);
     assert.equal(failedFiles.length, 0);
   });
+
+  test("dropped file import appends instead of replacing existing files", async () => {
+    const appendedFileNames: string[] = [];
+    const replacedFileNames: string[] = [];
+    const workflow = new FileSourceWorkflow({
+      commandService: {
+        executeCommand: async () => null,
+      },
+      fileConverterBackendService: createFileConverterBackendStub(),
+      filesService: new FileService(),
+      getFiles: () => [{
+        fileId: "existing-file",
+        fileName: "Existing.csv",
+        itemKey: "file:existing-file",
+        sourceKey: "Existing.csv::8::1",
+      }],
+      getSelectedRelativePath: () => null,
+      isDisposed: () => false,
+      onAppendPreparedFiles: preparedFiles => {
+        appendedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
+      },
+      onDraggingChange: () => undefined,
+      onErrorChange: () => undefined,
+      onRemoveFiles: () => undefined,
+      onReplacePreparedFiles: preparedFiles => {
+        replacedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
+      },
+      syncView: () => undefined,
+    });
+
+    await (workflow as unknown as {
+      importFiles(files: readonly FileSource[]): Promise<void>;
+    }).importFiles([createDataFileSource("Added.csv")]);
+    workflow.dispose();
+
+    assert.deepEqual(appendedFileNames, ["Added.csv"]);
+    assert.deepEqual(replacedFileNames, []);
+  });
 });
 
 const createFileConverterBackendStub = (
@@ -255,6 +343,73 @@ const createFileConverterBackendStub = (
   }),
   ...overrides,
 });
+
+type TestDataTransferItem = Partial<DataTransferItem> & {
+  readonly getAsFileSystemHandle?: () => Promise<FileSystemHandle | null>;
+  readonly webkitGetAsEntry?: () => unknown;
+};
+
+function createDataTransfer({
+  files,
+  items,
+}: {
+  readonly files: readonly File[];
+  readonly items: readonly TestDataTransferItem[];
+}): DataTransfer {
+  return {
+    files,
+    items,
+  } as unknown as DataTransfer;
+}
+
+function createCsvFile(fileName: string, text: string): File {
+  return new File([text], fileName, {
+    lastModified: 1,
+    type: "text/csv;charset=utf-8",
+  });
+}
+
+function createStableFileHandle(file: File): FileSystemFileHandle {
+  return {
+    kind: "file",
+    name: file.name,
+    getFile: async () => file,
+  };
+}
+
+function createWebkitFileEntry(file: File) {
+  return {
+    isDirectory: false,
+    isFile: true,
+    name: file.name,
+    file: (resolve: (file: File) => void) => resolve(file),
+  };
+}
+
+function createWebkitDirectoryEntry(
+  name: string,
+  entries: readonly unknown[],
+) {
+  return {
+    isDirectory: true,
+    isFile: false,
+    name,
+    createReader: () => {
+      let hasRead = false;
+      return {
+        readEntries: (resolve: (entries: readonly unknown[]) => void) => {
+          if (hasRead) {
+            resolve([]);
+            return;
+          }
+
+          hasRead = true;
+          resolve(entries);
+        },
+      };
+    },
+  };
+}
 
 function createControlledPathBackend(): FileConverterBackend & {
   readonly fileNames: readonly string[];
@@ -293,10 +448,7 @@ function createDataPendingFile(
   fileName: string,
   relativePath: string,
 ): PendingImportFile {
-  const file = new File(["Vg,Id\n0,1"], fileName, {
-    lastModified: 123,
-    type: "text/csv",
-  });
+  const file = createCsvFile(fileName, "Vg,Id\n0,1");
 
   return createPendingFile({
     kind: "data",
@@ -306,6 +458,17 @@ function createDataPendingFile(
     sourceName: fileName,
     sourceSize: file.size,
   });
+}
+
+function createDataFileSource(fileName: string): FileSource {
+  const file = createCsvFile(fileName, "Vg,Id\n0,1");
+
+  return {
+    file,
+    kind: "data",
+    relativePath: null,
+    resource: null,
+  };
 }
 
 function createPathPendingFile(
