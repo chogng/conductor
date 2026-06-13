@@ -2,12 +2,9 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 import {
-  calculateGmPoints,
-  calculateIvPoints,
-  calculateSsPoints,
-  calculateVthPoints,
-} from "src/cs/workbench/services/calculation/common/firstCalculation";
-import { createSecondDerivativeResult } from "src/cs/workbench/services/calculation/common/secondCalculation";
+  executeCalculation,
+} from "src/cs/workbench/services/calculation/common/calculationExecutor";
+import { createSecondDerivativeResult } from "src/cs/workbench/services/calculation/common/gm";
 import { PlotTypes, type PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type {
   FileId,
@@ -623,21 +620,11 @@ const isArrayLike = (value: unknown): value is ArrayLike<unknown> =>
 const resolveCalculatedPoints = (
   plotType: PlotType,
   sourcePoints: readonly SourcePoint[],
-): CalculatedPoint[] => {
-  switch (plotType) {
-    // 一次计算区域：从清洗后的源数据直接得到 gm、SS、Vth 曲线。
-    case "gm":
-      return calculateGmPoints(sourcePoints).map(toCalculatedPoint);
-    case "ss":
-      return calculateSsPoints(sourcePoints).map(toCalculatedPoint);
-    case "vth":
-      return calculateVthPoints(sourcePoints).map(toCalculatedPoint);
-    // 一次计算区域：IV 只做绘图点格式归一，不额外派生。
-    case "iv":
-    default:
-      return calculateIvPoints(sourcePoints).map(toCalculatedPoint);
-  }
-};
+): CalculatedPoint[] =>
+  executeCalculation({
+    kind: plotType,
+    points: sourcePoints,
+  }).map(toCalculatedPoint);
 
 const toCalculatedPoint = ({ x, y }: SourcePoint): CalculatedPoint => ({
   x,

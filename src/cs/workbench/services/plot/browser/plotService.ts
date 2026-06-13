@@ -10,7 +10,7 @@ import {
   createSecondCalculatedData,
   getCalculatedData as getCalculatedDataFromMap,
   type CalculatedData,
-} from "src/cs/workbench/services/calculation/common/calculatedData";
+} from "src/cs/workbench/services/calculation/common/calculationResults";
 import { isPlotType } from "src/cs/workbench/services/plot/common/plot";
 import {
   IPlotService,

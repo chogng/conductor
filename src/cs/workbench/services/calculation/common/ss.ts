@@ -1,6 +1,10 @@
 /*---------------------------------------------------------------------------------------------
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
+
+import type { CalculationPoint } from "./calculation.ts";
+import { splitBidirectionalCurvePoints } from "./sweepSegmentation.ts";
+
 const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 const toPoint = (x: unknown, y: unknown) => {
     const yVal = isFiniteNumber(y) ? y : null;
@@ -39,456 +43,6 @@ export const SS_CONF = {
             fail: { minN: 8, minSpan: 0.3, minR2: 0.95, floorMarginDec: 0.3 },
         },
     },
-};
-const padDomain = (min: any, max: any) => {
-    if (!Number.isFinite(min) || !Number.isFinite(max))
-        return [0, 1];
-    const lo = Math.min(min, max);
-    const hi = Math.max(min, max);
-    if (lo === hi) {
-        const pad = lo === 0 ? 1 : Math.abs(lo) * 0.05;
-        return [lo - pad, hi + pad];
-    }
-    const span = hi - lo;
-    const pad = span * 0.05;
-    return [lo - pad, hi + pad];
-};
-const computeCentralDerivativeSegment = (points: any) => {
-    if (!Array.isArray(points) || points.length < 2)
-        return [];
-    const out = new Array(points.length);
-    for (let i = 0; i < points.length; i++) {
-        const curr = points[i];
-        const x = curr?.x;
-        const y = curr?.y;
-        if (!isFiniteNumber(x) || !isFiniteNumber(y)) {
-            out[i] = toPoint(x, null);
-            continue;
-        }
-        const prev = i > 0 ? points[i - 1] : null;
-        const next = i < points.length - 1 ? points[i + 1] : null;
-        if (prev && next) {
-            const dx = next.x - prev.x;
-            if (!isFiniteNumber(dx) || dx === 0) {
-                out[i] = toPoint(x, null);
-                continue;
-            }
-            out[i] = toPoint(x, (next.y - prev.y) / dx);
-            continue;
-        }
-        if (next) {
-            const dx = next.x - x;
-            if (!isFiniteNumber(dx) || dx === 0) {
-                out[i] = toPoint(x, null);
-                continue;
-            }
-            out[i] = toPoint(x, (next.y - y) / dx);
-            continue;
-        }
-        if (prev) {
-            const dx = x - prev.x;
-            if (!isFiniteNumber(dx) || dx === 0) {
-                out[i] = toPoint(x, null);
-                continue;
-            }
-            out[i] = toPoint(x, (y - prev.y) / dx);
-            continue;
-        }
-        out[i] = toPoint(x, null);
-    }
-    return out;
-};
-export const computeCentralDerivative = (points: any) => {
-    const segments = splitBidirectionalCurvePoints(points);
-    if (!segments.length)
-        return [];
-    if (segments.length === 1)
-        return computeCentralDerivativeSegment(segments[0].points);
-    return segments.flatMap((segment: any, index: number) => {
-        const computed = computeCentralDerivativeSegment(segment.points);
-        return index === 0 ? computed : computed.slice(1);
-    });
-};
-const interpolateMonotonicLinear = (xArrRaw: any, yArrRaw: any, xTarget: any) => {
-    const xArr = xArrRaw ?? [];
-    const yArr = yArrRaw ?? [];
-    const n = Math.min(xArr.length ?? 0, yArr.length ?? 0);
-    if (n <= 0)
-        return null;
-    const x0 = xArr[0];
-    const xN = xArr[n - 1];
-    if (!isFiniteNumber(x0) || !isFiniteNumber(xN) || !isFiniteNumber(xTarget)) {
-        return null;
-    }
-    const increasing = x0 <= xN;
-    if (increasing) {
-        if (xTarget < x0 || xTarget > xN)
-            return null;
-    }
-    else {
-        if (xTarget > x0 || xTarget < xN)
-            return null;
-    }
-    // Fast-path exact boundary matches.
-    if (xTarget === x0)
-        return isFiniteNumber(yArr[0]) ? yArr[0] : null;
-    if (xTarget === xN)
-        return isFiniteNumber(yArr[n - 1]) ? yArr[n - 1] : null;
-    let lo = 0;
-    let hi = n - 1;
-    // Binary search for bounding indices.
-    while (hi - lo > 1) {
-        const mid = (lo + hi) >> 1;
-        const xm = xArr[mid];
-        if (!isFiniteNumber(xm))
-            return null;
-        const goRight = increasing ? xm <= xTarget : xm >= xTarget;
-        if (goRight)
-            lo = mid;
-        else
-            hi = mid;
-    }
-    const xLo = xArr[lo];
-    const xHi = xArr[hi];
-    const yLo = yArr[lo];
-    const yHi = yArr[hi];
-    if (!isFiniteNumber(xLo) ||
-        !isFiniteNumber(xHi) ||
-        !isFiniteNumber(yLo) ||
-        !isFiniteNumber(yHi)) {
-        return null;
-    }
-    if (xTarget === xLo)
-        return yLo;
-    if (xTarget === xHi)
-        return yHi;
-    const dx = xHi - xLo;
-    if (!isFiniteNumber(dx) || dx === 0)
-        return yLo;
-    const t = (xTarget - xLo) / dx;
-    if (!isFiniteNumber(t))
-        return null;
-    // t should be in [0,1], but clamp to be safe with floating errors.
-    const tc = Math.max(0, Math.min(1, t));
-    return yLo + tc * (yHi - yLo);
-};
-export const interpolateCurveAtX = (pointsRaw: any, xTargetRaw: any, modeRaw: any = "linear") => {
-    if (!Array.isArray(pointsRaw))
-        return null;
-    const xTarget = Number(xTargetRaw);
-    const mode = modeRaw === "log" ? "log" : "linear";
-    if (!isFiniteNumber(xTarget))
-        return null;
-    const points = pointsRaw
-        .map((point: any) => ({
-        x: Number(point?.x),
-        y: Number(point?.y),
-    }))
-        .filter((point: any) => isFiniteNumber(point.x) && isFiniteNumber(point.y));
-    if (!points.length) {
-        return {
-            kind: "empty",
-            x: xTarget,
-            y: null,
-            left: null,
-            right: null,
-            domain: null,
-            mode,
-        };
-    }
-    let minPoint = points[0];
-    let maxPoint = points[0];
-    for (const point of points) {
-        if (point.x < minPoint.x)
-            minPoint = point;
-        if (point.x > maxPoint.x)
-            maxPoint = point;
-    }
-    const domain = {
-        minX: minPoint.x,
-        maxX: maxPoint.x,
-    };
-    if (points.length === 1) {
-        if (xTarget !== points[0].x) {
-            return {
-                kind: "outOfRange",
-                x: xTarget,
-                y: null,
-                left: points[0],
-                right: points[0],
-                domain,
-                mode,
-            };
-        }
-        return {
-            kind: "exact",
-            x: xTarget,
-            y: points[0].y,
-            left: points[0],
-            right: points[0],
-            domain,
-            mode,
-        };
-    }
-    if (xTarget < domain.minX || xTarget > domain.maxX) {
-        return {
-            kind: "outOfRange",
-            x: xTarget,
-            y: null,
-            left: minPoint,
-            right: maxPoint,
-            domain,
-            mode,
-        };
-    }
-    const exactPoint = points.find((point: any) => point.x === xTarget) ?? null;
-    if (exactPoint) {
-        return {
-            kind: "exact",
-            x: xTarget,
-            y: exactPoint.y,
-            left: exactPoint,
-            right: exactPoint,
-            domain,
-            mode,
-        };
-    }
-    let left: any = null;
-    let right: any = null;
-    let bestSpan = Number.POSITIVE_INFINITY;
-    for (let index = 0; index < points.length - 1; index += 1) {
-        const p1 = points[index];
-        const p2 = points[index + 1];
-        const x1 = p1?.x;
-        const x2 = p2?.x;
-        if (!isFiniteNumber(x1) || !isFiniteNumber(x2))
-            continue;
-        if (x1 === x2)
-            continue;
-        const lo = Math.min(x1, x2);
-        const hi = Math.max(x1, x2);
-        if (xTarget < lo || xTarget > hi)
-            continue;
-        const span = hi - lo;
-        if (span < bestSpan) {
-            bestSpan = span;
-            left = p1;
-            right = p2;
-        }
-    }
-    if (!left || !right) {
-        const sorted = points.slice().sort((a: any, b: any) => a.x - b.x);
-        for (let index = 0; index < sorted.length - 1; index += 1) {
-            const p1 = sorted[index];
-            const p2 = sorted[index + 1];
-            if (!isFiniteNumber(p1?.x) || !isFiniteNumber(p2?.x))
-                continue;
-            if (p1.x === p2.x)
-                continue;
-            if (xTarget < p1.x || xTarget > p2.x)
-                continue;
-            left = p1;
-            right = p2;
-            break;
-        }
-    }
-    if (!left || !right) {
-        return {
-            kind: "empty",
-            x: xTarget,
-            y: null,
-            left: minPoint,
-            right: maxPoint,
-            domain,
-            mode,
-        };
-    }
-    if (xTarget === left.x) {
-        return {
-            kind: "exact",
-            x: xTarget,
-            y: left.y,
-            left,
-            right: left,
-            domain,
-            mode,
-        };
-    }
-    if (xTarget === right.x) {
-        return {
-            kind: "exact",
-            x: xTarget,
-            y: right.y,
-            left: right,
-            right,
-            domain,
-            mode,
-        };
-    }
-    const dx = right.x - left.x;
-    if (!isFiniteNumber(dx) || dx === 0) {
-        return {
-            kind: "exact",
-            x: xTarget,
-            y: left.y,
-            left,
-            right,
-            domain,
-            mode,
-        };
-    }
-    const ratio = (xTarget - left.x) / dx;
-    if (!isFiniteNumber(ratio)) {
-        return {
-            kind: "empty",
-            x: xTarget,
-            y: null,
-            left,
-            right,
-            domain,
-            mode,
-        };
-    }
-    const t = Math.max(0, Math.min(1, ratio));
-    if (mode === "log") {
-        if (!(left.y > 0) || !(right.y > 0)) {
-            return {
-                kind: "empty",
-                x: xTarget,
-                y: null,
-                left,
-                right,
-                domain,
-                mode,
-            };
-        }
-        return {
-            kind: "interpolated",
-            x: xTarget,
-            y: Math.exp(Math.log(left.y) + t * (Math.log(right.y) - Math.log(left.y))),
-            left,
-            right,
-            domain,
-            mode,
-        };
-    }
-    return {
-        kind: "interpolated",
-        x: xTarget,
-        y: left.y + t * (right.y - left.y),
-        left,
-        right,
-        domain,
-        mode,
-    };
-};
-export const computeLegendDerivativeSeries = (curves: any) => {
-    if (!Array.isArray(curves) || curves.length < 2)
-        return new Map();
-    const normalized = curves
-        .map((c: any) => ({
-        id: c?.id ?? null,
-        x: c?.x ?? null,
-        y: c?.y ?? null,
-        param: c?.param ?? null,
-    }))
-        .filter((c: any) => typeof c.id === "string" &&
-        Array.isArray(c.x) === false &&
-        Array.isArray(c.y) === false &&
-        isFiniteNumber(c.param) &&
-        (c.x?.length ?? 0) > 0 &&
-        (c.y?.length ?? 0) > 0);
-    if (normalized.length < 2)
-        return new Map();
-    normalized.sort((a: any, b: any) => a.param - b.param);
-    const n = normalized.length;
-    const findPrevDistinct = (i: any) => {
-        const p0 = normalized[i]?.param;
-        for (let p = i - 1; p >= 0; p--) {
-            const pv = normalized[p]?.param;
-            if (isFiniteNumber(pv) && pv !== p0)
-                return p;
-        }
-        return -1;
-    };
-    const findNextDistinct = (i: any) => {
-        const p0 = normalized[i]?.param;
-        for (let k = i + 1; k < n; k++) {
-            const pv = normalized[k]?.param;
-            if (isFiniteNumber(pv) && pv !== p0)
-                return k;
-        }
-        return -1;
-    };
-    const outById = new Map();
-    for (let i = 0; i < n; i++) {
-        const curr = normalized[i];
-        const prevIdx = findPrevDistinct(i);
-        const nextIdx = findNextDistinct(i);
-        const hasPrev = prevIdx >= 0;
-        const hasNext = nextIdx >= 0;
-        const currX = curr.x;
-        const currY = curr.y;
-        const out = new Array(currX.length);
-        for (let j = 0; j < currX.length; j++) {
-            const x = currX[j];
-            const yCurr = currY[j];
-            if (!isFiniteNumber(x) || !isFiniteNumber(yCurr)) {
-                out[j] = toPoint(x, null);
-                continue;
-            }
-            if (hasPrev && hasNext) {
-                const prev = normalized[prevIdx];
-                const next = normalized[nextIdx];
-                const denom = next.param - prev.param;
-                if (!isFiniteNumber(denom) || denom === 0) {
-                    out[j] = toPoint(x, null);
-                    continue;
-                }
-                const yPrev = interpolateMonotonicLinear(prev.x, prev.y, x);
-                const yNext = interpolateMonotonicLinear(next.x, next.y, x);
-                if (!isFiniteNumber(yPrev) || !isFiniteNumber(yNext)) {
-                    out[j] = toPoint(x, null);
-                    continue;
-                }
-                out[j] = toPoint(x, (yNext - yPrev) / denom);
-                continue;
-            }
-            if (hasNext) {
-                const next = normalized[nextIdx];
-                const denom = next.param - curr.param;
-                if (!isFiniteNumber(denom) || denom === 0) {
-                    out[j] = toPoint(x, null);
-                    continue;
-                }
-                const yNext = interpolateMonotonicLinear(next.x, next.y, x);
-                if (!isFiniteNumber(yNext)) {
-                    out[j] = toPoint(x, null);
-                    continue;
-                }
-                out[j] = toPoint(x, (yNext - yCurr) / denom);
-                continue;
-            }
-            if (hasPrev) {
-                const prev = normalized[prevIdx];
-                const denom = curr.param - prev.param;
-                if (!isFiniteNumber(denom) || denom === 0) {
-                    out[j] = toPoint(x, null);
-                    continue;
-                }
-                const yPrev = interpolateMonotonicLinear(prev.x, prev.y, x);
-                if (!isFiniteNumber(yPrev)) {
-                    out[j] = toPoint(x, null);
-                    continue;
-                }
-                out[j] = toPoint(x, (yCurr - yPrev) / denom);
-                continue;
-            }
-            out[j] = toPoint(x, null);
-        }
-        outById.set(curr.id, out);
-    }
-    return outById;
 };
 const computeSubthresholdSwingSegment = (points: any) => {
     if (!Array.isArray(points) || points.length < 3)
@@ -636,6 +190,24 @@ const computeLinearFit = (xArr: any, yArr: any, l: any, r: any) => {
         i1: end,
     };
 };
+const toCalculationPoints = (points: unknown): CalculationPoint[] => {
+    if (!Array.isArray(points)) {
+        return [];
+    }
+    const calculatedPoints: CalculationPoint[] = [];
+    for (const point of points) {
+        if (!point || typeof point !== "object") {
+            continue;
+        }
+        const value = point as Record<string, unknown>;
+        const x = Number(value.x);
+        const y = Number(value.y);
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+            calculatedPoints.push({ x, y });
+        }
+    }
+    return calculatedPoints;
+};
 const computeSlopeStability = (xArr: any, yArr: any, l: any, r: any) => {
     const n = Math.min(xArr.length ?? 0, yArr.length ?? 0);
     const start = Math.max(0, Math.min(l ?? 0, n - 1));
@@ -686,102 +258,6 @@ const splitIntoConsecutiveSegments = (indices: any) => {
     }
     segments.push(idx.slice(start));
     return segments;
-};
-const detectBidirectionalSplitIndex = (xSeq: any) => {
-    const xs = Array.isArray(xSeq) ? xSeq : [];
-    if (xs.length < 5)
-        return null;
-    let firstDir = 0;
-    for (let i = 1; i < xs.length; i++) {
-        const prev = xs[i - 1];
-        const curr = xs[i];
-        if (!isFiniteNumber(prev) || !isFiniteNumber(curr))
-            continue;
-        const dx = curr - prev;
-        if (dx === 0)
-            continue;
-        firstDir = dx > 0 ? 1 : -1;
-        break;
-    }
-    if (firstDir === 0)
-        return null;
-    let hasPos = false;
-    let hasNeg = false;
-    for (let i = 1; i < xs.length; i++) {
-        const prev = xs[i - 1];
-        const curr = xs[i];
-        if (!isFiniteNumber(prev) || !isFiniteNumber(curr))
-            continue;
-        const dx = curr - prev;
-        if (dx > 0)
-            hasPos = true;
-        if (dx < 0)
-            hasNeg = true;
-    }
-    if (!(hasPos && hasNeg))
-        return null;
-    if (firstDir > 0) {
-        let idxMax = 0;
-        let max = xs[0];
-        for (let i = 1; i < xs.length; i++) {
-            const v = xs[i];
-            if (!isFiniteNumber(v))
-                continue;
-            if (!isFiniteNumber(max) || v > max) {
-                max = v;
-                idxMax = i;
-            }
-        }
-        if (idxMax <= 1 || idxMax >= xs.length - 2)
-            return null;
-        return idxMax;
-    }
-    let idxMin = 0;
-    let min = xs[0];
-    for (let i = 1; i < xs.length; i++) {
-        const v = xs[i];
-        if (!isFiniteNumber(v))
-            continue;
-        if (!isFiniteNumber(min) || v < min) {
-            min = v;
-            idxMin = i;
-        }
-    }
-    if (idxMin <= 1 || idxMin >= xs.length - 2)
-        return null;
-    return idxMin;
-};
-export const splitBidirectionalCurvePoints = (pointsRaw: any) => {
-    const points = Array.isArray(pointsRaw) ? pointsRaw : [];
-    if (points.length < 2) {
-        return points.length ? [{ branch: "full", points }] : [];
-    }
-    const xsSeq = points.map((point: any) => {
-        const x = point?.x;
-        return typeof x === "number" ? x : Number(x);
-    });
-    const splitIdx = detectBidirectionalSplitIndex(xsSeq);
-    if (splitIdx == null) {
-        return [{ branch: "full", points }];
-    }
-    let firstDir = 0;
-    for (let i = 1; i < xsSeq.length; i++) {
-        const prev = xsSeq[i - 1];
-        const curr = xsSeq[i];
-        if (!isFiniteNumber(prev) || !isFiniteNumber(curr))
-            continue;
-        const dx = curr - prev;
-        if (dx === 0)
-            continue;
-        firstDir = dx > 0 ? 1 : -1;
-        break;
-    }
-    const firstBranch = firstDir >= 0 ? "forward" : "reverse";
-    const secondBranch = firstBranch === "forward" ? "reverse" : "forward";
-    return [
-        { branch: firstBranch, points: points.slice(0, splitIdx + 1) },
-        { branch: secondBranch, points: points.slice(splitIdx) },
-    ].filter((segment: any) => Array.isArray(segment.points) && segment.points.length > 0);
 };
 const sanitizeLogPoints = (points: any) => {
     const raw = Array.isArray(points) ? points : [];
@@ -1241,30 +717,6 @@ export const resolveAutoSsSelection = (autoFit: any) => {
         source: "none",
     };
 };
-export const computeDomain = (seriesList: any) => {
-    if (!Array.isArray(seriesList) || seriesList.length === 0) {
-        return { x: [0, 1], y: [0, 1] };
-    }
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minY = Infinity;
-    let maxY = -Infinity;
-    for (const series of seriesList) {
-        for (const point of series?.data ?? []) {
-            if (isFiniteNumber(point?.x)) {
-                minX = Math.min(minX, point.x);
-                maxX = Math.max(maxX, point.x);
-            }
-            if (isFiniteNumber(point?.y)) {
-                minY = Math.min(minY, point.y);
-                maxY = Math.max(maxY, point.y);
-            }
-        }
-    }
-    const [x0, x1] = padDomain(Number.isFinite(minX) ? minX : 0, Number.isFinite(maxX) ? maxX : 1);
-    const [y0, y1] = padDomain(Number.isFinite(minY) ? minY : 0, Number.isFinite(maxY) ? maxY : 1);
-    return { x: [x0, x1], y: [y0, y1] };
-};
 export const classifySsFit = (method: any, fit: any, { conf = SS_CONF }: any = {}) => {
     const m = String(method || "").trim();
     const ss = fit?.ss;
@@ -1366,3 +818,7 @@ export const classifySsFit = (method: any, fit: any, { conf = SS_CONF }: any = {
         ss_reason: "manual.fit_quality_low",
     };
 };
+
+export const calculateSsPoints = (
+  points: readonly CalculationPoint[],
+): CalculationPoint[] => toCalculationPoints(computeSubthresholdSwing(points));

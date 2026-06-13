@@ -3,16 +3,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Papa from "papaparse";
+import { computeCentralDerivative } from "src/cs/workbench/services/calculation/common/gm";
 import {
   computeBaseCurrentMetrics,
-  computeCentralDerivative,
-  computeSubthresholdSwing,
-  computeSubthresholdSwingFitAuto,
-  computeVthSqrtFits,
   isOutputLikeFile,
   isTransferLikeFile,
+} from "src/cs/workbench/services/calculation/common/ionIoff";
+import {
+  computeSubthresholdSwing,
+  computeSubthresholdSwingFitAuto,
   resolveAutoSsSelection,
-} from "src/cs/workbench/services/calculation/common/firstCalculation";
+} from "src/cs/workbench/services/calculation/common/ss";
+import { computeVthSqrtFits } from "src/cs/workbench/services/calculation/common/vth";
 import {
   getCachedBaseCurrent,
   getCachedDerivativePoints,
@@ -1656,4 +1658,3 @@ export const buildOriginExportPlan = (
     ),
   };
 };
-

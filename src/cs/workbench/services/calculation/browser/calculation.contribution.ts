@@ -9,11 +9,11 @@ import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribu
 import {
   createCalculatedPlotsByKeyFromRecords,
   createCalculatedDataRecordInputSignature,
-} from "src/cs/workbench/services/calculation/common/calculatedData";
+} from "src/cs/workbench/services/calculation/common/calculationResults";
 import {
   createCalculatedMetricRecordsByFile,
   createCalculatedMetricRecordsInputSignature,
-} from "src/cs/workbench/services/calculation/common/calculatedMetrics";
+} from "src/cs/workbench/services/calculation/common/calculationMetricRecords";
 import { CalculationContributionId } from "src/cs/workbench/services/calculation/common/calculation";
 import { createCalculatedCurveRecordsByFile } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import {

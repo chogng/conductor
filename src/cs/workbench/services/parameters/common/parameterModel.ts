@@ -1,19 +1,9 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-  createParameterRows,
-  type CalculatedParameterRowData,
-  type SsConfidence,
-} from "src/cs/workbench/services/calculation/common/calculatedParameters";
-import {
-  isOutputLikeFile,
-  isTransferLikeFile,
-} from "src/cs/workbench/services/calculation/common/firstCalculation";
 import { formatNumber } from "src/cs/workbench/services/calculation/common/numberFormat";
 import { localize } from "src/cs/nls";
-import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 import type {
   BaseCurveRecord,
   FileRecord,
@@ -21,10 +11,29 @@ import type {
   SeriesRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 
-export {
-  createParameterRows,
-  type CalculatedParameterRowData,
-  type SsConfidence,
+export type SsConfidence = "high" | "low" | "fail" | string;
+
+export type CalculatedParameterRowData = {
+  currentCandidateWindows?: unknown[];
+  currentMethod?: string | null;
+  legendHeader?: string | null;
+  name: string;
+  ion: number | null;
+  ionWindow?: unknown;
+  xAtIon: number | null;
+  ioff: number | null;
+  ioffWindow?: unknown;
+  xAtIoff: number | null;
+  ionIoff: number | null;
+  gmMaxAbs: number | null;
+  xAtGmMaxAbs: number | null;
+  thresholdVoltage: number | null;
+  thresholdVoltageElectron?: number | null;
+  thresholdVoltageHole?: number | null;
+  ss: number | null;
+  ssConfidence: SsConfidence;
+  xAtSs: number | null;
+  jon: number | null;
 };
 
 export type ParametersViewState =
@@ -85,41 +94,22 @@ export const getThresholdVoltageTooltip = (
     : `sqrt(|Id|)-Vg linear extrapolation: Vth,e=${row.thresholdVoltageElectron ?? "-"}, Vth,h=${row.thresholdVoltageHole ?? "-"}`;
 
 export const createParametersViewState = (
-  activeFile: ProcessedEntry | null,
+  _activeFile: unknown | null,
   activeFileRecord?: FileRecord | null,
 ): ParametersViewState => {
   const canonicalState = activeFileRecord
     ? createParametersViewStateFromFileRecord(activeFileRecord)
     : null;
-  if (canonicalState?.kind === "table" || !activeFile) {
+  if (canonicalState?.kind === "table" || !_activeFile) {
     return canonicalState ?? {
       kind: "empty",
       message: localize("parameters.empty.noData", "No parameter data."),
     };
   }
 
-  const isTransfer = isTransferLikeFile(activeFile);
-  const isOutput = isOutputLikeFile(activeFile);
-  if (!isTransfer && !isOutput) {
-    return {
-      kind: "empty",
-      message: localize("parameters.empty.unsupportedCurve", "No parameters for this curve type."),
-    };
-  }
-
-  const rows = createParameterRows(activeFile);
-  if (rows.length === 0) {
-    return {
-      kind: "empty",
-      message: localize("parameters.empty.noRows", "No parameter rows."),
-    };
-  }
-
   return {
-    gmMetricHeader: isTransfer ? "gm" : "gds",
-    kind: "table",
-    rows,
-    showTransferMetrics: isTransfer,
+    kind: "empty",
+    message: localize("parameters.empty.noData", "No parameter data."),
   };
 };
 
@@ -277,4 +267,3 @@ const parseLegendValue = (
 
   return { header, value };
 };
-

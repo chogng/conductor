@@ -1,12 +1,14 @@
 /*---------------------------------------------------------------------------------------------
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
+import type { CalculationPoint } from "./calculation.ts";
+
 type VthPoint = {
   x: number;
   y: number;
 };
 
-type VthSourcePoint = {
+export type VthSourcePoint = {
   x?: unknown;
   y?: unknown;
 } | null | undefined;
@@ -34,6 +36,10 @@ export const createVthSqrtPoints = (points: readonly VthSourcePoint[]) =>
       return { x, y: Math.sqrt(Math.abs(y)) };
     })
     .filter((point): point is VthPoint => point !== null);
+
+export const calculateVthPoints = (
+  points: readonly CalculationPoint[],
+): CalculationPoint[] => createVthSqrtPoints(points);
 
 const fitLinear = (points: VthPoint[]) => {
   const n = points.length;

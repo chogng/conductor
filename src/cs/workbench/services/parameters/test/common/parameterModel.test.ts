@@ -9,7 +9,6 @@ import type {
   FileRecord,
   MetricKey,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 
 import {
   createParametersViewState,
@@ -71,35 +70,6 @@ suite("workbench/services/parameters/common/parameterModel", () => {
     assert.equal(state.kind, "empty");
   });
 
-  test("createParametersViewState returns empty state for unsupported curve types", () => {
-    const state = createParametersViewState({
-      curveType: "cv",
-      series: [{ y: [1, 2, 3] }],
-      xGroups: [[0, 1, 2]],
-    });
-
-    assert.equal(state.kind, "empty");
-  });
-
-  test("createParametersViewState labels output derivative metrics as gds", () => {
-    const state = createParametersViewState(createFile("output", "vd"));
-
-    assert.equal(state.kind, "table");
-    if (state.kind !== "table") return;
-    assert.equal(state.gmMetricHeader, "gds");
-    assert.equal(state.showTransferMetrics, false);
-    assert.equal(state.rows.length, 1);
-  });
-
-  test("createParametersViewState labels transfer derivative metrics as gm", () => {
-    const state = createParametersViewState(createFile("transfer", "vg"));
-
-    assert.equal(state.kind, "table");
-    if (state.kind !== "table") return;
-    assert.equal(state.gmMetricHeader, "gm");
-    assert.equal(state.showTransferMetrics, true);
-  });
-
   test("createParametersViewState reads canonical transfer metrics", () => {
     const state = createParametersViewState(null, createCanonicalFileRecord("transfer"));
 
@@ -130,16 +100,6 @@ suite("workbench/services/parameters/common/parameterModel", () => {
     assert.equal(state.showTransferMetrics, false);
     assert.equal(state.rows[0]?.gmMaxAbs, 11);
   });
-});
-
-const createFile = (
-  curveType: string,
-  xAxisRole: NonNullable<ProcessedEntry["xAxisRole"]>,
-): ProcessedEntry => ({
-  curveType,
-  series: [{ name: "curve", y: [1, 3, 6] }],
-  xAxisRole,
-  xGroups: [[0, 1, 2]],
 });
 
 const createCanonicalFileRecord = (
@@ -299,4 +259,3 @@ const createCanonicalFileRecord = (
     },
   };
 };
-

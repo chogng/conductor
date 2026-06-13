@@ -1,7 +1,7 @@
 /*---------------------------------------------------------------------------------------------
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
-import { splitBidirectionalCurvePoints } from "./curveCalculation.ts";
+import { splitBidirectionalCurvePoints } from "./sweepSegmentation.ts";
 import type { IonIoffMethod } from "./calculation.ts";
 
 type PointLike = {

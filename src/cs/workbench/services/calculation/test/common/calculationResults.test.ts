@@ -16,9 +16,9 @@ import {
   createSecondCalculatedData,
   getCalculatedData,
   getCalculatedYUnitLabel,
-} from "../../common/calculatedData.ts";
+} from "../../common/calculationResults.ts";
 
-suite("workbench/services/calculation/test/common/calculatedData", () => {
+suite("workbench/services/calculation/test/common/calculationResults", () => {
   const createFile = (overrides = {}) => ({
     fileId: "file-a",
     fileName: "file-a.csv",

@@ -14,9 +14,6 @@ import {
   IParametersService,
   type ParametersViewStateInput,
 } from "src/cs/workbench/services/parameters/common/parameters";
-import {
-  createProcessedEntryFromFileRecord,
-} from "src/cs/workbench/services/session/common/sessionReadModel";
 
 export class ParametersService extends Disposable implements IParametersService {
   public declare readonly _serviceBrand: undefined;
@@ -39,7 +36,7 @@ export class ParametersService extends Disposable implements IParametersService 
     if (fileId) {
       const fileRecord = input.snapshot.filesById[fileId] ?? null;
       return createParametersViewState(
-        fileRecord ? createProcessedEntryFromFileRecord(fileRecord) : null,
+        null,
         fileRecord,
       );
     }

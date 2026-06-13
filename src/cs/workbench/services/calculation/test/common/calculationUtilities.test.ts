@@ -1,14 +1,17 @@
 import assert from "assert";
 import {
-  classifySsFit,
+  calculateSecondDerivativePoints,
   computeCentralDerivative,
+  createSecondDerivativeResult,
+} from "../../common/gm.ts";
+import {
+  classifySsFit,
   computeSubthresholdSwingFitAuto,
-  interpolateCurveAtX,
   resolveAutoSsSelection,
-  splitBidirectionalCurvePoints,
-} from "../../common/firstCalculation.ts";
+} from "../../common/ss.ts";
+import { splitBidirectionalCurvePoints } from "../../common/sweepSegmentation.ts";
 
-suite("workbench/services/calculation/test/common/firstCalculation", () => {
+suite("workbench/services/calculation/test/common/calculationUtilities", () => {
   test("resolveAutoSsSelection falls back to suggested window with low confidence", () => {
     const selection = resolveAutoSsSelection({
       strict: { ok: false, reason: "auto.no_window_meets_strict" },
@@ -94,85 +97,6 @@ suite("workbench/services/calculation/test/common/firstCalculation", () => {
     assert.ok((fit.strict?.detail?.floorMarginDec ?? 0) >= 1);
   });
 
-  test("interpolateCurveAtX linearly interpolates between neighboring points", () => {
-    const sample = interpolateCurveAtX(
-      [
-        { x: 0, y: 0 },
-        { x: 1, y: 10 },
-        { x: 2, y: 30 },
-      ],
-      1.5,
-    );
-
-    assert.equal(sample?.kind, "interpolated");
-    assert.equal(sample?.y, 20);
-    assert.deepEqual(sample?.left, { x: 1, y: 10 });
-    assert.deepEqual(sample?.right, { x: 2, y: 30 });
-  });
-
-  test("interpolateCurveAtX reports out-of-range queries without extrapolating", () => {
-    const sample = interpolateCurveAtX(
-      [
-        { x: 0, y: 5 },
-        { x: 1, y: 15 },
-      ],
-      2,
-    );
-
-    assert.equal(sample?.kind, "outOfRange");
-    assert.equal(sample?.y, null);
-    assert.deepEqual(sample?.domain, { minX: 0, maxX: 1 });
-  });
-
-  test("interpolateCurveAtX supports log interpolation for positive y", () => {
-    const sample = interpolateCurveAtX(
-      [
-        { x: 0, y: 1e-12 },
-        { x: 1, y: 1e-8 },
-      ],
-      0.5,
-      "log",
-    );
-
-    assert.equal(sample?.kind, "interpolated");
-    assert.ok(Math.abs((sample?.y ?? 0) - 1e-10) / 1e-10 < 1e-12);
-  });
-
-  test("interpolateCurveAtX rejects log interpolation when y is non-positive", () => {
-    const sample = interpolateCurveAtX(
-      [
-        { x: 0, y: 0 },
-        { x: 1, y: 10 },
-      ],
-      0.5,
-      "log",
-    );
-
-    assert.equal(sample?.kind, "empty");
-    assert.equal(sample?.y, null);
-  });
-
-  test("interpolateCurveAtX uses the true domain for bidirectional sweeps", () => {
-    const sample = interpolateCurveAtX(
-      [
-        { x: -1, y: 1e-12 },
-        { x: 0, y: 1e-11 },
-        { x: 1, y: 1e-8 },
-        { x: 2, y: 1e-6 },
-        { x: 3, y: 1e-5 },
-        { x: 2, y: 8e-7 },
-        { x: 1, y: 8e-9 },
-        { x: 0, y: 9e-12 },
-        { x: -1, y: 1.1e-12 },
-      ],
-      2,
-    );
-
-    assert.equal(sample?.kind, "exact");
-    assert.equal(sample?.y, 1e-6);
-    assert.deepEqual(sample?.domain, { minX: -1, maxX: 3 });
-  });
-
   test("splitBidirectionalCurvePoints returns forward and reverse segments", () => {
     const segments = splitBidirectionalCurvePoints([
       { x: -1, y: 1e-12 },
@@ -211,5 +135,32 @@ suite("workbench/services/calculation/test/common/firstCalculation", () => {
     assert.equal(derivative[3]?.y, 1);
     assert.ok(Number.isFinite(derivative[4]?.y));
     assert.ok((derivative[4]?.y ?? 0) < 0);
+  });
+
+  test("calculateSecondDerivativePoints derives from first calculation points", () => {
+    const points = calculateSecondDerivativePoints([
+      { x: 0, y: 0 },
+      { x: 1, y: 1 },
+      { x: 2, y: 4 },
+    ]);
+
+    assert.deepEqual(
+      points.map((point) => point.y),
+      [1, 2, 3],
+    );
+  });
+
+  test("createSecondDerivativeResult marks the source calculation kind", () => {
+    const result = createSecondDerivativeResult({
+      fileId: "file-a",
+      inputKind: "gm",
+      points: [
+        { x: 0, y: 1 },
+        { x: 1, y: 2 },
+      ],
+    });
+
+    assert.equal(result.kind, "secondDerivative");
+    assert.deepEqual(result.source, { fileId: "file-a", inputKind: "gm" });
   });
 });

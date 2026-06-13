@@ -2,16 +2,16 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { computeCentralDerivative } from "src/cs/workbench/services/calculation/common/gm";
 import {
-  createParameterRows,
-  type CalculatedParameterRowData,
-} from "src/cs/workbench/services/calculation/common/calculatedParameters";
+  computeBaseCurrentMetrics,
+  isTransferLikeFile,
+} from "src/cs/workbench/services/calculation/common/ionIoff";
 import {
   classifySsFit,
-  computeBaseCurrentMetrics,
+  computeSubthresholdSwingFitAuto,
   computeSubthresholdSwingFitInRange,
-  isTransferLikeFile,
-} from "src/cs/workbench/services/calculation/common/firstCalculation";
+} from "src/cs/workbench/services/calculation/common/ss";
 import type {
   BaseCurveFamily,
   CurrentWindowRecord,
@@ -29,16 +29,50 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
   collectFileRecordBaseCurves,
-  createProcessedSeriesFromFileRecord,
   fileRecordSupportsSs,
   getFileRecordAxisProjection,
   getFileRecordCurveType,
-  getFileRecordXGroups,
 } from "src/cs/workbench/services/session/common/sessionRecordProjection";
-import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 
 type CurrentMetricValue = Extract<MetricRecord, { metricFamily: "current" }>["value"];
 type SubthresholdMetricRecord = Extract<MetricRecord, { metricFamily: "subthreshold" }>;
+type MetricSourceFile = {
+  readonly curveType?: unknown;
+  readonly supportsSs?: unknown;
+  readonly xAxisRole?: unknown;
+  readonly xLabel?: unknown;
+};
+type MetricSourceRow = {
+  readonly currentCandidateWindows?: unknown[];
+  readonly currentMethod?: string | null;
+  readonly gmMaxAbs: number | null;
+  readonly id?: unknown;
+  readonly ion: number | null;
+  readonly ionWindow?: unknown;
+  readonly xAtIon: number | null;
+  readonly ioff: number | null;
+  readonly ioffWindow?: unknown;
+  readonly xAtIoff: number | null;
+  readonly ionIoff: number | null;
+  readonly ss: number | null;
+  readonly ssConfidence: "high" | "low" | "fail" | string;
+  readonly xAtGmMaxAbs: number | null;
+  readonly xAtSs: number | null;
+};
+type DerivativePoint = {
+  readonly x?: unknown;
+  readonly y?: unknown;
+};
+type SsFit = {
+  readonly ok?: unknown;
+  readonly ss?: unknown;
+  readonly x1?: unknown;
+  readonly x2?: unknown;
+};
+type SsFitResult = {
+  readonly strict?: SsFit;
+  readonly suggested?: SsFit;
+};
 
 export const createCalculatedMetricRecordsByFile = (
   filesById: Record<FileId, FileRecord>,
@@ -96,15 +130,19 @@ export const createCalculatedMetricRecordsForFile = (
   }
 
   const metricsByKey: Record<MetricKey, MetricRecord> = {};
-  const processedFile = createProcessedEntryFromFileRecord(file);
+  const sourceFile = createMetricSourceFile(file);
   const family = curves[0]?.curveFamily ?? null;
   const ivMode = curves.find((curve) => curve.curveFamily === "iv" && curve.ivMode)?.ivMode ?? null;
   const itMode = curves.find((curve) => curve.curveFamily === "it" && curve.itMode)?.itMode ?? null;
   const derivativeKind = ivMode === "output" ? "gds" : "gm";
-  const seriesOrder = curves.map((curve) => curve.seriesId);
+  const rows = createMetricSourceRows({
+    curves,
+    sourceFile,
+  });
 
-  for (const [index, row] of createParameterRows(processedFile).entries()) {
-    const seriesId = resolveMetricSeriesId(row, seriesOrder[index], index);
+  for (const [index, row] of rows.entries()) {
+    const curve = curves[index];
+    const seriesId = resolveMetricSeriesId(row, curve?.seriesId, index);
     const currentKey = `current:${seriesId}:base` as MetricKey;
     const subthresholdAutoKey = `subthreshold:${seriesId}:ss:auto` as MetricKey;
     const subthresholdManualKey = `subthreshold:${seriesId}:ss:manual` as MetricKey;
@@ -124,21 +162,21 @@ export const createCalculatedMetricRecordsForFile = (
     const inputSignatures = inputCurves
       .map((curve) => curve.signature)
       .filter((signature) => signature.length > 0);
-    const baseCurve = inputCurve ? file.curvesByKey[inputCurve.curveKey] : undefined;
+    const baseCurve = curve ?? (inputCurve ? file.curvesByKey[inputCurve.curveKey] : undefined);
     const currentValue = createCurrentMetricValue({
       baseCurve,
       input: currentInput,
-      processedFile,
       row,
+      sourceFile,
     });
     const subthresholdMetric = createSubthresholdMetric({
       file,
       input: subthresholdInput,
       inputCurves,
       inputSignatures,
-      processedFile,
       row,
       seriesId,
+      sourceFile,
       subthresholdAutoKey,
       subthresholdManualKey,
     });
@@ -172,64 +210,70 @@ export const createCalculatedMetricRecordsForFile = (
     });
 
     appendMetric(metricsByKey, subthresholdMetric);
-
-    const thresholdVoltage = normalizeNumberOrNull(row.thresholdVoltage);
-    const thresholdVoltageElectron = normalizeNumberOrNull(row.thresholdVoltageElectron);
-    const thresholdVoltageHole = normalizeNumberOrNull(row.thresholdVoltageHole);
-    if (
-      thresholdVoltage !== null ||
-      thresholdVoltageElectron !== null ||
-      thresholdVoltageHole !== null
-    ) {
-      appendMetric(metricsByKey, {
-        key: `threshold:${seriesId}:vth` as MetricKey,
-        fileId: file.id,
-        seriesId,
-        metricFamily: "threshold",
-        contextKey: "vth",
-        inputCurves,
-        inputSignatures,
-        algorithm: { id: "computeVthSqrtFits" },
-        value: {
-          vth: thresholdVoltage,
-          electron: thresholdVoltageElectron,
-          hole: thresholdVoltageHole,
-          fitQuality: "good",
-        },
-      });
-    }
   }
 
   return Object.values(metricsByKey);
 };
 
-const createProcessedEntryFromFileRecord = (file: FileRecord): ProcessedEntry => {
+const createMetricSourceFile = (file: FileRecord): MetricSourceFile => {
   const axis = getFileRecordAxisProjection(file);
   return {
     curveType: getFileRecordCurveType(file),
-    fileId: file.id,
-    fileName: file.raw.fileName,
-    series: createProcessedSeriesFromFileRecord(file),
     supportsSs: fileRecordSupportsSs(file),
     xAxisRole: axis.xAxisRole,
-    xGroups: getFileRecordXGroups(file),
     xLabel: axis.xLabel,
-    xUnit: axis.xUnit,
-    yLabel: axis.yLabel,
-    yUnit: axis.yUnit,
   };
+};
+
+const createMetricSourceRows = ({
+  curves,
+  sourceFile,
+}: {
+  readonly curves: readonly CurveRecord[];
+  readonly sourceFile: MetricSourceFile;
+}): MetricSourceRow[] => {
+  const showTransferMetrics = isTransferLikeFile(sourceFile);
+  return curves.map((curve, index): MetricSourceRow => {
+    const points = curve.points;
+    const baseMetrics = computeBaseCurrentMetrics({
+      points,
+      sourceFile,
+    });
+    const derivative = resolveMaxAbsPoint(computeCentralDerivative(points) as DerivativePoint[]);
+    const ssFit = showTransferMetrics
+      ? resolveSsFit(computeSubthresholdSwingFitAuto(points))
+      : { confidence: "fail" as const, value: null, x: null };
+
+    return {
+      currentCandidateWindows: baseMetrics.candidateWindows,
+      currentMethod: baseMetrics.method,
+      gmMaxAbs: derivative.y,
+      id: curve.seriesId || index,
+      ion: baseMetrics.ion,
+      ionIoff: baseMetrics.ionIoff,
+      ionWindow: baseMetrics.ionWindow,
+      ioff: baseMetrics.ioff,
+      ioffWindow: baseMetrics.ioffWindow,
+      ss: ssFit.value,
+      ssConfidence: ssFit.confidence,
+      xAtGmMaxAbs: derivative.x,
+      xAtIon: baseMetrics.xAtIon,
+      xAtIoff: baseMetrics.xAtIoff,
+      xAtSs: ssFit.x,
+    };
+  });
 };
 
 const createCurrentMetricValue = ({
   baseCurve,
   input,
-  processedFile,
   row,
+  sourceFile,
 }: {
   baseCurve: CurveRecord | undefined;
   input: MetricInputRecord | undefined;
-  processedFile: ProcessedEntry;
-  row: CalculatedParameterRowData;
+  row: MetricSourceRow;
+  sourceFile: MetricSourceFile;
 }): CurrentMetricValue => {
   if (input?.source === "manual" && input.targets) {
     const metrics = computeBaseCurrentMetrics({
@@ -239,7 +283,7 @@ const createCurrentMetricValue = ({
       },
       method: "manual",
       points: baseCurve?.points ?? [],
-      sourceFile: processedFile,
+      sourceFile,
     });
 
     return {
@@ -273,9 +317,9 @@ const createSubthresholdMetric = ({
   input,
   inputCurves,
   inputSignatures,
-  processedFile,
   row,
   seriesId,
+  sourceFile,
   subthresholdAutoKey,
   subthresholdManualKey,
 }: {
@@ -283,9 +327,9 @@ const createSubthresholdMetric = ({
   input: MetricInputRecord | undefined;
   inputCurves: CurveRef[];
   inputSignatures: string[];
-  processedFile: ProcessedEntry;
-  row: CalculatedParameterRowData;
+  row: MetricSourceRow;
   seriesId: string;
+  sourceFile: MetricSourceFile;
   subthresholdAutoKey: MetricKey;
   subthresholdManualKey: MetricKey;
 }): SubthresholdMetricRecord => {
@@ -294,7 +338,7 @@ const createSubthresholdMetric = ({
   if (
     input?.source === "manual" &&
     input.range &&
-    isTransferLikeFile(processedFile)
+    isTransferLikeFile(sourceFile)
   ) {
     const fit = computeSubthresholdSwingFitInRange(
       baseCurve?.points ?? [],
@@ -417,7 +461,7 @@ const createBaseCurveKey = (
 };
 
 const resolveMetricSeriesId = (
-  row: CalculatedParameterRowData & { id?: unknown },
+  row: MetricSourceRow,
   fallbackSeriesId: string | undefined,
   index: number,
 ): string => {
@@ -506,6 +550,48 @@ const normalizeId = (value: unknown): string => String(value ?? "").trim();
 
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
+
+const resolveMaxAbsPoint = (
+  points: readonly DerivativePoint[],
+): { x: number | null; y: number | null } => {
+  let best: { x: number | null; y: number | null } = { x: null, y: null };
+  let bestAbs = -1;
+
+  for (const point of Array.isArray(points) ? points : []) {
+    const y = Number(point?.y);
+    if (!Number.isFinite(y)) {
+      continue;
+    }
+    const abs = Math.abs(y);
+    if (abs <= bestAbs) {
+      continue;
+    }
+    const x = Number(point?.x);
+    bestAbs = abs;
+    best = {
+      x: Number.isFinite(x) ? x : null,
+      y: abs,
+    };
+  }
+
+  return best;
+};
+
+const resolveSsFit = (
+  value: unknown,
+): { confidence: "high" | "low" | "fail"; value: number | null; x: number | null } => {
+  const result = isObjectRecord(value) ? (value as SsFitResult) : null;
+  const fit = result?.strict?.ok ? result.strict : result?.suggested ?? null;
+  const ss = Number(fit?.ss);
+  const x1 = Number(fit?.x1);
+  const x2 = Number(fit?.x2);
+
+  return {
+    confidence: result?.strict?.ok ? "high" : fit?.ok ? "low" : "fail",
+    value: Number.isFinite(ss) ? ss : null,
+    x: Number.isFinite(x1) && Number.isFinite(x2) ? (x1 + x2) / 2 : null,
+  };
+};
 
 const getOrderedFileRecords = (
   filesById: Readonly<Record<FileId, FileRecord>>,

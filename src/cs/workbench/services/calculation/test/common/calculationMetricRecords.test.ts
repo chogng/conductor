@@ -4,7 +4,7 @@
 
 import assert from "assert";
 
-import { createCalculatedMetricRecordsByFile } from "src/cs/workbench/services/calculation/common/calculatedMetrics";
+import { createCalculatedMetricRecordsByFile } from "src/cs/workbench/services/calculation/common/calculationMetricRecords";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { MetricKey } from "src/cs/workbench/services/session/common/sessionModel";
 import {
@@ -12,7 +12,7 @@ import {
   mergeRawFilesIntoRecords,
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 
-suite("workbench/services/calculation/test/common/calculatedMetrics", () => {
+suite("workbench/services/calculation/test/common/calculationMetricRecords", () => {
   test("creates canonical metric records from session base curves", () => {
     const rawRecords = mergeRawFilesIntoRecords({}, [], [{
       fileId: "file-a",

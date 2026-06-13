@@ -4,7 +4,7 @@
 
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { CalculatedData } from "src/cs/workbench/services/calculation/common/calculatedData";
+import type { CalculatedData } from "src/cs/workbench/services/calculation/common/calculationResults";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type {
   FileId,

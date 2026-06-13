@@ -3,9 +3,9 @@ import assert from "assert";
 import {
   computeVthSqrtFits,
   createVthSqrtPoints,
-} from "../../common/firstCalculation.ts";
+} from "../../common/vth.ts";
 
-suite("workbench/services/calculation/test/common/vthCalculation", () => {
+suite("workbench/services/calculation/test/common/vth", () => {
   test("computeVthSqrtFits fits electron and hole branches around the valley", () => {
     const points = [];
     for (let x = -5; x <= 5; x += 1) {

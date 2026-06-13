@@ -7,9 +7,9 @@ import {
   classifySsFit,
   computeSubthresholdSwingFitAuto,
   computeSubthresholdSwingFitInRange,
-  isTransferLikeFile,
   resolveAutoSsSelection,
-} from "src/cs/workbench/services/calculation/common/firstCalculation";
+} from "src/cs/workbench/services/calculation/common/ss";
+import { isTransferLikeFile } from "src/cs/workbench/services/calculation/common/ionIoff";
 import { getCachedSsFitAuto } from "src/cs/workbench/services/calculation/common/calculationCacheAccess";
 import { getExcelColumnLabel } from "src/cs/workbench/services/export/common/columnLabels";
 import type {
@@ -517,4 +517,3 @@ export const buildSsMetricsCsv = ({
   const data = rows.map((row) => fields.map((field) => row?.[field] ?? ""));
   return Papa.unparse({ fields, data });
 };
-

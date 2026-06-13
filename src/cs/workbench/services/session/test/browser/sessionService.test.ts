@@ -11,7 +11,7 @@ import {
   createRawFilesFromRecords,
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
-import type { CalculatedPlotsByKey } from "src/cs/workbench/services/calculation/common/calculatedData";
+import type { CalculatedPlotsByKey } from "src/cs/workbench/services/calculation/common/calculationResults";
 import type {
   FileImportResult,
   ImportedFileRecord,

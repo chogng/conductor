@@ -3,9 +3,9 @@ import {
   computeBaseCurrentMetrics,
   isOutputLikeFile,
   isTransferLikeFile,
-} from "../../common/firstCalculation.ts";
+} from "../../common/ionIoff.ts";
 
-suite("workbench/services/calculation/test/common/metricCalculation", () => {
+suite("workbench/services/calculation/test/common/ionIoff", () => {
   test("isTransferLikeFile recognizes Vg sweeps", () => {
     assert.equal(isTransferLikeFile({ xAxisRole: "vg" }), true);
     assert.equal(
