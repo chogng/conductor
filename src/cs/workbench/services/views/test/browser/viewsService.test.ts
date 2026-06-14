@@ -24,6 +24,7 @@ import { IInstantiationService } from "src/cs/platform/instantiation/common/inst
 import {
   BrowserWorkbenchLayoutService,
   IWorkbenchLayoutService,
+  Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import { ViewsService } from "src/cs/workbench/services/views/browser/viewsService";
 
@@ -226,6 +227,7 @@ class TestViewDescriptorService implements IViewDescriptorService {
   public constructor(
     private readonly container: ViewContainer,
     private readonly viewDescriptor: IViewDescriptor,
+    private readonly location = ViewContainerLocation.Panel,
   ) {
     this.viewContainers = [container];
     this.model = new TestViewContainerModel(container, viewDescriptor);
@@ -236,7 +238,7 @@ class TestViewDescriptorService implements IViewDescriptorService {
   }
 
   public getViewLocationById(viewId: string): ViewContainerLocation | null {
-    return viewId === this.viewDescriptor.id ? ViewContainerLocation.Panel : null;
+    return viewId === this.viewDescriptor.id ? this.location : null;
   }
 
   public getViewContainerByViewId(viewId: string): ViewContainer | null {
@@ -244,7 +246,7 @@ class TestViewDescriptorService implements IViewDescriptorService {
   }
 
   public getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null {
-    return viewContainer.id === this.container.id ? ViewContainerLocation.Panel : null;
+    return viewContainer.id === this.container.id ? this.location : null;
   }
 
   public getDefaultViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null {
@@ -265,11 +267,11 @@ class TestViewDescriptorService implements IViewDescriptorService {
   }
 
   public getViewContainersByLocation(location: ViewContainerLocation): readonly ViewContainer[] {
-    return location === ViewContainerLocation.Panel ? [this.container] : [];
+    return location === this.location ? [this.container] : [];
   }
 
   public getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined {
-    return location === ViewContainerLocation.Panel ? this.container : undefined;
+    return location === this.location ? this.container : undefined;
   }
 
   public moveViewsToContainer(
@@ -367,6 +369,63 @@ suite("workbench/services/views/browser/ViewsService", () => {
 
     assert.equal(viewsService.getViewWithId(viewDescriptor.id)?.id, viewDescriptor.id);
     assert.equal(viewsService.isViewVisible(viewDescriptor.id), true);
+
+    viewsService.dispose();
+    instantiationService.dispose();
+    layoutService.dispose();
+    contextKeyService.dispose();
+    storageService.dispose();
+  });
+
+  test("closeViewContainer hides the active auxiliary bar part", async () => {
+    const viewDescriptor: IViewDescriptor = {
+      ctorDescriptor: new SyncDescriptor(TestView),
+      id: "test.auxiliary.view",
+      name: "Test",
+    };
+    const container: ViewContainer = {
+      ctorDescriptor: new SyncDescriptor(TestViewPaneContainer),
+      id: "test.auxiliary.container",
+      title: "Test",
+    };
+    const storageService = new TestStorageService();
+    const contextKeyService = new ContextKeyService();
+    const layoutService = new BrowserWorkbenchLayoutService(storageService);
+    const services = new ServiceCollection();
+    const instantiationService = new InstantiationService(services);
+    const descriptorService = new TestViewDescriptorService(
+      container,
+      viewDescriptor,
+      ViewContainerLocation.AuxiliaryBar,
+    );
+
+    services.set(IStorageService, storageService);
+    services.set(IContextKeyService, contextKeyService);
+    services.set(IWorkbenchLayoutService, layoutService);
+    services.set(IInstantiationService, instantiationService);
+    services.set(IViewDescriptorService, descriptorService);
+
+    const viewsService = new ViewsService(
+      descriptorService,
+      contextKeyService,
+      instantiationService,
+      layoutService,
+    );
+
+    await viewsService.openViewContainer(container.id);
+
+    assert.equal(layoutService.isVisible(Parts.AUXILIARYBAR_PART), true);
+    assert.equal(viewsService.isViewContainerVisible(container.id), true);
+
+    viewsService.closeViewContainer(container.id);
+
+    assert.equal(layoutService.isVisible(Parts.AUXILIARYBAR_PART), false);
+    assert.equal(viewsService.isViewContainerVisible(container.id), false);
+
+    await viewsService.openViewContainer(container.id);
+
+    assert.equal(layoutService.isVisible(Parts.AUXILIARYBAR_PART), true);
+    assert.equal(viewsService.isViewContainerVisible(container.id), true);
 
     viewsService.dispose();
     instantiationService.dispose();

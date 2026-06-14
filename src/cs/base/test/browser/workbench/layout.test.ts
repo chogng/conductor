@@ -1,6 +1,51 @@
 import assert from "assert";
 
 import { Layout } from "../../../../workbench/browser/layout.ts";
+import {
+  AbstractStorageService,
+  StorageScope,
+} from "src/cs/platform/storage/common/storage";
+import {
+  BrowserWorkbenchLayoutService,
+  Parts,
+} from "src/cs/workbench/services/layout/browser/layoutService";
+
+class TestStorageService extends AbstractStorageService {
+  private readonly values = new Map<string, string>();
+
+  protected readValue(key: string, scope: StorageScope): string | undefined {
+    return this.values.get(this.storageKey(key, scope));
+  }
+
+  protected writeValue(key: string, scope: StorageScope, value: string): void {
+    this.values.set(this.storageKey(key, scope), value);
+  }
+
+  protected deleteValue(key: string, scope: StorageScope): void {
+    this.values.delete(this.storageKey(key, scope));
+  }
+
+  protected readKeys(scope: StorageScope): string[] {
+    const prefix = `${scope}:`;
+    const keys: string[] = [];
+    for (const key of this.values.keys()) {
+      if (key.startsWith(prefix)) {
+        keys.push(key.slice(prefix.length));
+      }
+    }
+    return keys;
+  }
+
+  private storageKey(key: string, scope: StorageScope): string {
+    return `${scope}:${key}`;
+  }
+}
+
+const createPart = (id: string): HTMLElement => {
+  const element = document.createElement("div");
+  element.id = id;
+  return element;
+};
 
 suite("workbench/browser/layout", () => {
   test("keeps overlay child mounted when non-overlay parts change", async () => {
@@ -38,6 +83,139 @@ suite("workbench/browser/layout", () => {
       assert.equal(records.length, 0);
     } finally {
       layout.dispose();
+      parent.remove();
+    }
+  });
+
+  test("keeps workbench split mounted when settings is active", () => {
+    const parent = document.createElement("div");
+    const storage = new TestStorageService();
+    const layoutService = new BrowserWorkbenchLayoutService(storage);
+    document.body.append(parent);
+    const layout = new Layout(parent, layoutService, storage);
+
+    try {
+      layout.setParts({
+        auxiliaryBar: createPart("auxiliarybar"),
+        settings: createPart("settings"),
+        sidebar: createPart("sidebar"),
+        workbench: createPart("workbench"),
+      });
+
+      const split = layout.element.querySelector<HTMLElement>(".workbench_layout_split");
+      assert.ok(split);
+
+      layoutService.navigateToView("settings");
+
+      assert.equal(
+        layout.element.querySelector(".workbench_layout_split"),
+        split,
+      );
+      assert.equal(
+        layout.element.querySelector<HTMLElement>(".workbench_layout_shell")
+          ?.classList.contains("workbench_layout_shell--hidden"),
+        true,
+      );
+      assert.equal(split.classList.contains("workbench_layout_split--animate-sidebar"), false);
+      assert.equal(split.classList.contains("workbench_layout_split--animate-auxiliarybar"), false);
+
+      layoutService.navigateToView("table");
+
+      assert.equal(
+        layout.element.querySelector(".workbench_layout_split"),
+        split,
+      );
+      assert.equal(split.classList.contains("workbench_layout_split--animate-sidebar"), false);
+      assert.equal(split.classList.contains("workbench_layout_split--animate-auxiliarybar"), false);
+    } finally {
+      layout.dispose();
+      layoutService.dispose();
+      storage.dispose();
+      parent.remove();
+    }
+  });
+
+  test("hosts sidebar, main, and auxiliary bar as peer split panes", () => {
+    const parent = document.createElement("div");
+    const storage = new TestStorageService();
+    const layoutService = new BrowserWorkbenchLayoutService(storage);
+    document.body.append(parent);
+    const layout = new Layout(parent, layoutService, storage);
+
+    try {
+      layout.setParts({
+        auxiliaryBar: createPart("auxiliarybar"),
+        sidebar: createPart("sidebar"),
+        workbench: createPart("workbench"),
+      });
+
+      const grid = layout.element.querySelector<HTMLElement>(
+        ".workbench_layout_split > .ui-split-view__viewport > .ui-split-view__grid",
+      );
+      assert.ok(grid);
+      assert.equal(grid.children.length, 3);
+      assert.equal(
+        Array.from(grid.children).some(child =>
+          child.firstElementChild?.classList.contains("workbench_layout_sidebar"),
+        ),
+        true,
+      );
+      assert.equal(
+        Array.from(grid.children).some(child =>
+          child.firstElementChild?.classList.contains("workbench_layout_main"),
+        ),
+        true,
+      );
+      assert.equal(
+        Array.from(grid.children).some(child =>
+          child.firstElementChild?.classList.contains("workbench_layout_auxiliarybar"),
+        ),
+        true,
+      );
+    } finally {
+      layout.dispose();
+      layoutService.dispose();
+      storage.dispose();
+      parent.remove();
+    }
+  });
+
+  test("hides auxiliary bar by sizing its peer pane to zero", () => {
+    const parent = document.createElement("div");
+    const storage = new TestStorageService();
+    const layoutService = new BrowserWorkbenchLayoutService(storage);
+    document.body.append(parent);
+    const layout = new Layout(parent, layoutService, storage);
+
+    try {
+      layout.setParts({
+        auxiliaryBar: createPart("auxiliarybar"),
+        sidebar: createPart("sidebar"),
+        workbench: createPart("workbench"),
+      });
+
+      const grid = layout.element.querySelector<HTMLElement>(
+        ".workbench_layout_split > .ui-split-view__viewport > .ui-split-view__grid",
+      );
+      assert.ok(grid);
+
+      layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+
+      assert.equal(
+        layout.element.querySelector(".workbench_layout_split > .ui-split-view__viewport > .ui-split-view__grid"),
+        grid,
+      );
+      assert.equal(grid.children.length, 3);
+      assert.ok(grid.style.gridTemplateColumns.endsWith("0px"));
+      assert.equal(
+        layout.element.querySelector<HTMLElement>(".workbench_layout_split")
+          ?.classList.contains("workbench_layout_split--animate-auxiliarybar"),
+        true,
+      );
+    } finally {
+      layout.dispose();
+      layoutService.dispose();
+      storage.dispose();
       parent.remove();
     }
   });

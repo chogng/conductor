@@ -10,9 +10,15 @@ import {
   isAuxiliaryBarViewSwitchAction,
   type AuxiliaryBarViewSwitchAction,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
+import {
+  StorageScope,
+  StorageTarget,
+  type IStorageService,
+} from "src/cs/platform/storage/common/storage";
 
 const AuxiliaryBarClassName = "workbench_layout_auxiliarybar";
 const AuxiliaryBarPaneId = "workbench-auxiliarybar";
+const WorkbenchAuxiliaryBarWidthStorageKey = "workbench.auxiliarybar.width";
 
 export const AUXILIARY_BAR_DEFAULT_WIDTH_PX = 250;
 export const AUXILIARY_BAR_MIN_WIDTH_PX = 170;
@@ -44,11 +50,15 @@ type AuxiliaryBarPaneContainerInput = {
   readonly title: string;
 };
 
-class AuxiliaryBarLayout {
-  private _width = AUXILIARY_BAR_DEFAULT_WIDTH_PX;
+export class AuxiliaryBarLayout {
+  private _width: number;
   private readonly onDidChangeWidthEmitter = new Emitter<number>();
 
   public readonly onDidChangeWidth = this.onDidChangeWidthEmitter.event;
+
+  constructor(width = AUXILIARY_BAR_DEFAULT_WIDTH_PX) {
+    this._width = clampAuxiliaryBarWidth(width);
+  }
 
   public get width(): number {
     return this._width;
@@ -76,16 +86,38 @@ const createAuxiliaryBarSplitPane = (
   defaultSize: AUXILIARY_BAR_DEFAULT_WIDTH_PX,
   minSize: AUXILIARY_BAR_MIN_WIDTH_PX,
   maxSize: AUXILIARY_BAR_MAX_WIDTH_PX,
+  proportionalLayout: false,
   size: size ?? AUXILIARY_BAR_DEFAULT_WIDTH_PX,
   visible,
 });
 
 export class AuxiliaryBarPart extends Disposable {
-  private readonly layout = this._register(new AuxiliaryBarLayout());
+  private readonly layout: AuxiliaryBarLayout;
 
   public readonly paneId = AuxiliaryBarPaneId;
   public readonly element = createAuxiliaryBarPart();
-  public readonly onDidChangeWidth = this.layout.onDidChangeWidth;
+  public readonly onDidChangeWidth;
+
+  constructor(private readonly storageService?: IStorageService) {
+    super();
+
+    this.layout = this._register(new AuxiliaryBarLayout(
+      this.storageService?.getNumber(
+        WorkbenchAuxiliaryBarWidthStorageKey,
+        StorageScope.PROFILE,
+        AUXILIARY_BAR_DEFAULT_WIDTH_PX,
+      ),
+    ));
+    this.onDidChangeWidth = this.layout.onDidChangeWidth;
+    this._register(this.layout.onDidChangeWidth((width) => {
+      this.storageService?.store(
+        WorkbenchAuxiliaryBarWidthStorageKey,
+        width,
+        StorageScope.PROFILE,
+        StorageTarget.USER,
+      );
+    }));
+  }
 
   public get width(): number {
     return this.layout.width;
@@ -93,6 +125,14 @@ export class AuxiliaryBarPart extends Disposable {
 
   public resize(width: number): void {
     this.layout.resize(width);
+  }
+
+  public resetWidth(): void {
+    this.storageService?.remove(
+      WorkbenchAuxiliaryBarWidthStorageKey,
+      StorageScope.PROFILE,
+    );
+    this.layout.resize(AUXILIARY_BAR_DEFAULT_WIDTH_PX);
   }
 
   public createSplitPane(visible?: boolean): SplitViewPane {

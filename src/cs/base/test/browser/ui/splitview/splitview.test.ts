@@ -46,6 +46,19 @@ suite("base/browser/ui/splitview", () => {
     );
   });
 
+  test("keeps fixed side panes stable when the container resizes", () => {
+    const panes: readonly SplitViewPaneLayout[] = [
+      { minSize: 170, proportionalLayout: false, size: 300 },
+      { minSize: 220 },
+      { minSize: 170, proportionalLayout: false, size: 360 },
+    ];
+
+    assert.deepEqual(
+      normalizeSplitViewSizes(panes, [300, 540, 360], 1600, 1200),
+      [300, 940, 360],
+    );
+  });
+
   test("preserves preferred pane sizes before the split view is mounted", () => {
     const panes: readonly SplitViewPane[] = [
       { id: "sidebar", minSize: 170, size: 300 },
@@ -74,6 +87,76 @@ suite("base/browser/ui/splitview", () => {
     assert.equal(
       splitView.element.querySelector<HTMLElement>(".ui-split-view__grid")?.style.gridTemplateColumns,
       "300px 600px 300px",
+    );
+
+    splitView.dispose();
+  });
+
+  test("relayout reads the current container size without an options update", () => {
+    const panes: readonly SplitViewPane[] = [
+      { id: "sidebar", minSize: 170, size: 300 },
+      { id: "main", minSize: 220 },
+      { id: "auxiliarybar", minSize: 170, size: 300 },
+    ];
+    const splitView = new SplitView({
+      orientation: "horizontal",
+      panes,
+    });
+
+    Object.defineProperty(splitView.element, "clientWidth", {
+      configurable: true,
+      value: 1200,
+    });
+    splitView.relayout();
+
+    assert.equal(
+      splitView.element.querySelector<HTMLElement>(".ui-split-view__grid")?.style.gridTemplateColumns,
+      "300px 600px 300px",
+    );
+
+    splitView.dispose();
+  });
+
+  test("keeps pane sizes when relayouting after a detached update", () => {
+    const panes: readonly SplitViewPane[] = [
+      { id: "sidebar", minSize: 170, size: 300 },
+      { id: "main", minSize: 220 },
+      { id: "auxiliarybar", minSize: 170, size: 360 },
+    ];
+    const splitView = new SplitView({
+      orientation: "horizontal",
+      panes,
+    });
+
+    Object.defineProperty(splitView.element, "clientWidth", {
+      configurable: true,
+      value: 1200,
+    });
+    splitView.relayout();
+
+    assert.equal(
+      splitView.element.querySelector<HTMLElement>(".ui-split-view__grid")?.style.gridTemplateColumns,
+      "300px 540px 360px",
+    );
+
+    Object.defineProperty(splitView.element, "clientWidth", {
+      configurable: true,
+      value: 0,
+    });
+    splitView.update({
+      orientation: "horizontal",
+      panes,
+    });
+
+    Object.defineProperty(splitView.element, "clientWidth", {
+      configurable: true,
+      value: 1200,
+    });
+    splitView.relayout();
+
+    assert.equal(
+      splitView.element.querySelector<HTMLElement>(".ui-split-view__grid")?.style.gridTemplateColumns,
+      "300px 540px 360px",
     );
 
     splitView.dispose();

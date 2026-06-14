@@ -1178,7 +1178,7 @@ export class ExplorerViewer implements IDisposable {
           this.hoverContextViewElement = null;
         }
       },
-    }, this.hoverHost);
+    });
   }
 
   private renderFileItemHoverView(

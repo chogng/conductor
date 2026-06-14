@@ -86,6 +86,7 @@ const createSidebarSplitPane = (
   defaultSize: SIDEBAR_DEFAULT_WIDTH_PX,
   minSize: SIDEBAR_MIN_WIDTH_PX,
   maxSize: SIDEBAR_MAX_WIDTH_PX,
+  proportionalLayout: false,
   size: size ?? SIDEBAR_DEFAULT_WIDTH_PX,
   visible,
 });

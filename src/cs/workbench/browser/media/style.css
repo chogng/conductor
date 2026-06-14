@@ -217,9 +217,21 @@ html.workbench-transparent-chrome .workbench_layout_main {
   flex-direction: column;
 }
 
+.workbench_layout_view_stack {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 0%;
+}
+
 .workbench_layout_shell {
   height: 100%;
   min-height: 0;
+}
+
+.workbench_layout_shell--hidden {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .workbench_layout_split {
@@ -232,6 +244,15 @@ html.workbench-transparent-chrome .workbench_layout_main {
 .workbench_layout_sidebar {
   height: 100%;
   min-height: 0;
+}
+
+.workbench_layout_settings {
+  position: absolute;
+  inset: 0;
+}
+
+.workbench_layout_settings--hidden {
+  display: none;
 }
 
 .workbench_layout_controller,
@@ -284,17 +305,19 @@ textarea {
   outline: none !important;
 }
 
-/* Layout transitions for workbench columns and sashes */
-.workbench_layout_split .ui-split-view__grid {
+.workbench_layout_split--animate-sidebar > .ui-split-view__viewport > .ui-split-view__grid,
+.workbench_layout_split--animate-auxiliarybar > .ui-split-view__viewport > .ui-split-view__grid {
   transition: grid-template-columns 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-.workbench_layout_split .ui-sash {
+.workbench_layout_split--animate-sidebar > .ui-sash,
+.workbench_layout_split--animate-auxiliarybar > .ui-sash {
   transition: left 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), top 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-/* Disable transitions when dragging/resizing */
-.workbench_layout_split.ui-split-view[data-resizing="true"] .ui-split-view__grid,
-.workbench_layout_split.ui-split-view[data-resizing="true"] .ui-sash {
+.workbench_layout_split.ui-split-view[data-resizing="true"] > .ui-split-view__viewport > .ui-split-view__grid,
+.workbench_layout_split.ui-split-view[data-resizing="true"] > .ui-sash,
+.workbench_layout_split--inactive > .ui-split-view__viewport > .ui-split-view__grid,
+.workbench_layout_split--inactive > .ui-sash {
   transition: none !important;
 }

@@ -36,6 +36,7 @@ import {
   type SettingsServiceOptions,
 } from "src/cs/workbench/services/settings/common/settings";
 import {
+  Parts,
   type IWorkbenchLayoutService,
   type WorkbenchMainPart,
 } from "src/cs/workbench/services/layout/browser/layoutService";
@@ -421,26 +422,29 @@ export class Workbench extends Layout {
     const isSettingsActive = this.activeView === "settings";
     const isWorkbenchActive = !isSettingsActive;
     const isChartActive = this.activeWorkbenchMainPart === "chart";
+    const isSidebarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
+    const isAuxiliaryBarVisible = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+
+    if (isSidebarVisible) {
+      void this.viewsService.openViewContainer(WorkbenchViewContainers.files);
+    }
+    if (isAuxiliaryBarVisible) {
+      void this.viewsService.openViewContainer(WorkbenchViewContainers.auxiliarybar);
+    }
 
     if (isWorkbenchActive) {
-      if (this.sidebarVisible) {
-        void this.viewsService.openViewContainer(WorkbenchViewContainers.files);
-      }
       void this.viewsService.openViewContainer(WorkbenchViewContainers.main);
-      void this.viewsService.openViewContainer(WorkbenchViewContainers.auxiliarybar);
       this.viewsService.closeViewContainer(WorkbenchViewContainers.settings);
     } else {
-      this.viewsService.closeViewContainer(WorkbenchViewContainers.main);
-      this.viewsService.closeViewContainer(WorkbenchViewContainers.auxiliarybar);
       void this.viewsService.openViewContainer(WorkbenchViewContainers.settings);
     }
 
-    this.viewsService.setViewVisible(ExplorerViewId, isWorkbenchActive && this.sidebarVisible);
+    this.viewsService.setViewVisible(ExplorerViewId, isWorkbenchActive && isSidebarVisible);
     this.viewsService.setViewVisible(TableViewId, isWorkbenchActive && !isChartActive);
     this.viewsService.setViewVisible(ChartViewId, isWorkbenchActive && isChartActive);
     this.viewsService.setViewVisible(SettingsViewId, isSettingsActive);
-    this.updateSidebar(isWorkbenchActive && this.sidebarVisible);
-    this.updateAuxiliaryBar(isWorkbenchActive);
+    this.updateSidebar(isWorkbenchActive && isSidebarVisible);
+    this.updateAuxiliaryBar(isWorkbenchActive && isAuxiliaryBarVisible);
   }
 
   private updateContextKeys(): void {

@@ -8,6 +8,7 @@ import {
   TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX,
 } from "src/cs/workbench/browser/layout";
 import {
+  AuxiliaryBarLayout,
   AUXILIARY_BAR_DEFAULT_WIDTH_PX,
   AUXILIARY_BAR_MAX_WIDTH_PX,
   AUXILIARY_BAR_MIN_WIDTH_PX,
@@ -129,6 +130,17 @@ suite("workbench/browser/layout", () => {
     const layout = new SidebarLayout(120);
 
     assert.equal(layout.width, SIDEBAR_MIN_WIDTH_PX);
+
+    layout.resize(360);
+    assert.equal(layout.width, 360);
+
+    layout.dispose();
+  });
+
+  test("auxiliary bar layout clamps stored width input", () => {
+    const layout = new AuxiliaryBarLayout(120);
+
+    assert.equal(layout.width, AUXILIARY_BAR_MIN_WIDTH_PX);
 
     layout.resize(360);
     assert.equal(layout.width, 360);

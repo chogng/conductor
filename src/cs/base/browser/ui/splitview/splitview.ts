@@ -281,6 +281,12 @@ export class SplitView implements IDisposable {
     this.layout();
   }
 
+  public relayout(): void {
+    this.updateContainerSize();
+    this.normalizeSizes();
+    this.layout();
+  }
+
   public dispose(): void {
     this.clearSashes();
     this.store.dispose();
