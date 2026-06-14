@@ -5,7 +5,11 @@ import {
   executeCalculation,
 } from "src/cs/workbench/services/calculation/common/calculationExecutor";
 import { createSecondDerivativeResult } from "src/cs/workbench/services/calculation/common/gm";
-import { PlotTypes, type PlotType } from "src/cs/workbench/services/plot/common/plot";
+import {
+  CalculationKinds,
+  type CalculatedDataKind,
+  type CalculationKind,
+} from "src/cs/workbench/services/calculation/common/calculationTypes";
 import type {
   FileId,
   FileRecord,
@@ -37,8 +41,6 @@ export type CalculatedPoint = {
   yAbsPositive: number | null;
 };
 
-export type CalculatedDataKind = PlotType | "secondDerivative";
-
 export type CalculatedSeries = {
   kind: CalculatedDataKind;
   id: string;
@@ -48,7 +50,7 @@ export type CalculatedSeries = {
 
 export type CalculatedDataSource = {
   readonly fileId: string | null;
-  readonly inputKind: "processed" | "record" | PlotType;
+  readonly inputKind: "processed" | "record" | CalculationKind;
 };
 
 export type CalculatedData = {
@@ -71,7 +73,7 @@ export const createCalculatedDataKey = ({
   plotType,
 }: {
   readonly fileId: string;
-  readonly plotType: PlotType;
+  readonly plotType: CalculationKind;
 }): string => `${plotType}:${fileId}`;
 
 export const createCalculatedPlotsByKey = (
@@ -80,7 +82,7 @@ export const createCalculatedPlotsByKey = (
   const next: CalculatedPlotsByKey = {};
   for (const [index, file] of processedFiles.entries()) {
     const fileId = getCalculatedFileId(file, index);
-    for (const plotType of PlotTypes) {
+    for (const plotType of CalculationKinds) {
       next[createCalculatedDataKey({ fileId, plotType })] = createCalculatedDataForFile({
         file,
         fileId,
@@ -101,7 +103,7 @@ export const createCalculatedPlotsByKeyFromRecords = (
       continue;
     }
 
-    for (const plotType of PlotTypes) {
+    for (const plotType of CalculationKinds) {
       next[createCalculatedDataKey({ fileId: file.id, plotType })] =
         createCalculatedDataForFileRecord({
           file,
@@ -146,7 +148,7 @@ export const createCalculatedDataForFileRecord = ({
   plotType,
 }: {
   readonly file: FileRecord;
-  readonly plotType: PlotType;
+  readonly plotType: CalculationKind;
 }): CalculatedData => {
   const activeFile = createProcessedFileEntryFromRecord(file);
   const seriesList = createCalculatedSeriesFromFileRecord(file, plotType);
@@ -186,7 +188,7 @@ export const createCalculatedDataForFileRecord = ({
 
 export const getCalculatedData = (
   calculatedPlotsByKey: CalculatedPlotsByKey | undefined,
-  plotType: PlotType,
+  plotType: CalculationKind,
   fileId?: string | null,
 ): CalculatedData | null => {
   const normalizedFileId = String(fileId ?? "").trim();
@@ -209,7 +211,7 @@ export const createCalculatedData = ({
   processedFiles,
 }: {
   readonly activeFileId?: string | null;
-  readonly plotType: PlotType;
+  readonly plotType: CalculationKind;
   readonly processedFiles?: readonly ProcessedFileEntry[];
 }): CalculatedData => {
   const activeFile = resolveCalculatedFile(processedFiles ?? [], activeFileId);
@@ -226,7 +228,7 @@ export const createCalculatedDataForFile = ({
 }: {
   readonly file: ProcessedFileEntry | null;
   readonly fileId?: string | null;
-  readonly plotType: PlotType;
+  readonly plotType: CalculationKind;
 }): CalculatedData => {
   const activeFile = file;
   const seriesList = createCalculatedSeries(activeFile, plotType);
@@ -296,7 +298,7 @@ const hasFileRecordChartData = (file: FileRecord): boolean =>
 
 const createCalculatedSeriesFromFileRecord = (
   file: FileRecord,
-  plotType: PlotType,
+  plotType: CalculationKind,
 ): CalculatedSeries[] => {
   const curves = collectFileRecordBaseCurves(file);
   if (!curves.length) {
@@ -383,7 +385,7 @@ export const resolveCalculatedFile = (
 
 export const createCalculatedSeries = (
   file: ProcessedFileEntry | null,
-  plotType: PlotType,
+  plotType: CalculationKind,
 ): CalculatedSeries[] => {
   const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
   const usedIds = new Set<string>();
@@ -410,7 +412,7 @@ export const createCalculatedSeries = (
 };
 
 export const getCalculatedYUnitLabel = (
-  plotType: PlotType,
+  plotType: CalculationKind,
   activeFile: ProcessedFileEntry | null,
 ): string => {
   switch (plotType) {
@@ -584,7 +586,7 @@ const resolveUniqueSeriesId = (
   return next;
 };
 
-const resolveSecondSourceKind = (kind: CalculatedDataKind): PlotType =>
+const resolveSecondSourceKind = (kind: CalculatedDataKind): CalculationKind =>
   kind === "secondDerivative" ? "gm" : kind;
 
 const getSecondCalculatedYUnitLabel = (sourceData: CalculatedData): string => {
@@ -618,7 +620,7 @@ const isArrayLike = (value: unknown): value is ArrayLike<unknown> =>
   Number.isFinite(Number((value as ArrayLike<unknown>).length));
 
 const resolveCalculatedPoints = (
-  plotType: PlotType,
+  plotType: CalculationKind,
   sourcePoints: readonly SourcePoint[],
 ): CalculatedPoint[] =>
   executeCalculation({

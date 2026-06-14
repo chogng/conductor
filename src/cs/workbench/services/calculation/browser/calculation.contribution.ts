@@ -7,15 +7,10 @@ import {
 } from "src/cs/base/common/lifecycle";
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from "src/cs/workbench/common/contributions";
 import {
-  createCalculatedPlotsByKeyFromRecords,
-  createCalculatedDataRecordInputSignature,
-} from "src/cs/workbench/services/calculation/common/calculationResults";
-import {
-  createCalculatedMetricRecordsByFile,
-  createCalculatedMetricRecordsInputSignature,
-} from "src/cs/workbench/services/calculation/common/calculationMetricRecords";
+  createCalculatedRecordsByFile,
+  createCalculatedRecordsInputSignature,
+} from "src/cs/workbench/services/calculation/common/calculationRecordBuilder";
 import { CalculationContributionId } from "src/cs/workbench/services/calculation/common/calculation";
-import { createCalculatedCurveRecordsByFile } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import {
   ISessionService,
 } from "src/cs/workbench/services/session/common/session";
@@ -39,10 +34,7 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
 
   private update(): void {
     const snapshot = this.sessionService.getSnapshot();
-    const inputSignature = createCalculatedDataRecordInputSignature(
-      snapshot.filesById,
-      snapshot.fileOrder,
-    ) + "\u001e" + createCalculatedMetricRecordsInputSignature(
+    const inputSignature = createCalculatedRecordsInputSignature(
       snapshot.filesById,
       snapshot.fileOrder,
     );
@@ -51,10 +43,7 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
     }
 
     this.inputSignature = inputSignature;
-    const curvesByFileId = createCalculatedCurveRecordsByFile(
-      createCalculatedPlotsByKeyFromRecords(snapshot.filesById, snapshot.fileOrder),
-    );
-    const metricsByFileId = createCalculatedMetricRecordsByFile(
+    const { curvesByFileId, metricsByFileId } = createCalculatedRecordsByFile(
       snapshot.filesById,
       snapshot.fileOrder,
     );

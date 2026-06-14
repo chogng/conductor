@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CalculationPoint } from "./calculation.ts";
+import type { CalculationPoint } from "./calculationTypes.ts";
 import { splitBidirectionalCurvePoints } from "./sweepSegmentation.ts";
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);

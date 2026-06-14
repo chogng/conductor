@@ -441,6 +441,7 @@ Use runtime folders consistently.
 | `ISessionService` | `src/cs/workbench/services/session` | commit requests | canonical records, snapshot, change events | view state, worker refs, request cache, rendering |
 | `ITableService` | `src/cs/workbench/services/table` | session snapshot, raw table refs | table model, row preview, selection/highlight state | block detection, template execution |
 | `ITemplateService` | `src/cs/workbench/services/template` | assessment blocks, template config | template records, template run, curves/series commit request | assessment, plotting, table selection ownership |
+| calculation contribution/helpers | `src/cs/workbench/services/calculation` | session base curves, metric inputs | derived calculation results, `CurveRecord` and `MetricRecord` commit payloads | plot/chart UI state, parameter UI state, session internals |
 | `IPlotService` | `src/cs/workbench/services/plot` | session curves/metrics, plot settings | `PlotRenderModel`, plot domains, display series | DOM rendering, chart panel shell |
 | `IChartService` | `src/cs/workbench/services/chart` | plot model and chart UI actions | chart shell state, pane layout, render input | raw session interpretation, plot calculation |
 | `IThumbnailService` | `src/cs/workbench/services/thumbnail` | plot render model | thumbnail cache/render result | session mutation, independent curve derivation |
@@ -511,6 +512,9 @@ flowchart TD
     Events --> Template[ITemplateService]
     Template --> SessionTemplate[ISessionService.commitTemplateRun / commitCurves]
 
+    Events --> Calculation[Calculation contribution]
+    Calculation --> SessionCalculation[ISessionService.commitCurves / commitMetrics]
+    SessionCalculation --> Events
     Events --> Plot[IPlotService]
     Plot --> Chart[IChartService]
     Plot --> Thumbnail[IThumbnailService]
@@ -867,6 +871,23 @@ src/cs/workbench/services/template/
   browser/templateService.ts
   browser/templateApplyService.ts
   browser/template.contribution.ts
+
+src/cs/workbench/services/calculation/
+  common/calculation.ts
+  common/calculationTypes.ts
+  common/calculationExecutor.ts
+  common/calculationRecordBuilder.ts
+  common/calculationCurveRecordBuilder.ts
+  common/calculationReadModel.ts
+  common/calculationMetricRecordBuilder.ts
+  common/gm.ts
+  common/ss.ts
+  common/vth.ts
+  common/sweepSegmentation.ts
+  common/ionIoff.ts
+  common/calculationCacheAccess.ts
+  common/calculationCachePolicy.ts
+  browser/calculation.contribution.ts
 
 src/cs/workbench/services/plot/
   common/plot.ts

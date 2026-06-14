@@ -1,7 +1,7 @@
 /*---------------------------------------------------------------------------------------------
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
-import type { CalculationPoint } from "./calculation.ts";
+import type { CalculationPoint } from "./calculationTypes.ts";
 
 type VthPoint = {
   x: number;

@@ -6,7 +6,7 @@ import type {
   CalculatedData,
   CalculatedPlotsByKey,
   CalculatedSeries,
-} from "src/cs/workbench/services/calculation/common/calculationResults";
+} from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type {
   CurveData,
   CurveKey as LegacyCurveKey,
@@ -1807,4 +1807,3 @@ const normalizeOptionalText = (value: unknown): string | undefined => {
   const text = String(value ?? "").trim();
   return text || undefined;
 };
-

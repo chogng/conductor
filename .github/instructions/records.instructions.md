@@ -285,6 +285,54 @@ Owner: `SessionService` only. Canonical root.
 | `algorithm` | `{ id: string; version?: string } | undefined` | Algorithm provenance. |
 | `value` | `unknown` | Family-specific value record. |
 
+## Calculation derived results
+
+### `CalculatedData`
+
+Owner: Calculation. Producer: `calculationReadModel.ts`. Consumers:
+Calculation contribution, Session adapter compatibility paths, and Plot
+service. Canonical? No, derived intermediate calculation result. Invalidation:
+base curve signatures, axis/unit facts, selected calculation kind, and source
+point values.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `activeFile` | `ProcessedEntry | null` | Legacy-compatible source projection used while migration still has processed inputs. |
+| `kind` | `CalculatedDataKind` | Calculation kind requested, such as a base plot family or second derivative. |
+| `pointsCount` | `number` | Total number of calculated points across all series. |
+| `seriesList` | `CalculatedSeries[]` | Calculated series results for this source/kind. |
+| `signature` | `string` | Stable result signature for cache/render invalidation. |
+| `source` | `CalculatedDataSource` | Source file and input-kind reference for provenance. |
+| `xDomain` | `[number, number]` | Numeric x domain of the calculated points. |
+| `xUnitLabel` | `string` | Source x unit label preserved for downstream display/adaptation. |
+| `yDomain` | `[number, number]` | Numeric y domain of the calculated points. |
+| `yUnitLabel` | `string` | Calculation result y unit label. |
+
+### `CalculatedSeries`
+
+Owner: Calculation. Producer: `calculationReadModel.ts`. Canonical? No, derived
+intermediate calculation result. Consumers adapt it into canonical
+`CurveRecord` values or render models through their own owner boundaries.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `kind` | `CalculatedDataKind` | Calculation kind for this series. |
+| `id` | `string` | Stable source/series id within the calculated result. |
+| `name` | `string` | Source series display name copied from session or processed input. |
+| `data` | `CalculatedPoint[]` | Calculated numeric points. |
+
+### `CalculatedPoint`
+
+Owner: Calculation. Producer: `calculationReadModel.ts`. Canonical? No, derived
+point result.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `x` | `number` | Calculated x value. |
+| `y` | `number` | Calculated y value. |
+| `yPositive` | `number | null` | Positive y value for log/display helpers, or null. |
+| `yAbsPositive` | `number | null` | Positive absolute y value for log/display helpers, or null. |
+
 ## Template records
 
 ### `TemplateRecord`

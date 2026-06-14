@@ -2,7 +2,7 @@ import assert from "assert";
 
 import {
   getCalculatedData,
-} from "src/cs/workbench/services/calculation/common/calculationResults";
+} from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import {
   mergeProcessedFileIntoRecords,

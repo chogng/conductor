@@ -11,9 +11,10 @@ import {
 import {
   calculateVthPoints,
 } from "./vth.ts";
-import type { CalculationPoint } from "./calculation.ts";
-
-export type CalculationKind = "iv" | "gm" | "ss" | "vth";
+import type {
+  CalculationKind,
+  CalculationPoint,
+} from "./calculationTypes.ts";
 
 export type CalculationAlgorithmId =
   | "base.identity"

@@ -3,8 +3,8 @@ import assert from "assert";
 import {
   executeCalculation,
   getCalculationDescriptor,
-  type CalculationKind,
 } from "../../common/calculationExecutor.ts";
+import type { CalculationKind } from "../../common/calculationTypes.ts";
 
 suite("workbench/services/calculation/test/common/calculationExecutor", () => {
   test("resolves calculation descriptors by kind", () => {

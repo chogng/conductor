@@ -4,7 +4,11 @@
 
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { CalculatedData } from "src/cs/workbench/services/calculation/common/calculationResults";
+import {
+  CalculationKinds,
+  type CalculationKind,
+} from "src/cs/workbench/services/calculation/common/calculationTypes";
+import type { CalculatedData } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type {
   FileId,
@@ -16,10 +20,10 @@ import type {
 } from "src/cs/workbench/services/plot/common/plotModel";
 import type { XUnit, YUnit } from "src/cs/workbench/services/plot/common/units";
 
-export const PlotTypes = ["iv", "ss", "gm", "vth"] as const;
+export const PlotTypes = CalculationKinds;
 export const IPlotService = createDecorator<IPlotService>("plotService");
 
-export type PlotType = typeof PlotTypes[number];
+export type PlotType = CalculationKind;
 
 export const isPlotType = (value: unknown): value is PlotType =>
   typeof value === "string" && (PlotTypes as readonly string[]).includes(value);

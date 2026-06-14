@@ -1,9 +1,7 @@
-import type {
-  CalculatedPlotsByKey,
-} from "src/cs/workbench/services/calculation/common/calculationResults";
 import {
   createCalculatedPlotsByKeyFromRecords,
-} from "src/cs/workbench/services/calculation/common/calculationResults";
+  type CalculatedPlotsByKey,
+} from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import {
   getLatestTemplateRunRecord,

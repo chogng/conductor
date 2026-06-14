@@ -11,6 +11,9 @@ import {
   isCompatibleCalculationCachePayload,
 } from "./calculationCachePolicy.ts";
 
+// TODO(conductor-architecture): Migration bridge.
+// Prefer canonical FileRecord.calculationCache; keep analysisCache reads only for
+// legacy compatibility until legacy session payloads are removed.
 export type CachedCalculationSeriesResult = {
   baseCurrent?: unknown;
   gm?: unknown;
