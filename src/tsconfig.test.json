@@ -10,7 +10,7 @@
     "noCheck": true,
     "experimentalDecorators": true,
     "rootDir": "..",
-    "outDir": "../out-test",
+    "outDir": "../out",
     "types": ["node", "mocha"],
     "rewriteRelativeImportExtensions": true
   },

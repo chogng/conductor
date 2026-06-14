@@ -4,9 +4,11 @@
 
 import assert from "assert";
 
+import { createCalculatedMetricRecordsByFile } from "src/cs/workbench/services/calculation/common/calculationMetricRecordBuilder";
 import { ParametersService } from "src/cs/workbench/services/parameters/browser/parametersService";
 import type { ParametersViewState } from "src/cs/workbench/services/parameters/common/parameterModel";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
+import type { MetricKey } from "src/cs/workbench/services/session/common/sessionModel";
 import {
   mergeProcessedFileIntoRecords,
   mergeRawFilesIntoRecords,
@@ -98,8 +100,31 @@ const createProcessedSnapshot = (): SessionSnapshot => {
     },
     rawSnapshot,
   );
+  const metricRecords = createCalculatedMetricRecordsByFile(
+    processedRecords.filesById,
+    processedRecords.fileOrder,
+  );
+  const metricsByKey = Object.fromEntries(
+    (metricRecords["file-a"] ?? []).map(metric => [metric.key, metric]),
+  );
+  const metricsBySeriesId = Object.values(metricsByKey).reduce<Record<string, MetricKey[]>>(
+    (result, metric) => {
+      result[metric.seriesId] = [...(result[metric.seriesId] ?? []), metric.key];
+      return result;
+    },
+    {},
+  );
+
   return {
     ...rawSnapshot,
     ...processedRecords,
+    filesById: {
+      ...processedRecords.filesById,
+      "file-a": {
+        ...processedRecords.filesById["file-a"],
+        metricsByKey,
+        metricsBySeriesId,
+      },
+    },
   };
 };

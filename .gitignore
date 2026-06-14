@@ -12,6 +12,7 @@ lerna-debug.log*
 node_modules
 dist
 desktop-dist
+out
 out-test
 dist-ssr
 release

@@ -1,5 +1,6 @@
 import assert from "assert";
 
+import { isWindows } from "../../../../../base/common/platform.ts";
 import { CommandsRegistry } from "../../../../../platform/commands/common/commands.ts";
 import type { ServicesAccessor, ServiceIdentifier } from "../../../../../platform/instantiation/common/instantiation.ts";
 import { INativeHostService } from "../../../../../platform/native/common/native.ts";
@@ -41,9 +42,9 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
     );
 
     assert.equal(sourceResources.length, 1);
-    assert.equal(sourceResources[0].fsPath, "C:\\data\\source.csv");
+    assert.equal(sourceResources[0].fsPath, toExpectedFsPath("C:/data/source.csv"));
     assert.equal(normalizedResources.length, 1);
-    assert.equal(normalizedResources[0].fsPath, "C:\\tmp\\normalized.csv");
+    assert.equal(normalizedResources[0].fsPath, toExpectedFsPath("C:/tmp/normalized.csv"));
   });
 
   test("registered reveal in OS command delegates to native host", () => {
@@ -74,10 +75,13 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
 
     CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND_ID)?.handler(accessor, "file-1");
 
-    assert.equal(revealedPath, "C:\\data\\file.csv");
+    assert.equal(revealedPath, toExpectedFsPath("C:/data/file.csv"));
     assert.ok(CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND_ID));
   });
 });
+
+const toExpectedFsPath = (path: string): string =>
+  isWindows ? path.replace(/\//g, "\\") : `/${path}`;
 
 function createAccessor(
   services: readonly (readonly [ServiceIdentifier<unknown>, unknown])[],

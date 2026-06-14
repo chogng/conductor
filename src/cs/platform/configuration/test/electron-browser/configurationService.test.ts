@@ -2,6 +2,7 @@ import assert from "assert";
 
 import { Emitter } from "src/cs/base/common/event";
 import { toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
+import { isWindows } from "src/cs/base/common/platform";
 import { URI } from "src/cs/base/common/uri";
 import {
   ConfigurationTarget,
@@ -127,7 +128,9 @@ suite("platform/configuration/electron-browser/configurationService", () => {
 
     assert.equal(
       resource.fsPath,
-      "C:\\Users\\lanxi\\AppData\\Roaming\\Conductor Studio\\User\\settings.json",
+      isWindows
+        ? "C:\\Users\\lanxi\\AppData\\Roaming\\Conductor Studio\\User\\settings.json"
+        : "/C:/Users/lanxi/AppData/Roaming/Conductor Studio/User/settings.json",
     );
   });
 

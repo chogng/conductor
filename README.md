@@ -165,6 +165,17 @@ npm run typecheck
 npm run test:unit
 ```
 
+Targeted unit tests use the same compiled runner as `test:unit`: TypeScript is
+emitted to `out`, workspace imports such as `src/...` are rewritten there,
+and Mocha runs the compiled JavaScript. Do not run raw TypeScript test files
+directly through Mocha; Node's strip-types mode does not support the project's
+full TypeScript syntax.
+
+```bash
+npm run test:unit:target -- src/cs/workbench/services/assessment/test/browser/importFileAssessment.test.ts
+npm run test:unit:target -- src/cs/workbench/services/table/test/browser
+```
+
 Import test and benchmark data:
 
 - Unit and smoke-style import coverage should use inline data or small fixtures
