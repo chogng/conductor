@@ -10,6 +10,12 @@
   border-left: 1px solid rgb(var(--border) / 1);
   border-top: 1px solid rgb(var(--border) / 1);
   background-color: rgb(var(--bg-surface) / 1);
+  transition: opacity 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.auxiliarybar-hidden .workbench_layout_auxiliarybar {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Auxiliary Bar View Switch */

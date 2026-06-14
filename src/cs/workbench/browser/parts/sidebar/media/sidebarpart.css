@@ -8,6 +8,12 @@
   min-height: 0;
   flex-direction: column;
   background-color: transparent;
+  transition: opacity 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.sidebar-hidden .workbench_layout_sidebar {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .workbench_layout_sidebar .workbench-view-pane-container {

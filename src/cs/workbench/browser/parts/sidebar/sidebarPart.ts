@@ -80,12 +80,14 @@ export class SidebarLayout {
 
 const createSidebarSplitPane = (
   size?: number,
+  visible = true,
 ): SplitViewPane => ({
   id: SidebarPaneId,
   defaultSize: SIDEBAR_DEFAULT_WIDTH_PX,
   minSize: SIDEBAR_MIN_WIDTH_PX,
   maxSize: SIDEBAR_MAX_WIDTH_PX,
-  ...(typeof size === "number" ? { size } : {}),
+  size: size ?? SIDEBAR_DEFAULT_WIDTH_PX,
+  visible,
 });
 
 export class SidebarPart extends Disposable {
@@ -132,8 +134,8 @@ export class SidebarPart extends Disposable {
     this.layout.resize(SIDEBAR_DEFAULT_WIDTH_PX);
   }
 
-  public createSplitPane(): SplitViewPane {
-    return createSidebarSplitPane(this.width);
+  public createSplitPane(visible?: boolean): SplitViewPane {
+    return createSidebarSplitPane(this.width, visible);
   }
 
   public updatePaneContainer(input: SidebarPaneContainerInput): void {

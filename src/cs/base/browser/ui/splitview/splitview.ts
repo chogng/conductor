@@ -18,6 +18,7 @@ export type SplitViewPaneLayout = {
   readonly minSize?: number;
   readonly proportionalLayout?: boolean;
   readonly size?: number;
+  readonly visible?: boolean;
 };
 
 export type SplitViewPane = SplitViewPaneLayout & {
@@ -49,13 +50,20 @@ export const getSplitViewPaneClassName = (className = ""): string =>
   className ? `ui-split-view__pane ${className}` : "ui-split-view__pane";
 
 export const getPaneMinSize = (pane: SplitViewPaneLayout): number =>
-  Math.max(0, pane.minSize ?? DEFAULT_PANE_MIN_SIZE);
+  isPaneVisible(pane)
+    ? Math.max(0, pane.minSize ?? DEFAULT_PANE_MIN_SIZE)
+    : 0;
 
 export const getPaneMaxSize = (pane: SplitViewPaneLayout): number =>
-  Math.max(getPaneMinSize(pane), pane.maxSize ?? Number.POSITIVE_INFINITY);
+  isPaneVisible(pane)
+    ? Math.max(getPaneMinSize(pane), pane.maxSize ?? Number.POSITIVE_INFINITY)
+    : 0;
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(Math.max(value, min), max);
+
+const isPaneVisible = (pane: SplitViewPaneLayout): boolean =>
+  pane.visible ?? true;
 
 const usesProportionalLayout = (pane: SplitViewPaneLayout): boolean =>
   pane.proportionalLayout ?? true;
@@ -223,6 +231,7 @@ export class SplitView implements IDisposable {
   private readonly store = new DisposableStore();
   private readonly paneElements = new Map<string, HTMLDivElement>();
   private readonly sashItems: Sash[] = [];
+  private readonly cachedVisibleSizesByPaneId = new Map<string, number>();
   private containerSize = 0;
   private dragState: DragState | null = null;
   private options: SplitViewOptions;
@@ -260,6 +269,7 @@ export class SplitView implements IDisposable {
 
   public update(options: SplitViewOptions): void {
     const previousPanes = this.options.panes;
+    this.updateCachedVisibleSizes(previousPanes, this.sizes, options.panes);
     this.options = options;
     if (!areSplitViewPaneIdsEqual(previousPanes, options.panes)) {
       this.sizes = preserveSplitViewSizesByPaneId(previousPanes, this.sizes, options.panes);
@@ -329,10 +339,49 @@ export class SplitView implements IDisposable {
     const { gap = 0, panes } = this.options;
     const previousAvailableSize = this.availableSize;
     const availableSize = Math.max(0, this.containerSize - Math.max(0, panes.length - 1) * gap);
-    const nextSizes = normalizeSplitViewSizes(panes, this.sizes, availableSize, previousAvailableSize);
+    const previousSizes = this.getNormalizationPreviousSizes(panes);
+    const nextSizes = normalizeSplitViewSizes(panes, previousSizes, availableSize, previousAvailableSize);
     this.availableSize = availableSize;
     if (!areSplitViewSizesEqual(this.sizes, nextSizes)) {
       this.sizes = nextSizes;
+    }
+  }
+
+  private getNormalizationPreviousSizes(
+    panes: readonly SplitViewPane[],
+  ): readonly number[] {
+    return panes.map((pane, index) => {
+      const previousSize = this.sizes[index];
+      if (typeof previousSize !== "number") {
+        return pane.size ?? pane.defaultSize ?? 0;
+      }
+      if (!isPaneVisible(pane) || previousSize >= getPaneMinSize(pane)) {
+        return previousSize;
+      }
+
+      return this.cachedVisibleSizesByPaneId.get(pane.id) ?? previousSize;
+    });
+  }
+
+  private updateCachedVisibleSizes(
+    previousPanes: readonly SplitViewPane[],
+    previousSizes: readonly number[],
+    nextPanes: readonly SplitViewPane[],
+  ): void {
+    const nextPanesById = new Map(nextPanes.map((pane) => [pane.id, pane]));
+    for (let index = 0; index < previousPanes.length; index += 1) {
+      const previousPane = previousPanes[index];
+      const nextPane = nextPanesById.get(previousPane.id);
+      const previousSize = previousSizes[index];
+      if (
+        nextPane &&
+        isPaneVisible(previousPane) &&
+        !isPaneVisible(nextPane) &&
+        typeof previousSize === "number" &&
+        previousSize > 0
+      ) {
+        this.cachedVisibleSizesByPaneId.set(previousPane.id, previousSize);
+      }
     }
   }
 
@@ -409,6 +458,8 @@ export class SplitView implements IDisposable {
       this.sashItems[index]?.update({
         active: this.resizingPaneIndex === index,
         className: "ui-split-view__sash",
+        disabled: !isPaneVisible(this.options.panes[index]) ||
+          !isPaneVisible(this.options.panes[index + 1]),
         orientation: sashOrientation,
         style,
         onDidStart: () => this.startResize(index),

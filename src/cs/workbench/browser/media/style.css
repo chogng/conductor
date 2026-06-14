@@ -188,22 +188,10 @@ select {
 html.workbench-transparent-chrome,
 html.workbench-transparent-chrome body,
 html.workbench-transparent-chrome #root,
-html.workbench-transparent-chrome .workbench_window {
-  background: transparent;
-}
-
+html.workbench-transparent-chrome .workbench_window,
 html.workbench-transparent-chrome .titlebar-root,
 html.workbench-transparent-chrome .workbench_layout_sidebar {
-  -webkit-backdrop-filter: blur(24px) saturate(1.28);
-  backdrop-filter: blur(24px) saturate(1.28);
-}
-
-html.workbench-transparent-chrome .titlebar-root {
-  background: var(--transparent-chrome-titlebar);
-}
-
-html.workbench-transparent-chrome .workbench_layout_sidebar {
-  background: var(--transparent-chrome-sidebar);
+  background: #00000000;
 }
 
 html.workbench-transparent-chrome .workbench_layout_main {
@@ -294,4 +282,19 @@ textarea {
 
 *:focus:not(:focus-visible) {
   outline: none !important;
+}
+
+/* Layout transitions for workbench columns and sashes */
+.workbench_layout_split .ui-split-view__grid {
+  transition: grid-template-columns 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.workbench_layout_split .ui-sash {
+  transition: left 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), top 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* Disable transitions when dragging/resizing */
+.workbench_layout_split.ui-split-view[data-resizing="true"] .ui-split-view__grid,
+.workbench_layout_split.ui-split-view[data-resizing="true"] .ui-sash {
+  transition: none !important;
 }

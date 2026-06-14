@@ -197,6 +197,9 @@ export class Layout extends Disposable {
   }
 
   private render(): void {
+    this.element.classList.toggle("sidebar-hidden", !this.isPartVisible(Parts.SIDEBAR_PART));
+    this.element.classList.toggle("auxiliarybar-hidden", !this.isPartVisible(Parts.AUXILIARYBAR_PART));
+
     this.controller.replaceChildren();
     this.main.replaceChildren();
     this.sidebar.replaceChildren();
@@ -302,8 +305,9 @@ export class Layout extends Disposable {
       .getPaneElement(this.auxiliaryBarPart.paneId)
       ?.replaceChildren(this.auxiliaryBar);
     this.shell.className = "workbench_layout_shell";
-    this.shell.replaceChildren(splitView.element);
-    this.element.replaceChildren(
+    replaceChildrenIfChanged(this.shell, splitView.element);
+    replaceChildrenIfChanged(
+      this.element,
       this.controller,
       this.shell,
       this.overlay,
@@ -313,17 +317,19 @@ export class Layout extends Disposable {
   private getSplitPanes(): readonly SplitViewPane[] {
     const panes: SplitViewPane[] = [];
 
-    if (this.shouldRenderSidebar()) {
-      panes.push(this.sidebarPart.createSplitPane());
-    }
+    panes.push(this.sidebarPart.createSplitPane(
+      this.isPartVisible(Parts.SIDEBAR_PART),
+    ));
 
     panes.push({
       id: "workbench-main",
       minSize: MAIN_MIN_WIDTH_PX,
     });
 
-    if (isWorkbenchView(this.activeView) && this.parts.auxiliaryBar) {
-      panes.push(this.auxiliaryBarPart.createSplitPane());
+    if (this.parts.auxiliaryBar) {
+      panes.push(this.auxiliaryBarPart.createSplitPane(
+        this.isPartVisible(Parts.AUXILIARYBAR_PART),
+      ));
     }
 
     return panes;
@@ -334,20 +340,23 @@ export class Layout extends Disposable {
       return;
     }
 
-    const sidebarIndex = this.shouldRenderSidebar() ? 0 : -1;
-    const nextWidth = sidebarIndex >= 0 ? sizes[sidebarIndex] : undefined;
-    if (typeof nextWidth === "number" && Number.isFinite(nextWidth)) {
+    const sidebarIndex = 0;
+    const sidebarVisible = this.isPartVisible(Parts.SIDEBAR_PART);
+    const nextWidth = sizes[sidebarIndex];
+    if (sidebarVisible && typeof nextWidth === "number" && Number.isFinite(nextWidth)) {
       this.sidebarPart.resize(nextWidth);
     }
 
-    const auxiliaryBarIndex = this.shouldRenderSidebar() ? 2 : 1;
-    const nextAuxiliaryBarWidth = sizes[auxiliaryBarIndex];
-    if (
-      isWorkbenchView(this.activeView) &&
-      this.parts.auxiliaryBar &&
-      Number.isFinite(nextAuxiliaryBarWidth)
-    ) {
-      this.auxiliaryBarPart.resize(nextAuxiliaryBarWidth);
+    if (this.parts.auxiliaryBar) {
+      const auxiliaryBarIndex = 2;
+      const auxiliaryBarVisible = this.isPartVisible(Parts.AUXILIARYBAR_PART);
+      const nextAuxiliaryBarWidth = sizes[auxiliaryBarIndex];
+      if (
+        auxiliaryBarVisible &&
+        Number.isFinite(nextAuxiliaryBarWidth)
+      ) {
+        this.auxiliaryBarPart.resize(nextAuxiliaryBarWidth);
+      }
     }
   }
 
@@ -362,12 +371,11 @@ export class Layout extends Disposable {
   }
 
   private shouldRenderSidebar(): boolean {
-    return isWorkbenchView(this.activeView) && this.isPartVisible(Parts.SIDEBAR_PART);
+    return isWorkbenchView(this.activeView);
   }
 
   private shouldRenderSplit(): boolean {
-    return isWorkbenchView(this.activeView) &&
-      (this.shouldRenderSidebar() || Boolean(this.parts.auxiliaryBar));
+    return isWorkbenchView(this.activeView);
   }
 
   private hasAuxiliaryBarPane(): boolean {
@@ -465,6 +473,20 @@ const appendIfPresent = (
   if (child) {
     parent.append(child);
   }
+};
+
+const replaceChildrenIfChanged = (
+  parent: HTMLElement,
+  ...children: readonly Node[]
+): void => {
+  if (
+    parent.childNodes.length === children.length &&
+    children.every((child, index) => parent.childNodes[index] === child)
+  ) {
+    return;
+  }
+
+  parent.replaceChildren(...children);
 };
 
 const areLayoutPartsEqual = (

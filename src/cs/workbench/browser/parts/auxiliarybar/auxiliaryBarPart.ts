@@ -70,12 +70,14 @@ class AuxiliaryBarLayout {
 
 const createAuxiliaryBarSplitPane = (
   size?: number,
+  visible = true,
 ): SplitViewPane => ({
   id: AuxiliaryBarPaneId,
   defaultSize: AUXILIARY_BAR_DEFAULT_WIDTH_PX,
   minSize: AUXILIARY_BAR_MIN_WIDTH_PX,
   maxSize: AUXILIARY_BAR_MAX_WIDTH_PX,
-  ...(typeof size === "number" ? { size } : {}),
+  size: size ?? AUXILIARY_BAR_DEFAULT_WIDTH_PX,
+  visible,
 });
 
 export class AuxiliaryBarPart extends Disposable {
@@ -93,8 +95,8 @@ export class AuxiliaryBarPart extends Disposable {
     this.layout.resize(width);
   }
 
-  public createSplitPane(): SplitViewPane {
-    return createAuxiliaryBarSplitPane(this.width);
+  public createSplitPane(visible?: boolean): SplitViewPane {
+    return createAuxiliaryBarSplitPane(this.width, visible);
   }
 
   public updatePaneContainer(input: AuxiliaryBarPaneContainerInput): void {

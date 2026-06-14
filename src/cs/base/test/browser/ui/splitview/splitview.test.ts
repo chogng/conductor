@@ -115,4 +115,48 @@ suite("base/browser/ui/splitview", () => {
 
     splitView.dispose();
   });
+
+  test("caches visible pane size while a pane is hidden", () => {
+    const visiblePanes: readonly SplitViewPane[] = [
+      { id: "sidebar", minSize: 170, size: 300 },
+      { id: "main", minSize: 220 },
+      { id: "auxiliarybar", minSize: 170, size: 300 },
+    ];
+    const splitView = new SplitView({
+      orientation: "horizontal",
+      panes: visiblePanes,
+    });
+    Object.defineProperty(splitView.element, "clientWidth", {
+      configurable: true,
+      value: 1200,
+    });
+    splitView.update({
+      orientation: "horizontal",
+      panes: visiblePanes,
+    });
+
+    splitView.update({
+      orientation: "horizontal",
+      panes: visiblePanes.map((pane) =>
+        pane.id === "sidebar" ? { ...pane, visible: false } : pane,
+      ),
+    });
+
+    assert.equal(
+      splitView.element.querySelector<HTMLElement>(".ui-split-view__grid")?.style.gridTemplateColumns,
+      "0px 900px 300px",
+    );
+
+    splitView.update({
+      orientation: "horizontal",
+      panes: visiblePanes,
+    });
+
+    assert.equal(
+      splitView.element.querySelector<HTMLElement>(".ui-split-view__grid")?.style.gridTemplateColumns,
+      "300px 600px 300px",
+    );
+
+    splitView.dispose();
+  });
 });

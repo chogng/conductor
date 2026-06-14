@@ -236,7 +236,7 @@ suite("platform/window/electron-main/window", () => {
 
     assert.deepEqual(win.calls, [
       ["setTitleBarOverlay", {
-        color: "rgba(0, 0, 0, 0)",
+        color: "#00000000",
         height: undefined,
         symbolColor: undefined,
       }],
@@ -267,7 +267,7 @@ suite("platform/window/electron-main/window", () => {
     });
 
     assert.deepEqual(win.calls, [
-      ["setBackgroundColor", "rgba(0, 0, 0, 0)"],
+      ["setBackgroundColor", "#00000000"],
       ["setTitleBarOverlay", {
         color: "#abcdef",
         height: undefined,
