@@ -47,6 +47,7 @@ import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from "../../platform/files/common/file
 import { DiskFileSystemProvider } from "../../platform/files/node/diskFileSystemProvider.js";
 import { registerRustHostChannels } from "./rustHostChannels.js";
 import { RustHostService } from "./rustHostService.js";
+import { mainProcessMessage, resolveMainNLSLanguage } from "./mainNls.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -69,21 +70,14 @@ if (!hasSingleInstanceLock) {
 function getMainLanguage() {
   try {
     const language = conductorStore?.getConductorSettings?.()?.language;
-    return language === "zh" ? "zh" : "en";
+    return resolveMainNLSLanguage(language, app.getLocale());
   } catch {
     return "en";
   }
 }
 
 function mainMessage(key, vars = {}) {
-  const language = getMainLanguage();
-  const messages = MAIN_MESSAGES[language] || MAIN_MESSAGES.en;
-  const template = messages[key] || MAIN_MESSAGES.en[key] || key;
-  return Object.entries(vars).reduce(
-    (value, [name, replacement]) =>
-      value.replaceAll(`{${name}}`, String(replacement ?? "")),
-    template,
-  );
+  return mainProcessMessage(getMainLanguage(), key, vars);
 }
 
 const isDev = !app.isPackaged;
@@ -97,61 +91,6 @@ const isWindowsStorePackage =
   process.platform === "win32" && Reflect.get(process, "windowsStore") === true;
 const APP_DISPLAY_NAME = product.nameLong;
 const APP_USER_MODEL_ID = isDev ? `${product.appId}.dev` : product.appId;
-
-const MAIN_MESSAGES = {
-  en: {
-    "dialog.allFiles": "All Files",
-    "dialog.confirm": "Confirm",
-    "dialog.save": "Save",
-    "help.windowGuideTitle": "Conductor Studio User Guide",
-    "help.windowUpdateLogTitle": "Conductor Studio Update Log",
-    "originCsv.saveDialogTitle": "Save Origin CSV ZIP",
-    "originCsv.zipFilter": "ZIP",
-    "tray.backgroundContinueMessage": "The app is still running in the background. You can restore or quit it from the system tray.",
-    "tray.checkForUpdates": "Check for Updates",
-    "tray.hideWindow": "Hide Window",
-    "tray.quit": "Quit",
-    "tray.showWindow": "Show Window",
-    "update.alreadyLatest": "You are already using the latest version.",
-    "update.checkFailedDetail": "{reason}\n\nPlease check your network or proxy settings and try again.",
-    "update.checkFailedMessage": "Update check failed",
-    "update.disabledDevelopment": "Auto update is disabled in development.",
-    "update.errorReasonPrefix": "Reason: {message}",
-    "update.failed": "Auto update failed.",
-    "update.notEnabled": "Auto update is not enabled in this build.",
-    "update.ok": "OK",
-    "update.retrySuggestion": "Please try again later, or confirm that the current network can access the update server.",
-    "update.storeManagedDetail": "This package comes from Microsoft Store. The Store checks, downloads, verifies, and installs updates. You can also check for updates manually from the Microsoft Store library page.",
-    "update.storeManagedMessage": "Updates are managed by Microsoft Store.",
-    "update.unsupportedWindowsOnly": "Auto update is Windows-only.",
-  },
-  zh: {
-    "dialog.allFiles": "所有文件",
-    "dialog.confirm": "确定",
-    "dialog.save": "保存",
-    "help.windowGuideTitle": "Conductor Studio 用户指南",
-    "help.windowUpdateLogTitle": "Conductor Studio 更新日志",
-    "originCsv.saveDialogTitle": "保存 Origin CSV ZIP",
-    "originCsv.zipFilter": "ZIP",
-    "tray.backgroundContinueMessage": "应用仍在后台运行，可从系统托盘恢复或退出。",
-    "tray.checkForUpdates": "检查更新",
-    "tray.hideWindow": "隐藏窗口",
-    "tray.quit": "退出",
-    "tray.showWindow": "显示窗口",
-    "update.alreadyLatest": "当前已是最新版本。",
-    "update.checkFailedDetail": "{reason}\n\n请确认网络或代理设置后重试。",
-    "update.checkFailedMessage": "检查更新失败",
-    "update.disabledDevelopment": "开发环境已禁用自动更新。",
-    "update.errorReasonPrefix": "原因：{message}",
-    "update.failed": "自动更新失败。",
-    "update.notEnabled": "当前构建未启用自动更新。",
-    "update.ok": "确定",
-    "update.retrySuggestion": "请稍后重试，或确认当前网络可以访问更新服务器。",
-    "update.storeManagedDetail": "当前安装包来自 Microsoft Store。商店会负责检查、下载、校验和安装更新；也可以在 Microsoft Store 的库页面手动检查更新。",
-    "update.storeManagedMessage": "更新由 Microsoft Store 管理",
-    "update.unsupportedWindowsOnly": "自动更新仅支持 Windows。",
-  },
-};
 const DEFAULT_WORKBENCH_BACKGROUND_COLOR = "#f3f4f6";
 const desktopWindowMain = new DesktopWindowMain(DEFAULT_WORKBENCH_BACKGROUND_COLOR);
 const WORKBENCH_BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
