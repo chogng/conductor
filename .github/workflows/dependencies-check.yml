@@ -1,0 +1,72 @@
+name: Dependencies Check
+
+on:
+  pull_request:
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - "conductor-rs/Cargo.toml"
+      - "conductor-rs/**/Cargo.toml"
+      - "conductor-rs/Cargo.lock"
+      - ".github/workflows/dependencies-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check changed npm dependency files
+        id: npm-changes
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD -- package.json package-lock.json | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node
+        if: steps.npm-changes.outputs.changed == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Verify npm lockfile
+        if: steps.npm-changes.outputs.changed == 'true'
+        run: npm ci
+
+  cargo-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check changed Cargo dependency files
+        id: cargo-changes
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD -- conductor-rs/Cargo.lock conductor-rs/Cargo.toml 'conductor-rs/**/Cargo.toml' | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify Cargo lockfile
+        if: steps.cargo-changes.outputs.changed == 'true'
+        working-directory: conductor-rs
+        run: cargo fetch --locked

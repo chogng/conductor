@@ -1,5 +1,6 @@
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
+import type { LxIconDefinition } from "src/cs/base/common/lxicon";
 
 export interface ITelemetryData {
     readonly from?: string;
@@ -14,6 +15,7 @@ export interface IAction {
     class: string | undefined;
     enabled: boolean;
     checked?: boolean;
+    icon?: LxIconDefinition;
     run(...args: unknown[]): unknown;
 }
 
@@ -30,6 +32,7 @@ export interface IActionChangeEvent {
     readonly class?: string;
     readonly enabled?: boolean;
     readonly checked?: boolean;
+    readonly icon?: LxIconDefinition;
 }
 
 export class Action extends Disposable implements IAction {
@@ -44,6 +47,7 @@ export class Action extends Disposable implements IAction {
     protected actionClass: string | undefined;
     protected actionEnabled: boolean;
     protected actionChecked: boolean | undefined;
+    protected actionIcon: LxIconDefinition | undefined;
 
     constructor(
         id: string,
@@ -116,6 +120,17 @@ export class Action extends Disposable implements IAction {
         if (this.actionChecked !== value) {
             this.actionChecked = value;
             this.onDidChangeEmitter.fire({ checked: value });
+        }
+    }
+
+    public get icon(): LxIconDefinition | undefined {
+        return this.actionIcon;
+    }
+
+    public set icon(value: LxIconDefinition | undefined) {
+        if (this.actionIcon !== value) {
+            this.actionIcon = value;
+            this.onDidChangeEmitter.fire({ icon: value });
         }
     }
 
@@ -243,6 +258,7 @@ export function toAction(options: {
     class?: string;
     enabled?: boolean;
     checked?: boolean;
+    icon?: LxIconDefinition;
     run: (...args: unknown[]) => unknown;
 }): IAction {
     return {
@@ -252,6 +268,7 @@ export function toAction(options: {
         class: options.class,
         enabled: options.enabled ?? true,
         checked: options.checked,
+        icon: options.icon,
         run: options.run,
     };
 }

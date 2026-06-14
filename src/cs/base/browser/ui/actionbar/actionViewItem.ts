@@ -1,6 +1,7 @@
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import type { IManagedHover } from "src/cs/base/browser/ui/hover/hover";
 import { getBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Action, ActionRunner, Separator, type IAction, type IActionChangeEvent, type IActionRunner } from "src/cs/base/common/actions";
 import { Disposable, MutableDisposable } from "src/cs/base/common/lifecycle";
 
@@ -137,6 +138,10 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
         if (event.tooltip !== undefined) {
             this.updateTooltip();
         }
+        if ("icon" in event) {
+            this.updateClass();
+            this.updateLabel();
+        }
     }
 
     protected getRole(): "button" | "presentation" {
@@ -152,7 +157,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
         if (this.options.className) {
             this.label.classList.add(...this.options.className.split(/\s+/g).filter(Boolean));
         }
-        if (this.options.icon) {
+        if (this.options.icon && !this.action.icon) {
             this.label.classList.add("codicon");
         }
         if (this.action.class) {
@@ -162,6 +167,11 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
     protected updateLabel(): void {
         if (!this.label) {
+            return;
+        }
+
+        if (this.options.icon && this.action.icon) {
+            this.label.replaceChildren(createLxIcon({ icon: this.action.icon }));
             return;
         }
 

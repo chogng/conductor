@@ -178,26 +178,22 @@ const createLxIcon = (
   return svg;
 };
 
-const createDefaultPageActionIcon = (
+const getDefaultPageActionIcon = (
   action: WorkbenchTitlebarPageButton,
-): SVGSVGElement => {
+): LxIconDefinition => {
   if (action.id === "table") {
-    return createLxIcon(LxIcon.downloadTray, 14, "opacity-80");
+    return LxIcon.downloadTray;
   }
 
   if (action.id === "chart") {
-    return createLxIcon(LxIcon.chart, 14, "opacity-80");
+    return LxIcon.chart;
   }
 
   if (action.id === "settings") {
-    return createLxIcon(LxIcon.gear, 14, "opacity-80");
+    return LxIcon.gear;
   }
 
-  return createSvgIcon(
-    14,
-    "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2|M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6",
-    "opacity-80",
-  );
+  return LxIcon.gear;
 };
 
 const createIconButton = (
@@ -219,7 +215,6 @@ const createIconButton = (
 };
 
 type WorkbenchTitlebarRuntimeAction = Action & {
-  readonly icon: LxIconDefinition | (() => SVGSVGElement);
   readonly onIntent?: () => void;
   readonly titlebarClassName: string;
 };
@@ -228,7 +223,6 @@ const isWorkbenchTitlebarRuntimeAction = (
   action: IAction,
 ): action is WorkbenchTitlebarRuntimeAction =>
   action instanceof Action &&
-  "icon" in action &&
   "titlebarClassName" in action;
 
 const createTitlebarRuntimeAction = ({
@@ -242,7 +236,7 @@ const createTitlebarRuntimeAction = ({
 }: {
   readonly commandId: string;
   readonly commandService?: ICommandService;
-  readonly icon: LxIconDefinition | (() => SVGSVGElement);
+  readonly icon: LxIconDefinition;
   readonly id: string;
   readonly onIntent?: () => void;
   readonly title: string;
@@ -258,9 +252,6 @@ const createTitlebarRuntimeAction = ({
     },
   ) as WorkbenchTitlebarRuntimeAction;
   Object.defineProperties(action, {
-    icon: {
-      value: icon,
-    },
     onIntent: {
       value: onIntent,
     },
@@ -268,6 +259,7 @@ const createTitlebarRuntimeAction = ({
       value: titlebarClassName,
     },
   });
+  action.icon = icon;
   action.tooltip = title;
   return action;
 };
@@ -279,6 +271,7 @@ class TitlebarActionViewItem extends ActionViewItem {
   ) {
     super(undefined, action, {
       ...options,
+      icon: true,
       label: false,
     });
   }
@@ -306,18 +299,6 @@ class TitlebarActionViewItem extends ActionViewItem {
     if (this.action.class) {
       this.label.classList.add(...this.action.class.split(/\s+/g).filter(Boolean));
     }
-  }
-
-  protected override updateLabel(): void {
-    super.updateLabel();
-    if (!this.label || !isWorkbenchTitlebarRuntimeAction(this.action)) {
-      return;
-    }
-
-    const icon = typeof this.action.icon === "function"
-      ? this.action.icon()
-      : createLxIcon(this.action.icon, 14, "opacity-80");
-    this.label.replaceChildren(icon);
   }
 }
 
@@ -450,6 +431,7 @@ class WorkbenchTitlebarView extends Disposable {
 
     this.refs.sidebarAction.label = sidebarButton.title;
     this.refs.sidebarAction.tooltip = sidebarButton.title;
+    this.refs.sidebarAction.icon = sidebarButton.icon;
     this.refs.sidebarAction.checked = sidebarButton.isActive;
 
     for (const button of navButtons) {
@@ -633,7 +615,7 @@ const createWorkbenchTitlebarView = (
     const runtimeAction = createTitlebarRuntimeAction({
       commandId: button.commandId,
       commandService,
-      icon: () => createDefaultPageActionIcon(button),
+      icon: getDefaultPageActionIcon(button),
       id: WorkbenchTitlebarActions.WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS[
         button.id
       ],

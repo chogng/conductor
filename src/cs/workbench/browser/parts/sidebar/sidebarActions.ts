@@ -18,7 +18,9 @@ export const createWorkbenchSidebarToggleButton = (
 ): WorkbenchSidebarToggleButton => ({
   commandId: WorkbenchLayoutCommandId.toggleSidebar,
   id: WORKBENCH_SIDEBAR_TOGGLE_BUTTON_ID,
-  icon: LxIcon.layoutSidebarLeftEmpty,
+  icon: isVisible
+    ? LxIcon.layoutSidebarLeftEmpty
+    : LxIcon.layoutSidebarLeftOffEmpty,
   isActive: isVisible,
   title: isVisible
     ? localize("sidebar.hide", "Hide Side Bar")

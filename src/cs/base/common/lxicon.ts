@@ -17,6 +17,7 @@ import {
   lxFileText as renderFileText,
   lxGear as renderGear,
   lxLayoutSidebarLeftEmpty as renderLayoutSidebarLeftEmpty,
+  lxLayoutSidebarLeftOffEmpty as renderLayoutSidebarLeftOffEmpty,
   lxLayoutSidebarRightEmpty as renderLayoutSidebarRightEmpty,
   lxListUnordered as renderListUnordered,
   lxLegend as renderLegend,
@@ -89,6 +90,11 @@ export const lxInfoCircle = registerLxIcon(
 export const lxLayoutSidebarLeftEmpty = registerLxIcon(
   "layout-sidebar-left-empty",
   renderLayoutSidebarLeftEmpty,
+);
+
+export const lxLayoutSidebarLeftOffEmpty = registerLxIcon(
+  "layout-sidebar-left-off-empty",
+  renderLayoutSidebarLeftOffEmpty,
 );
 
 export const lxLayoutSidebarRightEmpty = registerLxIcon(
@@ -188,6 +194,7 @@ export const LxIcon = {
   gear: lxGear,
   infoCircle: lxInfoCircle,
   layoutSidebarLeftEmpty: lxLayoutSidebarLeftEmpty,
+  layoutSidebarLeftOffEmpty: lxLayoutSidebarLeftOffEmpty,
   layoutSidebarRightEmpty: lxLayoutSidebarRightEmpty,
   listUnordered: lxListUnordered,
   legend: lxLegend,
