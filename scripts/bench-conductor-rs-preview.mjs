@@ -5,8 +5,8 @@ import { performance } from "node:perf_hooks";
 
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 const ROOT = process.cwd();
-const WORKER_FILE_NAME = process.platform === "win32" ? "rs-worker.exe" : "rs-worker";
-const EXE_PATH = path.join(ROOT, "workers", "rs", WORKER_FILE_NAME);
+const WORKER_FILE_NAME = process.platform === "win32" ? "conductor-rs.exe" : "conductor-rs";
+const EXE_PATH = path.join(ROOT, "resources", "bin", WORKER_FILE_NAME);
 
 const rootsFromEnv = () =>
   String(process.env.CONDUCTOR_BENCH_ROOTS ?? "")
@@ -78,7 +78,7 @@ const createRsWorker = () => {
       if (message.ok) {
         entry.resolve(message.result);
       } else {
-        entry.reject(new Error(message.error?.message || "rs-worker failed"));
+        entry.reject(new Error(message.error?.message || "conductor-rs failed"));
       }
     }
   });
@@ -109,7 +109,7 @@ const roots = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
 const selectedRoots = roots.length ? roots : rootsFromEnv();
 if (!selectedRoots.length) {
   throw new Error(
-    "Usage: node scripts/bench-rs-worker-preview.mjs <data-root...> or set CONDUCTOR_BENCH_ROOTS.",
+    "Usage: node scripts/bench-conductor-rs-preview.mjs <data-root...> or set CONDUCTOR_BENCH_ROOTS.",
   );
 }
 const files = [];
@@ -148,11 +148,11 @@ try {
     });
     previewRows += Array.isArray(rowsResult.rows) ? rowsResult.rows.length : 0;
     if ((index + 1) % 25 === 0 || index + 1 === files.length) {
-      console.log(`[rs-worker-preview] opened ${index + 1}/${files.length}`);
+      console.log(`[conductor-rs-preview] opened ${index + 1}/${files.length}`);
     }
   }
 
-  console.log("\n[rs-worker-preview summary]");
+  console.log("\n[conductor-rs-preview summary]");
   console.log(`files=${files.length}`);
   console.log(`source=${formatBytes(sourceBytes)}`);
   console.log(`rows=${rows} approxCells=${cells} previewRows=${previewRows}`);

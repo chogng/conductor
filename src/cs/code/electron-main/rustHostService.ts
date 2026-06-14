@@ -94,7 +94,7 @@ export class RustHostService implements IRustAnalysisService {
     } catch (error) {
       return buildFailure(
         "RUST_ENGINE_OPEN_FAILED",
-        (error as Error)?.message || "rs-worker failed to open file.",
+        (error as Error)?.message || "conductor-rs failed to open file.",
         startedAt,
       );
     }
@@ -112,7 +112,7 @@ export class RustHostService implements IRustAnalysisService {
     } catch (error) {
       return buildFailure(
         "RUST_ENGINE_PREVIEW_ROWS_FAILED",
-        (error as Error)?.message || "rs-worker failed to read preview rows.",
+        (error as Error)?.message || "conductor-rs failed to read preview rows.",
         startedAt,
       );
     }
@@ -130,7 +130,7 @@ export class RustHostService implements IRustAnalysisService {
     } catch (error) {
       return buildFailure(
         "RUST_ENGINE_PREVIEW_META_FAILED",
-        (error as Error)?.message || "rs-worker failed to read preview metadata.",
+        (error as Error)?.message || "conductor-rs failed to read preview metadata.",
         startedAt,
       );
     }
@@ -148,7 +148,7 @@ export class RustHostService implements IRustAnalysisService {
     } catch (error) {
       return buildFailure(
         "RUST_ENGINE_READ_CELL_FAILED",
-        (error as Error)?.message || "rs-worker failed to read cell.",
+        (error as Error)?.message || "conductor-rs failed to read cell.",
         startedAt,
       );
     }
@@ -166,7 +166,7 @@ export class RustHostService implements IRustAnalysisService {
     } catch (error) {
       return buildFailure(
         "RUST_ENGINE_READ_CELLS_FAILED",
-        (error as Error)?.message || "rs-worker failed to read cells.",
+        (error as Error)?.message || "conductor-rs failed to read cells.",
         startedAt,
       );
     }
@@ -179,7 +179,7 @@ export class RustHostService implements IRustAnalysisService {
     if (!request.auto && !this.options.isRustProcessFileConfigSupported(request.config)) {
       return buildFailure(
         "RUST_ENGINE_PROCESS_UNSUPPORTED_CONFIG",
-        "rs-worker does not support this extraction config yet.",
+        "conductor-rs does not support this extraction config yet.",
       );
     }
 
@@ -220,7 +220,7 @@ export class RustHostService implements IRustAnalysisService {
       void fs.promises.rm(tempDir, { force: true, recursive: true }).catch(() => {});
       return buildFailure(
         "RUST_ENGINE_PROCESS_FAILED",
-        (error as Error)?.message || "rs-worker failed to process file.",
+        (error as Error)?.message || "conductor-rs failed to process file.",
         startedAt,
       );
     }
@@ -245,7 +245,7 @@ export class RustHostService implements IRustAnalysisService {
     } catch (error) {
       return buildFailure(
         "RUST_ENGINE_RC_FAILED",
-        (error as Error)?.message || "rs-worker failed to analyze Rc.",
+        (error as Error)?.message || "conductor-rs failed to analyze Rc.",
         startedAt,
       );
     }
@@ -261,7 +261,7 @@ export class RustHostService implements IRustAnalysisService {
     if (!this.options.isRustProcessFileConfigSupported(request.config) || (!request.columns.length && !hasRustSeries)) {
       return buildFailure(
         "RUST_ENGINE_EXPORT_UNSUPPORTED_CONFIG",
-        "rs-worker does not support this Origin export plan yet.",
+        "conductor-rs does not support this Origin export plan yet.",
       );
     }
 
@@ -308,7 +308,7 @@ export class RustHostService implements IRustAnalysisService {
       void fs.promises.rm(path.dirname(outputPath), { force: true, recursive: true }).catch(() => {});
       return buildFailure(
         "RUST_ENGINE_EXPORT_FAILED",
-        (error as Error)?.message || "rs-worker failed to export Origin CSV.",
+        (error as Error)?.message || "conductor-rs failed to export Origin CSV.",
         startedAt,
       );
     } finally {
@@ -336,7 +336,7 @@ export class RustHostService implements IRustAnalysisService {
     } catch (error) {
       return buildFailure(
         "RUST_ENGINE_DISPOSE_FAILED",
-        (error as Error)?.message || "rs-worker dispose failed.",
+        (error as Error)?.message || "conductor-rs dispose failed.",
       );
     }
   }

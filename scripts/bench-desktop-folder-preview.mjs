@@ -4,7 +4,7 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 
 const ROOT = process.cwd();
-const WORKER_FILE_NAME = process.platform === "win32" ? "rs-worker.exe" : "rs-worker";
+const WORKER_FILE_NAME = process.platform === "win32" ? "conductor-rs.exe" : "conductor-rs";
 const FIRST_STAT_BATCH_SIZE = 8;
 const PREVIEW_SEED_ROWS = 5000;
 const MAX_WALK_DEPTH = 16;
@@ -12,16 +12,11 @@ const MAX_WALK_DEPTH = 16;
 const formatMs = (value) => `${Math.round(value)}ms`;
 
 const resolveWorkerPath = async () => {
-  const envPath =
-    process.env.CONDUCTOR_RS_WORKER_PATH ||
-    process.env.CONDUCTOR_WORKER_PATH ||
-    process.env.CONDUCTOR_ENGINE_PATH ||
-    process.env.CONDUCTOR_RUST_XLS_CONVERTER_PATH ||
-    "";
+  const envPath = process.env.CONDUCTOR_RS_CLI_PATH || "";
   const candidates = [
     envPath,
-    path.join(ROOT, "workers", "rs", WORKER_FILE_NAME),
-    path.join(ROOT, ".build", "cache", "rs-worker-target", "release", WORKER_FILE_NAME),
+    path.join(ROOT, "resources", "bin", WORKER_FILE_NAME),
+    path.join(ROOT, ".build", "cache", "conductor-rs-cli-target", "release", WORKER_FILE_NAME),
   ].filter(Boolean);
 
   for (const candidate of candidates) {
@@ -35,7 +30,7 @@ const resolveWorkerPath = async () => {
     }
   }
 
-  throw new Error(`rs-worker not found. Checked: ${candidates.join(", ")}`);
+  throw new Error(`conductor-rs not found. Checked: ${candidates.join(", ")}`);
 };
 
 const isCsv = (fileName) => path.extname(fileName).toLowerCase() === ".csv";
@@ -188,7 +183,7 @@ const createWorker = (exePath) => {
       if (message.ok) {
         entry.resolve(message.result ?? {});
       } else {
-        entry.reject(new Error(message.error?.message || "rs-worker failed"));
+        entry.reject(new Error(message.error?.message || "conductor-rs failed"));
       }
     }
   });
@@ -196,12 +191,12 @@ const createWorker = (exePath) => {
   child.stderr.on("data", (chunk) => {
     const text = String(chunk ?? "").trim();
     if (text) {
-      console.warn(`[rs-worker] ${text}`);
+      console.warn(`[conductor-rs] ${text}`);
     }
   });
 
   child.on("exit", (code, signal) => {
-    const error = new Error(`rs-worker exited code=${code ?? "null"} signal=${signal ?? "null"}`);
+    const error = new Error(`conductor-rs exited code=${code ?? "null"} signal=${signal ?? "null"}`);
     for (const entry of pending.values()) {
       entry.reject(error);
     }

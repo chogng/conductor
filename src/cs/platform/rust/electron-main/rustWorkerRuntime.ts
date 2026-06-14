@@ -45,15 +45,15 @@ const normalizeAbsoluteFilePath = (rawPath: unknown): string => {
   return path.normalize(normalized);
 };
 
-const getRustWorkerFileName = (platform: NodeJS.Platform): string =>
-  platform === "win32" ? "rs-worker.exe" : "rs-worker";
+const getConductorRsFileName = (platform: NodeJS.Platform): string =>
+  platform === "win32" ? "conductor-rs.exe" : "conductor-rs";
 
 const formatMissingWorkerMessage = (platform: NodeJS.Platform): string => {
-  const workerFileName = getRustWorkerFileName(platform);
+  const conductorRsFileName = getConductorRsFileName(platform);
   return [
-    `Built rs-worker was not found for platform '${platform}'.`,
-    `Expected a packaged worker such as workers/rs/${workerFileName}.`,
-    "Build it with `npm run build:rs-worker` before starting the desktop app.",
+    `Built conductor-rs helper was not found for platform '${platform}'.`,
+    `Expected a packaged helper such as bin/${conductorRsFileName}.`,
+    "Build it with `npm run build:conductor-rs` before starting the desktop app.",
   ].join(" ");
 };
 
@@ -64,41 +64,34 @@ export const resolveRustWorkerExecutablePath = ({
   platform,
   resourcesPath,
 }: RustWorkerExecutableResolverOptions): string | null => {
-  const workerFileName = getRustWorkerFileName(platform);
-  const envPath = normalizeAbsoluteFilePath(
-    env.CONDUCTOR_WORKER_PATH
-      || env.CONDUCTOR_RS_WORKER_PATH
-      || env.CONDUCTOR_ENGINE_PATH
-      || env.CONDUCTOR_RUST_XLS_CONVERTER_PATH,
-  );
+  const conductorRsFileName = getConductorRsFileName(platform);
+  const envPath = normalizeAbsoluteFilePath(env.CONDUCTOR_RS_CLI_PATH);
   const candidates = [
     envPath,
-    path.join(resourcesPath, "workers", "rs", workerFileName),
+    path.join(resourcesPath, "bin", conductorRsFileName),
+    path.join(
+      resourcesPath,
+      "app.asar.unpacked",
+      "bin",
+      conductorRsFileName,
+    ),
     isDev
       ? path.join(
           appRootPath,
           ".tooling",
-          "conductor-rs-target",
+          "conductor-rs-cli-target",
           "release",
-          workerFileName,
+          conductorRsFileName,
         )
       : "",
     isDev
       ? path.join(
           appRootPath,
-          "conductor-rs",
           "target",
           "release",
-          workerFileName,
+          conductorRsFileName,
         )
       : "",
-    path.join(
-      resourcesPath,
-      "app.asar.unpacked",
-      "workers",
-      "rs",
-      workerFileName,
-    ),
   ].filter(Boolean);
 
   return candidates.find((candidate) => {
@@ -222,7 +215,7 @@ export class RustWorkerRuntime implements IRustWorkerService {
       if (this.previewChild === child) this.previewChild = null;
       this.rejectPreviewPending(
         new Error(
-          `rs-worker exited (code=${code ?? "null"} signal=${signal ?? "null"}).`,
+          `conductor-rs exited (code=${code ?? "null"} signal=${signal ?? "null"}).`,
         ),
       );
     });
@@ -242,7 +235,7 @@ export class RustWorkerRuntime implements IRustWorkerService {
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         this.previewPending.delete(id);
-        reject(new Error(`rs-worker command timed out: ${command}`));
+        reject(new Error(`conductor-rs command timed out: ${command}`));
       }, timeoutMs);
 
       this.previewPending.set(id, { reject, resolve, timeoutId });
@@ -270,7 +263,7 @@ export class RustWorkerRuntime implements IRustWorkerService {
     try {
       message = JSON.parse(text) as Record<string, unknown>;
     } catch (error) {
-      console.warn("[rust] invalid rs-worker JSON:", (error as Error)?.message || error);
+      console.warn("[rust] invalid conductor-rs JSON:", (error as Error)?.message || error);
       return;
     }
 
@@ -293,7 +286,7 @@ export class RustWorkerRuntime implements IRustWorkerService {
       typeof (message.error as { message?: unknown }).message === "string" &&
       (message.error as { message: string }).message.trim()
         ? (message.error as { message: string }).message
-        : "rs-worker failed.";
+        : "conductor-rs failed.";
     pending.reject(new Error(errorMessage));
   }
 
@@ -310,7 +303,7 @@ export class RustWorkerRuntime implements IRustWorkerService {
     const child = this.previewChild;
     this.previewChild = null;
     this.previewStdoutBuffer = "";
-    this.rejectPreviewPending(new Error("rs-worker stopped."));
+    this.rejectPreviewPending(new Error("conductor-rs stopped."));
     this.forceStopChildProcess(child);
   }
 
@@ -365,7 +358,7 @@ export class RustWorkerRuntime implements IRustWorkerService {
       this.rejectProcessingSlotPending(
         slot,
         new Error(
-          `rs-worker exited (${slot.name}, code=${code ?? "null"} signal=${signal ?? "null"}).`,
+          `conductor-rs exited (${slot.name}, code=${code ?? "null"} signal=${signal ?? "null"}).`,
         ),
       );
     });
@@ -409,7 +402,7 @@ export class RustWorkerRuntime implements IRustWorkerService {
       const timeoutId = setTimeout(() => {
         slot.pending.delete(id);
         slot.busyCount = Math.max(0, slot.busyCount - 1);
-        reject(new Error(`rs-worker command timed out: ${command}`));
+        reject(new Error(`conductor-rs command timed out: ${command}`));
       }, timeoutMs);
 
       slot.pending.set(id, { reject, resolve, timeoutId });
@@ -440,7 +433,7 @@ export class RustWorkerRuntime implements IRustWorkerService {
       message = JSON.parse(text) as Record<string, unknown>;
     } catch (error) {
       console.warn(
-        `[rust:${slot.name}] invalid rs-worker JSON:`,
+        `[rust:${slot.name}] invalid conductor-rs JSON:`,
         (error as Error)?.message || error,
       );
       return;
@@ -466,7 +459,7 @@ export class RustWorkerRuntime implements IRustWorkerService {
       typeof (message.error as { message?: unknown }).message === "string" &&
       (message.error as { message: string }).message.trim()
         ? (message.error as { message: string }).message
-        : "rs-worker failed.";
+        : "conductor-rs failed.";
     pending.reject(new Error(errorMessage));
   }
 
@@ -486,7 +479,7 @@ export class RustWorkerRuntime implements IRustWorkerService {
     slot.stdoutBuffer = "";
     this.rejectProcessingSlotPending(
       slot,
-      new Error(`rs-worker stopped (${slot.name}).`),
+      new Error(`conductor-rs stopped (${slot.name}).`),
     );
     this.forceStopChildProcess(child);
   }

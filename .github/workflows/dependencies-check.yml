@@ -5,9 +5,10 @@ on:
     paths:
       - "package.json"
       - "package-lock.json"
-      - "conductor-rs/Cargo.toml"
-      - "conductor-rs/**/Cargo.toml"
-      - "conductor-rs/Cargo.lock"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "cli/Cargo.toml"
+      - "extensions/**/Cargo.toml"
       - ".github/workflows/dependencies-check.yml"
   workflow_dispatch:
 
@@ -60,7 +61,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD -- conductor-rs/Cargo.lock conductor-rs/Cargo.toml 'conductor-rs/**/Cargo.toml' | grep -q .; then
+          elif git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD -- Cargo.lock Cargo.toml cli/Cargo.toml 'extensions/**/Cargo.toml' | grep -q .; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -68,5 +69,4 @@ jobs:
 
       - name: Verify Cargo lockfile
         if: steps.cargo-changes.outputs.changed == 'true'
-        working-directory: conductor-rs
         run: cargo fetch --locked

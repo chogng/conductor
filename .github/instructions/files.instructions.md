@@ -218,6 +218,14 @@ metadata. The bundled Rust and WASM Excel converters currently export the first
 worksheet only, so true multi-sheet import also requires extending those
 converter backends to emit one sheet descriptor per worksheet.
 
+Desktop import acceleration uses the Rust helper CLI route from
+`rust.instructions.md`: Electron main resolves the bundled `conductor-rs`
+binary and runs it in `--stdio-worker` mode. Files conversion code should depend
+only on `IFileConverterBackendService` and IPC/preload domain methods; it must
+not depend on a concrete executable name. Files code should treat
+`conductor-rs` as the desktop helper binary only at the Electron main resolver
+boundary.
+
 ## Data File Workflow
 
 ```mermaid
@@ -225,6 +233,8 @@ flowchart TD
     User[Explorer drop/dialog/clipboard/folder] --> Workflow[Explorer source workflow]
     Workflow --> Source[fileImportExport.ts source collection]
     Source --> Converter[fileConverter.ts]
+    Converter --> DesktopRust[desktop conductor-rs helper CLI]
+    DesktopRust --> Converter
     Converter --> Result[FileConversionResult]
     Workflow --> Session[ISessionService.commitFileImport]
     Result --> Session

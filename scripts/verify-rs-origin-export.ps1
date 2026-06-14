@@ -11,10 +11,10 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
-$CrateDir = Join-Path $ProjectRoot "conductor-rs\worker"
-$RsTargetDir = Join-Path $ProjectRoot ".build\cache\rs-worker-target"
-$RsWorkerExe = Join-Path $RsTargetDir "release\rs-worker.exe"
-$PackagedRsWorkerExe = Join-Path $ProjectRoot "workers\rs\rs-worker.exe"
+$WorkspaceDir = $ProjectRoot
+$RsTargetDir = Join-Path $ProjectRoot ".build\cache\conductor-rs-cli-target"
+$RsWorkerExe = Join-Path $RsTargetDir "release\conductor-rs.exe"
+$PackagedRsWorkerExe = Join-Path $ProjectRoot "resources\bin\conductor-rs.exe"
 $BenchDir = Join-Path $ProjectRoot ".build\verify\rust-origin-export"
 $FilesPath = Join-Path $BenchDir "files.json"
 $ProcessRequestsPath = Join-Path $BenchDir "process-requests.jsonl"
@@ -26,9 +26,9 @@ if ($Mode -eq "export" -and -not (Test-Path -LiteralPath $ExportRequestsPath)) {
   throw "Rust origin-export export requests were not prepared: $ExportRequestsPath"
 }
 
-Push-Location $CrateDir
+Push-Location $WorkspaceDir
 try {
-  cargo build --quiet --release -p worker --target-dir $RsTargetDir
+  cargo build --quiet --release -p conductor-cli --bin conductor-rs --target-dir $RsTargetDir
   if ($LASTEXITCODE -ne 0) {
     throw "Rust origin-export release build failed with exit code $LASTEXITCODE"
   }

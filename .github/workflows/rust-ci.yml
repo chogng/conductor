@@ -3,10 +3,18 @@ name: Rust CI
 on:
   pull_request:
     paths:
-      - "excel/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "cli/**"
+      - "extensions/**"
       - "src/features/device-analysis/**"
-      - "tools/conductor-engine/**"
-      - "scripts/build-conductor-engine.ps1"
+      - "src/cs/platform/rust/**"
+      - "src/cs/code/electron-main/rustHost*.ts"
+      - "scripts/build-conductor-rs.mjs"
+      - "scripts/build-conductor-rs.ps1"
+      - "scripts/build-rs-assessment-wasm.ps1"
+      - "scripts/build-rs-xlsx-wasm.ps1"
+      - "scripts/verify-conductor-rs-*.mjs"
       - "scripts/verify-rust-*.mjs"
       - "scripts/verify-rust-*.ps1"
       - "scripts/bench-device-analysis-phase3.*"
@@ -31,8 +39,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Rust engine artifacts
-        run: npm run build:engine
+      - name: Install Rust WASM target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Build conductor-rs helper
+        run: npm run build:conductor-rs
+
+      - name: Verify conductor-rs helper
+        run: npm run verify:conductor-rs-smoke
+
+      - name: Build assessment WASM extension
+        run: npm run build:assessment-wasm
+
+      - name: Build xlsx WASM extension
+        run: npm run build:xlsx-wasm
 
       - name: Verify Rust XLS compatibility
         run: node scripts/verify-rust-xls-compat.mjs

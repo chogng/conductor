@@ -9,20 +9,20 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
-$CrateDir = Join-Path $ProjectRoot "conductor-rs\worker"
-$RsTargetDir = Join-Path $ProjectRoot ".build\cache\rs-worker-target"
+$WorkspaceDir = $ProjectRoot
+$RsTargetDir = Join-Path $ProjectRoot ".build\cache\conductor-rs-cli-target"
 $RequestsPath = Join-Path $ProjectRoot ".build\verify\rust-auto-extraction\requests.jsonl"
 $ResultsPath = Join-Path $ProjectRoot ".build\verify\rust-auto-extraction\rust-results.jsonl"
-$RsWorkerExe = Join-Path $RsTargetDir "release\rs-worker.exe"
-$PackagedRsWorkerExe = Join-Path $ProjectRoot "workers\rs\rs-worker.exe"
+$RsWorkerExe = Join-Path $RsTargetDir "release\conductor-rs.exe"
+$PackagedRsWorkerExe = Join-Path $ProjectRoot "resources\bin\conductor-rs.exe"
 
 if (-not (Test-Path -LiteralPath $RequestsPath)) {
   throw "Rust auto extraction requests were not prepared: $RequestsPath"
 }
 
-Push-Location $CrateDir
+Push-Location $WorkspaceDir
 try {
-  cargo build --quiet --release --target-dir $RsTargetDir
+  cargo build --quiet --release -p conductor-cli --bin conductor-rs --target-dir $RsTargetDir
   if ($LASTEXITCODE -ne 0) {
     throw "Rust auto extraction release build failed with exit code $LASTEXITCODE"
   }

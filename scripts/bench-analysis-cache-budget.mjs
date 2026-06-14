@@ -5,8 +5,8 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 
 const ROOT = process.cwd();
-const WORKER_FILE_NAME = process.platform === "win32" ? "rs-worker.exe" : "rs-worker";
-const EXE_PATH = path.join(ROOT, "workers", "rs", WORKER_FILE_NAME);
+const WORKER_FILE_NAME = process.platform === "win32" ? "conductor-rs.exe" : "conductor-rs";
+const EXE_PATH = path.join(ROOT, "resources", "bin", WORKER_FILE_NAME);
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 const SINGLE_FILE_BUDGET_BYTES = 32 * 1024 * 1024;
 const TOTAL_BUDGET_BYTES = 64 * 1024 * 1024;
@@ -79,7 +79,7 @@ const createRsWorker = () => {
       if (message.ok) {
         entry.resolve(message.result);
       } else {
-        entry.reject(new Error(message.error?.message || "rs-worker failed"));
+        entry.reject(new Error(message.error?.message || "conductor-rs failed"));
       }
     }
   });
@@ -91,7 +91,7 @@ const createRsWorker = () => {
 
   child.on("exit", (code, signal) => {
     for (const entry of pending.values()) {
-      entry.reject(new Error(`rs-worker exited code=${code} signal=${signal}`));
+      entry.reject(new Error(`conductor-rs exited code=${code} signal=${signal}`));
     }
     pending.clear();
   });

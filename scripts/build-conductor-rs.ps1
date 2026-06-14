@@ -11,28 +11,28 @@ if ($null -eq $isWindows) {
   $isWindows = [System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT
 }
 
-$workerFileName = if ($isWindows) { 'rs-worker.exe' } else { 'rs-worker' }
+$helperFileName = if ($isWindows) { 'conductor-rs.exe' } else { 'conductor-rs' }
 
 if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
   $ProjectRoot = Split-Path -Parent $PSScriptRoot
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
-$CrateDir = Join-Path $ProjectRoot "conductor-rs\worker"
-$CargoToml = Join-Path $CrateDir "Cargo.toml"
+$WorkspaceDir = $ProjectRoot
+$CargoToml = Join-Path $WorkspaceDir "Cargo.toml"
 
 if (-not (Test-Path -LiteralPath $CargoToml)) {
-  throw "Conductor worker Cargo.toml not found: $CargoToml"
+  throw "Conductor Rust workspace Cargo.toml not found: $CargoToml"
 }
 
 if ([string]::IsNullOrWhiteSpace($DistDir)) {
-  $DistDir = Join-Path $ProjectRoot "workers\rs"
+  $DistDir = Join-Path $ProjectRoot "resources\bin"
 }
 if (-not [System.IO.Path]::IsPathRooted($DistDir)) {
   $DistDir = Join-Path $ProjectRoot $DistDir
 }
 if ([string]::IsNullOrWhiteSpace($TargetDir)) {
-  $TargetDir = Join-Path $ProjectRoot ".build\cache\rs-worker-target"
+  $TargetDir = Join-Path $ProjectRoot ".build\cache\conductor-rs-cli-target"
 }
 if (-not [System.IO.Path]::IsPathRooted($TargetDir)) {
   $TargetDir = Join-Path $ProjectRoot $TargetDir
@@ -40,7 +40,7 @@ if (-not [System.IO.Path]::IsPathRooted($TargetDir)) {
 
 $cargoCmd = Get-Command cargo -ErrorAction SilentlyContinue
 if ($null -eq $cargoCmd) {
-  throw "cargo is not available in PATH. Install Rust before building the rs-worker."
+  throw "cargo is not available in PATH. Install Rust before building conductor-rs."
 }
 
 $vsDevCandidates = @(
@@ -51,14 +51,14 @@ $vsDevCandidates = @(
 )
 $vsDevCmd = $vsDevCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
 
-Push-Location $CrateDir
+Push-Location $WorkspaceDir
 try {
   if ($isWindows -and $vsDevCmd) {
-    Write-Host "[build-rs-worker] Running cargo build through VsDevCmd."
-    & cmd.exe /d /s /c "call `"$vsDevCmd`" -arch=x64 && cargo build --release -p worker --target-dir `"$TargetDir`""
+    Write-Host "[build-conductor-rs] Running cargo build through VsDevCmd."
+    & cmd.exe /d /s /c "call `"$vsDevCmd`" -arch=x64 && cargo build --release -p conductor-cli --bin conductor-rs --target-dir `"$TargetDir`""
   } else {
-    Write-Host "[build-rs-worker] Running cargo build --release."
-    & $cargoCmd.Source build --release -p worker --target-dir $TargetDir
+    Write-Host "[build-conductor-rs] Running cargo build --release."
+    & $cargoCmd.Source build --release -p conductor-cli --bin conductor-rs --target-dir $TargetDir
   }
   if ($LASTEXITCODE -ne 0) {
     throw "cargo build failed with exit code $LASTEXITCODE"
@@ -67,12 +67,14 @@ try {
   Pop-Location
 }
 
-$sourceExe = Join-Path (Join-Path $TargetDir 'release') $workerFileName
+$releaseDir = Join-Path $TargetDir 'release'
+$sourceExe = Join-Path $releaseDir $helperFileName
 if (-not (Test-Path -LiteralPath $sourceExe)) {
-  throw "Built rs-worker executable not found: $sourceExe"
+  throw "Built conductor-rs executable not found: $sourceExe"
 }
 
 New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
-$primaryTargetExe = Join-Path $DistDir $workerFileName
+$primaryTargetExe = Join-Path $DistDir $helperFileName
+Remove-Item -LiteralPath $primaryTargetExe -Force -ErrorAction SilentlyContinue
 Copy-Item -LiteralPath $sourceExe -Destination $primaryTargetExe -Force
-Write-Host "[build-rs-worker] Copied rs-worker to $primaryTargetExe"
+Write-Host "[build-conductor-rs] Copied conductor-rs to $primaryTargetExe"

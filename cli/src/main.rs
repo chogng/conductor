@@ -2896,6 +2896,31 @@ fn format_bytes(value: u64) -> String {
     }
 }
 
+fn helper_version_json() -> Value {
+    json!({
+        "name": env!("CARGO_PKG_NAME"),
+        "version": env!("CARGO_PKG_VERSION"),
+        "binary": "conductor-rs",
+        "protocol": "stdio-worker",
+        "platform": std::env::consts::OS,
+        "arch": std::env::consts::ARCH,
+    })
+}
+
+fn helper_doctor_json() -> Value {
+    json!({
+        "ok": true,
+        "helper": helper_version_json(),
+        "capabilities": [
+            "stdio-worker",
+            "import-assessment",
+            "csv-preview",
+            "excel-conversion",
+            "origin-export",
+        ],
+    })
+}
+
 fn main() {
     let mut convert_one_input: Option<PathBuf> = None;
     let mut convert_one_output: Option<PathBuf> = None;
@@ -2907,6 +2932,14 @@ fn main() {
     let mut args = env::args().skip(1).peekable();
 
     while let Some(arg) = args.next() {
+        if arg == "--version-json" {
+            println!("{}", helper_version_json());
+            return;
+        }
+        if arg == "--doctor" {
+            println!("{}", helper_doctor_json());
+            return;
+        }
         if arg == "--stdio-worker" || arg == "--stdio-engine" {
             stdio_engine = true;
             continue;

@@ -10,7 +10,7 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
-$CrateDir = Join-Path $ProjectRoot "conductor-rs\assessment"
+$CrateDir = Join-Path $ProjectRoot "extensions\assessment"
 $CargoToml = Join-Path $CrateDir "Cargo.toml"
 
 if (-not (Test-Path -LiteralPath $CargoToml)) {

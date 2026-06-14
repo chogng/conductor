@@ -30,7 +30,7 @@ if (isWin) {
 }
 
 {
-  const code = runNpm("build:rs-worker");
+  const code = runNpm("build:conductor-rs");
   if (code !== 0) process.exit(code);
 }
 

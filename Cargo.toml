@@ -1,0 +1,3 @@
+[workspace]
+members = ["extensions/assessment", "cli", "extensions/xlsx"]
+resolver = "2"

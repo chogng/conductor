@@ -6,18 +6,18 @@ import * as xlsx from "xlsx";
 import { assessImportedFile } from "../src/cs/workbench/contrib/import/common/importFileUtils.ts";
 
 const ROOT = process.cwd();
-const WORKER_FILE_NAME = process.platform === "win32" ? "rs-worker.exe" : "rs-worker";
+const WORKER_FILE_NAME = process.platform === "win32" ? "conductor-rs.exe" : "conductor-rs";
 const DEFAULT_RUST_EXE = path.join(
   ROOT,
-  "workers",
-  "rs",
+  "resources",
+  "bin",
   WORKER_FILE_NAME,
 );
 const CARGO_TARGET_RUST_EXE = path.join(
   ROOT,
   ".build",
   "cache",
-  "rs-worker-target",
+  "conductor-rs-cli-target",
   "release",
   WORKER_FILE_NAME,
 );
@@ -160,7 +160,7 @@ const main = async () => {
   const rustExe = process.env.RUST_XLS_BENCH_EXE || DEFAULT_RUST_EXE;
   const rsWorkerExe = fs.existsSync(CARGO_TARGET_RUST_EXE) ? CARGO_TARGET_RUST_EXE : rustExe;
   if (!fs.existsSync(rsWorkerExe)) {
-    throw new Error(`Built rs-worker was not found: ${rustExe} or ${CARGO_TARGET_RUST_EXE}`);
+    throw new Error(`Built conductor-rs was not found: ${rustExe} or ${CARGO_TARGET_RUST_EXE}`);
   }
 
   fs.rmSync(OUTPUT_DIR, { force: true, recursive: true });
@@ -175,7 +175,7 @@ const main = async () => {
   process.stdout.write(rustRun.stdout ?? "");
   process.stderr.write(rustRun.stderr ?? "");
   if (rustRun.status !== 0) {
-    throw new Error(`rs-worker failed with exit code ${rustRun.status}`);
+    throw new Error(`conductor-rs failed with exit code ${rustRun.status}`);
   }
 
   const manifestPath = path.join(RUST_CSV_DIR, "manifest.tsv");

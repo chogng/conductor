@@ -1,15 +1,15 @@
 [package]
-name = "worker"
+name = "conductor-cli"
 version = "0.1.0"
 edition = "2024"
 autobins = false
 
 [[bin]]
-name = "rs-worker"
+name = "conductor-rs"
 path = "src/main.rs"
 
 [dependencies]
-assessment = { path = "../assessment" }
+assessment = { path = "../extensions/assessment" }
 calamine = "0.31"
 csv = "1.3"
 encoding_rs = "0.8"

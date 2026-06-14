@@ -49,6 +49,7 @@ mcp-claude-hover-snippet.js
 
 
 # Python worker local build artifacts
+resources/bin/
 workers/
 conductor-py/.pyi_build/
 conductor-py/.pyi_spec/

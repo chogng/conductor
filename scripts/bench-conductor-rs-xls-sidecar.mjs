@@ -5,10 +5,10 @@ import { performance } from "node:perf_hooks";
 
 const EXCEL_EXTENSIONS = new Set([".xls", ".xlsx"]);
 const ROOT = process.cwd();
-const WORKER_FILE_NAME = process.platform === "win32" ? "rs-worker.exe" : "rs-worker";
+const WORKER_FILE_NAME = process.platform === "win32" ? "conductor-rs.exe" : "conductor-rs";
 const DEFAULT_EXE_CANDIDATES = [
-  path.join(ROOT, "workers", "rs", WORKER_FILE_NAME),
-  path.join(ROOT, ".build", "cache", "rs-worker-target", "release", WORKER_FILE_NAME),
+  path.join(ROOT, "resources", "bin", WORKER_FILE_NAME),
+  path.join(ROOT, ".build", "cache", "conductor-rs-cli-target", "release", WORKER_FILE_NAME),
 ];
 
 const rootsFromEnv = () =>
@@ -59,12 +59,7 @@ const walkExcelFiles = async (root) => {
 };
 
 const findRsWorkerExe = async () => {
-  const fromEnv = String(
-    process.env.CONDUCTOR_RS_WORKER_PATH
-      ?? process.env.CONDUCTOR_ENGINE_PATH
-      ?? process.env.CONDUCTOR_RUST_XLS_CONVERTER_PATH
-      ?? "",
-  ).trim();
+  const fromEnv = String(process.env.CONDUCTOR_RS_CLI_PATH ?? "").trim();
   const candidates = fromEnv ? [fromEnv, ...DEFAULT_EXE_CANDIDATES] : DEFAULT_EXE_CANDIDATES;
   for (const candidate of candidates) {
     try {
@@ -74,7 +69,7 @@ const findRsWorkerExe = async () => {
       // try next candidate
     }
   }
-  throw new Error(`Built rs-worker was not found: ${candidates.join(", ")}`);
+  throw new Error(`Built conductor-rs was not found: ${candidates.join(", ")}`);
 };
 
 const convertOne = async (exePath, filePath, outputPath) => {
@@ -128,7 +123,7 @@ const roots = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
 const selectedRoots = roots.length ? roots : rootsFromEnv();
 if (!selectedRoots.length) {
   throw new Error(
-    "Usage: node scripts/bench-rs-worker-xls-sidecar.mjs <data-root...> or set CONDUCTOR_BENCH_ROOTS.",
+    "Usage: node scripts/bench-conductor-rs-xls-sidecar.mjs <data-root...> or set CONDUCTOR_BENCH_ROOTS.",
   );
 }
 const allFiles = [];
@@ -138,7 +133,7 @@ for (const root of selectedRoots) {
 allFiles.sort((a, b) => a.localeCompare(b));
 
 const exePath = await findRsWorkerExe();
-const tempRoot = path.join(ROOT, ".build", "bench", "rs-worker-xls-sidecar");
+const tempRoot = path.join(ROOT, ".build", "bench", "conductor-rs-xls-sidecar");
 await fs.rm(tempRoot, { force: true, recursive: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
@@ -166,7 +161,7 @@ const runPool = async (poolSize) => {
       }
       completed += 1;
       if (completed % 25 === 0 || completed === allFiles.length) {
-        console.log(`[rs-worker-xls-sidecar pool=${poolSize}] processed ${completed}/${allFiles.length}`);
+        console.log(`[conductor-rs-xls-sidecar pool=${poolSize}] processed ${completed}/${allFiles.length}`);
       }
     }
   };
@@ -188,7 +183,7 @@ const runPool = async (poolSize) => {
   );
 
   const wallMs = performance.now() - start;
-  console.log(`\n[rs-worker-xls-sidecar pool=${poolSize}]`);
+  console.log(`\n[conductor-rs-xls-sidecar pool=${poolSize}]`);
   console.log(`files=${results.length} failed=${failed.length}`);
   console.log(`source=${formatBytes(summary.sizeBytes)} csvText=${formatBytes(summary.csvBytes)}`);
   console.log(`sumProcess=${formatMs(summary.convertMs)} wall=${formatMs(wallMs)}`);
@@ -209,8 +204,8 @@ const runPool = async (poolSize) => {
   }
 };
 
-console.log(`[rs-worker-xls-sidecar bench] exe=${exePath}`);
-console.log(`[rs-worker-xls-sidecar bench] excelFiles=${allFiles.length}`);
+console.log(`[conductor-rs-xls-sidecar bench] exe=${exePath}`);
+console.log(`[conductor-rs-xls-sidecar bench] excelFiles=${allFiles.length}`);
 await runPool(1);
 await runPool(2);
 await fs.rm(tempRoot, { force: true, recursive: true });

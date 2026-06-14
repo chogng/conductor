@@ -12,15 +12,16 @@
     "verify:legacy-user-storage": "node scripts/verify-legacy-user-storage.mjs",
     "verify:nls": "node --experimental-strip-types build/lib/nls.ts",
     "generate:icons": "node scripts/run-powershell.mjs scripts/generate-icons.ps1",
-    "verify:rs-worker-artifacts": "node scripts/verify-rs-worker-artifacts.mjs",
+    "verify:conductor-rs-artifacts": "node scripts/verify-conductor-rs-artifacts.mjs",
+    "verify:conductor-rs-smoke": "node scripts/verify-conductor-rs-smoke.mjs",
     "dev": "vite --configLoader runner",
     "dev:vite": "vite --configLoader runner",
     "dev:desktop": "npm run build:desktop:core && node --experimental-strip-types scripts/dev-desktop.ts",
     "build:py-worker": "node scripts/run-powershell.mjs scripts/build-py-worker.ps1",
-    "build:rs-worker": "node scripts/run-powershell.mjs scripts/build-rs-worker.ps1",
+    "build:conductor-rs": "node scripts/build-conductor-rs.mjs",
     "build:assessment-wasm": "node scripts/run-powershell.mjs scripts/build-rs-assessment-wasm.ps1",
     "build:xlsx-wasm": "node scripts/run-powershell.mjs scripts/build-rs-xlsx-wasm.ps1",
-    "build:worker": "npm run build:py-worker && npm run build:rs-worker",
+    "build:worker": "npm run build:py-worker && npm run build:conductor-rs",
     "verify:py-worker": "node scripts/verify-py-worker.mjs",
     "verify:rust-auto-extraction": "node --experimental-strip-types scripts/verify-rust-auto-extraction-compat.mjs prepare && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-rs-auto-extract.ps1 && node --experimental-strip-types scripts/verify-rust-auto-extraction-compat.mjs compare",
     "verify:rust-analysis": "npm run verify:rust-ss-auto",
@@ -41,7 +42,7 @@
     "test:desktop-core": "npm run build:desktop:core && mocha --ui tdd test/integration/node/originRunner.test.mjs test/integration/node/analysisStorageService.test.mjs",
     "test:unit:browser": "node test/unit/browser/index.js",
     "test:origin-runner": "npm run build:desktop:core && mocha --ui tdd test/integration/node/originRunner.test.mjs",
-    "typecheck": "tsc -p src/tsconfig.json --noEmit && tsc -p src/tsconfig.desktop.json --noEmit && tsc -p src/tsconfig.scripts.json --noEmit && npm run verify:nls && npm run verify:rs-worker-artifacts",
+    "typecheck": "tsc -p src/tsconfig.json --noEmit && tsc -p src/tsconfig.desktop.json --noEmit && tsc -p src/tsconfig.scripts.json --noEmit && npm run verify:nls && npm run verify:conductor-rs-artifacts",
     "preview": "vite preview",
     "build:desktop:bundle": "node scripts/build-desktop.mjs",
     "build:desktop": "npm run generate:icons && npm run verify:icons && npm run build:desktop:bundle",
@@ -100,11 +101,11 @@
     ],
     "extraResources": [
       {
-        "from": "workers/rs",
-        "to": "workers/rs",
+        "from": "resources/bin",
+        "to": "bin",
         "filter": [
-          "rs-worker",
-          "rs-worker.exe"
+          "conductor-rs",
+          "conductor-rs.exe"
         ]
       },
       {

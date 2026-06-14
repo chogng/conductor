@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const artifactPathPrefix = "workers/rs/";
+const artifactPathPrefixes = ["resources/bin/"];
 
 const resolveGitDir = () => {
   const gitPath = path.join(process.cwd(), ".git");
@@ -17,15 +17,15 @@ const resolveGitDir = () => {
 
 const indexPath = path.join(resolveGitDir(), "index");
 const indexBytes = fs.existsSync(indexPath) ? fs.readFileSync(indexPath) : Buffer.alloc(0);
-const trackedArtifacts = indexBytes.includes(Buffer.from(artifactPathPrefix, "utf8"))
-  ? [artifactPathPrefix]
-  : [];
+const trackedArtifacts = artifactPathPrefixes.filter((artifactPathPrefix) =>
+  indexBytes.includes(Buffer.from(artifactPathPrefix, "utf8"))
+);
 
 if (trackedArtifacts.length) {
   console.error(
     [
-      "rs-worker build artifacts must stay out of git.",
-      "Run `git rm --cached -- workers/rs/rs-worker workers/rs/rs-worker.exe` and rebuild with `npm run build:rs-worker` before packaging.",
+      "conductor-rs build artifacts must stay out of git.",
+      "Run `git rm --cached -- resources/bin/conductor-rs resources/bin/conductor-rs.exe` and rebuild with `npm run build:conductor-rs` before packaging.",
       "",
       "Tracked artifacts:",
       ...trackedArtifacts.map((artifact) => `- ${artifact}`),
@@ -34,4 +34,4 @@ if (trackedArtifacts.length) {
   process.exit(1);
 }
 
-console.log("[verify-rs-worker-artifacts] no tracked rs-worker artifacts");
+console.log("[verify-conductor-rs-artifacts] no tracked conductor-rs artifacts");

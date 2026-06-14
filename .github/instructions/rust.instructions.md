@@ -1,12 +1,12 @@
 ---
 description: Rust execution branch guidelines for Conductor desktop - how electron-browser service implementations call Rust, which stages Rust may take over, what data may cross the Rust/TypeScript boundary, and how results are normalized back into domain records.
-applyTo: 'src/cs/workbench/services/{files,assessment,table,template,plot,parameters,export,origin,search}/**,src/cs/platform/rust/**,src/cs/code/electron-main/{rustHostChannels.ts,rustHostService.ts,app.ts},src/cs/base/parts/sandbox/electron-browser/preload.ts,conductor-rs/**'
+applyTo: 'src/cs/workbench/services/{files,assessment,table,template,plot,parameters,export,origin,search}/**,src/cs/platform/rust/**,src/cs/code/electron-main/{rustHostChannels.ts,rustHostService.ts,app.ts},src/cs/base/parts/sandbox/electron-browser/preload.ts,cli/**,extensions/**'
 ---
 # Rust Execution Branch
 
 Rust is an execution branch for desktop service implementations. It is not a separate workbench domain, not a replacement for commands, and not a second product session.
 
-Use this document when moving expensive file/table/template/plot/export/metric work from TypeScript into `conductor-rs`.
+Use this document when moving expensive file/table/template/plot/export/metric work from TypeScript into the Rust CLI source under `cli/`, or browser/WASM Rust extension crates under `extensions/`.
 
 ## Core rule
 
@@ -23,6 +23,44 @@ Command / Action / View
 ```
 
 Do not create a parallel Rust command layer, Rust view layer, or Rust session layer.
+
+## Desktop helper CLI route
+
+Conductor desktop uses Rust as a bundled helper CLI/binary, not as an external
+user-installed dependency and not as Rust source invoked directly by Electron.
+This follows the upstream VS Code CLI shape: Rust source lives in the repository,
+the build compiles it with Cargo, and runtime code executes the compiled binary.
+
+Target shape:
+
+```txt
+Conductor Studio.app / desktop package
+  resources/bin/conductor-rs
+
+Electron main process
+  spawn(conductor-rs, ["--stdio-worker"])
+```
+
+`--stdio-worker` is the protocol mode. It does not make the binary a separate
+product boundary. Keep the product/runtime name CLI-like (`conductor-rs`) and
+keep worker terminology for the transport, process pool, and lifecycle where it
+is technically accurate.
+
+Runtime resolution should prefer this order:
+
+```txt
+CONDUCTOR_RS_CLI_PATH
+packaged resources/bin/conductor-rs
+development .build/.tooling Cargo release output
+development target/release output
+```
+
+Production desktop builds must not require users to install Rust, Cargo, or an
+external `conductor-rs` CLI. Development builds may compile or point to local
+Cargo output. Packaged macOS builds must preserve executable bits and include
+the helper binary in signing/notarization validation. Workbench domain services
+should continue to call domain IPC/preload methods and should not learn
+executable file names.
 
 ## Naming rule
 
