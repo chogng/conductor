@@ -108,6 +108,7 @@ const FILE_HOVER_HIDE_DELAY_MS = 120;
 const FILE_HOVER_THUMBNAIL_WIDTH = 360;
 const FILE_HOVER_THUMBNAIL_VIEWPORT_RATIO = 0.44;
 const HOVER_THUMBNAIL_CACHE_LIMIT = 12;
+const FILE_ASSESSMENT_REASON_SEPARATOR = "\u001d";
 
 const getFileHoverThumbnailWidth = (): number =>
   Math.max(1, Math.min(
@@ -120,7 +121,7 @@ type FileItemAssessment = {
   readonly isWarning: boolean;
   readonly type: string;
   readonly confidence: string;
-  readonly reasons: string;
+  readonly reasons: readonly string[];
   readonly template: string;
 };
 
@@ -161,7 +162,7 @@ type HoverContent =
     readonly isWarning: boolean;
     readonly type: string;
     readonly confidence: string;
-    readonly reasons: string;
+    readonly reasons: readonly string[];
     readonly template: string;
   }
   | {
@@ -180,13 +181,13 @@ type HoverThumbnailCacheEntry = {
 
 const hasFileItemAssessment = (
   fileEntry: ExplorerFileEntry,
-  reasons: string,
+  reasons: readonly string[],
 ): boolean =>
   Boolean(
     String(fileEntry.curveType ?? "").trim() ||
       fileEntry.curveTypeConfidence ||
       fileEntry.curveTypeNeedsTemplate === true ||
-      reasons,
+      reasons.length,
   );
 
 const createFileItemAssessment = (
@@ -198,8 +199,7 @@ const createFileItemAssessment = (
     : localize("files.autoUnknown", "Unknown");
   const reasons = (fileEntry.curveTypeReasons ?? [])
     .map(reason => String(reason).trim())
-    .filter(Boolean)
-    .join(" ");
+    .filter(Boolean);
   if (!hasFileItemAssessment(fileEntry, reasons)) {
     return null;
   }
@@ -216,12 +216,15 @@ const createFileItemAssessment = (
       fileEntry?.curveTypeConfidence === "low",
     type: curveType,
     confidence,
-    reasons: reasons || localize("files.autoNoReason", "Not available"),
+    reasons: reasons.length ? reasons : [localize("files.autoNoReason", "Not available")],
     template: templateLabel,
   };
 };
 
-const createAssessmentRow = (label: string, value: string): HTMLElement => {
+const createAssessmentRow = (
+  label: string,
+  value: string | readonly string[],
+): HTMLElement => {
   const row = document.createElement("div");
   row.className = "file-list-hover-assessment-row";
 
@@ -231,7 +234,19 @@ const createAssessmentRow = (label: string, value: string): HTMLElement => {
 
   const description = document.createElement("dd");
   description.className = "file-list-hover-assessment-value";
-  description.textContent = value;
+  if (Array.isArray(value)) {
+    const list = document.createElement("div");
+    list.className = "file-list-hover-assessment-list";
+    for (const item of value) {
+      const entry = document.createElement("div");
+      entry.className = "file-list-hover-assessment-list-item";
+      entry.textContent = item;
+      list.appendChild(entry);
+    }
+    description.appendChild(list);
+  } else {
+    description.textContent = value;
+  }
 
   row.append(term, description);
   return row;
@@ -773,7 +788,7 @@ export class ExplorerViewer implements IDisposable {
     if (assessment) {
       host.dataset.autoType = assessment.type;
       host.dataset.autoConfidence = assessment.confidence;
-      host.dataset.autoReasons = assessment.reasons;
+      host.dataset.autoReasons = assessment.reasons.join(FILE_ASSESSMENT_REASON_SEPARATOR);
       host.dataset.autoTemplate = assessment.template;
       host.dataset.autoWarning = assessment.isWarning ? "true" : "false";
     } else {
@@ -1248,7 +1263,10 @@ export class ExplorerViewer implements IDisposable {
       isWarning: item.dataset.autoWarning === "true",
       type,
       confidence: item.dataset.autoConfidence ?? "",
-      reasons: item.dataset.autoReasons ?? "",
+      reasons: (item.dataset.autoReasons ?? "")
+        .split(FILE_ASSESSMENT_REASON_SEPARATOR)
+        .map(reason => reason.trim())
+        .filter(Boolean),
       template: item.dataset.autoTemplate ?? "",
     };
   }

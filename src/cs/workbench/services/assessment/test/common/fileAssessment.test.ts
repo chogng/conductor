@@ -156,7 +156,7 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
     assert.equal(result.xAxisRole, "vd");
     assert.equal(result.confidence, "medium");
     assert.equal(result.needsTemplate, false);
-    assert.match(result.reasons.join(" "), /output-style Id-Vd behavior/i);
+    assert.match(result.reasons.join(" "), /output-like Id-Vd/i);
   });
 
   test("infers transfer from stripped sweeps when the fixed channel carries the drain-current response", () => {
@@ -186,7 +186,7 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
     assert.equal(result.xAxisRole, "vg");
     assert.equal(result.confidence, "medium");
     assert.equal(result.needsTemplate, false);
-    assert.match(result.reasons.join(" "), /transfer-style drain-current response/i);
+    assert.match(result.reasons.join(" "), /transfer-like Vg response/i);
   });
 
   test("uses filename plus stripped sweep shape as a low-confidence output hint", () => {

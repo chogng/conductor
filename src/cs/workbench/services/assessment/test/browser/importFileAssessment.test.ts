@@ -73,7 +73,7 @@ suite("workbench/services/assessment/test/browser/importFileAssessment", () => {
     assert.equal(result.curveTypeConfidence, "medium");
     assert.equal(result.curveTypeNeedsTemplate, false);
     assert.equal(result.xAxisRole, "vd");
-    assert.match(result.curveTypeReasons.join(" "), /output-style Id-Vd behavior/i);
+    assert.match(result.curveTypeReasons.join(" "), /output-like Id-Vd/i);
   });
 
   test("assessImportFile treats transient transfer CSV headers as transfer metadata", async () => {

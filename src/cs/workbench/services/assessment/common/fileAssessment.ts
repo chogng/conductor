@@ -78,6 +78,8 @@ type FileEvidence = {
   weight: number;
 };
 
+const MAX_ASSESSMENT_REASONS = 2;
+
 const unwrapBraceToken = (value: unknown): string => {
   const normalized = normalizeCellText(value);
   if (!normalized) return "";
@@ -769,8 +771,8 @@ const collectRoleEvidence = ({
         weight,
         "shape",
         dominantAxis === sweptAxis
-          ? `shows ${dominantChannel} Current changing ${formatDecades(currentSpanGap)} decades more than ${fixedChannel} Current while ${sweptChannel} Voltage is swept, which matches output-style Id-Vd behavior.`
-          : `shows ${dominantChannel} Current changing ${formatDecades(currentSpanGap)} decades more than ${sweptChannel} Current while ${sweptChannel} Voltage is swept, which matches transfer-style drain-current response to Vg.`,
+          ? `${dominantChannel} Current varies ${formatDecades(currentSpanGap)} decades more than ${fixedChannel} during the ${sweptChannel} sweep; output-like Id-Vd.`
+          : `${dominantChannel} Current varies ${formatDecades(currentSpanGap)} decades more than ${sweptChannel} during the ${sweptChannel} sweep; transfer-like Vg response.`,
       );
     }
 
@@ -786,7 +788,7 @@ const collectRoleEvidence = ({
           "vd",
           6,
           "shape",
-          `sweeps ${sweptChannel} over about ${formatVoltage(sweepVoltageSpan)} V while ${fixedChannel} sits near ${formatVoltage(fixedVoltageMagnitude)} V, which is more typical of output sweeps under stepped gate bias.`,
+          `${sweptChannel} sweeps about ${formatVoltage(sweepVoltageSpan)} V while ${fixedChannel} is near ${formatVoltage(fixedVoltageMagnitude)} V; output-like stepped bias.`,
         );
       } else if (
         fixedVoltageMagnitude <= 12 &&
@@ -797,7 +799,7 @@ const collectRoleEvidence = ({
           "vg",
           6,
           "shape",
-          `sweeps ${sweptChannel} over about ${formatVoltage(sweepVoltageSpan)} V while ${fixedChannel} stays near ${formatVoltage(fixedVoltageMagnitude)} V, which is more typical of transfer sweeps at modest drain bias.`,
+          `${sweptChannel} sweeps about ${formatVoltage(sweepVoltageSpan)} V while ${fixedChannel} is near ${formatVoltage(fixedVoltageMagnitude)} V; transfer-like drain bias.`,
         );
       }
     }
@@ -916,14 +918,14 @@ export const assessFile = ({
           "Metadata signals disagree on whether VAR1/X belongs to Vg or Vd.",
           ...evidence
             .sort((left, right) => right.weight - left.weight)
-            .slice(0, 4)
+            .slice(0, MAX_ASSESSMENT_REASONS)
             .map((entry) => entry.reason),
           ...strippedMetadataReason,
         ]
       : [
           ...evidence
             .sort((left, right) => right.weight - left.weight)
-            .slice(0, 4)
+            .slice(0, MAX_ASSESSMENT_REASONS)
             .map((entry) => entry.reason),
           ...strippedMetadataReason,
           ...(evidence.length
@@ -979,7 +981,7 @@ export const assessFile = ({
     needsTemplate: confidence === "low",
     reasons: winningEvidence
       .sort((left, right) => right.weight - left.weight)
-      .slice(0, 4)
+      .slice(0, MAX_ASSESSMENT_REASONS)
       .map((entry) => entry.reason),
     xAxisRole: winningRole,
     xAxisRoleSource: resolveRoleSource(winningEvidence),
