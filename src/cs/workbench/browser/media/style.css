@@ -192,6 +192,8 @@ html.workbench-transparent-chrome .workbench_layout_sidebar {
 
 html.workbench-transparent-chrome .workbench_layout_main {
   background: rgb(var(--bg-page) / 1);
+  border-top-left-radius: 0.75rem;
+  overflow: hidden;
 }
 
 .workbench_root {

@@ -10,7 +10,7 @@ import { DesktopWindowMain } from "src/cs/platform/window/electron-main/window";
 type WindowCall = readonly [string, unknown?];
 
 suite("platform/window/electron-main/window", () => {
-  test("hides macOS native titlebar while preserving native window frame", () => {
+  test("creates macOS window with hidden titlebar and transparent capability", () => {
     withPlatform("darwin", () => {
       const windowMain = createDesktopWindowMain();
 
@@ -24,14 +24,78 @@ suite("platform/window/electron-main/window", () => {
       });
 
       assert.deepEqual({
+        backgroundColor: options.backgroundColor,
         frame: options.frame,
         titleBarOverlay: options.titleBarOverlay,
         titleBarStyle: options.titleBarStyle,
+        transparent: options.transparent,
+        vibrancy: options.vibrancy,
       }, {
+        backgroundColor: undefined,
         frame: true,
         titleBarOverlay: true,
         titleBarStyle: "hidden",
+        transparent: true,
+        vibrancy: undefined,
       });
+    });
+  });
+
+  test("creates macOS transparent chrome with sidebar vibrancy", () => {
+    withPlatform("darwin", () => {
+      const windowMain = createDesktopWindowMain();
+
+      const options = windowMain.createBrowserWindowOptions({
+        appearance: {
+          backgroundColor: "#f3f4f6",
+          transparentChrome: true,
+        },
+        isDev: true,
+        preload: "/preload.js",
+        theme: {
+          backgroundColor: "#f3f4f6",
+          foregroundColor: "#222222",
+        },
+      });
+
+      assert.deepEqual({
+        backgroundColor: options.backgroundColor,
+        transparent: options.transparent,
+        vibrancy: options.vibrancy,
+        visualEffectState: options.visualEffectState,
+      }, {
+        backgroundColor: "rgba(0, 0, 0, 0)",
+        transparent: true,
+        vibrancy: "sidebar",
+        visualEffectState: "followWindow",
+      });
+    });
+  });
+
+  test("enables macOS sidebar vibrancy at runtime", () => {
+    withPlatform("darwin", () => {
+      const win = createTestWindow();
+      const windowMain = createDesktopWindowMain();
+
+      windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
+        appearance: {
+          backgroundColor: "#f3f4f6",
+          transparentChrome: false,
+        },
+      });
+      win.calls.length = 0;
+
+      windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
+        appearance: {
+          backgroundColor: "#f3f4f6",
+          transparentChrome: true,
+        },
+      });
+
+      assert.deepEqual(win.calls, [
+        ["setVibrancy", "sidebar"],
+        ["setBackgroundColor", "rgba(0, 0, 0, 0)"],
+      ]);
     });
   });
 

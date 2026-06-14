@@ -246,7 +246,7 @@ export const DEFAULT_SETTINGS: ConductorSettings = {
   lastTemplateId: null,
   theme: "system",
   backgroundColor: DEFAULT_BACKGROUND_COLOR,
-  transparentChrome: false,
+  transparentChrome: true,
   windowCloseBehavior: "minimizeToTray",
   trayMinimizeHintShown: false,
   onboardingCompleted: false,
