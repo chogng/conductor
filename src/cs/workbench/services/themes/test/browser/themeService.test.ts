@@ -46,7 +46,7 @@ suite("workbench/services/themes/browser/themeService", () => {
 
 		desktopAppearance.resolve({ ok: true });
 		await desktopAppearance.promise;
-		await Promise.resolve();
+		await drainMicrotasks();
 
 		assert.deepStrictEqual(calls, [
 			["desktopAppearanceSet", {
@@ -55,6 +55,86 @@ suite("workbench/services/themes/browser/themeService", () => {
 			}],
 			["setProperty", ["--bg-page", "171 205 239"]],
 			["toggleClass", ["workbench-transparent-chrome", true]],
+		]);
+	});
+
+	test("adds macOS transparent chrome class inside Electron renderer", async () => {
+		const calls: TestCall[] = [];
+		installAppearanceEnvironment(calls, async () => ({ ok: true }), {
+			electronVersion: "38.0.0",
+			platform: "darwin",
+		});
+		const service = new BrowserWorkbenchThemeService();
+
+		service.applyAppearance({
+			backgroundColor: "#abcdef",
+			transparentChrome: true,
+		});
+		await drainMicrotasks();
+
+		assert.deepStrictEqual(calls, [
+			["desktopAppearanceSet", {
+				backgroundColor: "#abcdef",
+				transparentChrome: true,
+			}],
+			["setProperty", ["--bg-page", "171 205 239"]],
+			["toggleClass", ["workbench-transparent-chrome", true]],
+			["toggleClass", ["workbench-transparent-chrome-macos", true]],
+		]);
+
+		calls.length = 0;
+		service.applyAppearance({
+			backgroundColor: "#abcdef",
+			transparentChrome: false,
+		});
+
+		assert.deepStrictEqual(calls, [
+			["setProperty", ["--bg-page", "171 205 239"]],
+			["toggleClass", ["workbench-transparent-chrome", false]],
+			["toggleClass", ["workbench-transparent-chrome-macos", false]],
+			["desktopAppearanceSet", {
+				backgroundColor: "#abcdef",
+				transparentChrome: false,
+			}],
+		]);
+	});
+
+	test("applies opaque surface changes from desktop window events", async () => {
+		const calls: TestCall[] = [];
+		const environment = installAppearanceEnvironment(calls, async () => ({ ok: true }), {
+			electronVersion: "38.0.0",
+			platform: "darwin",
+		});
+		const service = new BrowserWorkbenchThemeService();
+
+		service.start();
+		calls.length = 0;
+		service.applyAppearance({
+			backgroundColor: "#abcdef",
+			transparentChrome: true,
+		});
+		await drainMicrotasks();
+		calls.length = 0;
+
+		environment.emit(workbenchIpcChannels.desktopOpaqueSurfaceChanged, {
+			backgroundColor: "#f9f9f9",
+			opaqueSurface: true,
+		});
+
+		assert.deepStrictEqual(calls, [
+			["setProperty", ["--desktop-opaque-surface-background", "249 249 249"]],
+			["toggleClass", ["workbench-opaque-surface", true]],
+		]);
+
+		calls.length = 0;
+		environment.emit(workbenchIpcChannels.desktopOpaqueSurfaceChanged, {
+			backgroundColor: "#f9f9f9",
+			opaqueSurface: false,
+		});
+
+		assert.deepStrictEqual(calls, [
+			["setProperty", ["--desktop-opaque-surface-background", "249 249 249"]],
+			["toggleClass", ["workbench-opaque-surface", false]],
 		]);
 	});
 
@@ -67,8 +147,7 @@ suite("workbench/services/themes/browser/themeService", () => {
 			backgroundColor: "#abcdef",
 			transparentChrome: true,
 		});
-		await Promise.resolve();
-		await Promise.resolve();
+		await drainMicrotasks();
 		calls.length = 0;
 
 		service.applyAppearance({
@@ -101,15 +180,74 @@ const createDeferredPromise = (): {
 	};
 };
 
+const drainMicrotasks = async (): Promise<void> => {
+	await Promise.resolve();
+	await Promise.resolve();
+	await Promise.resolve();
+};
+
+type AppearanceEnvironmentOptions = {
+	readonly electronVersion?: string;
+	readonly platform?: string;
+};
+
+type AppearanceEnvironment = {
+	readonly emit: (channel: string, payload: unknown) => void;
+};
+
 const installAppearanceEnvironment = (
 	calls: TestCall[],
 	invoke: (channel: string, ...args: unknown[]) => Promise<unknown>,
-): void => {
+	options: AppearanceEnvironmentOptions = {},
+): AppearanceEnvironment => {
+	const listeners = new Map<string, Array<(event: unknown, payload: unknown) => void>>();
+	const conductor: Record<string, unknown> = {
+		ipcRenderer: {
+			invoke: (channel: string, ...args: unknown[]) => {
+				assert.equal(channel, workbenchIpcChannels.desktopAppearanceSet);
+				calls.push(["desktopAppearanceSet", args[0]]);
+				return invoke(channel, ...args);
+			},
+			on: (
+				channel: string,
+				listener: (event: unknown, payload: unknown) => void,
+			) => {
+				const channelListeners = listeners.get(channel) ?? [];
+				channelListeners.push(listener);
+				listeners.set(channel, channelListeners);
+			},
+			removeListener: (
+				channel: string,
+				listener: (event: unknown, payload: unknown) => void,
+			) => {
+				const channelListeners = listeners.get(channel) ?? [];
+				listeners.set(
+					channel,
+					channelListeners.filter(candidate => candidate !== listener),
+				);
+			},
+		},
+	};
+	if (typeof options.platform === "string") {
+		conductor.process = {
+			platform: options.platform,
+			versions: {
+				electron: options.electronVersion,
+			},
+		};
+	}
+
 	Object.defineProperty(globalThis, "document", {
 		configurable: true,
 		value: {
 			documentElement: {
 				classList: {
+					add: (...names: string[]) => {
+						calls.push(["addClass", names]);
+					},
+					remove: (...names: string[]) => {
+						calls.push(["removeClass", names]);
+					},
 					toggle: (name: string, force?: boolean) => {
 						calls.push(["toggleClass", [name, force]]);
 					},
@@ -126,16 +264,21 @@ const installAppearanceEnvironment = (
 	Object.defineProperty(globalThis, "window", {
 		configurable: true,
 		value: {
-			conductor: {
-				ipcRenderer: {
-					invoke: (channel: string, ...args: unknown[]) => {
-						assert.equal(channel, workbenchIpcChannels.desktopAppearanceSet);
-						calls.push(["desktopAppearanceSet", args[0]]);
-						return invoke(channel, ...args);
-					},
-				},
-			},
+			conductor,
+			matchMedia: () => ({
+				addEventListener: () => undefined,
+				matches: false,
+				removeEventListener: () => undefined,
+			}),
 		},
 		writable: true,
 	});
+
+	return {
+		emit: (channel, payload) => {
+			for (const listener of listeners.get(channel) ?? []) {
+				listener({}, payload);
+			}
+		},
+	};
 };

@@ -9,11 +9,14 @@ import { isThemeMode, type ThemeMode } from "src/cs/workbench/common/theme";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
 	IWorkbenchThemeService,
+	normalizeWorkbenchBackgroundColor,
 	normalizeWorkbenchAppearance,
 	type WorkbenchAppearance,
 } from "src/cs/workbench/services/themes/common/themeService";
 
 const WORKBENCH_TRANSPARENT_CHROME_CLASS = "workbench-transparent-chrome";
+const WORKBENCH_MACOS_TRANSPARENT_CHROME_CLASS = "workbench-transparent-chrome-macos";
+const WORKBENCH_OPAQUE_SURFACE_CLASS = "workbench-opaque-surface";
 
 export class BrowserWorkbenchThemeService extends Disposable implements IWorkbenchThemeService {
 	public declare readonly _serviceBrand: undefined;
@@ -25,6 +28,8 @@ export class BrowserWorkbenchThemeService extends Disposable implements IWorkben
 
 	private appearance = normalizeWorkbenchAppearance(null);
 	private appearanceApplicationId = 0;
+	private desktopOpaqueSurface = false;
+	private workbenchOpaqueSurfaceApplied = false;
 	private mediaQuery: MediaQueryList | null = null;
 	private started = false;
 	private theme: ThemeMode = this.getInitialTheme();
@@ -35,6 +40,7 @@ export class BrowserWorkbenchThemeService extends Disposable implements IWorkben
 		}
 
 		this.started = true;
+		this.installDesktopOpaqueSurfaceListener();
 		this.mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 		this.mediaQuery.addEventListener("change", this.handleColorSchemeChange);
 		this._register({
@@ -116,6 +122,7 @@ export class BrowserWorkbenchThemeService extends Disposable implements IWorkben
 
 	private applyWorkbenchAppearance(appearance: WorkbenchAppearance): void {
 		applyWorkbenchAppearance(appearance);
+		this.applyWorkbenchOpaqueSurface();
 	}
 
 	private applyAppearanceInPaintOrder(
@@ -153,14 +160,81 @@ export class BrowserWorkbenchThemeService extends Disposable implements IWorkben
 		}
 
 		try {
-			return ipcRenderer.invoke(workbenchIpcChannels.desktopAppearanceSet, appearance).catch(() => {
-				// Older shells may not expose desktop appearance IPC.
-			});
+			return ipcRenderer.invoke(workbenchIpcChannels.desktopAppearanceSet, appearance)
+				.then(result => {
+					this.applyDesktopOpaqueSurfacePayload(result);
+					return result;
+				})
+				.catch(() => {
+					// Older shells may not expose desktop appearance IPC.
+				});
 		} catch {
 			return Promise.resolve(undefined);
 		}
 	}
+
+	private installDesktopOpaqueSurfaceListener(): void {
+		const ipcRenderer = window.conductor?.ipcRenderer as
+			| {
+				on?: (channel: string, listener: DesktopOpaqueSurfaceListener) => unknown;
+				removeListener?: (
+					channel: string,
+					listener: DesktopOpaqueSurfaceListener,
+				) => unknown;
+			}
+			| undefined;
+		if (
+			typeof ipcRenderer?.on !== "function" ||
+			typeof ipcRenderer.removeListener !== "function"
+		) {
+			return;
+		}
+
+		const listener: DesktopOpaqueSurfaceListener = (_event, payload) => {
+			this.applyDesktopOpaqueSurfacePayload(payload);
+		};
+		ipcRenderer.on(workbenchIpcChannels.desktopOpaqueSurfaceChanged, listener);
+		this._register({
+			dispose: () => {
+				ipcRenderer.removeListener?.(
+					workbenchIpcChannels.desktopOpaqueSurfaceChanged,
+					listener,
+				);
+			},
+		});
+	}
+
+	private applyDesktopOpaqueSurfacePayload(payload: unknown): void {
+		const state = readDesktopOpaqueSurfaceState(payload);
+		if (!state) {
+			return;
+		}
+
+		this.desktopOpaqueSurface = state.opaqueSurface;
+		document.documentElement.style.setProperty(
+			"--desktop-opaque-surface-background",
+			hexToRgbTriplet(state.backgroundColor),
+		);
+		this.applyWorkbenchOpaqueSurface();
+	}
+
+	private applyWorkbenchOpaqueSurface(): void {
+		const enabled = this.appearance.transparentChrome && this.desktopOpaqueSurface;
+		if (enabled === this.workbenchOpaqueSurfaceApplied) {
+			return;
+		}
+
+		this.workbenchOpaqueSurfaceApplied = enabled;
+		applyWorkbenchOpaqueSurface(enabled);
+	}
 }
+
+type DesktopOpaqueSurfaceListener = (event: unknown, payload: unknown) => void;
+
+type DesktopOpaqueSurfaceState = {
+	readonly backgroundColor: string;
+	readonly opaqueSurface: boolean;
+};
 
 const hexToRgbTriplet = (hex: string): string => {
 	const normalized = normalizeWorkbenchAppearance({ backgroundColor: hex }).backgroundColor;
@@ -187,6 +261,59 @@ export const applyWorkbenchAppearance = (
 		WORKBENCH_TRANSPARENT_CHROME_CLASS,
 		appearance.transparentChrome,
 	);
+	if (isMacOSElectronWorkbench()) {
+		document.documentElement.classList.toggle(
+			WORKBENCH_MACOS_TRANSPARENT_CHROME_CLASS,
+			appearance.transparentChrome,
+		);
+	}
+};
+
+const applyWorkbenchOpaqueSurface = (enabled: boolean): void => {
+	if (typeof document === "undefined") {
+		return;
+	}
+
+	document.documentElement.classList.toggle(
+		WORKBENCH_OPAQUE_SURFACE_CLASS,
+		enabled,
+	);
+};
+
+const readDesktopOpaqueSurfaceState = (
+	payload: unknown,
+): DesktopOpaqueSurfaceState | null => {
+	if (!payload || typeof payload !== "object") {
+		return null;
+	}
+
+	const raw = payload as Record<string, unknown>;
+	if (typeof raw.opaqueSurface !== "boolean") {
+		return null;
+	}
+
+	return {
+		backgroundColor: normalizeWorkbenchBackgroundColor(raw.backgroundColor),
+		opaqueSurface: raw.opaqueSurface,
+	};
+};
+
+const isMacOSElectronWorkbench = (): boolean => {
+	const conductorProcess = (
+		typeof window === "undefined"
+			? undefined
+			: window.conductor?.process
+	) as
+		| {
+			readonly platform?: string;
+			readonly versions?: {
+				readonly electron?: string;
+			};
+		}
+		| undefined;
+
+	return conductorProcess?.platform === "darwin" &&
+		typeof conductorProcess.versions?.electron === "string";
 };
 
 const isSameAppearance = (

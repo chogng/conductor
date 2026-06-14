@@ -7,6 +7,18 @@
   background-color: rgb(var(--bg-page) / 1);
 }
 
+html.workbench-transparent-chrome .workbench_window {
+  background-color: #00000000;
+}
+
+html.workbench-transparent-chrome-macos .workbench_window {
+  background-color: var(--transparent-chrome-window);
+}
+
+html.workbench-transparent-chrome-macos.workbench-opaque-surface .workbench_window {
+  background-color: rgb(var(--desktop-opaque-surface-background) / 1);
+}
+
 .workbench_window_body {
   position: relative;
   min-height: 0;

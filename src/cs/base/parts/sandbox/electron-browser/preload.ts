@@ -280,6 +280,18 @@ function exposeConductorGlobals(configuration: ISandboxConfiguration): void {
 
   contextBridge.exposeInMainWorld("conductor", {
     ipcRenderer: conductorIpcRenderer,
+    process: {
+      platform: process.platform,
+      arch: process.arch,
+      env: {},
+      versions: {
+        node: process.versions.node,
+        electron: process.versions.electron,
+        chrome: process.versions.chrome,
+      },
+      type: "renderer",
+      cwd: () => "",
+    },
     webUtils: {
       getPathForFile(file: File) {
         try {

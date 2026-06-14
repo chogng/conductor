@@ -20,7 +20,10 @@ import { product } from "../../../bootstrap-meta.js";
 import { Server as ElectronIPCServer } from "../../base/parts/ipc/electron-main/ipc.electron.js";
 import { Event } from "../../base/common/event.js";
 import type { IServerChannel } from "../../base/parts/ipc/common/ipc.js";
-import { DesktopWindowMain } from "../../platform/window/electron-main/window.js";
+import {
+  DesktopWindowMain,
+  type DesktopWindowStyleState,
+} from "../../platform/window/electron-main/window.js";
 import { createConductorStoreMainService } from "../../workbench/services/conductorStore/electron-main/conductorStoreMainService.js";
 import { workbenchIpcChannels as ipcChannels } from "../../workbench/common/ipcChannels.js";
 import {
@@ -32,7 +35,10 @@ import { Win32UpdateService } from "../../platform/update/electron-main/updateSe
 import { DialogMainService } from "../../platform/dialogs/electron-main/dialogMainService.js";
 import { NativeHostMainService } from "../../platform/native/electron-main/nativeHostMainService.js";
 import { registerContextMenuListener } from "../../base/parts/contextmenu/electron-main/contextmenu.js";
-import { getThemeSnapshot } from "../../platform/theme/electron-main/themeMainService.js";
+import {
+  getThemeSnapshot,
+  resolveThemeMode,
+} from "../../platform/theme/electron-main/themeMainService.js";
 import {
   nativeHostBootstrapIpcChannels,
   workbenchBootstrapIpcChannels,
@@ -92,6 +98,8 @@ const isWindowsStorePackage =
 const APP_DISPLAY_NAME = product.nameLong;
 const APP_USER_MODEL_ID = isDev ? `${product.appId}.dev` : product.appId;
 const DEFAULT_WORKBENCH_BACKGROUND_COLOR = "#f3f4f6";
+const OPAQUE_WINDOW_SURFACE_LIGHT_BACKGROUND_COLOR = "#f9f9f9";
+const OPAQUE_WINDOW_SURFACE_DARK_BACKGROUND_COLOR = "#000000";
 const desktopWindowMain = new DesktopWindowMain(DEFAULT_WORKBENCH_BACKGROUND_COLOR);
 const WORKBENCH_BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 const BOOT_WINDOW_SETTLE_MS = 80;
@@ -187,19 +195,28 @@ function formatDiagnosticValue(value) {
 
 function getWindowThemeFromStore() {
   const settings = conductorStore.getConductorSettings();
-  const snapshot = getThemeSnapshot(settings?.theme);
+  const themeMode = syncNativeThemeSource(settings);
+  const snapshot = getThemeSnapshot(themeMode);
   return {
     backgroundColor: snapshot.backgroundColor,
     foregroundColor: snapshot.foregroundColor,
   };
 }
 
+function syncNativeThemeSource(settings = conductorStore.getConductorSettings()) {
+  const themeMode = resolveThemeMode(settings?.theme);
+  if (nativeTheme.themeSource !== themeMode) {
+    nativeTheme.themeSource = themeMode;
+  }
+  return themeMode;
+}
+
 function syncBootWindowTheme() {
   const theme = getWindowThemeFromStore();
-  desktopWindowMain.applyWindowStyle(mainWindow, {
+  sendDesktopOpaqueSurfaceState(mainWindow, desktopWindowMain.applyWindowStyle(mainWindow, {
     appearance: getAppearanceFromStore(),
     theme,
-  });
+  }));
   return theme;
 }
 
@@ -216,10 +233,33 @@ function normalizeWorkbenchBackgroundColor(value) {
 
 function getAppearanceFromStore() {
   const settings = conductorStore.getConductorSettings();
+  syncNativeThemeSource(settings);
   return {
     backgroundColor: normalizeWorkbenchBackgroundColor(settings?.backgroundColor),
+    opaqueSurfaceBackgroundColor: getOpaqueWindowSurfaceBackgroundColor(),
     transparentChrome: settings?.transparentChrome === true,
   };
+}
+
+function getOpaqueWindowSurfaceBackgroundColor() {
+  return nativeTheme.shouldUseDarkColors
+    ? OPAQUE_WINDOW_SURFACE_DARK_BACKGROUND_COLOR
+    : OPAQUE_WINDOW_SURFACE_LIGHT_BACKGROUND_COLOR;
+}
+
+function sendDesktopOpaqueSurfaceState(
+  win: BrowserWindow | null | undefined,
+  state: DesktopWindowStyleState | undefined,
+) {
+  if (!win || win.isDestroyed() || win.webContents.isDestroyed()) {
+    return;
+  }
+
+  win.webContents.send(ipcChannels.desktopOpaqueSurfaceChanged, {
+    backgroundColor:
+      state?.opaqueSurfaceBackgroundColor ?? getOpaqueWindowSurfaceBackgroundColor(),
+    opaqueSurface: state?.opaqueSurface === true,
+  });
 }
 
 function logDesktopDiagnostic(stage: string, payload: unknown = "") {
@@ -872,18 +912,25 @@ function handleDesktopAppearanceSet(event, payload) {
     return null;
   }
 
-  desktopWindowMain.applyWindowStyle(win, {
+  const styleState = desktopWindowMain.applyWindowStyle(win, {
     appearance: {
       backgroundColor:
         payload && typeof payload === "object" && typeof payload.backgroundColor === "string"
           ? payload.backgroundColor
           : undefined,
+      opaqueSurfaceBackgroundColor: getOpaqueWindowSurfaceBackgroundColor(),
       transparentChrome:
         payload && typeof payload === "object" && payload.transparentChrome === true,
     },
   });
+  sendDesktopOpaqueSurfaceState(win, styleState);
 
-  return { ok: true };
+  return {
+    backgroundColor:
+      styleState?.opaqueSurfaceBackgroundColor ?? getOpaqueWindowSurfaceBackgroundColor(),
+    ok: true,
+    opaqueSurface: styleState?.opaqueSurface === true,
+  };
 }
 
 async function handleExcelConvertRust(_event, payload) {
@@ -1433,10 +1480,10 @@ function createMainWindow() {
   });
 
   mainWindow = win;
-  desktopWindowMain.applyWindowStyle(mainWindow, {
+  sendDesktopOpaqueSurfaceState(mainWindow, desktopWindowMain.applyWindowStyle(mainWindow, {
     appearance: getAppearanceFromStore(),
     theme,
-  });
+  }));
   win.on("close", (event) => {
     if (isAppQuitting) return;
     if (process.platform === "darwin") return;
@@ -1446,12 +1493,21 @@ function createMainWindow() {
     hideMainWindowToTray(win, { showTrayHint: true });
     updateTrayMenu();
   });
+  const syncWindowAppearance = () => {
+    sendDesktopOpaqueSurfaceState(win, desktopWindowMain.applyWindowStyle(win, {
+      appearance: getAppearanceFromStore(),
+    }));
+  };
   win.on("show", () => {
+    syncWindowAppearance();
     updateTrayMenu();
   });
   win.on("hide", () => {
+    syncWindowAppearance();
     updateTrayMenu();
   });
+  win.on("focus", syncWindowAppearance);
+  win.on("blur", syncWindowAppearance);
   win.on("minimize", () => {
     updateTrayMenu();
   });

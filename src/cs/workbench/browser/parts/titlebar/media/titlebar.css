@@ -17,6 +17,10 @@
   background: rgb(var(--bg-page));
 }
 
+html.workbench-transparent-chrome-macos .titlebar-root {
+  background: transparent;
+}
+
 /* Left region: product mark and navigation controls. */
 .titlebar-left,
 .titlebar-right {

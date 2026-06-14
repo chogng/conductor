@@ -47,8 +47,8 @@
   --color-border: rgb(var(--border) / 0.35);
   --color-divider: rgb(var(--border) / 0.2);
   --color-highlight: rgb(var(--bg-surface) / 0.8);
-  --transparent-chrome-titlebar: rgb(var(--bg-surface) / 0.48);
-  --transparent-chrome-sidebar: rgb(var(--bg-surface) / 0.62);
+  --desktop-opaque-surface-background: 249 249 249;
+  --transparent-chrome-window: rgb(var(--bg-page) / 0.55);
 
   /* Status Colors */
   --color-success: #10B981;
@@ -148,8 +148,7 @@
   --color-divider: rgb(var(--border) / 0.45);
   --color-highlight: rgb(var(--bg-surface-hover) / 0.35);
   --shadow-menu: 0 1px 2px rgb(0 0 0 / 0.28), 0 10px 24px rgb(0 0 0 / 0.32);
-  --transparent-chrome-titlebar: rgb(var(--bg-surface) / 0.58);
-  --transparent-chrome-sidebar: rgb(var(--bg-surface) / 0.68);
+  --transparent-chrome-window: rgb(var(--bg-surface) / 0.68);
 }
 
 html {
@@ -187,10 +186,7 @@ select {
 
 html.workbench-transparent-chrome,
 html.workbench-transparent-chrome body,
-html.workbench-transparent-chrome #root,
-html.workbench-transparent-chrome .workbench_window,
-html.workbench-transparent-chrome .titlebar-root,
-html.workbench-transparent-chrome .workbench_layout_sidebar {
+html.workbench-transparent-chrome #root {
   background: #00000000;
 }
 
@@ -198,6 +194,12 @@ html.workbench-transparent-chrome .workbench_layout_main {
   background: rgb(var(--bg-page) / 1);
   border-top-left-radius: 0.75rem;
   overflow: hidden;
+}
+
+html.workbench-transparent-chrome-macos.workbench-opaque-surface,
+html.workbench-transparent-chrome-macos.workbench-opaque-surface body,
+html.workbench-transparent-chrome-macos.workbench-opaque-surface #root {
+  background: rgb(var(--desktop-opaque-surface-background) / 1);
 }
 
 .workbench_root {

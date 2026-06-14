@@ -26,6 +26,7 @@ type WindowControlsOverlayOptions = {
 
 type DesktopWindowAppearance = {
   readonly backgroundColor?: string;
+  readonly opaqueSurfaceBackgroundColor?: string;
   readonly transparentChrome?: boolean;
 };
 
@@ -40,6 +41,8 @@ type DesktopWindowVisualEffectState = NonNullable<
 type DesktopWindowAppearanceStyle = {
   readonly backgroundMaterial?: DesktopWindowMaterial;
   readonly backgroundColor?: string;
+  readonly opaqueSurface: boolean;
+  readonly opaqueSurfaceBackgroundColor?: string;
   readonly titleBarOverlayColor: string;
   readonly transparent?: boolean;
   readonly transparentChrome: boolean;
@@ -50,6 +53,11 @@ type DesktopWindowAppearanceStyle = {
 type DesktopWindowTheme = {
   readonly backgroundColor: string;
   readonly foregroundColor: string;
+};
+
+export type DesktopWindowStyleState = {
+  readonly opaqueSurface: boolean;
+  readonly opaqueSurfaceBackgroundColor?: string;
 };
 
 type DefaultBrowserWindowOptions = {
@@ -75,17 +83,14 @@ export class DesktopWindowMain {
     preload,
     theme,
   }: DefaultBrowserWindowOptions): BrowserWindowConstructorOptions {
-    const hideNativeTitlebar =
-      process.platform === "darwin" || process.platform === "win32";
     const hideNativeWindowFrame = process.platform === "win32";
     const appearanceStyle = resolveDesktopWindowAppearanceStyle(
       appearance ?? null,
       theme.backgroundColor,
       process.platform,
+      { isFocused: true },
     );
-    const titleBarOverlay = process.platform === "darwin"
-      ? true
-      : process.platform === "win32"
+    const titleBarOverlay = process.platform === "win32"
       ? {
           color: appearanceStyle.titleBarOverlayColor,
           symbolColor: theme.foregroundColor,
@@ -107,7 +112,11 @@ export class DesktopWindowMain {
       frame: !hideNativeWindowFrame,
       show: false,
       titleBarOverlay,
-      titleBarStyle: hideNativeTitlebar ? "hidden" : undefined,
+      titleBarStyle: process.platform === "darwin"
+        ? "hiddenInset"
+        : process.platform === "win32"
+        ? "hidden"
+        : undefined,
       vibrancy: appearanceStyle.vibrancy,
       visualEffectState: appearanceStyle.visualEffectState,
       webPreferences: {
@@ -128,8 +137,8 @@ export class DesktopWindowMain {
       readonly appearance?: DesktopWindowAppearance | null;
       readonly theme?: DesktopWindowTheme | null;
     },
-  ): void {
-    if (!win || win.isDestroyed()) return;
+  ): DesktopWindowStyleState | undefined {
+    if (!win || win.isDestroyed()) return undefined;
 
     const hasAppearance =
       Object.prototype.hasOwnProperty.call(options, "appearance");
@@ -138,6 +147,7 @@ export class DesktopWindowMain {
           options.appearance ?? null,
           this.defaultBackgroundColor,
           process.platform,
+          { isFocused: isWindowFocused(win) },
         )
       : this.windowAppearanceStyles.get(win);
     const previousAppearanceStyle = this.windowAppearanceStyles.get(win);
@@ -152,6 +162,13 @@ export class DesktopWindowMain {
         applyDesktopAppearance(win, appearanceStyle, previousAppearanceStyle);
       }
     }
+
+    return appearanceStyle
+      ? {
+          opaqueSurface: appearanceStyle.opaqueSurface,
+          opaqueSurfaceBackgroundColor: appearanceStyle.opaqueSurfaceBackgroundColor,
+        }
+      : undefined;
   }
 
   public updateWindowControls(
@@ -307,8 +324,18 @@ function shouldPaintBackgroundBeforeNativeMaterial(
 ): boolean {
   // If native transparency is being removed, repaint the opaque layer first so
   // DWM/AppKit never exposes the clear window background during the transition.
-  return previousStyle?.transparentChrome === true
-    && style.transparentChrome !== true
+  if (previousStyle?.transparentChrome !== true) {
+    return false;
+  }
+
+  if (
+    previousStyle.vibrancy !== undefined &&
+    style.vibrancy === undefined
+  ) {
+    return true;
+  }
+
+  return style.transparentChrome !== true
     && (
       previousStyle?.backgroundMaterial !== style.backgroundMaterial
       || previousStyle?.vibrancy !== style.vibrancy
@@ -377,9 +404,15 @@ function resolveDesktopWindowAppearanceStyle(
   appearance: DesktopWindowAppearance | null,
   defaultBackgroundColor: string,
   platform: NodeJS.Platform,
+  options: {
+    readonly isFocused?: boolean;
+  } = {},
 ): DesktopWindowAppearanceStyle {
   const backgroundColor = normalizeColorOption(appearance?.backgroundColor)
     ?? defaultBackgroundColor;
+  const opaqueSurfaceBackgroundColor =
+    normalizeColorOption(appearance?.opaqueSurfaceBackgroundColor)
+    ?? backgroundColor;
   const transparentChrome = appearance?.transparentChrome === true;
 
   if (platform === "win32") {
@@ -387,11 +420,51 @@ function resolveDesktopWindowAppearanceStyle(
   }
 
   if (platform === "darwin") {
+    // Never set `transparent: true` on macOS. A transparent window is created as
+    // a borderless, layer-backed NSWindow which (a) bypasses the NSVisualEffectView
+    // so native vibrancy never composites (flat gray instead of blurred
+    // wallpaper) and (b) renders the legacy/compact traffic-light buttons instead
+    // of the standard system size. A normal titled window with a clear background
+    // color lets the native vibrancy material show through and keeps the standard
+    // window controls.
+    if (transparentChrome) {
+      if (options.isFocused === false) {
+        return {
+          backgroundColor: opaqueSurfaceBackgroundColor,
+          opaqueSurface: true,
+          opaqueSurfaceBackgroundColor,
+          titleBarOverlayColor: backgroundColor,
+          transparent: false,
+          transparentChrome: true,
+          vibrancy: undefined,
+          visualEffectState: undefined,
+        };
+      }
+
+      return {
+        // Clear (#00000000) window backing so the NSVisualEffectView added by
+        // setVibrancy composites through the web contents. `transparent: false`
+        // keeps a standard titled NSWindow (full-size traffic lights); a clear
+        // backgroundColor — not `transparent: true` — is what lets vibrancy show.
+        // Using `undefined` here paints an opaque backing and hides vibrancy.
+        backgroundColor: TransparentWindowBackground,
+        opaqueSurface: false,
+        opaqueSurfaceBackgroundColor,
+        titleBarOverlayColor: backgroundColor,
+        transparent: false,
+        transparentChrome: true,
+        vibrancy: "menu",
+        visualEffectState: undefined,
+      };
+    }
+
     return {
-      backgroundColor: transparentChrome ? TransparentWindowBackground : undefined,
+      backgroundColor,
+      opaqueSurface: false,
+      opaqueSurfaceBackgroundColor,
       titleBarOverlayColor: backgroundColor,
-      transparent: true,
-      transparentChrome,
+      transparent: false,
+      transparentChrome: false,
       vibrancy: undefined,
       visualEffectState: undefined,
     };
@@ -400,6 +473,8 @@ function resolveDesktopWindowAppearanceStyle(
   if (!transparentChrome) {
     return {
       backgroundColor,
+      opaqueSurface: false,
+      opaqueSurfaceBackgroundColor,
       titleBarOverlayColor: backgroundColor,
       transparentChrome: false,
     };
@@ -407,6 +482,8 @@ function resolveDesktopWindowAppearanceStyle(
 
   return {
     backgroundColor,
+    opaqueSurface: false,
+    opaqueSurfaceBackgroundColor,
     titleBarOverlayColor: backgroundColor,
     transparentChrome: false,
   };
@@ -422,11 +499,16 @@ function resolveWin32DesktopWindowAppearanceStyle(
   return {
     backgroundMaterial: "mica",
     backgroundColor: TransparentWindowBackground,
+    opaqueSurface: false,
     titleBarOverlayColor: transparentChrome
       ? TransparentWindowBackground
       : backgroundColor,
     transparentChrome,
   };
+}
+
+function isWindowFocused(win: BrowserWindow): boolean {
+  return typeof win.isFocused === "function" ? win.isFocused() : true;
 }
 
 function normalizeColorOption(value: string | undefined): string | undefined {
@@ -453,6 +535,8 @@ function isSameDesktopWindowAppearanceStyle(
   return Boolean(current)
     && current?.backgroundMaterial === next.backgroundMaterial
     && current?.backgroundColor === next.backgroundColor
+    && current?.opaqueSurface === next.opaqueSurface
+    && current?.opaqueSurfaceBackgroundColor === next.opaqueSurfaceBackgroundColor
     && current?.titleBarOverlayColor === next.titleBarOverlayColor
     && current?.transparentChrome === next.transparentChrome
     && current?.vibrancy === next.vibrancy

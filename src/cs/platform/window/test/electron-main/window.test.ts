@@ -10,7 +10,7 @@ import { DesktopWindowMain } from "src/cs/platform/window/electron-main/window";
 type WindowCall = readonly [string, unknown?];
 
 suite("platform/window/electron-main/window", () => {
-  test("creates macOS window with hidden titlebar and transparent capability", () => {
+  test("creates opaque macOS window with hidden titlebar and standard chrome", () => {
     withPlatform("darwin", () => {
       const windowMain = createDesktopWindowMain();
 
@@ -31,17 +31,17 @@ suite("platform/window/electron-main/window", () => {
         transparent: options.transparent,
         vibrancy: options.vibrancy,
       }, {
-        backgroundColor: undefined,
+        backgroundColor: "#f3f4f6",
         frame: true,
-        titleBarOverlay: true,
-        titleBarStyle: "hidden",
-        transparent: true,
+        titleBarOverlay: undefined,
+        titleBarStyle: "hiddenInset",
+        transparent: false,
         vibrancy: undefined,
       });
     });
   });
 
-  test("creates macOS transparent chrome without vibrancy", () => {
+  test("creates macOS transparent chrome with menu vibrancy", () => {
     withPlatform("darwin", () => {
       const windowMain = createDesktopWindowMain();
 
@@ -65,14 +65,14 @@ suite("platform/window/electron-main/window", () => {
         visualEffectState: options.visualEffectState,
       }, {
         backgroundColor: "#00000000",
-        transparent: true,
-        vibrancy: undefined,
+        transparent: false,
+        vibrancy: "menu",
         visualEffectState: undefined,
       });
     });
   });
 
-  test("enables macOS transparent chrome without vibrancy at runtime", () => {
+  test("enables macOS transparent chrome with menu vibrancy at runtime", () => {
     withPlatform("darwin", () => {
       const win = createTestWindow();
       const windowMain = createDesktopWindowMain();
@@ -93,8 +93,77 @@ suite("platform/window/electron-main/window", () => {
       });
 
       assert.deepEqual(win.calls, [
+        ["setVibrancy", "menu"],
         ["setBackgroundColor", "#00000000"],
       ]);
+    });
+  });
+
+  test("uses opaque macOS surface while transparent chrome is unfocused", () => {
+    withPlatform("darwin", () => {
+      const win = createTestWindow();
+      const windowMain = createDesktopWindowMain();
+
+      windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
+        appearance: {
+          backgroundColor: "#f3f4f6",
+          opaqueSurfaceBackgroundColor: "#f9f9f9",
+          transparentChrome: true,
+        },
+      });
+      win.calls.length = 0;
+      win.setFocused(false);
+
+      const state = windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
+        appearance: {
+          backgroundColor: "#f3f4f6",
+          opaqueSurfaceBackgroundColor: "#f9f9f9",
+          transparentChrome: true,
+        },
+      });
+
+      assert.deepEqual(win.calls, [
+        ["setBackgroundColor", "#f9f9f9"],
+        ["setVibrancy", null],
+      ]);
+      assert.deepEqual(state, {
+        opaqueSurface: true,
+        opaqueSurfaceBackgroundColor: "#f9f9f9",
+      });
+    });
+  });
+
+  test("restores macOS menu vibrancy when transparent chrome refocuses", () => {
+    withPlatform("darwin", () => {
+      const win = createTestWindow({ focused: false });
+      const windowMain = createDesktopWindowMain();
+
+      windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
+        appearance: {
+          backgroundColor: "#f3f4f6",
+          opaqueSurfaceBackgroundColor: "#f9f9f9",
+          transparentChrome: true,
+        },
+      });
+      win.calls.length = 0;
+      win.setFocused(true);
+
+      const state = windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
+        appearance: {
+          backgroundColor: "#f3f4f6",
+          opaqueSurfaceBackgroundColor: "#f9f9f9",
+          transparentChrome: true,
+        },
+      });
+
+      assert.deepEqual(win.calls, [
+        ["setVibrancy", "menu"],
+        ["setBackgroundColor", "#00000000"],
+      ]);
+      assert.deepEqual(state, {
+        opaqueSurface: false,
+        opaqueSurfaceBackgroundColor: "#f9f9f9",
+      });
     });
   });
 
@@ -180,100 +249,94 @@ suite("platform/window/electron-main/window", () => {
   });
 
   test("keeps Windows material stable when disabling transparent chrome", () => {
-    if (process.platform !== "win32") {
-      return;
-    }
+    withPlatform("win32", () => {
+      const win = createTestWindow();
+      const windowMain = createDesktopWindowMain();
 
-    const win = createTestWindow();
-    const windowMain = createDesktopWindowMain();
+      windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
+        appearance: {
+          backgroundColor: "#f3f4f6",
+          transparentChrome: true,
+        },
+      });
+      win.calls.length = 0;
 
-    windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
-      appearance: {
-        backgroundColor: "#f3f4f6",
-        transparentChrome: true,
-      },
+      windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
+        appearance: {
+          backgroundColor: "#f3f4f6",
+          transparentChrome: false,
+        },
+      });
+
+      assert.deepEqual(win.calls, [
+        ["setTitleBarOverlay", {
+          color: "#f3f4f6",
+          height: undefined,
+          symbolColor: undefined,
+        }],
+      ]);
     });
-    win.calls.length = 0;
-
-    windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
-      appearance: {
-        backgroundColor: "#f3f4f6",
-        transparentChrome: false,
-      },
-    });
-
-    assert.deepEqual(win.calls, [
-      ["setTitleBarOverlay", {
-        color: "#f3f4f6",
-        height: undefined,
-        symbolColor: undefined,
-      }],
-    ]);
   });
 
   test("keeps Windows material stable when enabling transparent chrome", () => {
-    if (process.platform !== "win32") {
-      return;
-    }
+    withPlatform("win32", () => {
+      const win = createTestWindow();
+      const windowMain = createDesktopWindowMain();
 
-    const win = createTestWindow();
-    const windowMain = createDesktopWindowMain();
+      windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
+        appearance: {
+          backgroundColor: "#f3f4f6",
+          transparentChrome: false,
+        },
+      });
+      win.calls.length = 0;
 
-    windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
-      appearance: {
-        backgroundColor: "#f3f4f6",
-        transparentChrome: false,
-      },
+      windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
+        appearance: {
+          backgroundColor: "#f3f4f6",
+          transparentChrome: true,
+        },
+      });
+
+      assert.deepEqual(win.calls, [
+        ["setTitleBarOverlay", {
+          color: "#00000000",
+          height: undefined,
+          symbolColor: undefined,
+        }],
+      ]);
     });
-    win.calls.length = 0;
-
-    windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
-      appearance: {
-        backgroundColor: "#f3f4f6",
-        transparentChrome: true,
-      },
-    });
-
-    assert.deepEqual(win.calls, [
-      ["setTitleBarOverlay", {
-        color: "#00000000",
-        height: undefined,
-        symbolColor: undefined,
-      }],
-    ]);
   });
 
   test("keeps appearance overlay color when applying a theme", () => {
-    if (process.platform !== "win32") {
-      return;
-    }
+    withPlatform("win32", () => {
+      const win = createTestWindow();
+      const windowMain = createDesktopWindowMain();
 
-    const win = createTestWindow();
-    const windowMain = createDesktopWindowMain();
+      windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
+        appearance: {
+          backgroundColor: "#abcdef",
+          transparentChrome: false,
+        },
+      });
+      win.calls.length = 0;
 
-    windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
-      appearance: {
-        backgroundColor: "#abcdef",
-        transparentChrome: false,
-      },
+      windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
+        theme: {
+          backgroundColor: "#111111",
+          foregroundColor: "#eeeeee",
+        },
+      });
+
+      assert.deepEqual(win.calls, [
+        ["setBackgroundColor", "#00000000"],
+        ["setTitleBarOverlay", {
+          color: "#abcdef",
+          height: undefined,
+          symbolColor: "#eeeeee",
+        }],
+      ]);
     });
-    win.calls.length = 0;
-
-    windowMain.applyWindowStyle(win as unknown as BrowserWindow, {
-      theme: {
-        backgroundColor: "#111111",
-        foregroundColor: "#eeeeee",
-      },
-    });
-
-    assert.deepEqual(win.calls, [
-      ["setBackgroundColor", "#00000000"],
-      ["setTitleBarOverlay", {
-        color: "#abcdef",
-        height: undefined,
-        symbolColor: "#eeeeee",
-      }],
-    ]);
   });
 
   test("skips duplicate appearance application", () => {
@@ -299,9 +362,15 @@ suite("platform/window/electron-main/window", () => {
   });
 });
 
-const createTestWindow = (): {
+const createTestWindow = (
+  options: {
+    readonly focused?: boolean;
+  } = {},
+): {
   readonly calls: WindowCall[];
   readonly isDestroyed: () => boolean;
+  readonly isFocused: () => boolean;
+  readonly setFocused: (value: boolean) => void;
   readonly setBackgroundColor: (value: string) => void;
   readonly setBackgroundMaterial: (value: string) => void;
   readonly setTitleBarOverlay: (value: unknown) => void;
@@ -309,10 +378,15 @@ const createTestWindow = (): {
   readonly setWindowButtonPosition: (value: unknown) => void;
 } => {
   const calls: WindowCall[] = [];
+  let focused = options.focused !== false;
 
   return {
     calls,
     isDestroyed: () => false,
+    isFocused: () => focused,
+    setFocused: value => {
+      focused = value;
+    },
     setBackgroundColor: value => calls.push(["setBackgroundColor", value]),
     setBackgroundMaterial: value => calls.push(["setBackgroundMaterial", value]),
     setTitleBarOverlay: value => calls.push(["setTitleBarOverlay", value]),
