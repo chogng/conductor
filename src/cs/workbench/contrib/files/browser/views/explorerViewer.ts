@@ -473,9 +473,12 @@ export class ExplorerViewer implements IDisposable {
 
   private readonly handleTreeCollapseState = (collapsedKeys: string[]): void => {
     const collapsed = new Set(collapsedKeys);
-    this.props.onFolderExpansionChange?.(
-      this.treeModel.folderKeys.filter((key) => !collapsed.has(key)),
-    );
+    const expandedFolderKeys = this.treeModel.folderKeys.filter((key) => !collapsed.has(key));
+    this.props = {
+      ...this.props,
+      expandedFolderKeys,
+    };
+    this.props.onFolderExpansionChange?.(expandedFolderKeys);
   };
 
   private readonly handleTreeScroll = (event: Event): void => {

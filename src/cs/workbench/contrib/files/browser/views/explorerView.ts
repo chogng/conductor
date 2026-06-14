@@ -32,6 +32,7 @@ export class ExplorerView implements IDisposable {
   private readonly disposables = new DisposableStore();
   private readonly explorerViewer: ExplorerViewer;
   private props: ExplorerViewProps;
+  private renderedError: string | null = null;
   private disposed = false;
 
   constructor(host: HTMLElement, props: ExplorerViewProps) {
@@ -68,6 +69,7 @@ export class ExplorerView implements IDisposable {
     }
 
     this.disposed = true;
+    this.renderedError = null;
     notificationService.disposeToast(IMPORT_ERROR_TOAST_ID);
     this.disposables.dispose();
     this.root.remove();
@@ -183,10 +185,18 @@ export class ExplorerView implements IDisposable {
     this.explorerViewer.setProps(this.createViewerProps());
 
     if (!error) {
-      notificationService.hideToast(IMPORT_ERROR_TOAST_ID);
+      if (this.renderedError !== null) {
+        this.renderedError = null;
+        notificationService.hideToast(IMPORT_ERROR_TOAST_ID);
+      }
       return;
     }
 
+    if (this.renderedError === error) {
+      return;
+    }
+
+    this.renderedError = error;
     notificationService.showToast({
       className: "conductor-toast--import-error",
       dataUi: "analysis-import-error-toast",

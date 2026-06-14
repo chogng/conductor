@@ -268,9 +268,51 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
   }
 
   private setCollapsed(key: string, collapsed: boolean): void {
+    const wasCollapsed = this.model.isCollapsed(key);
+    if (wasCollapsed === collapsed) {
+      return;
+    }
+
+    const previousItems = this.getFlattenedItems();
+    const index = previousItems.findIndex(entry => entry.key === key);
     const collapsedKeys = this.model.setCollapsed(key, collapsed);
+    if (index < 0) {
+      this.invalidateFlattenedItems();
+      this.list.setProps(this.createListOptions());
+      this.options.onDidChangeCollapseState?.(collapsedKeys);
+      return;
+    }
+
+    const entry = previousItems[index];
+    if (!entry) {
+      this.options.onDidChangeCollapseState?.(collapsedKeys);
+      return;
+    }
+
+    if (collapsed) {
+      const deleteCount = this.countVisibleDescendants(previousItems, index);
+      if (deleteCount > 0) {
+        this.flattenedItems = [
+          ...previousItems.slice(0, index + 1),
+          ...previousItems.slice(index + 1 + deleteCount),
+        ];
+        this.list.splice(index + 1, deleteCount, []);
+      }
+    } else {
+      const inserted = this.model.getVisibleDescendants(entry.item, entry.depth);
+      if (inserted.length > 0) {
+        this.flattenedItems = [
+          ...previousItems.slice(0, index + 1),
+          ...inserted,
+          ...previousItems.slice(index + 1),
+        ];
+        this.list.splice(index + 1, 0, inserted);
+      }
+    }
+
+    this.markFlattenedItemsFresh();
+    this.list.rerender(index);
     this.options.onDidChangeCollapseState?.(collapsedKeys);
-    this.list.setProps(this.createListOptions());
   }
 
   private toggleCollapsed(key: string): void {
@@ -422,6 +464,41 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
     }
 
     return this.flattenedItems;
+  }
+
+  private countVisibleDescendants(
+    items: readonly FlattenedObjectTreeNode<T>[],
+    index: number,
+  ): number {
+    const entry = items[index];
+    if (!entry) {
+      return 0;
+    }
+
+    let count = 0;
+    for (let nextIndex = index + 1; nextIndex < items.length; nextIndex += 1) {
+      const nextEntry = items[nextIndex];
+      if (!nextEntry || nextEntry.depth <= entry.depth) {
+        break;
+      }
+      count += 1;
+    }
+
+    return count;
+  }
+
+  private invalidateFlattenedItems(): void {
+    this.flattenedItemsSource = null;
+    this.flattenedCollapsedKey = "";
+    this.flattenedGetChildren = null;
+    this.flattenedGetKey = null;
+  }
+
+  private markFlattenedItemsFresh(): void {
+    this.flattenedItemsSource = this.options.items;
+    this.flattenedCollapsedKey = this.model.getCollapsedKeys().join("\n");
+    this.flattenedGetChildren = this.options.getChildren;
+    this.flattenedGetKey = this.options.getKey;
   }
 
   private toTreeNode(entry: FlattenedObjectTreeNode<T>): ITreeNode<T> {

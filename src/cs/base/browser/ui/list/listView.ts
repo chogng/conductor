@@ -163,6 +163,37 @@ export class ListView<T> implements IDisposable {
     this.render();
   }
 
+  splice(start: number, deleteCount: number, elements: readonly T[] = []): void {
+    const items = this.props.items.slice();
+    items.splice(start, deleteCount, ...elements);
+    this.props = { ...this.props, items };
+    this.rangeMap.splice(
+      start,
+      deleteCount,
+      elements.map(item => ({
+        size: this.getRowHeight(item) + this.gap,
+      })),
+    );
+    this.updateFocusedIndexAfterSplice(start, deleteCount, elements.length);
+    this.shouldReconcileRows = true;
+    this.render();
+  }
+
+  rerender(index?: number): void {
+    if (typeof index === "number") {
+      const entry = this.rowsByIndex.get(index);
+      if (entry) {
+        this.clearRenderedState(entry);
+      }
+    } else {
+      for (const entry of this.rows.values()) {
+        this.clearRenderedState(entry);
+      }
+    }
+
+    this.render();
+  }
+
   focus(): void {
     this.viewport.focus();
   }
@@ -289,6 +320,35 @@ export class ListView<T> implements IDisposable {
     if (this.focusedIndex >= items.length) {
       this.focusedIndex = items.length - 1;
     }
+  }
+
+  private updateFocusedIndexAfterSplice(
+    start: number,
+    deleteCount: number,
+    insertCount: number,
+  ): void {
+    if (this.focusedIndex < start) {
+      return;
+    }
+
+    if (this.focusedIndex < start + deleteCount) {
+      this.focusedIndex = this.props.items.length
+        ? Math.min(start, this.props.items.length - 1)
+        : -1;
+      return;
+    }
+
+    this.focusedIndex += insertCount - deleteCount;
+    if (this.focusedIndex >= this.props.items.length) {
+      this.focusedIndex = this.props.items.length - 1;
+    }
+  }
+
+  private clearRenderedState(entry: RowEntry<T>): void {
+    entry.renderedFocused = undefined;
+    entry.renderedIndex = undefined;
+    entry.renderedItem = undefined;
+    entry.renderedSelected = undefined;
   }
 
   private scheduleScrollTop(nextScrollTop: number): void {

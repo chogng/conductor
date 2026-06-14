@@ -200,6 +200,10 @@ export class TableViewPane extends ViewPane {
     return this.view?.scrollHorizontally(delta) ?? false;
   }
 
+  protected override layoutBody(_height: number, _width: number): void {
+    this.view?.layout();
+  }
+
   private updateHeaderMode(mode: HeaderMode): void {
     if (this.headerMode === mode) {
       return;

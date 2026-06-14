@@ -6,6 +6,7 @@ export type ScrollbarOptions = {
   readonly axis?: ScrollbarAxis;
   readonly className?: string;
   readonly observeContentMutations?: boolean;
+  readonly observeResize?: boolean;
   readonly onScroll?: (event: ScrollEvent) => void;
   readonly viewportClassName?: string;
 };
@@ -25,6 +26,7 @@ export class Scrollbar {
     this.controller = new ScrollbarController({
       axis: options.axis ?? "y",
       observeContentMutations: options.observeContentMutations ?? true,
+      observeResize: options.observeResize ?? true,
       onScroll: options.onScroll,
       root: this.element,
       viewport: this.viewport,
@@ -36,6 +38,7 @@ export class Scrollbar {
     this.controller.setOptions({
       axis: options.axis ?? "y",
       observeContentMutations: options.observeContentMutations ?? true,
+      observeResize: options.observeResize ?? true,
       onScroll: options.onScroll,
     });
     this.controller.update();

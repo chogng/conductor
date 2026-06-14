@@ -204,11 +204,10 @@ export class Layout extends Disposable {
     this.main.replaceChildren();
     this.sidebar.replaceChildren();
     this.auxiliaryBar.replaceChildren();
-    this.overlay.replaceChildren();
 
     appendIfPresent(this.controller, this.parts.controller);
     this.renderMain();
-    appendIfPresent(this.overlay, this.parts.overlay);
+    replaceOptionalChildIfChanged(this.overlay, this.parts.overlay);
 
     if (this.shouldRenderSidebar()) {
       appendIfPresent(this.sidebar, isWorkbenchView(this.activeView)
@@ -487,6 +486,17 @@ const replaceChildrenIfChanged = (
   }
 
   parent.replaceChildren(...children);
+};
+
+const replaceOptionalChildIfChanged = (
+  parent: HTMLElement,
+  child: Node | null | undefined,
+): void => {
+  if (child) {
+    replaceChildrenIfChanged(parent, child);
+  } else {
+    replaceChildrenIfChanged(parent);
+  }
 };
 
 const areLayoutPartsEqual = (

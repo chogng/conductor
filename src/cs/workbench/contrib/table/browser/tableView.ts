@@ -56,10 +56,12 @@ export class TableView {
   private readonly headerContent = document.createElement("div");
   private readonly content = document.createElement("div");
   private readonly table = document.createElement("table");
+  private readonly columnGroup = document.createElement("colgroup");
   private readonly bodyRows = document.createElement("tbody");
   private readonly scrollArea = new Scrollbar({
     axis: "both",
     className: "table_view_scroll_area",
+    observeResize: false,
     onScroll: () => this.syncHeaderScroll(),
     viewportClassName: "table_view_preview",
   });
@@ -67,12 +69,19 @@ export class TableView {
   private disposeRowsVersionListener: (() => void) | null = null;
   private disposeStateListener: (() => void) | null = null;
   private readonly bodyGrid: BodyRow[] = [];
+  private readonly bodyColumns: HTMLTableColElement[] = [];
   private headerColumnCount = 0;
   private bodyRowCount = 0;
   private bodyColumnCount = 0;
+  private layoutTimeoutId: number | null = null;
   private renderedInputKey: string | null = null;
   private renderedZoomPercent: number | null = null;
   private renderedSourceKey: string | null = null;
+  private renderedRowsSourceKey: string | null = null;
+  private renderedRowsVersion: number | null = null;
+  private renderedRowsRowCount = 0;
+  private renderedRowsColumnCount = 0;
+  private pendingEnsureRowsKey: string | null = null;
   private appliedCellState: AppliedCellState | null = null;
   private props: TableViewProps;
 
@@ -93,7 +102,7 @@ export class TableView {
     this.headerCorner.setAttribute("aria-hidden", "true");
     this.headerScroll.append(this.headerContent);
     this.header.append(this.headerCorner, this.headerScroll);
-    this.table.append(this.bodyRows);
+    this.table.append(this.columnGroup, this.bodyRows);
     this.content.append(this.table);
     this.body.append(this.header, this.scrollArea.element);
     this.element.append(this.body);
@@ -103,6 +112,7 @@ export class TableView {
     this.store.add(addDisposableListener(this.bodyRows, EventType.CLICK, event => {
       this.onBodyClick(event as MouseEvent);
     }));
+    this.prepareGrid();
     this.bindTableState(props.tableModel);
     this.renderedInputKey = getTableViewInputKey(props);
     this.render();
@@ -124,6 +134,7 @@ export class TableView {
   }
 
   public dispose(): void {
+    this.clearScheduledLayout();
     this.disposeSelectionListener?.();
     this.disposeSelectionListener = null;
     this.disposeRowsVersionListener?.();
@@ -134,6 +145,40 @@ export class TableView {
     this.scrollArea.dispose();
     this.element.replaceChildren();
     this.element.remove();
+  }
+
+  public layout(): void {
+    this.scheduleLayout();
+  }
+
+  private scheduleLayout(): void {
+    const targetWindow = this.element.ownerDocument.defaultView;
+    if (!targetWindow) {
+      this.layoutNow();
+      return;
+    }
+
+    this.clearScheduledLayout();
+    this.layoutTimeoutId = targetWindow.setTimeout(() => {
+      this.layoutTimeoutId = null;
+      this.layoutNow();
+    }, 80);
+  }
+
+  private clearScheduledLayout(): void {
+    if (this.layoutTimeoutId === null) {
+      return;
+    }
+
+    const targetWindow = this.element.ownerDocument.defaultView;
+    targetWindow?.clearTimeout(this.layoutTimeoutId);
+    this.layoutTimeoutId = null;
+  }
+
+  private layoutNow(): void {
+    this.clearScheduledLayout();
+    this.scrollArea.layout();
+    this.syncHeaderScroll();
   }
 
   public focus(): void {
@@ -165,6 +210,7 @@ export class TableView {
     this.disposeSelectionListener?.();
     this.disposeRowsVersionListener?.();
     this.disposeStateListener?.();
+    this.resetRenderedRows();
     this.disposeSelectionListener = tableModel.onDidChangeSelection(() => {
       this.syncSelectionState();
     });
@@ -189,17 +235,23 @@ export class TableView {
 
     if (this.renderedSourceKey !== sourceKey) {
       this.renderedSourceKey = sourceKey;
+      this.pendingEnsureRowsKey = null;
+      this.resetRenderedRows();
       this.appliedCellState = null;
       this.clearRowsText();
     }
 
     if (!tableState.selectedFileId || !tableFile) {
-      if (tableState.loadState.state === "loading" && this.bodyGrid.length > 0) {
+      if (
+        tableState.loadState.state === "loading" &&
+        this.bodyRowCount > 0 &&
+        this.bodyColumnCount > 0
+      ) {
         if (this.scrollArea.viewport.firstChild !== this.content) {
           this.scrollArea.viewport.replaceChildren(this.content);
         }
         this.header.hidden = false;
-        this.scrollArea.layout();
+        this.layoutNow();
         this.syncHeaderScroll();
         return;
       }
@@ -211,7 +263,7 @@ export class TableView {
           ? tableState.loadState.message || localize("table.preview.loadingHint", "Parsing CSV preview, please wait.")
           : localize("table.preview.emptyHint", "Select a file to preview"),
       }));
-      this.scrollArea.layout();
+      this.layoutNow();
       return;
     }
 
@@ -222,7 +274,7 @@ export class TableView {
         title: localize("table.preview.loadingTitle", "Loading preview..."),
         description: tableState.loadState.message || localize("table.preview.loadingHint", "Parsing CSV preview, please wait."),
       }));
-      this.scrollArea.layout();
+      this.layoutNow();
       return;
     }
 
@@ -233,7 +285,7 @@ export class TableView {
 
     const needsLayout = this.renderTable();
     if (didAttachContent || needsLayout) {
-      this.scrollArea.layout();
+      this.layoutNow();
     }
     this.syncHeaderScroll();
   }
@@ -262,10 +314,36 @@ export class TableView {
     const gridChanged = this.renderBody(tableModel, rowCount, columnCount);
 
     if (tableFile?.fileId) {
-      void tableModel.ensureRows(tableFile.sourceKey ?? tableFile.fileId, 0, rowCount);
+      this.ensureRows(tableModel, tableFile.sourceKey ?? tableFile.fileId, rowCount);
     }
 
     return headerChanged || gridChanged || zoomChanged;
+  }
+
+  private ensureRows(tableModel: TableModel, sourceKey: string, rowCount: number): void {
+    const requestKey = `${sourceKey}\u001f0\u001f${rowCount}`;
+    if (this.pendingEnsureRowsKey === requestKey) {
+      return;
+    }
+
+    this.pendingEnsureRowsKey = requestKey;
+    void tableModel.ensureRows(sourceKey, 0, rowCount).then(
+      () => this.clearPendingEnsureRows(requestKey),
+      () => this.clearPendingEnsureRows(requestKey),
+    );
+  }
+
+  private clearPendingEnsureRows(requestKey: string): void {
+    if (this.pendingEnsureRowsKey === requestKey) {
+      this.pendingEnsureRowsKey = null;
+    }
+  }
+
+  private resetRenderedRows(): void {
+    this.renderedRowsSourceKey = null;
+    this.renderedRowsVersion = null;
+    this.renderedRowsRowCount = 0;
+    this.renderedRowsColumnCount = 0;
   }
 
   private ensureHeaderGrid(columnCount: number): boolean {
@@ -311,7 +389,7 @@ export class TableView {
     const gridChanged = this.ensureBodyGrid(rowCount, columnCount);
     this.table.setAttribute("aria-rowcount", String(rowCount));
     this.table.setAttribute("aria-colcount", String(columnCount));
-    this.syncRowsText(tableModel, rowCount, columnCount);
+    this.syncRowsTextIfNeeded(tableModel, rowCount, columnCount);
     this.syncSelectionState();
 
     return gridChanged;
@@ -323,14 +401,25 @@ export class TableView {
       return;
     }
 
-    this.syncRowsText(this.props.tableModel, this.bodyRowCount, this.bodyColumnCount);
+    this.syncRowsTextIfNeeded(this.props.tableModel, this.bodyRowCount, this.bodyColumnCount);
   }
 
-  private syncRowsText(
+  private syncRowsTextIfNeeded(
     tableModel: TableModel,
     rowCount: number,
     columnCount: number,
   ): void {
+    const rowsVersion = tableModel.getRowsVersion();
+    const sourceKey = this.renderedSourceKey;
+    if (
+      this.renderedRowsSourceKey === sourceKey &&
+      this.renderedRowsVersion === rowsVersion &&
+      this.renderedRowsRowCount === rowCount &&
+      this.renderedRowsColumnCount === columnCount
+    ) {
+      return;
+    }
+
     for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
       const row = this.bodyGrid[rowIndex];
       const cells = tableModel.getRow(rowIndex) ?? [];
@@ -339,9 +428,22 @@ export class TableView {
         this.updateCellText(cell, formatCell(cells[colIndex]));
       }
     }
+
+    this.renderedRowsSourceKey = sourceKey;
+    this.renderedRowsVersion = rowsVersion;
+    this.renderedRowsRowCount = rowCount;
+    this.renderedRowsColumnCount = columnCount;
+  }
+
+  private prepareGrid(): void {
+    this.ensureHeaderGrid(0);
+    this.ensureBodyColumns();
+    this.ensureBodyCells();
+    this.syncBodyGridVisibility(0, 0);
   }
 
   private ensureBodyGrid(rowCount: number, columnCount: number): boolean {
+    const columnsChanged = this.ensureBodyColumns();
     const gridChanged = this.ensureBodyCells();
     const visibleRangeChanged = this.syncBodyGridVisibility(rowCount, columnCount);
 
@@ -349,7 +451,27 @@ export class TableView {
       this.appliedCellState = null;
     }
 
-    return gridChanged || visibleRangeChanged;
+    return columnsChanged || gridChanged || visibleRangeChanged;
+  }
+
+  private ensureBodyColumns(): boolean {
+    if (this.bodyColumns.length > 0) {
+      return false;
+    }
+
+    const rowHeaderColumn = document.createElement("col");
+    rowHeaderColumn.className = "table_view_row_header_col";
+    this.bodyColumns.push(rowHeaderColumn);
+    this.columnGroup.append(rowHeaderColumn);
+
+    for (let colIndex = 0; colIndex < MAX_RENDERED_COLUMNS; colIndex += 1) {
+      const column = document.createElement("col");
+      column.className = "table_view_data_col";
+      this.bodyColumns.push(column);
+      this.columnGroup.append(column);
+    }
+
+    return true;
   }
 
   private ensureBodyCells(): boolean {
@@ -408,6 +530,13 @@ export class TableView {
           cell.element.hidden = cellHidden;
           cell.appliedHidden = cellHidden;
         }
+      }
+    }
+
+    for (let colIndex = 0; colIndex < MAX_RENDERED_COLUMNS; colIndex += 1) {
+      const column = this.bodyColumns[colIndex + 1];
+      if (column) {
+        column.hidden = colIndex >= columnCount;
       }
     }
 

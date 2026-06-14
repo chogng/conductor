@@ -76,31 +76,74 @@ export class ObjectTreeModel<T> {
   flatten(): FlattenedObjectTreeNode<T>[] {
     const result: FlattenedObjectTreeNode<T>[] = [];
 
-    const visit = (node: ObjectTreeModelNode<T>) => {
-      result.push({
-        depth: node.depth,
-        expandable: node.collapsible,
-        item: node.element,
-        key: node.key,
-      });
+    const visit = (element: T, index: number, depth: number) => {
+      const entry = this.createFlattenedNode(element, index, depth);
+      result.push(entry);
 
-      if (node.collapsible && node.collapsed) {
+      if (entry.expandable && this.collapsedKeys.has(entry.key)) {
         return;
       }
 
-      for (const child of node.children) {
-        visit(child);
+      const children = this.getChildren(element);
+      for (let childIndex = 0; childIndex < children.length; childIndex += 1) {
+        const child = children[childIndex];
+        if (child) {
+          visit(child, childIndex, depth + 1);
+        }
       }
     };
 
     for (let index = 0; index < this.options.items.length; index += 1) {
       const item = this.options.items[index];
       if (item) {
-        visit(this.createNode(item, index, 0));
+        visit(item, index, 0);
       }
     }
 
     return result;
+  }
+
+  getVisibleDescendants(
+    element: T,
+    depth: number,
+  ): FlattenedObjectTreeNode<T>[] {
+    const result: FlattenedObjectTreeNode<T>[] = [];
+
+    const visitChildren = (parent: T, parentDepth: number) => {
+      const children = this.getChildren(parent);
+      for (let index = 0; index < children.length; index += 1) {
+        const child = children[index];
+        if (!child) {
+          continue;
+        }
+
+        const entry = this.createFlattenedNode(child, index, parentDepth + 1);
+        result.push(entry);
+
+        if (entry.expandable && !this.collapsedKeys.has(entry.key)) {
+          visitChildren(child, entry.depth);
+        }
+      }
+    };
+
+    visitChildren(element, depth);
+    return result;
+  }
+
+  private createFlattenedNode(
+    element: T,
+    index: number,
+    depth: number,
+  ): FlattenedObjectTreeNode<T> {
+    const key = this.options.getKey(element, index, depth);
+    const children = this.getChildren(element);
+
+    return {
+      depth,
+      expandable: children.length > 0,
+      item: element,
+      key,
+    };
   }
 
   private createNode(

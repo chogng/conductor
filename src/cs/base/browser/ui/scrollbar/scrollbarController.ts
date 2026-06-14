@@ -102,6 +102,7 @@ export class ScrollbarController implements ScrollbarHandle {
   private readonly wheelClassifier = new WheelClassifier();
   private axis: ScrollbarAxis;
   private observeContentMutations: boolean;
+  private observeResize: boolean;
   private handleMouseWheel: boolean;
   private onScroll?: (event: ScrollEvent) => void;
   private onScrollPositionChange?: ScrollbarControllerOptions["onScrollPositionChange"];
@@ -116,6 +117,7 @@ export class ScrollbarController implements ScrollbarHandle {
   constructor(private readonly options: ScrollbarControllerOptions) {
     this.axis = options.axis ?? "y";
     this.observeContentMutations = options.observeContentMutations ?? true;
+    this.observeResize = options.observeResize ?? true;
     this.handleMouseWheel = options.handleMouseWheel ?? false;
     this.onScroll = options.onScroll;
     this.onScrollPositionChange = options.onScrollPositionChange;
@@ -144,6 +146,10 @@ export class ScrollbarController implements ScrollbarHandle {
 
     if (typeof options.observeContentMutations === "boolean") {
       this.observeContentMutations = options.observeContentMutations;
+    }
+
+    if (typeof options.observeResize === "boolean") {
+      this.observeResize = options.observeResize;
     }
 
     if (typeof options.handleMouseWheel === "boolean") {
@@ -218,20 +224,22 @@ export class ScrollbarController implements ScrollbarHandle {
       EventType.MOUSE_UP,
       this.handleMouseUp,
     ));
-    this.store.add(addDisposableListener(
-      targetWindow,
-      EventType.RESIZE,
-      this.scheduleMetricsUpdate,
-    ));
+    if (this.observeResize) {
+      this.store.add(addDisposableListener(
+        targetWindow,
+        EventType.RESIZE,
+        this.scheduleMetricsUpdate,
+      ));
 
-    const resizeObserver = this.store.add(new DisposableResizeObserver(targetWindow, () => {
-      this.scheduleMetricsUpdate();
-    }));
-    this.store.add(resizeObserver.observe(viewport));
+      const resizeObserver = this.store.add(new DisposableResizeObserver(targetWindow, () => {
+        this.scheduleMetricsUpdate();
+      }));
+      this.store.add(resizeObserver.observe(viewport));
 
-    const contentEl = viewport.firstElementChild;
-    if (contentEl) {
-      this.store.add(resizeObserver.observe(contentEl));
+      const contentEl = viewport.firstElementChild;
+      if (contentEl) {
+        this.store.add(resizeObserver.observe(contentEl));
+      }
     }
 
     if (this.observeContentMutations) {

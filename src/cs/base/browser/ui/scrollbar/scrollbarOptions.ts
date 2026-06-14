@@ -19,6 +19,7 @@ export type ScrollbarControllerOptions = {
   readonly viewport: HTMLElement;
   readonly axis?: ScrollbarAxis;
   readonly observeContentMutations?: boolean;
+  readonly observeResize?: boolean;
   readonly getScrollDimensions?: () => ScrollbarScrollDimensions;
   readonly getScrollPosition?: () => ScrollbarScrollPosition;
   readonly setScrollPosition?: (position: Partial<ScrollbarScrollPosition>) => void;

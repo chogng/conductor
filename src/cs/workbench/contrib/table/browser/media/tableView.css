@@ -253,6 +253,18 @@
   line-height: var(--table-view-line-height);
 }
 
+.table_view_grid col[hidden] {
+  visibility: collapse;
+}
+
+.table_view_grid .table_view_row_header_col {
+  width: var(--table-view-row-header-width);
+}
+
+.table_view_grid .table_view_data_col {
+  width: var(--table-view-column-width);
+}
+
 .table_view_grid th,
 .table_view_grid td {
   box-sizing: border-box;

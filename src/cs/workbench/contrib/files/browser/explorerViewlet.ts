@@ -80,6 +80,7 @@ export class ExplorerViewPane extends ViewPane {
   private templateLoadRunId = 0;
   private templateRecords: TemplateRecord[] = [];
   private isTemplateListLoading = false;
+  private pendingLocalExpandedFolderKeys: readonly string[] | null = null;
 
   constructor(
     @ICommandService private readonly commandService: ICommandService,
@@ -144,7 +145,10 @@ export class ExplorerViewPane extends ViewPane {
     this._register(this.explorerService.onDidChangeSelection(() => {
       this.syncView();
     }));
-    this._register(this.explorerService.onDidChangeExpandedFolderKeys(() => {
+    this._register(this.explorerService.onDidChangeExpandedFolderKeys((event) => {
+      if (this.consumeLocalExpandedFolderKeys(event.expandedFolderKeys)) {
+        return;
+      }
       this.syncView();
     }));
     this._register(this.explorerWorkflowService.registerHandler({
@@ -455,12 +459,34 @@ export class ExplorerViewPane extends ViewPane {
   };
 
   private readonly handleFolderExpansionChange = (expandedFolderKeys: readonly string[]): void => {
+    if (!areStringArraysEqual(this.explorerService.expandedFolderKeys, expandedFolderKeys)) {
+      this.pendingLocalExpandedFolderKeys = [...expandedFolderKeys];
+    }
     this.explorerService.setExpandedFolderKeys(expandedFolderKeys);
+    if (this.pendingLocalExpandedFolderKeys && areStringArraysEqual(
+      this.pendingLocalExpandedFolderKeys,
+      expandedFolderKeys,
+    )) {
+      this.pendingLocalExpandedFolderKeys = null;
+    }
   };
 
   private readonly handleFolderKeysChange = (folderKeys: readonly string[]): readonly string[] => {
     return this.explorerService.reconcileExpandedFolderKeys(folderKeys);
   };
+
+  private consumeLocalExpandedFolderKeys(expandedFolderKeys: readonly string[]): boolean {
+    if (!this.pendingLocalExpandedFolderKeys) {
+      return false;
+    }
+
+    const isLocalChange = areStringArraysEqual(
+      this.pendingLocalExpandedFolderKeys,
+      expandedFolderKeys,
+    );
+    this.pendingLocalExpandedFolderKeys = null;
+    return isLocalChange;
+  }
 
   private notifyExplorerFilesRemoved(fileIds: readonly string[]): void {
     const currentFileId = this.paneInput.selectionKind === "chart"
@@ -734,6 +760,23 @@ function uniqueFileIds(values: readonly string[]): readonly string[] {
   }
 
   return result;
+}
+
+function areStringArraysEqual(
+  first: readonly string[],
+  second: readonly string[],
+): boolean {
+  if (first.length !== second.length) {
+    return false;
+  }
+
+  for (let index = 0; index < first.length; index += 1) {
+    if (first[index] !== second[index]) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function getTopLevelFolderPath(relativePath: unknown): string | null {
