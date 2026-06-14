@@ -41,7 +41,7 @@ suite("platform/window/electron-main/window", () => {
     });
   });
 
-  test("creates macOS transparent chrome with sidebar vibrancy", () => {
+  test("creates macOS transparent chrome without vibrancy", () => {
     withPlatform("darwin", () => {
       const windowMain = createDesktopWindowMain();
 
@@ -64,15 +64,15 @@ suite("platform/window/electron-main/window", () => {
         vibrancy: options.vibrancy,
         visualEffectState: options.visualEffectState,
       }, {
-        backgroundColor: "rgba(0, 0, 0, 0)",
+        backgroundColor: "#00000000",
         transparent: true,
-        vibrancy: "sidebar",
-        visualEffectState: "followWindow",
+        vibrancy: undefined,
+        visualEffectState: undefined,
       });
     });
   });
 
-  test("enables macOS sidebar vibrancy at runtime", () => {
+  test("enables macOS transparent chrome without vibrancy at runtime", () => {
     withPlatform("darwin", () => {
       const win = createTestWindow();
       const windowMain = createDesktopWindowMain();
@@ -93,8 +93,7 @@ suite("platform/window/electron-main/window", () => {
       });
 
       assert.deepEqual(win.calls, [
-        ["setVibrancy", "sidebar"],
-        ["setBackgroundColor", "rgba(0, 0, 0, 0)"],
+        ["setBackgroundColor", "#00000000"],
       ]);
     });
   });
@@ -105,7 +104,7 @@ suite("platform/window/electron-main/window", () => {
       const windowMain = createDesktopWindowMain();
 
       windowMain.updateWindowControls(win as unknown as BrowserWindow, {
-        height: 38,
+        height: 35,
       });
 
       assert.equal(win.calls.length, 1);
@@ -116,11 +115,11 @@ suite("platform/window/electron-main/window", () => {
       );
       assert.ok(
         (
-          win.calls[0][1].x === 12 &&
-          win.calls[0][1].y === 11
+          win.calls[0][1].x === 10 &&
+          win.calls[0][1].y === 9
         ) || (
-          win.calls[0][1].x === 13 &&
-          win.calls[0][1].y === 12
+          win.calls[0][1].x === 11 &&
+          win.calls[0][1].y === 10
         ),
       );
     });
@@ -147,7 +146,7 @@ suite("platform/window/electron-main/window", () => {
         frame: false,
         titleBarOverlay: {
           color: "#f3f4f6",
-          height: 38,
+          height: 35,
           symbolColor: "#222222",
         },
         titleBarStyle: "hidden",

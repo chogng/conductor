@@ -16,7 +16,7 @@ const DEFAULT_MAIN_WINDOW_SIZE = {
   HEIGHT: 920,
 } as const;
 
-const TransparentWindowBackground = "rgba(0, 0, 0, 0)";
+const TransparentWindowBackground = "#00000000";
 
 type WindowControlsOverlayOptions = {
   readonly height?: number;
@@ -89,7 +89,7 @@ export class DesktopWindowMain {
       ? {
           color: appearanceStyle.titleBarOverlayColor,
           symbolColor: theme.foregroundColor,
-          height: 38,
+          height: 35,
         }
       : undefined;
 
@@ -392,8 +392,8 @@ function resolveDesktopWindowAppearanceStyle(
       titleBarOverlayColor: backgroundColor,
       transparent: true,
       transparentChrome,
-      vibrancy: transparentChrome ? "sidebar" : undefined,
-      visualEffectState: transparentChrome ? "followWindow" : undefined,
+      vibrancy: undefined,
+      visualEffectState: undefined,
     };
   }
 

@@ -40,6 +40,7 @@ export const WORKBENCH_TITLEBAR_DRAG_REGION_STYLE = {
 
 export const WORKBENCH_TITLEBAR_ID = "workbench-titlebar";
 
+const WORKBENCH_TITLEBAR_HEIGHT = 35;
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
 type WorkbenchTitlebarUpdateAction = {
@@ -468,7 +469,9 @@ class WorkbenchTitlebarView extends Disposable {
     }
 
     const style = getComputedStyle(this.element);
-    const height = Math.round(this.element.getBoundingClientRect().height) || 38;
+    const height =
+      Math.round(this.element.getBoundingClientRect().height) ||
+      WORKBENCH_TITLEBAR_HEIGHT;
     void this.nativeHostService.updateWindowControls({
       height,
       backgroundColor: style.backgroundColor,
