@@ -12,7 +12,6 @@ on:
       - "src/cs/code/electron-main/rustHost*.ts"
       - "scripts/build-conductor-rs.mjs"
       - "scripts/build-conductor-rs.ps1"
-      - "scripts/build-rs-assessment-wasm.ps1"
       - "scripts/build-rs-xlsx-wasm.ps1"
       - "scripts/verify-conductor-rs-*.mjs"
       - "scripts/verify-rust-*.mjs"
@@ -47,9 +46,6 @@ jobs:
 
       - name: Verify conductor-rs helper
         run: npm run verify:conductor-rs-smoke
-
-      - name: Build assessment WASM extension
-        run: npm run build:assessment-wasm
 
       - name: Build xlsx WASM extension
         run: npm run build:xlsx-wasm

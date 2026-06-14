@@ -843,7 +843,7 @@ src/cs/workbench/services/assessment/
   common/measurement.ts
   common/diagnostics.ts
   browser/assessmentService.ts
-  browser/assessmentWasm.ts
+  browser/fileAssessment.ts
   browser/assessment.contribution.ts
 
 src/cs/workbench/services/session/

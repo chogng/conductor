@@ -86,7 +86,7 @@ A helper is allowed when its owner and lifetime are explicit:
 | `common/explorerModel.ts` | Define Explorer resource/item model and tree helpers. |
 | `fileActions.ts` / `fileImportExport.ts` workflow helpers | Open dialogs, collect dropped files, call conversion helpers, and return prepared imports or conversion results to the workflow caller. |
 | `rawTableRowsReaderService.ts` | Read rows from inline or normalized CSV storage. |
-| `assessmentWasm.ts` | Load WASM and convert assessment input/output only. |
+| `fileAssessment.ts` | Convert browser import previews into assessment inputs/results only. |
 | `templateApplyPlanner.ts` | Create a deterministic apply plan from template config and assessment blocks. |
 | `plotRenderModel.ts` | Build plot render models from session curves and plot state. |
 | `thumbnailBitmap.ts` | Render/cache thumbnail bitmap output keyed by plot model signature. |

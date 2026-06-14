@@ -7,7 +7,6 @@
 仓库根部的 Rust workspace 目前有三个 member：
 
 - `cli`：产出 `conductor-rs` / `conductor-rs.exe`，由 Electron 主进程启动和管理。
-- `extensions/assessment`：纯导入评估规则，native CLI 和 browser WASM 共用。
 - `extensions/xlsx`：browser WASM Excel 转换入口。
 
 Rust CLI 有两种运行方式：
@@ -17,7 +16,7 @@ Rust CLI 有两种运行方式：
 
 桌面端通过 `src/cs/code/electron-main/app.ts` 和 `src/cs/code/electron-main/analysisRustMain.ts` 注册 IPC handler，再由 `src/cs/base/parts/sandbox/electron-browser/preload.ts` 暴露给 renderer。renderer 侧按职责从 `services/files`、`services/assessment`、`services/table`、`services/template`、`services/parameters` 调用，不再通过统一的 `analysisFile` 服务入口。
 
-构建时 `scripts/build-conductor-rs.mjs` 会从仓库根部 Cargo workspace 编译 `conductor-cli` package，并把 release 产物复制到 `resources/bin/conductor-rs` 或 `resources/bin/conductor-rs.exe`。打包时 `package.json` 会把 `resources/bin` 放进应用资源。browser 侧 WASM crate 放在 `extensions/` 下，使用 `.build/cache/rs-wasm-target/` 作为 Cargo target/cache，并由 `scripts/build-rs-assessment-wasm.ps1`、`scripts/build-rs-xlsx-wasm.ps1` 分别生成到对应 browser 服务目录。
+构建时 `scripts/build-conductor-rs.mjs` 会从仓库根部 Cargo workspace 编译 `conductor-cli` package，并把 release 产物复制到 `resources/bin/conductor-rs` 或 `resources/bin/conductor-rs.exe`。打包时 `package.json` 会把 `resources/bin` 放进应用资源。browser 侧 Excel WASM crate 放在 `extensions/xlsx` 下，使用 `.build/cache/rs-wasm-target/` 作为 Cargo target/cache，并由 `scripts/build-rs-xlsx-wasm.ps1` 生成到 browser 服务目录。
 
 ## 已经由 Rust 负责的部分
 
@@ -232,7 +231,7 @@ renderer 使用：
 - `cli/src/legend.rs`：legend label 解析和生成。
 - `cli/src/cells.rs`：批量读单元格请求类型。
 - `cli/src/utils.rs`：JSON/config 取值、数值解析、header/file-name 归一化、单位拼接等工具。
-- `extensions/assessment/src/lib.rs`：导入评估 source of truth，包含 metadata 提取、曲线类型判断、X 轴角色判断和 WASM JSON adapter。
+- `cli/src/assessment.rs`：导入评估规则，包含 metadata 提取、曲线类型判断、X 轴角色判断。
 - `extensions/xlsx/src/lib.rs`：browser Excel WASM 转换入口。
 
 ## 仍主要在 TypeScript / Python 侧的部分
@@ -268,13 +267,13 @@ renderer 使用：
 
 1. 继续扩大 Rust assessment 覆盖面
 
-导入评估规则已经收敛到 Rust `assessment` crate：
+导入评估规则的 native 桌面分支已经收敛到 `cli/src/assessment.rs`：
 
-- native `cli` 直接依赖 `assessment` crate。
-- browser 侧使用同一个 crate 编译出的 `assessment.wasm`。
+- native `cli` 直接调用内部 assessment module。
+- browser 侧继续使用 TypeScript assessment rules，避免为了评估规则单独维护 WASM extension。
 - `fileAssessment.ts` 只保留 File/CSV preview adapter，不再持有评估规则。
 
-之前用于迁移确认的 TS/Rust A/B verifier 已经删除；后续不要再维护两套导入评估规则。需要扩大识别能力时，直接改 Rust `assessment` crate，并用 browser import assessment 测试覆盖。
+之前用于迁移确认的 TS/Rust A/B verifier 已经删除；后续若要扩大桌面导入识别能力，直接改 `cli/src/assessment.rs` 并用 conductor-rs smoke/fixture 覆盖。
 
 2. 补齐更多 extraction config 支持
 

@@ -1,18 +1,8 @@
-use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
 use std::cell::Ref;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::mem;
-use std::slice;
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AssessmentRequest {
-    file_name: String,
-    rows: Vec<Vec<String>>,
-}
 
 #[derive(Clone)]
 struct AssessmentDataset {
@@ -126,65 +116,6 @@ pub fn detect_axis_role_text(value: &str) -> Option<&'static str> {
         return Some("vg");
     }
     None
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn assessment_alloc(len: usize) -> *mut u8 {
-    let mut buffer = Vec::<u8>::with_capacity(len);
-    let ptr = buffer.as_mut_ptr();
-    mem::forget(buffer);
-    ptr
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn assessment_dealloc(ptr: *mut u8, len: usize) {
-    if ptr.is_null() || len == 0 {
-        return;
-    }
-    unsafe {
-        drop(Vec::from_raw_parts(ptr, len, len));
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn assessment_assess_import_json(ptr: *const u8, len: usize) -> *mut u8 {
-    let input = if ptr.is_null() || len == 0 {
-        &[]
-    } else {
-        unsafe { slice::from_raw_parts(ptr, len) }
-    };
-    let response = match serde_json::from_slice::<AssessmentRequest>(input) {
-        Ok(request) => assess_import_rows(&request.file_name, request.rows),
-        Err(error) => json!({
-            "error": error.to_string(),
-        }),
-    };
-    write_result(response.to_string())
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn assessment_free_result(ptr: *mut u8) {
-    if ptr.is_null() {
-        return;
-    }
-    let len = unsafe {
-        let header = slice::from_raw_parts(ptr, 4);
-        u32::from_le_bytes([header[0], header[1], header[2], header[3]]) as usize
-    };
-    unsafe {
-        drop(Vec::from_raw_parts(ptr, len + 4, len + 4));
-    }
-}
-
-fn write_result(text: String) -> *mut u8 {
-    let bytes = text.into_bytes();
-    let len = bytes.len();
-    let mut buffer = Vec::<u8>::with_capacity(len + 4);
-    buffer.extend_from_slice(&(len as u32).to_le_bytes());
-    buffer.extend_from_slice(&bytes);
-    let ptr = buffer.as_mut_ptr();
-    mem::forget(buffer);
-    ptr
 }
 
 fn row_trimmed(dataset: &AssessmentDataset, row_index: usize) -> Vec<String> {

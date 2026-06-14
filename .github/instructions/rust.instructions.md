@@ -6,7 +6,7 @@ applyTo: 'src/cs/workbench/services/{files,assessment,table,template,plot,parame
 
 Rust is an execution branch for desktop service implementations. It is not a separate workbench domain, not a replacement for commands, and not a second product session.
 
-Use this document when moving expensive file/table/template/plot/export/metric work from TypeScript into the Rust CLI source under `cli/`, or browser/WASM Rust extension crates under `extensions/`.
+Use this document when moving expensive file/table/template/plot/export/metric work from TypeScript into the Rust CLI source under `cli/`, or browser Excel/WASM Rust extension crates under `extensions/`.
 
 ## Core rule
 

@@ -18,14 +18,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "assessment"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "atoi_simd"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -99,7 +91,6 @@ dependencies = [
 name = "conductor-cli"
 version = "0.1.0"
 dependencies = [
- "assessment",
  "calamine",
  "csv",
  "encoding_rs",

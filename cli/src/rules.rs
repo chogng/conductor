@@ -13,7 +13,7 @@ use serde_json::Value;
 // These rules classify columns by label meaning, such as voltage/current/frequency/
 // capacitance, and are used when detection falls back to semantic matching.
 pub(crate) fn detect_axis_role_text(value: &str) -> Option<&'static str> {
-    assessment::detect_axis_role_text(value)
+    crate::assessment::detect_axis_role_text(value)
 }
 
 pub(crate) fn is_voltage_like_header(value: &str) -> bool {

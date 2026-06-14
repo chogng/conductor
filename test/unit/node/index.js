@@ -142,11 +142,6 @@ visit(outSrcRoot, (filePath) => {
 });
 rewriteNlsForTests();
 
-copyAsset(
-  path.join(workspace, "src/cs/workbench/services/assessment/browser/assessment.wasm"),
-  path.join(outRoot, "src/cs/workbench/services/assessment/browser/assessment.wasm"),
-);
-
 const nlsSetup = createNlsTestSetup();
 const tests = collectTests(outSrcRoot);
 // Import via a file:// URL so absolute Windows paths (C:\...) are accepted by

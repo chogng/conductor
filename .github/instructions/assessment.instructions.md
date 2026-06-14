@@ -38,7 +38,7 @@ It does not own:
 | `src/cs/workbench/services/assessment/common/measurement.ts` | Defines `MeasurementBlockRecord`, `MeasurementGroupRecord`, `MeasurementColumnMap`, `SweepMode`, `MeasurementFamily`, column refs. |
 | `src/cs/workbench/services/assessment/common/diagnostics.ts` | Defines diagnostic severity, codes, messages, and source ranges. |
 | `src/cs/workbench/services/assessment/browser/assessmentService.ts` | Browser implementation and orchestration. Chooses WASM or TypeScript fallback. |
-| `src/cs/workbench/services/assessment/browser/assessmentWasm.ts` | Boundary to `extensions/assessment`. Converts raw table rows to WASM input and normalizes output. |
+| `src/cs/workbench/services/assessment/browser/fileAssessment.ts` | Browser adapter that parses import previews and calls the shared TypeScript assessment rules. |
 | `src/cs/workbench/services/assessment/browser/assessmentRules.ts` | TypeScript fallback heuristics for headers, ranges, column roles, and sweep modes. |
 | `src/cs/workbench/services/assessment/browser/assessment.contribution.ts` | Subscribes to session `rawTablesChanged` and commits assessment results. |
 
