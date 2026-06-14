@@ -49,12 +49,40 @@ type WorkbenchTitlebarUpdateAction = {
   readonly version?: string | null;
 };
 
+export type WorkbenchTitlebarWindowControlsSide = "right";
+
+export type WorkbenchTitlebarChrome = {
+  readonly leadingInset?: "macos-window-controls";
+  readonly showBrandIcon?: boolean;
+  readonly windowControlsSide?: WorkbenchTitlebarWindowControlsSide;
+};
+
+export const getWorkbenchTitlebarChrome = (
+  windowState: ReturnType<typeof getWorkbenchWindowState>,
+): WorkbenchTitlebarChrome => {
+  if (windowState.isMacintoshDesktopShell) {
+    return {
+      leadingInset: "macos-window-controls",
+      showBrandIcon: false,
+    };
+  }
+
+  if (windowState.isWindowsDesktopShell) {
+    return {
+      showBrandIcon: true,
+      windowControlsSide: "right",
+    };
+  }
+
+  return {};
+};
+
 type WorkbenchTitlebarProps = Omit<WorkbenchTitlebarState, "activePage"> & {
   readonly activePage: WorkbenchTitlebarActivePage;
+  readonly chrome?: WorkbenchTitlebarChrome;
   readonly commandService?: ICommandService;
   readonly id?: string;
   readonly nativeHostService?: INativeHostService;
-  readonly reserveWindowControls?: boolean;
   readonly updateAction?: WorkbenchTitlebarUpdateAction;
 };
 
@@ -472,6 +500,7 @@ const createWorkbenchTitlebarView = (
     activePage,
     activeFileId = null,
     chartIntentCommandId,
+    chrome,
     fileOptions = [],
     fileSelectionCommandId,
     canNavigateBack = false,
@@ -480,12 +509,14 @@ const createWorkbenchTitlebarView = (
     id = WORKBENCH_TITLEBAR_ID,
     isSidebarVisible = true,
     nativeHostService,
-    reserveWindowControls = false,
     showFileSelector = false,
     updateAction,
   }: WorkbenchTitlebarProps,
   hoverStore?: DisposableStore,
 ): WorkbenchTitlebarView => {
+  const showBrandIcon = chrome?.showBrandIcon ?? true;
+  const leadingInset = chrome?.leadingInset;
+  const windowControlsSide = chrome?.windowControlsSide;
   const normalizedFileOptions =
     WorkbenchTitlebarActions.normalizeWorkbenchTitlebarFileOptions(fileOptions);
   const navButtons = WorkbenchTitlebarActions.createWorkbenchTitlebarNavButtons(
@@ -501,22 +532,27 @@ const createWorkbenchTitlebarView = (
 
   header.addEventListener("contextmenu", (event) => event.preventDefault());
 
-  const brandIcon = createElement("span", {
-    "aria-hidden": "true",
-    className: "titlebar-brand-icon",
-  });
-  const brand = appendChildren(
-    createElement("div", { className: "titlebar-brand" }),
-    [brandIcon],
-  );
+  const brand = showBrandIcon
+    ? appendChildren(
+      createElement("div", { className: "titlebar-brand" }),
+      [
+        createElement("span", {
+          "aria-hidden": "true",
+          className: "titlebar-brand-icon",
+        }),
+      ],
+    )
+    : null;
   const actionBarDisposables: IDisposable[] = [];
   const navActionsById = new Map<string, WorkbenchTitlebarRuntimeAction>();
   const pageActionsById = new Map<string, WorkbenchTitlebarRuntimeAction>();
   let fileSelect: HTMLSelectElement | undefined;
 
-  const navActionBar = createTitlebarActionBar(
-    "titlebar-controls titlebar-controls--nav",
-  );
+  const navActionBar = createTitlebarActionBar([
+    "titlebar-controls",
+    "titlebar-controls--nav",
+    showBrandIcon ? "" : "titlebar-controls--nav-compact",
+  ].filter(Boolean).join(" "));
   actionBarDisposables.push(navActionBar);
   const sidebarButton =
     WorkbenchTitlebarActions.createWorkbenchTitlebarSidebarButton(
@@ -616,16 +652,25 @@ const createWorkbenchTitlebarView = (
   }
   rightControls.appendChild(pageActionBar.domNode);
 
-  if (reserveWindowControls) {
+  if (windowControlsSide === "right") {
     rightControls.appendChild(createElement("div", {
-      className: "titlebar-window-controls-spacer",
+      className: "titlebar-window-controls-spacer titlebar-window-controls-spacer--right",
       "aria-hidden": "true",
     }));
   }
 
   const leftControls = appendChildren(
     createElement("div", { className: "titlebar-left" }),
-    [brand, navActionBar.domNode],
+    [
+      leadingInset === "macos-window-controls"
+        ? createElement("div", {
+          className: "titlebar-leading-inset titlebar-leading-inset--macos-window-controls",
+          "aria-hidden": "true",
+        })
+        : null,
+      brand,
+      navActionBar.domNode,
+    ],
   );
 
   return new WorkbenchTitlebarView(
@@ -673,6 +718,9 @@ const shouldRecreateTitlebar = (
   prev.showFileSelector !== next.showFileSelector ||
   prev.fileSelectionCommandId !== next.fileSelectionCommandId ||
   prev.chartIntentCommandId !== next.chartIntentCommandId ||
+  prev.chrome?.leadingInset !== next.chrome?.leadingInset ||
+  prev.chrome?.showBrandIcon !== next.chrome?.showBrandIcon ||
+  prev.chrome?.windowControlsSide !== next.chrome?.windowControlsSide ||
   prev.updateAction?.isVisible !== next.updateAction?.isVisible ||
   prev.updateAction?.version !== next.updateAction?.version ||
   prev.updateAction?.commandId !== next.updateAction?.commandId ||
@@ -828,9 +876,9 @@ export class BrowserTitleService extends Disposable implements ITitleService {
       ...state,
       activePage: state.activePage ?? "table",
       id: WORKBENCH_TITLEBAR_ID,
+      chrome: getWorkbenchTitlebarChrome(windowState),
       commandService: this.commandService,
       nativeHostService: this.nativeHostService,
-      reserveWindowControls: windowState.isWindowsDesktopShell,
       updateAction: {
         commandId: state.installUpdateCommandId,
         isVisible: Boolean(state.isUpdateReadyToInstall),

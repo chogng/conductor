@@ -1,5 +1,5 @@
 import type { Event } from "src/cs/base/common/event";
-import { isNative, isWindows } from "src/cs/base/common/platform";
+import { isMacintosh, isNative, isWindows } from "src/cs/base/common/platform";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
@@ -12,6 +12,7 @@ export type WorkbenchWindowState = {
   readonly environment: IWorkbenchEnvironmentService["environment"];
   readonly isAppUpdatePreviewEnabled: boolean;
   readonly isDesktopChromePreviewEnabled: boolean;
+  readonly isMacintoshDesktopShell: boolean;
   readonly isPackagedWindowsDesktopShell: boolean;
   readonly isWindowsDesktopShell: boolean;
 };
@@ -81,19 +82,25 @@ export const getWorkbenchWindowState = (
   environmentService: IWorkbenchEnvironmentService = snapshotEnvironmentService,
 ): WorkbenchWindowState => {
   const isDev = isWorkbenchDevMode();
+  const environment = environmentService.environment;
+  const isMacintoshDesktopShell = environment
+    ? environment.isDesktop === true && environment.platform === "darwin"
+    : isNative && isMacintosh;
+  const isWindowsDesktopShell = environmentService.isWindowsDesktop;
   return {
-    environment: environmentService.environment,
+    environment,
     isAppUpdatePreviewEnabled:
-      (environmentService.isWindowsDesktop && environmentService.isPackaged) ||
+      (isWindowsDesktopShell && environmentService.isPackaged) ||
       isDev,
     isDesktopChromePreviewEnabled:
-      environmentService.isWindowsDesktop || isDev,
+      isMacintoshDesktopShell || isWindowsDesktopShell || isDev,
+    isMacintoshDesktopShell,
     isPackagedWindowsDesktopShell:
-      environmentService.isWindowsDesktop && environmentService.isPackaged,
-    isWindowsDesktopShell: environmentService.isWindowsDesktop,
+      isWindowsDesktopShell && environmentService.isPackaged,
+    isWindowsDesktopShell,
   };
 };
 
 export const shouldShowDesktopCommandBar =
   typeof window !== "undefined" &&
-  getWorkbenchWindowState().isWindowsDesktopShell;
+  getWorkbenchWindowState().isDesktopChromePreviewEnabled;

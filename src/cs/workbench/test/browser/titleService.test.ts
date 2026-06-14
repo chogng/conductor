@@ -14,11 +14,18 @@ import type {
   INativeOpenDialogResult,
   INativeWindowControlsOptions,
 } from "src/cs/platform/native/common/native";
-import { BrowserTitleService } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
+import {
+  BrowserTitleService,
+  getWorkbenchTitlebarChrome,
+} from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import {
   BrowserWorkbenchLayoutService,
   Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
+import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
+import {
+  getWorkbenchWindowState,
+} from "src/cs/workbench/services/title/browser/titleService";
 
 class TestStorageService extends AbstractStorageService {
   private readonly values = new Map<string, string>();
@@ -84,6 +91,52 @@ const testNativeHostService: INativeHostService = {
 };
 
 suite("workbench/browser/titleService", () => {
+  test("enables desktop chrome preview on macOS desktop", () => {
+    const state = getWorkbenchWindowState(createEnvironmentService({
+      isDesktop: true,
+      platform: "darwin",
+    }));
+
+    assert.deepStrictEqual({
+      isDesktopChromePreviewEnabled: state.isDesktopChromePreviewEnabled,
+      isMacintoshDesktopShell: state.isMacintoshDesktopShell,
+      isWindowsDesktopShell: state.isWindowsDesktopShell,
+    }, {
+      isDesktopChromePreviewEnabled: true,
+      isMacintoshDesktopShell: true,
+      isWindowsDesktopShell: false,
+    });
+  });
+
+  test("resolves platform titlebar chrome", () => {
+    const macState = getWorkbenchWindowState(createEnvironmentService({
+      isDesktop: true,
+      platform: "darwin",
+    }));
+    const windowsState = getWorkbenchWindowState(createEnvironmentService({
+      isDesktop: true,
+      platform: "win32",
+    }));
+    const macChrome = getWorkbenchTitlebarChrome(macState);
+    const windowsChrome = getWorkbenchTitlebarChrome(windowsState);
+
+    assert.deepStrictEqual({
+      macLeadingInset: macChrome.leadingInset,
+      macShowBrandIcon: macChrome.showBrandIcon,
+      macWindowControlsSide: macChrome.windowControlsSide,
+      windowsLeadingInset: windowsChrome.leadingInset,
+      windowsShowBrandIcon: windowsChrome.showBrandIcon,
+      windowsWindowControlsSide: windowsChrome.windowControlsSide,
+    }, {
+      macLeadingInset: "macos-window-controls",
+      macShowBrandIcon: false,
+      macWindowControlsSide: undefined,
+      windowsLeadingInset: undefined,
+      windowsShowBrandIcon: true,
+      windowsWindowControlsSide: "right",
+    });
+  });
+
   test("publishes titlebar state from the layout owner", () => {
     const storage = new TestStorageService();
     const layoutService = new BrowserWorkbenchLayoutService(storage);
@@ -166,4 +219,24 @@ suite("workbench/browser/titleService", () => {
     layoutService.dispose();
     storage.dispose();
   });
+});
+
+const createEnvironmentService = ({
+  isDesktop,
+  platform,
+}: {
+  readonly isDesktop: boolean;
+  readonly platform: string;
+}): IWorkbenchEnvironmentService => ({
+  _serviceBrand: undefined,
+  environment: {
+    appVersion: "test",
+    isDesktop,
+    isPackaged: false,
+    platform,
+    userDataPath: null,
+  },
+  isDesktop,
+  isPackaged: false,
+  isWindowsDesktop: isDesktop && platform === "win32",
 });

@@ -1,3 +1,4 @@
+import { release } from "node:os";
 import type { BrowserWindow, BrowserWindowConstructorOptions } from "electron";
 
 import {
@@ -38,8 +39,9 @@ type DesktopWindowVisualEffectState = NonNullable<
 
 type DesktopWindowAppearanceStyle = {
   readonly backgroundMaterial?: DesktopWindowMaterial;
-  readonly backgroundColor: string;
+  readonly backgroundColor?: string;
   readonly titleBarOverlayColor: string;
+  readonly transparent?: boolean;
   readonly transparentChrome: boolean;
   readonly vibrancy?: DesktopWindowVibrancy;
   readonly visualEffectState?: DesktopWindowVisualEffectState;
@@ -73,12 +75,23 @@ export class DesktopWindowMain {
     preload,
     theme,
   }: DefaultBrowserWindowOptions): BrowserWindowConstructorOptions {
-    const hideNativeWindowsTitlebar = process.platform === "win32";
+    const hideNativeTitlebar =
+      process.platform === "darwin" || process.platform === "win32";
+    const hideNativeWindowFrame = process.platform === "win32";
     const appearanceStyle = resolveDesktopWindowAppearanceStyle(
       appearance ?? null,
       theme.backgroundColor,
       process.platform,
     );
+    const titleBarOverlay = process.platform === "darwin"
+      ? true
+      : process.platform === "win32"
+      ? {
+          color: appearanceStyle.titleBarOverlayColor,
+          symbolColor: theme.foregroundColor,
+          height: 38,
+        }
+      : undefined;
 
     return {
       width: DEFAULT_MAIN_WINDOW_SIZE.WIDTH,
@@ -88,18 +101,13 @@ export class DesktopWindowMain {
       icon,
       backgroundColor: appearanceStyle.backgroundColor,
       backgroundMaterial: appearanceStyle.backgroundMaterial,
+      transparent: appearanceStyle.transparent,
       autoHideMenuBar: true,
       center: true,
-      frame: !hideNativeWindowsTitlebar,
+      frame: !hideNativeWindowFrame,
       show: false,
-      titleBarOverlay: hideNativeWindowsTitlebar
-        ? {
-            color: appearanceStyle.titleBarOverlayColor,
-            symbolColor: theme.foregroundColor,
-            height: 38,
-          }
-        : undefined,
-      titleBarStyle: hideNativeWindowsTitlebar ? "hidden" : undefined,
+      titleBarOverlay,
+      titleBarStyle: hideNativeTitlebar ? "hidden" : undefined,
       vibrancy: appearanceStyle.vibrancy,
       visualEffectState: appearanceStyle.visualEffectState,
       webPreferences: {
@@ -217,8 +225,9 @@ function applyWindowTheme(
   theme: DesktopWindowTheme,
   appearanceStyle?: DesktopWindowAppearanceStyle,
 ): void {
-  const backgroundColor =
-    appearanceStyle?.backgroundColor ?? theme.backgroundColor;
+  const backgroundColor = appearanceStyle
+    ? appearanceStyle.backgroundColor
+    : theme.backgroundColor;
   if (typeof backgroundColor === "string") {
     win.setBackgroundColor(backgroundColor);
   }
@@ -235,7 +244,16 @@ function updateWindowControlsOverlay(
   win: BrowserWindow | null | undefined,
   options: WindowControlsOverlayOptions,
 ): void {
-  if (process.platform !== "win32" || !win || win.isDestroyed()) {
+  if (!win || win.isDestroyed()) {
+    return;
+  }
+
+  if (process.platform === "darwin") {
+    updateDarwinWindowButtonPosition(win, options.height);
+    return;
+  }
+
+  if (process.platform !== "win32") {
     return;
   }
 
@@ -244,6 +262,28 @@ function updateWindowControlsOverlay(
     symbolColor: normalizeColorOption(options.foregroundColor),
     height: normalizeHeightOption(options.height),
   });
+}
+
+function updateDarwinWindowButtonPosition(
+  win: BrowserWindow,
+  height: number | undefined,
+): void {
+  const normalizedHeight = normalizeHeightOption(height);
+  if (
+    normalizedHeight === undefined ||
+    typeof win.setWindowButtonPosition !== "function"
+  ) {
+    return;
+  }
+
+  const buttonHeight = isDarwinTahoeOrNewer() ? 14 : 16;
+  const offset = Math.floor((normalizedHeight - buttonHeight) / 2);
+  win.setWindowButtonPosition(offset ? { x: offset + 1, y: offset } : null);
+}
+
+function isDarwinTahoeOrNewer(): boolean {
+  const major = Number.parseInt(release().split(".")[0] ?? "", 10);
+  return Number.isFinite(major) && major >= 25;
 }
 
 function applyDesktopAppearance(
@@ -306,7 +346,10 @@ function applyDesktopWindowBackground(
   style: DesktopWindowAppearanceStyle,
   previousStyle?: DesktopWindowAppearanceStyle,
 ): void {
-  if (previousStyle?.backgroundColor !== style.backgroundColor) {
+  if (
+    previousStyle?.backgroundColor !== style.backgroundColor
+    && typeof style.backgroundColor === "string"
+  ) {
     win.setBackgroundColor(style.backgroundColor);
   }
   if (previousStyle?.titleBarOverlayColor !== style.titleBarOverlayColor) {
@@ -343,21 +386,22 @@ function resolveDesktopWindowAppearanceStyle(
     return resolveWin32DesktopWindowAppearanceStyle(backgroundColor, transparentChrome);
   }
 
+  if (platform === "darwin") {
+    return {
+      backgroundColor: transparentChrome ? TransparentWindowBackground : undefined,
+      titleBarOverlayColor: backgroundColor,
+      transparent: true,
+      transparentChrome,
+      vibrancy: transparentChrome ? "sidebar" : undefined,
+      visualEffectState: transparentChrome ? "followWindow" : undefined,
+    };
+  }
+
   if (!transparentChrome) {
     return {
       backgroundColor,
       titleBarOverlayColor: backgroundColor,
       transparentChrome: false,
-    };
-  }
-
-  if (platform === "darwin") {
-    return {
-      backgroundColor: TransparentWindowBackground,
-      titleBarOverlayColor: backgroundColor,
-      transparentChrome: true,
-      vibrancy: "sidebar",
-      visualEffectState: "followWindow",
     };
   }
 
