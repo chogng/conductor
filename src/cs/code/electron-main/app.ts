@@ -10,6 +10,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeImage,
   nativeTheme,
   session,
   shell,
@@ -217,23 +218,20 @@ function logDesktopBoot(stage, extra = "") {
 function appendDesktopDiagnosticLog(message) {
   const timestamp = new Date().toISOString();
   const line = `${timestamp} ${message}\n`;
-  const candidateDirs = [];
+  let logDir;
 
   try {
-    if (app?.isReady?.()) {
-      candidateDirs.push(app.getPath("userData"));
-    }
+    logDir = getConductorLogHomeDir();
   } catch {
     // Ignore logging path failures.
+    return;
   }
 
-  for (const dir of candidateDirs) {
-    try {
-      fs.mkdirSync(dir, { recursive: true });
-      fs.appendFileSync(path.join(dir, "desktop-renderer.log"), line, "utf8");
-    } catch {
-      // Logging must never block app startup.
-    }
+  try {
+    fs.mkdirSync(logDir, { recursive: true });
+    fs.appendFileSync(path.join(logDir, "desktop-renderer.log"), line, "utf8");
+  } catch {
+    // Logging must never block app startup.
   }
 }
 
@@ -349,7 +347,7 @@ function resolveTrayIconPath() {
     process.platform === "win32"
       ? "icon.ico"
       : process.platform === "darwin"
-        ? "icon.icns"
+        ? "trayTemplate.png"
         : "icon.png";
 
   const resourcesPath = getResourcesPath();
@@ -364,7 +362,11 @@ function resolveTrayIconPath() {
         path.join(resourcesPath, "build", "icons", iconFileName),
       ];
 
-  return resolveFirstExistingPath(candidates) ?? resolveDesktopWindowIconPath();
+  const trayIconPath = resolveFirstExistingPath(candidates);
+  if (process.platform === "darwin") {
+    return trayIconPath;
+  }
+  return trayIconPath ?? resolveDesktopWindowIconPath();
 }
 
 function prepareStartupGate() {
@@ -461,6 +463,10 @@ function getConductorUserDataHomeDir() {
 
 function getConductorStoreHomeDir() {
   return getConductorUserDataHomeDir();
+}
+
+function getConductorLogHomeDir() {
+  return path.join(app.getPath("userData"), "logs");
 }
 
 function getTempRootDir() {
@@ -881,9 +887,9 @@ function handleWorkbenchBootstrapSettingsGet(event) {
 function createSharedProcessContributionContext() {
   return {
     analysisHomeDir: getHomeDir(),
-    desktopDiagnosticLogDir: app.getPath("userData"),
     analysisTempRootDir: getTempRootDir(),
     conductorUserDataHomeDir: getConductorUserDataHomeDir(),
+    conductorLogHomeDir: getConductorLogHomeDir(),
     originRuntimeStorageDir: getOriginRuntimeStorageDir(),
     rustExcelJobRootDir: getRustExcelJobRootDir(),
     log: (message: string) => {
@@ -1415,7 +1421,16 @@ function createAppTray() {
     return null;
   }
 
-  appTray = new Tray(trayIconPath);
+  try {
+    const trayIcon = nativeImage.createFromPath(trayIconPath);
+    if (process.platform === "darwin") {
+      trayIcon.setTemplateImage(true);
+    }
+    appTray = new Tray(trayIcon);
+  } catch (error) {
+    console.warn("[tray] Failed to create tray icon.", error);
+    return null;
+  }
   appTray.setToolTip(APP_DISPLAY_NAME);
   appTray.on("click", () => {
     void ensureMainWindowVisible();
