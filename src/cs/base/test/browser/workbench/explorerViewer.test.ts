@@ -49,6 +49,47 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     }
   });
 
+  test("hides file item hover after leaving the row for the hover layer", async () => {
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    const contextViewService = new TestContextViewService();
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const viewer = new ExplorerViewer(host, hoverHost, {
+      ...createViewerProps(),
+      contextViewService,
+    }, labels);
+
+    try {
+      const item = host.querySelector<HTMLElement>(".file-list-item");
+      assert.ok(item);
+
+      item.dispatchEvent(new MouseEvent("mouseover", {
+        bubbles: true,
+        relatedTarget: null,
+      }));
+
+      const hoverLayer = contextViewService.renderedElement;
+      assert.ok(hoverLayer);
+      assert.ok(contextViewService.delegate);
+
+      item.dispatchEvent(new MouseEvent("mouseout", {
+        bubbles: true,
+        relatedTarget: hoverLayer,
+      }));
+
+      await timeout(150);
+
+      assert.equal(contextViewService.delegate, undefined);
+    } finally {
+      viewer.dispose();
+      labels.dispose();
+      hoverHost.remove();
+    }
+  });
+
   test("suppresses file item hover while folder actions are open", () => {
     const host = document.createElement("div");
     const hoverHost = document.createElement("div");
@@ -111,6 +152,7 @@ class TestContextViewService implements IContextViewService {
   public declare readonly _serviceBrand: undefined;
   public container: HTMLElement | undefined;
   public delegate: IContextViewDelegate | undefined;
+  public renderedElement: HTMLElement | undefined;
   private activeDisposable: IDisposable | undefined;
 
   public showContextView(
@@ -120,6 +162,7 @@ class TestContextViewService implements IContextViewService {
     this.delegate = delegate;
     this.container = container;
     const contextView = document.createElement("div");
+    this.renderedElement = contextView;
     const disposable = delegate.render(contextView);
     this.activeDisposable = disposable ?? undefined;
     return {
@@ -138,6 +181,7 @@ class TestContextViewService implements IContextViewService {
     this.activeDisposable = undefined;
     this.delegate = undefined;
     this.container = undefined;
+    this.renderedElement = undefined;
     delegate?.onHide?.();
   }
 
@@ -172,3 +216,6 @@ const createViewerProps = (): ExplorerViewerProps => ({
   onSelectFile: () => undefined,
   thumbnailService: {} as ExplorerViewerProps["thumbnailService"],
 });
+
+const timeout = (ms: number): Promise<void> =>
+  new Promise(resolve => setTimeout(resolve, ms));

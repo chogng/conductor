@@ -310,7 +310,6 @@ export class ExplorerViewer implements IDisposable {
   private readonly thumbnailHost: HTMLDivElement;
   private readonly hoverThumbnailCache = new Map<string, HoverThumbnailCacheEntry>();
   private hoverView: IOpenContextView | null = null;
-  private hoverContextViewElement: HTMLElement | null = null;
   private hoverAnchor: HTMLElement | null = null;
   private hoverContent: HoverContent | null = null;
   private hoverHideTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -359,6 +358,9 @@ export class ExplorerViewer implements IDisposable {
     );
     this.disposables.add(
       addDisposableListener(this.host, "mouseout", this.handleListMouseOut),
+    );
+    this.disposables.add(
+      addDisposableListener(this.host, "mouseleave", this.handleListMouseLeave),
     );
     this.disposables.add(
       addDisposableListener(this.host, "focusin", this.handleListFocusIn),
@@ -1132,6 +1134,10 @@ export class ExplorerViewer implements IDisposable {
     }
   };
 
+  private readonly handleListMouseLeave = (): void => {
+    this.hideFileItemHover();
+  };
+
   private readonly handleListFocusIn = (event: FocusEvent): void => {
     const item = this.getFileItemFromEvent(event);
     if (item) {
@@ -1148,16 +1154,6 @@ export class ExplorerViewer implements IDisposable {
       !this.isInsideFileHover(relatedTarget, item)
     ) {
       this.hideFileItemHover(item);
-    }
-  };
-
-  private readonly handleHoverMouseOver = (): void => {
-    this.cancelFileItemHoverHide();
-  };
-
-  private readonly handleHoverMouseOut = (event: MouseEvent): void => {
-    if (!this.isInsideFileHover(event.relatedTarget, this.hoverAnchor)) {
-      this.scheduleFileItemHoverHide(this.hoverAnchor);
     }
   };
 
@@ -1194,8 +1190,7 @@ export class ExplorerViewer implements IDisposable {
     }
 
     return Boolean(
-      item?.contains(target) ||
-      this.hoverContextViewElement?.contains(target),
+      item?.contains(target),
     );
   }
 
@@ -1289,7 +1284,6 @@ export class ExplorerViewer implements IDisposable {
       onHide: () => {
         if (this.hoverViewToken === token) {
           this.hoverView = null;
-          this.hoverContextViewElement = null;
         }
       },
     });
@@ -1300,15 +1294,8 @@ export class ExplorerViewer implements IDisposable {
     classNames: readonly string[],
   ): IDisposable {
     const disposables = new DisposableStore();
-    this.hoverContextViewElement = container;
     container.classList.add(...classNames);
     container.setAttribute("role", "tooltip");
-    disposables.add(
-      addDisposableListener(container, "mouseover", this.handleHoverMouseOver),
-    );
-    disposables.add(
-      addDisposableListener(container, "mouseout", this.handleHoverMouseOut),
-    );
     disposables.add({
       dispose: () => {
         container.classList.remove(
@@ -1317,9 +1304,6 @@ export class ExplorerViewer implements IDisposable {
           "file-list-hover--thumbnail",
         );
         container.removeAttribute("role");
-        if (this.hoverContextViewElement === container) {
-          this.hoverContextViewElement = null;
-        }
       },
     });
     this.renderHoverContent(container);
@@ -1520,14 +1504,12 @@ export class ExplorerViewer implements IDisposable {
 
   private closeFileItemHoverView(): void {
     if (!this.hoverView) {
-      this.hoverContextViewElement = null;
       return;
     }
 
     this.hoverViewToken += 1;
     const view = this.hoverView;
     this.hoverView = null;
-    this.hoverContextViewElement = null;
     view.close();
   }
 }
