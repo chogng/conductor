@@ -34,7 +34,7 @@ type ConductorSettings = Record<string, unknown>;
 
 type ConductorMainConfiguration = {
   getConductorSettings(): ConductorSettings;
-  patchConductorSettings(updates: Record<string, unknown>): ConductorSettings;
+  patchConductorSettings(updates: Record<string, unknown>): Promise<ConductorSettings>;
 };
 
 export type OriginMainHandlers = IDisposable & {
@@ -457,11 +457,11 @@ export function registerOriginMainHandlers({
     return normalizeOriginExePath(settings?.originExePath);
   };
 
-  const saveOriginExePathToSettings = (originExePath: unknown): string | null => {
+  const saveOriginExePathToSettings = async (originExePath: unknown): Promise<string | null> => {
     originDetectionCache = null;
     originDetectionPromise = null;
     const normalizedPath = normalizeOriginExePath(originExePath);
-    const settings = conductorMainConfiguration.patchConductorSettings({
+    const settings = await conductorMainConfiguration.patchConductorSettings({
       originExePath: normalizedPath,
     });
     return typeof settings.originExePath === "string" ? settings.originExePath : null;
@@ -544,7 +544,7 @@ export function registerOriginMainHandlers({
     return null;
   };
 
-  const handleOriginExeSet = (_event: IpcMainInvokeEvent, payload: unknown): string | null => {
+  const handleOriginExeSet = async (_event: IpcMainInvokeEvent, payload: unknown): Promise<string | null> => {
     const rawPath = getPayloadProperty(payload, "path") ?? payload;
     const validated = assertOriginExePath(rawPath);
     return saveOriginExePathToSettings(validated);
@@ -590,7 +590,7 @@ export function registerOriginMainHandlers({
     const rawPath = getPayloadProperty(payload, "path") ?? payload;
     if (typeof rawPath === "string" && rawPath.trim()) {
       const validated = assertOriginExePath(rawPath);
-      return saveOriginExePathToSettings(validated) ?? validated;
+      return (await saveOriginExePathToSettings(validated)) ?? validated;
     }
 
     const configured = await handleOriginExeGet();

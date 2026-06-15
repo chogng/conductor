@@ -1,6 +1,6 @@
-import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
-import type { BrandedService, ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
-import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";
+import { SyncDescriptor } from "./descriptors.js";
+import type { BrandedService, ServiceIdentifier } from "./instantiation.js";
+import { ServiceCollection } from "./serviceCollection.js";
 
 const singletonServiceDescriptors: Array<[ServiceIdentifier<unknown>, SyncDescriptor<unknown>]> = [];
 

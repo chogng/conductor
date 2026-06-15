@@ -1,6 +1,6 @@
-import { Emitter, type Event } from "src/cs/base/common/event";
-import { URI } from "src/cs/base/common/uri";
-import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
+import { Emitter, type Event } from "../../../base/common/event.js";
+import { URI } from "../../../base/common/uri.js";
+import { createDecorator } from "../../instantiation/common/instantiation.js";
 
 export const IConfigurationService =
   createDecorator<IConfigurationService>("configurationService");

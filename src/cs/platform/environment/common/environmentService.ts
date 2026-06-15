@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'src/cs/base/common/uri';
+import { URI } from '../../../base/common/uri.js';
 
 const USER_CONFIGURATION_DIRECTORY = 'User';
 const USER_SETTINGS_FILE = 'settings.json';

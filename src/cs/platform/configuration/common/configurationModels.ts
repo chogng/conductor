@@ -12,8 +12,8 @@ import {
   type IOverrides,
   removeFromValueTree,
   toValuesTree,
-} from "src/cs/platform/configuration/common/configuration";
-import { overrideIdentifiersFromKey } from "src/cs/platform/configuration/common/configurationRegistry";
+} from "./configuration.js";
+import { overrideIdentifiersFromKey } from "./configurationRegistry.js";
 
 export class ConfigurationModel implements IConfigurationModel {
   public static createEmptyModel(): ConfigurationModel {

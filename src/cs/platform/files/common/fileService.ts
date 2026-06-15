@@ -1,6 +1,6 @@
-import { Emitter } from "src/cs/base/common/event";
-import { Disposable, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
-import { URI } from "src/cs/base/common/uri";
+import { Emitter } from "../../../base/common/event.js";
+import { Disposable, toDisposable, type IDisposable } from "../../../base/common/lifecycle.js";
+import { URI } from "../../../base/common/uri.js";
 import {
   IFileService,
   type FileType,
@@ -10,8 +10,8 @@ import {
   type IFileSystemProvider,
   type IReadFileOptions,
   type IWatchOptions,
-} from "src/cs/platform/files/common/files";
-import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+} from "./files.js";
+import { InstantiationType, registerSingleton } from "../../instantiation/common/extensions.js";
 
 export class FileService extends Disposable implements IFileService {
   public declare readonly _serviceBrand: undefined;

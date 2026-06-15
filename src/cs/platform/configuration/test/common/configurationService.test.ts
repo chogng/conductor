@@ -1,15 +1,79 @@
 import assert from "assert";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
+import { URI } from "src/cs/base/common/uri";
 import {
   ConfigurationTarget,
   type IConfigurationChangeEvent,
 } from "src/cs/platform/configuration/common/configuration";
 import { ConfigurationService } from "src/cs/platform/configuration/common/configurationService";
+import { FileService } from "src/cs/platform/files/common/fileService";
+import type {
+  FileType,
+  IFileContent,
+  IFileStat,
+  IFileSystemProvider,
+  IReadFileOptions,
+  IWatchOptions,
+} from "src/cs/platform/files/common/files";
+import { DiskFileSystemProvider } from "src/cs/platform/files/node/diskFileSystemProvider";
+import type { IDisposable } from "src/cs/base/common/lifecycle";
 import {
   Extensions,
   type IConfigurationRegistry,
 } from "src/cs/platform/configuration/common/configurationRegistry";
 import { Registry } from "src/cs/platform/registry/common/platform";
+
+class TestFileSystemProvider implements IFileSystemProvider {
+  public readonly onDidFilesChange;
+
+  public constructor(private readonly provider: DiskFileSystemProvider) {
+    this.onDidFilesChange = provider.onDidFilesChange;
+  }
+
+  public exists(resource: URI): Promise<boolean> {
+    return this.provider.exists(resource);
+  }
+
+  public readDir(resource: URI): Promise<readonly [string, FileType][]> {
+    return this.provider.readDir(resource);
+  }
+
+  public readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent> {
+    return this.provider.readFile(resource, options);
+  }
+
+  public writeFile(resource: URI, content: string): Promise<void> {
+    return this.provider.writeFile(resource, content);
+  }
+
+  public realpath(resource: URI): Promise<URI> {
+    return this.provider.realpath(resource);
+  }
+
+  public stat(resource: URI): Promise<IFileStat> {
+    return this.provider.stat(resource);
+  }
+
+  public watch(resource: URI, options: IWatchOptions = {}): IDisposable {
+    return this.provider.watch(resource.toString(), resource, options);
+  }
+}
+
+function createFileBackedConfigurationService(userDataPath: string): {
+  readonly service: ConfigurationService;
+  readonly settingsPath: string;
+} {
+  const settingsPath = path.join(userDataPath, "User", "settings.json");
+  const fileService = new FileService();
+  fileService.registerProvider("file", new TestFileSystemProvider(new DiskFileSystemProvider()));
+  return {
+    service: new ConfigurationService(URI.file(settingsPath), fileService),
+    settingsPath,
+  };
+}
 
 suite("platform/configuration/common/configurationService", () => {
   test("reads Conductor defaults from the configuration registry", () => {
@@ -100,6 +164,49 @@ suite("platform/configuration/common/configurationService", () => {
       2,
     );
     assert.deepEqual(service.inspect("editor.tabSize").overrideIdentifiers, ["json"]);
+
+    service.dispose();
+  });
+
+  test("file backed service reads defaults when user settings do not exist", async () => {
+    const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-main-config-test-"));
+    const { service, settingsPath } = createFileBackedConfigurationService(userDataPath);
+
+    await service.initialize();
+
+    assert.equal(service.getValue("language"), "system");
+    assert.equal(service.getValue("theme"), "system");
+    assert.equal(fs.existsSync(settingsPath), false);
+
+    service.dispose();
+  });
+
+  test("file backed service writes user settings", async () => {
+    const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-main-config-test-"));
+    const { service, settingsPath } = createFileBackedConfigurationService(userDataPath);
+    await service.initialize();
+
+    await service.updateValue("theme", "dark", ConfigurationTarget.USER);
+    await service.updateValue("originExePath", "C:\\Origin\\Origin.exe", ConfigurationTarget.USER);
+    const raw = JSON.parse(fs.readFileSync(settingsPath, "utf8")) as Record<string, unknown>;
+
+    assert.equal(service.getValue("theme"), "dark");
+    assert.equal(service.getValue("originExePath"), "C:\\Origin\\Origin.exe");
+    assert.equal(raw.theme, "dark");
+    assert.equal(raw.originExePath, "C:\\Origin\\Origin.exe");
+
+    service.dispose();
+  });
+
+  test("file backed service falls back to defaults for unreadable user settings", async () => {
+    const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-main-config-test-"));
+    const { service, settingsPath } = createFileBackedConfigurationService(userDataPath);
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    fs.writeFileSync(settingsPath, "{", "utf8");
+
+    await service.initialize();
+
+    assert.equal(service.getValue("theme"), "system");
 
     service.dispose();
   });

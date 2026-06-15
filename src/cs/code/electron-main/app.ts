@@ -18,6 +18,8 @@ import {
   Tray,
 } from "electron";
 import { product } from "../../../bootstrap-meta.js";
+import type { IDisposable } from "../../base/common/lifecycle.js";
+import type { URI } from "../../base/common/uri.js";
 import { Server as ElectronIPCServer } from "../../base/parts/ipc/electron-main/ipc.electron.js";
 import { Event } from "../../base/common/event.js";
 import type { IServerChannel } from "../../base/parts/ipc/common/ipc.js";
@@ -34,7 +36,15 @@ import {
   StorageMainChannel,
   STORAGE_CHANNEL_NAME,
 } from "../../platform/storage/electron-main/storageIpc.js";
-import { createConductorMainConfiguration } from "../../platform/configuration/electron-main/configurationMain.js";
+import { ConfigurationTarget } from "../../platform/configuration/common/configuration.js";
+import {
+  applyStartupConductorDefaults,
+  cloneConductorSettings,
+  normalizeConductorSettings,
+  type ConductorSettings,
+} from "../../platform/configuration/common/configurationRegistry.js";
+import { ConfigurationService } from "../../platform/configuration/common/configurationService.js";
+import { getUserSettingsResource } from "../../platform/environment/common/environmentService.js";
 import { workbenchIpcChannels as ipcChannels } from "../../workbench/common/ipcChannels.js";
 import {
   runSharedProcessShutdownContributions,
@@ -60,7 +70,16 @@ import {
   RustWorkerHost,
 } from "../../platform/rust/electron-main/rustWorkerHost.js";
 import { DiskFileSystemProviderChannel } from "../../platform/files/electron-main/diskFileSystemProviderServer.js";
-import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from "../../platform/files/common/files.js";
+import {
+  type FileType,
+  type IFileContent,
+  LOCAL_FILE_SYSTEM_CHANNEL_NAME,
+  type IFileStat,
+  type IFileSystemProvider,
+  type IReadFileOptions,
+  type IWatchOptions,
+} from "../../platform/files/common/files.js";
+import { FileService } from "../../platform/files/common/fileService.js";
 import { DiskFileSystemProvider } from "../../platform/files/node/diskFileSystemProvider.js";
 import { registerRustHostChannels } from "./rustHostChannels.js";
 import { RustHostService } from "./rustHostService.js";
@@ -146,6 +165,42 @@ let isAppQuitting = false;
 const desktopProcessStartMs = Date.now();
 const nativeHostChannelName = "nativeHost";
 const TRAY_MINIMIZE_HINT_SHOWN_STORAGE_KEY = "window.trayMinimizeHintShown";
+
+class MainFileSystemProvider implements IFileSystemProvider {
+  public readonly onDidFilesChange;
+
+  public constructor(private readonly provider: DiskFileSystemProvider) {
+    this.onDidFilesChange = provider.onDidFilesChange;
+  }
+
+  public exists(resource: URI): Promise<boolean> {
+    return this.provider.exists(resource);
+  }
+
+  public readDir(resource: URI): Promise<readonly [string, FileType][]> {
+    return this.provider.readDir(resource);
+  }
+
+  public readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent> {
+    return this.provider.readFile(resource, options);
+  }
+
+  public writeFile(resource: URI, content: string): Promise<void> {
+    return this.provider.writeFile(resource, content);
+  }
+
+  public realpath(resource: URI): Promise<URI> {
+    return this.provider.realpath(resource);
+  }
+
+  public stat(resource: URI): Promise<IFileStat> {
+    return this.provider.stat(resource);
+  }
+
+  public watch(resource: URI, options: IWatchOptions = {}): IDisposable {
+    return this.provider.watch(resource.toString(), resource, options);
+  }
+}
 
 function isTruthyEnvFlag(value) {
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -732,9 +787,40 @@ async function handleExcelReadConvertedCsv(_event, payload) {
   }
 }
 
-const conductorMainConfiguration = createConductorMainConfiguration({
-  getUserDataPath: () => app.getPath("userData"),
-});
+const mainFileService = new FileService();
+mainFileService.registerProvider("file", new MainFileSystemProvider(localFileSystemProvider));
+const mainConfigurationService = new ConfigurationService(
+  getUserSettingsResource(app.getPath("userData")),
+  mainFileService,
+);
+
+const conductorMainConfiguration = {
+  getConductorSettings(): ConductorSettings {
+    return cloneConductorSettings(applyStartupConductorDefaults(
+      mainConfigurationService.getValue<Record<string, unknown>>() ?? {},
+    ));
+  },
+
+  async patchConductorSettings(updates: Record<string, unknown>): Promise<ConductorSettings> {
+    const patch = updates && typeof updates === "object" && !Array.isArray(updates)
+      ? updates
+      : {};
+    const nextSettings = normalizeConductorSettings({
+      ...this.getConductorSettings(),
+      ...patch,
+    });
+
+    for (const key of Object.keys(patch)) {
+      await mainConfigurationService.updateValue(
+        key,
+        nextSettings[key],
+        ConfigurationTarget.USER,
+      );
+    }
+
+    return this.getConductorSettings();
+  },
+};
 
 const mainStorageService = createStorageMainService({
   getHomeDir: getConductorPersistenceHomeDir,
@@ -1809,7 +1895,7 @@ if (hasSingleInstanceLock) {
     void app.whenReady().then(() => ensureMainWindowVisible());
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
   logDesktopBoot("app:ready");
   if (isWindows) {
     app.setAppUserModelId(APP_USER_MODEL_ID);
@@ -1819,6 +1905,7 @@ if (hasSingleInstanceLock) {
   }
   configureRuntimeCachePath();
   configureCodeCachePath();
+  await mainConfigurationService.initialize();
   runSharedProcessStartupContributions(createSharedProcessContributionContext());
   createAppTray();
   updateService = createUpdateService();

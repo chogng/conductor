@@ -1,5 +1,6 @@
-import { Emitter } from "src/cs/base/common/event";
-import { Disposable } from "src/cs/base/common/lifecycle";
+import { Emitter } from "../../../base/common/event.js";
+import { Disposable } from "../../../base/common/lifecycle.js";
+import type { URI } from "../../../base/common/uri.js";
 import {
   ConfigurationTarget,
   IConfigurationService,
@@ -11,18 +12,19 @@ import {
   type IConfigurationUpdateOptions,
   type IConfigurationUpdateOverrides,
   type IConfigurationValue,
-} from "src/cs/platform/configuration/common/configuration";
+} from "./configuration.js";
 import {
   Configuration,
   ConfigurationChangeEvent,
   ConfigurationModel,
   parseConfigurationModel,
-} from "src/cs/platform/configuration/common/configurationModels";
+} from "./configurationModels.js";
 import {
   Extensions,
   type IConfigurationRegistry,
-} from "src/cs/platform/configuration/common/configurationRegistry";
-import { Registry } from "src/cs/platform/registry/common/platform";
+} from "./configurationRegistry.js";
+import type { IFileService } from "../../files/common/files.js";
+import { Registry } from "../../registry/common/platform.js";
 
 export class ConfigurationService extends Disposable implements IConfigurationService {
   declare readonly _serviceBrand: undefined;
@@ -34,7 +36,10 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 
   public readonly onDidChangeConfiguration = this.onDidChangeConfigurationEmitter.event;
 
-  constructor() {
+  constructor(
+    private readonly userSettingsResource?: URI,
+    private readonly userSettingsFileService?: IFileService,
+  ) {
     super();
     this._register(this.registry.onDidUpdateConfiguration(() => {
       const previous = Configuration.parse(this.configuration.toData());
@@ -51,6 +56,10 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
         );
       }
     }));
+  }
+
+  public async initialize(_arg?: unknown): Promise<void> {
+    await this.reloadConfiguration();
   }
 
   public getConfigurationData(): IConfigurationData {
@@ -133,6 +142,12 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 
     if (change.keys.length || change.overrides.length) {
       this.fireDidChangeConfiguration(change, previous, ConfigurationTarget.DEFAULT);
+    }
+
+    const userConfiguration = await this.readUserConfiguration();
+    const userChange = this.updateModelForTarget(ConfigurationTarget.USER_LOCAL, userConfiguration);
+    if (userChange.keys.length || userChange.overrides.length) {
+      this.fireDidChangeConfiguration(userChange, previous, ConfigurationTarget.USER);
     }
   }
 
@@ -227,9 +242,22 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
   }
 
   protected async writeConfigurationForTarget(
-    _target: ConfigurationTarget,
-    _model: ConfigurationModel,
-  ): Promise<void> {}
+    target: ConfigurationTarget,
+    model: ConfigurationModel,
+  ): Promise<void> {
+    if (
+      (target !== ConfigurationTarget.USER && target !== ConfigurationTarget.USER_LOCAL)
+      || !this.userSettingsResource
+      || !this.userSettingsFileService
+    ) {
+      return;
+    }
+
+    await this.userSettingsFileService.writeFile(
+      this.userSettingsResource,
+      `${JSON.stringify(model.toRaw(), null, 2)}\n`,
+    );
+  }
 
   protected fireDidChangeConfiguration(
     change: { readonly keys: readonly string[]; readonly overrides: readonly (readonly [string, readonly string[]])[] },
@@ -251,6 +279,28 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
       model.removeOverrideValue(overrideIdentifiers, key);
     } else {
       model.setOverrideValue(overrideIdentifiers, key, value);
+    }
+  }
+
+  private async readUserConfiguration(): Promise<ConfigurationModel> {
+    if (!this.userSettingsResource || !this.userSettingsFileService) {
+      return ConfigurationModel.createEmptyModel();
+    }
+
+    if (!await this.userSettingsFileService.exists(this.userSettingsResource)) {
+      return ConfigurationModel.createEmptyModel();
+    }
+
+    try {
+      const content = await this.userSettingsFileService.readFile(this.userSettingsResource, { encoding: "utf8" });
+      const raw = JSON.parse(content.value || "{}") as unknown;
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+        return ConfigurationModel.createEmptyModel();
+      }
+
+      return parseConfigurationModel(raw as Record<string, unknown>);
+    } catch {
+      return ConfigurationModel.createEmptyModel();
     }
   }
 }
