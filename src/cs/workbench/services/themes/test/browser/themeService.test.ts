@@ -99,6 +99,47 @@ suite("workbench/services/themes/browser/themeService", () => {
 		]);
 	});
 
+	test("adds Windows transparent chrome class inside Electron renderer", async () => {
+		const calls: TestCall[] = [];
+		installAppearanceEnvironment(calls, async () => ({ ok: true }), {
+			electronVersion: "38.0.0",
+			platform: "win32",
+		});
+		const service = new BrowserWorkbenchThemeService();
+
+		service.applyAppearance({
+			backgroundColor: "#abcdef",
+			transparentChrome: true,
+		});
+		await drainMicrotasks();
+
+		assert.deepStrictEqual(calls, [
+			["desktopAppearanceSet", {
+				backgroundColor: "#abcdef",
+				transparentChrome: true,
+			}],
+			["setProperty", ["--bg-page", "171 205 239"]],
+			["toggleClass", ["workbench-transparent-chrome", true]],
+			["toggleClass", ["workbench-transparent-chrome-windows", true]],
+		]);
+
+		calls.length = 0;
+		service.applyAppearance({
+			backgroundColor: "#abcdef",
+			transparentChrome: false,
+		});
+
+		assert.deepStrictEqual(calls, [
+			["setProperty", ["--bg-page", "171 205 239"]],
+			["toggleClass", ["workbench-transparent-chrome", false]],
+			["toggleClass", ["workbench-transparent-chrome-windows", false]],
+			["desktopAppearanceSet", {
+				backgroundColor: "#abcdef",
+				transparentChrome: false,
+			}],
+		]);
+	});
+
 	test("applies opaque surface changes from desktop window events", async () => {
 		const calls: TestCall[] = [];
 		const environment = installAppearanceEnvironment(calls, async () => ({ ok: true }), {

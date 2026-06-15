@@ -16,6 +16,7 @@ import {
 
 const WORKBENCH_TRANSPARENT_CHROME_CLASS = "workbench-transparent-chrome";
 const WORKBENCH_MACOS_TRANSPARENT_CHROME_CLASS = "workbench-transparent-chrome-macos";
+const WORKBENCH_WINDOWS_TRANSPARENT_CHROME_CLASS = "workbench-transparent-chrome-windows";
 const WORKBENCH_OPAQUE_SURFACE_CLASS = "workbench-opaque-surface";
 
 export class BrowserWorkbenchThemeService extends Disposable implements IWorkbenchThemeService {
@@ -267,6 +268,12 @@ export const applyWorkbenchAppearance = (
 			appearance.transparentChrome,
 		);
 	}
+	if (isWindowsElectronWorkbench()) {
+		document.documentElement.classList.toggle(
+			WORKBENCH_WINDOWS_TRANSPARENT_CHROME_CLASS,
+			appearance.transparentChrome,
+		);
+	}
 };
 
 const applyWorkbenchOpaqueSurface = (enabled: boolean): void => {
@@ -313,6 +320,24 @@ const isMacOSElectronWorkbench = (): boolean => {
 		| undefined;
 
 	return conductorProcess?.platform === "darwin" &&
+		typeof conductorProcess.versions?.electron === "string";
+};
+
+const isWindowsElectronWorkbench = (): boolean => {
+	const conductorProcess = (
+		typeof window === "undefined"
+			? undefined
+			: window.conductor?.process
+	) as
+		| {
+			readonly platform?: string;
+			readonly versions?: {
+				readonly electron?: string;
+			};
+		}
+		| undefined;
+
+	return conductorProcess?.platform === "win32" &&
 		typeof conductorProcess.versions?.electron === "string";
 };
 

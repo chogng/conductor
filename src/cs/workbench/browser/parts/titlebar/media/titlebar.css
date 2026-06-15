@@ -17,7 +17,8 @@
   background: rgb(var(--bg-page));
 }
 
-html.workbench-transparent-chrome-macos .titlebar-root {
+html.workbench-transparent-chrome-macos .titlebar-root,
+html.workbench-transparent-chrome-windows .titlebar-root {
   background: transparent;
 }
 
