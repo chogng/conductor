@@ -3,44 +3,72 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-  TableCommandId,
-  type TableCommandId as TableCommandIdValue,
   ITableService,
 } from "src/cs/workbench/services/table/common/table";
-import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import {
+  TableCommandId,
+  type TableCommandId as TableCommandIdValue,
+} from "src/cs/workbench/contrib/table/common/table";
+import { DisposableStore, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
-import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import {
+  notificationService,
+} from "src/cs/workbench/services/notification/common/notificationService";
 
 type TableCommandRegistration = {
   readonly id: TableCommandIdValue;
+  readonly run: (accessor: ServicesAccessor) => boolean | Promise<boolean>;
   readonly title: string;
+};
+
+type TableZoomController = {
+  resetZoom(): boolean;
+  zoomIn(): boolean;
+  zoomOut(): boolean;
+};
+
+let activeTableZoomController: TableZoomController | null = null;
+
+export const setActiveTableZoomController = (controller: TableZoomController): IDisposable => {
+  activeTableZoomController = controller;
+  return toDisposable(() => {
+    if (activeTableZoomController === controller) {
+      activeTableZoomController = null;
+    }
+  });
 };
 
 const tableCommandRegistrations: readonly TableCommandRegistration[] = [
   {
     id: TableCommandId.clearSelection,
+    run: accessor => accessor.get(ITableService).clearSelection(),
     title: localize("table.commands.clearSelection", "Clear table selection"),
   },
   {
     id: TableCommandId.copySelection,
+    run: accessor => copyTableSelection(accessor.get(ITableService)),
     title: localize("table.commands.copySelection", "Copy table selection"),
   },
   {
     id: TableCommandId.resetZoom,
+    run: () => activeTableZoomController?.resetZoom() ?? false,
     title: localize("table.commands.resetZoom", "Reset table zoom"),
   },
   {
     id: TableCommandId.selectAllColumns,
+    run: accessor => accessor.get(ITableService).selectAllColumns(),
     title: localize("table.commands.selectAllColumns", "Select all table columns"),
   },
   {
     id: TableCommandId.zoomIn,
+    run: () => activeTableZoomController?.zoomIn() ?? false,
     title: localize("table.commands.zoomIn", "Zoom in table"),
   },
   {
     id: TableCommandId.zoomOut,
+    run: () => activeTableZoomController?.zoomOut() ?? false,
     title: localize("table.commands.zoomOut", "Zoom out table"),
   },
 ];
@@ -63,26 +91,12 @@ export const registerTableCommands = (): IDisposable => {
       }
 
       public async run(accessor: ServicesAccessor): Promise<boolean> {
-        return runTableServiceCommand(
-          accessor.get(ITableService),
-          command.id,
-        );
+        return command.run(accessor);
       }
     }));
   }
 
   return disposables;
-};
-
-const runTableServiceCommand = (
-  tableService: ITableService,
-  commandId: TableCommandIdValue,
-): boolean | Promise<boolean> => {
-  if (commandId === TableCommandId.copySelection) {
-    return copyTableSelection(tableService);
-  }
-
-  return tableService.executeCommand(commandId);
 };
 
 const copyTableSelection = async (tableService: ITableService): Promise<boolean> => {
@@ -99,9 +113,11 @@ const copyTableSelection = async (tableService: ITableService): Promise<boolean>
     if (result.kind === "tooLarge") {
       notificationService.showToast({
         id: "table.copySelection",
-        message: localize("table.copySelection.tooLarge", "Selection is too large to copy ({cellCount} cells).", {
-          cellCount: result.cellCount,
-        }),
+        message: localize(
+          "table.copySelection.tooLarge",
+          "Selection is too large to copy ({cellCount} cells).",
+          { cellCount: result.cellCount },
+        ),
         type: "warning",
       });
       return false;
@@ -141,7 +157,10 @@ const writeClipboardText = async (text: string): Promise<void> => {
   textarea.select();
   try {
     if (!document.execCommand("copy")) {
-      throw new Error(localize("table.copySelection.failedFallback", "Clipboard copy command failed."));
+      throw new Error(localize(
+        "table.copySelection.failedFallback",
+        "Clipboard copy command failed.",
+      ));
     }
   } finally {
     textarea.remove();

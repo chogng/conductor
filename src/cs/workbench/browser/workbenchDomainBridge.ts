@@ -57,7 +57,7 @@ export type WorkbenchDomainBridgeOptions = {
 
 export class WorkbenchDomainBridge extends Disposable {
   private tableStateListener: (() => void) | null = null;
-  private tableStateModel: TableModel | null = null;
+  private tableModel: TableModel | null = null;
 
   constructor(
     private readonly options: WorkbenchDomainBridgeOptions,
@@ -74,7 +74,7 @@ export class WorkbenchDomainBridge extends Disposable {
       dispose: () => {
         this.tableStateListener?.();
         this.tableStateListener = null;
-        this.tableStateModel = null;
+        this.tableModel = null;
       },
     });
   }
@@ -112,12 +112,12 @@ export class WorkbenchDomainBridge extends Disposable {
   }
 
   private bindTableModelState(tableModel: TableModel): void {
-    if (this.tableStateModel === tableModel) {
+    if (this.tableModel === tableModel) {
       return;
     }
 
     this.tableStateListener?.();
-    this.tableStateModel = tableModel;
+    this.tableModel = tableModel;
     this.tableStateListener = tableModel.onDidChangeState(() => {
       this.syncTableViewInput(tableModel);
     });

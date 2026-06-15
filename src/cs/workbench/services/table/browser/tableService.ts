@@ -6,55 +6,38 @@ import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
-  IStorageService,
-  StorageScope,
-  StorageTarget,
-} from "src/cs/platform/storage/common/storage";
-import {
   ITableService,
   ITableRowsReaderService,
   TABLE_COPY_MAX_CELLS,
-  TableCommandId,
-  type TableCell,
-  type TableColumnWidth,
-  type TableColumnWidthTarget,
-  type TableFile,
   type TableInput,
   type TableModel,
-  type TableRange,
   type TableRevealMode,
   type TableRevealOptions,
   type TableRevealTarget,
-  type TableSelection,
   type TableSelectionTarget,
   type TableSelectionTextResult,
-  type TableSource,
-  type TableState,
   type TableViewInput,
-  toTableSourceKey,
 } from "src/cs/workbench/services/table/common/table";
 import {
-  normalizeColumnIndexes,
-  normalizeTableCell,
-  normalizeTableSelection,
-} from "src/cs/workbench/services/table/common/selection";
-import {
-  TABLE_COLUMN_LAYOUT_STORAGE_DEBOUNCE_MS,
-  TABLE_COLUMN_LAYOUT_STORAGE_KEY_PREFIX,
   TableStateScope,
   areTableFilesEqual,
   areTableLoadStatesEqual,
   createTableModelWithScope,
   createTableModelInScope,
-  normalizeTableColumnWidth,
-  normalizeTableColumnWidthIndex,
-  toStoredTableColumnLayout,
-  toTableColumnWidths,
+  normalizeColumnIndexes,
+  normalizeTableCell,
+  normalizeTableSelection,
   type CreateTableModelWithScopeOptions,
-  type StoredTableColumnLayout,
-} from "src/cs/workbench/services/table/browser/tableStateModel";
+} from "src/cs/workbench/services/table/browser/tableModel";
 
-export { createTableModelWithScope } from "src/cs/workbench/services/table/browser/tableStateModel";
+type TableState = ReturnType<TableModel["getState"]>;
+type TableCell = NonNullable<ReturnType<TableModel["getRevealCell"]>>;
+type TableSelection = ReturnType<TableModel["getSelection"]>;
+type TableRange = NonNullable<TableSelection["ranges"]>[number];
+type TableSource = NonNullable<TableState["source"]>;
+type TableFile = NonNullable<TableState["file"]>;
+
+export { createTableModelWithScope } from "src/cs/workbench/services/table/browser/tableModel";
 
 type TableCopyPlan = {
   readonly columnIndexes: readonly number[];
@@ -378,21 +361,16 @@ export class TableService extends Disposable implements ITableService {
   private viewInput: TableViewInput | null = null;
   private selectionTableModel: TableModel | null = null;
   private tableModelSelectionListener: (() => void) | null = null;
-  private pendingColumnWidthStorageModel: TableModel | null = null;
-  private pendingColumnWidthStorageTimeout: ReturnType<typeof setTimeout> | null = null;
 
   public constructor(
     @ITableRowsReaderService private readonly tableRowsReaderService: ITableRowsReaderService,
-    @IStorageService private readonly storageService: IStorageService,
   ) {
     super();
   }
 
   public update(options: TableInput): TableModel {
-    this.flushPendingColumnWidthStorage();
     const tableModel = createTableModelInScope(this.scope, {
       ...options,
-      columnWidths: this.restoreColumnWidths(options.source),
       tableRowsReaderService: options.tableRowsReaderService ?? this.tableRowsReaderService,
     });
     this.bindActiveTableModel(tableModel);
@@ -400,7 +378,6 @@ export class TableService extends Disposable implements ITableService {
   }
 
   public override dispose(): void {
-    this.flushPendingColumnWidthStorage();
     this.tableModelSelectionListener?.();
     this.tableModelSelectionListener = null;
     this.selectionTableModel = null;
@@ -456,6 +433,10 @@ export class TableService extends Disposable implements ITableService {
     this.getActiveTableModel()?.clearHighlight();
   }
 
+  public clearSelection(): boolean {
+    return this.getActiveTableModel()?.clearSelection() ?? false;
+  }
+
   public select(
     target: TableSelectionTarget | null,
     reveal?: TableRevealMode,
@@ -503,36 +484,8 @@ export class TableService extends Disposable implements ITableService {
     return this.revealTarget(tableModel, target);
   }
 
-  public executeCommand(commandId: TableCommandId): boolean {
-    const tableModel = this.getActiveTableModel();
-    if (!tableModel) {
-      return false;
-    }
-
-    switch (commandId) {
-      case TableCommandId.clearSelection:
-        return tableModel.clearSelection();
-      case TableCommandId.resetZoom:
-        return tableModel.resetZoom();
-      case TableCommandId.selectAllColumns:
-        return tableModel.selectAllColumns();
-      case TableCommandId.zoomIn:
-        return tableModel.zoomIn();
-      case TableCommandId.zoomOut:
-        return tableModel.zoomOut();
-    }
-
-    return false;
-  }
-
-  public setColumnWidth(target: TableColumnWidthTarget): boolean {
-    const tableModel = this.getActiveTableModel();
-    if (!tableModel || !tableModel.setColumnWidth(target)) {
-      return false;
-    }
-
-    this.scheduleStoreColumnWidths(tableModel);
-    return true;
+  public selectAllColumns(): boolean {
+    return this.getActiveTableModel()?.selectAllColumns() ?? false;
   }
 
   public updateViewInput(input: TableViewInput): void {
@@ -543,74 +496,6 @@ export class TableService extends Disposable implements ITableService {
     this.viewInput = input;
     this.bindActiveTableModel(input.tableModel);
     this.onDidChangeTableViewInputEmitter.fire(undefined);
-  }
-
-  private restoreColumnWidths(source: TableSource | null | undefined): readonly TableColumnWidth[] {
-    const storageKey = this.getColumnLayoutStorageKey(source);
-    if (!storageKey) {
-      return [];
-    }
-
-    const stored = this.storageService?.getObject<StoredTableColumnLayout>(
-      storageKey,
-      StorageScope.WORKSPACE,
-    );
-    return stored ? toTableColumnWidths(stored) : [];
-  }
-
-  private storeColumnWidths(tableModel: TableModel): void {
-    const storageKey = this.getColumnLayoutStorageKey(tableModel.getState().source);
-    if (!storageKey || !this.storageService) {
-      return;
-    }
-
-    const widths = tableModel.getColumnWidths();
-    if (!widths.length) {
-      this.storageService.remove(storageKey, StorageScope.WORKSPACE);
-      return;
-    }
-
-    this.storageService.store(
-      storageKey,
-      toStoredTableColumnLayout(widths),
-      StorageScope.WORKSPACE,
-      StorageTarget.USER,
-    );
-  }
-
-  private scheduleStoreColumnWidths(tableModel: TableModel): void {
-    if (!this.storageService || !this.getColumnLayoutStorageKey(tableModel.getState().source)) {
-      return;
-    }
-
-    this.pendingColumnWidthStorageModel = tableModel;
-    if (this.pendingColumnWidthStorageTimeout !== null) {
-      clearTimeout(this.pendingColumnWidthStorageTimeout);
-    }
-
-    this.pendingColumnWidthStorageTimeout = setTimeout(() => {
-      this.pendingColumnWidthStorageTimeout = null;
-      this.flushPendingColumnWidthStorage();
-    }, TABLE_COLUMN_LAYOUT_STORAGE_DEBOUNCE_MS);
-  }
-
-  private flushPendingColumnWidthStorage(): void {
-    if (this.pendingColumnWidthStorageTimeout !== null) {
-      clearTimeout(this.pendingColumnWidthStorageTimeout);
-      this.pendingColumnWidthStorageTimeout = null;
-    }
-
-    const tableModel = this.pendingColumnWidthStorageModel;
-    this.pendingColumnWidthStorageModel = null;
-    if (tableModel) {
-      this.storeColumnWidths(tableModel);
-    }
-  }
-
-  private getColumnLayoutStorageKey(source: TableSource | null | undefined): string | null {
-    return source
-      ? `${TABLE_COLUMN_LAYOUT_STORAGE_KEY_PREFIX}${toTableSourceKey(source)}`
-      : null;
   }
 
   private getActiveTableModel(): TableModel | null {
@@ -665,7 +550,6 @@ const isSameTableState = (
   current.sourceKey === next.sourceKey &&
   current.fileName === next.fileName &&
   current.dimensions === next.dimensions &&
-  current.zoomPercent === next.zoomPercent &&
   isSameTableSource(current.source, next.source) &&
   areNullableTableFilesEqual(current.file, next.file) &&
   areTableLoadStatesEqual(current.loadState, next.loadState);

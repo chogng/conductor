@@ -1,13 +1,13 @@
-import { DisposableStore, isDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
-import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
-import { registerSingletonServiceDescriptors } from "src/cs/platform/instantiation/common/extensions";
+import { DisposableStore, isDisposable, type IDisposable } from "../../../base/common/lifecycle.js";
+import { SyncDescriptor } from "./descriptors.js";
+import { registerSingletonServiceDescriptors } from "./extensions.js";
 import {
   IInstantiationService,
   type ServiceIdentifier,
   type ServicesAccessor,
   _util,
-} from "src/cs/platform/instantiation/common/instantiation";
-import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";
+} from "./instantiation.js";
+import { ServiceCollection } from "./serviceCollection.js";
 
 export class InstantiationService implements IInstantiationService, IDisposable {
   public declare readonly _serviceBrand: undefined;

@@ -16,9 +16,59 @@ import {
   resolveTableGridKeyboardTarget,
   resolveTableGridViewportRange,
   resizeTableGridColumnWidth,
-} from "src/cs/workbench/contrib/table/browser/tableGridModel";
+  TableWidgetColumnLayout,
+  toStoredTableWidgetColumnLayout,
+  toTableWidgetColumnWidths,
+} from "src/cs/workbench/contrib/table/browser/tableWidget";
 
-suite("workbench/contrib/table/browser/tableGridModel", () => {
+suite("workbench/contrib/table/browser/tableWidget grid model", () => {
+  test("defines widget column width bounds", () => {
+    assert.equal(TableWidgetColumnLayout.defaultWidth, 160);
+    assert.equal(TableWidgetColumnLayout.minWidth, 0);
+    assert.equal(TableWidgetColumnLayout.maxWidth, 640);
+  });
+
+  test("clamps and rounds widget column widths", () => {
+    assert.equal(TableWidgetColumnLayout.clampWidth(-20), 0);
+    assert.equal(TableWidgetColumnLayout.clampWidth(20), 20);
+    assert.equal(TableWidgetColumnLayout.clampWidth(20.4), 20);
+    assert.equal(TableWidgetColumnLayout.clampWidth(20.5), 21);
+    assert.equal(TableWidgetColumnLayout.clampWidth(900), 640);
+  });
+
+  test("normalizes non-finite widget column widths", () => {
+    assert.equal(TableWidgetColumnLayout.clampWidth(Number.NaN), 0);
+    assert.equal(TableWidgetColumnLayout.clampWidth(Number.POSITIVE_INFINITY), 640);
+    assert.equal(TableWidgetColumnLayout.clampWidth(Number.NEGATIVE_INFINITY), 0);
+  });
+
+  test("serializes widget column width storage", () => {
+    assert.deepEqual(toStoredTableWidgetColumnLayout([
+      { colIndex: 2, width: 243.6 },
+      { colIndex: 1, width: -12 },
+    ]), {
+      version: 1,
+      widths: {
+        "1": 0,
+        "2": 244,
+      },
+    });
+  });
+
+  test("restores widget column widths from storage", () => {
+    assert.deepEqual(toTableWidgetColumnWidths({
+      version: 1,
+      widths: {
+        "2": 243.6,
+        invalid: 120,
+        "1": -12,
+      },
+    }), [
+      { colIndex: 1, width: 0 },
+      { colIndex: 2, width: 244 },
+    ]);
+  });
+
   test("resolves bounded render ranges", () => {
     assert.deepEqual(resolveTableGridRange({
       totalCount: 500,

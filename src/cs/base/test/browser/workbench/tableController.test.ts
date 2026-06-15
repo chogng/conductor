@@ -5,25 +5,26 @@
 import assert from "assert";
 
 import {
-	TableView,
-	type TableViewProps,
-	type TableViewModel,
-} from "src/cs/workbench/contrib/table/browser/tableView";
+	TableController,
+	type TableControllerModel,
+	type TableControllerProps,
+} from "src/cs/workbench/contrib/table/browser/tableController";
 import type {
-	TableHighlight,
 	TableSelection,
 	TableState,
 } from "src/cs/workbench/services/table/common/table";
 
-suite("workbench/contrib/table/browser/tableView", () => {
+type TableHighlight = ReturnType<TableControllerModel["getHighlight"]>;
+
+suite("workbench/contrib/table/browser/tableController", () => {
 	test("layouts without rebuilding table DOM", async () => {
-		const view = new TableView(createTableViewProps());
-		document.body.append(view.element);
+		const controller = new TableController(createTableControllerProps());
+		document.body.append(controller.element);
 
 		try {
-			const content = view.element.querySelector<HTMLElement>(".table_view_content");
-			const table = view.element.querySelector<HTMLTableElement>(".table_view_grid");
-			const cell = view.element.querySelector<HTMLTableCellElement>(".table_view_cell");
+			const content = controller.element.querySelector<HTMLElement>(".table_view_content");
+			const table = controller.element.querySelector<HTMLTableElement>(".table_view_grid");
+			const cell = controller.element.querySelector<HTMLTableCellElement>(".table_view_cell");
 			assert.ok(content);
 			assert.ok(table);
 			assert.ok(cell);
@@ -32,35 +33,35 @@ suite("workbench/contrib/table/browser/tableView", () => {
 			const observer = new MutationObserver((mutations) => {
 				records.push(...mutations);
 			});
-			observer.observe(view.element, {
+			observer.observe(controller.element, {
 				childList: true,
 				subtree: true,
 			});
 
-			view.layout();
+			controller.layout();
 			await timeout(120);
 			observer.disconnect();
 
 			assert.deepEqual(records, []);
 			assert.equal(
-				view.element.querySelector(".table_view_content"),
+				controller.element.querySelector(".table_view_content"),
 				content,
 			);
 			assert.equal(
-				view.element.querySelector(".table_view_grid"),
+				controller.element.querySelector(".table_view_grid"),
 				table,
 			);
 			assert.equal(
-				view.element.querySelector(".table_view_cell"),
+				controller.element.querySelector(".table_view_cell"),
 				cell,
 			);
 		} finally {
-			view.dispose();
+			controller.dispose();
 		}
 	});
 });
 
-function createTableViewProps(): TableViewProps {
+function createTableControllerProps(): TableControllerProps {
 	const tableModel = createTableModel();
 	const tableState = createTableState();
 
@@ -68,10 +69,8 @@ function createTableViewProps(): TableViewProps {
 		tableModel,
 		tableService: {
 			select: () => true,
-			setColumnWidth: () => false,
 		},
 		tableState,
-		zoomPercent: tableState.zoomPercent,
 	};
 }
 
@@ -93,14 +92,12 @@ function createTableState(): TableState {
 		},
 		selectedFileId: "file-a",
 		sourceKey: "file-a:1",
-		zoomPercent: 100,
 	};
 }
 
-function createTableModel(): TableViewModel {
+function createTableModel(): TableControllerModel {
 	return {
 		ensureRows: async () => undefined,
-		getColumnWidth: () => null,
 		getHighlight: (): TableHighlight => ({}),
 		getRow: rowIndex => [
 			`A${rowIndex + 1}`,

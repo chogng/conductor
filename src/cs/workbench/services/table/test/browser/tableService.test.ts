@@ -2,12 +2,10 @@ import assert from "assert";
 
 import type {
   TableRowsReaderProvider,
-  TableFile,
-  TableLoadState,
   TableModel,
   TableSelection,
+  TableState,
 } from "src/cs/workbench/services/table/common/table";
-import { TableCommandId } from "src/cs/workbench/services/table/common/table";
 import {
   createTableModelWithScope,
   TableService,
@@ -15,11 +13,10 @@ import {
 import {
   areTableSelectionsEqual,
   normalizeTableSelection,
-} from "src/cs/workbench/services/table/common/selection";
-import {
-  StorageScope,
-} from "src/cs/platform/storage/common/storage";
-import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
+} from "src/cs/workbench/services/table/browser/tableModel";
+
+type TableFile = NonNullable<TableState["file"]>;
+type TableLoadState = TableState["loadState"];
 
 suite("workbench/services/table/browser/tableService", () => {
   test("loads imported preview using the raw source key", async () => {
@@ -186,29 +183,6 @@ suite("workbench/services/table/browser/tableService", () => {
     });
   });
 
-  test("owns table zoom command state", () => {
-    const model = createTableModelWithScope({
-      tableRowsReaderService: createTableRowsReaderService({
-        canOpenSource: () => false,
-      }),
-    });
-    let stateChangeCount = 0;
-    model.onDidChangeState(() => {
-      stateChangeCount += 1;
-    });
-
-    assert.equal(model.getState().zoomPercent, 100);
-    assert.equal(model.zoomIn(), true);
-    assert.equal(model.getState().zoomPercent, 110);
-    assert.equal(model.resetZoom(), true);
-    assert.equal(model.getState().zoomPercent, 100);
-    assert.equal(model.setZoomPercent(999), true);
-    assert.equal(model.getState().zoomPercent, 200);
-    assert.equal(model.zoomIn(), false);
-    assert.equal(model.getState().zoomPercent, 200);
-    assert.equal(stateChangeCount, 3);
-  });
-
   test("selects all columns through table model command state", () => {
     const model = createTableModelWithScope({
       tableRowsReaderService: createTableRowsReaderService({
@@ -271,87 +245,6 @@ suite("workbench/services/table/browser/tableService", () => {
     assert.equal(changeCount, 1);
     disposable.dispose();
     service.dispose();
-  });
-
-  test("persists column widths by table source", () => {
-    const storageService = new TestStorageService();
-    const service = new TableService(
-      createTableRowsReaderService() as never,
-      storageService as never,
-    );
-    const rawFiles = [
-      {
-        file: {},
-        fileId: "file-a",
-        fileName: "Raw A.csv",
-      },
-      {
-        file: {},
-        fileId: "file-b",
-        fileName: "Raw B.csv",
-      },
-    ];
-
-    const firstModel = service.update({
-      rawFiles,
-      source: { fileId: "file-a" },
-    });
-    assert.equal(firstModel.getColumnWidth(2), null);
-    assert.equal(service.setColumnWidth({ colIndex: 2, width: 243.6 }), true);
-    assert.equal(firstModel.getColumnWidth(2), 244);
-    assert.equal(service.setColumnWidth({ colIndex: 1, width: -12 }), true);
-    assert.equal(firstModel.getColumnWidth(1), 0);
-
-    const restoredModel = service.update({
-      rawFiles,
-      source: { fileId: "file-a" },
-    });
-    assert.equal(restoredModel.getColumnWidth(1), 0);
-    assert.equal(restoredModel.getColumnWidth(2), 244);
-
-    const otherModel = service.update({
-      rawFiles,
-      source: { fileId: "file-b" },
-    });
-    assert.equal(otherModel.getColumnWidth(2), null);
-
-    service.dispose();
-    storageService.dispose();
-  });
-
-  test("coalesces column width storage writes", () => {
-    const storageService = new TestStorageService();
-    const service = new TableService(
-      createTableRowsReaderService() as never,
-      storageService as never,
-    );
-    const rawFiles = [{
-      file: {},
-      fileId: "file-a",
-      fileName: "Raw A.csv",
-    }];
-
-    const model = service.update({
-      rawFiles,
-      source: { fileId: "file-a" },
-    });
-    assert.equal(service.setColumnWidth({ colIndex: 2, width: 120 }), true);
-    assert.equal(service.setColumnWidth({ colIndex: 2, width: 121 }), true);
-    assert.equal(service.setColumnWidth({ colIndex: 3, width: 140 }), true);
-    assert.equal(model.getColumnWidth(2), 121);
-    assert.equal(model.getColumnWidth(3), 140);
-    assert.equal(storageService.writeCount, 0);
-
-    const restoredModel = service.update({
-      rawFiles,
-      source: { fileId: "file-a" },
-    });
-    assert.equal(storageService.writeCount, 1);
-    assert.equal(restoredModel.getColumnWidth(2), 121);
-    assert.equal(restoredModel.getColumnWidth(3), 140);
-
-    service.dispose();
-    storageService.dispose();
   });
 
   test("returns TSV text for selected table ranges", async () => {
@@ -528,9 +421,9 @@ suite("workbench/services/table/browser/tableService", () => {
     assert.equal(model.getState().loadState.state, "loading");
   });
 
-  test("executes table commands through the service active model", () => {
+  test("runs table owner operations through the service active model", () => {
     const service = createTableService();
-    assert.equal(service.executeCommand(TableCommandId.zoomIn), false);
+    assert.equal(service.selectAllColumns(), false);
 
     const model = createReadyTableModel({
       file: {
@@ -550,9 +443,7 @@ suite("workbench/services/table/browser/tableService", () => {
     });
     service.updateViewInput(createTableViewInput(model));
 
-    assert.equal(service.executeCommand(TableCommandId.zoomIn), true);
-    assert.equal(model.getState().zoomPercent, 110);
-    assert.equal(service.executeCommand(TableCommandId.selectAllColumns), true);
+    assert.equal(service.selectAllColumns(), true);
     assert.deepEqual(model.getSelection().selectedColumns, [0, 1]);
     service.dispose();
   });
@@ -870,7 +761,6 @@ suite("workbench/services/table/browser/tableService", () => {
     service.dispose();
 
     assert.equal(service.getViewInput(), null);
-    assert.equal(service.executeCommand(TableCommandId.zoomIn), false);
     assert.equal(changeCount, 2);
   });
 });
@@ -893,11 +783,9 @@ const createTableRowsReaderService = (
 
 const createTableService = (
   tableRowsReaderService: TableRowsReaderProvider = createTableRowsReaderService(),
-  storageService: TestStorageService = new TestStorageService(),
 ): TableService =>
   new TableService(
     tableRowsReaderService as never,
-    storageService as never,
   );
 
 type CreateTableModelOptions = Parameters<typeof createTableModelWithScope>[0];
@@ -943,7 +831,6 @@ const createTextTableModel = ({
     selectedFileId: "file-a",
     source: { fileId: "file-a" },
     sourceKey: "source-key-a",
-    zoomPercent: 100,
   };
   const model: TableModel = {
     cancelPendingRowRequests: () => undefined,
@@ -955,8 +842,6 @@ const createTextTableModel = ({
     ensureRows: async (fileId, startRow, endRow) => {
       ensureRowsCalls.push([fileId, startRow, endRow]);
     },
-    getColumnWidth: () => null,
-    getColumnWidths: () => [],
     getHighlight: () => ({}),
     getRevealCell: () => null,
     getRow: rowIndex => rows[rowIndex] ?? null,
@@ -971,51 +856,13 @@ const createTextTableModel = ({
     onDidChangeRevealCell: () => noopDisposable,
     onDidChangeState: () => noopDisposable,
     resetWorker: () => undefined,
-    resetZoom: () => false,
     revealCell: () => undefined,
     selectAllColumns: () => false,
-    setColumnWidth: () => false,
     setSelection: () => undefined,
-    setZoomPercent: () => false,
     subscribeRowsVersion: () => noopDisposable,
-    zoomIn: () => false,
-    zoomOut: () => false,
   };
 
   return { ensureRowsCalls, model };
 };
 
 const noopDisposable = (): void => undefined;
-
-class TestStorageService extends AbstractStorageService {
-  public writeCount = 0;
-  private readonly values = new Map<string, string>();
-
-  protected readValue(key: string, scope: StorageScope): string | undefined {
-    return this.values.get(this.getKey(scope, key));
-  }
-
-  protected writeValue(key: string, scope: StorageScope, value: string): void {
-    this.writeCount += 1;
-    this.values.set(this.getKey(scope, key), value);
-  }
-
-  protected deleteValue(key: string, scope: StorageScope): void {
-    this.values.delete(this.getKey(scope, key));
-  }
-
-  protected readKeys(scope: StorageScope): string[] {
-    const prefix = `${scope}:`;
-    const keys: string[] = [];
-    for (const key of this.values.keys()) {
-      if (key.startsWith(prefix)) {
-        keys.push(key.slice(prefix.length));
-      }
-    }
-    return keys;
-  }
-
-  private getKey(scope: StorageScope, key: string): string {
-    return `${scope}:${key}`;
-  }
-}

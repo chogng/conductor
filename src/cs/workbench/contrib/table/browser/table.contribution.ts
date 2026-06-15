@@ -22,7 +22,7 @@ import {
 import {
   TableContributionId,
   TableViewId,
-} from "src/cs/workbench/services/table/common/table";
+} from "src/cs/workbench/contrib/table/common/table";
 import TableViewPane from "src/cs/workbench/contrib/table/browser/tableViewPane";
 import { registerTableCommands } from "src/cs/workbench/contrib/table/browser/tableCommands";
 

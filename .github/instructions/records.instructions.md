@@ -502,7 +502,7 @@ Owner: `TableService`. Not session canonical data.
 | `rowCount` | `number` | Current source row count. |
 | `columnCount` | `number` | Current source column count. |
 | `loadState` | `TableLoadState` | Idle/loading/ready/error state. |
-| `selection` | `TableSelection` | Active cell/ranges. |
+| `selection` | `TableSelection` | Snapshot mirrored from the active table widget for commands and copy workflows. |
 | `highlight` | `TableHighlight` | Temporary ranges/columns highlighted by search/assessment. |
 | `revealCell` | `TableCell | null` | Cell requested for scroll/reveal. |
 | `rowsVersion` | `number` | Increments when visible row cache changes. |
@@ -519,7 +519,9 @@ Owner: `TableService`. Not session canonical data.
 
 ### `TableSelection`
 
-Owner: `TableService`. Service-local state, not session canonical data.
+Owner: active `TableWidget` for interaction. `TableService` stores a service-local
+snapshot for commands, copy workflows, and external reveal/select paths. Not
+session canonical data.
 
 | Field | Type | Meaning |
 | --- | --- | --- |

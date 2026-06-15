@@ -8,48 +8,518 @@ import type {
   SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import {
-  TABLE_DEFAULT_ZOOM_PERCENT,
-  TABLE_MAX_ZOOM_PERCENT,
-  TABLE_MIN_ZOOM_PERCENT,
-  TABLE_ZOOM_STEP_PERCENT,
-  type TableCell,
-  type TableCellReadRequest,
-  type TableColumnWidth,
-  type TableColumnWidthTarget,
-  type TableFile,
-  type TableHighlight,
   type TableInput,
-  type TableLoadState,
   type TableModel,
-  type TableSelection,
-  type TableSource,
-  type TableState,
   toTableSourceKey,
 } from "src/cs/workbench/services/table/common/table";
-import { TableColumnLayout } from "src/cs/workbench/services/table/common/tableColumnLayout";
-import {
-  areTableSelectionsEqual,
-  normalizeColumnIndexes,
-  normalizeTableCell,
-  normalizeTableSelection,
-} from "src/cs/workbench/services/table/common/selection";
-import {
-  collectMissingChunkRanges,
-  clearChunkRows,
-  hasChunkRowsInCache,
-  isTableRowBatchResultForRequest,
-  mergeChunkRangeRows,
-  sanitizeTableRowBatch,
-  TABLE_MAX_CACHED_FILES,
-  TABLE_MAX_CACHED_UI_ROWS_PER_FILE,
-  TABLE_UI_CHUNK_SIZE_ROWS,
-  createTableRowCacheVersion,
-} from "src/cs/workbench/services/table/browser/tableRowCache";
-import {
-  buildTableCellReadRequests,
-  rowsFromTableCellReads,
-} from "src/cs/workbench/services/table/browser/tableCellRead";
 import { loadConvertedCsvFile } from "src/cs/workbench/services/files/browser/fileConverter";
+
+// TableModel owns the service data plane: source switching, worker lifecycle,
+// row paging, cache state, and the command-visible selection/highlight/reveal
+// snapshot. The pure cache/cell-read helpers live here so callers do not depend
+// on small implementation files beside the model owner.
+
+type TableCellReadRequest = Parameters<TableModel["ensureCells"]>[1][number];
+type TableState = ReturnType<TableModel["getState"]>;
+type TableCell = NonNullable<ReturnType<TableModel["getRevealCell"]>>;
+type TableSelection = ReturnType<TableModel["getSelection"]>;
+type TableRange = NonNullable<TableSelection["ranges"]>[number];
+type TableSource = NonNullable<TableState["source"]>;
+type TableFile = NonNullable<TableState["file"]>;
+type TableHighlight = ReturnType<TableModel["getHighlight"]>;
+type TableLoadState = TableState["loadState"];
+
+export const TABLE_UI_CHUNK_SIZE_ROWS = 50;
+export const TABLE_MAX_CACHED_UI_ROWS_PER_FILE = 5000;
+export const TABLE_MAX_CACHED_FILES = 20;
+
+type TableRowCache = Map<number, unknown[]>;
+type TableLoadedChunks = Set<number>;
+
+type TableCellReadResult = TableCellReadRequest & {
+  value?: unknown;
+};
+
+export type MissingTableRowChunkRange = {
+  readonly rangeStart: number;
+  readonly rangeEnd: number;
+  readonly chunkStarts: readonly number[];
+};
+
+export type MergeTableChunkRangeResult = {
+  readonly complete: boolean;
+  readonly mergedChunkStarts: readonly number[];
+};
+
+const toSafeInt = (value: unknown, fallback = 0): number => {
+  const n = Math.floor(Number(value));
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const toSafeIndex = (value: unknown): number | null => {
+  const index = Math.floor(Number(value));
+  return Number.isInteger(index) && index >= 0 ? index : null;
+};
+
+export const normalizeTableCell = (cell: TableCell | null | undefined): TableCell | null => {
+  if (!cell) return null;
+  const rowIndex = Math.floor(Number(cell.rowIndex));
+  const colIndex = Math.floor(Number(cell.colIndex));
+  if (!Number.isInteger(rowIndex) || rowIndex < 0) return null;
+  if (!Number.isInteger(colIndex) || colIndex < 0) return null;
+
+  return {
+    fileId: typeof cell.fileId === "string" ? cell.fileId : null,
+    sheetId: typeof cell.sheetId === "string" ? cell.sheetId : null,
+    rowIndex,
+    colIndex,
+  };
+};
+
+export const normalizeColumnIndexes = (columnIndexes: readonly number[] | undefined): number[] =>
+  Array.from(new Set(
+    (Array.isArray(columnIndexes) ? columnIndexes : [])
+      .map((columnIndex) => Math.floor(Number(columnIndex)))
+      .filter((columnIndex) => Number.isInteger(columnIndex) && columnIndex >= 0),
+  )).sort((a, b) => a - b);
+
+export const normalizeTableSelection = (
+  selection: TableSelection | null | undefined,
+): TableSelection => ({
+  activeCell: normalizeTableCell(selection?.activeCell),
+  selectedColumns: normalizeColumnIndexes(selection?.selectedColumns),
+  ranges: Array.isArray(selection?.ranges)
+    ? selection.ranges
+      .map((range): TableRange | null => {
+        const startRow = Math.floor(Number(range.startRow));
+        const endRow = Math.floor(Number(range.endRow));
+        const startCol = Math.floor(Number(range.startCol));
+        const endCol = Math.floor(Number(range.endCol));
+        if (
+          !Number.isInteger(startRow) ||
+          !Number.isInteger(endRow) ||
+          !Number.isInteger(startCol) ||
+          !Number.isInteger(endCol)
+        ) {
+          return null;
+        }
+
+        return {
+          fileId: typeof range.fileId === "string" ? range.fileId : null,
+          sheetId: typeof range.sheetId === "string" ? range.sheetId : null,
+          startRow: Math.max(0, Math.min(startRow, endRow)),
+          endRow: Math.max(0, Math.max(startRow, endRow)),
+          startCol: Math.max(0, Math.min(startCol, endCol)),
+          endCol: Math.max(0, Math.max(startCol, endCol)),
+        };
+      })
+      .filter((range): range is TableRange => Boolean(range))
+    : [],
+});
+
+const areTableCellsEqual = (
+  first: TableCell | null | undefined,
+  second: TableCell | null | undefined,
+): boolean => {
+  if (!first || !second) {
+    return !first && !second;
+  }
+
+  return first.fileId === second.fileId &&
+    first.sheetId === second.sheetId &&
+    first.rowIndex === second.rowIndex &&
+    first.colIndex === second.colIndex;
+};
+
+const areColumnIndexesEqual = (
+  first: readonly number[] | undefined,
+  second: readonly number[] | undefined,
+): boolean => {
+  const left = first ?? [];
+  const right = second ?? [];
+  return left.length === right.length &&
+    left.every((value, index) => value === right[index]);
+};
+
+const areTableRangesEqual = (
+  first: readonly TableRange[] | undefined,
+  second: readonly TableRange[] | undefined,
+): boolean => {
+  const left = first ?? [];
+  const right = second ?? [];
+  return left.length === right.length &&
+    left.every((range, index) => {
+      const next = right[index];
+      if (!next) {
+        return false;
+      }
+
+      return range.fileId === next.fileId &&
+        range.sheetId === next.sheetId &&
+        range.startRow === next.startRow &&
+        range.endRow === next.endRow &&
+        range.startCol === next.startCol &&
+        range.endCol === next.endCol;
+    });
+};
+
+export const areTableSelectionsEqual = (
+  first: TableSelection,
+  second: TableSelection,
+): boolean =>
+  areTableCellsEqual(first.activeCell, second.activeCell) &&
+  areColumnIndexesEqual(first.selectedColumns, second.selectedColumns) &&
+  areTableRangesEqual(first.ranges, second.ranges);
+
+export const sanitizeTableRowBatch = (rows: unknown): unknown[][] => {
+  if (!Array.isArray(rows)) return [];
+  return rows.map(row => Array.isArray(row) ? row : []);
+};
+
+export const isTableRowBatchResultForRequest = ({
+  requestFileId,
+  requestStartRow,
+  payloadFileId,
+  payloadStartRow,
+}: {
+  readonly requestFileId: unknown;
+  readonly requestStartRow: unknown;
+  readonly payloadFileId: unknown;
+  readonly payloadStartRow: unknown;
+}): boolean => {
+  const expectedFileId =
+    typeof requestFileId === "string" ? requestFileId : String(requestFileId || "");
+  const actualFileId =
+    typeof payloadFileId === "string" ? payloadFileId : String(payloadFileId || "");
+  const expectedStart = Math.max(0, toSafeInt(requestStartRow, 0));
+  const actualStart = Math.max(0, toSafeInt(payloadStartRow, 0));
+  return expectedFileId === actualFileId && expectedStart === actualStart;
+};
+
+export const hasChunkRowsInCache = (
+  rowCache: ReadonlyMap<number, unknown[]> | null | undefined,
+  chunkStart: unknown,
+  chunkEnd: unknown,
+): boolean => {
+  if (!rowCache) return false;
+
+  const start = Math.max(0, toSafeInt(chunkStart, 0));
+  const end = Math.max(start, toSafeInt(chunkEnd, start));
+  for (let rowIndex = start; rowIndex < end; rowIndex += 1) {
+    if (!rowCache.has(rowIndex)) return false;
+  }
+  return true;
+};
+
+export const clearChunkRows = (
+  rowCache: TableRowCache | null | undefined,
+  chunkStart: unknown,
+  chunkEnd: unknown,
+): void => {
+  if (!rowCache) return;
+
+  const start = Math.max(0, toSafeInt(chunkStart, 0));
+  const end = Math.max(start, toSafeInt(chunkEnd, start));
+  for (let rowIndex = start; rowIndex < end; rowIndex += 1) {
+    rowCache.delete(rowIndex);
+  }
+};
+
+export const collectMissingChunkRanges = ({
+  rowCache,
+  pendingChunks,
+  startRow,
+  endRow,
+  chunkSize,
+  maxRangeRows,
+}: {
+  readonly rowCache: ReadonlyMap<number, unknown[]> | null | undefined;
+  readonly pendingChunks?: ReadonlySet<number> | null;
+  readonly startRow: unknown;
+  readonly endRow: unknown;
+  readonly chunkSize: unknown;
+  readonly maxRangeRows?: unknown;
+}): MissingTableRowChunkRange[] => {
+  const safeChunkSize = Math.max(1, toSafeInt(chunkSize, 1));
+  const start = Math.max(0, toSafeInt(startRow, 0));
+  const end = Math.max(start, toSafeInt(endRow, start));
+  const safeMaxRangeRows = Number.isFinite(Number(maxRangeRows))
+    ? Math.max(safeChunkSize, toSafeInt(maxRangeRows, safeChunkSize))
+    : Number.POSITIVE_INFINITY;
+  const pendingSet = pendingChunks ?? new Set<number>();
+
+  const ranges: MissingTableRowChunkRange[] = [];
+  let currentRange: {
+    rangeStart: number;
+    rangeEnd: number;
+    chunkStarts: number[];
+  } | null = null;
+
+  const flushRange = (): void => {
+    if (!currentRange || !currentRange.chunkStarts.length) return;
+    ranges.push(currentRange);
+    currentRange = null;
+  };
+
+  const firstChunkStart = Math.floor(start / safeChunkSize) * safeChunkSize;
+  const lastChunkStart =
+    end > start
+      ? Math.floor((end - 1) / safeChunkSize) * safeChunkSize
+      : firstChunkStart;
+
+  for (
+    let chunkStart = firstChunkStart;
+    chunkStart <= lastChunkStart;
+    chunkStart += safeChunkSize
+  ) {
+    const chunkEnd = Math.min(end, chunkStart + safeChunkSize);
+    const isLoaded = hasChunkRowsInCache(rowCache, chunkStart, chunkEnd);
+    const isPending = pendingSet.has(chunkStart);
+    if (isLoaded || isPending) {
+      flushRange();
+      continue;
+    }
+
+    if (!currentRange) {
+      currentRange = {
+        rangeStart: chunkStart,
+        rangeEnd: chunkEnd,
+        chunkStarts: [chunkStart],
+      };
+      continue;
+    }
+
+    const nextRangeEnd = Math.max(currentRange.rangeEnd, chunkEnd);
+    const nextRangeSize = Math.max(0, nextRangeEnd - currentRange.rangeStart);
+    if (nextRangeSize > safeMaxRangeRows) {
+      flushRange();
+      currentRange = {
+        rangeStart: chunkStart,
+        rangeEnd: chunkEnd,
+        chunkStarts: [chunkStart],
+      };
+      continue;
+    }
+
+    currentRange.rangeEnd = nextRangeEnd;
+    currentRange.chunkStarts.push(chunkStart);
+  }
+
+  flushRange();
+  return ranges;
+};
+
+export const mergeChunkRows = ({
+  rowCache,
+  loadedChunks,
+  chunkStart,
+  chunkEnd,
+  rows,
+  chunkSize,
+  maxChunks,
+}: {
+  readonly rowCache: TableRowCache;
+  readonly loadedChunks: TableLoadedChunks;
+  readonly chunkStart: unknown;
+  readonly chunkEnd: unknown;
+  readonly rows: unknown;
+  readonly chunkSize: unknown;
+  readonly maxChunks: unknown;
+}): boolean => {
+  const start = Math.max(0, toSafeInt(chunkStart, 0));
+  const end = Math.max(start, toSafeInt(chunkEnd, start));
+  const safeChunkSize = Math.max(1, toSafeInt(chunkSize, 1));
+  const safeMaxChunks = Math.max(1, toSafeInt(maxChunks, 1));
+  const safeRows = sanitizeTableRowBatch(rows);
+  const expectedRows = Math.max(0, end - start);
+
+  if (safeRows.length !== expectedRows) {
+    clearChunkRows(rowCache, start, end);
+    loadedChunks.delete(start);
+    return false;
+  }
+
+  for (let index = 0; index < safeRows.length; index += 1) {
+    rowCache.set(start + index, safeRows[index]);
+  }
+
+  loadedChunks.delete(start);
+  loadedChunks.add(start);
+
+  while (loadedChunks.size > safeMaxChunks) {
+    const evictChunkStart = Number(loadedChunks.values().next().value);
+    if (!Number.isFinite(evictChunkStart)) break;
+    loadedChunks.delete(evictChunkStart);
+    clearChunkRows(rowCache, evictChunkStart, evictChunkStart + safeChunkSize);
+  }
+
+  return true;
+};
+
+export const mergeChunkRangeRows = ({
+  rowCache,
+  loadedChunks,
+  rangeStart,
+  rangeEnd,
+  rows,
+  chunkSize,
+  maxChunks,
+}: {
+  readonly rowCache: TableRowCache;
+  readonly loadedChunks: TableLoadedChunks;
+  readonly rangeStart: unknown;
+  readonly rangeEnd: unknown;
+  readonly rows: unknown;
+  readonly chunkSize: unknown;
+  readonly maxChunks: unknown;
+}): MergeTableChunkRangeResult => {
+  const safeChunkSize = Math.max(1, toSafeInt(chunkSize, 1));
+  const start = Math.max(0, toSafeInt(rangeStart, 0));
+  const end = Math.max(start, toSafeInt(rangeEnd, start));
+  const safeRows = sanitizeTableRowBatch(rows);
+  const expectedRows = Math.max(0, end - start);
+
+  if (safeRows.length !== expectedRows) {
+    return {
+      complete: false,
+      mergedChunkStarts: [],
+    };
+  }
+
+  const mergedChunkStarts: number[] = [];
+  for (let chunkStart = start; chunkStart < end; chunkStart += safeChunkSize) {
+    const chunkEnd = Math.min(end, chunkStart + safeChunkSize);
+    const sliceStart = Math.max(0, chunkStart - start);
+    const sliceEnd = Math.max(sliceStart, chunkEnd - start);
+    const merged = mergeChunkRows({
+      rowCache,
+      loadedChunks,
+      chunkStart,
+      chunkEnd,
+      rows: safeRows.slice(sliceStart, sliceEnd),
+      chunkSize: safeChunkSize,
+      maxChunks,
+    });
+    if (!merged) {
+      return {
+        complete: false,
+        mergedChunkStarts,
+      };
+    }
+    mergedChunkStarts.push(chunkStart);
+  }
+
+  return {
+    complete: true,
+    mergedChunkStarts,
+  };
+};
+
+export const createTableRowCacheVersion = () => {
+  let rowsVersion = 0;
+  let rowsNotifyRaf = 0;
+  const rowsSubscribers = new Set<() => void>();
+
+  const getRowsVersion = () => rowsVersion;
+
+  const subscribeRowsVersion = (callback: () => void) => {
+    rowsSubscribers.add(callback);
+    return () => rowsSubscribers.delete(callback);
+  };
+
+  const cancelRowsVersionNotification = () => {
+    if (typeof window === "undefined") return;
+    if (!rowsNotifyRaf) return;
+
+    cancelAnimationFrame(rowsNotifyRaf);
+    rowsNotifyRaf = 0;
+  };
+
+  const notifyRowsVersion = () => {
+    if (typeof window === "undefined") return;
+    if (rowsNotifyRaf) return;
+
+    rowsNotifyRaf = requestAnimationFrame(() => {
+      rowsNotifyRaf = 0;
+      rowsVersion += 1;
+
+      for (const callback of Array.from(rowsSubscribers)) {
+        try {
+          callback();
+        } catch {
+          // A broken listener must not prevent the row cache from advancing.
+        }
+      }
+    });
+  };
+
+  return {
+    cancelRowsVersionNotification,
+    getRowsVersion,
+    notifyRowsVersion,
+    subscribeRowsVersion,
+  };
+};
+
+export const buildTableCellReadRequests = ({
+  columnCount,
+  maxCells = 5000,
+  rowIndices,
+}: {
+  readonly columnCount: number;
+  readonly maxCells?: number;
+  readonly rowIndices: Iterable<unknown>;
+}): TableCellReadRequest[] => {
+  const safeColumnCount = Math.floor(Number(columnCount));
+  if (!Number.isInteger(safeColumnCount) || safeColumnCount <= 0) return [];
+
+  const rows = Array.from(rowIndices)
+    .map(toSafeIndex)
+    .filter((rowIndex): rowIndex is number => rowIndex !== null);
+  const uniqueRows = Array.from(new Set(rows)).sort((a, b) => a - b);
+  const safeMaxCells = Math.max(1, Math.floor(Number(maxCells) || 1));
+  if (uniqueRows.length * safeColumnCount > safeMaxCells) return [];
+
+  const cells: TableCellReadRequest[] = [];
+  for (const rowIndex of uniqueRows) {
+    for (let colIndex = 0; colIndex < safeColumnCount; colIndex += 1) {
+      cells.push({ colIndex, rowIndex });
+    }
+  }
+  return cells;
+};
+
+export const rowsFromTableCellReads = ({
+  cells,
+  columnCount,
+}: {
+  readonly cells: unknown;
+  readonly columnCount: number;
+}): Map<number, unknown[]> => {
+  const safeColumnCount = Math.floor(Number(columnCount));
+  const rows = new Map<number, unknown[]>();
+  if (!Array.isArray(cells) || safeColumnCount <= 0) return rows;
+
+  for (const rawCell of cells) {
+    if (!rawCell || typeof rawCell !== "object") continue;
+    const cell = rawCell as TableCellReadResult;
+    const rowIndex = toSafeIndex(cell.rowIndex);
+    const colIndex = toSafeIndex(cell.colIndex);
+    if (rowIndex === null || colIndex === null || colIndex >= safeColumnCount) {
+      continue;
+    }
+
+    let row = rows.get(rowIndex);
+    if (!row) {
+      row = Array.from({ length: safeColumnCount }, () => "");
+      rows.set(rowIndex, row);
+    }
+    row[colIndex] = cell.value ?? "";
+  }
+
+  return rows;
+};
+
 type SetStateAction<T> = T | ((previous: T) => T);
 type Dispatch<T> = (value: T) => void;
 
@@ -338,7 +808,6 @@ type WorkerMessage =
   | { type?: string; payload?: Record<string, unknown> | null };
 
 export type CreateTableModelWithScopeOptions = TableInput & {
-  columnWidths?: readonly TableColumnWidth[];
   file?: TableFile | null;
   loadState?: TableLoadState;
   setFile?: Dispatch<SetStateAction<TableFile | null>>;
@@ -367,73 +836,6 @@ export const areTableLoadStatesEqual = (
 ): boolean =>
   current.state === next.state &&
   current.message === next.message;
-const clampTableZoomPercent = (value: number): number =>
-  Math.min(
-    TABLE_MAX_ZOOM_PERCENT,
-    Math.max(TABLE_MIN_ZOOM_PERCENT, Math.floor(Number(value) || 0)),
-  );
-export const normalizeTableColumnWidthIndex = (value: unknown): number | null => {
-  const index = Math.floor(Number(value));
-  return Number.isInteger(index) && index >= 0 ? index : null;
-};
-export const normalizeTableColumnWidth = (value: unknown): number =>
-  TableColumnLayout.clampWidth(Number(value));
-const createTableColumnWidthMap = (
-  widths: readonly TableColumnWidth[] | undefined,
-): Map<number, number> => {
-  const result = new Map<number, number>();
-  if (!Array.isArray(widths)) {
-    return result;
-  }
-
-  for (const entry of widths) {
-    const colIndex = normalizeTableColumnWidthIndex(entry?.colIndex);
-    if (colIndex === null) {
-      continue;
-    }
-    result.set(colIndex, normalizeTableColumnWidth(entry.width));
-  }
-
-  return result;
-};
-export const toStoredTableColumnLayout = (
-  widths: readonly TableColumnWidth[],
-): StoredTableColumnLayout => {
-  const storedWidths: Record<string, number> = {};
-  for (const width of widths) {
-    const colIndex = normalizeTableColumnWidthIndex(width.colIndex);
-    if (colIndex === null) {
-      continue;
-    }
-    storedWidths[String(colIndex)] = normalizeTableColumnWidth(width.width);
-  }
-
-  return {
-    version: TABLE_COLUMN_LAYOUT_STORAGE_VERSION,
-    widths: storedWidths,
-  };
-};
-export const toTableColumnWidths = (
-  stored: StoredTableColumnLayout,
-): readonly TableColumnWidth[] => {
-  if (!stored || stored.version !== TABLE_COLUMN_LAYOUT_STORAGE_VERSION || !stored.widths) {
-    return [];
-  }
-
-  const result: TableColumnWidth[] = [];
-  for (const [colIndexKey, width] of Object.entries(stored.widths)) {
-    const colIndex = normalizeTableColumnWidthIndex(colIndexKey);
-    if (colIndex === null) {
-      continue;
-    }
-    result.push({
-      colIndex,
-      width: normalizeTableColumnWidth(width),
-    });
-  }
-
-  return result.sort((left, right) => left.colIndex - right.colIndex);
-};
 const resolveStateAction = <T,>(value: SetStateAction<T>, previous: T): T =>
   typeof value === "function"
     ? (value as (previous: T) => T)(previous)
@@ -449,15 +851,6 @@ const PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS = Math.max(
   TABLE_UI_CHUNK_SIZE_ROWS * 8,
   400,
 );
-export const TABLE_COLUMN_LAYOUT_STORAGE_KEY_PREFIX = "table.columnLayout.";
-const TABLE_COLUMN_LAYOUT_STORAGE_VERSION = 1;
-export const TABLE_COLUMN_LAYOUT_STORAGE_DEBOUNCE_MS = 120;
-
-export type StoredTableColumnLayout = {
-  readonly version?: number;
-  readonly widths?: Record<string, unknown>;
-};
-
 type TableCopyPlan = {
   readonly columnIndexes: readonly number[];
   readonly endRow: number;
@@ -466,7 +859,6 @@ type TableCopyPlan = {
 };
 
 const createTableModel = ({
-  columnWidths = [],
   tableRowsReaderService,
   rawFiles = [],
   source = null,
@@ -526,8 +918,6 @@ const createTableModel = ({
   );
   const highlightRef = createTableRef<TableHighlight>({});
   const revealCellRef = createTableRef<TableCell | null>(null);
-  const zoomPercentRef = createTableRef(TABLE_DEFAULT_ZOOM_PERCENT);
-  const columnWidthsRef = createTableRef(createTableColumnWidthMap(columnWidths));
   const selectionSubscribersRef = createTableRef(new Set<(selection: TableSelection) => void>());
   const highlightSubscribersRef = createTableRef(new Set<(highlight: TableHighlight) => void>());
   const revealCellSubscribersRef = createTableRef(new Set<(cell: TableCell | null) => void>());
@@ -661,10 +1051,6 @@ const createTableModel = ({
   runEffect(() => {
     activeSourceKeyRef.current = activeSourceKey;
   }, [activeSourceKey]);
-
-  runEffect(() => {
-    columnWidthsRef.current = createTableColumnWidthMap(columnWidths);
-  }, [activeSourceSignature]);
 
   runEffect(() => {
     let changed = false;
@@ -1807,74 +2193,6 @@ const createTableModel = ({
     [previewFileRef, selectedSource, selectionRef, setSelection],
   );
 
-  const setZoomPercent = memoCallback(
-    (zoomPercent: number): boolean => {
-      const nextZoomPercent = clampTableZoomPercent(zoomPercent);
-      if (nextZoomPercent === zoomPercentRef.current) {
-        return false;
-      }
-
-      zoomPercentRef.current = nextZoomPercent;
-      notifyStateChanged();
-      return true;
-    },
-    [notifyStateChanged, zoomPercentRef],
-  );
-
-  const zoomIn = memoCallback(
-    (): boolean => setZoomPercent(zoomPercentRef.current + TABLE_ZOOM_STEP_PERCENT),
-    [setZoomPercent, zoomPercentRef],
-  );
-
-  const zoomOut = memoCallback(
-    (): boolean => setZoomPercent(zoomPercentRef.current - TABLE_ZOOM_STEP_PERCENT),
-    [setZoomPercent, zoomPercentRef],
-  );
-
-  const resetZoom = memoCallback(
-    (): boolean => setZoomPercent(TABLE_DEFAULT_ZOOM_PERCENT),
-    [setZoomPercent],
-  );
-
-  const getColumnWidth = memoCallback(
-    (colIndex: number): number | null => {
-      const safeColIndex = normalizeTableColumnWidthIndex(colIndex);
-      return safeColIndex === null
-        ? null
-        : columnWidthsRef.current.get(safeColIndex) ?? null;
-    },
-    [columnWidthsRef],
-  );
-
-  const getColumnWidths = memoCallback(
-    (): readonly TableColumnWidth[] =>
-      Array.from(columnWidthsRef.current.entries())
-        .sort(([left], [right]) => left - right)
-        .map(([colIndex, width]) => ({ colIndex, width })),
-    [columnWidthsRef],
-  );
-
-  const setColumnWidth = memoCallback(
-    (target: TableColumnWidthTarget): boolean => {
-      const colIndex = normalizeTableColumnWidthIndex(target?.colIndex);
-      if (colIndex === null) {
-        return false;
-      }
-
-      const width = normalizeTableColumnWidth(target.width);
-      const current = columnWidthsRef.current.get(colIndex) ?? TableColumnLayout.defaultWidth;
-      if (current === width) {
-        return false;
-      }
-
-      columnWidthsRef.current = new Map(columnWidthsRef.current);
-      columnWidthsRef.current.set(colIndex, width);
-      notifyStateChanged();
-      return true;
-    },
-    [columnWidthsRef, notifyStateChanged],
-  );
-
   const getHighlight = memoCallback(
     (): TableHighlight => highlightRef.current,
     [highlightRef],
@@ -1946,7 +2264,6 @@ const createTableModel = ({
         selectedSheetId: activeSheetId ?? null,
         source: selectedSource?.source ?? null,
         sourceKey: activeSourceKey,
-        zoomPercent: zoomPercentRef.current,
       };
     },
     [
@@ -1957,7 +2274,6 @@ const createTableModel = ({
       activeSourceKey,
       selectedSource,
       sourcesByFileIdRef,
-      zoomPercentRef,
     ],
   );
 
@@ -1975,8 +2291,6 @@ const createTableModel = ({
     disposeFileCache: disposePreviewFileCache,
     ensureCells: ensureTableCells,
     ensureRows: ensureTableRows,
-    getColumnWidth,
-    getColumnWidths,
     getHighlight,
     getRow: getTableRow,
     getRowsVersion,
@@ -1990,16 +2304,11 @@ const createTableModel = ({
     onDidChangeState,
     onDidChangeSelection,
     revealCell,
-    resetZoom,
     resetWorker: resetPreviewWorker,
     selectAllColumns,
-    setColumnWidth,
     setSelection,
-    setZoomPercent,
     highlightColumns,
     subscribeRowsVersion,
-    zoomIn,
-    zoomOut,
   };
 };
 

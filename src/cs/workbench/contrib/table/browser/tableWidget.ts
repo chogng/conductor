@@ -1,30 +1,710 @@
 import { addDisposableListener, EventType, isEditableElement } from "src/cs/base/browser/dom";
+import { Emitter } from "src/cs/base/common/event";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
+import {
+  StorageScope,
+  StorageTarget,
+  type IStorageService,
+} from "src/cs/platform/storage/common/storage";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { createEmptyView } from "src/cs/workbench/contrib/table/browser/emptyView";
-import * as TableGridModel from "./tableGridModel";
-import { TableColumnLayout } from "src/cs/workbench/services/table/common/tableColumnLayout";
-import type {
-  ITableService,
-  TableCell,
-  TableModel,
-  TableRange,
-  TableSelection,
-  TableState,
-} from "src/cs/workbench/services/table/common/table";
+import type { TableModel } from "src/cs/workbench/services/table/common/table";
 
-export type TableViewProps = {
-  readonly tableModel: TableViewModel;
-  readonly tableService: Pick<ITableService, "select" | "setColumnWidth">;
-  readonly tableState: TableState;
+const TABLE_WIDGET_COLUMN_DEFAULT_WIDTH = 160;
+const TABLE_WIDGET_COLUMN_MIN_WIDTH = 0;
+const TABLE_WIDGET_COLUMN_MAX_WIDTH = 640;
+const TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_KEY_PREFIX = "table.columnLayout.";
+const TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_VERSION = 1;
+const TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_DEBOUNCE_MS = 120;
+export const TABLE_WIDGET_DEFAULT_ZOOM_PERCENT = 100;
+export const TABLE_WIDGET_MIN_ZOOM_PERCENT = 50;
+export const TABLE_WIDGET_MAX_ZOOM_PERCENT = 200;
+export const TABLE_WIDGET_ZOOM_STEP_PERCENT = 10;
+
+export const TableWidgetColumnLayout = {
+  defaultWidth: TABLE_WIDGET_COLUMN_DEFAULT_WIDTH,
+  minWidth: TABLE_WIDGET_COLUMN_MIN_WIDTH,
+  maxWidth: TABLE_WIDGET_COLUMN_MAX_WIDTH,
+  clampWidth: (width: number): number =>
+    Math.min(
+      TABLE_WIDGET_COLUMN_MAX_WIDTH,
+      Math.max(TABLE_WIDGET_COLUMN_MIN_WIDTH, Math.round(Number(width) || 0)),
+    ),
+} as const;
+
+export type TableWidgetColumnWidth = {
+  readonly colIndex: number;
+  readonly width: number;
+};
+
+export type TableWidgetColumnWidthTarget = TableWidgetColumnWidth;
+
+export type TableWidgetRevealMode = boolean | "force";
+
+const clampTableWidgetZoomPercent = (zoomPercent: number): number =>
+  Math.min(
+    TABLE_WIDGET_MAX_ZOOM_PERCENT,
+    Math.max(TABLE_WIDGET_MIN_ZOOM_PERCENT, Math.floor(Number(zoomPercent) || 0)),
+  );
+
+export type StoredTableWidgetColumnLayout = {
+  readonly version?: number;
+  readonly widths?: Record<string, unknown>;
+};
+
+export const toStoredTableWidgetColumnLayout = (
+  widths: readonly TableWidgetColumnWidth[],
+): StoredTableWidgetColumnLayout => {
+  const storedWidths: Record<string, number> = {};
+  for (const width of widths) {
+    const colIndex = normalizeWidgetColumnIndex(width.colIndex);
+    if (colIndex === null) {
+      continue;
+    }
+    storedWidths[String(colIndex)] = TableWidgetColumnLayout.clampWidth(width.width);
+  }
+
+  return {
+    version: TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_VERSION,
+    widths: storedWidths,
+  };
+};
+
+export const toTableWidgetColumnWidths = (
+  stored: StoredTableWidgetColumnLayout,
+): readonly TableWidgetColumnWidth[] => {
+  if (!stored || stored.version !== TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_VERSION || !stored.widths) {
+    return [];
+  }
+
+  const result: TableWidgetColumnWidth[] = [];
+  for (const [colIndexKey, width] of Object.entries(stored.widths)) {
+    const colIndex = normalizeWidgetColumnIndex(colIndexKey);
+    if (colIndex === null) {
+      continue;
+    }
+    result.push({
+      colIndex,
+      width: TableWidgetColumnLayout.clampWidth(Number(width)),
+    });
+  }
+
+  return result.sort((left, right) => left.colIndex - right.colIndex);
+};
+
+export namespace TableGridModel {
+export type TableGridRange = {
+  readonly totalCount: number;
+  readonly startIndex: number;
+  readonly endIndex: number;
+  readonly renderedCount: number;
+};
+
+export type ResolveTableGridRangeOptions = {
+  readonly maxRenderedCount: number;
+  readonly startIndex?: number;
+  readonly totalCount: unknown;
+};
+
+export type ResolveTableGridViewportRangeOptions = {
+  readonly maxRenderedCount: number;
+  readonly overscanCount?: number;
+  readonly rowHeight: number;
+  readonly scrollTop: unknown;
+  readonly totalCount: unknown;
+  readonly viewportHeight: unknown;
+};
+
+export type TableGridColumnRange = TableGridRange & {
+  readonly leadingWidth: number;
+  readonly renderedWidth: number;
+  readonly totalWidth: number;
+  readonly trailingWidth: number;
+};
+
+export type ResolveTableGridColumnViewportRangeOptions = {
+  readonly getColumnWidth: (colIndex: number) => number;
+  readonly maxRenderedCount: number;
+  readonly overscanCount?: number;
+  readonly scrollLeft: unknown;
+  readonly totalCount: unknown;
+  readonly viewportWidth: unknown;
   readonly zoomPercent: number;
 };
 
-export type TableViewModel = Pick<
+export type ResolveTableGridColumnResizeTargetOptions = {
+  readonly button: unknown;
+  readonly clientX: unknown;
+  readonly columnRange: Pick<TableGridColumnRange, "leadingWidth" | "renderedCount" | "startIndex">;
+  readonly containerLeft: unknown;
+  readonly getColumnWidth: (colIndex: number) => number;
+  readonly hitSlop?: number;
+  readonly scrollLeft: unknown;
+  readonly zoomPercent: number;
+};
+
+export type ResolveTableGridColumnResizeGuideOptions = {
+  readonly colIndex?: number | null;
+  readonly columnRange: Pick<TableGridColumnRange, "leadingWidth" | "renderedCount" | "startIndex">;
+  readonly getColumnWidth: (colIndex: number) => number;
+  readonly scrollLeft: unknown;
+  readonly visible?: boolean;
+  readonly zoomPercent: number;
+};
+
+export type ResolveTableGridColumnResizeDragGuideOptions = {
+  readonly startGuideLeft: unknown;
+  readonly startWidth: unknown;
+  readonly visible?: boolean;
+  readonly width: unknown;
+  readonly zoomPercent: number;
+};
+
+export type TableGridSpacerHeights = {
+  readonly topHeight: number;
+  readonly bottomHeight: number;
+};
+
+export type TableGridCellPosition = {
+  readonly rowIndex: number;
+  readonly colIndex: number;
+};
+
+export type ResolveTableGridKeyboardTargetOptions = {
+  readonly columnCount: unknown;
+  readonly currentCell?: TableGridCellPosition | null;
+  readonly key: string;
+  readonly pageRowCount?: number;
+  readonly rowCount: unknown;
+  readonly toBoundary?: boolean;
+};
+
+export type TableGridCellRange = {
+  readonly endCol: number;
+  readonly endRow: number;
+  readonly startCol: number;
+  readonly startRow: number;
+};
+
+export const TABLE_GRID_MAX_RENDERED_ROWS = 80;
+export const TABLE_GRID_MAX_RENDERED_COLUMNS = 24;
+export const TABLE_GRID_DEFAULT_ROW_HEADER_WIDTH = 48;
+export const TABLE_GRID_DEFAULT_ROW_HEIGHT = 28;
+export const TABLE_GRID_COLUMN_OVERSCAN_COLUMNS = 2;
+export const TABLE_GRID_OVERSCAN_ROWS = 8;
+
+export const resolveTableGridRange = ({
+  maxRenderedCount,
+  startIndex = 0,
+  totalCount,
+}: ResolveTableGridRangeOptions): TableGridRange => {
+  const safeTotalCount = toSafeCount(totalCount);
+  const safeMaxRenderedCount = toSafeCount(maxRenderedCount);
+  if (safeTotalCount === 0 || safeMaxRenderedCount === 0) {
+    return {
+      totalCount: safeTotalCount,
+      startIndex: 0,
+      endIndex: 0,
+      renderedCount: 0,
+    };
+  }
+
+  const safeStartIndex = Math.min(
+    Math.max(0, toSafeIndex(startIndex)),
+    safeTotalCount - 1,
+  );
+  const endIndex = Math.min(safeTotalCount, safeStartIndex + safeMaxRenderedCount);
+
+  return {
+    totalCount: safeTotalCount,
+    startIndex: safeStartIndex,
+    endIndex,
+    renderedCount: endIndex - safeStartIndex,
+  };
+};
+
+export const resolveTableGridViewportRange = ({
+  maxRenderedCount,
+  overscanCount = TABLE_GRID_OVERSCAN_ROWS,
+  rowHeight,
+  scrollTop,
+  totalCount,
+  viewportHeight,
+}: ResolveTableGridViewportRangeOptions): TableGridRange => {
+  const safeTotalCount = toSafeCount(totalCount);
+  const safeMaxRenderedCount = toSafeCount(maxRenderedCount);
+  if (safeTotalCount === 0 || safeMaxRenderedCount === 0) {
+    return resolveTableGridRange({
+      totalCount: safeTotalCount,
+      maxRenderedCount: safeMaxRenderedCount,
+    });
+  }
+
+  const safeRowHeight = Math.max(1, Number(rowHeight) || TABLE_GRID_DEFAULT_ROW_HEIGHT);
+  const firstVisibleIndex = Math.floor(Math.max(0, Number(scrollTop) || 0) / safeRowHeight);
+  const safeViewportHeight = Math.max(0, Number(viewportHeight) || 0);
+  if (safeViewportHeight <= 0) {
+    return resolveTableGridRange({
+      totalCount: safeTotalCount,
+      startIndex: firstVisibleIndex,
+      maxRenderedCount: safeMaxRenderedCount,
+    });
+  }
+
+  const safeOverscanCount = Math.max(0, toSafeCount(overscanCount));
+  const visibleCount = Math.max(1, Math.ceil(safeViewportHeight / safeRowHeight));
+  const renderedCount = Math.min(
+    safeMaxRenderedCount,
+    visibleCount + (safeOverscanCount * 2),
+  );
+  const startIndex = Math.max(0, firstVisibleIndex - safeOverscanCount);
+  const maxStartIndex = Math.max(0, safeTotalCount - renderedCount);
+
+  return resolveTableGridRange({
+    totalCount: safeTotalCount,
+    startIndex: Math.min(startIndex, maxStartIndex),
+    maxRenderedCount: renderedCount,
+  });
+};
+
+export const resolveTableGridColumnViewportRange = ({
+  getColumnWidth,
+  maxRenderedCount,
+  overscanCount = TABLE_GRID_COLUMN_OVERSCAN_COLUMNS,
+  scrollLeft,
+  totalCount,
+  viewportWidth,
+  zoomPercent,
+}: ResolveTableGridColumnViewportRangeOptions): TableGridColumnRange => {
+  const safeTotalCount = toSafeCount(totalCount);
+  const safeMaxRenderedCount = toSafeCount(maxRenderedCount);
+  if (safeTotalCount === 0 || safeMaxRenderedCount === 0) {
+    return toColumnRange(resolveTableGridRange({
+      totalCount: safeTotalCount,
+      maxRenderedCount: safeMaxRenderedCount,
+    }), 0, 0, 0);
+  }
+
+  const scale = getTableGridZoomScale(zoomPercent);
+  const widths = getScaledColumnWidths(safeTotalCount, getColumnWidth, scale);
+  const offsets = getPrefixSums(widths);
+  const totalWidth = offsets[offsets.length - 1] ?? 0;
+  const safeScrollLeft = Math.max(0, Number(scrollLeft) || 0);
+  const safeViewportWidth = Math.max(0, Number(viewportWidth) || 0);
+  const firstVisibleIndex = findColumnIndexAtOffset(widths, offsets, safeScrollLeft);
+  const visibleEndIndex = findColumnEndIndexAtOffset(
+    offsets,
+    safeScrollLeft + safeViewportWidth,
+  );
+  const safeOverscanCount = Math.max(0, toSafeCount(overscanCount));
+  const startIndex = Math.max(0, firstVisibleIndex - safeOverscanCount);
+  const endIndex = Math.min(
+    safeTotalCount,
+    Math.max(startIndex + 1, visibleEndIndex + safeOverscanCount),
+    startIndex + safeMaxRenderedCount,
+  );
+
+  return toColumnRange({
+    totalCount: safeTotalCount,
+    startIndex,
+    endIndex,
+    renderedCount: endIndex - startIndex,
+  }, offsets[startIndex] ?? 0, offsets[endIndex] ?? 0, totalWidth);
+};
+
+export const getTableGridSpacerHeights = (
+  range: TableGridRange,
+  rowHeight: number,
+): TableGridSpacerHeights => {
+  const safeRowHeight = Math.max(1, Number(rowHeight) || TABLE_GRID_DEFAULT_ROW_HEIGHT);
+  return {
+    topHeight: range.startIndex * safeRowHeight,
+    bottomHeight: Math.max(0, range.totalCount - range.endIndex) * safeRowHeight,
+  };
+};
+
+export const resolveTableGridKeyboardTarget = ({
+  columnCount,
+  currentCell,
+  key,
+  pageRowCount = 1,
+  rowCount,
+  toBoundary = false,
+}: ResolveTableGridKeyboardTargetOptions): TableGridCellPosition | null => {
+  const safeRowCount = toSafeCount(rowCount);
+  const safeColumnCount = toSafeCount(columnCount);
+  if (safeRowCount === 0 || safeColumnCount === 0) {
+    return null;
+  }
+
+  const current = normalizeCellPosition(currentCell, safeRowCount, safeColumnCount);
+  const maxRow = safeRowCount - 1;
+  const maxCol = safeColumnCount - 1;
+  const pageRows = Math.max(1, toSafeCount(pageRowCount));
+
+  switch (key) {
+    case "ArrowUp":
+      return {
+        rowIndex: toBoundary ? 0 : Math.max(0, current.rowIndex - 1),
+        colIndex: current.colIndex,
+      };
+    case "ArrowDown":
+      return {
+        rowIndex: toBoundary ? maxRow : Math.min(maxRow, current.rowIndex + 1),
+        colIndex: current.colIndex,
+      };
+    case "ArrowLeft":
+      return {
+        rowIndex: current.rowIndex,
+        colIndex: toBoundary ? 0 : Math.max(0, current.colIndex - 1),
+      };
+    case "ArrowRight":
+      return {
+        rowIndex: current.rowIndex,
+        colIndex: toBoundary ? maxCol : Math.min(maxCol, current.colIndex + 1),
+      };
+    case "PageUp":
+      return {
+        rowIndex: Math.max(0, current.rowIndex - pageRows),
+        colIndex: current.colIndex,
+      };
+    case "PageDown":
+      return {
+        rowIndex: Math.min(maxRow, current.rowIndex + pageRows),
+        colIndex: current.colIndex,
+      };
+    case "Home":
+      return {
+        rowIndex: toBoundary ? 0 : current.rowIndex,
+        colIndex: 0,
+      };
+    case "End":
+      return {
+        rowIndex: toBoundary ? maxRow : current.rowIndex,
+        colIndex: maxCol,
+      };
+  }
+
+  return null;
+};
+
+export const resolveTableGridCellRange = (
+  anchor: TableGridCellPosition,
+  target: TableGridCellPosition,
+): TableGridCellRange => {
+  const anchorRow = Math.max(0, toSafeIndex(anchor?.rowIndex));
+  const anchorCol = Math.max(0, toSafeIndex(anchor?.colIndex));
+  const targetRow = Math.max(0, toSafeIndex(target?.rowIndex));
+  const targetCol = Math.max(0, toSafeIndex(target?.colIndex));
+
+  return {
+    endCol: Math.max(anchorCol, targetCol),
+    endRow: Math.max(anchorRow, targetRow),
+    startCol: Math.min(anchorCol, targetCol),
+    startRow: Math.min(anchorRow, targetRow),
+  };
+};
+
+export const getTableGridColumnLabel = (index: number): string => {
+  let value = Math.max(0, toSafeIndex(index)) + 1;
+  let label = "";
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    label = String.fromCharCode(65 + remainder) + label;
+    value = Math.floor((value - 1) / 26);
+  }
+  return label;
+};
+
+export const getTableGridRowLabel = (rowIndex: number): string =>
+  String(Math.max(0, toSafeIndex(rowIndex)) + 1);
+
+export const formatTableGridCell = (value: unknown): string => {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  return String(value);
+};
+
+export const range = (count: number): number[] => {
+  const safeCount = toSafeCount(count);
+  const result: number[] = [];
+  for (let index = 0; index < safeCount; index += 1) {
+    result.push(index);
+  }
+  return result;
+};
+
+export const resizeTableGridColumnWidth = (
+  startWidth: number,
+  deltaPixels: number,
+  zoomPercent: number,
+): number =>
+  TableWidgetColumnLayout.clampWidth(
+    startWidth + (deltaPixels / getTableGridZoomScale(zoomPercent)),
+  );
+
+export const resolveTableGridColumnResizeTarget = ({
+  button,
+  clientX,
+  columnRange,
+  containerLeft,
+  getColumnWidth,
+  hitSlop = 10,
+  scrollLeft,
+  zoomPercent,
+}: ResolveTableGridColumnResizeTargetOptions): number | null => {
+  if (Math.floor(Number(button)) !== 0) {
+    return null;
+  }
+
+  const startIndex = toSafeIndex(columnRange.startIndex);
+  const renderedCount = toSafeCount(columnRange.renderedCount);
+  const safeClientX = Number(clientX);
+  const safeContainerLeft = Number(containerLeft);
+  if (startIndex < 0 ||
+    renderedCount === 0 ||
+    !Number.isFinite(safeClientX) ||
+    !Number.isFinite(safeContainerLeft)) {
+    return null;
+  }
+
+  const pointerLeft = safeClientX - safeContainerLeft;
+  const safeHitSlop = Math.max(0, Number(hitSlop) || 0);
+  let closestColIndex: number | null = null;
+  let closestDistance = Number.POSITIVE_INFINITY;
+  for (let colIndex = startIndex; colIndex < startIndex + renderedCount; colIndex += 1) {
+    const boundaryLeft = resolveTableGridColumnBoundaryLeft({
+      colIndex,
+      columnRange,
+      getColumnWidth,
+      scrollLeft,
+      zoomPercent,
+    });
+    if (boundaryLeft === null) {
+      continue;
+    }
+
+    const distance = Math.abs(pointerLeft - boundaryLeft);
+    const tied = Math.abs(distance - closestDistance) < 0.001;
+    if (
+      distance <= safeHitSlop &&
+      (
+        distance < closestDistance ||
+        (tied && (closestColIndex === null || colIndex > closestColIndex))
+      )
+    ) {
+      closestColIndex = colIndex;
+      closestDistance = distance;
+    }
+  }
+
+  return closestColIndex;
+};
+
+export const resolveTableGridColumnResizeGuideLeft = ({
+  colIndex,
+  columnRange,
+  getColumnWidth,
+  scrollLeft,
+  visible = true,
+  zoomPercent,
+}: ResolveTableGridColumnResizeGuideOptions): number | null => {
+  if (!visible) {
+    return null;
+  }
+
+  return resolveTableGridColumnBoundaryLeft({
+    colIndex,
+    columnRange,
+    getColumnWidth,
+    scrollLeft,
+    zoomPercent,
+  });
+};
+
+export const resolveTableGridColumnResizeDragGuideLeft = ({
+  startGuideLeft,
+  startWidth,
+  visible = true,
+  width,
+  zoomPercent,
+}: ResolveTableGridColumnResizeDragGuideOptions): number | null => {
+  if (!visible) {
+    return null;
+  }
+
+  const safeStartGuideLeft = Number(startGuideLeft);
+  if (!Number.isFinite(safeStartGuideLeft)) {
+    return null;
+  }
+
+  const scale = getTableGridZoomScale(zoomPercent);
+  const clampedStartWidth = TableWidgetColumnLayout.clampWidth(Number(startWidth));
+  const clampedWidth = TableWidgetColumnLayout.clampWidth(Number(width));
+  return safeStartGuideLeft + ((clampedWidth - clampedStartWidth) * scale);
+};
+
+const resolveTableGridColumnBoundaryLeft = ({
+  colIndex,
+  columnRange,
+  getColumnWidth,
+  scrollLeft,
+  zoomPercent,
+}: Omit<ResolveTableGridColumnResizeGuideOptions, "visible">): number | null => {
+  if (colIndex === null || colIndex === undefined) {
+    return null;
+  }
+
+  const safeColIndex = toSafeIndex(colIndex);
+  const startIndex = toSafeIndex(columnRange.startIndex);
+  const renderedCount = toSafeCount(columnRange.renderedCount);
+  if (
+    startIndex < 0 ||
+    safeColIndex < startIndex ||
+    renderedCount === 0 ||
+    safeColIndex >= startIndex + renderedCount
+  ) {
+    return null;
+  }
+
+  const scale = getTableGridZoomScale(zoomPercent);
+  let boundaryOffset = Math.max(0, Number(columnRange.leadingWidth) || 0);
+  for (let index = startIndex; index <= safeColIndex; index += 1) {
+    boundaryOffset += TableWidgetColumnLayout.clampWidth(getColumnWidth(index)) * scale;
+  }
+
+  return getTableGridRowHeaderWidth(zoomPercent) +
+    boundaryOffset -
+    Math.max(0, Number(scrollLeft) || 0);
+};
+
+export const getTableGridZoomScale = (zoomPercent: number): number =>
+  Math.max(0.25, Number(zoomPercent) / 100 || 1);
+
+export const getTableGridRowHeaderWidth = (zoomPercent: number): number =>
+  TABLE_GRID_DEFAULT_ROW_HEADER_WIDTH * getTableGridZoomScale(zoomPercent);
+
+export const getTableGridRowHeight = (zoomPercent: number): number =>
+  TABLE_GRID_DEFAULT_ROW_HEIGHT * getTableGridZoomScale(zoomPercent);
+
+const toSafeCount = (value: unknown): number => {
+  const count = Math.floor(Number(value));
+  return Number.isInteger(count) && count > 0 ? count : 0;
+};
+
+const toSafeIndex = (value: unknown): number => {
+  const index = Math.floor(Number(value));
+  return Number.isInteger(index) && index >= 0 ? index : -1;
+};
+
+const normalizeCellPosition = (
+  cell: TableGridCellPosition | null | undefined,
+  rowCount: number,
+  columnCount: number,
+): TableGridCellPosition => ({
+  rowIndex: Math.min(Math.max(0, toSafeIndex(cell?.rowIndex)), rowCount - 1),
+  colIndex: Math.min(Math.max(0, toSafeIndex(cell?.colIndex)), columnCount - 1),
+});
+
+const getScaledColumnWidths = (
+  columnCount: number,
+  getColumnWidth: (colIndex: number) => number,
+  scale: number,
+): number[] => {
+  const widths: number[] = [];
+  for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
+    widths.push(TableWidgetColumnLayout.clampWidth(getColumnWidth(colIndex)) * scale);
+  }
+  return widths;
+};
+
+const getPrefixSums = (values: readonly number[]): number[] => {
+  const offsets = [0];
+  for (const value of values) {
+    offsets.push((offsets[offsets.length - 1] ?? 0) + value);
+  }
+  return offsets;
+};
+
+const findColumnIndexAtOffset = (
+  widths: readonly number[],
+  offsets: readonly number[],
+  offset: number,
+): number => {
+  if (widths.length === 0) {
+    return 0;
+  }
+
+  for (let index = 0; index < widths.length; index += 1) {
+    if ((offsets[index] ?? 0) + widths[index] > offset) {
+      return index;
+    }
+  }
+
+  return widths.length - 1;
+};
+
+const findColumnEndIndexAtOffset = (
+  offsets: readonly number[],
+  offset: number,
+): number => {
+  for (let index = 1; index < offsets.length; index += 1) {
+    if ((offsets[index] ?? 0) >= offset) {
+      return index;
+    }
+  }
+
+  return Math.max(0, offsets.length - 1);
+};
+
+const toColumnRange = (
+  range: TableGridRange,
+  leadingWidth: number,
+  renderedEndWidth: number,
+  totalWidth: number,
+): TableGridColumnRange => ({
+  ...range,
+  leadingWidth,
+  renderedWidth: Math.max(0, renderedEndWidth - leadingWidth),
+  totalWidth,
+  trailingWidth: Math.max(0, totalWidth - renderedEndWidth),
+});
+
+}
+
+export const TABLE_GRID_MAX_RENDERED_ROWS = TableGridModel.TABLE_GRID_MAX_RENDERED_ROWS;
+export const TABLE_GRID_MAX_RENDERED_COLUMNS = TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS;
+export const TABLE_GRID_DEFAULT_ROW_HEADER_WIDTH =
+  TableGridModel.TABLE_GRID_DEFAULT_ROW_HEADER_WIDTH;
+export const TABLE_GRID_DEFAULT_ROW_HEIGHT = TableGridModel.TABLE_GRID_DEFAULT_ROW_HEIGHT;
+export const TABLE_GRID_COLUMN_OVERSCAN_COLUMNS = TableGridModel.TABLE_GRID_COLUMN_OVERSCAN_COLUMNS;
+export const TABLE_GRID_OVERSCAN_ROWS = TableGridModel.TABLE_GRID_OVERSCAN_ROWS;
+export const resolveTableGridRange = TableGridModel.resolveTableGridRange;
+export const resolveTableGridViewportRange = TableGridModel.resolveTableGridViewportRange;
+export const resolveTableGridColumnViewportRange =
+  TableGridModel.resolveTableGridColumnViewportRange;
+export const getTableGridSpacerHeights = TableGridModel.getTableGridSpacerHeights;
+export const resolveTableGridKeyboardTarget = TableGridModel.resolveTableGridKeyboardTarget;
+export const resolveTableGridCellRange = TableGridModel.resolveTableGridCellRange;
+export const getTableGridColumnLabel = TableGridModel.getTableGridColumnLabel;
+export const getTableGridRowLabel = TableGridModel.getTableGridRowLabel;
+export const formatTableGridCell = TableGridModel.formatTableGridCell;
+export const range = TableGridModel.range;
+export const resizeTableGridColumnWidth = TableGridModel.resizeTableGridColumnWidth;
+export const resolveTableGridColumnResizeTarget = TableGridModel.resolveTableGridColumnResizeTarget;
+export const resolveTableGridColumnResizeGuideLeft =
+  TableGridModel.resolveTableGridColumnResizeGuideLeft;
+export const resolveTableGridColumnResizeDragGuideLeft =
+  TableGridModel.resolveTableGridColumnResizeDragGuideLeft;
+export const getTableGridZoomScale = TableGridModel.getTableGridZoomScale;
+export const getTableGridRowHeaderWidth = TableGridModel.getTableGridRowHeaderWidth;
+export const getTableGridRowHeight = TableGridModel.getTableGridRowHeight;
+
+export type TableWidgetModel = Pick<
   TableModel,
   | "ensureRows"
-  | "getColumnWidth"
   | "getHighlight"
   | "getRow"
   | "getRowsVersion"
@@ -36,6 +716,27 @@ export type TableViewModel = Pick<
   | "onDidChangeState"
   | "subscribeRowsVersion"
 >;
+
+type TableState = ReturnType<TableWidgetModel["getState"]>;
+type TableSelection = ReturnType<TableWidgetModel["getSelection"]>;
+type TableCell = NonNullable<TableSelection["activeCell"]>;
+type TableRange = NonNullable<TableSelection["ranges"]>[number];
+
+export type TableWidgetSelectionTarget =
+  | { readonly kind: "cell"; readonly cell: TableCell | null }
+  | { readonly kind: "range"; readonly range: TableRange }
+  | { readonly kind: "columns"; readonly columns: readonly number[] };
+
+export type TableWidgetProps = {
+  readonly onCopySelection?: () => void;
+  readonly onSelect: (
+    target: TableWidgetSelectionTarget | null,
+    reveal?: TableWidgetRevealMode,
+  ) => boolean;
+  readonly storageService?: Pick<IStorageService, "getObject" | "remove" | "store">;
+  readonly tableModel: TableWidgetModel;
+  readonly tableState: TableState;
+};
 
 type BodyCell = {
   readonly element: HTMLTableCellElement;
@@ -77,8 +778,10 @@ type ColumnResizeState = {
   readonly startWidth: number;
 };
 
-export class TableView {
+export class TableWidget {
   public readonly element: HTMLElement;
+  private readonly onDidChangeZoomEmitter = new Emitter<number>();
+  public readonly onDidChangeZoom = this.onDidChangeZoomEmitter.event;
   private readonly store = new DisposableStore();
   private readonly body = document.createElement("div");
   private readonly header = document.createElement("div");
@@ -137,12 +840,16 @@ export class TableView {
   private renderedRowsColumnCount = 0;
   private pendingEnsureRowsKey: string | null = null;
   private appliedCellState: AppliedCellState | null = null;
+  private columnWidthStorageKey: string | null = null;
+  private columnWidths = new Map<number, number>();
+  private pendingColumnWidthStorageTimeout: number | null = null;
   private columnResizeState: ColumnResizeState | null = null;
   private rangeAnchorCell: TableGridModel.TableGridCellPosition | null = null;
   private rangeFocusCell: TableGridModel.TableGridCellPosition | null = null;
-  private props: TableViewProps;
+  private zoomPercent = TABLE_WIDGET_DEFAULT_ZOOM_PERCENT;
+  private props: TableWidgetProps;
 
-  constructor(props: TableViewProps) {
+  constructor(props: TableWidgetProps) {
     this.props = props;
     this.element = document.createElement("div");
     this.element.className = "table_view";
@@ -197,20 +904,26 @@ export class TableView {
     this.store.add(addDisposableListener(this.element, EventType.KEY_DOWN, event => {
       this.onKeyDown(event as KeyboardEvent);
     }));
+    this.store.add(addDisposableListener(this.element, EventType.WHEEL, event => {
+      this.onWheel(event as WheelEvent);
+    }, { passive: false }));
+    this.store.add(this.onDidChangeZoomEmitter);
     this.store.add(this.columnResizeStore);
     this.prepareGrid();
     this.bindTableState(props.tableModel);
-    this.renderedInputKey = getTableViewInputKey(props);
+    this.syncColumnWidthStorageSource();
+    this.renderedInputKey = getTableWidgetInputKey(props);
     this.render();
   }
 
-  public update(props: TableViewProps): void {
+  public update(props: TableWidgetProps): void {
     const previousModel = this.props.tableModel;
-    const nextInputKey = getTableViewInputKey(props);
+    const nextInputKey = getTableWidgetInputKey(props);
     this.props = props;
     if (previousModel !== props.tableModel) {
       this.bindTableState(props.tableModel);
     }
+    this.syncColumnWidthStorageSource();
     if (previousModel === props.tableModel && this.renderedInputKey === nextInputKey) {
       return;
     }
@@ -221,6 +934,7 @@ export class TableView {
 
   public dispose(): void {
     this.clearScheduledLayout();
+    this.flushPendingColumnWidthStorage();
     this.disposeSelectionListener?.();
     this.disposeSelectionListener = null;
     this.disposeHighlightListener?.();
@@ -276,6 +990,209 @@ export class TableView {
     this.element.focus({ preventScroll: true });
   }
 
+  public getSelection(): TableSelection {
+    return this.props.tableModel.getSelection();
+  }
+
+  public select(
+    target: TableWidgetSelectionTarget | null,
+    reveal?: TableWidgetRevealMode,
+  ): boolean {
+    const didSelect = this.props.onSelect(target, reveal);
+    if (!didSelect) {
+      return false;
+    }
+
+    if (!target) {
+      this.rangeAnchorCell = null;
+      this.rangeFocusCell = null;
+      return true;
+    }
+
+    if (target.kind === "cell") {
+      this.rangeAnchorCell = null;
+      this.rangeFocusCell = null;
+      if (reveal && target.cell) {
+        this.revealCell(target.cell);
+      }
+    }
+
+    if (target.kind === "columns") {
+      this.rangeAnchorCell = null;
+      this.rangeFocusCell = null;
+    }
+
+    if (reveal && target.kind === "range") {
+      this.revealCell({
+        colIndex: target.range.endCol,
+        fileId: target.range.fileId ?? null,
+        rowIndex: target.range.endRow,
+        sheetId: target.range.sheetId ?? null,
+      });
+    }
+
+    return true;
+  }
+
+  public clearSelection(): boolean {
+    return this.select(null);
+  }
+
+  public selectAllColumns(): boolean {
+    const tableFile = this.props.tableState.file;
+    if (!tableFile) {
+      return false;
+    }
+
+    const columnCount = Math.max(0, Math.floor(Number(tableFile.columnCount) || 0));
+    if (columnCount === 0) {
+      return false;
+    }
+
+    const selectedColumns: number[] = [];
+    for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
+      selectedColumns.push(colIndex);
+    }
+
+    return this.select({ kind: "columns", columns: selectedColumns });
+  }
+
+  public getZoomPercent(): number {
+    return this.zoomPercent;
+  }
+
+  public resetZoom(): boolean {
+    return this.setZoomPercent(TABLE_WIDGET_DEFAULT_ZOOM_PERCENT);
+  }
+
+  public zoomIn(): boolean {
+    return this.setZoomPercent(this.zoomPercent + TABLE_WIDGET_ZOOM_STEP_PERCENT);
+  }
+
+  public zoomOut(): boolean {
+    return this.setZoomPercent(this.zoomPercent - TABLE_WIDGET_ZOOM_STEP_PERCENT);
+  }
+
+  private setZoomPercent(zoomPercent: number): boolean {
+    const nextZoomPercent = clampTableWidgetZoomPercent(zoomPercent);
+    if (nextZoomPercent === this.zoomPercent) {
+      return false;
+    }
+
+    this.zoomPercent = nextZoomPercent;
+    this.render();
+    this.onDidChangeZoomEmitter.fire(nextZoomPercent);
+    return true;
+  }
+
+  public setColumnWidth(target: TableWidgetColumnWidthTarget): boolean {
+    const colIndex = normalizeWidgetColumnIndex(target?.colIndex);
+    if (colIndex === null) {
+      return false;
+    }
+
+    const width = TableWidgetColumnLayout.clampWidth(Number(target.width));
+    if (this.getColumnWidth(colIndex) === width) {
+      return false;
+    }
+
+    this.columnWidths = new Map(this.columnWidths);
+    if (width === TableWidgetColumnLayout.defaultWidth) {
+      this.columnWidths.delete(colIndex);
+    } else {
+      this.columnWidths.set(colIndex, width);
+    }
+    this.scheduleStoreColumnWidths();
+
+    if (this.isTableVisible()) {
+      this.syncColumnLayout(this.getBodyColumnRange());
+      this.layoutNow();
+    }
+    return true;
+  }
+
+  private syncColumnWidthStorageSource(): void {
+    const storageKey = getTableWidgetColumnLayoutStorageKey(this.props.tableState.sourceKey);
+    if (this.columnWidthStorageKey === storageKey) {
+      return;
+    }
+
+    this.flushPendingColumnWidthStorage();
+    this.columnWidthStorageKey = storageKey;
+    this.columnWidths = this.restoreColumnWidths(storageKey);
+  }
+
+  private restoreColumnWidths(storageKey: string | null): Map<number, number> {
+    if (!storageKey || !this.props.storageService) {
+      return new Map();
+    }
+
+    const stored = this.props.storageService.getObject<StoredTableWidgetColumnLayout>(
+      storageKey,
+      StorageScope.WORKSPACE,
+    );
+    return new Map(
+      toTableWidgetColumnWidths(stored ?? {}).map(width => [width.colIndex, width.width]),
+    );
+  }
+
+  private getColumnWidths(): readonly TableWidgetColumnWidth[] {
+    return Array.from(this.columnWidths.entries())
+      .sort(([left], [right]) => left - right)
+      .map(([colIndex, width]) => ({ colIndex, width }));
+  }
+
+  private scheduleStoreColumnWidths(): void {
+    if (!this.props.storageService || !this.columnWidthStorageKey) {
+      return;
+    }
+
+    const targetWindow = this.element.ownerDocument.defaultView;
+    if (!targetWindow) {
+      this.storeColumnWidths();
+      return;
+    }
+
+    if (this.pendingColumnWidthStorageTimeout !== null) {
+      targetWindow.clearTimeout(this.pendingColumnWidthStorageTimeout);
+    }
+
+    this.pendingColumnWidthStorageTimeout = targetWindow.setTimeout(() => {
+      this.pendingColumnWidthStorageTimeout = null;
+      this.storeColumnWidths();
+    }, TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_DEBOUNCE_MS);
+  }
+
+  private flushPendingColumnWidthStorage(): void {
+    if (this.pendingColumnWidthStorageTimeout === null) {
+      return;
+    }
+
+    const targetWindow = this.element.ownerDocument.defaultView;
+    targetWindow?.clearTimeout(this.pendingColumnWidthStorageTimeout);
+    this.pendingColumnWidthStorageTimeout = null;
+    this.storeColumnWidths();
+  }
+
+  private storeColumnWidths(): void {
+    if (!this.props.storageService || !this.columnWidthStorageKey) {
+      return;
+    }
+
+    const widths = this.getColumnWidths();
+    if (!widths.length) {
+      this.props.storageService.remove(this.columnWidthStorageKey, StorageScope.WORKSPACE);
+      return;
+    }
+
+    this.props.storageService.store(
+      this.columnWidthStorageKey,
+      toStoredTableWidgetColumnLayout(widths),
+      StorageScope.WORKSPACE,
+      StorageTarget.USER,
+    );
+  }
+
   public scrollHorizontally(delta: number): boolean {
     if (!this.isTableVisible()) {
       return false;
@@ -297,7 +1214,7 @@ export class TableView {
     return true;
   }
 
-  private bindTableState(tableModel: TableViewModel): void {
+  private bindTableState(tableModel: TableWidgetModel): void {
     this.disposeSelectionListener?.();
     this.disposeHighlightListener?.();
     this.disposeRevealCellListener?.();
@@ -323,7 +1240,7 @@ export class TableView {
         ...this.props,
         tableState: tableModel.getState(),
       };
-      this.renderedInputKey = getTableViewInputKey(this.props);
+      this.renderedInputKey = getTableWidgetInputKey(this.props);
       this.render();
     });
   }
@@ -365,7 +1282,8 @@ export class TableView {
       this.scrollArea.viewport.replaceChildren();
       this.scrollArea.viewport.append(createEmptyView({
         description: tableState.loadState.state === "loading"
-          ? tableState.loadState.message || localize("table.preview.loadingHint", "Parsing CSV preview, please wait.")
+          ? tableState.loadState.message ||
+            localize("table.preview.loadingHint", "Parsing CSV preview, please wait.")
           : localize("table.preview.emptyHint", "Select a file to preview"),
       }));
       this.syncColumnResizeGuide();
@@ -378,7 +1296,8 @@ export class TableView {
       this.scrollArea.viewport.replaceChildren();
       this.scrollArea.viewport.append(createEmptyView({
         title: localize("table.preview.loadingTitle", "Loading preview..."),
-        description: tableState.loadState.message || localize("table.preview.loadingHint", "Parsing CSV preview, please wait."),
+        description: tableState.loadState.message ||
+          localize("table.preview.loadingHint", "Parsing CSV preview, please wait."),
       }));
       this.syncColumnResizeGuide();
       this.layoutNow();
@@ -398,12 +1317,16 @@ export class TableView {
   }
 
   private renderTable(): boolean {
-    const { tableModel, tableState, zoomPercent } = this.props;
+    const { tableModel, tableState } = this.props;
+    const zoomPercent = this.zoomPercent;
     const tableFile = tableState.file;
     const zoomChanged = this.renderedZoomPercent !== zoomPercent;
     if (zoomChanged) {
       this.renderedZoomPercent = zoomPercent;
-      this.body.style.setProperty("--table-view-zoom", String(TableGridModel.getTableGridZoomScale(zoomPercent)));
+      this.body.style.setProperty(
+        "--table-view-zoom",
+        String(TableGridModel.getTableGridZoomScale(zoomPercent)),
+      );
     }
 
     const rowRange = this.resolveVisibleRowRange(tableFile?.rowCount);
@@ -436,25 +1359,29 @@ export class TableView {
     return TableGridModel.resolveTableGridViewportRange({
       totalCount,
       maxRenderedCount: TableGridModel.TABLE_GRID_MAX_RENDERED_ROWS,
-      rowHeight: TableGridModel.getTableGridRowHeight(this.props.zoomPercent),
+      rowHeight: TableGridModel.getTableGridRowHeight(this.zoomPercent),
       scrollTop: this.scrollArea.viewport.scrollTop,
       viewportHeight: this.scrollArea.viewport.clientHeight,
     });
   }
 
   private resolveVisibleColumnRange(totalCount: unknown): TableGridModel.TableGridColumnRange {
-    const rowHeaderWidth = TableGridModel.getTableGridRowHeaderWidth(this.props.zoomPercent);
+    const rowHeaderWidth = TableGridModel.getTableGridRowHeaderWidth(this.zoomPercent);
     return TableGridModel.resolveTableGridColumnViewportRange({
       totalCount,
       maxRenderedCount: TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS,
       scrollLeft: this.scrollArea.viewport.scrollLeft,
       viewportWidth: this.scrollArea.viewport.clientWidth - rowHeaderWidth,
-      zoomPercent: this.props.zoomPercent,
+      zoomPercent: this.zoomPercent,
       getColumnWidth: colIndex => this.getColumnWidth(colIndex),
     });
   }
 
-  private ensureRows(tableModel: TableViewModel, sourceKey: string, rowRange: TableGridModel.TableGridRange): void {
+  private ensureRows(
+    tableModel: TableWidgetModel,
+    sourceKey: string,
+    rowRange: TableGridModel.TableGridRange,
+  ): void {
     const requestKey = `${sourceKey}\u001f${rowRange.startIndex}\u001f${rowRange.endIndex}`;
     if (this.pendingEnsureRowsKey === requestKey) {
       return;
@@ -488,7 +1415,11 @@ export class TableView {
       const startIndex = this.headerColumnCount;
       this.headerColumnCount = TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS;
 
-      for (let colIndex = startIndex; colIndex < TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS; colIndex += 1) {
+      for (
+        let colIndex = startIndex;
+        colIndex < TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS;
+        colIndex += 1
+      ) {
         const cell = document.createElement("div");
         const button = document.createElement("button");
         const columnLabel = TableGridModel.getTableGridColumnLabel(colIndex);
@@ -498,17 +1429,23 @@ export class TableView {
         button.className = "table_view_column_button";
         button.dataset.colIndex = String(colIndex);
         button.textContent = columnLabel;
-        button.setAttribute("aria-label", localize("table.preview.toggleColumn", "Toggle column {column}", {
-          column: columnLabel,
-        }));
+        button.setAttribute(
+          "aria-label",
+          localize("table.preview.toggleColumn", "Toggle column {column}", {
+            column: columnLabel,
+          }),
+        );
         const resizeHandle = document.createElement("span");
         resizeHandle.className = "table_view_column_resize_handle";
         resizeHandle.dataset.colIndex = String(colIndex);
         resizeHandle.setAttribute("role", "separator");
         resizeHandle.setAttribute("aria-orientation", "vertical");
-        resizeHandle.setAttribute("aria-label", localize("table.preview.resizeColumn", "Resize column {column}", {
-          column: columnLabel,
-        }));
+        resizeHandle.setAttribute(
+          "aria-label",
+          localize("table.preview.resizeColumn", "Resize column {column}", {
+            column: columnLabel,
+          }),
+        );
         cell.append(button, resizeHandle);
         this.headerCells.push(cell);
         this.headerContent.insertBefore(cell, this.headerTrailingSpacer);
@@ -522,7 +1459,11 @@ export class TableView {
 
   private syncColumnLayout(columnRange: TableGridModel.TableGridColumnRange): boolean {
     let changed = this.syncColumnSpacers(columnRange);
-    for (let columnOffset = 0; columnOffset < TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS; columnOffset += 1) {
+    for (
+      let columnOffset = 0;
+      columnOffset < TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS;
+      columnOffset += 1
+    ) {
       const colIndex = columnRange.startIndex + columnOffset;
       const isVisible = columnOffset < columnRange.renderedCount;
       if (this.syncHeaderColumn(columnOffset, isVisible ? colIndex : null)) {
@@ -584,15 +1525,21 @@ export class TableView {
       if (button) {
         button.dataset.colIndex = colIndexValue;
         button.textContent = columnLabel;
-        button.setAttribute("aria-label", localize("table.preview.toggleColumn", "Toggle column {column}", {
-          column: columnLabel,
-        }));
+        button.setAttribute(
+          "aria-label",
+          localize("table.preview.toggleColumn", "Toggle column {column}", {
+            column: columnLabel,
+          }),
+        );
       }
       if (resizeHandle) {
         resizeHandle.dataset.colIndex = colIndexValue;
-        resizeHandle.setAttribute("aria-label", localize("table.preview.resizeColumn", "Resize column {column}", {
-          column: columnLabel,
-        }));
+        resizeHandle.setAttribute(
+          "aria-label",
+          localize("table.preview.resizeColumn", "Resize column {column}", {
+            column: columnLabel,
+          }),
+        );
       }
       changed = true;
     }
@@ -628,7 +1575,7 @@ export class TableView {
   }
 
   private renderBody(
-    tableModel: TableViewModel,
+    tableModel: TableWidgetModel,
     rowRange: TableGridModel.TableGridRange,
     columnRange: TableGridModel.TableGridColumnRange,
   ): boolean {
@@ -647,7 +1594,11 @@ export class TableView {
       return;
     }
 
-    this.syncRowsTextIfNeeded(this.props.tableModel, this.getBodyRowRange(), this.getBodyColumnRange());
+    this.syncRowsTextIfNeeded(
+      this.props.tableModel,
+      this.getBodyRowRange(),
+      this.getBodyColumnRange(),
+    );
   }
 
   private getBodyRowRange(): TableGridModel.TableGridRange {
@@ -675,7 +1626,7 @@ export class TableView {
   }
 
   private syncRowsTextIfNeeded(
-    tableModel: TableViewModel,
+    tableModel: TableWidgetModel,
     rowRange: TableGridModel.TableGridRange,
     columnRange: TableGridModel.TableGridColumnRange,
   ): void {
@@ -732,7 +1683,10 @@ export class TableView {
     });
   }
 
-  private ensureBodyGrid(rowRange: TableGridModel.TableGridRange, columnRange: TableGridModel.TableGridColumnRange): boolean {
+  private ensureBodyGrid(
+    rowRange: TableGridModel.TableGridRange,
+    columnRange: TableGridModel.TableGridColumnRange,
+  ): boolean {
     const columnsChanged = this.ensureBodyColumns();
     const gridChanged = this.ensureBodyCells();
     const visibleRangeChanged = this.syncBodyGridVisibility(rowRange, columnRange);
@@ -751,7 +1705,11 @@ export class TableView {
 
     this.columnGroup.append(this.rowHeaderColumn, this.bodyLeadingSpacerColumn);
 
-    for (let colIndex = 0; colIndex < TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS; colIndex += 1) {
+    for (
+      let colIndex = 0;
+      colIndex < TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS;
+      colIndex += 1
+    ) {
       const column = document.createElement("col");
       column.className = "table_view_data_col";
       this.bodyDataColumns.push(column);
@@ -770,7 +1728,11 @@ export class TableView {
 
     this.bodyRows.append(this.topSpacerRow);
 
-    for (let rowIndex = 0; rowIndex < TableGridModel.TABLE_GRID_MAX_RENDERED_ROWS; rowIndex += 1) {
+    for (
+      let rowIndex = 0;
+      rowIndex < TableGridModel.TABLE_GRID_MAX_RENDERED_ROWS;
+      rowIndex += 1
+    ) {
       const row = document.createElement("tr");
       const rowHeader = document.createElement("th");
       const rowHeaderLabel = document.createElement("span");
@@ -787,7 +1749,11 @@ export class TableView {
       leadingSpacer.setAttribute("aria-hidden", "true");
       row.append(leadingSpacer);
 
-      for (let colIndex = 0; colIndex < TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS; colIndex += 1) {
+      for (
+        let colIndex = 0;
+        colIndex < TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS;
+        colIndex += 1
+      ) {
         const cell = document.createElement("td");
         cell.className = "table_view_cell";
         cell.dataset.rowIndex = String(rowIndex);
@@ -875,7 +1841,11 @@ export class TableView {
       }
     }
 
-    for (let colIndex = 0; colIndex < TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS; colIndex += 1) {
+    for (
+      let colIndex = 0;
+      colIndex < TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS;
+      colIndex += 1
+    ) {
       const column = this.bodyDataColumns[colIndex];
       if (column) {
         column.hidden = colIndex >= columnCount;
@@ -885,14 +1855,22 @@ export class TableView {
     return changed || spacerChanged;
   }
 
-  private syncVirtualSpacers(rowRange: TableGridModel.TableGridRange, columnCount: number): boolean {
+  private syncVirtualSpacers(
+    rowRange: TableGridModel.TableGridRange,
+    columnCount: number,
+  ): boolean {
     const { topHeight, bottomHeight } = TableGridModel.getTableGridSpacerHeights(
       rowRange,
-      TableGridModel.getTableGridRowHeight(this.props.zoomPercent),
+      TableGridModel.getTableGridRowHeight(this.zoomPercent),
     );
     const colSpan = Math.max(1, columnCount + 3);
     const topChanged = syncSpacerRow(this.topSpacerRow, this.topSpacerCell, topHeight, colSpan);
-    const bottomChanged = syncSpacerRow(this.bottomSpacerRow, this.bottomSpacerCell, bottomHeight, colSpan);
+    const bottomChanged = syncSpacerRow(
+      this.bottomSpacerRow,
+      this.bottomSpacerCell,
+      bottomHeight,
+      colSpan,
+    );
     return topChanged || bottomChanged;
   }
 
@@ -921,7 +1899,11 @@ export class TableView {
       startColumnIndex,
       columnCount,
     );
-    const highlightedColumns = toColumnSet(tableModel.getHighlight().columns, startColumnIndex, columnCount);
+    const highlightedColumns = toColumnSet(
+      tableModel.getHighlight().columns,
+      startColumnIndex,
+      columnCount,
+    );
     const previous = this.appliedCellState;
     const next: AppliedCellState = {
       activeCell,
@@ -1088,10 +2070,9 @@ export class TableView {
       return;
     }
 
-    const tableModel = this.props.tableModel;
-    this.props.tableService.select({
+    this.select({
       kind: "columns",
-      columns: toggleSelectedColumn(tableModel.getSelection(), colIndex),
+      columns: toggleSelectedColumn(this.getSelection(), colIndex),
     });
     this.focus();
   }
@@ -1104,20 +2085,21 @@ export class TableView {
       containerLeft: this.body.getBoundingClientRect().left,
       getColumnWidth: index => this.getColumnWidth(index),
       scrollLeft: this.scrollArea.viewport.scrollLeft,
-      zoomPercent: this.props.zoomPercent,
+      zoomPercent: this.zoomPercent,
     });
     if (colIndex === null) {
       return;
     }
 
-    const startGuideLeft = this.getColumnResizeBoundaryLeft(colIndex) ?? TableGridModel.resolveTableGridColumnResizeGuideLeft({
-      colIndex,
-      columnRange: this.getBodyColumnRange(),
-      getColumnWidth: index => this.getColumnWidth(index),
-      scrollLeft: this.scrollArea.viewport.scrollLeft,
-      visible: !this.header.hidden,
-      zoomPercent: this.props.zoomPercent,
-    });
+    const startGuideLeft = this.getColumnResizeBoundaryLeft(colIndex) ??
+      TableGridModel.resolveTableGridColumnResizeGuideLeft({
+        colIndex,
+        columnRange: this.getBodyColumnRange(),
+        getColumnWidth: index => this.getColumnWidth(index),
+        scrollLeft: this.scrollArea.viewport.scrollLeft,
+        visible: !this.header.hidden,
+        zoomPercent: this.zoomPercent,
+      });
     if (startGuideLeft === null) {
       return;
     }
@@ -1140,9 +2122,13 @@ export class TableView {
       return;
     }
 
-    this.columnResizeStore.add(addDisposableListener(targetWindow, EventType.POINTER_MOVE, moveEvent => {
-      this.onColumnResizeMove(moveEvent as PointerEvent);
-    }));
+    this.columnResizeStore.add(addDisposableListener(
+      targetWindow,
+      EventType.POINTER_MOVE,
+      moveEvent => {
+        this.onColumnResizeMove(moveEvent as PointerEvent);
+      },
+    ));
     this.columnResizeStore.add(addDisposableListener(targetWindow, EventType.POINTER_UP, () => {
       this.endColumnResize();
     }));
@@ -1158,14 +2144,14 @@ export class TableView {
     const width = TableGridModel.resizeTableGridColumnWidth(
       state.startWidth,
       event.clientX - state.startClientX,
-      this.props.zoomPercent,
+      this.zoomPercent,
     );
     const guideLeft = TableGridModel.resolveTableGridColumnResizeDragGuideLeft({
       startGuideLeft: state.startGuideLeft,
       startWidth: state.startWidth,
       visible: !this.header.hidden,
       width,
-      zoomPercent: this.props.zoomPercent,
+      zoomPercent: this.zoomPercent,
     });
     if (guideLeft !== null) {
       this.columnResizeState = {
@@ -1173,10 +2159,7 @@ export class TableView {
         guideLeft,
       };
     }
-    if (this.props.tableService.setColumnWidth({ colIndex: state.colIndex, width })) {
-      this.syncColumnLayout(this.getBodyColumnRange());
-      this.layoutNow();
-    }
+    this.setColumnWidth({ colIndex: state.colIndex, width });
     this.syncColumnResizeGuide();
   }
 
@@ -1211,11 +2194,13 @@ export class TableView {
   }
 
   private getColumnWidth(colIndex: number): number {
-    return this.props.tableModel.getColumnWidth(colIndex) ?? TableColumnLayout.defaultWidth;
+    return this.columnWidths.get(colIndex) ?? TableWidgetColumnLayout.defaultWidth;
   }
 
   private getColumnCssWidth(colIndex: number): string {
-    return `${this.getColumnWidth(colIndex) * TableGridModel.getTableGridZoomScale(this.props.zoomPercent)}px`;
+    const width = this.getColumnWidth(colIndex) *
+      TableGridModel.getTableGridZoomScale(this.zoomPercent);
+    return `${width}px`;
   }
 
   private syncColumnResizeGuide(): void {
@@ -1236,9 +2221,15 @@ export class TableView {
     if (
       event.defaultPrevented ||
       event.altKey ||
-      event.metaKey ||
       (event.target instanceof Element && isEditableElement(event.target))
     ) {
+      return;
+    }
+
+    if (this.handleShortcutKey(event)) {
+      return;
+    }
+    if (event.metaKey) {
       return;
     }
 
@@ -1279,10 +2270,101 @@ export class TableView {
     };
     this.rangeAnchorCell = null;
     this.rangeFocusCell = null;
-    if (this.props.tableService.select({ kind: "cell", cell }, true)) {
-      this.revealCell(cell);
+    if (this.select({ kind: "cell", cell }, true)) {
       this.focus();
     }
+  }
+
+  private handleShortcutKey(event: KeyboardEvent): boolean {
+    const key = String(event.key || "").toLowerCase();
+    if (event.ctrlKey || event.metaKey) {
+      if (key === "a") {
+        return this.runShortcut(event, () => {
+          this.selectAllColumns();
+        });
+      }
+      if (key === "c") {
+        return this.runShortcut(event, this.props.onCopySelection);
+      }
+      if (event.metaKey) {
+        return false;
+      }
+      if (key === "=" || key === "+") {
+        return this.runShortcut(event, () => {
+          this.zoomIn();
+        });
+      }
+      if (key === "-") {
+        return this.runShortcut(event, () => {
+          this.zoomOut();
+        });
+      }
+      if (key === "0") {
+        return this.runShortcut(event, () => {
+          this.resetZoom();
+        });
+      }
+      return false;
+    }
+
+    if (key === "escape") {
+      return this.runShortcut(event, () => {
+        this.clearSelection();
+      });
+    }
+
+    return false;
+  }
+
+  private runShortcut(event: KeyboardEvent, callback: (() => void) | undefined): boolean {
+    if (!callback) {
+      return false;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    callback();
+    return true;
+  }
+
+  private onWheel(event: WheelEvent): void {
+    if (event.defaultPrevented || event.altKey || event.metaKey) {
+      return;
+    }
+
+    if (event.ctrlKey) {
+      this.onZoomWheel(event);
+      return;
+    }
+
+    if (event.shiftKey) {
+      this.onHorizontalWheel(event);
+    }
+  }
+
+  private onZoomWheel(event: WheelEvent): void {
+    const delta = getWheelDelta(event);
+    if (delta === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    if (delta < 0) {
+      this.zoomIn();
+    } else {
+      this.zoomOut();
+    }
+  }
+
+  private onHorizontalWheel(event: WheelEvent): void {
+    const delta = event.deltaX !== 0 ? event.deltaX : event.deltaY;
+    if (delta === 0 || !this.scrollHorizontally(delta)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   private getNavigationCell(): TableGridModel.TableGridCellPosition | null {
@@ -1291,7 +2373,7 @@ export class TableView {
       return null;
     }
 
-    const activeCell = this.props.tableModel.getSelection().activeCell;
+    const activeCell = this.getSelection().activeCell;
     const rowIndex = Math.floor(Number(activeCell?.rowIndex));
     const colIndex = Math.floor(Number(activeCell?.colIndex));
     if (
@@ -1315,7 +2397,10 @@ export class TableView {
     return this.rangeFocusCell ?? this.getNavigationCell();
   }
 
-  private selectRangeToCell(target: TableGridModel.TableGridCellPosition, reveal: boolean): boolean {
+  private selectRangeToCell(
+    target: TableGridModel.TableGridCellPosition,
+    reveal: boolean,
+  ): boolean {
     const tableFile = this.props.tableState.file;
     if (!tableFile) {
       return false;
@@ -1323,7 +2408,7 @@ export class TableView {
 
     const anchor = this.rangeAnchorCell ?? this.getNavigationCell() ?? target;
     const range = TableGridModel.resolveTableGridCellRange(anchor, target);
-    const didSelect = this.props.tableService.select({
+    const didSelect = this.select({
       kind: "range",
       range: {
         ...range,
@@ -1337,21 +2422,16 @@ export class TableView {
 
     this.rangeAnchorCell = anchor;
     this.rangeFocusCell = target;
-    if (reveal) {
-      this.revealCell({
-        colIndex: target.colIndex,
-        fileId: tableFile.fileId,
-        rowIndex: target.rowIndex,
-        sheetId: tableFile.sheetId ?? null,
-      });
-    }
     return true;
   }
 
   private getPageRowCount(): number {
     return Math.max(
       1,
-      Math.floor(this.scrollArea.viewport.clientHeight / TableGridModel.getTableGridRowHeight(this.props.zoomPercent)),
+      Math.floor(
+        this.scrollArea.viewport.clientHeight /
+          TableGridModel.getTableGridRowHeight(this.zoomPercent),
+      ),
     );
   }
 
@@ -1366,7 +2446,7 @@ export class TableView {
 
   private revealCellVertically(rowIndex: number): boolean {
     const viewport = this.scrollArea.viewport;
-    const rowHeight = TableGridModel.getTableGridRowHeight(this.props.zoomPercent);
+    const rowHeight = TableGridModel.getTableGridRowHeight(this.zoomPercent);
     const top = rowIndex * rowHeight;
     const bottom = top + rowHeight;
     const viewportTop = viewport.scrollTop;
@@ -1386,8 +2466,8 @@ export class TableView {
 
   private revealCellHorizontally(colIndex: number): boolean {
     const viewport = this.scrollArea.viewport;
-    const scale = TableGridModel.getTableGridZoomScale(this.props.zoomPercent);
-    const rowHeaderWidth = TableGridModel.getTableGridRowHeaderWidth(this.props.zoomPercent);
+    const scale = TableGridModel.getTableGridZoomScale(this.zoomPercent);
+    const rowHeaderWidth = TableGridModel.getTableGridRowHeaderWidth(this.zoomPercent);
     const left = this.getColumnOffset(colIndex, scale);
     const right = left + (this.getColumnWidth(colIndex) * scale);
     const viewportLeft = viewport.scrollLeft + rowHeaderWidth;
@@ -1406,7 +2486,7 @@ export class TableView {
   }
 
   private getColumnOffset(colIndex: number, scale: number): number {
-    let offset = TableGridModel.getTableGridRowHeaderWidth(this.props.zoomPercent);
+    let offset = TableGridModel.getTableGridRowHeaderWidth(this.zoomPercent);
     for (let index = 0; index < colIndex; index += 1) {
       offset += this.getColumnWidth(index) * scale;
     }
@@ -1435,7 +2515,7 @@ export class TableView {
       return;
     }
 
-    const { tableService, tableState } = this.props;
+    const { tableState } = this.props;
     const tableFile = tableState.file;
     if (event.shiftKey && this.selectRangeToCell({ colIndex, rowIndex }, true)) {
       this.focus();
@@ -1444,7 +2524,7 @@ export class TableView {
 
     this.rangeAnchorCell = null;
     this.rangeFocusCell = null;
-    tableService.select({
+    this.select({
       kind: "cell",
       cell: {
         colIndex,
@@ -1487,6 +2567,18 @@ const toggleSelectedColumn = (
 
   return Array.from(columns).sort((a, b) => a - b);
 };
+
+const normalizeWidgetColumnIndex = (value: unknown): number | null => {
+  const index = Math.floor(Number(value));
+  return Number.isInteger(index) && index >= 0 ? index : null;
+};
+
+const getTableWidgetColumnLayoutStorageKey = (
+  sourceKey: string | null | undefined,
+): string | null =>
+  sourceKey
+    ? `${TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_KEY_PREFIX}${sourceKey}`
+    : null;
 
 const setHidden = (element: HTMLElement, hidden: boolean): boolean => {
   if (element.hidden === hidden) {
@@ -1545,13 +2637,11 @@ const syncSpacerRow = (
   return changed;
 };
 
-const getTableViewInputKey = ({
+const getTableWidgetInputKey = ({
   tableState,
-  zoomPercent,
-}: TableViewProps): string => {
+}: TableWidgetProps): string => {
   const file = tableState.file;
   return [
-    zoomPercent,
     tableState.selectedFileId ?? "",
     tableState.selectedSheetId ?? "",
     tableState.sourceKey ?? "",
@@ -1738,4 +2828,12 @@ const getChangedColumns = (
   return Array.from(columns)
     .filter((colIndex) => colIndex >= startColumnIndex && colIndex < endColumnIndex)
     .sort((a, b) => a - b);
+};
+
+const getWheelDelta = (event: WheelEvent): number => {
+  if (event.deltaY !== 0) {
+    return event.deltaY;
+  }
+
+  return event.deltaX;
 };

@@ -439,7 +439,7 @@ Use runtime folders consistently.
 | `fileConverter.ts` / files source workflow | `src/cs/workbench/services/files` | CSV/Excel/Clipboard source | `FileConversionResult`, `RawTableRecord` | Explorer UI state, IV/CV judgement, block detection, session mutation |
 | `IAssessmentService` | `src/cs/workbench/services/assessment` | `RawTableRecord` | groups, blocks, column roles, diagnostics | template execution, plotting, UI state |
 | `ISessionService` | `src/cs/workbench/services/session` | commit requests | canonical records, snapshot, change events | view state, worker refs, request cache, rendering |
-| `ITableService` | `src/cs/workbench/services/table` | session snapshot, raw table refs | table model, row preview, selection/highlight state | block detection, template execution |
+| `ITableService` | `src/cs/workbench/services/table` | session snapshot, raw table refs | table model, row preview, selection snapshot/highlight state | block detection, template execution |
 | `ITemplateService` | `src/cs/workbench/services/template` | assessment blocks, template config | template records, template run, curves/series commit request | assessment, plotting, table selection ownership |
 | calculation contribution/helpers | `src/cs/workbench/services/calculation` | session base curves, metric inputs | derived calculation results, `CurveRecord` and `MetricRecord` commit payloads | plot/chart UI state, parameter UI state, session internals |
 | `IPlotService` | `src/cs/workbench/services/plot` | session curves/metrics, plot settings | `PlotRenderModel`, plot domains, display series | DOM rendering, chart panel shell |
@@ -619,7 +619,8 @@ Examples:
 | State | Owner |
 | --- | --- |
 | selected resource in Explorer | `IExplorerService` |
-| active table cell/range | `ITableService` |
+| active table cell/range | active `TableWidget`, mirrored to `ITableService` as a command/copy snapshot |
+| active table zoom / column widths | active `TableWidget` |
 | active plot type / visible plotted series | `IPlotService` |
 | chart detail pane / legend popover | `IChartService` |
 | selected parameter row | `IParametersService` |
@@ -658,7 +659,7 @@ Use the same rule for Conductor domains:
 
 ```txt
 Explorer owns selected Explorer resource.
-Table owns current TableSource, preview lifecycle, and table selection.
+TableService owns current TableSource and preview lifecycle; the active TableWidget owns table selection interaction, zoom, and column layout, and mirrors only the command/copy selection snapshot to TableService.
 WorkbenchDomainBridge or a feature view may translate selected Explorer resource -> TableSource.
 TableService.update(...) receives source: TableSource | null, not selectedFileId.
 Files/Explorer must not call Table preview invalidation or row-cache methods.
@@ -863,7 +864,9 @@ src/cs/workbench/services/title/
 src/cs/workbench/services/table/
   common/table.ts
   browser/tableService.ts
-  browser/tableRowsModel.ts
+  browser/tableModel.ts
+  browser/tablePreviewWorker.ts
+  browser/tableRowsReaderService.ts
   browser/table.contribution.ts
 
 src/cs/workbench/services/template/
@@ -943,7 +946,6 @@ src/cs/workbench/contrib/quickaccess/
 
 src/cs/workbench/contrib/table/
   browser/tableCommands.ts
-  browser/tableActions.ts
   browser/table.contribution.ts
 
 src/cs/workbench/contrib/template/

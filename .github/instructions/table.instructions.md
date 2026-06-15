@@ -11,11 +11,10 @@ Table shows raw tables and assessment block ranges. It does not identify measure
 `ITableService` owns:
 
 - current table source;
-- active cell/range selection;
-- selected table text generation for copy workflows;
+- externally visible table selection snapshot used by commands and copy workflows;
+- selected table text generation from the current selection snapshot;
 - focus/reveal cell state;
 - highlighted columns/ranges;
-- persisted column view configuration such as column widths;
 - paged raw rows cache;
 - block table preview model;
 - table loading status;
@@ -41,21 +40,17 @@ It does not own:
 
 | File | Responsibility |
 | --- | --- |
-| `src/cs/workbench/services/table/common/table.ts` | Defines `ITableService`, `ITableRowsReaderService`, table command/service constants, table rows reader contracts, and compatibility re-exports for table common records. |
-| `src/cs/workbench/services/table/common/tableColumnLayout.ts` | Defines the shared column width layout contract used by the table service and grid view math. |
-| `src/cs/workbench/services/table/common/tableContracts.ts` | Defines pure table records and model/view-input contracts such as `TableState`, `TableSelection`, `TableHighlight`, `TableSource`, copy text results, column widths, and row request types. |
-| `src/cs/workbench/services/table/common/tableSource.ts` | Defines table source key helpers shared by table state and persistence. |
-| `src/cs/workbench/services/table/browser/tableService.ts` | Injectable `ITableService` owner. Handles service selection/reveal/copy commands, view input publication, and persisted column width storage. |
-| `src/cs/workbench/services/table/browser/tableStateModel.ts` | Creates and owns the per-table state model: source switching, preview loading, row cache activation, selection/highlight/reveal events, zoom state, and worker/reader request lifecycle. |
+| `src/cs/workbench/services/table/common/table.ts` | Defines `ITableService`, `ITableRowsReaderService`, table service constants, pure table records/model contracts, and source key helpers. It must stay a small contract surface: avoid named exports for subordinate model details that callers can derive from `TableState` or `TableModel`. |
+| `src/cs/workbench/services/table/browser/tableService.ts` | Injectable `ITableService` owner. Handles table source, reveal, copy text generation, view input publication, and selection snapshots. It does not own widget-only UI controls such as zoom or column widths. |
+| `src/cs/workbench/services/table/browser/tableModel.ts` | Creates and owns the per-table service model: source switching, preview loading, row cache activation, cell-read conversion, selection normalization/equality, selection/highlight/reveal snapshots, row-cache versioning, and worker/reader request lifecycle. This is the owner file for table data-plane helpers; do not split row cache, cell-read, or selection-state helpers into separate production files unless they become an independent service boundary. |
 | `src/cs/workbench/services/table/browser/tableDropTargetService.ts` | Browser-only registry for the table preview DOM drop target used by cross-feature drop controllers. No table data state. |
-| `src/cs/workbench/services/table/browser/tableRowCache.ts` | Row chunking, row-cache merge/prune, loaded range calculation, and row-cache version notifications. |
-| `src/cs/workbench/services/table/browser/tableCellRead.ts` | Converts table cell-read payloads into cached row arrays. |
 | `src/cs/workbench/services/table/browser/tableRowsReaderService.ts` | Browser table rows reader fallback. It can read normalized CSV through the file converter reader and reports desktop table source operations as unavailable. |
 | `src/cs/workbench/services/table/browser/tablePreviewWorker.ts` | Optional browser worker for CSV row paging and cell fetches. |
 | `src/cs/workbench/services/table/electron-browser/tableRowsReader.ts` | Desktop table rows reader. Opens table preview sources, reads row/cell ranges through Rust IPC/preload, and releases opened table preview sources during shutdown. |
-| `src/cs/workbench/contrib/table/browser/tableGridModel.ts` | DOM-free grid view math and local layout helpers such as viewport render ranges, keyboard navigation targets, resize targets/guides, virtual spacer heights, spreadsheet labels, zoom scale, and column width constraints. |
-| `src/cs/workbench/contrib/table/browser/tableView.ts` | DOM view. Renders `TableState`/rows and forwards user actions. |
-| `src/cs/workbench/contrib/table/browser/table.contribution.ts` | Registers table view and UI actions. |
+| `src/cs/workbench/contrib/table/common/table.ts` | Defines table contribution/view/command IDs owned by the table contribution layer. Services must not import these IDs. |
+| `src/cs/workbench/contrib/table/browser/tableWidget.ts` | Browser table grid widget. Owns grid DOM, virtual scroll rendering, local keyboard/mouse/wheel gestures, selection API, zoom state/API, column width policy/storage, column resize UI, scroll reveal behavior, and DOM-free grid math helpers. It receives pure model/state input and callback props, and does not import table services or command services. |
+| `src/cs/workbench/contrib/table/browser/tableController.ts` | Feature controller/adapter. Converts table view input and callback props into `TableWidget` props. No service ownership, grid DOM ownership, or table data ownership. |
+| `src/cs/workbench/contrib/table/browser/table.contribution.ts` | Registers table view and table commands. |
 
 ## Flow
 
@@ -64,14 +59,19 @@ flowchart TD
     Session[SessionSnapshot] --> TableService[ITableService]
     Rows[RawTableRowsReader] --> TableService
     Assessment[RawTableAssessmentRecord] --> TableService
-    TableService --> StateModel[tableStateModel instance]
-    StateModel -->|state / rows / selection / highlight / reveal events| TableView[TableView]
-    TableView --> TableService
+    TableService --> TableModel[tableModel instance]
+    TableModel -->|state / rows / selection / highlight / reveal events| TableController[TableController]
+    TableController --> TableWidget[TableWidget]
+    TableWidget -->|selection callback / zoom event| TableController
+    TableWidget --> Storage[StorageService column widths]
+    TableController -->|selection snapshot sync| TableService
 ```
 
 ## Selection rule
 
-Selection belongs to Table, not Session.
+Selection belongs to the active `TableWidget` interaction surface and is synced
+to `ITableService` as an externally visible snapshot for commands, copy, and
+cross-feature reveal. It does not belong to Session.
 
 ```ts
 export type TableSelection = {
@@ -81,7 +81,7 @@ export type TableSelection = {
 };
 ```
 
-Other services can request reveal/highlight through `ITableService`, not by mutating session.
+Other services can request reveal/highlight through `ITableService`, not by mutating session or widget DOM.
 
 Follow the upstream owner-driven selection shape. A table cell, range, or column
 set is a pure target/ref. It must not expose `select()` or `reveal()` methods
@@ -90,7 +90,11 @@ and must not know about services or views.
 Preferred shape:
 
 ```ts
-tableService.select(target, reveal?);
+tableWidget.select(target, reveal?);
+tableWidget.zoomIn();
+tableWidget.zoomOut();
+tableWidget.resetZoom();
+tableService.select(target, reveal?); // command/external snapshot path
 tableService.reveal(target, options?);
 tableModel.setSelection(selection);
 tableModel.revealCell(cell);
@@ -112,11 +116,11 @@ tableCell.select();
 tableRange.reveal();
 ```
 
-The Table owner validates and normalizes targets, mutates table selection or
-reveal state, emits table selection/state events, and views rerender from the
-current table state model. Table commands and view gestures should normalize raw input
-into table targets and dispatch to `ITableService`/the active table state model; they should
-not mutate DOM selection as the source of truth.
+The active table widget validates table-local gestures, applies table selection
+intent through its public API, and emits snapshot callbacks. `ITableService`
+stores the externally visible selection snapshot so commands such as copy can
+read it without importing widget code. Table commands and external reveal paths
+may still dispatch to `ITableService` when there is no direct widget context.
 
 ## Command entry and dispatch
 
@@ -126,8 +130,8 @@ Recommended files:
 
 | File | Responsibility |
 | --- | --- |
-| `src/cs/workbench/contrib/table/browser/tableCommands.ts` | Registers reveal cell/range, copy, select, clear selection, focus table commands. |
-| `src/cs/workbench/contrib/table/browser/tableActions.ts` | Menu/toolbar/keybinding/context-menu entries for table commands. |
+| `src/cs/workbench/contrib/table/browser/tableCommands.ts` | Registers public table command entries. Data/selection/copy commands delegate to `ITableService`; zoom commands delegate to the active `TableController`/`TableWidget`. |
+| `src/cs/workbench/contrib/table/browser/tableWidget.ts` | Handles table-local keyboard, mouse, wheel, selection, zoom, and column width interactions through its public widget API and callback props. |
 | `src/cs/workbench/services/table/browser/tableService.ts` | Owns table state and row preview. No command registration. |
 
 Command flow:
@@ -137,7 +141,12 @@ table.revealRawRange command
   -> normalize RawTableRangeRef
   -> ITableService.reveal(target) or ITableService.select(target, reveal?)
   -> ITableService event
-  -> TableView render
+  -> TableController/TableWidget render
+
+table.zoomIn command
+  -> active TableController.zoomIn()
+  -> TableWidget zoom state/event
+  -> TableViewPane header zoom control update
 ```
 
 Search result navigation may dispatch to table commands when the result points to `RawTableRangeRef`.
@@ -159,7 +168,7 @@ This follows the cross-service selection mirroring rule in
 `architecture.instructions.md`: bridge by translating domain input, not by
 sharing selection state or calling another service's internals.
 
-The table view subscribes to `ITableService.onDidChangeTableViewInput` and then
+The table view pane subscribes to `ITableService.onDidChangeTableViewInput` and then
 rereads `ITableService.getViewInput()`. Do not use the event payload as the
 table view input data path.
 

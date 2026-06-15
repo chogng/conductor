@@ -18,22 +18,27 @@ import { localize } from "src/cs/nls";
 import {
   ICommandService,
 } from "src/cs/platform/commands/common/commands";
+import { IStorageService } from "src/cs/platform/storage/common/storage";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
-import { registerTableActions } from "src/cs/workbench/contrib/table/browser/tableActions";
-import { registerTableGestures } from "src/cs/workbench/contrib/table/browser/tableGestures";
-import { TableView, type TableViewProps } from "src/cs/workbench/contrib/table/browser/tableView";
-import { ITableDropTargetService } from "src/cs/workbench/services/table/browser/tableDropTargetService";
+import {
+  TableController,
+  type TableControllerProps,
+} from "src/cs/workbench/contrib/table/browser/tableController";
+import { setActiveTableZoomController } from "src/cs/workbench/contrib/table/browser/tableCommands";
+import { TableCommandId, TableViewId } from "src/cs/workbench/contrib/table/common/table";
+import {
+  TABLE_WIDGET_DEFAULT_ZOOM_PERCENT,
+  TABLE_WIDGET_MAX_ZOOM_PERCENT,
+  TABLE_WIDGET_MIN_ZOOM_PERCENT,
+} from "src/cs/workbench/contrib/table/browser/tableWidget";
+import {
+  ITableDropTargetService,
+} from "src/cs/workbench/services/table/browser/tableDropTargetService";
 import {
   ITableService,
-  TABLE_DEFAULT_ZOOM_PERCENT,
-  TABLE_MAX_ZOOM_PERCENT,
-  TABLE_MIN_ZOOM_PERCENT,
-  TableCommandId,
-  TableViewId,
   type TableViewInput,
 } from "src/cs/workbench/services/table/common/table";
-import type { TableModel, TableState } from "src/cs/workbench/services/table/common/table";
 
 export type TableViewPaneProps = TableViewInput;
 
@@ -71,7 +76,7 @@ export class TableViewPane extends ViewPane {
     run: () => undefined,
   });
   private readonly zoomControl: ZoomControl;
-  private view: TableView | null = null;
+  private controller: TableController | null = null;
   private props: TableViewPaneProps | null = null;
   private headerMode: HeaderMode | null = null;
 
@@ -79,6 +84,7 @@ export class TableViewPane extends ViewPane {
     @ITableService private readonly tableService: ITableService,
     @ITableDropTargetService private readonly tableDropTargetService: ITableDropTargetService,
     @ICommandService private readonly commandService: ICommandService,
+    @IStorageService private readonly storageService: IStorageService,
   ) {
     super({
       id: TableViewId,
@@ -114,15 +120,6 @@ export class TableViewPane extends ViewPane {
     });
     this.body.append(this.previewPart);
     this._register(this.tableDropTargetService.registerDropTargetElement(this.previewPart));
-    this._register(registerTableActions({
-      commandService: this.commandService,
-      element: this.element,
-    }));
-    this._register(registerTableGestures({
-      commandService: this.commandService,
-      element: this.element,
-      scrollHorizontally: delta => this.scrollHorizontally(delta),
-    }));
     this._register(this.tableService.onDidChangeTableViewInput(() => {
       const input = this.tableService.getViewInput();
       if (input) {
@@ -137,11 +134,23 @@ export class TableViewPane extends ViewPane {
 
   public update(props: TableViewPaneProps): void {
     this.props = props;
-    if (!this.view) {
-      this.view = new TableView(toViewProps(props, this.tableService));
-      this.content.append(this.view.element);
+    if (!this.controller) {
+      this.controller = new TableController(toControllerProps(
+        props,
+        this.tableService,
+        this.commandService,
+        this.storageService,
+      ));
+      this.store.add(setActiveTableZoomController(this.controller));
+      this.store.add(this.controller.onDidChangeZoom(() => this.updateZoomControl()));
+      this.content.append(this.controller.element);
     } else {
-      this.view.update(toViewProps(props, this.tableService));
+      this.controller.update(toControllerProps(
+        props,
+        this.tableService,
+        this.commandService,
+        this.storageService,
+      ));
     }
     const { dimensions, fileName, mode, shouldUpdateDimensions } = getHeaderState(props);
     this.updateHeaderMode(mode);
@@ -150,8 +159,8 @@ export class TableViewPane extends ViewPane {
   }
 
   public dispose(): void {
-    this.view?.dispose();
-    this.view = null;
+    this.controller?.dispose();
+    this.controller = null;
     this.store.dispose();
     this.content.replaceChildren();
     this.previewPart.remove();
@@ -196,12 +205,8 @@ export class TableViewPane extends ViewPane {
     };
   }
 
-  public scrollHorizontally(delta: number): boolean {
-    return this.view?.scrollHorizontally(delta) ?? false;
-  }
-
   protected override layoutBody(_height: number, _width: number): void {
-    this.view?.layout();
+    this.controller?.layout();
   }
 
   private updateHeaderMode(mode: HeaderMode): void {
@@ -235,10 +240,10 @@ export class TableViewPane extends ViewPane {
   }
 
   private updateZoomControl(): void {
-    const zoomPercent = this.props?.tableState.zoomPercent ?? TABLE_DEFAULT_ZOOM_PERCENT;
+    const zoomPercent = this.controller?.getZoomPercent() ?? TABLE_WIDGET_DEFAULT_ZOOM_PERCENT;
     setText(this.zoomControl.value, `${zoomPercent}%`);
-    setDisabled(this.zoomControl.decreaseButton, zoomPercent <= TABLE_MIN_ZOOM_PERCENT);
-    setDisabled(this.zoomControl.increaseButton, zoomPercent >= TABLE_MAX_ZOOM_PERCENT);
+    setDisabled(this.zoomControl.decreaseButton, zoomPercent <= TABLE_WIDGET_MIN_ZOOM_PERCENT);
+    setDisabled(this.zoomControl.increaseButton, zoomPercent >= TABLE_WIDGET_MAX_ZOOM_PERCENT);
   }
 }
 
@@ -364,13 +369,18 @@ const getHeaderState = ({ tableState }: TableViewPaneProps): HeaderState => {
   };
 };
 
-const toViewProps = (
+const toControllerProps = (
   props: TableViewPaneProps,
-  tableService: Pick<ITableService, "select" | "setColumnWidth">,
-): TableViewProps => ({
+  tableService: Pick<ITableService, "select">,
+  commandService: Pick<ICommandService, "executeCommand">,
+  storageService: Pick<IStorageService, "getObject" | "remove" | "store">,
+): TableControllerProps => ({
   ...props,
-  tableService,
-  zoomPercent: props.tableState.zoomPercent,
+  onCopySelection: () => {
+    void commandService.executeCommand(TableCommandId.copySelection);
+  },
+  onSelect: (target, reveal) => tableService.select(target, reveal),
+  storageService,
 });
 
 export default TableViewPane;
