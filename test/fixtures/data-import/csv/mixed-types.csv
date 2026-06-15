@@ -1,0 +1,6 @@
+Label,Number,Date,Boolean,Scientific,FormulaLike,Notes
+"plain text",42.5,2024-01-31,TRUE,1.23E-7,"=SUM(A2:A3)","contains, comma"
+"quoted
+newline",-7,2024/02/29,FALSE,6.022E23,"+notFormula","contains ""quote"""
+中文,0,,true,0.000001,"@literal",
+,,"2025-12-01",false,-3.5e-4,"-notFormula","trailing empty"

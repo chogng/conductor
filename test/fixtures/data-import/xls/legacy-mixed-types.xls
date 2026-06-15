@@ -1,0 +1,33 @@
+<html>
+<head>
+  <meta charset="utf-8">
+</head>
+<body>
+  <table>
+    <tr>
+      <th>Label</th>
+      <th>Number</th>
+      <th>Date</th>
+      <th>Boolean</th>
+      <th>Scientific</th>
+      <th>FormulaLike</th>
+    </tr>
+    <tr>
+      <td>plain text</td>
+      <td>42.5</td>
+      <td>2024-01-31</td>
+      <td>TRUE</td>
+      <td>1.23E-7</td>
+      <td>=SUM(A2:A3)</td>
+    </tr>
+    <tr>
+      <td>中文</td>
+      <td>-7</td>
+      <td>2024-02-29</td>
+      <td>FALSE</td>
+      <td>6.022E23</td>
+      <td>+notFormula</td>
+    </tr>
+  </table>
+</body>
+</html>
