@@ -65,7 +65,7 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
         formState: createEmptyTemplateConfig({
           stopOnError,
         }),
-        mode: "select",
+        mode: "management",
       });
       return true;
     }
@@ -77,7 +77,7 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
         formState: createEmptyTemplateConfig({
           stopOnError,
         }),
-        mode: "select",
+        mode: "management",
       });
       return true;
     }
@@ -85,7 +85,7 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
     this.updateState({
       selectedTemplateId: templateId,
       formState: cloneTemplateConfig(template),
-      mode: "select",
+      mode: "management",
     });
     return true;
   }
@@ -96,7 +96,7 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
       formState: createEmptyTemplateConfig({
         stopOnError: getTemplateStopOnError(template, this.state.formState.stopOnError),
       }),
-      mode: "save",
+      mode: "editing",
     });
   }
 
@@ -109,7 +109,7 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
     this.updateState({
       selectedTemplateId: templateId,
       formState: cloneTemplateConfig(template),
-      mode: "save",
+      mode: "editing",
     });
     return true;
   }
@@ -231,7 +231,7 @@ const getTemplateStopOnError = (
     : fallback;
 
 const createDefaultTemplateState = (): TemplateState => ({
-  mode: "select",
+  mode: "management",
   selectedTemplateId: null,
   formState: createEmptyTemplateConfig(),
   selectionsByFileId: {},

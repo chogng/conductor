@@ -83,6 +83,9 @@ const showToast = (message: string, type: "success" | "error" | "warning" | "inf
   notificationService.showToast({ id: TEMPLATE_TOAST_ID, message, type });
 };
 
+export const shouldSyncTemplateEditorTableSelection = (mode: TemplateMode): boolean =>
+  mode === "editing";
+
 export type TemplateApplyStateInput = {
   readonly config: TemplateConfig;
   readonly selectedTemplateId: string | null;
@@ -126,7 +129,7 @@ export class TemplateView {
   private disposeTableSelectionListener: (() => void) | null = null;
   private lastTableSelection: TableSelection | null = null;
   private tableService: TemplateViewOptions["tableService"] | null = null;
-  private mode: "select" | "save" | null = null;
+  private mode: TemplateMode | null = null;
   private stopOnErrorDraft: boolean | null = null;
   private applyView: TemplateApplyView | null = null;
   private editorView: TemplateEditorView | null = null;
@@ -165,26 +168,26 @@ export class TemplateView {
     const nextMode = this.readTemplateMode();
     if (this.mode !== nextMode) {
       this.mode = nextMode;
-      if (nextMode === "select") {
+      if (nextMode === "management") {
         this.activePickField = null;
-        this.syncTableActiveCell();
+        this.clearTemplateTableSelection();
       }
-      this.configElement.replaceChildren(nextMode === "select" ? this.getApplyView().element : this.getEditorView().element);
+      this.configElement.replaceChildren(nextMode === "management" ? this.getApplyView().element : this.getEditorView().element);
     }
-    this.syncTableSelectionState();
 
-    if (nextMode === "select") {
+    if (nextMode === "management") {
       this.updateApplyView();
       return;
     }
 
+    this.syncTableSelectionState();
     this.updateEditorView();
   }
 
   public dispose(): void {
     this.disposeTableSelectionListener?.();
     this.disposeTableSelectionListener = null;
-    this.tableService?.clearHighlight();
+    this.clearTemplateTableSelection();
     this.applyView?.dispose();
     this.editorView?.dispose();
     this.applyView = null;
@@ -227,6 +230,10 @@ export class TemplateView {
       const previous = this.lastTableSelection;
       this.lastTableSelection = selection;
 
+      if (!this.isEditingTemplate()) {
+        return;
+      }
+
       if (!areColumnIndexesEqual(previous?.selectedColumns, selection.selectedColumns)) {
         this.updateTemplateFormState(resolveTemplateColumnSelectionUpdate(selection));
       }
@@ -266,14 +273,46 @@ export class TemplateView {
 
     this.stopOnErrorDraft = next.stopOnError;
     this.props.templateService.setFormState(next);
-    this.syncTableSelectionState();
+    if (this.isEditingTemplate()) {
+      this.syncTableSelectionState();
+    }
     this.updateEditorView();
   }
 
   private syncTableSelectionState(): void {
+    if (!this.isEditingTemplate()) {
+      return;
+    }
+
     const columns = normalizeColumnIndexes(this.getEffectiveTemplateFormState().yColumns);
     this.syncTableSelectedColumns(columns);
     this.syncTableActiveCell();
+  }
+
+  private clearTemplateTableSelection(): void {
+    const tableService = this.tableService;
+    if (!tableService) {
+      return;
+    }
+
+    const selection = tableService.getSelection();
+    if (selection.selectedColumns?.length) {
+      tableService.select({
+        kind: "columns",
+        columns: [],
+      });
+    }
+    if (selection.activeCell) {
+      tableService.select({
+        kind: "cell",
+        cell: null,
+      });
+    }
+    tableService.clearHighlight();
+  }
+
+  private isEditingTemplate(): boolean {
+    return shouldSyncTemplateEditorTableSelection(this.readTemplateMode());
   }
 
   private syncTableSelectedColumns(columns: readonly number[]): void {
@@ -324,7 +363,7 @@ export class TemplateView {
 
   private syncStopOnErrorDraft(): void {
     const config = this.readTemplateFormState();
-    if (this.stopOnErrorDraftSource !== config || this.readTemplateMode() !== "select") {
+    if (this.stopOnErrorDraftSource !== config || this.readTemplateMode() !== "management") {
       this.stopOnErrorDraft = config.stopOnError;
       this.stopOnErrorDraftSource = config;
       return;
@@ -390,7 +429,7 @@ export class TemplateView {
     if (!this.editorView) {
       this.editorView = new TemplateEditorView({
         contextMenuService: this.props.contextMenuService,
-        onCancel: () => this.cancelSaveMode(),
+        onCancel: () => this.cancelTemplateEditing(),
         onClearYColumns: () => this.clearYColumns(),
         onPickFieldFocus: (field) => {
           this.activePickField = field;
@@ -623,7 +662,7 @@ export class TemplateView {
       this.props.templateService.updateState({
         selectedTemplateId: typeof saved.id === "string" ? saved.id : null,
         formState: cloneTemplateConfig(saved),
-        mode: "select",
+        mode: "management",
       });
       showToast(localize("template.save.success", "Template saved"), "success");
     } catch (err) {
@@ -631,7 +670,7 @@ export class TemplateView {
     }
   }
 
-  private cancelSaveMode(): void {
+  private cancelTemplateEditing(): void {
     const config = this.getEffectiveTemplateFormState();
     const selectedTemplateId = this.readSelectedTemplateId();
     if (
@@ -643,7 +682,7 @@ export class TemplateView {
       if (found) {
         this.stopOnErrorDraft = Boolean(found.stopOnError);
         this.props.templateService.updateState({
-          mode: "select",
+          mode: "management",
           formState: cloneTemplateConfig(found),
         });
         return;
@@ -652,7 +691,7 @@ export class TemplateView {
 
     this.stopOnErrorDraft = config.stopOnError;
     this.props.templateService.updateState({
-      mode: "select",
+      mode: "management",
       formState: createEmptyTemplateConfig({
         stopOnError: config.stopOnError,
       }),

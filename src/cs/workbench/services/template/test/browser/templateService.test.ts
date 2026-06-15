@@ -60,7 +60,7 @@ suite("workbench/services/template/browser/templateService", () => {
     assert.equal(service.editTemplate(template), true);
 
     assert.deepEqual(service.getState(), {
-      mode: "save",
+      mode: "editing",
       selectedTemplateId: "template-a",
       formState: createEmptyTemplateConfig({
         name: "Transfer",
@@ -69,7 +69,7 @@ suite("workbench/services/template/browser/templateService", () => {
       selectionsByFileId: {},
       templateListVersion: 0,
     });
-    assert.equal(latestMode, "save");
+    assert.equal(latestMode, "editing");
 
     disposable.dispose();
     service.dispose();

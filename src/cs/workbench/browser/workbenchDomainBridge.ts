@@ -30,7 +30,6 @@ import {
 } from "src/cs/workbench/services/session/common/sessionReadModel";
 import type {
   ITableService,
-  TableModel,
   TableSource,
 } from "src/cs/workbench/services/table/common/table";
 import { createTemplateApplyInput } from "src/cs/workbench/services/template/browser/templateApplyInput";
@@ -56,9 +55,6 @@ export type WorkbenchDomainBridgeOptions = {
 };
 
 export class WorkbenchDomainBridge extends Disposable {
-  private tableStateListener: (() => void) | null = null;
-  private tableModel: TableModel | null = null;
-
   constructor(
     private readonly options: WorkbenchDomainBridgeOptions,
   ) {
@@ -70,13 +66,6 @@ export class WorkbenchDomainBridge extends Disposable {
     this._register(this.options.templateService.onDidChangeTemplateState(() => this.sync()));
     this._register(this.options.layoutService.onDidChangeWorkbenchNavigation(() => this.sync()));
     this._register(this.options.sessionService.onDidChangeSession(() => this.sync()));
-    this._register({
-      dispose: () => {
-        this.tableStateListener?.();
-        this.tableStateListener = null;
-        this.tableModel = null;
-      },
-    });
   }
 
   public sync(): void {
@@ -86,13 +75,8 @@ export class WorkbenchDomainBridge extends Disposable {
       this.options.explorerService,
       readModel,
     );
-    const tableModel = this.options.tableService.update({
-      rawFiles: readModel.rawFiles,
-      source: createRawTableSource(explorerSelection.selectedRawFileId),
-    });
+    this.options.tableService.open(createRawTableSource(explorerSelection.selectedRawFileId));
 
-    this.bindTableModelState(tableModel);
-    this.syncTableViewInput(tableModel);
     this.options.templateApplyWorkflowService.update(createTemplateApplyInput({
       readModel,
       templateState: this.options.templateService.getState(),
@@ -109,25 +93,6 @@ export class WorkbenchDomainBridge extends Disposable {
       readModel,
       explorerSelection.selectedProcessedFileId,
     ));
-  }
-
-  private bindTableModelState(tableModel: TableModel): void {
-    if (this.tableModel === tableModel) {
-      return;
-    }
-
-    this.tableStateListener?.();
-    this.tableModel = tableModel;
-    this.tableStateListener = tableModel.onDidChangeState(() => {
-      this.syncTableViewInput(tableModel);
-    });
-  }
-
-  private syncTableViewInput(tableModel: TableModel): void {
-    this.options.tableService.updateViewInput({
-      tableModel,
-      tableState: tableModel.getState(),
-    });
   }
 
   private getExplorerPaneInput(

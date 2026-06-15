@@ -46,7 +46,7 @@ export type TemplateRecord = Partial<TemplateConfig> &
     readonly [key: string]: unknown;
   };
 
-export type TemplateMode = "select" | "save";
+export type TemplateMode = "management" | "editing";
 
 export type TemplateState = {
   readonly mode: TemplateMode;

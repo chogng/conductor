@@ -2,7 +2,7 @@ import assert from "assert";
 
 import { AUTO_TEMPLATE_ID } from "src/cs/workbench/services/template/common/autoTemplate";
 import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
-import { createTemplateApplyViewState } from "src/cs/workbench/contrib/template/browser/views/templateView";
+import { createTemplateApplyViewState, shouldSyncTemplateEditorTableSelection } from "src/cs/workbench/contrib/template/browser/views/templateView";
 
 suite("workbench/contrib/template/test/browser/templateView", () => {
   test("createTemplateApplyViewState uses loaded templates for the selected label", () => {
@@ -53,5 +53,10 @@ suite("workbench/contrib/template/test/browser/templateView", () => {
 
     assert.equal(state.canDeleteTemplate, true);
     assert.equal(state.selectedTemplateLabel, "template-a");
+  });
+
+  test("syncs template table selection only while editing a template", () => {
+    assert.equal(shouldSyncTemplateEditorTableSelection("management"), false);
+    assert.equal(shouldSyncTemplateEditorTableSelection("editing"), true);
   });
 });

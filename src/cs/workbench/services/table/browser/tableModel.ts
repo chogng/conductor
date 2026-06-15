@@ -8,8 +8,9 @@ import type {
   SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import {
-  type TableInput,
   type TableModel,
+  type TableRowsReaderProvider,
+  type TableSource,
   toTableSourceKey,
 } from "src/cs/workbench/services/table/common/table";
 import { loadConvertedCsvFile } from "src/cs/workbench/services/files/browser/fileConverter";
@@ -24,7 +25,6 @@ type TableState = ReturnType<TableModel["getState"]>;
 type TableCell = NonNullable<ReturnType<TableModel["getRevealCell"]>>;
 type TableSelection = ReturnType<TableModel["getSelection"]>;
 type TableRange = NonNullable<TableSelection["ranges"]>[number];
-type TableSource = NonNullable<TableState["source"]>;
 type TableFile = NonNullable<TableState["file"]>;
 type TableHighlight = ReturnType<TableModel["getHighlight"]>;
 type TableLoadState = TableState["loadState"];
@@ -807,7 +807,13 @@ type WorkerMessage =
   | { type: "workerError"; payload: WorkerErrorPayload }
   | { type?: string; payload?: Record<string, unknown> | null };
 
-export type CreateTableModelWithScopeOptions = TableInput & {
+type TableModelInput = {
+  tableRowsReaderService?: TableRowsReaderProvider;
+  rawFiles?: SessionFile[];
+  source?: TableSource | null;
+};
+
+export type CreateTableModelWithScopeOptions = TableModelInput & {
   file?: TableFile | null;
   loadState?: TableLoadState;
   setFile?: Dispatch<SetStateAction<TableFile | null>>;

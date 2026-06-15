@@ -9,15 +9,18 @@ import {
   ITableService,
   ITableRowsReaderService,
   TABLE_COPY_MAX_CELLS,
-  type TableInput,
   type TableModel,
   type TableRevealMode,
   type TableRevealOptions,
   type TableRevealTarget,
   type TableSelectionTarget,
   type TableSelectionTextResult,
+  type TableSource,
   type TableViewInput,
 } from "src/cs/workbench/services/table/common/table";
+import { createRawFilesFromRecords } from "src/cs/workbench/services/session/common/sessionModelAdapter";
+import { ISessionService } from "src/cs/workbench/services/session/common/session";
+import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import {
   TableStateScope,
   areTableFilesEqual,
@@ -34,7 +37,6 @@ type TableState = ReturnType<TableModel["getState"]>;
 type TableCell = NonNullable<ReturnType<TableModel["getRevealCell"]>>;
 type TableSelection = ReturnType<TableModel["getSelection"]>;
 type TableRange = NonNullable<TableSelection["ranges"]>[number];
-type TableSource = NonNullable<TableState["source"]>;
 type TableFile = NonNullable<TableState["file"]>;
 
 export { createTableModelWithScope } from "src/cs/workbench/services/table/browser/tableModel";
@@ -357,27 +359,57 @@ export class TableService extends Disposable implements ITableService {
     this.onDidChangeTableViewInputEmitter.event;
 
   private readonly scope = this._register(new TableStateScope());
+  private currentSource: TableSource | null = null;
   private tableModel: TableModel | null = null;
+  private tableStateModel: TableModel | null = null;
+  private tableStateListener: (() => void) | null = null;
   private viewInput: TableViewInput | null = null;
   private selectionTableModel: TableModel | null = null;
   private tableModelSelectionListener: (() => void) | null = null;
 
   public constructor(
     @ITableRowsReaderService private readonly tableRowsReaderService: ITableRowsReaderService,
+    @ISessionService private readonly sessionService: ISessionService,
   ) {
     super();
+    this._register(this.sessionService.onDidChangeSession(() => this.refreshFromSession()));
+    this.refreshFromSession();
   }
 
-  public update(options: TableInput): TableModel {
+  public open(source: TableSource | null): TableModel {
+    const nextSource = normalizeTableSource(source);
+    if (!isSameTableSource(this.currentSource, nextSource)) {
+      this.currentSource = nextSource;
+    }
+    return this.refreshFromSession();
+  }
+
+  private refreshFromSession(): TableModel {
+    const snapshot = this.sessionService.getSnapshot();
+    const rawFiles = createRawFilesFromRecords(snapshot.filesById, snapshot.fileOrder);
+    const source = resolveAvailableTableSource(rawFiles, this.currentSource);
+    if (!isSameTableSource(this.currentSource, source)) {
+      this.currentSource = source;
+    }
+
     const tableModel = createTableModelInScope(this.scope, {
-      ...options,
-      tableRowsReaderService: options.tableRowsReaderService ?? this.tableRowsReaderService,
+      rawFiles,
+      source,
+      tableRowsReaderService: this.tableRowsReaderService,
     });
     this.bindActiveTableModel(tableModel);
+    this.bindTableModelState(tableModel);
+    this.updateViewInput({
+      tableModel,
+      tableState: tableModel.getState(),
+    });
     return tableModel;
   }
 
   public override dispose(): void {
+    this.tableStateListener?.();
+    this.tableStateListener = null;
+    this.tableStateModel = null;
     this.tableModelSelectionListener?.();
     this.tableModelSelectionListener = null;
     this.selectionTableModel = null;
@@ -488,7 +520,7 @@ export class TableService extends Disposable implements ITableService {
     return this.getActiveTableModel()?.selectAllColumns() ?? false;
   }
 
-  public updateViewInput(input: TableViewInput): void {
+  private updateViewInput(input: TableViewInput): void {
     if (this.viewInput && isSameTableViewInput(this.viewInput, input)) {
       return;
     }
@@ -525,6 +557,21 @@ export class TableService extends Disposable implements ITableService {
     this.selectionTableModel = tableModel;
     this.tableModelSelectionListener = tableModel.onDidChangeSelection((selection) => {
       this.onDidChangeSelectionEmitter.fire(selection);
+    });
+  }
+
+  private bindTableModelState(tableModel: TableModel): void {
+    if (this.tableStateModel === tableModel) {
+      return;
+    }
+
+    this.tableStateListener?.();
+    this.tableStateModel = tableModel;
+    this.tableStateListener = tableModel.onDidChangeState(() => {
+      this.updateViewInput({
+        tableModel,
+        tableState: tableModel.getState(),
+      });
     });
   }
 }
@@ -570,4 +617,62 @@ const areNullableTableFilesEqual = (
   }
 
   return areTableFilesEqual(current, next);
+};
+
+const normalizeTableSource = (source: TableSource | null | undefined): TableSource | null => {
+  const fileId = String(source?.fileId ?? "").trim();
+  if (!fileId) {
+    return null;
+  }
+
+  const sheetId = typeof source?.sheetId === "string" && source.sheetId.trim()
+    ? source.sheetId.trim()
+    : null;
+  return {
+    fileId,
+    sheetId,
+  };
+};
+
+const resolveAvailableTableSource = (
+  rawFiles: readonly SessionFile[],
+  source: TableSource | null,
+): TableSource | null => {
+  if (!source) {
+    return null;
+  }
+
+  return rawFiles.some(rawFile => isSessionFileForTableSource(rawFile, source))
+    ? source
+    : null;
+};
+
+const isSessionFileForTableSource = (
+  rawFile: SessionFile,
+  source: TableSource,
+): boolean => {
+  const fileId = readSessionFileString(rawFile, "fileId");
+  if (fileId !== source.fileId) {
+    return false;
+  }
+
+  if (!source.sheetId) {
+    return true;
+  }
+
+  return getSessionFileSheetId(rawFile) === source.sheetId;
+};
+
+const getSessionFileSheetId = (rawFile: SessionFile): string | null =>
+  readSessionFileString(rawFile, "sheetId") ??
+  readSessionFileString(rawFile, "worksheetId") ??
+  readSessionFileString(rawFile, "sheetName") ??
+  readSessionFileString(rawFile, "worksheetName");
+
+const readSessionFileString = (
+  rawFile: SessionFile,
+  key: string,
+): string | null => {
+  const value = rawFile[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 };

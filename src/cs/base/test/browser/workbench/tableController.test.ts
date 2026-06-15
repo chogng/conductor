@@ -66,10 +66,8 @@ function createTableControllerProps(): TableControllerProps {
 	const tableState = createTableState();
 
 	return {
+		onSelect: () => true,
 		tableModel,
-		tableService: {
-			select: () => true,
-		},
 		tableState,
 	};
 }

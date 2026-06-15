@@ -23,10 +23,10 @@ Table shows raw tables and assessment block ranges. It does not identify measure
 
 It consumes:
 
-- session snapshot for raw table metadata and assessment ranges;
+- session change events and session snapshot for raw table metadata and assessment ranges;
 - file import/raw table row reader for row bytes;
 - assessment result for block ranges and column role display.
-- current `TableSource` input from `WorkbenchDomainBridge`.
+- `TableSource` open intent from commands, search, or `WorkbenchDomainBridge`.
 
 It does not own:
 
@@ -56,7 +56,8 @@ It does not own:
 
 ```mermaid
 flowchart TD
-    Session[SessionSnapshot] --> TableService[ITableService]
+    Session[SessionChangeEvent / SessionSnapshot] --> TableService[ITableService]
+    Bridge[WorkbenchDomainBridge / command] -->|open TableSource| TableService
     Rows[RawTableRowsReader] --> TableService
     Assessment[RawTableAssessmentRecord] --> TableService
     TableService --> TableModel[tableModel instance]
@@ -94,6 +95,7 @@ tableWidget.select(target, reveal?);
 tableWidget.zoomIn();
 tableWidget.zoomOut();
 tableWidget.resetZoom();
+tableService.open(source);
 tableService.select(target, reveal?); // command/external snapshot path
 tableService.reveal(target, options?);
 tableModel.setSelection(selection);
@@ -151,19 +153,18 @@ table.zoomIn command
 
 Search result navigation may dispatch to table commands when the result points to `RawTableRangeRef`.
 
-Input flow:
+Open/session flow:
 
 ```ts
-tableService.update({
-  rawFiles,
-  source: { fileId, sheetId },
-});
+tableService.open({ fileId, sheetId });
 ```
 
 Do not name the table input after another feature's selection state.
 `WorkbenchDomainBridge` may derive a `TableSource` from Explorer/session state
 by subscribing to source owner events and rereading owner public state, but
-`ITableService` consumes table source input and owns its own preview lifecycle.
+`ITableService` consumes session snapshots itself and owns its own preview
+lifecycle. External callers do not pass raw files or table rows into the table
+service; they only pass the pure source target they want table to open.
 This follows the cross-service selection mirroring rule in
 `architecture.instructions.md`: bridge by translating domain input, not by
 sharing selection state or calling another service's internals.

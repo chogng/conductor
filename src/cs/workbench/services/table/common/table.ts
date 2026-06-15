@@ -5,7 +5,6 @@
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { ConvertedCsvReaderService } from "src/cs/workbench/services/files/common/fileConverterBackend";
-import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 
 // Pure data types for the table feature. This module is the common contract
 // entry point for table records, source keys, constants, and service contracts.
@@ -179,12 +178,6 @@ export interface ITableRowsReaderService extends TableRowsReaderProvider {
 	readonly _serviceBrand: undefined;
 }
 
-export type TableInput = {
-	tableRowsReaderService?: TableRowsReaderProvider;
-	rawFiles?: SessionFile[];
-	source?: TableSource | null;
-};
-
 export const ITableService = createDecorator<ITableService>("tableService");
 
 export interface ITableService {
@@ -196,9 +189,8 @@ export interface ITableService {
 	getSelection(): TableSelection;
 	getSelectionText(maxCellCount?: number): Promise<TableSelectionTextResult>;
 	getViewInput(): TableViewInput | null;
+	open(source: TableSource | null): TableModel;
 	reveal(target: TableRevealTarget | null, options?: TableRevealOptions): boolean;
 	select(target: TableSelectionTarget | null, reveal?: TableRevealMode): boolean;
 	selectAllColumns(): boolean;
-	update(input: TableInput): TableModel;
-	updateViewInput(input: TableViewInput): void;
 }

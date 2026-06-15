@@ -377,7 +377,7 @@ interactions. Consumers reread it through `ITemplateService.getState()` after
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `mode` | `'select' | 'save'` | Whether the template panel shows apply controls or editor controls. |
+| `mode` | `'management' | 'editing'` | Whether the template panel shows template management/apply controls or template editing controls. |
 | `selectedTemplateId` | `string | null` | Current saved template id, or null for auto/new draft state. |
 | `formState` | `TemplateConfig` | Current template form configuration. |
 | `selectionsByFileId` | `TemplateSelectionsByFileId` | Per-file template selection overrides. |
@@ -511,11 +511,11 @@ Owner: `TableService`. Not session canonical data.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `kind` | `'rawTable' | 'measurementBlock' | 'range'` | Source category. |
 | `fileId` | `FileId` | File id. |
-| `rawTableId` | `RawTableId` | Raw table id. |
-| `measurementBlockId` | `MeasurementBlockId | undefined` | Block source if applicable. |
-| `range` | `RangeRef | undefined` | Explicit range if applicable. |
+| `sheetId` | `SheetId | null | undefined` | Raw table/sheet id within the file. Omitted when the first available table for the file is acceptable. |
+
+`TableSource` is a pure open target for `ITableService.open(...)`. It does not
+carry raw rows, session snapshots, Explorer selection state, or table behavior.
 
 ### `TableSelection`
 

@@ -661,7 +661,8 @@ Use the same rule for Conductor domains:
 Explorer owns selected Explorer resource.
 TableService owns current TableSource and preview lifecycle; the active TableWidget owns table selection interaction, zoom, and column layout, and mirrors only the command/copy selection snapshot to TableService.
 WorkbenchDomainBridge or a feature view may translate selected Explorer resource -> TableSource.
-TableService.update(...) receives source: TableSource | null, not selectedFileId.
+TableService.open(...) receives source: TableSource | null, not selectedFileId.
+TableService subscribes to Session and rereads session snapshots for raw table metadata and rows.
 Files/Explorer must not call Table preview invalidation or row-cache methods.
 ```
 

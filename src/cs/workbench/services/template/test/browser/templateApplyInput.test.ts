@@ -17,7 +17,7 @@ suite("workbench/services/template/test/browser/templateApplyInput", () => {
 			} as SessionReadModel,
 			templateState: {
 				formState: {},
-				mode: "select",
+				mode: "management",
 				selectedTemplateId: "template-a",
 				selectionsByFileId: {
 				"file-a": { kind: "auto" },
