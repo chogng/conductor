@@ -2,9 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-  ITableService,
-} from "src/cs/workbench/services/table/common/table";
+import { ITableService } from "src/cs/workbench/services/table/common/table";
 import {
   TableCommandId,
   type TableCommandId as TableCommandIdValue,

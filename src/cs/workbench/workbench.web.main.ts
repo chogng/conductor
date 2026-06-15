@@ -12,7 +12,7 @@ import "src/cs/platform/files/common/fileService";
 import "src/cs/workbench/services/configuration/browser/configurationService";
 import "src/cs/workbench/services/storage/browser/storageService";
 import "src/cs/workbench/services/files/browser/fileConverterBackendService.ts";
-import "src/cs/workbench/services/table/browser/tableBackendService.ts";
+import "src/cs/workbench/services/table/browser/tableRowsReaderService.ts";
 import "src/cs/workbench/services/template/browser/templateStoreService.ts";
 import "src/cs/workbench/services/template/browser/templateProcessingBackendService.ts";
 import "src/cs/workbench/services/parameters/browser/rcCalculationBackendService.ts";
