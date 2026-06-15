@@ -46,8 +46,8 @@ import {
 import { isNativeWindowCommand } from "../../platform/window/common/window.js";
 import {
   resolveRustWorkerExecutablePath,
-  RustWorkerRuntime,
-} from "../../platform/rust/electron-main/rustWorkerRuntime.js";
+  RustWorkerHost,
+} from "../../platform/rust/electron-main/rustWorkerHost.js";
 import { DiskFileSystemProviderChannel } from "../../platform/files/electron-main/diskFileSystemProviderServer.js";
 import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from "../../platform/files/common/files.js";
 import { DiskFileSystemProvider } from "../../platform/files/node/diskFileSystemProvider.js";
@@ -111,7 +111,7 @@ const RUST_PROCESSING_POOL_SIZE = Math.max(
     Number(process.env.CONDUCTOR_RUST_PROCESSING_POOL_SIZE) || 2,
   ),
 );
-const rustWorkerRuntime = new RustWorkerRuntime({
+const rustWorkerHost = new RustWorkerHost({
   isWindows,
   processingPoolSize: RUST_PROCESSING_POOL_SIZE,
   resolveExecutablePath: () => resolveRustWorkerExecutablePath({
@@ -570,7 +570,7 @@ async function hydrateRustProcessingResultRefs(result, tempDir = null) {
 }
 
 function stopAllRustEngines() {
-  rustWorkerRuntime.stop();
+  rustWorkerHost.stop();
 }
 
 function isRustProcessFileConfigSupported(config) {
@@ -1085,7 +1085,7 @@ async function handleFileConversionPrepare(_event, payload) {
   }
 
   try {
-    const result = await rustWorkerRuntime.sendProcessingCommand("assessImport", {
+    const result = await rustWorkerHost.sendProcessingCommand("assessImport", {
       fileName,
       path: inputPath,
     }) as { assessment?: unknown };
@@ -1836,7 +1836,7 @@ if (hasSingleInstanceLock) {
       hydrateRustProcessingResultRefs,
       isRustProcessFileConfigSupported,
       isSupportedInputPath: isSupportedRustInputPath,
-      rustWorkerRuntime,
+      rustWorkerHost,
     }),
   });
   ipcMain.handle(

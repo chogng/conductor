@@ -1,4 +1,4 @@
-export const IRustWorkerService = Symbol("rustWorkerService");
+export const IRustWorkerHost = Symbol("rustWorkerHost");
 
 export type RustWorkerCommandPayload = Record<string, unknown>;
 
@@ -6,7 +6,7 @@ export type RustWorkerCommandOptions = {
   readonly timeoutMs?: number;
 };
 
-export interface IRustWorkerService {
+export interface IRustWorkerHost {
   readonly _serviceBrand: undefined;
 
   sendCommand(

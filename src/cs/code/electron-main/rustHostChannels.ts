@@ -4,7 +4,7 @@ import type {
   AnalyzeRcRequest,
   DisposeFileRequest,
   ExportOriginCsvRequest,
-  IRustAnalysisService,
+  IRustHostService,
   OpenFileRequest,
   PreviewMetaRequest,
   PreviewRowsRequest,
@@ -12,7 +12,7 @@ import type {
   ReadCellRequest,
   ReadCellsRequest,
   RustProcessConfig,
-} from "../../platform/rust/common/rustAnalysisProtocol.js";
+} from "../../platform/rust/common/rustHostProtocol.js";
 import type { workbenchIpcChannels } from "../../workbench/common/ipcChannels.js";
 
 type RegisterRustHandlersOptions = {
@@ -29,7 +29,7 @@ type RegisterRustHandlersOptions = {
     | "analysisRustEngineReadCells"
   >;
   ipcMain: IpcMain;
-  rustService: IRustAnalysisService;
+  rustService: IRustHostService;
 };
 
 const normalizeCellIndex = (value: unknown): number | null => {

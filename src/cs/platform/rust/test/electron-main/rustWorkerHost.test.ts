@@ -7,9 +7,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { resolveRustWorkerExecutablePath } from "src/cs/platform/rust/electron-main/rustWorkerRuntime";
+import { resolveRustWorkerExecutablePath } from "src/cs/platform/rust/electron-main/rustWorkerHost";
 
-suite("platform/rust/electron-main/rustWorkerRuntime", () => {
+suite("platform/rust/electron-main/rustWorkerHost", () => {
 	const helperFileName = "conductor-rs.exe";
 	let root: string;
 

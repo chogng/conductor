@@ -1,20 +1,20 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { IRustWorkerService } from "../../platform/rust/common/rustWorker.js";
+import type { IRustWorkerHost } from "../../platform/rust/common/rustWorker.js";
 import type {
   AnalyzeRcRequest,
   DisposeFileRequest,
   ExportOriginCsvRequest,
-  IRustAnalysisService,
+  IRustHostService,
   OpenFileRequest,
   PreviewMetaRequest,
   PreviewRowsRequest,
   ProcessFileRequest,
   ReadCellRequest,
   ReadCellsRequest,
-  RustAnalysisResponse,
+  RustHostResponse,
   RustProcessConfig,
-} from "../../platform/rust/common/rustAnalysisProtocol.js";
+} from "../../platform/rust/common/rustHostProtocol.js";
 
 type ServiceHelpers = {
   createOriginExportTempPath: (fileId: string, csvName: string) => string;
@@ -25,7 +25,7 @@ type ServiceHelpers = {
 };
 
 type ServiceOptions = ServiceHelpers & {
-  rustWorkerRuntime: IRustWorkerService;
+  rustWorkerHost: IRustWorkerHost;
 };
 
 const ErrorCode = {
@@ -40,8 +40,8 @@ const buildSuccess = (
   startedAt: number,
   result: unknown,
   source: "rust" | "rust-pool",
-  extras?: Partial<Extract<RustAnalysisResponse, { ok: true }>>,
-): Extract<RustAnalysisResponse, { ok: true }> => ({
+  extras?: Partial<Extract<RustHostResponse, { ok: true }>>,
+): Extract<RustHostResponse, { ok: true }> => ({
   ok: true,
   durationMs: Date.now() - startedAt,
   result,
@@ -53,19 +53,19 @@ const buildFailure = (
   code: string,
   message: string,
   startedAt?: number,
-): Extract<RustAnalysisResponse, { ok: false }> => ({
+): Extract<RustHostResponse, { ok: false }> => ({
   ok: false,
   code,
   durationMs: typeof startedAt === "number" ? Date.now() - startedAt : undefined,
   message,
 });
 
-export class RustHostService implements IRustAnalysisService {
+export class RustHostService implements IRustHostService {
   constructor(
     private readonly options: ServiceOptions,
   ) {}
 
-  public async openFile(request: OpenFileRequest): Promise<RustAnalysisResponse> {
+  public async openFile(request: OpenFileRequest): Promise<RustHostResponse> {
     if (!request.fileId || !request.inputPath || !this.options.isSupportedInputPath(request.inputPath)) {
       return buildFailure(ErrorCode.InvalidPath, "Invalid file path.");
     }
@@ -84,7 +84,7 @@ export class RustHostService implements IRustAnalysisService {
 
     const startedAt = Date.now();
     try {
-      const result = await this.options.rustWorkerRuntime.sendCommand("open", {
+      const result = await this.options.rustWorkerHost.sendCommand("open", {
         fileId: request.fileId,
         fileName: request.fileName || path.basename(request.inputPath),
         path: request.inputPath,
@@ -100,14 +100,14 @@ export class RustHostService implements IRustAnalysisService {
     }
   }
 
-  public async previewRows(request: PreviewRowsRequest): Promise<RustAnalysisResponse> {
+  public async previewRows(request: PreviewRowsRequest): Promise<RustHostResponse> {
     if (!request.fileId) {
       return buildFailure(ErrorCode.InvalidFileId, "Missing file id.");
     }
 
     const startedAt = Date.now();
     try {
-      const result = await this.options.rustWorkerRuntime.sendCommand("previewRows", request);
+      const result = await this.options.rustWorkerHost.sendCommand("previewRows", request);
       return buildSuccess(startedAt, result, "rust");
     } catch (error) {
       return buildFailure(
@@ -118,14 +118,14 @@ export class RustHostService implements IRustAnalysisService {
     }
   }
 
-  public async previewMeta(request: PreviewMetaRequest): Promise<RustAnalysisResponse> {
+  public async previewMeta(request: PreviewMetaRequest): Promise<RustHostResponse> {
     if (!request.fileId) {
       return buildFailure(ErrorCode.InvalidFileId, "Missing file id.");
     }
 
     const startedAt = Date.now();
     try {
-      const result = await this.options.rustWorkerRuntime.sendCommand("previewMeta", request);
+      const result = await this.options.rustWorkerHost.sendCommand("previewMeta", request);
       return buildSuccess(startedAt, result, "rust");
     } catch (error) {
       return buildFailure(
@@ -136,14 +136,14 @@ export class RustHostService implements IRustAnalysisService {
     }
   }
 
-  public async readCell(request: ReadCellRequest): Promise<RustAnalysisResponse> {
+  public async readCell(request: ReadCellRequest): Promise<RustHostResponse> {
     if (!request.fileId) {
       return buildFailure(ErrorCode.InvalidCell, "Invalid analysis cell request.");
     }
 
     const startedAt = Date.now();
     try {
-      const result = await this.options.rustWorkerRuntime.sendCommand("readCell", request);
+      const result = await this.options.rustWorkerHost.sendCommand("readCell", request);
       return buildSuccess(startedAt, result, "rust");
     } catch (error) {
       return buildFailure(
@@ -154,14 +154,14 @@ export class RustHostService implements IRustAnalysisService {
     }
   }
 
-  public async readCells(request: ReadCellsRequest): Promise<RustAnalysisResponse> {
+  public async readCells(request: ReadCellsRequest): Promise<RustHostResponse> {
     if (!request.fileId || !request.cells.length) {
       return buildFailure(ErrorCode.InvalidCells, "Invalid analysis cells request.");
     }
 
     const startedAt = Date.now();
     try {
-      const result = await this.options.rustWorkerRuntime.sendCommand("readCells", request);
+      const result = await this.options.rustWorkerHost.sendCommand("readCells", request);
       return buildSuccess(startedAt, result, "rust");
     } catch (error) {
       return buildFailure(
@@ -172,7 +172,7 @@ export class RustHostService implements IRustAnalysisService {
     }
   }
 
-  public async processFile(request: ProcessFileRequest): Promise<RustAnalysisResponse> {
+  public async processFile(request: ProcessFileRequest): Promise<RustHostResponse> {
     if (!request.fileId || !request.inputPath || !this.options.isSupportedInputPath(request.inputPath)) {
       return buildFailure(ErrorCode.InvalidPath, "Invalid file path.");
     }
@@ -187,7 +187,7 @@ export class RustHostService implements IRustAnalysisService {
     const tempDir = this.options.createRustProcessingResultTempDir(request.fileId);
     const calculationCachePath = path.join(tempDir, "calculation-cache.json");
     try {
-      const result = await this.options.rustWorkerRuntime.sendProcessingCommand(
+      const result = await this.options.rustWorkerHost.sendProcessingCommand(
         request.auto ? "processFileAuto" : "processFile",
         {
           calculationCachePath,
@@ -213,10 +213,10 @@ export class RustHostService implements IRustAnalysisService {
             ? resultObject.autoConfig
             : request.config;
       }
-      void this.options.rustWorkerRuntime.disposeProcessingFile(request.fileId);
+      void this.options.rustWorkerHost.disposeProcessingFile(request.fileId);
       return buildSuccess(startedAt, result, "rust-pool");
     } catch (error) {
-      void this.options.rustWorkerRuntime.disposeProcessingFile(request.fileId);
+      void this.options.rustWorkerHost.disposeProcessingFile(request.fileId);
       void fs.promises.rm(tempDir, { force: true, recursive: true }).catch(() => {});
       return buildFailure(
         "RUST_ENGINE_PROCESS_FAILED",
@@ -226,14 +226,14 @@ export class RustHostService implements IRustAnalysisService {
     }
   }
 
-  public async analyzeRc(request: AnalyzeRcRequest): Promise<RustAnalysisResponse> {
+  public async analyzeRc(request: AnalyzeRcRequest): Promise<RustHostResponse> {
     if (!request.devices.length) {
       return buildFailure("RUST_ENGINE_RC_MISSING_DEVICES", "Rc analysis requires at least one device.");
     }
 
     const startedAt = Date.now();
     try {
-      const result = await this.options.rustWorkerRuntime.sendProcessingCommand(
+      const result = await this.options.rustWorkerHost.sendProcessingCommand(
         "analyzeRc",
         {
           rcDevices: request.devices,
@@ -251,7 +251,7 @@ export class RustHostService implements IRustAnalysisService {
     }
   }
 
-  public async exportOriginCsv(request: ExportOriginCsvRequest): Promise<RustAnalysisResponse> {
+  public async exportOriginCsv(request: ExportOriginCsvRequest): Promise<RustHostResponse> {
     const hasRustSeries =
       (request.metricKind === "output" || request.metricKind === "transfer") &&
       request.metricSeries.length > 0;
@@ -283,7 +283,7 @@ export class RustHostService implements IRustAnalysisService {
     const startedAt = Date.now();
     const outputPath = this.options.createOriginExportTempPath(request.fileId, request.csvName);
     try {
-      const result = await this.options.rustWorkerRuntime.sendProcessingCommand(
+      const result = await this.options.rustWorkerHost.sendProcessingCommand(
         "exportOriginCsv",
         {
           columns: request.columns,
@@ -313,20 +313,20 @@ export class RustHostService implements IRustAnalysisService {
       );
     } finally {
       void Promise.allSettled(
-        disposeFileIds.map((fileId) => this.options.rustWorkerRuntime.disposeProcessingFile(fileId)),
+        disposeFileIds.map((fileId) => this.options.rustWorkerHost.disposeProcessingFile(fileId)),
       );
     }
   }
 
-  public async disposeFile(request: DisposeFileRequest): Promise<RustAnalysisResponse> {
+  public async disposeFile(request: DisposeFileRequest): Promise<RustHostResponse> {
     try {
       if (request.clear) {
-        await this.options.rustWorkerRuntime.clear();
+        await this.options.rustWorkerHost.clear();
         return { ok: true, source: "rust" };
       }
       if (request.fileId) {
         const [previewDispose] = await Promise.allSettled([
-          this.options.rustWorkerRuntime.disposeFile(request.fileId),
+          this.options.rustWorkerHost.disposeFile(request.fileId),
         ]);
         if (previewDispose.status === "rejected") {
           throw previewDispose.reason;

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type {
-  IRustWorkerService,
+  IRustWorkerHost,
   RustWorkerCommandOptions,
   RustWorkerCommandPayload,
 } from "../common/rustWorker.js";
@@ -30,7 +30,7 @@ export type RustWorkerExecutableResolverOptions = {
   resourcesPath: string;
 };
 
-export type RustWorkerRuntimeOptions = {
+export type RustWorkerHostOptions = {
   isWindows: boolean;
   processingPoolSize: number;
   resolveExecutablePath: () => string | null;
@@ -121,7 +121,7 @@ export const resolveRustWorkerExecutablePath = ({
   }) ?? null;
 };
 
-export class RustWorkerRuntime implements IRustWorkerService {
+export class RustWorkerHost implements IRustWorkerHost {
   public declare readonly _serviceBrand: undefined;
 
   private previewChild: ChildProcessWithoutNullStreams | null = null;
@@ -131,7 +131,7 @@ export class RustWorkerRuntime implements IRustWorkerService {
   private readonly processingSlots: RustWorkerSlot[] = [];
   private processingSlotCursor = 0;
 
-  constructor(private readonly options: RustWorkerRuntimeOptions) {}
+  constructor(private readonly options: RustWorkerHostOptions) {}
 
   public sendCommand(
     command: string,

@@ -3,14 +3,14 @@ export type RustProcessConfig = {
   yCols?: unknown;
 };
 
-export type RustAnalysisResultSource = "rust" | "rust-pool";
+export type RustHostResultSource = "rust" | "rust-pool";
 
-export type RustAnalysisResponse =
+export type RustHostResponse =
   | {
       ok: true;
       durationMs?: number;
       result?: unknown;
-      source: RustAnalysisResultSource;
+      source: RustHostResultSource;
       csvPath?: string;
     }
   | {
@@ -89,14 +89,14 @@ export type DisposeFileRequest = {
   fileId: string;
 };
 
-export interface IRustAnalysisService {
-  analyzeRc(request: AnalyzeRcRequest): Promise<RustAnalysisResponse>;
-  disposeFile(request: DisposeFileRequest): Promise<RustAnalysisResponse>;
-  exportOriginCsv(request: ExportOriginCsvRequest): Promise<RustAnalysisResponse>;
-  openFile(request: OpenFileRequest): Promise<RustAnalysisResponse>;
-  previewMeta(request: PreviewMetaRequest): Promise<RustAnalysisResponse>;
-  previewRows(request: PreviewRowsRequest): Promise<RustAnalysisResponse>;
-  processFile(request: ProcessFileRequest): Promise<RustAnalysisResponse>;
-  readCell(request: ReadCellRequest): Promise<RustAnalysisResponse>;
-  readCells(request: ReadCellsRequest): Promise<RustAnalysisResponse>;
+export interface IRustHostService {
+  analyzeRc(request: AnalyzeRcRequest): Promise<RustHostResponse>;
+  disposeFile(request: DisposeFileRequest): Promise<RustHostResponse>;
+  exportOriginCsv(request: ExportOriginCsvRequest): Promise<RustHostResponse>;
+  openFile(request: OpenFileRequest): Promise<RustHostResponse>;
+  previewMeta(request: PreviewMetaRequest): Promise<RustHostResponse>;
+  previewRows(request: PreviewRowsRequest): Promise<RustHostResponse>;
+  processFile(request: ProcessFileRequest): Promise<RustHostResponse>;
+  readCell(request: ReadCellRequest): Promise<RustHostResponse>;
+  readCells(request: ReadCellsRequest): Promise<RustHostResponse>;
 }
