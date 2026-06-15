@@ -6,6 +6,8 @@ import assert from "assert";
 
 import { Emitter } from "src/cs/base/common/event";
 import { BrowserTemplateService } from "src/cs/workbench/services/template/browser/templateService";
+import { AUTO_TEMPLATE_ID } from "src/cs/workbench/services/template/common/autoTemplate";
+import type { ITemplateStoreService } from "src/cs/workbench/services/template/common/templateStore";
 import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import { createTemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 import type { ISessionService } from "src/cs/workbench/services/session/common/session";
@@ -100,16 +102,59 @@ suite("workbench/services/template/browser/templateService", () => {
     service.dispose();
     sessionEvents.dispose();
   });
+
+  test("delegates template persistence to store service", async () => {
+    const template = createEmptyTemplateConfig({
+      name: "Transfer",
+    });
+    const savedTemplate = {
+      ...template,
+      id: "template-a",
+    };
+    const templateStoreService = createTemplateStoreServiceForTest({
+      templates: [savedTemplate, { id: AUTO_TEMPLATE_ID, name: "Auto" }],
+      savedTemplate,
+    });
+    const { service } = createTemplateServiceForTest(templateStoreService);
+
+    assert.deepEqual(await service.getTemplates(), [savedTemplate]);
+    assert.equal(await service.saveTemplate(template), savedTemplate);
+    assert.equal(service.getState().templateListVersion, 1);
+
+    await service.deleteTemplate("template-a");
+
+    assert.deepEqual(templateStoreService.deletedTemplateIds, ["template-a"]);
+    assert.equal(service.getState().templateListVersion, 2);
+    service.dispose();
+  });
 });
 
-const createTemplateServiceForTest = () => {
+const createTemplateServiceForTest = (
+  templateStoreService = createTemplateStoreServiceForTest(),
+) => {
   const sessionEvents = new Emitter<SessionChangeEvent>();
   const sessionService = {
     onDidChangeSession: sessionEvents.event,
   } as ISessionService;
 
   return {
-    service: new BrowserTemplateService(sessionService),
+    service: new BrowserTemplateService(sessionService, templateStoreService),
     sessionEvents,
   };
+};
+
+const createTemplateStoreServiceForTest = (options: {
+  readonly templates?: readonly unknown[];
+  readonly savedTemplate?: unknown;
+} = {}) => {
+  const deletedTemplateIds: string[] = [];
+  return {
+    _serviceBrand: undefined,
+    deletedTemplateIds,
+    getTemplates: async () => options.templates ?? [],
+    saveTemplate: async () => options.savedTemplate ?? null,
+    deleteTemplate: async (id: string) => {
+      deletedTemplateIds.push(id);
+    },
+  } as ITemplateStoreService & { readonly deletedTemplateIds: string[] };
 };

@@ -27,7 +27,7 @@ import {
   removeTemplateSelectionsForFiles,
   type TemplateSelectionsByFileId,
 } from "src/cs/workbench/services/template/common/templateSelection";
-import { conductorStoreClient } from "src/cs/workbench/services/conductorStore/electron-browser/conductorStoreClient";
+import { ITemplateStoreService } from "src/cs/workbench/services/template/common/templateStore";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 
@@ -46,6 +46,7 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
 
   public constructor(
     @ISessionService private readonly sessionService: ISessionService,
+    @ITemplateStoreService private readonly templateStoreService: ITemplateStoreService,
   ) {
     super();
 
@@ -134,19 +135,17 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
   }
 
   async getTemplates(): Promise<TemplateRecord[]> {
-    const remote = await conductorStoreClient.getTemplates();
+    const remote = await this.templateStoreService.getTemplates();
     return filterUserTemplateRecords(remote) as TemplateRecord[];
   }
 
   async deleteTemplate(id: string): Promise<void> {
-    await conductorStoreClient.deleteTemplate(id);
+    await this.templateStoreService.deleteTemplate(id);
     this.markTemplateListChanged();
   }
 
   async saveTemplate(template: TemplateConfig): Promise<TemplateRecord> {
-    const saved = await conductorStoreClient.createTemplate({
-      ...template,
-    });
+    const saved = await this.templateStoreService.saveTemplate(template);
     this.markTemplateListChanged();
     return isTemplateRecord(saved) ? saved : template;
   }

@@ -41,6 +41,7 @@ import "src/cs/workbench/services/environment/electron-browser/environmentServic
 import "src/cs/platform/files/electron-browser/fileService.ts";
 import "src/cs/workbench/services/files/electron-browser/fileConversionService.ts";
 import "src/cs/workbench/services/table/electron-browser/tableRowsReader.ts";
+import "src/cs/workbench/services/template/electron-browser/templateStoreService.ts";
 import "src/cs/workbench/services/template/electron-browser/templateProcessingBackendService.ts";
 import "src/cs/workbench/services/parameters/electron-browser/rcCalculationBackendService.ts";
 import "src/cs/workbench/services/path/electron-browser/pathService.ts";
