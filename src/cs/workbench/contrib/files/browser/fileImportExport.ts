@@ -2060,6 +2060,24 @@ async function collectFolderFilesAt(
     });
   }
 
+  const sortedFolderTasks = [...folderTasks].sort(compareFolderTasks);
+  for (const task of sortedFolderTasks) {
+    if (!shouldContinueCollecting(options)) {
+      return;
+    }
+
+    await collectFolderFilesAt(
+      task.resource,
+      task.relativePath,
+      files,
+      readFailures,
+      depth + 1,
+      filesService,
+      options,
+      canUseNativePath,
+    );
+  }
+
   if (fileTasks.length > 0) {
     const sortedFileTasks = [...fileTasks].sort(compareFolderFileStatTasks);
     for (
@@ -2083,23 +2101,16 @@ async function collectFolderFilesAt(
       }
     }
   }
+}
 
-  for (const task of folderTasks) {
-    if (!shouldContinueCollecting(options)) {
-      return;
-    }
-
-    await collectFolderFilesAt(
-      task.resource,
-      task.relativePath,
-      files,
-      readFailures,
-      depth + 1,
-      filesService,
-      options,
-      canUseNativePath,
-    );
-  }
+function compareFolderTasks(
+  first: { readonly relativePath: string },
+  second: { readonly relativePath: string },
+): number {
+  return first.relativePath.localeCompare(second.relativePath, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
 }
 
 function compareFolderFileStatTasks(

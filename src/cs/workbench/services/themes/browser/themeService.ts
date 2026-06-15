@@ -19,6 +19,19 @@ const WORKBENCH_MACOS_TRANSPARENT_CHROME_CLASS = "workbench-transparent-chrome-m
 const WORKBENCH_WINDOWS_TRANSPARENT_CHROME_CLASS = "workbench-transparent-chrome-windows";
 const WORKBENCH_OPAQUE_SURFACE_CLASS = "workbench-opaque-surface";
 
+type DesktopConductorProcess = {
+	readonly platform?: string;
+	readonly versions?: {
+		readonly electron?: string;
+	};
+};
+
+type DesktopConductorWindow = Window & typeof globalThis & {
+	readonly conductor?: {
+		readonly process?: DesktopConductorProcess;
+	};
+};
+
 export class BrowserWorkbenchThemeService extends Disposable implements IWorkbenchThemeService {
 	public declare readonly _serviceBrand: undefined;
 
@@ -306,39 +319,25 @@ const readDesktopOpaqueSurfaceState = (
 };
 
 const isMacOSElectronWorkbench = (): boolean => {
-	const conductorProcess = (
-		typeof window === "undefined"
-			? undefined
-			: window.conductor?.process
-	) as
-		| {
-			readonly platform?: string;
-			readonly versions?: {
-				readonly electron?: string;
-			};
-		}
-		| undefined;
+	const conductorProcess = getDesktopConductorProcess();
 
 	return conductorProcess?.platform === "darwin" &&
 		typeof conductorProcess.versions?.electron === "string";
 };
 
 const isWindowsElectronWorkbench = (): boolean => {
-	const conductorProcess = (
-		typeof window === "undefined"
-			? undefined
-			: window.conductor?.process
-	) as
-		| {
-			readonly platform?: string;
-			readonly versions?: {
-				readonly electron?: string;
-			};
-		}
-		| undefined;
+	const conductorProcess = getDesktopConductorProcess();
 
 	return conductorProcess?.platform === "win32" &&
 		typeof conductorProcess.versions?.electron === "string";
+};
+
+const getDesktopConductorProcess = (): DesktopConductorProcess | undefined => {
+	if (typeof window === "undefined") {
+		return undefined;
+	}
+
+	return (window as DesktopConductorWindow).conductor?.process;
 };
 
 const isSameAppearance = (

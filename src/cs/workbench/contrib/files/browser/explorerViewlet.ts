@@ -447,7 +447,6 @@ export class ExplorerViewPane extends ViewPane {
 
   private closeFolder(): void {
     this.sourceWorkflow.closeImportedSources();
-    this.error = null;
     this.isDragging = false;
 
     const fileIds = uniqueFileIds([

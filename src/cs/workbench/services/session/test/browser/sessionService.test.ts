@@ -944,6 +944,11 @@ const createImportedFileRecordForTest = (
     normalizeOptionalTestText(file.worksheetName);
   const rowCount = Math.max(0, Math.floor(Number(file.rowCount) || 0));
   const columnCount = Math.max(0, Math.floor(Number(file.columnCount) || 0));
+  const lastModified = readRecordNumber(file.file, "lastModified");
+  const rawKey = normalizeOptionalTestText(file.rawKey) ??
+    normalizeOptionalTestText(file.sourceKey) ??
+    undefined;
+  const size = readRecordNumber(file.file, "size");
   return {
     id: fileId,
     kind: /\.xlsx?$/i.test(fileName) ? "excel" : "csv",
@@ -952,9 +957,8 @@ const createImportedFileRecordForTest = (
       fileId,
       fileName,
       filePath: typeof file.sourcePath === "string" ? file.sourcePath : null,
-      lastModified: readRecordNumber(file.file, "lastModified") ?? undefined,
-      rawKey: normalizeOptionalTestText(file.rawKey) ??
-        normalizeOptionalTestText(file.sourceKey),
+      ...(lastModified !== undefined ? { lastModified } : {}),
+      ...(rawKey !== undefined ? { rawKey } : {}),
       rawFile: file.file,
       rawTablesById: {
         [rawTableId]: {
@@ -986,7 +990,7 @@ const createImportedFileRecordForTest = (
       },
       rawTableOrder: [rawTableId],
       relativePath: file.relativePath ?? null,
-      size: readRecordNumber(file.file, "size") ?? undefined,
+      ...(size !== undefined ? { size } : {}),
     },
   };
 };

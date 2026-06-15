@@ -146,7 +146,10 @@ function createSessionService(): ISessionService {
     setMetricInput: () => undefined,
     clearMetricInput: () => undefined,
     clearSession: () => undefined,
-    commitFileImport: () => undefined,
+    commitFileImport: () => ({
+      importedFileIds: [],
+      skippedDuplicateFileIds: [],
+    }),
     commitRawTableAssessment: () => undefined,
     commitTemplateRun: () => undefined,
     commitCurves: () => undefined,

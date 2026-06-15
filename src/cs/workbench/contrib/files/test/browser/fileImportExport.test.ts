@@ -170,6 +170,42 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.equal(await (await result.files[1].loadFile()).text(), "Vg,Id\n1,2");
   });
 
+  test("collectFolderImportFiles follows Explorer tree order for nested folders", async () => {
+    const root = createDirectoryHandle({
+      children: [
+        createFileHandle("2.csv", "Vg,Id\n0,2"),
+        createDirectoryHandle({
+          children: [
+            createFileHandle("10.csv", "Vg,Id\n0,10"),
+            createFileHandle("3.csv", "Vg,Id\n0,3"),
+          ],
+          name: "TRANSFER",
+        }),
+        createDirectoryHandle({
+          children: [
+            createFileHandle("1.csv", "Vg,Id\n0,1"),
+          ],
+          name: "OUTPUT",
+        }),
+        createFileHandle("1.xlsx", "workbook"),
+      ],
+      name: "293K",
+    });
+
+    const result = await collectBrowserFolderFiles(root);
+
+    assert.deepEqual(
+      result.files.map(file => file.relativePath),
+      [
+        "293K/OUTPUT/1.csv",
+        "293K/TRANSFER/3.csv",
+        "293K/TRANSFER/10.csv",
+        "293K/2.csv",
+        "293K/1.xlsx",
+      ],
+    );
+  });
+
   test("collectFolderImportFiles keeps readable files when a child folder cannot be read", async () => {
     const root = createDirectoryHandle({
       children: [
@@ -527,7 +563,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     const appendedFileNames: string[] = [];
     const workflow = new FileSourceWorkflow({
       commandService: {
-        executeCommand: async () => null,
+        executeCommand: async <R,>() => undefined as R | undefined,
       },
       fileConverterBackendService: backend,
       filesService: new FileService(),

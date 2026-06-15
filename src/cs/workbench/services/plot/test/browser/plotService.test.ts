@@ -156,7 +156,10 @@ const createSessionServiceStub = (): ISessionService => ({
   clearMetricInput: () => undefined,
   clearSession: () => undefined,
   commitCurves: () => undefined,
-  commitFileImport: () => undefined,
+  commitFileImport: () => ({
+    importedFileIds: [],
+    skippedDuplicateFileIds: [],
+  }),
   commitMetrics: () => undefined,
   commitRawTableAssessment: () => undefined,
   commitTemplateRun: () => undefined,

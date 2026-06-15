@@ -546,7 +546,7 @@ const createRawSourceFingerprint = (
     raw.size,
     raw.lastModified,
     raw.relativePath,
-  ));
+  )) ?? null;
 };
 
 const createFileRecordFromImportedFile = (

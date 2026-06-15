@@ -184,6 +184,7 @@ const createImportedFileRecord = (
   fileName: string,
   options: {
     readonly relativePath?: string | null;
+    readonly sourceKey?: string;
   } = {},
 ): ImportedFileRecord => ({
   id: fileId,
@@ -192,9 +193,9 @@ const createImportedFileRecord = (
   raw: {
     fileId,
     fileName,
-    rawKey: options.sourceKey,
     lastModified: 1,
     relativePath: options.relativePath ?? null,
+    ...(options.sourceKey ? { rawKey: options.sourceKey } : {}),
     rawTableOrder: [fileId],
     rawTablesById: {
       [fileId]: {
