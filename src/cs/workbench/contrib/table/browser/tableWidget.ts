@@ -2,43 +2,23 @@ import { addDisposableListener, EventType, isEditableElement } from "src/cs/base
 import { Emitter } from "src/cs/base/common/event";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
-import {
-  StorageScope,
-  StorageTarget,
-  type IStorageService,
-} from "src/cs/platform/storage/common/storage";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { createEmptyView } from "src/cs/workbench/contrib/table/browser/emptyView";
 import type { TableModel } from "src/cs/workbench/services/table/common/table";
+import {
+  TableColumnLayout,
+  type TableColumnWidth,
+} from "src/cs/workbench/services/table/common/tableColumnLayout";
 
-const TABLE_WIDGET_COLUMN_DEFAULT_WIDTH = 160;
-const TABLE_WIDGET_COLUMN_MIN_WIDTH = 0;
-const TABLE_WIDGET_COLUMN_MAX_WIDTH = 640;
-const TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_KEY_PREFIX = "table.columnLayout.";
-const TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_VERSION = 1;
 const TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_DEBOUNCE_MS = 120;
 export const TABLE_WIDGET_DEFAULT_ZOOM_PERCENT = 100;
 export const TABLE_WIDGET_MIN_ZOOM_PERCENT = 50;
 export const TABLE_WIDGET_MAX_ZOOM_PERCENT = 200;
 export const TABLE_WIDGET_ZOOM_STEP_PERCENT = 10;
 
-export const TableWidgetColumnLayout = {
-  defaultWidth: TABLE_WIDGET_COLUMN_DEFAULT_WIDTH,
-  minWidth: TABLE_WIDGET_COLUMN_MIN_WIDTH,
-  maxWidth: TABLE_WIDGET_COLUMN_MAX_WIDTH,
-  clampWidth: (width: number): number =>
-    Math.min(
-      TABLE_WIDGET_COLUMN_MAX_WIDTH,
-      Math.max(TABLE_WIDGET_COLUMN_MIN_WIDTH, Math.round(Number(width) || 0)),
-    ),
-} as const;
+export type TableWidgetColumnWidth = TableColumnWidth;
 
-export type TableWidgetColumnWidth = {
-  readonly colIndex: number;
-  readonly width: number;
-};
-
-export type TableWidgetColumnWidthTarget = TableWidgetColumnWidth;
+export type TableWidgetColumnWidthTarget = TableColumnWidth;
 
 export type TableWidgetRevealMode = boolean | "force";
 
@@ -47,51 +27,6 @@ const clampTableWidgetZoomPercent = (zoomPercent: number): number =>
     TABLE_WIDGET_MAX_ZOOM_PERCENT,
     Math.max(TABLE_WIDGET_MIN_ZOOM_PERCENT, Math.floor(Number(zoomPercent) || 0)),
   );
-
-export type StoredTableWidgetColumnLayout = {
-  readonly version?: number;
-  readonly widths?: Record<string, unknown>;
-};
-
-export const toStoredTableWidgetColumnLayout = (
-  widths: readonly TableWidgetColumnWidth[],
-): StoredTableWidgetColumnLayout => {
-  const storedWidths: Record<string, number> = {};
-  for (const width of widths) {
-    const colIndex = normalizeWidgetColumnIndex(width.colIndex);
-    if (colIndex === null) {
-      continue;
-    }
-    storedWidths[String(colIndex)] = TableWidgetColumnLayout.clampWidth(width.width);
-  }
-
-  return {
-    version: TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_VERSION,
-    widths: storedWidths,
-  };
-};
-
-export const toTableWidgetColumnWidths = (
-  stored: StoredTableWidgetColumnLayout,
-): readonly TableWidgetColumnWidth[] => {
-  if (!stored || stored.version !== TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_VERSION || !stored.widths) {
-    return [];
-  }
-
-  const result: TableWidgetColumnWidth[] = [];
-  for (const [colIndexKey, width] of Object.entries(stored.widths)) {
-    const colIndex = normalizeWidgetColumnIndex(colIndexKey);
-    if (colIndex === null) {
-      continue;
-    }
-    result.push({
-      colIndex,
-      width: TableWidgetColumnLayout.clampWidth(Number(width)),
-    });
-  }
-
-  return result.sort((left, right) => left.colIndex - right.colIndex);
-};
 
 export namespace TableGridModel {
 export type TableGridRange = {
@@ -441,7 +376,7 @@ export const resizeTableGridColumnWidth = (
   deltaPixels: number,
   zoomPercent: number,
 ): number =>
-  TableWidgetColumnLayout.clampWidth(
+  TableColumnLayout.clampWidth(
     startWidth + (deltaPixels / getTableGridZoomScale(zoomPercent)),
   );
 
@@ -541,8 +476,8 @@ export const resolveTableGridColumnResizeDragGuideLeft = ({
   }
 
   const scale = getTableGridZoomScale(zoomPercent);
-  const clampedStartWidth = TableWidgetColumnLayout.clampWidth(Number(startWidth));
-  const clampedWidth = TableWidgetColumnLayout.clampWidth(Number(width));
+  const clampedStartWidth = TableColumnLayout.clampWidth(Number(startWidth));
+  const clampedWidth = TableColumnLayout.clampWidth(Number(width));
   return safeStartGuideLeft + ((clampedWidth - clampedStartWidth) * scale);
 };
 
@@ -572,7 +507,7 @@ const resolveTableGridColumnBoundaryLeft = ({
   const scale = getTableGridZoomScale(zoomPercent);
   let boundaryOffset = Math.max(0, Number(columnRange.leadingWidth) || 0);
   for (let index = startIndex; index <= safeColIndex; index += 1) {
-    boundaryOffset += TableWidgetColumnLayout.clampWidth(getColumnWidth(index)) * scale;
+    boundaryOffset += TableColumnLayout.clampWidth(getColumnWidth(index)) * scale;
   }
 
   return getTableGridRowHeaderWidth(zoomPercent) +
@@ -615,7 +550,7 @@ const getScaledColumnWidths = (
 ): number[] => {
   const widths: number[] = [];
   for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
-    widths.push(TableWidgetColumnLayout.clampWidth(getColumnWidth(colIndex)) * scale);
+    widths.push(TableColumnLayout.clampWidth(getColumnWidth(colIndex)) * scale);
   }
   return widths;
 };
@@ -728,12 +663,16 @@ export type TableWidgetSelectionTarget =
   | { readonly kind: "columns"; readonly columns: readonly number[] };
 
 export type TableWidgetProps = {
+  readonly getColumnWidths?: (sourceKey: string | null | undefined) => readonly TableColumnWidth[];
   readonly onCopySelection?: () => void;
   readonly onSelect: (
     target: TableWidgetSelectionTarget | null,
     reveal?: TableWidgetRevealMode,
   ) => boolean;
-  readonly storageService?: Pick<IStorageService, "getObject" | "remove" | "store">;
+  readonly storeColumnWidths?: (
+    sourceKey: string | null | undefined,
+    widths: readonly TableColumnWidth[],
+  ) => void;
   readonly tableModel: TableWidgetModel;
   readonly tableState: TableState;
 };
@@ -840,7 +779,7 @@ export class TableWidget {
   private renderedRowsColumnCount = 0;
   private pendingEnsureRowsKey: string | null = null;
   private appliedCellState: AppliedCellState | null = null;
-  private columnWidthStorageKey: string | null = null;
+  private columnWidthSourceKey: string | null = null;
   private columnWidths = new Map<number, number>();
   private pendingColumnWidthStorageTimeout: number | null = null;
   private columnResizeState: ColumnResizeState | null = null;
@@ -911,7 +850,7 @@ export class TableWidget {
     this.store.add(this.columnResizeStore);
     this.prepareGrid();
     this.bindTableState(props.tableModel);
-    this.syncColumnWidthStorageSource();
+    this.syncColumnWidthSource();
     this.renderedInputKey = getTableWidgetInputKey(props);
     this.render();
   }
@@ -923,7 +862,7 @@ export class TableWidget {
     if (previousModel !== props.tableModel) {
       this.bindTableState(props.tableModel);
     }
-    this.syncColumnWidthStorageSource();
+    this.syncColumnWidthSource();
     if (previousModel === props.tableModel && this.renderedInputKey === nextInputKey) {
       return;
     }
@@ -1097,13 +1036,13 @@ export class TableWidget {
       return false;
     }
 
-    const width = TableWidgetColumnLayout.clampWidth(Number(target.width));
+    const width = TableColumnLayout.clampWidth(Number(target.width));
     if (this.getColumnWidth(colIndex) === width) {
       return false;
     }
 
     this.columnWidths = new Map(this.columnWidths);
-    if (width === TableWidgetColumnLayout.defaultWidth) {
+    if (width === TableColumnLayout.defaultWidth) {
       this.columnWidths.delete(colIndex);
     } else {
       this.columnWidths.set(colIndex, width);
@@ -1117,28 +1056,24 @@ export class TableWidget {
     return true;
   }
 
-  private syncColumnWidthStorageSource(): void {
-    const storageKey = getTableWidgetColumnLayoutStorageKey(this.props.tableState.sourceKey);
-    if (this.columnWidthStorageKey === storageKey) {
+  private syncColumnWidthSource(): void {
+    const sourceKey = getTableWidgetColumnWidthSourceKey(this.props.tableState.sourceKey);
+    if (this.columnWidthSourceKey === sourceKey) {
       return;
     }
 
     this.flushPendingColumnWidthStorage();
-    this.columnWidthStorageKey = storageKey;
-    this.columnWidths = this.restoreColumnWidths(storageKey);
+    this.columnWidthSourceKey = sourceKey;
+    this.columnWidths = this.restoreColumnWidths(sourceKey);
   }
 
-  private restoreColumnWidths(storageKey: string | null): Map<number, number> {
-    if (!storageKey || !this.props.storageService) {
+  private restoreColumnWidths(sourceKey: string | null): Map<number, number> {
+    if (!sourceKey || !this.props.getColumnWidths) {
       return new Map();
     }
 
-    const stored = this.props.storageService.getObject<StoredTableWidgetColumnLayout>(
-      storageKey,
-      StorageScope.WORKSPACE,
-    );
     return new Map(
-      toTableWidgetColumnWidths(stored ?? {}).map(width => [width.colIndex, width.width]),
+      this.props.getColumnWidths(sourceKey).map(width => [width.colIndex, width.width]),
     );
   }
 
@@ -1149,7 +1084,7 @@ export class TableWidget {
   }
 
   private scheduleStoreColumnWidths(): void {
-    if (!this.props.storageService || !this.columnWidthStorageKey) {
+    if (!this.props.storeColumnWidths || !this.columnWidthSourceKey) {
       return;
     }
 
@@ -1181,22 +1116,11 @@ export class TableWidget {
   }
 
   private storeColumnWidths(): void {
-    if (!this.props.storageService || !this.columnWidthStorageKey) {
+    if (!this.props.storeColumnWidths || !this.columnWidthSourceKey) {
       return;
     }
 
-    const widths = this.getColumnWidths();
-    if (!widths.length) {
-      this.props.storageService.remove(this.columnWidthStorageKey, StorageScope.WORKSPACE);
-      return;
-    }
-
-    this.props.storageService.store(
-      this.columnWidthStorageKey,
-      toStoredTableWidgetColumnLayout(widths),
-      StorageScope.WORKSPACE,
-      StorageTarget.USER,
-    );
+    this.props.storeColumnWidths(this.columnWidthSourceKey, this.getColumnWidths());
   }
 
   public scrollHorizontally(delta: number): boolean {
@@ -2207,7 +2131,7 @@ export class TableWidget {
   }
 
   private getColumnWidth(colIndex: number): number {
-    return this.columnWidths.get(colIndex) ?? TableWidgetColumnLayout.defaultWidth;
+    return this.columnWidths.get(colIndex) ?? TableColumnLayout.defaultWidth;
   }
 
   private getColumnCssWidth(colIndex: number): string {
@@ -2567,6 +2491,8 @@ export class TableWidget {
   }
 }
 
+export type TableWidgetZoomController = Pick<TableWidget, "resetZoom" | "zoomIn" | "zoomOut">;
+
 const toggleSelectedColumn = (
   selection: TableSelection,
   colIndex: number,
@@ -2586,12 +2512,10 @@ const normalizeWidgetColumnIndex = (value: unknown): number | null => {
   return Number.isInteger(index) && index >= 0 ? index : null;
 };
 
-const getTableWidgetColumnLayoutStorageKey = (
+const getTableWidgetColumnWidthSourceKey = (
   sourceKey: string | null | undefined,
 ): string | null =>
-  sourceKey
-    ? `${TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_KEY_PREFIX}${sourceKey}`
-    : null;
+  typeof sourceKey === "string" && sourceKey.trim() ? sourceKey.trim() : null;
 
 const setHidden = (element: HTMLElement, hidden: boolean): boolean => {
   if (element.hidden === hidden) {

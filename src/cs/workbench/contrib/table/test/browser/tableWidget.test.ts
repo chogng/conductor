@@ -16,34 +16,36 @@ import {
   resolveTableGridKeyboardTarget,
   resolveTableGridViewportRange,
   resizeTableGridColumnWidth,
-  TableWidgetColumnLayout,
-  toStoredTableWidgetColumnLayout,
-  toTableWidgetColumnWidths,
 } from "src/cs/workbench/contrib/table/browser/tableWidget";
+import {
+  TableColumnLayout,
+  toStoredTableColumnLayout,
+  toTableColumnWidths,
+} from "src/cs/workbench/services/table/common/tableColumnLayout";
 
 suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   test("defines widget column width bounds", () => {
-    assert.equal(TableWidgetColumnLayout.defaultWidth, 160);
-    assert.equal(TableWidgetColumnLayout.minWidth, 0);
-    assert.equal(TableWidgetColumnLayout.maxWidth, 640);
+    assert.equal(TableColumnLayout.defaultWidth, 160);
+    assert.equal(TableColumnLayout.minWidth, 0);
+    assert.equal(TableColumnLayout.maxWidth, 640);
   });
 
   test("clamps and rounds widget column widths", () => {
-    assert.equal(TableWidgetColumnLayout.clampWidth(-20), 0);
-    assert.equal(TableWidgetColumnLayout.clampWidth(20), 20);
-    assert.equal(TableWidgetColumnLayout.clampWidth(20.4), 20);
-    assert.equal(TableWidgetColumnLayout.clampWidth(20.5), 21);
-    assert.equal(TableWidgetColumnLayout.clampWidth(900), 640);
+    assert.equal(TableColumnLayout.clampWidth(-20), 0);
+    assert.equal(TableColumnLayout.clampWidth(20), 20);
+    assert.equal(TableColumnLayout.clampWidth(20.4), 20);
+    assert.equal(TableColumnLayout.clampWidth(20.5), 21);
+    assert.equal(TableColumnLayout.clampWidth(900), 640);
   });
 
   test("normalizes non-finite widget column widths", () => {
-    assert.equal(TableWidgetColumnLayout.clampWidth(Number.NaN), 0);
-    assert.equal(TableWidgetColumnLayout.clampWidth(Number.POSITIVE_INFINITY), 640);
-    assert.equal(TableWidgetColumnLayout.clampWidth(Number.NEGATIVE_INFINITY), 0);
+    assert.equal(TableColumnLayout.clampWidth(Number.NaN), 0);
+    assert.equal(TableColumnLayout.clampWidth(Number.POSITIVE_INFINITY), 640);
+    assert.equal(TableColumnLayout.clampWidth(Number.NEGATIVE_INFINITY), 0);
   });
 
-  test("serializes widget column width storage", () => {
-    assert.deepEqual(toStoredTableWidgetColumnLayout([
+  test("serializes table column width storage", () => {
+    assert.deepEqual(toStoredTableColumnLayout([
       { colIndex: 2, width: 243.6 },
       { colIndex: 1, width: -12 },
     ]), {
@@ -55,8 +57,8 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
     });
   });
 
-  test("restores widget column widths from storage", () => {
-    assert.deepEqual(toTableWidgetColumnWidths({
+  test("restores table column widths from storage", () => {
+    assert.deepEqual(toTableColumnWidths({
       version: 1,
       widths: {
         "2": 243.6,

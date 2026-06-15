@@ -5,6 +5,7 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import { IStorageService, StorageScope, StorageTarget } from "src/cs/platform/storage/common/storage";
 import {
   ITableService,
   ITableRowsReaderService,
@@ -18,6 +19,12 @@ import {
   type TableSource,
   type TableViewInput,
 } from "src/cs/workbench/services/table/common/table";
+import {
+  toStoredTableColumnLayout,
+  toTableColumnWidths,
+  type StoredTableColumnLayout,
+  type TableColumnWidth,
+} from "src/cs/workbench/services/table/common/tableColumnLayout";
 import { createRawFilesFromRecords } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
@@ -55,6 +62,8 @@ type TableTargetContext = {
   readonly rowCount: number;
   readonly sheetId: string | null;
 };
+
+const TABLE_COLUMN_LAYOUT_STORAGE_KEY_PREFIX = "table.columnLayout.";
 
 const getTableTargetContext = (tableModel: TableModel): TableTargetContext | null => {
   const state = tableModel.getState();
@@ -370,6 +379,7 @@ export class TableService extends Disposable implements ITableService {
   public constructor(
     @ITableRowsReaderService private readonly tableRowsReaderService: ITableRowsReaderService,
     @ISessionService private readonly sessionService: ISessionService,
+    @IStorageService private readonly storageService: IStorageService,
   ) {
     super();
     this._register(this.sessionService.onDidChangeSession(() => this.refreshFromSession()));
@@ -429,6 +439,19 @@ export class TableService extends Disposable implements ITableService {
 
   public getSelection(): TableSelection {
     return this.getActiveTableModel()?.getSelection() ?? normalizeTableSelection(null);
+  }
+
+  public getColumnWidths(sourceKey: string | null | undefined): readonly TableColumnWidth[] {
+    const storageKey = getTableColumnLayoutStorageKey(sourceKey);
+    if (!storageKey) {
+      return [];
+    }
+
+    const stored = this.storageService.getObject<StoredTableColumnLayout>(
+      storageKey,
+      StorageScope.WORKSPACE,
+    );
+    return toTableColumnWidths(stored ?? {});
   }
 
   public async getSelectionText(
@@ -518,6 +541,29 @@ export class TableService extends Disposable implements ITableService {
 
   public selectAllColumns(): boolean {
     return this.getActiveTableModel()?.selectAllColumns() ?? false;
+  }
+
+  public storeColumnWidths(
+    sourceKey: string | null | undefined,
+    widths: readonly TableColumnWidth[],
+  ): void {
+    const storageKey = getTableColumnLayoutStorageKey(sourceKey);
+    if (!storageKey) {
+      return;
+    }
+
+    const stored = toStoredTableColumnLayout(widths);
+    if (!Object.keys(stored.widths ?? {}).length) {
+      this.storageService.remove(storageKey, StorageScope.WORKSPACE);
+      return;
+    }
+
+    this.storageService.store(
+      storageKey,
+      stored,
+      StorageScope.WORKSPACE,
+      StorageTarget.USER,
+    );
   }
 
   private updateViewInput(input: TableViewInput): void {
@@ -661,6 +707,15 @@ const isSessionFileForTableSource = (
   }
 
   return getSessionFileSheetId(rawFile) === source.sheetId;
+};
+
+const getTableColumnLayoutStorageKey = (
+  sourceKey: string | null | undefined,
+): string | null => {
+  const normalizedSourceKey = typeof sourceKey === "string" ? sourceKey.trim() : "";
+  return normalizedSourceKey
+    ? `${TABLE_COLUMN_LAYOUT_STORAGE_KEY_PREFIX}${normalizedSourceKey}`
+    : null;
 };
 
 const getSessionFileSheetId = (rawFile: SessionFile): string | null =>

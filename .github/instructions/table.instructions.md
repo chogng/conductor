@@ -15,6 +15,7 @@ Table shows raw tables and assessment block ranges. It does not identify measure
 - selected table text generation from the current selection snapshot;
 - focus/reveal cell state;
 - highlighted columns/ranges;
+- table column width persistence;
 - paged raw rows cache;
 - block table preview model;
 - table loading status;
@@ -41,16 +42,19 @@ It does not own:
 | File | Responsibility |
 | --- | --- |
 | `src/cs/workbench/services/table/common/table.ts` | Defines `ITableService`, `ITableRowsReaderService`, table service constants, pure table records/model contracts, and source key helpers. It must stay a small contract surface: avoid named exports for subordinate model details that callers can derive from `TableState` or `TableModel`. |
-| `src/cs/workbench/services/table/browser/tableService.ts` | Injectable `ITableService` owner. Handles table source, reveal, copy text generation, view input publication, and selection snapshots. It does not own widget-only UI controls such as zoom or column widths. |
+| `src/cs/workbench/services/table/common/tableColumnLayout.ts` | Defines table column width policy and storage serialization helpers shared by `ITableService` persistence and `TableWidget` layout math. No service access or DOM. |
+| `src/cs/workbench/services/table/browser/tableService.ts` | Injectable `ITableService` owner. Handles table source, reveal, copy text generation, view input publication, selection snapshots, and column width persistence. It does not own widget-only UI controls such as zoom or live resize gestures. |
 | `src/cs/workbench/services/table/browser/tableModel.ts` | Creates and owns the per-table service model: source switching, preview loading, row cache activation, cell-read conversion, selection normalization/equality, selection/highlight/reveal snapshots, row-cache versioning, and worker/reader request lifecycle. This is the owner file for table data-plane helpers; do not split row cache, cell-read, or selection-state helpers into separate production files unless they become an independent service boundary. |
 | `src/cs/workbench/services/table/browser/tableDropTargetService.ts` | Browser-only registry for the table preview DOM drop target used by cross-feature drop controllers. No table data state. |
 | `src/cs/workbench/services/table/browser/tableRowsReaderService.ts` | Browser table rows reader fallback. It can read normalized CSV through the file converter reader and reports desktop table source operations as unavailable. |
 | `src/cs/workbench/services/table/browser/tablePreviewWorker.ts` | Optional browser worker for CSV row paging and cell fetches. |
 | `src/cs/workbench/services/table/electron-browser/tableRowsReader.ts` | Desktop table rows reader. Opens table preview sources, reads row/cell ranges through Rust IPC/preload, and releases opened table preview sources during shutdown. |
 | `src/cs/workbench/contrib/table/common/table.ts` | Defines table contribution/view/command IDs owned by the table contribution layer. Services must not import these IDs. |
-| `src/cs/workbench/contrib/table/browser/tableWidget.ts` | Browser table grid widget. Owns grid DOM, virtual scroll rendering, local keyboard/mouse/wheel gestures, selection API, zoom state/API, column width policy/storage, column resize UI, scroll reveal behavior, and DOM-free grid math helpers. It receives pure model/state input and callback props, and does not import table services or command services. |
+| `src/cs/workbench/contrib/table/browser/tableWidget.ts` | Browser table grid widget. Owns grid DOM, virtual scroll rendering, local keyboard/mouse/wheel gestures, selection API, zoom state/API including `TableWidgetZoomController`, live column resize UI, scroll reveal behavior, and DOM-free grid math helpers. It receives pure model/state input and callback props, and does not import table services, storage services, or command services. |
 | `src/cs/workbench/contrib/table/browser/tableController.ts` | Feature controller/adapter. Converts table view input and callback props into `TableWidget` props. No service ownership, grid DOM ownership, or table data ownership. |
-| `src/cs/workbench/contrib/table/browser/table.contribution.ts` | Registers table view and table commands. |
+| `src/cs/workbench/contrib/table/browser/tableCommands.ts` | Defines table command entries and handlers. Data/selection/copy commands delegate to `ITableService`; zoom commands delegate to the active `TableController`/`TableWidget`. No action/menu registration. |
+| `src/cs/workbench/contrib/table/browser/tableActions.ts` | Registers table `Action2` entries, command palette metadata, and action-backed command IDs from the table command definitions. No domain behavior. |
+| `src/cs/workbench/contrib/table/browser/table.contribution.ts` | Registers table view and table actions. |
 
 ## Flow
 
@@ -63,9 +67,10 @@ flowchart TD
     TableService --> TableModel[tableModel instance]
     TableModel -->|state / rows / selection / highlight / reveal events| TableController[TableController]
     TableController --> TableWidget[TableWidget]
-    TableWidget -->|selection callback / zoom event| TableController
-    TableWidget --> Storage[StorageService column widths]
+    TableWidget -->|selection / column width callback / zoom event| TableController
     TableController -->|selection snapshot sync| TableService
+    TableController -->|column width persistence| TableService
+    TableService --> Storage[StorageService column widths]
 ```
 
 ## Selection rule
@@ -132,7 +137,8 @@ Recommended files:
 
 | File | Responsibility |
 | --- | --- |
-| `src/cs/workbench/contrib/table/browser/tableCommands.ts` | Registers public table command entries. Data/selection/copy commands delegate to `ITableService`; zoom commands delegate to the active `TableController`/`TableWidget`. |
+| `src/cs/workbench/contrib/table/browser/tableCommands.ts` | Defines public table command entries and handlers. Data/selection/copy commands delegate to `ITableService`; zoom commands delegate to the active `TableController`/`TableWidget`. |
+| `src/cs/workbench/contrib/table/browser/tableActions.ts` | Registers public table actions and command palette entries from table command definitions. |
 | `src/cs/workbench/contrib/table/browser/tableWidget.ts` | Handles table-local keyboard, mouse, wheel, selection, zoom, and column width interactions through its public widget API and callback props. |
 | `src/cs/workbench/services/table/browser/tableService.ts` | Owns table state and row preview. No command registration. |
 

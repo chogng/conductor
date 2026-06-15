@@ -18,7 +18,6 @@ import { localize } from "src/cs/nls";
 import {
   ICommandService,
 } from "src/cs/platform/commands/common/commands";
-import { IStorageService } from "src/cs/platform/storage/common/storage";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import {
@@ -84,7 +83,6 @@ export class TableViewPane extends ViewPane {
     @ITableService private readonly tableService: ITableService,
     @ITableDropTargetService private readonly tableDropTargetService: ITableDropTargetService,
     @ICommandService private readonly commandService: ICommandService,
-    @IStorageService private readonly storageService: IStorageService,
   ) {
     super({
       id: TableViewId,
@@ -139,7 +137,6 @@ export class TableViewPane extends ViewPane {
         props,
         this.tableService,
         this.commandService,
-        this.storageService,
       ));
       this.store.add(setActiveTableZoomController(this.controller));
       this.store.add(this.controller.onDidChangeZoom(() => this.updateZoomControl()));
@@ -149,7 +146,6 @@ export class TableViewPane extends ViewPane {
         props,
         this.tableService,
         this.commandService,
-        this.storageService,
       ));
     }
     const { dimensions, fileName, mode, shouldUpdateDimensions } = getHeaderState(props);
@@ -371,16 +367,16 @@ const getHeaderState = ({ tableState }: TableViewPaneProps): HeaderState => {
 
 const toControllerProps = (
   props: TableViewPaneProps,
-  tableService: Pick<ITableService, "select">,
+  tableService: Pick<ITableService, "getColumnWidths" | "select" | "storeColumnWidths">,
   commandService: Pick<ICommandService, "executeCommand">,
-  storageService: Pick<IStorageService, "getObject" | "remove" | "store">,
 ): TableControllerProps => ({
   ...props,
+  getColumnWidths: sourceKey => tableService.getColumnWidths(sourceKey),
   onCopySelection: () => {
     void commandService.executeCommand(TableCommandId.copySelection);
   },
   onSelect: (target, reveal) => tableService.select(target, reveal),
-  storageService,
+  storeColumnWidths: (sourceKey, widths) => tableService.storeColumnWidths(sourceKey, widths),
 });
 
 export default TableViewPane;

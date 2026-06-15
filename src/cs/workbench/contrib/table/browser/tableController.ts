@@ -1,5 +1,4 @@
 import type { Event } from "src/cs/base/common/event";
-import type { IStorageService } from "src/cs/platform/storage/common/storage";
 import {
   TableWidget,
   type TableWidgetColumnWidthTarget,
@@ -8,6 +7,7 @@ import {
   type TableWidgetRevealMode,
   type TableWidgetSelectionTarget,
 } from "src/cs/workbench/contrib/table/browser/tableWidget";
+import type { TableColumnWidth } from "src/cs/workbench/services/table/common/tableColumnLayout";
 
 export type TableControllerModel = TableWidgetModel;
 
@@ -15,12 +15,16 @@ type TableState = ReturnType<TableControllerModel["getState"]>;
 type TableSelection = ReturnType<TableControllerModel["getSelection"]>;
 
 export type TableControllerProps = {
+  readonly getColumnWidths?: (sourceKey: string | null | undefined) => readonly TableColumnWidth[];
   readonly onCopySelection?: () => void;
   readonly onSelect: (
     target: TableWidgetSelectionTarget | null,
     reveal?: TableWidgetRevealMode,
   ) => boolean;
-  readonly storageService?: Pick<IStorageService, "getObject" | "remove" | "store">;
+  readonly storeColumnWidths?: (
+    sourceKey: string | null | undefined,
+    widths: readonly TableColumnWidth[],
+  ) => void;
   readonly tableModel: TableControllerModel;
   readonly tableState: TableState;
 };
@@ -97,13 +101,15 @@ export class TableController {
 const toWidgetProps = ({
   tableModel,
   tableState,
+  getColumnWidths,
   onCopySelection,
   onSelect,
-  storageService,
+  storeColumnWidths,
 }: TableControllerProps): TableWidgetProps => ({
+  getColumnWidths,
   onCopySelection,
   onSelect,
-  storageService,
+  storeColumnWidths,
   tableModel,
   tableState,
 });

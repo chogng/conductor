@@ -1,6 +1,8 @@
 import assert from "assert";
 
 import { Emitter } from "src/cs/base/common/event";
+import { StorageScope } from "src/cs/platform/storage/common/storage";
+import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import type {
   TableRowsReaderProvider,
   TableState,
@@ -427,6 +429,31 @@ suite("workbench/services/table/browser/tableService", () => {
     service.dispose();
   });
 
+  test("owns table column width persistence", () => {
+    const storageService = new TestStorageService();
+    const { service } = createTableServiceFixture({
+      storageService,
+    });
+
+    assert.deepEqual(service.getColumnWidths("source-key-a"), []);
+
+    service.storeColumnWidths("source-key-a", [
+      { colIndex: 2, width: 243.6 },
+      { colIndex: 1, width: -12 },
+    ]);
+
+    assert.deepEqual(service.getColumnWidths("source-key-a"), [
+      { colIndex: 1, width: 0 },
+      { colIndex: 2, width: 244 },
+    ]);
+
+    service.storeColumnWidths("source-key-a", []);
+
+    assert.deepEqual(service.getColumnWidths("source-key-a"), []);
+    service.dispose();
+    storageService.dispose();
+  });
+
   test("selects table targets through the service owner API", async () => {
     const { service } = createTableServiceFixture({
       rawFiles: [createRawFile({
@@ -738,23 +765,28 @@ const createTableRowsReaderService = (
 type TableServiceFixture = {
   readonly service: TableService;
   readonly sessionService: TestSessionService;
+  readonly storageService: TestStorageService;
 };
 
 const createTableServiceFixture = ({
   rawFiles = [],
+  storageService = new TestStorageService(),
   tableRowsReaderService = createTableRowsReaderService(),
 }: {
   readonly rawFiles?: readonly SessionFile[];
+  readonly storageService?: TestStorageService;
   readonly tableRowsReaderService?: TableRowsReaderProvider;
 } = {}): TableServiceFixture => {
   const sessionService = new TestSessionService(rawFiles);
   const service = new TableService(
     tableRowsReaderService as never,
     sessionService as never,
+    storageService as never,
   );
   return {
     service,
     sessionService,
+    storageService,
   };
 };
 
@@ -786,6 +818,37 @@ class TestSessionService {
         sessionVersion: this.sessionVersion,
       });
     }
+  }
+}
+
+class TestStorageService extends AbstractStorageService {
+  private readonly values = new Map<string, string>();
+
+  protected readValue(key: string, scope: StorageScope): string | undefined {
+    return this.values.get(this.storageKey(key, scope));
+  }
+
+  protected writeValue(key: string, scope: StorageScope, value: string): void {
+    this.values.set(this.storageKey(key, scope), value);
+  }
+
+  protected deleteValue(key: string, scope: StorageScope): void {
+    this.values.delete(this.storageKey(key, scope));
+  }
+
+  protected readKeys(scope: StorageScope): string[] {
+    const prefix = `${scope}:`;
+    const keys: string[] = [];
+    for (const key of this.values.keys()) {
+      if (key.startsWith(prefix)) {
+        keys.push(key.slice(prefix.length));
+      }
+    }
+    return keys;
+  }
+
+  private storageKey(key: string, scope: StorageScope): string {
+    return `${scope}:${key}`;
   }
 }
 

@@ -529,6 +529,20 @@ session canonical data.
 | `selectedColumns` | `readonly number[] | undefined` | Selected raw columns. |
 | `ranges` | `readonly TableRange[] | undefined` | Selected ranges. |
 
+### `TableColumnWidth`
+
+Owner: `TableService` persists the value by table source key. Producer: active
+`TableWidget` column resize interaction through `TableController` callback
+props. Consumers: `TableWidget` reads restored widths when the source key
+changes. Canonical? No, workspace-scoped view state stored through
+`IStorageService`. Invalidation: table source key change or explicit empty
+width list.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `colIndex` | `number` | Zero-based raw column index. |
+| `width` | `number` | Logical unzoomed column width clamped by table column layout policy. |
+
 ## Explorer state
 
 ### `ExplorerState`

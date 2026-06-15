@@ -5,6 +5,7 @@
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { ConvertedCsvReaderService } from "src/cs/workbench/services/files/common/fileConverterBackend";
+import type { TableColumnWidth } from "src/cs/workbench/services/table/common/tableColumnLayout";
 
 // Pure data types for the table feature. This module is the common contract
 // entry point for table records, source keys, constants, and service contracts.
@@ -186,6 +187,7 @@ export interface ITableService {
 	readonly onDidChangeTableViewInput: Event<void>;
 	clearSelection(): boolean;
 	clearHighlight(): void;
+	getColumnWidths(sourceKey: string | null | undefined): readonly TableColumnWidth[];
 	getSelection(): TableSelection;
 	getSelectionText(maxCellCount?: number): Promise<TableSelectionTextResult>;
 	getViewInput(): TableViewInput | null;
@@ -193,4 +195,8 @@ export interface ITableService {
 	reveal(target: TableRevealTarget | null, options?: TableRevealOptions): boolean;
 	select(target: TableSelectionTarget | null, reveal?: TableRevealMode): boolean;
 	selectAllColumns(): boolean;
+	storeColumnWidths(
+		sourceKey: string | null | undefined,
+		widths: readonly TableColumnWidth[],
+	): void;
 }
