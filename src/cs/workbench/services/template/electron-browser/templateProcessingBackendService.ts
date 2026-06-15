@@ -8,12 +8,11 @@ import { InstantiationType, registerSingleton } from "src/cs/platform/instantiat
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
   IFileConverterBackendService,
+  type ConvertedCsvReaderService,
   type FileConverterConvertedCsv,
-  type IFileConverterBackendService as IFileConverterBackendServiceType,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import {
   ITemplateProcessingBackendService,
-  type ITemplateProcessingBackendService as ITemplateProcessingBackendServiceType,
   type TemplateProcessingResultPayload,
 } from "src/cs/workbench/services/template/common/templateProcessingBackend";
 
@@ -112,14 +111,16 @@ function invoke<T>(channel: string, payload?: unknown): Promise<T> {
 
 export class ElectronTemplateProcessingBackendService
   extends Disposable
-  implements ITemplateProcessingBackendServiceType
+  implements ITemplateProcessingBackendService
 {
   public declare readonly _serviceBrand: undefined;
+  private readonly convertedCsvReaderService: ConvertedCsvReaderService;
 
   public constructor(
-    @IFileConverterBackendService private readonly convertedCsvReaderService: IFileConverterBackendServiceType,
+    @IFileConverterBackendService fileConverterBackendService: IFileConverterBackendService,
   ) {
     super();
+    this.convertedCsvReaderService = fileConverterBackendService;
   }
 
   public canProcessFile(): boolean {

@@ -7,12 +7,11 @@ import { localize } from "src/cs/nls";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
 	IFileConverterBackendService,
+	type ConvertedCsvReaderService,
 	type FileConverterConvertedCsv,
-	type IFileConverterBackendService as IFileConverterBackendServiceType,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import {
 	ITableBackendService,
-	type ITableBackendService as ITableBackendServiceType,
 	type TableBackendResultPayload,
 } from "src/cs/workbench/services/table/common/table";
 
@@ -23,13 +22,15 @@ function unavailable(): Promise<never> {
 	return Promise.reject(new Error(getServiceUnavailableMessage()));
 }
 
-export class TableBackendService extends Disposable implements ITableBackendServiceType {
+export class TableBackendService extends Disposable implements ITableBackendService {
 	public declare readonly _serviceBrand: undefined;
+	private readonly convertedCsvReaderService: ConvertedCsvReaderService;
 
 	public constructor(
-		@IFileConverterBackendService private readonly convertedCsvReaderService: IFileConverterBackendServiceType,
+		@IFileConverterBackendService fileConverterBackendService: IFileConverterBackendService,
 	) {
 		super();
+		this.convertedCsvReaderService = fileConverterBackendService;
 	}
 
 	public canDisposeFile(): boolean {

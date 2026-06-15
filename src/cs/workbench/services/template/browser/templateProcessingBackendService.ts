@@ -7,7 +7,6 @@ import { localize } from "src/cs/nls";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
 	ITemplateProcessingBackendService,
-	type ITemplateProcessingBackendService as ITemplateProcessingBackendServiceType,
 	type TemplateProcessingResultPayload,
 } from "src/cs/workbench/services/template/common/templateProcessingBackend";
 import type {
@@ -21,7 +20,7 @@ function unavailable(): Promise<never> {
 	return Promise.reject(new Error(getServiceUnavailableMessage()));
 }
 
-export class TemplateProcessingBackendService extends Disposable implements ITemplateProcessingBackendServiceType {
+export class TemplateProcessingBackendService extends Disposable implements ITemplateProcessingBackendService {
 	public declare readonly _serviceBrand: undefined;
 
 	public canProcessFile(): boolean {

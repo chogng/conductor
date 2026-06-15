@@ -7,7 +7,6 @@ import { localize } from "src/cs/nls";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
 	IRcCalculationBackendService,
-	type IRcCalculationBackendService as IRcCalculationBackendServiceType,
 	type RcCalculationResultPayload,
 	type RcCalculatePayload,
 } from "src/cs/workbench/services/parameters/common/rcCalculationBackend";
@@ -19,7 +18,7 @@ function unavailable(): Promise<never> {
 	return Promise.reject(new Error(getServiceUnavailableMessage()));
 }
 
-export class RcCalculationBackendService extends Disposable implements IRcCalculationBackendServiceType {
+export class RcCalculationBackendService extends Disposable implements IRcCalculationBackendService {
 	public declare readonly _serviceBrand: undefined;
 
 	public calculateRc(_payload: RcCalculatePayload): Promise<RcCalculationResultPayload> {

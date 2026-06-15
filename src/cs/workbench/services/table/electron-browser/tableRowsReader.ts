@@ -11,12 +11,11 @@ import { InstantiationType, registerSingleton } from "src/cs/platform/instantiat
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
   IFileConverterBackendService,
+  type ConvertedCsvReaderService,
   type FileConverterConvertedCsv,
-  type IFileConverterBackendService as IFileConverterBackendServiceType,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import {
   ITableBackendService,
-  type ITableBackendService as ITableBackendServiceType,
   type TableBackendResultPayload,
 } from "src/cs/workbench/services/table/common/table";
 
@@ -125,13 +124,15 @@ function invoke<T>(channel: string, payload?: unknown): Promise<T> {
   return getIpcRenderer().invoke(channel, payload) as Promise<T>;
 }
 
-export class TableRowsReader extends Disposable implements ITableBackendServiceType {
+export class TableRowsReader extends Disposable implements ITableBackendService {
   public declare readonly _serviceBrand: undefined;
+  private readonly convertedCsvReaderService: ConvertedCsvReaderService;
 
   public constructor(
-    @IFileConverterBackendService private readonly convertedCsvReaderService: IFileConverterBackendServiceType,
+    @IFileConverterBackendService fileConverterBackendService: IFileConverterBackendService,
   ) {
     super();
+    this.convertedCsvReaderService = fileConverterBackendService;
   }
 
   public canDisposeFile(): boolean {

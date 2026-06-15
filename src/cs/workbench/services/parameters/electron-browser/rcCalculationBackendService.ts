@@ -8,7 +8,6 @@ import { InstantiationType, registerSingleton } from "src/cs/platform/instantiat
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
   IRcCalculationBackendService,
-  type IRcCalculationBackendService as IRcCalculationBackendServiceType,
   type RcCalculationResultPayload,
   type RcCalculatePayload,
 } from "src/cs/workbench/services/parameters/common/rcCalculationBackend";
@@ -103,7 +102,7 @@ function invoke<T>(channel: string, payload?: unknown): Promise<T> {
   return getIpcRenderer().invoke(channel, payload) as Promise<T>;
 }
 
-export class ElectronRcCalculationBackendService extends Disposable implements IRcCalculationBackendServiceType {
+export class ElectronRcCalculationBackendService extends Disposable implements IRcCalculationBackendService {
   public declare readonly _serviceBrand: undefined;
 
   public calculateRc(payload: RcCalculatePayload): Promise<RcCalculationResultPayload> {
