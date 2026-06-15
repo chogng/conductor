@@ -10,6 +10,7 @@ import {
 } from "src/cs/workbench/services/template/browser/templateFileTransfer";
 import {
   ITemplateService as ITemplateServiceId,
+  type TemplateEditorCancelOptions,
   type ITemplateService,
   type TemplateRecord,
   type TemplateState,
@@ -96,7 +97,31 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
       formState: createEmptyTemplateConfig({
         stopOnError: getTemplateStopOnError(template, this.state.formState.stopOnError),
       }),
-      mode: "editing",
+      mode: "editor",
+    });
+  }
+
+  cancelTemplateEditor(options: TemplateEditorCancelOptions = {}): void {
+    const fallbackTemplate = options.fallbackTemplate;
+    const templateId = fallbackTemplate ? getTemplateId(fallbackTemplate) : null;
+    if (fallbackTemplate && templateId) {
+      this.updateState({
+        selectedTemplateId: templateId,
+        formState: cloneTemplateConfig(fallbackTemplate),
+        mode: "management",
+      });
+      return;
+    }
+
+    const stopOnError = typeof options.stopOnError === "boolean"
+      ? options.stopOnError
+      : this.state.formState.stopOnError;
+    this.updateState({
+      selectedTemplateId: null,
+      formState: createEmptyTemplateConfig({
+        stopOnError,
+      }),
+      mode: "management",
     });
   }
 
@@ -109,7 +134,7 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
     this.updateState({
       selectedTemplateId: templateId,
       formState: cloneTemplateConfig(template),
-      mode: "editing",
+      mode: "editor",
     });
     return true;
   }
@@ -123,6 +148,14 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
       version: 1,
       source: "conductor",
       ...cloneTemplateConfig(template),
+    });
+  }
+
+  finishTemplateEditor(template: TemplateRecord): void {
+    this.updateState({
+      selectedTemplateId: getTemplateId(template),
+      formState: cloneTemplateConfig(template),
+      mode: "management",
     });
   }
 
@@ -168,7 +201,7 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
     this.updateState({ selectionsByFileId: resolveNext(value, this.state.selectionsByFileId) });
   };
 
-  updateState(updates: Partial<TemplateState>): void {
+  private updateState(updates: Partial<TemplateState>): void {
     const nextState: TemplateState = {
       ...this.state,
       ...updates,

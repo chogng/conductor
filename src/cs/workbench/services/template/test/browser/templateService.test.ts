@@ -60,7 +60,7 @@ suite("workbench/services/template/browser/templateService", () => {
     assert.equal(service.editTemplate(template), true);
 
     assert.deepEqual(service.getState(), {
-      mode: "editing",
+      mode: "editor",
       selectedTemplateId: "template-a",
       formState: createEmptyTemplateConfig({
         name: "Transfer",
@@ -69,9 +69,80 @@ suite("workbench/services/template/browser/templateService", () => {
       selectionsByFileId: {},
       templateListVersion: 0,
     });
-    assert.equal(latestMode, "editing");
+    assert.equal(latestMode, "editor");
 
     disposable.dispose();
+    service.dispose();
+  });
+
+  test("finishes template editor through service owner state", () => {
+    const { service } = createTemplateServiceForTest();
+    const savedTemplate = {
+      ...createEmptyTemplateConfig({
+        name: "Transfer",
+        stopOnError: true,
+      }),
+      id: "template-a",
+    };
+
+    service.createTemplateDraft();
+    service.finishTemplateEditor(savedTemplate);
+
+    assert.deepEqual(service.getState(), {
+      mode: "management",
+      selectedTemplateId: "template-a",
+      formState: createEmptyTemplateConfig({
+        name: "Transfer",
+        stopOnError: true,
+      }),
+      selectionsByFileId: {},
+      templateListVersion: 0,
+    });
+    service.dispose();
+  });
+
+  test("cancels template editor through service owner state", () => {
+    const { service } = createTemplateServiceForTest();
+    const fallbackTemplate = {
+      ...createEmptyTemplateConfig({
+        name: "Output",
+        stopOnError: true,
+      }),
+      id: "template-b",
+    };
+
+    service.editTemplate(fallbackTemplate);
+    service.setFormState(createEmptyTemplateConfig({
+      name: "Draft",
+      stopOnError: false,
+    }));
+    service.cancelTemplateEditor({
+      fallbackTemplate,
+    });
+
+    assert.deepEqual(service.getState(), {
+      mode: "management",
+      selectedTemplateId: "template-b",
+      formState: createEmptyTemplateConfig({
+        name: "Output",
+        stopOnError: true,
+      }),
+      selectionsByFileId: {},
+      templateListVersion: 0,
+    });
+
+    service.createTemplateDraft({ stopOnError: true });
+    service.cancelTemplateEditor({ stopOnError: true });
+
+    assert.deepEqual(service.getState(), {
+      mode: "management",
+      selectedTemplateId: null,
+      formState: createEmptyTemplateConfig({
+        stopOnError: true,
+      }),
+      selectionsByFileId: {},
+      templateListVersion: 0,
+    });
     service.dispose();
   });
 

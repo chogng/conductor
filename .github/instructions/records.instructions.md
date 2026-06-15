@@ -377,7 +377,7 @@ interactions. Consumers reread it through `ITemplateService.getState()` after
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `mode` | `'management' | 'editing'` | Whether the template panel shows template management/apply controls or template editing controls. |
+| `mode` | `'management' | 'editor'` | Whether the template panel shows template management/apply controls or template editor controls. |
 | `selectedTemplateId` | `string | null` | Current saved template id, or null for auto/new draft state. |
 | `formState` | `TemplateConfig` | Current template form configuration. |
 | `selectionsByFileId` | `TemplateSelectionsByFileId` | Per-file template selection overrides. |

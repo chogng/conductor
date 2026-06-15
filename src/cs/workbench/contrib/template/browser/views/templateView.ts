@@ -14,8 +14,6 @@ import { localize } from "src/cs/nls";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import {
-  createEmptyTemplateConfig,
-  cloneTemplateConfig,
   type TemplateConfig,
 } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
@@ -84,7 +82,7 @@ const showToast = (message: string, type: "success" | "error" | "warning" | "inf
 };
 
 export const shouldSyncTemplateEditorTableSelection = (mode: TemplateMode): boolean =>
-  mode === "editing";
+  mode === "editor";
 
 export type TemplateApplyStateInput = {
   readonly config: TemplateConfig;
@@ -230,7 +228,7 @@ export class TemplateView {
       const previous = this.lastTableSelection;
       this.lastTableSelection = selection;
 
-      if (!this.isEditingTemplate()) {
+      if (!this.isTemplateEditorMode()) {
         return;
       }
 
@@ -273,14 +271,14 @@ export class TemplateView {
 
     this.stopOnErrorDraft = next.stopOnError;
     this.props.templateService.setFormState(next);
-    if (this.isEditingTemplate()) {
+    if (this.isTemplateEditorMode()) {
       this.syncTableSelectionState();
     }
     this.updateEditorView();
   }
 
   private syncTableSelectionState(): void {
-    if (!this.isEditingTemplate()) {
+    if (!this.isTemplateEditorMode()) {
       return;
     }
 
@@ -311,7 +309,7 @@ export class TemplateView {
     tableService.clearHighlight();
   }
 
-  private isEditingTemplate(): boolean {
+  private isTemplateEditorMode(): boolean {
     return shouldSyncTemplateEditorTableSelection(this.readTemplateMode());
   }
 
@@ -429,7 +427,7 @@ export class TemplateView {
     if (!this.editorView) {
       this.editorView = new TemplateEditorView({
         contextMenuService: this.props.contextMenuService,
-        onCancel: () => this.cancelTemplateEditing(),
+        onCancel: () => this.cancelTemplateEditor(),
         onClearYColumns: () => this.clearYColumns(),
         onPickFieldFocus: (field) => {
           this.activePickField = field;
@@ -659,18 +657,14 @@ export class TemplateView {
       });
 
       this.stopOnErrorDraft = Boolean(saved.stopOnError);
-      this.props.templateService.updateState({
-        selectedTemplateId: typeof saved.id === "string" ? saved.id : null,
-        formState: cloneTemplateConfig(saved),
-        mode: "management",
-      });
+      this.props.templateService.finishTemplateEditor(saved);
       showToast(localize("template.save.success", "Template saved"), "success");
     } catch (err) {
       showToast(localize("template.save.failed", "Failed to save template: {error}", { error: String(err) }), "error");
     }
   }
 
-  private cancelTemplateEditing(): void {
+  private cancelTemplateEditor(): void {
     const config = this.getEffectiveTemplateFormState();
     const selectedTemplateId = this.readSelectedTemplateId();
     if (
@@ -681,20 +675,16 @@ export class TemplateView {
       const found = cachedTemplates.find((template) => template.id === selectedTemplateId);
       if (found) {
         this.stopOnErrorDraft = Boolean(found.stopOnError);
-        this.props.templateService.updateState({
-          mode: "management",
-          formState: cloneTemplateConfig(found),
+        this.props.templateService.cancelTemplateEditor({
+          fallbackTemplate: found,
         });
         return;
       }
     }
 
     this.stopOnErrorDraft = config.stopOnError;
-    this.props.templateService.updateState({
-      mode: "management",
-      formState: createEmptyTemplateConfig({
-        stopOnError: config.stopOnError,
-      }),
+    this.props.templateService.cancelTemplateEditor({
+      stopOnError: config.stopOnError,
     });
   }
 }

@@ -55,8 +55,8 @@ suite("workbench/contrib/template/test/browser/templateView", () => {
     assert.equal(state.selectedTemplateLabel, "template-a");
   });
 
-  test("syncs template table selection only while editing a template", () => {
+  test("syncs template table selection only in the template editor", () => {
     assert.equal(shouldSyncTemplateEditorTableSelection("management"), false);
-    assert.equal(shouldSyncTemplateEditorTableSelection("editing"), true);
+    assert.equal(shouldSyncTemplateEditorTableSelection("editor"), true);
   });
 });

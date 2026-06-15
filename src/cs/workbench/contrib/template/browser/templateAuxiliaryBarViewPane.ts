@@ -78,7 +78,7 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
   }
 
   private getTitle(): string {
-    return this.templateService.getState().mode === "editing"
+    return this.templateService.getState().mode === "editor"
       ? TEMPLATE_EDITOR_TITLE
       : TEMPLATE_TITLE;
   }

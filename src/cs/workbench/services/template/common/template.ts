@@ -46,7 +46,12 @@ export type TemplateRecord = Partial<TemplateConfig> &
     readonly [key: string]: unknown;
   };
 
-export type TemplateMode = "management" | "editing";
+export type TemplateEditorCancelOptions = {
+  readonly fallbackTemplate?: TemplateRecord | null;
+  readonly stopOnError?: boolean;
+};
+
+export type TemplateMode = "management" | "editor";
 
 export type TemplateState = {
   readonly mode: TemplateMode;
@@ -82,8 +87,10 @@ export interface ITemplateService {
   downloadTemplateBundle(bundle: unknown): string;
   selectTemplate(template?: TemplateRecord | null): boolean;
   createTemplateDraft(template?: Partial<TemplateConfig> | null): void;
+  cancelTemplateEditor(options?: TemplateEditorCancelOptions): void;
   editTemplate(template: TemplateRecord): boolean;
   exportTemplate(template?: TemplateRecord | TemplateConfig | null): string | null;
+  finishTemplateEditor(template: TemplateRecord): void;
   getTemplates(): Promise<TemplateRecord[]>;
   getState(): TemplateState;
   getViewInput(): TemplateViewInput | null;
@@ -93,7 +100,6 @@ export interface ITemplateService {
   setSelectedTemplateId: TemplateStateSetter<string | null>;
   setFormState: TemplateStateSetter<TemplateConfig>;
   setSelectionsByFileId: TemplateStateSetter<TemplateSelectionsByFileId>;
-  updateState(updates: Partial<TemplateState>): void;
   updateViewInput(input: TemplateViewInput): void;
 }
 
