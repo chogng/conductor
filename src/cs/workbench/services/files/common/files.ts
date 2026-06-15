@@ -184,6 +184,7 @@ export type RawRecord = {
   readonly rawFile?: unknown;
   readonly size?: number;
   readonly lastModified?: number;
+  readonly rawKey?: string;
   readonly relativePath?: string | null;
   readonly filePath?: string | null;
   readonly rawTablesById: Readonly<Record<string, RawTableRecord>>;

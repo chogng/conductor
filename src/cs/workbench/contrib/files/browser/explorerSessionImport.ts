@@ -57,35 +57,44 @@ export const commitExplorerSessionImport = ({
 
   const currentRawFileIds = getSessionRawFileIds(sessionService);
   const currentSelectedRawFileId = normalizeFileId(explorerService.selectedRawFileId);
-  const importedFileIds = normalizedFiles.map(file => file.fileId);
   const importResult = createFileImportResultFromRecords(
     normalizedFiles.map(file => file.importRecord),
   );
 
   if (mode === "replace") {
     sessionService.clearSession();
-    sessionService.commitFileImport(importResult);
+    const commitResult = sessionService.commitFileImport(importResult);
+    const committedFileIds = commitResult.importedFileIds;
     const nextSelectedFileId = resolveExplorerSelectedFileId(
-      selectedFileId ?? importedFileIds[0] ?? null,
-      importedFileIds,
+      selectedFileId ?? committedFileIds[0] ?? null,
+      committedFileIds,
     );
     explorerService.select({
-      candidateFileIds: importedFileIds,
+      candidateFileIds: committedFileIds,
       fileId: nextSelectedFileId,
       kind: "table",
     }, "force");
     return {
-      importedFileIds,
+      importedFileIds: committedFileIds,
       selectedFileId: nextSelectedFileId,
-      shouldNavigateToTable: true,
+      shouldNavigateToTable: committedFileIds.length > 0,
     };
   }
 
-  sessionService.commitFileImport(importResult);
-  const nextRawFileIds = uniqueFileIds([...currentRawFileIds, ...importedFileIds]);
+  const commitResult = sessionService.commitFileImport(importResult);
+  const committedFileIds = commitResult.importedFileIds;
+  if (!committedFileIds.length) {
+    return {
+      importedFileIds: [],
+      selectedFileId: null,
+      shouldNavigateToTable: false,
+    };
+  }
+
+  const nextRawFileIds = uniqueFileIds([...currentRawFileIds, ...committedFileIds]);
   const nextSelectedFileId = currentSelectedRawFileId && nextRawFileIds.includes(currentSelectedRawFileId)
     ? currentSelectedRawFileId
-    : resolveExplorerSelectedFileId(importedFileIds[0] ?? null, nextRawFileIds);
+    : resolveExplorerSelectedFileId(committedFileIds[0] ?? null, nextRawFileIds);
   if (nextSelectedFileId !== currentSelectedRawFileId) {
     explorerService.select({
       candidateFileIds: nextRawFileIds,
@@ -95,7 +104,7 @@ export const commitExplorerSessionImport = ({
   }
 
   return {
-    importedFileIds,
+    importedFileIds: committedFileIds,
     selectedFileId: nextSelectedFileId,
     shouldNavigateToTable: true,
   };

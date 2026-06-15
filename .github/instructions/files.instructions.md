@@ -237,6 +237,7 @@ flowchart TD
     DesktopRust --> Converter
     Converter --> Result[FileConversionResult]
     Workflow --> Session[ISessionService.commitFileImport]
+    Session --> WorkflowResult[CommitFileImportResult: committed ids / skipped duplicate ids]
     Result --> Session
     Session --> Consumers[SessionChangeEvent subscribers]
     Consumers --> Assessment[IAssessmentService]

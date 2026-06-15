@@ -62,6 +62,7 @@ export type ImportedFileRecordInput = {
   readonly fileName: string;
   readonly lastModified?: number | null;
   readonly normalizedCsvPath?: string | null;
+  readonly rawKey?: string | null;
   readonly relativePath?: string | null;
   readonly sourcePath?: string | null;
   readonly sourceSizeBytes?: number | null;
@@ -452,6 +453,7 @@ export const createImportedFileRecord = async (
       lastModified: Number.isFinite(Number(input.lastModified))
         ? Number(input.lastModified)
         : input.file.lastModified,
+      rawKey: normalizeOptionalText(input.rawKey) ?? undefined,
       rawFile: input.file,
       rawTableOrder: tables.map(table => table.rawTableId),
       rawTablesById: Object.fromEntries(

@@ -682,6 +682,7 @@ sequenceDiagram
     Workflow->>Converter: convert sources
     Converter-->>Workflow: FileConversionResult
     Workflow->>Session: commitFileImport(result)
+    Session-->>Workflow: committed file ids / skipped duplicate ids
     Workflow->>Explorer: select({ kind: table, fileId }, reveal?) when needed
     Session-->>Assessment: rawTablesChanged event
     Assessment->>Session: getSnapshot()

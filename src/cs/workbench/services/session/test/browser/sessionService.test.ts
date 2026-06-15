@@ -535,6 +535,44 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.equal(rawFiles[0]?.sourceVersion, 2);
   });
 
+  test("skips imported files that duplicate an existing raw source identity", () => {
+    const session = new SessionService();
+
+    const first = session.commitFileImport(createSourceKeyedImportResult("file-a", "raw-source-key"));
+    const second = session.commitFileImport(createSourceKeyedImportResult("file-next-id", "raw-source-key"));
+
+    assert.deepEqual(first, {
+      importedFileIds: ["file-a"],
+      skippedDuplicateFileIds: [],
+    });
+    assert.deepEqual(second, {
+      importedFileIds: [],
+      skippedDuplicateFileIds: ["file-next-id"],
+    });
+    assert.deepEqual(session.getSnapshot().fileOrder, ["file-a"]);
+    assert.equal(session.getSnapshot().filesById["file-next-id"], undefined);
+  });
+
+  test("deduplicates raw source identities within one import commit", () => {
+    const session = new SessionService();
+
+    const result = session.commitFileImport({
+      createdAt: 123,
+      diagnostics: [],
+      files: [
+        createSourceKeyedImportedFileRecord("file-a", "raw-source-key"),
+        createSourceKeyedImportedFileRecord("file-next-id", "raw-source-key"),
+      ],
+    });
+
+    assert.deepEqual(result, {
+      importedFileIds: ["file-a"],
+      skippedDuplicateFileIds: ["file-next-id"],
+    });
+    assert.deepEqual(session.getSnapshot().fileOrder, ["file-a"]);
+    assert.equal(session.getSnapshot().filesById["file-next-id"], undefined);
+  });
+
   test("commits raw table assessment when source version matches", () => {
     const session = new SessionService();
     session.commitFileImport(createSingleRawTableImportResult());
@@ -915,6 +953,8 @@ const createImportedFileRecordForTest = (
       fileName,
       filePath: typeof file.sourcePath === "string" ? file.sourcePath : null,
       lastModified: readRecordNumber(file.file, "lastModified") ?? undefined,
+      rawKey: normalizeOptionalTestText(file.rawKey) ??
+        normalizeOptionalTestText(file.sourceKey),
       rawFile: file.file,
       rawTablesById: {
         [rawTableId]: {
@@ -1032,6 +1072,48 @@ const createSingleRawTableImportResult = (): FileImportResult => ({
       rawTableOrder: ["table-a"],
     },
   }],
+});
+
+const createSourceKeyedImportResult = (
+  fileId: string,
+  rawKey: string,
+): FileImportResult => ({
+  createdAt: 123,
+  diagnostics: [],
+  files: [createSourceKeyedImportedFileRecord(fileId, rawKey)],
+});
+
+const createSourceKeyedImportedFileRecord = (
+  fileId: string,
+  rawKey: string,
+): ImportedFileRecord => ({
+  id: fileId,
+  kind: "csv",
+  name: "Transfer.csv",
+  raw: {
+    fileId,
+    fileName: "Transfer.csv",
+    lastModified: 123,
+    rawKey,
+    rawTablesById: {
+      [fileId]: {
+        columnCount: 2,
+        fileId,
+        maxCellLengths: [2, 4],
+        rawTableId: fileId,
+        rowCount: 2,
+        rows: {
+          kind: "inline",
+          values: [["Vg", "Id"], ["0", "1e-9"]],
+        },
+        source: {
+          kind: "csv",
+        },
+      },
+    },
+    rawTableOrder: [fileId],
+    size: 24,
+  },
 });
 
 const createRawTableAssessment = (

@@ -39,7 +39,7 @@ export interface ISessionService {
 
   getSnapshot(): SessionSnapshot;
 
-  commitFileImport(result: FileConversionResult): void;
+  commitFileImport(result: FileConversionResult): CommitFileImportResult;
   commitRawTableAssessment(result: RawTableAssessmentRecord): void;
   commitTemplateRun(input: CommitTemplateRunInput): void;
   commitCurves(input: CommitCurvesInput): void;
@@ -102,6 +102,8 @@ Use `CommandTarget` for command arguments.
 
 - Every canonical mutation goes through `SessionService`.
 - Every commit validates affected file/raw table/curve ids.
+- File import commits return the actual committed file ids and duplicate source
+  ids skipped by Session. Callers may use that result for selection follow-up.
 - Assessment commits must check `sourceRawTableVersion`.
 - Raw table replacement invalidates stale assessments, template runs, curves, and metrics for that raw table.
 - Events include affected ids; consumers should ignore unrelated changes.

@@ -61,6 +61,7 @@ Owner: committed inside `FileRecord`. Mutated only by `SessionService` when impo
 | `rawFile` | `unknown` | Optional browser `File` or opaque source object. | No | Do not rely on it for canonical computation if rows are externalized. |
 | `size` | `number` | Source file size in bytes. | No | File fact only. |
 | `lastModified` | `number` | Source file modified timestamp. | No | File fact only. |
+| `rawKey` | `string` | Stable source identity used by Session to detect duplicate imported sources. | No | Produced by source collection/conversion; duplicate handling belongs to `SessionService`. |
 | `relativePath` | `string | null` | Folder import relative path. | No | Explorer grouping input. |
 | `filePath` | `string | null` | Native path when available. | No | Must not be required in browser-only paths. |
 | `rawTablesById` | `Record<RawTableId, RawTableRecord>` | Raw tables produced from this file. | Yes | Excel: one table per sheet. CSV: usually one table. |

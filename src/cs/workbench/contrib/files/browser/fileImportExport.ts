@@ -953,6 +953,7 @@ export const preparePendingImportFile = async (
       fileName: pendingImportFile.sourceName,
       lastModified: normalizedFile.lastModified,
       normalizedCsvPath,
+      rawKey: sourceKey,
       relativePath,
       sourcePath,
       sourceSizeBytes: pendingImportFile.sourceSize,

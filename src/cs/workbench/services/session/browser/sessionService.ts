@@ -28,6 +28,7 @@ import {
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import {
   ISessionService,
+  type CommitFileImportResult,
   type CommitCurvesInput,
   type CommitMetricsInput,
   type CommitTemplateRunInput,
@@ -40,9 +41,10 @@ import {
   type SessionChangeEvent,
   type SessionChangeReason,
 } from "src/cs/workbench/services/session/common/sessionEvents";
-import type {
-  FileImportResult,
-  ImportedFileRecord,
+import {
+  buildFileSourceIdentityKey,
+  type FileImportResult,
+  type ImportedFileRecord,
 } from "src/cs/workbench/services/files/common/files";
 import type {
   RawTableRecord,
@@ -126,17 +128,27 @@ export class SessionService extends Disposable implements ISessionServiceType {
     return this.snapshot;
   };
 
-  public commitFileImport = (result: FileImportResult): void => {
+  public commitFileImport = (result: FileImportResult): CommitFileImportResult => {
     const importedRecords = result.files
       .map(createFileRecordFromImportedFile)
       .filter((record): record is FileRecord => Boolean(record));
     if (!importedRecords.length) {
-      return;
+      return EMPTY_FILE_IMPORT_COMMIT_RESULT;
     }
 
+    const sourceFileIdsByKey = createSourceFileIdsByKey(this.snapshot.filesById, this.snapshot.fileOrder);
     const nextFilesById: Record<FileId, FileRecord> = { ...this.snapshot.filesById };
     let nextFileOrder = this.snapshot.fileOrder.filter(fileId => Boolean(nextFilesById[fileId]));
+    const committedRecords: FileRecord[] = [];
+    const skippedDuplicateFileIds: FileId[] = [];
     for (const record of importedRecords) {
+      const sourceKey = getRawSourceIdentityKey(record.raw);
+      const duplicateFileId = sourceKey ? sourceFileIdsByKey.get(sourceKey) : undefined;
+      if (duplicateFileId && duplicateFileId !== record.id) {
+        skippedDuplicateFileIds.push(record.id);
+        continue;
+      }
+
       nextFilesById[record.id] = preserveRawTableVersionContinuity(
         record,
         nextFilesById[record.id],
@@ -144,18 +156,34 @@ export class SessionService extends Disposable implements ISessionServiceType {
       if (!nextFileOrder.includes(record.id)) {
         nextFileOrder = [...nextFileOrder, record.id];
       }
+      if (sourceKey) {
+        sourceFileIdsByKey.set(sourceKey, record.id);
+      }
+      committedRecords.push(record);
     }
-    const rawTableRefs = createRawTableRefs(importedRecords);
+
+    if (!committedRecords.length) {
+      return {
+        importedFileIds: [],
+        skippedDuplicateFileIds: uniqueStrings(skippedDuplicateFileIds),
+      };
+    }
+    const rawTableRefs = createRawTableRefs(committedRecords);
 
     this.replaceSnapshot({
       ...this.snapshot,
       filesById: nextFilesById,
       fileOrder: nextFileOrder,
     }, "rawTablesChanged", {
-      fileIds: importedRecords.map(record => record.id),
-      rawTableIds: importedRecords.flatMap(record => record.raw.tableOrder),
+      fileIds: committedRecords.map(record => record.id),
+      rawTableIds: committedRecords.flatMap(record => record.raw.tableOrder),
       rawTableRefs,
     });
+
+    return {
+      importedFileIds: uniqueStrings(committedRecords.map(record => record.id)),
+      skippedDuplicateFileIds: uniqueStrings(skippedDuplicateFileIds),
+    };
   };
 
   public commitRawTableAssessment = (assessment: RawTableAssessmentRecord): void => {
@@ -473,6 +501,54 @@ export class SessionService extends Disposable implements ISessionServiceType {
 
 }
 
+const EMPTY_FILE_IMPORT_COMMIT_RESULT: CommitFileImportResult = {
+  importedFileIds: [],
+  skippedDuplicateFileIds: [],
+};
+
+const createSourceFileIdsByKey = (
+  filesById: Readonly<Record<FileId, FileRecord>>,
+  fileOrder: readonly FileId[],
+): Map<string, FileId> => {
+  const result = new Map<string, FileId>();
+  for (const fileId of uniqueStrings([
+    ...fileOrder,
+    ...Object.keys(filesById),
+  ])) {
+    const file = filesById[fileId];
+    const sourceKey = file ? getRawSourceIdentityKey(file.raw) : null;
+    if (sourceKey) {
+      result.set(sourceKey, fileId);
+    }
+  }
+
+  return result;
+};
+
+const getRawSourceIdentityKey = (
+  raw: Pick<RawRecord, "fileName" | "lastModified" | "rawKey" | "relativePath" | "size">,
+): string | null => normalizeOptionalText(raw.rawKey) ??
+  createRawSourceFingerprint(raw);
+
+const createRawSourceFingerprint = (
+  raw: Pick<RawRecord, "fileName" | "lastModified" | "relativePath" | "size">,
+): string | null => {
+  if (
+    !normalizeOptionalText(raw.fileName) ||
+    !Number.isFinite(Number(raw.size)) ||
+    !Number.isFinite(Number(raw.lastModified))
+  ) {
+    return null;
+  }
+
+  return normalizeOptionalText(buildFileSourceIdentityKey(
+    raw.fileName,
+    raw.size,
+    raw.lastModified,
+    raw.relativePath,
+  ));
+};
+
 const createFileRecordFromImportedFile = (
   importedFile: ImportedFileRecord,
 ): FileRecord | null => {
@@ -546,6 +622,7 @@ const createRawRecordFromImportedFile = (
     file: importedFile.raw.rawFile ?? undefined,
     size: importedFile.raw.size,
     lastModified: importedFile.raw.lastModified,
+    rawKey: normalizeOptionalText(importedFile.raw.rawKey),
     relativePath: importedFile.raw.relativePath ?? null,
     filePath: importedFile.raw.filePath ?? null,
     normalizedCsvPath: getSingleNormalizedCsvPath(
@@ -982,6 +1059,3 @@ const filterRecord = <T,>(
 };
 
 registerSingleton(ISessionService, SessionService, InstantiationType.Delayed);
-
-
-

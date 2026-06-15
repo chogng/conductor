@@ -22,6 +22,7 @@ suite("workbench/services/files/test/browser/fileConverter import records", () =
       file,
       fileId: "file-a",
       fileName: "Transfer.csv",
+      rawKey: "folder/Transfer.csv::24::123",
       relativePath: "folder/Transfer.csv",
       sourcePath: "C:/data/Transfer.csv",
       sourceSizeBytes: 24,
@@ -31,6 +32,7 @@ suite("workbench/services/files/test/browser/fileConverter import records", () =
     assert.equal(record.kind, "csv");
     assert.equal(record.raw.rawFile, file);
     assert.equal(record.raw.filePath, "C:/data/Transfer.csv");
+    assert.equal(record.raw.rawKey, "folder/Transfer.csv::24::123");
     assert.equal(record.raw.relativePath, "folder/Transfer.csv");
     assert.equal(record.raw.size, 24);
     assert.equal(table.rowCount, 2);

@@ -67,6 +67,11 @@ export type SessionSnapshot = {
   readonly fileOrder: FileId[];
 };
 
+export type CommitFileImportResult = {
+  readonly importedFileIds: readonly FileId[];
+  readonly skippedDuplicateFileIds: readonly FileId[];
+};
+
 export interface ISessionService {
   readonly _serviceBrand: undefined;
   readonly onDidChangeSession: Event<SessionChangeEvent>;
@@ -75,7 +80,7 @@ export interface ISessionService {
   readonly clearMetricInput: (fileId: string, metricKey: MetricKey) => void;
 
   clearSession(): void;
-  commitFileImport(result: FileImportResult): void;
+  commitFileImport(result: FileImportResult): CommitFileImportResult;
   commitRawTableAssessment(assessment: RawTableAssessmentRecord): void;
   commitTemplateRun(input: CommitTemplateRunInput): void;
   commitCurves(input: CommitCurvesInput): void;

@@ -61,6 +61,39 @@ suite("workbench/contrib/files/test/browser/explorerSessionImport", () => {
     assert.equal(explorerService.selectedRawFileId, "file-a");
   });
 
+  test("append ignores files already imported from the same source", () => {
+    const session = new SessionService();
+    const explorerService = new ExplorerService();
+
+    const first = commitExplorerSessionImport({
+      explorerService,
+      importedFiles: [
+        createPreparedFileImportInfo("file-a", "A.csv", {
+          sourceKey: "A.csv::2::1",
+        }),
+      ],
+      mode: "append",
+      sessionService: session,
+    });
+    const second = commitExplorerSessionImport({
+      explorerService,
+      importedFiles: [
+        createPreparedFileImportInfo("file-a-next-id", "A.csv", {
+          sourceKey: "A.csv::2::1",
+        }),
+      ],
+      mode: "append",
+      sessionService: session,
+    });
+
+    assert.deepEqual(first.importedFileIds, ["file-a"]);
+    assert.deepEqual(second.importedFileIds, []);
+    assert.equal(second.selectedFileId, null);
+    assert.equal(second.shouldNavigateToTable, false);
+    assert.deepEqual(session.getSnapshot().fileOrder, ["file-a"]);
+    assert.equal(explorerService.selectedRawFileId, "file-a");
+  });
+
   test("append selects the imported file when session has files but explorer has no active raw file", () => {
     const session = new SessionService();
 
@@ -129,20 +162,29 @@ suite("workbench/contrib/files/test/browser/explorerSessionImport", () => {
 const createPreparedFileImportInfo = (
   fileId: string,
   fileName: string,
+  options: {
+    readonly relativePath?: string | null;
+    readonly sourceKey?: string;
+  } = {},
 ): PreparedFileImportInfo => ({
   columnCount: 2,
   file: {} as File,
   fileId,
   fileName,
-  importRecord: createImportedFileRecord(fileId, fileName),
+  importRecord: createImportedFileRecord(fileId, fileName, options),
   lastModified: 1,
   rowCount: 2,
   size: 2,
+  relativePath: options.relativePath ?? null,
+  sourceKey: options.sourceKey,
 });
 
 const createImportedFileRecord = (
   fileId: string,
   fileName: string,
+  options: {
+    readonly relativePath?: string | null;
+  } = {},
 ): ImportedFileRecord => ({
   id: fileId,
   kind: "csv",
@@ -150,6 +192,9 @@ const createImportedFileRecord = (
   raw: {
     fileId,
     fileName,
+    rawKey: options.sourceKey,
+    lastModified: 1,
+    relativePath: options.relativePath ?? null,
     rawTableOrder: [fileId],
     rawTablesById: {
       [fileId]: {
@@ -167,5 +212,6 @@ const createImportedFileRecord = (
         },
       },
     },
+    size: 2,
   },
 });
