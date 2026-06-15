@@ -221,7 +221,6 @@
   min-width: var(--table-view-row-header-width);
   max-width: var(--table-view-row-header-width);
   flex: 0 0 var(--table-view-row-header-width);
-  border-left: 1px solid rgb(var(--border) / 1);
 }
 
 .table_view_grid_header_cell {
@@ -278,10 +277,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.table_view_grid th:first-child {
-  border-left: 1px solid rgb(var(--border) / 1);
 }
 
 .table_view_grid th {

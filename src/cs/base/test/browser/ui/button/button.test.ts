@@ -54,20 +54,40 @@ suite("base/test/browser/ui/button/button", () => {
     assert.equal(button.textContent, "Import");
   });
 
-  test("updateButton replaces stale content and removes aria label", () => {
+  test("createButton keeps native title only for buttons without visible text", () => {
+    const textButton = createButton({
+      content: "Import",
+      title: "Import",
+      variant: "primary",
+    });
+    assert.equal(textButton.getAttribute("title"), null);
+
+    const iconButton = createButton({
+      ariaLabel: "Import",
+      content: document.createElement("span"),
+      title: "Import",
+      variant: "icon",
+    });
+    assert.equal(iconButton.getAttribute("title"), "Import");
+  });
+
+  test("updateButton replaces stale content and removes transient labels", () => {
     const button = createButton({
       ariaLabel: "Before",
       content: "Before",
+      title: "Before",
       variant: "primary",
     });
 
     updateButton(button, {
       content: "After",
       disabled: true,
+      title: "After",
       variant: "primary",
     });
 
     assert.equal(button.getAttribute("aria-label"), null);
+    assert.equal(button.getAttribute("title"), null);
     assert.equal(button.textContent, "After");
     assert.equal(button.disabled, true);
     assert.ok(button.className.includes("action-btn--disabled"));

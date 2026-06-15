@@ -48,7 +48,7 @@
   --color-divider: rgb(var(--border) / 0.2);
   --color-highlight: rgb(var(--bg-surface) / 0.8);
   --desktop-opaque-surface-background: 249 249 249;
-  --transparent-chrome-window: rgb(var(--bg-page) / 0.55);
+  --transparent-chrome-window: rgb(var(--bg-surface) / 0.55);
 
   /* Status Colors */
   --color-success: #10B981;

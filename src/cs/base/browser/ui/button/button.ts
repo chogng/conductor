@@ -87,10 +87,6 @@ export const updateButton = (
   button.disabled = options.disabled === true;
   button.className = getButtonClassName(options);
 
-  if (options.title !== undefined) {
-    button.title = options.title;
-  }
-
   if (options.ariaLabel !== undefined) {
     button.setAttribute("aria-label", options.ariaLabel);
   } else {
@@ -109,6 +105,12 @@ export const updateButton = (
   content.className = getButtonContentClassName(options.contentClassName);
   appendButtonContent(content, options.content ?? options.label ?? "");
   button.replaceChildren(content);
+
+  if (options.title !== undefined && !content.textContent?.trim()) {
+    button.title = options.title;
+  } else {
+    button.removeAttribute("title");
+  }
 };
 
 const getButtonVariantClassName = (
