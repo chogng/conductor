@@ -12,8 +12,10 @@ Table shows raw tables and assessment block ranges. It does not identify measure
 
 - current table source;
 - active cell/range selection;
+- selected table text generation for copy workflows;
 - focus/reveal cell state;
 - highlighted columns/ranges;
+- persisted column view configuration such as column widths;
 - paged raw rows cache;
 - block table preview model;
 - table loading status;
@@ -39,7 +41,7 @@ It does not own:
 
 | File | Responsibility |
 | --- | --- |
-| `src/cs/workbench/services/table/common/table.ts` | Defines `ITableService`, `TableState`, `TableSelection`, `TableHighlight`, `TableSource`, row request types. |
+| `src/cs/workbench/services/table/common/table.ts` | Defines `ITableService`, `TableState`, `TableSelection`, `TableHighlight`, `TableSource`, copy text results, column view configuration, and row request types. |
 | `src/cs/workbench/services/table/common/tableModel.ts` | Pure table display model types: raw table view, block table view, column display metadata. |
 | `src/cs/workbench/services/table/browser/tableService.ts` | Owns table state, row caches, selection events, row paging, and table source switching. |
 | `src/cs/workbench/services/table/browser/tableDropTargetService.ts` | Browser-only registry for the table preview DOM drop target used by cross-feature drop controllers. No table data state. |
@@ -47,6 +49,7 @@ It does not own:
 | `src/cs/workbench/services/table/browser/tableCellReadModel.ts` | Converts table cell-read payloads into cached row arrays. |
 | `src/cs/workbench/services/table/browser/tableBackendLifecycle.contribution.ts` | Clears table backend temporary files during workbench shutdown. The desktop implementation is Rust-backed, but the service contract stays runtime-neutral. |
 | `src/cs/workbench/services/table/browser/tableRowReadWorker.ts` | Optional browser worker for CSV row paging and cell fetches. |
+| `src/cs/workbench/contrib/table/browser/tableGridModel.ts` | DOM-free grid view math and local layout helpers such as viewport render ranges, keyboard navigation targets, virtual spacer heights, spreadsheet labels, zoom scale, and column width constraints. |
 | `src/cs/workbench/contrib/table/browser/tableView.ts` | DOM view. Renders `TableState`/rows and forwards user actions. |
 | `src/cs/workbench/contrib/table/browser/table.contribution.ts` | Registers table view and UI actions. |
 

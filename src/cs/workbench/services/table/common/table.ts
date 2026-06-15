@@ -16,6 +16,7 @@ export const ITableBackendService =
 
 export const TableCommandId = {
 	clearSelection: "workbench.table.clearSelection",
+	copySelection: "workbench.table.copySelection",
 	resetZoom: "workbench.table.resetZoom",
 	selectAllColumns: "workbench.table.selectAllColumns",
 	zoomIn: "workbench.table.zoomIn",
@@ -28,6 +29,10 @@ export const TABLE_DEFAULT_ZOOM_PERCENT = 100;
 export const TABLE_MIN_ZOOM_PERCENT = 50;
 export const TABLE_MAX_ZOOM_PERCENT = 200;
 export const TABLE_ZOOM_STEP_PERCENT = 10;
+export const TABLE_DEFAULT_COLUMN_WIDTH = 160;
+export const TABLE_MIN_COLUMN_WIDTH = 72;
+export const TABLE_MAX_COLUMN_WIDTH = 640;
+export const TABLE_COPY_MAX_CELLS = 100_000;
 
 export type TableCell = {
 	readonly fileId?: string | null;
@@ -65,6 +70,27 @@ export type TableRevealMode = boolean | "force";
 export type TableRevealOptions = {
 	readonly reveal?: TableRevealMode;
 };
+
+export type TableColumnWidth = {
+	readonly colIndex: number;
+	readonly width: number;
+};
+
+export type TableColumnWidthTarget = TableColumnWidth;
+
+export type TableSelectionTextResult =
+	| { readonly kind: "empty" }
+	| {
+		readonly cellCount: number;
+		readonly kind: "tooLarge";
+		readonly maxCellCount: number;
+	}
+	| {
+		readonly columnCount: number;
+		readonly kind: "ok";
+		readonly rowCount: number;
+		readonly text: string;
+	};
 
 export type TableHighlight = {
 	readonly columns?: readonly number[];
@@ -151,6 +177,8 @@ export type TableModel = {
 		startRow: number,
 		endRow: number,
 	) => Promise<void>;
+	getColumnWidth: (colIndex: number) => number | null;
+	getColumnWidths: () => readonly TableColumnWidth[];
 	getRow: (rowIndex: number) => unknown[] | null;
 	getRowsVersion: () => number;
 	getState: () => TableState;
@@ -168,6 +196,7 @@ export type TableModel = {
 	highlightColumns: (columnIndexes: readonly number[]) => void;
 	resetZoom: () => boolean;
 	selectAllColumns: () => boolean;
+	setColumnWidth: (target: TableColumnWidthTarget) => boolean;
 	setSelection: (selection: TableSelection | null) => void;
 	setZoomPercent: (zoomPercent: number) => boolean;
 	subscribeRowsVersion: (callback: () => void) => () => void;
@@ -189,12 +218,20 @@ export interface ITableService {
 	clearHighlight(): void;
 	executeCommand(commandId: TableCommandId): boolean;
 	getSelection(): TableSelection;
+	getSelectionText(maxCellCount?: number): Promise<TableSelectionTextResult>;
 	getViewInput(): TableViewInput | null;
 	reveal(target: TableRevealTarget | null, options?: TableRevealOptions): boolean;
 	select(target: TableSelectionTarget | null, reveal?: TableRevealMode): boolean;
+	setColumnWidth(target: TableColumnWidthTarget): boolean;
 	update(input: TableInput): TableModel;
 	updateViewInput(input: TableViewInput): void;
 }
+
+export const clampTableColumnWidth = (width: number): number =>
+	Math.min(
+		TABLE_MAX_COLUMN_WIDTH,
+		Math.max(TABLE_MIN_COLUMN_WIDTH, Math.round(Number(width) || 0)),
+	);
 
 export const toTableSourceKey = (source: TableSource): string => {
 	const fileId = encodeURIComponent(source.fileId);

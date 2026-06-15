@@ -28,7 +28,7 @@ export class TableActions extends Disposable {
   }
 
   private onKeyDown(event: KeyboardEvent): void {
-    if (event.defaultPrevented || event.altKey || event.metaKey) {
+    if (event.defaultPrevented || event.altKey) {
       return;
     }
 
@@ -59,9 +59,15 @@ const getTableCommandForKey = (
   event: KeyboardEvent,
 ): TableCommandIdValue | null => {
   const key = String(event.key || "").toLowerCase();
-  if (event.ctrlKey) {
+  if (event.ctrlKey || event.metaKey) {
     if (key === "a") {
       return TableCommandId.selectAllColumns;
+    }
+    if (key === "c") {
+      return TableCommandId.copySelection;
+    }
+    if (event.metaKey) {
+      return null;
     }
     if (key === "=" || key === "+") {
       return TableCommandId.zoomIn;

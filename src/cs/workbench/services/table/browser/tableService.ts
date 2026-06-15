@@ -6,12 +6,21 @@ import { localize } from "src/cs/nls";
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import {
+  IStorageService,
+  StorageScope,
+  StorageTarget,
+  type IStorageService as IStorageServiceType,
+} from "src/cs/platform/storage/common/storage";
 import type {
   SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import {
   ITableService,
+  clampTableColumnWidth,
+  TABLE_COPY_MAX_CELLS,
   ITableBackendService,
+  TABLE_DEFAULT_COLUMN_WIDTH,
   TABLE_DEFAULT_ZOOM_PERCENT,
   TABLE_MAX_ZOOM_PERCENT,
   TABLE_MIN_ZOOM_PERCENT,
@@ -19,6 +28,8 @@ import {
   TableCommandId,
   type TableCell,
   type TableCellReadRequest,
+  type TableColumnWidth,
+  type TableColumnWidthTarget,
   type TableFile,
   type TableHighlight,
   type TableInput,
@@ -30,6 +41,7 @@ import {
   type TableRevealTarget,
   type TableRevealMode,
   type TableSelection,
+  type TableSelectionTextResult,
   type TableSelectionTarget,
   type TableSource,
   type TableState,
@@ -346,6 +358,7 @@ type WorkerMessage =
   | { type?: string; payload?: Record<string, unknown> | null };
 
 export type CreateTableModelWithScopeOptions = TableInput & {
+  columnWidths?: readonly TableColumnWidth[];
   file?: TableFile | null;
   loadState?: TableLoadState;
   setFile?: Dispatch<SetStateAction<TableFile | null>>;
@@ -379,6 +392,68 @@ const clampTableZoomPercent = (value: number): number =>
     TABLE_MAX_ZOOM_PERCENT,
     Math.max(TABLE_MIN_ZOOM_PERCENT, Math.floor(Number(value) || 0)),
   );
+const normalizeTableColumnWidthIndex = (value: unknown): number | null => {
+  const index = Math.floor(Number(value));
+  return Number.isInteger(index) && index >= 0 ? index : null;
+};
+const normalizeTableColumnWidth = (value: unknown): number =>
+  clampTableColumnWidth(Number(value));
+const createTableColumnWidthMap = (
+  widths: readonly TableColumnWidth[] | undefined,
+): Map<number, number> => {
+  const result = new Map<number, number>();
+  if (!Array.isArray(widths)) {
+    return result;
+  }
+
+  for (const entry of widths) {
+    const colIndex = normalizeTableColumnWidthIndex(entry?.colIndex);
+    if (colIndex === null) {
+      continue;
+    }
+    result.set(colIndex, normalizeTableColumnWidth(entry.width));
+  }
+
+  return result;
+};
+const toStoredTableColumnLayout = (
+  widths: readonly TableColumnWidth[],
+): StoredTableColumnLayout => {
+  const storedWidths: Record<string, number> = {};
+  for (const width of widths) {
+    const colIndex = normalizeTableColumnWidthIndex(width.colIndex);
+    if (colIndex === null) {
+      continue;
+    }
+    storedWidths[String(colIndex)] = normalizeTableColumnWidth(width.width);
+  }
+
+  return {
+    version: TABLE_COLUMN_LAYOUT_STORAGE_VERSION,
+    widths: storedWidths,
+  };
+};
+const toTableColumnWidths = (
+  stored: StoredTableColumnLayout,
+): readonly TableColumnWidth[] => {
+  if (!stored || stored.version !== TABLE_COLUMN_LAYOUT_STORAGE_VERSION || !stored.widths) {
+    return [];
+  }
+
+  const result: TableColumnWidth[] = [];
+  for (const [colIndexKey, width] of Object.entries(stored.widths)) {
+    const colIndex = normalizeTableColumnWidthIndex(colIndexKey);
+    if (colIndex === null) {
+      continue;
+    }
+    result.push({
+      colIndex,
+      width: normalizeTableColumnWidth(width),
+    });
+  }
+
+  return result.sort((left, right) => left.colIndex - right.colIndex);
+};
 const resolveStateAction = <T,>(value: SetStateAction<T>, previous: T): T =>
   typeof value === "function"
     ? (value as (previous: T) => T)(previous)
@@ -394,8 +469,23 @@ const PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS = Math.max(
   TABLE_UI_CHUNK_SIZE_ROWS * 8,
   400,
 );
+const TABLE_COLUMN_LAYOUT_STORAGE_KEY_PREFIX = "table.columnLayout.";
+const TABLE_COLUMN_LAYOUT_STORAGE_VERSION = 1;
+
+type StoredTableColumnLayout = {
+  readonly version?: number;
+  readonly widths?: Record<string, unknown>;
+};
+
+type TableCopyPlan = {
+  readonly columnIndexes: readonly number[];
+  readonly endRow: number;
+  readonly sourceKey: string;
+  readonly startRow: number;
+};
 
 const createTableModel = ({
+  columnWidths = [],
   tableBackendService,
   rawFiles = [],
   source = null,
@@ -456,6 +546,7 @@ const createTableModel = ({
   const highlightRef = createTableRef<TableHighlight>({});
   const revealCellRef = createTableRef<TableCell | null>(null);
   const zoomPercentRef = createTableRef(TABLE_DEFAULT_ZOOM_PERCENT);
+  const columnWidthsRef = createTableRef(createTableColumnWidthMap(columnWidths));
   const selectionSubscribersRef = createTableRef(new Set<(selection: TableSelection) => void>());
   const stateSubscribersRef = createTableRef(new Set<() => void>());
 
@@ -587,6 +678,10 @@ const createTableModel = ({
   runEffect(() => {
     activeSourceKeyRef.current = activeSourceKey;
   }, [activeSourceKey]);
+
+  runEffect(() => {
+    columnWidthsRef.current = createTableColumnWidthMap(columnWidths);
+  }, [activeSourceSignature]);
 
   runEffect(() => {
     let changed = false;
@@ -1715,6 +1810,45 @@ const createTableModel = ({
     [setZoomPercent],
   );
 
+  const getColumnWidth = memoCallback(
+    (colIndex: number): number | null => {
+      const safeColIndex = normalizeTableColumnWidthIndex(colIndex);
+      return safeColIndex === null
+        ? null
+        : columnWidthsRef.current.get(safeColIndex) ?? null;
+    },
+    [columnWidthsRef],
+  );
+
+  const getColumnWidths = memoCallback(
+    (): readonly TableColumnWidth[] =>
+      Array.from(columnWidthsRef.current.entries())
+        .sort(([left], [right]) => left - right)
+        .map(([colIndex, width]) => ({ colIndex, width })),
+    [columnWidthsRef],
+  );
+
+  const setColumnWidth = memoCallback(
+    (target: TableColumnWidthTarget): boolean => {
+      const colIndex = normalizeTableColumnWidthIndex(target?.colIndex);
+      if (colIndex === null) {
+        return false;
+      }
+
+      const width = normalizeTableColumnWidth(target.width);
+      const current = columnWidthsRef.current.get(colIndex) ?? TABLE_DEFAULT_COLUMN_WIDTH;
+      if (current === width) {
+        return false;
+      }
+
+      columnWidthsRef.current = new Map(columnWidthsRef.current);
+      columnWidthsRef.current.set(colIndex, width);
+      notifyStateChanged();
+      return true;
+    },
+    [columnWidthsRef, notifyStateChanged],
+  );
+
   const getHighlight = memoCallback(
     (): TableHighlight => highlightRef.current,
     [highlightRef],
@@ -1812,6 +1946,8 @@ const createTableModel = ({
     disposeFileCache: disposePreviewFileCache,
     ensureCells: ensureTableCells,
     ensureRows: ensureTableRows,
+    getColumnWidth,
+    getColumnWidths,
     getHighlight,
     getRow: getTableRow,
     getRowsVersion,
@@ -1826,6 +1962,7 @@ const createTableModel = ({
     resetZoom,
     resetWorker: resetPreviewWorker,
     selectAllColumns,
+    setColumnWidth,
     setSelection,
     setZoomPercent,
     highlightColumns,
@@ -2024,9 +2161,9 @@ const resolveSelectionForTarget = (
       return range
         ? {
             activeCell: {
-              colIndex: range.startCol,
+              colIndex: range.endCol,
               fileId: range.fileId,
-              rowIndex: range.startRow,
+              rowIndex: range.endRow,
               sheetId: range.sheetId,
             },
             ranges: [range],
@@ -2067,6 +2204,86 @@ const resolveRevealCellForTarget = (
   }
 };
 
+const resolveTableCopyPlan = (tableModel: TableModel): TableCopyPlan | null => {
+  const context = getTableTargetContext(tableModel);
+  if (!context || context.rowCount <= 0 || context.columnCount <= 0) {
+    return null;
+  }
+
+  const sourceKey = context.file.sourceKey || context.file.fileId;
+  const selection = tableModel.getSelection();
+  const selectedRange = selection.ranges?.[0]
+    ? normalizeTargetRange(tableModel, selection.ranges[0])
+    : null;
+  if (selectedRange) {
+    return {
+      columnIndexes: createIndexRange(selectedRange.startCol, selectedRange.endCol),
+      endRow: selectedRange.endRow,
+      sourceKey,
+      startRow: selectedRange.startRow,
+    };
+  }
+
+  const activeCell = selection.activeCell
+    ? normalizeTargetCell(tableModel, selection.activeCell)
+    : null;
+  if (activeCell) {
+    return {
+      columnIndexes: [activeCell.colIndex],
+      endRow: activeCell.rowIndex,
+      sourceKey,
+      startRow: activeCell.rowIndex,
+    };
+  }
+
+  const selectedColumns = selection.selectedColumns?.length
+    ? normalizeTargetColumns(tableModel, selection.selectedColumns)
+    : null;
+  if (selectedColumns?.length) {
+    return {
+      columnIndexes: selectedColumns,
+      endRow: context.rowCount - 1,
+      sourceKey,
+      startRow: 0,
+    };
+  }
+
+  return null;
+};
+
+const createTableSelectionTsv = (
+  tableModel: TableModel,
+  plan: TableCopyPlan,
+): string => {
+  const rows: string[] = [];
+  for (let rowIndex = plan.startRow; rowIndex <= plan.endRow; rowIndex += 1) {
+    const row = tableModel.getRow(rowIndex) ?? [];
+    rows.push(plan.columnIndexes
+      .map(colIndex => formatTableCopyCell(row[colIndex]))
+      .join("\t"));
+  }
+  return rows.join("\n");
+};
+
+const createIndexRange = (start: number, end: number): number[] => {
+  const result: number[] = [];
+  for (let value = start; value <= end; value += 1) {
+    result.push(value);
+  }
+  return result;
+};
+
+const formatTableCopyCell = (value: unknown): string => {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  const text = String(value);
+  return /[\t\r\n"]/.test(text)
+    ? `"${text.replace(/"/g, "\"\"")}"`
+    : text;
+};
+
 export const createTableModelWithScope = (
   options: CreateTableModelWithScopeOptions,
 ): TableModel => {
@@ -2098,6 +2315,7 @@ export class TableService extends Disposable implements ITableService {
 
   public constructor(
     @ITableBackendService private readonly tableBackendService: ITableBackendService,
+    @IStorageService private readonly storageService?: IStorageServiceType,
   ) {
     super();
   }
@@ -2105,6 +2323,7 @@ export class TableService extends Disposable implements ITableService {
   public update(options: TableInput): TableModel {
     const tableModel = runWithTableStateScope(this.scope, () => createTableModel({
       ...toBrowserTableOptions(options),
+      columnWidths: this.restoreColumnWidths(options.source),
       tableBackendService: options.tableBackendService ?? this.tableBackendService,
     }));
     this.bindActiveTableModel(tableModel);
@@ -2131,6 +2350,36 @@ export class TableService extends Disposable implements ITableService {
 
   public getSelection(): TableSelection {
     return this.getActiveTableModel()?.getSelection() ?? normalizeTableSelection(null);
+  }
+
+  public async getSelectionText(
+    maxCellCount: number = TABLE_COPY_MAX_CELLS,
+  ): Promise<TableSelectionTextResult> {
+    const tableModel = this.getActiveTableModel();
+    const plan = tableModel ? resolveTableCopyPlan(tableModel) : null;
+    if (!tableModel || !plan) {
+      return { kind: "empty" };
+    }
+
+    const rowCount = plan.endRow - plan.startRow + 1;
+    const columnCount = plan.columnIndexes.length;
+    const cellCount = rowCount * columnCount;
+    const safeMaxCellCount = Math.max(1, Math.floor(Number(maxCellCount) || TABLE_COPY_MAX_CELLS));
+    if (cellCount > safeMaxCellCount) {
+      return {
+        cellCount,
+        kind: "tooLarge",
+        maxCellCount: safeMaxCellCount,
+      };
+    }
+
+    await tableModel.ensureRows(plan.sourceKey, plan.startRow, plan.endRow + 1);
+    return {
+      columnCount,
+      kind: "ok",
+      rowCount,
+      text: createTableSelectionTsv(tableModel, plan),
+    };
   }
 
   public clearHighlight(): void {
@@ -2206,6 +2455,16 @@ export class TableService extends Disposable implements ITableService {
     return false;
   }
 
+  public setColumnWidth(target: TableColumnWidthTarget): boolean {
+    const tableModel = this.getActiveTableModel();
+    if (!tableModel || !tableModel.setColumnWidth(target)) {
+      return false;
+    }
+
+    this.storeColumnWidths(tableModel);
+    return true;
+  }
+
   public updateViewInput(input: TableViewInput): void {
     if (this.viewInput && isSameTableViewInput(this.viewInput, input)) {
       return;
@@ -2214,6 +2473,45 @@ export class TableService extends Disposable implements ITableService {
     this.viewInput = input;
     this.bindActiveTableModel(input.tableModel);
     this.onDidChangeTableViewInputEmitter.fire(undefined);
+  }
+
+  private restoreColumnWidths(source: TableSource | null | undefined): readonly TableColumnWidth[] {
+    const storageKey = this.getColumnLayoutStorageKey(source);
+    if (!storageKey) {
+      return [];
+    }
+
+    const stored = this.storageService?.getObject<StoredTableColumnLayout>(
+      storageKey,
+      StorageScope.WORKSPACE,
+    );
+    return stored ? toTableColumnWidths(stored) : [];
+  }
+
+  private storeColumnWidths(tableModel: TableModel): void {
+    const storageKey = this.getColumnLayoutStorageKey(tableModel.getState().source);
+    if (!storageKey || !this.storageService) {
+      return;
+    }
+
+    const widths = tableModel.getColumnWidths();
+    if (!widths.length) {
+      this.storageService.remove(storageKey, StorageScope.WORKSPACE);
+      return;
+    }
+
+    this.storageService.store(
+      storageKey,
+      toStoredTableColumnLayout(widths),
+      StorageScope.WORKSPACE,
+      StorageTarget.USER,
+    );
+  }
+
+  private getColumnLayoutStorageKey(source: TableSource | null | undefined): string | null {
+    return source
+      ? `${TABLE_COLUMN_LAYOUT_STORAGE_KEY_PREFIX}${toTableSourceKey(source)}`
+      : null;
   }
 
   private getActiveTableModel(): TableModel | null {

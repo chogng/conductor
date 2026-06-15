@@ -366,7 +366,7 @@ const getHeaderState = ({ tableState }: TableViewPaneProps): HeaderState => {
 
 const toViewProps = (
   props: TableViewPaneProps,
-  tableService: Pick<ITableService, "select">,
+  tableService: Pick<ITableService, "select" | "setColumnWidth">,
 ): TableViewProps => ({
   ...props,
   tableService,

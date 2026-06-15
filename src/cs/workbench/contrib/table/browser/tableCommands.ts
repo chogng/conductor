@@ -11,6 +11,7 @@ import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle"
 import { localize } from "src/cs/nls";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
+import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
 type TableCommandRegistration = {
   readonly id: TableCommandIdValue;
@@ -21,6 +22,10 @@ const tableCommandRegistrations: readonly TableCommandRegistration[] = [
   {
     id: TableCommandId.clearSelection,
     title: localize("table.commands.clearSelection", "Clear table selection"),
+  },
+  {
+    id: TableCommandId.copySelection,
+    title: localize("table.commands.copySelection", "Copy table selection"),
   },
   {
     id: TableCommandId.resetZoom,
@@ -57,7 +62,7 @@ export const registerTableCommands = (): IDisposable => {
         });
       }
 
-      public run(accessor: ServicesAccessor): boolean {
+      public async run(accessor: ServicesAccessor): Promise<boolean> {
         return runTableServiceCommand(
           accessor.get(ITableService),
           command.id,
@@ -72,4 +77,73 @@ export const registerTableCommands = (): IDisposable => {
 const runTableServiceCommand = (
   tableService: ITableService,
   commandId: TableCommandIdValue,
-): boolean => tableService.executeCommand(commandId);
+): boolean | Promise<boolean> => {
+  if (commandId === TableCommandId.copySelection) {
+    return copyTableSelection(tableService);
+  }
+
+  return tableService.executeCommand(commandId);
+};
+
+const copyTableSelection = async (tableService: ITableService): Promise<boolean> => {
+  try {
+    const result = await tableService.getSelectionText();
+    if (result.kind === "empty") {
+      notificationService.showToast({
+        id: "table.copySelection",
+        message: localize("table.copySelection.empty", "No table selection to copy."),
+        type: "warning",
+      });
+      return false;
+    }
+    if (result.kind === "tooLarge") {
+      notificationService.showToast({
+        id: "table.copySelection",
+        message: localize("table.copySelection.tooLarge", "Selection is too large to copy ({cellCount} cells).", {
+          cellCount: result.cellCount,
+        }),
+        type: "warning",
+      });
+      return false;
+    }
+
+    await writeClipboardText(result.text);
+    notificationService.showToast({
+      id: "table.copySelection",
+      message: localize("table.copySelection.success", "Table selection copied."),
+      type: "success",
+    });
+    return true;
+  } catch (error) {
+    notificationService.showToast({
+      id: "table.copySelection",
+      message: localize("table.copySelection.failed", "Failed to copy table selection: {error}", {
+        error: error instanceof Error ? error.message : String(error),
+      }),
+      type: "error",
+    });
+    return false;
+  }
+};
+
+const writeClipboardText = async (text: string): Promise<void> => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    if (!document.execCommand("copy")) {
+      throw new Error(localize("table.copySelection.failedFallback", "Clipboard copy command failed."));
+    }
+  } finally {
+    textarea.remove();
+  }
+};

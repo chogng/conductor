@@ -4,6 +4,8 @@ import type {
   TableBackendPreviewProvider,
   TableFile,
   TableLoadState,
+  TableModel,
+  TableSelection,
 } from "src/cs/workbench/services/table/common/table";
 import { TableCommandId } from "src/cs/workbench/services/table/common/table";
 import {
@@ -14,6 +16,10 @@ import {
   areTableSelectionsEqual,
   normalizeTableSelection,
 } from "src/cs/workbench/services/table/common/selection";
+import {
+  AbstractStorageService,
+  StorageScope,
+} from "src/cs/platform/storage/common/storage";
 
 suite("workbench/services/table/browser/tableService", () => {
   test("loads imported preview using the raw source key", async () => {
@@ -258,6 +264,96 @@ suite("workbench/services/table/browser/tableService", () => {
     assert.equal(service.getViewInput(), input);
     assert.equal(changeCount, 1);
     disposable.dispose();
+    service.dispose();
+  });
+
+  test("persists column widths by table source", () => {
+    const storageService = new TestStorageService();
+    const service = new TableService(
+      createTableBackendService() as never,
+      storageService as never,
+    );
+    const rawFiles = [
+      {
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw A.csv",
+      },
+      {
+        file: {},
+        fileId: "file-b",
+        fileName: "Raw B.csv",
+      },
+    ];
+
+    const firstModel = service.update({
+      rawFiles,
+      source: { fileId: "file-a" },
+    });
+    assert.equal(firstModel.getColumnWidth(2), null);
+    assert.equal(service.setColumnWidth({ colIndex: 2, width: 243.6 }), true);
+    assert.equal(firstModel.getColumnWidth(2), 244);
+
+    const restoredModel = service.update({
+      rawFiles,
+      source: { fileId: "file-a" },
+    });
+    assert.equal(restoredModel.getColumnWidth(2), 244);
+
+    const otherModel = service.update({
+      rawFiles,
+      source: { fileId: "file-b" },
+    });
+    assert.equal(otherModel.getColumnWidth(2), null);
+
+    service.dispose();
+    storageService.dispose();
+  });
+
+  test("returns TSV text for selected table ranges", async () => {
+    const service = new TableService(createTableBackendService() as never);
+    const { ensureRowsCalls, model } = createTextTableModel({
+      rows: [
+        ["A1", "B\t1"],
+        ["A2", "B\"2"],
+      ],
+      selection: {
+        ranges: [{
+          endCol: 1,
+          endRow: 1,
+          fileId: "file-a",
+          startCol: 0,
+          startRow: 0,
+        }],
+      },
+    });
+    service.updateViewInput(createTableViewInput(model));
+
+    const result = await service.getSelectionText();
+
+    assert.equal(result.kind, "ok");
+    assert.equal(result.kind === "ok" ? result.text : "", "A1\t\"B\t1\"\nA2\t\"B\"\"2\"");
+    assert.deepEqual(ensureRowsCalls, [["source-key-a", 0, 2]]);
+    service.dispose();
+  });
+
+  test("refuses oversized table selection text", async () => {
+    const service = new TableService(createTableBackendService() as never);
+    const { model } = createTextTableModel({
+      rows: [
+        ["A1", "B1"],
+        ["A2", "B2"],
+      ],
+      selection: {
+        selectedColumns: [0, 1],
+      },
+    });
+    service.updateViewInput(createTableViewInput(model));
+
+    const result = await service.getSelectionText(3);
+
+    assert.equal(result.kind, "tooLarge");
+    assert.equal(result.kind === "tooLarge" ? result.cellCount : 0, 4);
     service.dispose();
   });
 
@@ -744,8 +840,104 @@ const createReadyTableModel = ({
   });
 
 const createTableViewInput = (
-  tableModel: ReturnType<typeof createTableModelWithScope>,
+  tableModel: TableModel,
 ) => ({
   tableModel,
   tableState: tableModel.getState(),
 });
+
+const createTextTableModel = ({
+  rows,
+  selection = {},
+}: {
+  readonly rows: unknown[][];
+  readonly selection?: TableSelection;
+}) => {
+  const ensureRowsCalls: Array<[string, number, number]> = [];
+  const state = {
+    dimensions: `${rows.length} × ${Math.max(0, rows[0]?.length ?? 0)}`,
+    file: {
+      columnCount: Math.max(0, rows[0]?.length ?? 0),
+      fileId: "file-a",
+      fileName: "Raw.csv",
+      maxCellLengths: [],
+      rowCount: rows.length,
+      sourceKey: "source-key-a",
+    },
+    fileName: "Raw.csv",
+    loadState: { state: "ready" as const, message: "" },
+    selectedFileId: "file-a",
+    source: { fileId: "file-a" },
+    sourceKey: "source-key-a",
+    zoomPercent: 100,
+  };
+  const model: TableModel = {
+    cancelPendingRowRequests: () => undefined,
+    clearHighlight: () => undefined,
+    clearSelection: () => false,
+    clearState: () => undefined,
+    disposeFileCache: () => undefined,
+    ensureCells: async () => undefined,
+    ensureRows: async (fileId, startRow, endRow) => {
+      ensureRowsCalls.push([fileId, startRow, endRow]);
+    },
+    getColumnWidth: () => null,
+    getColumnWidths: () => [],
+    getHighlight: () => ({}),
+    getRevealCell: () => null,
+    getRow: rowIndex => rows[rowIndex] ?? null,
+    getRowsVersion: () => 1,
+    getSelection: () => selection,
+    getState: () => state,
+    hasSourceFile: fileId => fileId === "file-a" || fileId === "source-key-a",
+    highlightColumns: () => undefined,
+    invalidateRequests: () => undefined,
+    onDidChangeSelection: () => noopDisposable,
+    onDidChangeState: () => noopDisposable,
+    resetWorker: () => undefined,
+    resetZoom: () => false,
+    revealCell: () => undefined,
+    selectAllColumns: () => false,
+    setColumnWidth: () => false,
+    setSelection: () => undefined,
+    setZoomPercent: () => false,
+    subscribeRowsVersion: () => noopDisposable,
+    zoomIn: () => false,
+    zoomOut: () => false,
+  };
+
+  return { ensureRowsCalls, model };
+};
+
+const noopDisposable = (): void => undefined;
+
+class TestStorageService extends AbstractStorageService {
+  private readonly values = new Map<string, string>();
+
+  protected readValue(key: string, scope: StorageScope): string | undefined {
+    return this.values.get(this.getKey(scope, key));
+  }
+
+  protected writeValue(key: string, scope: StorageScope, value: string): void {
+    this.values.set(this.getKey(scope, key), value);
+  }
+
+  protected deleteValue(key: string, scope: StorageScope): void {
+    this.values.delete(this.getKey(scope, key));
+  }
+
+  protected readKeys(scope: StorageScope): string[] {
+    const prefix = `${scope}:`;
+    const keys: string[] = [];
+    for (const key of this.values.keys()) {
+      if (key.startsWith(prefix)) {
+        keys.push(key.slice(prefix.length));
+      }
+    }
+    return keys;
+  }
+
+  private getKey(scope: StorageScope, key: string): string {
+    return `${scope}:${key}`;
+  }
+}
