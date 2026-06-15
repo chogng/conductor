@@ -1,7 +1,6 @@
 import {
   getBuiltInNLSMessages,
   localize,
-  resolveNLSLanguage,
   type NLSLanguage,
   type NLSVars,
 } from "../../nls.js";
@@ -43,13 +42,6 @@ const MAIN_MESSAGE_DEFAULTS: Record<string, string> = {
   ),
   "update.storeManagedMessage": localize("update.storeManagedMessage", "Updates are managed by Microsoft Store."),
   "update.unsupportedWindowsOnly": localize("update.unsupportedWindowsOnly", "Auto update is Windows-only."),
-};
-
-export const resolveMainNLSLanguage = (
-  language: unknown,
-  osLocale: string,
-): NLSLanguage => {
-  return resolveNLSLanguage(language === "system" ? osLocale : language);
 };
 
 export const mainProcessMessage = (

@@ -1,4 +1,7 @@
-import { nativeTheme } from "electron";
+import type { Event } from "../../../base/common/event.js";
+import { createDecorator } from "../../instantiation/common/instantiation.js";
+
+export const IThemeMainService = createDecorator<IThemeMainService>("themeMainService");
 
 export type ThemeMode = "light" | "dark" | "system";
 
@@ -9,37 +12,29 @@ export type ThemeSnapshot = {
   foregroundColor: string;
 };
 
-const THEME_COLORS = {
-  light: {
-    backgroundColor: "#f5f4ef",
-    foregroundColor: "#222222",
-  },
-  dark: {
-    backgroundColor: "#0b0b0c",
-    foregroundColor: "#f5f4ef",
-  },
-} as const;
+export type DesktopWindowTheme = {
+  readonly backgroundColor: string;
+  readonly foregroundColor: string;
+};
+
+export type DesktopWindowAppearance = {
+  readonly backgroundColor?: string;
+  readonly opaqueSurfaceBackgroundColor?: string;
+  readonly transparentChrome?: boolean;
+};
+
+export interface IThemeMainService {
+  readonly _serviceBrand: undefined;
+  readonly onDidChangeColorScheme: Event<ThemeSnapshot>;
+
+  getWindowTheme(settings?: unknown): DesktopWindowTheme;
+  getWindowAppearance(settings?: unknown): DesktopWindowAppearance;
+  getOpaqueSurfaceBackgroundColor(): string;
+  syncNativeThemeSource(settings?: unknown): ThemeMode;
+}
 
 export const resolveThemeMode = (themeMode: unknown): ThemeMode => {
   return themeMode === "light" || themeMode === "dark" || themeMode === "system"
     ? themeMode
     : "system";
-};
-
-export const getThemeSnapshot = (themeMode: unknown): ThemeSnapshot => {
-  const normalizedThemeMode = resolveThemeMode(themeMode);
-  const resolvedThemeMode =
-    normalizedThemeMode === "system"
-      ? nativeTheme.shouldUseDarkColors
-        ? "dark"
-        : "light"
-      : normalizedThemeMode;
-  const palette = THEME_COLORS[resolvedThemeMode];
-
-  return {
-    themeMode: normalizedThemeMode,
-    resolvedThemeMode,
-    backgroundColor: palette.backgroundColor,
-    foregroundColor: palette.foregroundColor,
-  };
 };

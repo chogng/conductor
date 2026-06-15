@@ -20,6 +20,7 @@ import {
   normalizeOriginPlotOptions,
   type OriginPlotOptions,
 } from "./originPlotOptions.js";
+import type { IOriginMainService } from "./originMainService.js";
 
 type OriginIpcChannels = {
   readonly originExeGet: string;
@@ -30,24 +31,17 @@ type OriginIpcChannels = {
   readonly originRuntimeCleanupRun: string;
 };
 
-type ConductorSettings = Record<string, unknown>;
-
-type ConductorMainConfiguration = {
-  getConductorSettings(): ConductorSettings;
-  patchConductorSettings(updates: Record<string, unknown>): Promise<ConductorSettings>;
-};
-
 export type OriginMainHandlers = IDisposable & {
   runRuntimeCleanup(options?: { clearAll?: boolean; force?: boolean }): Promise<unknown>;
 };
 
 export type RegisterOriginMainHandlersOptions = {
-  readonly conductorMainConfiguration: ConductorMainConfiguration;
   readonly dialog: Dialog;
   readonly ipcChannels: OriginIpcChannels;
   readonly ipcMain: IpcMain;
   readonly isWindows: boolean;
   readonly logDetectionResult?: (context: string, result: OriginDetectionResult) => void;
+  readonly originMainService: IOriginMainService;
   readonly originCsvScriptPath: string | null;
   readonly originCsvWorkerPath: string | null;
   readonly runtimeRootDir: () => string;
@@ -439,12 +433,12 @@ function normalizeOriginCsvBatchPayload(
 }
 
 export function registerOriginMainHandlers({
-  conductorMainConfiguration,
   dialog,
   ipcChannels,
   ipcMain,
   isWindows,
   logDetectionResult,
+  originMainService,
   originCsvScriptPath,
   originCsvWorkerPath,
   runtimeRootDir,
@@ -453,38 +447,22 @@ export function registerOriginMainHandlers({
   let originDetectionPromise: Promise<OriginDetectionResult> | null = null;
 
   const getOriginExePathFromSettings = (): string | null => {
-    const settings = conductorMainConfiguration.getConductorSettings();
-    return normalizeOriginExePath(settings?.originExePath);
+    return originMainService.getOriginExePath();
   };
 
   const saveOriginExePathToSettings = async (originExePath: unknown): Promise<string | null> => {
     originDetectionCache = null;
     originDetectionPromise = null;
     const normalizedPath = normalizeOriginExePath(originExePath);
-    const settings = await conductorMainConfiguration.patchConductorSettings({
-      originExePath: normalizedPath,
-    });
-    return typeof settings.originExePath === "string" ? settings.originExePath : null;
+    return originMainService.setOriginExePath(normalizedPath);
   };
 
   const getOriginRuntimeCleanupPolicyFromSettings = (): Record<string, unknown> => {
-    const settings = conductorMainConfiguration.getConductorSettings();
-    return {
-      enabled: Boolean(settings?.originRuntimeCleanupEnabled),
-      keepSuccessJobs: Number(settings?.originRuntimeKeepSuccessJobs),
-      failedRetentionDays: Number(settings?.originRuntimeFailedRetentionDays),
-    };
+    return originMainService.getRuntimeCleanupPolicy();
   };
 
   const getOriginPlotOptionsFromSettings = (): OriginPlotOptions => {
-    const settings = conductorMainConfiguration.getConductorSettings();
-    return normalizeOriginPlotOptions({
-      plotCommand: settings?.originPlotCommandDefault,
-      plotType: settings?.originPlotTypeDefault,
-      postPlotCommands: settings?.originPlotPostCommandsDefault,
-      lineWidth: settings?.originPlotLineWidthDefault,
-      xyPairs: settings?.originPlotXyPairsDefault,
-    });
+    return originMainService.getPlotOptions();
   };
 
   const detectOriginExecutablePathCached = async (): Promise<OriginDetectionResult> => {

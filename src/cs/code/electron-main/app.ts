@@ -11,32 +11,35 @@ import {
   dialog,
   ipcMain,
   Menu,
-  nativeImage,
-  nativeTheme,
   session,
   shell,
-  Tray,
 } from "electron";
 import { product } from "../../../bootstrap-meta.js";
 import type { IDisposable } from "../../base/common/lifecycle.js";
 import type { URI } from "../../base/common/uri.js";
+import { isLanguagePreference, resolveLanguageCode } from "../../base/common/platform.js";
 import { Server as ElectronIPCServer } from "../../base/parts/ipc/electron-main/ipc.electron.js";
 import { Event } from "../../base/common/event.js";
 import type { IServerChannel } from "../../base/parts/ipc/common/ipc.js";
+import { SyncDescriptor } from "../../platform/instantiation/common/descriptors.js";
+import { InstantiationService } from "../../platform/instantiation/common/instantiationService.js";
+import { ServiceCollection } from "../../platform/instantiation/common/serviceCollection.js";
 import {
   DesktopWindowMain,
   type DesktopWindowStyleState,
 } from "../../platform/window/electron-main/window.js";
-import {
-  StorageScope,
-  StorageTarget,
-} from "../../platform/storage/common/storage.js";
+import { ITrayMainService } from "../../platform/windows/electron-main/trayMainService.js";
+import { TrayMainService } from "../../platform/windows/electron-main/trayMainServiceImpl.js";
+import { IStorageService } from "../../platform/storage/common/storage.js";
 import { createStorageMainService } from "../../platform/storage/electron-main/storageMainService.js";
 import {
   StorageMainChannel,
   STORAGE_CHANNEL_NAME,
 } from "../../platform/storage/electron-main/storageIpc.js";
-import { ConfigurationTarget } from "../../platform/configuration/common/configuration.js";
+import {
+  ConfigurationTarget,
+  IConfigurationService,
+} from "../../platform/configuration/common/configuration.js";
 import {
   applyStartupConductorDefaults,
   cloneConductorSettings,
@@ -51,14 +54,14 @@ import {
   runSharedProcessStartupContributions,
 } from "../electron-utility/sharedProcess/sharedProcessMain.js";
 import { registerOriginMainHandlers } from "../../platform/origin/electron-main/originMainHandlers.js";
+import { IOriginMainService } from "../../platform/origin/electron-main/originMainService.js";
+import { OriginMainService } from "../../platform/origin/electron-main/originMainServiceImpl.js";
 import { Win32UpdateService } from "../../platform/update/electron-main/updateService.win32.js";
 import { DialogMainService } from "../../platform/dialogs/electron-main/dialogMainService.js";
 import { NativeHostMainService } from "../../platform/native/electron-main/nativeHostMainService.js";
 import { registerContextMenuListener } from "../../base/parts/contextmenu/electron-main/contextmenu.js";
-import {
-  getThemeSnapshot,
-  resolveThemeMode,
-} from "../../platform/theme/electron-main/themeMainService.js";
+import { IThemeMainService } from "../../platform/theme/electron-main/themeMainService.js";
+import { ThemeMainService } from "../../platform/theme/electron-main/themeMainServiceImpl.js";
 import {
   nativeHostBootstrapIpcChannels,
   workbenchBootstrapIpcChannels,
@@ -83,7 +86,7 @@ import { FileService } from "../../platform/files/common/fileService.js";
 import { DiskFileSystemProvider } from "../../platform/files/node/diskFileSystemProvider.js";
 import { registerRustHostChannels } from "./rustHostChannels.js";
 import { RustHostService } from "./rustHostService.js";
-import { mainProcessMessage, resolveMainNLSLanguage } from "./mainNls.js";
+import { mainProcessMessage } from "./mainNls.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -103,17 +106,16 @@ if (!hasSingleInstanceLock) {
   app.quit();
 }
 
-function getMainLanguage() {
-  try {
-    const language = conductorMainConfiguration?.getConductorSettings?.()?.language;
-    return resolveMainNLSLanguage(language, app.getLocale());
-  } catch {
-    return "en";
-  }
-}
-
 function mainMessage(key, vars = {}) {
   return mainProcessMessage(getMainLanguage(), key, vars);
+}
+
+function getMainLanguage() {
+  const configured = mainConfigurationService.getValue<unknown>("language");
+  return resolveLanguageCode(
+    isLanguagePreference(configured) ? configured : "system",
+    app.getLocale(),
+  );
 }
 
 const isDev = !app.isPackaged;
@@ -128,10 +130,7 @@ const isWindowsStorePackage =
 const APP_DISPLAY_NAME = product.nameLong;
 const APP_USER_MODEL_ID = isDev ? `${product.appId}.dev` : product.appId;
 const DEFAULT_WORKBENCH_BACKGROUND_COLOR = "#f3f4f6";
-const OPAQUE_WINDOW_SURFACE_LIGHT_BACKGROUND_COLOR = "#f9f9f9";
-const OPAQUE_WINDOW_SURFACE_DARK_BACKGROUND_COLOR = "#000000";
 const desktopWindowMain = new DesktopWindowMain(DEFAULT_WORKBENCH_BACKGROUND_COLOR);
-const WORKBENCH_BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 const BOOT_WINDOW_SETTLE_MS = 80;
 const BOOT_UI_READY_FALLBACK_MS = 3500;
 const RUST_PROCESSING_POOL_SIZE = resolveRustProcessingPoolSize({
@@ -154,17 +153,15 @@ const localFileSystemProvider = new DiskFileSystemProvider();
 const dialogMainService = new DialogMainService();
 const nativeHostMainService = new NativeHostMainService(dialogMainService);
 let mainWindow = null;
-let appTray = null;
 let rustHandlers = null;
 let originHandlers = null;
 let mainWindowBootExpansionPromise = null;
 let mainWindowBootShown = false;
 let startupGatePromise = null;
 let updateService: Win32UpdateService | null = null;
-let isAppQuitting = false;
+let themeMainServiceListener: IDisposable | null = null;
 const desktopProcessStartMs = Date.now();
 const nativeHostChannelName = "nativeHost";
-const TRAY_MINIMIZE_HINT_SHOWN_STORAGE_KEY = "window.trayMinimizeHintShown";
 
 class MainFileSystemProvider implements IFileSystemProvider {
   public readonly onDidFilesChange;
@@ -258,27 +255,7 @@ function formatDiagnosticValue(value) {
 }
 
 function getWindowThemeFromStore() {
-  const settings = conductorMainConfiguration.getConductorSettings();
-  const themeMode = syncNativeThemeSource(settings);
-  const snapshot = getThemeSnapshot(themeMode);
-  return {
-    backgroundColor: snapshot.backgroundColor,
-    foregroundColor: snapshot.foregroundColor,
-  };
-}
-
-function syncNativeThemeSource(
-  settings: unknown = conductorMainConfiguration.getConductorSettings(),
-) {
-  const themeMode = resolveThemeMode(
-    settings && typeof settings === "object"
-      ? (settings as { theme?: unknown }).theme
-      : undefined,
-  );
-  if (nativeTheme.themeSource !== themeMode) {
-    nativeTheme.themeSource = themeMode;
-  }
-  return themeMode;
+  return mainThemeService.getWindowTheme();
 }
 
 function syncBootWindowTheme() {
@@ -290,31 +267,12 @@ function syncBootWindowTheme() {
   return theme;
 }
 
-function normalizeWorkbenchBackgroundColor(value) {
-  if (typeof value !== "string") {
-    return DEFAULT_WORKBENCH_BACKGROUND_COLOR;
-  }
-
-  const normalized = value.trim();
-  return WORKBENCH_BACKGROUND_COLOR_PATTERN.test(normalized)
-    ? normalized.toLowerCase()
-    : DEFAULT_WORKBENCH_BACKGROUND_COLOR;
-}
-
 function getAppearanceFromStore() {
-  const settings = conductorMainConfiguration.getConductorSettings();
-  syncNativeThemeSource(settings);
-  return {
-    backgroundColor: normalizeWorkbenchBackgroundColor(settings?.backgroundColor),
-    opaqueSurfaceBackgroundColor: getOpaqueWindowSurfaceBackgroundColor(),
-    transparentChrome: settings?.transparentChrome === true,
-  };
+  return mainThemeService.getWindowAppearance();
 }
 
 function getOpaqueWindowSurfaceBackgroundColor() {
-  return nativeTheme.shouldUseDarkColors
-    ? OPAQUE_WINDOW_SURFACE_DARK_BACKGROUND_COLOR
-    : OPAQUE_WINDOW_SURFACE_LIGHT_BACKGROUND_COLOR;
+  return mainThemeService.getOpaqueSurfaceBackgroundColor();
 }
 
 function sendDesktopOpaqueSurfaceState(
@@ -793,6 +751,56 @@ const mainConfigurationService = new ConfigurationService(
   getUserSettingsResource(app.getPath("userData")),
   mainFileService,
 );
+const mainStorageService = createStorageMainService({
+  getHomeDir: getConductorPersistenceHomeDir,
+});
+const mainServices = new ServiceCollection();
+mainServices.set(IConfigurationService, mainConfigurationService);
+mainServices.set(IStorageService, mainStorageService);
+mainServices.set(
+  IThemeMainService,
+  new SyncDescriptor(ThemeMainService, [
+    DEFAULT_WORKBENCH_BACKGROUND_COLOR,
+    mainConfigurationService,
+  ]),
+);
+mainServices.set(
+  ITrayMainService,
+  new SyncDescriptor(TrayMainService, [
+    {
+      appDisplayName: APP_DISPLAY_NAME,
+      platform: process.platform,
+      checkForUpdates: () => {
+        void updateService?.checkForUpdates({ manual: true });
+      },
+      ensureMainWindowVisible: () => ensureMainWindowVisible(),
+      getMainWindow: () => mainWindow,
+      logWarning: (message, error) => console.warn(message, error),
+      quit: () => {
+        stopAllRustEngines();
+        app.quit();
+      },
+      resolveTrayIconPath: () => resolveTrayIconPath(),
+      showMessage: key => mainMessage(key),
+    },
+    mainConfigurationService,
+    mainStorageService,
+  ]),
+);
+mainServices.set(
+  IOriginMainService,
+  new SyncDescriptor(OriginMainService, [mainConfigurationService]),
+);
+const mainInstantiationService = new InstantiationService(mainServices, true);
+const mainThemeService = mainInstantiationService.invokeFunction(accessor =>
+  accessor.get(IThemeMainService),
+);
+const trayMainService = mainInstantiationService.invokeFunction(accessor =>
+  accessor.get(ITrayMainService),
+);
+const originMainService = mainInstantiationService.invokeFunction(accessor =>
+  accessor.get(IOriginMainService),
+);
 
 const conductorMainConfiguration = {
   getConductorSettings(): ConductorSettings {
@@ -821,10 +829,6 @@ const conductorMainConfiguration = {
     return this.getConductorSettings();
   },
 };
-
-const mainStorageService = createStorageMainService({
-  getHomeDir: getConductorPersistenceHomeDir,
-});
 
 function configureRuntimeCachePath() {
   const cacheDir = path.join(app.getPath("userData"), "Cache");
@@ -1010,20 +1014,8 @@ function handleDesktopAppearanceSet(event, payload) {
     return null;
   }
 
-  if (payload && typeof payload === "object" && "theme" in payload) {
-    syncNativeThemeSource({ theme: payload.theme });
-  }
-
   const styleState = desktopWindowMain.applyWindowStyle(win, {
-    appearance: {
-      backgroundColor:
-        payload && typeof payload === "object" && typeof payload.backgroundColor === "string"
-          ? payload.backgroundColor
-          : undefined,
-      opaqueSurfaceBackgroundColor: getOpaqueWindowSurfaceBackgroundColor(),
-      transparentChrome:
-        payload && typeof payload === "object" && payload.transparentChrome === true,
-    },
+    appearance: mainThemeService.getWindowAppearance(payload),
   });
   sendDesktopOpaqueSurfaceState(win, styleState);
 
@@ -1425,135 +1417,16 @@ async function revealMainWindow(win) {
   win.focus();
 }
 
-function showTrayHint() {
-  if (!isWindows || !appTray) return;
-  if (typeof appTray.displayBalloon !== "function") return;
-  if (isTrayMinimizeHintShown()) return;
-
-  appTray.displayBalloon({
-    title: APP_DISPLAY_NAME,
-    content: mainMessage("tray.backgroundContinueMessage"),
-    noSound: true,
-  });
-  mainStorageService.store(
-    TRAY_MINIMIZE_HINT_SHOWN_STORAGE_KEY,
-    true,
-    StorageScope.PROFILE,
-    StorageTarget.USER,
-  );
-}
-
-function isTrayMinimizeHintShown() {
-  const stored = mainStorageService.getBoolean(
-    TRAY_MINIMIZE_HINT_SHOWN_STORAGE_KEY,
-    StorageScope.PROFILE,
-  );
-  if (stored !== undefined) {
-    return stored;
-  }
-
-  return false;
-}
-
-function getWindowCloseBehaviorFromSettings() {
-  const settings = conductorMainConfiguration.getConductorSettings();
-  return settings?.windowCloseBehavior === "quit" ? "quit" : "minimizeToTray";
-}
-
-function shouldMinimizeToTrayOnWindowClose() {
-  if (process.platform === "darwin") return false;
-  return getWindowCloseBehaviorFromSettings() === "minimizeToTray";
-}
-
-function hideMainWindowToTray(win, options = { showTrayHint: false }) {
-  if (!win || win.isDestroyed()) return;
-  win.hide();
-  if (options.showTrayHint === true) {
-    showTrayHint();
-  }
-}
-
-function updateTrayMenu() {
-  if (!appTray) return;
-
-  const hasVisibleWindow = Boolean(
-    mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible(),
-  );
-
-  appTray.setContextMenu(
-    Menu.buildFromTemplate([
-      {
-        label: hasVisibleWindow ? mainMessage("tray.hideWindow") : mainMessage("tray.showWindow"),
-        click: () => {
-          if (hasVisibleWindow) {
-            hideMainWindowToTray(mainWindow);
-            return;
-          }
-          void ensureMainWindowVisible();
-        },
-      },
-      {
-        label: mainMessage("tray.checkForUpdates"),
-        click: () => {
-          void updateService?.checkForUpdates({ manual: true });
-        },
-      },
-      { type: "separator" },
-      {
-        label: mainMessage("tray.quit"),
-        click: () => {
-          isAppQuitting = true;
-          stopAllRustEngines();
-          app.quit();
-        },
-      },
-    ]),
-  );
-}
-
-function createAppTray() {
-  if (appTray) {
-    updateTrayMenu();
-    return appTray;
-  }
-
-  const trayIconPath = resolveTrayIconPath();
-  if (!trayIconPath) {
-    console.warn("[tray] Tray icon is unavailable.");
-    return null;
-  }
-
-  try {
-    const trayIcon = nativeImage.createFromPath(trayIconPath);
-    if (process.platform === "darwin") {
-      trayIcon.setTemplateImage(true);
-    }
-    appTray = new Tray(trayIcon);
-  } catch (error) {
-    console.warn("[tray] Failed to create tray icon.", error);
-    return null;
-  }
-  appTray.setToolTip(APP_DISPLAY_NAME);
-  appTray.on("click", () => {
-    void ensureMainWindowVisible();
-  });
-  appTray.on("double-click", () => {
-    void ensureMainWindowVisible();
-  });
-  updateTrayMenu();
-  return appTray;
-}
-
 async function ensureMainWindowVisible() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     await revealMainWindow(mainWindow);
-    updateTrayMenu();
+    trayMainService.updateTrayMenu();
     return mainWindow;
   }
 
   const win = createMainWindow();
   await revealMainWindow(win);
-  updateTrayMenu();
+  trayMainService.updateTrayMenu();
   return win;
 }
 
@@ -1601,13 +1474,7 @@ function createMainWindow() {
     theme,
   }));
   win.on("close", (event) => {
-    if (isAppQuitting) return;
-    if (process.platform === "darwin") return;
-    if (!shouldMinimizeToTrayOnWindowClose()) return;
-
-    event.preventDefault();
-    hideMainWindowToTray(win, { showTrayHint: true });
-    updateTrayMenu();
+    trayMainService.handleWindowClose(win, event);
   });
   const syncWindowAppearance = () => {
     sendDesktopOpaqueSurfaceState(win, desktopWindowMain.applyWindowStyle(win, {
@@ -1616,19 +1483,19 @@ function createMainWindow() {
   };
   win.on("show", () => {
     syncWindowAppearance();
-    updateTrayMenu();
+    trayMainService.updateTrayMenu();
   });
   win.on("hide", () => {
     syncWindowAppearance();
-    updateTrayMenu();
+    trayMainService.updateTrayMenu();
   });
   win.on("focus", syncWindowAppearance);
   win.on("blur", syncWindowAppearance);
   win.on("minimize", () => {
-    updateTrayMenu();
+    trayMainService.updateTrayMenu();
   });
   win.on("restore", () => {
-    updateTrayMenu();
+    trayMainService.updateTrayMenu();
   });
   win.on("closed", () => {
     if (mainWindow === win) {
@@ -1833,16 +1700,12 @@ function runWindowCommand(win, command) {
 
   desktopWindowMain.runCommand(win, command, {
     minimizeToTray: (targetWindow) => {
-      hideMainWindowToTray(targetWindow, { showTrayHint: true });
-      updateTrayMenu();
+      trayMainService.hideWindowToTray(targetWindow, { showTrayHint: true });
+      trayMainService.updateTrayMenu();
     },
-    onDidMinimize: () => updateTrayMenu(),
-    quit: () => {
-      isAppQuitting = true;
-      stopAllRustEngines();
-      app.quit();
-    },
-    shouldMinimizeToTrayOnClose: shouldMinimizeToTrayOnWindowClose,
+    onDidMinimize: () => trayMainService.updateTrayMenu(),
+    quit: () => trayMainService.requestQuit(),
+    shouldMinimizeToTrayOnClose: () => trayMainService.shouldMinimizeToTrayOnWindowClose(),
   });
 }
 
@@ -1907,7 +1770,7 @@ if (hasSingleInstanceLock) {
   configureCodeCachePath();
   await mainConfigurationService.initialize();
   runSharedProcessStartupContributions(createSharedProcessContributionContext());
-  createAppTray();
+  trayMainService.createTray();
   updateService = createUpdateService();
   mainProcessServer.registerChannel(
     LOCAL_FILE_SYSTEM_CHANNEL_NAME,
@@ -1960,17 +1823,17 @@ if (hasSingleInstanceLock) {
     handleOriginZipSave,
   );
   originHandlers = registerOriginMainHandlers({
-    conductorMainConfiguration,
     dialog,
     ipcChannels,
     ipcMain,
     isWindows,
     logDetectionResult: logOriginDetectionResult,
+    originMainService,
     originCsvScriptPath: ORIGIN_CSV_SCRIPT_PATH,
     originCsvWorkerPath: ORIGIN_CSV_WORKER_PATH,
     runtimeRootDir: getOriginRuntimeRootDir,
   });
-  nativeTheme.on("updated", syncBootWindowTheme);
+  themeMainServiceListener = mainThemeService.onDidChangeColorScheme(() => syncBootWindowTheme());
   void prepareStartupGate();
   const window = createMainWindow();
   window.webContents.once("did-finish-load", () => {
@@ -1984,31 +1847,29 @@ if (hasSingleInstanceLock) {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform === "darwin") return;
-  if (appTray && !isAppQuitting) return;
+  if (trayMainService.shouldKeepProcessAliveAfterAllWindowsClosed()) return;
   stopAllRustEngines();
   app.quit();
 });
 
 app.on("before-quit", () => {
-  isAppQuitting = true;
+  trayMainService.markQuitRequested();
   stopAllRustEngines();
 });
 
 app.on("will-quit", () => {
-  isAppQuitting = true;
+  trayMainService.markQuitRequested();
   updateService?.stopPolling();
-  nativeTheme.removeListener("updated", syncBootWindowTheme);
+  themeMainServiceListener?.dispose();
+  themeMainServiceListener = null;
+  mainInstantiationService.dispose();
   runSharedProcessShutdownContributions(createSharedProcessContributionContext());
   stopAllRustEngines();
   rustHandlers?.dispose();
   rustHandlers = null;
   originHandlers?.dispose();
   originHandlers = null;
-  if (appTray) {
-    appTray.destroy();
-    appTray = null;
-  }
+  trayMainService.destroy();
   ipcMain.removeListener("desktop-command", handleDesktopCommand);
   ipcMain.removeListener(nativeHostBootstrapIpcChannels.windowCommand, handleNativeWindowCommand);
   ipcMain.removeHandler(nativeHostBootstrapIpcChannels.environmentGet);

@@ -24,7 +24,10 @@ final sidebar can look wrong even when the other layer is configured correctly.
 ## Native Layer
 
 The native layer owns Electron/macOS window material and platform window
-options. Its owner is the electron-main window/app path, not workbench CSS.
+options. Its owners are `platform/theme/electron-main` for theme source and
+appearance values, and `platform/window/electron-main` plus the electron-main
+app path for applying those values to windows. Workbench CSS must not own this
+behavior.
 
 For macOS translucent chrome:
 
@@ -51,6 +54,11 @@ This is easy to miss. If the app renderer is light but `nativeTheme.themeSource`
 is still system dark, AppKit can produce a dark opaque/material result behind a
 light renderer. The symptom looks like a sidebar opacity bug, but the root cause
 is the native layer using the wrong effective theme.
+
+Main-process theme settings must flow through `IThemeMainService`, which
+consumes `IConfigurationService`. Do not reintroduce ad hoc settings helpers in
+`code/electron-main/app.ts` to interpret `theme`, `backgroundColor`, or
+`transparentChrome`.
 
 MacOS focus state also matters:
 
