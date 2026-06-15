@@ -19,6 +19,8 @@ import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browse
 import {
   FileSourceWorkflow,
   getFolderImportSupportForFileService,
+  type PendingImportFile,
+  type PendingImportSourceStatusChange,
   type PreparedFileImport,
   type PreparedFileImportEntry,
   type PreparedFileImportInfo,
@@ -42,6 +44,7 @@ import {
 import {
   getExplorerFolderPath,
   isExplorerPathInFolder,
+  mergeExplorerSourceEntries,
   resolveExplorerSelectionAfterRemoval,
   resolveExplorerSelectedFileId,
   type ExplorerFileEntry,
@@ -72,13 +75,13 @@ export class ExplorerViewPane extends ViewPane {
   private readonly content: HTMLDivElement;
   private readonly explorerHost: HTMLDivElement;
   private readonly listRef: { current: ListHandle | null } = { current: null };
-  private readonly shouldAutoScrollToBottomRef = { current: true };
   private readonly sourceWorkflow: FileSourceWorkflow;
   private explorerView: ExplorerView | null = null;
   private input: ExplorerPaneInput | null = null;
   private internalFiles: PreparedFileImportEntry[] = [];
+  private pendingSourceEntries: ExplorerFileEntry[] = [];
+  private replaceSourceKeys: string[] | null = null;
   private isDragging = false;
-  private prevFileCount = 0;
   private disposed = false;
   private templateLoadRunId = 0;
   private templateRecords: TemplateRecord[] = [];
@@ -123,17 +126,24 @@ export class ExplorerViewPane extends ViewPane {
       commandService: this.commandService,
       fileConverterBackendService: this.fileConverterBackendService,
       filesService: this.filesService,
-      getFiles: () => this.files,
+      getFiles: () => this.committedFiles,
       getSelectedRelativePath: () => this.getSelectedRelativePath(),
       isDisposed: () => this.disposed,
       notificationService: this.notificationService,
       onAppendPreparedFiles: preparedFiles => this.appendPreparedImportFiles(preparedFiles),
+      onAppendPendingSourceFiles: pendingFiles => this.appendPendingSourceFiles(pendingFiles),
+      onClearPendingSourceFiles: () => this.clearPendingSourceFiles(),
       onDraggingChange: isDragging => {
         this.isDragging = isDragging;
       },
       onRemoveFiles: fileIds => this.removeImportedFilesFromExplorer(fileIds),
       onReplacePreparedFiles: (preparedFiles, selectedFileId) => {
         this.replacePreparedImportFiles(preparedFiles, selectedFileId);
+      },
+      onReplacePendingSourceFiles: pendingFiles => this.replacePendingSourceFiles(pendingFiles),
+      onFinishPendingSourceReplace: () => this.finishPendingSourceReplace(),
+      onUpdatePendingSourceFile: (pendingFile, change) => {
+        this.updatePendingSourceFile(pendingFile, change);
       },
       syncView: () => this.syncView(),
     });
@@ -173,7 +183,6 @@ export class ExplorerViewPane extends ViewPane {
       return;
     }
 
-    this.handleFileCountEffects();
     if (!this.explorerView) {
       this.explorerView = new ExplorerView(this.explorerHost, this.createExplorerViewProps());
       this.listRef.current = this.explorerView.getListHandle();
@@ -235,6 +244,14 @@ export class ExplorerViewPane extends ViewPane {
   }
 
   private get files(): ExplorerFileEntry[] {
+    return mergeExplorerSourceEntries({
+      files: this.committedFiles,
+      pendingSourceEntries: this.pendingSourceEntries,
+      replaceSourceKeys: this.replaceSourceKeys,
+    });
+  }
+
+  private get committedFiles(): ExplorerFileEntry[] {
     const inputFiles = this.input?.files;
     return Array.isArray(inputFiles) ? inputFiles : this.internalFiles;
   }
@@ -280,7 +297,6 @@ export class ExplorerViewPane extends ViewPane {
       mode: input.mode,
       viewLayout: this.viewLayout,
       onDraggingChange: this.handleDraggingChange,
-      onListScroll: this.handleListScroll,
       onFolderExpansionChange: this.handleFolderExpansionChange,
       onFolderKeysChange: this.handleFolderKeysChange,
       onRemoveFolder: this.handleRemoveFolder,
@@ -301,19 +317,127 @@ export class ExplorerViewPane extends ViewPane {
     this.explorerView?.setProps(this.createExplorerViewProps());
   }
 
-  private handleFileCountEffects(): void {
-    const nextCount = this.files.length;
-    const previousCount = this.prevFileCount;
+  private appendPendingSourceFiles(pendingFiles: readonly PendingImportFile[]): void {
+    this.upsertPendingSourceFiles(pendingFiles);
+  }
 
-    if (nextCount === 0) {
-      this.shouldAutoScrollToBottomRef.current = true;
+  private replacePendingSourceFiles(pendingFiles: readonly PendingImportFile[]): void {
+    this.pendingSourceEntries = [];
+    this.replaceSourceKeys = [];
+    this.upsertPendingSourceFiles(pendingFiles);
+  }
+
+  private upsertPendingSourceFiles(pendingFiles: readonly PendingImportFile[]): void {
+    if (!pendingFiles.length) {
+      return;
     }
 
-    if (nextCount > previousCount && this.shouldAutoScrollToBottomRef.current) {
-      this.listRef.current?.scrollToEnd(previousCount === 0 ? "auto" : "smooth");
+    const entriesBySourceKey = new Map(
+      this.pendingSourceEntries
+        .map(entry => [normalizeSourceKey(entry.sourceKey), entry] as const)
+        .filter((entry): entry is readonly [string, ExplorerFileEntry] => Boolean(entry[0])),
+    );
+    const replaceSourceKeys = this.replaceSourceKeys ? [...this.replaceSourceKeys] : null;
+    for (const pendingFile of pendingFiles) {
+      const sourceKey = normalizeSourceKey(pendingFile.sourceKey);
+      if (!sourceKey) {
+        continue;
+      }
+
+      const current = entriesBySourceKey.get(sourceKey);
+      entriesBySourceKey.set(sourceKey, createPendingSourceEntry({
+        message: current?.sourceStatusMessage ?? null,
+        pendingFile,
+        status: current?.sourceStatus ?? "pending",
+      }));
+      if (replaceSourceKeys && !replaceSourceKeys.includes(sourceKey)) {
+        replaceSourceKeys.push(sourceKey);
+      }
     }
 
-    this.prevFileCount = nextCount;
+    this.pendingSourceEntries = [...entriesBySourceKey.values()];
+    if (replaceSourceKeys) {
+      this.replaceSourceKeys = replaceSourceKeys;
+    }
+    this.syncView();
+  }
+
+  private updatePendingSourceFile(
+    pendingFile: PendingImportFile,
+    change: PendingImportSourceStatusChange,
+  ): void {
+    const sourceKey = normalizeSourceKey(pendingFile.sourceKey);
+    if (!sourceKey) {
+      return;
+    }
+
+    const pendingEntries = this.pendingSourceEntries.map(entry =>
+      normalizeSourceKey(entry.sourceKey) === sourceKey
+        ? createPendingSourceEntry({
+            message: change.message ?? null,
+            pendingFile,
+            status: change.status,
+          })
+        : entry,
+    );
+    if (!pendingEntries.some(entry => normalizeSourceKey(entry.sourceKey) === sourceKey)) {
+      pendingEntries.push(createPendingSourceEntry({
+        message: change.message ?? null,
+        pendingFile,
+        status: change.status,
+      }));
+    }
+    this.pendingSourceEntries = pendingEntries;
+    this.syncView();
+  }
+
+  private removePendingSourceFiles(sourceKeys: readonly string[]): void {
+    const removedSourceKeys = new Set(
+      sourceKeys
+        .map(sourceKey => normalizeSourceKey(sourceKey))
+        .filter((sourceKey): sourceKey is string => Boolean(sourceKey)),
+    );
+    if (!removedSourceKeys.size) {
+      return;
+    }
+
+    this.pendingSourceEntries = this.pendingSourceEntries.filter(
+      entry => !removedSourceKeys.has(normalizeSourceKey(entry.sourceKey) ?? ""),
+    );
+    if (this.pendingSourceEntries.length === 0) {
+      this.replaceSourceKeys = null;
+    }
+    this.syncView();
+  }
+
+  private removePendingSourceFilesInFolder(folderPath: string): boolean {
+    const previousCount = this.pendingSourceEntries.length;
+    this.pendingSourceEntries = this.pendingSourceEntries.filter(
+      entry => !isExplorerPathInFolder(entry.relativePath, folderPath),
+    );
+    if (this.pendingSourceEntries.length === 0) {
+      this.replaceSourceKeys = null;
+    }
+    return previousCount !== this.pendingSourceEntries.length;
+  }
+
+  private clearPendingSourceFiles(): void {
+    if (!this.pendingSourceEntries.length && !this.replaceSourceKeys?.length) {
+      return;
+    }
+
+    this.pendingSourceEntries = [];
+    this.replaceSourceKeys = null;
+    this.syncView();
+  }
+
+  private finishPendingSourceReplace(): void {
+    if (!this.replaceSourceKeys?.length) {
+      return;
+    }
+
+    this.replaceSourceKeys = null;
+    this.syncView();
   }
 
   private openFileDialog(): void {
@@ -370,30 +494,6 @@ export class ExplorerViewPane extends ViewPane {
     this.syncView();
   };
 
-  private readonly handleListScroll = (event: Event): void => {
-    const detail = event instanceof CustomEvent ? event.detail : null;
-    if (
-      detail &&
-      typeof detail.scrollHeight === "number" &&
-      typeof detail.clientHeight === "number" &&
-      typeof detail.scrollTop === "number"
-    ) {
-      const distanceToBottom =
-        detail.scrollHeight - detail.clientHeight - detail.scrollTop;
-      this.shouldAutoScrollToBottomRef.current = distanceToBottom <= 24;
-      return;
-    }
-
-    const viewport = event.currentTarget;
-    if (!(viewport instanceof HTMLElement)) {
-      return;
-    }
-
-    const distanceToBottom =
-      viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
-    this.shouldAutoScrollToBottomRef.current = distanceToBottom <= 24;
-  };
-
   private readonly handleDropFiles = (dataTransfer: DataTransfer | null): void => {
     this.sourceWorkflow.importDroppedFiles(dataTransfer);
   };
@@ -416,7 +516,6 @@ export class ExplorerViewPane extends ViewPane {
     this.sourceWorkflow.rememberRemovedFiles([normalizedFileId]);
     this.notifyExplorerFilesRemoved([normalizedFileId]);
     this.removeFiles([normalizedFileId]);
-    this.handleFileCountEffects();
     this.syncView();
   };
 
@@ -432,16 +531,18 @@ export class ExplorerViewPane extends ViewPane {
         .map((entry) => entry.fileId)
         .filter((fileId): fileId is string => typeof fileId === "string"),
     );
-    if (removedFileIds.size === 0) {
+    const removedPendingSources = this.removePendingSourceFilesInFolder(folderPath);
+    if (removedFileIds.size === 0 && !removedPendingSources) {
       return;
     }
 
     const fileIds = [...removedFileIds];
-    this.sourceWorkflow.rememberRemovedFiles(fileIds);
-    this.notifyExplorerFilesRemoved(fileIds);
-    this.removeFiles(fileIds);
+    if (fileIds.length > 0) {
+      this.sourceWorkflow.rememberRemovedFiles(fileIds);
+      this.notifyExplorerFilesRemoved(fileIds);
+      this.removeFiles(fileIds);
+    }
 
-    this.handleFileCountEffects();
     this.syncView();
   };
 
@@ -461,7 +562,6 @@ export class ExplorerViewPane extends ViewPane {
       this.sessionService.removeFiles(fileIds);
     }
     this.clearExplorerSelections();
-    this.handleFileCountEffects();
     this.syncView();
   }
 
@@ -566,7 +666,6 @@ export class ExplorerViewPane extends ViewPane {
   ): void {
     if (!this.isControlled) {
       this.internalFiles = [...fileEntries];
-      this.handleFileCountEffects();
       this.syncView();
     }
 
@@ -577,6 +676,7 @@ export class ExplorerViewPane extends ViewPane {
       selectedFileId,
       sessionService: this.sessionService,
     });
+    this.removePendingSourceFiles(importedFiles.map(file => file.sourceKey));
     if (!importResult.importedFileIds.length) {
       return;
     }
@@ -596,7 +696,6 @@ export class ExplorerViewPane extends ViewPane {
 
     if (!this.isControlled) {
       this.internalFiles = [...this.internalFiles, ...fileEntries];
-      this.handleFileCountEffects();
       this.syncView();
     }
 
@@ -606,6 +705,7 @@ export class ExplorerViewPane extends ViewPane {
       mode: "append",
       sessionService: this.sessionService,
     });
+    this.removePendingSourceFiles(importedFiles.map(file => file.sourceKey));
     if (!importResult.importedFileIds.length) {
       return;
     }
@@ -636,7 +736,6 @@ export class ExplorerViewPane extends ViewPane {
   private removeImportedFilesFromExplorer(fileIds: readonly string[]): void {
     this.notifyExplorerFilesRemoved(fileIds);
     this.removeFiles(fileIds);
-    this.handleFileCountEffects();
     this.syncView();
   }
 
@@ -699,6 +798,36 @@ export class ExplorerViewPane extends ViewPane {
   }
 }
 
+function createPendingSourceEntry({
+  message,
+  pendingFile,
+  status,
+}: {
+  readonly message: string | null;
+  readonly pendingFile: PendingImportFile;
+  readonly status: ExplorerFileEntry["sourceStatus"];
+}): ExplorerFileEntry {
+  const relativePath = normalizeRelativePath(pendingFile.relativePath);
+  return {
+    fileName: pendingFile.sourceName,
+    itemKey: pendingFile.sourceKey,
+    relativePath,
+    sourceKey: pendingFile.sourceKey,
+    sourcePath: getPendingSourcePath(pendingFile),
+    sourceStatus: status,
+    sourceStatusMessage: message,
+  };
+}
+
+function getPendingSourcePath(pendingFile: PendingImportFile): string | null {
+  if (!pendingFile.canUseNativePath) {
+    return null;
+  }
+
+  const fsPath = String(pendingFile.resource.fsPath ?? "").trim();
+  return fsPath || null;
+}
+
 const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {
   files: [],
   mode: "table",
@@ -725,6 +854,11 @@ function normalizeRelativePath(value: unknown): string | null {
 function normalizeFileId(value: unknown): string | null {
   const fileId = String(value ?? "").trim();
   return fileId || null;
+}
+
+function normalizeSourceKey(value: unknown): string | null {
+  const sourceKey = String(value ?? "").trim();
+  return sourceKey || null;
 }
 
 function getNormalizedFileIds(values: readonly string[]): readonly string[] {

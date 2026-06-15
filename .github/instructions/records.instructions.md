@@ -571,8 +571,12 @@ Invalidation: session/read-model facts, mode, and Explorer pane input signature.
 | --- | --- | --- |
 | `fileId` | `string | undefined` | Source file id for Explorer selection. |
 | `fileName` | `string | undefined` | Display file name. |
+| `itemKey` | `string | undefined` | Stable view item identity, usually derived from source identity or file facts. |
 | `relativePath` | `string | null | undefined` | Folder grouping path. |
+| `sourceKey` | `string | undefined` | Source identity used to reconcile pending source rows with committed files. |
 | `sourcePath` | `string | null | undefined` | Native/source path for file actions. |
+| `sourceStatus` | `'pending' | 'preparing' | 'failed' | undefined` | View-local source import status for pending source rows. Not canonical. |
+| `sourceStatusMessage` | `string | null | undefined` | Optional view-local source status detail, usually a prepare failure message. Not canonical. |
 | `curveType` | `string | null | undefined` | Full assessed curve type shown in hover details. |
 | `curveTypeBadgeLabel` | `string | null | undefined` | Compact curve badge label already projected for Explorer rendering. Views consume this field and must not parse `curveType` text to derive it. |
 | `curveTypeConfidence` | `'high' | 'medium' | 'low' | undefined` | Assessment confidence projected from session/assessment. |

@@ -7,7 +7,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { resolveRustWorkerExecutablePath } from "src/cs/platform/rust/electron-main/rustWorkerHost";
+import {
+	resolveRustProcessingPoolSize,
+	resolveRustWorkerExecutablePath,
+} from "src/cs/platform/rust/electron-main/rustWorkerHost";
 
 suite("platform/rust/electron-main/rustWorkerHost", () => {
 	const helperFileName = "conductor-rs.exe";
@@ -51,6 +54,21 @@ suite("platform/rust/electron-main/rustWorkerHost", () => {
 			platform: "win32",
 			resourcesPath: path.join(root, "desktop-dist"),
 		}), buildCachePath);
+	});
+
+	test("resolves adaptive processing pool size from available parallelism", () => {
+		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: Number.NaN }), 2);
+		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 2 }), 2);
+		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 8 }), 4);
+		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 16 }), 8);
+		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 64 }), 8);
+	});
+
+	test("resolves processing pool size from bounded environment override", () => {
+		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 8, envValue: "1" }), 1);
+		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 8, envValue: "6" }), 6);
+		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 8, envValue: "64" }), 16);
+		assert.equal(resolveRustProcessingPoolSize({ availableParallelism: 8, envValue: "invalid" }), 4);
 	});
 });
 

@@ -366,6 +366,8 @@ const areExplorerFilesEqual = (
       file.relativePath === nextFile.relativePath &&
       file.sourceKey === nextFile.sourceKey &&
       file.sourcePath === nextFile.sourcePath &&
+      file.sourceStatus === nextFile.sourceStatus &&
+      file.sourceStatusMessage === nextFile.sourceStatusMessage &&
       file.curveType === nextFile.curveType &&
       file.curveTypeBadgeLabel === nextFile.curveTypeBadgeLabel &&
       file.curveTypeConfidence === nextFile.curveTypeConfidence &&

@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { createRequire } from "node:module";
@@ -45,6 +46,7 @@ import {
 } from "../../base/parts/sandbox/common/sandboxTypes.js";
 import { isNativeWindowCommand } from "../../platform/window/common/window.js";
 import {
+  resolveRustProcessingPoolSize,
   resolveRustWorkerExecutablePath,
   RustWorkerHost,
 } from "../../platform/rust/electron-main/rustWorkerHost.js";
@@ -104,13 +106,10 @@ const desktopWindowMain = new DesktopWindowMain(DEFAULT_WORKBENCH_BACKGROUND_COL
 const WORKBENCH_BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 const BOOT_WINDOW_SETTLE_MS = 80;
 const BOOT_UI_READY_FALLBACK_MS = 3500;
-const RUST_PROCESSING_POOL_SIZE = Math.max(
-  1,
-  Math.min(
-    4,
-    Number(process.env.CONDUCTOR_RUST_PROCESSING_POOL_SIZE) || 2,
-  ),
-);
+const RUST_PROCESSING_POOL_SIZE = resolveRustProcessingPoolSize({
+  availableParallelism: os.availableParallelism(),
+  envValue: process.env.CONDUCTOR_RUST_PROCESSING_POOL_SIZE,
+});
 const rustWorkerHost = new RustWorkerHost({
   isWindows,
   processingPoolSize: RUST_PROCESSING_POOL_SIZE,

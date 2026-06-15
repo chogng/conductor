@@ -24,6 +24,8 @@ import {
 	type ExplorerFileNestingPattern,
 } from "src/cs/workbench/contrib/files/common/explorerFileNestingTrie";
 
+export type ExplorerSourceStatus = "pending" | "preparing" | "failed";
+
 export type ExplorerFileEntry = {
 	readonly file?: unknown;
 	readonly fileId?: string;
@@ -33,6 +35,8 @@ export type ExplorerFileEntry = {
 	readonly relativePath?: string | null;
 	readonly sourceKey?: string;
 	readonly sourcePath?: string | null;
+	readonly sourceStatus?: ExplorerSourceStatus;
+	readonly sourceStatusMessage?: string | null;
 	readonly curveType?: string | null;
 	readonly curveTypeBadgeLabel?: string | null;
 	readonly curveTypeConfidence?: "high" | "medium" | "low";
@@ -450,6 +454,51 @@ export const createChartExplorerFiles = (
 	return files;
 };
 
+export const mergeExplorerSourceEntries = ({
+	files,
+	pendingSourceEntries,
+	replaceSourceKeys,
+}: {
+	readonly files: readonly ExplorerFileEntry[];
+	readonly pendingSourceEntries: readonly ExplorerFileEntry[];
+	readonly replaceSourceKeys?: readonly string[] | null;
+}): ExplorerFileEntry[] => {
+	if (!pendingSourceEntries.length && !replaceSourceKeys?.length) {
+		return [...files];
+	}
+
+	const pendingBySourceKey = mapExplorerFilesBySourceKey(pendingSourceEntries);
+	const committedBySourceKey = mapExplorerFilesBySourceKey(files);
+	if (replaceSourceKeys?.length) {
+		const result: ExplorerFileEntry[] = [];
+		const seenSourceKeys = new Set<string>();
+		for (const sourceKey of replaceSourceKeys) {
+			if (seenSourceKeys.has(sourceKey)) {
+				continue;
+			}
+			seenSourceKeys.add(sourceKey);
+			const committed = committedBySourceKey.get(sourceKey);
+			const pending = pendingBySourceKey.get(sourceKey);
+			if (committed) {
+				result.push(committed);
+			} else if (pending) {
+				result.push(pending);
+			}
+		}
+
+		return result;
+	}
+
+	const committedSourceKeys = new Set(committedBySourceKey.keys());
+	return [
+		...files,
+		...pendingSourceEntries.filter(entry => {
+			const sourceKey = normalizeExplorerSourceKey(entry.sourceKey);
+			return !sourceKey || !committedSourceKeys.has(sourceKey);
+		}),
+	];
+};
+
 export const resolveExplorerSelectedFileId = (
 	selectedFileId: string | null,
 	fileIds: readonly string[],
@@ -506,4 +555,23 @@ export const getNormalizedExplorerFileIds = (
 const normalizeExplorerFileId = (fileId: unknown): string | null => {
 	const normalized = String(fileId ?? "").trim();
 	return normalized || null;
+};
+
+const normalizeExplorerSourceKey = (sourceKey: unknown): string | null => {
+	const normalized = String(sourceKey ?? "").trim();
+	return normalized || null;
+};
+
+const mapExplorerFilesBySourceKey = (
+	files: readonly ExplorerFileEntry[],
+): Map<string, ExplorerFileEntry> => {
+	const result = new Map<string, ExplorerFileEntry>();
+	for (const file of files) {
+		const sourceKey = normalizeExplorerSourceKey(file.sourceKey);
+		if (!sourceKey || result.has(sourceKey)) {
+			continue;
+		}
+		result.set(sourceKey, file);
+	}
+	return result;
 };

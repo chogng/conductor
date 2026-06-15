@@ -51,6 +51,7 @@ import {
   collectExplorerFolderKeys,
   getExplorerTreeFileName,
   type ExplorerFileEntry,
+  type ExplorerSourceStatus,
   type ExplorerTreeNode,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { createEmptyView } from "src/cs/workbench/contrib/files/browser/views/emptyView";
@@ -89,7 +90,7 @@ export type ExplorerViewerProps = {
   readonly mode?: WorkbenchMainPart;
   readonly viewLayout?: FilesViewLayout;
   readonly folderImportSupport?: FolderImportSupport;
-  readonly onListScroll: (event: Event) => void;
+  readonly onListScroll?: (event: Event) => void;
   readonly onFolderExpansionChange?: (expandedFolderKeys: readonly string[]) => void;
   readonly onFolderKeysChange?: (folderKeys: readonly string[]) => readonly string[] | void;
   readonly onOpenFileDialog: () => void;
@@ -123,6 +124,13 @@ type FileItemAssessment = {
   readonly confidence: string;
   readonly reasons: readonly string[];
   readonly template: string;
+};
+
+type FileSourceStatusBadge = {
+  readonly label: string;
+  readonly isWarning: boolean;
+  readonly status: ExplorerSourceStatus;
+  readonly title: string | null;
 };
 
 type FileItemTemplate = {
@@ -219,6 +227,36 @@ const createFileItemAssessment = (
     reasons: reasons.length ? reasons : [localize("files.autoNoReason", "Not available")],
     template: templateLabel,
   };
+};
+
+const createFileSourceStatusBadge = (
+  fileEntry: ExplorerFileEntry,
+): FileSourceStatusBadge | null => {
+  switch (fileEntry.sourceStatus) {
+    case "failed":
+      return {
+        label: localize("files.source.failed", "Failed"),
+        isWarning: true,
+        status: "failed",
+        title: String(fileEntry.sourceStatusMessage ?? "").trim() || null,
+      };
+    case "preparing":
+      return {
+        label: localize("files.source.loading", "Loading"),
+        isWarning: false,
+        status: "preparing",
+        title: null,
+      };
+    case "pending":
+      return {
+        label: localize("files.source.pending", "Pending"),
+        isWarning: false,
+        status: "pending",
+        title: null,
+      };
+    default:
+      return null;
+  }
 };
 
 const createAssessmentRow = (
@@ -459,6 +497,8 @@ export class ExplorerViewer implements IDisposable {
         entry.fileId ?? "",
         entry.itemKey ?? "",
         entry.relativePath ?? "",
+        entry.sourceStatus ?? "",
+        entry.sourceStatusMessage ?? "",
         getFileName(entry),
         entry.curveType ?? "",
         entry.curveTypeBadgeLabel ?? "",
@@ -498,7 +538,7 @@ export class ExplorerViewer implements IDisposable {
   };
 
   private readonly handleTreeScroll = (event: Event): void => {
-    this.props.onListScroll(event);
+    this.props.onListScroll?.(event);
     this.scheduleFileItemHoverLayout();
   };
 
@@ -507,7 +547,11 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    this.props.onSelectFile(element.entry?.fileId ?? null);
+    if (!element.entry?.fileId) {
+      return;
+    }
+
+    this.props.onSelectFile(element.entry.fileId);
   };
 
   private readonly handleListContextMenu = (event: MouseEvent): void => {
@@ -763,6 +807,7 @@ export class ExplorerViewer implements IDisposable {
     template: FileItemTemplate,
   ): void {
     const fileName = getFileName(fileEntry);
+    const sourceStatus = createFileSourceStatusBadge(fileEntry);
     const assessment = createFileItemAssessment(
       fileEntry,
       this.resolveFileTemplateLabel(fileEntry),
@@ -799,6 +844,11 @@ export class ExplorerViewer implements IDisposable {
       delete host.dataset.autoTemplate;
       delete host.dataset.autoWarning;
     }
+    if (sourceStatus) {
+      host.dataset.sourceStatus = sourceStatus.status;
+    } else {
+      delete host.dataset.sourceStatus;
+    }
 
     if (fileEntry?.itemKey) {
       host.dataset.itemKey = fileEntry.itemKey;
@@ -817,10 +867,15 @@ export class ExplorerViewer implements IDisposable {
         fileKind: FileKind.FILE,
       },
     );
-    if (assessment) {
-      template.assessment.textContent = assessment.label;
-      template.assessment.removeAttribute("title");
-      template.assessment.dataset.warning = assessment.isWarning ? "true" : "false";
+    const badge = sourceStatus ?? assessment;
+    if (badge) {
+      template.assessment.textContent = badge.label;
+      if (sourceStatus?.title) {
+        template.assessment.title = sourceStatus.title;
+      } else {
+        template.assessment.removeAttribute("title");
+      }
+      template.assessment.dataset.warning = badge.isWarning ? "true" : "false";
       template.assessment.hidden = false;
     } else {
       template.assessment.textContent = "";
@@ -832,6 +887,7 @@ export class ExplorerViewer implements IDisposable {
       "aria-label",
       localize("files.import.removeFileButtonLabel", "Remove {fileName}", { fileName }),
     );
+    template.removeButton.hidden = !fileEntry.fileId;
     if (
       template.content.parentElement !== host ||
       template.actions.parentElement !== host

@@ -21,6 +21,7 @@ import {
   collectFolderImportFiles,
   collectPendingImportFiles,
   FileSourceWorkflow,
+  getPendingImportPrepareConcurrency,
   getFolderImportSupportForFileService,
   prepareFirstPendingImportFile,
   prepareRemainingPendingImportFiles,
@@ -30,6 +31,14 @@ import {
 } from "../../browser/fileImportExport.ts";
 
 suite("workbench/contrib/files/test/browser/fileImportExport", () => {
+  test("pending import prepare concurrency scales with hardware and stays bounded", () => {
+    assert.equal(getPendingImportPrepareConcurrency(Number.NaN), 8);
+    assert.equal(getPendingImportPrepareConcurrency(1), 4);
+    assert.equal(getPendingImportPrepareConcurrency(4), 8);
+    assert.equal(getPendingImportPrepareConcurrency(8), 16);
+    assert.equal(getPendingImportPrepareConcurrency(64), 16);
+  });
+
   test("folder import does not require browser folder picker for non-HTML file services", () => {
     const filesService = new FileService();
 

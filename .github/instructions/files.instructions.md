@@ -232,6 +232,8 @@ boundary.
 flowchart TD
     User[Explorer drop/dialog/clipboard/folder] --> Workflow[Explorer source workflow]
     Workflow --> Source[fileImportExport.ts source collection]
+    Source --> Pending[Explorer pending source entries]
+    Pending --> Explorer
     Source --> Converter[fileConverter.ts]
     Converter --> DesktopRust[desktop conductor-rs helper CLI]
     DesktopRust --> Converter
@@ -251,6 +253,13 @@ optional Explorer selection or mode follow-up. `IExplorerService` remains the
 Explorer UI-state owner. `fileImportExport.ts` collects sources or handles file
 transfer. `fileConverter.ts` converts data sources. Session commits canonical
 records. Assessment interprets structure later.
+
+The Explorer source workflow may publish view-local pending source entries
+before conversion completes so large folder imports can render a stable file
+tree immediately. These entries are `ExplorerFileEntry` projections only; they
+must not be committed to Session or treated as converted files. When conversion
+commits a real file with the same source identity, Explorer replaces the
+pending entry with the committed entry.
 
 Use `FileConversionResult` only for converter output. It is not the result of
 the entire Explorer add-data workflow.
@@ -312,6 +321,9 @@ Explorer-side wiring rules:
 
 - Selection in tree and thumbnail layouts must call the same
   `IExplorerService.select(...)` path.
+- Pending source entries are display-only rows. They may show pending/loading/
+  failed source status, but they must not participate in Explorer selection,
+  context-menu file actions, session commit, or duplicate detection.
 - File item actions in both layouts must execute the same Files/Explorer
   action ids and command handlers.
 - Table-drop and sidebar-drop import flows may reuse files source helpers, but

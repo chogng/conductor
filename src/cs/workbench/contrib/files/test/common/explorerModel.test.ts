@@ -11,6 +11,7 @@ import {
   createChartExplorerFiles,
   createChartExplorerFilesFromRecords,
   createRawExplorerFiles,
+  mergeExplorerSourceEntries,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 
 suite("workbench/contrib/files/common/explorerModel", () => {
@@ -152,6 +153,88 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         ["raw-only"],
       ),
       [],
+    );
+  });
+
+  test("mergeExplorerSourceEntries appends only unresolved pending sources", () => {
+    assert.deepEqual(
+      mergeExplorerSourceEntries({
+        files: [
+          {
+            fileId: "file-1",
+            fileName: "ready.csv",
+            sourceKey: "source-ready",
+          },
+        ],
+        pendingSourceEntries: [
+          {
+            fileName: "ready.csv",
+            sourceKey: "source-ready",
+            sourceStatus: "preparing",
+          },
+          {
+            fileName: "later.csv",
+            sourceKey: "source-later",
+            sourceStatus: "pending",
+          },
+        ],
+      }),
+      [
+        {
+          fileId: "file-1",
+          fileName: "ready.csv",
+          sourceKey: "source-ready",
+        },
+        {
+          fileName: "later.csv",
+          sourceKey: "source-later",
+          sourceStatus: "pending",
+        },
+      ],
+    );
+  });
+
+  test("mergeExplorerSourceEntries replaces by source order and prefers committed files", () => {
+    assert.deepEqual(
+      mergeExplorerSourceEntries({
+        files: [
+          {
+            fileId: "old",
+            fileName: "old.csv",
+            sourceKey: "source-old",
+          },
+          {
+            fileId: "ready",
+            fileName: "ready.csv",
+            sourceKey: "source-ready",
+          },
+        ],
+        pendingSourceEntries: [
+          {
+            fileName: "ready.csv",
+            sourceKey: "source-ready",
+            sourceStatus: "preparing",
+          },
+          {
+            fileName: "later.csv",
+            sourceKey: "source-later",
+            sourceStatus: "pending",
+          },
+        ],
+        replaceSourceKeys: ["source-ready", "source-later"],
+      }),
+      [
+        {
+          fileId: "ready",
+          fileName: "ready.csv",
+          sourceKey: "source-ready",
+        },
+        {
+          fileName: "later.csv",
+          sourceKey: "source-later",
+          sourceStatus: "pending",
+        },
+      ],
     );
   });
 
