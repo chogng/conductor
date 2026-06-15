@@ -1,5 +1,5 @@
-use serde_json::Value;
 use serde_json::json;
+use serde_json::Value;
 use std::cell::Ref;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -78,6 +78,12 @@ struct RoleEvidence {
     role: &'static str,
     source: &'static str,
     weight: i32,
+}
+
+struct NonIvCurveEvidence {
+    confidence: &'static str,
+    curve_type: &'static str,
+    source: &'static str,
 }
 
 #[derive(Default)]
@@ -398,7 +404,11 @@ fn detect_first_group_length(
             previous_point = current_point;
         }
     }
-    if count >= 2 { Some(count) } else { None }
+    if count >= 2 {
+        Some(count)
+    } else {
+        None
+    }
 }
 
 fn collect_stripped_sweep_metadata(
@@ -634,87 +644,142 @@ fn resolve_role_source(evidence: &[RoleEvidence]) -> &'static str {
     }
 }
 
+fn has_fast_iv_or_ivt_hint(value: &str) -> bool {
+    let text = clean_cell_text(value).to_ascii_lowercase();
+    normalize_header_compact(value).contains("fastiv")
+        || text
+            .split(|ch: char| !ch.is_ascii_alphanumeric())
+            .any(|token| token == "ivt")
+}
+
+fn has_capacitance_hint(value: &str) -> bool {
+    value.contains("cp") || value.contains("cs") || value.contains("cap")
+}
+
+fn has_frequency_hint(value: &str) -> bool {
+    value.contains("freq") || value.contains("frequency") || value.contains("hz") || value == "cf"
+}
+
+fn has_voltage_hint(value: &str) -> bool {
+    value.contains("cv")
+        || value.contains("vp")
+        || value.contains("voltage")
+        || value.contains("bias")
+}
+
+fn detect_non_iv_curve(
+    file_name: &str,
+    metadata: &AutoMetadata,
+    headers: &[String],
+) -> Option<NonIvCurveEvidence> {
+    let mut metadata_text = vec![metadata.setup_title.clone(), metadata.x_axis_data.clone()];
+    metadata_text.extend(metadata.data_name_columns.clone());
+    let metadata_compact = metadata_text
+        .iter()
+        .map(|value| normalize_header_compact(value))
+        .collect::<Vec<_>>();
+    let header_compact = headers
+        .iter()
+        .map(|value| normalize_header_compact(value))
+        .collect::<Vec<_>>();
+    let file_compact = normalize_header_compact(file_name);
+
+    let metadata_has_pulse_hint = metadata_text
+        .iter()
+        .any(|value| has_fast_iv_or_ivt_hint(value))
+        || metadata_compact
+            .iter()
+            .any(|value| matches!(value.as_str(), "vp" | "in" | "ipt"));
+    // Exact vp/in/ipt tokens are pulse hints only when they come from metadata
+    // such as DataName; ordinary two-column Cp-vp headers are CV data.
+    let header_has_pulse_hint = headers.iter().any(|value| has_fast_iv_or_ivt_hint(value));
+    let file_has_pulse_hint = file_compact.contains("pv") || has_fast_iv_or_ivt_hint(file_name);
+    if metadata_has_pulse_hint || header_has_pulse_hint || file_has_pulse_hint {
+        let source = if metadata_has_pulse_hint {
+            "metadata"
+        } else if header_has_pulse_hint {
+            "label"
+        } else {
+            "filename"
+        };
+        return Some(NonIvCurveEvidence {
+            confidence: if source == "filename" {
+                "low"
+            } else {
+                "medium"
+            },
+            curve_type: "pv",
+            source,
+        });
+    }
+
+    let has_file_cv_hint = file_compact.contains("cv") && !file_compact.contains("svc");
+    let has_file_cf_hint =
+        file_compact.contains("cf") || file_compact.contains("freq") || file_compact.contains("hz");
+    let has_capacitance = has_capacitance_hint(&file_compact)
+        || metadata_compact
+            .iter()
+            .any(|value| has_capacitance_hint(value))
+        || header_compact
+            .iter()
+            .any(|value| has_capacitance_hint(value));
+    if !has_capacitance && !has_file_cv_hint && !has_file_cf_hint {
+        return None;
+    }
+
+    if has_file_cv_hint {
+        return Some(NonIvCurveEvidence {
+            confidence: "medium",
+            curve_type: "cv",
+            source: "filename",
+        });
+    }
+
+    let metadata_has_frequency = metadata_compact
+        .iter()
+        .any(|value| has_frequency_hint(value));
+    let header_has_frequency = header_compact.iter().any(|value| has_frequency_hint(value));
+    if has_file_cf_hint || metadata_has_frequency || header_has_frequency {
+        let source = if has_file_cf_hint {
+            "filename"
+        } else if metadata_has_frequency {
+            "metadata"
+        } else {
+            "label"
+        };
+        return Some(NonIvCurveEvidence {
+            confidence: "medium",
+            curve_type: "cf",
+            source,
+        });
+    }
+
+    let metadata_has_voltage = metadata_compact.iter().any(|value| has_voltage_hint(value));
+    let header_has_voltage = header_compact.iter().any(|value| has_voltage_hint(value));
+    if metadata_has_voltage || header_has_voltage {
+        return Some(NonIvCurveEvidence {
+            confidence: "medium",
+            curve_type: "cv",
+            source: if metadata_has_voltage {
+                "metadata"
+            } else {
+                "label"
+            },
+        });
+    }
+
+    None
+}
+
 fn classify_auto_curve(
     file_name: &str,
     metadata: &AutoMetadata,
     headers: &[String],
 ) -> (String, Option<&'static str>, &'static str, String, bool) {
-    let mut all_text = vec![
-        file_name.to_string(),
-        metadata.setup_title.clone(),
-        metadata.x_axis_data.clone(),
-    ];
-    all_text.extend(metadata.data_name_columns.clone());
-    all_text.extend(headers.iter().cloned());
-    let compact_all: Vec<String> = all_text
-        .iter()
-        .map(|value| normalize_header_compact(value))
-        .collect();
-    let file_compact = normalize_header_compact(file_name);
-    let has_fast_iv_or_ivt_hint = |value: &str| {
-        let text = clean_cell_text(value).to_ascii_lowercase();
-        normalize_header_compact(value).contains("fastiv")
-            || text
-                .split(|ch: char| !ch.is_ascii_alphanumeric())
-                .any(|token| token == "ivt")
-    };
-
-    let metadata_has_fast_iv_or_ivt = all_text
-        .iter()
-        .skip(1)
-        .any(|value| has_fast_iv_or_ivt_hint(value))
-        || compact_all
-            .iter()
-            .skip(1)
-            .any(|value| value.contains("fastiv") || value == "ipt");
-    let has_pulse_file_hint = file_compact.contains("pv") || has_fast_iv_or_ivt_hint(file_name);
-    if has_pulse_file_hint || metadata_has_fast_iv_or_ivt {
-        return (
-            "pv".to_string(),
-            None,
-            if metadata_has_fast_iv_or_ivt {
-                "metadata"
-            } else {
-                "filename"
-            },
-            if metadata_has_fast_iv_or_ivt {
-                "medium"
-            } else {
-                "low"
-            }
-            .to_string(),
-            false,
-        );
-    }
-    if file_compact.contains("cf")
-        || file_compact.contains("freq")
-        || compact_all
-            .iter()
-            .any(|value| value.contains("freq") || value.contains("frequency"))
-    {
-        return (
-            "cf".to_string(),
-            None,
-            "filename",
-            "medium".to_string(),
-            false,
-        );
-    }
-    if (file_compact.contains("cv") && !file_compact.contains("svc"))
-        || compact_all
-            .iter()
-            .any(|value| value.contains("cp") || value.contains("cap") || value.contains("cv"))
-    {
-        return (
-            "cv".to_string(),
-            None,
-            "filename",
-            "medium".to_string(),
-            false,
-        );
-    }
+    let non_iv_curve = detect_non_iv_curve(file_name, metadata, headers);
 
     let mut evidence = Vec::<RoleEvidence>::new();
+    // Direct metadata outweighs filenames, which often include loose batch labels.
     push_role_evidence(
         &mut evidence,
         detect_axis_role_text(&metadata.x_axis_data),
@@ -748,6 +813,8 @@ fn classify_auto_curve(
     let file_name_role = detect_axis_role_text(file_name);
     push_role_evidence(&mut evidence, file_name_role, 2, "filename");
 
+    // Stripped instrument exports expose generic CH1/CH2 columns, so shape only
+    // contributes supporting evidence instead of replacing explicit metadata.
     if metadata.is_stripped_channel_sweep {
         if let Some(swept_axis) = metadata.stripped_sweep_voltage_axis {
             let fixed_axis = if swept_axis == "ch1" { "ch2" } else { "ch1" };
@@ -818,16 +885,6 @@ fn classify_auto_curve(
         && evidence
             .iter()
             .any(|entry| entry.source == "metadata" && entry.role == "vd" && entry.weight >= 14);
-    if vg_score == vd_score {
-        return (
-            "unknown".to_string(),
-            None,
-            "metadata",
-            "low".to_string(),
-            true,
-        );
-    }
-    let role = if vg_score > vd_score { "vg" } else { "vd" };
     if strong_metadata_conflict {
         return (
             "unknown".to_string(),
@@ -837,6 +894,38 @@ fn classify_auto_curve(
             true,
         );
     }
+    // Pulse/FastIV hints define a separate family and can win over loose IV role
+    // hints, but not over contradictory strong metadata.
+    if let Some(non_iv) = &non_iv_curve {
+        if non_iv.curve_type == "pv" {
+            return (
+                non_iv.curve_type.to_string(),
+                None,
+                non_iv.source,
+                non_iv.confidence.to_string(),
+                false,
+            );
+        }
+    }
+    if vg_score == vd_score {
+        if let Some(non_iv) = &non_iv_curve {
+            return (
+                non_iv.curve_type.to_string(),
+                None,
+                non_iv.source,
+                non_iv.confidence.to_string(),
+                false,
+            );
+        }
+        return (
+            "unknown".to_string(),
+            None,
+            "metadata",
+            "low".to_string(),
+            true,
+        );
+    }
+    let role = if vg_score > vd_score { "vg" } else { "vd" };
     let score_gap = (vg_score - vd_score).abs();
     let winning_evidence = evidence
         .iter()
@@ -906,4 +995,112 @@ fn normalize_header_compact(raw: &str) -> String {
         .chars()
         .filter(|ch| ch.is_ascii_alphanumeric())
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn table(rows: &[&[&str]]) -> Vec<Vec<String>> {
+        rows.iter()
+            .map(|row| row.iter().map(|cell| (*cell).to_string()).collect())
+            .collect()
+    }
+
+    #[test]
+    fn strong_metadata_conflict_wins_over_pulse_filename_hint() {
+        let assessment = assess_import_rows(
+            "sample-pv.csv",
+            table(&[
+                &["TestParameter", "Output.Graph.XAxis.Data", "Vg"],
+                &["DataName", "Vd", "Id"],
+                &["0", "1", "2"],
+            ]),
+        );
+
+        assert_eq!(
+            assessment.get("curveFamily").and_then(Value::as_str),
+            Some("unknown")
+        );
+        assert_eq!(
+            assessment
+                .get("curveTypeConfidence")
+                .and_then(Value::as_str),
+            Some("low")
+        );
+        assert_eq!(
+            assessment
+                .get("curveTypeNeedsTemplate")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert!(assessment.get("xAxisRole").is_some_and(Value::is_null));
+    }
+
+    #[test]
+    fn hz_capacitance_headers_classify_as_cf_from_label() {
+        let assessment = assess_import_rows(
+            "sample.csv",
+            table(&[&["metadata"], &["Hz", "Cp"], &["1000", "1e-12"]]),
+        );
+
+        assert_eq!(
+            assessment.get("curveFamily").and_then(Value::as_str),
+            Some("cf")
+        );
+        assert_eq!(
+            assessment.get("curveTypeLabel").and_then(Value::as_str),
+            Some("cf")
+        );
+        assert_eq!(
+            assessment.get("xAxisRoleSource").and_then(Value::as_str),
+            Some("label")
+        );
+    }
+
+    #[test]
+    fn capacitance_metadata_reports_metadata_source() {
+        let assessment = assess_import_rows(
+            "sample.csv",
+            table(&[&["{c_v_ext}"], &["vp", "Cp"], &["0", "1"]]),
+        );
+
+        assert_eq!(
+            assessment.get("curveFamily").and_then(Value::as_str),
+            Some("cv")
+        );
+        assert_eq!(
+            assessment.get("curveTypeLabel").and_then(Value::as_str),
+            Some("cv")
+        );
+        assert_eq!(
+            assessment.get("xAxisRoleSource").and_then(Value::as_str),
+            Some("metadata")
+        );
+    }
+
+    #[test]
+    fn strong_iv_metadata_wins_over_cv_filename_hint() {
+        let assessment = assess_import_rows(
+            "sample-cv.csv",
+            table(&[
+                &["TestParameter", "Output.Graph.XAxis.Data", "Vg"],
+                &["DataName", "Vg", "Id"],
+                &["0", "1", "2"],
+            ]),
+        );
+
+        assert_eq!(
+            assessment.get("curveFamily").and_then(Value::as_str),
+            Some("iv")
+        );
+        assert_eq!(
+            assessment.get("ivMode").and_then(Value::as_str),
+            Some("transfer")
+        );
+        assert_eq!(
+            assessment.get("xAxisRole").and_then(Value::as_str),
+            Some("vg")
+        );
+    }
 }
