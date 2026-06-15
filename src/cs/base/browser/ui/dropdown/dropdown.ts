@@ -246,6 +246,7 @@ export type DropdownButtonOptions = {
     readonly closeOnContentEvent?: string;
     readonly label: string;
     readonly matchAnchorWidth?: boolean;
+    readonly onDidChangeVisibility?: (visible: boolean) => void;
     readonly surfaceClassName?: string;
     readonly triggerIcon?: DropdownButtonIcon;
     readonly render: (container: HTMLElement) => IDisposable | void;
@@ -277,6 +278,7 @@ export class DropdownButton extends Disposable {
             anchor: this.button,
             content: this.contentView.domNode,
             onDidChangeVisibility: visible => {
+                this.options.onDidChangeVisibility?.(visible);
                 if (visible) {
                     this.contentView.show();
                     this.focusSelectedItem();

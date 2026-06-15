@@ -279,6 +279,7 @@ export class ExplorerViewer implements IDisposable {
   private hoverLayoutFrame: number | null = null;
   private hoverViewToken = 0;
   private hoverCacheUse = 0;
+  private activeFolderActionMenus = 0;
   private treeModel: TreeModelCache = {
     folderKeys: [],
     items: [],
@@ -970,6 +971,9 @@ export class ExplorerViewer implements IDisposable {
       closeOnContentEvent: "menuitemactionrun",
       label: "",
       matchAnchorWidth: false,
+      onDidChangeVisibility: visible => {
+        this.setFolderActionMenuActive(visible);
+      },
       render: (menuHost) => renderMenuItems(menuHost, {
         className: "file-list-folder-menu",
         items: () => this.createFolderActions(template.currentNode),
@@ -977,14 +981,34 @@ export class ExplorerViewer implements IDisposable {
       surfaceClassName: "file-list-folder-menu-surface",
       triggerIcon: LxIcon.moreHorizontal,
     });
+    const actionButtonDisposables = new DisposableStore();
+    actionButtonDisposables.add(actionButton);
+    actionButtonDisposables.add(countBadge);
+    actionButtonDisposables.add(
+      addDisposableListener(actionButton.domNode, "mouseover", () => {
+        this.hideFileItemHover();
+      }),
+    );
+    actionButtonDisposables.add(
+      addDisposableListener(actionButton.domNode, "focusin", () => {
+        this.hideFileItemHover();
+      }),
+    );
+    actionButtonDisposables.add(
+      addDisposableListener(actionButton.domNode, "pointerdown", () => {
+        this.hideFileItemHover();
+      }),
+    );
+    actionButtonDisposables.add({
+      dispose: () => {
+        if (actionButton.domNode.getAttribute("aria-expanded") === "true") {
+          this.setFolderActionMenuActive(false);
+        }
+      },
+    });
     actionsHost.appendChild(actionButton.domNode);
     controls.appendChild(actionsHost);
-    template.actionButton = {
-      dispose: () => {
-        actionButton.dispose();
-        countBadge.dispose();
-      },
-    };
+    template.actionButton = actionButtonDisposables;
     return template;
   }
 
@@ -1157,6 +1181,11 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private showFileItemHover(item: HTMLElement): void {
+    if (this.isFolderActionMenuActive()) {
+      this.hideFileItemHover();
+      return;
+    }
+
     const content = this.resolveHoverContent(item);
     if (!content) {
       this.hideFileItemHover();
@@ -1167,6 +1196,20 @@ export class ExplorerViewer implements IDisposable {
     this.hoverAnchor = item;
     this.hoverContent = content;
     this.openFileItemHoverView(item, content);
+  }
+
+  private setFolderActionMenuActive(active: boolean): void {
+    this.activeFolderActionMenus = Math.max(
+      0,
+      this.activeFolderActionMenus + (active ? 1 : -1),
+    );
+    if (active) {
+      this.hideFileItemHover();
+    }
+  }
+
+  private isFolderActionMenuActive(): boolean {
+    return this.activeFolderActionMenus > 0;
   }
 
   private openFileItemHoverView(item: HTMLElement, content: HoverContent): void {

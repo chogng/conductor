@@ -31,6 +31,9 @@
 }
 
 .conductor-dropdown-surface {
+    overflow: hidden;
+    border-radius: 8px;
+    background: transparent;
     box-shadow: var(--shadow-menu);
 }
 
