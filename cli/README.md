@@ -350,7 +350,7 @@ cargo build --release -p conductor-cli --bin conductor-rs
 
 ```powershell
 Set-Location -LiteralPath 'C:\Users\lanxi\Desktop\conductor'
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-conductor-rs.ps1
+npm run build:conductor-rs
 ```
 
 直接启动 stdio worker 调试：

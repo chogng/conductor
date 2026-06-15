@@ -46,6 +46,30 @@ const run = (command, args, options = {}) => {
   }
 };
 
+const quoteForWindowsCmd = (value) => {
+  const text = String(value ?? "");
+  return `"${text.replace(/"/g, '""')}"`;
+};
+
+const runCargoBuildWithVsDevCmd = (vsDevCmd, cargoArgs, workspaceDir) => {
+  const command = [
+    "call",
+    quoteForWindowsCmd(vsDevCmd),
+    "-arch=x64",
+    "&&",
+    "cargo",
+    ...cargoArgs.map(quoteForWindowsCmd),
+  ].join(" ");
+  run("cmd.exe", [
+    "/d",
+    "/c",
+    command,
+  ], {
+    cwd: workspaceDir,
+    windowsVerbatimArguments: true,
+  });
+};
+
 const findVsDevCmd = () => {
   if (!isWindows) {
     return "";
@@ -97,12 +121,7 @@ const cargoArgs = [
 const vsDevCmd = findVsDevCmd();
 if (isWindows && vsDevCmd) {
   console.log("[build-conductor-rs] Running cargo build through VsDevCmd.");
-  run("cmd.exe", [
-    "/d",
-    "/s",
-    "/c",
-    `call "${vsDevCmd}" -arch=x64 && cargo ${cargoArgs.join(" ")}`,
-  ], { cwd: workspaceDir });
+  runCargoBuildWithVsDevCmd(vsDevCmd, cargoArgs, workspaceDir);
 } else {
   console.log("[build-conductor-rs] Running cargo build --release.");
   run("cargo", cargoArgs, { cwd: workspaceDir });
