@@ -28,6 +28,37 @@ suite("base/browser/ui/grid/gridview", () => {
     assert.equal(third.dataset.location, "1");
   });
 
+  test("keeps stable item nodes in place when order is unchanged", async () => {
+    const first = document.createElement("div");
+    const second = document.createElement("div");
+    const grid = new GridView({
+      items: [
+        { element: first, location: [0] },
+        { element: second, location: [1] },
+      ],
+      sizes: [200, 300],
+    });
+
+    const records: MutationRecord[] = [];
+    const observer = new MutationObserver((mutations) => {
+      records.push(...mutations);
+    });
+    observer.observe(grid.element, { childList: true });
+
+    grid.update({
+      items: [
+        { element: first, location: [0] },
+        { element: second, location: [1] },
+      ],
+      sizes: [250, 250],
+    });
+    await Promise.resolve();
+    observer.disconnect();
+
+    assert.deepEqual(records, []);
+    assert.deepEqual([...grid.element.children], [first, second]);
+  });
+
   test("lays out horizontal and vertical templates", () => {
     const first = document.createElement("div");
     const second = document.createElement("div");

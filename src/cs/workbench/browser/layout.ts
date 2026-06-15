@@ -108,6 +108,8 @@ export class Layout extends Disposable {
   private readonly controller = document.createElement("div");
   private readonly shell = document.createElement("div");
   private readonly viewStack = document.createElement("div");
+  private readonly workbenchPane = createPaneElement(VIEW_PANES.workbench.paneId);
+  private readonly settingsPane = createPaneElement(VIEW_PANES.settings.paneId);
   private parts: LayoutParts = {};
   private hasRenderedAuxiliaryBarPane = false;
   private layoutTransitionPart: Parts.SIDEBAR_PART | Parts.AUXILIARYBAR_PART | null = null;
@@ -220,18 +222,12 @@ export class Layout extends Disposable {
     this.element.classList.toggle("sidebar-hidden", !this.isPartVisible(Parts.SIDEBAR_PART));
     this.element.classList.toggle("auxiliarybar-hidden", !this.isPartVisible(Parts.AUXILIARYBAR_PART));
 
-    this.controller.replaceChildren();
-    this.main.replaceChildren();
-    this.settingsMain.replaceChildren();
-    this.sidebar.replaceChildren();
-    this.auxiliaryBar.replaceChildren();
-
-    appendIfPresent(this.controller, this.parts.controller);
+    replaceOptionalChildIfChanged(this.controller, this.parts.controller);
     this.renderWorkbenchMain();
     this.renderSettingsMain();
     replaceOptionalChildIfChanged(this.overlay, this.parts.overlay);
-    appendIfPresent(this.sidebar, this.parts.sidebar);
-    appendIfPresent(this.auxiliaryBar, this.parts.auxiliaryBar);
+    replaceOptionalChildIfChanged(this.sidebar, this.parts.sidebar);
+    replaceOptionalChildIfChanged(this.auxiliaryBar, this.parts.auxiliaryBar);
     this.renderSplit(workbenchActive);
     this.renderViewStack(workbenchActive);
     this.splitView.current?.relayout();
@@ -259,31 +255,30 @@ export class Layout extends Disposable {
     const state = this.state.layoutState;
     const workbenchPane = state.panes.workbench;
 
-    appendIfPresent(
-      this.main,
-      createPane({
-        children: this.parts.workbench,
-        isActive: workbenchPane.isActive,
-        labelledBy: workbenchPane.labelledBy,
-        paneId: workbenchPane.paneId,
-      }),
-    );
+    updatePaneElement(this.workbenchPane, {
+      children: this.parts.workbench,
+      isActive: workbenchPane.isActive,
+      labelledBy: workbenchPane.labelledBy,
+      paneId: workbenchPane.paneId,
+    });
+    replaceChildrenIfChanged(this.main, this.workbenchPane);
   }
 
   private renderSettingsMain(): void {
     const settingsPane = this.state.layoutState.panes.settings;
 
-    if (settingsPane.shouldMount) {
-      appendIfPresent(
-        this.settingsMain,
-        createPane({
-          children: this.parts.settings,
-          isActive: settingsPane.isActive,
-          labelledBy: settingsPane.labelledBy,
-          paneId: settingsPane.paneId,
-        }),
-      );
+    if (!settingsPane.shouldMount) {
+      replaceChildrenIfChanged(this.settingsMain);
+      return;
     }
+
+    updatePaneElement(this.settingsPane, {
+      children: this.parts.settings,
+      isActive: settingsPane.isActive,
+      labelledBy: settingsPane.labelledBy,
+      paneId: settingsPane.paneId,
+    });
+    replaceChildrenIfChanged(this.settingsMain, this.settingsPane);
   }
 
   private renderSplit(workbenchActive: boolean): void {
@@ -500,20 +495,29 @@ export type WorkbenchLayoutNavigationState = IWorkbenchNavigationState & {
   layoutState: LayoutState;
 };
 
-const createPane = ({
-  children,
-  isActive,
-  labelledBy,
-  paneId,
-}: {
-  readonly children?: Node | null;
-  readonly isActive: boolean;
-  readonly labelledBy: string;
-  readonly paneId: string;
-}): HTMLElement => {
+const createPaneElement = (paneId: string): HTMLElement => {
   const section = document.createElement("section");
   section.id = paneId;
   section.role = "region";
+
+  return section;
+};
+
+const updatePaneElement = (
+  section: HTMLElement,
+  {
+    children,
+    isActive,
+    labelledBy,
+    paneId,
+  }: {
+    readonly children?: Node | null;
+    readonly isActive: boolean;
+    readonly labelledBy: string;
+    readonly paneId: string;
+  },
+): void => {
+  section.id = paneId;
   section.setAttribute("aria-labelledby", labelledBy);
   section.setAttribute("aria-hidden", String(!isActive));
   section.className = isActive
@@ -521,18 +525,10 @@ const createPane = ({
     : "workbench_layout_pane workbench_layout_pane--hidden";
   if (!isActive) {
     section.inert = true;
+  } else {
+    section.inert = false;
   }
-  appendIfPresent(section, children);
-  return section;
-};
-
-const appendIfPresent = (
-  parent: HTMLElement,
-  child: Node | null | undefined,
-): void => {
-  if (child) {
-    parent.append(child);
-  }
+  replaceOptionalChildIfChanged(section, children);
 };
 
 const replaceChildrenIfChanged = (

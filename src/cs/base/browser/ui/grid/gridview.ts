@@ -99,13 +99,18 @@ export class GridView {
       }
     }
 
+    const nextItemElements: HTMLElement[] = [];
     for (const item of this.options.items) {
       const key = toGridLocationKey(item.location);
       const itemElement = item.element;
       itemElement.className = getGridViewItemClassName(item.className);
       itemElement.dataset.location = key;
       this.itemElements.set(key, itemElement);
-      this.element.append(itemElement);
+      nextItemElements.push(itemElement);
+    }
+
+    if (!areChildrenEqual(this.element, nextItemElements)) {
+      this.element.replaceChildren(...nextItemElements);
     }
   }
 };
@@ -115,3 +120,10 @@ export const createGridView = (options: GridViewOptions): HTMLDivElement =>
 
 const toGridLocationKey = (location: GridLocation): string =>
   location.join(",");
+
+const areChildrenEqual = (
+  parent: HTMLElement,
+  children: readonly HTMLElement[],
+): boolean =>
+  parent.children.length === children.length &&
+  children.every((child, index) => parent.children[index] === child);

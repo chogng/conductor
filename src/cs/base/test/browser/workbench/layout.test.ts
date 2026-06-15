@@ -219,4 +219,56 @@ suite("workbench/browser/layout", () => {
       parent.remove();
     }
   });
+
+  test("keeps workbench part nodes mounted when sidebar visibility changes", () => {
+    const parent = document.createElement("div");
+    const storage = new TestStorageService();
+    const layoutService = new BrowserWorkbenchLayoutService(storage);
+    document.body.append(parent);
+    const layout = new Layout(parent, layoutService, storage);
+
+    try {
+      const auxiliaryBar = createPart("auxiliarybar");
+      const sidebar = createPart("sidebar");
+      const workbench = createPart("workbench");
+      layout.setParts({
+        auxiliaryBar,
+        sidebar,
+        workbench,
+      });
+
+      const sidebarHost = layout.element.querySelector<HTMLElement>(".workbench_layout_sidebar");
+      const workbenchPane = layout.element.querySelector<HTMLElement>("#workbench-viewpane-main");
+      const auxiliaryBarHost = layout.element.querySelector<HTMLElement>(".workbench_layout_auxiliarybar");
+      assert.ok(sidebarHost);
+      assert.ok(workbenchPane);
+      assert.ok(auxiliaryBarHost);
+      assert.equal(sidebar.parentElement, sidebarHost);
+      assert.equal(workbench.parentElement, workbenchPane);
+      assert.equal(auxiliaryBar.parentElement, auxiliaryBarHost);
+
+      layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+
+      assert.equal(
+        layout.element.querySelector(".workbench_layout_sidebar"),
+        sidebarHost,
+      );
+      assert.equal(
+        layout.element.querySelector("#workbench-viewpane-main"),
+        workbenchPane,
+      );
+      assert.equal(
+        layout.element.querySelector(".workbench_layout_auxiliarybar"),
+        auxiliaryBarHost,
+      );
+      assert.equal(sidebar.parentElement, sidebarHost);
+      assert.equal(workbench.parentElement, workbenchPane);
+      assert.equal(auxiliaryBar.parentElement, auxiliaryBarHost);
+    } finally {
+      layout.dispose();
+      layoutService.dispose();
+      storage.dispose();
+      parent.remove();
+    }
+  });
 });
