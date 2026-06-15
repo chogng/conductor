@@ -78,6 +78,24 @@ export const resolveRustWorkerExecutablePath = ({
     isDev
       ? path.join(
           appRootPath,
+          "resources",
+          "bin",
+          conductorRsFileName,
+        )
+      : "",
+    isDev
+      ? path.join(
+          appRootPath,
+          ".build",
+          "cache",
+          "conductor-rs-cli-target",
+          "release",
+          conductorRsFileName,
+        )
+      : "",
+    isDev
+      ? path.join(
+          appRootPath,
           ".tooling",
           "conductor-rs-cli-target",
           "release",
