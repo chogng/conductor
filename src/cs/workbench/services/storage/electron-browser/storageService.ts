@@ -2,8 +2,8 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { IMainProcessService } from "src/cs/platform/ipc/common/mainProcessService";
 import {
 	getStorageKey,
@@ -27,7 +27,7 @@ const ALL_STORAGE_SCOPES = [
 	StorageScope.WORKSPACE,
 ] as const;
 
-export class NativeStorageService
+export class NativeWorkbenchStorageService
 	extends AbstractStorageService
 	implements IStorageServiceType {
 	private readonly values = new Map<string, string>();
@@ -146,4 +146,4 @@ export class NativeStorageService
 	}
 }
 
-registerSingleton(IStorageService, NativeStorageService, InstantiationType.Delayed);
+registerSingleton(IStorageService, NativeWorkbenchStorageService, InstantiationType.Delayed);

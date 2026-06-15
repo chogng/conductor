@@ -446,9 +446,9 @@ function createConfigurationSettingsPersistence(
   configurationService: IConfigurationService,
 ): SettingsPersistence {
   const readSettings = (): ConductorSettings =>
-    normalizePersistedConductorSettings(
+    toConductorSettings(normalizePersistedConductorSettings(
       configurationService.getValue<Record<string, unknown>>() ?? {},
-    );
+    )) ?? {};
 
   return {
     getSettings: async () => readSettings(),

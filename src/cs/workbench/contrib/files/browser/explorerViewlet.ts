@@ -676,7 +676,7 @@ export class ExplorerViewPane extends ViewPane {
       selectedFileId,
       sessionService: this.sessionService,
     });
-    this.removePendingSourceFiles(importedFiles.map(file => file.sourceKey));
+    this.removePendingSourceFiles(getImportSourceKeys(importedFiles));
     if (!importResult.importedFileIds.length) {
       return;
     }
@@ -705,7 +705,7 @@ export class ExplorerViewPane extends ViewPane {
       mode: "append",
       sessionService: this.sessionService,
     });
-    this.removePendingSourceFiles(importedFiles.map(file => file.sourceKey));
+    this.removePendingSourceFiles(getImportSourceKeys(importedFiles));
     if (!importResult.importedFileIds.length) {
       return;
     }
@@ -824,8 +824,16 @@ function getPendingSourcePath(pendingFile: PendingImportFile): string | null {
     return null;
   }
 
-  const fsPath = String(pendingFile.resource.fsPath ?? "").trim();
+  const fsPath = String(pendingFile.resource?.fsPath ?? "").trim();
   return fsPath || null;
+}
+
+function getImportSourceKeys(
+  importedFiles: readonly PreparedFileImportInfo[],
+): readonly string[] {
+  return importedFiles
+    .map(file => file.sourceKey)
+    .filter((sourceKey): sourceKey is string => typeof sourceKey === "string");
 }
 
 const EMPTY_EXPLORER_PANE_INPUT: ExplorerPaneInput = {

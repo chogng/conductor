@@ -18,7 +18,6 @@ class DesktopNativeHostService extends NativeHostService {
 
 import "src/cs/platform/ipc/electron-browser/mainProcessService";
 import "src/cs/platform/configuration/electron-browser/configurationService";
-import "src/cs/platform/storage/electron-browser/storageService";
 
 registerSingleton(
 	INativeHostService,
@@ -39,6 +38,7 @@ import "src/cs/workbench/workbench.browser.main.ts";
 import "src/cs/workbench/services/contextmenu/electron-browser/contextmenuService.ts";
 import "src/cs/workbench/services/dialogs/electron-browser/fileDialogService.ts";
 import "src/cs/workbench/services/environment/electron-browser/environmentService.ts";
+import "src/cs/workbench/services/storage/electron-browser/storageService.ts";
 import "src/cs/platform/files/electron-browser/fileService.ts";
 import "src/cs/workbench/services/files/electron-browser/fileConversionService.ts";
 import "src/cs/workbench/services/table/electron-browser/tableRowsReader.ts";

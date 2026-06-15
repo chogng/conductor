@@ -219,7 +219,7 @@ const createPlotServiceStub = (
 		yUnitByFileId: {},
 	}),
 	getLegendLabels: (fileId: string) => legendLabelsByFileId[fileId] ?? {},
-} as IPlotService);
+} as unknown as IPlotService);
 
 const createEmptySnapshot = (): SessionSnapshot => ({
 	fileOrder: [],
