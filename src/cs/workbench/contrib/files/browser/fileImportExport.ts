@@ -1644,6 +1644,16 @@ type DataTransferItemWithFileSystemAccess = DataTransferItem & {
   webkitGetAsEntry?: () => WebkitFileSystemEntry | null;
 };
 
+type DroppedBrowserFile = File & {
+  readonly webkitRelativePath?: string;
+};
+
+type DroppedDataTransferItem = {
+  readonly entry: WebkitFileSystemEntry | null;
+  readonly file: File | null;
+  readonly handle: Promise<FileSystemHandle | null>;
+};
+
 const isAbsoluteFilePath = (filePath: string): boolean => {
   if (isWindows) {
     return /^[a-zA-Z]:[\\/]/.test(filePath) || filePath.startsWith("\\\\");
@@ -1701,17 +1711,25 @@ export const collectDroppedFiles = async (
 ): Promise<FileSource[]> => {
   const droppedFiles: DroppedFile[] = [];
   const items = Array.from(dataTransfer.items) as DataTransferItemWithFileSystemAccess[];
+  const droppedItems = items.map(snapshotDroppedDataTransferItem);
 
-  for (const item of items) {
-    const handle = await getDroppedFileSystemHandle(item);
+  for (const item of droppedItems) {
+    const handle = await item.handle;
     if (handle) {
       await collectFileSystemHandleFiles(handle, droppedFiles);
       continue;
     }
 
-    const entry = item.webkitGetAsEntry?.() ?? null;
-    if (entry) {
-      await collectWebkitEntryFiles(entry, droppedFiles);
+    if (item.entry) {
+      await collectWebkitEntryFiles(item.entry, droppedFiles);
+      continue;
+    }
+
+    if (item.file) {
+      droppedFiles.push({
+        file: item.file,
+        relativePath: getDroppedFileRelativePath(item.file),
+      });
     }
   }
 
@@ -1719,7 +1737,7 @@ export const collectDroppedFiles = async (
     getDroppedFileKey(file, relativePath)
   ));
   for (const file of Array.from(dataTransfer.files)) {
-    const relativePath = file.name;
+    const relativePath = getDroppedFileRelativePath(file);
     const key = getDroppedFileKey(file, relativePath);
     if (seenFiles.has(key)) {
       continue;
@@ -1734,6 +1752,20 @@ export const collectDroppedFiles = async (
 
 const getDroppedFileKey = (file: File, relativePath?: string | null): string =>
   `${relativePath || file.name}::${file.size}::${file.lastModified}`;
+
+function getDroppedFileRelativePath(file: File): string {
+  return (file as DroppedBrowserFile).webkitRelativePath?.trim() || file.name;
+}
+
+function snapshotDroppedDataTransferItem(
+  item: DataTransferItemWithFileSystemAccess,
+): DroppedDataTransferItem {
+  return {
+    entry: item.webkitGetAsEntry?.() ?? null,
+    file: item.getAsFile?.() ?? null,
+    handle: getDroppedFileSystemHandle(item),
+  };
+}
 
 async function getDroppedFileSystemHandle(
   item: DataTransferItemWithFileSystemAccess,

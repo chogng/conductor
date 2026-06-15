@@ -120,7 +120,7 @@
   "files.import.fileItemAriaLabel": "文件 {fileName}",
   "files.import.moreParseFailureReasons": "还有 {count} 个原因",
   "files.import.moreReadFailureReasons": "还有 {count} 个原因",
-  "files.import.noSupportedDroppedFiles": "所选文件夹中没有支持的文件。",
+  "files.import.noSupportedDroppedFiles": "所选文件夹中没有支持的文件",
   "files.import.openFolderButton": "打开文件夹",
   "files.import.pickFolderTitle": "选择要导入的文件夹",
   "files.import.removeFileButtonLabel": "移除 {fileName}",

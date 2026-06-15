@@ -368,6 +368,47 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.deepEqual(result.map(source => source.relativePath), ["folder/A.csv"]);
   });
 
+  test("collectDroppedFiles snapshots webkit entries before async handle fallback", async () => {
+    let canReadEntry = true;
+    const entry = createWebkitDirectoryEntry("folder", [
+      createWebkitFileEntry(createCsvFile("A.csv", "Vg,Id\n0,1")),
+    ]);
+    const result = await collectDroppedFiles(createDataTransfer({
+      files: [],
+      items: [{
+        getAsFileSystemHandle: async () => {
+          canReadEntry = false;
+          return null;
+        },
+        webkitGetAsEntry: () => canReadEntry ? entry : null,
+      }],
+    }));
+
+    assert.deepEqual(result.map(source => source.relativePath), ["folder/A.csv"]);
+  });
+
+  test("collectDroppedFiles falls back to data transfer item files", async () => {
+    const file = createCsvFile("A.csv", "Vg,Id\n0,1");
+    const result = await collectDroppedFiles(createDataTransfer({
+      files: [],
+      items: [{
+        getAsFile: () => file,
+      }],
+    }));
+
+    assert.deepEqual(result.map(source => source.relativePath), ["A.csv"]);
+  });
+
+  test("collectDroppedFiles keeps FileList webkit relative paths", async () => {
+    const file = createDirectoryFile("folder/A.csv", "Vg,Id\n0,1");
+    const result = await collectDroppedFiles(createDataTransfer({
+      files: [file],
+      items: [],
+    }));
+
+    assert.deepEqual(result.map(source => source.relativePath), ["folder/A.csv"]);
+  });
+
   test("prepares the selected relative path first", async () => {
     const failedFiles: FileImportPrepareFailure[] = [];
     const result = await prepareFirstPendingImportFile({
@@ -615,6 +656,17 @@ function createCsvFile(fileName: string, text: string): File {
   });
 }
 
+function createDirectoryFile(path: string, text: string): File {
+  const name = path.split("/").pop() || path;
+  const file = createCsvFile(name, text);
+  Object.defineProperty(file, "webkitRelativePath", {
+    configurable: true,
+    value: path,
+  });
+
+  return file;
+}
+
 function createStableFileHandle(file: File): FileSystemFileHandle {
   return {
     kind: "file",
@@ -720,6 +772,18 @@ function createDataFileSource(fileName: string): FileSource {
     kind: "data",
     relativePath: null,
     resource: null,
+  };
+}
+
+function createPathFileSource(fileName: string, relativePath: string): FileSource {
+  return {
+    canUseNativePath: true,
+    fileName,
+    kind: "path",
+    lastModified: 123,
+    relativePath,
+    resource: URIClass.file(`C:/data/${fileName}`),
+    size: 12,
   };
 }
 
