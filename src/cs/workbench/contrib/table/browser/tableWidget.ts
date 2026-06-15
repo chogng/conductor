@@ -983,6 +983,12 @@ export class TableWidget {
   private layoutNow(): void {
     this.clearScheduledLayout();
     this.scrollArea.layout();
+    if (this.shouldRenderTableOnLayout()) {
+      const needsLayout = this.renderTable();
+      if (needsLayout) {
+        this.scrollArea.layout();
+      }
+    }
     this.syncHeaderScroll();
   }
 
@@ -2011,6 +2017,13 @@ export class TableWidget {
     return this.scrollArea.viewport.firstChild === this.content &&
       this.bodyRowCount > 0 &&
       this.bodyColumnCount > 0;
+  }
+
+  private shouldRenderTableOnLayout(): boolean {
+    const { tableState } = this.props;
+    return this.scrollArea.viewport.firstChild === this.content &&
+      tableState.loadState.state !== "loading" &&
+      Boolean(tableState.selectedFileId && tableState.file);
   }
 
   private updateCellText(cell: BodyCell, text: string): void {
