@@ -293,11 +293,14 @@ suite("workbench/services/table/browser/tableService", () => {
     assert.equal(firstModel.getColumnWidth(2), null);
     assert.equal(service.setColumnWidth({ colIndex: 2, width: 243.6 }), true);
     assert.equal(firstModel.getColumnWidth(2), 244);
+    assert.equal(service.setColumnWidth({ colIndex: 1, width: -12 }), true);
+    assert.equal(firstModel.getColumnWidth(1), 0);
 
     const restoredModel = service.update({
       rawFiles,
       source: { fileId: "file-a" },
     });
+    assert.equal(restoredModel.getColumnWidth(1), 0);
     assert.equal(restoredModel.getColumnWidth(2), 244);
 
     const otherModel = service.update({
@@ -305,6 +308,41 @@ suite("workbench/services/table/browser/tableService", () => {
       source: { fileId: "file-b" },
     });
     assert.equal(otherModel.getColumnWidth(2), null);
+
+    service.dispose();
+    storageService.dispose();
+  });
+
+  test("coalesces column width storage writes", () => {
+    const storageService = new TestStorageService();
+    const service = new TableService(
+      createTableBackendService() as never,
+      storageService as never,
+    );
+    const rawFiles = [{
+      file: {},
+      fileId: "file-a",
+      fileName: "Raw A.csv",
+    }];
+
+    const model = service.update({
+      rawFiles,
+      source: { fileId: "file-a" },
+    });
+    assert.equal(service.setColumnWidth({ colIndex: 2, width: 120 }), true);
+    assert.equal(service.setColumnWidth({ colIndex: 2, width: 121 }), true);
+    assert.equal(service.setColumnWidth({ colIndex: 3, width: 140 }), true);
+    assert.equal(model.getColumnWidth(2), 121);
+    assert.equal(model.getColumnWidth(3), 140);
+    assert.equal(storageService.writeCount, 0);
+
+    const restoredModel = service.update({
+      rawFiles,
+      source: { fileId: "file-a" },
+    });
+    assert.equal(storageService.writeCount, 1);
+    assert.equal(restoredModel.getColumnWidth(2), 121);
+    assert.equal(restoredModel.getColumnWidth(3), 140);
 
     service.dispose();
     storageService.dispose();
@@ -912,6 +950,7 @@ const createTextTableModel = ({
 const noopDisposable = (): void => undefined;
 
 class TestStorageService extends AbstractStorageService {
+  public writeCount = 0;
   private readonly values = new Map<string, string>();
 
   protected readValue(key: string, scope: StorageScope): string | undefined {
@@ -919,6 +958,7 @@ class TestStorageService extends AbstractStorageService {
   }
 
   protected writeValue(key: string, scope: StorageScope, value: string): void {
+    this.writeCount += 1;
     this.values.set(this.getKey(scope, key), value);
   }
 

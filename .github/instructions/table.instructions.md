@@ -49,7 +49,7 @@ It does not own:
 | `src/cs/workbench/services/table/browser/tableCellReadModel.ts` | Converts table cell-read payloads into cached row arrays. |
 | `src/cs/workbench/services/table/browser/tableBackendLifecycle.contribution.ts` | Clears table backend temporary files during workbench shutdown. The desktop implementation is Rust-backed, but the service contract stays runtime-neutral. |
 | `src/cs/workbench/services/table/browser/tableRowReadWorker.ts` | Optional browser worker for CSV row paging and cell fetches. |
-| `src/cs/workbench/contrib/table/browser/tableGridModel.ts` | DOM-free grid view math and local layout helpers such as viewport render ranges, keyboard navigation targets, virtual spacer heights, spreadsheet labels, zoom scale, and column width constraints. |
+| `src/cs/workbench/contrib/table/browser/tableGridModel.ts` | DOM-free grid view math and local layout helpers such as viewport render ranges, keyboard navigation targets, resize targets/guides, virtual spacer heights, spreadsheet labels, zoom scale, and column width constraints. |
 | `src/cs/workbench/contrib/table/browser/tableView.ts` | DOM view. Renders `TableState`/rows and forwards user actions. |
 | `src/cs/workbench/contrib/table/browser/table.contribution.ts` | Registers table view and UI actions. |
 

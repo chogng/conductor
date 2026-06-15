@@ -44,6 +44,34 @@ export type ResolveTableGridColumnViewportRangeOptions = {
   readonly zoomPercent: number;
 };
 
+export type ResolveTableGridColumnResizeTargetOptions = {
+  readonly button: unknown;
+  readonly clientX: unknown;
+  readonly columnRange: Pick<TableGridColumnRange, "leadingWidth" | "renderedCount" | "startIndex">;
+  readonly containerLeft: unknown;
+  readonly getColumnWidth: (colIndex: number) => number;
+  readonly hitSlop?: number;
+  readonly scrollLeft: unknown;
+  readonly zoomPercent: number;
+};
+
+export type ResolveTableGridColumnResizeGuideOptions = {
+  readonly colIndex?: number | null;
+  readonly columnRange: Pick<TableGridColumnRange, "leadingWidth" | "renderedCount" | "startIndex">;
+  readonly getColumnWidth: (colIndex: number) => number;
+  readonly scrollLeft: unknown;
+  readonly visible?: boolean;
+  readonly zoomPercent: number;
+};
+
+export type ResolveTableGridColumnResizeDragGuideOptions = {
+  readonly startGuideLeft: unknown;
+  readonly startWidth: unknown;
+  readonly visible?: boolean;
+  readonly width: unknown;
+  readonly zoomPercent: number;
+};
+
 export type TableGridSpacerHeights = {
   readonly topHeight: number;
   readonly bottomHeight: number;
@@ -75,6 +103,7 @@ export const TABLE_GRID_MAX_RENDERED_COLUMNS = 24;
 export const TABLE_GRID_DEFAULT_COLUMN_WIDTH = TABLE_DEFAULT_COLUMN_WIDTH;
 export const TABLE_GRID_MIN_COLUMN_WIDTH = TABLE_MIN_COLUMN_WIDTH;
 export const TABLE_GRID_MAX_COLUMN_WIDTH = TABLE_MAX_COLUMN_WIDTH;
+export const TABLE_GRID_DEFAULT_ROW_HEADER_WIDTH = 48;
 export const TABLE_GRID_DEFAULT_ROW_HEIGHT = 28;
 export const TABLE_GRID_COLUMN_OVERSCAN_COLUMNS = 2;
 export const TABLE_GRID_OVERSCAN_ROWS = 8;
@@ -329,8 +358,143 @@ export const resizeTableGridColumnWidth = (
     startWidth + (deltaPixels / getTableGridZoomScale(zoomPercent)),
   );
 
+export const resolveTableGridColumnResizeTarget = ({
+  button,
+  clientX,
+  columnRange,
+  containerLeft,
+  getColumnWidth,
+  hitSlop = 10,
+  scrollLeft,
+  zoomPercent,
+}: ResolveTableGridColumnResizeTargetOptions): number | null => {
+  if (Math.floor(Number(button)) !== 0) {
+    return null;
+  }
+
+  const startIndex = toSafeIndex(columnRange.startIndex);
+  const renderedCount = toSafeCount(columnRange.renderedCount);
+  const safeClientX = Number(clientX);
+  const safeContainerLeft = Number(containerLeft);
+  if (startIndex < 0 ||
+    renderedCount === 0 ||
+    !Number.isFinite(safeClientX) ||
+    !Number.isFinite(safeContainerLeft)) {
+    return null;
+  }
+
+  const pointerLeft = safeClientX - safeContainerLeft;
+  const safeHitSlop = Math.max(0, Number(hitSlop) || 0);
+  let closestColIndex: number | null = null;
+  let closestDistance = Number.POSITIVE_INFINITY;
+  for (let colIndex = startIndex; colIndex < startIndex + renderedCount; colIndex += 1) {
+    const boundaryLeft = resolveTableGridColumnBoundaryLeft({
+      colIndex,
+      columnRange,
+      getColumnWidth,
+      scrollLeft,
+      zoomPercent,
+    });
+    if (boundaryLeft === null) {
+      continue;
+    }
+
+    const distance = Math.abs(pointerLeft - boundaryLeft);
+    const tied = Math.abs(distance - closestDistance) < 0.001;
+    if (
+      distance <= safeHitSlop &&
+      (distance < closestDistance || (tied && (closestColIndex === null || colIndex > closestColIndex)))
+    ) {
+      closestColIndex = colIndex;
+      closestDistance = distance;
+    }
+  }
+
+  return closestColIndex;
+};
+
+export const resolveTableGridColumnResizeGuideLeft = ({
+  colIndex,
+  columnRange,
+  getColumnWidth,
+  scrollLeft,
+  visible = true,
+  zoomPercent,
+}: ResolveTableGridColumnResizeGuideOptions): number | null => {
+  if (!visible) {
+    return null;
+  }
+
+  return resolveTableGridColumnBoundaryLeft({
+    colIndex,
+    columnRange,
+    getColumnWidth,
+    scrollLeft,
+    zoomPercent,
+  });
+};
+
+export const resolveTableGridColumnResizeDragGuideLeft = ({
+  startGuideLeft,
+  startWidth,
+  visible = true,
+  width,
+  zoomPercent,
+}: ResolveTableGridColumnResizeDragGuideOptions): number | null => {
+  if (!visible) {
+    return null;
+  }
+
+  const safeStartGuideLeft = Number(startGuideLeft);
+  if (!Number.isFinite(safeStartGuideLeft)) {
+    return null;
+  }
+
+  const scale = getTableGridZoomScale(zoomPercent);
+  const clampedStartWidth = clampTableGridColumnWidth(Number(startWidth));
+  const clampedWidth = clampTableGridColumnWidth(Number(width));
+  return safeStartGuideLeft + ((clampedWidth - clampedStartWidth) * scale);
+};
+
+const resolveTableGridColumnBoundaryLeft = ({
+  colIndex,
+  columnRange,
+  getColumnWidth,
+  scrollLeft,
+  zoomPercent,
+}: Omit<ResolveTableGridColumnResizeGuideOptions, "visible">): number | null => {
+  if (colIndex === null || colIndex === undefined) {
+    return null;
+  }
+
+  const safeColIndex = toSafeIndex(colIndex);
+  const startIndex = toSafeIndex(columnRange.startIndex);
+  const renderedCount = toSafeCount(columnRange.renderedCount);
+  if (
+    startIndex < 0 ||
+    safeColIndex < startIndex ||
+    renderedCount === 0 ||
+    safeColIndex >= startIndex + renderedCount
+  ) {
+    return null;
+  }
+
+  const scale = getTableGridZoomScale(zoomPercent);
+  let boundaryOffset = Math.max(0, Number(columnRange.leadingWidth) || 0);
+  for (let index = startIndex; index <= safeColIndex; index += 1) {
+    boundaryOffset += clampTableGridColumnWidth(getColumnWidth(index)) * scale;
+  }
+
+  return getTableGridRowHeaderWidth(zoomPercent) +
+    boundaryOffset -
+    Math.max(0, Number(scrollLeft) || 0);
+};
+
 export const getTableGridZoomScale = (zoomPercent: number): number =>
   Math.max(0.25, Number(zoomPercent) / 100 || 1);
+
+export const getTableGridRowHeaderWidth = (zoomPercent: number): number =>
+  TABLE_GRID_DEFAULT_ROW_HEADER_WIDTH * getTableGridZoomScale(zoomPercent);
 
 export const getTableGridRowHeight = (zoomPercent: number): number =>
   TABLE_GRID_DEFAULT_ROW_HEIGHT * getTableGridZoomScale(zoomPercent);

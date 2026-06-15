@@ -7,11 +7,15 @@ import {
   formatTableGridCell,
   getTableGridColumnLabel,
   getTableGridRowLabel,
+  getTableGridRowHeaderWidth,
   getTableGridRowHeight,
   getTableGridSpacerHeights,
   getTableGridZoomScale,
   range,
   resolveTableGridCellRange,
+  resolveTableGridColumnResizeDragGuideLeft,
+  resolveTableGridColumnResizeGuideLeft,
+  resolveTableGridColumnResizeTarget,
   resolveTableGridColumnViewportRange,
   resolveTableGridKeyboardTarget,
   resolveTableGridViewportRange,
@@ -74,7 +78,9 @@ type AppliedCellState = {
 
 type ColumnResizeState = {
   readonly colIndex: number;
+  readonly guideLeft: number;
   readonly startClientX: number;
+  readonly startGuideLeft: number;
   readonly startWidth: number;
 };
 
@@ -88,6 +94,7 @@ export class TableView {
   private readonly headerContent = document.createElement("div");
   private readonly headerLeadingSpacer = document.createElement("div");
   private readonly headerTrailingSpacer = document.createElement("div");
+  private readonly columnResizeGuide = document.createElement("div");
   private readonly content = document.createElement("div");
   private readonly table = document.createElement("table");
   private readonly columnGroup = document.createElement("colgroup");
@@ -154,6 +161,9 @@ export class TableView {
     this.headerContent.className = "table_view_grid_header_content";
     this.headerLeadingSpacer.className = "table_view_grid_header_spacer";
     this.headerTrailingSpacer.className = "table_view_grid_header_spacer";
+    this.columnResizeGuide.className = "table_view_column_resize_guide";
+    this.columnResizeGuide.setAttribute("aria-hidden", "true");
+    this.columnResizeGuide.hidden = true;
     this.content.className = "table_view_content";
     this.table.className = "table_view_grid";
     this.rowHeaderColumn.className = "table_view_row_header_col";
@@ -175,20 +185,15 @@ export class TableView {
     this.bottomSpacerRow.append(this.bottomSpacerCell);
     this.table.append(this.columnGroup, this.bodyRows);
     this.content.append(this.table);
-    this.body.append(this.header, this.scrollArea.element);
+    this.body.append(this.header, this.scrollArea.element, this.columnResizeGuide);
     this.element.append(this.body);
     this.store.add(addDisposableListener(this.headerContent, EventType.CLICK, event => {
       this.onHeaderClick(event as MouseEvent);
     }));
     this.store.add(addDisposableListener(this.headerContent, EventType.POINTER_DOWN, event => {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) {
-        return;
-      }
-
-      const handle = target.closest<HTMLElement>(".table_view_column_resize_handle");
+      const handle = this.getColumnResizeHandle(event.target);
       if (handle && this.headerContent.contains(handle)) {
-        this.onColumnResizeStart(event as PointerEvent, handle);
+        this.onColumnResizeStart(event as PointerEvent);
       }
     }));
     this.store.add(addDisposableListener(this.bodyRows, EventType.CLICK, event => {
@@ -327,6 +332,7 @@ export class TableView {
       this.appliedCellState = null;
       this.rangeAnchorCell = null;
       this.rangeFocusCell = null;
+      this.syncColumnResizeGuide();
       this.clearRowsText();
       this.scrollArea.viewport.scrollTop = 0;
     }
@@ -353,6 +359,7 @@ export class TableView {
           ? tableState.loadState.message || localize("table.preview.loadingHint", "Parsing CSV preview, please wait.")
           : localize("table.preview.emptyHint", "Select a file to preview"),
       }));
+      this.syncColumnResizeGuide();
       this.layoutNow();
       return;
     }
@@ -364,6 +371,7 @@ export class TableView {
         title: localize("table.preview.loadingTitle", "Loading preview..."),
         description: tableState.loadState.message || localize("table.preview.loadingHint", "Parsing CSV preview, please wait."),
       }));
+      this.syncColumnResizeGuide();
       this.layoutNow();
       return;
     }
@@ -398,6 +406,7 @@ export class TableView {
       this.scrollArea.viewport.replaceChildren(createEmptyView({
         description: localize("table.preview.emptyHint", "Select a file to preview"),
       }));
+      this.syncColumnResizeGuide();
       return true;
     }
 
@@ -405,6 +414,7 @@ export class TableView {
     const headerChanged = this.ensureHeaderGrid();
     const gridChanged = this.renderBody(tableModel, rowRange, columnRange);
     const columnLayoutChanged = this.syncColumnLayout(columnRange);
+    this.syncColumnResizeGuide();
 
     if (tableFile?.fileId) {
       this.ensureRows(tableModel, tableFile.sourceKey ?? tableFile.fileId, rowRange);
@@ -424,7 +434,7 @@ export class TableView {
   }
 
   private resolveVisibleColumnRange(totalCount: unknown): TableGridColumnRange {
-    const rowHeaderWidth = 48 * getTableGridZoomScale(this.props.zoomPercent);
+    const rowHeaderWidth = getTableGridRowHeaderWidth(this.props.zoomPercent);
     return resolveTableGridColumnViewportRange({
       totalCount,
       maxRenderedCount: TABLE_GRID_MAX_RENDERED_COLUMNS,
@@ -1077,14 +1087,29 @@ export class TableView {
     this.focus();
   }
 
-  private onColumnResizeStart(event: PointerEvent, handle: HTMLElement): void {
-    const colIndex = Number(handle.dataset.colIndex);
-    if (
-      !Number.isInteger(colIndex) ||
-      colIndex < 0 ||
-      colIndex < this.bodyStartColumnIndex ||
-      colIndex >= this.bodyStartColumnIndex + this.bodyColumnCount
-    ) {
+  private onColumnResizeStart(event: PointerEvent): void {
+    const colIndex = resolveTableGridColumnResizeTarget({
+      button: event.button,
+      clientX: event.clientX,
+      columnRange: this.getBodyColumnRange(),
+      containerLeft: this.body.getBoundingClientRect().left,
+      getColumnWidth: index => this.getColumnWidth(index),
+      scrollLeft: this.scrollArea.viewport.scrollLeft,
+      zoomPercent: this.props.zoomPercent,
+    });
+    if (colIndex === null) {
+      return;
+    }
+
+    const startGuideLeft = this.getColumnResizeBoundaryLeft(colIndex) ?? resolveTableGridColumnResizeGuideLeft({
+      colIndex,
+      columnRange: this.getBodyColumnRange(),
+      getColumnWidth: index => this.getColumnWidth(index),
+      scrollLeft: this.scrollArea.viewport.scrollLeft,
+      visible: !this.header.hidden,
+      zoomPercent: this.props.zoomPercent,
+    });
+    if (startGuideLeft === null) {
       return;
     }
 
@@ -1093,10 +1118,13 @@ export class TableView {
     this.endColumnResize();
     this.columnResizeState = {
       colIndex,
+      guideLeft: startGuideLeft,
       startClientX: event.clientX,
+      startGuideLeft,
       startWidth: this.getColumnWidth(colIndex),
     };
     this.element.classList.add("table_view--resizing_column");
+    this.syncColumnResizeGuide();
 
     const targetWindow = this.element.ownerDocument.defaultView;
     if (!targetWindow) {
@@ -1123,10 +1151,24 @@ export class TableView {
       event.clientX - state.startClientX,
       this.props.zoomPercent,
     );
+    const guideLeft = resolveTableGridColumnResizeDragGuideLeft({
+      startGuideLeft: state.startGuideLeft,
+      startWidth: state.startWidth,
+      visible: !this.header.hidden,
+      width,
+      zoomPercent: this.props.zoomPercent,
+    });
+    if (guideLeft !== null) {
+      this.columnResizeState = {
+        ...state,
+        guideLeft,
+      };
+    }
     if (this.props.tableService.setColumnWidth({ colIndex: state.colIndex, width })) {
       this.syncColumnLayout(this.getBodyColumnRange());
       this.layoutNow();
     }
+    this.syncColumnResizeGuide();
   }
 
   private endColumnResize(): void {
@@ -1135,7 +1177,28 @@ export class TableView {
       this.element.classList.remove("table_view--resizing_column");
     }
 
+    this.syncColumnResizeGuide();
     this.columnResizeStore.clear();
+  }
+
+  private getColumnResizeHandle(target: EventTarget | null): HTMLElement | null {
+    return target instanceof HTMLElement
+      ? target.closest<HTMLElement>(".table_view_column_resize_handle")
+      : null;
+  }
+
+  private getColumnResizeBoundaryLeft(colIndex: number): number | null {
+    const columnOffset = colIndex - this.bodyStartColumnIndex;
+    if (columnOffset < 0 || columnOffset >= this.bodyColumnCount) {
+      return null;
+    }
+
+    const headerCell = this.headerCells[columnOffset];
+    if (!headerCell || headerCell.hidden) {
+      return null;
+    }
+
+    return headerCell.getBoundingClientRect().right - this.body.getBoundingClientRect().left;
   }
 
   private getColumnWidth(colIndex: number): number {
@@ -1144,6 +1207,20 @@ export class TableView {
 
   private getColumnCssWidth(colIndex: number): string {
     return `${this.getColumnWidth(colIndex) * getTableGridZoomScale(this.props.zoomPercent)}px`;
+  }
+
+  private syncColumnResizeGuide(): void {
+    const left = this.columnResizeState
+      ? this.columnResizeState.guideLeft
+      : null;
+    if (left === null) {
+      this.columnResizeGuide.hidden = true;
+      this.columnResizeGuide.style.left = "";
+      return;
+    }
+
+    this.columnResizeGuide.hidden = false;
+    this.columnResizeGuide.style.left = `${left}px`;
   }
 
   private onKeyDown(event: KeyboardEvent): void {
@@ -1301,7 +1378,7 @@ export class TableView {
   private revealCellHorizontally(colIndex: number): boolean {
     const viewport = this.scrollArea.viewport;
     const scale = getTableGridZoomScale(this.props.zoomPercent);
-    const rowHeaderWidth = 48 * scale;
+    const rowHeaderWidth = getTableGridRowHeaderWidth(this.props.zoomPercent);
     const left = this.getColumnOffset(colIndex, scale);
     const right = left + (this.getColumnWidth(colIndex) * scale);
     const viewportLeft = viewport.scrollLeft + rowHeaderWidth;
@@ -1320,7 +1397,7 @@ export class TableView {
   }
 
   private getColumnOffset(colIndex: number, scale: number): number {
-    let offset = 48 * scale;
+    let offset = getTableGridRowHeaderWidth(this.props.zoomPercent);
     for (let index = 0; index < colIndex; index += 1) {
       offset += this.getColumnWidth(index) * scale;
     }
@@ -1375,6 +1452,7 @@ export class TableView {
     this.headerContent.style.transform = scrollLeft === 0
       ? ""
       : `translateX(${-scrollLeft}px)`;
+    this.syncColumnResizeGuide();
   }
 
   private onTableScroll(): void {

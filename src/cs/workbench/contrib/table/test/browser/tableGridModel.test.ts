@@ -4,10 +4,14 @@ import {
   clampTableGridColumnWidth,
   getTableGridColumnLabel,
   getTableGridRowLabel,
+  getTableGridRowHeaderWidth,
   getTableGridRowHeight,
   getTableGridSpacerHeights,
   getTableGridZoomScale,
   resolveTableGridCellRange,
+  resolveTableGridColumnResizeDragGuideLeft,
+  resolveTableGridColumnResizeGuideLeft,
+  resolveTableGridColumnResizeTarget,
   resolveTableGridColumnViewportRange,
   resolveTableGridRange,
   resolveTableGridKeyboardTarget,
@@ -229,7 +233,8 @@ suite("workbench/contrib/table/browser/tableGridModel", () => {
   });
 
   test("clamps and scales column widths", () => {
-    assert.equal(clampTableGridColumnWidth(20), 72);
+    assert.equal(clampTableGridColumnWidth(-20), 0);
+    assert.equal(clampTableGridColumnWidth(20), 20);
     assert.equal(clampTableGridColumnWidth(200), 200);
     assert.equal(clampTableGridColumnWidth(900), 640);
     assert.equal(getTableGridZoomScale(0), 1);
@@ -240,7 +245,130 @@ suite("workbench/contrib/table/browser/tableGridModel", () => {
 
   test("resizes logical column widths independent of zoom", () => {
     assert.equal(resizeTableGridColumnWidth(240, 60, 150), 280);
-    assert.equal(resizeTableGridColumnWidth(240, -1_000, 100), 72);
+    assert.equal(resizeTableGridColumnWidth(240, -1_000, 100), 0);
     assert.equal(resizeTableGridColumnWidth(240, 1_000, 50), 640);
+  });
+
+  test("resolves column resize targets from pointer input", () => {
+    const columnRange = {
+      startIndex: 3,
+      renderedCount: 4,
+      leadingWidth: 240,
+    };
+    const getColumnWidth = () => 80;
+
+    assert.equal(resolveTableGridColumnResizeTarget({
+      button: 0,
+      clientX: 548,
+      columnRange,
+      containerLeft: 100,
+      getColumnWidth,
+      scrollLeft: 0,
+      zoomPercent: 100,
+    }), 4);
+    assert.equal(resolveTableGridColumnResizeTarget({
+      button: 1,
+      clientX: 548,
+      columnRange,
+      containerLeft: 100,
+      getColumnWidth,
+      scrollLeft: 0,
+      zoomPercent: 100,
+    }), null);
+    assert.equal(resolveTableGridColumnResizeTarget({
+      button: 0,
+      clientX: 700,
+      columnRange,
+      containerLeft: 100,
+      getColumnWidth,
+      hitSlop: 4,
+      scrollLeft: 0,
+      zoomPercent: 100,
+    }), null);
+  });
+
+  test("prefers the later column when zero-width resize boundaries overlap", () => {
+    const widths = [160, 0, 120];
+
+    assert.equal(resolveTableGridColumnResizeTarget({
+      button: 0,
+      clientX: 308,
+      columnRange: {
+        startIndex: 0,
+        renderedCount: 3,
+        leadingWidth: 0,
+      },
+      containerLeft: 100,
+      getColumnWidth: colIndex => widths[colIndex] ?? 80,
+      scrollLeft: 0,
+      zoomPercent: 100,
+    }), 1);
+  });
+
+  test("resolves active column resize guide positions", () => {
+    const columnRange = {
+      startIndex: 2,
+      renderedCount: 3,
+      leadingWidth: 220,
+    };
+
+    assert.equal(resolveTableGridColumnResizeGuideLeft({
+      colIndex: 3,
+      columnRange,
+      getColumnWidth: colIndex => colIndex === 2 ? 100 : 80,
+      scrollLeft: 30,
+      zoomPercent: 100,
+    }), 418);
+    assert.equal(resolveTableGridColumnResizeGuideLeft({
+      colIndex: 3,
+      columnRange,
+      getColumnWidth: () => 100,
+      scrollLeft: 0,
+      visible: false,
+      zoomPercent: 100,
+    }), null);
+    assert.equal(resolveTableGridColumnResizeGuideLeft({
+      colIndex: 5,
+      columnRange,
+      getColumnWidth: () => 100,
+      scrollLeft: 0,
+      zoomPercent: 100,
+    }), null);
+    assert.equal(resolveTableGridColumnResizeGuideLeft({
+      colIndex: null,
+      columnRange,
+      getColumnWidth: () => 100,
+      scrollLeft: 0,
+      zoomPercent: 100,
+    }), null);
+    assert.equal(getTableGridRowHeaderWidth(150), 72);
+  });
+
+  test("resolves column resize drag guide positions from the locked boundary", () => {
+    assert.equal(resolveTableGridColumnResizeDragGuideLeft({
+      startGuideLeft: 300,
+      startWidth: 160,
+      width: 220,
+      zoomPercent: 100,
+    }), 360);
+    assert.equal(resolveTableGridColumnResizeDragGuideLeft({
+      startGuideLeft: 300,
+      startWidth: 160,
+      width: 220,
+      zoomPercent: 150,
+    }), 390);
+    assert.equal(resolveTableGridColumnResizeDragGuideLeft({
+      startGuideLeft: 300,
+      startWidth: 160,
+      width: -20,
+      zoomPercent: 100,
+    }), 140);
+    assert.equal(resolveTableGridColumnResizeDragGuideLeft({
+      startGuideLeft: 300,
+      startWidth: 160,
+      width: 220,
+      visible: false,
+      zoomPercent: 100,
+    }), null);
   });
 });

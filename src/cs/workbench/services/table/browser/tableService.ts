@@ -471,6 +471,7 @@ const PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS = Math.max(
 );
 const TABLE_COLUMN_LAYOUT_STORAGE_KEY_PREFIX = "table.columnLayout.";
 const TABLE_COLUMN_LAYOUT_STORAGE_VERSION = 1;
+const TABLE_COLUMN_LAYOUT_STORAGE_DEBOUNCE_MS = 120;
 
 type StoredTableColumnLayout = {
   readonly version?: number;
@@ -2312,6 +2313,8 @@ export class TableService extends Disposable implements ITableService {
   private viewInput: TableViewInput | null = null;
   private selectionTableModel: TableModel | null = null;
   private tableModelSelectionListener: (() => void) | null = null;
+  private pendingColumnWidthStorageModel: TableModel | null = null;
+  private pendingColumnWidthStorageTimeout: ReturnType<typeof setTimeout> | null = null;
 
   public constructor(
     @ITableBackendService private readonly tableBackendService: ITableBackendService,
@@ -2321,6 +2324,7 @@ export class TableService extends Disposable implements ITableService {
   }
 
   public update(options: TableInput): TableModel {
+    this.flushPendingColumnWidthStorage();
     const tableModel = runWithTableStateScope(this.scope, () => createTableModel({
       ...toBrowserTableOptions(options),
       columnWidths: this.restoreColumnWidths(options.source),
@@ -2331,6 +2335,7 @@ export class TableService extends Disposable implements ITableService {
   }
 
   public override dispose(): void {
+    this.flushPendingColumnWidthStorage();
     this.tableModelSelectionListener?.();
     this.tableModelSelectionListener = null;
     this.selectionTableModel = null;
@@ -2461,7 +2466,7 @@ export class TableService extends Disposable implements ITableService {
       return false;
     }
 
-    this.storeColumnWidths(tableModel);
+    this.scheduleStoreColumnWidths(tableModel);
     return true;
   }
 
@@ -2506,6 +2511,35 @@ export class TableService extends Disposable implements ITableService {
       StorageScope.WORKSPACE,
       StorageTarget.USER,
     );
+  }
+
+  private scheduleStoreColumnWidths(tableModel: TableModel): void {
+    if (!this.storageService || !this.getColumnLayoutStorageKey(tableModel.getState().source)) {
+      return;
+    }
+
+    this.pendingColumnWidthStorageModel = tableModel;
+    if (this.pendingColumnWidthStorageTimeout !== null) {
+      clearTimeout(this.pendingColumnWidthStorageTimeout);
+    }
+
+    this.pendingColumnWidthStorageTimeout = setTimeout(() => {
+      this.pendingColumnWidthStorageTimeout = null;
+      this.flushPendingColumnWidthStorage();
+    }, TABLE_COLUMN_LAYOUT_STORAGE_DEBOUNCE_MS);
+  }
+
+  private flushPendingColumnWidthStorage(): void {
+    if (this.pendingColumnWidthStorageTimeout !== null) {
+      clearTimeout(this.pendingColumnWidthStorageTimeout);
+      this.pendingColumnWidthStorageTimeout = null;
+    }
+
+    const tableModel = this.pendingColumnWidthStorageModel;
+    this.pendingColumnWidthStorageModel = null;
+    if (tableModel) {
+      this.storeColumnWidths(tableModel);
+    }
   }
 
   private getColumnLayoutStorageKey(source: TableSource | null | undefined): string | null {

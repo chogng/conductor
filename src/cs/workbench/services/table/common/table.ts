@@ -30,7 +30,7 @@ export const TABLE_MIN_ZOOM_PERCENT = 50;
 export const TABLE_MAX_ZOOM_PERCENT = 200;
 export const TABLE_ZOOM_STEP_PERCENT = 10;
 export const TABLE_DEFAULT_COLUMN_WIDTH = 160;
-export const TABLE_MIN_COLUMN_WIDTH = 72;
+export const TABLE_MIN_COLUMN_WIDTH = 0;
 export const TABLE_MAX_COLUMN_WIDTH = 640;
 export const TABLE_COPY_MAX_CELLS = 100_000;
 
