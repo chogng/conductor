@@ -152,8 +152,8 @@ function createDesktopImportBridge(ipcRenderer: IpcRenderer) {
       return ipcRenderer.invoke(workbenchIpcChannels.excelConvertRust, payload);
     },
 
-    async prepareImportFileWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.importPrepareRust, payload);
+    async prepareFileConversion(payload: unknown) {
+      return ipcRenderer.invoke(workbenchIpcChannels.fileConversionPrepare, payload);
     },
 
     async readConvertedCsvFileWithRust(payload: unknown) {

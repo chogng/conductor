@@ -125,7 +125,7 @@ function invoke<T>(channel: string, payload?: unknown): Promise<T> {
   return getIpcRenderer().invoke(channel, payload) as Promise<T>;
 }
 
-export class ElectronTableBackendService extends Disposable implements ITableBackendServiceType {
+export class TableRowsReader extends Disposable implements ITableBackendServiceType {
   public declare readonly _serviceBrand: undefined;
 
   public constructor(
@@ -203,4 +203,4 @@ export class ElectronTableBackendService extends Disposable implements ITableBac
   }
 }
 
-registerSingleton(ITableBackendService, ElectronTableBackendService, InstantiationType.Delayed);
+registerSingleton(ITableBackendService, TableRowsReader, InstantiationType.Delayed);

@@ -17,7 +17,7 @@ export const workbenchIpcChannels = {
   originHealthCheck: "conductor:origin:health-check",
   originRunCsv: "conductor:origin:run-csv",
   originRuntimeCleanupRun: "conductor:origin:runtime-cleanup:run",
-  importPrepareRust: "conductor:import:prepare-rust",
+  fileConversionPrepare: "conductor:files:conversion:prepare",
   excelConvertRust: "conductor:excel:convert-rust",
   excelReadConvertedCsv: "conductor:excel:read-converted-csv",
   analysisDemoFilesGet: "conductor:demo:files:get",

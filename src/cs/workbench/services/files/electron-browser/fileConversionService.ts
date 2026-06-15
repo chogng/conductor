@@ -19,7 +19,7 @@ type DesktopIpcRenderer = {
 };
 
 type FileConverterBridge = {
-  prepareImportFileWithRust?: (payload: { fileName: string; path: string }) => Promise<FileConverterPreparedFile>;
+  prepareFileConversion?: (payload: { fileName: string; path: string }) => Promise<FileConverterPreparedFile>;
   readConvertedCsvFileWithRust?: (payload: { path: string }) => Promise<FileConverterConvertedCsv>;
 };
 
@@ -77,7 +77,7 @@ function invoke<T>(channel: string, payload?: unknown): Promise<T> {
   return getIpcRenderer().invoke(channel, payload) as Promise<T>;
 }
 
-export class ElectronFileConverterBackendService extends Disposable implements IFileConverterBackendService {
+export class FileConversionService extends Disposable implements IFileConverterBackendService {
   public declare readonly _serviceBrand: undefined;
 
   constructor(
@@ -87,7 +87,7 @@ export class ElectronFileConverterBackendService extends Disposable implements I
   }
 
   public canPrepareFile(): boolean {
-    return hasBridgeMethod("prepareImportFileWithRust") || hasIpcRenderer();
+    return hasBridgeMethod("prepareFileConversion") || hasIpcRenderer();
   }
 
   public canReadConvertedCsv(): boolean {
@@ -96,11 +96,11 @@ export class ElectronFileConverterBackendService extends Disposable implements I
 
   public prepareFile(payload: { fileName: string; path: string }): Promise<FileConverterPreparedFile> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("prepareImportFileWithRust")) {
-      return getBridgeMethod(bridge, "prepareImportFileWithRust")(payload);
+    if (bridge && hasBridgeMethod("prepareFileConversion")) {
+      return getBridgeMethod(bridge, "prepareFileConversion")(payload);
     }
 
-    return invoke<FileConverterPreparedFile>(workbenchIpcChannels.importPrepareRust, payload);
+    return invoke<FileConverterPreparedFile>(workbenchIpcChannels.fileConversionPrepare, payload);
   }
 
   public readConvertedCsv(payload: { path: string }): Promise<FileConverterConvertedCsv> {
@@ -140,4 +140,4 @@ export class ElectronFileConverterBackendService extends Disposable implements I
   }
 }
 
-registerSingleton(IFileConverterBackendService, ElectronFileConverterBackendService, InstantiationType.Delayed);
+registerSingleton(IFileConverterBackendService, FileConversionService, InstantiationType.Delayed);

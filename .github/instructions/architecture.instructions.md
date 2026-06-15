@@ -836,7 +836,7 @@ src/cs/workbench/services/files/
   browser/fileConverterBackendService.ts
   browser/fileConverter.worker.ts
   browser/rawTableRowsReader.ts
-  electron-browser/fileConverterBackendService.ts
+  electron-browser/fileConversionService.ts
 
 src/cs/workbench/services/assessment/
   common/assessment.ts

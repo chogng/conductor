@@ -78,8 +78,8 @@ try {
       const now = () => performance.now();
       const waitStart = now();
       while (
-        !window.desktopImport?.prepareImportFileWithRust ||
-        !window.desktopImport?.openAnalysisFileWithRust
+        !window.desktopImport?.prepareFileConversion ||
+        !window.desktopImport?.openFileWithRust
       ) {
         if (now() - waitStart > 10000) {
           throw new Error("desktopImport bridge not ready");
@@ -89,7 +89,7 @@ try {
 
       const results = {};
       let started = now();
-      const prepare = await window.desktopImport.prepareImportFileWithRust({
+      const prepare = await window.desktopImport.prepareFileConversion({
         fileName,
         path: filePath,
       });
@@ -98,7 +98,7 @@ try {
       results.prepareRustDurationMs = prepare?.durationMs ?? null;
 
       started = now();
-      const open = await window.desktopImport.openAnalysisFileWithRust({
+      const open = await window.desktopImport.openFileWithRust({
         fileId: "cdp-preview-test",
         fileName,
         path: filePath,

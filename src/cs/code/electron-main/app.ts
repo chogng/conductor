@@ -1011,7 +1011,7 @@ async function handleExcelConvertRust(_event, payload) {
   }
 }
 
-async function handleImportPrepareRust(_event, payload) {
+async function handleFileConversionPrepare(_event, payload) {
   const rawPath = payload && typeof payload === "object" ? payload.path : payload;
   const inputPath = normalizeAbsoluteFilePath(rawPath);
   const fileName =
@@ -1823,7 +1823,7 @@ if (hasSingleInstanceLock) {
   ipcMain.handle(ipcChannels.templatesDelete, handleTemplatesDelete);
   ipcMain.handle(ipcChannels.settingsGet, handleConductorSettingsGet);
   ipcMain.handle(ipcChannels.settingsPatch, handleConductorSettingsPatch);
-  ipcMain.handle(ipcChannels.importPrepareRust, handleImportPrepareRust);
+  ipcMain.handle(ipcChannels.fileConversionPrepare, handleFileConversionPrepare);
   ipcMain.handle(ipcChannels.excelConvertRust, handleExcelConvertRust);
   ipcMain.handle(ipcChannels.excelReadConvertedCsv, handleExcelReadConvertedCsv);
   ipcMain.handle(ipcChannels.analysisDemoFilesGet, handleAnalysisDemoFilesGet);
@@ -1912,7 +1912,7 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.templatesDelete);
   ipcMain.removeHandler(ipcChannels.settingsGet);
   ipcMain.removeHandler(ipcChannels.settingsPatch);
-  ipcMain.removeHandler(ipcChannels.importPrepareRust);
+  ipcMain.removeHandler(ipcChannels.fileConversionPrepare);
   ipcMain.removeHandler(ipcChannels.excelConvertRust);
   ipcMain.removeHandler(ipcChannels.excelReadConvertedCsv);
   ipcMain.removeHandler(ipcChannels.analysisDemoFilesGet);

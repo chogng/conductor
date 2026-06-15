@@ -78,7 +78,7 @@ Prefer domain names that match the browser implementation:
 
 ```txt
 services/files/browser/fileConverterBackendService.ts
-services/files/electron-browser/fileConverterBackendService.ts
+services/files/electron-browser/fileConversionService.ts
 
 services/table/browser/tableRowsReader.ts
 services/table/electron-browser/tableRowsReader.ts
@@ -174,7 +174,7 @@ Only return data at stable stage boundaries. Do not return intermediate arrays j
 
 | Stage | TS owner | Desktop Rust branch may do | Return to TS | Do not return by default |
 | --- | --- | --- | --- | --- |
-| File conversion | `files/electron-browser/fileConverterBackendService.ts` behind `IFileConverterBackendService` | CSV/XLS/XLSX parse, sheet split, normalized CSV artifact creation | `FileConversionResult`-compatible descriptors, `RawTableRecord` metadata, `normalizedCsvPath`, manifest, diagnostics | full CSV text, full workbook data |
+| File conversion | `files/electron-browser/fileConversionService.ts` behind the file conversion service contract | CSV/XLS/XLSX parse, sheet split, normalized CSV artifact creation | `FileConversionResult`-compatible descriptors, `RawTableRecord` metadata, `normalizedCsvPath`, manifest, diagnostics | full CSV text, full workbook data |
 | Assessment | `assessment/electron-browser/assessmentService.ts` | block/group/header/data/column-role/sweep inference | `RawTableAssessmentRecord` | raw rows |
 | Table preview | `table/electron-browser/tableRowsReader.ts` | row chunk reads, cell reads, raw table metadata reads | bounded rows chunk or selected cell values | whole table |
 | Template apply | `template/electron-browser/templateApplyService.ts` | auto extraction, curve/series extraction, template process | `TemplateRunRecord`, `SeriesRecord` descriptors, curve descriptors/handles, diagnostics | full curve points unless small/fallback |
@@ -392,8 +392,8 @@ TypeScript session is the recovery source. If the Rust worker restarts, services
 Use these domain-specific desktop branches for Rust-backed heavy work:
 
 ```txt
-services/files/electron-browser/fileConverterBackendService.ts
-  file conversion backend and normalized CSV reads
+services/files/electron-browser/fileConversionService.ts
+  file conversion and normalized CSV reads
 
 workbench/contrib/files/browser/fileActions.ts
 workbench/contrib/files/browser/fileImportExport.ts
