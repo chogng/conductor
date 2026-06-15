@@ -5,9 +5,9 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import { localize } from "src/cs/nls";
+import { IFileService } from "src/cs/platform/files/common/files";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
-import { fileService } from "src/cs/platform/files/electron-browser/fileService";
 import {
   IFileConverterBackendService,
   type FileConverterConvertedCsv,
@@ -80,6 +80,12 @@ function invoke<T>(channel: string, payload?: unknown): Promise<T> {
 export class ElectronFileConverterBackendService extends Disposable implements IFileConverterBackendService {
   public declare readonly _serviceBrand: undefined;
 
+  constructor(
+    @IFileService private readonly fileService: IFileService,
+  ) {
+    super();
+  }
+
   public canPrepareFile(): boolean {
     return hasBridgeMethod("prepareImportFileWithRust") || hasIpcRenderer();
   }
@@ -117,13 +123,13 @@ export class ElectronFileConverterBackendService extends Disposable implements I
     }
 
     const resource = URI.file(filePath);
-    if (!await fileService.exists(resource)) {
+    if (!await this.fileService.exists(resource)) {
       return {
         ok: false,
       };
     }
 
-    const content = await fileService.readFile(resource, { encoding: "utf8" });
+    const content = await this.fileService.readFile(resource, { encoding: "utf8" });
     const sizeBytes = new TextEncoder().encode(content.value).byteLength;
 
     return {

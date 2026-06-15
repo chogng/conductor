@@ -124,6 +124,7 @@
   "files.import.openFolderButton": "打开文件夹",
   "files.import.pickFolderTitle": "选择要导入的文件夹",
   "files.import.removeFileButtonLabel": "移除 {fileName}",
+  "files.import.selectedFolder": "所选文件夹",
   "files.import.unknownFile": "未知文件",
   "files.import.unsupportedFilesSkipped": "已跳过所选文件夹中不支持的文件。支持格式：.csv、.xls、.xlsx",
   "files.importFolderButton": "打开文件夹",

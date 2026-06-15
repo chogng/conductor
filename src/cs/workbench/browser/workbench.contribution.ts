@@ -109,6 +109,10 @@ import {
   ISessionService,
   type ISessionService as ISessionServiceType,
 } from "src/cs/workbench/services/session/common/session";
+import {
+  INotificationService,
+  type IToastNotificationService,
+} from "src/cs/workbench/services/notification/common/notificationService";
 
 export const WorkbenchContributionId = "workbench.browser.workbench";
 
@@ -163,6 +167,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @ITemplateApplyWorkflowService templateApplyWorkflowService: ITemplateApplyWorkflowService,
     @ITemplateService templateService: ITemplateServiceType,
     @ISessionService sessionService: ISessionServiceType,
+    @INotificationService notificationService: IToastNotificationService,
     @IStorageService storageService: IStorageServiceType,
     @INativeHostService nativeHostService: INativeHostServiceType | undefined,
     @IInstantiationService instantiationService: IInstantiationServiceType,
@@ -191,6 +196,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       pathService,
       layoutService,
       nativeHostService,
+      notificationService,
       titleService,
       viewsService,
       sessionService,

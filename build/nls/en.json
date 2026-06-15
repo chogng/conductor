@@ -124,6 +124,7 @@
   "files.import.openFolderButton": "Open Folder",
   "files.import.pickFolderTitle": "Select a folder to import",
   "files.import.removeFileButtonLabel": "Remove {fileName}",
+  "files.import.selectedFolder": "selected folder",
   "files.import.unknownFile": "Unknown file",
   "files.import.unsupportedFilesSkipped": "Skipped unsupported files in the selected folder. Supported: .csv, .xls, .xlsx",
   "files.importFolderButton": "Open Folder",

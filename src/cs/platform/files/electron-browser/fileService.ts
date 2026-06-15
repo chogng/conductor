@@ -1,5 +1,6 @@
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { Emitter, type Event as EventType } from "src/cs/base/common/event";
+import type { IChannel } from "src/cs/base/parts/ipc/common/ipc";
 import { URI } from "src/cs/base/common/uri";
 import {
   IFileService,
@@ -13,7 +14,7 @@ import {
   type FileType,
 } from "src/cs/platform/files/common/files";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import { ElectronIPCMainProcessService } from "src/cs/platform/ipc/electron-browser/mainProcessService";
+import { IMainProcessService } from "src/cs/platform/ipc/common/mainProcessService";
 import { WatcherClient } from "src/cs/platform/files/electron-browser/watcherClient";
 
 export class ElectronBrowserFileService extends Disposable implements IFileService {
@@ -22,13 +23,16 @@ export class ElectronBrowserFileService extends Disposable implements IFileServi
   private readonly onDidFilesChangeEmitter = this._register(new Emitter<readonly IFileChange[]>());
   public readonly onDidFilesChange: EventType<readonly IFileChange[]> = this.onDidFilesChangeEmitter.event;
 
-  private readonly mainProcessService = this._register(new ElectronIPCMainProcessService());
-  private readonly channel = this.mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME);
-  private readonly watcherClient = this._register(new WatcherClient(this.channel));
+  private readonly channel: IChannel;
+  private readonly watcherClient: WatcherClient;
 
-  constructor() {
+  constructor(
+    @IMainProcessService mainProcessService: IMainProcessService,
+  ) {
     super();
 
+    this.channel = mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME);
+    this.watcherClient = this._register(new WatcherClient(this.channel));
     this._register(this.watcherClient.onDidFilesChange(changes => this.onDidFilesChangeEmitter.fire(changes)));
   }
 
@@ -68,7 +72,5 @@ export class ElectronBrowserFileService extends Disposable implements IFileServi
     return this.watcherClient.watch(resource, options);
   }
 }
-
-export const fileService = new ElectronBrowserFileService();
 
 registerSingleton(IFileService, ElectronBrowserFileService, InstantiationType.Delayed);

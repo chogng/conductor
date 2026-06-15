@@ -9,14 +9,17 @@ import type {
   FileSystemHandle,
 } from "../../../../../platform/files/browser/webFileSystemAccess.ts";
 import { FileService } from "../../../../../platform/files/common/fileService.ts";
+import { IMPORT_ERROR_TOAST_ID } from "../../browser/fileConstants.ts";
 import type {
   FileConverterBackend,
   FileConverterPreparedFile,
 } from "../../../../services/files/common/fileConverterBackend.ts";
+import { notificationService } from "../../../../services/notification/common/notificationService.ts";
 import {
   canImportFolderWithFileService,
   collectDroppedFiles,
   collectFolderImportFiles,
+  collectPendingImportFiles,
   FileSourceWorkflow,
   getFolderImportSupportForFileService,
   prepareFirstPendingImportFile,
@@ -34,7 +37,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       getFolderImportSupportForFileService(filesService),
       { reason: null, supported: true },
     );
-    assert.equal(canImportFolderWithFileService(filesService), true);
+    assert.equal(canImportFolderWithFileService(filesService, notificationService), true);
   });
 
   function createFileHandle(name: string, text: string): FileSystemFileHandle {
@@ -186,6 +189,138 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.equal(result.readFailures[0].message, "Permission denied");
   });
 
+  test("collectFolderImportFiles reports the file path when stat returns invalid metadata", async () => {
+    const root = createDirectoryHandle({
+      children: [
+        createFileHandle("ok.csv", "Vg,Id\n0,1"),
+        createFileHandle("broken.csv", "Vg,Id\n1,2"),
+      ],
+      name: "selected-folder",
+    });
+    const provider = new HTMLFileSystemProvider();
+    const filesService = new FileService();
+    filesService.registerProvider("file", provider);
+    const folder = await provider.registerDirectoryHandle(root);
+    const originalStat = filesService.stat.bind(filesService);
+    filesService.stat = async resource =>
+      resource.path.endsWith("/broken.csv")
+        ? undefined as never
+        : originalStat(resource);
+
+    const result = await collectFolderImportFiles(folder, filesService);
+
+    assert.deepEqual(result.files.map(file => file.relativePath), ["selected-folder/ok.csv"]);
+    assert.equal(result.readFailures.length, 1);
+    assert.equal(result.readFailures[0].fileName, "broken.csv");
+    assert.equal(result.readFailures[0].relativePath, "selected-folder/broken.csv");
+    assert.equal(result.readFailures[0].message, "The file metadata could not be read.");
+  });
+
+  test("folder file load tolerates invalid metadata after collection", async () => {
+    const root = createDirectoryHandle({
+      children: [
+        createFileHandle("flaky.csv", "Vg,Id\n0,1"),
+      ],
+      name: "selected-folder",
+    });
+    const provider = new HTMLFileSystemProvider();
+    const filesService = new FileService();
+    filesService.registerProvider("file", provider);
+    const folder = await provider.registerDirectoryHandle(root);
+    const originalStat = filesService.stat.bind(filesService);
+    let statCount = 0;
+    filesService.stat = async resource => {
+      if (resource.path.endsWith("/flaky.csv")) {
+        statCount += 1;
+        if (statCount > 1) {
+          return undefined as never;
+        }
+      }
+
+      return originalStat(resource);
+    };
+
+    const result = await collectFolderImportFiles(folder, filesService);
+    const file = await result.files[0].loadFile();
+
+    assert.equal(result.readFailures.length, 0);
+    assert.equal(file.name, "flaky.csv");
+    assert.equal(await file.text(), "Vg,Id\n0,1");
+  });
+
+  test("folder file load content failures become relative path prepare failures", async () => {
+    const root = createDirectoryHandle({
+      children: [
+        createFileHandle("broken-content.csv", "Vg,Id\n0,1"),
+      ],
+      name: "selected-folder",
+    });
+    const provider = new HTMLFileSystemProvider();
+    const filesService = new FileService();
+    filesService.registerProvider("file", provider);
+    const folder = await provider.registerDirectoryHandle(root);
+    const originalReadFile = filesService.readFile.bind(filesService);
+    filesService.readFile = async (resource, options) =>
+      resource.path.endsWith("/broken-content.csv")
+        ? undefined as never
+        : originalReadFile(resource, options);
+
+    const result = await collectFolderImportFiles(folder, filesService);
+    const failedFiles: FileImportPrepareFailure[] = [];
+    const pendingImportFiles = collectPendingImportFiles([...result.files]).pendingImportFiles;
+    const firstImport = await prepareFirstPendingImportFile({
+      canApplyResult: () => true,
+      failedFiles,
+      fileConverterBackend: createFileConverterBackendStub(),
+      pendingImportFiles,
+      selectedRelativePath: null,
+    });
+
+    assert.equal(firstImport.result, null);
+    assert.equal(failedFiles.length, 1);
+    assert.equal(failedFiles[0].fileName, "selected-folder/broken-content.csv");
+    assert.equal(failedFiles[0].message, "The file content could not be read.");
+  });
+
+  test("folder file load retries transient invalid file content", async () => {
+    const root = createDirectoryHandle({
+      children: [
+        createFileHandle("flaky-content.csv", "Vg,Id\n0,1"),
+      ],
+      name: "selected-folder",
+    });
+    const provider = new HTMLFileSystemProvider();
+    const filesService = new FileService();
+    filesService.registerProvider("file", provider);
+    const folder = await provider.registerDirectoryHandle(root);
+    const originalReadFile = filesService.readFile.bind(filesService);
+    let readCount = 0;
+    filesService.readFile = async (resource, options) => {
+      if (resource.path.endsWith("/flaky-content.csv")) {
+        readCount += 1;
+        if (readCount === 1) {
+          return undefined as never;
+        }
+      }
+
+      return originalReadFile(resource, options);
+    };
+
+    const result = await collectFolderImportFiles(folder, filesService);
+    const failedFiles: FileImportPrepareFailure[] = [];
+    const pendingImportFiles = collectPendingImportFiles([...result.files]).pendingImportFiles;
+    const firstImport = await prepareFirstPendingImportFile({
+      canApplyResult: () => true,
+      failedFiles,
+      fileConverterBackend: createFileConverterBackendStub(),
+      pendingImportFiles,
+      selectedRelativePath: null,
+    });
+
+    assert.equal(firstImport.result?.prepared.fileInfo.fileName, "flaky-content.csv");
+    assert.equal(failedFiles.length, 0);
+  });
+
   test("collectDroppedFiles reads file system handles before FileList fallback", async () => {
     const file = createCsvFile("transfer.csv", "Vg,Id\n0,1");
     const result = await collectDroppedFiles(createDataTransfer({
@@ -252,6 +387,23 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.equal(failedFiles.length, 0);
   });
 
+  test("prepare failures include relative paths in file lists", async () => {
+    const failedFiles: FileImportPrepareFailure[] = [];
+    const result = await prepareFirstPendingImportFile({
+      canApplyResult: () => true,
+      failedFiles,
+      fileConverterBackend: createFileConverterBackendStub(),
+      pendingImportFiles: [
+        createPathPendingFile("A.csv", "folder/A.csv"),
+      ],
+      selectedRelativePath: null,
+    });
+
+    assert.equal(result.result, null);
+    assert.equal(failedFiles.length, 1);
+    assert.equal(failedFiles[0].fileName, "folder/A.csv");
+  });
+
   test("appends remaining prepared files in pending import order", async () => {
     const backend = createControlledPathBackend();
     const failedFiles: FileImportPrepareFailure[] = [];
@@ -296,7 +448,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     const replacedFileNames: string[] = [];
     const workflow = new FileSourceWorkflow({
       commandService: {
-        executeCommand: async () => null,
+        executeCommand: async <R,>() => undefined as R | undefined,
       },
       fileConverterBackendService: createFileConverterBackendStub(),
       filesService: new FileService(),
@@ -308,11 +460,11 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       }],
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
+      notificationService,
       onAppendPreparedFiles: preparedFiles => {
         appendedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
       },
       onDraggingChange: () => undefined,
-      onErrorChange: () => undefined,
       onRemoveFiles: () => undefined,
       onReplacePreparedFiles: preparedFiles => {
         replacedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
@@ -341,11 +493,11 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       getFiles: () => [],
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
+      notificationService,
       onAppendPreparedFiles: preparedFiles => {
         appendedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
       },
       onDraggingChange: () => undefined,
-      onErrorChange: () => undefined,
       onRemoveFiles: () => undefined,
       onReplacePreparedFiles: preparedFiles => {
         appendedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
@@ -370,6 +522,58 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
 
     assert.deepEqual(appendedFileNames, []);
   });
+
+  test("folder import top-level read errors include the failing path", async () => {
+    const error = new Error("Permission denied") as Error & {
+      fileName: string;
+      relativePath: string;
+    };
+    error.fileName = "blocked.csv";
+    error.relativePath = "293K/blocked.csv";
+
+    const messages: string[] = [];
+    const toastDisposable = notificationService.onDidChangeToast(event => {
+      if (event.kind === "show" && event.options.id === IMPORT_ERROR_TOAST_ID) {
+        messages.push(event.options.message);
+      }
+    });
+    const originalConsoleError = console.error;
+    console.error = () => undefined;
+    notificationService.disposeToast(IMPORT_ERROR_TOAST_ID);
+    const workflow = new FileSourceWorkflow({
+      commandService: {
+        executeCommand: async () => {
+          throw error;
+        },
+      },
+      fileConverterBackendService: createFileConverterBackendStub(),
+      filesService: new FileService(),
+      getFiles: () => [],
+      getSelectedRelativePath: () => null,
+      isDisposed: () => false,
+      notificationService,
+      onAppendPreparedFiles: () => undefined,
+      onDraggingChange: () => undefined,
+      onRemoveFiles: () => undefined,
+      onReplacePreparedFiles: () => undefined,
+      syncView: () => undefined,
+    });
+
+    try {
+      await (workflow as unknown as {
+        doOpenFolderDialog(): Promise<void>;
+      }).doOpenFolderDialog();
+    } finally {
+      workflow.dispose();
+      toastDisposable.dispose();
+      notificationService.disposeToast(IMPORT_ERROR_TOAST_ID);
+      console.error = originalConsoleError;
+    }
+
+    const message = messages.at(-1);
+    assert.ok(message?.includes("293K/blocked.csv"), String(message));
+    assert.ok(message?.includes("Permission denied"), String(message));
+  });
 });
 
 const createFileConverterBackendStub = (
@@ -386,7 +590,7 @@ const createFileConverterBackendStub = (
   ...overrides,
 });
 
-type TestDataTransferItem = Partial<DataTransferItem> & {
+type TestDataTransferItem = Omit<Partial<DataTransferItem>, "webkitGetAsEntry"> & {
   readonly getAsFileSystemHandle?: () => Promise<FileSystemHandle | null>;
   readonly webkitGetAsEntry?: () => unknown;
 };
@@ -419,20 +623,25 @@ function createStableFileHandle(file: File): FileSystemFileHandle {
   };
 }
 
-function createWebkitFileEntry(file: File) {
+function createWebkitFileEntry(file: File): FileSystemFileEntry {
   return {
+    filesystem: {} as FileSystem,
+    fullPath: `/${file.name}`,
     isDirectory: false,
     isFile: true,
     name: file.name,
     file: (resolve: (file: File) => void) => resolve(file),
-  };
+    getParent: () => undefined,
+  } as unknown as FileSystemFileEntry;
 }
 
 function createWebkitDirectoryEntry(
   name: string,
   entries: readonly unknown[],
-) {
+): FileSystemDirectoryEntry {
   return {
+    filesystem: {} as FileSystem,
+    fullPath: `/${name}`,
     isDirectory: true,
     isFile: false,
     name,
@@ -450,7 +659,8 @@ function createWebkitDirectoryEntry(
         },
       };
     },
-  };
+    getParent: () => undefined,
+  } as unknown as FileSystemDirectoryEntry;
 }
 
 function createControlledPathBackend(): FileConverterBackend & {
@@ -510,21 +720,6 @@ function createDataFileSource(fileName: string): FileSource {
     kind: "data",
     relativePath: null,
     resource: null,
-  };
-}
-
-function createPathFileSource(
-  fileName: string,
-  relativePath: string,
-): FileSource {
-  return {
-    canUseNativePath: true,
-    fileName,
-    kind: "path",
-    lastModified: 123,
-    relativePath,
-    resource: URIClass.file(`C:/data/${fileName}`),
-    size: 12,
   };
 }
 

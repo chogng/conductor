@@ -60,6 +60,10 @@ import {
   ITemplateService,
   type TemplateRecord,
 } from "src/cs/workbench/services/template/common/template";
+import {
+  INotificationService,
+  type IToastNotificationService,
+} from "src/cs/workbench/services/notification/common/notificationService";
 
 import "src/cs/workbench/contrib/files/browser/views/media/explorerViewlet.css";
 
@@ -73,7 +77,6 @@ export class ExplorerViewPane extends ViewPane {
   private explorerView: ExplorerView | null = null;
   private input: ExplorerPaneInput | null = null;
   private internalFiles: PreparedFileImportEntry[] = [];
-  private error: string | null = null;
   private isDragging = false;
   private prevFileCount = 0;
   private disposed = false;
@@ -91,6 +94,7 @@ export class ExplorerViewPane extends ViewPane {
     @IFileConverterBackendService private readonly fileConverterBackendService: FileConverterBackend,
     @IFileService private readonly filesService: IFileService,
     @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+    @INotificationService private readonly notificationService: IToastNotificationService,
     @ISessionService private readonly sessionService: ISessionService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @ITemplateService private readonly templateService: ITemplateService,
@@ -122,12 +126,10 @@ export class ExplorerViewPane extends ViewPane {
       getFiles: () => this.files,
       getSelectedRelativePath: () => this.getSelectedRelativePath(),
       isDisposed: () => this.disposed,
+      notificationService: this.notificationService,
       onAppendPreparedFiles: preparedFiles => this.appendPreparedImportFiles(preparedFiles),
       onDraggingChange: isDragging => {
         this.isDragging = isDragging;
-      },
-      onErrorChange: error => {
-        this.error = error;
       },
       onRemoveFiles: fileIds => this.removeImportedFilesFromExplorer(fileIds),
       onReplacePreparedFiles: (preparedFiles, selectedFileId) => {
@@ -272,13 +274,11 @@ export class ExplorerViewPane extends ViewPane {
       fileTemplateSelectionsByFileId: input.fileTemplateSelectionsByFileId,
       isTemplateListLoading: this.isTemplateListLoading,
       templateRecords: this.templateRecords,
-      error: this.error,
       files: this.files,
       folderImportSupport: getFolderImportSupportForFileService(this.filesService),
       isDragging: this.isDragging,
       mode: input.mode,
       viewLayout: this.viewLayout,
-      onClearError: this.handleClearError,
       onDraggingChange: this.handleDraggingChange,
       onListScroll: this.handleListScroll,
       onFolderExpansionChange: this.handleFolderExpansionChange,
@@ -317,7 +317,6 @@ export class ExplorerViewPane extends ViewPane {
   }
 
   private openFileDialog(): void {
-    this.error = null;
     this.syncView();
     this.sourceWorkflow.openFolderDialog();
   }
@@ -361,11 +360,6 @@ export class ExplorerViewPane extends ViewPane {
       ],
     });
   }
-
-  private readonly handleClearError = (): void => {
-    this.error = null;
-    this.syncView();
-  };
 
   private readonly handleDraggingChange = (isDragging: boolean): void => {
     if (this.isDragging === isDragging) {

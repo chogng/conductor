@@ -5,6 +5,10 @@ import {
 } from "src/cs/platform/commands/common/commands";
 import { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import { IFileService } from "src/cs/platform/files/common/files";
+import {
+  INotificationService,
+  type IToastNotificationService,
+} from "src/cs/workbench/services/notification/common/notificationService";
 import { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import {
   canImportFolderWithFileService,
@@ -14,7 +18,10 @@ import { ADD_WORKSPACE_FOLDER_COMMAND_ID } from "src/cs/workbench/services/works
 
 export const addWorkspaceFolderHandler: ICommandHandler<[], Promise<URI | null>> = async (accessor) => {
   const filesService = accessor.get(IFileService);
-  if (!canImportFolderWithFileService(filesService)) {
+  if (!canImportFolderWithFileService(
+    filesService,
+    accessor.get(INotificationService) as IToastNotificationService,
+  )) {
     return null;
   }
 

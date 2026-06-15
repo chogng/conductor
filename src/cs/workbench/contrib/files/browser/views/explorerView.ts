@@ -7,19 +7,15 @@ import { DragAndDropObserver } from "src/cs/base/browser/dom";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import { DisposableStore, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { ResourceLabels } from "src/cs/workbench/browser/labels";
-import { IMPORT_ERROR_TOAST_ID } from "src/cs/workbench/contrib/files/browser/fileConstants";
 import {
   ExplorerViewer,
   type ExplorerViewerProps,
 } from "src/cs/workbench/contrib/files/browser/views/explorerViewer";
-import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
 import "src/cs/workbench/contrib/files/browser/views/media/explorerView.css";
 
 export type ExplorerViewProps = Omit<ExplorerViewerProps, "onOpenFileDialog"> & {
-  readonly error?: string | null;
   readonly isDragging: boolean;
-  readonly onClearError: () => void;
   readonly onDraggingChange: (isDragging: boolean) => void;
   readonly onDropFiles: (dataTransfer: DataTransfer | null) => void;
   readonly onOpenFolderDialog: () => void;
@@ -32,7 +28,6 @@ export class ExplorerView implements IDisposable {
   private readonly disposables = new DisposableStore();
   private readonly explorerViewer: ExplorerViewer;
   private props: ExplorerViewProps;
-  private renderedError: string | null = null;
   private disposed = false;
 
   constructor(host: HTMLElement, props: ExplorerViewProps) {
@@ -69,8 +64,6 @@ export class ExplorerView implements IDisposable {
     }
 
     this.disposed = true;
-    this.renderedError = null;
-    notificationService.disposeToast(IMPORT_ERROR_TOAST_ID);
     this.disposables.dispose();
     this.root.remove();
   }
@@ -176,37 +169,13 @@ export class ExplorerView implements IDisposable {
       return;
     }
 
-    const { error, isDragging } = this.props;
+    const { isDragging } = this.props;
 
     this.root.setAttribute("aria-label", localize("files.explorerSection", "Explorer"));
     this.root.classList.toggle("dragging", isDragging);
     this.root.classList.toggle("idle", !isDragging);
 
     this.explorerViewer.setProps(this.createViewerProps());
-
-    if (!error) {
-      if (this.renderedError !== null) {
-        this.renderedError = null;
-        notificationService.hideToast(IMPORT_ERROR_TOAST_ID);
-      }
-      return;
-    }
-
-    if (this.renderedError === error) {
-      return;
-    }
-
-    this.renderedError = error;
-    notificationService.showToast({
-      className: "conductor-toast--import-error",
-      dataUi: "analysis-import-error-toast",
-      duration: Number.POSITIVE_INFINITY,
-      id: IMPORT_ERROR_TOAST_ID,
-      message: error,
-      onClose: this.props.onClearError,
-      position: "fixed",
-      type: "error",
-    });
   }
 }
 

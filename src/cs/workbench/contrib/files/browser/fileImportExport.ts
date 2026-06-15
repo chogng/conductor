@@ -29,6 +29,7 @@ import {
 } from "src/cs/platform/files/common/files";
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
+  IMPORT_ERROR_TOAST_ID,
   FOLDER_IMPORT_STAT_CONCURRENCY,
   MAX_FOLDER_WALK_DEPTH,
 } from "src/cs/workbench/contrib/files/browser/fileConstants";
@@ -55,7 +56,7 @@ import {
   type FileConverterSource,
 } from "src/cs/workbench/services/files/browser/fileConverter";
 import type { FileConverterBackend } from "src/cs/workbench/services/files/common/fileConverterBackend";
-import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import type { IToastNotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import { WorkspaceWatcher } from "src/cs/workbench/services/workspaces/browser/workspaceWatcher";
@@ -83,6 +84,7 @@ export type {
 
 const PENDING_IMPORT_APPEND_BATCH_SIZE = 32;
 const PENDING_IMPORT_PREPARE_CONCURRENCY = 8;
+const FILE_SOURCE_READ_ATTEMPTS = 2;
 
 export type PendingImportFile = {
   canUseNativePath?: boolean;
@@ -175,9 +177,9 @@ export type FileSourceWorkflowOptions = {
   readonly getFiles: () => readonly ExplorerFileEntry[];
   readonly getSelectedRelativePath: () => string | null;
   readonly isDisposed: () => boolean;
+  readonly notificationService: IToastNotificationService;
   readonly onAppendPreparedFiles: (preparedFiles: readonly PreparedFileImport[]) => void;
   readonly onDraggingChange: (isDragging: boolean) => void;
-  readonly onErrorChange: (error: string | null) => void;
   readonly onRemoveFiles: (fileIds: readonly string[]) => void;
   readonly onReplacePreparedFiles: (
     preparedFiles: readonly PreparedFileImport[],
@@ -228,6 +230,7 @@ export const getFolderImportSupportForFileService = (
 
 export const canImportFolderWithFileService = (
   filesService: IFileService,
+  notificationService: IToastNotificationService,
 ): boolean => {
   const support = getFolderImportSupportForFileService(filesService);
   if (support.supported) {
@@ -262,8 +265,9 @@ export class FileSourceWorkflow implements IDisposable {
   }
 
   public dispose(): void {
+    this.options.notificationService.disposeToast(IMPORT_ERROR_TOAST_ID);
     this.folderWatcher.dispose();
-    notificationService.disposeToast(WORKSPACE_EXTERNAL_CHANGES_TOAST_ID);
+    this.options.notificationService.disposeToast(WORKSPACE_EXTERNAL_CHANGES_TOAST_ID);
   }
 
   public closeImportedSources(): void {
@@ -299,7 +303,7 @@ export class FileSourceWorkflow implements IDisposable {
     this.clearImportedFolderWatch();
     this.options.onDraggingChange(false);
     if (selectedFiles.length === 0) {
-      this.options.onErrorChange(this.getNoSupportedDroppedFilesError());
+      this.showImportError(this.getNoSupportedDroppedFilesError());
       this.options.syncView();
       return;
     }
@@ -317,17 +321,18 @@ export class FileSourceWorkflow implements IDisposable {
   }
 
   private async doOpenFolderDialog(): Promise<void> {
-    this.options.onErrorChange(null);
+    this.clearImportError();
     this.options.syncView();
 
+    let selectedFolder: URI | null = null;
     try {
-      const folder = await this.options.commandService.executeCommand<URI | null>(ADD_WORKSPACE_FOLDER_COMMAND_ID);
-      if (!folder || this.options.isDisposed()) {
+      selectedFolder = (await this.options.commandService.executeCommand<URI | null>(ADD_WORKSPACE_FOLDER_COMMAND_ID)) ?? null;
+      if (!selectedFolder || this.options.isDisposed()) {
         return;
       }
 
       this.excludedSourcePaths.clear();
-      await this.importFolderIncrementally(folder);
+      await this.importFolderIncrementally(selectedFolder);
     } catch (error) {
       if (this.options.isDisposed()) {
         return;
@@ -335,10 +340,7 @@ export class FileSourceWorkflow implements IDisposable {
 
       console.error("Failed to read files from the selected folder.", error);
 
-      this.options.onErrorChange(localize(
-        "files.import.failedToReadSelectedFolder",
-        "Failed to read files from the selected folder.",
-      ));
+      this.showImportError(buildSelectedFolderReadErrorMessage(error, selectedFolder));
       this.options.syncView();
     }
   }
@@ -359,7 +361,7 @@ export class FileSourceWorkflow implements IDisposable {
       incomingCount: newFiles.length,
     });
 
-    this.options.onErrorChange(null);
+    this.clearImportError();
     this.options.syncView();
 
     const failedFiles: FileImportPrepareFailure[] = [];
@@ -383,7 +385,7 @@ export class FileSourceWorkflow implements IDisposable {
         this.options.onReplacePreparedFiles([], null);
       }
       if (canApplyResult()) {
-        this.options.onErrorChange(buildImportErrorMessage({
+        this.setImportError(buildImportErrorMessage({
           failedFiles,
           hasAnyUnsupportedFiles,
           readFailures: options.readFailures,
@@ -423,7 +425,7 @@ export class FileSourceWorkflow implements IDisposable {
 
     if (canApplyResult()) {
       this.logImportDiagnostics("files", failedFiles, options.readFailures);
-      this.options.onErrorChange(buildImportErrorMessage({
+      this.setImportError(buildImportErrorMessage({
         failedFiles,
         hasAnyUnsupportedFiles,
         readFailures: options.readFailures,
@@ -538,7 +540,7 @@ export class FileSourceWorkflow implements IDisposable {
 
     this.watchImportedFolder(folder);
     this.logImportDiagnostics("folder", failedFiles, result.readFailures);
-    this.options.onErrorChange(buildImportErrorMessage({
+    this.setImportError(buildImportErrorMessage({
       failedFiles,
       hasAnyUnsupportedFiles: false,
       readFailures: result.readFailures,
@@ -599,7 +601,7 @@ export class FileSourceWorkflow implements IDisposable {
         return;
       }
 
-      this.options.onErrorChange(localize(
+      this.showImportError(localize(
         "files.import.failedToRefreshFolder",
         "Failed to refresh files from the selected folder.",
       ));
@@ -610,11 +612,11 @@ export class FileSourceWorkflow implements IDisposable {
   private clearExternalChanges(): void {
     this.pendingExternalFolder = null;
     this.pendingExternalChanges = null;
-    notificationService.hideToast(WORKSPACE_EXTERNAL_CHANGES_TOAST_ID);
+    this.options.notificationService.hideToast(WORKSPACE_EXTERNAL_CHANGES_TOAST_ID);
   }
 
   private showExternalChanges(changes: WorkspaceExternalChanges): void {
-    notificationService.showToast({
+    this.options.notificationService.showToast({
       actions: this.createExternalChangesActions(),
       duration: Number.POSITIVE_INFINITY,
       id: WORKSPACE_EXTERNAL_CHANGES_TOAST_ID,
@@ -691,7 +693,7 @@ export class FileSourceWorkflow implements IDisposable {
         return;
       }
 
-      this.options.onErrorChange(localize(
+      this.showImportError(localize(
         "workspaces.failedToApplyExternalChanges",
         "Failed to apply external folder changes.",
       ));
@@ -788,7 +790,7 @@ export class FileSourceWorkflow implements IDisposable {
 
     if (canApplyResult()) {
       this.logImportDiagnostics("workspace", failedFiles, options.readFailures);
-      this.options.onErrorChange(buildImportErrorMessage({
+      this.setImportError(buildImportErrorMessage({
         failedFiles,
         hasAnyUnsupportedFiles,
         readFailures: options.readFailures,
@@ -827,6 +829,32 @@ export class FileSourceWorkflow implements IDisposable {
         })),
       },
     );
+  }
+
+  private setImportError(message: string | null): void {
+    if (!message) {
+      this.clearImportError();
+      return;
+    }
+
+    this.showImportError(message);
+  }
+
+  private showImportError(message: string): void {
+    this.options.notificationService.showToast({
+      className: "conductor-toast--import-error",
+      dataUi: "analysis-import-error-toast",
+      duration: Number.POSITIVE_INFINITY,
+      id: IMPORT_ERROR_TOAST_ID,
+      message,
+      onClose: () => this.clearImportError(),
+      position: "fixed",
+      type: "error",
+    });
+  }
+
+  private clearImportError(): void {
+    this.options.notificationService.hideToast(IMPORT_ERROR_TOAST_ID);
   }
 }
 
@@ -933,7 +961,7 @@ export const preparePendingImportFile = async (
   } catch (error) {
     const failure = toPrepareFailure(
       error,
-      pendingImportFile.sourceName || localize("files.import.unknownFile", "Unknown file"),
+      relativePath || pendingImportFile.sourceName || localize("files.import.unknownFile", "Unknown file"),
     );
     finishFilePerf({
       code: failure.code,
@@ -1175,6 +1203,55 @@ export const buildImportErrorMessage = ({
 
   return errors.length > 0 ? errors.join("\n\n") : null;
 };
+
+const buildSelectedFolderReadErrorMessage = (
+  error: unknown,
+  folder: URI | null,
+): string => buildImportErrorMessage({
+  failedFiles: [],
+  hasAnyUnsupportedFiles: false,
+  readFailures: [toSelectedFolderReadFailure(error, folder)],
+}) ?? localize(
+  "files.import.failedToReadSelectedFolder",
+  "Failed to read files from the selected folder.",
+);
+
+function toSelectedFolderReadFailure(
+  error: unknown,
+  folder: URI | null,
+): FolderFileReadFailure {
+  const explicitRelativePath = getErrorStringProperty(error, "relativePath");
+  const explicitPath = getErrorStringProperty(error, "path");
+  const relativePath = explicitRelativePath ??
+    explicitPath ??
+    getFolderReadFailurePath(folder);
+  const fileName = getErrorStringProperty(error, "fileName") ??
+    (relativePath ? getPathBaseName(relativePath) : null) ??
+    localize("files.import.selectedFolder", "selected folder");
+
+  return {
+    fileName,
+    message: getErrorMessage(error),
+    relativePath: relativePath || fileName,
+  };
+}
+
+function getErrorStringProperty(error: unknown, property: string): string | null {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+
+  const value = (error as Record<string, unknown>)[property];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function getFolderReadFailurePath(folder: URI | null): string | null {
+  if (!folder) {
+    return null;
+  }
+
+  return getPathBaseName(folder.path) || folder.toString();
+}
 
 export const prepareDroppedFilesForImport = async ({
   dataTransfer,
@@ -1720,8 +1797,9 @@ async function readDirectoryHandleChildren(
       return children;
     }
 
-    if (typeof handle[Symbol.asyncIterator] === "function") {
-      for await (const [, child] of handle[Symbol.asyncIterator]()) {
+    const asyncIterator = handle[Symbol.asyncIterator];
+    if (typeof asyncIterator === "function") {
+      for await (const [, child] of asyncIterator.call(handle)) {
         children.push(child);
       }
       return children;
@@ -2098,9 +2176,19 @@ async function tryStatFileSource(
   | { readonly ok: false; readonly message: string }
 > {
   try {
+    for (let attempt = 0; attempt < FILE_SOURCE_READ_ATTEMPTS; attempt += 1) {
+      const stat = await filesService.stat(resource);
+      if (isFileStat(stat)) {
+        return {
+          ok: true,
+          stat,
+        };
+      }
+    }
+
     return {
-      ok: true,
-      stat: await filesService.stat(resource),
+      message: "The file metadata could not be read.",
+      ok: false,
     };
   } catch (error) {
     return {
@@ -2108,6 +2196,19 @@ async function tryStatFileSource(
       ok: false,
     };
   }
+}
+
+function isFileStat(value: unknown): value is IFileStat {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<IFileStat>;
+  return typeof candidate.type === "number" &&
+    typeof candidate.path === "string" &&
+    typeof candidate.size === "number" &&
+    typeof candidate.mtime === "number" &&
+    typeof candidate.ctime === "number";
 }
 
 function getFileLastModified(stat: IFileStat): number {
@@ -2120,12 +2221,37 @@ async function readFileSource(
   filesService: IFileService,
 ): Promise<File> {
   const stat = await filesService.stat(resource);
-  const content = await filesService.readFile(resource, {
-    encoding: isExcelImportFileName(name) ? "base64" : "utf8",
-  });
+  const content = await readFileContent(resource, name, filesService);
 
   return new File([toFilePart(content)], name, {
-    lastModified: Number.isFinite(stat.mtime) ? stat.mtime : Date.now(),
+    lastModified: isFileStat(stat) && Number.isFinite(stat.mtime) ? stat.mtime : Date.now(),
     type: getFileMimeType(name),
   });
+}
+
+async function readFileContent(
+  resource: URI,
+  name: string,
+  filesService: IFileService,
+): Promise<IFileContent> {
+  for (let attempt = 0; attempt < FILE_SOURCE_READ_ATTEMPTS; attempt += 1) {
+    const content = await filesService.readFile(resource, {
+      encoding: isExcelImportFileName(name) ? "base64" : "utf8",
+    });
+    if (isFileContent(content)) {
+      return content;
+    }
+  }
+
+  throw new Error("The file content could not be read.");
+}
+
+function isFileContent(value: unknown): value is IFileContent {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<IFileContent>;
+  return (candidate.encoding === "base64" || candidate.encoding === "utf8") &&
+    typeof candidate.value === "string";
 }

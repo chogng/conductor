@@ -9,7 +9,7 @@ import {
   AbstractStorageService,
   StorageScope,
 } from "src/cs/platform/storage/common/storage";
-import type { IView, IViewDescriptor, IViewPaneContainer, ViewContainer } from "src/cs/workbench/common/views";
+import type { IView, IViewDescriptor, IViewPaneContainer, ViewContainer, ViewContainerLocation } from "src/cs/workbench/common/views";
 import { Workbench, type WorkbenchOptions } from "src/cs/workbench/browser/workbench";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
@@ -23,6 +23,7 @@ import { SettingsViewId } from "src/cs/workbench/services/settings/common/settin
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
+import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
 type WorkbenchService<K extends keyof WorkbenchOptions> = NonNullable<WorkbenchOptions[K]>;
 
@@ -62,9 +63,9 @@ class TestViewPaneContainer implements IViewPaneContainer {
   public title = "";
   public actions: readonly IAction[] = [];
   public contextActions: readonly IAction[] = [];
-  public readonly onDidAddViews = Event.None;
-  public readonly onDidRemoveViews = Event.None;
-  public readonly onDidChangeViewVisibility = Event.None;
+  public readonly onDidAddViews = Event.None as Event<readonly IView[]>;
+  public readonly onDidRemoveViews = Event.None as Event<readonly IView[]>;
+  public readonly onDidChangeViewVisibility = Event.None as Event<IView>;
 
   public setVisible(): void {}
   public isVisible(): boolean { return true; }
@@ -97,9 +98,16 @@ class TestViewPaneContainer implements IViewPaneContainer {
 class RecordingViewsService implements IViewsService {
   public declare readonly _serviceBrand: undefined;
 
-  public readonly onDidChangeViewContainerVisibility = Event.None;
-  public readonly onDidChangeViewVisibility = Event.None;
-  public readonly onDidChangeFocusedView = Event.None;
+  public readonly onDidChangeViewContainerVisibility = Event.None as Event<{
+    readonly id: string;
+    readonly visible: boolean;
+    readonly location: ViewContainerLocation;
+  }>;
+  public readonly onDidChangeViewVisibility = Event.None as Event<{
+    readonly id: string;
+    readonly visible: boolean;
+  }>;
+  public readonly onDidChangeFocusedView = Event.None as Event<void>;
   public readonly openCalls: string[] = [];
   public readonly closeCalls: string[] = [];
   public readonly setVisibleCalls: Array<{ id: string; visible: boolean }> = [];
@@ -279,10 +287,11 @@ const createWorkbenchOptions = ({
       updateViewInput: () => undefined,
     } as unknown as WorkbenchService<"chartService">,
     commandService: {
+      _serviceBrand: undefined,
       onDidExecuteCommand: Event.None,
       onWillExecuteCommand: Event.None,
       executeCommand: async () => undefined,
-    } as ICommandService,
+    } as unknown as ICommandService,
     contextKeyService,
     dialogsService: {} as WorkbenchService<"dialogsService">,
     explorerService: {
@@ -298,6 +307,7 @@ const createWorkbenchOptions = ({
     } as unknown as WorkbenchService<"exportService">,
     filesService: {} as WorkbenchService<"filesService">,
     layoutService,
+    notificationService,
     parametersService: {
       onDidChangeParametersViewState: Event.None,
       updateViewState: () => undefined,

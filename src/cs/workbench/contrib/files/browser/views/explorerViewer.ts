@@ -234,7 +234,9 @@ const createAssessmentRow = (
 
   const description = document.createElement("dd");
   description.className = "file-list-hover-assessment-value";
-  if (Array.isArray(value)) {
+  if (typeof value === "string") {
+    description.textContent = value;
+  } else {
     const list = document.createElement("div");
     list.className = "file-list-hover-assessment-list";
     for (const item of value) {
@@ -244,8 +246,6 @@ const createAssessmentRow = (
       list.appendChild(entry);
     }
     description.appendChild(list);
-  } else {
-    description.textContent = value;
   }
 
   row.append(term, description);
