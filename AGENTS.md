@@ -2,7 +2,7 @@
 
 when you have any questions, see the [Conductor Instructions](.github/conductor-instructions.md).
 
-when you coding, see the upstream architechture [`C:\Users\lanxi\Desktop\vscode`].
+when you coding, see the upstream architechture [`C:\Users\lanxi\Desktop\vscode` or `/Users/lance/Desktop/vscode`].
 
 when migrates the responsibility, see the [Migration Rules](.github/migration-rules.md).
 
