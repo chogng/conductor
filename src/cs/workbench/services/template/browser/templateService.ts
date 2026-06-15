@@ -23,8 +23,13 @@ import {
   createEmptyTemplateConfig,
   type TemplateConfig,
 } from "src/cs/workbench/services/template/common/templateConfigUtils";
-import type { TemplateSelectionsByFileId } from "src/cs/workbench/services/template/common/templateSelection";
+import {
+  removeTemplateSelectionsForFiles,
+  type TemplateSelectionsByFileId,
+} from "src/cs/workbench/services/template/common/templateSelection";
 import { conductorStoreClient } from "src/cs/workbench/services/conductorStore/electron-browser/conductorStoreClient";
+import { ISessionService } from "src/cs/workbench/services/session/common/session";
+import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 
 export class BrowserTemplateService extends Disposable implements ITemplateService {
   public declare readonly _serviceBrand: undefined;
@@ -38,6 +43,14 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
 
   private state: TemplateState = createDefaultTemplateState();
   private viewInput: TemplateViewInput | null = null;
+
+  public constructor(
+    @ISessionService private readonly sessionService: ISessionService,
+  ) {
+    super();
+
+    this._register(this.sessionService.onDidChangeSession(this.handleSessionChanged));
+  }
 
   downloadTemplateBundle(bundle: unknown): string {
     return downloadTemplateBundle(bundle);
@@ -183,6 +196,23 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
       templateListVersion: this.state.templateListVersion + 1,
     });
   }
+
+  private readonly handleSessionChanged = (event: SessionChangeEvent): void => {
+    if (event.reason === "sessionCleared") {
+      if (Object.keys(this.state.selectionsByFileId).length > 0) {
+        this.updateState({ selectionsByFileId: {} });
+      }
+      return;
+    }
+
+    if (event.reason !== "filesRemoved" || !event.fileIds?.length) {
+      return;
+    }
+
+    this.setSelectionsByFileId(previous =>
+      removeTemplateSelectionsForFiles(previous, event.fileIds ?? []),
+    );
+  };
 }
 
 const isTemplateRecord = (value: unknown): value is TemplateRecord =>
