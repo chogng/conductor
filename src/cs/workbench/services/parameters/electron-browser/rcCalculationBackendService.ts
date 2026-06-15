@@ -7,35 +7,35 @@ import { localize } from "src/cs/nls";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
-  IRcAnalysisBackendService,
-  type IRcAnalysisBackendService as IRcAnalysisBackendServiceType,
-  type RcAnalysisResultPayload,
-  type RcAnalyzePayload,
-} from "src/cs/workbench/services/parameters/common/rcAnalysisBackend";
+  IRcCalculationBackendService,
+  type IRcCalculationBackendService as IRcCalculationBackendServiceType,
+  type RcCalculationResultPayload,
+  type RcCalculatePayload,
+} from "src/cs/workbench/services/parameters/common/rcCalculationBackend";
 
 type DesktopIpcRenderer = {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
 };
 
-type RcAnalysisBridge = {
-  analyzeFileRcWithRust?: (payload: RcAnalyzePayload) => Promise<RcAnalysisResultPayload>;
+type RcCalculationBridge = {
+  calculateFileRcWithRust?: (payload: RcCalculatePayload) => Promise<RcCalculationResultPayload>;
 };
 
 const getServiceUnavailableMessage = (): string =>
-  localize("rcAnalysis.desktopBridgeUnavailable", "Rust Rc bridge is unavailable.");
+  localize("rcCalculation.desktopBridgeUnavailable", "Rust Rc calculation bridge is unavailable.");
 
-const getRcAnalysisErrorMessage = (code: unknown): string => {
+const getRcCalculationErrorMessage = (code: unknown): string => {
   switch (code) {
     case "RUST_ENGINE_RC_FAILED":
-      return localize("rcAnalysis.error.rcFailed", "Rc analysis failed.");
+      return localize("rcCalculation.error.rcFailed", "Rc calculation failed.");
     case "RUST_ENGINE_RC_MISSING_DEVICES":
-      return localize("rcAnalysis.error.rcMissingDevices", "Rc analysis requires at least one device.");
+      return localize("rcCalculation.error.rcMissingDevices", "Rc calculation requires at least one device.");
   }
 
-  return localize("rcAnalysis.error.engineFailed", "Analysis engine failed.");
+  return localize("rcCalculation.error.engineFailed", "Rc calculation engine failed.");
 };
 
-const localizeRcAnalysisResponse = <T>(response: T): T => {
+const localizeRcCalculationResponse = <T>(response: T): T => {
   if (
     response &&
     typeof response === "object" &&
@@ -45,36 +45,36 @@ const localizeRcAnalysisResponse = <T>(response: T): T => {
     const record = response as Record<string, unknown>;
     return {
       ...record,
-      message: getRcAnalysisErrorMessage(record.code),
+      message: getRcCalculationErrorMessage(record.code),
     } as T;
   }
 
   return response;
 };
 
-function getBridge(): RcAnalysisBridge | null {
+function getBridge(): RcCalculationBridge | null {
   const bridge = (
     globalThis.window as Window & {
-      desktopImport?: RcAnalysisBridge;
+      desktopImport?: RcCalculationBridge;
     } | undefined
   )?.desktopImport;
   return bridge && typeof bridge === "object" ? bridge : null;
 }
 
-function hasBridgeMethod<K extends keyof RcAnalysisBridge>(key: K): boolean {
+function hasBridgeMethod<K extends keyof RcCalculationBridge>(key: K): boolean {
   return typeof getBridge()?.[key] === "function";
 }
 
-function getBridgeMethod<K extends keyof RcAnalysisBridge>(
-  bridge: RcAnalysisBridge,
+function getBridgeMethod<K extends keyof RcCalculationBridge>(
+  bridge: RcCalculationBridge,
   key: K,
-): NonNullable<RcAnalysisBridge[K]> {
+): NonNullable<RcCalculationBridge[K]> {
   const method = bridge[key];
   if (typeof method !== "function") {
     throw new Error(`${getServiceUnavailableMessage()} (${String(key)})`);
   }
 
-  return method as NonNullable<RcAnalysisBridge[K]>;
+  return method as NonNullable<RcCalculationBridge[K]>;
 }
 
 function getIpcRenderer(): DesktopIpcRenderer {
@@ -103,23 +103,23 @@ function invoke<T>(channel: string, payload?: unknown): Promise<T> {
   return getIpcRenderer().invoke(channel, payload) as Promise<T>;
 }
 
-export class ElectronRcAnalysisBackendService extends Disposable implements IRcAnalysisBackendServiceType {
+export class ElectronRcCalculationBackendService extends Disposable implements IRcCalculationBackendServiceType {
   public declare readonly _serviceBrand: undefined;
 
-  public analyzeRc(payload: RcAnalyzePayload): Promise<RcAnalysisResultPayload> {
+  public calculateRc(payload: RcCalculatePayload): Promise<RcCalculationResultPayload> {
     const bridge = getBridge();
-    if (bridge && hasBridgeMethod("analyzeFileRcWithRust")) {
-      return getBridgeMethod(bridge, "analyzeFileRcWithRust")(payload)
-        .then(localizeRcAnalysisResponse);
+    if (bridge && hasBridgeMethod("calculateFileRcWithRust")) {
+      return getBridgeMethod(bridge, "calculateFileRcWithRust")(payload)
+        .then(localizeRcCalculationResponse);
     }
 
-    return invoke<RcAnalysisResultPayload>(workbenchIpcChannels.analysisRustEngineAnalyzeRc, payload)
-      .then(localizeRcAnalysisResponse);
+    return invoke<RcCalculationResultPayload>(workbenchIpcChannels.rustHostCalculateRc, payload)
+      .then(localizeRcCalculationResponse);
   }
 
-  public canAnalyzeRc(): boolean {
-    return hasBridgeMethod("analyzeFileRcWithRust") || hasIpcRenderer();
+  public canCalculateRc(): boolean {
+    return hasBridgeMethod("calculateFileRcWithRust") || hasIpcRenderer();
   }
 }
 
-registerSingleton(IRcAnalysisBackendService, ElectronRcAnalysisBackendService, InstantiationType.Delayed);
+registerSingleton(IRcCalculationBackendService, ElectronRcCalculationBackendService, InstantiationType.Delayed);

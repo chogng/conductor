@@ -36,25 +36,25 @@ const getServiceUnavailableMessage = (): string =>
 
 const getTableBackendErrorMessage = (code: unknown): string => {
   switch (code) {
-    case "ANALYSIS_FILE_NOT_FOUND":
+    case "RUST_HOST_FILE_NOT_FOUND":
       return localize("tableBackend.error.fileNotFound", "File was not found.");
-    case "INVALID_ANALYSIS_CELLS":
-      return localize("tableBackend.error.invalidCells", "Invalid analysis cells request.");
-    case "INVALID_ANALYSIS_FILE_ID":
+    case "INVALID_RUST_HOST_CELLS":
+      return localize("tableBackend.error.invalidCells", "Invalid table cells request.");
+    case "INVALID_RUST_HOST_FILE_ID":
       return localize("tableBackend.error.invalidFileId", "Missing file id.");
-    case "INVALID_ANALYSIS_PATH":
+    case "INVALID_RUST_HOST_PATH":
       return localize("tableBackend.error.invalidPath", "Invalid file path.");
     case "RUST_ENGINE_OPEN_FAILED":
       return localize("tableBackend.error.openFailed", "Failed to open file.");
     case "RUST_ENGINE_PREVIEW_ROWS_FAILED":
       return localize("tableBackend.error.previewRowsFailed", "Failed to read preview rows.");
     case "RUST_ENGINE_READ_CELLS_FAILED":
-      return localize("tableBackend.error.readCellsFailed", "Failed to read analysis cells.");
+      return localize("tableBackend.error.readCellsFailed", "Failed to read table cells.");
     case "RUST_ENGINE_DISPOSE_FAILED":
       return localize("tableBackend.error.disposeFailed", "Failed to release file.");
   }
 
-  return localize("tableBackend.error.engineFailed", "Analysis engine failed.");
+  return localize("tableBackend.error.engineFailed", "Rust host failed.");
 };
 
 const localizeTableBackendResponse = <T>(response: T): T => {
@@ -161,7 +161,7 @@ export class TableRowsReader extends Disposable implements ITableBackendServiceT
         .then(localizeTableBackendResponse);
     }
 
-    return invoke(workbenchIpcChannels.analysisRustEngineDispose, payload)
+    return invoke(workbenchIpcChannels.rustHostDispose, payload)
       .then(localizeTableBackendResponse);
   }
 
@@ -172,7 +172,7 @@ export class TableRowsReader extends Disposable implements ITableBackendServiceT
         .then(localizeTableBackendResponse);
     }
 
-    return invoke<TableBackendResultPayload>(workbenchIpcChannels.analysisRustEnginePreviewRows, payload)
+    return invoke<TableBackendResultPayload>(workbenchIpcChannels.rustHostPreviewRows, payload)
       .then(localizeTableBackendResponse);
   }
 
@@ -183,7 +183,7 @@ export class TableRowsReader extends Disposable implements ITableBackendServiceT
         .then(localizeTableBackendResponse);
     }
 
-    return invoke<TableBackendResultPayload>(workbenchIpcChannels.analysisRustEngineOpen, payload)
+    return invoke<TableBackendResultPayload>(workbenchIpcChannels.rustHostOpen, payload)
       .then(localizeTableBackendResponse);
   }
 
@@ -194,7 +194,7 @@ export class TableRowsReader extends Disposable implements ITableBackendServiceT
         .then(localizeTableBackendResponse);
     }
 
-    return invoke<TableBackendResultPayload>(workbenchIpcChannels.analysisRustEngineReadCells, payload)
+    return invoke<TableBackendResultPayload>(workbenchIpcChannels.rustHostReadCells, payload)
       .then(localizeTableBackendResponse);
   }
 

@@ -29,7 +29,7 @@ use infer::infer_auto_segmentation_from_x_values;
 use infer::infer_metadata_group_shape;
 use legend::LegendMode;
 use legend::resolve_legend_labels;
-use rc::RcAnalysisOptions;
+use rc::RcCalculationOptions;
 use rc::RcDeviceRequest;
 use rules::*;
 use serde::Deserialize;
@@ -81,7 +81,7 @@ struct EngineRequest {
     metric_series: Option<Vec<OriginExportMetricSeriesRequest>>,
     output_path: Option<String>,
     rc_devices: Option<Vec<RcDeviceRequest>>,
-    rc_options: Option<RcAnalysisOptions>,
+    rc_options: Option<RcCalculationOptions>,
     sources: Option<Vec<OriginExportSourceRequest>>,
     x_groups: Option<Vec<Vec<f64>>>,
     x_scale_factor: Option<f64>,
@@ -2697,13 +2697,13 @@ fn handle_request(
                 request.source_file.as_ref(),
             ))
         }
-        "analyzeRc" => {
+        "calculateRc" => {
             let devices = request
                 .rc_devices
                 .as_deref()
                 .filter(|devices| !devices.is_empty())
                 .ok_or_else(|| "missing rcDevices".to_string())?;
-            Ok(rc::analyze_rc(devices, request.rc_options.as_ref()))
+            Ok(rc::calculate_rc(devices, request.rc_options.as_ref()))
         }
         "exportOriginCsv" => {
             let file_id = request

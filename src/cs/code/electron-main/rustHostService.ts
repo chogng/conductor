@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { IRustWorkerHost } from "../../platform/rust/common/rustWorker.js";
 import type {
-  AnalyzeRcRequest,
+  CalculateRcRequest,
   DisposeFileRequest,
   ExportOriginCsvRequest,
   IRustHostService,
@@ -29,11 +29,11 @@ type ServiceOptions = ServiceHelpers & {
 };
 
 const ErrorCode = {
-  FileNotFound: "ANALYSIS_FILE_NOT_FOUND",
-  InvalidCell: "INVALID_ANALYSIS_CELL",
-  InvalidCells: "INVALID_ANALYSIS_CELLS",
-  InvalidFileId: "INVALID_ANALYSIS_FILE_ID",
-  InvalidPath: "INVALID_ANALYSIS_PATH",
+  FileNotFound: "RUST_HOST_FILE_NOT_FOUND",
+  InvalidCell: "INVALID_RUST_HOST_CELL",
+  InvalidCells: "INVALID_RUST_HOST_CELLS",
+  InvalidFileId: "INVALID_RUST_HOST_FILE_ID",
+  InvalidPath: "INVALID_RUST_HOST_PATH",
 } as const;
 
 const buildSuccess = (
@@ -73,7 +73,7 @@ export class RustHostService implements IRustHostService {
     try {
       const stat = fs.statSync(request.inputPath);
       if (!stat.isFile()) {
-        return buildFailure(ErrorCode.InvalidPath, "Analysis path is not a file.");
+        return buildFailure(ErrorCode.InvalidPath, "Rust host path is not a file.");
       }
     } catch (error) {
       return buildFailure(
@@ -138,7 +138,7 @@ export class RustHostService implements IRustHostService {
 
   public async readCell(request: ReadCellRequest): Promise<RustHostResponse> {
     if (!request.fileId) {
-      return buildFailure(ErrorCode.InvalidCell, "Invalid analysis cell request.");
+      return buildFailure(ErrorCode.InvalidCell, "Invalid Rust host cell request.");
     }
 
     const startedAt = Date.now();
@@ -156,7 +156,7 @@ export class RustHostService implements IRustHostService {
 
   public async readCells(request: ReadCellsRequest): Promise<RustHostResponse> {
     if (!request.fileId || !request.cells.length) {
-      return buildFailure(ErrorCode.InvalidCells, "Invalid analysis cells request.");
+      return buildFailure(ErrorCode.InvalidCells, "Invalid Rust host cells request.");
     }
 
     const startedAt = Date.now();
@@ -226,15 +226,15 @@ export class RustHostService implements IRustHostService {
     }
   }
 
-  public async analyzeRc(request: AnalyzeRcRequest): Promise<RustHostResponse> {
+  public async calculateRc(request: CalculateRcRequest): Promise<RustHostResponse> {
     if (!request.devices.length) {
-      return buildFailure("RUST_ENGINE_RC_MISSING_DEVICES", "Rc analysis requires at least one device.");
+      return buildFailure("RUST_ENGINE_RC_MISSING_DEVICES", "Rc calculation requires at least one device.");
     }
 
     const startedAt = Date.now();
     try {
       const result = await this.options.rustWorkerHost.sendProcessingCommand(
-        "analyzeRc",
+        "calculateRc",
         {
           rcDevices: request.devices,
           rcOptions: request.options,
@@ -245,7 +245,7 @@ export class RustHostService implements IRustHostService {
     } catch (error) {
       return buildFailure(
         "RUST_ENGINE_RC_FAILED",
-        (error as Error)?.message || "conductor-rs failed to analyze Rc.",
+        (error as Error)?.message || "conductor-rs failed to calculate Rc.",
         startedAt,
       );
     }

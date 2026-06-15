@@ -1,14 +1,14 @@
 import assert from "assert";
 
 import {
-  createRcAnalyzeDevices,
+  createRcCalculateDevices,
   createRcCurveChart,
   getRcStatusText,
-} from "./rcAnalysisModel.ts";
+} from "./rcCalculationModel.ts";
 
-suite("workbench/contrib/parameters/browser/rcAnalysisModel", () => {
-  test("createRcAnalyzeDevices keeps only complete device rows", () => {
-    const devices = createRcAnalyzeDevices([
+suite("workbench/contrib/parameters/browser/rcCalculationModel", () => {
+  test("createRcCalculateDevices keeps only complete device rows", () => {
+    const devices = createRcCalculateDevices([
       {
         fileId: "file-a",
         fileName: "A",

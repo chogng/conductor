@@ -4,7 +4,7 @@
 
 import assert from "assert";
 
-import { runRcAnalysis } from "./parametersController.ts";
+import { runRcCalculation } from "./parametersController.ts";
 
 suite("workbench/contrib/parameters/browser/parametersController", () => {
   const createRow = (overrides: Record<string, unknown> = {}) => ({
@@ -20,12 +20,12 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
     ...overrides,
   });
 
-  test("runRcAnalysis rejects unavailable bridge before building payload", async () => {
-    const result = await runRcAnalysis({
+  test("runRcCalculation rejects unavailable bridge before building payload", async () => {
+    const result = await runRcCalculation({
       curveProbeX: null,
-      rcAnalysisBackendService: {
-        canAnalyzeRc: () => false,
-        analyzeRc: async () => {
+      rcCalculationBackendService: {
+        canCalculateRc: () => false,
+        calculateRc: async () => {
           throw new Error("unexpected");
         },
       },
@@ -38,12 +38,12 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
     });
   });
 
-  test("runRcAnalysis validates rows before bridge call", async () => {
-    const result = await runRcAnalysis({
+  test("runRcCalculation validates rows before bridge call", async () => {
+    const result = await runRcCalculation({
       curveProbeX: null,
-      rcAnalysisBackendService: {
-        canAnalyzeRc: () => true,
-        analyzeRc: async () => {
+      rcCalculationBackendService: {
+        canCalculateRc: () => true,
+        calculateRc: async () => {
           throw new Error("unexpected");
         },
       },
@@ -56,7 +56,7 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
     });
   });
 
-  test("runRcAnalysis passes normalized devices to rc analysis backend", async () => {
+  test("runRcCalculation passes normalized devices to rc calculation backend", async () => {
     let payload: {
       devices: readonly unknown[];
       options: {
@@ -64,11 +64,11 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
         selectedVg: number | null;
       };
     } | undefined;
-    const result = await runRcAnalysis({
+    const result = await runRcCalculation({
       curveProbeX: 1.5,
-      rcAnalysisBackendService: {
-        canAnalyzeRc: () => true,
-        analyzeRc: async (nextPayload) => {
+      rcCalculationBackendService: {
+        canCalculateRc: () => true,
+        calculateRc: async (nextPayload) => {
           payload = nextPayload;
           return {
             ok: true,
@@ -89,13 +89,13 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
     assert.equal(payload.options.minDevices, 2);
   });
 
-  test("runRcAnalysis returns response or thrown error messages", async () => {
+  test("runRcCalculation returns response or thrown error messages", async () => {
     assert.deepEqual(
-      await runRcAnalysis({
+      await runRcCalculation({
         curveProbeX: null,
-        rcAnalysisBackendService: {
-          canAnalyzeRc: () => true,
-          analyzeRc: async () => ({ ok: false, message: "fit failed" }),
+        rcCalculationBackendService: {
+          canCalculateRc: () => true,
+          calculateRc: async () => ({ ok: false, message: "fit failed" }),
         },
         rows: [createRow(), createRow({ seriesId: "series-2" })],
       }),
@@ -106,11 +106,11 @@ suite("workbench/contrib/parameters/browser/parametersController", () => {
     );
 
     assert.deepEqual(
-      await runRcAnalysis({
+      await runRcCalculation({
         curveProbeX: null,
-        rcAnalysisBackendService: {
-          canAnalyzeRc: () => true,
-          analyzeRc: async () => {
+        rcCalculationBackendService: {
+          canCalculateRc: () => true,
+          calculateRc: async () => {
             throw new Error("bridge failed");
           },
         },

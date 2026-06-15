@@ -62,7 +62,7 @@ export type ProcessFileRequest = {
   maxPoints: number;
 };
 
-export type AnalyzeRcRequest = {
+export type CalculateRcRequest = {
   devices: unknown[];
   options: Record<string, unknown>;
 };
@@ -90,7 +90,7 @@ export type DisposeFileRequest = {
 };
 
 export interface IRustHostService {
-  analyzeRc(request: AnalyzeRcRequest): Promise<RustHostResponse>;
+  calculateRc(request: CalculateRcRequest): Promise<RustHostResponse>;
   disposeFile(request: DisposeFileRequest): Promise<RustHostResponse>;
   exportOriginCsv(request: ExportOriginCsvRequest): Promise<RustHostResponse>;
   openFile(request: OpenFileRequest): Promise<RustHostResponse>;

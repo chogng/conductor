@@ -39,7 +39,7 @@ const getTemplateProcessingErrorMessage = (code: unknown): string => {
       );
   }
 
-  return localize("templateProcessing.error.engineFailed", "Analysis engine failed.");
+  return localize("templateProcessing.error.engineFailed", "Rust host failed.");
 };
 
 const localizeTemplateProcessingResponse = <T>(response: T): T => {
@@ -137,7 +137,7 @@ export class ElectronTemplateProcessingBackendService
         .then(localizeTemplateProcessingResponse);
     }
 
-    return invoke<TemplateProcessingResultPayload>(workbenchIpcChannels.analysisRustEngineProcessFile, payload)
+    return invoke<TemplateProcessingResultPayload>(workbenchIpcChannels.rustHostProcessFile, payload)
       .then(localizeTemplateProcessingResponse);
   }
 

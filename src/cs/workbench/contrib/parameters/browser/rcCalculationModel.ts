@@ -6,7 +6,7 @@ import { localize } from "src/cs/nls";
 import { getPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
 import { formatNumber } from "src/cs/workbench/services/calculation/common/numberFormat";
 import { buildNiceTicks, padLinearDomain } from "src/cs/workbench/services/plot/common/plotTicks";
-import type { RcAnalyzeDevice } from "src/cs/workbench/services/parameters/common/rcAnalysisBackend";
+import type { RcCalculateDevice } from "src/cs/workbench/services/parameters/common/rcCalculationBackend";
 
 export type RcCurveChartPoint = {
   rc: number;
@@ -30,7 +30,7 @@ export type RcCurveChart = {
   yTicks: number[];
 };
 
-export type RcAnalyzeRow = {
+export type RcCalculateRow = {
   fileId?: unknown;
   fileName?: unknown;
   label?: unknown;
@@ -58,9 +58,9 @@ const toFiniteNumber = (value: unknown): number | null => {
 const toNumberArray = (value: unknown): number[] =>
   (Array.isArray(value) ? value : []).map((item) => Number(item));
 
-export const createRcAnalyzeDevices = (
-  rows: RcAnalyzeRow[],
-): RcAnalyzeDevice[] =>
+export const createRcCalculateDevices = (
+  rows: RcCalculateRow[],
+): RcCalculateDevice[] =>
   rows
     .map((row) => ({
       fileId: row.fileId,

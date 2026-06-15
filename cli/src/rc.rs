@@ -2,7 +2,7 @@ use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
 
-pub const RC_ANALYSIS_VERSION: u32 = 1;
+pub const RC_CALCULATION_VERSION: u32 = 1;
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -22,7 +22,7 @@ pub struct RcDeviceRequest {
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct RcAnalysisOptions {
+pub struct RcCalculationOptions {
     #[serde(default)]
     pub max_grid_points: Option<usize>,
     #[serde(default)]
@@ -274,7 +274,7 @@ fn selected_summary(curve: &[Value], selected_vg: Option<f64>) -> Value {
     pick.cloned().unwrap_or_else(|| json!(null))
 }
 
-pub fn analyze_rc(devices_raw: &[RcDeviceRequest], options: Option<&RcAnalysisOptions>) -> Value {
+pub fn calculate_rc(devices_raw: &[RcDeviceRequest], options: Option<&RcCalculationOptions>) -> Value {
     let min_devices = options
         .and_then(|opts| opts.min_devices)
         .unwrap_or(3)
@@ -390,7 +390,7 @@ pub fn analyze_rc(devices_raw: &[RcDeviceRequest], options: Option<&RcAnalysisOp
         "gridCount": grid.len(),
         "minDevices": min_devices,
         "summary": selected_summary(&curve, options.and_then(|opts| opts.selected_vg)),
-        "version": RC_ANALYSIS_VERSION,
+        "version": RC_CALCULATION_VERSION,
     })
 }
 
@@ -426,7 +426,7 @@ mod tests {
             make_device(2.0, 10.0, 50.0, 100.0),
             make_device(4.0, 10.0, 50.0, 100.0),
         ];
-        let options = RcAnalysisOptions {
+        let options = RcCalculationOptions {
             max_grid_points: Some(3),
             min_abs_current: Some(0.0),
             min_devices: Some(3),
@@ -434,9 +434,9 @@ mod tests {
             selected_vg: Some(1.0),
         };
 
-        let result = analyze_rc(&devices, Some(&options));
+        let result = calculate_rc(&devices, Some(&options));
 
-        assert_eq!(result["version"], RC_ANALYSIS_VERSION);
+        assert_eq!(result["version"], RC_CALCULATION_VERSION);
         assert!((result["summary"]["rcw"].as_f64().unwrap() - 50.0).abs() < 1e-9);
         assert!((result["summary"]["rSheet"].as_f64().unwrap() - 100.0).abs() < 1e-9);
         assert_eq!(result["summary"]["n"], 3);
@@ -450,7 +450,7 @@ mod tests {
             make_device(4.0, 10.0, 50.0, 100.0),
         ];
         devices[0].y = vec![1e-15, 1e-15, 1e-15];
-        let options = RcAnalysisOptions {
+        let options = RcCalculationOptions {
             max_grid_points: Some(3),
             min_abs_current: Some(1e-12),
             min_devices: Some(3),
@@ -458,7 +458,7 @@ mod tests {
             selected_vg: None,
         };
 
-        let result = analyze_rc(&devices, Some(&options));
+        let result = calculate_rc(&devices, Some(&options));
 
         assert_eq!(result["curve"].as_array().unwrap().len(), 0);
     }

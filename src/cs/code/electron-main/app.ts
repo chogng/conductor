@@ -1119,7 +1119,7 @@ async function handleFileConversionPrepare(_event, payload) {
   }
 }
 
-async function handleAnalysisOriginZipSave(event, payload) {
+async function handleOriginZipSave(event, payload) {
   const raw = payload && typeof payload === "object" ? payload : {};
   const entries = Array.isArray(raw.entries) ? raw.entries : [];
   if (!entries.length) {
@@ -1826,7 +1826,7 @@ if (hasSingleInstanceLock) {
   ipcMain.handle(ipcChannels.fileConversionPrepare, handleFileConversionPrepare);
   ipcMain.handle(ipcChannels.excelConvertRust, handleExcelConvertRust);
   ipcMain.handle(ipcChannels.excelReadConvertedCsv, handleExcelReadConvertedCsv);
-  ipcMain.handle(ipcChannels.analysisDemoFilesGet, handleAnalysisDemoFilesGet);
+  ipcMain.handle(ipcChannels.demoFilesGet, handleAnalysisDemoFilesGet);
   rustHandlers = registerRustHostChannels({
     ipcChannels,
     ipcMain,
@@ -1840,8 +1840,8 @@ if (hasSingleInstanceLock) {
     }),
   });
   ipcMain.handle(
-    ipcChannels.analysisOriginZipSave,
-    handleAnalysisOriginZipSave,
+    ipcChannels.originZipSave,
+    handleOriginZipSave,
   );
   originHandlers = registerOriginMainHandlers({
     conductorStore,
@@ -1915,7 +1915,7 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.fileConversionPrepare);
   ipcMain.removeHandler(ipcChannels.excelConvertRust);
   ipcMain.removeHandler(ipcChannels.excelReadConvertedCsv);
-  ipcMain.removeHandler(ipcChannels.analysisDemoFilesGet);
-  ipcMain.removeHandler(ipcChannels.analysisOriginZipSave);
+  ipcMain.removeHandler(ipcChannels.demoFilesGet);
+  ipcMain.removeHandler(ipcChannels.originZipSave);
 });
 }

@@ -21,10 +21,10 @@ import {
   renderRcCurveHeaderView,
   renderRcCurveRowsView,
   renderRcSummaryView,
-  type RcAnalysisSummary,
+  type RcCalculationSummary,
   type RcCurveRow,
-} from "src/cs/workbench/contrib/parameters/browser/rcAnalysisView";
-import type { RcCurveChartSeries } from "src/cs/workbench/contrib/parameters/browser/rcAnalysisModel";
+} from "src/cs/workbench/contrib/parameters/browser/rcCalculationView";
+import type { RcCurveChartSeries } from "src/cs/workbench/contrib/parameters/browser/rcCalculationModel";
 import {
   IParametersService,
   ParametersViewId,
@@ -123,7 +123,7 @@ export class ParametersViewPane extends ViewPane {
 
   renderRcSummary(options: {
     error: string;
-    summary: RcAnalysisSummary | null;
+    summary: RcCalculationSummary | null;
   }): void {
     this.renderStore.clear();
     renderRcSummaryView(this.content, options);

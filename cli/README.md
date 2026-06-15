@@ -172,12 +172,12 @@ renderer 使用：
 
 - `analysis.rs` 里的 `ANALYSIS_CACHE_VERSION` 当前为 `2`。
 
-### 8. Rc 分析
+### 8. Rc 计算
 
 入口：
 
-- stdio command：`analyzeRc`
-- Electron IPC：`rust:analyze-rc`
+- stdio command：`calculateRc`
+- Electron IPC：`rust:calculate-rc`
 
 职责：
 
@@ -191,7 +191,7 @@ renderer 使用：
 
 版本：
 
-- `rc.rs` 里的 `RC_ANALYSIS_VERSION` 当前为 `1`。
+- `rc.rs` 里的 `RC_CALCULATION_VERSION` 当前为 `1`。
 
 ### 9. Origin CSV 导出加速
 

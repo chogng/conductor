@@ -6,29 +6,29 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
-	IRcAnalysisBackendService,
-	type IRcAnalysisBackendService as IRcAnalysisBackendServiceType,
-	type RcAnalysisResultPayload,
-	type RcAnalyzePayload,
-} from "src/cs/workbench/services/parameters/common/rcAnalysisBackend";
+	IRcCalculationBackendService,
+	type IRcCalculationBackendService as IRcCalculationBackendServiceType,
+	type RcCalculationResultPayload,
+	type RcCalculatePayload,
+} from "src/cs/workbench/services/parameters/common/rcCalculationBackend";
 
 const getServiceUnavailableMessage = (): string =>
-	localize("rcAnalysis.desktopBridgeUnavailable", "Rust Rc bridge is unavailable.");
+	localize("rcCalculation.desktopBridgeUnavailable", "Rust Rc calculation bridge is unavailable.");
 
 function unavailable(): Promise<never> {
 	return Promise.reject(new Error(getServiceUnavailableMessage()));
 }
 
-export class RcAnalysisBackendService extends Disposable implements IRcAnalysisBackendServiceType {
+export class RcCalculationBackendService extends Disposable implements IRcCalculationBackendServiceType {
 	public declare readonly _serviceBrand: undefined;
 
-	public analyzeRc(_payload: RcAnalyzePayload): Promise<RcAnalysisResultPayload> {
+	public calculateRc(_payload: RcCalculatePayload): Promise<RcCalculationResultPayload> {
 		return unavailable();
 	}
 
-	public canAnalyzeRc(): boolean {
+	public canCalculateRc(): boolean {
 		return false;
 	}
 }
 
-registerSingleton(IRcAnalysisBackendService, RcAnalysisBackendService, InstantiationType.Delayed);
+registerSingleton(IRcCalculationBackendService, RcCalculationBackendService, InstantiationType.Delayed);

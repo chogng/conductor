@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { IpcMain, IpcMainInvokeEvent } from "electron";
 import type {
-  AnalyzeRcRequest,
+  CalculateRcRequest,
   DisposeFileRequest,
   ExportOriginCsvRequest,
   IRustHostService,
@@ -18,15 +18,15 @@ import type { workbenchIpcChannels } from "../../workbench/common/ipcChannels.js
 type RegisterRustHandlersOptions = {
   ipcChannels: Pick<
     typeof workbenchIpcChannels,
-    | "analysisRustEngineAnalyzeRc"
-    | "analysisRustEngineDispose"
-    | "analysisRustEngineExportOriginCsv"
-    | "analysisRustEngineOpen"
-    | "analysisRustEnginePreviewMeta"
-    | "analysisRustEnginePreviewRows"
-    | "analysisRustEngineProcessFile"
-    | "analysisRustEngineReadCell"
-    | "analysisRustEngineReadCells"
+    | "rustHostCalculateRc"
+    | "rustHostDispose"
+    | "rustHostExportOriginCsv"
+    | "rustHostOpen"
+    | "rustHostPreviewMeta"
+    | "rustHostPreviewRows"
+    | "rustHostProcessFile"
+    | "rustHostReadCell"
+    | "rustHostReadCells"
   >;
   ipcMain: IpcMain;
   rustService: IRustHostService;
@@ -46,8 +46,8 @@ const readObject = (value: unknown): Record<string, unknown> | null =>
     : null;
 
 const ErrorCode = {
-  InvalidCell: "INVALID_ANALYSIS_CELL",
-  InvalidCells: "INVALID_ANALYSIS_CELLS",
+  InvalidCell: "INVALID_RUST_HOST_CELL",
+  InvalidCells: "INVALID_RUST_HOST_CELLS",
 } as const;
 
 const normalizeAbsoluteFilePath = (rawPath: unknown): string => {
@@ -114,7 +114,7 @@ export const registerRustHostChannels = ({
       return {
         ok: false,
         code: ErrorCode.InvalidCell,
-        message: "Invalid analysis cell request.",
+        message: "Invalid Rust host cell request.",
       };
     }
 
@@ -146,7 +146,7 @@ export const registerRustHostChannels = ({
       return {
         ok: false,
         code: ErrorCode.InvalidCells,
-        message: "Invalid analysis cells request.",
+        message: "Invalid Rust host cells request.",
       };
     }
 
@@ -181,11 +181,11 @@ export const registerRustHostChannels = ({
     payload: unknown,
   ) => {
     const record = readObject(payload);
-    const request: AnalyzeRcRequest = {
+    const request: CalculateRcRequest = {
       devices: Array.isArray(record?.devices) ? record.devices : [],
       options: readObject(record?.options) ?? {},
     };
-    return rustService.analyzeRc(request);
+    return rustService.calculateRc(request);
   };
 
   const handleRustEngineExportOriginCsv = async (
@@ -227,53 +227,53 @@ export const registerRustHostChannels = ({
   };
 
   ipcMain.handle(
-    ipcChannels.analysisRustEngineOpen,
+    ipcChannels.rustHostOpen,
     handleRustEngineOpen,
   );
   ipcMain.handle(
-    ipcChannels.analysisRustEnginePreviewMeta,
+    ipcChannels.rustHostPreviewMeta,
     handleRustEnginePreviewMeta,
   );
   ipcMain.handle(
-    ipcChannels.analysisRustEnginePreviewRows,
+    ipcChannels.rustHostPreviewRows,
     handleRustEnginePreviewRows,
   );
   ipcMain.handle(
-    ipcChannels.analysisRustEngineReadCell,
+    ipcChannels.rustHostReadCell,
     handleRustEngineReadCell,
   );
   ipcMain.handle(
-    ipcChannels.analysisRustEngineReadCells,
+    ipcChannels.rustHostReadCells,
     handleRustEngineReadCells,
   );
   ipcMain.handle(
-    ipcChannels.analysisRustEngineProcessFile,
+    ipcChannels.rustHostProcessFile,
     handleRustEngineProcessFile,
   );
   ipcMain.handle(
-    ipcChannels.analysisRustEngineAnalyzeRc,
+    ipcChannels.rustHostCalculateRc,
     handleRustEngineAnalyzeRc,
   );
   ipcMain.handle(
-    ipcChannels.analysisRustEngineExportOriginCsv,
+    ipcChannels.rustHostExportOriginCsv,
     handleRustEngineExportOriginCsv,
   );
   ipcMain.handle(
-    ipcChannels.analysisRustEngineDispose,
+    ipcChannels.rustHostDispose,
     handleRustEngineDispose,
   );
 
   return {
     dispose() {
-      ipcMain.removeHandler(ipcChannels.analysisRustEngineOpen);
-      ipcMain.removeHandler(ipcChannels.analysisRustEnginePreviewMeta);
-      ipcMain.removeHandler(ipcChannels.analysisRustEnginePreviewRows);
-      ipcMain.removeHandler(ipcChannels.analysisRustEngineReadCell);
-      ipcMain.removeHandler(ipcChannels.analysisRustEngineReadCells);
-      ipcMain.removeHandler(ipcChannels.analysisRustEngineProcessFile);
-      ipcMain.removeHandler(ipcChannels.analysisRustEngineAnalyzeRc);
-      ipcMain.removeHandler(ipcChannels.analysisRustEngineExportOriginCsv);
-      ipcMain.removeHandler(ipcChannels.analysisRustEngineDispose);
+      ipcMain.removeHandler(ipcChannels.rustHostOpen);
+      ipcMain.removeHandler(ipcChannels.rustHostPreviewMeta);
+      ipcMain.removeHandler(ipcChannels.rustHostPreviewRows);
+      ipcMain.removeHandler(ipcChannels.rustHostReadCell);
+      ipcMain.removeHandler(ipcChannels.rustHostReadCells);
+      ipcMain.removeHandler(ipcChannels.rustHostProcessFile);
+      ipcMain.removeHandler(ipcChannels.rustHostCalculateRc);
+      ipcMain.removeHandler(ipcChannels.rustHostExportOriginCsv);
+      ipcMain.removeHandler(ipcChannels.rustHostDispose);
     },
   };
 };

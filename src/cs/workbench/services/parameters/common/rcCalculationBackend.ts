@@ -4,10 +4,10 @@
 
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 
-export const IRcAnalysisBackendService =
-	createDecorator<IRcAnalysisBackendService>("rcAnalysisBackendService");
+export const IRcCalculationBackendService =
+	createDecorator<IRcCalculationBackendService>("rcCalculationBackendService");
 
-export type RcAnalyzeDevice = {
+export type RcCalculateDevice = {
 	readonly fileId: unknown;
 	readonly label: string;
 	readonly length: number;
@@ -18,8 +18,8 @@ export type RcAnalyzeDevice = {
 	readonly y: readonly number[];
 };
 
-export type RcAnalyzePayload = {
-	readonly devices: readonly RcAnalyzeDevice[];
+export type RcCalculatePayload = {
+	readonly devices: readonly RcCalculateDevice[];
 	readonly options: {
 		readonly maxGridPoints: number;
 		readonly minAbsCurrent: number;
@@ -29,18 +29,18 @@ export type RcAnalyzePayload = {
 	};
 };
 
-export type RcAnalysisResultPayload = {
+export type RcCalculationResultPayload = {
 	readonly message?: string;
 	readonly ok?: boolean;
 	readonly result?: unknown;
 	readonly [key: string]: unknown;
 };
 
-export type RcAnalysisBackend = {
-	analyzeRc(payload: RcAnalyzePayload): Promise<RcAnalysisResultPayload>;
-	canAnalyzeRc(): boolean;
+export type RcCalculationBackend = {
+	calculateRc(payload: RcCalculatePayload): Promise<RcCalculationResultPayload>;
+	canCalculateRc(): boolean;
 };
 
-export interface IRcAnalysisBackendService extends RcAnalysisBackend {
+export interface IRcCalculationBackendService extends RcCalculationBackend {
 	readonly _serviceBrand: undefined;
 }

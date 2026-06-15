@@ -2,7 +2,7 @@ import { localize } from "src/cs/nls";
 import { createButton } from "src/cs/base/browser/ui/button/button";
 import type { OriginCurveExportSeriesOption } from "src/cs/workbench/services/export/common/exportModel";
 
-export type RcAnalysisToolbarOptions = {
+export type RcCalculationToolbarOptions = {
   biasOptions: OriginCurveExportSeriesOption[];
   isPending: boolean;
   onAnalyze: () => void | Promise<void>;
@@ -11,7 +11,7 @@ export type RcAnalysisToolbarOptions = {
   selectedBiasKey: string;
 };
 
-export const renderRcAnalysisToolbar = (
+export const renderRcCalculationToolbar = (
   container: HTMLElement,
   {
     biasOptions,
@@ -20,7 +20,7 @@ export const renderRcAnalysisToolbar = (
     onBiasChange,
     rowCount,
     selectedBiasKey,
-  }: RcAnalysisToolbarOptions,
+  }: RcCalculationToolbarOptions,
 ): (() => void) => {
   container.textContent = "";
 

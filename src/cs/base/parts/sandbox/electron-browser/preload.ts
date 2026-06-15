@@ -161,47 +161,47 @@ function createDesktopImportBridge(ipcRenderer: IpcRenderer) {
     },
 
     async getFileDemoFiles() {
-      return ipcRenderer.invoke(workbenchIpcChannels.analysisDemoFilesGet);
+      return ipcRenderer.invoke(workbenchIpcChannels.demoFilesGet);
     },
 
     async openFileWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEngineOpen, payload);
+      return ipcRenderer.invoke(workbenchIpcChannels.rustHostOpen, payload);
     },
 
     async getFilePreviewMetaWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEnginePreviewMeta, payload);
+      return ipcRenderer.invoke(workbenchIpcChannels.rustHostPreviewMeta, payload);
     },
 
     async getFilePreviewRowsWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEnginePreviewRows, payload);
+      return ipcRenderer.invoke(workbenchIpcChannels.rustHostPreviewRows, payload);
     },
 
     async readFileCellWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEngineReadCell, payload);
+      return ipcRenderer.invoke(workbenchIpcChannels.rustHostReadCell, payload);
     },
 
     async readFileCellsWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEngineReadCells, payload);
+      return ipcRenderer.invoke(workbenchIpcChannels.rustHostReadCells, payload);
     },
 
     async processFileWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEngineProcessFile, payload);
+      return ipcRenderer.invoke(workbenchIpcChannels.rustHostProcessFile, payload);
     },
 
-    async analyzeFileRcWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEngineAnalyzeRc, payload);
+    async calculateFileRcWithRust(payload: unknown) {
+      return ipcRenderer.invoke(workbenchIpcChannels.rustHostCalculateRc, payload);
     },
 
-    async exportAnalysisOriginCsvWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEngineExportOriginCsv, payload);
+    async exportOriginCsvWithRust(payload: unknown) {
+      return ipcRenderer.invoke(workbenchIpcChannels.rustHostExportOriginCsv, payload);
     },
 
-    async saveAnalysisOriginZip(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.analysisOriginZipSave, payload);
+    async saveOriginZip(payload: unknown) {
+      return ipcRenderer.invoke(workbenchIpcChannels.originZipSave, payload);
     },
 
     async disposeFileWithRust(payload: unknown) {
-      return ipcRenderer.invoke(workbenchIpcChannels.analysisRustEngineDispose, payload);
+      return ipcRenderer.invoke(workbenchIpcChannels.rustHostDispose, payload);
     },
   };
 }

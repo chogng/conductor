@@ -1,9 +1,9 @@
 import { localize } from "src/cs/nls";
 
 import { formatNumber } from "src/cs/workbench/services/calculation/common/numberFormat";
-import type { RcCurveChartSeries } from "./rcAnalysisModel.ts";
+import type { RcCurveChartSeries } from "./rcCalculationModel.ts";
 
-export type RcAnalysisSummary = {
+export type RcCalculationSummary = {
   n?: unknown;
   r2?: unknown;
   rSheet?: unknown;
@@ -12,7 +12,7 @@ export type RcAnalysisSummary = {
   vg?: unknown;
 };
 
-export type RcCurveRow = RcAnalysisSummary & {
+export type RcCurveRow = RcCalculationSummary & {
   warnings?: unknown;
 };
 
@@ -59,7 +59,7 @@ export const renderRcSummaryView = (
     summary,
   }: {
     error: string;
-    summary: RcAnalysisSummary | null;
+    summary: RcCalculationSummary | null;
   },
 ): void => {
   container.textContent = "";
