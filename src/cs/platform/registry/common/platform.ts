@@ -1,4 +1,4 @@
-import { isDisposable } from "src/cs/base/common/lifecycle";
+import { isDisposable } from "../../../base/common/lifecycle.js";
 
 export interface IRegistry {
   add(id: string, data: object): void;

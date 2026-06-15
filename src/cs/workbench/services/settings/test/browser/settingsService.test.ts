@@ -4,6 +4,10 @@
 
 import assert from "assert";
 
+import {
+  ConfigurationTarget,
+} from "src/cs/platform/configuration/common/configuration";
+import { ConfigurationService } from "src/cs/platform/configuration/common/configurationService";
 import { BrowserSettingsService } from "src/cs/workbench/services/settings/browser/settingsService";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import { DEFAULT_PLOT_AXIS_SETTINGS } from "src/cs/workbench/services/plot/common/plotSettings";
@@ -15,7 +19,7 @@ import type {
 
 suite("workbench/services/settings/browser/settingsService", () => {
   test("publishes Origin settings view input from owned conductor settings", () => {
-    const service = new BrowserSettingsService();
+    const service = createBrowserSettingsService();
     let changeCount = 0;
     const disposable = service.onDidChangeOriginSettingsViewInput(() => {
       changeCount += 1;
@@ -36,11 +40,11 @@ suite("workbench/services/settings/browser/settingsService", () => {
   });
 
   test("updates Origin plot settings through service owner API", async () => {
-    const service = new BrowserSettingsService();
+    const service = createBrowserSettingsService();
     let capturedUpdates: unknown = null;
     service.mergeConductorSettings({});
     service.update(createSettingsServiceOptions({
-      settingsStore: {
+      settingsPersistence: {
         getSettings: async () => ({}),
         updateSettings: async (updates) => {
           capturedUpdates = updates;
@@ -70,7 +74,7 @@ suite("workbench/services/settings/browser/settingsService", () => {
   });
 
   test("updates plot axis settings through service owner API", async () => {
-    const service = new BrowserSettingsService();
+    const service = createBrowserSettingsService();
     let capturedUpdates: unknown = null;
     service.mergeConductorSettings({
       plotAxisSettings: {
@@ -79,7 +83,7 @@ suite("workbench/services/settings/browser/settingsService", () => {
       },
     });
     service.update(createSettingsServiceOptions({
-      settingsStore: {
+      settingsPersistence: {
         getSettings: async () => ({}),
         updateSettings: async (updates) => {
           capturedUpdates = updates;
@@ -113,11 +117,11 @@ suite("workbench/services/settings/browser/settingsService", () => {
   });
 
   test("ignores empty owner API updates", async () => {
-    const service = new BrowserSettingsService();
+    const service = createBrowserSettingsService();
     let updateCount = 0;
     service.mergeConductorSettings({});
     service.update(createSettingsServiceOptions({
-      settingsStore: {
+      settingsPersistence: {
         getSettings: async () => ({}),
         updateSettings: async updates => {
           updateCount += 1;
@@ -133,7 +137,7 @@ suite("workbench/services/settings/browser/settingsService", () => {
   });
 
   test("publishes settings view input from owned conductor settings", () => {
-    const service = new BrowserSettingsService();
+    const service = createBrowserSettingsService();
     let changeCount = 0;
     const conductorSettingsEvents: unknown[] = [];
     const disposable = service.onDidChangeSettingsViewInput(() => {
@@ -168,13 +172,13 @@ suite("workbench/services/settings/browser/settingsService", () => {
   });
 
   test("persists settings patches through the settings store", async () => {
-    const service = new BrowserSettingsService();
+    const service = createBrowserSettingsService();
     const calls: unknown[] = [];
     let storedSettings: ConductorSettings = {};
 
     service.mergeConductorSettings({});
     service.update(createSettingsServiceOptions({
-      settingsStore: {
+      settingsPersistence: {
         getSettings: async () => storedSettings,
         updateSettings: async (updates) => {
           calls.push(["update", updates]);
@@ -206,7 +210,38 @@ suite("workbench/services/settings/browser/settingsService", () => {
       theme: "dark",
     });
   });
+
+  test("uses platform configuration as the default persistence owner", async () => {
+    const configurationService = new ConfigurationService();
+    const service = new BrowserSettingsService(configurationService);
+    service.mergeConductorSettings({});
+    service.update(createSettingsServiceOptions({
+      settingsPersistence: undefined,
+    }));
+
+    await service.updateSettings({ theme: "dark" });
+
+    assert.equal(configurationService.getValue("theme"), "dark");
+    assert.equal(service.getConductorSettings()?.theme, "dark");
+
+    await configurationService.updateValue(
+      "theme",
+      "light",
+      ConfigurationTarget.USER,
+    );
+    await drainMicrotasks();
+
+    assert.equal(service.getConductorSettings()?.theme, "light");
+  });
 });
+
+const createBrowserSettingsService = (): BrowserSettingsService =>
+  new BrowserSettingsService(new ConfigurationService());
+
+const drainMicrotasks = async (): Promise<void> => {
+  await Promise.resolve();
+  await Promise.resolve();
+};
 
 const createSettingsServiceOptions = (
   overrides: Partial<SettingsServiceOptions> = {},
@@ -217,7 +252,7 @@ const createSettingsServiceOptions = (
   },
   isWindowsDesktopShell: false,
   language: "en",
-  settingsStore: {
+  settingsPersistence: {
     getSettings: async () => ({}),
     updateSettings: async updates => updates,
   },

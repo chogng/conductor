@@ -174,7 +174,10 @@ export class BrowserWorkbenchThemeService extends Disposable implements IWorkben
 		}
 
 		try {
-			return ipcRenderer.invoke(workbenchIpcChannels.desktopAppearanceSet, appearance)
+			return ipcRenderer.invoke(workbenchIpcChannels.desktopAppearanceSet, {
+				...appearance,
+				theme: this.theme,
+			})
 				.then(result => {
 					this.applyDesktopOpaqueSurfacePayload(result);
 					return result;

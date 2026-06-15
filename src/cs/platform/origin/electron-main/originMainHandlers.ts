@@ -32,7 +32,7 @@ type OriginIpcChannels = {
 
 type ConductorSettings = Record<string, unknown>;
 
-type ConductorSettingsStore = {
+type ConductorMainConfiguration = {
   getConductorSettings(): ConductorSettings;
   patchConductorSettings(updates: Record<string, unknown>): ConductorSettings;
 };
@@ -42,7 +42,7 @@ export type OriginMainHandlers = IDisposable & {
 };
 
 export type RegisterOriginMainHandlersOptions = {
-  readonly conductorStore: ConductorSettingsStore;
+  readonly conductorMainConfiguration: ConductorMainConfiguration;
   readonly dialog: Dialog;
   readonly ipcChannels: OriginIpcChannels;
   readonly ipcMain: IpcMain;
@@ -439,7 +439,7 @@ function normalizeOriginCsvBatchPayload(
 }
 
 export function registerOriginMainHandlers({
-  conductorStore,
+  conductorMainConfiguration,
   dialog,
   ipcChannels,
   ipcMain,
@@ -453,7 +453,7 @@ export function registerOriginMainHandlers({
   let originDetectionPromise: Promise<OriginDetectionResult> | null = null;
 
   const getOriginExePathFromSettings = (): string | null => {
-    const settings = conductorStore.getConductorSettings();
+    const settings = conductorMainConfiguration.getConductorSettings();
     return normalizeOriginExePath(settings?.originExePath);
   };
 
@@ -461,14 +461,14 @@ export function registerOriginMainHandlers({
     originDetectionCache = null;
     originDetectionPromise = null;
     const normalizedPath = normalizeOriginExePath(originExePath);
-    const settings = conductorStore.patchConductorSettings({
+    const settings = conductorMainConfiguration.patchConductorSettings({
       originExePath: normalizedPath,
     });
     return typeof settings.originExePath === "string" ? settings.originExePath : null;
   };
 
   const getOriginRuntimeCleanupPolicyFromSettings = (): Record<string, unknown> => {
-    const settings = conductorStore.getConductorSettings();
+    const settings = conductorMainConfiguration.getConductorSettings();
     return {
       enabled: Boolean(settings?.originRuntimeCleanupEnabled),
       keepSuccessJobs: Number(settings?.originRuntimeKeepSuccessJobs),
@@ -477,7 +477,7 @@ export function registerOriginMainHandlers({
   };
 
   const getOriginPlotOptionsFromSettings = (): OriginPlotOptions => {
-    const settings = conductorStore.getConductorSettings();
+    const settings = conductorMainConfiguration.getConductorSettings();
     return normalizeOriginPlotOptions({
       plotCommand: settings?.originPlotCommandDefault,
       plotType: settings?.originPlotTypeDefault,

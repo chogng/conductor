@@ -12,6 +12,39 @@ import {
 import { Registry } from "src/cs/platform/registry/common/platform";
 
 suite("platform/configuration/common/configurationService", () => {
+  test("reads Conductor defaults from the configuration registry", () => {
+    const service = new ConfigurationService();
+
+    assert.equal(service.getValue("theme"), "system");
+    assert.equal(service.getValue("originRuntimeKeepSuccessJobs"), 1);
+    assert.deepEqual(service.getValue("plotAxisSettings"), {
+      xMin: "",
+      xMax: "",
+      xTicks: "auto",
+      xTickCount: 6,
+      xStep: "",
+      xTooltipDigits: "",
+      yMin: "",
+      yMax: "",
+      yScale: "linear",
+      yLogCurrentMode: "all",
+      yTicks: "nice",
+      yTickCount: 6,
+      yStep: "",
+      yDecadeStep: 1,
+      showGrid: true,
+      showMajorTicks: true,
+      showMinorTicks: true,
+      minorTickCount: "",
+      tickLabelFontSize: "",
+      axisTitleFontSize: "",
+      originTickLabelOffset: "",
+      originAxisTitleGap: "",
+    });
+
+    service.dispose();
+  });
+
   test("reads defaults from configuration registry", () => {
     const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
     const configuration = {

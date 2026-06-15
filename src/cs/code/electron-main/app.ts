@@ -25,7 +25,12 @@ import {
   DesktopWindowMain,
   type DesktopWindowStyleState,
 } from "../../platform/window/electron-main/window.js";
-import { createConductorStoreMainService } from "../../workbench/services/conductorStore/electron-main/conductorStoreMainService.js";
+import {
+  StorageScope,
+  StorageTarget,
+} from "../../platform/storage/common/storage.js";
+import { createStorageMainService } from "../../platform/storage/electron-main/storageMainService.js";
+import { createConductorMainConfiguration } from "../../platform/configuration/electron-main/configurationMain.js";
 import { workbenchIpcChannels as ipcChannels } from "../../workbench/common/ipcChannels.js";
 import {
   runSharedProcessShutdownContributions,
@@ -77,7 +82,7 @@ if (!hasSingleInstanceLock) {
 
 function getMainLanguage() {
   try {
-    const language = conductorStore?.getConductorSettings?.()?.language;
+    const language = conductorMainConfiguration?.getConductorSettings?.()?.language;
     return resolveMainNLSLanguage(language, app.getLocale());
   } catch {
     return "en";
@@ -136,6 +141,7 @@ let updateService: Win32UpdateService | null = null;
 let isAppQuitting = false;
 const desktopProcessStartMs = Date.now();
 const nativeHostChannelName = "nativeHost";
+const TRAY_MINIMIZE_HINT_SHOWN_STORAGE_KEY = "window.trayMinimizeHintShown";
 
 function isTruthyEnvFlag(value) {
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -193,7 +199,7 @@ function formatDiagnosticValue(value) {
 }
 
 function getWindowThemeFromStore() {
-  const settings = conductorStore.getConductorSettings();
+  const settings = conductorMainConfiguration.getConductorSettings();
   const themeMode = syncNativeThemeSource(settings);
   const snapshot = getThemeSnapshot(themeMode);
   return {
@@ -202,8 +208,14 @@ function getWindowThemeFromStore() {
   };
 }
 
-function syncNativeThemeSource(settings = conductorStore.getConductorSettings()) {
-  const themeMode = resolveThemeMode(settings?.theme);
+function syncNativeThemeSource(
+  settings: unknown = conductorMainConfiguration.getConductorSettings(),
+) {
+  const themeMode = resolveThemeMode(
+    settings && typeof settings === "object"
+      ? (settings as { theme?: unknown }).theme
+      : undefined,
+  );
   if (nativeTheme.themeSource !== themeMode) {
     nativeTheme.themeSource = themeMode;
   }
@@ -231,7 +243,7 @@ function normalizeWorkbenchBackgroundColor(value) {
 }
 
 function getAppearanceFromStore() {
-  const settings = conductorStore.getConductorSettings();
+  const settings = conductorMainConfiguration.getConductorSettings();
   syncNativeThemeSource(settings);
   return {
     backgroundColor: normalizeWorkbenchBackgroundColor(settings?.backgroundColor),
@@ -439,7 +451,7 @@ function getConductorUserDataHomeDir() {
   return path.join(app.getPath("userData"), "User");
 }
 
-function getConductorStoreHomeDir() {
+function getConductorPersistenceHomeDir() {
   return getConductorUserDataHomeDir();
 }
 
@@ -716,8 +728,12 @@ async function handleExcelReadConvertedCsv(_event, payload) {
   }
 }
 
-const conductorStore = createConductorStoreMainService({
-  getHomeDir: getConductorStoreHomeDir,
+const conductorMainConfiguration = createConductorMainConfiguration({
+  getUserDataPath: () => app.getPath("userData"),
+});
+
+const mainStorageService = createStorageMainService({
+  getHomeDir: getConductorPersistenceHomeDir,
 });
 
 function configureRuntimeCachePath() {
@@ -745,22 +761,6 @@ function configureCodeCachePath() {
   }
 
   defaultSession.setCodeCachePath(path.join(codeCachePath, "chrome"));
-}
-
-function handleTemplatesGet() {
-  return conductorStore.getTemplates();
-}
-
-function handleTemplatesCreate(_event, payload) {
-  return conductorStore.upsertTemplate(payload);
-}
-
-function handleTemplatesDelete(_event, id) {
-  return conductorStore.deleteTemplate(id);
-}
-
-function handleConductorSettingsGet() {
-  return conductorStore.getConductorSettings();
 }
 
 function handleAnalysisDemoFilesGet() {
@@ -878,7 +878,7 @@ function handleWorkbenchBootstrapSettingsGet(event) {
   }
 
   try {
-    event.returnValue = conductorStore.getConductorSettings();
+    event.returnValue = conductorMainConfiguration.getConductorSettings();
   } catch (error) {
     console.warn("[boot] Failed to load initial desktop settings:", error?.message || error);
     event.returnValue = null;
@@ -914,24 +914,14 @@ function ensureRustExcelJobRoot() {
   return jobRoot;
 }
 
-function handleConductorSettingsPatch(_event, updates) {
-  const updated = conductorStore.patchConductorSettings(updates);
-  if (
-    updates &&
-    typeof updates === "object" &&
-    "theme" in updates
-  ) {
-    syncBootWindowTheme();
-  }
-  // Appearance is applied by the renderer theme service after it observes the
-  // persisted settings change, so native and CSS transparency stay ordered.
-  return updated;
-}
-
 function handleDesktopAppearanceSet(event, payload) {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win || win.isDestroyed()) {
     return null;
+  }
+
+  if (payload && typeof payload === "object" && "theme" in payload) {
+    syncNativeThemeSource({ theme: payload.theme });
   }
 
   const styleState = desktopWindowMain.applyWindowStyle(win, {
@@ -1348,21 +1338,35 @@ async function revealMainWindow(win) {
 function showTrayHint() {
   if (!isWindows || !appTray) return;
   if (typeof appTray.displayBalloon !== "function") return;
-  const settings = conductorStore.getConductorSettings();
-  if (settings?.trayMinimizeHintShown) return;
+  if (isTrayMinimizeHintShown()) return;
 
   appTray.displayBalloon({
     title: APP_DISPLAY_NAME,
     content: mainMessage("tray.backgroundContinueMessage"),
     noSound: true,
   });
-  conductorStore.patchConductorSettings({
-    trayMinimizeHintShown: true,
-  });
+  mainStorageService.store(
+    TRAY_MINIMIZE_HINT_SHOWN_STORAGE_KEY,
+    true,
+    StorageScope.PROFILE,
+    StorageTarget.USER,
+  );
+}
+
+function isTrayMinimizeHintShown() {
+  const stored = mainStorageService.getBoolean(
+    TRAY_MINIMIZE_HINT_SHOWN_STORAGE_KEY,
+    StorageScope.PROFILE,
+  );
+  if (stored !== undefined) {
+    return stored;
+  }
+
+  return false;
 }
 
 function getWindowCloseBehaviorFromSettings() {
-  const settings = conductorStore.getConductorSettings();
+  const settings = conductorMainConfiguration.getConductorSettings();
   return settings?.windowCloseBehavior === "quit" ? "quit" : "minimizeToTray";
 }
 
@@ -1840,11 +1844,6 @@ if (hasSingleInstanceLock) {
     updateService?.installDownloadedUpdate(),
   );
   ipcMain.handle(ipcChannels.desktopAppearanceSet, handleDesktopAppearanceSet);
-  ipcMain.handle(ipcChannels.templatesGet, handleTemplatesGet);
-  ipcMain.handle(ipcChannels.templatesCreate, handleTemplatesCreate);
-  ipcMain.handle(ipcChannels.templatesDelete, handleTemplatesDelete);
-  ipcMain.handle(ipcChannels.settingsGet, handleConductorSettingsGet);
-  ipcMain.handle(ipcChannels.settingsPatch, handleConductorSettingsPatch);
   ipcMain.handle(ipcChannels.fileConversionPrepare, handleFileConversionPrepare);
   ipcMain.handle(ipcChannels.excelConvertRust, handleExcelConvertRust);
   ipcMain.handle(ipcChannels.excelReadConvertedCsv, handleExcelReadConvertedCsv);
@@ -1866,7 +1865,7 @@ if (hasSingleInstanceLock) {
     handleOriginZipSave,
   );
   originHandlers = registerOriginMainHandlers({
-    conductorStore,
+    conductorMainConfiguration,
     dialog,
     ipcChannels,
     ipcMain,
@@ -1929,11 +1928,6 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateCheckAndInstall);
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateInstallDownloaded);
   ipcMain.removeHandler(ipcChannels.desktopAppearanceSet);
-  ipcMain.removeHandler(ipcChannels.templatesGet);
-  ipcMain.removeHandler(ipcChannels.templatesCreate);
-  ipcMain.removeHandler(ipcChannels.templatesDelete);
-  ipcMain.removeHandler(ipcChannels.settingsGet);
-  ipcMain.removeHandler(ipcChannels.settingsPatch);
   ipcMain.removeHandler(ipcChannels.fileConversionPrepare);
   ipcMain.removeHandler(ipcChannels.excelConvertRust);
   ipcMain.removeHandler(ipcChannels.excelReadConvertedCsv);

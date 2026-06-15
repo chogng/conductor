@@ -1,6 +1,6 @@
-import { Emitter, Event, type Event as EventType } from "src/cs/base/common/event";
-import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
+import { Emitter, Event, type Event as EventType } from "../../../base/common/event.js";
+import { DisposableStore, type IDisposable } from "../../../base/common/lifecycle.js";
+import { createDecorator } from "../../instantiation/common/instantiation.js";
 
 export const IStorageService = createDecorator<IStorageService>("storageService");
 export const STORAGE_VALUE_MAX_LENGTH = 16 * 1024;

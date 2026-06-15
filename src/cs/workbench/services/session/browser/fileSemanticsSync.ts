@@ -2,7 +2,6 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ConductorSettings } from "src/cs/workbench/services/settings/common/settings";
 import type {
 	CurveYScale,
 } from "src/cs/workbench/services/session/common/fileSemantics";
@@ -17,24 +16,33 @@ export type FileAxisSettingsByFileId = {
 	readonly yUnitByFileId: Record<string, string>;
 };
 
+export type FileAxisSettingsOverrides = {
+	readonly xUnitByFileId?: Readonly<Record<string, string>>;
+	readonly yScaleByFileId?: Readonly<Record<string, CurveYScale | string>>;
+	readonly yUnitByFileId?: Readonly<Record<string, string>>;
+};
+
 export type FileAxisSettingsInput = {
-	readonly conductorSettings?: ConductorSettings | null;
+	readonly axisSettings?: FileAxisSettingsOverrides | null;
 	readonly snapshot: SessionSnapshot;
 };
 
 export const getFileAxisSettingsByFileId = (
 	input: FileAxisSettingsInput,
 ): FileAxisSettingsByFileId => {
-	const { conductorSettings, snapshot } = input;
+	const { axisSettings, snapshot } = input;
 	const xUnitByFileId: Record<string, string> = {
-		...(conductorSettings?.xUnitByFileId ?? {}),
+		...(axisSettings?.xUnitByFileId ?? {}),
 	};
 	const yUnitByFileId: Record<string, string> = {
-		...(conductorSettings?.yUnitByFileId ?? {}),
+		...(axisSettings?.yUnitByFileId ?? {}),
 	};
-	const yScaleByFileId: Record<string, CurveYScale> = {
-		...(conductorSettings?.yScaleByFileId ?? {}),
-	};
+	const yScaleByFileId: Record<string, CurveYScale> = {};
+	for (const [fileId, scale] of Object.entries(axisSettings?.yScaleByFileId ?? {})) {
+		if (scale === "linear" || scale === "log") {
+			yScaleByFileId[fileId] = scale;
+		}
+	}
 
 	const seenFileIds = new Set<string>();
 	const applyFile = (fileId: string): void => {

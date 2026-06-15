@@ -6,6 +6,11 @@ import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
+  IStorageService,
+  StorageScope,
+  StorageTarget,
+} from "src/cs/platform/storage/common/storage";
+import {
   createCalculatedPlotsByKeyFromRecords,
   createSecondCalculatedData,
   getCalculatedData as getCalculatedDataFromMap,
@@ -19,6 +24,7 @@ import {
   type PlotCalculatedDataInput,
   type PlotDisplayModel,
   type PlotDisplayModelInput,
+  type PlotFileAxisSettings,
   type PlotLegendModel,
   type PlotMainRenderModelInput,
   type PlotState,
@@ -48,8 +54,15 @@ import type { SessionChangeEvent } from "src/cs/workbench/services/session/commo
 import { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import {
   getFileAxisSettingsByFileId,
+  type FileAxisSettingsOverrides,
   type FileAxisSettingsByFileId,
 } from "src/cs/workbench/services/session/browser/fileSemanticsSync";
+
+const PLOT_AXIS_STORAGE_KEYS = {
+  xUnitByFileId: "plot.xUnitByFileId",
+  yScaleByFileId: "plot.yScaleByFileId",
+  yUnitByFileId: "plot.yUnitByFileId",
+} as const;
 
 export class PlotService extends Disposable implements IPlotService {
   public declare readonly _serviceBrand: undefined;
@@ -66,6 +79,7 @@ export class PlotService extends Disposable implements IPlotService {
   constructor(
     @ISessionService private readonly sessionService: ISessionService,
     @ISettingsService private readonly settingsService: ISettingsService,
+    @IStorageService private readonly storageService: IStorageService,
   ) {
     super();
 
@@ -286,16 +300,14 @@ export class PlotService extends Disposable implements IPlotService {
         return;
       }
 
-      const current = this.settingsService.getConductorSettings()?.xUnitByFileId ?? {};
+      const current = this.getStoredAxisSettings().xUnitByFileId ?? {};
       if (current[normalizedFileId] === normalizedUnit) {
         return;
       }
 
-      await this.settingsService.updateSettings({
-        xUnitByFileId: {
-          ...current,
-          [normalizedFileId]: normalizedUnit,
-        },
+      this.storeAxisSettings(PLOT_AXIS_STORAGE_KEYS.xUnitByFileId, {
+        ...current,
+        [normalizedFileId]: normalizedUnit,
       });
       this.onDidChangePlotStateEmitter.fire(this.state);
       return;
@@ -306,16 +318,14 @@ export class PlotService extends Disposable implements IPlotService {
       return;
     }
 
-    const current = this.settingsService.getConductorSettings()?.yUnitByFileId ?? {};
+    const current = this.getStoredAxisSettings().yUnitByFileId ?? {};
     if (current[normalizedFileId] === normalizedUnit) {
       return;
     }
 
-    await this.settingsService.updateSettings({
-      yUnitByFileId: {
-        ...current,
-        [normalizedFileId]: normalizedUnit,
-      },
+    this.storeAxisSettings(PLOT_AXIS_STORAGE_KEYS.yUnitByFileId, {
+      ...current,
+      [normalizedFileId]: normalizedUnit,
     });
     this.onDidChangePlotStateEmitter.fire(this.state);
   }
@@ -330,16 +340,14 @@ export class PlotService extends Disposable implements IPlotService {
     }
 
     const normalizedScale = scale === "log" ? "log" : "linear";
-    const current = this.settingsService.getConductorSettings()?.yScaleByFileId ?? {};
+    const current = this.getStoredAxisSettings().yScaleByFileId ?? {};
     if (current[normalizedFileId] === normalizedScale) {
       return;
     }
 
-    await this.settingsService.updateSettings({
-      yScaleByFileId: {
-        ...current,
-        [normalizedFileId]: normalizedScale,
-      },
+    this.storeAxisSettings(PLOT_AXIS_STORAGE_KEYS.yScaleByFileId, {
+      ...current,
+      [normalizedFileId]: normalizedScale,
     });
     this.onDidChangePlotStateEmitter.fire(this.state);
   }
@@ -406,11 +414,48 @@ export class PlotService extends Disposable implements IPlotService {
     return snapshot ?? this.sessionService?.getSnapshot() ?? null;
   }
 
+  public getFileAxisSettings(snapshot: SessionSnapshot): PlotFileAxisSettings {
+    return this.getAxisSettings(snapshot);
+  }
+
   private getAxisSettings(snapshot: SessionSnapshot): FileAxisSettingsByFileId {
     return getFileAxisSettingsByFileId({
-      conductorSettings: this.settingsService.getConductorSettings(),
+      axisSettings: this.getStoredAxisSettings(),
       snapshot,
     });
+  }
+
+  private getStoredAxisSettings(): FileAxisSettingsOverrides {
+    return {
+      xUnitByFileId: {
+        ...readLegacyStringMap(this.settingsService.getConductorSettings()?.xUnitByFileId),
+        ...this.storageService.getObject<Record<string, string>>(
+          PLOT_AXIS_STORAGE_KEYS.xUnitByFileId,
+          StorageScope.PROFILE,
+          {},
+        ),
+      },
+      yScaleByFileId: {
+        ...readLegacyStringMap(this.settingsService.getConductorSettings()?.yScaleByFileId),
+        ...this.storageService.getObject<Record<string, string>>(
+          PLOT_AXIS_STORAGE_KEYS.yScaleByFileId,
+          StorageScope.PROFILE,
+          {},
+        ),
+      },
+      yUnitByFileId: {
+        ...readLegacyStringMap(this.settingsService.getConductorSettings()?.yUnitByFileId),
+        ...this.storageService.getObject<Record<string, string>>(
+          PLOT_AXIS_STORAGE_KEYS.yUnitByFileId,
+          StorageScope.PROFILE,
+          {},
+        ),
+      },
+    };
+  }
+
+  private storeAxisSettings(key: string, value: Record<string, string>): void {
+    this.storageService.store(key, value, StorageScope.PROFILE, StorageTarget.USER);
   }
 }
 
@@ -470,6 +515,21 @@ const areNestedRecordMapsEqual = (
 
 const normalizeStateKey = (value: unknown): string =>
   String(value ?? "").trim();
+
+const readLegacyStringMap = (value: unknown): Record<string, string> => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  const result: Record<string, string> = {};
+  for (const [key, item] of Object.entries(value)) {
+    const normalizedKey = normalizeStateKey(key);
+    if (normalizedKey && typeof item === "string") {
+      result[normalizedKey] = item;
+    }
+  }
+  return result;
+};
 
 const resolveDisplayUnits = (
   data: CalculatedData,

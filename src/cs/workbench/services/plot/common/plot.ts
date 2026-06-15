@@ -37,6 +37,12 @@ export type PlotState = {
 export type PlotAxisTitlePane = "chart" | "inspector";
 export type PlotAxis = "x" | "y";
 
+export type PlotFileAxisSettings = {
+  readonly xUnitByFileId: Readonly<Record<FileId, string>>;
+  readonly yScaleByFileId: Readonly<Record<FileId, "linear" | "log">>;
+  readonly yUnitByFileId: Readonly<Record<FileId, string>>;
+};
+
 export type PlotAxisTitleContext = {
   readonly axis: PlotAxis;
   readonly fileId: FileId;
@@ -102,6 +108,7 @@ export interface IPlotService {
 
   getState(): PlotState;
   getCalculatedData(input: PlotCalculatedDataInput): CalculatedData | null;
+  getFileAxisSettings(snapshot: SessionSnapshot): PlotFileAxisSettings;
   getLegendLabels(fileId: FileId): Readonly<Record<SeriesId, string>>;
   getPlotDisplayModel(input: PlotDisplayModelInput): PlotDisplayModel | null;
   getPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;

@@ -1,6 +1,6 @@
-import { Emitter, type Event } from "src/cs/base/common/event";
-import type { IJSONSchema } from "src/cs/base/common/jsonSchema";
-import { Registry } from "src/cs/platform/registry/common/platform";
+import { Emitter, type Event } from "../../../base/common/event.js";
+import type { IJSONSchema } from "../../../base/common/jsonSchema.js";
+import { Registry } from "../../registry/common/platform.js";
 
 export const Extensions = {
   Configuration: "base.contributions.configuration",
@@ -71,6 +71,611 @@ export function overrideIdentifiersFromKey(key: string): string[] {
 export function keyFromOverrideIdentifiers(overrideIdentifiers: readonly string[]): string {
   return `[${overrideIdentifiers.join(",")}]`;
 }
+
+type OriginPlotOptions = {
+  plotType: number;
+  xyPairs: string;
+  plotCommand: string;
+  postPlotCommands: string[];
+  lineWidth: number;
+  legendFontSize: string | number;
+};
+
+type JsonRecord = Record<string, unknown>;
+
+type PlotAxisSettings = {
+  xMin: string;
+  xMax: string;
+  xTicks: "auto" | "nice" | "step";
+  xTickCount: number;
+  xStep: string;
+  xTooltipDigits: string | number;
+  yMin: string;
+  yMax: string;
+  yScale: "linear" | "log" | "logAbs";
+  yLogCurrentMode: "all" | "positive";
+  yTicks: "auto" | "nice" | "step" | "decades";
+  yTickCount: number;
+  yStep: string;
+  yDecadeStep: number;
+  showGrid: boolean;
+  showMajorTicks: boolean;
+  showMinorTicks: boolean;
+  minorTickCount: string | number;
+  tickLabelFontSize: string | number;
+  axisTitleFontSize: string | number;
+  originTickLabelOffset: string;
+  originAxisTitleGap: string;
+};
+
+export type ConductorSettings = JsonRecord & {
+  language: string;
+  theme: string;
+  backgroundColor: string;
+  transparentChrome: boolean;
+  windowCloseBehavior: string;
+  stopOnErrorDefault: boolean;
+  fileNameFieldSeparators: string;
+  ionIoffMethodDefault: string;
+  defaultYScaleForTransfer: string;
+  defaultYScaleForOutput: string;
+  defaultYScaleForCf: string;
+  defaultYScaleForCv: string;
+  defaultYScaleForPv: string;
+  defaultYScaleForSpecial: string;
+  ssMethodDefault: string;
+  ssShowFitLine: boolean;
+  ssIdLow: number;
+  ssIdHigh: number;
+  originExePath: string | null;
+  originExportModeDefault: string;
+  originPlotTypeDefault: number;
+  originPlotXyPairsDefault: string;
+  originPlotCommandDefault: string;
+  originPlotPostCommandsDefault: string[];
+  originPlotLineWidthDefault: number;
+  originPlotLegendFontSizeDefault: string | number;
+  originRuntimeCleanupEnabled: boolean;
+  originRuntimeKeepSuccessJobs: number;
+  originRuntimeFailedRetentionDays: number;
+  plotAxisSettings: PlotAxisSettings;
+};
+
+const isRecord = (value: unknown): value is JsonRecord =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isSetValue = (set: ReadonlySet<string>, value: unknown): value is string =>
+  typeof value === "string" && set.has(value);
+
+const DEFAULT_ORIGIN_PLOT_OPTIONS = Object.freeze<OriginPlotOptions>({
+  plotType: 202,
+  xyPairs: "((1,2))",
+  plotCommand: "",
+  postPlotCommands: [],
+  lineWidth: 2,
+  legendFontSize: "",
+});
+
+function normalizeNonEmptyString(value: unknown, fallback = ""): string {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  return trimmed || fallback;
+}
+
+function normalizeBoundedFloat(value: unknown, fallback: number, min: number, max: number): number {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(num * 100) / 100));
+}
+
+function normalizeOriginPostPlotCommands(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    const normalized: string[] = [];
+    for (const item of value) {
+      if (typeof item !== "string") continue;
+      const trimmed = item.trim();
+      if (!trimmed) continue;
+      normalized.push(trimmed);
+    }
+    return normalized;
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(/\r?\n/g)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function normalizeOriginPlotOptions(rawOptions: unknown, fallbackOptions: OriginPlotOptions | undefined = undefined): OriginPlotOptions {
+  const raw = isRecord(rawOptions) ? rawOptions : {};
+  const fallbackBase = fallbackOptions ?? DEFAULT_ORIGIN_PLOT_OPTIONS;
+  const fallback =
+    fallbackBase && typeof fallbackBase === "object"
+      ? {
+          ...DEFAULT_ORIGIN_PLOT_OPTIONS,
+          ...fallbackBase,
+        }
+      : DEFAULT_ORIGIN_PLOT_OPTIONS;
+
+  const plotType = normalizeBoundedInt(
+    (raw as { plotType?: unknown; type?: unknown }).plotType ??
+      (raw as { type?: unknown }).type,
+    fallback.plotType,
+    0,
+    9999,
+  );
+  const xyPairs = normalizeNonEmptyString(
+    (raw as { xyPairs?: unknown }).xyPairs,
+    fallback.xyPairs,
+  );
+  const plotCommand = normalizeNonEmptyString(
+    (raw as { plotCommand?: unknown; command?: unknown }).plotCommand ??
+      (raw as { command?: unknown }).command,
+    fallback.plotCommand,
+  );
+  const postPlotCommands = normalizeOriginPostPlotCommands(
+    Object.prototype.hasOwnProperty.call(raw, "postPlotCommands")
+      ? (raw as { postPlotCommands?: unknown }).postPlotCommands
+      : Object.prototype.hasOwnProperty.call(raw, "postCommands")
+        ? (raw as { postCommands?: unknown }).postCommands
+        : fallback.postPlotCommands,
+  );
+  const fallbackLineWidth = normalizeBoundedFloat(
+    fallback.lineWidth,
+    DEFAULT_ORIGIN_PLOT_OPTIONS.lineWidth,
+    0.5,
+    20,
+  );
+  const lineWidth = normalizeBoundedFloat(
+    (raw as { lineWidth?: unknown; linewidth?: unknown; line_width?: unknown }).lineWidth ??
+      (raw as { linewidth?: unknown }).linewidth ??
+      (raw as { line_width?: unknown }).line_width,
+    fallbackLineWidth,
+    0.5,
+    20,
+  );
+  const legendFontSize = normalizeOptionalRoundedBoundedInt(
+    (raw as { legendFontSize?: unknown; legend_font_size?: unknown }).legendFontSize ??
+      (raw as { legend_font_size?: unknown }).legend_font_size,
+    fallback.legendFontSize,
+    1,
+    96,
+  );
+
+  return {
+    plotType,
+    xyPairs,
+    plotCommand,
+    postPlotCommands,
+    lineWidth,
+    legendFontSize,
+  };
+}
+
+function normalizeOriginExePath(inputPath: unknown): string | null {
+  if (typeof inputPath !== "string") return null;
+  const normalized = inputPath.trim();
+  return normalized || null;
+}
+
+const DEFAULT_FILE_NAME_FIELD_SEPARATORS = "_- .()[]{}";
+const SS_METHODS = new Set(["auto", "manual"]);
+const ION_IOFF_METHODS = new Set(["auto", "manual"]);
+const LANGUAGES = new Set(["system", "en", "zh"]);
+const ORIGIN_EXPORT_MODES = new Set([
+  "merged",
+  "workbookBooks",
+  "workbookSheets",
+  "separate",
+]);
+const THEMES = new Set(["system", "light", "dark"]);
+const WINDOW_CLOSE_BEHAVIORS = new Set([
+  "minimizeToTray",
+  "quit",
+]);
+const DEFAULT_BACKGROUND_COLOR = "#f3f4f6";
+const BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
+
+export const DEFAULT_CONDUCTOR_CONFIGURATION: ConductorSettings = {
+  language: "system",
+  theme: "system",
+  backgroundColor: DEFAULT_BACKGROUND_COLOR,
+  transparentChrome: true,
+  windowCloseBehavior: "minimizeToTray",
+  stopOnErrorDefault: false,
+  fileNameFieldSeparators: DEFAULT_FILE_NAME_FIELD_SEPARATORS,
+  ionIoffMethodDefault: "auto",
+  defaultYScaleForTransfer: "log",
+  defaultYScaleForOutput: "linear",
+  defaultYScaleForCf: "linear",
+  defaultYScaleForCv: "linear",
+  defaultYScaleForPv: "linear",
+  defaultYScaleForSpecial: "linear",
+  ssMethodDefault: "auto",
+  ssShowFitLine: true,
+  ssIdLow: 1e-11,
+  ssIdHigh: 1e-9,
+  originExePath: null,
+  originExportModeDefault: "merged",
+  originPlotTypeDefault: 202,
+  originPlotXyPairsDefault: "((1,2))",
+  originPlotCommandDefault: "",
+  originPlotPostCommandsDefault: [],
+  originPlotLineWidthDefault: 2,
+  originPlotLegendFontSizeDefault: "",
+  originRuntimeCleanupEnabled: true,
+  originRuntimeKeepSuccessJobs: 1,
+  originRuntimeFailedRetentionDays: 7,
+  plotAxisSettings: {
+    xMin: "",
+    xMax: "",
+    xTicks: "auto",
+    xTickCount: 6,
+    xStep: "",
+    xTooltipDigits: "",
+    yMin: "",
+    yMax: "",
+    yScale: "linear",
+    yLogCurrentMode: "all",
+    yTicks: "nice",
+    yTickCount: 6,
+    yStep: "",
+    yDecadeStep: 1,
+    showGrid: true,
+    showMajorTicks: true,
+    showMinorTicks: true,
+    minorTickCount: "",
+    tickLabelFontSize: "",
+    axisTitleFontSize: "",
+    originTickLabelOffset: "",
+    originAxisTitleGap: "",
+  },
+};
+
+export const CONDUCTOR_CONFIGURATION_KEYS: readonly string[] = Object.keys(
+  DEFAULT_CONDUCTOR_CONFIGURATION,
+);
+
+const STARTUP_DEFAULTS = {
+  defaultYScaleForTransfer: DEFAULT_CONDUCTOR_CONFIGURATION.defaultYScaleForTransfer,
+  defaultYScaleForOutput: DEFAULT_CONDUCTOR_CONFIGURATION.defaultYScaleForOutput,
+  defaultYScaleForCf: DEFAULT_CONDUCTOR_CONFIGURATION.defaultYScaleForCf,
+  defaultYScaleForCv: DEFAULT_CONDUCTOR_CONFIGURATION.defaultYScaleForCv,
+  defaultYScaleForPv: DEFAULT_CONDUCTOR_CONFIGURATION.defaultYScaleForPv,
+  defaultYScaleForSpecial: DEFAULT_CONDUCTOR_CONFIGURATION.defaultYScaleForSpecial,
+  plotAxisSettings: {
+    tickLabelFontSize: DEFAULT_CONDUCTOR_CONFIGURATION.plotAxisSettings.tickLabelFontSize,
+    axisTitleFontSize: DEFAULT_CONDUCTOR_CONFIGURATION.plotAxisSettings.axisTitleFontSize,
+  },
+};
+
+function normalizePositiveNumber(value: unknown, fallback: number): number {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : fallback;
+}
+
+function normalizeBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function normalizeBackgroundColor(value: unknown): string {
+  if (typeof value !== "string") {
+    return DEFAULT_CONDUCTOR_CONFIGURATION.backgroundColor;
+  }
+
+  const normalized = value.trim();
+  return BACKGROUND_COLOR_PATTERN.test(normalized)
+    ? normalized.toLowerCase()
+    : DEFAULT_CONDUCTOR_CONFIGURATION.backgroundColor;
+}
+
+function normalizeBoundedInt(value: unknown, fallback: number, min: number, max: number): number {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(num)));
+}
+
+function normalizeRoundedBoundedInt(value: unknown, fallback: number, min: number, max: number): number;
+function normalizeRoundedBoundedInt(value: unknown, fallback: string | number, min: number, max: number): string | number;
+function normalizeRoundedBoundedInt(value: unknown, fallback: string | number, min: number, max: number): string | number {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(num)));
+}
+
+function normalizeOptionalRoundedBoundedInt(
+  value: unknown,
+  fallback: string | number,
+  min: number,
+  max: number,
+): string | number {
+  if (value === null || value === undefined) return fallback;
+  const text = String(value).trim();
+  if (!text) return "";
+  return normalizeRoundedBoundedInt(text, fallback, min, max);
+}
+
+function normalizeFiniteNumberText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const text = String(value).trim();
+  if (!text) return "";
+  const num = Number(text);
+  return Number.isFinite(num) ? text : "";
+}
+
+function normalizeIntegerText(value: unknown, min: number, max: number): string {
+  const text = normalizeFiniteNumberText(value);
+  if (!text) return "";
+  return String(normalizeRoundedBoundedInt(text, min, min, max));
+}
+
+function uniqueCharacters(value: string): string {
+  const seen = new Set<string>();
+  let result = "";
+
+  for (const char of value) {
+    if (seen.has(char)) continue;
+    seen.add(char);
+    result += char;
+  }
+
+  return result;
+}
+
+function normalizeFileNameFieldSeparators(value: unknown): string {
+  const raw = String(value ?? "")
+    .replace(/\r/g, "")
+    .replace(/\n/g, "")
+    .replace(/\t/g, " ");
+  const deduped = uniqueCharacters(raw);
+
+  return deduped.length ? deduped : DEFAULT_FILE_NAME_FIELD_SEPARATORS;
+}
+
+function normalizePlotAxisSettings(
+  value: unknown,
+  fallback: PlotAxisSettings = DEFAULT_CONDUCTOR_CONFIGURATION.plotAxisSettings,
+): PlotAxisSettings {
+  const raw = isRecord(value) ? value : {};
+  const yScale = raw.yScale === "log" || raw.yScale === "logAbs" ? raw.yScale : fallback.yScale;
+  const xTicks = raw.xTicks === "nice" || raw.xTicks === "step" ? raw.xTicks : "auto";
+  const yTicks =
+    yScale !== "linear"
+      ? raw.yTicks === "auto"
+        ? "auto"
+        : "decades"
+      : raw.yTicks === "auto" || raw.yTicks === "step"
+        ? raw.yTicks
+        : "nice";
+
+  return {
+    xMin: normalizeFiniteNumberText(raw.xMin ?? fallback.xMin),
+    xMax: normalizeFiniteNumberText(raw.xMax ?? fallback.xMax),
+    xTicks,
+    xTickCount: normalizeRoundedBoundedInt(raw.xTickCount, fallback.xTickCount, 2, 20),
+    xStep: normalizeFiniteNumberText(raw.xStep ?? fallback.xStep),
+    xTooltipDigits: normalizeIntegerText(raw.xTooltipDigits ?? fallback.xTooltipDigits, 0, 20),
+    yMin: normalizeFiniteNumberText(raw.yMin ?? fallback.yMin),
+    yMax: normalizeFiniteNumberText(raw.yMax ?? fallback.yMax),
+    yScale,
+    yLogCurrentMode: raw.yLogCurrentMode === "positive" ? "positive" : "all",
+    yTicks,
+    yTickCount: normalizeRoundedBoundedInt(raw.yTickCount, fallback.yTickCount, 2, 20),
+    yStep: normalizeFiniteNumberText(raw.yStep ?? fallback.yStep),
+    yDecadeStep: normalizeRoundedBoundedInt(raw.yDecadeStep, fallback.yDecadeStep, 1, 10),
+    showGrid: typeof raw.showGrid === "boolean" ? raw.showGrid : fallback.showGrid,
+    showMajorTicks:
+      typeof raw.showMajorTicks === "boolean" ? raw.showMajorTicks : fallback.showMajorTicks,
+    showMinorTicks:
+      typeof raw.showMinorTicks === "boolean" ? raw.showMinorTicks : fallback.showMinorTicks,
+    minorTickCount: normalizeOptionalRoundedBoundedInt(
+      raw.minorTickCount,
+      fallback.minorTickCount,
+      1,
+      20,
+    ),
+    tickLabelFontSize: normalizeOptionalRoundedBoundedInt(
+      raw.tickLabelFontSize,
+      fallback.tickLabelFontSize,
+      1,
+      96,
+    ),
+    axisTitleFontSize: normalizeOptionalRoundedBoundedInt(
+      raw.axisTitleFontSize,
+      fallback.axisTitleFontSize,
+      1,
+      96,
+    ),
+    originTickLabelOffset: normalizeFiniteNumberText(
+      raw.originTickLabelOffset ?? fallback.originTickLabelOffset,
+    ),
+    originAxisTitleGap: normalizeFiniteNumberText(
+      raw.originAxisTitleGap ?? fallback.originAxisTitleGap,
+    ),
+  };
+}
+
+export function normalizeConductorSettings(raw: unknown): ConductorSettings {
+  const next = isRecord(raw) ? { ...raw } : {};
+
+  const language = isSetValue(LANGUAGES, next.language)
+    ? next.language
+    : DEFAULT_CONDUCTOR_CONFIGURATION.language;
+  const ssMethodDefault = isSetValue(SS_METHODS, next.ssMethodDefault)
+    ? next.ssMethodDefault
+    : DEFAULT_CONDUCTOR_CONFIGURATION.ssMethodDefault;
+  const ionIoffMethodDefault = isSetValue(ION_IOFF_METHODS, next.ionIoffMethodDefault)
+    ? next.ionIoffMethodDefault
+    : DEFAULT_CONDUCTOR_CONFIGURATION.ionIoffMethodDefault;
+  const theme = isSetValue(THEMES, next.theme)
+    ? next.theme
+    : DEFAULT_CONDUCTOR_CONFIGURATION.theme;
+  const backgroundColor = normalizeBackgroundColor(next.backgroundColor);
+  const transparentChrome = normalizeBoolean(
+    next.transparentChrome,
+    DEFAULT_CONDUCTOR_CONFIGURATION.transparentChrome,
+  );
+  const windowCloseBehavior = isSetValue(
+    WINDOW_CLOSE_BEHAVIORS,
+    next.windowCloseBehavior,
+  )
+    ? next.windowCloseBehavior
+    : DEFAULT_CONDUCTOR_CONFIGURATION.windowCloseBehavior;
+  const ssShowFitLine =
+    typeof next.ssShowFitLine === "boolean"
+      ? next.ssShowFitLine
+      : DEFAULT_CONDUCTOR_CONFIGURATION.ssShowFitLine;
+
+  const stopOnErrorDefault =
+    normalizeBoolean(
+      next.stopOnErrorDefault,
+      DEFAULT_CONDUCTOR_CONFIGURATION.stopOnErrorDefault,
+    );
+  const ssIdLow = normalizePositiveNumber(
+    next.ssIdLow,
+    DEFAULT_CONDUCTOR_CONFIGURATION.ssIdLow,
+  );
+  const ssIdHigh = normalizePositiveNumber(
+    next.ssIdHigh,
+    DEFAULT_CONDUCTOR_CONFIGURATION.ssIdHigh,
+  );
+  const originExePath = normalizeOriginExePath(next.originExePath);
+  const originExportModeDefault = isSetValue(
+    ORIGIN_EXPORT_MODES,
+    next.originExportModeDefault,
+  )
+    ? next.originExportModeDefault
+    : DEFAULT_CONDUCTOR_CONFIGURATION.originExportModeDefault;
+  const originPlotDefaults = normalizeOriginPlotOptions({
+    plotCommand: DEFAULT_CONDUCTOR_CONFIGURATION.originPlotCommandDefault,
+    plotType: DEFAULT_CONDUCTOR_CONFIGURATION.originPlotTypeDefault,
+    postPlotCommands: DEFAULT_CONDUCTOR_CONFIGURATION.originPlotPostCommandsDefault,
+    lineWidth: DEFAULT_CONDUCTOR_CONFIGURATION.originPlotLineWidthDefault,
+    legendFontSize: DEFAULT_CONDUCTOR_CONFIGURATION.originPlotLegendFontSizeDefault,
+    xyPairs: DEFAULT_CONDUCTOR_CONFIGURATION.originPlotXyPairsDefault,
+  });
+  const plotAxisSettings = normalizePlotAxisSettings(
+    next.plotAxisSettings,
+  );
+  const originPlotSettings = normalizeOriginPlotOptions(
+    {
+      plotCommand: next.originPlotCommandDefault,
+      plotType: next.originPlotTypeDefault,
+      postPlotCommands: next.originPlotPostCommandsDefault,
+      lineWidth: next.originPlotLineWidthDefault,
+      legendFontSize: next.originPlotLegendFontSizeDefault,
+      xyPairs: next.originPlotXyPairsDefault,
+    },
+    originPlotDefaults,
+  );
+  const originRuntimeCleanupEnabled =
+    typeof next.originRuntimeCleanupEnabled === "boolean"
+      ? next.originRuntimeCleanupEnabled
+      : DEFAULT_CONDUCTOR_CONFIGURATION.originRuntimeCleanupEnabled;
+  const originRuntimeKeepSuccessJobs = normalizeBoundedInt(
+    next.originRuntimeKeepSuccessJobs,
+    DEFAULT_CONDUCTOR_CONFIGURATION.originRuntimeKeepSuccessJobs,
+    0,
+    100,
+  );
+  const originRuntimeFailedRetentionDays = normalizeBoundedInt(
+    next.originRuntimeFailedRetentionDays,
+    DEFAULT_CONDUCTOR_CONFIGURATION.originRuntimeFailedRetentionDays,
+    1,
+    365,
+  );
+  return {
+    ...DEFAULT_CONDUCTOR_CONFIGURATION,
+    ...next,
+    language,
+    fileNameFieldSeparators: normalizeFileNameFieldSeparators(next.fileNameFieldSeparators),
+    stopOnErrorDefault,
+    theme,
+    backgroundColor,
+    transparentChrome,
+    windowCloseBehavior,
+    ssMethodDefault,
+    ionIoffMethodDefault,
+    ssShowFitLine,
+    ssIdLow,
+    ssIdHigh,
+    originExePath,
+    originExportModeDefault,
+    originPlotTypeDefault: originPlotSettings.plotType,
+    originPlotXyPairsDefault: originPlotSettings.xyPairs,
+    originPlotCommandDefault: originPlotSettings.plotCommand,
+    originPlotPostCommandsDefault: originPlotSettings.postPlotCommands,
+    originPlotLineWidthDefault: originPlotSettings.lineWidth,
+    originPlotLegendFontSizeDefault: originPlotSettings.legendFontSize,
+    originRuntimeCleanupEnabled,
+    originRuntimeKeepSuccessJobs,
+    originRuntimeFailedRetentionDays,
+    plotAxisSettings,
+  };
+}
+
+export function cloneConductorSettings(settings: unknown): ConductorSettings {
+  return normalizeConductorSettings(settings);
+}
+
+export function applyStartupConductorDefaults(settings: unknown): ConductorSettings {
+  const normalized = normalizeConductorSettings(settings);
+  return normalizeConductorSettings({
+    ...normalized,
+    ...STARTUP_DEFAULTS,
+    plotAxisSettings: {
+      ...normalized.plotAxisSettings,
+      ...STARTUP_DEFAULTS.plotAxisSettings,
+    },
+  });
+}
+
+function createConductorConfigurationProperties(): Record<string, IConfigurationPropertySchema> {
+  const properties: Record<string, IConfigurationPropertySchema> = Object.create(null);
+
+  for (const [key, defaultValue] of Object.entries(DEFAULT_CONDUCTOR_CONFIGURATION)) {
+    properties[key] = {
+      default: defaultValue,
+      scope: ConfigurationScope.APPLICATION,
+      type: getJsonSchemaType(defaultValue),
+    };
+  }
+
+  return properties;
+}
+
+function getJsonSchemaType(value: unknown): IConfigurationPropertySchema["type"] {
+  if (value === null) {
+    return ["string", "null"];
+  }
+
+  if (Array.isArray(value)) {
+    return "array";
+  }
+
+  switch (typeof value) {
+    case "boolean":
+      return "boolean";
+    case "number":
+      return "number";
+    case "object":
+      return "object";
+    case "string":
+    default:
+      return "string";
+  }
+}
+
+export const CONDUCTOR_CONFIGURATION_NODE: IConfigurationNode = {
+  id: "conductor",
+  title: "Conductor",
+  type: "object",
+  properties: createConductorConfigurationProperties(),
+};
 
 class ConfigurationRegistry implements IConfigurationRegistry {
   private readonly configurations: IConfigurationNode[] = [];
@@ -197,4 +802,6 @@ class ConfigurationRegistry implements IConfigurationRegistry {
   }
 }
 
-Registry.add(Extensions.Configuration, new ConfigurationRegistry());
+const configurationRegistry = new ConfigurationRegistry();
+configurationRegistry.registerConfiguration(CONDUCTOR_CONFIGURATION_NODE);
+Registry.add(Extensions.Configuration, configurationRegistry);

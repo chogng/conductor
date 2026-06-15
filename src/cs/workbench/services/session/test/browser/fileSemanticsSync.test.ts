@@ -16,7 +16,7 @@ suite("workbench/services/session/test/browser/fileSemanticsSync", () => {
 		const snapshot = createSnapshot(file);
 
 		const axisSettings = getFileAxisSettingsByFileId({
-			conductorSettings: {
+			axisSettings: {
 				xUnitByFileId: { "file-a": "mV" },
 				yScaleByFileId: { "file-a": "log" },
 			},

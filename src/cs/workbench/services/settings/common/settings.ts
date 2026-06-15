@@ -30,7 +30,6 @@ export type ConductorSettings = {
   theme?: ThemeMode;
   transparentChrome?: boolean;
   windowCloseBehavior?: "minimizeToTray" | "quit";
-  trayMinimizeHintShown?: boolean;
   originExePath?: string;
   originExportModeDefault?:
     | "merged"
@@ -59,13 +58,6 @@ export type ConductorSettings = {
   defaultYScaleForSpecial?: "linear" | "log";
   defaultYScaleForTransfer?: "linear" | "log";
   plotAxisSettings?: Record<string, unknown>;
-  xUnitByFileId?: Record<string, "V" | "mV">;
-  yUnitByFileId?: Record<
-    string,
-    "A" | "mA" | "uA" | "nA" | "pA" | "F" | "mF" | "uF" | "nF" | "pF"
-  >;
-  yScaleByFileId?: Record<string, "linear" | "log">;
-  yLogCurrentModeByFileId?: Record<string, "all" | "positive">;
   [key: string]: unknown;
 };
 
@@ -75,7 +67,7 @@ export const SettingsViewId = "workbench.settings";
 
 export const ISettingsService = createDecorator<ISettingsService>("settingsService");
 
-export type SettingsStore = {
+export type SettingsPersistence = {
   getSettings: () => Promise<unknown>;
   updateSettings: (updates: unknown) => Promise<unknown>;
 };
@@ -89,7 +81,7 @@ export type SettingsServiceOptions = {
   appUpdateSettings: SettingsAppUpdateInput;
   isWindowsDesktopShell: boolean;
   language: LanguagePreference;
-  settingsStore?: SettingsStore;
+  settingsPersistence?: SettingsPersistence;
   theme: ThemeMode;
 };
 

@@ -4,6 +4,11 @@
 
 import assert from "assert";
 import { Event } from "src/cs/base/common/event";
+import {
+  AbstractStorageService,
+  StorageScope,
+  StorageTarget,
+} from "src/cs/platform/storage/common/storage";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
@@ -23,7 +28,11 @@ import type {
 
 suite("workbench/services/plot/test/browser/plotService", () => {
   test("owns active plot type outside session", () => {
-    const service = new PlotService(createSessionServiceStub(), createSettingsServiceStub());
+    const service = new PlotService(
+      createSessionServiceStub(),
+      createSettingsServiceStub(),
+      new TestStorageService(),
+    );
     let changeCount = 0;
     const disposable = service.onDidChangePlotState(() => {
       changeCount += 1;
@@ -45,6 +54,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         yScaleByFileId: { "file-a": "log" },
         yUnitByFileId: { "file-a": "mA" },
       }),
+      new TestStorageService(),
     );
     const displayModel = service.getPlotDisplayModel({
       hiddenLegendKeys: ["series-b"],
@@ -69,7 +79,11 @@ suite("workbench/services/plot/test/browser/plotService", () => {
   });
 
   test("owns axis title overrides by plot context", () => {
-    const service = new PlotService(createSessionServiceStub(), createSettingsServiceStub());
+    const service = new PlotService(
+      createSessionServiceStub(),
+      createSettingsServiceStub(),
+      new TestStorageService(),
+    );
     const snapshot = createSnapshot();
     const initial = service.getPlotDisplayModel({ snapshot });
     assert.equal(initial?.chart.xAxisTitle, "Gate (V)");
@@ -120,15 +134,18 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     }
   });
 
-  test("updates unit and scale settings through plot owner API", async () => {
-    const updates: unknown[] = [];
+  test("updates unit and scale storage through plot owner API", async () => {
+    const storageService = new TestStorageService();
+    storageService.store(
+      "plot.xUnitByFileId",
+      { "file-b": "V" },
+      StorageScope.PROFILE,
+      StorageTarget.USER,
+    );
     const service = new PlotService(
       createSessionServiceStub(),
-      createSettingsServiceStub({
-        xUnitByFileId: { "file-b": "V" },
-        yScaleByFileId: {},
-        yUnitByFileId: {},
-      }, updates),
+      createSettingsServiceStub(),
+      storageService,
     );
     let changeCount = 0;
     const disposable = service.onDidChangePlotState(() => {
@@ -140,15 +157,46 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     await service.setYScale("file-a", "log");
     await service.setYScale("file-a", "log");
 
-    assert.deepEqual(updates, [
-      { xUnitByFileId: { "file-b": "V", "file-a": "mV" } },
-      { yUnitByFileId: { "file-a": "uA" } },
-      { yScaleByFileId: { "file-a": "log" } },
-    ]);
+    assert.deepEqual({
+      xUnitByFileId: storageService.getObject("plot.xUnitByFileId", StorageScope.PROFILE),
+      yUnitByFileId: storageService.getObject("plot.yUnitByFileId", StorageScope.PROFILE),
+      yScaleByFileId: storageService.getObject("plot.yScaleByFileId", StorageScope.PROFILE),
+    }, {
+      xUnitByFileId: { "file-b": "V", "file-a": "mV" },
+      yUnitByFileId: { "file-a": "uA" },
+      yScaleByFileId: { "file-a": "log" },
+    });
     assert.equal(changeCount, 3);
     disposable.dispose();
   });
 });
+
+class TestStorageService extends AbstractStorageService {
+  private readonly values = new Map<string, string>();
+
+  protected readValue(key: string, scope: StorageScope): string | undefined {
+    return this.values.get(this.storageKey(key, scope));
+  }
+
+  protected writeValue(key: string, scope: StorageScope, value: string): void {
+    this.values.set(this.storageKey(key, scope), value);
+  }
+
+  protected deleteValue(key: string, scope: StorageScope): void {
+    this.values.delete(this.storageKey(key, scope));
+  }
+
+  protected readKeys(scope: StorageScope): string[] {
+    const prefix = `${scope}:`;
+    return [...this.values.keys()]
+      .filter(key => key.startsWith(prefix))
+      .map(key => key.slice(prefix.length));
+  }
+
+  private storageKey(key: string, scope: StorageScope): string {
+    return `${scope}:${key}`;
+  }
+}
 
 const createSessionServiceStub = (): ISessionService => ({
   _serviceBrand: undefined,

@@ -15,7 +15,7 @@ Do not create vague nested managers such as `ExplorerManager` containing `Import
 | `Service` | The component is injectable and owns domain or service state. | Yes, when state belongs to the domain. | `ExplorerService`, `PlotService` | Depend on views or DOM. |
 | `Controller` | The component coordinates a user workflow, command, dialog, notification, or worker operation. | Only transient workflow state. | `TemplateApplyController` | Become the canonical owner of records; create upstream-looking controllers when an upstream file shape already exists. |
 | `Model` | The component is a pure data shape or projection builder. | No long-lived mutable state. | `explorerModel.ts`, `PlotRenderModel` | Call services or mutate session. |
-| `Store` | The component owns local service state with events. | Yes, but only local service/view-service state. | `settingsStore.ts` | Store canonical records that belong in Session; extract Explorer selection state before `ExplorerService` proves insufficient. |
+| `Store` | The component owns local service state with events. | Yes, but only local service/view-service state. | `draftStateStore.ts` | Store canonical records that belong in Session; extract Explorer selection state before `ExplorerService` proves insufficient. |
 | `Registry` | The component maps ids to handlers/providers/descriptors. | Registry entries only. | `ViewsRegistry` | Orchestrate workflows. |
 | `Provider` | The component supplies external data/capability behind an interface. | Usually no canonical state. | `IFileSystemProvider` | Interpret measurement semantics. |
 | `Reader` | The component reads data from an existing source. | Cache only if explicitly stated. | `RawTableRowsReader` | Own import state. |

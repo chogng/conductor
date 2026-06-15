@@ -213,6 +213,11 @@ const createSettingsServiceStub = (): ISettingsService => ({
 const createPlotServiceStub = (
 	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>>,
 ): IPlotService => ({
+	getFileAxisSettings: () => ({
+		xUnitByFileId: {},
+		yScaleByFileId: {},
+		yUnitByFileId: {},
+	}),
 	getLegendLabels: (fileId: string) => legendLabelsByFileId[fileId] ?? {},
 } as IPlotService);
 

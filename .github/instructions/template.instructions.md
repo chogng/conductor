@@ -19,7 +19,13 @@ Template consumes assessment. It does not decide whether a table is IV/CV/CF/PV/
 
 - template persistence backend access;
 - the browser unavailable implementation for runtimes without a template store;
-- the electron-browser bridge to desktop template storage.
+- the electron-browser desktop implementation that persists Template-owned data.
+
+Desktop `template.json` persistence belongs to Template. It uses the platform
+file service and the workbench `IJSONEditingService` for JSON file writes. The
+template store schema and normalization stay under `workbench/services/template`;
+main process only exposes the generic file capability and must not own template
+CRUD IPC.
 
 `ITemplateApplyWorkflowService` owns:
 
@@ -48,12 +54,12 @@ Template does not own:
 | File | Responsibility |
 | --- | --- |
 | `src/cs/workbench/services/template/common/template.ts` | Defines `ITemplateService`, `TemplateRecord`, `TemplateConfig`, template CRUD contracts. |
-| `src/cs/workbench/services/template/common/templateStore.ts` | Defines `ITemplateStoreService`, the template persistence backend contract. |
+| `src/cs/workbench/services/template/common/templateStore.ts` | Defines `ITemplateStoreService`, the template persistence backend contract, and template storage data normalization. |
 | `src/cs/workbench/services/template/common/templateRun.ts` | Defines `TemplateRunRecord`, `TemplateRunInput`, warnings/errors, config fingerprint. |
 | `src/cs/workbench/services/template/common/templateSelection.ts` | Template selection records and helpers. |
 | `src/cs/workbench/services/template/browser/templateService.ts` | Implements template CRUD, selection state, and read APIs. |
 | `src/cs/workbench/services/template/browser/templateStoreService.ts` | Browser template store fallback for runtimes without desktop persistence. |
-| `src/cs/workbench/services/template/electron-browser/templateStoreService.ts` | Desktop renderer template store bridge to Conductor store. |
+| `src/cs/workbench/services/template/electron-browser/templateStoreService.ts` | Desktop renderer template store backed by `IJSONEditingService` and `IFileService`. |
 | `src/cs/workbench/services/template/browser/templateApplyService.ts` | Worker boundary implementation. No DOM. |
 | `src/cs/workbench/services/template/browser/templateApplyPlanner.ts` | Builds run plan from assessment blocks and config. Pure enough to test. |
 | `src/cs/workbench/services/template/browser/template.contribution.ts` | Registers services and template lifecycle contribution. |
@@ -147,7 +153,7 @@ Use `records.instructions.md` for template record field definitions:
 | Component | Responsibility |
 | --- | --- |
 | `TemplateService` | Template CRUD entry point, selection state, run APIs. |
-| `TemplateStoreService` | Template persistence backend access. |
+| `TemplateStoreService` | Template persistence backend access through the desktop JSON editing/file services. |
 | `TemplateApplyService` | Worker lifecycle boundary. |
 | `TemplateApplyWorkflowService` / `TemplateApplyController` | User workflow coordination: apply, progress, notification, batching. |
 | `TemplateApplyPlanner` | Pure plan from config + assessment blocks. |

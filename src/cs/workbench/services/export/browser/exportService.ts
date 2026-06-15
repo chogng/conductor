@@ -59,7 +59,6 @@ import {
   ISettingsService,
 } from "src/cs/workbench/services/settings/common/settings";
 import { IPlotService } from "src/cs/workbench/services/plot/common/plot";
-import { getFileAxisSettingsByFileId } from "src/cs/workbench/services/session/browser/fileSemanticsSync";
 
 type OriginExportFile = {
   readonly calculationCache?: unknown;
@@ -278,10 +277,7 @@ export class BrowserExportService extends Disposable implements IExportService {
   }
 
   private getAxisSettings(snapshot: SessionSnapshot): OriginExportAxisSettings {
-    return getFileAxisSettingsByFileId({
-      conductorSettings: this.settingsService.getConductorSettings(),
-      snapshot,
-    });
+    return this.plotService.getFileAxisSettings(snapshot);
   }
 
   private resolveOriginExportFiles(input: OriginExportPlanInput): OriginExportFile[] {

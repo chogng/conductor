@@ -84,10 +84,11 @@ export interface IPlotService {
 }
 ```
 
-`setAxisUnit` and `setYScale` are Plot owner APIs. Their current persistent
-backing is conductor settings, so `PlotService` writes through
-`ISettingsService` and then fires `onDidChangePlotState`. Chart views must call
-Plot, not settings, for these controls.
+`setAxisUnit` and `setYScale` are Plot owner APIs. Their persistent backing is
+platform `IStorageService`, because per-file unit and scale choices are
+remembered plot state, not user configuration. `PlotService` writes storage and
+then fires `onDidChangePlotState`. Chart views must call Plot, not settings or
+storage, for these controls.
 
 ## Rules
 
@@ -134,8 +135,8 @@ definitions: `PlotState`, `PlotRenderModel`, `PlotSeriesModel`, and
 `PlotAxisModel`.
 
 Per-file unit and scale choices are written through Plot owner APIs and
-currently persisted in conductor settings. `PlotService` consumes Settings and
-Session directly when building display models; callers do not pass axis
+persisted in platform storage. `PlotService` consumes storage, legacy Settings
+values, and Session when building display models; callers do not pass axis
 settings through Chart input or render-model requests.
 
 ## Component split

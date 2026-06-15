@@ -8,6 +8,10 @@ import { localize } from "src/cs/nls";
 import {
   isLanguagePreference,
 } from "src/cs/platform/language/common/language";
+import {
+  ConfigurationTarget,
+  IConfigurationService,
+} from "src/cs/platform/configuration/common/configuration";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { formatOriginBridgeError } from "src/cs/workbench/services/export/common/originBridgeError";
 import {
@@ -24,9 +28,9 @@ import {
   toConductorSettings,
 } from "src/cs/workbench/services/settings/browser/settingsShared";
 import {
-  getSettings as getPersistedSettings,
-  updateSettings as updatePersistedSettings,
-} from "src/cs/workbench/services/settings/browser/settingsStore";
+  CONDUCTOR_CONFIGURATION_KEYS,
+  normalizeConductorSettings as normalizePersistedConductorSettings,
+} from "src/cs/platform/configuration/common/configurationRegistry";
 import {
   getOriginOpenPlotOptions,
   ISettingsService,
@@ -35,16 +39,11 @@ import {
   type OriginHealthResult,
   type OriginSettingsViewInput,
   type SettingsServiceOptions,
-  type SettingsStore,
+  type SettingsPersistence,
   type SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import { normalizePlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
-
-const defaultSettingsStore: SettingsStore = {
-  getSettings: getPersistedSettings,
-  updateSettings: updatePersistedSettings,
-};
 
 const defaultOptions: SettingsServiceOptions = {
   appUpdateSettings: {
@@ -53,7 +52,6 @@ const defaultOptions: SettingsServiceOptions = {
   },
   isWindowsDesktopShell: false,
   language: "system",
-  settingsStore: defaultSettingsStore,
   theme: "system",
 };
 
@@ -81,13 +79,24 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
   private originSettingsViewInput: OriginSettingsViewInput;
   private settingsViewInput: SettingsViewInput | null = null;
 
-  constructor() {
+  constructor(
+    @IConfigurationService private readonly configurationService: IConfigurationService,
+  ) {
     super();
 
     this.conductorSettings = getInitialSettingsSnapshot();
     this.conductorSettingsLoaded = Boolean(this.conductorSettings);
     this.originSettingsViewInput = this.createOriginSettingsViewInput();
     this.settingsViewInput = this.createSettingsViewInput();
+    this._register(this.configurationService.onDidChangeConfiguration(event => {
+      if (
+        CONDUCTOR_CONFIGURATION_KEYS.some(key =>
+          event.affectsConfiguration(key),
+        )
+      ) {
+        void this.loadSettings();
+      }
+    }));
   }
 
   public override dispose(): void {
@@ -183,7 +192,7 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     }
 
     const persisted = toConductorSettings(
-      await this.getSettingsStore().updateSettings(patch),
+      await this.getSettingsPersistence().updateSettings(patch),
     );
     this.mergeConductorSettings(persisted ?? patch);
     return this.getConductorSettings();
@@ -282,7 +291,7 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     this.setConductorSettingsLoaded(false);
 
     try {
-      const settings = toConductorSettings(await this.getSettingsStore().getSettings());
+      const settings = toConductorSettings(await this.getSettingsPersistence().getSettings());
       if (!this.disposed) {
         this.setConductorSettings(settings, true);
       }
@@ -295,8 +304,9 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     }
   }
 
-  private getSettingsStore(): SettingsStore {
-    return this.options.settingsStore ?? defaultSettingsStore;
+  private getSettingsPersistence(): SettingsPersistence {
+    return this.options.settingsPersistence ??
+      createConfigurationSettingsPersistence(this.configurationService);
   }
 
   private setConductorSettings(
@@ -431,5 +441,35 @@ const isSameObjectRecord = (
   return currentKeys.length === nextKeys.length &&
     currentKeys.every(key => Object.is(current[key], next[key]));
 };
+
+function createConfigurationSettingsPersistence(
+  configurationService: IConfigurationService,
+): SettingsPersistence {
+  const readSettings = (): ConductorSettings =>
+    normalizePersistedConductorSettings(
+      configurationService.getValue<Record<string, unknown>>() ?? {},
+    );
+
+  return {
+    getSettings: async () => readSettings(),
+    updateSettings: async (updates: unknown) => {
+      const patch = isObjectRecord(updates) ? updates : {};
+      const nextSettings = normalizePersistedConductorSettings({
+        ...readSettings(),
+        ...patch,
+      }) as Record<string, unknown>;
+
+      for (const key of Object.keys(patch)) {
+        await configurationService.updateValue(
+          key,
+          nextSettings[key],
+          ConfigurationTarget.USER,
+        );
+      }
+
+      return readSettings();
+    },
+  };
+}
 
 registerSingleton(ISettingsService, BrowserSettingsService, InstantiationType.Delayed);

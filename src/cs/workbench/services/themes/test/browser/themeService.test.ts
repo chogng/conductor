@@ -40,6 +40,7 @@ suite("workbench/services/themes/browser/themeService", () => {
 		assert.deepStrictEqual(calls, [
 			["desktopAppearanceSet", {
 				backgroundColor: "#abcdef",
+				theme: "system",
 				transparentChrome: true,
 			}],
 		]);
@@ -51,6 +52,7 @@ suite("workbench/services/themes/browser/themeService", () => {
 		assert.deepStrictEqual(calls, [
 			["desktopAppearanceSet", {
 				backgroundColor: "#abcdef",
+				theme: "system",
 				transparentChrome: true,
 			}],
 			["setProperty", ["--bg-page", "171 205 239"]],
@@ -75,6 +77,7 @@ suite("workbench/services/themes/browser/themeService", () => {
 		assert.deepStrictEqual(calls, [
 			["desktopAppearanceSet", {
 				backgroundColor: "#abcdef",
+				theme: "system",
 				transparentChrome: true,
 			}],
 			["setProperty", ["--bg-page", "171 205 239"]],
@@ -94,6 +97,7 @@ suite("workbench/services/themes/browser/themeService", () => {
 			["toggleClass", ["workbench-transparent-chrome-macos", false]],
 			["desktopAppearanceSet", {
 				backgroundColor: "#abcdef",
+				theme: "system",
 				transparentChrome: false,
 			}],
 		]);
@@ -116,6 +120,7 @@ suite("workbench/services/themes/browser/themeService", () => {
 		assert.deepStrictEqual(calls, [
 			["desktopAppearanceSet", {
 				backgroundColor: "#abcdef",
+				theme: "system",
 				transparentChrome: true,
 			}],
 			["setProperty", ["--bg-page", "171 205 239"]],
@@ -135,6 +140,7 @@ suite("workbench/services/themes/browser/themeService", () => {
 			["toggleClass", ["workbench-transparent-chrome-windows", false]],
 			["desktopAppearanceSet", {
 				backgroundColor: "#abcdef",
+				theme: "system",
 				transparentChrome: false,
 			}],
 		]);
@@ -201,6 +207,7 @@ suite("workbench/services/themes/browser/themeService", () => {
 			["toggleClass", ["workbench-transparent-chrome", false]],
 			["desktopAppearanceSet", {
 				backgroundColor: "#abcdef",
+				theme: "system",
 				transparentChrome: false,
 			}],
 		]);
