@@ -118,7 +118,7 @@ export interface IExplorerService {
 
 export interface ExplorerWorkflowHandler {
   openFolderImport(): void;
-  removeSelectedFolder(): void;
+  closeFolder(): void;
   removeFile(fileId: string): void;
 }
 
@@ -127,6 +127,6 @@ export interface IExplorerWorkflowService {
 
   registerHandler(handler: ExplorerWorkflowHandler): IDisposable;
   openFolderImport(): void;
-  removeSelectedFolder(): void;
+  closeFolder(): void;
   removeFile(fileId: string): void;
 }

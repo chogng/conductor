@@ -8,8 +8,8 @@ import { ITemplateService } from "src/cs/workbench/services/template/common/temp
 import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 import {
   ADD_FOLDER_ACTION_ID,
+  CLOSE_FOLDER_ACTION_ID,
   REMOVE_FILE_ITEM_COMMAND_ID,
-  REMOVE_FOLDER_ACTION_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
   SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
@@ -17,8 +17,8 @@ import {
 import "../../browser/fileActions.contribution.ts";
 import {
   addFolderHandler,
+  closeFolderHandler,
   removeFileItemHandler,
-  removeFolderHandler,
   setFileTemplateHandler,
 } from "../../browser/fileCommands.ts";
 
@@ -31,7 +31,7 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       | null = null;
     const workflowRegistration = explorerWorkflowService.registerHandler({
       openFolderImport: () => undefined,
-      removeSelectedFolder: () => undefined,
+      closeFolder: () => undefined,
       removeFile: fileId => {
         removedFileId = fileId;
       },
@@ -76,13 +76,13 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
   test("folder commands delegate to explorer workflow service", () => {
     const explorerWorkflowService = new ExplorerWorkflowService();
     let importRequests = 0;
-    let removalRequests = 0;
+    let closeRequests = 0;
     const workflowRegistration = explorerWorkflowService.registerHandler({
       openFolderImport: () => {
         importRequests += 1;
       },
-      removeSelectedFolder: () => {
-        removalRequests += 1;
+      closeFolder: () => {
+        closeRequests += 1;
       },
       removeFile: () => undefined,
     });
@@ -91,10 +91,10 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     ]);
 
     addFolderHandler(accessor);
-    removeFolderHandler(accessor);
+    closeFolderHandler(accessor);
 
     assert.equal(importRequests, 1);
-    assert.equal(removalRequests, 1);
+    assert.equal(closeRequests, 1);
     workflowRegistration.dispose();
     explorerWorkflowService.dispose();
   });
@@ -102,7 +102,7 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
   test("registered Action2 command entries delegate to files handlers", () => {
     const explorerWorkflowService = new ExplorerWorkflowService();
     let importRequests = 0;
-    let removalRequests = 0;
+    let closeRequests = 0;
     let removedFileId: string | null = null;
     let templateSelection:
       | { readonly fileId: string; readonly selection: TemplateSelection }
@@ -111,8 +111,8 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       openFolderImport: () => {
         importRequests += 1;
       },
-      removeSelectedFolder: () => {
-        removalRequests += 1;
+      closeFolder: () => {
+        closeRequests += 1;
       },
       removeFile: fileId => {
         removedFileId = fileId;
@@ -134,7 +134,7 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     ]);
 
     CommandsRegistry.getCommand(ADD_FOLDER_ACTION_ID)?.handler(accessor);
-    CommandsRegistry.getCommand(REMOVE_FOLDER_ACTION_ID)?.handler(accessor);
+    CommandsRegistry.getCommand(CLOSE_FOLDER_ACTION_ID)?.handler(accessor);
     CommandsRegistry.getCommand(REMOVE_FILE_ITEM_COMMAND_ID)?.handler(accessor, "file-1");
     CommandsRegistry.getCommand(RENAME_FILE_ITEM_COMMAND_ID)?.handler(accessor, "file-1");
     CommandsRegistry.getCommand(SET_FILE_TEMPLATE_COMMAND_ID)?.handler(accessor, "file-2", {
@@ -145,14 +145,14 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     });
 
     assert.equal(importRequests, 1);
-    assert.equal(removalRequests, 1);
+    assert.equal(closeRequests, 1);
     assert.equal(removedFileId, "file-1");
     assert.deepEqual(templateSelection, {
       fileId: "file-2",
       selection: { kind: "auto" },
     });
     assert.ok(CommandsRegistry.getCommand(ADD_FOLDER_ACTION_ID));
-    assert.ok(CommandsRegistry.getCommand(REMOVE_FOLDER_ACTION_ID));
+    assert.ok(CommandsRegistry.getCommand(CLOSE_FOLDER_ACTION_ID));
     assert.ok(CommandsRegistry.getCommand(REMOVE_FILE_ITEM_COMMAND_ID));
     assert.ok(CommandsRegistry.getCommand(RENAME_FILE_ITEM_COMMAND_ID));
     assert.ok(CommandsRegistry.getCommand(SET_FILE_TEMPLATE_COMMAND_ID));

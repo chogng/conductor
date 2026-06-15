@@ -10,14 +10,14 @@ suite("workbench/contrib/files/test/browser/explorerWorkflowService", () => {
   test("dispatches explorer workflow commands to the registered handler", () => {
     const service = new ExplorerWorkflowService();
     let importRequests = 0;
-    let folderRemovalRequests = 0;
+    let closeRequests = 0;
     const removedFileIds: string[] = [];
     const registration = service.registerHandler({
       openFolderImport: () => {
         importRequests += 1;
       },
-      removeSelectedFolder: () => {
-        folderRemovalRequests += 1;
+      closeFolder: () => {
+        closeRequests += 1;
       },
       removeFile: fileId => {
         removedFileIds.push(fileId);
@@ -25,12 +25,12 @@ suite("workbench/contrib/files/test/browser/explorerWorkflowService", () => {
     });
 
     service.openFolderImport();
-    service.removeSelectedFolder();
+    service.closeFolder();
     service.removeFile(" file-a ");
     service.removeFile(" ");
 
     assert.equal(importRequests, 1);
-    assert.equal(folderRemovalRequests, 1);
+    assert.equal(closeRequests, 1);
     assert.deepEqual(removedFileIds, ["file-a"]);
 
     registration.dispose();

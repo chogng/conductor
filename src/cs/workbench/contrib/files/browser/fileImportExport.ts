@@ -266,6 +266,13 @@ export class FileSourceWorkflow implements IDisposable {
     notificationService.disposeToast(WORKSPACE_EXTERNAL_CHANGES_TOAST_ID);
   }
 
+  public closeImportedSources(): void {
+    this.importRunId += 1;
+    this.folderRefreshRunId += 1;
+    this.excludedSourcePaths.clear();
+    this.clearImportedFolderWatch();
+  }
+
   public rememberRemovedFiles(fileIds: readonly string[]): void {
     const removedFileIds = new Set(fileIds);
     for (const file of this.options.getFiles()) {

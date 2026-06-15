@@ -29,8 +29,8 @@ import {
 } from "src/cs/workbench/contrib/files/browser/views/explorerView";
 import {
   ADD_FOLDER_ACTION_ID,
+  CLOSE_FOLDER_ACTION_ID,
   MORE_ACTIONS_ACTION_ID,
-  REMOVE_FOLDER_ACTION_ID,
   type FilesViewLayout,
 } from "src/cs/workbench/contrib/files/common/files";
 import {
@@ -153,7 +153,7 @@ export class ExplorerViewPane extends ViewPane {
     }));
     this._register(this.explorerWorkflowService.registerHandler({
       openFolderImport: () => this.openFileDialog(),
-      removeSelectedFolder: () => this.removeSelectedFolder(),
+      closeFolder: () => this.closeFolder(),
       removeFile: fileId => {
         if (this.fileIds.includes(fileId)) {
           this.handleRemoveFile(fileId);
@@ -322,17 +322,10 @@ export class ExplorerViewPane extends ViewPane {
     this.sourceWorkflow.openFolderDialog();
   }
 
-  private removeSelectedFolder(): void {
-    const folderPath = this.getSelectedFolderPath() ?? this.getFirstFolderPath();
-    if (!folderPath) {
-      return;
-    }
-
-    this.handleRemoveFolder(`folder:${folderPath}`);
-  }
-
   private showMoreActions(anchor: HTMLElement): void {
-    const canRemoveFolder = hasFolder(this.files);
+    const canCloseFolder =
+      this.files.length > 0 ||
+      getSessionFileIds(this.sessionService).length > 0;
     const isChartMode = this.paneInput.mode === "chart";
     const isThumbnailView = isChartMode && this.viewLayout === "thumbnail";
     this.contextMenuService.showContextMenu({
@@ -357,12 +350,12 @@ export class ExplorerViewPane extends ViewPane {
           },
         }),
         createMenuAction({
-          enabled: canRemoveFolder,
+          enabled: canCloseFolder,
           icon: LxIcon.remove,
-          id: REMOVE_FOLDER_ACTION_ID,
-          label: localize("files.removeFolder", "Remove Folder"),
+          id: CLOSE_FOLDER_ACTION_ID,
+          label: localize("files.closeFolder", "Close Folder"),
           run: () => {
-            void this.commandService.executeCommand(REMOVE_FOLDER_ACTION_ID);
+            void this.commandService.executeCommand(CLOSE_FOLDER_ACTION_ID);
           },
         }),
       ],
@@ -457,6 +450,27 @@ export class ExplorerViewPane extends ViewPane {
     this.handleFileCountEffects();
     this.syncView();
   };
+
+  private closeFolder(): void {
+    this.sourceWorkflow.closeImportedSources();
+    this.error = null;
+    this.isDragging = false;
+
+    const fileIds = uniqueFileIds([
+      ...this.fileIds,
+      ...getSessionFileIds(this.sessionService),
+    ]);
+    if (!this.isControlled) {
+      this.internalFiles = [];
+    }
+
+    if (fileIds.length > 0) {
+      this.sessionService.removeFiles(fileIds);
+    }
+    this.clearExplorerSelections();
+    this.handleFileCountEffects();
+    this.syncView();
+  }
 
   private readonly handleFolderExpansionChange = (expandedFolderKeys: readonly string[]): void => {
     if (!areStringArraysEqual(this.explorerService.expandedFolderKeys, expandedFolderKeys)) {
@@ -643,21 +657,6 @@ export class ExplorerViewPane extends ViewPane {
     return normalizeRelativePath(selectedFile?.relativePath);
   }
 
-  private getSelectedFolderPath(): string | null {
-    return getTopLevelFolderPath(this.getSelectedRelativePath());
-  }
-
-  private getFirstFolderPath(): string | null {
-    for (const file of this.files) {
-      const folderPath = getTopLevelFolderPath(file.relativePath);
-      if (folderPath) {
-        return folderPath;
-      }
-    }
-
-    return null;
-  }
-
   private selectFile(fileId: string | null, reveal?: "force"): string | null {
     return this.explorerService.select({
       candidateFileIds: this.fileIds,
@@ -673,7 +672,7 @@ export class ExplorerViewPane extends ViewPane {
     }
 
     const removedFileIdSet = new Set(removedFileIds);
-    const remainingFileIds = getSessionRawFileIds(this.sessionService)
+    const remainingFileIds = getSessionFileIds(this.sessionService)
       .filter(fileId => !removedFileIdSet.has(fileId));
     const nextSelectedFileId = resolveExplorerSelectionAfterRemoval({
       currentFileId: this.explorerService.selectedRawFileId,
@@ -684,6 +683,19 @@ export class ExplorerViewPane extends ViewPane {
       candidateFileIds: remainingFileIds,
       fileId: nextSelectedFileId,
       kind: "table",
+    }, "force");
+  }
+
+  private clearExplorerSelections(): void {
+    this.explorerService.select({
+      candidateFileIds: [],
+      fileId: null,
+      kind: "table",
+    }, "force");
+    this.explorerService.select({
+      candidateFileIds: [],
+      fileId: null,
+      kind: "chart",
     }, "force");
   }
 
@@ -712,13 +724,6 @@ function getActionAnchor(event: unknown): HTMLElement {
   return document.body;
 }
 
-function hasFolder(files: readonly ExplorerFileEntry[]): boolean {
-  return files.some(file => {
-    const relativePath = String(file.relativePath ?? "");
-    return relativePath.includes("/");
-  });
-}
-
 function normalizeRelativePath(value: unknown): string | null {
   const relativePath = String(value ?? "").trim();
   return relativePath || null;
@@ -737,13 +742,14 @@ function getNormalizedFileIds(values: readonly string[]): readonly string[] {
   );
 }
 
-function getSessionRawFileIds(
+function getSessionFileIds(
   sessionService: Pick<ISessionService, "getSnapshot">,
 ): readonly string[] {
   const snapshot = sessionService.getSnapshot();
-  return snapshot.fileOrder
-    .map(fileId => normalizeFileId(fileId))
-    .filter((fileId): fileId is string => Boolean(fileId && snapshot.filesById[fileId]));
+  return uniqueFileIds([
+    ...snapshot.fileOrder,
+    ...Object.keys(snapshot.filesById),
+  ]).filter(fileId => Boolean(snapshot.filesById[fileId]));
 }
 
 function uniqueFileIds(values: readonly string[]): readonly string[] {

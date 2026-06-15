@@ -7,16 +7,16 @@ import { Action2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import {
   ADD_FOLDER_ACTION_ID,
+  CLOSE_FOLDER_ACTION_ID,
   REMOVE_FILE_ITEM_COMMAND_ID,
-  REMOVE_FOLDER_ACTION_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
   SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/common/files";
 import {
   addFolderHandler,
+  closeFolderHandler,
   removeFileItemHandler,
-  removeFolderHandler,
   renameFileItemHandler,
   setFileTemplateHandler,
   sliceFileWithTemplateHandler,
@@ -38,19 +38,19 @@ export class AddFolderAction extends Action2 {
   }
 }
 
-export class RemoveFolderAction extends Action2 {
+export class CloseFolderAction extends Action2 {
   public constructor() {
     super({
-      id: REMOVE_FOLDER_ACTION_ID,
-      title: localize("files.removeFolder", "Remove Folder"),
+      id: CLOSE_FOLDER_ACTION_ID,
+      title: localize("files.closeFolder", "Close Folder"),
       metadata: {
-        description: localize("files.actions.removeFolder", "Remove the selected imported folder."),
+        description: localize("files.actions.closeFolder", "Close the imported folder and stop any pending import work."),
       },
     });
   }
 
   public run(accessor: ServicesAccessor): void {
-    removeFolderHandler(accessor);
+    closeFolderHandler(accessor);
   }
 }
 

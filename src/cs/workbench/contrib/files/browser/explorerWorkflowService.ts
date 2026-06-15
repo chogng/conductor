@@ -25,8 +25,8 @@ export class ExplorerWorkflowService extends Disposable implements IExplorerWork
     this.getActiveHandler()?.openFolderImport();
   }
 
-  public removeSelectedFolder(): void {
-    this.getActiveHandler()?.removeSelectedFolder();
+  public closeFolder(): void {
+    this.getActiveHandler()?.closeFolder();
   }
 
   public removeFile(fileId: string): void {

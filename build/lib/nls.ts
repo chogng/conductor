@@ -141,10 +141,14 @@ const missingInZh = diffKeys(generatedEn, zh);
 const extraInZh = diffKeys(zh, generatedEn);
 
 if (missingInZh.length) {
-  console.warn(`[nls] Warning: missing zh keys: ${missingInZh.join(", ")}`);
+  console.error(`[nls] Missing zh keys: ${missingInZh.join(", ")}`);
 }
 if (extraInZh.length) {
   console.warn(`[nls] Warning: extra zh keys: ${extraInZh.join(", ")}`);
+}
+
+if (missingInZh.length) {
+  process.exit(1);
 }
 
 console.log(`[nls] Verified ${Object.keys(generatedEn).length} built-in messages.`);

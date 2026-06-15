@@ -13,8 +13,8 @@ export const addFolderHandler: ICommandHandler = accessor => {
   accessor.get(IExplorerWorkflowService).openFolderImport();
 };
 
-export const removeFolderHandler: ICommandHandler = accessor => {
-  accessor.get(IExplorerWorkflowService).removeSelectedFolder();
+export const closeFolderHandler: ICommandHandler = accessor => {
+  accessor.get(IExplorerWorkflowService).closeFolder();
 };
 
 export const removeFileItemHandler: ICommandHandler<[unknown]> = (

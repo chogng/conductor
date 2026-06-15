@@ -328,6 +328,48 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.deepEqual(appendedFileNames, ["Added.csv"]);
     assert.deepEqual(replacedFileNames, []);
   });
+
+  test("closing imported sources prevents delayed prepared files from appending", async () => {
+    const backend = createControlledPathBackend();
+    const appendedFileNames: string[] = [];
+    const workflow = new FileSourceWorkflow({
+      commandService: {
+        executeCommand: async () => null,
+      },
+      fileConverterBackendService: backend,
+      filesService: new FileService(),
+      getFiles: () => [],
+      getSelectedRelativePath: () => null,
+      isDisposed: () => false,
+      onAppendPreparedFiles: preparedFiles => {
+        appendedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
+      },
+      onDraggingChange: () => undefined,
+      onErrorChange: () => undefined,
+      onRemoveFiles: () => undefined,
+      onReplacePreparedFiles: preparedFiles => {
+        appendedFileNames.push(...preparedFiles.map(file => file.fileInfo.fileName));
+      },
+      syncView: () => undefined,
+    });
+
+    const importPromise = (workflow as unknown as {
+      importFiles(files: readonly FileSource[]): Promise<void>;
+    }).importFiles([
+      createPathFileSource("A.csv", "folder/A.csv"),
+      createPathFileSource("B.csv", "folder/B.csv"),
+    ]);
+
+    await nextTurn();
+    assert.deepEqual(backend.fileNames, ["A.csv"]);
+
+    workflow.closeImportedSources();
+    backend.resolve("A.csv", "Vg,Id\n0,1");
+    await importPromise;
+    workflow.dispose();
+
+    assert.deepEqual(appendedFileNames, []);
+  });
 });
 
 const createFileConverterBackendStub = (
@@ -468,6 +510,21 @@ function createDataFileSource(fileName: string): FileSource {
     kind: "data",
     relativePath: null,
     resource: null,
+  };
+}
+
+function createPathFileSource(
+  fileName: string,
+  relativePath: string,
+): FileSource {
+  return {
+    canUseNativePath: true,
+    fileName,
+    kind: "path",
+    lastModified: 123,
+    relativePath,
+    resource: URIClass.file(`C:/data/${fileName}`),
+    size: 12,
   };
 }
 
