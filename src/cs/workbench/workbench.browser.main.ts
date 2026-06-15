@@ -9,7 +9,6 @@ import "src/cs/platform/contextview/browser/contextViewService";
 import "src/cs/platform/hover/browser/hoverService";
 import "src/cs/platform/quickinput/browser/media/quickInput.css";
 import "src/cs/platform/quickinput/browser/quickInputService";
-import "src/cs/platform/storage/browser/storageService";
 
 //#endregion
 
@@ -32,6 +31,7 @@ import "src/cs/workbench/services/parameters/browser/parametersService";
 import "src/cs/workbench/services/plot/browser/plotService";
 import "src/cs/workbench/services/search/browser/searchService";
 import "src/cs/workbench/services/session/browser/sessionService";
+import "src/cs/workbench/services/storage/browser/storageService";
 import "src/cs/workbench/services/template/browser/templateApplyController";
 import "src/cs/workbench/services/template/browser/templateApplyService";
 import "src/cs/workbench/services/template/browser/templateService";
