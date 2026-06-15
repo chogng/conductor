@@ -46,9 +46,11 @@ suite("workbench/services/assessment/test/browser/importFileAssessment", () => {
 
     const result = await assessImportFile(file);
 
+    assert.equal(result.curveFamily, "iv");
     assert.equal(result.curveType, "transfer (vg)");
     assert.equal(result.curveTypeConfidence, "high");
     assert.equal(result.curveTypeNeedsTemplate, false);
+    assert.equal(result.ivMode, "transfer");
     assert.equal(result.xAxisRole, "vg");
   });
 
@@ -69,9 +71,11 @@ suite("workbench/services/assessment/test/browser/importFileAssessment", () => {
 
     const result = await assessImportFile(file);
 
+    assert.equal(result.curveFamily, "iv");
     assert.equal(result.curveType, "output (vd)");
     assert.equal(result.curveTypeConfidence, "medium");
     assert.equal(result.curveTypeNeedsTemplate, false);
+    assert.equal(result.ivMode, "output");
     assert.equal(result.xAxisRole, "vd");
     assert.match(result.curveTypeReasons.join(" "), /output-like Id-Vd/i);
   });
@@ -89,9 +93,11 @@ suite("workbench/services/assessment/test/browser/importFileAssessment", () => {
 
     const result = await assessImportFile(file);
 
+    assert.equal(result.curveFamily, "iv");
     assert.equal(result.curveType, "transfer (vg)");
     assert.equal(result.curveTypeConfidence, "high");
     assert.equal(result.curveTypeNeedsTemplate, false);
+    assert.equal(result.ivMode, "transfer");
     assert.equal(result.xAxisRole, "vg");
   });
 });

@@ -12,7 +12,7 @@ import {
   computeSpan,
   normalizeCellText,
   parseFiniteNumber,
-} from "src/cs/workbench/common/cellText";
+} from "../../../common/cellText.ts";
 
 export type AxisRole = "vg" | "vd";
 

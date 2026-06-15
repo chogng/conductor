@@ -18,9 +18,11 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
       ["DataValue", "-1", "-2.63E-12", "-2.05E-12"],
     ]);
 
+    assert.equal(result.curveFamily, "iv");
     assert.equal(result.curveType, "transfer (vg)");
     assert.equal(result.curveTypeConfidence, "high");
     assert.equal(result.curveTypeNeedsTemplate, false);
+    assert.equal(result.ivMode, "transfer");
     assert.equal(result.xAxisRole, "vg");
   });
 
@@ -42,6 +44,8 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
     assert.equal(result.sourceRawTableVersion, 3);
     assert.equal(result.blocks.length, 1);
     assert.equal(result.blocks[0].fileId, "file-a");
+    assert.equal(result.blocks[0].family, "iv");
+    assert.equal(result.blocks[0].ivMode, "transfer");
     assert.equal(result.blocks[0].confidence, 0.9);
   });
 });

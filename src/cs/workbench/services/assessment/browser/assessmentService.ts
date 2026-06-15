@@ -118,9 +118,14 @@ const getAssessmentConfidenceScore = (
 const getMeasurementFamily = (
   assessment: ImportFileAssessment,
 ): MeasurementFamily => {
-  const curveType = String(assessment.curveType ?? "").toLowerCase();
-  if (curveType.includes("transfer") || curveType.includes("output")) {
-    return "iv";
+  if (
+    assessment.curveFamily === "iv" ||
+    assessment.curveFamily === "cv" ||
+    assessment.curveFamily === "cf" ||
+    assessment.curveFamily === "pv" ||
+    assessment.curveFamily === "it"
+  ) {
+    return assessment.curveFamily;
   }
   return "unknown";
 };
@@ -128,12 +133,10 @@ const getMeasurementFamily = (
 const getIvMode = (
   assessment: ImportFileAssessment,
 ): IvSweepMode | undefined => {
-  const curveType = String(assessment.curveType ?? "").toLowerCase();
-  if (curveType.includes("transfer")) {
-    return "transfer";
-  }
-  if (curveType.includes("output")) {
-    return "output";
+  if (assessment.curveFamily === "iv") {
+    return assessment.ivMode === "transfer" || assessment.ivMode === "output"
+      ? assessment.ivMode
+      : "unknown";
   }
   return undefined;
 };

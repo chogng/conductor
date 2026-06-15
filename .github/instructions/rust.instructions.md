@@ -168,6 +168,36 @@ TypeScript still owns:
 
 Rust must never directly mutate `SessionModel`, table selection, chart state, Explorer state, or UI DOM.
 
+## TypeScript/Rust semantic parity
+
+TypeScript remains the semantic baseline for domain heuristics. Rust may
+accelerate or mirror the data-plane execution, but it must not silently fork
+the product rules.
+
+When changing a domain rule in TypeScript, check whether a Rust mirror exists
+under `cli/` or `extensions/`. If it does, update both sides in the same
+change. This is mandatory for:
+
+- assessment family/role/confidence rules such as
+  `src/cs/workbench/services/assessment/common/fileAssessment.ts` and
+  `cli/src/assessment.rs` / `cli/src/detect.rs`;
+- auto extraction planning rules such as
+  `src/cs/workbench/services/assessment/common/autoTemplatePlan*.ts` and
+  `cli/src/detect.rs`;
+- calculation, export, plot, search, or table rules that have a Rust execution
+  branch.
+
+After a mirrored rule change, run the matching compatibility verifier. For
+auto extraction and assessment-derived template planning, run:
+
+```txt
+npm run verify:rust-auto-extraction
+```
+
+If no verifier exists for the touched rule, add one or extend the nearest
+existing verifier before relying on the Rust branch. Do not approve a Rust/TS
+rule change based only on one side's unit tests.
+
 ## Stage ownership and return boundaries
 
 Only return data at stable stage boundaries. Do not return intermediate arrays just because Rust has them.

@@ -625,20 +625,43 @@ function normalizeRustImportAssessment(raw) {
   const xAxisRoleSource = sourceValues.has(raw.xAxisRoleSource)
     ? raw.xAxisRoleSource
     : null;
-  const curveType =
-    typeof raw.curveType === "string" && raw.curveType.trim()
-      ? raw.curveType.trim()
-      : null;
+  const curveFamily = ["iv", "cv", "cf", "pv", "it", "unknown"].includes(raw.curveFamily)
+    ? raw.curveFamily
+    : "unknown";
+  const ivMode = raw.ivMode === "transfer" || raw.ivMode === "output"
+    ? raw.ivMode
+    : null;
+  const curveType = typeof raw.curveTypeLabel === "string" && raw.curveTypeLabel.trim()
+    ? raw.curveTypeLabel.trim()
+    : buildCurveTypeLabel(curveFamily, ivMode, xAxisRole);
   return {
+    curveFamily,
     curveType,
     curveTypeConfidence: confidence,
     curveTypeNeedsTemplate: Boolean(raw.curveTypeNeedsTemplate),
     curveTypeReasons: Array.isArray(raw.curveTypeReasons)
       ? raw.curveTypeReasons.filter((item) => typeof item === "string")
       : [],
+    ivMode,
     xAxisRole,
     xAxisRoleSource,
   };
+}
+
+function buildCurveTypeLabel(curveFamily, ivMode, xAxisRole) {
+  if (curveFamily === "iv") {
+    if (ivMode === "transfer") {
+      return xAxisRole === "vg" ? "transfer (vg)" : "transfer";
+    }
+    if (ivMode === "output") {
+      return xAxisRole === "vd" ? "output (vd)" : "output";
+    }
+    return "iv";
+  }
+  if (curveFamily === "cv" || curveFamily === "cf" || curveFamily === "pv" || curveFamily === "it") {
+    return curveFamily;
+  }
+  return "unknown";
 }
 
 function readRustExcelConvertManifest(manifestPath) {

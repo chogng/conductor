@@ -1,5 +1,5 @@
-use serde_json::json;
 use serde_json::Value;
+use serde_json::json;
 use std::cell::Ref;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -64,11 +64,29 @@ struct AutoMetadata {
     is_stripped_channel_sweep: bool,
     notes_text: String,
     setup_title: String,
+    stripped_current_log_span_ch1: Option<f64>,
+    stripped_current_log_span_ch2: Option<f64>,
     stripped_fixed_voltage_magnitude: Option<f64>,
     stripped_sweep_voltage_axis: Option<&'static str>,
+    stripped_sweep_voltage_span: Option<f64>,
     var1_name: String,
     var2_name: String,
     x_axis_data: String,
+}
+
+struct RoleEvidence {
+    role: &'static str,
+    source: &'static str,
+    weight: i32,
+}
+
+#[derive(Default)]
+struct StrippedSweepMetadata {
+    current_log_span_ch1: Option<f64>,
+    current_log_span_ch2: Option<f64>,
+    fixed_voltage_magnitude: Option<f64>,
+    sweep_voltage_axis: Option<&'static str>,
+    sweep_voltage_span: Option<f64>,
 }
 
 pub fn assess_import_rows(file_name: &str, rows: Vec<Vec<String>>) -> Value {
@@ -82,7 +100,7 @@ pub fn assess_import_rows(file_name: &str, rows: Vec<Vec<String>>) -> Value {
         ("transfer", Some("vg")) => Value::String("transfer (vg)".to_string()),
         ("output", Some("vd")) => Value::String("output (vd)".to_string()),
         ("unknown", _) => Value::String("unknown".to_string()),
-        ("transfer" | "output" | "pv" | "cv" | "cf", _) => Value::String(curve_type),
+        ("transfer" | "output" | "pv" | "cv" | "cf", _) => Value::String(curve_type.clone()),
         _ => Value::Null,
     };
     let x_axis_role_source = if curve_type_label == Value::String("unknown".to_string()) {
@@ -98,24 +116,63 @@ pub fn assess_import_rows(file_name: &str, rows: Vec<Vec<String>>) -> Value {
         };
 
     json!({
-        "curveType": curve_type_label,
+        "curveFamily": curve_family(&curve_type),
+        "curveTypeLabel": curve_type_label,
         "curveTypeConfidence": confidence,
         "curveTypeNeedsTemplate": needs_template,
         "curveTypeReasons": curve_type_reasons,
+        "ivMode": iv_mode(&curve_type),
         "xAxisRole": x_axis_role,
         "xAxisRoleSource": x_axis_role_source,
     })
 }
 
+fn curve_family(curve_type: &str) -> &'static str {
+    match curve_type {
+        "transfer" | "output" => "iv",
+        "cv" => "cv",
+        "cf" => "cf",
+        "pv" => "pv",
+        _ => "unknown",
+    }
+}
+
+fn iv_mode(curve_type: &str) -> Value {
+    match curve_type {
+        "transfer" | "output" => json!(curve_type),
+        _ => Value::Null,
+    }
+}
+
 pub fn detect_axis_role_text(value: &str) -> Option<&'static str> {
+    let text = clean_cell_text(value).to_ascii_lowercase();
     let compact = normalize_header_compact(value);
-    if compact.contains("vd") || compact.contains("drain") {
-        return Some("vd");
+    let has_vg = text
+        .split(|ch: char| !ch.is_ascii_alphanumeric())
+        .any(|token| matches!(token, "vg" | "vgs" | "gate" | "tran" | "transfer"))
+        || compact == "tran"
+        || compact.starts_with("tran")
+        || compact.contains("gatevoltage")
+        || compact.contains("transfercurve")
+        || compact.contains("transfercurves")
+        || compact.contains("transfercharacteristic")
+        || compact.contains("transfercharacteristics")
+        || compact == "var1";
+    let has_vd = text
+        .split(|ch: char| !ch.is_ascii_alphanumeric())
+        .any(|token| matches!(token, "vd" | "vds" | "drain" | "out" | "output"))
+        || compact.starts_with("output")
+        || compact.contains("drainvoltage")
+        || compact.contains("outputcurve")
+        || compact.contains("outputcurves")
+        || compact.contains("outputcharacteristic")
+        || compact.contains("outputcharacteristics");
+
+    match (has_vg, has_vd) {
+        (true, false) => Some("vg"),
+        (false, true) => Some("vd"),
+        _ => None,
     }
-    if compact.contains("vg") || compact.contains("gate") || compact == "var1" {
-        return Some("vg");
-    }
-    None
 }
 
 fn row_trimmed(dataset: &AssessmentDataset, row_index: usize) -> Vec<String> {
@@ -235,6 +292,48 @@ fn numeric_span(values: &[f64]) -> Option<f64> {
     Some(max - min)
 }
 
+fn compute_quantile(values: &[f64], quantile: f64) -> Option<f64> {
+    let mut sorted = values
+        .iter()
+        .copied()
+        .filter(|value| value.is_finite())
+        .collect::<Vec<_>>();
+    if sorted.is_empty() {
+        return None;
+    }
+    sorted.sort_by(|left, right| left.total_cmp(right));
+    if sorted.len() == 1 {
+        return sorted.first().copied();
+    }
+    let position = (quantile.clamp(0.0, 1.0) * (sorted.len() - 1) as f64)
+        .clamp(0.0, (sorted.len() - 1) as f64);
+    let lower_index = position.floor() as usize;
+    let upper_index = position.ceil() as usize;
+    if lower_index == upper_index {
+        return sorted.get(lower_index).copied();
+    }
+    let ratio = position - lower_index as f64;
+    Some(sorted[lower_index] + (sorted[upper_index] - sorted[lower_index]) * ratio)
+}
+
+fn compute_robust_log_span(values: &[f64]) -> Option<f64> {
+    let magnitudes = values
+        .iter()
+        .copied()
+        .map(f64::abs)
+        .filter(|value| value.is_finite())
+        .collect::<Vec<_>>();
+    if magnitudes.len() < 3 {
+        return None;
+    }
+    let low = compute_quantile(&magnitudes, 0.15)?;
+    let high = compute_quantile(&magnitudes, 0.85)?;
+    if !low.is_finite() || !high.is_finite() {
+        return None;
+    }
+    Some(((high.max(0.0) + 1e-30) / (low.max(0.0) + 1e-30)).log10())
+}
+
 fn collect_column_numbers(
     dataset: &AssessmentDataset,
     data_start_row_index: usize,
@@ -299,35 +398,43 @@ fn detect_first_group_length(
             previous_point = current_point;
         }
     }
-    if count >= 2 {
-        Some(count)
-    } else {
-        None
-    }
+    if count >= 2 { Some(count) } else { None }
 }
 
 fn collect_stripped_sweep_metadata(
     dataset: &AssessmentDataset,
     header_row_index: usize,
-) -> (Option<&'static str>, Option<f64>) {
+) -> StrippedSweepMetadata {
     let headers = row_trimmed(dataset, header_row_index);
     let ch1_voltage_col = headers.iter().position(|entry| entry == "CH1 Voltage");
     let ch2_voltage_col = headers.iter().position(|entry| entry == "CH2 Voltage");
     let (Some(ch1_voltage_col), Some(ch2_voltage_col)) = (ch1_voltage_col, ch2_voltage_col) else {
-        return (None, None);
+        return StrippedSweepMetadata::default();
     };
     let data_start = header_row_index + 1;
     let point_col = headers.iter().position(|entry| entry == "Point");
     let var2_col = headers.iter().position(|entry| entry == "VAR2");
+    let ch1_current_col = headers.iter().position(|entry| entry == "CH1 Current");
+    let ch2_current_col = headers.iter().position(|entry| entry == "CH2 Current");
     let first_group_len =
         detect_first_group_length(dataset, data_start, point_col, var2_col).unwrap_or(2048);
     let ch1_values = collect_column_numbers(dataset, data_start, ch1_voltage_col, first_group_len);
     let ch2_values = collect_column_numbers(dataset, data_start, ch2_voltage_col, first_group_len);
+    let ch1_currents = ch1_current_col
+        .map(|col| collect_column_numbers(dataset, data_start, col, first_group_len))
+        .unwrap_or_default();
+    let ch2_currents = ch2_current_col
+        .map(|col| collect_column_numbers(dataset, data_start, col, first_group_len))
+        .unwrap_or_default();
+    let current_log_span_ch1 = compute_robust_log_span(&ch1_currents);
+    let current_log_span_ch2 = compute_robust_log_span(&ch2_currents);
     let ch1_span = numeric_span(&ch1_values).unwrap_or(0.0).abs();
     let ch2_span = numeric_span(&ch2_values).unwrap_or(0.0).abs();
-    let axis = if ch1_span >= ch2_span.max(1e-12) * 3.0 {
+
+    let stable_tolerance = 1e-9_f64.max(ch1_span.max(ch2_span) * 1e-4);
+    let axis = if ch1_span > stable_tolerance && ch2_span <= stable_tolerance {
         Some("ch1")
-    } else if ch2_span >= ch1_span.max(1e-12) * 3.0 {
+    } else if ch2_span > stable_tolerance && ch1_span <= stable_tolerance {
         Some("ch2")
     } else {
         None
@@ -335,14 +442,34 @@ fn collect_stripped_sweep_metadata(
     let fixed_values = match axis {
         Some("ch1") => &ch2_values,
         Some("ch2") => &ch1_values,
-        _ => return (axis, None),
+        _ => {
+            return StrippedSweepMetadata {
+                current_log_span_ch1,
+                current_log_span_ch2,
+                sweep_voltage_axis: axis,
+                ..StrippedSweepMetadata::default()
+            };
+        }
     };
-    let fixed = fixed_values
-        .iter()
-        .copied()
-        .find(|value| value.is_finite())
-        .map(|value| value.abs());
-    (axis, fixed)
+    let fixed_voltage_magnitude = compute_quantile(
+        &fixed_values
+            .iter()
+            .copied()
+            .map(f64::abs)
+            .collect::<Vec<_>>(),
+        0.5,
+    );
+    StrippedSweepMetadata {
+        current_log_span_ch1,
+        current_log_span_ch2,
+        fixed_voltage_magnitude,
+        sweep_voltage_axis: axis,
+        sweep_voltage_span: match axis {
+            Some("ch1") => Some(ch1_span),
+            Some("ch2") => Some(ch2_span),
+            _ => None,
+        },
+    }
 }
 
 fn extract_auto_metadata(dataset: &AssessmentDataset) -> AutoMetadata {
@@ -470,11 +597,41 @@ fn extract_auto_metadata(dataset: &AssessmentDataset) -> AutoMetadata {
             derive_var_name_from_channel_meta(&channel_funcs, &channel_vnames, "VAR2");
     }
     if let Some(header_row_index) = stripped_header_row_index {
-        let (axis, fixed) = collect_stripped_sweep_metadata(dataset, header_row_index);
-        metadata.stripped_sweep_voltage_axis = axis;
-        metadata.stripped_fixed_voltage_magnitude = fixed;
+        let stripped = collect_stripped_sweep_metadata(dataset, header_row_index);
+        metadata.stripped_current_log_span_ch1 = stripped.current_log_span_ch1;
+        metadata.stripped_current_log_span_ch2 = stripped.current_log_span_ch2;
+        metadata.stripped_fixed_voltage_magnitude = stripped.fixed_voltage_magnitude;
+        metadata.stripped_sweep_voltage_axis = stripped.sweep_voltage_axis;
+        metadata.stripped_sweep_voltage_span = stripped.sweep_voltage_span;
     }
     metadata
+}
+
+fn push_role_evidence(
+    evidence: &mut Vec<RoleEvidence>,
+    role: Option<&'static str>,
+    weight: i32,
+    source: &'static str,
+) {
+    if let Some(role) = role {
+        evidence.push(RoleEvidence {
+            role,
+            source,
+            weight,
+        });
+    }
+}
+
+fn resolve_role_source(evidence: &[RoleEvidence]) -> &'static str {
+    if evidence.iter().any(|entry| entry.source == "metadata") {
+        "metadata"
+    } else if evidence.iter().any(|entry| entry.source == "filename") {
+        "filename"
+    } else if evidence.iter().any(|entry| entry.source == "shape") {
+        "shape"
+    } else {
+        "metadata"
+    }
 }
 
 fn classify_auto_curve(
@@ -510,10 +667,8 @@ fn classify_auto_curve(
             .iter()
             .skip(1)
             .any(|value| value.contains("fastiv") || value == "ipt");
-    if file_compact.contains("pv")
-        || has_fast_iv_or_ivt_hint(file_name)
-        || metadata_has_fast_iv_or_ivt
-    {
+    let has_pulse_file_hint = file_compact.contains("pv") || has_fast_iv_or_ivt_hint(file_name);
+    if has_pulse_file_hint || metadata_has_fast_iv_or_ivt {
         return (
             "pv".to_string(),
             None,
@@ -522,7 +677,12 @@ fn classify_auto_curve(
             } else {
                 "filename"
             },
-            "medium".to_string(),
+            if metadata_has_fast_iv_or_ivt {
+                "medium"
+            } else {
+                "low"
+            }
+            .to_string(),
             false,
         );
     }
@@ -554,43 +714,110 @@ fn classify_auto_curve(
         );
     }
 
-    let mut vg_score = 0i32;
-    let mut vd_score = 0i32;
-    let mut shape_vd_score = 0i32;
-    for (value, weight) in [
-        (metadata.x_axis_data.as_str(), 18),
-        (metadata.var1_name.as_str(), 16),
-        (
+    let mut evidence = Vec::<RoleEvidence>::new();
+    push_role_evidence(
+        &mut evidence,
+        detect_axis_role_text(&metadata.x_axis_data),
+        18,
+        "metadata",
+    );
+    push_role_evidence(
+        &mut evidence,
+        detect_axis_role_text(&metadata.var1_name),
+        16,
+        "metadata",
+    );
+    push_role_evidence(
+        &mut evidence,
+        detect_axis_role_text(
             metadata
                 .data_name_columns
                 .first()
                 .map(String::as_str)
                 .unwrap_or(""),
-            14,
         ),
-        (metadata.setup_title.as_str(), 6),
-        (file_name, 2),
-    ] {
-        match detect_axis_role_text(value) {
-            Some("vg") => vg_score += weight,
-            Some("vd") => vd_score += weight,
-            _ => {}
-        }
-    }
-    if metadata.is_stripped_channel_sweep {
-        if let (Some(axis), Some(fixed)) = (
-            metadata.stripped_sweep_voltage_axis,
-            metadata.stripped_fixed_voltage_magnitude,
-        ) {
-            if axis == "ch1" && fixed >= 12.0 {
-                shape_vd_score += 6;
-            } else if axis == "ch2" && fixed >= 12.0 {
-                shape_vd_score += 6;
-            }
-        }
-    }
-    vd_score += shape_vd_score;
+        14,
+        "metadata",
+    );
+    push_role_evidence(
+        &mut evidence,
+        detect_axis_role_text(&metadata.setup_title),
+        6,
+        "metadata",
+    );
+    let file_name_role = detect_axis_role_text(file_name);
+    push_role_evidence(&mut evidence, file_name_role, 2, "filename");
 
+    if metadata.is_stripped_channel_sweep {
+        if let Some(swept_axis) = metadata.stripped_sweep_voltage_axis {
+            let fixed_axis = if swept_axis == "ch1" { "ch2" } else { "ch1" };
+            let swept_current_span = if swept_axis == "ch1" {
+                metadata.stripped_current_log_span_ch1
+            } else {
+                metadata.stripped_current_log_span_ch2
+            };
+            let fixed_current_span = if fixed_axis == "ch1" {
+                metadata.stripped_current_log_span_ch1
+            } else {
+                metadata.stripped_current_log_span_ch2
+            };
+            if let (Some(swept_span), Some(fixed_span)) = (swept_current_span, fixed_current_span) {
+                let current_span_gap = (swept_span - fixed_span).abs();
+                if swept_span.is_finite() && fixed_span.is_finite() && current_span_gap >= 1.2 {
+                    let dominant_axis = if swept_span >= fixed_span {
+                        swept_axis
+                    } else {
+                        fixed_axis
+                    };
+                    let inferred_role = if dominant_axis == swept_axis {
+                        "vd"
+                    } else {
+                        "vg"
+                    };
+                    let weight = if current_span_gap >= 2.5 {
+                        9
+                    } else if current_span_gap >= 1.8 {
+                        8
+                    } else {
+                        7
+                    };
+                    push_role_evidence(&mut evidence, Some(inferred_role), weight, "shape");
+                }
+            }
+
+            if let (Some(sweep_span), Some(fixed)) = (
+                metadata.stripped_sweep_voltage_span,
+                metadata.stripped_fixed_voltage_magnitude,
+            ) {
+                if sweep_span.is_finite() && fixed.is_finite() {
+                    if sweep_span <= 12.0 && fixed >= 12.0_f64.max(sweep_span * 3.0) {
+                        push_role_evidence(&mut evidence, Some("vd"), 6, "shape");
+                    } else if fixed <= 12.0 && sweep_span >= 12.0_f64.max(fixed * 3.0) {
+                        push_role_evidence(&mut evidence, Some("vg"), 6, "shape");
+                    }
+                }
+            }
+
+            push_role_evidence(&mut evidence, file_name_role, 3, "shape");
+        }
+    }
+
+    let vg_score = evidence
+        .iter()
+        .filter(|entry| entry.role == "vg")
+        .map(|entry| entry.weight)
+        .sum::<i32>();
+    let vd_score = evidence
+        .iter()
+        .filter(|entry| entry.role == "vd")
+        .map(|entry| entry.weight)
+        .sum::<i32>();
+    let strong_metadata_conflict = evidence
+        .iter()
+        .any(|entry| entry.source == "metadata" && entry.role == "vg" && entry.weight >= 14)
+        && evidence
+            .iter()
+            .any(|entry| entry.source == "metadata" && entry.role == "vd" && entry.weight >= 14);
     if vg_score == vd_score {
         return (
             "unknown".to_string(),
@@ -601,20 +828,56 @@ fn classify_auto_curve(
         );
     }
     let role = if vg_score > vd_score { "vg" } else { "vd" };
+    if strong_metadata_conflict {
+        return (
+            "unknown".to_string(),
+            None,
+            "metadata",
+            "low".to_string(),
+            true,
+        );
+    }
     let score_gap = (vg_score - vd_score).abs();
-    let confidence = if score_gap >= 10 {
+    let winning_evidence = evidence
+        .iter()
+        .filter(|entry| entry.role == role)
+        .collect::<Vec<_>>();
+    let has_metadata_support = winning_evidence
+        .iter()
+        .any(|entry| entry.source == "metadata");
+    let has_shape_support = winning_evidence.iter().any(|entry| entry.source == "shape");
+    let strongest_winning_weight = winning_evidence
+        .iter()
+        .map(|entry| entry.weight)
+        .max()
+        .unwrap_or(0);
+    let confidence = if has_metadata_support && strongest_winning_weight >= 14 && score_gap >= 10 {
         "high"
-    } else if score_gap >= 6 {
+    } else if (has_metadata_support && score_gap >= 6) || score_gap >= 8 {
         "medium"
     } else {
         "low"
     };
+    if confidence == "low" && metadata.is_stripped_channel_sweep && !has_shape_support {
+        return (
+            "unknown".to_string(),
+            None,
+            "metadata",
+            "low".to_string(),
+            true,
+        );
+    }
     let curve_type = if role == "vg" { "transfer" } else { "output" };
-    let source = if role == "vd" && shape_vd_score > 0 && vd_score - shape_vd_score == 0 {
-        "shape"
-    } else {
-        "metadata"
-    };
+    let source = resolve_role_source(
+        &winning_evidence
+            .into_iter()
+            .map(|entry| RoleEvidence {
+                role: entry.role,
+                source: entry.source,
+                weight: entry.weight,
+            })
+            .collect::<Vec<_>>(),
+    );
     (
         curve_type.to_string(),
         Some(role),

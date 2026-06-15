@@ -8,9 +8,14 @@ import type {
   AssessmentRows,
   ImportFileAssessment,
 } from "src/cs/workbench/services/assessment/common/assessment";
+import type {
+  IvSweepMode,
+  MeasurementFamily,
+} from "src/cs/workbench/services/assessment/common/measurement";
 import {
   assessFile,
   extractFileMetadata,
+  type CurveKind,
 } from "src/cs/workbench/services/assessment/common/fileAssessment";
 
 const FILE_ASSESSMENT_PREVIEW_BYTES = 128 * 1024;
@@ -25,13 +30,36 @@ export const assessImportRows = async (
     metadata: extractFileMetadata(rows.map(row => [...row])),
   });
   return {
+    curveFamily: getMeasurementFamily(assessment.curveType),
     curveType: assessment.curveTypeLabel,
     curveTypeConfidence: assessment.confidence,
     curveTypeNeedsTemplate: assessment.needsTemplate,
     curveTypeReasons: assessment.reasons,
+    ivMode: getIvMode(assessment.curveType),
     xAxisRole: assessment.xAxisRole,
     xAxisRoleSource: assessment.xAxisRoleSource,
   };
+};
+
+const getMeasurementFamily = (
+  curveType: CurveKind,
+): MeasurementFamily => {
+  if (curveType === "transfer" || curveType === "output") {
+    return "iv";
+  }
+  if (curveType === "cv" || curveType === "cf" || curveType === "pv") {
+    return curveType;
+  }
+  return "unknown";
+};
+
+const getIvMode = (
+  curveType: CurveKind,
+): IvSweepMode | null => {
+  if (curveType === "transfer" || curveType === "output") {
+    return curveType;
+  }
+  return null;
 };
 
 export const assessImportFile = async (

@@ -81,6 +81,20 @@ flowchart TD
 - A block can point back to raw table cells using `RawTableRangeRef`.
 - Diagnostics should be explicit when confidence is low.
 - Assessment output must include `sourceRawTableVersion`; stale results must be ignored by Session.
+- Keep curve family and curve mode separate. `iv`, `pv`, `cv`, `cf`, `it`,
+  and `unknown` are measurement families. `transfer` and `output` are IV modes
+  and must live in `ivMode`, not in `family`. `curveTypeLabel` / UI
+  `curveType` strings are display projections only; owners must not parse them
+  to recover canonical family or mode.
+- TypeScript assessment rules are the semantic baseline. When changing
+  `fileAssessment.ts`, `autoTemplatePlan*.ts`, or related confidence/role
+  heuristics, update the Rust mirrors in `cli/src/assessment.rs` and
+  `cli/src/detect.rs` in the same change when those paths implement the same
+  rule.
+- Mirrored TS/Rust assessment or auto-extraction rule changes must run
+  `npm run verify:rust-auto-extraction` in addition to targeted unit tests.
+  Add the new scenario to the compatibility fixtures when the rule changes
+  classification, confidence, template need, axis role, or plan shape.
 
 ## Command entry and dispatch
 

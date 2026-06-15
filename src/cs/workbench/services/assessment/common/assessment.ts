@@ -5,7 +5,9 @@
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { AssessmentDiagnostic } from "src/cs/workbench/services/assessment/common/diagnostics";
 import type {
+  IvSweepMode,
   MeasurementBlockRecord,
+  MeasurementFamily,
   MeasurementGroupRecord,
 } from "src/cs/workbench/services/assessment/common/measurement";
 
@@ -25,10 +27,12 @@ export type ImportFileAxisRoleSource =
   | null;
 
 export type ImportFileAssessment = {
+  curveFamily: MeasurementFamily;
   curveType: string | null;
   curveTypeConfidence: "high" | "medium" | "low";
   curveTypeNeedsTemplate: boolean;
   curveTypeReasons: string[];
+  ivMode?: IvSweepMode | null;
   xAxisRole: ImportFileAxisRole;
   xAxisRoleSource: ImportFileAxisRoleSource;
 };
