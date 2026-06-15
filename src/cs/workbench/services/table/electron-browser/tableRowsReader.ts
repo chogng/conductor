@@ -3,20 +3,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Desktop implementation of table row/cell access. Heavy data stages are executed
-// by conductor-rs through Electron IPC/preload and normalized behind ITableBackendService.
+// by conductor-rs through Electron IPC/preload and normalized behind ITableRowsReaderService.
 
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
+  ILifecycleService,
+  WillShutdownJoinerOrder,
+} from "src/cs/workbench/services/lifecycle/common/lifecycle";
+import {
   IFileConverterBackendService,
   type ConvertedCsvReaderService,
   type FileConverterConvertedCsv,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import {
-  ITableBackendService,
-  type TableBackendResultPayload,
+  ITableRowsReaderService,
+  type TableRowsReaderResultPayload,
 } from "src/cs/workbench/services/table/common/table";
 
 type DesktopIpcRenderer = {
@@ -25,38 +29,38 @@ type DesktopIpcRenderer = {
 
 type TableBridge = {
   disposeFileWithRust?: (payload: unknown) => Promise<unknown>;
-  getFilePreviewRowsWithRust?: (payload: unknown) => Promise<TableBackendResultPayload>;
-  openFileWithRust?: (payload: unknown) => Promise<TableBackendResultPayload>;
-  readFileCellsWithRust?: (payload: unknown) => Promise<TableBackendResultPayload>;
+  getFilePreviewRowsWithRust?: (payload: unknown) => Promise<TableRowsReaderResultPayload>;
+  openFileWithRust?: (payload: unknown) => Promise<TableRowsReaderResultPayload>;
+  readFileCellsWithRust?: (payload: unknown) => Promise<TableRowsReaderResultPayload>;
 };
 
 const getServiceUnavailableMessage = (): string =>
-  localize("tableBackend.desktopBridgeUnavailable", "Table preview desktop bridge unavailable.");
+  localize("tableRowsReader.desktopBridgeUnavailable", "Table preview desktop bridge unavailable.");
 
-const getTableBackendErrorMessage = (code: unknown): string => {
+const getTableRowsReaderErrorMessage = (code: unknown): string => {
   switch (code) {
     case "RUST_HOST_FILE_NOT_FOUND":
-      return localize("tableBackend.error.fileNotFound", "File was not found.");
+      return localize("tableRowsReader.error.fileNotFound", "File was not found.");
     case "INVALID_RUST_HOST_CELLS":
-      return localize("tableBackend.error.invalidCells", "Invalid table cells request.");
+      return localize("tableRowsReader.error.invalidCells", "Invalid table cells request.");
     case "INVALID_RUST_HOST_FILE_ID":
-      return localize("tableBackend.error.invalidFileId", "Missing file id.");
+      return localize("tableRowsReader.error.invalidFileId", "Missing file id.");
     case "INVALID_RUST_HOST_PATH":
-      return localize("tableBackend.error.invalidPath", "Invalid file path.");
+      return localize("tableRowsReader.error.invalidPath", "Invalid file path.");
     case "RUST_ENGINE_OPEN_FAILED":
-      return localize("tableBackend.error.openFailed", "Failed to open file.");
+      return localize("tableRowsReader.error.openFailed", "Failed to open file.");
     case "RUST_ENGINE_PREVIEW_ROWS_FAILED":
-      return localize("tableBackend.error.previewRowsFailed", "Failed to read preview rows.");
+      return localize("tableRowsReader.error.previewRowsFailed", "Failed to read preview rows.");
     case "RUST_ENGINE_READ_CELLS_FAILED":
-      return localize("tableBackend.error.readCellsFailed", "Failed to read table cells.");
+      return localize("tableRowsReader.error.readCellsFailed", "Failed to read table cells.");
     case "RUST_ENGINE_DISPOSE_FAILED":
-      return localize("tableBackend.error.disposeFailed", "Failed to release file.");
+      return localize("tableRowsReader.error.releaseFailed", "Failed to release table source.");
   }
 
-  return localize("tableBackend.error.engineFailed", "Rust host failed.");
+  return localize("tableRowsReader.error.engineFailed", "Rust host failed.");
 };
 
-const localizeTableBackendResponse = <T>(response: T): T => {
+const localizeTableRowsReaderResponse = <T>(response: T): T => {
   if (
     response &&
     typeof response === "object" &&
@@ -66,7 +70,7 @@ const localizeTableBackendResponse = <T>(response: T): T => {
     const record = response as Record<string, unknown>;
     return {
       ...record,
-      message: getTableBackendErrorMessage(record.code),
+      message: getTableRowsReaderErrorMessage(record.code),
     } as T;
   }
 
@@ -124,26 +128,41 @@ function invoke<T>(channel: string, payload?: unknown): Promise<T> {
   return getIpcRenderer().invoke(channel, payload) as Promise<T>;
 }
 
-export class TableRowsReader extends Disposable implements ITableBackendService {
+export class TableRowsReader extends Disposable implements ITableRowsReaderService {
   public declare readonly _serviceBrand: undefined;
   private readonly convertedCsvReaderService: ConvertedCsvReaderService;
 
   public constructor(
     @IFileConverterBackendService fileConverterBackendService: IFileConverterBackendService,
+    @ILifecycleService lifecycleService: ILifecycleService,
   ) {
     super();
     this.convertedCsvReaderService = fileConverterBackendService;
+    this._register(lifecycleService.onWillShutdown(event => {
+      if (!this.canReleaseSource()) {
+        return;
+      }
+
+      event.join(
+        () => this.releaseSource({ clear: true }).then(() => undefined),
+        {
+          id: "table.releasePreviewSources",
+          label: localize("table.releasePreviewSources", "Release Table Preview Sources"),
+          order: WillShutdownJoinerOrder.Last,
+        },
+      );
+    }));
   }
 
-  public canDisposeFile(): boolean {
+  public canReleaseSource(): boolean {
     return hasBridgeMethod("disposeFileWithRust") || hasIpcRenderer();
   }
 
-  public canGetPreviewRows(): boolean {
+  public canReadRows(): boolean {
     return hasBridgeMethod("getFilePreviewRowsWithRust") || hasIpcRenderer();
   }
 
-  public canOpenFile(): boolean {
+  public canOpenSource(): boolean {
     return hasBridgeMethod("openFileWithRust") || hasIpcRenderer();
   }
 
@@ -155,48 +174,48 @@ export class TableRowsReader extends Disposable implements ITableBackendService 
     return this.convertedCsvReaderService.canReadConvertedCsv();
   }
 
-  public disposeFile(payload: unknown): Promise<unknown> {
+  public releaseSource(payload: unknown): Promise<unknown> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("disposeFileWithRust")) {
       return getBridgeMethod(bridge, "disposeFileWithRust")(payload)
-        .then(localizeTableBackendResponse);
+        .then(localizeTableRowsReaderResponse);
     }
 
     return invoke(workbenchIpcChannels.rustHostDispose, payload)
-      .then(localizeTableBackendResponse);
+      .then(localizeTableRowsReaderResponse);
   }
 
-  public getPreviewRows(payload: unknown): Promise<TableBackendResultPayload> {
+  public readRows(payload: unknown): Promise<TableRowsReaderResultPayload> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("getFilePreviewRowsWithRust")) {
       return getBridgeMethod(bridge, "getFilePreviewRowsWithRust")(payload)
-        .then(localizeTableBackendResponse);
+        .then(localizeTableRowsReaderResponse);
     }
 
-    return invoke<TableBackendResultPayload>(workbenchIpcChannels.rustHostPreviewRows, payload)
-      .then(localizeTableBackendResponse);
+    return invoke<TableRowsReaderResultPayload>(workbenchIpcChannels.rustHostPreviewRows, payload)
+      .then(localizeTableRowsReaderResponse);
   }
 
-  public openFile(payload: unknown): Promise<TableBackendResultPayload> {
+  public openSource(payload: unknown): Promise<TableRowsReaderResultPayload> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("openFileWithRust")) {
       return getBridgeMethod(bridge, "openFileWithRust")(payload)
-        .then(localizeTableBackendResponse);
+        .then(localizeTableRowsReaderResponse);
     }
 
-    return invoke<TableBackendResultPayload>(workbenchIpcChannels.rustHostOpen, payload)
-      .then(localizeTableBackendResponse);
+    return invoke<TableRowsReaderResultPayload>(workbenchIpcChannels.rustHostOpen, payload)
+      .then(localizeTableRowsReaderResponse);
   }
 
-  public readCells(payload: unknown): Promise<TableBackendResultPayload> {
+  public readCells(payload: unknown): Promise<TableRowsReaderResultPayload> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("readFileCellsWithRust")) {
       return getBridgeMethod(bridge, "readFileCellsWithRust")(payload)
-        .then(localizeTableBackendResponse);
+        .then(localizeTableRowsReaderResponse);
     }
 
-    return invoke<TableBackendResultPayload>(workbenchIpcChannels.rustHostReadCells, payload)
-      .then(localizeTableBackendResponse);
+    return invoke<TableRowsReaderResultPayload>(workbenchIpcChannels.rustHostReadCells, payload)
+      .then(localizeTableRowsReaderResponse);
   }
 
   public readConvertedCsv(payload: { path: string }): Promise<FileConverterConvertedCsv> {
@@ -204,4 +223,4 @@ export class TableRowsReader extends Disposable implements ITableBackendService 
   }
 }
 
-registerSingleton(ITableBackendService, TableRowsReader, InstantiationType.Delayed);
+registerSingleton(ITableRowsReaderService, TableRowsReader, InstantiationType.Delayed);

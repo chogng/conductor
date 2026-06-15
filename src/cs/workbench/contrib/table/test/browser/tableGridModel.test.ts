@@ -1,7 +1,6 @@
 import assert from "assert";
 
 import {
-  clampTableGridColumnWidth,
   getTableGridColumnLabel,
   getTableGridRowLabel,
   getTableGridRowHeaderWidth,
@@ -232,11 +231,7 @@ suite("workbench/contrib/table/browser/tableGridModel", () => {
     assert.equal(getTableGridRowLabel(41), "42");
   });
 
-  test("clamps and scales column widths", () => {
-    assert.equal(clampTableGridColumnWidth(-20), 0);
-    assert.equal(clampTableGridColumnWidth(20), 20);
-    assert.equal(clampTableGridColumnWidth(200), 200);
-    assert.equal(clampTableGridColumnWidth(900), 640);
+  test("scales grid metrics", () => {
     assert.equal(getTableGridZoomScale(0), 1);
     assert.equal(getTableGridZoomScale(10), 0.25);
     assert.equal(getTableGridZoomScale(150), 1.5);

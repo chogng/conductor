@@ -2,9 +2,9 @@ import assert from "assert";
 import {
 	buildTableCellReadRequests,
 	rowsFromTableCellReads,
-} from "../../browser/tableCellReadModel.ts";
+} from "../../browser/tableCellRead.ts";
 
-suite("workbench/services/table/browser/tableCellReadModel", () => {
+suite("workbench/services/table/browser/tableCellRead", () => {
 	test("buildTableCellReadRequests expands unique rows into full-row cell reads", () => {
 		const cells = buildTableCellReadRequests({
 			columnCount: 3,

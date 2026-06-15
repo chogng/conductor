@@ -7,10 +7,10 @@ import assert from "assert";
 import {
 	TableView,
 	type TableViewProps,
+	type TableViewModel,
 } from "src/cs/workbench/contrib/table/browser/tableView";
 import type {
 	TableHighlight,
-	TableModel,
 	TableSelection,
 	TableState,
 } from "src/cs/workbench/services/table/common/table";
@@ -68,6 +68,7 @@ function createTableViewProps(): TableViewProps {
 		tableModel,
 		tableService: {
 			select: () => true,
+			setColumnWidth: () => false,
 		},
 		tableState,
 		zoomPercent: tableState.zoomPercent,
@@ -96,17 +97,11 @@ function createTableState(): TableState {
 	};
 }
 
-function createTableModel(): TableModel {
+function createTableModel(): TableViewModel {
 	return {
-		cancelPendingRowRequests: () => undefined,
-		clearHighlight: () => undefined,
-		clearSelection: () => false,
-		clearState: () => undefined,
-		disposeFileCache: () => undefined,
-		ensureCells: async () => undefined,
 		ensureRows: async () => undefined,
+		getColumnWidth: () => null,
 		getHighlight: (): TableHighlight => ({}),
-		getRevealCell: () => null,
 		getRow: rowIndex => [
 			`A${rowIndex + 1}`,
 			`B${rowIndex + 1}`,
@@ -115,20 +110,11 @@ function createTableModel(): TableModel {
 		getRowsVersion: () => 1,
 		getSelection: (): TableSelection => ({}),
 		getState: createTableState,
-		hasSourceFile: fileId => fileId === "file-a",
-		highlightColumns: () => undefined,
-		invalidateRequests: () => undefined,
+		onDidChangeHighlight: () => noopDisposable,
+		onDidChangeRevealCell: () => noopDisposable,
 		onDidChangeSelection: () => noopDisposable,
 		onDidChangeState: () => noopDisposable,
-		resetWorker: () => undefined,
-		resetZoom: () => false,
-		revealCell: () => undefined,
-		selectAllColumns: () => false,
-		setSelection: () => undefined,
-		setZoomPercent: () => false,
 		subscribeRowsVersion: () => noopDisposable,
-		zoomIn: () => false,
-		zoomOut: () => false,
 	};
 }
 

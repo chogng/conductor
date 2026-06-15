@@ -11,18 +11,18 @@ import {
 	type FileConverterConvertedCsv,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import {
-	ITableBackendService,
-	type TableBackendResultPayload,
+	ITableRowsReaderService,
+	type TableRowsReaderResultPayload,
 } from "src/cs/workbench/services/table/common/table";
 
 const getServiceUnavailableMessage = (): string =>
-	localize("tableBackend.desktopBridgeUnavailable", "Table preview desktop bridge unavailable.");
+	localize("tableRowsReader.desktopBridgeUnavailable", "Table preview desktop bridge unavailable.");
 
 function unavailable(): Promise<never> {
 	return Promise.reject(new Error(getServiceUnavailableMessage()));
 }
 
-export class TableBackendService extends Disposable implements ITableBackendService {
+export class TableRowsReaderService extends Disposable implements ITableRowsReaderService {
 	public declare readonly _serviceBrand: undefined;
 	private readonly convertedCsvReaderService: ConvertedCsvReaderService;
 
@@ -33,15 +33,15 @@ export class TableBackendService extends Disposable implements ITableBackendServ
 		this.convertedCsvReaderService = fileConverterBackendService;
 	}
 
-	public canDisposeFile(): boolean {
+	public canReleaseSource(): boolean {
 		return false;
 	}
 
-	public canGetPreviewRows(): boolean {
+	public canReadRows(): boolean {
 		return false;
 	}
 
-	public canOpenFile(): boolean {
+	public canOpenSource(): boolean {
 		return false;
 	}
 
@@ -53,19 +53,19 @@ export class TableBackendService extends Disposable implements ITableBackendServ
 		return this.convertedCsvReaderService.canReadConvertedCsv();
 	}
 
-	public disposeFile(_payload: unknown): Promise<unknown> {
+	public releaseSource(_payload: unknown): Promise<unknown> {
 		return Promise.resolve(undefined);
 	}
 
-	public getPreviewRows(_payload: unknown): Promise<TableBackendResultPayload> {
+	public readRows(_payload: unknown): Promise<TableRowsReaderResultPayload> {
 		return unavailable();
 	}
 
-	public openFile(_payload: unknown): Promise<TableBackendResultPayload> {
+	public openSource(_payload: unknown): Promise<TableRowsReaderResultPayload> {
 		return unavailable();
 	}
 
-	public readCells(_payload: unknown): Promise<TableBackendResultPayload> {
+	public readCells(_payload: unknown): Promise<TableRowsReaderResultPayload> {
 		return unavailable();
 	}
 
@@ -74,4 +74,4 @@ export class TableBackendService extends Disposable implements ITableBackendServ
 	}
 }
 
-registerSingleton(ITableBackendService, TableBackendService, InstantiationType.Delayed);
+registerSingleton(ITableRowsReaderService, TableRowsReaderService, InstantiationType.Delayed);

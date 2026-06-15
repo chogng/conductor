@@ -7,9 +7,9 @@ import {
 	mergeChunkRangeRows,
 	mergeChunkRows,
 	sanitizeTableRowBatch,
-} from "../../browser/tableRowCacheModel.ts";
+} from "../../browser/tableRowCache.ts";
 
-suite("workbench/services/table/browser/tableRowCacheModel", () => {
+suite("workbench/services/table/browser/tableRowCache", () => {
 	test("sanitizeTableRowBatch normalizes non-array rows", () => {
 		const rows = sanitizeTableRowBatch([["a"], null, 1, ["b", "c"]]);
 		assert.deepEqual(rows, [["a"], [], [], ["b", "c"]]);

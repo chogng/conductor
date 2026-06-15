@@ -55,7 +55,6 @@ import "src/cs/workbench/contrib/files/browser/explorerWorkflowService";
 //#region --- workbench service contributions
 
 import "src/cs/workbench/services/calculation/browser/calculation.contribution";
-import "src/cs/workbench/services/table/browser/tableBackendLifecycle.contribution";
 import "src/cs/workbench/services/assessment/browser/assessment.contribution";
 
 //#endregion

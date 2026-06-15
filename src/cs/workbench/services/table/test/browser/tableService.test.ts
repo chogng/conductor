@@ -1,7 +1,7 @@
 import assert from "assert";
 
 import type {
-  TableBackendPreviewProvider,
+  TableRowsReaderProvider,
   TableFile,
   TableLoadState,
   TableModel,
@@ -26,8 +26,8 @@ suite("workbench/services/table/browser/tableService", () => {
     let openedPayload: unknown = null;
     let previewFile: TableFile | null = null;
     let loadState: TableLoadState = { state: "idle", message: "" };
-    const tableBackendService = createTableBackendService({
-      openFile: async (payload) => {
+    const tableRowsReaderService = createTableRowsReaderService({
+      openSource: async (payload) => {
         openedPayload = payload;
         return {
           ok: true,
@@ -46,7 +46,7 @@ suite("workbench/services/table/browser/tableService", () => {
     });
 
     const model = createTableModelWithScope({
-      tableBackendService,
+      tableRowsReaderService,
       rawFiles: [{
         file: {},
         fileId: "file-a",
@@ -151,8 +151,8 @@ suite("workbench/services/table/browser/tableService", () => {
   test("notifies selection subscribers when selection changes", () => {
     const events: string[] = [];
     const model = createTableModelWithScope({
-      tableBackendService: createTableBackendService({
-        canOpenFile: () => false,
+      tableRowsReaderService: createTableRowsReaderService({
+        canOpenSource: () => false,
       }),
       rawFiles: [{
         file: {},
@@ -188,8 +188,8 @@ suite("workbench/services/table/browser/tableService", () => {
 
   test("owns table zoom command state", () => {
     const model = createTableModelWithScope({
-      tableBackendService: createTableBackendService({
-        canOpenFile: () => false,
+      tableRowsReaderService: createTableRowsReaderService({
+        canOpenSource: () => false,
       }),
     });
     let stateChangeCount = 0;
@@ -211,8 +211,8 @@ suite("workbench/services/table/browser/tableService", () => {
 
   test("selects all columns through table model command state", () => {
     const model = createTableModelWithScope({
-      tableBackendService: createTableBackendService({
-        canOpenFile: () => false,
+      tableRowsReaderService: createTableRowsReaderService({
+        canOpenSource: () => false,
       }),
       file: {
         columnCount: 3,
@@ -235,7 +235,7 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("publishes table view input", () => {
-    const service = new TableService(createTableBackendService() as never);
+    const service = createTableService();
     const model = service.update({
       rawFiles: [{
         file: {},
@@ -260,6 +260,12 @@ suite("workbench/services/table/browser/tableService", () => {
         ...model.getState(),
       },
     });
+    service.updateViewInput({
+      tableModel: createTextTableModel({ rows: [["same-state"]] }).model,
+      tableState: {
+        ...model.getState(),
+      },
+    });
 
     assert.equal(service.getViewInput(), input);
     assert.equal(changeCount, 1);
@@ -270,7 +276,7 @@ suite("workbench/services/table/browser/tableService", () => {
   test("persists column widths by table source", () => {
     const storageService = new TestStorageService();
     const service = new TableService(
-      createTableBackendService() as never,
+      createTableRowsReaderService() as never,
       storageService as never,
     );
     const rawFiles = [
@@ -316,7 +322,7 @@ suite("workbench/services/table/browser/tableService", () => {
   test("coalesces column width storage writes", () => {
     const storageService = new TestStorageService();
     const service = new TableService(
-      createTableBackendService() as never,
+      createTableRowsReaderService() as never,
       storageService as never,
     );
     const rawFiles = [{
@@ -349,7 +355,7 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("returns TSV text for selected table ranges", async () => {
-    const service = new TableService(createTableBackendService() as never);
+    const service = createTableService();
     const { ensureRowsCalls, model } = createTextTableModel({
       rows: [
         ["A1", "B\t1"],
@@ -376,7 +382,7 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("refuses oversized table selection text", async () => {
-    const service = new TableService(createTableBackendService() as never);
+    const service = createTableService();
     const { model } = createTextTableModel({
       rows: [
         ["A1", "B1"],
@@ -420,14 +426,14 @@ suite("workbench/services/table/browser/tableService", () => {
       },
       rawFiles,
       source: { fileId: "file-a" },
-      tableBackendService: createTableBackendService(),
+      tableRowsReaderService: createTableRowsReaderService(),
       workerRef: scopeRef,
     });
 
     const model = createTableModelWithScope({
       rawFiles,
       source: { fileId: "file-b" },
-      tableBackendService: createTableBackendService(),
+      tableRowsReaderService: createTableRowsReaderService(),
       workerRef: scopeRef,
     });
 
@@ -437,10 +443,10 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("keeps an active preview request across equivalent caller refreshes", async () => {
-    let openFileCount = 0;
-    const service = new TableService(createTableBackendService({
-      openFile: async () => {
-        openFileCount += 1;
+    let openSourceCount = 0;
+    const service = createTableService(createTableRowsReaderService({
+      openSource: async () => {
+        openSourceCount += 1;
         return {
           ok: true,
           result: {
@@ -455,7 +461,7 @@ suite("workbench/services/table/browser/tableService", () => {
           },
         };
       },
-    }) as never);
+    }));
     const createRawFiles = () => [{
       file: {},
       fileId: "file-a",
@@ -484,7 +490,7 @@ suite("workbench/services/table/browser/tableService", () => {
     await new Promise(resolve => setTimeout(resolve, 0));
     await new Promise(resolve => setTimeout(resolve, 0));
 
-    assert.equal(openFileCount, 1);
+    assert.equal(openSourceCount, 1);
     assert.equal(model.getState().loadState.state, "ready");
     assert.equal(model.getState().file?.sourceKey, "source-key-a");
     disposeListener();
@@ -512,8 +518,8 @@ suite("workbench/services/table/browser/tableService", () => {
       },
       rawFiles,
       source: { fileId: "file-a" },
-      tableBackendService: createTableBackendService({
-        canOpenFile: () => false,
+      tableRowsReaderService: createTableRowsReaderService({
+        canOpenSource: () => false,
       }),
     });
 
@@ -523,7 +529,7 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("executes table commands through the service active model", () => {
-    const service = new TableService(createTableBackendService() as never);
+    const service = createTableService();
     assert.equal(service.executeCommand(TableCommandId.zoomIn), false);
 
     const model = createReadyTableModel({
@@ -552,7 +558,7 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("selects table targets through the service owner API", () => {
-    const service = new TableService(createTableBackendService() as never);
+    const service = createTableService();
     const events: unknown[] = [];
     const disposable = service.onDidChangeSelection(selection => {
       events.push(selection);
@@ -634,7 +640,7 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("clears table highlight through the service owner API", () => {
-    const service = new TableService(createTableBackendService() as never);
+    const service = createTableService();
     const model = createReadyTableModel({
       file: {
         columnCount: 3,
@@ -652,6 +658,10 @@ suite("workbench/services/table/browser/tableService", () => {
       source: { fileId: "file-a" },
     });
     service.updateViewInput(createTableViewInput(model));
+    const highlightEvents: unknown[] = [];
+    model.onDidChangeHighlight((highlight) => {
+      highlightEvents.push(highlight);
+    });
 
     model.highlightColumns([1, 2]);
     assert.deepEqual(model.getHighlight().columns, [1, 2]);
@@ -659,11 +669,15 @@ suite("workbench/services/table/browser/tableService", () => {
     service.clearHighlight();
 
     assert.deepEqual(model.getHighlight(), {});
+    assert.deepEqual(highlightEvents, [
+      { columns: [1, 2] },
+      {},
+    ]);
     service.dispose();
   });
 
   test("reveals table targets through the service owner API", () => {
-    const service = new TableService(createTableBackendService() as never);
+    const service = createTableService();
     assert.equal(service.reveal({
       kind: "cell",
       cell: { colIndex: 0, rowIndex: 0 },
@@ -689,6 +703,10 @@ suite("workbench/services/table/browser/tableService", () => {
       source: { fileId: "file-a", sheetId: "sheet-a" },
     });
     service.updateViewInput(createTableViewInput(model));
+    const revealEvents: unknown[] = [];
+    model.onDidChangeRevealCell((cell) => {
+      revealEvents.push(cell);
+    });
 
     assert.equal(service.reveal({
       kind: "range",
@@ -710,14 +728,23 @@ suite("workbench/services/table/browser/tableService", () => {
 
     assert.equal(service.reveal(null), true);
     assert.equal(model.getRevealCell(), null);
+    assert.deepEqual(revealEvents, [
+      {
+        colIndex: 1,
+        fileId: "source-key-a",
+        rowIndex: 2,
+        sheetId: "sheet-a",
+      },
+      null,
+    ]);
     service.dispose();
   });
 
   test("clears worker preview cache when preview state is cleared", () => {
     const workerMessages: unknown[] = [];
     const model = createTableModelWithScope({
-      tableBackendService: createTableBackendService({
-        canOpenFile: () => false,
+      tableRowsReaderService: createTableRowsReaderService({
+        canOpenSource: () => false,
       }),
       workerRef: {
         current: {
@@ -738,21 +765,21 @@ suite("workbench/services/table/browser/tableService", () => {
     }]);
   });
 
-  test("disposes stale backend preview files after source changes", async () => {
+  test("releases stale reader sources after source changes", async () => {
     let resolveFirstOpen:
-      | ((value: Awaited<ReturnType<TableBackendPreviewProvider["openFile"]>>) => void)
+      | ((value: Awaited<ReturnType<TableRowsReaderProvider["openSource"]>>) => void)
       | null = null;
-    let openFileCount = 0;
-    const disposePayloads: unknown[] = [];
-    const tableBackendService = createTableBackendService({
-      canDisposeFile: () => true,
-      disposeFile: async (payload) => {
-        disposePayloads.push(payload);
+    let openSourceCount = 0;
+    const releasePayloads: unknown[] = [];
+    const tableRowsReaderService = createTableRowsReaderService({
+      canReleaseSource: () => true,
+      releaseSource: async (payload) => {
+        releasePayloads.push(payload);
         return {};
       },
-      openFile: async () => {
-        openFileCount += 1;
-        if (openFileCount === 1) {
+      openSource: async () => {
+        openSourceCount += 1;
+        if (openSourceCount === 1) {
           return new Promise(resolve => {
             resolveFirstOpen = resolve;
           });
@@ -761,7 +788,7 @@ suite("workbench/services/table/browser/tableService", () => {
         return new Promise(() => undefined);
       },
     });
-    const service = new TableService(tableBackendService as never);
+    const service = createTableService(tableRowsReaderService);
     const rawFiles = [
       {
         file: {},
@@ -790,7 +817,7 @@ suite("workbench/services/table/browser/tableService", () => {
 
     assert.notEqual(resolveFirstOpen, null);
     const completeFirstOpen = resolveFirstOpen as unknown as ((
-      value: Awaited<ReturnType<TableBackendPreviewProvider["openFile"]>>,
+      value: Awaited<ReturnType<TableRowsReaderProvider["openSource"]>>,
     ) => void);
     completeFirstOpen({
       ok: true,
@@ -808,7 +835,7 @@ suite("workbench/services/table/browser/tableService", () => {
     await new Promise(resolve => setTimeout(resolve, 0));
 
     assert.equal(
-      disposePayloads.some(payload =>
+      releasePayloads.some(payload =>
         (payload as { fileId?: unknown }).fileId === "source-key-a"),
       true,
     );
@@ -816,7 +843,7 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("clears published table view input on dispose", () => {
-    const service = new TableService(createTableBackendService() as never);
+    const service = createTableService();
     const model = createReadyTableModel({
       file: {
         columnCount: 2,
@@ -848,31 +875,40 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 });
 
-const createTableBackendService = (
-  overrides: Partial<TableBackendPreviewProvider> = {},
-): TableBackendPreviewProvider => ({
-  canDisposeFile: () => false,
-  canGetPreviewRows: () => false,
-  canOpenFile: () => true,
+const createTableRowsReaderService = (
+  overrides: Partial<TableRowsReaderProvider> = {},
+): TableRowsReaderProvider => ({
+  canReleaseSource: () => false,
+  canReadRows: () => false,
+  canOpenSource: () => true,
   canReadConvertedCsv: () => false,
   canReadCells: () => false,
-  disposeFile: async () => ({}),
-  getPreviewRows: async () => ({}),
-  openFile: async () => ({}),
+  releaseSource: async () => ({}),
+  readRows: async () => ({}),
+  openSource: async () => ({}),
   readConvertedCsv: async () => ({ ok: false }),
   readCells: async () => ({}),
   ...overrides,
 });
 
+const createTableService = (
+  tableRowsReaderService: TableRowsReaderProvider = createTableRowsReaderService(),
+  storageService: TestStorageService = new TestStorageService(),
+): TableService =>
+  new TableService(
+    tableRowsReaderService as never,
+    storageService as never,
+  );
+
 type CreateTableModelOptions = Parameters<typeof createTableModelWithScope>[0];
 
 const createReadyTableModel = ({
-  tableBackendService = createTableBackendService(),
+  tableRowsReaderService = createTableRowsReaderService(),
   workerRef = { current: null },
   ...options
 }: CreateTableModelOptions) =>
   createTableModelWithScope({
-    tableBackendService,
+    tableRowsReaderService,
     workerRef,
     ...options,
   });
@@ -931,6 +967,8 @@ const createTextTableModel = ({
     highlightColumns: () => undefined,
     invalidateRequests: () => undefined,
     onDidChangeSelection: () => noopDisposable,
+    onDidChangeHighlight: () => noopDisposable,
+    onDidChangeRevealCell: () => noopDisposable,
     onDidChangeState: () => noopDisposable,
     resetWorker: () => undefined,
     resetZoom: () => false,

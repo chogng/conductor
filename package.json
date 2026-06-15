@@ -36,7 +36,7 @@
     "dist:web": "npm run build",
     "lint": "eslint .",
     "test:unit:target": "tsc -p src/tsconfig.test.json && node test/unit/node/target.js",
-    "test:table": "npm run test:unit:target -- src/cs/workbench/contrib/table/test/browser/tableCommands.test.ts src/cs/workbench/contrib/table/test/browser/tableGridModel.test.ts src/cs/workbench/services/table/test/browser/tableService.test.ts src/cs/workbench/services/table/test/browser/tableRowCacheModel.test.ts src/cs/workbench/services/table/test/browser/tableCellReadModel.test.ts",
+    "test:table": "npm run test:unit:target -- src/cs/workbench/contrib/table/test/browser/tableCommands.test.ts src/cs/workbench/contrib/table/test/browser/tableGridModel.test.ts src/cs/workbench/services/table/test/common/tableColumnLayout.test.ts src/cs/workbench/services/table/test/browser/tableService.test.ts src/cs/workbench/services/table/test/browser/tableRowCache.test.ts src/cs/workbench/services/table/test/browser/tableCellRead.test.ts",
     "test:unit": "tsc -p src/tsconfig.test.json && node test/unit/node/index.js",
     "test:integration:browser": "node test/integration/browser/folderImport.test.mjs",
     "test:desktop-core": "npm run build:desktop:core && mocha --ui tdd test/integration/node/originRunner.test.mjs test/integration/node/analysisStorageService.test.mjs",

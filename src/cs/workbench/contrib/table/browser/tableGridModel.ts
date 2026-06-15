@@ -1,9 +1,4 @@
-import {
-  clampTableColumnWidth,
-  TABLE_DEFAULT_COLUMN_WIDTH,
-  TABLE_MAX_COLUMN_WIDTH,
-  TABLE_MIN_COLUMN_WIDTH,
-} from "src/cs/workbench/services/table/common/table";
+import { TableColumnLayout } from "src/cs/workbench/services/table/common/tableColumnLayout";
 
 export type TableGridRange = {
   readonly totalCount: number;
@@ -100,9 +95,6 @@ export type TableGridCellRange = {
 
 export const TABLE_GRID_MAX_RENDERED_ROWS = 80;
 export const TABLE_GRID_MAX_RENDERED_COLUMNS = 24;
-export const TABLE_GRID_DEFAULT_COLUMN_WIDTH = TABLE_DEFAULT_COLUMN_WIDTH;
-export const TABLE_GRID_MIN_COLUMN_WIDTH = TABLE_MIN_COLUMN_WIDTH;
-export const TABLE_GRID_MAX_COLUMN_WIDTH = TABLE_MAX_COLUMN_WIDTH;
 export const TABLE_GRID_DEFAULT_ROW_HEADER_WIDTH = 48;
 export const TABLE_GRID_DEFAULT_ROW_HEIGHT = 28;
 export const TABLE_GRID_COLUMN_OVERSCAN_COLUMNS = 2;
@@ -347,14 +339,12 @@ export const range = (count: number): number[] => {
   return result;
 };
 
-export const clampTableGridColumnWidth = clampTableColumnWidth;
-
 export const resizeTableGridColumnWidth = (
   startWidth: number,
   deltaPixels: number,
   zoomPercent: number,
 ): number =>
-  clampTableGridColumnWidth(
+  TableColumnLayout.clampWidth(
     startWidth + (deltaPixels / getTableGridZoomScale(zoomPercent)),
   );
 
@@ -451,8 +441,8 @@ export const resolveTableGridColumnResizeDragGuideLeft = ({
   }
 
   const scale = getTableGridZoomScale(zoomPercent);
-  const clampedStartWidth = clampTableGridColumnWidth(Number(startWidth));
-  const clampedWidth = clampTableGridColumnWidth(Number(width));
+  const clampedStartWidth = TableColumnLayout.clampWidth(Number(startWidth));
+  const clampedWidth = TableColumnLayout.clampWidth(Number(width));
   return safeStartGuideLeft + ((clampedWidth - clampedStartWidth) * scale);
 };
 
@@ -482,7 +472,7 @@ const resolveTableGridColumnBoundaryLeft = ({
   const scale = getTableGridZoomScale(zoomPercent);
   let boundaryOffset = Math.max(0, Number(columnRange.leadingWidth) || 0);
   for (let index = startIndex; index <= safeColIndex; index += 1) {
-    boundaryOffset += clampTableGridColumnWidth(getColumnWidth(index)) * scale;
+    boundaryOffset += TableColumnLayout.clampWidth(getColumnWidth(index)) * scale;
   }
 
   return getTableGridRowHeaderWidth(zoomPercent) +
@@ -525,7 +515,7 @@ const getScaledColumnWidths = (
 ): number[] => {
   const widths: number[] = [];
   for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
-    widths.push(clampTableGridColumnWidth(getColumnWidth(colIndex)) * scale);
+    widths.push(TableColumnLayout.clampWidth(getColumnWidth(colIndex)) * scale);
   }
   return widths;
 };
