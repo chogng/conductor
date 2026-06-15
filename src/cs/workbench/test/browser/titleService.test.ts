@@ -1,10 +1,8 @@
 import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
-import {
-  AbstractStorageService,
-  StorageScope,
-} from "src/cs/platform/storage/common/storage";
+import { StorageScope } from "src/cs/platform/storage/common/storage";
+import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { ICommandEvent } from "src/cs/platform/commands/common/commands";
 import type {

@@ -5,13 +5,13 @@
 import { mainWindow } from "src/cs/base/browser/window";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
-	AbstractStorageService,
 	getStorageKey,
 	getStorageKeyPrefix,
 	IStorageService,
 	StorageScope,
 	type IStorageService as IStorageServiceType,
 } from "src/cs/platform/storage/common/storage";
+import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 
 export class BrowserStorageService
 	extends AbstractStorageService

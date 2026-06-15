@@ -31,7 +31,6 @@ import "src/cs/workbench/services/parameters/browser/parametersService";
 import "src/cs/workbench/services/plot/browser/plotService";
 import "src/cs/workbench/services/search/browser/searchService";
 import "src/cs/workbench/services/session/browser/sessionService";
-import "src/cs/workbench/services/storage/browser/storageService";
 import "src/cs/workbench/services/template/browser/templateApplyController";
 import "src/cs/workbench/services/template/browser/templateApplyService";
 import "src/cs/workbench/services/template/browser/templateService";

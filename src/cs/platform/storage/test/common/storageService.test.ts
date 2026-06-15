@@ -1,13 +1,13 @@
 import assert from "assert";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import {
-  AbstractStorageService,
   getStorageKey,
   getStorageKeyPrefix,
   STORAGE_VALUE_MAX_LENGTH,
   StorageScope,
   StorageTarget,
 } from "src/cs/platform/storage/common/storage";
+import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 
 class TestStorageService extends AbstractStorageService {
   private readonly values = new Map<string, string>();

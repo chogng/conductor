@@ -5,8 +5,8 @@ import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors
 import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
 import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";
 import { ContextKeyService } from "src/cs/platform/contextkey/browser/contextKeyService";
-import { AbstractStorageService, StorageScope } from "src/cs/platform/storage/common/storage";
-import { IStorageService } from "src/cs/platform/storage/common/storage";
+import { IStorageService, StorageScope } from "src/cs/platform/storage/common/storage";
+import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import {
   IViewDescriptorService,
   type IAddedViewDescriptorRef,

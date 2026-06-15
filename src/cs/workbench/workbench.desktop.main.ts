@@ -18,6 +18,7 @@ class DesktopNativeHostService extends NativeHostService {
 
 import "src/cs/platform/ipc/electron-browser/mainProcessService";
 import "src/cs/platform/configuration/electron-browser/configurationService";
+import "src/cs/platform/storage/electron-browser/storageService";
 
 registerSingleton(
 	INativeHostService,

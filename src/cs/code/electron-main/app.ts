@@ -30,6 +30,10 @@ import {
   StorageTarget,
 } from "../../platform/storage/common/storage.js";
 import { createStorageMainService } from "../../platform/storage/electron-main/storageMainService.js";
+import {
+  StorageMainChannel,
+  STORAGE_CHANNEL_NAME,
+} from "../../platform/storage/electron-main/storageIpc.js";
 import { createConductorMainConfiguration } from "../../platform/configuration/electron-main/configurationMain.js";
 import { workbenchIpcChannels as ipcChannels } from "../../workbench/common/ipcChannels.js";
 import {
@@ -1821,6 +1825,10 @@ if (hasSingleInstanceLock) {
   mainProcessServer.registerChannel(
     LOCAL_FILE_SYSTEM_CHANNEL_NAME,
     new DiskFileSystemProviderChannel(localFileSystemProvider),
+  );
+  mainProcessServer.registerChannel(
+    STORAGE_CHANNEL_NAME,
+    new StorageMainChannel(mainStorageService),
   );
   mainProcessServer.registerChannel(nativeHostChannelName, createNativeHostChannel());
 

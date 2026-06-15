@@ -1,8 +1,6 @@
 import assert from "assert";
-import {
-  AbstractStorageService,
-  StorageScope,
-} from "src/cs/platform/storage/common/storage";
+import { StorageScope } from "src/cs/platform/storage/common/storage";
+import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import {
   MAIN_MIN_WIDTH_PX,
   TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX,

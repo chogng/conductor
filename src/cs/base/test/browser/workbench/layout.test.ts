@@ -1,10 +1,8 @@
 import assert from "assert";
 
 import { Layout } from "../../../../workbench/browser/layout.ts";
-import {
-  AbstractStorageService,
-  StorageScope,
-} from "src/cs/platform/storage/common/storage";
+import { StorageScope } from "src/cs/platform/storage/common/storage";
+import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import {
   BrowserWorkbenchLayoutService,
   Parts,

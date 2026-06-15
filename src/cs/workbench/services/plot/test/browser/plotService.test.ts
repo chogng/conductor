@@ -5,10 +5,10 @@
 import assert from "assert";
 import { Event } from "src/cs/base/common/event";
 import {
-  AbstractStorageService,
   StorageScope,
   StorageTarget,
 } from "src/cs/platform/storage/common/storage";
+import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {

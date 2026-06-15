@@ -5,10 +5,8 @@ import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import type { IAction } from "src/cs/base/common/actions";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { ContextKeyService } from "src/cs/platform/contextkey/browser/contextKeyService";
-import {
-  AbstractStorageService,
-  StorageScope,
-} from "src/cs/platform/storage/common/storage";
+import { StorageScope } from "src/cs/platform/storage/common/storage";
+import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import type { IView, IViewDescriptor, IViewPaneContainer, ViewContainer, ViewContainerLocation } from "src/cs/workbench/common/views";
 import { Workbench, type WorkbenchOptions } from "src/cs/workbench/browser/workbench";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";

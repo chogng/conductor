@@ -17,9 +17,9 @@ import {
   normalizeTableSelection,
 } from "src/cs/workbench/services/table/common/selection";
 import {
-  AbstractStorageService,
   StorageScope,
 } from "src/cs/platform/storage/common/storage";
+import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 
 suite("workbench/services/table/browser/tableService", () => {
   test("loads imported preview using the raw source key", async () => {
