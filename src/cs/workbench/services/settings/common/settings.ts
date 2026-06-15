@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Event } from "src/cs/base/common/event";
-import type { LanguagePreference } from "src/cs/platform/language/common/language";
+import type { LanguagePreference } from "src/cs/base/common/platform";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import {

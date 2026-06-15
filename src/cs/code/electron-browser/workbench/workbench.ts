@@ -4,7 +4,7 @@ import {
   isLanguagePreference,
   resolveLanguageCode,
   type LanguageCode,
-} from "src/cs/platform/language/common/language";
+} from "src/cs/base/common/platform";
 import { createNLSConfiguration, setNLSConfiguration } from "src/cs/nls";
 import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
 import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";

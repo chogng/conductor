@@ -10,7 +10,7 @@ import { IHoverService } from "src/cs/platform/hover/browser/hoverService";
 import {
   resolveLanguageCode,
   type LanguageCode,
-} from "src/cs/platform/language/common/language";
+} from "src/cs/base/common/platform";
 import { createNLSConfiguration, setNLSConfiguration } from "src/cs/nls";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import {

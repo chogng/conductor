@@ -14,7 +14,7 @@ import {
   BrowserWorkbenchLayoutService,
   Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
-import { TableViewId } from "src/cs/workbench/services/table/common/table";
+import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
 import { ChartViewId } from "src/cs/workbench/services/chart/common/chart";
 import { ExplorerViewId } from "src/cs/workbench/contrib/files/browser/files";
 import { SettingsViewId } from "src/cs/workbench/services/settings/common/settings";

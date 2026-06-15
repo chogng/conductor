@@ -83,7 +83,6 @@ import {
   IInstantiationService,
   type IInstantiationService as IInstantiationServiceType,
 } from "src/cs/platform/instantiation/common/instantiation";
-import { isLanguagePreference } from "src/cs/platform/language/common/language";
 import {
   registerWorkbenchContribution2,
   WorkbenchPhase,
@@ -219,29 +218,6 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
         description: localize("workbench.commands.checkForUpdates", "Check for app updates"),
       },
     }));
-    this._register(CommandsRegistry.registerCommand({
-      id: WorkbenchCommandId.setLanguage,
-      handler: async (_accessor, language: unknown) => {
-        if (!isLanguagePreference(language)) {
-          return;
-        }
-
-        const currentLanguage = settingsService.getSettingsViewInput()?.language;
-        if (currentLanguage === language) {
-          return;
-        }
-
-        try {
-          await settingsService.updateSettings({ language });
-          reloadWorkbench(nativeHostService);
-        } catch {
-          // Keep settings UI responsive if persistence fails.
-        }
-      },
-      metadata: {
-        description: localize("workbench.commands.setLanguage", "Set the workbench display language"),
-      },
-    }));
     this._register(
       scheduleAtNextAnimationFrame(window, () => {
         markBootUiReady("workbench");
@@ -273,17 +249,6 @@ function registerContainer(id: string, title: string, location: ViewContainerLoc
     }]),
   }, location, { isDefault: true, doNotRegisterOpenCommand: true });
 }
-
-const reloadWorkbench = (
-  nativeHostService: INativeHostServiceType | undefined,
-): void => {
-  if (nativeHostService) {
-    void nativeHostService.reloadWindow().catch(() => undefined);
-    return;
-  }
-
-  window.location.reload();
-};
 
 const checkForUpdates = async (): Promise<boolean> => {
   const desktopApp = (window as Window & {

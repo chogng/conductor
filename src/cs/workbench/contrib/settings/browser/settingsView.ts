@@ -8,7 +8,7 @@ import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/template/common/fileNameMatching";
-import type { LanguagePreference } from "src/cs/platform/language/common/language";
+import type { LanguagePreference } from "src/cs/base/common/platform";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type {
   Feedback,

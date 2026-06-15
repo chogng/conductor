@@ -3,11 +3,14 @@ import assert from "assert";
 import {
   isMacintosh,
   isLinux,
+  isLanguageCode,
+  isLanguagePreference,
   isNative,
   isWindows,
   platform,
   Platform,
   PlatformToString,
+  resolveLanguageCode,
 } from "../../common/platform.ts";
 
 suite("base/test/common/platform", () => {
@@ -45,5 +48,21 @@ suite("base/test/common/platform", () => {
     assert.equal(isMacintosh, false);
     assert.equal(isLinux, false);
     assert.equal(isWindows, false);
+  });
+
+  test("normalizes Conductor display language preferences", () => {
+    assert.equal(isLanguageCode("en"), true);
+    assert.equal(isLanguageCode("zh"), true);
+    assert.equal(isLanguageCode("de"), false);
+
+    assert.equal(isLanguagePreference("system"), true);
+    assert.equal(isLanguagePreference("en"), true);
+    assert.equal(isLanguagePreference("zh"), true);
+    assert.equal(isLanguagePreference("fr"), false);
+
+    assert.equal(resolveLanguageCode("zh", "en-US"), "zh");
+    assert.equal(resolveLanguageCode("system", "zh-CN"), "zh");
+    assert.equal(resolveLanguageCode("system", "en-US"), "en");
+    assert.equal(resolveLanguageCode("system", "de-DE"), "en");
   });
 });

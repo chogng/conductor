@@ -8,7 +8,7 @@ import {
   DisposableStore,
   type IDisposable,
 } from "src/cs/base/common/lifecycle";
-import type { LanguagePreference } from "src/cs/platform/language/common/language";
+import type { LanguagePreference } from "src/cs/base/common/platform";
 import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
 import type { INativeHostService } from "src/cs/platform/native/common/native";
@@ -43,7 +43,7 @@ import {
 import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import {
   isLanguagePreference,
-} from "src/cs/platform/language/common/language";
+} from "src/cs/base/common/platform";
 import { localize } from "src/cs/nls";
 import { isThemeMode } from "src/cs/workbench/common/theme";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
@@ -70,10 +70,8 @@ import {
   WorkbenchDomainBridge,
   resolveExplorerSessionSelection,
 } from "src/cs/workbench/browser/workbenchDomainBridge";
-import {
-  TableViewId,
-  type ITableService,
-} from "src/cs/workbench/services/table/common/table";
+import type { ITableService } from "src/cs/workbench/services/table/common/table";
+import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
 import type {
   ISessionService as ISessionServiceType,
   SessionSnapshot,

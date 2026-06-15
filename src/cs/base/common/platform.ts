@@ -1,6 +1,10 @@
 import { getNLSLanguage, resolveNLSLanguage } from "../../nls.js";
 
 export const LANGUAGE_DEFAULT = "en";
+export const SUPPORTED_LANGUAGES = [LANGUAGE_DEFAULT, "zh"] as const;
+
+export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number];
+export type LanguagePreference = "system" | LanguageCode;
 
 let _isWindows = false;
 let _isMacintosh = false;
@@ -177,6 +181,27 @@ export namespace Language {
         return language === LANGUAGE_DEFAULT;
     }
 }
+
+export const isLanguageCode = (value: unknown): value is LanguageCode =>
+    value === LANGUAGE_DEFAULT || value === "zh";
+
+export const isLanguagePreference = (
+    value: unknown,
+): value is LanguagePreference =>
+    value === "system" || isLanguageCode(value);
+
+export const resolveLanguageCode = (
+    preference: unknown,
+    systemLanguage: unknown,
+): LanguageCode => {
+    if (isLanguageCode(preference)) return preference;
+
+    const source = typeof systemLanguage === "string" ? systemLanguage.toLowerCase() : "";
+    if (source.startsWith("zh")) return "zh";
+    if (source.startsWith("en")) return LANGUAGE_DEFAULT;
+
+    return LANGUAGE_DEFAULT;
+};
 
 export const locale = _locale;
 export const platformLocale = _platformLocale;

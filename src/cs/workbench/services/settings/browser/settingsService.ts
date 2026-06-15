@@ -7,7 +7,7 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import {
   isLanguagePreference,
-} from "src/cs/platform/language/common/language";
+} from "src/cs/base/common/platform";
 import {
   ConfigurationTarget,
   IConfigurationService,
