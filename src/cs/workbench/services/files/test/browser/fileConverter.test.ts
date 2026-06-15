@@ -57,6 +57,36 @@ suite("workbench/services/files/test/browser/fileConverter", () => {
     assert.equal(await loaded.text(), "x,y\n1,2");
   });
 
+  test("falls back to loading CSV path contents when native prepare has no normalized CSV", async () => {
+    const sourceFile = new File(["Vg,Id\n0,1e-9"], "2.csv", {
+      lastModified: 123,
+      type: "text/csv",
+    });
+    const service = createFileConverterBackendStub({
+      canPrepareFile: () => true,
+      prepareFile: async () => ({
+        ok: true,
+        sourcePath: "C:/data/293K/OUTPUT/2.csv",
+      }),
+    });
+
+    const result = await convertImportFile(
+      service,
+      null,
+      { kind: "path", path: "C:/data/293K/OUTPUT/2.csv" },
+      {
+        fileName: "2.csv",
+        lastModified: 123,
+        loadFile: async () => sourceFile,
+        size: sourceFile.size,
+      },
+    );
+
+    assert.equal(result.normalizedCsvPath, null);
+    assert.equal(result.sourcePath, "C:/data/293K/OUTPUT/2.csv");
+    assert.equal(await result.file.text(), "Vg,Id\n0,1e-9");
+  });
+
   test("passes prepared sheet metadata through the conversion boundary", async () => {
     const service = createFileConverterBackendStub({
       canPrepareFile: () => true,

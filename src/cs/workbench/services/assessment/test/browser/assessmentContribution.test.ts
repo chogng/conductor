@@ -38,6 +38,7 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 				assessmentVersion: file.assessmentsByRawTableId["table-a"]?.sourceRawTableVersion,
 				assessedInputs: assessmentService.inputs.map(input => ({
 					fileId: input.fileId,
+					fileName: input.fileName,
 					rawTableId: input.rawTableId,
 					rows: input.rows,
 					sourceRawTableVersion: input.sourceRawTableVersion,
@@ -48,6 +49,7 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 				assessmentVersion: 1,
 				assessedInputs: [{
 					fileId: "file-a",
+					fileName: "293K/OUTPUT/2.csv",
 					rawTableId: "table-a",
 					rows: [["Vg", "Id"], ["0", "1e-9"]],
 					sourceRawTableVersion: 1,
@@ -119,7 +121,8 @@ const createInlineImportResult = (): FileImportResult => ({
 		name: "Transfer.csv",
 		raw: {
 			fileId: "file-a",
-			fileName: "Transfer.csv",
+			fileName: "2.csv",
+			relativePath: "293K/OUTPUT/2.csv",
 			rawTablesById: {
 				"table-a": {
 					columnCount: 2,

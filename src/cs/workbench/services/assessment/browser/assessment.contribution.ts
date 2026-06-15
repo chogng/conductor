@@ -65,7 +65,7 @@ export class AssessmentContribution extends Disposable implements IWorkbenchCont
 
 			const assessment = await this.assessmentService.assessRawTable({
 				fileId: file.id,
-				fileName: file.raw.fileName,
+				fileName: getAssessmentSourceName(file),
 				rawTableId,
 				rows,
 				sourceRawTableVersion: file.rawTableVersionsById[rawTableId] ?? 0,
@@ -141,6 +141,19 @@ const readRowsForAssessment = (
 	lastModified: file.raw.lastModified,
 	rowStore: table.rowStore ?? null,
 });
+
+const getAssessmentSourceName = (
+	file: FileRecord,
+): string => normalizeSourceName(file.raw.relativePath) ??
+	normalizeSourceName(file.raw.filePath) ??
+	file.raw.fileName;
+
+const normalizeSourceName = (
+	value: unknown,
+): string | null => {
+	const normalized = String(value ?? "").trim();
+	return normalized || null;
+};
 
 registerWorkbenchContribution2(
 	AssessmentContributionId,

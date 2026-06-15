@@ -324,18 +324,20 @@ export const convertImportFile = async (
               : Date.now(),
             type: "text/csv;charset=utf-8",
           })
-        : (await loadConvertedCsvFile({
-            convertedCsvReaderService: fileConverterBackend,
-            fallbackFile: file,
-            fileName: metadata.fileName,
-            lastModified: metadata.lastModified,
-            normalizedCsvPath,
-          })) ?? new File([], metadata.fileName, {
-            lastModified: Number.isFinite(metadata.lastModified)
-              ? metadata.lastModified
-              : Date.now(),
-            type: "text/csv;charset=utf-8",
-          });
+        : normalizedCsvPath
+          ? (await loadConvertedCsvFile({
+              convertedCsvReaderService: fileConverterBackend,
+              fallbackFile: file,
+              fileName: metadata.fileName,
+              lastModified: metadata.lastModified,
+              normalizedCsvPath,
+            })) ?? new File([], metadata.fileName, {
+              lastModified: Number.isFinite(metadata.lastModified)
+                ? metadata.lastModified
+                : Date.now(),
+              type: "text/csv;charset=utf-8",
+            })
+          : await loadBrowserFile();
     const normalizedSizeBytes =
       getRustConvertCsvBytes(result.manifest) ??
       (Number(result.normalizedSizeBytes) || normalizedFile.size);
