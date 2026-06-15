@@ -335,7 +335,6 @@
   font-size: 12px;
   line-height: 16px;
   font-weight: 500;
-  text-transform: uppercase;
   color: rgb(var(--text-secondary) / 1);
   height: 100%;
 }
