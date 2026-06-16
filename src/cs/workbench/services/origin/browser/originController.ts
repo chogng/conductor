@@ -7,23 +7,15 @@ import JSZip from "jszip";
 import { localize } from "src/cs/nls";
 import { triggerBlobDownload } from "src/cs/workbench/services/export/browser/download";
 import {
-  buildOriginAxisAppearancePatch,
-  buildOriginAxisCapabilities,
-  buildOriginAxisSpacingPatch,
-  buildOriginAxisTitlePatch,
-  buildOriginXAxisDisplayRangePatch,
-  buildOriginYAxisAutoRangePatch,
-  buildOriginYAxisDisplayRangePatch,
-  type OriginAxisScaleMode,
-} from "src/cs/workbench/services/origin/common/originCapabilities";
+  buildOriginCapabilitiesFromActions,
+  buildOriginChartAxisAction,
+  buildOriginChartStyleAction,
+  type OriginAction,
+} from "src/cs/workbench/services/origin/common/originActions";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
 } from "src/cs/workbench/services/origin/common/originPlotOptions";
-import {
-  buildOriginLegendStylePatch,
-  buildOriginStyleCapabilities,
-} from "src/cs/workbench/services/origin/common/originStyleCapabilities";
 import { originService } from "src/cs/workbench/services/origin/browser/originService";
 import type {
   OriginDisplayRange,
@@ -240,66 +232,28 @@ export function buildOriginCsvJobs(options: {
   return options.plan.payloads.map((payload, index) => {
     const importColumnLabels = buildOriginImportColumnLabels(payload);
     const legendPostCommands = buildOriginLegendRefreshCommands(payload.curveLabels);
-    const payloadYScaleMode: OriginAxisScaleMode =
-      payload.yScaleMode === "log" ? "log" : "linear";
-    const shouldUseXDisplayRange =
-      payload.skipDisplayRange !== true && Boolean(options.chartXRange);
-    const shouldUseYDisplayRange =
-      payload.skipDisplayRange !== true &&
-      Boolean(options.chartYRange) &&
-      options.chartYRange?.mode === payloadYScaleMode;
-    const originYScaleMode: OriginAxisScaleMode =
-      shouldUseYDisplayRange && options.chartYRange?.mode
-        ? options.chartYRange.mode
-        : payloadYScaleMode;
     const effectiveXyPairs =
       !hasCustomPlotCommand && !hasCustomXyPairs
         ? payload.xyPairs
         : normalizedPlotOptions.xyPairs;
-    const displayXRange = shouldUseXDisplayRange
-      ? buildOriginXAxisDisplayRangePatch(options.chartXRange)
-      : undefined;
-    const displayYRange = shouldUseYDisplayRange
-      ? buildOriginYAxisDisplayRangePatch(
-          originYScaleMode,
-          options.chartYRange,
-        )
-      : undefined;
-    const autoYRange = shouldUseYDisplayRange
-      ? undefined
-      : buildOriginYAxisAutoRangePatch(originYScaleMode, payload);
     const axisSettings =
       options.axisSettings && typeof options.axisSettings === "object"
         ? (options.axisSettings as JsonRecord)
         : null;
-    const originStyleCapabilities = buildOriginStyleCapabilities({
-      legend: buildOriginLegendStylePatch({
+    const originActions: OriginAction[] = [
+      buildOriginChartStyleAction({
         legendFontSize: normalizedPlotOptions.legendFontSize,
       }),
-    });
-    const originAxisCapabilities = payload.skipAxisCommands
-      ? {}
-      : buildOriginAxisCapabilities({
-          appearance: buildOriginAxisAppearancePatch(axisSettings),
-          scale: {
-            x: { mode: "linear" },
-            y: { mode: originYScaleMode },
-          },
-          range: {
-            x: displayXRange,
-            y: displayYRange ?? autoYRange,
-          },
-          title: buildOriginAxisTitlePatch({
-            xAxisTitle: payload.xAxisTitle,
-            yAxisTitle: payload.yAxisTitle,
-            axisTitleFontSize: axisSettings?.axisTitleFontSize ?? null,
-          }),
-          spacing: buildOriginAxisSpacingPatch(axisSettings),
-          frame: {
-            xOpposite: true,
-            yOpposite: true,
-          },
-        });
+    ];
+    if (payload.skipAxisCommands !== true) {
+      originActions.push(buildOriginChartAxisAction({
+        axisSettings,
+        chartXRange: options.chartXRange,
+        chartYRange: options.chartYRange,
+        payload,
+      }));
+    }
+    const originCapabilities = buildOriginCapabilitiesFromActions(originActions);
 
     return {
       csv: {
@@ -340,10 +294,8 @@ export function buildOriginCsvJobs(options: {
               postCommands: legendPostCommands,
             }
           : undefined,
-        style: originStyleCapabilities,
-        axis: {
-          ...originAxisCapabilities,
-        },
+        style: originCapabilities.style,
+        axis: originCapabilities.axis,
       },
     };
   });

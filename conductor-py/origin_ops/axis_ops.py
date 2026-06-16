@@ -1,7 +1,12 @@
 from .origin_session import run_command_list
-from .origin_actions import (
-    apply_axis_appearance_action,
-    apply_axis_capabilities_action,
+from .origin_adapter import (
+    apply_axis_advanced_commands,
+    apply_axis_appearance_patch,
+    apply_axis_frame_patch,
+    apply_axis_range_patch,
+    apply_axis_scale_patch,
+    apply_axis_spacing_patch,
+    apply_axis_title_patch,
 )
 
 
@@ -10,11 +15,34 @@ def apply_axis_commands(op_module, commands):
 
 
 def apply_axis_appearance(op_module, appearance, warning_logger=None):
-    return apply_axis_appearance_action(op_module, appearance, warning_logger)
+    result = apply_axis_appearance_patch(op_module, appearance)
+    error = result.get("error") if isinstance(result, dict) else None
+    if isinstance(error, dict) and callable(warning_logger):
+        warning_logger(f"Axis warning: failed to apply axis appearance: {error.get('message')}")
+    return result
+
+
+def _log_axis_result(warning_logger, label: str, result):
+    error = result.get("error") if isinstance(result, dict) else None
+    if isinstance(error, dict) and callable(warning_logger):
+        warning_logger(f"Axis warning: failed to apply {label}: {error.get('message')}")
 
 
 def apply_axis_capabilities(op_module, axis_plan, warning_logger=None):
-    return apply_axis_capabilities_action(op_module, axis_plan, warning_logger)
+    steps = [
+        ("frame", apply_axis_frame_patch(op_module, getattr(axis_plan, "axis_frame", {}))),
+        ("scale", apply_axis_scale_patch(op_module, getattr(axis_plan, "axis_scale", {}))),
+        ("range", apply_axis_range_patch(op_module, getattr(axis_plan, "axis_range", {}))),
+        ("title", apply_axis_title_patch(op_module, getattr(axis_plan, "axis_title", {}))),
+        ("spacing", apply_axis_spacing_patch(op_module, getattr(axis_plan, "axis_spacing", {}))),
+        ("appearance", apply_axis_appearance_patch(op_module, getattr(axis_plan, "axis_appearance", {}))),
+        ("advanced commands", apply_axis_advanced_commands(op_module, getattr(axis_plan, "axis_advanced_commands", []))),
+    ]
+    results = {}
+    for label, result in steps:
+        results[label] = result
+        _log_axis_result(warning_logger, label, result)
+    return results
 
 
 def _get_active_graph_layer(op_module):

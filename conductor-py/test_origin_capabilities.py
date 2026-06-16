@@ -2,8 +2,6 @@ import unittest
 
 from origin_ops.axis_ops import apply_axis_capabilities
 from origin_ops.capability_dispatcher import CapabilityPlan, resolve_capability_plan
-from origin_ops.origin_actions import OriginAction, axis_capability_actions
-from origin_ops.origin_commands import OriginCommand, axis_appearance_commands
 from origin_ops.style_ops import apply_style_capabilities
 
 
@@ -75,33 +73,7 @@ class OriginCapabilitiesTest(unittest.TestCase):
         self.assertEqual(plan.axis_range["y"]["from"], 1e-12)
         self.assertEqual(plan.axis_scale["y"]["mode"], "log")
 
-    def test_axis_appearance_builds_origin_commands_inside_python_worker(self):
-        commands = axis_appearance_commands({
-            "x": {"showGrid": False, "showMajorTicks": False, "showMinorTicks": True},
-        })
-
-        self.assertTrue(all(isinstance(command, OriginCommand) for command in commands))
-        self.assertTrue(all(command.kind == "labtalk" for command in commands))
-        self.assertIn("layer.x.grid.show=0", [command.text for command in commands])
-        self.assertIn("layer.x.majorTicks=0", [command.text for command in commands])
-        self.assertIn("layer.x.minorTicks=1", [command.text for command in commands])
-
-    def test_axis_capabilities_build_origin_actions_inside_python_worker(self):
-        plan = CapabilityPlan(
-            axis_appearance={
-                "x": {"showGrid": False, "showMajorTicks": False, "showMinorTicks": True},
-            },
-        )
-
-        actions = axis_capability_actions(plan)
-
-        self.assertTrue(all(isinstance(action, OriginAction) for action in actions))
-        self.assertIn("origin.axis.appearance", [action.id for action in actions])
-        appearance_action = next(action for action in actions if action.id == "origin.axis.appearance")
-        self.assertTrue(all(isinstance(command, OriginCommand) for command in appearance_action.commands))
-        self.assertIn("layer.x.grid.show=0", [command.text for command in appearance_action.commands])
-
-    def test_apply_axis_capabilities_runs_origin_actions_inside_python_worker(self):
+    def test_apply_axis_capabilities_keeps_labtalk_inside_python_adapter(self):
         origin = FakeOriginModule()
         plan = CapabilityPlan(
             axis_appearance={
@@ -117,7 +89,7 @@ class OriginCapabilitiesTest(unittest.TestCase):
 
         result = apply_axis_capabilities(origin, plan)
 
-        self.assertIn("origin.axis.appearance", result)
+        self.assertIn("appearance", result)
         self.assertIn("layer.x.opposite=1;", origin.commands)
         self.assertIn("layer.y.type=2;", origin.commands)
         self.assertIn("layer.x.from=-1;", origin.commands)
@@ -129,12 +101,11 @@ class OriginCapabilitiesTest(unittest.TestCase):
         self.assertIn("layer.x.minorTicks=1;", origin.commands)
         self.assertIn("// user override;", origin.commands)
 
-    def test_apply_style_capabilities_runs_origin_actions_inside_python_worker(self):
+    def test_apply_style_capabilities_keeps_labtalk_inside_python_adapter(self):
         origin = FakeOriginModule()
 
-        result = apply_style_capabilities(origin, {"fontSize": 12}, [])
+        apply_style_capabilities(origin, {"fontSize": 12}, [])
 
-        self.assertIn("origin.style.legend", result)
         self.assertIn("legend.fsize=12;", origin.commands)
 
 

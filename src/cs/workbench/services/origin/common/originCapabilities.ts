@@ -66,6 +66,9 @@ const clamp = (value: number, min: number, max: number): number =>
 	Math.min(max, Math.max(min, value));
 
 const toFiniteNumber = (value: unknown): number | undefined => {
+	if (value === null || value === undefined || String(value).trim() === "") {
+		return undefined;
+	}
 	const num = Number(value);
 	return Number.isFinite(num) ? (Object.is(num, -0) ? 0 : num) : undefined;
 };

@@ -25,6 +25,13 @@ import {
   buildOriginXAxisDisplayRangePatch,
   buildOriginYAxisDisplayRangePatch,
 } from "src/cs/workbench/services/origin/common/originCapabilities";
+import {
+  buildOriginCapabilitiesFromActions,
+  buildOriginChartAxisAction,
+  buildOriginChartStyleAction,
+  OriginActionId,
+  OriginSemanticCommandId,
+} from "src/cs/workbench/services/origin/common/originActions";
 import { buildOriginLegendStylePatch } from "src/cs/workbench/services/origin/common/originStyleCapabilities";
 import { buildOriginCsvJobs } from "src/cs/workbench/services/origin/browser/originController";
 
@@ -253,6 +260,63 @@ suite("workbench/services/export/browser/csvExport", () => {
     assert.equal(buildOriginLegendStylePatch({ legendFontSize: "" }), undefined);
     assert.deepEqual(buildOriginLegendStylePatch({ legendFontSize: "12" }), {
       fontSize: 12,
+    });
+  });
+
+  test("buildOriginChartAxisAction emits semantic Origin command records", () => {
+    const action = buildOriginChartAxisAction({
+      axisSettings: {
+        showGrid: false,
+        showMajorTicks: false,
+        showMinorTicks: true,
+      },
+      payload: {
+        yScaleMode: "log",
+      },
+    });
+
+    assert.equal(action.id, OriginActionId.ApplyChartAxisAppearance);
+    assert.deepEqual(
+      action.commands.map(command => command.id),
+      [
+        OriginSemanticCommandId.AxisAppearance,
+        OriginSemanticCommandId.AxisScale,
+        OriginSemanticCommandId.AxisFrame,
+      ],
+    );
+    assert.equal(
+      action.commands.some(command => JSON.stringify(command).includes("layer.")),
+      false,
+    );
+  });
+
+  test("buildOriginCapabilitiesFromActions resolves TS Origin actions into semantic capabilities", () => {
+    const capabilities = buildOriginCapabilitiesFromActions([
+      buildOriginChartStyleAction({ legendFontSize: "12" }),
+      buildOriginChartAxisAction({
+        axisSettings: {
+          showGrid: false,
+          showMajorTicks: true,
+        },
+        payload: {
+          yScaleMode: "linear",
+          xAxisTitle: "Vd (V)",
+          yAxisTitle: "Id (A)",
+        },
+      }),
+    ]);
+
+    assert.deepEqual(capabilities.style, {
+      legend: {
+        fontSize: 12,
+      },
+    });
+    assert.deepEqual(capabilities.axis?.appearance?.x, {
+      showGrid: false,
+      showMajorTicks: true,
+    });
+    assert.deepEqual(capabilities.axis?.title?.y, {
+      text: "Id (A)",
     });
   });
 
