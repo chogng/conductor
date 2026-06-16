@@ -269,7 +269,7 @@
   "search.commands.showSearch": "Show Search",
   "search.empty.model": "No chart data to search.",
   "search.heading": "Search",
-  "search.interpolation.label": "Algorithm",
+  "search.interpolation.label": "Interpolation algorithm",
   "search.interpolation.linear": "Linear interpolation",
   "search.interpolation.none": "No interpolation",
   "search.interpolation.selectLabel": "Search algorithm",

@@ -65,7 +65,7 @@ export const createSearchView = ({
 
   const algorithmLabel = document.createElement("span");
   algorithmLabel.className = "search_label";
-  algorithmLabel.textContent = localize("search.interpolation.label", "Algorithm");
+  algorithmLabel.textContent = localize("search.interpolation.label", "Interpolation algorithm");
 
   let renderSearchResults = (): void => {};
   const algorithmSelect = createSearchInterpolationSelect({

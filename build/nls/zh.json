@@ -286,7 +286,7 @@
   "search.column.y": "Y",
   "search.empty.model": "没有可搜索的图表数据。",
   "search.heading": "搜索",
-  "search.interpolation.label": "算法",
+  "search.interpolation.label": "插值算法",
   "search.interpolation.linear": "线性插值",
   "search.interpolation.none": "不使用插值",
   "search.interpolation.selectLabel": "搜索算法",

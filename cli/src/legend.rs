@@ -62,6 +62,61 @@ fn format_generated_legend_value(value: f64) -> Option<String> {
     format_compact_numeric_label(value)
 }
 
+fn normalize_near_zero_legend_labels(labels: Vec<Option<String>>) -> Vec<Option<String>> {
+    if labels.is_empty() {
+        return labels;
+    }
+
+    let numeric_values = labels
+        .iter()
+        .map(|label| {
+            label
+                .as_deref()
+                .and_then(|value| value.trim().parse::<f64>().ok())
+                .filter(|value| value.is_finite())
+        })
+        .collect::<Vec<_>>();
+    let finite_values = numeric_values.iter().flatten().copied().collect::<Vec<_>>();
+    if finite_values.len() < 3 {
+        return labels;
+    }
+    let has_negative = finite_values.iter().any(|value| *value < 0.0);
+    let has_positive = finite_values.iter().any(|value| *value > 0.0);
+    let has_zero = finite_values.iter().any(|value| *value == 0.0);
+    if !has_negative || !has_positive || has_zero {
+        return labels;
+    }
+
+    let mut abs_values = finite_values
+        .iter()
+        .map(|value| value.abs())
+        .filter(|value| *value > 0.0)
+        .collect::<Vec<_>>();
+    if abs_values.is_empty() {
+        return labels;
+    }
+    abs_values.sort_by(|left, right| left.partial_cmp(right).unwrap_or(std::cmp::Ordering::Equal));
+    let median_index = abs_values.len() / 2;
+    let median_abs = if abs_values.len() % 2 == 1 {
+        abs_values[median_index]
+    } else {
+        (abs_values[median_index - 1] + abs_values[median_index]) / 2.0
+    };
+    if !median_abs.is_finite() || median_abs <= 0.0 {
+        return labels;
+    }
+
+    let zero_tolerance = 1e-12_f64.max(median_abs * 1e-4);
+    labels
+        .into_iter()
+        .zip(numeric_values)
+        .map(|(label, numeric_value)| match numeric_value {
+            Some(value) if value.abs() <= zero_tolerance => Some("0".to_string()),
+            _ => label,
+        })
+        .collect()
+}
+
 fn normalize_positive_integer(value: Option<&Value>) -> Option<usize> {
     let value = json_number(value?)?;
     if value > 0.0 && value.fract().abs() <= f64::EPSILON {
@@ -229,7 +284,7 @@ pub fn resolve_legend_labels(
                 );
             }
         }
-        return (Some(mode), Some(labels));
+        return (Some(mode), Some(normalize_near_zero_legend_labels(labels)));
     }
 
     let start_value_raw = json_string(config.get("yLegendStartValue"));
@@ -243,10 +298,85 @@ pub fn resolve_legend_labels(
                 for (index, label) in labels.iter_mut().enumerate() {
                     *label = format_generated_legend_value(start_value + step_value * index as f64);
                 }
-                return (Some(mode), Some(labels));
+                return (Some(mode), Some(normalize_near_zero_legend_labels(labels)));
             }
         }
     }
 
     (None, None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn generated_group_labels_normalize_near_zero_center() {
+        let dataset = EngineDataset::from_rows("test.csv".to_string(), vec![]);
+        let config = json!({
+            "yLegendStartValue": "-59.9999979",
+            "yLegendCount": 7,
+            "yLegendStep": 20,
+            "yLegendTarget": "group",
+        });
+
+        let (mode, labels) = resolve_legend_labels(&dataset, &config, 2, 7, &[1]);
+
+        assert!(matches!(mode, Some(LegendMode::Group)));
+        assert_eq!(
+            labels,
+            Some(vec![
+                Some("-59.999998".to_string()),
+                Some("-39.999998".to_string()),
+                Some("-19.999998".to_string()),
+                Some("0".to_string()),
+                Some("20.000002".to_string()),
+                Some("40.000002".to_string()),
+                Some("60.000002".to_string()),
+            ])
+        );
+    }
+
+    #[test]
+    fn cell_group_labels_normalize_near_zero_center() {
+        let dataset = EngineDataset::from_rows(
+            "test.csv".to_string(),
+            vec![
+                vec!["-60".to_string()],
+                vec!["".to_string()],
+                vec!["-40".to_string()],
+                vec!["".to_string()],
+                vec!["-20".to_string()],
+                vec!["".to_string()],
+                vec!["0.0000021".to_string()],
+                vec!["".to_string()],
+                vec!["20".to_string()],
+                vec!["".to_string()],
+                vec!["40".to_string()],
+                vec!["".to_string()],
+                vec!["60".to_string()],
+            ],
+        );
+        let config = json!({
+            "yLegendStartCell": { "rowIndex": 0, "colIndex": 0 },
+            "yLegendTarget": "group",
+        });
+
+        let (mode, labels) = resolve_legend_labels(&dataset, &config, 2, 7, &[1]);
+
+        assert!(matches!(mode, Some(LegendMode::Group)));
+        assert_eq!(
+            labels,
+            Some(vec![
+                Some("-60".to_string()),
+                Some("-40".to_string()),
+                Some("-20".to_string()),
+                Some("0".to_string()),
+                Some("20".to_string()),
+                Some("40".to_string()),
+                Some("60".to_string()),
+            ])
+        );
+    }
 }
