@@ -131,6 +131,14 @@ const freezeExplorerTreeNode = <TEntry extends ExplorerFileEntry>(
 
 export const getExplorerTreeFileName = getExplorerFileName;
 
+export const getExplorerTreeFileKey = <TEntry extends ExplorerFileEntry>(
+	entry: TEntry,
+	pathParts?: readonly string[],
+): string =>
+	entry.fileId ?? entry.itemKey ?? `file:${(pathParts ?? [
+		...normalizePath(entry.relativePath),
+	]).join("/") || getExplorerFileName(entry)}`;
+
 export const buildExplorerTree = <TEntry extends ExplorerFileEntry>(
 	entries: readonly TEntry[],
 	options: ExplorerTreeOptions = {},
@@ -167,7 +175,7 @@ export const buildExplorerTree = <TEntry extends ExplorerFileEntry>(
 		}
 
 		const leafName = pathParts[pathParts.length - 1] ?? fileName;
-		const fileKey = entry.fileId ?? entry.itemKey ?? `file:${pathParts.join("/")}`;
+		const fileKey = getExplorerTreeFileKey(entry, pathParts);
 		children.push({
 			entry,
 			key: fileKey,

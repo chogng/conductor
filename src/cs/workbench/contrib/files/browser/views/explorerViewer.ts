@@ -56,6 +56,7 @@ import {
 import {
   buildExplorerTree,
   collectExplorerFolderKeys,
+  getExplorerTreeFileKey,
   getExplorerTreeFileName,
   type ExplorerFileEntry,
   type ExplorerSourceStatus,
@@ -359,26 +360,6 @@ const getFileRenderKey = (
       "",
   );
 
-const getFileTreeKey = (
-  fileEntry: ExplorerFileEntry,
-): string => {
-  const explicitKey = fileEntry.fileId ?? fileEntry.itemKey;
-  if (explicitKey) {
-    return explicitKey;
-  }
-
-  const pathParts = String(fileEntry.relativePath ?? "")
-    .replace(/\\/g, "/")
-    .split("/")
-    .map(part => part.trim())
-    .filter(Boolean);
-  if (!pathParts.length) {
-    pathParts.push(getFileName(fileEntry));
-  }
-
-  return `file:${pathParts.join("/")}`;
-};
-
 const createBadgePresentation = (
   fileKey: string,
   badge: FileItemAssessment | FileSourceStatusBadge | FileFastAssessment | FilePendingAssessment | null,
@@ -483,6 +464,7 @@ export class ExplorerViewer implements IDisposable {
     items: [],
     structureSignature: "",
   };
+  private fileEntriesByTreeKey = new Map<string, ExplorerFileEntry>();
   private filePresentationSignatures = new Map<string, string>();
   private props: ExplorerViewerProps;
   private readonly treeDelegate = {
@@ -553,6 +535,7 @@ export class ExplorerViewer implements IDisposable {
       nextProps.files,
       nextProps,
     );
+    const nextFileEntriesByTreeKey = this.createFileEntriesByTreeKey(nextProps.files);
     const changedPresentationKeys = shouldUpdateTree
       ? []
       : this.getChangedPresentationKeys(nextFilePresentationSignatures);
@@ -579,13 +562,14 @@ export class ExplorerViewer implements IDisposable {
       this.clearHoverThumbnailCache();
     }
     this.host.dataset.viewLayout = nextViewLayout;
+    this.fileEntriesByTreeKey = nextFileEntriesByTreeKey;
+    this.filePresentationSignatures = nextFilePresentationSignatures;
 
     if (shouldUpdateTree) {
       this.updateTreeModel(nextTreeStructureSignature);
       const reconciledExpandedFolderKeys =
         this.props.onFolderKeysChange?.(this.treeModel.folderKeys) ??
         nextExpandedFolderKeys;
-      this.filePresentationSignatures = nextFilePresentationSignatures;
       this.treeView.updateOptions({
         collapsedKeys: this.getCollapsedFolderKeys(
           this.treeModel.folderKeys,
@@ -612,7 +596,6 @@ export class ExplorerViewer implements IDisposable {
         this.treeView.updateOptions(treeOptionsUpdate);
       }
 
-      this.filePresentationSignatures = nextFilePresentationSignatures;
       this.treeView.rerenderByKeys(changedPresentationKeys);
     }
 
@@ -647,6 +630,7 @@ export class ExplorerViewer implements IDisposable {
       this.props.files,
       this.props,
     );
+    this.fileEntriesByTreeKey = this.createFileEntriesByTreeKey(this.props.files);
     const { folderKeys, items } = this.treeModel;
 
     return {
@@ -700,10 +684,21 @@ export class ExplorerViewer implements IDisposable {
   ): Map<string, string> {
     const signatures = new Map<string, string>();
     for (const entry of files) {
-      signatures.set(getFileTreeKey(entry), this.createFilePresentationSignature(entry, props));
+      signatures.set(getExplorerTreeFileKey(entry), this.createFilePresentationSignature(entry, props));
     }
 
     return signatures;
+  }
+
+  private createFileEntriesByTreeKey(
+    files: readonly ExplorerFileEntry[],
+  ): Map<string, ExplorerFileEntry> {
+    const entriesByTreeKey = new Map<string, ExplorerFileEntry>();
+    for (const entry of files) {
+      entriesByTreeKey.set(getExplorerTreeFileKey(entry), entry);
+    }
+
+    return entriesByTreeKey;
   }
 
   private createFilePresentationSignature(
@@ -754,7 +749,7 @@ export class ExplorerViewer implements IDisposable {
       return null;
     }
 
-    return this.props.files.find(entry => getFileTreeKey(entry) === node.key) ??
+    return this.fileEntriesByTreeKey.get(node.key) ??
       node.entry ??
       null;
   }

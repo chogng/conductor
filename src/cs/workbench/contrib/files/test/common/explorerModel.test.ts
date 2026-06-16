@@ -11,10 +11,23 @@ import {
   createChartExplorerFiles,
   createChartExplorerFilesFromRecords,
   createRawExplorerFiles,
+  getExplorerTreeFileKey,
   mergeExplorerSourceEntries,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 
 suite("workbench/contrib/files/common/explorerModel", () => {
+  test("getExplorerTreeFileKey matches buildExplorerTree file key rules", () => {
+    const entry = {
+      fileId: "",
+      itemKey: "source-item",
+      fileName: "raw.csv",
+      relativePath: "batch/raw.csv",
+    };
+
+    assert.equal(getExplorerTreeFileKey(entry), "");
+    assert.equal(buildExplorerTree([entry])[0]?.children?.[0]?.key, "");
+  });
+
   test("createRawExplorerFiles projects consumed assessment labels", () => {
     assert.deepEqual(
       createRawExplorerFiles([
