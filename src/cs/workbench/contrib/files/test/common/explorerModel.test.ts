@@ -17,15 +17,28 @@ import {
 
 suite("workbench/contrib/files/common/explorerModel", () => {
   test("getExplorerTreeFileKey matches buildExplorerTree file key rules", () => {
-    const entry = {
+    const emptyFileIdEntry = {
       fileId: "",
       itemKey: "source-item",
       fileName: "raw.csv",
       relativePath: "batch/raw.csv",
     };
+    const itemKeyEntry = {
+      itemKey: "source-item",
+      fileName: "raw.csv",
+      relativePath: "batch/raw.csv",
+    };
+    const fallbackEntry = {
+      fileName: "raw.csv",
+      relativePath: "batch/raw.csv",
+    };
 
-    assert.equal(getExplorerTreeFileKey(entry), "");
-    assert.equal(buildExplorerTree([entry])[0]?.children?.[0]?.key, "");
+    assert.equal(getExplorerTreeFileKey(emptyFileIdEntry), "");
+    assert.equal(buildExplorerTree([emptyFileIdEntry])[0]?.children?.[0]?.key, "");
+    assert.equal(getExplorerTreeFileKey(itemKeyEntry), "source-item");
+    assert.equal(buildExplorerTree([itemKeyEntry])[0]?.children?.[0]?.key, "source-item");
+    assert.equal(getExplorerTreeFileKey(fallbackEntry), "file:batch/raw.csv");
+    assert.equal(buildExplorerTree([fallbackEntry])[0]?.children?.[0]?.key, "file:batch/raw.csv");
   });
 
   test("createRawExplorerFiles projects consumed assessment labels", () => {
