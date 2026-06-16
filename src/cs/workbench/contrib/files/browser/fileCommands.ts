@@ -4,7 +4,7 @@
 
 import { localize } from "src/cs/nls";
 import type { ICommandHandler } from "src/cs/platform/commands/common/commands";
-import { IExplorerWorkflowService } from "src/cs/workbench/contrib/files/browser/files";
+import { IExplorerService, IExplorerWorkflowService, type ExplorerSelectionKind } from "src/cs/workbench/contrib/files/browser/files";
 import {
   INotificationService,
   Severity,
@@ -36,17 +36,22 @@ export const renameFileItemHandler: ICommandHandler<[unknown]> = (
   accessor,
   fileId,
 ) => {
-  if (!normalizeCommandFileId(fileId)) {
+  const normalizedFileId = normalizeCommandFileId(fileId);
+  if (!normalizedFileId) {
     return;
   }
 
-  accessor.get(INotificationService).notify({
-    id: "files.renameUnsupported",
-    message: localize(
-      "files.renameUnsupported",
-      "Renaming imported files is not available yet.",
-    ),
-    severity: Severity.Info,
+  const explorerService = accessor.get(IExplorerService);
+  const paneInput = explorerService.getPaneInput();
+  const kind: ExplorerSelectionKind = paneInput?.selectionKind ?? "table";
+  const resource = {
+    kind,
+    fileId: normalizedFileId,
+  };
+  explorerService.select(resource, "force");
+  explorerService.setEditable({
+    resource,
+    isEditing: true,
   });
 };
 

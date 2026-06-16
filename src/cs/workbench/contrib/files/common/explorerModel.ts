@@ -515,7 +515,7 @@ export const createChartExplorerFilesFromRecords = (
 		files.push({
 			file: file.raw.file ?? rawFile?.file,
 			fileId,
-			fileName: String(file.raw.fileName ?? rawFile?.fileName ?? fileId).trim() || fileId,
+			fileName: String(file.name ?? file.raw.fileName ?? rawFile?.fileName ?? fileId).trim() || fileId,
 			itemKey: getOptionalString(rawFile?.itemKey ?? file.raw.rawKey),
 			normalizedCsvPath: file.raw.normalizedCsvPath ?? rawFile?.normalizedCsvPath,
 			relativePath: file.raw.relativePath ?? rawFile?.relativePath ?? null,

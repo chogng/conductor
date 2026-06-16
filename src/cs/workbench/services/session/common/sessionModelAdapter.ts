@@ -344,7 +344,7 @@ export const createRawFilesFromRecords = (
     const baseFile: SessionFile = {
       file: file.raw.file,
       fileId: file.id,
-      fileName: file.raw.fileName,
+      fileName: file.name || file.raw.fileName,
       normalizedCsvPath: file.raw.normalizedCsvPath ?? null,
       rawKey: file.raw.rawKey,
       relativePath: file.raw.relativePath ?? null,
@@ -561,7 +561,7 @@ export const createProcessedFileSessionCommit = (
     templateRun: {
       run: templateRun,
       calculationCache: record.calculationCache,
-      fileName: record.raw.fileName,
+      fileName: record.name || record.raw.fileName,
       seriesById: record.seriesById,
       seriesOrder: record.seriesOrder,
     },

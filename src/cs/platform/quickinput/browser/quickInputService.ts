@@ -1,4 +1,5 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { localize } from "src/cs/nls";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
@@ -42,11 +43,12 @@ export class BrowserQuickInputService extends Disposable implements IQuickInputS
       panel.setAttribute("role", "dialog");
       panel.setAttribute("aria-label", options.ariaLabel ?? localize("quickInput.ariaLabel", "Quick input"));
 
-      const input = document.createElement("input");
-      input.className = "quick-input-input";
-      input.type = "text";
-      input.placeholder = options.placeholder ?? "";
-      input.setAttribute("aria-label", options.ariaLabel ?? localize("quickInput.inputAriaLabel", "Quick input"));
+      const input = createInputBox({
+        ariaLabel: options.ariaLabel ?? localize("quickInput.inputAriaLabel", "Quick input"),
+        inputClassName: "quick-input-input",
+        placeholder: options.placeholder,
+        type: "text",
+      });
 
       const scrollbar = new Scrollbar({
         className: "quick-input-scroll-area",

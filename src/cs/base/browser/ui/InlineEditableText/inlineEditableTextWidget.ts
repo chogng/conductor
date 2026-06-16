@@ -1,4 +1,5 @@
 import { DisposableStore, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
+import { createInputBox, updateInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
 
 import "src/cs/base/browser/ui/InlineEditableText/inlineEditableText.css";
 
@@ -23,14 +24,15 @@ export type InlineEditableTextWidgetOptions = {
 export class InlineEditableTextWidget implements IDisposable {
   private readonly disposables = new DisposableStore();
   private readonly root = document.createElement("div");
-  private readonly input = document.createElement("input");
+  private readonly input = createInputBox({
+    autoComplete: "off",
+    type: "text",
+  });
   private pendingExitAction: "commit" | "common.cancel" | null = null;
   private options: InlineEditableTextWidgetOptions;
 
   public constructor(options: InlineEditableTextWidgetOptions) {
-    this.options = options;
-    this.input.type = "text";
-    this.input.autocomplete = "off";
+    this.options = { ...options, editing: false };
     this.root.appendChild(this.input);
 
     this.input.addEventListener("change", this.handleInputChange);
@@ -75,8 +77,6 @@ export class InlineEditableTextWidget implements IDisposable {
     this.root.className = rootClassNames.join(" ");
     this.root.title = options.title ?? "";
 
-    this.input.value = options.editing ? options.draftValue : options.value;
-    this.input.readOnly = !options.editing;
     const inputClassNames = [
       "inline-editable-text__input",
       options.editing
@@ -89,12 +89,15 @@ export class InlineEditableTextWidget implements IDisposable {
     if (options.inputClassName) {
       inputClassNames.push(options.inputClassName);
     }
-    this.input.className = inputClassNames.join(" ");
+    updateInputBox(this.input, {
+      inputClassName: inputClassNames.join(" "),
+      readOnly: !options.editing,
+      value: options.editing ? options.draftValue : options.value,
+    });
     this.applyStyle(options.style);
 
     if (options.editing && !wasEditing) {
-      this.input.focus();
-      this.input.select();
+      this.focusInputSoon();
     }
   }
 
@@ -110,12 +113,27 @@ export class InlineEditableTextWidget implements IDisposable {
     Object.assign(this.input.style, style);
   }
 
+  private focusInputSoon(): void {
+    queueMicrotask(() => {
+      if (this.disposables.isDisposed || !this.input.isConnected) {
+        return;
+      }
+
+      this.input.focus();
+      this.input.select();
+    });
+  }
+
   private readonly handleInputChange = (): void => {
     if (!this.options.editing) return;
     this.options.onChange(this.input.value);
   };
 
   private readonly handleBlur = (): void => {
+    if (!this.options.editing) {
+      return;
+    }
+
     const pendingAction = this.pendingExitAction;
     this.pendingExitAction = null;
 
@@ -128,6 +146,10 @@ export class InlineEditableTextWidget implements IDisposable {
   };
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
+    if (!this.options.editing) {
+      return;
+    }
+
     if (event.key === "Enter") {
       event.preventDefault();
       this.pendingExitAction = "commit";

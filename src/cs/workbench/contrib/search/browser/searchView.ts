@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
+import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBoxField";
 import { createSelectBox, type SelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
 import { localize } from "src/cs/nls";
 import { formatNumber } from "src/cs/workbench/services/calculation/common/numberFormat";

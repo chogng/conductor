@@ -1,5 +1,5 @@
 import { createButton } from "src/cs/base/browser/ui/button/button";
-import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
+import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBoxField";
 import { addDisposableListener } from "src/cs/base/browser/dom";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { createSelectBox, type SelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";

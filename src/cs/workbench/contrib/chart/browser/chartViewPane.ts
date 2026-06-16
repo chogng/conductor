@@ -25,7 +25,7 @@ import {
   resolveActiveChartFileOption,
   resolveChartFileOptions,
 } from "src/cs/workbench/services/chart/common/chartFileOptions";
-import { createLegendPopover, getLegendContext, type LegendContext } from "src/cs/workbench/contrib/chart/browser/chartLegend";
+import { createLegendPopover, getLegendContext, type LegendContext, type LegendPopover } from "src/cs/workbench/contrib/chart/browser/chartLegend";
 import { toChartPanelProps } from "src/cs/workbench/contrib/chart/browser/chartPaneState";
 import { createChartUnitControls, type ChartUnitAxis, type ChartUnitControlState, type ChartYScale } from "src/cs/workbench/contrib/chart/browser/chartUnitControls";
 import {
@@ -60,8 +60,9 @@ export class ChartViewPane extends ViewPane {
   private readonly content = document.createElement("div");
   private readonly chartPanel: ChartPanel;
   private legendAction: Action | null = null;
-  private legendPopover: HTMLElement | null = null;
+  private legendPopover: LegendPopover | null = null;
   private legendContext: LegendContext | null = null;
+  private editingLegendKey: string | null = null;
   private fallbackActivePlotType: PlotType = "iv";
   private props: ChartViewInput = EMPTY_CHART_VIEW_INPUT;
 
@@ -394,9 +395,11 @@ export class ChartViewPane extends ViewPane {
   }
 
   private disposeLegendPopover(): void {
+    this.legendPopover?.dispose();
     this.legendPopover?.remove();
     this.legendPopover = null;
     this.legendContext = null;
+    this.editingLegendKey = null;
     if (this.legendAction) {
       this.legendAction.checked = false;
     }
@@ -434,11 +437,15 @@ export class ChartViewPane extends ViewPane {
     }
 
     const legend = createLegendPopover(context, {
+      editingLegendKey: this.editingLegendKey,
       hiddenLegendKeys: this.getHiddenLegendKeys(context),
       legendLabels: this.getLegendLabels(context),
+      onCancelLegendItemEdit: () => this.cancelLegendItemEdit(),
+      onCommitLegendItemEdit: (legendKey, nextLabel) => this.commitLegendItemEdit(context, legendKey, nextLabel),
       onToggleLegendItem: (legendKey) => this.toggleLegendItem(context, legendKey),
       onEditLegendItem: (legendKey, currentLabel) => this.editLegendItem(context, legendKey, currentLabel),
     });
+    this.legendPopover?.dispose();
     this.legendPopover?.remove();
     this.legendPopover = legend;
     this.legendContext = context;
@@ -446,32 +453,42 @@ export class ChartViewPane extends ViewPane {
   }
 
   private editLegendItem(context: LegendContext, legendKey: string, currentLabel: string): void {
-    const series = context.seriesList.find((item) => item.id === legendKey);
-    if (!series) {
+    if (!context.seriesList.some((item) => item.id === legendKey)) {
       return;
     }
 
-    const nextLabel = window.prompt(
-      localize("chart.legend.editLabelPrompt", "Legend label"),
-      currentLabel,
-    );
-    if (nextLabel === null) {
+    this.editingLegendKey = legendKey;
+    this.refreshLegendPopover();
+  }
+
+  private commitLegendItemEdit(context: LegendContext, legendKey: string, nextLabel: string): void {
+    if (this.editingLegendKey !== legendKey) {
+      return;
+    }
+
+    this.editingLegendKey = null;
+    const series = context.seriesList.find((item) => item.id === legendKey);
+    if (!series) {
+      this.refreshLegendPopover();
       return;
     }
 
     this.updateLegendLabel(context, legendKey, String(series.name ?? ""), nextLabel.trim());
   }
 
-  private updateLegendLabel(context: LegendContext, legendKey: string, defaultLabel: string, nextLabel: string): void {
-    if (!nextLabel) {
-      return;
-    }
+  private cancelLegendItemEdit(): void {
+    this.editingLegendKey = null;
+    this.refreshLegendPopover();
+  }
 
-    this.plotService.setLegendLabel(
-      context.fileId,
-      legendKey,
-      nextLabel === defaultLabel ? null : nextLabel,
-    );
+  private updateLegendLabel(context: LegendContext, legendKey: string, defaultLabel: string, nextLabel: string): void {
+    if (nextLabel) {
+      this.plotService.setLegendLabel(
+        context.fileId,
+        legendKey,
+        nextLabel === defaultLabel ? null : nextLabel,
+      );
+    }
     this.updateChartPanel(this.props);
     this.refreshLegendPopover();
   }

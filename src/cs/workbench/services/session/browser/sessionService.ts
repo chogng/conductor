@@ -186,6 +186,29 @@ export class SessionService extends Disposable implements ISessionServiceType {
     };
   };
 
+  public renameFile(fileId: FileId, name: string): boolean {
+    const normalizedFileId = normalizeId(fileId);
+    const nextName = normalizeOptionalText(name);
+    const file = normalizedFileId ? this.snapshot.filesById[normalizedFileId] : undefined;
+    if (!file || !nextName || file.name === nextName) {
+      return false;
+    }
+
+    this.replaceSnapshot({
+      ...this.snapshot,
+      filesById: {
+        ...this.snapshot.filesById,
+        [normalizedFileId]: {
+          ...file,
+          name: nextName,
+        },
+      },
+    }, "fileMetadataChanged", {
+      fileIds: [normalizedFileId],
+    });
+    return true;
+  }
+
   public commitRawTableAssessment = (assessment: RawTableAssessmentRecord): void => {
     this.commitRawTableAssessments([assessment]);
   };

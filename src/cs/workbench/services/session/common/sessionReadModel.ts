@@ -87,7 +87,7 @@ export const createProcessedEntryFromFileRecord = (
   return {
     curveType: getFileRecordCurveType(file),
     fileId: file.id,
-    fileName: file.raw.fileName,
+    fileName: file.name || file.raw.fileName,
     series: createProcessedSeriesFromFileRecord(file),
     supportsSs: fileRecordSupportsSs(file),
     xAxisRole: axis.xAxisRole,

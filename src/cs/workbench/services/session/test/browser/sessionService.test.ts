@@ -660,6 +660,38 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.deepEqual(rawFiles[0].maxCellLengths, [2, 4]);
   });
 
+  test("renames imported file display metadata without changing raw provenance", () => {
+    const session = new SessionService();
+    const events: SessionChangeEvent[] = [];
+    const disposable = session.onDidChangeSession(event => {
+      events.push(event);
+    });
+
+    commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw A.csv" }]);
+
+    assert.equal(session.renameFile("file-a", "Display A.csv"), true);
+    assert.equal(session.renameFile("file-a", "Display A.csv"), false);
+    assert.equal(session.renameFile("file-a", "   "), false);
+
+    const snapshot = session.getSnapshot();
+    const file = snapshot.filesById["file-a"];
+    const rawFiles = createRawFilesFromRecords(snapshot.filesById, snapshot.fileOrder);
+
+    assert.equal(file.name, "Display A.csv");
+    assert.equal(file.raw.fileName, "Raw A.csv");
+    assert.equal(rawFiles[0]?.fileName, "Display A.csv");
+    assert.deepEqual(events.map(event => event.reason), [
+      "rawTablesChanged",
+      "fileMetadataChanged",
+    ]);
+    assert.deepEqual(events[1], {
+      fileIds: ["file-a"],
+      reason: "fileMetadataChanged",
+      sessionVersion: 2,
+    });
+    disposable.dispose();
+  });
+
   test("removes files through one session owner", () => {
     const session = new SessionService();
 

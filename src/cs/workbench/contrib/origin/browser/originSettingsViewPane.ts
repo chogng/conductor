@@ -4,7 +4,8 @@
 
 import { localize } from "src/cs/nls";
 
-import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
+import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
+import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBoxField";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { createSelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
 import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollbar";
@@ -697,18 +698,19 @@ const createLineWidthInput = (
   onChange: OriginSettingsChangeHandler | undefined,
   store: DisposableStore,
 ): HTMLElement => {
-  const input = document.createElement("input");
-  input.id = "export-settings-line-width";
-  input.type = "number";
+  const input = createInputBox({
+    id: "export-settings-line-width",
+    inputClassName: "export_settings_view_input",
+    type: "number",
+    value: options.lineWidth,
+  });
   input.min = "0.5";
   input.max = "20";
   input.step = "0.5";
-  input.value = String(options.lineWidth);
   const wrapper = createInputBoxField({
     className: "export_settings_view_control",
     fieldClassName: "export_settings_view_input_field",
     input,
-    inputClassName: "export_settings_view_input",
   }).element;
   const listener = () => {
     const normalized = normalizeOriginPlotOptions(
@@ -738,17 +740,18 @@ const createAxisTextInput = ({
   readonly store: DisposableStore;
   readonly value: string | number;
 }): HTMLElement => {
-  const input = document.createElement("input");
-  input.id = id;
-  input.disabled = disabled;
-  input.placeholder = placeholder ?? "";
-  input.type = "text";
-  input.value = String(value ?? "");
+  const input = createInputBox({
+    disabled,
+    id,
+    inputClassName: "export_settings_view_input",
+    placeholder,
+    type: "text",
+    value: String(value ?? ""),
+  });
   const wrapper = createInputBoxField({
     className: "export_settings_view_control",
     fieldClassName: "export_settings_view_input_field",
     input,
-    inputClassName: "export_settings_view_input",
   }).element;
   let lastValue = input.value.trim();
   const commit = () => {
@@ -804,15 +807,16 @@ const createTextInput = ({
   readonly store: DisposableStore;
   readonly value: string;
 }): HTMLElement => {
-  const input = document.createElement("input");
-  input.id = id;
-  input.value = value;
-  input.type = "text";
+  const input = createInputBox({
+    id,
+    inputClassName: "export_settings_view_input",
+    type: "text",
+    value,
+  });
   const wrapper = createInputBoxField({
     className: "export_settings_view_control",
     fieldClassName: "export_settings_view_input_field",
     input,
-    inputClassName: "export_settings_view_input",
   }).element;
   let lastValue = value;
   const commit = () => {

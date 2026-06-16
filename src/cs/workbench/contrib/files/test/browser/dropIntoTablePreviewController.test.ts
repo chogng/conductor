@@ -163,6 +163,7 @@ function createSessionService(): ISessionService {
       schemaVersion: 1,
       sessionVersion: 0,
     }),
+    renameFile: () => false,
     removeFiles: () => undefined,
   };
 }

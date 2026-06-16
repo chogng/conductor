@@ -4,6 +4,7 @@
 
 import { addDisposableListener } from "src/cs/base/browser/dom";
 import { CountBadge } from "src/cs/base/browser/ui/countbadge/countBadge";
+import { InlineEditableTextWidget } from "src/cs/base/browser/ui/InlineEditableText/inlineEditableTextWidget";
 import { createDropdownButton } from "src/cs/base/browser/ui/dropdown/dropdown";
 import {
   createMenuAction,
@@ -43,7 +44,10 @@ import {
   SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/common/files";
 import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
-import type { ExplorerThumbnailPlotModel } from "src/cs/workbench/contrib/files/browser/files";
+import type {
+  ExplorerEditableData,
+  ExplorerThumbnailPlotModel,
+} from "src/cs/workbench/contrib/files/browser/files";
 import { FileKind, ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
 import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
@@ -97,6 +101,7 @@ export type ExplorerViewerProps = {
   readonly currentTemplateLabel?: string;
   readonly currentTemplateSelection?: TemplateSelection;
   readonly fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
+  readonly editable?: ExplorerEditableData | null;
   readonly isTemplateListLoading?: boolean;
   readonly templateRecords?: readonly TemplateRecord[];
   readonly files: ExplorerFileEntry[];
@@ -113,6 +118,8 @@ export type ExplorerViewerProps = {
   readonly onOpenFileDialog: () => void;
   readonly onRemoveFolder: (folderKey: string) => void;
   readonly onRequestTemplates?: () => void;
+  readonly onCancelRenameFile?: () => void;
+  readonly onRenameFile?: (fileId: string, nextName: string) => void;
   readonly onSelectFile: (fileId: string | null) => void;
   readonly thumbnailFiles?: ProcessedEntry[];
   readonly thumbnailPlotModelsByFileId?: Readonly<Record<string, ExplorerThumbnailPlotModel>>;
@@ -171,6 +178,7 @@ type FileItemTemplate = {
   readonly actions: HTMLDivElement;
   readonly assessment: ExplorerBadgeNode;
   readonly content: HTMLDivElement;
+  readonly editorStore: DisposableStore;
   fileId: string | null;
   readonly host: HTMLElement;
   readonly label: IResourceLabel;
@@ -728,6 +736,10 @@ export class ExplorerViewer implements IDisposable {
       getTemplateSelectionId(
         this.resolveFileTemplateSelection(entry.fileId, props),
       ),
+      props.editable?.isEditing === true &&
+        props.editable.resource.fileId === entry.fileId
+        ? "editing"
+        : "",
     ].join("\u001f");
   }
 
@@ -850,7 +862,6 @@ export class ExplorerViewer implements IDisposable {
         },
       }),
       createMenuAction({
-        enabled: false,
         id: RENAME_FILE_ITEM_COMMAND_ID,
         label: localize("files.item.rename", "Rename"),
         run: () => {
@@ -1010,6 +1021,7 @@ export class ExplorerViewer implements IDisposable {
     template: TreeItemTemplate,
   ): void => {
     template.file.fileId = null;
+    template.file.editorStore.clear();
     template.folder.currentNode = null;
   };
 
@@ -1021,6 +1033,7 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private readonly disposeTreeItemTemplate = (template: TreeItemTemplate): void => {
+    template.file.editorStore.dispose();
     template.file.label.dispose();
     template.folder.actionButton.dispose();
   };
@@ -1069,6 +1082,12 @@ export class ExplorerViewer implements IDisposable {
     template: FileItemTemplate,
   ): void {
     const fileName = getFileName(fileEntry);
+    const fileId = fileEntry.fileId ?? null;
+    const isEditing = Boolean(
+      fileId &&
+        this.props.editable?.isEditing === true &&
+        this.props.editable.resource.fileId === fileId,
+    );
     const sourceStatus = createFileSourceStatusBadge(fileEntry);
     const assessment = createFileItemAssessment(
       fileEntry,
@@ -1092,10 +1111,15 @@ export class ExplorerViewer implements IDisposable {
     } else {
       delete host.dataset.selected;
     }
-    if (fileEntry?.fileId) {
-      host.dataset.fileId = fileEntry.fileId;
+    if (fileId) {
+      host.dataset.fileId = fileId;
     } else {
       delete host.dataset.fileId;
+    }
+    if (isEditing) {
+      host.dataset.editing = "true";
+    } else {
+      delete host.dataset.editing;
     }
     if (assessment) {
       host.dataset.autoType = assessment.type;
@@ -1134,7 +1158,9 @@ export class ExplorerViewer implements IDisposable {
       delete host.dataset.itemKey;
     }
 
-    template.fileId = fileEntry.fileId ?? null;
+    template.fileId = fileId;
+    template.editorStore.clear();
+    template.label.element.style.display = "";
     template.label.setResource(
       {
         name: fileName,
@@ -1145,6 +1171,34 @@ export class ExplorerViewer implements IDisposable {
         fileKind: FileKind.FILE,
       },
     );
+    if (isEditing && fileId) {
+      let draftName = fileName;
+      const editLabel = localize("files.rename.ariaLabel", "Rename {fileName}", { fileName });
+      const editor = new InlineEditableTextWidget({
+        className: "file-list-item-inline-editor",
+        draftValue: draftName,
+        editing: true,
+        inputClassName: "file-list-item-inline-input",
+        onCancel: () => this.props.onCancelRenameFile?.(),
+        onChange: (nextValue) => {
+          draftName = nextValue;
+        },
+        onCommit: () => this.props.onRenameFile?.(fileId, draftName),
+        onStartEdit: () => undefined,
+        title: editLabel,
+        value: fileName,
+      });
+      template.editorStore.add(editor);
+      template.editorStore.add(addDisposableListener(editor.element, "mousedown", event => {
+        event.stopPropagation();
+      }));
+      template.editorStore.add(addDisposableListener(editor.element, "click", event => {
+        event.stopPropagation();
+      }));
+      editor.inputElement.setAttribute("aria-label", editLabel);
+      template.label.element.style.display = "none";
+      template.content.append(editor.element);
+    }
     const badge = sourceStatus?.status === "failed"
       ? sourceStatus
       : assessment ?? fastAssessment ?? sourceStatus ?? pendingAssessment;
@@ -1154,6 +1208,7 @@ export class ExplorerViewer implements IDisposable {
       localize("files.import.removeFileButtonLabel", "Remove {fileName}", { fileName }),
     );
     template.removeButton.hidden = !fileEntry.fileId;
+    template.actions.hidden = isEditing;
     if (
       template.content.parentElement !== host ||
       template.actions.parentElement !== host
@@ -1242,6 +1297,7 @@ export class ExplorerViewer implements IDisposable {
       actions,
       assessment,
       content,
+      editorStore: new DisposableStore(),
       fileId: null,
       host,
       label,

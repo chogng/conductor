@@ -6,7 +6,8 @@ import type { ServicesAccessor, ServiceIdentifier } from "../../../../../platfor
 import { INativeHostService } from "../../../../../platform/native/common/native.ts";
 import { ExplorerService } from "../../browser/explorerService.ts";
 import { IExplorerService } from "../../browser/files.ts";
-import { REVEAL_IN_OS_COMMAND_ID } from "../../common/files.ts";
+import { RENAME_FILE_ITEM_COMMAND_ID, REVEAL_IN_OS_COMMAND_ID } from "../../common/files.ts";
+import "../../browser/fileActions.contribution.ts";
 import "../../electron-browser/fileActions.contribution.ts";
 import { resolveRevealResources } from "../../electron-browser/fileCommands.ts";
 
@@ -77,6 +78,31 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
 
     assert.equal(revealedPath, toExpectedFsPath("C:/data/file.csv"));
     assert.ok(CommandsRegistry.getCommand(REVEAL_IN_OS_COMMAND_ID));
+  });
+
+  test("registered rename command enters Explorer editable state", () => {
+    const explorerService = new ExplorerService();
+    explorerService.updatePaneInput({
+      files: [{
+        fileId: "file-1",
+        fileName: "file.csv",
+      }],
+      mode: "table",
+      selectedFileId: "file-1",
+      selectionKind: "table",
+      thumbnailFiles: [],
+    });
+    const accessor = createAccessor([[IExplorerService, explorerService]]);
+
+    CommandsRegistry.getCommand(RENAME_FILE_ITEM_COMMAND_ID)?.handler(accessor, "file-1");
+
+    assert.deepEqual(explorerService.getContext().editable, {
+      isEditing: true,
+      resource: {
+        fileId: "file-1",
+        kind: "table",
+      },
+    });
   });
 });
 

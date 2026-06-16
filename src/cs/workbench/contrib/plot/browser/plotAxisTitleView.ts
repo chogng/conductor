@@ -6,7 +6,7 @@
 
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
-import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
+import { InlineEditableTextWidget } from "src/cs/base/browser/ui/InlineEditableText/inlineEditableTextWidget";
 import { localize } from "src/cs/nls";
 
 type PlotAxis = "x" | "y";
@@ -119,25 +119,16 @@ export class PlotAxisTitleView {
     const currentTitle = axis === "x" ? this.options.xTitle : this.options.yTitle;
     const store = new DisposableStore();
     const editorWidth = this.getEditorWidth(axis, text);
-    const inputField = createInputBoxField({
-      ariaLabel: this.getAriaLabel(axis),
-      className: `plot_main_chart_axis_title_editor plot_main_chart_axis_title_editor--${axis}`,
-      fieldClassName: "plot_main_chart_axis_title_editor_field",
-      inputClassName: "plot_main_chart_axis_title_editor_input",
-      value: currentTitle,
-    });
+    let draftTitle = currentTitle;
     let isDone = false;
-    inputField.element.style.width = `${editorWidth}px`;
-
     const done = (commit: boolean): void => {
       if (isDone) {
         return;
       }
 
       isDone = true;
-      const nextTitle = inputField.input.value.trim() || currentTitle;
+      const nextTitle = draftTitle.trim() || currentTitle;
       store.dispose();
-      inputField.element.remove();
       text.style.display = "";
       this.editState = null;
       if (commit && nextTitle !== currentTitle) {
@@ -148,26 +139,27 @@ export class PlotAxisTitleView {
         }
       }
     };
+    const editor = new InlineEditableTextWidget({
+      className: `plot_main_chart_axis_title_editor plot_main_chart_axis_title_editor--${axis}`,
+      draftValue: draftTitle,
+      editing: true,
+      inputClassName: "plot_main_chart_axis_title_editor_input",
+      onCancel: () => done(false),
+      onChange: (nextValue) => {
+        draftTitle = nextValue;
+      },
+      onCommit: () => done(true),
+      onStartEdit: () => undefined,
+      title: this.getAriaLabel(axis),
+      value: currentTitle,
+    });
+    store.add(editor);
+    editor.element.style.width = `${editorWidth}px`;
+    editor.inputElement.setAttribute("aria-label", this.getAriaLabel(axis));
 
     text.style.display = "none";
-    host.append(inputField.element);
+    host.append(editor.element);
     this.editState = { axis, store };
-    store.add(addDisposableListener(inputField.input, EventType.KEY_DOWN, (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        done(true);
-        return;
-      }
-
-      if (event.key === "Escape") {
-        event.preventDefault();
-        done(false);
-      }
-    }));
-    store.add(addDisposableListener(inputField.input, EventType.BLUR, () => done(true)));
-
-    inputField.input.focus();
-    inputField.input.select();
     return true;
   }
 

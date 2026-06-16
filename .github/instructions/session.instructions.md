@@ -45,6 +45,7 @@ export interface ISessionService {
   commitCurves(input: CommitCurvesInput): void;
   commitMetrics(input: CommitMetricsInput): void;
 
+  renameFile(fileId: FileId, name: string): boolean;
   setMetricInput(input: MetricInputRecord): void;
   clearMetricInput(fileId: FileId, metricKey: MetricKey): void;
 

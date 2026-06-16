@@ -299,6 +299,7 @@ export class ExplorerViewPane extends ViewPane {
       currentTemplateLabel: input.currentTemplateLabel,
       currentTemplateSelection: input.currentTemplateSelection,
       fileTemplateSelectionsByFileId: input.fileTemplateSelectionsByFileId,
+      editable: this.explorerService.getContext().editable,
       isTemplateListLoading: this.isTemplateListLoading,
       templateRecords: this.templateRecords,
       files: this.files,
@@ -312,13 +313,30 @@ export class ExplorerViewPane extends ViewPane {
       onVisibleFileIdsChange: this.handleVisibleFileIdsChange,
       onRemoveFolder: this.handleRemoveFolder,
       onRequestTemplates: this.loadTemplates,
+      onCancelRenameFile: this.handleCancelRenameFile,
       onDropFiles: this.handleDropFiles,
       onOpenFolderDialog: this.handleOpenFolderDialog,
+      onRenameFile: this.handleRenameFile,
       onSelectFile: this.handleSelectFile,
       thumbnailFiles: input.thumbnailFiles,
       thumbnailPlotModelsByFileId: input.thumbnailPlotModelsByFileId,
     };
   }
+
+  private readonly handleCancelRenameFile = (): void => {
+    this.explorerService.setEditable(null);
+  };
+
+  private readonly handleRenameFile = (fileId: string, nextName: string): void => {
+    const normalizedFileId = normalizeFileId(fileId);
+    const normalizedName = String(nextName ?? "").trim();
+    this.explorerService.setEditable(null);
+    if (!normalizedFileId || !normalizedName) {
+      return;
+    }
+
+    this.sessionService.renameFile(normalizedFileId, normalizedName);
+  };
 
   private syncView(): void {
     if (this.disposed) {

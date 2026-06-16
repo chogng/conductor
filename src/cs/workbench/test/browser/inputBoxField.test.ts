@@ -1,6 +1,12 @@
 import assert from "assert";
 
-import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
+import {
+  createInputBox,
+  updateInputBox,
+} from "src/cs/base/browser/ui/inputbox/inputBox";
+import {
+  createInputBoxField,
+} from "src/cs/base/browser/ui/inputbox/inputBoxField";
 
 suite("workbench/test/browser/inputBoxField", () => {
   const originalDocument = globalThis.document;
@@ -11,6 +17,31 @@ suite("workbench/test/browser/inputBoxField", () => {
 
   teardown(() => {
     globalThis.document = originalDocument;
+  });
+
+  test("createInputBox creates a bare reusable input primitive", () => {
+    const input = createInputBox({
+      ariaLabel: "Inline name",
+      inputClassName: "inline-name",
+      value: "alpha",
+    });
+
+    assert.equal(input.type, "text");
+    assert.equal(input.value, "alpha");
+    assert.equal(input.getAttribute("autocomplete"), "off");
+    assert.equal(input.getAttribute("aria-label"), "Inline name");
+    assert.equal(input.className, "inline-name");
+    assert.equal(input.className.includes("inputbox_native"), false);
+
+    updateInputBox(input, {
+      inputClassName: "inline-name editing",
+      readOnly: true,
+      value: "beta",
+    });
+
+    assert.equal(input.value, "beta");
+    assert.equal(input.readOnly, true);
+    assert.equal(input.className, "inline-name editing");
   });
 
   test("createInputBoxField creates a styled input with defaults", () => {
@@ -32,7 +63,7 @@ suite("workbench/test/browser/inputBoxField", () => {
   });
 
   test("createInputBoxField preserves existing input state unless options explicitly update it", () => {
-    const input = document.createElement("input");
+    const input = document.createElement("input") as unknown as FakeElement & HTMLInputElement;
     input.type = "number";
     input.value = "2.5";
     input.disabled = true;
@@ -114,6 +145,6 @@ class FakeElement {
   }
 }
 
-const createFakeDocument = (): Pick<Document, "createElement"> => ({
+const createFakeDocument = () => ({
   createElement: () => new FakeElement() as unknown as HTMLElement,
 });

@@ -18,6 +18,7 @@ export type SessionChangeReason =
 	| "curvesChanged"
 	| "metricsChanged"
 	| "metricInputsChanged"
+	| "fileMetadataChanged"
 	| "filesRemoved"
 	| "sessionCleared";
 

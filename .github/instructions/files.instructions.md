@@ -466,6 +466,10 @@ Conductor-specific commands should follow the upstream registration and handler 
 
 - Add-data commands belong in `fileActions.ts` / `fileActions.contribution.ts`. They call `IExplorerWorkflowService.openFolderImport()` when the command starts the view-local folder picker/source workflow. The registered workflow handler may call source collection helpers in `fileImportExport.ts`, conversion in `fileConverter.ts`, and session commit APIs. Name any new helper after the concrete workflow, not after a generic import service.
 - Resource removal commands should be action/handler code that derives Explorer context and calls the appropriate owner. Use `IExplorerWorkflowService.removeFile(...)` or `removeSelectedFolder()` for current view-local imported-source removal. Add an `IExplorerService` method only when the operation mutates Explorer view/model state rather than canonical session/file state.
+- Resource rename commands should set Explorer editable state through
+  `IExplorerService.setEditable(...)`. The Explorer view renders the inline
+  editor, but committed display-name metadata belongs to `ISessionService`
+  through `renameFile(...)`; do not mutate Explorer file props directly.
 - Select/reveal behavior should use the upstream-shaped `IExplorerService.select(resource, reveal?)` and `IExplorerView.selectResource(...)` vocabulary.
 - Explorer selection kind follows the workbench mode vocabulary: `table` and
   `chart`. The selected table-mode file may map to raw data and the selected

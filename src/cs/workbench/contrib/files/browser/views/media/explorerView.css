@@ -195,6 +195,23 @@
   color: rgb(var(--text-primary) / 1);
 }
 
+.file-list-item-inline-editor {
+  box-sizing: border-box;
+  height: 22px;
+  min-width: 0;
+  flex: 1 1 0%;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.file-list-item-inline-input {
+  height: 20px;
+  min-width: 0;
+  padding: 0;
+  font-size: 12px;
+  line-height: 20px;
+}
+
 .file-list-item-actions {
   display: flex;
   max-width: 50%;

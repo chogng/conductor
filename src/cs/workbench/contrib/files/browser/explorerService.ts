@@ -99,7 +99,12 @@ export class ExplorerService extends Disposable implements IExplorerService {
   }
 
   public setEditable(data: ExplorerEditableData | null): void {
+    if (isSameExplorerEditableData(this.editable, data)) {
+      return;
+    }
+
     this.editable = data;
+    this.onDidChangePaneInputEmitter.fire(undefined);
   }
 
   public setToCopy(resources: readonly ExplorerSelectionTarget[], isCut: boolean): void {
@@ -378,6 +383,14 @@ const areTemplateSelectionsEqual = (
   return areStringArraysEqual(currentKeys, nextKeys) &&
     currentKeys.every(key => isSameTemplateSelection(current[key], next[key]));
 };
+
+const isSameExplorerEditableData = (
+  current: ExplorerEditableData | null,
+  next: ExplorerEditableData | null,
+): boolean =>
+  current?.isEditing === next?.isEditing &&
+  current?.resource.kind === next?.resource.kind &&
+  current?.resource.fileId === next?.resource.fileId;
 
 const areExplorerFilesEqual = (
   current: ExplorerPaneInput["files"],

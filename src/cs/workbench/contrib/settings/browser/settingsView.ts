@@ -2,6 +2,7 @@ import { localize } from "src/cs/nls";
 import { append, reset } from "src/cs/base/browser/dom";
 import { createButton as createActionButton, updateButton as updateActionButton } from "src/cs/base/browser/ui/button/button";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { createSelectBox, type SelectBox, type SelectBoxOption } from "src/cs/base/browser/ui/selectBox/selectBox";
 import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
@@ -279,11 +280,12 @@ export class SettingsView {
     const search = document.createElement("label");
     search.className = "settings-view-search";
     search.appendChild(createLxIcon({ className: "settings-view-search-icon", icon: LxIcon.search, size: 14 }));
-    const searchInput = document.createElement("input");
-    searchInput.className = "settings-view-search-input";
-    searchInput.type = "search";
-    searchInput.placeholder = localize("settings.nav.searchPlaceholder", "Search settings...");
-    searchInput.setAttribute("aria-label", localize("settings.nav.searchPlaceholder", "Search settings..."));
+    const searchInput = createInputBox({
+      ariaLabel: localize("settings.nav.searchPlaceholder", "Search settings..."),
+      inputClassName: "settings-view-search-input",
+      placeholder: localize("settings.nav.searchPlaceholder", "Search settings..."),
+      type: "search",
+    });
     search.appendChild(searchInput);
 
     const nav = document.createElement("nav");
@@ -828,14 +830,15 @@ export class SettingsView {
   }
 
   private createInput(options: TextInputOptions): HTMLInputElement {
-    const input = document.createElement("input");
-    input.id = options.id;
-    input.className = options.inputClassName
-      ? `inputbox_native inputbox_field ${options.inputClassName}`
-      : "inputbox_native inputbox_field";
-    input.value = options.value;
-    input.disabled = options.disabled === true;
-    input.placeholder = options.placeholder ?? "";
+    const input = createInputBox({
+      disabled: options.disabled,
+      id: options.id,
+      inputClassName: options.inputClassName
+        ? `inputbox_native inputbox_field ${options.inputClassName}`
+        : "inputbox_native inputbox_field",
+      placeholder: options.placeholder,
+      value: options.value,
+    });
     input.addEventListener("input", () => options.onChange(input.value));
     if (options.onBlur) {
       input.addEventListener("blur", options.onBlur);

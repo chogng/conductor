@@ -87,5 +87,6 @@ export interface ISessionService {
   commitCurves(input: CommitCurvesInput): void;
   commitMetrics(input: CommitMetricsInput): void;
   getSnapshot(): SessionSnapshot;
+  renameFile(fileId: FileId, name: string): boolean;
   removeFiles(fileIds: readonly string[]): void;
 }

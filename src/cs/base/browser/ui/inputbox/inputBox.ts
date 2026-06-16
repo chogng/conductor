@@ -1,14 +1,10 @@
-import "src/cs/base/browser/ui/inputbox/inputBox.css";
-
-type InputBoxOptions = {
+export type InputBoxOptions = {
   readonly ariaDescribedBy?: string;
   readonly ariaLabel?: string;
   readonly ariaLabelledBy?: string;
   readonly autoComplete?: string;
-  readonly className?: string;
   readonly disabled?: boolean;
   readonly error?: boolean;
-  readonly fieldClassName?: string;
   readonly id?: string;
   readonly inputClassName?: string;
   readonly name?: string;
@@ -18,50 +14,13 @@ type InputBoxOptions = {
   readonly value?: string | number;
 };
 
-type InputBoxFieldOptions = InputBoxOptions & {
-  readonly input?: HTMLInputElement;
-  readonly right?: Node;
-};
-
-type InputBoxField = {
-  readonly element: HTMLDivElement;
-  readonly field: HTMLDivElement;
-  readonly input: HTMLInputElement;
-};
-
-export const getInputBoxWrapperClassName = (className = ""): string =>
-  classNames("inputbox_wrap", className);
-
-export const getInputBoxFieldClassName = ({
-  fieldClassName = "",
-}: Pick<InputBoxOptions, "fieldClassName"> = {}): string =>
-  classNames("inputbox_field", fieldClassName);
-
-export const getInputBoxNativeClassName = ({
-  inputClassName = "",
-}: Pick<InputBoxOptions, "inputClassName"> = {}): string =>
-  classNames("inputbox_native", inputClassName);
-
-export const getInputBoxFieldState = ({
-  disabled = false,
-  error = false,
-}: Pick<InputBoxOptions, "disabled" | "error"> = {}): "disabled" | "error" | "enable" => {
-  if (disabled) {
-    return "disabled";
-  }
-  if (error) {
-    return "error";
-  }
-  return "enable";
-};
-
-const createInputBox = (options: InputBoxOptions = {}): HTMLInputElement => {
+export const createInputBox = (options: InputBoxOptions = {}): HTMLInputElement => {
   const input = document.createElement("input");
   updateInputBox(input, options, true);
   return input;
 };
 
-const updateInputBox = (
+export const updateInputBox = (
   input: HTMLInputElement,
   options: InputBoxOptions = {},
   applyDefaults = false,
@@ -100,55 +59,12 @@ const updateInputBox = (
   if (applyDefaults || options.autoComplete !== undefined) {
     input.setAttribute("autocomplete", options.autoComplete ?? "off");
   }
-  input.className = getInputBoxNativeClassName(options);
+  if (options.inputClassName !== undefined) {
+    input.className = options.inputClassName;
+  }
   if (applyDefaults || options.error !== undefined) {
     input.setAttribute("aria-invalid", options.error ? "true" : "false");
   }
-};
-
-export const createInputBoxField = (options: InputBoxFieldOptions = {}): InputBoxField => {
-  const element = document.createElement("div");
-  const field = document.createElement("div");
-  const input = options.input ?? createInputBox(options);
-
-  if (options.input) {
-    updateInputBox(input, options);
-  }
-
-  element.className = getInputBoxWrapperClassName(options.className);
-  element.dataset.style = "inputbox";
-  field.className = getInputBoxFieldClassName(options);
-  field.dataset.icon = options.right ? "with" : "without";
-  field.dataset.state = getInputBoxFieldState({
-    disabled: options.disabled ?? input.disabled,
-    error: options.error ?? input.getAttribute("aria-invalid") === "true",
-  });
-
-  field.append(input);
-  if (options.right) {
-    const right = document.createElement("span");
-    right.className = "inputbox_right";
-    right.append(options.right);
-    field.append(right);
-  }
-  element.append(field);
-
-  return {
-    element,
-    field,
-    input,
-  };
-};
-
-const classNames = (...parts: string[]): string => {
-  const names: string[] = [];
-  for (const part of parts) {
-    const name = part.trim();
-    if (name) {
-      names.push(name);
-    }
-  }
-  return names.join(" ");
 };
 
 const setOptionalAttribute = (
