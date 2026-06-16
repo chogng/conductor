@@ -16,6 +16,9 @@ type AxisEditState = {
   readonly store: DisposableStore;
 };
 
+const MIN_AXIS_TITLE_EDITOR_WIDTH = 48;
+const MAX_AXIS_TITLE_EDITOR_WIDTH = 320;
+
 export type PlotAxisTitleViewOptions = {
   readonly fontSize?: number;
   readonly onXTitleChange?: (nextTitle: string) => void;
@@ -118,9 +121,12 @@ export class PlotAxisTitleView {
     const text = axis === "x" ? this.xText : this.yText;
     const currentTitle = axis === "x" ? this.options.xTitle : this.options.yTitle;
     const store = new DisposableStore();
-    const editorWidth = this.getEditorWidth(axis, text);
     let draftTitle = currentTitle;
     let isDone = false;
+    let editor: InlineEditableTextWidget;
+    const updateEditorWidth = (): void => {
+      editor.element.style.width = `${this.getEditorWidth(draftTitle)}px`;
+    };
     const done = (commit: boolean): void => {
       if (isDone) {
         return;
@@ -139,7 +145,7 @@ export class PlotAxisTitleView {
         }
       }
     };
-    const editor = new InlineEditableTextWidget({
+    editor = new InlineEditableTextWidget({
       className: `plot_main_chart_axis_title_editor plot_main_chart_axis_title_editor--${axis}`,
       draftValue: draftTitle,
       editing: true,
@@ -147,6 +153,7 @@ export class PlotAxisTitleView {
       onCancel: () => done(false),
       onChange: (nextValue) => {
         draftTitle = nextValue;
+        updateEditorWidth();
       },
       onCommit: () => done(true),
       onStartEdit: () => undefined,
@@ -154,7 +161,7 @@ export class PlotAxisTitleView {
       value: currentTitle,
     });
     store.add(editor);
-    editor.element.style.width = `${editorWidth}px`;
+    updateEditorWidth();
     editor.inputElement.setAttribute("aria-label", this.getAriaLabel(axis));
 
     text.style.display = "none";
@@ -163,12 +170,17 @@ export class PlotAxisTitleView {
     return true;
   }
 
-  private getEditorWidth(axis: PlotAxis, text: HTMLElement): number {
-    if (axis === "y") {
-      return 220;
-    }
-
-    return Math.ceil(text.getBoundingClientRect().width);
+  private getEditorWidth(title: string): number {
+    const measure = document.createElement("span");
+    measure.className = "plot_main_chart_axis_title_editor_measure plot_main_chart_axis_title_editor_input";
+    measure.textContent = title || " ";
+    this.element.append(measure);
+    const width = Math.ceil(measure.getBoundingClientRect().width);
+    measure.remove();
+    return Math.min(
+      MAX_AXIS_TITLE_EDITOR_WIDTH,
+      Math.max(MIN_AXIS_TITLE_EDITOR_WIDTH, width),
+    );
   }
 
   private stopEdit(): void {

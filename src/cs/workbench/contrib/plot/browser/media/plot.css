@@ -103,10 +103,6 @@
     transform: rotate(-90deg);
 }
 
-.plot_main_chart_axis_title_editor:focus-within {
-    box-shadow: 0 0 0 1px rgb(var(--accent) / 0.72);
-}
-
 .plot_main_chart_axis_title_editor_input {
     box-sizing: border-box;
     height: 18px;
@@ -116,6 +112,12 @@
     font-weight: 500;
     text-align: center;
     color: rgb(var(--text-primary) / 1);
+}
+
+.plot_main_chart_axis_title_editor_measure {
+    position: absolute;
+    visibility: hidden;
+    white-space: pre;
 }
 
 .plot_axis_settings_card {
