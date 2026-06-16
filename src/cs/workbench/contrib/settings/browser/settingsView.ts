@@ -1,8 +1,8 @@
 import { localize } from "src/cs/nls";
 import { append, reset } from "src/cs/base/browser/dom";
-import { createButton as createActionButton } from "src/cs/base/browser/ui/button/button";
+import { createButton as createActionButton, updateButton as updateActionButton } from "src/cs/base/browser/ui/button/button";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import { createSelectBox, type SelectBoxOption } from "src/cs/base/browser/ui/selectBox/selectBox";
+import { createSelectBox, type SelectBox, type SelectBoxOption } from "src/cs/base/browser/ui/selectBox/selectBox";
 import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
@@ -17,6 +17,7 @@ import "src/cs/base/browser/ui/inputbox/inputBox.css";
 import "src/cs/workbench/contrib/settings/browser/media/settingsView.css";
 
 type SelectOption = {
+  disabled?: boolean;
   label: string;
   value: string;
 };
@@ -192,6 +193,18 @@ type TextInputOptions = {
   value: string;
 };
 
+type AppearanceSectionTemplate = {
+  readonly backgroundResetButton: HTMLButtonElement;
+  readonly colorInput: HTMLInputElement;
+  readonly colorSwatches: HTMLElement;
+  readonly element: HTMLElement;
+  readonly explorerBadgesSwitch: SwitchWidget;
+  readonly explorerDensitySelect: SelectBox<string>;
+  readonly swatchButtons: Map<string, HTMLButtonElement>;
+  readonly themeSelect: SelectBox<string>;
+  readonly transparentChromeSwitch: SwitchWidget;
+};
+
 export class SettingsView {
   private readonly renderDisposables = new DisposableStore();
   private readonly root: HTMLElement;
@@ -199,7 +212,7 @@ export class SettingsView {
     className: "settings-view-content-scroll",
     viewportClassName: "settings-view-content-scroll-viewport",
   });
-  private transparentChromeSwitch: SwitchWidget | null = null;
+  private appearanceSection: AppearanceSectionTemplate | null = null;
   private options: SettingsViewOptions;
 
   constructor(container: HTMLElement, options: SettingsViewOptions) {
@@ -212,9 +225,10 @@ export class SettingsView {
   }
 
   update(options: SettingsViewOptions): void {
-    if (canPatchTransparentChromeSwitch(this.options, options)) {
+    if (canReuseAppearanceSectionTemplate(this.options, options)) {
+      const current = this.options;
       this.options = options;
-      this.patchTransparentChromeSwitch(options.appearanceSettings);
+      this.updateAppearanceSection(current, options);
       return;
     }
 
@@ -231,7 +245,7 @@ export class SettingsView {
 
   private render(): void {
     this.renderDisposables.clear();
-    this.transparentChromeSwitch = null;
+    this.appearanceSection = null;
     reset(this.root);
     this.root.appendChild(this.createLayout());
     queueMicrotask(() => this.contentScroll.layout());
@@ -400,59 +414,69 @@ export class SettingsView {
   }
 
   private renderAppearance(container: HTMLElement): void {
+    const appearanceSection = this.createAppearanceSection();
+    this.appearanceSection = appearanceSection;
+    container.appendChild(appearanceSection.element);
+  }
+
+  private createAppearanceSection(): AppearanceSectionTemplate {
     const { appearanceSettings } = this.options;
 
+    const themeSelect = this.createSelectWidget({
+      id: "settings-theme-dropdown",
+      value: this.options.theme,
+      onChange: value => {
+        if (value === "system" || value === "light" || value === "dark") {
+          void this.options.onThemeChange(value);
+        }
+      },
+      options: this.options.themeModeOptions,
+    });
+    const explorerDensitySelect = this.createSelectWidget({
+      id: "settings-explorer-density-dropdown",
+      value: appearanceSettings.explorerDensity,
+      onChange: value => {
+        if (value === "compact" || value === "default" || value === "comfortable") {
+          void this.options.appearanceSettings.onExplorerDensityChange(value);
+        }
+      },
+      options: appearanceSettings.explorerDensityOptions,
+      disabled: appearanceSettings.isExplorerDensitySaving,
+    });
+    const explorerBadgesSwitch = this.createSwitchWidget({
+      ariaLabel: localize("settings.explorerBadges.title", "Explorer Badges"),
+      checked: appearanceSettings.showExplorerBadges,
+      disabled: appearanceSettings.isExplorerBadgeSaving,
+      id: "settings-explorer-badges-toggle",
+      onChange: checked => {
+        void this.options.appearanceSettings.onExplorerBadgeVisibilityChange(checked);
+      },
+    });
+
     const appearanceSection = settingsSection(localize("settings.nav.appearance", "Appearance"),
-      cardRow("settings-theme-card", localize("settings.theme.title", "Theme"), this.createSelect({
-        id: "settings-theme-dropdown",
-        value: this.options.theme,
-        onChange: value => {
-          if (value === "system" || value === "light" || value === "dark") {
-            void this.options.onThemeChange(value);
-          }
-        },
-        options: this.options.themeModeOptions,
-      })),
-      cardRow("settings-explorer-density-card", localize("settings.explorerDensity.title", "Explorer Density"), this.createSelect({
-        id: "settings-explorer-density-dropdown",
-        value: appearanceSettings.explorerDensity,
-        onChange: value => {
-          if (value === "compact" || value === "default" || value === "comfortable") {
-            void appearanceSettings.onExplorerDensityChange(value);
-          }
-        },
-        options: appearanceSettings.explorerDensityOptions,
-        disabled: appearanceSettings.isExplorerDensitySaving,
-      })),
+      cardRow("settings-theme-card", localize("settings.theme.title", "Theme"), themeSelect.domNode),
+      cardRow("settings-explorer-density-card", localize("settings.explorerDensity.title", "Explorer Density"), explorerDensitySelect.domNode),
       cardRow(
         "settings-explorer-badges-card",
         localize("settings.explorerBadges.title", "Explorer Badges"),
-        this.createSwitch({
-          ariaLabel: localize("settings.explorerBadges.title", "Explorer Badges"),
-          checked: appearanceSettings.showExplorerBadges,
-          disabled: appearanceSettings.isExplorerBadgeSaving,
-          id: "settings-explorer-badges-toggle",
-          onChange: checked => {
-            void appearanceSettings.onExplorerBadgeVisibilityChange(checked);
-          },
-        }),
+        explorerBadgesSwitch.domNode,
       ),
     );
     const appearanceList = getSettingsList(appearanceSection);
-    container.appendChild(appearanceSection);
 
+    const layoutResetButton = this.createButton({
+      id: "settings-layout-reset-btn",
+      label: localize("settings.layout.resetButton", "Reset Layout"),
+      onClick: () => void this.options.onResetLayoutState(),
+      variant: "secondary",
+    });
     const layoutCard = card("settings-layout-card", "settings-card-row");
     layoutCard.appendChild(settingsSplitRow(
       headingBlock(
         localize("settings.layout.title", "Layout"),
         localize("settings.layout.description", "Reset sidebar width and hidden workbench parts."),
       ),
-      div("settings-split-row-control settings-split-row-control--actions", this.createButton({
-        id: "settings-layout-reset-btn",
-        label: localize("settings.layout.resetButton", "Reset Layout"),
-        onClick: () => void this.options.onResetLayoutState(),
-        variant: "secondary",
-      })),
+      div("settings-split-row-control settings-split-row-control--actions", layoutResetButton),
     ));
     appearanceList.appendChild(layoutCard);
 
@@ -464,24 +488,22 @@ export class SettingsView {
     colorInput.value = appearanceSettings.backgroundColor;
     colorInput.disabled = appearanceSettings.isSaving;
     colorInput.addEventListener("change", () => {
-      void appearanceSettings.onBackgroundColorChange(colorInput.value);
+      void this.options.appearanceSettings.onBackgroundColorChange(colorInput.value);
     });
 
     const swatches = div("settings-color-swatches");
-    for (const color of appearanceSettings.backgroundColorOptions) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "settings-color-swatch";
-      button.disabled = appearanceSettings.isSaving;
-      button.dataset.selected = String(color === appearanceSettings.backgroundColor);
-      button.style.setProperty("--settings-swatch-color", color);
-      button.setAttribute("aria-label", color);
-      button.title = color;
-      button.addEventListener("click", () => {
-        void appearanceSettings.onBackgroundColorChange(color);
-      });
-      swatches.append(button);
-    }
+    const swatchButtons = new Map<string, HTMLButtonElement>();
+    this.renderBackgroundSwatches(swatches, swatchButtons, appearanceSettings);
+
+    const backgroundResetButton = this.createButton({
+      id: "settings-background-reset-btn",
+      label: localize("settings.background.reset", "Reset"),
+      onClick: () => void this.options.appearanceSettings.onBackgroundColorReset(),
+      disabled:
+        appearanceSettings.isSaving ||
+        appearanceSettings.backgroundColor === appearanceSettings.backgroundColorDefault,
+      variant: "secondary",
+    });
 
     backgroundCard.appendChild(settingsSplitRow(
       headingBlock(
@@ -492,37 +514,39 @@ export class SettingsView {
         "settings-color-controls",
         colorInput,
         swatches,
-        this.createButton({
-          id: "settings-background-reset-btn",
-          label: localize("settings.background.reset", "Reset"),
-          onClick: () => void appearanceSettings.onBackgroundColorReset(),
-          disabled:
-            appearanceSettings.isSaving ||
-            appearanceSettings.backgroundColor === appearanceSettings.backgroundColorDefault,
-          variant: "secondary",
-        }),
+        backgroundResetButton,
       )),
     ));
     appearanceList.appendChild(backgroundCard);
 
+    const transparentChromeSwitch = this.createSwitchWidget({
+      ariaLabel: localize("settings.transparentChrome.title", "Translucent sidebar"),
+      checked: appearanceSettings.transparentChrome,
+      disabled: appearanceSettings.isSaving,
+      id: "settings-transparent-chrome-toggle",
+      onChange: checked => {
+        void this.options.appearanceSettings.onTransparentChromeChange(checked);
+      },
+    });
     appearanceList.appendChild(
       cardRow(
         "settings-transparent-chrome-card",
         localize("settings.transparentChrome.title", "Translucent sidebar"),
-        this.createSwitch({
-          ariaLabel: localize("settings.transparentChrome.title", "Translucent sidebar"),
-          checked: appearanceSettings.transparentChrome,
-          disabled: appearanceSettings.isSaving,
-          id: "settings-transparent-chrome-toggle",
-          onChange: checked => {
-            void appearanceSettings.onTransparentChromeChange(checked);
-          },
-          onCreate: widget => {
-            this.transparentChromeSwitch = widget;
-          },
-        }),
+        transparentChromeSwitch.domNode,
       ),
     );
+
+    return {
+      backgroundResetButton,
+      colorInput,
+      colorSwatches: swatches,
+      element: appearanceSection,
+      explorerBadgesSwitch,
+      explorerDensitySelect,
+      swatchButtons,
+      themeSelect,
+      transparentChromeSwitch,
+    };
   }
 
   private renderOrigin(container: HTMLElement): void {
@@ -775,7 +799,7 @@ export class SettingsView {
     return container;
   }
 
-  private createSelect(options: FieldOptions): HTMLButtonElement {
+  private createSelectWidget(options: FieldOptions): SelectBox<string> {
     const select = createSelectBox({
       id: options.id,
       className: "settings-select",
@@ -785,7 +809,22 @@ export class SettingsView {
       onDidSelect: options.onChange,
     });
     this.renderDisposables.add(select);
-    return select.domNode;
+    return select;
+  }
+
+  private createSelect(options: FieldOptions): HTMLButtonElement {
+    return this.createSelectWidget(options).domNode;
+  }
+
+  private updateSelectWidget(widget: SelectBox<string>, options: FieldOptions): void {
+    widget.update({
+      id: options.id,
+      className: "settings-select",
+      disabled: options.disabled,
+      value: options.value,
+      options: options.options as readonly SelectBoxOption<string>[],
+      onDidSelect: options.onChange,
+    });
   }
 
   private createInput(options: TextInputOptions): HTMLInputElement {
@@ -804,14 +843,13 @@ export class SettingsView {
     return input;
   }
 
-  private createSwitch(options: {
+  private createSwitchWidget(options: {
     ariaLabel: string;
     checked: boolean;
     disabled?: boolean;
     id: string;
     onChange: (checked: boolean) => void;
-    onCreate?: (widget: SwitchWidget) => void;
-  }): HTMLButtonElement {
+  }): SwitchWidget {
     const widget = this.renderDisposables.add(new SwitchWidget({
       checked: options.checked,
       className: "settings-switch",
@@ -820,24 +858,166 @@ export class SettingsView {
       onDidChangeChecked: options.onChange,
     }));
     widget.domNode.setAttribute("aria-label", options.ariaLabel);
-    options.onCreate?.(widget);
+    return widget;
+  }
+
+  private createSwitch(options: {
+    ariaLabel: string;
+    checked: boolean;
+    disabled?: boolean;
+    id: string;
+    onChange: (checked: boolean) => void;
+  }): HTMLButtonElement {
+    const widget = this.createSwitchWidget(options);
     return widget.domNode;
   }
 
-  private patchTransparentChromeSwitch(settings: AppearanceSettings): void {
-    const widget = this.transparentChromeSwitch;
-    if (!widget) {
+  private updateAppearanceSection(current: SettingsViewOptions, next: SettingsViewOptions): void {
+    const template = this.appearanceSection;
+    if (!template) {
       this.render();
       return;
     }
 
-    widget.update({
-      checked: settings.transparentChrome,
-      className: "settings-switch",
-      disabled: settings.isSaving,
-      id: "settings-transparent-chrome-toggle",
-    });
-    widget.domNode.setAttribute("aria-label", localize("settings.transparentChrome.title", "Translucent sidebar"));
+    const currentAppearance = current.appearanceSettings;
+    const nextAppearance = next.appearanceSettings;
+
+    if (current.theme !== next.theme || !selectOptionsEqual(current.themeModeOptions, next.themeModeOptions)) {
+      this.updateSelectWidget(template.themeSelect, {
+        id: "settings-theme-dropdown",
+        value: next.theme,
+        options: next.themeModeOptions,
+        onChange: value => {
+          if (value === "system" || value === "light" || value === "dark") {
+            void this.options.onThemeChange(value);
+          }
+        },
+      });
+    }
+
+    if (
+      currentAppearance.explorerDensity !== nextAppearance.explorerDensity ||
+      currentAppearance.isExplorerDensitySaving !== nextAppearance.isExplorerDensitySaving ||
+      !selectOptionsEqual(currentAppearance.explorerDensityOptions, nextAppearance.explorerDensityOptions)
+    ) {
+      this.updateSelectWidget(template.explorerDensitySelect, {
+        id: "settings-explorer-density-dropdown",
+        disabled: nextAppearance.isExplorerDensitySaving,
+        value: nextAppearance.explorerDensity,
+        options: nextAppearance.explorerDensityOptions,
+        onChange: value => {
+          if (value === "compact" || value === "default" || value === "comfortable") {
+            void this.options.appearanceSettings.onExplorerDensityChange(value);
+          }
+        },
+      });
+    }
+
+    if (
+      currentAppearance.showExplorerBadges !== nextAppearance.showExplorerBadges ||
+      currentAppearance.isExplorerBadgeSaving !== nextAppearance.isExplorerBadgeSaving
+    ) {
+      template.explorerBadgesSwitch.update({
+        checked: nextAppearance.showExplorerBadges,
+        className: "settings-switch",
+        disabled: nextAppearance.isExplorerBadgeSaving,
+        id: "settings-explorer-badges-toggle",
+      });
+      template.explorerBadgesSwitch.domNode.setAttribute("aria-label", localize("settings.explorerBadges.title", "Explorer Badges"));
+    }
+
+    this.updateBackgroundControls(template, currentAppearance, nextAppearance);
+
+    if (
+      currentAppearance.transparentChrome !== nextAppearance.transparentChrome ||
+      currentAppearance.isSaving !== nextAppearance.isSaving
+    ) {
+      template.transparentChromeSwitch.update({
+        checked: nextAppearance.transparentChrome,
+        className: "settings-switch",
+        disabled: nextAppearance.isSaving,
+        id: "settings-transparent-chrome-toggle",
+      });
+      template.transparentChromeSwitch.domNode.setAttribute("aria-label", localize("settings.transparentChrome.title", "Translucent sidebar"));
+    }
+
+    queueMicrotask(() => this.contentScroll.layout());
+  }
+
+  private updateBackgroundControls(
+    template: AppearanceSectionTemplate,
+    current: AppearanceSettings,
+    next: AppearanceSettings,
+  ): void {
+    if (current.backgroundColor !== next.backgroundColor) {
+      template.colorInput.value = next.backgroundColor;
+    }
+
+    if (current.isSaving !== next.isSaving) {
+      template.colorInput.disabled = next.isSaving;
+    }
+
+    if (!stringArrayEqual(current.backgroundColorOptions, next.backgroundColorOptions)) {
+      this.renderBackgroundSwatches(template.colorSwatches, template.swatchButtons, next);
+    }
+
+    if (
+      current.backgroundColor !== next.backgroundColor ||
+      current.isSaving !== next.isSaving ||
+      !stringArrayEqual(current.backgroundColorOptions, next.backgroundColorOptions)
+    ) {
+      this.updateBackgroundSwatches(template.swatchButtons, next);
+    }
+
+    if (
+      current.backgroundColor !== next.backgroundColor ||
+      current.backgroundColorDefault !== next.backgroundColorDefault ||
+      current.isSaving !== next.isSaving
+    ) {
+      updateActionButton(template.backgroundResetButton, {
+        className: "settings-button",
+        disabled: next.isSaving || next.backgroundColor === next.backgroundColorDefault,
+        id: "settings-background-reset-btn",
+        label: localize("settings.background.reset", "Reset"),
+        size: "sm",
+        variant: "secondary",
+      });
+    }
+  }
+
+  private renderBackgroundSwatches(
+    container: HTMLElement,
+    swatchButtons: Map<string, HTMLButtonElement>,
+    settings: AppearanceSettings,
+  ): void {
+    swatchButtons.clear();
+    reset(container);
+
+    for (const color of settings.backgroundColorOptions) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "settings-color-swatch";
+      button.style.setProperty("--settings-swatch-color", color);
+      button.setAttribute("aria-label", color);
+      button.title = color;
+      button.addEventListener("click", () => {
+        void this.options.appearanceSettings.onBackgroundColorChange(color);
+      });
+      swatchButtons.set(color, button);
+      container.append(button);
+    }
+
+    this.updateBackgroundSwatches(swatchButtons, settings);
+  }
+
+  private updateBackgroundSwatches(
+    swatchButtons: Map<string, HTMLButtonElement>,
+    settings: AppearanceSettings,
+  ): void {
+    for (const [color, button] of swatchButtons) {
+      button.disabled = settings.isSaving;
+      button.dataset.selected = String(color === settings.backgroundColor);
+    }
   }
 
   private createButton(options: {
@@ -951,7 +1131,7 @@ function appendFeedback(container: HTMLElement, feedback: { type: "idle" | "succ
   container.appendChild(text("p", feedback.type === "error" ? "settings-feedback settings-feedback--error" : "settings-feedback settings-feedback--success", feedback.message));
 }
 
-const canPatchTransparentChromeSwitch = (
+const canReuseAppearanceSectionTemplate = (
   current: SettingsViewOptions,
   next: SettingsViewOptions,
 ): boolean => {
@@ -959,21 +1139,50 @@ const canPatchTransparentChromeSwitch = (
     return false;
   }
 
-  const currentAppearance = current.appearanceSettings;
-  const nextAppearance = next.appearanceSettings;
-  if (
-    current.theme !== next.theme ||
-    current.language !== next.language ||
-    currentAppearance.backgroundColor !== nextAppearance.backgroundColor ||
-    currentAppearance.backgroundColorDefault !== nextAppearance.backgroundColorDefault ||
-    currentAppearance.explorerDensity !== nextAppearance.explorerDensity ||
-    currentAppearance.isExplorerBadgeSaving !== nextAppearance.isExplorerBadgeSaving ||
-    currentAppearance.isExplorerDensitySaving !== nextAppearance.isExplorerDensitySaving ||
-    currentAppearance.isSaving !== nextAppearance.isSaving ||
-    currentAppearance.showExplorerBadges !== nextAppearance.showExplorerBadges
-  ) {
+  if (current.language !== next.language || !settingsSectionsEqual(current.settingsSections, next.settingsSections)) {
     return false;
   }
 
-  return currentAppearance.transparentChrome !== nextAppearance.transparentChrome;
+  return true;
 };
+
+function settingsSectionsEqual(
+  current: readonly SelectOptionWithId[],
+  next: readonly SelectOptionWithId[],
+): boolean {
+  if (current.length !== next.length) {
+    return false;
+  }
+
+  return current.every((option, index) => {
+    const nextOption = next[index];
+    return option.id === nextOption?.id && option.label === nextOption.label;
+  });
+}
+
+function selectOptionsEqual(
+  current: readonly SelectOption[],
+  next: readonly SelectOption[],
+): boolean {
+  if (current.length !== next.length) {
+    return false;
+  }
+
+  return current.every((option, index) => {
+    const nextOption = next[index];
+    return option.value === nextOption?.value &&
+      option.label === nextOption.label &&
+      option.disabled === nextOption.disabled;
+  });
+}
+
+function stringArrayEqual(
+  current: readonly string[],
+  next: readonly string[],
+): boolean {
+  if (current.length !== next.length) {
+    return false;
+  }
+
+  return current.every((value, index) => value === next[index]);
+}

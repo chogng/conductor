@@ -92,6 +92,24 @@ suite("base/test/browser/ui/switch/switch", () => {
     assert.equal(button.style.getPropertyValue("--switch-on"), "rgb(10, 20, 30)");
   });
 
+  test("createSwitch does not animate initial or updated switch state", () => {
+    const button = createSwitch({
+      checked: true,
+    });
+    document.body.appendChild(button);
+    const thumb = button.querySelector<HTMLElement>(".ui-switch__thumb");
+    assert.ok(thumb);
+
+    assert.equal(getComputedStyle(button).transitionDuration, "0s");
+    assert.equal(getComputedStyle(thumb).transitionDuration, "0s");
+
+    updateSwitch(button, { checked: false });
+
+    assert.equal(getComputedStyle(button).transitionDuration, "0s");
+    assert.equal(getComputedStyle(thumb).transitionDuration, "0s");
+    button.remove();
+  });
+
   test("updateSwitch keeps a thumb and clears stale style", () => {
     const button = createSwitch({
       checked: true,
@@ -125,14 +143,17 @@ suite("base/test/browser/ui/switch/switch", () => {
 
     assert.deepEqual(changes, [true]);
     assert.equal(widget.checked, true);
-    assert.equal(widget.domNode.className, "ui-switch extra");
+    assert.ok(widget.domNode.classList.contains("ui-switch"));
+    assert.ok(widget.domNode.classList.contains("extra"));
+    assert.ok(widget.domNode.classList.contains("ui-switch--animate"));
     assert.equal(widget.domNode.id, "widget-switch");
     assert.equal(widget.domNode.getAttribute("aria-checked"), "true");
 
     widget.update({ checked: false });
 
     assert.equal(widget.checked, false);
-    assert.equal(widget.domNode.className, "ui-switch extra");
+    assert.ok(widget.domNode.classList.contains("ui-switch"));
+    assert.ok(widget.domNode.classList.contains("extra"));
     assert.equal(widget.domNode.id, "widget-switch");
     assert.equal(widget.domNode.getAttribute("aria-checked"), "false");
 
@@ -141,6 +162,32 @@ suite("base/test/browser/ui/switch/switch", () => {
 
     assert.deepEqual(changes, [true]);
     assert.equal(widget.checked, false);
+  });
+
+  test("SwitchWidget enables animation only for user toggles", () => {
+    const widget = new SwitchWidget({
+      checked: false,
+    });
+    document.body.appendChild(widget.domNode);
+    const thumb = widget.domNode.querySelector<HTMLElement>(".ui-switch__thumb");
+    assert.ok(thumb);
+
+    assert.equal(getComputedStyle(widget.domNode).transitionDuration, "0s");
+    assert.equal(getComputedStyle(thumb).transitionDuration, "0s");
+
+    widget.update({ checked: true });
+
+    assert.equal(getComputedStyle(widget.domNode).transitionDuration, "0s");
+    assert.equal(getComputedStyle(thumb).transitionDuration, "0s");
+
+    widget.domNode.click();
+
+    assert.ok(widget.domNode.classList.contains("ui-switch--animate"));
+    assert.ok(getComputedStyle(widget.domNode).transitionDuration !== "0s");
+    assert.ok(getComputedStyle(thumb).transitionDuration !== "0s");
+
+    widget.dispose();
+    widget.domNode.remove();
   });
 
   test("SwitchWidget ignores clicks while disabled", () => {
