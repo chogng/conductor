@@ -17,6 +17,9 @@ suite("workbench/services/appearance/browser/appearanceService", () => {
 
   test("publishes appearance changes from settings", () => {
     const settings = store.add(new TestSettingsService({
+      filesExplorerBadgeColors: {
+        output: "green",
+      },
       filesExplorerDensity: "compact",
       filesExplorerShowBadges: true,
     }));
@@ -28,8 +31,12 @@ suite("workbench/services/appearance/browser/appearanceService", () => {
 
     assert.equal(service.getAppearance().explorer.rowHeight, 22);
     assert.equal(service.getAppearance().explorer.showBadges, true);
+    assert.equal(service.getAppearance().explorer.badgeColors.output, "green");
 
     settings.emitSettings({
+      filesExplorerBadgeColors: {
+        output: "blue",
+      },
       filesExplorerDensity: "comfortable",
       filesExplorerShowBadges: false,
     });
@@ -37,6 +44,7 @@ suite("workbench/services/appearance/browser/appearanceService", () => {
     assert.equal(changes, 1);
     assert.equal(service.getAppearance().explorer.rowHeight, 30);
     assert.equal(service.getAppearance().explorer.showBadges, false);
+    assert.equal(service.getAppearance().explorer.badgeColors.output, "blue");
 
     settings.emitSettings({
       filesExplorerDensity: "wide",

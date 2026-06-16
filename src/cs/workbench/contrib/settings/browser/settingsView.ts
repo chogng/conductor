@@ -81,8 +81,12 @@ type AppearanceSettings = {
   backgroundColor: string;
   backgroundColorDefault: string;
   backgroundColorOptions: readonly string[];
+  explorerBadgeColors: Readonly<Record<string, string>>;
+  explorerBadgeColorLabels: readonly SelectOption[];
+  explorerBadgeColorOptions: readonly SelectOption[];
   explorerDensity: string;
   explorerDensityOptions: readonly SelectOption[];
+  isExplorerBadgeColorSaving: boolean;
   isExplorerBadgeSaving: boolean;
   isExplorerDensitySaving: boolean;
   isSaving: boolean;
@@ -90,6 +94,7 @@ type AppearanceSettings = {
   transparentChrome: boolean;
   onBackgroundColorChange: (value: string) => Promise<void> | void;
   onBackgroundColorReset: () => Promise<void> | void;
+  onExplorerBadgeColorChange: (badge: string, color: string) => Promise<void> | void;
   onExplorerBadgeVisibilityChange: (enabled: boolean) => Promise<void> | void;
   onExplorerDensityChange: (value: string) => Promise<void> | void;
   onTransparentChromeChange: (enabled: boolean) => Promise<void> | void;
@@ -196,6 +201,8 @@ type TextInputOptions = {
 
 type AppearanceSectionTemplate = {
   readonly backgroundResetButton: HTMLButtonElement;
+  readonly badgeColorButtons: Map<string, HTMLButtonElement>;
+  readonly badgeColorSwatches: HTMLElement;
   readonly colorInput: HTMLInputElement;
   readonly colorSwatches: HTMLElement;
   readonly element: HTMLElement;
@@ -466,6 +473,19 @@ export class SettingsView {
     );
     const appearanceList = getSettingsList(appearanceSection);
 
+    const badgeColorSwatches = div("settings-badge-colors");
+    const badgeColorButtons = new Map<string, HTMLButtonElement>();
+    this.renderBadgeColorSwatches(badgeColorSwatches, badgeColorButtons, appearanceSettings);
+    const badgeColorsCard = card("settings-explorer-badge-colors-card", "settings-card-row");
+    badgeColorsCard.appendChild(settingsSplitRow(
+      headingBlock(
+        localize("settings.explorerBadgeColors.title", "Badge Colors"),
+        localize("settings.explorerBadgeColors.description", "Choose Explorer badge colors by measurement label."),
+      ),
+      div("settings-split-row-control settings-split-row-control--stack", badgeColorSwatches),
+    ));
+    appearanceList.appendChild(badgeColorsCard);
+
     const layoutResetButton = this.createButton({
       id: "settings-layout-reset-btn",
       label: localize("settings.layout.resetButton", "Reset Layout"),
@@ -540,6 +560,8 @@ export class SettingsView {
 
     return {
       backgroundResetButton,
+      badgeColorButtons,
+      badgeColorSwatches,
       colorInput,
       colorSwatches: swatches,
       element: appearanceSection,
@@ -929,6 +951,7 @@ export class SettingsView {
       template.explorerBadgesSwitch.domNode.setAttribute("aria-label", localize("settings.explorerBadges.title", "Explorer Badges"));
     }
 
+    this.updateBadgeColorControls(template, currentAppearance, nextAppearance);
     this.updateBackgroundControls(template, currentAppearance, nextAppearance);
 
     if (
@@ -945,6 +968,82 @@ export class SettingsView {
     }
 
     queueMicrotask(() => this.contentScroll.layout());
+  }
+
+  private renderBadgeColorSwatches(
+    container: HTMLElement,
+    buttons: Map<string, HTMLButtonElement>,
+    settings: AppearanceSettings,
+  ): void {
+    buttons.clear();
+    reset(container);
+
+    for (const badge of settings.explorerBadgeColorLabels) {
+      const row = div("settings-badge-color-row");
+      row.appendChild(text("span", "settings-badge-color-label", badge.label));
+      const swatches = div("settings-badge-color-options");
+      for (const option of settings.explorerBadgeColorOptions) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "settings-badge-color-swatch";
+        button.dataset.color = option.value;
+        button.title = option.label;
+        button.setAttribute(
+          "aria-label",
+          localize("settings.explorerBadgeColor.aria", "{badge} color: {color}", {
+            badge: badge.label,
+            color: option.label,
+          }),
+        );
+        button.addEventListener("click", () => {
+          void this.options.appearanceSettings.onExplorerBadgeColorChange(badge.value, option.value);
+        });
+        buttons.set(badgeColorButtonKey(badge.value, option.value), button);
+        swatches.appendChild(button);
+      }
+      row.appendChild(swatches);
+      container.appendChild(row);
+    }
+
+    this.updateBadgeColorSwatches(buttons, settings);
+  }
+
+  private updateBadgeColorControls(
+    template: AppearanceSectionTemplate,
+    current: AppearanceSettings,
+    next: AppearanceSettings,
+  ): void {
+    if (
+      !selectOptionsEqual(current.explorerBadgeColorLabels, next.explorerBadgeColorLabels) ||
+      !selectOptionsEqual(current.explorerBadgeColorOptions, next.explorerBadgeColorOptions)
+    ) {
+      this.renderBadgeColorSwatches(template.badgeColorSwatches, template.badgeColorButtons, next);
+      return;
+    }
+
+    if (
+      current.isExplorerBadgeColorSaving !== next.isExplorerBadgeColorSaving ||
+      !badgeColorsEqual(current.explorerBadgeColors, next.explorerBadgeColors)
+    ) {
+      this.updateBadgeColorSwatches(template.badgeColorButtons, next);
+    }
+  }
+
+  private updateBadgeColorSwatches(
+    buttons: Map<string, HTMLButtonElement>,
+    settings: AppearanceSettings,
+  ): void {
+    for (const badge of settings.explorerBadgeColorLabels) {
+      const selectedColor = settings.explorerBadgeColors[badge.value] ?? "neutral";
+      for (const option of settings.explorerBadgeColorOptions) {
+        const button = buttons.get(badgeColorButtonKey(badge.value, option.value));
+        if (!button) {
+          continue;
+        }
+        button.disabled = settings.isExplorerBadgeColorSaving;
+        button.dataset.selected = String(option.value === selectedColor);
+      }
+    }
   }
 
   private updateBackgroundControls(
@@ -1188,4 +1287,22 @@ function stringArrayEqual(
   }
 
   return current.every((value, index) => value === next[index]);
+}
+
+function badgeColorButtonKey(badge: string, color: string): string {
+  return `${badge}\u001f${color}`;
+}
+
+function badgeColorsEqual(
+  current: Readonly<Record<string, string>>,
+  next: Readonly<Record<string, string>>,
+): boolean {
+  const keys = new Set([...Object.keys(current), ...Object.keys(next)]);
+  for (const key of keys) {
+    if (current[key] !== next[key]) {
+      return false;
+    }
+  }
+
+  return true;
 }

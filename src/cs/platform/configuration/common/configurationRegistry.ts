@@ -112,6 +112,7 @@ export type ConductorSettings = JsonRecord & {
   language: string;
   theme: string;
   backgroundColor: string;
+  filesExplorerBadgeColors: Record<string, string>;
   filesExplorerDensity: string;
   filesExplorerShowBadges: boolean;
   transparentChrome: boolean;
@@ -272,6 +273,24 @@ const FILES_EXPLORER_DENSITIES = new Set([
   "default",
   "comfortable",
 ]);
+const FILES_EXPLORER_BADGE_COLORS = new Set([
+  "neutral",
+  "blue",
+  "green",
+  "purple",
+  "orange",
+  "red",
+  "cyan",
+]);
+const DEFAULT_FILES_EXPLORER_BADGE_COLORS = Object.freeze<Record<string, string>>({
+  cf: "cyan",
+  cv: "purple",
+  mixed: "neutral",
+  output: "green",
+  pv: "red",
+  transfer: "blue",
+  unknown: "orange",
+});
 const LANGUAGES = new Set(["system", "en", "zh"]);
 const ORIGIN_EXPORT_MODES = new Set([
   "merged",
@@ -291,6 +310,7 @@ export const DEFAULT_CONDUCTOR_CONFIGURATION: ConductorSettings = {
   language: "system",
   theme: "system",
   backgroundColor: DEFAULT_BACKGROUND_COLOR,
+  filesExplorerBadgeColors: DEFAULT_FILES_EXPLORER_BADGE_COLORS,
   filesExplorerDensity: "compact",
   filesExplorerShowBadges: true,
   transparentChrome: true,
@@ -445,6 +465,20 @@ function normalizeFileNameFieldSeparators(value: unknown): string {
   return deduped.length ? deduped : DEFAULT_FILE_NAME_FIELD_SEPARATORS;
 }
 
+function normalizeFilesExplorerBadgeColors(value: unknown): Record<string, string> {
+  const raw = isRecord(value) ? value : {};
+  const colors: Record<string, string> = { ...DEFAULT_FILES_EXPLORER_BADGE_COLORS };
+
+  for (const key of Object.keys(DEFAULT_FILES_EXPLORER_BADGE_COLORS)) {
+    const color = raw[key];
+    colors[key] = typeof color === "string" && FILES_EXPLORER_BADGE_COLORS.has(color)
+      ? color
+      : DEFAULT_FILES_EXPLORER_BADGE_COLORS[key];
+  }
+
+  return colors;
+}
+
 function normalizePlotAxisSettings(
   value: unknown,
   fallback: PlotAxisSettings = DEFAULT_CONDUCTOR_CONFIGURATION.plotAxisSettings,
@@ -533,6 +567,9 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     next.filesExplorerShowBadges,
     DEFAULT_CONDUCTOR_CONFIGURATION.filesExplorerShowBadges,
   );
+  const filesExplorerBadgeColors = normalizeFilesExplorerBadgeColors(
+    next.filesExplorerBadgeColors,
+  );
   const backgroundColor = normalizeBackgroundColor(next.backgroundColor);
   const transparentChrome = normalizeBoolean(
     next.transparentChrome,
@@ -614,6 +651,7 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     fileNameFieldSeparators: normalizeFileNameFieldSeparators(next.fileNameFieldSeparators),
     stopOnErrorDefault,
     theme,
+    filesExplorerBadgeColors,
     filesExplorerDensity,
     filesExplorerShowBadges,
     backgroundColor,

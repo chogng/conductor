@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 export type ExplorerBadgePresentation = {
+  readonly color?: string | null;
   readonly fileKey: string;
   readonly isWarning: boolean;
   readonly label: string;
@@ -49,6 +50,7 @@ export class ExplorerBadgeNode {
 
     return [
       badge.fileKey,
+      badge.color ?? "",
       badge.label,
       badge.state,
       badge.source ?? "",
@@ -64,11 +66,17 @@ export class ExplorerBadgeNode {
       delete this.node.dataset.source;
       delete this.node.dataset.state;
       delete this.node.dataset.warning;
+      delete this.node.dataset.color;
       this.node.hidden = true;
       return;
     }
 
     this.node.textContent = badge.label;
+    if (badge.color) {
+      this.node.dataset.color = badge.color;
+    } else {
+      delete this.node.dataset.color;
+    }
     this.node.dataset.state = badge.state;
     if (badge.source) {
       this.node.dataset.source = badge.source;

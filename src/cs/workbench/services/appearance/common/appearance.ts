@@ -6,16 +6,20 @@ import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import {
   DEFAULT_FILES_EXPLORER_DENSITY,
+  DEFAULT_FILES_EXPLORER_BADGE_COLORS,
   DEFAULT_FILES_EXPLORER_SHOW_BADGES,
+  normalizeFilesExplorerBadgeColors,
   normalizeFilesExplorerDensity,
   normalizeFilesExplorerShowBadges,
   type ConductorSettings,
+  type FilesExplorerBadgeColors,
   type FilesExplorerDensity,
 } from "src/cs/workbench/services/settings/common/settings";
 
 export type ExplorerAppearance = {
   readonly actionSize: number;
   readonly badgeFontSize: number;
+  readonly badgeColors: FilesExplorerBadgeColors;
   readonly badgeLineHeight: number;
   readonly density: FilesExplorerDensity;
   readonly fontSize: number;
@@ -59,15 +63,17 @@ const EXPLORER_APPEARANCE_BY_DENSITY: Record<
 
 export const DEFAULT_EXPLORER_APPEARANCE: ExplorerAppearance = {
   ...EXPLORER_APPEARANCE_BY_DENSITY[DEFAULT_FILES_EXPLORER_DENSITY],
+  badgeColors: DEFAULT_FILES_EXPLORER_BADGE_COLORS,
   showBadges: DEFAULT_FILES_EXPLORER_SHOW_BADGES,
 };
 
 export const getExplorerAppearance = (
-  settings: Pick<ConductorSettings, "filesExplorerDensity" | "filesExplorerShowBadges"> | null | undefined,
+  settings: Pick<ConductorSettings, "filesExplorerBadgeColors" | "filesExplorerDensity" | "filesExplorerShowBadges"> | null | undefined,
 ): ExplorerAppearance => ({
   ...EXPLORER_APPEARANCE_BY_DENSITY[
     normalizeFilesExplorerDensity(settings?.filesExplorerDensity)
   ],
+  badgeColors: normalizeFilesExplorerBadgeColors(settings?.filesExplorerBadgeColors),
   showBadges: normalizeFilesExplorerShowBadges(settings?.filesExplorerShowBadges),
 });
 
@@ -82,6 +88,7 @@ export const areExplorerAppearancesEqual = (
   second: ExplorerAppearance,
 ): boolean =>
   first.actionSize === second.actionSize &&
+  areFilesExplorerBadgeColorsEqual(first.badgeColors, second.badgeColors) &&
   first.badgeFontSize === second.badgeFontSize &&
   first.badgeLineHeight === second.badgeLineHeight &&
   first.density === second.density &&
@@ -94,6 +101,14 @@ export const areWorkbenchAppearanceSnapshotsEqual = (
   second: WorkbenchAppearanceSnapshot,
 ): boolean =>
   areExplorerAppearancesEqual(first.explorer, second.explorer);
+
+const areFilesExplorerBadgeColorsEqual = (
+  first: FilesExplorerBadgeColors,
+  second: FilesExplorerBadgeColors,
+): boolean => {
+  const keys = Object.keys(DEFAULT_FILES_EXPLORER_BADGE_COLORS);
+  return keys.every(key => first[key] === second[key]);
+};
 
 export const IAppearanceService = createDecorator<IAppearanceService>("appearanceService");
 

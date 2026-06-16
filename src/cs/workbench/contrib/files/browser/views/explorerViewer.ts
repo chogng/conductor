@@ -57,6 +57,7 @@ import {
   DEFAULT_EXPLORER_APPEARANCE,
   type ExplorerAppearance,
 } from "src/cs/workbench/services/appearance/common/appearance";
+import type { FilesExplorerBadgeColors } from "src/cs/workbench/services/settings/common/settings";
 import {
   buildExplorerTree,
   collectExplorerFolderKeys,
@@ -489,12 +490,14 @@ const getFileRenderKey = (
 const createBadgePresentation = (
   fileKey: string,
   badge: FileItemAssessment | FileSourceStatusBadge | FileFastAssessment | FilePendingAssessment | null,
+  badgeColors: FilesExplorerBadgeColors,
 ): ExplorerBadgePresentation => {
   if (!badge) {
     return null;
   }
 
   return {
+    color: resolveBadgePresentationColor(badge, badgeColors),
     fileKey,
     isWarning: badge.isWarning,
     label: badge.label,
@@ -502,6 +505,22 @@ const createBadgePresentation = (
     state: badge.state,
     title: "title" in badge ? badge.title : null,
   };
+};
+
+const resolveBadgePresentationColor = (
+  badge: FileItemAssessment | FileSourceStatusBadge | FileFastAssessment | FilePendingAssessment,
+  badgeColors: FilesExplorerBadgeColors,
+): string | null => {
+  if (badge.state === "source" || badge.state === "pending") {
+    return null;
+  }
+
+  if (badge.state === "unknown") {
+    return badgeColors.unknown ?? "orange";
+  }
+
+  const label = badge.label.trim().toLowerCase();
+  return badgeColors[label] ?? "neutral";
 };
 
 const getFileIdsFromTreeNodes = (
@@ -866,6 +885,7 @@ export class ExplorerViewer implements IDisposable {
       entry.curveTypeConfidence ?? "",
       entry.curveTypeNeedsTemplate === true ? "1" : "0",
       (entry.curveTypeReasons ?? []).join("\u001d"),
+      this.getBadgeColorSignature(props.explorerAppearance?.badgeColors),
       this.resolveFileTemplateLabel(entry, props),
       getTemplateSelectionId(
         this.resolveFileTemplateSelection(entry.fileId, props),
@@ -875,6 +895,21 @@ export class ExplorerViewer implements IDisposable {
         ? "editing"
         : "",
     ].join("\u001f");
+  }
+
+  private getBadgeColorSignature(
+    badgeColors: FilesExplorerBadgeColors | undefined,
+  ): string {
+    const colors = badgeColors ?? DEFAULT_EXPLORER_APPEARANCE.badgeColors;
+    return [
+      colors.cf ?? "",
+      colors.cv ?? "",
+      colors.mixed ?? "",
+      colors.output ?? "",
+      colors.pv ?? "",
+      colors.transfer ?? "",
+      colors.unknown ?? "",
+    ].join("\u001d");
   }
 
   private getChangedPresentationKeys(
@@ -1337,7 +1372,11 @@ export class ExplorerViewer implements IDisposable {
     const badge = sourceStatus?.status === "failed"
       ? sourceStatus
       : assessment ?? fastAssessment ?? sourceStatus ?? pendingAssessment;
-    template.assessment.setBadge(fileKey, createBadgePresentation(fileKey, badge));
+    template.assessment.setBadge(fileKey, createBadgePresentation(
+      fileKey,
+      badge,
+      this.explorerAppearance.badgeColors,
+    ));
     template.removeButton.setAttribute(
       "aria-label",
       localize("files.import.removeFileButtonLabel", "Remove {fileName}", { fileName }),

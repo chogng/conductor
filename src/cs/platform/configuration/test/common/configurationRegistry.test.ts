@@ -17,6 +17,16 @@ suite("platform/configuration/common/configurationRegistry", () => {
     const properties = registry.getConfigurationProperties();
 
     assert.equal(properties["theme"].default, "system");
+    assert.deepEqual(properties["filesExplorerBadgeColors"].default, {
+      cf: "cyan",
+      cv: "purple",
+      mixed: "neutral",
+      output: "green",
+      pv: "red",
+      transfer: "blue",
+      unknown: "orange",
+    });
+    assert.equal(properties["filesExplorerBadgeColors"].type, "object");
     assert.equal(properties["filesExplorerDensity"].default, "compact");
     assert.deepEqual(properties["filesExplorerDensity"].enum, ["compact", "default", "comfortable"]);
     assert.equal(properties["filesExplorerShowBadges"].default, true);
@@ -34,6 +44,24 @@ suite("platform/configuration/common/configurationRegistry", () => {
   test("normalizes Explorer badge visibility", () => {
     assert.equal(normalizeConductorSettings({ filesExplorerShowBadges: false }).filesExplorerShowBadges, false);
     assert.equal(normalizeConductorSettings({ filesExplorerShowBadges: "false" }).filesExplorerShowBadges, true);
+  });
+
+  test("normalizes Explorer badge colors", () => {
+    assert.deepEqual(normalizeConductorSettings({
+      filesExplorerBadgeColors: {
+        output: "blue",
+        transfer: "magenta",
+        unknown: "neutral",
+      },
+    }).filesExplorerBadgeColors, {
+      cf: "cyan",
+      cv: "purple",
+      mixed: "neutral",
+      output: "blue",
+      pv: "red",
+      transfer: "blue",
+      unknown: "neutral",
+    });
   });
 
   test("registers configuration properties", () => {

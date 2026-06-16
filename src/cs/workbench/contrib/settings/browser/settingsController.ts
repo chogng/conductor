@@ -25,8 +25,11 @@ import {
 } from "src/cs/workbench/services/settings/browser/settingsShared";
 import {
   normalizeFilesExplorerDensity,
+  normalizeFilesExplorerBadgeColor,
+  normalizeFilesExplorerBadgeColors,
   normalizeFilesExplorerShowBadges,
   type ConductorSettings,
+  type FilesExplorerBadgeColor,
   type ISettingsService,
   type SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
@@ -89,7 +92,9 @@ export class SettingsController {
   private defaultsFeedback: Feedback = IDLE_FEEDBACK;
   private appearanceSaving = false;
   private explorerBadgeSaving = false;
+  private explorerBadgeColorSaving = false;
   private explorerAppearanceSaving = false;
+  private pendingExplorerBadgeColors: Record<string, FilesExplorerBadgeColor> | null = null;
   private pendingExplorerBadgeVisibility: boolean | null = null;
   private pendingTransparentChrome: boolean | null = null;
   private windowCloseSaving = false;
@@ -497,6 +502,10 @@ export class SettingsController {
       ],
       explorerDensity: normalizeFilesExplorerDensity(this.settings.filesExplorerDensity),
       explorerDensityOptions: this.explorerDensityOptions,
+      explorerBadgeColors: this.pendingExplorerBadgeColors ?? normalizeFilesExplorerBadgeColors(this.settings.filesExplorerBadgeColors),
+      explorerBadgeColorLabels: this.explorerBadgeColorLabels,
+      explorerBadgeColorOptions: this.explorerBadgeColorOptions,
+      isExplorerBadgeColorSaving: this.explorerBadgeColorSaving,
       isExplorerBadgeSaving: this.explorerBadgeSaving,
       isExplorerDensitySaving: this.explorerAppearanceSaving,
       isSaving: this.appearanceSaving,
@@ -504,6 +513,7 @@ export class SettingsController {
       transparentChrome: this.pendingTransparentChrome ?? appearance.transparentChrome,
       onBackgroundColorChange: value => this.setWorkbenchBackground(value),
       onBackgroundColorReset: () => this.resetWorkbenchBackground(),
+      onExplorerBadgeColorChange: (badge, color) => this.setFilesExplorerBadgeColor(badge, color),
       onExplorerBadgeVisibilityChange: value => this.setFilesExplorerShowBadges(value),
       onExplorerDensityChange: value => this.setFilesExplorerDensity(value),
       onTransparentChromeChange: value => this.setTransparentChrome(Boolean(value)),
@@ -591,6 +601,30 @@ export class SettingsController {
       { value: "compact", label: localize("settings.explorerDensity.compact", "Compact") },
       { value: "default", label: localize("settings.explorerDensity.default", "Default") },
       { value: "comfortable", label: localize("settings.explorerDensity.comfortable", "Comfortable") },
+    ];
+  }
+
+  private get explorerBadgeColorLabels(): SelectOption[] {
+    return [
+      { value: "transfer", label: localize("settings.explorerBadge.transfer", "transfer") },
+      { value: "output", label: localize("settings.explorerBadge.output", "output") },
+      { value: "cv", label: localize("settings.explorerBadge.cv", "cv") },
+      { value: "cf", label: localize("settings.explorerBadge.cf", "cf") },
+      { value: "pv", label: localize("settings.explorerBadge.pv", "pv") },
+      { value: "mixed", label: localize("settings.explorerBadge.mixed", "mixed") },
+      { value: "unknown", label: localize("settings.explorerBadge.unknown", "Unknown") },
+    ];
+  }
+
+  private get explorerBadgeColorOptions(): SelectOption[] {
+    return [
+      { value: "neutral", label: localize("settings.explorerBadgeColor.neutral", "Neutral") },
+      { value: "blue", label: localize("settings.explorerBadgeColor.blue", "Blue") },
+      { value: "green", label: localize("settings.explorerBadgeColor.green", "Green") },
+      { value: "purple", label: localize("settings.explorerBadgeColor.purple", "Purple") },
+      { value: "orange", label: localize("settings.explorerBadgeColor.orange", "Orange") },
+      { value: "red", label: localize("settings.explorerBadgeColor.red", "Red") },
+      { value: "cyan", label: localize("settings.explorerBadgeColor.cyan", "Cyan") },
     ];
   }
 
@@ -887,6 +921,43 @@ export class SettingsController {
     finally {
       this.explorerBadgeSaving = false;
       this.pendingExplorerBadgeVisibility = null;
+      this.render();
+    }
+  }
+
+  private async setFilesExplorerBadgeColor(
+    badge: string,
+    color: string,
+  ): Promise<void> {
+    if (this.explorerBadgeColorSaving) {
+      return;
+    }
+
+    const currentColors = normalizeFilesExplorerBadgeColors(this.settings.filesExplorerBadgeColors);
+    if (!Object.prototype.hasOwnProperty.call(currentColors, badge)) {
+      return;
+    }
+
+    const nextColor = normalizeFilesExplorerBadgeColor(color);
+    if (currentColors[badge] === nextColor) {
+      return;
+    }
+
+    const nextColors = {
+      ...currentColors,
+      [badge]: nextColor,
+    };
+    this.pendingExplorerBadgeColors = nextColors;
+    this.explorerBadgeColorSaving = true;
+    this.render();
+    try {
+      await this.service.updateSettings({
+        filesExplorerBadgeColors: nextColors,
+      });
+    }
+    finally {
+      this.explorerBadgeColorSaving = false;
+      this.pendingExplorerBadgeColors = null;
       this.render();
     }
   }

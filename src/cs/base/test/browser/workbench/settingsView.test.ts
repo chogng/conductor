@@ -25,6 +25,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       const themeSelect = getButton(container, "settings-theme-dropdown");
       const explorerDensitySelect = getButton(container, "settings-explorer-density-dropdown");
       const explorerBadgesSwitch = getButton(container, "settings-explorer-badges-toggle");
+      const outputGreenSwatch = getButtonByAriaLabel(container, "output color: Green");
       const colorInput = getInput(container, "settings-background-color-input");
       const backgroundResetButton = getButton(container, "settings-background-reset-btn");
       const whiteSwatch = getButtonByAriaLabel(container, "#ffffff");
@@ -50,6 +51,16 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
             { label: "Default", value: "default" },
             { label: "Compact", value: "compact" },
           ],
+          explorerBadgeColors: {
+            cf: "cyan",
+            cv: "purple",
+            mixed: "neutral",
+            output: "blue",
+            pv: "red",
+            transfer: "blue",
+            unknown: "orange",
+          },
+          isExplorerBadgeColorSaving: true,
           isExplorerBadgeSaving: true,
           isExplorerDensitySaving: true,
           isSaving: true,
@@ -61,6 +72,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(getButton(container, "settings-theme-dropdown"), themeSelect);
       assert.equal(getButton(container, "settings-explorer-density-dropdown"), explorerDensitySelect);
       assert.equal(getButton(container, "settings-explorer-badges-toggle"), explorerBadgesSwitch);
+      assert.equal(getButtonByAriaLabel(container, "output color: Green"), outputGreenSwatch);
       assert.equal(getInput(container, "settings-background-color-input"), colorInput);
       assert.equal(getButton(container, "settings-background-reset-btn"), backgroundResetButton);
       assert.equal(getButtonByAriaLabel(container, "#ffffff"), whiteSwatch);
@@ -70,6 +82,9 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(getSelectLabel(themeSelect), "Dark");
       assert.equal(getSelectLabel(explorerDensitySelect), "Compact");
       assert.equal(explorerDensitySelect.disabled, true);
+      assert.equal(outputGreenSwatch.disabled, true);
+      assert.equal(outputGreenSwatch.dataset.selected, "false");
+      assert.equal(getButtonByAriaLabel(container, "output color: Blue").dataset.selected, "true");
       assert.ok(explorerBadgesSwitch.classList.contains("ui-switch--animate"));
       assert.ok(transparentChromeSwitch.classList.contains("ui-switch--animate"));
       assert.equal(explorerBadgesSwitch.disabled, true);
@@ -139,6 +154,34 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       backgroundColorOptions: ["#ffffff", "#111827"],
       explorerDensity: "default",
       explorerDensityOptions: [{ label: "Default", value: "default" }],
+      explorerBadgeColors: {
+        cf: "cyan",
+        cv: "purple",
+        mixed: "neutral",
+        output: "green",
+        pv: "red",
+        transfer: "blue",
+        unknown: "orange",
+      },
+      explorerBadgeColorLabels: [
+        { label: "transfer", value: "transfer" },
+        { label: "output", value: "output" },
+        { label: "cv", value: "cv" },
+        { label: "cf", value: "cf" },
+        { label: "pv", value: "pv" },
+        { label: "mixed", value: "mixed" },
+        { label: "Unknown", value: "unknown" },
+      ],
+      explorerBadgeColorOptions: [
+        { label: "Neutral", value: "neutral" },
+        { label: "Blue", value: "blue" },
+        { label: "Green", value: "green" },
+        { label: "Purple", value: "purple" },
+        { label: "Orange", value: "orange" },
+        { label: "Red", value: "red" },
+        { label: "Cyan", value: "cyan" },
+      ],
+      isExplorerBadgeColorSaving: false,
       isExplorerBadgeSaving: false,
       isExplorerDensitySaving: false,
       isSaving: false,
@@ -146,6 +189,7 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       transparentChrome: true,
       onBackgroundColorChange: noop,
       onBackgroundColorReset: noop,
+      onExplorerBadgeColorChange: noop,
       onExplorerBadgeVisibilityChange: noop,
       onExplorerDensityChange: noop,
       onTransparentChromeChange: noop,

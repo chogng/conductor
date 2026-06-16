@@ -14,11 +14,24 @@ suite("workbench/services/appearance/common/appearance", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
   test("normalizes Explorer appearance settings", () => {
     assert.deepStrictEqual(getWorkbenchAppearanceSnapshot({
+      filesExplorerBadgeColors: {
+        output: "blue",
+        transfer: "green",
+      },
       filesExplorerDensity: "comfortable",
       filesExplorerShowBadges: false,
     }).explorer, {
       actionSize: 26,
       badgeFontSize: 11,
+      badgeColors: {
+        cf: "cyan",
+        cv: "purple",
+        mixed: "neutral",
+        output: "blue",
+        pv: "red",
+        transfer: "green",
+        unknown: "orange",
+      },
       badgeLineHeight: 16,
       density: "comfortable",
       fontSize: 13,
@@ -29,6 +42,9 @@ suite("workbench/services/appearance/common/appearance", () => {
 
   test("falls back invalid Explorer appearance settings", () => {
     assert.deepStrictEqual(getWorkbenchAppearanceSnapshot({
+      filesExplorerBadgeColors: {
+        output: "magenta",
+      },
       filesExplorerDensity: "wide",
       filesExplorerShowBadges: "false",
     }).explorer, DEFAULT_EXPLORER_APPEARANCE);

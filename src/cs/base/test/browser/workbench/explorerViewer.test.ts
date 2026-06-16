@@ -11,12 +11,14 @@ import type {
   IOpenContextView,
 } from "src/cs/platform/contextview/browser/contextView";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
+import { Event } from "src/cs/base/common/event";
 import { ObjectTree } from "src/cs/base/browser/ui/tree/objectTree";
 import { ResourceLabels } from "src/cs/workbench/browser/labels";
 import {
   ExplorerViewer,
   type ExplorerViewerProps,
 } from "src/cs/workbench/contrib/files/browser/views/explorerViewer";
+import { DEFAULT_EXPLORER_APPEARANCE } from "src/cs/workbench/services/appearance/common/appearance";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/browser/explorerViewer", () => {
@@ -216,6 +218,30 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       assert.equal(setChildrenCount, 0);
       assert.deepEqual(rerenderedKeys, [["file-a"]]);
       assert.equal(badge.textContent, "cv");
+      assert.equal(badge.dataset.color, "purple");
+
+      viewer.setProps({
+        ...props,
+        explorerAppearance: {
+          ...DEFAULT_EXPLORER_APPEARANCE,
+          badgeColors: {
+            ...DEFAULT_EXPLORER_APPEARANCE.badgeColors,
+            cv: "green",
+          },
+        },
+        files: [{
+          ...initialFile,
+          badgeState: {
+            confidence: "tentative",
+            kind: "ready",
+            label: "cv",
+            source: "fast",
+          },
+        }],
+      });
+
+      assert.deepEqual(rerenderedKeys, [["file-a"], ["file-a"]]);
+      assert.equal(badge.dataset.color, "green");
     } finally {
       viewer.dispose();
       labels.dispose();
@@ -298,6 +324,11 @@ const createViewerProps = (): ExplorerViewerProps => ({
   onOpenFileDialog: () => undefined,
   onRemoveFolder: () => undefined,
   onSelectFile: () => undefined,
+  thumbnailPreviewService: {
+    onDidChangePreview: Event.None,
+    get: () => ({ kind: "idle" }),
+    request: () => ({ kind: "idle" }),
+  },
   thumbnailService: {} as ExplorerViewerProps["thumbnailService"],
 });
 

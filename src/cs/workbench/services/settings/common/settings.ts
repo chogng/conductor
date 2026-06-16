@@ -24,15 +24,43 @@ import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plo
 export type { OriginCleanupResult, OriginHealthResult };
 
 export type FilesExplorerDensity = "compact" | "default" | "comfortable";
+export type FilesExplorerBadgeColor =
+  | "neutral"
+  | "blue"
+  | "green"
+  | "purple"
+  | "orange"
+  | "red"
+  | "cyan";
+
+export type FilesExplorerBadgeColors = Readonly<Record<string, FilesExplorerBadgeColor>>;
 
 const FILES_EXPLORER_DENSITIES = new Set<FilesExplorerDensity>([
   "compact",
   "default",
   "comfortable",
 ]);
+const FILES_EXPLORER_BADGE_COLORS = new Set<FilesExplorerBadgeColor>([
+  "neutral",
+  "blue",
+  "green",
+  "purple",
+  "orange",
+  "red",
+  "cyan",
+]);
 
 export const DEFAULT_FILES_EXPLORER_DENSITY: FilesExplorerDensity = "compact";
 export const DEFAULT_FILES_EXPLORER_SHOW_BADGES = true;
+export const DEFAULT_FILES_EXPLORER_BADGE_COLORS: FilesExplorerBadgeColors = Object.freeze({
+  cf: "cyan",
+  cv: "purple",
+  mixed: "neutral",
+  output: "green",
+  pv: "red",
+  transfer: "blue",
+  unknown: "orange",
+});
 
 export const normalizeFilesExplorerDensity = (
   value: unknown,
@@ -48,8 +76,36 @@ export const normalizeFilesExplorerShowBadges = (
     ? value
     : DEFAULT_FILES_EXPLORER_SHOW_BADGES;
 
+export const normalizeFilesExplorerBadgeColor = (
+  value: unknown,
+): FilesExplorerBadgeColor =>
+  typeof value === "string" && FILES_EXPLORER_BADGE_COLORS.has(value as FilesExplorerBadgeColor)
+    ? value as FilesExplorerBadgeColor
+    : "neutral";
+
+export const normalizeFilesExplorerBadgeColors = (
+  value: unknown,
+): FilesExplorerBadgeColors => {
+  const raw = typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  const colors: Record<string, FilesExplorerBadgeColor> = {
+    ...DEFAULT_FILES_EXPLORER_BADGE_COLORS,
+  };
+
+  for (const key of Object.keys(DEFAULT_FILES_EXPLORER_BADGE_COLORS)) {
+    const color = normalizeFilesExplorerBadgeColor(raw[key]);
+    colors[key] = color === "neutral" && raw[key] !== "neutral"
+      ? DEFAULT_FILES_EXPLORER_BADGE_COLORS[key]
+      : color;
+  }
+
+  return colors;
+};
+
 export type ConductorSettings = {
   backgroundColor?: string;
+  filesExplorerBadgeColors?: FilesExplorerBadgeColors;
   filesExplorerDensity?: FilesExplorerDensity;
   filesExplorerShowBadges?: boolean;
   fileNameFieldSeparators?: string;

@@ -256,12 +256,44 @@
   display: none;
 }
 
+.file-list-item-assessment[data-color="blue"] {
+  background-color: rgb(37 99 235 / 0.12);
+  color: rgb(37 99 235 / 1);
+}
+
+.file-list-item-assessment[data-color="green"] {
+  background-color: rgb(5 150 105 / 0.12);
+  color: rgb(5 150 105 / 1);
+}
+
+.file-list-item-assessment[data-color="purple"] {
+  background-color: rgb(124 58 237 / 0.12);
+  color: rgb(124 58 237 / 1);
+}
+
+.file-list-item-assessment[data-color="orange"] {
+  background-color: rgb(217 119 6 / 0.12);
+  color: rgb(217 119 6 / 1);
+}
+
+.file-list-item-assessment[data-color="red"] {
+  background-color: rgb(220 38 38 / 0.12);
+  color: rgb(220 38 38 / 1);
+}
+
+.file-list-item-assessment[data-color="cyan"] {
+  background-color: rgb(8 145 178 / 0.12);
+  color: rgb(8 145 178 / 1);
+}
+
 .file-list-item-assessment[data-warning="true"] {
+  background-color: rgb(217 119 6 / 0.12);
   border-color: rgb(217 119 6 / 0.45);
   color: rgb(217 119 6 / 1);
 }
 
 .file-list-item-assessment[data-warning="true"]:is(.dark *) {
+  background-color: rgb(251 191 36 / 0.14);
   border-color: rgb(251 191 36 / 0.45);
   color: rgb(251 191 36 / 1);
 }
