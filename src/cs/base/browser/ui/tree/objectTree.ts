@@ -94,6 +94,32 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
     this.list.setProps(this.createListOptions());
   }
 
+  rerenderByKey(key: string): void {
+    const index = this.getFlattenedItems().findIndex(entry => entry.key === key);
+    if (index < 0) {
+      return;
+    }
+
+    this.list.rerender(index);
+  }
+
+  rerenderByKeys(keys: readonly string[]): void {
+    if (!keys.length) {
+      return;
+    }
+
+    const keySet = new Set(keys);
+    const items = this.getFlattenedItems();
+    const indexes: number[] = [];
+    for (let index = 0; index < items.length; index += 1) {
+      const entry = items[index];
+      if (entry && keySet.has(entry.key)) {
+        indexes.push(index);
+      }
+    }
+    this.list.rerenderIndexes(indexes);
+  }
+
   update(options: IObjectTreeOptions<T, TTemplateData>): void {
     this.options = options;
     this.model.update(options);

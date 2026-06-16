@@ -196,6 +196,21 @@ export class ListView<T> implements IDisposable {
     this.render();
   }
 
+  rerenderIndexes(indexes: readonly number[]): void {
+    if (!indexes.length) {
+      return;
+    }
+
+    for (const index of indexes) {
+      const entry = this.rowsByIndex.get(index);
+      if (entry) {
+        this.clearRenderedState(entry);
+      }
+    }
+
+    this.render();
+  }
+
   focus(): void {
     this.viewport.focus();
   }

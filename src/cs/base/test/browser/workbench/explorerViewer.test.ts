@@ -11,6 +11,7 @@ import type {
   IOpenContextView,
 } from "src/cs/platform/contextview/browser/contextView";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
+import { ObjectTree } from "src/cs/base/browser/ui/tree/objectTree";
 import { ResourceLabels } from "src/cs/workbench/browser/labels";
 import {
   ExplorerViewer,
@@ -148,6 +149,77 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       viewer.dispose();
       labels.dispose();
       hoverHost.remove();
+    }
+  });
+
+  test("updates badge presentation without rebuilding tree children", () => {
+    const originalSetChildren = ObjectTree.prototype.setChildren;
+    const originalRerenderByKeys = ObjectTree.prototype.rerenderByKeys;
+    let setChildrenCount = 0;
+    const rerenderedKeys: string[][] = [];
+
+    ObjectTree.prototype.setChildren = function (
+      this: ObjectTree<unknown, unknown>,
+      items: unknown[],
+    ): void {
+      setChildrenCount += 1;
+      originalSetChildren.call(this, items);
+    } as typeof ObjectTree.prototype.setChildren;
+    ObjectTree.prototype.rerenderByKeys = function (
+      this: ObjectTree<unknown, unknown>,
+      keys: readonly string[],
+    ): void {
+      rerenderedKeys.push([...keys]);
+      originalRerenderByKeys.call(this, keys);
+    } as typeof ObjectTree.prototype.rerenderByKeys;
+
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const initialFile: ExplorerViewerProps["files"][number] = {
+      badgeState: {
+        kind: "pending",
+      },
+      fileId: "file-a",
+      fileName: "A.csv",
+      itemKey: "file-a",
+    };
+    const props: ExplorerViewerProps = {
+      ...createViewerProps(),
+      files: [initialFile],
+    };
+    const viewer = new ExplorerViewer(host, hoverHost, props, labels);
+
+    try {
+      const badge = host.querySelector<HTMLElement>(".file-list-item-assessment");
+      assert.ok(badge);
+      assert.equal(badge.textContent, "...");
+
+      viewer.setProps({
+        ...props,
+        files: [{
+          ...initialFile,
+          badgeState: {
+            confidence: "tentative",
+            kind: "ready",
+            label: "cv",
+            source: "fast",
+          },
+        }],
+      });
+
+      assert.equal(setChildrenCount, 0);
+      assert.deepEqual(rerenderedKeys, [["file-a"]]);
+      assert.equal(badge.textContent, "cv");
+    } finally {
+      viewer.dispose();
+      labels.dispose();
+      hoverHost.remove();
+      ObjectTree.prototype.setChildren = originalSetChildren;
+      ObjectTree.prototype.rerenderByKeys = originalRerenderByKeys;
     }
   });
 });

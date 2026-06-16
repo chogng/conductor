@@ -14,6 +14,7 @@ import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import {
   ObjectTree,
   type IObjectTreeOptions,
+  type IObjectTreeOptionsUpdate,
   type ITreeRenderRangeEvent,
   type ITreeElementRenderDetails,
   type ITreeNode,
@@ -193,7 +194,7 @@ type TreeItemTemplate = {
 type TreeModelCache = {
   readonly folderKeys: string[];
   readonly items: FileTreeNode[];
-  readonly signature: string;
+  readonly structureSignature: string;
 };
 
 type HoverContent =
@@ -358,6 +359,26 @@ const getFileRenderKey = (
       "",
   );
 
+const getFileTreeKey = (
+  fileEntry: ExplorerFileEntry,
+): string => {
+  const explicitKey = fileEntry.fileId ?? fileEntry.itemKey;
+  if (explicitKey) {
+    return explicitKey;
+  }
+
+  const pathParts = String(fileEntry.relativePath ?? "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .map(part => part.trim())
+    .filter(Boolean);
+  if (!pathParts.length) {
+    pathParts.push(getFileName(fileEntry));
+  }
+
+  return `file:${pathParts.join("/")}`;
+};
+
 const createBadgePresentation = (
   fileKey: string,
   badge: FileItemAssessment | FileSourceStatusBadge | FileFastAssessment | FilePendingAssessment | null,
@@ -460,8 +481,9 @@ export class ExplorerViewer implements IDisposable {
   private treeModel: TreeModelCache = {
     folderKeys: [],
     items: [],
-    signature: "",
+    structureSignature: "",
   };
+  private filePresentationSignatures = new Map<string, string>();
   private props: ExplorerViewerProps;
   private readonly treeDelegate = {
     getHeight: () => this.explorerAppearance.rowHeight,
@@ -524,8 +546,16 @@ export class ExplorerViewer implements IDisposable {
     const nextSelectedFileId = nextProps.selectedFileId ?? null;
     const previousExpandedFolderKeys = this.props.expandedFolderKeys ?? [];
     const nextExpandedFolderKeys = nextProps.expandedFolderKeys ?? [];
-    const nextTreeSignature = this.createTreeSignature(nextProps.files, nextProps);
-    const shouldUpdateTree = nextTreeSignature !== this.treeModel.signature;
+    const nextTreeStructureSignature = this.createTreeStructureSignature(nextProps.files);
+    const shouldUpdateTree =
+      nextTreeStructureSignature !== this.treeModel.structureSignature;
+    const nextFilePresentationSignatures = this.createFilePresentationSignatures(
+      nextProps.files,
+      nextProps,
+    );
+    const changedPresentationKeys = shouldUpdateTree
+      ? []
+      : this.getChangedPresentationKeys(nextFilePresentationSignatures);
     const shouldUpdateOptions = previousSelectedFileId !== nextSelectedFileId;
     const shouldUpdateFolderExpansion = !areStringArraysEqual(
       previousExpandedFolderKeys,
@@ -551,41 +581,39 @@ export class ExplorerViewer implements IDisposable {
     this.host.dataset.viewLayout = nextViewLayout;
 
     if (shouldUpdateTree) {
-      this.updateTreeModel(nextTreeSignature);
+      this.updateTreeModel(nextTreeStructureSignature);
       const reconciledExpandedFolderKeys =
         this.props.onFolderKeysChange?.(this.treeModel.folderKeys) ??
         nextExpandedFolderKeys;
+      this.filePresentationSignatures = nextFilePresentationSignatures;
       this.treeView.updateOptions({
         collapsedKeys: this.getCollapsedFolderKeys(
           this.treeModel.folderKeys,
           reconciledExpandedFolderKeys,
         ),
+        delegate: this.treeDelegate,
         selectedKey: nextSelectedFileId,
       });
       this.treeView.setChildren(this.treeModel.items);
-    } else if (shouldUpdateOptions && shouldUpdateFolderExpansion) {
-      this.treeView.updateOptions({
-        collapsedKeys: this.getCollapsedFolderKeys(
-          this.treeModel.folderKeys,
-          nextExpandedFolderKeys,
-        ),
-        selectedKey: nextSelectedFileId,
-      });
-    } else if (shouldUpdateOptions) {
-      this.treeView.updateOptions({
-        selectedKey: nextSelectedFileId,
-      });
-    } else if (shouldUpdateFolderExpansion) {
-      this.treeView.updateOptions({
-        collapsedKeys: this.getCollapsedFolderKeys(
-          this.treeModel.folderKeys,
-          nextExpandedFolderKeys,
-        ),
-      });
-    } else if (shouldUpdateExplorerAppearance) {
-      this.treeView.updateOptions({
-        delegate: this.treeDelegate,
-      });
+    } else {
+      const treeOptionsUpdate: IObjectTreeOptionsUpdate<FileTreeNode, TreeItemTemplate> = {
+        ...(shouldUpdateOptions ? { selectedKey: nextSelectedFileId } : {}),
+        ...(shouldUpdateFolderExpansion
+          ? {
+              collapsedKeys: this.getCollapsedFolderKeys(
+                this.treeModel.folderKeys,
+                nextExpandedFolderKeys,
+              ),
+            }
+          : {}),
+        ...(shouldUpdateExplorerAppearance ? { delegate: this.treeDelegate } : {}),
+      };
+      if (Object.keys(treeOptionsUpdate).length) {
+        this.treeView.updateOptions(treeOptionsUpdate);
+      }
+
+      this.filePresentationSignatures = nextFilePresentationSignatures;
+      this.treeView.rerenderByKeys(changedPresentationKeys);
     }
 
     this.refreshVisibleHover();
@@ -612,9 +640,13 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private createTreeOptions(
-    signature = this.createTreeSignature(this.props.files, this.props),
+    structureSignature = this.createTreeStructureSignature(this.props.files),
   ): IObjectTreeOptions<FileTreeNode, TreeItemTemplate> {
-    this.updateTreeModel(signature);
+    this.updateTreeModel(structureSignature);
+    this.filePresentationSignatures = this.createFilePresentationSignatures(
+      this.props.files,
+      this.props,
+    );
     const { folderKeys, items } = this.treeModel;
 
     return {
@@ -649,53 +681,86 @@ export class ExplorerViewer implements IDisposable {
     return folderKeys.filter((key) => !expanded.has(key));
   }
 
-  private createTreeSignature(
+  private createTreeStructureSignature(
     files: readonly ExplorerFileEntry[],
-    props: ExplorerViewerProps,
   ): string {
-    const currentTemplateSelectionId = getTemplateSelectionId(
-      props.currentTemplateSelection ?? { kind: "auto" },
-    );
-    const templateRecordsSignature = (props.templateRecords ?? [])
-      .map(template => `${String(template.id ?? "")}:${String(template.name ?? "")}`)
-      .join("\u001d");
-    return [
-      currentTemplateSelectionId,
-      props.currentTemplateLabel ?? "",
-      templateRecordsSignature,
-      files.map((entry) => [
+    return files
+      .map((entry) => [
         entry.fileId ?? "",
         entry.itemKey ?? "",
         entry.relativePath ?? "",
-        entry.sourceStatus ?? "",
-        entry.sourceStatusMessage ?? "",
-        entry.badgeState?.kind ?? "",
-        entry.badgeState?.kind === "error" ||
-          entry.badgeState?.kind === "ready"
-          ? entry.badgeState.message ?? ""
-          : "",
-        entry.badgeState?.kind === "ready" ? entry.badgeState.label : "",
-        entry.badgeState?.kind === "ready" ? entry.badgeState.confidence : "",
-        entry.badgeState?.kind === "ready" ? entry.badgeState.source : "",
-        entry.badgeState?.kind === "unknown" ? entry.badgeState.source : "",
-        entry.fileVersion ?? "",
         getFileName(entry),
-        entry.curveType ?? "",
-        entry.curveTypeBadgeLabel ?? "",
-        entry.curveTypeConfidence ?? "",
-        entry.curveTypeNeedsTemplate === true ? "1" : "0",
-        (entry.curveTypeReasons ?? []).join("\u001d"),
-        getTemplateSelectionId(
-          props.fileTemplateSelectionsByFileId?.[entry.fileId ?? ""] ??
-            props.currentTemplateSelection ??
-            { kind: "auto" },
-        ),
-      ].join("\u001f")).join("\u001e"),
-    ].join("\u001c");
+      ].join("\u001f"))
+      .join("\u001e");
   }
 
-  private updateTreeModel(signature: string): void {
-    if (signature === this.treeModel.signature) {
+  private createFilePresentationSignatures(
+    files: readonly ExplorerFileEntry[],
+    props: ExplorerViewerProps,
+  ): Map<string, string> {
+    const signatures = new Map<string, string>();
+    for (const entry of files) {
+      signatures.set(getFileTreeKey(entry), this.createFilePresentationSignature(entry, props));
+    }
+
+    return signatures;
+  }
+
+  private createFilePresentationSignature(
+    entry: ExplorerFileEntry,
+    props: ExplorerViewerProps,
+  ): string {
+    const badgeState = entry.badgeState;
+    return [
+      entry.fileId ?? "",
+      entry.sourceStatus ?? "",
+      entry.sourceStatusMessage ?? "",
+      badgeState?.kind ?? "",
+      badgeState?.kind === "error" ||
+        badgeState?.kind === "ready"
+        ? badgeState.message ?? ""
+        : "",
+      badgeState?.kind === "ready" ? badgeState.label : "",
+      badgeState?.kind === "ready" ? badgeState.confidence : "",
+      badgeState?.kind === "ready" ? badgeState.source : "",
+      badgeState?.kind === "unknown" ? badgeState.source : "",
+      entry.curveType ?? "",
+      entry.curveTypeBadgeLabel ?? "",
+      entry.curveTypeConfidence ?? "",
+      entry.curveTypeNeedsTemplate === true ? "1" : "0",
+      (entry.curveTypeReasons ?? []).join("\u001d"),
+      this.resolveFileTemplateLabel(entry, props),
+      getTemplateSelectionId(
+        this.resolveFileTemplateSelection(entry.fileId, props),
+      ),
+    ].join("\u001f");
+  }
+
+  private getChangedPresentationKeys(
+    nextFilePresentationSignatures: ReadonlyMap<string, string>,
+  ): string[] {
+    const changedKeys: string[] = [];
+    for (const [key, nextSignature] of nextFilePresentationSignatures) {
+      if (this.filePresentationSignatures.get(key) !== nextSignature) {
+        changedKeys.push(key);
+      }
+    }
+
+    return changedKeys;
+  }
+
+  private getCurrentFileEntry(node: FileTreeNode): ExplorerFileEntry | null {
+    if (node.kind !== "file") {
+      return null;
+    }
+
+    return this.props.files.find(entry => getFileTreeKey(entry) === node.key) ??
+      node.entry ??
+      null;
+  }
+
+  private updateTreeModel(structureSignature: string): void {
+    if (structureSignature === this.treeModel.structureSignature) {
       return;
     }
 
@@ -703,7 +768,7 @@ export class ExplorerViewer implements IDisposable {
     this.treeModel = {
       folderKeys: collectExplorerFolderKeys(items),
       items,
-      signature,
+      structureSignature,
     };
   }
 
@@ -741,11 +806,12 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    if (!element.entry?.fileId) {
+    const fileEntry = this.getCurrentFileEntry(element);
+    if (!fileEntry?.fileId) {
       return;
     }
 
-    this.props.onSelectFile(element.entry.fileId);
+    this.props.onSelectFile(fileEntry.fileId);
   };
 
   private readonly handleListContextMenu = (event: MouseEvent): void => {
@@ -933,10 +999,11 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    if (element.entry) {
+    const fileEntry = this.getCurrentFileEntry(element);
+    if (fileEntry) {
       this.renderFileItem(
-        element.entry,
-        this.props.selectedFileId === element.entry.fileId,
+        fileEntry,
+        this.props.selectedFileId === fileEntry.fileId,
         template.file,
       );
     }
@@ -963,9 +1030,12 @@ export class ExplorerViewer implements IDisposable {
     template.folder.actionButton.dispose();
   };
 
-  private resolveFileTemplateLabel(fileEntry: ExplorerFileEntry): string {
-    const selection = this.resolveFileTemplateSelection(fileEntry.fileId);
-    const currentSelection = this.props.currentTemplateSelection ?? {
+  private resolveFileTemplateLabel(
+    fileEntry: ExplorerFileEntry,
+    props: ExplorerViewerProps = this.props,
+  ): string {
+    const selection = this.resolveFileTemplateSelection(fileEntry.fileId, props);
+    const currentSelection = props.currentTemplateSelection ?? {
       kind: "auto",
     };
 
@@ -977,20 +1047,23 @@ export class ExplorerViewer implements IDisposable {
       currentSelection.kind === "template" &&
       selection.templateId === currentSelection.templateId
     ) {
-      return this.props.currentTemplateLabel || selection.templateId;
+      return props.currentTemplateLabel || selection.templateId;
     }
 
-    return this.props.templateRecords?.find(template => template.id === selection.templateId)?.name ||
+    return props.templateRecords?.find(template => template.id === selection.templateId)?.name ||
       selection.templateId;
   }
 
-  private resolveFileTemplateSelection(fileId: string | null | undefined): TemplateSelection {
-    const currentSelection: TemplateSelection = this.props.currentTemplateSelection ?? {
+  private resolveFileTemplateSelection(
+    fileId: string | null | undefined,
+    props: ExplorerViewerProps = this.props,
+  ): TemplateSelection {
+    const currentSelection: TemplateSelection = props.currentTemplateSelection ?? {
       kind: "auto",
     };
     return resolveTemplateSelectionForFile(
       fileId,
-      this.props.fileTemplateSelectionsByFileId ?? {},
+      props.fileTemplateSelectionsByFileId ?? {},
       currentSelection,
     );
   }
