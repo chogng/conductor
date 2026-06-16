@@ -91,7 +91,8 @@ export type PlotUnitControlModel = {
   readonly fileId: FileId;
   readonly xUnit: XUnit;
   readonly yScale: "linear" | "log";
-  readonly yUnit: YUnit;
+  readonly yUnit: YUnit | null;
+  readonly yUnitOptions: readonly YUnit[];
 };
 
 export type PlotDisplayModel = {

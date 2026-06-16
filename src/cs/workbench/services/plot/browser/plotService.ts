@@ -34,10 +34,12 @@ import { resolveLabelWithUnit } from "src/cs/workbench/services/plot/common/plot
 import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/browser/plotRenderModel";
 import { filterCalculatedDataSeries } from "src/cs/workbench/services/plot/common/plotSeriesVisibility";
 import {
+  getYUnitValuesForFamily,
   getXUnitMeta,
   getYUnitMeta,
   normalizeXUnit,
   normalizeYUnit,
+  normalizeYUnitForFamily,
   type XUnit,
   type YUnit,
 } from "src/cs/workbench/services/plot/common/units";
@@ -544,7 +546,7 @@ const resolveDisplayUnits = (
     sourceXUnit,
   ) || sourceXUnit;
   const yUnit = sourceYUnit
-    ? normalizeYUnit(
+    ? normalizeYUnitForFamily(
         fileId ? axisSettings?.yUnitByFileId?.[fileId] : undefined,
         sourceYUnit,
       ) || sourceYUnit
@@ -568,12 +570,15 @@ const createUnitControlModel = (
   }
 
   const sourceXUnit = normalizeXUnit(data.activeFile?.xUnit, "V") || "V";
-  const sourceYUnit = normalizeYUnit(data.activeFile?.yUnit, "A") || "A";
+  const displayYUnit = normalizeYUnit(data.yUnitLabel);
   return {
     fileId,
     xUnit: normalizeXUnit(axisSettings?.xUnitByFileId?.[fileId], sourceXUnit) || sourceXUnit,
     yScale: resolveYScale(data, axisSettings),
-    yUnit: normalizeYUnit(axisSettings?.yUnitByFileId?.[fileId], sourceYUnit) || sourceYUnit,
+    yUnit: displayYUnit
+      ? normalizeYUnitForFamily(axisSettings?.yUnitByFileId?.[fileId], displayYUnit) || displayYUnit
+      : null,
+    yUnitOptions: displayYUnit ? getYUnitValuesForFamily(displayYUnit) : [],
   };
 };
 

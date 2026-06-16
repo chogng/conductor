@@ -3,7 +3,6 @@ import type { DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import {
   X_UNIT_VALUES,
-  Y_UNIT_VALUES,
   type XUnit,
   type YUnit,
 } from "src/cs/workbench/services/plot/common/units";
@@ -15,7 +14,8 @@ export type ChartUnitControlState = {
   readonly fileId: string;
   readonly xUnit: XUnit;
   readonly yScale: ChartYScale;
-  readonly yUnit: YUnit;
+  readonly yUnit: YUnit | null;
+  readonly yUnitOptions: readonly YUnit[];
 };
 
 export const createChartUnitControls = ({
@@ -40,31 +40,33 @@ export const createChartUnitControls = ({
   root.className = "chart_unit_controls";
   root.setAttribute("aria-label", localize("chart.units.label", "Chart units"));
 
-  root.append(
-    createUnitSelect({
-      axis: "x",
-      label: localize("chart.units.x", "X"),
-      onDidChangeUnit,
-      options: X_UNIT_VALUES,
-      state,
-      store,
-      value: state.xUnit,
-    }),
-    createUnitSelect({
+  root.append(createUnitSelect({
+    axis: "x",
+    label: localize("chart.units.x", "X"),
+    onDidChangeUnit,
+    options: X_UNIT_VALUES,
+    state,
+    store,
+    value: state.xUnit,
+  }));
+
+  if (state.yUnit && state.yUnitOptions.length > 0) {
+    root.append(createUnitSelect({
       axis: "y",
       label: localize("chart.units.y", "Y"),
       onDidChangeUnit,
-      options: Y_UNIT_VALUES,
+      options: state.yUnitOptions,
       state,
       store,
       value: state.yUnit,
-    }),
-    createScaleSelect({
-      onDidChangeScale,
-      state,
-      store,
-    }),
-  );
+    }));
+  }
+
+  root.append(createScaleSelect({
+    onDidChangeScale,
+    state,
+    store,
+  }));
 
   return root;
 };

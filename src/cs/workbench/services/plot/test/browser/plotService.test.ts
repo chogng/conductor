@@ -78,7 +78,69 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       xUnit: "mV",
       yScale: "log",
       yUnit: "mA",
+      yUnitOptions: ["A", "mA", "uA", "nA", "pA"],
     });
+  });
+
+  test("limits y unit controls to the current plot output family", () => {
+    const currentService = new PlotService(
+      createSessionServiceStub(),
+      createSettingsServiceStub({
+        xUnitByFileId: {},
+        yScaleByFileId: {},
+        yUnitByFileId: { "file-a": "F" },
+      }),
+      new TestStorageService(),
+    );
+    const currentDisplayModel = currentService.getPlotDisplayModel({
+      snapshot: createSnapshot({
+        "file-a": createFileRecord("file-a", "series-a", "A", "A"),
+      }),
+    });
+
+    assert.equal(currentDisplayModel?.chart.plotYUnitLabel, "A");
+    assert.deepEqual(currentDisplayModel?.unitControl?.yUnitOptions, [
+      "A",
+      "mA",
+      "uA",
+      "nA",
+      "pA",
+    ]);
+
+    const capacitanceService = new PlotService(
+      createSessionServiceStub(),
+      createSettingsServiceStub({
+        xUnitByFileId: {},
+        yScaleByFileId: {},
+        yUnitByFileId: { "file-a": "pF" },
+      }),
+      new TestStorageService(),
+    );
+    const capacitanceDisplayModel = capacitanceService.getPlotDisplayModel({
+      snapshot: createSnapshot({
+        "file-a": createFileRecord("file-a", "series-a", "A", "F"),
+      }),
+    });
+
+    assert.equal(capacitanceDisplayModel?.chart.plotYUnitLabel, "pF");
+    assert.deepEqual(capacitanceDisplayModel?.unitControl?.yUnitOptions, [
+      "F",
+      "mF",
+      "uF",
+      "nF",
+      "pF",
+    ]);
+
+    const gmDisplayModel = currentService.getPlotDisplayModel({
+      plotType: "gm",
+      snapshot: createSnapshot({
+        "file-a": createFileRecord("file-a", "series-a", "A", "A"),
+      }),
+    });
+
+    assert.equal(gmDisplayModel?.chart.plotYUnitLabel, undefined);
+    assert.equal(gmDisplayModel?.unitControl?.yUnit, null);
+    assert.deepEqual(gmDisplayModel?.unitControl?.yUnitOptions, []);
   });
 
   test("creates display models for the requested file", () => {
@@ -294,6 +356,7 @@ const createFileRecord = (
   fileId = "file-a",
   seriesA = "series-a",
   seriesAName = "A",
+  yUnit = "A",
 ): FileRecord => {
   const curveAKey = `base:iv:transfer:${seriesA}` as BaseCurveKey;
   const curveBKey = "base:iv:transfer:series-b" as BaseCurveKey;
@@ -376,14 +439,14 @@ const createFileRecord = (
           bottomTitle: "Gate",
           leftTitle: "Drain current",
           stopOnError: false,
-          xDataEnd: 1,
-          xDataStart: 0,
-          xSegmentationMode: "auto",
-          xUnit: "V",
-          yColumns: [1, 2],
-          yLegendTarget: "auto",
-          yUnit: "A",
-        },
+        xDataEnd: 1,
+        xDataStart: 0,
+        xSegmentationMode: "auto",
+        xUnit: "V",
+        yColumns: [1, 2],
+        yLegendTarget: "auto",
+        yUnit,
+      },
         configFingerprint: "config-a",
         errors: [],
         fileId,

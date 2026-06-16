@@ -5,10 +5,12 @@
 import assert from "assert";
 
 import {
+  getYUnitValuesForFamily,
   getXUnitMeta,
   getYUnitMeta,
   normalizeXUnit,
   normalizeYUnit,
+  normalizeYUnitForFamily,
 } from "src/cs/workbench/services/plot/common/units";
 
 suite("workbench/services/plot/common/units", () => {
@@ -23,6 +25,14 @@ suite("workbench/services/plot/common/units", () => {
     assert.equal(normalizeYUnit("μA", "A"), "uA");
     assert.equal(normalizeYUnit("unknown", "nA"), "nA");
     assert.equal(normalizeYUnit("", "bad"), "");
+  });
+
+  test("filters y units by compatible unit family", () => {
+    assert.deepEqual(getYUnitValuesForFamily("A"), ["A", "mA", "uA", "nA", "pA"]);
+    assert.deepEqual(getYUnitValuesForFamily("F"), ["F", "mF", "uF", "nF", "pF"]);
+    assert.equal(normalizeYUnitForFamily("mA", "A"), "mA");
+    assert.equal(normalizeYUnitForFamily("pF", "A"), "");
+    assert.equal(normalizeYUnitForFamily("pF", "F"), "pF");
   });
 
   test("scales capacitance display units from base farads", () => {

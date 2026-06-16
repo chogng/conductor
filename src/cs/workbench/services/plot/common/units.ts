@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Defines supported plot units and resolves axis unit labels from raw metadata.
-const CURRENT_Y_UNIT_VALUES = [
+export const CURRENT_Y_UNIT_VALUES = [
   "A",
   "mA",
   "uA",
@@ -11,7 +11,7 @@ const CURRENT_Y_UNIT_VALUES = [
   "pA",
 ] as const;
 
-const CAPACITANCE_Y_UNIT_VALUES = [
+export const CAPACITANCE_Y_UNIT_VALUES = [
   "F",
   "mF",
   "uF",
@@ -28,6 +28,10 @@ export const X_UNIT_VALUES = ["V", "mV"] as const;
 
 export type YUnit =
   (typeof Y_UNIT_VALUES)[number];
+export type CurrentYUnit =
+  (typeof CURRENT_Y_UNIT_VALUES)[number];
+export type CapacitanceYUnit =
+  (typeof CAPACITANCE_Y_UNIT_VALUES)[number];
 export type XUnit =
   (typeof X_UNIT_VALUES)[number];
 
@@ -40,6 +44,13 @@ export const isCapacitanceYUnit = (
   value: unknown,
 ): value is (typeof CAPACITANCE_Y_UNIT_VALUES)[number] =>
   CAPACITANCE_Y_UNIT_VALUES.includes(value as never);
+
+export const getYUnitValuesForFamily = (
+  value: unknown,
+): readonly YUnit[] =>
+  isCapacitanceYUnit(value)
+    ? CAPACITANCE_Y_UNIT_VALUES
+    : CURRENT_Y_UNIT_VALUES;
 
 const Y_UNIT_ALIAS_MAP: Record<string, YUnit> = {
   a: "A",
@@ -78,6 +89,17 @@ export const normalizeYUnit = (
   if (normalized) return normalized;
 
   return normalizeFallback();
+};
+
+export const normalizeYUnitForFamily = (
+  value: unknown,
+  familyUnit: unknown,
+): YUnit | "" => {
+  const normalized = normalizeYUnit(value);
+  if (!normalized) return "";
+
+  const familyValues = getYUnitValuesForFamily(familyUnit);
+  return familyValues.includes(normalized) ? normalized : "";
 };
 
 export const getYUnitMeta = (value: unknown) => {
