@@ -161,6 +161,64 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(explorerService.selectedProcessedFileId, null);
   });
 
+  test("keeps chart selection on raw file ids before chart data is ready", () => {
+    const session = new SessionService();
+    commitRawFilesForTest(session, [
+      {
+        fileId: "file-a",
+        fileName: "Processed A.csv",
+        rowCount: 2,
+        columnCount: 2,
+      },
+      {
+        fileId: "raw-only",
+        fileName: "Raw Only.csv",
+        rowCount: 2,
+        columnCount: 2,
+      },
+    ]);
+    commitTemplateOutputForTest(session, {
+      curveType: "transfer",
+      fileId: "file-a",
+      fileName: "Processed A.csv",
+      series: [{
+        groupIndex: 0,
+        id: "series-a",
+        y: [1, 2],
+      }],
+      xGroups: [[0, 1]],
+    });
+    const snapshot = session.getSnapshot();
+    const readModel = createSessionReadModel(snapshot);
+    const explorerService = new ExplorerService();
+    explorerService.select({
+      candidateFileIds: ["file-a", "raw-only"],
+      fileId: "raw-only",
+      kind: "chart",
+    });
+
+    const input = createExplorerPaneInput({
+      activePlotType: "iv",
+      explorerService,
+      mode: "chart",
+      plotService: createPlotService(),
+      readModel,
+      snapshot,
+      templateState: {
+        formState: createEmptyTemplateConfig(),
+        mode: "management",
+        selectedTemplateId: null,
+        selectionsByFileId: {},
+        templateListVersion: 0,
+      },
+    });
+
+    assert.equal(input.selectionKind, "chart");
+    assert.equal(input.selectedFileId, "raw-only");
+    assert.deepEqual(input.files.map(file => file.fileId), ["file-a", "raw-only"]);
+    assert.deepEqual(input.files.map(file => file.hasChartData), [true, false]);
+  });
+
   test("creates chart thumbnail input from processed file projection", () => {
     const session = new SessionService();
     commitRawFilesForTest(session, [
@@ -215,8 +273,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(input.selectedFileId, "file-a");
     assert.deepEqual(input.files.map(file => file.fileId), ["file-a"]);
     assert.deepEqual(input.thumbnailFiles.map(file => file.fileId), ["file-a"]);
-    assert.equal(input.thumbnailPlotModelsByFileId?.["file-a"]?.signature, "plot:file-a");
-    assert.equal(input.thumbnailPlotModelsByFileId?.["raw-only"], undefined);
+    assert.equal(input.thumbnailPlotModelsByFileId, undefined);
     assert.equal(input.originOpenPlotOptions, DEFAULT_ORIGIN_PLOT_OPTIONS);
     assert.deepEqual(input.plotAxisSettings, { x: { show: true } });
 

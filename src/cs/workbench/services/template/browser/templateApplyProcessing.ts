@@ -84,6 +84,7 @@ type SchedulerCallbacks = {
   commitTemplateOutput: (
     file: ProcessedEntry | null | undefined,
     options?: CommitTemplateOutputOptions,
+    jobId?: number,
   ) => void;
   clearTemplateOutput: () => void;
   setProcessingStatus: StateSetter<ProcessingStatus>;
@@ -362,7 +363,7 @@ export const startProcessingJob = ({
               fileTemplateSelectionsByFileId,
               templateSelection,
             ),
-          });
+          }, jobId);
           setProcessingStatus((prev) => ({
             ...prev,
             processed: prev.processed + 1,
@@ -437,7 +438,7 @@ export const startProcessingJob = ({
           fileTemplateSelectionsByFileId,
           templateSelection,
         ),
-      });
+      }, jobId);
       setProcessingStatus((prev) => ({
         ...prev,
         processed: prev.processed + 1,
@@ -651,7 +652,7 @@ export const startRuleProcessingJob = ({
               fileTemplateSelectionsByFileId,
               templateSelection,
             ),
-          });
+          }, jobId);
           processedCount += 1;
           activeCount = Math.max(0, activeCount - 1);
           setProcessingStatus((prev) => ({
@@ -727,7 +728,7 @@ export const startRuleProcessingJob = ({
           fileTemplateSelectionsByFileId,
           templateSelection,
         ),
-      });
+      }, jobId);
       processedCount += 1;
       activeCount = Math.max(0, activeCount - 1);
       setProcessingStatus((prev) => ({ ...prev, processed: processedCount }));

@@ -48,9 +48,12 @@ export type ExplorerBadgeState =
 	| { readonly kind: "error"; readonly message?: string | null };
 
 export type ExplorerFileEntry = {
+	readonly chartMessage?: string | null;
+	readonly chartState?: "none" | "queued" | "processing" | "ready" | "failed" | "skipped";
 	readonly file?: unknown;
 	readonly fileId?: string;
 	readonly fileName?: string;
+	readonly hasChartData?: boolean;
 	readonly itemKey?: string;
 	readonly normalizedCsvPath?: string | null;
 	readonly relativePath?: string | null;

@@ -416,8 +416,11 @@ const areExplorerFilesEqual = (
   current.length === next.length &&
   current.every((file, index) => {
     const nextFile = next[index];
-    return file.fileId === nextFile?.fileId &&
+    return file.chartMessage === nextFile?.chartMessage &&
+      file.chartState === nextFile.chartState &&
+      file.fileId === nextFile.fileId &&
       file.fileName === nextFile.fileName &&
+      file.hasChartData === nextFile.hasChartData &&
       file.itemKey === nextFile.itemKey &&
       file.normalizedCsvPath === nextFile.normalizedCsvPath &&
       file.relativePath === nextFile.relativePath &&

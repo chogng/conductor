@@ -7,7 +7,6 @@ import { startPerf } from "src/cs/workbench/common/perf";
 import {
   type ExplorerPaneInput,
   type ExplorerSelectionKind,
-  type ExplorerThumbnailPlotModel,
   type IExplorerService,
 } from "src/cs/workbench/contrib/files/browser/files";
 import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
@@ -41,6 +40,7 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import { createTemplateApplyInput } from "src/cs/workbench/services/template/browser/templateApplyInput";
 import type {
+  TemplateApplyFileState,
   ITemplateApplyWorkflowService,
   ITemplateService,
   TemplateState,
@@ -83,6 +83,7 @@ export class WorkbenchDomainBridge extends Disposable {
     }));
     this._register(this.options.plotService.onDidChangePlotState(() => this.scheduleSync()));
     this._register(this.options.templateApplyWorkflowService.onDidChangeProcessingStatus(() => this.scheduleSync()));
+    this._register(this.options.templateApplyWorkflowService.onDidChangeFileStates(() => this.scheduleSync()));
     this._register(this.options.templateService.onDidChangeTemplateState(() => this.scheduleSync()));
     this._register(this.options.layoutService.onDidChangeWorkbenchNavigation(() => this.scheduleSync()));
     this._register(this.options.sessionService.onDidChangeSession(() => this.scheduleSync()));
@@ -170,6 +171,7 @@ export class WorkbenchDomainBridge extends Disposable {
       plotService: this.options.plotService,
       readModel,
       snapshot,
+      applyStatesByFileId: this.options.templateApplyWorkflowService.getFileApplyStates(),
       templateState: this.options.templateService.getState(),
     });
   }
@@ -220,6 +222,7 @@ type CreateExplorerPaneInputOptions = {
   readonly plotService: Pick<IPlotService, "getCalculatedData">;
   readonly readModel: SessionReadModel;
   readonly snapshot: SessionSnapshot;
+  readonly applyStatesByFileId?: ReadonlyMap<string, TemplateApplyFileState>;
   readonly templateState: TemplateState;
 };
 
@@ -254,7 +257,7 @@ export const resolveExplorerSessionSelection = (
   return {
     selectedProcessedFileId: resolveExplorerSelectedFileId(
       explorerService.selectedProcessedFileId,
-      input.processedFileIds,
+      input.rawFileIds,
     ),
     selectedRawFileId: resolveExplorerSelectedFileId(
       explorerService.selectedRawFileId,
@@ -272,7 +275,7 @@ export const reconcileExplorerSessionSelection = (
     explorerService,
     "chart",
     explorerService.selectedProcessedFileId,
-    input.processedFileIds,
+    input.rawFileIds,
   );
   const selectedRawFileId = reconcileExplorerSelectedFileId(
     explorerService,
@@ -293,34 +296,28 @@ export const createExplorerPaneInput = ({
   mode,
   originOpenPlotOptions,
   plotAxisSettings,
-  plotService,
   readModel,
   snapshot,
+  applyStatesByFileId,
   templateState,
 }: CreateExplorerPaneInputOptions): ExplorerPaneInput => {
   const rawFiles = readModel.rawFiles;
   const isChartMode = mode === "chart";
   const isThumbnailLayout = isChartMode && explorerService.viewLayout === "thumbnail";
   const selectionKind: ExplorerSelectionKind = isChartMode ? "chart" : "table";
-  const files = isThumbnailLayout
+  const files = applyChartExplorerStates(isThumbnailLayout
     ? createChartExplorerFilesFromRecords(
       snapshot.filesById,
       snapshot.fileOrder,
       rawFiles,
     )
-    : applyFastExplorerBadges(createRawExplorerFiles(rawFiles), snapshot);
-  const fileIds = getExplorerPaneFileIds(files);
-  const selectionFileIds = isChartMode
-    ? readModel.processedFileIds
-    : fileIds;
-  const thumbnailPlotModelsByFileId = isThumbnailLayout
-    ? createThumbnailPlotModelsByFileId({
-      activePlotType,
-      fileIds: readModel.processedFileIds,
-      plotService,
+    : applyFastExplorerBadges(createRawExplorerFiles(rawFiles), snapshot), {
+      applyStatesByFileId,
+      isChartMode,
       snapshot,
-    })
-    : undefined;
+    });
+  const fileIds = getExplorerPaneFileIds(files);
+  const selectionFileIds = fileIds;
   const selectedFileId = resolveExplorerSelectedFileId(
     selectionKind === "chart"
       ? explorerService.selectedProcessedFileId
@@ -343,7 +340,6 @@ export const createExplorerPaneInput = ({
     selectedFileId,
     selectionKind,
     thumbnailFiles: readModel.processedFiles,
-    thumbnailPlotModelsByFileId,
   };
 };
 
@@ -375,6 +371,86 @@ const applyFastExplorerBadges = (
   snapshot: SessionSnapshot,
 ): ExplorerFileEntry[] =>
   files.map(file => applyFastExplorerBadge(file, snapshot));
+
+const applyChartExplorerStates = (
+  files: readonly ExplorerFileEntry[],
+  {
+    applyStatesByFileId,
+    isChartMode,
+    snapshot,
+  }: {
+    readonly applyStatesByFileId?: ReadonlyMap<string, TemplateApplyFileState>;
+    readonly isChartMode: boolean;
+    readonly snapshot: SessionSnapshot;
+  },
+): ExplorerFileEntry[] => {
+  if (!isChartMode) {
+    return [...files];
+  }
+
+  return files.map(file => {
+    const fileId = String(file.fileId ?? "").trim();
+    const hasChartData = hasFileChartData(snapshot.filesById[fileId]);
+    const applyState = fileId ? applyStatesByFileId?.get(fileId) : undefined;
+    const chartState = resolveChartState(applyState, hasChartData);
+    const chartMessage = getChartStateMessage(applyState);
+    return {
+      ...file,
+      badgeState: resolveChartBadgeState(file, applyState),
+      chartMessage,
+      chartState,
+      hasChartData,
+    };
+  });
+};
+
+const hasFileChartData = (
+  file: FileRecord | undefined,
+): boolean =>
+  Boolean(file && Object.keys(file.curvesByKey ?? {}).length > 0);
+
+const resolveChartState = (
+  applyState: TemplateApplyFileState | undefined,
+  hasChartData: boolean,
+): NonNullable<ExplorerFileEntry["chartState"]> => {
+  if (applyState?.state === "queued" || applyState?.state === "processing") {
+    return applyState.state;
+  }
+  if (applyState?.state === "failed" || applyState?.state === "skipped") {
+    return applyState.state;
+  }
+  if (applyState?.state === "ready" || hasChartData) {
+    return "ready";
+  }
+
+  return "none";
+};
+
+const getChartStateMessage = (
+  applyState: TemplateApplyFileState | undefined,
+): string | null => {
+  if (applyState?.state === "failed" || applyState?.state === "skipped") {
+    return applyState.message;
+  }
+
+  return null;
+};
+
+const resolveChartBadgeState = (
+  file: ExplorerFileEntry,
+  applyState: TemplateApplyFileState | undefined,
+): ExplorerFileEntry["badgeState"] => {
+  switch (applyState?.state) {
+    case "queued":
+    case "processing":
+      return { kind: "pending" };
+    case "failed":
+    case "skipped":
+      return { kind: "error", message: applyState.message };
+    default:
+      return file.badgeState;
+  }
+};
 
 const applyFastExplorerBadge = (
   file: ExplorerFileEntry,
@@ -442,37 +518,6 @@ const getFastBadgeRows = (
   return rowStore?.kind === "memory"
     ? rowStore.rows.slice(0, 4)
     : undefined;
-};
-
-const createThumbnailPlotModelsByFileId = ({
-  activePlotType,
-  fileIds,
-  plotService,
-  snapshot,
-}: {
-  readonly activePlotType: PlotType;
-  readonly fileIds: readonly string[];
-  readonly plotService: Pick<IPlotService, "getCalculatedData">;
-  readonly snapshot: SessionSnapshot;
-}): Readonly<Record<string, ExplorerThumbnailPlotModel>> => {
-  const modelsByFileId: Record<string, ExplorerThumbnailPlotModel> = {};
-  for (const fileId of fileIds) {
-    const normalizedFileId = String(fileId ?? "").trim();
-    if (!normalizedFileId) {
-      continue;
-    }
-
-    const model = plotService.getCalculatedData({
-      fileId: normalizedFileId,
-      plotType: activePlotType,
-      snapshot,
-    });
-    if (model) {
-      modelsByFileId[normalizedFileId] = model;
-    }
-  }
-
-  return modelsByFileId;
 };
 
 const createRawTableSource = (fileId: string | null): TableSource | null => {

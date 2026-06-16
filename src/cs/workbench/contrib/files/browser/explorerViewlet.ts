@@ -62,7 +62,10 @@ import { ISessionService } from "src/cs/workbench/services/session/common/sessio
 import {
   assessFastImportBadge,
 } from "src/cs/workbench/services/assessment/common/fileAssessment";
-import { IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
+import {
+  IThumbnailPreviewService,
+  IThumbnailService,
+} from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
   ITemplateService,
   type TemplateRecord,
@@ -103,6 +106,7 @@ export class ExplorerViewPane extends ViewPane {
     @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
     @INotificationService private readonly notificationService: INotificationService,
     @ISessionService private readonly sessionService: ISessionService,
+    @IThumbnailPreviewService private readonly thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @ITemplateService private readonly templateService: ITemplateService,
   ) {
@@ -296,6 +300,7 @@ export class ExplorerViewPane extends ViewPane {
       contextMenuService: this.contextMenuService,
       originOpenPlotOptions: input.originOpenPlotOptions,
       plotAxisSettings: input.plotAxisSettings,
+      thumbnailPreviewService: this.thumbnailPreviewService,
       thumbnailService: this.thumbnailService,
       currentTemplateLabel: input.currentTemplateLabel,
       currentTemplateSelection: input.currentTemplateSelection,

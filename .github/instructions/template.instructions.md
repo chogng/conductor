@@ -81,7 +81,9 @@ flowchart TD
     Worker --> Result[TemplateApplyResult]
     Result --> Commit[ISessionService.commitTemplateOutputs]
     Workflow --> Status[onDidChangeProcessingStatus]
+    Workflow --> FileStates[onDidChangeFileStates]
     Status --> DomainBridge
+    FileStates --> DomainBridge
 ```
 
 ## Rules
@@ -102,6 +104,10 @@ flowchart TD
 - Template apply progress belongs to `ITemplateApplyWorkflowService`. Consumers
   subscribe to `onDidChangeProcessingStatus` and reread `processingStatus`; they
   do not infer progress completion from Session or Plot events.
+- Per-file template apply readiness belongs to `ITemplateApplyWorkflowService`.
+  Consumers subscribe to `onDidChangeFileStates` and reread
+  `getFileApplyStates()`; Explorer projects that owner state into badges and
+  chart-state presentation without adding/removing file tree items.
 - Template apply may consume the current table preview through injected
   `ITableService` public state/model APIs. Do not pass table row readers,
   source-existence callbacks, or table model methods through

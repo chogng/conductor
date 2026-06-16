@@ -462,6 +462,22 @@ Derived model. Producer: `PlotService`. Consumers: Chart, Thumbnail, Search, Exp
 | `xTicks` | `readonly number[] | undefined` | Optional computed x ticks. |
 | `yTicks` | `readonly number[] | undefined` | Optional computed y ticks. |
 
+## Thumbnail state
+
+### `ThumbnailPreviewState`
+
+Owner: `IThumbnailPreviewService`. Service-local state, not session canonical
+data. Produced by thumbnail preview requests from Explorer hover/grid
+consumers. Consumers reread it through `get(fileId)` or `request(fileId,
+priority)` after `onDidChangePreview`.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `kind` | `'idle' | 'loading' | 'rawReady' | 'ready' | 'error'` | Preview lifecycle state for a file. |
+| `model` | `ThumbnailPreviewPlotModel | undefined` | Plot-backed preview model when `kind` is `ready` or `rawReady`. |
+| `signature` | `string | undefined` | Render/input signature for ready preview states. |
+| `message` | `string | undefined` | User-facing failure detail when `kind` is `error`. |
+
 ## Chart state
 
 ### `ChartState`
@@ -594,12 +610,29 @@ Invalidation: session/read-model facts, mode, and Explorer pane input signature.
 | `sourceStatus` | `'pending' | 'preparing' | 'failed' | undefined` | View-local source import status for pending source rows. Not canonical. |
 | `sourceStatusMessage` | `string | null | undefined` | Optional view-local source status detail, usually a prepare failure message. Not canonical. |
 | `badgeState` | `ExplorerBadgeState | undefined` | Explorer-only badge projection. `pending`/`ready(source: fast)` are first-frame display hints; `ready(source: assessment)`/`unknown` are full assessment facts. Not canonical and never written to Session/converter results. |
+| `chartState` | `'none' | 'queued' | 'processing' | 'ready' | 'failed' | 'skipped' | undefined` | Chart-mode presentation state projected from Template Apply and chart data readiness. Not canonical and must not decide file tree existence. |
+| `chartMessage` | `string | null | undefined` | Optional chart/apply status detail shown through Explorer presentation. Not canonical. |
+| `hasChartData` | `boolean | undefined` | Whether the file currently has chartable output. Presentation/readiness only; selection still uses source file ids. |
 | `fileVersion` | `number | undefined` | Resource version used to drop stale Explorer badge/render updates. Usually projected from the raw table source version. Not canonical beyond the owning raw/session version. |
 | `curveType` | `string | null | undefined` | Full assessed curve type shown in hover details. |
 | `curveTypeBadgeLabel` | `string | null | undefined` | Compact curve badge label already projected for Explorer rendering. Views consume this field and must not parse `curveType` text to derive it. |
 | `curveTypeConfidence` | `'high' | 'medium' | 'low' | undefined` | Assessment confidence projected from session/assessment. |
 | `curveTypeNeedsTemplate` | `boolean | undefined` | Whether the file needs manual/template handling. |
 | `curveTypeReasons` | `readonly string[] | undefined` | Assessment reason text for hover details. |
+
+### `TemplateApplyFileState`
+
+Owner: `ITemplateApplyWorkflowService`. Service-local state, not session
+canonical data. Produced by template apply planning and processing callbacks.
+Consumers: `WorkbenchDomainBridge` and Explorer presentation. Invalidation:
+new full apply clears previous states; incremental apply updates affected files;
+`filesRemoved` and `sessionCleared` remove affected state.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `state` | `'none' | 'queued' | 'processing' | 'ready' | 'skipped' | 'failed'` | Per-file template apply lifecycle state. |
+| `code` | `string | undefined` | Stable reason code for `skipped` or `failed`. |
+| `message` | `string | undefined` | User-facing detail for `skipped` or `failed`. |
 
 ## Search records
 

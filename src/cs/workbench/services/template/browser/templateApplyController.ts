@@ -43,11 +43,13 @@ import type {
 } from "src/cs/workbench/services/template/browser/templateApplyProcessing";
 import {
   buildTemplateProcessingPlan,
+  type TemplateProcessingPlan,
   type TemplateProcessingSkippedFile,
 } from "src/cs/workbench/services/template/browser/templateApplyPlanner";
 import {
   ITemplateApplyService,
   ITemplateApplyWorkflowService,
+  type TemplateApplyFileState,
   type TemplateApplyWorkflowInput,
 } from "src/cs/workbench/services/template/common/template";
 import {
@@ -100,6 +102,11 @@ type StartExtractionJobOptions = {
 };
 
 const TEMPLATE_OUTPUT_FLUSH_DELAY_MS = 32;
+
+type PendingTemplateOutputCommit = {
+  readonly jobId: number;
+  readonly commit: CommitTemplateOutputInput;
+};
 
 type TemplateApplyControllerOptions = {
   sessionService: Pick<
@@ -264,6 +271,38 @@ const buildSkippedAssessmentWarnings = (
   ];
 };
 
+const getSkippedFileState = (
+  skippedFile: TemplateProcessingSkippedFile,
+): TemplateApplyFileState => {
+  const fileName = skippedFile.fileName || skippedFile.fileId;
+  switch (skippedFile.reason) {
+    case "missingAssessment":
+      return {
+        state: "skipped",
+        code: skippedFile.reason,
+        message: localize("template.apply.skippedMissingAssessment", "{fileName} has no usable assessment yet.", { fileName }),
+      };
+    case "needsTemplate":
+      return {
+        state: "skipped",
+        code: skippedFile.reason,
+        message: localize("template.apply.skippedNeedsTemplate", "{fileName} needs template review.", { fileName }),
+      };
+    case "lowConfidence":
+      return {
+        state: "skipped",
+        code: skippedFile.reason,
+        message: localize("template.apply.skippedLowConfidence", "{fileName} has low-confidence assessment.", { fileName }),
+      };
+    case "unknownCurveType":
+      return {
+        state: "skipped",
+        code: skippedFile.reason,
+        message: localize("template.apply.skippedUnknownCurveType", "{fileName} has unknown curve type.", { fileName }),
+      };
+  }
+};
+
 const buildNoProcessableFilesFeedback = (
   skippedFiles: readonly TemplateProcessingSkippedFile[],
 ): { ok: false; message: string; type: "warning" } => ({
@@ -357,6 +396,8 @@ const getWorkerExtractionErrorMessage = ({
 export class TemplateApplyController {
   private readonly onDidChangeProcessingStatusEmitter = new Emitter<ProcessingStatus>();
   public readonly onDidChangeProcessingStatus = this.onDidChangeProcessingStatusEmitter.event;
+  private readonly onDidChangeFileStatesEmitter = new Emitter<readonly string[]>();
+  public readonly onDidChangeFileStates = this.onDidChangeFileStatesEmitter.event;
 
   private readonly processingWorkerRef = createTemplateWorkerRef<Worker | null>(null);
   private readonly processingJobIdRef = createTemplateWorkerRef(0);
@@ -365,7 +406,8 @@ export class TemplateApplyController {
   private readonly removedQueuedFileIdsRef = createTemplateWorkerRef<Set<string>>(new Set());
   private readonly lastAppliedTemplateConfigFingerprintRef = createTemplateWorkerRef<string | null>(null);
   private readonly sessionChangeDisposable: IDisposable;
-  private pendingTemplateOutputCommits: CommitTemplateOutputInput[] = [];
+  private readonly fileStatesByFileId = new Map<string, TemplateApplyFileState>();
+  private pendingTemplateOutputCommits: PendingTemplateOutputCommit[] = [];
   private scheduledTemplateOutputFlush:
     | { readonly kind: "animationFrame"; readonly handle: number }
     | { readonly kind: "timeout"; readonly handle: ReturnType<typeof setTimeout> }
@@ -391,6 +433,10 @@ export class TemplateApplyController {
     return this._processingStatus;
   }
 
+  public getFileApplyStates(): ReadonlyMap<string, TemplateApplyFileState> {
+    return new Map(this.fileStatesByFileId);
+  }
+
   public update(input: TemplateApplyWorkflowInput): void {
     this.input = input;
   }
@@ -400,6 +446,7 @@ export class TemplateApplyController {
     this.discardTemplateOutputCommits();
     this.options.templateApplyService.terminateProcessingWorker(this.processingWorkerRef);
     this.onDidChangeProcessingStatusEmitter.dispose();
+    this.onDidChangeFileStatesEmitter.dispose();
   }
 
   public readonly resetProcessingWorker = (): void => {
@@ -408,6 +455,7 @@ export class TemplateApplyController {
     this.processingQueueRef.current = [];
     this.processingStopOnErrorRef.current = false;
     this.removedQueuedFileIdsRef.current = new Set();
+    this.clearFileApplyStates();
     this.options.templateApplyService.terminateProcessingWorker(this.processingWorkerRef);
     this.setProcessingStatus({
       state: "idle",
@@ -432,6 +480,7 @@ export class TemplateApplyController {
     }
 
     this.removedQueuedFileIdsRef.current.add(fileId);
+    this.deleteFileApplyStates([fileId]);
     this.setProcessingStatus((previous) => ({
       ...previous,
       total: Math.max(previous.processed, previous.total - removedCount),
@@ -456,6 +505,7 @@ export class TemplateApplyController {
   private readonly commitTemplateOutput = (
     file: ProcessedEntry | null | undefined,
     options?: CommitTemplateOutputOptions,
+    jobId = this.processingJobIdRef.current,
   ): void => {
     const endPerf = startPerf("templateApplyController.commitTemplateOutput", summarizeProcessedFile(file));
     const commit = createProcessedFileSessionCommit(
@@ -468,7 +518,8 @@ export class TemplateApplyController {
       return;
     }
 
-    this.pendingTemplateOutputCommits.push(commit);
+    this.pendingTemplateOutputCommits.push({ jobId, commit });
+    this.setFileApplyState(commit.curves.fileId, { state: "ready" });
     endPerf({
       committed: true,
       pendingBatchSize: this.pendingTemplateOutputCommits.length,
@@ -511,15 +562,20 @@ export class TemplateApplyController {
 
   private readonly flushTemplateOutputCommits = (): void => {
     this.cancelTemplateOutputFlush();
-    const commits = this.pendingTemplateOutputCommits;
+    const activeJobId = this.processingJobIdRef.current;
+    const commits = this.pendingTemplateOutputCommits
+      .filter(entry => entry.jobId === activeJobId)
+      .map(entry => entry.commit);
+    const staleCommitCount = this.pendingTemplateOutputCommits.length - commits.length;
+    this.pendingTemplateOutputCommits = [];
     if (!commits.length) {
       return;
     }
 
     const endPerf = startPerf("templateApplyController.flushTemplateOutputs", {
       batchSize: commits.length,
+      staleCommitCount,
     });
-    this.pendingTemplateOutputCommits = [];
     this.options.sessionService.commitTemplateOutputs(commits);
     endPerf();
   };
@@ -604,9 +660,11 @@ export class TemplateApplyController {
     if (isAutoTemplateConfig(config)) {
       const plan = buildTemplateProcessingPlan(rawFiles);
       if (!plan.queue.length) {
+        this.applyTemplateProcessingPlanStates(plan, true);
         return buildNoProcessableFilesFeedback(plan.skippedFiles);
       }
 
+      this.applyTemplateProcessingPlanStates(plan, true);
       this.lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
       this.startExtractionJob({
         extractionConfig: config,
@@ -631,9 +689,11 @@ export class TemplateApplyController {
 
     const plan = buildTemplateProcessingPlan(rawFiles);
     if (!plan.queue.length) {
+      this.applyTemplateProcessingPlanStates(plan, true);
       return buildNoProcessableFilesFeedback(plan.skippedFiles);
     }
 
+    this.applyTemplateProcessingPlanStates(plan, true);
     this.lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
     this.startExtractionJob({
       extractionConfig: prepared.extractionConfig,
@@ -697,6 +757,7 @@ export class TemplateApplyController {
       const processedIds = resolveProcessedFileIds(this.input);
       const plan = buildTemplateProcessingPlan(rawFiles, processedIds);
       if (!plan.queue.length) {
+        this.applyTemplateProcessingPlanStates(plan, false);
         return plan.skippedFiles.length
           ? buildNoProcessableFilesFeedback(plan.skippedFiles)
           : {
@@ -706,6 +767,7 @@ export class TemplateApplyController {
             };
       }
 
+      this.applyTemplateProcessingPlanStates(plan, false);
       this.startExtractionJob({
         extractionConfig: config,
         messageType: "processFileAuto",
@@ -750,6 +812,7 @@ export class TemplateApplyController {
     const processedIds = resolveProcessedFileIds(this.input);
     const plan = buildTemplateProcessingPlan(rawFiles, processedIds);
     if (!plan.queue.length) {
+      this.applyTemplateProcessingPlanStates(plan, false);
       return plan.skippedFiles.length
         ? buildNoProcessableFilesFeedback(plan.skippedFiles)
         : {
@@ -764,6 +827,7 @@ export class TemplateApplyController {
       return prepared;
     }
 
+    this.applyTemplateProcessingPlanStates(plan, false);
     this.startExtractionJob({
       extractionConfig: prepared.extractionConfig,
       queue: plan.queue,
@@ -798,6 +862,75 @@ export class TemplateApplyController {
     }
     this.onDidChangeProcessingStatusEmitter.fire(resolved);
   };
+
+  private applyTemplateProcessingPlanStates(
+    plan: TemplateProcessingPlan,
+    clearExisting: boolean,
+  ): void {
+    if (clearExisting) {
+      this.fileStatesByFileId.clear();
+    }
+
+    const changedFileIds: string[] = [];
+    for (const entry of plan.queue) {
+      if (this.setFileApplyState(entry.fileId, { state: "queued" }, false)) {
+        changedFileIds.push(entry.fileId);
+      }
+    }
+    for (const skippedFile of plan.skippedFiles) {
+      if (this.setFileApplyState(skippedFile.fileId, getSkippedFileState(skippedFile), false)) {
+        changedFileIds.push(skippedFile.fileId);
+      }
+    }
+    this.fireFileApplyStatesChanged(changedFileIds);
+  }
+
+  private setFileApplyState(
+    fileId: string,
+    state: TemplateApplyFileState,
+    fire = true,
+  ): boolean {
+    const normalizedFileId = String(fileId ?? "").trim();
+    if (!normalizedFileId) {
+      return false;
+    }
+
+    const previous = this.fileStatesByFileId.get(normalizedFileId);
+    if (isSameTemplateApplyFileState(previous, state)) {
+      return false;
+    }
+
+    if (state.state === "none") {
+      this.fileStatesByFileId.delete(normalizedFileId);
+    } else {
+      this.fileStatesByFileId.set(normalizedFileId, state);
+    }
+    if (fire) {
+      this.fireFileApplyStatesChanged([normalizedFileId]);
+    }
+    return true;
+  }
+
+  private clearFileApplyStates(): void {
+    const changedFileIds = [...this.fileStatesByFileId.keys()];
+    this.fileStatesByFileId.clear();
+    this.fireFileApplyStatesChanged(changedFileIds);
+  }
+
+  private deleteFileApplyStates(fileIds: readonly string[]): void {
+    const changedFileIds = fileIds
+      .map(fileId => String(fileId ?? "").trim())
+      .filter(fileId => fileId && this.fileStatesByFileId.delete(fileId));
+    this.fireFileApplyStatesChanged(changedFileIds);
+  }
+
+  private fireFileApplyStatesChanged(fileIds: readonly string[]): void {
+    if (!fileIds.length) {
+      return;
+    }
+
+    this.onDidChangeFileStatesEmitter.fire(fileIds);
+  }
 
   private readonly prepareExtractionRun = (
     config: Record<string, unknown>,
@@ -914,6 +1047,7 @@ export class TemplateApplyController {
       fileTemplateSelectionsByFileId,
       messageType,
       onWorkerErrorPayload: (payload) => {
+        this.markWorkerFileFailed(payload);
         this.options.onExtractionError?.(buildWorkerExtractionError(payload));
       },
       processingJobIdRef: this.processingJobIdRef,
@@ -1053,6 +1187,7 @@ export class TemplateApplyController {
 
     const groupedEntries = Array.from(queueByTemplateName.entries());
     if (!groupedEntries.length) {
+      this.applyTemplateProcessingPlanStates(plan, !incremental);
       return plan.skippedFiles.length
         ? buildNoProcessableFilesFeedback(plan.skippedFiles)
         : {
@@ -1094,6 +1229,7 @@ export class TemplateApplyController {
     }
 
     if (!groupedPrepared.length || !finalQueue.length) {
+      this.applyTemplateProcessingPlanStates(plan, !incremental);
       return {
         message: localize("template.applyNewFiles.noNewFiles", "No new files to extract."),
         ok: false,
@@ -1101,6 +1237,7 @@ export class TemplateApplyController {
       };
     }
 
+    this.applyTemplateProcessingPlanStates(plan, !incremental);
     this.lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
     this.options.templateApplyService.startRuleProcessingJob({
       templateProcessingBackendService: this.options.templateProcessingBackendService,
@@ -1109,6 +1246,7 @@ export class TemplateApplyController {
       groupedPrepared,
       incremental,
       onWorkerErrorPayload: (payload) => {
+        this.markWorkerFileFailed(payload);
         this.options.onExtractionError?.(buildWorkerExtractionError(payload));
       },
       processingJobIdRef: this.processingJobIdRef,
@@ -1135,7 +1273,42 @@ export class TemplateApplyController {
       warnings,
     });
   };
+
+  private markWorkerFileFailed(payload: unknown): void {
+    if (!isObjectRecord(payload)) {
+      return;
+    }
+
+    const fileId = String(payload.fileId ?? "").trim();
+    if (!fileId) {
+      return;
+    }
+
+    this.setFileApplyState(fileId, {
+      state: "failed",
+      code: "workerError",
+      message: getWorkerExtractionErrorMessage(normalizeExtractionErrorDetails(payload)),
+    });
+  }
 }
+
+const isSameTemplateApplyFileState = (
+  current: TemplateApplyFileState | undefined,
+  next: TemplateApplyFileState,
+): boolean =>
+  current?.state === next.state &&
+  (
+    current?.state !== "failed" ||
+    next.state === "failed" &&
+      current.code === next.code &&
+      current.message === next.message
+  ) &&
+  (
+    current?.state !== "skipped" ||
+    next.state === "skipped" &&
+      current.code === next.code &&
+      current.message === next.message
+  );
 
 export class BrowserTemplateApplyWorkflowService
   extends TemplateApplyController

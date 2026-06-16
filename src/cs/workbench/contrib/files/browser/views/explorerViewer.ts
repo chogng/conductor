@@ -75,7 +75,11 @@ import {
   ExplorerBadgeNode,
   type ExplorerBadgePresentation,
 } from "src/cs/workbench/contrib/files/browser/views/explorerBadgeNode";
-import type { IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
+import type {
+  IThumbnailPreviewService,
+  IThumbnailService,
+  ThumbnailPreviewState,
+} from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 import {
@@ -97,6 +101,7 @@ export type ExplorerViewerProps = {
   readonly contextViewService: IContextViewService;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
+  readonly thumbnailPreviewService: IThumbnailPreviewService;
   readonly thumbnailService: IThumbnailService;
   readonly currentTemplateLabel?: string;
   readonly currentTemplateSelection?: TemplateSelection;
@@ -217,12 +222,13 @@ type HoverContent =
   }
   | {
     readonly kind: "thumbnail";
+    readonly file: ThumbnailFileLike;
+    readonly fileId: string;
     readonly isSelected: boolean;
-    readonly processedFile: ProcessedEntry;
   };
 
 type HoverThumbnailCacheEntry = {
-  readonly file: ProcessedEntry;
+  readonly file: ThumbnailFileLike;
   readonly isActive: boolean;
   readonly node: HTMLElement;
   readonly plotModel: ExplorerThumbnailPlotModel | null;
@@ -525,6 +531,14 @@ export class ExplorerViewer implements IDisposable {
     this.disposables.add(
       addDisposableListener(this.host, "contextmenu", this.handleListContextMenu),
     );
+    this.disposables.add(this.props.thumbnailPreviewService.onDidChangePreview(event => {
+      if (
+        this.hoverContent?.kind === "thumbnail" &&
+        this.hoverContent.fileId === event.fileId
+      ) {
+        this.refreshVisibleHover();
+      }
+    }));
   }
 
   getListHandle(): ListHandle {
@@ -715,7 +729,10 @@ export class ExplorerViewer implements IDisposable {
   ): string {
     const badgeState = entry.badgeState;
     return [
+      entry.chartMessage ?? "",
+      entry.chartState ?? "",
       entry.fileId ?? "",
+      entry.hasChartData === true ? "1" : "0",
       entry.sourceStatus ?? "",
       entry.sourceStatusMessage ?? "",
       badgeState?.kind ?? "",
@@ -1268,7 +1285,7 @@ export class ExplorerViewer implements IDisposable {
       isActive: fileId === (this.props.selectedFileId ?? null),
       originOpenPlotOptions: this.props.originOpenPlotOptions,
       plotAxisSettings: this.props.plotAxisSettings,
-      plotModel: this.getThumbnailPlotModel(fileId),
+      plotModel: this.getThumbnailPreviewPlotModel(fileId, "visible"),
       plotType: this.props.activePlotType ?? "iv",
       thumbnailService: this.props.thumbnailService,
     }));
@@ -1488,14 +1505,31 @@ export class ExplorerViewer implements IDisposable {
     return item instanceof HTMLElement ? item : null;
   }
 
-  private getProcessedFile(fileId: string | null | undefined): ProcessedEntry | null {
+  private getThumbnailFileLike(fileId: string | null | undefined): ThumbnailFileLike | null {
     const normalizedFileId = String(fileId ?? "").trim();
     if (!normalizedFileId) {
       return null;
     }
 
-    return (Array.isArray(this.props.thumbnailFiles) ? this.props.thumbnailFiles : [])
-      .find((entry) => String(entry?.fileId ?? "").trim() === normalizedFileId) ?? null;
+    const thumbnailFile = (Array.isArray(this.props.thumbnailFiles) ? this.props.thumbnailFiles : [])
+      .find((entry) => String(entry?.fileId ?? "").trim() === normalizedFileId);
+    if (thumbnailFile) {
+      return thumbnailFile;
+    }
+
+    const file = this.props.files.find((entry) =>
+      String(entry.fileId ?? "").trim() === normalizedFileId);
+    if (!file) {
+      return null;
+    }
+
+    return {
+      curveFilterField: null,
+      curveFilterKey: null,
+      curveType: file.curveType ?? undefined,
+      fileId: file.fileId,
+      fileName: file.fileName,
+    };
   }
 
   private hasFileItemHoverContent(item: HTMLElement): boolean {
@@ -1644,15 +1678,21 @@ export class ExplorerViewer implements IDisposable {
       return null;
     }
 
-    const processedFile = this.getProcessedFile(item.dataset.fileId);
-    if (!processedFile) {
+    const fileId = String(item.dataset.fileId ?? "").trim();
+    if (!fileId) {
+      return null;
+    }
+
+    const file = this.getThumbnailFileLike(fileId);
+    if (!file) {
       return null;
     }
 
     return {
       kind: "thumbnail",
+      file,
+      fileId,
       isSelected: item.dataset.selected === "true",
-      processedFile,
     };
   }
 
@@ -1683,7 +1723,8 @@ export class ExplorerViewer implements IDisposable {
 
     if (content.kind === "thumbnail") {
       container.appendChild(this.getHoverThumbnail(
-        content.processedFile,
+        content.fileId,
+        content.file,
         content.isSelected,
       ));
       return;
@@ -1701,10 +1742,13 @@ export class ExplorerViewer implements IDisposable {
     container.appendChild(details);
   }
 
-  private getHoverThumbnail(file: ProcessedEntry, isActive: boolean): HTMLElement {
-    const fileId = String(file.fileId ?? file.fileName ?? "").trim();
-    const cacheKey = fileId || "__unknown__";
-    const plotModel = this.getThumbnailPlotModel(fileId);
+  private getHoverThumbnail(fileId: string, file: ThumbnailFileLike, isActive: boolean): HTMLElement {
+    const normalizedFileId = String(fileId || file.fileId || file.fileName || "").trim();
+    const cacheKey = normalizedFileId || "__unknown__";
+    const previewState = normalizedFileId
+      ? this.props.thumbnailPreviewService.request(normalizedFileId, "hover")
+      : { kind: "idle" } satisfies ThumbnailPreviewState;
+    const plotModel = getPreviewPlotModel(previewState) ?? this.getThumbnailPlotModel(fileId);
     const cached = this.hoverThumbnailCache.get(cacheKey);
     this.hoverCacheUse += 1;
     if (
@@ -1742,6 +1786,21 @@ export class ExplorerViewer implements IDisposable {
     return normalizedFileId
       ? this.props.thumbnailPlotModelsByFileId?.[normalizedFileId] ?? null
       : null;
+  }
+
+  private getThumbnailPreviewPlotModel(
+    fileId: string,
+    priority: "hover" | "visible",
+  ): ExplorerThumbnailPlotModel | null {
+    const normalizedFileId = String(fileId ?? "").trim();
+    if (!normalizedFileId) {
+      return null;
+    }
+
+    return getPreviewPlotModel(this.props.thumbnailPreviewService.request(
+      normalizedFileId,
+      priority,
+    )) ?? this.getThumbnailPlotModel(normalizedFileId);
   }
 
   private clearHoverThumbnailCache(): void {
@@ -1839,6 +1898,14 @@ function getEffectiveViewLayout(
   props: Pick<ExplorerViewerProps, "mode" | "viewLayout">,
 ): FilesViewLayout {
   return props.mode === "chart" ? props.viewLayout ?? "tree" : "tree";
+}
+
+function getPreviewPlotModel(
+  state: ThumbnailPreviewState,
+): ExplorerThumbnailPlotModel | null {
+  return state.kind === "ready" || state.kind === "rawReady"
+    ? state.model
+    : null;
 }
 
 function getRevealInOSLabel(): string {

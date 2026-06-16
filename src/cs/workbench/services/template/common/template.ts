@@ -75,6 +75,14 @@ export type TemplateApplyWorkflowInput = {
   fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
 };
 
+export type TemplateApplyFileState =
+  | { readonly state: "none" }
+  | { readonly state: "queued" }
+  | { readonly state: "processing" }
+  | { readonly state: "ready" }
+  | { readonly state: "skipped"; readonly code: string; readonly message: string }
+  | { readonly state: "failed"; readonly code: string; readonly message: string };
+
 export const ITemplateService = createDecorator<ITemplateService>("templateService");
 export const ITemplateApplyService = createDecorator<ITemplateApplyService>("templateApplyService");
 export const ITemplateApplyWorkflowService =
@@ -120,9 +128,11 @@ export interface ITemplateApplyWorkflowService {
   readonly _serviceBrand: undefined;
 
   readonly onDidChangeProcessingStatus: Event<ProcessingStatus>;
+  readonly onDidChangeFileStates: Event<readonly string[]>;
   readonly processingStatus: ProcessingStatus;
 
   applyTemplate(config: Record<string, unknown>): unknown;
   applyTemplateIncremental(config: Record<string, unknown>): unknown;
+  getFileApplyStates(): ReadonlyMap<string, TemplateApplyFileState>;
   update(input: TemplateApplyWorkflowInput): void;
 }

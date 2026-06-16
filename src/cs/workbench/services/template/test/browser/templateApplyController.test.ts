@@ -390,6 +390,96 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     assert.deepEqual(committedBatches[0].map(commit => commit.curves.fileId), ["file-a", "file-b"]);
     controller.dispose();
   });
+
+  test("publishes per-file apply states from plan and commits", async () => {
+    const queuedFileIds: string[][] = [];
+    let snapshot = createTemplateOutputSnapshot(["file-a", "file-b"]);
+    const changedFileIds: readonly string[][] = [];
+    const controller = new TemplateApplyController({
+      sessionService: createSessionService(undefined, {
+        commitTemplateOutputs: () => {
+          snapshot = {
+            ...snapshot,
+            sessionVersion: snapshot.sessionVersion + 1,
+          };
+        },
+        getSnapshot: () => snapshot,
+      }),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds, [], {
+        commitProcessedEntries: true,
+      }),
+    });
+    const disposable = controller.onDidChangeFileStates(fileIds => {
+      changedFileIds.push(fileIds);
+    });
+
+    controller.update({
+      processedFileIds: [],
+      rawFiles: [
+        createSessionFile("file-a"),
+        createSessionFile("file-b", {
+          curveTypeConfidence: "low",
+        }),
+      ],
+    });
+    controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    });
+
+    assert.equal(controller.getFileApplyStates().get("file-a")?.state, "ready");
+    assert.equal(controller.getFileApplyStates().get("file-b")?.state, "skipped");
+    assert.deepEqual(changedFileIds.flat(), ["file-a", "file-b", "file-a"]);
+    disposable.dispose();
+    controller.dispose();
+  });
+
+  test("drops pending template output commits from stale jobs", async () => {
+    const queuedFileIds: string[][] = [];
+    const startedJobs: ProcessingJobOptions[] = [];
+    const committedBatches: CommitTemplateOutputInput[][] = [];
+    const snapshot = createTemplateOutputSnapshot(["file-a"]);
+    const controller = new TemplateApplyController({
+      sessionService: createSessionService(undefined, {
+        commitTemplateOutputs: commits => {
+          committedBatches.push(commits);
+        },
+        getSnapshot: () => snapshot,
+      }),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds, startedJobs),
+    });
+
+    controller.update({
+      processedFileIds: [],
+      rawFiles: [createSessionFile("file-a")],
+    });
+    controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    });
+
+    startedJobs[0].commitTemplateOutput({
+      curveType: "transfer",
+      fileId: "file-a",
+      fileName: "file-a.csv",
+      series: [{
+        groupIndex: 0,
+        id: "file-a-series",
+        y: [1],
+      }],
+      xGroups: [[0]],
+    }, undefined, 999);
+    await waitForTemplateOutputFlush();
+
+    assert.deepEqual(committedBatches, []);
+    controller.dispose();
+  });
 });
 
 const createSessionFile = (

@@ -18,6 +18,14 @@ It should not independently rebuild curve data from Session when Plot can provid
 - converting `PlotRenderModel` into thumbnail output;
 - bitmap output used by Explorer thumbnail layout and hover previews.
 
+`IThumbnailPreviewService` owns:
+
+- per-file thumbnail preview state;
+- hover/visible/nearby/idle preview request and prefetch APIs;
+- preview cache invalidation from Session and Plot changes;
+- publishing `onDidChangePreview` so Explorer can refresh only the active hover
+  popover or affected thumbnail item.
+
 `src/cs/workbench/contrib/thumbnail` owns:
 
 - reusable thumbnail view components;
@@ -60,7 +68,7 @@ Thumbnail does not own:
 | File | Responsibility |
 | --- | --- |
 | `src/cs/workbench/services/thumbnail/common/thumbnail.ts` | Defines `IThumbnailService`, thumbnail request/result/cache key types. |
-| `src/cs/workbench/services/thumbnail/browser/thumbnailService.ts` | Owns cache, invalidation, request scheduling, and rendering coordination. |
+| `src/cs/workbench/services/thumbnail/browser/thumbnailService.ts` | Owns bitmap cache/rendering plus preview cache, invalidation, request scheduling, and rendering coordination. |
 | `src/cs/workbench/services/thumbnail/browser/thumbnailBitmap.ts` | Converts `PlotRenderModel` into bitmap/canvas output. No session reads. |
 | `src/cs/workbench/contrib/thumbnail/common/thumbnail.ts` | Defines thumbnail contribution action/command ids. |
 | `src/cs/workbench/contrib/thumbnail/browser/thumbnailView.ts` | Reusable thumbnail UI component. Receives display metadata and thumbnail render models. |
@@ -185,16 +193,20 @@ sequenceDiagram
     participant ExplorerViewer
     participant ContextViewService as IContextViewService
     participant HoverContainer as Explorer hover context-view container
+    participant ThumbnailPreviewService as IThumbnailPreviewService
     participant ThumbnailView as createThumbnailView
     participant ThumbnailRenderer as thumbnail rendering surface
 
     User->>ExplorerViewer: hover tree/list file item
-    ExplorerViewer->>ExplorerViewer: resolve hover file + plot model
+    ExplorerViewer->>ExplorerViewer: resolve hover fileId + display metadata
     ExplorerViewer->>ContextViewService: showContextView({ getAnchor, render, getWidth }, hoverHost)
     ContextViewService-->>ExplorerViewer: IOpenContextView
     ExplorerViewer->>HoverContainer: create Explorer-owned hover shell
-    ExplorerViewer->>ThumbnailView: createThumbnailView({ file, plotModel, renderer })
+    ExplorerViewer->>ThumbnailPreviewService: request(fileId, "hover")
+    ThumbnailPreviewService-->>ExplorerViewer: ready/loading/error state
+    ExplorerViewer->>ThumbnailView: createThumbnailView({ file, optional plotModel, renderer })
     ThumbnailView->>ThumbnailRenderer: render thumbnail content
+    ThumbnailPreviewService-->>ExplorerViewer: onDidChangePreview(fileId)
     ExplorerViewer->>ContextViewService: layout()
     User->>ExplorerViewer: leave item or hover container
     ExplorerViewer->>ContextViewService: hide/dismiss context view

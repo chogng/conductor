@@ -3,12 +3,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
+import type { Event } from "src/cs/base/common/event";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModelSource } from "src/cs/workbench/services/plot/common/plotModel";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 
 export const IThumbnailService = createDecorator<IThumbnailService>("thumbnailService");
+export const IThumbnailPreviewService = createDecorator<IThumbnailPreviewService>("thumbnailPreviewService");
 export const ThumbnailContributionId = "workbench.contrib.thumbnail";
+
+export type ThumbnailPreviewPriority = "hover" | "visible" | "nearby" | "idle";
+
+export type ThumbnailPreviewPlotModel = PlotMainRenderModelSource & {
+	readonly signature: string;
+};
+
+export type ThumbnailPreviewState =
+	| { readonly kind: "idle" }
+	| { readonly kind: "loading" }
+	| { readonly kind: "rawReady"; readonly model: ThumbnailPreviewPlotModel; readonly signature: string }
+	| { readonly kind: "ready"; readonly model: ThumbnailPreviewPlotModel; readonly signature: string }
+	| { readonly kind: "error"; readonly message: string };
+
+export type ThumbnailPreviewChangeEvent = {
+	readonly fileId: string;
+};
 
 export type ThumbnailBitmapOptions = {
 	readonly model: PlotMainRenderModelSource & {
@@ -29,4 +48,14 @@ export interface IThumbnailService {
 
 	clear(): void;
 	drawPlotThumbnail(target: ThumbnailBitmapTarget, options: ThumbnailBitmapOptions): void;
+}
+
+export interface IThumbnailPreviewService {
+	readonly _serviceBrand: undefined;
+	readonly onDidChangePreview: Event<ThumbnailPreviewChangeEvent>;
+
+	get(fileId: string): ThumbnailPreviewState;
+	request(fileId: string, priority: ThumbnailPreviewPriority): ThumbnailPreviewState;
+	prefetch(fileIds: readonly string[], priority: "visible" | "nearby" | "idle"): void;
+	invalidate(fileIds?: readonly string[]): void;
 }

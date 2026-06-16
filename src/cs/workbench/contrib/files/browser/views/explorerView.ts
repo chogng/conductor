@@ -91,6 +91,7 @@ export class ExplorerView implements IDisposable {
       contextViewService: this.props.contextViewService,
       originOpenPlotOptions: this.props.originOpenPlotOptions,
       plotAxisSettings: this.props.plotAxisSettings,
+      thumbnailPreviewService: this.props.thumbnailPreviewService,
       thumbnailService: this.props.thumbnailService,
       currentTemplateLabel: this.props.currentTemplateLabel,
       currentTemplateSelection: this.props.currentTemplateSelection,
