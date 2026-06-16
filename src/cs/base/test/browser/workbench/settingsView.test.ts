@@ -80,6 +80,20 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(whiteSwatch.dataset.selected, "false");
       assert.equal(darkSwatch.dataset.selected, "true");
       assert.ok(Array.from(container.querySelectorAll<HTMLButtonElement>(".settings-color-swatch")).every(swatch => swatch.disabled));
+
+      view.update(createSettingsViewOptions({
+        appearanceSettings: {
+          showExplorerBadges: false,
+          transparentChrome: false,
+        },
+      }));
+
+      assert.equal(getButton(container, "settings-explorer-badges-toggle"), explorerBadgesSwitch);
+      assert.equal(getButton(container, "settings-transparent-chrome-toggle"), transparentChromeSwitch);
+      assert.equal(explorerBadgesSwitch.disabled, false);
+      assert.equal(transparentChromeSwitch.disabled, false);
+      assert.equal(explorerBadgesSwitch.getAttribute("aria-checked"), "false");
+      assert.equal(transparentChromeSwitch.getAttribute("aria-checked"), "false");
     }
     finally {
       view.dispose();

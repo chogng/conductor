@@ -28,8 +28,7 @@
 .ui-switch--animate {
   transition:
     background-color 140ms ease,
-    box-shadow 140ms ease,
-    opacity 140ms ease;
+    box-shadow 140ms ease;
 }
 
 .ui-switch[data-state="checked"] {

@@ -184,6 +184,7 @@ suite("base/test/browser/ui/switch/switch", () => {
 
     assert.ok(widget.domNode.classList.contains("ui-switch--animate"));
     assert.ok(getComputedStyle(widget.domNode).transitionDuration !== "0s");
+    assert.equal(getComputedStyle(widget.domNode).transitionProperty.includes("opacity"), false);
     assert.ok(getComputedStyle(thumb).transitionDuration !== "0s");
 
     widget.dispose();
