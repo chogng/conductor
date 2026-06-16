@@ -47,6 +47,7 @@ import {
   mergeExplorerSourceEntries,
   resolveExplorerSelectionAfterRemoval,
   resolveExplorerSelectedFileId,
+  toExplorerBadgeLabel,
   type ExplorerFileEntry,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { TOGGLE_THUMBNAIL_VIEW_ACTION_ID } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
@@ -867,31 +868,16 @@ function createPendingFastBadgeState(
     fileName: pendingFile.sourceName,
     relativePath: pendingFile.relativePath,
   });
-  return fastBadge
+  const label = fastBadge ? toExplorerBadgeLabel(fastBadge.curveType) : null;
+  return fastBadge && label
     ? {
-        confidence: fastBadge.confidence,
-        kind: "fast",
-        label: getPendingFastBadgeLabel(fastBadge.curveType),
+        confidence: "tentative",
+        kind: "ready",
+        label,
         message: fastBadge.reason,
+        source: "fast",
       }
     : { kind: "pending" };
-}
-
-function getPendingFastBadgeLabel(curveType: string): string {
-  switch (curveType) {
-    case "transfer":
-      return "transfer";
-    case "output":
-      return "output";
-    case "cv":
-      return "cv";
-    case "cf":
-      return "cf";
-    case "pv":
-      return "pv";
-    default:
-      return curveType;
-  }
 }
 
 function getPendingSourcePath(pendingFile: PendingImportFile): string | null {

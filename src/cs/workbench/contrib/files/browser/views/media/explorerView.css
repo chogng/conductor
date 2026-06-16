@@ -227,7 +227,11 @@
   color: rgb(var(--text-secondary) / 0.72);
 }
 
-.file-list-item-assessment[data-state="fast"] {
+.file-list-item-assessment[data-source="fast"] {
+  color: rgb(var(--text-secondary) / 0.9);
+}
+
+.file-list-item-assessment[data-state="unknown"] {
   color: rgb(var(--text-secondary) / 0.9);
 }
 

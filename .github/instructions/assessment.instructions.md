@@ -81,6 +81,9 @@ flowchart TD
 - A block can point back to raw table cells using `RawTableRangeRef`.
 - Diagnostics should be explicit when confidence is low.
 - Assessment output must include `sourceRawTableVersion`; stale results must be ignored by Session.
+- Assessment queue entries that are delayed by Explorer visible-range priority
+  must capture the raw table source version when queued and drop the result if
+  the version changes before rows are read or before assessment is committed.
 - Keep curve family and curve mode separate. `iv`, `pv`, `cv`, `cf`, `it`,
   and `unknown` are measurement families. `transfer` and `output` are IV modes
   and must live in `ivMode`, not in `family`. `curveTypeLabel` / UI

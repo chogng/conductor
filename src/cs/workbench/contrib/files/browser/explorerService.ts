@@ -396,17 +396,24 @@ const areExplorerFilesEqual = (
       file.sourceStatus === nextFile.sourceStatus &&
       file.sourceStatusMessage === nextFile.sourceStatusMessage &&
       file.badgeState?.kind === nextFile.badgeState?.kind &&
+      file.fileVersion === nextFile.fileVersion &&
       (
         file.badgeState?.kind !== "error" ||
         nextFile.badgeState?.kind === "error" &&
           file.badgeState.message === nextFile.badgeState.message
       ) &&
       (
-        file.badgeState?.kind !== "fast" ||
-        nextFile.badgeState?.kind === "fast" &&
+        file.badgeState?.kind !== "ready" ||
+        nextFile.badgeState?.kind === "ready" &&
           file.badgeState.label === nextFile.badgeState.label &&
           file.badgeState.confidence === nextFile.badgeState.confidence &&
+          file.badgeState.source === nextFile.badgeState.source &&
           file.badgeState.message === nextFile.badgeState.message
+      ) &&
+      (
+        file.badgeState?.kind !== "unknown" ||
+        nextFile.badgeState?.kind === "unknown" &&
+          file.badgeState.source === nextFile.badgeState.source
       ) &&
       file.curveType === nextFile.curveType &&
       file.curveTypeBadgeLabel === nextFile.curveTypeBadgeLabel &&

@@ -203,26 +203,33 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       [
         {
           badgeState: {
-            confidence: "medium",
-            kind: "fast",
+            confidence: "tentative",
+            kind: "ready",
             label: "output",
             message: "Fast badge from file name or path.",
+            source: "fast",
           },
           curveTypeBadgeLabel: null,
           fileId: "output-file",
         },
         {
           badgeState: {
-            confidence: "low",
-            kind: "fast",
+            confidence: "tentative",
+            kind: "ready",
             label: "transfer",
             message: "Fast badge from visible table headers.",
+            source: "fast",
           },
           curveTypeBadgeLabel: null,
           fileId: "header-file",
         },
         {
-          badgeState: { kind: "ready" },
+          badgeState: {
+            confidence: "confirmed",
+            kind: "ready",
+            label: "transfer",
+            source: "assessment",
+          },
           curveTypeBadgeLabel: "transfer",
           fileId: "ready-file",
         },

@@ -26,16 +26,25 @@ import {
 
 export type ExplorerSourceStatus = "pending" | "preparing" | "failed";
 
+export type ExplorerBadgeLabel =
+	| "transfer"
+	| "output"
+	| "cv"
+	| "cf"
+	| "pv"
+	| "mixed";
+
 export type ExplorerBadgeState =
-	| { readonly kind: "ready" }
 	| {
-			readonly confidence?: "medium" | "low";
-			readonly kind: "fast";
-			readonly label: string;
+			readonly confidence: "tentative" | "confirmed";
+			readonly kind: "ready";
+			readonly label: ExplorerBadgeLabel;
 			readonly message?: string | null;
+			readonly source: "fast" | "assessment";
 		}
 	| { readonly kind: "pending" }
 	| { readonly kind: "none" }
+	| { readonly kind: "unknown"; readonly source: "assessment" }
 	| { readonly kind: "error"; readonly message?: string | null };
 
 export type ExplorerFileEntry = {
@@ -50,6 +59,7 @@ export type ExplorerFileEntry = {
 	readonly sourceStatus?: ExplorerSourceStatus;
 	readonly sourceStatusMessage?: string | null;
 	readonly badgeState?: ExplorerBadgeState;
+	readonly fileVersion?: number;
 	readonly curveType?: string | null;
 	readonly curveTypeBadgeLabel?: string | null;
 	readonly curveTypeConfidence?: "high" | "medium" | "low";
@@ -340,6 +350,39 @@ const getExplorerCurveTypeBadgeLabel = (
 	return normalizedCurveType;
 };
 
+export const toExplorerBadgeLabel = (
+	value: unknown,
+): ExplorerBadgeLabel | null => {
+	const normalized = String(value ?? "").trim().toLowerCase();
+	if (!normalized) {
+		return null;
+	}
+
+	if (normalized.includes("transfer")) {
+		return "transfer";
+	}
+	if (normalized.includes("output")) {
+		return "output";
+	}
+	if (normalized === "cv" || normalized.includes("capacitance-voltage")) {
+		return "cv";
+	}
+	if (normalized === "cf" || normalized.includes("capacitance-frequency")) {
+		return "cf";
+	}
+	if (normalized === "pv" || normalized.includes("photovoltaic")) {
+		return "pv";
+	}
+	if (normalized === "iv" || normalized.includes("id-v")) {
+		return "mixed";
+	}
+	if (normalized === "mixed") {
+		return "mixed";
+	}
+
+	return null;
+};
+
 const hasFileRecordChartData = (file: FileRecord): boolean =>
 	collectFileRecordBaseCurves(file).length > 0;
 
@@ -361,10 +404,50 @@ const createExplorerAssessmentBadgeState = (
 		SessionFile | ProcessedEntry,
 		"curveType" | "curveTypeConfidence" | "curveTypeNeedsTemplate" | "curveTypeReasons"
 	>,
-): ExplorerBadgeState =>
-	hasExplorerAssessmentSummary(file)
-		? { kind: "ready" }
-		: { kind: "pending" };
+	xAxisRole?: SessionFile["xAxisRole"],
+): ExplorerBadgeState => {
+	if (!hasExplorerAssessmentSummary(file)) {
+		return { kind: "pending" };
+	}
+
+	const curveType = getOptionalNullableString(file.curveType);
+	if (!curveType || curveType.toLowerCase() === "unknown") {
+		return { kind: "unknown", source: "assessment" };
+	}
+
+	const label = toExplorerBadgeLabel(
+		getExplorerCurveTypeBadgeLabel(curveType, xAxisRole ?? null),
+	);
+	return label
+		? {
+				confidence: "confirmed",
+				kind: "ready",
+				label,
+				source: "assessment",
+			}
+		: { kind: "unknown", source: "assessment" };
+};
+
+const getExplorerFileVersion = (
+	value: unknown,
+): number | undefined => {
+	const version = Math.floor(Number(value));
+	return Number.isFinite(version) && version >= 0 ? version : undefined;
+};
+
+const getFileRecordVersion = (
+	file: FileRecord,
+	fallback: unknown,
+): number | undefined => {
+	const versions = Object.values(file.rawTableVersionsById ?? {})
+		.map(value => getExplorerFileVersion(value))
+		.filter((value): value is number => typeof value === "number");
+	if (!versions.length) {
+		return getExplorerFileVersion(fallback);
+	}
+
+	return Math.max(...versions);
+};
 
 export const createRawExplorerFiles = (
 	rawFiles: readonly SessionFile[],
@@ -378,7 +461,8 @@ export const createRawExplorerFiles = (
 		relativePath: file.relativePath ?? null,
 		sourceKey: getOptionalString(file.sourceKey),
 		sourcePath: file.sourcePath,
-		badgeState: createExplorerAssessmentBadgeState(file),
+		badgeState: createExplorerAssessmentBadgeState(file, file.xAxisRole),
+		fileVersion: getExplorerFileVersion(file.sourceVersion),
 		curveType: file.curveType ?? null,
 		curveTypeBadgeLabel: getExplorerCurveTypeBadgeLabel(
 			file.curveType,
@@ -429,12 +513,13 @@ export const createChartExplorerFilesFromRecords = (
 			relativePath: file.raw.relativePath ?? rawFile?.relativePath ?? null,
 			sourceKey: getOptionalString(rawFile?.sourceKey ?? file.raw.rawKey),
 			sourcePath: file.raw.filePath ?? rawFile?.sourcePath,
+			fileVersion: getFileRecordVersion(file, rawFile?.sourceVersion),
 			badgeState: createExplorerAssessmentBadgeState({
 				curveType,
 				curveTypeConfidence: rawFile?.curveTypeConfidence,
 				curveTypeNeedsTemplate: rawFile?.curveTypeNeedsTemplate,
 				curveTypeReasons: rawFile?.curveTypeReasons,
-			}),
+			}, xAxisRole),
 			curveType,
 			curveTypeBadgeLabel: getExplorerCurveTypeBadgeLabel(curveType, xAxisRole),
 			curveTypeConfidence: rawFile?.curveTypeConfidence,
@@ -484,6 +569,7 @@ export const createChartExplorerFiles = (
 			relativePath: rawFile?.relativePath ?? null,
 			sourceKey: getOptionalString(rawFile?.sourceKey),
 			sourcePath: rawFile?.sourcePath,
+			fileVersion: getExplorerFileVersion(rawFile?.sourceVersion),
 			badgeState: createExplorerAssessmentBadgeState({
 				curveType,
 				curveTypeConfidence:
@@ -491,7 +577,7 @@ export const createChartExplorerFiles = (
 				curveTypeNeedsTemplate:
 					processedFile.curveTypeNeedsTemplate ?? rawFile?.curveTypeNeedsTemplate,
 				curveTypeReasons: processedFile.curveTypeReasons ?? rawFile?.curveTypeReasons,
-			}),
+			}, xAxisRole),
 			curveType,
 			curveTypeBadgeLabel: getExplorerCurveTypeBadgeLabel(curveType, xAxisRole),
 			curveTypeConfidence:

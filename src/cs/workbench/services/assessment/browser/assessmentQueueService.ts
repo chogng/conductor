@@ -30,12 +30,17 @@ import {
 const RAW_TABLE_ASSESSMENT_PREVIEW_ROWS = 256;
 const RAW_TABLE_ASSESSMENT_BACKGROUND_COMMIT_BATCH_SIZE = 16;
 
+type QueuedRawTableAssessment = {
+  readonly ref: RawTableRef;
+  readonly sourceRawTableVersion: number;
+};
+
 export class AssessmentQueueService extends Disposable implements IAssessmentQueueServiceType {
   public declare readonly _serviceBrand: undefined;
 
-  private readonly pendingBackgroundRefsByKey = new Map<string, RawTableRef>();
-  private readonly pendingNearbyRefsByKey = new Map<string, RawTableRef>();
-  private readonly pendingVisibleRefsByKey = new Map<string, RawTableRef>();
+  private readonly pendingBackgroundRefsByKey = new Map<string, QueuedRawTableAssessment>();
+  private readonly pendingNearbyRefsByKey = new Map<string, QueuedRawTableAssessment>();
+  private readonly pendingVisibleRefsByKey = new Map<string, QueuedRawTableAssessment>();
   private readonly preferredOrderByKey = new Map<string, number>();
   private readonly preferredPriorityByKey = new Map<string, AssessmentQueuePriority>();
   private disposed = false;
@@ -63,12 +68,19 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
   public enqueueRawTables(refs: readonly RawTableRef[]): void {
     for (const ref of uniqueRawTableRefs(refs)) {
       const key = getRawTableRefKey(ref);
-      if (this.hasPendingRawTableRef(key)) {
+      const entry = this.createQueuedRawTableAssessment(ref);
+      if (!entry) {
         continue;
       }
 
+      const pending = this.getPendingRawTableRef(key);
+      if (pending?.sourceRawTableVersion === entry.sourceRawTableVersion) {
+        continue;
+      }
+
+      this.deletePendingRawTableRef(key);
       const priority = this.preferredPriorityByKey.get(key) ?? "background";
-      this.getQueueForPriority(priority).set(key, ref);
+      this.getQueueForPriority(priority).set(key, entry);
       this.reorderQueueForPriority(priority);
     }
 
@@ -84,7 +96,13 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
       this.preferredPriorityByKey.set(key, priority);
       this.preferredOrderByKey.set(key, this.nextPreferredOrder);
       this.nextPreferredOrder += 1;
-      this.movePendingRawTableRef(ref, key, priority);
+
+      const entry = this.createQueuedRawTableAssessment(ref);
+      if (!entry) {
+        continue;
+      }
+
+      this.movePendingRawTableRef(entry, key, priority);
     }
 
     this.startAssessmentQueue();
@@ -106,12 +124,12 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     let hasCommittedAssessment = false;
     try {
       while (!this.disposed) {
-        const ref = this.shiftPendingRawTableRef();
-        if (!ref) {
+        const entry = this.shiftPendingRawTableRef();
+        if (!entry) {
           break;
         }
 
-        const assessment = await this.assessRawTableRef(ref);
+        const assessment = await this.assessRawTableRef(entry);
         if (!assessment || this.disposed) {
           continue;
         }
@@ -138,21 +156,37 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     }
   }
 
-  private async assessRawTableRef(ref: RawTableRef): Promise<RawTableAssessmentRecord | null> {
+  private async assessRawTableRef(
+    entry: QueuedRawTableAssessment,
+  ): Promise<RawTableAssessmentRecord | null> {
+    const targetRef = entry.ref;
+    const queuedSourceRawTableVersion = entry.sourceRawTableVersion;
     const snapshot = this.sessionService.getSnapshot();
-    const file = snapshot.filesById[ref.fileId];
+    const file = snapshot.filesById[targetRef.fileId];
     if (!file) {
       return null;
     }
 
-    const rawTableId = ref.rawTableId;
+    const rawTableId = targetRef.rawTableId;
     const table = file.raw.tablesById[rawTableId];
     if (!table || hasCurrentAssessment(file, rawTableId)) {
       return null;
     }
 
+    const sourceRawTableVersion = file.rawTableVersionsById[rawTableId] ?? 0;
+    if (
+      queuedSourceRawTableVersion !== undefined &&
+      queuedSourceRawTableVersion !== sourceRawTableVersion
+    ) {
+      return null;
+    }
+
     const rows = await readRowsForAssessment(file, table, this.rawTableRowsReaderService);
     if (!rows || this.disposed) {
+      return null;
+    }
+
+    if (!this.isCurrentRawTableVersion(targetRef, sourceRawTableVersion)) {
       return null;
     }
 
@@ -163,13 +197,13 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
       rawTableId,
       rowCount: table.rowCount,
       rows,
-      sourceRawTableVersion: file.rawTableVersionsById[rawTableId] ?? 0,
+      sourceRawTableVersion,
     });
   }
 
   private getQueueForPriority(
     priority: AssessmentQueuePriority,
-  ): Map<string, RawTableRef> {
+  ): Map<string, QueuedRawTableAssessment> {
     switch (priority) {
       case "visible":
         return this.pendingVisibleRefsByKey;
@@ -180,12 +214,6 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     }
   }
 
-  private hasPendingRawTableRef(key: string): boolean {
-    return this.pendingVisibleRefsByKey.has(key) ||
-      this.pendingNearbyRefsByKey.has(key) ||
-      this.pendingBackgroundRefsByKey.has(key);
-  }
-
   private hasPendingRawTableRefs(): boolean {
     return this.pendingVisibleRefsByKey.size > 0 ||
       this.pendingNearbyRefsByKey.size > 0 ||
@@ -193,16 +221,23 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
   }
 
   private movePendingRawTableRef(
-    ref: RawTableRef,
+    entry: QueuedRawTableAssessment,
     key: string,
     priority: AssessmentQueuePriority,
   ): void {
-    const existing = this.deletePendingRawTableRef(key) ?? ref;
-    this.getQueueForPriority(priority).set(key, existing);
+    this.deletePendingRawTableRef(key);
+    this.getQueueForPriority(priority).set(key, entry);
     this.reorderQueueForPriority(priority);
   }
 
-  private deletePendingRawTableRef(key: string): RawTableRef | null {
+  private getPendingRawTableRef(key: string): QueuedRawTableAssessment | null {
+    return this.pendingVisibleRefsByKey.get(key) ??
+      this.pendingNearbyRefsByKey.get(key) ??
+      this.pendingBackgroundRefsByKey.get(key) ??
+      null;
+  }
+
+  private deletePendingRawTableRef(key: string): QueuedRawTableAssessment | null {
     for (const queue of [
       this.pendingVisibleRefsByKey,
       this.pendingNearbyRefsByKey,
@@ -218,10 +253,42 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     return null;
   }
 
-  private shiftPendingRawTableRef(): RawTableRef | null {
+  private shiftPendingRawTableRef(): QueuedRawTableAssessment | null {
     return shiftPendingRawTableRef(this.pendingVisibleRefsByKey) ??
       shiftPendingRawTableRef(this.pendingNearbyRefsByKey) ??
       shiftPendingRawTableRef(this.pendingBackgroundRefsByKey);
+  }
+
+  private createQueuedRawTableAssessment(
+    ref: RawTableRef,
+  ): QueuedRawTableAssessment | null {
+    const snapshot = this.sessionService.getSnapshot();
+    const file = snapshot.filesById[ref.fileId];
+    const sourceRawTableVersion = file?.rawTableVersionsById[ref.rawTableId];
+    if (
+      !file ||
+      !file.raw.tablesById[ref.rawTableId] ||
+      typeof sourceRawTableVersion !== "number" ||
+      hasCurrentAssessment(file, ref.rawTableId)
+    ) {
+      return null;
+    }
+
+    return {
+      ref,
+      sourceRawTableVersion,
+    };
+  }
+
+  private isCurrentRawTableVersion(
+    ref: RawTableRef,
+    sourceRawTableVersion: number,
+  ): boolean {
+    const file = this.sessionService.getSnapshot().filesById[ref.fileId];
+    return Boolean(
+      file?.raw.tablesById[ref.rawTableId] &&
+        (file.rawTableVersionsById[ref.rawTableId] ?? 0) === sourceRawTableVersion,
+    );
   }
 
   private reorderQueueForPriority(priority: AssessmentQueuePriority): void {
@@ -300,8 +367,8 @@ const uniqueRawTableRefs = (
 };
 
 const shiftPendingRawTableRef = (
-  refsByKey: Map<string, RawTableRef>,
-): RawTableRef | null => {
+  refsByKey: Map<string, QueuedRawTableAssessment>,
+): QueuedRawTableAssessment | null => {
   const first = refsByKey.entries().next();
   if (first.done) {
     return null;

@@ -103,6 +103,10 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       contextViewService,
       expandedFolderKeys: ["folder:Folder"],
       files: [{
+        badgeState: {
+          kind: "unknown",
+          source: "assessment",
+        },
         curveType: "unknown",
         curveTypeBadgeLabel: "unknown",
         curveTypeConfidence: "low",
@@ -201,6 +205,12 @@ const createViewerProps = (): ExplorerViewerProps => ({
   } as unknown as IContextMenuService,
   contextViewService: new TestContextViewService(),
   files: [{
+    badgeState: {
+      confidence: "confirmed",
+      kind: "ready",
+      label: "mixed",
+      source: "assessment",
+    },
     curveType: "IV",
     curveTypeBadgeLabel: "iv",
     curveTypeConfidence: "high",

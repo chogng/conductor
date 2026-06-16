@@ -14,6 +14,7 @@ import {
   createChartExplorerFilesFromRecords,
   createRawExplorerFiles,
   resolveExplorerSelectedFileId,
+  toExplorerBadgeLabel,
   type ExplorerFileEntry,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
@@ -348,13 +349,19 @@ const applyFastExplorerBadge = (
     return file;
   }
 
+  const label = toExplorerBadgeLabel(fastBadge.curveType);
+  if (!label) {
+    return file;
+  }
+
   return {
     ...file,
     badgeState: {
-      confidence: fastBadge.confidence,
-      kind: "fast",
-      label: getFastExplorerBadgeLabel(fastBadge.curveType),
+      confidence: "tentative",
+      kind: "ready",
+      label,
       message: fastBadge.reason,
+      source: "fast",
     },
   };
 };
@@ -387,25 +394,6 @@ const getFastBadgeRows = (
   return rowStore?.kind === "memory"
     ? rowStore.rows.slice(0, 4)
     : undefined;
-};
-
-const getFastExplorerBadgeLabel = (
-  curveType: string,
-): string => {
-  switch (curveType) {
-    case "transfer":
-      return "transfer";
-    case "output":
-      return "output";
-    case "cv":
-      return "cv";
-    case "cf":
-      return "cf";
-    case "pv":
-      return "pv";
-    default:
-      return curveType;
-  }
 };
 
 const createThumbnailPlotModelsByFileId = ({

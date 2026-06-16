@@ -42,12 +42,18 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           relativePath: "batch/raw.csv",
           sourceKey: "source-key",
           sourcePath: "C:/data/raw.csv",
-          badgeState: { kind: "ready" },
+          badgeState: {
+            confidence: "confirmed",
+            kind: "ready",
+            label: "output",
+            source: "assessment",
+          },
           curveType: "output (vd)",
           curveTypeBadgeLabel: "output",
           curveTypeConfidence: "medium",
           curveTypeNeedsTemplate: false,
           curveTypeReasons: ["Shape evidence matches output-style Id-Vd behavior."],
+          fileVersion: undefined,
         },
       ],
     );
@@ -87,12 +93,18 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         relativePath: "batch/raw.csv",
         sourceKey: "source-key",
         sourcePath: "C:/data/raw.csv",
-        badgeState: { kind: "ready" },
+        badgeState: {
+          confidence: "confirmed",
+          kind: "ready",
+          label: "mixed",
+          source: "assessment",
+        },
         curveType: "iv",
         curveTypeBadgeLabel: "iv",
         curveTypeConfidence: "high",
         curveTypeNeedsTemplate: undefined,
         curveTypeReasons: undefined,
+        fileVersion: undefined,
       },
     ]);
   });
@@ -137,12 +149,18 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         relativePath: "batch/canonical.csv",
         sourceKey: "source-key",
         sourcePath: "C:/canonical/raw.csv",
-        badgeState: { kind: "ready" },
+        badgeState: {
+          confidence: "confirmed",
+          kind: "ready",
+          label: "transfer",
+          source: "assessment",
+        },
         curveType: "transfer",
         curveTypeBadgeLabel: "transfer",
         curveTypeConfidence: "low",
         curveTypeNeedsTemplate: true,
         curveTypeReasons: undefined,
+        fileVersion: undefined,
       },
     ]);
   });
@@ -186,6 +204,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           curveTypeConfidence: undefined,
           curveTypeNeedsTemplate: undefined,
           curveTypeReasons: undefined,
+          fileVersion: 1,
         },
       ],
     );

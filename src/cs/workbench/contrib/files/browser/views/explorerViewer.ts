@@ -65,6 +65,10 @@ import {
   createThumbnailView,
   type ThumbnailFileLike,
 } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailView";
+import {
+  ExplorerBadgeNode,
+  type ExplorerBadgePresentation,
+} from "src/cs/workbench/contrib/files/browser/views/explorerBadgeNode";
 import type { IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
@@ -130,7 +134,8 @@ const getFileHoverThumbnailWidth = (): number =>
 type FileItemAssessment = {
   readonly label: string;
   readonly isWarning: boolean;
-  readonly state: "ready";
+  readonly source: "assessment";
+  readonly state: "ready" | "unknown";
   readonly type: string;
   readonly confidence: string;
   readonly reasons: readonly string[];
@@ -155,13 +160,14 @@ type FilePendingAssessment = {
 type FileFastAssessment = {
   readonly label: string;
   readonly isWarning: boolean;
+  readonly source: "fast";
   readonly state: "fast";
   readonly title: string;
 };
 
 type FileItemTemplate = {
   readonly actions: HTMLDivElement;
-  readonly assessment: HTMLSpanElement;
+  readonly assessment: ExplorerBadgeNode;
   readonly content: HTMLDivElement;
   fileId: string | null;
   readonly host: HTMLElement;
@@ -228,6 +234,14 @@ const createFileItemAssessment = (
   fileEntry: ExplorerFileEntry,
   templateLabel: string,
 ): FileItemAssessment | null => {
+  const badgeState = fileEntry.badgeState;
+  if (
+    (badgeState?.kind !== "ready" && badgeState?.kind !== "unknown") ||
+    badgeState?.source !== "assessment"
+  ) {
+    return null;
+  }
+
   const confidence = fileEntry?.curveTypeConfidence
     ? String(fileEntry.curveTypeConfidence).trim()
     : localize("files.autoUnknown", "Unknown");
@@ -241,14 +255,18 @@ const createFileItemAssessment = (
   const curveType =
     String(fileEntry.curveType ?? "").trim() ||
     localize("files.autoUnknown", "Unknown");
-  const label = String(fileEntry.curveTypeBadgeLabel ?? "").trim() || curveType;
+  const label = badgeState.kind === "ready"
+    ? badgeState.label
+    : localize("files.autoUnknown", "Unknown");
 
   return {
     label,
     isWarning:
+      badgeState.kind === "unknown" ||
       fileEntry?.curveTypeNeedsTemplate === true ||
       fileEntry?.curveTypeConfidence === "low",
-    state: "ready",
+    source: "assessment",
+    state: badgeState.kind === "unknown" ? "unknown" : "ready",
     type: curveType,
     confidence,
     reasons: reasons.length ? reasons : [localize("files.autoNoReason", "Not available")],
@@ -307,7 +325,10 @@ const createFilePendingAssessment = (
 const createFileFastAssessment = (
   fileEntry: ExplorerFileEntry,
 ): FileFastAssessment | null => {
-  if (fileEntry.badgeState?.kind !== "fast") {
+  if (
+    fileEntry.badgeState?.kind !== "ready" ||
+    fileEntry.badgeState.source !== "fast"
+  ) {
     return null;
   }
 
@@ -318,10 +339,40 @@ const createFileFastAssessment = (
 
   return {
     label,
-    isWarning: fileEntry.badgeState.confidence === "low",
+    isWarning: false,
+    source: "fast",
     state: "fast",
     title: fileEntry.badgeState.message ??
       localize("files.autoFastBadge", "Fast estimate"),
+  };
+};
+
+const getFileRenderKey = (
+  fileEntry: ExplorerFileEntry,
+): string =>
+  String(
+    fileEntry.fileId ??
+      fileEntry.itemKey ??
+      fileEntry.sourceKey ??
+      fileEntry.fileName ??
+      "",
+  );
+
+const createBadgePresentation = (
+  fileKey: string,
+  badge: FileItemAssessment | FileSourceStatusBadge | FileFastAssessment | FilePendingAssessment | null,
+): ExplorerBadgePresentation => {
+  if (!badge) {
+    return null;
+  }
+
+  return {
+    fileKey,
+    isWarning: badge.isWarning,
+    label: badge.label,
+    source: "source" in badge ? badge.source : null,
+    state: badge.state,
+    title: "title" in badge ? badge.title : null,
   };
 };
 
@@ -619,11 +670,15 @@ export class ExplorerViewer implements IDisposable {
         entry.sourceStatus ?? "",
         entry.sourceStatusMessage ?? "",
         entry.badgeState?.kind ?? "",
-        entry.badgeState?.kind === "error" || entry.badgeState?.kind === "fast"
+        entry.badgeState?.kind === "error" ||
+          entry.badgeState?.kind === "ready"
           ? entry.badgeState.message ?? ""
           : "",
-        entry.badgeState?.kind === "fast" ? entry.badgeState.label : "",
-        entry.badgeState?.kind === "fast" ? entry.badgeState.confidence ?? "" : "",
+        entry.badgeState?.kind === "ready" ? entry.badgeState.label : "",
+        entry.badgeState?.kind === "ready" ? entry.badgeState.confidence : "",
+        entry.badgeState?.kind === "ready" ? entry.badgeState.source : "",
+        entry.badgeState?.kind === "unknown" ? entry.badgeState.source : "",
+        entry.fileVersion ?? "",
         getFileName(entry),
         entry.curveType ?? "",
         entry.curveTypeBadgeLabel ?? "",
@@ -954,6 +1009,8 @@ export class ExplorerViewer implements IDisposable {
     const fastAssessment = createFileFastAssessment(fileEntry);
     const pendingAssessment = createFilePendingAssessment(fileEntry);
     const { host } = template;
+    const fileKey = getFileRenderKey(fileEntry);
+    template.assessment.bind(fileKey);
 
     host.className = "file-list-item";
     delete host.dataset.expanded;
@@ -995,6 +1052,13 @@ export class ExplorerViewer implements IDisposable {
     } else {
       delete host.dataset.badgeState;
     }
+    if (fileEntry.badgeState?.kind === "ready") {
+      host.dataset.badgeSource = fileEntry.badgeState.source;
+    } else if (fileEntry.badgeState?.kind === "unknown") {
+      host.dataset.badgeSource = fileEntry.badgeState.source;
+    } else {
+      delete host.dataset.badgeSource;
+    }
 
     if (fileEntry?.itemKey) {
       host.dataset.itemKey = fileEntry.itemKey;
@@ -1016,23 +1080,7 @@ export class ExplorerViewer implements IDisposable {
     const badge = sourceStatus?.status === "failed"
       ? sourceStatus
       : assessment ?? fastAssessment ?? sourceStatus ?? pendingAssessment;
-    if (badge) {
-      template.assessment.textContent = badge.label;
-      template.assessment.dataset.state = badge.state;
-      if ("title" in badge && badge.title) {
-        template.assessment.title = badge.title;
-      } else {
-        template.assessment.removeAttribute("title");
-      }
-      template.assessment.dataset.warning = badge.isWarning ? "true" : "false";
-      template.assessment.hidden = false;
-    } else {
-      template.assessment.textContent = "";
-      template.assessment.removeAttribute("title");
-      delete template.assessment.dataset.state;
-      delete template.assessment.dataset.warning;
-      template.assessment.hidden = true;
-    }
+    template.assessment.setBadge(fileKey, createBadgePresentation(fileKey, badge));
     template.removeButton.setAttribute(
       "aria-label",
       localize("files.import.removeFileButtonLabel", "Remove {fileName}", { fileName }),
@@ -1114,9 +1162,10 @@ export class ExplorerViewer implements IDisposable {
 
     const actions = document.createElement("div");
     actions.className = "file-list-item-actions";
-    const assessment = document.createElement("span");
-    assessment.className = "file-list-item-assessment";
-    assessment.hidden = true;
+    const assessmentHost = document.createElement("span");
+    assessmentHost.className = "file-list-item-assessment";
+    assessmentHost.hidden = true;
+    const assessment = new ExplorerBadgeNode(assessmentHost);
 
     const removeButton = document.createElement("button");
     removeButton.type = "button";
@@ -1139,7 +1188,7 @@ export class ExplorerViewer implements IDisposable {
     });
     appendIcon(removeButton, LxIcon.close);
 
-    actions.append(assessment, removeButton);
+    actions.append(assessmentHost, removeButton);
     return template;
   }
 

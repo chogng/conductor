@@ -293,6 +293,30 @@ Explorer view code should:
 Thumbnail mode is an Explorer layout mode, not a `FilterViewPane`. Filtering or narrowing thumbnail inputs is Explorer business logic unless a shared view-level filter widget is intentionally introduced.
 Explorer view rerenders must not call `IThumbnailService.clear()` as a generic invalidation step. Thumbnail bitmap cache invalidation belongs to the thumbnail service cache key/signature logic or to an explicit thumbnail cache command.
 
+Explorer badge projection rules live in `explorer-badge.instructions.md`.
+Badges are Explorer decorations only: fast badges are tentative first-frame
+projection, full assessment badges are confirmed display facts, and neither
+belongs in converter output or Session as canonical state.
+
+```mermaid
+sequenceDiagram
+    participant Bridge as WorkbenchDomainBridge
+    participant Explorer as IExplorerService
+    participant View as ExplorerView/ObjectTree
+    participant Queue as IAssessmentQueueService
+    participant Session as ISessionService
+
+    Bridge->>Explorer: updatePaneInput(files with pending/fast badgeState)
+    Explorer-->>View: onDidChangePaneInput; view rereads input
+    View->>View: render row + stable badge slot
+    View->>Explorer: setVisibleFileIds(visible, nearby)
+    Explorer-->>Bridge: onDidChangeVisibleFileIds
+    Bridge->>Queue: prioritizeRawTables(visible, nearby)
+    Queue->>Session: commitRawTableAssessments(confirmed/unknown result)
+    Session-->>Bridge: assessmentChanged
+    Bridge->>Explorer: updatePaneInput(files with assessment badgeState)
+```
+
 ## Explorer Tree/Thumbnail Wiring
 
 Tree and thumbnail are two Explorer presentations over the same resource model. They must share Explorer selection, file item actions, and source workflow wiring.

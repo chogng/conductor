@@ -593,6 +593,8 @@ Invalidation: session/read-model facts, mode, and Explorer pane input signature.
 | `sourcePath` | `string | null | undefined` | Native/source path for file actions. |
 | `sourceStatus` | `'pending' | 'preparing' | 'failed' | undefined` | View-local source import status for pending source rows. Not canonical. |
 | `sourceStatusMessage` | `string | null | undefined` | Optional view-local source status detail, usually a prepare failure message. Not canonical. |
+| `badgeState` | `ExplorerBadgeState | undefined` | Explorer-only badge projection. `pending`/`ready(source: fast)` are first-frame display hints; `ready(source: assessment)`/`unknown` are full assessment facts. Not canonical and never written to Session/converter results. |
+| `fileVersion` | `number | undefined` | Resource version used to drop stale Explorer badge/render updates. Usually projected from the raw table source version. Not canonical beyond the owning raw/session version. |
 | `curveType` | `string | null | undefined` | Full assessed curve type shown in hover details. |
 | `curveTypeBadgeLabel` | `string | null | undefined` | Compact curve badge label already projected for Explorer rendering. Views consume this field and must not parse `curveType` text to derive it. |
 | `curveTypeConfidence` | `'high' | 'medium' | 'low' | undefined` | Assessment confidence projected from session/assessment. |

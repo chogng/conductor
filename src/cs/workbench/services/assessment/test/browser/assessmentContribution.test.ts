@@ -134,6 +134,35 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		contribution.dispose();
 		assessmentQueueService.dispose();
 	});
+
+	test("discards stale queued assessment when raw table version changes while rows are loading", async () => {
+		const sessionService = new SessionService();
+		const assessmentService = new TestAssessmentService();
+		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
+		const assessmentQueueService = new AssessmentQueueService(
+			sessionService,
+			assessmentService,
+			rawTableRowsReaderService,
+		);
+		const contribution = new AssessmentContribution(
+			sessionService,
+			assessmentQueueService,
+		);
+
+		sessionService.commitFileImport(createInlineImportResult());
+		await waitUntil(() => rawTableRowsReaderService.inputs.length === 1);
+		sessionService.commitFileImport(createInlineImportResult());
+		rawTableRowsReaderService.resolveFirstRead();
+		await waitUntil(() => assessmentService.inputs.length === 1);
+
+		assert.deepEqual(
+			assessmentService.inputs.map(input => input.sourceRawTableVersion),
+			[2],
+		);
+
+		contribution.dispose();
+		assessmentQueueService.dispose();
+	});
 });
 
 class TestAssessmentService implements IAssessmentService {
@@ -295,3 +324,42 @@ class TestRawTableRowsReaderService implements IRawTableRowsReaderService {
 		));
 	}
 }
+
+class BlockingRawTableRowsReaderService extends TestRawTableRowsReaderService {
+	private firstRead:
+		| { readonly resolve: (rows: RawTableRows | null) => void; readonly rows: RawTableRows | null }
+		| null = null;
+
+	public override readRawTableRows(input: RawTableRowsReadInput): Promise<RawTableRows | null> {
+		if (this.inputs.length > 0) {
+			return super.readRawTableRows(input);
+		}
+
+		const rows = getRowsFromReadInput(input);
+		this.inputs.push(input);
+		return new Promise(resolve => {
+			this.firstRead = { resolve, rows };
+		});
+	}
+
+	public resolveFirstRead(): void {
+		this.firstRead?.resolve(this.firstRead.rows);
+		this.firstRead = null;
+	}
+}
+
+const getRowsFromReadInput = (
+	input: RawTableRowsReadInput,
+): RawTableRows | null => {
+	const rowStore = input.rowStore;
+	if (!rowStore || rowStore.kind !== "memory") {
+		return null;
+	}
+
+	const rows = typeof input.maxRows === "number"
+		? rowStore.rows.slice(0, input.maxRows)
+		: rowStore.rows;
+	return rows.map(row =>
+		row.map(cell => cell == null ? "" : String(cell))
+	);
+};
