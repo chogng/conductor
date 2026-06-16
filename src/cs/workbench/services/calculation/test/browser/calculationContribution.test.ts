@@ -4,12 +4,27 @@
 
 import assert from "assert";
 
-import { shouldUpdateCalculationForSessionChange } from "src/cs/workbench/services/calculation/browser/calculation.contribution";
+import { Emitter, type Event } from "src/cs/base/common/event";
+import {
+  CalculationContribution,
+  shouldUpdateCalculationForSessionChange,
+} from "src/cs/workbench/services/calculation/browser/calculation.contribution";
+import type {
+  CommitCurvesInput,
+  CommitMetricsInput,
+  ISessionService,
+  SessionSnapshot,
+} from "src/cs/workbench/services/session/common/session";
 import {
   createSessionChangeEvent,
+  type SessionChangeEvent,
   type SessionChangeReason,
 } from "src/cs/workbench/services/session/common/sessionEvents";
-import type { CurveKey } from "src/cs/workbench/services/session/common/sessionModel";
+import type {
+  BaseCurveKey,
+  CurveKey,
+  FileRecord,
+} from "src/cs/workbench/services/session/common/sessionModel";
 
 suite("workbench/services/calculation/test/browser/calculationContribution", () => {
   test("ignores session changes that do not affect calculated curve inputs", () => {
@@ -68,4 +83,158 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       true,
     );
   });
+
+  test("recalculates only files affected by a base curve session change", () => {
+    const sessionEvents = new Emitter<SessionChangeEvent>();
+    const curveCommits: CommitCurvesInput[] = [];
+    const metricCommits: CommitMetricsInput[] = [];
+    let snapshot = createSnapshot({
+      "file-a": createFileRecord("file-a", "series-a", "base-a"),
+      "file-b": createFileRecord("file-b", "series-b", "base-b"),
+    });
+    const contribution = new CalculationContribution(createSessionServiceStub({
+      commitCurves: input => curveCommits.push(input),
+      commitMetrics: input => metricCommits.push(input),
+      getSnapshot: () => snapshot,
+      onDidChangeSession: sessionEvents.event,
+    }));
+    curveCommits.length = 0;
+    metricCommits.length = 0;
+
+    snapshot = createSnapshot({
+      "file-a": createFileRecord("file-a", "series-a", "base-a"),
+      "file-b": createFileRecord("file-b", "series-b", "base-b-next"),
+    });
+    sessionEvents.fire(createSessionChangeEvent("curvesChanged", 2, {
+      curveKeys: ["base:iv:transfer:series-b" as CurveKey],
+      fileIds: ["file-b"],
+    }));
+
+    assert.deepEqual(curveCommits.map(commit => commit.fileId), ["file-b"]);
+    assert.deepEqual(metricCommits.map(commit => commit.fileId), ["file-b"]);
+    contribution.dispose();
+    sessionEvents.dispose();
+  });
 });
+
+const createSessionServiceStub = ({
+  commitCurves,
+  commitMetrics,
+  getSnapshot,
+  onDidChangeSession,
+}: {
+  readonly commitCurves: (input: CommitCurvesInput) => void;
+  readonly commitMetrics: (input: CommitMetricsInput) => void;
+  readonly getSnapshot: () => SessionSnapshot;
+  readonly onDidChangeSession: Event<SessionChangeEvent>;
+}): ISessionService => ({
+  _serviceBrand: undefined,
+  clearMetricInput: () => undefined,
+  clearSession: () => undefined,
+  commitCurves,
+  commitFileImport: () => ({
+    importedFileIds: [],
+    skippedDuplicateFileIds: [],
+  }),
+  commitMetrics,
+  commitRawTableAssessment: () => undefined,
+  commitRawTableAssessments: () => undefined,
+  commitTemplateRun: () => undefined,
+  getSnapshot,
+  onDidChangeSession,
+  renameFile: () => false,
+  removeFiles: () => undefined,
+  setMetricInput: () => undefined,
+});
+
+const createSnapshot = (
+  filesById: Record<string, FileRecord>,
+): SessionSnapshot => ({
+  fileOrder: Object.keys(filesById),
+  filesById,
+  schemaVersion: 1,
+  sessionVersion: 1,
+});
+
+const createFileRecord = (
+  fileId: string,
+  seriesId: string,
+  signature: string,
+): FileRecord => {
+  const curveKey = `base:iv:transfer:${seriesId}` as BaseCurveKey;
+  return {
+    assessmentsByRawTableId: {},
+    curvesByKey: {
+      [curveKey]: {
+        curveFamily: "iv",
+        curveGeneration: "base",
+        fileId,
+        ivMode: "transfer",
+        lineage: {
+          baseFamily: "iv",
+          baseSeries: { fileId, seriesId },
+          curveGeneration: "base",
+          ivMode: "transfer",
+        },
+        points: [
+          { x: 0, y: 1 },
+          { x: 1, y: 2 },
+          { x: 2, y: 4 },
+        ],
+        seriesId,
+        signature,
+      },
+    },
+    id: fileId,
+    kind: "unknown",
+    latestTemplateRunId: "run-a",
+    measurementBlockOrder: [],
+    measurementBlocksById: {},
+    metricsByKey: {},
+    name: `${fileId}.csv`,
+    raw: {
+      fileId,
+      fileName: `${fileId}.csv`,
+      tableOrder: [],
+      tablesById: {},
+    },
+    rawTableVersionsById: {},
+    seriesById: {
+      [seriesId]: {
+        fileId,
+        groupIndex: 0,
+        id: seriesId,
+        name: seriesId,
+        y: [1, 2, 4],
+      },
+    },
+    seriesOrder: [seriesId],
+    templateRunsById: {
+      "run-a": {
+        appliedAt: 1,
+        config: {
+          bottomTitle: "Gate Voltage",
+          leftTitle: "Drain Current",
+          stopOnError: false,
+          xDataEnd: 2,
+          xDataStart: 0,
+          xSegmentationMode: "auto",
+          xUnit: "V",
+          yColumns: [1],
+          yLegendTarget: "auto",
+          yUnit: "A",
+        },
+        configFingerprint: "config-a",
+        errors: [],
+        fileId,
+        id: "run-a",
+        mode: "auto",
+        outputCurveKeys: [curveKey],
+        outputSeriesIds: [seriesId],
+        selection: { kind: "auto" },
+        sourceBlockIds: [],
+        warnings: [],
+      },
+    },
+  };
+};

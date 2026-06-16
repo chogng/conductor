@@ -114,6 +114,25 @@ export const createCalculatedPlotsByKeyFromRecords = (
   return next;
 };
 
+export const getCalculatedDataFromRecords = (
+  filesById: Record<FileId, FileRecord>,
+  fileOrder: readonly FileId[],
+  plotType: CalculationKind,
+  fileId?: string | null,
+): CalculatedData | null => {
+  const normalizedFileId = String(fileId ?? "").trim();
+  if (normalizedFileId) {
+    const file = filesById[normalizedFileId];
+    return file && hasFileRecordChartData(file)
+      ? createCalculatedDataForFileRecord({ file, plotType })
+      : null;
+  }
+
+  const file = getOrderedFileRecords(filesById, fileOrder)
+    .find(hasFileRecordChartData);
+  return file ? createCalculatedDataForFileRecord({ file, plotType }) : null;
+};
+
 export const createCalculatedDataRecordInputSignature = (
   filesById: Record<FileId, FileRecord>,
   fileOrder: readonly FileId[],

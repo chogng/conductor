@@ -16,7 +16,10 @@ import {
   type SessionChangeEvent,
   type SessionChangeReason,
 } from "src/cs/workbench/services/session/common/sessionEvents";
-import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
+import type {
+  BaseCurveKey,
+  FileRecord,
+} from "src/cs/workbench/services/session/common/sessionModel";
 import {
   PlotService,
   shouldInvalidatePlotModelsForSessionChange,
@@ -76,6 +79,25 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       yScale: "log",
       yUnit: "mA",
     });
+  });
+
+  test("creates display models for the requested file", () => {
+    const service = new PlotService(
+      createSessionServiceStub(),
+      createSettingsServiceStub(),
+      new TestStorageService(),
+    );
+    const displayModel = service.getPlotDisplayModel({
+      fileId: "file-b",
+      snapshot: createSnapshot({
+        "file-a": createFileRecord(),
+        "file-b": createFileRecord("file-b", "series-c", "C"),
+      }, ["file-a", "file-b"]),
+    });
+
+    assert.equal(displayModel?.fileId, "file-b");
+    assert.equal(displayModel?.chart.model.seriesList[0]?.id, "series-c");
+    assert.equal(displayModel?.chart.model.seriesList[0]?.name, "C");
   });
 
   test("owns axis title overrides by plot context", () => {
@@ -256,114 +278,126 @@ const createSettingsServiceStub = (
   } as ISettingsService;
 };
 
-const createSnapshot = (): SessionSnapshot => ({
-  fileOrder: ["file-a"],
-  filesById: {
+const createSnapshot = (
+  filesById: Record<string, FileRecord> = {
     "file-a": createFileRecord(),
   },
+  fileOrder: string[] = ["file-a"],
+): SessionSnapshot => ({
+  fileOrder,
+  filesById,
   schemaVersion: 1,
   sessionVersion: 1,
 });
 
-const createFileRecord = (): FileRecord => ({
-  assessmentsByRawTableId: {},
-  curvesByKey: {
-    "base:iv:transfer:series-a": {
-      curveFamily: "iv",
-      curveGeneration: "base",
-      fileId: "file-a",
-      ivMode: "transfer",
-      lineage: {
-        baseFamily: "iv",
-        baseSeries: { fileId: "file-a", seriesId: "series-a" },
+const createFileRecord = (
+  fileId = "file-a",
+  seriesA = "series-a",
+  seriesAName = "A",
+): FileRecord => {
+  const curveAKey = `base:iv:transfer:${seriesA}` as BaseCurveKey;
+  const curveBKey = "base:iv:transfer:series-b" as BaseCurveKey;
+
+  return {
+    assessmentsByRawTableId: {},
+    curvesByKey: {
+      [curveAKey]: {
+        curveFamily: "iv",
         curveGeneration: "base",
+        fileId,
         ivMode: "transfer",
+        lineage: {
+          baseFamily: "iv",
+          baseSeries: { fileId, seriesId: seriesA },
+          curveGeneration: "base",
+          ivMode: "transfer",
+        },
+        points: [
+          { x: 0, y: 0.001 },
+          { x: 1, y: 0.002 },
+        ],
+        seriesId: seriesA,
+        signature: "base-a",
       },
-      points: [
-        { x: 0, y: 0.001 },
-        { x: 1, y: 0.002 },
-      ],
-      seriesId: "series-a",
-      signature: "base-a",
-    },
-    "base:iv:transfer:series-b": {
-      curveFamily: "iv",
-      curveGeneration: "base",
-      fileId: "file-a",
-      ivMode: "transfer",
-      lineage: {
-        baseFamily: "iv",
-        baseSeries: { fileId: "file-a", seriesId: "series-b" },
+      [curveBKey]: {
+        curveFamily: "iv",
         curveGeneration: "base",
+        fileId,
         ivMode: "transfer",
+        lineage: {
+          baseFamily: "iv",
+          baseSeries: { fileId, seriesId: "series-b" },
+          curveGeneration: "base",
+          ivMode: "transfer",
+        },
+        points: [
+          { x: 0, y: 0.003 },
+          { x: 1, y: 0.004 },
+        ],
+        seriesId: "series-b",
+        signature: "base-b",
       },
-      points: [
-        { x: 0, y: 0.003 },
-        { x: 1, y: 0.004 },
-      ],
-      seriesId: "series-b",
-      signature: "base-b",
     },
-  },
-  id: "file-a",
-  kind: "unknown",
-  latestTemplateRunId: "run-a",
-  measurementBlockOrder: [],
-  measurementBlocksById: {},
-  metricsByKey: {},
-  name: "file-a.csv",
-  raw: {
-    fileId: "file-a",
-    fileName: "file-a.csv",
-    tableOrder: [],
-    tablesById: {},
-  },
-  rawTableVersionsById: {},
-  seriesById: {
-    "series-a": {
-      fileId: "file-a",
-      groupIndex: 0,
-      id: "series-a",
-      name: "A",
-      y: [0.001, 0.002],
+    id: fileId,
+    kind: "unknown",
+    latestTemplateRunId: "run-a",
+    measurementBlockOrder: [],
+    measurementBlocksById: {},
+    metricsByKey: {},
+    name: `${fileId}.csv`,
+    raw: {
+      fileId,
+      fileName: `${fileId}.csv`,
+      tableOrder: [],
+      tablesById: {},
     },
-    "series-b": {
-      fileId: "file-a",
-      groupIndex: 1,
-      id: "series-b",
-      name: "B",
-      y: [0.003, 0.004],
-    },
-  },
-  seriesOrder: ["series-a", "series-b"],
-  templateRunsById: {
-    "run-a": {
-      appliedAt: 1,
-      config: {
-        bottomTitle: "Gate",
-        leftTitle: "Drain current",
-        stopOnError: false,
-        xDataEnd: 1,
-        xDataStart: 0,
-        xSegmentationMode: "auto",
-        xUnit: "V",
-        yColumns: [1, 2],
-        yLegendTarget: "auto",
-        yUnit: "A",
+    rawTableVersionsById: {},
+    seriesById: {
+      [seriesA]: {
+        fileId,
+        groupIndex: 0,
+        id: seriesA,
+        name: seriesAName,
+        y: [0.001, 0.002],
       },
-      configFingerprint: "config-a",
-      errors: [],
-      fileId: "file-a",
-      id: "run-a",
-      mode: "auto",
-      outputCurveKeys: [
-        "base:iv:transfer:series-a",
-        "base:iv:transfer:series-b",
-      ],
-      outputSeriesIds: ["series-a", "series-b"],
-      selection: { kind: "auto" },
-      sourceBlockIds: [],
-      warnings: [],
+      "series-b": {
+        fileId,
+        groupIndex: 1,
+        id: "series-b",
+        name: "B",
+        y: [0.003, 0.004],
+      },
     },
-  },
-});
+    seriesOrder: [seriesA, "series-b"],
+    templateRunsById: {
+      "run-a": {
+        appliedAt: 1,
+        config: {
+          bottomTitle: "Gate",
+          leftTitle: "Drain current",
+          stopOnError: false,
+          xDataEnd: 1,
+          xDataStart: 0,
+          xSegmentationMode: "auto",
+          xUnit: "V",
+          yColumns: [1, 2],
+          yLegendTarget: "auto",
+          yUnit: "A",
+        },
+        configFingerprint: "config-a",
+        errors: [],
+        fileId,
+        id: "run-a",
+        mode: "auto",
+        outputCurveKeys: [
+          curveAKey,
+          curveBKey,
+        ],
+        outputSeriesIds: [seriesA, "series-b"],
+        selection: { kind: "auto" },
+        sourceBlockIds: [],
+        warnings: [],
+      },
+    },
+  };
+};

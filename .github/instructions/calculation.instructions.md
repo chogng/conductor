@@ -81,17 +81,19 @@ sequenceDiagram
 
     Session-->>Contribution: onDidChangeSession(event)
     Contribution->>Contribution: shouldUpdateCalculationForSessionChange(event)
+    Contribution->>Contribution: resolve affected file ids from event.fileIds
     alt input change affects calculation
         Contribution->>Session: getSnapshot()
         Session-->>Contribution: SessionSnapshot
-        Contribution->>Records: createCalculatedRecordsInputSignature(filesById, fileOrder)
-        Records->>Curves: createCalculatedCurveRecordsInputSignature(filesById, fileOrder)
-        Records->>Metrics: createCalculatedMetricRecordsInputSignature(filesById, fileOrder)
-        alt signature changed
-            Contribution->>Records: createCalculatedRecordsByFile(filesById, fileOrder)
-            Records->>Curves: createCalculatedCurveRecordsByFile(filesById, fileOrder)
+        loop affected file or all files when scope is unknown
+            Contribution->>Records: createCalculatedRecordsInputSignature(singleFileById, [fileId])
+            Records->>Curves: createCalculatedCurveRecordsInputSignature(singleFileById, [fileId])
+            Records->>Metrics: createCalculatedMetricRecordsInputSignature(singleFileById, [fileId])
+            alt file signature changed
+            Contribution->>Records: createCalculatedRecordsByFile(singleFileById, [fileId])
+            Records->>Curves: createCalculatedCurveRecordsByFile(singleFileById, [fileId])
             Curves-->>Records: CurveRecord[] by file
-            Records->>Metrics: createCalculatedMetricRecordsByFile(filesById, fileOrder)
+            Records->>Metrics: createCalculatedMetricRecordsByFile(singleFileById, [fileId])
             Metrics-->>Records: MetricRecord[] by file
             Records-->>Contribution: curvesByFileId and metricsByFileId
             Contribution->>Session: commitCurves({ replaceGenerations: ["derived", "secondDerived"] })
@@ -100,6 +102,7 @@ sequenceDiagram
             Session-->>Consumers: onDidChangeSession(metricsChanged)
         else signature unchanged
             Contribution-->>Contribution: no-op
+        end
         end
     else derived output or unrelated session event
         Contribution-->>Contribution: no-op
@@ -114,6 +117,11 @@ Update triggers:
   second-derived curve commits must not cause another calculation pass.
 - `rawTablesChanged`, `assessmentChanged`, and `metricsChanged` do not rerun
   calculation. Metrics are calculated output, not calculation input.
+- When a session event includes `fileIds`, calculation recomputes only those
+  files and tracks input signatures per file. Startup or events without an
+  affected file scope may still perform a full pass. `filesRemoved` and
+  `sessionCleared` prune per-file calculation signatures instead of forcing
+  unrelated files to be recommitted.
 
 Session boundary rules:
 

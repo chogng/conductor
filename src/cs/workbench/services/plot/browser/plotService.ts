@@ -11,9 +11,8 @@ import {
   StorageTarget,
 } from "src/cs/platform/storage/common/storage";
 import {
-  createCalculatedPlotsByKeyFromRecords,
   createSecondCalculatedData,
-  getCalculatedData as getCalculatedDataFromMap,
+  getCalculatedDataFromRecords,
   type CalculatedData,
 } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import { isPlotType } from "src/cs/workbench/services/plot/common/plot";
@@ -106,12 +105,9 @@ export class PlotService extends Disposable implements IPlotService {
     const plotType = input.plotType && isPlotType(input.plotType)
       ? input.plotType
       : this.state.activePlotType;
-    const calculatedPlotsByKey = createCalculatedPlotsByKeyFromRecords(
+    return getCalculatedDataFromRecords(
       snapshot.filesById,
       snapshot.fileOrder,
-    );
-    return getCalculatedDataFromMap(
-      calculatedPlotsByKey,
       plotType,
       input.fileId,
     );

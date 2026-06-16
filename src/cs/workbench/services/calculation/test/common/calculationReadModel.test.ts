@@ -15,6 +15,7 @@ import {
   createCalculatedSeries,
   createSecondCalculatedData,
   getCalculatedData,
+  getCalculatedDataFromRecords,
   getCalculatedYUnitLabel,
 } from "../../common/calculationReadModel.ts";
 
@@ -215,6 +216,40 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
     assert.equal(iv?.yUnitLabel, "A");
   });
 
+  test("getCalculatedDataFromRecords resolves one canonical file without requiring a full plot map", () => {
+    const filesById = {
+      "file-a": createFileRecord(),
+      "file-b": createFileRecord("file-b", "series-b", [
+        { x: 0, y: 10 },
+        { x: 1, y: 20 },
+        { x: 2, y: 40 },
+      ]),
+    };
+
+    const requested = getCalculatedDataFromRecords(
+      filesById,
+      ["file-a", "file-b"],
+      "iv",
+      "file-b",
+    );
+    const fallback = getCalculatedDataFromRecords(
+      filesById,
+      ["file-a", "file-b"],
+      "iv",
+    );
+
+    assert.equal(requested?.activeFile?.fileId, "file-b");
+    assert.deepEqual(
+      requested?.seriesList[0]?.data.map((point) => point.y),
+      [10, 20, 40],
+    );
+    assert.equal(fallback?.activeFile?.fileId, "file-a");
+    assert.equal(
+      getCalculatedDataFromRecords(filesById, ["file-a", "file-b"], "iv", "missing"),
+      null,
+    );
+  });
+
   test("createCalculatedDataRecordInputSignature ignores derived curve cache writes", () => {
     const file = createFileRecord();
     const signature = createCalculatedDataRecordInputSignature(
@@ -300,10 +335,16 @@ suite("workbench/services/calculation/test/common/calculationReadModel", () => {
   });
 });
 
-const createFileRecord = (): FileRecord => {
-  const fileId = "file-a";
-  const seriesId = "series-a";
-  const curveKey = "base:iv:transfer:series-a" as BaseCurveKey;
+const createFileRecord = (
+  fileId = "file-a",
+  seriesId = "series-a",
+  points = [
+    { x: 0, y: 1 },
+    { x: 1, y: 2 },
+    { x: 2, y: 4 },
+  ],
+): FileRecord => {
+  const curveKey = `base:iv:transfer:${seriesId}` as BaseCurveKey;
   return {
     assessmentsByRawTableId: {},
     curvesByKey: {
@@ -318,11 +359,7 @@ const createFileRecord = (): FileRecord => {
           curveGeneration: "base",
           ivMode: "transfer",
         },
-        points: [
-          { x: 0, y: 1 },
-          { x: 1, y: 2 },
-          { x: 2, y: 4 },
-        ],
+        points,
         domain: {
           x: [0, 2],
           y: [1, 4],
@@ -337,10 +374,10 @@ const createFileRecord = (): FileRecord => {
     measurementBlockOrder: [],
     measurementBlocksById: {},
     metricsByKey: {},
-    name: "file_a.csv",
+    name: `${fileId}.csv`,
     raw: {
       fileId,
-      fileName: "file-a.csv",
+      fileName: `${fileId}.csv`,
       tableOrder: [],
       tablesById: {},
     },
