@@ -224,15 +224,17 @@ export type FileSourceWorkflowOptions = {
 };
 
 export const pickImportFolder = async ({
+  defaultUri,
   dialogsService,
   pathService,
 }: {
+  readonly defaultUri?: URI;
   readonly dialogsService: IFileDialogService;
   readonly pathService: IPathService;
 }): Promise<URI | null> => {
   const folders = await dialogsService.showOpenDialog({
     canSelectFolders: true,
-    defaultUri: pathService.userHome({ preferLocal: true }),
+    defaultUri: defaultUri ?? pathService.userHome({ preferLocal: true }),
     title: localize("files.import.pickFolderTitle", "Select a folder to import"),
     openLabel: localize("files.import.openFolderButton", "Open Folder"),
   });
