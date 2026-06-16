@@ -9,7 +9,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from origin_ops.axis_ops import apply_axis_appearance, apply_axis_commands, apply_axis_limits
+from origin_ops.axis_ops import apply_axis_capabilities
 from origin_ops.capability_dispatcher import (
     parse_capabilities_json,
     resolve_capability_plan,
@@ -25,7 +25,7 @@ from origin_ops.origin_session import (
     run_labtalk_or_raise,
 )
 from origin_ops.plot_ops import build_plot_command, run_plot_pipeline
-from origin_ops.style_ops import apply_style_commands
+from origin_ops.style_ops import apply_style_capabilities
 from worker_build_info import (
     format_worker_build_info_text,
     get_worker_build_info_json,
@@ -245,6 +245,49 @@ def ensure_log_y_axis_range_commands(commands, csv_path: Path, ctx) -> list[str]
     )
     ctx.log(f"Axis fallback applied: layer.y.from={y_from}, layer.y.to={y_to}.")
     return normalized
+
+
+def ensure_log_y_axis_range_patch(axis_scale, axis_range, csv_path: Path, ctx) -> dict:
+    normalized_range = dict(axis_range) if isinstance(axis_range, dict) else {}
+    y_scale = {}
+    if isinstance(axis_scale, dict) and isinstance(axis_scale.get("y"), dict):
+        y_scale = axis_scale.get("y")
+    if str(y_scale.get("mode") or "").strip().lower() != "log":
+        return normalized_range
+
+    y_range = dict(normalized_range.get("y")) if isinstance(normalized_range.get("y"), dict) else {}
+    if y_range.get("from") is not None and y_range.get("to") is not None:
+        normalized_range["y"] = y_range
+        return normalized_range
+
+    bounds = _compute_csv_positive_y_bounds(csv_path)
+    if bounds is None:
+        ctx.log("Axis fallback skipped: no positive Y values found for log axis.")
+        return normalized_range
+
+    robust_min_positive, max_positive, raw_min_positive, positive_count = bounds
+    padded = _build_padded_log_bounds(robust_min_positive, max_positive)
+    if padded is None:
+        ctx.log("Axis fallback skipped: invalid positive Y bounds for log axis.")
+        return normalized_range
+
+    y_range["from"] = padded[0]
+    y_range["to"] = padded[1]
+    normalized_range["y"] = y_range
+    raw_min_text = _format_lt_number(raw_min_positive)
+    robust_min_text = _format_lt_number(robust_min_positive)
+    max_text = _format_lt_number(max_positive)
+    ctx.log(
+        "Axis fallback source: "
+        f"positiveCount={positive_count}, "
+        f"rawMin={raw_min_text}, robustMin={robust_min_text}, max={max_text}."
+    )
+    ctx.log(
+        "Axis fallback applied: "
+        f"axis.range.y.from={_format_lt_log_number(padded[0])}, "
+        f"axis.range.y.to={_format_lt_log_number(padded[1])}."
+    )
+    return normalized_range
 
 
 def ensure_dir(path_value: Path) -> None:
@@ -509,29 +552,43 @@ def run_csv_job(ctx, op_module, job: dict, job_index: int, job_count: int) -> st
             plot_error_message=f"CSV plot{label_suffix} failed at plotxy",
             line_width=_coerce_float(job.get("line_width"), 2.0),
         )
-    axis_commands = ensure_log_y_axis_range_commands(
-        [] if skip_plot else capability_plan.axis_commands,
-        csv_path,
-        ctx,
-    )
-    if capability_plan.axis_limits:
-        ctx.log(f"{log_prefix} axis limits payload: {capability_plan.axis_limits}")
-    if axis_commands:
-        ctx.log(f"{log_prefix} axis commands: {axis_commands}")
-        _log_axis_command_summary(ctx, log_prefix, axis_commands)
+    if not skip_plot:
+        capability_plan.axis_range = ensure_log_y_axis_range_patch(
+            capability_plan.axis_scale,
+            capability_plan.axis_range,
+            csv_path,
+            ctx,
+        )
+    if capability_plan.style_legend:
+        ctx.log(f"{log_prefix} style legend: {capability_plan.style_legend}")
+    if capability_plan.style_commands:
+        ctx.log(f"{log_prefix} style advanced commands: {capability_plan.style_commands}")
+    if capability_plan.axis_range:
+        ctx.log(f"{log_prefix} axis range: {capability_plan.axis_range}")
+    if capability_plan.axis_scale:
+        ctx.log(f"{log_prefix} axis scale: {capability_plan.axis_scale}")
+    if capability_plan.axis_title:
+        ctx.log(f"{log_prefix} axis title: {capability_plan.axis_title}")
+    if capability_plan.axis_spacing:
+        ctx.log(f"{log_prefix} axis spacing: {capability_plan.axis_spacing}")
+    if capability_plan.axis_frame:
+        ctx.log(f"{log_prefix} axis frame: {capability_plan.axis_frame}")
     if capability_plan.axis_appearance:
         ctx.log(f"{log_prefix} axis appearance: {capability_plan.axis_appearance}")
+    if capability_plan.axis_advanced_commands:
+        ctx.log(f"{log_prefix} axis advanced commands: {capability_plan.axis_advanced_commands}")
     if not skip_plot:
-        apply_style_commands(op_module, capability_plan.style_commands)
-        apply_axis_commands(op_module, axis_commands)
-        axis_appearance_result = apply_axis_appearance(
+        apply_style_capabilities(
             op_module,
-            capability_plan.axis_appearance,
+            capability_plan.style_legend,
+            capability_plan.style_commands,
+        )
+        axis_result = apply_axis_capabilities(
+            op_module,
+            capability_plan,
             warning_logger=ctx.log,
         )
-        if capability_plan.axis_appearance:
-            ctx.log(f"{log_prefix} axis appearance result: {axis_appearance_result}")
-        apply_axis_limits(op_module, capability_plan.axis_limits, warning_logger=ctx.log)
+        ctx.log(f"{log_prefix} axis capability result: {axis_result}")
         run_command_list(
             op_module,
             capability_plan.graph_post_commands,

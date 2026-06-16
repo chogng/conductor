@@ -20,12 +20,12 @@ import {
   resolveRustOriginCsvYTransformForPayload,
 } from "src/cs/workbench/services/export/common/originExport";
 import {
-  buildOriginAxisSpacingCommands,
-  buildOriginAxisTitleCommands,
-  buildOriginXAxisRangeCommandsFromDisplayRange,
-  buildOriginYAxisRangeCommandsFromDisplayRange,
-} from "src/cs/workbench/services/origin/common/originAxisCommands";
-import { buildOriginLegendCommands } from "src/cs/workbench/services/origin/common/originLegendCommands";
+  buildOriginAxisSpacingPatch,
+  buildOriginAxisTitlePatch,
+  buildOriginXAxisDisplayRangePatch,
+  buildOriginYAxisDisplayRangePatch,
+} from "src/cs/workbench/services/origin/common/originCapabilities";
+import { buildOriginLegendStylePatch } from "src/cs/workbench/services/origin/common/originStyleCapabilities";
 import { buildOriginCsvJobs } from "src/cs/workbench/services/origin/browser/originController";
 
 suite("workbench/services/export/browser/csvExport", () => {
@@ -213,45 +213,50 @@ suite("workbench/services/export/browser/csvExport", () => {
     assert.equal(byHeader.ss_x2, "1.25");
   });
 
-  test("buildOriginAxisSpacingCommands emits LabTalk spacing commands only for provided values", () => {
-    assert.deepEqual(buildOriginAxisSpacingCommands(null), []);
+  test("buildOriginAxisSpacingPatch emits semantic spacing only for provided values", () => {
+    assert.equal(buildOriginAxisSpacingPatch(null), undefined);
     assert.deepEqual(
-      buildOriginAxisSpacingCommands({
+      buildOriginAxisSpacingPatch({
         originTickLabelOffset: "45",
         originAxisTitleGap: "80",
       }),
-      [
-        "layer.x.label.offsetV=45; layer.y.label.offsetH=45; system.tick.gapAxTitle=80",
-      ],
+      {
+        axisTitleGap: 80,
+        tickLabelOffset: 45,
+      },
     );
   });
 
-  test("buildOriginAxisTitleCommands emits explicit Origin axis title commands", () => {
-    assert.deepEqual(buildOriginAxisTitleCommands(null), []);
+  test("buildOriginAxisTitlePatch emits semantic Origin axis titles", () => {
+    assert.equal(buildOriginAxisTitlePatch(null), undefined);
     assert.deepEqual(
-      buildOriginAxisTitleCommands({
+      buildOriginAxisTitlePatch({
         xAxisTitle: 'Vd (V)',
         yAxisTitle: 'Ig "test" (A)',
         axisTitleFontSize: "22",
       }),
-      [
-        'label -xb "Vd (V)";',
-        'label -yl "Ig \\"test\\" (A)";',
-        "xb.fsize=22;",
-        "yl.fsize=22;",
-      ],
+      {
+        x: {
+          fontSize: 22,
+          text: "Vd (V)",
+        },
+        y: {
+          fontSize: 22,
+          text: 'Ig "test" (A)',
+        },
+      },
     );
   });
 
-  test("buildOriginLegendCommands emits explicit Origin legend font size command", () => {
-    assert.deepEqual(buildOriginLegendCommands(null), []);
-    assert.deepEqual(buildOriginLegendCommands({ legendFontSize: "" }), []);
-    assert.deepEqual(buildOriginLegendCommands({ legendFontSize: "12" }), [
-      "legend.fsize=12;",
-    ]);
+  test("buildOriginLegendStylePatch emits semantic legend font size", () => {
+    assert.equal(buildOriginLegendStylePatch(null), undefined);
+    assert.equal(buildOriginLegendStylePatch({ legendFontSize: "" }), undefined);
+    assert.deepEqual(buildOriginLegendStylePatch({ legendFontSize: "12" }), {
+      fontSize: 12,
+    });
   });
 
-  test("buildOriginCsvJobs sends legend size as an Origin style command", () => {
+  test("buildOriginCsvJobs sends semantic legend style capabilities to the Python Origin worker", () => {
     const jobs = buildOriginCsvJobs({
       plan: {
         payloads: [
@@ -268,30 +273,50 @@ suite("workbench/services/export/browser/csvExport", () => {
     });
 
     assert.deepEqual(jobs[0].capabilities?.style, {
-      commands: ["legend.fsize=12;"],
+      legend: {
+        fontSize: 12,
+      },
     });
   });
 
-  test("buildOriginCsvJobs sends chart axis appearance to the Python Origin worker", () => {
+  test("buildOriginCsvJobs sends semantic axis capabilities to the Python Origin worker", () => {
     const jobs = buildOriginCsvJobs({
       axisSettings: {
+        axisTitleFontSize: "22",
+        originAxisTitleGap: "80",
+        originTickLabelOffset: "45",
         showGrid: false,
         showMajorTicks: false,
         showMinorTicks: true,
+      },
+      chartXRange: {
+        min: -1,
+        max: 1,
+        step: 0.5,
+      },
+      chartYRange: {
+        min: 1e-12,
+        max: 1e-6,
+        mode: "log",
       },
       plan: {
         payloads: [
           {
             csvName: "file.csv",
             csvText: "x,y\r\n0,1",
+            xAxisTitle: "Vd (V)",
             xyPairs: "((1,2))",
+            yAxisTitle: "Id (A)",
+            yScaleMode: "log",
           },
         ],
       },
       plotOptions: {},
     });
 
-    assert.deepEqual(jobs[0].capabilities?.axis?.appearance, {
+    const axis = jobs[0].capabilities?.axis;
+    assert.equal(axis?.commands, undefined);
+    assert.deepEqual(axis?.appearance, {
       x: {
         showGrid: false,
         showMajorTicks: false,
@@ -303,22 +328,61 @@ suite("workbench/services/export/browser/csvExport", () => {
         showMinorTicks: true,
       },
     });
+    assert.deepEqual(axis?.scale, {
+      x: { mode: "linear" },
+      y: { mode: "log" },
+    });
+    assert.deepEqual(axis?.range, {
+      x: {
+        from: -1,
+        step: 0.5,
+        to: 1,
+      },
+      y: {
+        from: 1e-12,
+        to: 1e-6,
+      },
+    });
+    assert.deepEqual(axis?.title, {
+      x: {
+        fontSize: 22,
+        text: "Vd (V)",
+      },
+      y: {
+        fontSize: 22,
+        text: "Id (A)",
+      },
+    });
+    assert.deepEqual(axis?.spacing, {
+      axisTitleGap: 80,
+      tickLabelOffset: 45,
+    });
+    assert.deepEqual(axis?.frame, {
+      xOpposite: true,
+      yOpposite: true,
+    });
   });
 
-  test("display-range Origin axis commands keep manual scale limits", () => {
+  test("display-range Origin axis capabilities keep manual scale limits", () => {
     assert.deepEqual(
-      buildOriginYAxisRangeCommandsFromDisplayRange("log", {
+      buildOriginYAxisDisplayRangePatch("log", {
         min: 1e-12,
         max: 1e-6,
       }),
-      ["layer.y.from=1e-12", "layer.y.to=1e-6", "layer.y.rescale=1"],
+      {
+        from: 1e-12,
+        to: 1e-6,
+      },
     );
     assert.deepEqual(
-      buildOriginXAxisRangeCommandsFromDisplayRange({
+      buildOriginXAxisDisplayRangePatch({
         min: -1,
         max: 1,
       }),
-      ["layer.x.from=-1", "layer.x.to=1", "layer.x.rescale=1"],
+      {
+        from: -1,
+        to: 1,
+      },
     );
   });
 

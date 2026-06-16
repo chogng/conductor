@@ -7,18 +7,23 @@ import JSZip from "jszip";
 import { localize } from "src/cs/nls";
 import { triggerBlobDownload } from "src/cs/workbench/services/export/browser/download";
 import {
-  buildOriginAxisSpacingCommands,
-  buildOriginAxisTitleCommands,
-  buildOriginXAxisRangeCommandsFromDisplayRange,
-  buildOriginYAxisRangeCommands,
-  buildOriginYAxisRangeCommandsFromDisplayRange,
+  buildOriginAxisAppearancePatch,
+  buildOriginAxisCapabilities,
+  buildOriginAxisSpacingPatch,
+  buildOriginAxisTitlePatch,
+  buildOriginXAxisDisplayRangePatch,
+  buildOriginYAxisAutoRangePatch,
+  buildOriginYAxisDisplayRangePatch,
   type OriginAxisScaleMode,
-} from "src/cs/workbench/services/origin/common/originAxisCommands";
+} from "src/cs/workbench/services/origin/common/originCapabilities";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
 } from "src/cs/workbench/services/origin/common/originPlotOptions";
-import { buildOriginLegendCommands } from "src/cs/workbench/services/origin/common/originLegendCommands";
+import {
+  buildOriginLegendStylePatch,
+  buildOriginStyleCapabilities,
+} from "src/cs/workbench/services/origin/common/originStyleCapabilities";
 import { originService } from "src/cs/workbench/services/origin/browser/originService";
 import type {
   OriginDisplayRange,
@@ -212,32 +217,6 @@ const buildOriginLegendRefreshCommands = (curveLabels: unknown): string[] => {
     : [];
 };
 
-const buildOriginAxisAppearance = (
-  axisSettings: JsonRecord | null,
-): JsonRecord | undefined => {
-  if (!axisSettings) {
-    return undefined;
-  }
-
-  const axisPatch: JsonRecord = {};
-  for (const key of ["showGrid", "showMajorTicks", "showMinorTicks"] as const) {
-    if (typeof axisSettings[key] === "boolean") {
-      axisPatch[key] = axisSettings[key];
-    }
-  }
-  return Object.keys(axisPatch).length
-    ? {
-        x: { ...axisPatch },
-        y: { ...axisPatch },
-      }
-    : undefined;
-};
-
-function toNumber(value: unknown): number | undefined {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : undefined;
-}
-
 export function buildOriginCsvJobs(options: {
   axisSettings?: unknown;
   chartXRange?: OriginDisplayRange | null;
@@ -273,50 +252,54 @@ export function buildOriginCsvJobs(options: {
       shouldUseYDisplayRange && options.chartYRange?.mode
         ? options.chartYRange.mode
         : payloadYScaleMode;
-    const originYAxisTypeCommand =
-      originYScaleMode === "log" ? "layer.y.type=2" : "layer.y.type=1";
     const effectiveXyPairs =
       !hasCustomPlotCommand && !hasCustomXyPairs
         ? payload.xyPairs
         : normalizedPlotOptions.xyPairs;
-    const displayXRangeCommands = shouldUseXDisplayRange
-      ? buildOriginXAxisRangeCommandsFromDisplayRange(options.chartXRange)
-      : [];
-    const displayRangeCommands = shouldUseYDisplayRange
-      ? buildOriginYAxisRangeCommandsFromDisplayRange(
+    const displayXRange = shouldUseXDisplayRange
+      ? buildOriginXAxisDisplayRangePatch(options.chartXRange)
+      : undefined;
+    const displayYRange = shouldUseYDisplayRange
+      ? buildOriginYAxisDisplayRangePatch(
           originYScaleMode,
           options.chartYRange,
         )
-      : [];
-    const autoYRangeCommands = shouldUseYDisplayRange
-      ? []
-      : buildOriginYAxisRangeCommands(originYScaleMode, payload);
+      : undefined;
+    const autoYRange = shouldUseYDisplayRange
+      ? undefined
+      : buildOriginYAxisAutoRangePatch(originYScaleMode, payload);
     const axisSettings =
       options.axisSettings && typeof options.axisSettings === "object"
         ? (options.axisSettings as JsonRecord)
         : null;
-    const originAxisAppearance = buildOriginAxisAppearance(axisSettings);
-    const originAxisSpacingCommands = buildOriginAxisSpacingCommands(axisSettings);
-    const originAxisTitleCommands = buildOriginAxisTitleCommands({
-      xAxisTitle: payload.xAxisTitle,
-      yAxisTitle: payload.yAxisTitle,
-      axisTitleFontSize: axisSettings?.axisTitleFontSize ?? null,
+    const originStyleCapabilities = buildOriginStyleCapabilities({
+      legend: buildOriginLegendStylePatch({
+        legendFontSize: normalizedPlotOptions.legendFontSize,
+      }),
     });
-    const originLegendCommands = buildOriginLegendCommands({
-      legendFontSize: normalizedPlotOptions.legendFontSize,
-    });
-    const originAxisCommands = payload.skipAxisCommands
-      ? []
-      : [
-          originYAxisTypeCommand,
-          "layer.x.opposite=1",
-          "layer.y.opposite=1",
-          ...displayXRangeCommands,
-          ...displayRangeCommands,
-          ...autoYRangeCommands,
-          ...originAxisTitleCommands,
-          ...originAxisSpacingCommands,
-        ];
+    const originAxisCapabilities = payload.skipAxisCommands
+      ? {}
+      : buildOriginAxisCapabilities({
+          appearance: buildOriginAxisAppearancePatch(axisSettings),
+          scale: {
+            x: { mode: "linear" },
+            y: { mode: originYScaleMode },
+          },
+          range: {
+            x: displayXRange,
+            y: displayYRange ?? autoYRange,
+          },
+          title: buildOriginAxisTitlePatch({
+            xAxisTitle: payload.xAxisTitle,
+            yAxisTitle: payload.yAxisTitle,
+            axisTitleFontSize: axisSettings?.axisTitleFontSize ?? null,
+          }),
+          spacing: buildOriginAxisSpacingPatch(axisSettings),
+          frame: {
+            xOpposite: true,
+            yOpposite: true,
+          },
+        });
 
     return {
       csv: {
@@ -357,37 +340,9 @@ export function buildOriginCsvJobs(options: {
               postCommands: legendPostCommands,
             }
           : undefined,
-        style: originLegendCommands.length
-          ? {
-              commands: originLegendCommands,
-            }
-          : undefined,
+        style: originStyleCapabilities,
         axis: {
-          appearance: originAxisAppearance,
-          limits: {
-            x: shouldUseXDisplayRange
-              ? {
-                  from: toNumber(options.chartXRange?.min),
-                  to: toNumber(options.chartXRange?.max),
-                  step: toNumber(options.chartXRange?.step),
-                  scale: "linear",
-                }
-              : undefined,
-            y: shouldUseYDisplayRange
-              ? {
-                  from: toNumber(options.chartYRange?.min),
-                  to: toNumber(options.chartYRange?.max),
-                  step:
-                    originYScaleMode === "linear"
-                      ? toNumber(options.chartYRange?.step)
-                      : undefined,
-                  scale: originYScaleMode,
-                }
-              : {
-                  scale: originYScaleMode,
-                },
-          },
-          commands: originAxisCommands,
+          ...originAxisCapabilities,
         },
       },
     };

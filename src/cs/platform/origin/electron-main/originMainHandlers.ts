@@ -149,12 +149,28 @@ function validateOriginCapabilitiesPayload(rawCapabilities: unknown): void {
   );
   const styleSection = assertOriginCapabilitiesAllowedKeys(
     root.style,
-    ["commands", "postCommands"],
+    ["legend", "advancedCommands", "commands", "postCommands"],
     "capabilities.style",
+  );
+  const styleLegend = assertOriginCapabilitiesAllowedKeys(
+    styleSection.legend,
+    ["fontSize"],
+    "capabilities.style.legend",
   );
   const axisSection = assertOriginCapabilitiesAllowedKeys(
     root.axis,
-    ["commands", "postCommands", "limits", "appearance"],
+    [
+      "appearance",
+      "range",
+      "scale",
+      "title",
+      "spacing",
+      "frame",
+      "advancedCommands",
+      "commands",
+      "postCommands",
+      "limits",
+    ],
     "capabilities.axis",
   );
   const commandsSection = assertOriginCapabilitiesAllowedKeys(
@@ -171,6 +187,31 @@ function validateOriginCapabilitiesPayload(rawCapabilities: unknown): void {
     axisSection.limits,
     ["x", "y"],
     "capabilities.axis.limits",
+  );
+  const axisRange = assertOriginCapabilitiesAllowedKeys(
+    axisSection.range,
+    ["x", "y"],
+    "capabilities.axis.range",
+  );
+  const axisScale = assertOriginCapabilitiesAllowedKeys(
+    axisSection.scale,
+    ["x", "y"],
+    "capabilities.axis.scale",
+  );
+  const axisTitle = assertOriginCapabilitiesAllowedKeys(
+    axisSection.title,
+    ["x", "y"],
+    "capabilities.axis.title",
+  );
+  const axisSpacing = assertOriginCapabilitiesAllowedKeys(
+    axisSection.spacing,
+    ["tickLabelOffset", "axisTitleGap"],
+    "capabilities.axis.spacing",
+  );
+  const axisFrame = assertOriginCapabilitiesAllowedKeys(
+    axisSection.frame,
+    ["xOpposite", "yOpposite"],
+    "capabilities.axis.frame",
   );
   const axisAppearance = assertOriginCapabilitiesAllowedKeys(
     axisSection.appearance,
@@ -197,6 +238,36 @@ function validateOriginCapabilitiesPayload(rawCapabilities: unknown): void {
     ["from", "to", "step", "scale"],
     "capabilities.axis.limits.y",
   );
+  const axisXRange = assertOriginCapabilitiesAllowedKeys(
+    axisRange.x,
+    ["from", "to", "step"],
+    "capabilities.axis.range.x",
+  );
+  const axisYRange = assertOriginCapabilitiesAllowedKeys(
+    axisRange.y,
+    ["from", "to", "step"],
+    "capabilities.axis.range.y",
+  );
+  const axisXScale = assertOriginCapabilitiesAllowedKeys(
+    axisScale.x,
+    ["mode"],
+    "capabilities.axis.scale.x",
+  );
+  const axisYScale = assertOriginCapabilitiesAllowedKeys(
+    axisScale.y,
+    ["mode"],
+    "capabilities.axis.scale.y",
+  );
+  const axisXTitle = assertOriginCapabilitiesAllowedKeys(
+    axisTitle.x,
+    ["text", "fontSize"],
+    "capabilities.axis.title.x",
+  );
+  const axisYTitle = assertOriginCapabilitiesAllowedKeys(
+    axisTitle.y,
+    ["text", "fontSize"],
+    "capabilities.axis.title.y",
+  );
 
   assertOriginCapabilitiesString(importSection.workbookLongName, "capabilities.import.workbookLongName");
   assertOriginCapabilitiesString(importSection.longName, "capabilities.import.longName");
@@ -214,6 +285,25 @@ function validateOriginCapabilitiesPayload(rawCapabilities: unknown): void {
   assertOriginCapabilitiesNumber(axisYLimits.to, "capabilities.axis.limits.y.to");
   assertOriginCapabilitiesNumber(axisYLimits.step, "capabilities.axis.limits.y.step");
   assertOriginCapabilitiesString(axisYLimits.scale, "capabilities.axis.limits.y.scale");
+  for (const [range, fieldPath] of [
+    [axisXRange, "capabilities.axis.range.x"],
+    [axisYRange, "capabilities.axis.range.y"],
+  ] as const) {
+    assertOriginCapabilitiesNumber(range.from, `${fieldPath}.from`);
+    assertOriginCapabilitiesNumber(range.to, `${fieldPath}.to`);
+    assertOriginCapabilitiesNumber(range.step, `${fieldPath}.step`);
+  }
+  assertOriginCapabilitiesString(axisXScale.mode, "capabilities.axis.scale.x.mode");
+  assertOriginCapabilitiesString(axisYScale.mode, "capabilities.axis.scale.y.mode");
+  assertOriginCapabilitiesString(axisXTitle.text, "capabilities.axis.title.x.text");
+  assertOriginCapabilitiesNumber(axisXTitle.fontSize, "capabilities.axis.title.x.fontSize");
+  assertOriginCapabilitiesString(axisYTitle.text, "capabilities.axis.title.y.text");
+  assertOriginCapabilitiesNumber(axisYTitle.fontSize, "capabilities.axis.title.y.fontSize");
+  assertOriginCapabilitiesNumber(styleLegend.fontSize, "capabilities.style.legend.fontSize");
+  assertOriginCapabilitiesNumber(axisSpacing.tickLabelOffset, "capabilities.axis.spacing.tickLabelOffset");
+  assertOriginCapabilitiesNumber(axisSpacing.axisTitleGap, "capabilities.axis.spacing.axisTitleGap");
+  assertOriginCapabilitiesBoolean(axisFrame.xOpposite, "capabilities.axis.frame.xOpposite");
+  assertOriginCapabilitiesBoolean(axisFrame.yOpposite, "capabilities.axis.frame.yOpposite");
   for (const [appearance, fieldPath] of [
     [axisAppearanceX, "capabilities.axis.appearance.x"],
     [axisAppearanceY, "capabilities.axis.appearance.y"],
@@ -239,8 +329,10 @@ function validateOriginCapabilitiesPayload(rawCapabilities: unknown): void {
     [graphSection.beforeCommands, "capabilities.graph.beforeCommands"],
     [graphSection.postCommands, "capabilities.graph.postCommands"],
     [graphSection.afterCommands, "capabilities.graph.afterCommands"],
+    [styleSection.advancedCommands, "capabilities.style.advancedCommands"],
     [styleSection.commands, "capabilities.style.commands"],
     [styleSection.postCommands, "capabilities.style.postCommands"],
+    [axisSection.advancedCommands, "capabilities.axis.advancedCommands"],
     [axisSection.commands, "capabilities.axis.commands"],
     [axisSection.postCommands, "capabilities.axis.postCommands"],
     [commandsSection.preCommands, "capabilities.commands.preCommands"],
@@ -310,25 +402,81 @@ function normalizeOriginCapabilitiesPayload(rawCapabilities: unknown): Record<st
   const graphPostCommands = normalizeOriginCommandList(
     graphSection.postCommands ?? graphSection.afterCommands,
   );
-  const styleCommands = normalizeOriginCommandList(
-    styleSection.commands ?? styleSection.postCommands,
+  const styleAdvancedCommands = normalizeOriginCommandList(
+    styleSection.advancedCommands ?? styleSection.commands ?? styleSection.postCommands,
   );
-  const axisCommands = normalizeOriginCommandList(
-    axisSection.commands ?? axisSection.postCommands,
+  const axisAdvancedCommands = normalizeOriginCommandList(
+    axisSection.advancedCommands ?? axisSection.commands ?? axisSection.postCommands,
   );
-  const axisAppearanceRaw = pickSection(axisSection.appearance);
-  const axisAppearanceNormalized: Record<string, Record<string, boolean>> = {};
-  for (const axisName of ["x", "y"] as const) {
-    const rawAxisAppearance = pickSection(axisAppearanceRaw[axisName]);
-    const normalizedAxisAppearance: Record<string, boolean> = {};
-    for (const key of ["showGrid", "showMajorTicks", "showMinorTicks"] as const) {
-      if (typeof rawAxisAppearance[key] === "boolean") {
-        normalizedAxisAppearance[key] = rawAxisAppearance[key];
+  const normalizeAxisSideRecord = (
+    value: unknown,
+    keys: readonly string[],
+    valuePredicate: (value: unknown, key: string) => unknown,
+  ): Record<string, Record<string, unknown>> => {
+    const source = pickSection(value);
+    const next: Record<string, Record<string, unknown>> = {};
+    for (const axisName of ["x", "y"] as const) {
+      const axisSource = pickSection(source[axisName]);
+      const axisNext: Record<string, unknown> = {};
+      for (const key of keys) {
+        const normalizedValue = valuePredicate(axisSource[key], key);
+        if (normalizedValue !== undefined) {
+          axisNext[key] = normalizedValue;
+        }
+      }
+      if (Object.keys(axisNext).length) {
+        next[axisName] = axisNext;
       }
     }
-    if (Object.keys(normalizedAxisAppearance).length) {
-      axisAppearanceNormalized[axisName] = normalizedAxisAppearance;
+    return next;
+  };
+  const axisAppearanceRaw = pickSection(axisSection.appearance);
+  const axisAppearanceNormalized = normalizeAxisSideRecord(
+    axisAppearanceRaw,
+    ["showGrid", "showMajorTicks", "showMinorTicks"],
+    value => typeof value === "boolean" ? value : undefined,
+  );
+  const axisRangeNormalized = normalizeAxisSideRecord(
+    axisSection.range,
+    ["from", "to", "step"],
+    value => typeof value === "number" && Number.isFinite(value) ? value : undefined,
+  );
+  const axisScaleNormalized = normalizeAxisSideRecord(
+    axisSection.scale,
+    ["mode"],
+    value => typeof value === "string" && value.trim() ? value.trim() : undefined,
+  );
+  const axisTitleNormalized = normalizeAxisSideRecord(
+    axisSection.title,
+    ["text", "fontSize"],
+    (value, key) => {
+      if (key === "text") {
+        return typeof value === "string" && value.trim() ? value.trim() : undefined;
+      }
+      return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+    },
+  );
+  const axisSpacingSource = pickSection(axisSection.spacing);
+  const axisSpacingNormalized: Record<string, number> = {};
+  for (const key of ["tickLabelOffset", "axisTitleGap"] as const) {
+    const value = axisSpacingSource[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      axisSpacingNormalized[key] = value;
     }
+  }
+  const axisFrameSource = pickSection(axisSection.frame);
+  const axisFrameNormalized: Record<string, boolean> = {};
+  for (const key of ["xOpposite", "yOpposite"] as const) {
+    const value = axisFrameSource[key];
+    if (typeof value === "boolean") {
+      axisFrameNormalized[key] = value;
+    }
+  }
+  const styleLegendSource = pickSection(styleSection.legend);
+  const styleLegendNormalized: Record<string, number> = {};
+  const legendFontSize = styleLegendSource.fontSize;
+  if (typeof legendFontSize === "number" && Number.isFinite(legendFontSize)) {
+    styleLegendNormalized.fontSize = legendFontSize;
   }
 
   const normalizeAxisLimitShape = (value: unknown): Record<string, unknown> | null => {
@@ -349,10 +497,19 @@ function normalizeOriginCapabilitiesPayload(rawCapabilities: unknown): Record<st
   };
 
   const axisLimitsRaw = pickSection(axisSection.limits);
-  const axisLimitsNormalized = {
-    x: normalizeAxisLimitShape(axisLimitsRaw.x),
-    y: normalizeAxisLimitShape(axisLimitsRaw.y),
-  };
+  for (const axisName of ["x", "y"] as const) {
+    const legacyAxis = normalizeAxisLimitShape(axisLimitsRaw[axisName]);
+    if (!legacyAxis) {
+      continue;
+    }
+    const { scale, ...range } = legacyAxis;
+    if (Object.keys(range).length && !axisRangeNormalized[axisName]) {
+      axisRangeNormalized[axisName] = range;
+    }
+    if (typeof scale === "string" && scale && !axisScaleNormalized[axisName]) {
+      axisScaleNormalized[axisName] = { mode: scale };
+    }
+  }
   const globalPreCommands = normalizeOriginCommandList(
     raw.preCommands ?? commandsSection.preCommands ?? commandsSection.beforeCommands,
   );
@@ -394,25 +551,46 @@ function normalizeOriginCapabilitiesPayload(rawCapabilities: unknown): Record<st
     if (graphPreCommands.length) normalized.graph.preCommands = graphPreCommands;
     if (graphPostCommands.length) normalized.graph.postCommands = graphPostCommands;
   }
-  if (styleCommands.length) {
-    normalized.style = { commands: styleCommands };
+  if (styleAdvancedCommands.length || Object.keys(styleLegendNormalized).length) {
+    normalized.style = {};
+    if (Object.keys(styleLegendNormalized).length) {
+      normalized.style.legend = styleLegendNormalized;
+    }
+    if (styleAdvancedCommands.length) {
+      normalized.style.advancedCommands = styleAdvancedCommands;
+    }
   }
-  if (axisCommands.length || axisLimitsNormalized.x || axisLimitsNormalized.y) {
-    normalized.axis = { commands: axisCommands };
+  if (
+    axisAdvancedCommands.length ||
+    Object.keys(axisAppearanceNormalized).length ||
+    Object.keys(axisRangeNormalized).length ||
+    Object.keys(axisScaleNormalized).length ||
+    Object.keys(axisTitleNormalized).length ||
+    Object.keys(axisSpacingNormalized).length ||
+    Object.keys(axisFrameNormalized).length
+  ) {
+    normalized.axis = {};
+    if (axisAdvancedCommands.length) {
+      normalized.axis.advancedCommands = axisAdvancedCommands;
+    }
     if (Object.keys(axisAppearanceNormalized).length) {
       normalized.axis.appearance = axisAppearanceNormalized;
     }
-    if (axisLimitsNormalized.x || axisLimitsNormalized.y) {
-      normalized.axis.limits = {};
-      const limits = normalized.axis.limits as Record<string, unknown>;
-      if (axisLimitsNormalized.x) limits.x = axisLimitsNormalized.x;
-      if (axisLimitsNormalized.y) limits.y = axisLimitsNormalized.y;
+    if (Object.keys(axisRangeNormalized).length) {
+      normalized.axis.range = axisRangeNormalized;
     }
-  } else if (Object.keys(axisAppearanceNormalized).length) {
-    normalized.axis = {
-      appearance: axisAppearanceNormalized,
-      commands: [],
-    };
+    if (Object.keys(axisScaleNormalized).length) {
+      normalized.axis.scale = axisScaleNormalized;
+    }
+    if (Object.keys(axisTitleNormalized).length) {
+      normalized.axis.title = axisTitleNormalized;
+    }
+    if (Object.keys(axisSpacingNormalized).length) {
+      normalized.axis.spacing = axisSpacingNormalized;
+    }
+    if (Object.keys(axisFrameNormalized).length) {
+      normalized.axis.frame = axisFrameNormalized;
+    }
   }
   if (globalPreCommands.length || globalPostCommands.length) {
     normalized.commands = {};

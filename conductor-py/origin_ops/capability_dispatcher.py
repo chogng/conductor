@@ -10,6 +10,12 @@ class CapabilityPlan:
     import_column_comments: list[str] = field(default_factory=list)
     import_column_designations: list[str] = field(default_factory=list)
     axis_appearance: dict = field(default_factory=dict)
+    axis_range: dict = field(default_factory=dict)
+    axis_scale: dict = field(default_factory=dict)
+    axis_title: dict = field(default_factory=dict)
+    axis_spacing: dict = field(default_factory=dict)
+    axis_frame: dict = field(default_factory=dict)
+    axis_advanced_commands: list[str] = field(default_factory=list)
     axis_limits: dict = field(default_factory=dict)
     plot_command_override: str = ""
     import_pre_commands: list[str] = field(default_factory=list)
@@ -18,6 +24,7 @@ class CapabilityPlan:
     plot_post_commands: list[str] = field(default_factory=list)
     graph_pre_commands: list[str] = field(default_factory=list)
     graph_post_commands: list[str] = field(default_factory=list)
+    style_legend: dict = field(default_factory=dict)
     style_commands: list[str] = field(default_factory=list)
     axis_commands: list[str] = field(default_factory=list)
     global_pre_commands: list[str] = field(default_factory=list)
@@ -133,12 +140,28 @@ def validate_capabilities_payload(raw_capabilities) -> dict:
     )
     style_section = _assert_allowed_keys(
         root.get("style"),
-        ["commands", "postCommands"],
+        ["legend", "advancedCommands", "commands", "postCommands"],
         "capabilities.style",
+    )
+    style_legend = _assert_allowed_keys(
+        style_section.get("legend"),
+        ["fontSize"],
+        "capabilities.style.legend",
     )
     axis_section = _assert_allowed_keys(
         root.get("axis"),
-        ["commands", "postCommands", "limits", "appearance"],
+        [
+            "appearance",
+            "range",
+            "scale",
+            "title",
+            "spacing",
+            "frame",
+            "advancedCommands",
+            "commands",
+            "postCommands",
+            "limits",
+        ],
         "capabilities.axis",
     )
     commands_section = _assert_allowed_keys(
@@ -155,6 +178,31 @@ def validate_capabilities_payload(raw_capabilities) -> dict:
         axis_section.get("limits"),
         ["x", "y"],
         "capabilities.axis.limits",
+    )
+    axis_range = _assert_allowed_keys(
+        axis_section.get("range"),
+        ["x", "y"],
+        "capabilities.axis.range",
+    )
+    axis_scale = _assert_allowed_keys(
+        axis_section.get("scale"),
+        ["x", "y"],
+        "capabilities.axis.scale",
+    )
+    axis_title = _assert_allowed_keys(
+        axis_section.get("title"),
+        ["x", "y"],
+        "capabilities.axis.title",
+    )
+    axis_spacing = _assert_allowed_keys(
+        axis_section.get("spacing"),
+        ["tickLabelOffset", "axisTitleGap"],
+        "capabilities.axis.spacing",
+    )
+    axis_frame = _assert_allowed_keys(
+        axis_section.get("frame"),
+        ["xOpposite", "yOpposite"],
+        "capabilities.axis.frame",
     )
     axis_appearance = _assert_allowed_keys(
         axis_section.get("appearance"),
@@ -180,6 +228,36 @@ def validate_capabilities_payload(raw_capabilities) -> dict:
         axis_limits.get("y"),
         ["from", "to", "step", "scale"],
         "capabilities.axis.limits.y",
+    )
+    axis_x_range = _assert_allowed_keys(
+        axis_range.get("x"),
+        ["from", "to", "step"],
+        "capabilities.axis.range.x",
+    )
+    axis_y_range = _assert_allowed_keys(
+        axis_range.get("y"),
+        ["from", "to", "step"],
+        "capabilities.axis.range.y",
+    )
+    axis_x_scale = _assert_allowed_keys(
+        axis_scale.get("x"),
+        ["mode"],
+        "capabilities.axis.scale.x",
+    )
+    axis_y_scale = _assert_allowed_keys(
+        axis_scale.get("y"),
+        ["mode"],
+        "capabilities.axis.scale.y",
+    )
+    axis_x_title = _assert_allowed_keys(
+        axis_title.get("x"),
+        ["text", "fontSize"],
+        "capabilities.axis.title.x",
+    )
+    axis_y_title = _assert_allowed_keys(
+        axis_title.get("y"),
+        ["text", "fontSize"],
+        "capabilities.axis.title.y",
     )
 
     _assert_string(import_section.get("workbookLongName"), "capabilities.import.workbookLongName")
@@ -210,6 +288,24 @@ def validate_capabilities_payload(raw_capabilities) -> dict:
     _assert_number(axis_y_limits.get("to"), "capabilities.axis.limits.y.to")
     _assert_number(axis_y_limits.get("step"), "capabilities.axis.limits.y.step")
     _assert_string(axis_y_limits.get("scale"), "capabilities.axis.limits.y.scale")
+    for axis_range_value, field_path in (
+        (axis_x_range, "capabilities.axis.range.x"),
+        (axis_y_range, "capabilities.axis.range.y"),
+    ):
+        _assert_number(axis_range_value.get("from"), f"{field_path}.from")
+        _assert_number(axis_range_value.get("to"), f"{field_path}.to")
+        _assert_number(axis_range_value.get("step"), f"{field_path}.step")
+    _assert_string(axis_x_scale.get("mode"), "capabilities.axis.scale.x.mode")
+    _assert_string(axis_y_scale.get("mode"), "capabilities.axis.scale.y.mode")
+    _assert_string(axis_x_title.get("text"), "capabilities.axis.title.x.text")
+    _assert_number(axis_x_title.get("fontSize"), "capabilities.axis.title.x.fontSize")
+    _assert_string(axis_y_title.get("text"), "capabilities.axis.title.y.text")
+    _assert_number(axis_y_title.get("fontSize"), "capabilities.axis.title.y.fontSize")
+    _assert_number(style_legend.get("fontSize"), "capabilities.style.legend.fontSize")
+    _assert_number(axis_spacing.get("tickLabelOffset"), "capabilities.axis.spacing.tickLabelOffset")
+    _assert_number(axis_spacing.get("axisTitleGap"), "capabilities.axis.spacing.axisTitleGap")
+    _assert_boolean(axis_frame.get("xOpposite"), "capabilities.axis.frame.xOpposite")
+    _assert_boolean(axis_frame.get("yOpposite"), "capabilities.axis.frame.yOpposite")
     for appearance, field_path in (
         (axis_appearance_x, "capabilities.axis.appearance.x"),
         (axis_appearance_y, "capabilities.axis.appearance.y"),
@@ -233,8 +329,10 @@ def validate_capabilities_payload(raw_capabilities) -> dict:
     _assert_command_list_shape(graph_section.get("beforeCommands"), "capabilities.graph.beforeCommands")
     _assert_command_list_shape(graph_section.get("postCommands"), "capabilities.graph.postCommands")
     _assert_command_list_shape(graph_section.get("afterCommands"), "capabilities.graph.afterCommands")
+    _assert_command_list_shape(style_section.get("advancedCommands"), "capabilities.style.advancedCommands")
     _assert_command_list_shape(style_section.get("commands"), "capabilities.style.commands")
     _assert_command_list_shape(style_section.get("postCommands"), "capabilities.style.postCommands")
+    _assert_command_list_shape(axis_section.get("advancedCommands"), "capabilities.axis.advancedCommands")
     _assert_command_list_shape(axis_section.get("commands"), "capabilities.axis.commands")
     _assert_command_list_shape(axis_section.get("postCommands"), "capabilities.axis.postCommands")
     _assert_command_list_shape(commands_section.get("preCommands"), "capabilities.commands.preCommands")
@@ -331,6 +429,97 @@ def normalize_axis_appearance_settings(value):
     return normalized
 
 
+def normalize_axis_range_settings(value):
+    if not isinstance(value, dict):
+        return {}
+    normalized = {}
+    for axis_name in ("x", "y"):
+        axis_value = value.get(axis_name)
+        if not isinstance(axis_value, dict):
+            continue
+        axis_settings = {}
+        for key in ("from", "to", "step"):
+            raw = axis_value.get(key)
+            if isinstance(raw, bool):
+                continue
+            if isinstance(raw, (int, float)) and raw == raw and raw not in (float("inf"), float("-inf")):
+                axis_settings[key] = float(raw)
+        if axis_settings:
+            normalized[axis_name] = axis_settings
+    return normalized
+
+
+def normalize_axis_scale_settings(value):
+    if not isinstance(value, dict):
+        return {}
+    normalized = {}
+    for axis_name in ("x", "y"):
+        axis_value = value.get(axis_name)
+        if not isinstance(axis_value, dict):
+            continue
+        mode = axis_value.get("mode")
+        normalized_mode = mode.strip().lower() if isinstance(mode, str) else ""
+        if normalized_mode in ("linear", "log"):
+            normalized[axis_name] = {"mode": normalized_mode}
+    return normalized
+
+
+def normalize_axis_title_settings(value):
+    if not isinstance(value, dict):
+        return {}
+    normalized = {}
+    for axis_name in ("x", "y"):
+        axis_value = value.get(axis_name)
+        if not isinstance(axis_value, dict):
+            continue
+        axis_settings = {}
+        text = axis_value.get("text")
+        if isinstance(text, str) and text.strip():
+            axis_settings["text"] = text.strip()
+        font_size = axis_value.get("fontSize")
+        if not isinstance(font_size, bool) and isinstance(font_size, (int, float)):
+            if font_size == font_size and font_size not in (float("inf"), float("-inf")):
+                axis_settings["fontSize"] = float(font_size)
+        if axis_settings:
+            normalized[axis_name] = axis_settings
+    return normalized
+
+
+def normalize_axis_spacing_settings(value):
+    if not isinstance(value, dict):
+        return {}
+    normalized = {}
+    for key in ("tickLabelOffset", "axisTitleGap"):
+        raw = value.get(key)
+        if isinstance(raw, bool):
+            continue
+        if isinstance(raw, (int, float)) and raw == raw and raw not in (float("inf"), float("-inf")):
+            normalized[key] = float(raw)
+    return normalized
+
+
+def normalize_axis_frame_settings(value):
+    if not isinstance(value, dict):
+        return {}
+    normalized = {}
+    for key in ("xOpposite", "yOpposite"):
+        raw = value.get(key)
+        if isinstance(raw, bool):
+            normalized[key] = raw
+    return normalized
+
+
+def normalize_style_legend_settings(value):
+    if not isinstance(value, dict):
+        return {}
+    font_size = value.get("fontSize")
+    if isinstance(font_size, bool) or not isinstance(font_size, (int, float)):
+        return {}
+    if font_size != font_size or font_size in (float("inf"), float("-inf")):
+        return {}
+    return {"fontSize": float(font_size)}
+
+
 def _as_dict(value):
     return value if isinstance(value, dict) else {}
 
@@ -366,7 +555,27 @@ def resolve_capability_plan(raw_capabilities) -> CapabilityPlan:
     import_column_comments = normalize_string_list(import_column_labels.get("comments"))
     import_column_designations = normalize_string_list(import_column_labels.get("designations"))
     axis_appearance = normalize_axis_appearance_settings(axis_capabilities.get("appearance"))
+    axis_range = normalize_axis_range_settings(axis_capabilities.get("range"))
+    axis_scale = normalize_axis_scale_settings(axis_capabilities.get("scale"))
+    axis_title = normalize_axis_title_settings(axis_capabilities.get("title"))
+    axis_spacing = normalize_axis_spacing_settings(axis_capabilities.get("spacing"))
+    axis_frame = normalize_axis_frame_settings(axis_capabilities.get("frame"))
+    style_legend = normalize_style_legend_settings(style_capabilities.get("legend"))
     axis_limits = normalize_axis_limit_settings(axis_capabilities.get("limits"))
+    for axis_name, legacy_axis in axis_limits.items():
+        if not isinstance(legacy_axis, dict):
+            continue
+        legacy_range = {
+            key: legacy_axis[key]
+            for key in ("from", "to", "step")
+            if key in legacy_axis
+        }
+        if legacy_range and axis_name not in axis_range:
+            axis_range[axis_name] = legacy_range
+        legacy_scale = legacy_axis.get("scale")
+        normalized_legacy_scale = legacy_scale.strip().lower() if isinstance(legacy_scale, str) else ""
+        if normalized_legacy_scale in ("linear", "log") and axis_name not in axis_scale:
+            axis_scale[axis_name] = {"mode": normalized_legacy_scale}
     plot_command_override_raw = plot_capabilities.get("command")
     plot_command_override = (
         plot_command_override_raw.strip()
@@ -381,6 +590,17 @@ def resolve_capability_plan(raw_capabilities) -> CapabilityPlan:
         import_column_comments=import_column_comments,
         import_column_designations=import_column_designations,
         axis_appearance=axis_appearance,
+        axis_range=axis_range,
+        axis_scale=axis_scale,
+        axis_title=axis_title,
+        axis_spacing=axis_spacing,
+        axis_frame=axis_frame,
+        axis_advanced_commands=_pick_commands(
+            axis_capabilities,
+            "advancedCommands",
+            "commands",
+            "postCommands",
+        ),
         axis_limits=axis_limits,
         plot_command_override=plot_command_override,
         import_pre_commands=_pick_commands(import_capabilities, "preCommands", "beforeCommands"),
@@ -394,7 +614,8 @@ def resolve_capability_plan(raw_capabilities) -> CapabilityPlan:
         ),
         graph_pre_commands=_pick_commands(graph_capabilities, "preCommands", "beforeCommands"),
         graph_post_commands=_pick_commands(graph_capabilities, "postCommands", "afterCommands"),
-        style_commands=_pick_commands(style_capabilities, "commands", "postCommands"),
+        style_legend=style_legend,
+        style_commands=_pick_commands(style_capabilities, "advancedCommands", "commands", "postCommands"),
         axis_commands=_pick_commands(axis_capabilities, "commands", "postCommands"),
         global_pre_commands=_pick_commands(global_capabilities, "preCommands", "beforeCommands"),
         global_post_commands=_pick_commands(global_capabilities, "postCommands", "afterCommands"),
