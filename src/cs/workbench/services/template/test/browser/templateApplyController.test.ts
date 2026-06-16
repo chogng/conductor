@@ -15,7 +15,10 @@ import type {
 } from "src/cs/workbench/services/session/common/session";
 import type { ITableService } from "src/cs/workbench/services/table/common/table";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
-import type { ProcessingStatus } from "src/cs/workbench/services/session/common/sessionTypes";
+import type {
+  ProcessingStatus,
+  SessionFile,
+} from "src/cs/workbench/services/session/common/sessionTypes";
 import type { ITemplateApplyService } from "src/cs/workbench/services/template/common/template";
 import {
   TemplateApplyController,
@@ -226,6 +229,75 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     controller.dispose();
   });
 
+  test("incremental apply rejects while source files are still importing", () => {
+    const queuedFileIds: string[][] = [];
+    const controller = new TemplateApplyController({
+      sessionService: createSessionService(),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds),
+    });
+
+    const config = {
+      autoExtractionMode: true,
+      stopOnError: false,
+    };
+
+    controller.update({
+      hasPendingSourceFiles: false,
+      processedFileIds: [],
+      rawFiles: [createSessionFile("file-a")],
+    });
+    controller.handleTemplateApplied(config);
+    controller.update({
+      hasPendingSourceFiles: true,
+      processedFileIds: ["file-a"],
+      rawFiles: [
+        createSessionFile("file-a"),
+        createSessionFile("file-b"),
+      ],
+    });
+    const result = controller.handleTemplateAppliedIncremental(config) as { ok: boolean };
+
+    assert.equal(result.ok, false);
+    assert.deepEqual(queuedFileIds, [["file-a"]]);
+    controller.dispose();
+  });
+
+  test("full apply skips files that need template review", () => {
+    const queuedFileIds: string[][] = [];
+    const controller = new TemplateApplyController({
+      sessionService: createSessionService(),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds),
+    });
+
+    controller.update({
+      processedFileIds: [],
+      rawFiles: [
+        createSessionFile("file-a"),
+        createSessionFile("file-b", {
+          curveType: "unknown",
+          curveTypeConfidence: "medium",
+          curveTypeNeedsTemplate: true,
+          xAxisRole: null,
+        }),
+      ],
+    });
+    const result = controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    }) as { message: string; ok: boolean };
+
+    assert.equal(result.ok, true);
+    assert.match(result.message, /template\.apply\.skippedAssessmentFiles/);
+    assert.deepEqual(queuedFileIds, [["file-a"]]);
+    controller.dispose();
+  });
+
   test("fires processing status changes for bridge consumers", () => {
     const queuedFileIds: string[][] = [];
     const startedJobs: ProcessingJobOptions[] = [];
@@ -320,10 +392,23 @@ suite("workbench/services/template/browser/templateApplyController", () => {
   });
 });
 
-const createSessionFile = (fileId: string) => ({
+const createSessionFile = (
+  fileId: string,
+  overrides: Partial<SessionFile> = {},
+) => ({
+  ...createSessionFileBase(fileId),
+  ...overrides,
+});
+
+const createSessionFileBase = (fileId: string) => ({
+  curveType: "transfer",
+  curveTypeConfidence: "high" as const,
+  curveTypeNeedsTemplate: false,
   file: new File([""], `${fileId}.csv`),
   fileId,
   fileName: `${fileId}.csv`,
+  xAxisRole: "vg" as const,
+  xAxisRoleSource: "metadata" as const,
 });
 
 const createTemplateProcessingBackend = (): TemplateProcessingBackend => ({

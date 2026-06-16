@@ -64,7 +64,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     });
   });
 
-  test("creates chart mode input from file projection", () => {
+  test("keeps chart tree input on the stable raw file projection", () => {
     const session = new SessionService();
     commitRawFilesForTest(session, [
       {
@@ -94,6 +94,104 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     const snapshot = session.getSnapshot();
     const readModel = createSessionReadModel(snapshot);
     const explorerService = new ExplorerService();
+
+    const input = createExplorerPaneInput({
+      activePlotType: "iv",
+      explorerService,
+      mode: "chart",
+      originOpenPlotOptions: DEFAULT_ORIGIN_PLOT_OPTIONS,
+      plotService: createPlotService(),
+      plotAxisSettings: { x: { show: true } },
+      readModel,
+      snapshot,
+      templateState: {
+        formState: createEmptyTemplateConfig(),
+        mode: "management",
+        selectedTemplateId: null,
+        selectionsByFileId: {},
+        templateListVersion: 0,
+      },
+    });
+
+    assert.equal(input.selectionKind, "chart");
+    assert.equal(input.selectedFileId, "file-a");
+    assert.deepEqual(input.files.map(file => file.fileId), ["file-a", "raw-only"]);
+    assert.deepEqual(input.thumbnailFiles.map(file => file.fileId), ["file-a"]);
+    assert.equal(input.thumbnailPlotModelsByFileId, undefined);
+    assert.equal(input.originOpenPlotOptions, DEFAULT_ORIGIN_PLOT_OPTIONS);
+    assert.deepEqual(input.plotAxisSettings, { x: { show: true } });
+
+    const beforeNextTemplateOutput = input.files
+      .map(file => `${file.itemKey ?? file.fileId}:${file.fileId}`)
+      .join("|");
+    commitTemplateOutputForTest(session, {
+      curveType: "transfer",
+      fileId: "raw-only",
+      fileName: "Raw Only.csv",
+      series: [{
+        groupIndex: 0,
+        id: "series-raw-only",
+        y: [1, 2],
+      }],
+      xGroups: [[0, 1]],
+    });
+    const nextSnapshot = session.getSnapshot();
+    const nextInput = createExplorerPaneInput({
+      activePlotType: "iv",
+      explorerService,
+      mode: "chart",
+      originOpenPlotOptions: DEFAULT_ORIGIN_PLOT_OPTIONS,
+      plotService: createPlotService(),
+      plotAxisSettings: { x: { show: true } },
+      readModel: createSessionReadModel(nextSnapshot),
+      snapshot: nextSnapshot,
+      templateState: {
+        formState: createEmptyTemplateConfig(),
+        mode: "management",
+        selectedTemplateId: null,
+        selectionsByFileId: {},
+        templateListVersion: 0,
+      },
+    });
+    const afterNextTemplateOutput = nextInput.files
+      .map(file => `${file.itemKey ?? file.fileId}:${file.fileId}`)
+      .join("|");
+    assert.equal(afterNextTemplateOutput, beforeNextTemplateOutput);
+
+    assert.equal(explorerService.selectedProcessedFileId, null);
+  });
+
+  test("creates chart thumbnail input from processed file projection", () => {
+    const session = new SessionService();
+    commitRawFilesForTest(session, [
+      {
+        fileId: "file-a",
+        fileName: "Processed A.csv",
+        rowCount: 2,
+        columnCount: 2,
+      },
+      {
+        fileId: "raw-only",
+        fileName: "Raw Only.csv",
+        rowCount: 2,
+        columnCount: 2,
+      },
+    ]);
+    commitTemplateOutputForTest(session, {
+      curveType: "transfer",
+      fileId: "file-a",
+      fileName: "Processed A.csv",
+      series: [{
+        groupIndex: 0,
+        id: "series-a",
+        y: [1, 2],
+      }],
+      xGroups: [[0, 1]],
+    });
+    const snapshot = session.getSnapshot();
+    const readModel = createSessionReadModel(snapshot);
+    const explorerService = new ExplorerService();
+    explorerService.setViewLayout("thumbnail");
 
     const input = createExplorerPaneInput({
       activePlotType: "iv",

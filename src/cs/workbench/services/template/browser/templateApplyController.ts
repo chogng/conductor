@@ -41,7 +41,10 @@ import type {
   RuleProcessingJobOptions,
   TemplateWorkerRef,
 } from "src/cs/workbench/services/template/browser/templateApplyProcessing";
-import { buildTemplateProcessingQueue } from "src/cs/workbench/services/template/browser/templateApplyPlanner";
+import {
+  buildTemplateProcessingPlan,
+  type TemplateProcessingSkippedFile,
+} from "src/cs/workbench/services/template/browser/templateApplyPlanner";
 import {
   ITemplateApplyService,
   ITemplateApplyWorkflowService,
@@ -246,6 +249,32 @@ const buildExtractionStartFeedback = ({
     type: warnings.length ? "warning" : "success",
   };
 };
+
+const buildSkippedAssessmentWarnings = (
+  skippedFiles: readonly TemplateProcessingSkippedFile[],
+): string[] => {
+  if (!skippedFiles.length) {
+    return [];
+  }
+
+  return [
+    localize("template.apply.skippedAssessmentFiles", "Skipped {count} file(s) that need template review or assessment.", {
+      count: skippedFiles.length,
+    }),
+  ];
+};
+
+const buildNoProcessableFilesFeedback = (
+  skippedFiles: readonly TemplateProcessingSkippedFile[],
+): { ok: false; message: string; type: "warning" } => ({
+  message: skippedFiles.length
+    ? localize("template.apply.noProcessableFilesWithSkipped", "No processable files to extract. {count} file(s) need template review or assessment.", {
+        count: skippedFiles.length,
+      })
+    : localize("template.apply.noProcessableFiles", "No processable files to extract."),
+  ok: false,
+  type: "warning",
+});
 
 const buildWorkerExtractionError = (payload: unknown): ExtractionErrorEntry => {
   const details = normalizeExtractionErrorDetails(payload);
@@ -535,6 +564,28 @@ export class TemplateApplyController {
     return null;
   };
 
+  private readonly createIncrementalApplyBusyFeedback = ():
+    | { ok: false; message: string; type: "warning" }
+    | null => {
+    if (this._processingStatus.state === "processing") {
+      return {
+        message: localize("template.applyNewFiles.busy", "Extraction is already running."),
+        ok: false,
+        type: "warning",
+      };
+    }
+
+    if (this.input.hasPendingSourceFiles) {
+      return {
+        message: localize("template.applyNewFiles.importing", "Files are still importing. Try again after import finishes."),
+        ok: false,
+        type: "warning",
+      };
+    }
+
+    return null;
+  };
+
   public readonly handleTemplateApplied = (config: Record<string, unknown>) => {
     const busy = this.createFullApplyBusyFeedback();
     if (busy) {
@@ -551,21 +602,25 @@ export class TemplateApplyController {
     }
 
     if (isAutoTemplateConfig(config)) {
-      const queue = buildTemplateProcessingQueue(rawFiles);
+      const plan = buildTemplateProcessingPlan(rawFiles);
+      if (!plan.queue.length) {
+        return buildNoProcessableFilesFeedback(plan.skippedFiles);
+      }
+
       this.lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
       this.startExtractionJob({
         extractionConfig: config,
         messageType: "processFileAuto",
-        queue,
+        queue: plan.queue,
         clearTemplateOutputBeforeRun: true,
         stopOnError: Boolean(config?.stopOnError),
       });
 
       return buildExtractionStartFeedback({
-        count: queue.length,
+        count: plan.queue.length,
         messageKey: "extract_started",
         meta: {},
-        warnings: [],
+        warnings: buildSkippedAssessmentWarnings(plan.skippedFiles),
       });
     }
 
@@ -574,24 +629,36 @@ export class TemplateApplyController {
       return prepared;
     }
 
-    const queue = buildTemplateProcessingQueue(rawFiles);
+    const plan = buildTemplateProcessingPlan(rawFiles);
+    if (!plan.queue.length) {
+      return buildNoProcessableFilesFeedback(plan.skippedFiles);
+    }
+
     this.lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
     this.startExtractionJob({
       extractionConfig: prepared.extractionConfig,
-      queue,
+      queue: plan.queue,
       clearTemplateOutputBeforeRun: true,
       stopOnError: Boolean(prepared.stopOnError),
     });
 
     return buildExtractionStartFeedback({
-      count: queue.length,
+      count: plan.queue.length,
       messageKey: "extract_started",
       meta: prepared.meta,
-      warnings: prepared.warnings,
+      warnings: [
+        ...prepared.warnings,
+        ...buildSkippedAssessmentWarnings(plan.skippedFiles),
+      ],
     });
   };
 
   public readonly handleTemplateAppliedIncremental = (config: Record<string, unknown>) => {
+    const busy = this.createIncrementalApplyBusyFeedback();
+    if (busy) {
+      return busy;
+    }
+
     const { rawFiles = [] } = this.input;
 
     if (Array.isArray((config as RuleBasedExtractionConfig)?.fileNameTemplateRules)) {
@@ -628,28 +695,30 @@ export class TemplateApplyController {
       }
 
       const processedIds = resolveProcessedFileIds(this.input);
-      const queue = buildTemplateProcessingQueue(rawFiles, processedIds);
-      if (!queue.length) {
-        return {
-          message: localize("template.applyNewFiles.noNewFiles", "No new files to extract."),
-          ok: false,
-          type: "warning" as const,
-        };
+      const plan = buildTemplateProcessingPlan(rawFiles, processedIds);
+      if (!plan.queue.length) {
+        return plan.skippedFiles.length
+          ? buildNoProcessableFilesFeedback(plan.skippedFiles)
+          : {
+              message: localize("template.applyNewFiles.noNewFiles", "No new files to extract."),
+              ok: false,
+              type: "warning" as const,
+            };
       }
 
       this.startExtractionJob({
         extractionConfig: config,
         messageType: "processFileAuto",
-        queue,
+        queue: plan.queue,
         clearTemplateOutputBeforeRun: false,
         stopOnError: Boolean(config?.stopOnError),
       });
 
       return buildExtractionStartFeedback({
-        count: queue.length,
+        count: plan.queue.length,
         messageKey: "apply_to_new_files_started",
         meta: {},
-        warnings: [],
+        warnings: buildSkippedAssessmentWarnings(plan.skippedFiles),
       });
     }
 
@@ -679,13 +748,15 @@ export class TemplateApplyController {
     }
 
     const processedIds = resolveProcessedFileIds(this.input);
-    const queue = buildTemplateProcessingQueue(rawFiles, processedIds);
-    if (!queue.length) {
-      return {
-        message: localize("template.applyNewFiles.noNewFiles", "No new files to extract."),
-        ok: false,
-        type: "warning" as const,
-      };
+    const plan = buildTemplateProcessingPlan(rawFiles, processedIds);
+    if (!plan.queue.length) {
+      return plan.skippedFiles.length
+        ? buildNoProcessableFilesFeedback(plan.skippedFiles)
+        : {
+            message: localize("template.applyNewFiles.noNewFiles", "No new files to extract."),
+            ok: false,
+            type: "warning" as const,
+          };
     }
 
     const prepared = this.prepareExtractionRun(config);
@@ -695,16 +766,19 @@ export class TemplateApplyController {
 
     this.startExtractionJob({
       extractionConfig: prepared.extractionConfig,
-      queue,
+      queue: plan.queue,
       clearTemplateOutputBeforeRun: false,
       stopOnError: Boolean(prepared.stopOnError),
     });
 
     return buildExtractionStartFeedback({
-      count: queue.length,
+      count: plan.queue.length,
       messageKey: "apply_to_new_files_started",
       meta: prepared.meta,
-      warnings: prepared.warnings,
+      warnings: [
+        ...prepared.warnings,
+        ...buildSkippedAssessmentWarnings(plan.skippedFiles),
+      ],
     });
   };
 
@@ -933,7 +1007,8 @@ export class TemplateApplyController {
     }
 
     const processedIds = incremental ? resolveProcessedFileIds(this.input) : null;
-    const candidates = buildTemplateProcessingQueue(rawFiles, processedIds);
+    const plan = buildTemplateProcessingPlan(rawFiles, processedIds);
+    const candidates = plan.queue;
     const queueByTemplateName = new Map<string, ProcessingQueueItem[]>();
     const configByTemplateName = new Map<string, Record<string, unknown>>();
 
@@ -978,11 +1053,13 @@ export class TemplateApplyController {
 
     const groupedEntries = Array.from(queueByTemplateName.entries());
     if (!groupedEntries.length) {
-      return {
-        message: localize("template.applyNewFiles.noNewFiles", "No new files to extract."),
-        ok: false,
-        type: "warning",
-      };
+      return plan.skippedFiles.length
+        ? buildNoProcessableFilesFeedback(plan.skippedFiles)
+        : {
+            message: localize("template.applyNewFiles.noNewFiles", "No new files to extract."),
+            ok: false,
+            type: "warning",
+          };
     }
 
     const finalQueue: ProcessingQueueItem[] = [];
@@ -990,7 +1067,7 @@ export class TemplateApplyController {
       extractionConfig: unknown;
       queue: ProcessingQueueItem[];
     }> = [];
-    const warnings: string[] = [];
+    const warnings: string[] = buildSkippedAssessmentWarnings(plan.skippedFiles);
 
     for (const [key, queue] of groupedEntries) {
       const templateConfig = configByTemplateName.get(key);

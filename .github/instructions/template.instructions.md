@@ -110,10 +110,15 @@ flowchart TD
 - Re-running a template replaces only affected template output. Completed file
   outputs may be coalesced and committed through `commitTemplateOutputs(...)`
   so one UI frame does not produce one session event per file.
-- Full apply must not start while another extraction job is running or while
-  Explorer still has pending/preparing source rows from import. The workflow
-  returns a warning instead of building a partial queue from only the files
-  already committed to Session.
+- Apply planning skips files whose assessment is missing, unknown, low
+  confidence, or marked as needing template review. Those files remain in the
+  Explorer tree through the stable raw/session projection and are shown through
+  Explorer assessment badges; Template must not remove them from Explorer or
+  process them by default.
+- Full and incremental apply must not start while another extraction job is
+  running or while Explorer still has pending/preparing source rows from
+  import. The workflow returns a warning instead of building a partial queue
+  from only the files already committed to Session.
 - Template processing cleanup consumes `SessionChangeEvent`: `filesRemoved`
   removes affected queued files, and `sessionCleared` terminates and resets the
   active processing worker. Do not route this cleanup through Explorer submit

@@ -300,8 +300,9 @@ export const createExplorerPaneInput = ({
 }: CreateExplorerPaneInputOptions): ExplorerPaneInput => {
   const rawFiles = readModel.rawFiles;
   const isChartMode = mode === "chart";
+  const isThumbnailLayout = isChartMode && explorerService.viewLayout === "thumbnail";
   const selectionKind: ExplorerSelectionKind = isChartMode ? "chart" : "table";
-  const files = isChartMode
+  const files = isThumbnailLayout
     ? createChartExplorerFilesFromRecords(
       snapshot.filesById,
       snapshot.fileOrder,
@@ -309,7 +310,10 @@ export const createExplorerPaneInput = ({
     )
     : applyFastExplorerBadges(createRawExplorerFiles(rawFiles), snapshot);
   const fileIds = getExplorerPaneFileIds(files);
-  const thumbnailPlotModelsByFileId = isChartMode
+  const selectionFileIds = isChartMode
+    ? readModel.processedFileIds
+    : fileIds;
+  const thumbnailPlotModelsByFileId = isThumbnailLayout
     ? createThumbnailPlotModelsByFileId({
       activePlotType,
       fileIds: readModel.processedFileIds,
@@ -321,7 +325,7 @@ export const createExplorerPaneInput = ({
     selectionKind === "chart"
       ? explorerService.selectedProcessedFileId
       : explorerService.selectedRawFileId,
-    fileIds,
+    selectionFileIds,
   );
   const currentTemplate = createCurrentTemplateSelectionDisplay({
     formName: templateState.formState.name,
