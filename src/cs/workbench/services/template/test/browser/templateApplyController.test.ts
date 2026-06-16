@@ -15,6 +15,7 @@ import type {
 } from "src/cs/workbench/services/session/common/session";
 import type { ITableService } from "src/cs/workbench/services/table/common/table";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
+import type { ProcessingStatus } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { ITemplateApplyService } from "src/cs/workbench/services/template/common/template";
 import {
   TemplateApplyController,
@@ -225,6 +226,56 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     controller.dispose();
   });
 
+  test("fires processing status changes for bridge consumers", () => {
+    const queuedFileIds: string[][] = [];
+    const startedJobs: ProcessingJobOptions[] = [];
+    const statuses: ProcessingStatus[] = [];
+    const controller = new TemplateApplyController({
+      sessionService: createSessionService(),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds, startedJobs),
+    });
+    const disposable = controller.onDidChangeProcessingStatus(status => {
+      statuses.push(status);
+    });
+
+    controller.update({
+      processedFileIds: [],
+      rawFiles: [createSessionFile("file-a")],
+    });
+    controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    });
+    startedJobs[0].setProcessingStatus({
+      processed: 0,
+      state: "processing",
+      total: 1,
+    });
+    startedJobs[0].setProcessingStatus({
+      processed: 1,
+      state: "done",
+      total: 1,
+    });
+
+    assert.deepEqual(statuses, [
+      {
+        processed: 0,
+        state: "processing",
+        total: 1,
+      },
+      {
+        processed: 1,
+        state: "done",
+        total: 1,
+      },
+    ]);
+    disposable.dispose();
+    controller.dispose();
+  });
+
   test("batches template output commits on the next turn", async () => {
     const queuedFileIds: string[][] = [];
     const committedBatches: CommitTemplateOutputInput[][] = [];
@@ -395,4 +446,4 @@ const createTemplateOutputSnapshot = (fileIds: readonly string[]): SessionSnapsh
 });
 
 const waitForTemplateOutputFlush = (): Promise<void> =>
-  new Promise(resolve => setTimeout(resolve, 0));
+  new Promise(resolve => setTimeout(resolve, 80));

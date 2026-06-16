@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { startPerf } from "src/cs/workbench/common/perf";
 import {
   type ExplorerPaneInput,
   type ExplorerSelectionKind,
@@ -81,6 +82,7 @@ export class WorkbenchDomainBridge extends Disposable {
       this.prioritizeVisibleExplorerFiles(event.visibleFileIds, event.nearbyFileIds);
     }));
     this._register(this.options.plotService.onDidChangePlotState(() => this.scheduleSync()));
+    this._register(this.options.templateApplyWorkflowService.onDidChangeProcessingStatus(() => this.scheduleSync()));
     this._register(this.options.templateService.onDidChangeTemplateState(() => this.scheduleSync()));
     this._register(this.options.layoutService.onDidChangeWorkbenchNavigation(() => this.scheduleSync()));
     this._register(this.options.sessionService.onDidChangeSession(() => this.scheduleSync()));
@@ -120,6 +122,10 @@ export class WorkbenchDomainBridge extends Disposable {
 
   private runSync(): void {
     const snapshot = this.options.sessionService.getSnapshot();
+    const endPerf = startPerf("workbenchDomainBridge.sync", {
+      fileCount: Object.keys(snapshot.filesById).length,
+      sessionVersion: snapshot.sessionVersion,
+    });
     const readModel = createSessionReadModel(snapshot);
     const explorerSelection = reconcileExplorerSessionSelection(
       this.options.explorerService,
@@ -144,6 +150,10 @@ export class WorkbenchDomainBridge extends Disposable {
       readModel,
       explorerSelection.selectedProcessedFileId,
     ));
+    endPerf({
+      processedFileCount: readModel.processedFileIds.length,
+      rawFileCount: readModel.rawFiles.length,
+    });
   }
 
   private getExplorerPaneInput(

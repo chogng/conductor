@@ -178,7 +178,11 @@ const finishProcessingJob = ({
   worker: Worker;
   workerRef: TemplateWorkerRef<Worker | null>;
 }) => {
-  setProcessingStatus((prev) => ({ ...prev, state: "done" }));
+  setProcessingStatus((prev) => ({
+    ...prev,
+    processed: Math.max(prev.processed, prev.total),
+    state: "done",
+  }));
   if (hasAnyProcessedResult) {
     showResults();
   }
@@ -768,4 +772,3 @@ export const startRuleProcessingJob = ({
 
   launchNext();
 };
-

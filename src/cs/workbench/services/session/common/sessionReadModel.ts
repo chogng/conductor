@@ -1,3 +1,4 @@
+import { startPerf } from "src/cs/workbench/common/perf";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import {
   getLatestTemplateRunRecord,
@@ -31,6 +32,10 @@ export type SessionReadModel = {
 export const createSessionReadModel = (
   snapshot: SessionSnapshot,
 ): SessionReadModel => {
+  const endPerf = startPerf("createSessionReadModel", {
+    fileCount: Object.keys(snapshot.filesById).length,
+    sessionVersion: snapshot.sessionVersion,
+  });
   const rawFiles = createRawFilesFromRecords(
     snapshot.filesById,
     snapshot.fileOrder,
@@ -40,14 +45,19 @@ export const createSessionReadModel = (
     snapshot.filesById,
     snapshot.fileOrder,
   );
-
-  return {
+  const readModel = {
     hasChartData: processedFileIds.length > 0,
     hasSessionData: rawFiles.length > 0 || processedFileIds.length > 0,
     processedFileIds,
     processedFiles,
     rawFiles,
   };
+  endPerf({
+    processedFileCount: processedFileIds.length,
+    processedProjectionCount: processedFiles.length,
+    rawFileCount: rawFiles.length,
+  });
+  return readModel;
 };
 
 export const hasFileRecordChartData = (

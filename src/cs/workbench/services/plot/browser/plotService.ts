@@ -4,6 +4,7 @@
 
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { startPerf } from "src/cs/workbench/common/perf";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
   IStorageService,
@@ -112,17 +113,36 @@ export class PlotService extends Disposable implements IPlotService {
     const plotType = input.plotType && isPlotType(input.plotType)
       ? input.plotType
       : this.state.activePlotType;
+    const endPerf = startPerf("plotService.getCalculatedData", {
+      fileId: input.fileId ?? null,
+      fileCount: Object.keys(snapshot.filesById).length,
+      plotType,
+      sessionVersion: snapshot.sessionVersion,
+    });
     const file = resolveCalculatedDataFile(snapshot, input.fileId);
     if (file) {
-      return this.getCalculatedDataForFileRecord(file, plotType);
+      const cacheHit = Boolean(this.calculatedDataCacheByFile.get(file)?.[plotType]);
+      const calculatedData = this.getCalculatedDataForFileRecord(file, plotType);
+      endPerf({
+        cacheHit,
+        resolvedFileId: file.id,
+        resultPointsCount: calculatedData.pointsCount,
+        source: "fileRecord",
+      });
+      return calculatedData;
     }
 
-    return getCalculatedDataFromRecords(
+    const calculatedData = getCalculatedDataFromRecords(
       snapshot.filesById,
       snapshot.fileOrder,
       plotType,
       input.fileId,
     );
+    endPerf({
+      resultPointsCount: calculatedData?.pointsCount ?? 0,
+      source: "recordsFallback",
+    });
+    return calculatedData;
   }
 
   public getLegendLabels(fileId: FileId): Readonly<Record<SeriesId, string>> {

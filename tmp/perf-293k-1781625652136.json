@@ -1,0 +1,269 @@
+{
+  "elapsedMs": 216509,
+  "url": "http://127.0.0.1:5173/src/cs/code/browser/workbench/workbench-dev.html",
+  "dataDir": "C:/Users/lanxi/Desktop/293K",
+  "perfLogCount": 511,
+  "summary": {
+    "createSessionReadModel": {
+      "count": 319,
+      "totalMs": 36,
+      "avgMs": 0.11,
+      "maxMs": 1.7,
+      "minMs": 0,
+      "samples": [
+        {
+          "name": "createSessionReadModel",
+          "fileCount": 0,
+          "sessionVersion": 0,
+          "processedFileCount": 0,
+          "processedProjectionCount": 0,
+          "rawFileCount": 0,
+          "durationMs": 0
+        },
+        {
+          "name": "createSessionReadModel",
+          "fileCount": 0,
+          "sessionVersion": 0,
+          "processedFileCount": 0,
+          "processedProjectionCount": 0,
+          "rawFileCount": 0,
+          "durationMs": 0
+        },
+        {
+          "name": "createSessionReadModel",
+          "fileCount": 0,
+          "sessionVersion": 0,
+          "processedFileCount": 0,
+          "processedProjectionCount": 0,
+          "rawFileCount": 0,
+          "durationMs": 0
+        },
+        {
+          "name": "createSessionReadModel",
+          "fileCount": 0,
+          "sessionVersion": 0,
+          "processedFileCount": 0,
+          "processedProjectionCount": 0,
+          "rawFileCount": 0,
+          "durationMs": 0
+        },
+        {
+          "name": "createSessionReadModel",
+          "fileCount": 0,
+          "sessionVersion": 0,
+          "processedFileCount": 0,
+          "processedProjectionCount": 0,
+          "rawFileCount": 0,
+          "durationMs": 0
+        },
+        {
+          "name": "createSessionReadModel",
+          "fileCount": 0,
+          "sessionVersion": 0,
+          "processedFileCount": 0,
+          "processedProjectionCount": 0,
+          "rawFileCount": 0,
+          "durationMs": 0
+        },
+        {
+          "name": "createSessionReadModel",
+          "fileCount": 0,
+          "sessionVersion": 0,
+          "processedFileCount": 0,
+          "processedProjectionCount": 0,
+          "rawFileCount": 0,
+          "durationMs": 0.10000000149011612
+        },
+        {
+          "name": "createSessionReadModel",
+          "fileCount": 1,
+          "sessionVersion": 1,
+          "processedFileCount": 0,
+          "processedProjectionCount": 0,
+          "rawFileCount": 1,
+          "durationMs": 0
+        }
+      ]
+    },
+    "workbenchDomainBridge.sync": {
+      "count": 31,
+      "totalMs": 162,
+      "avgMs": 5.23,
+      "maxMs": 21.6,
+      "minMs": 0.4,
+      "samples": [
+        {
+          "name": "workbenchDomainBridge.sync",
+          "fileCount": 0,
+          "sessionVersion": 0,
+          "processedFileCount": 0,
+          "rawFileCount": 0,
+          "durationMs": 4.5
+        },
+        {
+          "name": "workbenchDomainBridge.sync",
+          "fileCount": 0,
+          "sessionVersion": 0,
+          "processedFileCount": 0,
+          "rawFileCount": 0,
+          "durationMs": 0.6999999992549419
+        },
+        {
+          "name": "workbenchDomainBridge.sync",
+          "fileCount": 0,
+          "sessionVersion": 0,
+          "processedFileCount": 0,
+          "rawFileCount": 0,
+          "durationMs": 0.3999999985098839
+        },
+        {
+          "name": "workbenchDomainBridge.sync",
+          "fileCount": 1,
+          "sessionVersion": 2,
+          "processedFileCount": 0,
+          "rawFileCount": 1,
+          "durationMs": 21.600000001490116
+        },
+        {
+          "name": "workbenchDomainBridge.sync",
+          "fileCount": 9,
+          "sessionVersion": 15,
+          "processedFileCount": 0,
+          "rawFileCount": 9,
+          "durationMs": 5.399999998509884
+        },
+        {
+          "name": "workbenchDomainBridge.sync",
+          "fileCount": 10,
+          "sessionVersion": 17,
+          "processedFileCount": 0,
+          "rawFileCount": 10,
+          "durationMs": 5.5
+        },
+        {
+          "name": "workbenchDomainBridge.sync",
+          "fileCount": 18,
+          "sessionVersion": 31,
+          "processedFileCount": 0,
+          "rawFileCount": 18,
+          "durationMs": 5.899999998509884
+        },
+        {
+          "name": "workbenchDomainBridge.sync",
+          "fileCount": 26,
+          "sessionVersion": 44,
+          "processedFileCount": 0,
+          "rawFileCount": 26,
+          "durationMs": 6.400000002235174
+        }
+      ]
+    },
+    "import:prepare-file": {
+      "count": 160,
+      "totalMs": 84373,
+      "avgMs": 527.33,
+      "maxMs": 1072,
+      "minMs": 21.6,
+      "samples": [
+        {
+          "name": "import:prepare-file",
+          "fileName": "Output_.csv",
+          "sizeBytes": 171235,
+          "accepted": true,
+          "fileId": "d3c7c553-a4b9-443f-8c51-d9002bc63d87",
+          "normalizedSizeBytes": 171235,
+          "durationMs": 21.600000001490116
+        },
+        {
+          "name": "import:prepare-file",
+          "fileName": "2.csv",
+          "sizeBytes": 171235,
+          "accepted": true,
+          "fileId": "35e38dd3-9108-489b-9f23-fc4a92d3825c",
+          "normalizedSizeBytes": 171235,
+          "durationMs": 51.600000001490116
+        },
+        {
+          "name": "import:prepare-file",
+          "fileName": "4.csv",
+          "sizeBytes": 171235,
+          "accepted": true,
+          "fileId": "0680a47a-4f45-49af-a23c-0ae21da93fab",
+          "normalizedSizeBytes": 171235,
+          "durationMs": 59.30000000074506
+        },
+        {
+          "name": "import:prepare-file",
+          "fileName": "o_.csv",
+          "sizeBytes": 171235,
+          "accepted": true,
+          "fileId": "fd9ce99f-b467-4074-9e8e-be38d7235f5f",
+          "normalizedSizeBytes": 171235,
+          "durationMs": 65.10000000149012
+        },
+        {
+          "name": "import:prepare-file",
+          "fileName": "Output_.csv",
+          "sizeBytes": 171235,
+          "accepted": true,
+          "fileId": "0a8196ec-21c1-4cae-af0f-69df0e37d085",
+          "normalizedSizeBytes": 171235,
+          "durationMs": 70
+        },
+        {
+          "name": "import:prepare-file",
+          "fileName": "t_.csv",
+          "sizeBytes": 171235,
+          "accepted": true,
+          "fileId": "d2ff1566-3a60-4ffa-a1ff-d5f4e48a7ea0",
+          "normalizedSizeBytes": 171235,
+          "durationMs": 71.80000000074506
+        },
+        {
+          "name": "import:prepare-file",
+          "fileName": "ou.csv",
+          "sizeBytes": 171235,
+          "accepted": true,
+          "fileId": "083bebf7-818c-4f3b-940e-4da83e8f6b08",
+          "normalizedSizeBytes": 171235,
+          "durationMs": 73.19999999925494
+        },
+        {
+          "name": "import:prepare-file",
+          "fileName": "tr.csv",
+          "sizeBytes": 171235,
+          "accepted": true,
+          "fileId": "23edc02c-f5fa-4846-8a98-f78e0cc7b8c2",
+          "normalizedSizeBytes": 171235,
+          "durationMs": 83.90000000223517
+        }
+      ]
+    },
+    "import:add-files": {
+      "count": 1,
+      "totalMs": 1135,
+      "avgMs": 1134.7,
+      "maxMs": 1134.7,
+      "minMs": 1134.7,
+      "samples": [
+        {
+          "name": "import:add-files",
+          "currentCount": 0,
+          "source": "folder",
+          "acceptedCount": 160,
+          "failedCount": 0,
+          "scannedCount": 160,
+          "unsupportedCount": 0,
+          "durationMs": 1134.699999999255
+        }
+      ]
+    }
+  },
+  "bodyTail": "+000\t\n\n28\n\t\t1\t1\t27\t-2.22000E+000\t-3.23718E-009\t685.78207E+006\t3.28690E+000\t-60.00000E+000\t\n\n29\n\t\t1\t1\t28\t-2.19000E+000\t-3.08820E-009\t709.15096E+006\t3.40774E+000\t-60.00000E+000\t\n\n30\n\t\t1\t1\t29\t-2.16000E+000\t-3.08582E-009\t699.97602E+006\t3.54744E+000\t-60.00000E+000\t\n\n31\n\t\t1\t1\t30\t-2.13000E+000\t-2.98835E-009\t712.76792E+006\t3.66841E+000\t-60.00000E+000\t\n\n32\n\t\t1\t1\t31\t-2.10000E+000\t-3.01464E-009\t696.60059E+006\t3.78936E+000\t-60.00000E+000\t\n\n33\n\t\t1\t1\t32\t-2.07000E+000\t-3.09002E-009\t669.89858E+006\t3.91015E+000\t-60.00000E+000\t\n\n34\n\t\t1\t1\t33\t-2.04000E+000\t-3.13259E-009\t651.21832E+006\t4.04873E+000\t-60.00000E+000\t\n\n35\n\t\t1\t1\t34\t-2.01000E+000\t-3.11141E-009\t646.00937E+006\t4.16957E+000\t-60.00000E+000\t\n\n36\n\t\t1\t1\t35\t-1.98000E+000\t-3.13487E-009\t631.60514E+006\t4.29035E+000\t-60.00000E+000\t\n\n37\n\t\t1\t1\t36\t-1.95000E+000\t-3.03315E-009\t642.89600E+006\t4.41120E+000\t-60.00000E+000\t\n\n38\n\t\t1\t1\t37\t-1.92000E+000\t-3.01016E-009\t637.83985E+006\t4.54897E+000\t-60.00000E+000\t\n\n39\n\t\t1\t1\t38\t-1.89000E+000\t-2.96080E-009\t638.34099E+006\t4.66990E+000\t-60.00000E+000\t\n\n40\n\t\t1\t1\t39\t-1.86000E+000\t-2.94757E-009\t631.02827E+006\t4.79072E+000\t-60.00000E+000\t\n\n41\n\t\t1\t1\t40\t-1.83000E+000\t-2.88831E-009\t633.58850E+006\t4.91151E+000\t-60.00000E+000\t\n\n42\n\t\t1\t1\t41\t-1.80000E+000\t-2.90498E-009\t619.62595E+006\t5.05025E+000\t-60.00000E+000\t\n\n43\n\t\t1\t1\t42\t-1.77000E+000\t-2.84085E-009\t623.05331E+006\t5.17109E+000\t-60.00000E+000\t\n\n44\n\t\t1\t1\t43\t-1.74000E+000\t-2.88053E-009\t604.05550E+006\t5.29191E+000\t-60.00000E+000\t\n\n45\n\t\t1\t1\t44\t-1.71000E+000\t-2.81644E-009\t607.14945E+006\t5.41277E+000\t-60.00000E+000\t\n\n46\n\t\t1\t1\t45\t-1.68000E+000\t-2.81222E-009\t597.39281E+006\t5.55284E+000\t-60.00000E+000\t\n\n47\n\t\t1\t1\t46\t-1.65000E+000\t-2.78149E-009\t593.20724E+006\t5.67368E+000\t-60.00000E+000\t\n\n模板管理\n模板\n自动提取\n应用到所有\n应用到新增\n\n首个无效即停止\n\n智能自动提取\n\n系统将自动分析导入的文件格式，识别自变量、因变量并提取相关参数。适用于标准的 IV/CV 数据格式。",
+  "consoleErrors": [
+    {
+      "type": "error",
+      "text": "Failed to load templates for file context menu. Error: 模板存储桌面桥接不可用。\n    at unavailable (http://127.0.0.1:5173/src/cs/workbench/services/template/browser/templateStoreService.ts:6:25)\n    at BrowserTemplateStoreService.getTemplates (http://127.0.0.1:5173/src/cs/workbench/services/template/browser/templateStoreService.ts:10:12)\n    at BrowserTemplateService.getTemplates (http://127.0.0.1:5173/src/cs/workbench/services/template/browser/templateService.ts:143:52)\n    at ExplorerViewPane.loadTemplates (http://127.0.0.1:5173/src/cs/workbench/contrib/files/browser/explorerViewlet.ts:584:26)\n    at new ExplorerViewPane (http://127.0.0.1:5173/src/cs/workbench/contrib/files/browser/explorerViewlet.ts:150:10)\n    at InstantiationService.createInstanceFromConstructor (http://127.0.0.1:5173/src/cs/platform/instantiation/common/instantiationService.ts:77:12)\n    at InstantiationService.createInstance (http://127.0.0.1:5173/src/cs/platform/instantiation/common/instantiationService.ts:49:19)\n    at ViewsService.addView (http://127.0.0.1:5173/src/cs/workbench/services/views/browser/viewsService.ts:354:44)\n    at ViewsService.registerViewContainerModel (http://127.0.0.1:5173/src/cs/workbench/services/views/browser/viewsService.ts:313:12)\n    at new ViewsService (http://127.0.0.1:5173/src/cs/workbench/services/views/browser/viewsService.ts:39:12)"
+    }
+  ]
+}

@@ -80,6 +80,8 @@ flowchart TD
     Planner --> Worker[ITemplateApplyService]
     Worker --> Result[TemplateApplyResult]
     Result --> Commit[ISessionService.commitTemplateOutputs]
+    Workflow --> Status[onDidChangeProcessingStatus]
+    Status --> DomainBridge
 ```
 
 ## Rules
@@ -97,6 +99,9 @@ flowchart TD
 - Template views subscribe to `ITemplateService.onDidChangeTemplateViewInput`
   and then reread `ITemplateService.getViewInput()`. The event must not carry
   `TemplateViewInput` as the data channel.
+- Template apply progress belongs to `ITemplateApplyWorkflowService`. Consumers
+  subscribe to `onDidChangeProcessingStatus` and reread `processingStatus`; they
+  do not infer progress completion from Session or Plot events.
 - Template apply may consume the current table preview through injected
   `ITableService` public state/model APIs. Do not pass table row readers,
   source-existence callbacks, or table model methods through

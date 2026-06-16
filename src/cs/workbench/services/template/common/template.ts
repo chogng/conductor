@@ -119,6 +119,7 @@ export interface ITemplateApplyService<
 export interface ITemplateApplyWorkflowService {
   readonly _serviceBrand: undefined;
 
+  readonly onDidChangeProcessingStatus: Event<ProcessingStatus>;
   readonly processingStatus: ProcessingStatus;
 
   applyTemplate(config: Record<string, unknown>): unknown;

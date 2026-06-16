@@ -7,6 +7,7 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import { startPerf } from "src/cs/workbench/common/perf";
 import {
   createEmptySessionModel,
   type CurveGeneration,
@@ -352,6 +353,11 @@ export class SessionService extends Disposable implements ISessionServiceType {
   };
 
   public commitTemplateOutputs = (inputs: readonly CommitTemplateOutputInput[]): void => {
+    const inputCount = Array.isArray(inputs) ? inputs.length : 0;
+    const endPerf = startPerf("sessionService.commitTemplateOutput", {
+      batchSize: inputCount,
+      sessionVersion: this.snapshot.sessionVersion,
+    });
     let nextFilesById = this.snapshot.filesById;
     const committedFileIds: FileId[] = [];
     const committedCurveKeys: SessionCurveKey[] = [];
@@ -415,6 +421,7 @@ export class SessionService extends Disposable implements ISessionServiceType {
     }
 
     if (nextFilesById === this.snapshot.filesById) {
+      endPerf({ committed: false });
       return;
     }
 
@@ -425,6 +432,13 @@ export class SessionService extends Disposable implements ISessionServiceType {
       curveKeys: uniqueStrings(committedCurveKeys),
       fileIds: uniqueStrings(committedFileIds),
       seriesIds: uniqueStrings(committedSeriesIds),
+    });
+    endPerf({
+      committed: true,
+      committedCurveCount: uniqueStrings(committedCurveKeys).length,
+      committedFileCount: uniqueStrings(committedFileIds).length,
+      committedSeriesCount: uniqueStrings(committedSeriesIds).length,
+      nextSessionVersion: this.snapshot.sessionVersion,
     });
   };
 

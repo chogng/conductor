@@ -3,8 +3,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, type NLSVars } from "src/cs/nls";
+import { Emitter } from "src/cs/base/common/event";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import { startPerf, summarizeProcessedFile } from "src/cs/workbench/common/perf";
 import {
   ISessionService,
   type CommitTemplateOutputInput,
@@ -94,6 +96,8 @@ type StartExtractionJobOptions = {
   stopOnError: boolean;
 };
 
+const TEMPLATE_OUTPUT_FLUSH_DELAY_MS = 32;
+
 type TemplateApplyControllerOptions = {
   sessionService: Pick<
     ISessionService,
@@ -135,6 +139,14 @@ const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
 const createTemplateWorkerRef = <T,>(current: T): TemplateWorkerRef<T> => ({ current });
+
+const isSameProcessingStatus = (
+  current: ProcessingStatus,
+  next: ProcessingStatus,
+): boolean =>
+  current.state === next.state &&
+  current.processed === next.processed &&
+  current.total === next.total;
 
 const resolveRuleCurveFilterInfo = (rule: {
   matchMode?: unknown;
@@ -314,6 +326,9 @@ const getWorkerExtractionErrorMessage = ({
 };
 
 export class TemplateApplyController {
+  private readonly onDidChangeProcessingStatusEmitter = new Emitter<ProcessingStatus>();
+  public readonly onDidChangeProcessingStatus = this.onDidChangeProcessingStatusEmitter.event;
+
   private readonly processingWorkerRef = createTemplateWorkerRef<Worker | null>(null);
   private readonly processingJobIdRef = createTemplateWorkerRef(0);
   private readonly processingQueueRef = createTemplateWorkerRef<ProcessingQueueItem[]>([]);
@@ -355,6 +370,7 @@ export class TemplateApplyController {
     this.sessionChangeDisposable.dispose();
     this.discardTemplateOutputCommits();
     this.options.templateApplyService.terminateProcessingWorker(this.processingWorkerRef);
+    this.onDidChangeProcessingStatusEmitter.dispose();
   }
 
   public readonly resetProcessingWorker = (): void => {
@@ -412,16 +428,22 @@ export class TemplateApplyController {
     file: ProcessedEntry | null | undefined,
     options?: CommitTemplateOutputOptions,
   ): void => {
+    const endPerf = startPerf("templateApplyController.commitTemplateOutput", summarizeProcessedFile(file));
     const commit = createProcessedFileSessionCommit(
       this.options.sessionService.getSnapshot(),
       file,
       options,
     );
     if (!commit) {
+      endPerf({ committed: false });
       return;
     }
 
     this.pendingTemplateOutputCommits.push(commit);
+    endPerf({
+      committed: true,
+      pendingBatchSize: this.pendingTemplateOutputCommits.length,
+    });
     this.scheduleTemplateOutputFlush();
   };
 
@@ -435,17 +457,9 @@ export class TemplateApplyController {
       this.flushTemplateOutputCommits();
     };
 
-    if (typeof requestAnimationFrame === "function") {
-      this.scheduledTemplateOutputFlush = {
-        kind: "animationFrame",
-        handle: requestAnimationFrame(flush),
-      };
-      return;
-    }
-
     this.scheduledTemplateOutputFlush = {
       kind: "timeout",
-      handle: setTimeout(flush, 0),
+      handle: setTimeout(flush, TEMPLATE_OUTPUT_FLUSH_DELAY_MS),
     };
   };
 
@@ -473,8 +487,12 @@ export class TemplateApplyController {
       return;
     }
 
+    const endPerf = startPerf("templateApplyController.flushTemplateOutputs", {
+      batchSize: commits.length,
+    });
     this.pendingTemplateOutputCommits = [];
     this.options.sessionService.commitTemplateOutputs(commits);
+    endPerf();
   };
 
   private readonly discardTemplateOutputCommits = (): void => {
@@ -696,10 +714,15 @@ export class TemplateApplyController {
       typeof next === "function"
         ? (next as (previous: ProcessingStatus) => ProcessingStatus)(previous)
         : next;
+    if (isSameProcessingStatus(previous, resolved)) {
+      return;
+    }
+
     this._processingStatus = resolved;
     if (previous.state === "processing" && resolved.state !== "processing") {
       this.flushTemplateOutputCommits();
     }
+    this.onDidChangeProcessingStatusEmitter.fire(resolved);
   };
 
   private readonly prepareExtractionRun = (
