@@ -16,8 +16,12 @@ export class HorizontalScrollbar extends AbstractScrollbar {
     super(orientation, root, delegate, "scrollAreaTrackX", "scrollAreaThumbX");
   }
 
-  protected applyThumbSize(metrics: ScrollbarMetrics): void {
-    this.thumb.style.width = `${metrics.xThumbSize}px`;
+  protected getThumbSize(metrics: ScrollbarMetrics): number {
+    return metrics.xThumbSize;
+  }
+
+  protected applyThumbSize(size: number): void {
+    this.thumb.style.width = `${size}px`;
   }
 
   protected applyThumbOffset(offset: number): void {
