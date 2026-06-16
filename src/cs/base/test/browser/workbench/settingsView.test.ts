@@ -25,7 +25,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       const themeSelect = getButton(container, "settings-theme-dropdown");
       const explorerDensitySelect = getButton(container, "settings-explorer-density-dropdown");
       const explorerBadgesSwitch = getButton(container, "settings-explorer-badges-toggle");
-      const outputGreenSwatch = getButtonByAriaLabel(container, "output color: Green");
+      const transferBlueSwatch = getButtonByAriaLabel(container, "transfer color: Blue");
       const colorInput = getInput(container, "settings-background-color-input");
       const backgroundResetButton = getButton(container, "settings-background-reset-btn");
       const whiteSwatch = getButtonByAriaLabel(container, "#ffffff");
@@ -57,7 +57,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
             mixed: "neutral",
             output: "blue",
             pv: "red",
-            transfer: "blue",
+            transfer: "green",
             unknown: "orange",
           },
           isExplorerBadgeColorSaving: true,
@@ -72,7 +72,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(getButton(container, "settings-theme-dropdown"), themeSelect);
       assert.equal(getButton(container, "settings-explorer-density-dropdown"), explorerDensitySelect);
       assert.equal(getButton(container, "settings-explorer-badges-toggle"), explorerBadgesSwitch);
-      assert.equal(getButtonByAriaLabel(container, "output color: Green"), outputGreenSwatch);
+      assert.equal(getButtonByAriaLabel(container, "transfer color: Blue"), transferBlueSwatch);
       assert.equal(getInput(container, "settings-background-color-input"), colorInput);
       assert.equal(getButton(container, "settings-background-reset-btn"), backgroundResetButton);
       assert.equal(getButtonByAriaLabel(container, "#ffffff"), whiteSwatch);
@@ -82,9 +82,9 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(getSelectLabel(themeSelect), "Dark");
       assert.equal(getSelectLabel(explorerDensitySelect), "Compact");
       assert.equal(explorerDensitySelect.disabled, true);
-      assert.equal(outputGreenSwatch.disabled, true);
-      assert.equal(outputGreenSwatch.dataset.selected, "false");
-      assert.equal(getButtonByAriaLabel(container, "output color: Blue").dataset.selected, "true");
+      assert.equal(transferBlueSwatch.disabled, true);
+      assert.equal(transferBlueSwatch.dataset.selected, "false");
+      assert.equal(getButtonByAriaLabel(container, "transfer color: Green").dataset.selected, "true");
       assert.ok(explorerBadgesSwitch.classList.contains("ui-switch--animate"));
       assert.ok(transparentChromeSwitch.classList.contains("ui-switch--animate"));
       assert.equal(explorerBadgesSwitch.disabled, true);

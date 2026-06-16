@@ -134,6 +134,7 @@ export class ContextView implements IDisposable {
 
     public dispose(): void {
         this.hide();
+        this.disposables.dispose();
         reset(this.element);
     }
 
