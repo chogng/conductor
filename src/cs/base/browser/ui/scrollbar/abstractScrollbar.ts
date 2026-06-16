@@ -10,9 +10,15 @@ export type ScrollbarPartDelegate = {
   readonly onThumbPointerDown: (orientation: ScrollbarOrientation, event: MouseEvent) => void;
 };
 
+const THUMB_UPDATE_EPSILON = 0.5;
+
 export abstract class AbstractScrollbar implements IDisposable {
   protected readonly track: HTMLDivElement;
   protected readonly thumb: HTMLDivElement;
+
+  private visible: boolean | null = null;
+  private thumbOffset = Number.NaN;
+  private thumbSize = Number.NaN;
 
   constructor(
     protected readonly orientation: ScrollbarOrientation,
@@ -34,17 +40,20 @@ export abstract class AbstractScrollbar implements IDisposable {
 
   update(metrics: ScrollbarMetrics, offset: number): void {
     const visible = isScrollbarVisible(metrics, this.orientation);
-    this.track.hidden = !visible;
-    this.root.dataset[this.orientation === "y" ? "scrollbarY" : "scrollbarX"] =
-      visible ? "visible" : "hidden";
+    if (this.visible !== visible) {
+      this.visible = visible;
+      this.track.hidden = !visible;
+      this.root.dataset[this.orientation === "y" ? "scrollbarY" : "scrollbarX"] =
+        visible ? "visible" : "hidden";
+    }
 
     if (!visible) {
-      this.thumb.style.transform = "translate3d(0, 0, 0)";
+      this.updateThumbOffset(0);
       return;
     }
 
-    this.applyThumbSize(metrics);
-    this.applyThumbOffset(offset);
+    this.updateThumbSize(this.getThumbSize(metrics));
+    this.updateThumbOffset(offset);
   }
 
   dispose(): void {
@@ -53,8 +62,27 @@ export abstract class AbstractScrollbar implements IDisposable {
     this.track.remove();
   }
 
-  protected abstract applyThumbSize(metrics: ScrollbarMetrics): void;
+  protected abstract applyThumbSize(size: number): void;
   protected abstract applyThumbOffset(offset: number): void;
+  protected abstract getThumbSize(metrics: ScrollbarMetrics): number;
+
+  private updateThumbSize(size: number): void {
+    if (Math.abs(this.thumbSize - size) < THUMB_UPDATE_EPSILON) {
+      return;
+    }
+
+    this.thumbSize = size;
+    this.applyThumbSize(size);
+  }
+
+  private updateThumbOffset(offset: number): void {
+    if (Math.abs(this.thumbOffset - offset) < THUMB_UPDATE_EPSILON) {
+      return;
+    }
+
+    this.thumbOffset = offset;
+    this.applyThumbOffset(offset);
+  }
 
   private readonly handleTrackPointerDown = (event: MouseEvent): void => {
     this.delegate.onTrackPointerDown(this.orientation, event);
