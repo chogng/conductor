@@ -37,10 +37,11 @@ It does not own:
 
 | File | Responsibility |
 | --- | --- |
-| `src/cs/workbench/services/parameters/common/parameters.ts` | Defines `IParametersService`, parameter rows, selection, filters, input commands. |
+| `src/cs/workbench/services/parameters/common/parameters.ts` | Defines `IParametersService`, parameter view ids, and parameter command ids. |
 | `src/cs/workbench/services/parameters/common/parameterModel.ts` | Pure parameter display model types and builders. |
-| `src/cs/workbench/services/parameters/browser/parametersService.ts` | Owns parameter view state, subscribes to session, builds display rows, commits metric inputs. |
-| `src/cs/workbench/services/parameters/browser/parameters.contribution.ts` | Registers service and lifecycle contribution. |
+| `src/cs/workbench/services/parameters/browser/parametersService.ts` | Owns parameter view state, builds display rows from caller-provided session snapshots, and avoids duplicate view-state publishes. |
+| `src/cs/workbench/contrib/parameters/browser/parameters.contribution.ts` | Registers the Parameters view and parameter commands through a workbench contribution. |
+| `src/cs/workbench/contrib/parameters/browser/parametersCommands.ts` | Registers parameter user-intent commands such as showing the Parameters view and metric input commands. |
 | `src/cs/workbench/contrib/parameters/browser/parametersViewPane.ts` | View pane shell. Renders rows and forwards edits/selection. |
 | `src/cs/workbench/contrib/parameters/browser/parametersModel.ts` | Current transitional model. Target owner is service common/browser model files. |
 
@@ -48,10 +49,13 @@ It does not own:
 
 ```mermaid
 flowchart TD
-    Session[SessionSnapshot] --> Parameters[IParametersService]
-    Plot[IPlotService] --> Parameters
+    ShowCommand[workbench.action.showParameters] --> Layout[IWorkbenchLayoutService]
+    Layout --> Workbench[Workbench refresh]
+    Session[SessionSnapshot] --> Workbench
+    Workbench --> Parameters[IParametersService.updateViewState]
     Parameters --> Rows[ParameterDisplayModel]
-    Rows --> View[ParametersView]
+    Parameters --> StateEvent[onDidChangeParametersViewState]
+    StateEvent --> View[ParametersViewPane render]
     View --> Parameters
     Parameters --> Commit[ISessionService.setMetricInput]
 ```
@@ -61,6 +65,9 @@ flowchart TD
 - Manual inputs that affect calculations are canonical and may be committed to Session.
 - UI-only method choices, selected rows, filters, and panel state belong to Parameters service.
 - Parameter rows should link back to source curves/metrics using ids, not copied data.
+- `onDidChangeParametersViewState` is a leaf view-state event. Parameters views may subscribe to render; Workbench must not subscribe to it and then call `updateViewState`, because that creates a refresh loop.
+- Workbench may provide the current `fileId` and `SessionSnapshot` to `IParametersService.updateViewState` while rendering the active Parameters auxiliary view.
+- `IParametersService.updateViewState` should suppress duplicate publishes when the effective input has not changed.
 
 ## Command entry and dispatch
 
@@ -70,11 +77,21 @@ Recommended files:
 
 | File | Responsibility |
 | --- | --- |
-| `src/cs/workbench/contrib/parameters/browser/parametersCommands.ts` | Registers reveal metric, set manual input, clear manual input, focus parameters commands. |
+| `src/cs/workbench/contrib/parameters/browser/parametersCommands.ts` | Registers show parameters, reveal metric, set manual input, clear manual input, and focus parameters commands. |
 | `src/cs/workbench/contrib/parameters/browser/parametersActions.ts` | Parameter view/menu actions. |
 | `src/cs/workbench/services/parameters/browser/parametersService.ts` | Owns parameter display state and delegates canonical metric input commits to session. |
 
 Command flow:
+
+```txt
+workbench.action.showParameters command
+  -> IWorkbenchLayoutService.navigateToView("chart")
+  -> IWorkbenchLayoutService.selectAuxiliaryBarView("parameters")
+  -> Workbench refreshes active auxiliary view input
+  -> IParametersService.updateViewState({ fileId, snapshot })
+  -> onDidChangeParametersViewState
+  -> ParametersViewPane render
+```
 
 ```txt
 parameters.setMetricInput command
@@ -84,6 +101,10 @@ parameters.setMetricInput command
   -> ParametersView render
 ```
 
+Auxiliary bar buttons, Command Palette entries, and future keybindings that show
+the Parameters view should use `ParametersCommandId.showParameters` rather than
+a location-scoped id such as `workbench.auxiliarybar.parameters`.
+
 Only calculation-affecting manual inputs should become canonical session records. Panel selection stays in ParametersService.
 
 ## Do not
@@ -91,6 +112,8 @@ Only calculation-affecting manual inputs should become canonical session records
 - Do not store selected parameter row in Session.
 - Do not compute plot domains here.
 - Do not use table raw rows directly unless a parameter algorithm explicitly requires it through a calculation service.
+- Do not make `IParametersService` navigate workbench views; showing or hiding the Parameters pane belongs to layout/view commands.
+- Do not have Workbench consume `onDidChangeParametersViewState`; the event is for Parameters view consumers.
 
 
 ## Field catalog

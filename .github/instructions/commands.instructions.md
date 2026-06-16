@@ -203,6 +203,7 @@ const target = normalizeTableRangeTarget(rawTarget)
 | Thumbnail refresh/toggle presentation | `thumbnailCommands.ts` or Explorer command | `IThumbnailService` / `IExplorerService` | Thumbnail or Explorer service | Layout toggle belongs to Explorer; bitmap cache belongs to Thumbnail. |
 | Search query/open result | `searchCommands.ts` | `ISearchService` | `ISearchService`; then target owner service for reveal | Search result navigation dispatches to Table/Explorer/Plot as needed. |
 | Export Origin/CSV/ZIP | `exportCommands.ts` | `IExportService` | `IExportService` | Export service builds plans. Command handles UX entry and notifications. |
+| Show Parameters view | `parametersCommands.ts` | `IWorkbenchLayoutService` | Layout service `navigateToView("chart")` and `selectAuxiliaryBarView("parameters")` | Showing the Parameters pane is workbench navigation, not Parameters service state. Auxiliary bar buttons should use the same `ParametersCommandId.showParameters` command id. |
 | Parameter metric input | `parametersCommands.ts` | `IParametersService` | `IParametersService`; may commit metric input to session | UI selection stays in Parameters; calculation input may be canonical. |
 
 ## Actions vs commands

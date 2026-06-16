@@ -230,6 +230,8 @@
   "parameters.copyTable.failedFallback": "剪贴板复制命令失败",
   "parameters.copyTable.label": "复制表格",
   "parameters.copyTable.success": "已复制参数表",
+  "parameters.commands.category": "参数",
+  "parameters.commands.showParameters": "显示参数",
   "parameters.empty.noData": "暂无参数数据。",
   "parameters.empty.noRows": "暂无参数行。",
   "parameters.empty.unsupportedCurve": "该曲线类型暂无参数。",

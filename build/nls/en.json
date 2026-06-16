@@ -212,6 +212,8 @@
   "originZip.error.emptyEntry": "Origin ZIP entry is missing CSV content.",
   "originZip.error.invalidEntryPath": "Origin ZIP entry path is not readable.",
   "originZip.error.saveFailed": "Failed to save Origin ZIP.",
+  "parameters.commands.category": "Parameters",
+  "parameters.commands.showParameters": "Show Parameters",
   "parameters.copyTable.empty": "No parameter rows to copy.",
   "parameters.copyTable.failed": "Failed to copy parameter table: {error}",
   "parameters.copyTable.failedFallback": "Clipboard copy command failed.",

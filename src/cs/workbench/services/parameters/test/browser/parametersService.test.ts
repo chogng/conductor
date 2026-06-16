@@ -38,6 +38,30 @@ suite("workbench/services/parameters/test/browser/parametersService", () => {
     service.dispose();
   });
 
+  test("does not publish unchanged parameter view state input", () => {
+    const service = new ParametersService();
+    const viewStates: ParametersViewState[] = [];
+    const snapshot = createProcessedSnapshot();
+    const disposable = service.onDidChangeParametersViewState(state => {
+      viewStates.push(state);
+    });
+
+    const firstViewState = service.updateViewState({
+      fileId: "file-a",
+      snapshot,
+    });
+    const secondViewState = service.updateViewState({
+      fileId: "file-a",
+      snapshot,
+    });
+
+    assert.equal(secondViewState, firstViewState);
+    assert.deepEqual(viewStates, [firstViewState]);
+
+    disposable.dispose();
+    service.dispose();
+  });
+
   test("requires caller-owned file selection for parameter view state", () => {
     const service = new ParametersService();
     const snapshot = createProcessedSnapshot();

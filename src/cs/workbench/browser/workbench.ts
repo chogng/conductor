@@ -27,7 +27,10 @@ import {
   ExplorerViewId,
   type IExplorerService,
 } from "src/cs/workbench/contrib/files/browser/files";
-import type { IParametersService } from "src/cs/workbench/services/parameters/common/parameters";
+import {
+  ParametersCommandId,
+  type IParametersService,
+} from "src/cs/workbench/services/parameters/common/parameters";
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import type { ISearchService } from "src/cs/workbench/services/search/common/search";
 import {
@@ -304,9 +307,6 @@ export class Workbench extends Layout {
     this._register(this.explorerService.onDidChangeSelection(() => {
       this.refreshWorkbench();
     }));
-    this._register(this.parametersService.onDidChangeParametersViewState(() => {
-      this.refreshWorkbench();
-    }));
     this._register(this.plotService.onDidChangePlotState(() => {
       this.refreshWorkbench();
     }));
@@ -492,7 +492,7 @@ export class Workbench extends Layout {
     const state = this.auxiliaryBarModel.update({
       activeView: this.layoutService.activeAuxiliaryBarView,
       mode: this.activeWorkbenchMainPart,
-      onDidChangeActiveView: view => this.layoutService.selectAuxiliaryBarView(view),
+      onDidChangeActiveView: view => this.selectAuxiliaryBarView(view),
       templateMode: this.templateService.getState().mode,
       visible,
     });
@@ -505,6 +505,15 @@ export class Workbench extends Layout {
     for (const view of state.views) {
       this.viewsService.setViewVisible(view.viewId, view.visible);
     }
+  }
+
+  private selectAuxiliaryBarView(view: string): void {
+    if (view === "parameters") {
+      void this.commandService.executeCommand(ParametersCommandId.showParameters);
+      return;
+    }
+
+    this.layoutService.selectAuxiliaryBarView(view);
   }
 
   private renderAuxiliaryBarView(

@@ -4,7 +4,10 @@ import { localize } from "src/cs/nls";
 import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import { ExportViewId } from "src/cs/workbench/services/export/common/export";
 import { OriginExportSettingsViewId } from "src/cs/workbench/services/origin/common/origin";
-import { ParametersViewId } from "src/cs/workbench/services/parameters/common/parameters";
+import {
+  ParametersCommandId,
+  ParametersViewId,
+} from "src/cs/workbench/services/parameters/common/parameters";
 import { SearchViewId } from "src/cs/workbench/services/search/common/search";
 import {
   TemplateAuxiliaryBarViewId,
@@ -17,6 +20,7 @@ export type TemplateAuxiliaryBarMode = TemplateMode;
 
 export type AuxiliaryBarViewDescriptor = {
   readonly id: AuxiliaryBarView;
+  readonly commandId?: string;
   readonly icon?: LxIconDefinition;
   readonly mode: AuxiliaryBarMode;
   readonly viewId: string;
@@ -56,6 +60,7 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
   },
   {
     id: "parameters",
+    commandId: ParametersCommandId.showParameters,
     icon: LxIcon.parameters,
     mode: "chart",
     viewId: ParametersViewId,
@@ -118,7 +123,7 @@ export const createAuxiliaryBarActions = ({
   getAuxiliaryBarViews(mode).map((view) => {
     const label = localize(view.labelKey, view.label);
     const action = toAction({
-      id: `workbench.auxiliarybar.${view.id}`,
+      id: view.commandId ?? `workbench.auxiliarybar.${view.id}`,
       label,
       tooltip: label,
       class: AuxiliaryBarViewSwitchActionClass,

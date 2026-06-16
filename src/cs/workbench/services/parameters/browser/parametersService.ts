@@ -21,6 +21,7 @@ export class ParametersService extends Disposable implements IParametersService 
   private readonly onDidChangeParametersViewStateEmitter = this._register(new Emitter<ParametersViewState>());
   public readonly onDidChangeParametersViewState = this.onDidChangeParametersViewStateEmitter.event;
 
+  private viewStateInputKey: string | null = null;
   private viewState: ParametersViewState = createDefaultParametersViewState();
 
   constructor() {
@@ -45,7 +46,13 @@ export class ParametersService extends Disposable implements IParametersService 
   }
 
   public updateViewState(input: ParametersViewStateInput): ParametersViewState {
+    const inputKey = createParametersViewStateInputKey(input);
+    if (this.viewStateInputKey === inputKey) {
+      return this.viewState;
+    }
+
     const viewState = this.createViewState(input);
+    this.viewStateInputKey = inputKey;
     this.viewState = viewState;
     this.onDidChangeParametersViewStateEmitter.fire(viewState);
     return viewState;
@@ -57,5 +64,8 @@ const createDefaultParametersViewState = (): ParametersViewState => ({
   kind: "empty",
   message: localize("parameters.empty.noData", "No parameter data."),
 });
+
+const createParametersViewStateInputKey = (input: ParametersViewStateInput): string =>
+  `${String(input.fileId ?? "").trim()}\0${input.snapshot.sessionVersion}`;
 
 registerSingleton(IParametersService, ParametersService, InstantiationType.Delayed);

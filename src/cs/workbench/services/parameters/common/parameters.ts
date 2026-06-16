@@ -9,7 +9,14 @@ import type { FileId } from "src/cs/workbench/services/session/common/sessionMod
 import type { ParametersViewState } from "src/cs/workbench/services/parameters/common/parameterModel";
 
 export const IParametersService = createDecorator<IParametersService>("parametersService");
+export const ParametersContributionId = "workbench.contrib.parameters";
 export const ParametersViewId = "workbench.parameters";
+
+export const ParametersCommandId = {
+	showParameters: "workbench.action.showParameters",
+} as const;
+
+export type ParametersCommandId = typeof ParametersCommandId[keyof typeof ParametersCommandId];
 
 export type ParametersViewStateInput = {
   readonly fileId?: FileId | null;
