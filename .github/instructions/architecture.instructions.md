@@ -946,7 +946,9 @@ src/cs/workbench/contrib/quickaccess/
   browser/quickAccess.contribution.ts
 
 src/cs/workbench/contrib/table/
+  browser/tableWidgetService.ts
   browser/tableCommands.ts
+  browser/tableActions.ts
   browser/table.contribution.ts
 
 src/cs/workbench/contrib/template/
