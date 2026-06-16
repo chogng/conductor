@@ -318,6 +318,30 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.deepEqual(gmCurve?.points.map(point => point.y), [0.001, 0.001]);
   });
 
+  test("normalizes capacitance-frequency template units before canonical storage", () => {
+    const session = new SessionService();
+
+    commitTemplateOutputForTest(session, {
+      fileId: "file-a",
+      fileName: "Cf.csv",
+      curveType: "cf",
+      xUnit: "kHz",
+      yUnit: "pF",
+      xGroups: [[1, 2]],
+      series: [{
+        id: "series-1",
+        groupIndex: 0,
+        y: [3, 4],
+      }],
+    });
+
+    const curve = session.getSnapshot().filesById["file-a"].curvesByKey["base:cf:default:series-1"];
+    assert.deepEqual(curve.points, [
+      { x: 1000, y: 3e-12 },
+      { x: 2000, y: 4e-12 },
+    ]);
+  });
+
   test("commits template runs, curves, and metrics through explicit APIs", () => {
     const session = new SessionService();
     const events: SessionChangeEvent[] = [];

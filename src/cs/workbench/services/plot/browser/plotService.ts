@@ -35,9 +35,11 @@ import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/browse
 import { filterCalculatedDataSeries } from "src/cs/workbench/services/plot/common/plotSeriesVisibility";
 import {
   getYUnitValuesForFamily,
+  getXUnitValuesForFamily,
   getXUnitMeta,
   getYUnitMeta,
   normalizeXUnit,
+  normalizeXUnitForFamily,
   normalizeYUnit,
   normalizeYUnitForFamily,
   type XUnit,
@@ -541,7 +543,7 @@ const resolveDisplayUnits = (
   const fileId = String(data.source.fileId ?? "").trim();
   const sourceXUnit = normalizeXUnit(data.xUnitLabel, "V") || "V";
   const sourceYUnit = normalizeYUnit(data.yUnitLabel);
-  const xUnit = normalizeXUnit(
+  const xUnit = normalizeXUnitForFamily(
     fileId ? axisSettings?.xUnitByFileId?.[fileId] : undefined,
     sourceXUnit,
   ) || sourceXUnit;
@@ -573,7 +575,8 @@ const createUnitControlModel = (
   const displayYUnit = normalizeYUnit(data.yUnitLabel);
   return {
     fileId,
-    xUnit: normalizeXUnit(axisSettings?.xUnitByFileId?.[fileId], sourceXUnit) || sourceXUnit,
+    xUnit: normalizeXUnitForFamily(axisSettings?.xUnitByFileId?.[fileId], sourceXUnit) || sourceXUnit,
+    xUnitOptions: getXUnitValuesForFamily(sourceXUnit),
     yScale: resolveYScale(data, axisSettings),
     yUnit: displayYUnit
       ? normalizeYUnitForFamily(axisSettings?.yUnitByFileId?.[fileId], displayYUnit) || displayYUnit

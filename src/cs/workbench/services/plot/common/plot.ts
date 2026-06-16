@@ -90,6 +90,7 @@ export type PlotPaneDisplayModel = {
 export type PlotUnitControlModel = {
   readonly fileId: FileId;
   readonly xUnit: XUnit;
+  readonly xUnitOptions: readonly XUnit[];
   readonly yScale: "linear" | "log";
   readonly yUnit: YUnit | null;
   readonly yUnitOptions: readonly YUnit[];

@@ -2,7 +2,6 @@ import { createSelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
 import type { DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import {
-  X_UNIT_VALUES,
   type XUnit,
   type YUnit,
 } from "src/cs/workbench/services/plot/common/units";
@@ -13,6 +12,7 @@ export type ChartYScale = "linear" | "log";
 export type ChartUnitControlState = {
   readonly fileId: string;
   readonly xUnit: XUnit;
+  readonly xUnitOptions: readonly XUnit[];
   readonly yScale: ChartYScale;
   readonly yUnit: YUnit | null;
   readonly yUnitOptions: readonly YUnit[];
@@ -44,7 +44,7 @@ export const createChartUnitControls = ({
     axis: "x",
     label: localize("chart.units.x", "X"),
     onDidChangeUnit,
-    options: X_UNIT_VALUES,
+    options: state.xUnitOptions,
     state,
     store,
     value: state.xUnit,

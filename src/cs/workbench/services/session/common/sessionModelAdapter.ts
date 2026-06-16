@@ -1590,6 +1590,12 @@ const getCanonicalXUnitFactor = (unit: unknown): number => {
       return 1e-3;
     case "uv":
       return 1e-6;
+    case "khz":
+      return 1e3;
+    case "mhz":
+      return 1e6;
+    case "ghz":
+      return 1e9;
     default:
       return 1;
   }

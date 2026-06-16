@@ -24,7 +24,24 @@ export const Y_UNIT_VALUES = [
   ...CAPACITANCE_Y_UNIT_VALUES,
 ] as const;
 
-export const X_UNIT_VALUES = ["V", "mV"] as const;
+export const VOLTAGE_X_UNIT_VALUES = [
+  "V",
+  "mV",
+  "uV",
+  "kV",
+] as const;
+
+export const FREQUENCY_X_UNIT_VALUES = [
+  "Hz",
+  "kHz",
+  "MHz",
+  "GHz",
+] as const;
+
+export const X_UNIT_VALUES = [
+  ...VOLTAGE_X_UNIT_VALUES,
+  ...FREQUENCY_X_UNIT_VALUES,
+] as const;
 
 export type YUnit =
   (typeof Y_UNIT_VALUES)[number];
@@ -45,12 +62,24 @@ export const isCapacitanceYUnit = (
 ): value is (typeof CAPACITANCE_Y_UNIT_VALUES)[number] =>
   CAPACITANCE_Y_UNIT_VALUES.includes(value as never);
 
+export const isFrequencyXUnit = (
+  value: unknown,
+): value is (typeof FREQUENCY_X_UNIT_VALUES)[number] =>
+  FREQUENCY_X_UNIT_VALUES.includes(value as never);
+
 export const getYUnitValuesForFamily = (
   value: unknown,
 ): readonly YUnit[] =>
   isCapacitanceYUnit(value)
     ? CAPACITANCE_Y_UNIT_VALUES
     : CURRENT_Y_UNIT_VALUES;
+
+export const getXUnitValuesForFamily = (
+  value: unknown,
+): readonly XUnit[] =>
+  isFrequencyXUnit(value)
+    ? FREQUENCY_X_UNIT_VALUES
+    : VOLTAGE_X_UNIT_VALUES;
 
 const Y_UNIT_ALIAS_MAP: Record<string, YUnit> = {
   a: "A",
@@ -68,8 +97,16 @@ const Y_UNIT_ALIAS_MAP: Record<string, YUnit> = {
 };
 
 const X_UNIT_ALIAS_MAP: Record<string, XUnit> = {
+  kv: "kV",
   v: "V",
   mv: "mV",
+  uv: "uV",
+  "µv": "uV",
+  "μv": "uV",
+  hz: "Hz",
+  khz: "kHz",
+  mhz: "MHz",
+  ghz: "GHz",
 };
 
 export const normalizeYUnit = (
@@ -155,8 +192,37 @@ export const normalizeXUnit = (
 
 export const getXUnitMeta = (value: unknown) => {
   const normalized = normalizeXUnit(value, "V");
+  if (normalized === "kV") {
+    return { value: "kV" as const, label: "kV", factor: 1e-3 };
+  }
   if (normalized === "mV") {
     return { value: "mV" as const, label: "mV", factor: 1e3 };
   }
+  if (normalized === "uV") {
+    return { value: "uV" as const, label: "uV", factor: 1e6 };
+  }
+  if (normalized === "kHz") {
+    return { value: "kHz" as const, label: "kHz", factor: 1e-3 };
+  }
+  if (normalized === "MHz") {
+    return { value: "MHz" as const, label: "MHz", factor: 1e-6 };
+  }
+  if (normalized === "GHz") {
+    return { value: "GHz" as const, label: "GHz", factor: 1e-9 };
+  }
+  if (normalized === "Hz") {
+    return { value: "Hz" as const, label: "Hz", factor: 1 };
+  }
   return { value: "V" as const, label: "V", factor: 1 };
+};
+
+export const normalizeXUnitForFamily = (
+  value: unknown,
+  familyUnit: unknown,
+): XUnit | "" => {
+  const normalized = normalizeXUnit(value);
+  if (!normalized) return "";
+
+  const familyValues = getXUnitValuesForFamily(familyUnit);
+  return familyValues.includes(normalized) ? normalized : "";
 };

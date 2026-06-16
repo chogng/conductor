@@ -6,9 +6,11 @@ import assert from "assert";
 
 import {
   getYUnitValuesForFamily,
+  getXUnitValuesForFamily,
   getXUnitMeta,
   getYUnitMeta,
   normalizeXUnit,
+  normalizeXUnitForFamily,
   normalizeYUnit,
   normalizeYUnitForFamily,
 } from "src/cs/workbench/services/plot/common/units";
@@ -50,12 +52,25 @@ suite("workbench/services/plot/common/units", () => {
 
   test("normalizes x units and scales millivolts", () => {
     assert.equal(normalizeXUnit("mv", "V"), "mV");
+    assert.equal(normalizeXUnit("µV", "V"), "uV");
     assert.equal(normalizeXUnit("unknown", "mV"), "mV");
     assert.equal(normalizeXUnit("", "bad"), "");
     assert.deepEqual(getXUnitMeta("mV"), {
       value: "mV",
       label: "mV",
       factor: 1e3,
+    });
+  });
+
+  test("filters x units by voltage or frequency family", () => {
+    assert.deepEqual(getXUnitValuesForFamily("V"), ["V", "mV", "uV", "kV"]);
+    assert.deepEqual(getXUnitValuesForFamily("Hz"), ["Hz", "kHz", "MHz", "GHz"]);
+    assert.equal(normalizeXUnitForFamily("kHz", "Hz"), "kHz");
+    assert.equal(normalizeXUnitForFamily("mV", "Hz"), "");
+    assert.deepEqual(getXUnitMeta("kHz"), {
+      value: "kHz",
+      label: "kHz",
+      factor: 1e-3,
     });
   });
 });

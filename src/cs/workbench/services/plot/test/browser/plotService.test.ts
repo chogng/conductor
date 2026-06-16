@@ -76,6 +76,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     assert.deepEqual(displayModel?.unitControl, {
       fileId: "file-a",
       xUnit: "mV",
+      xUnitOptions: ["V", "mV", "uV", "kV"],
       yScale: "log",
       yUnit: "mA",
       yUnitOptions: ["A", "mA", "uA", "nA", "pA"],
@@ -129,6 +130,44 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       "uF",
       "nF",
       "pF",
+    ]);
+
+    const frequencyService = new PlotService(
+      createSessionServiceStub(),
+      createSettingsServiceStub({
+        xUnitByFileId: { "file-a": "kHz" },
+        yScaleByFileId: {},
+        yUnitByFileId: { "file-a": "pF" },
+      }),
+      new TestStorageService(),
+    );
+    const frequencyDisplayModel = frequencyService.getPlotDisplayModel({
+      snapshot: createSnapshot({
+        "file-a": createFileRecord("file-a", "series-a", "A", "F", "Hz"),
+      }),
+    });
+
+    assert.equal(frequencyDisplayModel?.chart.plotXFactor, 1e-3);
+    assert.equal(frequencyDisplayModel?.chart.plotXUnitLabel, "kHz");
+    assert.equal(frequencyDisplayModel?.chart.plotYUnitLabel, "pF");
+    assert.deepEqual(frequencyDisplayModel?.unitControl?.xUnitOptions, [
+      "Hz",
+      "kHz",
+      "MHz",
+      "GHz",
+    ]);
+
+    const invalidFrequencyDisplayModel = frequencyService.getPlotDisplayModel({
+      snapshot: createSnapshot({
+        "file-a": createFileRecord("file-a", "series-a", "A", "F", "V"),
+      }),
+    });
+    assert.equal(invalidFrequencyDisplayModel?.chart.plotXUnitLabel, "V");
+    assert.deepEqual(invalidFrequencyDisplayModel?.unitControl?.xUnitOptions, [
+      "V",
+      "mV",
+      "uV",
+      "kV",
     ]);
 
     const gmDisplayModel = currentService.getPlotDisplayModel({
@@ -357,6 +396,7 @@ const createFileRecord = (
   seriesA = "series-a",
   seriesAName = "A",
   yUnit = "A",
+  xUnit = "V",
 ): FileRecord => {
   const curveAKey = `base:iv:transfer:${seriesA}` as BaseCurveKey;
   const curveBKey = "base:iv:transfer:series-b" as BaseCurveKey;
@@ -442,7 +482,7 @@ const createFileRecord = (
         xDataEnd: 1,
         xDataStart: 0,
         xSegmentationMode: "auto",
-        xUnit: "V",
+        xUnit,
         yColumns: [1, 2],
         yLegendTarget: "auto",
         yUnit,
