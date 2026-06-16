@@ -237,8 +237,8 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
     assert.equal(axis.yUnit, "uA");
     assert.equal(record.seriesById["series-1"].id, "series-1");
     assert.deepEqual(record.curvesByKey["base:iv:transfer:series-1"].points, [
-      { x: 0, y: 1e-9 },
-      { x: 1, y: 1e-6 },
+      { x: 0, y: 1e-15 },
+      { x: 0.001, y: 1e-12 },
     ]);
     assert.equal(record.curvesByKey["derived:gm:default:series-1"].curveFamily, "gm");
     assert.deepEqual(record.curvesByKey["derived:gm:default:series-1"].points, [

@@ -1050,6 +1050,8 @@ const mergeProcessedFileRecord = (
     emptyTemplateConfig,
     processedFile,
   );
+  const xCanonicalFactor = getCanonicalXUnitFactor(templateConfig.xUnit);
+  const yCanonicalFactor = getCanonicalYUnitFactor(templateConfig.yUnit);
   const xGroups = readNumberMatrix(processedFile.xGroups);
   const seriesById: Record<string, SeriesRecord> = {};
   const seriesOrder: string[] = [];
@@ -1085,7 +1087,10 @@ const mergeProcessedFileRecord = (
     }
 
     const x = xGroups[groupIndex] ?? [];
-    const points = createCurvePoints(x, y);
+    const points = createCurvePoints(x, y, {
+      xFactor: xCanonicalFactor,
+      yFactor: yCanonicalFactor,
+    });
     if (!points.length) {
       continue;
     }
@@ -1553,18 +1558,68 @@ const createBaseCurveKey = (
 const createCurvePoints = (
   xValues: readonly unknown[],
   yValues: readonly unknown[],
+  options: {
+    readonly xFactor?: number;
+    readonly yFactor?: number;
+  } = {},
 ): Array<{ x: number; y: number }> => {
   const points: Array<{ x: number; y: number }> = [];
   const length = Math.min(xValues.length, yValues.length);
+  const xFactor = getFiniteUnitFactor(options.xFactor);
+  const yFactor = getFiniteUnitFactor(options.yFactor);
   for (let index = 0; index < length; index += 1) {
     const x = Number(xValues[index]);
     const y = Number(yValues[index]);
     if (Number.isFinite(x) && Number.isFinite(y)) {
-      points.push({ x, y });
+      points.push({ x: x * xFactor, y: y * yFactor });
     }
   }
   return points;
 };
+
+const getFiniteUnitFactor = (value: unknown): number => {
+  const factor = Number(value);
+  return Number.isFinite(factor) && factor > 0 ? factor : 1;
+};
+
+const getCanonicalXUnitFactor = (unit: unknown): number => {
+  switch (normalizeUnitToken(unit)) {
+    case "kv":
+      return 1e3;
+    case "mv":
+      return 1e-3;
+    case "uv":
+      return 1e-6;
+    default:
+      return 1;
+  }
+};
+
+const getCanonicalYUnitFactor = (unit: unknown): number => {
+  switch (normalizeUnitToken(unit)) {
+    case "ma":
+    case "mf":
+      return 1e-3;
+    case "ua":
+    case "uf":
+      return 1e-6;
+    case "na":
+    case "nf":
+      return 1e-9;
+    case "pa":
+    case "pf":
+      return 1e-12;
+    default:
+      return 1;
+  }
+};
+
+const normalizeUnitToken = (unit: unknown): string =>
+  String(unit ?? "")
+    .trim()
+    .toLowerCase()
+    .replaceAll("µ", "u")
+    .replaceAll("μ", "u");
 
 const createCurveChannels = (yValues: readonly number[]): CurveChannelsRecord => ({
   yPositive: yValues.map((value) => value > 0 ? value : Number.NaN),

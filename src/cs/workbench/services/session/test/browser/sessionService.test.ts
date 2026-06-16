@@ -7,6 +7,9 @@ import assert from "assert";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import {
   createCalculatedCurveRecordsByFile,
+} from "src/cs/workbench/services/calculation/common/calculationCurveRecordBuilder";
+import {
+  createCalculatedCurveRecordsByFile as createCalculatedCurveRecordsByFileFromPlots,
   createProcessedFileSessionCommit,
   createRawFilesFromRecords,
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
@@ -278,6 +281,41 @@ suite("workbench/services/session/test/browser/sessionService", () => {
       { x: 1, y: 1e-6 },
     ]);
     assert.deepEqual(curve.domain?.yLog10Abs, [-9, -6]);
+  });
+
+  test("normalizes template units before canonical calculations", () => {
+    const session = new SessionService();
+
+    commitTemplateOutputForTest(session, {
+      fileId: "file-a",
+      fileName: "Transfer.csv",
+      curveType: "transfer",
+      xAxisRole: "vg",
+      xUnit: "mV",
+      yUnit: "uA",
+      xGroups: [[0, 1000]],
+      series: [{
+        id: "series-1",
+        groupIndex: 0,
+        y: [1, 1001],
+      }],
+    });
+
+    const snapshot = session.getSnapshot();
+    const curve = snapshot.filesById["file-a"].curvesByKey["base:iv:transfer:series-1"];
+    assert.deepEqual(curve.points, [
+      { x: 0, y: 1e-6 },
+      { x: 1, y: 0.001001 },
+    ]);
+
+    const calculated = createCalculatedCurveRecordsByFile(
+      snapshot.filesById,
+      snapshot.fileOrder,
+    );
+    const gmCurve = calculated["file-a"].find(curve =>
+      curve.curveGeneration === "derived" && curve.curveFamily === "gm"
+    );
+    assert.deepEqual(gmCurve?.points.map(point => point.y), [0.001, 0.001]);
   });
 
   test("commits template runs, curves, and metrics through explicit APIs", () => {
@@ -1095,7 +1133,7 @@ const replaceDerivedCurvesForTest = (
   session: SessionService,
   plotsByKey: CalculatedPlotsByKey,
 ): void => {
-  const recordsByFileId = createCalculatedCurveRecordsByFile(plotsByKey);
+  const recordsByFileId = createCalculatedCurveRecordsByFileFromPlots(plotsByKey);
   const fileIds = new Set([
     ...Object.keys(session.getSnapshot().filesById),
     ...Object.keys(recordsByFileId),
