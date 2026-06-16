@@ -174,9 +174,13 @@ type FilePendingAssessment = {
 type FileFastAssessment = {
   readonly label: string;
   readonly isWarning: boolean;
+  readonly confidence: string;
+  readonly reasons: readonly string[];
   readonly source: "fast";
-  readonly state: "fast";
+  readonly state: "fast" | "unknown";
+  readonly template: string;
   readonly title: string;
+  readonly type: string;
 };
 
 type FileItemTemplate = {
@@ -342,6 +346,43 @@ const createFileFastAssessment = (
   fileEntry: ExplorerFileEntry,
 ): FileFastAssessment | null => {
   if (
+    fileEntry.badgeState?.kind === "unknown" &&
+    fileEntry.badgeState.source === "fast"
+  ) {
+    const healthMessage = getLocalizedAssessmentHealthMessage(fileEntry);
+    const suspectedType = String(fileEntry.badgeState.suspectedType ?? "").trim();
+    const filenameReason = suspectedType
+      ? localize(
+          "files.autoFastUnknownFromName",
+          "File name or path suggests {type}, but content was not parsed.",
+          { type: suspectedType },
+        )
+      : String(fileEntry.badgeState.message ?? "").trim() ||
+        localize("files.autoContentNotParsed", "Content was not parsed.");
+    return {
+      label: localize("files.autoUnknown", "Unknown"),
+      confidence: "low",
+      isWarning: true,
+      reasons: [
+        filenameReason ||
+          localize("files.autoFastFileNameEvidence", "File name or path contains curve-type hints."),
+        healthMessage ||
+          localize("files.autoContentParseFailed", "Content parsing failed: text encoding is invalid or file content is unreadable."),
+        localize("files.autoContentNotUsed", "Table content was not used as assessment evidence."),
+      ],
+      source: "fast",
+      state: "unknown",
+      template: localize(
+        "files.autoTemplateUnavailableDecode",
+        "Auto extraction unavailable.",
+      ),
+      title: filenameReason ||
+        localize("files.autoContentParseFailed", "Content parsing failed: text encoding is invalid or file content is unreadable."),
+      type: localize("files.autoUnknown", "Unknown"),
+    };
+  }
+
+  if (
     fileEntry.badgeState?.kind !== "ready" ||
     fileEntry.badgeState.source !== "fast"
   ) {
@@ -353,14 +394,85 @@ const createFileFastAssessment = (
     return null;
   }
 
+  const isUnhealthy = isUnhealthyAssessmentHealth(fileEntry.assessmentHealth);
+  const type = isUnhealthy ? localize("files.autoUnknown", "Unknown") : label;
+  const healthMessage = getLocalizedAssessmentHealthMessage(fileEntry);
+  const reasons = isUnhealthy
+    ? [
+        fileEntry.badgeState.message ??
+          localize("files.autoSuspectedType", "Suspected {type}", { type: label }),
+        healthMessage ||
+          localize("files.autoContentParseFailed", "Content parsing failed: text encoding is invalid or file content is unreadable."),
+        localize("files.autoContentNotUsed", "Table content was not used as assessment evidence."),
+      ]
+    : [
+        fileEntry.badgeState.message ??
+          localize("files.autoFastBadge", "Fast estimate"),
+      ];
+
   return {
-    label,
-    isWarning: false,
+    label: isUnhealthy ? localize("files.autoUnknown", "Unknown") : label,
+    confidence: isUnhealthy ? "low" : "tentative",
+    isWarning: isUnhealthy,
+    reasons,
     source: "fast",
-    state: "fast",
+    state: isUnhealthy ? "unknown" : "fast",
+    template: isUnhealthy
+      ? localize(
+          "files.autoTemplateUnavailableDecode",
+          "Auto extraction unavailable.",
+        )
+      : localize("files.autoTemplatePending", "Waiting for assessment"),
     title: fileEntry.badgeState.message ??
       localize("files.autoFastBadge", "Fast estimate"),
+    type,
   };
+};
+
+const isUnhealthyAssessmentHealth = (
+  health: ExplorerFileEntry["assessmentHealth"],
+): boolean =>
+  health === "decodeFailed" ||
+  health === "parseFailed" ||
+  health === "unsupported";
+
+const getLocalizedAssessmentHealthMessage = (
+  fileEntry: ExplorerFileEntry,
+): string => {
+  const message = String(fileEntry.assessmentHealthMessage ?? "").trim();
+  const lowerMessage = message.toLowerCase();
+  if (fileEntry.assessmentHealth === "decodeFailed") {
+    if (lowerMessage.includes("converted csv")) {
+      return localize(
+        "files.autoContentConvertedCsvUnreadable",
+        "Content could not be read from the converted CSV source.",
+      );
+    }
+    if (lowerMessage.includes("binary") || lowerMessage.includes("encoding")) {
+      return localize(
+        "files.autoContentBinaryOrEncoding",
+        "Content is unreadable: suspected binary file or encoding mismatch.",
+      );
+    }
+    return localize(
+      "files.autoContentDecodeFailed",
+      "Content decoding failed.",
+    );
+  }
+  if (fileEntry.assessmentHealth === "parseFailed") {
+    return localize(
+      "files.autoContentParseFailed",
+      "Content parsing failed: text encoding is invalid or file content is unreadable.",
+    );
+  }
+  if (fileEntry.assessmentHealth === "unsupported") {
+    return localize(
+      "files.autoContentUnsupported",
+      "Content format is not supported.",
+    );
+  }
+
+  return message;
 };
 
 const getFileRenderKey = (
@@ -735,6 +847,9 @@ export class ExplorerViewer implements IDisposable {
       entry.hasChartData === true ? "1" : "0",
       entry.sourceStatus ?? "",
       entry.sourceStatusMessage ?? "",
+      entry.assessmentHealth ?? "",
+      entry.assessmentHealthMessage ?? "",
+      entry.templateEligibility ?? "",
       badgeState?.kind ?? "",
       badgeState?.kind === "error" ||
         badgeState?.kind === "ready"
@@ -744,6 +859,8 @@ export class ExplorerViewer implements IDisposable {
       badgeState?.kind === "ready" ? badgeState.confidence : "",
       badgeState?.kind === "ready" ? badgeState.source : "",
       badgeState?.kind === "unknown" ? badgeState.source : "",
+      badgeState?.kind === "unknown" ? badgeState.message ?? "" : "",
+      badgeState?.kind === "unknown" ? badgeState.suspectedType ?? "" : "",
       entry.curveType ?? "",
       entry.curveTypeBadgeLabel ?? "",
       entry.curveTypeConfidence ?? "",
@@ -1138,12 +1255,13 @@ export class ExplorerViewer implements IDisposable {
     } else {
       delete host.dataset.editing;
     }
-    if (assessment) {
-      host.dataset.autoType = assessment.type;
-      host.dataset.autoConfidence = assessment.confidence;
-      host.dataset.autoReasons = assessment.reasons.join(FILE_ASSESSMENT_REASON_SEPARATOR);
-      host.dataset.autoTemplate = assessment.template;
-      host.dataset.autoWarning = assessment.isWarning ? "true" : "false";
+    const hoverAssessment = assessment ?? (fastAssessment?.isWarning ? fastAssessment : null);
+    if (hoverAssessment) {
+      host.dataset.autoType = hoverAssessment.type;
+      host.dataset.autoConfidence = hoverAssessment.confidence;
+      host.dataset.autoReasons = hoverAssessment.reasons.join(FILE_ASSESSMENT_REASON_SEPARATOR);
+      host.dataset.autoTemplate = hoverAssessment.template;
+      host.dataset.autoWarning = hoverAssessment.isWarning ? "true" : "false";
     } else {
       delete host.dataset.autoType;
       delete host.dataset.autoConfidence;

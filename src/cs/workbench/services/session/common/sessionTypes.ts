@@ -6,6 +6,9 @@
   relativePath?: string | null;
   sourceVersion?: number;
   sourcePath?: string | null;
+  assessmentHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
+  assessmentHealthMessage?: string | null;
+  templateEligibility?: "eligible" | "notEligible" | "needsUserAction";
   curveType?: string | null;
   curveTypeConfidence?: "high" | "medium" | "low";
   curveTypeNeedsTemplate?: boolean;

@@ -84,6 +84,9 @@ flowchart TD
 - Assessment queue entries that are delayed by Explorer visible-range priority
   must capture the raw table source version when queued and drop the result if
   the version changes before rows are read or before assessment is committed.
+- Raw tables with decode/parse/unsupported health are not assessable. Assessment
+  must not turn unreadable text or binary-like payloads into evidence,
+  diagnostics, or template-ready facts.
 - Keep curve family and curve mode separate. `iv`, `pv`, `cv`, `cf`, `it`,
   and `unknown` are measurement families. `transfer` and `output` are IV modes
   and must live in `ivMode`, not in `family`. `curveTypeLabel` / UI

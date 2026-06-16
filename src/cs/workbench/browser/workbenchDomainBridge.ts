@@ -87,7 +87,7 @@ export class WorkbenchDomainBridge extends Disposable {
     this._register(this.options.templateService.onDidChangeTemplateState(() => this.scheduleSync()));
     this._register(this.options.layoutService.onDidChangeWorkbenchNavigation(() => this.scheduleSync()));
     this._register(this.options.sessionService.onDidChangeSession(() => this.scheduleSync()));
-    this._register({ dispose: () => this.cancelScheduledSync() });
+    this._register({ dispose: () => this.cancelScheduledSync?.() });
   }
 
   private cancelScheduledSync: (() => void) | null = null;
@@ -470,12 +470,31 @@ const applyFastExplorerBadge = (
     sheetName: table?.sheetName,
   });
   if (!fastBadge) {
+    if (isUnhealthyRawTable(table)) {
+      return {
+        ...file,
+        badgeState: {
+          kind: "unknown",
+          source: "fast",
+        },
+      };
+    }
     return file;
   }
 
   const label = toExplorerBadgeLabel(fastBadge.curveType);
   if (!label) {
     return file;
+  }
+  if (isUnhealthyRawTable(table)) {
+    return {
+      ...file,
+      badgeState: {
+        kind: "unknown",
+        source: "fast",
+        suspectedType: fastBadge.curveTypeLabel,
+      },
+    };
   }
 
   return {
@@ -489,6 +508,13 @@ const applyFastExplorerBadge = (
     },
   };
 };
+
+const isUnhealthyRawTable = (
+  table: TableRecord | null,
+): boolean =>
+  table?.health?.state === "decodeFailed" ||
+  table?.health?.state === "parseFailed" ||
+  table?.health?.state === "unsupported";
 
 const findExplorerRawTable = (
   file: ExplorerFileEntry,
@@ -514,6 +540,10 @@ const findExplorerRawTable = (
 const getFastBadgeRows = (
   table: TableRecord | null,
 ): readonly (readonly unknown[])[] | undefined => {
+  if (isUnhealthyRawTable(table)) {
+    return undefined;
+  }
+
   const rowStore = table?.rowStore;
   return rowStore?.kind === "memory"
     ? rowStore.rows.slice(0, 4)

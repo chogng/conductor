@@ -30,6 +30,32 @@ export type RawTableSourceRecord =
       readonly kind: "unknown";
     };
 
+export type RawTableHealthState =
+  | "ok"
+  | "suspect"
+  | "decodeFailed"
+  | "parseFailed"
+  | "unsupported"
+  | "empty";
+
+export type TemplateEligibility =
+  | "eligible"
+  | "notEligible"
+  | "needsUserAction";
+
+export type RawTableHealthRecord = {
+  readonly state: RawTableHealthState;
+  readonly message: string;
+  readonly decode?: {
+    readonly encoding?: string;
+    readonly confidence: number;
+    readonly replacementCharRatio: number;
+    readonly controlCharRatio: number;
+    readonly binaryLike: boolean;
+    readonly reason?: string;
+  };
+};
+
 export type RawTableRowsRecord =
   | {
       readonly kind: "inline";
@@ -39,6 +65,10 @@ export type RawTableRowsRecord =
       readonly kind: "normalizedCsv";
       readonly normalizedCsvPath: string;
       readonly formatVersion: number;
+    }
+  | {
+      readonly kind: "unavailable";
+      readonly reason: string;
     };
 
 export type RawTableRecord = {
@@ -49,4 +79,6 @@ export type RawTableRecord = {
   readonly rowCount: number;
   readonly columnCount: number;
   readonly maxCellLengths?: readonly number[];
+  readonly health?: RawTableHealthRecord;
+  readonly templateEligibility?: TemplateEligibility;
 };

@@ -276,6 +276,12 @@ const getSkippedFileState = (
 ): TemplateApplyFileState => {
   const fileName = skippedFile.fileName || skippedFile.fileId;
   switch (skippedFile.reason) {
+    case "invalidSource":
+      return {
+        state: "skipped",
+        code: skippedFile.reason,
+        message: localize("template.apply.skippedInvalidSource", "{fileName} cannot be decoded or parsed. Template was not applied.", { fileName }),
+      };
     case "missingAssessment":
       return {
         state: "skipped",
@@ -311,6 +317,23 @@ const buildNoProcessableFilesFeedback = (
         count: skippedFiles.length,
       })
     : localize("template.apply.noProcessableFiles", "No processable files to extract."),
+  ok: false,
+  type: "warning",
+});
+
+const getFirstInvalidSkippedFile = (
+  skippedFiles: readonly TemplateProcessingSkippedFile[],
+): TemplateProcessingSkippedFile | null =>
+  skippedFiles.find(file => file.reason === "invalidSource") ?? null;
+
+const buildStoppedOnInvalidSourceFeedback = (
+  skippedFile: TemplateProcessingSkippedFile,
+): { ok: false; message: string; type: "warning" } => ({
+  message: localize(
+    "template.apply.stoppedInvalidSource",
+    "Stopped: {fileName} cannot be parsed. Reason: encoding is invalid or content is unreadable.",
+    { fileName: skippedFile.fileName || skippedFile.fileId },
+  ),
   ok: false,
   type: "warning",
 });
@@ -659,6 +682,11 @@ export class TemplateApplyController {
 
     if (isAutoTemplateConfig(config)) {
       const plan = buildTemplateProcessingPlan(rawFiles);
+      const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
+      if (invalidSkippedFile && config?.stopOnError) {
+        this.applyStoppedInvalidSourceState(invalidSkippedFile, true);
+        return buildStoppedOnInvalidSourceFeedback(invalidSkippedFile);
+      }
       if (!plan.queue.length) {
         this.applyTemplateProcessingPlanStates(plan, true);
         return buildNoProcessableFilesFeedback(plan.skippedFiles);
@@ -688,6 +716,11 @@ export class TemplateApplyController {
     }
 
     const plan = buildTemplateProcessingPlan(rawFiles);
+    const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
+    if (invalidSkippedFile && prepared.stopOnError) {
+      this.applyStoppedInvalidSourceState(invalidSkippedFile, true);
+      return buildStoppedOnInvalidSourceFeedback(invalidSkippedFile);
+    }
     if (!plan.queue.length) {
       this.applyTemplateProcessingPlanStates(plan, true);
       return buildNoProcessableFilesFeedback(plan.skippedFiles);
@@ -707,7 +740,7 @@ export class TemplateApplyController {
       messageKey: "extract_started",
       meta: prepared.meta,
       warnings: [
-        ...prepared.warnings,
+        ...(prepared.warnings ?? []),
         ...buildSkippedAssessmentWarnings(plan.skippedFiles),
       ],
     });
@@ -756,6 +789,11 @@ export class TemplateApplyController {
 
       const processedIds = resolveProcessedFileIds(this.input);
       const plan = buildTemplateProcessingPlan(rawFiles, processedIds);
+      const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
+      if (invalidSkippedFile && config?.stopOnError) {
+        this.applyStoppedInvalidSourceState(invalidSkippedFile, false);
+        return buildStoppedOnInvalidSourceFeedback(invalidSkippedFile);
+      }
       if (!plan.queue.length) {
         this.applyTemplateProcessingPlanStates(plan, false);
         return plan.skippedFiles.length
@@ -811,6 +849,11 @@ export class TemplateApplyController {
 
     const processedIds = resolveProcessedFileIds(this.input);
     const plan = buildTemplateProcessingPlan(rawFiles, processedIds);
+    const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
+    if (invalidSkippedFile && config?.stopOnError) {
+      this.applyStoppedInvalidSourceState(invalidSkippedFile, false);
+      return buildStoppedOnInvalidSourceFeedback(invalidSkippedFile);
+    }
     if (!plan.queue.length) {
       this.applyTemplateProcessingPlanStates(plan, false);
       return plan.skippedFiles.length
@@ -827,6 +870,11 @@ export class TemplateApplyController {
       return prepared;
     }
 
+    if (invalidSkippedFile && prepared.stopOnError) {
+      this.applyStoppedInvalidSourceState(invalidSkippedFile, false);
+      return buildStoppedOnInvalidSourceFeedback(invalidSkippedFile);
+    }
+
     this.applyTemplateProcessingPlanStates(plan, false);
     this.startExtractionJob({
       extractionConfig: prepared.extractionConfig,
@@ -840,7 +888,7 @@ export class TemplateApplyController {
       messageKey: "apply_to_new_files_started",
       meta: prepared.meta,
       warnings: [
-        ...prepared.warnings,
+        ...(prepared.warnings ?? []),
         ...buildSkippedAssessmentWarnings(plan.skippedFiles),
       ],
     });
@@ -883,6 +931,22 @@ export class TemplateApplyController {
       }
     }
     this.fireFileApplyStatesChanged(changedFileIds);
+  }
+
+  private applyStoppedInvalidSourceState(
+    skippedFile: TemplateProcessingSkippedFile,
+    clearExisting: boolean,
+  ): void {
+    const previousIds = clearExisting ? [...this.fileStatesByFileId.keys()] : [];
+    if (clearExisting) {
+      this.fileStatesByFileId.clear();
+    }
+
+    const changedFileIds = new Set(previousIds);
+    if (this.setFileApplyState(skippedFile.fileId, getSkippedFileState(skippedFile), false)) {
+      changedFileIds.add(skippedFile.fileId);
+    }
+    this.fireFileApplyStatesChanged([...changedFileIds]);
   }
 
   private setFileApplyState(
@@ -1142,6 +1206,11 @@ export class TemplateApplyController {
 
     const processedIds = incremental ? resolveProcessedFileIds(this.input) : null;
     const plan = buildTemplateProcessingPlan(rawFiles, processedIds);
+    const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
+    if (invalidSkippedFile && config?.stopOnError) {
+      this.applyStoppedInvalidSourceState(invalidSkippedFile, !incremental);
+      return buildStoppedOnInvalidSourceFeedback(invalidSkippedFile);
+    }
     const candidates = plan.queue;
     const queueByTemplateName = new Map<string, ProcessingQueueItem[]>();
     const configByTemplateName = new Map<string, Record<string, unknown>>();

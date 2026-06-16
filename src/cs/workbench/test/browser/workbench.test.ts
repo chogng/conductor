@@ -393,6 +393,41 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       ],
     );
   });
+
+  test("projects unhealthy filename-only hints as unknown fast badges", () => {
+    const session = new SessionService();
+    commitRawFilesForTest(session, [
+      {
+        assessmentHealth: "decodeFailed",
+        assessmentHealthMessage: "Content is unreadable: suspected binary file or encoding mismatch.",
+        columnCount: 0,
+        fileId: "decode-failed",
+        fileName: "Output_Vd.csv",
+        rowCount: 0,
+        templateEligibility: "notEligible",
+      },
+    ]);
+    const snapshot = session.getSnapshot();
+    const input = createExplorerPaneInput({
+      activePlotType: "iv",
+      explorerService: new ExplorerService(),
+      mode: "table",
+      plotService: createPlotService(),
+      readModel: createSessionReadModel(snapshot),
+      snapshot,
+      templateState: {
+        formState: createEmptyTemplateConfig(),
+        mode: "management",
+        selectedTemplateId: null,
+        selectionsByFileId: {},
+        templateListVersion: 0,
+      },
+    });
+
+    assert.equal(input.files[0]?.badgeState?.kind, "unknown");
+    assert.equal(input.files[0]?.badgeState?.source, "fast");
+    assert.equal(input.files[0]?.badgeState?.suspectedType, "output (vd)");
+  });
 });
 
 suite("workbench/browser/workbench initial mode", () => {
@@ -510,16 +545,30 @@ const createImportedFileRecordForTest = (
         [fileId]: {
           columnCount: Math.max(0, Math.floor(Number(file.columnCount) || 0)),
           fileId,
+          health: file.assessmentHealth
+            ? {
+                state: file.assessmentHealth,
+                message: file.assessmentHealthMessage ?? "",
+              }
+            : undefined,
           maxCellLengths: Array.isArray(file.maxCellLengths) ? file.maxCellLengths : [],
           rawTableId: fileId,
           rowCount: Math.max(0, Math.floor(Number(file.rowCount) || 0)),
-          rows: {
-            kind: "inline",
-            values: rows,
-          },
+          rows: file.assessmentHealth === "decodeFailed" ||
+            file.assessmentHealth === "parseFailed" ||
+            file.assessmentHealth === "unsupported"
+            ? {
+                kind: "unavailable",
+                reason: file.assessmentHealthMessage ?? "",
+              }
+            : {
+                kind: "inline",
+                values: rows,
+              },
           source: {
             kind: "csv",
           },
+          templateEligibility: file.templateEligibility,
         },
       },
     },

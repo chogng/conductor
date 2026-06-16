@@ -1211,10 +1211,29 @@ export class TableWidget {
       this.header.hidden = true;
       this.scrollArea.viewport.replaceChildren();
       this.scrollArea.viewport.append(createEmptyView({
+        title: tableState.loadState.state === "error"
+          ? localize("table.preview.unreadableTitle", "File content cannot be decoded")
+          : undefined,
         description: tableState.loadState.state === "loading"
           ? tableState.loadState.message ||
             localize("table.preview.loadingHint", "Parsing CSV preview, please wait.")
-          : localize("table.preview.emptyHint", "Select a file to preview"),
+          : tableState.loadState.state === "error"
+            ? tableState.loadState.message ||
+              localize("table.preview.unreadableHint", "The system cannot confirm this file is a valid CSV table.")
+            : localize("table.preview.emptyHint", "Select a file to preview"),
+      }));
+      this.syncColumnResizeGuide();
+      this.layoutNow();
+      return;
+    }
+
+    if (tableState.loadState.state === "error") {
+      this.header.hidden = true;
+      this.scrollArea.viewport.replaceChildren();
+      this.scrollArea.viewport.append(createEmptyView({
+        title: localize("table.preview.unreadableTitle", "File content cannot be decoded"),
+        description: tableState.loadState.message ||
+          localize("table.preview.unreadableHint", "The system cannot confirm this file is a valid CSV table."),
       }));
       this.syncColumnResizeGuide();
       this.layoutNow();

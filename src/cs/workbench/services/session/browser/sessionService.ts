@@ -780,21 +780,29 @@ const createTableRecordFromRawTable = (
     rowCount: Math.max(0, Math.floor(rawTable.rowCount)),
     columnCount: Math.max(0, Math.floor(rawTable.columnCount)),
     maxCellLengths: [...rawTable.maxCellLengths ?? []],
+    health: rawTable.health,
+    templateEligibility: rawTable.templateEligibility,
   };
 };
 
 const createTableRowStore = (
   rawTable: RawTableRecord,
-): TableRowStoreRecord => rawTable.rows.kind === "normalizedCsv"
-  ? {
+): TableRowStoreRecord | undefined => {
+  if (rawTable.rows.kind === "unavailable") {
+    return undefined;
+  }
+
+  return rawTable.rows.kind === "normalizedCsv"
+    ? {
       kind: "external",
       normalizedCsvPath: rawTable.rows.normalizedCsvPath,
       tableKey: rawTable.rawTableId,
     }
-  : {
+    : {
       kind: "memory",
       rows: rawTable.rows.values,
     };
+};
 
 const createInitialRawTableVersions = (
   rawTableOrder: readonly string[],

@@ -12,10 +12,16 @@ import {
   type ImportFileData,
 } from "src/cs/workbench/services/files/common/files";
 import type {
+  RawTableHealthRecord,
   RawTableRecord,
   RawTableRowsRecord,
   RawTableSourceRecord,
+  TemplateEligibility,
 } from "src/cs/workbench/services/files/common/rawTable";
+import {
+  decodeTextBytes,
+  type TextDecodeResult,
+} from "src/cs/workbench/services/files/common/textDecode";
 import type {
   ConvertedCsvReaderService,
   FileConverterBackend,
@@ -36,6 +42,7 @@ const BROWSER_XLSX_MAX_BYTES = 32 * 1024 * 1024;
 export type ConvertedImportFile = {
   columnCount?: number;
   file: File;
+  health?: RawTableHealthRecord;
   maxCellLengths?: readonly number[];
   normalizedCsvPath?: string | null;
   normalizedSizeBytes: number;
@@ -44,6 +51,7 @@ export type ConvertedImportFile = {
   sourcePath?: string | null;
   sourceName: string;
   sourceSizeBytes: number;
+  templateEligibility?: TemplateEligibility;
 };
 
 export type ConvertedImportSheet = FileConverterPreparedSheet;
@@ -75,6 +83,7 @@ export type ImportedFileRecordInput = {
 export type ImportedRawTableInput = {
   readonly columnCount?: number;
   readonly csvText?: string;
+  readonly health?: RawTableHealthRecord;
   readonly maxCellLengths?: readonly number[];
   readonly normalizedCsvPath?: string | null;
   readonly rawTableId?: string | null;
@@ -82,6 +91,7 @@ export type ImportedRawTableInput = {
   readonly rows?: readonly (readonly string[])[];
   readonly sheetIndex?: number | null;
   readonly sheetName?: string | null;
+  readonly templateEligibility?: TemplateEligibility;
 };
 
 const createEmptyNormalizedCsvFile = (
@@ -252,7 +262,7 @@ export const loadConvertedCsvFile = async ({
   }
 
   if (!convertedCsvReaderService.canReadConvertedCsv()) {
-    return fallbackFile instanceof File ? fallbackFile : null;
+    return null;
   }
 
   try {
@@ -264,7 +274,7 @@ export const loadConvertedCsvFile = async ({
       ...(safeMaxRows !== undefined ? { maxRows: safeMaxRows } : {}),
     });
     if (!response?.ok || typeof response.csvText !== "string") {
-      return fallbackFile instanceof File ? fallbackFile : null;
+      return null;
     }
     return new File([response.csvText], String(fileName || "converted.csv"), {
       lastModified: Number.isFinite(Number(lastModified))
@@ -273,7 +283,7 @@ export const loadConvertedCsvFile = async ({
       type: "text/csv;charset=utf-8",
     });
   } catch {
-    return fallbackFile instanceof File ? fallbackFile : null;
+    return null;
   }
 };
 
@@ -336,6 +346,10 @@ export const convertImportFile = async (
     }
 
     const normalizedCsvPath = result.normalizedCsvPath ?? null;
+    const normalizedHealth = await validatePreparedCsvResult(
+      fileConverterBackend,
+      result,
+    );
     const normalizedFile =
       typeof result.csvText === "string"
         ? new File([result.csvText], metadata.fileName, {
@@ -362,6 +376,7 @@ export const convertImportFile = async (
     return {
       file: normalizedFile,
       columnCount: readNonNegativeInteger(result.columnCount ?? manifest.columnCount),
+      health: normalizedHealth,
       maxCellLengths: readNumberArray(result.maxCellLengths ?? manifest.maxCellLengths),
       normalizedCsvPath,
       normalizedSizeBytes,
@@ -370,6 +385,7 @@ export const convertImportFile = async (
       sourcePath: result.sourcePath ?? sourcePath,
       sourceName: result.sourceName ?? metadata.fileName,
       sourceSizeBytes: Number(result.sourceSizeBytes) || metadata.size,
+      templateEligibility: normalizedHealth ? "notEligible" : result.templateEligibility,
     };
   } catch (error) {
     finishPerf({
@@ -378,6 +394,82 @@ export const convertImportFile = async (
     });
     throw error;
   }
+};
+
+const validatePreparedCsvResult = async (
+  reader: ConvertedCsvReaderService,
+  result: FileConverterPreparedFile,
+): Promise<RawTableHealthRecord | undefined> => {
+  if (result.health) {
+    return result.health;
+  }
+  if (typeof result.csvText === "string" || result.sheets?.length) {
+    return undefined;
+  }
+
+  const normalizedCsvPath = normalizeOptionalText(result.normalizedCsvPath);
+  if (!normalizedCsvPath) {
+    return undefined;
+  }
+  if (!reader.canReadConvertedCsv()) {
+    return createDecodeFailedHealth("Content is unreadable: converted CSV could not be verified.");
+  }
+
+  try {
+    const response = await reader.readConvertedCsv({
+      path: normalizedCsvPath,
+      maxRows: 32,
+    });
+    if (!response?.ok || typeof response.csvText !== "string") {
+      return createDecodeFailedHealth("Content is unreadable: converted CSV could not be read.");
+    }
+    if (hasUnreliableDecodedText(response.csvText)) {
+      return createDecodeFailedHealth("Content is unreadable: suspected binary file or encoding mismatch.");
+    }
+  } catch {
+    return createDecodeFailedHealth("Content is unreadable: converted CSV could not be read.");
+  }
+
+  return undefined;
+};
+
+const createDecodeFailedHealth = (
+  message: string,
+): RawTableHealthRecord => ({
+  state: "decodeFailed",
+  message,
+  decode: {
+    confidence: 0,
+    replacementCharRatio: 0,
+    controlCharRatio: 0,
+    binaryLike: true,
+    reason: message,
+  },
+});
+
+const hasUnreliableDecodedText = (text: string): boolean => {
+  if (!text.length) {
+    return false;
+  }
+
+  let replacementCount = 0;
+  let controlCount = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    if (code === 0xfffd) {
+      replacementCount += 1;
+    } else if (
+      code < 0x20 &&
+      code !== 0x09 &&
+      code !== 0x0a &&
+      code !== 0x0d
+    ) {
+      controlCount += 1;
+    }
+  }
+
+  return replacementCount / text.length > 0.001 ||
+    controlCount / text.length > 0.02;
 };
 
 const readConvertedImportSheets = (
@@ -429,11 +521,15 @@ const normalizeConvertedImportSheet = (
   return {
     columnCount: readNonNegativeInteger(record.columnCount),
     csvText,
+    health: isRawTableHealthRecord(record.health) ? record.health : undefined,
     maxCellLengths: readNumberArray(record.maxCellLengths),
     normalizedCsvPath,
     rowCount: readNonNegativeInteger(record.rowCount ?? record.rows),
     sheetIndex: readNonNegativeInteger(record.sheetIndex ?? record.index),
     sheetName,
+    templateEligibility: isTemplateEligibility(record.templateEligibility)
+      ? record.templateEligibility
+      : undefined,
   };
 };
 
@@ -451,6 +547,24 @@ const readNumberArray = (value: unknown): readonly number[] | undefined =>
 
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const isRawTableHealthRecord = (value: unknown): value is RawTableHealthRecord => {
+  if (!isObjectRecord(value)) {
+    return false;
+  }
+
+  return value.state === "ok" ||
+    value.state === "suspect" ||
+    value.state === "decodeFailed" ||
+    value.state === "parseFailed" ||
+    value.state === "unsupported" ||
+    value.state === "empty";
+};
+
+const isTemplateEligibility = (value: unknown): value is TemplateEligibility =>
+  value === "eligible" ||
+  value === "notEligible" ||
+  value === "needsUserAction";
 
 export const createImportedFileRecord = async (
   input: ImportedFileRecordInput,
@@ -493,12 +607,7 @@ const createRawTableRecords = async (
 ): Promise<RawTableRecord[]> => {
   const tableInputs = input.tables?.length
     ? input.tables
-    : [{
-        normalizedCsvPath: input.normalizedCsvPath,
-        rawTableId: fileId,
-        rows: parseCsvRows(await input.file.text()),
-        sheetIndex: 0,
-      }];
+    : [await createDefaultRawTableInput(input, fileId)];
 
   return tableInputs.map((table, index) => {
     const rows = table.rows ?? (
@@ -520,33 +629,83 @@ const createRawTableRecords = async (
     return {
       columnCount,
       fileId,
+      health: table.health,
       maxCellLengths,
       rawTableId,
       rowCount,
-      rows: createRawTableRowsRecord(rows, normalizedCsvPath),
+      rows: createRawTableRowsRecord(rows, normalizedCsvPath, table.health),
       source: createRawTableSource(fileName, sourcePath, {
         sheetIndex: Number.isFinite(Number(table.sheetIndex))
           ? Math.max(0, Math.floor(Number(table.sheetIndex)))
           : index,
         sheetName: normalizeOptionalText(table.sheetName),
       }),
+      templateEligibility: table.templateEligibility,
     };
   });
+};
+
+const createDefaultRawTableInput = async (
+  input: ImportedFileRecordInput,
+  fileId: string,
+): Promise<ImportedRawTableInput> => {
+  const decode = decodeTextBytes(await input.file.arrayBuffer());
+  if (!decode.ok) {
+    const message = getDecodeFailureMessage(decode);
+    return {
+      columnCount: 0,
+      health: {
+        state: "decodeFailed",
+        message,
+        decode: {
+          encoding: decode.encoding,
+          confidence: decode.confidence,
+          replacementCharRatio: decode.replacementCharRatio,
+          controlCharRatio: decode.controlCharRatio,
+          binaryLike: decode.binaryLike,
+          reason: decode.reason,
+        },
+      },
+      rawTableId: fileId,
+      rowCount: 0,
+      rows: [],
+      sheetIndex: 0,
+      templateEligibility: "notEligible",
+    };
+  }
+
+  return {
+    normalizedCsvPath: input.normalizedCsvPath,
+    rawTableId: fileId,
+    rows: parseCsvRows(decode.text ?? ""),
+    sheetIndex: 0,
+    templateEligibility: "eligible",
+  };
 };
 
 const createRawTableRowsRecord = (
   rows: readonly (readonly string[])[],
   normalizedCsvPath: string | null,
-): RawTableRowsRecord => normalizedCsvPath
-  ? {
+  health: RawTableHealthRecord | undefined,
+): RawTableRowsRecord => {
+  if (health && health.state !== "ok" && health.state !== "suspect") {
+    return {
+      kind: "unavailable",
+      reason: health.message,
+    };
+  }
+
+  return normalizedCsvPath
+    ? {
       formatVersion: 1,
       kind: "normalizedCsv",
       normalizedCsvPath,
     }
-  : {
+    : {
       kind: "inline",
       values: rows,
     };
+};
 
 const createRawTableSource = (
   fileName: string,
@@ -573,6 +732,13 @@ const parseCsvRows = (text: string): readonly (readonly string[])[] => {
   });
   return parsed.data.map(row => row.map(cell => cell == null ? "" : String(cell)));
 };
+
+const getDecodeFailureMessage = (
+  decode: TextDecodeResult,
+): string =>
+  decode.binaryLike
+    ? "Content is unreadable: suspected binary file or encoding mismatch."
+    : decode.reason || "Content is unreadable: text decoding failed.";
 
 const getColumnCount = (rows: readonly (readonly string[])[]): number =>
   rows.reduce((max, row) => Math.max(max, row.length), 0);

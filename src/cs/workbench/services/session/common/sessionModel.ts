@@ -1,6 +1,10 @@
 import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
 import type { MeasurementBlockRecord } from "src/cs/workbench/services/assessment/common/measurement";
 import type { FileImportSourceKind } from "src/cs/workbench/services/files/common/files";
+import type {
+  RawTableHealthRecord,
+  TemplateEligibility,
+} from "src/cs/workbench/services/files/common/rawTable";
 
 export type FileId = string;
 export type SheetId = string;
@@ -97,6 +101,8 @@ export type TableRecord = {
   rowCount: number;
   columnCount: number;
   maxCellLengths: number[];
+  health?: RawTableHealthRecord;
+  templateEligibility?: TemplateEligibility;
 };
 
 export type TableRowStoreRecord =

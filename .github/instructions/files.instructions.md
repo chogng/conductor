@@ -155,8 +155,11 @@ Explorer consumes thumbnail UI for thumbnail layout cards and tree-layout hover 
 Files service conversion modules own:
 
 - reading source metadata supplied by Explorer workflow code;
+- byte-level text decode validation before CSV/table parsing;
 - converting CSV, XLS, XLSX, clipboard, or manual inputs into raw table facts;
 - generating one `RawTableRecord` per CSV table or Excel sheet;
+- retaining decode/parse failure metadata as raw table health while keeping
+  invalid row payloads out of normal table rows;
 - accepting backend `sheets` metadata when a converter can emit multiple worksheet CSV payloads;
 - writing or referencing normalized CSV artifacts;
 - returning conversion diagnostics;

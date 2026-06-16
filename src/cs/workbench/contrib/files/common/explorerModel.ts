@@ -44,7 +44,12 @@ export type ExplorerBadgeState =
 		}
 	| { readonly kind: "pending" }
 	| { readonly kind: "none" }
-	| { readonly kind: "unknown"; readonly source: "assessment" }
+	| {
+			readonly kind: "unknown";
+			readonly message?: string | null;
+			readonly source: "fast" | "assessment";
+			readonly suspectedType?: string | null;
+		}
 	| { readonly kind: "error"; readonly message?: string | null };
 
 export type ExplorerFileEntry = {
@@ -61,6 +66,9 @@ export type ExplorerFileEntry = {
 	readonly sourcePath?: string | null;
 	readonly sourceStatus?: ExplorerSourceStatus;
 	readonly sourceStatusMessage?: string | null;
+	readonly assessmentHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
+	readonly assessmentHealthMessage?: string | null;
+	readonly templateEligibility?: "eligible" | "notEligible" | "needsUserAction";
 	readonly badgeState?: ExplorerBadgeState;
 	readonly fileVersion?: number;
 	readonly curveType?: string | null;
@@ -439,6 +447,20 @@ const createExplorerAssessmentBadgeState = (
 		: { kind: "unknown", source: "assessment" };
 };
 
+const createExplorerHealthFields = (
+	file: Pick<
+		SessionFile,
+		"assessmentHealth" | "assessmentHealthMessage" | "templateEligibility"
+	> | undefined,
+): Pick<
+	ExplorerFileEntry,
+	"assessmentHealth" | "assessmentHealthMessage" | "templateEligibility"
+> => ({
+	...(file?.assessmentHealth ? { assessmentHealth: file.assessmentHealth } : {}),
+	...(file?.assessmentHealthMessage ? { assessmentHealthMessage: file.assessmentHealthMessage } : {}),
+	...(file?.templateEligibility ? { templateEligibility: file.templateEligibility } : {}),
+});
+
 const getExplorerFileVersion = (
 	value: unknown,
 ): number | undefined => {
@@ -472,6 +494,7 @@ export const createRawExplorerFiles = (
 		relativePath: file.relativePath ?? null,
 		sourceKey: getOptionalString(file.sourceKey),
 		sourcePath: file.sourcePath,
+		...createExplorerHealthFields(file),
 		badgeState: createExplorerAssessmentBadgeState(file, file.xAxisRole),
 		fileVersion: getExplorerFileVersion(file.sourceVersion),
 		curveType: file.curveType ?? null,
@@ -524,6 +547,7 @@ export const createChartExplorerFilesFromRecords = (
 			relativePath: file.raw.relativePath ?? rawFile?.relativePath ?? null,
 			sourceKey: getOptionalString(rawFile?.sourceKey ?? file.raw.rawKey),
 			sourcePath: file.raw.filePath ?? rawFile?.sourcePath,
+			...createExplorerHealthFields(rawFile),
 			fileVersion: getFileRecordVersion(file, rawFile?.sourceVersion),
 			badgeState: createExplorerAssessmentBadgeState({
 				curveType,
@@ -580,6 +604,7 @@ export const createChartExplorerFiles = (
 			relativePath: rawFile?.relativePath ?? null,
 			sourceKey: getOptionalString(rawFile?.sourceKey),
 			sourcePath: rawFile?.sourcePath,
+			...createExplorerHealthFields(rawFile),
 			fileVersion: getExplorerFileVersion(rawFile?.sourceVersion),
 			badgeState: createExplorerAssessmentBadgeState({
 				curveType,

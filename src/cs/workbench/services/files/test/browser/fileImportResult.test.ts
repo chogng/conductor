@@ -81,6 +81,30 @@ suite("workbench/services/files/test/browser/fileConverter import records", () =
     assert.deepEqual(rows.values[3], [""]);
   });
 
+  test("marks binary-like CSV files as decode failed without inline garbage rows", async () => {
+    const file = new File([
+      new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00]),
+    ], "Output_Vd.csv", {
+      lastModified: 123,
+      type: "text/csv",
+    });
+
+    const record = await createImportedFileRecord({
+      file,
+      fileId: "decode-failed",
+      fileName: "Output_Vd.csv",
+    });
+
+    const table = record.raw.rawTablesById["decode-failed"];
+    assert.equal(table.health?.state, "decodeFailed");
+    assert.equal(table.health?.decode?.binaryLike, true);
+    assert.equal(table.templateEligibility, "notEligible");
+    assert.deepEqual(table.rows, {
+      kind: "unavailable",
+      reason: "Content is unreadable: suspected binary file or encoding mismatch.",
+    });
+  });
+
   test("uses normalized CSV row stores when a normalized path is available", async () => {
     const file = new File(["Vg,Id\n0,1e-9"], "Transfer.xlsx", {
       lastModified: 123,

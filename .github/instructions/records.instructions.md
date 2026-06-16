@@ -80,6 +80,8 @@ Owner: `SessionService` after file import. Producer: `fileConverter.ts` through 
 | `rowCount` | `number` | Number of physical rows. | Yes | Raw table size, not block data row count. |
 | `columnCount` | `number` | Number of physical columns. | Yes | Raw table size. |
 | `maxCellLengths` | `readonly number[]` | Estimated max display length per column. | No | Table column width hint only. |
+| `health` | `RawTableHealthRecord | undefined` | Decode/parse/content availability state for this raw table. | No | `decodeFailed`/`parseFailed` tables are retained for UI diagnostics but must not enter assessment or template application as usable table content. |
+| `templateEligibility` | `'eligible' | 'notEligible' | 'needsUserAction' | undefined` | Whether template application may consume this table automatically. | No | `notEligible` means the file remains visible but auto extraction must skip or stop according to apply settings. |
 
 ### `RawTableSourceRecord`
 
@@ -97,6 +99,7 @@ Owner: `SessionService` after file import. Producer: `fileConverter.ts` through 
 | --- | --- | --- | --- |
 | `inline` | `kind`, `values` | Rows are stored directly in memory/session. | Good for small files and tests. |
 | `normalizedCsv` | `kind`, `normalizedCsvPath`, `formatVersion` | Rows live in an internal normalized CSV artifact. | Required for large Excel/multi-sheet workflow. |
+| `unavailable` | `kind`, `reason` | Rows are intentionally unavailable because decode/parse validation failed. | Do not display the raw text as normal table data; use `RawTableHealthRecord` for user-facing diagnostics. |
 
 ### `RangeRef` and `RawTableRangeRef`
 

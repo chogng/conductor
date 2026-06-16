@@ -1100,29 +1100,35 @@ export const preparePendingImportFile = async (
 const createImportedRawTableInputs = (
   prepared: {
     readonly columnCount?: number;
+    readonly health?: ConvertedImportFile["health"];
     readonly maxCellLengths?: readonly number[];
     readonly normalizedCsvPath?: string | null;
     readonly rowCount?: number;
     readonly sheets?: readonly ConvertedImportSheet[];
+    readonly templateEligibility?: ConvertedImportFile["templateEligibility"];
   },
   fileId: string,
 ) => prepared.sheets?.length
   ? prepared.sheets.map((sheet, index) => ({
       columnCount: sheet.columnCount,
       csvText: sheet.csvText,
+      health: sheet.health,
       maxCellLengths: sheet.maxCellLengths,
       normalizedCsvPath: sheet.normalizedCsvPath,
       sheetIndex: sheet.sheetIndex ?? index,
       sheetName: sheet.sheetName,
+      templateEligibility: sheet.templateEligibility,
     }))
   : prepared.normalizedCsvPath
     ? [{
         columnCount: prepared.columnCount,
+        health: prepared.health,
         maxCellLengths: prepared.maxCellLengths,
         normalizedCsvPath: prepared.normalizedCsvPath,
         rawTableId: fileId,
         rowCount: prepared.rowCount,
         sheetIndex: 0,
+        templateEligibility: prepared.templateEligibility,
       }]
   : undefined;
 

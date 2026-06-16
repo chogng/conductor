@@ -78,13 +78,16 @@ type TableFile = {
 	sheetName?: string | null;
 	sourceKey?: string;
 	sourceVersion?: number;
+	assessmentHealth?: "ok" | "suspect" | "decodeFailed" | "parseFailed" | "unsupported" | "empty";
+	assessmentHealthMessage?: string | null;
+	templateEligibility?: "eligible" | "notEligible" | "needsUserAction";
 	rowCount: number;
 	columnCount: number;
 	maxCellLengths: number[];
 };
 
 type TableLoadState = {
-	state: "idle" | "loading" | "ready";
+	state: "idle" | "loading" | "ready" | "error";
 	message: string;
 };
 

@@ -59,6 +59,57 @@ suite("workbench/services/files/test/browser/fileConverter", () => {
     assert.equal(await loaded.text(), "x,y\n1,2");
   });
 
+  test("does not fall back to raw file text when normalized CSV cannot be read", async () => {
+    const fallbackFile = new File(["PK\u0003\u0004"], "Output_Vd.csv", {
+      lastModified: 123,
+      type: "text/csv",
+    });
+    const service = createFileConverterBackendStub({
+      canReadConvertedCsv: () => true,
+      readConvertedCsv: async () => ({
+        ok: false,
+      }),
+    });
+
+    const loaded = await loadConvertedCsvFile({
+      convertedCsvReaderService: service,
+      fallbackFile,
+      fileName: "Output_Vd.csv",
+      lastModified: 123,
+      normalizedCsvPath: "C:/tmp/Output_Vd.csv",
+    });
+
+    assert.equal(loaded, null);
+  });
+
+  test("marks unreadable prepared normalized CSV as decode failed", async () => {
+    const service = createFileConverterBackendStub({
+      canPrepareFile: () => true,
+      prepareFile: async () => ({
+        normalizedCsvPath: "C:/tmp/Output_Vd.csv",
+        ok: true,
+      }),
+      canReadConvertedCsv: () => true,
+      readConvertedCsv: async () => ({
+        ok: false,
+      }),
+    });
+
+    const result = await convertImportFile(
+      service,
+      null,
+      { kind: "path", path: "C:/data/Output_Vd.csv" },
+      {
+        fileName: "Output_Vd.csv",
+        lastModified: 123,
+        size: 8,
+      },
+    );
+
+    assert.equal(result.health?.state, "decodeFailed");
+    assert.equal(result.templateEligibility, "notEligible");
+  });
+
   test("falls back to loading CSV path contents when native prepare has no normalized CSV", async () => {
     const sourceFile = new File(["Vg,Id\n0,1e-9"], "2.csv", {
       lastModified: 123,

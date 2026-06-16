@@ -112,6 +112,14 @@ suite("workbench/services/template/test/browser/templateApplyPlanner", () => {
 				fileName: "Unknown.csv",
 			},
 			{
+				...createProcessableAssessment(),
+				assessmentHealth: "decodeFailed",
+				file: {},
+				fileId: "file-invalid",
+				fileName: "Output_Vd.csv",
+				templateEligibility: "notEligible",
+			},
+			{
 				file: {},
 				fileId: "file-e",
 				fileName: "Pending Assessment.csv",
@@ -138,6 +146,10 @@ suite("workbench/services/template/test/browser/templateApplyPlanner", () => {
 				{
 					fileId: "file-d",
 					reason: "unknownCurveType",
+				},
+				{
+					fileId: "file-invalid",
+					reason: "invalidSource",
 				},
 				{
 					fileId: "file-e",

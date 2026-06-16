@@ -13,6 +13,9 @@ import {
   type FileConverterConvertedCsv,
   type FileConverterPreparedFile,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
+import {
+  decodeTextBytes,
+} from "src/cs/workbench/services/files/common/textDecode";
 
 type DesktopIpcRenderer = {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
@@ -132,9 +135,17 @@ export class FileConversionService extends Disposable implements IFileConverterB
       };
     }
 
-    const content = await this.fileService.readFile(resource, { encoding: "utf8" });
-    const csvText = limitCsvRows(content.value, payload.maxRows);
-    const sizeBytes = new TextEncoder().encode(content.value).byteLength;
+    const content = await this.fileService.readFile(resource, { encoding: "base64" });
+    const bytes = decodeBase64Bytes(content.value);
+    const decode = decodeTextBytes(bytes);
+    if (!decode.ok) {
+      return {
+        ok: false,
+      };
+    }
+
+    const csvText = limitCsvRows(decode.text ?? "", payload.maxRows);
+    const sizeBytes = bytes.byteLength;
 
     return {
       csvText,
@@ -165,5 +176,14 @@ const limitCsvRows = (text: string, maxRows: number | undefined): string => {
   }
   return text;
 };
+
+function decodeBase64Bytes(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
 
 registerSingleton(IFileConverterBackendService, FileConversionService, InstantiationType.Delayed);

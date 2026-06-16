@@ -10,6 +10,7 @@ import {
 } from "src/cs/workbench/services/template/common/templateProcessingAssessment";
 
 export type TemplateProcessingSkipReason =
+	| "invalidSource"
 	| "missingAssessment"
 	| "needsTemplate"
 	| "lowConfidence"
@@ -50,6 +51,16 @@ export function buildTemplateProcessingPlan(
 			continue;
 		}
 		if (processedIds?.has(fileId) || queuedIds.has(fileId)) {
+			continue;
+		}
+
+		if (entry.templateEligibility === "notEligible" || isInvalidSourceHealth(entry.assessmentHealth)) {
+			skippedFiles.push({
+				fileId,
+				fileName: entry.fileName,
+				reason: "invalidSource",
+			});
+			queuedIds.add(fileId);
 			continue;
 		}
 
@@ -109,6 +120,13 @@ const getTemplateProcessingSkipReason = (
 
 	return null;
 };
+
+const isInvalidSourceHealth = (
+	health: SessionFile["assessmentHealth"],
+): boolean =>
+	health === "decodeFailed" ||
+	health === "parseFailed" ||
+	health === "unsupported";
 
 const normalizeProcessableCurveType = (
 	assessment: TemplateProcessingAssessment,

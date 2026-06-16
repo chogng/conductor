@@ -127,6 +127,8 @@ const mergeSourceFileRecord = (
     rowCount: readInteger(sourceFile, "rowCount") ?? 0,
     columnCount: readInteger(sourceFile, "columnCount") ?? 0,
     maxCellLengths: readNumberArray(sourceFile.maxCellLengths),
+    health: normalizeRawTableHealth(sourceFile.assessmentHealth, sourceFile.assessmentHealthMessage),
+    templateEligibility: normalizeTemplateEligibility(sourceFile.templateEligibility),
   };
   const shouldDropDefaultTable =
     sheetId !== fileId &&
@@ -229,7 +231,10 @@ const areTableRecordsEqual = (
   current.tableKey === next.tableKey &&
   current.rowCount === next.rowCount &&
   current.columnCount === next.columnCount &&
-  areNumberArraysEqual(current.maxCellLengths, next.maxCellLengths);
+  areNumberArraysEqual(current.maxCellLengths, next.maxCellLengths) &&
+  current.health?.state === next.health?.state &&
+  current.health?.message === next.health?.message &&
+  current.templateEligibility === next.templateEligibility;
 
 const retainRawTableAssessmentRecords = (
   record: FileRecord,
@@ -370,6 +375,9 @@ export const createRawFilesFromRecords = (
         sheetName: table.sheetName ?? null,
         sourceKey: table.tableKey,
         sourceVersion: file.rawTableVersionsById?.[tableId] ?? 0,
+        assessmentHealth: table.health?.state,
+        assessmentHealthMessage: table.health?.message ?? null,
+        templateEligibility: table.templateEligibility,
         rowCount: table.rowCount,
         columnCount: table.columnCount,
         maxCellLengths: table.maxCellLengths,
@@ -483,6 +491,34 @@ const normalizeBlockConfidence = (
   }
   return "low";
 };
+
+const normalizeRawTableHealth = (
+  state: unknown,
+  message: unknown,
+): FileRecord["raw"]["tablesById"][string]["health"] | undefined => {
+  if (
+    state !== "ok" &&
+    state !== "suspect" &&
+    state !== "decodeFailed" &&
+    state !== "parseFailed" &&
+    state !== "unsupported" &&
+    state !== "empty"
+  ) {
+    return undefined;
+  }
+
+  return {
+    state,
+    message: normalizeOptionalText(message) ?? "",
+  };
+};
+
+const normalizeTemplateEligibility = (
+  value: unknown,
+): FileRecord["raw"]["tablesById"][string]["templateEligibility"] | undefined =>
+  value === "eligible" || value === "notEligible" || value === "needsUserAction"
+    ? value
+    : undefined;
 
 export const mergeProcessedFileIntoRecords = (
   filesById: Readonly<Record<FileId, FileRecord>>,

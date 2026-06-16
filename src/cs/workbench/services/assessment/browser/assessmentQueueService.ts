@@ -169,7 +169,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
 
     const rawTableId = targetRef.rawTableId;
     const table = file.raw.tablesById[rawTableId];
-    if (!table || hasCurrentAssessment(file, rawTableId)) {
+    if (!table || !isAssessableTable(table) || hasCurrentAssessment(file, rawTableId)) {
       return null;
     }
 
@@ -267,7 +267,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     const sourceRawTableVersion = file?.rawTableVersionsById[ref.rawTableId];
     if (
       !file ||
-      !file.raw.tablesById[ref.rawTableId] ||
+      !isAssessableTable(file.raw.tablesById[ref.rawTableId]) ||
       typeof sourceRawTableVersion !== "number" ||
       hasCurrentAssessment(file, ref.rawTableId)
     ) {
@@ -345,6 +345,17 @@ const hasCurrentAssessment = (
 ): boolean =>
   file.assessmentsByRawTableId[rawTableId]?.sourceRawTableVersion ===
     (file.rawTableVersionsById[rawTableId] ?? 0);
+
+const isAssessableTable = (
+  table: TableRecord | undefined,
+): table is TableRecord =>
+  Boolean(
+    table &&
+      table.rowStore &&
+      table.health?.state !== "decodeFailed" &&
+      table.health?.state !== "parseFailed" &&
+      table.health?.state !== "unsupported",
+  );
 
 const uniqueRawTableRefs = (
   refs: readonly RawTableRef[],

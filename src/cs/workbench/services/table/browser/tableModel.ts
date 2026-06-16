@@ -741,6 +741,69 @@ const createTableSourceEntry = (entry: SessionFile): TableSourceEntry | null => 
   };
 };
 
+const isUnhealthyTableSource = (entry: SessionFile): boolean =>
+  entry.assessmentHealth === "decodeFailed" ||
+  entry.assessmentHealth === "parseFailed" ||
+  entry.assessmentHealth === "unsupported";
+
+const getUnhealthyTableMessage = (entry: SessionFile): string => {
+  const message = String(entry.assessmentHealthMessage ?? "").trim().toLowerCase();
+  if (entry.assessmentHealth === "decodeFailed") {
+    if (message.includes("converted csv")) {
+      return localize(
+        "table.preview.convertedCsvUnreadable",
+        "File content cannot be decoded from the converted CSV source.",
+      );
+    }
+    if (message.includes("binary") || message.includes("encoding")) {
+      return localize(
+        "table.preview.binaryOrEncodingUnreadable",
+        "File content is unreadable: suspected binary file or encoding mismatch.",
+      );
+    }
+    return localize(
+      "table.preview.decodeFailed",
+      "File content cannot be decoded as a valid CSV table.",
+    );
+  }
+  if (entry.assessmentHealth === "parseFailed") {
+    return localize(
+      "table.preview.parseFailed",
+      "File content could not pass CSV table structure validation.",
+    );
+  }
+  if (entry.assessmentHealth === "unsupported") {
+    return localize(
+      "table.preview.unsupported",
+      "This file format is not supported for table preview.",
+    );
+  }
+
+  return localize(
+    "table.preview.unreadable",
+    "File content cannot be decoded or parsed as a valid CSV table.",
+  );
+};
+
+const createTableFileFromSourceEntry = (
+  sourceEntry: TableSourceEntry,
+): TableFile => ({
+  fileId: sourceEntry.source.fileId,
+  fileName: String(sourceEntry.entry.fileName ?? ""),
+  sheetId: sourceEntry.source.sheetId ?? null,
+  sheetName: sourceEntry.sheetName,
+  sourceKey: sourceEntry.sourceKey,
+  sourceVersion: sourceEntry.sourceVersion,
+  assessmentHealth: sourceEntry.entry.assessmentHealth,
+  assessmentHealthMessage: sourceEntry.entry.assessmentHealthMessage,
+  templateEligibility: sourceEntry.entry.templateEligibility,
+  rowCount: Math.max(0, Math.floor(Number(sourceEntry.entry.rowCount) || 0)),
+  columnCount: Math.max(0, Math.floor(Number(sourceEntry.entry.columnCount) || 0)),
+  maxCellLengths: Array.isArray(sourceEntry.entry.maxCellLengths)
+    ? sourceEntry.entry.maxCellLengths.map(value => Number(value) || 0)
+    : [],
+});
+
 const isTableFileForSource = (
   file: TableFile | null | undefined,
   sourceKey: string | null | undefined,
@@ -764,6 +827,9 @@ export const areTableFilesEqual = (
   current?.sheetName === next.sheetName &&
   current?.sourceKey === next.sourceKey &&
   normalizeSourceVersion(current?.sourceVersion) === normalizeSourceVersion(next.sourceVersion) &&
+  current?.assessmentHealth === next.assessmentHealth &&
+  current?.assessmentHealthMessage === next.assessmentHealthMessage &&
+  current?.templateEligibility === next.templateEligibility &&
   current?.rowCount === next.rowCount &&
   current?.columnCount === next.columnCount &&
   current?.maxCellLengths.length === next.maxCellLengths.length &&
@@ -1567,6 +1633,26 @@ const createTableModel = ({
     const targetSourceKey = targetSource?.sourceKey ?? null;
     const targetSourceSignature = activeSourceSignature;
     if (!targetSource || !targetFile?.file || !targetFile?.fileId || !targetSourceKey) return;
+    if (isUnhealthyTableSource(targetFile)) {
+      const nextPreviewFile = createTableFileFromSourceEntry(targetSource);
+      clearPendingPreviewRequest(previewRequestIdRef.current);
+      disposePreviewSourceCache(targetSourceKey);
+      runImmediately(() => {
+        if (
+          !(
+            isTableFileForSource(previewFileRef.current, targetSourceKey) &&
+            areTableFilesEqual(previewFileRef.current, nextPreviewFile)
+          )
+        ) {
+          setPreviewFile(nextPreviewFile);
+        }
+        setPreviewStatus({
+          state: "error",
+          message: getUnhealthyTableMessage(targetFile),
+        });
+      });
+      return;
+    }
     if (isTableFileForSourceEntry(previewFileRef.current, targetSource)) return;
     if (pendingPreviewFileIdRef.current === targetSourceSignature) return;
 
@@ -1584,16 +1670,37 @@ const createTableModel = ({
     const postWorkerPreview = async () => {
       const worker = getOrCreatePreviewWorker();
       if (!worker) return;
-      const fallbackFile =
-        (await loadConvertedCsvFile({
+      const hasNormalizedCsvPath =
+        typeof previewTargetFile.normalizedCsvPath === "string" &&
+        previewTargetFile.normalizedCsvPath.trim().length > 0;
+      const convertedFile = await loadConvertedCsvFile({
           convertedCsvReaderService: tableRowsReaderService,
           fallbackFile: previewTargetFile.file,
           fileName: previewTargetFile.fileName,
           lastModified:
             previewTargetFile.file instanceof File ? previewTargetFile.file.lastModified : null,
           normalizedCsvPath: previewTargetFile.normalizedCsvPath,
-        })) ?? previewTargetFile.file;
+        });
       if (requestId !== previewRequestIdRef.current) {
+        return;
+      }
+      if (!convertedFile) {
+        clearPendingPreviewRequest(requestId);
+        runImmediately(() => {
+          setPreviewFile(createTableFileFromSourceEntry(previewTargetSource));
+          setPreviewStatus({
+            state: "error",
+            message: hasNormalizedCsvPath
+              ? localize(
+                  "table.preview.convertedCsvUnreadable",
+                  "File content cannot be decoded from the converted CSV source.",
+                )
+              : localize(
+                  "table.preview.workerUnreadableHint",
+                  "The system could not confirm this file is a valid CSV. It may be binary, damaged, or encoded with an unsupported format.",
+                ),
+          });
+        });
         return;
       }
 
@@ -1606,7 +1713,7 @@ const createTableModel = ({
           physicalFileId: previewTargetSource.source.fileId,
           sheetId: previewTargetSource.source.sheetId ?? null,
           sheetName: previewTargetSource.sheetName,
-          file: fallbackFile,
+          file: convertedFile,
           maxSeedRows: TABLE_MAX_CACHED_UI_ROWS_PER_FILE,
         },
       });
@@ -1733,6 +1840,7 @@ const createTableModel = ({
     readerOpenedSourceKeysRef,
     deferredActiveFileId,
     deferredActiveSheetId,
+    disposePreviewSourceCache,
     getOrCreatePreviewWorker,
     mergePreviewSeedRows,
     releasePreviewSource,
