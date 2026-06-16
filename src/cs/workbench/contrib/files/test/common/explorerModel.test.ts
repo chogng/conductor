@@ -14,8 +14,10 @@ import {
   getExplorerTreeFileKey,
   mergeExplorerSourceEntries,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/common/explorerModel", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("getExplorerTreeFileKey matches buildExplorerTree file key rules", () => {
     const emptyFileIdEntry = {
       fileId: "",

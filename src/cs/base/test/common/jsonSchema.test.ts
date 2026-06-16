@@ -1,8 +1,10 @@
 import assert from "assert";
 
 import { getCompressedContent, type IJSONSchema } from "../../common/jsonSchema.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/common/jsonSchema", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("getCompressedContent returns unchanged JSON when no duplicate schemas exist", () => {
     const schema: IJSONSchema = {
       type: "object",

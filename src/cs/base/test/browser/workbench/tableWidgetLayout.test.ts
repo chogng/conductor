@@ -12,8 +12,10 @@ import type {
   TableSelection,
   TableState,
 } from "src/cs/workbench/services/table/common/table";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/browser/workbench tableWidget layout", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("rerenders visible cells when layout changes the viewport width", async () => {
     const widget = new TableWidget({
       onSelect: () => true,

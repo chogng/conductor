@@ -14,8 +14,10 @@ import {
   type IReadFileOptions,
   type IWatchOptions,
 } from "../../common/files.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("platform/files/test/common/fileService", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
   class TestFileSystemProvider implements IFileSystemProvider {
     private readonly onDidFilesChangeEmitter = new Emitter<readonly IFileChange[]>();
     public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
@@ -70,9 +72,9 @@ suite("platform/files/test/common/fileService", () => {
   }
 
   test("FileService delegates resources to the registered provider without decoding paths", async () => {
-    const service = new FileService();
+    const service = store.add(new FileService());
     const provider = new TestFileSystemProvider();
-    service.registerProvider("test", provider);
+    store.add(service.registerProvider("test", provider));
     const resource = URI.from({
       scheme: "test",
       path: "/folder/transfer%25.csv",
@@ -89,17 +91,17 @@ suite("platform/files/test/common/fileService", () => {
   });
 
   test("FileService forwards provider file change events until registration is disposed", () => {
-    const service = new FileService();
+    const service = store.add(new FileService());
     const provider = new TestFileSystemProvider();
-    const registration = service.registerProvider("test", provider);
+    const registration = store.add(service.registerProvider("test", provider));
     const resource = URI.from({
       scheme: "test",
       path: "/folder/transfer%25.csv",
     });
     const changes: Array<readonly IFileChange[]> = [];
-    service.onDidFilesChange(event => {
+    store.add(service.onDidFilesChange(event => {
       changes.push(event);
-    });
+    }));
 
     provider.fire([{ resource, type: FileChangeType.UPDATED }]);
     registration.dispose();

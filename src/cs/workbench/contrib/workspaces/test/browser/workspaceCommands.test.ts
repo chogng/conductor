@@ -27,8 +27,10 @@ import {
 import { AbstractStorageService } from "../../../../../platform/storage/common/storageService.ts";
 import { IPathService, type IPathService as IPathServiceType } from "../../../../../workbench/services/path/common/pathService.ts";
 import { addWorkspaceFolderHandler } from "../../browser/workspaceCommands.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/workspaces/test/browser/workspaceCommands", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("add workspace folder command returns the selected folder", async () => {
     const selectedFolder = URI.file("/data/import");
     const userHome = URI.file("/data");

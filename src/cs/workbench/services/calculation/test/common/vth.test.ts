@@ -4,8 +4,10 @@ import {
   computeVthSqrtFits,
   createVthSqrtPoints,
 } from "../../common/vth.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/calculation/test/common/vth", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("computeVthSqrtFits fits electron and hole branches around the valley", () => {
     const points = [];
     for (let x = -5; x <= 5; x += 1) {

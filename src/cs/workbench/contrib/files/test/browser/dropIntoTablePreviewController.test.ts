@@ -5,18 +5,21 @@
 import assert from "assert";
 
 import { Emitter, Event as BaseEvent } from "src/cs/base/common/event";
+import type { DisposableStore } from "src/cs/base/common/lifecycle";
 import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import { DropIntoTablePreviewController } from "src/cs/workbench/contrib/files/browser/dropIntoTablePreviewController";
 import { IFileConverterBackendService } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import { NotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import type { ITableDropTargetService } from "src/cs/workbench/services/table/browser/tableDropTargetService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/test/browser/dropIntoTablePreviewController", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
   test("accepts dragover on the table preview target", () => {
     const tableTarget = createTestElement();
     const dropTargetService = new TestTableDropTargetService(tableTarget);
-    const controller = createController(dropTargetService);
+    const controller = createController(dropTargetService, store);
 
     try {
       assertDragOverAccepted(tableTarget);
@@ -28,7 +31,7 @@ suite("workbench/contrib/files/test/browser/dropIntoTablePreviewController", () 
   test("attaches the table preview target added after construction", () => {
     const tableTarget = createTestElement();
     const dropTargetService = new TestTableDropTargetService(null);
-    const controller = createController(dropTargetService);
+    const controller = createController(dropTargetService, store);
 
     try {
       const beforeAttach = dispatchDragEvent(tableTarget, "dragover");
@@ -72,13 +75,16 @@ class TestTableDropTargetService implements ITableDropTargetService {
   }
 }
 
-function createController(dropTargetService: ITableDropTargetService): DropIntoTablePreviewController {
+function createController(
+  dropTargetService: ITableDropTargetService,
+  store: Pick<DisposableStore, "add">,
+): DropIntoTablePreviewController {
   return new DropIntoTablePreviewController(
     dropTargetService,
     createSessionService(),
     createExplorerService(),
     createFileConverterBackendService(),
-    new NotificationService(),
+    store.add(new NotificationService()),
   );
 }
 

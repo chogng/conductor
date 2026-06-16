@@ -12,8 +12,10 @@ import {
   PlatformToString,
   resolveLanguageCode,
 } from "../../common/platform.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/common/platform", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("detects the native platform from node process", () => {
     if (process.platform === "darwin") {
       assert.equal(isMacintosh, true);

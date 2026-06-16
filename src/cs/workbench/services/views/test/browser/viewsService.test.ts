@@ -1,6 +1,7 @@
 import * as assert from "assert";
 
 import { Emitter, Event, type Event as EventType } from "src/cs/base/common/event";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
 import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";
@@ -282,6 +283,8 @@ class TestViewDescriptorService implements IViewDescriptorService {
 }
 
 suite("workbench/services/views/browser/ViewsService", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+
   test("exposes descriptor-created views before visibility events fire", () => {
     const viewDescriptor: IViewDescriptor = {
       ctorDescriptor: new SyncDescriptor(TestView),
@@ -293,11 +296,11 @@ suite("workbench/services/views/browser/ViewsService", () => {
       id: "test.container",
       title: "Test",
     };
-    const storageService = new TestStorageService();
-    const contextKeyService = new ContextKeyService();
-    const layoutService = new BrowserWorkbenchLayoutService(storageService);
+    const storageService = store.add(new TestStorageService());
+    const contextKeyService = store.add(new ContextKeyService());
+    const layoutService = store.add(new BrowserWorkbenchLayoutService(storageService));
     const services = new ServiceCollection();
-    const instantiationService = new InstantiationService(services);
+    const instantiationService = store.add(new InstantiationService(services));
     const descriptorService = new TestViewDescriptorService(container, viewDescriptor);
 
     services.set(IStorageService, storageService);
@@ -306,18 +309,18 @@ suite("workbench/services/views/browser/ViewsService", () => {
     services.set(IInstantiationService, instantiationService);
     services.set(IViewDescriptorService, descriptorService);
 
-    const viewsService = new ViewsService(
+    const viewsService = store.add(new ViewsService(
       descriptorService,
       contextKeyService,
       instantiationService,
       layoutService,
-    );
+    ));
     let viewIdDuringVisibilityEvent: string | null = null;
-    const listener = viewsService.onDidChangeViewVisibility(({ id }) => {
+    const listener = store.add(viewsService.onDidChangeViewVisibility(({ id }) => {
       if (id === viewDescriptor.id) {
         viewIdDuringVisibilityEvent = viewsService.getViewWithId(id)?.id ?? null;
       }
-    });
+    }));
 
     descriptorService.model.addVisibleViewDescriptor(viewDescriptor);
 
@@ -343,11 +346,11 @@ suite("workbench/services/views/browser/ViewsService", () => {
       id: "test.container",
       title: "Test",
     };
-    const storageService = new TestStorageService();
-    const contextKeyService = new ContextKeyService();
-    const layoutService = new BrowserWorkbenchLayoutService(storageService);
+    const storageService = store.add(new TestStorageService());
+    const contextKeyService = store.add(new ContextKeyService());
+    const layoutService = store.add(new BrowserWorkbenchLayoutService(storageService));
     const services = new ServiceCollection();
-    const instantiationService = new InstantiationService(services);
+    const instantiationService = store.add(new InstantiationService(services));
     const descriptorService = new TestViewDescriptorService(container, viewDescriptor);
 
     services.set(IStorageService, storageService);
@@ -356,12 +359,12 @@ suite("workbench/services/views/browser/ViewsService", () => {
     services.set(IInstantiationService, instantiationService);
     services.set(IViewDescriptorService, descriptorService);
 
-    const viewsService = new ViewsService(
+    const viewsService = store.add(new ViewsService(
       descriptorService,
       contextKeyService,
       instantiationService,
       layoutService,
-    );
+    ));
 
     assert.equal(viewsService.getViewWithId(viewDescriptor.id), null);
 
@@ -388,11 +391,11 @@ suite("workbench/services/views/browser/ViewsService", () => {
       id: "test.auxiliary.container",
       title: "Test",
     };
-    const storageService = new TestStorageService();
-    const contextKeyService = new ContextKeyService();
-    const layoutService = new BrowserWorkbenchLayoutService(storageService);
+    const storageService = store.add(new TestStorageService());
+    const contextKeyService = store.add(new ContextKeyService());
+    const layoutService = store.add(new BrowserWorkbenchLayoutService(storageService));
     const services = new ServiceCollection();
-    const instantiationService = new InstantiationService(services);
+    const instantiationService = store.add(new InstantiationService(services));
     const descriptorService = new TestViewDescriptorService(
       container,
       viewDescriptor,
@@ -405,12 +408,12 @@ suite("workbench/services/views/browser/ViewsService", () => {
     services.set(IInstantiationService, instantiationService);
     services.set(IViewDescriptorService, descriptorService);
 
-    const viewsService = new ViewsService(
+    const viewsService = store.add(new ViewsService(
       descriptorService,
       contextKeyService,
       instantiationService,
       layoutService,
-    );
+    ));
 
     await viewsService.openViewContainer(container.id);
 

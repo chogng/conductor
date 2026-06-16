@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type {
 	ExportState,
 	ExportViewState,
@@ -19,13 +20,17 @@ import type { ProcessedEntry } from "src/cs/workbench/services/session/common/se
 import { BrowserExportService } from "src/cs/workbench/services/export/browser/exportService";
 import { NotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
+let exportTestStore: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite> | undefined;
+
 suite("workbench/services/export/browser/exportService", () => {
+	exportTestStore = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test("owns export option state outside session", () => {
 		const service = createExportService();
 		const states: ExportState[] = [];
-		const disposable = service.onDidChangeExportState(state => {
+		const disposable = exportTestStore.add(service.onDidChangeExportState(state => {
 			states.push(state);
-		});
+		}));
 
 		assert.deepEqual(service.getState(), {
 			originMode: "merged",
@@ -109,9 +114,9 @@ suite("workbench/services/export/browser/exportService", () => {
 	test("skips duplicate export option notifications", () => {
 		const service = createExportService();
 		let changeCount = 0;
-		const disposable = service.onDidChangeExportState(() => {
+		const disposable = exportTestStore.add(service.onDidChangeExportState(() => {
 			changeCount += 1;
-		});
+		}));
 
 		service.setOriginMode("merged");
 		service.setCanvasScope("current");
@@ -142,9 +147,9 @@ suite("workbench/services/export/browser/exportService", () => {
 	test("publishes export view state from the service", () => {
 		const service = createExportService();
 		const viewStates: ExportViewState[] = [];
-		const disposable = service.onDidChangeExportViewState(state => {
+		const disposable = exportTestStore.add(service.onDidChangeExportViewState(state => {
 			viewStates.push(state);
-		});
+		}));
 
 		const viewState = service.updateViewState({
 			activeFileId: null,
@@ -196,13 +201,17 @@ suite("workbench/services/export/browser/exportService", () => {
 const createExportService = (
 	snapshot: SessionSnapshot = createEmptySnapshot(),
 	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>> = {},
-): BrowserExportService =>
-	new BrowserExportService(
+): BrowserExportService => {
+	const notificationService = exportTestStore?.add(new NotificationService()) ?? new NotificationService();
+	const service = new BrowserExportService(
 		createSessionServiceStub(snapshot),
 		createSettingsServiceStub(),
 		createPlotServiceStub(legendLabelsByFileId),
-		new NotificationService(),
+		notificationService,
 	);
+	exportTestStore?.add(service);
+	return service;
+};
 
 const createSessionServiceStub = (snapshot: SessionSnapshot): ISessionService => ({
 	getSnapshot: () => snapshot,

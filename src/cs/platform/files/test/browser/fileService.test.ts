@@ -8,8 +8,10 @@ import type {
 } from "../../browser/webFileSystemAccess.ts";
 import { FileService } from "../../common/fileService.ts";
 import { FileType } from "../../common/files.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("platform/files/test/browser/fileService", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
   function createFileHandle(name: string, text: string): FileSystemFileHandle {
     return {
       kind: "file",
@@ -108,9 +110,9 @@ suite("platform/files/test/browser/fileService", () => {
     readonly filesService: FileService;
     readonly provider: HTMLFileSystemProvider;
   } {
-    const filesService = new FileService();
-    const provider = new HTMLFileSystemProvider();
-    filesService.registerProvider("file", provider);
+    const filesService = store.add(new FileService());
+    const provider = store.add(new HTMLFileSystemProvider());
+    store.add(filesService.registerProvider("file", provider));
 
     return { filesService, provider };
   }

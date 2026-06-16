@@ -15,8 +15,10 @@ import {
   resolvePath,
 } from "../../common/resources.ts";
 import { URI } from "../../common/uri.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/common/resources", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("resolves URI path names", () => {
     const resource = URI.file("/data/sample.csv");
 

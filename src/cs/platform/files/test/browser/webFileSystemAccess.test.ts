@@ -3,8 +3,10 @@ import assert from "assert";
 import {
   getFolderImportSupport,
 } from "../../browser/webFileSystemAccess.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("platform/files/browser/webFileSystemAccess", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("supported when WebAssembly and a folder picker are available", () => {
     assert.deepEqual(
       getFolderImportSupport({ canPickFolder: true, hasWebAssembly: true }),

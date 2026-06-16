@@ -5,8 +5,10 @@
 import assert from "assert";
 
 import { runRcCalculation } from "./parametersController.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/parameters/browser/parametersController", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   const createRow = (overrides: Record<string, unknown> = {}) => ({
     fileId: "file",
     fileName: "sample",

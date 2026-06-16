@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { AssessmentContribution } from "src/cs/workbench/services/assessment/browser/assessment.contribution";
 import { AssessmentQueueService } from "src/cs/workbench/services/assessment/browser/assessmentQueueService";
 import type {
@@ -21,19 +22,21 @@ import type {
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 
 suite("workbench/services/assessment/test/browser/assessmentContribution", () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test("assesses inline raw tables after session import commits", async () => {
-		const sessionService = new SessionService();
+		const sessionService = store.add(new SessionService());
 		const assessmentService = new TestAssessmentService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
-		const assessmentQueueService = new AssessmentQueueService(
+		const assessmentQueueService = store.add(new AssessmentQueueService(
 			sessionService,
 			assessmentService,
 			rawTableRowsReaderService,
-		);
-		const contribution = new AssessmentContribution(
+		));
+		const contribution = store.add(new AssessmentContribution(
 			sessionService,
 			assessmentQueueService,
-		);
+		));
 
 		sessionService.commitFileImport(createInlineImportResult());
 		await settlePromises();
@@ -75,24 +78,24 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 	});
 
 	test("commits the first assessment then batches background results", async () => {
-		const sessionService = new SessionService();
+		const sessionService = store.add(new SessionService());
 		const assessmentService = new TestAssessmentService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
-		const assessmentQueueService = new AssessmentQueueService(
+		const assessmentQueueService = store.add(new AssessmentQueueService(
 			sessionService,
 			assessmentService,
 			rawTableRowsReaderService,
-		);
+		));
 		const assessmentEventSizes: number[] = [];
-		const disposable = sessionService.onDidChangeSession(event => {
+		const disposable = store.add(sessionService.onDidChangeSession(event => {
 			if (event.reason === "assessmentChanged") {
 				assessmentEventSizes.push(event.rawTableRefs?.length ?? 0);
 			}
-		});
-		const contribution = new AssessmentContribution(
+		}));
+		const contribution = store.add(new AssessmentContribution(
 			sessionService,
 			assessmentQueueService,
-		);
+		));
 
 		sessionService.commitFileImport(createMultiInlineImportResult(18));
 		await waitUntil(() => assessmentEventSizes.length === 3);
@@ -106,18 +109,18 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 	});
 
 	test("prioritizes visible raw tables before background assessment", async () => {
-		const sessionService = new SessionService();
+		const sessionService = store.add(new SessionService());
 		const assessmentService = new TestAssessmentService();
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
-		const assessmentQueueService = new AssessmentQueueService(
+		const assessmentQueueService = store.add(new AssessmentQueueService(
 			sessionService,
 			assessmentService,
 			rawTableRowsReaderService,
-		);
-		const contribution = new AssessmentContribution(
+		));
+		const contribution = store.add(new AssessmentContribution(
 			sessionService,
 			assessmentQueueService,
-		);
+		));
 
 		assessmentQueueService.prioritizeRawTables([
 			{ fileId: "file-5", rawTableId: "table-5" },
@@ -136,18 +139,18 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 	});
 
 	test("discards stale queued assessment when raw table version changes while rows are loading", async () => {
-		const sessionService = new SessionService();
+		const sessionService = store.add(new SessionService());
 		const assessmentService = new TestAssessmentService();
 		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
-		const assessmentQueueService = new AssessmentQueueService(
+		const assessmentQueueService = store.add(new AssessmentQueueService(
 			sessionService,
 			assessmentService,
 			rawTableRowsReaderService,
-		);
-		const contribution = new AssessmentContribution(
+		));
+		const contribution = store.add(new AssessmentContribution(
 			sessionService,
 			assessmentQueueService,
-		);
+		));
 
 		sessionService.commitFileImport(createInlineImportResult());
 		await waitUntil(() => rawTableRowsReaderService.inputs.length === 1);

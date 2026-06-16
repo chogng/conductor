@@ -22,8 +22,10 @@ import {
   toStoredTableColumnLayout,
   toTableColumnWidths,
 } from "src/cs/workbench/services/table/common/tableColumnLayout";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/table/browser/tableWidget grid model", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("defines widget column width bounds", () => {
     assert.equal(TableColumnLayout.defaultWidth, 160);
     assert.equal(TableColumnLayout.minWidth, 0);

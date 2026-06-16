@@ -11,8 +11,10 @@ import {
   toPosixPath,
   toSlashes,
 } from "../../common/extpath.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/common/extpath", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("converts Windows paths to slash and posix forms", () => {
     assert.equal(toSlashes("C:\\data\\sample.csv"), "C:/data/sample.csv");
     assert.equal(toPosixPath("C:\\data\\sample.csv"), "/C:/data/sample.csv");

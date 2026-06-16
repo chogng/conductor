@@ -13,8 +13,10 @@ import {
   rectFromBounds,
   rectFromDomRect,
 } from "../../common/layout.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/common/layout", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("clamp and rect helpers normalize geometry", () => {
     assert.equal(clamp(5, 0, 3), 3);
     assert.deepEqual(rectFromBounds(10, 20, 15, 35), { left: 10, top: 20, width: 5, height: 15 });

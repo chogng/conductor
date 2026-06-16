@@ -9,6 +9,7 @@ import type {
 	SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
 import { BrowserLocaleService } from "src/cs/workbench/services/localization/browser/localeService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 class TestSettingsService {
 	public readonly _serviceBrand = undefined;
@@ -47,6 +48,7 @@ class TestSettingsService {
 }
 
 suite("workbench/services/localization/browser/localeService", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("persists locale changes and reloads the native window", async () => {
 		const settingsService = new TestSettingsService();
 		let reloads = 0;

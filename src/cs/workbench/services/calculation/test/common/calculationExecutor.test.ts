@@ -5,8 +5,10 @@ import {
   getCalculationDescriptor,
 } from "../../common/calculationExecutor.ts";
 import type { CalculationKind } from "../../common/calculationTypes.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/calculation/test/common/calculationExecutor", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("resolves calculation descriptors by kind", () => {
     const kinds: CalculationKind[] = ["iv", "gm", "ss", "vth"];
 

@@ -14,8 +14,10 @@ import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instan
 import { registerSearchCommands } from "src/cs/workbench/contrib/search/browser/searchCommands";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { SearchCommandId } from "src/cs/workbench/services/search/common/search";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/search/test/browser/searchCommands", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("show search command opens chart search auxiliary view", () => {
 		const registration = registerSearchCommands();
 		const calls: string[] = [];

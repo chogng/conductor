@@ -5,6 +5,7 @@
 import assert from "assert";
 
 import { Emitter } from "src/cs/base/common/event";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { BrowserAppearanceService } from "src/cs/workbench/services/appearance/browser/appearanceService";
 import type {
   ConductorSettings,
@@ -12,16 +13,18 @@ import type {
 } from "src/cs/workbench/services/settings/common/settings";
 
 suite("workbench/services/appearance/browser/appearanceService", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+
   test("publishes appearance changes from settings", () => {
-    const settings = new TestSettingsService({
+    const settings = store.add(new TestSettingsService({
       filesExplorerDensity: "compact",
       filesExplorerShowBadges: true,
-    });
-    const service = new BrowserAppearanceService(settings as ISettingsService);
+    }));
+    const service = store.add(new BrowserAppearanceService(settings as ISettingsService));
     let changes = 0;
-    const disposable = service.onDidChangeAppearance(() => {
+    const disposable = store.add(service.onDidChangeAppearance(() => {
       changes += 1;
-    });
+    }));
 
     assert.equal(service.getAppearance().explorer.rowHeight, 22);
     assert.equal(service.getAppearance().explorer.showBadges, true);

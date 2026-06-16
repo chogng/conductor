@@ -1,8 +1,10 @@
 import assert from "assert";
 
 import { Range } from "../../common/range.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/common/range", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("Range intersects and reports empty intersections", () => {
     assert.deepEqual(Range.intersect({ start: 1, end: 5 }, { start: 3, end: 8 }), { start: 3, end: 5 });
     assert.deepEqual(Range.intersect({ start: 1, end: 3 }, { start: 3, end: 8 }), { start: 0, end: 0 });

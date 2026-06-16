@@ -5,8 +5,10 @@ import {
   getCheckboxClassName,
   getCheckboxIconMarkup,
 } from "../../../../browser/ui/checkbox/checkbox.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/ui/checkbox/checkbox", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("getCheckboxClassName combines size, checked state and caller classes", () => {
     assert.equal(getCheckboxClassName(), "ui-checkbox ui-checkbox--sm");
     assert.equal(

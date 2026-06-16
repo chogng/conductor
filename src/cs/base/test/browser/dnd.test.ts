@@ -1,8 +1,10 @@
 import assert from "assert";
 
 import { DelayedDragHandler, DataTransfers } from "../../browser/dnd.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/dnd", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("DataTransfers exposes drag data mime keys", () => {
     assert.equal(DataTransfers.RESOURCES, "ResourceURLs");
     assert.equal(DataTransfers.DOWNLOAD_URL, "DownloadURL");

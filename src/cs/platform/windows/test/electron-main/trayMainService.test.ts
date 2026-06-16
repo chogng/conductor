@@ -4,6 +4,7 @@ import { ConfigurationTarget } from "src/cs/platform/configuration/common/config
 import { ConfigurationService } from "src/cs/platform/configuration/common/configurationService";
 import { StorageScope, StorageTarget, type IStorageService } from "src/cs/platform/storage/common/storage";
 import { TrayMainService, type TrayMainServiceOptions } from "src/cs/platform/windows/electron-main/trayMainServiceImpl";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 class TestStorageService {
   public readonly _serviceBrand = undefined;
@@ -134,6 +135,7 @@ const createService = async (
 };
 
 suite("platform/windows/electron-main/trayMainService", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("minimizes macOS windows to tray when configured", async () => {
     const window = new TestWindow();
     const event = new TestEvent();

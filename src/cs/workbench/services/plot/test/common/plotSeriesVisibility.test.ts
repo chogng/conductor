@@ -8,8 +8,10 @@ import {
   filterCalculatedDataSeries,
   type PlotSeriesVisibilityModel,
 } from "src/cs/workbench/services/plot/common/plotSeriesVisibility";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/plot/common/plotSeriesVisibility", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("filters hidden legend items and recomputes domains", () => {
     const model = createModel();
 

@@ -13,10 +13,12 @@ import type {
 	TableSelection,
 	TableState,
 } from "src/cs/workbench/services/table/common/table";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 type TableHighlight = ReturnType<TableControllerModel["getHighlight"]>;
 
 suite("workbench/contrib/table/browser/tableController", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("layouts without rebuilding table DOM", async () => {
 		const controller = new TableController(createTableControllerProps());
 		document.body.append(controller.element);

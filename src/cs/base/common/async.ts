@@ -176,6 +176,7 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 
             const disposable = token.onCancellationRequested(() => {
                 clearTimeout(handle);
+                disposable.dispose();
                 reject(new CancellationError());
             });
         });

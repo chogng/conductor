@@ -2,8 +2,10 @@ import assert from "assert";
 
 import { Emitter, Event } from "../../common/event.ts";
 import { DisposableStore } from "../../common/lifecycle.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/common/event", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
   test("Emitter fires listeners and removes them through the returned disposable", () => {
     const emitter = new Emitter<number>();
     const values: number[] = [];
@@ -46,7 +48,7 @@ suite("base/test/common/event", () => {
     const emitter = new Emitter<number>();
     const values: number[] = [];
 
-    Event.once(emitter.event)(value => values.push(value));
+    store.add(Event.once(emitter.event)(value => values.push(value)));
     emitter.fire(1);
     emitter.fire(2);
 
@@ -59,8 +61,8 @@ suite("base/test/common/event", () => {
     const mapped: string[] = [];
     const anyValues: string[] = [];
 
-    Event.map(Event.filter(numbers.event, value => value > 1), value => `n${value}`)(value => mapped.push(value));
-    Event.any(Event.map(numbers.event, value => String(value)), words.event)(value => anyValues.push(value));
+    store.add(Event.map(Event.filter(numbers.event, value => value > 1), value => `n${value}`)(value => mapped.push(value)));
+    store.add(Event.any(Event.map(numbers.event, value => String(value)), words.event)(value => anyValues.push(value)));
 
     numbers.fire(1);
     numbers.fire(2);
@@ -72,12 +74,12 @@ suite("base/test/common/event", () => {
 
   test("Event subscriptions can be collected in a DisposableStore", () => {
     const emitter = new Emitter<number>();
-    const store = new DisposableStore();
+    const listenerStore = store.add(new DisposableStore());
     const values: number[] = [];
 
-    emitter.event(value => values.push(value), undefined, store);
+    emitter.event(value => values.push(value), undefined, listenerStore);
     emitter.fire(1);
-    store.dispose();
+    listenerStore.dispose();
     emitter.fire(2);
 
     assert.deepEqual(values, [1]);

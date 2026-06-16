@@ -1,8 +1,10 @@
 import assert from "assert";
 
 import { InlineEditableTextWidget } from "src/cs/base/browser/ui/InlineEditableText/inlineEditableTextWidget";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/test/browser/inlineEditableTextWidget", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   const originalDocument = globalThis.document;
 
   setup(() => {

@@ -9,8 +9,10 @@ import {
 } from "src/cs/workbench/services/session/browser/fileSemanticsSync";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/session/test/browser/fileSemanticsSync", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("builds axis unit settings from settings first, then template records", () => {
 		const file = createFileRecord();
 		const snapshot = createSnapshot(file);

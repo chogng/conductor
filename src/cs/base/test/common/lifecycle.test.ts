@@ -5,9 +5,15 @@ import {
   Disposable,
   DisposableStore,
   isDisposable,
+  markAsSingleton,
   MutableDisposable,
   toDisposable,
 } from "../../common/lifecycle.ts";
+import {
+  ensureNoDisposablesAreLeakedInTestSuite,
+  throwIfDisposablesAreLeaked,
+  throwIfDisposablesAreLeakedAsync,
+} from "./lifecycleTestUtils.ts";
 
 suite("base/test/common/lifecycle", () => {
   test("DisposableStore disposes added items and immediately disposes late additions", () => {
@@ -85,5 +91,60 @@ suite("base/test/common/lifecycle", () => {
     owner.dispose();
 
     assert.deepEqual(disposed, ["resource"]);
+  });
+
+  test("throwIfDisposablesAreLeaked detects undisposed disposables", () => {
+    assert.throws(() => {
+      throwIfDisposablesAreLeaked(() => {
+        toDisposable(() => undefined);
+      }, false);
+    }, /There are 1 undisposed disposables/);
+  });
+
+  test("throwIfDisposablesAreLeaked ignores disposed child disposables", () => {
+    assert.doesNotThrow(() => {
+      throwIfDisposablesAreLeaked(() => {
+        const store = new DisposableStore();
+        store.add(toDisposable(() => undefined));
+        store.dispose();
+      }, false);
+    });
+  });
+
+  test("throwIfDisposablesAreLeakedAsync detects async leaks", async () => {
+    await assert.rejects(async () => {
+      await throwIfDisposablesAreLeakedAsync(async () => {
+        await Promise.resolve();
+        toDisposable(() => undefined);
+      }, false);
+    }, /There are 1 undisposed disposables/);
+  });
+
+  test("markAsSingleton excludes singleton roots from leak checks", () => {
+    assert.doesNotThrow(() => {
+      throwIfDisposablesAreLeaked(() => {
+        const store = markAsSingleton(new DisposableStore());
+        store.add(toDisposable(() => undefined));
+      }, false);
+    });
+  });
+});
+
+suite("base/test/common/lifecycle leak guard", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+  test("disposes test store entries during teardown", () => {
+    store.add(toDisposable(() => undefined));
+  });
+
+  test("tracks Disposable children through the test store", () => {
+    class Owner extends Disposable {
+      public addResource(): void {
+        this._register(toDisposable(() => undefined));
+      }
+    }
+
+    const owner = store.add(new Owner());
+    owner.addResource();
   });
 });

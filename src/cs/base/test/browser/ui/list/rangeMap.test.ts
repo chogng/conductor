@@ -1,8 +1,10 @@
 import assert from "assert";
 
 import { RangeMap } from "../../../../browser/ui/list/rangeMap.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/ui/list/rangeMap", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("RangeMap maps positions and indexes across equal-size groups", () => {
     const map = new RangeMap();
     map.splice(0, 0, [{ size: 28 }, { size: 28 }, { size: 28 }]);

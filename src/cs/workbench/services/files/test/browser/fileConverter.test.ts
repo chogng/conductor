@@ -11,8 +11,10 @@ import {
 import type {
   FileConverterBackend,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/files/test/browser/fileConverter", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("converts browser CSV files without assessment semantics", async () => {
     const file = new File(["a,b\n1,2"], "sample.csv", {
       lastModified: 123,

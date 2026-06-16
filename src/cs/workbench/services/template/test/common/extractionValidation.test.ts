@@ -5,8 +5,10 @@
 import assert from "assert";
 
 import { prepareExtraction } from "src/cs/workbench/services/template/common/extractionValidation";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/template/common/extractionValidation", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("points mode rejects non-integer point count cells", () => {
     const result = prepareExtraction({
       rawData: [{}],

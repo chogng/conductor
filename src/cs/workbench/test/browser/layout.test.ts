@@ -21,6 +21,7 @@ import {
   BrowserWorkbenchLayoutService,
   Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 class TestStorageService extends AbstractStorageService {
   private readonly values = new Map<string, string>();
@@ -54,6 +55,7 @@ class TestStorageService extends AbstractStorageService {
 }
 
 suite("workbench/browser/layout", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("sidebar width follows workbench part bounds", () => {
     assert.equal(SIDEBAR_MIN_WIDTH_PX, 170);
     assert.equal(SIDEBAR_DEFAULT_WIDTH_PX, 250);

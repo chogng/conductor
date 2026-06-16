@@ -19,13 +19,15 @@ import {
   TimeoutTimer,
 } from "../../common/async.ts";
 import { toDisposable } from "../../common/lifecycle.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/common/async", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
   test("CancellationTokenSource fires listeners once and reports cancellation", () => {
-    const source = new CancellationTokenSource();
+    const source = store.add(new CancellationTokenSource());
     let calls = 0;
 
-    source.token.onCancellationRequested(() => calls++);
+    store.add(source.token.onCancellationRequested(() => calls++));
     source.cancel();
     source.cancel();
 
@@ -54,7 +56,7 @@ suite("base/test/common/async", () => {
   test("timeout supports cancellation tokens and cancelable promises", async () => {
     await timeout(0);
 
-    const source = new CancellationTokenSource();
+    const source = store.add(new CancellationTokenSource());
     const pending = timeout(20, source.token);
     source.cancel();
 
@@ -64,9 +66,9 @@ suite("base/test/common/async", () => {
 
   test("disposableTimeout can cancel scheduled work", async () => {
     let didRun = false;
-    const disposable = disposableTimeout(() => {
+    const disposable = store.add(disposableTimeout(() => {
       didRun = true;
-    }, 5);
+    }, 5));
 
     disposable.dispose();
     await new Promise(resolve => setTimeout(resolve, 10));
@@ -76,7 +78,7 @@ suite("base/test/common/async", () => {
 
   test("TimeoutTimer schedules and cancels work", async () => {
     let calls = 0;
-    const timer = new TimeoutTimer();
+    const timer = store.add(new TimeoutTimer());
 
     timer.cancelAndSet(() => calls++, 0);
     assert.equal(timer.isScheduled(), true);
@@ -114,7 +116,7 @@ suite("base/test/common/async", () => {
   });
 
   test("Delayer runs the latest task after the delay", async () => {
-    const delayer = new Delayer<number>(0);
+    const delayer = store.add(new Delayer<number>(0));
     const first = delayer.trigger(() => 1, 5);
     const second = delayer.trigger(() => 2, 0);
 
@@ -153,7 +155,7 @@ suite("base/test/common/async", () => {
 
   test("RunOnceScheduler runs only the last scheduled callback", async () => {
     let calls = 0;
-    const scheduler = new RunOnceScheduler(() => calls++, 5);
+    const scheduler = store.add(new RunOnceScheduler(() => calls++, 5));
 
     scheduler.schedule();
     scheduler.schedule(0);
@@ -164,7 +166,7 @@ suite("base/test/common/async", () => {
   });
 
   test("TaskSequentializer tracks pending tasks and disposes replaced pending work", async () => {
-    const sequentializer = new TaskSequentializer();
+    const sequentializer = store.add(new TaskSequentializer());
     const disposed: string[] = [];
     const first = new DeferredPromise<void>();
     const second = new DeferredPromise<void>();

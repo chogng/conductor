@@ -10,8 +10,10 @@ import {
   resolveAutoSsSelection,
 } from "../../common/ss.ts";
 import { splitBidirectionalCurvePoints } from "../../common/sweepSegmentation.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/calculation/test/common/calculationUtilities", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("resolveAutoSsSelection falls back to suggested window with low confidence", () => {
     const selection = resolveAutoSsSelection({
       strict: { ok: false, reason: "auto.no_window_meets_strict" },

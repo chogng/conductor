@@ -5,8 +5,10 @@
 import assert from "assert";
 
 import { searchSeriesAtX } from "src/cs/workbench/services/search/browser/searchModel";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/search/test/browser/searchModel", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   const createSeries = (overrides = {}) => ({
     id: "series-a",
     name: "Vg=0",

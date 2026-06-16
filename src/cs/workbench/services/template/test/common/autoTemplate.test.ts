@@ -9,8 +9,10 @@ import {
   isAutoTemplateConfig,
   isAutoTemplateId,
 } from "src/cs/workbench/services/template/common/autoTemplate";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/template/common/autoTemplate", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("auto template id is only the special auto extraction option", () => {
     assert.equal(AUTO_TEMPLATE_ID, "__auto__");
     assert.equal(isAutoTemplateId("__auto__"), true);

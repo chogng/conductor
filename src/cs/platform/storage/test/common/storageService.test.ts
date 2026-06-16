@@ -8,6 +8,7 @@ import {
   StorageTarget,
 } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 class TestStorageService extends AbstractStorageService {
   private readonly values = new Map<string, string>();
@@ -41,6 +42,7 @@ class TestStorageService extends AbstractStorageService {
 }
 
 suite("platform/storage/common/storageService", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("creates scoped physical storage keys", () => {
     assert.equal(
       getStorageKeyPrefix(StorageScope.PROFILE),

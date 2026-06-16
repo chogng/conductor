@@ -14,8 +14,10 @@ import {
   normalizeYUnit,
   normalizeYUnitForFamily,
 } from "src/cs/workbench/services/plot/common/units";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/plot/common/units", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("normalizes capacitance y units instead of falling back to current", () => {
     assert.equal(normalizeYUnit("F", "A"), "F");
     assert.equal(normalizeYUnit("pf", "A"), "pF");

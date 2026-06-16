@@ -14,8 +14,10 @@ import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instan
 import { registerParametersCommands } from "src/cs/workbench/contrib/parameters/browser/parametersCommands";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { ParametersCommandId } from "src/cs/workbench/services/parameters/common/parameters";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/parameters/test/browser/parametersCommands", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("show parameters command opens chart parameters auxiliary view", () => {
 		const registration = registerParametersCommands();
 		const calls: string[] = [];

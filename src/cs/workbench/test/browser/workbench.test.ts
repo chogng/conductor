@@ -25,11 +25,13 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import { createTemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/browser/workbench Explorer pane input", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
   test("creates table mode input from session and explorer state", () => {
-    const session = new SessionService();
-    const explorerService = new ExplorerService();
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
 
     const input = createExplorerPaneInput({
       activePlotType: "iv",
@@ -65,7 +67,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
   });
 
   test("keeps chart tree input on the stable raw file projection", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {
         fileId: "file-a",
@@ -93,7 +95,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     });
     const snapshot = session.getSnapshot();
     const readModel = createSessionReadModel(snapshot);
-    const explorerService = new ExplorerService();
+    const explorerService = store.add(new ExplorerService());
 
     const input = createExplorerPaneInput({
       activePlotType: "iv",
@@ -162,7 +164,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
   });
 
   test("keeps chart selection on raw file ids before chart data is ready", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {
         fileId: "file-a",
@@ -190,7 +192,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     });
     const snapshot = session.getSnapshot();
     const readModel = createSessionReadModel(snapshot);
-    const explorerService = new ExplorerService();
+    const explorerService = store.add(new ExplorerService());
     explorerService.select({
       candidateFileIds: ["file-a", "raw-only"],
       fileId: "raw-only",
@@ -220,7 +222,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
   });
 
   test("creates chart thumbnail input from processed file projection", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {
         fileId: "file-a",
@@ -248,7 +250,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     });
     const snapshot = session.getSnapshot();
     const readModel = createSessionReadModel(snapshot);
-    const explorerService = new ExplorerService();
+    const explorerService = store.add(new ExplorerService());
     explorerService.setViewLayout("thumbnail");
 
     const input = createExplorerPaneInput({
@@ -281,7 +283,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
   });
 
   test("projects fast badge estimates before full assessment is ready", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {
         fileId: "output-file",
@@ -335,7 +337,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     const snapshot = session.getSnapshot();
     const input = createExplorerPaneInput({
       activePlotType: "iv",
-      explorerService: new ExplorerService(),
+      explorerService: store.add(new ExplorerService()),
       mode: "table",
       plotService: createPlotService(),
       readModel: createSessionReadModel(snapshot),
@@ -394,8 +396,9 @@ suite("workbench/browser/workbench Explorer pane input", () => {
 });
 
 suite("workbench/browser/workbench initial mode", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
   test("starts in table mode even when the session already has chart data", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     commitRawFilesForTest(session, [{
       fileId: "file-a",
       fileName: "Processed A.csv",

@@ -12,8 +12,10 @@ import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/co
 import { createTemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 import type { ISessionService } from "src/cs/workbench/services/session/common/session";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/template/browser/templateService", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("publishes template view input", () => {
     const { service } = createTemplateServiceForTest();
     const input = {

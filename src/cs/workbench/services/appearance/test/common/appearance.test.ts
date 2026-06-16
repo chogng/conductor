@@ -8,8 +8,10 @@ import {
   DEFAULT_EXPLORER_APPEARANCE,
   getWorkbenchAppearanceSnapshot,
 } from "src/cs/workbench/services/appearance/common/appearance";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/appearance/common/appearance", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("normalizes Explorer appearance settings", () => {
     assert.deepStrictEqual(getWorkbenchAppearanceSnapshot({
       filesExplorerDensity: "comfortable",

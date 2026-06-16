@@ -10,8 +10,10 @@ import {
   resolveTemplateCellSelectionUpdate,
   resolveTemplateColumnSelectionUpdate,
 } from "../../browser/templateSelection.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/template/test/browser/templateSelection", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("template selection normalizes and labels columns", () => {
     assert.deepEqual(normalizeColumnIndexes([2.9, 0, 2, -1, Number.NaN, 1]), [0, 1, 2]);
     assert.equal(areColumnIndexesEqual([2, 0, 2], [0, 2]), true);

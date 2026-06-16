@@ -5,8 +5,10 @@ import {
   type SplitViewPane,
   type SplitViewPaneLayout,
 } from "src/cs/base/browser/ui/splitview/splitview";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/browser/ui/splitview", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("normalizes container resize proportionally", () => {
     const panes: readonly SplitViewPaneLayout[] = [
       { minSize: 170, size: 300 },

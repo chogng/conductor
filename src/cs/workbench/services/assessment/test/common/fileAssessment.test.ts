@@ -7,8 +7,10 @@ import {
   assessFile,
   extractFileMetadata,
 } from "../../common/fileAssessment.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/assessment/test/common/fileAssessment", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("classifies standard transfer metadata with high confidence", () => {
     const metadata = extractFileMetadata([
       ["SetupTitle", "Transfer_DB"],

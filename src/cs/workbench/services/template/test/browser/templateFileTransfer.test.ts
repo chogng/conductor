@@ -8,8 +8,10 @@ import {
   formatTemplateExportFileName,
   importTemplateFile,
 } from "src/cs/workbench/services/template/browser/templateFileTransfer";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/template/browser/templateFileTransfer", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("formatTemplateExportFileName creates a safe json filename", () => {
     assert.equal(formatTemplateExportFileName("  Transfer: A/B?  "), "Transfer- A-B-.json");
     assert.equal(formatTemplateExportFileName(""), "analysis-template.json");

@@ -7,8 +7,10 @@ import assert from "assert";
 import { createTemplateApplyInput } from "src/cs/workbench/services/template/browser/templateApplyInput";
 import type { SessionReadModel } from "src/cs/workbench/services/session/common/sessionReadModel";
 import type { TemplateState } from "src/cs/workbench/services/template/common/template";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/template/test/browser/templateApplyInput", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("creates controller input from read model and template state", () => {
 		const input = createTemplateApplyInput({
 			readModel: {

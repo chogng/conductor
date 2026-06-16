@@ -9,8 +9,10 @@ import {
   transformOutgoingURIs,
 } from "../../common/uriIpc.ts";
 import { createURITransformer } from "../../common/uriTransformer.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/common/uri", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("joinPath keeps file names as file-system paths", () => {
     const root = URI.file("C:\\Users\\lanxi\\Desktop\\293K");
     const resource = URI.joinPath(

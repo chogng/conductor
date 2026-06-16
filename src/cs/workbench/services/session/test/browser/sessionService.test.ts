@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import {
   createCalculatedCurveRecordsByFile,
@@ -39,8 +40,10 @@ import {
 } from "src/cs/workbench/services/session/common/sessionRecordProjection";
 
 suite("workbench/services/session/test/browser/sessionService", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+
   test("reports typed change events with snapshot versions", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
     const disposable = session.onDidChangeSession(event => {
       events.push(event);
@@ -63,7 +66,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("subscription dispose stops future notifications", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     let changeCount = 0;
     const dispose = subscribeForTest(session, () => {
       changeCount += 1;
@@ -78,7 +81,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("skips notifications when the value is unchanged", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     let changeCount = 0;
     const dispose = subscribeForTest(session, () => {
       changeCount += 1;
@@ -93,7 +96,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("reports raw table refs on import change events", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
     const dispose = session.onDidChangeSession(event => {
       events.push(event);
@@ -113,7 +116,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("ignores removal requests for unknown file ids", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw A.csv" }]);
     let changeCount = 0;
     const dispose = session.onDidChangeSession(() => {
@@ -129,14 +132,14 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("initializes canonical session records", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     assert.deepEqual(session.getSnapshot().filesById, {});
     assert.deepEqual(session.getSnapshot().fileOrder, []);
   });
 
   test("omits legacy buckets from the session snapshot", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw A.csv" }]);
     const context = session.getSnapshot() as Record<string, unknown>;
@@ -163,7 +166,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("stores applied template selection in canonical template run", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     commitTemplateOutputForTest(session, {
       fileId: "file-a",
@@ -184,7 +187,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("stores and clears metric inputs in canonical file records", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     const metricKey = "current:series-1:base" as MetricKey;
 
     commitTemplateOutputForTest(session, {
@@ -224,7 +227,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("projects raw and processed fields into canonical file records", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     commitRawFilesForTest(session, [{
       fileId: "file-a",
@@ -284,7 +287,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("normalizes template units before canonical calculations", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     commitTemplateOutputForTest(session, {
       fileId: "file-a",
@@ -319,7 +322,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("normalizes capacitance-frequency template units before canonical storage", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     commitTemplateOutputForTest(session, {
       fileId: "file-a",
@@ -343,7 +346,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("commits template runs, curves, and metrics through explicit APIs", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
     const dispose = session.onDidChangeSession(event => {
       events.push(event);
@@ -450,7 +453,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("commits template output through one session event", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
     const dispose = session.onDidChangeSession(event => {
       events.push(event);
@@ -478,7 +481,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("commits multiple template outputs through one session event", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
     const dispose = session.onDidChangeSession(event => {
       events.push(event);
@@ -517,7 +520,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("clears template output through the template commit API", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw.csv" }]);
     commitTemplateOutputForTest(session, {
@@ -546,7 +549,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("adds and replaces raw files through canonical session methods", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     commitRawFilesForTest(session, [
       {
@@ -593,7 +596,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("commits file import results as canonical raw table records", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     const result: FileImportResult = {
       createdAt: 123,
       diagnostics: [],
@@ -650,7 +653,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("increments raw table versions when imported files replace an existing source", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     session.commitFileImport(createSingleRawTableImportResult());
     session.commitFileImport(createSingleRawTableImportResult());
@@ -665,7 +668,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("skips imported files that duplicate an existing raw source identity", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     const first = session.commitFileImport(createSourceKeyedImportResult("file-a", "raw-source-key"));
     const second = session.commitFileImport(createSourceKeyedImportResult("file-next-id", "raw-source-key"));
@@ -683,7 +686,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("deduplicates raw source identities within one import commit", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     const result = session.commitFileImport({
       createdAt: 123,
@@ -703,7 +706,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("commits raw table assessment when source version matches", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     session.commitFileImport(createSingleRawTableImportResult());
     const assessment = createRawTableAssessment(1);
 
@@ -716,7 +719,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("commits multiple raw table assessments with one change event", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
     const disposable = session.onDidChangeSession(event => {
       events.push(event);
@@ -746,7 +749,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("ignores stale raw table assessment versions", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     session.commitFileImport(createSingleRawTableImportResult());
 
     session.commitRawTableAssessment(createRawTableAssessment(0));
@@ -757,7 +760,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("keeps imported file handles and source keys through raw canonical projection", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     const sourceFile = {
       lastModified: 123,
       name: "Transfer.csv",
@@ -790,7 +793,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("renames imported file display metadata without changing raw provenance", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
     const disposable = session.onDidChangeSession(event => {
       events.push(event);
@@ -822,7 +825,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("removes files through one session owner", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     commitRawFilesForTest(session, [
       { fileId: "file-a", fileName: "Raw A.csv" },
@@ -909,7 +912,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("replaces calculated curves through the session owner", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     commitTemplateOutputForTest(session, {
       fileId: "file-a",
@@ -961,7 +964,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("replaces calculated curve records instead of accumulating stale derived curves", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     commitTemplateOutputForTest(session, {
       fileId: "file-a",
@@ -1008,7 +1011,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("keeps calculated iv read models out of canonical base curves", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     commitTemplateOutputForTest(session, {
       fileId: "file-a",
@@ -1054,7 +1057,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("clears session data", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw A.csv" }]);
     session.clearSession();
@@ -1065,7 +1068,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   });
 
   test("notifies each active subscription", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     let firstChangeCount = 0;
     let secondChangeCount = 0;
     const disposeFirst = subscribeForTest(session, () => {

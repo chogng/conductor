@@ -11,8 +11,10 @@ import {
 	resolveRustProcessingPoolSize,
 	resolveRustWorkerExecutablePath,
 } from "src/cs/platform/rust/electron-main/rustWorkerHost";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("platform/rust/electron-main/rustWorkerHost", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	const helperFileName = "conductor-rs.exe";
 	let root: string;
 

@@ -5,6 +5,7 @@
 import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import type { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
@@ -13,18 +14,19 @@ import {
 } from "src/cs/workbench/services/thumbnail/browser/thumbnailService";
 
 suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test("owns thumbnail cache lifecycle outside session", () => {
-		const service = new BrowserThumbnailService();
+		const service = store.add(new BrowserThumbnailService());
 
 		service.clear();
-		service.dispose();
 
 		assert.ok(true);
 	});
 
 	test("preview service caches plot previews and invalidates by file id", () => {
 		let calculatedCalls = 0;
-		const service = new BrowserThumbnailPreviewService(
+		const service = store.add(new BrowserThumbnailPreviewService(
 			{
 				getCalculatedData: ({ fileId }: { readonly fileId: string }) => {
 					calculatedCalls += 1;
@@ -51,11 +53,11 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				}),
 				onDidChangeSession: Event.None,
 			} as unknown as ISessionService,
-		);
+		));
 		const changedFileIds: string[] = [];
-		const disposable = service.onDidChangePreview(event => {
+		store.add(service.onDidChangePreview(event => {
 			changedFileIds.push(event.fileId);
-		});
+		}));
 
 		assert.equal(service.get("file-a").kind, "idle");
 		assert.equal(service.request("file-a", "hover").kind, "ready");
@@ -64,8 +66,5 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		service.invalidate(["file-a"]);
 		assert.equal(service.get("file-a").kind, "idle");
 		assert.deepEqual(changedFileIds, ["file-a", "file-a"]);
-
-		disposable.dispose();
-		service.dispose();
 	});
 });

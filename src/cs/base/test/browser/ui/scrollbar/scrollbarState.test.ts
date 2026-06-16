@@ -4,8 +4,10 @@ import {
   MIN_SCROLLBAR_THUMB_SIZE,
   ScrollbarState,
 } from "../../../../browser/ui/scrollbar/scrollbarState.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/ui/scrollbar/scrollbarState", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("ScrollbarState hides metrics when content fits", () => {
     const state = new ScrollbarState();
     const changed = state.measure({

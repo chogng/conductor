@@ -8,8 +8,10 @@ import {
   type IConfigurationRegistry,
 } from "src/cs/platform/configuration/common/configurationRegistry";
 import { Registry } from "src/cs/platform/registry/common/platform";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("platform/configuration/common/configurationRegistry", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("registers Conductor configuration defaults", () => {
     const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
     const properties = registry.getConfigurationProperties();

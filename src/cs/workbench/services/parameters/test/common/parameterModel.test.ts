@@ -1,3 +1,5 @@
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+
 ﻿/*---------------------------------------------------------------------------------------------
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
@@ -20,6 +22,7 @@ import {
 } from "src/cs/workbench/services/parameters/common/parameterModel";
 
 suite("workbench/services/parameters/common/parameterModel", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   const row = {
     gmMaxAbs: 1,
     ion: 2,

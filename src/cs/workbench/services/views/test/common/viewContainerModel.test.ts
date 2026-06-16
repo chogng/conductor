@@ -5,6 +5,7 @@ import { ContextKeyService } from "src/cs/platform/contextkey/browser/contextKey
 import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
 import { type IView, type IViewPaneContainer, type ViewContainer } from "src/cs/workbench/common/views";
 import { ViewContainerModel } from "src/cs/workbench/services/views/common/viewContainerModel";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 class TestView implements IView {
   public readonly id = "test.view";
@@ -59,6 +60,7 @@ class TestViewPaneContainer implements IViewPaneContainer {
 }
 
 suite("workbench/services/views/common/viewContainerModel", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("updates active descriptors when context keys change", () => {
     const contextKeyService = new ContextKeyService();
     const model = new ViewContainerModel({

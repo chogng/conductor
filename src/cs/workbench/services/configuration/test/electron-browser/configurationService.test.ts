@@ -25,6 +25,7 @@ import type {
 	INativeOpenDialogResult,
 } from "src/cs/platform/native/common/native";
 import { ElectronBrowserConfigurationService } from "src/cs/workbench/services/configuration/electron-browser/configurationService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 class MemoryFileService implements IFileService {
 	public declare readonly _serviceBrand: undefined;
@@ -123,6 +124,7 @@ class TestNativeHostService implements INativeHostService {
 }
 
 suite("workbench/services/configuration/electron-browser/configurationService", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("uses userDataPath/User/settings.json as the user settings resource", () => {
 		const resource = getUserSettingsResource("C:\\Users\\lanxi\\AppData\\Roaming\\Conductor Studio");
 

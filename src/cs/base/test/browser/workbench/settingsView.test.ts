@@ -1,6 +1,7 @@
 import assert from "assert";
 
 import { SettingsView, type SettingsViewOptions } from "src/cs/workbench/contrib/settings/browser/settingsView";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 type SettingsViewOptionOverrides = Partial<Omit<SettingsViewOptions, "appearanceSettings">> & {
   appearanceSettings?: Partial<SettingsViewOptions["appearanceSettings"]>;
@@ -14,6 +15,7 @@ const idleFeedback = {
 const noop = () => undefined;
 
 suite("workbench/contrib/settings/browser/settingsView", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("updates appearance controls without replacing the active section template", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

@@ -6,8 +6,10 @@ import path from "node:path";
 import { URI } from "../../../../base/common/uri.ts";
 import { FileType } from "../../common/files.ts";
 import { DiskFileSystemProvider } from "../../node/diskFileSystemProvider.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("platform/files/test/node/diskFileSystemProvider", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
   function createTempDir(): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), "conductor-files-"));
   }
@@ -62,9 +64,9 @@ suite("platform/files/test/node/diskFileSystemProvider", () => {
       const filePath = path.join(root, "User", "settings.json");
       const provider = new DiskFileSystemProvider();
       const changes: string[] = [];
-      provider.onDidFilesChange(events => {
+      store.add(provider.onDidFilesChange(events => {
         changes.push(...events.map(event => `${event.resource.fsPath}:${event.type}`));
-      });
+      }));
 
       await provider.writeFile(URI.file(filePath), "{\n  \"editor.tabSize\": 2\n}\n");
 

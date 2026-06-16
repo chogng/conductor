@@ -4,8 +4,10 @@ import {
   isOutputLikeFile,
   isTransferLikeFile,
 } from "../../common/ionIoff.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/calculation/test/common/ionIoff", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("isTransferLikeFile recognizes Vg sweeps", () => {
     assert.equal(isTransferLikeFile({ xAxisRole: "vg" }), true);
     assert.equal(

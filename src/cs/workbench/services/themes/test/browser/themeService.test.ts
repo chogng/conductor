@@ -6,10 +6,12 @@ import assert from "node:assert/strict";
 
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import { BrowserWorkbenchThemeService } from "src/cs/workbench/services/themes/browser/themeService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 type TestCall = readonly [string, unknown?];
 
 suite("workbench/services/themes/browser/themeService", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const originalDocument = globalThis.document;
 	const originalWindow = globalThis.window;
 
@@ -30,7 +32,7 @@ suite("workbench/services/themes/browser/themeService", () => {
 		const calls: TestCall[] = [];
 		const desktopAppearance = createDeferredPromise();
 		installAppearanceEnvironment(calls, () => desktopAppearance.promise);
-		const service = new BrowserWorkbenchThemeService();
+		const service = store.add(new BrowserWorkbenchThemeService());
 
 		service.applyAppearance({
 			backgroundColor: "#abcdef",
@@ -66,7 +68,7 @@ suite("workbench/services/themes/browser/themeService", () => {
 			electronVersion: "38.0.0",
 			platform: "darwin",
 		});
-		const service = new BrowserWorkbenchThemeService();
+		const service = store.add(new BrowserWorkbenchThemeService());
 
 		service.applyAppearance({
 			backgroundColor: "#abcdef",
@@ -109,7 +111,7 @@ suite("workbench/services/themes/browser/themeService", () => {
 			electronVersion: "38.0.0",
 			platform: "win32",
 		});
-		const service = new BrowserWorkbenchThemeService();
+		const service = store.add(new BrowserWorkbenchThemeService());
 
 		service.applyAppearance({
 			backgroundColor: "#abcdef",
@@ -152,7 +154,7 @@ suite("workbench/services/themes/browser/themeService", () => {
 			electronVersion: "38.0.0",
 			platform: "darwin",
 		});
-		const service = new BrowserWorkbenchThemeService();
+		const service = store.add(new BrowserWorkbenchThemeService());
 
 		service.start();
 		calls.length = 0;
@@ -188,7 +190,7 @@ suite("workbench/services/themes/browser/themeService", () => {
 	test("restores opaque workbench chrome before disabling native transparent appearance", async () => {
 		const calls: TestCall[] = [];
 		installAppearanceEnvironment(calls, async () => ({ ok: true }));
-		const service = new BrowserWorkbenchThemeService();
+		const service = store.add(new BrowserWorkbenchThemeService());
 
 		service.applyAppearance({
 			backgroundColor: "#abcdef",

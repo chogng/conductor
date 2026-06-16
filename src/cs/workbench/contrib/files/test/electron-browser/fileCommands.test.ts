@@ -10,10 +10,12 @@ import { RENAME_FILE_ITEM_COMMAND_ID, REVEAL_IN_OS_COMMAND_ID } from "../../comm
 import "../../browser/fileActions.contribution.ts";
 import "../../electron-browser/fileActions.contribution.ts";
 import { resolveRevealResources } from "../../electron-browser/fileCommands.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
   test("reveal in OS command resolves Explorer file paths", () => {
-    const explorerService = new ExplorerService();
+    const explorerService = store.add(new ExplorerService());
     explorerService.updatePaneInput({
       files: [
         {
@@ -49,7 +51,7 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
   });
 
   test("registered reveal in OS command delegates to native host", () => {
-    const explorerService = new ExplorerService();
+    const explorerService = store.add(new ExplorerService());
     explorerService.updatePaneInput({
       files: [{
         fileId: "file-1",
@@ -81,7 +83,7 @@ suite("workbench/contrib/files/test/electron-browser/fileCommands", () => {
   });
 
   test("registered rename command enters Explorer editable state", () => {
-    const explorerService = new ExplorerService();
+    const explorerService = store.add(new ExplorerService());
     explorerService.updatePaneInput({
       files: [{
         fileId: "file-1",

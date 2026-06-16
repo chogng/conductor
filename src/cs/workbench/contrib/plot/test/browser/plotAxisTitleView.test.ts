@@ -1,8 +1,10 @@
 import assert from "assert";
 
 import { PlotAxisTitleView } from "src/cs/workbench/contrib/plot/browser/plotAxisTitleView";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/plot/test/browser/plotAxisTitleView", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   const originalDocument = globalThis.document;
 
   setup(() => {

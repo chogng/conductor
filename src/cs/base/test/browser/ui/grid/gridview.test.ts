@@ -1,7 +1,9 @@
 import assert from "assert";
 import { GridView } from "src/cs/base/browser/ui/grid/gridview";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/browser/ui/grid/gridview", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("updates item order and removes stale items", () => {
     const first = document.createElement("div");
     const second = document.createElement("div");

@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 
 import { language } from "src/cs/base/common/platform";
 import { LanguagePackBaseService } from "src/cs/platform/languagePacks/common/languagePacks";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 class TestLanguagePackService extends LanguagePackBaseService {}
 
 suite("platform/languagePacks/common/languagePacks", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
 	test("returns Conductor built-in language packs", async () => {
-		const service = new TestLanguagePackService();
+		const service = store.add(new TestLanguagePackService());
 
 		const languages = await service.getAvailableLanguages();
 
@@ -16,7 +18,7 @@ suite("platform/languagePacks/common/languagePacks", () => {
 	});
 
 	test("marks the current language", async () => {
-		const service = new TestLanguagePackService();
+		const service = store.add(new TestLanguagePackService());
 
 		const languages = await service.getInstalledLanguages();
 		const currentLanguage = languages.find(item => item.id === language);
@@ -26,7 +28,7 @@ suite("platform/languagePacks/common/languagePacks", () => {
 	});
 
 	test("does not provide extension translation resources without extension packs", async () => {
-		const service = new TestLanguagePackService();
+		const service = store.add(new TestLanguagePackService());
 
 		assert.equal(
 			await service.getBuiltInExtensionTranslationsUri("sample.extension", "zh"),

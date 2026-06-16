@@ -8,13 +8,15 @@ import {
   SubmenuAction,
   toAction,
 } from "../../common/actions.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/common/actions", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
   test("Action emits change events only when values change", () => {
-    const action = new Action("test", "Initial", "initial");
+    const action = store.add(new Action("test", "Initial", "initial"));
     const changes: unknown[] = [];
 
-    action.onDidChange(change => changes.push(change));
+    store.add(action.onDidChange(change => changes.push(change)));
     action.label = "Next";
     action.label = "Next";
     action.tooltip = "Tip";
@@ -32,7 +34,7 @@ suite("base/test/common/actions", () => {
   });
 
   test("ActionRunner emits will and did events and rethrows errors", async () => {
-    const runner = new ActionRunner();
+    const runner = store.add(new ActionRunner());
     const order: string[] = [];
     const error = new Error("boom");
     const action = toAction({
@@ -43,15 +45,15 @@ suite("base/test/common/actions", () => {
       },
     });
 
-    runner.onWillRun(event => order.push(`will:${event.action.id}`));
-    runner.onDidRun(event => order.push(`did:${event.action.id}:${event.error === error}`));
+    store.add(runner.onWillRun(event => order.push(`will:${event.action.id}`)));
+    store.add(runner.onDidRun(event => order.push(`did:${event.action.id}:${event.error === error}`)));
 
     await assert.rejects(runner.run(action), error);
     assert.deepEqual(order, ["will:run", "run", "did:run:true"]);
   });
 
   test("ActionRunner ignores disabled actions", async () => {
-    const runner = new ActionRunner();
+    const runner = store.add(new ActionRunner());
     let didRun = false;
 
     await runner.run(toAction({
@@ -87,7 +89,7 @@ suite("base/test/common/actions", () => {
   test("Submenu actions expose metadata without running work", async () => {
     const child = toAction({ id: "child", run: () => {} });
     const submenu = new SubmenuAction("menu", "Menu", [child], "menu-class");
-    const empty = new EmptySubmenuAction();
+    const empty = store.add(new EmptySubmenuAction());
 
     assert.equal(submenu.id, "menu");
     assert.equal(submenu.label, "Menu");

@@ -10,8 +10,10 @@ import {
 	resolveChartFileOptions,
 } from "src/cs/workbench/services/chart/common/chartFileOptions";
 import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/chart/common/chartFileOptions", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("resolveChartFileOptions returns canonical options", () => {
 		assert.deepEqual(
 			resolveChartFileOptions({

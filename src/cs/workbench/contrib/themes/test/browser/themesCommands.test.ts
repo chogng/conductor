@@ -21,8 +21,10 @@ import {
 	DEFAULT_WORKBENCH_BACKGROUND_COLOR,
 	ThemeCommandId,
 } from "src/cs/workbench/services/themes/common/themeService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/themes/test/browser/themesCommands", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("theme command palette actions persist theme settings", async () => {
 		const registration = registerThemesCommands();
 		const calls: unknown[] = [];

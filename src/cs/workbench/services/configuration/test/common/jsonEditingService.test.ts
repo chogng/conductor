@@ -22,6 +22,7 @@ import {
 	JSONEditingErrorCode,
 } from "src/cs/workbench/services/configuration/common/jsonEditing";
 import { JSONEditingService } from "src/cs/workbench/services/configuration/common/jsonEditingService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 class MemoryFileService implements IFileService {
 	declare readonly _serviceBrand: undefined;
@@ -89,6 +90,7 @@ class MemoryFileService implements IFileService {
 }
 
 suite("workbench/services/configuration/common/jsonEditingService", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("writes JSON path values through the file service", async () => {
 		const resource = URI.file("C:\\Users\\test\\AppData\\Roaming\\Conductor Studio\\User\\settings.json");
 		const files = new MemoryFileService();

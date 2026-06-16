@@ -10,8 +10,10 @@ import {
 	rowsFromTableCellReads,
 	sanitizeTableRowBatch,
 } from "../../browser/tableModel.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/table/browser/tableModel row cache", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("sanitizeTableRowBatch normalizes non-array rows", () => {
 		const rows = sanitizeTableRowBatch([["a"], null, 1, ["b", "c"]]);
 		assert.deepEqual(rows, [["a"], [], [], ["b", "c"]]);
@@ -200,6 +202,7 @@ suite("workbench/services/table/browser/tableModel row cache", () => {
 });
 
 suite("workbench/services/table/browser/tableModel cell reads", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("buildTableCellReadRequests expands unique rows into full-row cell reads", () => {
 		const cells = buildTableCellReadRequests({
 			columnCount: 3,

@@ -1,8 +1,10 @@
 import assert from "assert";
 
 import { createParameterTableTsv } from "./parameterTableCopy.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/parameters/browser/parameterTableCopy", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   const row = {
     gmMaxAbs: 1.2345,
     ion: 2,

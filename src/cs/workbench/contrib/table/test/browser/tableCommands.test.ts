@@ -19,8 +19,10 @@ import {
 	type ITableWidgetController,
 } from "src/cs/workbench/contrib/table/browser/tableWidgetService";
 import { TableCommandId } from "src/cs/workbench/contrib/table/common/table";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/table/test/browser/tableCommands", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("table commands are command palette actions", () => {
 		const registration = registerTableActions();
 

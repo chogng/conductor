@@ -1,6 +1,7 @@
 import assert from "assert";
 
 import { ObjectTreeModel } from "../../../../browser/ui/tree/objectTreeModel.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 type TestNode = {
   readonly children?: readonly TestNode[];
@@ -8,6 +9,7 @@ type TestNode = {
 };
 
 suite("base/test/browser/ui/tree/objectTreeModel", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("flatten does not visit descendants of collapsed nodes", () => {
     const visited: string[] = [];
     const root = {

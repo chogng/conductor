@@ -9,8 +9,10 @@ import {
   isConfigured,
   toValuesTree,
 } from "src/cs/platform/configuration/common/configuration";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("platform/configuration/common/configuration", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("creates values tree from dotted keys", () => {
     const conflicts: string[] = [];
     const tree = toValuesTree({

@@ -6,8 +6,10 @@ import assert from "assert";
 
 import { createPlotMainChartProps } from "src/cs/workbench/contrib/plot/browser/plotMainView";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/plot/test/browser/plotMainView", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("maps persisted axis drawing settings into chart props", () => {
     const props = createPlotMainChartProps({
       model: createPlotModel(),

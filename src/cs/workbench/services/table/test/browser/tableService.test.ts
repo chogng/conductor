@@ -1,6 +1,7 @@
 import assert from "assert";
 
 import { Emitter } from "src/cs/base/common/event";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import type {
@@ -8,12 +9,14 @@ import type {
   TableState,
 } from "src/cs/workbench/services/table/common/table";
 import {
-  createTableModelWithScope,
   TableService,
 } from "src/cs/workbench/services/table/browser/tableService";
 import {
   areTableSelectionsEqual,
+  createTableModelInScope,
   normalizeTableSelection,
+  TableStateScope,
+  type CreateTableModelWithScopeOptions,
 } from "src/cs/workbench/services/table/browser/tableModel";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
@@ -23,7 +26,14 @@ import { mergeRawFilesIntoRecords } from "src/cs/workbench/services/session/comm
 type TableFile = NonNullable<TableState["file"]>;
 type TableLoadState = TableState["loadState"];
 
+let tableTestStore: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite> | undefined;
+
 suite("workbench/services/table/browser/tableService", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+  tableTestStore = store;
+  const createModel = (options: CreateTableModelWithScopeOptions) =>
+    createTableModelInScope(store.add(new TableStateScope()), options);
+
   test("loads imported preview using the raw source key", async () => {
     let openedPayload: unknown = null;
     let previewFile: TableFile | null = null;
@@ -47,7 +57,7 @@ suite("workbench/services/table/browser/tableService", () => {
       },
     });
 
-    const model = createTableModelWithScope({
+    const model = createModel({
       tableRowsReaderService,
       rawFiles: [{
         file: {},
@@ -152,7 +162,7 @@ suite("workbench/services/table/browser/tableService", () => {
 
   test("notifies selection subscribers when selection changes", () => {
     const events: string[] = [];
-    const model = createTableModelWithScope({
+    const model = createModel({
       tableRowsReaderService: createTableRowsReaderService({
         canOpenSource: () => false,
       }),
@@ -189,7 +199,7 @@ suite("workbench/services/table/browser/tableService", () => {
   });
 
   test("selects all columns through table model command state", () => {
-    const model = createTableModelWithScope({
+    const model = createModel({
       tableRowsReaderService: createTableRowsReaderService({
         canOpenSource: () => false,
       }),
@@ -218,9 +228,9 @@ suite("workbench/services/table/browser/tableService", () => {
       rawFiles: [createRawFile()],
     });
     let changeCount = 0;
-    const disposable = service.onDidChangeTableViewInput(() => {
+    const disposable = store.add(service.onDidChangeTableViewInput(() => {
       changeCount += 1;
-    });
+    }));
 
     const model = service.open({ fileId: "file-a" });
     sessionService.setRawFiles([createRawFile()]);
@@ -237,9 +247,9 @@ suite("workbench/services/table/browser/tableService", () => {
       rawFiles: [createRawFile()],
     });
     let changeCount = 0;
-    const disposable = service.onDidChangeTableViewInput(() => {
+    const disposable = store.add(service.onDidChangeTableViewInput(() => {
       changeCount += 1;
-    });
+    }));
 
     const model = service.open({ fileId: "file-a" });
     const firstOpenChangeCount = changeCount;
@@ -316,7 +326,7 @@ suite("workbench/services/table/browser/tableService", () => {
         fileName: "Raw B.csv",
       },
     ];
-    createTableModelWithScope({
+    createModel({
       file: {
         columnCount: 2,
         fileId: "file-a",
@@ -331,7 +341,7 @@ suite("workbench/services/table/browser/tableService", () => {
       workerRef: scopeRef,
     });
 
-    const model = createTableModelWithScope({
+    const model = createModel({
       rawFiles,
       source: { fileId: "file-b" },
       tableRowsReaderService: createTableRowsReaderService(),
@@ -408,7 +418,7 @@ suite("workbench/services/table/browser/tableService", () => {
       sourceVersion: 2,
     }];
 
-    const model = createTableModelWithScope({
+    const model = createModel({
       file: {
         columnCount: 2,
         fileId: "file-a",
@@ -492,9 +502,9 @@ suite("workbench/services/table/browser/tableService", () => {
       }),
     });
     const events: unknown[] = [];
-    const disposable = service.onDidChangeSelection(selection => {
+    const disposable = store.add(service.onDidChangeSelection(selection => {
       events.push(selection);
-    });
+    }));
 
     assert.equal(service.select({
       kind: "cell",
@@ -647,7 +657,7 @@ suite("workbench/services/table/browser/tableService", () => {
 
   test("clears worker preview cache when preview state is cleared", () => {
     const workerMessages: unknown[] = [];
-    const model = createTableModelWithScope({
+    const model = createModel({
       tableRowsReaderService: createTableRowsReaderService({
         canOpenSource: () => false,
       }),
@@ -753,9 +763,9 @@ suite("workbench/services/table/browser/tableService", () => {
       ]),
     });
     let changeCount = 0;
-    service.onDidChangeTableViewInput(() => {
+    store.add(service.onDidChangeTableViewInput(() => {
       changeCount += 1;
-    });
+    }));
 
     service.open({ fileId: "file-a" });
     service.dispose();
@@ -796,12 +806,14 @@ const createTableServiceFixture = ({
   readonly storageService?: TestStorageService;
   readonly tableRowsReaderService?: TableRowsReaderProvider;
 } = {}): TableServiceFixture => {
+  tableTestStore?.add(storageService);
   const sessionService = new TestSessionService(rawFiles);
   const service = new TableService(
     tableRowsReaderService as never,
     sessionService as never,
     storageService as never,
   );
+  tableTestStore?.add(service);
   return {
     service,
     sessionService,

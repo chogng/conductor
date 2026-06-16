@@ -10,8 +10,10 @@ import {
 import type {
 	ConvertedCsvReaderService,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/files/test/browser/rawTableRowsReader", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("reads inline raw table rows", async () => {
 		const rows = await readRawTableRows({
 			convertedCsvReaderService: createConvertedCsvReaderStub(),

@@ -10,8 +10,10 @@ import {
 import {
   assessImportFile,
 } from "src/cs/workbench/services/assessment/browser/fileAssessment";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/assessment/test/browser/importFileAssessment", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("isSupportedImportFileName accepts csv/xls/xlsx with case-insensitive suffixes", () => {
     assert.equal(isSupportedImportFileName("sample.csv"), true);
     assert.equal(isSupportedImportFileName("sample.CSV"), true);

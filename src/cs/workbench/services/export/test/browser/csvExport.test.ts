@@ -34,8 +34,10 @@ import {
 } from "src/cs/workbench/services/origin/common/originActions";
 import { buildOriginLegendStylePatch } from "src/cs/workbench/services/origin/common/originStyleCapabilities";
 import { buildOriginCsvJobs } from "src/cs/workbench/services/origin/browser/originController";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/export/browser/csvExport", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("buildCsvExports writes caller-provided legend labels when requested", () => {
     const exports = buildCsvExports([
       {

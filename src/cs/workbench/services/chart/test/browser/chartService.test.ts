@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { createChartViewInput } from "src/cs/workbench/services/chart/browser/chartViewInput";
 import { ChartService } from "src/cs/workbench/services/chart/browser/chartService";
 import type {
@@ -11,12 +12,14 @@ import type {
 } from "src/cs/workbench/services/chart/common/chart";
 
 suite("workbench/services/chart/test/browser/chartService", () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test("owns chart shell state outside session", () => {
-		const service = new ChartService();
+		const service = store.add(new ChartService());
 		const states: ChartState[] = [];
-		const disposable = service.onDidChangeChartState(state => {
+		store.add(service.onDidChangeChartState(state => {
 			states.push(state);
-		});
+		}));
 
 		service.toggleDetailPane("inspector");
 		service.toggleHiddenLegendKey("file-a:iv", "series-b", ["series-a", "series-b"]);
@@ -29,17 +32,14 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 			legendPopoverContextKey: null,
 		});
 		assert.equal(states.length, 2);
-
-		disposable.dispose();
-		service.dispose();
 	});
 
 	test("owns legend popover context", () => {
-		const service = new ChartService();
+		const service = store.add(new ChartService());
 		const states: ChartState[] = [];
-		const disposable = service.onDidChangeChartState(state => {
+		store.add(service.onDidChangeChartState(state => {
 			states.push(state);
-		});
+		}));
 
 		service.setLegendPopoverContextKey(" file-a:iv ");
 		service.setLegendPopoverContextKey("file-a:iv");
@@ -50,13 +50,10 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 			null,
 		]);
 		assert.equal(service.getState().legendPopoverContextKey, null);
-
-		disposable.dispose();
-		service.dispose();
 	});
 
 	test("filters stale legend keys without mutating chart state", () => {
-		const service = new ChartService();
+		const service = store.add(new ChartService());
 
 		service.toggleHiddenLegendKey("file-a:iv", "series-b", ["series-a", "series-b"]);
 
@@ -64,12 +61,10 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 		assert.deepEqual(service.getState().hiddenLegendKeysByContext, {
 			"file-a:iv": ["series-b"],
 		});
-
-		service.dispose();
 	});
 
 	test("publishes chart view input", () => {
-		const service = new ChartService();
+		const service = store.add(new ChartService());
 		const input = {
 			activeFileId: "file-a",
 			activePlotType: "iv" as const,
@@ -77,9 +72,9 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 			hasChartData: true,
 		};
 		let changeCount = 0;
-		const disposable = service.onDidChangeChartViewInput(() => {
+		store.add(service.onDidChangeChartViewInput(() => {
 			changeCount += 1;
-		});
+		}));
 
 		service.updateViewInput(input);
 		service.updateViewInput({
@@ -89,8 +84,6 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 
 		assert.equal(service.getViewInput(), input);
 		assert.equal(changeCount, 1);
-		disposable.dispose();
-		service.dispose();
 	});
 
 	test("creates chart view input without plot-owned data", () => {

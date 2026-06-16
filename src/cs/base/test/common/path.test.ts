@@ -1,8 +1,10 @@
 import assert from "assert";
 
 import { extname, posix, win32 } from "../../common/path.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/common/path", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("returns file extensions from windows paths", () => {
     assert.equal(extname("C:\\data\\sample.csv"), ".csv");
     assert.equal(win32.extname("C:/data/archive.tar.gz"), ".gz");

@@ -5,8 +5,10 @@ import { SettingsController } from "src/cs/workbench/contrib/settings/browser/se
 import { NoOpNotification, type INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import type { ICommandEvent, ICommandService } from "src/cs/platform/commands/common/commands";
 import type { ConductorSettings, ISettingsService, SettingsViewInput } from "src/cs/workbench/services/settings/common/settings";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/settings/browser/settingsController", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("keeps explorer badge switch on the pending value while saving", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

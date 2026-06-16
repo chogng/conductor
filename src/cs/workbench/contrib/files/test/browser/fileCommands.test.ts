@@ -1,9 +1,12 @@
 import assert from "assert";
 
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { CommandsRegistry } from "../../../../../platform/commands/common/commands.ts";
 import type { ServicesAccessor, ServiceIdentifier } from "../../../../../platform/instantiation/common/instantiation.ts";
 import { ExplorerWorkflowService } from "../../../../../workbench/contrib/files/browser/explorerWorkflowService.ts";
-import { IExplorerWorkflowService } from "../../../../../workbench/contrib/files/browser/files.ts";
+import { IExplorerService, IExplorerWorkflowService } from "../../../../../workbench/contrib/files/browser/files.ts";
+import type { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import { INotificationService as INotificationServiceId } from "src/cs/workbench/services/notification/common/notificationService";
 import { ITemplateService } from "src/cs/workbench/services/template/common/template";
 import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 import {
@@ -19,23 +22,28 @@ import {
   addFolderHandler,
   closeFolderHandler,
   removeFileItemHandler,
+  renameFileItemHandler,
   setFileTemplateHandler,
 } from "../../browser/fileCommands.ts";
 
 suite("workbench/contrib/files/test/browser/fileCommands", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+
   test("file item commands delegate to owning services", () => {
-    const explorerWorkflowService = new ExplorerWorkflowService();
+    const explorerWorkflowService = store.add(new ExplorerWorkflowService());
     let removedFileId: string | null = null;
+    let renameSelection: unknown = null;
+    let editableState: unknown = null;
     let templateSelection:
       | { readonly fileId: string; readonly selection: TemplateSelection }
       | null = null;
-    const workflowRegistration = explorerWorkflowService.registerHandler({
+    const workflowRegistration = store.add(explorerWorkflowService.registerHandler({
       openFolderImport: () => undefined,
       closeFolder: () => undefined,
       removeFile: fileId => {
         removedFileId = fileId;
       },
-    });
+    }));
     const templateService = {
       _serviceBrand: undefined,
       setSelectionsByFileId: (updater: (previous: Record<string, TemplateSelection>) => Record<string, TemplateSelection>) => {
@@ -46,12 +54,22 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
         }
       },
     } as unknown as ITemplateService;
+    const explorerService = createExplorerServiceStub({
+      onSelect: (target, reveal) => {
+        renameSelection = { reveal, target };
+      },
+      onSetEditable: (state) => {
+        editableState = state;
+      },
+    });
     const accessor = createAccessor([
+      [IExplorerService, explorerService],
       [IExplorerWorkflowService, explorerWorkflowService],
       [ITemplateService, templateService],
     ]);
 
     removeFileItemHandler(accessor, " file-1 ");
+    renameFileItemHandler(accessor, "file-1");
     setFileTemplateHandler(accessor, "file-1", {
       kind: "template",
       templateId: "template-1",
@@ -62,6 +80,20 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     });
 
     assert.equal(removedFileId, "file-1");
+    assert.deepEqual(renameSelection, {
+      reveal: "force",
+      target: {
+        fileId: "file-1",
+        kind: "table",
+      },
+    });
+    assert.deepEqual(editableState, {
+      isEditing: true,
+      resource: {
+        fileId: "file-1",
+        kind: "table",
+      },
+    });
     assert.deepEqual(templateSelection, {
       fileId: "file-1",
       selection: {
@@ -74,10 +106,10 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
   });
 
   test("folder commands delegate to explorer workflow service", () => {
-    const explorerWorkflowService = new ExplorerWorkflowService();
+    const explorerWorkflowService = store.add(new ExplorerWorkflowService());
     let importRequests = 0;
     let closeRequests = 0;
-    const workflowRegistration = explorerWorkflowService.registerHandler({
+    const workflowRegistration = store.add(explorerWorkflowService.registerHandler({
       openFolderImport: () => {
         importRequests += 1;
       },
@@ -85,7 +117,7 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
         closeRequests += 1;
       },
       removeFile: () => undefined,
-    });
+    }));
     const accessor = createAccessor([
       [IExplorerWorkflowService, explorerWorkflowService],
     ]);
@@ -100,14 +132,17 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
   });
 
   test("registered Action2 command entries delegate to files handlers", () => {
-    const explorerWorkflowService = new ExplorerWorkflowService();
+    const explorerWorkflowService = store.add(new ExplorerWorkflowService());
     let importRequests = 0;
     let closeRequests = 0;
     let removedFileId: string | null = null;
+    let renameSelection: unknown = null;
+    let editableState: unknown = null;
+    const notifications: unknown[] = [];
     let templateSelection:
       | { readonly fileId: string; readonly selection: TemplateSelection }
       | null = null;
-    const workflowRegistration = explorerWorkflowService.registerHandler({
+    const workflowRegistration = store.add(explorerWorkflowService.registerHandler({
       openFolderImport: () => {
         importRequests += 1;
       },
@@ -116,6 +151,14 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       },
       removeFile: fileId => {
         removedFileId = fileId;
+      },
+    }));
+    const explorerService = createExplorerServiceStub({
+      onSelect: (target, reveal) => {
+        renameSelection = { reveal, target };
+      },
+      onSetEditable: (state) => {
+        editableState = state;
       },
     });
     const templateService = {
@@ -129,7 +172,13 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
       },
     } as unknown as ITemplateService;
     const accessor = createAccessor([
+      [IExplorerService, explorerService],
       [IExplorerWorkflowService, explorerWorkflowService],
+      [INotificationServiceId, {
+        notify: (notification: unknown) => {
+          notifications.push(notification);
+        },
+      } as unknown as INotificationService],
       [ITemplateService, templateService],
     ]);
 
@@ -147,10 +196,25 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     assert.equal(importRequests, 1);
     assert.equal(closeRequests, 1);
     assert.equal(removedFileId, "file-1");
+    assert.deepEqual(renameSelection, {
+      reveal: "force",
+      target: {
+        fileId: "file-1",
+        kind: "table",
+      },
+    });
+    assert.deepEqual(editableState, {
+      isEditing: true,
+      resource: {
+        fileId: "file-1",
+        kind: "table",
+      },
+    });
     assert.deepEqual(templateSelection, {
       fileId: "file-2",
       selection: { kind: "auto" },
     });
+    assert.equal(notifications.length, 1);
     assert.ok(CommandsRegistry.getCommand(ADD_FOLDER_ACTION_ID));
     assert.ok(CommandsRegistry.getCommand(CLOSE_FOLDER_ACTION_ID));
     assert.ok(CommandsRegistry.getCommand(REMOVE_FILE_ITEM_COMMAND_ID));
@@ -170,4 +234,30 @@ function createAccessor(
     get: <T>(id: ServiceIdentifier<T>): T =>
       values.get(id as ServiceIdentifier<unknown>) as T,
   };
+}
+
+function createExplorerServiceStub({
+  onSelect,
+  onSetEditable,
+}: {
+  readonly onSelect: (target: unknown, reveal: unknown) => void;
+  readonly onSetEditable: (state: unknown) => void;
+}): IExplorerService {
+  return {
+    _serviceBrand: undefined,
+    getPaneInput: () => ({
+      files: [],
+      mode: "table",
+      selectedFileId: null,
+      selectionKind: "table",
+      thumbnailFiles: [],
+    }),
+    select: (target: unknown, reveal: unknown) => {
+      onSelect(target, reveal);
+      return "file-1";
+    },
+    setEditable: (state: unknown) => {
+      onSetEditable(state);
+    },
+  } as unknown as IExplorerService;
 }

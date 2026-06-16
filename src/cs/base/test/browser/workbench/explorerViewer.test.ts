@@ -17,8 +17,10 @@ import {
   ExplorerViewer,
   type ExplorerViewerProps,
 } from "src/cs/workbench/contrib/files/browser/views/explorerViewer";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/browser/explorerViewer", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("opens file item hover in the global context view layer", () => {
     const host = document.createElement("div");
     const hoverHost = document.createElement("div");

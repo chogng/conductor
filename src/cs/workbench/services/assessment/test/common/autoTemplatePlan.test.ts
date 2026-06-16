@@ -10,8 +10,10 @@ import {
 import {
   inferAutoExtraction,
 } from "../../common/autoTemplatePlan.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/assessment/common/autoTemplatePlan", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("infers stripped CH1/CH2 output files into executable auto extraction plans", () => {
     const rows = [
       [

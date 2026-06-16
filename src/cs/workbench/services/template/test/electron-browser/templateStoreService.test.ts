@@ -31,6 +31,7 @@ import {
 	type StoredTemplate,
 } from "src/cs/workbench/services/template/common/templateStore";
 import { ElectronTemplateStoreService } from "src/cs/workbench/services/template/electron-browser/templateStoreService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 class MemoryFileService implements IFileService {
 	declare readonly _serviceBrand: undefined;
@@ -125,6 +126,7 @@ class TestNativeHostService implements INativeHostService {
 }
 
 suite("workbench/services/template/electron-browser/templateStoreService", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("persists templates through JSON editing at User/template.json", async () => {
 		const userDataPath = "C:\\Users\\test\\AppData\\Roaming\\Conductor Studio";
 		const resource = URI.joinPath(getAppSettingsHome(userDataPath), TEMPLATE_FILENAME);

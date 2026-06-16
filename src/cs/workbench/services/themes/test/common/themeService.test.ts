@@ -9,8 +9,10 @@ import {
 	normalizeWorkbenchAppearance,
 	normalizeWorkbenchBackgroundColor,
 } from "src/cs/workbench/services/themes/common/themeService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/themes/common/themeService", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("normalizes workbench appearance settings", () => {
 		assert.deepStrictEqual(normalizeWorkbenchAppearance({
 			backgroundColor: " #ABCDEF ",

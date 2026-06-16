@@ -10,8 +10,10 @@ import {
 	Extensions,
 	type IJSONContributionRegistry,
 } from "src/cs/platform/jsonschemas/common/jsonContributionRegistry";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("platform/jsonschemas/common/jsonContributionRegistry", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("registers and unregisters schema content", () => {
 		const registry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 		const store = new DisposableStore();

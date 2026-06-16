@@ -4,7 +4,7 @@
 
 import type { IAction } from "src/cs/base/common/actions";
 import { toSlashes } from "src/cs/base/common/extpath";
-import type { IDisposable } from "src/cs/base/common/lifecycle";
+import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { isWindows } from "src/cs/base/common/platform";
 import { basename, joinPath } from "src/cs/base/common/resources";
 import { URI } from "src/cs/base/common/uri";
@@ -293,7 +293,9 @@ export class FileSourceWorkflow implements IDisposable {
   private pendingExternalFolder: URI | null = null;
   private pendingExternalChanges: WorkspaceExternalChanges | null = null;
   private externalChangesNotification: INotificationHandle | null = null;
+  private readonly externalChangesNotificationListeners = new DisposableStore();
   private importErrorNotification: INotificationHandle | null = null;
+  private readonly importErrorNotificationListeners = new DisposableStore();
   private readonly excludedSourcePaths = new Set<string>();
 
   constructor(
@@ -308,6 +310,8 @@ export class FileSourceWorkflow implements IDisposable {
     this.clearImportError();
     this.folderWatcher.dispose();
     this.clearExternalChanges();
+    this.importErrorNotificationListeners.dispose();
+    this.externalChangesNotificationListeners.dispose();
   }
 
   public closeImportedSources(): void {
@@ -664,6 +668,7 @@ export class FileSourceWorkflow implements IDisposable {
   }
 
   private clearExternalChanges(): void {
+    this.externalChangesNotificationListeners.clear();
     this.pendingExternalFolder = null;
     this.pendingExternalChanges = null;
     const notification = this.externalChangesNotification;
@@ -672,6 +677,7 @@ export class FileSourceWorkflow implements IDisposable {
   }
 
   private showExternalChanges(changes: WorkspaceExternalChanges): void {
+    this.externalChangesNotificationListeners.clear();
     this.externalChangesNotification?.close();
     const notification = this.options.notificationService.notify({
       actions: {
@@ -683,11 +689,11 @@ export class FileSourceWorkflow implements IDisposable {
       sticky: true,
     });
     this.externalChangesNotification = notification;
-    notification.onDidClose(() => {
+    this.externalChangesNotificationListeners.add(notification.onDidClose(() => {
       if (this.externalChangesNotification === notification) {
         this.externalChangesNotification = null;
       }
-    });
+    }));
   }
 
   private createExternalChangesActions(): IAction[] {
@@ -908,7 +914,7 @@ export class FileSourceWorkflow implements IDisposable {
   }
 
   private showImportError(message: string): void {
-    this.importErrorNotification?.close();
+    this.clearImportError();
     const notification = this.options.notificationService.notify({
       id: IMPORT_ERROR_NOTIFICATION_ID,
       message,
@@ -921,15 +927,16 @@ export class FileSourceWorkflow implements IDisposable {
       sticky: true,
     });
     this.importErrorNotification = notification;
-    notification.onDidClose(() => {
+    this.importErrorNotificationListeners.add(notification.onDidClose(() => {
       if (this.importErrorNotification === notification) {
         this.importErrorNotification = null;
         this.options.syncView();
       }
-    });
+    }));
   }
 
   private clearImportError(): void {
+    this.importErrorNotificationListeners.clear();
     const notification = this.importErrorNotification;
     this.importErrorNotification = null;
     notification?.close();

@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { SearchService } from "src/cs/workbench/services/search/browser/searchService";
 import type { SearchPlotModel, SearchState } from "src/cs/workbench/services/search/common/search";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
@@ -11,12 +12,14 @@ import type { SessionSnapshot } from "src/cs/workbench/services/session/common/s
 import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
 
 suite("workbench/services/search/test/browser/searchService", () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test("owns search query state outside session", () => {
-		const service = new SearchService();
+		const service = store.add(new SearchService());
 		const states: SearchState[] = [];
-		const disposable = service.onDidChangeSearchState(state => {
+		store.add(service.onDidChangeSearchState(state => {
 			states.push(state);
-		});
+		}));
 
 		service.setQueryText("1.25");
 		service.updateQuery({
@@ -37,17 +40,14 @@ suite("workbench/services/search/test/browser/searchService", () => {
 			selectedResultId: "result-a",
 		});
 		assert.equal(states.length, 3);
-
-		disposable.dispose();
-		service.dispose();
 	});
 
 	test("skips duplicate search state notifications", () => {
-		const service = new SearchService();
+		const service = store.add(new SearchService());
 		let changeCount = 0;
-		const disposable = service.onDidChangeSearchState(() => {
+		store.add(service.onDidChangeSearchState(() => {
 			changeCount += 1;
-		});
+		}));
 
 		service.setQuery({
 			text: "",
@@ -59,17 +59,14 @@ suite("workbench/services/search/test/browser/searchService", () => {
 		service.setSelectedResultId(null);
 
 		assert.equal(changeCount, 0);
-
-		disposable.dispose();
-		service.dispose();
 	});
 
 	test("owns current plot model input outside the view", () => {
-		const service = new SearchService();
+		const service = store.add(new SearchService());
 		const models: Array<SearchPlotModel | null> = [];
-		const disposable = service.onDidChangeSearchPlotModel(model => {
+		store.add(service.onDidChangeSearchPlotModel(model => {
 			models.push(model);
-		});
+		}));
 		const model = createSearchPlotModel();
 
 		service.setPlotModel(model);
@@ -78,13 +75,10 @@ suite("workbench/services/search/test/browser/searchService", () => {
 
 		assert.equal(service.getPlotModel(), null);
 		assert.deepEqual(models, [model, null]);
-
-		disposable.dispose();
-		service.dispose();
 	});
 
 	test("searches plot model points from query text", () => {
-		const service = new SearchService();
+		const service = store.add(new SearchService());
 		const model = createPlotModel();
 
 		const results = service.searchPlotModelAtText(model, "1");
@@ -100,11 +94,10 @@ suite("workbench/services/search/test/browser/searchService", () => {
 		assert.equal(exactOnly?.[0]?.status, "noExactMatch");
 		assert.equal(exactOnly?.[0]?.y, null);
 		assert.equal(service.searchPlotModelAtText(model, "not-a-number"), null);
-		service.dispose();
 	});
 
 	test("indexes session snapshot records and resolves navigation targets", () => {
-		const service = new SearchService();
+		const service = store.add(new SearchService());
 		const results = service.searchSnapshot(createSnapshot(), {
 			kinds: ["rawCell", "curve", "metric", "block"],
 			scope: "all",
@@ -132,7 +125,6 @@ suite("workbench/services/search/test/browser/searchService", () => {
 			fileId: "file-a",
 			kind: "curve",
 		});
-		service.dispose();
 	});
 });
 

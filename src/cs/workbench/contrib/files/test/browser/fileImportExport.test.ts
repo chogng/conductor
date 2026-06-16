@@ -29,9 +29,15 @@ import {
   type FileSource,
   type PendingImportFile,
 } from "../../browser/fileImportExport.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/test/browser/fileImportExport", () => {
-  const notificationService = new NotificationService();
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+  let notificationService: NotificationService;
+
+  setup(() => {
+    notificationService = store.add(new NotificationService());
+  });
 
   teardown(() => {
     notificationService.clearNotifications();
@@ -46,7 +52,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
   });
 
   test("folder import does not require browser folder picker for non-HTML file services", () => {
-    const filesService = new FileService();
+    const filesService = store.add(new FileService());
 
     assert.deepEqual(
       getFolderImportSupportForFileService(filesService),
@@ -137,9 +143,9 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
   }
 
   async function collectBrowserFolderFiles(root: FileSystemDirectoryHandle) {
-    const provider = new HTMLFileSystemProvider();
-    const filesService = new FileService();
-    filesService.registerProvider("file", provider);
+    const provider = store.add(new HTMLFileSystemProvider());
+    const filesService = store.add(new FileService());
+    store.add(filesService.registerProvider("file", provider));
     const folder = await provider.registerDirectoryHandle(root);
 
     return collectFolderImportFiles(folder, filesService);
@@ -248,9 +254,9 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       ],
       name: "selected-folder",
     });
-    const provider = new HTMLFileSystemProvider();
-    const filesService = new FileService();
-    filesService.registerProvider("file", provider);
+    const provider = store.add(new HTMLFileSystemProvider());
+    const filesService = store.add(new FileService());
+    store.add(filesService.registerProvider("file", provider));
     const folder = await provider.registerDirectoryHandle(root);
     const originalStat = filesService.stat.bind(filesService);
     filesService.stat = async resource =>
@@ -274,9 +280,9 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       ],
       name: "selected-folder",
     });
-    const provider = new HTMLFileSystemProvider();
-    const filesService = new FileService();
-    filesService.registerProvider("file", provider);
+    const provider = store.add(new HTMLFileSystemProvider());
+    const filesService = store.add(new FileService());
+    store.add(filesService.registerProvider("file", provider));
     const folder = await provider.registerDirectoryHandle(root);
     const originalStat = filesService.stat.bind(filesService);
     let statCount = 0;
@@ -306,9 +312,9 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       ],
       name: "selected-folder",
     });
-    const provider = new HTMLFileSystemProvider();
-    const filesService = new FileService();
-    filesService.registerProvider("file", provider);
+    const provider = store.add(new HTMLFileSystemProvider());
+    const filesService = store.add(new FileService());
+    store.add(filesService.registerProvider("file", provider));
     const folder = await provider.registerDirectoryHandle(root);
     const originalReadFile = filesService.readFile.bind(filesService);
     filesService.readFile = async (resource, options) =>
@@ -340,9 +346,9 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       ],
       name: "selected-folder",
     });
-    const provider = new HTMLFileSystemProvider();
-    const filesService = new FileService();
-    filesService.registerProvider("file", provider);
+    const provider = store.add(new HTMLFileSystemProvider());
+    const filesService = store.add(new FileService());
+    store.add(filesService.registerProvider("file", provider));
     const folder = await provider.registerDirectoryHandle(root);
     const originalReadFile = filesService.readFile.bind(filesService);
     let readCount = 0;
@@ -543,7 +549,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
         executeCommand: async <R,>() => undefined as R | undefined,
       },
       fileConverterBackendService: createFileConverterBackendStub(),
-      filesService: new FileService(),
+      filesService: store.add(new FileService()),
       getFiles: () => [{
         fileId: "existing-file",
         fileName: "Existing.csv",
@@ -581,7 +587,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
         executeCommand: async <R,>() => undefined as R | undefined,
       },
       fileConverterBackendService: backend,
-      filesService: new FileService(),
+      filesService: store.add(new FileService()),
       getFiles: () => [],
       getSelectedRelativePath: () => null,
       isDisposed: () => false,
@@ -639,7 +645,7 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
         },
       },
       fileConverterBackendService: createFileConverterBackendStub(),
-      filesService: new FileService(),
+      filesService: store.add(new FileService()),
       getFiles: () => [],
       getSelectedRelativePath: () => null,
       isDisposed: () => false,

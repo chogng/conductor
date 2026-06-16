@@ -1,3 +1,5 @@
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+
 ﻿import assert from "assert";
 
 import {
@@ -15,6 +17,7 @@ import {
 import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 
 suite("workbench/services/session/test/common/sessionModelAdapter", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("projects canonical raw records back to raw file entries", () => {
     const records = mergeRawFilesIntoRecords({}, [], [
       {

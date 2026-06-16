@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import { ConfigurationTarget } from "src/cs/platform/configuration/common/configuration";
 import { ConfigurationService } from "src/cs/platform/configuration/common/configurationService";
 import { OriginMainService } from "src/cs/platform/origin/electron-main/originMainServiceImpl";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("platform/origin/electron-main/originMainService", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("reads Origin defaults from IConfigurationService", () => {
     const configurationService = new ConfigurationService();
     const service = new OriginMainService(configurationService);

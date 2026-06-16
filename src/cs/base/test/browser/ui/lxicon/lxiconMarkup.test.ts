@@ -2,8 +2,10 @@ import assert from "assert";
 
 import { normalizeLxIconSvgMarkup } from "../../../../browser/ui/lxicon/lxiconMarkup.ts";
 import type { LxIconDefinition } from "../../../../browser/ui/lxicon/lxiconMarkup.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/ui/lxicon/lxiconMarkup", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("normalizeLxIconSvgMarkup normalizes size, accessibility and color", () => {
     const icon: LxIconDefinition = () =>
       '<svg width="16" height="16"><path fill="#000" stroke="black"/></svg>';

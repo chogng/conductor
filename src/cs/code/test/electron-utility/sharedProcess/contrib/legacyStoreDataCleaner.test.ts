@@ -11,8 +11,10 @@ import {
 	deleteLegacyStoreDataFiles,
 	migrateCustomStoreDataToDefault,
 } from "src/cs/code/electron-utility/sharedProcess/contrib/legacyStoreDataCleaner";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("code/electron-utility/sharedProcess/contrib/legacyStoreDataCleaner", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	function createTempDir(): string {
 		return fs.mkdtempSync(path.join(os.tmpdir(), "conductor-storage-cleanup-"));
 	}

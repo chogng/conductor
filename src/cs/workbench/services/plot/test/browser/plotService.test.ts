@@ -4,6 +4,7 @@
 
 import assert from "assert";
 import { Event } from "src/cs/base/common/event";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
   StorageScope,
   StorageTarget,
@@ -30,35 +31,36 @@ import type {
 } from "src/cs/workbench/services/settings/common/settings";
 
 suite("workbench/services/plot/test/browser/plotService", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+
   test("owns active plot type outside session", () => {
-    const service = new PlotService(
+    const service = store.add(new PlotService(
       createSessionServiceStub(),
       createSettingsServiceStub(),
-      new TestStorageService(),
-    );
+      store.add(new TestStorageService()),
+    ));
     let changeCount = 0;
-    const disposable = service.onDidChangePlotState(() => {
+    store.add(service.onDidChangePlotState(() => {
       changeCount += 1;
-    });
+    }));
 
     service.setActivePlotType("gm");
     service.setActivePlotType("gm");
 
     assert.equal(service.getState().activePlotType, "gm");
     assert.equal(changeCount, 1);
-    disposable.dispose();
   });
 
   test("creates display models with legend visibility, labels, units, and scale", () => {
-    const service = new PlotService(
+    const service = store.add(new PlotService(
       createSessionServiceStub(),
       createSettingsServiceStub({
         xUnitByFileId: { "file-a": "mV" },
         yScaleByFileId: { "file-a": "log" },
         yUnitByFileId: { "file-a": "mA" },
       }),
-      new TestStorageService(),
-    );
+      store.add(new TestStorageService()),
+    ));
     const displayModel = service.getPlotDisplayModel({
       hiddenLegendKeys: ["series-b"],
       legendLabels: { "series-a": "Edited A" },
@@ -84,15 +86,15 @@ suite("workbench/services/plot/test/browser/plotService", () => {
   });
 
   test("limits y unit controls to the current plot output family", () => {
-    const currentService = new PlotService(
+    const currentService = store.add(new PlotService(
       createSessionServiceStub(),
       createSettingsServiceStub({
         xUnitByFileId: {},
         yScaleByFileId: {},
         yUnitByFileId: { "file-a": "F" },
       }),
-      new TestStorageService(),
-    );
+      store.add(new TestStorageService()),
+    ));
     const currentDisplayModel = currentService.getPlotDisplayModel({
       snapshot: createSnapshot({
         "file-a": createFileRecord("file-a", "series-a", "A", "A"),
@@ -108,15 +110,15 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       "pA",
     ]);
 
-    const capacitanceService = new PlotService(
+    const capacitanceService = store.add(new PlotService(
       createSessionServiceStub(),
       createSettingsServiceStub({
         xUnitByFileId: {},
         yScaleByFileId: {},
         yUnitByFileId: { "file-a": "pF" },
       }),
-      new TestStorageService(),
-    );
+      store.add(new TestStorageService()),
+    ));
     const capacitanceDisplayModel = capacitanceService.getPlotDisplayModel({
       snapshot: createSnapshot({
         "file-a": createFileRecord("file-a", "series-a", "A", "F"),
@@ -132,15 +134,15 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       "pF",
     ]);
 
-    const frequencyService = new PlotService(
+    const frequencyService = store.add(new PlotService(
       createSessionServiceStub(),
       createSettingsServiceStub({
         xUnitByFileId: { "file-a": "kHz" },
         yScaleByFileId: {},
         yUnitByFileId: { "file-a": "pF" },
       }),
-      new TestStorageService(),
-    );
+      store.add(new TestStorageService()),
+    ));
     const frequencyDisplayModel = frequencyService.getPlotDisplayModel({
       snapshot: createSnapshot({
         "file-a": createFileRecord("file-a", "series-a", "A", "F", "Hz"),
@@ -183,11 +185,11 @@ suite("workbench/services/plot/test/browser/plotService", () => {
   });
 
   test("creates display models for the requested file", () => {
-    const service = new PlotService(
+    const service = store.add(new PlotService(
       createSessionServiceStub(),
       createSettingsServiceStub(),
-      new TestStorageService(),
-    );
+      store.add(new TestStorageService()),
+    ));
     const displayModel = service.getPlotDisplayModel({
       fileId: "file-b",
       snapshot: createSnapshot({
@@ -202,11 +204,11 @@ suite("workbench/services/plot/test/browser/plotService", () => {
   });
 
   test("caches calculated data per file record and plot type", () => {
-    const service = new PlotService(
+    const service = store.add(new PlotService(
       createSessionServiceStub(),
       createSettingsServiceStub(),
-      new TestStorageService(),
-    );
+      store.add(new TestStorageService()),
+    ));
     const snapshot = createSnapshot();
 
     const first = service.getCalculatedData({
@@ -230,11 +232,11 @@ suite("workbench/services/plot/test/browser/plotService", () => {
   });
 
   test("owns axis title overrides by plot context", () => {
-    const service = new PlotService(
+    const service = store.add(new PlotService(
       createSessionServiceStub(),
       createSettingsServiceStub(),
-      new TestStorageService(),
-    );
+      store.add(new TestStorageService()),
+    ));
     const snapshot = createSnapshot();
     const initial = service.getPlotDisplayModel({ snapshot });
     assert.equal(initial?.chart.xAxisTitle, "Gate (V)");
@@ -258,11 +260,11 @@ suite("workbench/services/plot/test/browser/plotService", () => {
   });
 
   test("removes legend label override when label is reset", () => {
-    const service = new PlotService(
+    const service = store.add(new PlotService(
       createSessionServiceStub(),
       createSettingsServiceStub(),
-      new TestStorageService(),
-    );
+      store.add(new TestStorageService()),
+    ));
 
     service.setLegendLabel("file-a", "series-a", "Edited");
     service.setLegendLabel("file-a", "series-a", null);
@@ -299,22 +301,22 @@ suite("workbench/services/plot/test/browser/plotService", () => {
   });
 
   test("updates unit and scale storage through plot owner API", async () => {
-    const storageService = new TestStorageService();
+    const storageService = store.add(new TestStorageService());
     storageService.store(
       "plot.xUnitByFileId",
       { "file-b": "V" },
       StorageScope.PROFILE,
       StorageTarget.USER,
     );
-    const service = new PlotService(
+    const service = store.add(new PlotService(
       createSessionServiceStub(),
       createSettingsServiceStub(),
       storageService,
-    );
+    ));
     let changeCount = 0;
-    const disposable = service.onDidChangePlotState(() => {
+    store.add(service.onDidChangePlotState(() => {
       changeCount += 1;
-    });
+    }));
 
     await service.setAxisUnit("file-a", "x", "mV");
     await service.setAxisUnit("file-a", "y", "uA");
@@ -331,7 +333,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       yScaleByFileId: { "file-a": "log" },
     });
     assert.equal(changeCount, 3);
-    disposable.dispose();
   });
 });
 

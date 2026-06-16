@@ -6,8 +6,10 @@ import assert from "assert";
 
 import { ChartTitleEditService } from "src/cs/workbench/contrib/chart/browser/chartTitleEditService";
 import type { ChartAxisTitleEditRequest } from "src/cs/workbench/services/chart/common/chart";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/chart/test/browser/chartTitleEditService", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("dispatches axis title edit commands to the registered handler", () => {
 		const service = new ChartTitleEditService();
 		const requests: ChartAxisTitleEditRequest[] = [];

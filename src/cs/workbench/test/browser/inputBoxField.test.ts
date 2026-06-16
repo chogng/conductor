@@ -7,8 +7,10 @@ import {
 import {
   createInputBoxField,
 } from "src/cs/base/browser/ui/inputbox/inputBoxField";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/test/browser/inputBoxField", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   const originalDocument = globalThis.document;
 
   setup(() => {

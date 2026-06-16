@@ -2,8 +2,10 @@ import assert from "assert";
 
 import { Scrollable, ScrollState, SmoothScrollingOperation } from "../../common/scrollable.ts";
 import { toDisposable } from "../../common/lifecycle.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/common/scrollable", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
   const VIEWPORT_HEIGHT = 800;
   const ANIMATION_DURATION = 125;
   const LINE_HEIGHT = 20;
@@ -68,17 +70,17 @@ suite("base/test/common/scrollable", () => {
 
   test("Scrollable emits events for dimension and position changes", () => {
     const events: Array<{ left: number; top: number; widthChanged: boolean }> = [];
-    const scrollable = new Scrollable({
+    const scrollable = store.add(new Scrollable({
       forceIntegerValues: true,
       smoothScrollDuration: 0,
       scheduleAtNextAnimationFrame: () => toDisposable(() => {}),
-    });
+    }));
 
-    scrollable.onScroll(event => events.push({
+    store.add(scrollable.onScroll(event => events.push({
       left: event.scrollLeft,
       top: event.scrollTop,
       widthChanged: event.widthChanged,
-    }));
+    })));
 
     scrollable.setScrollDimensions({ width: 10, scrollWidth: 100, height: 10, scrollHeight: 100 }, false);
     scrollable.setScrollPositionNow({ scrollLeft: 90, scrollTop: 120 });
@@ -95,14 +97,14 @@ suite("base/test/common/scrollable", () => {
 
   test("Scrollable uses immediate scrolling when smooth duration is zero", () => {
     let scheduled = false;
-    const scrollable = new Scrollable({
+    const scrollable = store.add(new Scrollable({
       forceIntegerValues: true,
       smoothScrollDuration: 0,
       scheduleAtNextAnimationFrame: () => {
         scheduled = true;
         return toDisposable(() => {});
       },
-    });
+    }));
 
     scrollable.setScrollDimensions({ width: 10, scrollWidth: 100, height: 10, scrollHeight: 100 }, false);
     scrollable.setScrollPositionSmooth({ scrollLeft: 40, scrollTop: 50 });

@@ -7,6 +7,7 @@ import {
   BrowserWorkbenchLayoutService,
   Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 class TestStorageService extends AbstractStorageService {
   private readonly values = new Map<string, string>();
@@ -46,6 +47,7 @@ const createPart = (id: string): HTMLElement => {
 };
 
 suite("workbench/browser/layout", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("keeps overlay child mounted when non-overlay parts change", async () => {
     const parent = document.createElement("div");
     document.body.append(parent);

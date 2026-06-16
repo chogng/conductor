@@ -4,11 +4,14 @@
 
 import assert from "assert";
 
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { AssessmentService } from "src/cs/workbench/services/assessment/browser/assessmentService";
 
 suite("workbench/services/assessment/test/browser/assessmentService", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+
   test("assesses import rows through the service owner", async () => {
-    const service = new AssessmentService();
+    const service = store.add(new AssessmentService());
     const result = await service.assessImportRows("transfer.csv", [
       ["SetupTitle", "Transfer_DB"],
       ["TestParameter", "Channel.VName", "Vg", "Vd", "Vs"],
@@ -27,7 +30,7 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
   });
 
   test("wraps raw table assessment records with source version", async () => {
-    const service = new AssessmentService();
+    const service = store.add(new AssessmentService());
     const result = await service.assessRawTable({
       fileId: "file-a",
       rawTableId: "raw-a",

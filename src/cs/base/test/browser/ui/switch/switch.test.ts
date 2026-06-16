@@ -2,8 +2,10 @@ import assert from "assert";
 
 import { createSwitch, updateSwitch } from "../../../../browser/ui/switch/switch.ts";
 import { SwitchWidget } from "../../../../browser/ui/switch/switchWidget.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/ui/switch/switch", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   class FakeStyle {
     readonly values = new Map<string, string>();
 

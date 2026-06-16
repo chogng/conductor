@@ -11,8 +11,10 @@ import {
 } from "../../../../../workbench/services/files/common/files.ts";
 import type { FolderImportFileSource } from "../../../../../workbench/services/files/common/files.ts";
 import { resolveWorkspaceExternalChanges } from "../../../../../workbench/services/workspaces/common/externalChanges.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/workspaces/test/browser/externalChanges", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("detects external additions, modifications, and deletions", () => {
     const unchanged = createScannedFile("root/unchanged.csv", 10, 1);
     const modified = createScannedFile("root/modified.csv", 20, 2);

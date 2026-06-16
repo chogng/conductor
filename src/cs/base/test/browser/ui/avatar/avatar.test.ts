@@ -7,8 +7,10 @@ import {
   getAvatarIconClassName,
   getAvatarMode,
 } from "../../../../browser/ui/avatar/avatar.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/ui/avatar/avatar", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("avatar helpers resolve class names and mode", () => {
     assert.equal(getAvatarClassName(), "avatar");
     assert.equal(

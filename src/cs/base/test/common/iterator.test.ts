@@ -1,8 +1,10 @@
 import assert from "assert";
 
 import { Iterable } from "../../common/iterator.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/common/iterator", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("Iterable helpers wrap, map, filter and flatten values", () => {
     const values = Iterable.wrap(1);
     const result = Iterable.flatMap(

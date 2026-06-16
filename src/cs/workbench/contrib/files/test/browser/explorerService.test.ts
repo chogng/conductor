@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import type {
   ExplorerPaneInput,
@@ -12,12 +13,14 @@ import type {
 } from "src/cs/workbench/contrib/files/browser/files";
 
 suite("workbench/contrib/files/test/browser/explorerService", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+
   test("stores table and chart selections independently", () => {
-    const service = new ExplorerService();
+    const service = store.add(new ExplorerService());
     const events: ExplorerSelectionChangeEvent[] = [];
-    const disposable = service.onDidChangeSelection(event => {
+    const disposable = store.add(service.onDidChangeSelection(event => {
       events.push(event);
-    });
+    }));
 
     service.select({ kind: "table", fileId: " table-a " });
     service.select({ kind: "chart", fileId: "chart-a" });
@@ -32,11 +35,11 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
   });
 
   test("does not emit duplicate selection changes", () => {
-    const service = new ExplorerService();
+    const service = store.add(new ExplorerService());
     let changeCount = 0;
-    const disposable = service.onDidChangeSelection(() => {
+    const disposable = store.add(service.onDidChangeSelection(() => {
       changeCount += 1;
-    });
+    }));
 
     service.select({ kind: "table", fileId: "file-a" });
     service.select({ kind: "table", fileId: " file-a " });
@@ -46,7 +49,7 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
   });
 
   test("selects files through explorer-owned candidate validation", () => {
-    const service = new ExplorerService();
+    const service = store.add(new ExplorerService());
 
     assert.equal(
       service.select({
@@ -68,16 +71,16 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
   });
 
   test("notifies views only with accepted selection targets", () => {
-    const service = new ExplorerService();
+    const service = store.add(new ExplorerService());
     const viewSelections: Array<{
       readonly reveal: unknown;
       readonly target: ExplorerSelectionTarget;
     }> = [];
-    const disposable = service.registerView({
+    const disposable = store.add(service.registerView({
       selectResource: (target, reveal) => {
         viewSelections.push({ reveal, target });
       },
-    });
+    }));
 
     service.select({
       candidateFileIds: ["file-b"],
@@ -108,11 +111,11 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
   });
 
   test("owns explorer view layout", () => {
-    const service = new ExplorerService();
+    const service = store.add(new ExplorerService());
     const layouts: string[] = [];
-    const disposable = service.onDidChangeViewLayout(layout => {
+    const disposable = store.add(service.onDidChangeViewLayout(layout => {
       layouts.push(layout);
-    });
+    }));
 
     assert.equal(service.viewLayout, "tree");
 
@@ -126,11 +129,11 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
   });
 
   test("owns expanded folder keys", () => {
-    const service = new ExplorerService();
+    const service = store.add(new ExplorerService());
     const events: string[][] = [];
-    const disposable = service.onDidChangeExpandedFolderKeys(event => {
+    const disposable = store.add(service.onDidChangeExpandedFolderKeys(event => {
       events.push([...event.expandedFolderKeys]);
-    });
+    }));
 
     assert.deepEqual(
       service.reconcileExpandedFolderKeys(["folder:a", "folder:b"]),
@@ -156,11 +159,11 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
   });
 
   test("publishes Explorer pane input", () => {
-    const service = new ExplorerService();
+    const service = store.add(new ExplorerService());
     let changeCount = 0;
-    const disposable = service.onDidChangePaneInput(() => {
+    const disposable = store.add(service.onDidChangePaneInput(() => {
       changeCount += 1;
-    });
+    }));
     const input: ExplorerPaneInput = {
       files: [],
       mode: "table",

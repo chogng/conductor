@@ -22,8 +22,10 @@ import {
   FilesQuickAccessProvider,
 } from "src/cs/workbench/contrib/quickaccess/browser/quickAccessProviders";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("default provider switches to file and command providers", async () => {
     const shownPrefixes: string[] = [];
     const provider = new DefaultQuickAccessProvider(createQuickInputService(shownPrefixes));

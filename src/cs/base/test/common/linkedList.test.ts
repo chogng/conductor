@@ -1,8 +1,10 @@
 import assert from "assert";
 
 import { LinkedList } from "../../common/linkedList.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/common/linkedList", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   function assertElements<E>(list: LinkedList<E>, elements: E[]): void {
     assert.equal(list.size, elements.length);
     assert.deepEqual([...list], elements);

@@ -4,10 +4,12 @@ import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instan
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import { toggleThumbnailViewHandler } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailCommands";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/thumbnail/test/browser/thumbnailCommands", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
   test("thumbnail command toggles explorer layout state", () => {
-    const explorerService = new ExplorerService();
+    const explorerService = store.add(new ExplorerService());
     const accessor = createAccessor([
       [IExplorerService, explorerService],
     ]);

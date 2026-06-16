@@ -24,6 +24,7 @@ import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/env
 import {
   getWorkbenchWindowState,
 } from "src/cs/workbench/services/title/browser/titleService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 class TestStorageService extends AbstractStorageService {
   private readonly values = new Map<string, string>();
@@ -89,6 +90,7 @@ const testNativeHostService: INativeHostService = {
 };
 
 suite("workbench/browser/titleService", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("enables desktop chrome preview on macOS desktop", () => {
     const state = getWorkbenchWindowState(createEnvironmentService({
       isDesktop: true,

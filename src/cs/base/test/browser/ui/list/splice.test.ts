@@ -4,8 +4,10 @@ import {
   CombinedSpliceable,
   type ISpliceable,
 } from "../../../../browser/ui/list/splice.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/ui/list/splice", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("CombinedSpliceable forwards splice operations to every target", () => {
     const calls: Array<{ start: number; deleteCount: number; elements: string[] }> = [];
     const first: ISpliceable<string> = {

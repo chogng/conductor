@@ -8,8 +8,10 @@ import os from "node:os";
 import path from "node:path";
 
 import { deleteEmptyWorkspaceStorageFolders } from "src/cs/code/electron-utility/sharedProcess/contrib/storageDataCleaner";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("code/electron-utility/sharedProcess/contrib/storageDataCleaner", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	function createTempDir(): string {
 		return fs.mkdtempSync(path.join(os.tmpdir(), "conductor-storage-data-cleanup-"));
 	}

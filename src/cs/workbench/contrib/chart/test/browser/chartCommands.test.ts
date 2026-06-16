@@ -18,8 +18,10 @@ import {
 	EDIT_CHART_Y_AXIS_TITLE_COMMAND_ID,
 	type ChartAxisTitleEditRequest,
 } from "src/cs/workbench/services/chart/common/chart";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/chart/test/browser/chartCommands", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("axis title edit commands delegate to chart title edit service", () => {
 		const commandRegistration = registerChartCommands();
 		const service = new ChartTitleEditService();

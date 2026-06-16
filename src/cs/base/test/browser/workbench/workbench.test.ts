@@ -22,6 +22,7 @@ import { SessionService } from "src/cs/workbench/services/session/browser/sessio
 import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { NotificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 type WorkbenchService<K extends keyof WorkbenchOptions> = NonNullable<WorkbenchOptions[K]>;
 
@@ -211,6 +212,7 @@ class RecordingViewsService implements IViewsService {
 }
 
 suite("workbench/browser/workbench layout integration", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("settings navigation does not hide or reopen the auxiliary bar part", async () => {
     const parent = document.createElement("div");
     const storage = new TestStorageService();

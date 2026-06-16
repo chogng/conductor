@@ -13,11 +13,13 @@ import type {
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import type { ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/test/browser/explorerSessionImport", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
   test("replace commits imported records and selects the requested table file", () => {
-    const session = new SessionService();
-    const explorerService = new ExplorerService();
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
 
     const result = commitExplorerSessionImport({
       explorerService,
@@ -38,8 +40,8 @@ suite("workbench/contrib/files/test/browser/explorerSessionImport", () => {
   });
 
   test("append selects first imported file only when no raw table file is active", () => {
-    const session = new SessionService();
-    const explorerService = new ExplorerService();
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
 
     const first = commitExplorerSessionImport({
       explorerService,
@@ -62,8 +64,8 @@ suite("workbench/contrib/files/test/browser/explorerSessionImport", () => {
   });
 
   test("append ignores files already imported from the same source", () => {
-    const session = new SessionService();
-    const explorerService = new ExplorerService();
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
 
     const first = commitExplorerSessionImport({
       explorerService,
@@ -95,16 +97,16 @@ suite("workbench/contrib/files/test/browser/explorerSessionImport", () => {
   });
 
   test("append selects the imported file when session has files but explorer has no active raw file", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
 
     commitExplorerSessionImport({
-      explorerService: new ExplorerService(),
+      explorerService: store.add(new ExplorerService()),
       importedFiles: [createPreparedFileImportInfo("file-a", "A.csv")],
       mode: "append",
       sessionService: session,
     });
 
-    const explorerService = new ExplorerService();
+    const explorerService = store.add(new ExplorerService());
     const result = commitExplorerSessionImport({
       explorerService,
       importedFiles: [createPreparedFileImportInfo("file-b", "B.csv")],
@@ -118,8 +120,8 @@ suite("workbench/contrib/files/test/browser/explorerSessionImport", () => {
   });
 
   test("replace clears previous session data before committing imported records", () => {
-    const session = new SessionService();
-    const explorerService = new ExplorerService();
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
 
     commitExplorerSessionImport({
       explorerService,
@@ -139,8 +141,8 @@ suite("workbench/contrib/files/test/browser/explorerSessionImport", () => {
   });
 
   test("commits imported row records through the session owner", () => {
-    const session = new SessionService();
-    const explorerService = new ExplorerService();
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
 
     commitExplorerSessionImport({
       explorerService,

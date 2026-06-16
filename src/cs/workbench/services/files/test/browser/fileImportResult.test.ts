@@ -12,8 +12,10 @@ import {
 import {
   createFileImportResultFromRecords,
 } from "src/cs/workbench/services/files/common/files";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/files/test/browser/fileConverter import records", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("creates inline raw table records from mixed CSV fixtures", async () => {
     const file = await readFixtureFile("csv/mixed-types.csv", {
       lastModified: 123,

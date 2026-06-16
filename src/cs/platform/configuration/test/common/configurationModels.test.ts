@@ -7,8 +7,10 @@ import {
   ConfigurationModel,
   parseConfigurationModel,
 } from "src/cs/platform/configuration/common/configurationModels";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("platform/configuration/common/configurationModels", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("merges configuration models by layer order", () => {
     const defaults = parseConfigurationModel({
       "editor.fontSize": 12,

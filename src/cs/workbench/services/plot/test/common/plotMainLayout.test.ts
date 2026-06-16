@@ -10,8 +10,10 @@ import {
   createTicks,
   normalizeDomain,
 } from "src/cs/workbench/services/plot/common/plotMainLayout";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/plot/common/plotMainLayout", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("normalizes invalid and flat domains", () => {
     assert.deepEqual(normalizeDomain([Number.NaN, 1]), [0, 1]);
     assert.deepEqual(normalizeDomain([4, 4]), [3.5, 4.5]);

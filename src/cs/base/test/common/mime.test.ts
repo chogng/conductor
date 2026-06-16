@@ -7,8 +7,10 @@ import {
   isTextStreamMime,
   normalizeMimeType,
 } from "../../common/mime.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/common/mime", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("mime lookup resolves text and media extensions case-insensitively", () => {
     assert.equal(getMediaOrTextMime("data.CSV"), "text/csv");
     assert.equal(getMediaOrTextMime("image.PNG"), "image/png");

@@ -6,10 +6,12 @@ import assert from "node:assert/strict";
 import type { BrowserWindow } from "electron";
 
 import { DesktopWindowMain } from "src/cs/platform/window/electron-main/window";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 type WindowCall = readonly [string, unknown?];
 
 suite("platform/window/electron-main/window", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("creates opaque macOS window with hidden titlebar and standard chrome", () => {
     withPlatform("darwin", () => {
       const windowMain = createDesktopWindowMain();

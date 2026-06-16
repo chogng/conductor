@@ -6,8 +6,10 @@ import {
   getButtonContentClassName,
   updateButton,
 } from "../../../../browser/ui/button/button.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/ui/button/button", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("getButtonClassName combines size, variant and state classes", () => {
     assert.equal(
       getButtonClassName({

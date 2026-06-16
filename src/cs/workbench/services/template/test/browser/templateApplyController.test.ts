@@ -8,6 +8,7 @@ import {
   Emitter,
   Event,
 } from "src/cs/base/common/event";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type {
   CommitTemplateOutputInput,
   ISessionService,
@@ -33,9 +34,14 @@ import type {
 } from "src/cs/workbench/services/template/common/templateProcessingBackend";
 
 suite("workbench/services/template/browser/templateApplyController", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+  const createController = (
+    options: ConstructorParameters<typeof TemplateApplyController>[0],
+  ): TemplateApplyController => store.add(new TemplateApplyController(options));
+
   test("incremental apply uses canonical processed file ids", () => {
     const queuedFileIds: string[][] = [];
-    const controller = new TemplateApplyController({
+    const controller = createController({
       sessionService: createSessionService(),
       tableService: createTableService(),
       templateProcessingBackendService: createTemplateProcessingBackend(),
@@ -71,7 +77,7 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     const queuedFileIds: string[][] = [];
     const startedJobs: ProcessingJobOptions[] = [];
     const readRows: number[] = [];
-    const controller = new TemplateApplyController({
+    const controller = createController({
       sessionService: createSessionService(),
       tableService: createTableService({
         getRow: (rowIndex) => {
@@ -136,7 +142,7 @@ suite("workbench/services/template/browser/templateApplyController", () => {
   test("removes queued processing files from session removal events", () => {
     const queuedFileIds: string[][] = [];
     const sessionEvents = new Emitter<SessionChangeEvent>();
-    const controller = new TemplateApplyController({
+    const controller = createController({
       sessionService: createSessionService(sessionEvents),
       tableService: createTableService(),
       templateProcessingBackendService: createTemplateProcessingBackend(),
@@ -176,7 +182,7 @@ suite("workbench/services/template/browser/templateApplyController", () => {
 
   test("full apply rejects while extraction is already running", () => {
     const queuedFileIds: string[][] = [];
-    const controller = new TemplateApplyController({
+    const controller = createController({
       sessionService: createSessionService(),
       tableService: createTableService(),
       templateProcessingBackendService: createTemplateProcessingBackend(),
@@ -206,7 +212,7 @@ suite("workbench/services/template/browser/templateApplyController", () => {
 
   test("full apply rejects while source files are still importing", () => {
     const queuedFileIds: string[][] = [];
-    const controller = new TemplateApplyController({
+    const controller = createController({
       sessionService: createSessionService(),
       tableService: createTableService(),
       templateProcessingBackendService: createTemplateProcessingBackend(),
@@ -231,7 +237,7 @@ suite("workbench/services/template/browser/templateApplyController", () => {
 
   test("incremental apply rejects while source files are still importing", () => {
     const queuedFileIds: string[][] = [];
-    const controller = new TemplateApplyController({
+    const controller = createController({
       sessionService: createSessionService(),
       tableService: createTableService(),
       templateProcessingBackendService: createTemplateProcessingBackend(),
@@ -267,7 +273,7 @@ suite("workbench/services/template/browser/templateApplyController", () => {
 
   test("full apply skips files that need template review", () => {
     const queuedFileIds: string[][] = [];
-    const controller = new TemplateApplyController({
+    const controller = createController({
       sessionService: createSessionService(),
       tableService: createTableService(),
       templateProcessingBackendService: createTemplateProcessingBackend(),
@@ -302,7 +308,7 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     const queuedFileIds: string[][] = [];
     const startedJobs: ProcessingJobOptions[] = [];
     const statuses: ProcessingStatus[] = [];
-    const controller = new TemplateApplyController({
+    const controller = createController({
       sessionService: createSessionService(),
       tableService: createTableService(),
       templateProcessingBackendService: createTemplateProcessingBackend(),
@@ -352,7 +358,7 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     const queuedFileIds: string[][] = [];
     const committedBatches: CommitTemplateOutputInput[][] = [];
     let snapshot = createTemplateOutputSnapshot(["file-a", "file-b"]);
-    const controller = new TemplateApplyController({
+    const controller = createController({
       sessionService: createSessionService(undefined, {
         commitTemplateOutputs: commits => {
           committedBatches.push(commits);
@@ -395,7 +401,7 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     const queuedFileIds: string[][] = [];
     let snapshot = createTemplateOutputSnapshot(["file-a", "file-b"]);
     const changedFileIds: readonly string[][] = [];
-    const controller = new TemplateApplyController({
+    const controller = createController({
       sessionService: createSessionService(undefined, {
         commitTemplateOutputs: () => {
           snapshot = {
@@ -442,7 +448,7 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     const startedJobs: ProcessingJobOptions[] = [];
     const committedBatches: CommitTemplateOutputInput[][] = [];
     const snapshot = createTemplateOutputSnapshot(["file-a"]);
-    const controller = new TemplateApplyController({
+    const controller = createController({
       sessionService: createSessionService(undefined, {
         commitTemplateOutputs: commits => {
           committedBatches.push(commits);

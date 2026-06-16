@@ -12,8 +12,10 @@ import {
   getCanvasScopeSummary,
   getExportSelectionSummary,
 } from "src/cs/workbench/services/export/common/exportModel";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/export/common/exportModel", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   const t = (key: string, vars: Record<string, unknown> = {}) =>
     Object.keys(vars).length ? `${key}:${JSON.stringify(vars)}` : key;
 

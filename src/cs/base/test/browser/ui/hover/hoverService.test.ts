@@ -5,8 +5,10 @@ import { Action } from "src/cs/base/common/actions";
 import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
 import { IHoverService } from "src/cs/platform/hover/browser/hoverService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/ui/hover/hoverService", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   teardown(() => {
     document.querySelectorAll(".workbench-hover-widget").forEach(element => element.remove());
   });

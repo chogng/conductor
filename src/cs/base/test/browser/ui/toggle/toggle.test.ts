@@ -6,8 +6,10 @@ import {
   getToggleDataAttributes,
   setToggleChecked,
 } from "../../../../browser/ui/toggle/toggle.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/ui/toggle/toggle", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("getToggleClassName combines size and caller class", () => {
     assert.equal(getToggleClassName(), "ui-toggle ui-toggle--md");
     assert.equal(getToggleClassName({ className: "extra", size: "sm" }), "ui-toggle ui-toggle--sm extra");

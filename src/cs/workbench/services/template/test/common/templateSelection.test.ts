@@ -10,8 +10,10 @@ import {
 	removeTemplateSelectionsForFiles,
 	resolveTemplateSelectionForFile,
 } from "src/cs/workbench/services/template/common/templateSelection";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/template/test/common/templateSelection", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("creates auto and saved template selections", () => {
 		assert.deepEqual(createTemplateSelection(null), { kind: "auto" });
 		assert.deepEqual(createTemplateSelection("__auto__"), { kind: "auto" });

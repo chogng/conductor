@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
   ConfigurationTarget,
 } from "src/cs/platform/configuration/common/configuration";
@@ -17,13 +18,17 @@ import type {
   SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
 
+let settingsTestStore: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite> | undefined;
+
 suite("workbench/services/settings/browser/settingsService", () => {
+  settingsTestStore = ensureNoDisposablesAreLeakedInTestSuite();
+
   test("publishes Origin settings view input from owned conductor settings", () => {
     const service = createBrowserSettingsService();
     let changeCount = 0;
-    const disposable = service.onDidChangeOriginSettingsViewInput(() => {
+    const disposable = settingsTestStore.add(service.onDidChangeOriginSettingsViewInput(() => {
       changeCount += 1;
-    });
+    }));
 
     service.mergeConductorSettings({
       originPlotLineWidthDefault: 2,
@@ -146,12 +151,12 @@ suite("workbench/services/settings/browser/settingsService", () => {
     const service = createBrowserSettingsService();
     let changeCount = 0;
     const conductorSettingsEvents: unknown[] = [];
-    const disposable = service.onDidChangeSettingsViewInput(() => {
+    const disposable = settingsTestStore.add(service.onDidChangeSettingsViewInput(() => {
       changeCount += 1;
-    });
-    const conductorSettingsDisposable = service.onDidChangeConductorSettings(settings => {
+    }));
+    const conductorSettingsDisposable = settingsTestStore.add(service.onDidChangeConductorSettings(settings => {
       conductorSettingsEvents.push(settings);
-    });
+    }));
 
     service.mergeConductorSettings({ theme: "dark" });
     service.update(createSettingsServiceOptions({
@@ -218,8 +223,8 @@ suite("workbench/services/settings/browser/settingsService", () => {
   });
 
   test("uses platform configuration as the default persistence owner", async () => {
-    const configurationService = new ConfigurationService();
-    const service = new BrowserSettingsService(configurationService);
+    const configurationService = settingsTestStore.add(new ConfigurationService());
+    const service = settingsTestStore.add(new BrowserSettingsService(configurationService));
     service.mergeConductorSettings({});
     service.update(createSettingsServiceOptions({
       settingsPersistence: undefined,
@@ -242,7 +247,9 @@ suite("workbench/services/settings/browser/settingsService", () => {
 });
 
 const createBrowserSettingsService = (): BrowserSettingsService =>
-  new BrowserSettingsService(new ConfigurationService());
+  settingsTestStore?.add(new BrowserSettingsService(
+    settingsTestStore.add(new ConfigurationService()),
+  )) ?? new BrowserSettingsService(new ConfigurationService());
 
 const drainMicrotasks = async (): Promise<void> => {
   await Promise.resolve();

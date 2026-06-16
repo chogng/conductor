@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { getLatestTemplateRunRecord } from "src/cs/workbench/services/session/common/sessionModel";
 import { createProcessedFileSessionCommit } from "src/cs/workbench/services/session/common/sessionModelAdapter";
@@ -28,6 +29,8 @@ import type {
 type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
 suite("workbench/services/template/test/browser/templateApplyProcessing", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+
   const createRef = <T,>(current: T) => ({ current });
 
   const resolveNext = <T,>(value: T | ((previous: T) => T), previous: T): T =>
@@ -77,7 +80,7 @@ suite("workbench/services/template/test/browser/templateApplyProcessing", () => 
   } satisfies TemplateProcessingBackend;
 
   const createProcessingHarness = (rawFiles: readonly SessionFile[] = []) => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     if (rawFiles.length) {
       commitRawFilesForTest(session, rawFiles);
     }

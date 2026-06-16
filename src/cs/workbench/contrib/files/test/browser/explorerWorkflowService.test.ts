@@ -4,15 +4,18 @@
 
 import assert from "assert";
 
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { ExplorerWorkflowService } from "src/cs/workbench/contrib/files/browser/explorerWorkflowService";
 
 suite("workbench/contrib/files/test/browser/explorerWorkflowService", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+
   test("dispatches explorer workflow commands to the registered handler", () => {
-    const service = new ExplorerWorkflowService();
+    const service = store.add(new ExplorerWorkflowService());
     let importRequests = 0;
     let closeRequests = 0;
     const removedFileIds: string[] = [];
-    const registration = service.registerHandler({
+    const registration = store.add(service.registerHandler({
       openFolderImport: () => {
         importRequests += 1;
       },
@@ -22,7 +25,7 @@ suite("workbench/contrib/files/test/browser/explorerWorkflowService", () => {
       removeFile: fileId => {
         removedFileIds.push(fileId);
       },
-    });
+    }));
 
     service.openFolderImport();
     service.closeFolder();

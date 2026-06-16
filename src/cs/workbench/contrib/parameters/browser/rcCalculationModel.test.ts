@@ -5,8 +5,10 @@ import {
   createRcCurveChart,
   getRcStatusText,
 } from "./rcCalculationModel.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/parameters/browser/rcCalculationModel", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("createRcCalculateDevices keeps only complete device rows", () => {
     const devices = createRcCalculateDevices([
       {

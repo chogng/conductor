@@ -27,8 +27,10 @@ import type {
   CurveKey,
   FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/calculation/test/browser/calculationContribution", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("ignores session changes that do not affect calculated curve inputs", () => {
     for (const reason of [
       "rawTablesChanged",

@@ -10,8 +10,10 @@ import type {
 	FileRecord,
 	SecondDerivedCurveKey,
 } from "src/cs/workbench/services/session/common/sessionModel";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/calculation/test/common/calculationCurveRecordBuilder", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("creates canonical derived and second-derived curves from base records", () => {
 		const baseCurveKey = "base:iv:transfer:series-a" as BaseCurveKey;
 		const gmCurveKey = "derived:gm:default:series-a" as DerivedCurveKey;

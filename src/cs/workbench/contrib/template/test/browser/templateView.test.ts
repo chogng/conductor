@@ -3,8 +3,10 @@ import assert from "assert";
 import { AUTO_TEMPLATE_ID } from "src/cs/workbench/services/template/common/autoTemplate";
 import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import { createTemplateApplyViewState, shouldSyncTemplateEditorTableSelection } from "src/cs/workbench/contrib/template/browser/views/templateView";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/template/test/browser/templateView", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("createTemplateApplyViewState uses loaded templates for the selected label", () => {
     const config = createEmptyTemplateConfig({
       name: "Transfer",

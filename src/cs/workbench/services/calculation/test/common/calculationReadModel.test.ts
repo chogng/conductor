@@ -18,8 +18,10 @@ import {
   getCalculatedDataFromRecords,
   getCalculatedYUnitLabel,
 } from "../../common/calculationReadModel.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/calculation/test/common/calculationReadModel", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   const createFile = (overrides = {}) => ({
     fileId: "file-a",
     fileName: "file-a.csv",

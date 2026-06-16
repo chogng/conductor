@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { createCalculatedMetricRecordsByFile } from "src/cs/workbench/services/calculation/common/calculationMetricRecordBuilder";
 import { ParametersService } from "src/cs/workbench/services/parameters/browser/parametersService";
 import type { ParametersViewState } from "src/cs/workbench/services/parameters/common/parameterModel";
@@ -15,12 +16,14 @@ import {
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 
 suite("workbench/services/parameters/test/browser/parametersService", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+
   test("publishes parameter view state from the service", () => {
-    const service = new ParametersService();
+    const service = store.add(new ParametersService());
     const viewStates: ParametersViewState[] = [];
-    const disposable = service.onDidChangeParametersViewState(state => {
+    const disposable = store.add(service.onDidChangeParametersViewState(state => {
       viewStates.push(state);
-    });
+    }));
 
     const viewState = service.updateViewState({
       fileId: null,
@@ -39,12 +42,12 @@ suite("workbench/services/parameters/test/browser/parametersService", () => {
   });
 
   test("does not publish unchanged parameter view state input", () => {
-    const service = new ParametersService();
+    const service = store.add(new ParametersService());
     const viewStates: ParametersViewState[] = [];
     const snapshot = createProcessedSnapshot();
-    const disposable = service.onDidChangeParametersViewState(state => {
+    const disposable = store.add(service.onDidChangeParametersViewState(state => {
       viewStates.push(state);
-    });
+    }));
 
     const firstViewState = service.updateViewState({
       fileId: "file-a",
@@ -63,7 +66,7 @@ suite("workbench/services/parameters/test/browser/parametersService", () => {
   });
 
   test("requires caller-owned file selection for parameter view state", () => {
-    const service = new ParametersService();
+    const service = store.add(new ParametersService());
     const snapshot = createProcessedSnapshot();
 
     const missingSelection = service.createViewState({

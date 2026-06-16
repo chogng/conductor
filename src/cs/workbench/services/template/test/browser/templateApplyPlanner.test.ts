@@ -9,8 +9,10 @@ import {
 	buildTemplateProcessingQueue,
 } from "src/cs/workbench/services/template/browser/templateApplyPlanner";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/template/test/browser/templateApplyPlanner", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("buildTemplateProcessingQueue filters invalid, duplicate, and processed files", () => {
 		const files: SessionFile[] = [
 			{

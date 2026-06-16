@@ -1,8 +1,10 @@
 import assert from "assert";
 
 import { StandardMouseEvent, StandardWheelEvent } from "../../browser/mouseEvent.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/mouseEvent", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   class FakeElement {}
 
   class FakeWheelEvent extends Event {

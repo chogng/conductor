@@ -6,8 +6,10 @@ import {
   resolveLegendLabelOverride,
 } from "src/cs/workbench/contrib/chart/browser/chartLegend";
 import type { PlotMainSeries } from "src/cs/workbench/services/plot/common/plotModel";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/chart/test/browser/chartLegend", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
   const originalDocument = globalThis.document;
 
   setup(() => {
@@ -20,7 +22,7 @@ suite("workbench/contrib/chart/test/browser/chartLegend", () => {
 
   test("renders the editing legend item inline and commits with Enter", async () => {
     const commits: Array<{ legendKey: string; nextLabel: string }> = [];
-    const legend = createLegendPopover({
+    const legend = store.add(createLegendPopover({
       fileId: "file-a",
       plotType: "iv",
       seriesList: [createSeries("series-a", "Original")],
@@ -29,7 +31,7 @@ suite("workbench/contrib/chart/test/browser/chartLegend", () => {
       onCommitLegendItemEdit: (legendKey, nextLabel) => {
         commits.push({ legendKey, nextLabel });
       },
-    });
+    }));
     const input = findElement(legend as unknown as FakeElement, element => element.tagName === "INPUT");
 
     assert.ok(input);
@@ -50,13 +52,13 @@ suite("workbench/contrib/chart/test/browser/chartLegend", () => {
   });
 
   test("disposes the inline editor when the popover is disposed", () => {
-    const legend = createLegendPopover({
+    const legend = store.add(createLegendPopover({
       fileId: "file-a",
       plotType: "iv",
       seriesList: [createSeries("series-a", "Original")],
     }, {
       editingLegendKey: "series-a",
-    });
+    }));
     const input = findElement(legend as unknown as FakeElement, element => element.tagName === "INPUT");
 
     assert.ok(input);

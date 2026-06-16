@@ -8,8 +8,10 @@ import {
   cloneTemplateConfig,
   normalizeTemplateConfigRecord,
 } from "src/cs/workbench/services/template/common/templateConfigUtils";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/template/common/templateConfigUtils", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("template config keeps empty X end as the default end sentinel", () => {
     assert.equal(
       cloneTemplateConfig({ xDataStart: "D5", xDataEnd: "" }).xDataEnd,

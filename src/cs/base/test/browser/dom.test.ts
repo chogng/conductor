@@ -1,8 +1,10 @@
 import assert from "assert";
 
 import { addDisposableListener, clearNode, EventType } from "../../browser/dom.ts";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/dom", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("addDisposableListener removes the listener when disposed", () => {
     const target = new EventTarget();
     let calls = 0;

@@ -11,8 +11,10 @@ import {
 import {
   createSessionReadModel,
 } from "src/cs/workbench/services/session/common/sessionReadModel";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/session/test/common/sessionReadModel", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("projects raw imports", () => {
     const records = mergeRawFilesIntoRecords({}, [], [{
       fileId: "file-a",

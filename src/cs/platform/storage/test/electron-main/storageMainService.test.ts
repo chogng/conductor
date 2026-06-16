@@ -13,8 +13,10 @@ import {
 	StorageTarget,
 } from "src/cs/platform/storage/common/storage";
 import { createStorageMainService } from "src/cs/platform/storage/electron-main/storageMainService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("platform/storage/electron-main/storageMainService", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("persists scoped values across service instances", () => {
 		const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-storage-test-"));
 		const first = createStorageMainService({ getHomeDir: () => homeDir });

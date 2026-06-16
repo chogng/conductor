@@ -19,12 +19,13 @@ import type {
   IWatchOptions,
 } from "src/cs/platform/files/common/files";
 import { DiskFileSystemProvider } from "src/cs/platform/files/node/diskFileSystemProvider";
-import type { IDisposable } from "src/cs/base/common/lifecycle";
+import type { DisposableStore, IDisposable } from "src/cs/base/common/lifecycle";
 import {
   Extensions,
   type IConfigurationRegistry,
 } from "src/cs/platform/configuration/common/configurationRegistry";
 import { Registry } from "src/cs/platform/registry/common/platform";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 class TestFileSystemProvider implements IFileSystemProvider {
   public readonly onDidFilesChange;
@@ -62,13 +63,13 @@ class TestFileSystemProvider implements IFileSystemProvider {
   }
 }
 
-function createFileBackedConfigurationService(userDataPath: string): {
+function createFileBackedConfigurationService(userDataPath: string, store: Pick<DisposableStore, "add">): {
   readonly service: ConfigurationService;
   readonly settingsPath: string;
 } {
   const settingsPath = path.join(userDataPath, "User", "settings.json");
-  const fileService = new FileService();
-  fileService.registerProvider("file", new TestFileSystemProvider(new DiskFileSystemProvider()));
+  const fileService = store.add(new FileService());
+  store.add(fileService.registerProvider("file", new TestFileSystemProvider(new DiskFileSystemProvider())));
   return {
     service: new ConfigurationService(URI.file(settingsPath), fileService),
     settingsPath,
@@ -76,6 +77,7 @@ function createFileBackedConfigurationService(userDataPath: string): {
 }
 
 suite("platform/configuration/common/configurationService", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
   test("reads Conductor defaults from the configuration registry", () => {
     const service = new ConfigurationService();
 
@@ -170,7 +172,7 @@ suite("platform/configuration/common/configurationService", () => {
 
   test("file backed service reads defaults when user settings do not exist", async () => {
     const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-main-config-test-"));
-    const { service, settingsPath } = createFileBackedConfigurationService(userDataPath);
+    const { service, settingsPath } = createFileBackedConfigurationService(userDataPath, store);
 
     await service.initialize();
 
@@ -183,7 +185,7 @@ suite("platform/configuration/common/configurationService", () => {
 
   test("file backed service writes user settings", async () => {
     const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-main-config-test-"));
-    const { service, settingsPath } = createFileBackedConfigurationService(userDataPath);
+    const { service, settingsPath } = createFileBackedConfigurationService(userDataPath, store);
     await service.initialize();
 
     await service.updateValue("theme", "dark", ConfigurationTarget.USER);
@@ -200,7 +202,7 @@ suite("platform/configuration/common/configurationService", () => {
 
   test("file backed service falls back to defaults for unreadable user settings", async () => {
     const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), "conductor-main-config-test-"));
-    const { service, settingsPath } = createFileBackedConfigurationService(userDataPath);
+    const { service, settingsPath } = createFileBackedConfigurationService(userDataPath, store);
     fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
     fs.writeFileSync(settingsPath, "{", "utf8");
 

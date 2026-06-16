@@ -11,8 +11,10 @@ import {
   mergeProcessedFileIntoRecords,
   mergeRawFilesIntoRecords,
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/calculation/test/common/calculationMetricRecordBuilder", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("creates canonical metric records from session base curves", () => {
     const rawRecords = mergeRawFilesIntoRecords({}, [], [{
       fileId: "file-a",

@@ -14,8 +14,10 @@ import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instan
 import { registerOriginCommands } from "src/cs/workbench/contrib/origin/browser/originCommands";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { OriginCommandId } from "src/cs/workbench/services/origin/common/origin";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/origin/test/browser/originCommands", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("show origin settings command opens chart settings auxiliary view", () => {
 		const registration = registerOriginCommands();
 		const calls: string[] = [];

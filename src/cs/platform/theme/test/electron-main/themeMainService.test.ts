@@ -4,6 +4,7 @@ import { ConfigurationTarget } from "src/cs/platform/configuration/common/config
 import { ConfigurationService } from "src/cs/platform/configuration/common/configurationService";
 import { ThemeMainService } from "src/cs/platform/theme/electron-main/themeMainServiceImpl";
 import type { ThemeMode, ThemeSnapshot } from "src/cs/platform/theme/electron-main/themeMainService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 class TestNativeTheme {
   public shouldUseDarkColors = false;
@@ -30,6 +31,7 @@ class TestNativeTheme {
 }
 
 suite("platform/theme/electron-main/themeMainService", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("reads theme appearance from IConfigurationService", async () => {
     const configurationService = new ConfigurationService();
     await configurationService.updateValue("theme", "dark", ConfigurationTarget.USER);

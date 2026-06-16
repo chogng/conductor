@@ -5,8 +5,10 @@
 import assert from "assert";
 
 import { ExplorerFileNestingTrie } from "src/cs/workbench/contrib/files/common/explorerFileNestingTrie";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/common/explorerFileNestingTrie", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
   test("nests captured child patterns under matching parents", () => {
     const trie = new ExplorerFileNestingTrie([
       ["*.csv", ["$(basename).meta.csv", "$(basename).notes.txt"]],

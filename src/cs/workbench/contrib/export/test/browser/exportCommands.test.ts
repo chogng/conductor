@@ -14,8 +14,10 @@ import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instan
 import { registerExportCommands } from "src/cs/workbench/contrib/export/browser/exportCommands";
 import { ExportCommandId, IExportService } from "src/cs/workbench/services/export/common/export";
 import { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/export/test/browser/exportCommands", () => {
+  ensureNoDisposablesAreLeakedInTestSuite();
 	test("show export command opens chart export auxiliary view", () => {
 		const registration = registerExportCommands();
 		const calls: string[] = [];
