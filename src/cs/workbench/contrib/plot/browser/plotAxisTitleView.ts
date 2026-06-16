@@ -176,7 +176,7 @@ export class PlotAxisTitleView {
       return 220;
     }
 
-    return Math.max(72, Math.min(320, Math.ceil(text.getBoundingClientRect().width) + 16));
+    return Math.ceil(text.getBoundingClientRect().width);
   }
 
   private stopEdit(): void {

@@ -97,13 +97,23 @@
 }
 
 .plot_main_chart_axis_title_editor .plot_main_chart_axis_title_editor_field {
-    height: 24px;
-    border-radius: 6px;
-    background-color: rgb(var(--bg-page) / 0.96);
-    padding: 0px 6px;
+    box-sizing: border-box;
+    height: 18px;
+    gap: 0px;
+    border: 0px;
+    border-radius: 3px;
+    background-color: transparent;
+    padding: 0px;
+}
+
+.plot_main_chart_axis_title_editor .plot_main_chart_axis_title_editor_field[data-state="enable"]:focus-within {
+    box-shadow: 0 0 0 1px rgb(var(--accent) / 0.72);
 }
 
 .plot_main_chart_axis_title_editor_input {
+    box-sizing: border-box;
+    height: 18px;
+    padding: 0px 6px;
     font-size: var(--plot-axis-title-font-size, 12px);
     line-height: 18px;
     font-weight: 500;
