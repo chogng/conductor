@@ -214,6 +214,7 @@ export class ExplorerViewPane extends ViewPane {
     this.disposed = true;
     this.cancelPendingSourceSyncView?.();
     this.cancelPendingSourceSyncView = null;
+    this.explorerService.setPendingSourceFiles(false);
     this.sourceWorkflow.dispose();
     this.explorerView?.dispose();
     this.explorerView = null;
@@ -470,7 +471,15 @@ export class ExplorerViewPane extends ViewPane {
   }
 
   private schedulePendingSourceSyncView(): void {
-    if (this.disposed || this.cancelPendingSourceSyncView) {
+    if (this.disposed) {
+      return;
+    }
+
+    this.explorerService.setPendingSourceFiles(
+      this.pendingSourceEntries.some(entry => entry.sourceStatus !== "failed"),
+    );
+
+    if (this.cancelPendingSourceSyncView) {
       return;
     }
 

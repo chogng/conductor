@@ -24,6 +24,8 @@ import {
 export class ExplorerService extends Disposable implements IExplorerService {
   public declare readonly _serviceBrand: undefined;
 
+  private readonly onDidChangePendingSourceFilesEmitter = this._register(new Emitter<boolean>());
+  public readonly onDidChangePendingSourceFiles = this.onDidChangePendingSourceFilesEmitter.event;
   private readonly onDidChangeSelectionEmitter = this._register(new Emitter<ExplorerSelectionChangeEvent>());
   public readonly onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
   private readonly onDidChangeExpandedFolderKeysEmitter = this._register(new Emitter<ExplorerFolderExpansionChangeEvent>());
@@ -42,6 +44,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
   private currentNearbyFileIds: readonly string[] = [];
   private currentVisibleFileIds: readonly string[] = [];
   private currentViewLayout: ExplorerViewLayout = "tree";
+  private currentHasPendingSourceFiles = false;
   private paneInput: ExplorerPaneInput | null = null;
   private readonly views = new Set<IExplorerView>();
   private editable: ExplorerEditableData | null = null;
@@ -52,6 +55,10 @@ export class ExplorerService extends Disposable implements IExplorerService {
 
   public get selectedRawFileId(): string | null {
     return this.getSelectedFileId("table");
+  }
+
+  public get hasPendingSourceFiles(): boolean {
+    return this.currentHasPendingSourceFiles;
   }
 
   public get selectedProcessedFileId(): string | null {
@@ -150,6 +157,16 @@ export class ExplorerService extends Disposable implements IExplorerService {
     const expandedFolderKeys = new Set(this.currentExpandedFolderKeys);
     return normalizeExplorerFolderKeys(folderKeys)
       .filter(folderKey => !expandedFolderKeys.has(folderKey));
+  }
+
+  public setPendingSourceFiles(hasPendingSourceFiles: boolean): void {
+    const next = Boolean(hasPendingSourceFiles);
+    if (this.currentHasPendingSourceFiles === next) {
+      return;
+    }
+
+    this.currentHasPendingSourceFiles = next;
+    this.onDidChangePendingSourceFilesEmitter.fire(next);
   }
 
   public setVisibleFileIds(

@@ -1,7 +1,3 @@
-import {
-  createCalculatedPlotsByKeyFromRecords,
-  type CalculatedPlotsByKey,
-} from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import {
   getLatestTemplateRunRecord,
@@ -25,7 +21,6 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionTypes";
 
 export type SessionReadModel = {
-  readonly calculatedPlotsByKey: CalculatedPlotsByKey;
   readonly hasChartData: boolean;
   readonly hasSessionData: boolean;
   readonly processedFileIds: FileId[];
@@ -47,10 +42,6 @@ export const createSessionReadModel = (
   );
 
   return {
-    calculatedPlotsByKey: createCalculatedPlotsByKeyFromRecords(
-      snapshot.filesById,
-      snapshot.fileOrder,
-    ),
     hasChartData: processedFileIds.length > 0,
     hasSessionData: rawFiles.length > 0 || processedFileIds.length > 0,
     processedFileIds,

@@ -41,6 +41,7 @@ export interface ISessionService {
 
   commitFileImport(result: FileConversionResult): CommitFileImportResult;
   commitRawTableAssessment(result: RawTableAssessmentRecord): void;
+  commitTemplateOutput(input: CommitTemplateOutputInput): void;
   commitTemplateRun(input: CommitTemplateRunInput): void;
   commitCurves(input: CommitCurvesInput): void;
   commitMetrics(input: CommitMetricsInput): void;
@@ -121,7 +122,7 @@ Recommended command boundaries:
 | remove file/resource | Explorer action/controller after resolving Explorer context | `ISessionService.removeFiles(...)`; call `IExplorerService.select(...)` separately for Explorer selection follow-up |
 | commit import | Explorer source workflow/controller after conversion succeeds | `ISessionService.commitFileImport(...)` |
 | commit assessment | Assessment contribution/command | `ISessionService.commitRawTableAssessment(...)` |
-| commit template/curves | Template service/controller | `ISessionService.commitTemplateRun(...)`, `commitCurves(...)` |
+| commit template/curves | Template service/controller | `ISessionService.commitTemplateOutput(...)` for produced template output; `commitTemplateRun(...)` and `commitCurves(...)` remain explicit lower-level commits |
 | commit metric input | Parameters service | `ISessionService.setMetricInput(...)` |
 
 Do not add commands that mutate internal `SessionModel` fields directly. Use

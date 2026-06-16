@@ -68,6 +68,7 @@ export type TemplateViewInput = {
 };
 
 export type TemplateApplyWorkflowInput = {
+  hasPendingSourceFiles?: boolean;
   processedFileIds?: readonly string[];
   rawFiles?: SessionFile[];
   templateSelection?: TemplateSelection;

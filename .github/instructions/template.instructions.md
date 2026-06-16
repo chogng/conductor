@@ -79,7 +79,7 @@ flowchart TD
     Config --> Planner
     Planner --> Worker[ITemplateApplyService]
     Worker --> Result[TemplateApplyResult]
-    Result --> Commit[ISessionService.commitTemplateRun / commitCurves]
+    Result --> Commit[ISessionService.commitTemplateOutput]
 ```
 
 ## Rules
@@ -103,6 +103,10 @@ flowchart TD
   `TemplateApplyWorkflowInput`.
 - Template result records should include config fingerprint and source block ids.
 - Re-running a template replaces only affected template output.
+- Full apply must not start while another extraction job is running or while
+  Explorer still has pending/preparing source rows from import. The workflow
+  returns a warning instead of building a partial queue from only the files
+  already committed to Session.
 - Template processing cleanup consumes `SessionChangeEvent`: `filesRemoved`
   removes affected queued files, and `sessionCleared` terminates and resets the
   active processing worker. Do not route this cleanup through Explorer submit

@@ -168,6 +168,61 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     controller.dispose();
     sessionEvents.dispose();
   });
+
+  test("full apply rejects while extraction is already running", () => {
+    const queuedFileIds: string[][] = [];
+    const controller = new TemplateApplyController({
+      sessionService: createSessionService(),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds, [], {
+        markProcessing: true,
+      }),
+    });
+
+    controller.update({
+      processedFileIds: [],
+      rawFiles: [createSessionFile("file-a")],
+    });
+    controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    });
+    const result = controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    }) as { ok: boolean };
+
+    assert.equal(result.ok, false);
+    assert.deepEqual(queuedFileIds, [["file-a"]]);
+    controller.dispose();
+  });
+
+  test("full apply rejects while source files are still importing", () => {
+    const queuedFileIds: string[][] = [];
+    const controller = new TemplateApplyController({
+      sessionService: createSessionService(),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds),
+    });
+
+    controller.update({
+      hasPendingSourceFiles: true,
+      processedFileIds: [],
+      rawFiles: [createSessionFile("file-a")],
+    });
+    const result = controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    }) as { ok: boolean };
+
+    assert.equal(result.ok, false);
+    assert.deepEqual(queuedFileIds, []);
+    controller.dispose();
+  });
 });
 
 const createSessionFile = (fileId: string) => ({
@@ -203,11 +258,13 @@ const createSessionService = (
 ): Pick<
   ISessionService,
   | "commitCurves"
+  | "commitTemplateOutput"
   | "commitTemplateRun"
   | "getSnapshot"
   | "onDidChangeSession"
 > => ({
   commitCurves: () => undefined,
+  commitTemplateOutput: () => undefined,
   commitTemplateRun: () => undefined,
   getSnapshot: (): SessionSnapshot => ({
     fileOrder: [],

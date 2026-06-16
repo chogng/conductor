@@ -139,6 +139,7 @@ const createSessionServiceStub = ({
   commitMetrics,
   commitRawTableAssessment: () => undefined,
   commitRawTableAssessments: () => undefined,
+  commitTemplateOutput: () => undefined,
   commitTemplateRun: () => undefined,
   getSnapshot,
   onDidChangeSession,

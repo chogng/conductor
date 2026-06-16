@@ -510,7 +510,7 @@ flowchart TD
 
     Events --> Table[ITableService]
     Events --> Template[ITemplateService]
-    Template --> SessionTemplate[ISessionService.commitTemplateRun / commitCurves]
+    Template --> SessionTemplate[ISessionService.commitTemplateOutput]
 
     Events --> Calculation[Calculation contribution]
     Calculation --> SessionCalculation[ISessionService.commitCurves / commitMetrics]
@@ -730,7 +730,7 @@ flowchart TD
     Apply --> Series[SeriesRecord]
     Apply --> Curves[CurveRecord]
     Apply --> Run[TemplateRunRecord]
-    Series --> Commit[ISessionService.commitTemplateRun / commitCurves]
+    Series --> Commit[ISessionService.commitTemplateOutput]
     Curves --> Commit
     Run --> Commit
 ```

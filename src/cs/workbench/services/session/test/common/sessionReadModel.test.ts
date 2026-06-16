@@ -1,7 +1,7 @@
 import assert from "assert";
 
 import {
-  getCalculatedData,
+  getCalculatedDataFromRecords,
 } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import {
@@ -47,7 +47,7 @@ suite("workbench/services/session/test/common/sessionReadModel", () => {
     assert.deepEqual(readModel.processedFileIds, []);
   });
 
-  test("projects processed curves and calculated plots", () => {
+  test("projects processed curves without building calculated plots", () => {
     const rawRecords = mergeRawFilesIntoRecords({}, [], [{
       fileId: "file-a",
       fileName: "Transfer.csv",
@@ -81,8 +81,9 @@ suite("workbench/services/session/test/common/sessionReadModel", () => {
     });
 
     const readModel = createSessionReadModel(snapshot);
-    const ivData = getCalculatedData(
-      readModel.calculatedPlotsByKey,
+    const ivData = getCalculatedDataFromRecords(
+      snapshot.filesById,
+      snapshot.fileOrder,
       "iv",
       "file-a",
     );

@@ -449,6 +449,34 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     dispose.dispose();
   });
 
+  test("commits template output through one session event", () => {
+    const session = new SessionService();
+    const events: SessionChangeEvent[] = [];
+    const dispose = session.onDidChangeSession(event => {
+      events.push(event);
+    });
+    commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw.csv" }]);
+    events.length = 0;
+
+    commitTemplateOutputForTest(session, {
+      fileId: "file-a",
+      fileName: "Processed.csv",
+      curveType: "transfer",
+      xGroups: [[0, 1]],
+      series: [{
+        id: "series-1",
+        groupIndex: 0,
+        y: [1, 2],
+      }],
+    });
+
+    assert.deepEqual(events.map(event => event.reason), ["templateRunChanged"]);
+    assert.deepEqual(events[0]?.fileIds, ["file-a"]);
+    assert.deepEqual(events[0]?.seriesIds, ["series-1"]);
+    assert.ok(events[0]?.curveKeys?.includes("base:iv:transfer:series-1"));
+    dispose.dispose();
+  });
+
   test("clears template output through the template commit API", () => {
     const session = new SessionService();
 
@@ -1149,8 +1177,7 @@ const commitTemplateOutputForTest = (
     return;
   }
 
-  session.commitTemplateRun(commit.templateRun);
-  session.commitCurves(commit.curves);
+  session.commitTemplateOutput(commit);
 };
 
 const replaceDerivedCurvesForTest = (

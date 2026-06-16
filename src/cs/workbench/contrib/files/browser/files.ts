@@ -96,10 +96,12 @@ export interface IExplorerView {
 export interface IExplorerService {
   readonly _serviceBrand: undefined;
 
+  readonly hasPendingSourceFiles: boolean;
   readonly selectedRawFileId: string | null;
   readonly selectedProcessedFileId: string | null;
   readonly expandedFolderKeys: readonly string[];
   readonly viewLayout: ExplorerViewLayout;
+  readonly onDidChangePendingSourceFiles: Event<boolean>;
   readonly onDidChangeSelection: Event<ExplorerSelectionChangeEvent>;
   readonly onDidChangeExpandedFolderKeys: Event<ExplorerFolderExpansionChangeEvent>;
   readonly onDidChangeViewLayout: Event<ExplorerViewLayout>;
@@ -116,6 +118,7 @@ export interface IExplorerService {
   setExpandedFolderKeys(folderKeys: readonly string[]): void;
   reconcileExpandedFolderKeys(folderKeys: readonly string[]): readonly string[];
   getCollapsedFolderKeys(folderKeys: readonly string[]): readonly string[];
+  setPendingSourceFiles(hasPendingSourceFiles: boolean): void;
   setVisibleFileIds(visibleFileIds: readonly string[], nearbyFileIds?: readonly string[]): void;
   setViewLayout(viewLayout: ExplorerViewLayout): void;
   toggleViewLayout(): void;

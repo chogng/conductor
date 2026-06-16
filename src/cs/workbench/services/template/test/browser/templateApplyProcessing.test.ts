@@ -123,8 +123,7 @@ suite("workbench/services/template/test/browser/templateApplyProcessing", () => 
             return;
           }
 
-          session.commitTemplateRun(commit.templateRun);
-          session.commitCurves(commit.curves);
+          session.commitTemplateOutput(commit);
         },
         clearTemplateOutput: () => {
           session.commitTemplateRun({ kind: "clearTemplateOutput" });

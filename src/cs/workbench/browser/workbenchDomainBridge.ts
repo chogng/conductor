@@ -74,18 +74,51 @@ export class WorkbenchDomainBridge extends Disposable {
   ) {
     super();
 
-    this._register(this.options.settingsService.onDidChangeConductorSettings(() => this.sync()));
-    this._register(this.options.explorerService.onDidChangeSelection(() => this.sync()));
+    this._register(this.options.settingsService.onDidChangeConductorSettings(() => this.scheduleSync()));
+    this._register(this.options.explorerService.onDidChangePendingSourceFiles(() => this.scheduleSync()));
+    this._register(this.options.explorerService.onDidChangeSelection(() => this.scheduleSync()));
     this._register(this.options.explorerService.onDidChangeVisibleFileIds(event => {
       this.prioritizeVisibleExplorerFiles(event.visibleFileIds, event.nearbyFileIds);
     }));
-    this._register(this.options.plotService.onDidChangePlotState(() => this.sync()));
-    this._register(this.options.templateService.onDidChangeTemplateState(() => this.sync()));
-    this._register(this.options.layoutService.onDidChangeWorkbenchNavigation(() => this.sync()));
-    this._register(this.options.sessionService.onDidChangeSession(() => this.sync()));
+    this._register(this.options.plotService.onDidChangePlotState(() => this.scheduleSync()));
+    this._register(this.options.templateService.onDidChangeTemplateState(() => this.scheduleSync()));
+    this._register(this.options.layoutService.onDidChangeWorkbenchNavigation(() => this.scheduleSync()));
+    this._register(this.options.sessionService.onDidChangeSession(() => this.scheduleSync()));
+    this._register({ dispose: () => this.cancelScheduledSync() });
   }
 
+  private cancelScheduledSync: (() => void) | null = null;
+
   public sync(): void {
+    this.cancelScheduledSync?.();
+    this.cancelScheduledSync = null;
+    this.runSync();
+  }
+
+  private scheduleSync(): void {
+    if (this.cancelScheduledSync) {
+      return;
+    }
+
+    const run = (): void => {
+      this.cancelScheduledSync = null;
+      this.runSync();
+    };
+    if (typeof globalThis.requestAnimationFrame === "function") {
+      const handle = globalThis.requestAnimationFrame(run);
+      this.cancelScheduledSync = () => {
+        globalThis.cancelAnimationFrame(handle);
+      };
+      return;
+    }
+
+    const handle = globalThis.setTimeout(run, 0);
+    this.cancelScheduledSync = () => {
+      globalThis.clearTimeout(handle);
+    };
+  }
+
+  private runSync(): void {
     const snapshot = this.options.sessionService.getSnapshot();
     const readModel = createSessionReadModel(snapshot);
     const explorerSelection = reconcileExplorerSessionSelection(
@@ -95,6 +128,7 @@ export class WorkbenchDomainBridge extends Disposable {
     this.options.tableService.open(createRawTableSource(explorerSelection.selectedRawFileId));
 
     this.options.templateApplyWorkflowService.update(createTemplateApplyInput({
+      hasPendingSourceFiles: this.options.explorerService.hasPendingSourceFiles,
       readModel,
       templateState: this.options.templateService.getState(),
     }));

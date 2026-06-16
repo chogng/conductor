@@ -54,6 +54,11 @@ export type CommitCurvesInput = {
   readonly replaceGenerations?: readonly CurveGeneration[];
 };
 
+export type CommitTemplateOutputInput = {
+  readonly templateRun: CommitTemplateRunInput;
+  readonly curves: CommitCurvesInput;
+};
+
 export type CommitMetricsInput = {
   readonly fileId: FileId;
   readonly metrics: readonly MetricRecord[];
@@ -83,6 +88,7 @@ export interface ISessionService {
   commitFileImport(result: FileImportResult): CommitFileImportResult;
   commitRawTableAssessment(assessment: RawTableAssessmentRecord): void;
   commitRawTableAssessments(assessments: readonly RawTableAssessmentRecord[]): void;
+  commitTemplateOutput(input: CommitTemplateOutputInput): void;
   commitTemplateRun(input: CommitTemplateRunInput): void;
   commitCurves(input: CommitCurvesInput): void;
   commitMetrics(input: CommitMetricsInput): void;

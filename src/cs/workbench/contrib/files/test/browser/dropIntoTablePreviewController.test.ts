@@ -154,6 +154,7 @@ function createSessionService(): ISessionService {
     }),
     commitRawTableAssessment: () => undefined,
     commitRawTableAssessments: () => undefined,
+    commitTemplateOutput: () => undefined,
     commitTemplateRun: () => undefined,
     commitCurves: () => undefined,
     commitMetrics: () => undefined,
@@ -171,10 +172,12 @@ function createSessionService(): ISessionService {
 function createExplorerService(): IExplorerService {
   return {
     _serviceBrand: undefined,
+    hasPendingSourceFiles: false,
     selectedProcessedFileId: null,
     selectedRawFileId: null,
     expandedFolderKeys: [],
     viewLayout: "tree",
+    onDidChangePendingSourceFiles: BaseEvent.None as IExplorerService["onDidChangePendingSourceFiles"],
     onDidChangeSelection: BaseEvent.None as IExplorerService["onDidChangeSelection"],
     onDidChangeExpandedFolderKeys: BaseEvent.None as IExplorerService["onDidChangeExpandedFolderKeys"],
     onDidChangeViewLayout: BaseEvent.None as IExplorerService["onDidChangeViewLayout"],
@@ -201,6 +204,7 @@ function createExplorerService(): IExplorerService {
     setExpandedFolderKeys: () => undefined,
     reconcileExpandedFolderKeys: () => [],
     getCollapsedFolderKeys: () => [],
+    setPendingSourceFiles: () => undefined,
     setViewLayout: () => undefined,
     toggleViewLayout: () => undefined,
     getPaneInput: () => null,

@@ -97,6 +97,7 @@ type TemplateApplyControllerOptions = {
   sessionService: Pick<
     ISessionService,
     | "commitCurves"
+    | "commitTemplateOutput"
     | "commitTemplateRun"
     | "getSnapshot"
     | "onDidChangeSession"
@@ -413,8 +414,7 @@ export class TemplateApplyController {
       return;
     }
 
-    this.options.sessionService.commitTemplateRun(commit.templateRun);
-    this.options.sessionService.commitCurves(commit.curves);
+    this.options.sessionService.commitTemplateOutput(commit);
   };
 
   private readonly clearTemplateOutput = (): void => {
@@ -429,7 +429,34 @@ export class TemplateApplyController {
     );
   };
 
+  private readonly createFullApplyBusyFeedback = ():
+    | { ok: false; message: string; type: "warning" }
+    | null => {
+    if (this._processingStatus.state === "processing") {
+      return {
+        message: localize("template.applyAll.busy", "Extraction is already running."),
+        ok: false,
+        type: "warning",
+      };
+    }
+
+    if (this.input.hasPendingSourceFiles) {
+      return {
+        message: localize("template.applyAll.importing", "Files are still importing. Try again after import finishes."),
+        ok: false,
+        type: "warning",
+      };
+    }
+
+    return null;
+  };
+
   public readonly handleTemplateApplied = (config: Record<string, unknown>) => {
+    const busy = this.createFullApplyBusyFeedback();
+    if (busy) {
+      return busy;
+    }
+
     const { rawFiles = [] } = this.input;
 
     if (Array.isArray((config as RuleBasedExtractionConfig)?.fileNameTemplateRules)) {

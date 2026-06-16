@@ -96,10 +96,12 @@ function createExplorerService(
 ): IExplorerService {
   return {
     _serviceBrand: undefined,
+    hasPendingSourceFiles: false,
     selectedRawFileId: null,
     selectedProcessedFileId: null,
     expandedFolderKeys: [],
     viewLayout: "tree",
+    onDidChangePendingSourceFiles: Event.None as IExplorerService["onDidChangePendingSourceFiles"],
     onDidChangeSelection: Event.None as IExplorerService["onDidChangeSelection"],
     onDidChangeExpandedFolderKeys: Event.None as IExplorerService["onDidChangeExpandedFolderKeys"],
     onDidChangeViewLayout: Event.None as IExplorerService["onDidChangeViewLayout"],
@@ -127,6 +129,7 @@ function createExplorerService(
     setExpandedFolderKeys: () => undefined,
     reconcileExpandedFolderKeys: folderKeys => folderKeys,
     getCollapsedFolderKeys: () => [],
+    setPendingSourceFiles: () => undefined,
     setViewLayout: () => undefined,
     toggleViewLayout: () => undefined,
     getPaneInput: () => paneInput,

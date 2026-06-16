@@ -31,6 +31,7 @@ import {
   type CommitFileImportResult,
   type CommitCurvesInput,
   type CommitMetricsInput,
+  type CommitTemplateOutputInput,
   type CommitTemplateRunInput,
   type SessionSnapshot,
   type ISessionService as ISessionServiceType,
@@ -344,6 +345,73 @@ export class SessionService extends Disposable implements ISessionServiceType {
     });
   };
 
+  public commitTemplateOutput = (input: CommitTemplateOutputInput): void => {
+    const templateRunInput = getTemplateRunFromCommitInput(input.templateRun);
+    const templateRun = templateRunInput ? normalizeTemplateRunRecord(templateRunInput) : null;
+    const file = templateRun ? this.snapshot.filesById[templateRun.fileId] : undefined;
+    if (!templateRun || !file) {
+      return;
+    }
+
+    const payload = getTemplateRunCommitPayload(input.templateRun);
+    const current = file.templateRunsById[templateRun.id];
+    const fileName = payload?.fileName ? normalizeId(payload.fileName) : null;
+    let nextFile: FileRecord = {
+      ...file,
+      ...(payload && "calculationCache" in payload ? { calculationCache: payload.calculationCache } : {}),
+      ...(payload?.seriesById ? { seriesById: { ...payload.seriesById } } : {}),
+      ...(payload?.seriesOrder ? { seriesOrder: [...payload.seriesOrder] } : {}),
+      ...(fileName
+        ? {
+            name: fileName,
+            raw: {
+              ...file.raw,
+              fileName,
+            },
+          }
+        : {}),
+      templateRunsById: {
+        ...file.templateRunsById,
+        [templateRun.id]: templateRun,
+      },
+      latestTemplateRunId: templateRun.id,
+    };
+
+    const templateRunChanged =
+      current !== templateRun ||
+      file.latestTemplateRunId !== templateRun.id ||
+      Boolean(payload);
+    const curvesCommit = input.curves.fileId === templateRun.fileId
+      ? createCurvesFileCommit(nextFile, input.curves, templateRun.fileId)
+      : null;
+
+    if (!templateRunChanged && !curvesCommit) {
+      return;
+    }
+
+    if (curvesCommit) {
+      nextFile = curvesCommit.file;
+    }
+
+    this.replaceSnapshot({
+      ...this.snapshot,
+      filesById: {
+        ...this.snapshot.filesById,
+        [templateRun.fileId]: nextFile,
+      },
+    }, "templateRunChanged", {
+      curveKeys: uniqueStrings([
+        ...templateRun.outputCurveKeys,
+        ...(curvesCommit?.curveKeys ?? []),
+      ]),
+      fileIds: [templateRun.fileId],
+      seriesIds: uniqueStrings([
+        ...templateRun.outputSeriesIds,
+        ...(curvesCommit?.seriesIds ?? []),
+      ]),
+    });
+  };
+
   public commitCurves = (input: CommitCurvesInput): void => {
     const fileId = normalizeId(input.fileId);
     const file = fileId ? this.snapshot.filesById[fileId] : undefined;
@@ -351,34 +419,8 @@ export class SessionService extends Disposable implements ISessionServiceType {
       return;
     }
 
-    const replaceGenerations = new Set<CurveGeneration>(
-      Array.isArray(input.replaceGenerations) ? input.replaceGenerations : [],
-    );
-    let changed = Boolean(input.replace);
-    const curvesByKey: Record<SessionCurveKey, CurveRecord> = {};
-    if (!input.replace) {
-      for (const [curveKey, curve] of Object.entries(file.curvesByKey) as Array<[SessionCurveKey, CurveRecord]>) {
-        if (replaceGenerations.has(curve.curveGeneration)) {
-          changed = true;
-          continue;
-        }
-        curvesByKey[curveKey] = curve;
-      }
-    }
-    const committedCurveKeys: SessionCurveKey[] = [];
-    const committedSeriesIds: string[] = [];
-    for (const curve of Array.isArray(input.curves) ? input.curves : []) {
-      if (curve.fileId !== fileId) {
-        continue;
-      }
-
-      const curveKey = createCurveRecordKey(curve);
-      changed ||= curvesByKey[curveKey] !== curve;
-      curvesByKey[curveKey] = curve;
-      committedCurveKeys.push(curveKey);
-      committedSeriesIds.push(curve.seriesId);
-    }
-    if (!changed) {
+    const commit = createCurvesFileCommit(file, input, fileId);
+    if (!commit) {
       return;
     }
 
@@ -386,15 +428,12 @@ export class SessionService extends Disposable implements ISessionServiceType {
       ...this.snapshot,
       filesById: {
         ...this.snapshot.filesById,
-        [fileId]: {
-          ...file,
-          curvesByKey,
-        },
+        [fileId]: commit.file,
       },
     }, "curvesChanged", {
-      curveKeys: uniqueStrings(committedCurveKeys),
+      curveKeys: uniqueStrings(commit.curveKeys),
       fileIds: [fileId],
-      seriesIds: uniqueStrings(committedSeriesIds),
+      seriesIds: uniqueStrings(commit.seriesIds),
     });
   };
 
@@ -1010,6 +1049,56 @@ const appendMetricKey = (
   if (!keys.includes(metricKey)) {
     metricsBySeriesId[normalizedSeriesId] = [...keys, metricKey];
   }
+};
+
+const createCurvesFileCommit = (
+  file: FileRecord,
+  input: CommitCurvesInput,
+  fileId: FileId,
+): {
+  readonly file: FileRecord;
+  readonly curveKeys: readonly SessionCurveKey[];
+  readonly seriesIds: readonly string[];
+} | null => {
+  const replaceGenerations = new Set<CurveGeneration>(
+    Array.isArray(input.replaceGenerations) ? input.replaceGenerations : [],
+  );
+  let changed = Boolean(input.replace);
+  const curvesByKey: Record<SessionCurveKey, CurveRecord> = {};
+  if (!input.replace) {
+    for (const [curveKey, curve] of Object.entries(file.curvesByKey) as Array<[SessionCurveKey, CurveRecord]>) {
+      if (replaceGenerations.has(curve.curveGeneration)) {
+        changed = true;
+        continue;
+      }
+      curvesByKey[curveKey] = curve;
+    }
+  }
+  const committedCurveKeys: SessionCurveKey[] = [];
+  const committedSeriesIds: string[] = [];
+  for (const curve of Array.isArray(input.curves) ? input.curves : []) {
+    if (curve.fileId !== fileId) {
+      continue;
+    }
+
+    const curveKey = createCurveRecordKey(curve);
+    changed ||= curvesByKey[curveKey] !== curve;
+    curvesByKey[curveKey] = curve;
+    committedCurveKeys.push(curveKey);
+    committedSeriesIds.push(curve.seriesId);
+  }
+  if (!changed) {
+    return null;
+  }
+
+  return {
+    curveKeys: committedCurveKeys,
+    file: {
+      ...file,
+      curvesByKey,
+    },
+    seriesIds: committedSeriesIds,
+  };
 };
 
 const normalizeMetricInputRange = (

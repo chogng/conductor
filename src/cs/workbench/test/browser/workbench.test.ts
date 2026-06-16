@@ -307,8 +307,7 @@ const commitTemplateOutputForTest = (
     return;
   }
 
-  session.commitTemplateRun(commit.templateRun);
-  session.commitCurves(commit.curves);
+  session.commitTemplateOutput(commit);
 };
 
 const commitRawFilesForTest = (

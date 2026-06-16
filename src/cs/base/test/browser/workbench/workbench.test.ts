@@ -294,10 +294,13 @@ const createWorkbenchOptions = ({
     contextKeyService,
     dialogsService: {} as WorkbenchService<"dialogsService">,
     explorerService: {
+      hasPendingSourceFiles: false,
+      onDidChangePendingSourceFiles: Event.None,
       onDidChangeSelection: Event.None,
       selectedProcessedFileId: null,
       selectedRawFileId: null,
       select: () => undefined,
+      setPendingSourceFiles: () => undefined,
       updatePaneInput: () => undefined,
     } as unknown as WorkbenchService<"explorerService">,
     exportService: {
