@@ -460,6 +460,10 @@
   --switch-height: 22px;
 }
 
+.settings-row-control .settings-switch:disabled {
+  opacity: 1;
+}
+
 .settings-actions-end {
   display: flex;
   justify-content: flex-end;

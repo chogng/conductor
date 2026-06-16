@@ -90,6 +90,8 @@ export class SettingsController {
   private appearanceSaving = false;
   private explorerBadgeSaving = false;
   private explorerAppearanceSaving = false;
+  private pendingExplorerBadgeVisibility: boolean | null = null;
+  private pendingTransparentChrome: boolean | null = null;
   private windowCloseSaving = false;
   private cleanupNotificationSignature: string | null = null;
   private originHealthNotificationSignature: string | null = null;
@@ -498,8 +500,8 @@ export class SettingsController {
       isExplorerBadgeSaving: this.explorerBadgeSaving,
       isExplorerDensitySaving: this.explorerAppearanceSaving,
       isSaving: this.appearanceSaving,
-      showExplorerBadges: normalizeFilesExplorerShowBadges(this.settings.filesExplorerShowBadges),
-      transparentChrome: appearance.transparentChrome,
+      showExplorerBadges: this.pendingExplorerBadgeVisibility ?? normalizeFilesExplorerShowBadges(this.settings.filesExplorerShowBadges),
+      transparentChrome: this.pendingTransparentChrome ?? appearance.transparentChrome,
       onBackgroundColorChange: value => this.setWorkbenchBackground(value),
       onBackgroundColorReset: () => this.resetWorkbenchBackground(),
       onExplorerBadgeVisibilityChange: value => this.setFilesExplorerShowBadges(value),
@@ -827,7 +829,22 @@ export class SettingsController {
   }
 
   private async setTransparentChrome(enabled: boolean): Promise<void> {
-    await this.saveAppearance(() => this.commandService.executeCommand(ThemeCommandId.setTransparentChrome, enabled));
+    const transparentChrome = Boolean(enabled);
+    if (this.appearanceSaving || transparentChrome === normalizeWorkbenchAppearance(this.settings).transparentChrome) {
+      return;
+    }
+
+    this.pendingTransparentChrome = transparentChrome;
+    this.appearanceSaving = true;
+    this.render();
+    try {
+      await this.commandService.executeCommand(ThemeCommandId.setTransparentChrome, transparentChrome);
+    }
+    finally {
+      this.appearanceSaving = false;
+      this.pendingTransparentChrome = null;
+      this.render();
+    }
   }
 
   private async setFilesExplorerDensity(value: string): Promise<void> {
@@ -850,11 +867,16 @@ export class SettingsController {
   }
 
   private async setFilesExplorerShowBadges(enabled: boolean): Promise<void> {
+    if (this.explorerBadgeSaving) {
+      return;
+    }
+
     const showBadges = normalizeFilesExplorerShowBadges(enabled);
     if (showBadges === normalizeFilesExplorerShowBadges(this.settings.filesExplorerShowBadges)) {
       return;
     }
 
+    this.pendingExplorerBadgeVisibility = showBadges;
     this.explorerBadgeSaving = true;
     this.render();
     try {
@@ -864,6 +886,7 @@ export class SettingsController {
     }
     finally {
       this.explorerBadgeSaving = false;
+      this.pendingExplorerBadgeVisibility = null;
       this.render();
     }
   }

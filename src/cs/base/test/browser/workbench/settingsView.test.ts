@@ -72,6 +72,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.ok(transparentChromeSwitch.classList.contains("ui-switch--animate"));
       assert.equal(explorerBadgesSwitch.disabled, true);
       assert.equal(transparentChromeSwitch.disabled, true);
+      assert.equal(getComputedStyle(explorerBadgesSwitch).opacity, "1");
+      assert.equal(getComputedStyle(transparentChromeSwitch).opacity, "1");
       assert.equal(explorerBadgesSwitch.getAttribute("aria-checked"), "false");
       assert.equal(transparentChromeSwitch.getAttribute("aria-checked"), "false");
       assert.equal(colorInput.value, "#111827");
