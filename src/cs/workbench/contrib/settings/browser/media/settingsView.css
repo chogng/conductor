@@ -265,11 +265,6 @@
   margin-top: 0.125rem;
 }
 
-.settings-row-control .settings-switch:disabled {
-  cursor: default;
-  opacity: 1;
-}
-
 .settings-heading .settings-description {
   margin-top: 0.25rem;
 }
@@ -302,7 +297,7 @@
   font-size: 0.875rem;
   line-height: 1.25rem;
   --tw-text-opacity: 1;
-  color: rgb(var(--text-primary) / 1);
+  color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
 }
 
 .settings-path-text {
@@ -363,4 +358,171 @@
   min-height: 96px;
   width: 100%;
   resize: vertical;
+  border-radius: 0.5rem;
+  border-width: 1px;
+  --tw-border-opacity: 1;
+  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
+  --tw-bg-opacity: 1;
+  background-color: rgb(var(--bg-surface) / var(--tw-bg-opacity, 1));
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  --tw-text-opacity: 1;
+  color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
+}
+
+.settings-select {
+  height: 30px;
+  width: 100%;
+  padding: 0 10px;
+  font-weight: 500;
+}
+
+.settings-feedback {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.settings-feedback--error {
+  --tw-text-opacity: 1;
+  color: rgb(239 68 68 / var(--tw-text-opacity, 1));
+}
+
+.settings-feedback--success {
+  --tw-text-opacity: 1;
+  color: rgb(5 150 105 / var(--tw-text-opacity, 1));
+}
+
+.settings-button {
+  height: 34px;
+  white-space: nowrap;
+}
+
+.settings-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.settings-color-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.settings-color-input {
+  height: 38px;
+  width: 52px;
+  border-radius: 0.5rem;
+  border-width: 1px;
+  --tw-border-opacity: 1;
+  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
+  --tw-bg-opacity: 1;
+  background-color: rgb(var(--bg-page) / var(--tw-bg-opacity, 1));
+  padding: 0.25rem;
+}
+
+.settings-color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.settings-color-swatch {
+  height: 2rem;
+  width: 2rem;
+  border-radius: 0.375rem;
+  border-width: 1px;
+  --tw-border-opacity: 1;
+  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+  background: var(--settings-swatch-color);
+}
+
+.settings-color-swatch[data-selected="true"] {
+  --tw-border-opacity: 1;
+  border-color: rgb(var(--text-primary) / var(--tw-border-opacity, 1));
+  box-shadow: 0 0 0 2px rgb(var(--bg-surface)), 0 0 0 4px rgb(var(--text-primary) / 0.22);
+}
+
+.settings-switch {
+  --switch-width: 40px;
+  --switch-height: 22px;
+}
+
+.settings-row-control .settings-switch:disabled {
+  opacity: 1;
+}
+
+.settings-actions-end {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 900px) {
+  .settings-view-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .settings-view-nav {
+    height: auto;
+    max-height: 42vh;
+    border-right: 0;
+    border-bottom: 1px solid rgb(var(--border) / 0.75);
+  }
+
+  .settings-view-content-scroll {
+    min-height: 0;
+  }
+
+  .settings-view-nav-list {
+    gap: 0.75rem;
+  }
+
+  .settings-view-nav-group-items {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-view-content {
+    width: min(100% - 1.5rem, 840px);
+    padding: 1.5rem 0 2rem;
+  }
+
+  .settings-grid--three,
+  .settings-grid--five {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .settings-path-controls,
+  .settings-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-row-control,
+  .settings-split-row-control,
+  .settings-color-controls,
+  .settings-path-controls .settings-button {
+    width: 100%;
+  }
+
+  .settings-row-control > .settings-select {
+    width: 100%;
+  }
+
+  .settings-split-row-control--actions,
+  .settings-color-controls {
+    justify-content: flex-start;
+  }
 }
