@@ -167,11 +167,15 @@ const getResourceIcon = (
     return undefined;
   }
 
-  return iconClasses.some((className) =>
-    className === "xls-ext-file-icon" || className === "xlsx-ext-file-icon"
-  )
-    ? LxIcon.xlsGreen
-    : LxIcon.csvGreen;
+  if (iconClasses.some((className) => className === "xls-ext-file-icon" || className === "xlsx-ext-file-icon")) {
+    return LxIcon.xlsLetter;
+  }
+
+  if (iconClasses.some((className) => className === "csv-ext-file-icon")) {
+    return LxIcon.csvLetter;
+  }
+
+  return LxIcon.csvGreen;
 };
 
 const fileIconDirectoryRegex = /(?:\/|^)(?:([^/]+)\/)?([^/]+)$/;

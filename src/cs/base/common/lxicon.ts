@@ -9,7 +9,9 @@ import {
   lxChevronRight as renderChevronRight,
   lxClose as renderClose,
   lxCopy as renderCopy,
+  lxCsvLetter as renderCsvLetter,
   lxCsvGreen as renderCsvGreen,
+  lxRefresh as renderRefresh,
   lxDiagnostics as renderDiagnostics,
   lxDownload as renderDownload,
   lxDownloadTray as renderDownloadTray,
@@ -31,6 +33,7 @@ import {
   lxSummary as renderSummary,
   lxPinned as renderPinned,
   lxUnpin as renderUnpin,
+  lxXlsLetter as renderXlsLetter,
   lxXlsGreen as renderXlsGreen,
 } from "@chogng/lxicon";
 
@@ -132,7 +135,11 @@ export const lxCopy = registerLxIcon("copy", renderCopy);
 
 export const lxCsvGreen = registerLxIcon("csv-green", renderCsvGreen);
 
+export const lxCsvLetter = registerLxIcon("csv-letter", renderCsvLetter);
+
 export const lxXlsGreen = registerLxIcon("xls-green", renderXlsGreen);
+
+export const lxXlsLetter = registerLxIcon("xls-letter", renderXlsLetter);
 
 export const lxDiagnostics = registerLxIcon("diagnostics", renderDiagnostics);
 
@@ -170,6 +177,8 @@ export const lxPinned = registerLxIcon("pinned", renderPinned);
 
 export const lxUnpin = registerLxIcon("unpin", renderUnpin);
 
+export const lxRefresh = registerLxIcon("refresh", renderRefresh);
+
 export const LxIcon = {
   add: lxAdd,
   alertCircle: lxAlertCircle,
@@ -187,6 +196,7 @@ export const LxIcon = {
   copy: lxCopy,
   csvGreen: lxCsvGreen,
   diagnostics: lxDiagnostics,
+  csvLetter: lxCsvLetter,
   download: lxDownload,
   downloadTray: lxDownloadTray,
   edit: lxEdit,
@@ -210,4 +220,6 @@ export const LxIcon = {
   pinned: lxPinned,
   unpin: lxUnpin,
   xlsGreen: lxXlsGreen,
+  xlsLetter: lxXlsLetter,
+  refresh: lxRefresh,
 } as const;
