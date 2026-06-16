@@ -64,6 +64,7 @@ import {
   type TemplateRecord,
 } from "src/cs/workbench/services/template/common/template";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import { IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
 
 import "src/cs/workbench/contrib/files/browser/views/media/explorerViewlet.css";
 
@@ -93,6 +94,7 @@ export class ExplorerViewPane extends ViewPane {
     @IExplorerWorkflowService private readonly explorerWorkflowService: IExplorerWorkflowService,
     @IFileConverterBackendService private readonly fileConverterBackendService: FileConverterBackend,
     @IFileService private readonly filesService: IFileService,
+    @IAppearanceService private readonly appearanceService: IAppearanceService,
     @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
     @INotificationService private readonly notificationService: INotificationService,
     @ISessionService private readonly sessionService: ISessionService,
@@ -168,6 +170,9 @@ export class ExplorerViewPane extends ViewPane {
           this.handleRemoveFile(fileId);
         }
       },
+    }));
+    this._register(this.appearanceService.onDidChangeAppearance(() => {
+      this.syncView();
     }));
 
     this.update(this.explorerService.getPaneInput());
@@ -276,6 +281,7 @@ export class ExplorerViewPane extends ViewPane {
     return {
       selectedFileId: this.selectedFileId,
       expandedFolderKeys: this.explorerService.expandedFolderKeys,
+      explorerAppearance: this.appearanceService.getAppearance().explorer,
       activePlotType: input.activePlotType,
       commandService: this.commandService,
       contextViewService: this.contextViewService,

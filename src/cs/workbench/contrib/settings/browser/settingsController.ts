@@ -23,10 +23,12 @@ import {
   normalizeTrimmedString,
   ORIGIN_CLEANUP_DEFAULTS,
 } from "src/cs/workbench/services/settings/browser/settingsShared";
-import type {
-  ConductorSettings,
-  ISettingsService,
-  SettingsViewInput,
+import {
+  normalizeFilesExplorerDensity,
+  normalizeFilesExplorerShowBadges,
+  type ConductorSettings,
+  type ISettingsService,
+  type SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { WorkbenchCommandId } from "src/cs/workbench/browser/actions/workbenchCommands";
@@ -86,6 +88,8 @@ export class SettingsController {
   private defaultsSaving = false;
   private defaultsFeedback: Feedback = IDLE_FEEDBACK;
   private appearanceSaving = false;
+  private explorerBadgeSaving = false;
+  private explorerAppearanceSaving = false;
   private windowCloseSaving = false;
   private cleanupNotificationSignature: string | null = null;
   private originHealthNotificationSignature: string | null = null;
@@ -489,10 +493,17 @@ export class SettingsController {
         "#ffffff",
         "#111827",
       ],
+      explorerDensity: normalizeFilesExplorerDensity(this.settings.filesExplorerDensity),
+      explorerDensityOptions: this.explorerDensityOptions,
+      isExplorerBadgeSaving: this.explorerBadgeSaving,
+      isExplorerDensitySaving: this.explorerAppearanceSaving,
       isSaving: this.appearanceSaving,
+      showExplorerBadges: normalizeFilesExplorerShowBadges(this.settings.filesExplorerShowBadges),
       transparentChrome: appearance.transparentChrome,
       onBackgroundColorChange: value => this.setWorkbenchBackground(value),
       onBackgroundColorReset: () => this.resetWorkbenchBackground(),
+      onExplorerBadgeVisibilityChange: value => this.setFilesExplorerShowBadges(value),
+      onExplorerDensityChange: value => this.setFilesExplorerDensity(value),
       onTransparentChromeChange: value => this.setTransparentChrome(Boolean(value)),
     };
   }
@@ -570,6 +581,14 @@ export class SettingsController {
       { value: "system", label: localize("settings.theme.system", "System") },
       { value: "light", label: localize("settings.theme.light", "Light") },
       { value: "dark", label: localize("settings.theme.dark", "Dark") },
+    ];
+  }
+
+  private get explorerDensityOptions(): SelectOption[] {
+    return [
+      { value: "compact", label: localize("settings.explorerDensity.compact", "Compact") },
+      { value: "default", label: localize("settings.explorerDensity.default", "Default") },
+      { value: "comfortable", label: localize("settings.explorerDensity.comfortable", "Comfortable") },
     ];
   }
 
@@ -809,6 +828,44 @@ export class SettingsController {
 
   private async setTransparentChrome(enabled: boolean): Promise<void> {
     await this.saveAppearance(() => this.commandService.executeCommand(ThemeCommandId.setTransparentChrome, enabled));
+  }
+
+  private async setFilesExplorerDensity(value: string): Promise<void> {
+    const density = normalizeFilesExplorerDensity(value);
+    if (density === normalizeFilesExplorerDensity(this.settings.filesExplorerDensity)) {
+      return;
+    }
+
+    this.explorerAppearanceSaving = true;
+    this.render();
+    try {
+      await this.service.updateSettings({
+        filesExplorerDensity: density,
+      });
+    }
+    finally {
+      this.explorerAppearanceSaving = false;
+      this.render();
+    }
+  }
+
+  private async setFilesExplorerShowBadges(enabled: boolean): Promise<void> {
+    const showBadges = normalizeFilesExplorerShowBadges(enabled);
+    if (showBadges === normalizeFilesExplorerShowBadges(this.settings.filesExplorerShowBadges)) {
+      return;
+    }
+
+    this.explorerBadgeSaving = true;
+    this.render();
+    try {
+      await this.service.updateSettings({
+        filesExplorerShowBadges: showBadges,
+      });
+    }
+    finally {
+      this.explorerBadgeSaving = false;
+      this.render();
+    }
   }
 
   private async saveAppearance(operation: () => Promise<unknown>): Promise<void> {

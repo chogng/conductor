@@ -4,6 +4,7 @@ import {
   CONDUCTOR_CONFIGURATION_KEYS,
   ConfigurationScope,
   Extensions,
+  normalizeConductorSettings,
   type IConfigurationRegistry,
 } from "src/cs/platform/configuration/common/configurationRegistry";
 import { Registry } from "src/cs/platform/registry/common/platform";
@@ -14,9 +15,23 @@ suite("platform/configuration/common/configurationRegistry", () => {
     const properties = registry.getConfigurationProperties();
 
     assert.equal(properties["theme"].default, "system");
+    assert.equal(properties["filesExplorerDensity"].default, "compact");
+    assert.deepEqual(properties["filesExplorerDensity"].enum, ["compact", "default", "comfortable"]);
+    assert.equal(properties["filesExplorerShowBadges"].default, true);
+    assert.equal(properties["filesExplorerShowBadges"].type, "boolean");
     assert.equal(properties["fileNameFieldSeparators"].default, "_- .()[]{}");
     assert.equal(properties["plotAxisSettings"].type, "object");
     assert.equal(CONDUCTOR_CONFIGURATION_KEYS.includes("originRuntimeCleanupEnabled"), true);
+  });
+
+  test("normalizes Explorer density", () => {
+    assert.equal(normalizeConductorSettings({ filesExplorerDensity: "comfortable" }).filesExplorerDensity, "comfortable");
+    assert.equal(normalizeConductorSettings({ filesExplorerDensity: "loose" }).filesExplorerDensity, "compact");
+  });
+
+  test("normalizes Explorer badge visibility", () => {
+    assert.equal(normalizeConductorSettings({ filesExplorerShowBadges: false }).filesExplorerShowBadges, false);
+    assert.equal(normalizeConductorSettings({ filesExplorerShowBadges: "false" }).filesExplorerShowBadges, true);
   });
 
   test("registers configuration properties", () => {

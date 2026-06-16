@@ -154,7 +154,7 @@
   align-items: center;
   justify-content: space-between;
   border-radius: 4px;
-  padding: 1px 0;
+  padding: 0;
   transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
@@ -191,8 +191,7 @@
 
 .file-list-item-label .monaco-icon-label-name {
   flex: 1 1 0%;
-  font-size: 12px;
-  line-height: 16px;
+  line-height: var(--files-explorer-row-height, 22px);
   color: rgb(var(--text-primary) / 1);
 }
 
@@ -217,10 +216,14 @@
   background-color: rgb(var(--border) / 1);
   padding: 1px 5px;
   color: rgb(var(--text-secondary) / 1);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--files-explorer-badge-font-size, 10px);
+  line-height: var(--files-explorer-badge-line-height, 14px);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.file-list-tree-root[data-show-badges="false"] .file-list-item-assessment {
+  display: none;
 }
 
 .file-list-item-assessment[data-warning="true"] {
@@ -235,8 +238,8 @@
 
 .file-list-item-remove {
   display: inline-flex;
-  min-height: 24px;
-  min-width: 24px;
+  min-height: var(--files-explorer-action-size, 22px);
+  min-width: var(--files-explorer-action-size, 22px);
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
@@ -275,6 +278,7 @@
   width: 100%;
   flex: 1 1 0%;
   height: 100%;
+  font-size: var(--files-explorer-font-size, 13px);
 }
 
 .file-list-tree .ui-tree__list {
@@ -308,7 +312,7 @@
 
 .file-list-tree .ui-tree__item,
 .file-list-tree .ui-tree__label {
-  height: 28px;
+  height: var(--files-explorer-row-height, 22px);
 }
 
 .file-list-tree .ui-tree__item {
@@ -332,8 +336,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 4px;
-  font-size: 12px;
-  line-height: 16px;
+  line-height: var(--files-explorer-row-height, 22px);
   font-weight: 500;
   color: rgb(var(--text-secondary) / 1);
   height: 100%;
@@ -355,7 +358,7 @@
 
 .file-list-folder-controls {
   display: inline-flex;
-  height: 24px;
+  height: var(--files-explorer-action-size, 22px);
   flex-shrink: 0;
   align-items: center;
   gap: 2px;
@@ -369,16 +372,16 @@
 
 .file-list-folder-actionbar {
   display: inline-flex;
-  width: 24px;
-  height: 24px;
+  width: var(--files-explorer-action-size, 22px);
+  height: var(--files-explorer-action-size, 22px);
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
 }
 
 .file-list-folder-more {
-  width: 24px;
-  height: 24px;
+  width: var(--files-explorer-action-size, 22px);
+  height: var(--files-explorer-action-size, 22px);
   justify-content: center;
   gap: 0;
   border: 0;

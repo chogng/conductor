@@ -84,6 +84,7 @@ export class ExplorerView implements IDisposable {
     return {
       selectedFileId: this.props.selectedFileId,
       expandedFolderKeys: this.props.expandedFolderKeys,
+      explorerAppearance: this.props.explorerAppearance,
       activePlotType: this.props.activePlotType,
       commandService: this.props.commandService,
       contextMenuService: this.props.contextMenuService,

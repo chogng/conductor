@@ -112,6 +112,8 @@ export type ConductorSettings = JsonRecord & {
   language: string;
   theme: string;
   backgroundColor: string;
+  filesExplorerDensity: string;
+  filesExplorerShowBadges: boolean;
   transparentChrome: boolean;
   windowCloseBehavior: string;
   stopOnErrorDefault: boolean;
@@ -265,6 +267,11 @@ function normalizeOriginExePath(inputPath: unknown): string | null {
 const DEFAULT_FILE_NAME_FIELD_SEPARATORS = "_- .()[]{}";
 const SS_METHODS = new Set(["auto", "manual"]);
 const ION_IOFF_METHODS = new Set(["auto", "manual"]);
+const FILES_EXPLORER_DENSITIES = new Set([
+  "compact",
+  "default",
+  "comfortable",
+]);
 const LANGUAGES = new Set(["system", "en", "zh"]);
 const ORIGIN_EXPORT_MODES = new Set([
   "merged",
@@ -284,6 +291,8 @@ export const DEFAULT_CONDUCTOR_CONFIGURATION: ConductorSettings = {
   language: "system",
   theme: "system",
   backgroundColor: DEFAULT_BACKGROUND_COLOR,
+  filesExplorerDensity: "compact",
+  filesExplorerShowBadges: true,
   transparentChrome: true,
   windowCloseBehavior: "minimizeToTray",
   stopOnErrorDefault: false,
@@ -514,6 +523,16 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
   const theme = isSetValue(THEMES, next.theme)
     ? next.theme
     : DEFAULT_CONDUCTOR_CONFIGURATION.theme;
+  const filesExplorerDensity = isSetValue(
+    FILES_EXPLORER_DENSITIES,
+    next.filesExplorerDensity,
+  )
+    ? next.filesExplorerDensity
+    : DEFAULT_CONDUCTOR_CONFIGURATION.filesExplorerDensity;
+  const filesExplorerShowBadges = normalizeBoolean(
+    next.filesExplorerShowBadges,
+    DEFAULT_CONDUCTOR_CONFIGURATION.filesExplorerShowBadges,
+  );
   const backgroundColor = normalizeBackgroundColor(next.backgroundColor);
   const transparentChrome = normalizeBoolean(
     next.transparentChrome,
@@ -595,6 +614,8 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     fileNameFieldSeparators: normalizeFileNameFieldSeparators(next.fileNameFieldSeparators),
     stopOnErrorDefault,
     theme,
+    filesExplorerDensity,
+    filesExplorerShowBadges,
     backgroundColor,
     transparentChrome,
     windowCloseBehavior,
@@ -644,6 +665,12 @@ function createConductorConfigurationProperties(): Record<string, IConfiguration
       type: getJsonSchemaType(defaultValue),
     };
   }
+
+  properties.filesExplorerDensity = {
+    ...properties.filesExplorerDensity,
+    enum: ["compact", "default", "comfortable"],
+    enumItemLabels: ["Compact", "Default", "Comfortable"],
+  };
 
   return properties;
 }

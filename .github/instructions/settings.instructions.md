@@ -26,8 +26,11 @@ flowchart TD
     SettingsService --> SettingsEvent[onDidChangeConductorSettings]
     SettingsService --> ViewInputEvent[onDidChangeSettingsViewInput]
     SettingsEvent --> Consumers[feature services/contributions]
+    SettingsEvent --> AppearanceService[IAppearanceService normalized appearance snapshot]
+    AppearanceService --> AppearanceConsumers[appearance consumers such as Explorer]
     ViewInputEvent --> ViewPane[SettingsViewPane rereads input]
     Consumers --> OwnerService
+    AppearanceConsumers --> OwnerService
     ViewPane --> Controller
 ```
 
@@ -142,6 +145,11 @@ theme, layout, chart, plot, template, session, or Explorer state. The owning
 feature subscribes to `onDidChangeConductorSettings`, rereads
 `getConductorSettings()`, and applies the relevant fields through its own
 service/model.
+
+For product appearance preferences that are shared as a normalized UI snapshot,
+`IAppearanceService` may subscribe to `onDidChangeConductorSettings`, reread
+settings, and publish `onDidChangeAppearance`. Appearance consumers then reread
+`IAppearanceService.getAppearance()` and apply their own DOM or model state.
 
 Do not add callback slots to `SettingsServiceOptions` for applying settings to
 another service. `SettingsServiceOptions` may carry static view-input context

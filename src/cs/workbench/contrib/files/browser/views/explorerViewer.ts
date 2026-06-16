@@ -47,6 +47,11 @@ import type { ProcessedEntry } from "src/cs/workbench/services/session/common/se
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
 import type { FolderImportSupport } from "src/cs/platform/files/browser/webFileSystemAccess";
 import {
+  areExplorerAppearancesEqual,
+  DEFAULT_EXPLORER_APPEARANCE,
+  type ExplorerAppearance,
+} from "src/cs/workbench/services/appearance/common/appearance";
+import {
   buildExplorerTree,
   collectExplorerFolderKeys,
   getExplorerTreeFileName,
@@ -74,6 +79,7 @@ import type { TemplateRecord } from "src/cs/workbench/services/template/common/t
 export type ExplorerViewerProps = {
   readonly selectedFileId?: string | null;
   readonly expandedFolderKeys?: readonly string[];
+  readonly explorerAppearance?: ExplorerAppearance;
   readonly activePlotType?: PlotType;
   readonly commandService: Pick<ICommandService, "executeCommand">;
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
@@ -104,7 +110,6 @@ export type ExplorerViewerProps = {
 type FileTreeNode = ExplorerTreeNode<ExplorerFileEntry>;
 
 const getFileName = getExplorerTreeFileName;
-const FILE_ROW_HEIGHT = 28;
 const FILE_HOVER_HIDE_DELAY_MS = 120;
 const FILE_HOVER_THUMBNAIL_WIDTH = 360;
 const FILE_HOVER_THUMBNAIL_VIEWPORT_RATIO = 0.44;
@@ -316,6 +321,7 @@ export class ExplorerViewer implements IDisposable {
   private hoverLayoutFrame: number | null = null;
   private hoverViewToken = 0;
   private hoverCacheUse = 0;
+  private explorerAppearance: ExplorerAppearance = DEFAULT_EXPLORER_APPEARANCE;
   private activeFolderActionMenus = 0;
   private treeModel: TreeModelCache = {
     folderKeys: [],
@@ -324,7 +330,7 @@ export class ExplorerViewer implements IDisposable {
   };
   private props: ExplorerViewerProps;
   private readonly treeDelegate = {
-    getHeight: () => FILE_ROW_HEIGHT,
+    getHeight: () => this.explorerAppearance.rowHeight,
   };
   private readonly getTreeNodeChildren = (node: FileTreeNode) => node.children;
   private readonly getTreeNodeKey = (node: FileTreeNode) => node.key;
@@ -337,6 +343,8 @@ export class ExplorerViewer implements IDisposable {
     private readonly labels: ResourceLabels,
   ) {
     this.props = props;
+    this.explorerAppearance = props.explorerAppearance ?? DEFAULT_EXPLORER_APPEARANCE;
+    this.applyExplorerAppearance();
     this.treeRenderer = {
       renderTemplate: (container) => this.createTreeItemTemplate(container),
       renderElement: this.renderTreeElement,
@@ -391,8 +399,18 @@ export class ExplorerViewer implements IDisposable {
     );
     const nextViewLayout = getEffectiveViewLayout(nextProps);
     const shouldClearPlotCache = this.shouldClearThumbnailPlotCache(this.props, nextProps);
+    const nextExplorerAppearance =
+      nextProps.explorerAppearance ?? DEFAULT_EXPLORER_APPEARANCE;
+    const shouldUpdateExplorerAppearance = !areExplorerAppearancesEqual(
+      this.explorerAppearance,
+      nextExplorerAppearance,
+    );
 
     this.props = nextProps;
+    if (shouldUpdateExplorerAppearance) {
+      this.explorerAppearance = nextExplorerAppearance;
+      this.applyExplorerAppearance();
+    }
     if (shouldClearPlotCache) {
       this.clearHoverThumbnailCache();
     }
@@ -430,6 +448,10 @@ export class ExplorerViewer implements IDisposable {
           nextExpandedFolderKeys,
         ),
       });
+    } else if (shouldUpdateExplorerAppearance) {
+      this.treeView.updateOptions({
+        delegate: this.treeDelegate,
+      });
     }
 
     this.refreshVisibleHover();
@@ -442,6 +464,17 @@ export class ExplorerViewer implements IDisposable {
     this.closeFileItemHoverView();
     this.clearHoverThumbnailCache();
     this.disposables.dispose();
+  }
+
+  private applyExplorerAppearance(): void {
+    const appearance = this.explorerAppearance;
+    this.host.dataset.density = appearance.density;
+    this.host.dataset.showBadges = appearance.showBadges ? "true" : "false";
+    this.host.style.setProperty("--files-explorer-action-size", `${appearance.actionSize}px`);
+    this.host.style.setProperty("--files-explorer-badge-font-size", `${appearance.badgeFontSize}px`);
+    this.host.style.setProperty("--files-explorer-badge-line-height", `${appearance.badgeLineHeight}px`);
+    this.host.style.setProperty("--files-explorer-font-size", `${appearance.fontSize}px`);
+    this.host.style.setProperty("--files-explorer-row-height", `${appearance.rowHeight}px`);
   }
 
   private createTreeOptions(

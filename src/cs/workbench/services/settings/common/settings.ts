@@ -23,8 +23,35 @@ import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plo
 
 export type { OriginCleanupResult, OriginHealthResult };
 
+export type FilesExplorerDensity = "compact" | "default" | "comfortable";
+
+const FILES_EXPLORER_DENSITIES = new Set<FilesExplorerDensity>([
+  "compact",
+  "default",
+  "comfortable",
+]);
+
+export const DEFAULT_FILES_EXPLORER_DENSITY: FilesExplorerDensity = "compact";
+export const DEFAULT_FILES_EXPLORER_SHOW_BADGES = true;
+
+export const normalizeFilesExplorerDensity = (
+  value: unknown,
+): FilesExplorerDensity =>
+  typeof value === "string" && FILES_EXPLORER_DENSITIES.has(value as FilesExplorerDensity)
+    ? value as FilesExplorerDensity
+    : DEFAULT_FILES_EXPLORER_DENSITY;
+
+export const normalizeFilesExplorerShowBadges = (
+  value: unknown,
+): boolean =>
+  typeof value === "boolean"
+    ? value
+    : DEFAULT_FILES_EXPLORER_SHOW_BADGES;
+
 export type ConductorSettings = {
   backgroundColor?: string;
+  filesExplorerDensity?: FilesExplorerDensity;
+  filesExplorerShowBadges?: boolean;
   fileNameFieldSeparators?: string;
   language?: LanguagePreference;
   theme?: ThemeMode;

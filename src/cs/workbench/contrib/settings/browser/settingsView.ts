@@ -79,10 +79,17 @@ type AppearanceSettings = {
   backgroundColor: string;
   backgroundColorDefault: string;
   backgroundColorOptions: readonly string[];
+  explorerDensity: string;
+  explorerDensityOptions: readonly SelectOption[];
+  isExplorerBadgeSaving: boolean;
+  isExplorerDensitySaving: boolean;
   isSaving: boolean;
+  showExplorerBadges: boolean;
   transparentChrome: boolean;
   onBackgroundColorChange: (value: string) => Promise<void> | void;
   onBackgroundColorReset: () => Promise<void> | void;
+  onExplorerBadgeVisibilityChange: (enabled: boolean) => Promise<void> | void;
+  onExplorerDensityChange: (value: string) => Promise<void> | void;
   onTransparentChromeChange: (enabled: boolean) => Promise<void> | void;
 };
 
@@ -171,7 +178,7 @@ type FieldOptions = {
   disabled?: boolean;
   id: string;
   onChange: (value: string) => void;
-  options: SelectOption[];
+  options: readonly SelectOption[];
   value: string;
 };
 
@@ -406,6 +413,30 @@ export class SettingsView {
         },
         options: this.options.themeModeOptions,
       })),
+      cardRow("settings-explorer-density-card", localize("settings.explorerDensity.title", "Explorer Density"), this.createSelect({
+        id: "settings-explorer-density-dropdown",
+        value: appearanceSettings.explorerDensity,
+        onChange: value => {
+          if (value === "compact" || value === "default" || value === "comfortable") {
+            void appearanceSettings.onExplorerDensityChange(value);
+          }
+        },
+        options: appearanceSettings.explorerDensityOptions,
+        disabled: appearanceSettings.isExplorerDensitySaving,
+      })),
+      cardRow(
+        "settings-explorer-badges-card",
+        localize("settings.explorerBadges.title", "Explorer Badges"),
+        this.createSwitch({
+          ariaLabel: localize("settings.explorerBadges.title", "Explorer Badges"),
+          checked: appearanceSettings.showExplorerBadges,
+          disabled: appearanceSettings.isExplorerBadgeSaving,
+          id: "settings-explorer-badges-toggle",
+          onChange: checked => {
+            void appearanceSettings.onExplorerBadgeVisibilityChange(checked);
+          },
+        }),
+      ),
     );
     const appearanceList = getSettingsList(appearanceSection);
     container.appendChild(appearanceSection);
@@ -935,7 +966,11 @@ const canPatchTransparentChromeSwitch = (
     current.language !== next.language ||
     currentAppearance.backgroundColor !== nextAppearance.backgroundColor ||
     currentAppearance.backgroundColorDefault !== nextAppearance.backgroundColorDefault ||
-    currentAppearance.isSaving !== nextAppearance.isSaving
+    currentAppearance.explorerDensity !== nextAppearance.explorerDensity ||
+    currentAppearance.isExplorerBadgeSaving !== nextAppearance.isExplorerBadgeSaving ||
+    currentAppearance.isExplorerDensitySaving !== nextAppearance.isExplorerDensitySaving ||
+    currentAppearance.isSaving !== nextAppearance.isSaving ||
+    currentAppearance.showExplorerBadges !== nextAppearance.showExplorerBadges
   ) {
     return false;
   }
