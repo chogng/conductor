@@ -16,8 +16,12 @@ export class VerticalScrollbar extends AbstractScrollbar {
     super(orientation, root, delegate, "scrollAreaTrackY", "scrollAreaThumbY");
   }
 
-  protected applyThumbSize(metrics: ScrollbarMetrics): void {
-    this.thumb.style.height = `${metrics.yThumbSize}px`;
+  protected getThumbSize(metrics: ScrollbarMetrics): number {
+    return metrics.yThumbSize;
+  }
+
+  protected applyThumbSize(size: number): void {
+    this.thumb.style.height = `${size}px`;
   }
 
   protected applyThumbOffset(offset: number): void {
