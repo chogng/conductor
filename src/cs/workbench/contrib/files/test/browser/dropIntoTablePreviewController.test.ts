@@ -8,6 +8,7 @@ import { Emitter, Event as BaseEvent } from "src/cs/base/common/event";
 import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import { DropIntoTablePreviewController } from "src/cs/workbench/contrib/files/browser/dropIntoTablePreviewController";
 import { IFileConverterBackendService } from "src/cs/workbench/services/files/common/fileConverterBackend";
+import { NotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import type { ITableDropTargetService } from "src/cs/workbench/services/table/browser/tableDropTargetService";
 
@@ -77,6 +78,7 @@ function createController(dropTargetService: ITableDropTargetService): DropIntoT
     createSessionService(),
     createExplorerService(),
     createFileConverterBackendService(),
+    new NotificationService(),
   );
 }
 

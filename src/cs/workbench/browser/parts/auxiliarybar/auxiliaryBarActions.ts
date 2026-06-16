@@ -6,11 +6,14 @@ import { ExportViewId } from "src/cs/workbench/services/export/common/export";
 import { OriginExportSettingsViewId } from "src/cs/workbench/services/origin/common/origin";
 import { ParametersViewId } from "src/cs/workbench/services/parameters/common/parameters";
 import { SearchViewId } from "src/cs/workbench/services/search/common/search";
-import { TemplateAuxiliaryBarViewId } from "src/cs/workbench/services/template/common/template";
+import {
+  TemplateAuxiliaryBarViewId,
+  type TemplateMode,
+} from "src/cs/workbench/services/template/common/template";
 
 export type AuxiliaryBarView = "template" | "search" | "export" | "parameters" | "settings";
 export type AuxiliaryBarMode = WorkbenchMainPart;
-export type TemplateAuxiliaryBarMode = "select" | "save";
+export type TemplateAuxiliaryBarMode = TemplateMode;
 
 export type AuxiliaryBarViewDescriptor = {
   readonly id: AuxiliaryBarView;
@@ -87,13 +90,13 @@ export const getAuxiliaryBarTitleForMode = (
     return localize("auxiliarybar.chart.title", "Chart");
   }
 
-  return templateMode === "save"
+  return templateMode === "editor"
     ? localize("template.editor.title", "Template Editor")
     : localize("template.management.title", "Template Management");
 };
 
 export const getAuxiliaryBarTitle = (mode: AuxiliaryBarMode): string =>
-  getAuxiliaryBarTitleForMode(mode, "select");
+  getAuxiliaryBarTitleForMode(mode, "management");
 
 export const resolveAuxiliaryBarView = (
   view: AuxiliaryBarView,

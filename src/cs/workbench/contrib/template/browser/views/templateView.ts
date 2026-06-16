@@ -16,7 +16,11 @@ import type { SessionFile } from "src/cs/workbench/services/session/common/sessi
 import {
   type TemplateConfig,
 } from "src/cs/workbench/services/template/common/templateConfigUtils";
-import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import {
+  Severity,
+  type INotificationService,
+  type NotificationPresentationType,
+} from "src/cs/workbench/services/notification/common/notificationService";
 import {
   validateTemplateForSave,
   validateTemplateForApply,
@@ -55,6 +59,7 @@ import "src/cs/workbench/contrib/template/browser/views/media/templateView.css";
 export type TemplateViewOptions = {
   readonly commandService: Pick<ICommandService, "executeCommand">;
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
+  readonly notificationService: Pick<INotificationService, "notify">;
   readonly templateApplyWorkflowService: Pick<
     ITemplateApplyWorkflowService,
     | "applyTemplate"
@@ -75,11 +80,7 @@ let cachedTemplates: TemplateRecord[] | null = null;
 let templatesLoading = false;
 let cachedTemplatesVersion = -1;
 type PickFieldName = TemplatePickFieldName;
-const TEMPLATE_TOAST_ID = "template.notification";
-
-const showToast = (message: string, type: "success" | "error" | "warning" | "info" = "success") => {
-  notificationService.showToast({ id: TEMPLATE_TOAST_ID, message, type });
-};
+const TEMPLATE_NOTIFICATION_ID = "template.notification";
 
 export const shouldSyncTemplateEditorTableSelection = (mode: TemplateMode): boolean =>
   mode === "editor";
@@ -385,7 +386,7 @@ export class TemplateView {
       })
       .catch((err) => {
         templatesLoading = false;
-        showToast(
+        this.showNotification(
           localize("template.loadFailed", "Failed to load templates: {error}", {
             error: err instanceof Error ? err.message : String(err),
           }),
@@ -618,7 +619,7 @@ export class TemplateView {
 
     const validation = validateTemplateForApply(config);
     if (!validation.ok || !validation.normalized) {
-      showToast(validation.message || localize("template.invalidConfiguration", "Invalid configuration"), "warning");
+      this.showNotification(validation.message || localize("template.invalidConfiguration", "Invalid configuration"), "warning");
       return;
     }
 
@@ -637,13 +638,13 @@ export class TemplateView {
     const config = this.getEffectiveTemplateFormState();
     const name = config.name.trim();
     if (!name) {
-      showToast(localize("template.validation.nameRequired", "Please enter a template name."), "warning");
+      this.showNotification(localize("template.validation.nameRequired", "Please enter a template name."), "warning");
       return;
     }
 
     const validation = validateTemplateForSave(config);
     if (!validation.ok || !validation.normalized) {
-      showToast(validation.message || localize("template.invalidConfiguration", "Invalid configuration"), "warning");
+      this.showNotification(validation.message || localize("template.invalidConfiguration", "Invalid configuration"), "warning");
       return;
     }
 
@@ -658,10 +659,23 @@ export class TemplateView {
 
       this.stopOnErrorDraft = Boolean(saved.stopOnError);
       this.props.templateService.finishTemplateEditor(saved);
-      showToast(localize("template.save.success", "Template saved"), "success");
+      this.showNotification(localize("template.save.success", "Template saved"), "success");
     } catch (err) {
-      showToast(localize("template.save.failed", "Failed to save template: {error}", { error: String(err) }), "error");
+      this.showNotification(localize("template.save.failed", "Failed to save template: {error}", { error: String(err) }), "error");
     }
+  }
+
+  private showNotification(message: string, type: NotificationPresentationType = "success"): void {
+    this.props.notificationService.notify({
+      id: TEMPLATE_NOTIFICATION_ID,
+      message,
+      presentation: { type },
+      severity: type === "error"
+        ? Severity.Error
+        : type === "warning"
+          ? Severity.Warning
+          : Severity.Info,
+    });
   }
 
   private cancelTemplateEditor(): void {

@@ -21,7 +21,7 @@ import { SettingsViewId } from "src/cs/workbench/services/settings/common/settin
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
-import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import { NotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
 type WorkbenchService<K extends keyof WorkbenchOptions> = NonNullable<WorkbenchOptions[K]>;
 
@@ -274,6 +274,7 @@ const createWorkbenchOptions = ({
   readonly viewsService: RecordingViewsService;
 }): WorkbenchOptions => {
   const sessionService = new SessionService();
+  const notificationService = new NotificationService();
   const tableModel = {
     getState: () => ({}),
     onDidChangeState: () => () => undefined,
@@ -357,7 +358,7 @@ const createWorkbenchOptions = ({
       onDidChangeTemplateState: Event.None,
       getState: () => ({
         formState: createEmptyTemplateConfig(),
-        mode: "select",
+        mode: "management",
         selectedTemplateId: null,
         selectionsByFileId: {},
         templateListVersion: 0,

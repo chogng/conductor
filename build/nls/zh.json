@@ -1,5 +1,19 @@
 {
-  "auxiliarybar.chart.title": "图表",
+  "files.source.failed": "失败",
+  "files.source.loading": "加载中",
+  "files.source.pending": "等待中",
+  "table.releasePreviewSources": "释放表格预览源",
+  "tableRowsReader.desktopBridgeUnavailable": "表格预览桌面桥接不可用。",
+  "tableRowsReader.error.engineFailed": "Rust 主机执行失败。",
+  "tableRowsReader.error.fileNotFound": "未找到文件。",
+  "tableRowsReader.error.invalidCells": "表格单元格请求无效。",
+  "tableRowsReader.error.invalidFileId": "缺少文件 ID。",
+  "tableRowsReader.error.invalidPath": "文件路径无效。",
+  "tableRowsReader.error.openFailed": "打开文件失败。",
+  "tableRowsReader.error.previewRowsFailed": "读取预览行失败。",
+  "tableRowsReader.error.readCellsFailed": "读取表格单元格失败。",
+  "tableRowsReader.error.releaseFailed": "释放表格源失败。",
+  "templateStore.desktopBridgeUnavailable": "模板存储桌面桥接不可用。",  "auxiliarybar.chart.title": "图表",
   "chart.axis.auto": "自动",
   "chart.axis.count": "主刻度数量",
   "chart.axis.decades": "数量级",
@@ -579,3 +593,4 @@
   "workspaces.externalModifiedCount": "修改 {count} 个",
   "workspaces.failedToApplyExternalChanges": "应用外部文件夹变更失败。"
 }
+

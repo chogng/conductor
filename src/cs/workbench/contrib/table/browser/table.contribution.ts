@@ -24,7 +24,7 @@ import {
   TableViewId,
 } from "src/cs/workbench/contrib/table/common/table";
 import TableViewPane from "src/cs/workbench/contrib/table/browser/tableViewPane";
-import { registerTableCommands } from "src/cs/workbench/contrib/table/browser/tableCommands";
+import { registerTableActions } from "src/cs/workbench/contrib/table/browser/tableActions";
 
 import "src/cs/workbench/contrib/table/browser/media/tableView.css";
 
@@ -32,7 +32,7 @@ export class TableContribution extends Disposable implements IWorkbenchContribut
   public constructor() {
     super();
     registerTableView();
-    this._register(registerTableCommands());
+    this._register(registerTableActions());
   }
 }
 

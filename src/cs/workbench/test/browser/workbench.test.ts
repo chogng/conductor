@@ -40,7 +40,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       snapshot: session.getSnapshot(),
       templateState: {
         formState: createEmptyTemplateConfig({ name: "Template A" }),
-        mode: "select",
+        mode: "management",
         selectedTemplateId: "template-a",
         selectionsByFileId: {
           "file-a": createTemplateSelection("template-file"),
@@ -106,7 +106,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       snapshot,
       templateState: {
         formState: createEmptyTemplateConfig(),
-        mode: "select",
+        mode: "management",
         selectedTemplateId: null,
         selectionsByFileId: {},
         templateListVersion: 0,

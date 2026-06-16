@@ -25,6 +25,18 @@ export type INotificationProperties = {
   readonly sticky?: boolean;
   readonly priority?: NotificationPriority;
   readonly neverShowAgain?: INeverShowAgainOptions;
+  readonly presentation?: INotificationPresentationOptions;
+};
+
+export type NotificationPresentationType = "success" | "error" | "warning" | "info";
+export type NotificationPresentationPosition = "absolute" | "fixed";
+
+export type INotificationPresentationOptions = {
+  readonly className?: string;
+  readonly dataUi?: string;
+  readonly duration?: number;
+  readonly position?: NotificationPresentationPosition;
+  readonly type?: NotificationPresentationType;
 };
 
 export const enum NeverShowAgainScope {

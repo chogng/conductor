@@ -71,9 +71,12 @@ suite("workbench/services/files/test/browser/fileConverter import records", () =
     });
 
     const table = record.raw.rawTablesById["file-bom"];
-    assert.equal(table.rows.kind, "inline");
-    assert.deepEqual(table.rows.values[0], ["Name", "Value", "Comment"]);
-    assert.deepEqual(table.rows.values[3], [""]);
+    const rows = table.rows;
+    if (rows.kind !== "inline") {
+      assert.fail(`Expected inline rows, got ${rows.kind}`);
+    }
+    assert.deepEqual(rows.values[0], ["Name", "Value", "Comment"]);
+    assert.deepEqual(rows.values[3], [""]);
   });
 
   test("uses normalized CSV row stores when a normalized path is available", async () => {

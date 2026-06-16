@@ -10,6 +10,7 @@ import {
 import { ICommandService } from "src/cs/platform/commands/common/commands";
 import { ITableService } from "src/cs/workbench/services/table/common/table";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
+import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import {
   ITemplateApplyWorkflowService,
   ITemplateService,
@@ -34,6 +35,7 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
   constructor(
     @ICommandService private readonly commandService: ICommandService,
     @IContextMenuService private readonly contextMenuService: IContextMenuServiceType,
+    @INotificationService private readonly notificationService: INotificationService,
     @ITableService private readonly tableService: ITableService,
     @ITemplateApplyWorkflowService private readonly templateApplyWorkflowService: ITemplateApplyWorkflowService,
     @ITemplateService private readonly templateService: ITemplateServiceType,
@@ -88,6 +90,7 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
       ...input,
       commandService: this.commandService,
       contextMenuService: this.contextMenuService,
+      notificationService: this.notificationService,
       rawFiles: input?.rawFiles ?? [],
       tableService: this.tableService,
       templateApplyWorkflowService: this.templateApplyWorkflowService,

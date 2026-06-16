@@ -9,12 +9,12 @@ import type {
   FileSystemHandle,
 } from "../../../../../platform/files/browser/webFileSystemAccess.ts";
 import { FileService } from "../../../../../platform/files/common/fileService.ts";
-import { IMPORT_ERROR_TOAST_ID } from "../../browser/fileConstants.ts";
+import { IMPORT_ERROR_NOTIFICATION_ID } from "../../browser/fileConstants.ts";
 import type {
   FileConverterBackend,
   FileConverterPreparedFile,
 } from "../../../../services/files/common/fileConverterBackend.ts";
-import { notificationService } from "../../../../services/notification/common/notificationService.ts";
+import { NotificationService } from "../../../../services/notification/common/notificationService.ts";
 import {
   canImportFolderWithFileService,
   collectDroppedFiles,
@@ -31,6 +31,12 @@ import {
 } from "../../browser/fileImportExport.ts";
 
 suite("workbench/contrib/files/test/browser/fileImportExport", () => {
+  const notificationService = new NotificationService();
+
+  teardown(() => {
+    notificationService.clearNotifications();
+  });
+
   test("pending import prepare concurrency scales with hardware and stays bounded", () => {
     assert.equal(getPendingImportPrepareConcurrency(Number.NaN), 8);
     assert.equal(getPendingImportPrepareConcurrency(1), 4);
@@ -618,14 +624,14 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     error.relativePath = "293K/blocked.csv";
 
     const messages: string[] = [];
-    const toastDisposable = notificationService.onDidChangeToast(event => {
-      if (event.kind === "show" && event.options.id === IMPORT_ERROR_TOAST_ID) {
+    const notificationDisposable = notificationService.onDidChangeToast(event => {
+      if (event.kind === "show" && event.options.id === IMPORT_ERROR_NOTIFICATION_ID) {
         messages.push(event.options.message);
       }
     });
     const originalConsoleError = console.error;
     console.error = () => undefined;
-    notificationService.disposeToast(IMPORT_ERROR_TOAST_ID);
+    notificationService.closeNotification(IMPORT_ERROR_NOTIFICATION_ID);
     const workflow = new FileSourceWorkflow({
       commandService: {
         executeCommand: async () => {
@@ -651,8 +657,8 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
       }).doOpenFolderDialog();
     } finally {
       workflow.dispose();
-      toastDisposable.dispose();
-      notificationService.disposeToast(IMPORT_ERROR_TOAST_ID);
+      notificationDisposable.dispose();
+      notificationService.closeNotification(IMPORT_ERROR_NOTIFICATION_ID);
       console.error = originalConsoleError;
     }
 

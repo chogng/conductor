@@ -13,7 +13,10 @@ import {
   prepareDroppedFilesForImport,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import { IFileConverterBackendService } from "src/cs/workbench/services/files/common/fileConverterBackend";
-import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import {
+  INotificationService,
+  Severity,
+} from "src/cs/workbench/services/notification/common/notificationService";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import { ITableDropTargetService } from "src/cs/workbench/services/table/browser/tableDropTargetService";
 
@@ -34,6 +37,7 @@ export class DropIntoTablePreviewController extends Disposable implements IWorkb
     @ISessionService private readonly sessionService: ISessionService,
     @IExplorerService private readonly explorerService: IExplorerService,
     @IFileConverterBackendService private readonly fileConverterBackendService: IFileConverterBackendService,
+    @INotificationService private readonly notificationService: INotificationService,
   ) {
     super();
     this._register(this.tableDropTargetService.onDidChangeDropTarget(target => {
@@ -138,10 +142,10 @@ export class DropIntoTablePreviewController extends Disposable implements IWorkb
       return;
     }
 
-    notificationService.showToast({
+    this.notificationService.notify({
       id: "dropIntoTablePreview.importError",
       message,
-      type: "warning",
+      severity: Severity.Warning,
     });
   }
 }

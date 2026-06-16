@@ -4,7 +4,7 @@
 
 import { toSlashes } from "src/cs/base/common/extpath";
 
-export const WORKSPACE_EXTERNAL_CHANGES_TOAST_ID = "workspaces.externalChanges";
+export const WORKSPACE_EXTERNAL_CHANGES_NOTIFICATION_ID = "workspaces.externalChanges";
 export const ADD_WORKSPACE_FOLDER_COMMAND_ID = "workspaces.addFolder";
 
 export type WorkspaceExternalChangeKind = "added" | "modified" | "deleted";

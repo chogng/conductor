@@ -24,7 +24,7 @@ import {
   TableController,
   type TableControllerProps,
 } from "src/cs/workbench/contrib/table/browser/tableController";
-import { setActiveTableZoomController } from "src/cs/workbench/contrib/table/browser/tableCommands";
+import { ITableWidgetService } from "src/cs/workbench/contrib/table/browser/tableWidgetService";
 import { TableCommandId, TableViewId } from "src/cs/workbench/contrib/table/common/table";
 import {
   TABLE_WIDGET_DEFAULT_ZOOM_PERCENT,
@@ -82,6 +82,7 @@ export class TableViewPane extends ViewPane {
   constructor(
     @ITableService private readonly tableService: ITableService,
     @ITableDropTargetService private readonly tableDropTargetService: ITableDropTargetService,
+    @ITableWidgetService private readonly tableWidgetService: ITableWidgetService,
     @ICommandService private readonly commandService: ICommandService,
   ) {
     super({
@@ -138,7 +139,7 @@ export class TableViewPane extends ViewPane {
         this.tableService,
         this.commandService,
       ));
-      this.store.add(setActiveTableZoomController(this.controller));
+      this.store.add(this.tableWidgetService.registerController(this.controller));
       this.store.add(this.controller.onDidChangeZoom(() => this.updateZoomControl()));
       this.content.append(this.controller.element);
     } else {

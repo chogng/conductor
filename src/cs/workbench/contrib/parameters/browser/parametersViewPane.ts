@@ -29,7 +29,10 @@ import {
   IParametersService,
   ParametersViewId,
 } from "src/cs/workbench/services/parameters/common/parameters";
-import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import {
+  INotificationService,
+  Severity,
+} from "src/cs/workbench/services/notification/common/notificationService";
 
 import "src/cs/workbench/contrib/parameters/browser/media/parametersView.css";
 import "src/cs/workbench/browser/parts/views/media/views.css";
@@ -44,6 +47,7 @@ export class ParametersViewPane extends ViewPane {
 
   constructor(
     @IParametersService private readonly parametersService: IParametersService,
+    @INotificationService private readonly notificationService: INotificationService,
   ) {
     super({
       id: ParametersViewId,
@@ -152,28 +156,29 @@ export class ParametersViewPane extends ViewPane {
 
   private async copyParameterTable(options: ParametersViewOptions): Promise<void> {
     if (options.rows.length === 0) {
-      notificationService.showToast({
+      this.notificationService.notify({
         id: "parameters.copyTable",
         message: localize("parameters.copyTable.empty", "No parameter rows to copy."),
-        type: "warning",
+        severity: Severity.Warning,
       });
       return;
     }
 
     try {
       await writeClipboardText(createParameterTableTsv(options));
-      notificationService.showToast({
+      this.notificationService.notify({
         id: "parameters.copyTable",
         message: localize("parameters.copyTable.success", "Parameter table copied."),
-        type: "success",
+        presentation: { type: "success" },
+        severity: Severity.Info,
       });
     } catch (error) {
-      notificationService.showToast({
+      this.notificationService.notify({
         id: "parameters.copyTable",
         message: localize("parameters.copyTable.failed", "Failed to copy parameter table: {error}", {
           error: error instanceof Error ? error.message : String(error),
         }),
-        type: "error",
+        severity: Severity.Error,
       });
     }
   }

@@ -8,7 +8,10 @@ import { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import { IFileService } from "src/cs/platform/files/common/files";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import { IPathService } from "src/cs/workbench/services/path/common/pathService";
-import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import {
+  INotificationService,
+  Severity,
+} from "src/cs/workbench/services/notification/common/notificationService";
 import { TemplateImportController } from "src/cs/workbench/services/template/browser/templateImportController";
 import { isAutoTemplateId } from "src/cs/workbench/services/template/common/autoTemplate";
 import {
@@ -146,10 +149,10 @@ export class ExportTemplateAction extends Action2 {
     const target = normalizeTemplateActionTarget(template);
     const exported = templateService.exportTemplate(target ?? undefined);
     if (!exported) {
-      notificationService.showToast({
+      accessor.get(INotificationService).notify({
         id: "template.notification",
         message: localize("template.export.requiresSelection", "Please select a template to export."),
-        type: "warning",
+        severity: Severity.Warning,
       });
     }
   }
@@ -163,6 +166,7 @@ function normalizeTemplateActionTarget(value: unknown): TemplateRecord | null {
 
 async function deleteTemplate(accessor: ServicesAccessor, template: unknown): Promise<void> {
   const templateService = accessor.get(ITemplateService);
+  const notificationService = accessor.get(INotificationService);
   const target = normalizeTemplateActionTarget(template)
     ?? createCurrentTemplateActionTarget(templateService);
   const templateId = getTemplateActionTargetId(target);
@@ -182,22 +186,24 @@ async function deleteTemplate(accessor: ServicesAccessor, template: unknown): Pr
     templateService.selectTemplate({
       stopOnError: target?.stopOnError,
     });
-    notificationService.showToast({
+    notificationService.notify({
       id: "template.notification",
       message: localize("template.delete.success", "Template deleted"),
-      type: "success",
+      presentation: { type: "success" },
+      severity: Severity.Info,
     });
   } catch (err) {
-    notificationService.showToast({
+    notificationService.notify({
       id: "template.notification",
       message: localize("template.delete.failed", "Failed to delete template: {error}", { error: String(err) }),
-      type: "error",
+      severity: Severity.Error,
     });
   }
 }
 
 async function importTemplate(accessor: ServicesAccessor): Promise<void> {
   const templateService = accessor.get(ITemplateService);
+  const notificationService = accessor.get(INotificationService);
   const controller = new TemplateImportController(
     accessor.get(IFileDialogService),
     accessor.get(IFileService),
@@ -206,27 +212,31 @@ async function importTemplate(accessor: ServicesAccessor): Promise<void> {
 
   try {
     await controller.importTemplateFromDialog(async (payload) => {
-      await importTemplatePayload(payload, templateService);
+      await importTemplatePayload(payload, templateService, notificationService);
     });
   } catch (err) {
-    notificationService.showToast({
+    notificationService.notify({
       id: "template.notification",
       message: localize("template.import.failed", "Failed to import template: {error}", { error: String(err) }),
-      type: "error",
+      severity: Severity.Error,
     });
   }
 }
 
-async function importTemplatePayload(payload: unknown, templateService: ITemplateService): Promise<void> {
+async function importTemplatePayload(
+  payload: unknown,
+  templateService: ITemplateService,
+  notificationService: INotificationService,
+): Promise<void> {
   const entry = payload && typeof payload === "object"
     ? payload as Record<string, unknown>
     : {};
   const draft = normalizeTemplateConfigRecord(entry);
   if (!draft.name) {
-    notificationService.showToast({
+    notificationService.notify({
       id: "template.notification",
       message: localize("template.import.invalidFormat", "Invalid template file format."),
-      type: "warning",
+      severity: Severity.Warning,
     });
     return;
   }
@@ -259,10 +269,10 @@ async function importTemplatePayload(payload: unknown, templateService: ITemplat
 
   const validation = validateTemplateForSave(draft);
   if (!validation.ok || !validation.normalized) {
-    notificationService.showToast({
+    notificationService.notify({
       id: "template.notification",
       message: validation.message || localize("template.invalidConfiguration", "Invalid configuration"),
-      type: "warning",
+      severity: Severity.Warning,
     });
     return;
   }
@@ -275,10 +285,11 @@ async function importTemplatePayload(payload: unknown, templateService: ITemplat
     ...cloneTemplateConfig(saved),
     id: saved.id,
   });
-  notificationService.showToast({
+  notificationService.notify({
     id: "template.notification",
     message: localize("template.import.success", "Template imported"),
-    type: "success",
+    presentation: { type: "success" },
+    severity: Severity.Info,
   });
 }
 

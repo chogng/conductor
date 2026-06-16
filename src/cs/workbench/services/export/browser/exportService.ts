@@ -59,6 +59,7 @@ import {
   ISettingsService,
 } from "src/cs/workbench/services/settings/common/settings";
 import { IPlotService } from "src/cs/workbench/services/plot/common/plot";
+import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
 type OriginExportFile = {
   readonly calculationCache?: unknown;
@@ -101,6 +102,7 @@ export class BrowserExportService extends Disposable implements IExportService {
     @ISessionService private readonly sessionService: ISessionService,
     @ISettingsService private readonly settingsService: ISettingsService,
     @IPlotService private readonly plotService: IPlotService,
+    @INotificationService private readonly notificationService: INotificationService,
   ) {
     super();
   }
@@ -244,6 +246,7 @@ export class BrowserExportService extends Disposable implements IExportService {
       originBusyRef: this.originBusyRef,
       originChartXRange: null,
       originChartYRange: null,
+      notificationService: this.notificationService,
       originOpenPlotOptions: getOriginOpenPlotOptions(this.settingsService.getConductorSettings()),
     });
   }
@@ -252,6 +255,7 @@ export class BrowserExportService extends Disposable implements IExportService {
     return runExportOriginZip({
       buildCsvExportRequest: buildCsvExportRequest,
       buildPayloads: () => this.buildOriginExportPlan(this.getCurrentOriginExportPlanInput()),
+      notificationService: this.notificationService,
     });
   }
 

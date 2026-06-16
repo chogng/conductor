@@ -29,7 +29,7 @@ import {
 } from "src/cs/platform/files/common/files";
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
-  IMPORT_ERROR_TOAST_ID,
+  IMPORT_ERROR_NOTIFICATION_ID,
   FOLDER_IMPORT_STAT_CONCURRENCY,
   MAX_FOLDER_WALK_DEPTH,
 } from "src/cs/workbench/contrib/files/browser/fileConstants";
@@ -56,7 +56,11 @@ import {
   type FileConverterSource,
 } from "src/cs/workbench/services/files/browser/fileConverter";
 import type { FileConverterBackend } from "src/cs/workbench/services/files/common/fileConverterBackend";
-import type { IToastNotificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import {
+  INotificationService,
+  Severity,
+  type INotificationHandle,
+} from "src/cs/workbench/services/notification/common/notificationService";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import { WorkspaceWatcher } from "src/cs/workbench/services/workspaces/browser/workspaceWatcher";
@@ -65,7 +69,7 @@ import {
   ADD_WORKSPACE_FOLDER_COMMAND_ID,
   createWorkspaceSourcePathKey,
   hasWorkspaceExternalChanges,
-  WORKSPACE_EXTERNAL_CHANGES_TOAST_ID,
+  WORKSPACE_EXTERNAL_CHANGES_NOTIFICATION_ID,
   type WorkspaceExternalChanges,
 } from "src/cs/workbench/services/workspaces/common/workspaces";
 
@@ -200,7 +204,7 @@ export type FileSourceWorkflowOptions = {
   readonly getFiles: () => readonly ExplorerFileEntry[];
   readonly getSelectedRelativePath: () => string | null;
   readonly isDisposed: () => boolean;
-  readonly notificationService: IToastNotificationService;
+  readonly notificationService: INotificationService;
   readonly onAppendPreparedFiles: (preparedFiles: readonly PreparedFileImport[]) => void;
   readonly onAppendPendingSourceFiles?: (pendingFiles: readonly PendingImportFile[]) => void;
   readonly onClearPendingSourceFiles?: () => void;
@@ -261,17 +265,17 @@ export const getFolderImportSupportForFileService = (
 
 export const canImportFolderWithFileService = (
   filesService: IFileService,
-  notificationService: IToastNotificationService,
+  notificationService: INotificationService,
 ): boolean => {
   const support = getFolderImportSupportForFileService(filesService);
   if (support.supported) {
     return true;
   }
 
-  notificationService.showToast({
+  notificationService.notify({
     id: "files.importFolderUnsupported",
     message: getFolderImportUnsupportedMessage(support),
-    type: "warning",
+    severity: Severity.Warning,
   });
   return false;
 };
@@ -285,6 +289,8 @@ export class FileSourceWorkflow implements IDisposable {
   private folderRefreshRunId = 0;
   private pendingExternalFolder: URI | null = null;
   private pendingExternalChanges: WorkspaceExternalChanges | null = null;
+  private externalChangesNotification: INotificationHandle | null = null;
+  private importErrorNotification: INotificationHandle | null = null;
   private readonly excludedSourcePaths = new Set<string>();
 
   constructor(
@@ -296,9 +302,9 @@ export class FileSourceWorkflow implements IDisposable {
   }
 
   public dispose(): void {
-    this.options.notificationService.disposeToast(IMPORT_ERROR_TOAST_ID);
+    this.clearImportError();
     this.folderWatcher.dispose();
-    this.options.notificationService.disposeToast(WORKSPACE_EXTERNAL_CHANGES_TOAST_ID);
+    this.clearExternalChanges();
   }
 
   public closeImportedSources(): void {
@@ -657,16 +663,27 @@ export class FileSourceWorkflow implements IDisposable {
   private clearExternalChanges(): void {
     this.pendingExternalFolder = null;
     this.pendingExternalChanges = null;
-    this.options.notificationService.hideToast(WORKSPACE_EXTERNAL_CHANGES_TOAST_ID);
+    const notification = this.externalChangesNotification;
+    this.externalChangesNotification = null;
+    notification?.close();
   }
 
   private showExternalChanges(changes: WorkspaceExternalChanges): void {
-    this.options.notificationService.showToast({
-      actions: this.createExternalChangesActions(),
-      duration: Number.POSITIVE_INFINITY,
-      id: WORKSPACE_EXTERNAL_CHANGES_TOAST_ID,
+    this.externalChangesNotification?.close();
+    const notification = this.options.notificationService.notify({
+      actions: {
+        primary: this.createExternalChangesActions(),
+      },
+      id: WORKSPACE_EXTERNAL_CHANGES_NOTIFICATION_ID,
       message: formatExternalChangesMessage(changes),
-      type: "info",
+      severity: Severity.Info,
+      sticky: true,
+    });
+    this.externalChangesNotification = notification;
+    notification.onDidClose(() => {
+      if (this.externalChangesNotification === notification) {
+        this.externalChangesNotification = null;
+      }
     });
   }
 
@@ -888,20 +905,31 @@ export class FileSourceWorkflow implements IDisposable {
   }
 
   private showImportError(message: string): void {
-    this.options.notificationService.showToast({
-      className: "conductor-toast--import-error",
-      dataUi: "analysis-import-error-toast",
-      duration: Number.POSITIVE_INFINITY,
-      id: IMPORT_ERROR_TOAST_ID,
+    this.importErrorNotification?.close();
+    const notification = this.options.notificationService.notify({
+      id: IMPORT_ERROR_NOTIFICATION_ID,
       message,
-      onClose: () => this.clearImportError(),
-      position: "fixed",
-      type: "error",
+      presentation: {
+        className: "conductor-toast--import-error",
+        dataUi: "analysis-import-error-toast",
+        position: "fixed",
+      },
+      severity: Severity.Error,
+      sticky: true,
+    });
+    this.importErrorNotification = notification;
+    notification.onDidClose(() => {
+      if (this.importErrorNotification === notification) {
+        this.importErrorNotification = null;
+        this.options.syncView();
+      }
     });
   }
 
   private clearImportError(): void {
-    this.options.notificationService.hideToast(IMPORT_ERROR_TOAST_ID);
+    const notification = this.importErrorNotification;
+    this.importErrorNotification = null;
+    notification?.close();
   }
 }
 

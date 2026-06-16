@@ -94,10 +94,7 @@ import {
 import type {
   ProcessedEntry,
 } from "src/cs/workbench/services/session/common/sessionTypes";
-import {
-  notificationService as legacyNotificationService,
-  type IToastNotificationService,
-} from "src/cs/workbench/services/notification/common/notificationService";
+import { NotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { NotificationToasts } from "src/cs/workbench/browser/parts/notifications/notificationsToasts";
 import { registerNotificationCommands } from "src/cs/workbench/browser/parts/notifications/notificationsCommands";
 
@@ -121,7 +118,7 @@ export type WorkbenchOptions = {
   readonly storageService?: IStorageService;
   readonly layoutService?: IWorkbenchLayoutService;
   readonly nativeHostService?: INativeHostService;
-  readonly notificationService?: IToastNotificationService;
+  readonly notificationService?: NotificationService;
   readonly parametersService?: IParametersService;
   readonly plotService?: IPlotService;
   readonly searchService?: ISearchService;
@@ -170,7 +167,7 @@ export class Workbench extends Layout {
   private readonly explorerService: IExplorerService;
   private readonly filesService: IFileService;
   private readonly layoutService: IWorkbenchLayoutService;
-  private readonly notificationService: IToastNotificationService;
+  private readonly notificationService: NotificationService;
   private readonly parametersService: IParametersService;
   private readonly plotService: IPlotService;
   private readonly searchService: ISearchService;
@@ -397,7 +394,7 @@ export class Workbench extends Layout {
 
     disposables.add(registerNotificationCommands(this.notifications, this.commandService));
 
-    const registerToastSource = (source: IToastNotificationService): void => {
+    const registerToastSource = (source: NotificationService): void => {
       for (const toast of source.toasts) {
         this.notifications.show(toast);
       }
@@ -421,9 +418,6 @@ export class Workbench extends Layout {
     };
 
     registerToastSource(this.notificationService);
-    if (legacyNotificationService !== this.notificationService) {
-      registerToastSource(legacyNotificationService);
-    }
 
     return disposables;
   }

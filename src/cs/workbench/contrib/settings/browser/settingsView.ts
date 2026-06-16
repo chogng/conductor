@@ -12,9 +12,7 @@ import type { LanguagePreference } from "src/cs/base/common/platform";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type {
   Feedback,
-  NotificationToastState,
 } from "src/cs/workbench/contrib/settings/common/feedback";
-import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import "src/cs/base/browser/ui/inputbox/inputBox.css";
 import "src/cs/workbench/contrib/settings/browser/media/settingsView.css";
 
@@ -138,13 +136,9 @@ export type SettingsViewOptions = SettingsViewProps & {
   cleanupEnabledOptions: SelectOption[];
   cleanupFailedDaysOptions: SelectOption[];
   cleanupKeepSuccessOptions: SelectOption[];
-  cleanupToast: NotificationToastState;
-  closeCleanupToast: () => void;
-  closeOriginHealthToast: () => void;
   fileNameFieldSeparatorsDraft: string;
   handleCheckForUpdates: () => void;
   originLegendFontSizeDraft: string;
-  originHealthToast: NotificationToastState;
   plotCommandDraft: string;
   postCommandsDraft: string;
   setActiveSettingsSection: (section: SettingsSectionId) => void;
@@ -191,9 +185,6 @@ type TextInputOptions = {
   value: string;
 };
 
-const ORIGIN_HEALTH_TOAST_ID = "settings.originHealth";
-const CLEANUP_TOAST_ID = "settings.cleanup";
-
 export class SettingsView {
   private readonly renderDisposables = new DisposableStore();
   private readonly root: HTMLElement;
@@ -217,7 +208,6 @@ export class SettingsView {
     if (canPatchTransparentChromeSwitch(this.options, options)) {
       this.options = options;
       this.patchTransparentChromeSwitch(options.appearanceSettings);
-      this.updateToasts();
       return;
     }
 
@@ -229,8 +219,6 @@ export class SettingsView {
   dispose(): void {
     this.renderDisposables.dispose();
     this.contentScroll.dispose();
-    notificationService.disposeToast(ORIGIN_HEALTH_TOAST_ID);
-    notificationService.disposeToast(CLEANUP_TOAST_ID);
     this.root.remove();
   }
 
@@ -240,7 +228,6 @@ export class SettingsView {
     reset(this.root);
     this.root.appendChild(this.createLayout());
     queueMicrotask(() => this.contentScroll.layout());
-    this.updateToasts();
   }
 
   private createLayout(): HTMLElement {
@@ -841,26 +828,6 @@ export class SettingsView {
     return button;
   }
 
-  private updateToasts(): void {
-    this.updateToast(ORIGIN_HEALTH_TOAST_ID, this.options.originHealthToast, "settings-origin-health-toast", this.options.closeOriginHealthToast);
-    this.updateToast(CLEANUP_TOAST_ID, this.options.cleanupToast, "settings-origin-cleanup-toast", this.options.closeCleanupToast);
-  }
-
-  private updateToast(id: string, state: NotificationToastState, dataUi: string, onClose: () => void): void {
-    if (!state.isVisible) {
-      notificationService.hideToast(id);
-      return;
-    }
-
-    notificationService.showToast({
-      dataUi,
-      id,
-      message: state.message,
-      onClose,
-      position: "fixed",
-      type: state.type,
-    });
-  }
 }
 
 function div(className: string, ...children: Array<Node | string>): HTMLDivElement {

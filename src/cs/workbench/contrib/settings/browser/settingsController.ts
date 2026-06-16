@@ -11,7 +11,7 @@ import { normalizeFileNameFieldSeparators } from "src/cs/workbench/services/temp
 import {
   IDLE_FEEDBACK,
   type Feedback,
-  type NotificationToastState,
+  type NotificationFeedbackState,
 } from "src/cs/workbench/contrib/settings/common/feedback";
 import {
   SettingsView,
@@ -36,6 +36,11 @@ import {
   normalizeWorkbenchAppearance,
   ThemeCommandId,
 } from "src/cs/workbench/services/themes/common/themeService";
+import {
+  Severity,
+  type INotificationHandle,
+  type INotificationService,
+} from "src/cs/workbench/services/notification/common/notificationService";
 
 type SettingsControllerOptions = SettingsViewInput;
 
@@ -48,15 +53,18 @@ type SettingsDraftState = {
   activeSettingsSection: SettingsSectionId;
   appUpdateChecking: boolean;
   axisTitleFontSizeDraft: string;
-  cleanupToast: NotificationToastState;
+  cleanupNotification: NotificationFeedbackState;
   fileNameFieldSeparatorsDraft: string;
   originLegendFontSizeDraft: string;
-  originHealthToast: NotificationToastState;
+  originHealthNotification: NotificationFeedbackState;
   plotCommandDraft: string;
   postCommandsDraft: string;
   tickLabelFontSizeDraft: string;
   xyPairsDraft: string;
 };
+
+const ORIGIN_HEALTH_NOTIFICATION_ID = "settings.originHealth";
+const CLEANUP_NOTIFICATION_ID = "settings.cleanup";
 
 export class SettingsController {
   private readonly service: ISettingsService;
@@ -79,6 +87,10 @@ export class SettingsController {
   private defaultsFeedback: Feedback = IDLE_FEEDBACK;
   private appearanceSaving = false;
   private windowCloseSaving = false;
+  private cleanupNotificationSignature: string | null = null;
+  private originHealthNotificationSignature: string | null = null;
+  private cleanupNotification: INotificationHandle | null = null;
+  private originHealthNotification: INotificationHandle | null = null;
   private drafts: SettingsDraftState;
   private options: SettingsControllerOptions;
 
@@ -87,6 +99,7 @@ export class SettingsController {
     options: SettingsControllerOptions,
     service: ISettingsService,
     private readonly commandService: ICommandService,
+    private readonly notificationService: INotificationService,
   ) {
     this.options = options;
     this.service = service;
@@ -107,6 +120,8 @@ export class SettingsController {
 
   dispose(): void {
     this.disposed = true;
+    this.originHealthNotification?.close();
+    this.cleanupNotification?.close();
     this.view.dispose();
   }
 
@@ -116,10 +131,10 @@ export class SettingsController {
       activeSettingsSection: "general",
       appUpdateChecking: false,
       axisTitleFontSizeDraft: String(axisSettings.axisTitleFontSize ?? ""),
-      cleanupToast: { isVisible: false, message: "", type: "success" },
+      cleanupNotification: { isVisible: false, message: "", type: "success" },
       fileNameFieldSeparatorsDraft: this.fileNameFieldSeparators,
       originLegendFontSizeDraft: String(this.originPlotConfig.legendFontSize ?? ""),
-      originHealthToast: { isVisible: false, message: "", type: "success" },
+      originHealthNotification: { isVisible: false, message: "", type: "success" },
       plotCommandDraft: this.originPlotConfig.command ?? "",
       postCommandsDraft: originPostCommandsToMultiline(this.originPlotConfig.postCommands),
       tickLabelFontSizeDraft: String(axisSettings.tickLabelFontSize ?? ""),
@@ -143,11 +158,11 @@ export class SettingsController {
   }
 
   private syncOriginFeedback(): void {
-    this.showToastFromFeedback(this.options.conductorSettings ? this.originPathFeedback : IDLE_FEEDBACK, "originHealthToast");
-    this.showToastFromFeedback(this.originCleanupFeedback, "cleanupToast");
+    this.showNotificationFromFeedback(this.options.conductorSettings ? this.originPathFeedback : IDLE_FEEDBACK, "originHealthNotification");
+    this.showNotificationFromFeedback(this.originCleanupFeedback, "cleanupNotification");
   }
 
-  private showToastFromFeedback(feedback: Feedback, key: "originHealthToast" | "cleanupToast"): void {
+  private showNotificationFromFeedback(feedback: Feedback, key: "originHealthNotification" | "cleanupNotification"): void {
     if (!feedback.message || feedback.type === "idle") {
       this.drafts[key] = { ...this.drafts[key], isVisible: false };
       return;
@@ -218,7 +233,97 @@ export class SettingsController {
     if (this.disposed) {
       return;
     }
+    this.updateNotifications();
     this.view.update(this.createViewOptions());
+  }
+
+  private updateNotifications(): void {
+    this.updateNotification(ORIGIN_HEALTH_NOTIFICATION_ID, this.drafts.originHealthNotification, "settings-origin-health-notification", () => this.closeOriginHealthNotification());
+    this.updateNotification(CLEANUP_NOTIFICATION_ID, this.drafts.cleanupNotification, "settings-origin-cleanup-notification", () => this.closeCleanupNotification());
+  }
+
+  private updateNotification(id: string, state: NotificationFeedbackState, dataUi: string, onClose: () => void): void {
+    const currentNotification = id === ORIGIN_HEALTH_NOTIFICATION_ID
+      ? this.originHealthNotification
+      : this.cleanupNotification;
+
+    if (!state.isVisible) {
+      this.setNotificationHandle(id, null);
+      this.setNotificationSignature(id, null);
+      currentNotification?.close();
+      return;
+    }
+
+    const nextSignature = `${state.message}\u0000${state.type}\u0000${dataUi}`;
+    if (currentNotification && this.getNotificationSignature(id) === nextSignature) {
+      return;
+    }
+
+    if (currentNotification) {
+      this.setNotificationHandle(id, null);
+      this.setNotificationSignature(id, null);
+      currentNotification.close();
+    }
+
+    const notification = this.notificationService.notify({
+      id,
+      message: state.message,
+      presentation: {
+        dataUi,
+        position: "fixed",
+        type: state.type,
+      },
+      severity: state.type === "error" ? Severity.Error : Severity.Info,
+    });
+    this.setNotificationHandle(id, notification);
+    this.setNotificationSignature(id, nextSignature);
+    notification.onDidClose(() => {
+      if (this.getNotificationHandle(id) === notification) {
+        this.setNotificationHandle(id, null);
+        this.setNotificationSignature(id, null);
+        onClose();
+      }
+    });
+  }
+
+  private getNotificationHandle(id: string): INotificationHandle | null {
+    return id === ORIGIN_HEALTH_NOTIFICATION_ID
+      ? this.originHealthNotification
+      : this.cleanupNotification;
+  }
+
+  private setNotificationHandle(id: string, notification: INotificationHandle | null): void {
+    if (id === ORIGIN_HEALTH_NOTIFICATION_ID) {
+      this.originHealthNotification = notification;
+      return;
+    }
+    this.cleanupNotification = notification;
+  }
+
+  private getNotificationSignature(id: string): string | null {
+    return id === ORIGIN_HEALTH_NOTIFICATION_ID
+      ? this.originHealthNotificationSignature
+      : this.cleanupNotificationSignature;
+  }
+
+  private setNotificationSignature(id: string, signature: string | null): void {
+    if (id === ORIGIN_HEALTH_NOTIFICATION_ID) {
+      this.originHealthNotificationSignature = signature;
+      return;
+    }
+    this.cleanupNotificationSignature = signature;
+  }
+
+  private closeCleanupNotification(): void {
+    this.originCleanupFeedback = IDLE_FEEDBACK;
+    this.drafts.cleanupNotification = { ...this.drafts.cleanupNotification, isVisible: false };
+    this.render();
+  }
+
+  private closeOriginHealthNotification(): void {
+    this.originPathFeedback = IDLE_FEEDBACK;
+    this.drafts.originHealthNotification = { ...this.drafts.originHealthNotification, isVisible: false };
+    this.render();
   }
 
   private createViewOptions(): SettingsViewOptions {
@@ -232,17 +337,6 @@ export class SettingsController {
       cleanupEnabledOptions: this.cleanupEnabledOptions,
       cleanupFailedDaysOptions: this.cleanupFailedDaysOptions,
       cleanupKeepSuccessOptions: this.cleanupKeepSuccessOptions,
-      cleanupToast: this.drafts.cleanupToast,
-      closeCleanupToast: () => {
-        this.originCleanupFeedback = IDLE_FEEDBACK;
-        this.drafts.cleanupToast = { ...this.drafts.cleanupToast, isVisible: false };
-        this.render();
-      },
-      closeOriginHealthToast: () => {
-        this.originPathFeedback = IDLE_FEEDBACK;
-        this.drafts.originHealthToast = { ...this.drafts.originHealthToast, isVisible: false };
-        this.render();
-      },
       fileNameFieldSeparatorsDraft: this.drafts.fileNameFieldSeparatorsDraft,
       fileNameMatchingSettings: this.fileNameMatchingSettings,
       handleCheckForUpdates: () => void this.checkForUpdates(),
@@ -260,7 +354,6 @@ export class SettingsController {
       onThemeChange: theme => {
         void this.commandService.executeCommand(ThemeCommandId.setTheme, theme);
       },
-      originHealthToast: this.drafts.originHealthToast,
       originSettings: this.originSettings,
       plotCommandDraft: this.drafts.plotCommandDraft,
       postCommandsDraft: this.drafts.postCommandsDraft,

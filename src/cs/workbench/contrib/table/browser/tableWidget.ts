@@ -2491,8 +2491,6 @@ export class TableWidget {
   }
 }
 
-export type TableWidgetZoomController = Pick<TableWidget, "resetZoom" | "zoomIn" | "zoomOut">;
-
 const toggleSelectedColumn = (
   selection: TableSelection,
   colIndex: number,

@@ -8,6 +8,7 @@ import {
   type SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
 import { ICommandService } from "src/cs/platform/commands/common/commands";
+import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
 export class SettingsViewPane extends ViewPane {
   private controller: SettingsController | null = null;
@@ -15,6 +16,7 @@ export class SettingsViewPane extends ViewPane {
   constructor(
     @ISettingsService private readonly settingsService: ISettingsServiceType,
     @ICommandService private readonly commandService: ICommandService,
+    @INotificationService private readonly notificationService: INotificationService,
   ) {
     super({
       id: SettingsViewId,
@@ -45,6 +47,7 @@ export class SettingsViewPane extends ViewPane {
       options,
       this.settingsService,
       this.commandService,
+      this.notificationService,
     );
   }
 

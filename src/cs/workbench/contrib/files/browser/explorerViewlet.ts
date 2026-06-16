@@ -63,10 +63,7 @@ import {
   ITemplateService,
   type TemplateRecord,
 } from "src/cs/workbench/services/template/common/template";
-import {
-  INotificationService,
-  type IToastNotificationService,
-} from "src/cs/workbench/services/notification/common/notificationService";
+import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
 import "src/cs/workbench/contrib/files/browser/views/media/explorerViewlet.css";
 
@@ -97,7 +94,7 @@ export class ExplorerViewPane extends ViewPane {
     @IFileConverterBackendService private readonly fileConverterBackendService: FileConverterBackend,
     @IFileService private readonly filesService: IFileService,
     @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-    @INotificationService private readonly notificationService: IToastNotificationService,
+    @INotificationService private readonly notificationService: INotificationService,
     @ISessionService private readonly sessionService: ISessionService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @ITemplateService private readonly templateService: ITemplateService,

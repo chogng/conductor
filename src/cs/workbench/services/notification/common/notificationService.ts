@@ -1,5 +1,5 @@
 import type { IAction } from "src/cs/base/common/actions";
-import { Emitter, Event, type Event as BaseEvent } from "src/cs/base/common/event";
+import { Emitter, Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
@@ -18,7 +18,10 @@ import {
   type IPromptOptions,
   type IStatusHandle,
   type IStatusMessageOptions,
+  type INotificationPresentationOptions,
   type NotificationMessage,
+  type NotificationPresentationPosition,
+  type NotificationPresentationType,
   type NotificationsFilter,
 } from "src/cs/platform/notification/common/notification";
 
@@ -37,6 +40,7 @@ export {
   type INotificationProgress,
   type INotificationProgressProperties,
   type INotificationProperties,
+  type INotificationPresentationOptions,
   type INotificationSource,
   type INotificationSourceFilter,
   type IPromptChoice,
@@ -46,12 +50,13 @@ export {
   type IStatusMessageOptions,
   NeverShowAgainScope,
   type NotificationMessage,
+  type NotificationPresentationType,
 } from "src/cs/platform/notification/common/notification";
 
 export const DEFAULT_NOTIFICATION_TOAST_ID = "workbench.notificationToast";
 
-export type NotificationToastType = "success" | "error" | "warning" | "info";
-export type NotificationToastPosition = "absolute" | "fixed";
+export type NotificationToastType = NotificationPresentationType;
+export type NotificationToastPosition = NotificationPresentationPosition;
 
 export type NotificationToastOptions = {
   readonly actions?: readonly IAction[];
@@ -71,16 +76,6 @@ export type NotificationToastEvent =
   | { readonly kind: "dispose"; readonly id?: string }
   | { readonly kind: "disposeAll" };
 
-export interface IToastNotificationService extends INotificationService {
-  readonly toasts: readonly NotificationToastOptions[];
-  readonly onDidChangeToast: BaseEvent<NotificationToastEvent>;
-
-  showToast(options: NotificationToastOptions): void;
-  hideToast(id?: string): void;
-  disposeToast(id?: string): void;
-  disposeToasts(): void;
-}
-
 class ToastNotificationHandle implements INotificationHandle {
   private readonly onDidCloseEmitter = new Emitter<void>();
   private readonly onDidChangeVisibilityEmitter = new Emitter<boolean>();
@@ -99,25 +94,25 @@ class ToastNotificationHandle implements INotificationHandle {
   public updateSeverity(severity: Severity): void {
     if (this.isClosed) return;
     this.notification = { ...this.notification, severity };
-    this.service.showNotification(this.id, this.notification);
+    this.service.showNotification(this.id, this.notification, () => this.close());
   }
 
   public updateMessage(message: NotificationMessage): void {
     if (this.isClosed) return;
     this.notification = { ...this.notification, message };
-    this.service.showNotification(this.id, this.notification);
+    this.service.showNotification(this.id, this.notification, () => this.close());
   }
 
   public updateActions(actions?: INotificationActions): void {
     if (this.isClosed) return;
     this.notification = { ...this.notification, actions };
-    this.service.showNotification(this.id, this.notification);
+    this.service.showNotification(this.id, this.notification, () => this.close());
   }
 
   public close(): void {
     if (this.isClosed) return;
     this.isClosed = true;
-    this.service.disposeToast(this.id);
+    this.service.closeNotification(this.id);
     this.onDidChangeVisibilityEmitter.fire(false);
     this.onDidCloseEmitter.fire();
     this.onDidCloseEmitter.dispose();
@@ -125,7 +120,7 @@ class ToastNotificationHandle implements INotificationHandle {
   }
 }
 
-export class NotificationService extends Disposable implements IToastNotificationService {
+export class NotificationService extends Disposable implements INotificationService {
   public declare readonly _serviceBrand: undefined;
 
   public readonly onDidChangeFilter = Event.None as Event<void>;
@@ -152,8 +147,9 @@ export class NotificationService extends Disposable implements IToastNotificatio
 
   public notify(notification: INotification): INotificationHandle {
     const id = notification.id ?? DEFAULT_NOTIFICATION_TOAST_ID;
-    this.showNotification(id, notification);
-    return new ToastNotificationHandle(this, id, notification);
+    const handle = new ToastNotificationHandle(this, id, notification);
+    this.showNotification(id, notification, () => handle.close());
+    return handle;
   }
 
   public info(message: NotificationMessage | NotificationMessage[]): void {
@@ -200,6 +196,7 @@ export class NotificationService extends Disposable implements IToastNotificatio
   public status(message: NotificationMessage, options?: IStatusMessageOptions): IStatusHandle {
     const id = "workbench.notificationStatus";
     let isClosed = false;
+    let handle: INotificationHandle | undefined;
     let showTimer: ReturnType<typeof setTimeout> | undefined;
     let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -208,16 +205,19 @@ export class NotificationService extends Disposable implements IToastNotificatio
       isClosed = true;
       if (showTimer) clearTimeout(showTimer);
       if (hideTimer) clearTimeout(hideTimer);
-      this.hideToast(id);
+      handle?.close();
     };
     this._register({ dispose: close });
 
     const show = (): void => {
       if (isClosed) return;
-      this.showToast({
+      handle = this.notify({
         id,
+        severity: Severity.Info,
         message: getNotificationMessage(message),
-        type: "info",
+        presentation: {
+          type: "info",
+        },
       });
       if (typeof options?.hideAfter === "number") {
         hideTimer = setTimeout(close, options.hideAfter);
@@ -233,33 +233,31 @@ export class NotificationService extends Disposable implements IToastNotificatio
     return { close };
   }
 
-  public showToast(options: NotificationToastOptions): void {
-    this.toastOptions.set(options.id ?? DEFAULT_NOTIFICATION_TOAST_ID, options);
-    this.onDidChangeToastEmitter.fire({ kind: "show", options });
-  }
-
-  public hideToast(id?: string): void {
-    this.toastOptions.delete(id ?? DEFAULT_NOTIFICATION_TOAST_ID);
-    this.onDidChangeToastEmitter.fire({ kind: "hide", id });
-  }
-
-  public disposeToast(id?: string): void {
+  public closeNotification(id?: string): void {
     this.toastOptions.delete(id ?? DEFAULT_NOTIFICATION_TOAST_ID);
     this.onDidChangeToastEmitter.fire({ kind: "dispose", id });
   }
 
-  public disposeToasts(): void {
+  public clearNotifications(): void {
     this.toastOptions.clear();
     this.onDidChangeToastEmitter.fire({ kind: "disposeAll" });
   }
 
-  public showNotification(id: string, notification: INotification): void {
+  private showToast(options: NotificationToastOptions): void {
+    this.toastOptions.set(options.id ?? DEFAULT_NOTIFICATION_TOAST_ID, options);
+    this.onDidChangeToastEmitter.fire({ kind: "show", options });
+  }
+
+  public showNotification(id: string, notification: INotification, onClose?: () => void): void {
+    const presentation = notification.presentation;
     this.showToast({
+      ...presentation,
       id,
       actions: notification.actions?.primary,
-      duration: notification.sticky ? Number.POSITIVE_INFINITY : undefined,
+      duration: notification.sticky ? Number.POSITIVE_INFINITY : presentation?.duration,
       message: getNotificationMessage(notification.message),
-      type: getToastType(notification.severity),
+      onClose,
+      type: getToastType(notification.severity, presentation),
     });
   }
 
@@ -288,13 +286,15 @@ export class NotificationService extends Disposable implements IToastNotificatio
 const getNotificationMessage = (message: NotificationMessage): string =>
   typeof message === "string" ? message : message.message;
 
-const getToastType = (severity: Severity): NotificationToastType => {
+const getToastType = (
+  severity: Severity,
+  presentation?: INotificationPresentationOptions,
+): NotificationToastType => {
+  if (presentation?.type) return presentation.type;
   if (severity === Severity.Error) return "error";
   if (severity === Severity.Warning) return "warning";
   if (severity === Severity.Info) return "info";
   return "info";
 };
-
-export const notificationService = new NotificationService();
 
 registerSingleton(PlatformNotificationService, NotificationService, InstantiationType.Delayed);

@@ -18,7 +18,11 @@ import {
   type OriginZipExportResult,
 } from "src/cs/workbench/services/origin/browser/originController";
 import { formatOriginBridgeError } from "src/cs/workbench/services/export/common/originBridgeError";
-import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import {
+  INotificationService,
+  Severity,
+  type NotificationPresentationType,
+} from "src/cs/workbench/services/notification/common/notificationService";
 
 export type OriginControllerOptions = {
   readonly buildCsvExportRequest: OriginCsvRequestBuilder;
@@ -27,6 +31,7 @@ export type OriginControllerOptions = {
   readonly originBusyRef: { current: boolean };
   readonly originChartXRange: OriginDisplayRange | null;
   readonly originChartYRange: (OriginDisplayRange & { mode: "linear" | "log" }) | null;
+  readonly notificationService: INotificationService;
   readonly originOpenPlotOptions: unknown;
 };
 
@@ -34,17 +39,27 @@ export type OpenInOriginOptions = Omit<OriginControllerOptions, "originBusyRef">
 export type ExportOriginZipOptions = {
   readonly buildCsvExportRequest: OriginCsvRequestBuilder;
   readonly buildPayloads: OriginPayloadBuilder;
+  readonly notificationService: INotificationService;
 };
 
-const showOriginToast = (message: string, type?: unknown): void => {
-  const toastType =
+const showOriginNotification = (
+  notificationService: INotificationService,
+  message: string,
+  type?: unknown,
+): void => {
+  const notificationType: NotificationPresentationType =
     type === "error" || type === "warning" || type === "info" || type === "success"
       ? type
       : "success";
-  notificationService.showToast({
+  notificationService.notify({
     id: "workbench.originExport",
     message,
-    type: toastType,
+    presentation: { type: notificationType },
+    severity: notificationType === "error"
+      ? Severity.Error
+      : notificationType === "warning"
+        ? Severity.Warning
+        : Severity.Info,
   });
 };
 
@@ -200,6 +215,7 @@ export const runOpenInOrigin = async ({
   originBusyRef,
   originChartXRange,
   originChartYRange,
+  notificationService,
   originOpenPlotOptions,
 }: OriginControllerOptions): Promise<void> => {
   if (originBusyRef.current) return;
@@ -238,13 +254,13 @@ export const runOpenInOrigin = async ({
     });
 
     const success = getOriginOpenSuccessMessage(result);
-    showOriginToast(success.message, success.type);
+    showOriginNotification(notificationService, success.message, success.type);
   } catch (err) {
     const detail = formatOriginBridgeError(err);
     const code = String(detail.code || "").trim().toUpperCase();
 
     if (detail.code === "ORIGIN_EXE_REQUIRED") {
-      showOriginToast(localize("origin.executable.required", "Please select Origin executable path first."), "error");
+      showOriginNotification(notificationService, localize("origin.executable.required", "Please select Origin executable path first."), "error");
     } else if (ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES.has(code)) {
       const fallbackReason = getFallbackReason(detail);
       try {
@@ -258,13 +274,14 @@ export const runOpenInOrigin = async ({
           fallback,
           fallbackReason,
         });
-        showOriginToast(success.message, success.type);
+        showOriginNotification(notificationService, success.message, success.type);
       } catch (fallbackErr) {
         const fallbackMessage =
           fallbackErr instanceof Error
             ? fallbackErr.message
             : String(fallbackErr ?? localize("common.unknownError", "Unknown error"));
-        showOriginToast(
+        showOriginNotification(
+          notificationService,
           localize("origin.open.fallbackZip.failed", "Auto open failed, and ZIP fallback export failed: {error}", {
             error: fallbackMessage,
           }),
@@ -272,7 +289,8 @@ export const runOpenInOrigin = async ({
         );
       }
     } else {
-      showOriginToast(
+      showOriginNotification(
+        notificationService,
         localize("origin.open.failed", "Failed to open in Origin: {error}", { error: detail.messageText }),
         "error",
       );
@@ -285,6 +303,7 @@ export const runOpenInOrigin = async ({
 export const runExportOriginZip = async ({
   buildCsvExportRequest,
   buildPayloads,
+  notificationService,
 }: ExportOriginZipOptions): Promise<void> => {
   try {
     const exported = await exportOriginZip({
@@ -294,10 +313,10 @@ export const runExportOriginZip = async ({
     if (!exported) return;
 
     const success = getOriginZipSuccessMessage(exported);
-    showOriginToast(success.message, success.type);
+    showOriginNotification(notificationService, success.message, success.type);
   } catch (err) {
     const message =
       err instanceof Error ? err.message : String(err ?? localize("common.unknownError", "Unknown error"));
-    showOriginToast(localize("origin.open.fallbackZip.failed", "Auto open failed, and ZIP fallback export failed: {error}", { error: message }), "error");
+    showOriginNotification(notificationService, localize("origin.open.fallbackZip.failed", "Auto open failed, and ZIP fallback export failed: {error}", { error: message }), "error");
   }
 };

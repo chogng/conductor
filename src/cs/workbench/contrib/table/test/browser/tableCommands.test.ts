@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { Event } from "src/cs/base/common/event";
 import {
 	isIMenuItem,
 	MenuId,
@@ -11,12 +12,17 @@ import {
 } from "src/cs/platform/actions/common/actions";
 import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
-import { registerTableCommands, setActiveTableZoomController } from "src/cs/workbench/contrib/table/browser/tableCommands";
+import { registerTableActions } from "src/cs/workbench/contrib/table/browser/tableActions";
+import {
+	ITableWidgetService,
+	TableWidgetService,
+	type ITableWidgetController,
+} from "src/cs/workbench/contrib/table/browser/tableWidgetService";
 import { TableCommandId } from "src/cs/workbench/contrib/table/common/table";
 
 suite("workbench/contrib/table/test/browser/tableCommands", () => {
 	test("table commands are command palette actions", () => {
-		const registration = registerTableCommands();
+		const registration = registerTableActions();
 
 		try {
 			const commandPaletteIds = getCommandPaletteIds();
@@ -30,16 +36,16 @@ suite("workbench/contrib/table/test/browser/tableCommands", () => {
 	});
 
 	test("zoom commands dispatch to the active table zoom controller", async () => {
-		const registration = registerTableCommands();
+		const registration = registerTableActions();
 		const calls: string[] = [];
-		const zoomControllerRegistration = setActiveTableZoomController({
-			resetZoom: () => calls.push("resetZoom") > 0,
-			zoomIn: () => calls.push("zoomIn") > 0,
-			zoomOut: () => calls.push("zoomOut") > 0,
-		});
+		const tableWidgetService = new TableWidgetService();
+		const zoomControllerRegistration = tableWidgetService.registerController(createTableWidgetController(calls));
 		const accessor = {
-			get: () => {
-				throw new Error("zoom commands must not resolve ITableService");
+			get: (serviceId: unknown) => {
+				if (serviceId === ITableWidgetService) {
+					return tableWidgetService;
+				}
+				throw new Error("zoom commands must resolve only ITableWidgetService");
 			},
 		} as unknown as ServicesAccessor;
 
@@ -50,10 +56,45 @@ suite("workbench/contrib/table/test/browser/tableCommands", () => {
 			assert.deepEqual(calls, ["zoomIn", "zoomOut", "resetZoom"]);
 		} finally {
 			zoomControllerRegistration.dispose();
+			tableWidgetService.dispose();
 			registration.dispose();
 		}
 	});
+
+	test("table widget service exposes the last registered active controller", () => {
+		const tableWidgetService = new TableWidgetService();
+		const first = createTableWidgetController([]);
+		const second = createTableWidgetController([]);
+
+		const firstRegistration = tableWidgetService.registerController(first);
+		assert.equal(tableWidgetService.activeController, first);
+
+		const duplicateRegistration = tableWidgetService.registerController(first);
+		duplicateRegistration.dispose();
+		assert.equal(tableWidgetService.activeController, first);
+
+		const secondRegistration = tableWidgetService.registerController(second);
+		assert.equal(tableWidgetService.activeController, second);
+
+		secondRegistration.dispose();
+		assert.equal(tableWidgetService.activeController, first);
+
+		firstRegistration.dispose();
+		assert.equal(tableWidgetService.activeController, null);
+		tableWidgetService.dispose();
+	});
 });
+
+function createTableWidgetController(calls: string[]): ITableWidgetController {
+	return {
+		onDidChangeZoom: Event.None as Event<number>,
+		focus: () => undefined,
+		getZoomPercent: () => 100,
+		resetZoom: () => calls.push("resetZoom") > 0,
+		zoomIn: () => calls.push("zoomIn") > 0,
+		zoomOut: () => calls.push("zoomOut") > 0,
+	};
+}
 
 function getCommandPaletteIds(): Set<string> {
 	return new Set(MenuRegistry.getMenuItems(MenuId.CommandPalette)

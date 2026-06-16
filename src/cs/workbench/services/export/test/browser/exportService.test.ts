@@ -17,6 +17,7 @@ import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 
 import { BrowserExportService } from "src/cs/workbench/services/export/browser/exportService";
+import { NotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
 suite("workbench/services/export/browser/exportService", () => {
 	test("owns export option state outside session", () => {
@@ -200,6 +201,7 @@ const createExportService = (
 		createSessionServiceStub(snapshot),
 		createSettingsServiceStub(),
 		createPlotServiceStub(legendLabelsByFileId),
+		new NotificationService(),
 	);
 
 const createSessionServiceStub = (snapshot: SessionSnapshot): ISessionService => ({
