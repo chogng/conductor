@@ -25,7 +25,14 @@ import {
   resolveActiveChartFileOption,
   resolveChartFileOptions,
 } from "src/cs/workbench/services/chart/common/chartFileOptions";
-import { createLegendPopover, getLegendContext, type LegendContext, type LegendPopover } from "src/cs/workbench/contrib/chart/browser/chartLegend";
+import {
+  createLegendPopover,
+  getLegendContext,
+  getLegendDefaultLabel,
+  resolveLegendLabelOverride,
+  type LegendContext,
+  type LegendPopover,
+} from "src/cs/workbench/contrib/chart/browser/chartLegend";
 import { toChartPanelProps } from "src/cs/workbench/contrib/chart/browser/chartPaneState";
 import { createChartUnitControls, type ChartUnitAxis, type ChartUnitControlState, type ChartYScale } from "src/cs/workbench/contrib/chart/browser/chartUnitControls";
 import {
@@ -467,13 +474,19 @@ export class ChartViewPane extends ViewPane {
     }
 
     this.editingLegendKey = null;
-    const series = context.seriesList.find((item) => item.id === legendKey);
+    const seriesIndex = context.seriesList.findIndex(item => item.id === legendKey);
+    const series = seriesIndex >= 0 ? context.seriesList[seriesIndex] : null;
     if (!series) {
       this.refreshLegendPopover();
       return;
     }
 
-    this.updateLegendLabel(context, legendKey, String(series.name ?? ""), nextLabel.trim());
+    this.updateLegendLabel(
+      context,
+      legendKey,
+      getLegendDefaultLabel(series, seriesIndex),
+      nextLabel,
+    );
   }
 
   private cancelLegendItemEdit(): void {
@@ -482,13 +495,11 @@ export class ChartViewPane extends ViewPane {
   }
 
   private updateLegendLabel(context: LegendContext, legendKey: string, defaultLabel: string, nextLabel: string): void {
-    if (nextLabel) {
-      this.plotService.setLegendLabel(
-        context.fileId,
-        legendKey,
-        nextLabel === defaultLabel ? null : nextLabel,
-      );
-    }
+    this.plotService.setLegendLabel(
+      context.fileId,
+      legendKey,
+      resolveLegendLabelOverride(nextLabel, defaultLabel),
+    );
     this.updateChartPanel(this.props);
     this.refreshLegendPopover();
   }

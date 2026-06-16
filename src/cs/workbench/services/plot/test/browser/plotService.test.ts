@@ -106,6 +106,19 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     assert.equal(restored?.chart.xAxisTitle, "Gate (V)");
   });
 
+  test("removes legend label override when label is reset", () => {
+    const service = new PlotService(
+      createSessionServiceStub(),
+      createSettingsServiceStub(),
+      new TestStorageService(),
+    );
+
+    service.setLegendLabel("file-a", "series-a", "Edited");
+    service.setLegendLabel("file-a", "series-a", null);
+
+    assert.deepEqual(service.getLegendLabels("file-a"), {});
+  });
+
   test("invalidates plot models only for plot-relevant session changes", () => {
     for (const reason of [
       "templateRunChanged",

@@ -1,6 +1,10 @@
 import assert from "assert";
 
-import { createLegendPopover } from "src/cs/workbench/contrib/chart/browser/chartLegend";
+import {
+  createLegendPopover,
+  getLegendDefaultLabel,
+  resolveLegendLabelOverride,
+} from "src/cs/workbench/contrib/chart/browser/chartLegend";
 import type { PlotMainSeries } from "src/cs/workbench/services/plot/common/plotModel";
 
 suite("workbench/contrib/chart/test/browser/chartLegend", () => {
@@ -61,6 +65,24 @@ suite("workbench/contrib/chart/test/browser/chartLegend", () => {
     legend.dispose();
 
     assert.equal(input.listenerCount, 0);
+  });
+
+  test("resolves empty legend edits as default-label reset", () => {
+    assert.deepEqual([
+      resolveLegendLabelOverride("", "Original"),
+      resolveLegendLabelOverride("   ", "Original"),
+      resolveLegendLabelOverride("Original", "Original"),
+      resolveLegendLabelOverride("  Edited  ", "Original"),
+    ], [
+      null,
+      null,
+      null,
+      "Edited",
+    ]);
+  });
+
+  test("uses fallback legend default label when series name is missing", () => {
+    assert.equal(getLegendDefaultLabel({ id: "series-a" } as PlotMainSeries, 0), "Series 1");
   });
 });
 

@@ -43,6 +43,26 @@ export const isSameLegendContext = (
   left.plotType === right.plotType &&
   left.seriesList === right.seriesList;
 
+export const getLegendDefaultLabel = (
+  series: PlotMainSeries,
+  index: number,
+): string =>
+  String(series.name ?? `Series ${index + 1}`);
+
+export const resolveLegendLabelOverride = (
+  nextLabel: unknown,
+  defaultLabel: string,
+): string | null => {
+  const normalized = String(nextLabel ?? "").trim();
+  const normalizedDefault = String(defaultLabel ?? "").trim();
+
+  if (!normalized || normalized === normalizedDefault) {
+    return null;
+  }
+
+  return normalized;
+};
+
 const renderLegend = (
   container: HTMLElement,
   store: DisposableStore,
@@ -64,7 +84,8 @@ const renderLegend = (
     row.className = "chart_legend_row";
     const legendKey = String(series.id ?? "");
     const isVisible = !hiddenLegendKeys.includes(legendKey);
-    const labelText = String(legendLabels[legendKey] ?? series.name ?? `Series ${index + 1}`);
+    const defaultLabel = getLegendDefaultLabel(series, index);
+    const labelText = String(legendLabels[legendKey] ?? defaultLabel);
     const isEditing = legendKey !== "" && legendKey === editingLegendKey;
     row.dataset.hidden = isVisible ? "false" : "true";
 
