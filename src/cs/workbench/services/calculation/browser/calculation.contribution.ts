@@ -13,10 +13,12 @@ import {
 import { CalculationContributionId } from "src/cs/workbench/services/calculation/common/calculation";
 import {
   ISessionService,
+  type CommitCurvesInput,
+  type CommitMetricsInput,
   type SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
-import type { FileId } from "src/cs/workbench/services/session/common/sessionModel";
+import type { FileId, FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
 
 export class CalculationContribution extends Disposable implements IWorkbenchContribution {
   private readonly inputSignaturesByFileId = new Map<FileId, string>();
@@ -50,44 +52,49 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
       return;
     }
 
-    const fileIds = getCalculationUpdateFileIds(event, snapshot);
-    for (const fileId of fileIds) {
-      this.updateFile(snapshot, fileId);
-    }
-  }
+    const filesById: Record<FileId, FileRecord> = {};
+    const fileIds: FileId[] = [];
+    for (const fileId of getCalculationUpdateFileIds(event, snapshot)) {
+      const file = snapshot.filesById[fileId];
+      if (!file) {
+        this.inputSignaturesByFileId.delete(fileId);
+        continue;
+      }
 
-  private updateFile(snapshot: SessionSnapshot, fileId: FileId): void {
-    const file = snapshot.filesById[fileId];
-    if (!file) {
-      this.inputSignaturesByFileId.delete(fileId);
+      const inputSignature = createCalculatedRecordsInputSignature(
+        { [fileId]: file },
+        [fileId],
+      );
+      if (inputSignature === this.inputSignaturesByFileId.get(fileId)) {
+        continue;
+      }
+
+      this.inputSignaturesByFileId.set(fileId, inputSignature);
+      filesById[fileId] = file;
+      fileIds.push(fileId);
+    }
+
+    if (!fileIds.length) {
       return;
     }
 
-    const filesById = { [fileId]: file };
-    const inputSignature = createCalculatedRecordsInputSignature(
-      filesById,
-      [fileId],
-    );
-    if (inputSignature === this.inputSignaturesByFileId.get(fileId)) {
-      return;
-    }
-
-    this.inputSignaturesByFileId.set(fileId, inputSignature);
     const { curvesByFileId, metricsByFileId } = createCalculatedRecordsByFile(
       filesById,
-      [fileId],
+      fileIds,
     );
-
-    this.sessionService.commitCurves({
+    const curveCommits: CommitCurvesInput[] = fileIds.map(fileId => ({
       fileId,
       curves: curvesByFileId[fileId] ?? [],
       replaceGenerations: ["derived", "secondDerived"],
-    });
-    this.sessionService.commitMetrics({
+    }));
+    const metricCommits: CommitMetricsInput[] = fileIds.map(fileId => ({
       fileId,
       metrics: metricsByFileId[fileId] ?? [],
       replace: true,
-    });
+    }));
+
+    this.sessionService.commitCurvesBatch(curveCommits);
+    this.sessionService.commitMetricsBatch(metricCommits);
   }
 
   private removeStaleSignatures(snapshot: SessionSnapshot): void {

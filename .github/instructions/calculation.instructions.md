@@ -57,8 +57,8 @@ flowchart TD
     Session[SessionSnapshot / FileRecord] --> Calculation[Calculation helpers]
     Calculation --> CurveRecords[CurveRecord[]]
     Calculation --> MetricRecords[MetricRecord[]]
-    CurveRecords --> SessionCommit[ISessionService.commitCurves]
-    MetricRecords --> MetricsCommit[ISessionService.commitMetrics]
+    CurveRecords --> SessionCommit[ISessionService.commitCurvesBatch]
+    MetricRecords --> MetricsCommit[ISessionService.commitMetricsBatch]
 ```
 
 `calculation.contribution.ts` is lifecycle glue. It may subscribe to session
@@ -90,20 +90,21 @@ sequenceDiagram
             Records->>Curves: createCalculatedCurveRecordsInputSignature(singleFileById, [fileId])
             Records->>Metrics: createCalculatedMetricRecordsInputSignature(singleFileById, [fileId])
             alt file signature changed
-            Contribution->>Records: createCalculatedRecordsByFile(singleFileById, [fileId])
-            Records->>Curves: createCalculatedCurveRecordsByFile(singleFileById, [fileId])
-            Curves-->>Records: CurveRecord[] by file
-            Records->>Metrics: createCalculatedMetricRecordsByFile(singleFileById, [fileId])
-            Metrics-->>Records: MetricRecord[] by file
-            Records-->>Contribution: curvesByFileId and metricsByFileId
-            Contribution->>Session: commitCurves({ replaceGenerations: ["derived", "secondDerived"] })
-            Session-->>Consumers: onDidChangeSession(curvesChanged)
-            Contribution->>Session: commitMetrics({ replace: true })
-            Session-->>Consumers: onDidChangeSession(metricsChanged)
+            Contribution->>Contribution: collect file for this update batch
         else signature unchanged
             Contribution-->>Contribution: no-op
         end
         end
+        Contribution->>Records: createCalculatedRecordsByFile(changedFilesById, changedFileIds)
+        Records->>Curves: createCalculatedCurveRecordsByFile(changedFilesById, changedFileIds)
+        Curves-->>Records: CurveRecord[] by file
+        Records->>Metrics: createCalculatedMetricRecordsByFile(changedFilesById, changedFileIds)
+        Metrics-->>Records: MetricRecord[] by file
+        Records-->>Contribution: curvesByFileId and metricsByFileId
+        Contribution->>Session: commitCurvesBatch({ replaceGenerations: ["derived", "secondDerived"] }[])
+        Session-->>Consumers: onDidChangeSession(curvesChanged)
+        Contribution->>Session: commitMetricsBatch({ replace: true }[])
+        Session-->>Consumers: onDidChangeSession(metricsChanged)
     else derived output or unrelated session event
         Contribution-->>Contribution: no-op
     end
@@ -126,8 +127,10 @@ Update triggers:
 Session boundary rules:
 
 - Calculation reads session facts only through `ISessionService.getSnapshot()`.
-- Calculation writes canonical results only through `commitCurves` and
-  `commitMetrics`.
+- Calculation writes canonical results only through `commitCurvesBatch` and
+  `commitMetricsBatch` after collecting all changed files for the current
+  session event. Single-file commit APIs may exist for lower-level callers, but
+  the contribution should avoid per-file session event fan-out.
 - `calculationRecordBuilder.ts` is the contribution-facing facade for
   calculated canonical record payloads. It delegates record-family details to
   focused builders and remains pure.

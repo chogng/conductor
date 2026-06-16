@@ -59,11 +59,15 @@ export type CommitTemplateOutputInput = {
   readonly curves: CommitCurvesInput;
 };
 
+export type CommitCurvesBatchInput = readonly CommitCurvesInput[];
+
 export type CommitMetricsInput = {
   readonly fileId: FileId;
   readonly metrics: readonly MetricRecord[];
   readonly replace?: boolean;
 };
+
+export type CommitMetricsBatchInput = readonly CommitMetricsInput[];
 
 export type SessionSnapshot = {
   readonly schemaVersion: 1;
@@ -89,9 +93,12 @@ export interface ISessionService {
   commitRawTableAssessment(assessment: RawTableAssessmentRecord): void;
   commitRawTableAssessments(assessments: readonly RawTableAssessmentRecord[]): void;
   commitTemplateOutput(input: CommitTemplateOutputInput): void;
+  commitTemplateOutputs(inputs: readonly CommitTemplateOutputInput[]): void;
   commitTemplateRun(input: CommitTemplateRunInput): void;
   commitCurves(input: CommitCurvesInput): void;
+  commitCurvesBatch(inputs: CommitCurvesBatchInput): void;
   commitMetrics(input: CommitMetricsInput): void;
+  commitMetricsBatch(inputs: CommitMetricsBatchInput): void;
   getSnapshot(): SessionSnapshot;
   renameFile(fileId: FileId, name: string): boolean;
   removeFiles(fileIds: readonly string[]): void;

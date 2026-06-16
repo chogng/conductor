@@ -29,7 +29,9 @@ import {
 import {
   ISessionService,
   type CommitFileImportResult,
+  type CommitCurvesBatchInput,
   type CommitCurvesInput,
+  type CommitMetricsBatchInput,
   type CommitMetricsInput,
   type CommitTemplateOutputInput,
   type CommitTemplateRunInput,
@@ -346,141 +348,171 @@ export class SessionService extends Disposable implements ISessionServiceType {
   };
 
   public commitTemplateOutput = (input: CommitTemplateOutputInput): void => {
-    const templateRunInput = getTemplateRunFromCommitInput(input.templateRun);
-    const templateRun = templateRunInput ? normalizeTemplateRunRecord(templateRunInput) : null;
-    const file = templateRun ? this.snapshot.filesById[templateRun.fileId] : undefined;
-    if (!templateRun || !file) {
-      return;
+    this.commitTemplateOutputs([input]);
+  };
+
+  public commitTemplateOutputs = (inputs: readonly CommitTemplateOutputInput[]): void => {
+    let nextFilesById = this.snapshot.filesById;
+    const committedFileIds: FileId[] = [];
+    const committedCurveKeys: SessionCurveKey[] = [];
+    const committedSeriesIds: string[] = [];
+
+    for (const input of Array.isArray(inputs) ? inputs : []) {
+      const templateRunInput = getTemplateRunFromCommitInput(input.templateRun);
+      const templateRun = templateRunInput ? normalizeTemplateRunRecord(templateRunInput) : null;
+      const file = templateRun ? nextFilesById[templateRun.fileId] : undefined;
+      if (!templateRun || !file) {
+        continue;
+      }
+
+      const payload = getTemplateRunCommitPayload(input.templateRun);
+      const current = file.templateRunsById[templateRun.id];
+      const fileName = payload?.fileName ? normalizeId(payload.fileName) : null;
+      let nextFile: FileRecord = {
+        ...file,
+        ...(payload && "calculationCache" in payload ? { calculationCache: payload.calculationCache } : {}),
+        ...(payload?.seriesById ? { seriesById: { ...payload.seriesById } } : {}),
+        ...(payload?.seriesOrder ? { seriesOrder: [...payload.seriesOrder] } : {}),
+        ...(fileName
+          ? {
+              name: fileName,
+              raw: {
+                ...file.raw,
+                fileName,
+              },
+            }
+          : {}),
+        templateRunsById: {
+          ...file.templateRunsById,
+          [templateRun.id]: templateRun,
+        },
+        latestTemplateRunId: templateRun.id,
+      };
+
+      const templateRunChanged =
+        current !== templateRun ||
+        file.latestTemplateRunId !== templateRun.id ||
+        Boolean(payload);
+      const curvesCommit = input.curves.fileId === templateRun.fileId
+        ? createCurvesFileCommit(nextFile, input.curves, templateRun.fileId)
+        : null;
+
+      if (!templateRunChanged && !curvesCommit) {
+        continue;
+      }
+
+      if (curvesCommit) {
+        nextFile = curvesCommit.file;
+      }
+
+      if (nextFilesById === this.snapshot.filesById) {
+        nextFilesById = { ...nextFilesById };
+      }
+      nextFilesById[templateRun.fileId] = nextFile;
+      committedFileIds.push(templateRun.fileId);
+      committedCurveKeys.push(...templateRun.outputCurveKeys, ...(curvesCommit?.curveKeys ?? []));
+      committedSeriesIds.push(...templateRun.outputSeriesIds, ...(curvesCommit?.seriesIds ?? []));
     }
 
-    const payload = getTemplateRunCommitPayload(input.templateRun);
-    const current = file.templateRunsById[templateRun.id];
-    const fileName = payload?.fileName ? normalizeId(payload.fileName) : null;
-    let nextFile: FileRecord = {
-      ...file,
-      ...(payload && "calculationCache" in payload ? { calculationCache: payload.calculationCache } : {}),
-      ...(payload?.seriesById ? { seriesById: { ...payload.seriesById } } : {}),
-      ...(payload?.seriesOrder ? { seriesOrder: [...payload.seriesOrder] } : {}),
-      ...(fileName
-        ? {
-            name: fileName,
-            raw: {
-              ...file.raw,
-              fileName,
-            },
-          }
-        : {}),
-      templateRunsById: {
-        ...file.templateRunsById,
-        [templateRun.id]: templateRun,
-      },
-      latestTemplateRunId: templateRun.id,
-    };
-
-    const templateRunChanged =
-      current !== templateRun ||
-      file.latestTemplateRunId !== templateRun.id ||
-      Boolean(payload);
-    const curvesCommit = input.curves.fileId === templateRun.fileId
-      ? createCurvesFileCommit(nextFile, input.curves, templateRun.fileId)
-      : null;
-
-    if (!templateRunChanged && !curvesCommit) {
+    if (nextFilesById === this.snapshot.filesById) {
       return;
-    }
-
-    if (curvesCommit) {
-      nextFile = curvesCommit.file;
     }
 
     this.replaceSnapshot({
       ...this.snapshot,
-      filesById: {
-        ...this.snapshot.filesById,
-        [templateRun.fileId]: nextFile,
-      },
+      filesById: nextFilesById,
     }, "templateRunChanged", {
-      curveKeys: uniqueStrings([
-        ...templateRun.outputCurveKeys,
-        ...(curvesCommit?.curveKeys ?? []),
-      ]),
-      fileIds: [templateRun.fileId],
-      seriesIds: uniqueStrings([
-        ...templateRun.outputSeriesIds,
-        ...(curvesCommit?.seriesIds ?? []),
-      ]),
+      curveKeys: uniqueStrings(committedCurveKeys),
+      fileIds: uniqueStrings(committedFileIds),
+      seriesIds: uniqueStrings(committedSeriesIds),
     });
   };
 
   public commitCurves = (input: CommitCurvesInput): void => {
-    const fileId = normalizeId(input.fileId);
-    const file = fileId ? this.snapshot.filesById[fileId] : undefined;
-    if (!file) {
-      return;
+    this.commitCurvesBatch([input]);
+  };
+
+  public commitCurvesBatch = (inputs: CommitCurvesBatchInput): void => {
+    let nextFilesById = this.snapshot.filesById;
+    const committedFileIds: FileId[] = [];
+    const committedCurveKeys: SessionCurveKey[] = [];
+    const committedSeriesIds: string[] = [];
+
+    for (const input of Array.isArray(inputs) ? inputs : []) {
+      const fileId = normalizeId(input.fileId);
+      const file = fileId ? nextFilesById[fileId] : undefined;
+      if (!file) {
+        continue;
+      }
+
+      const commit = createCurvesFileCommit(file, input, fileId);
+      if (!commit) {
+        continue;
+      }
+
+      if (nextFilesById === this.snapshot.filesById) {
+        nextFilesById = { ...nextFilesById };
+      }
+      nextFilesById[fileId] = commit.file;
+      committedFileIds.push(fileId);
+      committedCurveKeys.push(...commit.curveKeys);
+      committedSeriesIds.push(...commit.seriesIds);
     }
 
-    const commit = createCurvesFileCommit(file, input, fileId);
-    if (!commit) {
+    if (nextFilesById === this.snapshot.filesById) {
       return;
     }
 
     this.replaceSnapshot({
       ...this.snapshot,
-      filesById: {
-        ...this.snapshot.filesById,
-        [fileId]: commit.file,
-      },
+      filesById: nextFilesById,
     }, "curvesChanged", {
-      curveKeys: uniqueStrings(commit.curveKeys),
-      fileIds: [fileId],
-      seriesIds: uniqueStrings(commit.seriesIds),
+      curveKeys: uniqueStrings(committedCurveKeys),
+      fileIds: uniqueStrings(committedFileIds),
+      seriesIds: uniqueStrings(committedSeriesIds),
     });
   };
 
   public commitMetrics = (input: CommitMetricsInput): void => {
-    const fileId = normalizeId(input.fileId);
-    const file = fileId ? this.snapshot.filesById[fileId] : undefined;
-    if (!file) {
-      return;
-    }
+    this.commitMetricsBatch([input]);
+  };
 
-    let changed = Boolean(
-      input.replace &&
-        (Object.keys(file.metricsByKey).length > 0 || file.metricsBySeriesId),
-    );
-    const metricsByKey = input.replace ? {} : { ...file.metricsByKey };
-    const metricsBySeriesId = input.replace ? {} : cloneMetricsBySeriesId(file.metricsBySeriesId);
+  public commitMetricsBatch = (inputs: CommitMetricsBatchInput): void => {
+    let nextFilesById = this.snapshot.filesById;
+    const committedFileIds: FileId[] = [];
     const committedMetricKeys: MetricKey[] = [];
     const committedSeriesIds: string[] = [];
-    for (const metric of Array.isArray(input.metrics) ? input.metrics : []) {
-      if (metric.fileId !== fileId || !normalizeMetricKey(metric.key)) {
+
+    for (const input of Array.isArray(inputs) ? inputs : []) {
+      const fileId = normalizeId(input.fileId);
+      const file = fileId ? nextFilesById[fileId] : undefined;
+      if (!file) {
         continue;
       }
 
-      changed ||= metricsByKey[metric.key] !== metric;
-      metricsByKey[metric.key] = metric;
-      appendMetricKey(metricsBySeriesId, metric.seriesId, metric.key);
-      committedMetricKeys.push(metric.key);
-      committedSeriesIds.push(metric.seriesId);
+      const commit = createMetricsFileCommit(file, input, fileId);
+      if (!commit) {
+        continue;
+      }
+
+      if (nextFilesById === this.snapshot.filesById) {
+        nextFilesById = { ...nextFilesById };
+      }
+      nextFilesById[fileId] = commit.file;
+      committedFileIds.push(fileId);
+      committedMetricKeys.push(...commit.metricKeys);
+      committedSeriesIds.push(...commit.seriesIds);
     }
-    if (!changed) {
+
+    if (nextFilesById === this.snapshot.filesById) {
       return;
     }
 
     this.replaceSnapshot({
       ...this.snapshot,
-      filesById: {
-        ...this.snapshot.filesById,
-        [fileId]: {
-          ...file,
-          metricsByKey,
-          metricsBySeriesId: Object.keys(metricsBySeriesId).length
-            ? metricsBySeriesId
-            : undefined,
-        },
-      },
+      filesById: nextFilesById,
     }, "metricsChanged", {
-      fileIds: [fileId],
+      fileIds: uniqueStrings(committedFileIds),
       metricKeys: uniqueStrings(committedMetricKeys),
       seriesIds: uniqueStrings(committedSeriesIds),
     });
@@ -1097,6 +1129,51 @@ const createCurvesFileCommit = (
       ...file,
       curvesByKey,
     },
+    seriesIds: committedSeriesIds,
+  };
+};
+
+const createMetricsFileCommit = (
+  file: FileRecord,
+  input: CommitMetricsInput,
+  fileId: FileId,
+): {
+  readonly file: FileRecord;
+  readonly metricKeys: readonly MetricKey[];
+  readonly seriesIds: readonly string[];
+} | null => {
+  let changed = Boolean(
+    input.replace &&
+      (Object.keys(file.metricsByKey).length > 0 || file.metricsBySeriesId),
+  );
+  const metricsByKey = input.replace ? {} : { ...file.metricsByKey };
+  const metricsBySeriesId = input.replace ? {} : cloneMetricsBySeriesId(file.metricsBySeriesId);
+  const committedMetricKeys: MetricKey[] = [];
+  const committedSeriesIds: string[] = [];
+  for (const metric of Array.isArray(input.metrics) ? input.metrics : []) {
+    if (metric.fileId !== fileId || !normalizeMetricKey(metric.key)) {
+      continue;
+    }
+
+    changed ||= metricsByKey[metric.key] !== metric;
+    metricsByKey[metric.key] = metric;
+    appendMetricKey(metricsBySeriesId, metric.seriesId, metric.key);
+    committedMetricKeys.push(metric.key);
+    committedSeriesIds.push(metric.seriesId);
+  }
+  if (!changed) {
+    return null;
+  }
+
+  return {
+    file: {
+      ...file,
+      metricsByKey,
+      metricsBySeriesId: Object.keys(metricsBySeriesId).length
+        ? metricsBySeriesId
+        : undefined,
+    },
+    metricKeys: committedMetricKeys,
     seriesIds: committedSeriesIds,
   };
 };

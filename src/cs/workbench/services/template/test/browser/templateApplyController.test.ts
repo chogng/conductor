@@ -9,6 +9,7 @@ import {
   Event,
 } from "src/cs/base/common/event";
 import type {
+  CommitTemplateOutputInput,
   ISessionService,
   SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
@@ -223,6 +224,49 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     assert.deepEqual(queuedFileIds, []);
     controller.dispose();
   });
+
+  test("batches template output commits on the next turn", async () => {
+    const queuedFileIds: string[][] = [];
+    const committedBatches: CommitTemplateOutputInput[][] = [];
+    let snapshot = createTemplateOutputSnapshot(["file-a", "file-b"]);
+    const controller = new TemplateApplyController({
+      sessionService: createSessionService(undefined, {
+        commitTemplateOutputs: commits => {
+          committedBatches.push(commits);
+          snapshot = {
+            ...snapshot,
+            sessionVersion: snapshot.sessionVersion + 1,
+          };
+        },
+        getSnapshot: () => snapshot,
+      }),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds, [], {
+        commitProcessedEntries: true,
+      }),
+    });
+
+    controller.update({
+      processedFileIds: [],
+      rawFiles: [
+        createSessionFile("file-a"),
+        createSessionFile("file-b"),
+      ],
+    });
+    controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    });
+
+    assert.equal(committedBatches.length, 0);
+    await waitForTemplateOutputFlush();
+
+    assert.equal(committedBatches.length, 1);
+    assert.deepEqual(committedBatches[0].map(commit => commit.curves.fileId), ["file-a", "file-b"]);
+    controller.dispose();
+  });
 });
 
 const createSessionFile = (fileId: string) => ({
@@ -255,16 +299,19 @@ const createTableService = ({
 
 const createSessionService = (
   sessionEvents?: Emitter<SessionChangeEvent>,
+  overrides: Partial<Pick<
+    ISessionService,
+    | "commitTemplateOutputs"
+    | "getSnapshot"
+  >> = {},
 ): Pick<
   ISessionService,
-  | "commitCurves"
-  | "commitTemplateOutput"
+  | "commitTemplateOutputs"
   | "commitTemplateRun"
   | "getSnapshot"
   | "onDidChangeSession"
 > => ({
-  commitCurves: () => undefined,
-  commitTemplateOutput: () => undefined,
+  commitTemplateOutputs: () => undefined,
   commitTemplateRun: () => undefined,
   getSnapshot: (): SessionSnapshot => ({
     fileOrder: [],
@@ -273,12 +320,14 @@ const createSessionService = (
     sessionVersion: 1,
   }),
   onDidChangeSession: sessionEvents?.event ?? Event.None as Event<SessionChangeEvent>,
+  ...overrides,
 });
 
 const createTemplateApplyService = (
   queuedFileIds: string[][],
   startedJobs: ProcessingJobOptions[] = [],
   serviceOptions: {
+    readonly commitProcessedEntries?: boolean;
     readonly markProcessing?: boolean;
   } = {},
 ): ITemplateApplyService<
@@ -299,7 +348,51 @@ const createTemplateApplyService = (
         total: jobOptions.queue.length,
       });
     }
+    if (serviceOptions.commitProcessedEntries) {
+      for (const entry of jobOptions.queue) {
+        jobOptions.commitTemplateOutput({
+          curveType: "transfer",
+          fileId: entry.fileId,
+          fileName: entry.fileName,
+          series: [{
+            groupIndex: 0,
+            id: `${entry.fileId}-series`,
+            y: [1],
+          }],
+          xGroups: [[0]],
+        });
+      }
+    }
   },
   startRuleProcessingJob: () => undefined,
   terminateProcessingWorker: () => undefined,
 });
+
+const createTemplateOutputSnapshot = (fileIds: readonly string[]): SessionSnapshot => ({
+  fileOrder: [...fileIds],
+  filesById: Object.fromEntries(fileIds.map(fileId => [fileId, {
+    assessmentsByRawTableId: {},
+    curvesByKey: {},
+    id: fileId,
+    kind: "csv",
+    measurementBlockOrder: [],
+    measurementBlocksById: {},
+    metricsByKey: {},
+    name: `${fileId}.csv`,
+    raw: {
+      fileId,
+      fileName: `${fileId}.csv`,
+      tableOrder: [],
+      tablesById: {},
+    },
+    rawTableVersionsById: {},
+    seriesById: {},
+    seriesOrder: [],
+    templateRunsById: {},
+  }])),
+  schemaVersion: 1,
+  sessionVersion: 1,
+});
+
+const waitForTemplateOutputFlush = (): Promise<void> =>
+  new Promise(resolve => setTimeout(resolve, 0));

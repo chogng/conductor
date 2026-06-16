@@ -79,7 +79,7 @@ flowchart TD
     Config --> Planner
     Planner --> Worker[ITemplateApplyService]
     Worker --> Result[TemplateApplyResult]
-    Result --> Commit[ISessionService.commitTemplateOutput]
+    Result --> Commit[ISessionService.commitTemplateOutputs]
 ```
 
 ## Rules
@@ -102,7 +102,9 @@ flowchart TD
   source-existence callbacks, or table model methods through
   `TemplateApplyWorkflowInput`.
 - Template result records should include config fingerprint and source block ids.
-- Re-running a template replaces only affected template output.
+- Re-running a template replaces only affected template output. Completed file
+  outputs may be coalesced and committed through `commitTemplateOutputs(...)`
+  so one UI frame does not produce one session event per file.
 - Full apply must not start while another extraction job is running or while
   Explorer still has pending/preparing source rows from import. The workflow
   returns a warning instead of building a partial queue from only the files
@@ -134,7 +136,7 @@ template.apply command
   -> ITemplateService / ITemplateApplyService
   -> assessment blocks from SessionSnapshot
   -> TemplateRunRecord + curves/series
-  -> ISessionService commit
+  -> ISessionService commitTemplateOutput(s)
 ```
 
 The command/controller must not re-detect table structure.

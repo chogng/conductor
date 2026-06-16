@@ -155,9 +155,12 @@ function createSessionService(): ISessionService {
     commitRawTableAssessment: () => undefined,
     commitRawTableAssessments: () => undefined,
     commitTemplateOutput: () => undefined,
+    commitTemplateOutputs: () => undefined,
     commitTemplateRun: () => undefined,
     commitCurves: () => undefined,
+    commitCurvesBatch: () => undefined,
     commitMetrics: () => undefined,
+    commitMetricsBatch: () => undefined,
     getSnapshot: () => ({
       fileOrder: [],
       filesById: {},

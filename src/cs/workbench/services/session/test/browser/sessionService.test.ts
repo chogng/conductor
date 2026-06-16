@@ -477,6 +477,45 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     dispose.dispose();
   });
 
+  test("commits multiple template outputs through one session event", () => {
+    const session = new SessionService();
+    const events: SessionChangeEvent[] = [];
+    const dispose = session.onDidChangeSession(event => {
+      events.push(event);
+    });
+    commitRawFilesForTest(session, [
+      { fileId: "file-a", fileName: "Raw A.csv" },
+      { fileId: "file-b", fileName: "Raw B.csv" },
+    ]);
+    events.length = 0;
+
+    const first = createProcessedFileSessionCommit(session.getSnapshot(), {
+      fileId: "file-a",
+      fileName: "Processed A.csv",
+      curveType: "transfer",
+      xGroups: [[0]],
+      series: [{ id: "series-a", groupIndex: 0, y: [1] }],
+    });
+    const second = createProcessedFileSessionCommit(session.getSnapshot(), {
+      fileId: "file-b",
+      fileName: "Processed B.csv",
+      curveType: "transfer",
+      xGroups: [[0]],
+      series: [{ id: "series-b", groupIndex: 0, y: [2] }],
+    });
+    assert.ok(first);
+    assert.ok(second);
+
+    session.commitTemplateOutputs([first, second]);
+
+    assert.deepEqual(events.map(event => event.reason), ["templateRunChanged"]);
+    assert.deepEqual(events[0]?.fileIds, ["file-a", "file-b"]);
+    assert.deepEqual(events[0]?.seriesIds, ["series-a", "series-b"]);
+    assert.ok(events[0]?.curveKeys?.includes("base:iv:transfer:series-a"));
+    assert.ok(events[0]?.curveKeys?.includes("base:iv:transfer:series-b"));
+    dispose.dispose();
+  });
+
   test("clears template output through the template commit API", () => {
     const session = new SessionService();
 

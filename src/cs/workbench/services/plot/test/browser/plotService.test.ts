@@ -201,6 +201,34 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     assert.equal(displayModel?.chart.model.seriesList[0]?.name, "C");
   });
 
+  test("caches calculated data per file record and plot type", () => {
+    const service = new PlotService(
+      createSessionServiceStub(),
+      createSettingsServiceStub(),
+      new TestStorageService(),
+    );
+    const snapshot = createSnapshot();
+
+    const first = service.getCalculatedData({
+      fileId: "file-a",
+      plotType: "iv",
+      snapshot,
+    });
+    const second = service.getCalculatedData({
+      fileId: "file-a",
+      plotType: "iv",
+      snapshot,
+    });
+    const differentPlot = service.getCalculatedData({
+      fileId: "file-a",
+      plotType: "gm",
+      snapshot,
+    });
+
+    assert.equal(first, second);
+    assert.notEqual(first, differentPlot);
+  });
+
   test("owns axis title overrides by plot context", () => {
     const service = new PlotService(
       createSessionServiceStub(),
@@ -340,14 +368,17 @@ const createSessionServiceStub = (): ISessionService => ({
   clearMetricInput: () => undefined,
   clearSession: () => undefined,
   commitCurves: () => undefined,
+  commitCurvesBatch: () => undefined,
   commitFileImport: () => ({
     importedFileIds: [],
     skippedDuplicateFileIds: [],
   }),
   commitMetrics: () => undefined,
+  commitMetricsBatch: () => undefined,
   commitRawTableAssessment: () => undefined,
   commitRawTableAssessments: () => undefined,
   commitTemplateOutput: () => undefined,
+  commitTemplateOutputs: () => undefined,
   commitTemplateRun: () => undefined,
   getSnapshot: createSnapshot,
   renameFile: () => false,

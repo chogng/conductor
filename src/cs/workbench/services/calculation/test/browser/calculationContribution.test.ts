@@ -10,7 +10,9 @@ import {
   shouldUpdateCalculationForSessionChange,
 } from "src/cs/workbench/services/calculation/browser/calculation.contribution";
 import type {
+  CommitCurvesBatchInput,
   CommitCurvesInput,
+  CommitMetricsBatchInput,
   CommitMetricsInput,
   ISessionService,
   SessionSnapshot,
@@ -93,8 +95,8 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       "file-b": createFileRecord("file-b", "series-b", "base-b"),
     });
     const contribution = new CalculationContribution(createSessionServiceStub({
-      commitCurves: input => curveCommits.push(input),
-      commitMetrics: input => metricCommits.push(input),
+      commitCurvesBatch: input => curveCommits.push(...input),
+      commitMetricsBatch: input => metricCommits.push(...input),
       getSnapshot: () => snapshot,
       onDidChangeSession: sessionEvents.event,
     }));
@@ -118,28 +120,31 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
 });
 
 const createSessionServiceStub = ({
-  commitCurves,
-  commitMetrics,
+  commitCurvesBatch,
+  commitMetricsBatch,
   getSnapshot,
   onDidChangeSession,
 }: {
-  readonly commitCurves: (input: CommitCurvesInput) => void;
-  readonly commitMetrics: (input: CommitMetricsInput) => void;
+  readonly commitCurvesBatch: (input: CommitCurvesBatchInput) => void;
+  readonly commitMetricsBatch: (input: CommitMetricsBatchInput) => void;
   readonly getSnapshot: () => SessionSnapshot;
   readonly onDidChangeSession: Event<SessionChangeEvent>;
 }): ISessionService => ({
   _serviceBrand: undefined,
   clearMetricInput: () => undefined,
   clearSession: () => undefined,
-  commitCurves,
   commitFileImport: () => ({
     importedFileIds: [],
     skippedDuplicateFileIds: [],
   }),
-  commitMetrics,
+  commitCurves: () => undefined,
+  commitCurvesBatch,
+  commitMetrics: () => undefined,
+  commitMetricsBatch,
   commitRawTableAssessment: () => undefined,
   commitRawTableAssessments: () => undefined,
   commitTemplateOutput: () => undefined,
+  commitTemplateOutputs: () => undefined,
   commitTemplateRun: () => undefined,
   getSnapshot,
   onDidChangeSession,

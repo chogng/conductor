@@ -11,6 +11,7 @@ import {
   StorageTarget,
 } from "src/cs/platform/storage/common/storage";
 import {
+  createCalculatedDataForFileRecord,
   createSecondCalculatedData,
   getCalculatedDataFromRecords,
   type CalculatedData,
@@ -47,6 +48,7 @@ import {
 } from "src/cs/workbench/services/plot/common/units";
 import type {
   FileId,
+  FileRecord,
   SeriesId,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
@@ -78,6 +80,7 @@ export class PlotService extends Disposable implements IPlotService {
     activePlotType: "iv",
     legendLabelsByFileId: {},
   };
+  private readonly calculatedDataCacheByFile = new WeakMap<FileRecord, Partial<Record<PlotType, CalculatedData>>>();
 
   constructor(
     @ISessionService private readonly sessionService: ISessionService,
@@ -109,6 +112,11 @@ export class PlotService extends Disposable implements IPlotService {
     const plotType = input.plotType && isPlotType(input.plotType)
       ? input.plotType
       : this.state.activePlotType;
+    const file = resolveCalculatedDataFile(snapshot, input.fileId);
+    if (file) {
+      return this.getCalculatedDataForFileRecord(file, plotType);
+    }
+
     return getCalculatedDataFromRecords(
       snapshot.filesById,
       snapshot.fileOrder,
@@ -410,6 +418,21 @@ export class PlotService extends Disposable implements IPlotService {
     return this.state.axisTitleOverridesByKey[getAxisTitleStateKey(context)] ?? defaultTitle;
   }
 
+  private getCalculatedDataForFileRecord(file: FileRecord, plotType: PlotType): CalculatedData {
+    const cachedByPlotType = this.calculatedDataCacheByFile.get(file);
+    const cached = cachedByPlotType?.[plotType];
+    if (cached) {
+      return cached;
+    }
+
+    const calculatedData = createCalculatedDataForFileRecord({ file, plotType });
+    this.calculatedDataCacheByFile.set(file, {
+      ...cachedByPlotType,
+      [plotType]: calculatedData,
+    });
+    return calculatedData;
+  }
+
   private resolveSnapshot(snapshot: SessionSnapshot | undefined): SessionSnapshot | null {
     return snapshot ?? this.sessionService?.getSnapshot() ?? null;
   }
@@ -479,6 +502,46 @@ export const shouldInvalidatePlotModelsForSessionChange = (
 const createAxisTitleContext = (
   context: PlotAxisTitleContext,
 ): PlotAxisTitleContext => context;
+
+const resolveCalculatedDataFile = (
+  snapshot: SessionSnapshot,
+  fileId?: string | null,
+): FileRecord | null => {
+  const normalizedFileId = normalizeStateKey(fileId);
+  if (normalizedFileId) {
+    const file = snapshot.filesById[normalizedFileId];
+    return file && hasFileRecordChartData(file) ? file : null;
+  }
+
+  for (const orderedFileId of uniqueStrings([
+    ...snapshot.fileOrder,
+    ...Object.keys(snapshot.filesById),
+  ])) {
+    const file = snapshot.filesById[orderedFileId];
+    if (file && hasFileRecordChartData(file)) {
+      return file;
+    }
+  }
+
+  return null;
+};
+
+const hasFileRecordChartData = (file: FileRecord): boolean =>
+  Object.values(file.curvesByKey).some(curve => curve.curveGeneration === "base");
+
+const uniqueStrings = <T extends string>(values: readonly T[]): T[] => {
+  const result: T[] = [];
+  const seen = new Set<T>();
+  for (const value of values) {
+    if (!value || seen.has(value)) {
+      continue;
+    }
+
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+};
 
 const getAxisTitleStateKey = (context: PlotAxisTitleContext): string =>
   [

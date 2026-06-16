@@ -7,6 +7,7 @@ import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
   ISessionService,
+  type CommitTemplateOutputInput,
   type CommitTemplateOutputOptions,
 } from "src/cs/workbench/services/session/common/session";
 import { ITableService } from "src/cs/workbench/services/table/common/table";
@@ -96,8 +97,7 @@ type StartExtractionJobOptions = {
 type TemplateApplyControllerOptions = {
   sessionService: Pick<
     ISessionService,
-    | "commitCurves"
-    | "commitTemplateOutput"
+    | "commitTemplateOutputs"
     | "commitTemplateRun"
     | "getSnapshot"
     | "onDidChangeSession"
@@ -321,6 +321,11 @@ export class TemplateApplyController {
   private readonly removedQueuedFileIdsRef = createTemplateWorkerRef<Set<string>>(new Set());
   private readonly lastAppliedTemplateConfigFingerprintRef = createTemplateWorkerRef<string | null>(null);
   private readonly sessionChangeDisposable: IDisposable;
+  private pendingTemplateOutputCommits: CommitTemplateOutputInput[] = [];
+  private scheduledTemplateOutputFlush:
+    | { readonly kind: "animationFrame"; readonly handle: number }
+    | { readonly kind: "timeout"; readonly handle: ReturnType<typeof setTimeout> }
+    | null = null;
   private input: TemplateApplyWorkflowInput;
   private _processingStatus: ProcessingStatus = {
     state: "idle",
@@ -348,10 +353,12 @@ export class TemplateApplyController {
 
   public dispose(): void {
     this.sessionChangeDisposable.dispose();
+    this.discardTemplateOutputCommits();
     this.options.templateApplyService.terminateProcessingWorker(this.processingWorkerRef);
   }
 
   public readonly resetProcessingWorker = (): void => {
+    this.discardTemplateOutputCommits();
     this.processingJobIdRef.current += 1;
     this.processingQueueRef.current = [];
     this.processingStopOnErrorRef.current = false;
@@ -414,10 +421,69 @@ export class TemplateApplyController {
       return;
     }
 
-    this.options.sessionService.commitTemplateOutput(commit);
+    this.pendingTemplateOutputCommits.push(commit);
+    this.scheduleTemplateOutputFlush();
+  };
+
+  private readonly scheduleTemplateOutputFlush = (): void => {
+    if (this.scheduledTemplateOutputFlush) {
+      return;
+    }
+
+    const flush = (): void => {
+      this.scheduledTemplateOutputFlush = null;
+      this.flushTemplateOutputCommits();
+    };
+
+    if (typeof requestAnimationFrame === "function") {
+      this.scheduledTemplateOutputFlush = {
+        kind: "animationFrame",
+        handle: requestAnimationFrame(flush),
+      };
+      return;
+    }
+
+    this.scheduledTemplateOutputFlush = {
+      kind: "timeout",
+      handle: setTimeout(flush, 0),
+    };
+  };
+
+  private readonly cancelTemplateOutputFlush = (): void => {
+    const scheduled = this.scheduledTemplateOutputFlush;
+    if (!scheduled) {
+      return;
+    }
+
+    this.scheduledTemplateOutputFlush = null;
+    if (scheduled.kind === "animationFrame") {
+      if (typeof cancelAnimationFrame === "function") {
+        cancelAnimationFrame(scheduled.handle);
+      }
+      return;
+    }
+
+    clearTimeout(scheduled.handle);
+  };
+
+  private readonly flushTemplateOutputCommits = (): void => {
+    this.cancelTemplateOutputFlush();
+    const commits = this.pendingTemplateOutputCommits;
+    if (!commits.length) {
+      return;
+    }
+
+    this.pendingTemplateOutputCommits = [];
+    this.options.sessionService.commitTemplateOutputs(commits);
+  };
+
+  private readonly discardTemplateOutputCommits = (): void => {
+    this.cancelTemplateOutputFlush();
+    this.pendingTemplateOutputCommits = [];
   };
 
   private readonly clearTemplateOutput = (): void => {
+    this.discardTemplateOutputCommits();
     this.options.sessionService.commitTemplateRun({ kind: "clearTemplateOutput" });
   };
 
@@ -625,10 +691,15 @@ export class TemplateApplyController {
   };
 
   private readonly setProcessingStatus: StateSetter<ProcessingStatus> = (next) => {
-    this._processingStatus =
+    const previous = this._processingStatus;
+    const resolved =
       typeof next === "function"
-        ? (next as (previous: ProcessingStatus) => ProcessingStatus)(this._processingStatus)
+        ? (next as (previous: ProcessingStatus) => ProcessingStatus)(previous)
         : next;
+    this._processingStatus = resolved;
+    if (previous.state === "processing" && resolved.state !== "processing") {
+      this.flushTemplateOutputCommits();
+    }
   };
 
   private readonly prepareExtractionRun = (
