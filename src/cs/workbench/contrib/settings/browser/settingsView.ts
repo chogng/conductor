@@ -545,15 +545,19 @@ export class SettingsView {
     const swatchButtons = new Map<string, HTMLButtonElement>();
     this.renderBackgroundSwatches(swatches, swatchButtons, appearanceSettings);
 
-    const backgroundResetButton = this.createButton({
-      id: "settings-background-reset-btn",
-      label: localize("settings.background.reset", "Reset"),
-      onClick: () => void this.options.appearanceSettings.onBackgroundColorReset(),
+    const backgroundResetButton = createActionButton({
+      className: "settings-button settings-reset-button",
       disabled:
         appearanceSettings.isSaving ||
         appearanceSettings.backgroundColor === appearanceSettings.backgroundColorDefault,
-      variant: "secondary",
+      id: "settings-background-reset-btn",
+      ariaLabel: localize("settings.background.reset", "Reset"),
+      title: localize("settings.background.reset", "Reset"),
+      size: "iconSm",
+      variant: "icon",
+      content: createLxIcon({ icon: LxIcon.refresh, size: 14 }),
     });
+    backgroundResetButton.addEventListener("click", () => void this.options.appearanceSettings.onBackgroundColorReset());
 
     backgroundCard.appendChild(settingsSplitRow(
       headingBlock(
@@ -1134,12 +1138,14 @@ export class SettingsView {
       current.isSaving !== next.isSaving
     ) {
       updateActionButton(template.backgroundResetButton, {
-        className: "settings-button",
+        className: "settings-button settings-reset-button",
         disabled: next.isSaving || next.backgroundColor === next.backgroundColorDefault,
         id: "settings-background-reset-btn",
-        label: localize("settings.background.reset", "Reset"),
-        size: "sm",
-        variant: "secondary",
+        ariaLabel: localize("settings.background.reset", "Reset"),
+        title: localize("settings.background.reset", "Reset"),
+        size: "iconSm",
+        variant: "icon",
+        content: createLxIcon({ icon: LxIcon.refresh, size: 14 }),
       });
     }
   }

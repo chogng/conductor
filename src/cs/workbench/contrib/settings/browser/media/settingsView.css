@@ -418,15 +418,55 @@
 }
 
 .settings-color-input {
-  height: 38px;
-  width: 52px;
-  border-radius: 0.5rem;
-  border-width: 1px;
-  --tw-border-opacity: 1;
-  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
-  --tw-bg-opacity: 1;
-  background-color: rgb(var(--bg-page) / var(--tw-bg-opacity, 1));
-  padding: 0.25rem;
+  height: 2rem;
+  width: 2rem;
+  border-radius: 50%;
+  border: 1px solid rgb(var(--border) / 1);
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  background: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.settings-color-input:hover {
+  transform: scale(1.08);
+}
+
+.settings-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.settings-color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+
+.settings-reset-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.2s ease, opacity 0.15s ease, color 0.15s ease;
+  color: rgb(var(--text-secondary) / 0.85);
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.settings-reset-button:hover:not(:disabled) {
+  background-color: rgb(var(--border) / 0.35) !important;
+  color: rgb(var(--text-primary) / 1);
+  transform: rotate(-180deg);
+}
+
+.settings-reset-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .settings-color-swatches {
@@ -439,7 +479,7 @@
 .settings-color-swatch {
   height: 2rem;
   width: 2rem;
-  border-radius: 0.375rem;
+  border-radius: 50%;
   border-width: 1px;
   --tw-border-opacity: 1;
   border-color: rgb(var(--border) / var(--tw-border-opacity, 1));

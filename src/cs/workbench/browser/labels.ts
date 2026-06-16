@@ -10,7 +10,6 @@ import {
   type IIconLabelValueOptions,
 } from "src/cs/base/browser/ui/iconLabel/iconLabel";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 
 export const FileKind = {
   FILE: "file",
@@ -92,7 +91,7 @@ export class ResourceLabel implements IResourceLabel {
         ...iconClasses,
         ...(options.extraClasses ?? []),
       ],
-      icon: options.icon ?? getResourceIcon(iconClasses, fileKind),
+      icon: options.icon,
     });
   }
 
@@ -158,24 +157,5 @@ export function getIconClasses(
 export function fileIconSelectorEscape(value: string): string {
   return value.replace(/\s/g, "/");
 }
-
-const getResourceIcon = (
-  iconClasses: readonly string[],
-  fileKind: FileKind,
-): LxIconDefinition | undefined => {
-  if (fileKind !== FileKind.FILE) {
-    return undefined;
-  }
-
-  if (iconClasses.some((className) => className === "xls-ext-file-icon" || className === "xlsx-ext-file-icon")) {
-    return LxIcon.xlsLetter;
-  }
-
-  if (iconClasses.some((className) => className === "csv-ext-file-icon")) {
-    return LxIcon.csvLetter;
-  }
-
-  return LxIcon.csvGreen;
-};
 
 const fileIconDirectoryRegex = /(?:\/|^)(?:([^/]+)\/)?([^/]+)$/;

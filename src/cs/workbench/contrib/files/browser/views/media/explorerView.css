@@ -185,11 +185,11 @@
   gap: 6px;
 }
 
-.file-list-item-label .monaco-icon-label-icon {
+.file-list-item-label .conductor-icon-label-icon {
   color: rgb(var(--text-secondary) / 1);
 }
 
-.file-list-item-label .monaco-icon-label-name {
+.file-list-item-label .conductor-icon-label-name {
   flex: 1 1 0%;
   line-height: var(--files-explorer-row-height, 22px);
   color: rgb(var(--text-primary) / 1);

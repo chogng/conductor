@@ -13,6 +13,10 @@ export type IIconLabelValueOptions = {
 };
 
 export class IconLabel implements IDisposable {
+  private static readonly rootClassName = "conductor-icon-label";
+  private static readonly iconClassName = "conductor-icon-label-icon";
+  private static readonly nameClassName = "conductor-icon-label-name";
+
   readonly element: HTMLDivElement;
   private readonly className: string;
   private readonly icon: HTMLSpanElement;
@@ -23,22 +27,22 @@ export class IconLabel implements IDisposable {
     this.className = options.className ?? "";
     this.element = document.createElement("div");
     this.element.className = this.className
-      ? `monaco-icon-label ${this.className}`
-      : "monaco-icon-label";
+      ? `${IconLabel.rootClassName} ${this.className}`
+      : IconLabel.rootClassName;
 
     this.icon = document.createElement("span");
-    this.icon.className = "monaco-icon-label-icon";
+    this.icon.className = IconLabel.iconClassName;
     this.icon.setAttribute("aria-hidden", "true");
 
     this.name = document.createElement("span");
-    this.name.className = "monaco-icon-label-name";
+    this.name.className = IconLabel.nameClassName;
 
     this.element.append(this.icon, this.name);
     container.appendChild(this.element);
   }
 
   setLabel(label: string, options: IIconLabelValueOptions = {}): void {
-    const classes = ["monaco-icon-label"];
+    const classes = [IconLabel.rootClassName];
     if (this.className) {
       classes.push(this.className);
     }
