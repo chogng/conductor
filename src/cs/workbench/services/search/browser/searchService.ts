@@ -13,8 +13,10 @@ import {
 	ISearchService,
 	type ISearchService as ISearchServiceType,
 	type SearchIndex,
+	type SearchInterpolationMode,
 	type SearchNavigationTarget,
 	type SearchPoint,
+	type SearchPlotModel,
 	type SearchQuery,
 	type SearchResult,
 	type SearchResultKind,
@@ -27,6 +29,7 @@ const defaultSearchQuery: SearchQuery = {
 	scope: "curve",
 	kinds: ["curve"],
 	caseSensitive: false,
+	interpolationMode: "linear",
 };
 
 export class SearchService extends Disposable implements ISearchServiceType {
@@ -34,14 +37,14 @@ export class SearchService extends Disposable implements ISearchServiceType {
 
 	private readonly onDidChangeSearchStateEmitter = this._register(new Emitter<SearchState>());
 	public readonly onDidChangeSearchState = this.onDidChangeSearchStateEmitter.event;
-	private readonly onDidChangeSearchPlotModelEmitter = this._register(new Emitter<PlotMainRenderModel | null>());
+	private readonly onDidChangeSearchPlotModelEmitter = this._register(new Emitter<SearchPlotModel | null>());
 	public readonly onDidChangeSearchPlotModel = this.onDidChangeSearchPlotModelEmitter.event;
 
 	private state: SearchState = {
 		query: defaultSearchQuery,
 		selectedResultId: null,
 	};
-	private plotModel: PlotMainRenderModel | null = null;
+	private plotModel: SearchPlotModel | null = null;
 
 	public getState(): SearchState {
 		return this.state;
@@ -51,7 +54,7 @@ export class SearchService extends Disposable implements ISearchServiceType {
 		return buildSearchIndex(snapshot);
 	}
 
-	public getPlotModel(): PlotMainRenderModel | null {
+	public getPlotModel(): SearchPlotModel | null {
 		return this.plotModel;
 	}
 
@@ -124,10 +127,10 @@ export class SearchService extends Disposable implements ISearchServiceType {
 			return null;
 		}
 
-		return searchSeriesAtX(model.seriesList, x);
+		return searchSeriesAtX(model.seriesList, x, this.state.query.interpolationMode);
 	}
 
-	public setPlotModel(model: PlotMainRenderModel | null): void {
+	public setPlotModel(model: SearchPlotModel | null): void {
 		if (this.plotModel === model) {
 			return;
 		}
@@ -152,6 +155,12 @@ export class SearchService extends Disposable implements ISearchServiceType {
 	public setQueryText = (text: string): void => {
 		this.updateQuery({
 			text: normalizeSearchText(text),
+		});
+	};
+
+	public setInterpolationMode = (interpolationMode: SearchInterpolationMode): void => {
+		this.updateQuery({
+			interpolationMode,
 		});
 	};
 
@@ -180,10 +189,14 @@ const normalizeSearchQuery = (query: SearchQuery): SearchQuery => ({
 	scope: normalizeSearchScope(query.scope),
 	kinds: normalizeSearchResultKinds(query.kinds),
 	caseSensitive: query.caseSensitive === true,
+	interpolationMode: normalizeSearchInterpolationMode(query.interpolationMode),
 });
 
 const normalizeSearchText = (text: string): string =>
 	String(text ?? "");
+
+const normalizeSearchInterpolationMode = (value: unknown): SearchInterpolationMode =>
+	value === "none" ? "none" : "linear";
 
 const normalizeSearchScope = (scope: SearchScope): SearchScope =>
 	scope === "all" ||
@@ -273,6 +286,7 @@ const isSameSearchQuery = (current: SearchQuery, next: SearchQuery): boolean =>
 	current.text === next.text &&
 	current.scope === next.scope &&
 	current.caseSensitive === next.caseSensitive &&
+	current.interpolationMode === next.interpolationMode &&
 	areStringArraysEqual(current.kinds, next.kinds);
 
 const areStringArraysEqual = (

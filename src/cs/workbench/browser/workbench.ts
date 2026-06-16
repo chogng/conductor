@@ -540,10 +540,22 @@ export class Workbench extends Layout {
     snapshot = this.session.getSnapshot(),
     readModel = createSessionReadModel(snapshot),
   ): void {
-    this.searchService.setPlotModel(this.plotService.getPlotMainRenderModel({
+    const plotDisplayModel = this.plotService.getPlotDisplayModel({
       fileId: this.getSelectedProcessedFileId(readModel),
       snapshot,
-    }));
+    });
+    this.searchService.setPlotModel(plotDisplayModel ? {
+      panes: [
+        {
+          id: "chart",
+          model: plotDisplayModel.chart.model,
+        },
+        {
+          id: "inspector",
+          model: plotDisplayModel.inspector.model,
+        },
+      ],
+    } : null);
   }
 
   private renderExportView(

@@ -57,13 +57,14 @@ export const getInputBoxFieldState = ({
 
 const createInputBox = (options: InputBoxOptions = {}): HTMLInputElement => {
   const input = document.createElement("input");
-  updateInputBox(input, options);
+  updateInputBox(input, options, true);
   return input;
 };
 
 const updateInputBox = (
   input: HTMLInputElement,
   options: InputBoxOptions = {},
+  applyDefaults = false,
 ): void => {
   if (options.id !== undefined) {
     input.id = options.id;
@@ -81,14 +82,28 @@ const updateInputBox = (
     setOptionalAttribute(input, "aria-describedby", options.ariaDescribedBy);
   }
 
-  input.type = options.type ?? "text";
-  input.value = String(options.value ?? "");
-  input.disabled = options.disabled === true;
-  input.readOnly = options.readOnly === true;
-  input.placeholder = options.placeholder ?? "";
-  input.setAttribute("autocomplete", options.autoComplete ?? "off");
+  if (applyDefaults || options.type !== undefined) {
+    input.type = options.type ?? "text";
+  }
+  if (options.value !== undefined && input.value !== String(options.value)) {
+    input.value = String(options.value);
+  }
+  if (applyDefaults || options.disabled !== undefined) {
+    input.disabled = options.disabled === true;
+  }
+  if (applyDefaults || options.readOnly !== undefined) {
+    input.readOnly = options.readOnly === true;
+  }
+  if (applyDefaults || options.placeholder !== undefined) {
+    input.placeholder = options.placeholder ?? "";
+  }
+  if (applyDefaults || options.autoComplete !== undefined) {
+    input.setAttribute("autocomplete", options.autoComplete ?? "off");
+  }
   input.className = getInputBoxNativeClassName(options);
-  input.setAttribute("aria-invalid", options.error ? "true" : "false");
+  if (applyDefaults || options.error !== undefined) {
+    input.setAttribute("aria-invalid", options.error ? "true" : "false");
+  }
 };
 
 export const createInputBoxField = (options: InputBoxFieldOptions = {}): InputBoxField => {
@@ -96,15 +111,18 @@ export const createInputBoxField = (options: InputBoxFieldOptions = {}): InputBo
   const field = document.createElement("div");
   const input = options.input ?? createInputBox(options);
 
+  if (options.input) {
+    updateInputBox(input, options);
+  }
+
   element.className = getInputBoxWrapperClassName(options.className);
   element.dataset.style = "inputbox";
   field.className = getInputBoxFieldClassName(options);
   field.dataset.icon = options.right ? "with" : "without";
-  field.dataset.state = getInputBoxFieldState(options);
-
-  if (options.input) {
-    updateInputBox(input, options);
-  }
+  field.dataset.state = getInputBoxFieldState({
+    disabled: options.disabled ?? input.disabled,
+    error: options.error ?? input.getAttribute("aria-invalid") === "true",
+  });
 
   field.append(input);
   if (options.right) {

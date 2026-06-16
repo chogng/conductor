@@ -611,6 +611,23 @@ Owner: `SearchService`. Service-local query state, not session canonical data.
 | `scope` | `SearchScope` | File/table/block/curve/metric search scope. |
 | `kinds` | `readonly SearchResultKind[]` | Result kinds to include. |
 | `caseSensitive` | `boolean` | Case-sensitive matching flag. |
+| `interpolationMode` | `SearchInterpolationMode` | Plot-point lookup mode: `linear` uses the Search-owned linear interpolation algorithm; `none` requires exact X points. Service-local only. |
+
+### `SearchPlotModel`
+
+Owner: `SearchService`. Derived service-local plot point lookup input projected
+from `IPlotService.getPlotDisplayModel(...)`; not session canonical data.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `panes` | `readonly SearchPlotPaneModel[]` | Searchable plot panes shown in the Search auxiliary view. Keep chart and inspector separate so the UI can render two point tables for one X query. |
+
+### `SearchPlotPaneModel`
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `'chart' | 'inspector'` | Pane identity. `chart` is the main plot; `inspector` is the second-order/inspector plot. |
+| `model` | `PlotMainRenderModel` | Render model to search for the pane. Search may derive display point results from it, but must not persist those results into Session. |
 
 ### `SearchResult`
 

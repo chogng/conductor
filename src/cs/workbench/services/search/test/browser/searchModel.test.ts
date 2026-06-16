@@ -47,6 +47,16 @@ suite("workbench/services/search/test/browser/searchModel", () => {
     assert.equal(results[0].y, 2.5);
   });
 
+  test("searchSeriesAtX can require exact points without interpolation", () => {
+    const exact = searchSeriesAtX([createSeries()], 1, "none");
+    const inBetween = searchSeriesAtX([createSeries()], 0.25, "none");
+
+    assert.equal(exact[0].status, "ready");
+    assert.equal(exact[0].y, 10);
+    assert.equal(inBetween[0].status, "noExactMatch");
+    assert.equal(inBetween[0].y, null);
+  });
+
   test("searchSeriesAtX handles descending or unsorted x points", () => {
     const results = searchSeriesAtX([
       createSeries({

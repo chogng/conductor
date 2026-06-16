@@ -281,12 +281,22 @@
   "rcCalculation.error.rcMissingDevices": "Rc 分析至少需要一个器件。",
   "search.commands.category": "搜索",
   "search.commands.showSearch": "显示搜索",
+  "search.column.series": "曲线",
+  "search.column.x": "X",
+  "search.column.y": "Y",
   "search.empty.model": "没有可搜索的图表数据。",
   "search.heading": "搜索",
+  "search.interpolation.label": "算法",
+  "search.interpolation.linear": "线性插值",
+  "search.interpolation.none": "不使用插值",
+  "search.interpolation.selectLabel": "搜索算法",
   "search.invalidX": "请输入数字 X 值。",
   "search.missing": "缺失",
+  "search.noExactPoint": "无精确点",
   "search.noSeries": "暂无可用曲线。",
   "search.outOfRange": "超出范围",
+  "search.pane.chart": "主图",
+  "search.pane.inspector": "二阶",
   "search.summary": "{seriesCount} 条曲线，{pointsCount} 个点，X {xDomain}",
   "search.xInput": "X 值",
   "settings.about.versionTitle": "当前版本",
@@ -593,4 +603,3 @@
   "workspaces.externalModifiedCount": "修改 {count} 个",
   "workspaces.failedToApplyExternalChanges": "应用外部文件夹变更失败。"
 }
-

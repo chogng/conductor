@@ -40,11 +40,16 @@ export type SearchResultKind =
 	| "metric"
 	| "parameter";
 
+export type SearchInterpolationMode =
+	| "linear"
+	| "none";
+
 export type SearchQuery = {
 	readonly text: string;
 	readonly scope: SearchScope;
 	readonly kinds: readonly SearchResultKind[];
 	readonly caseSensitive: boolean;
+	readonly interpolationMode: SearchInterpolationMode;
 };
 
 export type SearchState = {
@@ -88,7 +93,7 @@ export type SearchNavigationTarget =
 	| { readonly kind: "metric"; readonly metricKey: MetricKey; readonly fileId: FileId }
 	| { readonly kind: "block"; readonly fileId: FileId; readonly measurementBlockId: string };
 
-export type SearchPointStatus = "empty" | "outOfRange" | "ready";
+export type SearchPointStatus = "empty" | "noExactMatch" | "outOfRange" | "ready";
 
 export type SearchPoint = {
 	readonly color?: string;
@@ -99,21 +104,33 @@ export type SearchPoint = {
 	readonly y: number | null;
 };
 
+export type SearchPlotPaneId = "chart" | "inspector";
+
+export type SearchPlotPaneModel = {
+	readonly id: SearchPlotPaneId;
+	readonly model: PlotMainRenderModel;
+};
+
+export type SearchPlotModel = {
+	readonly panes: readonly SearchPlotPaneModel[];
+};
+
 export interface ISearchService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeSearchState: Event<SearchState>;
-	readonly onDidChangeSearchPlotModel: Event<PlotMainRenderModel | null>;
+	readonly onDidChangeSearchPlotModel: Event<SearchPlotModel | null>;
 
 	buildIndex(snapshot: SessionSnapshot): SearchIndex;
-	getPlotModel(): PlotMainRenderModel | null;
+	getPlotModel(): SearchPlotModel | null;
 	getState(): SearchState;
 	resolveResultTarget(result: SearchResult): SearchNavigationTarget | null;
 	searchSnapshot(snapshot: SessionSnapshot, query?: Partial<SearchQuery>): readonly SearchResult[];
 	searchPlotModelAtText(model: PlotMainRenderModel | null, text: string): readonly SearchPoint[] | null;
-	setPlotModel(model: PlotMainRenderModel | null): void;
+	setPlotModel(model: SearchPlotModel | null): void;
 	setQuery(query: SearchQuery): void;
 	updateQuery(updates: Partial<SearchQuery>): void;
+	setInterpolationMode(interpolationMode: SearchInterpolationMode): void;
 	setQueryText(text: string): void;
 	setSelectedResultId(resultId: string | null): void;
 }

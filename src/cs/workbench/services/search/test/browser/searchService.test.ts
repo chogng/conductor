@@ -5,7 +5,7 @@
 import assert from "assert";
 
 import { SearchService } from "src/cs/workbench/services/search/browser/searchService";
-import type { SearchState } from "src/cs/workbench/services/search/common/search";
+import type { SearchPlotModel, SearchState } from "src/cs/workbench/services/search/common/search";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
@@ -32,6 +32,7 @@ suite("workbench/services/search/test/browser/searchService", () => {
 				scope: "metric",
 				kinds: ["metric", "curve"],
 				caseSensitive: true,
+				interpolationMode: "linear",
 			},
 			selectedResultId: "result-a",
 		});
@@ -53,6 +54,7 @@ suite("workbench/services/search/test/browser/searchService", () => {
 			scope: "curve",
 			kinds: ["curve"],
 			caseSensitive: false,
+			interpolationMode: "linear",
 		});
 		service.setSelectedResultId(null);
 
@@ -64,11 +66,11 @@ suite("workbench/services/search/test/browser/searchService", () => {
 
 	test("owns current plot model input outside the view", () => {
 		const service = new SearchService();
-		const models: Array<PlotMainRenderModel | null> = [];
+		const models: Array<SearchPlotModel | null> = [];
 		const disposable = service.onDidChangeSearchPlotModel(model => {
 			models.push(model);
 		});
-		const model = createPlotModel();
+		const model = createSearchPlotModel();
 
 		service.setPlotModel(model);
 		service.setPlotModel(model);
@@ -86,10 +88,17 @@ suite("workbench/services/search/test/browser/searchService", () => {
 		const model = createPlotModel();
 
 		const results = service.searchPlotModelAtText(model, "1");
+		const interpolated = service.searchPlotModelAtText(model, "0.5");
+		service.setInterpolationMode("none");
+		const exactOnly = service.searchPlotModelAtText(model, "0.5");
 
 		assert.equal(results?.[0]?.seriesId, "series-a");
 		assert.equal(results?.[0]?.status, "ready");
 		assert.equal(results?.[0]?.y, 10);
+		assert.equal(interpolated?.[0]?.status, "ready");
+		assert.equal(interpolated?.[0]?.y, 5);
+		assert.equal(exactOnly?.[0]?.status, "noExactMatch");
+		assert.equal(exactOnly?.[0]?.y, null);
 		assert.equal(service.searchPlotModelAtText(model, "not-a-number"), null);
 		service.dispose();
 	});
@@ -125,6 +134,22 @@ suite("workbench/services/search/test/browser/searchService", () => {
 		});
 		service.dispose();
 	});
+});
+
+const createSearchPlotModel = (): SearchPlotModel => ({
+	panes: [
+		{
+			id: "chart",
+			model: createPlotModel(),
+		},
+		{
+			id: "inspector",
+			model: {
+				...createPlotModel(),
+				yDomain: [0, 10],
+			},
+		},
+	],
 });
 
 const createPlotModel = (): PlotMainRenderModel => ({

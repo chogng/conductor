@@ -4,7 +4,7 @@
 
 import { localize } from "src/cs/nls";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
-import { createSearchView } from "src/cs/workbench/contrib/search/browser/searchView";
+import { createSearchView, type SearchViewElement } from "src/cs/workbench/contrib/search/browser/searchView";
 import {
   ISearchService,
   SearchViewId,
@@ -16,6 +16,7 @@ import "src/cs/workbench/contrib/search/browser/media/search.css";
 export class SearchViewPane extends ViewPane {
   private readonly pane = document.createElement("div");
   private readonly content = document.createElement("div");
+  private currentView: SearchViewElement | null = null;
 
   constructor(
     @ISearchService private readonly searchService: ISearchService,
@@ -33,23 +34,25 @@ export class SearchViewPane extends ViewPane {
     this._register(this.searchService.onDidChangeSearchPlotModel(() => {
       this.renderSearch();
     }));
-    this._register(this.searchService.onDidChangeSearchState(() => {
-      this.renderSearch();
-    }));
     this.renderSearch();
   }
 
   private renderSearch(): void {
-    this.content.replaceChildren(createSearchView({
+    this.currentView?.dispose?.();
+    this.currentView = createSearchView({
       model: this.searchService.getPlotModel(),
+      onInterpolationModeChange: this.searchService.setInterpolationMode,
       onSearchPlotModelAtText: (plotModel, text) =>
         this.searchService.searchPlotModelAtText(plotModel, text),
       searchState: this.searchService.getState(),
       onQueryTextChange: this.searchService.setQueryText,
-    }));
+    });
+    this.content.replaceChildren(this.currentView);
   }
 
   public override dispose(): void {
+    this.currentView?.dispose?.();
+    this.currentView = null;
     this.content.replaceChildren();
     this.pane.remove();
     super.dispose();

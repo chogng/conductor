@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type {
+  SearchInterpolationMode,
   SearchPoint,
   SearchPointStatus,
 } from "src/cs/workbench/services/search/common/search";
@@ -28,11 +29,12 @@ type FinitePoint = {
 export const searchSeriesAtX = (
   seriesList: readonly SearchSeriesInput[],
   x: number,
+  interpolationMode: SearchInterpolationMode = "linear",
 ): SearchPoint[] => {
   if (!Number.isFinite(x)) return [];
 
   return seriesList.map((series, index) => {
-    const located = searchPoint(series.data, x);
+    const located = searchPoint(series.data, x, interpolationMode);
     return {
       color: series.color,
       seriesId: String(series.id || `series-${index + 1}`),
@@ -47,6 +49,7 @@ export const searchSeriesAtX = (
 const searchPoint = (
   points: readonly SearchSeriesPoint[],
   x: number,
+  interpolationMode: SearchInterpolationMode,
 ): { readonly status: SearchPointStatus; readonly y: number | null } => {
   const finitePoints = getFinitePoints(points);
   if (!finitePoints.length) {
@@ -62,6 +65,10 @@ const searchPoint = (
   const last = finitePoints[finitePoints.length - 1]!;
   if (x < first.x || x > last.x) {
     return { status: "outOfRange", y: null };
+  }
+
+  if (interpolationMode === "none") {
+    return { status: "noExactMatch", y: null };
   }
 
   for (let index = 0; index < finitePoints.length - 1; index += 1) {
