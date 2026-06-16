@@ -1,8 +1,17 @@
 from .origin_session import run_command_list
+from .origin_adapter import apply_axis_appearance_patch
 
 
 def apply_axis_commands(op_module, commands):
     run_command_list(op_module, commands or [], "Axis command")
+
+
+def apply_axis_appearance(op_module, appearance, warning_logger=None):
+    result = apply_axis_appearance_patch(op_module, appearance)
+    error = result.get("error") if isinstance(result, dict) else None
+    if isinstance(error, dict) and callable(warning_logger):
+        warning_logger(f"Axis warning: failed to apply axis appearance: {error.get('message')}")
+    return result
 
 
 def _get_active_graph_layer(op_module):

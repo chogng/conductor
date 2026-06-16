@@ -212,6 +212,27 @@ const buildOriginLegendRefreshCommands = (curveLabels: unknown): string[] => {
     : [];
 };
 
+const buildOriginAxisAppearance = (
+  axisSettings: JsonRecord | null,
+): JsonRecord | undefined => {
+  if (!axisSettings) {
+    return undefined;
+  }
+
+  const axisPatch: JsonRecord = {};
+  for (const key of ["showGrid", "showMajorTicks", "showMinorTicks"] as const) {
+    if (typeof axisSettings[key] === "boolean") {
+      axisPatch[key] = axisSettings[key];
+    }
+  }
+  return Object.keys(axisPatch).length
+    ? {
+        x: { ...axisPatch },
+        y: { ...axisPatch },
+      }
+    : undefined;
+};
+
 function toNumber(value: unknown): number | undefined {
   const num = Number(value);
   return Number.isFinite(num) ? num : undefined;
@@ -274,6 +295,7 @@ export function buildOriginCsvJobs(options: {
       options.axisSettings && typeof options.axisSettings === "object"
         ? (options.axisSettings as JsonRecord)
         : null;
+    const originAxisAppearance = buildOriginAxisAppearance(axisSettings);
     const originAxisSpacingCommands = buildOriginAxisSpacingCommands(axisSettings);
     const originAxisTitleCommands = buildOriginAxisTitleCommands({
       xAxisTitle: payload.xAxisTitle,
@@ -341,6 +363,7 @@ export function buildOriginCsvJobs(options: {
             }
           : undefined,
         axis: {
+          appearance: originAxisAppearance,
           limits: {
             x: shouldUseXDisplayRange
               ? {

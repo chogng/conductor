@@ -117,6 +117,13 @@ function assertOriginCapabilitiesNumber(value: unknown, fieldPath: string): void
   }
 }
 
+function assertOriginCapabilitiesBoolean(value: unknown, fieldPath: string): void {
+  if (value == null) return;
+  if (typeof value !== "boolean") {
+    throw new Error(`Invalid Origin capabilities at '${fieldPath}': expected boolean.`);
+  }
+}
+
 function validateOriginCapabilitiesPayload(rawCapabilities: unknown): void {
   if (rawCapabilities == null) return;
 
@@ -147,7 +154,7 @@ function validateOriginCapabilitiesPayload(rawCapabilities: unknown): void {
   );
   const axisSection = assertOriginCapabilitiesAllowedKeys(
     root.axis,
-    ["commands", "postCommands", "limits"],
+    ["commands", "postCommands", "limits", "appearance"],
     "capabilities.axis",
   );
   const commandsSection = assertOriginCapabilitiesAllowedKeys(
@@ -164,6 +171,21 @@ function validateOriginCapabilitiesPayload(rawCapabilities: unknown): void {
     axisSection.limits,
     ["x", "y"],
     "capabilities.axis.limits",
+  );
+  const axisAppearance = assertOriginCapabilitiesAllowedKeys(
+    axisSection.appearance,
+    ["x", "y"],
+    "capabilities.axis.appearance",
+  );
+  const axisAppearanceX = assertOriginCapabilitiesAllowedKeys(
+    axisAppearance.x,
+    ["showGrid", "showMajorTicks", "showMinorTicks"],
+    "capabilities.axis.appearance.x",
+  );
+  const axisAppearanceY = assertOriginCapabilitiesAllowedKeys(
+    axisAppearance.y,
+    ["showGrid", "showMajorTicks", "showMinorTicks"],
+    "capabilities.axis.appearance.y",
   );
   const axisXLimits = assertOriginCapabilitiesAllowedKeys(
     axisLimits.x,
@@ -192,6 +214,14 @@ function validateOriginCapabilitiesPayload(rawCapabilities: unknown): void {
   assertOriginCapabilitiesNumber(axisYLimits.to, "capabilities.axis.limits.y.to");
   assertOriginCapabilitiesNumber(axisYLimits.step, "capabilities.axis.limits.y.step");
   assertOriginCapabilitiesString(axisYLimits.scale, "capabilities.axis.limits.y.scale");
+  for (const [appearance, fieldPath] of [
+    [axisAppearanceX, "capabilities.axis.appearance.x"],
+    [axisAppearanceY, "capabilities.axis.appearance.y"],
+  ] as const) {
+    assertOriginCapabilitiesBoolean(appearance.showGrid, `${fieldPath}.showGrid`);
+    assertOriginCapabilitiesBoolean(appearance.showMajorTicks, `${fieldPath}.showMajorTicks`);
+    assertOriginCapabilitiesBoolean(appearance.showMinorTicks, `${fieldPath}.showMinorTicks`);
+  }
 
   for (const [value, fieldPath] of [
     [root.preCommands, "capabilities.preCommands"],
@@ -286,6 +316,20 @@ function normalizeOriginCapabilitiesPayload(rawCapabilities: unknown): Record<st
   const axisCommands = normalizeOriginCommandList(
     axisSection.commands ?? axisSection.postCommands,
   );
+  const axisAppearanceRaw = pickSection(axisSection.appearance);
+  const axisAppearanceNormalized: Record<string, Record<string, boolean>> = {};
+  for (const axisName of ["x", "y"] as const) {
+    const rawAxisAppearance = pickSection(axisAppearanceRaw[axisName]);
+    const normalizedAxisAppearance: Record<string, boolean> = {};
+    for (const key of ["showGrid", "showMajorTicks", "showMinorTicks"] as const) {
+      if (typeof rawAxisAppearance[key] === "boolean") {
+        normalizedAxisAppearance[key] = rawAxisAppearance[key];
+      }
+    }
+    if (Object.keys(normalizedAxisAppearance).length) {
+      axisAppearanceNormalized[axisName] = normalizedAxisAppearance;
+    }
+  }
 
   const normalizeAxisLimitShape = (value: unknown): Record<string, unknown> | null => {
     const source = pickSection(value);
@@ -355,12 +399,20 @@ function normalizeOriginCapabilitiesPayload(rawCapabilities: unknown): Record<st
   }
   if (axisCommands.length || axisLimitsNormalized.x || axisLimitsNormalized.y) {
     normalized.axis = { commands: axisCommands };
+    if (Object.keys(axisAppearanceNormalized).length) {
+      normalized.axis.appearance = axisAppearanceNormalized;
+    }
     if (axisLimitsNormalized.x || axisLimitsNormalized.y) {
       normalized.axis.limits = {};
       const limits = normalized.axis.limits as Record<string, unknown>;
       if (axisLimitsNormalized.x) limits.x = axisLimitsNormalized.x;
       if (axisLimitsNormalized.y) limits.y = axisLimitsNormalized.y;
     }
+  } else if (Object.keys(axisAppearanceNormalized).length) {
+    normalized.axis = {
+      appearance: axisAppearanceNormalized,
+      commands: [],
+    };
   }
   if (globalPreCommands.length || globalPostCommands.length) {
     normalized.commands = {};

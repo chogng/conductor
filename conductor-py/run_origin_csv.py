@@ -9,7 +9,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from origin_ops.axis_ops import apply_axis_commands, apply_axis_limits
+from origin_ops.axis_ops import apply_axis_appearance, apply_axis_commands, apply_axis_limits
 from origin_ops.capability_dispatcher import (
     parse_capabilities_json,
     resolve_capability_plan,
@@ -519,9 +519,18 @@ def run_csv_job(ctx, op_module, job: dict, job_index: int, job_count: int) -> st
     if axis_commands:
         ctx.log(f"{log_prefix} axis commands: {axis_commands}")
         _log_axis_command_summary(ctx, log_prefix, axis_commands)
+    if capability_plan.axis_appearance:
+        ctx.log(f"{log_prefix} axis appearance: {capability_plan.axis_appearance}")
     if not skip_plot:
         apply_style_commands(op_module, capability_plan.style_commands)
         apply_axis_commands(op_module, axis_commands)
+        axis_appearance_result = apply_axis_appearance(
+            op_module,
+            capability_plan.axis_appearance,
+            warning_logger=ctx.log,
+        )
+        if capability_plan.axis_appearance:
+            ctx.log(f"{log_prefix} axis appearance result: {axis_appearance_result}")
         apply_axis_limits(op_module, capability_plan.axis_limits, warning_logger=ctx.log)
         run_command_list(
             op_module,

@@ -9,6 +9,7 @@ class CapabilityPlan:
     import_column_units: list[str] = field(default_factory=list)
     import_column_comments: list[str] = field(default_factory=list)
     import_column_designations: list[str] = field(default_factory=list)
+    axis_appearance: dict = field(default_factory=dict)
     axis_limits: dict = field(default_factory=dict)
     plot_command_override: str = ""
     import_pre_commands: list[str] = field(default_factory=list)
@@ -90,6 +91,15 @@ def _assert_number(value, field_path: str) -> None:
         )
 
 
+def _assert_boolean(value, field_path: str) -> None:
+    if value is None:
+        return
+    if not isinstance(value, bool):
+        raise RuntimeError(
+            f"Invalid Origin capabilities at '{field_path}': expected boolean."
+        )
+
+
 def validate_capabilities_payload(raw_capabilities) -> dict:
     root = _assert_allowed_keys(
         raw_capabilities,
@@ -128,7 +138,7 @@ def validate_capabilities_payload(raw_capabilities) -> dict:
     )
     axis_section = _assert_allowed_keys(
         root.get("axis"),
-        ["commands", "postCommands", "limits"],
+        ["commands", "postCommands", "limits", "appearance"],
         "capabilities.axis",
     )
     commands_section = _assert_allowed_keys(
@@ -145,6 +155,21 @@ def validate_capabilities_payload(raw_capabilities) -> dict:
         axis_section.get("limits"),
         ["x", "y"],
         "capabilities.axis.limits",
+    )
+    axis_appearance = _assert_allowed_keys(
+        axis_section.get("appearance"),
+        ["x", "y"],
+        "capabilities.axis.appearance",
+    )
+    axis_appearance_x = _assert_allowed_keys(
+        axis_appearance.get("x"),
+        ["showGrid", "showMajorTicks", "showMinorTicks"],
+        "capabilities.axis.appearance.x",
+    )
+    axis_appearance_y = _assert_allowed_keys(
+        axis_appearance.get("y"),
+        ["showGrid", "showMajorTicks", "showMinorTicks"],
+        "capabilities.axis.appearance.y",
     )
     axis_x_limits = _assert_allowed_keys(
         axis_limits.get("x"),
@@ -185,6 +210,13 @@ def validate_capabilities_payload(raw_capabilities) -> dict:
     _assert_number(axis_y_limits.get("to"), "capabilities.axis.limits.y.to")
     _assert_number(axis_y_limits.get("step"), "capabilities.axis.limits.y.step")
     _assert_string(axis_y_limits.get("scale"), "capabilities.axis.limits.y.scale")
+    for appearance, field_path in (
+        (axis_appearance_x, "capabilities.axis.appearance.x"),
+        (axis_appearance_y, "capabilities.axis.appearance.y"),
+    ):
+        _assert_boolean(appearance.get("showGrid"), f"{field_path}.showGrid")
+        _assert_boolean(appearance.get("showMajorTicks"), f"{field_path}.showMajorTicks")
+        _assert_boolean(appearance.get("showMinorTicks"), f"{field_path}.showMinorTicks")
 
     _assert_command_list_shape(root.get("preCommands"), "capabilities.preCommands")
     _assert_command_list_shape(root.get("postCommands"), "capabilities.postCommands")
@@ -281,6 +313,24 @@ def normalize_axis_limit_settings(value):
     return normalized_limits
 
 
+def normalize_axis_appearance_settings(value):
+    if not isinstance(value, dict):
+        return {}
+    normalized = {}
+    for axis_name in ("x", "y"):
+        axis_value = value.get(axis_name)
+        if not isinstance(axis_value, dict):
+            continue
+        axis_settings = {}
+        for key in ("showGrid", "showMajorTicks", "showMinorTicks"):
+            raw = axis_value.get(key)
+            if isinstance(raw, bool):
+                axis_settings[key] = raw
+        if axis_settings:
+            normalized[axis_name] = axis_settings
+    return normalized
+
+
 def _as_dict(value):
     return value if isinstance(value, dict) else {}
 
@@ -315,6 +365,7 @@ def resolve_capability_plan(raw_capabilities) -> CapabilityPlan:
     import_column_units = normalize_string_list(import_column_labels.get("units"))
     import_column_comments = normalize_string_list(import_column_labels.get("comments"))
     import_column_designations = normalize_string_list(import_column_labels.get("designations"))
+    axis_appearance = normalize_axis_appearance_settings(axis_capabilities.get("appearance"))
     axis_limits = normalize_axis_limit_settings(axis_capabilities.get("limits"))
     plot_command_override_raw = plot_capabilities.get("command")
     plot_command_override = (
@@ -329,6 +380,7 @@ def resolve_capability_plan(raw_capabilities) -> CapabilityPlan:
         import_column_units=import_column_units,
         import_column_comments=import_column_comments,
         import_column_designations=import_column_designations,
+        axis_appearance=axis_appearance,
         axis_limits=axis_limits,
         plot_command_override=plot_command_override,
         import_pre_commands=_pick_commands(import_capabilities, "preCommands", "beforeCommands"),

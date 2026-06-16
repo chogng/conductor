@@ -272,6 +272,39 @@ suite("workbench/services/export/browser/csvExport", () => {
     });
   });
 
+  test("buildOriginCsvJobs sends chart axis appearance to the Python Origin worker", () => {
+    const jobs = buildOriginCsvJobs({
+      axisSettings: {
+        showGrid: false,
+        showMajorTicks: false,
+        showMinorTicks: true,
+      },
+      plan: {
+        payloads: [
+          {
+            csvName: "file.csv",
+            csvText: "x,y\r\n0,1",
+            xyPairs: "((1,2))",
+          },
+        ],
+      },
+      plotOptions: {},
+    });
+
+    assert.deepEqual(jobs[0].capabilities?.axis?.appearance, {
+      x: {
+        showGrid: false,
+        showMajorTicks: false,
+        showMinorTicks: true,
+      },
+      y: {
+        showGrid: false,
+        showMajorTicks: false,
+        showMinorTicks: true,
+      },
+    });
+  });
+
   test("display-range Origin axis commands keep manual scale limits", () => {
     assert.deepEqual(
       buildOriginYAxisRangeCommandsFromDisplayRange("log", {

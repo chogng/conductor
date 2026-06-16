@@ -94,6 +94,8 @@ suite("workbench/services/settings/browser/settingsService", () => {
 
     await service.updatePlotAxisSettings({
       showGrid: true,
+      showMajorTicks: false,
+      showMinorTicks: false,
       xMax: "10.5",
       xTickCount: "99",
     });
@@ -102,6 +104,8 @@ suite("workbench/services/settings/browser/settingsService", () => {
       plotAxisSettings: {
         ...DEFAULT_PLOT_AXIS_SETTINGS,
         showGrid: true,
+        showMajorTicks: false,
+        showMinorTicks: false,
         xMax: "10.5",
         xTickCount: 20,
         xMin: "0",
@@ -110,6 +114,8 @@ suite("workbench/services/settings/browser/settingsService", () => {
     assert.deepEqual(service.getConductorSettings()?.plotAxisSettings, {
       ...DEFAULT_PLOT_AXIS_SETTINGS,
       showGrid: true,
+      showMajorTicks: false,
+      showMinorTicks: false,
       xMax: "10.5",
       xTickCount: 20,
       xMin: "0",
