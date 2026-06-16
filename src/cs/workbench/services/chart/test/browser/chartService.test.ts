@@ -101,4 +101,15 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 		assert.equal("plotDisplayModel" in input, false);
 		assert.equal("plotLegendModel" in input, false);
 	});
+
+	test("does not report chart data when active file is absent from chart options", () => {
+		const input = createChartViewInput({
+			activeFileId: "raw-only-file",
+			activePlotType: "iv",
+			chartFileOptions: [{ fileId: "chart-file", fileName: "chart.csv" }],
+		});
+
+		assert.equal(input.activeFileId, "raw-only-file");
+		assert.equal(input.hasChartData, false);
+	});
 });

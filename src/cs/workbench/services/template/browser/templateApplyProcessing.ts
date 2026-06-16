@@ -79,6 +79,7 @@ type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
 type SchedulerCallbacks = {
   onWorkerErrorPayload?: (payload: unknown) => void;
+  onSourceFileRemoved?: (fileId: string) => void;
   hasSourceFile: (fileId: string | null | undefined) => boolean;
   showResults: () => void;
   commitTemplateOutput: (
@@ -212,6 +213,7 @@ export const startProcessingJob = ({
   fileTemplateSelectionsByFileId,
   messageType = "processFile",
   onWorkerErrorPayload,
+  onSourceFileRemoved,
   processingJobIdRef,
   processingQueueRef,
   processingStopOnErrorRef,
@@ -332,6 +334,7 @@ export const startProcessingJob = ({
         if (backendProcessed) {
           const nextFileId = backendProcessed.fileId;
           if (nextFileId && !hasSourceFile(nextFileId)) {
+            onSourceFileRemoved?.(nextFileId);
             filePerfFinishers.get(nextFileId)?.({
               skipped: "removed-before-result",
               ...summarizeProcessedFile(backendProcessed),
@@ -379,6 +382,23 @@ export const startProcessingJob = ({
           templateProcessingBackendService,
           nextEntry,
         );
+        if (!hasSourceFile(nextEntry.fileId)) {
+          onSourceFileRemoved?.(nextEntry.fileId);
+          filePerfFinishers.get(nextEntry.fileId)?.({
+            skipped: "removed-before-result",
+            fileId: nextEntry.fileId,
+            fileName: nextEntry.fileName ?? null,
+          });
+          filePerfFinishers.delete(nextEntry.fileId);
+          setProcessingStatus((prev) => ({
+            ...prev,
+            processed: prev.processed + 1,
+          }));
+          completedCount += 1;
+          activeCount = Math.max(0, activeCount - 1);
+          launchNext();
+          return;
+        }
         worker.postMessage({
           type: messageType,
           payload: {
@@ -409,6 +429,7 @@ export const startProcessingJob = ({
       const nextFileId = nextProcessed?.fileId;
 
       if (nextFileId && !hasSourceFile(nextFileId)) {
+        onSourceFileRemoved?.(nextFileId);
         filePerfFinishers.get(nextFileId)?.({
           skipped: "removed-before-result",
           ...summarizeProcessedFile(nextProcessed),
@@ -497,6 +518,7 @@ export const startRuleProcessingJob = ({
   groupedPrepared,
   incremental,
   onWorkerErrorPayload,
+  onSourceFileRemoved,
   processingJobIdRef,
   processingQueueRef,
   processingStopOnErrorRef,
@@ -620,6 +642,7 @@ export const startRuleProcessingJob = ({
         if (backendProcessed) {
           const nextFileId = backendProcessed.fileId;
           if (nextFileId && !hasSourceFile(nextFileId)) {
+            onSourceFileRemoved?.(nextFileId);
             filePerfFinishers.get(nextFileId)?.({
               skipped: "removed-before-result",
               ...summarizeProcessedFile(backendProcessed),
@@ -668,6 +691,21 @@ export const startRuleProcessingJob = ({
           templateProcessingBackendService,
           nextEntry,
         );
+        if (!hasSourceFile(nextEntry.fileId)) {
+          onSourceFileRemoved?.(nextEntry.fileId);
+          filePerfFinishers.get(nextEntry.fileId)?.({
+            skipped: "removed-before-result",
+            fileId: nextEntry.fileId,
+            fileName: nextEntry.fileName ?? null,
+          });
+          filePerfFinishers.delete(nextEntry.fileId);
+          extractionConfigByFileId.delete(nextEntry.fileId);
+          processedCount += 1;
+          activeCount = Math.max(0, activeCount - 1);
+          setProcessingStatus((prev) => ({ ...prev, processed: processedCount }));
+          launchNext();
+          return;
+        }
         worker.postMessage({
           type: "processFile",
           payload: {
@@ -697,6 +735,7 @@ export const startRuleProcessingJob = ({
       const nextProcessed = payload?.processed;
       const nextFileId = nextProcessed?.fileId;
       if (nextFileId && !hasSourceFile(nextFileId)) {
+        onSourceFileRemoved?.(nextFileId);
         filePerfFinishers.get(nextFileId)?.({
           skipped: "removed-before-result",
           ...summarizeProcessedFile(nextProcessed),

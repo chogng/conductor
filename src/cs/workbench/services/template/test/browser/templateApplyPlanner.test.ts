@@ -158,6 +158,69 @@ suite("workbench/services/template/test/browser/templateApplyPlanner", () => {
 			],
 		);
 	});
+
+	test("buildTemplateProcessingPlan allows assessment-gated files for manual and rule modes", () => {
+		const files: SessionFile[] = [
+			{
+				...createProcessableAssessment({
+					curveTypeNeedsTemplate: true,
+				}),
+				file: {},
+				fileId: "file-needs-template",
+				fileName: "Needs Template.csv",
+			},
+			{
+				...createProcessableAssessment({
+					curveTypeConfidence: "low",
+				}),
+				file: {},
+				fileId: "file-low-confidence",
+				fileName: "Low Confidence.csv",
+			},
+			{
+				...createProcessableAssessment({
+					curveType: "unknown",
+					curveTypeConfidence: "medium",
+				}),
+				file: {},
+				fileId: "file-unknown",
+				fileName: "Unknown.csv",
+			},
+			{
+				file: {},
+				fileId: "file-missing-assessment",
+				fileName: "Pending Assessment.csv",
+			},
+			{
+				...createProcessableAssessment(),
+				assessmentHealth: "decodeFailed",
+				file: {},
+				fileId: "file-invalid",
+				fileName: "Invalid.csv",
+				templateEligibility: "notEligible",
+			},
+		];
+
+		for (const mode of ["manual", "rule"] as const) {
+			const plan = buildTemplateProcessingPlan(files, null, { mode });
+			assert.deepEqual(plan.queue.map(entry => entry.fileId), [
+				"file-needs-template",
+				"file-low-confidence",
+				"file-unknown",
+				"file-missing-assessment",
+			]);
+			assert.deepEqual(
+				plan.skippedFiles.map(file => ({
+					fileId: file.fileId,
+					reason: file.reason,
+				})),
+				[{
+					fileId: "file-invalid",
+					reason: "invalidSource",
+				}],
+			);
+		}
+	});
 });
 
 const createProcessableAssessment = (

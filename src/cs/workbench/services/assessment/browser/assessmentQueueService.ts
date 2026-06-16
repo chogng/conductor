@@ -53,15 +53,21 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     @IRawTableRowsReaderService private readonly rawTableRowsReaderService: IRawTableRowsReaderServiceType,
   ) {
     super();
+    this._register(this.sessionService.onDidChangeSession(event => {
+      if (event.reason === "sessionCleared") {
+        this.clearQueuedRawTableRefs();
+        return;
+      }
+
+      if (event.reason === "filesRemoved" && event.fileIds?.length) {
+        this.deleteQueuedRawTableRefsForFiles(event.fileIds);
+      }
+    }));
   }
 
   public override dispose(): void {
     this.disposed = true;
-    this.pendingBackgroundRefsByKey.clear();
-    this.pendingNearbyRefsByKey.clear();
-    this.pendingVisibleRefsByKey.clear();
-    this.preferredOrderByKey.clear();
-    this.preferredPriorityByKey.clear();
+    this.clearQueuedRawTableRefs();
     super.dispose();
   }
 
@@ -306,6 +312,39 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
       queue.set(key, ref);
     }
   }
+
+  private clearQueuedRawTableRefs(): void {
+    this.pendingBackgroundRefsByKey.clear();
+    this.pendingNearbyRefsByKey.clear();
+    this.pendingVisibleRefsByKey.clear();
+    this.preferredOrderByKey.clear();
+    this.preferredPriorityByKey.clear();
+  }
+
+  private deleteQueuedRawTableRefsForFiles(fileIds: readonly string[]): void {
+    const normalizedFileIds = new Set(
+      fileIds
+        .map(fileId => String(fileId ?? "").trim())
+        .filter(Boolean),
+    );
+    if (!normalizedFileIds.size) {
+      return;
+    }
+
+    for (const map of [
+      this.pendingBackgroundRefsByKey,
+      this.pendingNearbyRefsByKey,
+      this.pendingVisibleRefsByKey,
+      this.preferredOrderByKey,
+      this.preferredPriorityByKey,
+    ]) {
+      for (const key of [...map.keys()]) {
+        if (normalizedFileIds.has(getFileIdFromRawTableRefKey(key))) {
+          map.delete(key);
+        }
+      }
+    }
+  }
 }
 
 export const getRawTableRefsForAssessmentEvent = (
@@ -393,6 +432,10 @@ const shiftPendingRawTableRef = (
 const getRawTableRefKey = (
   ref: RawTableRef,
 ): string => `${ref.fileId}\u0000${ref.rawTableId}`;
+
+const getFileIdFromRawTableRefKey = (
+  key: string,
+): string => key.split("\u0000", 1)[0] ?? "";
 
 const readRowsForAssessment = (
   file: FileRecord,

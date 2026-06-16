@@ -265,7 +265,7 @@ const buildSkippedAssessmentWarnings = (
   }
 
   return [
-    localize("template.apply.skippedAssessmentFiles", "Skipped {count} file(s) that need template review or assessment.", {
+    localize("template.apply.skippedAssessmentFiles", "Skipped {count} file(s) that need template review, assessment, or a matching rule.", {
       count: skippedFiles.length,
     }),
   ];
@@ -305,6 +305,12 @@ const getSkippedFileState = (
         state: "skipped",
         code: skippedFile.reason,
         message: localize("template.apply.skippedUnknownCurveType", "{fileName} has unknown curve type.", { fileName }),
+      };
+    case "noMatchingRule":
+      return {
+        state: "skipped",
+        code: skippedFile.reason,
+        message: localize("template.apply.skippedNoMatchingRule", "{fileName} did not match any file-name template rule.", { fileName }),
       };
   }
 };
@@ -520,6 +526,7 @@ export class TemplateApplyController {
       return;
     }
 
+    this.deleteFileApplyStates(event.fileIds);
     for (const fileId of event.fileIds) {
       this.removeQueuedProcessingFile(fileId);
     }
@@ -588,6 +595,7 @@ export class TemplateApplyController {
     const activeJobId = this.processingJobIdRef.current;
     const commits = this.pendingTemplateOutputCommits
       .filter(entry => entry.jobId === activeJobId)
+      .filter(entry => this.hasSourceFile(entry.commit.curves.fileId))
       .map(entry => entry.commit);
     const staleCommitCount = this.pendingTemplateOutputCommits.length - commits.length;
     this.pendingTemplateOutputCommits = [];
@@ -715,7 +723,7 @@ export class TemplateApplyController {
       return prepared;
     }
 
-    const plan = buildTemplateProcessingPlan(rawFiles);
+    const plan = buildTemplateProcessingPlan(rawFiles, null, { mode: "manual" });
     const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
     if (invalidSkippedFile && prepared.stopOnError) {
       this.applyStoppedInvalidSourceState(invalidSkippedFile, true);
@@ -848,7 +856,7 @@ export class TemplateApplyController {
     }
 
     const processedIds = resolveProcessedFileIds(this.input);
-    const plan = buildTemplateProcessingPlan(rawFiles, processedIds);
+    const plan = buildTemplateProcessingPlan(rawFiles, processedIds, { mode: "manual" });
     const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
     if (invalidSkippedFile && config?.stopOnError) {
       this.applyStoppedInvalidSourceState(invalidSkippedFile, false);
@@ -1120,6 +1128,7 @@ export class TemplateApplyController {
       processingWorkerRef: this.processingWorkerRef,
       queue,
       hasSourceFile: this.hasSourceFile,
+      onSourceFileRemoved: (fileId) => this.deleteFileApplyStates([fileId]),
       removedQueuedFileIdsRef: this.removedQueuedFileIdsRef,
       clearTemplateOutputBeforeRun,
       showResults: this.options.showResults,
@@ -1205,7 +1214,7 @@ export class TemplateApplyController {
     }
 
     const processedIds = incremental ? resolveProcessedFileIds(this.input) : null;
-    const plan = buildTemplateProcessingPlan(rawFiles, processedIds);
+    const plan = buildTemplateProcessingPlan(rawFiles, processedIds, { mode: "rule" });
     const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
     if (invalidSkippedFile && config?.stopOnError) {
       this.applyStoppedInvalidSourceState(invalidSkippedFile, !incremental);
@@ -1214,6 +1223,7 @@ export class TemplateApplyController {
     const candidates = plan.queue;
     const queueByTemplateName = new Map<string, ProcessingQueueItem[]>();
     const configByTemplateName = new Map<string, Record<string, unknown>>();
+    const unmatchedFiles: TemplateProcessingSkippedFile[] = [];
 
     for (const entry of candidates) {
       const fileNameRaw = String(entry.fileName ?? "");
@@ -1228,7 +1238,14 @@ export class TemplateApplyController {
             }),
       );
       if (!matchedRule) {
-        if (!fallbackTemplateConfig) continue;
+        if (!fallbackTemplateConfig) {
+          unmatchedFiles.push({
+            fileId: entry.fileId,
+            fileName: entry.fileName,
+            reason: "noMatchingRule",
+          });
+          continue;
+        }
         const fallbackKey = "__fallback__";
         if (!queueByTemplateName.has(fallbackKey)) {
           queueByTemplateName.set(fallbackKey, []);
@@ -1255,10 +1272,18 @@ export class TemplateApplyController {
     }
 
     const groupedEntries = Array.from(queueByTemplateName.entries());
+    const createRuleStatePlan = (queue: ProcessingQueueItem[]): TemplateProcessingPlan => ({
+      queue,
+      skippedFiles: [
+        ...plan.skippedFiles,
+        ...unmatchedFiles,
+      ],
+    });
     if (!groupedEntries.length) {
-      this.applyTemplateProcessingPlanStates(plan, !incremental);
-      return plan.skippedFiles.length
-        ? buildNoProcessableFilesFeedback(plan.skippedFiles)
+      const statePlan = createRuleStatePlan([]);
+      this.applyTemplateProcessingPlanStates(statePlan, !incremental);
+      return statePlan.skippedFiles.length
+        ? buildNoProcessableFilesFeedback(statePlan.skippedFiles)
         : {
             message: localize("template.applyNewFiles.noNewFiles", "No new files to extract."),
             ok: false,
@@ -1298,7 +1323,7 @@ export class TemplateApplyController {
     }
 
     if (!groupedPrepared.length || !finalQueue.length) {
-      this.applyTemplateProcessingPlanStates(plan, !incremental);
+      this.applyTemplateProcessingPlanStates(createRuleStatePlan([]), !incremental);
       return {
         message: localize("template.applyNewFiles.noNewFiles", "No new files to extract."),
         ok: false,
@@ -1306,7 +1331,11 @@ export class TemplateApplyController {
       };
     }
 
-    this.applyTemplateProcessingPlanStates(plan, !incremental);
+    const statePlan = createRuleStatePlan(finalQueue);
+    this.applyTemplateProcessingPlanStates(statePlan, !incremental);
+    if (unmatchedFiles.length) {
+      warnings.push(...buildSkippedAssessmentWarnings(unmatchedFiles));
+    }
     this.lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
     this.options.templateApplyService.startRuleProcessingJob({
       templateProcessingBackendService: this.options.templateProcessingBackendService,
@@ -1323,6 +1352,7 @@ export class TemplateApplyController {
       processingStopOnErrorRef: this.processingStopOnErrorRef,
       processingWorkerRef: this.processingWorkerRef,
       hasSourceFile: this.hasSourceFile,
+      onSourceFileRemoved: (fileId) => this.deleteFileApplyStates([fileId]),
       removedQueuedFileIdsRef: this.removedQueuedFileIdsRef,
       showResults: this.options.showResults,
       templateSelection,

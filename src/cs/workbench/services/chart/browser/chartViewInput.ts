@@ -22,12 +22,16 @@ export const createChartViewInput = (
 	options: CreateChartViewInputOptions,
 ): ChartViewInput => {
 	const { activeFileId } = options;
+	const hasChartData = Boolean(
+		activeFileId &&
+			options.chartFileOptions.some(option => option.fileId === activeFileId),
+	);
 
 	return {
 		activeFileId,
 		activePlotType: options.activePlotType,
 		chartFileOptions: options.chartFileOptions,
-		hasChartData: Boolean(activeFileId),
+		hasChartData,
 		processingStatus: options.processingStatus,
 		showFileSelect: options.showFileSelect,
 		shouldMountCharts: options.shouldMountCharts,

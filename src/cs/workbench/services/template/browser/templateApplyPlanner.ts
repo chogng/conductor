@@ -14,7 +14,8 @@ export type TemplateProcessingSkipReason =
 	| "missingAssessment"
 	| "needsTemplate"
 	| "lowConfidence"
-	| "unknownCurveType";
+	| "unknownCurveType"
+	| "noMatchingRule";
 
 export type TemplateProcessingSkippedFile = {
 	readonly fileId: string;
@@ -25,6 +26,12 @@ export type TemplateProcessingSkippedFile = {
 export type TemplateProcessingPlan = {
 	readonly queue: ProcessingQueueItem[];
 	readonly skippedFiles: readonly TemplateProcessingSkippedFile[];
+};
+
+export type TemplateProcessingPlanMode = "auto" | "manual" | "rule";
+
+export type TemplateProcessingPlanOptions = {
+	readonly mode?: TemplateProcessingPlanMode;
 };
 
 /**
@@ -40,10 +47,12 @@ export function buildTemplateProcessingQueue(
 export function buildTemplateProcessingPlan(
 	rawFiles: readonly SessionFile[],
 	processedIds: ReadonlySet<string> | null = null,
+	options: TemplateProcessingPlanOptions = {},
 ): TemplateProcessingPlan {
 	const queue: ProcessingQueueItem[] = [];
 	const skippedFiles: TemplateProcessingSkippedFile[] = [];
 	const queuedIds = new Set<string>();
+	const mode = options.mode ?? "auto";
 
 	for (const entry of Array.isArray(rawFiles) ? rawFiles : []) {
 		const fileId = String(entry?.fileId ?? "").trim();
@@ -65,15 +74,17 @@ export function buildTemplateProcessingPlan(
 		}
 
 		const assessment = createTemplateProcessingAssessment(entry);
-		const skipReason = getTemplateProcessingSkipReason(assessment);
-		if (skipReason) {
-			skippedFiles.push({
-				fileId,
-				fileName: entry.fileName,
-				reason: skipReason,
-			});
-			queuedIds.add(fileId);
-			continue;
+		if (mode === "auto") {
+			const skipReason = getTemplateProcessingSkipReason(assessment);
+			if (skipReason) {
+				skippedFiles.push({
+					fileId,
+					fileName: entry.fileName,
+					reason: skipReason,
+				});
+				queuedIds.add(fileId);
+				continue;
+			}
 		}
 
 		queue.push({

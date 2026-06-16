@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { Emitter } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { AssessmentContribution } from "src/cs/workbench/services/assessment/browser/assessment.contribution";
 import { AssessmentQueueService } from "src/cs/workbench/services/assessment/browser/assessmentQueueService";
@@ -19,6 +20,7 @@ import type {
 	RawTableRows,
 	RawTableRowsReadInput,
 } from "src/cs/workbench/services/files/common/rawTableRowsReader";
+import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 
 suite("workbench/services/assessment/test/browser/assessmentContribution", () => {
@@ -165,6 +167,60 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 
 		contribution.dispose();
 		assessmentQueueService.dispose();
+	});
+
+	test("cleans queued and preferred assessment refs when files are removed or session clears", () => {
+		const eventEmitter = new Emitter<SessionChangeEvent>();
+		const sessionService = {
+			commitRawTableAssessments: () => undefined,
+			getSnapshot: () => ({
+				fileOrder: [],
+				filesById: {},
+				schemaVersion: 1,
+				sessionVersion: 1,
+			}),
+			onDidChangeSession: eventEmitter.event,
+		} as unknown as SessionService;
+		const assessmentQueueService = store.add(new AssessmentQueueService(
+			sessionService,
+			new TestAssessmentService(),
+			new TestRawTableRowsReaderService(),
+		));
+		const inspect = assessmentQueueService as unknown as {
+			pendingVisibleRefsByKey: Map<string, unknown>;
+			preferredOrderByKey: Map<string, unknown>;
+			preferredPriorityByKey: Map<string, unknown>;
+		};
+
+		assessmentQueueService.prioritizeRawTables([
+			{ fileId: "file-a", rawTableId: "table-a" },
+			{ fileId: "file-b", rawTableId: "table-b" },
+		], "visible");
+		inspect.pendingVisibleRefsByKey.set("file-a\u0000table-a", {
+			ref: { fileId: "file-a", rawTableId: "table-a" },
+			sourceRawTableVersion: 1,
+		});
+
+		eventEmitter.fire({
+			fileIds: ["file-a"],
+			reason: "filesRemoved",
+			sessionVersion: 2,
+		});
+
+		assert.equal(inspect.pendingVisibleRefsByKey.has("file-a\u0000table-a"), false);
+		assert.equal(inspect.preferredOrderByKey.has("file-a\u0000table-a"), false);
+		assert.equal(inspect.preferredPriorityByKey.has("file-a\u0000table-a"), false);
+		assert.equal(inspect.preferredOrderByKey.has("file-b\u0000table-b"), true);
+
+		eventEmitter.fire({
+			reason: "sessionCleared",
+			sessionVersion: 3,
+		});
+
+		assert.equal(inspect.pendingVisibleRefsByKey.size, 0);
+		assert.equal(inspect.preferredOrderByKey.size, 0);
+		assert.equal(inspect.preferredPriorityByKey.size, 0);
+		eventEmitter.dispose();
 	});
 });
 

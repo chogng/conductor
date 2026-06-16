@@ -139,6 +139,44 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     assert.equal(extractionConfig.yUnit, "A");
   });
 
+  test("manual apply queues files that need template review or have weak assessment", () => {
+    const queuedFileIds: string[][] = [];
+    const controller = createController({
+      sessionService: createSessionService(),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds),
+    });
+
+    controller.update({
+      processedFileIds: [],
+      rawFiles: [
+        createSessionFile("file-needs-template", {
+          curveTypeNeedsTemplate: true,
+        }),
+        createSessionFile("file-low-confidence", {
+          curveTypeConfidence: "low",
+        }),
+        createSessionFile("file-unknown", {
+          curveType: "unknown",
+          curveTypeConfidence: "medium",
+          xAxisRole: null,
+        }),
+      ],
+    });
+
+    const result = controller.handleTemplateApplied(createManualTemplateConfig()) as { ok: boolean };
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(queuedFileIds, [[
+      "file-needs-template",
+      "file-low-confidence",
+      "file-unknown",
+    ]]);
+    controller.dispose();
+  });
+
   test("removes queued processing files from session removal events", () => {
     const queuedFileIds: string[][] = [];
     const sessionEvents = new Emitter<SessionChangeEvent>();
@@ -176,6 +214,45 @@ suite("workbench/services/template/browser/templateApplyController", () => {
       state: "processing",
       total: 1,
     });
+    controller.dispose();
+    sessionEvents.dispose();
+  });
+
+  test("clears apply state when an active processing file is removed", () => {
+    const queuedFileIds: string[][] = [];
+    const startedJobs: ProcessingJobOptions[] = [];
+    const sessionEvents = new Emitter<SessionChangeEvent>();
+    const controller = createController({
+      sessionService: createSessionService(sessionEvents),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds, startedJobs, {
+        markProcessing: true,
+      }),
+    });
+
+    controller.update({
+      processedFileIds: [],
+      rawFiles: [
+        createSessionFile("file-a"),
+        createSessionFile("file-b"),
+      ],
+    });
+
+    controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    });
+    startedJobs[0].processingQueueRef.current = [startedJobs[0].queue[1]];
+    sessionEvents.fire({
+      fileIds: ["file-a"],
+      reason: "filesRemoved",
+      sessionVersion: 2,
+    });
+
+    assert.equal(controller.getFileApplyStates().has("file-a"), false);
+    assert.equal(controller.getFileApplyStates().get("file-b")?.state, "queued");
     controller.dispose();
     sessionEvents.dispose();
   });
@@ -443,6 +520,43 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     controller.dispose();
   });
 
+  test("rule apply marks unmatched files skipped instead of queued", () => {
+    const queuedFileIds: string[][] = [];
+    const controller = createController({
+      sessionService: createSessionService(),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds),
+    });
+
+    controller.update({
+      processedFileIds: [],
+      rawFiles: [
+        createSessionFile("file-a", { fileName: "Match_Device.csv" }),
+        createSessionFile("file-b", { fileName: "Other_Device.csv" }),
+      ],
+    });
+
+    const result = controller.handleTemplateApplied({
+      fileNameTemplateRules: [{
+        matchMode: "phrase",
+        pattern: "Match",
+        templateConfig: createManualTemplateConfig(),
+        templateName: "Matched Template",
+      }],
+      stopOnError: false,
+    }) as { ok: boolean };
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(queuedFileIds, [["file-a"]]);
+    assert.equal(controller.getFileApplyStates().get("file-a")?.state, "queued");
+    const unmatchedState = controller.getFileApplyStates().get("file-b");
+    assert.equal(unmatchedState?.state, "skipped");
+    assert.equal(unmatchedState?.state === "skipped" ? unmatchedState.code : null, "noMatchingRule");
+    controller.dispose();
+  });
+
   test("drops pending template output commits from stale jobs", async () => {
     const queuedFileIds: string[][] = [];
     const startedJobs: ProcessingJobOptions[] = [];
@@ -505,6 +619,26 @@ const createSessionFileBase = (fileId: string) => ({
   fileName: `${fileId}.csv`,
   xAxisRole: "vg" as const,
   xAxisRoleSource: "metadata" as const,
+});
+
+const createManualTemplateConfig = (): Record<string, unknown> => ({
+  bottomTitle: "Vg",
+  leftTitle: "Id",
+  legendPrefix: "",
+  name: "Manual Transfer",
+  stopOnError: false,
+  xDataEnd: "A3",
+  xDataStart: "A2",
+  xPointsPerGroup: "",
+  xSegmentCount: "",
+  xSegmentationMode: "points",
+  xUnit: "V",
+  yColumns: [1],
+  yLegendCount: "",
+  yLegendStart: "",
+  yLegendStep: "",
+  yLegendTarget: "auto",
+  yUnit: "A",
 });
 
 const createTemplateProcessingBackend = (): TemplateProcessingBackend => ({
@@ -596,7 +730,9 @@ const createTemplateApplyService = (
       }
     }
   },
-  startRuleProcessingJob: () => undefined,
+  startRuleProcessingJob: (jobOptions) => {
+    queuedFileIds.push(jobOptions.finalQueue.map((entry) => entry.fileId));
+  },
   terminateProcessingWorker: () => undefined,
 });
 

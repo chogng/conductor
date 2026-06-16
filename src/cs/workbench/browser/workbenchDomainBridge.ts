@@ -184,13 +184,18 @@ export class WorkbenchDomainBridge extends Disposable {
       readModel,
     ).selectedProcessedFileId,
   ) {
-    return createChartViewInput({
+    const chartFileOptions = createChartFileOptionsFromRecords(
+      snapshot.filesById,
+      snapshot.fileOrder,
+    );
+    const chartActiveFileId = resolveExplorerSelectedFileId(
       activeFileId,
+      chartFileOptions.map(option => option.fileId),
+    );
+    return createChartViewInput({
+      activeFileId: chartActiveFileId,
       activePlotType: this.options.plotService.getState().activePlotType,
-      chartFileOptions: createChartFileOptionsFromRecords(
-        snapshot.filesById,
-        snapshot.fileOrder,
-      ),
+      chartFileOptions,
       processingStatus: this.options.templateApplyWorkflowService.processingStatus,
       showFileSelect: false,
       shouldMountCharts: false,
