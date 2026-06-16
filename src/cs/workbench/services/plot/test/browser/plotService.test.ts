@@ -210,6 +210,7 @@ const createSessionServiceStub = (): ISessionService => ({
   }),
   commitMetrics: () => undefined,
   commitRawTableAssessment: () => undefined,
+  commitRawTableAssessments: () => undefined,
   commitTemplateRun: () => undefined,
   getSnapshot: createSnapshot,
   removeFiles: () => undefined,

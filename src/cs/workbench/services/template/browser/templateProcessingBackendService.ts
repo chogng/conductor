@@ -35,7 +35,7 @@ export class TemplateProcessingBackendService extends Disposable implements ITem
 		return unavailable();
 	}
 
-	public readConvertedCsv(_payload: { path: string }): Promise<FileConverterConvertedCsv> {
+	public readConvertedCsv(_payload: { path: string; maxRows?: number }): Promise<FileConverterConvertedCsv> {
 		return Promise.resolve({ ok: false });
 	}
 }

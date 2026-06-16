@@ -58,6 +58,9 @@ import {
   commitExplorerSessionImport,
 } from "src/cs/workbench/contrib/files/browser/explorerSessionImport";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
+import {
+  assessFastImportBadge,
+} from "src/cs/workbench/services/assessment/common/fileAssessment";
 import { IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
   ITemplateService,
@@ -85,6 +88,7 @@ export class ExplorerViewPane extends ViewPane {
   private templateRecords: TemplateRecord[] = [];
   private isTemplateListLoading = false;
   private pendingLocalExpandedFolderKeys: readonly string[] | null = null;
+  private cancelPendingSourceSyncView: (() => void) | null = null;
 
   constructor(
     @ICommandService private readonly commandService: ICommandService,
@@ -207,6 +211,8 @@ export class ExplorerViewPane extends ViewPane {
     }
 
     this.disposed = true;
+    this.cancelPendingSourceSyncView?.();
+    this.cancelPendingSourceSyncView = null;
     this.sourceWorkflow.dispose();
     this.explorerView?.dispose();
     this.explorerView = null;
@@ -302,6 +308,7 @@ export class ExplorerViewPane extends ViewPane {
       onDraggingChange: this.handleDraggingChange,
       onFolderExpansionChange: this.handleFolderExpansionChange,
       onFolderKeysChange: this.handleFolderKeysChange,
+      onVisibleFileIdsChange: this.handleVisibleFileIdsChange,
       onRemoveFolder: this.handleRemoveFolder,
       onRequestTemplates: this.loadTemplates,
       onDropFiles: this.handleDropFiles,
@@ -362,7 +369,7 @@ export class ExplorerViewPane extends ViewPane {
     if (replaceSourceKeys) {
       this.replaceSourceKeys = replaceSourceKeys;
     }
-    this.syncView();
+    this.schedulePendingSourceSyncView();
   }
 
   private updatePendingSourceFile(
@@ -391,7 +398,7 @@ export class ExplorerViewPane extends ViewPane {
       }));
     }
     this.pendingSourceEntries = pendingEntries;
-    this.syncView();
+    this.schedulePendingSourceSyncView();
   }
 
   private removePendingSourceFiles(sourceKeys: readonly string[]): void {
@@ -410,7 +417,7 @@ export class ExplorerViewPane extends ViewPane {
     if (this.pendingSourceEntries.length === 0) {
       this.replaceSourceKeys = null;
     }
-    this.syncView();
+    this.schedulePendingSourceSyncView();
   }
 
   private removePendingSourceFilesInFolder(folderPath: string): boolean {
@@ -431,7 +438,7 @@ export class ExplorerViewPane extends ViewPane {
 
     this.pendingSourceEntries = [];
     this.replaceSourceKeys = null;
-    this.syncView();
+    this.schedulePendingSourceSyncView();
   }
 
   private finishPendingSourceReplace(): void {
@@ -440,7 +447,31 @@ export class ExplorerViewPane extends ViewPane {
     }
 
     this.replaceSourceKeys = null;
-    this.syncView();
+    this.schedulePendingSourceSyncView();
+  }
+
+  private schedulePendingSourceSyncView(): void {
+    if (this.disposed || this.cancelPendingSourceSyncView) {
+      return;
+    }
+
+    const run = (): void => {
+      this.cancelPendingSourceSyncView = null;
+      this.syncView();
+    };
+
+    if (typeof globalThis.requestAnimationFrame === "function") {
+      const handle = globalThis.requestAnimationFrame(run);
+      this.cancelPendingSourceSyncView = () => {
+        globalThis.cancelAnimationFrame(handle);
+      };
+      return;
+    }
+
+    const handle = globalThis.setTimeout(run, 0);
+    this.cancelPendingSourceSyncView = () => {
+      globalThis.clearTimeout(handle);
+    };
   }
 
   private openFileDialog(): void {
@@ -585,6 +616,13 @@ export class ExplorerViewPane extends ViewPane {
     return this.explorerService.reconcileExpandedFolderKeys(folderKeys);
   };
 
+  private readonly handleVisibleFileIdsChange = (
+    visibleFileIds: readonly string[],
+    nearbyFileIds: readonly string[],
+  ): void => {
+    this.explorerService.setVisibleFileIds(visibleFileIds, nearbyFileIds);
+  };
+
   private consumeLocalExpandedFolderKeys(expandedFolderKeys: readonly string[]): boolean {
     if (!this.pendingLocalExpandedFolderKeys) {
       return false;
@@ -655,7 +693,6 @@ export class ExplorerViewPane extends ViewPane {
       const removedFileIds = new Set(normalizedFileIds);
       this.internalFiles = this.internalFiles.filter((entry) => !removedFileIds.has(entry.fileId ?? ""));
     }
-
     this.sessionService.removeFiles(normalizedFileIds);
     if (this.paneInput.selectionKind !== "table") {
       this.selectRawFileAfterRemoval(normalizedFileIds);
@@ -812,6 +849,7 @@ function createPendingSourceEntry({
 }): ExplorerFileEntry {
   const relativePath = normalizeRelativePath(pendingFile.relativePath);
   return {
+    badgeState: createPendingFastBadgeState(pendingFile),
     fileName: pendingFile.sourceName,
     itemKey: pendingFile.sourceKey,
     relativePath,
@@ -820,6 +858,40 @@ function createPendingSourceEntry({
     sourceStatus: status,
     sourceStatusMessage: message,
   };
+}
+
+function createPendingFastBadgeState(
+  pendingFile: PendingImportFile,
+): ExplorerFileEntry["badgeState"] {
+  const fastBadge = assessFastImportBadge({
+    fileName: pendingFile.sourceName,
+    relativePath: pendingFile.relativePath,
+  });
+  return fastBadge
+    ? {
+        confidence: fastBadge.confidence,
+        kind: "fast",
+        label: getPendingFastBadgeLabel(fastBadge.curveType),
+        message: fastBadge.reason,
+      }
+    : { kind: "pending" };
+}
+
+function getPendingFastBadgeLabel(curveType: string): string {
+  switch (curveType) {
+    case "transfer":
+      return "transfer";
+    case "output":
+      return "output";
+    case "cv":
+      return "cv";
+    case "cf":
+      return "cf";
+    case "pv":
+      return "pv";
+    default:
+      return curveType;
+  }
 }
 
 function getPendingSourcePath(pendingFile: PendingImportFile): string | null {

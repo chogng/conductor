@@ -21,6 +21,7 @@ export type RawTableRowsReadInput = {
 	readonly fallbackFile?: unknown;
 	readonly fileName?: string | null;
 	readonly lastModified?: number | null;
+	readonly maxRows?: number;
 	readonly rowStore?: RawTableRowsStore | null;
 };
 

@@ -42,6 +42,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           relativePath: "batch/raw.csv",
           sourceKey: "source-key",
           sourcePath: "C:/data/raw.csv",
+          badgeState: { kind: "ready" },
           curveType: "output (vd)",
           curveTypeBadgeLabel: "output",
           curveTypeConfidence: "medium",
@@ -86,6 +87,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         relativePath: "batch/raw.csv",
         sourceKey: "source-key",
         sourcePath: "C:/data/raw.csv",
+        badgeState: { kind: "ready" },
         curveType: "iv",
         curveTypeBadgeLabel: "iv",
         curveTypeConfidence: "high",
@@ -135,6 +137,7 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         relativePath: "batch/canonical.csv",
         sourceKey: "source-key",
         sourcePath: "C:/canonical/raw.csv",
+        badgeState: { kind: "ready" },
         curveType: "transfer",
         curveTypeBadgeLabel: "transfer",
         curveTypeConfidence: "low",
@@ -153,6 +156,38 @@ suite("workbench/contrib/files/common/explorerModel", () => {
         ["raw-only"],
       ),
       [],
+    );
+  });
+
+  test("createRawExplorerFiles projects pending badge state before assessment", () => {
+    assert.deepEqual(
+      createRawExplorerFiles([
+        {
+          fileId: "raw-1",
+          fileName: "raw.csv",
+          relativePath: "batch/raw.csv",
+          sourceKey: "source-key",
+          sourceVersion: 1,
+        },
+      ]),
+      [
+        {
+          file: undefined,
+          fileId: "raw-1",
+          fileName: "raw.csv",
+          itemKey: undefined,
+          normalizedCsvPath: undefined,
+          relativePath: "batch/raw.csv",
+          sourceKey: "source-key",
+          sourcePath: undefined,
+          badgeState: { kind: "pending" },
+          curveType: null,
+          curveTypeBadgeLabel: null,
+          curveTypeConfidence: undefined,
+          curveTypeNeedsTemplate: undefined,
+          curveTypeReasons: undefined,
+        },
+      ],
     );
   });
 

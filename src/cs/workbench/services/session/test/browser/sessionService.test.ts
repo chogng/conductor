@@ -586,6 +586,36 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.equal(file.measurementBlocksById["block-a"].family, "iv");
   });
 
+  test("commits multiple raw table assessments with one change event", () => {
+    const session = new SessionService();
+    const events: SessionChangeEvent[] = [];
+    const disposable = session.onDidChangeSession(event => {
+      events.push(event);
+    });
+    session.commitFileImport(createMultiRawTableImportResult());
+    events.length = 0;
+
+    session.commitRawTableAssessments([
+      createRawTableAssessment(1, "table-a", "block-a"),
+      createRawTableAssessment(1, "table-b", "block-b"),
+    ]);
+
+    const file = session.getSnapshot().filesById["file-a"];
+    assert.deepEqual(Object.keys(file.assessmentsByRawTableId).sort(), ["table-a", "table-b"]);
+    assert.deepEqual(file.measurementBlockOrder, ["block-a", "block-b"]);
+    assert.deepEqual(events, [{
+      fileIds: ["file-a"],
+      rawTableIds: ["table-a", "table-b"],
+      rawTableRefs: [
+        { fileId: "file-a", rawTableId: "table-a" },
+        { fileId: "file-a", rawTableId: "table-b" },
+      ],
+      reason: "assessmentChanged",
+      sessionVersion: 2,
+    }]);
+    disposable.dispose();
+  });
+
   test("ignores stale raw table assessment versions", () => {
     const session = new SessionService();
     session.commitFileImport(createSingleRawTableImportResult());
@@ -1078,6 +1108,51 @@ const createSingleRawTableImportResult = (): FileImportResult => ({
   }],
 });
 
+const createMultiRawTableImportResult = (): FileImportResult => ({
+  createdAt: 123,
+  diagnostics: [],
+  files: [{
+    id: "file-a",
+    kind: "csv",
+    name: "Transfer.csv",
+    raw: {
+      fileId: "file-a",
+      fileName: "Transfer.csv",
+      rawTablesById: {
+        "table-a": {
+          columnCount: 2,
+          fileId: "file-a",
+          maxCellLengths: [2, 4],
+          rawTableId: "table-a",
+          rowCount: 2,
+          rows: {
+            kind: "inline",
+            values: [["Vg", "Id"], ["0", "1e-9"]],
+          },
+          source: {
+            kind: "csv",
+          },
+        },
+        "table-b": {
+          columnCount: 2,
+          fileId: "file-a",
+          maxCellLengths: [2, 4],
+          rawTableId: "table-b",
+          rowCount: 2,
+          rows: {
+            kind: "inline",
+            values: [["Vg", "Id"], ["1", "2e-9"]],
+          },
+          source: {
+            kind: "csv",
+          },
+        },
+      },
+      rawTableOrder: ["table-a", "table-b"],
+    },
+  }],
+});
+
 const createSourceKeyedImportResult = (
   fileId: string,
   rawKey: string,
@@ -1122,6 +1197,8 @@ const createSourceKeyedImportedFileRecord = (
 
 const createRawTableAssessment = (
   sourceRawTableVersion: number,
+  rawTableId = "table-a",
+  blockId = "block-a",
 ): RawTableAssessmentRecord => ({
   blocks: [{
     columnCount: 2,
@@ -1131,9 +1208,9 @@ const createRawTableAssessment = (
     diagnosticCodes: [],
     family: "iv",
     fileId: "file-a",
-    id: "block-a",
+    id: blockId,
     label: "Block A",
-    rawTableId: "table-a",
+    rawTableId,
     rowCount: 1,
     source: {
       fullRange: {
@@ -1148,7 +1225,7 @@ const createRawTableAssessment = (
   diagnostics: [],
   fileId: "file-a",
   groups: [],
-  rawTableId: "table-a",
+  rawTableId,
   sourceRawTableVersion,
 });
 

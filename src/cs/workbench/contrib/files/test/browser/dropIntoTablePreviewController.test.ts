@@ -153,6 +153,7 @@ function createSessionService(): ISessionService {
       skippedDuplicateFileIds: [],
     }),
     commitRawTableAssessment: () => undefined,
+    commitRawTableAssessments: () => undefined,
     commitTemplateRun: () => undefined,
     commitCurves: () => undefined,
     commitMetrics: () => undefined,

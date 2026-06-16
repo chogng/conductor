@@ -4,6 +4,13 @@ export type ListRenderState = {
   selected: boolean;
 };
 
+export type ListRenderRange = {
+  readonly renderedEnd: number;
+  readonly renderedStart: number;
+  readonly visibleEnd: number;
+  readonly visibleStart: number;
+};
+
 export type IListVirtualDelegate<T> = {
   readonly getHeight: (item: T) => number;
 };
@@ -27,6 +34,7 @@ export type ListProps<T> = {
   readonly items: T[];
   readonly minVirtualCount?: number;
   readonly onKeyDown?: (event: KeyboardEvent) => void;
+  readonly onDidRenderRange?: (range: ListRenderRange) => void;
   readonly onScroll?: (event: Event) => void;
   readonly onSelect?: (
     item: T,

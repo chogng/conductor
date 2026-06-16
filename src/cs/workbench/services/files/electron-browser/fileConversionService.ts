@@ -20,7 +20,7 @@ type DesktopIpcRenderer = {
 
 type FileConverterBridge = {
   prepareFileConversion?: (payload: { fileName: string; path: string }) => Promise<FileConverterPreparedFile>;
-  readConvertedCsvFileWithRust?: (payload: { path: string }) => Promise<FileConverterConvertedCsv>;
+  readConvertedCsvFileWithRust?: (payload: { path: string; maxRows?: number }) => Promise<FileConverterConvertedCsv>;
 };
 
 const getServiceUnavailableMessage = (): string =>
@@ -103,17 +103,20 @@ export class FileConversionService extends Disposable implements IFileConverterB
     return invoke<FileConverterPreparedFile>(workbenchIpcChannels.fileConversionPrepare, payload);
   }
 
-  public readConvertedCsv(payload: { path: string }): Promise<FileConverterConvertedCsv> {
+  public async readConvertedCsv(payload: { path: string; maxRows?: number }): Promise<FileConverterConvertedCsv> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("readConvertedCsvFileWithRust")) {
-      return getBridgeMethod(bridge, "readConvertedCsvFileWithRust")(payload);
+      const result = await getBridgeMethod(bridge, "readConvertedCsvFileWithRust")(payload);
+      if (result?.ok) {
+        return result;
+      }
     }
 
     return this.readConvertedCsvFromFile(payload);
   }
 
   private async readConvertedCsvFromFile(
-    payload: { path: string },
+    payload: { path: string; maxRows?: number },
   ): Promise<FileConverterConvertedCsv> {
     const filePath = typeof payload?.path === "string" ? payload.path.trim() : "";
     if (!filePath) {
@@ -130,14 +133,37 @@ export class FileConversionService extends Disposable implements IFileConverterB
     }
 
     const content = await this.fileService.readFile(resource, { encoding: "utf8" });
+    const csvText = limitCsvRows(content.value, payload.maxRows);
     const sizeBytes = new TextEncoder().encode(content.value).byteLength;
 
     return {
-      csvText: content.value,
+      csvText,
       ok: true,
       sizeBytes,
     };
   }
 }
+
+const limitCsvRows = (text: string, maxRows: number | undefined): string => {
+  const safeMaxRows = Math.floor(Number(maxRows));
+  if (!Number.isFinite(safeMaxRows) || safeMaxRows < 0) {
+    return text;
+  }
+  if (safeMaxRows === 0) {
+    return "";
+  }
+
+  let rowCount = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    if (text.charCodeAt(index) !== 10) {
+      continue;
+    }
+    rowCount += 1;
+    if (rowCount >= safeMaxRows) {
+      return text.slice(0, index);
+    }
+  }
+  return text;
+};
 
 registerSingleton(IFileConverterBackendService, FileConversionService, InstantiationType.Delayed);

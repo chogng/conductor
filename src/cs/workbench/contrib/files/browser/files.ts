@@ -56,6 +56,11 @@ export type ExplorerFolderExpansionChangeEvent = {
   readonly expandedFolderKeys: readonly string[];
 };
 
+export type ExplorerVisibleFileIdsChangeEvent = {
+  readonly nearbyFileIds: readonly string[];
+  readonly visibleFileIds: readonly string[];
+};
+
 export type ExplorerSelectionTarget = {
   readonly kind: ExplorerSelectionKind;
   readonly fileId: string | null;
@@ -98,6 +103,7 @@ export interface IExplorerService {
   readonly onDidChangeSelection: Event<ExplorerSelectionChangeEvent>;
   readonly onDidChangeExpandedFolderKeys: Event<ExplorerFolderExpansionChangeEvent>;
   readonly onDidChangeViewLayout: Event<ExplorerViewLayout>;
+  readonly onDidChangeVisibleFileIds: Event<ExplorerVisibleFileIdsChangeEvent>;
   readonly onDidChangePaneInput: Event<void>;
 
   getContext(): ExplorerContext;
@@ -110,6 +116,7 @@ export interface IExplorerService {
   setExpandedFolderKeys(folderKeys: readonly string[]): void;
   reconcileExpandedFolderKeys(folderKeys: readonly string[]): readonly string[];
   getCollapsedFolderKeys(folderKeys: readonly string[]): readonly string[];
+  setVisibleFileIds(visibleFileIds: readonly string[], nearbyFileIds?: readonly string[]): void;
   setViewLayout(viewLayout: ExplorerViewLayout): void;
   toggleViewLayout(): void;
   getPaneInput(): ExplorerPaneInput | null;

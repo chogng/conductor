@@ -208,8 +208,9 @@
 .file-list-item-assessment {
   display: inline-flex;
   max-width: 82px;
-  min-width: 0;
+  min-width: 28px;
   align-items: center;
+  justify-content: center;
   overflow: hidden;
 
   border-radius: 4px;
@@ -220,6 +221,14 @@
   line-height: var(--files-explorer-badge-line-height, 14px);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.file-list-item-assessment[data-state="pending"] {
+  color: rgb(var(--text-secondary) / 0.72);
+}
+
+.file-list-item-assessment[data-state="fast"] {
+  color: rgb(var(--text-secondary) / 0.9);
 }
 
 .file-list-tree-root[data-show-badges="false"] .file-list-item-assessment {

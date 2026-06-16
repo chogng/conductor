@@ -9,6 +9,7 @@ import {
 } from "src/cs/base/common/lifecycle";
 import type {
   ListProps,
+  ListRenderRange,
   ListRenderState,
 } from "src/cs/base/browser/ui/list/list";
 import { RangeMap } from "src/cs/base/browser/ui/list/rangeMap";
@@ -88,6 +89,7 @@ export class ListView<T> implements IDisposable {
   private scrollbarContentHeight = -1;
   private rangeMap = new RangeMap();
   private lastRenderRange: RenderRange = { start: 0, end: 0 };
+  private lastNotifiedRange: ListRenderRange | null = null;
   private shouldReconcileRows = true;
   private disposed = false;
 
@@ -444,6 +446,12 @@ export class ListView<T> implements IDisposable {
       this.scrollTop = 0;
       this.disposeAllRows();
       this.lastRenderRange = { start: 0, end: 0 };
+      this.notifyRenderRange({
+        renderedEnd: 0,
+        renderedStart: 0,
+        visibleEnd: 0,
+        visibleStart: 0,
+      });
       empty?.(this.emptyContainer);
       this.updateScrollbarMetrics(0);
       return;
@@ -461,11 +469,17 @@ export class ListView<T> implements IDisposable {
     this.scrollHeight = totalHeight;
     this.scrollTop = this.clampScrollTop(this.scrollTop);
     const virtualized = items.length >= this.minVirtualCount;
+    const visibleStartIndex = virtualized
+      ? this.findIndexAtOffset(this.scrollTop)
+      : 0;
+    const visibleEndIndex = virtualized
+      ? Math.min(items.length, this.findIndexAfterOffset(this.scrollTop + this.viewportHeight))
+      : items.length;
     const startIndex = virtualized
-      ? Math.max(0, this.findIndexAtOffset(this.scrollTop) - this.overscanRows)
+      ? Math.max(0, visibleStartIndex - this.overscanRows)
       : 0;
     const endIndex = virtualized
-      ? Math.min(items.length, this.findIndexAfterOffset(this.scrollTop + this.viewportHeight) + this.overscanRows)
+      ? Math.min(items.length, visibleEndIndex + this.overscanRows)
       : items.length;
 
     this.stage.style.height = `${totalHeight}px`;
@@ -517,6 +531,27 @@ export class ListView<T> implements IDisposable {
       this.shouldReconcileRows = false;
     });
 
+    this.notifyRenderRange({
+      renderedEnd: endIndex,
+      renderedStart: startIndex,
+      visibleEnd: visibleEndIndex,
+      visibleStart: visibleStartIndex,
+    });
+  }
+
+  private notifyRenderRange(range: ListRenderRange): void {
+    if (
+      this.lastNotifiedRange &&
+      this.lastNotifiedRange.renderedEnd === range.renderedEnd &&
+      this.lastNotifiedRange.renderedStart === range.renderedStart &&
+      this.lastNotifiedRange.visibleEnd === range.visibleEnd &&
+      this.lastNotifiedRange.visibleStart === range.visibleStart
+    ) {
+      return;
+    }
+
+    this.lastNotifiedRange = range;
+    this.props.onDidRenderRange?.(range);
   }
 
   private updateScrollbarMetrics(contentHeight: number): void {

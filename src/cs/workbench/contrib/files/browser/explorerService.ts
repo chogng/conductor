@@ -10,6 +10,7 @@ import {
   type ExplorerPaneInput,
   type ExplorerFolderExpansionChangeEvent,
   type ExplorerSelectionChangeEvent,
+  type ExplorerVisibleFileIdsChangeEvent,
   type ExplorerContext,
   type ExplorerCopyState,
   type ExplorerEditableData,
@@ -29,6 +30,8 @@ export class ExplorerService extends Disposable implements IExplorerService {
   public readonly onDidChangeExpandedFolderKeys = this.onDidChangeExpandedFolderKeysEmitter.event;
   private readonly onDidChangeViewLayoutEmitter = this._register(new Emitter<ExplorerViewLayout>());
   public readonly onDidChangeViewLayout = this.onDidChangeViewLayoutEmitter.event;
+  private readonly onDidChangeVisibleFileIdsEmitter = this._register(new Emitter<ExplorerVisibleFileIdsChangeEvent>());
+  public readonly onDidChangeVisibleFileIds = this.onDidChangeVisibleFileIdsEmitter.event;
   private readonly onDidChangePaneInputEmitter = this._register(new Emitter<void>());
   public readonly onDidChangePaneInput = this.onDidChangePaneInputEmitter.event;
 
@@ -36,6 +39,8 @@ export class ExplorerService extends Disposable implements IExplorerService {
   private currentProcessedFileId: string | null = null;
   private currentExpandedFolderKeys: readonly string[] = [];
   private knownFolderKeys: readonly string[] = [];
+  private currentNearbyFileIds: readonly string[] = [];
+  private currentVisibleFileIds: readonly string[] = [];
   private currentViewLayout: ExplorerViewLayout = "tree";
   private paneInput: ExplorerPaneInput | null = null;
   private readonly views = new Set<IExplorerView>();
@@ -140,6 +145,28 @@ export class ExplorerService extends Disposable implements IExplorerService {
     const expandedFolderKeys = new Set(this.currentExpandedFolderKeys);
     return normalizeExplorerFolderKeys(folderKeys)
       .filter(folderKey => !expandedFolderKeys.has(folderKey));
+  }
+
+  public setVisibleFileIds(
+    visibleFileIds: readonly string[],
+    nearbyFileIds: readonly string[] = [],
+  ): void {
+    const nextVisibleFileIds = getNormalizedExplorerFileIds(visibleFileIds);
+    const nextNearbyFileIds = getNormalizedExplorerFileIds(nearbyFileIds)
+      .filter(fileId => !nextVisibleFileIds.includes(fileId));
+    if (
+      areStringArraysEqual(this.currentVisibleFileIds, nextVisibleFileIds) &&
+      areStringArraysEqual(this.currentNearbyFileIds, nextNearbyFileIds)
+    ) {
+      return;
+    }
+
+    this.currentVisibleFileIds = nextVisibleFileIds;
+    this.currentNearbyFileIds = nextNearbyFileIds;
+    this.onDidChangeVisibleFileIdsEmitter.fire({
+      nearbyFileIds: nextNearbyFileIds,
+      visibleFileIds: nextVisibleFileIds,
+    });
   }
 
   public setViewLayout(viewLayout: ExplorerViewLayout): void {
@@ -368,6 +395,19 @@ const areExplorerFilesEqual = (
       file.sourcePath === nextFile.sourcePath &&
       file.sourceStatus === nextFile.sourceStatus &&
       file.sourceStatusMessage === nextFile.sourceStatusMessage &&
+      file.badgeState?.kind === nextFile.badgeState?.kind &&
+      (
+        file.badgeState?.kind !== "error" ||
+        nextFile.badgeState?.kind === "error" &&
+          file.badgeState.message === nextFile.badgeState.message
+      ) &&
+      (
+        file.badgeState?.kind !== "fast" ||
+        nextFile.badgeState?.kind === "fast" &&
+          file.badgeState.label === nextFile.badgeState.label &&
+          file.badgeState.confidence === nextFile.badgeState.confidence &&
+          file.badgeState.message === nextFile.badgeState.message
+      ) &&
       file.curveType === nextFile.curveType &&
       file.curveTypeBadgeLabel === nextFile.curveTypeBadgeLabel &&
       file.curveTypeConfidence === nextFile.curveTypeConfidence &&

@@ -23,6 +23,7 @@ use converter::convert_one;
 use converter::write_csv_cell;
 use detect::*;
 use import::build_import_assessment;
+use import::IMPORT_ASSESSMENT_PREVIEW_ROWS;
 use dataset::EngineDataset;
 use dataset::load_dataset;
 use infer::infer_auto_segmentation_from_x_values;
@@ -2458,10 +2459,11 @@ fn handle_request(
             Ok(json!({
                 "assessment": build_import_assessment(
                     &file_name,
-                    dataset.rows.iter().take(512).cloned().collect(),
+                    dataset.rows.iter().take(IMPORT_ASSESSMENT_PREVIEW_ROWS).cloned().collect(),
                 ),
                 "columnCount": dataset.column_count,
                 "fileName": file_name,
+                "maxCellLengths": dataset.max_cell_lengths,
                 "rowCount": dataset.rows.len(),
             }))
         }
@@ -3014,8 +3016,10 @@ fn main() {
                     let manifest = json!({
                         "assessment": assessment,
                         "cells": result.stats.cells,
+                        "columnCount": result.stats.column_count,
                         "convertMs": result.stats.convert_ms,
                         "csvBytes": result.stats.csv_bytes,
+                        "maxCellLengths": result.stats.max_cell_lengths,
                         "numericCells": result.stats.numeric_cells,
                         "rows": result.stats.rows,
                         "sizeBytes": result.stats.size_bytes,

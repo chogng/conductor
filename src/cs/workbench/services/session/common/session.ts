@@ -82,6 +82,7 @@ export interface ISessionService {
   clearSession(): void;
   commitFileImport(result: FileImportResult): CommitFileImportResult;
   commitRawTableAssessment(assessment: RawTableAssessmentRecord): void;
+  commitRawTableAssessments(assessments: readonly RawTableAssessmentRecord[]): void;
   commitTemplateRun(input: CommitTemplateRunInput): void;
   commitCurves(input: CommitCurvesInput): void;
   commitMetrics(input: CommitMetricsInput): void;

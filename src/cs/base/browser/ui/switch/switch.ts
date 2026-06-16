@@ -2,7 +2,6 @@ import "src/cs/base/browser/ui/switch/switch.css";
 
 export type SwitchStyleVars = Partial<CSSStyleDeclaration> & {
   "--switch-on"?: string;
-  "--switch-on-hover"?: string;
 };
 
 export type SwitchOptions = {

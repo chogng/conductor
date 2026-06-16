@@ -102,6 +102,7 @@ export class ExplorerView implements IDisposable {
       mode: this.props.mode,
       viewLayout: this.props.viewLayout,
       onListScroll: this.props.onListScroll,
+      onVisibleFileIdsChange: this.props.onVisibleFileIdsChange,
       onFolderExpansionChange: this.props.onFolderExpansionChange,
       onFolderKeysChange: this.props.onFolderKeysChange,
       onOpenFileDialog: this.props.onOpenFolderDialog,

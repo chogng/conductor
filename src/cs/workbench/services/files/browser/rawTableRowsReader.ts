@@ -28,7 +28,7 @@ export async function readRawTableRows(
 	}
 
 	if (rowStore.kind === "memory") {
-		return rowStore.rows.map(convertRowToStrings);
+		return limitRows(rowStore.rows, input.maxRows).map(convertRowToStrings);
 	}
 
 	const file = await loadConvertedCsvFile({
@@ -36,20 +36,36 @@ export async function readRawTableRows(
 		fallbackFile: input.fallbackFile,
 		fileName: input.fileName ?? undefined,
 		lastModified: input.lastModified ?? undefined,
+		maxRows: input.maxRows,
 		normalizedCsvPath: rowStore.normalizedCsvPath,
 	});
 	if (!file) {
 		return null;
 	}
 
-	return parseCsvRows(await file.text());
+	return parseCsvRows(await file.text(), input.maxRows);
 }
 
-function parseCsvRows(text: string): RawTableRows {
+function parseCsvRows(text: string, maxRows?: number): RawTableRows {
+	const preview = normalizeMaxRows(maxRows);
 	const parsed = Papa.parse<unknown[]>(text, {
+		...(preview !== undefined ? { preview } : {}),
 		skipEmptyLines: false,
 	});
 	return parsed.data.map(convertRowToStrings);
+}
+
+function limitRows<T>(
+	rows: readonly T[],
+	maxRows: number | undefined,
+): readonly T[] {
+	const preview = normalizeMaxRows(maxRows);
+	return preview === undefined ? rows : rows.slice(0, preview);
+}
+
+function normalizeMaxRows(value: number | undefined): number | undefined {
+	const normalized = Math.floor(Number(value));
+	return Number.isFinite(normalized) && normalized >= 0 ? normalized : undefined;
 }
 
 function convertRowToStrings(row: readonly unknown[]): readonly string[] {

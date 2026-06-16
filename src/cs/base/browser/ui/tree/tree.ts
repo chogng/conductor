@@ -43,6 +43,15 @@ export type ITreeSelectionEvent<T> = {
   readonly index: number;
 };
 
+export type ITreeRenderRangeEvent<T> = {
+  readonly rendered: readonly ITreeNode<T>[];
+  readonly renderedEnd: number;
+  readonly renderedStart: number;
+  readonly visible: readonly ITreeNode<T>[];
+  readonly visibleEnd: number;
+  readonly visibleStart: number;
+};
+
 export type ITreeVirtualDelegate<T> = {
   readonly getHeight: (element: T) => number;
 };
@@ -70,6 +79,7 @@ export type IObjectTreeOptions<T, TTemplateData = HTMLElement> = {
   readonly items: T[];
   readonly minVirtualCount?: number;
   readonly onDidChangeCollapseState?: (collapsedKeys: string[]) => void;
+  readonly onDidRenderRange?: (event: ITreeRenderRangeEvent<T>) => void;
   readonly onKeyDown?: (event: KeyboardEvent) => void;
   readonly onScroll?: (event: Event) => void;
   readonly onSelect?: (event: ITreeSelectionEvent<T>) => void;

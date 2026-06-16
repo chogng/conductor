@@ -22,6 +22,7 @@ import "src/cs/workbench/workbench.common.main";
 //#region --- workbench services
 
 import "src/cs/workbench/services/assessment/browser/assessmentService";
+import "src/cs/workbench/services/assessment/browser/assessmentQueueService";
 import "src/cs/workbench/services/appearance/browser/appearanceService";
 import "src/cs/workbench/services/lifecycle/browser/lifecycleService";
 import "src/cs/workbench/services/chart/browser/chartService";

@@ -16,6 +16,7 @@ import type {
   IObjectTreeOptionsUpdate,
   ITreeElementRenderDetails,
   ITreeNode,
+  ITreeRenderRangeEvent,
   ITreeRenderer,
   ITreeSelectionEvent,
 } from "src/cs/base/browser/ui/tree/tree";
@@ -153,6 +154,9 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
       gap: options.gap,
       items: flattenedItems,
       minVirtualCount: options.minVirtualCount,
+      onDidRenderRange: range => options.onDidRenderRange?.(
+        this.createTreeRenderRangeEvent(flattenedItems, range),
+      ),
       onKeyDown: (event: KeyboardEvent) => this.handleKeyDown(event),
       onScroll: options.onScroll,
       onSelect: (
@@ -510,6 +514,29 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
       element: entry.item,
     };
   }
+
+  private createTreeRenderRangeEvent(
+    items: readonly FlattenedObjectTreeNode<T>[],
+    range: {
+      readonly renderedEnd: number;
+      readonly renderedStart: number;
+      readonly visibleEnd: number;
+      readonly visibleStart: number;
+    },
+  ): ITreeRenderRangeEvent<T> {
+    return {
+      rendered: items
+        .slice(range.renderedStart, range.renderedEnd)
+        .map(entry => this.toTreeNode(entry)),
+      renderedEnd: range.renderedEnd,
+      renderedStart: range.renderedStart,
+      visible: items
+        .slice(range.visibleStart, range.visibleEnd)
+        .map(entry => this.toTreeNode(entry)),
+      visibleEnd: range.visibleEnd,
+      visibleStart: range.visibleStart,
+    };
+  }
 }
 
 export type {
@@ -517,6 +544,7 @@ export type {
   IObjectTreeOptionsUpdate,
   ITreeElementRenderDetails,
   ITreeNode,
+  ITreeRenderRangeEvent,
   ITreeRenderer,
   ITreeSelectionEvent,
 };

@@ -29,6 +29,7 @@ type RegisterRustHandlersOptions = {
     | "rustHostReadCells"
   >;
   ipcMain: IpcMain;
+  runForeground?: <T>(task: () => Promise<T>) => Promise<T>;
   rustService: IRustHostService;
 };
 
@@ -61,6 +62,7 @@ const normalizeAbsoluteFilePath = (rawPath: unknown): string => {
 export const registerRustHostChannels = ({
   ipcChannels,
   ipcMain,
+  runForeground = task => task(),
   rustService,
 }: RegisterRustHandlersOptions): { dispose(): void } => {
   const handleRustEngineOpen = async (
@@ -74,7 +76,7 @@ export const registerRustHostChannels = ({
       inputPath: normalizeAbsoluteFilePath(record?.path),
       seedRows: Math.max(0, Math.min(5000, Math.floor(Number(record?.seedRows) || 0))),
     };
-    return rustService.openFile(request);
+    return runForeground(() => rustService.openFile(request));
   };
 
   const handleRustEnginePreviewRows = async (
@@ -88,7 +90,7 @@ export const registerRustHostChannels = ({
       fileId: readString(record?.fileId),
       startRow,
     };
-    return rustService.previewRows(request);
+    return runForeground(() => rustService.previewRows(request));
   };
 
   const handleRustEnginePreviewMeta = async (
@@ -99,7 +101,7 @@ export const registerRustHostChannels = ({
     const request: PreviewMetaRequest = {
       fileId: readString(record?.fileId),
     };
-    return rustService.previewMeta(request);
+    return runForeground(() => rustService.previewMeta(request));
   };
 
   const handleRustEngineReadCell = async (
@@ -123,7 +125,7 @@ export const registerRustHostChannels = ({
       fileId: readString(record?.fileId),
       rowIndex,
     };
-    return rustService.readCell(request);
+    return runForeground(() => rustService.readCell(request));
   };
 
   const handleRustEngineReadCells = async (
@@ -154,7 +156,7 @@ export const registerRustHostChannels = ({
       cells: cells as Array<{ colIndex: number; rowIndex: number }>,
       fileId: readString(record?.fileId),
     };
-    return rustService.readCells(request);
+    return runForeground(() => rustService.readCells(request));
   };
 
   const handleRustEngineProcessFile = async (

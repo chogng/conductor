@@ -41,8 +41,8 @@ export class AssessmentService extends Disposable implements IAssessmentServiceT
     input: AssessRawTableInput,
   ): Promise<RawTableAssessmentRecord> {
     const assessment = await this.assessImportRows(input.fileName ?? input.rawTableId, input.rows);
-    const columnCount = getColumnCount(input.rows);
-    const rowCount = input.rows.length;
+    const columnCount = normalizePositiveCount(input.columnCount) ?? getColumnCount(input.rows);
+    const rowCount = normalizePositiveCount(input.rowCount) ?? input.rows.length;
     const fullRange = {
       startRow: 0,
       endRow: Math.max(0, rowCount - 1),
@@ -113,6 +113,11 @@ const getAssessmentConfidenceScore = (
 
   const exhaustive: never = confidence;
   return exhaustive;
+};
+
+const normalizePositiveCount = (value: unknown): number | undefined => {
+  const count = Math.floor(Number(value));
+  return Number.isFinite(count) && count > 0 ? count : undefined;
 };
 
 const getMeasurementFamily = (

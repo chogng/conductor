@@ -54,7 +54,6 @@ suite("base/test/browser/ui/switch/switch", () => {
       id: "switch",
       style: {
         "--switch-on": "#fff",
-        "--switch-on-hover": "",
       },
     });
 
@@ -64,7 +63,6 @@ suite("base/test/browser/ui/switch/switch", () => {
     assert.equal(button.attributes.get("aria-checked"), "true");
     assert.equal(button.attributes.get("data-state"), "checked");
     assert.equal(button.style.values.get("--switch-on"), "#fff");
-    assert.equal(button.style.values.has("--switch-on-hover"), false);
 
     updateSwitch(button as unknown as HTMLButtonElement, { checked: false });
 
@@ -108,6 +106,25 @@ suite("base/test/browser/ui/switch/switch", () => {
     assert.equal(getComputedStyle(button).transitionDuration, "0s");
     assert.equal(getComputedStyle(thumb).transitionDuration, "0s");
     button.remove();
+  });
+
+  test("switch hover does not override the state background color", () => {
+    const switchRules = Array.from(document.styleSheets)
+      .flatMap(styleSheet => {
+        try {
+          return Array.from(styleSheet.cssRules);
+        }
+        catch {
+          return [];
+        }
+      })
+      .filter((rule): rule is CSSStyleRule =>
+        rule instanceof CSSStyleRule &&
+        rule.selectorText.includes(".ui-switch") &&
+        rule.selectorText.includes(":hover"),
+      );
+
+    assert.equal(switchRules.length, 0);
   });
 
   test("updateSwitch keeps a thumb and clears stale style", () => {

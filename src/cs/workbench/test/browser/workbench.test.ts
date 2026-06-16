@@ -124,6 +124,111 @@ suite("workbench/browser/workbench Explorer pane input", () => {
 
     assert.equal(explorerService.selectedProcessedFileId, null);
   });
+
+  test("projects fast badge estimates before full assessment is ready", () => {
+    const session = new SessionService();
+    commitRawFilesForTest(session, [
+      {
+        fileId: "output-file",
+        fileName: "Output_001.csv",
+        relativePath: "293K/output/Output_001.csv",
+        rowCount: 2,
+        columnCount: 2,
+      },
+      {
+        fileId: "header-file",
+        fileName: "sample.csv",
+        rowCount: 2,
+        columnCount: 2,
+        rows: [["Vg", "Id"], ["0", "1e-9"]],
+      },
+      {
+        fileId: "ready-file",
+        fileName: "ready.csv",
+        rowCount: 2,
+        columnCount: 2,
+      },
+    ]);
+    session.commitRawTableAssessment({
+      blocks: [{
+        columnCount: 2,
+        columns: { columns: [] },
+        family: "iv",
+        fileId: "ready-file",
+        id: "ready-block",
+        ivMode: "transfer",
+        label: "Transfer",
+        rawTableId: "ready-file",
+        rowCount: 2,
+        source: {
+          fullRange: {
+            endCol: 1,
+            endRow: 1,
+            startCol: 0,
+            startRow: 0,
+          },
+        },
+      }],
+      createdAt: 1,
+      diagnostics: [],
+      fileId: "ready-file",
+      groups: [],
+      rawTableId: "ready-file",
+      sourceRawTableVersion: 1,
+    });
+
+    const snapshot = session.getSnapshot();
+    const input = createExplorerPaneInput({
+      activePlotType: "iv",
+      explorerService: new ExplorerService(),
+      mode: "table",
+      plotService: createPlotService(),
+      readModel: createSessionReadModel(snapshot),
+      snapshot,
+      templateState: {
+        formState: createEmptyTemplateConfig(),
+        mode: "management",
+        selectedTemplateId: null,
+        selectionsByFileId: {},
+        templateListVersion: 0,
+      },
+    });
+
+    assert.deepEqual(
+      input.files.map(file => ({
+        fileId: file.fileId,
+        badgeState: file.badgeState,
+        curveTypeBadgeLabel: file.curveTypeBadgeLabel,
+      })),
+      [
+        {
+          badgeState: {
+            confidence: "medium",
+            kind: "fast",
+            label: "output",
+            message: "Fast badge from file name or path.",
+          },
+          curveTypeBadgeLabel: null,
+          fileId: "output-file",
+        },
+        {
+          badgeState: {
+            confidence: "low",
+            kind: "fast",
+            label: "transfer",
+            message: "Fast badge from visible table headers.",
+          },
+          curveTypeBadgeLabel: null,
+          fileId: "header-file",
+        },
+        {
+          badgeState: { kind: "ready" },
+          curveTypeBadgeLabel: "transfer",
+          fileId: "ready-file",
+        },
+      ],
+    );
+  });
 });
 
 suite("workbench/browser/workbench initial mode", () => {
@@ -225,6 +330,9 @@ const createImportedFileRecordForTest = (
   }
 
   const fileName = String(file.fileName ?? fileId).trim() || fileId;
+  const rows = Array.isArray(file.rows)
+    ? file.rows as readonly (readonly string[])[]
+    : [];
   return {
     id: fileId,
     kind: "csv",
@@ -232,6 +340,7 @@ const createImportedFileRecordForTest = (
     raw: {
       fileId,
       fileName,
+      relativePath: file.relativePath,
       rawTableOrder: [fileId],
       rawTablesById: {
         [fileId]: {
@@ -242,7 +351,7 @@ const createImportedFileRecordForTest = (
           rowCount: Math.max(0, Math.floor(Number(file.rowCount) || 0)),
           rows: {
             kind: "inline",
-            values: [],
+            values: rows,
           },
           source: {
             kind: "csv",

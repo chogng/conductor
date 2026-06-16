@@ -26,6 +26,18 @@ import {
 
 export type ExplorerSourceStatus = "pending" | "preparing" | "failed";
 
+export type ExplorerBadgeState =
+	| { readonly kind: "ready" }
+	| {
+			readonly confidence?: "medium" | "low";
+			readonly kind: "fast";
+			readonly label: string;
+			readonly message?: string | null;
+		}
+	| { readonly kind: "pending" }
+	| { readonly kind: "none" }
+	| { readonly kind: "error"; readonly message?: string | null };
+
 export type ExplorerFileEntry = {
 	readonly file?: unknown;
 	readonly fileId?: string;
@@ -37,6 +49,7 @@ export type ExplorerFileEntry = {
 	readonly sourcePath?: string | null;
 	readonly sourceStatus?: ExplorerSourceStatus;
 	readonly sourceStatusMessage?: string | null;
+	readonly badgeState?: ExplorerBadgeState;
 	readonly curveType?: string | null;
 	readonly curveTypeBadgeLabel?: string | null;
 	readonly curveTypeConfidence?: "high" | "medium" | "low";
@@ -330,6 +343,29 @@ const getExplorerCurveTypeBadgeLabel = (
 const hasFileRecordChartData = (file: FileRecord): boolean =>
 	collectFileRecordBaseCurves(file).length > 0;
 
+const hasExplorerAssessmentSummary = (
+	file: Pick<
+		SessionFile | ProcessedEntry,
+		"curveType" | "curveTypeConfidence" | "curveTypeNeedsTemplate" | "curveTypeReasons"
+	>,
+): boolean =>
+	Boolean(
+		getOptionalNullableString(file.curveType) ||
+			file.curveTypeConfidence ||
+			file.curveTypeNeedsTemplate === true ||
+			file.curveTypeReasons?.length,
+	);
+
+const createExplorerAssessmentBadgeState = (
+	file: Pick<
+		SessionFile | ProcessedEntry,
+		"curveType" | "curveTypeConfidence" | "curveTypeNeedsTemplate" | "curveTypeReasons"
+	>,
+): ExplorerBadgeState =>
+	hasExplorerAssessmentSummary(file)
+		? { kind: "ready" }
+		: { kind: "pending" };
+
 export const createRawExplorerFiles = (
 	rawFiles: readonly SessionFile[],
 ): ExplorerFileEntry[] =>
@@ -342,6 +378,7 @@ export const createRawExplorerFiles = (
 		relativePath: file.relativePath ?? null,
 		sourceKey: getOptionalString(file.sourceKey),
 		sourcePath: file.sourcePath,
+		badgeState: createExplorerAssessmentBadgeState(file),
 		curveType: file.curveType ?? null,
 		curveTypeBadgeLabel: getExplorerCurveTypeBadgeLabel(
 			file.curveType,
@@ -392,6 +429,12 @@ export const createChartExplorerFilesFromRecords = (
 			relativePath: file.raw.relativePath ?? rawFile?.relativePath ?? null,
 			sourceKey: getOptionalString(rawFile?.sourceKey ?? file.raw.rawKey),
 			sourcePath: file.raw.filePath ?? rawFile?.sourcePath,
+			badgeState: createExplorerAssessmentBadgeState({
+				curveType,
+				curveTypeConfidence: rawFile?.curveTypeConfidence,
+				curveTypeNeedsTemplate: rawFile?.curveTypeNeedsTemplate,
+				curveTypeReasons: rawFile?.curveTypeReasons,
+			}),
 			curveType,
 			curveTypeBadgeLabel: getExplorerCurveTypeBadgeLabel(curveType, xAxisRole),
 			curveTypeConfidence: rawFile?.curveTypeConfidence,
@@ -441,6 +484,14 @@ export const createChartExplorerFiles = (
 			relativePath: rawFile?.relativePath ?? null,
 			sourceKey: getOptionalString(rawFile?.sourceKey),
 			sourcePath: rawFile?.sourcePath,
+			badgeState: createExplorerAssessmentBadgeState({
+				curveType,
+				curveTypeConfidence:
+					processedFile.curveTypeConfidence ?? rawFile?.curveTypeConfidence,
+				curveTypeNeedsTemplate:
+					processedFile.curveTypeNeedsTemplate ?? rawFile?.curveTypeNeedsTemplate,
+				curveTypeReasons: processedFile.curveTypeReasons ?? rawFile?.curveTypeReasons,
+			}),
 			curveType,
 			curveTypeBadgeLabel: getExplorerCurveTypeBadgeLabel(curveType, xAxisRole),
 			curveTypeConfidence:

@@ -232,6 +232,25 @@ suite("workbench/services/table/browser/tableService", () => {
     service.dispose();
   });
 
+  test("keeps table view input stable for equivalent open sources", () => {
+    const { service } = createTableServiceFixture({
+      rawFiles: [createRawFile()],
+    });
+    let changeCount = 0;
+    const disposable = service.onDidChangeTableViewInput(() => {
+      changeCount += 1;
+    });
+
+    const model = service.open({ fileId: "file-a" });
+    const firstOpenChangeCount = changeCount;
+    const sameModel = service.open({ fileId: "file-a" });
+
+    assert.equal(sameModel, model);
+    assert.equal(changeCount, firstOpenChangeCount);
+    disposable.dispose();
+    service.dispose();
+  });
+
   test("returns TSV text for selected table ranges", async () => {
     const rows = [
       ["A1", "B\t1"],

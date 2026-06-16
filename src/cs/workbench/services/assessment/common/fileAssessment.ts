@@ -63,6 +63,21 @@ export type FileAssessment = {
   xAxisRoleSource: FileAssessmentSource;
 };
 
+export type FastImportBadgeAssessment = {
+  confidence: Extract<FileAssessmentConfidence, "medium" | "low">;
+  curveType: Exclude<CurveKind, "unknown">;
+  curveTypeLabel: string;
+  reason: string;
+  xAxisRole: AxisRole | null;
+};
+
+export type FastImportBadgeInput = {
+  readonly fileName?: unknown;
+  readonly relativePath?: unknown;
+  readonly rows?: readonly (readonly unknown[])[];
+  readonly sheetName?: unknown;
+};
+
 type FileAssessmentInput = {
   fileName?: unknown;
   fileNameRole?: AxisRole | null;
@@ -513,6 +528,133 @@ const normalizeCompactText = (value: unknown): string =>
   normalizeCellText(value)
     .toLowerCase()
     .replace(/[\s_\-./()[\]{}:=]+/g, "");
+
+export const assessFastImportBadge = ({
+  fileName,
+  relativePath,
+  rows,
+  sheetName,
+}: FastImportBadgeInput): FastImportBadgeAssessment | null => {
+  const sourceText = [
+    fileName,
+    relativePath,
+    sheetName,
+  ]
+    .map(value => normalizeCellText(value))
+    .filter(Boolean)
+    .join(" ");
+  const sourceRole = detectAxisRole(sourceText);
+  if (sourceRole) {
+    const curveType = getIvCurveKindFromAxisRole(sourceRole);
+    return {
+      confidence: "medium",
+      curveType,
+      curveTypeLabel: buildCurveTypeLabel(curveType, sourceRole) ?? curveType,
+      reason: "Fast badge from file name or path.",
+      xAxisRole: sourceRole,
+    };
+  }
+
+  const sourceCurveKind = detectNonIvCurveKind(sourceText);
+  if (sourceCurveKind) {
+    return {
+      confidence: "medium",
+      curveType: sourceCurveKind,
+      curveTypeLabel: buildCurveTypeLabel(sourceCurveKind, null) ?? sourceCurveKind,
+      reason: "Fast badge from file name or path.",
+      xAxisRole: null,
+    };
+  }
+
+  const headerText = getFastHeaderText(rows);
+  const headerRole = detectAxisRole(headerText);
+  if (headerRole && headerHasCurrentLikeColumn(headerText)) {
+    const curveType = getIvCurveKindFromAxisRole(headerRole);
+    return {
+      confidence: "low",
+      curveType,
+      curveTypeLabel: buildCurveTypeLabel(curveType, headerRole) ?? curveType,
+      reason: "Fast badge from visible table headers.",
+      xAxisRole: headerRole,
+    };
+  }
+
+  const headerCurveKind = detectNonIvCurveKind(headerText);
+  if (headerCurveKind) {
+    return {
+      confidence: "low",
+      curveType: headerCurveKind,
+      curveTypeLabel: buildCurveTypeLabel(headerCurveKind, null) ?? headerCurveKind,
+      reason: "Fast badge from visible table headers.",
+      xAxisRole: null,
+    };
+  }
+
+  return null;
+};
+
+const getIvCurveKindFromAxisRole = (
+  role: AxisRole,
+): Extract<CurveKind, "transfer" | "output"> =>
+  role === "vg" ? "transfer" : "output";
+
+const getFastHeaderText = (
+  rows: readonly (readonly unknown[])[] | undefined,
+): string => {
+  for (const row of rows ?? []) {
+    const cells = row
+      .map(value => normalizeCellText(value))
+      .filter(Boolean);
+    if (cells.length >= 2) {
+      return cells.join(" ");
+    }
+  }
+
+  return "";
+};
+
+const headerHasCurrentLikeColumn = (headerText: string): boolean => {
+  const normalized = normalizeCellText(headerText).toLowerCase();
+  return /\bid\b/.test(normalized) ||
+    /\big\b/.test(normalized) ||
+    normalized.includes("current") ||
+    normalized.includes("drain current") ||
+    normalized.includes("gate current");
+};
+
+const detectNonIvCurveKind = (
+  value: unknown,
+): Extract<CurveKind, "cv" | "cf" | "pv"> | null => {
+  const text = normalizeCellText(value).toLowerCase();
+  if (!text) {
+    return null;
+  }
+
+  const compact = normalizeCompactText(text);
+  if (
+    /\bcf\b/.test(text) ||
+    compact.includes("capacitancefrequency") ||
+    text.includes("frequency")
+  ) {
+    return "cf";
+  }
+  if (
+    /\bcv\b/.test(text) ||
+    compact.includes("capacitancevoltage") ||
+    text.includes("capacitance")
+  ) {
+    return "cv";
+  }
+  if (
+    /\bpv\b/.test(text) ||
+    compact.includes("pulsevoltage") ||
+    text.includes("pulse")
+  ) {
+    return "pv";
+  }
+
+  return null;
+};
 
 const detectCapacitanceCurveKind = ({
   fileName,

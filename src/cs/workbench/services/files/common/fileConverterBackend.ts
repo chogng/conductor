@@ -8,12 +8,15 @@ export const IFileConverterBackendService =
 	createDecorator<IFileConverterBackendService>("fileConverterBackendService");
 
 export type FileConverterPreparedFile = {
+	readonly columnCount?: number;
 	readonly csvText?: string;
 	readonly durationMs?: number;
 	readonly manifest?: unknown;
+	readonly maxCellLengths?: readonly number[];
 	readonly normalizedCsvPath?: string | null;
 	readonly normalizedSizeBytes?: number;
 	readonly ok?: boolean;
+	readonly rowCount?: number;
 	readonly sheets?: readonly FileConverterPreparedSheet[];
 	readonly sourceName?: string;
 	readonly sourcePath?: string;
@@ -40,7 +43,7 @@ export type FileConverterConvertedCsv = {
 
 export type ConvertedCsvReaderService = {
 	canReadConvertedCsv(): boolean;
-	readConvertedCsv(payload: { path: string }): Promise<FileConverterConvertedCsv>;
+	readConvertedCsv(payload: { path: string; maxRows?: number }): Promise<FileConverterConvertedCsv>;
 };
 
 export type FileConverterBackend = ConvertedCsvReaderService & {

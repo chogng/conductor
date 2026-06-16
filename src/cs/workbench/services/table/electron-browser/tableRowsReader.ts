@@ -218,7 +218,7 @@ export class TableRowsReader extends Disposable implements ITableRowsReaderServi
       .then(localizeTableRowsReaderResponse);
   }
 
-  public readConvertedCsv(payload: { path: string }): Promise<FileConverterConvertedCsv> {
+  public readConvertedCsv(payload: { path: string; maxRows?: number }): Promise<FileConverterConvertedCsv> {
     return this.convertedCsvReaderService.readConvertedCsv(payload);
   }
 }

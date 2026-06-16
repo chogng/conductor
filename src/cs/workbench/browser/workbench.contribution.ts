@@ -28,6 +28,10 @@ import {
   type IChartService as IChartServiceType,
 } from "src/cs/workbench/services/chart/common/chart";
 import {
+  IAssessmentQueueService,
+  type IAssessmentQueueService as IAssessmentQueueServiceType,
+} from "src/cs/workbench/services/assessment/common/assessment";
+import {
   IParametersService,
 } from "src/cs/workbench/services/parameters/common/parameters";
 import {
@@ -153,6 +157,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @IContextKeyService contextKeyService: IContextKeyServiceType,
     @ICommandService commandService: ICommandServiceType,
     @IChartService chartService: IChartServiceType,
+    @IAssessmentQueueService assessmentQueueService: IAssessmentQueueServiceType,
     @IExplorerService explorerService: IExplorerServiceType,
     @IExportService exportService: IExportServiceType,
     @IParametersService parametersService: IParametersService,
@@ -181,6 +186,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     }
 
     this.workbench = this._register(new Workbench(root, {
+      assessmentQueueService,
       dialogsService,
       commandService,
       chartService,

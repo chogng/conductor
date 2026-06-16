@@ -8,11 +8,15 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::time::Instant;
 
+use crate::import::IMPORT_ASSESSMENT_PREVIEW_ROWS;
+
 #[derive(Default, Clone)]
 pub struct ConvertStats {
     pub cells: usize,
+    pub column_count: usize,
     pub convert_ms: f64,
     pub csv_bytes: usize,
+    pub max_cell_lengths: Vec<usize>,
     pub numeric_cells: usize,
     pub rows: usize,
     pub size_bytes: u64,
@@ -140,8 +144,18 @@ pub fn convert_one(
         if values.iter().all(|value| value.trim().is_empty()) {
             continue;
         }
-        if assessment_rows.len() < 512 {
+        if assessment_rows.len() < IMPORT_ASSESSMENT_PREVIEW_ROWS {
             assessment_rows.push(values.clone());
+        }
+        if values.len() > stats.column_count {
+            stats.column_count = values.len();
+            stats.max_cell_lengths.resize(stats.column_count, 0);
+        }
+        for (index, value) in values.iter().enumerate() {
+            let length = value.chars().count();
+            if length > stats.max_cell_lengths[index] {
+                stats.max_cell_lengths[index] = length;
+            }
         }
 
         if stats.rows > 0 {

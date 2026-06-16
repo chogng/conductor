@@ -14,6 +14,7 @@ import {
   createChartExplorerFilesFromRecords,
   createRawExplorerFiles,
   resolveExplorerSelectedFileId,
+  type ExplorerFileEntry,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { createChartViewInput } from "src/cs/workbench/services/chart/browser/chartViewInput";
@@ -32,6 +33,10 @@ import type {
   ITableService,
   TableSource,
 } from "src/cs/workbench/services/table/common/table";
+import type {
+  FileRecord,
+  TableRecord,
+} from "src/cs/workbench/services/session/common/sessionModel";
 import { createTemplateApplyInput } from "src/cs/workbench/services/template/browser/templateApplyInput";
 import type {
   ITemplateApplyWorkflowService,
@@ -41,9 +46,17 @@ import type {
 import {
   createCurrentTemplateSelectionDisplay,
 } from "src/cs/workbench/services/template/common/templateSelection";
+import {
+  getRawTableRefsForFileIds,
+  type IAssessmentQueueService,
+} from "src/cs/workbench/services/assessment/common/assessment";
+import {
+  assessFastImportBadge,
+} from "src/cs/workbench/services/assessment/common/fileAssessment";
 
 export type WorkbenchDomainBridgeOptions = {
   readonly chartService: IChartService;
+  readonly assessmentQueueService: IAssessmentQueueService;
   readonly explorerService: IExplorerService;
   readonly layoutService: IWorkbenchLayoutService;
   readonly plotService: IPlotService;
@@ -62,6 +75,9 @@ export class WorkbenchDomainBridge extends Disposable {
 
     this._register(this.options.settingsService.onDidChangeConductorSettings(() => this.sync()));
     this._register(this.options.explorerService.onDidChangeSelection(() => this.sync()));
+    this._register(this.options.explorerService.onDidChangeVisibleFileIds(event => {
+      this.prioritizeVisibleExplorerFiles(event.visibleFileIds, event.nearbyFileIds);
+    }));
     this._register(this.options.plotService.onDidChangePlotState(() => this.sync()));
     this._register(this.options.templateService.onDidChangeTemplateState(() => this.sync()));
     this._register(this.options.layoutService.onDidChangeWorkbenchNavigation(() => this.sync()));
@@ -132,6 +148,21 @@ export class WorkbenchDomainBridge extends Disposable {
       showFileSelect: false,
       shouldMountCharts: false,
     });
+  }
+
+  private prioritizeVisibleExplorerFiles(
+    visibleFileIds: readonly string[],
+    nearbyFileIds: readonly string[],
+  ): void {
+    const snapshot = this.options.sessionService.getSnapshot();
+    this.options.assessmentQueueService.prioritizeRawTables(
+      getRawTableRefsForFileIds(visibleFileIds, snapshot),
+      "visible",
+    );
+    this.options.assessmentQueueService.prioritizeRawTables(
+      getRawTableRefsForFileIds(nearbyFileIds, snapshot),
+      "nearby",
+    );
   }
 }
 
@@ -231,7 +262,7 @@ export const createExplorerPaneInput = ({
       snapshot.fileOrder,
       rawFiles,
     )
-    : createRawExplorerFiles(rawFiles);
+    : applyFastExplorerBadges(createRawExplorerFiles(rawFiles), snapshot);
   const fileIds = getExplorerPaneFileIds(files);
   const thumbnailPlotModelsByFileId = isChartMode
     ? createThumbnailPlotModelsByFileId({
@@ -288,6 +319,93 @@ const getExplorerPaneFileIds = (
   return files
     .map(file => String(file.fileId ?? "").trim())
     .filter(fileId => fileId.length > 0);
+};
+
+const applyFastExplorerBadges = (
+  files: readonly ExplorerFileEntry[],
+  snapshot: SessionSnapshot,
+): ExplorerFileEntry[] =>
+  files.map(file => applyFastExplorerBadge(file, snapshot));
+
+const applyFastExplorerBadge = (
+  file: ExplorerFileEntry,
+  snapshot: SessionSnapshot,
+): ExplorerFileEntry => {
+  if (file.badgeState?.kind !== "pending") {
+    return file;
+  }
+
+  const fileId = String(file.fileId ?? "").trim();
+  const fileRecord = fileId ? snapshot.filesById[fileId] : undefined;
+  const table = findExplorerRawTable(file, fileRecord);
+  const fastBadge = assessFastImportBadge({
+    fileName: file.fileName ?? fileRecord?.raw.fileName,
+    relativePath: file.relativePath ?? fileRecord?.raw.relativePath,
+    rows: getFastBadgeRows(table),
+    sheetName: table?.sheetName,
+  });
+  if (!fastBadge) {
+    return file;
+  }
+
+  return {
+    ...file,
+    badgeState: {
+      confidence: fastBadge.confidence,
+      kind: "fast",
+      label: getFastExplorerBadgeLabel(fastBadge.curveType),
+      message: fastBadge.reason,
+    },
+  };
+};
+
+const findExplorerRawTable = (
+  file: ExplorerFileEntry,
+  fileRecord: FileRecord | undefined,
+): TableRecord | null => {
+  if (!fileRecord) {
+    return null;
+  }
+
+  const sourceKey = String(file.sourceKey ?? "").trim();
+  if (sourceKey) {
+    const table = Object.values(fileRecord.raw.tablesById)
+      .find(candidate => candidate.tableKey === sourceKey);
+    if (table) {
+      return table;
+    }
+  }
+
+  const firstTableId = fileRecord.raw.tableOrder[0];
+  return firstTableId ? fileRecord.raw.tablesById[firstTableId] ?? null : null;
+};
+
+const getFastBadgeRows = (
+  table: TableRecord | null,
+): readonly (readonly unknown[])[] | undefined => {
+  const rowStore = table?.rowStore;
+  return rowStore?.kind === "memory"
+    ? rowStore.rows.slice(0, 4)
+    : undefined;
+};
+
+const getFastExplorerBadgeLabel = (
+  curveType: string,
+): string => {
+  switch (curveType) {
+    case "transfer":
+      return "transfer";
+    case "output":
+      return "output";
+    case "cv":
+      return "cv";
+    case "cf":
+      return "cf";
+    case "pv":
+      return "pv";
+    default:
+      return curveType;
+  }
 };
 
 const createThumbnailPlotModelsByFileId = ({

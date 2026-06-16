@@ -137,6 +137,8 @@ const RUST_PROCESSING_POOL_SIZE = resolveRustProcessingPoolSize({
   availableParallelism: os.availableParallelism(),
   envValue: process.env.CONDUCTOR_RUST_PROCESSING_POOL_SIZE,
 });
+const TABLE_FOREGROUND_IDLE_GRACE_MS = 16;
+const FILE_IMPORT_BACKGROUND_MAX_ACTIVE = Math.max(1, RUST_PROCESSING_POOL_SIZE);
 const rustWorkerHost = new RustWorkerHost({
   isWindows,
   processingPoolSize: RUST_PROCESSING_POOL_SIZE,
@@ -162,6 +164,88 @@ let updateService: Win32UpdateService | null = null;
 let themeMainServiceListener: IDisposable | null = null;
 const desktopProcessStartMs = Date.now();
 const nativeHostChannelName = "nativeHost";
+
+class RustPriorityGate {
+  private activeBackground = 0;
+  private activeForeground = 0;
+  private foregroundIdleUntil = 0;
+  private wakeTimer: NodeJS.Timeout | null = null;
+  private readonly waiters: Array<() => void> = [];
+
+  public constructor(
+    private readonly options: {
+      readonly backgroundMaxActive: number;
+      readonly foregroundIdleGraceMs: number;
+    },
+  ) {}
+
+  public async runForeground<T>(task: () => Promise<T>): Promise<T> {
+    this.activeForeground += 1;
+    this.foregroundIdleUntil = 0;
+    try {
+      return await task();
+    } finally {
+      this.activeForeground = Math.max(0, this.activeForeground - 1);
+      this.foregroundIdleUntil = Date.now() + this.options.foregroundIdleGraceMs;
+      this.scheduleBackgroundWake();
+    }
+  }
+
+  public async runBackground<T>(task: () => Promise<T>): Promise<T> {
+    await this.acquireBackgroundSlot();
+    try {
+      return await task();
+    } finally {
+      this.activeBackground = Math.max(0, this.activeBackground - 1);
+      this.wakeBackgroundWaiters();
+    }
+  }
+
+  private async acquireBackgroundSlot(): Promise<void> {
+    while (!this.canStartBackground()) {
+      await new Promise<void>(resolve => {
+        this.waiters.push(resolve);
+        this.scheduleBackgroundWake();
+      });
+    }
+
+    this.activeBackground += 1;
+  }
+
+  private canStartBackground(): boolean {
+    return this.activeForeground === 0 &&
+      Date.now() >= this.foregroundIdleUntil &&
+      this.activeBackground < this.options.backgroundMaxActive;
+  }
+
+  private scheduleBackgroundWake(): void {
+    if (this.wakeTimer || this.activeForeground > 0 || !this.waiters.length) {
+      return;
+    }
+
+    const delay = Math.max(0, this.foregroundIdleUntil - Date.now());
+    this.wakeTimer = setTimeout(() => {
+      this.wakeTimer = null;
+      this.wakeBackgroundWaiters();
+    }, delay);
+  }
+
+  private wakeBackgroundWaiters(): void {
+    if (!this.waiters.length) {
+      return;
+    }
+
+    const waiters = this.waiters.splice(0);
+    for (const resolve of waiters) {
+      resolve();
+    }
+  }
+}
+
+const rustPriorityGate = new RustPriorityGate({
+  backgroundMaxActive: FILE_IMPORT_BACKGROUND_MAX_ACTIVE,
+  foregroundIdleGraceMs: TABLE_FOREGROUND_IDLE_GRACE_MS,
+});
 
 class MainFileSystemProvider implements IFileSystemProvider {
   public readonly onDidFilesChange;
@@ -642,56 +726,6 @@ function runRustExcelConverter(executablePath, inputPath, outputPath, manifestPa
   });
 }
 
-function normalizeRustImportAssessment(raw) {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const confidence = ["high", "medium", "low"].includes(raw.curveTypeConfidence)
-    ? raw.curveTypeConfidence
-    : "low";
-  const xAxisRole =
-    raw.xAxisRole === "vg" || raw.xAxisRole === "vd" ? raw.xAxisRole : null;
-  const sourceValues = new Set(["filename", "title", "label", "metadata", "shape"]);
-  const xAxisRoleSource = sourceValues.has(raw.xAxisRoleSource)
-    ? raw.xAxisRoleSource
-    : null;
-  const curveFamily = ["iv", "cv", "cf", "pv", "it", "unknown"].includes(raw.curveFamily)
-    ? raw.curveFamily
-    : "unknown";
-  const ivMode = raw.ivMode === "transfer" || raw.ivMode === "output"
-    ? raw.ivMode
-    : null;
-  const curveType = typeof raw.curveTypeLabel === "string" && raw.curveTypeLabel.trim()
-    ? raw.curveTypeLabel.trim()
-    : buildCurveTypeLabel(curveFamily, ivMode, xAxisRole);
-  return {
-    curveFamily,
-    curveType,
-    curveTypeConfidence: confidence,
-    curveTypeNeedsTemplate: Boolean(raw.curveTypeNeedsTemplate),
-    curveTypeReasons: Array.isArray(raw.curveTypeReasons)
-      ? raw.curveTypeReasons.filter((item) => typeof item === "string")
-      : [],
-    ivMode,
-    xAxisRole,
-    xAxisRoleSource,
-  };
-}
-
-function buildCurveTypeLabel(curveFamily, ivMode, xAxisRole) {
-  if (curveFamily === "iv") {
-    if (ivMode === "transfer") {
-      return xAxisRole === "vg" ? "transfer (vg)" : "transfer";
-    }
-    if (ivMode === "output") {
-      return xAxisRole === "vd" ? "output (vd)" : "output";
-    }
-    return "iv";
-  }
-  if (curveFamily === "cv" || curveFamily === "cf" || curveFamily === "pv" || curveFamily === "it") {
-    return curveFamily;
-  }
-  return "unknown";
-}
-
 function readRustExcelConvertManifest(manifestPath) {
   try {
     if (!manifestPath || !fs.existsSync(manifestPath)) return null;
@@ -712,6 +746,10 @@ function isRustConvertedCsvPath(filePath) {
 
 async function handleExcelReadConvertedCsv(_event, payload) {
   const rawPath = payload && typeof payload === "object" ? payload.path : payload;
+  const maxRows =
+    payload && typeof payload === "object" && Number.isFinite(Number(payload.maxRows))
+      ? Math.max(0, Math.floor(Number(payload.maxRows)))
+      : undefined;
   const csvPath = normalizeAbsoluteFilePath(rawPath);
   if (!isRustConvertedCsvPath(csvPath)) {
     return {
@@ -730,9 +768,10 @@ async function handleExcelReadConvertedCsv(_event, payload) {
         message: "Converted CSV path is not a file.",
       };
     }
+    const csvText = fs.readFileSync(csvPath, "utf8");
     return {
       ok: true,
-      csvText: fs.readFileSync(csvPath, "utf8"),
+      csvText: limitCsvRows(csvText, maxRows),
       sizeBytes: stat.size,
       source: "rust-converted-csv",
     };
@@ -743,6 +782,27 @@ async function handleExcelReadConvertedCsv(_event, payload) {
       message: error?.message || "Failed to read converted CSV.",
     };
   }
+}
+
+function limitCsvRows(text, maxRows) {
+  if (!Number.isFinite(maxRows) || maxRows < 0) {
+    return text;
+  }
+  if (maxRows === 0) {
+    return "";
+  }
+
+  let rowCount = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    if (text.charCodeAt(index) !== 10) {
+      continue;
+    }
+    rowCount += 1;
+    if (rowCount >= maxRows) {
+      return text.slice(0, index);
+    }
+  }
+  return text;
 }
 
 const mainFileService = new FileService();
@@ -1075,10 +1135,8 @@ async function handleExcelConvertRust(_event, payload) {
     await runRustExcelConverter(converterPath, inputPath, csvPath, manifestPath);
     const csvText = returnCsvText ? fs.readFileSync(csvPath, "utf8") : undefined;
     const manifest = readRustExcelConvertManifest(manifestPath);
-    const assessment = normalizeRustImportAssessment(manifest?.assessment);
     return {
       ok: true,
-      assessment,
       csvPath,
       csvText: returnCsvText ? csvText : undefined,
       durationMs: Date.now() - startedAt,
@@ -1143,11 +1201,13 @@ async function handleFileConversionPrepare(_event, payload) {
 
   const startedAt = Date.now();
   if (isSupportedRustExcelInputPath(inputPath)) {
-    const conversion = await handleExcelConvertRust(_event, {
-      path: inputPath,
-      returnCsvText: false,
-    });
-    if (!conversion?.ok || !conversion.assessment) {
+    const conversion = await rustPriorityGate.runBackground(() =>
+      handleExcelConvertRust(_event, {
+        path: inputPath,
+        returnCsvText: false,
+      })
+    );
+    if (!conversion?.ok) {
       return {
         ok: false,
         code: conversion?.code || "RUST_IMPORT_PREPARE_FAILED",
@@ -1157,7 +1217,6 @@ async function handleFileConversionPrepare(_event, payload) {
     }
     return {
       ok: true,
-      assessment: conversion.assessment,
       durationMs: Date.now() - startedAt,
       manifest: conversion.manifest,
       normalizedCsvPath: conversion.csvPath ?? null,
@@ -1179,25 +1238,26 @@ async function handleFileConversionPrepare(_event, payload) {
   }
 
   try {
-    const result = await rustWorkerHost.sendProcessingCommand("assessImport", {
-      fileName,
-      path: inputPath,
-    }) as { assessment?: unknown };
-    const assessment = normalizeRustImportAssessment(result.assessment);
-    if (!assessment) {
-      return {
-        ok: false,
-        code: "RUST_IMPORT_ASSESSMENT_FAILED",
-        durationMs: Date.now() - startedAt,
-        message: "Rust import assessment failed.",
-      };
-    }
+    const result = await rustPriorityGate.runBackground(() =>
+      rustWorkerHost.sendProcessingCommand("assessImport", {
+        fileName,
+        path: inputPath,
+      })
+    ) as {
+      columnCount?: unknown;
+      maxCellLengths?: unknown;
+      rowCount?: unknown;
+    };
     return {
       ok: true,
-      assessment,
+      columnCount: Number(result.columnCount) || 0,
       durationMs: Date.now() - startedAt,
-      normalizedCsvPath: null,
+      maxCellLengths: Array.isArray(result.maxCellLengths)
+        ? result.maxCellLengths.map(value => Number(value) || 0)
+        : [],
+      normalizedCsvPath: inputPath,
       normalizedSizeBytes: stat.size,
+      rowCount: Number(result.rowCount) || 0,
       sourceName: fileName,
       sourcePath: inputPath,
       sourceSizeBytes: stat.size,
@@ -1803,12 +1863,15 @@ if (hasSingleInstanceLock) {
   );
   ipcMain.handle(ipcChannels.desktopAppearanceSet, handleDesktopAppearanceSet);
   ipcMain.handle(ipcChannels.fileConversionPrepare, handleFileConversionPrepare);
-  ipcMain.handle(ipcChannels.excelConvertRust, handleExcelConvertRust);
+  ipcMain.handle(ipcChannels.excelConvertRust, (event, payload) =>
+    rustPriorityGate.runBackground(() => handleExcelConvertRust(event, payload)),
+  );
   ipcMain.handle(ipcChannels.excelReadConvertedCsv, handleExcelReadConvertedCsv);
   ipcMain.handle(ipcChannels.demoFilesGet, handleAnalysisDemoFilesGet);
   rustHandlers = registerRustHostChannels({
     ipcChannels,
     ipcMain,
+    runForeground: task => rustPriorityGate.runForeground(task),
     rustService: new RustHostService({
       createOriginExportTempPath: createRustOriginExportTempPath,
       createRustProcessingResultTempDir,

@@ -52,6 +52,7 @@ import {
   convertImportFile,
   createImportedFileRecord,
   FileConvertError,
+  type ConvertedImportFile,
   type ConvertedImportSheet,
   type FileConverterSource,
 } from "src/cs/workbench/services/files/browser/fileConverter";
@@ -1007,9 +1008,11 @@ export const preparePendingImportFile = async (
   let sourcePath: string | null = null;
   let normalizedSizeBytes = 0;
   let importRecord: ImportedFileRecord;
+  let prepared: ConvertedImportFile;
 
   try {
-    const prepared = await convertImportFile(
+    const fileId = createFileId();
+    prepared = await convertImportFile(
       fileConverterBackend,
       sourceFile ?? null,
       resolveFileConverterSource(pendingImportFile),
@@ -1026,7 +1029,7 @@ export const preparePendingImportFile = async (
     normalizedSizeBytes = prepared.normalizedSizeBytes;
     importRecord = await createImportedFileRecord({
       file: normalizedFile,
-      fileId: createFileId(),
+      fileId,
       fileName: pendingImportFile.sourceName,
       lastModified: normalizedFile.lastModified,
       normalizedCsvPath,
@@ -1034,7 +1037,7 @@ export const preparePendingImportFile = async (
       relativePath,
       sourcePath,
       sourceSizeBytes: pendingImportFile.sourceSize,
-      tables: createImportedRawTableInputs(prepared.sheets),
+      tables: createImportedRawTableInputs(prepared, fileId),
     });
   } catch (error) {
     const failure = toPrepareFailure(
@@ -1088,9 +1091,16 @@ export const preparePendingImportFile = async (
 };
 
 const createImportedRawTableInputs = (
-  sheets: readonly ConvertedImportSheet[] | undefined,
-) => sheets?.length
-  ? sheets.map((sheet, index) => ({
+  prepared: {
+    readonly columnCount?: number;
+    readonly maxCellLengths?: readonly number[];
+    readonly normalizedCsvPath?: string | null;
+    readonly rowCount?: number;
+    readonly sheets?: readonly ConvertedImportSheet[];
+  },
+  fileId: string,
+) => prepared.sheets?.length
+  ? prepared.sheets.map((sheet, index) => ({
       columnCount: sheet.columnCount,
       csvText: sheet.csvText,
       maxCellLengths: sheet.maxCellLengths,
@@ -1098,6 +1108,15 @@ const createImportedRawTableInputs = (
       sheetIndex: sheet.sheetIndex ?? index,
       sheetName: sheet.sheetName,
     }))
+  : prepared.normalizedCsvPath
+    ? [{
+        columnCount: prepared.columnCount,
+        maxCellLengths: prepared.maxCellLengths,
+        normalizedCsvPath: prepared.normalizedCsvPath,
+        rawTableId: fileId,
+        rowCount: prepared.rowCount,
+        sheetIndex: 0,
+      }]
   : undefined;
 
 export async function prepareFirstPendingImportFile({

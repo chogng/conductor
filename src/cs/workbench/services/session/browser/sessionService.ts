@@ -187,47 +187,54 @@ export class SessionService extends Disposable implements ISessionServiceType {
   };
 
   public commitRawTableAssessment = (assessment: RawTableAssessmentRecord): void => {
-    const fileId = normalizeId(assessment.fileId);
-    const rawTableId = normalizeId(assessment.rawTableId);
-    const file = fileId ? this.snapshot.filesById[fileId] : undefined;
-    if (!file || !rawTableId || !file.raw.tablesById[rawTableId]) {
-      return;
-    }
+    this.commitRawTableAssessments([assessment]);
+  };
 
-    const rawTableVersion = file.rawTableVersionsById?.[rawTableId] ?? 0;
-    if (rawTableVersion !== assessment.sourceRawTableVersion) {
-      return;
-    }
+  public commitRawTableAssessments = (assessments: readonly RawTableAssessmentRecord[]): void => {
+    let nextFilesById = this.snapshot.filesById;
+    const committedFileIds: FileId[] = [];
+    const committedRawTableIds: string[] = [];
+    const committedRawTableRefs: RawTableRef[] = [];
 
-    const measurementBlocksById = removeMeasurementBlocksForRawTable(
-      file.measurementBlocksById ?? {},
-      rawTableId,
-    );
-    const measurementBlockOrder = file.measurementBlockOrder.filter(blockId =>
-      Boolean(measurementBlocksById[blockId])
-    );
-    const committedBlocks: MeasurementBlockRecord[] = [];
-    for (const block of assessment.blocks) {
-      const normalizedBlock = normalizeMeasurementBlock(block, fileId, rawTableId);
-      if (!normalizedBlock) {
+    for (const assessment of assessments) {
+      const fileId = normalizeId(assessment.fileId);
+      const rawTableId = normalizeId(assessment.rawTableId);
+      const file = fileId ? nextFilesById[fileId] : undefined;
+      if (!file || !rawTableId || !file.raw.tablesById[rawTableId]) {
         continue;
       }
 
-      measurementBlocksById[normalizedBlock.id] = normalizedBlock;
-      committedBlocks.push(normalizedBlock);
-    }
-    const committedBlockIds = getUniqueIds(committedBlocks.map(block => block.id));
-    const committedAssessment: RawTableAssessmentRecord = {
-      ...assessment,
-      fileId,
-      rawTableId,
-      blocks: committedBlocks,
-    };
+      const rawTableVersion = file.rawTableVersionsById?.[rawTableId] ?? 0;
+      if (rawTableVersion !== assessment.sourceRawTableVersion) {
+        continue;
+      }
 
-    this.replaceSnapshot({
-      ...this.snapshot,
-      filesById: {
-        ...this.snapshot.filesById,
+      const measurementBlocksById = removeMeasurementBlocksForRawTable(
+        file.measurementBlocksById ?? {},
+        rawTableId,
+      );
+      const measurementBlockOrder = file.measurementBlockOrder.filter(blockId =>
+        Boolean(measurementBlocksById[blockId])
+      );
+      const committedBlocks: MeasurementBlockRecord[] = [];
+      for (const block of assessment.blocks) {
+        const normalizedBlock = normalizeMeasurementBlock(block, fileId, rawTableId);
+        if (!normalizedBlock) {
+          continue;
+        }
+
+        measurementBlocksById[normalizedBlock.id] = normalizedBlock;
+        committedBlocks.push(normalizedBlock);
+      }
+      const committedBlockIds = getUniqueIds(committedBlocks.map(block => block.id));
+      const committedAssessment: RawTableAssessmentRecord = {
+        ...assessment,
+        fileId,
+        rawTableId,
+        blocks: committedBlocks,
+      };
+      nextFilesById = {
+        ...nextFilesById,
         [fileId]: {
           ...file,
           assessmentsByRawTableId: {
@@ -237,11 +244,23 @@ export class SessionService extends Disposable implements ISessionServiceType {
           measurementBlocksById,
           measurementBlockOrder: [...measurementBlockOrder, ...committedBlockIds],
         },
-      },
+      };
+      committedFileIds.push(fileId);
+      committedRawTableIds.push(rawTableId);
+      committedRawTableRefs.push({ fileId, rawTableId });
+    }
+
+    if (nextFilesById === this.snapshot.filesById) {
+      return;
+    }
+
+    this.replaceSnapshot({
+      ...this.snapshot,
+      filesById: nextFilesById,
     }, "assessmentChanged", {
-      fileIds: [fileId],
-      rawTableIds: [rawTableId],
-      rawTableRefs: [{ fileId, rawTableId }],
+      fileIds: uniqueStrings(committedFileIds),
+      rawTableIds: uniqueStrings(committedRawTableIds),
+      rawTableRefs: uniqueRawTableRefs(committedRawTableRefs),
     });
   };
 
@@ -701,6 +720,26 @@ const createRawTableRefs = (
   }
 
   return refs;
+};
+
+const uniqueRawTableRefs = (
+  refs: readonly RawTableRef[],
+): RawTableRef[] => {
+  const result: RawTableRef[] = [];
+  const seen = new Set<string>();
+  for (const ref of refs) {
+    const fileId = normalizeId(ref.fileId);
+    const rawTableId = normalizeId(ref.rawTableId);
+    const key = `${fileId}\u0000${rawTableId}`;
+    if (!fileId || !rawTableId || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push({ fileId, rawTableId });
+  }
+
+  return result;
 };
 
 const preserveRawTableVersionContinuity = (

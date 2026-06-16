@@ -388,9 +388,10 @@ export class TableService extends Disposable implements ITableService {
 
   public open(source: TableSource | null): TableModel {
     const nextSource = normalizeTableSource(source);
-    if (!isSameTableSource(this.currentSource, nextSource)) {
-      this.currentSource = nextSource;
+    if (isSameTableSource(this.currentSource, nextSource) && this.tableModel) {
+      return this.tableModel;
     }
+    this.currentSource = nextSource;
     return this.refreshFromSession();
   }
 

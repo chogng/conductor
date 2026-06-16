@@ -14,6 +14,7 @@ import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import {
   ObjectTree,
   type IObjectTreeOptions,
+  type ITreeRenderRangeEvent,
   type ITreeElementRenderDetails,
   type ITreeNode,
   type ITreeRenderer,
@@ -97,6 +98,10 @@ export type ExplorerViewerProps = {
   readonly viewLayout?: FilesViewLayout;
   readonly folderImportSupport?: FolderImportSupport;
   readonly onListScroll?: (event: Event) => void;
+  readonly onVisibleFileIdsChange?: (
+    visibleFileIds: readonly string[],
+    nearbyFileIds: readonly string[],
+  ) => void;
   readonly onFolderExpansionChange?: (expandedFolderKeys: readonly string[]) => void;
   readonly onFolderKeysChange?: (folderKeys: readonly string[]) => readonly string[] | void;
   readonly onOpenFileDialog: () => void;
@@ -125,6 +130,7 @@ const getFileHoverThumbnailWidth = (): number =>
 type FileItemAssessment = {
   readonly label: string;
   readonly isWarning: boolean;
+  readonly state: "ready";
   readonly type: string;
   readonly confidence: string;
   readonly reasons: readonly string[];
@@ -134,8 +140,23 @@ type FileItemAssessment = {
 type FileSourceStatusBadge = {
   readonly label: string;
   readonly isWarning: boolean;
+  readonly state: "source";
   readonly status: ExplorerSourceStatus;
   readonly title: string | null;
+};
+
+type FilePendingAssessment = {
+  readonly label: string;
+  readonly isWarning: boolean;
+  readonly state: "pending";
+  readonly title: string;
+};
+
+type FileFastAssessment = {
+  readonly label: string;
+  readonly isWarning: boolean;
+  readonly state: "fast";
+  readonly title: string;
 };
 
 type FileItemTemplate = {
@@ -227,6 +248,7 @@ const createFileItemAssessment = (
     isWarning:
       fileEntry?.curveTypeNeedsTemplate === true ||
       fileEntry?.curveTypeConfidence === "low",
+    state: "ready",
     type: curveType,
     confidence,
     reasons: reasons.length ? reasons : [localize("files.autoNoReason", "Not available")],
@@ -242,6 +264,7 @@ const createFileSourceStatusBadge = (
       return {
         label: localize("files.source.failed", "Failed"),
         isWarning: true,
+        state: "source",
         status: "failed",
         title: String(fileEntry.sourceStatusMessage ?? "").trim() || null,
       };
@@ -249,6 +272,7 @@ const createFileSourceStatusBadge = (
       return {
         label: localize("files.source.loading", "Loading"),
         isWarning: false,
+        state: "source",
         status: "preparing",
         title: null,
       };
@@ -256,12 +280,71 @@ const createFileSourceStatusBadge = (
       return {
         label: localize("files.source.pending", "Pending"),
         isWarning: false,
+        state: "source",
         status: "pending",
         title: null,
       };
     default:
       return null;
   }
+};
+
+const createFilePendingAssessment = (
+  fileEntry: ExplorerFileEntry,
+): FilePendingAssessment | null => {
+  if (fileEntry.badgeState?.kind !== "pending") {
+    return null;
+  }
+
+  return {
+    label: "...",
+    isWarning: false,
+    state: "pending",
+    title: localize("files.autoAnalyzing", "Analyzing"),
+  };
+};
+
+const createFileFastAssessment = (
+  fileEntry: ExplorerFileEntry,
+): FileFastAssessment | null => {
+  if (fileEntry.badgeState?.kind !== "fast") {
+    return null;
+  }
+
+  const label = String(fileEntry.badgeState.label ?? "").trim();
+  if (!label) {
+    return null;
+  }
+
+  return {
+    label,
+    isWarning: fileEntry.badgeState.confidence === "low",
+    state: "fast",
+    title: fileEntry.badgeState.message ??
+      localize("files.autoFastBadge", "Fast estimate"),
+  };
+};
+
+const getFileIdsFromTreeNodes = (
+  nodes: readonly ITreeNode<FileTreeNode>[],
+): string[] => {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const node of nodes) {
+    if (node.element.kind !== "file") {
+      continue;
+    }
+
+    const fileId = String(node.element.entry?.fileId ?? "").trim();
+    if (!fileId || seen.has(fileId)) {
+      continue;
+    }
+
+    seen.add(fileId);
+    result.push(fileId);
+  }
+
+  return result;
 };
 
 const createAssessmentRow = (
@@ -498,6 +581,7 @@ export class ExplorerViewer implements IDisposable {
       items,
       delegate: this.treeDelegate,
       onDidChangeCollapseState: this.handleTreeCollapseState,
+      onDidRenderRange: this.handleTreeRenderRange,
       onScroll: this.handleTreeScroll,
       onSelect: this.handleTreeSelect,
       renderer: this.treeRenderer,
@@ -534,6 +618,12 @@ export class ExplorerViewer implements IDisposable {
         entry.relativePath ?? "",
         entry.sourceStatus ?? "",
         entry.sourceStatusMessage ?? "",
+        entry.badgeState?.kind ?? "",
+        entry.badgeState?.kind === "error" || entry.badgeState?.kind === "fast"
+          ? entry.badgeState.message ?? ""
+          : "",
+        entry.badgeState?.kind === "fast" ? entry.badgeState.label : "",
+        entry.badgeState?.kind === "fast" ? entry.badgeState.confidence ?? "" : "",
         getFileName(entry),
         entry.curveType ?? "",
         entry.curveTypeBadgeLabel ?? "",
@@ -575,6 +665,20 @@ export class ExplorerViewer implements IDisposable {
   private readonly handleTreeScroll = (event: Event): void => {
     this.props.onListScroll?.(event);
     this.scheduleFileItemHoverLayout();
+  };
+
+  private readonly handleTreeRenderRange = (
+    event: ITreeRenderRangeEvent<FileTreeNode>,
+  ): void => {
+    if (!this.props.onVisibleFileIdsChange) {
+      return;
+    }
+
+    const visibleFileIds = getFileIdsFromTreeNodes(event.visible);
+    const visibleFileIdSet = new Set(visibleFileIds);
+    const nearbyFileIds = getFileIdsFromTreeNodes(event.rendered)
+      .filter(fileId => !visibleFileIdSet.has(fileId));
+    this.props.onVisibleFileIdsChange(visibleFileIds, nearbyFileIds);
   };
 
   private readonly handleTreeSelect = ({ element }: ITreeSelectionEvent<FileTreeNode>): void => {
@@ -847,6 +951,8 @@ export class ExplorerViewer implements IDisposable {
       fileEntry,
       this.resolveFileTemplateLabel(fileEntry),
     );
+    const fastAssessment = createFileFastAssessment(fileEntry);
+    const pendingAssessment = createFilePendingAssessment(fileEntry);
     const { host } = template;
 
     host.className = "file-list-item";
@@ -884,6 +990,11 @@ export class ExplorerViewer implements IDisposable {
     } else {
       delete host.dataset.sourceStatus;
     }
+    if (fileEntry.badgeState?.kind) {
+      host.dataset.badgeState = fileEntry.badgeState.kind;
+    } else {
+      delete host.dataset.badgeState;
+    }
 
     if (fileEntry?.itemKey) {
       host.dataset.itemKey = fileEntry.itemKey;
@@ -902,11 +1013,14 @@ export class ExplorerViewer implements IDisposable {
         fileKind: FileKind.FILE,
       },
     );
-    const badge = sourceStatus ?? assessment;
+    const badge = sourceStatus?.status === "failed"
+      ? sourceStatus
+      : assessment ?? fastAssessment ?? sourceStatus ?? pendingAssessment;
     if (badge) {
       template.assessment.textContent = badge.label;
-      if (sourceStatus?.title) {
-        template.assessment.title = sourceStatus.title;
+      template.assessment.dataset.state = badge.state;
+      if ("title" in badge && badge.title) {
+        template.assessment.title = badge.title;
       } else {
         template.assessment.removeAttribute("title");
       }
@@ -915,6 +1029,7 @@ export class ExplorerViewer implements IDisposable {
     } else {
       template.assessment.textContent = "";
       template.assessment.removeAttribute("title");
+      delete template.assessment.dataset.state;
       delete template.assessment.dataset.warning;
       template.assessment.hidden = true;
     }

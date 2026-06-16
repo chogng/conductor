@@ -34,9 +34,12 @@ const BROWSER_XLSX_CONVERSION_TIMEOUT_MS = 30_000;
 const BROWSER_XLSX_MAX_BYTES = 32 * 1024 * 1024;
 
 export type ConvertedImportFile = {
+  columnCount?: number;
   file: File;
+  maxCellLengths?: readonly number[];
   normalizedCsvPath?: string | null;
   normalizedSizeBytes: number;
+  rowCount?: number;
   sheets?: readonly ConvertedImportSheet[];
   sourcePath?: string | null;
   sourceName: string;
@@ -80,6 +83,15 @@ export type ImportedRawTableInput = {
   readonly sheetIndex?: number | null;
   readonly sheetName?: string | null;
 };
+
+const createEmptyNormalizedCsvFile = (
+  fileName: string,
+  lastModified: number,
+): File =>
+  new File([], fileName, {
+    lastModified: Number.isFinite(lastModified) ? lastModified : Date.now(),
+    type: "text/csv;charset=utf-8",
+  });
 
 export class FileConvertError extends Error {
   public readonly code: string | null;
@@ -223,12 +235,14 @@ export const loadConvertedCsvFile = async ({
   fallbackFile,
   fileName,
   lastModified,
+  maxRows,
   normalizedCsvPath,
 }: {
   convertedCsvReaderService: ConvertedCsvReaderService;
   fallbackFile?: unknown;
   fileName?: unknown;
   lastModified?: unknown;
+  maxRows?: unknown;
   normalizedCsvPath?: unknown;
 }): Promise<File | null> => {
   const csvPath =
@@ -242,7 +256,13 @@ export const loadConvertedCsvFile = async ({
   }
 
   try {
-    const response = await convertedCsvReaderService.readConvertedCsv({ path: csvPath });
+    const safeMaxRows = Number.isFinite(Number(maxRows))
+      ? Math.max(0, Math.floor(Number(maxRows)))
+      : undefined;
+    const response = await convertedCsvReaderService.readConvertedCsv({
+      path: csvPath,
+      ...(safeMaxRows !== undefined ? { maxRows: safeMaxRows } : {}),
+    });
     if (!response?.ok || typeof response.csvText !== "string") {
       return fallbackFile instanceof File ? fallbackFile : null;
     }
@@ -325,18 +345,7 @@ export const convertImportFile = async (
             type: "text/csv;charset=utf-8",
           })
         : normalizedCsvPath
-          ? (await loadConvertedCsvFile({
-              convertedCsvReaderService: fileConverterBackend,
-              fallbackFile: file,
-              fileName: metadata.fileName,
-              lastModified: metadata.lastModified,
-              normalizedCsvPath,
-            })) ?? new File([], metadata.fileName, {
-              lastModified: Number.isFinite(metadata.lastModified)
-                ? metadata.lastModified
-                : Date.now(),
-              type: "text/csv;charset=utf-8",
-            })
+          ? createEmptyNormalizedCsvFile(metadata.fileName, metadata.lastModified)
           : await loadBrowserFile();
     const normalizedSizeBytes =
       getRustConvertCsvBytes(result.manifest) ??
@@ -349,10 +358,14 @@ export const convertImportFile = async (
       source: "rust",
     });
 
+    const manifest = isObjectRecord(result.manifest) ? result.manifest : {};
     return {
       file: normalizedFile,
+      columnCount: readNonNegativeInteger(result.columnCount ?? manifest.columnCount),
+      maxCellLengths: readNumberArray(result.maxCellLengths ?? manifest.maxCellLengths),
       normalizedCsvPath,
       normalizedSizeBytes,
+      rowCount: readNonNegativeInteger(result.rowCount ?? manifest.rowCount ?? manifest.rows),
       sheets: readConvertedImportSheets(result),
       sourcePath: result.sourcePath ?? sourcePath,
       sourceName: result.sourceName ?? metadata.fileName,
@@ -435,6 +448,9 @@ const readNumberArray = (value: unknown): readonly number[] | undefined =>
         .map(item => Number(item))
         .filter(item => Number.isFinite(item) && item >= 0)
     : undefined;
+
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
 export const createImportedFileRecord = async (
   input: ImportedFileRecordInput,

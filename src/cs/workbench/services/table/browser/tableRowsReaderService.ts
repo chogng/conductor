@@ -69,7 +69,7 @@ export class TableRowsReaderService extends Disposable implements ITableRowsRead
 		return unavailable();
 	}
 
-	public readConvertedCsv(payload: { path: string }): Promise<FileConverterConvertedCsv> {
+	public readConvertedCsv(payload: { path: string; maxRows?: number }): Promise<FileConverterConvertedCsv> {
 		return this.convertedCsvReaderService.readConvertedCsv(payload);
 	}
 }
