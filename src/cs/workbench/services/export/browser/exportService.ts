@@ -112,7 +112,7 @@ export class BrowserExportService extends Disposable implements IExportService {
   }
 
   public getViewState(): ExportViewState {
-    return this.viewState;
+    return this.projectExportViewState(this.viewState);
   }
 
   public updateViewState(input: ExportViewStateInput): ExportViewState {
@@ -137,7 +137,7 @@ export class BrowserExportService extends Disposable implements IExportService {
       curveOptions,
       hasMixedExportYScales: exportScope.hasMixedYScales,
       scopedFileIds: [...exportScope.fileIds],
-      showFilteredCanvasKindSelect: true,
+      showFilteredCanvasKindSelect: this.state.canvasScope === "filtered",
     };
     this.viewState = viewState;
     this.onDidChangeExportViewStateEmitter.fire(viewState);
@@ -498,6 +498,16 @@ export class BrowserExportService extends Disposable implements IExportService {
     this.state = nextState;
     this.onDidChangeExportStateEmitter.fire(nextState);
   }
+
+  private projectExportViewState(viewState: ExportViewState): ExportViewState {
+    const showFilteredCanvasKindSelect = this.state.canvasScope === "filtered";
+    return viewState.showFilteredCanvasKindSelect === showFilteredCanvasKindSelect
+      ? viewState
+      : {
+        ...viewState,
+        showFilteredCanvasKindSelect,
+      };
+  }
 }
 
 const resolveNext = <T,>(value: T | ((previous: T) => T), previous: T): T =>
@@ -509,7 +519,7 @@ const createDefaultExportViewState = (): ExportViewState => ({
   curveOptions: [],
   hasMixedExportYScales: false,
   scopedFileIds: [],
-  showFilteredCanvasKindSelect: true,
+  showFilteredCanvasKindSelect: false,
 });
 
 const buildCsvExportRequest = (): null => null;

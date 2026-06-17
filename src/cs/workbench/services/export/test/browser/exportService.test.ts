@@ -160,10 +160,16 @@ suite("workbench/services/export/browser/exportService", () => {
 			curveOptions: [],
 			hasMixedExportYScales: false,
 			scopedFileIds: [],
-			showFilteredCanvasKindSelect: true,
+			showFilteredCanvasKindSelect: false,
 		});
 		assert.deepEqual(service.getViewState(), viewState);
 		assert.deepEqual(viewStates, [viewState]);
+
+		service.setCanvasScope("filtered");
+		assert.deepEqual(service.getViewState(), {
+			...viewState,
+			showFilteredCanvasKindSelect: true,
+		});
 
 		disposable.dispose();
 		service.dispose();
