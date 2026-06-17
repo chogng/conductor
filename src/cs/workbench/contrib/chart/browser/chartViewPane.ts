@@ -117,6 +117,30 @@ export class ChartViewPane extends ViewPane {
       this.updateChartPanel(this.props);
       this.refreshLegendPopover();
     }));
+    this.paneStore.add(this.plotService.onDidChangeCalculatedDataCache(event => {
+      if (
+        event.fileId !== normalizeChartFileId(this.props.activeFileId) ||
+        event.plotType !== this.getActivePlotType()
+      ) {
+        return;
+      }
+
+      this.renderHeader(this.props);
+      this.updateChartPanel(this.props);
+      this.refreshLegendPopover();
+    }));
+    this.paneStore.add(this.plotService.onDidChangePlotDisplayModelCache(event => {
+      if (
+        event.fileId !== normalizeChartFileId(this.props.activeFileId) ||
+        event.plotType !== this.getActivePlotType()
+      ) {
+        return;
+      }
+
+      this.renderHeader(this.props);
+      this.updateChartPanel(this.props);
+      this.refreshLegendPopover();
+    }));
     this.paneStore.add(this.settingsService.onDidChangeConductorSettings(() => {
       this.renderHeader(this.props);
       this.updateChartPanel(this.props);
@@ -242,22 +266,23 @@ export class ChartViewPane extends ViewPane {
       plotAxisSettings: this.settingsService.getConductorSettings()?.plotAxisSettings,
       plotDisplayModel,
     };
+    const inspectorDisplayModel = plotDisplayModel?.inspector ?? null;
     return {
       ...displayProps,
-      inspectorXAxisLabelOverride: plotDisplayModel?.inspector.xAxisTitle,
-      inspectorYAxisLabelOverride: plotDisplayModel?.inspector.yAxisTitle,
-      onInspectorXAxisLabelChange: plotDisplayModel
+      inspectorXAxisLabelOverride: inspectorDisplayModel?.xAxisTitle,
+      inspectorYAxisLabelOverride: inspectorDisplayModel?.yAxisTitle,
+      onInspectorXAxisLabelChange: inspectorDisplayModel
         ? (nextTitle) => this.updateAxisTitle(
-            plotDisplayModel.inspector.xAxisTitleContext,
+            inspectorDisplayModel.xAxisTitleContext,
             nextTitle,
-            plotDisplayModel.inspector.defaultXAxisTitle,
+            inspectorDisplayModel.defaultXAxisTitle,
           )
         : undefined,
-      onInspectorYAxisLabelChange: plotDisplayModel
+      onInspectorYAxisLabelChange: inspectorDisplayModel
         ? (nextTitle) => this.updateAxisTitle(
-            plotDisplayModel.inspector.yAxisTitleContext,
+            inspectorDisplayModel.yAxisTitleContext,
             nextTitle,
-            plotDisplayModel.inspector.defaultYAxisTitle,
+            inspectorDisplayModel.defaultYAxisTitle,
           )
         : undefined,
       onXAxisLabelChange: plotDisplayModel
@@ -308,12 +333,23 @@ export class ChartViewPane extends ViewPane {
     hiddenLegendKeys: readonly string[] = [],
     legendLabels: Readonly<Record<string, string>> = {},
   ): PlotDisplayModel | null {
-    return this.plotService.getPlotDisplayModel({
-      fileId: props.activeFileId ?? null,
+    const fileId = normalizeChartFileId(props.activeFileId);
+    const plotType = this.getActivePlotType();
+    const model = this.plotService.getCachedPlotDisplayModel({
+      fileId,
       hiddenLegendKeys,
       legendLabels,
-      plotType: this.getActivePlotType(),
+      plotType,
     });
+    if (!model && fileId) {
+      this.plotService.prefetchPlotDisplayModel({
+        fileId,
+        hiddenLegendKeys,
+        legendLabels,
+        plotType,
+      }, "active");
+    }
+    return model;
   }
 
   private updateChartPanelTabState(): void {
@@ -523,11 +559,16 @@ export class ChartViewPane extends ViewPane {
 
   private getCurrentLegendContext(props: ChartViewInput): LegendContext | null {
     const plotType = this.getActivePlotType();
+    const fileId = normalizeChartFileId(props.activeFileId);
+    const legendModel = this.plotService.getCachedPlotLegendModel({
+      fileId,
+      plotType,
+    });
+    if (!legendModel && fileId) {
+      this.plotService.prefetchCalculatedData([fileId], "active", plotType);
+    }
     return getLegendContext(
-      this.plotService.getPlotLegendModel({
-        fileId: props.activeFileId ?? null,
-        plotType,
-      }),
+      legendModel,
       plotType,
     );
   }

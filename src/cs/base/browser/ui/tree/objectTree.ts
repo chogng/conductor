@@ -135,11 +135,11 @@ export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
   }
 
   dispose(): void {
-    this.list.dispose();
     for (const template of this.rowTemplateSet) {
       this.disposeRendererTemplate(template);
     }
     this.rowTemplateSet.clear();
+    this.list.dispose();
     this.root.remove();
   }
 

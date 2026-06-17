@@ -26,13 +26,16 @@ export const createChartViewInput = (
 		activeFileId &&
 			options.chartFileOptions.some(option => option.fileId === activeFileId),
 	);
+	const chartFileOptions = options.showFileSelect === false && hasChartData
+		? options.chartFileOptions.filter(option => option.fileId === activeFileId)
+		: options.chartFileOptions;
 
 	return {
 		activeFileId,
 		activePlotType: options.activePlotType,
-		chartFileOptions: options.chartFileOptions,
+		chartFileOptions,
 		hasChartData,
-		processingStatus: options.processingStatus,
+		processingStatus: hasChartData ? undefined : options.processingStatus,
 		showFileSelect: options.showFileSelect,
 		shouldMountCharts: options.shouldMountCharts,
 	};

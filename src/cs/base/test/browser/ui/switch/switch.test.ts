@@ -156,31 +156,37 @@ suite("base/test/browser/ui/switch/switch", () => {
       id: "widget-switch",
     });
     const changes: boolean[] = [];
-    widget.onDidChangeChecked(checked => changes.push(checked));
+    const listener = widget.onDidChangeChecked(checked => changes.push(checked));
 
-    widget.domNode.click();
+    try {
+      widget.domNode.click();
 
-    assert.deepEqual(changes, [true]);
-    assert.equal(widget.checked, true);
-    assert.ok(widget.domNode.classList.contains("ui-switch"));
-    assert.ok(widget.domNode.classList.contains("extra"));
-    assert.ok(widget.domNode.classList.contains("ui-switch--animate"));
-    assert.equal(widget.domNode.id, "widget-switch");
-    assert.equal(widget.domNode.getAttribute("aria-checked"), "true");
+      assert.deepEqual(changes, [true]);
+      assert.equal(widget.checked, true);
+      assert.ok(widget.domNode.classList.contains("ui-switch"));
+      assert.ok(widget.domNode.classList.contains("extra"));
+      assert.ok(widget.domNode.classList.contains("ui-switch--animate"));
+      assert.equal(widget.domNode.id, "widget-switch");
+      assert.equal(widget.domNode.getAttribute("aria-checked"), "true");
 
-    widget.update({ checked: false });
+      widget.update({ checked: false });
 
-    assert.equal(widget.checked, false);
-    assert.ok(widget.domNode.classList.contains("ui-switch"));
-    assert.ok(widget.domNode.classList.contains("extra"));
-    assert.equal(widget.domNode.id, "widget-switch");
-    assert.equal(widget.domNode.getAttribute("aria-checked"), "false");
+      assert.equal(widget.checked, false);
+      assert.ok(widget.domNode.classList.contains("ui-switch"));
+      assert.ok(widget.domNode.classList.contains("extra"));
+      assert.equal(widget.domNode.id, "widget-switch");
+      assert.equal(widget.domNode.getAttribute("aria-checked"), "false");
 
-    widget.dispose();
-    widget.domNode.click();
+      widget.dispose();
+      widget.domNode.click();
 
-    assert.deepEqual(changes, [true]);
-    assert.equal(widget.checked, false);
+      assert.deepEqual(changes, [true]);
+      assert.equal(widget.checked, false);
+    }
+    finally {
+      listener.dispose();
+      widget.dispose();
+    }
   });
 
   test("SwitchWidget enables animation only for user toggles", () => {
@@ -216,14 +222,19 @@ suite("base/test/browser/ui/switch/switch", () => {
       disabled: true,
     });
     const changes: boolean[] = [];
-    widget.onDidChangeChecked(checked => changes.push(checked));
+    const listener = widget.onDidChangeChecked(checked => changes.push(checked));
 
-    widget.domNode.click();
+    try {
+      widget.domNode.click();
 
-    assert.deepEqual(changes, []);
-    assert.equal(widget.checked, false);
-    assert.equal(widget.domNode.getAttribute("aria-checked"), "false");
+      assert.deepEqual(changes, []);
+      assert.equal(widget.checked, false);
+      assert.equal(widget.domNode.getAttribute("aria-checked"), "false");
+    }
+    finally {
+      listener.dispose();
+      widget.dispose();
+    }
 
-    widget.dispose();
   });
 });

@@ -12,7 +12,7 @@ import type {
 } from "src/cs/platform/contextview/browser/contextView";
 import { SubmenuAction, type IAction } from "src/cs/base/common/actions";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
-import { Event } from "src/cs/base/common/event";
+import { Emitter, Event } from "src/cs/base/common/event";
 import { ObjectTree } from "src/cs/base/browser/ui/tree/objectTree";
 import { ResourceLabels } from "src/cs/workbench/browser/labels";
 import {
@@ -325,6 +325,58 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       ObjectTree.prototype.rerenderByKeys = originalRerenderByKeys;
     }
   });
+
+  test("rerenders thumbnail grid when preview state changes", async () => {
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    const previewEmitter = new Emitter<{ readonly fileId: string }>();
+    let modelReady = false;
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const props: ExplorerViewerProps = {
+      ...createViewerProps(),
+      mode: "chart",
+      thumbnailPreviewService: {
+        get: () => ({ kind: "idle" }),
+        invalidate: () => undefined,
+        onDidChangePreview: previewEmitter.event,
+        prefetch: () => undefined,
+        request: () => modelReady
+          ? {
+              kind: "ready",
+              model: createThumbnailPlotModel("file-a"),
+              signature: "plot:file-a",
+            }
+          : { kind: "loading" },
+      },
+      thumbnailService: {
+        clear: () => undefined,
+        drawPlotThumbnail: () => undefined,
+      },
+      viewLayout: "thumbnail",
+    };
+    const viewer = new ExplorerViewer(host, hoverHost, props, labels);
+
+    try {
+      viewer.setProps(props);
+      assert.equal(host.querySelector(".thumbnail_view_chart_canvas"), null);
+      assert.ok(host.querySelector(".thumbnail_view_chart_loading"));
+
+      modelReady = true;
+      previewEmitter.fire({ fileId: "file-a" });
+      await animationFrames(1);
+
+      assert.ok(host.querySelector(".thumbnail_view_chart_canvas"));
+      assert.equal(host.querySelector(".thumbnail_view_chart_loading"), null);
+    } finally {
+      viewer.dispose();
+      previewEmitter.dispose();
+      labels.dispose();
+      hoverHost.remove();
+    }
+  });
 });
 
 const getFileContextActions = (
@@ -410,6 +462,8 @@ const createViewerProps = (): ExplorerViewerProps => ({
   thumbnailPreviewService: {
     onDidChangePreview: Event.None,
     get: () => ({ kind: "idle" }),
+    invalidate: () => undefined,
+    prefetch: () => undefined,
     request: () => ({ kind: "idle" }),
   },
   thumbnailService: {} as ExplorerViewerProps["thumbnailService"],
@@ -417,3 +471,18 @@ const createViewerProps = (): ExplorerViewerProps => ({
 
 const timeout = (ms: number): Promise<void> =>
   new Promise(resolve => setTimeout(resolve, ms));
+
+const animationFrames = async (count: number): Promise<void> => {
+  for (let index = 0; index < count; index += 1) {
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  }
+};
+
+const createThumbnailPlotModel = (fileId: string) => ({
+  seriesList: [],
+  signature: `plot:${fileId}`,
+  xDomain: [0, 1] as [number, number],
+  xUnitLabel: "V",
+  yDomain: [0, 1] as [number, number],
+  yUnitLabel: "A",
+});

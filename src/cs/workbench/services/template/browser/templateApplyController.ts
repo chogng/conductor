@@ -43,6 +43,7 @@ import type {
 } from "src/cs/workbench/services/template/browser/templateApplyProcessing";
 import {
   buildTemplateProcessingPlan,
+  prioritizeTemplateProcessingQueue,
   type TemplateProcessingPlan,
   type TemplateProcessingSkippedFile,
 } from "src/cs/workbench/services/template/browser/templateApplyPlanner";
@@ -157,6 +158,18 @@ const isSameProcessingStatus = (
   current.state === next.state &&
   current.processed === next.processed &&
   current.total === next.total;
+
+const isSameProcessingQueue = (
+  current: readonly ProcessingQueueItem[],
+  next: readonly ProcessingQueueItem[],
+): boolean =>
+  current.length === next.length &&
+  current.every((entry, index) => entry === next[index]);
+
+const normalizeTemplateApplyFileId = (fileId: unknown): string | null => {
+  const normalized = String(fileId ?? "").trim();
+  return normalized || null;
+};
 
 const resolveRuleCurveFilterInfo = (rule: {
   matchMode?: unknown;
@@ -467,7 +480,12 @@ export class TemplateApplyController {
   }
 
   public update(input: TemplateApplyWorkflowInput): void {
+    const previousActiveFileId = normalizeTemplateApplyFileId(this.input.activeFileId);
     this.input = input;
+    const activeFileId = normalizeTemplateApplyFileId(input.activeFileId);
+    if (activeFileId && activeFileId !== previousActiveFileId) {
+      this.prioritizeQueuedProcessingFile(activeFileId);
+    }
   }
 
   public dispose(): void {
@@ -515,6 +533,20 @@ export class TemplateApplyController {
       total: Math.max(previous.processed, previous.total - removedCount),
     }));
   };
+
+  private prioritizeQueuedProcessingFile(fileId: string): void {
+    if (this._processingStatus.state !== "processing") {
+      return;
+    }
+
+    const currentQueue = this.processingQueueRef.current;
+    const nextQueue = prioritizeTemplateProcessingQueue(currentQueue, fileId);
+    if (isSameProcessingQueue(currentQueue, nextQueue)) {
+      return;
+    }
+
+    this.processingQueueRef.current = nextQueue;
+  }
 
   private readonly handleSessionChanged = (event: SessionChangeEvent): void => {
     if (event.reason === "sessionCleared") {
@@ -689,7 +721,9 @@ export class TemplateApplyController {
     }
 
     if (isAutoTemplateConfig(config)) {
-      const plan = buildTemplateProcessingPlan(rawFiles);
+      const plan = buildTemplateProcessingPlan(rawFiles, null, {
+        priorityFileId: this.input.activeFileId,
+      });
       const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
       if (invalidSkippedFile && config?.stopOnError) {
         this.applyStoppedInvalidSourceState(invalidSkippedFile, true);
@@ -723,7 +757,10 @@ export class TemplateApplyController {
       return prepared;
     }
 
-    const plan = buildTemplateProcessingPlan(rawFiles, null, { mode: "manual" });
+    const plan = buildTemplateProcessingPlan(rawFiles, null, {
+      mode: "manual",
+      priorityFileId: this.input.activeFileId,
+    });
     const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
     if (invalidSkippedFile && prepared.stopOnError) {
       this.applyStoppedInvalidSourceState(invalidSkippedFile, true);
@@ -796,7 +833,9 @@ export class TemplateApplyController {
       }
 
       const processedIds = resolveProcessedFileIds(this.input);
-      const plan = buildTemplateProcessingPlan(rawFiles, processedIds);
+      const plan = buildTemplateProcessingPlan(rawFiles, processedIds, {
+        priorityFileId: this.input.activeFileId,
+      });
       const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
       if (invalidSkippedFile && config?.stopOnError) {
         this.applyStoppedInvalidSourceState(invalidSkippedFile, false);
@@ -856,7 +895,10 @@ export class TemplateApplyController {
     }
 
     const processedIds = resolveProcessedFileIds(this.input);
-    const plan = buildTemplateProcessingPlan(rawFiles, processedIds, { mode: "manual" });
+    const plan = buildTemplateProcessingPlan(rawFiles, processedIds, {
+      mode: "manual",
+      priorityFileId: this.input.activeFileId,
+    });
     const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
     if (invalidSkippedFile && config?.stopOnError) {
       this.applyStoppedInvalidSourceState(invalidSkippedFile, false);
@@ -1214,7 +1256,10 @@ export class TemplateApplyController {
     }
 
     const processedIds = incremental ? resolveProcessedFileIds(this.input) : null;
-    const plan = buildTemplateProcessingPlan(rawFiles, processedIds, { mode: "rule" });
+    const plan = buildTemplateProcessingPlan(rawFiles, processedIds, {
+      mode: "rule",
+      priorityFileId: this.input.activeFileId,
+    });
     const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
     if (invalidSkippedFile && config?.stopOnError) {
       this.applyStoppedInvalidSourceState(invalidSkippedFile, !incremental);

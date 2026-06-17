@@ -32,6 +32,7 @@ export type TemplateProcessingPlanMode = "auto" | "manual" | "rule";
 
 export type TemplateProcessingPlanOptions = {
 	readonly mode?: TemplateProcessingPlanMode;
+	readonly priorityFileId?: string | null;
 };
 
 /**
@@ -40,8 +41,9 @@ export type TemplateProcessingPlanOptions = {
 export function buildTemplateProcessingQueue(
 	rawFiles: readonly SessionFile[],
 	processedIds: ReadonlySet<string> | null = null,
+	options: TemplateProcessingPlanOptions = {},
 ): ProcessingQueueItem[] {
-	return buildTemplateProcessingPlan(rawFiles, processedIds).queue;
+	return buildTemplateProcessingPlan(rawFiles, processedIds, options).queue;
 }
 
 export function buildTemplateProcessingPlan(
@@ -103,10 +105,35 @@ export function buildTemplateProcessingPlan(
 	}
 
 	return {
-		queue,
+		queue: prioritizeTemplateProcessingQueue(queue, options.priorityFileId),
 		skippedFiles,
 	};
 }
+
+export function prioritizeTemplateProcessingQueue<T extends { readonly fileId?: string | null }>(
+	queue: readonly T[],
+	priorityFileId?: string | null,
+): T[] {
+	const normalizedPriorityFileId = normalizeFileId(priorityFileId);
+	if (!normalizedPriorityFileId) {
+		return [...queue];
+	}
+
+	const priorityIndex = queue.findIndex(
+		entry => normalizeFileId(entry.fileId) === normalizedPriorityFileId,
+	);
+	if (priorityIndex <= 0) {
+		return [...queue];
+	}
+
+	return [
+		queue[priorityIndex],
+		...queue.slice(0, priorityIndex),
+		...queue.slice(priorityIndex + 1),
+	];
+}
+
+const normalizeFileId = (fileId: string | null | undefined): string => String(fileId ?? "").trim();
 
 const getTemplateProcessingSkipReason = (
 	assessment: TemplateProcessingAssessment | null,

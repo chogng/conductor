@@ -98,6 +98,10 @@ flowchart TD
 - `WorkbenchDomainBridge` may keep `TemplateViewInput` and
   `TemplateApplyWorkflowInput` current by subscribing to session/template owner
   events and rereading owner public state.
+- `TemplateApplyWorkflowInput.activeFileId` is the current Explorer/chart
+  selection projected by `WorkbenchDomainBridge`. Template apply planning must
+  move that file to the front of full, incremental, and rule queues so the
+  current chart receives template output before background files.
 - Template views subscribe to `ITemplateService.onDidChangeTemplateViewInput`
   and then reread `ITemplateService.getViewInput()`. The event must not carry
   `TemplateViewInput` as the data channel.

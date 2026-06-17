@@ -395,7 +395,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
   });
 
   test("projects unhealthy filename-only hints as unknown fast badges", () => {
-    const session = new SessionService();
+    const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
       {
         assessmentHealth: "decodeFailed",
@@ -410,7 +410,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     const snapshot = session.getSnapshot();
     const input = createExplorerPaneInput({
       activePlotType: "iv",
-      explorerService: new ExplorerService(),
+      explorerService: store.add(new ExplorerService()),
       mode: "table",
       plotService: createPlotService(),
       readModel: createSessionReadModel(snapshot),

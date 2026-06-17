@@ -386,6 +386,23 @@ interactions. Consumers reread it through `ITemplateService.getState()` after
 | `selectionsByFileId` | `TemplateSelectionsByFileId` | Per-file template selection overrides. |
 | `templateListVersion` | `number` | Increments when saved template persistence changes so views can reread the template list. |
 
+### `TemplateApplyWorkflowInput`
+
+Owner: `ITemplateApplyWorkflowService`. Service-local workflow input, not
+session canonical data. Produced by `WorkbenchDomainBridge` from session,
+Explorer selection, and Template state. Consumers: `TemplateApplyController`
+planning and processing entry points. Invalidation: session/read-model changes,
+Explorer selection changes, pending import state, or Template state changes.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `activeFileId` | `string | null | undefined` | Current Explorer/chart file selection used to prioritize template processing for the user-visible chart before background files. |
+| `hasPendingSourceFiles` | `boolean | undefined` | Whether Explorer still has pending/preparing source files, which blocks full/incremental apply from starting a partial queue. |
+| `processedFileIds` | `readonly string[] | undefined` | Canonical file ids that already have template output and should be skipped by incremental apply. |
+| `rawFiles` | `SessionFile[] | undefined` | Session read-model raw files available for template planning. |
+| `templateSelection` | `TemplateSelection | undefined` | Current global template selection applied to new processing runs. |
+| `fileTemplateSelectionsByFileId` | `TemplateSelectionsByFileId | undefined` | Per-file template selection overrides used when committing processing results. |
+
 ### `TemplateRunRecord`
 
 | Field | Type | Meaning |
@@ -502,8 +519,8 @@ Owner: `ChartService`. Service-local view input snapshot. The change event only 
 | `activePlotType` | `PlotType | undefined` | Plot type currently shown, projected from Plot state. |
 | `hasChartData` | `boolean | undefined` | Whether chart data is available for the active view. |
 | `activeFileId` | `FileId | null | undefined` | File selected for chart display. |
-| `chartFileOptions` | `readonly ChartFileOption[] | undefined` | File selector options projected for chart mode. |
-| `processingStatus` | `Partial<ProcessingStatus> | undefined` | Template or processing status shown by chart UI. |
+| `chartFileOptions` | `readonly ChartFileOption[] | undefined` | File selector options projected for chart mode; when file select is hidden and the active chart has data, this should be narrowed to the active file to avoid background-list churn. |
+| `processingStatus` | `Partial<ProcessingStatus> | undefined` | Template or processing status shown only while the active chart has no data. |
 | `showFileSelect` | `boolean | undefined` | Whether the chart header should show the chart file selector. |
 | `shouldMountCharts` | `boolean | undefined` | Whether chart rendering modules are still mounting. |
 

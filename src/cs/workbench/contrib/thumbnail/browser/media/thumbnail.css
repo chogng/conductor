@@ -57,6 +57,47 @@
   width: 100%;
 }
 
+.thumbnail_view_chart_loading {
+  position: absolute;
+  inset: 12px 14px 14px;
+  overflow: hidden;
+  border-left: 1px solid rgb(var(--border) / 0.75);
+  border-bottom: 1px solid rgb(var(--border) / 0.75);
+}
+
+.thumbnail_view_chart_loading::before {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 0 19%, rgb(var(--border) / 0.28) 20%, transparent 21% 39%, rgb(var(--border) / 0.22) 40%, transparent 41% 59%, rgb(var(--border) / 0.18) 60%, transparent 61% 79%, rgb(var(--border) / 0.14) 80%, transparent 81%),
+    linear-gradient(0deg, transparent 0 24%, rgb(var(--border) / 0.22) 25%, transparent 26% 49%, rgb(var(--border) / 0.18) 50%, transparent 51% 74%, rgb(var(--border) / 0.14) 75%, transparent 76%);
+  content: "";
+}
+
+.thumbnail_view_chart_loading_line {
+  position: absolute;
+  right: 8px;
+  left: 8px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgb(var(--accent) / 0.18), rgb(var(--accent-focus) / 0.5), rgb(var(--accent) / 0.18));
+}
+
+.thumbnail_view_chart_loading_line--primary {
+  top: 34%;
+  transform: rotate(-8deg);
+}
+
+.thumbnail_view_chart_loading_line--secondary {
+  top: 52%;
+  transform: rotate(5deg);
+}
+
+.thumbnail_view_chart_loading_line--tertiary {
+  top: 66%;
+  transform: rotate(-3deg);
+}
+
 .thumbnail_view_selection_badge {
   position: absolute;
   bottom: 4px;

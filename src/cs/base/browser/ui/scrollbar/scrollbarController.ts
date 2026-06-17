@@ -425,7 +425,9 @@ export class ScrollbarController implements ScrollbarHandle {
 
     const targetWindow = this.options.viewport.ownerDocument.defaultView ?? window;
     this.metricsRaf = scheduleAtNextAnimationFrame(targetWindow, () => {
+      const scheduled = this.metricsRaf;
       this.metricsRaf = null;
+      scheduled?.dispose();
       this.update();
     });
   };
@@ -437,7 +439,9 @@ export class ScrollbarController implements ScrollbarHandle {
 
     const targetWindow = this.options.viewport.ownerDocument.defaultView ?? window;
     this.thumbRaf = scheduleAtNextAnimationFrame(targetWindow, () => {
+      const scheduled = this.thumbRaf;
       this.thumbRaf = null;
+      scheduled?.dispose();
       this.updateThumbOffsets();
     });
   }
@@ -483,7 +487,9 @@ export class ScrollbarController implements ScrollbarHandle {
 
     const tick = (): void => {
       if (this.disposed) {
+        const scheduled = this.horizontalWheelRaf;
         this.horizontalWheelRaf = null;
+        scheduled?.dispose();
         return;
       }
 
@@ -491,7 +497,9 @@ export class ScrollbarController implements ScrollbarHandle {
       const delta = target - this.readScrollPosition().scrollLeft;
       if (Math.abs(delta) <= HORIZONTAL_WHEEL_STOP_THRESHOLD_PX) {
         this.setScrollPosition({ scrollLeft: target });
+        const scheduled = this.horizontalWheelRaf;
         this.horizontalWheelRaf = null;
+        scheduled?.dispose();
         return;
       }
 
@@ -499,6 +507,8 @@ export class ScrollbarController implements ScrollbarHandle {
         scrollLeft: this.readScrollPosition().scrollLeft + delta * HORIZONTAL_WHEEL_SMOOTHING,
       });
       const targetWindow = this.options.viewport.ownerDocument.defaultView ?? window;
+      const scheduled = this.horizontalWheelRaf;
+      scheduled?.dispose();
       this.horizontalWheelRaf = scheduleAtNextAnimationFrame(targetWindow, tick);
     };
 

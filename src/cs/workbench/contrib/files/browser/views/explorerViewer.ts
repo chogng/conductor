@@ -235,6 +235,7 @@ type HoverContent =
 type HoverThumbnailCacheEntry = {
   readonly file: ThumbnailFileLike;
   readonly isActive: boolean;
+  readonly isLoading: boolean;
   readonly node: HTMLElement;
   readonly plotModel: ExplorerThumbnailPlotModel | null;
   lastUsed: number;
@@ -600,6 +601,7 @@ export class ExplorerViewer implements IDisposable {
   private hoverContent: HoverContent | null = null;
   private hoverHideTimeout: ReturnType<typeof setTimeout> | null = null;
   private hoverLayoutFrame: number | null = null;
+  private thumbnailGridRenderFrame: number | null = null;
   private hoverViewToken = 0;
   private hoverCacheUse = 0;
   private explorerAppearance: ExplorerAppearance = DEFAULT_EXPLORER_APPEARANCE;
@@ -668,6 +670,9 @@ export class ExplorerViewer implements IDisposable {
         this.hoverContent.fileId === event.fileId
       ) {
         this.refreshVisibleHover();
+      }
+      if (getEffectiveViewLayout(this.props) === "thumbnail") {
+        this.scheduleThumbnailGridRender();
       }
     }));
   }
@@ -759,6 +764,7 @@ export class ExplorerViewer implements IDisposable {
   dispose(): void {
     this.cancelFileItemHoverHide();
     this.cancelFileItemHoverLayout();
+    this.cancelThumbnailGridRender();
     this.closeFileItemHoverView();
     this.clearHoverThumbnailCache();
     this.disposables.dispose();
@@ -1452,6 +1458,9 @@ export class ExplorerViewer implements IDisposable {
   private createThumbnailItem(file: ThumbnailFileLike): HTMLButtonElement {
     const fileName = String(file.fileName ?? file.fileId ?? "");
     const fileId = String(file.fileId ?? "").trim();
+    const previewState = this.getThumbnailPreviewState(fileId, "visible");
+    const plotModel = getPreviewPlotModel(previewState) ?? this.getThumbnailPlotModel(fileId);
+    const isLoading = previewState.kind === "loading" && !plotModel;
     const item = document.createElement("button");
     item.type = "button";
     item.className = "file-list-thumbnail-item";
@@ -1461,15 +1470,36 @@ export class ExplorerViewer implements IDisposable {
     );
     item.append(createThumbnailView({
       file,
+      isLoading,
       isActive: fileId === (this.props.selectedFileId ?? null),
       originOpenPlotOptions: this.props.originOpenPlotOptions,
       plotAxisSettings: this.props.plotAxisSettings,
-      plotModel: this.getThumbnailPreviewPlotModel(fileId, "visible"),
+      plotModel,
       plotType: this.props.activePlotType ?? "iv",
       thumbnailService: this.props.thumbnailService,
     }));
     item.addEventListener("click", () => this.props.onSelectFile(fileId || null));
     return item;
+  }
+
+  private scheduleThumbnailGridRender(): void {
+    if (this.thumbnailGridRenderFrame !== null) {
+      return;
+    }
+
+    this.thumbnailGridRenderFrame = requestAnimationFrame(() => {
+      this.thumbnailGridRenderFrame = null;
+      this.renderThumbnailGrid();
+    });
+  }
+
+  private cancelThumbnailGridRender(): void {
+    if (this.thumbnailGridRenderFrame === null) {
+      return;
+    }
+
+    cancelAnimationFrame(this.thumbnailGridRenderFrame);
+    this.thumbnailGridRenderFrame = null;
   }
 
   private createFileItemTemplate(host: HTMLElement): FileItemTemplate {
@@ -1928,11 +1958,13 @@ export class ExplorerViewer implements IDisposable {
       ? this.props.thumbnailPreviewService.request(normalizedFileId, "hover")
       : { kind: "idle" } satisfies ThumbnailPreviewState;
     const plotModel = getPreviewPlotModel(previewState) ?? this.getThumbnailPlotModel(fileId);
+    const isLoading = previewState.kind === "loading" && !plotModel;
     const cached = this.hoverThumbnailCache.get(cacheKey);
     this.hoverCacheUse += 1;
     if (
       cached?.file === file &&
       cached.isActive === isActive &&
+      cached.isLoading === isLoading &&
       cached.plotModel === plotModel
     ) {
       cached.lastUsed = this.hoverCacheUse;
@@ -1942,6 +1974,7 @@ export class ExplorerViewer implements IDisposable {
     const node = createThumbnailView({
       file,
       isActive,
+      isLoading,
       originOpenPlotOptions: this.props.originOpenPlotOptions,
       plotAxisSettings: this.props.plotAxisSettings,
       plotModel,
@@ -1952,6 +1985,7 @@ export class ExplorerViewer implements IDisposable {
     this.hoverThumbnailCache.set(cacheKey, {
       file,
       isActive,
+      isLoading,
       lastUsed: this.hoverCacheUse,
       node,
       plotModel,
@@ -1967,19 +2001,19 @@ export class ExplorerViewer implements IDisposable {
       : null;
   }
 
-  private getThumbnailPreviewPlotModel(
+  private getThumbnailPreviewState(
     fileId: string,
     priority: "hover" | "visible",
-  ): ExplorerThumbnailPlotModel | null {
+  ): ThumbnailPreviewState {
     const normalizedFileId = String(fileId ?? "").trim();
     if (!normalizedFileId) {
-      return null;
+      return { kind: "idle" };
     }
 
-    return getPreviewPlotModel(this.props.thumbnailPreviewService.request(
+    return this.props.thumbnailPreviewService.request(
       normalizedFileId,
       priority,
-    )) ?? this.getThumbnailPlotModel(normalizedFileId);
+    );
   }
 
   private clearHoverThumbnailCache(): void {

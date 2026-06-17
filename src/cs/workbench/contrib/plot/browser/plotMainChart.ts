@@ -24,6 +24,7 @@ import {
   type ChartScale,
   type PlotRect,
 } from "src/cs/workbench/services/plot/common/plotMainLayout";
+import { downsamplePointsForDisplay } from "src/cs/workbench/services/plot/browser/plotViewModel";
 import type {
   PlotMainPoint,
   PlotMainSeries,
@@ -164,6 +165,12 @@ export type PlotMainChartSize = {
   readonly height: number;
   readonly width: number;
 };
+
+const MIN_CHART_HEIGHT = 220;
+const MIN_CHART_WIDTH = 320;
+const MAX_CHART_LAYOUT_WAIT_FRAMES = 120;
+const MIN_DRAW_POINTS_PER_SERIES = 600;
+const DRAW_POINTS_PER_PIXEL = 2;
 
 const resolvePlotYKey = (
   effectiveYScale: PlotMainChartProps["effectiveYScale"],
@@ -432,8 +439,8 @@ const drawRangeOverlay = (
 const clearHoverOverlay = (canvas: HTMLCanvasElement): void => {
   const context = applyCanvasSize(
     canvas,
-    Math.max(320, canvas.parentElement?.clientWidth || canvas.clientWidth || 720),
-    Math.max(220, canvas.parentElement?.clientHeight || canvas.clientHeight || 420),
+    Math.max(MIN_CHART_WIDTH, canvas.parentElement?.clientWidth || canvas.clientWidth || 720),
+    Math.max(MIN_CHART_HEIGHT, canvas.parentElement?.clientHeight || canvas.clientHeight || 420),
   );
   context?.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
 };
@@ -488,21 +495,21 @@ const resolvePlotYDomain = (
     return props.yDomain;
   }
 
-  const values: number[] = [];
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
   for (const series of props.seriesList ?? []) {
     for (const point of series.data ?? []) {
       const y = resolvePlotPointY(point, yKey);
       if (y !== null && Number.isFinite(y) && y > 0) {
-        values.push(y);
+        min = Math.min(min, y);
+        max = Math.max(max, y);
       }
     }
   }
-  if (!values.length) {
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
     return [1e-12, 1];
   }
 
-  const min = Math.min(...values);
-  const max = Math.max(...values);
   return min === max ? [min / 10, max * 10] : [min, max];
 };
 
@@ -518,10 +525,10 @@ export const drawPlotMainChart = (
   const container = canvas.parentElement;
   const width = size
     ? Math.max(1, Number(size.width) || 0)
-    : Math.max(320, container?.clientWidth || canvas.clientWidth || 720);
+    : Math.max(MIN_CHART_WIDTH, container?.clientWidth || canvas.clientWidth || 720);
   const height = size
     ? Math.max(1, Number(size.height) || 0)
-    : Math.max(220, container?.clientHeight || canvas.clientHeight || 420);
+    : Math.max(MIN_CHART_HEIGHT, container?.clientHeight || canvas.clientHeight || 420);
   const context = applyCanvasSize(canvas, width, height);
   if (!context) return null;
 
@@ -561,9 +568,14 @@ export const drawPlotMainChart = (
   const shouldDrawLine = curvePlotType !== 201;
   const shouldDrawSymbols = curvePlotType === 201 || curvePlotType === 202;
   const symbolSize = Math.max(5, Math.min(10, lineWidth + 4));
+  const maxDrawPoints = Math.max(
+    MIN_DRAW_POINTS_PER_SERIES,
+    Math.ceil(plotRect.width * DRAW_POINTS_PER_PIXEL),
+  );
   for (const [seriesIndex, series] of (props.seriesList ?? []).entries()) {
     const color = series.color || resolveSeriesPlotColor(series, seriesIndex) || getPlotColor(seriesIndex);
-    const points = (Array.isArray(series.data) ? series.data : [])
+    const sourcePoints = Array.isArray(series.data) ? series.data : [];
+    const points = downsamplePointsForDisplay(sourcePoints, maxDrawPoints)
       .map((point) => {
         const x = Number(point?.x);
         const y = resolvePlotPointY(point, yKey);
@@ -629,6 +641,30 @@ export const drawPlotMainChart = (
   return { plotRect, scale, yKey };
 };
 
+const readChartLayoutSize = (element: HTMLElement): PlotMainChartSize | null => {
+  if (!element.isConnected) {
+    return null;
+  }
+
+  const rect = element.getBoundingClientRect();
+  const width = Math.floor(element.clientWidth || rect.width || 0);
+  const height = Math.floor(element.clientHeight || rect.height || 0);
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+
+  return {
+    height: Math.max(MIN_CHART_HEIGHT, height),
+    width: Math.max(MIN_CHART_WIDTH, width),
+  };
+};
+
+const isSameChartSize = (
+  a: PlotMainChartSize | null,
+  b: PlotMainChartSize | null,
+): boolean =>
+  Boolean(a && b && a.width === b.width && a.height === b.height);
+
 export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartElement => {
   const root = document.createElement("div") as unknown as PlotMainChartElement;
   root.className = "plot_main_chart";
@@ -665,13 +701,33 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
 
   let disposed = false;
   let animationFrame = 0;
-  let rendered = drawPlotMainChart(canvas, props);
+  let pendingSize: PlotMainChartSize | null = null;
+  let waitFrames = 0;
+  let rendered: ReturnType<typeof drawPlotMainChart> = null;
   const render = (): void => {
     animationFrame = 0;
     if (disposed) {
       return;
     }
-    rendered = drawPlotMainChart(canvas, props);
+
+    const nextSize = readChartLayoutSize(root);
+    if (!nextSize) {
+      waitFrames += 1;
+      if (waitFrames < MAX_CHART_LAYOUT_WAIT_FRAMES) {
+        requestRender();
+      }
+      pendingSize = null;
+      return;
+    }
+    waitFrames = 0;
+
+    if (!isSameChartSize(pendingSize, nextSize)) {
+      pendingSize = nextSize;
+      requestRender();
+      return;
+    }
+
+    rendered = drawPlotMainChart(canvas, props, nextSize);
     clearHoverOverlay(hoverCanvas);
   };
   const requestRender = (): void => {
@@ -685,8 +741,10 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
   queueMicrotask(requestRender);
 
   store.add(addDisposableListener(canvas, EventType.MOUSE_MOVE, (event) => {
-    rendered ??= drawPlotMainChart(canvas, props);
-    if (!rendered) return;
+    if (!rendered) {
+      requestRender();
+      return;
+    }
 
     const rect = canvas.getBoundingClientRect();
     const localX = event.clientX - rect.left;

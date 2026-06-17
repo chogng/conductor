@@ -56,6 +56,18 @@ export type PlotCalculatedDataInput = {
   readonly snapshot?: SessionSnapshot;
 };
 
+export type PlotCalculatedDataPrefetchPriority = "active" | "hover" | "visible" | "nearby" | "idle";
+
+export type PlotCalculatedDataCacheChangeEvent = {
+  readonly fileId: FileId;
+  readonly plotType: PlotType;
+};
+
+export type PlotDisplayModelCacheChangeEvent = {
+  readonly fileId: FileId;
+  readonly plotType: PlotType;
+};
+
 export type PlotMainRenderModelInput = PlotCalculatedDataInput;
 
 export type PlotLegendModel = {
@@ -99,22 +111,29 @@ export type PlotUnitControlModel = {
 export type PlotDisplayModel = {
   readonly chart: PlotPaneDisplayModel;
   readonly fileId: FileId;
-  readonly inspector: PlotPaneDisplayModel;
+  readonly inspector: PlotPaneDisplayModel | null;
   readonly plotType: PlotType;
   readonly unitControl: PlotUnitControlModel | null;
 };
 
 export interface IPlotService {
   readonly _serviceBrand: undefined;
+  readonly onDidChangeCalculatedDataCache: Event<PlotCalculatedDataCacheChangeEvent>;
+  readonly onDidChangePlotDisplayModelCache: Event<PlotDisplayModelCacheChangeEvent>;
   readonly onDidChangePlotState: Event<PlotState>;
 
   getState(): PlotState;
+  getCachedCalculatedData(input: PlotCalculatedDataInput): CalculatedData | null;
+  getCachedPlotDisplayModel(input: PlotDisplayModelInput): PlotDisplayModel | null;
+  getCachedPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
   getCalculatedData(input: PlotCalculatedDataInput): CalculatedData | null;
   getFileAxisSettings(snapshot: SessionSnapshot): PlotFileAxisSettings;
   getLegendLabels(fileId: FileId): Readonly<Record<SeriesId, string>>;
   getPlotDisplayModel(input: PlotDisplayModelInput): PlotDisplayModel | null;
   getPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
   getPlotMainRenderModel(input: PlotMainRenderModelInput): PlotMainRenderModel | null;
+  prefetchCalculatedData(fileIds: readonly FileId[], priority: PlotCalculatedDataPrefetchPriority, plotType?: PlotType): void;
+  prefetchPlotDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
   setAxisTitleOverride(context: PlotAxisTitleContext, title: string, defaultTitle: string): void;
   setAxisUnit(fileId: FileId, axis: PlotAxis, unit: XUnit | YUnit): Promise<void>;
   setActivePlotType(plotType: PlotType): void;

@@ -32,11 +32,19 @@ export type ThumbnailViewProps = {
   plotModel?: ThumbnailPlotModel | null;
   plotType?: PlotType;
   thumbnailService?: Pick<IThumbnailService, "drawPlotThumbnail"> | null;
+  isLoading?: boolean;
   isActive?: boolean;
   isOriginSelected?: boolean;
   showOriginSelectionBadge?: boolean;
   originSelectedBadgeLabel?: string;
 };
+
+type ThumbnailCanvasSize = {
+  readonly height: number;
+  readonly width: number;
+};
+
+const MAX_THUMBNAIL_LAYOUT_WAIT_FRAMES = 120;
 
 export const createThumbnailView = ({
   file,
@@ -45,6 +53,7 @@ export const createThumbnailView = ({
   plotModel = null,
   plotType = "iv",
   thumbnailService = null,
+  isLoading = false,
   isActive = false,
   isOriginSelected = false,
   originSelectedBadgeLabel = "SELECT",
@@ -68,6 +77,7 @@ export const createThumbnailView = ({
     plotModel,
     plotType,
     thumbnailService,
+    isLoading,
     isOriginSelected,
     originSelectedBadgeLabel,
     showOriginSelectionBadge,
@@ -101,6 +111,7 @@ const createChartThumbnail = ({
   plotModel,
   plotType,
   thumbnailService,
+  isLoading,
   isOriginSelected,
   originSelectedBadgeLabel,
   showOriginSelectionBadge,
@@ -111,6 +122,7 @@ const createChartThumbnail = ({
   readonly plotModel: ThumbnailPlotModel | null;
   readonly plotType: PlotType;
   readonly thumbnailService: Pick<IThumbnailService, "drawPlotThumbnail"> | null;
+  readonly isLoading: boolean;
   readonly isOriginSelected: boolean;
   readonly originSelectedBadgeLabel: string;
   readonly showOriginSelectionBadge: boolean;
@@ -127,6 +139,8 @@ const createChartThumbnail = ({
       plotType,
       thumbnailService,
     }));
+  } else if (isLoading) {
+    root.append(createThumbnailLoadingPlaceholder());
   }
 
   if (showOriginSelectionBadge && isOriginSelected) {
@@ -136,6 +150,24 @@ const createChartThumbnail = ({
     root.append(badge);
   }
   return root;
+};
+
+const createThumbnailLoadingPlaceholder = (): HTMLElement => {
+  const root = document.createElement("div");
+  root.className = "thumbnail_view_chart_loading";
+  root.setAttribute("aria-hidden", "true");
+  root.append(
+    createThumbnailLoadingLine("thumbnail_view_chart_loading_line thumbnail_view_chart_loading_line--primary"),
+    createThumbnailLoadingLine("thumbnail_view_chart_loading_line thumbnail_view_chart_loading_line--secondary"),
+    createThumbnailLoadingLine("thumbnail_view_chart_loading_line thumbnail_view_chart_loading_line--tertiary"),
+  );
+  return root;
+};
+
+const createThumbnailLoadingLine = (className: string): HTMLElement => {
+  const line = document.createElement("div");
+  line.className = className;
+  return line;
 };
 
 const createPlotMainThumbnailCanvas = ({
@@ -156,7 +188,7 @@ const createPlotMainThumbnailCanvas = ({
   const canvas = document.createElement("canvas");
   canvas.className = "thumbnail_view_chart_canvas";
   canvas.title = file.fileName ?? file.fileId ?? "";
-  requestAnimationFrame(() => {
+  scheduleStableThumbnailDraw(canvas, () => {
     thumbnailService.drawPlotThumbnail(canvas, {
       model: plotModel,
       originOpenPlotOptions,
@@ -166,3 +198,79 @@ const createPlotMainThumbnailCanvas = ({
   });
   return canvas;
 };
+
+const scheduleStableThumbnailDraw = (
+  canvas: HTMLCanvasElement,
+  draw: () => void,
+): void => {
+  let animationFrame = 0;
+  let pendingSize: ThumbnailCanvasSize | null = null;
+  let waitFrames = 0;
+  const resizeObserver = new ResizeObserver(() => queueDraw());
+
+  const dispose = (): void => {
+    if (animationFrame) {
+      cancelAnimationFrame(animationFrame);
+      animationFrame = 0;
+    }
+    resizeObserver.disconnect();
+  };
+
+  const render = (): void => {
+    animationFrame = 0;
+
+    const nextSize = readThumbnailCanvasSize(canvas);
+    if (!nextSize) {
+      waitFrames += 1;
+      if (waitFrames >= MAX_THUMBNAIL_LAYOUT_WAIT_FRAMES) {
+        dispose();
+        return;
+      }
+      pendingSize = null;
+      queueDraw();
+      return;
+    }
+    waitFrames = 0;
+
+    if (!isSameThumbnailCanvasSize(pendingSize, nextSize)) {
+      pendingSize = nextSize;
+      queueDraw();
+      return;
+    }
+
+    dispose();
+    draw();
+  };
+
+  const queueDraw = (): void => {
+    if (animationFrame) {
+      return;
+    }
+    animationFrame = requestAnimationFrame(render);
+  };
+
+  resizeObserver.observe(canvas);
+  queueDraw();
+};
+
+const readThumbnailCanvasSize = (canvas: HTMLCanvasElement): ThumbnailCanvasSize | null => {
+  if (!canvas.isConnected) {
+    return null;
+  }
+
+  const rect = canvas.getBoundingClientRect();
+  const parentRect = canvas.parentElement?.getBoundingClientRect();
+  const height = Math.floor(rect.height || parentRect?.height || canvas.clientHeight || 0);
+  const width = Math.floor(rect.width || parentRect?.width || canvas.clientWidth || 0);
+  if (height <= 0 || width <= 0) {
+    return null;
+  }
+
+  return { height, width };
+};
+
+const isSameThumbnailCanvasSize = (
+  a: ThumbnailCanvasSize | null,
+  b: ThumbnailCanvasSize | null,
+): boolean =>
+  Boolean(a && b && a.width === b.width && a.height === b.height);

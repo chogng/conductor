@@ -13,6 +13,7 @@ suite("workbench/services/template/test/browser/templateApplyInput", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 	test("creates controller input from read model and template state", () => {
 		const input = createTemplateApplyInput({
+			activeFileId: " file-a ",
 			readModel: {
 				processedFileIds: ["file-b"],
 				rawFiles: [{ fileId: "file-a", fileName: "raw.csv" }],
@@ -36,6 +37,6 @@ suite("workbench/services/template/test/browser/templateApplyInput", () => {
 			kind: "template",
 			templateId: "template-a",
 		});
-		assert.equal("activeFileId" in input, false);
+		assert.equal(input.activeFileId, "file-a");
 	});
 });

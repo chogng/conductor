@@ -122,7 +122,15 @@ sequenceDiagram
     User->>ChartViewPane: change plot type / unit / scale / edit axis title / edit legend label
     ChartViewPane->>PlotService: setActivePlotType / setAxisUnit / setYScale / setAxisTitleOverride / setLegendLabel
     PlotService-->>ChartViewPane: onDidChangePlotState
-    ChartViewPane->>PlotService: getPlotDisplayModel / getPlotLegendModel / getLegendLabels
+    ChartViewPane->>PlotService: getCachedPlotDisplayModel / getCachedPlotLegendModel / getLegendLabels
+    alt plot cache miss
+        ChartViewPane->>PlotService: prefetchPlotDisplayModel(activeFileId, "active")
+        PlotService-->>ChartViewPane: onDidChangeCalculatedDataCache(activeFileId)
+        PlotService-->>ChartViewPane: onDidChangePlotDisplayModelCache(activeFileId, chart-only)
+        ChartViewPane->>ChartViewPane: render main chart while inspector is pending
+        PlotService-->>ChartViewPane: onDidChangePlotDisplayModelCache(activeFileId, full)
+        ChartViewPane->>PlotService: getCachedPlotDisplayModel / getCachedPlotLegendModel
+    end
     ChartViewPane->>ChartViewPane: render from current service state
 ```
 
@@ -149,12 +157,27 @@ Do not pass Plot-owned behavior through `ChartViewInput` callbacks when
 Do not pass Plot display models or legend models through `ChartViewInput`;
 `ChartViewPane` subscribes to `IPlotService` and rereads the current display
 model, legend model, and legend labels from Plot.
+`ChartViewPane` must use Plot's cached display/legend APIs during render and
+request active display-model prefetch on cache miss; it must not synchronously
+create calculated Plot data or Plot display models in the chart render path.
+`ChartViewPane` must treat staged Plot display models as valid: if `chart` is
+present and `inspector` is still `null`, render the main chart immediately and
+show only the inspector pane as pending. It must rerender when Plot upgrades the
+same cache entry to a full model.
 Do not pass Explorer selection through `ChartViewInput` callbacks; chart file
 selection is translated by `ChartViewPane` into `IExplorerService.select(...)`.
 Do not pass settings mutations through `ChartViewInput`; settings panes write
 through `ISettingsService` owner APIs and only consume projected settings data.
 Do not pass plot rendering settings through Chart input when the chart view can
 read them from `ISettingsService`.
+`ChartViewInput.processingStatus` is only for the no-chart-data loading/empty
+state. Once the active file has chart data, background template progress must
+not remain in `ChartViewInput`, because changing progress counters would
+recreate the chart panel and flicker the current canvas.
+When the chart file selector is hidden, `ChartViewInput.chartFileOptions`
+should not carry the whole background file list after the active chart has data.
+Keep only the active file option needed by the current view so background file
+completion does not change Chart input and recreate the chart panel.
 `IChartService.onDidChangeChartViewInput` only tells the pane that the
 Chart-owned input snapshot changed; `ChartViewPane` must reread
 `IChartService.getViewInput()` instead of consuming input from the event.

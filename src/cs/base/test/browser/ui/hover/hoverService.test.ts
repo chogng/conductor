@@ -62,12 +62,13 @@ suite("base/test/browser/ui/hover/hoverService", () => {
     document.body.appendChild(container);
     const instantiationService = new InstantiationService();
     const actionBar = new ActionBar();
+    let action: Action | undefined;
 
     try {
       const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
       setBaseLayerHoverDelegate(hoverService);
 
-      const action = new Action("test.action", "Before", undefined, true, () => {
+      action = new Action("test.action", "Before", undefined, true, () => {
         action.tooltip = "After";
       });
       action.tooltip = "Before";
@@ -85,6 +86,7 @@ suite("base/test/browser/ui/hover/hoverService", () => {
     }
     finally {
       actionBar.dispose();
+      action?.dispose();
       instantiationService.dispose();
       container.remove();
       setBaseLayerHoverDelegate(previousHoverDelegate);

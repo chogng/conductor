@@ -101,9 +101,9 @@ export const buildPoints = (
 };
 
 export const downsamplePointsForDisplay = <T extends DisplayPoint>(
-  points: T[] | null | undefined,
+  points: readonly T[] | null | undefined,
   maxPointsRaw = 600,
-): T[] => {
+): readonly T[] => {
   if (!Array.isArray(points)) return [];
   const n = points.length;
   const maxPoints = Math.floor(Number(maxPointsRaw));

@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { createPlotMainChart } from "src/cs/workbench/contrib/plot/browser/plotMainChart";
 import { createPlotMainChartProps } from "src/cs/workbench/contrib/plot/browser/plotMainView";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -36,19 +37,124 @@ suite("workbench/contrib/plot/test/browser/plotMainView", () => {
     assert.equal(props.curvePlotType, 202);
     assert.equal(props.curveSymbolShape, 5);
   });
+
+  test("waits for a stable connected layout before drawing the first main chart frame", async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const host = document.createElement("div");
+    host.style.height = "360px";
+    host.style.width = "640px";
+    document.body.append(host);
+
+    const element = createPlotMainChart(createPlotMainChartProps({
+      model: createPlotModel(),
+      plotType: "iv",
+    }));
+    const canvas = element.querySelector(".plot_main_chart_canvas") as HTMLCanvasElement | null;
+    assert.ok(canvas);
+    assert.equal(canvas.style.width, "");
+
+    try {
+      host.append(element);
+      await animationFrames(3);
+
+      assert.equal(canvas.style.width, "640px");
+      assert.equal(canvas.style.height, "360px");
+    } finally {
+      element.dispose();
+      host.remove();
+    }
+  });
+
+  test("keeps waiting when the main chart is mounted after the first frame", async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const host = document.createElement("div");
+    host.style.height = "360px";
+    host.style.width = "640px";
+    document.body.append(host);
+
+    const element = createPlotMainChart(createPlotMainChartProps({
+      model: createPlotModel(),
+      plotType: "iv",
+    }));
+    const canvas = element.querySelector(".plot_main_chart_canvas") as HTMLCanvasElement | null;
+    assert.ok(canvas);
+
+    try {
+      await animationFrames(1);
+      assert.equal(canvas.style.width, "");
+
+      host.append(element);
+      await animationFrames(3);
+
+      assert.equal(canvas.style.width, "640px");
+      assert.equal(canvas.style.height, "360px");
+    } finally {
+      element.dispose();
+      host.remove();
+    }
+  });
+
+  test("draws large series through a display downsample budget", async () => {
+    if (typeof document === "undefined" || typeof CanvasRenderingContext2D === "undefined") {
+      return;
+    }
+
+    const host = document.createElement("div");
+    host.style.height = "360px";
+    host.style.width = "640px";
+    document.body.append(host);
+
+    const originalLineTo = CanvasRenderingContext2D.prototype.lineTo;
+    let lineToCount = 0;
+    CanvasRenderingContext2D.prototype.lineTo = function patchedLineTo(
+      this: CanvasRenderingContext2D,
+      x: number,
+      y: number,
+    ): void {
+      lineToCount += 1;
+      return originalLineTo.call(this, x, y);
+    };
+
+    const element = createPlotMainChart({
+      ...createPlotMainChartProps({
+        model: createPlotModel(5000),
+        plotType: "iv",
+      }),
+      showAxes: false,
+      showGrid: false,
+    });
+
+    try {
+      host.append(element);
+      await animationFrames(3);
+
+      assert.ok(lineToCount > 0);
+      assert.ok(lineToCount < 2000, `expected downsampled draw calls, got ${lineToCount}`);
+    } finally {
+      CanvasRenderingContext2D.prototype.lineTo = originalLineTo;
+      element.dispose();
+      host.remove();
+    }
+  });
 });
 
-const createPlotModel = (): PlotMainRenderModel => ({
+const createPlotModel = (pointsCount = 2): PlotMainRenderModel => ({
   axisLabels: {
     xLabel: "Vd",
     yLabel: "Id",
   },
-  pointsCount: 2,
+  pointsCount,
   seriesList: [{
-    data: [
-      { x: 0, y: 0 },
-      { x: 1, y: 1 },
-    ],
+    data: Array.from({ length: pointsCount }, (_, index) => ({
+      x: pointsCount <= 1 ? 0 : index / (pointsCount - 1),
+      y: Math.sin(index / 20),
+    })),
     id: "series-a",
     name: "Series A",
   }],
@@ -57,3 +163,9 @@ const createPlotModel = (): PlotMainRenderModel => ({
   yDomain: [0, 1],
   yUnitLabel: "A",
 });
+
+const animationFrames = async (count: number): Promise<void> => {
+  for (let index = 0; index < count; index += 1) {
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  }
+};

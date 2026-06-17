@@ -221,6 +221,39 @@ suite("workbench/services/template/test/browser/templateApplyPlanner", () => {
 			);
 		}
 	});
+
+	test("buildTemplateProcessingPlan moves the active file to the front", () => {
+		const files: SessionFile[] = [
+			{
+				...createProcessableAssessment(),
+				file: {},
+				fileId: "file-a",
+				fileName: "A.csv",
+			},
+			{
+				...createProcessableAssessment(),
+				file: {},
+				fileId: "file-b",
+				fileName: "B.csv",
+			},
+			{
+				...createProcessableAssessment(),
+				file: {},
+				fileId: "file-c",
+				fileName: "C.csv",
+			},
+		];
+
+		const plan = buildTemplateProcessingPlan(files, null, {
+			priorityFileId: " file-b ",
+		});
+
+		assert.deepEqual(plan.queue.map(entry => entry.fileId), [
+			"file-b",
+			"file-a",
+			"file-c",
+		]);
+	});
 });
 
 const createProcessableAssessment = (

@@ -73,6 +73,127 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     ]);
   });
 
+  test("full apply starts with the active file", () => {
+    const queuedFileIds: string[][] = [];
+    const controller = createController({
+      sessionService: createSessionService(),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds),
+    });
+
+    controller.update({
+      activeFileId: "file-b",
+      processedFileIds: [],
+      rawFiles: [
+        createSessionFile("file-a"),
+        createSessionFile("file-b"),
+        createSessionFile("file-c"),
+      ],
+    });
+
+    const result = controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    }) as { ok: boolean };
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(queuedFileIds, [["file-b", "file-a", "file-c"]]);
+    controller.dispose();
+  });
+
+  test("rule apply starts with the active file's matched group", () => {
+    const queuedFileIds: string[][] = [];
+    const controller = createController({
+      sessionService: createSessionService(),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds),
+    });
+
+    controller.update({
+      activeFileId: "file-b",
+      processedFileIds: [],
+      rawFiles: [
+        createSessionFile("file-a", { fileName: "Transfer_Device.csv" }),
+        createSessionFile("file-b", { fileName: "Output_Device.csv" }),
+        createSessionFile("file-c", { fileName: "Transfer_Second.csv" }),
+      ],
+    });
+
+    const result = controller.handleTemplateApplied({
+      fileNameTemplateRules: [
+        {
+          matchMode: "phrase",
+          pattern: "Transfer",
+          templateConfig: createManualTemplateConfig(),
+          templateName: "Transfer Template",
+        },
+        {
+          matchMode: "phrase",
+          pattern: "Output",
+          templateConfig: createManualTemplateConfig(),
+          templateName: "Output Template",
+        },
+      ],
+      stopOnError: false,
+    }) as { ok: boolean };
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(queuedFileIds, [["file-b", "file-a", "file-c"]]);
+    controller.dispose();
+  });
+
+  test("active file changes move queued processing work forward", () => {
+    const queuedFileIds: string[][] = [];
+    const startedJobs: ProcessingJobOptions[] = [];
+    const controller = createController({
+      sessionService: createSessionService(),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds, startedJobs),
+    });
+    const rawFiles = [
+      createSessionFile("file-a"),
+      createSessionFile("file-b"),
+      createSessionFile("file-c"),
+    ];
+
+    controller.update({
+      activeFileId: "file-a",
+      processedFileIds: [],
+      rawFiles,
+    });
+    controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    });
+
+    startedJobs[0].processingQueueRef.current = [
+      startedJobs[0].queue[1],
+      startedJobs[0].queue[2],
+    ];
+    startedJobs[0].setProcessingStatus({
+      processed: 0,
+      state: "processing",
+      total: 3,
+    });
+    controller.update({
+      activeFileId: "file-c",
+      processedFileIds: [],
+      rawFiles,
+    });
+
+    assert.deepEqual(
+      startedJobs[0].processingQueueRef.current.map(entry => entry.fileId),
+      ["file-c", "file-b"],
+    );
+    controller.dispose();
+  });
+
   test("manual apply resolves template config and preview cell values", () => {
     const queuedFileIds: string[][] = [];
     const startedJobs: ProcessingJobOptions[] = [];

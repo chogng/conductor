@@ -36,6 +36,7 @@ import {
 } from "src/cs/workbench/services/parameters/common/parameters";
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import type { ISearchService } from "src/cs/workbench/services/search/common/search";
+import type { IThumbnailPreviewService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
   SettingsViewId,
   type ISettingsService,
@@ -137,6 +138,7 @@ export type WorkbenchOptions = {
   readonly style?: WorkbenchStyle;
   readonly templateApplyWorkflowService?: ITemplateApplyWorkflowService;
   readonly templateService?: ITemplateService;
+  readonly thumbnailPreviewService?: IThumbnailPreviewService;
   readonly tableService?: ITableService;
   readonly titleService?: ITitleService;
   readonly titlebarState?: WorkbenchTitlebarState;
@@ -184,6 +186,7 @@ export class Workbench extends Layout {
   private readonly viewsService: IViewsService;
   private readonly tableService: ITableService;
   private readonly templateService: ITemplateService;
+  private readonly thumbnailPreviewService: IThumbnailPreviewService;
   private readonly titleService: ITitleService;
   private readonly exportService: IExportService;
   private readonly domainBridge: WorkbenchDomainBridge;
@@ -269,6 +272,9 @@ export class Workbench extends Layout {
     if (!options.templateService) {
       throw new Error("Workbench requires ITemplateService.");
     }
+    if (!options.thumbnailPreviewService) {
+      throw new Error("Workbench requires IThumbnailPreviewService.");
+    }
     if (!options.titleService) {
       throw new Error("Workbench requires ITitleService.");
     }
@@ -294,6 +300,7 @@ export class Workbench extends Layout {
     this.tableService = options.tableService;
     this.templateApplyWorkflowService = options.templateApplyWorkflowService;
     this.templateService = options.templateService;
+    this.thumbnailPreviewService = options.thumbnailPreviewService;
     this.titleService = options.titleService;
     this.titleService.updateTitlebarState(options.titlebarState);
     const initialViewMode = resolveInitialWorkbenchViewMode(this.session.getSnapshot());
@@ -310,6 +317,7 @@ export class Workbench extends Layout {
       tableService: this.tableService,
       templateApplyWorkflowService: this.templateApplyWorkflowService,
       templateService: this.templateService,
+      thumbnailPreviewService: this.thumbnailPreviewService,
     }));
     this._register(this.settingsService.onDidChangeConductorSettings(() => {
       this.refreshWorkbench();
@@ -563,18 +571,24 @@ export class Workbench extends Layout {
       fileId: this.getSelectedProcessedFileId(readModel),
       snapshot,
     });
-    this.searchService.setPlotModel(plotDisplayModel ? {
-      panes: [
-        {
-          id: "chart",
-          model: plotDisplayModel.chart.model,
-        },
-        {
-          id: "inspector",
-          model: plotDisplayModel.inspector.model,
-        },
-      ],
-    } : null);
+    if (!plotDisplayModel) {
+      this.searchService.setPlotModel(null);
+      return;
+    }
+
+    const panes = [
+      {
+        id: "chart" as const,
+        model: plotDisplayModel.chart.model,
+      },
+      ...(plotDisplayModel.inspector ? [{
+        id: "inspector" as const,
+        model: plotDisplayModel.inspector.model,
+      }] : []),
+    ];
+    this.searchService.setPlotModel({
+      panes,
+    });
   }
 
   private renderExportView(

@@ -43,6 +43,10 @@ import {
   type ISearchService as ISearchServiceType,
 } from "src/cs/workbench/services/search/common/search";
 import {
+  IThumbnailPreviewService,
+  type IThumbnailPreviewService as IThumbnailPreviewServiceType,
+} from "src/cs/workbench/services/thumbnail/common/thumbnail";
+import {
   ISettingsService,
   type ISettingsService as ISettingsServiceType,
 } from "src/cs/workbench/services/settings/common/settings";
@@ -170,6 +174,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @IViewsService viewsService: IViewsServiceType,
     @ITemplateApplyWorkflowService templateApplyWorkflowService: ITemplateApplyWorkflowService,
     @ITemplateService templateService: ITemplateServiceType,
+    @IThumbnailPreviewService thumbnailPreviewService: IThumbnailPreviewServiceType,
     @ISessionService sessionService: ISessionServiceType,
     @INotificationService notificationService: NotificationService,
     @IStorageService storageService: IStorageServiceType,
@@ -209,6 +214,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       tableService,
       templateApplyWorkflowService,
       templateService,
+      thumbnailPreviewService,
     }));
     this._register(CommandsRegistry.registerCommand({
       id: WorkbenchLayoutCommandId.resetLayoutState,

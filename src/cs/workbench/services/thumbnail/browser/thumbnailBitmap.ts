@@ -103,7 +103,12 @@ export const drawThumbnailBitmap = ({
   readonly canvas: HTMLCanvasElement;
   readonly options: ThumbnailBitmapOptions;
 }): void => {
-  const { width, height } = resolveCanvasSize(canvas, 320, 180);
+  const size = resolveCanvasSize(canvas);
+  if (!size) {
+    return;
+  }
+
+  const { width, height } = size;
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.max(1, Math.round(width * dpr));
   canvas.height = Math.max(1, Math.round(height * dpr));
@@ -125,14 +130,22 @@ export const drawThumbnailBitmap = ({
 
 const resolveCanvasSize = (
   canvas: HTMLCanvasElement,
-  fallbackWidth: number,
-  fallbackHeight: number,
-): { height: number; width: number } => {
+): { height: number; width: number } | null => {
+  if (!canvas.isConnected) {
+    return null;
+  }
+
   const rect = canvas.getBoundingClientRect();
   const parentRect = canvas.parentElement?.getBoundingClientRect();
+  const height = Math.floor(rect.height || parentRect?.height || canvas.clientHeight || 0);
+  const width = Math.floor(rect.width || parentRect?.width || canvas.clientWidth || 0);
+  if (height <= 0 || width <= 0) {
+    return null;
+  }
+
   return {
-    height: Math.max(1, rect.height || parentRect?.height || canvas.clientHeight || fallbackHeight),
-    width: Math.max(1, rect.width || parentRect?.width || canvas.clientWidth || fallbackWidth),
+    height,
+    width,
   };
 };
 

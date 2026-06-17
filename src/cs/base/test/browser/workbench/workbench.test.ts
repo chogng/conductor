@@ -1,6 +1,6 @@
 import assert from "assert";
 
-import { Event } from "src/cs/base/common/event";
+import { Emitter, Event } from "src/cs/base/common/event";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import type { IAction } from "src/cs/base/common/actions";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
@@ -9,6 +9,10 @@ import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import type { IView, IViewDescriptor, IViewPaneContainer, ViewContainer, ViewContainerLocation } from "src/cs/workbench/common/views";
 import { Workbench, type WorkbenchOptions } from "src/cs/workbench/browser/workbench";
+import {
+  WorkbenchDomainBridge,
+  type WorkbenchDomainBridgeOptions,
+} from "src/cs/workbench/browser/workbenchDomainBridge";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
   BrowserWorkbenchLayoutService,
@@ -18,10 +22,14 @@ import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
 import { ChartViewId } from "src/cs/workbench/services/chart/common/chart";
 import { ExplorerViewId } from "src/cs/workbench/contrib/files/browser/files";
 import { SettingsViewId } from "src/cs/workbench/services/settings/common/settings";
-import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
+import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
+import {
+  createEmptySessionModel,
+  type BaseCurveKey,
+  type FileRecord,
+} from "src/cs/workbench/services/session/common/sessionModel";
 import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
-import { NotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 type WorkbenchService<K extends keyof WorkbenchOptions> = NonNullable<WorkbenchOptions[K]>;
@@ -262,7 +270,270 @@ suite("workbench/browser/workbench layout integration", () => {
       parent.remove();
     }
   });
+
+  test("visible explorer range prefetches plot data and thumbnail previews", () => {
+    const visibleFileIdsEmitter = new Emitter<{
+      readonly nearbyFileIds: readonly string[];
+      readonly visibleFileIds: readonly string[];
+    }>();
+    const plotPrefetches: Array<{ fileIds: readonly string[]; priority: string }> = [];
+    const thumbnailPrefetches: Array<{ fileIds: readonly string[]; priority: string }> = [];
+    const assessmentPriorities: string[] = [];
+    const bridge = new WorkbenchDomainBridge({
+      assessmentQueueService: {
+        enqueueRawTables: () => undefined,
+        prioritizeRawTables: (_rawTableRefs: unknown, priority: string) => {
+          assessmentPriorities.push(priority);
+        },
+      },
+      chartService: {
+        onDidChangeChartState: Event.None,
+        updateViewInput: () => undefined,
+      },
+      explorerService: {
+        hasPendingSourceFiles: false,
+        onDidChangePendingSourceFiles: Event.None,
+        onDidChangeSelection: Event.None,
+        onDidChangeVisibleFileIds: visibleFileIdsEmitter.event,
+        selectedProcessedFileId: null,
+        selectedRawFileId: null,
+        updatePaneInput: () => undefined,
+      },
+      layoutService: {
+        activeWorkbenchMainPart: "table",
+        onDidChangeWorkbenchNavigation: Event.None,
+      },
+      plotService: {
+        getState: () => ({ activePlotType: "iv" }),
+        onDidChangePlotState: Event.None,
+        prefetchCalculatedData: (fileIds: readonly string[], priority: string) => {
+          plotPrefetches.push({ fileIds, priority });
+        },
+      },
+      sessionService: {
+        getSnapshot: () => createEmptySessionModel(),
+        onDidChangeSession: Event.None,
+      },
+      settingsService: {
+        getConductorSettings: () => null,
+        onDidChangeConductorSettings: Event.None,
+      },
+      tableService: {
+        open: () => undefined,
+      },
+      templateApplyWorkflowService: {
+        getFileApplyStates: () => new Map(),
+        onDidChangeFileStates: Event.None,
+        onDidChangeProcessingStatus: Event.None,
+        processingStatus: "idle",
+        update: () => undefined,
+      },
+      templateService: {
+        getState: () => ({
+          formState: createEmptyTemplateConfig(),
+          mode: "management",
+          selectedTemplateId: null,
+          selectionsByFileId: {},
+          templateListVersion: 0,
+        }),
+        onDidChangeTemplateState: Event.None,
+        updateViewInput: () => undefined,
+      },
+      thumbnailPreviewService: {
+        onDidChangePreview: Event.None,
+        prefetch: (fileIds: readonly string[], priority: string) => {
+          thumbnailPrefetches.push({ fileIds, priority });
+        },
+      },
+    } as unknown as WorkbenchDomainBridgeOptions);
+
+    try {
+      visibleFileIdsEmitter.fire({
+        nearbyFileIds: ["file-b"],
+        visibleFileIds: ["file-a"],
+      });
+
+      assert.deepEqual(assessmentPriorities, ["visible", "nearby"]);
+      assert.deepEqual(plotPrefetches, [
+        { fileIds: ["file-a"], priority: "visible" },
+        { fileIds: ["file-b"], priority: "nearby" },
+      ]);
+      assert.deepEqual(thumbnailPrefetches, [
+        { fileIds: ["file-a"], priority: "visible" },
+        { fileIds: ["file-b"], priority: "nearby" },
+      ]);
+    } finally {
+      bridge.dispose();
+      visibleFileIdsEmitter.dispose();
+    }
+  });
+
+  test("sync prefetches the active chart file at active plot priority", () => {
+    const plotPrefetches: Array<{ fileIds: readonly string[]; priority: string }> = [];
+    const plotDisplayPrefetches: Array<{ fileId?: string | null; plotType?: string; priority: string; sessionVersion?: number }> = [];
+    const chartActiveFileIds: Array<string | null | undefined> = [];
+    const bridge = new WorkbenchDomainBridge({
+      assessmentQueueService: {
+        enqueueRawTables: () => undefined,
+        prioritizeRawTables: () => undefined,
+      },
+      chartService: {
+        onDidChangeChartState: Event.None,
+        updateViewInput: (input: { readonly activeFileId?: string | null }) => {
+          chartActiveFileIds.push(input.activeFileId);
+        },
+      },
+      explorerService: {
+        hasPendingSourceFiles: false,
+        onDidChangePendingSourceFiles: Event.None,
+        onDidChangeSelection: Event.None,
+        onDidChangeVisibleFileIds: Event.None,
+        select: () => undefined,
+        selectedProcessedFileId: null,
+        selectedRawFileId: null,
+        updatePaneInput: () => undefined,
+        viewLayout: "tree",
+      },
+      layoutService: {
+        activeWorkbenchMainPart: "chart",
+        onDidChangeWorkbenchNavigation: Event.None,
+      },
+      plotService: {
+        getCachedCalculatedData: () => null,
+        getCalculatedData: () => null,
+        getState: () => ({ activePlotType: "iv" }),
+        onDidChangeCalculatedDataCache: Event.None,
+        onDidChangePlotState: Event.None,
+        prefetchCalculatedData: (fileIds: readonly string[], priority: string) => {
+          plotPrefetches.push({ fileIds, priority });
+        },
+        prefetchPlotDisplayModel: (
+          input: { readonly fileId?: string | null; readonly plotType?: string; readonly snapshot?: { readonly sessionVersion?: number } },
+          priority: string,
+        ) => {
+          plotDisplayPrefetches.push({
+            fileId: input.fileId,
+            plotType: input.plotType,
+            priority,
+            sessionVersion: input.snapshot?.sessionVersion,
+          });
+        },
+      },
+      sessionService: {
+        getSnapshot: () => createProcessedSnapshot("file-a"),
+        onDidChangeSession: Event.None,
+      },
+      settingsService: {
+        getConductorSettings: () => null,
+        onDidChangeConductorSettings: Event.None,
+      },
+      tableService: {
+        open: () => undefined,
+      },
+      templateApplyWorkflowService: {
+        getFileApplyStates: () => new Map(),
+        onDidChangeFileStates: Event.None,
+        onDidChangeProcessingStatus: Event.None,
+        processingStatus: "idle",
+        update: () => undefined,
+      },
+      templateService: {
+        getState: () => ({
+          formState: createEmptyTemplateConfig(),
+          mode: "management",
+          selectedTemplateId: null,
+          selectionsByFileId: {},
+          templateListVersion: 0,
+        }),
+        onDidChangeTemplateState: Event.None,
+        updateViewInput: () => undefined,
+      },
+      thumbnailPreviewService: {
+        onDidChangePreview: Event.None,
+        prefetch: () => undefined,
+      },
+    } as unknown as WorkbenchDomainBridgeOptions);
+
+    try {
+      bridge.sync();
+
+      assert.deepEqual(chartActiveFileIds, ["file-a"]);
+      assert.deepEqual(plotPrefetches, [
+        { fileIds: ["file-a"], priority: "active" },
+      ]);
+      assert.deepEqual(plotDisplayPrefetches, [
+        {
+          fileId: "file-a",
+          plotType: "iv",
+          priority: "active",
+          sessionVersion: 1,
+        },
+      ]);
+    } finally {
+      bridge.dispose();
+    }
+  });
 });
+
+const createProcessedSnapshot = (fileId: string): SessionSnapshot => ({
+  fileOrder: [fileId],
+  filesById: {
+    [fileId]: createProcessedFileRecord(fileId),
+  },
+  schemaVersion: 1,
+  sessionVersion: 1,
+});
+
+const createProcessedFileRecord = (fileId: string): FileRecord => {
+  const curveKey = `base:iv:transfer:${fileId}-series` as BaseCurveKey;
+  const seriesId = `${fileId}-series`;
+  return {
+    assessmentsByRawTableId: {},
+    curvesByKey: {
+      [curveKey]: {
+        curveFamily: "iv",
+        curveGeneration: "base",
+        fileId,
+        ivMode: "transfer",
+        lineage: {
+          baseFamily: "iv",
+          baseSeries: { fileId, seriesId },
+          curveGeneration: "base",
+          ivMode: "transfer",
+        },
+        points: [
+          { x: 0, y: 0.001 },
+          { x: 1, y: 0.002 },
+        ],
+        seriesId,
+        signature: `${fileId}:curve`,
+      },
+    },
+    id: fileId,
+    kind: "unknown",
+    measurementBlockOrder: [],
+    measurementBlocksById: {},
+    metricsByKey: {},
+    name: `${fileId}.csv`,
+    raw: {
+      fileId,
+      fileName: `${fileId}.csv`,
+      tableOrder: [],
+      tablesById: {},
+    },
+    rawTableVersionsById: {},
+    seriesById: {
+      [seriesId]: {
+        fileId,
+        groupIndex: 0,
+        id: seriesId,
+        name: "A",
+        y: [0.001, 0.002],
+      },
+    },
+    seriesOrder: [seriesId],
+  };
+};
 
 const createWorkbenchOptions = ({
   contextKeyService,
@@ -275,14 +546,24 @@ const createWorkbenchOptions = ({
   readonly storage: TestStorageService;
   readonly viewsService: RecordingViewsService;
 }): WorkbenchOptions => {
-  const sessionService = new SessionService();
-  const notificationService = new NotificationService();
+  const sessionService = {
+    getSnapshot: () => createEmptySessionModel(),
+    onDidChangeSession: Event.None,
+  } as unknown as WorkbenchService<"sessionService">;
+  const notificationService = {
+    get toasts() { return []; },
+    onDidChangeToast: Event.None,
+  } as unknown as WorkbenchService<"notificationService">;
   const tableModel = {
     getState: () => ({}),
     onDidChangeState: () => () => undefined,
   };
 
   return {
+    assessmentQueueService: {
+      enqueueRawTables: () => undefined,
+      prioritizeRawTables: () => undefined,
+    },
     chartService: {
       onDidChangeChartState: Event.None,
       updateViewInput: () => undefined,
@@ -297,6 +578,7 @@ const createWorkbenchOptions = ({
     dialogsService: {} as WorkbenchService<"dialogsService">,
     explorerService: {
       hasPendingSourceFiles: false,
+      onDidChangeVisibleFileIds: Event.None,
       onDidChangePendingSourceFiles: Event.None,
       onDidChangeSelection: Event.None,
       selectedProcessedFileId: null,
@@ -319,9 +601,12 @@ const createWorkbenchOptions = ({
     pathService: {} as WorkbenchService<"pathService">,
     plotService: {
       onDidChangePlotState: Event.None,
+      getCachedCalculatedData: () => null,
       getCalculatedData: () => null,
       getPlotMainRenderModel: () => null,
       getState: () => ({ activePlotType: "iv" }),
+      onDidChangeCalculatedDataCache: Event.None,
+      prefetchCalculatedData: () => undefined,
     } as unknown as WorkbenchService<"plotService">,
     searchService: {
       setPlotModel: () => undefined,
@@ -352,10 +637,14 @@ const createWorkbenchOptions = ({
     storageService: storage,
     tableService: {
       onDidChangeTableState: Event.None,
+      open: () => undefined,
       update: () => tableModel,
       updateViewInput: () => undefined,
     } as unknown as WorkbenchService<"tableService">,
     templateApplyWorkflowService: {
+      getFileApplyStates: () => new Map(),
+      onDidChangeFileStates: Event.None,
+      onDidChangeProcessingStatus: Event.None,
       processingStatus: "idle",
       update: () => undefined,
     } as unknown as WorkbenchService<"templateApplyWorkflowService">,
@@ -370,6 +659,13 @@ const createWorkbenchOptions = ({
       }),
       updateViewInput: () => undefined,
     } as unknown as WorkbenchService<"templateService">,
+    thumbnailPreviewService: {
+      get: () => ({ kind: "idle" }),
+      invalidate: () => undefined,
+      onDidChangePreview: Event.None,
+      prefetch: () => undefined,
+      request: () => ({ kind: "idle" }),
+    },
     titleService: {
       attachTitlebarPart: () => Disposable.None,
       layout: () => undefined,

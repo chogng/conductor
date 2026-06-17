@@ -91,15 +91,59 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 			activeFileId: "file-a",
 			activePlotType: "gm",
 			chartFileOptions: [{ fileId: "file-a", fileName: "file-a.csv" }],
+			processingStatus: { processed: 1, state: "processing", total: 3 },
 		});
 
 		assert.equal(input.activeFileId, "file-a");
 		assert.equal(input.activePlotType, "gm");
 		assert.equal(input.hasChartData, true);
+		assert.equal(input.processingStatus, undefined);
 		assert.deepEqual(input.chartFileOptions, [{ fileId: "file-a", fileName: "file-a.csv" }]);
 		assert.equal("createPlotDisplayModel" in input, false);
 		assert.equal("plotDisplayModel" in input, false);
 		assert.equal("plotLegendModel" in input, false);
+	});
+
+	test("keeps processing status only while active chart has no data", () => {
+		const processingStatus = { processed: 1, state: "processing" as const, total: 3 };
+		const input = createChartViewInput({
+			activeFileId: "raw-only-file",
+			activePlotType: "iv",
+			chartFileOptions: [{ fileId: "chart-file", fileName: "chart.csv" }],
+			processingStatus,
+		});
+
+		assert.equal(input.hasChartData, false);
+		assert.equal(input.processingStatus, processingStatus);
+	});
+
+	test("does not publish chart input changes for hidden background file options", () => {
+		const service = store.add(new ChartService());
+		let changeCount = 0;
+		store.add(service.onDidChangeChartViewInput(() => {
+			changeCount += 1;
+		}));
+		const first = createChartViewInput({
+			activeFileId: "file-a",
+			activePlotType: "iv",
+			chartFileOptions: [{ fileId: "file-a", fileName: "file-a.csv" }],
+			showFileSelect: false,
+		});
+		const next = createChartViewInput({
+			activeFileId: "file-a",
+			activePlotType: "iv",
+			chartFileOptions: [
+				{ fileId: "file-a", fileName: "file-a.csv" },
+				{ fileId: "file-b", fileName: "file-b.csv" },
+			],
+			showFileSelect: false,
+		});
+
+		service.updateViewInput(first);
+		service.updateViewInput(next);
+
+		assert.equal(changeCount, 1);
+		assert.deepEqual(next.chartFileOptions, [{ fileId: "file-a", fileName: "file-a.csv" }]);
 	});
 
 	test("does not report chart data when active file is absent from chart options", () => {

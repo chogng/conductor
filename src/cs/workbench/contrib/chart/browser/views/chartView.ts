@@ -86,21 +86,24 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
     yAxisLabelOverride: props.yAxisLabelOverride,
     yScaleMode: plotDisplayModel.chart.yScaleMode,
   });
-  const inspectorPlotView = createPlotMainView({
-    model: plotDisplayModel.inspector.model,
-    onXAxisLabelChange: props.onInspectorXAxisLabelChange,
-    onYAxisLabelChange: props.onInspectorYAxisLabelChange,
-    originOpenPlotOptions: props.originOpenPlotOptions,
-    plotAxisSettings: props.plotAxisSettings,
-    plotType: activePlotType,
-    plotXFactor: plotDisplayModel.inspector.plotXFactor,
-    plotXUnitLabel: plotDisplayModel.inspector.plotXUnitLabel,
-    plotYFactor: plotDisplayModel.inspector.plotYFactor,
-    plotYUnitLabel: plotDisplayModel.inspector.plotYUnitLabel,
-    xAxisLabelOverride: props.inspectorXAxisLabelOverride,
-    yAxisLabelOverride: props.inspectorYAxisLabelOverride,
-    yScaleMode: plotDisplayModel.inspector.yScaleMode,
-  });
+  const inspectorDisplayModel = plotDisplayModel.inspector;
+  const inspectorPlotView = inspectorDisplayModel
+    ? createPlotMainView({
+      model: inspectorDisplayModel.model,
+      onXAxisLabelChange: props.onInspectorXAxisLabelChange,
+      onYAxisLabelChange: props.onInspectorYAxisLabelChange,
+      originOpenPlotOptions: props.originOpenPlotOptions,
+      plotAxisSettings: props.plotAxisSettings,
+      plotType: activePlotType,
+      plotXFactor: inspectorDisplayModel.plotXFactor,
+      plotXUnitLabel: inspectorDisplayModel.plotXUnitLabel,
+      plotYFactor: inspectorDisplayModel.plotYFactor,
+      plotYUnitLabel: inspectorDisplayModel.plotYUnitLabel,
+      xAxisLabelOverride: props.inspectorXAxisLabelOverride,
+      yAxisLabelOverride: props.inspectorYAxisLabelOverride,
+      yScaleMode: inspectorDisplayModel.yScaleMode,
+    })
+    : null;
 
   const chartHost = document.createElement("div");
   chartHost.className = "chart_view_host";
@@ -108,7 +111,10 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
 
   const inspectorHost = document.createElement("div");
   inspectorHost.className = "chart_view_host";
-  inspectorHost.append(inspectorPlotView.element);
+  inspectorHost.append(inspectorPlotView?.element ?? createEmptyView({
+    hint: localize("chart.inspector.calculation.hint", "Preparing inspector calculations, please wait."),
+    title: localize("chart.inspector.calculation.title", "Calculating inspector data..."),
+  }));
 
   const main = document.createElement("div");
   main.className = "chart_view_main";
@@ -132,14 +138,14 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   Object.defineProperty(root, "dispose", {
     value: (): void => {
       chartPlotView.dispose();
-      inspectorPlotView.dispose();
+      inspectorPlotView?.dispose();
       root.replaceChildren();
     },
   });
   Object.defineProperty(root, "editAxisTitle", {
     value: (pane: ChartPane, axis: "x" | "y"): boolean => {
       if (pane === "inspector") {
-        return inspectorPlotView.editAxisTitle(axis);
+        return inspectorPlotView?.editAxisTitle(axis) ?? false;
       }
 
       return chartPlotView.editAxisTitle(axis);

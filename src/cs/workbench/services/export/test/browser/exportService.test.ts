@@ -230,12 +230,14 @@ const createSettingsServiceStub = (): ISettingsService => ({
 const createPlotServiceStub = (
 	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>>,
 ): IPlotService => ({
+	getCachedCalculatedData: () => null,
 	getFileAxisSettings: () => ({
 		xUnitByFileId: {},
 		yScaleByFileId: {},
 		yUnitByFileId: {},
 	}),
 	getLegendLabels: (fileId: string) => legendLabelsByFileId[fileId] ?? {},
+	onDidChangeCalculatedDataCache: Event.None,
 } as unknown as IPlotService);
 
 const createEmptySnapshot = (): SessionSnapshot => ({

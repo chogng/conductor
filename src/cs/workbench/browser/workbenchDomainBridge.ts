@@ -55,6 +55,7 @@ import {
 import {
   assessFastImportBadge,
 } from "src/cs/workbench/services/assessment/common/fileAssessment";
+import type { IThumbnailPreviewService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 
 export type WorkbenchDomainBridgeOptions = {
   readonly chartService: IChartService;
@@ -67,6 +68,7 @@ export type WorkbenchDomainBridgeOptions = {
   readonly tableService: ITableService;
   readonly templateApplyWorkflowService: ITemplateApplyWorkflowService;
   readonly templateService: ITemplateService;
+  readonly thumbnailPreviewService: IThumbnailPreviewService;
 };
 
 export class WorkbenchDomainBridge extends Disposable {
@@ -135,6 +137,7 @@ export class WorkbenchDomainBridge extends Disposable {
     this.options.tableService.open(createRawTableSource(explorerSelection.selectedRawFileId));
 
     this.options.templateApplyWorkflowService.update(createTemplateApplyInput({
+      activeFileId: explorerSelection.selectedProcessedFileId ?? explorerSelection.selectedRawFileId,
       hasPendingSourceFiles: this.options.explorerService.hasPendingSourceFiles,
       readModel,
       templateState: this.options.templateService.getState(),
@@ -146,11 +149,20 @@ export class WorkbenchDomainBridge extends Disposable {
       snapshot,
       readModel,
     ));
-    this.options.chartService.updateViewInput(this.getChartViewInput(
+    const chartViewInput = this.getChartViewInput(
       snapshot,
       readModel,
       explorerSelection.selectedProcessedFileId,
-    ));
+    );
+    if (chartViewInput.activeFileId) {
+      this.options.plotService.prefetchCalculatedData([chartViewInput.activeFileId], "active");
+      this.options.plotService.prefetchPlotDisplayModel({
+        fileId: chartViewInput.activeFileId,
+        plotType: chartViewInput.activePlotType,
+        snapshot,
+      }, "active");
+    }
+    this.options.chartService.updateViewInput(chartViewInput);
     endPerf({
       processedFileCount: readModel.processedFileIds.length,
       rawFileCount: readModel.rawFiles.length,
@@ -215,6 +227,10 @@ export class WorkbenchDomainBridge extends Disposable {
       getRawTableRefsForFileIds(nearbyFileIds, snapshot),
       "nearby",
     );
+    this.options.plotService.prefetchCalculatedData(visibleFileIds, "visible");
+    this.options.plotService.prefetchCalculatedData(nearbyFileIds, "nearby");
+    this.options.thumbnailPreviewService.prefetch(visibleFileIds, "visible");
+    this.options.thumbnailPreviewService.prefetch(nearbyFileIds, "nearby");
   }
 }
 
