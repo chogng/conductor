@@ -129,6 +129,7 @@ export type TableModel = {
 		startRow: number,
 		endRow: number,
 	) => Promise<void>;
+	adjustColumnDisplayScale: (colIndex: number, deltaExponent: number) => boolean;
 	getColumnDisplayProfile: (colIndex: number) => ColumnDisplayProfile;
 	getRow: (rowIndex: number) => unknown[] | null;
 	getRowsVersion: () => number;
@@ -140,6 +141,7 @@ export type TableModel = {
 	onDidChangeState: (callback: () => void) => () => void;
 	onDidChangeSelection: (callback: (selection: TableSelection) => void) => () => void;
 	revealCell: (cell: TableCell | null) => void;
+	resetColumnDisplayScale: (colIndex: number) => boolean;
 	resetWorker: () => void;
 	clearHighlight: () => void;
 	clearSelection: () => boolean;

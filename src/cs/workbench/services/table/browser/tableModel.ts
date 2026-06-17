@@ -14,7 +14,7 @@ import {
   toTableSourceKey,
 } from "src/cs/workbench/services/table/common/table";
 import {
-  chooseColumnScaleExponent,
+  chooseColumnScaleExponentFromCells,
   parseNumericCell,
   toScaleHeaderSuffix,
 } from "src/cs/workbench/services/table/common/numericFormat";
@@ -45,6 +45,9 @@ export const TABLE_MAX_CACHED_FILES = 20;
 const TABLE_COLUMN_NUMERIC_THRESHOLD = 0.8;
 const TABLE_COLUMN_PROFILE_MAX_SAMPLE_ROWS = 5000;
 const TABLE_COLUMN_PROFILE_MIN_STABLE_SAMPLE_ROWS = 20;
+const TABLE_COLUMN_PROFILE_ALGORITHM_VERSION = 3;
+const TABLE_COLUMN_DISPLAY_SCALE_MIN_EXPONENT = -24;
+const TABLE_COLUMN_DISPLAY_SCALE_MAX_EXPONENT = 24;
 
 type TableRowCache = Map<number, unknown[]>;
 type TableLoadedChunks = Set<number>;
@@ -191,11 +194,13 @@ export const sanitizeTableRowBatch = (rows: unknown): unknown[][] => {
 
 export const isTableRowBatchResultForRequest = ({
   requestFileId,
+  payloadSourceKey,
   requestStartRow,
   payloadFileId,
   payloadStartRow,
 }: {
   readonly requestFileId: unknown;
+  readonly payloadSourceKey?: unknown;
   readonly requestStartRow: unknown;
   readonly payloadFileId: unknown;
   readonly payloadStartRow: unknown;
@@ -204,9 +209,14 @@ export const isTableRowBatchResultForRequest = ({
     typeof requestFileId === "string" ? requestFileId : String(requestFileId || "");
   const actualFileId =
     typeof payloadFileId === "string" ? payloadFileId : String(payloadFileId || "");
+  const actualSourceKey =
+    typeof payloadSourceKey === "string" ? payloadSourceKey : String(payloadSourceKey || "");
   const expectedStart = Math.max(0, toSafeInt(requestStartRow, 0));
   const actualStart = Math.max(0, toSafeInt(payloadStartRow, 0));
-  return expectedFileId === actualFileId && expectedStart === actualStart;
+  return (
+    (expectedFileId === actualFileId || expectedFileId === actualSourceKey) &&
+    expectedStart === actualStart
+  );
 };
 
 export const hasChunkRowsInCache = (
@@ -1034,6 +1044,8 @@ const createTableModel = ({
   const readerOpenedSourceKeysRef = createTableRef<Set<string>>(new Set());
   const pendingPreviewFileIdRef = createTableRef<string | null>(null);
   const columnDisplayProfileCacheRef = createTableRef(new Map<string, ColumnDisplayProfile>());
+  const columnDisplayScaleOverridesRef = createTableRef(new Map<string, number>());
+  const columnDisplayScaleOverrideVersionRef = createTableRef(0);
 
   const notifyStateChanged = memoCallback(
     (): void => {
@@ -1227,6 +1239,16 @@ const createTableModel = ({
     return pendingChunks;
   }, []);
 
+  const notifyTableDisplayProfileChanged = memoCallback(() => {
+    columnDisplayProfileCacheRef.current = new Map();
+    cancelRowsVersionNotification();
+    notifyRowsVersion();
+  }, [cancelRowsVersionNotification, columnDisplayProfileCacheRef, notifyRowsVersion]);
+
+  const notifyTableRowsCacheChanged = memoCallback(() => {
+    notifyTableDisplayProfileChanged();
+  }, [notifyTableDisplayProfileChanged]);
+
   const mergePreviewSeedRows = memoCallback(
     (fileId: string, startRow: number, rows: unknown[][]) => {
       if (!fileId) return false;
@@ -1244,9 +1266,12 @@ const createTableModel = ({
         chunkSize: TABLE_UI_CHUNK_SIZE_ROWS,
         maxChunks: TABLE_MAX_CACHED_UI_CHUNKS_PER_FILE,
       });
+      if (merged.complete && previewCacheFileIdRef.current === fileId) {
+        notifyTableRowsCacheChanged();
+      }
       return merged.complete;
     },
-    [getOrCreatePreviewFileCaches],
+    [getOrCreatePreviewFileCaches, notifyTableRowsCacheChanged, previewCacheFileIdRef],
   );
 
   const cancelPendingTableRowRequests = memoCallback(() => {
@@ -1262,11 +1287,6 @@ const createTableModel = ({
     pendingRequests.clear();
     previewPendingChunksByFileIdRef.current = new Map();
   }, [tableRowsRequestsRef]);
-
-  const notifyTableRowsCacheChanged = memoCallback(() => {
-    cancelRowsVersionNotification();
-    notifyRowsVersion();
-  }, [cancelRowsVersionNotification, notifyRowsVersion]);
 
   const assignCurrentPreviewCache = memoCallback(
     ({
@@ -1394,6 +1414,11 @@ const createTableModel = ({
       previewLoadedChunksByFileIdRef.current.delete(sourceKey);
       previewCacheFileLruRef.current.delete(sourceKey);
       previewPendingChunksByFileIdRef.current.delete(sourceKey);
+      for (const overrideKey of Array.from(columnDisplayScaleOverridesRef.current.keys())) {
+        if (overrideKey.startsWith(`${sourceKey}:`)) {
+          columnDisplayScaleOverridesRef.current.delete(overrideKey);
+        }
+      }
 
       if (previewCacheFileIdRef.current === sourceKey) {
         resetCurrentPreviewCache();
@@ -1408,6 +1433,7 @@ const createTableModel = ({
       previewLoadedChunksByFileIdRef,
       previewPendingChunksByFileIdRef,
       tableRowsCacheByFileIdRef,
+      columnDisplayScaleOverridesRef,
       resetCurrentPreviewCache,
     ],
   );
@@ -1565,6 +1591,7 @@ const createTableModel = ({
             requestFileId: pendingRequest.fileId,
             requestStartRow: pendingRequest.startRow,
             payloadFileId: fileId,
+            payloadSourceKey: rowsPayload.sourceKey,
             payloadStartRow: startRow,
           });
           if (!isMatched) {
@@ -1825,7 +1852,11 @@ const createTableModel = ({
 
           if (sourceKey) {
             readerOpenedSourceKeysRef.current.add(sourceKey);
-            touchPreviewFileCache({ fileId: sourceKey });
+          }
+
+          activatePreviewFileCache(sourceKey);
+
+          if (sourceKey) {
             mergePreviewSeedRows(
               sourceKey,
               Number(previewPayload.seedStartRow) || 0,
@@ -1834,8 +1865,6 @@ const createTableModel = ({
                 : [],
             );
           }
-
-          activatePreviewFileCache(sourceKey);
 
           runImmediately(() => {
             if (
@@ -1880,7 +1909,6 @@ const createTableModel = ({
     previewFileRef,
     previewRequestIdRef,
     setPreviewStatus,
-    touchPreviewFileCache,
   ]);
 
   const getTableRow = memoCallback(
@@ -1942,12 +1970,18 @@ const createTableModel = ({
       const normalizedColIndex = Math.max(0, Math.floor(Number(colIndex) || 0));
       const rawTableId = currentFile?.sourceKey ?? activeSourceKey ?? currentFile?.fileId ?? "";
       const sourceVersion = normalizeSourceVersion(currentFile?.sourceVersion);
+      const overrideKey = createColumnDisplayScaleOverrideKey(rawTableId, normalizedColIndex);
+      const overrideScaleExponent = columnDisplayScaleOverridesRef.current.get(overrideKey);
       const cacheKey = [
         rawTableId,
         normalizedColIndex,
         sourceVersion,
         numericDisplayMode,
         settingsVersion,
+        getRowsVersion(),
+        TABLE_COLUMN_PROFILE_ALGORITHM_VERSION,
+        columnDisplayScaleOverrideVersionRef.current,
+        overrideScaleExponent ?? "auto",
       ].join(":");
       const cached = columnDisplayProfileCacheRef.current.get(cacheKey);
       if (cached) {
@@ -1966,7 +2000,7 @@ const createTableModel = ({
       }
 
       let nonEmptyCount = 0;
-      const numericValues: number[] = [];
+      const numericSamples: unknown[] = [];
       for (const sample of samples) {
         const text = typeof sample === "string" ? sample.trim() : sample === null || sample === undefined ? "" : String(sample).trim();
         if (!text) {
@@ -1976,23 +2010,27 @@ const createTableModel = ({
         nonEmptyCount += 1;
         const numericValue = parseNumericCell(sample);
         if (numericValue !== null) {
-          numericValues.push(numericValue);
+          numericSamples.push(sample);
         }
       }
 
-      if (!nonEmptyCount || numericValues.length / nonEmptyCount < TABLE_COLUMN_NUMERIC_THRESHOLD) {
+      if (!nonEmptyCount || numericSamples.length / nonEmptyCount < TABLE_COLUMN_NUMERIC_THRESHOLD) {
         if (shouldCacheColumnDisplayProfile(samples.length, currentFile?.rowCount)) {
           columnDisplayProfileCacheRef.current.set(cacheKey, rawProfile);
         }
         return rawProfile;
       }
 
-      const scaleExponent = chooseColumnScaleExponent(numericValues);
+      const autoScaleExponent = chooseColumnScaleExponentFromCells(numericSamples);
+      const scaleExponent = Number.isInteger(overrideScaleExponent)
+        ? clampColumnDisplayScaleExponent(overrideScaleExponent)
+        : autoScaleExponent;
       const profile: ColumnDisplayProfile = {
         rawTableId,
         columnId: String(normalizedColIndex),
         mode: "columnScale",
         isNumericColumn: true,
+        isScaleManual: Number.isInteger(overrideScaleExponent) || undefined,
         scaleExponent,
         headerSuffix: toScaleHeaderSuffix(scaleExponent),
         significantDigits: DEFAULT_TABLE_DISPLAY_SIGNIFICANT_DIGITS,
@@ -2006,7 +2044,10 @@ const createTableModel = ({
       activeSourceKey,
       collectColumnSampleValues,
       columnDisplayProfileCacheRef,
+      columnDisplayScaleOverrideVersionRef,
+      columnDisplayScaleOverridesRef,
       createRawColumnDisplayProfile,
+      getRowsVersion,
       numericDisplayMode,
       previewFileRef,
       settingsVersion,
@@ -2026,6 +2067,65 @@ const createTableModel = ({
       return fileId || null;
     },
     [previewFileRef],
+  );
+
+  const adjustColumnDisplayScale = memoCallback(
+    (colIndex: number, deltaExponent: number): boolean => {
+      const normalizedColIndex = Math.max(0, Math.floor(Number(colIndex) || 0));
+      const delta = Math.trunc(Number(deltaExponent) || 0);
+      if (!Number.isInteger(normalizedColIndex) || normalizedColIndex < 0 || delta === 0) {
+        return false;
+      }
+
+      const profile = getColumnDisplayProfile(normalizedColIndex);
+      if (profile.mode !== "columnScale" || !profile.isNumericColumn) {
+        return false;
+      }
+
+      const nextScaleExponent = clampColumnDisplayScaleExponent(profile.scaleExponent + delta);
+      if (nextScaleExponent === profile.scaleExponent && profile.isScaleManual) {
+        return false;
+      }
+
+      const overrideKey = createColumnDisplayScaleOverrideKey(profile.rawTableId, normalizedColIndex);
+      columnDisplayScaleOverridesRef.current.set(overrideKey, nextScaleExponent);
+      columnDisplayScaleOverrideVersionRef.current += 1;
+      notifyTableDisplayProfileChanged();
+      return true;
+    },
+    [
+      columnDisplayScaleOverrideVersionRef,
+      columnDisplayScaleOverridesRef,
+      getColumnDisplayProfile,
+      notifyTableDisplayProfileChanged,
+    ],
+  );
+
+  const resetColumnDisplayScale = memoCallback(
+    (colIndex: number): boolean => {
+      const normalizedColIndex = Math.max(0, Math.floor(Number(colIndex) || 0));
+      if (!Number.isInteger(normalizedColIndex) || normalizedColIndex < 0) {
+        return false;
+      }
+
+      const currentFile = previewFileRef.current;
+      const rawTableId = currentFile?.sourceKey ?? activeSourceKey ?? currentFile?.fileId ?? "";
+      const overrideKey = createColumnDisplayScaleOverrideKey(rawTableId, normalizedColIndex);
+      if (!columnDisplayScaleOverridesRef.current.delete(overrideKey)) {
+        return false;
+      }
+
+      columnDisplayScaleOverrideVersionRef.current += 1;
+      notifyTableDisplayProfileChanged();
+      return true;
+    },
+    [
+      activeSourceKey,
+      columnDisplayScaleOverrideVersionRef,
+      columnDisplayScaleOverridesRef,
+      notifyTableDisplayProfileChanged,
+      previewFileRef,
+    ],
   );
 
   const requestTableRowsRange = memoCallback(
@@ -2090,6 +2190,7 @@ const createTableModel = ({
               requestFileId: sourceKey,
               requestStartRow: start,
               payloadFileId,
+              payloadSourceKey: rowsPayload.sourceKey,
               payloadStartRow,
             });
             return isMatched ? rows : requestRowsWithWorker();
@@ -2169,7 +2270,7 @@ const createTableModel = ({
                   rowCache.set(rowIndex, row);
                 }
                 if (previewCacheFileIdRef.current === sourceKey) {
-                  notifyRowsVersion();
+                  notifyTableRowsCacheChanged();
                 }
                 return;
               }
@@ -2201,12 +2302,12 @@ const createTableModel = ({
       }
 
       if (changed && previewCacheFileIdRef.current === sourceKey) {
-        notifyRowsVersion();
+        notifyTableRowsCacheChanged();
       }
     },
     [
       getOrCreatePreviewFileCaches,
-      notifyRowsVersion,
+      notifyTableRowsCacheChanged,
       previewCacheFileIdRef,
       previewFileRef,
       requestTableRowsRange,
@@ -2331,13 +2432,13 @@ const createTableModel = ({
       await Promise.all(requests);
 
       if (shouldNotifyTableRows) {
-        notifyRowsVersion();
+        notifyTableRowsCacheChanged();
       }
     },
     [
       getOrCreatePendingChunks,
       getOrCreatePreviewFileCaches,
-      notifyRowsVersion,
+      notifyTableRowsCacheChanged,
       previewCacheFileIdRef,
       previewFileRef,
       requestTableRowsRange,
@@ -2554,6 +2655,7 @@ const createTableModel = ({
   );
 
   return {
+    adjustColumnDisplayScale,
     cancelPendingRowRequests: cancelPendingTableRowRequests,
     clearHighlight,
     clearSelection,
@@ -2575,6 +2677,7 @@ const createTableModel = ({
     onDidChangeState,
     onDidChangeSelection,
     revealCell,
+    resetColumnDisplayScale,
     resetWorker: resetPreviewWorker,
     selectAllColumns,
     setSelection,
@@ -2582,6 +2685,23 @@ const createTableModel = ({
     subscribeRowsVersion,
   };
 };
+
+const createColumnDisplayScaleOverrideKey = (
+  rawTableId: string,
+  colIndex: number,
+): string => [
+  rawTableId,
+  Math.max(0, Math.floor(Number(colIndex) || 0)),
+].join(":");
+
+const clampColumnDisplayScaleExponent = (scaleExponent: number): number =>
+  Math.min(
+    TABLE_COLUMN_DISPLAY_SCALE_MAX_EXPONENT,
+    Math.max(
+      TABLE_COLUMN_DISPLAY_SCALE_MIN_EXPONENT,
+      Math.trunc(Number(scaleExponent) || 0),
+    ),
+  );
 
 const toBrowserTableOptions = (options: CreateTableModelWithScopeOptions): UseTableOptions => ({
   ...options,

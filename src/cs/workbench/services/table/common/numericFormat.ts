@@ -8,6 +8,13 @@ import {
 } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 
 const NUMERIC_CELL_PATTERN = /^[+-]?(?:(?:\d+\.?\d*)|(?:\.\d+))(?:[eE][+-]?\d+)?$/;
+const SCIENTIFIC_NUMERIC_CELL_PATTERN = /[eE][+-]?\d+$/;
+const DOMINANT_SCALE_BUCKET_RATIO = 0.6;
+const SCIENTIFIC_SCALE_BUCKET_RATIO = 0.4;
+const MIN_SCIENTIFIC_SCALE_BUCKET_COUNT = 2;
+const ADJACENT_SCALE_BUCKET_MAX_SPAN = 3;
+const LOWER_SMALL_VALUE_BUCKET_MIN_RATIO = 0.05;
+const LOWER_SMALL_VALUE_MAX_EXPONENT = -3;
 const SUPERSCRIPT_DIGITS: Record<string, string> = {
 	"+": "⁺",
 	"-": "⁻",
@@ -44,21 +51,33 @@ export const parseNumericCell = (value: unknown): number | null => {
 export const chooseColumnScaleExponent = (
 	values: readonly number[],
 ): number => {
-	const magnitudes = values
-		.map(value => Math.abs(value))
-		.filter(value => Number.isFinite(value) && value > 0)
-		.sort((left, right) => left - right);
+	return chooseScaleBucket(values.map(value => ({
+		isScientificNotation: false,
+		value,
+	})));
+};
 
-	if (!magnitudes.length) {
-		return 0;
-	}
+export const chooseColumnScaleExponentFromCells = (
+	values: readonly unknown[],
+): number => chooseScaleBucket(values.map(value => {
+	const numericValue = parseNumericCell(value);
+	return numericValue === null
+		? null
+		: {
+			isScientificNotation: isScientificNumericCell(value),
+			value: numericValue,
+		};
+}).filter((entry): entry is NumericScaleSample => entry !== null));
 
-	const median = magnitudes[Math.floor(magnitudes.length / 2)];
-	if (!median || !Number.isFinite(median)) {
-		return 0;
-	}
+type NumericScaleSample = {
+	readonly isScientificNotation: boolean;
+	readonly value: number;
+};
 
-	return Math.floor(Math.log10(median) / 3) * 3;
+type ScaleBucketCount = {
+	readonly exponent: number;
+	count: number;
+	scientificCount: number;
 };
 
 export const toSuperscriptExponent = (exponent: number): string => {
@@ -88,14 +107,26 @@ export const formatScaledNumber = (
 		return null;
 	}
 
-	const fixedDecimals = getScientificMantissaDecimalPlaces(rawValue);
-	if (fixedDecimals !== null) {
-		return scaledValue.toFixed(fixedDecimals);
+	const scientificSignificantDigits = getScientificMantissaSignificantDigits(rawValue);
+	if (scientificSignificantDigits !== null) {
+		return trimInsignificantTrailingZeros(
+			toPlainPrecision(
+				scaledValue,
+				Math.max(scientificSignificantDigits, Math.max(1, Math.floor(Number(profile.significantDigits) || DEFAULT_TABLE_DISPLAY_SIGNIFICANT_DIGITS))),
+			),
+		);
 	}
 
-	return toPlainPrecision(
-		scaledValue,
-		Math.max(1, Math.floor(Number(profile.significantDigits) || DEFAULT_TABLE_DISPLAY_SIGNIFICANT_DIGITS)),
+	const scaledPlainDecimals = getScaledPlainDecimalPlaces(rawValue, profile.scaleExponent);
+	if (scaledPlainDecimals !== null) {
+		return trimInsignificantTrailingZeros(scaledValue.toFixed(scaledPlainDecimals));
+	}
+
+	return trimInsignificantTrailingZeros(
+		toPlainPrecision(
+			scaledValue,
+			Math.max(1, Math.floor(Number(profile.significantDigits) || DEFAULT_TABLE_DISPLAY_SIGNIFICANT_DIGITS)),
+		),
 	);
 };
 
@@ -117,7 +148,7 @@ export const formatRawCell = (value: unknown): string => {
 	return String(value);
 };
 
-const getScientificMantissaDecimalPlaces = (value: unknown): number | null => {
+const getScientificMantissaSignificantDigits = (value: unknown): number | null => {
 	if (typeof value !== "string") {
 		return null;
 	}
@@ -128,13 +159,154 @@ const getScientificMantissaDecimalPlaces = (value: unknown): number | null => {
 		return null;
 	}
 
-	const mantissa = text.slice(0, exponentIndex);
-	const decimalIndex = mantissa.indexOf(".");
+	const mantissaDigits = text
+		.slice(0, exponentIndex)
+		.replace(/^[+-]/, "")
+		.replace(".", "")
+		.replace(/^0+/, "")
+		.replace(/0+$/, "");
+	return Math.min(12, Math.max(1, mantissaDigits.length));
+};
+
+const getScaledPlainDecimalPlaces = (value: unknown, scaleExponent: number): number | null => {
+	if (typeof value !== "string") {
+		return null;
+	}
+
+	const text = value.trim();
+	if (!NUMERIC_CELL_PATTERN.test(text) || SCIENTIFIC_NUMERIC_CELL_PATTERN.test(text)) {
+		return null;
+	}
+
+	const decimalIndex = text.indexOf(".");
 	if (decimalIndex < 0) {
+		return null;
+	}
+
+	const rawDecimalPlaces = text.length - decimalIndex - 1;
+	return Math.min(12, Math.max(0, rawDecimalPlaces + Math.trunc(Number(scaleExponent) || 0)));
+};
+
+const chooseScaleBucket = (samples: readonly NumericScaleSample[]): number => {
+	const magnitudes: number[] = [];
+	const bucketCounts = new Map<number, ScaleBucketCount>();
+	for (const { isScientificNotation, value } of samples) {
+		const magnitude = Math.abs(value);
+		if (!Number.isFinite(magnitude) || magnitude <= 0) {
+			continue;
+		}
+
+		magnitudes.push(magnitude);
+		const exponent = toEngineeringScaleExponent(magnitude);
+		const bucket = bucketCounts.get(exponent) ?? {
+			exponent,
+			count: 0,
+			scientificCount: 0,
+		};
+		bucket.count += 1;
+		bucket.scientificCount += isScientificNotation ? 1 : 0;
+		bucketCounts.set(exponent, bucket);
+	}
+
+	if (!magnitudes.length) {
 		return 0;
 	}
 
-	return Math.min(12, Math.max(0, mantissa.length - decimalIndex - 1));
+	const nonZeroCount = magnitudes.length;
+	const lowerSmallValueBucket = getLowerSmallValueBucket(bucketCounts, nonZeroCount);
+	if (lowerSmallValueBucket) {
+		return lowerSmallValueBucket.exponent;
+	}
+
+	const dominantBucket = getMaxBucket(bucketCounts, bucket => bucket.count);
+	if (dominantBucket && dominantBucket.count / nonZeroCount >= DOMINANT_SCALE_BUCKET_RATIO) {
+		return dominantBucket.exponent;
+	}
+
+	const scientificBucket = getMaxBucket(bucketCounts, bucket => bucket.scientificCount);
+	if (
+		scientificBucket &&
+		scientificBucket.scientificCount >= MIN_SCIENTIFIC_SCALE_BUCKET_COUNT &&
+		scientificBucket.scientificCount / nonZeroCount >= SCIENTIFIC_SCALE_BUCKET_RATIO
+	) {
+		return scientificBucket.exponent;
+	}
+
+	return toEngineeringScaleExponent(getMedianMagnitude(magnitudes));
+};
+
+const getLowerSmallValueBucket = (
+	bucketCounts: ReadonlyMap<number, ScaleBucketCount>,
+	nonZeroCount: number,
+): ScaleBucketCount | null => {
+	const buckets = Array.from(bucketCounts.values())
+		.filter(bucket => bucket.count / nonZeroCount >= LOWER_SMALL_VALUE_BUCKET_MIN_RATIO)
+		.sort((left, right) => left.exponent - right.exponent);
+	const firstBucket = buckets[0];
+	const lastBucket = buckets[buckets.length - 1];
+	if (!firstBucket || !lastBucket) {
+		return null;
+	}
+
+	if (
+		firstBucket.exponent === lastBucket.exponent ||
+		lastBucket.exponent > LOWER_SMALL_VALUE_MAX_EXPONENT ||
+		lastBucket.exponent - firstBucket.exponent > ADJACENT_SCALE_BUCKET_MAX_SPAN
+	) {
+		return null;
+	}
+
+	return firstBucket;
+};
+
+const getMaxBucket = (
+	bucketCounts: ReadonlyMap<number, ScaleBucketCount>,
+	getCount: (bucket: ScaleBucketCount) => number,
+): ScaleBucketCount | null => {
+	let bestBucket: ScaleBucketCount | null = null;
+	for (const bucket of bucketCounts.values()) {
+		const count = getCount(bucket);
+		if (
+			count > 0 &&
+			(
+				bestBucket === null ||
+				count > getCount(bestBucket) ||
+				(count === getCount(bestBucket) && bucket.count > bestBucket.count)
+			)
+		) {
+			bestBucket = bucket;
+		}
+	}
+	return bestBucket;
+};
+
+const getMedianMagnitude = (magnitudes: readonly number[]): number => {
+	const sorted = [...magnitudes].sort((left, right) => left - right);
+	return sorted[Math.floor(sorted.length / 2)] ?? 0;
+};
+
+const toEngineeringScaleExponent = (magnitude: number): number => {
+	if (!magnitude || !Number.isFinite(magnitude)) {
+		return 0;
+	}
+
+	return Math.floor(Math.log10(magnitude) / 3) * 3;
+};
+
+const isScientificNumericCell = (value: unknown): boolean =>
+	typeof value === "string" &&
+	NUMERIC_CELL_PATTERN.test(value.trim()) &&
+	SCIENTIFIC_NUMERIC_CELL_PATTERN.test(value.trim());
+
+const trimInsignificantTrailingZeros = (text: string): string => {
+	if (!text.includes(".")) {
+		return text === "-0" ? "0" : text;
+	}
+
+	const trimmed = text
+		.replace(/(\.\d*?[1-9])0+$/, "$1")
+		.replace(/\.0+$/, "");
+	return trimmed === "-0" ? "0" : trimmed;
 };
 
 const toPlainPrecision = (value: number, significantDigits: number): string => {
@@ -149,4 +321,3 @@ const toPlainPrecision = (value: number, significantDigits: number): string => {
 	);
 	return value.toFixed(Math.min(12, fixedDigits));
 };
-

@@ -2,6 +2,7 @@ import type { Event } from "src/cs/base/common/event";
 import type { IHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import {
   TableWidget,
+  type TableWidgetColumnHeaderSelectionMode,
   type TableWidgetColumnWidthTarget,
   type TableWidgetModel,
   type TableWidgetProps,
@@ -16,6 +17,7 @@ type TableState = ReturnType<TableControllerModel["getState"]>;
 type TableSelection = ReturnType<TableControllerModel["getSelection"]>;
 
 export type TableControllerProps = {
+  readonly columnHeaderSelectionMode?: TableWidgetColumnHeaderSelectionMode;
   readonly getColumnWidths?: (sourceKey: string | null | undefined) => readonly TableColumnWidth[];
   readonly hoverDelegate?: IHoverDelegate;
   readonly onCopySelection?: () => void;
@@ -101,6 +103,7 @@ export class TableController {
 }
 
 const toWidgetProps = ({
+  columnHeaderSelectionMode,
   tableModel,
   tableState,
   getColumnWidths,
@@ -109,6 +112,7 @@ const toWidgetProps = ({
   onSelect,
   storeColumnWidths,
 }: TableControllerProps): TableWidgetProps => ({
+  columnHeaderSelectionMode,
   getColumnWidths,
   hoverDelegate,
   onCopySelection,

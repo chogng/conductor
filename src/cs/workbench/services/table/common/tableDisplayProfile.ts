@@ -11,6 +11,7 @@ export type ColumnDisplayProfile = {
 	readonly columnId: string;
 	readonly mode: ColumnDisplayMode;
 	readonly isNumericColumn: boolean;
+	readonly isScaleManual?: boolean;
 	readonly scaleExponent: number;
 	readonly headerSuffix?: string;
 	readonly significantDigits: number;
@@ -27,4 +28,3 @@ export type TableDisplayProfile = {
 
 export const DEFAULT_NUMERIC_DISPLAY_MODE: NumericDisplayMode = "raw";
 export const DEFAULT_TABLE_DISPLAY_SIGNIFICANT_DIGITS = 6;
-

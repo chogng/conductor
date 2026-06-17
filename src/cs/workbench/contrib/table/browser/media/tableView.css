@@ -225,11 +225,13 @@
 }
 
 .table_view_grid_header_cell {
+  display: flex;
   position: relative;
   width: var(--table-view-column-width);
   min-width: var(--table-view-column-width);
   max-width: var(--table-view-column-width);
   flex: 0 0 var(--table-view-column-width);
+  align-items: stretch;
 }
 
 .table_view_grid_header_spacer {
@@ -330,7 +332,8 @@
 }
 
 .table_view_column_button {
-  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
   height: 100%;
   border: 0;
   padding: 0 var(--table-view-cell-padding-x);
@@ -342,6 +345,36 @@
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.table_view_column_scale_control {
+  flex: 0 0 auto;
+  height: 100%;
+  margin-right: 8px;
+}
+
+.table_view_column_scale_control[hidden] {
+  display: none;
+}
+
+.table_view_column_scale_control .table_view_zoom_button {
+  width: 1.25rem;
+  height: 100%;
+}
+
+.table_view_column_scale_value {
+  appearance: none;
+  min-width: 2.75rem;
+  border-top: 0;
+  border-bottom: 0;
+  padding: 0 0.25rem;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+.table_view_column_scale_value:disabled {
+  cursor: default;
 }
 
 .table_view_row_header_label {

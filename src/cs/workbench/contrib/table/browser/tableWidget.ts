@@ -7,7 +7,11 @@ import { localize } from "src/cs/nls";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { createEmptyView } from "src/cs/workbench/contrib/table/browser/emptyView";
 import type { TableModel } from "src/cs/workbench/services/table/common/table";
-import { formatCell, formatRawCell } from "src/cs/workbench/services/table/common/numericFormat";
+import {
+  formatCell,
+  formatRawCell,
+  toSuperscriptExponent,
+} from "src/cs/workbench/services/table/common/numericFormat";
 import type { ColumnDisplayProfile } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import {
   TableColumnLayout,
@@ -643,6 +647,7 @@ export const getTableGridRowHeight = TableGridModel.getTableGridRowHeight;
 
 export type TableWidgetModel = Pick<
   TableModel,
+  | "adjustColumnDisplayScale"
   | "ensureRows"
   | "getColumnDisplayProfile"
   | "getHighlight"
@@ -654,6 +659,7 @@ export type TableWidgetModel = Pick<
   | "onDidChangeRevealCell"
   | "onDidChangeSelection"
   | "onDidChangeState"
+  | "resetColumnDisplayScale"
   | "subscribeRowsVersion"
 >;
 
@@ -667,7 +673,10 @@ export type TableWidgetSelectionTarget =
   | { readonly kind: "range"; readonly range: TableRange }
   | { readonly kind: "columns"; readonly columns: readonly number[] };
 
+export type TableWidgetColumnHeaderSelectionMode = "single" | "multi";
+
 export type TableWidgetProps = {
+  readonly columnHeaderSelectionMode?: TableWidgetColumnHeaderSelectionMode;
   readonly getColumnWidths?: (sourceKey: string | null | undefined) => readonly TableColumnWidth[];
   readonly hoverDelegate?: IHoverDelegate;
   readonly onCopySelection?: () => void;
@@ -1395,6 +1404,7 @@ export class TableWidget {
             column: columnLabel,
           }),
         );
+        const scaleControl = this.createColumnScaleControl(colIndex);
         const resizeHandle = document.createElement("span");
         resizeHandle.className = "table_view_column_resize_handle";
         resizeHandle.dataset.colIndex = String(colIndex);
@@ -1406,7 +1416,7 @@ export class TableWidget {
             column: columnLabel,
           }),
         );
-        cell.append(button, resizeHandle);
+        cell.append(button, scaleControl, resizeHandle);
         this.headerCells.push(cell);
         this.headerContent.insertBefore(cell, this.headerTrailingSpacer);
       }
@@ -1415,6 +1425,41 @@ export class TableWidget {
     }
 
     return changed;
+  }
+
+  private createColumnScaleControl(colIndex: number): HTMLElement {
+    const control = document.createElement("div");
+    control.className = "table_view_zoom_control table_view_column_scale_control";
+    control.dataset.colIndex = String(colIndex);
+    control.setAttribute("role", "group");
+    control.setAttribute("aria-label", localize("table.preview.columnScaleControl", "Column scale"));
+    control.hidden = true;
+
+    const decreaseButton = document.createElement("button");
+    decreaseButton.type = "button";
+    decreaseButton.className = "table_view_zoom_button table_view_column_scale_button table_view_column_scale_button_minus";
+    decreaseButton.dataset.scaleAction = "decrease";
+    decreaseButton.dataset.colIndex = String(colIndex);
+    decreaseButton.textContent = "-";
+    decreaseButton.setAttribute("aria-label", localize("table.preview.decreaseColumnScale", "Decrease column scale exponent"));
+
+    const valueButton = document.createElement("button");
+    valueButton.type = "button";
+    valueButton.className = "table_view_zoom_value table_view_column_scale_value table_view_column_scale_button";
+    valueButton.dataset.scaleAction = "reset";
+    valueButton.dataset.colIndex = String(colIndex);
+    valueButton.setAttribute("aria-label", localize("table.preview.resetColumnScale", "Reset column scale to automatic"));
+
+    const increaseButton = document.createElement("button");
+    increaseButton.type = "button";
+    increaseButton.className = "table_view_zoom_button table_view_column_scale_button table_view_column_scale_button_plus";
+    increaseButton.dataset.scaleAction = "increase";
+    increaseButton.dataset.colIndex = String(colIndex);
+    increaseButton.textContent = "+";
+    increaseButton.setAttribute("aria-label", localize("table.preview.increaseColumnScale", "Increase column scale exponent"));
+
+    control.append(decreaseButton, valueButton, increaseButton);
+    return control;
   }
 
   private syncColumnLayout(
@@ -1483,11 +1528,12 @@ export class TableWidget {
       return changed;
     }
 
-    const button = cell.firstElementChild as HTMLButtonElement | null;
-    const resizeHandle = cell.lastElementChild as HTMLElement | null;
+    const button = cell.querySelector<HTMLButtonElement>(".table_view_column_button");
+    const scaleControl = cell.querySelector<HTMLElement>(".table_view_column_scale_control");
+    const resizeHandle = cell.querySelector<HTMLElement>(".table_view_column_resize_handle");
     const columnLabel = TableGridModel.getTableGridColumnLabel(colIndex);
-    const headerSuffix = tableModel.getColumnDisplayProfile(colIndex).headerSuffix;
-    const headerText = headerSuffix ? `${columnLabel} ${headerSuffix}` : columnLabel;
+    const profile = tableModel.getColumnDisplayProfile(colIndex);
+    const headerText = columnLabel;
     const colIndexValue = String(colIndex);
     const ariaColIndex = String(colIndex + 1);
     if (button?.dataset.colIndex !== colIndexValue || button?.textContent !== headerText) {
@@ -1512,8 +1558,65 @@ export class TableWidget {
       }
       changed = true;
     }
+    if (this.syncHeaderColumnScaleControl(scaleControl, colIndex, profile)) {
+      changed = true;
+    }
     if (cell.getAttribute("aria-colindex") !== ariaColIndex) {
       cell.setAttribute("aria-colindex", ariaColIndex);
+      changed = true;
+    }
+
+    return changed;
+  }
+
+  private syncHeaderColumnScaleControl(
+    control: HTMLElement | null,
+    colIndex: number,
+    profile: ColumnDisplayProfile,
+  ): boolean {
+    if (!control) {
+      return false;
+    }
+
+    const showControl = profile.mode === "columnScale" &&
+      profile.isNumericColumn &&
+      (Boolean(profile.headerSuffix) || Boolean(profile.isScaleManual));
+    let changed = setHidden(control, !showControl);
+    if (!showControl) {
+      return changed;
+    }
+
+    const colIndexValue = String(colIndex);
+    if (control.dataset.colIndex !== colIndexValue) {
+      control.dataset.colIndex = colIndexValue;
+      changed = true;
+    }
+
+    for (const button of Array.from(control.querySelectorAll<HTMLButtonElement>(".table_view_column_scale_button"))) {
+      if (button.dataset.colIndex !== colIndexValue) {
+        button.dataset.colIndex = colIndexValue;
+        changed = true;
+      }
+    }
+
+    const valueButton = control.querySelector<HTMLButtonElement>(".table_view_column_scale_value");
+    const valueText = `×10${toSuperscriptExponent(profile.scaleExponent)}`;
+    if (valueButton?.textContent !== valueText) {
+      if (valueButton) {
+        valueButton.textContent = valueText;
+      }
+      changed = true;
+    }
+    if (valueButton && valueButton.disabled !== !profile.isScaleManual) {
+      valueButton.disabled = !profile.isScaleManual;
+      changed = true;
+    }
+
+    const ariaLabel = profile.isScaleManual
+      ? localize("table.preview.columnScaleManual", "Column scale {scale}, manually adjusted", { scale: valueText })
+      : localize("table.preview.columnScaleAutomatic", "Column scale {scale}, automatic", { scale: valueText });
+    if (control.getAttribute("aria-label") !== ariaLabel) {
+      control.setAttribute("aria-label", ariaLabel);
       changed = true;
     }
 
@@ -1563,11 +1666,15 @@ export class TableWidget {
       return;
     }
 
+    const tableModel = this.props.tableModel;
+    const columnRange = this.getBodyColumnRange();
+    this.syncColumnLayout(columnRange, tableModel);
     this.syncRowsTextIfNeeded(
-      this.props.tableModel,
+      tableModel,
       this.getBodyRowRange(),
-      this.getBodyColumnRange(),
+      columnRange,
     );
+    this.syncHeaderScroll();
   }
 
   private getBodyRowRange(): TableGridModel.TableGridRange {
@@ -2072,6 +2179,12 @@ export class TableWidget {
       return;
     }
 
+    const scaleButton = target.closest<HTMLButtonElement>(".table_view_column_scale_button");
+    if (scaleButton && this.headerContent.contains(scaleButton)) {
+      this.onColumnScaleButtonClick(event, scaleButton);
+      return;
+    }
+
     const button = target.closest<HTMLButtonElement>(".table_view_column_button");
     if (!button || !this.headerContent.contains(button)) {
       return;
@@ -2084,8 +2197,37 @@ export class TableWidget {
 
     this.select({
       kind: "columns",
-      columns: toggleSelectedColumn(this.getSelection(), colIndex),
+      columns: resolveHeaderSelectedColumns(
+        this.getSelection(),
+        colIndex,
+        this.props.columnHeaderSelectionMode ?? "single",
+      ),
     });
+    this.focus();
+  }
+
+  private onColumnScaleButtonClick(event: MouseEvent, button: HTMLButtonElement): void {
+    const colIndex = Number(button.dataset.colIndex);
+    if (!Number.isInteger(colIndex) || colIndex < 0) {
+      return;
+    }
+
+    const action = button.dataset.scaleAction;
+    let changed = false;
+    if (action === "decrease") {
+      changed = this.props.tableModel.adjustColumnDisplayScale(colIndex, -1);
+    } else if (action === "increase") {
+      changed = this.props.tableModel.adjustColumnDisplayScale(colIndex, 1);
+    } else if (action === "reset") {
+      changed = this.props.tableModel.resetColumnDisplayScale(colIndex);
+    }
+
+    if (!changed) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
     this.focus();
   }
 
@@ -2578,6 +2720,20 @@ const toggleSelectedColumn = (
   }
 
   return Array.from(columns).sort((a, b) => a - b);
+};
+
+const resolveHeaderSelectedColumns = (
+  selection: TableSelection,
+  colIndex: number,
+  mode: TableWidgetColumnHeaderSelectionMode,
+): readonly number[] => {
+  if (mode === "multi") {
+    return toggleSelectedColumn(selection, colIndex);
+  }
+
+  return selection.selectedColumns?.length === 1 && selection.selectedColumns[0] === colIndex
+    ? []
+    : [colIndex];
 };
 
 const normalizeWidgetColumnIndex = (value: unknown): number | null => {

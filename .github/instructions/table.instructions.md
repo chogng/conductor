@@ -73,10 +73,12 @@ flowchart TD
     TableService --> TableModel[tableModel instance]
     TableModel --> DisplayProfile[ColumnDisplayProfile cache]
     TableModel -->|state / rows / selection / highlight / reveal events| TableController[TableController]
+    TemplateService[TemplateService mode] -->|header selection mode| TableViewPane
     TableController --> TableWidget[TableWidget]
     DisplayProfile --> TableWidget
     HoverService[HoverService] -->|managed hover delegate| TableViewPane
     TableViewPane -->|hover delegate| TableController
+    TableWidget -->|column scale override intent| TableModel
     TableWidget -->|selection / column width callback / zoom event| TableController
     TableViewPane[TableViewPane] -->|register active controller| TableWidgetService[ITableWidgetService]
     TableCommand[table zoom command] -->|activeController| TableWidgetService

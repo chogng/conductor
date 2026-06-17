@@ -31,6 +31,7 @@ import {
   TABLE_WIDGET_DEFAULT_ZOOM_PERCENT,
   TABLE_WIDGET_MAX_ZOOM_PERCENT,
   TABLE_WIDGET_MIN_ZOOM_PERCENT,
+  type TableWidgetColumnHeaderSelectionMode,
 } from "src/cs/workbench/contrib/table/browser/tableWidget";
 import {
   ITableDropTargetService,
@@ -39,6 +40,10 @@ import {
   ITableService,
   type TableViewInput,
 } from "src/cs/workbench/services/table/common/table";
+import {
+  ITemplateService,
+  type TemplateMode,
+} from "src/cs/workbench/services/template/common/template";
 
 export type TableViewPaneProps = TableViewInput;
 
@@ -86,6 +91,7 @@ export class TableViewPane extends ViewPane {
     @ITableWidgetService private readonly tableWidgetService: ITableWidgetService,
     @ICommandService private readonly commandService: ICommandService,
     @IHoverService private readonly hoverService: IHoverService,
+    @ITemplateService private readonly templateService: ITemplateService,
   ) {
     super({
       id: TableViewId,
@@ -127,6 +133,11 @@ export class TableViewPane extends ViewPane {
         this.update(input);
       }
     }));
+    this._register(this.templateService.onDidChangeTemplateState(() => {
+      if (this.props) {
+        this.update(this.props);
+      }
+    }));
     const input = this.tableService.getViewInput();
     if (input) {
       this.update(input);
@@ -141,6 +152,7 @@ export class TableViewPane extends ViewPane {
         this.tableService,
         this.commandService,
         this.hoverService,
+        this.templateService.getState().mode,
       ));
       this.store.add(this.tableWidgetService.registerController(this.controller));
       this.store.add(this.controller.onDidChangeZoom(() => this.updateZoomControl()));
@@ -151,6 +163,7 @@ export class TableViewPane extends ViewPane {
         this.tableService,
         this.commandService,
         this.hoverService,
+        this.templateService.getState().mode,
       ));
     }
     const { dimensions, fileName, mode, shouldUpdateDimensions } = getHeaderState(props);
@@ -370,13 +383,20 @@ const getHeaderState = ({ tableState }: TableViewPaneProps): HeaderState => {
   };
 };
 
+export const getTableColumnHeaderSelectionMode = (
+  templateMode: TemplateMode,
+): TableWidgetColumnHeaderSelectionMode =>
+  templateMode === "editor" ? "multi" : "single";
+
 const toControllerProps = (
   props: TableViewPaneProps,
   tableService: Pick<ITableService, "getColumnWidths" | "select" | "storeColumnWidths">,
   commandService: Pick<ICommandService, "executeCommand">,
   hoverService: IHoverService,
+  templateMode: TemplateMode,
 ): TableControllerProps => ({
   ...props,
+  columnHeaderSelectionMode: getTableColumnHeaderSelectionMode(templateMode),
   getColumnWidths: sourceKey => tableService.getColumnWidths(sourceKey),
   hoverDelegate: hoverService,
   onCopySelection: () => {

@@ -52,6 +52,17 @@ suite("workbench/services/table/browser/tableModel row cache", () => {
 			}),
 			true,
 		);
+
+		assert.equal(
+			isTableRowBatchResultForRequest({
+				requestFileId: "file_A:sheet-1",
+				requestStartRow: 50,
+				payloadFileId: "file_A",
+				payloadSourceKey: "file_A:sheet-1",
+				payloadStartRow: 50,
+			}),
+			true,
+		);
 	});
 
 	test("mergeChunkRows does not mark chunk loaded when payload is short", () => {
@@ -383,6 +394,254 @@ suite("workbench/services/table/browser/tableModel display profiles", () => {
     assert.equal(secondProfile.headerSuffix, "×10⁶");
   });
 
+  test("uses scientific notation density when choosing profile scale", () => {
+    const model = createTableModelInScope(store.add(new TableStateScope()), {
+      tableRowsReaderService: createTableRowsReaderService(),
+      numericDisplayMode: "smart",
+      settingsVersion: 6,
+      rawFiles: [{
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        sourceKey: "table-a",
+        sourceVersion: 10,
+      }],
+      source: { fileId: "file-a" },
+      file: {
+        columnCount: 1,
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        maxCellLengths: [1],
+        rowCount: 4,
+        sourceKey: "table-a",
+        sourceVersion: 10,
+      },
+      rowsCacheRef: {
+        current: new Map([
+          [0, ["1.000000"]],
+          [1, ["-2.76E-009"]],
+          [2, ["-3.00E-009"]],
+          [3, ["1.100000"]],
+        ]),
+      },
+    });
+    store.add({ dispose: () => model.clearState() });
+
+    const profile = model.getColumnDisplayProfile(0);
+    assert.equal(profile.mode, "columnScale");
+    assert.equal(profile.scaleExponent, -9);
+    assert.equal(profile.headerSuffix, "×10⁻⁹");
+  });
+
+  test("uses nano scale for CH1 current scientific data", () => {
+    const model = createTableModelInScope(store.add(new TableStateScope()), {
+      tableRowsReaderService: createTableRowsReaderService(),
+      numericDisplayMode: "smart",
+      settingsVersion: 7,
+      rawFiles: [{
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        sourceKey: "table-a",
+        sourceVersion: 11,
+      }],
+      source: { fileId: "file-a" },
+      file: {
+        columnCount: 6,
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        maxCellLengths: [1, 1, 1, 1, 1, 1],
+        rowCount: 6,
+        sourceKey: "table-a",
+        sourceVersion: 11,
+      },
+      rowsCacheRef: {
+        current: new Map([
+          [0, ["Repeat", "VAR2", "Point", "CH1 Voltage", "CH1 Current", "CH1 Resistance"]],
+          [1, ["1.00000", "1.00000", "1.00000", "-3.00000E+000", "-3.70327E-009", "810.09486E+006"]],
+          [2, ["1.00000", "1.00000", "2.00000", "-2.97001E+000", "-3.49201E-009", "850.90577E+006"]],
+          [3, ["1.00000", "1.00000", "3.00000", "-2.94000E+000", "-3.04700E-009", "963.61533E+006"]],
+          [4, ["1.00000", "1.00000", "4.00000", "-2.91000E+000", "-2.96000E-009", "981.84432E+006"]],
+          [5, ["1.00000", "1.00000", "5.00000", "-2.88000E+000", "-2.82000E-009", "1019.80000E+006"]],
+        ]),
+      },
+    });
+    store.add({ dispose: () => model.clearState() });
+
+    const currentProfile = model.getColumnDisplayProfile(4);
+    assert.equal(currentProfile.mode, "columnScale");
+    assert.equal(currentProfile.scaleExponent, -9);
+    assert.equal(currentProfile.headerSuffix, "×10⁻⁹");
+
+    const resistanceProfile = model.getColumnDisplayProfile(5);
+    assert.equal(resistanceProfile.scaleExponent, 6);
+    assert.equal(resistanceProfile.headerSuffix, "×10⁶");
+  });
+
+  test("applies and resets manual column scale overrides", () => {
+    const model = createTableModelInScope(store.add(new TableStateScope()), {
+      tableRowsReaderService: createTableRowsReaderService(),
+      numericDisplayMode: "smart",
+      settingsVersion: 8,
+      rawFiles: [{
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        sourceKey: "table-a",
+        sourceVersion: 12,
+      }],
+      source: { fileId: "file-a" },
+      file: {
+        columnCount: 1,
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        maxCellLengths: [1],
+        rowCount: 5,
+        sourceKey: "table-a",
+        sourceVersion: 12,
+      },
+      rowsCacheRef: {
+        current: new Map([
+          [0, ["CH1 Current"]],
+          [1, ["-3.70327E-009"]],
+          [2, ["-3.49201E-009"]],
+          [3, ["-3.04700E-009"]],
+          [4, ["-2.96000E-009"]],
+        ]),
+      },
+    });
+    store.add({ dispose: () => model.clearState() });
+
+    assert.equal(model.getColumnDisplayProfile(0).scaleExponent, -9);
+
+    assert.equal(model.adjustColumnDisplayScale(0, 1), true);
+    const adjustedProfile = model.getColumnDisplayProfile(0);
+    assert.equal(adjustedProfile.scaleExponent, -8);
+    assert.equal(adjustedProfile.headerSuffix, "×10⁻⁸");
+    assert.equal(adjustedProfile.isScaleManual, true);
+
+    assert.equal(model.adjustColumnDisplayScale(0, -2), true);
+    assert.equal(model.getColumnDisplayProfile(0).scaleExponent, -10);
+
+    assert.equal(model.resetColumnDisplayScale(0), true);
+    const resetProfile = model.getColumnDisplayProfile(0);
+    assert.equal(resetProfile.scaleExponent, -9);
+    assert.equal(resetProfile.isScaleManual, undefined);
+  });
+
+  test("keeps adjacent lower current scale when cached column rows mix nano and micro samples", () => {
+    const model = createTableModelInScope(store.add(new TableStateScope()), {
+      tableRowsReaderService: createTableRowsReaderService(),
+      numericDisplayMode: "smart",
+      settingsVersion: 8,
+      rawFiles: [{
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        sourceKey: "table-a",
+        sourceVersion: 12,
+      }],
+      source: { fileId: "file-a" },
+      file: {
+        columnCount: 1,
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        maxCellLengths: [1],
+        rowCount: 1408,
+        sourceKey: "table-a",
+        sourceVersion: 12,
+      },
+      rowsCacheRef: {
+        current: new Map([
+          [0, ["CH1 Current"]],
+          [1, ["-8.70000E-013"]],
+          ...Array.from({ length: 59 }, (_, index): [number, string[]] => [
+            index + 2,
+            [`-${(1 + index / 100).toFixed(5)}E-012`],
+          ]),
+          ...Array.from({ length: 604 }, (_, index): [number, string[]] => [
+            index + 61,
+            [`-${(3 + index / 100).toFixed(5)}E-009`],
+          ]),
+          ...Array.from({ length: 743 }, (_, index): [number, string[]] => [
+            index + 665,
+            [`-${(3 + index / 100).toFixed(5)}E-006`],
+          ]),
+        ]),
+      },
+    });
+    store.add({ dispose: () => model.clearState() });
+
+    const profile = model.getColumnDisplayProfile(0);
+    assert.equal(profile.scaleExponent, -9);
+    assert.equal(profile.headerSuffix, "×10⁻⁹");
+  });
+
+  test("recomputes cached profiles when row cache changes", async () => {
+    const model = createTableModelInScope(store.add(new TableStateScope()), {
+      tableRowsReaderService: createTableRowsReaderService({
+        canOpenSource: () => true,
+        canReadRows: () => true,
+        openSource: async () => ({
+          ok: true,
+          result: {
+            columnCount: 1,
+            fileId: "table-a",
+            fileName: "Raw.csv",
+            maxCellLengths: [1],
+            rowCount: 60,
+            seedRows: [
+              ["-3.00000E-006"],
+              ["-3.10000E-006"],
+              ["-3.20000E-006"],
+            ],
+            seedStartRow: 50,
+            sourceKey: "table-a",
+          },
+        }),
+        readRows: async (payload) => {
+          const { endRow, fileId, startRow } = payload as {
+            readonly endRow: number;
+            readonly fileId: string;
+            readonly startRow: number;
+          };
+          return {
+            ok: true,
+            result: {
+              fileId,
+              startRow,
+              rows: Array.from({ length: endRow - startRow }, (_, index) => [
+                index === 0 ? "CH1 Current" : `-${(3 + index / 100).toFixed(5)}E-009`,
+              ]),
+            },
+          };
+        },
+      }),
+      numericDisplayMode: "smart",
+      settingsVersion: 9,
+      rawFiles: [{
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        normalizedCsvPath: "C:/tmp/raw.csv",
+        sourceKey: "table-a",
+        sourceVersion: 13,
+      }],
+      source: { fileId: "file-a" },
+    });
+    store.add({ dispose: () => model.clearState() });
+
+    await waitForTableModel();
+
+    assert.equal(model.getColumnDisplayProfile(0).scaleExponent, -6);
+
+    await model.ensureRows("table-a", 0, 50);
+
+    const recomputedProfile = model.getColumnDisplayProfile(0);
+    assert.equal(recomputedProfile.scaleExponent, -9);
+    assert.equal(recomputedProfile.headerSuffix, "×10⁻⁹");
+  });
+
   test("keeps raw profiles when numeric display mode is raw", () => {
     const model = createTableModelInScope(store.add(new TableStateScope()), {
       tableRowsReaderService: createTableRowsReaderService(),
@@ -414,6 +673,11 @@ suite("workbench/services/table/browser/tableModel display profiles", () => {
     assert.equal(model.getColumnDisplayProfile(0).mode, "raw");
   });
 });
+
+const waitForTableModel = async (): Promise<void> => {
+  await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise(resolve => setTimeout(resolve, 0));
+};
 
 const createTableRowsReaderService = (
   overrides: Partial<TableRowsReaderProvider> = {},

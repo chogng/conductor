@@ -14,16 +14,24 @@ import type { IHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate"
 import {
   TableWidget,
   type TableWidgetModel,
+  type TableWidgetSelectionTarget,
 } from "src/cs/workbench/contrib/table/browser/tableWidget";
+import { getTableColumnHeaderSelectionMode } from "src/cs/workbench/contrib/table/browser/tableViewPane";
 import type {
   TableSelection,
   TableState,
 } from "src/cs/workbench/services/table/common/table";
+import { toScaleHeaderSuffix } from "src/cs/workbench/services/table/common/numericFormat";
 import type { ColumnDisplayProfile } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/browser/workbench tableWidget layout", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
+  test("maps template modes to table column header selection modes", () => {
+    assert.equal(getTableColumnHeaderSelectionMode("management"), "single");
+    assert.equal(getTableColumnHeaderSelectionMode("editor"), "multi");
+  });
+
   test("rerenders visible cells when layout changes the viewport width", async () => {
     const widget = new TableWidget({
       onSelect: () => true,
@@ -70,8 +78,9 @@ suite("base/browser/workbench tableWidget layout", () => {
 
       assert.equal(
         widget.element.querySelector<HTMLButtonElement>(".table_view_column_button")?.textContent,
-        "A ×10⁻⁹",
+        "A",
       );
+      assert.equal(getVisibleScaleText(widget.element), "×10⁻⁹");
       assert.equal(getVisibleCellText(widget.element, 0, 0), "-3.70327");
       assert.equal(
         getVisibleCellTitle(widget.element, 0, 0),
@@ -81,6 +90,142 @@ suite("base/browser/workbench tableWidget layout", () => {
         getHoverLineText(hoverDelegate.hovers[0]?.content),
         "Raw: -3.70327E-009\nDisplay: -3.70327 ×10⁻⁹",
       );
+    } finally {
+      widget.dispose();
+    }
+  });
+
+  test("refreshes column scale headers when rows version changes", async () => {
+    const dynamicModel = createDynamicScaleTableWidgetModel();
+    const widget = new TableWidget({
+      onSelect: () => true,
+      tableModel: dynamicModel.model,
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 300, 280);
+      widget.layout();
+      await timeout(120);
+
+      assert.equal(
+        widget.element.querySelector<HTMLButtonElement>(".table_view_column_button")?.textContent,
+        "A",
+      );
+      assert.equal(getVisibleScaleText(widget.element), "×10⁻⁶");
+      assert.equal(getVisibleCellText(widget.element, 0, 0), "1");
+
+      dynamicModel.setScaleExponent(-9);
+      dynamicModel.fireRowsVersion();
+
+      assert.equal(
+        widget.element.querySelector<HTMLButtonElement>(".table_view_column_button")?.textContent,
+        "A",
+      );
+      assert.equal(getVisibleScaleText(widget.element), "×10⁻⁹");
+      assert.equal(getVisibleCellText(widget.element, 0, 0), "1000");
+    } finally {
+      widget.dispose();
+    }
+  });
+
+  test("adjusts column scale from the header stepper", async () => {
+    const dynamicModel = createDynamicScaleTableWidgetModel();
+    const widget = new TableWidget({
+      onSelect: () => true,
+      tableModel: dynamicModel.model,
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 300, 280);
+      widget.layout();
+      await timeout(120);
+
+      assert.equal(getVisibleScaleText(widget.element), "×10⁻⁶");
+      assert.equal(getVisibleCellText(widget.element, 0, 0), "1");
+
+      widget.element.querySelector<HTMLButtonElement>(".table_view_column_scale_button_plus")?.click();
+      assert.equal(getVisibleScaleText(widget.element), "×10⁻⁵");
+      assert.equal(getVisibleCellText(widget.element, 0, 0), "0.1");
+
+      widget.element.querySelector<HTMLButtonElement>(".table_view_column_scale_button_minus")?.click();
+      widget.element.querySelector<HTMLButtonElement>(".table_view_column_scale_button_minus")?.click();
+      assert.equal(getVisibleScaleText(widget.element), "×10⁻⁷");
+      assert.equal(getVisibleCellText(widget.element, 0, 0), "10");
+
+      widget.element.querySelector<HTMLButtonElement>(".table_view_column_scale_value")?.click();
+      assert.equal(getVisibleScaleText(widget.element), "×10⁻⁶");
+      assert.equal(getVisibleCellText(widget.element, 0, 0), "1");
+    } finally {
+      widget.dispose();
+    }
+  });
+
+  test("uses single-toggle selection for column header clicks by default", async () => {
+    let selection: TableSelection = {};
+    const selectedColumns: number[][] = [];
+    const widget = new TableWidget({
+      onSelect: target => {
+        selection = applySelectionTarget(selection, target);
+        selectedColumns.push([...(selection.selectedColumns ?? [])]);
+        return true;
+      },
+      tableModel: createTableWidgetModel(() => selection),
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 500, 280);
+      widget.layout();
+      await timeout(120);
+
+      getColumnHeaderButton(widget.element, 0).click();
+      getColumnHeaderButton(widget.element, 1).click();
+      getColumnHeaderButton(widget.element, 1).click();
+
+      assert.deepEqual(selectedColumns, [[0], [1], []]);
+    } finally {
+      widget.dispose();
+    }
+  });
+
+  test("keeps additive column header selection when multi mode is requested", async () => {
+    let selection: TableSelection = {};
+    const selectedColumns: number[][] = [];
+    const widget = new TableWidget({
+      columnHeaderSelectionMode: "multi",
+      onSelect: target => {
+        selection = applySelectionTarget(selection, target);
+        selectedColumns.push([...(selection.selectedColumns ?? [])]);
+        return true;
+      },
+      tableModel: createTableWidgetModel(() => selection),
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 500, 280);
+      widget.layout();
+      await timeout(120);
+
+      getColumnHeaderButton(widget.element, 0).click();
+      getColumnHeaderButton(widget.element, 1).click();
+      getColumnHeaderButton(widget.element, 0).click();
+
+      assert.deepEqual(selectedColumns, [[0], [0, 1], [1]]);
     } finally {
       widget.dispose();
     }
@@ -108,8 +253,11 @@ function createTableWidgetState(): TableState {
   };
 }
 
-function createTableWidgetModel(): TableWidgetModel {
+function createTableWidgetModel(
+  getSelection: () => TableSelection = () => ({}),
+): TableWidgetModel {
   return {
+    adjustColumnDisplayScale: () => false,
     ensureRows: async () => undefined,
     getColumnDisplayProfile: colIndex => createRawColumnDisplayProfile(colIndex),
     getHighlight: () => ({}),
@@ -126,14 +274,35 @@ function createTableWidgetModel(): TableWidgetModel {
       `J${rowIndex + 1}`,
     ],
     getRowsVersion: () => 1,
-    getSelection: (): TableSelection => ({}),
+    getSelection,
     getState: createTableWidgetState,
     onDidChangeHighlight: () => noopDisposable,
     onDidChangeRevealCell: () => noopDisposable,
     onDidChangeSelection: () => noopDisposable,
     onDidChangeState: () => noopDisposable,
+    resetColumnDisplayScale: () => false,
     subscribeRowsVersion: () => noopDisposable,
   };
+}
+
+function applySelectionTarget(
+  selection: TableSelection,
+  target: TableWidgetSelectionTarget | null,
+): TableSelection {
+  if (!target) {
+    return {};
+  }
+
+  if (target.kind === "columns") {
+    return {
+      ...selection,
+      activeCell: undefined,
+      ranges: undefined,
+      selectedColumns: target.columns,
+    };
+  }
+
+  return selection;
 }
 
 function createSmartTableWidgetModel(): TableWidgetModel {
@@ -165,6 +334,94 @@ function createSmartTableWidgetModel(): TableWidgetModel {
       "J1",
     ],
   };
+}
+
+function createDynamicScaleTableWidgetModel(): {
+  readonly model: TableWidgetModel;
+  readonly fireRowsVersion: () => void;
+  readonly setScaleExponent: (scaleExponent: number) => void;
+} {
+  let rowsVersion = 1;
+  let scaleExponent = -6;
+  let isScaleManual = false;
+  const subscribers = new Set<() => void>();
+  const fireRowsVersion = () => {
+    rowsVersion += 1;
+    for (const callback of Array.from(subscribers)) {
+      callback();
+    }
+  };
+
+  return {
+    fireRowsVersion,
+    model: {
+      ...createTableWidgetModel(),
+      adjustColumnDisplayScale: (_colIndex, deltaExponent) => {
+        scaleExponent += Math.trunc(Number(deltaExponent) || 0);
+        isScaleManual = true;
+        fireRowsVersion();
+        return true;
+      },
+      getColumnDisplayProfile: () => createScaledColumnDisplayProfile(scaleExponent, isScaleManual),
+      getRow: () => [
+        "1.00000E-006",
+        "B1",
+        "C1",
+        "D1",
+        "E1",
+        "F1",
+        "G1",
+        "H1",
+        "I1",
+        "J1",
+      ],
+      getRowsVersion: () => rowsVersion,
+      subscribeRowsVersion: callback => {
+        subscribers.add(callback);
+        return () => {
+          subscribers.delete(callback);
+        };
+      },
+      resetColumnDisplayScale: () => {
+        scaleExponent = -6;
+        isScaleManual = false;
+        fireRowsVersion();
+        return true;
+      },
+    },
+    setScaleExponent: nextScaleExponent => {
+      scaleExponent = nextScaleExponent;
+    },
+  };
+}
+
+function createScaledColumnDisplayProfile(scaleExponent: number, isScaleManual = false): ColumnDisplayProfile {
+  return {
+    rawTableId: "file-a",
+    columnId: "0",
+    mode: "columnScale",
+    isNumericColumn: true,
+    isScaleManual: isScaleManual || undefined,
+    scaleExponent,
+    headerSuffix: toScaleHeaderSuffix(scaleExponent),
+    significantDigits: 6,
+    sourceVersion: 1,
+    settingsVersion: 1,
+  };
+}
+
+function getVisibleScaleText(element: HTMLElement): string | undefined {
+  return element.querySelector<HTMLElement>(
+    ".table_view_column_scale_control:not([hidden]) .table_view_column_scale_value",
+  )?.textContent ?? undefined;
+}
+
+function getColumnHeaderButton(element: HTMLElement, colIndex: number): HTMLButtonElement {
+  const button = element.querySelector<HTMLButtonElement>(
+    `.table_view_column_button[data-col-index="${colIndex}"]`,
+  );
+  assert.ok(button);
+  return button;
 }
 
 function createRawColumnDisplayProfile(colIndex: number): ColumnDisplayProfile {
