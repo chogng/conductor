@@ -8,6 +8,7 @@ export type OriginPlotOptions = {
   command: string;
   postCommands: string[];
   lineWidth: number;
+  symbolShape: number;
   legendFontSize: number | "";
 };
 
@@ -17,6 +18,7 @@ export const DEFAULT_ORIGIN_PLOT_OPTIONS: OriginPlotOptions = Object.freeze({
   command: "",
   postCommands: [],
   lineWidth: 2,
+  symbolShape: 1,
   legendFontSize: "",
 }) as OriginPlotOptions;
 
@@ -106,6 +108,12 @@ export const normalizeOriginPlotOptions = (
     0.5,
     20,
   );
+  const symbolShape = clampInt(
+    raw.symbolShape ?? raw.symbol ?? raw.symbol_shape,
+    fallbackValue.symbolShape,
+    0,
+    58,
+  );
   const legendFontSize = normalizeOptionalBoundedInt(
     raw.legendFontSize ?? raw.legend_font_size,
     fallbackValue.legendFontSize,
@@ -119,6 +127,7 @@ export const normalizeOriginPlotOptions = (
     command,
     postCommands,
     lineWidth,
+    symbolShape,
     legendFontSize,
   };
 };

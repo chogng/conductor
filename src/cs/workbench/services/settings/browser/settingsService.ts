@@ -228,6 +228,9 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     if (updates.lineWidth !== undefined) {
       settingsUpdates.originPlotLineWidthDefault = nextOptions.lineWidth;
     }
+    if (updates.symbolShape !== undefined) {
+      settingsUpdates.originPlotSymbolShapeDefault = nextOptions.symbolShape;
+    }
     if (updates.legendFontSize !== undefined) {
       settingsUpdates.originPlotLegendFontSizeDefault = nextOptions.legendFontSize;
     }
@@ -408,6 +411,7 @@ const isSameOriginSettingsViewInput = (
   current.options?.command === next.options?.command &&
   current.options?.legendFontSize === next.options?.legendFontSize &&
   current.options?.lineWidth === next.options?.lineWidth &&
+  current.options?.symbolShape === next.options?.symbolShape &&
   current.options?.type === next.options?.type &&
   current.options?.xyPairs === next.options?.xyPairs &&
   isSameStringArray(current.options?.postCommands, next.options?.postCommands);

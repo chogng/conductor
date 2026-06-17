@@ -102,6 +102,7 @@ export type PlotMainChartProps = {
   plotType?: string;
   curveLineWidth?: number;
   curvePlotType?: number;
+  curveSymbolShape?: number;
   axisLabels?: Partial<{
     xLabel: unknown;
     yLabel: unknown;
@@ -208,6 +209,183 @@ const drawLine = (
   context.strokeStyle = color;
   context.lineWidth = lineWidth;
   context.stroke();
+};
+
+const drawSymbol = (
+  context: CanvasRenderingContext2D,
+  shape: number,
+  x: number,
+  y: number,
+  color: string,
+  size: number,
+  lineWidth: number,
+): void => {
+  if (shape <= 0 || !Number.isFinite(x) || !Number.isFinite(y)) {
+    return;
+  }
+
+  const radius = size / 2;
+  context.save();
+  context.strokeStyle = color;
+  context.fillStyle = color;
+  context.lineWidth = Math.max(1, lineWidth);
+  context.beginPath();
+
+  switch (shape) {
+    case 1:
+      context.rect(x - radius, y - radius, size, size);
+      context.fill();
+      break;
+    case 2:
+    case 20:
+      context.arc(x, y, radius, 0, Math.PI * 2);
+      context.fill();
+      break;
+    case 3:
+      drawPolygon(context, x, y, radius, [-90, 30, 150]);
+      context.fill();
+      break;
+    case 4:
+      drawPolygon(context, x, y, radius, [90, 210, 330]);
+      context.fill();
+      break;
+    case 5:
+      drawPolygon(context, x, y, radius, [-90, 0, 90, 180]);
+      context.fill();
+      break;
+    case 6:
+      context.moveTo(x - radius, y);
+      context.lineTo(x + radius, y);
+      context.moveTo(x, y - radius);
+      context.lineTo(x, y + radius);
+      context.stroke();
+      break;
+    case 7:
+      context.moveTo(x - radius, y - radius);
+      context.lineTo(x + radius, y + radius);
+      context.moveTo(x + radius, y - radius);
+      context.lineTo(x - radius, y + radius);
+      context.stroke();
+      break;
+    case 8:
+    case 18:
+      drawStar(context, x, y, radius, radius * 0.42);
+      context.fill();
+      break;
+    case 9:
+      context.moveTo(x - radius, y);
+      context.lineTo(x + radius, y);
+      context.stroke();
+      break;
+    case 10:
+      context.moveTo(x, y - radius);
+      context.lineTo(x, y + radius);
+      context.stroke();
+      break;
+    case 11:
+    case 12:
+    case 13:
+      context.font = `${Math.max(9, size + 2)}px sans-serif`;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(shape === 11 ? "1" : shape === 12 ? "A" : "a", x, y);
+      break;
+    case 14:
+      drawArrow(context, x, y, radius, "right");
+      context.fill();
+      break;
+    case 15:
+      drawPolygon(context, x, y, radius, [180, 300, 60]);
+      context.fill();
+      break;
+    case 16:
+      drawPolygon(context, x, y, radius, [0, 120, 240]);
+      context.fill();
+      break;
+    case 17:
+      drawRegularPolygon(context, x, y, radius, 6, -30);
+      context.fill();
+      break;
+    case 19:
+      drawRegularPolygon(context, x, y, radius, 5, -90);
+      context.fill();
+      break;
+    default:
+      context.arc(x, y, radius, 0, Math.PI * 2);
+      context.fill();
+      break;
+  }
+
+  context.restore();
+};
+
+const drawPolygon = (
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  degrees: readonly number[],
+): void => {
+  degrees.forEach((degree, index) => {
+    const angle = degree * Math.PI / 180;
+    const px = x + Math.cos(angle) * radius;
+    const py = y + Math.sin(angle) * radius;
+    if (index === 0) {
+      context.moveTo(px, py);
+    } else {
+      context.lineTo(px, py);
+    }
+  });
+  context.closePath();
+};
+
+const drawRegularPolygon = (
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  sides: number,
+  startDegree: number,
+): void => {
+  const degrees = Array.from({ length: sides }, (_, index) => startDegree + index * 360 / sides);
+  drawPolygon(context, x, y, radius, degrees);
+};
+
+const drawStar = (
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  outerRadius: number,
+  innerRadius: number,
+): void => {
+  const points: number[] = [];
+  for (let index = 0; index < 10; index++) {
+    points.push(-90 + index * 36);
+  }
+  points.forEach((degree, index) => {
+    const radius = index % 2 === 0 ? outerRadius : innerRadius;
+    const angle = degree * Math.PI / 180;
+    const px = x + Math.cos(angle) * radius;
+    const py = y + Math.sin(angle) * radius;
+    if (index === 0) {
+      context.moveTo(px, py);
+    } else {
+      context.lineTo(px, py);
+    }
+  });
+  context.closePath();
+};
+
+const drawArrow = (
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  direction: "right",
+): void => {
+  if (direction === "right") {
+    drawPolygon(context, x, y, radius, [0, 145, 180, 215]);
+  }
 };
 
 const drawVerticalMarker = (
@@ -378,6 +556,11 @@ export const drawPlotMainChart = (
   }
 
   const lineWidth = Math.max(1, Number(props.curveLineWidth) || 2);
+  const curvePlotType = Math.trunc(Number(props.curvePlotType) || 0);
+  const symbolShape = Math.trunc(Number(props.curveSymbolShape) || 0);
+  const shouldDrawLine = curvePlotType !== 201;
+  const shouldDrawSymbols = curvePlotType === 201 || curvePlotType === 202;
+  const symbolSize = Math.max(5, Math.min(10, lineWidth + 4));
   for (const [seriesIndex, series] of (props.seriesList ?? []).entries()) {
     const color = series.color || resolveSeriesPlotColor(series, seriesIndex) || getPlotColor(seriesIndex);
     const points = (Array.isArray(series.data) ? series.data : [])
@@ -391,7 +574,15 @@ export const drawPlotMainChart = (
         };
       })
       .filter((point): point is { x: number; y: number } => Boolean(point));
-    drawLine(context, points, color, props.focusedSeriesId === series.id ? lineWidth + 1 : lineWidth);
+    const effectiveLineWidth = props.focusedSeriesId === series.id ? lineWidth + 1 : lineWidth;
+    if (shouldDrawLine) {
+      drawLine(context, points, color, effectiveLineWidth);
+    }
+    if (shouldDrawSymbols) {
+      for (const point of points) {
+        drawSymbol(context, symbolShape, point.x, point.y, color, symbolSize, effectiveLineWidth);
+      }
+    }
   }
 
   if (props.focusedFitLine?.length) {

@@ -46,6 +46,7 @@ export class OriginMainService implements IOriginMainService {
       plotType: this.configurationService.getValue("originPlotTypeDefault"),
       postPlotCommands: this.configurationService.getValue("originPlotPostCommandsDefault"),
       lineWidth: this.configurationService.getValue("originPlotLineWidthDefault"),
+      symbolShape: this.configurationService.getValue("originPlotSymbolShapeDefault"),
       xyPairs: this.configurationService.getValue("originPlotXyPairsDefault"),
     });
   }

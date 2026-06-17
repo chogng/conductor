@@ -8,6 +8,7 @@ export type OriginPlotOptions = {
   plotCommand: string;
   postPlotCommands: string[];
   lineWidth: number;
+  symbolShape: number;
 };
 
 export const DEFAULT_ORIGIN_PLOT_OPTIONS = Object.freeze<OriginPlotOptions>({
@@ -16,6 +17,7 @@ export const DEFAULT_ORIGIN_PLOT_OPTIONS = Object.freeze<OriginPlotOptions>({
   plotCommand: "",
   postPlotCommands: [],
   lineWidth: 2,
+  symbolShape: 1,
 });
 
 export function normalizeNonEmptyString(value: unknown, fallback = ""): string {
@@ -118,6 +120,14 @@ export function normalizeOriginPlotOptions(
     0.5,
     20,
   );
+  const symbolShape = normalizeBoundedInt(
+    (raw as { symbolShape?: unknown; symbol?: unknown; symbol_shape?: unknown }).symbolShape ??
+      (raw as { symbol?: unknown }).symbol ??
+      (raw as { symbol_shape?: unknown }).symbol_shape,
+    fallback.symbolShape,
+    0,
+    58,
+  );
 
   return {
     plotType,
@@ -125,5 +135,6 @@ export function normalizeOriginPlotOptions(
     plotCommand,
     postPlotCommands,
     lineWidth,
+    symbolShape,
   };
 }

@@ -13,6 +13,14 @@ suite("workbench/contrib/plot/test/browser/plotMainView", () => {
   test("maps persisted axis drawing settings into chart props", () => {
     const props = createPlotMainChartProps({
       model: createPlotModel(),
+      originOpenPlotOptions: {
+        command: "",
+        lineWidth: 3,
+        postCommands: [],
+        symbolShape: 5,
+        type: 202,
+        xyPairs: "((1,2))",
+      },
       plotAxisSettings: {
         showGrid: false,
         showMajorTicks: false,
@@ -24,6 +32,9 @@ suite("workbench/contrib/plot/test/browser/plotMainView", () => {
     assert.equal(props.showGrid, false);
     assert.equal(props.showMajorTicks, false);
     assert.equal(props.showMinorTicks, false);
+    assert.equal(props.curveLineWidth, 3);
+    assert.equal(props.curvePlotType, 202);
+    assert.equal(props.curveSymbolShape, 5);
   });
 });
 

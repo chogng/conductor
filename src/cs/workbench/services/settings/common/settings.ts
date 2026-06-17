@@ -124,6 +124,7 @@ export type ConductorSettings = {
   originPlotTypeDefault?: number;
   originPlotXyPairsDefault?: string;
   originPlotLineWidthDefault?: number;
+  originPlotSymbolShapeDefault?: number;
   originPlotLegendFontSizeDefault?: number | "";
   originRuntimeCleanupEnabled?: boolean;
   originRuntimeFailedRetentionDays?: number;
@@ -217,6 +218,7 @@ export const getOriginOpenPlotOptions = (
       postCommands: settings?.originPlotPostCommandsDefault,
       type: settings?.originPlotTypeDefault,
       lineWidth: settings?.originPlotLineWidthDefault,
+      symbolShape: settings?.originPlotSymbolShapeDefault,
       legendFontSize: settings?.originPlotLegendFontSizeDefault,
       xyPairs: settings?.originPlotXyPairsDefault,
     },

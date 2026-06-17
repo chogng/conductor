@@ -55,6 +55,7 @@ test("appendOriginPlotWorkerArgs keeps valid plot options and skips empty values
     plotCommand: " plotxy iy:=(1,2) ",
     postPlotCommands: ["", " layer -a "],
     lineWidth: 2.5,
+    symbolShape: 5,
   });
 
   assert.deepEqual(args, [
@@ -69,6 +70,8 @@ test("appendOriginPlotWorkerArgs keeps valid plot options and skips empty values
     "layer -a",
     "--line-width",
     "2.5",
+    "--symbol-shape",
+    "5",
   ]);
 });
 

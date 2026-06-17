@@ -32,6 +32,7 @@ suite("workbench/services/settings/browser/settingsService", () => {
 
     service.mergeConductorSettings({
       originPlotLineWidthDefault: 2,
+      originPlotSymbolShapeDefault: 5,
       originPlotTypeDefault: 201,
       plotAxisSettings: { showGrid: true },
     });
@@ -39,6 +40,7 @@ suite("workbench/services/settings/browser/settingsService", () => {
     const input = service.getOriginSettingsViewInput();
     assert.deepEqual(input.axisSettings, { showGrid: true });
     assert.equal(input.options?.lineWidth, 2);
+    assert.equal(input.options?.symbolShape, 5);
     assert.equal(input.options?.type, 201);
     assert.equal(changeCount, 1);
     disposable.dispose();
@@ -63,6 +65,7 @@ suite("workbench/services/settings/browser/settingsService", () => {
       legendFontSize: "12",
       lineWidth: "99",
       postCommands: "layer -a\n\n",
+      symbolShape: "5",
       type: "201",
       xyPairs: " ((1,2)) ",
     } as unknown as Partial<OriginPlotOptions>);
@@ -72,6 +75,7 @@ suite("workbench/services/settings/browser/settingsService", () => {
       originPlotLegendFontSizeDefault: 12,
       originPlotLineWidthDefault: 20,
       originPlotPostCommandsDefault: ["layer -a"],
+      originPlotSymbolShapeDefault: 5,
       originPlotTypeDefault: 201,
       originPlotXyPairsDefault: "((1,2))",
     });

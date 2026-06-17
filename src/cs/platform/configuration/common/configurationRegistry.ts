@@ -78,6 +78,7 @@ type OriginPlotOptions = {
   plotCommand: string;
   postPlotCommands: string[];
   lineWidth: number;
+  symbolShape: number;
   legendFontSize: string | number;
 };
 
@@ -137,6 +138,7 @@ export type ConductorSettings = JsonRecord & {
   originPlotCommandDefault: string;
   originPlotPostCommandsDefault: string[];
   originPlotLineWidthDefault: number;
+  originPlotSymbolShapeDefault: number;
   originPlotLegendFontSizeDefault: string | number;
   originRuntimeCleanupEnabled: boolean;
   originRuntimeKeepSuccessJobs: number;
@@ -156,6 +158,7 @@ const DEFAULT_ORIGIN_PLOT_OPTIONS = Object.freeze<OriginPlotOptions>({
   plotCommand: "",
   postPlotCommands: [],
   lineWidth: 2,
+  symbolShape: 1,
   legendFontSize: "",
 });
 
@@ -241,6 +244,14 @@ function normalizeOriginPlotOptions(rawOptions: unknown, fallbackOptions: Origin
     0.5,
     20,
   );
+  const symbolShape = normalizeBoundedInt(
+    (raw as { symbolShape?: unknown; symbol?: unknown; symbol_shape?: unknown }).symbolShape ??
+      (raw as { symbol?: unknown }).symbol ??
+      (raw as { symbol_shape?: unknown }).symbol_shape,
+    fallback.symbolShape,
+    0,
+    58,
+  );
   const legendFontSize = normalizeOptionalRoundedBoundedInt(
     (raw as { legendFontSize?: unknown; legend_font_size?: unknown }).legendFontSize ??
       (raw as { legend_font_size?: unknown }).legend_font_size,
@@ -255,6 +266,7 @@ function normalizeOriginPlotOptions(rawOptions: unknown, fallbackOptions: Origin
     plotCommand,
     postPlotCommands,
     lineWidth,
+    symbolShape,
     legendFontSize,
   };
 }
@@ -335,6 +347,7 @@ export const DEFAULT_CONDUCTOR_CONFIGURATION: ConductorSettings = {
   originPlotCommandDefault: "",
   originPlotPostCommandsDefault: [],
   originPlotLineWidthDefault: 2,
+  originPlotSymbolShapeDefault: 1,
   originPlotLegendFontSizeDefault: "",
   originRuntimeCleanupEnabled: true,
   originRuntimeKeepSuccessJobs: 1,
@@ -611,6 +624,7 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     plotType: DEFAULT_CONDUCTOR_CONFIGURATION.originPlotTypeDefault,
     postPlotCommands: DEFAULT_CONDUCTOR_CONFIGURATION.originPlotPostCommandsDefault,
     lineWidth: DEFAULT_CONDUCTOR_CONFIGURATION.originPlotLineWidthDefault,
+    symbolShape: DEFAULT_CONDUCTOR_CONFIGURATION.originPlotSymbolShapeDefault,
     legendFontSize: DEFAULT_CONDUCTOR_CONFIGURATION.originPlotLegendFontSizeDefault,
     xyPairs: DEFAULT_CONDUCTOR_CONFIGURATION.originPlotXyPairsDefault,
   });
@@ -623,6 +637,7 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
       plotType: next.originPlotTypeDefault,
       postPlotCommands: next.originPlotPostCommandsDefault,
       lineWidth: next.originPlotLineWidthDefault,
+      symbolShape: next.originPlotSymbolShapeDefault,
       legendFontSize: next.originPlotLegendFontSizeDefault,
       xyPairs: next.originPlotXyPairsDefault,
     },
@@ -669,6 +684,7 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     originPlotCommandDefault: originPlotSettings.plotCommand,
     originPlotPostCommandsDefault: originPlotSettings.postPlotCommands,
     originPlotLineWidthDefault: originPlotSettings.lineWidth,
+    originPlotSymbolShapeDefault: originPlotSettings.symbolShape,
     originPlotLegendFontSizeDefault: originPlotSettings.legendFontSize,
     originRuntimeCleanupEnabled,
     originRuntimeKeepSuccessJobs,

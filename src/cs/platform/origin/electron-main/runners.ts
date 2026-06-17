@@ -25,6 +25,7 @@ type OriginPlotWorkerOptions = {
   postPlotCommands?: unknown;
   skipPlot?: unknown;
   lineWidth?: unknown;
+  symbolShape?: unknown;
 };
 
 type OriginCsvWorkerArgsOptions = OriginPlotWorkerOptions & {
@@ -80,6 +81,7 @@ export function appendOriginPlotWorkerArgs(
   const postPlotCommands = Reflect.get(source, "postPlotCommands");
   const skipPlot = Reflect.get(source, "skipPlot");
   const lineWidth = Reflect.get(source, "lineWidth");
+  const symbolShape = Reflect.get(source, "symbolShape");
 
   if (skipPlot === true) {
     args.push("--skip-plot");
@@ -108,6 +110,11 @@ export function appendOriginPlotWorkerArgs(
   const normalizedLineWidth = Number(lineWidth);
   if (Number.isFinite(normalizedLineWidth) && normalizedLineWidth > 0) {
     args.push("--line-width", String(normalizedLineWidth));
+  }
+
+  const normalizedSymbolShape = Number(symbolShape);
+  if (Number.isFinite(normalizedSymbolShape)) {
+    args.push("--symbol-shape", String(Math.trunc(normalizedSymbolShape)));
   }
 
   return args;
@@ -151,6 +158,7 @@ export function buildOriginCsvWorkerArgs({
   postPlotCommands,
   skipPlot,
   lineWidth,
+  symbolShape,
   capabilities,
 }: OriginCsvWorkerArgsOptions): string[] {
   const args = [
@@ -193,6 +201,7 @@ export function buildOriginCsvWorkerArgs({
     postPlotCommands,
     skipPlot,
     lineWidth,
+    symbolShape,
   });
   return appendOriginCapabilitiesWorkerArgs(withPlotArgs, capabilities);
 }

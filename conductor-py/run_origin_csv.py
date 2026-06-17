@@ -432,6 +432,7 @@ def load_batch_jobs(batch_jobs_path: Path) -> list[dict]:
                 "post_plot_commands": _normalize_command_list(item.get("postPlotCommands")),
                 "skip_plot": bool(item.get("skipPlot")),
                 "line_width": _coerce_float(item.get("lineWidth"), 2.0),
+                "symbol_shape": _coerce_int(item.get("symbolShape"), 1),
                 "capabilities": capabilities,
             }
         )
@@ -453,6 +454,7 @@ def build_single_job_from_args(args, csv_path: Path) -> dict:
         "post_plot_commands": _normalize_command_list(args.post_plot_command),
         "skip_plot": bool(args.skip_plot),
         "line_width": _coerce_float(args.line_width, 2.0),
+        "symbol_shape": _coerce_int(args.symbol_shape, 1),
         "capabilities": _coerce_text(args.capabilities_json),
     }
 
@@ -551,6 +553,7 @@ def run_csv_job(ctx, op_module, job: dict, job_index: int, job_count: int) -> st
             post_plot_commands=all_post_plot_commands,
             plot_error_message=f"CSV plot{label_suffix} failed at plotxy",
             line_width=_coerce_float(job.get("line_width"), 2.0),
+            symbol_shape=_coerce_int(job.get("symbol_shape"), 1),
         )
     if not skip_plot:
         capability_plan.axis_range = ensure_log_y_axis_range_patch(
@@ -624,6 +627,7 @@ def parse_args():
     parser.add_argument("--post-plot-command", action="append", default=[])
     parser.add_argument("--skip-plot", action="store_true")
     parser.add_argument("--line-width", type=float, default=2.0)
+    parser.add_argument("--symbol-shape", type=int, default=1)
     parser.add_argument("--capabilities-json", default="")
     parser.add_argument("--max-com-attempts", type=int, default=8)
     parser.add_argument("--health-check-only", action="store_true")

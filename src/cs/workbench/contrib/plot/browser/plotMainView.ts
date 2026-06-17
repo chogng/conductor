@@ -67,6 +67,7 @@ export const createPlotMainChartProps = ({
     axisLabels: model.axisLabels,
     curveLineWidth: Number(originOpenPlotOptions.lineWidth) || DEFAULT_ORIGIN_PLOT_OPTIONS.lineWidth,
     curvePlotType: Number(originOpenPlotOptions.type ?? DEFAULT_ORIGIN_PLOT_OPTIONS.type),
+    curveSymbolShape: Number(originOpenPlotOptions.symbolShape ?? DEFAULT_ORIGIN_PLOT_OPTIONS.symbolShape),
     effectiveYScale: yScaleMode,
     focusedSeriesColor: "#2563eb",
     highlightOverlays: [],

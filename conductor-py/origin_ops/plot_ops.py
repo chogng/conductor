@@ -24,6 +24,16 @@ def normalize_plot_line_width(value, min_width: float = 0.5, max_width: float = 
     return max(min_width, min(max_width, width))
 
 
+def normalize_plot_symbol_shape(value):
+    try:
+        shape = int(value)
+    except Exception:
+        return None
+    if shape < 0 or shape > 58:
+        return None
+    return shape
+
+
 def _iter_graph_layers(graph_page):
     if graph_page is None:
         return []
@@ -93,6 +103,48 @@ def apply_plot_line_width(op_module, line_width):
                     continue
 
 
+def apply_plot_symbol_shape(op_module, symbol_shape):
+    normalized_symbol_shape = normalize_plot_symbol_shape(symbol_shape)
+    if normalized_symbol_shape is None:
+        return
+
+    find_graph = getattr(op_module, "find_graph", None)
+    if not callable(find_graph):
+        return
+
+    try:
+        graph_page = find_graph()
+    except Exception:
+        return
+
+    shape_cmd = f"-k {normalized_symbol_shape}"
+    for layer in _iter_graph_layers(graph_page):
+        plot_list_fn = getattr(layer, "plot_list", None)
+        if not callable(plot_list_fn):
+            continue
+
+        try:
+            plots = plot_list_fn()
+        except Exception:
+            continue
+
+        for plot in plots or []:
+            set_cmd = getattr(plot, "set_cmd", None)
+            if callable(set_cmd):
+                try:
+                    set_cmd(shape_cmd)
+                    continue
+                except Exception:
+                    pass
+
+            set_int = getattr(plot, "set_int", None)
+            if callable(set_int):
+                try:
+                    set_int("symbol.shape", normalized_symbol_shape)
+                except Exception:
+                    continue
+
+
 def run_plot_pipeline(
     op_module,
     plot_command: str,
@@ -101,9 +153,11 @@ def run_plot_pipeline(
     post_plot_commands=None,
     plot_error_message: str = "Plot failed at plotxy",
     line_width=None,
+    symbol_shape=None,
 ):
     run_command_list(op_module, graph_pre_commands or [], "Graph pre-command")
     run_command_list(op_module, plot_pre_commands or [], "Plot pre-command")
     run_labtalk_or_raise(op_module, plot_command, plot_error_message)
     apply_plot_line_width(op_module, line_width)
+    apply_plot_symbol_shape(op_module, symbol_shape)
     run_command_list(op_module, post_plot_commands or [], "Post-plot command")

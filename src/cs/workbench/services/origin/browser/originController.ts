@@ -278,6 +278,7 @@ export function buildOriginCsvJobs(options: {
         skip: payload.skipPlot === true,
         type: normalizedPlotOptions.type,
         lineWidth: normalizedPlotOptions.lineWidth,
+        symbolShape: normalizedPlotOptions.symbolShape,
         xyPairs: effectiveXyPairs,
       },
       capabilities: {

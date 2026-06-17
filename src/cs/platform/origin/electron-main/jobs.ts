@@ -50,6 +50,7 @@ type OriginCsvJobInput = {
   postPlotCommands?: unknown;
   skipPlot?: unknown;
   lineWidth?: unknown;
+  symbolShape?: unknown;
   capabilities?: unknown;
 };
 
@@ -83,6 +84,7 @@ type NormalizedBatchCsvJob = {
   postPlotCommands: unknown[];
   skipPlot: boolean;
   lineWidth: unknown;
+  symbolShape: unknown;
   capabilities: Record<string, unknown> | null;
 };
 
@@ -341,6 +343,7 @@ function normalizeBatchCsvJobs(
         : [],
       skipPlot: source.skipPlot === true,
       lineWidth: source.lineWidth,
+      symbolShape: source.symbolShape,
       capabilities:
         source.capabilities && typeof source.capabilities === "object"
           ? source.capabilities
@@ -368,6 +371,7 @@ export async function runOriginCsvJob({
   postPlotCommands,
   skipPlot,
   lineWidth,
+  symbolShape,
   capabilities,
 }: OriginCsvJobInput) {
   const normalizedOriginExePath = assertOriginExePath(originExePath);
@@ -431,6 +435,7 @@ export async function runOriginCsvJob({
     postPlotCommands,
     skipPlot,
     lineWidth,
+    symbolShape,
     capabilities,
   });
 
@@ -584,6 +589,7 @@ export async function runOriginCsvBatchJob({
       postPlotCommands: job.postPlotCommands,
       skipPlot: job.skipPlot,
       lineWidth: job.lineWidth,
+      symbolShape: job.symbolShape,
       capabilities: job.capabilities,
     };
   });

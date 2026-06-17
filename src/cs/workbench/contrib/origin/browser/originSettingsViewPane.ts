@@ -157,6 +157,7 @@ const areOriginPlotOptionsEqual = (
   current.xyPairs === next.xyPairs &&
   current.command === next.command &&
   current.lineWidth === next.lineWidth &&
+  current.symbolShape === next.symbolShape &&
   current.legendFontSize === next.legendFontSize &&
   areStringArraysEqual(current.postCommands, next.postCommands);
 
@@ -233,6 +234,14 @@ const createOriginSettingsView = ({
           control: createLineWidthInput(options, onChange, store),
           label: localize("settings.origin.plot.lineWidthLabel", "Line width"),
         }),
+        ...(shouldShowSymbolShapeSelect(options.type)
+          ? [
+              createSettingsField({
+                control: createSymbolShapeSelect(options, onChange, store),
+                label: localize("origin.curveSettings.symbolLabel", "Symbol"),
+              }),
+            ]
+          : []),
       ],
       collapsed: isSectionCollapsed("origin-settings"),
       id: "origin-settings",
@@ -632,6 +641,47 @@ const createPlotTypeSelect = (
     },
     store,
     value: String(options.type),
+  });
+
+const shouldShowSymbolShapeSelect = (plotType: number): boolean =>
+  plotType === 201 || plotType === 202;
+
+const createSymbolShapeSelect = (
+  options: OriginPlotOptions,
+  onChange: OriginSettingsChangeHandler | undefined,
+  store: DisposableStore,
+): HTMLElement =>
+  createSettingsDropdown({
+    id: "export-settings-symbol-shape",
+    options: [
+      { value: "0", label: localize("settings.origin.plot.symbol.none", "None") },
+      { value: "1", label: localize("settings.origin.plot.symbol.square", "Square") },
+      { value: "2", label: localize("settings.origin.plot.symbol.circle", "Circle") },
+      { value: "3", label: localize("settings.origin.plot.symbol.upTriangle", "Up Triangle") },
+      { value: "4", label: localize("settings.origin.plot.symbol.downTriangle", "Down Triangle") },
+      { value: "5", label: localize("settings.origin.plot.symbol.diamond", "Diamond") },
+      { value: "6", label: localize("settings.origin.plot.symbol.plus", "Cross (+)") },
+      { value: "7", label: localize("settings.origin.plot.symbol.cross", "Cross (x)") },
+      { value: "8", label: localize("settings.origin.plot.symbol.starAsterisk", "Star (*)") },
+      { value: "9", label: localize("settings.origin.plot.symbol.horizontalBar", "Bar (-)") },
+      { value: "10", label: localize("settings.origin.plot.symbol.verticalBar", "Bar (|)") },
+      { value: "11", label: localize("settings.origin.plot.symbol.number", "Number") },
+      { value: "12", label: localize("settings.origin.plot.symbol.uppercaseLetter", "LETTER") },
+      { value: "13", label: localize("settings.origin.plot.symbol.lowercaseLetter", "letter") },
+      { value: "14", label: localize("settings.origin.plot.symbol.rightArrow", "Right Arrow") },
+      { value: "15", label: localize("settings.origin.plot.symbol.leftTriangle", "Left Triangle") },
+      { value: "16", label: localize("settings.origin.plot.symbol.rightTriangle", "Right Triangle") },
+      { value: "17", label: localize("settings.origin.plot.symbol.hexagon", "Hexagon") },
+      { value: "18", label: localize("settings.origin.plot.symbol.star", "Star") },
+      { value: "19", label: localize("settings.origin.plot.symbol.pentagon", "Pentagon") },
+      { value: "20", label: localize("settings.origin.plot.symbol.sphere", "Sphere") },
+    ],
+    onSelect: value => {
+      const normalized = normalizeOriginPlotOptions({ symbolShape: value }, options);
+      void onChange?.({ symbolShape: normalized.symbolShape });
+    },
+    store,
+    value: String(options.symbolShape),
   });
 
 const createAxisTickSelect = ({

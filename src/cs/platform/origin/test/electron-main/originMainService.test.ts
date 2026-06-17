@@ -23,6 +23,7 @@ suite("platform/origin/electron-main/originMainService", () => {
       plotCommand: "",
       postPlotCommands: [],
       lineWidth: 2,
+      symbolShape: 1,
     });
 
     configurationService.dispose();
@@ -50,6 +51,7 @@ suite("platform/origin/electron-main/originMainService", () => {
     await configurationService.updateValue("originPlotCommandDefault", " plotxy iy:=((1,2)) ", ConfigurationTarget.USER);
     await configurationService.updateValue("originPlotPostCommandsDefault", "rescale;\nlegend -s;", ConfigurationTarget.USER);
     await configurationService.updateValue("originPlotLineWidthDefault", 3.25, ConfigurationTarget.USER);
+    await configurationService.updateValue("originPlotSymbolShapeDefault", 5, ConfigurationTarget.USER);
     const service = new OriginMainService(configurationService);
 
     assert.deepEqual(service.getPlotOptions(), {
@@ -58,6 +60,7 @@ suite("platform/origin/electron-main/originMainService", () => {
       plotCommand: "plotxy iy:=((1,2))",
       postPlotCommands: ["rescale;", "legend -s;"],
       lineWidth: 3.25,
+      symbolShape: 5,
     });
 
     configurationService.dispose();

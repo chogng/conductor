@@ -422,6 +422,7 @@ export class SettingsController {
       postCommands: this.settings.originPlotPostCommandsDefault,
       type: this.settings.originPlotTypeDefault,
       lineWidth: this.settings.originPlotLineWidthDefault,
+      symbolShape: this.settings.originPlotSymbolShapeDefault,
       legendFontSize: this.settings.originPlotLegendFontSizeDefault,
       xyPairs: this.settings.originPlotXyPairsDefault,
     }, DEFAULT_ORIGIN_PLOT_OPTIONS);
