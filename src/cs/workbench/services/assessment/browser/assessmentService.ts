@@ -13,11 +13,11 @@ import {
   type ImportFileAssessment,
   type RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
-import type { AssessmentDiagnostic } from "src/cs/workbench/services/assessment/common/diagnostics";
-import type {
-  IvSweepMode,
-  MeasurementFamily,
-} from "src/cs/workbench/services/assessment/common/measurement";
+import {
+  createRawTableAssessmentRecordFromImportAssessment,
+  getColumnCount,
+  normalizePositiveCount,
+} from "src/cs/workbench/services/assessment/common/assessmentRecord";
 import {
   assessImportFile,
   assessImportRows,
@@ -43,107 +43,14 @@ export class AssessmentService extends Disposable implements IAssessmentServiceT
     const assessment = await this.assessImportRows(input.fileName ?? input.rawTableId, input.rows);
     const columnCount = normalizePositiveCount(input.columnCount) ?? getColumnCount(input.rows);
     const rowCount = normalizePositiveCount(input.rowCount) ?? input.rows.length;
-    const fullRange = {
-      startRow: 0,
-      endRow: Math.max(0, rowCount - 1),
-      startCol: 0,
-      endCol: Math.max(0, columnCount - 1),
-    };
-    const blockId = `${input.rawTableId}:block:0`;
-    const diagnosticCodes = assessment.curveTypeReasons.map((_, index) =>
-      `assessment.reason.${index + 1}`
-    );
-    const diagnostics: AssessmentDiagnostic[] = assessment.curveTypeReasons.map((reason, index) => ({
-      severity: "info",
-      code: diagnosticCodes[index],
-      message: reason,
-      relatedBlockId: blockId,
-    }));
 
-    return {
-      fileId: input.fileId,
-      rawTableId: input.rawTableId,
-      sourceRawTableVersion: input.sourceRawTableVersion,
-      groups: [],
-      blocks: [{
-        id: blockId,
-        fileId: input.fileId,
-        rawTableId: input.rawTableId,
-        label: assessment.curveType ?? input.fileName ?? input.rawTableId,
-        family: getMeasurementFamily(assessment),
-        ivMode: getIvMode(assessment),
-        source: {
-          fullRange,
-          dataRange: fullRange,
-        },
-        columns: {
-          columns: [],
-        },
-        confidence: getAssessmentConfidenceScore(assessment),
-        rowCount,
-        columnCount,
-        diagnosticCodes,
-      }],
-      diagnostics,
-      createdAt: Date.now(),
-    };
+    return createRawTableAssessmentRecordFromImportAssessment({
+      ...input,
+      assessment,
+      columnCount,
+      rowCount,
+    });
   }
 }
-
-const getColumnCount = (rows: AssessmentRows): number => {
-  let columnCount = 0;
-  for (const row of rows) {
-    columnCount = Math.max(columnCount, row.length);
-  }
-  return columnCount;
-};
-
-const getAssessmentConfidenceScore = (
-  assessment: ImportFileAssessment,
-): number => {
-  const confidence = assessment.curveTypeConfidence;
-  switch (confidence) {
-    case "high":
-      return 0.9;
-    case "medium":
-      return 0.6;
-    case "low":
-      return 0.3;
-  }
-
-  const exhaustive: never = confidence;
-  return exhaustive;
-};
-
-const normalizePositiveCount = (value: unknown): number | undefined => {
-  const count = Math.floor(Number(value));
-  return Number.isFinite(count) && count > 0 ? count : undefined;
-};
-
-const getMeasurementFamily = (
-  assessment: ImportFileAssessment,
-): MeasurementFamily => {
-  if (
-    assessment.curveFamily === "iv" ||
-    assessment.curveFamily === "cv" ||
-    assessment.curveFamily === "cf" ||
-    assessment.curveFamily === "pv" ||
-    assessment.curveFamily === "it"
-  ) {
-    return assessment.curveFamily;
-  }
-  return "unknown";
-};
-
-const getIvMode = (
-  assessment: ImportFileAssessment,
-): IvSweepMode | undefined => {
-  if (assessment.curveFamily === "iv") {
-    return assessment.ivMode === "transfer" || assessment.ivMode === "output"
-      ? assessment.ivMode
-      : "unknown";
-  }
-  return undefined;
-};
 
 registerSingleton(IAssessmentService, AssessmentService, InstantiationType.Delayed);

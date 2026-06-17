@@ -1,5 +1,5 @@
-use calamine::open_workbook_auto;
 use calamine::Reader;
+use calamine::open_workbook_auto;
 use std::fs;
 use std::io;
 use std::io::BufWriter;

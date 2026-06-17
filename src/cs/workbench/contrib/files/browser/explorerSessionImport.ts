@@ -13,7 +13,14 @@ import {
   createFileImportResultFromRecords,
   type ImportedFileRecord,
 } from "src/cs/workbench/services/files/common/files";
+import {
+  createRawTableAssessmentRecordFromImportAssessment,
+} from "src/cs/workbench/services/assessment/common/assessmentRecord";
+import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
 import type { ISessionService } from "src/cs/workbench/services/session/common/session";
+import {
+  markImportBadgeTrace,
+} from "src/cs/workbench/contrib/files/browser/importBadgeTrace";
 
 export type ExplorerSessionImportResult = {
   readonly importedFileIds: readonly string[];
@@ -30,6 +37,7 @@ type ExplorerSessionImportOptions = {
     ISessionService,
     | "clearSession"
     | "commitFileImport"
+    | "commitRawTableAssessments"
     | "getSnapshot"
   >;
 };
@@ -60,11 +68,22 @@ export const commitExplorerSessionImport = ({
   const importResult = createFileImportResultFromRecords(
     normalizedFiles.map(file => file.importRecord),
   );
+  markImportBadgeTrace("import.session.commit.start", {
+    fileCount: normalizedFiles.length,
+    mode,
+    preparedAssessmentCount: normalizedFiles.filter(file => file.preparedAssessment).length,
+  });
 
   if (mode === "replace") {
     sessionService.clearSession();
     const commitResult = sessionService.commitFileImport(importResult);
     const committedFileIds = commitResult.importedFileIds;
+    commitPreparedImportAssessments(normalizedFiles, committedFileIds, sessionService);
+    markImportBadgeTrace("import.session.commit.complete", {
+      committedFileCount: committedFileIds.length,
+      mode,
+      skippedDuplicateFileCount: commitResult.skippedDuplicateFileIds.length,
+    });
     const nextSelectedFileId = resolveExplorerSelectedFileId(
       selectedFileId ?? committedFileIds[0] ?? null,
       committedFileIds,
@@ -83,6 +102,12 @@ export const commitExplorerSessionImport = ({
 
   const commitResult = sessionService.commitFileImport(importResult);
   const committedFileIds = commitResult.importedFileIds;
+  commitPreparedImportAssessments(normalizedFiles, committedFileIds, sessionService);
+  markImportBadgeTrace("import.session.commit.complete", {
+    committedFileCount: committedFileIds.length,
+    mode,
+    skippedDuplicateFileCount: commitResult.skippedDuplicateFileIds.length,
+  });
   if (!committedFileIds.length) {
     return {
       importedFileIds: [],
@@ -108,6 +133,53 @@ export const commitExplorerSessionImport = ({
     selectedFileId: nextSelectedFileId,
     shouldNavigateToTable: true,
   };
+};
+
+const commitPreparedImportAssessments = (
+  importedFiles: readonly NormalizedPreparedFileImportInfo[],
+  committedFileIds: readonly string[],
+  sessionService: Pick<ISessionService, "commitRawTableAssessments" | "getSnapshot">,
+): void => {
+  const committedFileIdSet = new Set(committedFileIds);
+  if (!committedFileIdSet.size) {
+    return;
+  }
+
+  const snapshot = sessionService.getSnapshot();
+  const assessments: RawTableAssessmentRecord[] = [];
+  for (const importedFile of importedFiles) {
+    if (!committedFileIdSet.has(importedFile.fileId) || !importedFile.preparedAssessment) {
+      continue;
+    }
+
+    const file = snapshot.filesById[importedFile.fileId];
+    const rawTableId = normalizeFileId(file?.raw.tableOrder[0]);
+    const table = rawTableId ? file?.raw.tablesById[rawTableId] : undefined;
+    const sourceRawTableVersion = rawTableId
+      ? Math.floor(Number(file?.rawTableVersionsById?.[rawTableId]))
+      : NaN;
+    if (!file || !rawTableId || !table || !Number.isFinite(sourceRawTableVersion)) {
+      continue;
+    }
+
+    assessments.push(createRawTableAssessmentRecordFromImportAssessment({
+      assessment: importedFile.preparedAssessment,
+      columnCount: table.columnCount,
+      fileId: file.id,
+      fileName: file.name,
+      rawTableId,
+      rowCount: table.rowCount,
+      sourceRawTableVersion,
+    }));
+  }
+
+  if (assessments.length) {
+    sessionService.commitRawTableAssessments(assessments);
+  }
+  markImportBadgeTrace("import.assessment.prepared.commit", {
+    assessmentCount: assessments.length,
+    committedFileCount: committedFileIdSet.size,
+  });
 };
 
 const getSessionRawFileIds = (

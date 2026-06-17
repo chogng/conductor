@@ -2,9 +2,9 @@ mod analysis;
 mod assessment;
 mod cells;
 mod converter;
+mod dataset;
 mod detect;
 mod import;
-mod dataset;
 mod infer;
 mod legend;
 mod rc;
@@ -21,11 +21,12 @@ use converter::ConvertStats;
 use converter::collect_excel_files;
 use converter::convert_one;
 use converter::write_csv_cell;
-use detect::*;
-use import::build_import_assessment;
-use import::IMPORT_ASSESSMENT_PREVIEW_ROWS;
 use dataset::EngineDataset;
 use dataset::load_dataset;
+use dataset::load_import_dataset;
+use detect::*;
+use import::IMPORT_ASSESSMENT_PREVIEW_ROWS;
+use import::build_import_assessment;
 use infer::infer_auto_segmentation_from_x_values;
 use infer::infer_metadata_group_shape;
 use legend::LegendMode;
@@ -55,6 +56,9 @@ use std::thread;
 use std::time::Instant;
 use utils::*;
 
+const IMPORT_ASSESSMENT_BATCH_PARALLEL_MIN_ENTRIES: usize = 8;
+const IMPORT_ASSESSMENT_BATCH_MAX_THREADS: usize = 4;
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct EngineRequest {
@@ -67,6 +71,7 @@ struct EngineRequest {
     curve_filter_field: Option<String>,
     curve_filter_key: Option<String>,
     end_row: Option<usize>,
+    entries: Option<Vec<ImportAssessmentBatchEntry>>,
     file_id: Option<String>,
     file_name: Option<String>,
     id: u64,
@@ -76,6 +81,7 @@ struct EngineRequest {
     series: Option<Vec<AnalysisSeriesRequest>>,
     source_file: Option<AnalysisSourceFile>,
     start_row: Option<usize>,
+    threads: Option<usize>,
     total_row_count: Option<usize>,
     max_points: Option<usize>,
     metric_kind: Option<String>,
@@ -88,6 +94,13 @@ struct EngineRequest {
     x_scale_factor: Option<f64>,
     y_scale_factor: Option<f64>,
     y_transform: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportAssessmentBatchEntry {
+    file_name: Option<String>,
+    path: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -135,8 +148,6 @@ struct EngineResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<EngineError>,
 }
-
-
 
 fn auto_config_json(
     bottom_title: String,
@@ -1402,25 +1413,26 @@ fn process_file(
     } else {
         None
     };
-    let calculation_cache_ref =
-        if let (Some(cache), Some(cache_path)) = (calculation_cache.as_ref(), calculation_cache_path) {
-            let path = PathBuf::from(cache_path);
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent)
-                    .map_err(|error| format!("failed to create calculation cache dir: {}", error))?;
-            }
-            let bytes = serde_json::to_vec(cache)
-                .map_err(|error| format!("failed to encode calculation cache: {}", error))?;
-            fs::write(&path, &bytes)
-                .map_err(|error| format!("failed to write calculation cache: {}", error))?;
-            Some(json!({
-                "format": "json",
-                "path": path.to_string_lossy(),
-                "bytes": bytes.len(),
-            }))
-        } else {
-            None
-        };
+    let calculation_cache_ref = if let (Some(cache), Some(cache_path)) =
+        (calculation_cache.as_ref(), calculation_cache_path)
+    {
+        let path = PathBuf::from(cache_path);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("failed to create calculation cache dir: {}", error))?;
+        }
+        let bytes = serde_json::to_vec(cache)
+            .map_err(|error| format!("failed to encode calculation cache: {}", error))?;
+        fs::write(&path, &bytes)
+            .map_err(|error| format!("failed to write calculation cache: {}", error))?;
+        Some(json!({
+            "format": "json",
+            "path": path.to_string_lossy(),
+            "bytes": bytes.len(),
+        }))
+    } else {
+        None
+    };
 
     Ok(json!({
         "fileId": file_id,
@@ -2408,6 +2420,169 @@ fn export_origin_metrics_csv_sources(
     }))
 }
 
+fn resolve_import_file_name(path: &Path, file_name: Option<&str>) -> String {
+    file_name
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| value.trim().to_string())
+        .unwrap_or_else(|| {
+            path.file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("")
+                .to_string()
+        })
+}
+
+fn build_import_prepare_result(path: &Path, file_name: String) -> Result<Value, String> {
+    let import_result = load_import_dataset(path, IMPORT_ASSESSMENT_PREVIEW_ROWS)?;
+    let Some(summary) = import_result.summary else {
+        return Ok(json!({
+            "columnCount": 0,
+            "fileName": file_name,
+            "health": import_result.health,
+            "maxCellLengths": Vec::<usize>::new(),
+            "rowCount": 0,
+            "templateEligibility": "notEligible",
+        }));
+    };
+
+    Ok(json!({
+        "assessment": build_import_assessment(
+            &file_name,
+            summary.preview_rows,
+        ),
+        "columnCount": summary.column_count,
+        "fileName": file_name,
+        "health": import_result.health,
+        "maxCellLengths": summary.max_cell_lengths,
+        "rowCount": summary.row_count,
+    }))
+}
+
+fn import_batch_duration_ms(started: Instant) -> f64 {
+    started.elapsed().as_secs_f64() * 1000.0
+}
+
+fn build_import_batch_failure(code: &str, message: String, started: Instant) -> Value {
+    json!({
+        "ok": false,
+        "code": code,
+        "durationMs": import_batch_duration_ms(started),
+        "message": message,
+    })
+}
+
+fn assess_import_batch_entry(entry: &ImportAssessmentBatchEntry) -> Value {
+    let started = Instant::now();
+    let path_text = entry.path.trim();
+    if path_text.is_empty() {
+        return build_import_batch_failure(
+            "INVALID_IMPORT_PATH",
+            "missing path".to_string(),
+            started,
+        );
+    }
+
+    let path = PathBuf::from(path_text);
+    let file_name = resolve_import_file_name(&path, entry.file_name.as_deref());
+    match build_import_prepare_result(&path, file_name) {
+        Ok(mut value) => {
+            if let Some(object) = value.as_object_mut() {
+                object.insert("ok".to_string(), json!(true));
+                object.insert(
+                    "durationMs".to_string(),
+                    json!(import_batch_duration_ms(started)),
+                );
+                value
+            } else {
+                json!({
+                    "ok": true,
+                    "durationMs": import_batch_duration_ms(started),
+                    "value": value,
+                })
+            }
+        }
+        Err(message) => build_import_batch_failure("RUST_IMPORT_PREPARE_FAILED", message, started),
+    }
+}
+
+fn resolve_import_assessment_batch_threads(
+    entry_count: usize,
+    requested_threads: Option<usize>,
+) -> usize {
+    if entry_count < IMPORT_ASSESSMENT_BATCH_PARALLEL_MIN_ENTRIES {
+        return 1;
+    }
+
+    let available_threads = thread::available_parallelism()
+        .map(|value| value.get())
+        .unwrap_or(2)
+        .max(1);
+    let default_threads = available_threads
+        .saturating_sub(1)
+        .max(1)
+        .min(IMPORT_ASSESSMENT_BATCH_MAX_THREADS);
+    requested_threads
+        .unwrap_or(default_threads)
+        .max(1)
+        .min(available_threads)
+        .min(IMPORT_ASSESSMENT_BATCH_MAX_THREADS)
+        .min(entry_count)
+}
+
+fn assess_import_batch_entries(
+    entries: &[ImportAssessmentBatchEntry],
+    requested_threads: Option<usize>,
+) -> (Vec<Value>, usize) {
+    let worker_count = resolve_import_assessment_batch_threads(entries.len(), requested_threads);
+    if worker_count <= 1 {
+        return (
+            entries
+                .iter()
+                .map(assess_import_batch_entry)
+                .collect::<Vec<_>>(),
+            1,
+        );
+    }
+
+    let next_index = AtomicUsize::new(0);
+    let results = Mutex::new(
+        (0..entries.len())
+            .map(|_| None)
+            .collect::<Vec<Option<Value>>>(),
+    );
+    thread::scope(|scope| {
+        for _ in 0..worker_count {
+            scope.spawn(|| {
+                loop {
+                    let index = next_index.fetch_add(1, Ordering::Relaxed);
+                    let Some(entry) = entries.get(index) else {
+                        break;
+                    };
+                    let result = assess_import_batch_entry(entry);
+                    results.lock().expect("batch result lock poisoned")[index] = Some(result);
+                }
+            });
+        }
+    });
+
+    let values = results
+        .into_inner()
+        .expect("batch result lock poisoned")
+        .into_iter()
+        .map(|result| {
+            result.unwrap_or_else(|| {
+                json!({
+                    "ok": false,
+                    "code": "RUST_IMPORT_PREPARE_FAILED",
+                    "durationMs": 0,
+                    "message": "Rust import preparation did not produce a result.",
+                })
+            })
+        })
+        .collect::<Vec<_>>();
+    (values, worker_count)
+}
+
 fn handle_request(
     cache: &mut HashMap<String, EngineDataset>,
     request: EngineRequest,
@@ -2449,22 +2624,21 @@ fn handle_request(
                 .filter(|value| !value.trim().is_empty())
                 .ok_or_else(|| "missing path".to_string())?;
             let path = PathBuf::from(path_text);
-            let file_name = request.file_name.clone().unwrap_or_else(|| {
-                path.file_name()
-                    .and_then(|value| value.to_str())
-                    .unwrap_or("")
-                    .to_string()
-            });
-            let dataset = load_dataset(&path, &file_name)?;
+            let file_name = resolve_import_file_name(&path, request.file_name.as_deref());
+            build_import_prepare_result(&path, file_name)
+        }
+        "assessImportBatch" => {
+            let started = Instant::now();
+            let entries = request
+                .entries
+                .as_ref()
+                .filter(|entries| !entries.is_empty())
+                .ok_or_else(|| "missing entries".to_string())?;
+            let (results, parallelism) = assess_import_batch_entries(entries, request.threads);
             Ok(json!({
-                "assessment": build_import_assessment(
-                    &file_name,
-                    dataset.rows.iter().take(IMPORT_ASSESSMENT_PREVIEW_ROWS).cloned().collect(),
-                ),
-                "columnCount": dataset.column_count,
-                "fileName": file_name,
-                "maxCellLengths": dataset.max_cell_lengths,
-                "rowCount": dataset.rows.len(),
+                "durationMs": import_batch_duration_ms(started),
+                "parallelism": parallelism,
+                "results": results,
             }))
         }
         "previewRows" => {

@@ -6,6 +6,7 @@ import assert from "assert";
 
 import {
   convertImportFile,
+  convertPreparedImportFileResultSync,
   loadConvertedCsvFile,
 } from "src/cs/workbench/services/files/browser/fileConverter";
 import type {
@@ -177,6 +178,38 @@ suite("workbench/services/files/test/browser/fileConverter", () => {
     assert.equal(result.sheets?.length, 2);
     assert.equal(result.sheets?.[0]?.sheetName, "Forward");
     assert.equal(result.sheets?.[1]?.normalizedCsvPath, "C:/tmp/reverse.csv");
+  });
+
+  test("converts healthy prepared native CSV metadata without async validation", () => {
+    const service = createFileConverterBackendStub();
+    const result = convertPreparedImportFileResultSync({
+      fileConverterBackend: service,
+      metadata: {
+        fileName: "native.csv",
+        lastModified: 123,
+        size: 1024,
+      },
+      result: {
+        columnCount: 2,
+        health: {
+          state: "ok",
+          message: "",
+        },
+        normalizedCsvPath: "C:/data/native.csv",
+        ok: true,
+        rowCount: 8,
+        templateEligibility: "eligible",
+      },
+      sourcePath: "C:/data/native.csv",
+    });
+
+    assert.ok(result);
+    assert.equal(result.file.size, 0);
+    assert.equal(result.normalizedCsvPath, "C:/data/native.csv");
+    assert.equal(result.health?.state, "ok");
+    assert.equal(result.templateEligibility, "eligible");
+    assert.equal(result.rowCount, 8);
+    assert.equal(result.columnCount, 2);
   });
 });
 

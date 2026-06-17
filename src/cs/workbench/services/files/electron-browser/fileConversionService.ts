@@ -23,6 +23,11 @@ type DesktopIpcRenderer = {
 
 type FileConverterBridge = {
   prepareFileConversion?: (payload: { fileName: string; path: string }) => Promise<FileConverterPreparedFile>;
+  prepareFileConversions?: (payload: readonly { fileName: string; path: string }[]) => Promise<readonly FileConverterPreparedFile[]>;
+  prepareFileConversionsStream?: (
+    payload: readonly { fileName: string; path: string }[],
+    onResult: (message: { index: number; result: FileConverterPreparedFile }) => void,
+  ) => Promise<readonly FileConverterPreparedFile[]>;
   readConvertedCsvFileWithRust?: (payload: { path: string; maxRows?: number }) => Promise<FileConverterConvertedCsv>;
 };
 
@@ -104,6 +109,27 @@ export class FileConversionService extends Disposable implements IFileConverterB
     }
 
     return invoke<FileConverterPreparedFile>(workbenchIpcChannels.fileConversionPrepare, payload);
+  }
+
+  public prepareFiles(payloads: readonly { fileName: string; path: string }[]): Promise<readonly FileConverterPreparedFile[]> {
+    const bridge = getBridge();
+    if (bridge && hasBridgeMethod("prepareFileConversions")) {
+      return getBridgeMethod(bridge, "prepareFileConversions")(payloads);
+    }
+
+    return invoke<readonly FileConverterPreparedFile[]>(workbenchIpcChannels.fileConversionPrepareBatch, payloads);
+  }
+
+  public prepareFilesStream(
+    payloads: readonly { fileName: string; path: string }[],
+    onResult: (message: { index: number; result: FileConverterPreparedFile }) => void,
+  ): Promise<readonly FileConverterPreparedFile[]> {
+    const bridge = getBridge();
+    if (bridge && hasBridgeMethod("prepareFileConversionsStream")) {
+      return getBridgeMethod(bridge, "prepareFileConversionsStream")(payloads, onResult);
+    }
+
+    return this.prepareFiles(payloads);
   }
 
   public async readConvertedCsv(payload: { path: string; maxRows?: number }): Promise<FileConverterConvertedCsv> {

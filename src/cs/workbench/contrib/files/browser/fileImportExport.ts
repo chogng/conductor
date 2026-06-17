@@ -27,13 +27,15 @@ import {
   type IFileStat,
   type IFileService,
 } from "src/cs/platform/files/common/files";
-import { startPerf } from "src/cs/workbench/common/perf";
+import { getPerfNow, startPerf } from "src/cs/workbench/common/perf";
 import {
   IMPORT_ERROR_NOTIFICATION_ID,
+  FOLDER_IMPORT_BATCH_SIZE,
   FOLDER_IMPORT_STAT_CONCURRENCY,
   MAX_FOLDER_WALK_DEPTH,
 } from "src/cs/workbench/contrib/files/browser/fileConstants";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
+import type { ImportFileAssessment } from "src/cs/workbench/services/assessment/common/assessment";
 import {
   buildFileSourceIdentityKey,
   buildItemKey,
@@ -50,13 +52,21 @@ import {
 } from "src/cs/workbench/services/files/common/files";
 import {
   convertImportFile,
+  convertPreparedImportFileResult,
+  convertPreparedImportFileResultSync,
   createImportedFileRecord,
   FileConvertError,
   type ConvertedImportFile,
   type ConvertedImportSheet,
   type FileConverterSource,
 } from "src/cs/workbench/services/files/browser/fileConverter";
-import type { FileConverterBackend } from "src/cs/workbench/services/files/common/fileConverterBackend";
+import {
+  markImportBadgeTrace,
+} from "src/cs/workbench/contrib/files/browser/importBadgeTrace";
+import type {
+  FileConverterBackend,
+  FileConverterPreparedFile,
+} from "src/cs/workbench/services/files/common/fileConverterBackend";
 import {
   INotificationService,
   Severity,
@@ -145,6 +155,7 @@ export type PreparedFileImportInfo = SessionFile & {
   readonly size: number;
   readonly lastModified: number;
   readonly normalizedCsvPath?: string | null;
+  readonly preparedAssessment?: ImportFileAssessment;
   readonly relativePath?: string | null;
   readonly sourceKey?: string;
   readonly sourcePath?: string | null;
@@ -169,6 +180,7 @@ export type PendingImportSourceStatus = "pending" | "preparing" | "failed";
 
 export type PendingImportSourceStatusChange = {
   readonly message?: string | null;
+  readonly preparedAssessment?: ImportFileAssessment;
   readonly status: PendingImportSourceStatus;
 };
 
@@ -419,6 +431,11 @@ export class FileSourceWorkflow implements IDisposable {
       pendingImportFiles,
       unsupportedCount,
     } = collectPendingImportFiles([...newFiles]);
+    markImportBadgeTrace("import.sources.collected", {
+      fileCount: pendingImportFiles.length,
+      source: "files",
+      unsupportedCount,
+    });
     if (pendingImportFiles.length === 0) {
       finishBatchPerf({
         acceptedCount: 0,
@@ -499,14 +516,14 @@ export class FileSourceWorkflow implements IDisposable {
     const canApplyResult = (): boolean =>
       !this.options.isDisposed() && runId === this.importRunId;
     let acceptedCount = 0;
-    let hasStartedPreview = false;
+    let discoveredFileCount = 0;
+    let hasReplacedPreparedFiles = false;
     let hasPublishedPendingSources = false;
     let prepareQueue: Promise<void> = Promise.resolve();
     let prepareQueueError: unknown = null;
 
-    const queueRemainingFiles = (
+    const queuePendingImportFiles = (
       pendingImportFiles: readonly PendingImportFile[],
-      skippedIndexes: ReadonlySet<number>,
     ): void => {
       prepareQueue = prepareQueue
         .then(async () => {
@@ -519,9 +536,18 @@ export class FileSourceWorkflow implements IDisposable {
             failedFiles,
             fileConverterBackend: this.options.fileConverterBackendService,
             onPendingFileStatusChange: this.options.onUpdatePendingSourceFile,
-            onPreparedFiles: preparedFiles => this.options.onAppendPreparedFiles(preparedFiles),
+            onPreparedFiles: preparedFiles => {
+              if (hasReplacedPreparedFiles) {
+                this.options.onAppendPreparedFiles(preparedFiles);
+                return;
+              }
+
+              const selectedFileId = preparedFiles[0]?.fileInfo.fileId ?? null;
+              this.options.onReplacePreparedFiles(preparedFiles, selectedFileId);
+              hasReplacedPreparedFiles = true;
+            },
             pendingImportFiles,
-            skippedIndexes,
+            skippedIndexes: new Set<number>(),
           });
         })
         .catch((error) => {
@@ -543,6 +569,12 @@ export class FileSourceWorkflow implements IDisposable {
           if (pendingImportFiles.length === 0) {
             return;
           }
+          discoveredFileCount += pendingImportFiles.length;
+          markImportBadgeTrace("import.folder.batch", {
+            batchFileCount: pendingImportFiles.length,
+            discoveredFileCount,
+            folderPath: folder.fsPath,
+          });
 
           if (hasPublishedPendingSources) {
             this.options.onAppendPendingSourceFiles?.(pendingImportFiles);
@@ -551,38 +583,18 @@ export class FileSourceWorkflow implements IDisposable {
             hasPublishedPendingSources = true;
           }
 
-          if (hasStartedPreview) {
-            queueRemainingFiles(pendingImportFiles, new Set<number>());
-            return;
-          }
-
-          const firstImport = await prepareFirstPendingImportFile({
-            canApplyResult,
-            failedFiles,
-            fileConverterBackend: this.options.fileConverterBackendService,
-            onPendingFileStatusChange: this.options.onUpdatePendingSourceFile,
-            pendingImportFiles,
-            selectedRelativePath: null,
-          });
-          if (firstImport.result && canApplyResult()) {
-            const { prepared } = firstImport.result;
-            this.options.onReplacePreparedFiles(
-              [prepared],
-              prepared.fileInfo.fileId,
-            );
-            acceptedCount += 1;
-            hasStartedPreview = true;
-          }
-
-          queueRemainingFiles(
-            pendingImportFiles,
-            firstImport.attemptedIndexes,
-          );
+          queuePendingImportFiles(pendingImportFiles);
         },
       },
     );
 
     await prepareQueue;
+    markImportBadgeTrace("import.folder.collected", {
+      acceptedCount,
+      failedCount: failedFiles.length,
+      folderPath: folder.fsPath,
+      scannedCount: result.files.length,
+    });
 
     if (!canApplyResult()) {
       return;
@@ -850,6 +862,11 @@ export class FileSourceWorkflow implements IDisposable {
 
     if (pendingImportFiles.length > 0) {
       this.options.onAppendPendingSourceFiles?.(pendingImportFiles);
+      markImportBadgeTrace("import.sources.collected", {
+        fileCount: pendingImportFiles.length,
+        source: "workspace-change",
+        unsupportedCount,
+      });
       acceptedCount = await prepareRemainingPendingImportFiles({
         canApplyResult,
         failedFiles,
@@ -946,6 +963,7 @@ export class FileSourceWorkflow implements IDisposable {
 export const collectPendingImportFiles = (
   files: FileSource[],
 ): PendingImportFilesResult => {
+  const startedAt = getPerfNow();
   let hasAnyUnsupportedFiles = false;
   let unsupportedCount = 0;
   const pendingImportFiles: PendingImportFile[] = [];
@@ -993,6 +1011,14 @@ export const collectPendingImportFiles = (
     });
   }
 
+  markImportBadgeTrace("import.sources.normalized", {
+    durationMs: getPerfNow() - startedAt,
+    pendingFileCount: pendingImportFiles.length,
+    sourceFileCount: files.length,
+    totalSizeBytes: pendingImportFiles.reduce((sum, file) => sum + file.sourceSize, 0),
+    unsupportedCount,
+  });
+
   return {
     hasAnyUnsupportedFiles,
     pendingImportFiles,
@@ -1016,9 +1042,23 @@ export const preparePendingImportFile = async (
   let normalizedSizeBytes = 0;
   let importRecord: ImportedFileRecord;
   let prepared: ConvertedImportFile;
+  let fileId = "";
 
   try {
-    const fileId = createFileId();
+    markImportBadgeTrace("import.prepare.file.start", {
+      fileName: pendingImportFile.sourceName,
+      relativePath,
+      sourceKind: pendingImportFile.kind,
+      sourceSizeBytes: pendingImportFile.sourceSize,
+    });
+    const convertStartedAt = getPerfNow();
+    markImportBadgeTrace("import.prepare.convert.start", {
+      fileName: pendingImportFile.sourceName,
+      relativePath,
+      sourceKind: pendingImportFile.kind,
+      sourceSizeBytes: pendingImportFile.sourceSize,
+    });
+    fileId = createFileId();
     prepared = await convertImportFile(
       fileConverterBackend,
       sourceFile ?? null,
@@ -1030,22 +1070,25 @@ export const preparePendingImportFile = async (
         size: pendingImportFile.sourceSize,
       },
     );
-    normalizedFile = prepared.file;
-    normalizedCsvPath = prepared.normalizedCsvPath ?? null;
-    sourcePath = prepared.sourcePath ?? null;
-    normalizedSizeBytes = prepared.normalizedSizeBytes;
-    importRecord = await createImportedFileRecord({
-      file: normalizedFile,
-      fileId,
+    markImportBadgeTrace("import.prepare.convert.complete", {
+      durationMs: getPerfNow() - convertStartedAt,
       fileName: pendingImportFile.sourceName,
-      lastModified: normalizedFile.lastModified,
-      normalizedCsvPath,
-      rawKey: sourceKey,
+      hasPreparedAssessment: Boolean(prepared.assessment),
+      normalizedCsvPath: prepared.normalizedCsvPath ? "path" : null,
       relativePath,
-      sourcePath,
+      sourceKind: pendingImportFile.kind,
       sourceSizeBytes: pendingImportFile.sourceSize,
-      tables: createImportedRawTableInputs(prepared, fileId),
     });
+    const converted = await createPreparedImportFromConvertedFile({
+      fileId,
+      pendingImportFile,
+      prepared,
+    });
+    normalizedFile = converted.normalizedFile;
+    normalizedCsvPath = converted.normalizedCsvPath;
+    sourcePath = converted.sourcePath;
+    normalizedSizeBytes = converted.normalizedSizeBytes;
+    importRecord = converted.importRecord;
   } catch (error) {
     const failure = toPrepareFailure(
       error,
@@ -1056,13 +1099,20 @@ export const preparePendingImportFile = async (
       failed: "prepare",
       message: failure.message,
     });
+    markImportBadgeTrace("import.prepare.file.failed", {
+      code: failure.code,
+      fileName: pendingImportFile.sourceName,
+      message: failure.message,
+      relativePath,
+      sourceKind: pendingImportFile.kind,
+      sourceSizeBytes: pendingImportFile.sourceSize,
+    });
     return {
       error: failure,
       ok: false,
     };
   }
 
-  const fileId = importRecord.id;
   const fileEntry: PreparedFileImportEntry = {
     fileId,
     file: normalizedFile,
@@ -1080,6 +1130,7 @@ export const preparePendingImportFile = async (
     size: normalizedSizeBytes,
     lastModified: normalizedFile.lastModified,
     normalizedCsvPath,
+    preparedAssessment: prepared.assessment,
     relativePath,
     sourceKey,
     sourcePath,
@@ -1090,10 +1141,60 @@ export const preparePendingImportFile = async (
     fileId,
     normalizedSizeBytes,
   });
+  markImportBadgeTrace("import.prepare.file.complete", {
+    fileId,
+    fileName: pendingImportFile.sourceName,
+    hasPreparedAssessment: Boolean(prepared.assessment),
+    normalizedSizeBytes,
+    relativePath,
+    sourceKind: pendingImportFile.kind,
+    sourceSizeBytes: pendingImportFile.sourceSize,
+  });
 
   return {
     ok: true,
     prepared: { fileEntry, fileInfo },
+  };
+};
+
+const createPreparedImportFromConvertedFile = async ({
+  fileId,
+  pendingImportFile,
+  prepared,
+}: {
+  readonly fileId: string;
+  readonly pendingImportFile: PendingImportFile;
+  readonly prepared: ConvertedImportFile;
+}): Promise<{
+  readonly importRecord: ImportedFileRecord;
+  readonly normalizedCsvPath: string | null;
+  readonly normalizedFile: File;
+  readonly normalizedSizeBytes: number;
+  readonly sourcePath: string | null;
+}> => {
+  const normalizedFile = prepared.file;
+  const normalizedCsvPath = prepared.normalizedCsvPath ?? null;
+  const sourcePath = prepared.sourcePath ?? null;
+  const normalizedSizeBytes = prepared.normalizedSizeBytes;
+  const importRecord = await createImportedFileRecord({
+    file: normalizedFile,
+    fileId,
+    fileName: pendingImportFile.sourceName,
+    lastModified: normalizedFile.lastModified,
+    normalizedCsvPath,
+    rawKey: pendingImportFile.sourceKey,
+    relativePath: pendingImportFile.relativePath,
+    sourcePath,
+    sourceSizeBytes: pendingImportFile.sourceSize,
+    tables: createImportedRawTableInputs(prepared, fileId),
+  });
+
+  return {
+    importRecord,
+    normalizedCsvPath,
+    normalizedFile,
+    normalizedSizeBytes,
+    sourcePath,
   };
 };
 
@@ -1180,6 +1281,12 @@ export async function prepareFirstPendingImportFile({
       });
       continue;
     }
+    if (preparedImportFile.prepared.fileInfo.preparedAssessment) {
+      onPendingFileStatusChange?.(pendingImportFile, {
+        preparedAssessment: preparedImportFile.prepared.fileInfo.preparedAssessment,
+        status: "preparing",
+      });
+    }
 
     return {
       attemptedIndexes,
@@ -1222,6 +1329,19 @@ export async function prepareRemainingPendingImportFiles({
     return 0;
   }
 
+  const batchAcceptedCount = await prepareRemainingPendingImportFilesBatch({
+    canApplyResult,
+    failedFiles,
+    fileConverterBackend,
+    onPendingFileStatusChange,
+    onPreparedFiles,
+    pendingImportFiles,
+    remainingIndexes,
+  });
+  if (batchAcceptedCount !== null) {
+    return batchAcceptedCount;
+  }
+
   const readyByIndex = new Map<number, PreparedFileImport>();
   const completedIndexes = new Set<number>();
   let nextAppendOffset = 0;
@@ -1254,7 +1374,13 @@ export async function prepareRemainingPendingImportFiles({
       return 0;
     }
 
+    const appendStartedAt = getPerfNow();
     onPreparedFiles(preparedFiles);
+    markImportBadgeTrace("import.prepare.append", {
+      durationMs: getPerfNow() - appendStartedAt,
+      fileCount: preparedFiles.length,
+      mode: "workers",
+    });
     return preparedFiles.length;
   };
 
@@ -1299,6 +1425,12 @@ export async function prepareRemainingPendingImportFiles({
         }
         completedIndexes.add(index);
         acceptedCount += flushReadyImports();
+        markImportBadgeTrace("import.prepare.progress", {
+          acceptedCount,
+          completedCount: completedIndexes.size,
+          failedCount: failedFiles.length,
+          totalCount: remainingIndexes.length,
+        });
       }
     }),
   );
@@ -1306,9 +1438,374 @@ export async function prepareRemainingPendingImportFiles({
   while (flushReadyImports() > 0) {
     // Drain completed batches larger than PENDING_IMPORT_APPEND_BATCH_SIZE.
   }
+  markImportBadgeTrace("import.prepare.complete", {
+    acceptedCount,
+    completedCount: completedIndexes.size,
+    failedCount: failedFiles.length,
+    totalCount: remainingIndexes.length,
+  });
 
   return acceptedCount;
 }
+
+async function prepareRemainingPendingImportFilesBatch({
+  canApplyResult,
+  failedFiles,
+  fileConverterBackend,
+  onPendingFileStatusChange,
+  onPreparedFiles,
+  pendingImportFiles,
+  remainingIndexes,
+}: {
+  readonly canApplyResult: () => boolean;
+  readonly failedFiles: FileImportPrepareFailure[];
+  readonly fileConverterBackend: FileConverterBackend;
+  readonly onPendingFileStatusChange?: (
+    pendingFile: PendingImportFile,
+    change: PendingImportSourceStatusChange,
+  ) => void;
+  readonly onPreparedFiles: (preparedFiles: readonly PreparedFileImport[]) => void;
+  readonly pendingImportFiles: readonly PendingImportFile[];
+  readonly remainingIndexes: readonly number[];
+}): Promise<number | null> {
+  if (
+    typeof fileConverterBackend.prepareFiles !== "function" &&
+    typeof fileConverterBackend.prepareFilesStream !== "function"
+  ) {
+    return null;
+  }
+
+  const payloads: Array<{ fileName: string; path: string }> = [];
+  const batchFiles: PendingImportFile[] = [];
+  for (const index of remainingIndexes) {
+    const pendingImportFile = pendingImportFiles[index];
+    if (!pendingImportFile) {
+      return null;
+    }
+
+    const source = resolveFileConverterSource(pendingImportFile);
+    if (source.kind !== "path" || !source.path.trim()) {
+      return null;
+    }
+
+    payloads.push({
+      fileName: pendingImportFile.sourceName,
+      path: source.path.trim(),
+    });
+    batchFiles.push(pendingImportFile);
+  }
+  if (!payloads.length) {
+    return 0;
+  }
+
+  for (const pendingImportFile of batchFiles) {
+    onPendingFileStatusChange?.(pendingImportFile, {
+      status: "preparing",
+    });
+    markImportBadgeTrace("import.prepare.file.start", {
+      fileName: pendingImportFile.sourceName,
+      relativePath: pendingImportFile.relativePath,
+      sourceKind: pendingImportFile.kind,
+      sourceSizeBytes: pendingImportFile.sourceSize,
+    });
+  }
+
+  markImportBadgeTrace("import.prepare.batch.start", {
+    fileCount: batchFiles.length,
+    totalSizeBytes: batchFiles.reduce((sum, file) => sum + file.sourceSize, 0),
+  });
+
+  const readyByOffset = new Map<number, PreparedFileImport>();
+  const completedOffsets = new Set<number>();
+  const scheduledOffsets = new Set<number>();
+  const resultTasks: Promise<void>[] = [];
+  let nextAppendOffset = 0;
+  let acceptedCount = 0;
+
+  const flushReadyImports = (): number => {
+    const readyFiles: PreparedFileImport[] = [];
+    while (completedOffsets.has(nextAppendOffset)) {
+      const preparedFile = readyByOffset.get(nextAppendOffset);
+      if (preparedFile) {
+        readyFiles.push(preparedFile);
+      }
+      readyByOffset.delete(nextAppendOffset);
+      nextAppendOffset += 1;
+    }
+
+    if (!canApplyResult()) {
+      return 0;
+    }
+
+    if (readyFiles.length) {
+      const appendStartedAt = getPerfNow();
+      onPreparedFiles(readyFiles);
+      markImportBadgeTrace("import.prepare.append", {
+        durationMs: getPerfNow() - appendStartedAt,
+        fileCount: readyFiles.length,
+        mode: "batch",
+      });
+    }
+    return readyFiles.length;
+  };
+
+  const getFlushableOffsetCount = (): number => {
+    let count = 0;
+    let offset = nextAppendOffset;
+    while (completedOffsets.has(offset)) {
+      count += 1;
+      offset += 1;
+    }
+    return count;
+  };
+
+  const flushReadyImportsWhenUseful = (): number => {
+    const flushableOffsetCount = getFlushableOffsetCount();
+    if (
+      flushableOffsetCount < PENDING_IMPORT_APPEND_BATCH_SIZE &&
+      completedOffsets.size < batchFiles.length
+    ) {
+      return 0;
+    }
+
+    return flushReadyImports();
+  };
+
+  const scheduleResult = (offset: number, result: FileConverterPreparedFile | undefined): void => {
+    if (
+      !Number.isInteger(offset) ||
+      offset < 0 ||
+      offset >= batchFiles.length ||
+      scheduledOffsets.has(offset)
+    ) {
+      return;
+    }
+
+    scheduledOffsets.add(offset);
+    const task = (async () => {
+      const pendingImportFile = batchFiles[offset];
+      if (!result?.ok) {
+        const failure = toPrepareFailure(
+          new FileConvertError(
+            typeof result?.message === "string" && result.message.trim()
+              ? result.message
+              : "Rust import preparation failed.",
+            typeof result?.code === "string" ? result.code : null,
+          ),
+          pendingImportFile.relativePath || pendingImportFile.sourceName,
+        );
+        failedFiles.push(failure);
+        onPendingFileStatusChange?.(pendingImportFile, {
+          message: failure.message,
+          status: "failed",
+        });
+        markImportBadgeTrace("import.prepare.file.failed", {
+          code: failure.code,
+          fileName: pendingImportFile.sourceName,
+          message: failure.message,
+          relativePath: pendingImportFile.relativePath,
+          sourceKind: pendingImportFile.kind,
+          sourceSizeBytes: pendingImportFile.sourceSize,
+        });
+        completedOffsets.add(offset);
+        acceptedCount += flushReadyImports();
+        return;
+      }
+
+      try {
+        const materializeStartedAt = getPerfNow();
+        markImportBadgeTrace("import.prepare.result.materialize.start", {
+          fileName: pendingImportFile.sourceName,
+          index: offset,
+          ok: Boolean(result.ok),
+          resultDurationMs: readTraceDurationMs(result.durationMs),
+          sourceSizeBytes: pendingImportFile.sourceSize,
+        });
+        const fileId = createFileId();
+        const convertOptions = {
+          fileConverterBackend,
+          metadata: {
+            fileName: pendingImportFile.sourceName,
+            lastModified: pendingImportFile.lastModified,
+            loadFile: pendingImportFile.loadFile,
+            size: pendingImportFile.sourceSize,
+          },
+          result,
+          sourcePath: payloads[offset].path,
+        };
+        const syncPrepared = convertPreparedImportFileResultSync(convertOptions);
+        const prepared = syncPrepared ?? await convertPreparedImportFileResult(convertOptions);
+        const converted = await createPreparedImportFromConvertedFile({
+          fileId,
+          pendingImportFile,
+          prepared,
+        });
+        markImportBadgeTrace("import.prepare.result.materialize.complete", {
+          durationMs: getPerfNow() - materializeStartedAt,
+          fileName: pendingImportFile.sourceName,
+          hasHealth: Boolean(prepared.health),
+          hasPreparedAssessment: Boolean(prepared.assessment),
+          index: offset,
+          normalizedCsvPath: prepared.normalizedCsvPath ? "path" : null,
+          sourceSizeBytes: pendingImportFile.sourceSize,
+        });
+        if (prepared.assessment) {
+          onPendingFileStatusChange?.(pendingImportFile, {
+            preparedAssessment: prepared.assessment,
+            status: "preparing",
+          });
+        }
+        readyByOffset.set(offset, {
+          fileEntry: {
+            fileId: converted.importRecord.id,
+            file: converted.normalizedFile,
+            itemKey: buildItemKey(converted.normalizedFile, pendingImportFile.relativePath),
+            normalizedCsvPath: converted.normalizedCsvPath,
+            relativePath: pendingImportFile.relativePath,
+            sourceKey: pendingImportFile.sourceKey,
+            sourcePath: converted.sourcePath,
+          },
+          fileInfo: {
+            fileId: converted.importRecord.id,
+            fileName: pendingImportFile.sourceName,
+            file: converted.normalizedFile,
+            importRecord: converted.importRecord,
+            size: converted.normalizedSizeBytes,
+            lastModified: converted.normalizedFile.lastModified,
+            normalizedCsvPath: converted.normalizedCsvPath,
+            preparedAssessment: prepared.assessment,
+            relativePath: pendingImportFile.relativePath,
+            sourceKey: pendingImportFile.sourceKey,
+            sourcePath: converted.sourcePath,
+          },
+        });
+        markImportBadgeTrace("import.prepare.file.complete", {
+          fileId: converted.importRecord.id,
+          fileName: pendingImportFile.sourceName,
+          hasPreparedAssessment: Boolean(prepared.assessment),
+          normalizedSizeBytes: converted.normalizedSizeBytes,
+          relativePath: pendingImportFile.relativePath,
+          sourceKind: pendingImportFile.kind,
+          sourceSizeBytes: pendingImportFile.sourceSize,
+        });
+      } catch (error) {
+        const failure = toPrepareFailure(
+          error,
+          pendingImportFile.relativePath || pendingImportFile.sourceName,
+        );
+        failedFiles.push(failure);
+        onPendingFileStatusChange?.(pendingImportFile, {
+          message: failure.message,
+          status: "failed",
+        });
+        markImportBadgeTrace("import.prepare.file.failed", {
+          code: failure.code,
+          fileName: pendingImportFile.sourceName,
+          message: failure.message,
+          relativePath: pendingImportFile.relativePath,
+          sourceKind: pendingImportFile.kind,
+          sourceSizeBytes: pendingImportFile.sourceSize,
+        });
+      } finally {
+        completedOffsets.add(offset);
+        acceptedCount += flushReadyImportsWhenUseful();
+        markImportBadgeTrace("import.prepare.progress", {
+          acceptedCount,
+          completedCount: completedOffsets.size,
+          failedCount: failedFiles.length,
+          totalCount: batchFiles.length,
+        });
+      }
+    })();
+    resultTasks.push(task);
+  };
+
+  try {
+    const backendMode = typeof fileConverterBackend.prepareFilesStream === "function"
+      ? "stream"
+      : "batch";
+    const backendStartedAt = getPerfNow();
+    markImportBadgeTrace("import.prepare.backend.invoke.start", {
+      fileCount: payloads.length,
+      mode: backendMode,
+      totalSizeBytes: batchFiles.reduce((sum, file) => sum + file.sourceSize, 0),
+    });
+    const results = backendMode === "stream"
+        ? await fileConverterBackend.prepareFilesStream!(payloads, message => {
+          markImportBadgeTrace("import.prepare.backend.result", {
+            batchDurationMs: readTraceDurationMs(message.result?.batchDurationMs),
+            batchParallelism: Number(message.result?.batchParallelism) || null,
+            cacheHit: message.result?.cacheHit === true,
+            code: message.result?.code ?? null,
+            fileName: batchFiles[message.index]?.sourceName ?? null,
+            healthState: message.result?.health?.state ?? null,
+            index: message.index,
+            ok: Boolean(message.result?.ok),
+            resultDurationMs: readTraceDurationMs(message.result?.durationMs),
+            source: message.result?.source ?? null,
+            sourceSizeBytes: batchFiles[message.index]?.sourceSize ?? null,
+          });
+          scheduleResult(message.index, message.result);
+        })
+      : await fileConverterBackend.prepareFiles!(payloads);
+    markImportBadgeTrace("import.prepare.backend.invoke.complete", {
+      durationMs: getPerfNow() - backendStartedAt,
+      fileCount: payloads.length,
+      mode: backendMode,
+      resultCount: results.length,
+      streamedResultCount: scheduledOffsets.size,
+    });
+    for (let offset = 0; offset < batchFiles.length; offset += 1) {
+      if (!scheduledOffsets.has(offset)) {
+        markImportBadgeTrace("import.prepare.backend.result", {
+          batchDurationMs: readTraceDurationMs(results[offset]?.batchDurationMs),
+          batchParallelism: Number(results[offset]?.batchParallelism) || null,
+          cacheHit: results[offset]?.cacheHit === true,
+          code: results[offset]?.code ?? null,
+          fileName: batchFiles[offset]?.sourceName ?? null,
+          healthState: results[offset]?.health?.state ?? null,
+          index: offset,
+          ok: Boolean(results[offset]?.ok),
+          resultDurationMs: readTraceDurationMs(results[offset]?.durationMs),
+          source: results[offset]?.source ?? null,
+          sourceSizeBytes: batchFiles[offset]?.sourceSize ?? null,
+        });
+      }
+      scheduleResult(offset, results[offset]);
+    }
+    await Promise.all(resultTasks);
+  } catch (error) {
+    markImportBadgeTrace("import.prepare.batch.failed", {
+      completedCount: completedOffsets.size,
+      fileCount: batchFiles.length,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return completedOffsets.size ? acceptedCount : null;
+  }
+  if (!canApplyResult()) {
+    return 0;
+  }
+  acceptedCount += flushReadyImports();
+
+  markImportBadgeTrace("import.prepare.batch.complete", {
+    acceptedCount,
+    failedCount: failedFiles.length,
+    fileCount: batchFiles.length,
+  });
+  markImportBadgeTrace("import.prepare.complete", {
+    acceptedCount,
+    completedCount: batchFiles.length,
+    failedCount: failedFiles.length,
+    totalCount: batchFiles.length,
+  });
+
+  return acceptedCount;
+}
+
+const readTraceDurationMs = (value: unknown): number | null => {
+  const durationMs = Number(value);
+  return Number.isFinite(durationMs) && durationMs >= 0 ? durationMs : null;
+};
 
 export const buildImportErrorMessage = ({
   failedFiles,
@@ -1843,6 +2340,7 @@ const createDroppedFileSource = ({
 export const collectDroppedFiles = async (
   dataTransfer: DataTransfer,
 ): Promise<FileSource[]> => {
+  const startedAt = getPerfNow();
   const droppedFiles: DroppedFile[] = [];
   const items = Array.from(dataTransfer.items) as DataTransferItemWithFileSystemAccess[];
   const droppedItems = items.map(snapshotDroppedDataTransferItem);
@@ -1881,7 +2379,16 @@ export const collectDroppedFiles = async (
     droppedFiles.push({ file, relativePath });
   }
 
-  return droppedFiles.map(createDroppedFileSource);
+  const sources = droppedFiles.map(createDroppedFileSource);
+  markImportBadgeTrace("import.drop.collected", {
+    dataTransferFileCount: dataTransfer.files.length,
+    durationMs: getPerfNow() - startedAt,
+    itemCount: items.length,
+    sourceCount: sources.length,
+    totalSizeBytes: sources.reduce((sum, source) => sum + source.file.size, 0),
+  });
+
+  return sources;
 };
 
 const getDroppedFileKey = (file: File, relativePath?: string | null): string =>
@@ -2124,13 +2631,26 @@ export async function collectFolderImportFilesIncrementally(
   filesService: IFileService,
   options: CollectFolderImportFilesOptions = {},
 ): Promise<FolderFileCollection> {
+  const startedAt = getPerfNow();
   const root = URI.revive(folder);
   const rootName = getPathBaseName(root.path) || "Folder";
   const files: FolderImportFileSource[] = [];
   const readFailures: FolderFileReadFailure[] = [];
   const canUseNativePath = !(filesService.getProvider(root.scheme) instanceof HTMLFileSystemProvider);
 
+  markImportBadgeTrace("import.folder.scan.start", {
+    canUseNativePath,
+    folderPath: root.fsPath || root.toString(),
+  });
   await collectFolderFilesAt(root, rootName, files, readFailures, 0, filesService, options, canUseNativePath);
+  markImportBadgeTrace("import.folder.scan.complete", {
+    canUseNativePath,
+    durationMs: getPerfNow() - startedAt,
+    fileCount: files.length,
+    folderPath: root.fsPath || root.toString(),
+    readFailureCount: readFailures.length,
+    totalSizeBytes: files.reduce((sum, file) => sum + file.size, 0),
+  });
   return { files, readFailures };
 }
 
@@ -2153,11 +2673,19 @@ async function collectFolderFilesAt(
   }
 
   let entries: readonly [string, FileType][];
+  const readDirStartedAt = getPerfNow();
   try {
     entries = await filesService.readDir(folder);
   } catch (error) {
     readFailures.push({
       fileName: getPathBaseName(relativeFolderPath) || relativeFolderPath,
+      message: getErrorMessage(error),
+      relativePath: relativeFolderPath,
+    });
+    markImportBadgeTrace("import.folder.readDir.failed", {
+      depth,
+      durationMs: getPerfNow() - readDirStartedAt,
+      folderPath: folder.fsPath || folder.toString(),
       message: getErrorMessage(error),
       relativePath: relativeFolderPath,
     });
@@ -2192,6 +2720,15 @@ async function collectFolderFilesAt(
       resource: child,
     });
   }
+  markImportBadgeTrace("import.folder.readDir.complete", {
+    depth,
+    durationMs: getPerfNow() - readDirStartedAt,
+    entryCount: entries.length,
+    fileTaskCount: fileTasks.length,
+    folderPath: folder.fsPath || folder.toString(),
+    folderTaskCount: folderTasks.length,
+    relativePath: relativeFolderPath,
+  });
 
   const sortedFolderTasks = [...folderTasks].sort(compareFolderTasks);
   for (const task of sortedFolderTasks) {
@@ -2216,21 +2753,28 @@ async function collectFolderFilesAt(
     for (
       let startIndex = 0;
       startIndex < sortedFileTasks.length;
-      startIndex += FOLDER_IMPORT_STAT_CONCURRENCY
+      startIndex += FOLDER_IMPORT_BATCH_SIZE
     ) {
       if (!shouldContinueCollecting(options)) {
         return;
       }
 
       const batch = await statFolderFileTasks(
-        sortedFileTasks.slice(startIndex, startIndex + FOLDER_IMPORT_STAT_CONCURRENCY),
+        sortedFileTasks.slice(startIndex, startIndex + FOLDER_IMPORT_BATCH_SIZE),
         filesService,
         canUseNativePath,
       );
       files.push(...batch.files);
       readFailures.push(...batch.readFailures);
       if (batch.files.length > 0 && shouldContinueCollecting(options)) {
+        const onBatchStartedAt = getPerfNow();
         await options.onBatch?.({ files: batch.files });
+        markImportBadgeTrace("import.folder.onBatch.complete", {
+          durationMs: getPerfNow() - onBatchStartedAt,
+          fileCount: batch.files.length,
+          relativePath: relativeFolderPath,
+          totalSizeBytes: batch.files.reduce((sum, file) => sum + file.size, 0),
+        });
       }
     }
   }
@@ -2288,6 +2832,7 @@ async function statFolderFileTasks(
   const workerCount = Math.min(FOLDER_IMPORT_STAT_CONCURRENCY, tasks.length);
   const files: FolderImportFileSource[] = [];
   const readFailures: FolderFileReadFailure[] = [];
+  const startedAt = getPerfNow();
 
   await Promise.all(Array.from({ length: workerCount }, async () => {
     while (true) {
@@ -2341,6 +2886,16 @@ async function statFolderFileTasks(
       });
     }
   }
+
+  markImportBadgeTrace("import.folder.statBatch.complete", {
+    canUseNativePath,
+    durationMs: getPerfNow() - startedAt,
+    fileCount: files.length,
+    readFailureCount: readFailures.length,
+    taskCount: tasks.length,
+    totalSizeBytes: files.reduce((sum, file) => sum + file.size, 0),
+    workerCount,
+  });
 
   return { files, readFailures };
 }

@@ -6,8 +6,8 @@ use crate::utils::json_string;
 use crate::utils::json_usize;
 use crate::utils::json_usize_array;
 use crate::utils::normalize_header_compact;
-use serde_json::json;
 use serde_json::Value;
+use serde_json::json;
 
 // Branch family: semantic-columns
 // These rules classify columns by label meaning, such as voltage/current/frequency/

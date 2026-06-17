@@ -58,10 +58,14 @@ import {
 import {
   commitExplorerSessionImport,
 } from "src/cs/workbench/contrib/files/browser/explorerSessionImport";
+import {
+  markImportBadgeTrace,
+} from "src/cs/workbench/contrib/files/browser/importBadgeTrace";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
   assessFastImportBadge,
 } from "src/cs/workbench/services/assessment/common/fileAssessment";
+import type { ImportFileAssessment } from "src/cs/workbench/services/assessment/common/assessment";
 import {
   IThumbnailPreviewService,
   IThumbnailService,
@@ -290,6 +294,8 @@ export class ExplorerViewPane extends ViewPane {
 
   private createExplorerViewProps(): ExplorerViewProps {
     const input = this.paneInput;
+    const files = this.files;
+    markExplorerBadgeProjection(files);
     return {
       selectedFileId: this.selectedFileId,
       expandedFolderKeys: this.explorerService.expandedFolderKeys,
@@ -307,7 +313,7 @@ export class ExplorerViewPane extends ViewPane {
       fileTemplateSelectionsByFileId: input.fileTemplateSelectionsByFileId,
       editable: this.explorerService.getContext().editable,
       templateRecords: this.templateRecords,
-      files: this.files,
+      files,
       folderImportSupport: getFolderImportSupportForFileService(this.filesService),
       isDragging: this.isDragging,
       mode: input.mode,
@@ -380,6 +386,7 @@ export class ExplorerViewPane extends ViewPane {
 
       const current = entriesBySourceKey.get(sourceKey);
       entriesBySourceKey.set(sourceKey, createPendingSourceEntry({
+        badgeState: current?.badgeState,
         message: current?.sourceStatusMessage ?? null,
         pendingFile,
         status: current?.sourceStatus ?? "pending",
@@ -408,6 +415,7 @@ export class ExplorerViewPane extends ViewPane {
     const pendingEntries = this.pendingSourceEntries.map(entry =>
       normalizeSourceKey(entry.sourceKey) === sourceKey
         ? createPendingSourceEntry({
+            badgeState: createPendingAssessmentBadgeState(change.preparedAssessment) ?? entry.badgeState,
             message: change.message ?? null,
             pendingFile,
             status: change.status,
@@ -416,6 +424,7 @@ export class ExplorerViewPane extends ViewPane {
     );
     if (!pendingEntries.some(entry => normalizeSourceKey(entry.sourceKey) === sourceKey)) {
       pendingEntries.push(createPendingSourceEntry({
+        badgeState: createPendingAssessmentBadgeState(change.preparedAssessment),
         message: change.message ?? null,
         pendingFile,
         status: change.status,
@@ -870,18 +879,60 @@ export class ExplorerViewPane extends ViewPane {
   }
 }
 
+const markExplorerBadgeProjection = (
+  files: readonly ExplorerFileEntry[],
+): void => {
+  if (!files.length) {
+    return;
+  }
+
+  let assessmentBadgeCount = 0;
+  let fastBadgeCount = 0;
+  let pendingBadgeCount = 0;
+  let loadingSourceCount = 0;
+  let failedSourceCount = 0;
+  for (const file of files) {
+    if (file.badgeState?.kind === "ready" || file.badgeState?.kind === "unknown") {
+      if (file.badgeState.source === "assessment") {
+        assessmentBadgeCount += 1;
+      } else if (file.badgeState.source === "fast") {
+        fastBadgeCount += 1;
+      }
+    } else if (file.badgeState?.kind === "pending") {
+      pendingBadgeCount += 1;
+    }
+
+    if (file.sourceStatus === "pending" || file.sourceStatus === "preparing") {
+      loadingSourceCount += 1;
+    } else if (file.sourceStatus === "failed") {
+      failedSourceCount += 1;
+    }
+  }
+
+  markImportBadgeTrace("import.badge.projection", {
+    assessmentBadgeCount,
+    failedSourceCount,
+    fastBadgeCount,
+    loadingSourceCount,
+    pendingBadgeCount,
+    totalFileCount: files.length,
+  });
+};
+
 function createPendingSourceEntry({
+  badgeState,
   message,
   pendingFile,
   status,
 }: {
+  readonly badgeState?: ExplorerFileEntry["badgeState"];
   readonly message: string | null;
   readonly pendingFile: PendingImportFile;
   readonly status: ExplorerFileEntry["sourceStatus"];
 }): ExplorerFileEntry {
   const relativePath = normalizeRelativePath(pendingFile.relativePath);
   return {
-    badgeState: createPendingFastBadgeState(pendingFile),
+    badgeState: badgeState ?? createPendingFastBadgeState(pendingFile),
     fileName: pendingFile.sourceName,
     itemKey: pendingFile.sourceKey,
     relativePath,
@@ -890,6 +941,37 @@ function createPendingSourceEntry({
     sourceStatus: status,
     sourceStatusMessage: message,
   };
+}
+
+function createPendingAssessmentBadgeState(
+  assessment: ImportFileAssessment | undefined,
+): ExplorerFileEntry["badgeState"] | undefined {
+  if (!assessment) {
+    return undefined;
+  }
+
+  const curveType = String(assessment.curveType ?? "").trim();
+  if (!curveType || curveType.toLowerCase() === "unknown") {
+    return {
+      kind: "unknown",
+      source: "assessment",
+    };
+  }
+
+  const label = toExplorerBadgeLabel(curveType);
+  return label
+    ? {
+        confidence: "confirmed",
+        kind: "ready",
+        label,
+        message: assessment.curveTypeReasons.join("; ") || null,
+        source: "assessment",
+      }
+    : {
+        kind: "unknown",
+        source: "assessment",
+        suspectedType: curveType,
+      };
 }
 
 function createPendingFastBadgeState(

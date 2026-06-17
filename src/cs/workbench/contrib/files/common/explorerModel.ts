@@ -16,6 +16,7 @@ import type {
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
 	collectFileRecordBaseCurves,
+	collectFileRecordMeasurementBlocks,
 	getFileRecordAxisProjection,
 	getFileRecordCurveType,
 } from "src/cs/workbench/services/session/common/sessionRecordProjection";
@@ -403,7 +404,8 @@ export const toExplorerBadgeLabel = (
 };
 
 const hasFileRecordChartData = (file: FileRecord): boolean =>
-	collectFileRecordBaseCurves(file).length > 0;
+	collectFileRecordBaseCurves(file).length > 0 ||
+	collectFileRecordMeasurementBlocks(file).length > 0;
 
 const hasExplorerAssessmentSummary = (
 	file: Pick<

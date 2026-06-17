@@ -12,6 +12,7 @@ import type {
   PreparedFileImportInfo,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import type { ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
+import type { ImportFileAssessment } from "src/cs/workbench/services/assessment/common/assessment";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -159,12 +160,45 @@ suite("workbench/contrib/files/test/browser/explorerSessionImport", () => {
       },
     );
   });
+
+  test("commits prepared import assessments with the imported raw table version", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+
+    commitExplorerSessionImport({
+      explorerService,
+      importedFiles: [
+        createPreparedFileImportInfo("file-a", "Transfer.csv", {
+          preparedAssessment: {
+            curveFamily: "iv",
+            curveType: "Transfer",
+            curveTypeConfidence: "high",
+            curveTypeNeedsTemplate: false,
+            curveTypeReasons: ["Detected transfer data."],
+            ivMode: "transfer",
+            xAxisRole: "vg",
+            xAxisRoleSource: "metadata",
+          },
+        }),
+      ],
+      mode: "append",
+      sessionService: session,
+    });
+
+    const file = session.getSnapshot().filesById["file-a"];
+    const assessment = file.assessmentsByRawTableId["file-a"];
+    assert.equal(assessment.sourceRawTableVersion, file.rawTableVersionsById["file-a"]);
+    assert.equal(assessment.blocks[0].label, "Transfer");
+    assert.equal(assessment.blocks[0].family, "iv");
+    assert.equal(assessment.blocks[0].ivMode, "transfer");
+  });
 });
 
 const createPreparedFileImportInfo = (
   fileId: string,
   fileName: string,
   options: {
+    readonly preparedAssessment?: ImportFileAssessment;
     readonly relativePath?: string | null;
     readonly sourceKey?: string;
   } = {},
@@ -177,6 +211,7 @@ const createPreparedFileImportInfo = (
   lastModified: 1,
   rowCount: 2,
   size: 2,
+  preparedAssessment: options.preparedAssessment,
   relativePath: options.relativePath ?? null,
   sourceKey: options.sourceKey,
 });

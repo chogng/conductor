@@ -1,6 +1,6 @@
 use serde::Deserialize;
-use serde_json::json;
 use serde_json::Value;
+use serde_json::json;
 
 pub const RC_CALCULATION_VERSION: u32 = 1;
 
@@ -274,7 +274,10 @@ fn selected_summary(curve: &[Value], selected_vg: Option<f64>) -> Value {
     pick.cloned().unwrap_or_else(|| json!(null))
 }
 
-pub fn calculate_rc(devices_raw: &[RcDeviceRequest], options: Option<&RcCalculationOptions>) -> Value {
+pub fn calculate_rc(
+    devices_raw: &[RcDeviceRequest],
+    options: Option<&RcCalculationOptions>,
+) -> Value {
     let min_devices = options
         .and_then(|opts| opts.min_devices)
         .unwrap_or(3)

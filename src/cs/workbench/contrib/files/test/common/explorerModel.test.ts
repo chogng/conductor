@@ -193,6 +193,35 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     ]);
   });
 
+  test("createChartExplorerFilesFromRecords projects assessment-only canonical files", () => {
+    const files = createChartExplorerFilesFromRecords(
+      {
+        "raw-1": createFileRecord("raw-1", {
+          hasAssessmentBlock: true,
+          hasChartData: false,
+        }),
+      },
+      ["raw-1"],
+    );
+
+    assert.deepEqual(files.map(file => ({
+      badgeState: file.badgeState,
+      curveType: file.curveType,
+      curveTypeBadgeLabel: file.curveTypeBadgeLabel,
+    })), [
+      {
+        badgeState: {
+          confidence: "confirmed",
+          kind: "ready",
+          label: "output",
+          source: "assessment",
+        },
+        curveType: "output",
+        curveTypeBadgeLabel: "output",
+      },
+    ]);
+  });
+
   test("createChartExplorerFilesFromRecords skips raw-only canonical files", () => {
     assert.deepEqual(
       createChartExplorerFilesFromRecords(
@@ -359,9 +388,13 @@ suite("workbench/contrib/files/common/explorerModel", () => {
 
 const createFileRecord = (
   fileId: string,
-  options: { readonly hasChartData?: boolean } = {},
+  options: {
+    readonly hasAssessmentBlock?: boolean;
+    readonly hasChartData?: boolean;
+  } = {},
 ): FileRecord => {
   const hasChartData = options.hasChartData ?? true;
+  const hasAssessmentBlock = options.hasAssessmentBlock ?? false;
   return {
     assessmentsByRawTableId: {},
     curvesByKey: hasChartData
@@ -385,8 +418,31 @@ const createFileRecord = (
       : {},
     id: fileId,
     kind: "csv",
-    measurementBlockOrder: [],
-    measurementBlocksById: {},
+    measurementBlockOrder: hasAssessmentBlock ? ["block-1"] : [],
+    measurementBlocksById: hasAssessmentBlock
+      ? {
+        "block-1": {
+          columnCount: 2,
+          columns: { columns: [] },
+          diagnosticCodes: [],
+          family: "iv",
+          fileId,
+          id: "block-1",
+          ivMode: "output",
+          label: "output (vd)",
+          rawTableId: fileId,
+          rowCount: 2,
+          source: {
+            fullRange: {
+              startCol: 0,
+              endCol: 1,
+              startRow: 0,
+              endRow: 1,
+            },
+          },
+        },
+      }
+      : {},
     metricsByKey: {},
     name: "canonical.csv",
     raw: {

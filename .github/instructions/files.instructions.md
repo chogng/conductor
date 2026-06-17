@@ -227,7 +227,12 @@ binary and runs it in `--stdio-worker` mode. Files conversion code should depend
 only on `IFileConverterBackendService` and IPC/preload domain methods; it must
 not depend on a concrete executable name. Files code should treat
 `conductor-rs` as the desktop helper binary only at the Electron main resolver
-boundary.
+boundary. Folder CSV prepare may batch multiple file path entries into one Rust
+worker command, but Electron main must still normalize and emit per-file
+conversion results through the existing files service contract. Keep the
+desktop default tuned for badge latency: large Rust batches may use bounded
+internal parallelism, but result chunks must stay small enough that Explorer
+materialization and projection do not wait behind a single oversized response.
 
 ## Data File Workflow
 
@@ -238,8 +243,10 @@ flowchart TD
     Source --> Pending[Explorer pending source entries]
     Pending --> Explorer
     Source --> Converter[fileConverter.ts]
-    Converter --> DesktopRust[desktop conductor-rs helper CLI]
-    DesktopRust --> Converter
+    Converter --> DesktopMain[IPC/preload desktop prepare]
+    DesktopMain --> DesktopRust[conductor-rs assessImport/assessImportBatch]
+    DesktopRust --> DesktopMain
+    DesktopMain --> Converter
     Converter --> Result[FileConversionResult]
     Workflow --> Session[ISessionService.commitFileImport]
     Session --> WorkflowResult[CommitFileImportResult: committed ids / skipped duplicate ids]

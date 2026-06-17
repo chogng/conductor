@@ -273,11 +273,7 @@ pub(crate) fn detect_first_group_length(
             previous_point = current_point;
         }
     }
-    if count >= 2 {
-        Some(count)
-    } else {
-        None
-    }
+    if count >= 2 { Some(count) } else { None }
 }
 
 fn collect_stripped_sweep_metadata(

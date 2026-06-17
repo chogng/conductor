@@ -5,6 +5,7 @@
 import Papa from "papaparse";
 
 import { startPerf } from "src/cs/workbench/common/perf";
+import type { ImportFileAssessment } from "src/cs/workbench/services/assessment/common/assessment";
 import {
   isExcelFileImportSourceName,
   type FileImportSourceKind,
@@ -40,6 +41,7 @@ const BROWSER_XLSX_CONVERSION_TIMEOUT_MS = 30_000;
 const BROWSER_XLSX_MAX_BYTES = 32 * 1024 * 1024;
 
 export type ConvertedImportFile = {
+  assessment?: ImportFileAssessment;
   columnCount?: number;
   file: File;
   health?: RawTableHealthRecord;
@@ -66,6 +68,16 @@ export type FileConverterMetadata = {
   readonly loadFile?: () => Promise<ImportFileData>;
   readonly size: number;
 };
+
+type ConvertPreparedImportFileResultOptions = {
+  readonly fallbackFile?: () => Promise<File>;
+  readonly fileConverterBackend: FileConverterBackend;
+  readonly metadata: FileConverterMetadata;
+  readonly result: FileConverterPreparedFile;
+  readonly sourcePath: string | null;
+};
+
+const ASYNC_PREPARED_HEALTH = Symbol("asyncPreparedHealth");
 
 export type ImportedFileRecordInput = {
   readonly file: File;
@@ -345,48 +357,22 @@ export const convertImportFile = async (
       );
     }
 
-    const normalizedCsvPath = result.normalizedCsvPath ?? null;
-    const normalizedHealth = await validatePreparedCsvResult(
+    const converted = await convertPreparedImportFileResult({
+      fallbackFile: loadBrowserFile,
       fileConverterBackend,
+      metadata,
       result,
-    );
-    const normalizedFile =
-      typeof result.csvText === "string"
-        ? new File([result.csvText], metadata.fileName, {
-            lastModified: Number.isFinite(metadata.lastModified)
-              ? metadata.lastModified
-              : Date.now(),
-            type: "text/csv;charset=utf-8",
-          })
-        : normalizedCsvPath
-          ? createEmptyNormalizedCsvFile(metadata.fileName, metadata.lastModified)
-          : await loadBrowserFile();
-    const normalizedSizeBytes =
-      getRustConvertCsvBytes(result.manifest) ??
-      (Number(result.normalizedSizeBytes) || normalizedFile.size);
+      sourcePath,
+    });
 
     finishPerf({
-      normalizedCsvPath,
-      normalizedSizeBytes,
+      normalizedCsvPath: converted.normalizedCsvPath,
+      normalizedSizeBytes: converted.normalizedSizeBytes,
       rustDurationMs: result.durationMs ?? null,
       source: "rust",
     });
 
-    const manifest = isObjectRecord(result.manifest) ? result.manifest : {};
-    return {
-      file: normalizedFile,
-      columnCount: readNonNegativeInteger(result.columnCount ?? manifest.columnCount),
-      health: normalizedHealth,
-      maxCellLengths: readNumberArray(result.maxCellLengths ?? manifest.maxCellLengths),
-      normalizedCsvPath,
-      normalizedSizeBytes,
-      rowCount: readNonNegativeInteger(result.rowCount ?? manifest.rowCount ?? manifest.rows),
-      sheets: readConvertedImportSheets(result),
-      sourcePath: result.sourcePath ?? sourcePath,
-      sourceName: result.sourceName ?? metadata.fileName,
-      sourceSizeBytes: Number(result.sourceSizeBytes) || metadata.size,
-      templateEligibility: normalizedHealth ? "notEligible" : result.templateEligibility,
-    };
+    return converted;
   } catch (error) {
     finishPerf({
       message: error instanceof Error ? error.message : String(error),
@@ -394,6 +380,182 @@ export const convertImportFile = async (
     });
     throw error;
   }
+};
+
+export const convertPreparedImportFileResult = async ({
+  fallbackFile,
+  fileConverterBackend,
+  metadata,
+  result,
+  sourcePath,
+}: ConvertPreparedImportFileResultOptions): Promise<ConvertedImportFile> => {
+  const syncResult = convertPreparedImportFileResultSync({
+    fallbackFile,
+    fileConverterBackend,
+    metadata,
+    result,
+    sourcePath,
+  });
+  if (syncResult) {
+    return syncResult;
+  }
+
+  const normalizedCsvPath = result.normalizedCsvPath ?? null;
+  const normalizedHealth = await validatePreparedCsvResult(
+    fileConverterBackend,
+    result,
+  );
+  const normalizedFile =
+    typeof result.csvText === "string"
+      ? new File([result.csvText], metadata.fileName, {
+          lastModified: Number.isFinite(metadata.lastModified)
+            ? metadata.lastModified
+            : Date.now(),
+          type: "text/csv;charset=utf-8",
+        })
+      : normalizedCsvPath
+        ? createEmptyNormalizedCsvFile(metadata.fileName, metadata.lastModified)
+        : fallbackFile
+          ? await fallbackFile()
+          : createEmptyNormalizedCsvFile(metadata.fileName, metadata.lastModified);
+  return createConvertedImportFileFromPreparedResult({
+    metadata,
+    normalizedCsvPath,
+    normalizedFile,
+    normalizedHealth,
+    result,
+    sourcePath,
+  });
+};
+
+export const convertPreparedImportFileResultSync = ({
+  fallbackFile,
+  fileConverterBackend,
+  metadata,
+  result,
+  sourcePath,
+}: ConvertPreparedImportFileResultOptions): ConvertedImportFile | null => {
+  const normalizedHealth = validatePreparedCsvResultSync(
+    fileConverterBackend,
+    result,
+  );
+  if (normalizedHealth === ASYNC_PREPARED_HEALTH) {
+    return null;
+  }
+
+  const normalizedCsvPath = result.normalizedCsvPath ?? null;
+  const normalizedFile = createPreparedNormalizedFileSync({
+    fallbackFile,
+    metadata,
+    normalizedCsvPath,
+    result,
+  });
+  if (!normalizedFile) {
+    return null;
+  }
+
+  return createConvertedImportFileFromPreparedResult({
+    metadata,
+    normalizedCsvPath,
+    normalizedFile,
+    normalizedHealth,
+    result,
+    sourcePath,
+  });
+};
+
+const createPreparedNormalizedFileSync = ({
+  fallbackFile,
+  metadata,
+  normalizedCsvPath,
+  result,
+}: {
+  readonly fallbackFile?: () => Promise<File>;
+  readonly metadata: FileConverterMetadata;
+  readonly normalizedCsvPath: string | null;
+  readonly result: FileConverterPreparedFile;
+}): File | null => {
+  if (typeof result.csvText === "string") {
+    return new File([result.csvText], metadata.fileName, {
+      lastModified: Number.isFinite(metadata.lastModified)
+        ? metadata.lastModified
+        : Date.now(),
+      type: "text/csv;charset=utf-8",
+    });
+  }
+  if (normalizedCsvPath) {
+    return createEmptyNormalizedCsvFile(metadata.fileName, metadata.lastModified);
+  }
+  if (fallbackFile) {
+    return null;
+  }
+
+  return createEmptyNormalizedCsvFile(metadata.fileName, metadata.lastModified);
+};
+
+const createConvertedImportFileFromPreparedResult = ({
+  metadata,
+  normalizedCsvPath,
+  normalizedFile,
+  normalizedHealth,
+  result,
+  sourcePath,
+}: {
+  readonly metadata: FileConverterMetadata;
+  readonly normalizedCsvPath: string | null;
+  readonly normalizedFile: File;
+  readonly normalizedHealth: RawTableHealthRecord | undefined;
+  readonly result: FileConverterPreparedFile;
+  readonly sourcePath: string | null;
+}): ConvertedImportFile => {
+  const normalizedSizeBytes =
+    getRustConvertCsvBytes(result.manifest) ??
+    (Number(result.normalizedSizeBytes) || normalizedFile.size);
+  const manifest = isObjectRecord(result.manifest) ? result.manifest : {};
+
+  return {
+    file: normalizedFile,
+    assessment: result.assessment,
+    columnCount: readNonNegativeInteger(result.columnCount ?? manifest.columnCount),
+    health: normalizedHealth,
+    maxCellLengths: readNumberArray(result.maxCellLengths ?? manifest.maxCellLengths),
+    normalizedCsvPath,
+    normalizedSizeBytes,
+    rowCount: readNonNegativeInteger(result.rowCount ?? manifest.rowCount ?? manifest.rows),
+    sheets: readConvertedImportSheets(result),
+    sourcePath: result.sourcePath ?? sourcePath,
+    sourceName: result.sourceName ?? metadata.fileName,
+    sourceSizeBytes: Number(result.sourceSizeBytes) || metadata.size,
+    templateEligibility: shouldForceNotEligibleForHealth(normalizedHealth)
+      ? "notEligible"
+      : result.templateEligibility,
+  };
+};
+
+const shouldForceNotEligibleForHealth = (
+  health: RawTableHealthRecord | undefined,
+): boolean => Boolean(health && health.state !== "ok" && health.state !== "suspect");
+
+const validatePreparedCsvResultSync = (
+  reader: ConvertedCsvReaderService,
+  result: FileConverterPreparedFile,
+): RawTableHealthRecord | undefined | typeof ASYNC_PREPARED_HEALTH => {
+  if (result.health) {
+    return result.health;
+  }
+  if (typeof result.csvText === "string" || result.sheets?.length) {
+    return undefined;
+  }
+
+  const normalizedCsvPath = normalizeOptionalText(result.normalizedCsvPath);
+  if (!normalizedCsvPath) {
+    return undefined;
+  }
+  if (!reader.canReadConvertedCsv()) {
+    return createDecodeFailedHealth("Content is unreadable: converted CSV could not be verified.");
+  }
+
+  return ASYNC_PREPARED_HEALTH;
 };
 
 const validatePreparedCsvResult = async (
@@ -411,8 +573,9 @@ const validatePreparedCsvResult = async (
   if (!normalizedCsvPath) {
     return undefined;
   }
-  if (!reader.canReadConvertedCsv()) {
-    return createDecodeFailedHealth("Content is unreadable: converted CSV could not be verified.");
+  const syncHealth = validatePreparedCsvResultSync(reader, result);
+  if (syncHealth !== ASYNC_PREPARED_HEALTH) {
+    return syncHealth;
   }
 
   try {
