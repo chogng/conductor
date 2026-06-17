@@ -10,6 +10,7 @@ import type {
   IContextViewService,
   IOpenContextView,
 } from "src/cs/platform/contextview/browser/contextView";
+import { SubmenuAction, type IAction } from "src/cs/base/common/actions";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { Event } from "src/cs/base/common/event";
 import { ObjectTree } from "src/cs/base/browser/ui/tree/objectTree";
@@ -18,6 +19,11 @@ import {
   ExplorerViewer,
   type ExplorerViewerProps,
 } from "src/cs/workbench/contrib/files/browser/views/explorerViewer";
+import {
+  SET_FILE_TEMPLATE_COMMAND_ID,
+  SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
+} from "src/cs/workbench/contrib/files/common/files";
+import { AUTO_TEMPLATE_ID } from "src/cs/workbench/services/template/common/autoTemplate";
 import { DEFAULT_EXPLORER_APPEARANCE } from "src/cs/workbench/services/appearance/common/appearance";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -156,6 +162,75 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     }
   });
 
+  test("disables template file actions when only the auto template is available", () => {
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const viewer = new ExplorerViewer(host, hoverHost, {
+      ...createViewerProps(),
+      templateRecords: [{
+        id: AUTO_TEMPLATE_ID,
+        name: "Auto extraction",
+      }],
+    }, labels);
+
+    try {
+      const actions = getFileContextActions(viewer, "file-a");
+      const setTemplate = actions.find(action => action.id === SET_FILE_TEMPLATE_COMMAND_ID);
+      const sliceTemplate = actions.find(action => action.id === SLICE_FILE_WITH_TEMPLATE_COMMAND_ID);
+
+      assert.ok(setTemplate);
+      assert.ok(sliceTemplate);
+      assert.equal(setTemplate.enabled, false);
+      assert.equal(sliceTemplate.enabled, false);
+      assert.equal(setTemplate instanceof SubmenuAction, false);
+      assert.equal(sliceTemplate instanceof SubmenuAction, false);
+    } finally {
+      viewer.dispose();
+      labels.dispose();
+      hoverHost.remove();
+    }
+  });
+
+  test("creates template submenus without loading placeholders when user templates are available", () => {
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const viewer = new ExplorerViewer(host, hoverHost, {
+      ...createViewerProps(),
+      templateRecords: [{
+        id: "template-a",
+        name: "Template A",
+      }],
+    }, labels);
+
+    try {
+      const actions = getFileContextActions(viewer, "file-a");
+      const setTemplate = actions.find(action => action.id === SET_FILE_TEMPLATE_COMMAND_ID);
+      const sliceTemplate = actions.find(action => action.id === SLICE_FILE_WITH_TEMPLATE_COMMAND_ID);
+
+      assert.ok(setTemplate instanceof SubmenuAction);
+      assert.ok(sliceTemplate instanceof SubmenuAction);
+      assert.equal(setTemplate.enabled, true);
+      assert.equal(sliceTemplate.enabled, true);
+      assert.deepEqual(
+        setTemplate.actions.map(action => action.label),
+        ["Auto extraction", "Template A"],
+      );
+      assert.equal(setTemplate.actions.some(action => action.id.endsWith(".loading")), false);
+    } finally {
+      viewer.dispose();
+      labels.dispose();
+      hoverHost.remove();
+    }
+  });
+
   test("updates badge presentation without rebuilding tree children", () => {
     const originalSetChildren = ObjectTree.prototype.setChildren;
     const originalRerenderByKeys = ObjectTree.prototype.rerenderByKeys;
@@ -251,6 +326,14 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     }
   });
 });
+
+const getFileContextActions = (
+  viewer: ExplorerViewer,
+  fileId: string,
+): IAction[] =>
+  (viewer as unknown as {
+    createFileContextActions(fileId: string): IAction[];
+  }).createFileContextActions(fileId);
 
 class TestContextViewService implements IContextViewService {
   public declare readonly _serviceBrand: undefined;

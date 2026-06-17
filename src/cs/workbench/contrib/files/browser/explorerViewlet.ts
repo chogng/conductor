@@ -306,7 +306,6 @@ export class ExplorerViewPane extends ViewPane {
       currentTemplateSelection: input.currentTemplateSelection,
       fileTemplateSelectionsByFileId: input.fileTemplateSelectionsByFileId,
       editable: this.explorerService.getContext().editable,
-      isTemplateListLoading: this.isTemplateListLoading,
       templateRecords: this.templateRecords,
       files: this.files,
       folderImportSupport: getFolderImportSupportForFileService(this.filesService),

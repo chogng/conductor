@@ -91,6 +91,7 @@ import {
   type TemplateSelectionsByFileId,
 } from "src/cs/workbench/services/template/common/templateSelection";
 import type { TemplateRecord } from "src/cs/workbench/services/template/common/template";
+import { isAutoTemplateId } from "src/cs/workbench/services/template/common/autoTemplate";
 
 export type ExplorerViewerProps = {
   readonly selectedFileId?: string | null;
@@ -108,7 +109,6 @@ export type ExplorerViewerProps = {
   readonly currentTemplateSelection?: TemplateSelection;
   readonly fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
   readonly editable?: ExplorerEditableData | null;
-  readonly isTemplateListLoading?: boolean;
   readonly templateRecords?: readonly TemplateRecord[];
   readonly files: ExplorerFileEntry[];
   readonly mode?: WorkbenchMainPart;
@@ -1040,24 +1040,18 @@ export class ExplorerViewer implements IDisposable {
           );
         },
       }),
-      new SubmenuAction(
-        SET_FILE_TEMPLATE_COMMAND_ID,
-        localize("files.item.setTemplate", "Set with Template"),
-        this.createTemplateContextActions({
-          actionPrefix: SET_FILE_TEMPLATE_COMMAND_ID,
-          commandId: SET_FILE_TEMPLATE_COMMAND_ID,
-          fileId,
-        }),
-      ),
-      new SubmenuAction(
-        SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
-        localize("files.item.sliceWithTemplate", "Slice with Template"),
-        this.createTemplateContextActions({
-          actionPrefix: SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
-          commandId: SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
-          fileId,
-        }),
-      ),
+      this.createTemplateMenuAction({
+        actionPrefix: SET_FILE_TEMPLATE_COMMAND_ID,
+        commandId: SET_FILE_TEMPLATE_COMMAND_ID,
+        fileId,
+        label: localize("files.item.setTemplate", "Set with Template"),
+      }),
+      this.createTemplateMenuAction({
+        actionPrefix: SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
+        commandId: SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
+        fileId,
+        label: localize("files.item.sliceWithTemplate", "Slice with Template"),
+      }),
     ];
 
     if (this.canRevealFileInOS(fileId)) {
@@ -1085,6 +1079,43 @@ export class ExplorerViewer implements IDisposable {
     return Boolean(
       String(file?.sourcePath ?? "").trim() ||
       String(file?.normalizedCsvPath ?? "").trim(),
+    );
+  }
+
+  private createTemplateMenuAction({
+    actionPrefix,
+    commandId,
+    fileId,
+    label,
+  }: {
+    readonly actionPrefix: string;
+    readonly commandId: string;
+    readonly fileId: string;
+    readonly label: string;
+  }): IAction {
+    if (!this.hasUserTemplates()) {
+      return createMenuAction({
+        enabled: false,
+        id: commandId,
+        label,
+        run: () => {},
+      });
+    }
+
+    return new SubmenuAction(
+      commandId,
+      label,
+      this.createTemplateContextActions({
+        actionPrefix,
+        commandId,
+        fileId,
+      }),
+    );
+  }
+
+  private hasUserTemplates(): boolean {
+    return (this.props.templateRecords ?? []).some(template =>
+      isUserTemplateId(template.id),
     );
   }
 
@@ -1118,7 +1149,7 @@ export class ExplorerViewer implements IDisposable {
     const templates = this.props.templateRecords ?? [];
     for (const template of templates) {
       const templateId = String(template.id ?? "").trim();
-      if (!templateId) {
+      if (!isUserTemplateId(templateId)) {
         continue;
       }
 
@@ -1134,15 +1165,6 @@ export class ExplorerViewer implements IDisposable {
           );
         },
         selected: currentSelectionId === templateId,
-      }));
-    }
-
-    if (this.props.isTemplateListLoading) {
-      actions.push(createMenuAction({
-        enabled: false,
-        id: `${actionPrefix}.loading`,
-        label: localize("files.item.templatesLoading", "Loading templates..."),
-        run: () => {},
       }));
     }
 
@@ -2075,6 +2097,11 @@ function getRevealInOSLabel(): string {
   }
 
   return localize("files.openContainingFolder", "Open Containing Folder");
+}
+
+function isUserTemplateId(value: unknown): value is string {
+  const templateId = String(value ?? "").trim();
+  return Boolean(templateId) && !isAutoTemplateId(templateId);
 }
 
 function areStringArraysEqual(
