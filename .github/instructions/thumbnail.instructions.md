@@ -189,10 +189,11 @@ sequenceDiagram
     ThumbnailRenderer-->>ThumbnailView: thumbnail content updated
     ExplorerViewer->>ExplorerService: setVisibleFileIds(visible, nearby)
     ExplorerService-->>DomainBridge: onDidChangeVisibleFileIds
-    DomainBridge->>Plot: prefetchCalculatedData(visible, "visible")
-    DomainBridge->>Plot: prefetchCalculatedData(nearby, "nearby")
+    DomainBridge->>DomainBridge: only continue when chart mode uses thumbnail layout
     DomainBridge->>ThumbnailPreviewService: prefetch(visible, "visible")
     DomainBridge->>ThumbnailPreviewService: prefetch(nearby, "nearby")
+    ThumbnailPreviewService->>Plot: prefetchCalculatedData(visible, "visible")
+    ThumbnailPreviewService->>Plot: prefetchCalculatedData(nearby, "nearby")
     ThumbnailPreviewService->>ThumbnailPreviewService: process queued previews by priority and frame budget
     ThumbnailPreviewService->>Plot: getCachedCalculatedData(fileId)
     alt cache miss
@@ -254,6 +255,7 @@ Do not create thumbnail-specific duplicates of Explorer file item commands such 
 - Thumbnail clicks may travel through an existing Explorer UI callback such as `onSelectFile`, but the target selection operation must remain upstream-shaped Explorer selection (`IExplorerService.select(...)`), not thumbnail-owned state.
 - Thumbnail file item actions must reuse the same Explorer/files action ids and command handlers as tree file items.
 - Tree layout hover thumbnail previews must use Explorer-owned hover triggers and context-view containers, with thumbnail-owned preview content rendering.
+- Visible/nearby thumbnail preview prefetch runs only while Explorer is in chart thumbnail layout. Tree layout hover previews stay on-demand through hover priority so ordinary tree scrolling does not warm thumbnail previews for every visible file.
 - Loading thumbnail previews should render a nonblank thumbnail-owned placeholder
   unless an older plot model is available, so hover and thumbnail layout do not
   present an empty chart frame while queued preview work runs.

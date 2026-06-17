@@ -227,8 +227,11 @@ export class WorkbenchDomainBridge extends Disposable {
       getRawTableRefsForFileIds(nearbyFileIds, snapshot),
       "nearby",
     );
-    this.options.plotService.prefetchCalculatedData(visibleFileIds, "visible");
-    this.options.plotService.prefetchCalculatedData(nearbyFileIds, "nearby");
+    if (this.options.layoutService.activeWorkbenchMainPart !== "chart" ||
+      this.options.explorerService.viewLayout !== "thumbnail") {
+      return;
+    }
+
     this.options.thumbnailPreviewService.prefetch(visibleFileIds, "visible");
     this.options.thumbnailPreviewService.prefetch(nearbyFileIds, "nearby");
   }

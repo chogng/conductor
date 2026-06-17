@@ -292,6 +292,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     globalThis.cancelAnimationFrame = (() => undefined) as typeof cancelAnimationFrame;
 
     try {
+      let workerFile: FileRecord | undefined;
       class TestWorker {
         public onerror: ((event: ErrorEvent) => void) | null = null;
         public onmessage: ((event: MessageEvent) => void) | null = null;
@@ -305,6 +306,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
           };
         }): void {
           const payload = message.payload;
+          workerFile = payload?.file;
           queueMicrotask(() => {
             this.onmessage?.({
               data: {
@@ -342,15 +344,18 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       globalThis.Worker = TestWorker as unknown as typeof Worker;
 
       const file = createFileRecord();
-      const curvesByKey = file.curvesByKey;
-      let curveReads = 0;
-      Object.defineProperty(file, "curvesByKey", {
-        configurable: true,
-        get: () => {
-          curveReads += 1;
-          return curvesByKey;
+      file.raw.tablesById = {
+        "sheet-a": {
+          columnCount: 2,
+          fileId: "file-a",
+          maxCellLengths: [],
+          rowCount: 1,
+          rowStore: { kind: "memory", rows: [["raw", "row"]] },
+          sheetId: "sheet-a",
+          tableKey: "sheet-a",
         },
-      });
+      };
+      file.raw.tableOrder = ["sheet-a"];
       const snapshot = createSnapshot({ "file-a": file });
       const service = store.add(new PlotService(
         createSessionServiceStub(snapshot),
@@ -363,7 +368,11 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       await Promise.resolve();
       await Promise.resolve();
 
-      assert.equal(curveReads, 0);
+      assert.ok(workerFile);
+      assert.notEqual(workerFile, file);
+      assert.deepEqual(workerFile.raw.tablesById, {});
+      assert.deepEqual(workerFile.raw.tableOrder, []);
+      assert.deepEqual(Object.keys(workerFile.curvesByKey), Object.keys(file.curvesByKey));
       assert.equal(
         service.getCachedCalculatedData({ fileId: "file-a", plotType: "iv", snapshot })?.signature,
         "worker-result",

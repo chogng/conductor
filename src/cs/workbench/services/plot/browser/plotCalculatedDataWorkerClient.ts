@@ -109,7 +109,7 @@ export const calculatePlotDataInWorker = (
     worker.onerror = () => finish(null);
     worker.postMessage({
       payload: {
-        file: input.file,
+        file: createPlotWorkerFileRecord(input.file),
         fileId: input.file.id,
         plotType: input.plotType,
         requestId: input.requestId,
@@ -118,6 +118,54 @@ export const calculatePlotDataInWorker = (
       type: "calculateData",
     } satisfies PlotCalculatedDataWorkerRequest);
   });
+};
+
+const createPlotWorkerFileRecord = (file: FileRecord): FileRecord => {
+  const latestTemplateRun = file.latestTemplateRunId
+    ? file.templateRunsById[file.latestTemplateRunId]
+    : undefined;
+  const curvesByKey: FileRecord["curvesByKey"] = {};
+  for (const [key, curve] of Object.entries(file.curvesByKey)) {
+    if (curve.curveGeneration === "base") {
+      curvesByKey[key] = curve;
+    }
+  }
+  const curveSeriesIds = new Set(
+    Object.values(curvesByKey).map(curve => curve.seriesId),
+  );
+  const seriesById: FileRecord["seriesById"] = {};
+  for (const [seriesId, series] of Object.entries(file.seriesById)) {
+    if (curveSeriesIds.has(seriesId)) {
+      seriesById[seriesId] = series;
+    }
+  }
+
+  const workerFile: FileRecord = {
+    assessmentsByRawTableId: {},
+    curvesByKey,
+    id: file.id,
+    kind: file.kind,
+    measurementBlockOrder: [],
+    measurementBlocksById: {},
+    metricsByKey: {},
+    name: file.name,
+    raw: {
+      fileId: file.raw.fileId,
+      fileName: file.raw.fileName,
+      tableOrder: [],
+      tablesById: {},
+    },
+    rawTableVersionsById: {},
+    seriesById,
+    seriesOrder: file.seriesOrder.filter(seriesId => curveSeriesIds.has(seriesId)),
+    templateRunsById: latestTemplateRun
+      ? { [latestTemplateRun.id]: latestTemplateRun }
+      : {},
+  };
+  if (latestTemplateRun) {
+    workerFile.latestTemplateRunId = latestTemplateRun.id;
+  }
+  return workerFile;
 };
 
 export const calculatePlotDisplayModelInWorker = (

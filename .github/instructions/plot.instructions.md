@@ -60,7 +60,7 @@ flowchart TD
     Session[SessionSnapshot] --> PlotService[IPlotService]
     ChartActive[Chart active file] --> PlotService
     HoverPreview[Hover thumbnail file] --> PlotService
-    ExplorerRange[Explorer visible/nearby file ids] --> PlotService
+    ThumbnailRange[Thumbnail-layout visible/nearby file ids] --> PlotService
     PlotService --> State[PlotState]
     PlotService --> Queue[Priority prefetch queue]
     Queue --> Worker[Plot worker]
@@ -123,6 +123,9 @@ storage, for these controls.
   through `plotCalculatedDataWorker` when Worker is available. `PlotService`
   remains the owner that accepts fresh results, writes the cache, ignores stale
   results, and falls back only when the worker path is unavailable or fails.
+- Plot worker calculated-data requests should send only the file fields needed
+  for plot calculation, such as base curves, series labels/order, and latest
+  template axis metadata. Do not post full raw table row stores to the worker.
 - `getCachedCalculatedData` is a non-creating read for consumers that must not
   run calculation work in their own frame budget.
 - `getCachedPlotDisplayModel` and `getCachedPlotLegendModel` are non-creating
@@ -164,8 +167,10 @@ storage, for these controls.
   cached display-model miss. They should not call `getPlotDisplayModel` in the
   active render path.
 - Domain bridges that know the active chart file should prefetch both
-  calculated data and the default display model at `active` priority, so the
-  current chart is registered before visible/nearby thumbnail backfill.
+  calculated data and the default display model at `active` priority. Visible
+  and nearby thumbnail backfill should be requested only while Explorer is in
+  chart thumbnail layout; tree-layout hover previews use hover priority on
+  demand.
 - Plot render models must be stable and reusable by Chart/Thumbnail/Export.
 - Chart canvas drawing should use a display downsample budget tied to the
   visible pixel width. Full point arrays remain in the render model for readout
