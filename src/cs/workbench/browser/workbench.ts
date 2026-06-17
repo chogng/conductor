@@ -35,7 +35,10 @@ import {
   type IParametersService,
 } from "src/cs/workbench/services/parameters/common/parameters";
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
-import type { ISearchService } from "src/cs/workbench/services/search/common/search";
+import type {
+  ISearchService,
+  SearchPlotModel,
+} from "src/cs/workbench/services/search/common/search";
 import type { IThumbnailPreviewService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
   SettingsViewId,
@@ -156,6 +159,46 @@ const getInitialLanguagePreference = (): LanguagePreference => {
 export const resolveInitialWorkbenchViewMode = (
   _snapshot: WorkbenchSessionSnapshot,
 ): WorkbenchMainPart => "table";
+
+export const createSearchPlotModelFromCachedPlotDisplay = ({
+  fileId,
+  plotService,
+  snapshot,
+}: {
+  readonly fileId: string | null;
+  readonly plotService: Pick<IPlotService, "getCachedPlotDisplayModel" | "prefetchPlotDisplayModel">;
+  readonly snapshot: SessionSnapshot;
+}): SearchPlotModel | null => {
+  const normalizedFileId = String(fileId ?? "").trim();
+  if (!normalizedFileId) {
+    return null;
+  }
+
+  const plotDisplayModel = plotService.getCachedPlotDisplayModel({
+    fileId: normalizedFileId,
+    snapshot,
+  });
+  if (!plotDisplayModel) {
+    plotService.prefetchPlotDisplayModel({
+      fileId: normalizedFileId,
+      snapshot,
+    }, "active");
+    return null;
+  }
+
+  return {
+    panes: [
+      {
+        id: "chart",
+        model: plotDisplayModel.chart.model,
+      },
+      ...(plotDisplayModel.inspector ? [{
+        id: "inspector" as const,
+        model: plotDisplayModel.inspector.model,
+      }] : []),
+    ],
+  };
+};
 
 //#endregion
 
@@ -567,28 +610,11 @@ export class Workbench extends Layout {
     snapshot = this.session.getSnapshot(),
     readModel = createSessionReadModel(snapshot),
   ): void {
-    const plotDisplayModel = this.plotService.getPlotDisplayModel({
+    this.searchService.setPlotModel(createSearchPlotModelFromCachedPlotDisplay({
       fileId: this.getSelectedProcessedFileId(readModel),
+      plotService: this.plotService,
       snapshot,
-    });
-    if (!plotDisplayModel) {
-      this.searchService.setPlotModel(null);
-      return;
-    }
-
-    const panes = [
-      {
-        id: "chart" as const,
-        model: plotDisplayModel.chart.model,
-      },
-      ...(plotDisplayModel.inspector ? [{
-        id: "inspector" as const,
-        model: plotDisplayModel.inspector.model,
-      }] : []),
-    ];
-    this.searchService.setPlotModel({
-      panes,
-    });
+    }));
   }
 
   private renderExportView(

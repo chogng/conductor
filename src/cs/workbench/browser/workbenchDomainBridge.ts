@@ -227,8 +227,10 @@ export class WorkbenchDomainBridge extends Disposable {
       getRawTableRefsForFileIds(nearbyFileIds, snapshot),
       "nearby",
     );
-    if (this.options.layoutService.activeWorkbenchMainPart !== "chart" ||
-      this.options.explorerService.viewLayout !== "thumbnail") {
+    if (!shouldPrefetchExplorerThumbnails({
+      activeWorkbenchMainPart: this.options.layoutService.activeWorkbenchMainPart,
+      viewLayout: this.options.explorerService.viewLayout,
+    })) {
       return;
     }
 
@@ -236,6 +238,15 @@ export class WorkbenchDomainBridge extends Disposable {
     this.options.thumbnailPreviewService.prefetch(nearbyFileIds, "nearby");
   }
 }
+
+export const shouldPrefetchExplorerThumbnails = ({
+  activeWorkbenchMainPart,
+  viewLayout,
+}: {
+  readonly activeWorkbenchMainPart: WorkbenchMainPart;
+  readonly viewLayout: IExplorerService["viewLayout"];
+}): boolean =>
+  activeWorkbenchMainPart === "chart" && viewLayout === "thumbnail";
 
 type CreateExplorerPaneInputOptions = {
   readonly activePlotType: PlotType;
@@ -437,14 +448,14 @@ const resolveChartState = (
   applyState: TemplateApplyFileState | undefined,
   hasChartData: boolean,
 ): NonNullable<ExplorerFileEntry["chartState"]> => {
+  if (hasChartData) {
+    return "ready";
+  }
   if (applyState?.state === "queued" || applyState?.state === "processing") {
     return applyState.state;
   }
   if (applyState?.state === "failed" || applyState?.state === "skipped") {
     return applyState.state;
-  }
-  if (applyState?.state === "ready" || hasChartData) {
-    return "ready";
   }
 
   return "none";

@@ -73,6 +73,5 @@ export function createChartFileOptionsFromRecords(
 }
 
 function hasChartData(file: FileRecord): boolean {
-	return file.seriesOrder.length > 0 ||
-		Object.values(file.curvesByKey).some(curve => curve.curveGeneration === "base");
+	return Object.values(file.curvesByKey).some(curve => curve.curveGeneration === "base");
 }

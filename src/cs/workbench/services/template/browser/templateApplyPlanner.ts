@@ -58,10 +58,20 @@ export function buildTemplateProcessingPlan(
 
 	for (const entry of Array.isArray(rawFiles) ? rawFiles : []) {
 		const fileId = String(entry?.fileId ?? "").trim();
-		if (!entry?.file || !fileId) {
+		if (!fileId) {
 			continue;
 		}
 		if (processedIds?.has(fileId) || queuedIds.has(fileId)) {
+			continue;
+		}
+
+		if (!hasTemplateProcessingSource(entry)) {
+			skippedFiles.push({
+				fileId,
+				fileName: entry.fileName,
+				reason: "invalidSource",
+			});
+			queuedIds.add(fileId);
 			continue;
 		}
 
@@ -134,6 +144,17 @@ export function prioritizeTemplateProcessingQueue<T extends { readonly fileId?: 
 }
 
 const normalizeFileId = (fileId: string | null | undefined): string => String(fileId ?? "").trim();
+
+const hasTemplateProcessingSource = (entry: SessionFile): boolean =>
+	entry.file !== undefined ||
+	hasNonEmptyText(entry.normalizedCsvPath) ||
+	hasCsvSourcePath(entry.sourcePath);
+
+const hasNonEmptyText = (value: unknown): boolean =>
+	typeof value === "string" && value.trim().length > 0;
+
+const hasCsvSourcePath = (value: unknown): boolean =>
+	typeof value === "string" && value.trim().toLowerCase().endsWith(".csv");
 
 const getTemplateProcessingSkipReason = (
 	assessment: TemplateProcessingAssessment | null,

@@ -271,7 +271,7 @@ suite("workbench/browser/workbench layout integration", () => {
     }
   });
 
-  test("visible explorer range prefetches plot data and thumbnail previews", () => {
+  test("visible explorer range does not prefetch tree thumbnails", () => {
     const visibleFileIdsEmitter = new Emitter<{
       readonly nearbyFileIds: readonly string[];
       readonly visibleFileIds: readonly string[];
@@ -355,14 +355,8 @@ suite("workbench/browser/workbench layout integration", () => {
       });
 
       assert.deepEqual(assessmentPriorities, ["visible", "nearby"]);
-      assert.deepEqual(plotPrefetches, [
-        { fileIds: ["file-a"], priority: "visible" },
-        { fileIds: ["file-b"], priority: "nearby" },
-      ]);
-      assert.deepEqual(thumbnailPrefetches, [
-        { fileIds: ["file-a"], priority: "visible" },
-        { fileIds: ["file-b"], priority: "nearby" },
-      ]);
+      assert.deepEqual(plotPrefetches, []);
+      assert.deepEqual(thumbnailPrefetches, []);
     } finally {
       bridge.dispose();
       visibleFileIdsEmitter.dispose();

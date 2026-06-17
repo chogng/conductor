@@ -254,6 +254,63 @@ suite("workbench/services/template/test/browser/templateApplyPlanner", () => {
 			"file-c",
 		]);
 	});
+
+	test("buildTemplateProcessingPlan queues converted csv sources without retained File objects", () => {
+		const files: SessionFile[] = [
+			{
+				...createProcessableAssessment(),
+				fileId: "file-normalized",
+				fileName: "Normalized.csv",
+				normalizedCsvPath: "C:/tmp/normalized.csv",
+			},
+			{
+				...createProcessableAssessment(),
+				fileId: "file-source",
+				fileName: "Source.csv",
+				sourcePath: "C:/source/source.csv",
+			},
+			{
+				...createProcessableAssessment(),
+				fileId: "file-missing-source",
+				fileName: "Missing Source.csv",
+			},
+		];
+
+		const plan = buildTemplateProcessingPlan(files);
+
+		assert.deepEqual(
+			plan.queue.map(entry => ({
+				file: entry.file,
+				fileId: entry.fileId,
+				normalizedCsvPath: entry.normalizedCsvPath,
+				sourcePath: entry.sourcePath,
+			})),
+			[
+				{
+					file: undefined,
+					fileId: "file-normalized",
+					normalizedCsvPath: "C:/tmp/normalized.csv",
+					sourcePath: null,
+				},
+				{
+					file: undefined,
+					fileId: "file-source",
+					normalizedCsvPath: null,
+					sourcePath: "C:/source/source.csv",
+				},
+			],
+		);
+		assert.deepEqual(
+			plan.skippedFiles.map(file => ({
+				fileId: file.fileId,
+				reason: file.reason,
+			})),
+			[{
+				fileId: "file-missing-source",
+				reason: "invalidSource",
+			}],
+		);
+	});
 });
 
 const createProcessableAssessment = (

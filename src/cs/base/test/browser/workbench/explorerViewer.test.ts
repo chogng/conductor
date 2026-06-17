@@ -377,6 +377,242 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       hoverHost.remove();
     }
   });
+
+  test("updates file hover thumbnail without reopening the context view", () => {
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    const contextViewService = new TestContextViewService();
+    const previewEmitter = new Emitter<{ readonly fileId: string }>();
+    let modelReady = false;
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const viewer = new ExplorerViewer(host, hoverHost, {
+      ...createViewerProps(),
+      contextViewService,
+      mode: "chart",
+      thumbnailPreviewService: {
+        get: () => ({ kind: "idle" }),
+        invalidate: () => undefined,
+        onDidChangePreview: previewEmitter.event,
+        prefetch: () => undefined,
+        request: () => modelReady
+          ? {
+              kind: "ready",
+              model: createThumbnailPlotModel("file-a"),
+              signature: "plot:file-a",
+            }
+          : { kind: "loading" },
+      },
+      thumbnailService: {
+        clear: () => undefined,
+        drawPlotThumbnail: () => undefined,
+      },
+      viewLayout: "tree",
+    }, labels);
+
+    try {
+      const item = host.querySelector<HTMLElement>(".file-list-item");
+      assert.ok(item);
+
+      item.dispatchEvent(new MouseEvent("mouseover", {
+        bubbles: true,
+        relatedTarget: null,
+      }));
+
+      const hoverLayer = contextViewService.renderedElement;
+      assert.ok(hoverLayer);
+      assert.equal(contextViewService.showCount, 1);
+      assert.ok(hoverLayer.querySelector(".thumbnail_view_chart_loading"));
+      assert.equal(hoverLayer.querySelector(".thumbnail_view_chart_canvas"), null);
+
+      modelReady = true;
+      previewEmitter.fire({ fileId: "file-a" });
+
+      assert.equal(contextViewService.showCount, 1);
+      assert.equal(contextViewService.renderedElement, hoverLayer);
+      assert.ok(hoverLayer.querySelector(".thumbnail_view_chart_canvas"));
+      assert.equal(hoverLayer.querySelector(".thumbnail_view_chart_loading"), null);
+      const readyThumbnail = hoverLayer.querySelector(".thumbnail_view");
+      assert.ok(readyThumbnail);
+
+      previewEmitter.fire({ fileId: "file-a" });
+
+      assert.equal(contextViewService.showCount, 1);
+      assert.equal(contextViewService.renderedElement, hoverLayer);
+      assert.equal(hoverLayer.querySelector(".thumbnail_view"), readyThumbnail);
+
+      item.dispatchEvent(new MouseEvent("mouseover", {
+        bubbles: true,
+        relatedTarget: item,
+      }));
+
+      assert.equal(contextViewService.showCount, 1);
+      assert.equal(contextViewService.renderedElement, hoverLayer);
+    } finally {
+      viewer.dispose();
+      previewEmitter.dispose();
+      labels.dispose();
+      hoverHost.remove();
+    }
+  });
+
+  test("does not request hover thumbnail for chart files without chart data", () => {
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    const contextViewService = new TestContextViewService();
+    let requestCount = 0;
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const viewer = new ExplorerViewer(host, hoverHost, {
+      ...createViewerProps(),
+      contextViewService,
+      files: [{
+        badgeState: {
+          confidence: "confirmed",
+          kind: "ready",
+          label: "output",
+          source: "assessment",
+        },
+        chartState: "ready",
+        curveType: "IV",
+        curveTypeBadgeLabel: "output",
+        curveTypeConfidence: "high",
+        curveTypeReasons: ["matched voltage/current columns"],
+        fileId: "file-a",
+        fileName: "A.csv",
+        hasChartData: false,
+        itemKey: "file-a",
+      }],
+      mode: "chart",
+      thumbnailPreviewService: {
+        get: () => ({ kind: "idle" }),
+        invalidate: () => undefined,
+        onDidChangePreview: Event.None,
+        prefetch: () => undefined,
+        request: () => {
+          requestCount += 1;
+          return { kind: "loading" };
+        },
+      },
+      thumbnailService: {
+        clear: () => undefined,
+        drawPlotThumbnail: () => undefined,
+      },
+      viewLayout: "tree",
+    }, labels);
+
+    try {
+      const item = host.querySelector<HTMLElement>(".file-list-item");
+      assert.ok(item);
+      assert.equal(item.dataset.chartState, "ready");
+      assert.equal(item.dataset.hasChartData, "false");
+
+      item.dispatchEvent(new MouseEvent("mouseover", {
+        bubbles: true,
+        relatedTarget: null,
+      }));
+
+      assert.equal(requestCount, 0);
+      assert.equal(contextViewService.delegate, undefined);
+      assert.equal(contextViewService.renderedElement, undefined);
+    } finally {
+      viewer.dispose();
+      labels.dispose();
+      hoverHost.remove();
+    }
+  });
+
+  test("closes file hover when the active anchor resolves to another thumbnail file", () => {
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    const contextViewService = new TestContextViewService();
+    const previewEmitter = new Emitter<{ readonly fileId: string }>();
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const viewer = new ExplorerViewer(host, hoverHost, {
+      ...createViewerProps(),
+      contextViewService,
+      files: [
+        {
+          badgeState: {
+            confidence: "confirmed",
+            kind: "ready",
+            label: "iv",
+            source: "assessment",
+          },
+          curveType: "IV",
+          curveTypeBadgeLabel: "iv",
+          curveTypeConfidence: "high",
+          curveTypeReasons: ["matched voltage/current columns"],
+          fileId: "file-a",
+          fileName: "A.csv",
+          itemKey: "file-a",
+        },
+        {
+          badgeState: {
+            confidence: "confirmed",
+            kind: "ready",
+            label: "iv",
+            source: "assessment",
+          },
+          curveType: "IV",
+          curveTypeBadgeLabel: "iv",
+          curveTypeConfidence: "high",
+          curveTypeReasons: ["matched voltage/current columns"],
+          fileId: "file-b",
+          fileName: "B.csv",
+          itemKey: "file-b",
+        },
+      ],
+      mode: "chart",
+      thumbnailPreviewService: {
+        get: () => ({ kind: "idle" }),
+        invalidate: () => undefined,
+        onDidChangePreview: previewEmitter.event,
+        prefetch: () => undefined,
+        request: (fileId) => ({
+          kind: "ready",
+          model: createThumbnailPlotModel(fileId),
+          signature: `plot:${fileId}`,
+        }),
+      },
+      thumbnailService: {
+        clear: () => undefined,
+        drawPlotThumbnail: () => undefined,
+      },
+      viewLayout: "tree",
+    }, labels);
+
+    try {
+      const item = host.querySelector<HTMLElement>(".file-list-item");
+      assert.ok(item);
+
+      item.dispatchEvent(new MouseEvent("mouseover", {
+        bubbles: true,
+        relatedTarget: null,
+      }));
+
+      assert.ok(contextViewService.delegate);
+      assert.ok(contextViewService.renderedElement);
+
+      item.dataset.fileId = "file-b";
+      previewEmitter.fire({ fileId: "file-a" });
+
+      assert.equal(contextViewService.delegate, undefined);
+      assert.equal(contextViewService.renderedElement, undefined);
+    } finally {
+      viewer.dispose();
+      previewEmitter.dispose();
+      labels.dispose();
+      hoverHost.remove();
+    }
+  });
 });
 
 const getFileContextActions = (
@@ -392,12 +628,14 @@ class TestContextViewService implements IContextViewService {
   public container: HTMLElement | undefined;
   public delegate: IContextViewDelegate | undefined;
   public renderedElement: HTMLElement | undefined;
+  public showCount = 0;
   private activeDisposable: IDisposable | undefined;
 
   public showContextView(
     delegate: IContextViewDelegate,
     container?: HTMLElement,
   ): IOpenContextView {
+    this.showCount += 1;
     this.delegate = delegate;
     this.container = container;
     const contextView = document.createElement("div");

@@ -50,8 +50,9 @@ suite("workbench/services/chart/common/chartFileOptions", () => {
 					"file-a": createFileRecord("file-a"),
 					"file-b": createFileRecord("file-b"),
 					"raw-only": createFileRecord("raw-only", false),
+					"series-only": createFileRecord("series-only", true, false),
 				},
-				["file-b", "file-a", "raw-only"],
+				["file-b", "file-a", "raw-only", "series-only"],
 			),
 			[
 				{
@@ -70,10 +71,11 @@ suite("workbench/services/chart/common/chartFileOptions", () => {
 function createFileRecord(
 	fileId: string,
 	hasChartData = true,
+	hasBaseCurve = hasChartData,
 ): FileRecord {
 	return {
 		assessmentsByRawTableId: {},
-		curvesByKey: hasChartData
+		curvesByKey: hasBaseCurve
 			? {
 				"base:iv:transfer:series-a": {
 					curveFamily: "iv",

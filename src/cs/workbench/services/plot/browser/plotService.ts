@@ -101,6 +101,11 @@ type QueuedPlotDisplayModelPrefetch = {
   readonly stage: PlotDisplayModelPrefetchStage;
 };
 
+type InFlightPlotPrefetch = {
+  readonly priority: PlotCalculatedDataPrefetchPriority;
+  readonly requestId: number;
+};
+
 type PlotCacheChangeMap = Map<FileId, Set<PlotType>>;
 
 export class PlotService extends Disposable implements IPlotService {
@@ -120,14 +125,15 @@ export class PlotService extends Disposable implements IPlotService {
   };
   private readonly calculatedDataCacheByFile = new WeakMap<FileRecord, Partial<Record<PlotType, CalculatedData>>>();
   private readonly calculatedDataCacheKeys = new Set<string>();
+  private readonly unavailableCalculatedDataCacheKeys = new Set<string>();
   private readonly queuedCalculatedDataPrefetchByKey = new Map<string, QueuedCalculatedDataPrefetch>();
-  private readonly inFlightCalculatedDataPrefetchByKey = new Map<string, PlotCalculatedDataPrefetchPriority>();
+  private readonly inFlightCalculatedDataPrefetchByKey = new Map<string, InFlightPlotPrefetch>();
   private cancelQueuedCalculatedDataPrefetch: (() => void) | null = null;
   private calculatedDataPrefetchGeneration = 0;
   private nextCalculatedDataWorkerRequestId = 1;
   private readonly plotDisplayModelCacheByKey = new Map<string, PlotDisplayModel>();
   private readonly queuedPlotDisplayModelPrefetchByKey = new Map<string, QueuedPlotDisplayModelPrefetch>();
-  private readonly inFlightPlotDisplayModelPrefetchByKey = new Map<string, PlotCalculatedDataPrefetchPriority>();
+  private readonly inFlightPlotDisplayModelPrefetchByKey = new Map<string, InFlightPlotPrefetch>();
   private cancelQueuedPlotDisplayModelPrefetch: (() => void) | null = null;
   private plotDisplayModelPrefetchGeneration = 0;
   private nextPlotDisplayModelWorkerRequestId = 1;
@@ -311,18 +317,21 @@ export class PlotService extends Disposable implements IPlotService {
       }
 
       const key = getCalculatedDataPrefetchKey(normalizedFileId, normalizedPlotType);
-      if (this.calculatedDataCacheKeys.has(key)) {
+      if (this.hasCompletedCalculatedDataPrefetch(key)) {
         this.queuedCalculatedDataPrefetchByKey.delete(key);
         continue;
       }
 
-      const inFlightPriority = this.inFlightCalculatedDataPrefetchByKey.get(key);
-      if (inFlightPriority) {
+      const inFlight = this.inFlightCalculatedDataPrefetchByKey.get(key);
+      if (inFlight) {
         if (
           CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[priority] <
-          CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[inFlightPriority]
+          CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[inFlight.priority]
         ) {
-          this.inFlightCalculatedDataPrefetchByKey.set(key, priority);
+          this.inFlightCalculatedDataPrefetchByKey.set(key, {
+            ...inFlight,
+            priority,
+          });
         }
         this.queuedCalculatedDataPrefetchByKey.delete(key);
         continue;
@@ -367,6 +376,9 @@ export class PlotService extends Disposable implements IPlotService {
       plotType,
       snapshot,
     });
+    if (!calculatedData && this.isCalculatedDataUnavailable(fileId, plotType)) {
+      return;
+    }
     const cachedDisplayModel = calculatedData ? this.getCachedPlotDisplayModel({
       fileId,
       hiddenLegendKeys: input.hiddenLegendKeys,
@@ -392,15 +404,18 @@ export class PlotService extends Disposable implements IPlotService {
         stage,
       })
       : null;
-    const inFlightPriority = calculatedDataCacheKey
+    const inFlight = calculatedDataCacheKey
       ? this.inFlightPlotDisplayModelPrefetchByKey.get(calculatedDataCacheKey)
       : undefined;
-    if (inFlightPriority) {
+    if (inFlight) {
       if (
         CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[priority] <
-        CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[inFlightPriority]
+        CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[inFlight.priority]
       ) {
-        this.inFlightPlotDisplayModelPrefetchByKey.set(calculatedDataCacheKey!, priority);
+        this.inFlightPlotDisplayModelPrefetchByKey.set(calculatedDataCacheKey!, {
+          ...inFlight,
+          priority,
+        });
       }
       this.queuedPlotDisplayModelPrefetchByKey.delete(key);
       return;
@@ -603,6 +618,7 @@ export class PlotService extends Disposable implements IPlotService {
     const affectedFileIds = getAffectedPlotFileIds(event);
     if (shouldFullyInvalidatePlotModelsForSessionChange(event, affectedFileIds)) {
       this.calculatedDataCacheKeys.clear();
+      this.unavailableCalculatedDataCacheKeys.clear();
       this.clearPlotDisplayModelCache();
       this.clearQueuedCalculatedDataPrefetch();
       this.clearQueuedPlotDisplayModelPrefetch();
@@ -625,6 +641,13 @@ export class PlotService extends Disposable implements IPlotService {
       const keyContext = getCalculatedDataPrefetchContext(key);
       if (keyContext && fileIds.has(keyContext.fileId)) {
         this.calculatedDataCacheKeys.delete(key);
+        addPlotCacheChange(calculatedDataChanges, keyContext);
+      }
+    }
+    for (const key of [...this.unavailableCalculatedDataCacheKeys]) {
+      const keyContext = getCalculatedDataPrefetchContext(key);
+      if (keyContext && fileIds.has(keyContext.fileId)) {
+        this.unavailableCalculatedDataCacheKeys.delete(key);
         addPlotCacheChange(calculatedDataChanges, keyContext);
       }
     }
@@ -715,7 +738,9 @@ export class PlotService extends Disposable implements IPlotService {
       ...cachedByPlotType,
       [plotType]: calculatedData,
     });
-    this.calculatedDataCacheKeys.add(getCalculatedDataPrefetchKey(file.id, plotType));
+    const key = getCalculatedDataPrefetchKey(file.id, plotType);
+    this.unavailableCalculatedDataCacheKeys.delete(key);
+    this.calculatedDataCacheKeys.add(key);
     this.onDidChangeCalculatedDataCacheEmitter.fire({
       fileId: file.id,
       plotType,
@@ -812,7 +837,7 @@ export class PlotService extends Disposable implements IPlotService {
   ): void {
     const key = getCalculatedDataPrefetchKey(file.id, plotType);
     if (
-      this.calculatedDataCacheKeys.has(key) ||
+      this.hasCompletedCalculatedDataPrefetch(key) ||
       this.inFlightCalculatedDataPrefetchByKey.has(key)
     ) {
       return;
@@ -820,14 +845,17 @@ export class PlotService extends Disposable implements IPlotService {
 
     const generation = this.calculatedDataPrefetchGeneration;
     const requestId = this.nextCalculatedDataWorkerRequestId++;
-    this.inFlightCalculatedDataPrefetchByKey.set(key, priority);
+    this.inFlightCalculatedDataPrefetchByKey.set(key, {
+      priority,
+      requestId,
+    });
     void calculatePlotDataInWorker({
       file,
       plotType,
       requestId,
       sessionVersion,
     }).then((result) => {
-      this.inFlightCalculatedDataPrefetchByKey.delete(key);
+      this.deleteInFlightCalculatedDataPrefetch(key, requestId);
       if (generation !== this.calculatedDataPrefetchGeneration) {
         this.schedulePlotDisplayModelPrefetch();
         this.scheduleCalculatedDataPrefetch();
@@ -864,6 +892,8 @@ export class PlotService extends Disposable implements IPlotService {
 
       if (currentFile && result.calculatedData) {
         this.cacheCalculatedDataForFileRecord(currentFile, result.plotType, result.calculatedData);
+      } else if (currentFile) {
+        this.markCalculatedDataUnavailable(currentFile.id, result.plotType);
       }
       this.schedulePlotDisplayModelPrefetch();
       this.scheduleCalculatedDataPrefetch();
@@ -963,6 +993,10 @@ export class PlotService extends Disposable implements IPlotService {
         plotType: next.plotType,
         snapshot,
       });
+      if (!calculatedData && this.isCalculatedDataUnavailable(next.fileId, next.plotType)) {
+        processed += 1;
+        continue;
+      }
       if (!calculatedData) {
         this.queuedPlotDisplayModelPrefetchByKey.set(
           getQueuedPlotDisplayModelPrefetchKey(next),
@@ -1022,7 +1056,10 @@ export class PlotService extends Disposable implements IPlotService {
 
     const generation = this.plotDisplayModelPrefetchGeneration;
     const requestId = this.nextPlotDisplayModelWorkerRequestId++;
-    this.inFlightPlotDisplayModelPrefetchByKey.set(prefetchKey, request.priority);
+    this.inFlightPlotDisplayModelPrefetchByKey.set(prefetchKey, {
+      priority: request.priority,
+      requestId,
+    });
     void calculatePlotDisplayModelInWorker({
       axisSettings: this.getAxisSettings(snapshot),
       axisTitleOverridesByKey: this.state.axisTitleOverridesByKey,
@@ -1035,7 +1072,7 @@ export class PlotService extends Disposable implements IPlotService {
       requestId,
       sessionVersion: snapshot.sessionVersion,
     }).then((result) => {
-      this.inFlightPlotDisplayModelPrefetchByKey.delete(prefetchKey);
+      this.deleteInFlightPlotDisplayModelPrefetch(prefetchKey, requestId);
       if (generation !== this.plotDisplayModelPrefetchGeneration) {
         this.scheduleCalculatedDataPrefetch();
         this.schedulePlotDisplayModelPrefetch();
@@ -1122,6 +1159,37 @@ export class PlotService extends Disposable implements IPlotService {
     return nextPrefetch;
   }
 
+  private hasCompletedCalculatedDataPrefetch(key: string): boolean {
+    return this.calculatedDataCacheKeys.has(key) ||
+      this.unavailableCalculatedDataCacheKeys.has(key);
+  }
+
+  private isCalculatedDataUnavailable(fileId: FileId, plotType: PlotType): boolean {
+    return this.unavailableCalculatedDataCacheKeys.has(getCalculatedDataPrefetchKey(fileId, plotType));
+  }
+
+  private markCalculatedDataUnavailable(fileId: FileId, plotType: PlotType): void {
+    const key = getCalculatedDataPrefetchKey(fileId, plotType);
+    if (this.unavailableCalculatedDataCacheKeys.has(key)) {
+      return;
+    }
+
+    this.unavailableCalculatedDataCacheKeys.add(key);
+    this.onDidChangeCalculatedDataCacheEmitter.fire({ fileId, plotType });
+  }
+
+  private deleteInFlightCalculatedDataPrefetch(key: string, requestId: number): void {
+    if (this.inFlightCalculatedDataPrefetchByKey.get(key)?.requestId === requestId) {
+      this.inFlightCalculatedDataPrefetchByKey.delete(key);
+    }
+  }
+
+  private deleteInFlightPlotDisplayModelPrefetch(key: string, requestId: number): void {
+    if (this.inFlightPlotDisplayModelPrefetchByKey.get(key)?.requestId === requestId) {
+      this.inFlightPlotDisplayModelPrefetchByKey.delete(key);
+    }
+  }
+
   private canStartPlotPrefetch(priority: PlotCalculatedDataPrefetchPriority): boolean {
     if (this.getTotalInFlightPlotPrefetchCount() >= PLOT_PREFETCH_MAX_IN_FLIGHT) {
       return false;
@@ -1140,13 +1208,13 @@ export class PlotService extends Disposable implements IPlotService {
 
   private getBackgroundInFlightPlotPrefetchCount(): number {
     let count = 0;
-    for (const priority of this.inFlightCalculatedDataPrefetchByKey.values()) {
-      if (!isInteractivePlotPrefetchPriority(priority)) {
+    for (const inFlight of this.inFlightCalculatedDataPrefetchByKey.values()) {
+      if (!isInteractivePlotPrefetchPriority(inFlight.priority)) {
         count += 1;
       }
     }
-    for (const priority of this.inFlightPlotDisplayModelPrefetchByKey.values()) {
-      if (!isInteractivePlotPrefetchPriority(priority)) {
+    for (const inFlight of this.inFlightPlotDisplayModelPrefetchByKey.values()) {
+      if (!isInteractivePlotPrefetchPriority(inFlight.priority)) {
         count += 1;
       }
     }

@@ -233,11 +233,12 @@ type HoverContent =
   };
 
 type HoverThumbnailCacheEntry = {
-  readonly file: ThumbnailFileLike;
+  readonly fileId: string;
+  readonly fileSignature: string;
   readonly isActive: boolean;
   readonly isLoading: boolean;
   readonly node: HTMLElement;
-  readonly plotModel: ExplorerThumbnailPlotModel | null;
+  readonly plotModelSignature: string;
   lastUsed: number;
 };
 
@@ -597,6 +598,7 @@ export class ExplorerViewer implements IDisposable {
   private readonly thumbnailHost: HTMLDivElement;
   private readonly hoverThumbnailCache = new Map<string, HoverThumbnailCacheEntry>();
   private hoverView: IOpenContextView | null = null;
+  private hoverContainer: HTMLElement | null = null;
   private hoverAnchor: HTMLElement | null = null;
   private hoverContent: HoverContent | null = null;
   private hoverHideTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -1217,6 +1219,9 @@ export class ExplorerViewer implements IDisposable {
     _index: number,
     template: TreeItemTemplate,
   ): void => {
+    if (this.hoverAnchor === template.file.host) {
+      this.hideFileItemHover(template.file.host);
+    }
     template.file.fileId = null;
     template.file.editorStore.clear();
     template.folder.currentNode = null;
@@ -1295,6 +1300,9 @@ export class ExplorerViewer implements IDisposable {
     const { host } = template;
     const fileKey = getFileRenderKey(fileEntry);
     template.assessment.bind(fileKey);
+    if (this.hoverAnchor === host && template.fileId !== fileId) {
+      this.hideFileItemHover(host);
+    }
 
     host.className = "file-list-item";
     delete host.dataset.expanded;
@@ -1312,6 +1320,16 @@ export class ExplorerViewer implements IDisposable {
       host.dataset.fileId = fileId;
     } else {
       delete host.dataset.fileId;
+    }
+    if (fileEntry.chartState) {
+      host.dataset.chartState = fileEntry.chartState;
+    } else {
+      delete host.dataset.chartState;
+    }
+    if (typeof fileEntry.hasChartData === "boolean") {
+      host.dataset.hasChartData = fileEntry.hasChartData ? "true" : "false";
+    } else {
+      delete host.dataset.hasChartData;
     }
     if (isEditing) {
       host.dataset.editing = "true";
@@ -1623,6 +1641,9 @@ export class ExplorerViewer implements IDisposable {
     template: FolderItemTemplate,
   ): void {
     const { host } = template;
+    if (this.hoverAnchor === host) {
+      this.hideFileItemHover(host);
+    }
     template.currentNode = node;
     host.className = "file-list-folder-item";
     host.title = node.name;
@@ -1632,6 +1653,8 @@ export class ExplorerViewer implements IDisposable {
     delete host.dataset.autoReasons;
     delete host.dataset.autoTemplate;
     delete host.dataset.autoWarning;
+    delete host.dataset.chartState;
+    delete host.dataset.hasChartData;
     delete host.dataset.fileId;
     delete host.dataset.itemKey;
     delete host.dataset.selected;
@@ -1741,8 +1764,11 @@ export class ExplorerViewer implements IDisposable {
     };
   }
 
-  private hasFileItemHoverContent(item: HTMLElement): boolean {
-    return this.resolveHoverContent(item) !== null;
+  private shouldDismissVisibleHoverForContent(content: HoverContent): boolean {
+    return (
+      this.hoverContent?.kind === "thumbnail" &&
+      (content.kind !== "thumbnail" || this.hoverContent.fileId !== content.fileId)
+    );
   }
 
   private isInsideFileHover(
@@ -1795,7 +1821,7 @@ export class ExplorerViewer implements IDisposable {
     this.hoverLayoutFrame = null;
   }
 
-  private showFileItemHover(item: HTMLElement): void {
+  private showFileItemHover(item: HTMLElement, forceRender = false): void {
     if (this.isFolderActionMenuActive()) {
       this.hideFileItemHover();
       return;
@@ -1808,8 +1834,23 @@ export class ExplorerViewer implements IDisposable {
     }
 
     this.cancelFileItemHoverHide();
+    if (
+      this.hoverAnchor === item &&
+      this.hoverView &&
+      this.hoverContainer &&
+      isSameHoverContent(this.hoverContent, content)
+    ) {
+      if (forceRender) {
+        this.hoverContent = content;
+        this.renderHoverContent(this.hoverContainer);
+        this.scheduleFileItemHoverLayout();
+      }
+      return;
+    }
+
     this.hoverAnchor = item;
     this.hoverContent = content;
+    this.closeFileItemHoverView();
     this.openFileItemHoverView(item, content);
   }
 
@@ -1860,8 +1901,12 @@ export class ExplorerViewer implements IDisposable {
     const disposables = new DisposableStore();
     container.classList.add(...classNames);
     container.setAttribute("role", "tooltip");
+    this.hoverContainer = container;
     disposables.add({
       dispose: () => {
+        if (this.hoverContainer === container) {
+          this.hoverContainer = null;
+        }
         container.classList.remove(
           "file-list-hover",
           "file-list-hover--assessment",
@@ -1892,6 +1937,11 @@ export class ExplorerViewer implements IDisposable {
       return null;
     }
 
+    const fileEntry = this.getExplorerFileEntryByFileId(fileId);
+    if (!canRequestThumbnailPreview(getFileItemChartPreviewState(item, fileEntry))) {
+      return null;
+    }
+
     const file = this.getThumbnailFileLike(fileId);
     if (!file) {
       return null;
@@ -1903,6 +1953,17 @@ export class ExplorerViewer implements IDisposable {
       fileId,
       isSelected: item.dataset.selected === "true",
     };
+  }
+
+  private getExplorerFileEntryByFileId(fileId: string): ExplorerFileEntry | null {
+    const normalizedFileId = String(fileId ?? "").trim();
+    if (!normalizedFileId) {
+      return null;
+    }
+
+    return this.props.files.find(file =>
+      String(file.fileId ?? "").trim() === normalizedFileId,
+    ) ?? null;
   }
 
   private resolveAssessmentHoverContent(item: HTMLElement): HoverContent | null {
@@ -1930,6 +1991,7 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
+    container.replaceChildren();
     if (content.kind === "thumbnail") {
       container.appendChild(this.getHoverThumbnail(
         content.fileId,
@@ -1960,12 +2022,17 @@ export class ExplorerViewer implements IDisposable {
     const plotModel = getPreviewPlotModel(previewState) ?? this.getThumbnailPlotModel(fileId);
     const isLoading = previewState.kind === "loading" && !plotModel;
     const cached = this.hoverThumbnailCache.get(cacheKey);
+    const fileSignature = createHoverThumbnailFileSignature(file);
+    const plotModelSignature = plotModel?.signature ?? "";
     this.hoverCacheUse += 1;
     if (
-      cached?.file === file &&
+      cached?.fileId === normalizedFileId &&
+      cached.fileSignature === fileSignature &&
       cached.isActive === isActive &&
       cached.isLoading === isLoading &&
-      cached.plotModel === plotModel
+      cached.plotModelSignature === plotModelSignature &&
+      cached.node.dataset.hoverFileId === normalizedFileId &&
+      cached.node.dataset.hoverPlotSignature === plotModelSignature
     ) {
       cached.lastUsed = this.hoverCacheUse;
       return cached.node;
@@ -1981,14 +2048,17 @@ export class ExplorerViewer implements IDisposable {
       plotType: this.props.activePlotType ?? "iv",
       thumbnailService: this.props.thumbnailService,
     });
+    node.dataset.hoverFileId = normalizedFileId;
+    node.dataset.hoverPlotSignature = plotModelSignature;
     cached?.node.remove();
     this.hoverThumbnailCache.set(cacheKey, {
-      file,
+      fileId: normalizedFileId,
+      fileSignature,
       isActive,
       isLoading,
       lastUsed: this.hoverCacheUse,
       node,
-      plotModel,
+      plotModelSignature,
     });
     this.trimHoverThumbnailCache();
     return node;
@@ -2061,12 +2131,23 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    if (!this.hoverHost.contains(anchor) || !this.hasFileItemHoverContent(anchor)) {
+    if (!this.hoverHost.contains(anchor)) {
       this.hideFileItemHover();
       return;
     }
 
-    this.showFileItemHover(anchor);
+    const content = this.resolveHoverContent(anchor);
+    if (!content) {
+      this.hideFileItemHover();
+      return;
+    }
+
+    if (this.shouldDismissVisibleHoverForContent(content)) {
+      this.hideFileItemHover();
+      return;
+    }
+
+    this.showFileItemHover(anchor, true);
   }
 
   private layoutVisibleHover(): void {
@@ -2075,7 +2156,13 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    if (!this.hoverHost.contains(anchor) || !this.hasFileItemHoverContent(anchor)) {
+    if (!this.hoverHost.contains(anchor)) {
+      this.hideFileItemHover();
+      return;
+    }
+
+    const content = this.resolveHoverContent(anchor);
+    if (!content || this.shouldDismissVisibleHoverForContent(content)) {
       this.hideFileItemHover();
       return;
     }
@@ -2092,6 +2179,7 @@ export class ExplorerViewer implements IDisposable {
     this.cancelFileItemHoverLayout();
     this.hoverAnchor = null;
     this.hoverContent = null;
+    this.hoverContainer = null;
     this.closeFileItemHoverView();
   }
 
@@ -2119,6 +2207,115 @@ function getPreviewPlotModel(
   return state.kind === "ready" || state.kind === "rawReady"
     ? state.model
     : null;
+}
+
+function createHoverThumbnailFileSignature(file: ThumbnailFileLike): string {
+  return [
+    file.fileId ?? "",
+    file.fileName ?? "",
+    file.yUnit ?? "",
+    file.curveFilterKey ?? "",
+    file.curveFilterField ?? "",
+    file.curveType ?? "",
+    file.x?.sampledPoints ?? "",
+    file.xAxisRole ?? "",
+  ].join("\u001f");
+}
+
+type FileItemChartPreviewState = Pick<ExplorerFileEntry, "chartState" | "hasChartData">;
+
+function getFileItemChartPreviewState(
+  item: HTMLElement,
+  file: ExplorerFileEntry | null,
+): FileItemChartPreviewState | null {
+  const chartState = file?.chartState ?? parseChartState(item.dataset.chartState);
+  const hasChartData = typeof file?.hasChartData === "boolean"
+    ? file.hasChartData
+    : parseBooleanDataset(item.dataset.hasChartData);
+
+  if (!chartState && typeof hasChartData !== "boolean") {
+    return null;
+  }
+
+  return { chartState, hasChartData };
+}
+
+function parseChartState(
+  value: string | undefined,
+): ExplorerFileEntry["chartState"] | undefined {
+  switch (value) {
+    case "failed":
+    case "none":
+    case "processing":
+    case "queued":
+    case "ready":
+    case "skipped":
+      return value;
+    default:
+      return undefined;
+  }
+}
+
+function parseBooleanDataset(value: string | undefined): boolean | undefined {
+  if (value === "true") {
+    return true;
+  }
+  if (value === "false") {
+    return false;
+  }
+  return undefined;
+}
+
+function canRequestThumbnailPreview(state: FileItemChartPreviewState | null): boolean {
+  if (!state) {
+    return true;
+  }
+
+  if (state.hasChartData === true) {
+    return true;
+  }
+  if (state.hasChartData === false) {
+    return false;
+  }
+
+  switch (state.chartState) {
+    case "queued":
+    case "processing":
+    case "ready":
+      return true;
+    case "failed":
+    case "none":
+    case "skipped":
+      return false;
+    default:
+      break;
+  }
+
+  return true;
+}
+
+function isSameHoverContent(
+  left: HoverContent | null,
+  right: HoverContent,
+): boolean {
+  if (!left || left.kind !== right.kind) {
+    return false;
+  }
+
+  if (left.kind === "thumbnail") {
+    return (
+      left.fileId === right.fileId &&
+      left.isSelected === right.isSelected
+    );
+  }
+
+  return (
+    left.type === right.type &&
+    left.confidence === right.confidence &&
+    left.template === right.template &&
+    left.isWarning === right.isWarning &&
+    areStringArraysEqual(left.reasons, right.reasons)
+  );
 }
 
 function getRevealInOSLabel(): string {

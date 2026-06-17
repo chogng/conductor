@@ -63,7 +63,9 @@ export type SearchResult = {
 ```mermaid
 flowchart TD
     Session[SessionSnapshot] --> Index[SearchIndex]
-    Plot[IPlotService.getPlotDisplayModel] --> SearchPlot[SearchPlotModel chart + inspector]
+    PlotCache[IPlotService.getCachedPlotDisplayModel] --> SearchPlot[SearchPlotModel chart + inspector]
+    PlotMiss[cache miss] --> PlotPrefetch[IPlotService.prefetchPlotDisplayModel active]
+    PlotPrefetch --> PlotCache
     SearchPlot --> SearchView[SearchView point tables]
     Query[SearchQuery] --> Search[ISearchService]
     Index --> Search
@@ -100,8 +102,10 @@ Search should navigate by explicit target refs, not by global session active sta
 ## Plot point search modes
 
 Plot point search consumes a Search-owned projection of the current
-`PlotDisplayModel`. Workbench bridges `IPlotService.getPlotDisplayModel(...)`
-into `SearchPlotModel` with two panes:
+`PlotDisplayModel`. Workbench bridges `IPlotService.getCachedPlotDisplayModel(...)`
+into `SearchPlotModel` with two panes and calls
+`IPlotService.prefetchPlotDisplayModel(..., "active")` on cache miss. It must
+not synchronously create plot display models during Workbench/Search render.
 
 | Pane | Source | UI behavior |
 | --- | --- | --- |

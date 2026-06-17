@@ -103,6 +103,39 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     controller.dispose();
   });
 
+  test("full apply queues converted csv sources without retained File objects", () => {
+    const queuedFileIds: string[][] = [];
+    const startedJobs: ProcessingJobOptions[] = [];
+    const controller = createController({
+      sessionService: createSessionService(),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds, startedJobs),
+    });
+
+    controller.update({
+      processedFileIds: [],
+      rawFiles: [
+        createSessionFile("file-path", {
+          file: undefined,
+          normalizedCsvPath: "C:/tmp/file-path.csv",
+        }),
+      ],
+    });
+
+    const result = controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    }) as { ok: boolean };
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(queuedFileIds, [["file-path"]]);
+    assert.equal(startedJobs[0].queue[0].file, undefined);
+    assert.equal(startedJobs[0].queue[0].normalizedCsvPath, "C:/tmp/file-path.csv");
+    controller.dispose();
+  });
+
   test("rule apply starts with the active file's matched group", () => {
     const queuedFileIds: string[][] = [];
     const controller = createController({

@@ -5,10 +5,12 @@
 import assert from "assert";
 
 import {
+  createSearchPlotModelFromCachedPlotDisplay,
   resolveInitialWorkbenchViewMode,
 } from "src/cs/workbench/browser/workbench";
 import {
   createExplorerPaneInput,
+  shouldPrefetchExplorerThumbnails,
 } from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import type {
@@ -206,6 +208,9 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       plotService: createPlotService(),
       readModel,
       snapshot,
+      applyStatesByFileId: new Map([
+        ["raw-only", { state: "ready" }],
+      ]),
       templateState: {
         formState: createEmptyTemplateConfig(),
         mode: "management",
@@ -219,6 +224,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(input.selectedFileId, "raw-only");
     assert.deepEqual(input.files.map(file => file.fileId), ["file-a", "raw-only"]);
     assert.deepEqual(input.files.map(file => file.hasChartData), [true, false]);
+    assert.deepEqual(input.files.map(file => file.chartState), ["ready", "none"]);
   });
 
   test("creates chart thumbnail input from processed file projection", () => {
@@ -457,6 +463,71 @@ suite("workbench/browser/workbench initial mode", () => {
 
     assert.equal(createSessionReadModel(session.getSnapshot()).hasChartData, true);
     assert.equal(resolveInitialWorkbenchViewMode(session.getSnapshot()), "table");
+  });
+});
+
+suite("workbench/browser/workbench search plot model", () => {
+  test("reads cached plot display model and prefetches on miss", () => {
+    const prefetches: Array<{ readonly fileId: string | null; readonly priority: string }> = [];
+    let cachedReady = false;
+    const snapshot = new SessionService().getSnapshot();
+    const plotService = {
+      getCachedPlotDisplayModel: ({ fileId }: { readonly fileId?: string | null }) => cachedReady
+        ? {
+            chart: {
+              model: {
+                seriesList: [],
+              },
+            },
+            fileId: fileId ?? "file-a",
+            inspector: null,
+            plotType: "iv",
+            unitControl: null,
+          }
+        : null,
+      prefetchPlotDisplayModel: (
+        input: { readonly fileId?: string | null },
+        priority: string,
+      ) => {
+        prefetches.push({ fileId: input.fileId ?? null, priority });
+      },
+    };
+
+    assert.equal(createSearchPlotModelFromCachedPlotDisplay({
+      fileId: "file-a",
+      plotService,
+      snapshot,
+    }), null);
+    assert.deepEqual(prefetches, [
+      { fileId: "file-a", priority: "active" },
+    ]);
+
+    cachedReady = true;
+    const model = createSearchPlotModelFromCachedPlotDisplay({
+      fileId: "file-a",
+      plotService,
+      snapshot,
+    });
+
+    assert.deepEqual(model?.panes.map(pane => pane.id), ["chart"]);
+    assert.equal(prefetches.length, 1);
+  });
+});
+
+suite("workbench/browser/workbench thumbnail prefetch gating", () => {
+  test("allows visible thumbnail prefetch only in chart thumbnail layout", () => {
+    assert.equal(shouldPrefetchExplorerThumbnails({
+      activeWorkbenchMainPart: "chart",
+      viewLayout: "thumbnail",
+    }), true);
+    assert.equal(shouldPrefetchExplorerThumbnails({
+      activeWorkbenchMainPart: "chart",
+      viewLayout: "tree",
+    }), false);
+    assert.equal(shouldPrefetchExplorerThumbnails({
+      activeWorkbenchMainPart: "table",
+      viewLayout: "thumbnail",
+    }), false);
   });
 });
 

@@ -221,6 +221,10 @@ sequenceDiagram
 
     User->>ExplorerViewer: hover tree/list file item
     ExplorerViewer->>ExplorerViewer: resolve hover fileId + display metadata
+    ExplorerViewer->>ExplorerViewer: check Explorer chart state / hasChartData
+    alt chart data unavailable
+        ExplorerViewer-->>User: no thumbnail hover content
+    else previewable chart file
     ExplorerViewer->>ContextViewService: showContextView({ getAnchor, render, getWidth }, hoverHost)
     ContextViewService-->>ExplorerViewer: IOpenContextView
     ExplorerViewer->>HoverContainer: create Explorer-owned hover shell
@@ -241,6 +245,7 @@ sequenceDiagram
     ExplorerViewer->>ContextViewService: layout()
     User->>ExplorerViewer: leave item or hover container
     ExplorerViewer->>ContextViewService: hide/dismiss context view
+    end
 ```
 
 Do not create thumbnail-specific duplicates of Explorer file item commands such as remove, rename, template assignment, reveal, or selection. If a thumbnail UI affordance invokes an Explorer file operation, it must call the existing Explorer/files command or selection path.
@@ -254,7 +259,7 @@ Do not create thumbnail-specific duplicates of Explorer file item commands such 
 - Thumbnail service/common code must not decide which Explorer files are visible as thumbnails. Any file filtering, field filter option building, or visible file id narrowing belongs to Explorer/files view-model code.
 - Thumbnail clicks may travel through an existing Explorer UI callback such as `onSelectFile`, but the target selection operation must remain upstream-shaped Explorer selection (`IExplorerService.select(...)`), not thumbnail-owned state.
 - Thumbnail file item actions must reuse the same Explorer/files action ids and command handlers as tree file items.
-- Tree layout hover thumbnail previews must use Explorer-owned hover triggers and context-view containers, with thumbnail-owned preview content rendering.
+- Tree layout hover thumbnail previews must use Explorer-owned hover triggers and context-view containers, and Explorer must filter out files whose chart state has no chart data before requesting thumbnail-owned preview content.
 - Visible/nearby thumbnail preview prefetch runs only while Explorer is in chart thumbnail layout. Tree layout hover previews stay on-demand through hover priority so ordinary tree scrolling does not warm thumbnail previews for every visible file.
 - Loading thumbnail previews should render a nonblank thumbnail-owned placeholder
   unless an older plot model is available, so hover and thumbnail layout do not
