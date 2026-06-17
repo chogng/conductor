@@ -9,6 +9,17 @@ import { createServer } from "vite";
 
 const workspace = path.resolve(fileURLToPath(new URL("../../../", import.meta.url)));
 const timeoutMs = 15000;
+const dropTransferCsv = [
+  "SetupTitle,Transfer_DB",
+  "TestParameter,Output.Graph.XAxis.Data,Vg",
+  "DataName,Vg,Id,Ig,Vd",
+  "DataValue,-2,1e-12,1e-13,0.1",
+  "DataValue,-1,1e-11,1e-13,0.1",
+  "DataValue,0,1e-10,1e-13,0.1",
+  "DataValue,-2,2e-12,1e-13,1.0",
+  "DataValue,-1,2e-11,1e-13,1.0",
+  "DataValue,0,2e-10,1e-13,1.0",
+].join("\n");
 
 const createImportFixture = () => {
   const root = mkdtempSync(path.join(tmpdir(), "conductor-folder-import-"));
@@ -125,6 +136,18 @@ const openWorkbench = async (page, baseUrl) => {
   });
 };
 
+const getOpenFolderButton = (page) =>
+  page.getByRole("button", { name: /^(打开文件夹|导入文件夹|Open Folder)$/ });
+
+const getApplyAllButton = (page) =>
+  page.getByRole("button", { name: /^(应用到所有|Apply to All)$/ });
+
+const getCancelButton = (page) =>
+  page.getByRole("button", { name: /^(取消|Cancel)$/ });
+
+const getNewTemplateItem = (page) =>
+  page.getByText(/^(新建模板\.\.\.|New Template\.\.\.)$/, { exact: true });
+
 const waitForImportedPreview = async (page) => {
   await page.waitForFunction(
     () => {
@@ -148,9 +171,11 @@ const waitForDroppedPreview = async (page) => {
       const text = document.body.innerText;
       return (
         text.includes("drop.csv") &&
+        text.includes("Transfer_DB") &&
+        text.includes("DataName") &&
         text.includes("Vg") &&
         text.includes("Id") &&
-        text.includes("0\t1")
+        text.includes("DataValue\t-2\t1e-12")
       );
     },
     undefined,
@@ -159,7 +184,7 @@ const waitForDroppedPreview = async (page) => {
 };
 
 const waitForAppliedChart = async (page) => {
-  await page.getByRole("button", { name: "应用到所有" }).click();
+  await getApplyAllButton(page).click();
   await page.waitForFunction(
     () => Boolean(document.querySelector(".chart_view .plot_main_chart_canvas")),
     undefined,
@@ -169,7 +194,7 @@ const waitForAppliedChart = async (page) => {
 
 const openTemplateEditor = async (page) => {
   await page.locator(".template_picker_button").click();
-  await page.getByText("新建模板...", { exact: true }).click();
+  await getNewTemplateItem(page).click();
   await page.locator("#template_editor_xDataStart").waitFor({
     timeout: timeoutMs,
   });
@@ -196,6 +221,20 @@ const clickTemplateCell = async (page, rowIndex, colIndex) => {
   await cell.click();
 };
 
+const selectTemplateYColumnB = async (page) => {
+  const button = page.locator('.table_view_column_button[data-col-index="1"]');
+  await button.waitFor({
+    state: "visible",
+    timeout: timeoutMs,
+  });
+  await button.click();
+  await page.waitForFunction(
+    () => document.querySelector(".template_selection_summary")?.textContent?.includes("B"),
+    undefined,
+    { timeout: timeoutMs },
+  );
+};
+
 const assertTemplateCellPicking = async (page) => {
   await openTemplateEditor(page);
 
@@ -216,9 +255,10 @@ const assertTemplateCellPicking = async (page) => {
     undefined,
     { timeout: timeoutMs },
   );
+  await selectTemplateYColumnB(page);
 
-  await page.getByRole("button", { name: "取消" }).click();
-  await page.getByRole("button", { name: "应用到所有" }).waitFor({
+  await getCancelButton(page).click();
+  await getApplyAllButton(page).waitFor({
     timeout: timeoutMs,
   });
 };
@@ -240,7 +280,7 @@ const runDirectoryPickerImportTest = async (browser, baseUrl) => {
     await installDirectoryPickerMock(page);
     await openWorkbench(page, baseUrl);
 
-    await page.getByRole("button", { name: "导入文件夹" }).click();
+    await getOpenFolderButton(page).click();
 
     await waitForImportedPreview(page);
     await assertImportedPreview(page);
@@ -259,17 +299,17 @@ const runDropImportTest = async (browser, baseUrl) => {
 
   try {
     await openWorkbench(page, baseUrl);
-    await page.getByRole("button", { name: "导入文件夹" }).waitFor({
+    await getOpenFolderButton(page).waitFor({
       timeout: timeoutMs,
     });
 
-    await page.evaluate(() => {
+    await page.evaluate((csvText) => {
       const target = document.querySelector(".file-list-viewport");
       if (!target) {
         throw new Error("File list viewport was not found.");
       }
 
-      const file = new File(["Vg,Id\n0,1\n1,2"], "drop.csv", {
+      const file = new File([csvText], "drop.csv", {
         lastModified: 1,
         type: "text/csv;charset=utf-8",
       });
@@ -282,7 +322,7 @@ const runDropImportTest = async (browser, baseUrl) => {
           dataTransfer,
         }));
       }
-    });
+    }, dropTransferCsv);
 
     await waitForDroppedPreview(page);
     const text = await page.locator("body").innerText();
@@ -309,7 +349,7 @@ const runInterceptedDirectoryPickerFallbackTest = async (browser, baseUrl) => {
     const fileChooserPromise = page.waitForEvent("filechooser", {
       timeout: timeoutMs,
     });
-    await page.getByRole("button", { name: "导入文件夹" }).click();
+    await getOpenFolderButton(page).click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(fixture);
 

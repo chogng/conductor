@@ -890,7 +890,16 @@ export class PlotService extends Disposable implements IPlotService {
         return;
       }
 
-      if (currentFile && result.calculatedData) {
+      if (!result.calculatedData) {
+        if (currentFile && !this.calculatedDataCacheKeys.has(key)) {
+          this.getCalculatedDataForFileRecord(currentFile, plotType);
+        }
+        this.schedulePlotDisplayModelPrefetch();
+        this.scheduleCalculatedDataPrefetch();
+        return;
+      }
+
+      if (currentFile) {
         this.cacheCalculatedDataForFileRecord(currentFile, result.plotType, result.calculatedData);
       } else if (currentFile) {
         this.markCalculatedDataUnavailable(currentFile.id, result.plotType);

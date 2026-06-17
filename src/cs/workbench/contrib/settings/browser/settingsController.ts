@@ -651,8 +651,8 @@ export class SettingsController {
 
   private get numericDisplayModeOptions(): SelectOption[] {
     return [
-      { value: "raw", label: localize("settings.numericDisplay.raw", "Raw Value") },
-      { value: "smart", label: localize("settings.numericDisplay.smart", "Smart Display") },
+      { value: "raw", label: localize("settings.numericDisplay.raw", "raw") },
+      { value: "smart", label: localize("settings.numericDisplay.smart", "smart") },
     ];
   }
 

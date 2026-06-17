@@ -59,15 +59,18 @@ suite("workbench/contrib/workspaces/test/browser/workspaceCommands", () => {
     );
   });
 
-  test("add workspace folder command opens from the last selected folder when it still exists", async () => {
+  test("add workspace folder command opens from the last selected folder without probing it first", async () => {
     const lastSelectedFolder = URI.file("/previous/import");
     const selectedFolder = URI.file("/next/import");
     const userHome = URI.file("/data");
     let openDialogDefaultUri: URI | undefined;
     const storageService = new TestStorageService();
+    let didCheckLastSelectedFolder = false;
     storeLastSelectedFolder(storageService, lastSelectedFolder);
     const accessor = createAccessor([
-      [IFileService, new TestFileService([lastSelectedFolder])],
+      [IFileService, new TestFileService([], () => {
+        didCheckLastSelectedFolder = true;
+      })],
       [IFileDialogService, {
         _serviceBrand: undefined,
         showOpenDialog: async (options: IOpenDialogOptions) => {
@@ -83,13 +86,14 @@ suite("workbench/contrib/workspaces/test/browser/workspaceCommands", () => {
 
     assert.equal(folder?.toString(), selectedFolder.toString());
     assert.equal(openDialogDefaultUri?.toString(), lastSelectedFolder.toString());
+    assert.equal(didCheckLastSelectedFolder, false);
     assert.equal(
       storageService.get("workspaces.lastSelectedFolder", StorageScope.PROFILE),
       selectedFolder.toString(),
     );
   });
 
-  test("add workspace folder command resolves services before async default folder lookup", async () => {
+  test("add workspace folder command resolves services before opening the dialog", async () => {
     const lastSelectedFolder = URI.file("/previous/import");
     const selectedFolder = URI.file("/next/import");
     const userHome = URI.file("/data");
@@ -113,13 +117,17 @@ suite("workbench/contrib/workspaces/test/browser/workspaceCommands", () => {
     assert.equal(folder?.toString(), selectedFolder.toString());
   });
 
-  test("add workspace folder command falls back to user home when the last selected folder is missing", async () => {
-    const lastSelectedFolder = URI.file("/missing/import");
+  test("add workspace folder command falls back to user home when the stored folder is invalid", async () => {
     const selectedFolder = URI.file("/data/import");
     const userHome = URI.file("/data");
     let openDialogDefaultUri: URI | undefined;
     const storageService = new TestStorageService();
-    storeLastSelectedFolder(storageService, lastSelectedFolder);
+    storageService.store(
+      "workspaces.lastSelectedFolder",
+      "://not-a-valid-uri",
+      StorageScope.PROFILE,
+      StorageTarget.USER,
+    );
     const accessor = createAccessor([
       [IFileService, new TestFileService()],
       [IFileDialogService, {

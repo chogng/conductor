@@ -781,6 +781,48 @@ const shouldCacheColumnDisplayProfile = (
   return sampleCount >= stableSampleCount;
 };
 
+const collectNumericColumnSamples = (
+  samples: readonly unknown[],
+): {
+  readonly nonEmptyCount: number;
+  readonly numericSamples: readonly unknown[];
+} => {
+  const nonEmptySamples: Array<{
+    readonly numericValue: number | null;
+    readonly sample: unknown;
+  }> = [];
+
+  for (const sample of samples) {
+    const text = typeof sample === "string"
+      ? sample.trim()
+      : sample === null || sample === undefined
+        ? ""
+        : String(sample).trim();
+    if (!text) {
+      continue;
+    }
+
+    nonEmptySamples.push({
+      numericValue: parseNumericCell(sample),
+      sample,
+    });
+  }
+
+  const firstSample = nonEmptySamples[0];
+  const decisionSamples = firstSample &&
+    firstSample.numericValue === null &&
+    nonEmptySamples.slice(1).some(sample => sample.numericValue !== null)
+    ? nonEmptySamples.slice(1)
+    : nonEmptySamples;
+
+  return {
+    nonEmptyCount: decisionSamples.length,
+    numericSamples: decisionSamples
+      .filter(sample => sample.numericValue !== null)
+      .map(sample => sample.sample),
+  };
+};
+
 const getUnhealthyTableMessage = (entry: SessionFile): string => {
   const message = String(entry.assessmentHealthMessage ?? "").trim().toLowerCase();
   if (entry.assessmentHealth === "decodeFailed") {
@@ -1999,20 +2041,7 @@ const createTableModel = ({
         return rawProfile;
       }
 
-      let nonEmptyCount = 0;
-      const numericSamples: unknown[] = [];
-      for (const sample of samples) {
-        const text = typeof sample === "string" ? sample.trim() : sample === null || sample === undefined ? "" : String(sample).trim();
-        if (!text) {
-          continue;
-        }
-
-        nonEmptyCount += 1;
-        const numericValue = parseNumericCell(sample);
-        if (numericValue !== null) {
-          numericSamples.push(sample);
-        }
-      }
+      const { nonEmptyCount, numericSamples } = collectNumericColumnSamples(samples);
 
       if (!nonEmptyCount || numericSamples.length / nonEmptyCount < TABLE_COLUMN_NUMERIC_THRESHOLD) {
         if (shouldCacheColumnDisplayProfile(samples.length, currentFile?.rowCount)) {

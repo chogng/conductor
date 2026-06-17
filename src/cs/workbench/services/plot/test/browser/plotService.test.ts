@@ -1154,6 +1154,125 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     }
   });
 
+  test("falls back when calculated-data worker returns an empty result", async () => {
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+    const originalWorker = globalThis.Worker;
+    const scheduledFrames: FrameRequestCallback[] = [];
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      scheduledFrames.push(callback);
+      return scheduledFrames.length;
+    }) as typeof requestAnimationFrame;
+    globalThis.cancelAnimationFrame = (() => undefined) as typeof cancelAnimationFrame;
+
+    type WorkerRecord = {
+      readonly message: {
+        readonly payload?: {
+          readonly fileId?: string;
+          readonly plotType?: "iv";
+          readonly requestId?: number;
+          readonly sessionVersion?: number;
+        };
+        readonly type?: string;
+      };
+      readonly worker: TestWorker;
+    };
+    const workerRecords: WorkerRecord[] = [];
+    class TestWorker {
+      public onerror: ((event: ErrorEvent) => void) | null = null;
+      public onmessage: ((event: MessageEvent) => void) | null = null;
+
+      public postMessage(message: WorkerRecord["message"]): void {
+        workerRecords.push({ message, worker: this });
+      }
+
+      public terminate(): void {
+        return;
+      }
+    }
+
+    const completeCalculatedWorkerWithEmptyResult = (record: WorkerRecord): void => {
+      const payload = record.message.payload;
+      record.worker.onmessage?.({
+        data: {
+          payload: {
+            calculatedData: null,
+            fileId: payload?.fileId ?? "",
+            plotType: payload?.plotType ?? "iv",
+            requestId: payload?.requestId ?? 0,
+            sessionVersion: payload?.sessionVersion ?? 0,
+          },
+          type: "calculateDataResult",
+        },
+      } as MessageEvent);
+    };
+    const completeDisplayWorkerWithEmptyResult = (record: WorkerRecord): void => {
+      const payload = record.message.payload;
+      record.worker.onmessage?.({
+        data: {
+          payload: {
+            displayModel: null,
+            fileId: payload?.fileId ?? "",
+            plotType: payload?.plotType ?? "iv",
+            requestId: payload?.requestId ?? 0,
+            sessionVersion: payload?.sessionVersion ?? 0,
+          },
+          type: "calculateDisplayModelResult",
+        },
+      } as MessageEvent);
+    };
+
+    try {
+      globalThis.Worker = TestWorker as unknown as typeof Worker;
+      const snapshot = createSnapshot({
+        "file-a": createFileRecord("file-a", "series-a", "A"),
+      });
+      const service = store.add(new PlotService(
+        createSessionServiceStub(snapshot),
+        createSettingsServiceStub(),
+        store.add(new TestStorageService()),
+      ));
+
+      service.prefetchPlotDisplayModel({
+        fileId: "file-a",
+        plotType: "iv",
+        snapshot,
+      }, "active");
+
+      scheduledFrames.shift()?.(0);
+      assert.deepEqual(
+        workerRecords.map(record => `${record.message.type}:${record.message.payload?.fileId}`),
+        ["calculateData:file-a"],
+      );
+
+      completeCalculatedWorkerWithEmptyResult(workerRecords[0]);
+      await Promise.resolve();
+      scheduledFrames.shift()?.(0);
+
+      assert.deepEqual(
+        workerRecords.map(record => `${record.message.type}:${record.message.payload?.fileId}`),
+        [
+          "calculateData:file-a",
+          "calculateDisplayModel:file-a",
+        ],
+      );
+
+      completeDisplayWorkerWithEmptyResult(workerRecords[1]);
+      await Promise.resolve();
+
+      assert.ok(service.getCachedPlotDisplayModel({
+        fileId: "file-a",
+        plotType: "iv",
+        snapshot,
+      }));
+      assert.equal(workerRecords.filter(record => record.message.type === "calculateData").length, 1);
+    } finally {
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+      globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+      globalThis.Worker = originalWorker;
+    }
+  });
+
   test("publishes targeted cache changes instead of plot state for file-scoped invalidation", () => {
     const onDidChangeSessionEmitter = new Emitter<SessionChangeEvent>();
 

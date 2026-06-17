@@ -738,7 +738,7 @@ function createConductorConfigurationProperties(): Record<string, IConfiguration
   properties.numericDisplayMode = {
     ...properties.numericDisplayMode,
     enum: ["raw", "smart"],
-    enumItemLabels: ["Raw Value", "Smart Display"],
+    enumItemLabels: ["raw", "smart"],
   };
 
   return properties;

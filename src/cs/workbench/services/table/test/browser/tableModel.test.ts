@@ -354,6 +354,46 @@ suite("workbench/services/table/browser/tableModel display profiles", () => {
     assert.equal(mixedProfile.isNumericColumn, false);
   });
 
+  test("treats a small column with a leading text label as numeric", () => {
+    const model = createTableModelInScope(store.add(new TableStateScope()), {
+      tableRowsReaderService: createTableRowsReaderService(),
+      numericDisplayMode: "smart",
+      settingsVersion: 4,
+      rawFiles: [{
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        sourceKey: "table-a",
+        sourceVersion: 8,
+      }],
+      source: { fileId: "file-a" },
+      file: {
+        columnCount: 1,
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        maxCellLengths: [1],
+        rowCount: 4,
+        sourceKey: "table-a",
+        sourceVersion: 8,
+      },
+      rowsCacheRef: {
+        current: new Map([
+          [0, ["Current"]],
+          [1, ["-3.70327E-009"]],
+          [2, ["-3.49201E-009"]],
+          [3, ["-3.04700E-009"]],
+        ]),
+      },
+    });
+    store.add({ dispose: () => model.clearState() });
+
+    const profile = model.getColumnDisplayProfile(0);
+    assert.equal(profile.mode, "columnScale");
+    assert.equal(profile.isNumericColumn, true);
+    assert.equal(profile.scaleExponent, -9);
+    assert.equal(profile.headerSuffix, "×10⁻⁹");
+  });
+
   test("keeps cached profiles stable across repeated visible-range reads", () => {
     const model = createTableModelInScope(store.add(new TableStateScope()), {
       tableRowsReaderService: createTableRowsReaderService(),

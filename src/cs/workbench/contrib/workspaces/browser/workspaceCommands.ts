@@ -35,11 +35,7 @@ export const addWorkspaceFolderHandler: ICommandHandler<[], Promise<URI | null>>
   }
 
   const folder = await pickImportFolder({
-    defaultUri: await resolveDefaultWorkspaceFolderUri(
-      filesService,
-      pathService,
-      storageService,
-    ),
+    defaultUri: resolveDefaultWorkspaceFolderUri(pathService, storageService),
     dialogsService,
     pathService,
   });
@@ -56,13 +52,12 @@ export const addWorkspaceFolderHandler: ICommandHandler<[], Promise<URI | null>>
   return folder;
 };
 
-async function resolveDefaultWorkspaceFolderUri(
-  filesService: IFileService,
+function resolveDefaultWorkspaceFolderUri(
   pathService: IPathService,
   storageService: IStorageService,
-): Promise<URI> {
+): URI {
   const storedFolder = getStoredLastSelectedWorkspaceFolder(storageService);
-  if (storedFolder && await exists(filesService, storedFolder)) {
+  if (storedFolder) {
     return storedFolder;
   }
 
@@ -82,14 +77,6 @@ function getStoredLastSelectedWorkspaceFolder(storageService: IStorageService): 
     return URI.parse(storedValue);
   } catch {
     return null;
-  }
-}
-
-async function exists(filesService: IFileService, resource: URI): Promise<boolean> {
-  try {
-    return await filesService.exists(resource);
-  } catch {
-    return false;
   }
 }
 
