@@ -227,12 +227,22 @@ binary and runs it in `--stdio-worker` mode. Files conversion code should depend
 only on `IFileConverterBackendService` and IPC/preload domain methods; it must
 not depend on a concrete executable name. Files code should treat
 `conductor-rs` as the desktop helper binary only at the Electron main resolver
-boundary. Folder CSV prepare may batch multiple file path entries into one Rust
-worker command, but Electron main must still normalize and emit per-file
-conversion results through the existing files service contract. Keep the
-desktop default tuned for badge latency: large Rust batches may use bounded
-internal parallelism, but result chunks must stay small enough that Explorer
-materialization and projection do not wait behind a single oversized response.
+boundary.
+
+Desktop folder prepare is optimized for assessment badge readiness, not maximum
+single-command throughput. Electron main may batch CSV path entries into
+`assessImportBatch`, cache successful descriptors by path/size/mtime, and
+prewarm the Rust worker pool. It must still normalize and emit per-file
+conversion results through the existing files service contract so Explorer can
+materialize rows and project badges as files complete. Keep result chunks small;
+do not trade first/all badge latency for oversized Rust responses.
+
+Import performance changes should be verified with `test:import-badge-trace`.
+Run at least 200 files for desktop and browser, and include `--profile=mixed`
+when touching health/failure handling. The reports under
+`.build/bench/import-badge-trace/` are the source of truth for first/half/all
+badge time, prepare completion, backend invoke, Rust p50/p95, materialize,
+append, long task, RSS, and JS heap.
 
 ## Data File Workflow
 

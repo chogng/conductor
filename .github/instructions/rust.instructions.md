@@ -323,6 +323,44 @@ Do not return these by default:
 
 If a full payload must be returned for a small file or tests, mark it as a compatibility path and keep the large-file path artifact/handle-based.
 
+## Import Badge Prepare Rule
+
+Desktop import badge readiness is a latency-sensitive Rust path.
+
+For CSV import assessment, do not build a full `EngineDataset` only to show a
+badge. Use the import summary path: decode/health check, stream CSV records,
+retain bounded preview rows, and return `rowCount`, `columnCount`,
+`maxCellLengths`, `health`, and assessment. Full row storage belongs to `open`
+and table preview paths, not to badge prepare.
+
+For folder imports, keep the main/Rust boundary batch-aware but badge-friendly:
+
+- `assessImportBatch` may process multiple file paths in one stdio request.
+- Electron main must still emit per-file prepare results through the existing
+  file conversion service contract.
+- Prefer small result chunks over maximum batch throughput. The current desktop
+  default is tuned for badge latency, with large CSV batches split into small
+  Rust commands and Rust batch internal parallelism kept bounded.
+- Cache prepare descriptors by normalized path, source size, and source mtime.
+  Cache hits must be cloned and marked so trace reports can distinguish them.
+- Bad CSV health states should complete the file with health metadata when
+  possible; truly failed converter paths should fail only that file, not the
+  whole folder batch.
+
+When changing this path, run the import badge trace script for both desktop and
+browser, at 200 files minimum:
+
+```txt
+npm run test:import-badge-trace -- --runtime=desktop --auto-folder --files=200 --rows=4000
+npm run test:import-badge-trace -- --runtime=desktop --auto-folder --files=200 --rows=4000 --profile=mixed
+npm run test:import-badge-trace -- --runtime=browser --auto-browser --files=200 --rows=4000
+npm run test:import-badge-trace -- --runtime=browser --auto-browser --files=200 --rows=4000 --profile=mixed
+```
+
+Use the JSON reports under `.build/bench/import-badge-trace/` to compare
+first/half/all badge time, prepare completion time, backend invoke time, Rust
+p50/p95, materialization/append cost, long tasks, RSS, and JS heap.
+
 ## Handle and artifact records
 
 When Rust keeps large data in process or writes a temp artifact, TypeScript should store a descriptor, not the payload.
