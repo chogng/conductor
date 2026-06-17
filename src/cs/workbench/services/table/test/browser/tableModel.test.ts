@@ -3,14 +3,17 @@ import {
 	buildTableCellReadRequests,
 	clearChunkRows,
 	collectMissingChunkRanges,
+	createTableModelInScope,
 	hasChunkRowsInCache,
 	isTableRowBatchResultForRequest,
 	mergeChunkRangeRows,
 	mergeChunkRows,
 	rowsFromTableCellReads,
 	sanitizeTableRowBatch,
+	TableStateScope,
 } from "../../browser/tableModel.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import type { TableRowsReaderProvider } from "src/cs/workbench/services/table/common/table";
 
 suite("workbench/services/table/browser/tableModel row cache", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -243,4 +246,102 @@ suite("workbench/services/table/browser/tableModel cell reads", () => {
 
 		assert.deepEqual(rows.get(4), ["", "B", ""]);
 	});
+});
+
+suite("workbench/services/table/browser/tableModel display profiles", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+  test("creates column-scale profiles from cached column samples", () => {
+    const model = createTableModelInScope(store.add(new TableStateScope()), {
+      tableRowsReaderService: createTableRowsReaderService(),
+      numericDisplayMode: "smart",
+      settingsVersion: 3,
+      rawFiles: [{
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        sourceKey: "table-a",
+        sourceVersion: 7,
+      }],
+      source: { fileId: "file-a" },
+      file: {
+        columnCount: 3,
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        maxCellLengths: [1, 1, 1],
+        rowCount: 5,
+        sourceKey: "table-a",
+        sourceVersion: 7,
+      },
+      rowsCacheRef: {
+        current: new Map([
+          [0, ["Time", "Current", "Status"]],
+          [1, ["0", "-3.70327E-009", "ok"]],
+          [2, ["1", "-4.00000E-009", "N/A"]],
+          [3, ["2", "-5.00000E-009", "overflow"]],
+          [4, ["3", "-6.00000E-009", "ok"]],
+        ]),
+      },
+    });
+    store.add({ dispose: () => model.clearState() });
+
+    const numericProfile = model.getColumnDisplayProfile(1);
+    assert.equal(numericProfile.mode, "columnScale");
+    assert.equal(numericProfile.isNumericColumn, true);
+    assert.equal(numericProfile.scaleExponent, -9);
+    assert.equal(numericProfile.headerSuffix, "×10⁻⁹");
+    assert.equal(numericProfile.sourceVersion, 7);
+    assert.equal(numericProfile.settingsVersion, 3);
+
+    const textProfile = model.getColumnDisplayProfile(2);
+    assert.equal(textProfile.mode, "raw");
+    assert.equal(textProfile.isNumericColumn, false);
+  });
+
+  test("keeps raw profiles when numeric display mode is raw", () => {
+    const model = createTableModelInScope(store.add(new TableStateScope()), {
+      tableRowsReaderService: createTableRowsReaderService(),
+      numericDisplayMode: "raw",
+      rawFiles: [{
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        sourceKey: "table-a",
+      }],
+      source: { fileId: "file-a" },
+      file: {
+        columnCount: 1,
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        maxCellLengths: [1],
+        rowCount: 2,
+        sourceKey: "table-a",
+      },
+      rowsCacheRef: {
+        current: new Map([
+          [0, ["-3.70327E-009"]],
+          [1, ["-4.00000E-009"]],
+        ]),
+      },
+    });
+    store.add({ dispose: () => model.clearState() });
+
+    assert.equal(model.getColumnDisplayProfile(0).mode, "raw");
+  });
+});
+
+const createTableRowsReaderService = (
+  overrides: Partial<TableRowsReaderProvider> = {},
+): TableRowsReaderProvider => ({
+  canReleaseSource: () => false,
+  canReadRows: () => false,
+  canOpenSource: () => false,
+  canReadConvertedCsv: () => false,
+  canReadCells: () => false,
+  releaseSource: async () => ({}),
+  readRows: async () => ({}),
+  openSource: async () => ({}),
+  readConvertedCsv: async () => ({ ok: false }),
+  readCells: async () => ({}),
+  ...overrides,
 });

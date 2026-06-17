@@ -32,6 +32,8 @@ suite("platform/configuration/common/configurationRegistry", () => {
     assert.equal(properties["filesExplorerShowBadges"].default, true);
     assert.equal(properties["filesExplorerShowBadges"].type, "boolean");
     assert.equal(properties["fileNameFieldSeparators"].default, "_- .()[]{}");
+    assert.equal(properties["numericDisplayMode"].default, "raw");
+    assert.deepEqual(properties["numericDisplayMode"].enum, ["raw", "smart"]);
     assert.equal(properties["plotAxisSettings"].type, "object");
     assert.equal(CONDUCTOR_CONFIGURATION_KEYS.includes("originRuntimeCleanupEnabled"), true);
   });
@@ -44,6 +46,11 @@ suite("platform/configuration/common/configurationRegistry", () => {
   test("normalizes Explorer badge visibility", () => {
     assert.equal(normalizeConductorSettings({ filesExplorerShowBadges: false }).filesExplorerShowBadges, false);
     assert.equal(normalizeConductorSettings({ filesExplorerShowBadges: "false" }).filesExplorerShowBadges, true);
+  });
+
+  test("normalizes numeric display mode", () => {
+    assert.equal(normalizeConductorSettings({ numericDisplayMode: "smart" }).numericDisplayMode, "smart");
+    assert.equal(normalizeConductorSettings({ numericDisplayMode: "cell" }).numericDisplayMode, "raw");
   });
 
   test("normalizes Explorer badge colors", () => {

@@ -134,6 +134,7 @@ function createSettingsService(
     _serviceBrand: undefined,
     settings: initialSettings,
     onDidChangeConductorSettings: Event.None,
+    onDidChangeNumericDisplayMode: Event.None,
     onDidChangeOriginSettingsViewInput: Event.None,
     onDidChangeSettingsViewInput: Event.None,
     canCheckOriginHealth: () => false,

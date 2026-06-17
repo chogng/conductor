@@ -16,6 +16,7 @@ Table shows raw tables and assessment block ranges. It does not identify measure
 - focus/reveal cell state;
 - highlighted columns/ranges;
 - table column width persistence;
+- column-level display profiles for settings-driven numeric table presentation;
 - paged raw rows cache;
 - block table preview model;
 - table loading status;
@@ -28,6 +29,7 @@ It consumes:
 - file import/raw table row reader for row bytes;
 - assessment result for block ranges and column role display.
 - `TableSource` open intent from commands, search, or `WorkbenchDomainBridge`.
+- settings changes for visual-only table display preferences.
 
 It does not own:
 
@@ -43,6 +45,8 @@ It does not own:
 | --- | --- |
 | `src/cs/workbench/services/table/common/table.ts` | Defines `ITableService`, `ITableRowsReaderService`, table service constants, pure table records/model contracts, and source key helpers. It must stay a small contract surface: avoid named exports for subordinate model details that callers can derive from `TableState` or `TableModel`. |
 | `src/cs/workbench/services/table/common/tableColumnLayout.ts` | Defines table column width policy and storage serialization helpers shared by `ITableService` persistence and `TableWidget` layout math. No service access or DOM. |
+| `src/cs/workbench/services/table/common/tableDisplayProfile.ts` | Defines table display profile contracts such as `NumericDisplayMode` and `ColumnDisplayProfile`. Derived display profiles are service/view state, not session records. |
+| `src/cs/workbench/services/table/common/numericFormat.ts` | Pure numeric parsing, engineering-scale selection, suffix formatting, and profile-based cell formatting helpers. No service access or DOM. |
 | `src/cs/workbench/services/table/browser/tableService.ts` | Injectable `ITableService` owner. Handles table source, reveal, copy text generation, view input publication, selection snapshots, and column width persistence. It does not own widget-only UI controls such as zoom or live resize gestures. |
 | `src/cs/workbench/services/table/browser/tableModel.ts` | Creates and owns the per-table service model: source switching, preview loading, row cache activation, cell-read conversion, selection normalization/equality, selection/highlight/reveal snapshots, row-cache versioning, and worker/reader request lifecycle. This is the owner file for table data-plane helpers; do not split row cache, cell-read, or selection-state helpers into separate production files unless they become an independent service boundary. |
 | `src/cs/workbench/services/table/browser/tableDropTargetService.ts` | Browser-only registry for the table preview DOM drop target used by cross-feature drop controllers. No table data state. |
@@ -62,12 +66,17 @@ It does not own:
 ```mermaid
 flowchart TD
     Session[SessionChangeEvent / SessionSnapshot] --> TableService[ITableService]
+    Settings[SettingsService numericDisplayMode] --> TableService
     Bridge[WorkbenchDomainBridge / command] -->|open TableSource| TableService
     Rows[RawTableRowsReader] --> TableService
     Assessment[RawTableAssessmentRecord] --> TableService
     TableService --> TableModel[tableModel instance]
+    TableModel --> DisplayProfile[ColumnDisplayProfile cache]
     TableModel -->|state / rows / selection / highlight / reveal events| TableController[TableController]
     TableController --> TableWidget[TableWidget]
+    DisplayProfile --> TableWidget
+    HoverService[HoverService] -->|managed hover delegate| TableViewPane
+    TableViewPane -->|hover delegate| TableController
     TableWidget -->|selection / column width callback / zoom event| TableController
     TableViewPane[TableViewPane] -->|register active controller| TableWidgetService[ITableWidgetService]
     TableCommand[table zoom command] -->|activeController| TableWidgetService

@@ -5,6 +5,7 @@
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { ConvertedCsvReaderService } from "src/cs/workbench/services/files/common/fileConverterBackend";
+import type { ColumnDisplayProfile } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import type { TableColumnWidth } from "src/cs/workbench/services/table/common/tableColumnLayout";
 
 // Pure data types for the table feature. This module is the common contract
@@ -112,6 +113,7 @@ export type TableState = {
 	readonly file: TableFile | null;
 	readonly loadState: TableLoadState;
 	readonly dimensions?: string;
+	readonly displayVersion?: number;
 };
 
 export type TableModel = {
@@ -127,6 +129,7 @@ export type TableModel = {
 		startRow: number,
 		endRow: number,
 	) => Promise<void>;
+	getColumnDisplayProfile: (colIndex: number) => ColumnDisplayProfile;
 	getRow: (rowIndex: number) => unknown[] | null;
 	getRowsVersion: () => number;
 	getState: () => TableState;

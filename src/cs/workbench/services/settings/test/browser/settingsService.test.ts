@@ -186,6 +186,21 @@ suite("workbench/services/settings/browser/settingsService", () => {
     conductorSettingsDisposable.dispose();
   });
 
+  test("publishes numeric display mode changes", () => {
+    const service = createBrowserSettingsService();
+    const events: string[] = [];
+    const disposable = settingsTestStore.add(service.onDidChangeNumericDisplayMode(mode => {
+      events.push(mode);
+    }));
+
+    service.mergeConductorSettings({ numericDisplayMode: "smart" });
+    service.mergeConductorSettings({ numericDisplayMode: "smart" });
+    service.mergeConductorSettings({ numericDisplayMode: "raw" });
+
+    assert.deepEqual(events, ["smart", "raw"]);
+    disposable.dispose();
+  });
+
   test("persists settings patches through the settings store", async () => {
     const service = createBrowserSettingsService();
     const calls: unknown[] = [];

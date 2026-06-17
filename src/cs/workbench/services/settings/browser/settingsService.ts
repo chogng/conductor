@@ -34,7 +34,9 @@ import {
 import {
   getOriginOpenPlotOptions,
   ISettingsService,
+  normalizeNumericDisplayMode,
   type ConductorSettings,
+  type NumericDisplayMode,
   type OriginCleanupResult,
   type OriginHealthResult,
   type OriginSettingsViewInput,
@@ -62,6 +64,10 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
     this._register(new Emitter<ConductorSettings | null>());
   public readonly onDidChangeConductorSettings =
     this.onDidChangeConductorSettingsEmitter.event;
+  private readonly onDidChangeNumericDisplayModeEmitter =
+    this._register(new Emitter<NumericDisplayMode>());
+  public readonly onDidChangeNumericDisplayMode =
+    this.onDidChangeNumericDisplayModeEmitter.event;
   private readonly onDidChangeOriginSettingsViewInputEmitter =
     this._register(new Emitter<void>());
   public readonly onDidChangeOriginSettingsViewInput =
@@ -318,6 +324,12 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
   ): void {
     const settingsChanged = !isSameObjectRecord(this.conductorSettings, nextSettings);
     const loadedChanged = this.conductorSettingsLoaded !== conductorSettingsLoaded;
+    const previousNumericDisplayMode = normalizeNumericDisplayMode(
+      this.conductorSettings?.numericDisplayMode,
+    );
+    const nextNumericDisplayMode = normalizeNumericDisplayMode(
+      nextSettings?.numericDisplayMode,
+    );
     if (!settingsChanged && !loadedChanged) {
       return;
     }
@@ -327,6 +339,9 @@ export class BrowserSettingsService extends Disposable implements ISettingsServi
 
     if (settingsChanged) {
       this.onDidChangeConductorSettingsEmitter.fire(nextSettings);
+      if (previousNumericDisplayMode !== nextNumericDisplayMode) {
+        this.onDidChangeNumericDisplayModeEmitter.fire(nextNumericDisplayMode);
+      }
     }
 
     this.publishSettingsViewInput();

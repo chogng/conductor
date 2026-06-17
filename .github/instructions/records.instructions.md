@@ -115,6 +115,24 @@ Owner: `SessionService` after file import. Producer: `fileConverter.ts` through 
 
 Use `RawTableRangeRef` for every object that points back to raw data: blocks, groups, columns, diagnostics, search results, parameters, and export provenance.
 
+## Table display models
+
+### `ColumnDisplayProfile`
+
+Owner: `TableModel` inside `ITableService`. Producer: table display profile logic from current raw-row samples plus `numericDisplayMode`. Consumers: `TableWidget` header/cell rendering. Canonical? No; this is derived service/view state and must not be stored in `SessionModel`, `RawTableRecord`, export payloads, charts, templates, or parameters. Invalidation: raw table/source version changes, `numericDisplayMode` changes, or the table display profile cache is cleared.
+
+| Field | Type | Meaning | Required | Notes |
+| --- | --- | --- | --- | --- |
+| `rawTableId` | `string` | Display-profile table/source key. | Yes | Source identity only; not a new raw table record field. |
+| `columnId` | `string` | Column identity within the raw table/source. | Yes | Current table preview uses the physical column index as the id. |
+| `mode` | `'raw' | 'columnScale'` | Whether cells render raw text or a column-level scale projection. | Yes | Never means per-cell adaptive scaling. |
+| `isNumericColumn` | `boolean` | Whether sampled non-empty cells passed the numeric threshold. | Yes | Invalid/mixed cells can still render raw under a numeric column. |
+| `scaleExponent` | `number` | Engineering exponent selected for the whole column. | Yes | Multiples of 3 such as `-9`, `0`, `6`. |
+| `headerSuffix` | `string | undefined` | Scale suffix shown in the column header. | No | Unitless only, for example `×10⁻⁹`. |
+| `significantDigits` | `number` | Display precision used by numeric formatting. | Yes | First version is fixed by table display helpers. |
+| `sourceVersion` | `number` | Raw/source version used for cache invalidation. | Yes | Does not mutate raw data. |
+| `settingsVersion` | `number` | Settings-driven display version used for cache invalidation. | Yes | Changes when numeric display mode changes. |
+
 ## Assessment records
 
 ### `RawTableAssessmentRecord`

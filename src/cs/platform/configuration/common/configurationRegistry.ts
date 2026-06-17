@@ -109,8 +109,11 @@ type PlotAxisSettings = {
   originAxisTitleGap: string;
 };
 
+type NumericDisplayMode = "raw" | "smart";
+
 export type ConductorSettings = JsonRecord & {
   language: string;
+  numericDisplayMode: NumericDisplayMode;
   theme: string;
   backgroundColor: string;
   filesExplorerBadgeColors: Record<string, string>;
@@ -304,6 +307,7 @@ const DEFAULT_FILES_EXPLORER_BADGE_COLORS = Object.freeze<Record<string, string>
   unknown: "orange",
 });
 const LANGUAGES = new Set(["system", "en", "zh"]);
+const NUMERIC_DISPLAY_MODES = new Set(["raw", "smart"]);
 const ORIGIN_EXPORT_MODES = new Set([
   "merged",
   "workbookBooks",
@@ -320,6 +324,7 @@ const BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 
 export const DEFAULT_CONDUCTOR_CONFIGURATION: ConductorSettings = {
   language: "system",
+  numericDisplayMode: "raw",
   theme: "system",
   backgroundColor: DEFAULT_BACKGROUND_COLOR,
   filesExplorerBadgeColors: DEFAULT_FILES_EXPLORER_BADGE_COLORS,
@@ -570,6 +575,9 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
   const theme = isSetValue(THEMES, next.theme)
     ? next.theme
     : DEFAULT_CONDUCTOR_CONFIGURATION.theme;
+  const numericDisplayMode = isSetValue(NUMERIC_DISPLAY_MODES, next.numericDisplayMode)
+    ? next.numericDisplayMode as NumericDisplayMode
+    : DEFAULT_CONDUCTOR_CONFIGURATION.numericDisplayMode;
   const filesExplorerDensity = isSetValue(
     FILES_EXPLORER_DENSITIES,
     next.filesExplorerDensity,
@@ -665,6 +673,7 @@ export function normalizeConductorSettings(raw: unknown): ConductorSettings {
     language,
     fileNameFieldSeparators: normalizeFileNameFieldSeparators(next.fileNameFieldSeparators),
     stopOnErrorDefault,
+    numericDisplayMode,
     theme,
     filesExplorerBadgeColors,
     filesExplorerDensity,
@@ -724,6 +733,12 @@ function createConductorConfigurationProperties(): Record<string, IConfiguration
     ...properties.filesExplorerDensity,
     enum: ["compact", "default", "comfortable"],
     enumItemLabels: ["Compact", "Default", "Comfortable"],
+  };
+
+  properties.numericDisplayMode = {
+    ...properties.numericDisplayMode,
+    enum: ["raw", "smart"],
+    enumItemLabels: ["Raw Value", "Smart Display"],
   };
 
   return properties;

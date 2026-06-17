@@ -13,6 +13,16 @@ import {
   type TableSource,
   toTableSourceKey,
 } from "src/cs/workbench/services/table/common/table";
+import {
+  chooseColumnScaleExponent,
+  parseNumericCell,
+  toScaleHeaderSuffix,
+} from "src/cs/workbench/services/table/common/numericFormat";
+import {
+  DEFAULT_TABLE_DISPLAY_SIGNIFICANT_DIGITS,
+  type ColumnDisplayProfile,
+  type NumericDisplayMode,
+} from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import { loadConvertedCsvFile } from "src/cs/workbench/services/files/browser/fileConverter";
 
 // TableModel owns the service data plane: source switching, worker lifecycle,
@@ -32,6 +42,9 @@ type TableLoadState = TableState["loadState"];
 export const TABLE_UI_CHUNK_SIZE_ROWS = 50;
 export const TABLE_MAX_CACHED_UI_ROWS_PER_FILE = 5000;
 export const TABLE_MAX_CACHED_FILES = 20;
+const TABLE_COLUMN_NUMERIC_THRESHOLD = 0.8;
+const TABLE_COLUMN_PROFILE_MAX_SAMPLE_ROWS = 5000;
+const TABLE_COLUMN_PROFILE_MIN_STABLE_SAMPLE_ROWS = 20;
 
 type TableRowCache = Map<number, unknown[]>;
 type TableLoadedChunks = Set<number>;
@@ -746,6 +759,18 @@ const isUnhealthyTableSource = (entry: SessionFile): boolean =>
   entry.assessmentHealth === "parseFailed" ||
   entry.assessmentHealth === "unsupported";
 
+const shouldCacheColumnDisplayProfile = (
+  sampleCount: number,
+  rowCount: unknown,
+): boolean => {
+  const totalRows = Math.max(0, Math.floor(Number(rowCount) || 0));
+  const stableSampleCount = Math.min(
+    Math.max(1, totalRows),
+    TABLE_COLUMN_PROFILE_MIN_STABLE_SAMPLE_ROWS,
+  );
+  return sampleCount >= stableSampleCount;
+};
+
 const getUnhealthyTableMessage = (entry: SessionFile): string => {
   const message = String(entry.assessmentHealthMessage ?? "").trim().toLowerCase();
   if (entry.assessmentHealth === "decodeFailed") {
@@ -874,8 +899,10 @@ type WorkerMessage =
   | { type?: string; payload?: Record<string, unknown> | null };
 
 type TableModelInput = {
+  numericDisplayMode?: NumericDisplayMode;
   tableRowsReaderService?: TableRowsReaderProvider;
   rawFiles?: SessionFile[];
+  settingsVersion?: number;
   source?: TableSource | null;
 };
 
@@ -934,6 +961,8 @@ const createTableModel = ({
   tableRowsReaderService,
   rawFiles = [],
   source = null,
+  numericDisplayMode = "raw",
+  settingsVersion = 0,
   file,
   setFile,
   setLoadState,
@@ -1004,6 +1033,7 @@ const createTableModel = ({
   );
   const readerOpenedSourceKeysRef = createTableRef<Set<string>>(new Set());
   const pendingPreviewFileIdRef = createTableRef<string | null>(null);
+  const columnDisplayProfileCacheRef = createTableRef(new Map<string, ColumnDisplayProfile>());
 
   const notifyStateChanged = memoCallback(
     (): void => {
@@ -1290,9 +1320,11 @@ const createTableModel = ({
       void tableRowsReaderService.releaseSource({ clear: true });
     }
     assignCurrentPreviewCache();
+    columnDisplayProfileCacheRef.current = new Map();
     notifyTableRowsCacheChanged();
   }, [
     assignCurrentPreviewCache,
+    columnDisplayProfileCacheRef,
     notifyTableRowsCacheChanged,
     readerOpenedSourceKeysRef,
     previewCacheFileLruRef,
@@ -1307,6 +1339,7 @@ const createTableModel = ({
     cancelPendingTableRowRequests();
     pendingPreviewFileIdRef.current = null;
     previewPendingChunksByFileIdRef.current = new Map();
+    columnDisplayProfileCacheRef.current = new Map();
   }, [cancelPendingTableRowRequests, previewRequestIdRef]);
 
   const clearPreviewState = memoCallback(
@@ -1859,6 +1892,127 @@ const createTableModel = ({
     [tableRowsCacheRef],
   );
 
+  const createRawColumnDisplayProfile = memoCallback(
+    (colIndex: number): ColumnDisplayProfile => {
+      const currentFile = previewFileRef.current;
+      const rawTableId = currentFile?.sourceKey ?? activeSourceKey ?? currentFile?.fileId ?? "";
+      return {
+        rawTableId,
+        columnId: String(Math.max(0, Math.floor(Number(colIndex) || 0))),
+        mode: "raw",
+        isNumericColumn: false,
+        scaleExponent: 0,
+        significantDigits: DEFAULT_TABLE_DISPLAY_SIGNIFICANT_DIGITS,
+        sourceVersion: normalizeSourceVersion(currentFile?.sourceVersion),
+        settingsVersion,
+      };
+    },
+    [activeSourceKey, previewFileRef, settingsVersion],
+  );
+
+  const collectColumnSampleValues = memoCallback(
+    (colIndex: number): readonly unknown[] => {
+      const currentFile = previewFileRef.current;
+      const columnCount = Math.max(0, Math.floor(Number(currentFile?.columnCount) || 0));
+      const normalizedColIndex = Math.max(0, Math.floor(Number(colIndex) || 0));
+      if (normalizedColIndex >= columnCount) {
+        return [];
+      }
+
+      const samples: unknown[] = [];
+      const entries = Array.from(tableRowsCacheRef.current.entries())
+        .sort(([left], [right]) => left - right);
+      for (const [, row] of entries) {
+        if (!Array.isArray(row)) {
+          continue;
+        }
+        samples.push(row[normalizedColIndex]);
+        if (samples.length >= TABLE_COLUMN_PROFILE_MAX_SAMPLE_ROWS) {
+          break;
+        }
+      }
+      return samples;
+    },
+    [previewFileRef, tableRowsCacheRef],
+  );
+
+  const getColumnDisplayProfile = memoCallback(
+    (colIndex: number): ColumnDisplayProfile => {
+      const currentFile = previewFileRef.current;
+      const normalizedColIndex = Math.max(0, Math.floor(Number(colIndex) || 0));
+      const rawTableId = currentFile?.sourceKey ?? activeSourceKey ?? currentFile?.fileId ?? "";
+      const sourceVersion = normalizeSourceVersion(currentFile?.sourceVersion);
+      const cacheKey = [
+        rawTableId,
+        normalizedColIndex,
+        sourceVersion,
+        numericDisplayMode,
+        settingsVersion,
+      ].join(":");
+      const cached = columnDisplayProfileCacheRef.current.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      const rawProfile = createRawColumnDisplayProfile(normalizedColIndex);
+      if (numericDisplayMode !== "smart") {
+        columnDisplayProfileCacheRef.current.set(cacheKey, rawProfile);
+        return rawProfile;
+      }
+
+      const samples = collectColumnSampleValues(normalizedColIndex);
+      if (!samples.length) {
+        return rawProfile;
+      }
+
+      let nonEmptyCount = 0;
+      const numericValues: number[] = [];
+      for (const sample of samples) {
+        const text = typeof sample === "string" ? sample.trim() : sample === null || sample === undefined ? "" : String(sample).trim();
+        if (!text) {
+          continue;
+        }
+
+        nonEmptyCount += 1;
+        const numericValue = parseNumericCell(sample);
+        if (numericValue !== null) {
+          numericValues.push(numericValue);
+        }
+      }
+
+      if (!nonEmptyCount || numericValues.length / nonEmptyCount < TABLE_COLUMN_NUMERIC_THRESHOLD) {
+        if (shouldCacheColumnDisplayProfile(samples.length, currentFile?.rowCount)) {
+          columnDisplayProfileCacheRef.current.set(cacheKey, rawProfile);
+        }
+        return rawProfile;
+      }
+
+      const scaleExponent = chooseColumnScaleExponent(numericValues);
+      const profile: ColumnDisplayProfile = {
+        rawTableId,
+        columnId: String(normalizedColIndex),
+        mode: "columnScale",
+        isNumericColumn: true,
+        scaleExponent,
+        headerSuffix: toScaleHeaderSuffix(scaleExponent),
+        significantDigits: DEFAULT_TABLE_DISPLAY_SIGNIFICANT_DIGITS,
+        sourceVersion,
+        settingsVersion,
+      };
+      columnDisplayProfileCacheRef.current.set(cacheKey, profile);
+      return profile;
+    },
+    [
+      activeSourceKey,
+      collectColumnSampleValues,
+      columnDisplayProfileCacheRef,
+      createRawColumnDisplayProfile,
+      numericDisplayMode,
+      previewFileRef,
+      settingsVersion,
+    ],
+  );
+
   const resolveRequestSourceKey = memoCallback(
     (fileId: string): string | null => {
       const currentFile = previewFileRef.current;
@@ -2378,6 +2532,7 @@ const createTableModel = ({
         selectedSheetId: activeSheetId ?? null,
         source: selectedSource?.source ?? null,
         sourceKey: activeSourceKey,
+        displayVersion: settingsVersion,
       };
     },
     [
@@ -2386,6 +2541,7 @@ const createTableModel = ({
       activeFileId,
       activeSheetId,
       activeSourceKey,
+      settingsVersion,
       selectedSource,
       sourcesByFileIdRef,
     ],
@@ -2405,6 +2561,7 @@ const createTableModel = ({
     disposeFileCache: disposePreviewFileCache,
     ensureCells: ensureTableCells,
     ensureRows: ensureTableRows,
+    getColumnDisplayProfile,
     getHighlight,
     getRow: getTableRow,
     getRowsVersion,

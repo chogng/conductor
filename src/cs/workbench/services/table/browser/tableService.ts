@@ -19,6 +19,7 @@ import {
   type TableSource,
   type TableViewInput,
 } from "src/cs/workbench/services/table/common/table";
+import type { NumericDisplayMode } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import {
   toStoredTableColumnLayout,
   toTableColumnWidths,
@@ -27,6 +28,10 @@ import {
 } from "src/cs/workbench/services/table/common/tableColumnLayout";
 import { createRawFilesFromRecords } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
+import {
+  ISettingsService,
+  normalizeNumericDisplayMode,
+} from "src/cs/workbench/services/settings/common/settings";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import {
   TableStateScope,
@@ -375,14 +380,28 @@ export class TableService extends Disposable implements ITableService {
   private viewInput: TableViewInput | null = null;
   private selectionTableModel: TableModel | null = null;
   private tableModelSelectionListener: (() => void) | null = null;
+  private numericDisplayMode: NumericDisplayMode;
+  private displayVersion = 0;
 
   public constructor(
     @ITableRowsReaderService private readonly tableRowsReaderService: ITableRowsReaderService,
     @ISessionService private readonly sessionService: ISessionService,
     @IStorageService private readonly storageService: IStorageService,
+    @ISettingsService private readonly settingsService: ISettingsService,
   ) {
     super();
+    this.numericDisplayMode = normalizeNumericDisplayMode(
+      this.settingsService.getConductorSettings()?.numericDisplayMode,
+    );
     this._register(this.sessionService.onDidChangeSession(() => this.refreshFromSession()));
+    this._register(this.settingsService.onDidChangeNumericDisplayMode(mode => {
+      if (this.numericDisplayMode === mode) {
+        return;
+      }
+      this.numericDisplayMode = mode;
+      this.displayVersion += 1;
+      this.refreshFromSession({ forceViewInput: true });
+    }));
     this.refreshFromSession();
   }
 
@@ -395,7 +414,7 @@ export class TableService extends Disposable implements ITableService {
     return this.refreshFromSession();
   }
 
-  private refreshFromSession(): TableModel {
+  private refreshFromSession(options: { forceViewInput?: boolean } = {}): TableModel {
     const snapshot = this.sessionService.getSnapshot();
     const rawFiles = createRawFilesFromRecords(snapshot.filesById, snapshot.fileOrder);
     const source = resolveAvailableTableSource(rawFiles, this.currentSource);
@@ -407,13 +426,15 @@ export class TableService extends Disposable implements ITableService {
       rawFiles,
       source,
       tableRowsReaderService: this.tableRowsReaderService,
+      numericDisplayMode: this.numericDisplayMode,
+      settingsVersion: this.displayVersion,
     });
     this.bindActiveTableModel(tableModel);
     this.bindTableModelState(tableModel);
     this.updateViewInput({
       tableModel,
       tableState: tableModel.getState(),
-    });
+    }, options);
     return tableModel;
   }
 
@@ -567,8 +588,11 @@ export class TableService extends Disposable implements ITableService {
     );
   }
 
-  private updateViewInput(input: TableViewInput): void {
-    if (this.viewInput && isSameTableViewInput(this.viewInput, input)) {
+  private updateViewInput(
+    input: TableViewInput,
+    options: { forceViewInput?: boolean } = {},
+  ): void {
+    if (!options.forceViewInput && this.viewInput && isSameTableViewInput(this.viewInput, input)) {
       return;
     }
 
@@ -643,7 +667,8 @@ const isSameTableState = (
   current.selectedSheetId === next.selectedSheetId &&
   current.sourceKey === next.sourceKey &&
   current.fileName === next.fileName &&
-  current.dimensions === next.dimensions &&
+    current.dimensions === next.dimensions &&
+  current.displayVersion === next.displayVersion &&
   isSameTableSource(current.source, next.source) &&
   areNullableTableFilesEqual(current.file, next.file) &&
   areTableLoadStatesEqual(current.loadState, next.loadState);

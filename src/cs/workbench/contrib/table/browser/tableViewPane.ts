@@ -18,6 +18,7 @@ import { localize } from "src/cs/nls";
 import {
   ICommandService,
 } from "src/cs/platform/commands/common/commands";
+import { IHoverService } from "src/cs/platform/hover/browser/hoverService";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import {
@@ -84,6 +85,7 @@ export class TableViewPane extends ViewPane {
     @ITableDropTargetService private readonly tableDropTargetService: ITableDropTargetService,
     @ITableWidgetService private readonly tableWidgetService: ITableWidgetService,
     @ICommandService private readonly commandService: ICommandService,
+    @IHoverService private readonly hoverService: IHoverService,
   ) {
     super({
       id: TableViewId,
@@ -138,6 +140,7 @@ export class TableViewPane extends ViewPane {
         props,
         this.tableService,
         this.commandService,
+        this.hoverService,
       ));
       this.store.add(this.tableWidgetService.registerController(this.controller));
       this.store.add(this.controller.onDidChangeZoom(() => this.updateZoomControl()));
@@ -147,6 +150,7 @@ export class TableViewPane extends ViewPane {
         props,
         this.tableService,
         this.commandService,
+        this.hoverService,
       ));
     }
     const { dimensions, fileName, mode, shouldUpdateDimensions } = getHeaderState(props);
@@ -370,9 +374,11 @@ const toControllerProps = (
   props: TableViewPaneProps,
   tableService: Pick<ITableService, "getColumnWidths" | "select" | "storeColumnWidths">,
   commandService: Pick<ICommandService, "executeCommand">,
+  hoverService: IHoverService,
 ): TableControllerProps => ({
   ...props,
   getColumnWidths: sourceKey => tableService.getColumnWidths(sourceKey),
+  hoverDelegate: hoverService,
   onCopySelection: () => {
     void commandService.executeCommand(TableCommandId.copySelection);
   },

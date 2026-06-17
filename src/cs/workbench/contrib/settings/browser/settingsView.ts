@@ -11,6 +11,7 @@ import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/template/common/fileNameMatching";
 import type { LanguagePreference } from "src/cs/base/common/platform";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
+import type { NumericDisplayMode } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import type {
   Feedback,
 } from "src/cs/workbench/contrib/settings/common/feedback";
@@ -77,6 +78,12 @@ type WindowCloseSettings = {
   ) => Promise<void> | void;
 };
 
+type NumericDisplaySettings = {
+  mode: NumericDisplayMode;
+  isSaving: boolean;
+  onModeChange: (mode: NumericDisplayMode) => Promise<void> | void;
+};
+
 type AppearanceSettings = {
   backgroundColor: string;
   backgroundColorDefault: string;
@@ -132,6 +139,7 @@ type SettingsViewProps = {
   chartDefaultSettings: ChartDefaultSettings;
   fileNameMatchingSettings: FileNameMatchingSettings;
   language: LanguagePreference;
+  numericDisplaySettings: NumericDisplaySettings;
   onLanguageChange: (language: LanguagePreference) => Promise<void> | void;
   onNavigateBack: () => Promise<void> | void;
   onResetLayoutState: () => Promise<void> | void;
@@ -164,6 +172,7 @@ export type SettingsViewOptions = SettingsViewProps & {
   setTickLabelFontSizeDraft: (value: string) => void;
   setXyPairsDraft: (value: string) => void;
   settingsSections: SelectOptionWithId[];
+  numericDisplayModeOptions: SelectOption[];
   themeModeOptions: SelectOption[];
   tickLabelFontSizeDraft: string;
   windowCloseBehaviorOptions: SelectOption[];
@@ -409,6 +418,17 @@ export class SettingsView {
         },
         options: this.options.windowCloseBehaviorOptions,
         disabled: this.options.windowCloseSettings.isSaving,
+      })),
+      cardRow("settings-numeric-display-card", localize("settings.numericDisplay.title", "Numeric Display"), this.createSelect({
+        id: "settings-numeric-display-dropdown",
+        value: this.options.numericDisplaySettings.mode,
+        onChange: value => {
+          if (value === "raw" || value === "smart") {
+            void this.options.numericDisplaySettings.onModeChange(value);
+          }
+        },
+        options: this.options.numericDisplayModeOptions,
+        disabled: this.options.numericDisplaySettings.isSaving,
       })),
     ));
 

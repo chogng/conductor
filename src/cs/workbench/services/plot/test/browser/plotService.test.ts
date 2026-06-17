@@ -1323,6 +1323,7 @@ const createSettingsServiceStub = (
     _serviceBrand: undefined,
     getConductorSettings: () => settings,
     onDidChangeConductorSettings: Event.None,
+    onDidChangeNumericDisplayMode: Event.None,
     onDidChangeSettingsViewInput: Event.None,
     updateSettings: async (updates: unknown) => {
       updatesLog.push(updates);

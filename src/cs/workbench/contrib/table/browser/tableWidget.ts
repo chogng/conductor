@@ -1,10 +1,14 @@
 import { addDisposableListener, EventType, isEditableElement } from "src/cs/base/browser/dom";
 import { Emitter } from "src/cs/base/common/event";
-import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { DisposableStore, MutableDisposable } from "src/cs/base/common/lifecycle";
+import type { IManagedHover } from "src/cs/base/browser/ui/hover/hover";
+import { NullHoverDelegate, type IHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { localize } from "src/cs/nls";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { createEmptyView } from "src/cs/workbench/contrib/table/browser/emptyView";
 import type { TableModel } from "src/cs/workbench/services/table/common/table";
+import { formatCell, formatRawCell } from "src/cs/workbench/services/table/common/numericFormat";
+import type { ColumnDisplayProfile } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import {
   TableColumnLayout,
   type TableColumnWidth,
@@ -640,6 +644,7 @@ export const getTableGridRowHeight = TableGridModel.getTableGridRowHeight;
 export type TableWidgetModel = Pick<
   TableModel,
   | "ensureRows"
+  | "getColumnDisplayProfile"
   | "getHighlight"
   | "getRow"
   | "getRowsVersion"
@@ -664,6 +669,7 @@ export type TableWidgetSelectionTarget =
 
 export type TableWidgetProps = {
   readonly getColumnWidths?: (sourceKey: string | null | undefined) => readonly TableColumnWidth[];
+  readonly hoverDelegate?: IHoverDelegate;
   readonly onCopySelection?: () => void;
   readonly onSelect: (
     target: TableWidgetSelectionTarget | null,
@@ -679,6 +685,7 @@ export type TableWidgetProps = {
 
 type BodyCell = {
   readonly element: HTMLTableCellElement;
+  readonly hover: MutableDisposable<IManagedHover>;
   appliedActive?: boolean;
   appliedColIndex?: number;
   appliedHighlighted?: boolean;
@@ -686,6 +693,7 @@ type BodyCell = {
   appliedRowIndex?: number;
   appliedSelected?: boolean;
   appliedText?: string;
+  appliedTitle?: string;
 };
 
 type BodyRow = {
@@ -773,6 +781,7 @@ export class TableWidget {
   private renderedSourceKey: string | null = null;
   private renderedRowsSourceKey: string | null = null;
   private renderedRowsVersion: number | null = null;
+  private renderedRowsDisplayVersion: number | null = null;
   private renderedRowsStartIndex = 0;
   private renderedRowsRowCount = 0;
   private renderedRowsStartColumnIndex = 0;
@@ -885,6 +894,7 @@ export class TableWidget {
     this.disposeStateListener?.();
     this.disposeStateListener = null;
     this.endColumnResize();
+    this.disposeBodyCellHovers();
     this.store.dispose();
     this.scrollArea.dispose();
     this.element.replaceChildren();
@@ -1050,7 +1060,7 @@ export class TableWidget {
     this.scheduleStoreColumnWidths();
 
     if (this.isTableVisible()) {
-      this.syncColumnLayout(this.getBodyColumnRange());
+      this.syncColumnLayout(this.getBodyColumnRange(), this.props.tableModel);
       this.layoutNow();
     }
     return true;
@@ -1294,7 +1304,7 @@ export class TableWidget {
     this.header.hidden = false;
     const headerChanged = this.ensureHeaderGrid();
     const gridChanged = this.renderBody(tableModel, rowRange, columnRange);
-    const columnLayoutChanged = this.syncColumnLayout(columnRange);
+    const columnLayoutChanged = this.syncColumnLayout(columnRange, tableModel);
     this.syncColumnResizeGuide();
 
     if (tableFile?.fileId) {
@@ -1352,6 +1362,7 @@ export class TableWidget {
   private resetRenderedRows(): void {
     this.renderedRowsSourceKey = null;
     this.renderedRowsVersion = null;
+    this.renderedRowsDisplayVersion = null;
     this.renderedRowsStartIndex = 0;
     this.renderedRowsRowCount = 0;
     this.renderedRowsStartColumnIndex = 0;
@@ -1406,7 +1417,10 @@ export class TableWidget {
     return changed;
   }
 
-  private syncColumnLayout(columnRange: TableGridModel.TableGridColumnRange): boolean {
+  private syncColumnLayout(
+    columnRange: TableGridModel.TableGridColumnRange,
+    tableModel: TableWidgetModel,
+  ): boolean {
     let changed = this.syncColumnSpacers(columnRange);
     for (
       let columnOffset = 0;
@@ -1415,7 +1429,7 @@ export class TableWidget {
     ) {
       const colIndex = columnRange.startIndex + columnOffset;
       const isVisible = columnOffset < columnRange.renderedCount;
-      if (this.syncHeaderColumn(columnOffset, isVisible ? colIndex : null)) {
+      if (this.syncHeaderColumn(columnOffset, isVisible ? colIndex : null, tableModel)) {
         changed = true;
       }
       const width = isVisible
@@ -1454,7 +1468,11 @@ export class TableWidget {
     return changed;
   }
 
-  private syncHeaderColumn(columnOffset: number, colIndex: number | null): boolean {
+  private syncHeaderColumn(
+    columnOffset: number,
+    colIndex: number | null,
+    tableModel: TableWidgetModel,
+  ): boolean {
     const cell = this.headerCells[columnOffset];
     if (!cell) {
       return false;
@@ -1468,16 +1486,18 @@ export class TableWidget {
     const button = cell.firstElementChild as HTMLButtonElement | null;
     const resizeHandle = cell.lastElementChild as HTMLElement | null;
     const columnLabel = TableGridModel.getTableGridColumnLabel(colIndex);
+    const headerSuffix = tableModel.getColumnDisplayProfile(colIndex).headerSuffix;
+    const headerText = headerSuffix ? `${columnLabel} ${headerSuffix}` : columnLabel;
     const colIndexValue = String(colIndex);
     const ariaColIndex = String(colIndex + 1);
-    if (button?.dataset.colIndex !== colIndexValue) {
+    if (button?.dataset.colIndex !== colIndexValue || button?.textContent !== headerText) {
       if (button) {
         button.dataset.colIndex = colIndexValue;
-        button.textContent = columnLabel;
+        button.textContent = headerText;
         button.setAttribute(
           "aria-label",
           localize("table.preview.toggleColumn", "Toggle column {column}", {
-            column: columnLabel,
+            column: headerText,
           }),
         );
       }
@@ -1580,10 +1600,12 @@ export class TableWidget {
     columnRange: TableGridModel.TableGridColumnRange,
   ): void {
     const rowsVersion = tableModel.getRowsVersion();
+    const displayVersion = this.props.tableState.displayVersion ?? 0;
     const sourceKey = this.renderedSourceKey;
     if (
       this.renderedRowsSourceKey === sourceKey &&
       this.renderedRowsVersion === rowsVersion &&
+      this.renderedRowsDisplayVersion === displayVersion &&
       this.renderedRowsStartIndex === rowRange.startIndex &&
       this.renderedRowsRowCount === rowRange.renderedCount &&
       this.renderedRowsStartColumnIndex === columnRange.startIndex &&
@@ -1599,12 +1621,20 @@ export class TableWidget {
       for (let columnOffset = 0; columnOffset < columnRange.renderedCount; columnOffset += 1) {
         const colIndex = columnRange.startIndex + columnOffset;
         const cell = row.cells[columnOffset];
-        this.updateCellText(cell, TableGridModel.formatTableGridCell(cells[colIndex]));
+        const rawValue = cells[colIndex];
+        const profile = tableModel.getColumnDisplayProfile(colIndex);
+        const displayText = formatCell(rawValue, profile);
+        this.updateCellDisplay(
+          cell,
+          displayText,
+          getCellDisplayTitle(rawValue, displayText, profile),
+        );
       }
     }
 
     this.renderedRowsSourceKey = sourceKey;
     this.renderedRowsVersion = rowsVersion;
+    this.renderedRowsDisplayVersion = displayVersion;
     this.renderedRowsStartIndex = rowRange.startIndex;
     this.renderedRowsRowCount = rowRange.renderedCount;
     this.renderedRowsStartColumnIndex = columnRange.startIndex;
@@ -1704,11 +1734,12 @@ export class TableWidget {
         colIndex += 1
       ) {
         const cell = document.createElement("td");
+        const hover = this.store.add(new MutableDisposable<IManagedHover>());
         cell.className = "table_view_cell";
         cell.dataset.rowIndex = String(rowIndex);
         cell.dataset.colIndex = String(colIndex);
         row.append(cell);
-        cells.push({ element: cell });
+        cells.push({ element: cell, hover });
       }
 
       trailingSpacer.className = "table_view_column_spacer_cell";
@@ -1969,17 +2000,42 @@ export class TableWidget {
       Boolean(tableState.selectedFileId && tableState.file);
   }
 
-  private updateCellText(cell: BodyCell, text: string): void {
+  private updateCellDisplay(cell: BodyCell, text: string, title: string): void {
     if (cell.appliedText !== text) {
       cell.element.textContent = text;
       cell.appliedText = text;
+    }
+    if (cell.appliedTitle !== title) {
+      if (title) {
+        cell.element.removeAttribute("title");
+        if (cell.hover.current) {
+          cell.hover.current.update(createCellDisplayHoverContent(cell.element.ownerDocument, title));
+        } else {
+          cell.hover.current = (this.props.hoverDelegate ?? NullHoverDelegate)
+            .setupManagedHover(cell.element, createCellDisplayHoverContent(cell.element.ownerDocument, title), {
+              appearance: { compact: true },
+            });
+        }
+      } else {
+        cell.element.removeAttribute("title");
+        cell.hover.clear();
+      }
+      cell.appliedTitle = title;
+    }
+  }
+
+  private disposeBodyCellHovers(): void {
+    for (const row of this.bodyGrid) {
+      for (const cell of row.cells) {
+        cell.hover.clear();
+      }
     }
   }
 
   private clearRowsText(): void {
     for (const row of this.bodyGrid) {
       for (const cell of row.cells) {
-        this.updateCellText(cell, "");
+        this.updateCellDisplay(cell, "", "");
       }
     }
   }
@@ -2606,7 +2662,43 @@ const getTableWidgetInputKey = ({
     file?.sourceKey ?? "",
     file?.rowCount ?? "",
     file?.columnCount ?? "",
+    tableState.displayVersion ?? "",
   ].join("\u001f");
+};
+
+const getCellDisplayTitle = (
+  rawValue: unknown,
+  displayText: string,
+  profile: ColumnDisplayProfile,
+): string => {
+  if (profile.mode !== "columnScale" || !profile.isNumericColumn) {
+    return "";
+  }
+
+  const rawText = formatRawCell(rawValue);
+  if (!rawText || rawText === displayText) {
+    return "";
+  }
+
+  const scaledText = profile.headerSuffix
+    ? `${displayText} ${profile.headerSuffix}`
+    : displayText;
+  return [
+    localize("table.preview.rawValue", "Raw: {value}", { value: rawText }),
+    localize("table.preview.displayValue", "Display: {value}", { value: scaledText }),
+  ].join("\n");
+};
+
+const createCellDisplayHoverContent = (ownerDocument: Document, title: string): HTMLElement => {
+  const container = ownerDocument.createElement("div");
+  container.className = "table_view_cell_hover";
+  for (const line of title.split("\n")) {
+    const row = ownerDocument.createElement("div");
+    row.className = "table_view_cell_hover_line";
+    row.textContent = line;
+    container.append(row);
+  }
+  return container;
 };
 
 const toColumnSet = (

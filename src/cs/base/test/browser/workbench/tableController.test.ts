@@ -10,6 +10,9 @@ import {
 	type TableControllerProps,
 } from "src/cs/workbench/contrib/table/browser/tableController";
 import type {
+	ColumnDisplayProfile,
+} from "src/cs/workbench/services/table/common/tableDisplayProfile";
+import type {
 	TableSelection,
 	TableState,
 } from "src/cs/workbench/services/table/common/table";
@@ -98,6 +101,7 @@ function createTableState(): TableState {
 function createTableModel(): TableControllerModel {
 	return {
 		ensureRows: async () => undefined,
+		getColumnDisplayProfile: colIndex => createRawColumnDisplayProfile(colIndex),
 		getHighlight: (): TableHighlight => ({}),
 		getRow: rowIndex => [
 			`A${rowIndex + 1}`,
@@ -112,6 +116,19 @@ function createTableModel(): TableControllerModel {
 		onDidChangeSelection: () => noopDisposable,
 		onDidChangeState: () => noopDisposable,
 		subscribeRowsVersion: () => noopDisposable,
+	};
+}
+
+function createRawColumnDisplayProfile(colIndex: number): ColumnDisplayProfile {
+	return {
+		rawTableId: "file-a",
+		columnId: String(colIndex),
+		mode: "raw",
+		isNumericColumn: false,
+		scaleExponent: 0,
+		significantDigits: 6,
+		sourceVersion: 0,
+		settingsVersion: 0,
 	};
 }
 

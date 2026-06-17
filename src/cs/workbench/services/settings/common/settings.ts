@@ -20,6 +20,10 @@ import type {
   SsMethod,
 } from "src/cs/workbench/services/calculation/common/calculation";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
+import {
+  DEFAULT_NUMERIC_DISPLAY_MODE,
+  type NumericDisplayMode,
+} from "src/cs/workbench/services/table/common/tableDisplayProfile";
 
 export type { OriginCleanupResult, OriginHealthResult };
 
@@ -49,6 +53,7 @@ const FILES_EXPLORER_BADGE_COLORS = new Set<FilesExplorerBadgeColor>([
   "red",
   "cyan",
 ]);
+const NUMERIC_DISPLAY_MODES = new Set<NumericDisplayMode>(["raw", "smart"]);
 
 export const DEFAULT_FILES_EXPLORER_DENSITY: FilesExplorerDensity = "compact";
 export const DEFAULT_FILES_EXPLORER_SHOW_BADGES = true;
@@ -103,6 +108,13 @@ export const normalizeFilesExplorerBadgeColors = (
   return colors;
 };
 
+export const normalizeNumericDisplayMode = (
+  value: unknown,
+): NumericDisplayMode =>
+  typeof value === "string" && NUMERIC_DISPLAY_MODES.has(value as NumericDisplayMode)
+    ? value as NumericDisplayMode
+    : DEFAULT_NUMERIC_DISPLAY_MODE;
+
 export type ConductorSettings = {
   backgroundColor?: string;
   filesExplorerBadgeColors?: FilesExplorerBadgeColors;
@@ -110,6 +122,7 @@ export type ConductorSettings = {
   filesExplorerShowBadges?: boolean;
   fileNameFieldSeparators?: string;
   language?: LanguagePreference;
+  numericDisplayMode?: NumericDisplayMode;
   theme?: ThemeMode;
   transparentChrome?: boolean;
   windowCloseBehavior?: "minimizeToTray" | "quit";
@@ -187,6 +200,7 @@ export interface ISettingsService {
   readonly _serviceBrand: undefined;
 
   readonly onDidChangeConductorSettings: Event<ConductorSettings | null>;
+  readonly onDidChangeNumericDisplayMode: Event<NumericDisplayMode>;
   readonly onDidChangeOriginSettingsViewInput: Event<void>;
   readonly onDidChangeSettingsViewInput: Event<void>;
 

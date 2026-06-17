@@ -317,6 +317,7 @@ suite("workbench/browser/workbench layout integration", () => {
       settingsService: {
         getConductorSettings: () => null,
         onDidChangeConductorSettings: Event.None,
+        onDidChangeNumericDisplayMode: Event.None,
       },
       tableService: {
         open: () => undefined,
@@ -426,6 +427,7 @@ suite("workbench/browser/workbench layout integration", () => {
       settingsService: {
         getConductorSettings: () => null,
         onDidChangeConductorSettings: Event.None,
+        onDidChangeNumericDisplayMode: Event.None,
       },
       tableService: {
         open: () => undefined,
@@ -614,6 +616,7 @@ const createWorkbenchOptions = ({
     sessionService,
     settingsService: {
       onDidChangeConductorSettings: Event.None,
+      onDidChangeNumericDisplayMode: Event.None,
       onDidChangeOriginSettingsViewInput: Event.None,
       onDidChangeSettingsViewInput: Event.None,
       canCheckOriginHealth: () => false,

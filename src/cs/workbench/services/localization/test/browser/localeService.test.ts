@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 class TestSettingsService {
 	public readonly _serviceBrand = undefined;
 	public readonly onDidChangeConductorSettings = Event.None;
+	public readonly onDidChangeNumericDisplayMode = Event.None;
 	public readonly onDidChangeOriginSettingsViewInput = Event.None;
 	public readonly onDidChangeSettingsViewInput = Event.None;
 	public language: LanguagePreference = "system";

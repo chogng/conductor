@@ -142,6 +142,7 @@ function createSettingsService(
 		getSettingsViewInput: () => null,
 		mergeConductorSettings: () => undefined,
 		onDidChangeConductorSettings: () => ({ dispose: () => undefined }),
+		onDidChangeNumericDisplayMode: () => ({ dispose: () => undefined }),
 		onDidChangeOriginSettingsViewInput: () => ({ dispose: () => undefined }),
 		onDidChangeSettingsViewInput: () => ({ dispose: () => undefined }),
 		runOriginCleanup: async () => ({ removedTotal: 0 }),

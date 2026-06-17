@@ -1,4 +1,5 @@
 import type { Event } from "src/cs/base/common/event";
+import type { IHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import {
   TableWidget,
   type TableWidgetColumnWidthTarget,
@@ -16,6 +17,7 @@ type TableSelection = ReturnType<TableControllerModel["getSelection"]>;
 
 export type TableControllerProps = {
   readonly getColumnWidths?: (sourceKey: string | null | undefined) => readonly TableColumnWidth[];
+  readonly hoverDelegate?: IHoverDelegate;
   readonly onCopySelection?: () => void;
   readonly onSelect: (
     target: TableWidgetSelectionTarget | null,
@@ -102,11 +104,13 @@ const toWidgetProps = ({
   tableModel,
   tableState,
   getColumnWidths,
+  hoverDelegate,
   onCopySelection,
   onSelect,
   storeColumnWidths,
 }: TableControllerProps): TableWidgetProps => ({
   getColumnWidths,
+  hoverDelegate,
   onCopySelection,
   onSelect,
   storeColumnWidths,

@@ -28,11 +28,13 @@ import {
   normalizeFilesExplorerBadgeColor,
   normalizeFilesExplorerBadgeColors,
   normalizeFilesExplorerShowBadges,
+  normalizeNumericDisplayMode,
   type ConductorSettings,
   type FilesExplorerBadgeColor,
   type ISettingsService,
   type SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
+import type { NumericDisplayMode } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { WorkbenchCommandId } from "src/cs/workbench/browser/actions/workbenchCommands";
 import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
@@ -97,6 +99,7 @@ export class SettingsController {
   private pendingExplorerBadgeColors: Record<string, FilesExplorerBadgeColor> | null = null;
   private pendingExplorerBadgeVisibility: boolean | null = null;
   private pendingTransparentChrome: boolean | null = null;
+  private numericDisplaySaving = false;
   private windowCloseSaving = false;
   private cleanupNotificationSignature: string | null = null;
   private originHealthNotificationSignature: string | null = null;
@@ -352,6 +355,8 @@ export class SettingsController {
       fileNameMatchingSettings: this.fileNameMatchingSettings,
       handleCheckForUpdates: () => void this.checkForUpdates(),
       language: this.options.language,
+      numericDisplayModeOptions: this.numericDisplayModeOptions,
+      numericDisplaySettings: this.numericDisplaySettings,
       originLegendFontSizeDraft: this.drafts.originLegendFontSizeDraft,
       onLanguageChange: language => {
         void this.commandService.executeCommand(WorkbenchCommandId.setLanguage, language);
@@ -487,6 +492,14 @@ export class SettingsController {
       behavior: this.settings.windowCloseBehavior === "quit" ? "quit" : "minimizeToTray",
       isSaving: this.windowCloseSaving,
       onBehaviorChange: value => this.setWindowCloseBehavior(value),
+    };
+  }
+
+  private get numericDisplaySettings(): SettingsViewOptions["numericDisplaySettings"] {
+    return {
+      mode: normalizeNumericDisplayMode(this.settings.numericDisplayMode),
+      isSaving: this.numericDisplaySaving,
+      onModeChange: value => this.setNumericDisplayMode(value),
     };
   }
 
@@ -636,6 +649,13 @@ export class SettingsController {
     ];
   }
 
+  private get numericDisplayModeOptions(): SelectOption[] {
+    return [
+      { value: "raw", label: localize("settings.numericDisplay.raw", "Raw Value") },
+      { value: "smart", label: localize("settings.numericDisplay.smart", "Smart Display") },
+    ];
+  }
+
   private get yScaleOptions(): SelectOption[] {
     return [
       { value: "linear", label: localize("settings.yScale.linear", "Linear") },
@@ -741,6 +761,22 @@ export class SettingsController {
     finally {
       this.originCleanupSaving = false;
       this.syncOriginFeedback();
+      this.render();
+    }
+  }
+
+  private async setNumericDisplayMode(mode: NumericDisplayMode): Promise<void> {
+    const normalizedMode = normalizeNumericDisplayMode(mode);
+    if (normalizedMode === normalizeNumericDisplayMode(this.settings.numericDisplayMode)) {
+      return;
+    }
+
+    this.numericDisplaySaving = true;
+    this.render();
+    try {
+      await this.service.updateSettings({ numericDisplayMode: normalizedMode });
+    } finally {
+      this.numericDisplaySaving = false;
       this.render();
     }
   }

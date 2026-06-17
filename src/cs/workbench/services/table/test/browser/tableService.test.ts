@@ -1,6 +1,6 @@
 import assert from "assert";
 
-import { Emitter } from "src/cs/base/common/event";
+import { Emitter, Event } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { StorageScope } from "src/cs/platform/storage/common/storage";
 import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
@@ -22,6 +22,7 @@ import type { SessionChangeEvent } from "src/cs/workbench/services/session/commo
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import { mergeRawFilesIntoRecords } from "src/cs/workbench/services/session/common/sessionModelAdapter";
+import type { ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 
 type TableFile = NonNullable<TableState["file"]>;
 type TableLoadState = TableState["loadState"];
@@ -812,6 +813,7 @@ const createTableServiceFixture = ({
     tableRowsReaderService as never,
     sessionService as never,
     storageService as never,
+    createSettingsServiceStub() as never,
   );
   tableTestStore?.add(service);
   return {
@@ -820,6 +822,15 @@ const createTableServiceFixture = ({
     storageService,
   };
 };
+
+const createSettingsServiceStub = (): ISettingsService => ({
+  _serviceBrand: undefined,
+  getConductorSettings: () => ({ numericDisplayMode: "raw" }),
+  onDidChangeConductorSettings: Event.None,
+  onDidChangeNumericDisplayMode: Event.None,
+  onDidChangeOriginSettingsViewInput: Event.None,
+  onDidChangeSettingsViewInput: Event.None,
+} as ISettingsService);
 
 class TestSessionService {
   private readonly onDidChangeSessionEmitter = new Emitter<SessionChangeEvent>();
