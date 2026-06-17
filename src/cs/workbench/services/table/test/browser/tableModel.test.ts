@@ -298,6 +298,91 @@ suite("workbench/services/table/browser/tableModel display profiles", () => {
     assert.equal(textProfile.isNumericColumn, false);
   });
 
+  test("ignores empty cells and falls back for mixed text columns", () => {
+    const model = createTableModelInScope(store.add(new TableStateScope()), {
+      tableRowsReaderService: createTableRowsReaderService(),
+      numericDisplayMode: "smart",
+      settingsVersion: 4,
+      rawFiles: [{
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        sourceKey: "table-a",
+        sourceVersion: 8,
+      }],
+      source: { fileId: "file-a" },
+      file: {
+        columnCount: 2,
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        maxCellLengths: [1, 1],
+        rowCount: 6,
+        sourceKey: "table-a",
+        sourceVersion: 8,
+      },
+      rowsCacheRef: {
+        current: new Map([
+          [0, ["", "1.0E-009"]],
+          [1, ["1.0E-012", "N/A"]],
+          [2, ["", "overflow"]],
+          [3, ["2.0E-012", "2.0E-009"]],
+          [4, [null, "bad"]],
+          [5, ["3.0E-012", "3.0E-009"]],
+        ]),
+      },
+    });
+    store.add({ dispose: () => model.clearState() });
+
+    const sparseNumericProfile = model.getColumnDisplayProfile(0);
+    assert.equal(sparseNumericProfile.mode, "columnScale");
+    assert.equal(sparseNumericProfile.scaleExponent, -12);
+    assert.equal(sparseNumericProfile.headerSuffix, "×10⁻¹²");
+
+    const mixedProfile = model.getColumnDisplayProfile(1);
+    assert.equal(mixedProfile.mode, "raw");
+    assert.equal(mixedProfile.isNumericColumn, false);
+  });
+
+  test("keeps cached profiles stable across repeated visible-range reads", () => {
+    const model = createTableModelInScope(store.add(new TableStateScope()), {
+      tableRowsReaderService: createTableRowsReaderService(),
+      numericDisplayMode: "smart",
+      settingsVersion: 5,
+      rawFiles: [{
+        file: {},
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        sourceKey: "table-a",
+        sourceVersion: 9,
+      }],
+      source: { fileId: "file-a" },
+      file: {
+        columnCount: 1,
+        fileId: "file-a",
+        fileName: "Raw.csv",
+        maxCellLengths: [1],
+        rowCount: 3,
+        sourceKey: "table-a",
+        sourceVersion: 9,
+      },
+      rowsCacheRef: {
+        current: new Map([
+          [0, ["1.0E+006"]],
+          [1, ["2.0E+006"]],
+          [2, ["3.0E+006"]],
+        ]),
+      },
+    });
+    store.add({ dispose: () => model.clearState() });
+
+    const firstProfile = model.getColumnDisplayProfile(0);
+    const secondProfile = model.getColumnDisplayProfile(0);
+
+    assert.equal(secondProfile, firstProfile);
+    assert.equal(secondProfile.scaleExponent, 6);
+    assert.equal(secondProfile.headerSuffix, "×10⁶");
+  });
+
   test("keeps raw profiles when numeric display mode is raw", () => {
     const model = createTableModelInScope(store.add(new TableStateScope()), {
       tableRowsReaderService: createTableRowsReaderService(),

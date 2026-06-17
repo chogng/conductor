@@ -18,13 +18,20 @@ suite("workbench/services/table/common/numericFormat", () => {
     assert.equal(parseNumericCell("N/A"), null);
     assert.equal(parseNumericCell("Infinity"), null);
     assert.equal(parseNumericCell(""), null);
+    assert.equal(parseNumericCell(null), null);
   });
 
   test("chooses engineering scale exponent from column values", () => {
     assert.equal(chooseColumnScaleExponent([-3.70327e-9, 4.2e-9]), -9);
     assert.equal(chooseColumnScaleExponent([810.09486e6, 200e6]), 6);
     assert.equal(chooseColumnScaleExponent([-3, 5]), 0);
+    assert.equal(chooseColumnScaleExponent([1e-12, 9e-12]), -12);
+    assert.equal(chooseColumnScaleExponent([2e12, 9e12]), 12);
     assert.equal(chooseColumnScaleExponent([0, 0]), 0);
+  });
+
+  test("uses a single median scale for wide magnitude columns", () => {
+    assert.equal(chooseColumnScaleExponent([1e-12, 1e-3, 1e6]), -3);
   });
 
   test("formats scaled cells with a column profile and leaves invalid tokens raw", () => {
@@ -43,6 +50,6 @@ suite("workbench/services/table/common/numericFormat", () => {
     assert.equal(profile.headerSuffix, "×10⁻⁹");
     assert.equal(formatCell("-3.70327E-009", profile), "-3.70327");
     assert.equal(formatCell("N/A", profile), "N/A");
+    assert.equal(formatCell("", profile), "");
   });
 });
-

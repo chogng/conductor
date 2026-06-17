@@ -262,6 +262,41 @@ suite("workbench/services/table/browser/tableService", () => {
     service.dispose();
   });
 
+  test("increments display version when numeric display mode changes", () => {
+    const numericDisplayModeEmitter = new Emitter<"raw" | "smart">();
+    store.add(numericDisplayModeEmitter);
+    const settingsService = createSettingsServiceStub({
+      onDidChangeNumericDisplayMode: numericDisplayModeEmitter.event,
+    });
+    const { service } = createTableServiceFixture({
+      rawFiles: [createRawFile()],
+      settingsService,
+    });
+    let changeCount = 0;
+    const disposable = store.add(service.onDidChangeTableViewInput(() => {
+      changeCount += 1;
+    }));
+
+    service.open({ fileId: "file-a" });
+    const initialChangeCount = changeCount;
+    assert.equal(service.getViewInput()?.tableState.displayVersion, 0);
+
+    numericDisplayModeEmitter.fire("smart");
+    assert.equal(service.getViewInput()?.tableState.displayVersion, 1);
+    assert.equal(changeCount, initialChangeCount + 1);
+
+    numericDisplayModeEmitter.fire("smart");
+    assert.equal(service.getViewInput()?.tableState.displayVersion, 1);
+    assert.equal(changeCount, initialChangeCount + 1);
+
+    numericDisplayModeEmitter.fire("raw");
+    assert.equal(service.getViewInput()?.tableState.displayVersion, 2);
+    assert.equal(changeCount, initialChangeCount + 2);
+
+    disposable.dispose();
+    service.dispose();
+  });
+
   test("returns TSV text for selected table ranges", async () => {
     const rows = [
       ["A1", "B\t1"],
@@ -800,10 +835,12 @@ type TableServiceFixture = {
 
 const createTableServiceFixture = ({
   rawFiles = [],
+  settingsService = createSettingsServiceStub(),
   storageService = new TestStorageService(),
   tableRowsReaderService = createTableRowsReaderService(),
 }: {
   readonly rawFiles?: readonly SessionFile[];
+  readonly settingsService?: ISettingsService;
   readonly storageService?: TestStorageService;
   readonly tableRowsReaderService?: TableRowsReaderProvider;
 } = {}): TableServiceFixture => {
@@ -813,7 +850,7 @@ const createTableServiceFixture = ({
     tableRowsReaderService as never,
     sessionService as never,
     storageService as never,
-    createSettingsServiceStub() as never,
+    settingsService as never,
   );
   tableTestStore?.add(service);
   return {
@@ -823,13 +860,16 @@ const createTableServiceFixture = ({
   };
 };
 
-const createSettingsServiceStub = (): ISettingsService => ({
+const createSettingsServiceStub = (
+  overrides: Partial<ISettingsService> = {},
+): ISettingsService => ({
   _serviceBrand: undefined,
   getConductorSettings: () => ({ numericDisplayMode: "raw" }),
   onDidChangeConductorSettings: Event.None,
   onDidChangeNumericDisplayMode: Event.None,
   onDidChangeOriginSettingsViewInput: Event.None,
   onDidChangeSettingsViewInput: Event.None,
+  ...overrides,
 } as ISettingsService);
 
 class TestSessionService {
