@@ -441,14 +441,14 @@ const areExplorerFilesEqual = (
           file.badgeState.label === nextFile.badgeState.label &&
           file.badgeState.confidence === nextFile.badgeState.confidence &&
           file.badgeState.source === nextFile.badgeState.source &&
-          file.badgeState.message === nextFile.badgeState.message &&
-          file.badgeState.suspectedType === nextFile.badgeState.suspectedType
+          file.badgeState.message === nextFile.badgeState.message
       ) &&
       (
         file.badgeState?.kind !== "unknown" ||
         nextFile.badgeState?.kind === "unknown" &&
           file.badgeState.source === nextFile.badgeState.source &&
-          file.badgeState.message === nextFile.badgeState.message
+          file.badgeState.message === nextFile.badgeState.message &&
+          file.badgeState.suspectedType === nextFile.badgeState.suspectedType
       ) &&
       file.curveType === nextFile.curveType &&
       file.curveTypeBadgeLabel === nextFile.curveTypeBadgeLabel &&

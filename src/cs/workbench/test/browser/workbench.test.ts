@@ -424,9 +424,12 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       },
     });
 
-    assert.equal(input.files[0]?.badgeState?.kind, "unknown");
-    assert.equal(input.files[0]?.badgeState?.source, "fast");
-    assert.equal(input.files[0]?.badgeState?.suspectedType, "output (vd)");
+    const badgeState = input.files[0]?.badgeState;
+    if (badgeState?.kind !== "unknown") {
+      assert.fail(`Expected unknown fast badge, got ${badgeState?.kind ?? "none"}.`);
+    }
+    assert.equal(badgeState.source, "fast");
+    assert.equal(badgeState.suspectedType, "output (vd)");
   });
 });
 
