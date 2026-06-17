@@ -143,7 +143,7 @@ export class SelectBox<T extends string> extends Disposable {
     private renderOptions(container: HTMLElement): void {
         this.optionDisposables.clear();
         container.classList.add("ui-selectbox__dropdown");
-        this.syncDropdownWidth(this.measureOptionsWidth(container));
+        this.syncDropdownWidth();
 
         const list = document.createElement("div");
         list.className = "ui-selectbox__list";
@@ -259,32 +259,18 @@ export class SelectBox<T extends string> extends Disposable {
         }
     }
 
-    private syncDropdownWidth(optionsWidth = 0): void {
+    private syncDropdownWidth(): void {
         if (this.options.matchAnchorWidth === false) {
             this.contentView.domNode.style.removeProperty(SELECTBOX_DROPDOWN_WIDTH);
             return;
         }
 
-        const width = Math.max(Math.round(this.button.offsetWidth), Math.ceil(optionsWidth));
+        const width = Math.round(this.button.offsetWidth);
         if (width > 0) {
             this.contentView.domNode.style.setProperty(SELECTBOX_DROPDOWN_WIDTH, `${width}px`);
         }
     }
 
-    private measureOptionsWidth(container: HTMLElement): number {
-        const widthControl = document.createElement("span");
-        widthControl.className = "ui-selectbox__width-control";
-        container.append(widthControl);
-
-        let width = 0;
-        for (const option of this.options.options) {
-            widthControl.textContent = option.label;
-            width = Math.max(width, widthControl.getBoundingClientRect().width);
-        }
-
-        widthControl.remove();
-        return width + getHorizontalBoxSize(container);
-    }
 }
 
 export function createSelectBox<T extends string>(options: SelectBoxOptions<T>): SelectBox<T> {
@@ -304,20 +290,4 @@ function getButtonClassName(className: string | undefined): string {
 
 function getDropdownClassName(className: string | undefined): string {
     return className ?? "";
-}
-
-function getHorizontalBoxSize(element: HTMLElement): number {
-    const style = element.ownerDocument.defaultView?.getComputedStyle(element);
-    if (!style) {
-        return 0;
-    }
-
-    return getCssPixelValue(style.paddingLeft)
-        + getCssPixelValue(style.paddingRight)
-        + getCssPixelValue(style.borderLeftWidth)
-        + getCssPixelValue(style.borderRightWidth);
-}
-
-function getCssPixelValue(value: string): number {
-    return Number.parseFloat(value || "0") || 0;
 }

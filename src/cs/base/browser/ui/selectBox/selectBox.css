@@ -80,25 +80,16 @@
   border-radius: 6px;
   background: transparent;
   color: rgb(var(--text-secondary) / 1);
+  overflow: hidden;
   padding: 0 11px;
   text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: inherit;
   font-size: 12px;
   font-weight: 400;
   line-height: 16px;
   outline: none;
-}
-
-.ui-selectbox__width-control {
-  position: absolute;
-  visibility: hidden;
-  padding: 0 11px;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 16px;
-  pointer-events: none;
-  white-space: nowrap;
 }
 
 .ui-selectbox__option[data-selected="true"] {

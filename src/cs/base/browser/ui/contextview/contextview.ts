@@ -158,7 +158,7 @@ export class ContextView implements IDisposable {
             this.element.offsetWidth || 0,
         );
         const contextViewWidth = this.options.matchAnchorWidth
-            ? Math.min(Math.max(contentWidth, anchorWidth), maxWidth)
+            ? Math.min(anchorWidth, maxWidth)
             : Math.min(contentWidth, maxWidth);
 
         const layout = anchoredLayout({
