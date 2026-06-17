@@ -29,6 +29,9 @@ export const TemplateCommandId = {
   importTemplate: "template.importTemplate",
   editTemplate: "template.editTemplate",
   exportTemplate: "template.exportTemplate",
+  applyTemplate: "template.applyTemplate",
+  applyTemplateIncremental: "template.applyTemplateIncremental",
+  setStopOnError: "template.setStopOnError",
 } as const;
 
 export type TemplateCommandId =

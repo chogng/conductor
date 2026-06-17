@@ -32,7 +32,7 @@ import {
   type PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
-import { resolveLabelWithUnit } from "src/cs/workbench/services/plot/common/plotAxisLabels";
+import { resolveAxisTitleLabel } from "src/cs/workbench/services/plot/common/plotAxisLabels";
 import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/browser/plotRenderModel";
 import { filterCalculatedDataSeries } from "src/cs/workbench/services/plot/common/plotSeriesVisibility";
 import {
@@ -216,24 +216,20 @@ export class PlotService extends Disposable implements IPlotService {
       pane: "inspector",
       plotType: chartData.kind as PlotType,
     });
-    const chartDefaultXAxisTitle = resolveLabelWithUnit(
+    const chartDefaultXAxisTitle = resolveAxisTitleLabel(
       chartData.activeFile?.xLabel,
-      displayUnits.xUnit,
       "X",
     );
-    const chartDefaultYAxisTitle = resolveLabelWithUnit(
+    const chartDefaultYAxisTitle = resolveAxisTitleLabel(
       chartData.activeFile?.yLabel,
-      displayUnits.yUnit ?? chartData.yUnitLabel,
       "Y",
     );
-    const inspectorDefaultXAxisTitle = resolveLabelWithUnit(
+    const inspectorDefaultXAxisTitle = resolveAxisTitleLabel(
       inspectorData.activeFile?.xLabel,
-      displayUnits.xUnit,
       "X",
     );
-    const inspectorDefaultYAxisTitle = resolveLabelWithUnit(
+    const inspectorDefaultYAxisTitle = resolveAxisTitleLabel(
       inspectorData.activeFile?.yLabel,
-      inspectorYUnitLabel ?? inspectorData.yUnitLabel,
       "Y",
     );
 

@@ -167,7 +167,14 @@
 }
 
 .ui-menu__item-actionbar .ui-actionbar__items {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
   gap: 0;
+}
+
+.ui-menu__item-right-actionbar .ui-actionbar__item:last-child .ui-menu__item-action {
+  margin-right: -7px;
 }
 
 .ui-menu__item-action:hover,

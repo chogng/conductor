@@ -74,6 +74,8 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     assert.equal(displayModel?.chart.plotYFactor, 1000);
     assert.equal(displayModel?.chart.plotXUnitLabel, "mV");
     assert.equal(displayModel?.chart.plotYUnitLabel, "mA");
+    assert.equal(displayModel?.chart.xAxisTitle, "Gate");
+    assert.equal(displayModel?.chart.yAxisTitle, "Drain current");
     assert.equal(displayModel?.chart.yScaleMode, "log");
     assert.deepEqual(displayModel?.unitControl, {
       fileId: "file-a",
@@ -239,7 +241,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     ));
     const snapshot = createSnapshot();
     const initial = service.getPlotDisplayModel({ snapshot });
-    assert.equal(initial?.chart.xAxisTitle, "Gate (V)");
+    assert.equal(initial?.chart.xAxisTitle, "Gate");
 
     service.setAxisTitleOverride(
       initial!.chart.xAxisTitleContext,
@@ -248,7 +250,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     );
     const edited = service.getPlotDisplayModel({ snapshot });
     assert.equal(edited?.chart.xAxisTitle, "Custom X");
-    assert.equal(edited?.inspector.xAxisTitle, "Gate (V)");
+    assert.equal(edited?.inspector.xAxisTitle, "Gate");
 
     service.setAxisTitleOverride(
       initial!.chart.xAxisTitleContext,
@@ -256,7 +258,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       initial!.chart.defaultXAxisTitle,
     );
     const restored = service.getPlotDisplayModel({ snapshot });
-    assert.equal(restored?.chart.xAxisTitle, "Gate (V)");
+    assert.equal(restored?.chart.xAxisTitle, "Gate");
   });
 
   test("removes legend label override when label is reset", () => {

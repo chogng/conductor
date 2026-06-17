@@ -7,14 +7,14 @@ import type { IAction } from "src/cs/base/common/actions";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
+import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { localize } from "src/cs/nls";
+import { TemplateCommandId } from "src/cs/workbench/services/template/common/template";
 
 export type TemplateApplyViewOptions = {
+  readonly commandService: Pick<ICommandService, "executeCommand">;
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly createTemplateActions: () => IAction[];
-  readonly onApplyTemplate: (incremental: boolean) => void;
-  readonly onDeleteTemplate: () => void;
-  readonly onStopOnErrorChange: (checked: boolean) => void;
 };
 
 export type TemplateApplyViewState = {
@@ -28,7 +28,6 @@ export class TemplateApplyView {
   private readonly disposables = new DisposableStore();
   private readonly dropdownMenu: DropdownMenu;
   private readonly dropdownLabel: HTMLElement;
-  private readonly deleteButton: HTMLButtonElement;
   private readonly stopSwitch: SwitchWidget;
   private readonly autoCard: HTMLElement;
 
@@ -95,15 +94,6 @@ export class TemplateApplyView {
       this.dropdownLabel.parentElement?.setAttribute("aria-expanded", `${visible}`);
     });
 
-    this.deleteButton = createButton({
-      label: localize("template.delete.label", "Delete template"),
-      size: "sm",
-      variant: "secondary",
-    });
-    this.deleteButton.className = `${this.deleteButton.className} template_button`;
-    this.deleteButton.addEventListener("click", () => this.options.onDeleteTemplate());
-    selectContainer.append(this.deleteButton);
-
     dropdownRow.append(selectContainer);
     this.element.append(dropdownRow);
 
@@ -116,7 +106,9 @@ export class TemplateApplyView {
       variant: "primary",
     });
     applyAllButton.className = `${applyAllButton.className} template_button`;
-    applyAllButton.addEventListener("click", () => this.options.onApplyTemplate(false));
+    applyAllButton.addEventListener("click", () => {
+      void this.options.commandService.executeCommand(TemplateCommandId.applyTemplate);
+    });
 
     const applyNewButton = createButton({
       label: localize("template.applyNewFiles.label", "Apply to New"),
@@ -124,7 +116,9 @@ export class TemplateApplyView {
       variant: "secondary",
     });
     applyNewButton.className = `${applyNewButton.className} template_button`;
-    applyNewButton.addEventListener("click", () => this.options.onApplyTemplate(true));
+    applyNewButton.addEventListener("click", () => {
+      void this.options.commandService.executeCommand(TemplateCommandId.applyTemplateIncremental);
+    });
 
     applyActions.append(applyAllButton, applyNewButton);
     this.element.append(applyActions);
@@ -139,7 +133,9 @@ export class TemplateApplyView {
     this.stopSwitch = this.createToggleRow(
       togglesRow,
       localize("template.stopOnError", "Stop at first invalid item"),
-      this.options.onStopOnErrorChange,
+      (checked) => {
+        void this.options.commandService.executeCommand(TemplateCommandId.setStopOnError, checked);
+      },
     );
 
     this.element.append(togglesRow);
@@ -169,7 +165,6 @@ export class TemplateApplyView {
     this.dropdownLabel.textContent = state.selectedTemplateLabel;
     this.dropdownLabel.parentElement?.setAttribute("aria-label", state.selectedTemplateLabel);
 
-    this.deleteButton.style.display = state.canDeleteTemplate ? "" : "none";
     this.stopSwitch.update({ checked: state.stopOnError });
     this.autoCard.style.display = state.canDeleteTemplate ? "none" : "";
   }

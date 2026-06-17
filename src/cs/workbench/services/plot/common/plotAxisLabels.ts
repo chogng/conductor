@@ -7,8 +7,17 @@ export const resolveLabelWithUnit = (
   unit: unknown,
   fallback: string,
 ): string => {
-  const text = String(label ?? "").trim() || fallback;
+  const text = resolveAxisTitleLabel(label, fallback);
   const unitText = String(unit ?? "").trim();
   if (!unitText || text.includes("(")) return text;
   return `${text} (${unitText})`;
 };
+
+export const resolveAxisTitleLabel = (
+  label: unknown,
+  fallback: string,
+): string =>
+  String(label ?? "")
+    .trim()
+    .replace(/\s*\([^()]+\)\s*$/, "")
+    .trim() || fallback;

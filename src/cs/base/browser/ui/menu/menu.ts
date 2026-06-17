@@ -391,7 +391,7 @@ class MenuActionViewItem extends BaseActionViewItem {
     private createActionBar(actions: readonly MenuItemAction[]): HTMLElement {
         const actionBar = this._register(new ActionBar({
             actionViewItemProvider: createMenuItemActionViewItem,
-            className: "ui-menu__item-actionbar",
+            className: "ui-menu__item-actionbar ui-menu__item-right-actionbar",
             role: "toolbar",
         }));
 

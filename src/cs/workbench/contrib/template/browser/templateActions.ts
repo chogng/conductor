@@ -13,18 +13,25 @@ import {
   Severity,
 } from "src/cs/workbench/services/notification/common/notificationService";
 import { TemplateImportController } from "src/cs/workbench/services/template/browser/templateImportController";
-import { isAutoTemplateId } from "src/cs/workbench/services/template/common/autoTemplate";
+import {
+  AUTO_TEMPLATE_CONFIG_FIELD,
+  isAutoTemplateId,
+} from "src/cs/workbench/services/template/common/autoTemplate";
 import {
   cloneTemplateConfig,
   normalizeTemplateConfigRecord,
   toTemplateNameKey,
 } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import {
+  ITemplateApplyWorkflowService,
   ITemplateService,
   TemplateCommandId,
   type TemplateRecord,
 } from "src/cs/workbench/services/template/common/template";
-import { validateTemplateForSave } from "src/cs/workbench/services/template/common/templateValidation";
+import {
+  validateTemplateForApply,
+  validateTemplateForSave,
+} from "src/cs/workbench/services/template/common/templateValidation";
 
 export function registerTemplateActions(): void {
   registerAction2(SelectTemplateAction);
@@ -33,6 +40,9 @@ export function registerTemplateActions(): void {
   registerAction2(ImportTemplateAction);
   registerAction2(EditTemplateAction);
   registerAction2(ExportTemplateAction);
+  registerAction2(ApplyTemplateAction);
+  registerAction2(ApplyTemplateIncrementalAction);
+  registerAction2(SetTemplateStopOnErrorAction);
 }
 
 export class SelectTemplateAction extends Action2 {
@@ -158,10 +168,105 @@ export class ExportTemplateAction extends Action2 {
   }
 }
 
+export class ApplyTemplateAction extends Action2 {
+  public constructor() {
+    super({
+      category: localize("template.commands.category", "Template"),
+      f1: true,
+      id: TemplateCommandId.applyTemplate,
+      title: localize("template.commands.applyTemplate", "Apply Template to All"),
+      metadata: {
+        description: localize("template.commands.applyTemplate.description", "Apply the selected template to all files."),
+      },
+    });
+  }
+
+  public run(accessor: ServicesAccessor): void {
+    applyTemplate(accessor, false);
+  }
+}
+
+export class ApplyTemplateIncrementalAction extends Action2 {
+  public constructor() {
+    super({
+      category: localize("template.commands.category", "Template"),
+      f1: true,
+      id: TemplateCommandId.applyTemplateIncremental,
+      title: localize("template.commands.applyTemplateIncremental", "Apply Template to New Files"),
+      metadata: {
+        description: localize("template.commands.applyTemplateIncremental.description", "Apply the selected template to new files."),
+      },
+    });
+  }
+
+  public run(accessor: ServicesAccessor): void {
+    applyTemplate(accessor, true);
+  }
+}
+
+export class SetTemplateStopOnErrorAction extends Action2 {
+  public constructor() {
+    super({
+      id: TemplateCommandId.setStopOnError,
+      title: localize("template.commands.setStopOnError", "Set Template Stop on Error"),
+      metadata: {
+        description: localize("template.commands.setStopOnError.description", "Set whether template application stops at the first invalid item."),
+      },
+    });
+  }
+
+  public run(accessor: ServicesAccessor, value?: unknown): void {
+    const templateService = accessor.get(ITemplateService);
+    const current = templateService.getState().formState.stopOnError;
+    const stopOnError = typeof value === "boolean" ? value : !current;
+    templateService.setFormState(previous => ({
+      ...previous,
+      stopOnError,
+    }));
+  }
+}
+
 function normalizeTemplateActionTarget(value: unknown): TemplateRecord | null {
   return value && typeof value === "object"
     ? value as TemplateRecord
     : null;
+}
+
+function applyTemplate(accessor: ServicesAccessor, incremental: boolean): void {
+  const templateService = accessor.get(ITemplateService);
+  const workflowService = accessor.get(ITemplateApplyWorkflowService);
+  const notificationService = accessor.get(INotificationService);
+  const state = templateService.getState();
+  const config = state.formState;
+  const selectedTemplateId = state.selectedTemplateId;
+  if (!selectedTemplateId || isAutoTemplateId(selectedTemplateId)) {
+    const autoConfig = {
+      ...config,
+      [AUTO_TEMPLATE_CONFIG_FIELD]: true,
+    };
+    if (incremental) {
+      workflowService.applyTemplateIncremental(autoConfig);
+    } else {
+      workflowService.applyTemplate(autoConfig);
+    }
+    return;
+  }
+
+  const validation = validateTemplateForApply(config);
+  if (!validation.ok || !validation.normalized) {
+    notificationService.notify({
+      id: "template.notification",
+      message: validation.message || localize("template.invalidConfiguration", "Invalid configuration"),
+      severity: Severity.Warning,
+    });
+    return;
+  }
+
+  if (incremental) {
+    workflowService.applyTemplateIncremental(validation.normalized);
+  } else {
+    workflowService.applyTemplate(validation.normalized);
+  }
 }
 
 async function deleteTemplate(accessor: ServicesAccessor, template: unknown): Promise<void> {

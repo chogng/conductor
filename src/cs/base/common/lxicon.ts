@@ -9,8 +9,9 @@ import {
   lxChevronRight as renderChevronRight,
   lxClose as renderClose,
   lxCopy as renderCopy,
-  lxCsvLetter as renderCsvLetter,
+  lxCsvLetterFilled as renderCsvLetterFilled,
   lxCsvGreen as renderCsvGreen,
+  lxExportTray as renderExportTray,
   lxRefresh as renderRefresh,
   lxDiagnostics as renderDiagnostics,
   lxDownload as renderDownload,
@@ -33,8 +34,9 @@ import {
   lxSummary as renderSummary,
   lxPinned as renderPinned,
   lxUnpin as renderUnpin,
-  lxXlsLetter as renderXlsLetter,
+  lxXlsLetterFilled as renderXlsLetterFilled,
   lxXlsGreen as renderXlsGreen,
+  lxTrashFlat as renderTrashFlat,
 } from "@chogng/lxicon";
 
 export type LxIconRenderer = () => string;
@@ -135,11 +137,15 @@ export const lxCopy = registerLxIcon("copy", renderCopy);
 
 export const lxCsvGreen = registerLxIcon("csv-green", renderCsvGreen);
 
-export const lxCsvLetter = registerLxIcon("csv-letter", renderCsvLetter);
+export const lxCsvLetterFilled = registerLxIcon("csv-letter-filled", renderCsvLetterFilled);
 
 export const lxXlsGreen = registerLxIcon("xls-green", renderXlsGreen);
 
-export const lxXlsLetter = registerLxIcon("xls-letter", renderXlsLetter);
+export const lxXlsLetterFilled = registerLxIcon("xls-letter-filled", renderXlsLetterFilled);
+
+export const lxExportTray = registerLxIcon("export-tray", renderExportTray);
+
+export const lxTrashFlat = registerLxIcon("trash-flat", renderTrashFlat);
 
 export const lxDiagnostics = registerLxIcon("diagnostics", renderDiagnostics);
 
@@ -196,7 +202,7 @@ export const LxIcon = {
   copy: lxCopy,
   csvGreen: lxCsvGreen,
   diagnostics: lxDiagnostics,
-  csvLetter: lxCsvLetter,
+  csvLetter: lxCsvLetterFilled,
   download: lxDownload,
   downloadTray: lxDownloadTray,
   edit: lxEdit,
@@ -211,8 +217,10 @@ export const LxIcon = {
   moreHorizontal: lxMoreHorizontal,
   origin: lxOrigin,
   parameters: lxParameters,
+  exportTray: lxExportTray,
   remove: lxRemove,
   search: lxSearch,
+  trashFlat: lxTrashFlat,
   settings: lxSettings,
   screenFull: lxScreenFull,
   screenNormal: lxScreenNormal,
@@ -220,6 +228,6 @@ export const LxIcon = {
   pinned: lxPinned,
   unpin: lxUnpin,
   xlsGreen: lxXlsGreen,
-  xlsLetter: lxXlsLetter,
+  xlsLetter: lxXlsLetterFilled,
   refresh: lxRefresh,
 } as const;

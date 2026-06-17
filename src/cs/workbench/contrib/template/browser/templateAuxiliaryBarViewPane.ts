@@ -12,7 +12,6 @@ import { ITableService } from "src/cs/workbench/services/table/common/table";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import {
-  ITemplateApplyWorkflowService,
   ITemplateService,
   TemplateAuxiliaryBarViewId,
   type ITemplateService as ITemplateServiceType,
@@ -37,7 +36,6 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
     @IContextMenuService private readonly contextMenuService: IContextMenuServiceType,
     @INotificationService private readonly notificationService: INotificationService,
     @ITableService private readonly tableService: ITableService,
-    @ITemplateApplyWorkflowService private readonly templateApplyWorkflowService: ITemplateApplyWorkflowService,
     @ITemplateService private readonly templateService: ITemplateServiceType,
   ) {
     super({
@@ -93,7 +91,6 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
       notificationService: this.notificationService,
       rawFiles: input?.rawFiles ?? [],
       tableService: this.tableService,
-      templateApplyWorkflowService: this.templateApplyWorkflowService,
       templateService: this.templateService,
     };
   }

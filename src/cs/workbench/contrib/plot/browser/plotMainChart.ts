@@ -6,7 +6,7 @@
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
-import { resolveLabelWithUnit } from "src/cs/workbench/services/plot/common/plotAxisLabels";
+import { resolveAxisTitleLabel } from "src/cs/workbench/services/plot/common/plotAxisLabels";
 import { drawPlotAxis } from "src/cs/workbench/contrib/plot/browser/plotAxis";
 import { PlotAxisTitleView } from "src/cs/workbench/contrib/plot/browser/plotAxisTitleView";
 import { drawPlotFrame } from "src/cs/workbench/contrib/plot/browser/plotFrame";
@@ -648,14 +648,12 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
       fontSize: props.axisTitleFontSize,
       onXTitleChange: props.onXAxisLabelChange,
       onYTitleChange: props.onYAxisLabelChange,
-      xTitle: resolveLabelWithUnit(
+      xTitle: resolveAxisTitleLabel(
         props.xAxisLabelOverride ?? props.axisLabels?.xLabel,
-        props.plotXUnitLabel,
         "X",
       ),
-      yTitle: resolveLabelWithUnit(
+      yTitle: resolveAxisTitleLabel(
         props.yAxisLabelOverride ?? props.axisLabels?.yLabel,
-        props.plotYUnitLabel,
         "Y",
       ),
     });

@@ -9,6 +9,7 @@ import {
   type IIconLabelCreationOptions,
   type IIconLabelValueOptions,
 } from "src/cs/base/browser/ui/iconLabel/iconLabel";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 
 export const FileKind = {
@@ -84,14 +85,17 @@ export class ResourceLabel implements IResourceLabel {
     const name = label.name ?? getResourceName(label.resource);
     const resource = label.resource ?? name;
     const fileKind = options.fileKind ?? FileKind.FILE;
-    const iconClasses = getIconClasses(resource, fileKind);
+    const resourceIcon = options.icon ?? getResourceIcon(resource, fileKind);
+    const iconClasses = resourceIcon
+      ? stripConflictingFileIconClasses(getIconClasses(resource, fileKind))
+      : getIconClasses(resource, fileKind);
     this.label.setLabel(name, {
       ...options,
       extraClasses: [
         ...iconClasses,
         ...(options.extraClasses ?? []),
       ],
-      icon: options.icon,
+      icon: resourceIcon,
     });
   }
 
@@ -109,6 +113,37 @@ const getResourceName = (resource: string | null | undefined): string => {
   const slashIndex = normalized.lastIndexOf("/");
   return slashIndex >= 0 ? normalized.slice(slashIndex + 1) : normalized;
 };
+
+const getResourceIcon = (
+  resource: unknown,
+  fileKind: FileKind = FileKind.FILE,
+) => {
+  if (fileKind !== FileKind.FILE) {
+    return undefined;
+  }
+
+  const path = String(resource ?? "").replace(/\\/g, "/").toLowerCase();
+  const fileName = getResourceName(path);
+  const dotIndex = fileName.lastIndexOf(".");
+  const extension = dotIndex >= 0 ? fileName.slice(dotIndex + 1) : "";
+
+  if (extension === "csv") {
+    return LxIcon.csvLetter;
+  }
+
+  if (extension === "xls" || extension === "xlsx") {
+    return LxIcon.xlsLetter;
+  }
+
+  return undefined;
+};
+
+const stripConflictingFileIconClasses = (classes: readonly string[]): string[] =>
+  classes.filter(className =>
+    className !== "csv-ext-file-icon" &&
+    className !== "xls-ext-file-icon" &&
+    className !== "xlsx-ext-file-icon",
+  );
 
 export function getIconClasses(
   resource: unknown,

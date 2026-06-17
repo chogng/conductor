@@ -21,18 +21,13 @@ import {
   type INotificationService,
   type NotificationPresentationType,
 } from "src/cs/workbench/services/notification/common/notificationService";
+import { validateTemplateForSave } from "src/cs/workbench/services/template/common/templateValidation";
 import {
-  validateTemplateForSave,
-  validateTemplateForApply,
-} from "src/cs/workbench/services/template/common/templateValidation";
-import {
-  AUTO_TEMPLATE_CONFIG_FIELD,
   AUTO_TEMPLATE_ID,
   isAutoTemplateId,
 } from "src/cs/workbench/services/template/common/autoTemplate";
 import { TemplateCommandId } from "src/cs/workbench/services/template/common/template";
 import type {
-  ITemplateApplyWorkflowService,
   ITemplateService,
   TemplateMode,
   TemplateRecord,
@@ -60,11 +55,6 @@ export type TemplateViewOptions = {
   readonly commandService: Pick<ICommandService, "executeCommand">;
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly notificationService: Pick<INotificationService, "notify">;
-  readonly templateApplyWorkflowService: Pick<
-    ITemplateApplyWorkflowService,
-    | "applyTemplate"
-    | "applyTemplateIncremental"
-  >;
   readonly templateService: ITemplateService;
   readonly rawFiles?: SessionFile[];
   readonly tableService?: Pick<
@@ -398,13 +388,9 @@ export class TemplateView {
   private getApplyView(): TemplateApplyView {
     if (!this.applyView) {
       this.applyView = new TemplateApplyView({
+        commandService: this.props.commandService,
         contextMenuService: this.props.contextMenuService,
         createTemplateActions: () => this.createTemplateActions(),
-        onApplyTemplate: (incremental) => this.applyTemplate(incremental),
-        onDeleteTemplate: () => {
-          void this.deleteSelectedTemplate();
-        },
-        onStopOnErrorChange: (checked) => this.updateApplyOptions({ stopOnError: checked }),
       }, this.getApplyViewState());
     }
 
@@ -469,26 +455,6 @@ export class TemplateView {
       config,
       selectedYColumnLabels: normalizeColumnIndexes(config.yColumns).map((column) => toColumnLabel(column)),
     };
-  }
-
-  private updateApplyOptions(updates: Partial<Pick<TemplateConfig, "stopOnError">>): void {
-    const config = this.getEffectiveTemplateFormState();
-    this.stopOnErrorDraft = updates.stopOnError ?? config.stopOnError;
-    this.updateApplyView();
-    this.updateEditorView();
-  }
-
-  private async deleteSelectedTemplate(): Promise<void> {
-    const selectedTemplateId = this.readSelectedTemplateId();
-    const templateFormState = this.getEffectiveTemplateFormState();
-    if (!selectedTemplateId || isAutoTemplateId(selectedTemplateId)) {
-      return;
-    }
-
-    await this.props.commandService.executeCommand(TemplateCommandId.deleteTemplate, {
-      ...templateFormState,
-      id: selectedTemplateId,
-    });
   }
 
   private createTemplateActions(): IAction[] {
@@ -570,9 +536,15 @@ export class TemplateView {
       },
       {
         id: `${TemplateCommandId.exportTemplate}.${templateId || "template"}`,
-        icon: LxIcon.download,
+        icon: LxIcon.exportTray,
         label: localize("template.export.button", "Export templates"),
         onClick: () => this.exportTemplate(template),
+      },
+      {
+        id: `${TemplateCommandId.deleteTemplate}.${templateId || "template"}`,
+        icon: LxIcon.trashFlat,
+        label: localize("template.delete.label", "Delete template"),
+        onClick: () => this.deleteTemplate(template),
       },
     ];
   }
@@ -586,6 +558,10 @@ export class TemplateView {
     void this.props.commandService.executeCommand(TemplateCommandId.exportTemplate, template);
   }
 
+  private deleteTemplate(template: TemplateRecord): void {
+    void this.props.commandService.executeCommand(TemplateCommandId.deleteTemplate, template);
+  }
+
   private selectTemplate(template: TemplateRecord | null): void {
     const config = this.getEffectiveTemplateFormState();
     if (!template) {
@@ -596,41 +572,6 @@ export class TemplateView {
     } else {
       this.stopOnErrorDraft = Boolean(template.stopOnError);
       void this.props.commandService.executeCommand(TemplateCommandId.selectTemplate, template);
-    }
-  }
-
-  private applyTemplate(incremental: boolean): void {
-    const config = this.getEffectiveTemplateFormState();
-    const selectedTemplateId = this.readSelectedTemplateId();
-    if (!selectedTemplateId || isAutoTemplateId(selectedTemplateId)) {
-      if (incremental) {
-        this.props.templateApplyWorkflowService.applyTemplateIncremental({
-          ...config,
-          [AUTO_TEMPLATE_CONFIG_FIELD]: true,
-        });
-      } else {
-        this.props.templateApplyWorkflowService.applyTemplate({
-          ...config,
-          [AUTO_TEMPLATE_CONFIG_FIELD]: true,
-        });
-      }
-      return;
-    }
-
-    const validation = validateTemplateForApply(config);
-    if (!validation.ok || !validation.normalized) {
-      this.showNotification(validation.message || localize("template.invalidConfiguration", "Invalid configuration"), "warning");
-      return;
-    }
-
-    if (incremental) {
-      this.props.templateApplyWorkflowService.applyTemplateIncremental({
-        ...validation.normalized,
-      });
-    } else {
-      this.props.templateApplyWorkflowService.applyTemplate({
-        ...validation.normalized,
-      });
     }
   }
 
