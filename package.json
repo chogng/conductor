@@ -41,7 +41,7 @@
     "test:table": "npm run test:unit:target -- src/cs/workbench/contrib/table/test/browser/tableCommands.test.ts src/cs/workbench/contrib/table/test/browser/tableWidget.test.ts src/cs/workbench/services/table/test/browser/tableService.test.ts src/cs/workbench/services/table/test/browser/tableModel.test.ts",
     "test:unit": "tsc -p src/tsconfig.test.json && node test/unit/node/index.js",
     "test:integration:browser": "node test/integration/browser/folderImport.test.mjs",
-    "test:import-badge-trace": "node test/integration/browser/importBadgeTrace.test.mjs",
+    "test:template-apply-performance-trace": "node test/integration/browser/templateApplyPerformanceTrace.test.mjs",
     "test:desktop-core": "npm run build:desktop:core && mocha --ui tdd test/integration/node/originRunner.test.mjs test/integration/node/analysisStorageService.test.mjs",
     "test:unit:browser": "node test/unit/browser/index.js",
     "test:origin-runner": "npm run build:desktop:core && mocha --ui tdd test/integration/node/originRunner.test.mjs",

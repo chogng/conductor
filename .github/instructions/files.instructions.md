@@ -237,12 +237,13 @@ conversion results through the existing files service contract so Explorer can
 materialize rows and project badges as files complete. Keep result chunks small;
 do not trade first/all badge latency for oversized Rust responses.
 
-Import performance changes should be verified with `test:import-badge-trace`.
-Run at least 200 files for desktop and browser, and include `--profile=mixed`
-when touching health/failure handling. The reports under
-`.build/bench/import-badge-trace/` are the source of truth for first/half/all
-badge time, prepare completion, backend invoke, Rust p50/p95, materialize,
-append, long task, RSS, and JS heap.
+Import and template-apply performance changes should be verified with
+`test:template-apply-performance-trace`. Run at least 200 files for desktop and
+browser, and include `--profile=mixed` when touching health/failure handling.
+The reports under `.build/bench/template-apply-performance-trace/` are the
+source of truth for first/half/all badge time, prepare completion, backend
+invoke, Rust p50/p95, materialize, append, long task, RSS, JS heap, apply
+processing, calculation, thumbnail hover, and file switch metrics.
 
 ## Data File Workflow
 

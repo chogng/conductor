@@ -59,8 +59,8 @@ import {
   commitExplorerSessionImport,
 } from "src/cs/workbench/contrib/files/browser/explorerSessionImport";
 import {
-  markImportBadgeTrace,
-} from "src/cs/workbench/contrib/files/browser/importBadgeTrace";
+  markTemplateApplyPerformanceTrace,
+} from "src/cs/workbench/contrib/files/browser/templateApplyPerformanceTrace";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
   assessFastImportBadge,
@@ -914,7 +914,7 @@ const markExplorerBadgeProjection = (
     }
   }
 
-  markImportBadgeTrace("import.badge.projection", {
+  markTemplateApplyPerformanceTrace("import.badge.projection", {
     assessmentBadgeCount,
     failedSourceCount,
     fastBadgeCount,

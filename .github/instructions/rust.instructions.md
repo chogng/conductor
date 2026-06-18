@@ -347,19 +347,20 @@ For folder imports, keep the main/Rust boundary batch-aware but badge-friendly:
   possible; truly failed converter paths should fail only that file, not the
   whole folder batch.
 
-When changing this path, run the import badge trace script for both desktop and
-browser, at 200 files minimum:
+When changing this path, run the template apply performance trace script for
+both desktop and browser, at 200 files minimum:
 
 ```txt
-npm run test:import-badge-trace -- --runtime=desktop --auto-folder --files=200 --rows=4000
-npm run test:import-badge-trace -- --runtime=desktop --auto-folder --files=200 --rows=4000 --profile=mixed
-npm run test:import-badge-trace -- --runtime=browser --auto-browser --files=200 --rows=4000
-npm run test:import-badge-trace -- --runtime=browser --auto-browser --files=200 --rows=4000 --profile=mixed
+npm run test:template-apply-performance-trace -- --runtime=desktop --auto-folder --files=200 --rows=4000
+npm run test:template-apply-performance-trace -- --runtime=desktop --auto-folder --files=200 --rows=4000 --profile=mixed
+npm run test:template-apply-performance-trace -- --runtime=browser --auto-browser --files=200 --rows=4000
+npm run test:template-apply-performance-trace -- --runtime=browser --auto-browser --files=200 --rows=4000 --profile=mixed
 ```
 
-Use the JSON reports under `.build/bench/import-badge-trace/` to compare
-first/half/all badge time, prepare completion time, backend invoke time, Rust
-p50/p95, materialization/append cost, long tasks, RSS, and JS heap.
+Use the JSON reports under `.build/bench/template-apply-performance-trace/` to
+compare first/half/all badge time, prepare completion time, backend invoke
+time, Rust p50/p95, materialization/append cost, long tasks, RSS, JS heap,
+apply processing, calculation, thumbnail hover, and file switch metrics.
 
 ## Handle and artifact records
 

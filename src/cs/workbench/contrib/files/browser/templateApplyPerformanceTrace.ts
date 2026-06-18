@@ -4,30 +4,30 @@
 
 import { getPerfNow } from "src/cs/workbench/common/perf";
 
-const TRACE_STORAGE_KEY = "conductor.importBadgeTrace";
-const TRACE_QUERY_KEY = "conductorImportBadgeTrace";
-const TRACE_CONSOLE_STORAGE_KEY = "conductor.importBadgeTrace.console";
+const TRACE_STORAGE_KEY = "conductor.templateApplyPerformanceTrace";
+const TRACE_QUERY_KEY = "conductorTemplateApplyPerformanceTrace";
+const TRACE_CONSOLE_STORAGE_KEY = "conductor.templateApplyPerformanceTrace.console";
 
-export type ImportBadgeTraceMeta = Record<string, unknown>;
+export type TemplateApplyPerformanceTraceMeta = Record<string, unknown>;
 
-export type ImportBadgeTraceEvent = {
+export type TemplateApplyPerformanceTraceEvent = {
   readonly id: number;
-  readonly meta: ImportBadgeTraceMeta;
+  readonly meta: TemplateApplyPerformanceTraceMeta;
   readonly stage: string;
   readonly timeOrigin: number;
   readonly timestamp: number;
   readonly wallTime: number;
 };
 
-type ImportBadgeTraceGlobal = {
+type TemplateApplyPerformanceTraceGlobal = {
   enabled: boolean;
-  events: ImportBadgeTraceEvent[];
-  mark: (stage: string, meta?: ImportBadgeTraceMeta) => ImportBadgeTraceEvent | null;
+  events: TemplateApplyPerformanceTraceEvent[];
+  mark: (stage: string, meta?: TemplateApplyPerformanceTraceMeta) => TemplateApplyPerformanceTraceEvent | null;
   reset: () => void;
 };
 
 type TraceGlobalTarget = typeof globalThis & {
-  __conductorImportBadgeTrace?: ImportBadgeTraceGlobal;
+  __conductorTemplateApplyPerformanceTrace?: TemplateApplyPerformanceTraceGlobal;
 };
 
 const isTruthyFlag = (value: unknown): boolean => {
@@ -55,8 +55,8 @@ const readQueryFlag = (): boolean => {
   }
 };
 
-export const isImportBadgeTraceEnabled = (): boolean =>
-  isTruthyFlag(import.meta.env?.VITE_IMPORT_BADGE_TRACE) ||
+export const isTemplateApplyPerformanceTraceEnabled = (): boolean =>
+  isTruthyFlag(import.meta.env?.VITE_TEMPLATE_APPLY_PERFORMANCE_TRACE) ||
   readQueryFlag() ||
   readStorageFlag(TRACE_STORAGE_KEY);
 
@@ -68,24 +68,24 @@ const getTimeOrigin = (): number => {
   return Number.isFinite(timeOrigin) ? timeOrigin : Date.now() - getPerfNow();
 };
 
-const getTraceGlobal = (): ImportBadgeTraceGlobal => {
+const getTraceGlobal = (): TemplateApplyPerformanceTraceGlobal => {
   const target = globalThis as TraceGlobalTarget;
-  const existing = target.__conductorImportBadgeTrace;
+  const existing = target.__conductorTemplateApplyPerformanceTrace;
   if (existing) {
-    existing.enabled = isImportBadgeTraceEnabled();
+    existing.enabled = isTemplateApplyPerformanceTraceEnabled();
     return existing;
   }
 
   let nextId = 1;
-  const trace: ImportBadgeTraceGlobal = {
-    enabled: isImportBadgeTraceEnabled(),
+  const trace: TemplateApplyPerformanceTraceGlobal = {
+    enabled: isTemplateApplyPerformanceTraceEnabled(),
     events: [],
     mark: (stage, meta = {}) => {
       if (!trace.enabled) {
         return null;
       }
 
-      const event: ImportBadgeTraceEvent = {
+      const event: TemplateApplyPerformanceTraceEvent = {
         id: nextId,
         meta: {
           ...readRendererMemorySnapshot(),
@@ -99,30 +99,30 @@ const getTraceGlobal = (): ImportBadgeTraceGlobal => {
       nextId += 1;
       trace.events.push(event);
       if (shouldLogTraceToConsole()) {
-        console.info("[import-badge-trace]", stage, event.meta);
+        console.info("[template-apply-performance-trace]", stage, event.meta);
       }
       return event;
     },
     reset: () => {
       nextId = 1;
       trace.events.length = 0;
-      trace.enabled = isImportBadgeTraceEnabled();
+      trace.enabled = isTemplateApplyPerformanceTraceEnabled();
     },
   };
-  target.__conductorImportBadgeTrace = trace;
+  target.__conductorTemplateApplyPerformanceTrace = trace;
   return trace;
 };
 
-export const markImportBadgeTrace = (
+export const markTemplateApplyPerformanceTrace = (
   stage: string,
-  meta: ImportBadgeTraceMeta = {},
-): ImportBadgeTraceEvent | null => getTraceGlobal().mark(stage, meta);
+  meta: TemplateApplyPerformanceTraceMeta = {},
+): TemplateApplyPerformanceTraceEvent | null => getTraceGlobal().mark(stage, meta);
 
-export const resetImportBadgeTrace = (): void => {
+export const resetTemplateApplyPerformanceTrace = (): void => {
   getTraceGlobal().reset();
 };
 
-const readRendererMemorySnapshot = (): ImportBadgeTraceMeta => {
+const readRendererMemorySnapshot = (): TemplateApplyPerformanceTraceMeta => {
   const memory = (globalThis.performance as Performance & {
     memory?: {
       jsHeapSizeLimit?: number;

@@ -61,8 +61,8 @@ import {
   type FileConverterSource,
 } from "src/cs/workbench/services/files/browser/fileConverter";
 import {
-  markImportBadgeTrace,
-} from "src/cs/workbench/contrib/files/browser/importBadgeTrace";
+  markTemplateApplyPerformanceTrace,
+} from "src/cs/workbench/contrib/files/browser/templateApplyPerformanceTrace";
 import type {
   FileConverterBackend,
   FileConverterPreparedFile,
@@ -431,7 +431,7 @@ export class FileSourceWorkflow implements IDisposable {
       pendingImportFiles,
       unsupportedCount,
     } = collectPendingImportFiles([...newFiles]);
-    markImportBadgeTrace("import.sources.collected", {
+    markTemplateApplyPerformanceTrace("import.sources.collected", {
       fileCount: pendingImportFiles.length,
       source: "files",
       unsupportedCount,
@@ -570,7 +570,7 @@ export class FileSourceWorkflow implements IDisposable {
             return;
           }
           discoveredFileCount += pendingImportFiles.length;
-          markImportBadgeTrace("import.folder.batch", {
+          markTemplateApplyPerformanceTrace("import.folder.batch", {
             batchFileCount: pendingImportFiles.length,
             discoveredFileCount,
             folderPath: folder.fsPath,
@@ -589,7 +589,7 @@ export class FileSourceWorkflow implements IDisposable {
     );
 
     await prepareQueue;
-    markImportBadgeTrace("import.folder.collected", {
+    markTemplateApplyPerformanceTrace("import.folder.collected", {
       acceptedCount,
       failedCount: failedFiles.length,
       folderPath: folder.fsPath,
@@ -862,7 +862,7 @@ export class FileSourceWorkflow implements IDisposable {
 
     if (pendingImportFiles.length > 0) {
       this.options.onAppendPendingSourceFiles?.(pendingImportFiles);
-      markImportBadgeTrace("import.sources.collected", {
+      markTemplateApplyPerformanceTrace("import.sources.collected", {
         fileCount: pendingImportFiles.length,
         source: "workspace-change",
         unsupportedCount,
@@ -1011,7 +1011,7 @@ export const collectPendingImportFiles = (
     });
   }
 
-  markImportBadgeTrace("import.sources.normalized", {
+  markTemplateApplyPerformanceTrace("import.sources.normalized", {
     durationMs: getPerfNow() - startedAt,
     pendingFileCount: pendingImportFiles.length,
     sourceFileCount: files.length,
@@ -1045,14 +1045,14 @@ export const preparePendingImportFile = async (
   let fileId = "";
 
   try {
-    markImportBadgeTrace("import.prepare.file.start", {
+    markTemplateApplyPerformanceTrace("import.prepare.file.start", {
       fileName: pendingImportFile.sourceName,
       relativePath,
       sourceKind: pendingImportFile.kind,
       sourceSizeBytes: pendingImportFile.sourceSize,
     });
     const convertStartedAt = getPerfNow();
-    markImportBadgeTrace("import.prepare.convert.start", {
+    markTemplateApplyPerformanceTrace("import.prepare.convert.start", {
       fileName: pendingImportFile.sourceName,
       relativePath,
       sourceKind: pendingImportFile.kind,
@@ -1070,7 +1070,7 @@ export const preparePendingImportFile = async (
         size: pendingImportFile.sourceSize,
       },
     );
-    markImportBadgeTrace("import.prepare.convert.complete", {
+    markTemplateApplyPerformanceTrace("import.prepare.convert.complete", {
       durationMs: getPerfNow() - convertStartedAt,
       fileName: pendingImportFile.sourceName,
       hasPreparedAssessment: Boolean(prepared.assessment),
@@ -1099,7 +1099,7 @@ export const preparePendingImportFile = async (
       failed: "prepare",
       message: failure.message,
     });
-    markImportBadgeTrace("import.prepare.file.failed", {
+    markTemplateApplyPerformanceTrace("import.prepare.file.failed", {
       code: failure.code,
       fileName: pendingImportFile.sourceName,
       message: failure.message,
@@ -1141,7 +1141,7 @@ export const preparePendingImportFile = async (
     fileId,
     normalizedSizeBytes,
   });
-  markImportBadgeTrace("import.prepare.file.complete", {
+  markTemplateApplyPerformanceTrace("import.prepare.file.complete", {
     fileId,
     fileName: pendingImportFile.sourceName,
     hasPreparedAssessment: Boolean(prepared.assessment),
@@ -1376,7 +1376,7 @@ export async function prepareRemainingPendingImportFiles({
 
     const appendStartedAt = getPerfNow();
     onPreparedFiles(preparedFiles);
-    markImportBadgeTrace("import.prepare.append", {
+    markTemplateApplyPerformanceTrace("import.prepare.append", {
       durationMs: getPerfNow() - appendStartedAt,
       fileCount: preparedFiles.length,
       mode: "workers",
@@ -1425,7 +1425,7 @@ export async function prepareRemainingPendingImportFiles({
         }
         completedIndexes.add(index);
         acceptedCount += flushReadyImports();
-        markImportBadgeTrace("import.prepare.progress", {
+        markTemplateApplyPerformanceTrace("import.prepare.progress", {
           acceptedCount,
           completedCount: completedIndexes.size,
           failedCount: failedFiles.length,
@@ -1438,7 +1438,7 @@ export async function prepareRemainingPendingImportFiles({
   while (flushReadyImports() > 0) {
     // Drain completed batches larger than PENDING_IMPORT_APPEND_BATCH_SIZE.
   }
-  markImportBadgeTrace("import.prepare.complete", {
+  markTemplateApplyPerformanceTrace("import.prepare.complete", {
     acceptedCount,
     completedCount: completedIndexes.size,
     failedCount: failedFiles.length,
@@ -1502,7 +1502,7 @@ async function prepareRemainingPendingImportFilesBatch({
     onPendingFileStatusChange?.(pendingImportFile, {
       status: "preparing",
     });
-    markImportBadgeTrace("import.prepare.file.start", {
+    markTemplateApplyPerformanceTrace("import.prepare.file.start", {
       fileName: pendingImportFile.sourceName,
       relativePath: pendingImportFile.relativePath,
       sourceKind: pendingImportFile.kind,
@@ -1510,7 +1510,7 @@ async function prepareRemainingPendingImportFilesBatch({
     });
   }
 
-  markImportBadgeTrace("import.prepare.batch.start", {
+  markTemplateApplyPerformanceTrace("import.prepare.batch.start", {
     fileCount: batchFiles.length,
     totalSizeBytes: batchFiles.reduce((sum, file) => sum + file.sourceSize, 0),
   });
@@ -1540,7 +1540,7 @@ async function prepareRemainingPendingImportFilesBatch({
     if (readyFiles.length) {
       const appendStartedAt = getPerfNow();
       onPreparedFiles(readyFiles);
-      markImportBadgeTrace("import.prepare.append", {
+      markTemplateApplyPerformanceTrace("import.prepare.append", {
         durationMs: getPerfNow() - appendStartedAt,
         fileCount: readyFiles.length,
         mode: "batch",
@@ -1599,7 +1599,7 @@ async function prepareRemainingPendingImportFilesBatch({
           message: failure.message,
           status: "failed",
         });
-        markImportBadgeTrace("import.prepare.file.failed", {
+        markTemplateApplyPerformanceTrace("import.prepare.file.failed", {
           code: failure.code,
           fileName: pendingImportFile.sourceName,
           message: failure.message,
@@ -1614,7 +1614,7 @@ async function prepareRemainingPendingImportFilesBatch({
 
       try {
         const materializeStartedAt = getPerfNow();
-        markImportBadgeTrace("import.prepare.result.materialize.start", {
+        markTemplateApplyPerformanceTrace("import.prepare.result.materialize.start", {
           fileName: pendingImportFile.sourceName,
           index: offset,
           ok: Boolean(result.ok),
@@ -1640,7 +1640,7 @@ async function prepareRemainingPendingImportFilesBatch({
           pendingImportFile,
           prepared,
         });
-        markImportBadgeTrace("import.prepare.result.materialize.complete", {
+        markTemplateApplyPerformanceTrace("import.prepare.result.materialize.complete", {
           durationMs: getPerfNow() - materializeStartedAt,
           fileName: pendingImportFile.sourceName,
           hasHealth: Boolean(prepared.health),
@@ -1679,7 +1679,7 @@ async function prepareRemainingPendingImportFilesBatch({
             sourcePath: converted.sourcePath,
           },
         });
-        markImportBadgeTrace("import.prepare.file.complete", {
+        markTemplateApplyPerformanceTrace("import.prepare.file.complete", {
           fileId: converted.importRecord.id,
           fileName: pendingImportFile.sourceName,
           hasPreparedAssessment: Boolean(prepared.assessment),
@@ -1698,7 +1698,7 @@ async function prepareRemainingPendingImportFilesBatch({
           message: failure.message,
           status: "failed",
         });
-        markImportBadgeTrace("import.prepare.file.failed", {
+        markTemplateApplyPerformanceTrace("import.prepare.file.failed", {
           code: failure.code,
           fileName: pendingImportFile.sourceName,
           message: failure.message,
@@ -1709,7 +1709,7 @@ async function prepareRemainingPendingImportFilesBatch({
       } finally {
         completedOffsets.add(offset);
         acceptedCount += flushReadyImportsWhenUseful();
-        markImportBadgeTrace("import.prepare.progress", {
+        markTemplateApplyPerformanceTrace("import.prepare.progress", {
           acceptedCount,
           completedCount: completedOffsets.size,
           failedCount: failedFiles.length,
@@ -1725,14 +1725,14 @@ async function prepareRemainingPendingImportFilesBatch({
       ? "stream"
       : "batch";
     const backendStartedAt = getPerfNow();
-    markImportBadgeTrace("import.prepare.backend.invoke.start", {
+    markTemplateApplyPerformanceTrace("import.prepare.backend.invoke.start", {
       fileCount: payloads.length,
       mode: backendMode,
       totalSizeBytes: batchFiles.reduce((sum, file) => sum + file.sourceSize, 0),
     });
     const results = backendMode === "stream"
         ? await fileConverterBackend.prepareFilesStream!(payloads, message => {
-          markImportBadgeTrace("import.prepare.backend.result", {
+          markTemplateApplyPerformanceTrace("import.prepare.backend.result", {
             batchDurationMs: readTraceDurationMs(message.result?.batchDurationMs),
             batchParallelism: Number(message.result?.batchParallelism) || null,
             cacheHit: message.result?.cacheHit === true,
@@ -1748,7 +1748,7 @@ async function prepareRemainingPendingImportFilesBatch({
           scheduleResult(message.index, message.result);
         })
       : await fileConverterBackend.prepareFiles!(payloads);
-    markImportBadgeTrace("import.prepare.backend.invoke.complete", {
+    markTemplateApplyPerformanceTrace("import.prepare.backend.invoke.complete", {
       durationMs: getPerfNow() - backendStartedAt,
       fileCount: payloads.length,
       mode: backendMode,
@@ -1757,7 +1757,7 @@ async function prepareRemainingPendingImportFilesBatch({
     });
     for (let offset = 0; offset < batchFiles.length; offset += 1) {
       if (!scheduledOffsets.has(offset)) {
-        markImportBadgeTrace("import.prepare.backend.result", {
+        markTemplateApplyPerformanceTrace("import.prepare.backend.result", {
           batchDurationMs: readTraceDurationMs(results[offset]?.batchDurationMs),
           batchParallelism: Number(results[offset]?.batchParallelism) || null,
           cacheHit: results[offset]?.cacheHit === true,
@@ -1775,7 +1775,7 @@ async function prepareRemainingPendingImportFilesBatch({
     }
     await Promise.all(resultTasks);
   } catch (error) {
-    markImportBadgeTrace("import.prepare.batch.failed", {
+    markTemplateApplyPerformanceTrace("import.prepare.batch.failed", {
       completedCount: completedOffsets.size,
       fileCount: batchFiles.length,
       message: error instanceof Error ? error.message : String(error),
@@ -1787,12 +1787,12 @@ async function prepareRemainingPendingImportFilesBatch({
   }
   acceptedCount += flushReadyImports();
 
-  markImportBadgeTrace("import.prepare.batch.complete", {
+  markTemplateApplyPerformanceTrace("import.prepare.batch.complete", {
     acceptedCount,
     failedCount: failedFiles.length,
     fileCount: batchFiles.length,
   });
-  markImportBadgeTrace("import.prepare.complete", {
+  markTemplateApplyPerformanceTrace("import.prepare.complete", {
     acceptedCount,
     completedCount: batchFiles.length,
     failedCount: failedFiles.length,
@@ -2380,7 +2380,7 @@ export const collectDroppedFiles = async (
   }
 
   const sources = droppedFiles.map(createDroppedFileSource);
-  markImportBadgeTrace("import.drop.collected", {
+  markTemplateApplyPerformanceTrace("import.drop.collected", {
     dataTransferFileCount: dataTransfer.files.length,
     durationMs: getPerfNow() - startedAt,
     itemCount: items.length,
@@ -2638,12 +2638,12 @@ export async function collectFolderImportFilesIncrementally(
   const readFailures: FolderFileReadFailure[] = [];
   const canUseNativePath = !(filesService.getProvider(root.scheme) instanceof HTMLFileSystemProvider);
 
-  markImportBadgeTrace("import.folder.scan.start", {
+  markTemplateApplyPerformanceTrace("import.folder.scan.start", {
     canUseNativePath,
     folderPath: root.fsPath || root.toString(),
   });
   await collectFolderFilesAt(root, rootName, files, readFailures, 0, filesService, options, canUseNativePath);
-  markImportBadgeTrace("import.folder.scan.complete", {
+  markTemplateApplyPerformanceTrace("import.folder.scan.complete", {
     canUseNativePath,
     durationMs: getPerfNow() - startedAt,
     fileCount: files.length,
@@ -2682,7 +2682,7 @@ async function collectFolderFilesAt(
       message: getErrorMessage(error),
       relativePath: relativeFolderPath,
     });
-    markImportBadgeTrace("import.folder.readDir.failed", {
+    markTemplateApplyPerformanceTrace("import.folder.readDir.failed", {
       depth,
       durationMs: getPerfNow() - readDirStartedAt,
       folderPath: folder.fsPath || folder.toString(),
@@ -2720,7 +2720,7 @@ async function collectFolderFilesAt(
       resource: child,
     });
   }
-  markImportBadgeTrace("import.folder.readDir.complete", {
+  markTemplateApplyPerformanceTrace("import.folder.readDir.complete", {
     depth,
     durationMs: getPerfNow() - readDirStartedAt,
     entryCount: entries.length,
@@ -2769,7 +2769,7 @@ async function collectFolderFilesAt(
       if (batch.files.length > 0 && shouldContinueCollecting(options)) {
         const onBatchStartedAt = getPerfNow();
         await options.onBatch?.({ files: batch.files });
-        markImportBadgeTrace("import.folder.onBatch.complete", {
+        markTemplateApplyPerformanceTrace("import.folder.onBatch.complete", {
           durationMs: getPerfNow() - onBatchStartedAt,
           fileCount: batch.files.length,
           relativePath: relativeFolderPath,
@@ -2887,7 +2887,7 @@ async function statFolderFileTasks(
     }
   }
 
-  markImportBadgeTrace("import.folder.statBatch.complete", {
+  markTemplateApplyPerformanceTrace("import.folder.statBatch.complete", {
     canUseNativePath,
     durationMs: getPerfNow() - startedAt,
     fileCount: files.length,

@@ -178,19 +178,19 @@ npm run verify:rust-ss-auto
 npm run verify:rust-origin-export
 ```
 
-导入 badge 性能压测：
+Template apply 性能压测：
 
 ```sh
-npm run test:import-badge-trace -- --runtime=desktop --auto-folder --files=200 --rows=4000
-npm run test:import-badge-trace -- --runtime=desktop --auto-folder --files=200 --rows=4000 --profile=mixed
-npm run test:import-badge-trace -- --runtime=browser --auto-browser --files=200 --rows=4000
-npm run test:import-badge-trace -- --runtime=browser --auto-browser --files=200 --rows=4000 --profile=mixed
+npm run test:template-apply-performance-trace -- --runtime=desktop --auto-folder --files=200 --rows=4000
+npm run test:template-apply-performance-trace -- --runtime=desktop --auto-folder --files=200 --rows=4000 --profile=mixed
+npm run test:template-apply-performance-trace -- --runtime=browser --auto-browser --files=200 --rows=4000
+npm run test:template-apply-performance-trace -- --runtime=browser --auto-browser --files=200 --rows=4000 --profile=mixed
 ```
 
 报告输出到：
 
 ```txt
-.build/bench/import-badge-trace/*.json
+.build/bench/template-apply-performance-trace/*.json
 ```
 
 `healthy` profile 生成 200 个内容不同的 CSV。`mixed` profile 额外覆盖：

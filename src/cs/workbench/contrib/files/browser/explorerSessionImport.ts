@@ -19,8 +19,8 @@ import {
 import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
 import type { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
-  markImportBadgeTrace,
-} from "src/cs/workbench/contrib/files/browser/importBadgeTrace";
+  markTemplateApplyPerformanceTrace,
+} from "src/cs/workbench/contrib/files/browser/templateApplyPerformanceTrace";
 
 export type ExplorerSessionImportResult = {
   readonly importedFileIds: readonly string[];
@@ -68,7 +68,7 @@ export const commitExplorerSessionImport = ({
   const importResult = createFileImportResultFromRecords(
     normalizedFiles.map(file => file.importRecord),
   );
-  markImportBadgeTrace("import.session.commit.start", {
+  markTemplateApplyPerformanceTrace("import.session.commit.start", {
     fileCount: normalizedFiles.length,
     mode,
     preparedAssessmentCount: normalizedFiles.filter(file => file.preparedAssessment).length,
@@ -79,7 +79,7 @@ export const commitExplorerSessionImport = ({
     const commitResult = sessionService.commitFileImport(importResult);
     const committedFileIds = commitResult.importedFileIds;
     commitPreparedImportAssessments(normalizedFiles, committedFileIds, sessionService);
-    markImportBadgeTrace("import.session.commit.complete", {
+    markTemplateApplyPerformanceTrace("import.session.commit.complete", {
       committedFileCount: committedFileIds.length,
       mode,
       skippedDuplicateFileCount: commitResult.skippedDuplicateFileIds.length,
@@ -103,7 +103,7 @@ export const commitExplorerSessionImport = ({
   const commitResult = sessionService.commitFileImport(importResult);
   const committedFileIds = commitResult.importedFileIds;
   commitPreparedImportAssessments(normalizedFiles, committedFileIds, sessionService);
-  markImportBadgeTrace("import.session.commit.complete", {
+  markTemplateApplyPerformanceTrace("import.session.commit.complete", {
     committedFileCount: committedFileIds.length,
     mode,
     skippedDuplicateFileCount: commitResult.skippedDuplicateFileIds.length,
@@ -176,7 +176,7 @@ const commitPreparedImportAssessments = (
   if (assessments.length) {
     sessionService.commitRawTableAssessments(assessments);
   }
-  markImportBadgeTrace("import.assessment.prepared.commit", {
+  markTemplateApplyPerformanceTrace("import.assessment.prepared.commit", {
     assessmentCount: assessments.length,
     committedFileCount: committedFileIdSet.size,
   });
