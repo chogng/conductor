@@ -5,7 +5,7 @@
 // Owns the interactive main plot chart, canvas drawing, hover handling, and axis title editing.
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
-import { logPerf } from "src/cs/workbench/common/perf";
+import { getPerfNow, logPerf } from "src/cs/workbench/common/perf";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
 import { resolveAxisTitleLabel } from "src/cs/workbench/services/plot/common/plotAxisLabels";
 import { drawPlotAxis } from "src/cs/workbench/contrib/plot/browser/plotAxis";
@@ -172,11 +172,20 @@ export type PlotMainChartSize = {
   readonly width: number;
 };
 
+type CanvasBackingStoreSize = {
+  readonly cssHeight: string;
+  readonly cssWidth: string;
+  readonly dpr: number;
+  readonly pixelHeight: number;
+  readonly pixelWidth: number;
+};
+
 const MIN_CHART_HEIGHT = 220;
 const MIN_CHART_WIDTH = 320;
 const MAX_CHART_LAYOUT_WAIT_FRAMES = 120;
 const MIN_DRAW_POINTS_PER_SERIES = 600;
 const DRAW_POINTS_PER_PIXEL = 2;
+const canvasBackingStoreSizes = new WeakMap<HTMLCanvasElement, CanvasBackingStoreSize>();
 
 const resolvePlotYKey = (
   effectiveYScale: PlotMainChartProps["effectiveYScale"],
@@ -192,10 +201,33 @@ const resolvePlotYKey = (
 
 const applyCanvasSize = (canvas: HTMLCanvasElement, width: number, height: number): CanvasRenderingContext2D | null => {
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(1, Math.round(width * dpr));
-  canvas.height = Math.max(1, Math.round(height * dpr));
-  canvas.style.width = `${width}px`;
-  canvas.style.height = `${height}px`;
+  const pixelWidth = Math.max(1, Math.round(width * dpr));
+  const pixelHeight = Math.max(1, Math.round(height * dpr));
+  const cssWidth = `${width}px`;
+  const cssHeight = `${height}px`;
+  const previous = canvasBackingStoreSizes.get(canvas);
+  if (
+    !previous ||
+    previous.dpr !== dpr ||
+    previous.pixelWidth !== pixelWidth ||
+    previous.pixelHeight !== pixelHeight ||
+    previous.cssWidth !== cssWidth ||
+    previous.cssHeight !== cssHeight ||
+    canvas.width !== pixelWidth ||
+    canvas.height !== pixelHeight
+  ) {
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+    canvas.style.width = cssWidth;
+    canvas.style.height = cssHeight;
+    canvasBackingStoreSizes.set(canvas, {
+      cssHeight,
+      cssWidth,
+      dpr,
+      pixelHeight,
+      pixelWidth,
+    });
+  }
 
   const context = canvas.getContext("2d");
   if (!context) return null;
@@ -730,12 +762,17 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
   const recordRendered = (
     result: ReturnType<typeof drawPlotMainChart>,
     nextSize: PlotMainChartSize,
+    durationMs: number,
+    reason: string,
   ): ReturnType<typeof drawPlotMainChart> => {
     const renderSignature = currentProps.renderSignature;
     if (result && renderSignature && renderSignature !== lastLoggedRenderSignature) {
       lastLoggedRenderSignature = renderSignature;
       logPerf("plotMainChart.draw", {
+        drawStrategy: currentProps.drawStrategy ?? "stable",
+        durationMs,
         height: nextSize.height,
+        reason,
         renderSignature,
         seriesCount: currentProps.seriesList.length,
         totalPoints: currentProps.seriesList.reduce((total, series) => total + series.data.length, 0),
@@ -744,6 +781,19 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
     }
 
     return result;
+  };
+  const drawCurrentChart = (
+    nextSize: PlotMainChartSize,
+    reason: string,
+  ): void => {
+    const startedAt = getPerfNow();
+    rendered = recordRendered(
+      drawPlotMainChart(canvas, currentProps, nextSize),
+      nextSize,
+      getPerfNow() - startedAt,
+      reason,
+    );
+    clearHoverOverlay(hoverCanvas);
   };
   const render = (): void => {
     animationFrame = 0;
@@ -763,8 +813,7 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
     waitFrames = 0;
 
     if (currentProps.drawStrategy === "eager") {
-      rendered = recordRendered(drawPlotMainChart(canvas, currentProps, nextSize), nextSize);
-      clearHoverOverlay(hoverCanvas);
+      drawCurrentChart(nextSize, "animation-frame");
       return;
     }
 
@@ -774,14 +823,37 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
       return;
     }
 
-    rendered = recordRendered(drawPlotMainChart(canvas, currentProps, nextSize), nextSize);
-    clearHoverOverlay(hoverCanvas);
+    drawCurrentChart(nextSize, "stable-layout");
   };
   const requestRender = (): void => {
     if (disposed || animationFrame) {
       return;
     }
     animationFrame = window.requestAnimationFrame(render);
+  };
+  const cancelPendingRender = (): void => {
+    if (!animationFrame) {
+      return;
+    }
+
+    window.cancelAnimationFrame(animationFrame);
+    animationFrame = 0;
+  };
+  const renderEagerNowIfReady = (reason: string): boolean => {
+    if (disposed || currentProps.drawStrategy !== "eager") {
+      return false;
+    }
+
+    const nextSize = readChartLayoutSize(root);
+    if (!nextSize) {
+      return false;
+    }
+
+    cancelPendingRender();
+    waitFrames = 0;
+    pendingSize = null;
+    drawCurrentChart(nextSize, reason);
+    return true;
   };
   const resizeObserver = new ResizeObserver(requestRender);
   resizeObserver.observe(root);
@@ -872,7 +944,9 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
         clearHoverOverlay(hoverCanvas);
         hoverWidget.hide();
       }
-      requestRender();
+      if (!renderEagerNowIfReady("eager-update")) {
+        requestRender();
+      }
     },
   });
 

@@ -37,6 +37,9 @@ suite("workbench/contrib/chart/test/browser/chartPanel", () => {
       assert.ok(canvas.dataset.plotRenderSignature?.startsWith("file-a|"));
 
       panel.update(createChartProps("file-b", 4));
+      assert.equal(panel.element.querySelector(".plot_main_chart_canvas"), canvas);
+      assert.ok(canvas.dataset.plotRenderSignature?.startsWith("file-b|"));
+
       await animationFrames(1);
 
       assert.equal(panel.element.querySelector(".plot_main_chart_canvas"), canvas);

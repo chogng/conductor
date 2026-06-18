@@ -8,6 +8,7 @@ import {
   roundMetric,
   summaryCount,
   summaryP95,
+  summarizeStageDuration,
 } from "./common.mjs";
 import { summarizeCalculationBuildMetrics } from "./calculation.mjs";
 import { summarizePlotCacheMetrics } from "./plotCache.mjs";
@@ -63,6 +64,10 @@ export const createPerformanceMetricRow = ({
   const applyProcessing = analysis.phaseAnalysis?.windowsByName?.applyProcessing;
   const calculationBuild = summarizeCalculationBuildMetrics(analysisPerfReport);
   const plotCache = summarizePlotCacheMetrics(analysisPerfReport);
+  const plotMainDraw = summarizeStageDuration(
+    analysisPerfReport?.entries ?? [],
+    "plotMainChart.draw",
+  );
   const thumbnailDuring = analysis.thumbnailHoverLive?.phaseWindows?.duringProcessing;
   const thumbnailAfter = analysis.thumbnailHoverLive?.phaseWindows?.afterProcessing;
   const switchDuring = analysis.fileSwitchLive?.phaseWindows?.duringProcessing;
@@ -97,6 +102,8 @@ export const createPerformanceMetricRow = ({
     plotDisplayCacheMaxSize: readNumber(plotCache.displayModelCache.maxSize),
     plotDisplayCacheTrimmed: readNumber(plotCache.displayModelCache.trimmed),
     plotDisplayCacheUpgraded: readNumber(plotCache.displayModelCache.upgraded),
+    plotMainDrawCount: summaryCount(plotMainDraw),
+    plotMainDrawP95Ms: summaryP95(plotMainDraw),
     plotInspectorCacheCreated: readNumber(plotCache.inspectorDisplayModelCache.created),
     plotInspectorCacheMaxSize: readNumber(plotCache.inspectorDisplayModelCache.maxSize),
     plotInspectorCacheTrimmed: readNumber(plotCache.inspectorDisplayModelCache.trimmed),
@@ -157,6 +164,8 @@ export const metricHistoryKeys = [
   "plotDisplayCacheCreated",
   "plotDisplayCacheUpgraded",
   "plotDisplayCacheTrimmed",
+  "plotMainDrawCount",
+  "plotMainDrawP95Ms",
   "plotInspectorCacheMaxSize",
   "plotInspectorCacheCreated",
   "plotInspectorCacheTrimmed",
@@ -253,6 +262,7 @@ export const writeHistorySvg = (svgPath, rows, scenarioKey) => {
     "fileSwitchDuringChartDrawnP95Ms",
     "maxUsedJsHeapMb",
     "plotDisplayCacheMaxSize",
+    "plotMainDrawP95Ms",
     "plotInspectorPrefetchFired",
     "meanCpuPercent",
   ];

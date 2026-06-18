@@ -216,6 +216,15 @@ storage, for these controls.
   request an eager first draw once the chart is connected and sized. Keep this
   as an explicit host-provided strategy so reusable plot surfaces do not
   accidentally trade layout stability for speed.
+- For eager active Chart hosts, `PlotMainChart.update(...)` may draw
+  synchronously when the existing chart is connected and already has a readable
+  layout size. This avoids adding a frame of latency to active file switches;
+  reusable stable surfaces should continue to use the scheduled stable draw
+  path.
+- `PlotMainChart` should preserve the canvas backing store across redraws when
+  CSS size and device pixel ratio are unchanged. Redraw should clear the
+  existing canvas, not reset `canvas.width`/`canvas.height`, unless the backing
+  size actually changes.
 - `PlotMainChart` is a long-lived DOM widget. Hosts should call its update path
   with new props when only render data, axis labels, settings, or callbacks
   change; do not replace the canvas unless the host itself changes structural
