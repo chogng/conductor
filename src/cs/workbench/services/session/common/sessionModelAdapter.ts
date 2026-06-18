@@ -1853,10 +1853,16 @@ const readConfigNumber = (
 const readNestedNumber = (value: unknown, key: string): number | undefined =>
   isObjectRecord(value) ? readNumber(value, key) : undefined;
 
+const isNumberArraySource = (value: unknown): value is ArrayLike<unknown> =>
+  Array.isArray(value) ||
+  (
+    ArrayBuffer.isView(value) &&
+    typeof (value as { readonly length?: unknown }).length === "number"
+  );
+
 const readNumberArray = (value: unknown): number[] =>
-  Array.isArray(value)
-    ? value
-        .map((item) => Number(item))
+  isNumberArraySource(value)
+    ? Array.from(value, (item) => Number(item))
         .filter((item) => Number.isFinite(item))
     : [];
 

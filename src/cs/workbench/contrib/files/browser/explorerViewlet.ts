@@ -321,6 +321,7 @@ export class ExplorerViewPane extends ViewPane {
       onDraggingChange: this.handleDraggingChange,
       onFolderExpansionChange: this.handleFolderExpansionChange,
       onFolderKeysChange: this.handleFolderKeysChange,
+      onHoverFileChange: this.handleHoverFileChange,
       onVisibleFileIdsChange: this.handleVisibleFileIdsChange,
       onRemoveFolder: this.handleRemoveFolder,
       onRequestTemplates: this.loadTemplates,
@@ -336,6 +337,10 @@ export class ExplorerViewPane extends ViewPane {
 
   private readonly handleCancelRenameFile = (): void => {
     this.explorerService.setEditable(null);
+  };
+
+  private readonly handleHoverFileChange = (fileId: string | null): void => {
+    this.explorerService.setHoveredFileId(fileId);
   };
 
   private readonly handleRenameFile = (fileId: string, nextName: string): void => {

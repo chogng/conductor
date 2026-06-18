@@ -5,6 +5,7 @@
 import {
   Disposable,
 } from "src/cs/base/common/lifecycle";
+import { startPerf } from "src/cs/workbench/common/perf";
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from "src/cs/workbench/common/contributions";
 import {
   createCalculatedRecordsByFile,
@@ -38,23 +39,35 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
 
   private update(event?: SessionChangeEvent): void {
     const snapshot = this.sessionService.getSnapshot();
+    const endUpdatePerf = startPerf("calculationContribution.update", {
+      fileCount: Object.keys(snapshot.filesById).length,
+      reason: event?.reason ?? "initial",
+      sessionVersion: snapshot.sessionVersion,
+    });
     this.removeStaleSignatures(snapshot);
 
     if (event?.reason === "sessionCleared") {
       this.inputSignaturesByFileId.clear();
+      endUpdatePerf({ result: "sessionCleared" });
       return;
     }
 
     if (event?.reason === "filesRemoved") {
-      for (const fileId of normalizeFileIds(event.fileIds ?? [])) {
+      const removedFileIds = normalizeFileIds(event.fileIds ?? []);
+      for (const fileId of removedFileIds) {
         this.inputSignaturesByFileId.delete(fileId);
       }
+      endUpdatePerf({
+        removedFileCount: removedFileIds.length,
+        result: "filesRemoved",
+      });
       return;
     }
 
     const filesById: Record<FileId, FileRecord> = {};
     const fileIds: FileId[] = [];
-    for (const fileId of getCalculationUpdateFileIds(event, snapshot)) {
+    const candidateFileIds = getCalculationUpdateFileIds(event, snapshot);
+    for (const fileId of candidateFileIds) {
       const file = snapshot.filesById[fileId];
       if (!file) {
         this.inputSignaturesByFileId.delete(fileId);
@@ -75,13 +88,27 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
     }
 
     if (!fileIds.length) {
+      endUpdatePerf({
+        candidateFileCount: candidateFileIds.length,
+        result: "unchanged",
+      });
       return;
     }
 
+    const endBuildPerf = startPerf("calculationContribution.buildRecords", {
+      candidateFileCount: candidateFileIds.length,
+      fileCount: fileIds.length,
+      reason: event?.reason ?? "initial",
+      sessionVersion: snapshot.sessionVersion,
+    });
     const { curvesByFileId, metricsByFileId } = createCalculatedRecordsByFile(
       filesById,
       fileIds,
     );
+    endBuildPerf({
+      curveCount: countRecordArrayItems(curvesByFileId),
+      metricCount: countRecordArrayItems(metricsByFileId),
+    });
     const curveCommits: CommitCurvesInput[] = fileIds.map(fileId => ({
       fileId,
       curves: curvesByFileId[fileId] ?? [],
@@ -95,6 +122,13 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
 
     this.sessionService.commitCurvesBatch(curveCommits);
     this.sessionService.commitMetricsBatch(metricCommits);
+    endUpdatePerf({
+      candidateFileCount: candidateFileIds.length,
+      curveCount: countRecordArrayItems(curvesByFileId),
+      fileCount: fileIds.length,
+      metricCount: countRecordArrayItems(metricsByFileId),
+      result: "committed",
+    });
   }
 
   private removeStaleSignatures(snapshot: SessionSnapshot): void {
@@ -159,5 +193,10 @@ const normalizeFileIds = (fileIds: readonly unknown[]): FileId[] => {
   }
   return result;
 };
+
+const countRecordArrayItems = <T,>(
+  record: Readonly<Record<string, readonly T[] | undefined>>,
+): number =>
+  Object.values(record).reduce((total, items) => total + (items?.length ?? 0), 0);
 
 registerWorkbenchContribution2(CalculationContributionId, CalculationContribution, WorkbenchPhase.AfterRestored);

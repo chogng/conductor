@@ -306,6 +306,37 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
     ]);
   });
 
+  test("materializes base curves from transferred worker typed arrays", () => {
+    const rawRecords = mergeRawFilesIntoRecords({}, [], [{
+      fileId: "file-a",
+      fileName: "Output.csv",
+    }]);
+    const processedRecords = mergeProcessedFileIntoRecords(
+      rawRecords.filesById,
+      rawRecords.fileOrder,
+      {
+        fileId: "file-a",
+        fileName: "Output.csv",
+        curveType: "output (vd)",
+        xAxisRole: "vd",
+        xGroups: [new Float64Array([0, 1])],
+        series: [{
+          id: "series-1",
+          groupIndex: 0,
+          y: new Float64Array([1e-9, 1e-6]),
+        }],
+      },
+      createSnapshot(rawRecords),
+    );
+    const record = processedRecords.filesById["file-a"];
+
+    assert.equal(getFileRecordCurveType(record), "output");
+    assert.deepEqual(record.curvesByKey["base:iv:output:series-1"].points, [
+      { x: 0, y: 1e-9 },
+      { x: 1, y: 1e-6 },
+    ]);
+  });
+
   test("infers base curves from x axis role when processed result omits curve type", () => {
     const rawRecords = mergeRawFilesIntoRecords({}, [], [{
       fileId: "file-a",

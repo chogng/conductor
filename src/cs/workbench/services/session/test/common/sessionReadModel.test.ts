@@ -103,6 +103,33 @@ suite("workbench/services/session/test/common/sessionReadModel", () => {
       [1e-12, 1e-9, 1e-6],
     );
   });
+
+  test("reuses the read model for the same immutable snapshot", () => {
+    const records = mergeRawFilesIntoRecords({}, [], [{
+      fileId: "file-a",
+      fileName: "Raw Transfer.csv",
+      sheetId: "sheet-1",
+      sheetName: "Data",
+      sourceKey: "file-a:sheet-1",
+      rowCount: 20,
+      columnCount: 4,
+      maxCellLengths: [1, 2, 3, 4],
+    }]);
+    const snapshot = createSnapshot({
+      ...records,
+    });
+
+    const first = createSessionReadModel(snapshot);
+    const second = createSessionReadModel(snapshot);
+    const next = createSessionReadModel({
+      ...snapshot,
+      sessionVersion: snapshot.sessionVersion + 1,
+    });
+
+    assert.equal(second, first);
+    assert.notEqual(next, first);
+    assert.deepEqual(next.rawFiles.map(file => file.fileId), ["file-a"]);
+  });
 });
 
 const createSnapshot = (

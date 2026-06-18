@@ -138,5 +138,6 @@ export interface ITemplateApplyWorkflowService {
   applyTemplate(config: Record<string, unknown>): unknown;
   applyTemplateIncremental(config: Record<string, unknown>): unknown;
   getFileApplyStates(): ReadonlyMap<string, TemplateApplyFileState>;
+  prioritizeProcessingFile(fileId: string): void;
   update(input: TemplateApplyWorkflowInput): void;
 }

@@ -61,6 +61,10 @@ export type ExplorerVisibleFileIdsChangeEvent = {
   readonly visibleFileIds: readonly string[];
 };
 
+export type ExplorerHoveredFileChangeEvent = {
+  readonly fileId: string | null;
+};
+
 export type ExplorerSelectionTarget = {
   readonly kind: ExplorerSelectionKind;
   readonly fileId: string | null;
@@ -72,6 +76,7 @@ export type ExplorerRevealMode = boolean | "force";
 export type ExplorerContext = {
   readonly selectedRawFileId: string | null;
   readonly selectedProcessedFileId: string | null;
+  readonly hoveredFileId: string | null;
   readonly expandedFolderKeys: readonly string[];
   readonly viewLayout: ExplorerViewLayout;
   readonly editable: ExplorerEditableData | null;
@@ -99,10 +104,12 @@ export interface IExplorerService {
   readonly hasPendingSourceFiles: boolean;
   readonly selectedRawFileId: string | null;
   readonly selectedProcessedFileId: string | null;
+  readonly hoveredFileId: string | null;
   readonly expandedFolderKeys: readonly string[];
   readonly viewLayout: ExplorerViewLayout;
   readonly onDidChangePendingSourceFiles: Event<boolean>;
   readonly onDidChangeSelection: Event<ExplorerSelectionChangeEvent>;
+  readonly onDidChangeHoveredFile: Event<ExplorerHoveredFileChangeEvent>;
   readonly onDidChangeExpandedFolderKeys: Event<ExplorerFolderExpansionChangeEvent>;
   readonly onDidChangeViewLayout: Event<ExplorerViewLayout>;
   readonly onDidChangeVisibleFileIds: Event<ExplorerVisibleFileIdsChangeEvent>;
@@ -115,6 +122,7 @@ export interface IExplorerService {
   setToCopy(resources: readonly ExplorerSelectionTarget[], isCut: boolean): void;
   applyBulkEdit(): Promise<void>;
   refresh(): Promise<void>;
+  setHoveredFileId(fileId: string | null): void;
   setExpandedFolderKeys(folderKeys: readonly string[]): void;
   reconcileExpandedFolderKeys(folderKeys: readonly string[]): readonly string[];
   getCollapsedFolderKeys(folderKeys: readonly string[]): readonly string[];

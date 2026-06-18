@@ -24,12 +24,14 @@
   [key: string]: unknown;
 };
 
+export type ProcessedNumberArray = readonly number[] | Float64Array;
+
 export type ProcessedSeries = {
   id?: string;
   name?: string;
   groupIndex?: number;
   yCol?: number;
-  y?: number[];
+  y?: ProcessedNumberArray;
   [key: string]: unknown;
 };
 
@@ -62,8 +64,8 @@ export type ProcessedEntry = {
     sampledPoints?: number | null;
     [key: string]: unknown;
   };
-  xGroups?: number[][];
-  series?: ProcessedSeries[];
+  xGroups?: readonly ProcessedNumberArray[];
+  series?: readonly ProcessedSeries[];
   domain?: ProcessedDomain;
   [key: string]: unknown;
 };

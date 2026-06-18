@@ -28,6 +28,8 @@ export class ExplorerService extends Disposable implements IExplorerService {
   public readonly onDidChangePendingSourceFiles = this.onDidChangePendingSourceFilesEmitter.event;
   private readonly onDidChangeSelectionEmitter = this._register(new Emitter<ExplorerSelectionChangeEvent>());
   public readonly onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
+  private readonly onDidChangeHoveredFileEmitter = this._register(new Emitter<{ readonly fileId: string | null }>());
+  public readonly onDidChangeHoveredFile = this.onDidChangeHoveredFileEmitter.event;
   private readonly onDidChangeExpandedFolderKeysEmitter = this._register(new Emitter<ExplorerFolderExpansionChangeEvent>());
   public readonly onDidChangeExpandedFolderKeys = this.onDidChangeExpandedFolderKeysEmitter.event;
   private readonly onDidChangeViewLayoutEmitter = this._register(new Emitter<ExplorerViewLayout>());
@@ -39,6 +41,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
 
   private currentRawFileId: string | null = null;
   private currentProcessedFileId: string | null = null;
+  private currentHoveredFileId: string | null = null;
   private currentExpandedFolderKeys: readonly string[] = [];
   private knownFolderKeys: readonly string[] = [];
   private currentNearbyFileIds: readonly string[] = [];
@@ -65,6 +68,10 @@ export class ExplorerService extends Disposable implements IExplorerService {
     return this.getSelectedFileId("chart");
   }
 
+  public get hoveredFileId(): string | null {
+    return this.currentHoveredFileId;
+  }
+
   public get expandedFolderKeys(): readonly string[] {
     return this.currentExpandedFolderKeys;
   }
@@ -77,6 +84,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
     return {
       editable: this.editable,
       expandedFolderKeys: this.currentExpandedFolderKeys,
+      hoveredFileId: this.currentHoveredFileId,
       selectedProcessedFileId: this.selectedProcessedFileId,
       selectedRawFileId: this.selectedRawFileId,
       toCopy: this.toCopy,
@@ -130,6 +138,16 @@ export class ExplorerService extends Disposable implements IExplorerService {
     for (const view of this.views) {
       view.refresh?.();
     }
+  }
+
+  public setHoveredFileId(fileId: string | null): void {
+    const nextFileId = normalizeExplorerFileId(fileId);
+    if (this.currentHoveredFileId === nextFileId) {
+      return;
+    }
+
+    this.currentHoveredFileId = nextFileId;
+    this.onDidChangeHoveredFileEmitter.fire({ fileId: nextFileId });
   }
 
   public setExpandedFolderKeys(folderKeys: readonly string[]): void {

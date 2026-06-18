@@ -1,0 +1,1394 @@
+{
+  "applyButtonDisabled": false,
+  "afterClickState": {
+    "bodyHead": "搜索命令/文件\n资源管理器\n打开文件夹\n暂无预览\n100%\n\n导入文件后会在这里显示表格预览\n\n模板管理\n模板\n自动提取\n应用到所有\n应用到新增\n\n首个无效即停止\n\n智能自动提取\n\n系统将自动分析导入的文件格式，识别自变量、因变量并提取相关参数。适用于标准的 IV/CV 数据格式。\n\n模板加载失败：模板存储桌面桥接不可用\n158 个文件读取失败。\n原因：current.getFileHandle is not a function\n文件：\nmock-158/mock-output-001.csv\nmock-158/mock-output-002.csv\nmock-158/mock-output-003.csv\nmock-158/mock-output-004.csv\nmock-158/mock-output-005.csv\nmock-158/mock-output-006.csv\nmock-158/mock-output-007.csv\nmock-158/mock-output-008.csv\nmock-158/mock-output-009.csv\nmock-158/mock-output-010.csv\nmock-158/mock-output-011.csv\nmock-158/mock-output-012.csv\nmock-158/mock-output-013.csv\nmock-158/mock-output-014.csv\nmock-158/mock-output-015.csv\nmock-158/mock-output-016.csv\nmock-158/mock-output-017.csv\nmock-158/mock-output-018.csv\nmock-158/mock-output-019.csv\nmock-158/mock-output-020.csv\nmock-158/mock-output-021.csv\nmock-158/mock-output-022.csv\nmock-158/mock-output-023.csv\nmock-158/mock-output-024.csv\nmock-158/mock-output-025.csv\nmock-158/mock-output-026.csv\nmock-158/mock-output-027.csv\nmock-158/mock-output-028.csv\nmock-158/mock-output-029.csv\nmock-158/mock-output-030.csv\nmock-158/mock-output-031.csv\nmock-158/mock-output-032.csv\nmock-158/mock-output-033.csv\nmock-158/mock-output-034.csv\nmock-158/mock-output-035.csv\nmock-158/mock-output-036.csv\nmock-158/mock-output-037.csv\nmock-158/mock-output-038.csv\nmock-158/mock-output-039.csv\nmock-158/mock-output-040.csv\nmock-158/mock-output-041.csv\nmock-158/mock-output-042.csv\nmock-158/mock-output-043.csv\nmock-158/mock-output-044.csv\nmock-158/mock-output-045.csv\nmock-158/mock-output-046.csv\nmock-158/mock-output-047.csv\nmock-158/mock-output-048.csv\nmock-158/mock-output-049.csv\nmock-158/mock-output-050.csv\nmock-158/mock-output-051.csv\nmock-158/mock-output-052.csv\nmock-158/mock-output-053.csv\nmock-158/mock-output-054.csv\nmock-158/mock-output-055.csv\nmock-158/mock-output-056.csv\nmock-158/mock-output-057.csv\nmock-158/mock-output-058.csv\nmock-158/mock-output-059.csv\nmock-158/mock-output-060.csv\nmock-158/mock-output-061.csv\nmock-158/mock-output-062.csv\nmock-158/mock-output-063.csv\nmock-158/mock-output-064.csv\nmock-158/mock-output-065.csv\nmock-158/mock-output-066.csv\nmock-158/mock-output-067.csv\nmock-158/mock-output-068.csv\nmock-158/mock-output-069.csv\nmock-158/mock-output-070.csv\nmock-158/mock-output-071.csv\nmock-158/mock-output-072.csv\nmock-158/mock-output-073.csv\nmock-158/mock-output-074.csv\nmock-158/mock-output-075.csv\nmock-158/mock-output-076.csv\nmock-158/mock-output-077.csv\nmock-158/mock-output-078.csv\nmock-158/mock-output-079.csv\nmock-158/mock-output-080.csv\nmock-158/mock-output-081.csv\nmock-158/mock-output-082.csv\nmock-158/mock-output-083.csv\nmock-158/mock-output-084.csv\nmock-158/mock-output-085.csv\nmock-158/mock-output-086.csv\nmock-158/mock-output-087.csv\nmock-158/mock-output-088.csv\nmock-158/mock-output-089.csv\nmock-158/mock-output-090.csv\nmock-158/mock-output-091.csv\nmock-158/mock-output-092.csv\nmock-158/mock-output-093.csv\nmock-158/mock-output-094.csv\nmock-158/mock-output-095.csv\nmock-158/mock-output-09",
+    "buttons": [
+      {
+        "index": 0,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 1,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 2,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 3,
+        "disabled": false,
+        "text": "搜索命令/文件",
+        "visible": true
+      },
+      {
+        "index": 4,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 5,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 6,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 7,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 8,
+        "disabled": false,
+        "text": "打开文件夹",
+        "visible": true
+      },
+      {
+        "index": 9,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 10,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 11,
+        "disabled": false,
+        "text": "A",
+        "visible": false
+      },
+      {
+        "index": 12,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 13,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 14,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 15,
+        "disabled": false,
+        "text": "B",
+        "visible": false
+      },
+      {
+        "index": 16,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 17,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 18,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 19,
+        "disabled": false,
+        "text": "C",
+        "visible": false
+      },
+      {
+        "index": 20,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 21,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 22,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 23,
+        "disabled": false,
+        "text": "D",
+        "visible": false
+      },
+      {
+        "index": 24,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 25,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 26,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 27,
+        "disabled": false,
+        "text": "E",
+        "visible": false
+      },
+      {
+        "index": 28,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 29,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 30,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 31,
+        "disabled": false,
+        "text": "F",
+        "visible": false
+      },
+      {
+        "index": 32,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 33,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 34,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 35,
+        "disabled": false,
+        "text": "G",
+        "visible": false
+      },
+      {
+        "index": 36,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 37,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 38,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 39,
+        "disabled": false,
+        "text": "H",
+        "visible": false
+      },
+      {
+        "index": 40,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 41,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 42,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 43,
+        "disabled": false,
+        "text": "I",
+        "visible": false
+      },
+      {
+        "index": 44,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 45,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 46,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 47,
+        "disabled": false,
+        "text": "J",
+        "visible": false
+      },
+      {
+        "index": 48,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 49,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 50,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 51,
+        "disabled": false,
+        "text": "K",
+        "visible": false
+      },
+      {
+        "index": 52,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 53,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 54,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 55,
+        "disabled": false,
+        "text": "L",
+        "visible": false
+      },
+      {
+        "index": 56,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 57,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 58,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 59,
+        "disabled": false,
+        "text": "M",
+        "visible": false
+      },
+      {
+        "index": 60,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 61,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 62,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 63,
+        "disabled": false,
+        "text": "N",
+        "visible": false
+      },
+      {
+        "index": 64,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 65,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 66,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 67,
+        "disabled": false,
+        "text": "O",
+        "visible": false
+      },
+      {
+        "index": 68,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 69,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 70,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 71,
+        "disabled": false,
+        "text": "P",
+        "visible": false
+      },
+      {
+        "index": 72,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 73,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 74,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 75,
+        "disabled": false,
+        "text": "Q",
+        "visible": false
+      },
+      {
+        "index": 76,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 77,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 78,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 79,
+        "disabled": false,
+        "text": "R",
+        "visible": false
+      },
+      {
+        "index": 80,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 81,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 82,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 83,
+        "disabled": false,
+        "text": "S",
+        "visible": false
+      },
+      {
+        "index": 84,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 85,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 86,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 87,
+        "disabled": false,
+        "text": "T",
+        "visible": false
+      },
+      {
+        "index": 88,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 89,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 90,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 91,
+        "disabled": false,
+        "text": "U",
+        "visible": false
+      },
+      {
+        "index": 92,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 93,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 94,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 95,
+        "disabled": false,
+        "text": "V",
+        "visible": false
+      },
+      {
+        "index": 96,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 97,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 98,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 99,
+        "disabled": false,
+        "text": "W",
+        "visible": false
+      },
+      {
+        "index": 100,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 101,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 102,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 103,
+        "disabled": false,
+        "text": "X",
+        "visible": false
+      },
+      {
+        "index": 104,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 105,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 106,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 107,
+        "disabled": false,
+        "text": "应用到所有",
+        "visible": true
+      },
+      {
+        "index": 108,
+        "disabled": false,
+        "text": "应用到新增",
+        "visible": true
+      },
+      {
+        "index": 109,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 110,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 111,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 112,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 113,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      }
+    ]
+  },
+  "beforeClickState": {
+    "bodyHead": "搜索命令/文件\n资源管理器\n打开文件夹\n暂无预览\n100%\n\n导入文件后会在这里显示表格预览\n\n模板管理\n模板\n自动提取\n应用到所有\n应用到新增\n\n首个无效即停止\n\n智能自动提取\n\n系统将自动分析导入的文件格式，识别自变量、因变量并提取相关参数。适用于标准的 IV/CV 数据格式。\n\n模板加载失败：模板存储桌面桥接不可用\n158 个文件读取失败。\n原因：current.getFileHandle is not a function\n文件：\nmock-158/mock-output-001.csv\nmock-158/mock-output-002.csv\nmock-158/mock-output-003.csv\nmock-158/mock-output-004.csv\nmock-158/mock-output-005.csv\nmock-158/mock-output-006.csv\nmock-158/mock-output-007.csv\nmock-158/mock-output-008.csv\nmock-158/mock-output-009.csv\nmock-158/mock-output-010.csv\nmock-158/mock-output-011.csv\nmock-158/mock-output-012.csv\nmock-158/mock-output-013.csv\nmock-158/mock-output-014.csv\nmock-158/mock-output-015.csv\nmock-158/mock-output-016.csv\nmock-158/mock-output-017.csv\nmock-158/mock-output-018.csv\nmock-158/mock-output-019.csv\nmock-158/mock-output-020.csv\nmock-158/mock-output-021.csv\nmock-158/mock-output-022.csv\nmock-158/mock-output-023.csv\nmock-158/mock-output-024.csv\nmock-158/mock-output-025.csv\nmock-158/mock-output-026.csv\nmock-158/mock-output-027.csv\nmock-158/mock-output-028.csv\nmock-158/mock-output-029.csv\nmock-158/mock-output-030.csv\nmock-158/mock-output-031.csv\nmock-158/mock-output-032.csv\nmock-158/mock-output-033.csv\nmock-158/mock-output-034.csv\nmock-158/mock-output-035.csv\nmock-158/mock-output-036.csv\nmock-158/mock-output-037.csv\nmock-158/mock-output-038.csv\nmock-158/mock-output-039.csv\nmock-158/mock-output-040.csv\nmock-158/mock-output-041.csv\nmock-158/mock-output-042.csv\nmock-158/mock-output-043.csv\nmock-158/mock-output-044.csv\nmock-158/mock-output-045.csv\nmock-158/mock-output-046.csv\nmock-158/mock-output-047.csv\nmock-158/mock-output-048.csv\nmock-158/mock-output-049.csv\nmock-158/mock-output-050.csv\nmock-158/mock-output-051.csv\nmock-158/mock-output-052.csv\nmock-158/mock-output-053.csv\nmock-158/mock-output-054.csv\nmock-158/mock-output-055.csv\nmock-158/mock-output-056.csv\nmock-158/mock-output-057.csv\nmock-158/mock-output-058.csv\nmock-158/mock-output-059.csv\nmock-158/mock-output-060.csv\nmock-158/mock-output-061.csv\nmock-158/mock-output-062.csv\nmock-158/mock-output-063.csv\nmock-158/mock-output-064.csv\nmock-158/mock-output-065.csv\nmock-158/mock-output-066.csv\nmock-158/mock-output-067.csv\nmock-158/mock-output-068.csv\nmock-158/mock-output-069.csv\nmock-158/mock-output-070.csv\nmock-158/mock-output-071.csv\nmock-158/mock-output-072.csv\nmock-158/mock-output-073.csv\nmock-158/mock-output-074.csv\nmock-158/mock-output-075.csv\nmock-158/mock-output-076.csv\nmock-158/mock-output-077.csv\nmock-158/mock-output-078.csv\nmock-158/mock-output-079.csv\nmock-158/mock-output-080.csv\nmock-158/mock-output-081.csv\nmock-158/mock-output-082.csv\nmock-158/mock-output-083.csv\nmock-158/mock-output-084.csv\nmock-158/mock-output-085.csv\nmock-158/mock-output-086.csv\nmock-158/mock-output-087.csv\nmock-158/mock-output-088.csv\nmock-158/mock-output-089.csv\nmock-158/mock-output-090.csv\nmock-158/mock-output-091.csv\nmock-158/mock-output-092.csv\nmock-158/mock-output-093.csv\nmock-158/mock-output-094.csv\nmock-158/mock-output-095.csv\nmock-158/mock-output-09",
+    "buttons": [
+      {
+        "index": 0,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 1,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 2,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 3,
+        "disabled": false,
+        "text": "搜索命令/文件",
+        "visible": true
+      },
+      {
+        "index": 4,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 5,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 6,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 7,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 8,
+        "disabled": false,
+        "text": "打开文件夹",
+        "visible": true
+      },
+      {
+        "index": 9,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 10,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 11,
+        "disabled": false,
+        "text": "A",
+        "visible": false
+      },
+      {
+        "index": 12,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 13,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 14,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 15,
+        "disabled": false,
+        "text": "B",
+        "visible": false
+      },
+      {
+        "index": 16,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 17,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 18,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 19,
+        "disabled": false,
+        "text": "C",
+        "visible": false
+      },
+      {
+        "index": 20,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 21,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 22,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 23,
+        "disabled": false,
+        "text": "D",
+        "visible": false
+      },
+      {
+        "index": 24,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 25,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 26,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 27,
+        "disabled": false,
+        "text": "E",
+        "visible": false
+      },
+      {
+        "index": 28,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 29,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 30,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 31,
+        "disabled": false,
+        "text": "F",
+        "visible": false
+      },
+      {
+        "index": 32,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 33,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 34,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 35,
+        "disabled": false,
+        "text": "G",
+        "visible": false
+      },
+      {
+        "index": 36,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 37,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 38,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 39,
+        "disabled": false,
+        "text": "H",
+        "visible": false
+      },
+      {
+        "index": 40,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 41,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 42,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 43,
+        "disabled": false,
+        "text": "I",
+        "visible": false
+      },
+      {
+        "index": 44,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 45,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 46,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 47,
+        "disabled": false,
+        "text": "J",
+        "visible": false
+      },
+      {
+        "index": 48,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 49,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 50,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 51,
+        "disabled": false,
+        "text": "K",
+        "visible": false
+      },
+      {
+        "index": 52,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 53,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 54,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 55,
+        "disabled": false,
+        "text": "L",
+        "visible": false
+      },
+      {
+        "index": 56,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 57,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 58,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 59,
+        "disabled": false,
+        "text": "M",
+        "visible": false
+      },
+      {
+        "index": 60,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 61,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 62,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 63,
+        "disabled": false,
+        "text": "N",
+        "visible": false
+      },
+      {
+        "index": 64,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 65,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 66,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 67,
+        "disabled": false,
+        "text": "O",
+        "visible": false
+      },
+      {
+        "index": 68,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 69,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 70,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 71,
+        "disabled": false,
+        "text": "P",
+        "visible": false
+      },
+      {
+        "index": 72,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 73,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 74,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 75,
+        "disabled": false,
+        "text": "Q",
+        "visible": false
+      },
+      {
+        "index": 76,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 77,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 78,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 79,
+        "disabled": false,
+        "text": "R",
+        "visible": false
+      },
+      {
+        "index": 80,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 81,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 82,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 83,
+        "disabled": false,
+        "text": "S",
+        "visible": false
+      },
+      {
+        "index": 84,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 85,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 86,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 87,
+        "disabled": false,
+        "text": "T",
+        "visible": false
+      },
+      {
+        "index": 88,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 89,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 90,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 91,
+        "disabled": false,
+        "text": "U",
+        "visible": false
+      },
+      {
+        "index": 92,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 93,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 94,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 95,
+        "disabled": false,
+        "text": "V",
+        "visible": false
+      },
+      {
+        "index": 96,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 97,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 98,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 99,
+        "disabled": false,
+        "text": "W",
+        "visible": false
+      },
+      {
+        "index": 100,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 101,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 102,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 103,
+        "disabled": false,
+        "text": "X",
+        "visible": false
+      },
+      {
+        "index": 104,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 105,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 106,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 107,
+        "disabled": false,
+        "text": "应用到所有",
+        "visible": true
+      },
+      {
+        "index": 108,
+        "disabled": false,
+        "text": "应用到新增",
+        "visible": true
+      },
+      {
+        "index": 109,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 110,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 111,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 112,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 113,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      }
+    ]
+  },
+  "completed": false,
+  "hasPerfApi": false,
+  "readyToApply": true,
+  "report": null,
+  "sourceStatusCounts": {},
+  "processingText": [],
+  "bodyTail": "mock-158/mock-output-090.csv\nmock-158/mock-output-091.csv\nmock-158/mock-output-092.csv\nmock-158/mock-output-093.csv\nmock-158/mock-output-094.csv\nmock-158/mock-output-095.csv\nmock-158/mock-output-096.csv\nmock-158/mock-output-097.csv\nmock-158/mock-output-098.csv\nmock-158/mock-output-099.csv\nmock-158/mock-output-100.csv\nmock-158/mock-output-101.csv\nmock-158/mock-output-102.csv\nmock-158/mock-output-103.csv\nmock-158/mock-output-104.csv\nmock-158/mock-output-105.csv\nmock-158/mock-output-106.csv\nmock-158/mock-output-107.csv\nmock-158/mock-output-108.csv\nmock-158/mock-output-109.csv\nmock-158/mock-output-110.csv\nmock-158/mock-output-111.csv\nmock-158/mock-output-112.csv\nmock-158/mock-output-113.csv\nmock-158/mock-output-114.csv\nmock-158/mock-output-115.csv\nmock-158/mock-output-116.csv\nmock-158/mock-output-117.csv\nmock-158/mock-output-118.csv\nmock-158/mock-output-119.csv\nmock-158/mock-output-120.csv\nmock-158/mock-output-121.csv\nmock-158/mock-output-122.csv\nmock-158/mock-output-123.csv\nmock-158/mock-output-124.csv\nmock-158/mock-output-125.csv\nmock-158/mock-output-126.csv\nmock-158/mock-output-127.csv\nmock-158/mock-output-128.csv\nmock-158/mock-output-129.csv\nmock-158/mock-output-130.csv\nmock-158/mock-output-131.csv\nmock-158/mock-output-132.csv\nmock-158/mock-output-133.csv\nmock-158/mock-output-134.csv\nmock-158/mock-output-135.csv\nmock-158/mock-output-136.csv\nmock-158/mock-output-137.csv\nmock-158/mock-output-138.csv\nmock-158/mock-output-139.csv\nmock-158/mock-output-140.csv\nmock-158/mock-output-141.csv\nmock-158/mock-output-142.csv\nmock-158/mock-output-143.csv\nmock-158/mock-output-144.csv\nmock-158/mock-output-145.csv\nmock-158/mock-output-146.csv\nmock-158/mock-output-147.csv\nmock-158/mock-output-148.csv\nmock-158/mock-output-149.csv\nmock-158/mock-output-150.csv\nmock-158/mock-output-151.csv\nmock-158/mock-output-152.csv\nmock-158/mock-output-153.csv\nmock-158/mock-output-154.csv\nmock-158/mock-output-155.csv\nmock-158/mock-output-156.csv\nmock-158/mock-output-157.csv\nmock-158/mock-output-158.csv",
+  "consoleTail": [
+    {
+      "type": "error",
+      "text": "Failed to load templates for file context menu. Error: 模板存储桌面桥接不可用\n    at unavailable (http://127.0.0.1:5174/src/cs/workbench/services/template/browser/templateStoreService.ts:6:25)\n    at BrowserTemplateStoreService.getTemplates (http://127.0.0.1:5174/src/cs/workbench/services/template/browser/templateStoreService.ts:10:12)\n    at BrowserTemplateService.getTemplates (http://127.0.0.1:5174/src/cs/workbench/services/template/browser/templateService.ts:143:52)\n    at ExplorerViewPane.loadTemplates (http://127.0.0.1:5174/src/cs/workbench/contrib/files/browser/explorerViewlet.ts?t=1781703756867:596:26)\n    at new ExplorerViewPane (http://127.0.0.1:5174/src/cs/workbench/contrib/files/browser/explorerViewlet.ts?t=1781703756867:157:10)\n    at InstantiationService.createInstanceFromConstructor (http://127.0.0.1:5174/src/cs/platform/instantiation/common/instantiationService.ts:77:12)\n    at InstantiationService.createInstance (http://127.0.0.1:5174/src/cs/platform/instantiation/common/instantiationService.ts:49:19)\n    at ViewsService.addView (http://127.0.0.1:5174/src/cs/workbench/services/views/browser/viewsService.ts:354:44)\n    at ViewsService.registerViewContainerModel (http://127.0.0.1:5174/src/cs/workbench/services/views/browser/viewsService.ts:313:12)\n    at new ViewsService (http://127.0.0.1:5174/src/cs/workbench/services/views/browser/viewsService.ts:39:12)"
+    }
+  ]
+}

@@ -1,0 +1,1886 @@
+{
+  "applyButtonDisabled": null,
+  "afterClickState": {
+    "bodyHead": "搜索命令/文件\n资源管理器\nmock-158\n158\nmock-output-001.csv\noutput\nmock-output-002.csv\noutput\nmock-output-003.csv\noutput\nmock-output-004.csv\noutput\nmock-output-005.csv\noutput\nmock-output-006.csv\noutput\nmock-output-007.csv\noutput\nmock-output-008.csv\noutput\nmock-output-009.csv\noutput\nmock-output-010.csv\noutput\nmock-output-011.csv\noutput\nmock-output-012.csv\noutput\nmock-output-013.csv\noutput\nmock-output-014.csv\noutput\nmock-output-015.csv\noutput\nmock-output-016.csv\noutput\nmock-output-017.csv\noutput\nmock-output-018.csv\noutput\nmock-output-019.csv\noutput\nmock-output-020.csv\noutput\nmock-output-021.csv\noutput\nmock-output-022.csv\noutput\nmock-output-023.csv\noutput\nmock-output-024.csv\noutput\nmock-output-025.csv\noutput\nmock-output-026.csv\noutput\nmock-output-027.csv\noutput\nmock-output-028.csv\noutput\nmock-output-029.csv\noutput\nmock-output-030.csv\noutput\nmock-output-031.csv\noutput\nmock-output-032.csv\noutput\nmock-output-033.csv\noutput\nmock-output-034.csv\noutput\nmock-output-035.csv\noutput\nmock-output-036.csv\noutput\nmock-output-037.csv\noutput\nmock-output-038.csv\noutput\nmock-output-039.csv\noutput\nmock-output-040.csv\noutput\nmock-output-041.csv\noutput\nmock-output-042.csv\noutput\nmock-output-043.csv\noutput\n\n暂无图表数据\n\n应用模板后会在这里显示图表数据\n\n图表\n导出方式\n新建列\n导出范围\n当前\n导出曲线\n全选\n导出内容\nIV\ngm\nSS\nVth\n在 Origin 中打开\n导出 ZIP 包\n模板加载失败：模板存储桌面桥接不可用",
+    "buttons": [
+      {
+        "index": 0,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 1,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 2,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 3,
+        "disabled": false,
+        "text": "搜索命令/文件",
+        "visible": true
+      },
+      {
+        "index": 4,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 5,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 6,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 7,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 8,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 9,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 10,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 11,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 12,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 13,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 14,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 15,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 16,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 17,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 18,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 19,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 20,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 21,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 22,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 23,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 24,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 25,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 26,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 27,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 28,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 29,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 30,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 31,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 32,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 33,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 34,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 35,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 36,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 37,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 38,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 39,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 40,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 41,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 42,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 43,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 44,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 45,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 46,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 47,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 48,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 49,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 50,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 51,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 52,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 53,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 54,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 55,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 56,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 57,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 58,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 59,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 60,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 61,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 62,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 63,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 64,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 65,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 66,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 67,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 68,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 69,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 70,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 71,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 72,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 73,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 74,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 75,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 76,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 77,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 78,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 79,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 80,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 81,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 82,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 83,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 84,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 85,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 86,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 87,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 88,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 89,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 90,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 91,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 92,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 93,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 94,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 95,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 96,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 97,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 98,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 99,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 100,
+        "disabled": false,
+        "text": "新建列",
+        "visible": true
+      },
+      {
+        "index": 101,
+        "disabled": false,
+        "text": "当前",
+        "visible": true
+      },
+      {
+        "index": 102,
+        "disabled": false,
+        "text": "全选",
+        "visible": true
+      },
+      {
+        "index": 103,
+        "disabled": false,
+        "text": "IV",
+        "visible": true
+      },
+      {
+        "index": 104,
+        "disabled": false,
+        "text": "gm",
+        "visible": true
+      },
+      {
+        "index": 105,
+        "disabled": false,
+        "text": "SS",
+        "visible": true
+      },
+      {
+        "index": 106,
+        "disabled": false,
+        "text": "Vth",
+        "visible": true
+      },
+      {
+        "index": 107,
+        "disabled": false,
+        "text": "在 Origin 中打开",
+        "visible": true
+      },
+      {
+        "index": 108,
+        "disabled": false,
+        "text": "导出 ZIP 包",
+        "visible": true
+      },
+      {
+        "index": 109,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 110,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      }
+    ]
+  },
+  "beforeClickState": {
+    "bodyHead": "搜索命令/文件\n资源管理器\nmock-158\n158\nmock-output-001.csv\noutput\nmock-output-002.csv\noutput\nmock-output-003.csv\noutput\nmock-output-004.csv\noutput\nmock-output-005.csv\noutput\nmock-output-006.csv\noutput\nmock-output-007.csv\noutput\nmock-output-008.csv\noutput\nmock-output-009.csv\noutput\nmock-output-010.csv\noutput\nmock-output-011.csv\noutput\nmock-output-012.csv\noutput\nmock-output-013.csv\noutput\nmock-output-014.csv\noutput\nmock-output-015.csv\noutput\nmock-output-016.csv\noutput\nmock-output-017.csv\noutput\nmock-output-018.csv\noutput\nmock-output-019.csv\noutput\nmock-output-020.csv\noutput\nmock-output-021.csv\noutput\nmock-output-022.csv\noutput\nmock-output-023.csv\noutput\nmock-output-024.csv\noutput\nmock-output-025.csv\noutput\nmock-output-026.csv\noutput\nmock-output-027.csv\noutput\nmock-output-028.csv\noutput\nmock-output-029.csv\noutput\nmock-output-030.csv\noutput\nmock-output-031.csv\noutput\nmock-output-032.csv\noutput\nmock-output-033.csv\noutput\nmock-output-034.csv\noutput\nmock-output-035.csv\noutput\nmock-output-036.csv\noutput\nmock-output-037.csv\noutput\nmock-output-038.csv\noutput\nmock-output-039.csv\noutput\nmock-output-040.csv\noutput\nmock-output-041.csv\noutput\nmock-output-042.csv\noutput\nmock-output-043.csv\noutput\n文件名\nmock-output-001\n6 × 4\n100%\nA\nB\nC\nD\n1\n\t\tSetupTitle\tOutput\t\t\t\n\n2\n\t\tTestParameter\tOutput.Graph.XAxis.Data\tVd\t\t\n\n3\n\t\tDataName\tVd\tId\tVg\t\n\n4\n\t\tDataValue\t0\t1\t0\t\n\n5\n\t\tDataValue\t1\t2\t0\t\n\n6\n\t\tDataValue\t2\t3\t0\t\n模板管理\n模板\n自动提取\n应用到所有\n应用到新增\n\n首个无效即停止\n\n智能自动提取\n\n系统将自动分析导入的文件格式，识别自变量、因变量并提取相关参数。适用于标准的 IV/CV 数据格式。\n\n模板加载失败：模板存储桌面桥接不可用\n类型：\noutput (vd)\n置信度：\nhigh\n依据：\nMetadata declares X axis as Vd.\nMetadata starts DataName with Vd.\n模板：\n自动提取",
+    "buttons": [
+      {
+        "index": 0,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 1,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 2,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 3,
+        "disabled": false,
+        "text": "搜索命令/文件",
+        "visible": true
+      },
+      {
+        "index": 4,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 5,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 6,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 7,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 8,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 9,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 10,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 11,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 12,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 13,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 14,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 15,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 16,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 17,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 18,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 19,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 20,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 21,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 22,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 23,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 24,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 25,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 26,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 27,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 28,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 29,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 30,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 31,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 32,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 33,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 34,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 35,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 36,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 37,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 38,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 39,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 40,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 41,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 42,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 43,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 44,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 45,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 46,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 47,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 48,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 49,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 50,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 51,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 52,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 53,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 54,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 55,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 56,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 57,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 58,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 59,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 60,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 61,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 62,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 63,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 64,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 65,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 66,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 67,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 68,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 69,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 70,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 71,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 72,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 73,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 74,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 75,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 76,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 77,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 78,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 79,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 80,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 81,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 82,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 83,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 84,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 85,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 86,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 87,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 88,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 89,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 90,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 91,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 92,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 93,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 94,
+        "disabled": true,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 95,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 96,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 97,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 98,
+        "disabled": false,
+        "text": "A",
+        "visible": true
+      },
+      {
+        "index": 99,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 100,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 101,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 102,
+        "disabled": false,
+        "text": "B",
+        "visible": true
+      },
+      {
+        "index": 103,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 104,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 105,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 106,
+        "disabled": false,
+        "text": "C",
+        "visible": true
+      },
+      {
+        "index": 107,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 108,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 109,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 110,
+        "disabled": false,
+        "text": "D",
+        "visible": true
+      },
+      {
+        "index": 111,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 112,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 113,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 114,
+        "disabled": false,
+        "text": "E",
+        "visible": false
+      },
+      {
+        "index": 115,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 116,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 117,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 118,
+        "disabled": false,
+        "text": "F",
+        "visible": false
+      },
+      {
+        "index": 119,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 120,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 121,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 122,
+        "disabled": false,
+        "text": "G",
+        "visible": false
+      },
+      {
+        "index": 123,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 124,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 125,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 126,
+        "disabled": false,
+        "text": "H",
+        "visible": false
+      },
+      {
+        "index": 127,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 128,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 129,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 130,
+        "disabled": false,
+        "text": "I",
+        "visible": false
+      },
+      {
+        "index": 131,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 132,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 133,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 134,
+        "disabled": false,
+        "text": "J",
+        "visible": false
+      },
+      {
+        "index": 135,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 136,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 137,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 138,
+        "disabled": false,
+        "text": "K",
+        "visible": false
+      },
+      {
+        "index": 139,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 140,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 141,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 142,
+        "disabled": false,
+        "text": "L",
+        "visible": false
+      },
+      {
+        "index": 143,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 144,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 145,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 146,
+        "disabled": false,
+        "text": "M",
+        "visible": false
+      },
+      {
+        "index": 147,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 148,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 149,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 150,
+        "disabled": false,
+        "text": "N",
+        "visible": false
+      },
+      {
+        "index": 151,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 152,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 153,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 154,
+        "disabled": false,
+        "text": "O",
+        "visible": false
+      },
+      {
+        "index": 155,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 156,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 157,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 158,
+        "disabled": false,
+        "text": "P",
+        "visible": false
+      },
+      {
+        "index": 159,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 160,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 161,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 162,
+        "disabled": false,
+        "text": "Q",
+        "visible": false
+      },
+      {
+        "index": 163,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 164,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 165,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 166,
+        "disabled": false,
+        "text": "R",
+        "visible": false
+      },
+      {
+        "index": 167,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 168,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 169,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 170,
+        "disabled": false,
+        "text": "S",
+        "visible": false
+      },
+      {
+        "index": 171,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 172,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 173,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 174,
+        "disabled": false,
+        "text": "T",
+        "visible": false
+      },
+      {
+        "index": 175,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 176,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 177,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 178,
+        "disabled": false,
+        "text": "U",
+        "visible": false
+      },
+      {
+        "index": 179,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 180,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 181,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 182,
+        "disabled": false,
+        "text": "V",
+        "visible": false
+      },
+      {
+        "index": 183,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 184,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 185,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 186,
+        "disabled": false,
+        "text": "W",
+        "visible": false
+      },
+      {
+        "index": 187,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 188,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 189,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 190,
+        "disabled": false,
+        "text": "X",
+        "visible": false
+      },
+      {
+        "index": 191,
+        "disabled": false,
+        "text": "-",
+        "visible": false
+      },
+      {
+        "index": 192,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 193,
+        "disabled": false,
+        "text": "+",
+        "visible": false
+      },
+      {
+        "index": 194,
+        "disabled": false,
+        "text": "应用到所有",
+        "visible": true
+      },
+      {
+        "index": 195,
+        "disabled": false,
+        "text": "应用到新增",
+        "visible": true
+      },
+      {
+        "index": 196,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      },
+      {
+        "index": 197,
+        "disabled": false,
+        "text": "",
+        "visible": false
+      },
+      {
+        "index": 198,
+        "disabled": false,
+        "text": "",
+        "visible": true
+      }
+    ]
+  },
+  "completed": false,
+  "hasPerfApi": false,
+  "readyToApply": true,
+  "report": null,
+  "sourceStatusCounts": {},
+  "processingText": [],
+  "bodyTail": "搜索命令/文件\n资源管理器\nmock-158\n158\nmock-output-001.csv\noutput\nmock-output-002.csv\noutput\nmock-output-003.csv\noutput\nmock-output-004.csv\noutput\nmock-output-005.csv\noutput\nmock-output-006.csv\noutput\nmock-output-007.csv\noutput\nmock-output-008.csv\noutput\nmock-output-009.csv\noutput\nmock-output-010.csv\noutput\nmock-output-011.csv\noutput\nmock-output-012.csv\noutput\nmock-output-013.csv\noutput\nmock-output-014.csv\noutput\nmock-output-015.csv\noutput\nmock-output-016.csv\noutput\nmock-output-017.csv\noutput\nmock-output-018.csv\noutput\nmock-output-019.csv\noutput\nmock-output-020.csv\noutput\nmock-output-021.csv\noutput\nmock-output-022.csv\noutput\nmock-output-023.csv\noutput\nmock-output-024.csv\noutput\nmock-output-025.csv\noutput\nmock-output-026.csv\noutput\nmock-output-027.csv\noutput\nmock-output-028.csv\noutput\nmock-output-029.csv\noutput\nmock-output-030.csv\noutput\nmock-output-031.csv\noutput\nmock-output-032.csv\noutput\nmock-output-033.csv\noutput\nmock-output-034.csv\noutput\nmock-output-035.csv\noutput\nmock-output-036.csv\noutput\nmock-output-037.csv\noutput\nmock-output-038.csv\noutput\nmock-output-039.csv\noutput\nmock-output-040.csv\noutput\nmock-output-041.csv\noutput\nmock-output-042.csv\noutput\nmock-output-043.csv\noutput\n\n暂无图表数据\n\n应用模板后会在这里显示图表数据\n\n图表\n导出方式\n新建列\n导出范围\n当前\n导出曲线\n全选\n导出内容\nIV\ngm\nSS\nVth\n在 Origin 中打开\n导出 ZIP 包",
+  "consoleTail": [
+    {
+      "type": "error",
+      "text": "Failed to load templates for file context menu. Error: 模板存储桌面桥接不可用\n    at unavailable (http://127.0.0.1:5174/src/cs/workbench/services/template/browser/templateStoreService.ts:6:25)\n    at BrowserTemplateStoreService.getTemplates (http://127.0.0.1:5174/src/cs/workbench/services/template/browser/templateStoreService.ts:10:12)\n    at BrowserTemplateService.getTemplates (http://127.0.0.1:5174/src/cs/workbench/services/template/browser/templateService.ts:143:52)\n    at ExplorerViewPane.loadTemplates (http://127.0.0.1:5174/src/cs/workbench/contrib/files/browser/explorerViewlet.ts?t=1781703756867:596:26)\n    at new ExplorerViewPane (http://127.0.0.1:5174/src/cs/workbench/contrib/files/browser/explorerViewlet.ts?t=1781703756867:157:10)\n    at InstantiationService.createInstanceFromConstructor (http://127.0.0.1:5174/src/cs/platform/instantiation/common/instantiationService.ts:77:12)\n    at InstantiationService.createInstance (http://127.0.0.1:5174/src/cs/platform/instantiation/common/instantiationService.ts:49:19)\n    at ViewsService.addView (http://127.0.0.1:5174/src/cs/workbench/services/views/browser/viewsService.ts:354:44)\n    at ViewsService.registerViewContainerModel (http://127.0.0.1:5174/src/cs/workbench/services/views/browser/viewsService.ts:313:12)\n    at new ViewsService (http://127.0.0.1:5174/src/cs/workbench/services/views/browser/viewsService.ts:39:12)"
+    }
+  ]
+}

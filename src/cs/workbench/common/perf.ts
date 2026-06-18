@@ -1,10 +1,35 @@
 const PERF_STORAGE_KEY = "conductor.perf";
+const PERF_ENTRY_LIMIT = 5_000;
 
 type PerfMeta = Record<string, unknown>;
 
 type PerfLogOptions = {
   force?: boolean;
 };
+
+export type PerfEntry = {
+  readonly stage: string;
+  readonly timestamp: number;
+  readonly meta: PerfMeta;
+};
+
+export type PerfReport = {
+  readonly generatedAt: number;
+  readonly entries: readonly PerfEntry[];
+  readonly stages: Record<string, {
+    readonly count: number;
+    readonly maxDurationMs: number | null;
+    readonly totalDurationMs: number;
+  }>;
+};
+
+type AnalysisPerfApi = {
+  clear(): void;
+  getEntries(): readonly PerfEntry[];
+  getReport(): PerfReport;
+};
+
+const perfEntries: PerfEntry[] = [];
 
 const isTruthyFlag = (value: unknown): boolean => {
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -39,12 +64,75 @@ export const logPerf = (
 ): void => {
   if (!options.force && !isPerfEnabled()) return;
 
+  recordPerfEntry(stage, meta);
+
   const duration = Number(meta.durationMs);
   const durationText = Number.isFinite(duration)
     ? ` ${Math.round(duration)}ms`
     : "";
 
   console.info(`[perf][analysis] ${stage}${durationText}`, meta);
+};
+
+export const getPerfEntries = (): readonly PerfEntry[] =>
+  perfEntries.map(entry => ({
+    meta: { ...entry.meta },
+    stage: entry.stage,
+    timestamp: entry.timestamp,
+  }));
+
+export const clearPerfEntries = (): void => {
+  perfEntries.length = 0;
+};
+
+export const getPerfReport = (): PerfReport => {
+  const stages: PerfReport["stages"] = {};
+  for (const entry of perfEntries) {
+    const duration = Number(entry.meta.durationMs);
+    const current = stages[entry.stage] ?? {
+      count: 0,
+      maxDurationMs: null,
+      totalDurationMs: 0,
+    };
+    stages[entry.stage] = {
+      count: current.count + 1,
+      maxDurationMs: Number.isFinite(duration)
+        ? Math.max(current.maxDurationMs ?? 0, duration)
+        : current.maxDurationMs,
+      totalDurationMs: Number.isFinite(duration)
+        ? current.totalDurationMs + duration
+        : current.totalDurationMs,
+    };
+  }
+
+  return {
+    entries: getPerfEntries(),
+    generatedAt: Date.now(),
+    stages,
+  };
+};
+
+const recordPerfEntry = (stage: string, meta: PerfMeta): void => {
+  perfEntries.push({
+    meta: { ...meta },
+    stage,
+    timestamp: Date.now(),
+  });
+  if (perfEntries.length > PERF_ENTRY_LIMIT) {
+    perfEntries.splice(0, perfEntries.length - PERF_ENTRY_LIMIT);
+  }
+  exposePerfApi();
+};
+
+const exposePerfApi = (): void => {
+  const target = globalThis as typeof globalThis & {
+    conductorAnalysisPerf?: AnalysisPerfApi;
+  };
+  target.conductorAnalysisPerf ??= {
+    clear: clearPerfEntries,
+    getEntries: getPerfEntries,
+    getReport: getPerfReport,
+  };
 };
 
 export const startPerf = (
@@ -69,11 +157,28 @@ export const startPerf = (
   };
 };
 
-const countArrayLength = (value: unknown): number =>
-  Array.isArray(value) ? value.length : 0;
+const countArrayLength = (value: unknown): number => {
+  if (Array.isArray(value)) {
+    return value.length;
+  }
+
+  if (
+    ArrayBuffer.isView(value) &&
+    typeof (value as { readonly length?: unknown }).length === "number"
+  ) {
+    return (value as { readonly length: number }).length;
+  }
+
+  return 0;
+};
 
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
+
+const readText = (value: unknown): string | null => {
+  const text = String(value ?? "").trim();
+  return text || null;
+};
 
 const createEmptyCalculationCacheSummary = (): PerfMeta => ({
   calculationCacheEstimatedBytes: 0,
@@ -211,13 +316,22 @@ export const summarizeProcessedFile = (file: unknown): PerfMeta => {
   const xGroups = Array.isArray(record.xGroups) ? record.xGroups : [];
   const xRecord = isObjectRecord(record.x) ? record.x : {};
   const sampledPoints = Number(xRecord.sampledPoints);
+  const seriesPointCount = series.reduce((count, item) => {
+    if (!isObjectRecord(item)) return count;
+    return count + countArrayLength(item.y);
+  }, 0);
+  const xPointCount = xGroups.reduce((count, group) => count + countArrayLength(group), 0);
 
   return {
     ...summarizeCalculationCache(file),
+    curveType: readText(record.curveType),
     fileId: record.fileId ?? null,
     fileName: record.fileName ?? null,
     groups: xGroups.length,
     sampledPoints: Number.isFinite(sampledPoints) ? sampledPoints : null,
     seriesCount: series.length,
+    seriesPointCount,
+    xAxisRole: readText(record.xAxisRole),
+    xPointCount,
   };
 };

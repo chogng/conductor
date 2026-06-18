@@ -65,6 +65,7 @@ import {
   type FileAxisSettingsOverrides,
   type FileAxisSettingsByFileId,
 } from "src/cs/workbench/services/session/browser/fileSemanticsSync";
+import { hasFileRecordBaseCurves } from "src/cs/workbench/services/session/common/sessionRecordProjection";
 
 const PLOT_AXIS_STORAGE_KEYS = {
   xUnitByFileId: "plot.xUnitByFileId",
@@ -215,6 +216,16 @@ export class PlotService extends Disposable implements IPlotService {
     });
     const file = resolveCalculatedDataFile(snapshot, input.fileId);
     if (file) {
+      if (!hasFileRecordBaseCurves(file)) {
+        endPerf({
+          cacheHit: false,
+          resolvedFileId: file.id,
+          resultPointsCount: 0,
+          source: "fileRecordUnavailable",
+        });
+        return null;
+      }
+
       const cacheHit = Boolean(this.calculatedDataCacheByFile.get(file)?.[plotType]);
       const calculatedData = this.getCalculatedDataForFileRecord(file, plotType);
       endPerf({
@@ -390,14 +401,22 @@ export class PlotService extends Disposable implements IPlotService {
       return;
     }
     const stage: PlotDisplayModelPrefetchStage = cachedDisplayModel ? "full" : "chart";
-
-    const key = getQueuedPlotDisplayModelPrefetchKey({
+    const request: QueuedPlotDisplayModelPrefetch = {
       fileId,
-      hiddenLegendKeys: input.hiddenLegendKeys ?? [],
-      legendLabels: input.legendLabels ?? {},
+      hiddenLegendKeys: [...(input.hiddenLegendKeys ?? [])],
+      legendLabels: { ...(input.legendLabels ?? {}) },
       plotType,
+      priority,
       stage,
-    });
+    };
+    if (
+      calculatedData &&
+      this.tryCacheImmediateActiveChartDisplayModel(request, calculatedData, snapshot)
+    ) {
+      return;
+    }
+
+    const key = getQueuedPlotDisplayModelPrefetchKey(request);
     const calculatedDataCacheKey = calculatedData
       ? this.getPlotDisplayModelPrefetchKey(calculatedData, {
         ...input,
@@ -427,14 +446,7 @@ export class PlotService extends Disposable implements IPlotService {
       CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[priority] <
         CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[queued.priority]
     ) {
-      this.queuedPlotDisplayModelPrefetchByKey.set(key, {
-        fileId,
-        hiddenLegendKeys: [...(input.hiddenLegendKeys ?? [])],
-        legendLabels: { ...(input.legendLabels ?? {}) },
-        plotType,
-        priority,
-        stage,
-      });
+      this.queuedPlotDisplayModelPrefetchByKey.set(key, request);
     }
 
     if (!calculatedData) {
@@ -871,8 +883,10 @@ export class PlotService extends Disposable implements IPlotService {
       }
 
       if (!result) {
-        if (!this.calculatedDataCacheKeys.has(key)) {
+        if (hasFileRecordBaseCurves(currentFile) && !this.calculatedDataCacheKeys.has(key)) {
           this.getCalculatedDataForFileRecord(currentFile, plotType);
+        } else {
+          this.markCalculatedDataUnavailable(currentFile.id, plotType);
         }
         this.schedulePlotDisplayModelPrefetch();
         this.scheduleCalculatedDataPrefetch();
@@ -891,8 +905,10 @@ export class PlotService extends Disposable implements IPlotService {
       }
 
       if (!result.calculatedData) {
-        if (currentFile && !this.calculatedDataCacheKeys.has(key)) {
-          this.getCalculatedDataForFileRecord(currentFile, plotType);
+        if (hasFileRecordBaseCurves(currentFile) && !this.calculatedDataCacheKeys.has(key)) {
+          this.getCalculatedDataForFileRecord(currentFile, result.plotType);
+        } else {
+          this.markCalculatedDataUnavailable(currentFile.id, result.plotType);
         }
         this.schedulePlotDisplayModelPrefetch();
         this.scheduleCalculatedDataPrefetch();
@@ -901,8 +917,6 @@ export class PlotService extends Disposable implements IPlotService {
 
       if (currentFile) {
         this.cacheCalculatedDataForFileRecord(currentFile, result.plotType, result.calculatedData);
-      } else if (currentFile) {
-        this.markCalculatedDataUnavailable(currentFile.id, result.plotType);
       }
       this.schedulePlotDisplayModelPrefetch();
       this.scheduleCalculatedDataPrefetch();
@@ -1016,6 +1030,11 @@ export class PlotService extends Disposable implements IPlotService {
         break;
       }
 
+      if (this.tryCacheImmediateActiveChartDisplayModel(next, calculatedData, snapshot)) {
+        processed += 1;
+        continue;
+      }
+
       this.prefetchPlotDisplayModelForCalculatedData(
         next,
         calculatedData,
@@ -1046,6 +1065,30 @@ export class PlotService extends Disposable implements IPlotService {
       this.queuedPlotDisplayModelPrefetchByKey.set(key, request);
     }
     this.schedulePlotDisplayModelPrefetch();
+  }
+
+  private tryCacheImmediateActiveChartDisplayModel(
+    request: QueuedPlotDisplayModelPrefetch,
+    calculatedData: CalculatedData,
+    snapshot: SessionSnapshot,
+  ): boolean {
+    if (request.priority !== "active" || request.stage !== "chart") {
+      return false;
+    }
+
+    const model = this.createPlotDisplayModel(
+      calculatedData,
+      request,
+      snapshot,
+      false,
+    );
+    if (!model) {
+      return false;
+    }
+
+    const cached = this.cachePlotDisplayModel(calculatedData, request, model);
+    this.scheduleFullPlotDisplayModelPrefetchIfNeeded(request, cached);
+    return true;
   }
 
   private prefetchPlotDisplayModelForCalculatedData(

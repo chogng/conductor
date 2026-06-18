@@ -1,6 +1,9 @@
 import { startPerf } from "src/cs/workbench/common/perf";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import {
+  logSessionSnapshotTrace,
+} from "src/cs/workbench/services/session/common/sessionTrace";
+import {
   getLatestTemplateRunRecord,
   type FileId,
   type FileRecord,
@@ -29,22 +32,26 @@ export type SessionReadModel = {
   readonly rawFiles: SessionFile[];
 };
 
+let cachedSnapshot: SessionSnapshot | null = null;
+let cachedReadModel: SessionReadModel | null = null;
+
 export const createSessionReadModel = (
   snapshot: SessionSnapshot,
 ): SessionReadModel => {
+  if (cachedSnapshot === snapshot && cachedReadModel) {
+    return cachedReadModel;
+  }
+
   const endPerf = startPerf("createSessionReadModel", {
     fileCount: Object.keys(snapshot.filesById).length,
     sessionVersion: snapshot.sessionVersion,
   });
+  const orderedFiles = getOrderedFileRecords(snapshot.filesById, snapshot.fileOrder);
   const rawFiles = createRawFilesFromRecords(
     snapshot.filesById,
     snapshot.fileOrder,
   );
-  const processedFileIds = getProcessedFileIds(snapshot);
-  const processedFiles = createProcessedEntriesFromRecords(
-    snapshot.filesById,
-    snapshot.fileOrder,
-  );
+  const { processedFileIds, processedFiles } = createProcessedReadModel(orderedFiles);
   const readModel = {
     hasChartData: processedFileIds.length > 0,
     hasSessionData: rawFiles.length > 0 || processedFileIds.length > 0,
@@ -57,6 +64,16 @@ export const createSessionReadModel = (
     processedProjectionCount: processedFiles.length,
     rawFileCount: rawFiles.length,
   });
+  logSessionSnapshotTrace("createSessionReadModel", snapshot, {
+    hasChartData: readModel.hasChartData,
+    processedFileCount: processedFileIds.length,
+    processedProjectionCount: processedFiles.length,
+    rawFileCount: rawFiles.length,
+  }, {
+    fileIds: processedFileIds,
+  });
+  cachedSnapshot = snapshot;
+  cachedReadModel = readModel;
   return readModel;
 };
 
@@ -72,13 +89,25 @@ export const createProcessedEntriesFromRecords = (
   filesById: Readonly<Record<FileId, FileRecord>>,
   fileOrder: readonly FileId[],
 ): ProcessedEntry[] => {
+  return createProcessedReadModel(getOrderedFileRecords(filesById, fileOrder)).processedFiles;
+};
+
+const createProcessedReadModel = (
+  files: readonly FileRecord[],
+): Pick<SessionReadModel, "processedFileIds" | "processedFiles"> => {
+  const processedFileIds: FileId[] = [];
   const entries: ProcessedEntry[] = [];
-  for (const file of getOrderedFileRecords(filesById, fileOrder)) {
+  for (const file of files) {
     if (hasFileRecordChartData(file)) {
+      processedFileIds.push(file.id);
       entries.push(createProcessedEntryFromFileRecord(file));
     }
   }
-  return entries;
+
+  return {
+    processedFileIds,
+    processedFiles: entries,
+  };
 };
 
 export const createProcessedEntryFromFileRecord = (
@@ -104,11 +133,6 @@ export const collectBaseCurveRecords = (
   file: FileRecord,
 ): ReturnType<typeof collectFileRecordBaseCurves> =>
   collectFileRecordBaseCurves(file);
-
-const getProcessedFileIds = (snapshot: SessionSnapshot): FileId[] =>
-  getOrderedFileRecords(snapshot.filesById, snapshot.fileOrder)
-    .filter(hasFileRecordChartData)
-    .map((file) => file.id);
 
 const getOrderedFileRecords = (
   filesById: Readonly<Record<FileId, FileRecord>>,

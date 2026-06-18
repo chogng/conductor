@@ -30,6 +30,9 @@ type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
 suite("workbench/services/template/test/browser/templateApplyProcessing", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
+  let testWorkerPostMessage:
+    | ((worker: TestWorker, message: unknown) => void)
+    | null = null;
 
   const createRef = <T,>(current: T) => ({ current });
 
@@ -39,11 +42,16 @@ suite("workbench/services/template/test/browser/templateApplyProcessing", () => 
       : value;
 
   class TestWorker {
-    onmessage = null;
+    onmessage: ((event: MessageEvent) => void) | null = null;
     messages: unknown[] = [];
     terminated = false;
 
     postMessage(message: unknown): void {
+      if (testWorkerPostMessage) {
+        testWorkerPostMessage(this, message);
+        return;
+      }
+
       this.messages.push(message);
     }
 
@@ -59,6 +67,7 @@ suite("workbench/services/template/test/browser/templateApplyProcessing", () => 
     try {
       await callback();
     } finally {
+      testWorkerPostMessage = null;
       if (previousWorker === undefined) {
         delete (globalThis as { Worker?: typeof Worker }).Worker;
       } else {
@@ -95,6 +104,7 @@ suite("workbench/services/template/test/browser/templateApplyProcessing", () => 
       total: 0,
     };
     let showResultsCount = 0;
+    const workerErrors: unknown[] = [];
 
     return {
       dispose: disposeSession,
@@ -107,10 +117,15 @@ suite("workbench/services/template/test/browser/templateApplyProcessing", () => 
       get showResultsCount() {
         return showResultsCount;
       },
+      get workerErrors() {
+        return workerErrors;
+      },
       options: {
         templateProcessingBackendService,
         hasSourceFile: () => true,
-        onWorkerErrorPayload: () => undefined,
+        onWorkerErrorPayload: (payload: unknown) => {
+          workerErrors.push(payload);
+        },
         processingJobIdRef: createRef(0),
         processingQueueRef: createRef<ProcessingQueueItem[]>([]),
         processingStopOnErrorRef: createRef(false),
@@ -155,6 +170,20 @@ suite("workbench/services/template/test/browser/templateApplyProcessing", () => 
     analysisCacheTouchedAt: 1,
     fileId,
     fileName: `${fileId}.csv`,
+  });
+
+  const createProcessedSeriesFile = (fileId: string): ProcessedEntry => ({
+    fileId,
+    fileName: `${fileId}.csv`,
+    series: [{
+      groupIndex: 0,
+      id: "series-1",
+      y: new Float64Array([1, 2]),
+    }],
+    x: {
+      sampledPoints: 2,
+    },
+    xGroups: [new Float64Array([0, 1])],
   });
 
   const createRawSessionFile = (fileId: string): SessionFile => ({
@@ -284,6 +313,124 @@ suite("workbench/services/template/test/browser/templateApplyProcessing", () => 
     });
   });
 
+  test("startProcessingJob merges queue assessment into browser worker results before commit", async () => {
+    await withTestWorker(async () => {
+      const harness = createProcessingHarness([createRawSessionFile("file-a")]);
+      testWorkerPostMessage = (worker, message) => {
+        const jobId = (message as { payload?: { jobId?: number } })?.payload?.jobId;
+        setTimeout(() => {
+          worker.onmessage?.({
+            data: {
+              payload: {
+                jobId,
+                processed: createProcessedSeriesFile("file-a"),
+              },
+              type: "processResult",
+            },
+          } as MessageEvent);
+        }, 0);
+      };
+
+      startProcessingJob({
+        ...harness.options,
+        extractionConfig: {},
+        queue: [{
+          assessment: {
+            curveType: "output",
+            curveTypeConfidence: "high",
+            xAxisRole: "vd",
+            xAxisRoleSource: "metadata",
+          },
+          file: {},
+          fileId: "file-a",
+          fileName: "file-a.csv",
+        }],
+        clearTemplateOutputBeforeRun: false,
+        tryProcessFileWithBackend: async () => null,
+      });
+
+      await waitForAsyncJob();
+      await waitForAsyncJob();
+
+      const snapshot = harness.session.getSnapshot();
+      const curve = snapshot.filesById["file-a"].curvesByKey["base:iv:output:series-1"];
+      assert.deepEqual(curve?.points, [
+        { x: 0, y: 1 },
+        { x: 1, y: 2 },
+      ]);
+      assert.equal(harness.processingStatus.state, "done");
+      assert.equal(harness.showResultsCount, 1);
+      assert.deepEqual(
+        getLatestTemplateRunRecord(snapshot.filesById["file-a"])?.outputCurveKeys,
+        ["base:iv:output:series-1"],
+      );
+      harness.dispose();
+    });
+  });
+
+  test("startProcessingJob fails path-only sources when no fallback file can be loaded", async () => {
+    await withTestWorker(async () => {
+      const harness = createProcessingHarness([createRawSessionFile("file-a")]);
+
+      startProcessingJob({
+        ...harness.options,
+        extractionConfig: {},
+        queue: [{
+          file: undefined,
+          fileId: "file-a",
+          fileName: "file-a.csv",
+          normalizedCsvPath: "file-a.csv",
+        }],
+        clearTemplateOutputBeforeRun: false,
+        tryProcessFileWithBackend: async () => null,
+      });
+
+      await waitForAsyncJob();
+
+      assert.equal(harness.processingStatus.state, "done");
+      assert.equal(harness.processingStatus.processed, 1);
+      assert.equal(harness.showResultsCount, 0);
+      assert.equal(harness.workerErrors.length, 1);
+      assert.deepEqual(
+        harness.workerErrors.map(error => (error as { messageKey?: unknown }).messageKey),
+        ["template.extraction.sourceUnavailable"],
+      );
+      harness.dispose();
+    });
+  });
+
+  test("startProcessingJob completes a file when worker dispatch throws", async () => {
+    await withTestWorker(async () => {
+      const harness = createProcessingHarness([createRawSessionFile("file-a")]);
+      testWorkerPostMessage = () => {
+        throw new Error("Cannot clone file payload");
+      };
+
+      startProcessingJob({
+        ...harness.options,
+        extractionConfig: {},
+        queue: [{
+          file: {},
+          fileId: "file-a",
+          fileName: "file-a.csv",
+        }],
+        clearTemplateOutputBeforeRun: false,
+        tryProcessFileWithBackend: async () => null,
+      });
+
+      await waitForAsyncJob();
+
+      assert.equal(harness.processingStatus.state, "done");
+      assert.equal(harness.processingStatus.processed, 1);
+      assert.equal(harness.workerErrors.length, 1);
+      assert.deepEqual(
+        harness.workerErrors.map(error => (error as { messageKey?: unknown }).messageKey),
+        ["template.extraction.workerDispatchFailed"],
+      );
+      harness.dispose();
+    });
+  });
+
   test("startRuleProcessingJob clears template output before committing first result", async () => {
     await withTestWorker(async () => {
       const harness = createProcessingHarness([createRawSessionFile("file-b")]);
@@ -379,6 +526,61 @@ suite("workbench/services/template/test/browser/templateApplyProcessing", () => 
         snapshot.filesById["file-b"].calculationCache?.entriesByKey["gm:series-1"]?.kind,
         "gm",
       );
+      harness.dispose();
+    });
+  });
+
+  test("startRuleProcessingJob merges queue assessment into browser worker results before commit", async () => {
+    await withTestWorker(async () => {
+      const harness = createProcessingHarness([createRawSessionFile("file-c")]);
+      const entry: ProcessingQueueItem = {
+        assessment: {
+          curveType: "output",
+          curveTypeConfidence: "high",
+          xAxisRole: "vd",
+          xAxisRoleSource: "metadata",
+        },
+        file: {},
+        fileId: "file-c",
+        fileName: "file-c.csv",
+      };
+      testWorkerPostMessage = (worker, message) => {
+        const jobId = (message as { payload?: { jobId?: number } })?.payload?.jobId;
+        setTimeout(() => {
+          worker.onmessage?.({
+            data: {
+              payload: {
+                jobId,
+                processed: createProcessedSeriesFile("file-c"),
+              },
+              type: "processResult",
+            },
+          } as MessageEvent);
+        }, 0);
+      };
+
+      startRuleProcessingJob({
+        ...harness.options,
+        finalQueue: [entry],
+        groupedPrepared: [{
+          extractionConfig: {},
+          queue: [entry],
+        }],
+        incremental: false,
+        tryProcessFileWithBackend: async () => null,
+      });
+
+      await waitForAsyncJob();
+      await waitForAsyncJob();
+
+      const snapshot = harness.session.getSnapshot();
+      const curve = snapshot.filesById["file-c"].curvesByKey["base:iv:output:series-1"];
+      assert.deepEqual(curve?.points, [
+        { x: 0, y: 1 },
+        { x: 1, y: 2 },
+      ]);
+      assert.equal(harness.processingStatus.state, "done");
+      assert.equal(harness.showResultsCount, 1);
       harness.dispose();
     });
   });

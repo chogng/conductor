@@ -35,6 +35,7 @@ import type {
   IOpenContextView,
 } from "src/cs/platform/contextview/browser/contextView";
 import { localize } from "src/cs/nls";
+import { logPerf } from "src/cs/workbench/common/perf";
 import {
   type FilesViewLayout,
   REVEAL_IN_OS_COMMAND_ID,
@@ -124,6 +125,7 @@ export type ExplorerViewerProps = {
   readonly onOpenFileDialog: () => void;
   readonly onRemoveFolder: (folderKey: string) => void;
   readonly onRequestTemplates?: () => void;
+  readonly onHoverFileChange?: (fileId: string | null) => void;
   readonly onCancelRenameFile?: () => void;
   readonly onRenameFile?: (fileId: string, nextName: string) => void;
   readonly onSelectFile: (fileId: string | null) => void;
@@ -706,6 +708,15 @@ export class ExplorerViewer implements IDisposable {
     );
     const nextViewLayout = getEffectiveViewLayout(nextProps);
     const shouldClearPlotCache = this.shouldClearThumbnailPlotCache(this.props, nextProps);
+    const shouldRefreshVisibleHover = this.shouldRefreshVisibleHoverForPropsChange({
+      changedPresentationKeys,
+      nextProps,
+      nextSelectedFileId,
+      previousProps: this.props,
+      previousSelectedFileId,
+      shouldClearPlotCache,
+      shouldUpdateTree,
+    });
     const nextExplorerAppearance =
       nextProps.explorerAppearance ?? DEFAULT_EXPLORER_APPEARANCE;
     const shouldUpdateExplorerAppearance = !areExplorerAppearancesEqual(
@@ -759,8 +770,91 @@ export class ExplorerViewer implements IDisposable {
       this.treeView.rerenderByKeys(changedPresentationKeys);
     }
 
-    this.refreshVisibleHover();
+    if (shouldRefreshVisibleHover) {
+      this.refreshVisibleHover();
+    }
     this.renderThumbnailGrid();
+  }
+
+  private shouldRefreshVisibleHoverForPropsChange({
+    changedPresentationKeys,
+    nextProps,
+    nextSelectedFileId,
+    previousProps,
+    previousSelectedFileId,
+    shouldClearPlotCache,
+    shouldUpdateTree,
+  }: {
+    readonly changedPresentationKeys: readonly string[];
+    readonly nextProps: ExplorerViewerProps;
+    readonly nextSelectedFileId: string | null;
+    readonly previousProps: ExplorerViewerProps;
+    readonly previousSelectedFileId: string | null;
+    readonly shouldClearPlotCache: boolean;
+    readonly shouldUpdateTree: boolean;
+  }): boolean {
+    const content = this.hoverContent;
+    if (!content || !this.hoverView) {
+      return false;
+    }
+
+    if (content.kind !== "thumbnail") {
+      return shouldUpdateTree || changedPresentationKeys.length > 0;
+    }
+
+    const fileId = content.fileId;
+    if (!fileId) {
+      return shouldUpdateTree || shouldClearPlotCache;
+    }
+
+    if (shouldClearPlotCache) {
+      return true;
+    }
+
+    if (
+      previousSelectedFileId !== nextSelectedFileId &&
+      (previousSelectedFileId === fileId || nextSelectedFileId === fileId)
+    ) {
+      return true;
+    }
+
+    const previousFile = previousProps.files.find(file =>
+      String(file.fileId ?? "").trim() === fileId);
+    const nextFile = nextProps.files.find(file =>
+      String(file.fileId ?? "").trim() === fileId);
+    if (!previousFile || !nextFile) {
+      return true;
+    }
+
+    const previousPreviewState: FileItemChartPreviewState = {
+      chartState: previousFile.chartState,
+      hasChartData: previousFile.hasChartData,
+    };
+    const nextPreviewState: FileItemChartPreviewState = {
+      chartState: nextFile.chartState,
+      hasChartData: nextFile.hasChartData,
+    };
+    if (
+      canRequestThumbnailPreview(previousPreviewState) !==
+        canRequestThumbnailPreview(nextPreviewState)
+    ) {
+      return true;
+    }
+
+    const previousFileLike = getThumbnailFileLikeFromProps(fileId, previousProps);
+    const nextFileLike = getThumbnailFileLikeFromProps(fileId, nextProps);
+    if (
+      (previousFileLike ? createHoverThumbnailFileSignature(previousFileLike) : "") !==
+        (nextFileLike ? createHoverThumbnailFileSignature(nextFileLike) : "")
+    ) {
+      return true;
+    }
+
+    const previousPlotSignature =
+      previousProps.thumbnailPlotModelsByFileId?.[fileId]?.signature ?? "";
+    const nextPlotSignature =
+      nextProps.thumbnailPlotModelsByFileId?.[fileId]?.signature ?? "";
+    return previousPlotSignature !== nextPlotSignature;
   }
 
   dispose(): void {
@@ -1738,30 +1832,7 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private getThumbnailFileLike(fileId: string | null | undefined): ThumbnailFileLike | null {
-    const normalizedFileId = String(fileId ?? "").trim();
-    if (!normalizedFileId) {
-      return null;
-    }
-
-    const thumbnailFile = (Array.isArray(this.props.thumbnailFiles) ? this.props.thumbnailFiles : [])
-      .find((entry) => String(entry?.fileId ?? "").trim() === normalizedFileId);
-    if (thumbnailFile) {
-      return thumbnailFile;
-    }
-
-    const file = this.props.files.find((entry) =>
-      String(entry.fileId ?? "").trim() === normalizedFileId);
-    if (!file) {
-      return null;
-    }
-
-    return {
-      curveFilterField: null,
-      curveFilterKey: null,
-      curveType: file.curveType ?? undefined,
-      fileId: file.fileId,
-      fileName: file.fileName,
-    };
+    return getThumbnailFileLikeFromProps(fileId, this.props);
   }
 
   private shouldDismissVisibleHoverForContent(content: HoverContent): boolean {
@@ -1833,6 +1904,7 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
+    this.props.onHoverFileChange?.(content.kind === "thumbnail" ? content.fileId : null);
     this.cancelFileItemHoverHide();
     if (
       this.hoverAnchor === item &&
@@ -1872,6 +1944,13 @@ export class ExplorerViewer implements IDisposable {
     const token = this.hoverViewToken + 1;
     this.hoverViewToken = token;
     const isThumbnailHover = content.kind === "thumbnail";
+    if (isThumbnailHover) {
+      logPerf("thumbnailHover.open", {
+        cacheSize: this.hoverThumbnailCache.size,
+        fileId: content.fileId,
+        isSelected: content.isSelected,
+      });
+    }
     const classNames = isThumbnailHover
       ? ["file-list-hover", "file-list-hover--thumbnail"]
       : ["file-list-hover", "file-list-hover--assessment"];
@@ -2019,7 +2098,9 @@ export class ExplorerViewer implements IDisposable {
     const previewState = normalizedFileId
       ? this.props.thumbnailPreviewService.request(normalizedFileId, "hover")
       : { kind: "idle" } satisfies ThumbnailPreviewState;
-    const plotModel = getPreviewPlotModel(previewState) ?? this.getThumbnailPlotModel(fileId);
+    const previewPlotModel = getPreviewPlotModel(previewState);
+    const fallbackPlotModel = previewPlotModel ? null : this.getThumbnailPlotModel(fileId);
+    const plotModel = previewPlotModel ?? fallbackPlotModel;
     const isLoading = previewState.kind === "loading" && !plotModel;
     const cached = this.hoverThumbnailCache.get(cacheKey);
     const fileSignature = createHoverThumbnailFileSignature(file);
@@ -2035,6 +2116,14 @@ export class ExplorerViewer implements IDisposable {
       cached.node.dataset.hoverPlotSignature === plotModelSignature
     ) {
       cached.lastUsed = this.hoverCacheUse;
+      this.logThumbnailHoverRender({
+        cacheHit: true,
+        fileId: normalizedFileId,
+        isLoading,
+        plotModelSignature,
+        plotModelSource: getThumbnailHoverPlotModelSource(previewPlotModel, fallbackPlotModel),
+        previewState,
+      });
       return cached.node;
     }
 
@@ -2061,7 +2150,41 @@ export class ExplorerViewer implements IDisposable {
       plotModelSignature,
     });
     this.trimHoverThumbnailCache();
+    this.logThumbnailHoverRender({
+      cacheHit: false,
+      fileId: normalizedFileId,
+      isLoading,
+      plotModelSignature,
+      plotModelSource: getThumbnailHoverPlotModelSource(previewPlotModel, fallbackPlotModel),
+      previewState,
+    });
     return node;
+  }
+
+  private logThumbnailHoverRender({
+    cacheHit,
+    fileId,
+    isLoading,
+    plotModelSignature,
+    plotModelSource,
+    previewState,
+  }: {
+    readonly cacheHit: boolean;
+    readonly fileId: string;
+    readonly isLoading: boolean;
+    readonly plotModelSignature: string;
+    readonly plotModelSource: "explorer" | "none" | "preview";
+    readonly previewState: ThumbnailPreviewState;
+  }): void {
+    logPerf("thumbnailHover.render", {
+      cacheHit,
+      cacheSize: this.hoverThumbnailCache.size,
+      fileId,
+      isLoading,
+      plotModelSignature,
+      plotModelSource,
+      previewState: previewState.kind,
+    });
   }
 
   private getThumbnailPlotModel(fileId: string): ExplorerThumbnailPlotModel | null {
@@ -2099,9 +2222,10 @@ export class ExplorerViewer implements IDisposable {
   ): boolean {
     return (
       previous.activePlotType !== next.activePlotType ||
-      previous.thumbnailPlotModelsByFileId !== next.thumbnailPlotModelsByFileId ||
-      previous.originOpenPlotOptions !== next.originOpenPlotOptions ||
-      previous.plotAxisSettings !== next.plotAxisSettings
+      createRenderSettingsSignature(previous.originOpenPlotOptions) !==
+        createRenderSettingsSignature(next.originOpenPlotOptions) ||
+      createRenderSettingsSignature(previous.plotAxisSettings) !==
+        createRenderSettingsSignature(next.plotAxisSettings)
     );
   }
 
@@ -2175,6 +2299,16 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
+    const content = this.hoverContent;
+    if (content?.kind === "thumbnail") {
+      if (this.hoverView) {
+        logPerf("thumbnailHover.hide", {
+          cacheSize: this.hoverThumbnailCache.size,
+          fileId: content.fileId,
+        });
+      }
+      this.props.onHoverFileChange?.(null);
+    }
     this.cancelFileItemHoverHide();
     this.cancelFileItemHoverLayout();
     this.hoverAnchor = null;
@@ -2207,6 +2341,71 @@ function getPreviewPlotModel(
   return state.kind === "ready" || state.kind === "rawReady"
     ? state.model
     : null;
+}
+
+function getThumbnailFileLikeFromProps(
+  fileId: string | null | undefined,
+  props: ExplorerViewerProps,
+): ThumbnailFileLike | null {
+  const normalizedFileId = String(fileId ?? "").trim();
+  if (!normalizedFileId) {
+    return null;
+  }
+
+  const thumbnailFile = (Array.isArray(props.thumbnailFiles) ? props.thumbnailFiles : [])
+    .find((entry) => String(entry?.fileId ?? "").trim() === normalizedFileId);
+  if (thumbnailFile) {
+    return thumbnailFile;
+  }
+
+  const file = props.files.find((entry) =>
+    String(entry.fileId ?? "").trim() === normalizedFileId);
+  if (!file) {
+    return null;
+  }
+
+  return {
+    curveFilterField: null,
+    curveFilterKey: null,
+    curveType: file.curveType ?? undefined,
+    fileId: file.fileId,
+    fileName: file.fileName,
+  };
+}
+
+function createRenderSettingsSignature(value: unknown): string {
+  if (!value || typeof value !== "object") {
+    return String(value ?? "");
+  }
+
+  return JSON.stringify(sortRecordKeys(value));
+}
+
+function sortRecordKeys(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortRecordKeys);
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, sortRecordKeys(entry)]),
+  );
+}
+
+function getThumbnailHoverPlotModelSource(
+  previewPlotModel: ExplorerThumbnailPlotModel | null,
+  fallbackPlotModel: ExplorerThumbnailPlotModel | null,
+): "explorer" | "none" | "preview" {
+  if (previewPlotModel) {
+    return "preview";
+  }
+
+  return fallbackPlotModel ? "explorer" : "none";
 }
 
 function createHoverThumbnailFileSignature(file: ThumbnailFileLike): string {
@@ -2274,9 +2473,6 @@ function canRequestThumbnailPreview(state: FileItemChartPreviewState | null): bo
   if (state.hasChartData === true) {
     return true;
   }
-  if (state.hasChartData === false) {
-    return false;
-  }
 
   switch (state.chartState) {
     case "queued":
@@ -2289,6 +2485,10 @@ function canRequestThumbnailPreview(state: FileItemChartPreviewState | null): bo
       return false;
     default:
       break;
+  }
+
+  if (state.hasChartData === false) {
+    return false;
   }
 
   return true;

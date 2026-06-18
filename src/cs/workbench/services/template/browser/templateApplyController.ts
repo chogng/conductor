@@ -6,7 +6,7 @@ import { localize, type NLSVars } from "src/cs/nls";
 import { Emitter } from "src/cs/base/common/event";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import { startPerf, summarizeProcessedFile } from "src/cs/workbench/common/perf";
+import { logPerf, startPerf, summarizeProcessedFile } from "src/cs/workbench/common/perf";
 import {
   ISessionService,
   type CommitTemplateOutputInput,
@@ -18,6 +18,9 @@ import type { SessionChangeEvent } from "src/cs/workbench/services/session/commo
 import {
   createProcessedFileSessionCommit,
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
+import {
+  logSessionSnapshotTrace,
+} from "src/cs/workbench/services/session/common/sessionTrace";
 import { prepareExtraction } from "src/cs/workbench/services/template/common/extractionValidation";
 import { isAutoTemplateConfig } from "src/cs/workbench/services/template/common/autoTemplate";
 import { normalizeExtractionErrorDetails } from "src/cs/workbench/services/template/common/extractionErrors";
@@ -45,6 +48,7 @@ import {
   buildTemplateProcessingPlan,
   prioritizeTemplateProcessingQueue,
   type TemplateProcessingPlan,
+  type TemplateProcessingPlanOptions,
   type TemplateProcessingSkippedFile,
 } from "src/cs/workbench/services/template/browser/templateApplyPlanner";
 import {
@@ -430,6 +434,16 @@ const getWorkerExtractionErrorMessage = ({
         "template.extraction.curveTypeUndeterminedFromVarHints",
         "Unable to determine curve type from Var1/Var2 or nearby headers. Please check the template, or use file-name keywords.",
       );
+    case "template.extraction.sourceUnavailable":
+      return localize(
+        "template.extraction.sourceUnavailable",
+        "Source content is unavailable for template extraction.",
+      );
+    case "template.extraction.workerDispatchFailed":
+      return localize(
+        "template.extraction.workerDispatchFailed",
+        "Template extraction worker could not process this file.",
+      );
     default:
       return localize("template.extraction.workerFailed", "Extraction worker failed.");
   }
@@ -484,8 +498,27 @@ export class TemplateApplyController {
     this.input = input;
     const activeFileId = normalizeTemplateApplyFileId(input.activeFileId);
     if (activeFileId && activeFileId !== previousActiveFileId) {
-      this.prioritizeQueuedProcessingFile(activeFileId);
+      this.prioritizeProcessingFile(activeFileId);
     }
+  }
+
+  public prioritizeProcessingFile(fileId: string): void {
+    const normalizedFileId = normalizeTemplateApplyFileId(fileId);
+    if (!normalizedFileId || this._processingStatus.state !== "processing") {
+      return;
+    }
+
+    const currentQueue = this.processingQueueRef.current;
+    const nextQueue = prioritizeTemplateProcessingQueue(currentQueue, normalizedFileId);
+    if (isSameProcessingQueue(currentQueue, nextQueue)) {
+      return;
+    }
+
+    this.processingQueueRef.current = nextQueue;
+    logPerf("templateApplyController.prioritizeProcessingFile", {
+      fileId: normalizedFileId,
+      queueLength: nextQueue.length,
+    });
   }
 
   public dispose(): void {
@@ -534,20 +567,6 @@ export class TemplateApplyController {
     }));
   };
 
-  private prioritizeQueuedProcessingFile(fileId: string): void {
-    if (this._processingStatus.state !== "processing") {
-      return;
-    }
-
-    const currentQueue = this.processingQueueRef.current;
-    const nextQueue = prioritizeTemplateProcessingQueue(currentQueue, fileId);
-    if (isSameProcessingQueue(currentQueue, nextQueue)) {
-      return;
-    }
-
-    this.processingQueueRef.current = nextQueue;
-  }
-
   private readonly handleSessionChanged = (event: SessionChangeEvent): void => {
     if (event.reason === "sessionCleared") {
       this.resetProcessingWorker();
@@ -570,13 +589,26 @@ export class TemplateApplyController {
     jobId = this.processingJobIdRef.current,
   ): void => {
     const endPerf = startPerf("templateApplyController.commitTemplateOutput", summarizeProcessedFile(file));
+    const snapshot = this.options.sessionService.getSnapshot();
+    logSessionSnapshotTrace("templateApplyController.commitTemplateOutput.before", snapshot, {
+      ...summarizeProcessedFile(file),
+      jobId,
+    }, {
+      fileIds: file?.fileId ? [file.fileId] : undefined,
+    });
     const commit = createProcessedFileSessionCommit(
-      this.options.sessionService.getSnapshot(),
+      snapshot,
       file,
       options,
     );
     if (!commit) {
       endPerf({ committed: false });
+      logSessionSnapshotTrace("templateApplyController.commitTemplateOutput.noop", snapshot, {
+        committed: false,
+        jobId,
+      }, {
+        fileIds: file?.fileId ? [file.fileId] : undefined,
+      });
       return;
     }
 
@@ -584,7 +616,16 @@ export class TemplateApplyController {
     this.setFileApplyState(commit.curves.fileId, { state: "ready" });
     endPerf({
       committed: true,
+      curveCount: commit.curves.curves.length,
       pendingBatchSize: this.pendingTemplateOutputCommits.length,
+    });
+    logSessionSnapshotTrace("templateApplyController.commitTemplateOutput.queued", snapshot, {
+      committed: true,
+      curveCount: commit.curves.curves.length,
+      jobId,
+      pendingBatchSize: this.pendingTemplateOutputCommits.length,
+    }, {
+      fileIds: [commit.curves.fileId],
     });
     this.scheduleTemplateOutputFlush();
   };
@@ -639,7 +680,19 @@ export class TemplateApplyController {
       batchSize: commits.length,
       staleCommitCount,
     });
+    logSessionSnapshotTrace("templateApplyController.flushTemplateOutputs.before", this.options.sessionService.getSnapshot(), {
+      batchSize: commits.length,
+      staleCommitCount,
+    }, {
+      fileIds: commits.map(commit => commit.curves.fileId),
+    });
     this.options.sessionService.commitTemplateOutputs(commits);
+    logSessionSnapshotTrace("templateApplyController.flushTemplateOutputs.after", this.options.sessionService.getSnapshot(), {
+      batchSize: commits.length,
+      staleCommitCount,
+    }, {
+      fileIds: commits.map(commit => commit.curves.fileId),
+    });
     endPerf();
   };
 
@@ -721,8 +774,15 @@ export class TemplateApplyController {
     }
 
     if (isAutoTemplateConfig(config)) {
-      const plan = buildTemplateProcessingPlan(rawFiles, null, {
-        priorityFileId: this.input.activeFileId,
+      const endPlanPerf = this.startApplyPlanPerf("full", "auto");
+      const plan = buildTemplateProcessingPlan(
+        rawFiles,
+        null,
+        this.createTemplateProcessingPlanOptions(),
+      );
+      endPlanPerf({
+        queueCount: plan.queue.length,
+        skippedCount: plan.skippedFiles.length,
       });
       const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
       if (invalidSkippedFile && config?.stopOnError) {
@@ -757,9 +817,15 @@ export class TemplateApplyController {
       return prepared;
     }
 
-    const plan = buildTemplateProcessingPlan(rawFiles, null, {
-      mode: "manual",
-      priorityFileId: this.input.activeFileId,
+    const endPlanPerf = this.startApplyPlanPerf("full", "manual");
+    const plan = buildTemplateProcessingPlan(
+      rawFiles,
+      null,
+      this.createTemplateProcessingPlanOptions("manual"),
+    );
+    endPlanPerf({
+      queueCount: plan.queue.length,
+      skippedCount: plan.skippedFiles.length,
     });
     const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
     if (invalidSkippedFile && prepared.stopOnError) {
@@ -833,8 +899,15 @@ export class TemplateApplyController {
       }
 
       const processedIds = resolveProcessedFileIds(this.input);
-      const plan = buildTemplateProcessingPlan(rawFiles, processedIds, {
-        priorityFileId: this.input.activeFileId,
+      const endPlanPerf = this.startApplyPlanPerf("incremental", "auto");
+      const plan = buildTemplateProcessingPlan(
+        rawFiles,
+        processedIds,
+        this.createTemplateProcessingPlanOptions(),
+      );
+      endPlanPerf({
+        queueCount: plan.queue.length,
+        skippedCount: plan.skippedFiles.length,
       });
       const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
       if (invalidSkippedFile && config?.stopOnError) {
@@ -895,9 +968,15 @@ export class TemplateApplyController {
     }
 
     const processedIds = resolveProcessedFileIds(this.input);
-    const plan = buildTemplateProcessingPlan(rawFiles, processedIds, {
-      mode: "manual",
-      priorityFileId: this.input.activeFileId,
+    const endPlanPerf = this.startApplyPlanPerf("incremental", "manual");
+    const plan = buildTemplateProcessingPlan(
+      rawFiles,
+      processedIds,
+      this.createTemplateProcessingPlanOptions("manual"),
+    );
+    endPlanPerf({
+      queueCount: plan.queue.length,
+      skippedCount: plan.skippedFiles.length,
     });
     const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
     if (invalidSkippedFile && config?.stopOnError) {
@@ -1074,6 +1153,37 @@ export class TemplateApplyController {
       warnings: Array.isArray(prepared.warnings) ? prepared.warnings : [],
     };
   };
+
+  private createTemplateProcessingPlanOptions(
+    mode?: TemplateProcessingPlanOptions["mode"],
+  ): TemplateProcessingPlanOptions {
+    return {
+      canProcessFile: this.options.templateProcessingBackendService.canProcessFile(),
+      canReadConvertedCsv: this.options.templateProcessingBackendService.canReadConvertedCsv(),
+      mode,
+      priorityFileId: this.input.activeFileId,
+    };
+  }
+
+  private startApplyPlanPerf(
+    operation: "full" | "incremental" | "rule",
+    mode: TemplateProcessingPlanOptions["mode"],
+  ): (meta?: Record<string, unknown>) => void {
+    const capabilities = this.createTemplateProcessingPlanOptions(mode);
+    return startPerf("templateApplyController.applyPlan", {
+      activeFileId: this.input.activeFileId ?? null,
+      canProcessFile: capabilities.canProcessFile,
+      canReadConvertedCsv: capabilities.canReadConvertedCsv,
+      mode: mode ?? "auto",
+      operation,
+      processedFileCount: Array.isArray(this.input.processedFileIds)
+        ? this.input.processedFileIds.length
+        : 0,
+      rawFileCount: Array.isArray(this.input.rawFiles)
+        ? this.input.rawFiles.length
+        : 0,
+    });
+  }
 
   private readonly tryProcessFileWithBackend = async ({
     entry,
@@ -1256,9 +1366,16 @@ export class TemplateApplyController {
     }
 
     const processedIds = incremental ? resolveProcessedFileIds(this.input) : null;
-    const plan = buildTemplateProcessingPlan(rawFiles, processedIds, {
-      mode: "rule",
-      priorityFileId: this.input.activeFileId,
+    const endPlanPerf = this.startApplyPlanPerf("rule", "rule");
+    const plan = buildTemplateProcessingPlan(
+      rawFiles,
+      processedIds,
+      this.createTemplateProcessingPlanOptions("rule"),
+    );
+    endPlanPerf({
+      incremental,
+      queueCount: plan.queue.length,
+      skippedCount: plan.skippedFiles.length,
     });
     const invalidSkippedFile = getFirstInvalidSkippedFile(plan.skippedFiles);
     if (invalidSkippedFile && config?.stopOnError) {

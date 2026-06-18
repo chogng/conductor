@@ -51,6 +51,24 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     assert.equal(changeCount, 1);
   });
 
+  test("does not synchronously create calculated data for files without base curves", () => {
+    const file = createFileRecord();
+    file.curvesByKey = {};
+    file.seriesById = {};
+    file.seriesOrder = [];
+    file.latestTemplateRunId = null;
+    file.templateRunsById = {};
+    const snapshot = createSnapshot({ "file-a": file });
+    const service = store.add(new PlotService(
+      createSessionServiceStub(snapshot),
+      createSettingsServiceStub(),
+      store.add(new TestStorageService()),
+    ));
+
+    assert.equal(service.getCalculatedData({ fileId: "file-a", plotType: "iv", snapshot }), null);
+    assert.equal(service.getCachedCalculatedData({ fileId: "file-a", plotType: "iv", snapshot }), null);
+  });
+
   test("creates display models with legend visibility, labels, units, and scale", () => {
     const service = store.add(new PlotService(
       createSessionServiceStub(),
@@ -1458,9 +1476,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         plotType: "iv",
         snapshot,
       }, "active");
-
-      scheduledFrames.shift()?.(0);
-      await Promise.resolve();
 
       const chartOnly = service.getCachedPlotDisplayModel({
         fileId: "file-a",

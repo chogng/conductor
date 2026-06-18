@@ -20,6 +20,7 @@ import JSZip from "jszip";
 const workspace = path.resolve(fileURLToPath(new URL("../../../", import.meta.url)));
 const defaultOutputRoot = path.join(workspace, ".build", "bench", "import-badge-trace");
 const traceQuery = "conductorImportBadgeTrace=1";
+const stressViewport = { width: 1920, height: 1200 };
 
 const parseArgs = () => {
   const args = new Map();
@@ -33,16 +34,33 @@ const parseArgs = () => {
     }
   }
 
+  const fileCount = readPositiveInteger(args.get("files"), 40);
   return {
+    analysisPerf: !flags.has("no-analysis-perf"),
     autoBrowser: flags.has("auto-browser"),
     autoFolder: flags.has("auto-folder"),
+    browserChannel: args.get("browser-channel") || null,
     clean: !flags.has("keep-data"),
-    fileCount: readPositiveInteger(args.get("files"), 40),
+    fileSwitch: flags.has("file-switch"),
+    fileSwitchCount: readPositiveInteger(args.get("file-switch-count"), Math.min(20, fileCount)),
+    fileSwitchIntervalMs: readPositiveInteger(
+      args.get("file-switch-interval-ms") || args.get("file-switch-storm-interval-ms"),
+      16,
+    ),
+    fileSwitchLive: flags.has("file-switch-live"),
+    fileSwitchLiveMs: readPositiveInteger(args.get("file-switch-live-ms"), 8000),
+    fileCount,
     outputRoot: path.resolve(args.get("out") || defaultOutputRoot),
     profile: args.get("profile") || "healthy",
     rowCount: readPositiveInteger(args.get("rows"), 4000),
     runtime: args.get("runtime") || "browser",
     sampleMs: readPositiveInteger(args.get("sample-ms"), 100),
+    thumbnailHover: flags.has("thumbnail-hover"),
+    thumbnailHoverCount: readPositiveInteger(args.get("thumbnail-hover-count"), Math.min(12, fileCount)),
+    thumbnailHoverLive: flags.has("thumbnail-hover-live"),
+    thumbnailHoverLiveMs: readPositiveInteger(args.get("thumbnail-hover-live-ms"), 8000),
+    thumbnailHoverLiveWatchOnly: flags.has("thumbnail-hover-live-watch-only"),
+    thumbnailHoverStormIntervalMs: readPositiveInteger(args.get("thumbnail-hover-storm-interval-ms"), 16),
     timeoutMs: readPositiveInteger(args.get("timeout-ms"), 120000),
   };
 };
@@ -394,7 +412,7 @@ const startViteServer = async () => {
 
 const withTraceQuery = (url) => `${url}${url.includes("?") ? "&" : "?"}${traceQuery}`;
 
-const openRuntime = async ({ autoFolderPath, runtime, baseUrl }) => {
+const openRuntime = async ({ autoFolderPath, browserChannel, runtime, baseUrl }) => {
   if (runtime === "desktop") {
     const build = spawnSync("npm", ["run", "build:desktop:core"], {
       cwd: workspace,
@@ -403,7 +421,12 @@ const openRuntime = async ({ autoFolderPath, runtime, baseUrl }) => {
     });
     assert.equal(build.status, 0, "desktop core build failed");
     const app = await electron.launch({
-      args: [".", "--user-data-dir", path.join(tmpdir(), `conductor-import-trace-${Date.now()}`)],
+      args: [
+        ".",
+        "--window-size=1920,1200",
+        "--user-data-dir",
+        path.join(tmpdir(), `conductor-import-trace-${Date.now()}`),
+      ],
       cwd: workspace,
       env: {
         ...process.env,
@@ -413,6 +436,7 @@ const openRuntime = async ({ autoFolderPath, runtime, baseUrl }) => {
       },
     });
     const page = await app.firstWindow();
+    await page.setViewportSize(stressViewport).catch(() => {});
     return {
       browser: null,
       close: () => app.close(),
@@ -422,8 +446,11 @@ const openRuntime = async ({ autoFolderPath, runtime, baseUrl }) => {
   }
 
   const processRowsBeforeLaunch = readProcessRows();
-  const browser = await chromium.launch({ headless: false });
-  const page = await browser.newPage();
+  const browser = await chromium.launch({
+    ...(browserChannel ? { channel: browserChannel } : {}),
+    headless: false,
+  });
+  const page = await browser.newPage({ viewport: stressViewport });
   await page.goto(withTraceQuery(`${baseUrl}/src/cs/code/browser/workbench/workbench-dev.html`), {
     waitUntil: "domcontentloaded",
   });
@@ -873,6 +900,970 @@ const stopPageTraceObservers = async (page) => page.evaluate(() => {
   window.__conductorImportBadgeTraceObserverStop?.();
 }).catch(() => {});
 
+const enableAnalysisPerf = async (page) => page.evaluate(() => {
+  window.localStorage.setItem("conductor.perf", "1");
+  window.conductorAnalysisPerf?.clear?.();
+}).catch(() => {});
+
+const readAnalysisPerfReport = async (page) => page.evaluate(() =>
+  window.conductorAnalysisPerf?.getReport?.() ?? null
+).catch(() => null);
+
+const readThumbnailHoverDomState = async (page) => page.evaluate(() => {
+  const fileItems = [...document.querySelectorAll(".file-list-item[data-file-id]")];
+  const chartStateCounts = fileItems.reduce((counts, item) => {
+    const key = item.dataset.chartState || "none";
+    counts[key] = (counts[key] ?? 0) + 1;
+    return counts;
+  }, {});
+  const readyItems = fileItems.filter(item =>
+    item.dataset.hasChartData === "true" ||
+    item.dataset.chartState === "ready"
+  );
+  return {
+    bodyTail: document.body.innerText.slice(-2000),
+    chartReadyCount: readyItems.length,
+    chartStateCounts,
+    fileItemCount: fileItems.length,
+    hoverVisible: Boolean(document.querySelector(".file-list-hover--thumbnail")),
+    thumbnailCanvasCount: document.querySelectorAll(".file-list-hover--thumbnail canvas.thumbnail_view_chart_canvas").length,
+    thumbnailLoadingCount: document.querySelectorAll(".file-list-hover--thumbnail .thumbnail_view_chart_loading").length,
+  };
+});
+
+const getApplyAllButton = (page) =>
+  page.getByRole("button", { name: /^(应用到所有|Apply to All)$/ });
+
+const waitForApplyAllReady = async (page, timeoutMs) => page.waitForFunction(
+  () => {
+    const apply = [...document.querySelectorAll("button")]
+      .find(button => /^(应用到所有|Apply to All)$/.test((button.textContent || "").trim()));
+    const loading = [...document.querySelectorAll("[data-source-status]")]
+      .filter(host => host.dataset.sourceStatus === "pending" || host.dataset.sourceStatus === "preparing")
+      .length;
+    return Boolean(apply && !apply.disabled && loading === 0);
+  },
+  undefined,
+  { timeout: timeoutMs },
+);
+
+const runTemplateApplyForThumbnailHover = async ({
+  expectedReadyCount,
+  page,
+  timeoutMs,
+}) => {
+  const before = await readThumbnailHoverDomState(page);
+  await waitForApplyAllReady(page, timeoutMs);
+  const startedAt = Date.now();
+  await getApplyAllButton(page).click();
+  await page.waitForFunction(
+    ({ expectedReadyCount: expected }) => {
+      const fileItems = [...document.querySelectorAll(".file-list-item[data-file-id]")];
+      const required = Math.min(
+        Math.max(1, expected),
+        Math.max(1, fileItems.length),
+      );
+      const readyItems = fileItems.filter(item =>
+        item.dataset.hasChartData === "true" ||
+        item.dataset.chartState === "ready"
+      );
+      return readyItems.length >= required;
+    },
+    { expectedReadyCount },
+    { timeout: timeoutMs },
+  );
+  await page.waitForTimeout(300);
+  const after = await readThumbnailHoverDomState(page);
+  return {
+    after,
+    before,
+    durationMs: Date.now() - startedAt,
+    expectedReadyCount,
+  };
+};
+
+const readVisibleThumbnailHoverTargets = async (page, count) => page.evaluate((targetCount) =>
+  [...document.querySelectorAll(".file-list-item[data-file-id]")]
+    .map((item, itemIndex) => ({
+      chartState: item.dataset.chartState || null,
+      fileId: item.dataset.fileId || "",
+      hasChartData: item.dataset.hasChartData === "true",
+      itemIndex,
+      label: (item.textContent || "").trim().replace(/\s+/g, " ").slice(0, 160),
+      selected: item.dataset.selected === "true",
+    }))
+    .filter(target =>
+      target.fileId &&
+      (target.hasChartData ||
+        target.chartState === "ready" ||
+        target.chartState === "queued" ||
+        target.chartState === "processing")
+    )
+    .slice(0, targetCount),
+  count,
+);
+
+const waitForVisibleThumbnailHoverTargets = async (page, count, timeoutMs) => {
+  const startedAt = Date.now();
+  let targets = [];
+  while (Date.now() - startedAt < timeoutMs) {
+    targets = await readVisibleThumbnailHoverTargets(page, count);
+    if (targets.length) {
+      return targets;
+    }
+    await page.waitForTimeout(20);
+  }
+  return targets;
+};
+
+const dispatchSyntheticFileHover = async (page, fileId, previousFileId = null) => page.evaluate(({
+  fileId: targetFileId,
+  previousFileId: previousTargetFileId,
+}) => {
+  const findItem = (id) =>
+    [...document.querySelectorAll(".file-list-item[data-file-id]")]
+      .find(item => item instanceof HTMLElement && item.dataset.fileId === id) ?? null;
+  const target = findItem(targetFileId);
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  window.__thumbnailHoverLiveTrace?.recordDispatch?.(targetFileId);
+
+  const previous = previousTargetFileId ? findItem(previousTargetFileId) : null;
+  if (previous instanceof HTMLElement && previous !== target) {
+    previous.dispatchEvent(new MouseEvent("mouseout", {
+      bubbles: true,
+      cancelable: true,
+      relatedTarget: target,
+    }));
+  }
+
+  const rect = target.getBoundingClientRect();
+  target.dispatchEvent(new MouseEvent("mouseover", {
+    bubbles: true,
+    cancelable: true,
+    clientX: rect.left + Math.min(8, Math.max(1, rect.width / 2)),
+    clientY: rect.top + Math.min(8, Math.max(1, rect.height / 2)),
+    relatedTarget: previous instanceof HTMLElement ? previous : null,
+  }));
+  return true;
+}, {
+  fileId,
+  previousFileId,
+});
+
+const dispatchSyntheticFileMouseOut = async (page, fileId) => page.evaluate((targetFileId) => {
+  const target = [...document.querySelectorAll(".file-list-item[data-file-id]")]
+    .find(item => item instanceof HTMLElement && item.dataset.fileId === targetFileId) ?? null;
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  target.dispatchEvent(new MouseEvent("mouseout", {
+    bubbles: true,
+    cancelable: true,
+    relatedTarget: document.body,
+  }));
+  return true;
+}, fileId);
+
+const inspectMainChartState = async (page) => page.evaluate(() => {
+  const readCanvasSnapshot = (canvas) => {
+    if (!(canvas instanceof HTMLCanvasElement) || canvas.width <= 0 || canvas.height <= 0) {
+      return {
+        canvasHeight: canvas instanceof HTMLCanvasElement ? canvas.height : null,
+        canvasNonBlank: false,
+        canvasSignature: null,
+        canvasVisible: canvas instanceof HTMLCanvasElement,
+        canvasWidth: canvas instanceof HTMLCanvasElement ? canvas.width : null,
+      };
+    }
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return {
+        canvasHeight: canvas.height,
+        canvasNonBlank: false,
+        canvasSignature: null,
+        canvasVisible: true,
+        canvasWidth: canvas.width,
+      };
+    }
+
+    const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    const step = Math.max(4, Math.floor(data.length / 1024 / 4) * 4);
+    let nonBlank = false;
+    let hash = 2166136261;
+    for (let index = 0; index < data.length; index += step) {
+      const alpha = data[index + 3];
+      const color = data[index] + data[index + 1] + data[index + 2];
+      if (alpha > 0 && color > 0) {
+        nonBlank = true;
+      }
+      hash ^= data[index] | (data[index + 1] << 8) | (data[index + 2] << 16) | (alpha << 24);
+      hash = Math.imul(hash, 16777619);
+    }
+
+    return {
+      canvasHeight: canvas.height,
+      canvasNonBlank: nonBlank,
+      canvasSignature: `${canvas.width}x${canvas.height}:${hash >>> 0}`,
+      canvasVisible: true,
+      canvasWidth: canvas.width,
+    };
+  };
+
+  const selected = document.querySelector(".file-list-item[data-selected=\"true\"][data-file-id]");
+  const canvas = document.querySelector(".plot_main_chart_canvas");
+  const emptyTitle = document.querySelector(".chart_view_empty_title");
+  const snapshot = readCanvasSnapshot(canvas);
+  return {
+    ...snapshot,
+    chartEmptyTitle: emptyTitle?.textContent?.trim() ?? null,
+    selectedChartState: selected instanceof HTMLElement ? selected.dataset.chartState ?? null : null,
+    selectedFileId: selected instanceof HTMLElement ? selected.dataset.fileId ?? null : null,
+    selectedHasChartData: selected instanceof HTMLElement ? selected.dataset.hasChartData === "true" : null,
+  };
+});
+
+const dispatchSyntheticFileSelect = async (page, fileId) => page.evaluate((targetFileId) => {
+  const target = [...document.querySelectorAll(".file-list-item[data-file-id]")]
+    .find(item => item instanceof HTMLElement && item.dataset.fileId === targetFileId) ?? null;
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  window.__fileSwitchLiveTrace?.recordDispatch?.(targetFileId);
+
+  const rect = target.getBoundingClientRect();
+  const eventInit = {
+    bubbles: true,
+    button: 0,
+    cancelable: true,
+    clientX: rect.left + Math.min(8, Math.max(1, rect.width / 2)),
+    clientY: rect.top + Math.min(8, Math.max(1, rect.height / 2)),
+  };
+  target.dispatchEvent(new MouseEvent("mousedown", eventInit));
+  target.dispatchEvent(new MouseEvent("mouseup", eventInit));
+  target.dispatchEvent(new MouseEvent("click", eventInit));
+  return true;
+}, fileId);
+
+const waitForSelectedFile = async (page, fileId, timeoutMs) => page.waitForFunction(
+  (targetFileId) => {
+    const selected = document.querySelector(".file-list-item[data-selected=\"true\"][data-file-id]");
+    return selected instanceof HTMLElement && selected.dataset.fileId === targetFileId;
+  },
+  fileId,
+  { timeout: Math.min(timeoutMs, 5000) },
+);
+
+const waitForMainChartCanvas = async (page, fileId, timeoutMs) => page.waitForFunction(
+  (targetFileId) => {
+    const selected = document.querySelector(".file-list-item[data-selected=\"true\"][data-file-id]");
+    return selected instanceof HTMLElement &&
+      selected.dataset.fileId === targetFileId &&
+      Boolean(document.querySelector(".plot_main_chart_canvas"));
+  },
+  fileId,
+  { timeout: Math.min(timeoutMs, 10000) },
+);
+
+const waitForMainChartDrawn = async (page, fileId, previousCanvasSignature, timeoutMs) => page.waitForFunction(
+  ({ targetFileId, previousSignature }) => {
+    const selected = document.querySelector(".file-list-item[data-selected=\"true\"][data-file-id]");
+    if (!(selected instanceof HTMLElement) || selected.dataset.fileId !== targetFileId) {
+      return false;
+    }
+
+    const canvas = document.querySelector(".plot_main_chart_canvas");
+    if (!(canvas instanceof HTMLCanvasElement) || canvas.width <= 0 || canvas.height <= 0) {
+      return false;
+    }
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return false;
+    }
+    const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    const step = Math.max(4, Math.floor(data.length / 1024 / 4) * 4);
+    let nonBlank = false;
+    let hash = 2166136261;
+    for (let index = 0; index < data.length; index += step) {
+      const alpha = data[index + 3];
+      const color = data[index] + data[index + 1] + data[index + 2];
+      if (alpha > 0 && color > 0) {
+        nonBlank = true;
+      }
+      hash ^= data[index] | (data[index + 1] << 8) | (data[index + 2] << 16) | (alpha << 24);
+      hash = Math.imul(hash, 16777619);
+    }
+    if (!nonBlank) {
+      return false;
+    }
+
+    const signature = `${canvas.width}x${canvas.height}:${hash >>> 0}`;
+    return !previousSignature || signature !== previousSignature;
+  },
+  { targetFileId: fileId, previousSignature: previousCanvasSignature },
+  { timeout: Math.min(timeoutMs, 10000) },
+);
+
+const installFileSwitchLiveObserver = async (page) => page.evaluate(() => {
+  const globalTarget = window;
+  globalTarget.__fileSwitchLiveTrace?.stop?.();
+  const dispatches = [];
+  const events = [];
+  const startedAt = performance.now();
+
+  const readCanvasSnapshot = (canvas) => {
+    if (!(canvas instanceof HTMLCanvasElement) || canvas.width <= 0 || canvas.height <= 0) {
+      return {
+        canvasHeight: canvas instanceof HTMLCanvasElement ? canvas.height : null,
+        canvasNonBlank: false,
+        canvasSignature: null,
+        canvasVisible: canvas instanceof HTMLCanvasElement,
+        canvasWidth: canvas instanceof HTMLCanvasElement ? canvas.width : null,
+      };
+    }
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return {
+        canvasHeight: canvas.height,
+        canvasNonBlank: false,
+        canvasSignature: null,
+        canvasVisible: true,
+        canvasWidth: canvas.width,
+      };
+    }
+
+    const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    const step = Math.max(4, Math.floor(data.length / 1024 / 4) * 4);
+    let nonBlank = false;
+    let hash = 2166136261;
+    for (let index = 0; index < data.length; index += step) {
+      const alpha = data[index + 3];
+      const color = data[index] + data[index + 1] + data[index + 2];
+      if (alpha > 0 && color > 0) {
+        nonBlank = true;
+      }
+      hash ^= data[index] | (data[index + 1] << 8) | (data[index + 2] << 16) | (alpha << 24);
+      hash = Math.imul(hash, 16777619);
+    }
+
+    return {
+      canvasHeight: canvas.height,
+      canvasNonBlank: nonBlank,
+      canvasSignature: `${canvas.width}x${canvas.height}:${hash >>> 0}`,
+      canvasVisible: true,
+      canvasWidth: canvas.width,
+    };
+  };
+
+  const readState = (reason) => {
+    const selected = document.querySelector(".file-list-item[data-selected=\"true\"][data-file-id]");
+    const canvas = document.querySelector(".plot_main_chart_canvas");
+    const emptyTitle = document.querySelector(".chart_view_empty_title");
+    const snapshot = readCanvasSnapshot(canvas);
+    return {
+      ...snapshot,
+      chartEmptyTitle: emptyTitle?.textContent?.trim() ?? null,
+      reason,
+      selectedChartState: selected instanceof HTMLElement ? selected.dataset.chartState ?? null : null,
+      selectedFileId: selected instanceof HTMLElement ? selected.dataset.fileId ?? null : null,
+      selectedHasChartData: selected instanceof HTMLElement ? selected.dataset.hasChartData === "true" : null,
+      timestamp: performance.now() - startedAt,
+    };
+  };
+
+  let lastSignature = "";
+  const pushState = (reason) => {
+    const state = readState(reason);
+    const signature = [
+      state.selectedFileId ?? "",
+      state.selectedChartState ?? "",
+      state.selectedHasChartData ? "1" : "0",
+      state.canvasSignature ?? "",
+      state.canvasNonBlank ? "1" : "0",
+      state.chartEmptyTitle ?? "",
+    ].join("|");
+    if (signature === lastSignature && reason !== "tick") {
+      return;
+    }
+    lastSignature = signature;
+    events.push(state);
+  };
+
+  const observer = new MutationObserver(() => pushState("mutation"));
+  observer.observe(document.body || document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-selected", "data-chart-state", "data-has-chart-data", "class", "style"],
+    childList: true,
+    subtree: true,
+  });
+  const interval = window.setInterval(() => pushState("tick"), 50);
+  pushState("start");
+
+  globalTarget.__fileSwitchLiveTrace = {
+    dispatches,
+    events,
+    recordDispatch: (fileId) => {
+      dispatches.push({
+        fileId: String(fileId ?? ""),
+        state: readState("dispatch"),
+        timestamp: performance.now() - startedAt,
+      });
+      pushState("dispatch");
+    },
+    stop: () => {
+      observer.disconnect();
+      window.clearInterval(interval);
+      pushState("stop");
+      return {
+        dispatches: [...dispatches],
+        events: [...events],
+      };
+    },
+  };
+});
+
+const stopFileSwitchLiveObserver = async (page) => page.evaluate(() =>
+  window.__fileSwitchLiveTrace?.stop?.() ?? null
+).catch(() => null);
+
+const installThumbnailHoverLiveObserver = async (page, watchedFileId) => page.evaluate((targetFileId) => {
+  const globalTarget = window;
+  globalTarget.__thumbnailHoverLiveTrace?.stop?.();
+  let nextCanvasId = 1;
+  const dispatches = [];
+  const events = [];
+  const startedAt = performance.now();
+
+  const readCanvasNonBlank = (canvas) => {
+    if (!(canvas instanceof HTMLCanvasElement) || canvas.width <= 0 || canvas.height <= 0) {
+      return false;
+    }
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return false;
+    }
+
+    const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    const step = Math.max(4, Math.floor(data.length / 512 / 4) * 4);
+    for (let index = 0; index < data.length; index += step) {
+      const alpha = data[index + 3];
+      const color = data[index] + data[index + 1] + data[index + 2];
+      if (alpha > 0 && color > 0) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const readState = (reason) => {
+    const hover = document.querySelector(".file-list-hover--thumbnail");
+    const node = hover?.querySelector(".thumbnail_view[data-hover-file-id]") ?? null;
+    const canvas = node?.querySelector("canvas.thumbnail_view_chart_canvas") ?? null;
+    if (canvas instanceof HTMLCanvasElement && !canvas.dataset.traceCanvasId) {
+      canvas.dataset.traceCanvasId = String(nextCanvasId);
+      nextCanvasId += 1;
+    }
+    return {
+      canvasHeight: canvas instanceof HTMLCanvasElement ? canvas.height : null,
+      canvasId: canvas instanceof HTMLCanvasElement ? canvas.dataset.traceCanvasId ?? null : null,
+      canvasNonBlank: readCanvasNonBlank(canvas),
+      canvasVisible: canvas instanceof HTMLCanvasElement,
+      canvasWidth: canvas instanceof HTMLCanvasElement ? canvas.width : null,
+      fileId: node?.dataset.hoverFileId ?? null,
+      isWatchedFile: node?.dataset.hoverFileId === targetFileId,
+      loadingVisible: Boolean(node?.querySelector(".thumbnail_view_chart_loading")),
+      plotSignature: node?.dataset.hoverPlotSignature ?? null,
+      reason,
+      timestamp: performance.now() - startedAt,
+      tooltipVisible: Boolean(hover),
+    };
+  };
+
+  let lastSignature = "";
+  const pushState = (reason) => {
+    const state = readState(reason);
+    const signature = [
+      state.fileId ?? "",
+      state.canvasId ?? "",
+      state.canvasHeight ?? "",
+      state.canvasWidth ?? "",
+      state.canvasNonBlank ? "1" : "0",
+      state.loadingVisible ? "1" : "0",
+      state.plotSignature ?? "",
+      state.tooltipVisible ? "1" : "0",
+    ].join("|");
+    if (signature === lastSignature && reason !== "tick") {
+      return;
+    }
+    lastSignature = signature;
+    events.push(state);
+  };
+
+  const observer = new MutationObserver(() => pushState("mutation"));
+  observer.observe(document.body || document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-hover-file-id", "data-hover-plot-signature", "class", "style"],
+    childList: true,
+    subtree: true,
+  });
+  const interval = window.setInterval(() => pushState("tick"), 50);
+  pushState("start");
+
+  globalTarget.__thumbnailHoverLiveTrace = {
+    dispatches,
+    events,
+    recordDispatch: (fileId) => {
+      dispatches.push({
+        fileId: String(fileId ?? ""),
+        timestamp: performance.now() - startedAt,
+      });
+      pushState("dispatch");
+    },
+    stop: () => {
+      observer.disconnect();
+      window.clearInterval(interval);
+      pushState("stop");
+      return {
+        dispatches: [...dispatches],
+        events: [...events],
+        watchedFileId: targetFileId,
+      };
+    },
+    watchedFileId: targetFileId,
+  };
+}, watchedFileId);
+
+const stopThumbnailHoverLiveObserver = async (page) => page.evaluate(() =>
+  window.__thumbnailHoverLiveTrace?.stop?.() ?? null
+).catch(() => null);
+
+const waitForHoverThumbnailNode = async (page, fileId, timeoutMs) => page.waitForFunction(
+  (targetFileId) => {
+    const escape = window.CSS?.escape ?? ((value) => String(value).replace(/[\\"]/g, "\\$&"));
+    const selector = `.file-list-hover--thumbnail .thumbnail_view[data-hover-file-id="${escape(targetFileId)}"]`;
+    return Boolean(document.querySelector(selector));
+  },
+  fileId,
+  { timeout: Math.min(timeoutMs, 5000) },
+);
+
+const waitForHoverThumbnailCanvas = async (page, fileId, timeoutMs) => page.waitForFunction(
+  (targetFileId) => {
+    const escape = window.CSS?.escape ?? ((value) => String(value).replace(/[\\"]/g, "\\$&"));
+    const selector = `.file-list-hover--thumbnail .thumbnail_view[data-hover-file-id="${escape(targetFileId)}"]`;
+    return Boolean(document.querySelector(`${selector} canvas.thumbnail_view_chart_canvas`));
+  },
+  fileId,
+  { timeout: Math.min(timeoutMs, 10000) },
+);
+
+const waitForHoverThumbnailDrawn = async (page, fileId, timeoutMs) => page.waitForFunction(
+  (targetFileId) => {
+    const escape = window.CSS?.escape ?? ((value) => String(value).replace(/[\\"]/g, "\\$&"));
+    const selector = `.file-list-hover--thumbnail .thumbnail_view[data-hover-file-id="${escape(targetFileId)}"]`;
+    const canvas = document.querySelector(`${selector} canvas.thumbnail_view_chart_canvas`);
+    if (!(canvas instanceof HTMLCanvasElement) || canvas.width <= 0 || canvas.height <= 0) {
+      return false;
+    }
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return false;
+    }
+
+    const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    for (let index = 0; index < data.length; index += 4) {
+      const alpha = data[index + 3];
+      const color = data[index] + data[index + 1] + data[index + 2];
+      if (alpha > 0 && color > 0) {
+        return true;
+      }
+    }
+    return false;
+  },
+  fileId,
+  { timeout: Math.min(timeoutMs, 10000) },
+);
+
+const waitForTemplateProcessingBatch = async (page, timeoutMs) => page.waitForFunction(
+  () => Boolean(window.conductorAnalysisPerf?.getReport?.()?.entries?.some(entry =>
+    entry.stage === "processing:batch"
+  )),
+  undefined,
+  { timeout: timeoutMs },
+).catch(() => null);
+
+const inspectVisibleThumbnailHover = async (page) => page.evaluate(() => {
+  const hover = document.querySelector(".file-list-hover--thumbnail");
+  const node = hover?.querySelector(".thumbnail_view[data-hover-file-id]") ?? null;
+  const canvas = node?.querySelector("canvas.thumbnail_view_chart_canvas") ?? null;
+  let canvasNonBlank = false;
+  let canvasNonBlankPixels = 0;
+  let canvasPixels = 0;
+  let canvasHeight = null;
+  let canvasWidth = null;
+  if (canvas instanceof HTMLCanvasElement && canvas.width > 0 && canvas.height > 0) {
+    canvasHeight = canvas.height;
+    canvasWidth = canvas.width;
+    const context = canvas.getContext("2d");
+    if (context) {
+      const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      canvasPixels = data.length / 4;
+      for (let index = 0; index < data.length; index += 4) {
+        const alpha = data[index + 3];
+        const color = data[index] + data[index + 1] + data[index + 2];
+        if (alpha > 0 && color > 0) {
+          canvasNonBlankPixels += 1;
+        }
+      }
+      canvasNonBlank = canvasNonBlankPixels > 0;
+    }
+  }
+
+  return {
+    canvasHeight,
+    canvasNonBlank,
+    canvasNonBlankPixels,
+    canvasPixels,
+    canvasVisible: Boolean(canvas),
+    canvasWidth,
+    fileId: node?.dataset.hoverFileId ?? null,
+    loadingVisible: Boolean(node?.querySelector(".thumbnail_view_chart_loading")),
+    plotSignature: node?.dataset.hoverPlotSignature ?? null,
+    tooltipVisible: Boolean(hover),
+  };
+});
+
+const runThumbnailHoverStress = async ({
+  count,
+  page,
+  timeoutMs,
+}) => {
+  const before = await readThumbnailHoverDomState(page);
+  const targets = await readVisibleThumbnailHoverTargets(page, count);
+  const samples = [];
+  const startedAt = Date.now();
+  let previousFileId = null;
+
+  for (const target of targets) {
+    const hoverStartedAt = Date.now();
+    const dispatched = await dispatchSyntheticFileHover(page, target.fileId, previousFileId)
+      .catch(() => false);
+    if (!dispatched) {
+      samples.push({
+        ...target,
+        canvasDrawnMs: null,
+        canvasReadyMs: null,
+        canvasStableMs: null,
+        hoverState: await inspectVisibleThumbnailHover(page),
+        tooltipVisibleMs: null,
+      });
+      continue;
+    }
+    previousFileId = target.fileId;
+    let tooltipVisibleMs = null;
+    let canvasReadyMs = null;
+    let canvasDrawnMs = null;
+    let canvasStableMs = null;
+    try {
+      await waitForHoverThumbnailNode(page, target.fileId, timeoutMs);
+      tooltipVisibleMs = Date.now() - hoverStartedAt;
+    } catch {
+      tooltipVisibleMs = null;
+    }
+    try {
+      await waitForHoverThumbnailCanvas(page, target.fileId, timeoutMs);
+      canvasReadyMs = Date.now() - hoverStartedAt;
+    } catch {
+      canvasReadyMs = null;
+    }
+    try {
+      await waitForHoverThumbnailDrawn(page, target.fileId, timeoutMs);
+      canvasDrawnMs = Date.now() - hoverStartedAt;
+      await page.waitForTimeout(50);
+      const stableState = await inspectVisibleThumbnailHover(page);
+      if (stableState.canvasNonBlank) {
+        canvasStableMs = Date.now() - hoverStartedAt;
+      } else {
+        await waitForHoverThumbnailDrawn(page, target.fileId, timeoutMs);
+        canvasStableMs = Date.now() - hoverStartedAt;
+      }
+    } catch {
+      canvasDrawnMs = null;
+      canvasStableMs = null;
+    }
+    const hoverState = await inspectVisibleThumbnailHover(page);
+    samples.push({
+      ...target,
+      canvasDrawnMs,
+      canvasReadyMs,
+      canvasStableMs,
+      hoverState,
+      tooltipVisibleMs,
+    });
+    await page.waitForTimeout(160);
+  }
+  if (previousFileId) {
+    await dispatchSyntheticFileMouseOut(page, previousFileId).catch(() => {});
+  }
+
+  return {
+    before,
+    durationMs: Date.now() - startedAt,
+    requestedCount: count,
+    samples,
+    targetCount: targets.length,
+  };
+};
+
+const runLiveThumbnailHoverStress = async ({
+  count,
+  intervalMs,
+  liveMs,
+  page,
+  timeoutMs,
+  watchOnly = false,
+}) => {
+  const targets = await waitForVisibleThumbnailHoverTargets(page, count, Math.min(timeoutMs, 5000));
+  const watchedTarget = targets[0] ?? null;
+  if (!watchedTarget) {
+    return {
+      durationMs: 0,
+      eventCount: 0,
+      intervalMs,
+      liveMs,
+      requestedCount: count,
+      targetCount: 0,
+      targets,
+      trace: null,
+      watchedTarget: null,
+    };
+  }
+
+  await installThumbnailHoverLiveObserver(page, watchedTarget.fileId);
+  const startedAt = Date.now();
+  let eventCount = 0;
+  let previousFileId = null;
+  while (Date.now() - startedAt < liveMs) {
+    const target = watchOnly
+      ? watchedTarget
+      : targets[eventCount % targets.length];
+    if (!target) {
+      break;
+    }
+
+    const dispatched = await dispatchSyntheticFileHover(page, target.fileId, previousFileId)
+      .catch(() => false);
+    if (dispatched) {
+      previousFileId = target.fileId;
+    }
+    eventCount += 1;
+    await page.waitForTimeout(intervalMs);
+  }
+
+  if (watchedTarget.fileId !== previousFileId) {
+    await dispatchSyntheticFileHover(page, watchedTarget.fileId, previousFileId).catch(() => false);
+    await page.waitForTimeout(Math.max(50, intervalMs * 2));
+  }
+
+  return {
+    durationMs: Date.now() - startedAt,
+    eventCount,
+    intervalMs,
+    liveMs,
+    requestedCount: count,
+    targetCount: targets.length,
+    targets,
+    trace: await stopThumbnailHoverLiveObserver(page),
+    watchOnly,
+    watchedTarget,
+  };
+};
+
+const orderSwitchTargets = (targets, count) => [
+  ...targets.filter(target => !target.selected),
+  ...targets.filter(target => target.selected),
+].slice(0, count);
+
+const runFileSwitchStress = async ({
+  count,
+  page,
+  timeoutMs,
+}) => {
+  const before = await inspectMainChartState(page);
+  const targets = orderSwitchTargets(
+    await readVisibleThumbnailHoverTargets(page, count + 1),
+    count,
+  );
+  const samples = [];
+  const startedAt = Date.now();
+
+  for (const target of targets) {
+    const beforeState = await inspectMainChartState(page);
+    const switchStartedAt = Date.now();
+    const dispatched = await dispatchSyntheticFileSelect(page, target.fileId)
+      .catch(() => false);
+    if (!dispatched) {
+      samples.push({
+        ...target,
+        afterState: await inspectMainChartState(page),
+        beforeState,
+        canvasVisibleMs: null,
+        chartDrawnMs: null,
+        dispatched: false,
+        selectedMs: null,
+      });
+      continue;
+    }
+
+    let selectedMs = null;
+    let canvasVisibleMs = null;
+    let chartDrawnMs = null;
+    try {
+      await waitForSelectedFile(page, target.fileId, timeoutMs);
+      selectedMs = Date.now() - switchStartedAt;
+    } catch {
+      selectedMs = null;
+    }
+    try {
+      await waitForMainChartCanvas(page, target.fileId, timeoutMs);
+      canvasVisibleMs = Date.now() - switchStartedAt;
+    } catch {
+      canvasVisibleMs = null;
+    }
+    try {
+      await waitForMainChartDrawn(page, target.fileId, beforeState.canvasSignature, timeoutMs);
+      chartDrawnMs = Date.now() - switchStartedAt;
+    } catch {
+      chartDrawnMs = null;
+    }
+
+    samples.push({
+      ...target,
+      afterState: await inspectMainChartState(page),
+      beforeState,
+      canvasVisibleMs,
+      chartDrawnMs,
+      dispatched: true,
+      selectedMs,
+    });
+    await page.waitForTimeout(80);
+  }
+
+  return {
+    before,
+    durationMs: Date.now() - startedAt,
+    requestedCount: count,
+    samples,
+    targetCount: targets.length,
+  };
+};
+
+const runLiveFileSwitchStress = async ({
+  count,
+  intervalMs,
+  liveMs,
+  page,
+  timeoutMs,
+}) => {
+  const targets = orderSwitchTargets(
+    await waitForVisibleThumbnailHoverTargets(page, count + 1, Math.min(timeoutMs, 5000)),
+    count,
+  );
+  if (!targets.length) {
+    return {
+      durationMs: 0,
+      eventCount: 0,
+      intervalMs,
+      liveMs,
+      requestedCount: count,
+      settleSample: null,
+      targetCount: 0,
+      targets,
+      trace: null,
+    };
+  }
+
+  await installFileSwitchLiveObserver(page);
+  const startedAt = Date.now();
+  let eventCount = 0;
+  let lastBeforeState = null;
+  let lastSwitchStartedAt = null;
+  let lastTarget = null;
+  while (Date.now() - startedAt < liveMs) {
+    const target = targets[eventCount % targets.length];
+    if (!target) {
+      break;
+    }
+
+    lastBeforeState = await inspectMainChartState(page);
+    lastSwitchStartedAt = Date.now();
+    lastTarget = target;
+    await dispatchSyntheticFileSelect(page, target.fileId).catch(() => false);
+    eventCount += 1;
+    await page.waitForTimeout(intervalMs);
+  }
+
+  let settleSample = null;
+  if (lastTarget && lastSwitchStartedAt != null) {
+    let selectedMs = null;
+    let canvasVisibleMs = null;
+    let chartDrawnMs = null;
+    try {
+      await waitForSelectedFile(page, lastTarget.fileId, timeoutMs);
+      selectedMs = Date.now() - lastSwitchStartedAt;
+    } catch {
+      selectedMs = null;
+    }
+    try {
+      await waitForMainChartCanvas(page, lastTarget.fileId, timeoutMs);
+      canvasVisibleMs = Date.now() - lastSwitchStartedAt;
+    } catch {
+      canvasVisibleMs = null;
+    }
+    try {
+      await waitForMainChartDrawn(
+        page,
+        lastTarget.fileId,
+        lastBeforeState?.canvasSignature ?? null,
+        timeoutMs,
+      );
+      chartDrawnMs = Date.now() - lastSwitchStartedAt;
+    } catch {
+      chartDrawnMs = null;
+    }
+    settleSample = {
+      ...lastTarget,
+      afterState: await inspectMainChartState(page),
+      beforeState: lastBeforeState,
+      canvasVisibleMs,
+      chartDrawnMs,
+      selectedMs,
+    };
+  } else {
+    await page.waitForTimeout(Math.max(80, intervalMs * 2));
+  }
+
+  return {
+    durationMs: Date.now() - startedAt,
+    eventCount,
+    intervalMs,
+    liveMs,
+    requestedCount: count,
+    settleSample,
+    targetCount: targets.length,
+    targets,
+    trace: await stopFileSwitchLiveObserver(page),
+  };
+};
+
 const summarizeMilestones = (
   events,
   {
@@ -960,6 +1951,9 @@ const waitForTraceCompletion = async ({
 };
 
 const readNumber = (value) => {
+  if (value == null || value === "") {
+    return null;
+  }
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 };
@@ -1081,6 +2075,456 @@ const countBy = (values) => {
     counts[key] = (counts[key] ?? 0) + 1;
   }
   return counts;
+};
+
+const summarizeAnalysisPerfReport = (report) => {
+  const entries = Array.isArray(report?.entries) ? report.entries : [];
+  if (!entries.length) {
+    return {
+      entryCount: 0,
+      stageCounts: {},
+      thumbnail: null,
+    };
+  }
+
+  const thumbnailEntries = entries.filter(entry =>
+    String(entry.stage ?? "").startsWith("thumbnail")
+  );
+  const thumbnailHoverRenders = entries.filter(entry => entry.stage === "thumbnailHover.render");
+  const thumbnailPreviewRequests = entries.filter(entry => entry.stage === "thumbnailPreview.request");
+  return {
+    entryCount: entries.length,
+    stageCounts: countBy(entries.map(entry => entry.stage)),
+    thumbnail: {
+      entryCount: thumbnailEntries.length,
+      hoverRenderCacheHits: countBy(thumbnailHoverRenders.map(entry => entry.meta?.cacheHit)),
+      hoverRenderModelSources: countBy(thumbnailHoverRenders.map(entry => entry.meta?.plotModelSource)),
+      hoverRenderPreviewStates: countBy(thumbnailHoverRenders.map(entry => entry.meta?.previewState)),
+      previewRequestMs: summarizeStageDuration(entries, "thumbnailPreview.request"),
+      previewRequestPriorities: countBy(thumbnailPreviewRequests.map(entry => entry.meta?.priority)),
+      previewRequestStates: countBy(thumbnailPreviewRequests.map(entry => entry.meta?.state)),
+      stageCounts: countBy(thumbnailEntries.map(entry => entry.stage)),
+    },
+  };
+};
+
+const summarizeThumbnailHoverStress = (result, perfReport) => {
+  if (!result) {
+    return null;
+  }
+
+  const samples = Array.isArray(result.samples) ? result.samples : [];
+  const perfSummary = summarizeAnalysisPerfReport(perfReport).thumbnail;
+  return {
+    canvasDrawnCount: samples.filter(sample => sample.canvasDrawnMs != null).length,
+    canvasDrawnMs: summarizeDurations(samples.map(sample => sample.canvasDrawnMs)),
+    canvasNonBlankCount: samples.filter(sample => sample.hoverState?.canvasNonBlank).length,
+    canvasReadyMs: summarizeDurations(samples.map(sample => sample.canvasReadyMs)),
+    canvasStableCount: samples.filter(sample => sample.canvasStableMs != null).length,
+    canvasStableMs: summarizeDurations(samples.map(sample => sample.canvasStableMs)),
+    canvasVisibleCount: samples.filter(sample => sample.hoverState?.canvasVisible).length,
+    durationMs: result.durationMs,
+    loadingVisibleCount: samples.filter(sample => sample.hoverState?.loadingVisible).length,
+    perf: perfSummary,
+    requestedCount: result.requestedCount,
+    sampledCount: samples.length,
+    targetCount: result.targetCount,
+    tooltipVisibleCount: samples.filter(sample => sample.hoverState?.tooltipVisible).length,
+    tooltipVisibleMs: summarizeDurations(samples.map(sample => sample.tooltipVisibleMs)),
+  };
+};
+
+const firstDispatchesByFile = (dispatches) => {
+  const seen = new Set();
+  const firstDispatches = [];
+  for (const dispatch of dispatches) {
+    const fileId = String(dispatch?.fileId ?? "");
+    if (!fileId || seen.has(fileId)) {
+      continue;
+    }
+    seen.add(fileId);
+    firstDispatches.push(dispatch);
+  }
+  return firstDispatches;
+};
+
+const durationFromDispatch = (dispatch, event) => {
+  const start = readNumber(dispatch?.timestamp);
+  const end = readNumber(event?.timestamp);
+  return start != null && end != null ? roundMetric(end - start) : null;
+};
+
+const createLiveHoverTargetSamples = (result) => {
+  const events = Array.isArray(result?.trace?.events) ? result.trace.events : [];
+  const dispatches = Array.isArray(result?.trace?.dispatches) ? result.trace.dispatches : [];
+  return firstDispatchesByFile(dispatches).map((dispatch) => {
+    const fileId = String(dispatch.fileId ?? "");
+    const fileEvents = events.filter(event =>
+      event.fileId === fileId &&
+      readNumber(event.timestamp) != null &&
+      readNumber(dispatch.timestamp) != null &&
+      event.timestamp >= dispatch.timestamp
+    );
+    const tooltip = fileEvents.find(event => event.tooltipVisible);
+    const canvasVisible = fileEvents.find(event => event.canvasVisible);
+    const canvasNonBlank = fileEvents.find(event => event.canvasNonBlank);
+    const stableReady = fileEvents.find(event =>
+      event.canvasNonBlank &&
+      event.plotSignature &&
+      event.loadingVisible === false
+    );
+    const canvasIds = new Set(fileEvents.map(event => event.canvasId).filter(Boolean));
+    const plotSignatures = new Set(fileEvents.map(event => event.plotSignature).filter(Boolean));
+    let blankAfterNonBlankCount = 0;
+    let sawNonBlank = false;
+    for (const event of fileEvents) {
+      if (event.canvasNonBlank) {
+        sawNonBlank = true;
+      } else if (sawNonBlank && event.canvasVisible) {
+        blankAfterNonBlankCount += 1;
+      }
+    }
+
+    return {
+      blankAfterNonBlankCount,
+      canvasNonBlankMs: durationFromDispatch(dispatch, canvasNonBlank),
+      canvasReplacementCount: Math.max(0, canvasIds.size - 1),
+      canvasVisibleMs: durationFromDispatch(dispatch, canvasVisible),
+      dispatchTimestamp: roundMetric(readNumber(dispatch.timestamp)),
+      fileId,
+      plotSignatureChangeCount: Math.max(0, plotSignatures.size - 1),
+      stableReadyMs: durationFromDispatch(dispatch, stableReady),
+      tooltipMs: durationFromDispatch(dispatch, tooltip),
+    };
+  });
+};
+
+const summarizeThumbnailHoverLiveStress = (result, perfReport) => {
+  if (!result) {
+    return null;
+  }
+
+  const events = Array.isArray(result.trace?.events) ? result.trace.events : [];
+  const dispatches = Array.isArray(result.trace?.dispatches) ? result.trace.dispatches : [];
+  const targetSamples = createLiveHoverTargetSamples(result);
+  const watchedEvents = events.filter(event => event.isWatchedFile);
+  const watchedCanvasIds = new Set(watchedEvents
+    .map(event => event.canvasId)
+    .filter(Boolean));
+  const watchedPlotSignatures = new Set(watchedEvents
+    .map(event => event.plotSignature)
+    .filter(Boolean));
+  let blankAfterNonBlankCount = 0;
+  let sawNonBlank = false;
+  for (const event of watchedEvents) {
+    if (event.canvasNonBlank) {
+      sawNonBlank = true;
+    } else if (sawNonBlank && event.canvasVisible) {
+      blankAfterNonBlankCount += 1;
+    }
+  }
+  const firstNonBlank = watchedEvents.find(event => event.canvasNonBlank);
+  const firstStableReady = watchedEvents.find(event =>
+    event.canvasNonBlank &&
+    event.plotSignature &&
+    event.loadingVisible === false
+  );
+  const perfSummary = summarizeAnalysisPerfReport(perfReport).thumbnail;
+
+  return {
+    blankAfterNonBlankCount,
+    dispatchCount: dispatches.length,
+    durationMs: result.durationMs,
+    eventCount: result.eventCount,
+    hoverEventIntervalMs: result.intervalMs,
+    liveWindowMs: result.liveMs,
+    perf: perfSummary,
+    requestedCount: result.requestedCount,
+    sampledTargetCount: targetSamples.length,
+    targetCount: result.targetCount,
+    targetBlankAfterNonBlankCount: targetSamples.reduce(
+      (sum, sample) => sum + sample.blankAfterNonBlankCount,
+      0,
+    ),
+    targetCanvasNonBlankCount: targetSamples.filter(sample => sample.canvasNonBlankMs != null).length,
+    targetCanvasNonBlankMs: summarizeDurations(targetSamples.map(sample => sample.canvasNonBlankMs)),
+    targetCanvasReplacementCount: targetSamples.reduce(
+      (sum, sample) => sum + sample.canvasReplacementCount,
+      0,
+    ),
+    targetCanvasVisibleCount: targetSamples.filter(sample => sample.canvasVisibleMs != null).length,
+    targetCanvasVisibleMs: summarizeDurations(targetSamples.map(sample => sample.canvasVisibleMs)),
+    targetPlotSignatureChangeCount: targetSamples.reduce(
+      (sum, sample) => sum + sample.plotSignatureChangeCount,
+      0,
+    ),
+    targetSamples,
+    targetStableReadyCount: targetSamples.filter(sample => sample.stableReadyMs != null).length,
+    targetStableReadyMs: summarizeDurations(targetSamples.map(sample => sample.stableReadyMs)),
+    targetTooltipCount: targetSamples.filter(sample => sample.tooltipMs != null).length,
+    targetTooltipMs: summarizeDurations(targetSamples.map(sample => sample.tooltipMs)),
+    traceEventCount: events.length,
+    uniqueDispatchedFileCount: new Set(dispatches.map(dispatch => dispatch.fileId).filter(Boolean)).size,
+    watchOnly: result.watchOnly === true,
+    watchedCanvasReplacementCount: Math.max(0, watchedCanvasIds.size - 1),
+    watchedCanvasStateCounts: countBy(watchedEvents.map(event =>
+      event.loadingVisible
+        ? "loading"
+        : event.canvasNonBlank
+          ? "nonBlank"
+          : event.canvasVisible
+            ? "blankCanvas"
+            : event.tooltipVisible
+              ? "tooltipNoCanvas"
+              : "noTooltip"
+    )),
+    watchedFirstNonBlankMs: readNumber(firstNonBlank?.timestamp),
+    watchedFirstStableReadyMs: readNumber(firstStableReady?.timestamp),
+    watchedFileId: result.trace?.watchedFileId ?? result.watchedTarget?.fileId ?? null,
+    watchedPlotSignatureChangeCount: Math.max(0, watchedPlotSignatures.size - 1),
+    watchedTimelineHead: watchedEvents.slice(0, 12),
+    watchedTimelineTail: watchedEvents.slice(-12),
+  };
+};
+
+const summarizeLiveWatchedHoverSpeed = (result, liveSummary) => {
+  if (!result || !liveSummary) {
+    return null;
+  }
+
+  const events = Array.isArray(result.trace?.events)
+    ? result.trace.events.filter(event => event.isWatchedFile)
+    : [];
+  const firstMs = predicate => readNumber(events.find(predicate)?.timestamp);
+  return {
+    blankAfterNonBlankCount: liveSummary.blankAfterNonBlankCount,
+    dispatchCount: liveSummary.dispatchCount,
+    eventCount: result.eventCount,
+    firstCanvasNonBlankMs: firstMs(event => event.canvasNonBlank),
+    firstCanvasVisibleMs: firstMs(event => event.canvasVisible),
+    firstLoadingMs: firstMs(event => event.loadingVisible),
+    firstStableReadyMs: firstMs(event =>
+      event.canvasNonBlank &&
+      event.plotSignature &&
+      event.loadingVisible === false
+    ),
+    firstTooltipMs: firstMs(event => event.tooltipVisible),
+    sampledTargetCount: liveSummary.sampledTargetCount,
+    targetCount: result.targetCount,
+    targetCanvasNonBlankCount: liveSummary.targetCanvasNonBlankCount,
+    targetCanvasNonBlankMs: liveSummary.targetCanvasNonBlankMs,
+    targetCanvasReplacementCount: liveSummary.targetCanvasReplacementCount,
+    targetCanvasVisibleCount: liveSummary.targetCanvasVisibleCount,
+    targetCanvasVisibleMs: liveSummary.targetCanvasVisibleMs,
+    targetStableReadyCount: liveSummary.targetStableReadyCount,
+    targetStableReadyMs: liveSummary.targetStableReadyMs,
+    targetTooltipCount: liveSummary.targetTooltipCount,
+    targetTooltipMs: liveSummary.targetTooltipMs,
+    uniqueDispatchedFileCount: liveSummary.uniqueDispatchedFileCount,
+    watchedCanvasReplacementCount: liveSummary.watchedCanvasReplacementCount,
+    watchedFileId: liveSummary.watchedFileId,
+    watchedPlotSignatureChangeCount: liveSummary.watchedPlotSignatureChangeCount,
+    watchOnly: result.watchOnly === true,
+  };
+};
+
+const summarizeStableThumbnailHoverSpeed = (result, stableSummary) => {
+  if (!result || !stableSummary) {
+    return null;
+  }
+
+  return {
+    canvasDrawnCount: stableSummary.canvasDrawnCount,
+    canvasDrawnMs: stableSummary.canvasDrawnMs,
+    canvasReadyMs: stableSummary.canvasReadyMs,
+    canvasStableCount: stableSummary.canvasStableCount,
+    canvasStableMs: stableSummary.canvasStableMs,
+    canvasVisibleCount: stableSummary.canvasVisibleCount,
+    loadingVisibleCount: stableSummary.loadingVisibleCount,
+    sampledCount: stableSummary.sampledCount,
+    targetCount: stableSummary.targetCount,
+    tooltipVisibleCount: stableSummary.tooltipVisibleCount,
+    tooltipVisibleMs: stableSummary.tooltipVisibleMs,
+  };
+};
+
+const summarizeThumbnailHoverSpeedComparison = ({
+  apply,
+  live,
+  liveSummary,
+  stable,
+  stableSummary,
+}) => {
+  if (!live && !stable) {
+    return null;
+  }
+
+  const beforeProcessingComplete = summarizeLiveWatchedHoverSpeed(live, liveSummary);
+  const afterProcessingComplete = summarizeStableThumbnailHoverSpeed(stable, stableSummary);
+  const beforeFirstNonBlankMs = readNumber(beforeProcessingComplete?.targetCanvasNonBlankMs?.p50Ms) ??
+    readNumber(beforeProcessingComplete?.firstCanvasNonBlankMs);
+  const afterDrawnP50Ms = readNumber(afterProcessingComplete?.canvasDrawnMs?.p50Ms);
+  const afterDrawnMinMs = readNumber(afterProcessingComplete?.canvasDrawnMs?.minMs);
+  return {
+    afterProcessingComplete,
+    beforeProcessingComplete,
+    delta: {
+      firstNonBlankMinusStableDrawnMinMs: beforeFirstNonBlankMs != null && afterDrawnMinMs != null
+        ? roundMetric(beforeFirstNonBlankMs - afterDrawnMinMs)
+        : null,
+      firstNonBlankMinusStableDrawnP50Ms: beforeFirstNonBlankMs != null && afterDrawnP50Ms != null
+        ? roundMetric(beforeFirstNonBlankMs - afterDrawnP50Ms)
+        : null,
+      firstNonBlankToStableDrawnP50Ratio: beforeFirstNonBlankMs != null && afterDrawnP50Ms != null && afterDrawnP50Ms > 0
+        ? roundMetric(beforeFirstNonBlankMs / afterDrawnP50Ms)
+        : null,
+    },
+    processingBatchMs: readNumber(apply?.processingBatchMs),
+  };
+};
+
+const createLiveFileSwitchTargetSamples = (result) => {
+  const events = Array.isArray(result?.trace?.events) ? result.trace.events : [];
+  const dispatches = Array.isArray(result?.trace?.dispatches) ? result.trace.dispatches : [];
+  return firstDispatchesByFile(dispatches).map((dispatch) => {
+    const fileId = String(dispatch.fileId ?? "");
+    const dispatchSignature = dispatch.state?.canvasSignature ?? null;
+    const fileEvents = events.filter(event =>
+      event.selectedFileId === fileId &&
+      readNumber(event.timestamp) != null &&
+      readNumber(dispatch.timestamp) != null &&
+      event.timestamp >= dispatch.timestamp
+    );
+    const selected = fileEvents[0] ?? null;
+    const canvasVisible = fileEvents.find(event => event.canvasVisible);
+    const canvasNonBlank = fileEvents.find(event => event.canvasNonBlank);
+    const chartChanged = fileEvents.find(event =>
+      event.canvasNonBlank &&
+      event.canvasSignature &&
+      event.canvasSignature !== dispatchSignature
+    );
+    const readySelected = fileEvents.find(event =>
+      event.selectedChartState === "ready" ||
+      event.selectedHasChartData === true
+    );
+    return {
+      canvasNonBlankMs: durationFromDispatch(dispatch, canvasNonBlank),
+      canvasVisibleMs: durationFromDispatch(dispatch, canvasVisible),
+      chartDrawnMs: durationFromDispatch(dispatch, chartChanged),
+      dispatchTimestamp: roundMetric(readNumber(dispatch.timestamp)),
+      fileId,
+      readySelectedMs: durationFromDispatch(dispatch, readySelected),
+      selectedMs: durationFromDispatch(dispatch, selected),
+    };
+  });
+};
+
+const summarizeFileSwitchStress = (result) => {
+  if (!result) {
+    return null;
+  }
+
+  const samples = Array.isArray(result.samples) ? result.samples : [];
+  return {
+    canvasVisibleCount: samples.filter(sample => sample.canvasVisibleMs != null).length,
+    canvasVisibleMs: summarizeDurations(samples.map(sample => sample.canvasVisibleMs)),
+    chartDrawnCount: samples.filter(sample => sample.chartDrawnMs != null).length,
+    chartDrawnMs: summarizeDurations(samples.map(sample => sample.chartDrawnMs)),
+    durationMs: result.durationMs,
+    dispatchedCount: samples.filter(sample => sample.dispatched).length,
+    requestedCount: result.requestedCount,
+    sampledCount: samples.length,
+    selectedCount: samples.filter(sample => sample.selectedMs != null).length,
+    selectedMs: summarizeDurations(samples.map(sample => sample.selectedMs)),
+    targetCount: result.targetCount,
+  };
+};
+
+const summarizeFileSwitchLiveStress = (result) => {
+  if (!result) {
+    return null;
+  }
+
+  const events = Array.isArray(result.trace?.events) ? result.trace.events : [];
+  const dispatches = Array.isArray(result.trace?.dispatches) ? result.trace.dispatches : [];
+  const targetSamples = createLiveFileSwitchTargetSamples(result);
+  const settleSample = result.settleSample ?? null;
+  return {
+    dispatchCount: dispatches.length,
+    durationMs: result.durationMs,
+    eventCount: result.eventCount,
+    fileSwitchIntervalMs: result.intervalMs,
+    liveWindowMs: result.liveMs,
+    readySelectedCount: targetSamples.filter(sample => sample.readySelectedMs != null).length,
+    readySelectedMs: summarizeDurations(targetSamples.map(sample => sample.readySelectedMs)),
+    requestedCount: result.requestedCount,
+    sampledTargetCount: targetSamples.length,
+    settleCanvasVisibleMs: readNumber(settleSample?.canvasVisibleMs),
+    settleChartDrawnMs: readNumber(settleSample?.chartDrawnMs),
+    settleFileId: settleSample?.fileId ?? null,
+    settleSelectedMs: readNumber(settleSample?.selectedMs),
+    settleState: settleSample?.afterState ?? null,
+    targetCanvasNonBlankCount: targetSamples.filter(sample => sample.canvasNonBlankMs != null).length,
+    targetCanvasNonBlankMs: summarizeDurations(targetSamples.map(sample => sample.canvasNonBlankMs)),
+    targetCanvasVisibleCount: targetSamples.filter(sample => sample.canvasVisibleMs != null).length,
+    targetCanvasVisibleMs: summarizeDurations(targetSamples.map(sample => sample.canvasVisibleMs)),
+    targetChartDrawnCount: targetSamples.filter(sample => sample.chartDrawnMs != null).length,
+    targetChartDrawnMs: summarizeDurations(targetSamples.map(sample => sample.chartDrawnMs)),
+    targetCount: result.targetCount,
+    targetSamples,
+    targetSelectedCount: targetSamples.filter(sample => sample.selectedMs != null).length,
+    targetSelectedMs: summarizeDurations(targetSamples.map(sample => sample.selectedMs)),
+    traceEventCount: events.length,
+    uniqueDispatchedFileCount: new Set(dispatches.map(dispatch => dispatch.fileId).filter(Boolean)).size,
+  };
+};
+
+const summarizeFileSwitchSpeedComparison = ({
+  apply,
+  liveSummary,
+  stableSummary,
+}) => {
+  if (!liveSummary && !stableSummary) {
+    return null;
+  }
+
+  const beforeDrawnP50Ms = readNumber(liveSummary?.targetChartDrawnMs?.p50Ms);
+  const beforeSelectedP50Ms = readNumber(liveSummary?.targetSelectedMs?.p50Ms);
+  const settleDrawnMs = readNumber(liveSummary?.settleChartDrawnMs);
+  const settleSelectedMs = readNumber(liveSummary?.settleSelectedMs);
+  const afterDrawnP50Ms = readNumber(stableSummary?.chartDrawnMs?.p50Ms);
+  const afterSelectedP50Ms = readNumber(stableSummary?.selectedMs?.p50Ms);
+  return {
+    afterProcessingComplete: stableSummary,
+    beforeProcessingComplete: liveSummary,
+    delta: {
+      chartDrawnP50MinusStableP50Ms: beforeDrawnP50Ms != null && afterDrawnP50Ms != null
+        ? roundMetric(beforeDrawnP50Ms - afterDrawnP50Ms)
+        : null,
+      chartDrawnP50ToStableP50Ratio: beforeDrawnP50Ms != null && afterDrawnP50Ms != null && afterDrawnP50Ms > 0
+        ? roundMetric(beforeDrawnP50Ms / afterDrawnP50Ms)
+        : null,
+      settleChartDrawnMinusStableP50Ms: settleDrawnMs != null && afterDrawnP50Ms != null
+        ? roundMetric(settleDrawnMs - afterDrawnP50Ms)
+        : null,
+      settleChartDrawnToStableP50Ratio: settleDrawnMs != null && afterDrawnP50Ms != null && afterDrawnP50Ms > 0
+        ? roundMetric(settleDrawnMs / afterDrawnP50Ms)
+        : null,
+      settleSelectedMinusStableP50Ms: settleSelectedMs != null && afterSelectedP50Ms != null
+        ? roundMetric(settleSelectedMs - afterSelectedP50Ms)
+        : null,
+      settleSelectedToStableP50Ratio: settleSelectedMs != null && afterSelectedP50Ms != null && afterSelectedP50Ms > 0
+        ? roundMetric(settleSelectedMs / afterSelectedP50Ms)
+        : null,
+      selectedP50MinusStableP50Ms: beforeSelectedP50Ms != null && afterSelectedP50Ms != null
+        ? roundMetric(beforeSelectedP50Ms - afterSelectedP50Ms)
+        : null,
+      selectedP50ToStableP50Ratio: beforeSelectedP50Ms != null && afterSelectedP50Ms != null && afterSelectedP50Ms > 0
+        ? roundMetric(beforeSelectedP50Ms / afterSelectedP50Ms)
+        : null,
+    },
+    processingBatchMs: readNumber(apply?.processingBatchMs),
+  };
 };
 
 const summarizePrepareOutcomes = (events) => {
@@ -1213,8 +2657,12 @@ const main = async () => {
     runtime = await openRuntime({
       autoFolderPath: options.runtime === "desktop" && options.autoFolder ? fixtureRoot : null,
       baseUrl: server.baseUrl,
+      browserChannel: options.browserChannel,
       runtime: options.runtime,
     });
+    if (options.analysisPerf) {
+      await enableAnalysisPerf(runtime.page);
+    }
     await getOpenFolderButton(runtime.page).waitFor({ timeout: 30000 });
     await installPageTraceObservers(runtime.page);
     sampler = startResourceSampler({
@@ -1251,19 +2699,146 @@ const main = async () => {
       page: runtime.page,
       timeoutMs: options.timeoutMs,
     });
+    let thumbnailApply = null;
+    let thumbnailHover = null;
+    let thumbnailHoverLive = null;
+    let fileSwitch = null;
+    let fileSwitchLive = null;
+    if (options.thumbnailHoverLive || options.fileSwitchLive) {
+      const liveLabels = [
+        options.thumbnailHoverLive ? "thumbnail hover" : null,
+        options.fileSwitchLive ? "file switch" : null,
+      ].filter(Boolean).join(" + ");
+      console.log(`[import-badge-trace] Applying template and immediately running live ${liveLabels} stress...`);
+      const before = await readThumbnailHoverDomState(runtime.page);
+      await waitForApplyAllReady(runtime.page, options.timeoutMs);
+      const applyStartedAt = Date.now();
+      await getApplyAllButton(runtime.page).click();
+      await runtime.page.waitForFunction(
+        () => [...document.querySelectorAll(".file-list-item[data-file-id]")]
+          .some(item => {
+            const state = item.dataset.chartState;
+            return state === "queued" ||
+              state === "processing" ||
+              state === "ready" ||
+              state === "skipped";
+          }),
+        undefined,
+        { timeout: options.timeoutMs },
+      );
+      const afterClick = await readThumbnailHoverDomState(runtime.page);
+      let processingBatchMs = null;
+      const processingDone = waitForTemplateProcessingBatch(runtime.page, options.timeoutMs)
+        .then((value) => {
+          processingBatchMs = Date.now() - applyStartedAt;
+          return value;
+        });
+      if (options.thumbnailHoverLive) {
+        thumbnailHoverLive = await runLiveThumbnailHoverStress({
+          count: options.thumbnailHoverCount,
+          intervalMs: options.thumbnailHoverStormIntervalMs,
+          liveMs: options.thumbnailHoverLiveMs,
+          page: runtime.page,
+          timeoutMs: options.timeoutMs,
+          watchOnly: options.thumbnailHoverLiveWatchOnly,
+        });
+      }
+      if (options.fileSwitchLive) {
+        fileSwitchLive = await runLiveFileSwitchStress({
+          count: options.fileSwitchCount,
+          intervalMs: options.fileSwitchIntervalMs,
+          liveMs: options.fileSwitchLiveMs,
+          page: runtime.page,
+          timeoutMs: options.timeoutMs,
+        });
+      }
+      await processingDone;
+      await runtime.page.waitForTimeout(300);
+      thumbnailApply = {
+        after: await readThumbnailHoverDomState(runtime.page),
+        afterClick,
+        before,
+        durationMs: Date.now() - applyStartedAt,
+        expectedReadyCount: Math.max(
+          options.thumbnailHoverLive ? options.thumbnailHoverCount : 0,
+          options.fileSwitchLive ? options.fileSwitchCount : 0,
+        ),
+        live: true,
+        processingBatchMs,
+      };
+    }
+    if (options.thumbnailHover) {
+      if (!thumbnailApply) {
+        console.log("[import-badge-trace] Applying template before thumbnail hover stress...");
+        thumbnailApply = await runTemplateApplyForThumbnailHover({
+          expectedReadyCount: options.thumbnailHoverCount,
+          page: runtime.page,
+          timeoutMs: options.timeoutMs,
+        });
+      }
+      console.log("[import-badge-trace] Running thumbnail hover stress...");
+      thumbnailHover = await runThumbnailHoverStress({
+        count: options.thumbnailHoverCount,
+        page: runtime.page,
+        timeoutMs: options.timeoutMs,
+      });
+    }
+    if (options.fileSwitch) {
+      if (!thumbnailApply) {
+        console.log("[import-badge-trace] Applying template before file switch stress...");
+        thumbnailApply = await runTemplateApplyForThumbnailHover({
+          expectedReadyCount: options.fileSwitchCount,
+          page: runtime.page,
+          timeoutMs: options.timeoutMs,
+        });
+      }
+      console.log("[import-badge-trace] Running file switch stress...");
+      fileSwitch = await runFileSwitchStress({
+        count: options.fileSwitchCount,
+        page: runtime.page,
+        timeoutMs: options.timeoutMs,
+      });
+    }
     sampler.stop();
+    const analysisPerfReport = options.analysisPerf
+      ? await readAnalysisPerfReport(runtime.page)
+      : null;
     const milestones = summarizeMilestones(finalState.events, {
       expectedAssessmentBadgeCount: fixture.expectedAssessmentBadgeCount,
       expectedPrepareCompletionCount: fixture.expectedPrepareCompletionCount,
     });
-    const analysis = summarizeTraceAnalysis({
-      events: finalState.events,
-      fixture,
-      milestones,
-      resourceSamples: sampler.samples,
-    });
+    const thumbnailHoverSummary = summarizeThumbnailHoverStress(thumbnailHover, analysisPerfReport);
+    const thumbnailHoverLiveSummary = summarizeThumbnailHoverLiveStress(thumbnailHoverLive, analysisPerfReport);
+    const fileSwitchSummary = summarizeFileSwitchStress(fileSwitch);
+    const fileSwitchLiveSummary = summarizeFileSwitchLiveStress(fileSwitchLive);
+    const analysis = {
+      ...summarizeTraceAnalysis({
+        events: finalState.events,
+        fixture,
+        milestones,
+        resourceSamples: sampler.samples,
+      }),
+      analysisPerf: summarizeAnalysisPerfReport(analysisPerfReport),
+      thumbnailHover: thumbnailHoverSummary,
+      thumbnailHoverLive: thumbnailHoverLiveSummary,
+      thumbnailHoverSpeedComparison: summarizeThumbnailHoverSpeedComparison({
+        apply: thumbnailApply,
+        live: thumbnailHoverLive,
+        liveSummary: thumbnailHoverLiveSummary,
+        stable: thumbnailHover,
+        stableSummary: thumbnailHoverSummary,
+      }),
+      fileSwitch: fileSwitchSummary,
+      fileSwitchLive: fileSwitchLiveSummary,
+      fileSwitchSpeedComparison: summarizeFileSwitchSpeedComparison({
+        apply: thumbnailApply,
+        liveSummary: fileSwitchLiveSummary,
+        stableSummary: fileSwitchSummary,
+      }),
+    };
     const report = {
       analysis,
+      analysisPerfReport,
       fixture,
       fixtureRoot,
       generatedAt: new Date().toISOString(),
@@ -1273,6 +2848,11 @@ const main = async () => {
       finalDomState: finalState.dom,
       milestones,
       resourceSamples: sampler.samples,
+      thumbnailApply,
+      thumbnailHover,
+      thumbnailHoverLive,
+      fileSwitch,
+      fileSwitchLive,
       traceEvents: finalState.events,
     };
     const reportPath = path.join(options.outputRoot, `${runId}-${options.runtime}.json`);

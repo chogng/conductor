@@ -74,6 +74,8 @@ flowchart TD
     Template --> Assessment[Assessment blocks]
     Template --> Config[TemplateConfig]
     DomainBridge[WorkbenchDomainBridge] --> Workflow[ITemplateApplyWorkflowService.update]
+    DomainBridge --> Prioritize[ITemplateApplyWorkflowService.prioritizeProcessingFile]
+    Prioritize --> Planner
     TemplateView --> Workflow
     Assessment --> Planner[TemplateApplyPlanner]
     Config --> Planner
@@ -102,6 +104,11 @@ flowchart TD
   selection projected by `WorkbenchDomainBridge`. Template apply planning must
   move that file to the front of full, incremental, and rule queues so the
   current chart receives template output before background files.
+- `ITemplateApplyWorkflowService.prioritizeProcessingFile(fileId)` is the
+  owner API for interactive queue promotion during an active apply run.
+  `WorkbenchDomainBridge` may call it from Explorer hover or selection-derived
+  signals, but Explorer, Chart, Thumbnail, and Plot must not mutate template
+  processing queues directly.
 - Template views subscribe to `ITemplateService.onDidChangeTemplateViewInput`
   and then reread `ITemplateService.getViewInput()`. The event must not carry
   `TemplateViewInput` as the data channel.

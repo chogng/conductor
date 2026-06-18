@@ -212,6 +212,9 @@ Tree item hover thumbnail preview sequence:
 sequenceDiagram
     actor User
     participant ExplorerViewer
+    participant ExplorerService as IExplorerService
+    participant DomainBridge as WorkbenchDomainBridge
+    participant TemplateWorkflow as ITemplateApplyWorkflowService
     participant ContextViewService as IContextViewService
     participant HoverContainer as Explorer hover context-view container
     participant Plot as IPlotService
@@ -221,10 +224,13 @@ sequenceDiagram
 
     User->>ExplorerViewer: hover tree/list file item
     ExplorerViewer->>ExplorerViewer: resolve hover fileId + display metadata
-    ExplorerViewer->>ExplorerViewer: check Explorer chart state / hasChartData
-    alt chart data unavailable
+    ExplorerViewer->>ExplorerViewer: check Explorer chart previewability
+    alt file is not previewable
         ExplorerViewer-->>User: no thumbnail hover content
     else previewable chart file
+    ExplorerViewer->>ExplorerService: setHoveredFileId(fileId)
+    ExplorerService-->>DomainBridge: onDidChangeHoveredFile(fileId)
+    DomainBridge->>TemplateWorkflow: prioritizeProcessingFile(fileId)
     ExplorerViewer->>ContextViewService: showContextView({ getAnchor, render, getWidth }, hoverHost)
     ContextViewService-->>ExplorerViewer: IOpenContextView
     ExplorerViewer->>HoverContainer: create Explorer-owned hover shell
@@ -244,6 +250,7 @@ sequenceDiagram
     ThumbnailPreviewService-->>ExplorerViewer: onDidChangePreview(fileId)
     ExplorerViewer->>ContextViewService: layout()
     User->>ExplorerViewer: leave item or hover container
+    ExplorerViewer->>ExplorerService: setHoveredFileId(null)
     ExplorerViewer->>ContextViewService: hide/dismiss context view
     end
 ```
@@ -259,7 +266,7 @@ Do not create thumbnail-specific duplicates of Explorer file item commands such 
 - Thumbnail service/common code must not decide which Explorer files are visible as thumbnails. Any file filtering, field filter option building, or visible file id narrowing belongs to Explorer/files view-model code.
 - Thumbnail clicks may travel through an existing Explorer UI callback such as `onSelectFile`, but the target selection operation must remain upstream-shaped Explorer selection (`IExplorerService.select(...)`), not thumbnail-owned state.
 - Thumbnail file item actions must reuse the same Explorer/files action ids and command handlers as tree file items.
-- Tree layout hover thumbnail previews must use Explorer-owned hover triggers and context-view containers, and Explorer must filter out files whose chart state has no chart data before requesting thumbnail-owned preview content.
+- Tree layout hover thumbnail previews must use Explorer-owned hover triggers and context-view containers. Explorer filters out files that are not chart-previewable; files in queued, processing, or ready chart states may request thumbnail-owned preview content even while `hasChartData` is still false so the hover can show a loading preview and promote interactive work.
 - Visible/nearby thumbnail preview prefetch runs only while Explorer is in chart thumbnail layout. Tree layout hover previews stay on-demand through hover priority so ordinary tree scrolling does not warm thumbnail previews for every visible file.
 - Loading thumbnail previews should render a nonblank thumbnail-owned placeholder
   unless an older plot model is available, so hover and thumbnail layout do not
@@ -270,6 +277,10 @@ Do not create thumbnail-specific duplicates of Explorer file item commands such 
 - If the Plot cache is not warm yet, thumbnail preview queues keep the file in
   `loading` and retry when Plot publishes `onDidChangeCalculatedDataCache`
   instead of polling every frame or dropping the request.
+- Targeted Session invalidation for a loading thumbnail preview must preserve
+  the pending preview priority and retry the affected file against the new
+  snapshot. Do not drop the loading intent before Plot cache notifications can
+  make the preview ready.
 - Explorer may clear its own hover DOM cache when render props change, but must not directly clear `IThumbnailService`'s global bitmap cache as part of ordinary view rerendering. Thumbnail bitmap cache invalidation is driven by render keys/signatures or explicit thumbnail cache commands.
 - Do not place reusable thumbnail UI under `src/cs/workbench/contrib/files/browser/views/thumbnail`.
 - Do not keep Explorer-specific prefixes in thumbnail contribution file names or exported UI names. Prefer `thumbnailView.ts`, `createThumbnailView`, and `ThumbnailViewProps`.

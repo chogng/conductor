@@ -65,6 +65,7 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 	private readonly onDidChangePreviewEmitter = this._register(new Emitter<ThumbnailPreviewChangeEvent>());
 	public readonly onDidChangePreview = this.onDidChangePreviewEmitter.event;
 	private readonly statesByFileId = new Map<string, ThumbnailPreviewState>();
+	private readonly requestedPreviewPrioritiesByFileId = new Map<string, ThumbnailPreviewPriority>();
 	private readonly queuedPreviewPrioritiesByFileId = new Map<string, ThumbnailPreviewPriority>();
 	private cancelQueuedPreviewFlush: (() => void) | null = null;
 
@@ -78,7 +79,14 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 			this.updatePreviewStateFromPlotCacheEvent(event.fileId, event.plotType);
 		}));
 		this._register(this.plotService.onDidChangePlotState(() => this.invalidate()));
-		this._register(this.sessionService.onDidChangeSession(() => this.invalidate()));
+		this._register(this.sessionService.onDidChangeSession(event => {
+			if (event.reason === "sessionCleared" || !event.fileIds?.length) {
+				this.invalidate();
+				return;
+			}
+
+			this.invalidate(event.fileIds);
+		}));
 		this._register({ dispose: () => this.cancelScheduledPreviewFlush() });
 	}
 
@@ -103,11 +111,21 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		});
 		const previous = this.statesByFileId.get(normalizedFileId);
 		if (previous && previous.kind !== "idle") {
+			if (previous.kind === "loading") {
+				this.rememberRequestedPriority(normalizedFileId, priority);
+			}
 			this.plotService.prefetchCalculatedData([normalizedFileId], priority);
 			if (previous.kind === "loading") {
 				if (priority === "hover") {
-					const next = this.updatePreviewState(normalizedFileId);
-					endPerf({ cacheHit: true, retried: true, state: next.kind });
+					const next = this.updatePreviewState(normalizedFileId, {
+						allowSynchronousCalculation: true,
+					});
+					endPerf({
+						cacheHit: true,
+						retried: true,
+						state: next.kind,
+						synchronous: next.kind === "ready",
+					});
 					return next;
 				}
 				this.queuePreview(normalizedFileId, priority);
@@ -117,17 +135,32 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		}
 
 		if (priority === "hover") {
-			const next = { kind: "loading" } satisfies ThumbnailPreviewState;
+			this.rememberRequestedPriority(normalizedFileId, priority);
+			const next = this.createPreviewState(normalizedFileId, {
+				allowSynchronousCalculation: true,
+			});
 			this.statesByFileId.set(normalizedFileId, next);
-			this.queuePreview(normalizedFileId, priority);
+			this.syncRequestedPriorityForState(normalizedFileId, next);
+			if (next.kind === "loading") {
+				this.queuePreview(normalizedFileId, priority);
+			} else {
+				this.queuedPreviewPrioritiesByFileId.delete(normalizedFileId);
+			}
 			this.onDidChangePreviewEmitter.fire({ fileId: normalizedFileId });
-			endPerf({ cacheHit: false, deferred: true, state: next.kind });
+			endPerf({
+				cacheHit: false,
+				deferred: next.kind === "loading",
+				state: next.kind,
+				synchronous: next.kind === "ready",
+			});
 			return next;
 		}
 
+		this.rememberRequestedPriority(normalizedFileId, priority);
 		this.plotService.prefetchCalculatedData([normalizedFileId], priority);
 		const next = this.createPreviewState(normalizedFileId);
 		this.statesByFileId.set(normalizedFileId, next);
+		this.syncRequestedPriorityForState(normalizedFileId, next);
 		this.queuedPreviewPrioritiesByFileId.delete(normalizedFileId);
 		if (next.kind === "loading") {
 			this.queuePreview(normalizedFileId, priority);
@@ -151,21 +184,52 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		const normalizedFileIds = fileIds
 			?.map(normalizePreviewFileId)
 			.filter((fileId): fileId is string => Boolean(fileId));
-		const changedFileIds = normalizedFileIds?.length
-			? normalizedFileIds.filter(fileId => this.statesByFileId.delete(fileId))
-			: [...this.statesByFileId.keys()];
+		const changedFileIds: string[] = [];
 		if (!normalizedFileIds?.length) {
+			changedFileIds.push(...this.statesByFileId.keys());
 			this.statesByFileId.clear();
+			this.requestedPreviewPrioritiesByFileId.clear();
 			this.queuedPreviewPrioritiesByFileId.clear();
 			this.cancelScheduledPreviewFlush();
 		} else {
 			for (const fileId of normalizedFileIds) {
-				this.queuedPreviewPrioritiesByFileId.delete(fileId);
+				if (this.invalidateTargetedPreview(fileId)) {
+					changedFileIds.push(fileId);
+				}
 			}
 		}
 		for (const fileId of changedFileIds) {
 			this.onDidChangePreviewEmitter.fire({ fileId });
 		}
+	}
+
+	private invalidateTargetedPreview(fileId: string): boolean {
+		const previous = this.statesByFileId.get(fileId);
+		const requestedPriority = this.requestedPreviewPrioritiesByFileId.get(fileId);
+		this.queuedPreviewPrioritiesByFileId.delete(fileId);
+		if (!previous) {
+			this.requestedPreviewPrioritiesByFileId.delete(fileId);
+			return false;
+		}
+
+		if (previous?.kind !== "loading" || !requestedPriority) {
+			this.statesByFileId.delete(fileId);
+			this.requestedPreviewPrioritiesByFileId.delete(fileId);
+			return true;
+		}
+
+		const next = this.createPreviewState(fileId, {
+			allowSynchronousCalculation: requestedPriority === "hover",
+		});
+		if (next.kind === "loading") {
+			this.statesByFileId.set(fileId, next);
+			this.queuePreview(fileId, requestedPriority);
+			return false;
+		}
+
+		this.statesByFileId.set(fileId, next);
+		this.syncRequestedPriorityForState(fileId, next);
+		return true;
 	}
 
 	private queuePreview(fileId: string, priority: ThumbnailPreviewPriority): void {
@@ -174,6 +238,7 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 			return;
 		}
 
+		this.rememberRequestedPriority(normalizedFileId, priority);
 		const previous = this.statesByFileId.get(normalizedFileId);
 		if (previous && previous.kind !== "idle" && previous.kind !== "loading") {
 			return;
@@ -253,15 +318,19 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		return nextFileId;
 	}
 
-	private updatePreviewState(fileId: string): ThumbnailPreviewState {
+	private updatePreviewState(
+		fileId: string,
+		options: { readonly allowSynchronousCalculation?: boolean } = {},
+	): ThumbnailPreviewState {
 		this.queuedPreviewPrioritiesByFileId.delete(fileId);
 		const previous = this.statesByFileId.get(fileId) ?? { kind: "idle" } satisfies ThumbnailPreviewState;
-		const next = this.createPreviewState(fileId);
+		const next = this.createPreviewState(fileId, options);
 		if (isSamePreviewState(previous, next)) {
 			return previous;
 		}
 
 		this.statesByFileId.set(fileId, next);
+		this.syncRequestedPriorityForState(fileId, next);
 		this.onDidChangePreviewEmitter.fire({ fileId });
 		return next;
 	}
@@ -280,7 +349,10 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		this.updatePreviewState(normalizedFileId);
 	}
 
-	private createPreviewState(fileId: string): ThumbnailPreviewState {
+	private createPreviewState(
+		fileId: string,
+		options: { readonly allowSynchronousCalculation?: boolean } = {},
+	): ThumbnailPreviewState {
 		const snapshot = this.sessionService.getSnapshot();
 		if (!snapshot.filesById[fileId]) {
 			return {
@@ -289,11 +361,18 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 			};
 		}
 
+		const plotType = this.plotService.getState().activePlotType;
 		const model = this.plotService.getCachedCalculatedData({
 			fileId,
-			plotType: this.plotService.getState().activePlotType,
+			plotType,
 			snapshot,
-		});
+		}) ?? (options.allowSynchronousCalculation
+			? this.plotService.getCalculatedData({
+				fileId,
+				plotType,
+				snapshot,
+			})
+			: null);
 		if (!model) {
 			return { kind: "loading" };
 		}
@@ -303,6 +382,22 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 			model,
 			signature: model.signature,
 		};
+	}
+
+	private rememberRequestedPriority(fileId: string, priority: ThumbnailPreviewPriority): void {
+		const previous = this.requestedPreviewPrioritiesByFileId.get(fileId);
+		if (
+			!previous ||
+			PREVIEW_PRIORITY_ORDER[priority] < PREVIEW_PRIORITY_ORDER[previous]
+		) {
+			this.requestedPreviewPrioritiesByFileId.set(fileId, priority);
+		}
+	}
+
+	private syncRequestedPriorityForState(fileId: string, state: ThumbnailPreviewState): void {
+		if (state.kind !== "loading") {
+			this.requestedPreviewPrioritiesByFileId.delete(fileId);
+		}
 	}
 }
 

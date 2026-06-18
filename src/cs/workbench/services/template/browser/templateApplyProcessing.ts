@@ -4,6 +4,7 @@
 
 import {
   isPerfEnabled,
+  logPerf,
   startPerf,
   summarizeProcessedFile,
 } from "src/cs/workbench/common/perf";
@@ -16,7 +17,10 @@ import {
   loadConvertedCsvFile,
 } from "src/cs/workbench/services/files/browser/fileConverter";
 import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
-import type { TemplateProcessingAssessment } from "src/cs/workbench/services/template/common/templateProcessingAssessment";
+import {
+  mergeTemplateProcessingAssessment,
+  type TemplateProcessingAssessment,
+} from "src/cs/workbench/services/template/common/templateProcessingAssessment";
 import type {
   TemplateProcessingBackend,
   TemplateProcessingResultPayload,
@@ -117,6 +121,15 @@ export type RuleProcessingJobOptions = SchedulerRefs &
   };
 
 const BACKEND_PROCESSING_CONCURRENCY = 2;
+const SOURCE_UNAVAILABLE_MESSAGE_KEY = "template.extraction.sourceUnavailable";
+const SOURCE_UNAVAILABLE_MESSAGE = "Source content is unavailable for template extraction.";
+const WORKER_DISPATCH_FAILED_MESSAGE_KEY = "template.extraction.workerDispatchFailed";
+const WORKER_DISPATCH_FAILED_MESSAGE = "Template extraction worker could not process this file.";
+
+const getProcessingFailureMessage = (error: unknown): string =>
+  error instanceof Error && error.message
+    ? error.message
+    : WORKER_DISPATCH_FAILED_MESSAGE;
 
 const resolveAppliedTemplateSelection = (
   fileId: unknown,
@@ -233,6 +246,9 @@ export const startProcessingJob = ({
   if (!Array.isArray(queue) || queue.length === 0) return;
 
   const workQueue = [...queue];
+  const assessmentByFileId = new Map(
+    workQueue.map((entry) => [entry.fileId, entry.assessment ?? null]),
+  );
   let hasAnyProcessedResult = false;
   const finishBatchPerf = startPerf("processing:batch", {
     fileCount: workQueue.length,
@@ -315,6 +331,13 @@ export const startProcessingJob = ({
       if (removedQueuedFileIdsRef.current.has(nextEntry.fileId)) continue;
 
       activeCount += 1;
+      logPerf("processing:file-start", {
+        activeCount,
+        fileId: nextEntry.fileId,
+        fileName: nextEntry.fileName,
+        mode: messageType,
+        queuedCount: processingQueueRef.current.length,
+      });
       filePerfFinishers.set(
         nextEntry.fileId,
         startPerf("processing:file-roundtrip", {
@@ -325,22 +348,72 @@ export const startProcessingJob = ({
       );
 
       void (async () => {
-        const backendProcessed = await tryProcessFileWithBackend({
-          entry: nextEntry,
-          extractionConfig,
-          messageType,
-        });
-        if (jobId !== processingJobIdRef.current) return;
-        if (backendProcessed) {
-          const nextFileId = backendProcessed.fileId;
-          if (nextFileId && !hasSourceFile(nextFileId)) {
-            onSourceFileRemoved?.(nextFileId);
-            filePerfFinishers.get(nextFileId)?.({
+        try {
+          const backendProcessed = await tryProcessFileWithBackend({
+            entry: nextEntry,
+            extractionConfig,
+            messageType,
+          });
+          if (jobId !== processingJobIdRef.current) return;
+          if (backendProcessed) {
+            const nextFileId = backendProcessed.fileId;
+            if (nextFileId && !hasSourceFile(nextFileId)) {
+              onSourceFileRemoved?.(nextFileId);
+              filePerfFinishers.get(nextFileId)?.({
+                skipped: "removed-before-result",
+                ...summarizeProcessedFile(backendProcessed),
+                source: "backend",
+              });
+              filePerfFinishers.delete(nextFileId);
+              setProcessingStatus((prev) => ({
+                ...prev,
+                processed: prev.processed + 1,
+              }));
+              completedCount += 1;
+              activeCount = Math.max(0, activeCount - 1);
+              launchNext();
+              return;
+            }
+
+            hasAnyProcessedResult = true;
+            if (nextFileId) {
+              filePerfFinishers.get(nextFileId)?.({
+                ...summarizeProcessedFile(backendProcessed),
+                source: "backend",
+              });
+              filePerfFinishers.delete(nextFileId);
+            }
+            commitTemplateOutput(backendProcessed, {
+              appliedTemplateConfig: extractionConfig,
+              appliedTemplateSelection: resolveAppliedTemplateSelection(
+                nextFileId,
+                fileTemplateSelectionsByFileId,
+                templateSelection,
+              ),
+            }, jobId);
+            setProcessingStatus((prev) => ({
+              ...prev,
+              processed: prev.processed + 1,
+            }));
+            showResultsOnce();
+            completedCount += 1;
+            activeCount = Math.max(0, activeCount - 1);
+            launchNext();
+            return;
+          }
+
+          const fallbackFile = await resolveProcessingFallbackFile(
+            templateProcessingBackendService,
+            nextEntry,
+          );
+          if (!hasSourceFile(nextEntry.fileId)) {
+            onSourceFileRemoved?.(nextEntry.fileId);
+            filePerfFinishers.get(nextEntry.fileId)?.({
               skipped: "removed-before-result",
-              ...summarizeProcessedFile(backendProcessed),
-              source: "backend",
+              fileId: nextEntry.fileId,
+              fileName: nextEntry.fileName ?? null,
             });
-            filePerfFinishers.delete(nextFileId);
+            filePerfFinishers.delete(nextEntry.fileId);
             setProcessingStatus((prev) => ({
               ...prev,
               processed: prev.processed + 1,
@@ -350,69 +423,92 @@ export const startProcessingJob = ({
             launchNext();
             return;
           }
-
-          hasAnyProcessedResult = true;
-          if (nextFileId) {
-            filePerfFinishers.get(nextFileId)?.({
-              ...summarizeProcessedFile(backendProcessed),
-              source: "backend",
+          if (!fallbackFile) {
+            filePerfFinishers.get(nextEntry.fileId)?.({
+              failed: true,
+              fileId: nextEntry.fileId,
+              fileName: nextEntry.fileName ?? null,
+              message: SOURCE_UNAVAILABLE_MESSAGE,
             });
-            filePerfFinishers.delete(nextFileId);
-          }
-          commitTemplateOutput(backendProcessed, {
-            appliedTemplateConfig: extractionConfig,
-            appliedTemplateSelection: resolveAppliedTemplateSelection(
-              nextFileId,
-              fileTemplateSelectionsByFileId,
-              templateSelection,
-            ),
-          }, jobId);
-          setProcessingStatus((prev) => ({
-            ...prev,
-            processed: prev.processed + 1,
-          }));
-          showResultsOnce();
-          completedCount += 1;
-          activeCount = Math.max(0, activeCount - 1);
-          launchNext();
-          return;
-        }
+            filePerfFinishers.delete(nextEntry.fileId);
+            onWorkerErrorPayload?.({
+              fileId: nextEntry.fileId,
+              fileName: nextEntry.fileName,
+              jobId,
+              message: SOURCE_UNAVAILABLE_MESSAGE,
+              messageKey: SOURCE_UNAVAILABLE_MESSAGE_KEY,
+            });
+            setProcessingStatus((prev) => ({
+              ...prev,
+              processed: prev.processed + 1,
+            }));
+            completedCount += 1;
+            activeCount = Math.max(0, activeCount - 1);
 
-        const fallbackFile = await resolveProcessingFallbackFile(
-          templateProcessingBackendService,
-          nextEntry,
-        );
-        if (!hasSourceFile(nextEntry.fileId)) {
-          onSourceFileRemoved?.(nextEntry.fileId);
+            if (processingStopOnErrorRef.current) {
+              processingJobIdRef.current += 1;
+              failProcessingJob({
+                setProcessingStatus,
+                worker,
+                workerRef: processingWorkerRef,
+              });
+              return;
+            }
+
+            launchNext();
+            return;
+          }
+          worker.postMessage({
+            type: messageType,
+            payload: {
+              assessment: nextEntry.assessment ?? null,
+              config: extractionConfig,
+              curveFilterKey: nextEntry.curveFilterKey ?? null,
+              curveFilterField: nextEntry.curveFilterField ?? null,
+              file: fallbackFile,
+              fileId: nextEntry.fileId,
+              fileName: nextEntry.fileName,
+              jobId,
+              maxPoints: 600,
+            },
+          });
+        } catch (error) {
+          if (jobId !== processingJobIdRef.current) return;
+          const message = getProcessingFailureMessage(error);
           filePerfFinishers.get(nextEntry.fileId)?.({
-            skipped: "removed-before-result",
+            failed: true,
             fileId: nextEntry.fileId,
             fileName: nextEntry.fileName ?? null,
+            message,
           });
           filePerfFinishers.delete(nextEntry.fileId);
-          setProcessingStatus((prev) => ({
-            ...prev,
-            processed: prev.processed + 1,
-          }));
-          completedCount += 1;
-          activeCount = Math.max(0, activeCount - 1);
-          launchNext();
-          return;
-        }
-        worker.postMessage({
-          type: messageType,
-          payload: {
-            assessment: nextEntry.assessment ?? null,
-            config: extractionConfig,
-            curveFilterKey: nextEntry.curveFilterKey ?? null,
-            curveFilterField: nextEntry.curveFilterField ?? null,
-            file: fallbackFile,
+          onWorkerErrorPayload?.({
             fileId: nextEntry.fileId,
             fileName: nextEntry.fileName,
             jobId,
-            maxPoints: 600,
-          },
-        });
+            message,
+            messageKey: WORKER_DISPATCH_FAILED_MESSAGE_KEY,
+          });
+          setProcessingStatus((prev) => ({
+            ...prev,
+            processed: prev.processed + 1,
+          }));
+          completedCount += 1;
+          activeCount = Math.max(0, activeCount - 1);
+
+          if (processingStopOnErrorRef.current) {
+            processingJobIdRef.current += 1;
+            failProcessingJob({
+              setProcessingStatus,
+              worker,
+              workerRef: processingWorkerRef,
+            });
+            return;
+          }
+
+          launchNext();
+          return;
+        }
       })();
     }
 
@@ -425,8 +521,14 @@ export const startProcessingJob = ({
     if (type === "processResult") {
       if (payload?.jobId !== jobId) return;
 
-      const nextProcessed = payload?.processed;
-      const nextFileId = nextProcessed?.fileId;
+      const rawProcessed = payload?.processed;
+      const nextFileId = rawProcessed?.fileId;
+      const nextProcessed = rawProcessed
+        ? mergeTemplateProcessingAssessment(
+            rawProcessed,
+            nextFileId ? assessmentByFileId.get(nextFileId) : null,
+          )
+        : rawProcessed;
 
       if (nextFileId && !hasSourceFile(nextFileId)) {
         onSourceFileRemoved?.(nextFileId);
@@ -577,6 +679,9 @@ export const startRuleProcessingJob = ({
     (meta?: Record<string, unknown>) => void
   >();
   const extractionConfigByFileId = new Map<string, unknown>();
+  const assessmentByFileId = new Map(
+    finalQueue.map((entry) => [entry.fileId, entry.assessment ?? null]),
+  );
   let hasShownResults = false;
   const showResultsOnce = () => {
     if (hasShownResults) return;
@@ -623,6 +728,14 @@ export const startRuleProcessingJob = ({
       extractionConfigByFileId.set(nextEntry.fileId, extractionConfig);
 
       activeCount += 1;
+      logPerf("processing:file-start", {
+        activeCount,
+        fileId: nextEntry.fileId,
+        fileName: nextEntry.fileName,
+        mode: "processFile",
+        queuedCount: ruleQueue.length,
+        ruleGroupIndex: groupIndex,
+      });
       filePerfFinishers.set(
         nextEntry.fileId,
         startPerf("processing:file-roundtrip", {
@@ -633,94 +746,173 @@ export const startRuleProcessingJob = ({
         }),
       );
       void (async () => {
-        const backendProcessed = await tryProcessFileWithBackend({
-          entry: nextEntry,
-          extractionConfig,
-          messageType: "processFile",
-        });
-        if (jobId !== processingJobIdRef.current) return;
-        if (backendProcessed) {
-          const nextFileId = backendProcessed.fileId;
-          if (nextFileId && !hasSourceFile(nextFileId)) {
-            onSourceFileRemoved?.(nextFileId);
-            filePerfFinishers.get(nextFileId)?.({
-              skipped: "removed-before-result",
-              ...summarizeProcessedFile(backendProcessed),
-              source: "backend",
-            });
-            filePerfFinishers.delete(nextFileId);
-            extractionConfigByFileId.delete(nextFileId);
+        try {
+          const backendProcessed = await tryProcessFileWithBackend({
+            entry: nextEntry,
+            extractionConfig,
+            messageType: "processFile",
+          });
+          if (jobId !== processingJobIdRef.current) return;
+          if (backendProcessed) {
+            const nextFileId = backendProcessed.fileId;
+            if (nextFileId && !hasSourceFile(nextFileId)) {
+              onSourceFileRemoved?.(nextFileId);
+              filePerfFinishers.get(nextFileId)?.({
+                skipped: "removed-before-result",
+                ...summarizeProcessedFile(backendProcessed),
+                source: "backend",
+              });
+              filePerfFinishers.delete(nextFileId);
+              extractionConfigByFileId.delete(nextFileId);
+              processedCount += 1;
+              activeCount = Math.max(0, activeCount - 1);
+              setProcessingStatus((prev) => ({
+                ...prev,
+                processed: processedCount,
+              }));
+              launchNext();
+              return;
+            }
+            hasAnyProcessedResult = true;
+            if (nextFileId) {
+              filePerfFinishers.get(nextFileId)?.({
+                ...summarizeProcessedFile(backendProcessed),
+                source: "backend",
+              });
+              filePerfFinishers.delete(nextFileId);
+              extractionConfigByFileId.delete(nextFileId);
+            }
+            commitTemplateOutput(backendProcessed, {
+              appliedTemplateConfig: extractionConfig,
+              appliedTemplateSelection: resolveAppliedTemplateSelection(
+                nextFileId,
+                fileTemplateSelectionsByFileId,
+                templateSelection,
+              ),
+            }, jobId);
             processedCount += 1;
             activeCount = Math.max(0, activeCount - 1);
             setProcessingStatus((prev) => ({
               ...prev,
               processed: processedCount,
             }));
+            showResultsOnce();
             launchNext();
             return;
           }
-          hasAnyProcessedResult = true;
-          if (nextFileId) {
-            filePerfFinishers.get(nextFileId)?.({
-              ...summarizeProcessedFile(backendProcessed),
-              source: "backend",
-            });
-            filePerfFinishers.delete(nextFileId);
-            extractionConfigByFileId.delete(nextFileId);
-          }
-          commitTemplateOutput(backendProcessed, {
-            appliedTemplateConfig: extractionConfig,
-            appliedTemplateSelection: resolveAppliedTemplateSelection(
-              nextFileId,
-              fileTemplateSelectionsByFileId,
-              templateSelection,
-            ),
-          }, jobId);
-          processedCount += 1;
-          activeCount = Math.max(0, activeCount - 1);
-          setProcessingStatus((prev) => ({
-            ...prev,
-            processed: processedCount,
-          }));
-          showResultsOnce();
-          launchNext();
-          return;
-        }
 
-        const fallbackFile = await resolveProcessingFallbackFile(
-          templateProcessingBackendService,
-          nextEntry,
-        );
-        if (!hasSourceFile(nextEntry.fileId)) {
-          onSourceFileRemoved?.(nextEntry.fileId);
+          const fallbackFile = await resolveProcessingFallbackFile(
+            templateProcessingBackendService,
+            nextEntry,
+          );
+          if (!hasSourceFile(nextEntry.fileId)) {
+            onSourceFileRemoved?.(nextEntry.fileId);
+            filePerfFinishers.get(nextEntry.fileId)?.({
+              skipped: "removed-before-result",
+              fileId: nextEntry.fileId,
+              fileName: nextEntry.fileName ?? null,
+            });
+            filePerfFinishers.delete(nextEntry.fileId);
+            extractionConfigByFileId.delete(nextEntry.fileId);
+            processedCount += 1;
+            activeCount = Math.max(0, activeCount - 1);
+            setProcessingStatus((prev) => ({ ...prev, processed: processedCount }));
+            launchNext();
+            return;
+          }
+          if (!fallbackFile) {
+            filePerfFinishers.get(nextEntry.fileId)?.({
+              failed: true,
+              fileId: nextEntry.fileId,
+              fileName: nextEntry.fileName ?? null,
+              message: SOURCE_UNAVAILABLE_MESSAGE,
+            });
+            filePerfFinishers.delete(nextEntry.fileId);
+            extractionConfigByFileId.delete(nextEntry.fileId);
+            onWorkerErrorPayload?.({
+              fileId: nextEntry.fileId,
+              fileName: nextEntry.fileName,
+              jobId,
+              message: SOURCE_UNAVAILABLE_MESSAGE,
+              messageKey: SOURCE_UNAVAILABLE_MESSAGE_KEY,
+            });
+            processedCount += 1;
+            activeCount = Math.max(0, activeCount - 1);
+            setProcessingStatus((prev) => ({ ...prev, processed: processedCount }));
+
+            if (processingStopOnErrorRef.current) {
+              processingJobIdRef.current += 1;
+              finishBatchPerf({
+                failed: true,
+                fileId: nextEntry.fileId,
+                fileName: nextEntry.fileName ?? null,
+              });
+              failProcessingJob({
+                setProcessingStatus,
+                worker,
+                workerRef: processingWorkerRef,
+              });
+              return;
+            }
+
+            launchNext();
+            return;
+          }
+          worker.postMessage({
+            type: "processFile",
+            payload: {
+              assessment: nextEntry.assessment ?? null,
+              config: extractionConfig,
+              curveFilterKey: nextEntry.curveFilterKey ?? null,
+              curveFilterField: nextEntry.curveFilterField ?? null,
+              file: fallbackFile,
+              fileId: nextEntry.fileId,
+              fileName: nextEntry.fileName,
+              jobId,
+              maxPoints: 600,
+              perfEnabled: isPerfEnabled(),
+            },
+          });
+        } catch (error) {
+          if (jobId !== processingJobIdRef.current) return;
+          const message = getProcessingFailureMessage(error);
           filePerfFinishers.get(nextEntry.fileId)?.({
-            skipped: "removed-before-result",
+            failed: true,
             fileId: nextEntry.fileId,
             fileName: nextEntry.fileName ?? null,
+            message,
           });
           filePerfFinishers.delete(nextEntry.fileId);
           extractionConfigByFileId.delete(nextEntry.fileId);
-          processedCount += 1;
-          activeCount = Math.max(0, activeCount - 1);
-          setProcessingStatus((prev) => ({ ...prev, processed: processedCount }));
-          launchNext();
-          return;
-        }
-        worker.postMessage({
-          type: "processFile",
-          payload: {
-            assessment: nextEntry.assessment ?? null,
-            config: extractionConfig,
-            curveFilterKey: nextEntry.curveFilterKey ?? null,
-            curveFilterField: nextEntry.curveFilterField ?? null,
-            file: fallbackFile,
+          onWorkerErrorPayload?.({
             fileId: nextEntry.fileId,
             fileName: nextEntry.fileName,
             jobId,
-            maxPoints: 600,
-            perfEnabled: isPerfEnabled(),
-          },
-        });
+            message,
+            messageKey: WORKER_DISPATCH_FAILED_MESSAGE_KEY,
+          });
+          processedCount += 1;
+          activeCount = Math.max(0, activeCount - 1);
+          setProcessingStatus((prev) => ({ ...prev, processed: processedCount }));
+
+          if (processingStopOnErrorRef.current) {
+            processingJobIdRef.current += 1;
+            finishBatchPerf({
+              failed: true,
+              fileId: nextEntry.fileId,
+              fileName: nextEntry.fileName ?? null,
+            });
+            failProcessingJob({
+              setProcessingStatus,
+              worker,
+              workerRef: processingWorkerRef,
+            });
+            return;
+          }
+
+          launchNext();
+          return;
+        }
       })();
     }
 
@@ -732,8 +924,14 @@ export const startRuleProcessingJob = ({
     if (payload?.jobId !== jobId) return;
 
     if (type === "processResult") {
-      const nextProcessed = payload?.processed;
-      const nextFileId = nextProcessed?.fileId;
+      const rawProcessed = payload?.processed;
+      const nextFileId = rawProcessed?.fileId;
+      const nextProcessed = rawProcessed
+        ? mergeTemplateProcessingAssessment(
+            rawProcessed,
+            nextFileId ? assessmentByFileId.get(nextFileId) : null,
+          )
+        : rawProcessed;
       if (nextFileId && !hasSourceFile(nextFileId)) {
         onSourceFileRemoved?.(nextFileId);
         filePerfFinishers.get(nextFileId)?.({

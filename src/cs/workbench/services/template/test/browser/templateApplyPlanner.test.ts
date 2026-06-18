@@ -126,7 +126,10 @@ suite("workbench/services/template/test/browser/templateApplyPlanner", () => {
 			},
 		];
 
-		const plan = buildTemplateProcessingPlan(files);
+		const plan = buildTemplateProcessingPlan(files, null, {
+			canProcessFile: true,
+			canReadConvertedCsv: true,
+		});
 
 		assert.deepEqual(plan.queue.map(entry => entry.fileId), ["file-a"]);
 		assert.deepEqual(
@@ -276,7 +279,10 @@ suite("workbench/services/template/test/browser/templateApplyPlanner", () => {
 			},
 		];
 
-		const plan = buildTemplateProcessingPlan(files);
+		const plan = buildTemplateProcessingPlan(files, null, {
+			canProcessFile: true,
+			canReadConvertedCsv: true,
+		});
 
 		assert.deepEqual(
 			plan.queue.map(entry => ({
@@ -309,6 +315,52 @@ suite("workbench/services/template/test/browser/templateApplyPlanner", () => {
 				fileId: "file-missing-source",
 				reason: "invalidSource",
 			}],
+		);
+	});
+
+	test("buildTemplateProcessingPlan skips path-only sources when the runtime cannot read them", () => {
+		const files: SessionFile[] = [
+			{
+				...createProcessableAssessment(),
+				fileId: "file-normalized",
+				fileName: "Normalized.csv",
+				normalizedCsvPath: "C:/tmp/normalized.csv",
+			},
+			{
+				...createProcessableAssessment(),
+				fileId: "file-source",
+				fileName: "Source.csv",
+				sourcePath: "C:/source/source.csv",
+			},
+			{
+				...createProcessableAssessment(),
+				file: {},
+				fileId: "file-retained",
+				fileName: "Retained.csv",
+			},
+		];
+
+		const plan = buildTemplateProcessingPlan(files, null, {
+			canProcessFile: false,
+			canReadConvertedCsv: false,
+		});
+
+		assert.deepEqual(plan.queue.map(entry => entry.fileId), ["file-retained"]);
+		assert.deepEqual(
+			plan.skippedFiles.map(file => ({
+				fileId: file.fileId,
+				reason: file.reason,
+			})),
+			[
+				{
+					fileId: "file-normalized",
+					reason: "invalidSource",
+				},
+				{
+					fileId: "file-source",
+					reason: "invalidSource",
+				},
+			],
 		);
 	});
 });

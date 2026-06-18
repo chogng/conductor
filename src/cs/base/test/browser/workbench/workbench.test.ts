@@ -327,6 +327,7 @@ suite("workbench/browser/workbench layout integration", () => {
         onDidChangeFileStates: Event.None,
         onDidChangeProcessingStatus: Event.None,
         processingStatus: "idle",
+        prioritizeProcessingFile: () => undefined,
         update: () => undefined,
       },
       templateService: {
@@ -431,6 +432,7 @@ suite("workbench/browser/workbench layout integration", () => {
         onDidChangeFileStates: Event.None,
         onDidChangeProcessingStatus: Event.None,
         processingStatus: "idle",
+        prioritizeProcessingFile: () => undefined,
         update: () => undefined,
       },
       templateService: {
@@ -643,6 +645,7 @@ const createWorkbenchOptions = ({
       onDidChangeFileStates: Event.None,
       onDidChangeProcessingStatus: Event.None,
       processingStatus: "idle",
+      prioritizeProcessingFile: () => undefined,
       update: () => undefined,
     } as unknown as WorkbenchService<"templateApplyWorkflowService">,
     templateService: {

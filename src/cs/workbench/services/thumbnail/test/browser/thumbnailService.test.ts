@@ -25,19 +25,21 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		assert.ok(true);
 	});
 
-	test("preview service caches plot previews and invalidates by file id", async () => {
+	test("hover previews synchronously use PlotService when cache is cold and invalidate by file id", async () => {
 		let cachedCalls = 0;
+		let calculatedCalls = 0;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
 				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => {
 					cachedCalls += 1;
+					return null;
+				},
+				getCalculatedData: ({ fileId }: { readonly fileId: string }) => {
+					calculatedCalls += 1;
 					return {
 						fileId,
 						signature: `plot:${fileId}`,
 					};
-				},
-				getCalculatedData: () => {
-					throw new Error("thumbnail previews must not synchronously calculate plot data");
 				},
 				getState: () => ({ activePlotType: "iv" }),
 				onDidChangeCalculatedDataCache: Event.None,
@@ -66,15 +68,17 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		}));
 
 		assert.equal(service.get("file-a").kind, "idle");
-		assert.equal(service.request("file-a", "hover").kind, "loading");
-		assert.equal(cachedCalls, 0);
+		assert.equal(service.request("file-a", "hover").kind, "ready");
+		assert.equal(cachedCalls, 1);
+		assert.equal(calculatedCalls, 1);
 		await timeout();
 		assert.equal(service.get("file-a").kind, "ready");
 		assert.equal(service.request("file-a", "hover").kind, "ready");
 		assert.equal(cachedCalls, 1);
+		assert.equal(calculatedCalls, 1);
 		service.invalidate(["file-a"]);
 		assert.equal(service.get("file-a").kind, "idle");
-		assert.deepEqual(changedFileIds, ["file-a", "file-a", "file-a"]);
+		assert.deepEqual(changedFileIds, ["file-a", "file-a"]);
 	});
 
 	test("hover request retries a cached loading preview", () => {
@@ -150,21 +154,22 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		assert.equal(service.get("file-a").kind, "ready");
 	});
 
-	test("preview requests promote matching plot calculated data priority", async () => {
+	test("preview requests promote matching plot calculated data priority when hover cannot synchronously resolve", async () => {
 		const plotPrefetches: Array<{ fileIds: readonly string[]; priority: string }> = [];
 		const calculatedFileIds: string[] = [];
+		let modelReady = false;
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
 				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => {
 					calculatedFileIds.push(fileId);
-					return {
-						fileId,
-						signature: `plot:${fileId}`,
-					};
+					return modelReady
+						? {
+							fileId,
+							signature: `plot:${fileId}`,
+						}
+						: null;
 				},
-				getCalculatedData: () => {
-					throw new Error("thumbnail previews must not synchronously calculate plot data");
-				},
+				getCalculatedData: () => null,
 				getState: () => ({ activePlotType: "iv" }),
 				onDidChangeCalculatedDataCache: Event.None,
 				onDidChangePlotState: Event.None,
@@ -182,11 +187,12 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 			{ fileIds: ["hover-a"], priority: "hover" },
 			{ fileIds: ["visible-a"], priority: "visible" },
 		]);
-		assert.deepEqual(calculatedFileIds, []);
+		assert.deepEqual(calculatedFileIds, ["hover-a"]);
 
+		modelReady = true;
 		await timeout();
 
-		assert.deepEqual(calculatedFileIds, ["hover-a", "visible-a"]);
+		assert.deepEqual(calculatedFileIds, ["hover-a", "hover-a", "visible-a"]);
 	});
 
 	test("preview prefetch runs through a deferred budgeted queue", async () => {
@@ -295,6 +301,115 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 
 		assert.equal(cachedCalls, 2);
 		assert.equal(service.get("file-a").kind, "ready");
+	});
+
+	test("targeted session changes retry loading hover previews", () => {
+		const sessionEmitter = store.add(new Emitter<{
+			readonly fileIds?: readonly string[];
+			readonly reason: "templateRunChanged";
+			readonly sessionVersion: number;
+		}>());
+		let modelReady = false;
+		let calculatedCalls = 0;
+		const service = store.add(new BrowserThumbnailPreviewService(
+			{
+				getCachedCalculatedData: () => null,
+				getCalculatedData: ({ fileId }: { readonly fileId: string }) => {
+					calculatedCalls += 1;
+					return modelReady
+						? {
+							fileId,
+							signature: `plot:${fileId}`,
+						}
+						: null;
+				},
+				getState: () => ({ activePlotType: "iv" }),
+				onDidChangeCalculatedDataCache: Event.None,
+				onDidChangePlotState: Event.None,
+				prefetchCalculatedData: () => undefined,
+			} as unknown as IPlotService,
+			{
+				...createSessionService(["file-a"]),
+				onDidChangeSession: sessionEmitter.event,
+			} as unknown as ISessionService,
+		));
+		const changedFileIds: string[] = [];
+		store.add(service.onDidChangePreview(event => {
+			changedFileIds.push(event.fileId);
+		}));
+
+		assert.equal(service.request("file-a", "hover").kind, "loading");
+		assert.equal(calculatedCalls, 1);
+
+		modelReady = true;
+		sessionEmitter.fire({
+			fileIds: ["file-a"],
+			reason: "templateRunChanged",
+			sessionVersion: 2,
+		});
+
+		assert.equal(service.get("file-a").kind, "ready");
+		assert.equal(calculatedCalls, 2);
+		assert.deepEqual(changedFileIds, ["file-a", "file-a"]);
+	});
+
+	test("session changes invalidate only affected thumbnail previews", async () => {
+		const sessionEmitter = store.add(new Emitter<{
+			readonly fileIds?: readonly string[];
+			readonly reason: "templateRunChanged";
+			readonly sessionVersion: number;
+		}>());
+		const service = store.add(new BrowserThumbnailPreviewService(
+			{
+				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => ({
+					fileId,
+					signature: `plot:${fileId}`,
+				}),
+				getCalculatedData: () => {
+					throw new Error("thumbnail previews must not synchronously calculate plot data");
+				},
+				getState: () => ({ activePlotType: "iv" }),
+				onDidChangeCalculatedDataCache: Event.None,
+				onDidChangePlotState: Event.None,
+				prefetchCalculatedData: () => undefined,
+			} as unknown as IPlotService,
+			{
+				getSnapshot: () => ({
+					fileOrder: ["file-a", "file-b"],
+					filesById: {
+						"file-a": {
+							curvesByKey: {},
+							id: "file-a",
+							raw: {},
+						},
+						"file-b": {
+							curvesByKey: {},
+							id: "file-b",
+							raw: {},
+						},
+					},
+					schemaVersion: 1,
+					sessionVersion: 1,
+				}),
+				onDidChangeSession: sessionEmitter.event,
+			} as unknown as ISessionService,
+		));
+
+		service.request("file-a", "hover");
+		service.request("file-b", "hover");
+		await timeout();
+
+		assert.equal(service.get("file-a").kind, "ready");
+		assert.equal(service.get("file-b").kind, "ready");
+
+		sessionEmitter.fire({
+			fileIds: ["file-b"],
+			reason: "templateRunChanged",
+			sessionVersion: 2,
+		});
+
+		assert.equal(service.get("file-a").kind, "ready");
+		assert.equal(service.get("file-b").kind, "idle");
 	});
 
 	test("bitmap drawing skips detached canvases instead of using fallback dimensions", () => {

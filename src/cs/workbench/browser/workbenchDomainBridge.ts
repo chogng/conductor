@@ -30,6 +30,9 @@ import {
   createSessionReadModel,
   type SessionReadModel,
 } from "src/cs/workbench/services/session/common/sessionReadModel";
+import {
+  logSessionSnapshotTrace,
+} from "src/cs/workbench/services/session/common/sessionTrace";
 import type {
   ITableService,
   TableSource,
@@ -80,6 +83,11 @@ export class WorkbenchDomainBridge extends Disposable {
     this._register(this.options.settingsService.onDidChangeConductorSettings(() => this.scheduleSync()));
     this._register(this.options.explorerService.onDidChangePendingSourceFiles(() => this.scheduleSync()));
     this._register(this.options.explorerService.onDidChangeSelection(() => this.scheduleSync()));
+    this._register(this.options.explorerService.onDidChangeHoveredFile(event => {
+      if (event.fileId) {
+        this.options.templateApplyWorkflowService.prioritizeProcessingFile(event.fileId);
+      }
+    }));
     this._register(this.options.explorerService.onDidChangeVisibleFileIds(event => {
       this.prioritizeVisibleExplorerFiles(event.visibleFileIds, event.nearbyFileIds);
     }));
@@ -130,6 +138,13 @@ export class WorkbenchDomainBridge extends Disposable {
       sessionVersion: snapshot.sessionVersion,
     });
     const readModel = createSessionReadModel(snapshot);
+    logSessionSnapshotTrace("workbenchDomainBridge.sync", snapshot, {
+      hasChartData: readModel.hasChartData,
+      processedFileCount: readModel.processedFileIds.length,
+      rawFileCount: readModel.rawFiles.length,
+    }, {
+      fileIds: readModel.processedFileIds,
+    });
     const explorerSelection = reconcileExplorerSessionSelection(
       this.options.explorerService,
       readModel,

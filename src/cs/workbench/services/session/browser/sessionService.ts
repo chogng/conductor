@@ -28,6 +28,9 @@ import {
   resetProcessedRecords,
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import {
+  logSessionSnapshotTrace,
+} from "src/cs/workbench/services/session/common/sessionTrace";
+import {
   ISessionService,
   type CommitFileImportResult,
   type CommitCurvesBatchInput,
@@ -353,17 +356,23 @@ export class SessionService extends Disposable implements ISessionServiceType {
   };
 
   public commitTemplateOutputs = (inputs: readonly CommitTemplateOutputInput[]): void => {
-    const inputCount = Array.isArray(inputs) ? inputs.length : 0;
+    const inputList = Array.isArray(inputs) ? inputs : [];
+    const inputCount = inputList.length;
     const endPerf = startPerf("sessionService.commitTemplateOutput", {
       batchSize: inputCount,
       sessionVersion: this.snapshot.sessionVersion,
+    });
+    logSessionSnapshotTrace("sessionService.commitTemplateOutputs.before", this.snapshot, {
+      batchSize: inputCount,
+    }, {
+      fileIds: inputList.flatMap(input => input.curves?.fileId ? [input.curves.fileId] : []),
     });
     let nextFilesById = this.snapshot.filesById;
     const committedFileIds: FileId[] = [];
     const committedCurveKeys: SessionCurveKey[] = [];
     const committedSeriesIds: string[] = [];
 
-    for (const input of Array.isArray(inputs) ? inputs : []) {
+    for (const input of inputList) {
       const templateRunInput = getTemplateRunFromCommitInput(input.templateRun);
       const templateRun = templateRunInput ? normalizeTemplateRunRecord(templateRunInput) : null;
       const file = templateRun ? nextFilesById[templateRun.fileId] : undefined;
@@ -422,6 +431,10 @@ export class SessionService extends Disposable implements ISessionServiceType {
 
     if (nextFilesById === this.snapshot.filesById) {
       endPerf({ committed: false });
+      logSessionSnapshotTrace("sessionService.commitTemplateOutputs.noop", this.snapshot, {
+        batchSize: inputCount,
+        committed: false,
+      });
       return;
     }
 
@@ -439,6 +452,15 @@ export class SessionService extends Disposable implements ISessionServiceType {
       committedFileCount: uniqueStrings(committedFileIds).length,
       committedSeriesCount: uniqueStrings(committedSeriesIds).length,
       nextSessionVersion: this.snapshot.sessionVersion,
+    });
+    logSessionSnapshotTrace("sessionService.commitTemplateOutputs.after", this.snapshot, {
+      batchSize: inputCount,
+      committed: true,
+      committedCurveCount: uniqueStrings(committedCurveKeys).length,
+      committedFileCount: uniqueStrings(committedFileIds).length,
+      committedSeriesCount: uniqueStrings(committedSeriesIds).length,
+    }, {
+      fileIds: committedFileIds,
     });
   };
 
@@ -615,6 +637,15 @@ export class SessionService extends Disposable implements ISessionServiceType {
       sessionVersion: this.snapshot.sessionVersion + 1,
     };
     this.snapshot = nextSnapshot;
+    logSessionSnapshotTrace("sessionService.replaceSnapshot", nextSnapshot, {
+      affectedCurveCount: affected.curveKeys?.length ?? 0,
+      affectedFileCount: affected.fileIds?.length ?? 0,
+      affectedMetricCount: affected.metricKeys?.length ?? 0,
+      affectedSeriesCount: affected.seriesIds?.length ?? 0,
+      reason,
+    }, {
+      fileIds: affected.fileIds,
+    });
     this.queueChange(createSessionChangeEvent(
       reason,
       nextSnapshot.sessionVersion,

@@ -31,6 +31,8 @@ export type TemplateProcessingPlan = {
 export type TemplateProcessingPlanMode = "auto" | "manual" | "rule";
 
 export type TemplateProcessingPlanOptions = {
+	readonly canProcessFile?: boolean;
+	readonly canReadConvertedCsv?: boolean;
 	readonly mode?: TemplateProcessingPlanMode;
 	readonly priorityFileId?: string | null;
 };
@@ -65,7 +67,7 @@ export function buildTemplateProcessingPlan(
 			continue;
 		}
 
-		if (!hasTemplateProcessingSource(entry)) {
+		if (!hasTemplateProcessingSource(entry, options)) {
 			skippedFiles.push({
 				fileId,
 				fileName: entry.fileName,
@@ -145,10 +147,35 @@ export function prioritizeTemplateProcessingQueue<T extends { readonly fileId?: 
 
 const normalizeFileId = (fileId: string | null | undefined): string => String(fileId ?? "").trim();
 
-const hasTemplateProcessingSource = (entry: SessionFile): boolean =>
-	entry.file !== undefined ||
-	hasNonEmptyText(entry.normalizedCsvPath) ||
-	hasCsvSourcePath(entry.sourcePath);
+const hasTemplateProcessingSource = (
+	entry: SessionFile,
+	options: Pick<TemplateProcessingPlanOptions, "canProcessFile" | "canReadConvertedCsv">,
+): boolean =>
+	hasRetainedFileSource(entry) ||
+	(hasNonEmptyText(entry.normalizedCsvPath) && (options.canReadConvertedCsv || options.canProcessFile)) ||
+	(hasCsvSourcePath(entry.sourcePath) && options.canProcessFile === true);
+
+const hasRetainedFileSource = (entry: SessionFile): boolean => {
+	if (entry.file === undefined || entry.file === null) {
+		return false;
+	}
+
+	if (!hasNonEmptyText(entry.normalizedCsvPath)) {
+		return true;
+	}
+
+	const size = readFileLikeSize(entry.file);
+	return size === null || size > 0;
+};
+
+const readFileLikeSize = (file: unknown): number | null => {
+	if (!file || typeof file !== "object") {
+		return null;
+	}
+
+	const size = Number((file as { readonly size?: unknown }).size);
+	return Number.isFinite(size) && size >= 0 ? size : null;
+};
 
 const hasNonEmptyText = (value: unknown): boolean =>
 	typeof value === "string" && value.trim().length > 0;

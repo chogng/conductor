@@ -103,7 +103,77 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     controller.dispose();
   });
 
+  test("interactive priority moves a queued processing file forward", () => {
+    const queuedFileIds: string[][] = [];
+    const startedJobs: ProcessingJobOptions[] = [];
+    const controller = createController({
+      sessionService: createSessionService(),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds, startedJobs, {
+        markProcessing: true,
+      }),
+    });
+
+    controller.update({
+      processedFileIds: [],
+      rawFiles: [
+        createSessionFile("file-a"),
+        createSessionFile("file-b"),
+        createSessionFile("file-c"),
+      ],
+    });
+    controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    });
+
+    controller.prioritizeProcessingFile("file-c");
+
+    assert.deepEqual(
+      startedJobs[0].processingQueueRef.current.map(entry => entry.fileId),
+      ["file-c", "file-a", "file-b"],
+    );
+    controller.dispose();
+  });
+
   test("full apply queues converted csv sources without retained File objects", () => {
+    const queuedFileIds: string[][] = [];
+    const startedJobs: ProcessingJobOptions[] = [];
+    const controller = createController({
+      sessionService: createSessionService(),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend({
+        canReadConvertedCsv: () => true,
+      }),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds, startedJobs),
+    });
+
+    controller.update({
+      processedFileIds: [],
+      rawFiles: [
+        createSessionFile("file-path", {
+          file: undefined,
+          normalizedCsvPath: "C:/tmp/file-path.csv",
+        }),
+      ],
+    });
+
+    const result = controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    }) as { ok: boolean };
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(queuedFileIds, [["file-path"]]);
+    assert.equal(startedJobs[0].queue[0].file, undefined);
+    assert.equal(startedJobs[0].queue[0].normalizedCsvPath, "C:/tmp/file-path.csv");
+    controller.dispose();
+  });
+
+  test("browser full apply skips converted csv sources when no readable File is retained", () => {
     const queuedFileIds: string[][] = [];
     const startedJobs: ProcessingJobOptions[] = [];
     const controller = createController({
@@ -129,10 +199,10 @@ suite("workbench/services/template/browser/templateApplyController", () => {
       stopOnError: false,
     }) as { ok: boolean };
 
-    assert.equal(result.ok, true);
-    assert.deepEqual(queuedFileIds, [["file-path"]]);
-    assert.equal(startedJobs[0].queue[0].file, undefined);
-    assert.equal(startedJobs[0].queue[0].normalizedCsvPath, "C:/tmp/file-path.csv");
+    assert.equal(result.ok, false);
+    assert.deepEqual(queuedFileIds, []);
+    assert.equal(startedJobs.length, 0);
+    assert.equal(controller.getFileApplyStates().get("file-path")?.state, "skipped");
     controller.dispose();
   });
 
@@ -795,11 +865,14 @@ const createManualTemplateConfig = (): Record<string, unknown> => ({
   yUnit: "A",
 });
 
-const createTemplateProcessingBackend = (): TemplateProcessingBackend => ({
+const createTemplateProcessingBackend = (
+  overrides: Partial<TemplateProcessingBackend> = {},
+): TemplateProcessingBackend => ({
   canProcessFile: () => false,
   canReadConvertedCsv: () => false,
   processFile: async () => ({}),
   readConvertedCsv: async () => ({}),
+  ...overrides,
 });
 
 const createTableService = ({

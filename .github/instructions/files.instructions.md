@@ -376,6 +376,10 @@ Explorer-side wiring rules:
 - Explorer owns tree/list hover triggers, timing, anchor, positioning,
   context-view container, and dismissal. Thumbnail owns the preview content
   rendering inside that Explorer-owned container.
+- Explorer may publish the currently hovered file id as Explorer UI state so
+  `WorkbenchDomainBridge` can promote interactive cross-domain work such as
+  template apply processing. Explorer still must not perform template, plot, or
+  thumbnail cache work directly from hover handlers.
 - Explorer owns the more actionbar placement and `IExplorerService.viewLayout`.
   The thumbnail contribution owns the thumbnail-specific toggle action/command
   and thumbnail UI/rendering content.
