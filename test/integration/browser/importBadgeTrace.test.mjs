@@ -50,6 +50,7 @@ const parseArgs = () => {
     fileSwitchLive: flags.has("file-switch-live"),
     fileSwitchLiveMs: readPositiveInteger(args.get("file-switch-live-ms"), 8000),
     fileCount,
+    liveStressParallel: flags.has("live-stress-parallel"),
     outputRoot: path.resolve(args.get("out") || defaultOutputRoot),
     profile: args.get("profile") || "healthy",
     rowCount: readPositiveInteger(args.get("rows"), 4000),
@@ -909,6 +910,37 @@ const readAnalysisPerfReport = async (page) => page.evaluate(() =>
   window.conductorAnalysisPerf?.getReport?.() ?? null
 ).catch(() => null);
 
+const markPageTrace = async (page, stage, meta = {}) => page.evaluate(({
+  meta: markMeta,
+  stage: markStage,
+}) =>
+  window.__conductorImportBadgeTrace?.mark?.(markStage, markMeta) ?? null,
+{ meta, stage },
+).catch(() => null);
+
+const createPhaseRecorder = (page, runtime) => {
+  const anchors = [];
+  return {
+    anchors,
+    mark: async (name, meta = {}) => {
+      const anchor = {
+        meta,
+        name,
+        runtime,
+        wallTime: Date.now(),
+      };
+      anchors.push(anchor);
+      await markPageTrace(page, "bench.phase", {
+        ...meta,
+        phase: name,
+        runtime,
+        wallTime: anchor.wallTime,
+      });
+      return anchor;
+    },
+  };
+};
+
 const readThumbnailHoverDomState = async (page) => page.evaluate(() => {
   const fileItems = [...document.querySelectorAll(".file-list-item[data-file-id]")];
   const chartStateCounts = fileItems.reduce((counts, item) => {
@@ -1216,6 +1248,11 @@ const installFileSwitchLiveObserver = async (page) => page.evaluate(() => {
   const events = [];
   const startedAt = performance.now();
 
+  const readTraceTime = () => ({
+    timestamp: performance.now() - startedAt,
+    wallTime: Date.now(),
+  });
+
   const readCanvasSnapshot = (canvas) => {
     if (!(canvas instanceof HTMLCanvasElement) || canvas.width <= 0 || canvas.height <= 0) {
       return {
@@ -1266,6 +1303,7 @@ const installFileSwitchLiveObserver = async (page) => page.evaluate(() => {
     const canvas = document.querySelector(".plot_main_chart_canvas");
     const emptyTitle = document.querySelector(".chart_view_empty_title");
     const snapshot = readCanvasSnapshot(canvas);
+    const traceTime = readTraceTime();
     return {
       ...snapshot,
       chartEmptyTitle: emptyTitle?.textContent?.trim() ?? null,
@@ -1273,7 +1311,8 @@ const installFileSwitchLiveObserver = async (page) => page.evaluate(() => {
       selectedChartState: selected instanceof HTMLElement ? selected.dataset.chartState ?? null : null,
       selectedFileId: selected instanceof HTMLElement ? selected.dataset.fileId ?? null : null,
       selectedHasChartData: selected instanceof HTMLElement ? selected.dataset.hasChartData === "true" : null,
-      timestamp: performance.now() - startedAt,
+      timestamp: traceTime.timestamp,
+      wallTime: traceTime.wallTime,
     };
   };
 
@@ -1309,10 +1348,12 @@ const installFileSwitchLiveObserver = async (page) => page.evaluate(() => {
     dispatches,
     events,
     recordDispatch: (fileId) => {
+      const state = readState("dispatch");
       dispatches.push({
         fileId: String(fileId ?? ""),
-        state: readState("dispatch"),
-        timestamp: performance.now() - startedAt,
+        state,
+        timestamp: state.timestamp,
+        wallTime: state.wallTime,
       });
       pushState("dispatch");
     },
@@ -1339,6 +1380,11 @@ const installThumbnailHoverLiveObserver = async (page, watchedFileId) => page.ev
   const dispatches = [];
   const events = [];
   const startedAt = performance.now();
+
+  const readTraceTime = () => ({
+    timestamp: performance.now() - startedAt,
+    wallTime: Date.now(),
+  });
 
   const readCanvasNonBlank = (canvas) => {
     if (!(canvas instanceof HTMLCanvasElement) || canvas.width <= 0 || canvas.height <= 0) {
@@ -1370,6 +1416,7 @@ const installThumbnailHoverLiveObserver = async (page, watchedFileId) => page.ev
       canvas.dataset.traceCanvasId = String(nextCanvasId);
       nextCanvasId += 1;
     }
+    const traceTime = readTraceTime();
     return {
       canvasHeight: canvas instanceof HTMLCanvasElement ? canvas.height : null,
       canvasId: canvas instanceof HTMLCanvasElement ? canvas.dataset.traceCanvasId ?? null : null,
@@ -1381,8 +1428,9 @@ const installThumbnailHoverLiveObserver = async (page, watchedFileId) => page.ev
       loadingVisible: Boolean(node?.querySelector(".thumbnail_view_chart_loading")),
       plotSignature: node?.dataset.hoverPlotSignature ?? null,
       reason,
-      timestamp: performance.now() - startedAt,
+      timestamp: traceTime.timestamp,
       tooltipVisible: Boolean(hover),
+      wallTime: traceTime.wallTime,
     };
   };
 
@@ -1420,9 +1468,11 @@ const installThumbnailHoverLiveObserver = async (page, watchedFileId) => page.ev
     dispatches,
     events,
     recordDispatch: (fileId) => {
+      const traceTime = readTraceTime();
       dispatches.push({
         fileId: String(fileId ?? ""),
-        timestamp: performance.now() - startedAt,
+        timestamp: traceTime.timestamp,
+        wallTime: traceTime.wallTime,
       });
       pushState("dispatch");
     },
@@ -2068,6 +2118,160 @@ const summarizeResourceSamples = (samples) => {
   };
 };
 
+const getTraceEventWallTime = event =>
+  readNumber(event?.wallTime) ??
+  (readNumber(event?.timeOrigin) != null && readNumber(event?.timestamp) != null
+    ? readNumber(event.timeOrigin) + readNumber(event.timestamp)
+    : null);
+
+const isInWindow = (time, window) =>
+  time != null &&
+  time >= window.startWallTime &&
+  (window.endWallTime == null || time <= window.endWallTime);
+
+const filterByWindow = (items, window, getTime) =>
+  items.filter(item => isInWindow(getTime(item), window));
+
+const createPhaseWindows = (anchors) => {
+  const byName = new Map();
+  for (const anchor of anchors) {
+    if (!byName.has(anchor.name)) {
+      byName.set(anchor.name, anchor);
+    }
+  }
+
+  const createWindow = (name, startName, endName) => {
+    const start = byName.get(startName);
+    if (!start) {
+      return null;
+    }
+
+    const end = byName.get(endName);
+    if (end?.wallTime != null && end.wallTime < start.wallTime) {
+      return null;
+    }
+    return {
+      endAnchor: endName,
+      endWallTime: end?.wallTime ?? null,
+      name,
+      startAnchor: startName,
+      startWallTime: start.wallTime,
+      durationMs: end?.wallTime != null
+        ? Math.max(0, end.wallTime - start.wallTime)
+        : null,
+    };
+  };
+
+  return [
+    createWindow("importDispatch", "import.dispatch.start", "import.dispatch.end"),
+    createWindow("importUntilReady", "import.dispatch.start", "import.ready"),
+    createWindow("applyClick", "apply.click.start", "apply.click.end"),
+    createWindow("applyProcessing", "apply.click.start", "processing.done"),
+    createWindow("liveThumbnailHover", "live.thumbnailHover.start", "live.thumbnailHover.end"),
+    createWindow("liveThumbnailHoverDuringProcessing", "live.thumbnailHover.start", "processing.done"),
+    createWindow("liveThumbnailHoverAfterProcessing", "processing.done", "live.thumbnailHover.end"),
+    createWindow("liveFileSwitch", "live.fileSwitch.start", "live.fileSwitch.end"),
+    createWindow("liveFileSwitchDuringProcessing", "live.fileSwitch.start", "processing.done"),
+    createWindow("liveFileSwitchAfterProcessing", "processing.done", "live.fileSwitch.end"),
+    createWindow("stableThumbnailHover", "stable.thumbnailHover.start", "stable.thumbnailHover.end"),
+    createWindow("stableFileSwitch", "stable.fileSwitch.start", "stable.fileSwitch.end"),
+    createWindow("postProcessingStable", "processing.done", "stable.end"),
+  ].filter(Boolean);
+};
+
+const summarizePerfEntries = (entries) => {
+  const stageCounts = countBy(entries.map(entry => entry.stage));
+  const stageDurationMs = {};
+  for (const stage of Object.keys(stageCounts).sort()) {
+    const summary = summarizeStageDuration(entries, stage);
+    if (summary.count > 0) {
+      stageDurationMs[stage] = summary;
+    }
+  }
+
+  const topStageDurationMs = Object.entries(stageDurationMs)
+    .map(([stage, summary]) => ({
+      count: summary.count,
+      maxMs: summary.maxMs,
+      stage,
+      totalMs: summary.totalMs,
+    }))
+    .sort((a, b) => (b.totalMs ?? 0) - (a.totalMs ?? 0))
+    .slice(0, 12);
+
+  return {
+    entryCount: entries.length,
+    stageCounts,
+    stageDurationMs,
+    topStageDurationMs,
+  };
+};
+
+const summarizePhaseWindow = ({
+  analysisPerfReport,
+  resourceSamples,
+  traceEvents,
+  window,
+}) => {
+  const windowTraceEvents = filterByWindow(
+    traceEvents,
+    window,
+    getTraceEventWallTime,
+  );
+  const perfEntries = filterByWindow(
+    Array.isArray(analysisPerfReport?.entries) ? analysisPerfReport.entries : [],
+    window,
+    entry => readNumber(entry?.timestamp),
+  );
+  const resources = filterByWindow(
+    resourceSamples,
+    window,
+    sample => readNumber(sample?.wallTime),
+  );
+  const longTasks = windowTraceEvents.filter(event => event.stage === "import.runtime.longTask");
+  const eventLoopLag = windowTraceEvents.filter(event => event.stage === "import.runtime.eventLoopLag");
+
+  return {
+    ...window,
+    eventLoopLagMs: summarizeDurations(eventLoopLag.map(event => event.meta?.durationMs)),
+    longTaskMs: summarizeDurations(longTasks.map(event => event.meta?.durationMs)),
+    perf: summarizePerfEntries(perfEntries),
+    resources: summarizeResourceSamples(resources),
+    topLongTasks: longTasks
+      .map(event => ({
+        durationMs: roundMetric(readNumber(event.meta?.durationMs)),
+        name: event.meta?.name ?? null,
+        offsetMs: roundMetric(getTraceEventWallTime(event) - window.startWallTime),
+        stage: event.stage,
+      }))
+      .sort((a, b) => (b.durationMs ?? 0) - (a.durationMs ?? 0))
+      .slice(0, 8),
+    traceEventCount: windowTraceEvents.length,
+    traceStageCounts: countBy(windowTraceEvents.map(event => event.stage)),
+  };
+};
+
+const summarizePhaseAnalysis = ({
+  analysisPerfReport,
+  phaseAnchors,
+  resourceSamples,
+  traceEvents,
+}) => {
+  const windows = createPhaseWindows(phaseAnchors);
+  const summaries = windows.map(window => summarizePhaseWindow({
+    analysisPerfReport,
+    resourceSamples,
+    traceEvents,
+    window,
+  }));
+  return {
+    anchorCount: phaseAnchors.length,
+    anchors: phaseAnchors,
+    windows: summaries,
+    windowsByName: Object.fromEntries(summaries.map(summary => [summary.name, summary])),
+  };
+};
+
 const countBy = (values) => {
   const counts = {};
   for (const value of values) {
@@ -2154,10 +2358,21 @@ const durationFromDispatch = (dispatch, event) => {
   return start != null && end != null ? roundMetric(end - start) : null;
 };
 
-const createLiveHoverTargetSamples = (result) => {
+const phaseWindowByName = (phaseAnchors, name) =>
+  createPhaseWindows(Array.isArray(phaseAnchors) ? phaseAnchors : [])
+    .find(window => window.name === name) ?? null;
+
+const firstDispatchesByFileForWindow = (dispatches, window) =>
+  firstDispatchesByFile(
+    window
+      ? filterByWindow(dispatches, window, getTraceEventWallTime)
+      : dispatches,
+  );
+
+const createLiveHoverTargetSamples = (result, window = null) => {
   const events = Array.isArray(result?.trace?.events) ? result.trace.events : [];
   const dispatches = Array.isArray(result?.trace?.dispatches) ? result.trace.dispatches : [];
-  return firstDispatchesByFile(dispatches).map((dispatch) => {
+  return firstDispatchesByFileForWindow(dispatches, window).map((dispatch) => {
     const fileId = String(dispatch.fileId ?? "");
     const fileEvents = events.filter(event =>
       event.fileId === fileId &&
@@ -2191,6 +2406,7 @@ const createLiveHoverTargetSamples = (result) => {
       canvasReplacementCount: Math.max(0, canvasIds.size - 1),
       canvasVisibleMs: durationFromDispatch(dispatch, canvasVisible),
       dispatchTimestamp: roundMetric(readNumber(dispatch.timestamp)),
+      dispatchWallTime: roundMetric(getTraceEventWallTime(dispatch)),
       fileId,
       plotSignatureChangeCount: Math.max(0, plotSignatures.size - 1),
       stableReadyMs: durationFromDispatch(dispatch, stableReady),
@@ -2199,7 +2415,41 @@ const createLiveHoverTargetSamples = (result) => {
   });
 };
 
-const summarizeThumbnailHoverLiveStress = (result, perfReport) => {
+const summarizeLiveHoverTargetSamples = (targetSamples) => ({
+  sampledTargetCount: targetSamples.length,
+  targetBlankAfterNonBlankCount: targetSamples.reduce(
+    (sum, sample) => sum + sample.blankAfterNonBlankCount,
+    0,
+  ),
+  targetCanvasNonBlankCount: targetSamples.filter(sample => sample.canvasNonBlankMs != null).length,
+  targetCanvasNonBlankMs: summarizeDurations(targetSamples.map(sample => sample.canvasNonBlankMs)),
+  targetCanvasReplacementCount: targetSamples.reduce(
+    (sum, sample) => sum + sample.canvasReplacementCount,
+    0,
+  ),
+  targetCanvasVisibleCount: targetSamples.filter(sample => sample.canvasVisibleMs != null).length,
+  targetCanvasVisibleMs: summarizeDurations(targetSamples.map(sample => sample.canvasVisibleMs)),
+  targetPlotSignatureChangeCount: targetSamples.reduce(
+    (sum, sample) => sum + sample.plotSignatureChangeCount,
+    0,
+  ),
+  targetSamples,
+  targetStableReadyCount: targetSamples.filter(sample => sample.stableReadyMs != null).length,
+  targetStableReadyMs: summarizeDurations(targetSamples.map(sample => sample.stableReadyMs)),
+  targetTooltipCount: targetSamples.filter(sample => sample.tooltipMs != null).length,
+  targetTooltipMs: summarizeDurations(targetSamples.map(sample => sample.tooltipMs)),
+});
+
+const summarizeLiveHoverWindow = (window, targetSamples) => window
+  ? {
+    durationMs: window.durationMs,
+    endAnchor: window.endAnchor,
+    startAnchor: window.startAnchor,
+    ...summarizeLiveHoverTargetSamples(targetSamples),
+  }
+  : null;
+
+const summarizeThumbnailHoverLiveStress = (result, perfReport, phaseAnchors = []) => {
   if (!result) {
     return null;
   }
@@ -2207,6 +2457,9 @@ const summarizeThumbnailHoverLiveStress = (result, perfReport) => {
   const events = Array.isArray(result.trace?.events) ? result.trace.events : [];
   const dispatches = Array.isArray(result.trace?.dispatches) ? result.trace.dispatches : [];
   const targetSamples = createLiveHoverTargetSamples(result);
+  const duringProcessingWindow = phaseWindowByName(phaseAnchors, "liveThumbnailHoverDuringProcessing");
+  const afterProcessingWindow = phaseWindowByName(phaseAnchors, "liveThumbnailHoverAfterProcessing");
+  const targetSampleSummary = summarizeLiveHoverTargetSamples(targetSamples);
   const watchedEvents = events.filter(event => event.isWatchedFile);
   const watchedCanvasIds = new Set(watchedEvents
     .map(event => event.canvasId)
@@ -2239,30 +2492,19 @@ const summarizeThumbnailHoverLiveStress = (result, perfReport) => {
     hoverEventIntervalMs: result.intervalMs,
     liveWindowMs: result.liveMs,
     perf: perfSummary,
+    phaseWindows: {
+      afterProcessing: summarizeLiveHoverWindow(
+        afterProcessingWindow,
+        createLiveHoverTargetSamples(result, afterProcessingWindow),
+      ),
+      duringProcessing: summarizeLiveHoverWindow(
+        duringProcessingWindow,
+        createLiveHoverTargetSamples(result, duringProcessingWindow),
+      ),
+    },
     requestedCount: result.requestedCount,
-    sampledTargetCount: targetSamples.length,
     targetCount: result.targetCount,
-    targetBlankAfterNonBlankCount: targetSamples.reduce(
-      (sum, sample) => sum + sample.blankAfterNonBlankCount,
-      0,
-    ),
-    targetCanvasNonBlankCount: targetSamples.filter(sample => sample.canvasNonBlankMs != null).length,
-    targetCanvasNonBlankMs: summarizeDurations(targetSamples.map(sample => sample.canvasNonBlankMs)),
-    targetCanvasReplacementCount: targetSamples.reduce(
-      (sum, sample) => sum + sample.canvasReplacementCount,
-      0,
-    ),
-    targetCanvasVisibleCount: targetSamples.filter(sample => sample.canvasVisibleMs != null).length,
-    targetCanvasVisibleMs: summarizeDurations(targetSamples.map(sample => sample.canvasVisibleMs)),
-    targetPlotSignatureChangeCount: targetSamples.reduce(
-      (sum, sample) => sum + sample.plotSignatureChangeCount,
-      0,
-    ),
-    targetSamples,
-    targetStableReadyCount: targetSamples.filter(sample => sample.stableReadyMs != null).length,
-    targetStableReadyMs: summarizeDurations(targetSamples.map(sample => sample.stableReadyMs)),
-    targetTooltipCount: targetSamples.filter(sample => sample.tooltipMs != null).length,
-    targetTooltipMs: summarizeDurations(targetSamples.map(sample => sample.tooltipMs)),
+    ...targetSampleSummary,
     traceEventCount: events.length,
     uniqueDispatchedFileCount: new Set(dispatches.map(dispatch => dispatch.fileId).filter(Boolean)).size,
     watchOnly: result.watchOnly === true,
@@ -2383,10 +2625,10 @@ const summarizeThumbnailHoverSpeedComparison = ({
   };
 };
 
-const createLiveFileSwitchTargetSamples = (result) => {
+const createLiveFileSwitchTargetSamples = (result, window = null) => {
   const events = Array.isArray(result?.trace?.events) ? result.trace.events : [];
   const dispatches = Array.isArray(result?.trace?.dispatches) ? result.trace.dispatches : [];
-  return firstDispatchesByFile(dispatches).map((dispatch) => {
+  return firstDispatchesByFileForWindow(dispatches, window).map((dispatch) => {
     const fileId = String(dispatch.fileId ?? "");
     const dispatchSignature = dispatch.state?.canvasSignature ?? null;
     const fileEvents = events.filter(event =>
@@ -2412,6 +2654,7 @@ const createLiveFileSwitchTargetSamples = (result) => {
       canvasVisibleMs: durationFromDispatch(dispatch, canvasVisible),
       chartDrawnMs: durationFromDispatch(dispatch, chartChanged),
       dispatchTimestamp: roundMetric(readNumber(dispatch.timestamp)),
+      dispatchWallTime: roundMetric(getTraceEventWallTime(dispatch)),
       fileId,
       readySelectedMs: durationFromDispatch(dispatch, readySelected),
       selectedMs: durationFromDispatch(dispatch, selected),
@@ -2440,7 +2683,31 @@ const summarizeFileSwitchStress = (result) => {
   };
 };
 
-const summarizeFileSwitchLiveStress = (result) => {
+const summarizeLiveFileSwitchTargetSamples = (targetSamples) => ({
+  readySelectedCount: targetSamples.filter(sample => sample.readySelectedMs != null).length,
+  readySelectedMs: summarizeDurations(targetSamples.map(sample => sample.readySelectedMs)),
+  sampledTargetCount: targetSamples.length,
+  targetCanvasNonBlankCount: targetSamples.filter(sample => sample.canvasNonBlankMs != null).length,
+  targetCanvasNonBlankMs: summarizeDurations(targetSamples.map(sample => sample.canvasNonBlankMs)),
+  targetCanvasVisibleCount: targetSamples.filter(sample => sample.canvasVisibleMs != null).length,
+  targetCanvasVisibleMs: summarizeDurations(targetSamples.map(sample => sample.canvasVisibleMs)),
+  targetChartDrawnCount: targetSamples.filter(sample => sample.chartDrawnMs != null).length,
+  targetChartDrawnMs: summarizeDurations(targetSamples.map(sample => sample.chartDrawnMs)),
+  targetSamples,
+  targetSelectedCount: targetSamples.filter(sample => sample.selectedMs != null).length,
+  targetSelectedMs: summarizeDurations(targetSamples.map(sample => sample.selectedMs)),
+});
+
+const summarizeLiveFileSwitchWindow = (window, targetSamples) => window
+  ? {
+    durationMs: window.durationMs,
+    endAnchor: window.endAnchor,
+    startAnchor: window.startAnchor,
+    ...summarizeLiveFileSwitchTargetSamples(targetSamples),
+  }
+  : null;
+
+const summarizeFileSwitchLiveStress = (result, phaseAnchors = []) => {
   if (!result) {
     return null;
   }
@@ -2448,6 +2715,9 @@ const summarizeFileSwitchLiveStress = (result) => {
   const events = Array.isArray(result.trace?.events) ? result.trace.events : [];
   const dispatches = Array.isArray(result.trace?.dispatches) ? result.trace.dispatches : [];
   const targetSamples = createLiveFileSwitchTargetSamples(result);
+  const duringProcessingWindow = phaseWindowByName(phaseAnchors, "liveFileSwitchDuringProcessing");
+  const afterProcessingWindow = phaseWindowByName(phaseAnchors, "liveFileSwitchAfterProcessing");
+  const targetSampleSummary = summarizeLiveFileSwitchTargetSamples(targetSamples);
   const settleSample = result.settleSample ?? null;
   return {
     dispatchCount: dispatches.length,
@@ -2455,25 +2725,24 @@ const summarizeFileSwitchLiveStress = (result) => {
     eventCount: result.eventCount,
     fileSwitchIntervalMs: result.intervalMs,
     liveWindowMs: result.liveMs,
-    readySelectedCount: targetSamples.filter(sample => sample.readySelectedMs != null).length,
-    readySelectedMs: summarizeDurations(targetSamples.map(sample => sample.readySelectedMs)),
+    phaseWindows: {
+      afterProcessing: summarizeLiveFileSwitchWindow(
+        afterProcessingWindow,
+        createLiveFileSwitchTargetSamples(result, afterProcessingWindow),
+      ),
+      duringProcessing: summarizeLiveFileSwitchWindow(
+        duringProcessingWindow,
+        createLiveFileSwitchTargetSamples(result, duringProcessingWindow),
+      ),
+    },
     requestedCount: result.requestedCount,
-    sampledTargetCount: targetSamples.length,
     settleCanvasVisibleMs: readNumber(settleSample?.canvasVisibleMs),
     settleChartDrawnMs: readNumber(settleSample?.chartDrawnMs),
     settleFileId: settleSample?.fileId ?? null,
     settleSelectedMs: readNumber(settleSample?.selectedMs),
     settleState: settleSample?.afterState ?? null,
-    targetCanvasNonBlankCount: targetSamples.filter(sample => sample.canvasNonBlankMs != null).length,
-    targetCanvasNonBlankMs: summarizeDurations(targetSamples.map(sample => sample.canvasNonBlankMs)),
-    targetCanvasVisibleCount: targetSamples.filter(sample => sample.canvasVisibleMs != null).length,
-    targetCanvasVisibleMs: summarizeDurations(targetSamples.map(sample => sample.canvasVisibleMs)),
-    targetChartDrawnCount: targetSamples.filter(sample => sample.chartDrawnMs != null).length,
-    targetChartDrawnMs: summarizeDurations(targetSamples.map(sample => sample.chartDrawnMs)),
     targetCount: result.targetCount,
-    targetSamples,
-    targetSelectedCount: targetSamples.filter(sample => sample.selectedMs != null).length,
-    targetSelectedMs: summarizeDurations(targetSamples.map(sample => sample.selectedMs)),
+    ...targetSampleSummary,
     traceEventCount: events.length,
     uniqueDispatchedFileCount: new Set(dispatches.map(dispatch => dispatch.fileId).filter(Boolean)).size,
   };
@@ -2653,6 +2922,7 @@ const main = async () => {
   const server = await startViteServer();
   let runtime = null;
   let sampler = null;
+  let phaseRecorder = null;
   try {
     runtime = await openRuntime({
       autoFolderPath: options.runtime === "desktop" && options.autoFolder ? fixtureRoot : null,
@@ -2660,11 +2930,19 @@ const main = async () => {
       browserChannel: options.browserChannel,
       runtime: options.runtime,
     });
+    phaseRecorder = createPhaseRecorder(runtime.page, options.runtime);
     if (options.analysisPerf) {
       await enableAnalysisPerf(runtime.page);
     }
     await getOpenFolderButton(runtime.page).waitFor({ timeout: 30000 });
     await installPageTraceObservers(runtime.page);
+    await phaseRecorder.mark("runtime.ready", {
+      analysisPerf: options.analysisPerf,
+      autoBrowser: options.autoBrowser,
+      autoFolder: options.autoFolder,
+      fileCount: options.fileCount,
+      rowCount: options.rowCount,
+    });
     sampler = startResourceSampler({
       page: runtime.page,
       processRootPid: runtime.processRootPid,
@@ -2679,7 +2957,13 @@ const main = async () => {
     console.log("[import-badge-trace] Waiting for all assessment badges...");
     if (options.autoFolder) {
       assert.equal(options.runtime, "desktop", "--auto-folder is currently supported for desktop runtime");
+      await phaseRecorder.mark("import.dispatch.start", {
+        method: "desktop-auto-folder",
+      });
       await getOpenFolderButton(runtime.page).click();
+      await phaseRecorder.mark("import.dispatch.end", {
+        method: "desktop-auto-folder",
+      });
     } else if (options.autoBrowser) {
       const files = createBrowserDropSpecs({
         fixture,
@@ -2687,10 +2971,18 @@ const main = async () => {
         runId,
       });
       await runtime.page.locator(".file-list-viewport").waitFor({ timeout: 30000 });
+      await phaseRecorder.mark("import.dispatch.start", {
+        fileCount: files.length,
+        method: "browser-drop",
+      });
       await dispatchBrowserFixtureDrop(runtime.page, {
         files,
         rowCount: options.rowCount,
         runId,
+      });
+      await phaseRecorder.mark("import.dispatch.end", {
+        fileCount: files.length,
+        method: "browser-drop",
       });
     }
     const finalState = await waitForTraceCompletion({
@@ -2698,6 +2990,10 @@ const main = async () => {
       expectedPrepareCompletionCount: fixture.expectedPrepareCompletionCount,
       page: runtime.page,
       timeoutMs: options.timeoutMs,
+    });
+    await phaseRecorder.mark("import.ready", {
+      assessmentBadgeCount: finalState.dom?.assessment ?? null,
+      prepareCompletionCount: fixture.expectedPrepareCompletionCount,
     });
     let thumbnailApply = null;
     let thumbnailHover = null;
@@ -2713,7 +3009,12 @@ const main = async () => {
       const before = await readThumbnailHoverDomState(runtime.page);
       await waitForApplyAllReady(runtime.page, options.timeoutMs);
       const applyStartedAt = Date.now();
+      await phaseRecorder.mark("apply.click.start", {
+        fileSwitchLive: options.fileSwitchLive,
+        thumbnailHoverLive: options.thumbnailHoverLive,
+      });
       await getApplyAllButton(runtime.page).click();
+      await phaseRecorder.mark("apply.click.end");
       await runtime.page.waitForFunction(
         () => [...document.querySelectorAll(".file-list-item[data-file-id]")]
           .some(item => {
@@ -2726,14 +3027,24 @@ const main = async () => {
         undefined,
         { timeout: options.timeoutMs },
       );
+      await phaseRecorder.mark("apply.processing-visible");
       const afterClick = await readThumbnailHoverDomState(runtime.page);
       let processingBatchMs = null;
       const processingDone = waitForTemplateProcessingBatch(runtime.page, options.timeoutMs)
-        .then((value) => {
+        .then(async (value) => {
           processingBatchMs = Date.now() - applyStartedAt;
+          await phaseRecorder.mark("processing.done", {
+            processingBatchMs,
+          });
           return value;
         });
-      if (options.thumbnailHoverLive) {
+      const runThumbnailHoverLiveStressTask = async () => {
+        await phaseRecorder.mark("live.thumbnailHover.start", {
+          count: options.thumbnailHoverCount,
+          intervalMs: options.thumbnailHoverStormIntervalMs,
+          liveMs: options.thumbnailHoverLiveMs,
+          watchOnly: options.thumbnailHoverLiveWatchOnly,
+        });
         thumbnailHoverLive = await runLiveThumbnailHoverStress({
           count: options.thumbnailHoverCount,
           intervalMs: options.thumbnailHoverStormIntervalMs,
@@ -2742,8 +3053,17 @@ const main = async () => {
           timeoutMs: options.timeoutMs,
           watchOnly: options.thumbnailHoverLiveWatchOnly,
         });
-      }
-      if (options.fileSwitchLive) {
+        await phaseRecorder.mark("live.thumbnailHover.end", {
+          eventCount: thumbnailHoverLive?.eventCount ?? null,
+          targetCount: thumbnailHoverLive?.targetCount ?? null,
+        });
+      };
+      const runFileSwitchLiveStressTask = async () => {
+        await phaseRecorder.mark("live.fileSwitch.start", {
+          count: options.fileSwitchCount,
+          intervalMs: options.fileSwitchIntervalMs,
+          liveMs: options.fileSwitchLiveMs,
+        });
         fileSwitchLive = await runLiveFileSwitchStress({
           count: options.fileSwitchCount,
           intervalMs: options.fileSwitchIntervalMs,
@@ -2751,6 +3071,21 @@ const main = async () => {
           page: runtime.page,
           timeoutMs: options.timeoutMs,
         });
+        await phaseRecorder.mark("live.fileSwitch.end", {
+          eventCount: fileSwitchLive?.eventCount ?? null,
+          targetCount: fileSwitchLive?.targetCount ?? null,
+        });
+      };
+      const liveStressTasks = [
+        ...(options.thumbnailHoverLive ? [runThumbnailHoverLiveStressTask] : []),
+        ...(options.fileSwitchLive ? [runFileSwitchLiveStressTask] : []),
+      ];
+      if (options.liveStressParallel) {
+        await Promise.all(liveStressTasks.map(task => task()));
+      } else {
+        for (const task of liveStressTasks) {
+          await task();
+        }
       }
       await processingDone;
       await runtime.page.waitForTimeout(300);
@@ -2770,47 +3105,84 @@ const main = async () => {
     if (options.thumbnailHover) {
       if (!thumbnailApply) {
         console.log("[import-badge-trace] Applying template before thumbnail hover stress...");
+        await phaseRecorder.mark("apply.stable.start", {
+          reason: "thumbnail-hover",
+        });
         thumbnailApply = await runTemplateApplyForThumbnailHover({
           expectedReadyCount: options.thumbnailHoverCount,
           page: runtime.page,
           timeoutMs: options.timeoutMs,
         });
+        await phaseRecorder.mark("processing.done", {
+          processingBatchMs: thumbnailApply.durationMs,
+          reason: "stable-apply",
+        });
       }
       console.log("[import-badge-trace] Running thumbnail hover stress...");
+      await phaseRecorder.mark("stable.thumbnailHover.start", {
+        count: options.thumbnailHoverCount,
+      });
       thumbnailHover = await runThumbnailHoverStress({
         count: options.thumbnailHoverCount,
         page: runtime.page,
         timeoutMs: options.timeoutMs,
       });
+      await phaseRecorder.mark("stable.thumbnailHover.end", {
+        targetCount: thumbnailHover?.targetCount ?? null,
+      });
     }
     if (options.fileSwitch) {
       if (!thumbnailApply) {
         console.log("[import-badge-trace] Applying template before file switch stress...");
+        await phaseRecorder.mark("apply.stable.start", {
+          reason: "file-switch",
+        });
         thumbnailApply = await runTemplateApplyForThumbnailHover({
           expectedReadyCount: options.fileSwitchCount,
           page: runtime.page,
           timeoutMs: options.timeoutMs,
         });
+        await phaseRecorder.mark("processing.done", {
+          processingBatchMs: thumbnailApply.durationMs,
+          reason: "stable-apply",
+        });
       }
       console.log("[import-badge-trace] Running file switch stress...");
+      await phaseRecorder.mark("stable.fileSwitch.start", {
+        count: options.fileSwitchCount,
+      });
       fileSwitch = await runFileSwitchStress({
         count: options.fileSwitchCount,
         page: runtime.page,
         timeoutMs: options.timeoutMs,
+      });
+      await phaseRecorder.mark("stable.fileSwitch.end", {
+        targetCount: fileSwitch?.targetCount ?? null,
+      });
+    }
+    if (options.thumbnailHover || options.fileSwitch) {
+      await phaseRecorder.mark("stable.end", {
+        fileSwitch: Boolean(fileSwitch),
+        thumbnailHover: Boolean(thumbnailHover),
       });
     }
     sampler.stop();
     const analysisPerfReport = options.analysisPerf
       ? await readAnalysisPerfReport(runtime.page)
       : null;
+    const reportTraceState = await readTraceState(runtime.page).catch(() => finalState);
     const milestones = summarizeMilestones(finalState.events, {
       expectedAssessmentBadgeCount: fixture.expectedAssessmentBadgeCount,
       expectedPrepareCompletionCount: fixture.expectedPrepareCompletionCount,
     });
     const thumbnailHoverSummary = summarizeThumbnailHoverStress(thumbnailHover, analysisPerfReport);
-    const thumbnailHoverLiveSummary = summarizeThumbnailHoverLiveStress(thumbnailHoverLive, analysisPerfReport);
+    const thumbnailHoverLiveSummary = summarizeThumbnailHoverLiveStress(
+      thumbnailHoverLive,
+      analysisPerfReport,
+      phaseRecorder.anchors,
+    );
     const fileSwitchSummary = summarizeFileSwitchStress(fileSwitch);
-    const fileSwitchLiveSummary = summarizeFileSwitchLiveStress(fileSwitchLive);
+    const fileSwitchLiveSummary = summarizeFileSwitchLiveStress(fileSwitchLive, phaseRecorder.anchors);
     const analysis = {
       ...summarizeTraceAnalysis({
         events: finalState.events,
@@ -2819,6 +3191,12 @@ const main = async () => {
         resourceSamples: sampler.samples,
       }),
       analysisPerf: summarizeAnalysisPerfReport(analysisPerfReport),
+      phaseAnalysis: summarizePhaseAnalysis({
+        analysisPerfReport,
+        phaseAnchors: phaseRecorder.anchors,
+        resourceSamples: sampler.samples,
+        traceEvents: reportTraceState.events,
+      }),
       thumbnailHover: thumbnailHoverSummary,
       thumbnailHoverLive: thumbnailHoverLiveSummary,
       thumbnailHoverSpeedComparison: summarizeThumbnailHoverSpeedComparison({
@@ -2843,9 +3221,10 @@ const main = async () => {
       fixtureRoot,
       generatedAt: new Date().toISOString(),
       options,
+      phaseAnchors: phaseRecorder.anchors,
       runId,
       runtime: options.runtime,
-      finalDomState: finalState.dom,
+      finalDomState: reportTraceState.dom,
       milestones,
       resourceSamples: sampler.samples,
       thumbnailApply,
@@ -2853,7 +3232,7 @@ const main = async () => {
       thumbnailHoverLive,
       fileSwitch,
       fileSwitchLive,
-      traceEvents: finalState.events,
+      traceEvents: reportTraceState.events,
     };
     const reportPath = path.join(options.outputRoot, `${runId}-${options.runtime}.json`);
     writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);

@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { Event } from "src/cs/base/common/event";
 import {
   createSearchPlotModelFromCachedPlotDisplay,
   resolveInitialWorkbenchViewMode,
@@ -11,6 +12,7 @@ import {
 import {
   createExplorerPaneInput,
   shouldPrefetchExplorerThumbnails,
+  WorkbenchDomainBridge,
 } from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
 import type {
@@ -531,6 +533,31 @@ suite("workbench/browser/workbench thumbnail prefetch gating", () => {
   });
 });
 
+suite("workbench/browser/WorkbenchDomainBridge", () => {
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+  test("prioritizes selected explorer files immediately during template processing", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const prioritizedFileIds: string[] = [];
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      prioritizedFileIds,
+      session,
+    }));
+    try {
+      explorerService.select({
+        fileId: "file-b",
+        kind: "chart",
+      });
+
+      assert.deepEqual(prioritizedFileIds, ["file-b"]);
+    } finally {
+      bridge.dispose();
+    }
+  });
+});
+
 const createPlotService = (): Parameters<typeof createExplorerPaneInput>[0]["plotService"] => ({
   getCalculatedData: ({ fileId }) => {
     const normalizedFileId = String(fileId ?? "").trim();
@@ -563,6 +590,69 @@ const createPlotService = (): Parameters<typeof createExplorerPaneInput>[0]["plo
         }
       : null;
   },
+});
+
+const createDomainBridgeOptionsForTest = ({
+  explorerService,
+  prioritizedFileIds,
+  session,
+}: {
+  readonly explorerService: ExplorerService;
+  readonly prioritizedFileIds: string[];
+  readonly session: SessionService;
+}): ConstructorParameters<typeof WorkbenchDomainBridge>[0] => ({
+  assessmentQueueService: {
+    prioritizeRawTables: () => undefined,
+  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["assessmentQueueService"],
+  chartService: {
+    updateViewInput: () => undefined,
+  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["chartService"],
+  explorerService,
+  layoutService: {
+    activeWorkbenchMainPart: "chart",
+    onDidChangeWorkbenchNavigation: Event.None,
+  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["layoutService"],
+  plotService: {
+    ...createPlotService(),
+    getState: () => ({ activePlotType: "iv" }),
+    onDidChangePlotState: Event.None,
+    prefetchCalculatedData: () => undefined,
+  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["plotService"],
+  sessionService: session,
+  settingsService: {
+    getConductorSettings: () => undefined,
+    onDidChangeConductorSettings: Event.None,
+  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["settingsService"],
+  tableService: {
+    getViewInput: () => null,
+    open: () => undefined,
+  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["tableService"],
+  templateApplyWorkflowService: {
+    getFileApplyStates: () => new Map(),
+    onDidChangeFileStates: Event.None,
+    onDidChangeProcessingStatus: Event.None,
+    prioritizeProcessingFile: fileId => prioritizedFileIds.push(fileId),
+    processingStatus: {
+      processed: 0,
+      state: "processing",
+      total: 0,
+    },
+    update: () => undefined,
+  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["templateApplyWorkflowService"],
+  templateService: {
+    getState: () => ({
+      formState: createEmptyTemplateConfig(),
+      mode: "management",
+      selectedTemplateId: null,
+      selectionsByFileId: {},
+      templateListVersion: 0,
+    }),
+    onDidChangeTemplateState: Event.None,
+    updateViewInput: () => undefined,
+  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["templateService"],
+  thumbnailPreviewService: {
+    prefetch: () => undefined,
+  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["thumbnailPreviewService"],
 });
 
 const commitTemplateOutputForTest = (

@@ -82,11 +82,12 @@ export class WorkbenchDomainBridge extends Disposable {
 
     this._register(this.options.settingsService.onDidChangeConductorSettings(() => this.scheduleSync()));
     this._register(this.options.explorerService.onDidChangePendingSourceFiles(() => this.scheduleSync()));
-    this._register(this.options.explorerService.onDidChangeSelection(() => this.scheduleSync()));
+    this._register(this.options.explorerService.onDidChangeSelection(event => {
+      this.prioritizeProcessingFile(event.selectedFileId);
+      this.scheduleSync();
+    }));
     this._register(this.options.explorerService.onDidChangeHoveredFile(event => {
-      if (event.fileId) {
-        this.options.templateApplyWorkflowService.prioritizeProcessingFile(event.fileId);
-      }
+      this.prioritizeProcessingFile(event.fileId);
     }));
     this._register(this.options.explorerService.onDidChangeVisibleFileIds(event => {
       this.prioritizeVisibleExplorerFiles(event.visibleFileIds, event.nearbyFileIds);
@@ -227,6 +228,14 @@ export class WorkbenchDomainBridge extends Disposable {
       showFileSelect: false,
       shouldMountCharts: false,
     });
+  }
+
+  private prioritizeProcessingFile(fileId: string | null): void {
+    if (!fileId) {
+      return;
+    }
+
+    this.options.templateApplyWorkflowService.prioritizeProcessingFile(fileId);
   }
 
   private prioritizeVisibleExplorerFiles(
