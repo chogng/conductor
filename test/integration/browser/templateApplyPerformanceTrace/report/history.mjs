@@ -68,6 +68,14 @@ export const createPerformanceMetricRow = ({
     analysisPerfReport?.entries ?? [],
     "plotMainChart.draw",
   );
+  const workbenchRefresh = summarizeStageDuration(
+    analysisPerfReport?.entries ?? [],
+    "workbench.refreshWorkbench",
+  );
+  const workbenchSelectionRefresh = summarizeStageDuration(
+    analysisPerfReport?.entries ?? [],
+    "workbench.refreshSelectionSurfaces",
+  );
   const thumbnailDuring = analysis.thumbnailHoverLive?.phaseWindows?.duringProcessing;
   const thumbnailAfter = analysis.thumbnailHoverLive?.phaseWindows?.afterProcessing;
   const switchDuring = analysis.fileSwitchLive?.phaseWindows?.duringProcessing;
@@ -124,6 +132,10 @@ export const createPerformanceMetricRow = ({
     thumbnailLiveTargetCount: readNumber(analysis.thumbnailHoverLive?.targetCount),
     thumbnailLiveUniqueDispatchCount: readNumber(analysis.thumbnailHoverLive?.uniqueDispatchedFileCount),
     thumbnailStableTargetCount: readNumber(analysis.thumbnailHover?.targetCount),
+    workbenchRefreshCount: summaryCount(workbenchRefresh),
+    workbenchRefreshP95Ms: summaryP95(workbenchRefresh),
+    workbenchSelectionRefreshCount: summaryCount(workbenchSelectionRefresh),
+    workbenchSelectionRefreshP95Ms: summaryP95(workbenchSelectionRefresh),
   };
   return {
     fileCount: options.fileCount,
@@ -174,6 +186,10 @@ export const metricHistoryKeys = [
   "plotInspectorPrefetchCanceled",
   "plotInspectorPrefetchSkipped",
   "plotInspectorQueueCleared",
+  "workbenchRefreshCount",
+  "workbenchRefreshP95Ms",
+  "workbenchSelectionRefreshCount",
+  "workbenchSelectionRefreshP95Ms",
 ];
 
 export const readHistoryRows = (historyPath) => {
@@ -263,6 +279,7 @@ export const writeHistorySvg = (svgPath, rows, scenarioKey) => {
     "maxUsedJsHeapMb",
     "plotDisplayCacheMaxSize",
     "plotMainDrawP95Ms",
+    "workbenchSelectionRefreshP95Ms",
     "plotInspectorPrefetchFired",
     "meanCpuPercent",
   ];

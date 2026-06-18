@@ -57,6 +57,7 @@ import {
 } from "src/cs/base/common/platform";
 import { localize } from "src/cs/nls";
 import { isThemeMode } from "src/cs/workbench/common/theme";
+import { startPerf } from "src/cs/workbench/common/perf";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import {
   ActiveAuxiliaryBarViewContext,
@@ -374,8 +375,14 @@ export class Workbench extends Layout {
       this.refreshWorkbench();
     }));
     this._register(this.explorerService.onDidChangeSelection(() => {
-      this.refreshWorkbench();
+      this.scheduleWorkbenchSelectionSurfacesRefresh();
     }));
+    this._register({
+      dispose: () => {
+        this.cancelScheduledSelectionSurfacesRefresh?.();
+        this.cancelScheduledSelectionSurfacesRefresh = null;
+      },
+    });
     this._register(this.plotService.onDidChangePlotState(() => {
       this.refreshWorkbench();
     }));
@@ -399,6 +406,8 @@ export class Workbench extends Layout {
     this.refreshWorkbench();
   }
 
+  private cancelScheduledSelectionSurfacesRefresh: (() => void) | null = null;
+
   update(options: WorkbenchOptions = {}): void {
     if ("titlebarState" in options) {
       this.titleService.updateTitlebarState(options.titlebarState);
@@ -415,12 +424,63 @@ export class Workbench extends Layout {
   }
 
   private refreshWorkbench(): void {
+    this.cancelScheduledSelectionSurfacesRefresh?.();
+    this.cancelScheduledSelectionSurfacesRefresh = null;
+    const endPerf = startPerf("workbench.refreshWorkbench", {
+      activeAuxiliaryBarView: this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart),
+      activeView: this.activeView,
+      mode: this.activeWorkbenchMainPart,
+    }, { silent: true });
     const snapshot = this.session.getSnapshot();
     const readModel = createSessionReadModel(snapshot);
     this.updateViewContainers();
     this.updateContextKeys();
     this.renderAuxiliaryBarView(snapshot, readModel);
     this.renderWorkbench();
+    endPerf({
+      fileCount: Object.keys(snapshot.filesById).length,
+      processedFileCount: readModel.processedFileIds.length,
+      rawFileCount: readModel.rawFiles.length,
+    });
+  }
+
+  private scheduleWorkbenchSelectionSurfacesRefresh(): void {
+    if (this.cancelScheduledSelectionSurfacesRefresh) {
+      return;
+    }
+
+    const run = (): void => {
+      this.cancelScheduledSelectionSurfacesRefresh = null;
+      this.refreshWorkbenchSelectionSurfaces();
+    };
+    if (typeof globalThis.requestAnimationFrame === "function") {
+      const handle = globalThis.requestAnimationFrame(run);
+      this.cancelScheduledSelectionSurfacesRefresh = () => {
+        globalThis.cancelAnimationFrame(handle);
+      };
+      return;
+    }
+
+    const handle = globalThis.setTimeout(run, 0);
+    this.cancelScheduledSelectionSurfacesRefresh = () => {
+      globalThis.clearTimeout(handle);
+    };
+  }
+
+  private refreshWorkbenchSelectionSurfaces(): void {
+    const endPerf = startPerf("workbench.refreshSelectionSurfaces", {
+      activeAuxiliaryBarView: this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart),
+      activeView: this.activeView,
+      mode: this.activeWorkbenchMainPart,
+    }, { silent: true });
+    const snapshot = this.session.getSnapshot();
+    const readModel = createSessionReadModel(snapshot);
+    this.renderAuxiliaryBarView(snapshot, readModel);
+    endPerf({
+      fileCount: Object.keys(snapshot.filesById).length,
+      processedFileCount: readModel.processedFileIds.length,
+      rawFileCount: readModel.rawFiles.length,
+    });
   }
 
   private renderWorkbench(): void {

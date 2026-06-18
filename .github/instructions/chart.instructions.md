@@ -193,6 +193,12 @@ file id, plot type, pane, domains, and series sizes into `PlotMainView` so the
 canvas can expose which target it has drawn for diagnostics and performance
 tests. This signature is host metadata only; Chart must still consume Plot
 display models and must not derive plot data from Session.
+Explorer chart-file selection should flow through `IExplorerService` into
+`WorkbenchDomainBridge` and then `IChartService.updateViewInput(...)` without
+forcing a full Workbench shell refresh. Selection-only changes may refresh
+active-file dependent auxiliary surfaces after the critical chart propagation
+has had a turn, but should not re-run view container visibility, layout, or
+window chrome updates.
 Do not pass Explorer selection through `ChartViewInput` callbacks; chart file
 selection is translated by `ChartViewPane` into `IExplorerService.select(...)`.
 Do not pass settings mutations through `ChartViewInput`; settings panes write
