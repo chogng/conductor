@@ -51,6 +51,10 @@ export class BrowserThumbnailService extends Disposable implements IThumbnailSer
 		});
 	}
 
+	public warmPlotThumbnail(options: ThumbnailBitmapOptions): void {
+		this.bitmapCache.get(options);
+	}
+
 	public override dispose(): void {
 		this.bitmapCache.dispose();
 		super.dispose();

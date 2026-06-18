@@ -354,6 +354,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       thumbnailService: {
         clear: () => undefined,
         drawPlotThumbnail: () => undefined,
+        warmPlotThumbnail: () => undefined,
       },
       viewLayout: "thumbnail",
     };
@@ -361,14 +362,17 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
 
     try {
       viewer.setProps(props);
-      assert.equal(host.querySelector(".thumbnail_view_chart_canvas"), null);
-      assert.ok(host.querySelector(".thumbnail_view_chart_loading"));
+      const loadingCanvas = host.querySelector(".thumbnail_view_chart_loading_canvas");
+      assert.ok(loadingCanvas);
+      assert.equal(host.querySelector(".thumbnail_view_chart_loading"), null);
 
       modelReady = true;
       previewEmitter.fire({ fileId: "file-a" });
       await animationFrames(1);
 
-      assert.ok(host.querySelector(".thumbnail_view_chart_canvas"));
+      const readyCanvas = host.querySelector(".thumbnail_view_chart_canvas");
+      assert.ok(readyCanvas);
+      assert.equal(readyCanvas.classList.contains("thumbnail_view_chart_loading_canvas"), false);
       assert.equal(host.querySelector(".thumbnail_view_chart_loading"), null);
     } finally {
       viewer.dispose();
@@ -408,6 +412,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       thumbnailService: {
         clear: () => undefined,
         drawPlotThumbnail: () => undefined,
+        warmPlotThumbnail: () => undefined,
       },
       viewLayout: "tree",
     }, labels);
@@ -424,15 +429,18 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       const hoverLayer = contextViewService.renderedElement;
       assert.ok(hoverLayer);
       assert.equal(contextViewService.showCount, 1);
-      assert.ok(hoverLayer.querySelector(".thumbnail_view_chart_loading"));
-      assert.equal(hoverLayer.querySelector(".thumbnail_view_chart_canvas"), null);
+      const loadingCanvas = hoverLayer.querySelector(".thumbnail_view_chart_loading_canvas");
+      assert.ok(loadingCanvas);
+      assert.equal(hoverLayer.querySelector(".thumbnail_view_chart_loading"), null);
 
       modelReady = true;
       previewEmitter.fire({ fileId: "file-a" });
 
       assert.equal(contextViewService.showCount, 1);
       assert.equal(contextViewService.renderedElement, hoverLayer);
-      assert.ok(hoverLayer.querySelector(".thumbnail_view_chart_canvas"));
+      const readyCanvas = hoverLayer.querySelector(".thumbnail_view_chart_canvas");
+      assert.ok(readyCanvas);
+      assert.equal(readyCanvas.classList.contains("thumbnail_view_chart_loading_canvas"), false);
       assert.equal(hoverLayer.querySelector(".thumbnail_view_chart_loading"), null);
       const readyThumbnail = hoverLayer.querySelector(".thumbnail_view");
       assert.ok(readyThumbnail);
@@ -508,6 +516,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       thumbnailService: {
         clear: () => undefined,
         drawPlotThumbnail: () => undefined,
+        warmPlotThumbnail: () => undefined,
       },
       viewLayout: "tree",
     }, labels);
@@ -526,6 +535,218 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       assert.equal(requestCount, 0);
       assert.equal(contextViewService.delegate, undefined);
       assert.equal(contextViewService.renderedElement, undefined);
+    } finally {
+      viewer.dispose();
+      labels.dispose();
+      hoverHost.remove();
+    }
+  });
+
+  test("warms detached hover thumbnail cache when preview becomes ready", () => {
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    const contextViewService = new TestContextViewService();
+    const previewEmitter = new Emitter<{ readonly fileId: string }>();
+    const readyFiles = new Set<string>();
+    const warmedSignatures: string[] = [];
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const viewer = new ExplorerViewer(host, hoverHost, {
+      ...createViewerProps(),
+      contextViewService,
+      files: [
+        {
+          badgeState: {
+            confidence: "confirmed",
+            kind: "ready",
+            label: "iv",
+            source: "assessment",
+          },
+          chartState: "processing",
+          curveType: "IV",
+          curveTypeBadgeLabel: "iv",
+          curveTypeConfidence: "high",
+          curveTypeReasons: ["matched voltage/current columns"],
+          fileId: "file-a",
+          fileName: "A.csv",
+          itemKey: "file-a",
+        },
+        {
+          badgeState: {
+            confidence: "confirmed",
+            kind: "ready",
+            label: "iv",
+            source: "assessment",
+          },
+          chartState: "processing",
+          curveType: "IV",
+          curveTypeBadgeLabel: "iv",
+          curveTypeConfidence: "high",
+          curveTypeReasons: ["matched voltage/current columns"],
+          fileId: "file-b",
+          fileName: "B.csv",
+          itemKey: "file-b",
+        },
+      ],
+      mode: "chart",
+      thumbnailPreviewService: {
+        get: (fileId) => readyFiles.has(fileId)
+          ? {
+              kind: "ready",
+              model: createThumbnailPlotModel(fileId),
+              signature: `plot:${fileId}`,
+            }
+          : { kind: "loading" },
+        invalidate: () => undefined,
+        onDidChangePreview: previewEmitter.event,
+        prefetch: () => undefined,
+        request: (fileId) => readyFiles.has(fileId)
+          ? {
+              kind: "ready",
+              model: createThumbnailPlotModel(fileId),
+              signature: `plot:${fileId}`,
+            }
+          : { kind: "loading" },
+      },
+      thumbnailService: {
+        clear: () => undefined,
+        drawPlotThumbnail: () => undefined,
+        warmPlotThumbnail: (options) => {
+          warmedSignatures.push(options.model.signature);
+        },
+      },
+      viewLayout: "tree",
+    }, labels);
+
+    try {
+      const items = host.querySelectorAll<HTMLElement>(".file-list-item");
+      assert.equal(items.length, 2);
+
+      items[0].dispatchEvent(new MouseEvent("mouseover", {
+        bubbles: true,
+        relatedTarget: null,
+      }));
+      assert.equal(contextViewService.renderedElement?.querySelector(".thumbnail_view")?.getAttribute("data-hover-file-id"), "file-a");
+
+      items[1].dispatchEvent(new MouseEvent("mouseover", {
+        bubbles: true,
+        relatedTarget: items[0],
+      }));
+      assert.equal(contextViewService.renderedElement?.querySelector(".thumbnail_view")?.getAttribute("data-hover-file-id"), "file-b");
+
+      readyFiles.add("file-a");
+      previewEmitter.fire({ fileId: "file-a" });
+
+      assert.deepEqual(warmedSignatures, ["plot:file-a"]);
+      readyFiles.add("file-b");
+      previewEmitter.fire({ fileId: "file-b" });
+
+      assert.deepEqual(warmedSignatures, ["plot:file-a"]);
+    } finally {
+      viewer.dispose();
+      previewEmitter.dispose();
+      labels.dispose();
+      hoverHost.remove();
+    }
+  });
+
+  test("warms ready hover thumbnail cache when switching away", () => {
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    const contextViewService = new TestContextViewService();
+    const warmedSignatures: string[] = [];
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const viewer = new ExplorerViewer(host, hoverHost, {
+      ...createViewerProps(),
+      contextViewService,
+      files: [
+        {
+          badgeState: {
+            confidence: "confirmed",
+            kind: "ready",
+            label: "iv",
+            source: "assessment",
+          },
+          chartState: "ready",
+          curveType: "IV",
+          curveTypeBadgeLabel: "iv",
+          curveTypeConfidence: "high",
+          curveTypeReasons: ["matched voltage/current columns"],
+          fileId: "file-a",
+          fileName: "A.csv",
+          hasChartData: true,
+          itemKey: "file-a",
+        },
+        {
+          badgeState: {
+            confidence: "confirmed",
+            kind: "ready",
+            label: "iv",
+            source: "assessment",
+          },
+          chartState: "ready",
+          curveType: "IV",
+          curveTypeBadgeLabel: "iv",
+          curveTypeConfidence: "high",
+          curveTypeReasons: ["matched voltage/current columns"],
+          fileId: "file-b",
+          fileName: "B.csv",
+          hasChartData: true,
+          itemKey: "file-b",
+        },
+      ],
+      mode: "chart",
+      thumbnailPreviewService: {
+        get: (fileId) => ({
+          kind: "ready",
+          model: createThumbnailPlotModel(fileId),
+          signature: `plot:${fileId}`,
+        }),
+        invalidate: () => undefined,
+        onDidChangePreview: Event.None,
+        prefetch: () => undefined,
+        request: (fileId) => ({
+          kind: "ready",
+          model: createThumbnailPlotModel(fileId),
+          signature: `plot:${fileId}`,
+        }),
+      },
+      thumbnailService: {
+        clear: () => undefined,
+        drawPlotThumbnail: () => undefined,
+        warmPlotThumbnail: (options) => {
+          warmedSignatures.push(options.model.signature);
+        },
+      },
+      viewLayout: "tree",
+    }, labels);
+
+    try {
+      const items = host.querySelectorAll<HTMLElement>(".file-list-item");
+      assert.equal(items.length, 2);
+
+      items[0].dispatchEvent(new MouseEvent("mouseover", {
+        bubbles: true,
+        relatedTarget: null,
+      }));
+      assert.deepEqual(warmedSignatures, []);
+
+      items[1].dispatchEvent(new MouseEvent("mouseover", {
+        bubbles: true,
+        relatedTarget: items[0],
+      }));
+      assert.deepEqual(warmedSignatures, ["plot:file-a"]);
+
+      items[0].dispatchEvent(new MouseEvent("mouseover", {
+        bubbles: true,
+        relatedTarget: items[1],
+      }));
+      assert.deepEqual(warmedSignatures, ["plot:file-a", "plot:file-b"]);
     } finally {
       viewer.dispose();
       labels.dispose();
@@ -592,6 +813,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       thumbnailService: {
         clear: () => undefined,
         drawPlotThumbnail: () => undefined,
+        warmPlotThumbnail: () => undefined,
       },
       viewLayout: "tree",
     }, labels);
@@ -647,6 +869,7 @@ class TestContextViewService implements IContextViewService {
     this.container = container;
     const contextView = document.createElement("div");
     this.renderedElement = contextView;
+    (container ?? document.body).append(contextView);
     const disposable = delegate.render(contextView);
     this.activeDisposable = disposable ?? undefined;
     return {
@@ -663,6 +886,7 @@ class TestContextViewService implements IContextViewService {
     const delegate = this.delegate;
     this.activeDisposable?.dispose();
     this.activeDisposable = undefined;
+    this.renderedElement?.remove();
     this.delegate = undefined;
     this.container = undefined;
     this.renderedElement = undefined;
@@ -711,7 +935,11 @@ const createViewerProps = (): ExplorerViewerProps => ({
     prefetch: () => undefined,
     request: () => ({ kind: "idle" }),
   },
-  thumbnailService: {} as ExplorerViewerProps["thumbnailService"],
+  thumbnailService: {
+    clear: () => undefined,
+    drawPlotThumbnail: () => undefined,
+    warmPlotThumbnail: () => undefined,
+  },
 });
 
 const timeout = (ms: number): Promise<void> =>

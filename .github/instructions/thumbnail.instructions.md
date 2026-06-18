@@ -15,6 +15,8 @@ It should not independently rebuild curve data from Session when Plot can provid
 - thumbnail cache;
 - bitmap/render lifecycle;
 - thumbnail sizing and cache invalidation from render inputs, cache keys, and explicit thumbnail cache commands;
+- warming cached thumbnail bitmaps for hover/thumbnail consumers before their
+  canvas is visible;
 - converting `PlotRenderModel` into thumbnail output;
 - bitmap output used by Explorer thumbnail layout and hover previews.
 
@@ -101,6 +103,10 @@ While chart processing is active, Explorer may open a thumbnail hover for a file
 whose item projection is still stale `none` / `hasChartData=false` so the
 Thumbnail view can render its fast loading canvas immediately. `failed` and
 `skipped` remain terminal and should not produce thumbnail hover content.
+When a previously hovered file becomes ready while its hover node is detached,
+or a ready hover thumbnail is switched away from, Explorer may ask
+`IThumbnailService` to warm the bitmap cache for that plot model; Explorer must
+not render or own the bitmap itself.
 
 ## Wiring Contract
 

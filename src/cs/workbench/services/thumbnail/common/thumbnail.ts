@@ -49,6 +49,7 @@ export interface IThumbnailService {
 
 	clear(): void;
 	drawPlotThumbnail(target: ThumbnailBitmapTarget, options: ThumbnailBitmapOptions): void;
+	warmPlotThumbnail(options: ThumbnailBitmapOptions): void;
 }
 
 export interface IThumbnailPreviewService {

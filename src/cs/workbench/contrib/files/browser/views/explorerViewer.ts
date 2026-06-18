@@ -243,6 +243,7 @@ type HoverThumbnailCacheEntry = {
   node: HTMLElement;
   plotModel: ExplorerThumbnailPlotModel | null;
   plotModelSignature: string;
+  warmedPlotModelSignature: string;
   lastUsed: number;
 };
 
@@ -1924,9 +1925,10 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
+    const previousContent = this.hoverContent;
+    this.closeFileItemHoverView(previousContent);
     this.hoverAnchor = item;
     this.hoverContent = content;
-    this.closeFileItemHoverView();
     this.openFileItemHoverView(item, content);
   }
 
@@ -2133,6 +2135,12 @@ export class ExplorerViewer implements IDisposable {
       cached.plotModelSignature === plotModelSignature &&
       cached.node.dataset.hoverPlotSignature === plotModelSignature
     ) {
+      this.warmDetachedHoverThumbnail(
+        cached,
+        plotModel,
+        plotModelSignature,
+        normalizedFileId,
+      );
       if (cached.isActive !== isActive) {
         updateThumbnailView(cached.node, {
           drawStrategy: "eager",
@@ -2201,6 +2209,12 @@ export class ExplorerViewer implements IDisposable {
         thumbnailService: this.props.thumbnailService,
       })
     ) {
+      this.warmDetachedHoverThumbnail(
+        cached,
+        plotModel,
+        plotModelSignature,
+        normalizedFileId,
+      );
       cached.isActive = isActive;
       cached.isLoading = isLoading;
       cached.lastUsed = this.hoverCacheUse;
@@ -2241,6 +2255,7 @@ export class ExplorerViewer implements IDisposable {
       node,
       plotModel,
       plotModelSignature,
+      warmedPlotModelSignature: "",
     });
     this.trimHoverThumbnailCache();
     this.logThumbnailHoverRender({
@@ -2330,6 +2345,12 @@ export class ExplorerViewer implements IDisposable {
     }
 
     const isActive = (this.props.selectedFileId ?? null) === normalizedFileId;
+    this.warmDetachedHoverThumbnail(
+      cached,
+      plotModel,
+      plotModelSignature,
+      normalizedFileId,
+    );
     if (!updateThumbnailView(cached.node, {
       drawStrategy: "eager",
       file,
@@ -2350,6 +2371,34 @@ export class ExplorerViewer implements IDisposable {
     cached.plotModel = plotModel ?? cached.plotModel;
     cached.plotModelSignature = plotModelSignature || cached.plotModelSignature;
     cached.node.dataset.hoverPlotSignature = cached.plotModelSignature;
+  }
+
+  private warmDetachedHoverThumbnail(
+    cached: HoverThumbnailCacheEntry,
+    plotModel: ExplorerThumbnailPlotModel | null,
+    plotModelSignature: string,
+    fileId: string,
+  ): void {
+    if (
+      !plotModel ||
+      !plotModelSignature ||
+      cached.node.isConnected ||
+      cached.warmedPlotModelSignature === plotModelSignature
+    ) {
+      return;
+    }
+
+    this.props.thumbnailService.warmPlotThumbnail({
+      model: plotModel,
+      originOpenPlotOptions: this.props.originOpenPlotOptions,
+      plotAxisSettings: this.props.plotAxisSettings,
+      plotType: this.props.activePlotType ?? "iv",
+    });
+    cached.warmedPlotModelSignature = plotModelSignature;
+    logPerf("thumbnailHover.warm", {
+      fileId,
+      plotModelSignature,
+    });
   }
 
   private clearHoverThumbnailCache(): void {
@@ -2454,13 +2503,13 @@ export class ExplorerViewer implements IDisposable {
     }
     this.cancelFileItemHoverHide();
     this.cancelFileItemHoverLayout();
+    this.hoverContainer = null;
+    this.closeFileItemHoverView(content);
     this.hoverAnchor = null;
     this.hoverContent = null;
-    this.hoverContainer = null;
-    this.closeFileItemHoverView();
   }
 
-  private closeFileItemHoverView(): void {
+  private closeFileItemHoverView(closedContent: HoverContent | null = this.hoverContent): void {
     if (!this.hoverView) {
       return;
     }
@@ -2469,6 +2518,28 @@ export class ExplorerViewer implements IDisposable {
     const view = this.hoverView;
     this.hoverView = null;
     view.close();
+    if (closedContent?.kind === "thumbnail") {
+      this.warmCachedDetachedHoverThumbnail(closedContent.fileId);
+    }
+  }
+
+  private warmCachedDetachedHoverThumbnail(fileId: string): void {
+    const normalizedFileId = String(fileId ?? "").trim();
+    if (!normalizedFileId) {
+      return;
+    }
+
+    const cached = this.hoverThumbnailCache.get(normalizedFileId);
+    if (!cached) {
+      return;
+    }
+
+    this.warmDetachedHoverThumbnail(
+      cached,
+      cached.plotModel,
+      cached.plotModelSignature,
+      normalizedFileId,
+    );
   }
 }
 
@@ -2609,6 +2680,10 @@ function canRequestThumbnailPreview(state: FileItemChartPreviewState | null): bo
 
   if (state.hasChartData === true) {
     return true;
+  }
+
+  if (state.hasChartData === false && state.chartState === "ready") {
+    return false;
   }
 
   switch (state.chartState) {

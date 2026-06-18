@@ -25,6 +25,32 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		assert.ok(true);
 	});
 
+	test("warms thumbnail bitmap cache without a connected canvas target", () => {
+		if (typeof document === "undefined") {
+			return;
+		}
+
+		const service = store.add(new BrowserThumbnailService());
+
+		service.warmPlotThumbnail({
+			model: {
+				seriesList: [{
+					data: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
+					id: "series-a",
+					name: "A",
+				}],
+				signature: "plot:file-a",
+				xDomain: [0, 1],
+				xUnitLabel: "V",
+				yDomain: [0, 1],
+				yUnitLabel: "A",
+			},
+			plotType: "iv",
+		});
+
+		assert.ok(true);
+	});
+
 	test("hover previews synchronously use PlotService when cache is cold and invalidate by file id", async () => {
 		let cachedCalls = 0;
 		let calculatedCalls = 0;

@@ -2409,6 +2409,12 @@ const targetPerfMilestoneDefs = [
         )
       ),
   },
+  {
+    key: "thumbnailWarmed",
+    match: (entry, fileId) =>
+      entry.stage === "thumbnailHover.warm" &&
+      perfEntryIncludesFileId(entry, fileId),
+  },
 ];
 
 const perfEntryIncludesFileId = (entry, fileId) =>
@@ -2674,6 +2680,7 @@ const summarizeLiveHoverWindow = (window, targetSamples, perfReport) => {
     targetPlotChartCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotChartCached"),
     targetPlotFullCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotFullCached"),
     targetPreviewReadyMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "thumbnailReady"),
+    targetThumbnailWarmedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "thumbnailWarmed"),
     targetPerfMilestoneSummary: summarizeTargetPerfMilestoneSamples(targetPerfMilestones),
     targetPerfMilestones,
   };
@@ -2741,6 +2748,7 @@ const summarizeThumbnailHoverLiveStress = (result, perfReport, phaseAnchors = []
     targetPlotChartCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotChartCached"),
     targetPlotFullCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotFullCached"),
     targetPreviewReadyMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "thumbnailReady"),
+    targetThumbnailWarmedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "thumbnailWarmed"),
     targetPerfMilestoneSummary: summarizeTargetPerfMilestoneSamples(targetPerfMilestones),
     targetPerfMilestones,
     traceEventCount: events.length,
