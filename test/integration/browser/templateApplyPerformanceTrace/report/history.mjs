@@ -4,6 +4,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import {
+  countBy,
   readNumber,
   roundMetric,
   summaryCount,
@@ -72,7 +73,23 @@ export const createPerformanceMetricRow = ({
     analysisPerfReport?.entries ?? [],
     "workbench.refreshWorkbench",
   );
+  const workbenchRefreshReasons = summarizePerfStageReasons(
+    analysisPerfReport?.entries ?? [],
+    "workbench.refreshWorkbench",
+  );
+  const workbenchAuxiliaryRefresh = summarizeStageDuration(
+    analysisPerfReport?.entries ?? [],
+    "workbench.refreshAuxiliarySurfaces",
+  );
+  const workbenchAuxiliaryRefreshReasons = summarizePerfStageReasons(
+    analysisPerfReport?.entries ?? [],
+    "workbench.refreshAuxiliarySurfaces",
+  );
   const workbenchSelectionRefresh = summarizeStageDuration(
+    analysisPerfReport?.entries ?? [],
+    "workbench.refreshSelectionSurfaces",
+  );
+  const workbenchSelectionRefreshReasons = summarizePerfStageReasons(
     analysisPerfReport?.entries ?? [],
     "workbench.refreshSelectionSurfaces",
   );
@@ -134,8 +151,20 @@ export const createPerformanceMetricRow = ({
     thumbnailStableTargetCount: readNumber(analysis.thumbnailHover?.targetCount),
     workbenchRefreshCount: summaryCount(workbenchRefresh),
     workbenchRefreshP95Ms: summaryP95(workbenchRefresh),
+    workbenchRefreshReasons,
+    workbenchRefreshNavigationCount: readNumber(workbenchRefreshReasons.navigation) ?? 0,
+    workbenchRefreshSameViewModeCount: readNumber(workbenchRefreshReasons.sameViewMode) ?? 0,
+    workbenchAuxiliaryRefreshCount: summaryCount(workbenchAuxiliaryRefresh),
+    workbenchAuxiliaryRefreshP95Ms: summaryP95(workbenchAuxiliaryRefresh),
+    workbenchAuxiliaryRefreshReasons,
+    workbenchAuxiliaryRefreshExportStateCount: readNumber(workbenchAuxiliaryRefreshReasons.exportState) ?? 0,
+    workbenchAuxiliaryRefreshPlotStateCount: readNumber(workbenchAuxiliaryRefreshReasons.plotState) ?? 0,
+    workbenchAuxiliaryRefreshSessionCount: countReasonPrefix(workbenchAuxiliaryRefreshReasons, "session:"),
+    workbenchAuxiliaryRefreshSettingsCount: readNumber(workbenchAuxiliaryRefreshReasons.settings) ?? 0,
+    workbenchAuxiliaryRefreshTemplateStateCount: readNumber(workbenchAuxiliaryRefreshReasons.templateState) ?? 0,
     workbenchSelectionRefreshCount: summaryCount(workbenchSelectionRefresh),
     workbenchSelectionRefreshP95Ms: summaryP95(workbenchSelectionRefresh),
+    workbenchSelectionRefreshReasons,
   };
   return {
     fileCount: options.fileCount,
@@ -188,9 +217,39 @@ export const metricHistoryKeys = [
   "plotInspectorQueueCleared",
   "workbenchRefreshCount",
   "workbenchRefreshP95Ms",
+  "workbenchRefreshNavigationCount",
+  "workbenchRefreshSameViewModeCount",
+  "workbenchAuxiliaryRefreshCount",
+  "workbenchAuxiliaryRefreshP95Ms",
+  "workbenchAuxiliaryRefreshExportStateCount",
+  "workbenchAuxiliaryRefreshPlotStateCount",
+  "workbenchAuxiliaryRefreshSessionCount",
+  "workbenchAuxiliaryRefreshSettingsCount",
+  "workbenchAuxiliaryRefreshTemplateStateCount",
   "workbenchSelectionRefreshCount",
   "workbenchSelectionRefreshP95Ms",
 ];
+
+const summarizePerfStageReasons = (entries, stage) => {
+  const reasons = [];
+  for (const entry of entries ?? []) {
+    if (entry?.stage !== stage) {
+      continue;
+    }
+
+    const rawReasons = String(entry.meta?.reasons ?? entry.meta?.reason ?? "unknown")
+      .split(",")
+      .map(reason => reason.trim())
+      .filter(Boolean);
+    reasons.push(...(rawReasons.length ? rawReasons : ["unknown"]));
+  }
+  return countBy(reasons);
+};
+
+const countReasonPrefix = (counts, prefix) =>
+  Object.entries(counts ?? {}).reduce((total, [reason, count]) => (
+    reason.startsWith(prefix) ? total + (readNumber(count) ?? 0) : total
+  ), 0);
 
 export const readHistoryRows = (historyPath) => {
   if (!existsSync(historyPath)) {

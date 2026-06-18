@@ -199,6 +199,18 @@ forcing a full Workbench shell refresh. Selection-only changes may refresh
 active-file dependent auxiliary surfaces after the critical chart propagation
 has had a turn, but should not re-run view container visibility, layout, or
 window chrome updates.
+Session, Plot, Template, Settings, and Export state changes should not trigger
+full Workbench shell refreshes just to keep Chart-adjacent auxiliary views in
+sync. `WorkbenchDomainBridge` owns Explorer/Table/Chart input propagation; the
+Workbench shell may schedule a coalesced auxiliary-surface refresh for Export,
+Parameters, Search, and auxiliary-bar chrome that depends on these data states.
+Keep layout/navigation and active auxiliary-view changes on the full shell
+refresh path.
+Auxiliary-surface refreshes should be scoped to the active auxiliary view and
+the relevant session change reason. For example, Export does not need to refresh
+for calculated-record changes while its selected export content is IV-only, but
+must stay conservative when derived export content such as metrics, gm, gds, SS,
+or Vth is selected.
 Do not pass Explorer selection through `ChartViewInput` callbacks; chart file
 selection is translated by `ChartViewPane` into `IExplorerService.select(...)`.
 Do not pass settings mutations through `ChartViewInput`; settings panes write

@@ -88,6 +88,9 @@ import type {
   ISessionService as ISessionServiceType,
   SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
+import type {
+  SessionChangeEvent,
+} from "src/cs/workbench/services/session/common/sessionEvents";
 import {
   type FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
@@ -101,6 +104,7 @@ import type {
   ITemplateService,
 } from "src/cs/workbench/services/template/common/template";
 import {
+  type ExportState,
   type IExportService,
 } from "src/cs/workbench/services/export/common/export";
 import type {
@@ -115,6 +119,21 @@ import { registerNotificationCommands } from "src/cs/workbench/browser/parts/not
 //#region types and startup helpers
 
 type WorkbenchSessionSnapshot = SessionSnapshot;
+
+type WorkbenchFullRefreshReason =
+  | "initial"
+  | "resetLayout"
+  | "sameViewMode"
+  | "navigation"
+  | "activeAuxiliaryBarView";
+
+type WorkbenchAuxiliaryRefreshReason =
+  | "explorerSelection"
+  | "settings"
+  | "plotState"
+  | "exportState"
+  | "templateState"
+  | `session:${string}`;
 
 export type WorkbenchOptions = {
   readonly assessmentQueueService?: IAssessmentQueueService;
@@ -238,6 +257,10 @@ export class Workbench extends Layout {
   private readonly exportService: IExportService;
   private readonly domainBridge: WorkbenchDomainBridge;
   private readonly auxiliaryBarModel = new AuxiliaryBarModel();
+  private cancelScheduledAuxiliarySurfacesRefresh: (() => void) | null = null;
+  private readonly scheduledAuxiliarySurfacesRefreshReasons = new Set<WorkbenchAuxiliaryRefreshReason>();
+  private scheduledAuxiliarySurfacesRefreshNeedsChrome = false;
+  private lastObservedExportState: ExportState | null = null;
   //#endregion
 
   //#region lifecycle and rendering
@@ -353,6 +376,7 @@ export class Workbench extends Layout {
     this.templateService = options.templateService;
     this.thumbnailPreviewService = options.thumbnailPreviewService;
     this.titleService = options.titleService;
+    this.lastObservedExportState = this.exportService.getState();
     this.titleService.updateTitlebarState(options.titlebarState);
     const initialViewMode = resolveInitialWorkbenchViewMode(this.session.getSnapshot());
     this._register(this.createNotificationsHandlers());
@@ -372,41 +396,45 @@ export class Workbench extends Layout {
       thumbnailPreviewService: this.thumbnailPreviewService,
     }));
     this._register(this.settingsService.onDidChangeConductorSettings(() => {
-      this.refreshWorkbench();
+      this.scheduleWorkbenchAuxiliarySurfacesRefresh("settings", true);
     }));
     this._register(this.explorerService.onDidChangeSelection(() => {
-      this.scheduleWorkbenchSelectionSurfacesRefresh();
+      this.scheduleWorkbenchAuxiliarySurfacesRefresh("explorerSelection", false);
     }));
     this._register({
       dispose: () => {
-        this.cancelScheduledSelectionSurfacesRefresh?.();
-        this.cancelScheduledSelectionSurfacesRefresh = null;
+        this.cancelScheduledAuxiliarySurfacesRefresh?.();
+        this.cancelScheduledAuxiliarySurfacesRefresh = null;
+        this.scheduledAuxiliarySurfacesRefreshReasons.clear();
       },
     });
     this._register(this.plotService.onDidChangePlotState(() => {
-      this.refreshWorkbench();
+      this.scheduleWorkbenchAuxiliarySurfacesRefresh("plotState", true);
     }));
-    this._register(this.exportService.onDidChangeExportState(() => {
-      this.refreshWorkbench();
+    this._register(this.exportService.onDidChangeExportState(state => {
+      if (this.shouldRefreshAuxiliarySurfacesForExportState(state)) {
+        this.scheduleWorkbenchAuxiliarySurfacesRefresh("exportState", true);
+      }
+      this.lastObservedExportState = state;
     }));
     this._register(this.templateService.onDidChangeTemplateState(() => {
-      this.refreshWorkbench();
+      this.scheduleWorkbenchAuxiliarySurfacesRefresh("templateState", true);
     }));
     this._register(this.layoutService.onDidChangeWorkbenchNavigation(() => {
-      this.refreshWorkbench();
+      this.refreshWorkbench("navigation");
     }));
     this._register(this.layoutService.onDidChangeActiveAuxiliaryBarView(() => {
-      this.refreshWorkbench();
+      this.refreshWorkbench("activeAuxiliaryBarView");
     }));
-    this._register(this.session.onDidChangeSession(() => {
-      this.refreshWorkbench();
+    this._register(this.session.onDidChangeSession(event => {
+      if (this.shouldRefreshAuxiliarySurfacesForSessionChange(event)) {
+        this.scheduleWorkbenchAuxiliarySurfacesRefresh(`session:${event.reason}`, true);
+      }
     }));
     this.resetToView(initialViewMode);
     this.domainBridge.sync();
-    this.refreshWorkbench();
+    this.refreshWorkbench("initial");
   }
-
-  private cancelScheduledSelectionSurfacesRefresh: (() => void) | null = null;
 
   update(options: WorkbenchOptions = {}): void {
     if ("titlebarState" in options) {
@@ -420,16 +448,19 @@ export class Workbench extends Layout {
 
   public override resetLayoutState(): void {
     super.resetLayoutState();
-    this.refreshWorkbench();
+    this.refreshWorkbench("resetLayout");
   }
 
-  private refreshWorkbench(): void {
-    this.cancelScheduledSelectionSurfacesRefresh?.();
-    this.cancelScheduledSelectionSurfacesRefresh = null;
+  private refreshWorkbench(reason: WorkbenchFullRefreshReason): void {
+    this.cancelScheduledAuxiliarySurfacesRefresh?.();
+    this.cancelScheduledAuxiliarySurfacesRefresh = null;
+    this.scheduledAuxiliarySurfacesRefreshReasons.clear();
+    this.scheduledAuxiliarySurfacesRefreshNeedsChrome = false;
     const endPerf = startPerf("workbench.refreshWorkbench", {
       activeAuxiliaryBarView: this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart),
       activeView: this.activeView,
       mode: this.activeWorkbenchMainPart,
+      reason,
     }, { silent: true });
     const snapshot = this.session.getSnapshot();
     const readModel = createSessionReadModel(snapshot);
@@ -444,43 +475,109 @@ export class Workbench extends Layout {
     });
   }
 
-  private scheduleWorkbenchSelectionSurfacesRefresh(): void {
-    if (this.cancelScheduledSelectionSurfacesRefresh) {
+  private scheduleWorkbenchAuxiliarySurfacesRefresh(
+    reason: WorkbenchAuxiliaryRefreshReason,
+    needsChrome: boolean,
+  ): void {
+    this.scheduledAuxiliarySurfacesRefreshReasons.add(reason);
+    this.scheduledAuxiliarySurfacesRefreshNeedsChrome ||= needsChrome;
+
+    if (this.cancelScheduledAuxiliarySurfacesRefresh) {
       return;
     }
 
     const run = (): void => {
-      this.cancelScheduledSelectionSurfacesRefresh = null;
-      this.refreshWorkbenchSelectionSurfaces();
+      const reasons = [...this.scheduledAuxiliarySurfacesRefreshReasons];
+      const needsChromeRefresh = this.scheduledAuxiliarySurfacesRefreshNeedsChrome;
+      this.cancelScheduledAuxiliarySurfacesRefresh = null;
+      this.scheduledAuxiliarySurfacesRefreshReasons.clear();
+      this.scheduledAuxiliarySurfacesRefreshNeedsChrome = false;
+      this.refreshWorkbenchAuxiliarySurfaces(reasons, needsChromeRefresh);
     };
     if (typeof globalThis.requestAnimationFrame === "function") {
       const handle = globalThis.requestAnimationFrame(run);
-      this.cancelScheduledSelectionSurfacesRefresh = () => {
+      this.cancelScheduledAuxiliarySurfacesRefresh = () => {
         globalThis.cancelAnimationFrame(handle);
       };
       return;
     }
 
     const handle = globalThis.setTimeout(run, 0);
-    this.cancelScheduledSelectionSurfacesRefresh = () => {
+    this.cancelScheduledAuxiliarySurfacesRefresh = () => {
       globalThis.clearTimeout(handle);
     };
   }
 
-  private refreshWorkbenchSelectionSurfaces(): void {
-    const endPerf = startPerf("workbench.refreshSelectionSurfaces", {
+  private refreshWorkbenchAuxiliarySurfaces(
+    reasons: readonly WorkbenchAuxiliaryRefreshReason[],
+    needsChromeRefresh: boolean,
+  ): void {
+    const isSelectionOnlyRefresh = !needsChromeRefresh &&
+      reasons.length === 1 &&
+      reasons[0] === "explorerSelection";
+    const stage = isSelectionOnlyRefresh
+      ? "workbench.refreshSelectionSurfaces"
+      : "workbench.refreshAuxiliarySurfaces";
+    const endPerf = startPerf(stage, {
       activeAuxiliaryBarView: this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart),
       activeView: this.activeView,
       mode: this.activeWorkbenchMainPart,
+      reason: reasons[0] ?? "unknown",
+      reasons: reasons.join(","),
     }, { silent: true });
     const snapshot = this.session.getSnapshot();
     const readModel = createSessionReadModel(snapshot);
+    if (needsChromeRefresh) {
+      const isWorkbenchActive = this.activeView !== "settings";
+      const isAuxiliaryBarVisible = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+      this.updateAuxiliaryBar(isWorkbenchActive && isAuxiliaryBarVisible);
+      this.updateContextKeys();
+    }
     this.renderAuxiliaryBarView(snapshot, readModel);
     endPerf({
       fileCount: Object.keys(snapshot.filesById).length,
+      needsChromeRefresh,
       processedFileCount: readModel.processedFileIds.length,
       rawFileCount: readModel.rawFiles.length,
     });
+  }
+
+  private shouldRefreshAuxiliarySurfacesForExportState(state: ExportState): boolean {
+    const previous = this.lastObservedExportState;
+    if (!previous) {
+      return true;
+    }
+
+    return previous.canvasScope !== state.canvasScope ||
+      previous.filteredKind !== state.filteredKind;
+  }
+
+  private shouldRefreshAuxiliarySurfacesForSessionChange(event: SessionChangeEvent): boolean {
+    const activeAuxiliaryView = this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart);
+    switch (activeAuxiliaryView) {
+      case "export":
+        return this.shouldRefreshExportSurfacesForSessionChange(event);
+      case "template":
+      case "settings":
+        return false;
+      case "parameters":
+      case "search":
+      default:
+        return true;
+    }
+  }
+
+  private shouldRefreshExportSurfacesForSessionChange(event: SessionChangeEvent): boolean {
+    switch (event.reason) {
+      case "assessmentChanged":
+        return false;
+      case "calculatedRecordsChanged":
+      case "metricsChanged":
+      case "metricInputsChanged":
+        return this.exportService.getState().selectedContentKeys.some(key => key !== "iv");
+      default:
+        return true;
+    }
   }
 
   private renderWorkbench(): void {
@@ -743,7 +840,7 @@ export class Workbench extends Layout {
       this.navigateToView(viewMode);
     }
     if (previousViewMode === viewMode) {
-      this.refreshWorkbench();
+      this.refreshWorkbench("sameViewMode");
     }
   }
 
