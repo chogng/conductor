@@ -117,6 +117,22 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 		assert.equal(input.processingStatus, processingStatus);
 	});
 
+	test("keeps selected pending target even when chart option exists", () => {
+		const processingStatus = { processed: 1, state: "processing" as const, total: 3 };
+		const input = createChartViewInput({
+			activeFileId: "file-pending",
+			activePlotType: "iv",
+			chartFileOptions: [{ fileId: "file-pending", fileName: "pending.csv" }],
+			hasChartData: false,
+			processingStatus,
+		});
+
+		assert.equal(input.activeFileId, "file-pending");
+		assert.equal(input.hasChartData, false);
+		assert.equal(input.processingStatus, processingStatus);
+		assert.deepEqual(input.chartFileOptions, [{ fileId: "file-pending", fileName: "pending.csv" }]);
+	});
+
 	test("does not publish chart input changes for hidden background file options", () => {
 		const service = store.add(new ChartService());
 		let changeCount = 0;

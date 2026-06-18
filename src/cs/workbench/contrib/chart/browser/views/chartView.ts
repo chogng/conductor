@@ -46,6 +46,7 @@ export type ChartViewElement = HTMLElement & {
 
 export const createChartView = (props: ChartViewProps): ChartViewElement => {
   const {
+    activeFileId,
     hasChartData = false,
     plotDisplayModel = null,
     processingStatus,
@@ -56,6 +57,10 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   root.setAttribute("aria-label", localize("chart.title", "Chart"));
 
   if (!hasChartData) {
+    if (isFastPendingDisplayTarget(props)) {
+      return createPendingChartView(root, props, visiblePanes);
+    }
+
     root.append(createEmptyView({
       hint: processingStatus?.state === "processing"
         ? localize("chart.processing.hint", "Extracting and preparing chart data, please wait.")
@@ -68,11 +73,12 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   }
 
   if (!plotDisplayModel) {
-    root.append(createEmptyView({
-      hint: localize("chart.calculation.hint", "Preparing chart calculations, please wait."),
-      title: localize("chart.calculation.title", "Calculating chart data..."),
-    }));
-    return root;
+    return createPendingChartView(root, props, visiblePanes);
+  }
+
+  root.dataset.chartDisplayState = "ready";
+  if (activeFileId) {
+    root.dataset.chartFileId = activeFileId;
   }
 
   let currentProps = props;
@@ -157,6 +163,118 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   });
 
   return root;
+};
+
+const isFastPendingDisplayTarget = (props: ChartViewProps): boolean =>
+  Boolean(props.activeFileId) && props.processingStatus?.state === "processing";
+
+const createPendingChartView = (
+  root: ChartViewElement,
+  props: ChartViewProps,
+  visiblePanes: readonly ChartPane[],
+): ChartViewElement => {
+  const pending = createPendingDisplay();
+  syncPendingChartView(root, pending, props, visiblePanes);
+  root.append(pending.main);
+  Object.defineProperty(root, "update", {
+    value: (nextProps: ChartViewProps): boolean => {
+      if (!isPendingChartViewProps(nextProps)) {
+        return false;
+      }
+
+      syncPendingChartView(root, pending, nextProps, normalizeVisiblePanes(nextProps.visiblePanes));
+      return true;
+    },
+  });
+  return root;
+};
+
+const isPendingChartViewProps = (props: ChartViewProps): boolean =>
+  props.hasChartData === true
+    ? !props.plotDisplayModel
+    : isFastPendingDisplayTarget(props);
+
+type PendingDisplayParts = {
+  readonly hint: HTMLElement;
+  readonly main: HTMLElement;
+  readonly status: HTMLElement;
+  readonly title: HTMLElement;
+};
+
+const createPendingDisplay = (): PendingDisplayParts => {
+  const main = document.createElement("div");
+  main.className = "chart_view_main chart_view_pending_main";
+
+  const pane = document.createElement("div");
+  pane.className = "chart_view_main_pane";
+
+  const host = document.createElement("div");
+  host.className = "chart_view_host chart_view_pending_host";
+
+  const surface = document.createElement("div");
+  surface.className = "chart_view_pending_surface";
+  surface.setAttribute("aria-live", "polite");
+
+  const plotArea = document.createElement("div");
+  plotArea.className = "chart_view_pending_plot";
+  plotArea.append(
+    createPendingRule("x"),
+    createPendingRule("y"),
+    createPendingLine(),
+  );
+
+  const status = document.createElement("p");
+  status.className = "chart_view_pending_status";
+
+  const title = document.createElement("p");
+  title.className = "chart_view_pending_title";
+
+  const hint = document.createElement("p");
+  hint.className = "chart_view_pending_hint";
+
+  surface.append(plotArea, status, title, hint);
+  host.append(surface);
+  pane.append(host);
+  main.append(pane);
+
+  return {
+    hint,
+    main,
+    status,
+    title,
+  };
+};
+
+const syncPendingChartView = (
+  root: ChartViewElement,
+  pending: PendingDisplayParts,
+  props: ChartViewProps,
+  visiblePanes: readonly ChartPane[],
+): void => {
+  const fileId = String(props.activeFileId ?? "").trim();
+  const plotType = props.activePlotType ?? "iv";
+  root.dataset.chartDisplayState = "pending";
+  root.dataset.chartFileId = fileId;
+  root.dataset.pendingFileId = fileId;
+  root.dataset.pendingPlotType = plotType;
+  pending.main.dataset.paneCount = visiblePanes.includes("chart") ? "1" : "0";
+  pending.status.textContent = localize("chart.pending.status", "Preparing chart");
+  pending.title.textContent = fileId || localize("chart.pending.target", "Selected file");
+  pending.hint.textContent = props.hasChartData === true
+    ? localize("chart.pending.display.hint", "Building the first drawable chart frame.")
+    : localize("chart.pending.data.hint", "Waiting for this file's chart data.");
+};
+
+const createPendingRule = (axis: "x" | "y"): HTMLElement => {
+  const rule = document.createElement("div");
+  rule.className = `chart_view_pending_axis chart_view_pending_axis_${axis}`;
+  return rule;
+};
+
+const createPendingLine = (): HTMLElement => {
+  const line = document.createElement("div");
+  line.className = "chart_view_pending_line";
+  return line;
 };
 
 const normalizeVisiblePanes = (

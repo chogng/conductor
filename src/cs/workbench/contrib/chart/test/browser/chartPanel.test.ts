@@ -49,6 +49,47 @@ suite("workbench/contrib/chart/test/browser/chartPanel", () => {
       host.remove();
     }
   });
+
+  test("shows fast pending display without keeping a stale canvas", async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const host = document.createElement("div");
+    host.style.height = "360px";
+    host.style.width = "640px";
+    document.body.append(host);
+
+    const panel = new ChartPanel(createChartProps("file-a"));
+
+    try {
+      host.append(panel.element);
+      await animationFrames(1);
+
+      const canvas = panel.element.querySelector(".plot_main_chart_canvas") as HTMLCanvasElement | null;
+      assert.ok(canvas);
+      assert.ok(canvas.dataset.plotRenderSignature?.startsWith("file-a|"));
+
+      panel.update({
+        ...createChartProps("file-b"),
+        plotDisplayModel: null,
+        processingStatus: { state: "processing" },
+      });
+
+      assert.equal(panel.element.querySelector(".plot_main_chart_canvas"), null);
+      const pending = panel.element.querySelector(".chart_view") as HTMLElement | null;
+      assert.equal(pending?.dataset.chartDisplayState, "pending");
+      assert.equal(pending?.dataset.pendingFileId, "file-b");
+
+      panel.update(createChartProps("file-b", 4));
+      const nextCanvas = panel.element.querySelector(".plot_main_chart_canvas") as HTMLCanvasElement | null;
+      assert.ok(nextCanvas);
+      assert.ok(nextCanvas.dataset.plotRenderSignature?.startsWith("file-b|"));
+    } finally {
+      panel.dispose();
+      host.remove();
+    }
+  });
 });
 
 const createChartProps = (

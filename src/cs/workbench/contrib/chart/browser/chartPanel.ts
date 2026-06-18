@@ -76,6 +76,10 @@ const getChartPanelContentKind = (props: ChartViewProps): ChartPanelContentKind 
     return shouldMountCharts ? "loading-card" : "chart-view";
   }
 
+  if (isPendingChartTarget(props)) {
+    return "chart-view";
+  }
+
   return processingStatus?.state === "processing"
     ? "processing-card"
     : "chart-view";
@@ -106,6 +110,12 @@ const createChartPanelContent = (
     }), kind);
   }
 
+  if (isPendingChartTarget(props)) {
+    return withContentKind(createChartView({
+      ...props,
+    }), kind);
+  }
+
   if (processingStatus?.state === "processing") {
     return withContentKind(createProcessingCard(processingStatus), kind);
   }
@@ -124,6 +134,11 @@ const withContentKind = <T extends HTMLElement>(
   });
   return content as T & { readonly contentKind: ChartPanelContentKind };
 };
+
+const isPendingChartTarget = (props: ChartViewProps): boolean =>
+  Boolean(props.activeFileId) &&
+  props.hasChartData !== true &&
+  props.processingStatus?.state === "processing";
 
 const createProcessingCard = (
   processingStatus: Partial<ProcessingStatus>,

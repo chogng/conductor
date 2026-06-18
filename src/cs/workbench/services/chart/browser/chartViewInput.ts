@@ -13,6 +13,7 @@ export type CreateChartViewInputOptions = {
 	readonly activeFileId: string | null;
 	readonly activePlotType: PlotType;
 	readonly chartFileOptions: readonly ChartFileOption[];
+	readonly hasChartData?: boolean;
 	readonly processingStatus?: Partial<ProcessingStatus>;
 	readonly showFileSelect?: boolean;
 	readonly shouldMountCharts?: boolean;
@@ -22,10 +23,11 @@ export const createChartViewInput = (
 	options: CreateChartViewInputOptions,
 ): ChartViewInput => {
 	const { activeFileId } = options;
-	const hasChartData = Boolean(
+	const derivedHasChartData = Boolean(
 		activeFileId &&
 			options.chartFileOptions.some(option => option.fileId === activeFileId),
 	);
+	const hasChartData = options.hasChartData ?? derivedHasChartData;
 	const chartFileOptions = options.showFileSelect === false && hasChartData
 		? options.chartFileOptions.filter(option => option.fileId === activeFileId)
 		: options.chartFileOptions;

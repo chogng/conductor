@@ -46,6 +46,23 @@ export const createLiveFileSwitchTargetSamples = (result, window = null) => {
       event.canvasRenderSignature &&
       event.canvasRenderSignature !== dispatchRenderSignature
     );
+    const pendingDisplay = fileEvents.find(event =>
+      event.chartDisplayState === "pending" &&
+      event.chartPendingFileId === fileId
+    );
+    const staleCanvasCleared = fileEvents.find(event => {
+      if (
+        event.chartDisplayState === "pending" &&
+        event.chartPendingFileId === fileId
+      ) {
+        return true;
+      }
+
+      const renderFileId = typeof event.canvasRenderSignature === "string"
+        ? event.canvasRenderSignature.split("|")[0]
+        : "";
+      return !renderFileId || renderFileId === fileId;
+    });
     const chartChanged = renderSignatureDrawn ?? canvasChanged;
     const readySelected = fileEvents.find(event =>
       event.selectedChartState === "ready" ||
@@ -64,10 +81,12 @@ export const createLiveFileSwitchTargetSamples = (result, window = null) => {
       dispatchTimestamp: roundMetric(readNumber(dispatch.timestamp)),
       dispatchWallTime: roundMetric(getTraceEventWallTime(dispatch)),
       fileId,
+      pendingDisplayMs: durationFromDispatch(dispatch, pendingDisplay),
       readySelectedMs: durationFromDispatch(dispatch, readySelected),
       renderSignatureChangedMs: durationFromDispatch(dispatch, renderSignatureChanged),
       renderSignatureDrawnMs: durationFromDispatch(dispatch, renderSignatureDrawn),
       selectedMs: durationFromDispatch(dispatch, selected),
+      staleCanvasClearedMs: durationFromDispatch(dispatch, staleCanvasCleared),
     };
   });
 };
@@ -96,8 +115,12 @@ export const summarizeFileSwitchStress = (result) => {
 export const summarizeLiveFileSwitchTargetSamples = (targetSamples) => ({
   targetCanvasChangedCount: targetSamples.filter(sample => sample.canvasChangedMs != null).length,
   targetCanvasChangedMs: summarizeDurations(targetSamples.map(sample => sample.canvasChangedMs)),
+  targetPendingDisplayCount: targetSamples.filter(sample => sample.pendingDisplayMs != null).length,
+  targetPendingDisplayMs: summarizeDurations(targetSamples.map(sample => sample.pendingDisplayMs)),
   readySelectedCount: targetSamples.filter(sample => sample.readySelectedMs != null).length,
   readySelectedMs: summarizeDurations(targetSamples.map(sample => sample.readySelectedMs)),
+  targetStaleCanvasClearedCount: targetSamples.filter(sample => sample.staleCanvasClearedMs != null).length,
+  targetStaleCanvasClearedMs: summarizeDurations(targetSamples.map(sample => sample.staleCanvasClearedMs)),
   targetChartDrawnByCanvasSignatureCount: targetSamples.filter(sample => sample.chartDrawnSource === "canvasSignature").length,
   targetChartDrawnByRenderSignatureCount: targetSamples.filter(sample => sample.chartDrawnSource === "renderSignature").length,
   sampledTargetCount: targetSamples.length,

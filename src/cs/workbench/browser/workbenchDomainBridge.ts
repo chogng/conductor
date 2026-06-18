@@ -208,7 +208,7 @@ export class WorkbenchDomainBridge extends Disposable {
       readModel,
       explorerSelection.selectedProcessedFileId,
     );
-    if (chartViewInput.activeFileId) {
+    if (chartViewInput.activeFileId && chartViewInput.hasChartData) {
       this.options.calculationService.prioritizeCalculationFile(chartViewInput.activeFileId);
       this.options.plotService.prefetchPlotDisplayModel({
         fileId: chartViewInput.activeFileId,
@@ -252,7 +252,11 @@ export class WorkbenchDomainBridge extends Disposable {
   ) {
     const chartActiveFileId = resolveExplorerSelectedFileId(
       activeFileId,
-      readModel.processedFileIds,
+      readModel.rawFiles.flatMap(file => file.fileId ? [file.fileId] : []),
+    );
+    const hasActiveChartData = Boolean(
+      chartActiveFileId &&
+        readModel.processedFileIds.includes(chartActiveFileId),
     );
     const chartFileOptions = createActiveChartFileOptions(
       snapshot,
@@ -262,6 +266,7 @@ export class WorkbenchDomainBridge extends Disposable {
       activeFileId: chartActiveFileId,
       activePlotType: this.options.plotService.getState().activePlotType,
       chartFileOptions,
+      hasChartData: hasActiveChartData,
       processingStatus: this.options.templateApplyWorkflowService.processingStatus,
       showFileSelect: false,
       shouldMountCharts: false,

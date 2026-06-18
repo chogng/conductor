@@ -2,6 +2,7 @@ import {
   dispatchSyntheticFileSelectTarget,
   inspectMainChartState,
   installFileSwitchLiveObserver,
+  isPendingFileSwitchTarget,
   stopFileSwitchLiveObserver,
   waitForMainChartCanvas,
   waitForMainChartDrawn,
@@ -31,11 +32,11 @@ export const runCoordinatedLiveInteractionStress = async ({
   timeoutMs,
 }) => {
   const requestedTargetCount = Math.max(thumbnailHoverCount, fileSwitchCount);
-  let targets = await waitForVisibleThumbnailHoverTargets(
+  let targets = orderPendingInteractionTargets(await waitForVisibleThumbnailHoverTargets(
     page,
     requestedTargetCount,
     Math.min(timeoutMs, 5000),
-  );
+  ));
   const watchedTarget = targets[0] ?? null;
   if (!watchedTarget) {
     return createEmptyCoordinatedLiveResult({
@@ -190,8 +191,9 @@ const resolveNextCoordinatedTarget = async ({
   targetCursor,
 }) => {
   const visibleTargets = await readVisibleThumbnailHoverTargets(page, count);
-  targets = mergeThumbnailHoverTargets(targets, visibleTargets).slice(0, count);
-  const visibleUnattempted = visibleTargets.find(target => !attemptedFileIds.has(target.fileId));
+  targets = orderPendingInteractionTargets(mergeThumbnailHoverTargets(targets, visibleTargets)).slice(0, count);
+  const orderedVisibleTargets = orderPendingInteractionTargets(visibleTargets);
+  const visibleUnattempted = orderedVisibleTargets.find(target => !attemptedFileIds.has(target.fileId));
   if (visibleUnattempted) {
     return {
       targetCursor,
@@ -202,8 +204,9 @@ const resolveNextCoordinatedTarget = async ({
 
   await scrollThumbnailHoverListByWheel(page, LIVE_INTERACTION_SCROLL_DELTA_Y);
   const nextVisibleTargets = await readVisibleThumbnailHoverTargets(page, count);
-  targets = mergeThumbnailHoverTargets(targets, nextVisibleTargets).slice(0, count);
-  const nextVisibleUnattempted = nextVisibleTargets.find(target => !attemptedFileIds.has(target.fileId));
+  targets = orderPendingInteractionTargets(mergeThumbnailHoverTargets(targets, nextVisibleTargets)).slice(0, count);
+  const orderedNextVisibleTargets = orderPendingInteractionTargets(nextVisibleTargets);
+  const nextVisibleUnattempted = orderedNextVisibleTargets.find(target => !attemptedFileIds.has(target.fileId));
   if (nextVisibleUnattempted) {
     return {
       targetCursor,
@@ -212,10 +215,10 @@ const resolveNextCoordinatedTarget = async ({
     };
   }
 
-  const fallbackTargets = nextVisibleTargets.length
-    ? nextVisibleTargets
-    : visibleTargets.length
-      ? visibleTargets
+  const fallbackTargets = orderedNextVisibleTargets.length
+    ? orderedNextVisibleTargets
+    : orderedVisibleTargets.length
+      ? orderedVisibleTargets
       : targets;
   if (!fallbackTargets.length) {
     return {
@@ -232,6 +235,11 @@ const resolveNextCoordinatedTarget = async ({
     value,
   };
 };
+
+const orderPendingInteractionTargets = (targets) => [
+  ...targets.filter(isPendingFileSwitchTarget),
+  ...targets.filter(target => !isPendingFileSwitchTarget(target)),
+];
 
 const settleLastFileSwitch = async ({
   beforeState,

@@ -125,9 +125,10 @@ sequenceDiagram
     ChartViewPane->>PlotService: getCachedPlotDisplayModel / getCachedPlotLegendModel / getLegendLabels
     alt plot cache miss
         ChartViewPane->>PlotService: prefetchPlotDisplayModel(activeFileId, "active")
+        ChartViewPane->>ChartViewPane: render fast pending display for active file without keeping stale canvas
         PlotService-->>ChartViewPane: onDidChangeCalculatedDataCache(activeFileId)
         PlotService-->>ChartViewPane: onDidChangePlotDisplayModelCache(activeFileId, chart-only)
-        ChartViewPane->>ChartViewPane: render main chart while inspector is pending
+        ChartViewPane->>ChartViewPane: replace pending display with main chart while inspector is pending
         ChartViewPane->>PlotService: prefetchPlotInspectorDisplayModel(activeFileId, "active") after Inspector-visible active file stays stable
         PlotService-->>ChartViewPane: onDidChangePlotDisplayModelCache(activeFileId, inspector)
         ChartViewPane->>PlotService: getCachedPlotDisplayModel / getCachedPlotLegendModel
@@ -161,6 +162,11 @@ model, legend model, and legend labels from Plot.
 `ChartViewPane` must use Plot's cached display/legend APIs during render and
 request active display-model prefetch on cache miss; it must not synchronously
 create calculated Plot data or Plot display models in the chart render path.
+On a cache miss for the active chart target, `ChartViewPane`/`ChartPanel`
+should render a Chart-owned fast pending display that carries the target file
+identity and clears or replaces any stale canvas. This pending display is
+visual state only; it must not be represented as a fake `PlotDisplayModel` and
+must be replaced only by a matching real Plot display cache result.
 When the Inspector pane is visible and the cached main chart display model has
 no inspector pane model yet, `ChartViewPane` should request
 `IPlotService.prefetchPlotInspectorDisplayModel(...)` only after the active

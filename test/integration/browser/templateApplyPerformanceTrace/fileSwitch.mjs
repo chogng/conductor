@@ -58,10 +58,14 @@ export const inspectMainChartState = async (page) => page.evaluate(() => {
   const selected = document.querySelector(".file-list-item[data-selected=\"true\"][data-file-id]");
   const canvas = document.querySelector(".plot_main_chart_canvas");
   const emptyTitle = document.querySelector(".chart_view_empty_title");
+  const chartView = document.querySelector(".chart_view[data-chart-display-state]");
   const snapshot = readCanvasSnapshot(canvas);
   return {
     ...snapshot,
+    chartDisplayState: chartView instanceof HTMLElement ? chartView.dataset.chartDisplayState ?? null : null,
     chartEmptyTitle: emptyTitle?.textContent?.trim() ?? null,
+    chartPendingFileId: chartView instanceof HTMLElement ? chartView.dataset.pendingFileId ?? null : null,
+    chartPendingPlotType: chartView instanceof HTMLElement ? chartView.dataset.pendingPlotType ?? null : null,
     selectedChartState: selected instanceof HTMLElement ? selected.dataset.chartState ?? null : null,
     selectedFileId: selected instanceof HTMLElement ? selected.dataset.fileId ?? null : null,
     selectedHasChartData: selected instanceof HTMLElement ? selected.dataset.hasChartData === "true" : null,
@@ -244,11 +248,15 @@ export const installFileSwitchLiveObserver = async (page) => page.evaluate(() =>
     const selected = document.querySelector(".file-list-item[data-selected=\"true\"][data-file-id]");
     const canvas = document.querySelector(".plot_main_chart_canvas");
     const emptyTitle = document.querySelector(".chart_view_empty_title");
+    const chartView = document.querySelector(".chart_view[data-chart-display-state]");
     const snapshot = readCanvasSnapshot(canvas, { samplePixels });
     const traceTime = readTraceTime();
     return {
       ...snapshot,
+      chartDisplayState: chartView instanceof HTMLElement ? chartView.dataset.chartDisplayState ?? null : null,
       chartEmptyTitle: emptyTitle?.textContent?.trim() ?? null,
+      chartPendingFileId: chartView instanceof HTMLElement ? chartView.dataset.pendingFileId ?? null : null,
+      chartPendingPlotType: chartView instanceof HTMLElement ? chartView.dataset.pendingPlotType ?? null : null,
       reason,
       selectedChartState: selected instanceof HTMLElement ? selected.dataset.chartState ?? null : null,
       selectedFileId: selected instanceof HTMLElement ? selected.dataset.fileId ?? null : null,
@@ -265,6 +273,8 @@ export const installFileSwitchLiveObserver = async (page) => page.evaluate(() =>
       state.selectedFileId ?? "",
       state.selectedChartState ?? "",
       state.selectedHasChartData ? "1" : "0",
+      state.chartDisplayState ?? "",
+      state.chartPendingFileId ?? "",
       state.canvasRenderSignature ?? "",
       state.canvasSignature ?? "",
       state.canvasNonBlank ? "1" : "0",
@@ -282,7 +292,10 @@ export const installFileSwitchLiveObserver = async (page) => page.evaluate(() =>
     attributes: true,
     attributeFilter: [
       "data-chart-state",
+      "data-chart-display-state",
       "data-has-chart-data",
+      "data-pending-file-id",
+      "data-pending-plot-type",
       "data-plot-render-signature",
       "data-selected",
       "class",
@@ -324,9 +337,18 @@ export const stopFileSwitchLiveObserver = async (page) => page.evaluate(() =>
 ).catch(() => null);
 
 export const orderSwitchTargets = (targets, count) => [
-  ...targets.filter(target => !target.selected),
+  ...targets.filter(target => !target.selected && isPendingFileSwitchTarget(target)),
+  ...targets.filter(target => !target.selected && !isPendingFileSwitchTarget(target)),
   ...targets.filter(target => target.selected),
 ].slice(0, count);
+
+export const isPendingFileSwitchTarget = (target) =>
+  target &&
+  target.hasChartData !== true &&
+  (
+    target.chartState === "queued" ||
+    target.chartState === "processing"
+  );
 
 export const runFileSwitchStress = async ({
   count,

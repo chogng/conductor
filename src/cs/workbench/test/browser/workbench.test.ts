@@ -699,6 +699,60 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
     }
   });
+
+  test("keeps selected chart target pending before chart data is ready", async () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const chartViewInputs: Array<{ readonly activeFileId: string | null; readonly hasChartData?: boolean }> = [];
+    commitRawFilesForTest(session, [
+      {
+        columnCount: 2,
+        fileId: "file-a",
+        fileName: "A.csv",
+        rowCount: 2,
+        rows: [],
+      },
+      {
+        columnCount: 2,
+        fileId: "file-b",
+        fileName: "B.csv",
+        rowCount: 2,
+        rows: [],
+      },
+    ]);
+    commitTemplateOutputForTest(session, {
+      curveType: "transfer",
+      fileId: "file-a",
+      fileName: "A.csv",
+      series: [{
+        groupIndex: 0,
+        id: "series-a",
+        y: [1, 2],
+      }],
+      xGroups: [[0, 1]],
+    });
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      chartViewInputs,
+      explorerService,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+    }));
+    try {
+      explorerService.select({
+        fileId: "file-b",
+        kind: "chart",
+      });
+      await Promise.resolve();
+
+      assert.deepEqual(chartViewInputs.at(-1), {
+        activeFileId: "file-b",
+        hasChartData: false,
+      });
+    } finally {
+      bridge.dispose();
+    }
+  });
 });
 
 const createPlotService = (): Parameters<typeof createExplorerPaneInput>[0]["plotService"] => ({
@@ -737,6 +791,7 @@ const createPlotService = (): Parameters<typeof createExplorerPaneInput>[0]["plo
 
 const createDomainBridgeOptionsForTest = ({
   chartActiveFileIds,
+  chartViewInputs,
   cachedPlotDisplayFileIds,
   explorerService,
   plotCalculatedPrefetches,
@@ -746,6 +801,7 @@ const createDomainBridgeOptionsForTest = ({
   session,
 }: {
   readonly chartActiveFileIds?: (string | null)[];
+  readonly chartViewInputs?: Array<{ readonly activeFileId: string | null; readonly hasChartData?: boolean }>;
   readonly cachedPlotDisplayFileIds?: readonly string[];
   readonly explorerService: ExplorerService;
   readonly plotCalculatedPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
@@ -774,6 +830,10 @@ const createDomainBridgeOptionsForTest = ({
   chartService: {
     updateViewInput: input => {
       chartActiveFileIds?.push(input.activeFileId ?? null);
+      chartViewInputs?.push({
+        activeFileId: input.activeFileId ?? null,
+        hasChartData: input.hasChartData,
+      });
     },
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["chartService"],
   explorerService,
