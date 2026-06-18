@@ -115,7 +115,7 @@ sequenceDiagram
         end
         Calculation->>Calculation: prioritize changed file ids in pending calculation queue
         Calculation->>Calculation: reorder pending queue by interactive priority lane
-        loop foreground first file, then background chunks
+        loop interactive foreground chunk when prioritized, then background chunks
             Calculation->>Records: createCalculatedRecordsByFile(chunkFilesById, chunkFileIds)
             Records->>Curves: createCalculatedCurveRecordsByFile(chunkFilesById, chunkFileIds)
             Curves-->>Records: CurveRecord[] by file
@@ -149,10 +149,10 @@ Session boundary rules:
 
 - Calculation reads session facts only through `ISessionService.getSnapshot()`.
 - Calculation writes canonical results through `commitCalculatedRecordsBatch`
-  after collecting curves and metrics for a calculation chunk. The first chunk
-  may run in the foreground to make the newest/selected file drawable quickly;
-  remaining files should run as background chunks so a large apply/import phase
-  does not monopolize the renderer thread.
+  after collecting curves and metrics for a calculation chunk. Only files that
+  match the interactive priority lane should run in a tiny foreground chunk;
+  ordinary apply/import calculation work should stay in single-file background
+  chunks so a large batch does not monopolize the renderer thread.
 - `ICalculationService.prioritizeCalculationFile(s)` accepts interactive
   priority hints from workbench orchestration such as Explorer selection,
   hover thumbnails, and visible thumbnail ranges. It records a bounded

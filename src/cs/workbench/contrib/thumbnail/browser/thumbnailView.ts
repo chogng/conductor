@@ -90,6 +90,48 @@ export const createThumbnailView = ({
   return root;
 };
 
+export const updateThumbnailView = (
+  root: HTMLElement,
+  props: ThumbnailViewProps,
+): boolean => {
+  if (!root.classList.contains("thumbnail_view")) {
+    return false;
+  }
+
+  const title = props.file.fileName ?? props.file.fileId ?? "";
+  root.classList.toggle("thumbnail_view--active", props.isActive === true);
+  if (title) {
+    root.title = title;
+  } else {
+    root.removeAttribute("title");
+  }
+
+  const titleElement = root.querySelector<HTMLElement>(".thumbnail_view_title");
+  if (titleElement) {
+    titleElement.textContent = title;
+  }
+
+  const chart = root.querySelector<HTMLElement>(".thumbnail_view_chart");
+  if (!chart) {
+    return false;
+  }
+
+  updateChartThumbnail(chart, {
+    drawStrategy: props.drawStrategy ?? "stable",
+    file: props.file,
+    isLoading: props.isLoading === true,
+    isOriginSelected: props.isOriginSelected === true,
+    originOpenPlotOptions: props.originOpenPlotOptions,
+    originSelectedBadgeLabel: props.originSelectedBadgeLabel ?? "SELECT",
+    plotAxisSettings: props.plotAxisSettings,
+    plotModel: props.plotModel ?? null,
+    plotType: props.plotType ?? "iv",
+    showOriginSelectionBadge: props.showOriginSelectionBadge === true,
+    thumbnailService: props.thumbnailService ?? null,
+  });
+  return true;
+};
+
 const createHeader = (file: ThumbnailFileLike): HTMLElement => {
   const root = document.createElement("div");
   root.className = "thumbnail_view_header";
@@ -160,6 +202,97 @@ const createChartThumbnail = ({
   return root;
 };
 
+const updateChartThumbnail = (
+  root: HTMLElement,
+  props: {
+    readonly file: ThumbnailFileLike;
+    readonly drawStrategy: ThumbnailDrawStrategy;
+    readonly originOpenPlotOptions?: OriginPlotOptions;
+    readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
+    readonly plotModel: ThumbnailPlotModel | null;
+    readonly plotType: PlotType;
+    readonly thumbnailService: Pick<IThumbnailService, "drawPlotThumbnail"> | null;
+    readonly isLoading: boolean;
+    readonly isOriginSelected: boolean;
+    readonly originSelectedBadgeLabel: string;
+    readonly showOriginSelectionBadge: boolean;
+  },
+): void => {
+  root.style.aspectRatio = "16 / 9";
+  const existingBadge = root.querySelector<HTMLElement>(".thumbnail_view_selection_badge");
+  if (props.plotModel && props.thumbnailService) {
+    root.querySelector(".thumbnail_view_chart_loading")?.remove();
+    const canvas = root.querySelector<HTMLCanvasElement>("canvas.thumbnail_view_chart_canvas");
+    if (canvas) {
+      canvas.title = props.file.fileName ?? props.file.fileId ?? "";
+      props.thumbnailService.drawPlotThumbnail(canvas, {
+        model: props.plotModel,
+        originOpenPlotOptions: props.originOpenPlotOptions,
+        plotAxisSettings: props.plotAxisSettings,
+        plotType: props.plotType,
+      });
+    } else {
+      replaceChartContent(root, createPlotMainThumbnailCanvas({
+        drawStrategy: props.drawStrategy,
+        file: props.file,
+        originOpenPlotOptions: props.originOpenPlotOptions,
+        plotAxisSettings: props.plotAxisSettings,
+        plotModel: props.plotModel,
+        plotType: props.plotType,
+        thumbnailService: props.thumbnailService,
+      }));
+    }
+  } else if (props.isLoading) {
+    if (
+      !root.querySelector("canvas.thumbnail_view_chart_canvas") &&
+      !root.querySelector(".thumbnail_view_chart_loading")
+    ) {
+      replaceChartContent(root, createThumbnailLoadingPlaceholder());
+    }
+  } else {
+    replaceChartContent(root, null);
+  }
+
+  updateOriginSelectionBadge(root, existingBadge, props);
+};
+
+const replaceChartContent = (
+  root: HTMLElement,
+  content: HTMLElement | null,
+): void => {
+  for (const child of [...root.children]) {
+    if (child.classList.contains("thumbnail_view_selection_badge")) {
+      continue;
+    }
+    child.remove();
+  }
+  if (content) {
+    root.prepend(content);
+  }
+};
+
+const updateOriginSelectionBadge = (
+  root: HTMLElement,
+  existingBadge: HTMLElement | null,
+  props: {
+    readonly isOriginSelected: boolean;
+    readonly originSelectedBadgeLabel: string;
+    readonly showOriginSelectionBadge: boolean;
+  },
+): void => {
+  if (!props.showOriginSelectionBadge || !props.isOriginSelected) {
+    existingBadge?.remove();
+    return;
+  }
+
+  const badge = existingBadge ?? document.createElement("div");
+  badge.className = "thumbnail_view_selection_badge";
+  badge.textContent = props.originSelectedBadgeLabel;
+  if (!badge.parentElement) {
+    root.append(badge);
+  }
+};
+
 const createThumbnailLoadingPlaceholder = (): HTMLElement => {
   const root = document.createElement("div");
   root.className = "thumbnail_view_chart_loading";
@@ -215,6 +348,7 @@ const scheduleThumbnailDraw = (
   draw: () => void,
 ): void => {
   let animationFrame = 0;
+  let didDraw = false;
   let pendingSize: ThumbnailCanvasSize | null = null;
   let waitFrames = 0;
   const resizeObserver = new ResizeObserver(() => queueDraw());
@@ -227,8 +361,22 @@ const scheduleThumbnailDraw = (
     resizeObserver.disconnect();
   };
 
+  const drawNow = (): boolean => {
+    if (didDraw || !readThumbnailCanvasSize(canvas)) {
+      return false;
+    }
+
+    didDraw = true;
+    dispose();
+    draw();
+    return true;
+  };
+
   const render = (): void => {
     animationFrame = 0;
+    if (didDraw) {
+      return;
+    }
 
     const nextSize = readThumbnailCanvasSize(canvas);
     if (!nextSize) {
@@ -244,8 +392,7 @@ const scheduleThumbnailDraw = (
     waitFrames = 0;
 
     if (drawStrategy === "eager") {
-      dispose();
-      draw();
+      drawNow();
       return;
     }
 
@@ -267,6 +414,9 @@ const scheduleThumbnailDraw = (
   };
 
   resizeObserver.observe(canvas);
+  if (drawStrategy === "eager") {
+    queueMicrotask(() => drawNow());
+  }
   queueDraw();
 };
 

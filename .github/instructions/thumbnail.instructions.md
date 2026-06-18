@@ -289,6 +289,14 @@ Do not create thumbnail-specific duplicates of Explorer file item commands such 
   affect the hover thumbnail node or plotted output. Processing-stage metadata
   such as curve-type labels must not evict a nonblank hover thumbnail when the
   plot model signature is unchanged.
+- Explorer hover thumbnails should reuse the existing thumbnail view and redraw
+  into the existing canvas when a newer Plot model arrives. If a refresh
+  temporarily resolves to `loading` after a nonblank canvas exists, keep the old
+  canvas visible until a replacement Plot model is ready.
+- Explorer hover thumbnail cache identity must not include selection/active
+  visual state. Toggle active classes in place, and keep cached detached hover
+  thumbnail nodes updated from `onDidChangePreview` so file switching cannot
+  force a canvas replacement on the next hover.
 - Thumbnail preview queues must consume `IPlotService.getCachedCalculatedData`;
   they must not call `getCalculatedData` to create plot models inside the
   thumbnail frame budget.

@@ -172,6 +172,11 @@ storage, for these controls.
   affects only specific file ids, `PlotService` should publish targeted
   `onDidChangePlotDisplayModelCache` events for those file/plot pairs instead
   of waking every Chart/Thumbnail consumer through `onDidChangePlotState`.
+- Plot render models are currently built from template/base curve records and
+  Plot-owned settings. `calculatedRecordsChanged`, `metricsChanged`, and
+  derived-only `curvesChanged` events must not invalidate active chart or hover
+  thumbnail plot caches unless Plot starts consuming those canonical records as
+  render inputs.
 - Chart views should request `prefetchPlotDisplayModel(..., "active")` on a
   cached display-model miss. They should not call `getPlotDisplayModel` in the
   active render path.

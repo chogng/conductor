@@ -90,7 +90,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
     );
   });
 
-  test("recalculates only files affected by a base curve session change", () => {
+  test("recalculates only files affected by a base curve session change", async () => {
     const sessionEvents = new Emitter<SessionChangeEvent>();
     const curveCommits: CommitCurvesInput[] = [];
     const metricCommits: CommitMetricsInput[] = [];
@@ -128,13 +128,18 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       fileIds: ["file-b"],
     }));
 
+    assert.deepEqual(curveCommits.map(commit => commit.fileId), []);
+    assert.deepEqual(metricCommits.map(commit => commit.fileId), []);
+
+    await waitForPendingCalculation();
+
     assert.deepEqual(curveCommits.map(commit => commit.fileId), ["file-b"]);
     assert.deepEqual(metricCommits.map(commit => commit.fileId), ["file-b"]);
     contribution.dispose();
     sessionEvents.dispose();
   });
 
-  test("commits the first calculation file synchronously and flushes the rest later", async () => {
+  test("queues non-interactive calculation files and flushes them in background chunks", async () => {
     const sessionEvents = new Emitter<SessionChangeEvent>();
     const calculatedCommitFileIds: string[][] = [];
     const snapshot = createSnapshot({
@@ -152,15 +157,15 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       onDidChangeSession: sessionEvents.event,
     }));
 
-    assert.deepEqual(calculatedCommitFileIds, [["file-a"]]);
-    await waitForPendingCalculation();
-    assert.deepEqual(calculatedCommitFileIds, [["file-a"], ["file-b", "file-c"]]);
+    assert.deepEqual(calculatedCommitFileIds, []);
+    await waitForPendingCalculation(3);
+    assert.deepEqual(calculatedCommitFileIds, [["file-a"], ["file-b"], ["file-c"]]);
 
     contribution.dispose();
     sessionEvents.dispose();
   });
 
-  test("prioritizes newly affected files ahead of older background calculation", () => {
+  test("prioritizes newly affected files ahead of older background calculation", async () => {
     const sessionEvents = new Emitter<SessionChangeEvent>();
     const calculatedCommitFileIds: string[][] = [];
     let snapshot = createSnapshot({
@@ -189,7 +194,9 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       fileIds: ["file-c"],
     }));
 
-    assert.deepEqual(calculatedCommitFileIds, [["file-c"]]);
+    assert.deepEqual(calculatedCommitFileIds, []);
+    await waitForPendingCalculation(2);
+    assert.deepEqual(calculatedCommitFileIds[0], ["file-c"]);
 
     contribution.dispose();
     sessionEvents.dispose();
@@ -217,9 +224,9 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
     contribution.prioritizeCalculationFile("file-c");
     assert.deepEqual(calculatedCommitFileIds, [["file-c"]]);
 
-    await waitForPendingCalculation();
+    await waitForPendingCalculation(2);
 
-    assert.deepEqual(calculatedCommitFileIds, [["file-c"], ["file-b"]]);
+    assert.deepEqual(calculatedCommitFileIds, [["file-c"], ["file-a"], ["file-b"]]);
 
     contribution.dispose();
     sessionEvents.dispose();
@@ -420,5 +427,8 @@ const createFileRecord = (
   };
 };
 
-const waitForPendingCalculation = (): Promise<void> =>
-  new Promise(resolve => setTimeout(resolve, 0));
+const waitForPendingCalculation = async (flushCount = 1): Promise<void> => {
+  for (let index = 0; index < flushCount; index += 1) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+};

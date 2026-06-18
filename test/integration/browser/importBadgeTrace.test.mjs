@@ -2526,6 +2526,12 @@ const summarizeTargetPerfMilestoneSamples = (samples) => {
   }));
 };
 
+const summarizeTargetPerfMilestoneOffset = (samples, key) => summarizeDurations(
+  (Array.isArray(samples) ? samples : [])
+    .map(sample => readNumber(sample?.milestones?.[key]?.offsetMs))
+    .filter(value => value != null && value >= 0),
+);
+
 const summarizeThumbnailHoverStress = (result, perfReport) => {
   if (!result) {
     return null;
@@ -2665,6 +2671,9 @@ const summarizeLiveHoverWindow = (window, targetSamples, perfReport) => {
     endAnchor: window.endAnchor,
     startAnchor: window.startAnchor,
     ...summarizeLiveHoverTargetSamples(targetSamples),
+    targetPlotChartCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotChartCached"),
+    targetPlotFullCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotFullCached"),
+    targetPreviewReadyMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "thumbnailReady"),
     targetPerfMilestoneSummary: summarizeTargetPerfMilestoneSamples(targetPerfMilestones),
     targetPerfMilestones,
   };
@@ -2729,6 +2738,9 @@ const summarizeThumbnailHoverLiveStress = (result, perfReport, phaseAnchors = []
     requestedCount: result.requestedCount,
     targetCount: result.targetCount,
     ...targetSampleSummary,
+    targetPlotChartCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotChartCached"),
+    targetPlotFullCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotFullCached"),
+    targetPreviewReadyMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "thumbnailReady"),
     targetPerfMilestoneSummary: summarizeTargetPerfMilestoneSamples(targetPerfMilestones),
     targetPerfMilestones,
     traceEventCount: events.length,
@@ -2935,6 +2947,8 @@ const summarizeLiveFileSwitchWindow = (window, targetSamples, perfReport) => {
     endAnchor: window.endAnchor,
     startAnchor: window.startAnchor,
     ...summarizeLiveFileSwitchTargetSamples(targetSamples),
+    targetPlotChartCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotChartCached"),
+    targetPlotFullCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotFullCached"),
     targetPerfMilestoneSummary: summarizeTargetPerfMilestoneSamples(targetPerfMilestones),
     targetPerfMilestones,
   };
@@ -2979,6 +2993,8 @@ const summarizeFileSwitchLiveStress = (result, phaseAnchors = [], perfReport = n
     settleState: settleSample?.afterState ?? null,
     targetCount: result.targetCount,
     ...targetSampleSummary,
+    targetPlotChartCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotChartCached"),
+    targetPlotFullCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotFullCached"),
     targetPerfMilestoneSummary: summarizeTargetPerfMilestoneSamples(targetPerfMilestones),
     targetPerfMilestones,
     traceEventCount: events.length,

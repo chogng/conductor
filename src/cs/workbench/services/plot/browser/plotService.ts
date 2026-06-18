@@ -50,6 +50,7 @@ import {
   type YUnit,
 } from "src/cs/workbench/services/plot/common/units";
 import type {
+  CurveKey,
   FileId,
   FileRecord,
   SeriesId,
@@ -1446,19 +1447,29 @@ export const shouldInvalidatePlotModelsForSessionChange = (
 ): boolean => {
   switch (event.reason) {
     case "templateRunChanged":
+      return true;
     case "curvesChanged":
-    case "metricsChanged":
-    case "calculatedRecordsChanged":
+      return hasPlotBaseCurveChange(event);
     case "filesRemoved":
     case "sessionCleared":
       return true;
     case "rawTablesChanged":
     case "assessmentChanged":
+    case "calculatedRecordsChanged":
+    case "metricsChanged":
     case "metricInputsChanged":
     case "fileMetadataChanged":
       return false;
   }
 };
+
+const hasPlotBaseCurveChange = (event: SessionChangeEvent): boolean => {
+  const curveKeys = event.curveKeys ?? [];
+  return curveKeys.length === 0 || curveKeys.some(isBaseCurveKey);
+};
+
+const isBaseCurveKey = (curveKey: CurveKey): boolean =>
+  curveKey.startsWith("base:");
 
 const shouldFullyInvalidatePlotModelsForSessionChange = (
   event: SessionChangeEvent,

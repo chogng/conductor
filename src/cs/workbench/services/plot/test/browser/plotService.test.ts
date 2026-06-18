@@ -19,6 +19,7 @@ import {
 } from "src/cs/workbench/services/session/common/sessionEvents";
 import type {
   BaseCurveKey,
+  CurveKey,
   FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import {
@@ -1775,8 +1776,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     for (const reason of [
       "templateRunChanged",
       "curvesChanged",
-      "metricsChanged",
-      "calculatedRecordsChanged",
       "filesRemoved",
       "sessionCleared",
     ] satisfies SessionChangeReason[]) {
@@ -1790,6 +1789,8 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     for (const reason of [
       "rawTablesChanged",
       "assessmentChanged",
+      "calculatedRecordsChanged",
+      "metricsChanged",
       "metricInputsChanged",
       "fileMetadataChanged",
     ] satisfies SessionChangeReason[]) {
@@ -1799,6 +1800,18 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         reason,
       );
     }
+    assert.equal(
+      shouldInvalidatePlotModelsForSessionChange(createSessionChangeEvent("curvesChanged", 1, {
+        curveKeys: ["derived:gm:default:series-a" as CurveKey],
+      })),
+      false,
+    );
+    assert.equal(
+      shouldInvalidatePlotModelsForSessionChange(createSessionChangeEvent("curvesChanged", 1, {
+        curveKeys: ["base:iv:transfer:series-a" as CurveKey],
+      })),
+      true,
+    );
   });
 
   test("updates unit and scale storage through plot owner API", async () => {

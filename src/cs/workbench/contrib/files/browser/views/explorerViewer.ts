@@ -71,6 +71,7 @@ import {
 import { createEmptyView } from "src/cs/workbench/contrib/files/browser/views/emptyView";
 import {
   createThumbnailView,
+  updateThumbnailView,
   type ThumbnailFileLike,
 } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailView";
 import {
@@ -235,12 +236,12 @@ type HoverContent =
   };
 
 type HoverThumbnailCacheEntry = {
-  readonly fileId: string;
-  readonly fileSignature: string;
-  readonly isActive: boolean;
-  readonly isLoading: boolean;
-  readonly node: HTMLElement;
-  readonly plotModelSignature: string;
+  fileId: string;
+  fileSignature: string;
+  isActive: boolean;
+  isLoading: boolean;
+  node: HTMLElement;
+  plotModelSignature: string;
   lastUsed: number;
 };
 
@@ -674,6 +675,8 @@ export class ExplorerViewer implements IDisposable {
         this.hoverContent.fileId === event.fileId
       ) {
         this.refreshVisibleHover();
+      } else {
+        this.refreshCachedHoverThumbnail(event.fileId);
       }
       if (getEffectiveViewLayout(this.props) === "thumbnail") {
         this.scheduleThumbnailGridRender();
@@ -2114,16 +2117,87 @@ export class ExplorerViewer implements IDisposable {
     const fileSignature = createHoverThumbnailFileSignature(file);
     const plotModelSignature = plotModel?.signature ?? "";
     this.hoverCacheUse += 1;
-    if (
+    const canReuseCachedNode =
       cached?.fileId === normalizedFileId &&
       cached.fileSignature === fileSignature &&
-      cached.isActive === isActive &&
+      cached.node.dataset.hoverFileId === normalizedFileId;
+    if (
+      canReuseCachedNode &&
       cached.isLoading === isLoading &&
       cached.plotModelSignature === plotModelSignature &&
-      cached.node.dataset.hoverFileId === normalizedFileId &&
       cached.node.dataset.hoverPlotSignature === plotModelSignature
     ) {
+      if (cached.isActive !== isActive) {
+        updateThumbnailView(cached.node, {
+          drawStrategy: "eager",
+          file,
+          isActive,
+          isLoading,
+          originOpenPlotOptions: this.props.originOpenPlotOptions,
+          plotAxisSettings: this.props.plotAxisSettings,
+          plotModel,
+          plotType: this.props.activePlotType ?? "iv",
+          thumbnailService: this.props.thumbnailService,
+        });
+        cached.isActive = isActive;
+      }
       cached.lastUsed = this.hoverCacheUse;
+      this.logThumbnailHoverRender({
+        cacheHit: true,
+        fileId: normalizedFileId,
+        isLoading,
+        plotModelSignature,
+        plotModelSource: getThumbnailHoverPlotModelSource(previewPlotModel, fallbackPlotModel),
+        previewState,
+      });
+      return cached.node;
+    }
+    if (canReuseCachedNode && cached.plotModelSignature && isLoading && !plotModelSignature) {
+      if (cached.isActive !== isActive) {
+        updateThumbnailView(cached.node, {
+          drawStrategy: "eager",
+          file,
+          isActive,
+          isLoading,
+          originOpenPlotOptions: this.props.originOpenPlotOptions,
+          plotAxisSettings: this.props.plotAxisSettings,
+          plotModel: null,
+          plotType: this.props.activePlotType ?? "iv",
+          thumbnailService: this.props.thumbnailService,
+        });
+        cached.isActive = isActive;
+      }
+      cached.lastUsed = this.hoverCacheUse;
+      this.logThumbnailHoverRender({
+        cacheHit: true,
+        fileId: normalizedFileId,
+        isLoading: false,
+        plotModelSignature: cached.plotModelSignature,
+        plotModelSource: "preview",
+        previewState,
+      });
+      return cached.node;
+    }
+    if (
+      canReuseCachedNode &&
+      plotModel &&
+      updateThumbnailView(cached.node, {
+        drawStrategy: "eager",
+        file,
+        isActive,
+        isLoading,
+        originOpenPlotOptions: this.props.originOpenPlotOptions,
+        plotAxisSettings: this.props.plotAxisSettings,
+        plotModel,
+        plotType: this.props.activePlotType ?? "iv",
+        thumbnailService: this.props.thumbnailService,
+      })
+    ) {
+      cached.isActive = isActive;
+      cached.isLoading = isLoading;
+      cached.lastUsed = this.hoverCacheUse;
+      cached.plotModelSignature = plotModelSignature;
+      cached.node.dataset.hoverPlotSignature = plotModelSignature;
       this.logThumbnailHoverRender({
         cacheHit: true,
         fileId: normalizedFileId,
@@ -2216,6 +2290,55 @@ export class ExplorerViewer implements IDisposable {
       normalizedFileId,
       priority,
     );
+  }
+
+  private refreshCachedHoverThumbnail(fileId: string): void {
+    const normalizedFileId = String(fileId ?? "").trim();
+    if (!normalizedFileId) {
+      return;
+    }
+
+    const cached = this.hoverThumbnailCache.get(normalizedFileId);
+    if (!cached) {
+      return;
+    }
+
+    const file = getThumbnailFileLikeFromProps(normalizedFileId, this.props);
+    if (!file) {
+      return;
+    }
+
+    const previewState = this.props.thumbnailPreviewService.get(normalizedFileId);
+    const previewPlotModel = getPreviewPlotModel(previewState);
+    const fallbackPlotModel = previewPlotModel ? null : this.getThumbnailPlotModel(normalizedFileId);
+    const plotModel = previewPlotModel ?? fallbackPlotModel;
+    const isLoading = previewState.kind === "loading" && !plotModel;
+    const plotModelSignature = plotModel?.signature ?? "";
+    const hasCachedPlotModel = Boolean(cached.plotModelSignature);
+    if (!plotModel && !isLoading && !hasCachedPlotModel) {
+      return;
+    }
+
+    const isActive = (this.props.selectedFileId ?? null) === normalizedFileId;
+    if (!updateThumbnailView(cached.node, {
+      drawStrategy: "eager",
+      file,
+      isActive,
+      isLoading,
+      originOpenPlotOptions: this.props.originOpenPlotOptions,
+      plotAxisSettings: this.props.plotAxisSettings,
+      plotModel,
+      plotType: this.props.activePlotType ?? "iv",
+      thumbnailService: this.props.thumbnailService,
+    })) {
+      return;
+    }
+
+    cached.fileSignature = createHoverThumbnailFileSignature(file);
+    cached.isActive = isActive;
+    cached.isLoading = isLoading;
+    cached.plotModelSignature = plotModelSignature || cached.plotModelSignature;
+    cached.node.dataset.hoverPlotSignature = cached.plotModelSignature;
   }
 
   private clearHoverThumbnailCache(): void {

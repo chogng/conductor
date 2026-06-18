@@ -21,7 +21,7 @@ import type { SessionChangeEvent } from "src/cs/workbench/services/session/commo
 import type { FileId, FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
 
 const CALCULATION_FOREGROUND_CHUNK_SIZE = 1;
-const CALCULATION_BACKGROUND_CHUNK_SIZE = 2;
+const CALCULATION_BACKGROUND_CHUNK_SIZE = 1;
 const CALCULATION_BACKGROUND_DELAY_MS = 0;
 const CALCULATION_INTERACTIVE_CHUNK_SIZE = 1;
 const CALCULATION_INTERACTIVE_PRIORITY_LIMIT = 24;
@@ -160,12 +160,15 @@ export class CalculationService extends Disposable implements ICalculationServic
     const enqueueResult = this.enqueuePendingFiles(fileIds);
     const pendingFileCountAfterEnqueue = this.pendingFileIds.length;
     const interactivePriorityFileCountAfterEnqueue = this.interactivePriorityFileIds.length;
-    const foregroundResult = this.processPendingCalculationChunk({
-      candidateFileCount: candidateFileIds.length,
-      chunkSize: CALCULATION_FOREGROUND_CHUNK_SIZE,
-      mode: "foreground",
-      reason: event?.reason ?? "initial",
-    });
+    const foregroundPriorityFileIds = this.getInteractivePriorityFiles(this.pendingFileIds);
+    const foregroundResult = foregroundPriorityFileIds.length
+      ? this.processPendingCalculationChunk({
+        candidateFileCount: candidateFileIds.length,
+        chunkSize: CALCULATION_FOREGROUND_CHUNK_SIZE,
+        mode: "foreground",
+        reason: event?.reason ?? "initial",
+      })
+      : EMPTY_CALCULATION_CHUNK_RESULT;
     this.schedulePendingCalculation();
     endUpdatePerf({
       candidateFileCount: candidateFileIds.length,
@@ -176,6 +179,7 @@ export class CalculationService extends Disposable implements ICalculationServic
       fileCount: fileIds.length,
       fileIds,
       foregroundFileIds: foregroundResult.fileIds,
+      foregroundPriorityFileIds,
       interactiveEnqueuedFileCount: enqueueResult.interactiveEnqueuedFileCount,
       interactivePriorityFileCount: interactivePriorityFileCountAfterEnqueue,
       pendingFileCountAfterEnqueue,
