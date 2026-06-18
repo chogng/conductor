@@ -541,8 +541,10 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     const explorerService = store.add(new ExplorerService());
     const prioritizedTemplateFileIds: string[] = [];
     const prioritizedCalculationFileIds: string[] = [];
+    const plotDisplayPrefetches: Array<{ readonly fileId: string | null; readonly priority: string }> = [];
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
+      plotDisplayPrefetches,
       prioritizedCalculationFileIds,
       prioritizedTemplateFileIds,
       session,
@@ -555,6 +557,71 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
 
       assert.deepEqual(prioritizedTemplateFileIds, ["file-b"]);
       assert.deepEqual(prioritizedCalculationFileIds, ["file-b"]);
+      assert.deepEqual(plotDisplayPrefetches, [
+        { fileId: "file-b", priority: "active" },
+      ]);
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("prewarms visible chart plot display targets through Plot owner APIs", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const plotCalculatedPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    const plotDisplayPrefetches: Array<{ readonly fileId: string | null; readonly priority: string }> = [];
+    commitChartFilesForTest(session, ["file-a", "file-b", "file-c"]);
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      plotCalculatedPrefetches,
+      plotDisplayPrefetches,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+    }));
+    try {
+      explorerService.setVisibleFileIds(["file-a", "file-b"], ["file-c"]);
+
+      assert.deepEqual(plotCalculatedPrefetches, [
+        { fileIds: ["file-a", "file-b"], priority: "visible" },
+        { fileIds: ["file-c"], priority: "nearby" },
+      ]);
+      assert.deepEqual(plotDisplayPrefetches, [
+        { fileId: "file-a", priority: "visible" },
+        { fileId: "file-b", priority: "visible" },
+        { fileId: "file-c", priority: "nearby" },
+      ]);
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("skips cached background chart plot display prewarm targets", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const plotCalculatedPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    const plotDisplayPrefetches: Array<{ readonly fileId: string | null; readonly priority: string }> = [];
+    commitChartFilesForTest(session, ["file-a", "file-b", "file-c"]);
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      cachedPlotDisplayFileIds: ["file-a"],
+      explorerService,
+      plotCalculatedPrefetches,
+      plotDisplayPrefetches,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+    }));
+    try {
+      explorerService.setVisibleFileIds(["file-a", "file-b"], ["file-c"]);
+
+      assert.deepEqual(plotCalculatedPrefetches, [
+        { fileIds: ["file-b"], priority: "visible" },
+        { fileIds: ["file-c"], priority: "nearby" },
+      ]);
+      assert.deepEqual(plotDisplayPrefetches, [
+        { fileId: "file-b", priority: "visible" },
+        { fileId: "file-c", priority: "nearby" },
+      ]);
     } finally {
       bridge.dispose();
     }
@@ -677,13 +744,19 @@ const createPlotService = (): Parameters<typeof createExplorerPaneInput>[0]["plo
 
 const createDomainBridgeOptionsForTest = ({
   chartActiveFileIds,
+  cachedPlotDisplayFileIds,
   explorerService,
+  plotCalculatedPrefetches,
+  plotDisplayPrefetches,
   prioritizedCalculationFileIds,
   prioritizedTemplateFileIds,
   session,
 }: {
   readonly chartActiveFileIds?: (string | null)[];
+  readonly cachedPlotDisplayFileIds?: readonly string[];
   readonly explorerService: ExplorerService;
+  readonly plotCalculatedPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
+  readonly plotDisplayPrefetches?: Array<{ readonly fileId: string | null; readonly priority: string }>;
   readonly prioritizedCalculationFileIds: string[];
   readonly prioritizedTemplateFileIds: string[];
   readonly session: SessionService;
@@ -717,10 +790,33 @@ const createDomainBridgeOptionsForTest = ({
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["layoutService"],
   plotService: {
     ...createPlotService(),
+    getCachedPlotDisplayModel: ({ fileId }) => (cachedPlotDisplayFileIds ?? []).includes(String(fileId ?? "").trim())
+      ? {
+          chart: {
+            model: {
+              seriesList: [],
+            },
+          },
+          fileId: String(fileId ?? "").trim(),
+          inspector: null,
+          plotType: "iv",
+          unitControl: null,
+        }
+      : null,
     getState: () => ({ activePlotType: "iv" }),
     onDidChangePlotState: Event.None,
-    prefetchCalculatedData: () => undefined,
-    prefetchPlotDisplayModel: () => undefined,
+    prefetchCalculatedData: (fileIds, priority) => {
+      plotCalculatedPrefetches?.push({
+        fileIds: [...fileIds],
+        priority,
+      });
+    },
+    prefetchPlotDisplayModel: (input, priority) => {
+      plotDisplayPrefetches?.push({
+        fileId: input.fileId ?? null,
+        priority,
+      });
+    },
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["plotService"],
   sessionService: session,
   settingsService: {
@@ -758,6 +854,32 @@ const createDomainBridgeOptionsForTest = ({
     prefetch: () => undefined,
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["thumbnailPreviewService"],
 });
+
+const commitChartFilesForTest = (
+  session: SessionService,
+  fileIds: readonly string[],
+): void => {
+  commitRawFilesForTest(session, fileIds.map(fileId => ({
+    columnCount: 2,
+    fileId,
+    fileName: `${fileId}.csv`,
+    rowCount: 2,
+    rows: [],
+  })));
+  for (const fileId of fileIds) {
+    commitTemplateOutputForTest(session, {
+      curveType: "transfer",
+      fileId,
+      fileName: `${fileId}.csv`,
+      series: [{
+        groupIndex: 0,
+        id: `series-${fileId}`,
+        y: [1, 2],
+      }],
+      xGroups: [[0, 1]],
+    });
+  }
+};
 
 const commitTemplateOutputForTest = (
   session: SessionService,

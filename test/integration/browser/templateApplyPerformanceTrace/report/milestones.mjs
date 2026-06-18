@@ -4,6 +4,8 @@ import {
   summarizeDurations,
 } from "./common.mjs";
 
+const TARGET_PERF_AFTER_DISPATCH_WINDOW_MS = 2_000;
+
 export const targetPerfMilestoneDefs = [
   {
     key: "templateOutputCommitted",
@@ -198,6 +200,7 @@ export const createTargetPerfMilestoneSamples = (perfReport, targetSamples) => {
 export const findTargetPerfEntry = (entries, fileId, dispatchWallTime, def) => {
   const afterDispatch = entries.find(entry =>
     readNumber(entry.timestamp) >= dispatchWallTime &&
+    readNumber(entry.timestamp) - dispatchWallTime <= TARGET_PERF_AFTER_DISPATCH_WINDOW_MS &&
     def.match(entry, fileId)
   );
   if (afterDispatch) {

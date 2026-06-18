@@ -23,7 +23,11 @@ import { createChartViewInput } from "src/cs/workbench/services/chart/browser/ch
 import type { ChartFileOption } from "src/cs/workbench/services/chart/common/chartFileOptions";
 import type { IChartService } from "src/cs/workbench/services/chart/common/chart";
 import { getOriginOpenPlotOptions, type ISettingsService } from "src/cs/workbench/services/settings/common/settings";
-import type { IPlotService, PlotType } from "src/cs/workbench/services/plot/common/plot";
+import type {
+  IPlotService,
+  PlotCalculatedDataPrefetchPriority,
+  PlotType,
+} from "src/cs/workbench/services/plot/common/plot";
 import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plotSettings";
 import type { OriginPlotOptions } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type { ISessionService, SessionSnapshot } from "src/cs/workbench/services/session/common/session";
@@ -85,11 +89,11 @@ export class WorkbenchDomainBridge extends Disposable {
     this._register(this.options.settingsService.onDidChangeConductorSettings(() => this.scheduleSync()));
     this._register(this.options.explorerService.onDidChangePendingSourceFiles(() => this.scheduleSync()));
     this._register(this.options.explorerService.onDidChangeSelection(event => {
-      this.prioritizeProcessingFile(event.selectedFileId);
+      this.prioritizeProcessingFile(event.selectedFileId, "active");
       this.scheduleInteractiveSync();
     }));
     this._register(this.options.explorerService.onDidChangeHoveredFile(event => {
-      this.prioritizeProcessingFile(event.fileId);
+      this.prioritizeProcessingFile(event.fileId, "hover");
     }));
     this._register(this.options.explorerService.onDidChangeVisibleFileIds(event => {
       this.prioritizeVisibleExplorerFiles(event.visibleFileIds, event.nearbyFileIds);
@@ -265,13 +269,17 @@ export class WorkbenchDomainBridge extends Disposable {
     });
   }
 
-  private prioritizeProcessingFile(fileId: string | null): void {
+  private prioritizeProcessingFile(
+    fileId: string | null,
+    plotPriority: PlotCalculatedDataPrefetchPriority,
+  ): void {
     if (!fileId) {
       return;
     }
 
     this.options.templateApplyWorkflowService.prioritizeProcessingFile(fileId);
     this.options.calculationService.prioritizeCalculationFile(fileId);
+    this.prefetchPlotDisplayTargets([fileId], plotPriority, "interactiveTarget");
   }
 
   private prioritizeVisibleExplorerFiles(
@@ -287,6 +295,10 @@ export class WorkbenchDomainBridge extends Disposable {
       getRawTableRefsForFileIds(nearbyFileIds, snapshot),
       "nearby",
     );
+    if (this.options.layoutService.activeWorkbenchMainPart === "chart") {
+      this.prefetchPlotDisplayTargets(visibleFileIds, "visible", "visibleExplorerFiles");
+      this.prefetchPlotDisplayTargets(nearbyFileIds, "nearby", "nearbyExplorerFiles");
+    }
     if (!shouldPrefetchExplorerThumbnails({
       activeWorkbenchMainPart: this.options.layoutService.activeWorkbenchMainPart,
       viewLayout: this.options.explorerService.viewLayout,
@@ -299,7 +311,60 @@ export class WorkbenchDomainBridge extends Disposable {
     this.options.thumbnailPreviewService.prefetch(visibleFileIds, "visible");
     this.options.thumbnailPreviewService.prefetch(nearbyFileIds, "nearby");
   }
+
+  private prefetchPlotDisplayTargets(
+    fileIds: readonly string[],
+    priority: PlotCalculatedDataPrefetchPriority,
+    source: string,
+  ): void {
+    if (this.options.layoutService.activeWorkbenchMainPart !== "chart") {
+      return;
+    }
+
+    const normalizedFileIds = [...new Set(fileIds
+      .map(fileId => String(fileId ?? "").trim())
+      .filter(Boolean))];
+    if (!normalizedFileIds.length) {
+      return;
+    }
+
+    const snapshot = this.options.sessionService.getSnapshot();
+    const plotType = this.options.plotService.getState().activePlotType;
+    const requestFileIds = isInteractivePlotDisplayPrewarmPriority(priority)
+      ? normalizedFileIds
+      : normalizedFileIds.filter(fileId => !this.options.plotService.getCachedPlotDisplayModel({
+          fileId,
+          plotType,
+          snapshot,
+        }));
+    if (!requestFileIds.length) {
+      return;
+    }
+
+    const endPerf = startPerf("workbenchDomainBridge.prefetchPlotDisplayTargets", {
+      fileCount: requestFileIds.length,
+      plotType,
+      priority,
+      source,
+    }, { silent: true });
+    this.options.plotService.prefetchCalculatedData(requestFileIds, priority, plotType);
+    for (const fileId of requestFileIds) {
+      this.options.plotService.prefetchPlotDisplayModel({
+        fileId,
+        plotType,
+        snapshot,
+      }, priority);
+    }
+    endPerf({
+      requestedFileCount: requestFileIds.length,
+    });
+  }
 }
+
+const isInteractivePlotDisplayPrewarmPriority = (
+  priority: PlotCalculatedDataPrefetchPriority,
+): boolean =>
+  priority === "active" || priority === "hover";
 
 const createActiveChartFileOptions = (
   snapshot: SessionSnapshot,

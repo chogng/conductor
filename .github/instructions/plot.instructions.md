@@ -203,6 +203,11 @@ storage, for these controls.
   and nearby thumbnail backfill should be requested only while Explorer is in
   chart thumbnail layout; tree-layout hover previews use hover priority on
   demand.
+- When the workbench is already in Chart mode, DomainBridge may also prewarm
+  chart-only display models for Explorer hover, visible, and nearby chart file
+  targets. This is a cache warmup for rapid active-file switching; it should use
+  Plot's existing priority levels (`hover`, `visible`, `nearby`) and must not
+  request Inspector display models or mutate Chart-owned state.
 - Plot render models must be stable and reusable by Chart/Thumbnail/Export.
 - Chart canvas drawing should use a display downsample budget tied to the
   visible pixel width. Full point arrays remain in the render model for readout

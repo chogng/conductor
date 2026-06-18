@@ -69,6 +69,15 @@ export const createPerformanceMetricRow = ({
     analysisPerfReport?.entries ?? [],
     "plotMainChart.draw",
   );
+  const plotDisplayTargetPrewarm = summarizeStageDuration(
+    analysisPerfReport?.entries ?? [],
+    "workbenchDomainBridge.prefetchPlotDisplayTargets",
+  );
+  const plotDisplayTargetPrewarmReasons = summarizePerfStageReasons(
+    analysisPerfReport?.entries ?? [],
+    "workbenchDomainBridge.prefetchPlotDisplayTargets",
+    "priority",
+  );
   const workbenchRefresh = summarizeStageDuration(
     analysisPerfReport?.entries ?? [],
     "workbench.refreshWorkbench",
@@ -111,6 +120,12 @@ export const createPerformanceMetricRow = ({
     calculationWorkerWaitP95Ms: summaryP95(calculationBuild.workerWait),
     fileSwitchAfterChartDrawnP95Ms: summaryP95(switchAfter?.targetChartDrawnMs),
     fileSwitchDuringChartDrawnP95Ms: summaryP95(switchDuring?.targetChartDrawnMs),
+    fileSwitchDuringPlotDisplayRequestedP95Ms: summaryP95(
+      switchDuring?.targetPerfMilestoneSummary?.plotDisplayRequested?.offsetMs,
+    ),
+    fileSwitchDuringPlotMainDrawnP95Ms: summaryP95(
+      switchDuring?.targetPerfMilestoneSummary?.plotMainDrawn?.offsetMs,
+    ),
     fileSwitchDuringSelectedP95Ms: summaryP95(switchDuring?.targetSelectedMs),
     fileSwitchLiveTargetCount: readNumber(analysis.fileSwitchLive?.targetCount),
     fileSwitchLiveUniqueDispatchCount: readNumber(analysis.fileSwitchLive?.uniqueDispatchedFileCount),
@@ -127,6 +142,17 @@ export const createPerformanceMetricRow = ({
     plotDisplayCacheMaxSize: readNumber(plotCache.displayModelCache.maxSize),
     plotDisplayCacheTrimmed: readNumber(plotCache.displayModelCache.trimmed),
     plotDisplayCacheUpgraded: readNumber(plotCache.displayModelCache.upgraded),
+    plotDisplayTargetPrewarmActiveCount: readNumber(plotDisplayTargetPrewarmReasons.active) ?? 0,
+    plotDisplayTargetPrewarmCount: summaryCount(plotDisplayTargetPrewarm),
+    plotDisplayTargetPrewarmFileCount: sumPerfStageNumber(
+      analysisPerfReport?.entries ?? [],
+      "workbenchDomainBridge.prefetchPlotDisplayTargets",
+      "requestedFileCount",
+    ),
+    plotDisplayTargetPrewarmHoverCount: readNumber(plotDisplayTargetPrewarmReasons.hover) ?? 0,
+    plotDisplayTargetPrewarmNearbyCount: readNumber(plotDisplayTargetPrewarmReasons.nearby) ?? 0,
+    plotDisplayTargetPrewarmP95Ms: summaryP95(plotDisplayTargetPrewarm),
+    plotDisplayTargetPrewarmVisibleCount: readNumber(plotDisplayTargetPrewarmReasons.visible) ?? 0,
     plotMainDrawCount: summaryCount(plotMainDraw),
     plotMainDrawP95Ms: summaryP95(plotMainDraw),
     plotInspectorCacheCreated: readNumber(plotCache.inspectorDisplayModelCache.created),
@@ -189,6 +215,8 @@ export const metricHistoryKeys = [
   "thumbnailLiveUniqueDispatchCount",
   "thumbnailStableTargetCount",
   "fileSwitchDuringChartDrawnP95Ms",
+  "fileSwitchDuringPlotDisplayRequestedP95Ms",
+  "fileSwitchDuringPlotMainDrawnP95Ms",
   "fileSwitchLiveTargetCount",
   "fileSwitchLiveUniqueDispatchCount",
   "fileSwitchStableTargetCount",
@@ -205,6 +233,13 @@ export const metricHistoryKeys = [
   "plotDisplayCacheCreated",
   "plotDisplayCacheUpgraded",
   "plotDisplayCacheTrimmed",
+  "plotDisplayTargetPrewarmActiveCount",
+  "plotDisplayTargetPrewarmCount",
+  "plotDisplayTargetPrewarmFileCount",
+  "plotDisplayTargetPrewarmHoverCount",
+  "plotDisplayTargetPrewarmNearbyCount",
+  "plotDisplayTargetPrewarmP95Ms",
+  "plotDisplayTargetPrewarmVisibleCount",
   "plotMainDrawCount",
   "plotMainDrawP95Ms",
   "plotInspectorCacheMaxSize",
@@ -230,14 +265,14 @@ export const metricHistoryKeys = [
   "workbenchSelectionRefreshP95Ms",
 ];
 
-const summarizePerfStageReasons = (entries, stage) => {
+const summarizePerfStageReasons = (entries, stage, key = "reasons") => {
   const reasons = [];
   for (const entry of entries ?? []) {
     if (entry?.stage !== stage) {
       continue;
     }
 
-    const rawReasons = String(entry.meta?.reasons ?? entry.meta?.reason ?? "unknown")
+    const rawReasons = String(entry.meta?.[key] ?? entry.meta?.reason ?? "unknown")
       .split(",")
       .map(reason => reason.trim())
       .filter(Boolean);
@@ -250,6 +285,15 @@ const countReasonPrefix = (counts, prefix) =>
   Object.entries(counts ?? {}).reduce((total, [reason, count]) => (
     reason.startsWith(prefix) ? total + (readNumber(count) ?? 0) : total
   ), 0);
+
+const sumPerfStageNumber = (entries, stage, key) =>
+  (entries ?? []).reduce((total, entry) => {
+    if (entry?.stage !== stage) {
+      return total;
+    }
+
+    return total + (readNumber(entry.meta?.[key]) ?? 0);
+  }, 0);
 
 export const readHistoryRows = (historyPath) => {
   if (!existsSync(historyPath)) {
