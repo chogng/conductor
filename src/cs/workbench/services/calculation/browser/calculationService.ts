@@ -8,6 +8,10 @@ import {
 } from "src/cs/base/common/lifecycle";
 import { logPerf, startPerf } from "src/cs/workbench/common/perf";
 import {
+  calculateRecordsInWorker,
+  type CalculationRecordsWorkerOutput,
+} from "src/cs/workbench/services/calculation/browser/calculationWorkerClient";
+import {
   createCalculatedRecordsByFile,
   createCalculatedRecordsInputSignature,
 } from "src/cs/workbench/services/calculation/common/calculationRecordBuilder";
@@ -20,7 +24,6 @@ import {
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import type { FileId, FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
 
-const CALCULATION_FOREGROUND_CHUNK_SIZE = 1;
 const CALCULATION_BACKGROUND_CHUNK_SIZE = 1;
 const CALCULATION_BACKGROUND_DELAY_MS = 0;
 const CALCULATION_INTERACTIVE_CHUNK_SIZE = 1;
@@ -30,6 +33,24 @@ type CalculationChunkResult = {
   readonly committedFileCount: number;
   readonly fileIds: readonly FileId[];
 };
+
+type CalculationChunkMode = "foreground" | "background";
+
+type CalculationChunkInput = {
+  readonly candidateFileCount: number;
+  readonly fileIds: readonly FileId[];
+  readonly filesById: Record<FileId, FileRecord>;
+  readonly inputSignaturesByFileId: Readonly<Record<FileId, string>>;
+  readonly interactivePriorityFileCount: number;
+  readonly missingFileCount: number;
+  readonly mode: CalculationChunkMode;
+  readonly pendingBefore: number;
+  readonly reason: string;
+  readonly refreshedSignatureCount: number;
+  readonly sessionVersion: number;
+};
+
+type CalculationRecordsByFile = ReturnType<typeof createCalculatedRecordsByFile>;
 
 const EMPTY_CALCULATION_CHUNK_RESULT: CalculationChunkResult = {
   committedFileCount: 0,
@@ -44,6 +65,9 @@ export class CalculationService extends Disposable implements ICalculationServic
   private pendingFileIds: FileId[] = [];
   private scheduledCalculationHandle: ReturnType<typeof globalThis.setTimeout> | null = null;
   private isDisposed = false;
+  private isBackgroundCalculationInFlight = false;
+  private isInteractiveCalculationInFlight = false;
+  private nextCalculationWorkerRequestId = 1;
 
   constructor(
     @ISessionService private readonly sessionService: ISessionService,
@@ -92,7 +116,9 @@ export class CalculationService extends Disposable implements ICalculationServic
       prioritizedFileCount,
       rememberedFileCount,
     });
-    this.schedulePendingCalculation();
+    this.schedulePendingCalculation({
+      allowInteractivePriority: prioritizedFileCount === 0 || typeof globalThis.Worker === "function",
+    });
   }
 
   private update(event?: SessionChangeEvent): void {
@@ -162,14 +188,11 @@ export class CalculationService extends Disposable implements ICalculationServic
     const interactivePriorityFileCountAfterEnqueue = this.interactivePriorityFileIds.length;
     const foregroundPriorityFileIds = this.getInteractivePriorityFiles(this.pendingFileIds);
     const foregroundResult = foregroundPriorityFileIds.length
-      ? this.processPendingCalculationChunk({
-        candidateFileCount: candidateFileIds.length,
-        chunkSize: CALCULATION_FOREGROUND_CHUNK_SIZE,
-        mode: "foreground",
-        reason: event?.reason ?? "initial",
-      })
+      ? this.processInteractivePriorityCalculation(event?.reason ?? "initial")
       : EMPTY_CALCULATION_CHUNK_RESULT;
-    this.schedulePendingCalculation();
+    this.schedulePendingCalculation({
+      allowInteractivePriority: foregroundPriorityFileIds.length === 0 || typeof globalThis.Worker === "function",
+    });
     endUpdatePerf({
       candidateFileCount: candidateFileIds.length,
       committedFileIds: foregroundResult.fileIds,
@@ -199,8 +222,130 @@ export class CalculationService extends Disposable implements ICalculationServic
     readonly mode: "foreground" | "background";
     readonly reason: string;
   }): CalculationChunkResult {
-    if (chunkSize <= 0 || !this.pendingFileIds.length) {
+    const chunkInput = this.takePendingCalculationChunkInput({
+      candidateFileCount,
+      chunkSize,
+      mode,
+      reason,
+    });
+    if (!chunkInput) {
       return EMPTY_CALCULATION_CHUNK_RESULT;
+    }
+
+    const records = this.buildCalculatedRecordsOnMainThread(chunkInput, {
+      worker: false,
+    });
+    return this.commitCalculatedRecords(chunkInput.fileIds, records);
+  }
+
+  private async processPendingCalculationChunkInWorker({
+    candidateFileCount,
+    chunkSize,
+    mode,
+    reason,
+  }: {
+    readonly candidateFileCount: number;
+    readonly chunkSize: number;
+    readonly mode: CalculationChunkMode;
+    readonly reason: string;
+  }): Promise<CalculationChunkResult> {
+    const chunkInput = this.takePendingCalculationChunkInput({
+      candidateFileCount,
+      chunkSize,
+      mode,
+      reason,
+    });
+    if (!chunkInput) {
+      return EMPTY_CALCULATION_CHUNK_RESULT;
+    }
+
+    if (chunkInput.fileIds.length !== 1) {
+      const records = this.buildCalculatedRecordsOnMainThread(chunkInput, {
+        worker: false,
+        workerFallback: "multiFileChunk",
+      });
+      return this.commitCalculatedRecords(chunkInput.fileIds, records);
+    }
+
+    const [fileId] = chunkInput.fileIds;
+    const file = chunkInput.filesById[fileId];
+    const requestId = this.nextCalculationWorkerRequestId++;
+    const endBuildPerf = this.startCalculationBuildPerf(chunkInput, {
+      requestId,
+      worker: true,
+    });
+    const workerResult = await calculateRecordsInWorker({
+      file,
+      requestId,
+      sessionVersion: chunkInput.sessionVersion,
+    });
+
+    if (this.isDisposed) {
+      endBuildPerf({ result: "disposed", worker: true });
+      return EMPTY_CALCULATION_CHUNK_RESULT;
+    }
+
+    if (this.isCurrentCalculationWorkerResult(chunkInput, workerResult, requestId)) {
+      const records: CalculationRecordsByFile = {
+        curvesByFileId: { [fileId]: workerResult.curves },
+        metricsByFileId: { [fileId]: workerResult.metrics },
+      };
+      endBuildPerf({
+        curveCount: countRecordArrayItems(records.curvesByFileId),
+        fileIds: chunkInput.fileIds,
+        metricCount: countRecordArrayItems(records.metricsByFileId),
+        result: "worker",
+        worker: true,
+      });
+      return this.commitCalculatedRecords(chunkInput.fileIds, records);
+    }
+
+    if (workerResult) {
+      endBuildPerf({
+        fileIds: chunkInput.fileIds,
+        result: "staleWorkerResult",
+        worker: true,
+      });
+      return EMPTY_CALCULATION_CHUNK_RESULT;
+    }
+
+    if (!this.isCurrentCalculationChunkInput(chunkInput)) {
+      endBuildPerf({
+        fileIds: chunkInput.fileIds,
+        result: "staleWorkerFallbackSkipped",
+        worker: true,
+      });
+      return EMPTY_CALCULATION_CHUNK_RESULT;
+    }
+
+    const records = createCalculatedRecordsByFile(
+      chunkInput.filesById,
+      chunkInput.fileIds,
+    );
+    endBuildPerf({
+      curveCount: countRecordArrayItems(records.curvesByFileId),
+      fileIds: chunkInput.fileIds,
+      metricCount: countRecordArrayItems(records.metricsByFileId),
+      result: "workerFallback",
+      worker: false,
+      workerFallback: true,
+    });
+    return this.commitCalculatedRecords(chunkInput.fileIds, records);
+  }
+
+  private takePendingCalculationChunkInput({
+    candidateFileCount,
+    chunkSize,
+    mode,
+    reason,
+  }: {
+    readonly candidateFileCount: number;
+    readonly chunkSize: number;
+    readonly mode: CalculationChunkMode;
+    readonly reason: string;
+  }): CalculationChunkInput | null {
+    if (chunkSize <= 0 || !this.pendingFileIds.length) {
+      return null;
     }
 
     const pendingBefore = this.pendingFileIds.length;
@@ -209,6 +354,7 @@ export class CalculationService extends Disposable implements ICalculationServic
     this.removeInteractivePriorityFiles(chunkFileIds);
     const snapshot = this.sessionService.getSnapshot();
     const filesById: Record<FileId, FileRecord> = {};
+    const inputSignaturesByFileId: Record<FileId, string> = {};
     const fileIds: FileId[] = [];
     let missingFileCount = 0;
     let refreshedSignatureCount = 0;
@@ -229,39 +375,74 @@ export class CalculationService extends Disposable implements ICalculationServic
         this.inputSignaturesByFileId.set(fileId, inputSignature);
         refreshedSignatureCount += 1;
       }
+      inputSignaturesByFileId[fileId] = inputSignature;
       filesById[fileId] = file;
       fileIds.push(fileId);
     }
 
     if (!fileIds.length) {
-      return EMPTY_CALCULATION_CHUNK_RESULT;
+      return null;
     }
 
-    const endBuildPerf = startPerf("calculationContribution.buildRecords", {
+    return {
       candidateFileCount,
-      chunkMode: mode,
-      fileCount: fileIds.length,
       fileIds,
+      filesById,
+      inputSignaturesByFileId,
       interactivePriorityFileCount,
       missingFileCount,
-      pendingFileCount: pendingBefore,
+      mode,
+      pendingBefore,
       reason,
       refreshedSignatureCount,
       sessionVersion: snapshot.sessionVersion,
-    });
-    const { curvesByFileId, metricsByFileId } = createCalculatedRecordsByFile(
-      filesById,
-      fileIds,
+    };
+  }
+
+  private buildCalculatedRecordsOnMainThread(
+    chunkInput: CalculationChunkInput,
+    metadata: Record<string, unknown>,
+  ): CalculationRecordsByFile {
+    const endBuildPerf = this.startCalculationBuildPerf(chunkInput, metadata);
+    const records = createCalculatedRecordsByFile(
+      chunkInput.filesById,
+      chunkInput.fileIds,
     );
     endBuildPerf({
-      curveCount: countRecordArrayItems(curvesByFileId),
-      fileIds,
-      metricCount: countRecordArrayItems(metricsByFileId),
+      curveCount: countRecordArrayItems(records.curvesByFileId),
+      fileIds: chunkInput.fileIds,
+      metricCount: countRecordArrayItems(records.metricsByFileId),
     });
+    return records;
+  }
+
+  private startCalculationBuildPerf(
+    chunkInput: CalculationChunkInput,
+    metadata: Record<string, unknown>,
+  ): (metadata?: Record<string, unknown>) => void {
+    return startPerf("calculationContribution.buildRecords", {
+      candidateFileCount: chunkInput.candidateFileCount,
+      chunkMode: chunkInput.mode,
+      fileCount: chunkInput.fileIds.length,
+      fileIds: chunkInput.fileIds,
+      interactivePriorityFileCount: chunkInput.interactivePriorityFileCount,
+      missingFileCount: chunkInput.missingFileCount,
+      pendingFileCount: chunkInput.pendingBefore,
+      reason: chunkInput.reason,
+      refreshedSignatureCount: chunkInput.refreshedSignatureCount,
+      sessionVersion: chunkInput.sessionVersion,
+      ...metadata,
+    });
+  }
+
+  private commitCalculatedRecords(
+    fileIds: readonly FileId[],
+    records: CalculationRecordsByFile,
+  ): CalculationChunkResult {
     const commits: CommitCalculatedRecordsInput[] = fileIds.map(fileId => ({
       fileId,
-      curves: curvesByFileId[fileId] ?? [],
-      metrics: metricsByFileId[fileId] ?? [],
+      curves: records.curvesByFileId[fileId] ?? [],
+      metrics: records.metricsByFileId[fileId] ?? [],
       replaceCurveGenerations: ["derived", "secondDerived"],
       replaceMetrics: true,
     }));
@@ -270,39 +451,153 @@ export class CalculationService extends Disposable implements ICalculationServic
     return { committedFileCount: fileIds.length, fileIds };
   }
 
+  private isCurrentCalculationWorkerResult(
+    chunkInput: CalculationChunkInput,
+    result: CalculationRecordsWorkerOutput | null,
+    requestId: number,
+  ): result is CalculationRecordsWorkerOutput {
+    if (!result || result.requestId !== requestId) {
+      return false;
+    }
+
+    const [fileId] = chunkInput.fileIds;
+    return (
+      result.fileId === fileId &&
+      result.sessionVersion === chunkInput.sessionVersion &&
+      this.isCurrentCalculationChunkInput(chunkInput)
+    );
+  }
+
+  private isCurrentCalculationChunkInput(chunkInput: CalculationChunkInput): boolean {
+    const snapshot = this.sessionService.getSnapshot();
+    for (const fileId of chunkInput.fileIds) {
+      if (!snapshot.filesById[fileId]) {
+        return false;
+      }
+      if (this.inputSignaturesByFileId.get(fileId) !== chunkInput.inputSignaturesByFileId[fileId]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   private processInteractivePriorityCalculation(reason: string): CalculationChunkResult {
     if (!this.countInteractivePriorityFiles(this.pendingFileIds)) {
       return EMPTY_CALCULATION_CHUNK_RESULT;
     }
 
     this.cancelScheduledCalculation();
+    if (typeof globalThis.Worker === "function") {
+      void this.flushInteractivePriorityCalculation(reason);
+      return EMPTY_CALCULATION_CHUNK_RESULT;
+    }
+
     const result = this.processPendingCalculationChunk({
       candidateFileCount: this.pendingFileIds.length,
       chunkSize: CALCULATION_INTERACTIVE_CHUNK_SIZE,
       mode: "foreground",
       reason,
     });
-    this.schedulePendingCalculation();
+    this.schedulePendingCalculation({ allowInteractivePriority: false });
     return result;
   }
 
-  private schedulePendingCalculation(): void {
-    if (this.isDisposed || this.scheduledCalculationHandle !== null || !this.pendingFileIds.length) {
+  private schedulePendingCalculation(options: {
+    readonly allowInteractivePriority?: boolean;
+  } = {}): void {
+    const allowInteractivePriority = options.allowInteractivePriority !== false;
+    if (allowInteractivePriority && this.countInteractivePriorityFiles(this.pendingFileIds)) {
+      this.processInteractivePriorityCalculation("interactivePriority");
+      return;
+    }
+
+    if (
+      this.isDisposed ||
+      this.isBackgroundCalculationInFlight ||
+      this.isInteractiveCalculationInFlight ||
+      this.scheduledCalculationHandle !== null ||
+      !this.pendingFileIds.length
+    ) {
       return;
     }
 
     this.scheduledCalculationHandle = globalThis.setTimeout(() => {
       this.scheduledCalculationHandle = null;
-      const pendingFileIds = [...this.pendingFileIds];
-      const interactivePriorityFileIds = this.getInteractivePriorityFiles(pendingFileIds);
-      const endFlushPerf = startPerf("calculationContribution.flushPending", {
-        chunkSize: CALCULATION_BACKGROUND_CHUNK_SIZE,
-        interactivePriorityFileCount: interactivePriorityFileIds.length,
-        interactivePriorityFileIds,
-        pendingFileIds,
-        pendingFileCount: this.pendingFileIds.length,
+      void this.flushPendingCalculation();
+    }, CALCULATION_BACKGROUND_DELAY_MS);
+  }
+
+  private async flushInteractivePriorityCalculation(reason: string): Promise<void> {
+    if (
+      this.isDisposed ||
+      this.isInteractiveCalculationInFlight ||
+      !this.countInteractivePriorityFiles(this.pendingFileIds)
+    ) {
+      return;
+    }
+
+    this.isInteractiveCalculationInFlight = true;
+    const pendingFileIds = [...this.pendingFileIds];
+    const interactivePriorityFileIds = this.getInteractivePriorityFiles(pendingFileIds);
+    const endFlushPerf = startPerf("calculationContribution.flushInteractivePriority", {
+      chunkSize: CALCULATION_INTERACTIVE_CHUNK_SIZE,
+      interactivePriorityFileCount: interactivePriorityFileIds.length,
+      interactivePriorityFileIds,
+      pendingFileIds,
+      pendingFileCount: this.pendingFileIds.length,
+      worker: true,
+    });
+    try {
+      const result = await this.processPendingCalculationChunkInWorker({
+        candidateFileCount: this.pendingFileIds.length,
+        chunkSize: CALCULATION_INTERACTIVE_CHUNK_SIZE,
+        mode: "foreground",
+        reason,
       });
-      const result = this.processPendingCalculationChunk({
+      endFlushPerf({
+        committedFileIds: result.fileIds,
+        committedFileCount: result.committedFileCount,
+        remainingFileCount: this.pendingFileIds.length,
+        remainingFileIds: [...this.pendingFileIds],
+      });
+    } finally {
+      this.isInteractiveCalculationInFlight = false;
+      if (this.countInteractivePriorityFiles(this.pendingFileIds)) {
+        void this.flushInteractivePriorityCalculation("interactivePriority");
+      } else {
+        this.schedulePendingCalculation();
+      }
+    }
+  }
+
+  private async flushPendingCalculation(): Promise<void> {
+    if (
+      this.isDisposed ||
+      this.isBackgroundCalculationInFlight ||
+      this.isInteractiveCalculationInFlight ||
+      !this.pendingFileIds.length
+    ) {
+      return;
+    }
+
+    if (this.countInteractivePriorityFiles(this.pendingFileIds)) {
+      this.processInteractivePriorityCalculation("interactivePriority");
+      return;
+    }
+
+    this.isBackgroundCalculationInFlight = true;
+    const pendingFileIds = [...this.pendingFileIds];
+    const interactivePriorityFileIds = this.getInteractivePriorityFiles(pendingFileIds);
+    const endFlushPerf = startPerf("calculationContribution.flushPending", {
+      chunkSize: CALCULATION_BACKGROUND_CHUNK_SIZE,
+      interactivePriorityFileCount: interactivePriorityFileIds.length,
+      interactivePriorityFileIds,
+      pendingFileIds,
+      pendingFileCount: this.pendingFileIds.length,
+      worker: true,
+    });
+    try {
+      const result = await this.processPendingCalculationChunkInWorker({
         candidateFileCount: this.pendingFileIds.length,
         chunkSize: CALCULATION_BACKGROUND_CHUNK_SIZE,
         mode: "background",
@@ -314,8 +609,10 @@ export class CalculationService extends Disposable implements ICalculationServic
         remainingFileCount: this.pendingFileIds.length,
         remainingFileIds: [...this.pendingFileIds],
       });
+    } finally {
+      this.isBackgroundCalculationInFlight = false;
       this.schedulePendingCalculation();
-    }, CALCULATION_BACKGROUND_DELAY_MS);
+    }
   }
 
   private cancelScheduledCalculation(): void {

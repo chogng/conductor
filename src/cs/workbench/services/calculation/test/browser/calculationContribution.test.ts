@@ -9,6 +9,7 @@ import {
   CalculationService,
   shouldUpdateCalculationForSessionChange,
 } from "src/cs/workbench/services/calculation/browser/calculation.contribution";
+import type { CalculationRecordsWorkerRequest } from "src/cs/workbench/services/calculation/browser/calculationWorker";
 import type {
   CommitCurvesBatchInput,
   CommitCurvesInput,
@@ -163,6 +164,145 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
 
     contribution.dispose();
     sessionEvents.dispose();
+  });
+
+  test("runs interactive priority calculation in a worker while background calculation is in flight", async () => {
+    const originalWorker = globalThis.Worker;
+    const sessionEvents = new Emitter<SessionChangeEvent>();
+    const calculatedCommitFileIds: string[][] = [];
+    const workerRecords: Array<{
+      readonly message: CalculationRecordsWorkerRequest;
+      readonly worker: TestWorker;
+    }> = [];
+    class TestWorker {
+      public onerror: ((event: ErrorEvent) => void) | null = null;
+      public onmessage: ((event: MessageEvent) => void) | null = null;
+
+      public postMessage(message: CalculationRecordsWorkerRequest): void {
+        workerRecords.push({ message, worker: this });
+      }
+
+      public terminate(): void {
+        return;
+      }
+    }
+
+    let contribution: CalculationService | undefined;
+    try {
+      globalThis.Worker = TestWorker as unknown as typeof Worker;
+      const snapshot = createSnapshot({
+        "file-a": createFileRecord("file-a", "series-a", "base-a"),
+        "file-b": createFileRecord("file-b", "series-b", "base-b"),
+        "file-c": createFileRecord("file-c", "series-c", "base-c"),
+      });
+      contribution = new CalculationService(createSessionServiceStub({
+        commitCurvesBatch: () => undefined,
+        commitCalculatedRecordsBatch: input => {
+          calculatedCommitFileIds.push(input.map(commit => commit.fileId));
+        },
+        commitMetricsBatch: () => undefined,
+        getSnapshot: () => snapshot,
+        onDidChangeSession: sessionEvents.event,
+      }));
+
+      await waitForPendingCalculation();
+
+      assert.equal(workerRecords.length, 1);
+      assert.equal(workerRecords[0].message.payload?.fileId, "file-a");
+      assert.deepEqual(calculatedCommitFileIds, []);
+
+      contribution.prioritizeCalculationFile("file-c");
+      assert.equal(workerRecords.length, 2);
+      assert.equal(workerRecords[1].message.payload?.fileId, "file-c");
+      assert.deepEqual(calculatedCommitFileIds, []);
+
+      completeCalculationWorker(workerRecords[1]);
+      await waitForCalculationWorkerResult();
+
+      assert.deepEqual(calculatedCommitFileIds, [["file-c"]]);
+
+      completeCalculationWorker(workerRecords[0]);
+      await waitForCalculationWorkerResult();
+
+      assert.deepEqual(calculatedCommitFileIds, [["file-c"], ["file-a"]]);
+
+      await waitForPendingCalculation();
+      assert.equal(workerRecords.length, 3);
+      assert.equal(workerRecords[2].message.payload?.fileId, "file-b");
+    } finally {
+      contribution?.dispose();
+      sessionEvents.dispose();
+      globalThis.Worker = originalWorker;
+    }
+  });
+
+  test("ignores stale background worker calculation results after input changes", async () => {
+    const originalWorker = globalThis.Worker;
+    const sessionEvents = new Emitter<SessionChangeEvent>();
+    const calculatedCommitFileIds: string[][] = [];
+    const workerRecords: Array<{
+      readonly message: CalculationRecordsWorkerRequest;
+      readonly worker: TestWorker;
+    }> = [];
+    class TestWorker {
+      public onerror: ((event: ErrorEvent) => void) | null = null;
+      public onmessage: ((event: MessageEvent) => void) | null = null;
+
+      public postMessage(message: CalculationRecordsWorkerRequest): void {
+        workerRecords.push({ message, worker: this });
+      }
+
+      public terminate(): void {
+        return;
+      }
+    }
+
+    let contribution: CalculationService | undefined;
+    try {
+      globalThis.Worker = TestWorker as unknown as typeof Worker;
+      let snapshot = createSnapshot({
+        "file-a": createFileRecord("file-a", "series-a", "base-a"),
+      });
+      contribution = new CalculationService(createSessionServiceStub({
+        commitCurvesBatch: () => undefined,
+        commitCalculatedRecordsBatch: input => {
+          calculatedCommitFileIds.push(input.map(commit => commit.fileId));
+        },
+        commitMetricsBatch: () => undefined,
+        getSnapshot: () => snapshot,
+        onDidChangeSession: sessionEvents.event,
+      }));
+
+      await waitForPendingCalculation();
+      assert.equal(workerRecords.length, 1);
+
+      snapshot = {
+        ...createSnapshot({
+          "file-a": createFileRecord("file-a", "series-a", "base-a-next"),
+        }),
+        sessionVersion: 2,
+      };
+      sessionEvents.fire(createSessionChangeEvent("curvesChanged", 2, {
+        curveKeys: ["base:iv:transfer:series-a" as CurveKey],
+        fileIds: ["file-a"],
+      }));
+
+      completeCalculationWorker(workerRecords[0]);
+      await waitForCalculationWorkerResult();
+
+      assert.deepEqual(calculatedCommitFileIds, []);
+
+      await waitForPendingCalculation();
+      assert.equal(workerRecords.length, 2);
+      completeCalculationWorker(workerRecords[1]);
+      await waitForCalculationWorkerResult();
+
+      assert.deepEqual(calculatedCommitFileIds, [["file-a"]]);
+    } finally {
+      contribution?.dispose();
+      sessionEvents.dispose();
+      globalThis.Worker = originalWorker;
+    }
   });
 
   test("prioritizes newly affected files ahead of older background calculation", async () => {
@@ -427,8 +567,34 @@ const createFileRecord = (
   };
 };
 
+const completeCalculationWorker = (record: {
+  readonly message: CalculationRecordsWorkerRequest;
+  readonly worker: {
+    readonly onmessage: ((event: MessageEvent) => void) | null;
+  };
+}): void => {
+  const payload = record.message.payload;
+  record.worker.onmessage?.({
+    data: {
+      payload: {
+        curves: [],
+        fileId: payload?.fileId ?? "",
+        metrics: [],
+        requestId: payload?.requestId ?? 0,
+        sessionVersion: payload?.sessionVersion ?? 0,
+      },
+      type: "calculateRecordsResult",
+    },
+  } as MessageEvent);
+};
+
 const waitForPendingCalculation = async (flushCount = 1): Promise<void> => {
   for (let index = 0; index < flushCount; index += 1) {
     await new Promise(resolve => setTimeout(resolve, 0));
   }
+};
+
+const waitForCalculationWorkerResult = async (): Promise<void> => {
+  await Promise.resolve();
+  await Promise.resolve();
 };

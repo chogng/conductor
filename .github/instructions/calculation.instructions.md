@@ -51,6 +51,8 @@ Calculation does not own:
 | `common/sweepSegmentation.ts` | Bidirectional sweep segmentation helper shared by calculation algorithms. |
 | `common/ionIoff.ts` | Ion/Ioff current-window calculation helpers, including automatic and manual target-window selection. |
 | `browser/calculationService.ts` | Injectable owner of calculation signatures, the pending calculation queue, short interactive priority lane, foreground/background calculation chunks, file-priority hints, and calculated record commits through `ISessionService`. |
+| `browser/calculationWorker.ts` | Browser worker entry that runs pure per-file calculated record building off the renderer thread. |
+| `browser/calculationWorkerClient.ts` | Worker adapter that sends the minimal calculation input record, validates request identity, times out failed workers, and falls back to the main-thread path. |
 | `browser/calculation.contribution.ts` | Registers `ICalculationService` and starts calculation lifecycle wiring. No queue or algorithm ownership. |
 
 ## Flow
@@ -65,13 +67,17 @@ flowchart TD
     ExplorerPriority[Explorer selection / hover / visible thumbnails] --> CalculationService[ICalculationService]
     CalculationService --> Queue[Pending calculation queue]
     Queue --> Calculation
+    Queue --> Worker[Background calculation worker]
+    Worker --> Calculation
 ```
 
 `calculationService.ts` is lifecycle and queue glue. It may subscribe to
 session events, prioritize already-pending calculation files, and call
-calculation helpers, but complex algorithm or record-building logic belongs in
-`common/*` helpers. `calculation.contribution.ts` remains registration-only
-glue.
+calculation helpers through the calculation worker for interactive foreground
+and ordinary background chunks. It may fall back to a tiny direct helper call
+only when worker execution is unavailable or fails, but complex algorithm or
+record-building logic belongs in `common/*` helpers.
+`calculation.contribution.ts` remains registration-only glue.
 
 ## Session Sequence
 
@@ -83,6 +89,7 @@ sequenceDiagram
     participant Session as ISessionService
     participant DomainBridge as WorkbenchDomainBridge
     participant Calculation as ICalculationService
+    participant Worker as calculationWorker.ts
     participant Records as calculationRecordBuilder.ts
     participant Curves as calculationCurveRecordBuilder.ts
     participant Metrics as calculationMetricRecordBuilder.ts
@@ -115,15 +122,35 @@ sequenceDiagram
         end
         Calculation->>Calculation: prioritize changed file ids in pending calculation queue
         Calculation->>Calculation: reorder pending queue by interactive priority lane
-        loop interactive foreground chunk when prioritized, then background chunks
-            Calculation->>Records: createCalculatedRecordsByFile(chunkFilesById, chunkFileIds)
-            Records->>Curves: createCalculatedCurveRecordsByFile(chunkFilesById, chunkFileIds)
+        loop interactive foreground chunk when prioritized
+            Calculation->>Worker: calculateRecords(priorityFile, requestId, input signature)
+            Worker->>Records: createCalculatedRecordsByFile({ fileId: slimFile }, [fileId])
+            Records->>Curves: createCalculatedCurveRecordsByFile(...)
             Curves-->>Records: CurveRecord[] by file
-            Records->>Metrics: createCalculatedMetricRecordsByFile(chunkFilesById, chunkFileIds)
+            Records->>Metrics: createCalculatedMetricRecordsByFile(...)
             Metrics-->>Records: MetricRecord[] by file
-            Records-->>Calculation: curvesByFileId and metricsByFileId
+            Records-->>Worker: curvesByFileId and metricsByFileId
+            Worker-->>Calculation: calculateRecordsResult
+            Calculation->>Calculation: verify current input signature
             Calculation->>Session: commitCalculatedRecordsBatch({ curves, metrics }[])
             Session-->>Consumers: onDidChangeSession(calculatedRecordsChanged)
+        end
+        loop background chunks
+            Calculation->>Worker: calculateRecords(file, requestId, input signature)
+            Worker->>Records: createCalculatedRecordsByFile({ fileId: slimFile }, [fileId])
+            Records->>Curves: createCalculatedCurveRecordsByFile(...)
+            Curves-->>Records: CurveRecord[] by file
+            Records->>Metrics: createCalculatedMetricRecordsByFile(...)
+            Metrics-->>Records: MetricRecord[] by file
+            Records-->>Worker: curvesByFileId and metricsByFileId
+            Worker-->>Calculation: calculateRecordsResult
+            Calculation->>Calculation: verify current input signature
+            alt worker result still matches current calculation input
+                Calculation->>Session: commitCalculatedRecordsBatch({ curves, metrics }[])
+                Session-->>Consumers: onDidChangeSession(calculatedRecordsChanged)
+            else input changed while worker was running
+                Calculation-->>Calculation: ignore stale worker result
+            end
         end
     else derived output or unrelated session event
         Calculation-->>Calculation: no-op
@@ -149,10 +176,22 @@ Session boundary rules:
 
 - Calculation reads session facts only through `ISessionService.getSnapshot()`.
 - Calculation writes canonical results through `commitCalculatedRecordsBatch`
-  after collecting curves and metrics for a calculation chunk. Only files that
-  match the interactive priority lane should run in a tiny foreground chunk;
-  ordinary apply/import calculation work should stay in single-file background
-  chunks so a large batch does not monopolize the renderer thread.
+  after collecting curves and metrics for a calculation chunk. Files that
+  match the interactive priority lane should run in a tiny foreground chunk
+  through an interactive worker when available; ordinary apply/import
+  calculation work should stay in single-file background chunks and use the
+  calculation worker when available so a large batch does not monopolize the
+  renderer thread. Worker fallback may synchronously build on the main thread
+  only after validating that the queued input is still current, and fallback
+  must not drain multiple remembered priority files in one call stack.
+- Background worker payloads must carry only the records required to rebuild
+  calculated curves and metrics: base curves, matching series, metric inputs,
+  the latest template run metadata, and minimal raw file identity. Do not ship
+  raw table rows, assessment state, or full session snapshots into the worker.
+- Background worker results must be checked against the current per-file
+  calculation input signature before commit. Session version alone is not a
+  stale-result guard because unrelated calculated-record commits can advance
+  session version while the calculation input remains valid.
 - `ICalculationService.prioritizeCalculationFile(s)` accepts interactive
   priority hints from workbench orchestration such as Explorer selection,
   hover thumbnails, and visible thumbnail ranges. It records a bounded
