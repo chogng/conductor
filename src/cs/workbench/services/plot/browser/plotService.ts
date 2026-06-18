@@ -1380,6 +1380,7 @@ export const shouldInvalidatePlotModelsForSessionChange = (
     case "templateRunChanged":
     case "curvesChanged":
     case "metricsChanged":
+    case "calculatedRecordsChanged":
     case "filesRemoved":
     case "sessionCleared":
       return true;

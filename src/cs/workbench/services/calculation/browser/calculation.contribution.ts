@@ -4,6 +4,7 @@
 
 import {
   Disposable,
+  toDisposable,
 } from "src/cs/base/common/lifecycle";
 import { startPerf } from "src/cs/workbench/common/perf";
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from "src/cs/workbench/common/contributions";
@@ -14,15 +15,21 @@ import {
 import { CalculationContributionId } from "src/cs/workbench/services/calculation/common/calculation";
 import {
   ISessionService,
-  type CommitCurvesInput,
-  type CommitMetricsInput,
+  type CommitCalculatedRecordsInput,
   type SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import type { FileId, FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
 
+const CALCULATION_FOREGROUND_CHUNK_SIZE = 1;
+const CALCULATION_BACKGROUND_CHUNK_SIZE = 2;
+const CALCULATION_BACKGROUND_DELAY_MS = 0;
+
 export class CalculationContribution extends Disposable implements IWorkbenchContribution {
   private readonly inputSignaturesByFileId = new Map<FileId, string>();
+  private pendingFileIds: FileId[] = [];
+  private scheduledCalculationHandle: ReturnType<typeof globalThis.setTimeout> | null = null;
+  private isDisposed = false;
 
   constructor(
     @ISessionService private readonly sessionService: ISessionService,
@@ -33,6 +40,11 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
       if (shouldUpdateCalculationForSessionChange(event)) {
         this.update(event);
       }
+    }));
+    this._register(toDisposable(() => {
+      this.isDisposed = true;
+      this.cancelScheduledCalculation();
+      this.clearPendingFiles();
     }));
     this.update();
   }
@@ -48,6 +60,8 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
 
     if (event?.reason === "sessionCleared") {
       this.inputSignaturesByFileId.clear();
+      this.clearPendingFiles();
+      this.cancelScheduledCalculation();
       endUpdatePerf({ result: "sessionCleared" });
       return;
     }
@@ -57,6 +71,7 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
       for (const fileId of removedFileIds) {
         this.inputSignaturesByFileId.delete(fileId);
       }
+      this.removePendingFiles(removedFileIds);
       endUpdatePerf({
         removedFileCount: removedFileIds.length,
         result: "filesRemoved",
@@ -64,7 +79,6 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
       return;
     }
 
-    const filesById: Record<FileId, FileRecord> = {};
     const fileIds: FileId[] = [];
     const candidateFileIds = getCalculationUpdateFileIds(event, snapshot);
     for (const fileId of candidateFileIds) {
@@ -83,7 +97,6 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
       }
 
       this.inputSignaturesByFileId.set(fileId, inputSignature);
-      filesById[fileId] = file;
       fileIds.push(fileId);
     }
 
@@ -95,10 +108,78 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
       return;
     }
 
-    const endBuildPerf = startPerf("calculationContribution.buildRecords", {
+    this.prioritizePendingFiles(fileIds);
+    const foregroundResult = this.processPendingCalculationChunk({
       candidateFileCount: candidateFileIds.length,
-      fileCount: fileIds.length,
+      chunkSize: CALCULATION_FOREGROUND_CHUNK_SIZE,
+      mode: "foreground",
       reason: event?.reason ?? "initial",
+    });
+    this.schedulePendingCalculation();
+    endUpdatePerf({
+      candidateFileCount: candidateFileIds.length,
+      committedFileCount: foregroundResult.committedFileCount,
+      fileCount: fileIds.length,
+      pendingFileCount: this.pendingFileIds.length,
+      result: this.pendingFileIds.length ? "queued" : "committed",
+    });
+  }
+
+  private processPendingCalculationChunk({
+    candidateFileCount,
+    chunkSize,
+    mode,
+    reason,
+  }: {
+    readonly candidateFileCount: number;
+    readonly chunkSize: number;
+    readonly mode: "foreground" | "background";
+    readonly reason: string;
+  }): { committedFileCount: number } {
+    if (chunkSize <= 0 || !this.pendingFileIds.length) {
+      return { committedFileCount: 0 };
+    }
+
+    const pendingBefore = this.pendingFileIds.length;
+    const chunkFileIds = this.takePendingFiles(chunkSize);
+    const snapshot = this.sessionService.getSnapshot();
+    const filesById: Record<FileId, FileRecord> = {};
+    const fileIds: FileId[] = [];
+    let missingFileCount = 0;
+    let refreshedSignatureCount = 0;
+
+    for (const fileId of chunkFileIds) {
+      const file = snapshot.filesById[fileId];
+      if (!file) {
+        this.inputSignaturesByFileId.delete(fileId);
+        missingFileCount += 1;
+        continue;
+      }
+
+      const inputSignature = createCalculatedRecordsInputSignature(
+        { [fileId]: file },
+        [fileId],
+      );
+      if (inputSignature !== this.inputSignaturesByFileId.get(fileId)) {
+        this.inputSignaturesByFileId.set(fileId, inputSignature);
+        refreshedSignatureCount += 1;
+      }
+      filesById[fileId] = file;
+      fileIds.push(fileId);
+    }
+
+    if (!fileIds.length) {
+      return { committedFileCount: 0 };
+    }
+
+    const endBuildPerf = startPerf("calculationContribution.buildRecords", {
+      candidateFileCount,
+      chunkMode: mode,
+      fileCount: fileIds.length,
+      missingFileCount,
+      pendingFileCount: pendingBefore,
+      reason,
+      refreshedSignatureCount,
       sessionVersion: snapshot.sessionVersion,
     });
     const { curvesByFileId, metricsByFileId } = createCalculatedRecordsByFile(
@@ -109,26 +190,80 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
       curveCount: countRecordArrayItems(curvesByFileId),
       metricCount: countRecordArrayItems(metricsByFileId),
     });
-    const curveCommits: CommitCurvesInput[] = fileIds.map(fileId => ({
+    const commits: CommitCalculatedRecordsInput[] = fileIds.map(fileId => ({
       fileId,
       curves: curvesByFileId[fileId] ?? [],
-      replaceGenerations: ["derived", "secondDerived"],
-    }));
-    const metricCommits: CommitMetricsInput[] = fileIds.map(fileId => ({
-      fileId,
       metrics: metricsByFileId[fileId] ?? [],
-      replace: true,
+      replaceCurveGenerations: ["derived", "secondDerived"],
+      replaceMetrics: true,
     }));
 
-    this.sessionService.commitCurvesBatch(curveCommits);
-    this.sessionService.commitMetricsBatch(metricCommits);
-    endUpdatePerf({
-      candidateFileCount: candidateFileIds.length,
-      curveCount: countRecordArrayItems(curvesByFileId),
-      fileCount: fileIds.length,
-      metricCount: countRecordArrayItems(metricsByFileId),
-      result: "committed",
-    });
+    this.sessionService.commitCalculatedRecordsBatch(commits);
+    return { committedFileCount: fileIds.length };
+  }
+
+  private schedulePendingCalculation(): void {
+    if (this.isDisposed || this.scheduledCalculationHandle !== null || !this.pendingFileIds.length) {
+      return;
+    }
+
+    this.scheduledCalculationHandle = globalThis.setTimeout(() => {
+      this.scheduledCalculationHandle = null;
+      const endFlushPerf = startPerf("calculationContribution.flushPending", {
+        chunkSize: CALCULATION_BACKGROUND_CHUNK_SIZE,
+        pendingFileCount: this.pendingFileIds.length,
+      });
+      const result = this.processPendingCalculationChunk({
+        candidateFileCount: this.pendingFileIds.length,
+        chunkSize: CALCULATION_BACKGROUND_CHUNK_SIZE,
+        mode: "background",
+        reason: "pending",
+      });
+      endFlushPerf({
+        committedFileCount: result.committedFileCount,
+        remainingFileCount: this.pendingFileIds.length,
+      });
+      this.schedulePendingCalculation();
+    }, CALCULATION_BACKGROUND_DELAY_MS);
+  }
+
+  private cancelScheduledCalculation(): void {
+    if (this.scheduledCalculationHandle === null) {
+      return;
+    }
+
+    globalThis.clearTimeout(this.scheduledCalculationHandle);
+    this.scheduledCalculationHandle = null;
+  }
+
+  private prioritizePendingFiles(fileIds: readonly FileId[]): void {
+    const prioritizedFileIds = normalizeFileIds(fileIds);
+    if (!prioritizedFileIds.length) {
+      return;
+    }
+
+    const prioritizedFileIdSet = new Set(prioritizedFileIds);
+    this.pendingFileIds = [
+      ...prioritizedFileIds,
+      ...this.pendingFileIds.filter(fileId => !prioritizedFileIdSet.has(fileId)),
+    ];
+  }
+
+  private takePendingFiles(count: number): FileId[] {
+    return this.pendingFileIds.splice(0, count);
+  }
+
+  private removePendingFiles(fileIds: readonly FileId[]): void {
+    const removedFileIds = new Set(normalizeFileIds(fileIds));
+    if (!removedFileIds.size) {
+      return;
+    }
+
+    this.pendingFileIds = this.pendingFileIds.filter(fileId => !removedFileIds.has(fileId));
+  }
+
+  private clearPendingFiles(): void {
+    this.pendingFileIds = [];
   }
 
   private removeStaleSignatures(snapshot: SessionSnapshot): void {
@@ -138,6 +273,9 @@ export class CalculationContribution extends Disposable implements IWorkbenchCon
         this.inputSignaturesByFileId.delete(fileId);
       }
     }
+    this.removePendingFiles(
+      this.pendingFileIds.filter(fileId => !liveFileIds.has(fileId)),
+    );
   }
 }
 
@@ -154,6 +292,7 @@ export const shouldUpdateCalculationForSessionChange = (
       return hasBaseCurveChange(event);
     case "rawTablesChanged":
     case "assessmentChanged":
+    case "calculatedRecordsChanged":
     case "metricsChanged":
       return false;
   }

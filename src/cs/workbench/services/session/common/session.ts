@@ -69,6 +69,16 @@ export type CommitMetricsInput = {
 
 export type CommitMetricsBatchInput = readonly CommitMetricsInput[];
 
+export type CommitCalculatedRecordsInput = {
+  readonly fileId: FileId;
+  readonly curves: readonly CurveRecord[];
+  readonly metrics: readonly MetricRecord[];
+  readonly replaceCurveGenerations?: readonly CurveGeneration[];
+  readonly replaceMetrics?: boolean;
+};
+
+export type CommitCalculatedRecordsBatchInput = readonly CommitCalculatedRecordsInput[];
+
 export type SessionSnapshot = {
   readonly schemaVersion: 1;
   readonly sessionVersion: number;
@@ -95,6 +105,7 @@ export interface ISessionService {
   commitTemplateOutput(input: CommitTemplateOutputInput): void;
   commitTemplateOutputs(inputs: readonly CommitTemplateOutputInput[]): void;
   commitTemplateRun(input: CommitTemplateRunInput): void;
+  commitCalculatedRecordsBatch(inputs: CommitCalculatedRecordsBatchInput): void;
   commitCurves(input: CommitCurvesInput): void;
   commitCurvesBatch(inputs: CommitCurvesBatchInput): void;
   commitMetrics(input: CommitMetricsInput): void;

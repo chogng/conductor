@@ -124,28 +124,49 @@ export function buildTemplateProcessingPlan(
 
 export function prioritizeTemplateProcessingQueue<T extends { readonly fileId?: string | null }>(
 	queue: readonly T[],
-	priorityFileId?: string | null,
+	priorityFileId?: string | readonly string[] | null,
 ): T[] {
-	const normalizedPriorityFileId = normalizeFileId(priorityFileId);
-	if (!normalizedPriorityFileId) {
+	const priorityFileIds = normalizePriorityFileIds(priorityFileId);
+	if (!priorityFileIds.length) {
 		return [...queue];
 	}
 
-	const priorityIndex = queue.findIndex(
-		entry => normalizeFileId(entry.fileId) === normalizedPriorityFileId,
+	const priorityIndexesByFileId = new Map(
+		priorityFileIds.map((fileId, index) => [fileId, index]),
 	);
-	if (priorityIndex <= 0) {
-		return [...queue];
+	const priorityEntries: Array<T | null> = priorityFileIds.map(() => null);
+	const rest: T[] = [];
+	for (const entry of queue) {
+		const priorityIndex = priorityIndexesByFileId.get(normalizeFileId(entry.fileId));
+		if (priorityIndex !== undefined && priorityEntries[priorityIndex] === null) {
+			priorityEntries[priorityIndex] = entry;
+			continue;
+		}
+		rest.push(entry);
 	}
 
-	return [
-		queue[priorityIndex],
-		...queue.slice(0, priorityIndex),
-		...queue.slice(priorityIndex + 1),
-	];
+	const prioritized = priorityEntries.filter((entry): entry is T => entry !== null);
+	return prioritized.length ? [...prioritized, ...rest] : [...queue];
 }
 
 const normalizeFileId = (fileId: string | null | undefined): string => String(fileId ?? "").trim();
+
+const normalizePriorityFileIds = (
+	priorityFileId: string | readonly string[] | null | undefined,
+): string[] => {
+	const source = Array.isArray(priorityFileId) ? priorityFileId : [priorityFileId];
+	const seen = new Set<string>();
+	const result: string[] = [];
+	for (const fileId of source) {
+		const normalized = normalizeFileId(fileId);
+		if (!normalized || seen.has(normalized)) {
+			continue;
+		}
+		seen.add(normalized);
+		result.push(normalized);
+	}
+	return result;
+};
 
 const hasTemplateProcessingSource = (
 	entry: SessionFile,

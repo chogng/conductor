@@ -1674,6 +1674,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       "templateRunChanged",
       "curvesChanged",
       "metricsChanged",
+      "calculatedRecordsChanged",
       "filesRemoved",
       "sessionCleared",
     ] satisfies SessionChangeReason[]) {
@@ -1769,6 +1770,7 @@ const createSessionServiceStub = (
   onDidChangeSession,
   clearMetricInput: () => undefined,
   clearSession: () => undefined,
+  commitCalculatedRecordsBatch: () => undefined,
   commitCurves: () => undefined,
   commitCurvesBatch: () => undefined,
   commitFileImport: () => ({

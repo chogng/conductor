@@ -108,7 +108,10 @@ flowchart TD
   owner API for interactive queue promotion during an active apply run.
   `WorkbenchDomainBridge` may call it from Explorer hover or selection-derived
   signals, but Explorer, Chart, Thumbnail, and Plot must not mutate template
-  processing queues directly.
+  processing queues directly. The workflow may retain a short ordered priority
+  lane of recently touched file ids so rapid hover/file-switch interactions
+  promote the touched set ahead of background work instead of letting the last
+  touched file starve earlier ones.
 - Template views subscribe to `ITemplateService.onDidChangeTemplateViewInput`
   and then reread `ITemplateService.getViewInput()`. The event must not carry
   `TemplateViewInput` as the data channel.

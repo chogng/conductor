@@ -7,6 +7,7 @@ import assert from "assert";
 import {
 	buildTemplateProcessingPlan,
 	buildTemplateProcessingQueue,
+	prioritizeTemplateProcessingQueue,
 } from "src/cs/workbench/services/template/browser/templateApplyPlanner";
 import type { SessionFile } from "src/cs/workbench/services/session/common/sessionTypes";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -75,6 +76,21 @@ suite("workbench/services/template/test/browser/templateApplyPlanner", () => {
 					assessment: "transfer",
 				},
 			],
+		);
+	});
+
+	test("prioritizeTemplateProcessingQueue keeps multiple priority ids in order", () => {
+		const queue = [
+			{ fileId: "file-a" },
+			{ fileId: "file-b" },
+			{ fileId: "file-c" },
+			{ fileId: "file-d" },
+		];
+
+		assert.deepEqual(
+			prioritizeTemplateProcessingQueue(queue, ["file-c", "file-b"])
+				.map(entry => entry.fileId),
+			["file-c", "file-b", "file-a", "file-d"],
 		);
 	});
 

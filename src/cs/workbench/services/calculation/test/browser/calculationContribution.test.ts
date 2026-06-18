@@ -14,6 +14,7 @@ import type {
   CommitCurvesInput,
   CommitMetricsBatchInput,
   CommitMetricsInput,
+  CommitCalculatedRecordsBatchInput,
   ISessionService,
   SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
@@ -35,6 +36,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
     for (const reason of [
       "rawTablesChanged",
       "assessmentChanged",
+      "calculatedRecordsChanged",
       "metricsChanged",
     ] satisfies SessionChangeReason[]) {
       assert.equal(
@@ -98,6 +100,18 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
     });
     const contribution = new CalculationContribution(createSessionServiceStub({
       commitCurvesBatch: input => curveCommits.push(...input),
+      commitCalculatedRecordsBatch: input => {
+        curveCommits.push(...input.map(commit => ({
+          curves: commit.curves,
+          fileId: commit.fileId,
+          replaceGenerations: commit.replaceCurveGenerations,
+        })));
+        metricCommits.push(...input.map(commit => ({
+          fileId: commit.fileId,
+          metrics: commit.metrics,
+          replace: commit.replaceMetrics,
+        })));
+      },
       commitMetricsBatch: input => metricCommits.push(...input),
       getSnapshot: () => snapshot,
       onDidChangeSession: sessionEvents.event,
@@ -119,15 +133,78 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
     contribution.dispose();
     sessionEvents.dispose();
   });
+
+  test("commits the first calculation file synchronously and flushes the rest later", async () => {
+    const sessionEvents = new Emitter<SessionChangeEvent>();
+    const calculatedCommitFileIds: string[][] = [];
+    const snapshot = createSnapshot({
+      "file-a": createFileRecord("file-a", "series-a", "base-a"),
+      "file-b": createFileRecord("file-b", "series-b", "base-b"),
+      "file-c": createFileRecord("file-c", "series-c", "base-c"),
+    });
+    const contribution = new CalculationContribution(createSessionServiceStub({
+      commitCurvesBatch: () => undefined,
+      commitCalculatedRecordsBatch: input => {
+        calculatedCommitFileIds.push(input.map(commit => commit.fileId));
+      },
+      commitMetricsBatch: () => undefined,
+      getSnapshot: () => snapshot,
+      onDidChangeSession: sessionEvents.event,
+    }));
+
+    assert.deepEqual(calculatedCommitFileIds, [["file-a"]]);
+    await waitForPendingCalculation();
+    assert.deepEqual(calculatedCommitFileIds, [["file-a"], ["file-b", "file-c"]]);
+
+    contribution.dispose();
+    sessionEvents.dispose();
+  });
+
+  test("prioritizes newly affected files ahead of older background calculation", () => {
+    const sessionEvents = new Emitter<SessionChangeEvent>();
+    const calculatedCommitFileIds: string[][] = [];
+    let snapshot = createSnapshot({
+      "file-a": createFileRecord("file-a", "series-a", "base-a"),
+      "file-b": createFileRecord("file-b", "series-b", "base-b"),
+      "file-c": createFileRecord("file-c", "series-c", "base-c"),
+    });
+    const contribution = new CalculationContribution(createSessionServiceStub({
+      commitCurvesBatch: () => undefined,
+      commitCalculatedRecordsBatch: input => {
+        calculatedCommitFileIds.push(input.map(commit => commit.fileId));
+      },
+      commitMetricsBatch: () => undefined,
+      getSnapshot: () => snapshot,
+      onDidChangeSession: sessionEvents.event,
+    }));
+    calculatedCommitFileIds.length = 0;
+
+    snapshot = createSnapshot({
+      "file-a": createFileRecord("file-a", "series-a", "base-a"),
+      "file-b": createFileRecord("file-b", "series-b", "base-b"),
+      "file-c": createFileRecord("file-c", "series-c", "base-c-next"),
+    });
+    sessionEvents.fire(createSessionChangeEvent("curvesChanged", 2, {
+      curveKeys: ["base:iv:transfer:series-c" as CurveKey],
+      fileIds: ["file-c"],
+    }));
+
+    assert.deepEqual(calculatedCommitFileIds, [["file-c"]]);
+
+    contribution.dispose();
+    sessionEvents.dispose();
+  });
 });
 
 const createSessionServiceStub = ({
+  commitCalculatedRecordsBatch,
   commitCurvesBatch,
   commitMetricsBatch,
   getSnapshot,
   onDidChangeSession,
 }: {
   readonly commitCurvesBatch: (input: CommitCurvesBatchInput) => void;
+  readonly commitCalculatedRecordsBatch: (input: CommitCalculatedRecordsBatchInput) => void;
   readonly commitMetricsBatch: (input: CommitMetricsBatchInput) => void;
   readonly getSnapshot: () => SessionSnapshot;
   readonly onDidChangeSession: Event<SessionChangeEvent>;
@@ -140,6 +217,7 @@ const createSessionServiceStub = ({
     skippedDuplicateFileIds: [],
   }),
   commitCurves: () => undefined,
+  commitCalculatedRecordsBatch,
   commitCurvesBatch,
   commitMetrics: () => undefined,
   commitMetricsBatch,
@@ -246,3 +324,6 @@ const createFileRecord = (
     },
   };
 };
+
+const waitForPendingCalculation = (): Promise<void> =>
+  new Promise(resolve => setTimeout(resolve, 0));

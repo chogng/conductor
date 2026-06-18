@@ -107,6 +107,7 @@ type StartExtractionJobOptions = {
 };
 
 const TEMPLATE_OUTPUT_FLUSH_DELAY_MS = 32;
+const TEMPLATE_INTERACTIVE_PRIORITY_LIMIT = 24;
 
 type PendingTemplateOutputCommit = {
   readonly jobId: number;
@@ -461,6 +462,7 @@ export class TemplateApplyController {
   private readonly processingStopOnErrorRef = createTemplateWorkerRef(false);
   private readonly removedQueuedFileIdsRef = createTemplateWorkerRef<Set<string>>(new Set());
   private readonly lastAppliedTemplateConfigFingerprintRef = createTemplateWorkerRef<string | null>(null);
+  private interactivePriorityFileIds: string[] = [];
   private readonly sessionChangeDisposable: IDisposable;
   private readonly fileStatesByFileId = new Map<string, TemplateApplyFileState>();
   private pendingTemplateOutputCommits: PendingTemplateOutputCommit[] = [];
@@ -509,7 +511,8 @@ export class TemplateApplyController {
     }
 
     const currentQueue = this.processingQueueRef.current;
-    const nextQueue = prioritizeTemplateProcessingQueue(currentQueue, normalizedFileId);
+    this.rememberInteractivePriorityFile(normalizedFileId);
+    const nextQueue = prioritizeTemplateProcessingQueue(currentQueue, this.interactivePriorityFileIds);
     if (isSameProcessingQueue(currentQueue, nextQueue)) {
       return;
     }
@@ -517,6 +520,7 @@ export class TemplateApplyController {
     this.processingQueueRef.current = nextQueue;
     logPerf("templateApplyController.prioritizeProcessingFile", {
       fileId: normalizedFileId,
+      priorityFileCount: this.interactivePriorityFileIds.length,
       queueLength: nextQueue.length,
     });
   }
@@ -535,6 +539,7 @@ export class TemplateApplyController {
     this.processingQueueRef.current = [];
     this.processingStopOnErrorRef.current = false;
     this.removedQueuedFileIdsRef.current = new Set();
+    this.clearInteractivePriorityFiles();
     this.clearFileApplyStates();
     this.options.templateApplyService.terminateProcessingWorker(this.processingWorkerRef);
     this.setProcessingStatus({
@@ -553,6 +558,7 @@ export class TemplateApplyController {
     this.processingQueueRef.current = this.processingQueueRef.current.filter(
       (entry: ProcessingQueueItem) => entry.fileId !== fileId,
     );
+    this.removeInteractivePriorityFiles([fileId]);
 
     const removedCount = before - this.processingQueueRef.current.length;
     if (removedCount <= 0) {
@@ -1035,6 +1041,7 @@ export class TemplateApplyController {
 
     this._processingStatus = resolved;
     if (previous.state === "processing" && resolved.state !== "processing") {
+      this.clearInteractivePriorityFiles();
       this.flushTemplateOutputCommits();
     }
     this.onDidChangeProcessingStatusEmitter.fire(resolved);
@@ -1265,6 +1272,7 @@ export class TemplateApplyController {
       fileTemplateSelectionsByFileId,
       templateSelection,
     } = this.input;
+    this.clearInteractivePriorityFiles();
     this.options.templateApplyService.startProcessingJob({
       templateProcessingBackendService: this.options.templateProcessingBackendService,
       extractionConfig,
@@ -1499,6 +1507,7 @@ export class TemplateApplyController {
       warnings.push(...buildSkippedAssessmentWarnings(unmatchedFiles));
     }
     this.lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
+    this.clearInteractivePriorityFiles();
     this.options.templateApplyService.startRuleProcessingJob({
       templateProcessingBackendService: this.options.templateProcessingBackendService,
       finalQueue,
@@ -1550,6 +1559,31 @@ export class TemplateApplyController {
       code: "workerError",
       message: getWorkerExtractionErrorMessage(normalizeExtractionErrorDetails(payload)),
     });
+  }
+
+  private rememberInteractivePriorityFile(fileId: string): void {
+    this.interactivePriorityFileIds = [
+      ...this.interactivePriorityFileIds.filter(priorityFileId => priorityFileId !== fileId),
+      fileId,
+    ].slice(-TEMPLATE_INTERACTIVE_PRIORITY_LIMIT);
+  }
+
+  private clearInteractivePriorityFiles(): void {
+    this.interactivePriorityFileIds = [];
+  }
+
+  private removeInteractivePriorityFiles(fileIds: readonly string[]): void {
+    const removedFileIds = new Set(
+      fileIds
+        .map(fileId => normalizeTemplateApplyFileId(fileId))
+        .filter((fileId): fileId is string => Boolean(fileId)),
+    );
+    if (!removedFileIds.size) {
+      return;
+    }
+    this.interactivePriorityFileIds = this.interactivePriorityFileIds.filter(
+      fileId => !removedFileIds.has(fileId),
+    );
   }
 }
 

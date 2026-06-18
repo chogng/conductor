@@ -44,6 +44,7 @@ export interface ISessionService {
   commitTemplateOutput(input: CommitTemplateOutputInput): void;
   commitTemplateOutputs(inputs: readonly CommitTemplateOutputInput[]): void;
   commitTemplateRun(input: CommitTemplateRunInput): void;
+  commitCalculatedRecordsBatch(inputs: CommitCalculatedRecordsBatchInput): void;
   commitCurves(input: CommitCurvesInput): void;
   commitCurvesBatch(inputs: readonly CommitCurvesInput[]): void;
   commitMetrics(input: CommitMetricsInput): void;
@@ -111,6 +112,9 @@ Use `CommandTarget` for command arguments.
   ids skipped by Session. Callers may use that result for selection follow-up.
 - Assessment commits must check `sourceRawTableVersion`.
 - Raw table replacement invalidates stale assessments, template runs, curves, and metrics for that raw table.
+- Calculation output that includes derived curves and metrics should use
+  `commitCalculatedRecordsBatch` so Session can update both record families in
+  one snapshot and emit one `calculatedRecordsChanged` event.
 - Events include affected ids; consumers should ignore unrelated changes.
 
 ## Command entry and dispatch
@@ -126,6 +130,7 @@ Recommended command boundaries:
 | commit import | Explorer source workflow/controller after conversion succeeds | `ISessionService.commitFileImport(...)` |
 | commit assessment | Assessment contribution/command | `ISessionService.commitRawTableAssessment(...)` |
 | commit template/curves | Template service/controller | `ISessionService.commitTemplateOutput(...)` / `commitTemplateOutputs(...)` for produced template output; `commitTemplateRun(...)` and `commitCurves(...)` remain explicit lower-level commits |
+| commit calculated curves/metrics | Calculation contribution after pure builders finish | `ISessionService.commitCalculatedRecordsBatch(...)` |
 | commit metric input | Parameters service | `ISessionService.setMetricInput(...)` |
 
 Do not add commands that mutate internal `SessionModel` fields directly. Use

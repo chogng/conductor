@@ -163,6 +163,7 @@ function createSessionService(): ISessionService {
     commitTemplateOutput: () => undefined,
     commitTemplateOutputs: () => undefined,
     commitTemplateRun: () => undefined,
+    commitCalculatedRecordsBatch: () => undefined,
     commitCurves: () => undefined,
     commitCurvesBatch: () => undefined,
     commitMetrics: () => undefined,

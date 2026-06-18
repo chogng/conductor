@@ -138,6 +138,43 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     controller.dispose();
   });
 
+  test("interactive priority keeps recently selected queued files ahead of background work", () => {
+    const queuedFileIds: string[][] = [];
+    const startedJobs: ProcessingJobOptions[] = [];
+    const controller = createController({
+      sessionService: createSessionService(),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds, startedJobs, {
+        markProcessing: true,
+      }),
+    });
+
+    controller.update({
+      processedFileIds: [],
+      rawFiles: [
+        createSessionFile("file-a"),
+        createSessionFile("file-b"),
+        createSessionFile("file-c"),
+        createSessionFile("file-d"),
+      ],
+    });
+    controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    });
+
+    controller.prioritizeProcessingFile("file-c");
+    controller.prioritizeProcessingFile("file-b");
+
+    assert.deepEqual(
+      startedJobs[0].processingQueueRef.current.map(entry => entry.fileId),
+      ["file-c", "file-b", "file-a", "file-d"],
+    );
+    controller.dispose();
+  });
+
   test("full apply queues converted csv sources without retained File objects", () => {
     const queuedFileIds: string[][] = [];
     const startedJobs: ProcessingJobOptions[] = [];
