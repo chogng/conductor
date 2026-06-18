@@ -210,7 +210,6 @@ export class WorkbenchDomainBridge extends Disposable {
     );
     if (chartViewInput.activeFileId) {
       this.options.calculationService.prioritizeCalculationFile(chartViewInput.activeFileId);
-      this.options.plotService.prefetchCalculatedData([chartViewInput.activeFileId], "active");
       this.options.plotService.prefetchPlotDisplayModel({
         fileId: chartViewInput.activeFileId,
         plotType: chartViewInput.activePlotType,
@@ -330,41 +329,30 @@ export class WorkbenchDomainBridge extends Disposable {
 
     const snapshot = this.options.sessionService.getSnapshot();
     const plotType = this.options.plotService.getState().activePlotType;
-    const requestFileIds = isInteractivePlotDisplayPrewarmPriority(priority)
-      ? normalizedFileIds
-      : normalizedFileIds.filter(fileId => !this.options.plotService.getCachedPlotDisplayModel({
-          fileId,
-          plotType,
-          snapshot,
-        }));
-    if (!requestFileIds.length) {
-      return;
-    }
-
     const endPerf = startPerf("workbenchDomainBridge.prefetchPlotDisplayTargets", {
-      fileCount: requestFileIds.length,
+      fileCount: normalizedFileIds.length,
       plotType,
       priority,
       source,
     }, { silent: true });
-    this.options.plotService.prefetchCalculatedData(requestFileIds, priority, plotType);
-    for (const fileId of requestFileIds) {
-      this.options.plotService.prefetchPlotDisplayModel({
-        fileId,
-        plotType,
-        snapshot,
-      }, priority);
+    const inputs = normalizedFileIds.map(fileId => ({
+      fileId,
+      plotType,
+      snapshot,
+    }));
+    if (inputs.length === 1) {
+      this.options.plotService.prefetchPlotDisplayModel(inputs[0]!, priority);
+    } else {
+      this.options.plotService.prefetchPlotDisplayModels(
+        inputs,
+        priority,
+      );
     }
     endPerf({
-      requestedFileCount: requestFileIds.length,
+      requestedFileCount: normalizedFileIds.length,
     });
   }
 }
-
-const isInteractivePlotDisplayPrewarmPriority = (
-  priority: PlotCalculatedDataPrefetchPriority,
-): boolean =>
-  priority === "active" || priority === "hover";
 
 const createActiveChartFileOptions = (
   snapshot: SessionSnapshot,

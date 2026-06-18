@@ -137,6 +137,7 @@ export interface IPlotService {
   prefetchCalculatedData(fileIds: readonly FileId[], priority: PlotCalculatedDataPrefetchPriority, plotType?: PlotType): void;
   prefetchPlotInspectorDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
   prefetchPlotDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
+  prefetchPlotDisplayModels(inputs: readonly PlotDisplayModelInput[], priority: PlotCalculatedDataPrefetchPriority): void;
   setAxisTitleOverride(context: PlotAxisTitleContext, title: string, defaultTitle: string): void;
   setAxisUnit(fileId: FileId, axis: PlotAxis, unit: XUnit | YUnit): Promise<void>;
   setActivePlotType(plotType: PlotType): void;

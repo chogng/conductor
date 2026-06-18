@@ -856,6 +856,108 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     }
   });
 
+  test("batch prefetch skips cached and duplicate chart display targets in PlotService", async () => {
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+    const originalWorker = globalThis.Worker;
+    const scheduledFrames: FrameRequestCallback[] = [];
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      scheduledFrames.push(callback);
+      return scheduledFrames.length;
+    }) as typeof requestAnimationFrame;
+    globalThis.cancelAnimationFrame = (() => undefined) as typeof cancelAnimationFrame;
+
+    type WorkerRecord = {
+      readonly message: {
+        readonly payload?: {
+          readonly fileId?: string;
+          readonly includeInspector?: boolean;
+          readonly plotType?: string;
+          readonly requestId?: number;
+          readonly sessionVersion?: number;
+        };
+        readonly type?: string;
+      };
+      readonly worker: Worker;
+    };
+    const workerRecords: WorkerRecord[] = [];
+    class TestWorker {
+      public onmessage: ((event: MessageEvent) => void) | null = null;
+      public onerror: ((event: ErrorEvent) => void) | null = null;
+      public postMessage(message: WorkerRecord["message"]): void {
+        workerRecords.push({
+          message,
+          worker: this as unknown as Worker,
+        });
+      }
+      public terminate(): void {
+        // no-op
+      }
+    }
+    const completeDisplayWorker = (record: WorkerRecord): void => {
+      const payload = record.message.payload;
+      record.worker.onmessage?.({
+        data: {
+          payload: {
+            displayModel: null,
+            fileId: payload?.fileId ?? "",
+            plotType: payload?.plotType ?? "iv",
+            requestId: payload?.requestId ?? 0,
+            sessionVersion: payload?.sessionVersion ?? 0,
+          },
+          type: "calculateDisplayModelResult",
+        },
+      } as MessageEvent);
+    };
+
+    try {
+      globalThis.Worker = TestWorker as unknown as typeof Worker;
+      const snapshot = createSnapshot({
+        "file-a": createFileRecord("file-a", "series-a", "A"),
+        "file-b": createFileRecord("file-b", "series-b", "B"),
+      }, ["file-a", "file-b"]);
+      const service = store.add(new PlotService(
+        createSessionServiceStub(snapshot),
+        createSettingsServiceStub(),
+        store.add(new TestStorageService()),
+      ));
+
+      service.getCalculatedData({ fileId: "file-a", plotType: "iv", snapshot });
+      service.getCalculatedData({ fileId: "file-b", plotType: "iv", snapshot });
+      service.prefetchPlotDisplayModel({
+        fileId: "file-a",
+        plotType: "iv",
+        snapshot,
+      }, "active");
+      service.prefetchPlotDisplayModels([
+        { fileId: "file-a", plotType: "iv", snapshot },
+        { fileId: "file-b", plotType: "iv", snapshot },
+        { fileId: "file-b", plotType: "iv", snapshot },
+      ], "visible");
+
+      scheduledFrames.shift()?.(0);
+
+      assert.deepEqual(
+        workerRecords.map(record =>
+          `${record.message.type}:${record.message.payload?.fileId}:${record.message.payload?.includeInspector}`,
+        ),
+        ["calculateDisplayModel:file-b:false"],
+      );
+
+      completeDisplayWorker(workerRecords[0]);
+      await Promise.resolve();
+      assert.equal(service.getCachedPlotDisplayModel({
+        fileId: "file-b",
+        plotType: "iv",
+        snapshot,
+      })?.fileId, "file-b");
+    } finally {
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+      globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+      globalThis.Worker = originalWorker;
+    }
+  });
+
   test("warms active chart display model immediately when calculated data cache is cold", () => {
     const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
     const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;

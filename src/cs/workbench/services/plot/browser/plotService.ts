@@ -117,6 +117,20 @@ type QueuedPlotDisplayModelPrefetch = {
   readonly stage: PlotDisplayModelPrefetchStage;
 };
 
+type PlotDisplayModelPrefetchResult = {
+  readonly calculatedDataReady?: boolean;
+  readonly calculatedDataWarmed?: boolean;
+  readonly cacheHit?: boolean;
+  readonly fileId?: FileId;
+  readonly immediate?: boolean;
+  readonly inFlight?: boolean;
+  readonly missingCalculatedDataFileId?: FileId;
+  readonly plotType?: PlotType;
+  readonly queued?: boolean;
+  readonly result: string;
+  readonly stage?: PlotDisplayModelPrefetchStage;
+};
+
 type InFlightPlotPrefetch = {
   readonly priority: PlotCalculatedDataPrefetchPriority;
   readonly requestId: number;
@@ -447,129 +461,257 @@ export class PlotService extends Disposable implements IPlotService {
       return;
     }
 
-    const plotType = input.plotType && isPlotType(input.plotType)
-      ? input.plotType
-      : this.state.activePlotType;
-    const fileId = normalizeStateKey(input.fileId);
-    if (!fileId) {
+    const request = this.createChartDisplayModelPrefetchRequest(input, priority);
+    if (!request) {
       endPerf({ result: "noFileId" });
       return;
     }
 
-    let calculatedData = this.getCachedCalculatedData({
+    const result = this.prefetchChartDisplayModelRequest(request, snapshot);
+    if (result.missingCalculatedDataFileId && result.plotType) {
+      this.prefetchCalculatedData([result.missingCalculatedDataFileId], priority, result.plotType);
+    }
+    if (result.queued) {
+      this.schedulePlotDisplayModelPrefetch();
+    }
+    endPerf({
+      ...result,
+      queueLength: this.queuedPlotDisplayModelPrefetchByKey.size,
+      requestedPriority: priority,
+    });
+  }
+
+  public prefetchPlotDisplayModels(
+    inputs: readonly PlotDisplayModelInput[],
+    priority: PlotCalculatedDataPrefetchPriority,
+  ): void {
+    const endPerf = startPerf("plotService.prefetchPlotDisplayModels", {
+      inputCount: inputs.length,
+      priority,
+    });
+    const defaultSnapshot = this.resolveSnapshot(undefined);
+    const seenKeys = new Set<string>();
+    const missingCalculatedFileIdsByPlotType = new Map<PlotType, Set<FileId>>();
+    const resultCounts = new Map<string, number>();
+    let calculatedDataReadyCount = 0;
+    let calculatedDataWarmedCount = 0;
+    let cacheHitCount = 0;
+    let duplicateCount = 0;
+    let inFlightCount = 0;
+    let noFileIdCount = 0;
+    let noSnapshotCount = 0;
+    let queuedCount = 0;
+    let requestCount = 0;
+    let shouldSchedulePlotDisplayPrefetch = false;
+
+    for (const input of inputs) {
+      const snapshot = this.resolveSnapshot(input.snapshot ?? defaultSnapshot ?? undefined);
+      if (!snapshot) {
+        noSnapshotCount += 1;
+        incrementCount(resultCounts, "noSnapshot");
+        continue;
+      }
+
+      const request = this.createChartDisplayModelPrefetchRequest(input, priority);
+      if (!request) {
+        noFileIdCount += 1;
+        incrementCount(resultCounts, "noFileId");
+        continue;
+      }
+
+      const key = getQueuedPlotDisplayModelPrefetchKey(request);
+      if (seenKeys.has(key)) {
+        duplicateCount += 1;
+        incrementCount(resultCounts, "duplicate");
+        continue;
+      }
+      seenKeys.add(key);
+      requestCount += 1;
+
+      const result = this.prefetchChartDisplayModelRequest(request, snapshot);
+      incrementCount(resultCounts, result.result);
+      if (result.calculatedDataReady) {
+        calculatedDataReadyCount += 1;
+      }
+      if (result.calculatedDataWarmed) {
+        calculatedDataWarmedCount += 1;
+      }
+      if (result.cacheHit) {
+        cacheHitCount += 1;
+      }
+      if (result.inFlight) {
+        inFlightCount += 1;
+      }
+      if (result.queued) {
+        queuedCount += 1;
+        shouldSchedulePlotDisplayPrefetch = true;
+      }
+      if (result.missingCalculatedDataFileId && result.plotType) {
+        let fileIds = missingCalculatedFileIdsByPlotType.get(result.plotType);
+        if (!fileIds) {
+          fileIds = new Set<FileId>();
+          missingCalculatedFileIdsByPlotType.set(result.plotType, fileIds);
+        }
+        fileIds.add(result.missingCalculatedDataFileId);
+      }
+    }
+
+    let missingCalculatedDataCount = 0;
+    for (const [plotType, fileIds] of missingCalculatedFileIdsByPlotType) {
+      const missingFileIds = [...fileIds];
+      missingCalculatedDataCount += missingFileIds.length;
+      this.prefetchCalculatedData(missingFileIds, priority, plotType);
+    }
+    if (shouldSchedulePlotDisplayPrefetch) {
+      this.schedulePlotDisplayModelPrefetch();
+    }
+
+    endPerf({
+      calculatedDataReadyCount,
+      calculatedDataWarmedCount,
+      cacheHitCount,
+      duplicateCount,
+      inFlightCount,
+      missingCalculatedDataCount,
+      noFileIdCount,
+      noSnapshotCount,
+      queueLength: this.queuedPlotDisplayModelPrefetchByKey.size,
+      queuedCount,
+      requestCount,
+      result: requestCount ? "completed" : "empty",
+      resultReasons: serializeCountMap(resultCounts),
+    });
+  }
+
+  private createChartDisplayModelPrefetchRequest(
+    input: PlotDisplayModelInput,
+    priority: PlotCalculatedDataPrefetchPriority,
+  ): QueuedPlotDisplayModelPrefetch | null {
+    const fileId = normalizeStateKey(input.fileId);
+    if (!fileId) {
+      return null;
+    }
+
+    return {
       fileId,
-      plotType,
+      hiddenLegendKeys: [...(input.hiddenLegendKeys ?? [])],
+      legendLabels: { ...(input.legendLabels ?? {}) },
+      plotType: input.plotType && isPlotType(input.plotType)
+        ? input.plotType
+        : this.state.activePlotType,
+      priority,
+      stage: "chart",
+    };
+  }
+
+  private prefetchChartDisplayModelRequest(
+    request: QueuedPlotDisplayModelPrefetch,
+    snapshot: SessionSnapshot,
+  ): PlotDisplayModelPrefetchResult {
+    let calculatedData = this.getCachedCalculatedData({
+      fileId: request.fileId,
+      plotType: request.plotType,
       snapshot,
     });
     let calculatedDataWarmed = false;
-    if (!calculatedData && this.isCalculatedDataUnavailable(fileId, plotType)) {
-      endPerf({
-        plotType,
+    if (!calculatedData && this.isCalculatedDataUnavailable(request.fileId, request.plotType)) {
+      return {
+        fileId: request.fileId,
+        plotType: request.plotType,
         result: "calculatedDataUnavailable",
-      });
-      return;
+        stage: request.stage,
+      };
     }
-    if (!calculatedData && isInteractivePlotPrefetchPriority(priority)) {
+    if (!calculatedData && isInteractivePlotPrefetchPriority(request.priority)) {
       calculatedData = this.getCalculatedData({
-        fileId,
-        plotType,
+        fileId: request.fileId,
+        plotType: request.plotType,
         snapshot,
       });
       calculatedDataWarmed = Boolean(calculatedData);
     }
+
     const cachedDisplayModel = calculatedData ? this.getCachedPlotDisplayModel({
-      fileId,
-      hiddenLegendKeys: input.hiddenLegendKeys,
-      legendLabels: input.legendLabels,
-      plotType,
+      fileId: request.fileId,
+      hiddenLegendKeys: request.hiddenLegendKeys,
+      legendLabels: request.legendLabels,
+      plotType: request.plotType,
       snapshot,
     }) : null;
     if (cachedDisplayModel) {
-      endPerf({
+      return {
         cacheHit: true,
+        calculatedDataReady: true,
         calculatedDataWarmed,
-        plotType,
+        fileId: request.fileId,
+        plotType: request.plotType,
         result: "chartCacheHit",
-      });
-      return;
+        stage: request.stage,
+      };
     }
-    const stage: PlotDisplayModelPrefetchStage = "chart";
-    const request: QueuedPlotDisplayModelPrefetch = {
-      fileId,
-      hiddenLegendKeys: [...(input.hiddenLegendKeys ?? [])],
-      legendLabels: { ...(input.legendLabels ?? {}) },
-      plotType,
-      priority,
-      stage,
-    };
     if (
       calculatedData &&
       this.tryCacheImmediateInteractiveChartDisplayModel(request, calculatedData, snapshot)
     ) {
-      endPerf({
+      return {
+        calculatedDataReady: true,
         calculatedDataWarmed,
+        fileId: request.fileId,
         immediate: true,
-        plotType,
+        plotType: request.plotType,
+        queued: false,
         result: "chartCached",
-        requestedPriority: priority,
-        stage,
-      });
-      return;
+        stage: request.stage,
+      };
     }
 
     const key = getQueuedPlotDisplayModelPrefetchKey(request);
     const calculatedDataCacheKey = calculatedData
-      ? this.getPlotDisplayModelPrefetchKey(calculatedData, {
-        ...input,
-        stage,
-      })
+      ? this.getPlotDisplayModelPrefetchKey(calculatedData, request)
       : null;
     const inFlight = calculatedDataCacheKey
       ? this.inFlightPlotDisplayModelPrefetchByKey.get(calculatedDataCacheKey)
       : undefined;
     if (inFlight) {
       if (
-        CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[priority] <
+        CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[request.priority] <
         CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[inFlight.priority]
       ) {
         this.inFlightPlotDisplayModelPrefetchByKey.set(calculatedDataCacheKey!, {
           ...inFlight,
-          priority,
+          priority: request.priority,
         });
       }
       this.queuedPlotDisplayModelPrefetchByKey.delete(key);
-      endPerf({
+      return {
+        calculatedDataReady: Boolean(calculatedData),
+        fileId: request.fileId,
         inFlight: true,
-        plotType,
+        plotType: request.plotType,
         result: "inFlightPromoted",
-        requestedPriority: priority,
-        stage,
-      });
-      return;
+        stage: request.stage,
+      };
     }
 
     const queued = this.queuedPlotDisplayModelPrefetchByKey.get(key);
     if (
       !queued ||
-      CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[priority] <
+      CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[request.priority] <
         CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[queued.priority]
     ) {
       this.queuedPlotDisplayModelPrefetchByKey.set(key, request);
     }
 
-    if (!calculatedData) {
-      this.prefetchCalculatedData([fileId], priority, plotType);
-    }
-    this.schedulePlotDisplayModelPrefetch();
-    endPerf({
+    return {
       calculatedDataReady: Boolean(calculatedData),
       calculatedDataWarmed,
-      plotType,
-      queueLength: this.queuedPlotDisplayModelPrefetchByKey.size,
+      fileId: request.fileId,
+      missingCalculatedDataFileId: calculatedData ? undefined : request.fileId,
+      plotType: request.plotType,
+      queued: true,
       result: "queued",
-      requestedPriority: priority,
-      stage,
-    });
+      stage: request.stage,
+    };
   }
 
   public prefetchPlotInspectorDisplayModel(
@@ -2030,6 +2172,16 @@ const stableRecordKey = (record: Readonly<Record<string, string>>): string =>
     .filter(([key]) => Boolean(key))
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => `${key}:${value}`)
+    .join(",");
+
+const incrementCount = (counts: Map<string, number>, key: string): void => {
+  counts.set(key, (counts.get(key) ?? 0) + 1);
+};
+
+const serializeCountMap = (counts: ReadonlyMap<string, number>): string =>
+  [...counts.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, count]) => `${key}:${count}`)
     .join(",");
 
 const isInteractivePlotPrefetchPriority = (priority: PlotCalculatedDataPrefetchPriority): boolean =>

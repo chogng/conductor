@@ -101,6 +101,7 @@ export interface IPlotService {
   prefetchCalculatedData(fileIds: readonly FileId[], priority: PlotCalculatedDataPrefetchPriority, plotType?: PlotType): void;
   prefetchPlotInspectorDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
   prefetchPlotDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
+  prefetchPlotDisplayModels(inputs: readonly PlotDisplayModelInput[], priority: PlotCalculatedDataPrefetchPriority): void;
   setActivePlotType(plotType: PlotType): void;
   setAxisTitleOverride(context: PlotAxisTitleContext, title: string, defaultTitle: string): void;
   setAxisUnit(fileId: FileId, axis: 'x' | 'y', unit: XUnit | YUnit): Promise<void>;
@@ -151,6 +152,11 @@ storage, for these controls.
   `onDidChangePlotState`.
 - Plot display-model prefetch is a separate cache warmup. `getCachedPlotDisplayModel`
   must not build display models synchronously when only calculated data is warm.
+- `prefetchPlotDisplayModels` is the owner API for batch chart display warmup.
+  It must dedupe targets, skip chart display cache hits, promote queued or
+  in-flight requests, request missing calculated data, and publish aggregate
+  perf counters from PlotService. Callers that only know a target list must not
+  reimplement Plot cache or queue filtering.
 - Queued Plot display-model prefetch should run DOM-independent render-model,
   legend-filter, unit, and inspector derivative assembly through the Plot worker
   when Worker is available. `PlotService` accepts fresh results, writes the
@@ -198,11 +204,13 @@ storage, for these controls.
 - Chart views should request `prefetchPlotDisplayModel(..., "active")` on a
   cached display-model miss. They should not call `getPlotDisplayModel` in the
   active render path.
-- Domain bridges that know the active chart file should prefetch both
-  calculated data and the default display model at `active` priority. Visible
-  and nearby thumbnail backfill should be requested only while Explorer is in
-  chart thumbnail layout; tree-layout hover previews use hover priority on
-  demand.
+- Domain bridges that know active, hover, visible, or nearby chart targets
+  should call `prefetchPlotDisplayModel` for a single target or
+  `prefetchPlotDisplayModels` for a target set. PlotService owns the decision
+  to warm calculated data, skip cached display models, or promote queued work.
+  Visible and nearby thumbnail backfill should be requested only while Explorer
+  is in chart thumbnail layout; tree-layout hover previews use hover priority
+  on demand.
 - When the workbench is already in Chart mode, DomainBridge may also prewarm
   chart-only display models for Explorer hover, visible, and nearby chart file
   targets. This is a cache warmup for rapid active-file switching; it should use

@@ -9,6 +9,7 @@ import {
   roundMetric,
   summaryCount,
   summaryP95,
+  summarizeDurations,
   summarizeStageDuration,
 } from "./common.mjs";
 import { summarizeCalculationBuildMetrics } from "./calculation.mjs";
@@ -78,6 +79,15 @@ export const createPerformanceMetricRow = ({
     "workbenchDomainBridge.prefetchPlotDisplayTargets",
     "priority",
   );
+  const plotDisplayBatchPrewarm = summarizeStageDuration(
+    analysisPerfReport?.entries ?? [],
+    "plotService.prefetchPlotDisplayModels",
+  );
+  const plotDisplayBatchPrewarmReasons = summarizePerfStageReasons(
+    analysisPerfReport?.entries ?? [],
+    "plotService.prefetchPlotDisplayModels",
+    "priority",
+  );
   const workbenchRefresh = summarizeStageDuration(
     analysisPerfReport?.entries ?? [],
     "workbench.refreshWorkbench",
@@ -119,13 +129,22 @@ export const createPerformanceMetricRow = ({
     calculationWorkerForegroundWaitP95Ms: summaryP95(calculationBuild.workerForegroundWait),
     calculationWorkerWaitP95Ms: summaryP95(calculationBuild.workerWait),
     fileSwitchAfterChartDrawnP95Ms: summaryP95(switchAfter?.targetChartDrawnMs),
+    fileSwitchAfterCanvasNonBlankP95Ms: summaryP95(switchAfter?.targetCanvasNonBlankMs),
+    fileSwitchAfterRenderSignatureDrawnP95Ms: summaryP95(switchAfter?.targetRenderSignatureDrawnMs),
     fileSwitchDuringChartDrawnP95Ms: summaryP95(switchDuring?.targetChartDrawnMs),
+    fileSwitchDuringCanvasNonBlankP95Ms: summaryP95(switchDuring?.targetCanvasNonBlankMs),
     fileSwitchDuringPlotDisplayRequestedP95Ms: summaryP95(
       switchDuring?.targetPerfMilestoneSummary?.plotDisplayRequested?.offsetMs,
     ),
     fileSwitchDuringPlotMainDrawnP95Ms: summaryP95(
       switchDuring?.targetPerfMilestoneSummary?.plotMainDrawn?.offsetMs,
     ),
+    fileSwitchDuringRenderSignatureDrawnP95Ms: summaryP95(switchDuring?.targetRenderSignatureDrawnMs),
+    fileSwitchDuringRenderSignatureLagP95Ms: summaryP95(summarizeSampleDelta(
+      switchDuring?.targetSamples,
+      "renderSignatureDrawnMs",
+      "canvasNonBlankMs",
+    )),
     fileSwitchDuringSelectedP95Ms: summaryP95(switchDuring?.targetSelectedMs),
     fileSwitchLiveTargetCount: readNumber(analysis.fileSwitchLive?.targetCount),
     fileSwitchLiveUniqueDispatchCount: readNumber(analysis.fileSwitchLive?.uniqueDispatchedFileCount),
@@ -142,6 +161,42 @@ export const createPerformanceMetricRow = ({
     plotDisplayCacheMaxSize: readNumber(plotCache.displayModelCache.maxSize),
     plotDisplayCacheTrimmed: readNumber(plotCache.displayModelCache.trimmed),
     plotDisplayCacheUpgraded: readNumber(plotCache.displayModelCache.upgraded),
+    plotDisplayBatchPrewarmActiveCount: readNumber(plotDisplayBatchPrewarmReasons.active) ?? 0,
+    plotDisplayBatchPrewarmCacheHitCount: sumPerfStageNumber(
+      analysisPerfReport?.entries ?? [],
+      "plotService.prefetchPlotDisplayModels",
+      "cacheHitCount",
+    ),
+    plotDisplayBatchPrewarmCount: summaryCount(plotDisplayBatchPrewarm),
+    plotDisplayBatchPrewarmDuplicateCount: sumPerfStageNumber(
+      analysisPerfReport?.entries ?? [],
+      "plotService.prefetchPlotDisplayModels",
+      "duplicateCount",
+    ),
+    plotDisplayBatchPrewarmHoverCount: readNumber(plotDisplayBatchPrewarmReasons.hover) ?? 0,
+    plotDisplayBatchPrewarmInputCount: sumPerfStageNumber(
+      analysisPerfReport?.entries ?? [],
+      "plotService.prefetchPlotDisplayModels",
+      "inputCount",
+    ),
+    plotDisplayBatchPrewarmMissingCalculatedDataCount: sumPerfStageNumber(
+      analysisPerfReport?.entries ?? [],
+      "plotService.prefetchPlotDisplayModels",
+      "missingCalculatedDataCount",
+    ),
+    plotDisplayBatchPrewarmNearbyCount: readNumber(plotDisplayBatchPrewarmReasons.nearby) ?? 0,
+    plotDisplayBatchPrewarmP95Ms: summaryP95(plotDisplayBatchPrewarm),
+    plotDisplayBatchPrewarmQueuedCount: sumPerfStageNumber(
+      analysisPerfReport?.entries ?? [],
+      "plotService.prefetchPlotDisplayModels",
+      "queuedCount",
+    ),
+    plotDisplayBatchPrewarmRequestCount: sumPerfStageNumber(
+      analysisPerfReport?.entries ?? [],
+      "plotService.prefetchPlotDisplayModels",
+      "requestCount",
+    ),
+    plotDisplayBatchPrewarmVisibleCount: readNumber(plotDisplayBatchPrewarmReasons.visible) ?? 0,
     plotDisplayTargetPrewarmActiveCount: readNumber(plotDisplayTargetPrewarmReasons.active) ?? 0,
     plotDisplayTargetPrewarmCount: summaryCount(plotDisplayTargetPrewarm),
     plotDisplayTargetPrewarmFileCount: sumPerfStageNumber(
@@ -210,13 +265,20 @@ export const metricHistoryKeys = [
   "applyProcessingMs",
   "applyLongTaskP95Ms",
   "applyEventLoopLagP95Ms",
+  "thumbnailAfterNonBlankP95Ms",
   "thumbnailDuringNonBlankP95Ms",
   "thumbnailLiveTargetCount",
   "thumbnailLiveUniqueDispatchCount",
   "thumbnailStableTargetCount",
+  "fileSwitchAfterChartDrawnP95Ms",
+  "fileSwitchAfterCanvasNonBlankP95Ms",
+  "fileSwitchAfterRenderSignatureDrawnP95Ms",
+  "fileSwitchDuringCanvasNonBlankP95Ms",
   "fileSwitchDuringChartDrawnP95Ms",
   "fileSwitchDuringPlotDisplayRequestedP95Ms",
   "fileSwitchDuringPlotMainDrawnP95Ms",
+  "fileSwitchDuringRenderSignatureDrawnP95Ms",
+  "fileSwitchDuringRenderSignatureLagP95Ms",
   "fileSwitchLiveTargetCount",
   "fileSwitchLiveUniqueDispatchCount",
   "fileSwitchStableTargetCount",
@@ -233,6 +295,18 @@ export const metricHistoryKeys = [
   "plotDisplayCacheCreated",
   "plotDisplayCacheUpgraded",
   "plotDisplayCacheTrimmed",
+  "plotDisplayBatchPrewarmActiveCount",
+  "plotDisplayBatchPrewarmCacheHitCount",
+  "plotDisplayBatchPrewarmCount",
+  "plotDisplayBatchPrewarmDuplicateCount",
+  "plotDisplayBatchPrewarmHoverCount",
+  "plotDisplayBatchPrewarmInputCount",
+  "plotDisplayBatchPrewarmMissingCalculatedDataCount",
+  "plotDisplayBatchPrewarmNearbyCount",
+  "plotDisplayBatchPrewarmP95Ms",
+  "plotDisplayBatchPrewarmQueuedCount",
+  "plotDisplayBatchPrewarmRequestCount",
+  "plotDisplayBatchPrewarmVisibleCount",
   "plotDisplayTargetPrewarmActiveCount",
   "plotDisplayTargetPrewarmCount",
   "plotDisplayTargetPrewarmFileCount",
@@ -285,6 +359,13 @@ const countReasonPrefix = (counts, prefix) =>
   Object.entries(counts ?? {}).reduce((total, [reason, count]) => (
     reason.startsWith(prefix) ? total + (readNumber(count) ?? 0) : total
   ), 0);
+
+const summarizeSampleDelta = (samples, endKey, startKey) =>
+  summarizeDurations((samples ?? []).map((sample) => {
+    const end = readNumber(sample?.[endKey]);
+    const start = readNumber(sample?.[startKey]);
+    return end != null && start != null ? end - start : null;
+  }));
 
 const sumPerfStageNumber = (entries, stage, key) =>
   (entries ?? []).reduce((total, entry) => {
@@ -378,9 +459,12 @@ export const writeHistorySvg = (svgPath, rows, scenarioKey) => {
     "calculationWorkerForegroundWaitP95Ms",
     "calculationWorkerWaitP95Ms",
     "thumbnailDuringNonBlankP95Ms",
+    "fileSwitchDuringCanvasNonBlankP95Ms",
     "fileSwitchDuringChartDrawnP95Ms",
+    "fileSwitchDuringRenderSignatureLagP95Ms",
     "maxUsedJsHeapMb",
     "plotDisplayCacheMaxSize",
+    "plotDisplayBatchPrewarmQueuedCount",
     "plotMainDrawP95Ms",
     "workbenchSelectionRefreshP95Ms",
     "plotInspectorPrefetchFired",

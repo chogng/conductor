@@ -541,7 +541,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     const explorerService = store.add(new ExplorerService());
     const prioritizedTemplateFileIds: string[] = [];
     const prioritizedCalculationFileIds: string[] = [];
-    const plotDisplayPrefetches: Array<{ readonly fileId: string | null; readonly priority: string }> = [];
+    const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
       plotDisplayPrefetches,
@@ -558,7 +558,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       assert.deepEqual(prioritizedTemplateFileIds, ["file-b"]);
       assert.deepEqual(prioritizedCalculationFileIds, ["file-b"]);
       assert.deepEqual(plotDisplayPrefetches, [
-        { fileId: "file-b", priority: "active" },
+        { fileIds: ["file-b"], priority: "active" },
       ]);
     } finally {
       bridge.dispose();
@@ -569,7 +569,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const plotCalculatedPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
-    const plotDisplayPrefetches: Array<{ readonly fileId: string | null; readonly priority: string }> = [];
+    const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     commitChartFilesForTest(session, ["file-a", "file-b", "file-c"]);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
@@ -582,25 +582,21 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       explorerService.setVisibleFileIds(["file-a", "file-b"], ["file-c"]);
 
-      assert.deepEqual(plotCalculatedPrefetches, [
+      assert.deepEqual(plotCalculatedPrefetches, []);
+      assert.deepEqual(plotDisplayPrefetches, [
         { fileIds: ["file-a", "file-b"], priority: "visible" },
         { fileIds: ["file-c"], priority: "nearby" },
-      ]);
-      assert.deepEqual(plotDisplayPrefetches, [
-        { fileId: "file-a", priority: "visible" },
-        { fileId: "file-b", priority: "visible" },
-        { fileId: "file-c", priority: "nearby" },
       ]);
     } finally {
       bridge.dispose();
     }
   });
 
-  test("skips cached background chart plot display prewarm targets", () => {
+  test("delegates cached background chart plot display targets to PlotService", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const plotCalculatedPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
-    const plotDisplayPrefetches: Array<{ readonly fileId: string | null; readonly priority: string }> = [];
+    const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     commitChartFilesForTest(session, ["file-a", "file-b", "file-c"]);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       cachedPlotDisplayFileIds: ["file-a"],
@@ -614,13 +610,10 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     try {
       explorerService.setVisibleFileIds(["file-a", "file-b"], ["file-c"]);
 
-      assert.deepEqual(plotCalculatedPrefetches, [
-        { fileIds: ["file-b"], priority: "visible" },
-        { fileIds: ["file-c"], priority: "nearby" },
-      ]);
+      assert.deepEqual(plotCalculatedPrefetches, []);
       assert.deepEqual(plotDisplayPrefetches, [
-        { fileId: "file-b", priority: "visible" },
-        { fileId: "file-c", priority: "nearby" },
+        { fileIds: ["file-a", "file-b"], priority: "visible" },
+        { fileIds: ["file-c"], priority: "nearby" },
       ]);
     } finally {
       bridge.dispose();
@@ -756,7 +749,7 @@ const createDomainBridgeOptionsForTest = ({
   readonly cachedPlotDisplayFileIds?: readonly string[];
   readonly explorerService: ExplorerService;
   readonly plotCalculatedPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
-  readonly plotDisplayPrefetches?: Array<{ readonly fileId: string | null; readonly priority: string }>;
+  readonly plotDisplayPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
   readonly prioritizedCalculationFileIds: string[];
   readonly prioritizedTemplateFileIds: string[];
   readonly session: SessionService;
@@ -813,7 +806,15 @@ const createDomainBridgeOptionsForTest = ({
     },
     prefetchPlotDisplayModel: (input, priority) => {
       plotDisplayPrefetches?.push({
-        fileId: input.fileId ?? null,
+        fileIds: input.fileId ? [input.fileId] : [],
+        priority,
+      });
+    },
+    prefetchPlotDisplayModels: (inputs, priority) => {
+      plotDisplayPrefetches?.push({
+        fileIds: inputs
+          .map(input => String(input.fileId ?? "").trim())
+          .filter(Boolean),
         priority,
       });
     },
