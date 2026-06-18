@@ -2395,6 +2395,12 @@ const targetPerfMilestoneDefs = [
       ),
   },
   {
+    key: "plotFullQueued",
+    match: (entry, fileId) =>
+      entry.stage === "plotService.queueFullPlotDisplayModel" &&
+      perfEntryIncludesFileId(entry, fileId),
+  },
+  {
     key: "thumbnailReady",
     match: (entry, fileId) =>
       perfEntryIncludesFileId(entry, fileId) &&
@@ -2679,6 +2685,7 @@ const summarizeLiveHoverWindow = (window, targetSamples, perfReport) => {
     ...summarizeLiveHoverTargetSamples(targetSamples),
     targetPlotChartCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotChartCached"),
     targetPlotFullCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotFullCached"),
+    targetPlotFullQueuedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotFullQueued"),
     targetPreviewReadyMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "thumbnailReady"),
     targetThumbnailWarmedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "thumbnailWarmed"),
     targetPerfMilestoneSummary: summarizeTargetPerfMilestoneSamples(targetPerfMilestones),
@@ -2747,6 +2754,7 @@ const summarizeThumbnailHoverLiveStress = (result, perfReport, phaseAnchors = []
     ...targetSampleSummary,
     targetPlotChartCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotChartCached"),
     targetPlotFullCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotFullCached"),
+    targetPlotFullQueuedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotFullQueued"),
     targetPreviewReadyMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "thumbnailReady"),
     targetThumbnailWarmedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "thumbnailWarmed"),
     targetPerfMilestoneSummary: summarizeTargetPerfMilestoneSamples(targetPerfMilestones),

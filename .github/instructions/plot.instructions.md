@@ -159,6 +159,10 @@ storage, for these controls.
   full model that adds the inspector derivative. The cache may be upgraded from
   chart-only to full, but a full cache entry must not be replaced by chart-only
   data.
+- Full display-model prefetch is cache completion work, not first-paint work.
+  Once chart-only output is available, the queued full/inspector stage should
+  run at background priority and must not occupy the reserved interactive
+  capacity needed by active chart, file switch, or hover thumbnail requests.
 - Active and hover display-model prefetch may synchronously cache the cheap
   chart-only display model when calculated data is already warm. This gives
   Chart and hover thumbnails a first drawable frame without waiting behind

@@ -774,12 +774,16 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       }, "active");
       scheduledFrames.shift()?.(0);
 
+      const activeCached = service.getCachedPlotDisplayModel({
+        fileId: "file-active",
+        plotType: "iv",
+        snapshot,
+      });
+      assert.equal(activeCached?.fileId, "file-active");
+      assert.equal(activeCached?.inspector, null);
       assert.deepEqual(
         workerRecords.map(record => `${record.message.type}:${record.message.payload?.fileId}`),
-        [
-          "calculateDisplayModel:file-visible",
-          "calculateDisplayModel:file-active",
-        ],
+        ["calculateDisplayModel:file-visible"],
       );
 
       for (const record of workerRecords) {
@@ -893,6 +897,148 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
       globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+    }
+  });
+
+  test("keeps full display model prefetch in the background behind active data", async () => {
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+    const originalWorker = globalThis.Worker;
+    const scheduledFrames: FrameRequestCallback[] = [];
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      scheduledFrames.push(callback);
+      return scheduledFrames.length;
+    }) as typeof requestAnimationFrame;
+    globalThis.cancelAnimationFrame = (() => undefined) as typeof cancelAnimationFrame;
+
+    type WorkerRecord = {
+      readonly message: {
+        readonly payload?: {
+          readonly file?: FileRecord;
+          readonly fileId?: string;
+          readonly includeInspector?: boolean;
+          readonly plotType?: "iv";
+          readonly requestId?: number;
+          readonly sessionVersion?: number;
+        };
+        readonly type?: string;
+      };
+      readonly worker: TestWorker;
+    };
+    const workerRecords: WorkerRecord[] = [];
+    class TestWorker {
+      public onerror: ((event: ErrorEvent) => void) | null = null;
+      public onmessage: ((event: MessageEvent) => void) | null = null;
+
+      public postMessage(message: WorkerRecord["message"]): void {
+        workerRecords.push({ message, worker: this });
+      }
+
+      public terminate(): void {
+        return;
+      }
+    }
+
+    const completeDisplayWorker = (record: WorkerRecord): void => {
+      const payload = record.message.payload;
+      record.worker.onmessage?.({
+        data: {
+          payload: {
+            displayModel: null,
+            fileId: payload?.fileId ?? "",
+            plotType: payload?.plotType ?? "iv",
+            requestId: payload?.requestId ?? 0,
+            sessionVersion: payload?.sessionVersion ?? 0,
+          },
+          type: "calculateDisplayModelResult",
+        },
+      } as MessageEvent);
+    };
+    const completeDataWorker = (record: WorkerRecord): void => {
+      const payload = record.message.payload;
+      record.worker.onmessage?.({
+        data: {
+          payload: {
+            calculatedData: {
+              activeFile: null,
+              kind: payload?.plotType ?? "iv",
+              pointsCount: 0,
+              seriesList: [],
+              signature: "worker-result",
+              source: {
+                fileId: payload?.file?.id ?? null,
+                inputKind: "record",
+              },
+              xDomain: [0, 1],
+              xUnitLabel: "",
+              yDomain: [0, 1],
+              yUnitLabel: "",
+            },
+            fileId: payload?.file?.id ?? "",
+            plotType: payload?.plotType ?? "iv",
+            requestId: payload?.requestId ?? 0,
+            sessionVersion: payload?.sessionVersion ?? 0,
+          },
+          type: "calculateDataResult",
+        },
+      } as MessageEvent);
+    };
+
+    try {
+      globalThis.Worker = TestWorker as unknown as typeof Worker;
+      const snapshot = createSnapshot({
+        "file-a": createFileRecord("file-a", "series-a", "A"),
+        "file-b": createFileRecord("file-b", "series-b", "B"),
+        "file-c": createFileRecord("file-c", "series-c", "C"),
+      }, ["file-a", "file-b", "file-c"]);
+      const service = store.add(new PlotService(
+        createSessionServiceStub(snapshot),
+        createSettingsServiceStub(),
+        store.add(new TestStorageService()),
+      ));
+
+      service.getCalculatedData({ fileId: "file-a", plotType: "iv", snapshot });
+      service.getCalculatedData({ fileId: "file-b", plotType: "iv", snapshot });
+      service.prefetchPlotDisplayModel({
+        fileId: "file-a",
+        plotType: "iv",
+        snapshot,
+      }, "active");
+      service.prefetchPlotDisplayModel({
+        fileId: "file-b",
+        plotType: "iv",
+        snapshot,
+      }, "active");
+
+      scheduledFrames.shift()?.(0);
+
+      assert.deepEqual(
+        workerRecords.map(record =>
+          `${record.message.type}:${record.message.payload?.fileId}:${record.message.payload?.includeInspector}`,
+        ),
+        ["calculateDisplayModel:file-a:true"],
+      );
+
+      service.prefetchCalculatedData(["file-c"], "active", "iv");
+      scheduledFrames.shift()?.(0);
+
+      assert.deepEqual(
+        workerRecords.map(record =>
+          `${record.message.type}:${record.message.payload?.fileId ?? record.message.payload?.file?.id}`,
+        ),
+        [
+          "calculateDisplayModel:file-a",
+          "calculateData:file-c",
+        ],
+      );
+
+      completeDisplayWorker(workerRecords[0]);
+      completeDataWorker(workerRecords[1]);
+      await Promise.resolve();
+    } finally {
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+      globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+      globalThis.Worker = originalWorker;
     }
   });
 

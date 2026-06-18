@@ -428,12 +428,15 @@ export class PlotService extends Disposable implements IPlotService {
       return;
     }
     const stage: PlotDisplayModelPrefetchStage = cachedDisplayModel ? "full" : "chart";
+    const requestPriority = stage === "full"
+      ? getFullPlotDisplayModelPrefetchPriority(priority)
+      : priority;
     const request: QueuedPlotDisplayModelPrefetch = {
       fileId,
       hiddenLegendKeys: [...(input.hiddenLegendKeys ?? [])],
       legendLabels: { ...(input.legendLabels ?? {}) },
       plotType,
-      priority,
+      priority: requestPriority,
       stage,
     };
     if (
@@ -445,6 +448,7 @@ export class PlotService extends Disposable implements IPlotService {
         immediate: true,
         plotType,
         result: "chartCached",
+        requestedPriority: priority,
         stage,
       });
       return;
@@ -475,6 +479,7 @@ export class PlotService extends Disposable implements IPlotService {
         inFlight: true,
         plotType,
         result: "inFlightPromoted",
+        requestedPriority: priority,
         stage,
       });
       return;
@@ -499,6 +504,7 @@ export class PlotService extends Disposable implements IPlotService {
       plotType,
       queueLength: this.queuedPlotDisplayModelPrefetchByKey.size,
       result: "queued",
+      requestedPriority: priority,
       stage,
     });
   }
@@ -1230,13 +1236,20 @@ export class PlotService extends Disposable implements IPlotService {
       return;
     }
 
+    const priority = getFullPlotDisplayModelPrefetchPriority(request.priority);
     this.queuePlotDisplayModelPrefetch({
       fileId: request.fileId,
       hiddenLegendKeys: request.hiddenLegendKeys,
       legendLabels: request.legendLabels,
       plotType: request.plotType,
-      priority: request.priority,
+      priority,
       stage: "full",
+    });
+    logPerf("plotService.queueFullPlotDisplayModel", {
+      fileId: request.fileId,
+      plotType: request.plotType,
+      priority,
+      sourcePriority: request.priority,
     });
   }
 
@@ -1245,7 +1258,7 @@ export class PlotService extends Disposable implements IPlotService {
     let nextPrefetch: QueuedPlotDisplayModelPrefetch | null = null;
     let nextPriority = Number.POSITIVE_INFINITY;
     for (const [key, prefetch] of this.queuedPlotDisplayModelPrefetchByKey) {
-      const order = CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[prefetch.priority];
+      const order = getPlotDisplayModelPrefetchOrder(prefetch);
       if (order < nextPriority) {
         nextKey = key;
         nextPrefetch = prefetch;
@@ -1578,6 +1591,27 @@ const getQueuedPlotDisplayModelPrefetchKey = (
     stableStringList(input.hiddenLegendKeys),
     stableRecordKey(input.legendLabels),
   ].join("|");
+
+const getFullPlotDisplayModelPrefetchPriority = (
+  priority: PlotCalculatedDataPrefetchPriority,
+): PlotCalculatedDataPrefetchPriority => {
+  switch (priority) {
+    case "active":
+    case "hover":
+      return "visible";
+    case "visible":
+      return "nearby";
+    case "nearby":
+    case "idle":
+      return "idle";
+  }
+};
+
+const getPlotDisplayModelPrefetchOrder = (
+  prefetch: QueuedPlotDisplayModelPrefetch,
+): number =>
+  CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[prefetch.priority] * 2 +
+  (prefetch.stage === "full" ? 1 : 0);
 
 const stableStringList = (values: readonly string[]): string =>
   [...new Set(values.map(normalizeStateKey).filter(Boolean))]
