@@ -16,7 +16,6 @@ import {
 } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import type { ProcessingStatus } from "src/cs/workbench/services/session/common/sessionTypes";
-import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import { createChartView, type ChartPane, type ChartViewProps } from "src/cs/workbench/contrib/chart/browser/views/chartView";
 
 export class ChartPanel {
@@ -31,8 +30,13 @@ export class ChartPanel {
 
   public update(props: ChartViewProps): void {
     this.element.setAttribute("aria-label", localize("chart.title", "Chart"));
+    const nextKind = getChartPanelContentKind(props);
+    if (this.content?.contentKind === nextKind && this.content.update?.(props)) {
+      return;
+    }
+
     disposeContent(this.content);
-    this.content = createChartPanelContent(props);
+    this.content = createChartPanelContent(props, nextKind);
     this.element.replaceChildren(this.content);
   }
 
@@ -49,15 +53,38 @@ export class ChartPanel {
 }
 
 type DisposableContent = HTMLElement & {
+  readonly contentKind: ChartPanelContentKind;
   readonly dispose?: () => void;
   readonly editAxisTitle?: (pane: ChartPane, axis: "x" | "y") => boolean;
+  readonly update?: (props: ChartViewProps) => boolean;
 };
+
+type ChartPanelContentKind = "chart-view" | "loading-card" | "processing-card";
 
 const disposeContent = (content: DisposableContent | null): void => {
   content?.dispose?.();
 };
 
-const createChartPanelContent = (props: ChartViewProps): DisposableContent => {
+const getChartPanelContentKind = (props: ChartViewProps): ChartPanelContentKind => {
+  const {
+    hasChartData = false,
+    processingStatus,
+    shouldMountCharts = false,
+  } = props;
+
+  if (hasChartData) {
+    return shouldMountCharts ? "loading-card" : "chart-view";
+  }
+
+  return processingStatus?.state === "processing"
+    ? "processing-card"
+    : "chart-view";
+};
+
+const createChartPanelContent = (
+  props: ChartViewProps,
+  kind: ChartPanelContentKind,
+): DisposableContent => {
   const {
     hasChartData = false,
     processingStatus,
@@ -66,26 +93,36 @@ const createChartPanelContent = (props: ChartViewProps): DisposableContent => {
 
   if (hasChartData) {
     if (shouldMountCharts) {
-      return createChartStatusCard({
+      return withContentKind(createChartStatusCard({
         id: "chart-loading-card",
         iconClassName: "status-icon--muted status-icon--pulse",
         message: localize("chart.loading.title", "Loading charts..."),
         hint: localize("chart.loading.hint", "Preparing chart modules, please wait."),
-      });
+      }), kind);
     }
 
-    return createChartView({
+    return withContentKind(createChartView({
       ...props,
-    });
+    }), kind);
   }
 
   if (processingStatus?.state === "processing") {
-    return createProcessingCard(processingStatus);
+    return withContentKind(createProcessingCard(processingStatus), kind);
   }
 
-  return createChartView({
+  return withContentKind(createChartView({
     ...props,
+  }), kind);
+};
+
+const withContentKind = <T extends HTMLElement>(
+  content: T,
+  kind: ChartPanelContentKind,
+): T & { readonly contentKind: ChartPanelContentKind } => {
+  Object.defineProperty(content, "contentKind", {
+    value: kind,
   });
+  return content as T & { readonly contentKind: ChartPanelContentKind };
 };
 
 const createProcessingCard = (

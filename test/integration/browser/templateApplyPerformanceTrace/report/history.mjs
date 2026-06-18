@@ -10,6 +10,7 @@ import {
   summaryP95,
 } from "./common.mjs";
 import { summarizeCalculationBuildMetrics } from "./calculation.mjs";
+import { summarizePlotCacheMetrics } from "./plotCache.mjs";
 import { resolveTemplateApplyPerformanceTraceScenario } from "../scenarios.mjs";
 
 export const createScenarioKey = (options) => {
@@ -61,6 +62,7 @@ export const createPerformanceMetricRow = ({
 }) => {
   const applyProcessing = analysis.phaseAnalysis?.windowsByName?.applyProcessing;
   const calculationBuild = summarizeCalculationBuildMetrics(analysisPerfReport);
+  const plotCache = summarizePlotCacheMetrics(analysisPerfReport);
   const thumbnailDuring = analysis.thumbnailHoverLive?.phaseWindows?.duringProcessing;
   const thumbnailAfter = analysis.thumbnailHoverLive?.phaseWindows?.afterProcessing;
   const switchDuring = analysis.fileSwitchLive?.phaseWindows?.duringProcessing;
@@ -91,6 +93,11 @@ export const createPerformanceMetricRow = ({
     maxTotalJsHeapMb: readNumber(analysis.resources?.maxTotalJsHeapMb),
     maxUsedJsHeapMb: readNumber(analysis.resources?.maxUsedJsHeapMb),
     meanCpuPercent: readNumber(analysis.resources?.avgCpuPercent),
+    plotDisplayCacheCreated: readNumber(plotCache.displayModelCache.created),
+    plotDisplayCacheMaxSize: readNumber(plotCache.displayModelCache.maxSize),
+    plotDisplayCacheTrimmed: readNumber(plotCache.displayModelCache.trimmed),
+    plotDisplayCacheUpgraded: readNumber(plotCache.displayModelCache.upgraded),
+    plotDisplayFullQueueCleared: readNumber(plotCache.fullDisplayQueue.cleared),
     sessionCalculatedCommitP95Ms: summaryP95(
       applyProcessing?.perf?.stageDurationMs?.["sessionService.commitCalculatedRecordsBatch"],
     ),
@@ -139,6 +146,11 @@ export const metricHistoryKeys = [
   "maxRssMb",
   "meanCpuPercent",
   "maxCpuPercent",
+  "plotDisplayCacheMaxSize",
+  "plotDisplayCacheCreated",
+  "plotDisplayCacheUpgraded",
+  "plotDisplayCacheTrimmed",
+  "plotDisplayFullQueueCleared",
 ];
 
 export const readHistoryRows = (historyPath) => {
@@ -226,6 +238,8 @@ export const writeHistorySvg = (svgPath, rows, scenarioKey) => {
     "thumbnailDuringNonBlankP95Ms",
     "fileSwitchDuringChartDrawnP95Ms",
     "maxUsedJsHeapMb",
+    "plotDisplayCacheMaxSize",
+    "plotDisplayCacheUpgraded",
     "meanCpuPercent",
   ];
   const width = 980;

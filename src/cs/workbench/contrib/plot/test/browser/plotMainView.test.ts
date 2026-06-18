@@ -165,6 +165,50 @@ suite("workbench/contrib/plot/test/browser/plotMainView", () => {
     }
   });
 
+  test("updates the rendered plot signature without replacing the canvas", async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const host = document.createElement("div");
+    host.style.height = "360px";
+    host.style.width = "640px";
+    document.body.append(host);
+
+    const element = createPlotMainChart({
+      ...createPlotMainChartProps({
+        model: createPlotModel(),
+        plotType: "iv",
+        renderSignature: "file-a|iv|chart",
+      }),
+      drawStrategy: "eager",
+    });
+    const canvas = element.querySelector(".plot_main_chart_canvas") as HTMLCanvasElement | null;
+    assert.ok(canvas);
+
+    try {
+      host.append(element);
+      await animationFrames(1);
+      assert.equal(canvas.dataset.plotRenderSignature, "file-a|iv|chart");
+
+      element.update({
+        ...createPlotMainChartProps({
+          model: createPlotModel(4),
+          plotType: "iv",
+          renderSignature: "file-b|iv|chart",
+        }),
+        drawStrategy: "eager",
+      });
+      await animationFrames(1);
+
+      assert.equal(element.querySelector(".plot_main_chart_canvas"), canvas);
+      assert.equal(canvas.dataset.plotRenderSignature, "file-b|iv|chart");
+    } finally {
+      element.dispose();
+      host.remove();
+    }
+  });
+
   test("draws large series through a display downsample budget", async () => {
     if (typeof document === "undefined" || typeof CanvasRenderingContext2D === "undefined") {
       return;

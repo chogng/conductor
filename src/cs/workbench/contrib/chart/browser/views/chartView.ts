@@ -3,7 +3,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from "src/cs/nls";
-import { createPlotMainView } from "src/cs/workbench/contrib/plot/browser/plotView";
+import {
+  createPlotMainView,
+  type PlotMainView,
+  type PlotMainViewProps,
+} from "src/cs/workbench/contrib/plot/browser/plotView";
 import type {
   ChartPane,
   ChartViewInput,
@@ -37,11 +41,11 @@ export type ChartViewProps = ChartViewInput & {
 export type ChartViewElement = HTMLElement & {
   readonly dispose?: () => void;
   readonly editAxisTitle?: (pane: ChartPane, axis: "x" | "y") => boolean;
+  readonly update?: (props: ChartViewProps) => boolean;
 };
 
 export const createChartView = (props: ChartViewProps): ChartViewElement => {
   const {
-    activePlotType = "iv",
     hasChartData = false,
     plotDisplayModel = null,
     processingStatus,
@@ -71,42 +75,12 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
     return root;
   }
 
-  const chartPlotView = createPlotMainView({
-    drawStrategy: "eager",
-    model: plotDisplayModel.chart.model,
-    onXAxisLabelChange: props.onXAxisLabelChange,
-    onYAxisLabelChange: props.onYAxisLabelChange,
-    originOpenPlotOptions: props.originOpenPlotOptions,
-    plotAxisSettings: props.plotAxisSettings,
-    plotType: activePlotType,
-    plotXFactor: plotDisplayModel.chart.plotXFactor,
-    plotXUnitLabel: plotDisplayModel.chart.plotXUnitLabel,
-    plotYFactor: plotDisplayModel.chart.plotYFactor,
-    plotYUnitLabel: plotDisplayModel.chart.plotYUnitLabel,
-    renderSignature: createChartPaneRenderSignature(plotDisplayModel, "chart", activePlotType),
-    xAxisLabelOverride: props.xAxisLabelOverride,
-    yAxisLabelOverride: props.yAxisLabelOverride,
-    yScaleMode: plotDisplayModel.chart.yScaleMode,
-  });
+  let currentProps = props;
+  let currentVisiblePanes = visiblePanes;
+  const chartPlotView = createPlotMainView(createChartPlotMainViewProps(props, plotDisplayModel));
   const inspectorDisplayModel = plotDisplayModel.inspector;
-  const inspectorPlotView = inspectorDisplayModel
-    ? createPlotMainView({
-      drawStrategy: "stable",
-      model: inspectorDisplayModel.model,
-      onXAxisLabelChange: props.onInspectorXAxisLabelChange,
-      onYAxisLabelChange: props.onInspectorYAxisLabelChange,
-      originOpenPlotOptions: props.originOpenPlotOptions,
-      plotAxisSettings: props.plotAxisSettings,
-      plotType: activePlotType,
-      plotXFactor: inspectorDisplayModel.plotXFactor,
-      plotXUnitLabel: inspectorDisplayModel.plotXUnitLabel,
-      plotYFactor: inspectorDisplayModel.plotYFactor,
-      plotYUnitLabel: inspectorDisplayModel.plotYUnitLabel,
-      renderSignature: createChartPaneRenderSignature(plotDisplayModel, "inspector", activePlotType),
-      xAxisLabelOverride: props.inspectorXAxisLabelOverride,
-      yAxisLabelOverride: props.inspectorYAxisLabelOverride,
-      yScaleMode: inspectorDisplayModel.yScaleMode,
-    })
+  let inspectorPlotView: PlotMainView | null = inspectorDisplayModel
+    ? createPlotMainView(createInspectorPlotMainViewProps(props, plotDisplayModel))
     : null;
 
   const chartHost = document.createElement("div");
@@ -115,10 +89,7 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
 
   const inspectorHost = document.createElement("div");
   inspectorHost.className = "chart_view_host";
-  inspectorHost.append(inspectorPlotView?.element ?? createEmptyView({
-    hint: localize("chart.inspector.calculation.hint", "Preparing inspector calculations, please wait."),
-    title: localize("chart.inspector.calculation.title", "Calculating inspector data..."),
-  }));
+  inspectorHost.append(inspectorPlotView?.element ?? createInspectorPendingView());
 
   const main = document.createElement("div");
   main.className = "chart_view_main";
@@ -132,12 +103,7 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   inspectorPane.className = "chart_view_main_pane chart_view_inspector_pane";
   inspectorPane.append(inspectorHost);
 
-  if (visiblePanes.includes("chart")) {
-    main.append(mainPane);
-  }
-  if (visiblePanes.includes("inspector")) {
-    main.append(inspectorPane);
-  }
+  syncVisiblePanes(main, mainPane, inspectorPane, visiblePanes);
   root.append(main);
   Object.defineProperty(root, "dispose", {
     value: (): void => {
@@ -153,6 +119,40 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
       }
 
       return chartPlotView.editAxisTitle(axis);
+    },
+  });
+  Object.defineProperty(root, "update", {
+    value: (nextProps: ChartViewProps): boolean => {
+      if (!canUpdateChartViewInPlace(currentProps, nextProps)) {
+        return false;
+      }
+
+      const nextDisplayModel = nextProps.plotDisplayModel;
+      if (!nextDisplayModel) {
+        return false;
+      }
+
+      chartPlotView.update(createChartPlotMainViewProps(nextProps, nextDisplayModel));
+
+      const nextInspectorDisplayModel = nextDisplayModel.inspector;
+      if (nextInspectorDisplayModel) {
+        if (inspectorPlotView) {
+          inspectorPlotView.update(createInspectorPlotMainViewProps(nextProps, nextDisplayModel));
+        } else {
+          inspectorPlotView = createPlotMainView(createInspectorPlotMainViewProps(nextProps, nextDisplayModel));
+          inspectorHost.replaceChildren(inspectorPlotView.element);
+        }
+      } else if (inspectorPlotView) {
+        inspectorPlotView.dispose();
+        inspectorPlotView = null;
+        inspectorHost.replaceChildren(createInspectorPendingView());
+      }
+
+      currentProps = nextProps;
+      currentVisiblePanes = normalizeVisiblePanes(nextProps.visiblePanes);
+      main.dataset.paneCount = String(currentVisiblePanes.length);
+      syncVisiblePanes(main, mainPane, inspectorPane, currentVisiblePanes);
+      return true;
     },
   });
 
@@ -174,6 +174,96 @@ const normalizeVisiblePanes = (
   }
   return next.length ? next : ["chart"];
 };
+
+const syncVisiblePanes = (
+  main: HTMLElement,
+  mainPane: HTMLElement,
+  inspectorPane: HTMLElement,
+  visiblePanes: readonly ChartPane[],
+): void => {
+  const panes: HTMLElement[] = [];
+  if (visiblePanes.includes("chart")) {
+    panes.push(mainPane);
+  }
+  if (visiblePanes.includes("inspector")) {
+    panes.push(inspectorPane);
+  }
+  if (
+    panes.length === main.children.length &&
+    panes.every((pane, index) => main.children[index] === pane)
+  ) {
+    return;
+  }
+  main.replaceChildren(...panes);
+};
+
+const canUpdateChartViewInPlace = (
+  currentProps: ChartViewProps,
+  nextProps: ChartViewProps,
+): boolean =>
+  currentProps.hasChartData === true &&
+  nextProps.hasChartData === true &&
+  Boolean(currentProps.plotDisplayModel) &&
+  Boolean(nextProps.plotDisplayModel);
+
+const createChartPlotMainViewProps = (
+  props: ChartViewProps,
+  plotDisplayModel: PlotDisplayModel,
+): PlotMainViewProps => {
+  const activePlotType = props.activePlotType ?? "iv";
+  return {
+    drawStrategy: "eager",
+    model: plotDisplayModel.chart.model,
+    onXAxisLabelChange: props.onXAxisLabelChange,
+    onYAxisLabelChange: props.onYAxisLabelChange,
+    originOpenPlotOptions: props.originOpenPlotOptions,
+    plotAxisSettings: props.plotAxisSettings,
+    plotType: activePlotType,
+    plotXFactor: plotDisplayModel.chart.plotXFactor,
+    plotXUnitLabel: plotDisplayModel.chart.plotXUnitLabel,
+    plotYFactor: plotDisplayModel.chart.plotYFactor,
+    plotYUnitLabel: plotDisplayModel.chart.plotYUnitLabel,
+    renderSignature: createChartPaneRenderSignature(plotDisplayModel, "chart", activePlotType),
+    xAxisLabelOverride: props.xAxisLabelOverride,
+    yAxisLabelOverride: props.yAxisLabelOverride,
+    yScaleMode: plotDisplayModel.chart.yScaleMode,
+  };
+};
+
+const createInspectorPlotMainViewProps = (
+  props: ChartViewProps,
+  plotDisplayModel: PlotDisplayModel,
+): PlotMainViewProps => {
+  const activePlotType = props.activePlotType ?? "iv";
+  const inspectorDisplayModel = plotDisplayModel.inspector;
+  if (!inspectorDisplayModel) {
+    throw new Error("Cannot create inspector plot view without inspector display model.");
+  }
+
+  return {
+    drawStrategy: "stable",
+    model: inspectorDisplayModel.model,
+    onXAxisLabelChange: props.onInspectorXAxisLabelChange,
+    onYAxisLabelChange: props.onInspectorYAxisLabelChange,
+    originOpenPlotOptions: props.originOpenPlotOptions,
+    plotAxisSettings: props.plotAxisSettings,
+    plotType: activePlotType,
+    plotXFactor: inspectorDisplayModel.plotXFactor,
+    plotXUnitLabel: inspectorDisplayModel.plotXUnitLabel,
+    plotYFactor: inspectorDisplayModel.plotYFactor,
+    plotYUnitLabel: inspectorDisplayModel.plotYUnitLabel,
+    renderSignature: createChartPaneRenderSignature(plotDisplayModel, "inspector", activePlotType),
+    xAxisLabelOverride: props.inspectorXAxisLabelOverride,
+    yAxisLabelOverride: props.inspectorYAxisLabelOverride,
+    yScaleMode: inspectorDisplayModel.yScaleMode,
+  };
+};
+
+const createInspectorPendingView = (): HTMLElement =>
+  createEmptyView({
+    hint: localize("chart.inspector.calculation.hint", "Preparing inspector calculations, please wait."),
+    title: localize("chart.inspector.calculation.title", "Calculating inspector data..."),
+  });
 
 const ChartView = (props: ChartViewProps): ChartViewElement =>
   createChartView(props);

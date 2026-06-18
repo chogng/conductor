@@ -44,6 +44,7 @@ export type PlotMainView = {
   readonly model: PlotMainRenderModel;
   readonly dispose: () => void;
   readonly editAxisTitle: (axis: "x" | "y") => boolean;
+  readonly update: (props: PlotMainViewProps) => void;
 };
 
 export const createPlotMainChartProps = ({
@@ -111,11 +112,18 @@ export const createPlotMainChartProps = ({
 
 export const createPlotMainView = (props: PlotMainViewProps): PlotMainView => {
   const element = createPlotMainChart(createPlotMainChartProps(props));
+  let currentModel = props.model;
 
   return {
     dispose: () => element.dispose(),
     editAxisTitle: (axis) => element.editAxisTitle(axis),
     element,
-    model: props.model,
+    get model() {
+      return currentModel;
+    },
+    update: (nextProps) => {
+      currentModel = nextProps.model;
+      element.update(createPlotMainChartProps(nextProps));
+    },
   };
 };

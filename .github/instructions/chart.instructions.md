@@ -168,6 +168,11 @@ Chart's active plot host may request eager first draw from `PlotMainView` so a
 newly selected chart paints on the first connected, sized frame. Keep the
 strategy explicit in Chart view composition; do not make Plot's reusable chart
 widget eager by default.
+`ChartPanel` must keep chart-mode content mounted across active file switches
+when the structural state is still chart data with a cached display model.
+Update the existing `ChartView`/`PlotMainView` and let Plot redraw the canvas;
+only rebuild when the panel changes structural mode, such as empty, processing,
+module-loading, or no cached display model.
 Only the main chart pane should use eager first draw during active file
 switches. Detail panes such as Inspector should use stable draw so secondary
 canvas work does not compete with the main chart's first visible frame.

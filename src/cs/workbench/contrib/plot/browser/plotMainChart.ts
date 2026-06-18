@@ -164,6 +164,7 @@ export type PlotMainChartDrawStrategy = "eager" | "stable";
 export type PlotMainChartElement = HTMLElement & {
   readonly dispose: () => void;
   readonly editAxisTitle: (axis: "x" | "y") => boolean;
+  readonly update: (props: PlotMainChartProps) => void;
 };
 
 export type PlotMainChartSize = {
@@ -676,10 +677,34 @@ const isSameChartSize = (
 ): boolean =>
   Boolean(a && b && a.width === b.width && a.height === b.height);
 
+const createAxisTitleViewOptions = (
+  props: PlotMainChartProps,
+): ConstructorParameters<typeof PlotAxisTitleView>[0] => ({
+  fontSize: props.axisTitleFontSize,
+  onXTitleChange: props.onXAxisLabelChange,
+  onYTitleChange: props.onYAxisLabelChange,
+  xTitle: resolveAxisTitleLabel(
+    props.xAxisLabelOverride ?? props.axisLabels?.xLabel,
+    "X",
+  ),
+  yTitle: resolveAxisTitleLabel(
+    props.yAxisLabelOverride ?? props.axisLabels?.yLabel,
+    "Y",
+  ),
+});
+
+const createAxisTitleView = (
+  props: PlotMainChartProps,
+): PlotAxisTitleView | null =>
+  props.showAxes === false
+    ? null
+    : new PlotAxisTitleView(createAxisTitleViewOptions(props));
+
 export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartElement => {
   const root = document.createElement("div") as unknown as PlotMainChartElement;
   root.className = "plot_main_chart";
   const store = new DisposableStore();
+  let currentProps = props;
 
   const canvas = document.createElement("canvas");
   canvas.className = "plot_main_chart_canvas";
@@ -689,21 +714,7 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
   hoverCanvas.className = "plot_main_chart_hover_canvas";
   root.appendChild(hoverCanvas);
 
-  const axisTitleView = props.showAxes === false
-    ? null
-    : new PlotAxisTitleView({
-      fontSize: props.axisTitleFontSize,
-      onXTitleChange: props.onXAxisLabelChange,
-      onYTitleChange: props.onYAxisLabelChange,
-      xTitle: resolveAxisTitleLabel(
-        props.xAxisLabelOverride ?? props.axisLabels?.xLabel,
-        "X",
-      ),
-      yTitle: resolveAxisTitleLabel(
-        props.yAxisLabelOverride ?? props.axisLabels?.yLabel,
-        "Y",
-      ),
-    });
+  let axisTitleView = createAxisTitleView(currentProps);
   if (axisTitleView) {
     root.append(axisTitleView.element);
   }
@@ -720,13 +731,14 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
     result: ReturnType<typeof drawPlotMainChart>,
     nextSize: PlotMainChartSize,
   ): ReturnType<typeof drawPlotMainChart> => {
-    if (result && props.renderSignature && props.renderSignature !== lastLoggedRenderSignature) {
-      lastLoggedRenderSignature = props.renderSignature;
+    const renderSignature = currentProps.renderSignature;
+    if (result && renderSignature && renderSignature !== lastLoggedRenderSignature) {
+      lastLoggedRenderSignature = renderSignature;
       logPerf("plotMainChart.draw", {
         height: nextSize.height,
-        renderSignature: props.renderSignature,
-        seriesCount: props.seriesList.length,
-        totalPoints: props.seriesList.reduce((total, series) => total + series.data.length, 0),
+        renderSignature,
+        seriesCount: currentProps.seriesList.length,
+        totalPoints: currentProps.seriesList.reduce((total, series) => total + series.data.length, 0),
         width: nextSize.width,
       });
     }
@@ -750,8 +762,8 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
     }
     waitFrames = 0;
 
-    if (props.drawStrategy === "eager") {
-      rendered = recordRendered(drawPlotMainChart(canvas, props, nextSize), nextSize);
+    if (currentProps.drawStrategy === "eager") {
+      rendered = recordRendered(drawPlotMainChart(canvas, currentProps, nextSize), nextSize);
       clearHoverOverlay(hoverCanvas);
       return;
     }
@@ -762,7 +774,7 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
       return;
     }
 
-    rendered = recordRendered(drawPlotMainChart(canvas, props, nextSize), nextSize);
+    rendered = recordRendered(drawPlotMainChart(canvas, currentProps, nextSize), nextSize);
     clearHoverOverlay(hoverCanvas);
   };
   const requestRender = (): void => {
@@ -797,7 +809,7 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
     }
 
     const xRaw = scale.pixelToX(localX);
-    const entries = getPlotReadoutAtX(props.seriesList, xRaw, yKey);
+    const entries = getPlotReadoutAtX(currentProps.seriesList, xRaw, yKey);
     if (!entries.length) {
       clearHoverOverlay(hoverCanvas);
       hoverWidget.hide();
@@ -806,9 +818,9 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
 
     drawHoverOverlay(hoverCanvas, plotRect, scale, entries);
     hoverWidget.show(entries, localX, localY, rect, {
-      plotXFactor: props.plotXFactor,
-      plotYFactor: props.plotYFactor,
-      xDigits: props.xTooltipDigits ?? props.xTickDigits,
+      plotXFactor: currentProps.plotXFactor,
+      plotYFactor: currentProps.plotYFactor,
+      xDigits: currentProps.xTooltipDigits ?? currentProps.xTickDigits,
     });
   }));
   store.add(addDisposableListener(canvas, EventType.MOUSE_LEAVE, () => {
@@ -832,6 +844,36 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
   });
   Object.defineProperty(root, "editAxisTitle", {
     value: (axis: "x" | "y"): boolean => axisTitleView?.editAxisTitle(axis) ?? false,
+  });
+  Object.defineProperty(root, "update", {
+    value: (nextProps: PlotMainChartProps): void => {
+      if (disposed) {
+        return;
+      }
+
+      const previousRenderSignature = currentProps.renderSignature ?? "";
+      const nextRenderSignature = nextProps.renderSignature ?? "";
+      currentProps = nextProps;
+
+      if (currentProps.showAxes === false) {
+        axisTitleView?.dispose();
+        axisTitleView = null;
+      } else if (axisTitleView) {
+        axisTitleView.update(createAxisTitleViewOptions(currentProps));
+      } else {
+        axisTitleView = createAxisTitleView(currentProps);
+        if (axisTitleView) {
+          root.append(axisTitleView.element);
+        }
+      }
+
+      if (previousRenderSignature !== nextRenderSignature) {
+        rendered = null;
+        clearHoverOverlay(hoverCanvas);
+        hoverWidget.hide();
+      }
+      requestRender();
+    },
   });
 
   return root;

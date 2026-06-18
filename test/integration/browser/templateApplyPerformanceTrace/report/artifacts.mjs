@@ -16,6 +16,7 @@ import {
   writeHistorySvg,
 } from "./history.mjs";
 import { createImportReportBlock } from "./import.mjs";
+import { createPlotCacheReportBlock } from "./plotCache.mjs";
 import { createResourcesReportBlock } from "./resources.mjs";
 import { createThumbnailHoverReportBlock } from "./thumbnailHover.mjs";
 
@@ -46,6 +47,9 @@ export const createReportBlocks = ({
   import: createImportReportBlock({
     analysis,
     milestones,
+  }),
+  plotCache: createPlotCacheReportBlock({
+    analysisPerfReport,
   }),
   resources: createResourcesReportBlock({
     analysis,

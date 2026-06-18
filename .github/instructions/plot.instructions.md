@@ -159,15 +159,18 @@ storage, for these controls.
   full model that adds the inspector derivative. The cache may be upgraded from
   chart-only to full, but a full cache entry must not be replaced by chart-only
   data.
-- Full display-model prefetch is cache completion work, not first-paint work.
-  Once chart-only output is available, the queued full/inspector stage should
-  run at background priority and must not occupy the reserved interactive
-  capacity needed by active chart, file switch, or hover thumbnail requests.
+- Full display-model prefetch is active chart detail completion work, not
+  thumbnail first-paint work. Once chart-only output is available for the active
+  chart, the queued full/inspector stage should run at background priority and
+  must not occupy the reserved interactive capacity needed by active chart, file
+  switch, or hover thumbnail requests. Hover, visible, nearby, and idle
+  thumbnail warmup should keep chart-only display models unless the active chart
+  requests the same target.
 - Active and hover display-model prefetch may synchronously cache the cheap
   chart-only display model when calculated data is already warm. This gives
   Chart and hover thumbnails a first drawable frame without waiting behind
-  background worker display-model work; the full inspector model can still be
-  queued afterward.
+  background worker display-model work; only active chart requests should queue
+  the full inspector model afterward.
 - Active and hover display-model prefetch may also synchronously warm the
   calculated-data cache for only the requested file when the session already has
   drawable canonical curves. Keep this interactive warm path file-scoped and do
@@ -176,6 +179,12 @@ storage, for these controls.
   affects only specific file ids, `PlotService` should publish targeted
   `onDidChangePlotDisplayModelCache` events for those file/plot pairs instead
   of waking every Chart/Thumbnail consumer through `onDidChangePlotState`.
+- Plot display-model cache is bounded by `PlotService` and should use
+  recent-use eviction. Eviction is cache lifecycle only and should be silent;
+  data-change invalidation remains the path that publishes
+  `onDidChangePlotDisplayModelCache`. Cached reads for active chart, hover
+  thumbnail, and file switching should refresh recency so interactive targets
+  survive background warmup pressure.
 - Plot render models are currently built from template/base curve records and
   Plot-owned settings. `calculatedRecordsChanged`, `metricsChanged`, and
   derived-only `curvesChanged` events must not invalidate active chart or hover
@@ -202,6 +211,10 @@ storage, for these controls.
   request an eager first draw once the chart is connected and sized. Keep this
   as an explicit host-provided strategy so reusable plot surfaces do not
   accidentally trade layout stability for speed.
+- `PlotMainChart` is a long-lived DOM widget. Hosts should call its update path
+  with new props when only render data, axis labels, settings, or callbacks
+  change; do not replace the canvas unless the host itself changes structural
+  mode or disposes the plot surface.
 - Plot state is display state; do not store it in Session unless it becomes saved project state later.
 
 ## Command entry and dispatch

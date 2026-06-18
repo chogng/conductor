@@ -837,7 +837,19 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.equal(cached?.fileId, "file-hover");
       assert.equal(cached?.inspector, null);
       assert.deepEqual(events, ["iv:file-hover"]);
-      assert.equal(scheduledFrameCount, 1);
+      assert.equal(scheduledFrameCount, 0);
+
+      service.prefetchPlotDisplayModel({
+        fileId: "file-hover",
+        plotType: "iv",
+        snapshot,
+      }, "hover");
+      assert.equal(service.getCachedPlotDisplayModel({
+        fileId: "file-hover",
+        plotType: "iv",
+        snapshot,
+      })?.inspector, null);
+      assert.equal(scheduledFrameCount, 0);
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
       globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
@@ -1689,6 +1701,61 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
       globalThis.Worker = originalWorker;
     }
+  });
+
+  test("bounds plot display model cache while keeping recently used targets", () => {
+    const filesById: Record<string, FileRecord> = {};
+    const fileOrder: string[] = [];
+    for (let index = 0; index < 260; index += 1) {
+      const fileId = `file-${index}`;
+      filesById[fileId] = createFileRecord(fileId, `series-${index}`, `Series ${index}`);
+      fileOrder.push(fileId);
+    }
+
+    const snapshot = createSnapshot(filesById, fileOrder);
+    const service = store.add(new PlotService(
+      createSessionServiceStub(snapshot),
+      createSettingsServiceStub(),
+      store.add(new TestStorageService()),
+    ));
+
+    for (let index = 0; index < 240; index += 1) {
+      assert.ok(service.getPlotDisplayModel({
+        fileId: `file-${index}`,
+        plotType: "iv",
+        snapshot,
+      }));
+    }
+
+    assert.ok(service.getCachedPlotDisplayModel({
+      fileId: "file-0",
+      plotType: "iv",
+      snapshot,
+    }));
+
+    for (let index = 240; index < 260; index += 1) {
+      assert.ok(service.getPlotDisplayModel({
+        fileId: `file-${index}`,
+        plotType: "iv",
+        snapshot,
+      }));
+    }
+
+    assert.ok(service.getCachedPlotDisplayModel({
+      fileId: "file-0",
+      plotType: "iv",
+      snapshot,
+    }));
+    assert.equal(service.getCachedPlotDisplayModel({
+      fileId: "file-1",
+      plotType: "iv",
+      snapshot,
+    }), null);
+    assert.ok(service.getCachedPlotDisplayModel({
+      fileId: "file-259",
+      plotType: "iv",
+      snapshot,
+    }));
   });
 
   test("publishes chart display model before inspector display model", async () => {

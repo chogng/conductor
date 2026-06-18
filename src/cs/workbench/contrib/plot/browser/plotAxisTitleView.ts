@@ -61,6 +61,12 @@ export class PlotAxisTitleView {
     this.element.remove();
   }
 
+  public update(options: PlotAxisTitleViewOptions): void {
+    this.stopEdit();
+    this.options = options;
+    this.render();
+  }
+
   public editAxisTitle(axis: PlotAxis): boolean {
     return this.startEdit(axis);
   }
