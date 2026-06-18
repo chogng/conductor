@@ -292,6 +292,11 @@ Do not create thumbnail-specific duplicates of Explorer file item commands such 
   create it. Its signature should remain the underlying calculated-data
   signature so a later full preview with the same data does not replace the
   hover thumbnail node.
+- If a preview with a calculated-data signature later gains a Plot display-model
+  cache for the same signature, treat `ready -> fastReady` as a cache-source
+  upgrade and publish `onDidChangePreview` so detached hover thumbnails can be
+  refreshed and warmed. Do not downgrade `fastReady` to `ready` or `loading`
+  while replacement data with the same signature is pending.
 - Targeted preview invalidation must not downgrade an existing `fastReady`,
   `rawReady`, or `ready` preview to `loading` while replacement plot data is
   pending. Keep the last nonblank model visible and refresh it when Plot

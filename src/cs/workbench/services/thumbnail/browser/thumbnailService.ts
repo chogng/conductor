@@ -353,7 +353,7 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		const previous = this.statesByFileId.get(fileId) ?? { kind: "idle" } satisfies ThumbnailPreviewState;
 		const next = this.createPreviewState(fileId, options);
 		const preserveReady = isReadyPreviewState(previous) && next.kind === "loading";
-		const resolved = preserveReady ? previous : next;
+		const resolved = preserveReady ? previous : resolveReadyPreviewState(previous, next);
 		logPerf("thumbnailPreview.update", {
 			fileId,
 			nextState: next.kind,
@@ -492,7 +492,7 @@ const isSamePreviewState = (
 	next: ThumbnailPreviewState,
 ): boolean => {
 	if (isReadyPreviewState(previous) && isReadyPreviewState(next)) {
-		return previous.signature === next.signature;
+		return previous.kind === next.kind && previous.signature === next.signature;
 	}
 
 	if (previous.kind !== next.kind) {
@@ -515,6 +515,35 @@ const isReadyPreviewState = (
 	state: ThumbnailPreviewState | undefined,
 ): state is Extract<ThumbnailPreviewState, { readonly kind: "fastReady" | "rawReady" | "ready" }> =>
 	state?.kind === "fastReady" || state?.kind === "rawReady" || state?.kind === "ready";
+
+const resolveReadyPreviewState = (
+	previous: ThumbnailPreviewState,
+	next: ThumbnailPreviewState,
+): ThumbnailPreviewState => {
+	if (
+		!isReadyPreviewState(previous) ||
+		!isReadyPreviewState(next) ||
+		previous.signature !== next.signature
+	) {
+		return next;
+	}
+
+	return getPreviewReadyRank(next) > getPreviewReadyRank(previous)
+		? next
+		: previous;
+};
+
+const getPreviewReadyRank = (
+	state: Extract<ThumbnailPreviewState, { readonly kind: "fastReady" | "rawReady" | "ready" }>,
+): number => {
+	switch (state.kind) {
+		case "fastReady":
+			return 2;
+		case "rawReady":
+		case "ready":
+			return 1;
+	}
+};
 
 const getPreviewStateSource = (state: ThumbnailPreviewState): string => {
 	switch (state.kind) {

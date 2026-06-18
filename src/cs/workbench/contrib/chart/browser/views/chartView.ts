@@ -83,6 +83,7 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
     plotXUnitLabel: plotDisplayModel.chart.plotXUnitLabel,
     plotYFactor: plotDisplayModel.chart.plotYFactor,
     plotYUnitLabel: plotDisplayModel.chart.plotYUnitLabel,
+    renderSignature: createChartPaneRenderSignature(plotDisplayModel, "chart", activePlotType),
     xAxisLabelOverride: props.xAxisLabelOverride,
     yAxisLabelOverride: props.yAxisLabelOverride,
     yScaleMode: plotDisplayModel.chart.yScaleMode,
@@ -101,6 +102,7 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
       plotXUnitLabel: inspectorDisplayModel.plotXUnitLabel,
       plotYFactor: inspectorDisplayModel.plotYFactor,
       plotYUnitLabel: inspectorDisplayModel.plotYUnitLabel,
+      renderSignature: createChartPaneRenderSignature(plotDisplayModel, "inspector", activePlotType),
       xAxisLabelOverride: props.inspectorXAxisLabelOverride,
       yAxisLabelOverride: props.inspectorYAxisLabelOverride,
       yScaleMode: inspectorDisplayModel.yScaleMode,
@@ -177,3 +179,27 @@ const ChartView = (props: ChartViewProps): ChartViewElement =>
   createChartView(props);
 
 export default ChartView;
+
+const createChartPaneRenderSignature = (
+  displayModel: PlotDisplayModel,
+  pane: "chart" | "inspector",
+  activePlotType: string,
+): string => {
+  const paneDisplayModel = pane === "chart"
+    ? displayModel.chart
+    : displayModel.inspector;
+  const model = paneDisplayModel?.model;
+  const seriesSignature = model?.seriesList
+    .map(series => `${series.id}:${series.data.length}`)
+    .join(",") ?? "";
+
+  return [
+    displayModel.fileId,
+    displayModel.plotType || activePlotType,
+    pane,
+    model?.pointsCount ?? 0,
+    seriesSignature,
+    model?.xDomain.join(",") ?? "",
+    model?.yDomain.join(",") ?? "",
+  ].join("|");
+};

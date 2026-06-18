@@ -168,6 +168,11 @@ Chart's active plot host may request eager first draw from `PlotMainView` so a
 newly selected chart paints on the first connected, sized frame. Keep the
 strategy explicit in Chart view composition; do not make Plot's reusable chart
 widget eager by default.
+Chart may pass a render signature derived from the current Plot display model
+file id, plot type, pane, domains, and series sizes into `PlotMainView` so the
+canvas can expose which target it has drawn for diagnostics and performance
+tests. This signature is host metadata only; Chart must still consume Plot
+display models and must not derive plot data from Session.
 Do not pass Explorer selection through `ChartViewInput` callbacks; chart file
 selection is translated by `ChartViewPane` into `IExplorerService.select(...)`.
 Do not pass settings mutations through `ChartViewInput`; settings panes write

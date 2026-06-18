@@ -133,6 +133,38 @@ suite("workbench/contrib/plot/test/browser/plotMainView", () => {
     }
   });
 
+  test("marks the canvas with the rendered plot signature", async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const host = document.createElement("div");
+    host.style.height = "360px";
+    host.style.width = "640px";
+    document.body.append(host);
+
+    const element = createPlotMainChart({
+      ...createPlotMainChartProps({
+        model: createPlotModel(),
+        plotType: "iv",
+        renderSignature: "file-a|iv|chart",
+      }),
+      drawStrategy: "eager",
+    });
+    const canvas = element.querySelector(".plot_main_chart_canvas") as HTMLCanvasElement | null;
+    assert.ok(canvas);
+
+    try {
+      host.append(element);
+      await animationFrames(1);
+
+      assert.equal(canvas.dataset.plotRenderSignature, "file-a|iv|chart");
+    } finally {
+      element.dispose();
+      host.remove();
+    }
+  });
+
   test("draws large series through a display downsample budget", async () => {
     if (typeof document === "undefined" || typeof CanvasRenderingContext2D === "undefined") {
       return;

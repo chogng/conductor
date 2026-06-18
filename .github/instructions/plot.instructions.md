@@ -194,6 +194,10 @@ storage, for these controls.
   visible pixel width. Full point arrays remain in the render model for readout
   accuracy, but the first paint must not synchronously draw every point in a
   large series.
+- `PlotMainChart` may stamp a host-provided render signature on the canvas and
+  emit a draw perf event for diagnostics. The signature must come from the
+  consuming host's Plot display model identity; the chart widget must not read
+  Session or invent data ownership to create it.
 - `PlotMainChart` defaults to stable layout draw, but active Chart hosts may
   request an eager first draw once the chart is connected and sized. Keep this
   as an explicit host-provided strategy so reusable plot surfaces do not

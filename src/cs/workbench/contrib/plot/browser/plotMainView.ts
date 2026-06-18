@@ -33,6 +33,7 @@ export type PlotMainViewProps = {
   readonly plotYFactor?: number;
   readonly plotYUnitLabel?: string;
   readonly plotType: PlotType;
+  readonly renderSignature?: string;
   readonly xAxisLabelOverride?: string;
   readonly yAxisLabelOverride?: string;
   readonly yScaleMode?: "linear" | "log";
@@ -58,6 +59,7 @@ export const createPlotMainChartProps = ({
   plotYFactor = 1,
   plotYUnitLabel,
   plotType,
+  renderSignature,
   xAxisLabelOverride,
   yAxisLabelOverride,
   yScaleMode = "linear",
@@ -86,6 +88,7 @@ export const createPlotMainChartProps = ({
     minorTickCount: axisSettings.minorTickCount === "" ? undefined : axisSettings.minorTickCount,
     onXAxisLabelChange,
     onYAxisLabelChange,
+    renderSignature,
     tickLabelFontSize: axisSettings.tickLabelFontSize === "" ? undefined : axisSettings.tickLabelFontSize,
     axisTitleFontSize: axisSettings.axisTitleFontSize === "" ? undefined : axisSettings.axisTitleFontSize,
     legendLabels,

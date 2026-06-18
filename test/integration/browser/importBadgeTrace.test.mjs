@@ -970,10 +970,7 @@ const waitForApplyAllReady = async (page, timeoutMs) => page.waitForFunction(
   () => {
     const apply = [...document.querySelectorAll("button")]
       .find(button => /^(应用到所有|Apply to All)$/.test((button.textContent || "").trim()));
-    const loading = [...document.querySelectorAll("[data-source-status]")]
-      .filter(host => host.dataset.sourceStatus === "pending" || host.dataset.sourceStatus === "preparing")
-      .length;
-    return Boolean(apply && !apply.disabled && loading === 0);
+    return Boolean(apply && !apply.disabled);
   },
   undefined,
   { timeout: timeoutMs },
@@ -1106,6 +1103,7 @@ const inspectMainChartState = async (page) => page.evaluate(() => {
       return {
         canvasHeight: canvas instanceof HTMLCanvasElement ? canvas.height : null,
         canvasNonBlank: false,
+        canvasRenderSignature: null,
         canvasSignature: null,
         canvasVisible: canvas instanceof HTMLCanvasElement,
         canvasWidth: canvas instanceof HTMLCanvasElement ? canvas.width : null,
@@ -1117,6 +1115,7 @@ const inspectMainChartState = async (page) => page.evaluate(() => {
       return {
         canvasHeight: canvas.height,
         canvasNonBlank: false,
+        canvasRenderSignature: canvas.dataset.plotRenderSignature ?? null,
         canvasSignature: null,
         canvasVisible: true,
         canvasWidth: canvas.width,
@@ -1140,6 +1139,7 @@ const inspectMainChartState = async (page) => page.evaluate(() => {
     return {
       canvasHeight: canvas.height,
       canvasNonBlank: nonBlank,
+      canvasRenderSignature: canvas.dataset.plotRenderSignature ?? null,
       canvasSignature: `${canvas.width}x${canvas.height}:${hash >>> 0}`,
       canvasVisible: true,
       canvasWidth: canvas.width,
@@ -1234,6 +1234,11 @@ const waitForMainChartDrawn = async (page, fileId, previousCanvasSignature, time
       return false;
     }
 
+    const renderSignature = canvas.dataset.plotRenderSignature ?? "";
+    if (renderSignature.split("|")[0] === targetFileId) {
+      return true;
+    }
+
     const signature = `${canvas.width}x${canvas.height}:${hash >>> 0}`;
     return !previousSignature || signature !== previousSignature;
   },
@@ -1258,6 +1263,7 @@ const installFileSwitchLiveObserver = async (page) => page.evaluate(() => {
       return {
         canvasHeight: canvas instanceof HTMLCanvasElement ? canvas.height : null,
         canvasNonBlank: false,
+        canvasRenderSignature: null,
         canvasSignature: null,
         canvasVisible: canvas instanceof HTMLCanvasElement,
         canvasWidth: canvas instanceof HTMLCanvasElement ? canvas.width : null,
@@ -1269,6 +1275,7 @@ const installFileSwitchLiveObserver = async (page) => page.evaluate(() => {
       return {
         canvasHeight: canvas.height,
         canvasNonBlank: false,
+        canvasRenderSignature: canvas.dataset.plotRenderSignature ?? null,
         canvasSignature: null,
         canvasVisible: true,
         canvasWidth: canvas.width,
@@ -1292,6 +1299,7 @@ const installFileSwitchLiveObserver = async (page) => page.evaluate(() => {
     return {
       canvasHeight: canvas.height,
       canvasNonBlank: nonBlank,
+      canvasRenderSignature: canvas.dataset.plotRenderSignature ?? null,
       canvasSignature: `${canvas.width}x${canvas.height}:${hash >>> 0}`,
       canvasVisible: true,
       canvasWidth: canvas.width,
@@ -1323,6 +1331,7 @@ const installFileSwitchLiveObserver = async (page) => page.evaluate(() => {
       state.selectedFileId ?? "",
       state.selectedChartState ?? "",
       state.selectedHasChartData ? "1" : "0",
+      state.canvasRenderSignature ?? "",
       state.canvasSignature ?? "",
       state.canvasNonBlank ? "1" : "0",
       state.chartEmptyTitle ?? "",
@@ -1985,10 +1994,11 @@ const waitForTraceCompletion = async ({
       Number(projection?.meta?.loadingSourceCount ?? 0),
       Number(latest.dom?.loading ?? 0),
     );
+    const applyReady = latest.dom?.applyVisible === true && latest.dom?.applyDisabled === false;
     if (
       prepareCompletionCount >= expectedPrepareCompletionCount &&
       assessmentBadgeCount >= expectedAssessmentBadgeCount &&
-      loadingSourceCount === 0
+      (loadingSourceCount === 0 || applyReady)
     ) {
       return latest;
     }
@@ -2401,6 +2411,12 @@ const targetPerfMilestoneDefs = [
       perfEntryIncludesFileId(entry, fileId),
   },
   {
+    key: "plotMainDrawn",
+    match: (entry, fileId) =>
+      entry.stage === "plotMainChart.draw" &&
+      perfEntryRenderSignatureFileId(entry) === fileId,
+  },
+  {
     key: "thumbnailReady",
     match: (entry, fileId) =>
       perfEntryIncludesFileId(entry, fileId) &&
@@ -2425,6 +2441,11 @@ const targetPerfMilestoneDefs = [
 
 const perfEntryIncludesFileId = (entry, fileId) =>
   perfEntryFileIds(entry).includes(fileId);
+
+const perfEntryRenderSignatureFileId = (entry) => {
+  const signature = String(entry?.meta?.renderSignature ?? "");
+  return signature.split("|")[0] || null;
+};
 
 const perfEntryFileIds = (entry) =>
   perfEntryMetaIds(entry?.meta, [
@@ -2885,6 +2906,7 @@ const createLiveFileSwitchTargetSamples = (result, window = null) => {
   return firstDispatchesByFileForWindow(dispatches, window).map((dispatch) => {
     const fileId = String(dispatch.fileId ?? "");
     const dispatchSignature = dispatch.state?.canvasSignature ?? null;
+    const dispatchRenderSignature = dispatch.state?.canvasRenderSignature ?? null;
     const fileEvents = events.filter(event =>
       event.selectedFileId === fileId &&
       readNumber(event.timestamp) != null &&
@@ -2894,23 +2916,42 @@ const createLiveFileSwitchTargetSamples = (result, window = null) => {
     const selected = fileEvents[0] ?? null;
     const canvasVisible = fileEvents.find(event => event.canvasVisible);
     const canvasNonBlank = fileEvents.find(event => event.canvasNonBlank);
-    const chartChanged = fileEvents.find(event =>
+    const renderSignatureDrawn = fileEvents.find(event =>
+      event.canvasNonBlank &&
+      typeof event.canvasRenderSignature === "string" &&
+      event.canvasRenderSignature.split("|")[0] === fileId
+    );
+    const canvasChanged = fileEvents.find(event =>
       event.canvasNonBlank &&
       event.canvasSignature &&
       event.canvasSignature !== dispatchSignature
     );
+    const renderSignatureChanged = fileEvents.find(event =>
+      event.canvasNonBlank &&
+      event.canvasRenderSignature &&
+      event.canvasRenderSignature !== dispatchRenderSignature
+    );
+    const chartChanged = renderSignatureDrawn ?? canvasChanged;
     const readySelected = fileEvents.find(event =>
       event.selectedChartState === "ready" ||
       event.selectedHasChartData === true
     );
     return {
+      canvasChangedMs: durationFromDispatch(dispatch, canvasChanged),
       canvasNonBlankMs: durationFromDispatch(dispatch, canvasNonBlank),
       canvasVisibleMs: durationFromDispatch(dispatch, canvasVisible),
       chartDrawnMs: durationFromDispatch(dispatch, chartChanged),
+      chartDrawnSource: renderSignatureDrawn
+        ? "renderSignature"
+        : chartChanged
+          ? "canvasSignature"
+          : null,
       dispatchTimestamp: roundMetric(readNumber(dispatch.timestamp)),
       dispatchWallTime: roundMetric(getTraceEventWallTime(dispatch)),
       fileId,
       readySelectedMs: durationFromDispatch(dispatch, readySelected),
+      renderSignatureChangedMs: durationFromDispatch(dispatch, renderSignatureChanged),
+      renderSignatureDrawnMs: durationFromDispatch(dispatch, renderSignatureDrawn),
       selectedMs: durationFromDispatch(dispatch, selected),
     };
   });
@@ -2938,8 +2979,12 @@ const summarizeFileSwitchStress = (result) => {
 };
 
 const summarizeLiveFileSwitchTargetSamples = (targetSamples) => ({
+  targetCanvasChangedCount: targetSamples.filter(sample => sample.canvasChangedMs != null).length,
+  targetCanvasChangedMs: summarizeDurations(targetSamples.map(sample => sample.canvasChangedMs)),
   readySelectedCount: targetSamples.filter(sample => sample.readySelectedMs != null).length,
   readySelectedMs: summarizeDurations(targetSamples.map(sample => sample.readySelectedMs)),
+  targetChartDrawnByCanvasSignatureCount: targetSamples.filter(sample => sample.chartDrawnSource === "canvasSignature").length,
+  targetChartDrawnByRenderSignatureCount: targetSamples.filter(sample => sample.chartDrawnSource === "renderSignature").length,
   sampledTargetCount: targetSamples.length,
   targetCanvasNonBlankCount: targetSamples.filter(sample => sample.canvasNonBlankMs != null).length,
   targetCanvasNonBlankMs: summarizeDurations(targetSamples.map(sample => sample.canvasNonBlankMs)),
@@ -2947,6 +2992,10 @@ const summarizeLiveFileSwitchTargetSamples = (targetSamples) => ({
   targetCanvasVisibleMs: summarizeDurations(targetSamples.map(sample => sample.canvasVisibleMs)),
   targetChartDrawnCount: targetSamples.filter(sample => sample.chartDrawnMs != null).length,
   targetChartDrawnMs: summarizeDurations(targetSamples.map(sample => sample.chartDrawnMs)),
+  targetRenderSignatureChangedCount: targetSamples.filter(sample => sample.renderSignatureChangedMs != null).length,
+  targetRenderSignatureChangedMs: summarizeDurations(targetSamples.map(sample => sample.renderSignatureChangedMs)),
+  targetRenderSignatureDrawnCount: targetSamples.filter(sample => sample.renderSignatureDrawnMs != null).length,
+  targetRenderSignatureDrawnMs: summarizeDurations(targetSamples.map(sample => sample.renderSignatureDrawnMs)),
   targetSamples,
   targetSelectedCount: targetSamples.filter(sample => sample.selectedMs != null).length,
   targetSelectedMs: summarizeDurations(targetSamples.map(sample => sample.selectedMs)),
@@ -2963,6 +3012,7 @@ const summarizeLiveFileSwitchWindow = (window, targetSamples, perfReport) => {
     endAnchor: window.endAnchor,
     startAnchor: window.startAnchor,
     ...summarizeLiveFileSwitchTargetSamples(targetSamples),
+    targetPlotMainDrawnMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotMainDrawn"),
     targetPlotChartCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotChartCached"),
     targetPlotFullCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotFullCached"),
     targetPerfMilestoneSummary: summarizeTargetPerfMilestoneSamples(targetPerfMilestones),
@@ -3009,6 +3059,7 @@ const summarizeFileSwitchLiveStress = (result, phaseAnchors = [], perfReport = n
     settleState: settleSample?.afterState ?? null,
     targetCount: result.targetCount,
     ...targetSampleSummary,
+    targetPlotMainDrawnMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotMainDrawn"),
     targetPlotChartCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotChartCached"),
     targetPlotFullCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotFullCached"),
     targetPerfMilestoneSummary: summarizeTargetPerfMilestoneSamples(targetPerfMilestones),

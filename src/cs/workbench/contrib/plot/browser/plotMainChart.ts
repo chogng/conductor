@@ -5,6 +5,7 @@
 // Owns the interactive main plot chart, canvas drawing, hover handling, and axis title editing.
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { logPerf } from "src/cs/workbench/common/perf";
 import { getPlotColor, resolveSeriesPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
 import { resolveAxisTitleLabel } from "src/cs/workbench/services/plot/common/plotAxisLabels";
 import { drawPlotAxis } from "src/cs/workbench/contrib/plot/browser/plotAxis";
@@ -101,6 +102,7 @@ type VthFitOverlay = {
 
 export type PlotMainChartProps = {
   drawStrategy?: PlotMainChartDrawStrategy;
+  renderSignature?: string;
   plotType?: string;
   curveLineWidth?: number;
   curvePlotType?: number;
@@ -641,6 +643,12 @@ export const drawPlotMainChart = (
     drawVerticalMarker(context, plotRect, scale, marker.x, marker.stroke, marker.strokeOpacity ?? 1, marker.strokeWidth ?? 2);
   }
 
+  if (props.renderSignature) {
+    canvas.dataset.plotRenderSignature = props.renderSignature;
+  } else {
+    delete canvas.dataset.plotRenderSignature;
+  }
+
   return { plotRect, scale, yKey };
 };
 
@@ -706,7 +714,25 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
   let animationFrame = 0;
   let pendingSize: PlotMainChartSize | null = null;
   let waitFrames = 0;
+  let lastLoggedRenderSignature = "";
   let rendered: ReturnType<typeof drawPlotMainChart> = null;
+  const recordRendered = (
+    result: ReturnType<typeof drawPlotMainChart>,
+    nextSize: PlotMainChartSize,
+  ): ReturnType<typeof drawPlotMainChart> => {
+    if (result && props.renderSignature && props.renderSignature !== lastLoggedRenderSignature) {
+      lastLoggedRenderSignature = props.renderSignature;
+      logPerf("plotMainChart.draw", {
+        height: nextSize.height,
+        renderSignature: props.renderSignature,
+        seriesCount: props.seriesList.length,
+        totalPoints: props.seriesList.reduce((total, series) => total + series.data.length, 0),
+        width: nextSize.width,
+      });
+    }
+
+    return result;
+  };
   const render = (): void => {
     animationFrame = 0;
     if (disposed) {
@@ -725,7 +751,7 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
     waitFrames = 0;
 
     if (props.drawStrategy === "eager") {
-      rendered = drawPlotMainChart(canvas, props, nextSize);
+      rendered = recordRendered(drawPlotMainChart(canvas, props, nextSize), nextSize);
       clearHoverOverlay(hoverCanvas);
       return;
     }
@@ -736,7 +762,7 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
       return;
     }
 
-    rendered = drawPlotMainChart(canvas, props, nextSize);
+    rendered = recordRendered(drawPlotMainChart(canvas, props, nextSize), nextSize);
     clearHoverOverlay(hoverCanvas);
   };
   const requestRender = (): void => {
