@@ -89,12 +89,20 @@ const PLOT_PREFETCH_MAX_IN_FLIGHT = 2;
 const PLOT_BACKGROUND_PREFETCH_MAX_IN_FLIGHT = 1;
 const PLOT_DISPLAY_MODEL_CACHE_LIMIT = 240;
 const PLOT_INSPECTOR_DISPLAY_MODEL_CACHE_LIMIT = 48;
+const PLOT_DISPLAY_MODEL_CACHE_RETENTION_ORDER: Readonly<Record<PlotCalculatedDataPrefetchPriority, number>> = {
+  idle: 0,
+  nearby: 1,
+  visible: 2,
+  hover: 3,
+  active: 4,
+};
 
 type PlotDisplayModelPrefetchStage = "chart" | "inspector";
 
 type PlotDisplayModelCacheEntry = {
   readonly model: PlotDisplayModel;
   lastUsed: number;
+  retentionPriority: PlotCalculatedDataPrefetchPriority;
 };
 
 type PlotInspectorDisplayModelCacheEntry = {
@@ -631,13 +639,12 @@ export class PlotService extends Disposable implements IPlotService {
       calculatedDataWarmed = Boolean(calculatedData);
     }
 
-    const cachedDisplayModel = calculatedData ? this.getCachedPlotDisplayModel({
-      fileId: request.fileId,
-      hiddenLegendKeys: request.hiddenLegendKeys,
-      legendLabels: request.legendLabels,
-      plotType: request.plotType,
-      snapshot,
-    }) : null;
+    const cachedDisplayModel = calculatedData
+      ? this.getCachedPlotDisplayModelForKey(
+        this.getPlotDisplayModelCacheKey(calculatedData, request),
+        request.priority,
+      )
+      : null;
     if (cachedDisplayModel) {
       return {
         cacheHit: true,
@@ -1521,7 +1528,7 @@ export class PlotService extends Disposable implements IPlotService {
 
     const cacheKey = this.getPlotDisplayModelCacheKey(calculatedData, request);
     const prefetchKey = this.getPlotDisplayModelPrefetchKey(calculatedData, request);
-    const cached = this.getCachedPlotDisplayModelForKey(cacheKey);
+    const cached = this.getCachedPlotDisplayModelForKey(cacheKey, request.priority);
     if (
       cached ||
       this.inFlightPlotDisplayModelPrefetchByKey.has(prefetchKey)
@@ -1759,20 +1766,24 @@ export class PlotService extends Disposable implements IPlotService {
     model: PlotDisplayModel,
   ): PlotDisplayModel {
     const key = this.getPlotDisplayModelCacheKey(calculatedData, input);
+    const retentionPriority = getPlotDisplayModelCacheRetentionPriority(input);
     const chartModel = model.inspector
       ? { ...model, inspector: null }
       : model;
     const cachedEntry = this.plotDisplayModelCacheByKey.get(key);
     const cached = cachedEntry?.model;
     if (cached) {
-      cachedEntry.lastUsed = ++this.plotDisplayModelCacheUse;
+      const previousRetentionPriority = cachedEntry.retentionPriority;
+      this.touchPlotDisplayModelCacheEntry(cachedEntry, retentionPriority);
       logPerf("plotService.cachePlotDisplayModel", {
         cacheSize: this.plotDisplayModelCacheByKey.size,
         fileId: chartModel.fileId,
         hasInspector: false,
         limit: PLOT_DISPLAY_MODEL_CACHE_LIMIT,
         plotType: chartModel.plotType,
-        result: "kept",
+        previousRetentionPriority,
+        result: cachedEntry.retentionPriority === previousRetentionPriority ? "kept" : "upgraded",
+        retentionPriority: cachedEntry.retentionPriority,
         signature: calculatedData.signature,
       });
       return cached;
@@ -1781,6 +1792,7 @@ export class PlotService extends Disposable implements IPlotService {
     this.plotDisplayModelCacheByKey.set(key, {
       lastUsed: ++this.plotDisplayModelCacheUse,
       model: chartModel,
+      retentionPriority,
     });
     this.trimPlotDisplayModelCache();
     this.onDidChangePlotDisplayModelCacheEmitter.fire({
@@ -1794,6 +1806,7 @@ export class PlotService extends Disposable implements IPlotService {
       hasInspector: false,
       limit: PLOT_DISPLAY_MODEL_CACHE_LIMIT,
       plotType: chartModel.plotType,
+      retentionPriority,
       result: "created",
       signature: calculatedData.signature,
     });
@@ -1845,14 +1858,30 @@ export class PlotService extends Disposable implements IPlotService {
     return model;
   }
 
-  private getCachedPlotDisplayModelForKey(key: string): PlotDisplayModel | null {
+  private getCachedPlotDisplayModelForKey(
+    key: string,
+    retentionPriority: PlotCalculatedDataPrefetchPriority = "active",
+  ): PlotDisplayModel | null {
     const cached = this.plotDisplayModelCacheByKey.get(key);
     if (!cached) {
       return null;
     }
 
-    cached.lastUsed = ++this.plotDisplayModelCacheUse;
+    this.touchPlotDisplayModelCacheEntry(cached, retentionPriority);
     return cached.model;
+  }
+
+  private touchPlotDisplayModelCacheEntry(
+    entry: PlotDisplayModelCacheEntry,
+    retentionPriority: PlotCalculatedDataPrefetchPriority,
+  ): void {
+    entry.lastUsed = ++this.plotDisplayModelCacheUse;
+    if (
+      PLOT_DISPLAY_MODEL_CACHE_RETENTION_ORDER[retentionPriority] >
+      PLOT_DISPLAY_MODEL_CACHE_RETENTION_ORDER[entry.retentionPriority]
+    ) {
+      entry.retentionPriority = retentionPriority;
+    }
   }
 
   private getCachedPlotInspectorDisplayModelForKey(key: string): PlotPaneDisplayModel | null {
@@ -1871,13 +1900,20 @@ export class PlotService extends Disposable implements IPlotService {
     }
 
     let trimmed = 0;
+    const trimmedRetentionPriorities = new Map<string, number>();
     while (this.plotDisplayModelCacheByKey.size > PLOT_DISPLAY_MODEL_CACHE_LIMIT) {
       let oldestKey: string | null = null;
       let oldestLastUsed = Number.POSITIVE_INFINITY;
+      let oldestRetentionOrder = Number.POSITIVE_INFINITY;
       for (const [key, entry] of this.plotDisplayModelCacheByKey) {
-        if (entry.lastUsed < oldestLastUsed) {
+        const retentionOrder = PLOT_DISPLAY_MODEL_CACHE_RETENTION_ORDER[entry.retentionPriority];
+        if (
+          retentionOrder < oldestRetentionOrder ||
+          (retentionOrder === oldestRetentionOrder && entry.lastUsed < oldestLastUsed)
+        ) {
           oldestKey = key;
           oldestLastUsed = entry.lastUsed;
+          oldestRetentionOrder = retentionOrder;
         }
       }
 
@@ -1885,15 +1921,28 @@ export class PlotService extends Disposable implements IPlotService {
         break;
       }
 
+      const oldestEntry = this.plotDisplayModelCacheByKey.get(oldestKey);
+      if (oldestEntry) {
+        incrementCount(trimmedRetentionPriorities, oldestEntry.retentionPriority);
+      }
       this.plotDisplayModelCacheByKey.delete(oldestKey);
       trimmed += 1;
     }
 
     if (trimmed) {
+      const trimmedIdle = readCount(trimmedRetentionPriorities, "idle");
+      const trimmedNearby = readCount(trimmedRetentionPriorities, "nearby");
       logPerf("plotService.trimPlotDisplayModelCache", {
         cacheSize: this.plotDisplayModelCacheByKey.size,
         limit: PLOT_DISPLAY_MODEL_CACHE_LIMIT,
         trimmed,
+        trimmedActive: readCount(trimmedRetentionPriorities, "active"),
+        trimmedBackground: trimmedIdle + trimmedNearby,
+        trimmedHover: readCount(trimmedRetentionPriorities, "hover"),
+        trimmedIdle,
+        trimmedNearby,
+        trimmedRetentionPriorities: serializeCountMap(trimmedRetentionPriorities),
+        trimmedVisible: readCount(trimmedRetentionPriorities, "visible"),
       });
     }
   }
@@ -2161,6 +2210,13 @@ const getPlotDisplayModelPrefetchOrder = (
   CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[prefetch.priority] * 2 +
   (prefetch.stage === "inspector" ? 1 : 0);
 
+const getPlotDisplayModelCacheRetentionPriority = (
+  input: PlotDisplayModelInput,
+): PlotCalculatedDataPrefetchPriority => {
+  const priority = (input as { readonly priority?: PlotCalculatedDataPrefetchPriority }).priority;
+  return priority ?? "active";
+};
+
 const stableStringList = (values: readonly string[]): string =>
   [...new Set(values.map(normalizeStateKey).filter(Boolean))]
     .sort()
@@ -2177,6 +2233,9 @@ const stableRecordKey = (record: Readonly<Record<string, string>>): string =>
 const incrementCount = (counts: Map<string, number>, key: string): void => {
   counts.set(key, (counts.get(key) ?? 0) + 1);
 };
+
+const readCount = (counts: ReadonlyMap<string, number>, key: string): number =>
+  counts.get(key) ?? 0;
 
 const serializeCountMap = (counts: ReadonlyMap<string, number>): string =>
   [...counts.entries()]

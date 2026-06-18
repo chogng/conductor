@@ -191,11 +191,13 @@ storage, for these controls.
   `onDidChangePlotDisplayModelCache` events for those file/plot pairs instead
   of waking every Chart/Thumbnail consumer through `onDidChangePlotState`.
 - Plot display-model cache is bounded by `PlotService` and should use
-  recent-use eviction. Eviction is cache lifecycle only and should be silent;
-  data-change invalidation remains the path that publishes
+  tiered recent-use eviction. Active, hover, and visible display targets should
+  be retained ahead of nearby/idle background warmup; within the same retention
+  tier, evict the least recently used entry. Eviction is cache lifecycle only
+  and should be silent; data-change invalidation remains the path that publishes
   `onDidChangePlotDisplayModelCache`. Cached reads for active chart, hover
-  thumbnail, and file switching should refresh recency so interactive targets
-  survive background warmup pressure.
+  thumbnail, and file switching should refresh recency and may promote retention
+  so interactive targets survive background warmup pressure.
 - Plot render models are currently built from template/base curve records and
   Plot-owned settings. `calculatedRecordsChanged`, `metricsChanged`, and
   derived-only `curvesChanged` events must not invalidate active chart or hover

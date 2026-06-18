@@ -1875,6 +1875,79 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     }));
   });
 
+  test("evicts background display models before active hover and visible targets", async () => {
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+    const originalWorker = globalThis.Worker;
+    const scheduledFrames: FrameRequestCallback[] = [];
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      scheduledFrames.push(callback);
+      return scheduledFrames.length;
+    }) as typeof requestAnimationFrame;
+    globalThis.cancelAnimationFrame = (() => undefined) as typeof cancelAnimationFrame;
+    globalThis.Worker = undefined as unknown as typeof Worker;
+
+    const flushFrames = async (): Promise<void> => {
+      let guard = 0;
+      while (scheduledFrames.length && guard < 100) {
+        guard += 1;
+        scheduledFrames.shift()?.(0);
+        await Promise.resolve();
+      }
+    };
+
+    try {
+      const filesById: Record<string, FileRecord> = {};
+      const fileOrder: string[] = [];
+      for (let index = 0; index < 242; index += 1) {
+        const fileId = `file-${index}`;
+        filesById[fileId] = createFileRecord(fileId, `series-${index}`, `Series ${index}`);
+        fileOrder.push(fileId);
+      }
+
+      const snapshot = createSnapshot(filesById, fileOrder);
+      const service = store.add(new PlotService(
+        createSessionServiceStub(snapshot),
+        createSettingsServiceStub(),
+        store.add(new TestStorageService()),
+      ));
+
+      for (let index = 0; index < 237; index += 1) {
+        assert.ok(service.getPlotDisplayModel({
+          fileId: `file-${index}`,
+          plotType: "iv",
+          snapshot,
+        }));
+      }
+
+      service.getCalculatedData({ fileId: "file-237", plotType: "iv", snapshot });
+      service.prefetchPlotDisplayModel({ fileId: "file-237", plotType: "iv", snapshot }, "visible");
+      await flushFrames();
+
+      for (const fileId of ["file-238", "file-239"]) {
+        service.getCalculatedData({ fileId, plotType: "iv", snapshot });
+        service.prefetchPlotDisplayModel({ fileId, plotType: "iv", snapshot }, "idle");
+      }
+      await flushFrames();
+
+      service.prefetchPlotDisplayModel({ fileId: "file-240", plotType: "iv", snapshot }, "hover");
+
+      service.getCalculatedData({ fileId: "file-241", plotType: "iv", snapshot });
+      service.prefetchPlotDisplayModel({ fileId: "file-241", plotType: "iv", snapshot }, "idle");
+      await flushFrames();
+
+      assert.ok(service.getCachedPlotDisplayModel({ fileId: "file-0", plotType: "iv", snapshot }));
+      assert.ok(service.getCachedPlotDisplayModel({ fileId: "file-237", plotType: "iv", snapshot }));
+      assert.ok(service.getCachedPlotDisplayModel({ fileId: "file-240", plotType: "iv", snapshot }));
+      assert.equal(service.getCachedPlotDisplayModel({ fileId: "file-238", plotType: "iv", snapshot }), null);
+      assert.equal(service.getCachedPlotDisplayModel({ fileId: "file-239", plotType: "iv", snapshot }), null);
+    } finally {
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+      globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+      globalThis.Worker = originalWorker;
+    }
+  });
+
   test("publishes chart display model separately from inspector display model", async () => {
     const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
     const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
