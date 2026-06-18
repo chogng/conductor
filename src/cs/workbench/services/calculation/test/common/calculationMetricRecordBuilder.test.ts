@@ -63,6 +63,52 @@ suite("workbench/services/calculation/test/common/calculationMetricRecordBuilder
     );
   });
 
+  test("uses precomputed derivative points for derivative metrics", () => {
+    const rawRecords = mergeRawFilesIntoRecords({}, [], [{
+      fileId: "file-a",
+      fileName: "Transfer.csv",
+    }]);
+    const processedRecords = mergeProcessedFileIntoRecords(
+      rawRecords.filesById,
+      rawRecords.fileOrder,
+      {
+        fileId: "file-a",
+        fileName: "Transfer.csv",
+        curveType: "transfer",
+        xAxisRole: "vg",
+        xGroups: [[0, 1, 2]],
+        series: [{
+          id: "series-1",
+          groupIndex: 0,
+          y: [1, 2, 4],
+        }],
+      },
+      createSnapshot(rawRecords),
+    );
+
+    const records = createCalculatedMetricRecordsByFile(
+      processedRecords.filesById,
+      processedRecords.fileOrder,
+      {
+        "file-a": {
+          derivativePointsBySeriesId: {
+            "series-1": [{ x: 0.5, y: 42 }],
+          },
+        },
+      },
+    )["file-a"] ?? [];
+    const derivative = records.find(record => record.metricFamily === "derivative");
+
+    assert.equal(
+      derivative?.metricFamily === "derivative" ? derivative.value.maxAbs : null,
+      42,
+    );
+    assert.equal(
+      derivative?.metricFamily === "derivative" ? derivative.value.xAtMaxAbs : null,
+      0.5,
+    );
+  });
+
   test("applies canonical manual metric inputs during metric generation", () => {
     const rawRecords = mergeRawFilesIntoRecords({}, [], [{
       fileId: "file-a",

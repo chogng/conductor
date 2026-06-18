@@ -110,8 +110,14 @@ export const drawThumbnailBitmap = ({
 
   const { width, height } = size;
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(1, Math.round(width * dpr));
-  canvas.height = Math.max(1, Math.round(height * dpr));
+  const targetWidth = Math.max(1, Math.round(width * dpr));
+  const targetHeight = Math.max(1, Math.round(height * dpr));
+  if (canvas.width !== targetWidth) {
+    canvas.width = targetWidth;
+  }
+  if (canvas.height !== targetHeight) {
+    canvas.height = targetHeight;
+  }
 
   const context = canvas.getContext("2d");
   if (!context) {

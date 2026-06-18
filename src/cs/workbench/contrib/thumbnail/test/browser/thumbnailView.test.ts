@@ -159,7 +159,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
     }
   });
 
-  test("renders a nonblank loading placeholder without drawing a canvas", () => {
+  test("renders a fast loading placeholder canvas without drawing a thumbnail", () => {
     if (typeof document === "undefined") {
       return;
     }
@@ -179,11 +179,13 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
     });
 
     try {
-      assert.ok(node.querySelector(".thumbnail_view_chart_loading"));
-      assert.equal(node.querySelector(".thumbnail_view_chart_canvas"), null);
+      const canvas = node.querySelector("canvas.thumbnail_view_chart_canvas");
+      assert.ok(canvas);
+      assert.ok(canvas.classList.contains("thumbnail_view_chart_loading_canvas"));
+      assert.equal(node.querySelector(".thumbnail_view_chart_loading"), null);
       assert.equal(
         node.querySelectorAll(".thumbnail_view_chart_loading_line").length,
-        3,
+        0,
       );
     } finally {
       node.remove();
@@ -254,6 +256,80 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
       }), true);
 
       assert.equal(node.querySelector("canvas.thumbnail_view_chart_canvas"), canvas);
+      assert.deepEqual(drawnSignatures, ["plot:file-a:1", "plot:file-a:2"]);
+    } finally {
+      node.remove();
+      host.remove();
+    }
+  });
+
+  test("redraws an updated detached thumbnail canvas when it is mounted again", async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const drawnSignatures: string[] = [];
+    const thumbnailService = {
+      drawPlotThumbnail: (target: unknown, options: { readonly model: { readonly signature: string } }) => {
+        if ((target as HTMLCanvasElement).isConnected) {
+          drawnSignatures.push(options.model.signature);
+        }
+      },
+    };
+    const node = createThumbnailView({
+      drawStrategy: "eager",
+      file: {
+        fileId: "file-a",
+        fileName: "File A",
+      },
+      plotModel: {
+        seriesList: [],
+        signature: "plot:file-a:1",
+        xDomain: [0, 1],
+        xUnitLabel: "V",
+        yDomain: [0, 1],
+        yUnitLabel: "A",
+      },
+      thumbnailService,
+    });
+    const chart = node.querySelector(".thumbnail_view_chart") as HTMLElement | null;
+    assert.ok(chart);
+    chart.style.height = "180px";
+    chart.style.width = "320px";
+
+    const host = document.createElement("div");
+    host.style.height = "180px";
+    host.style.width = "320px";
+    document.body.append(host);
+
+    try {
+      host.append(node);
+      await Promise.resolve();
+
+      assert.deepEqual(drawnSignatures, ["plot:file-a:1"]);
+      node.remove();
+
+      assert.equal(updateThumbnailView(node, {
+        drawStrategy: "eager",
+        file: {
+          fileId: "file-a",
+          fileName: "File A",
+        },
+        plotModel: {
+          seriesList: [],
+          signature: "plot:file-a:2",
+          xDomain: [0, 1],
+          xUnitLabel: "V",
+          yDomain: [0, 2],
+          yUnitLabel: "A",
+        },
+        thumbnailService,
+      }), true);
+
+      assert.deepEqual(drawnSignatures, ["plot:file-a:1"]);
+      host.append(node);
+      await Promise.resolve();
+
       assert.deepEqual(drawnSignatures, ["plot:file-a:1", "plot:file-a:2"]);
     } finally {
       node.remove();

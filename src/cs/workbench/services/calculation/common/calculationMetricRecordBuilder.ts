@@ -63,6 +63,9 @@ type DerivativePoint = {
   readonly x?: unknown;
   readonly y?: unknown;
 };
+export type CalculatedMetricRecordBuilderOptions = {
+  readonly derivativePointsBySeriesId?: Readonly<Record<SeriesId, readonly DerivativePoint[] | undefined>>;
+};
 type SsFit = {
   readonly ok?: unknown;
   readonly ss?: unknown;
@@ -77,10 +80,11 @@ type SsFitResult = {
 export const createCalculatedMetricRecordsByFile = (
   filesById: Record<FileId, FileRecord>,
   fileOrder: readonly FileId[],
+  optionsByFileId: Readonly<Record<FileId, CalculatedMetricRecordBuilderOptions | undefined>> = {},
 ): Record<FileId, MetricRecord[]> => {
   const metricsByFileId: Record<FileId, MetricRecord[]> = {};
   for (const file of getOrderedFileRecords(filesById, fileOrder)) {
-    const metrics = createCalculatedMetricRecordsForFile(file);
+    const metrics = createCalculatedMetricRecordsForFile(file, optionsByFileId[file.id]);
     if (metrics.length) {
       metricsByFileId[file.id] = metrics;
     }
@@ -123,6 +127,7 @@ export const createCalculatedMetricRecordsInputSignature = (
 
 export const createCalculatedMetricRecordsForFile = (
   file: FileRecord,
+  options: CalculatedMetricRecordBuilderOptions = {},
 ): MetricRecord[] => {
   const curves = collectFileRecordBaseCurves(file);
   if (!curves.length) {
@@ -137,6 +142,7 @@ export const createCalculatedMetricRecordsForFile = (
   const derivativeKind = ivMode === "output" ? "gds" : "gm";
   const rows = createMetricSourceRows({
     curves,
+    derivativePointsBySeriesId: options.derivativePointsBySeriesId,
     sourceFile,
   });
 
@@ -227,9 +233,11 @@ const createMetricSourceFile = (file: FileRecord): MetricSourceFile => {
 
 const createMetricSourceRows = ({
   curves,
+  derivativePointsBySeriesId,
   sourceFile,
 }: {
   readonly curves: readonly CurveRecord[];
+  readonly derivativePointsBySeriesId?: Readonly<Record<SeriesId, readonly DerivativePoint[] | undefined>>;
   readonly sourceFile: MetricSourceFile;
 }): MetricSourceRow[] => {
   const showTransferMetrics = isTransferLikeFile(sourceFile);
@@ -239,7 +247,9 @@ const createMetricSourceRows = ({
       points,
       sourceFile,
     });
-    const derivative = resolveMaxAbsPoint(computeCentralDerivative(points) as DerivativePoint[]);
+    const derivativePoints = derivativePointsBySeriesId?.[curve.seriesId] ??
+      (computeCentralDerivative(points) as DerivativePoint[]);
+    const derivative = resolveMaxAbsPoint(derivativePoints);
     const ssFit = showTransferMetrics
       ? resolveSsFit(computeSubthresholdSwingFitAuto(points))
       : { confidence: "fail" as const, value: null, x: null };

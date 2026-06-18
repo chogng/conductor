@@ -166,7 +166,10 @@ Session boundary rules:
   files.
 - `calculationRecordBuilder.ts` is the contribution-facing facade for
   calculated canonical record payloads. It delegates record-family details to
-  focused builders and remains pure.
+  focused builders and remains pure. It may share per-file intermediate
+  calculation outputs between curve and metric builders when both outputs come
+  from the same session input, so common work such as gm derivative generation
+  is not repeated inside one calculation chunk.
 - `calculationCurveRecordBuilder.ts` and
   `calculationMetricRecordBuilder.ts` are pure builders; they receive records
   and return values for the contribution to commit.

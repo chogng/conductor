@@ -224,12 +224,15 @@ const updateChartThumbnail = (
     root.querySelector(".thumbnail_view_chart_loading")?.remove();
     const canvas = root.querySelector<HTMLCanvasElement>("canvas.thumbnail_view_chart_canvas");
     if (canvas) {
+      canvas.classList.remove("thumbnail_view_chart_loading_canvas");
       canvas.title = props.file.fileName ?? props.file.fileId ?? "";
-      props.thumbnailService.drawPlotThumbnail(canvas, {
-        model: props.plotModel,
-        originOpenPlotOptions: props.originOpenPlotOptions,
-        plotAxisSettings: props.plotAxisSettings,
-        plotType: props.plotType,
+      drawOrScheduleThumbnailDraw(canvas, props.drawStrategy, () => {
+        props.thumbnailService.drawPlotThumbnail(canvas, {
+          model: props.plotModel,
+          originOpenPlotOptions: props.originOpenPlotOptions,
+          plotAxisSettings: props.plotAxisSettings,
+          plotType: props.plotType,
+        });
       });
     } else {
       replaceChartContent(root, createPlotMainThumbnailCanvas({
@@ -294,21 +297,11 @@ const updateOriginSelectionBadge = (
 };
 
 const createThumbnailLoadingPlaceholder = (): HTMLElement => {
-  const root = document.createElement("div");
-  root.className = "thumbnail_view_chart_loading";
-  root.setAttribute("aria-hidden", "true");
-  root.append(
-    createThumbnailLoadingLine("thumbnail_view_chart_loading_line thumbnail_view_chart_loading_line--primary"),
-    createThumbnailLoadingLine("thumbnail_view_chart_loading_line thumbnail_view_chart_loading_line--secondary"),
-    createThumbnailLoadingLine("thumbnail_view_chart_loading_line thumbnail_view_chart_loading_line--tertiary"),
-  );
-  return root;
-};
-
-const createThumbnailLoadingLine = (className: string): HTMLElement => {
-  const line = document.createElement("div");
-  line.className = className;
-  return line;
+  const canvas = document.createElement("canvas");
+  canvas.className = "thumbnail_view_chart_canvas thumbnail_view_chart_loading_canvas";
+  canvas.setAttribute("aria-hidden", "true");
+  drawOrScheduleThumbnailDraw(canvas, "eager", () => drawThumbnailLoadingPlaceholder(canvas));
+  return canvas;
 };
 
 const createPlotMainThumbnailCanvas = ({
@@ -331,7 +324,7 @@ const createPlotMainThumbnailCanvas = ({
   const canvas = document.createElement("canvas");
   canvas.className = "thumbnail_view_chart_canvas";
   canvas.title = file.fileName ?? file.fileId ?? "";
-  scheduleThumbnailDraw(canvas, drawStrategy, () => {
+  drawOrScheduleThumbnailDraw(canvas, drawStrategy, () => {
     thumbnailService.drawPlotThumbnail(canvas, {
       model: plotModel,
       originOpenPlotOptions,
@@ -340,6 +333,19 @@ const createPlotMainThumbnailCanvas = ({
     });
   });
   return canvas;
+};
+
+const drawOrScheduleThumbnailDraw = (
+  canvas: HTMLCanvasElement,
+  drawStrategy: ThumbnailDrawStrategy,
+  draw: () => void,
+): void => {
+  if (readThumbnailCanvasSize(canvas)) {
+    draw();
+    return;
+  }
+
+  scheduleThumbnailDraw(canvas, drawStrategy, draw);
 };
 
 const scheduleThumbnailDraw = (
@@ -441,3 +447,90 @@ const isSameThumbnailCanvasSize = (
   b: ThumbnailCanvasSize | null,
 ): boolean =>
   Boolean(a && b && a.width === b.width && a.height === b.height);
+
+const drawThumbnailLoadingPlaceholder = (canvas: HTMLCanvasElement): void => {
+  const size = readThumbnailCanvasSize(canvas);
+  if (!size) {
+    return;
+  }
+
+  const dpr = window.devicePixelRatio || 1;
+  const targetWidth = Math.max(1, Math.round(size.width * dpr));
+  const targetHeight = Math.max(1, Math.round(size.height * dpr));
+  if (canvas.width !== targetWidth) {
+    canvas.width = targetWidth;
+  }
+  if (canvas.height !== targetHeight) {
+    canvas.height = targetHeight;
+  }
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    return;
+  }
+
+  context.setTransform(dpr, 0, 0, dpr, 0, 0);
+  context.clearRect(0, 0, size.width, size.height);
+  const left = Math.max(12, Math.round(size.width * 0.08));
+  const right = Math.max(left + 1, size.width - Math.max(12, Math.round(size.width * 0.07)));
+  const top = Math.max(10, Math.round(size.height * 0.12));
+  const bottom = Math.max(top + 1, size.height - Math.max(10, Math.round(size.height * 0.12)));
+
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.strokeStyle = "rgba(120, 132, 148, 0.34)";
+  context.lineWidth = 1;
+  context.beginPath();
+  context.moveTo(left, top);
+  context.lineTo(left, bottom);
+  context.lineTo(right, bottom);
+  context.stroke();
+
+  context.strokeStyle = "rgba(120, 132, 148, 0.18)";
+  for (let index = 1; index <= 3; index += 1) {
+    const x = left + ((right - left) * index) / 4;
+    const y = top + ((bottom - top) * index) / 4;
+    context.beginPath();
+    context.moveTo(x, top);
+    context.lineTo(x, bottom);
+    context.moveTo(left, y);
+    context.lineTo(right, y);
+    context.stroke();
+  }
+
+  const drawCurve = (
+    color: string,
+    points: readonly [number, number][],
+  ): void => {
+    context.strokeStyle = color;
+    context.lineWidth = 2;
+    context.beginPath();
+    for (const [index, point] of points.entries()) {
+      const x = left + (right - left) * point[0];
+      const y = top + (bottom - top) * point[1];
+      if (index === 0) {
+        context.moveTo(x, y);
+      } else {
+        context.lineTo(x, y);
+      }
+    }
+    context.stroke();
+  };
+
+  drawCurve("rgba(51, 112, 185, 0.72)", [
+    [0.06, 0.74],
+    [0.2, 0.68],
+    [0.36, 0.52],
+    [0.52, 0.38],
+    [0.72, 0.28],
+    [0.94, 0.18],
+  ]);
+  drawCurve("rgba(205, 120, 48, 0.58)", [
+    [0.06, 0.46],
+    [0.22, 0.5],
+    [0.4, 0.43],
+    [0.58, 0.35],
+    [0.76, 0.39],
+    [0.94, 0.3],
+  ]);
+};

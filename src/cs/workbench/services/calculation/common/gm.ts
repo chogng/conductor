@@ -19,25 +19,12 @@ const toPoint = (x: unknown, y: unknown) => {
   };
 };
 
-const toCalculationPoints = (points: unknown): CalculationPoint[] => {
-  if (!Array.isArray(points)) {
-    return [];
-  }
-
-  const calculatedPoints: CalculationPoint[] = [];
-  for (const point of points) {
-    if (!point || typeof point !== "object") {
-      continue;
-    }
-
-    const value = point as Record<string, unknown>;
-    const x = Number(value.x);
-    const y = Number(value.y);
-    if (Number.isFinite(x) && Number.isFinite(y)) {
-      calculatedPoints.push({ x, y });
-    }
-  }
-  return calculatedPoints;
+const toCalculationPoint = (x: unknown, y: unknown): CalculationPoint | null => {
+  const xValue = Number(x);
+  const yValue = Number(y);
+  return Number.isFinite(xValue) && Number.isFinite(yValue)
+    ? { x: xValue, y: yValue }
+    : null;
 };
 
 const computeCentralDerivativeSegment = (points: any) => {
@@ -87,6 +74,59 @@ const computeCentralDerivativeSegment = (points: any) => {
   return out;
 };
 
+const calculateGmPointSegment = (
+  points: readonly CalculationPoint[],
+): CalculationPoint[] => {
+  if (!Array.isArray(points) || points.length < 2) {
+    return [];
+  }
+
+  const out: CalculationPoint[] = [];
+  for (let index = 0; index < points.length; index += 1) {
+    const current = points[index];
+    const x = current?.x;
+    const y = current?.y;
+    if (!isFiniteNumber(x) || !isFiniteNumber(y)) {
+      continue;
+    }
+
+    const previous = index > 0 ? points[index - 1] : null;
+    const next = index < points.length - 1 ? points[index + 1] : null;
+    if (previous && next) {
+      const dx = next.x - previous.x;
+      const point = isFiniteNumber(dx) && dx !== 0
+        ? toCalculationPoint(x, (next.y - previous.y) / dx)
+        : null;
+      if (point) {
+        out.push(point);
+      }
+      continue;
+    }
+
+    if (next) {
+      const dx = next.x - x;
+      const point = isFiniteNumber(dx) && dx !== 0
+        ? toCalculationPoint(x, (next.y - y) / dx)
+        : null;
+      if (point) {
+        out.push(point);
+      }
+      continue;
+    }
+
+    if (previous) {
+      const dx = x - previous.x;
+      const point = isFiniteNumber(dx) && dx !== 0
+        ? toCalculationPoint(x, (y - previous.y) / dx)
+        : null;
+      if (point) {
+        out.push(point);
+      }
+    }
+  }
+  return out;
+};
+
 export const computeCentralDerivative = (points: any) => {
   const segments = splitBidirectionalCurvePoints(points);
   if (!segments.length) {
@@ -103,7 +143,19 @@ export const computeCentralDerivative = (points: any) => {
 
 export const calculateGmPoints = (
   points: readonly CalculationPoint[],
-): CalculationPoint[] => toCalculationPoints(computeCentralDerivative(points));
+): CalculationPoint[] => {
+  const segments = splitBidirectionalCurvePoints(points);
+  if (!segments.length) {
+    return [];
+  }
+  if (segments.length === 1) {
+    return calculateGmPointSegment(segments[0].points);
+  }
+  return segments.flatMap((segment: any, index: number) => {
+    const computed = calculateGmPointSegment(segment.points);
+    return index === 0 ? computed : computed.slice(1);
+  });
+};
 
 export type SecondDerivativeSourceKind = "gm" | "ss" | "vth" | "iv";
 

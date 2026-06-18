@@ -35,6 +35,17 @@ type BaseCurveInput = {
 	readonly curveKey: BaseCurveKey;
 };
 
+type CurveChannelsAndDomain = {
+	readonly channels: CurveChannelsRecord;
+	readonly domain: DomainRecord;
+};
+
+type DomainAccumulator = {
+	hasValue: boolean;
+	max: number;
+	min: number;
+};
+
 const DerivedCalculationKinds: readonly DerivedCalculationKind[] = ["gm", "ss", "vth"];
 
 export const createCalculatedCurveRecordsInputSignature = (
@@ -116,8 +127,7 @@ const createDerivedCurveRecord = (
 	}
 
 	const curveFamily = getDerivedCurveFamily(kind);
-	const channels = createCurveChannels(points.map(point => point.y));
-	const domain = createDomainRecord(points, channels);
+	const { channels, domain } = createCurveChannelsAndDomain(points);
 	return {
 		fileId,
 		seriesId: input.curve.seriesId,
@@ -158,8 +168,7 @@ const createSecondDerivedCurveRecord = (
 	}
 
 	const curveKey = createSecondDerivedCurveKey(inputCurve.seriesId);
-	const channels = createCurveChannels(points.map(point => point.y));
-	const domain = createDomainRecord(points, channels);
+	const { channels, domain } = createCurveChannelsAndDomain(points);
 	return {
 		fileId: inputCurve.fileId,
 		seriesId: inputCurve.seriesId,
@@ -210,38 +219,76 @@ const createSecondDerivedCurveKey = (
 ): SecondDerivedCurveKey =>
 	`secondDerived:secondDerivative:default:${seriesId}` as SecondDerivedCurveKey;
 
-const createCurveChannels = (yValues: readonly number[]): CurveChannelsRecord => ({
-	yPositive: yValues.map(value => value > 0 ? value : Number.NaN),
-	yAbsPositive: yValues.map(value => {
-		const absolute = Math.abs(value);
-		return absolute > 0 ? absolute : Number.NaN;
-	}),
-	yLog10Abs: yValues.map(value => {
-		const absolute = Math.abs(value);
-		return absolute > 0 ? Math.log10(absolute) : Number.NaN;
-	}),
-});
-
-const createDomainRecord = (
+const createCurveChannelsAndDomain = (
 	points: readonly CurvePoint[],
-	channels: CurveChannelsRecord,
-): DomainRecord => ({
-	x: getFiniteDomain(points.map(point => point.x)),
-	y: getFiniteDomain(points.map(point => point.y)),
-	yPositive: getFiniteDomain(channels.yPositive ?? []),
-	yAbsPositive: getFiniteDomain(channels.yAbsPositive ?? []),
-	yLog10Abs: getFiniteDomain(channels.yLog10Abs ?? []),
+): CurveChannelsAndDomain => {
+	const yPositive: number[] = [];
+	const yAbsPositive: number[] = [];
+	const yLog10Abs: number[] = [];
+	const xDomain = createDomainAccumulator();
+	const yDomain = createDomainAccumulator();
+	const yPositiveDomain = createDomainAccumulator();
+	const yAbsPositiveDomain = createDomainAccumulator();
+	const yLog10AbsDomain = createDomainAccumulator();
+
+	for (const point of points) {
+		const x = Number(point.x);
+		const y = Number(point.y);
+		addDomainValue(xDomain, x);
+		addDomainValue(yDomain, y);
+
+		const positive = y > 0 ? y : Number.NaN;
+		const absolute = Math.abs(y);
+		const absolutePositive = absolute > 0 ? absolute : Number.NaN;
+		const log10Absolute = absolute > 0 ? Math.log10(absolute) : Number.NaN;
+		yPositive.push(positive);
+		yAbsPositive.push(absolutePositive);
+		yLog10Abs.push(log10Absolute);
+		addDomainValue(yPositiveDomain, positive);
+		addDomainValue(yAbsPositiveDomain, absolutePositive);
+		addDomainValue(yLog10AbsDomain, log10Absolute);
+	}
+
+	return {
+		channels: {
+			yPositive,
+			yAbsPositive,
+			yLog10Abs,
+		},
+		domain: {
+			x: readDomainAccumulator(xDomain),
+			y: readDomainAccumulator(yDomain),
+			yPositive: readDomainAccumulator(yPositiveDomain),
+			yAbsPositive: readDomainAccumulator(yAbsPositiveDomain),
+			yLog10Abs: readDomainAccumulator(yLog10AbsDomain),
+		},
+	};
+};
+
+const createDomainAccumulator = (): DomainAccumulator => ({
+	hasValue: false,
+	max: -Infinity,
+	min: Infinity,
 });
 
-const getFiniteDomain = (values: readonly unknown[]): [number, number] | undefined => {
-	const finite = values
-		.map(value => Number(value))
-		.filter(value => Number.isFinite(value));
-	if (!finite.length) {
+const addDomainValue = (accumulator: DomainAccumulator, value: number): void => {
+	if (!Number.isFinite(value)) {
+		return;
+	}
+
+	accumulator.hasValue = true;
+	accumulator.min = Math.min(accumulator.min, value);
+	accumulator.max = Math.max(accumulator.max, value);
+};
+
+const readDomainAccumulator = (
+	accumulator: DomainAccumulator,
+): [number, number] | undefined => {
+	if (!accumulator.hasValue) {
 		return undefined;
 	}
 
-	return [Math.min(...finite), Math.max(...finite)];
+	return [accumulator.min, accumulator.max];
 };
 
 const createCalculatedCurveSignature = ({
@@ -270,10 +317,6 @@ const createCalculatedCurveSignature = ({
 	add(curveKey);
 	add(inputSignature);
 	add(points.length);
-	for (const point of points) {
-		add(point.x);
-		add(point.y);
-	}
 
 	return (hash >>> 0).toString(16).padStart(8, "0");
 };

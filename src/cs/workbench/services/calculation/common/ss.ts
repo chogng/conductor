@@ -90,6 +90,44 @@ const computeSubthresholdSwingSegment = (points: any) => {
     }
     return out;
 };
+const calculateSsPointSegment = (
+    points: readonly CalculationPoint[],
+): CalculationPoint[] => {
+    if (!Array.isArray(points) || points.length < 3)
+        return [];
+    const log10AbsY = points.map((p: CalculationPoint) => {
+        const y = p?.y;
+        if (!isFiniteNumber(y))
+            return null;
+        const abs = Math.abs(y);
+        if (abs <= 0)
+            return null;
+        return Math.log10(abs);
+    });
+    const out: CalculationPoint[] = [];
+    for (let i = 1; i < points.length - 1; i++) {
+        const x = points[i]?.x;
+        if (!isFiniteNumber(x))
+            continue;
+        const prev = points[i - 1];
+        const next = points[i + 1];
+        const prevLog = log10AbsY[i - 1];
+        const nextLog = log10AbsY[i + 1];
+        if (!prev || !next || !isFiniteNumber(prevLog) || !isFiniteNumber(nextLog))
+            continue;
+        const dx = next.x - prev.x;
+        if (!isFiniteNumber(dx) || dx === 0)
+            continue;
+        const slope = (Number(nextLog) - Number(prevLog)) / dx;
+        if (!isFiniteNumber(slope) || slope === 0)
+            continue;
+        const ss = 1000 / Math.abs(slope);
+        if (isFiniteNumber(ss)) {
+            out.push({ x, y: ss });
+        }
+    }
+    return out;
+};
 export const computeSubthresholdSwing = (points: any) => {
     const segments = splitBidirectionalCurvePoints(points);
     if (!segments.length)
@@ -100,6 +138,16 @@ export const computeSubthresholdSwing = (points: any) => {
         const computed = computeSubthresholdSwingSegment(segment.points);
         return index === 0 ? computed : computed.slice(1);
     });
+};
+export const calculateSsPoints = (
+    points: readonly CalculationPoint[],
+): CalculationPoint[] => {
+    const segments = splitBidirectionalCurvePoints(points);
+    if (!segments.length)
+        return [];
+    if (segments.length === 1)
+        return calculateSsPointSegment(segments[0].points);
+    return segments.flatMap((segment: any) => calculateSsPointSegment(segment.points));
 };
 const median = (arr: any) => {
     const list = (Array.isArray(arr) ? arr : []).filter(isFiniteNumber);
@@ -189,24 +237,6 @@ const computeLinearFit = (xArr: any, yArr: any, l: any, r: any) => {
         i0: start,
         i1: end,
     };
-};
-const toCalculationPoints = (points: unknown): CalculationPoint[] => {
-    if (!Array.isArray(points)) {
-        return [];
-    }
-    const calculatedPoints: CalculationPoint[] = [];
-    for (const point of points) {
-        if (!point || typeof point !== "object") {
-            continue;
-        }
-        const value = point as Record<string, unknown>;
-        const x = Number(value.x);
-        const y = Number(value.y);
-        if (Number.isFinite(x) && Number.isFinite(y)) {
-            calculatedPoints.push({ x, y });
-        }
-    }
-    return calculatedPoints;
 };
 const computeSlopeStability = (xArr: any, yArr: any, l: any, r: any) => {
     const n = Math.min(xArr.length ?? 0, yArr.length ?? 0);
@@ -343,35 +373,67 @@ const selectBestByScore = (results: any) => {
     const list = Array.isArray(results) ? results.filter(Boolean) : [];
     if (list.length === 0)
         return null;
-    return list.reduce((best: any, curr: any) => {
-        if (!best)
-            return curr;
-        const bestScore = best.score ?? -Infinity;
-        const currScore = curr.score ?? -Infinity;
-        if (currScore !== bestScore)
-            return currScore > bestScore ? curr : best;
-        const bestSpan = best.decadeSpan ?? -Infinity;
-        const currSpan = curr.decadeSpan ?? -Infinity;
-        if (currSpan !== bestSpan)
-            return currSpan > bestSpan ? curr : best;
-        const bestRmse = best.rmse ?? Infinity;
-        const currRmse = curr.rmse ?? Infinity;
-        if (currRmse !== bestRmse)
-            return currRmse < bestRmse ? curr : best;
-        const bestN = best.n ?? -Infinity;
-        const currN = curr.n ?? -Infinity;
-        if (currN !== bestN)
-            return currN > bestN ? curr : best;
-        const bestX1 = best.x1 ?? Infinity;
-        const currX1 = curr.x1 ?? Infinity;
-        if (currX1 !== bestX1)
-            return currX1 < bestX1 ? curr : best;
+    return list.reduce(selectBetterByScore, null);
+};
+const selectBetterByScore = (best: any, curr: any) => {
+    if (!best)
+        return curr;
+    if (!curr)
         return best;
-    }, null);
+    const bestScore = best.score ?? -Infinity;
+    const currScore = curr.score ?? -Infinity;
+    if (currScore !== bestScore)
+        return currScore > bestScore ? curr : best;
+    const bestSpan = best.decadeSpan ?? -Infinity;
+    const currSpan = curr.decadeSpan ?? -Infinity;
+    if (currSpan !== bestSpan)
+        return currSpan > bestSpan ? curr : best;
+    const bestRmse = best.rmse ?? Infinity;
+    const currRmse = curr.rmse ?? Infinity;
+    if (currRmse !== bestRmse)
+        return currRmse < bestRmse ? curr : best;
+    const bestN = best.n ?? -Infinity;
+    const currN = curr.n ?? -Infinity;
+    if (currN !== bestN)
+        return currN > bestN ? curr : best;
+    const bestX1 = best.x1 ?? Infinity;
+    const currX1 = curr.x1 ?? Infinity;
+    if (currX1 !== bestX1)
+        return currX1 < bestX1 ? curr : best;
+    return best;
+};
+const createRangeCalculationCache = (xArr: any, yArr: any) => {
+    const n = Math.max(1, Math.min(xArr.length ?? 0, yArr.length ?? 0));
+    const fitCache = new Map<number, ReturnType<typeof computeLinearFit>>();
+    const stabilityCache = new Map<number, ReturnType<typeof computeSlopeStability>>();
+    const keyOf = (l: any, r: any) => {
+        const lo = Math.max(0, Math.min(l ?? 0, n - 1));
+        const hi = Math.max(0, Math.min(r ?? n - 1, n - 1));
+        return Math.min(lo, hi) * n + Math.max(lo, hi);
+    };
+    return {
+        getFit: (l: any, r: any) => {
+            const key = keyOf(l, r);
+            if (fitCache.has(key))
+                return fitCache.get(key) ?? null;
+            const fit = computeLinearFit(xArr, yArr, l, r);
+            fitCache.set(key, fit);
+            return fit;
+        },
+        getStability: (l: any, r: any) => {
+            const key = keyOf(l, r);
+            if (stabilityCache.has(key))
+                return stabilityCache.get(key) ?? null;
+            const stability = computeSlopeStability(xArr, yArr, l, r);
+            stabilityCache.set(key, stability);
+            return stability;
+        },
+    };
 };
 const runAutoSearch = (segment: any, conf: any, { wantSuggestion = false }: any = {}) => {
     const xArr = segment?.x ?? [];
     const yArr = segment?.y ?? [];
+    const rangeCache = createRangeCalculationCache(xArr, yArr);
     const yFloor = estimateLogCurrentFloor(yArr, conf.floorQuantile ?? 0.1);
     if (!isFiniteNumber(yFloor))
         return null;
@@ -434,14 +496,14 @@ const runAutoSearch = (segment: any, conf: any, { wantSuggestion = false }: any 
                                 for (let t = 0; t <= segLen - k; t++) {
                                     const l = seg[t];
                                     const r = seg[t + k - 1];
-                                    const fit = computeLinearFit(xArr, yArr, l, r);
+                                    const fit = rangeCache.getFit(l, r);
                                     if (!fit)
                                         continue;
                                     if (!isFiniteNumber(fit.r2) || fit.r2 < r2Min)
                                         continue;
                                     if (!isFiniteNumber(fit.decadeSpan) || fit.decadeSpan < minSpan)
                                         continue;
-                                    const stab = computeSlopeStability(xArr, yArr, l, r);
+                                    const stab = rangeCache.getStability(l, r);
                                     if (stabMax != null && isFiniteNumber(stab)) {
                                         if (stab > stabMax)
                                             continue;
@@ -470,7 +532,7 @@ const runAutoSearch = (segment: any, conf: any, { wantSuggestion = false }: any 
                                                 candidate.stab <= suggestionFloor.stab) &&
                                             floorMarginDec >= suggestionFloor.floor;
                                         if (meetsSuggestionFloor) {
-                                            bestAny = selectBestByScore([bestAny, candidate]);
+                                            bestAny = selectBetterByScore(bestAny, candidate);
                                         }
                                     }
                                     if (strictProfile) {
@@ -480,7 +542,7 @@ const runAutoSearch = (segment: any, conf: any, { wantSuggestion = false }: any 
                                             r2Min === strictProfile.r2Min &&
                                             stabMax === strictProfile.stabMax;
                                         if (isStrict) {
-                                            bestStrict = selectBestByScore([bestStrict, candidate]);
+                                            bestStrict = selectBetterByScore(bestStrict, candidate);
                                         }
                                     }
                                     // Stop-at-first-success behavior for strict search profiles:
@@ -818,7 +880,3 @@ export const classifySsFit = (method: any, fit: any, { conf = SS_CONF }: any = {
         ss_reason: "manual.fit_quality_low",
     };
 };
-
-export const calculateSsPoints = (
-  points: readonly CalculationPoint[],
-): CalculationPoint[] => toCalculationPoints(computeSubthresholdSwing(points));

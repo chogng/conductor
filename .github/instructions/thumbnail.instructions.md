@@ -97,6 +97,11 @@ Thumbnail view components must not own selection, Explorer ordering, or layout m
 
 Tree layout hover previews follow the same boundary. The hover trigger is an Explorer tree/list item, so Explorer owns the hover event handling, delay, context-view container, anchor, positioning, and dismissal. The preview content inside that Explorer-owned container is thumbnail UI rendered through `createThumbnailView(...)` and the thumbnail rendering surface.
 
+While chart processing is active, Explorer may open a thumbnail hover for a file
+whose item projection is still stale `none` / `hasChartData=false` so the
+Thumbnail view can render its fast loading canvas immediately. `failed` and
+`skipped` remain terminal and should not produce thumbnail hover content.
+
 ## Wiring Contract
 
 Tree and thumbnail layouts share the same Explorer wiring. They differ only in DOM presentation.
