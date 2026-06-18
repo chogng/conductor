@@ -793,6 +793,108 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     }
   });
 
+  test("caches hover chart display model immediately when calculated data is warm", () => {
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+    let scheduledFrameCount = 0;
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      scheduledFrameCount += 1;
+      return scheduledFrameCount;
+    }) as typeof requestAnimationFrame;
+    globalThis.cancelAnimationFrame = (() => undefined) as typeof cancelAnimationFrame;
+
+    try {
+      const snapshot = createSnapshot({
+        "file-hover": createFileRecord("file-hover", "series-hover", "Hover"),
+      }, ["file-hover"]);
+      const service = store.add(new PlotService(
+        createSessionServiceStub(snapshot),
+        createSettingsServiceStub(),
+        store.add(new TestStorageService()),
+      ));
+      const events: string[] = [];
+      store.add(service.onDidChangePlotDisplayModelCache(event => {
+        events.push(`${event.plotType}:${event.fileId}`);
+      }));
+
+      service.getCalculatedData({ fileId: "file-hover", plotType: "iv", snapshot });
+      service.prefetchPlotDisplayModel({
+        fileId: "file-hover",
+        plotType: "iv",
+        snapshot,
+      }, "hover");
+
+      const cached = service.getCachedPlotDisplayModel({
+        fileId: "file-hover",
+        plotType: "iv",
+        snapshot,
+      });
+      assert.equal(cached?.fileId, "file-hover");
+      assert.equal(cached?.inspector, null);
+      assert.deepEqual(events, ["iv:file-hover"]);
+      assert.equal(scheduledFrameCount, 1);
+    } finally {
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+      globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+    }
+  });
+
+  test("warms active chart display model immediately when calculated data cache is cold", () => {
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+    let scheduledFrameCount = 0;
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      scheduledFrameCount += 1;
+      return scheduledFrameCount;
+    }) as typeof requestAnimationFrame;
+    globalThis.cancelAnimationFrame = (() => undefined) as typeof cancelAnimationFrame;
+
+    try {
+      const snapshot = createSnapshot({
+        "file-active": createFileRecord("file-active", "series-active", "Active"),
+      }, ["file-active"]);
+      const service = store.add(new PlotService(
+        createSessionServiceStub(snapshot),
+        createSettingsServiceStub(),
+        store.add(new TestStorageService()),
+      ));
+      const calculatedEvents: string[] = [];
+      const displayEvents: string[] = [];
+      store.add(service.onDidChangeCalculatedDataCache(event => {
+        calculatedEvents.push(`${event.plotType}:${event.fileId}`);
+      }));
+      store.add(service.onDidChangePlotDisplayModelCache(event => {
+        displayEvents.push(`${event.plotType}:${event.fileId}`);
+      }));
+
+      service.prefetchPlotDisplayModel({
+        fileId: "file-active",
+        plotType: "iv",
+        snapshot,
+      }, "active");
+
+      const calculated = service.getCachedCalculatedData({
+        fileId: "file-active",
+        plotType: "iv",
+        snapshot,
+      });
+      const cached = service.getCachedPlotDisplayModel({
+        fileId: "file-active",
+        plotType: "iv",
+        snapshot,
+      });
+      assert.equal(calculated?.source.fileId, "file-active");
+      assert.equal(cached?.fileId, "file-active");
+      assert.equal(cached?.inspector, null);
+      assert.deepEqual(calculatedEvents, ["iv:file-active"]);
+      assert.deepEqual(displayEvents, ["iv:file-active"]);
+      assert.equal(scheduledFrameCount, 1);
+    } finally {
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+      globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+    }
+  });
+
   test("keeps active display prefetch when another file changes", async () => {
     const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
     const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
@@ -1136,7 +1238,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         fileId: "file-a",
         plotType: "iv",
         snapshot,
-      }, "active");
+      }, "visible");
       scheduledFrames.shift()?.(0);
       assert.deepEqual(
         workerRecords.map(record => `${record.message.type}:${record.message.payload?.sessionVersion}`),
@@ -1153,7 +1255,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         fileId: "file-a",
         plotType: "iv",
         snapshot,
-      }, "active");
+      }, "visible");
       scheduledFrames.shift()?.(0);
       assert.equal(workerRecords.length, 2);
 
@@ -1255,7 +1357,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         fileId: "file-a",
         plotType: "iv",
         snapshot,
-      }, "active");
+      }, "visible");
 
       scheduledFrames.shift()?.(0);
       assert.deepEqual(

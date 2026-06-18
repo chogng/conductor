@@ -2136,6 +2136,7 @@ export class ExplorerViewer implements IDisposable {
     }
 
     const node = createThumbnailView({
+      drawStrategy: "eager",
       file,
       isActive,
       isLoading,
@@ -2346,7 +2347,7 @@ function getEffectiveViewLayout(
 function getPreviewPlotModel(
   state: ThumbnailPreviewState,
 ): ExplorerThumbnailPlotModel | null {
-  return state.kind === "ready" || state.kind === "rawReady"
+  return state.kind === "ready" || state.kind === "rawReady" || state.kind === "fastReady"
     ? state.model
     : null;
 }
@@ -2420,12 +2421,6 @@ function createHoverThumbnailFileSignature(file: ThumbnailFileLike): string {
   return [
     file.fileId ?? "",
     file.fileName ?? "",
-    file.yUnit ?? "",
-    file.curveFilterKey ?? "",
-    file.curveFilterField ?? "",
-    file.curveType ?? "",
-    file.x?.sampledPoints ?? "",
-    file.xAxisRole ?? "",
   ].join("\u001f");
 }
 

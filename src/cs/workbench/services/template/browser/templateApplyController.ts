@@ -700,8 +700,10 @@ export class TemplateApplyController {
       return;
     }
 
+    const fileIds = commits.map(commit => commit.curves.fileId);
     const endPerf = startPerf("templateApplyController.flushTemplateOutputs", {
       batchSize: commits.length,
+      fileIds,
       staleCommitCount,
     });
     logSessionSnapshotTrace("templateApplyController.flushTemplateOutputs.before", this.options.sessionService.getSnapshot(), {
@@ -717,7 +719,10 @@ export class TemplateApplyController {
     }, {
       fileIds: commits.map(commit => commit.curves.fileId),
     });
-    endPerf();
+    endPerf({
+      committedFileIds: fileIds,
+      fileIds,
+    });
   };
 
   private readonly discardTemplateOutputCommits = (): void => {

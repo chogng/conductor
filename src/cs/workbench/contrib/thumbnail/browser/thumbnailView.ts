@@ -27,6 +27,7 @@ export type ThumbnailPlotModel = PlotMainRenderModelSource & {
 
 export type ThumbnailViewProps = {
   file: ThumbnailFileLike;
+  drawStrategy?: ThumbnailDrawStrategy;
   originOpenPlotOptions?: OriginPlotOptions;
   plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   plotModel?: ThumbnailPlotModel | null;
@@ -44,10 +45,13 @@ type ThumbnailCanvasSize = {
   readonly width: number;
 };
 
+type ThumbnailDrawStrategy = "eager" | "stable";
+
 const MAX_THUMBNAIL_LAYOUT_WAIT_FRAMES = 120;
 
 export const createThumbnailView = ({
   file,
+  drawStrategy = "stable",
   originOpenPlotOptions,
   plotAxisSettings,
   plotModel = null,
@@ -72,6 +76,7 @@ export const createThumbnailView = ({
 
   root.append(createHeader(file), createChartThumbnail({
     file,
+    drawStrategy,
     originOpenPlotOptions,
     plotAxisSettings,
     plotModel,
@@ -106,6 +111,7 @@ const createHeader = (file: ThumbnailFileLike): HTMLElement => {
 
 const createChartThumbnail = ({
   file,
+  drawStrategy,
   originOpenPlotOptions,
   plotAxisSettings,
   plotModel,
@@ -117,6 +123,7 @@ const createChartThumbnail = ({
   showOriginSelectionBadge,
 }: {
   readonly file: ThumbnailFileLike;
+  readonly drawStrategy: ThumbnailDrawStrategy;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly plotModel: ThumbnailPlotModel | null;
@@ -133,6 +140,7 @@ const createChartThumbnail = ({
   if (plotModel && thumbnailService) {
     root.append(createPlotMainThumbnailCanvas({
       file,
+      drawStrategy,
       originOpenPlotOptions,
       plotAxisSettings,
       plotModel,
@@ -172,6 +180,7 @@ const createThumbnailLoadingLine = (className: string): HTMLElement => {
 
 const createPlotMainThumbnailCanvas = ({
   file,
+  drawStrategy,
   originOpenPlotOptions,
   plotAxisSettings,
   plotModel,
@@ -179,6 +188,7 @@ const createPlotMainThumbnailCanvas = ({
   thumbnailService,
 }: {
   readonly file: ThumbnailFileLike;
+  readonly drawStrategy: ThumbnailDrawStrategy;
   readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly plotModel: ThumbnailPlotModel;
@@ -188,7 +198,7 @@ const createPlotMainThumbnailCanvas = ({
   const canvas = document.createElement("canvas");
   canvas.className = "thumbnail_view_chart_canvas";
   canvas.title = file.fileName ?? file.fileId ?? "";
-  scheduleStableThumbnailDraw(canvas, () => {
+  scheduleThumbnailDraw(canvas, drawStrategy, () => {
     thumbnailService.drawPlotThumbnail(canvas, {
       model: plotModel,
       originOpenPlotOptions,
@@ -199,8 +209,9 @@ const createPlotMainThumbnailCanvas = ({
   return canvas;
 };
 
-const scheduleStableThumbnailDraw = (
+const scheduleThumbnailDraw = (
   canvas: HTMLCanvasElement,
+  drawStrategy: ThumbnailDrawStrategy,
   draw: () => void,
 ): void => {
   let animationFrame = 0;
@@ -231,6 +242,12 @@ const scheduleStableThumbnailDraw = (
       return;
     }
     waitFrames = 0;
+
+    if (drawStrategy === "eager") {
+      dispose();
+      draw();
+      return;
+    }
 
     if (!isSameThumbnailCanvasSize(pendingSize, nextSize)) {
       pendingSize = nextSize;

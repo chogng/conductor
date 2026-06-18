@@ -72,6 +72,7 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   }
 
   const chartPlotView = createPlotMainView({
+    drawStrategy: "eager",
     model: plotDisplayModel.chart.model,
     onXAxisLabelChange: props.onXAxisLabelChange,
     onYAxisLabelChange: props.onYAxisLabelChange,
@@ -89,6 +90,7 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   const inspectorDisplayModel = plotDisplayModel.inspector;
   const inspectorPlotView = inspectorDisplayModel
     ? createPlotMainView({
+      drawStrategy: "eager",
       model: inspectorDisplayModel.model,
       onXAxisLabelChange: props.onInspectorXAxisLabelChange,
       onYAxisLabelChange: props.onInspectorYAxisLabelChange,

@@ -92,6 +92,11 @@ sequenceDiagram
     DomainBridge-->>Calculation: prioritizeCalculationFiles(visible thumbnails)
     Calculation->>Calculation: remember short interactive priority lane
     Calculation->>Calculation: move matching pending file ids to front
+    alt prioritized file is already pending
+        Calculation->>Records: createCalculatedRecordsByFile(interactiveChunkFilesById, [fileId])
+        Records-->>Calculation: curvesByFileId and metricsByFileId
+        Calculation->>Session: commitCalculatedRecordsBatch({ curves, metrics }[])
+    end
     Session-->>Calculation: onDidChangeSession(event)
     Calculation->>Calculation: shouldUpdateCalculationForSessionChange(event)
     Calculation->>Calculation: resolve affected file ids from event.fileIds
@@ -152,9 +157,12 @@ Session boundary rules:
   priority hints from workbench orchestration such as Explorer selection,
   hover thumbnails, and visible thumbnail ranges. It records a bounded
   latest-first interactive priority lane and reorders matching files that are
-  already pending calculation. If a touched file enters pending calculation
-  later, the queued work must also honor the remembered priority lane. The API
-  must not enqueue unrelated extra calculation work for completed or unchanged
+  already pending calculation. When a prioritized file is already pending, the
+  service may synchronously process a tiny interactive chunk before returning so
+  active chart and hover targets can become drawable without waiting for the
+  next background timer. If a touched file enters pending calculation later,
+  the queued work must also honor the remembered priority lane. The API must
+  not enqueue unrelated extra calculation work for completed or unchanged
   files.
 - `calculationRecordBuilder.ts` is the contribution-facing facade for
   calculated canonical record payloads. It delegates record-family details to

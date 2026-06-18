@@ -100,6 +100,7 @@ type VthFitOverlay = {
 };
 
 export type PlotMainChartProps = {
+  drawStrategy?: PlotMainChartDrawStrategy;
   plotType?: string;
   curveLineWidth?: number;
   curvePlotType?: number;
@@ -155,6 +156,8 @@ export type PlotMainChartProps = {
   onXAxisLabelChange?: (nextLabel: string) => void;
   onYAxisLabelChange?: (nextLabel: string) => void;
 };
+
+export type PlotMainChartDrawStrategy = "eager" | "stable";
 
 export type PlotMainChartElement = HTMLElement & {
   readonly dispose: () => void;
@@ -720,6 +723,12 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
       return;
     }
     waitFrames = 0;
+
+    if (props.drawStrategy === "eager") {
+      rendered = drawPlotMainChart(canvas, props, nextSize);
+      clearHoverOverlay(hoverCanvas);
+      return;
+    }
 
     if (!isSameChartSize(pendingSize, nextSize)) {
       pendingSize = nextSize;

@@ -2312,6 +2312,220 @@ const summarizeAnalysisPerfReport = (report) => {
   };
 };
 
+const targetPerfMilestoneDefs = [
+  {
+    key: "templateOutputCommitted",
+    match: (entry, fileId) =>
+      entry.stage === "templateApplyController.commitTemplateOutput" &&
+      entry.meta?.committed === true &&
+      perfEntryIncludesFileId(entry, fileId),
+  },
+  {
+    key: "templateOutputFlushed",
+    match: (entry, fileId) =>
+      entry.stage === "templateApplyController.flushTemplateOutputs" &&
+      perfEntryIncludesFileId(entry, fileId),
+  },
+  {
+    key: "sessionTemplateCommitted",
+    match: (entry, fileId) =>
+      entry.stage === "sessionService.commitTemplateOutput" &&
+      entry.meta?.committed === true &&
+      perfEntryIncludesFileId(entry, fileId),
+  },
+  {
+    key: "calculationPrioritized",
+    match: (entry, fileId) =>
+      entry.stage === "calculationService.prioritizeCalculationFiles" &&
+      perfEntryIncludesFileId(entry, fileId),
+  },
+  {
+    key: "calculationEnqueued",
+    match: (entry, fileId) =>
+      entry.stage === "calculationContribution.update" &&
+      perfEntryMetaIds(entry.meta, ["enqueuedFileIds", "fileIds"]).includes(fileId),
+  },
+  {
+    key: "calculationBuilt",
+    match: (entry, fileId) =>
+      entry.stage === "calculationContribution.buildRecords" &&
+      perfEntryIncludesFileId(entry, fileId),
+  },
+  {
+    key: "sessionCalculationCommitted",
+    match: (entry, fileId) =>
+      entry.stage === "sessionService.commitCalculatedRecordsBatch" &&
+      entry.meta?.committed === true &&
+      perfEntryIncludesFileId(entry, fileId),
+  },
+  {
+    key: "plotDisplayRequested",
+    match: (entry, fileId) =>
+      entry.stage === "plotService.prefetchPlotDisplayModel" &&
+      perfEntryIncludesFileId(entry, fileId),
+  },
+  {
+    key: "plotChartCached",
+    match: (entry, fileId) =>
+      perfEntryIncludesFileId(entry, fileId) &&
+      (
+        (
+          entry.stage === "plotService.prefetchPlotDisplayModel" &&
+          entry.meta?.result === "chartCached"
+        ) ||
+        (
+          entry.stage === "plotService.cachePlotDisplayModel" &&
+          entry.meta?.hasInspector === false
+        )
+      ),
+  },
+  {
+    key: "plotFullCached",
+    match: (entry, fileId) =>
+      perfEntryIncludesFileId(entry, fileId) &&
+      (
+        (
+          entry.stage === "plotService.prefetchPlotDisplayModel" &&
+          entry.meta?.result === "fullCacheHit"
+        ) ||
+        (
+          entry.stage === "plotService.cachePlotDisplayModel" &&
+          entry.meta?.hasInspector === true
+        )
+      ),
+  },
+  {
+    key: "thumbnailReady",
+    match: (entry, fileId) =>
+      perfEntryIncludesFileId(entry, fileId) &&
+      (
+        (
+          entry.stage === "thumbnailPreview.update" &&
+          ["fastReady", "rawReady", "ready"].includes(String(entry.meta?.resolvedState ?? ""))
+        ) ||
+        (
+          entry.stage === "thumbnailHover.render" &&
+          ["fastReady", "rawReady", "ready"].includes(String(entry.meta?.previewState ?? ""))
+        )
+      ),
+  },
+];
+
+const perfEntryIncludesFileId = (entry, fileId) =>
+  perfEntryFileIds(entry).includes(fileId);
+
+const perfEntryFileIds = (entry) =>
+  perfEntryMetaIds(entry?.meta, [
+    "candidateFileIds",
+    "committedFileIds",
+    "enqueuedFileIds",
+    "fileId",
+    "fileIds",
+    "foregroundFileIds",
+    "interactiveCommittedFileIds",
+    "interactivePriorityFileIds",
+    "pendingFileIds",
+    "remainingFileIds",
+  ]);
+
+const perfEntryMetaIds = (meta, keys) => {
+  const ids = [];
+  for (const key of keys) {
+    const value = meta?.[key];
+    if (Array.isArray(value)) {
+      ids.push(...value);
+    } else if (value != null) {
+      ids.push(value);
+    }
+  }
+  return [...new Set(ids.map(value => String(value ?? "").trim()).filter(Boolean))];
+};
+
+const createTargetPerfMilestoneSamples = (perfReport, targetSamples) => {
+  const entries = Array.isArray(perfReport?.entries)
+    ? perfReport.entries.filter(entry => readNumber(entry?.timestamp) != null)
+    : [];
+  if (!entries.length || !Array.isArray(targetSamples) || !targetSamples.length) {
+    return [];
+  }
+
+  return targetSamples.map((sample) => {
+    const fileId = String(sample?.fileId ?? "").trim();
+    const dispatchWallTime = readNumber(sample?.dispatchWallTime);
+    const milestones = {};
+    if (fileId && dispatchWallTime != null) {
+      for (const def of targetPerfMilestoneDefs) {
+        const entry = findTargetPerfEntry(entries, fileId, dispatchWallTime, def);
+        if (!entry) {
+          milestones[def.key] = null;
+          continue;
+        }
+
+        const timestamp = readNumber(entry.timestamp);
+        milestones[def.key] = {
+          durationMs: roundMetric(readNumber(entry.meta?.durationMs)),
+          offsetMs: timestamp != null ? roundMetric(timestamp - dispatchWallTime) : null,
+          result: entry.meta?.result ?? null,
+          stage: entry.stage,
+          timestamp: roundMetric(timestamp),
+        };
+      }
+    }
+
+    return {
+      dispatchWallTime,
+      fileId,
+      milestones,
+    };
+  });
+};
+
+const findTargetPerfEntry = (entries, fileId, dispatchWallTime, def) => {
+  const afterDispatch = entries.find(entry =>
+    readNumber(entry.timestamp) >= dispatchWallTime &&
+    def.match(entry, fileId)
+  );
+  if (afterDispatch) {
+    return afterDispatch;
+  }
+
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (
+      readNumber(entry.timestamp) < dispatchWallTime &&
+      def.match(entry, fileId)
+    ) {
+      return entry;
+    }
+  }
+  return null;
+};
+
+const summarizeTargetPerfMilestoneSamples = (samples) => {
+  if (!Array.isArray(samples) || !samples.length) {
+    return null;
+  }
+
+  return Object.fromEntries(targetPerfMilestoneDefs.map((def) => {
+    const milestoneSamples = samples
+      .map(sample => sample.milestones?.[def.key])
+      .filter(Boolean);
+    const offsets = milestoneSamples
+      .map(milestone => readNumber(milestone.offsetMs))
+      .filter(value => value != null && value >= 0);
+    return [def.key, {
+      afterDispatchCount: offsets.length,
+      beforeDispatchCount: milestoneSamples.filter(
+        milestone => readNumber(milestone.offsetMs) != null && readNumber(milestone.offsetMs) < 0,
+      ).length,
+      durationMs: summarizeDurations(milestoneSamples.map(milestone => milestone.durationMs)),
+      missingCount: samples.length - milestoneSamples.length,
+      offsetMs: summarizeDurations(offsets),
+      reachedCount: milestoneSamples.length,
+    }];
+  }));
+};
+
 const summarizeThumbnailHoverStress = (result, perfReport) => {
   if (!result) {
     return null;
@@ -2440,14 +2654,21 @@ const summarizeLiveHoverTargetSamples = (targetSamples) => ({
   targetTooltipMs: summarizeDurations(targetSamples.map(sample => sample.tooltipMs)),
 });
 
-const summarizeLiveHoverWindow = (window, targetSamples) => window
-  ? {
+const summarizeLiveHoverWindow = (window, targetSamples, perfReport) => {
+  if (!window) {
+    return null;
+  }
+
+  const targetPerfMilestones = createTargetPerfMilestoneSamples(perfReport, targetSamples);
+  return {
     durationMs: window.durationMs,
     endAnchor: window.endAnchor,
     startAnchor: window.startAnchor,
     ...summarizeLiveHoverTargetSamples(targetSamples),
-  }
-  : null;
+    targetPerfMilestoneSummary: summarizeTargetPerfMilestoneSamples(targetPerfMilestones),
+    targetPerfMilestones,
+  };
+};
 
 const summarizeThumbnailHoverLiveStress = (result, perfReport, phaseAnchors = []) => {
   if (!result) {
@@ -2457,6 +2678,7 @@ const summarizeThumbnailHoverLiveStress = (result, perfReport, phaseAnchors = []
   const events = Array.isArray(result.trace?.events) ? result.trace.events : [];
   const dispatches = Array.isArray(result.trace?.dispatches) ? result.trace.dispatches : [];
   const targetSamples = createLiveHoverTargetSamples(result);
+  const targetPerfMilestones = createTargetPerfMilestoneSamples(perfReport, targetSamples);
   const duringProcessingWindow = phaseWindowByName(phaseAnchors, "liveThumbnailHoverDuringProcessing");
   const afterProcessingWindow = phaseWindowByName(phaseAnchors, "liveThumbnailHoverAfterProcessing");
   const targetSampleSummary = summarizeLiveHoverTargetSamples(targetSamples);
@@ -2496,15 +2718,19 @@ const summarizeThumbnailHoverLiveStress = (result, perfReport, phaseAnchors = []
       afterProcessing: summarizeLiveHoverWindow(
         afterProcessingWindow,
         createLiveHoverTargetSamples(result, afterProcessingWindow),
+        perfReport,
       ),
       duringProcessing: summarizeLiveHoverWindow(
         duringProcessingWindow,
         createLiveHoverTargetSamples(result, duringProcessingWindow),
+        perfReport,
       ),
     },
     requestedCount: result.requestedCount,
     targetCount: result.targetCount,
     ...targetSampleSummary,
+    targetPerfMilestoneSummary: summarizeTargetPerfMilestoneSamples(targetPerfMilestones),
+    targetPerfMilestones,
     traceEventCount: events.length,
     uniqueDispatchedFileCount: new Set(dispatches.map(dispatch => dispatch.fileId).filter(Boolean)).size,
     watchOnly: result.watchOnly === true,
@@ -2698,16 +2924,23 @@ const summarizeLiveFileSwitchTargetSamples = (targetSamples) => ({
   targetSelectedMs: summarizeDurations(targetSamples.map(sample => sample.selectedMs)),
 });
 
-const summarizeLiveFileSwitchWindow = (window, targetSamples) => window
-  ? {
+const summarizeLiveFileSwitchWindow = (window, targetSamples, perfReport) => {
+  if (!window) {
+    return null;
+  }
+
+  const targetPerfMilestones = createTargetPerfMilestoneSamples(perfReport, targetSamples);
+  return {
     durationMs: window.durationMs,
     endAnchor: window.endAnchor,
     startAnchor: window.startAnchor,
     ...summarizeLiveFileSwitchTargetSamples(targetSamples),
-  }
-  : null;
+    targetPerfMilestoneSummary: summarizeTargetPerfMilestoneSamples(targetPerfMilestones),
+    targetPerfMilestones,
+  };
+};
 
-const summarizeFileSwitchLiveStress = (result, phaseAnchors = []) => {
+const summarizeFileSwitchLiveStress = (result, phaseAnchors = [], perfReport = null) => {
   if (!result) {
     return null;
   }
@@ -2715,6 +2948,7 @@ const summarizeFileSwitchLiveStress = (result, phaseAnchors = []) => {
   const events = Array.isArray(result.trace?.events) ? result.trace.events : [];
   const dispatches = Array.isArray(result.trace?.dispatches) ? result.trace.dispatches : [];
   const targetSamples = createLiveFileSwitchTargetSamples(result);
+  const targetPerfMilestones = createTargetPerfMilestoneSamples(perfReport, targetSamples);
   const duringProcessingWindow = phaseWindowByName(phaseAnchors, "liveFileSwitchDuringProcessing");
   const afterProcessingWindow = phaseWindowByName(phaseAnchors, "liveFileSwitchAfterProcessing");
   const targetSampleSummary = summarizeLiveFileSwitchTargetSamples(targetSamples);
@@ -2729,10 +2963,12 @@ const summarizeFileSwitchLiveStress = (result, phaseAnchors = []) => {
       afterProcessing: summarizeLiveFileSwitchWindow(
         afterProcessingWindow,
         createLiveFileSwitchTargetSamples(result, afterProcessingWindow),
+        perfReport,
       ),
       duringProcessing: summarizeLiveFileSwitchWindow(
         duringProcessingWindow,
         createLiveFileSwitchTargetSamples(result, duringProcessingWindow),
+        perfReport,
       ),
     },
     requestedCount: result.requestedCount,
@@ -2743,6 +2979,8 @@ const summarizeFileSwitchLiveStress = (result, phaseAnchors = []) => {
     settleState: settleSample?.afterState ?? null,
     targetCount: result.targetCount,
     ...targetSampleSummary,
+    targetPerfMilestoneSummary: summarizeTargetPerfMilestoneSamples(targetPerfMilestones),
+    targetPerfMilestones,
     traceEventCount: events.length,
     uniqueDispatchedFileCount: new Set(dispatches.map(dispatch => dispatch.fileId).filter(Boolean)).size,
   };
@@ -3182,7 +3420,11 @@ const main = async () => {
       phaseRecorder.anchors,
     );
     const fileSwitchSummary = summarizeFileSwitchStress(fileSwitch);
-    const fileSwitchLiveSummary = summarizeFileSwitchLiveStress(fileSwitchLive, phaseRecorder.anchors);
+    const fileSwitchLiveSummary = summarizeFileSwitchLiveStress(
+      fileSwitchLive,
+      phaseRecorder.anchors,
+      analysisPerfReport,
+    );
     const analysis = {
       ...summarizeTraceAnalysis({
         events: finalState.events,

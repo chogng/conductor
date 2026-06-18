@@ -359,8 +359,10 @@ export class SessionService extends Disposable implements ISessionServiceType {
   public commitTemplateOutputs = (inputs: readonly CommitTemplateOutputInput[]): void => {
     const inputList = Array.isArray(inputs) ? inputs : [];
     const inputCount = inputList.length;
+    const inputFileIds = inputList.flatMap(input => input.curves?.fileId ? [input.curves.fileId] : []);
     const endPerf = startPerf("sessionService.commitTemplateOutput", {
       batchSize: inputCount,
+      fileIds: inputFileIds,
       sessionVersion: this.snapshot.sessionVersion,
     });
     logSessionSnapshotTrace("sessionService.commitTemplateOutputs.before", this.snapshot, {
@@ -431,7 +433,10 @@ export class SessionService extends Disposable implements ISessionServiceType {
     }
 
     if (nextFilesById === this.snapshot.filesById) {
-      endPerf({ committed: false });
+      endPerf({
+        committed: false,
+        fileIds: inputFileIds,
+      });
       logSessionSnapshotTrace("sessionService.commitTemplateOutputs.noop", this.snapshot, {
         batchSize: inputCount,
         committed: false,
@@ -451,7 +456,9 @@ export class SessionService extends Disposable implements ISessionServiceType {
       committed: true,
       committedCurveCount: uniqueStrings(committedCurveKeys).length,
       committedFileCount: uniqueStrings(committedFileIds).length,
+      committedFileIds: uniqueStrings(committedFileIds),
       committedSeriesCount: uniqueStrings(committedSeriesIds).length,
+      fileIds: inputFileIds,
       nextSessionVersion: this.snapshot.sessionVersion,
     });
     logSessionSnapshotTrace("sessionService.commitTemplateOutputs.after", this.snapshot, {
@@ -557,8 +564,13 @@ export class SessionService extends Disposable implements ISessionServiceType {
 
   public commitCalculatedRecordsBatch = (inputs: CommitCalculatedRecordsBatchInput): void => {
     const inputList = Array.isArray(inputs) ? inputs : [];
+    const inputFileIds = inputList.flatMap(input => {
+      const fileId = normalizeId(input.fileId);
+      return fileId ? [fileId] : [];
+    });
     const endPerf = startPerf("sessionService.commitCalculatedRecordsBatch", {
       batchSize: inputList.length,
+      fileIds: inputFileIds,
       sessionVersion: this.snapshot.sessionVersion,
     });
     let nextFilesById = this.snapshot.filesById;
@@ -608,7 +620,10 @@ export class SessionService extends Disposable implements ISessionServiceType {
     }
 
     if (nextFilesById === this.snapshot.filesById) {
-      endPerf({ committed: false });
+      endPerf({
+        committed: false,
+        fileIds: inputFileIds,
+      });
       return;
     }
 
@@ -625,8 +640,10 @@ export class SessionService extends Disposable implements ISessionServiceType {
       committed: true,
       committedCurveCount: uniqueStrings(committedCurveKeys).length,
       committedFileCount: uniqueStrings(committedFileIds).length,
+      committedFileIds: uniqueStrings(committedFileIds),
       committedMetricCount: uniqueStrings(committedMetricKeys).length,
       committedSeriesCount: uniqueStrings(committedSeriesIds).length,
+      fileIds: inputFileIds,
       nextSessionVersion: this.snapshot.sessionVersion,
     });
   };

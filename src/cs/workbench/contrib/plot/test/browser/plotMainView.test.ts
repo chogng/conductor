@@ -100,6 +100,39 @@ suite("workbench/contrib/plot/test/browser/plotMainView", () => {
     }
   });
 
+  test("draws eager main chart on the first connected frame", async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const host = document.createElement("div");
+    host.style.height = "360px";
+    host.style.width = "640px";
+    document.body.append(host);
+
+    const element = createPlotMainChart({
+      ...createPlotMainChartProps({
+        model: createPlotModel(),
+        plotType: "iv",
+      }),
+      drawStrategy: "eager",
+    });
+    const canvas = element.querySelector(".plot_main_chart_canvas") as HTMLCanvasElement | null;
+    assert.ok(canvas);
+    assert.equal(canvas.style.width, "");
+
+    try {
+      host.append(element);
+      await animationFrames(1);
+
+      assert.equal(canvas.style.width, "640px");
+      assert.equal(canvas.style.height, "360px");
+    } finally {
+      element.dispose();
+      host.remove();
+    }
+  });
+
   test("draws large series through a display downsample budget", async () => {
     if (typeof document === "undefined" || typeof CanvasRenderingContext2D === "undefined") {
       return;

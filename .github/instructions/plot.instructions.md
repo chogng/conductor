@@ -159,6 +159,15 @@ storage, for these controls.
   full model that adds the inspector derivative. The cache may be upgraded from
   chart-only to full, but a full cache entry must not be replaced by chart-only
   data.
+- Active and hover display-model prefetch may synchronously cache the cheap
+  chart-only display model when calculated data is already warm. This gives
+  Chart and hover thumbnails a first drawable frame without waiting behind
+  background worker display-model work; the full inspector model can still be
+  queued afterward.
+- Active and hover display-model prefetch may also synchronously warm the
+  calculated-data cache for only the requested file when the session already has
+  drawable canonical curves. Keep this interactive warm path file-scoped and do
+  not apply it to visible/nearby/idle background prefetch.
 - Plot display-model cache invalidation is file-scoped. When a session event
   affects only specific file ids, `PlotService` should publish targeted
   `onDidChangePlotDisplayModelCache` events for those file/plot pairs instead
@@ -176,6 +185,10 @@ storage, for these controls.
   visible pixel width. Full point arrays remain in the render model for readout
   accuracy, but the first paint must not synchronously draw every point in a
   large series.
+- `PlotMainChart` defaults to stable layout draw, but active Chart hosts may
+  request an eager first draw once the chart is connected and sized. Keep this
+  as an explicit host-provided strategy so reusable plot surfaces do not
+  accidentally trade layout stability for speed.
 - Plot state is display state; do not store it in Session unless it becomes saved project state later.
 
 ## Command entry and dispatch

@@ -215,9 +215,11 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
     calculatedCommitFileIds.length = 0;
 
     contribution.prioritizeCalculationFile("file-c");
+    assert.deepEqual(calculatedCommitFileIds, [["file-c"]]);
+
     await waitForPendingCalculation();
 
-    assert.deepEqual(calculatedCommitFileIds, [["file-c", "file-b"]]);
+    assert.deepEqual(calculatedCommitFileIds, [["file-c"], ["file-b"]]);
 
     contribution.dispose();
     sessionEvents.dispose();

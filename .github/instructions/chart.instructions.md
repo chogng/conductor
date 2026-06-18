@@ -164,6 +164,10 @@ create calculated Plot data or Plot display models in the chart render path.
 present and `inspector` is still `null`, render the main chart immediately and
 show only the inspector pane as pending. It must rerender when Plot upgrades the
 same cache entry to a full model.
+Chart's active plot host may request eager first draw from `PlotMainView` so a
+newly selected chart paints on the first connected, sized frame. Keep the
+strategy explicit in Chart view composition; do not make Plot's reusable chart
+widget eager by default.
 Do not pass Explorer selection through `ChartViewInput` callbacks; chart file
 selection is translated by `ChartViewPane` into `IExplorerService.select(...)`.
 Do not pass settings mutations through `ChartViewInput`; settings panes write

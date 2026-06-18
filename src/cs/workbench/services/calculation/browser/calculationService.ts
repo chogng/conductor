@@ -23,7 +23,18 @@ import type { FileId, FileRecord } from "src/cs/workbench/services/session/commo
 const CALCULATION_FOREGROUND_CHUNK_SIZE = 1;
 const CALCULATION_BACKGROUND_CHUNK_SIZE = 2;
 const CALCULATION_BACKGROUND_DELAY_MS = 0;
+const CALCULATION_INTERACTIVE_CHUNK_SIZE = 1;
 const CALCULATION_INTERACTIVE_PRIORITY_LIMIT = 24;
+
+type CalculationChunkResult = {
+  readonly committedFileCount: number;
+  readonly fileIds: readonly FileId[];
+};
+
+const EMPTY_CALCULATION_CHUNK_RESULT: CalculationChunkResult = {
+  committedFileCount: 0,
+  fileIds: [],
+};
 
 export class CalculationService extends Disposable implements ICalculationService {
   public declare readonly _serviceBrand: undefined;
@@ -63,11 +74,20 @@ export class CalculationService extends Disposable implements ICalculationServic
       return;
     }
 
+    const pendingFileCountBefore = this.pendingFileIds.length;
     const rememberedFileCount = this.rememberInteractivePriorityFiles(prioritizedFileIds);
     const prioritizedFileCount = this.prioritizeQueuedCalculationFiles(prioritizedFileIds);
+    const interactiveResult = prioritizedFileCount > 0
+      ? this.processInteractivePriorityCalculation("interactivePriority")
+      : EMPTY_CALCULATION_CHUNK_RESULT;
     logPerf("calculationService.prioritizeCalculationFiles", {
       fileCount: prioritizedFileIds.length,
+      fileIds: prioritizedFileIds,
+      interactiveCommittedFileCount: interactiveResult.committedFileCount,
+      interactiveCommittedFileIds: interactiveResult.fileIds,
       interactivePriorityFileCount: this.interactivePriorityFileIds.length,
+      pendingFileCountAfter: this.pendingFileIds.length,
+      pendingFileCountBefore,
       pendingFileCount: this.pendingFileIds.length,
       prioritizedFileCount,
       rememberedFileCount,
@@ -77,7 +97,9 @@ export class CalculationService extends Disposable implements ICalculationServic
 
   private update(event?: SessionChangeEvent): void {
     const snapshot = this.sessionService.getSnapshot();
+    const candidateFileIds = getCalculationUpdateFileIds(event, snapshot);
     const endUpdatePerf = startPerf("calculationContribution.update", {
+      candidateFileIds,
       fileCount: Object.keys(snapshot.filesById).length,
       reason: event?.reason ?? "initial",
       sessionVersion: snapshot.sessionVersion,
@@ -108,7 +130,6 @@ export class CalculationService extends Disposable implements ICalculationServic
     }
 
     const fileIds: FileId[] = [];
-    const candidateFileIds = getCalculationUpdateFileIds(event, snapshot);
     for (const fileId of candidateFileIds) {
       const file = snapshot.filesById[fileId];
       if (!file) {
@@ -148,9 +169,13 @@ export class CalculationService extends Disposable implements ICalculationServic
     this.schedulePendingCalculation();
     endUpdatePerf({
       candidateFileCount: candidateFileIds.length,
+      committedFileIds: foregroundResult.fileIds,
       committedFileCount: foregroundResult.committedFileCount,
       enqueuedFileCount: enqueueResult.enqueuedFileCount,
+      enqueuedFileIds: fileIds,
       fileCount: fileIds.length,
+      fileIds,
+      foregroundFileIds: foregroundResult.fileIds,
       interactiveEnqueuedFileCount: enqueueResult.interactiveEnqueuedFileCount,
       interactivePriorityFileCount: interactivePriorityFileCountAfterEnqueue,
       pendingFileCountAfterEnqueue,
@@ -169,9 +194,9 @@ export class CalculationService extends Disposable implements ICalculationServic
     readonly chunkSize: number;
     readonly mode: "foreground" | "background";
     readonly reason: string;
-  }): { committedFileCount: number } {
+  }): CalculationChunkResult {
     if (chunkSize <= 0 || !this.pendingFileIds.length) {
-      return { committedFileCount: 0 };
+      return EMPTY_CALCULATION_CHUNK_RESULT;
     }
 
     const pendingBefore = this.pendingFileIds.length;
@@ -205,13 +230,14 @@ export class CalculationService extends Disposable implements ICalculationServic
     }
 
     if (!fileIds.length) {
-      return { committedFileCount: 0 };
+      return EMPTY_CALCULATION_CHUNK_RESULT;
     }
 
     const endBuildPerf = startPerf("calculationContribution.buildRecords", {
       candidateFileCount,
       chunkMode: mode,
       fileCount: fileIds.length,
+      fileIds,
       interactivePriorityFileCount,
       missingFileCount,
       pendingFileCount: pendingBefore,
@@ -225,6 +251,7 @@ export class CalculationService extends Disposable implements ICalculationServic
     );
     endBuildPerf({
       curveCount: countRecordArrayItems(curvesByFileId),
+      fileIds,
       metricCount: countRecordArrayItems(metricsByFileId),
     });
     const commits: CommitCalculatedRecordsInput[] = fileIds.map(fileId => ({
@@ -236,7 +263,23 @@ export class CalculationService extends Disposable implements ICalculationServic
     }));
 
     this.sessionService.commitCalculatedRecordsBatch(commits);
-    return { committedFileCount: fileIds.length };
+    return { committedFileCount: fileIds.length, fileIds };
+  }
+
+  private processInteractivePriorityCalculation(reason: string): CalculationChunkResult {
+    if (!this.countInteractivePriorityFiles(this.pendingFileIds)) {
+      return EMPTY_CALCULATION_CHUNK_RESULT;
+    }
+
+    this.cancelScheduledCalculation();
+    const result = this.processPendingCalculationChunk({
+      candidateFileCount: this.pendingFileIds.length,
+      chunkSize: CALCULATION_INTERACTIVE_CHUNK_SIZE,
+      mode: "foreground",
+      reason,
+    });
+    this.schedulePendingCalculation();
+    return result;
   }
 
   private schedulePendingCalculation(): void {
@@ -246,9 +289,13 @@ export class CalculationService extends Disposable implements ICalculationServic
 
     this.scheduledCalculationHandle = globalThis.setTimeout(() => {
       this.scheduledCalculationHandle = null;
+      const pendingFileIds = [...this.pendingFileIds];
+      const interactivePriorityFileIds = this.getInteractivePriorityFiles(pendingFileIds);
       const endFlushPerf = startPerf("calculationContribution.flushPending", {
         chunkSize: CALCULATION_BACKGROUND_CHUNK_SIZE,
-        interactivePriorityFileCount: this.countInteractivePriorityFiles(this.pendingFileIds),
+        interactivePriorityFileCount: interactivePriorityFileIds.length,
+        interactivePriorityFileIds,
+        pendingFileIds,
         pendingFileCount: this.pendingFileIds.length,
       });
       const result = this.processPendingCalculationChunk({
@@ -258,8 +305,10 @@ export class CalculationService extends Disposable implements ICalculationServic
         reason: "pending",
       });
       endFlushPerf({
+        committedFileIds: result.fileIds,
         committedFileCount: result.committedFileCount,
         remainingFileCount: this.pendingFileIds.length,
+        remainingFileIds: [...this.pendingFileIds],
       });
       this.schedulePendingCalculation();
     }, CALCULATION_BACKGROUND_DELAY_MS);
@@ -354,16 +403,17 @@ export class CalculationService extends Disposable implements ICalculationServic
   }
 
   private countInteractivePriorityFiles(fileIds: readonly FileId[]): number {
+    return this.getInteractivePriorityFiles(fileIds).length;
+  }
+
+  private getInteractivePriorityFiles(fileIds: readonly FileId[]): FileId[] {
     const prioritizedFileIds = normalizeFileIds(fileIds);
     if (!prioritizedFileIds.length || !this.interactivePriorityFileIds.length) {
-      return 0;
+      return [];
     }
 
     const interactivePriorityFileIds = new Set(this.interactivePriorityFileIds);
-    return prioritizedFileIds.reduce(
-      (count, fileId) => count + (interactivePriorityFileIds.has(fileId) ? 1 : 0),
-      0,
-    );
+    return prioritizedFileIds.filter(fileId => interactivePriorityFileIds.has(fileId));
   }
 
   private takePendingFiles(count: number): FileId[] {

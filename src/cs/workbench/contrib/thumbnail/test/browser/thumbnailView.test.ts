@@ -106,6 +106,53 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
     }
   });
 
+  test("draws eager thumbnail content on the first connected frame", async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    let drawCalls = 0;
+    const node = createThumbnailView({
+      drawStrategy: "eager",
+      file: {
+        fileId: "file-a",
+      },
+      plotModel: {
+        seriesList: [],
+        signature: "plot:file-a",
+        xDomain: [0, 1],
+        xUnitLabel: "V",
+        yDomain: [0, 1],
+        yUnitLabel: "A",
+      },
+      thumbnailService: {
+        drawPlotThumbnail: () => {
+          drawCalls += 1;
+        },
+      },
+    });
+    const chart = node.querySelector(".thumbnail_view_chart") as HTMLElement | null;
+    assert.ok(chart);
+    chart.style.height = "180px";
+    chart.style.width = "320px";
+
+    const host = document.createElement("div");
+    host.style.height = "180px";
+    host.style.width = "320px";
+    document.body.append(host);
+
+    try {
+      assert.equal(drawCalls, 0);
+      host.append(node);
+      await animationFrames(1);
+
+      assert.equal(drawCalls, 1);
+    } finally {
+      node.remove();
+      host.remove();
+    }
+  });
+
   test("renders a nonblank loading placeholder without drawing a canvas", () => {
     if (typeof document === "undefined") {
       return;

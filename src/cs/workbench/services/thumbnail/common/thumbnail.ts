@@ -21,6 +21,7 @@ export type ThumbnailPreviewPlotModel = PlotMainRenderModelSource & {
 export type ThumbnailPreviewState =
 	| { readonly kind: "idle" }
 	| { readonly kind: "loading" }
+	| { readonly kind: "fastReady"; readonly model: ThumbnailPreviewPlotModel; readonly signature: string }
 	| { readonly kind: "rawReady"; readonly model: ThumbnailPreviewPlotModel; readonly signature: string }
 	| { readonly kind: "ready"; readonly model: ThumbnailPreviewPlotModel; readonly signature: string }
 	| { readonly kind: "error"; readonly message: string };

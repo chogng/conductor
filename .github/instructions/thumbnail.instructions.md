@@ -237,7 +237,7 @@ sequenceDiagram
     ExplorerViewer->>ThumbnailPreviewService: request(fileId, "hover")
     ThumbnailPreviewService->>Plot: prefetchCalculatedData(fileId, "hover")
     ThumbnailPreviewService-->>ExplorerViewer: cached ready or loading state
-    ExplorerViewer->>ThumbnailView: createThumbnailView({ file, optional plotModel, renderer })
+    ExplorerViewer->>ThumbnailView: createThumbnailView({ file, optional plotModel, renderer, drawStrategy: "eager" })
     ThumbnailView->>ThumbnailRenderer: render thumbnail content
     ThumbnailPreviewService->>ThumbnailPreviewService: process hover preview on queued frame
     ThumbnailPreviewService->>Plot: getCachedCalculatedData(fileId)
@@ -271,6 +271,24 @@ Do not create thumbnail-specific duplicates of Explorer file item commands such 
 - Loading thumbnail previews should render a nonblank thumbnail-owned placeholder
   unless an older plot model is available, so hover and thumbnail layout do not
   present an empty chart frame while queued preview work runs.
+- Hover previews may request `drawStrategy: "eager"` from `createThumbnailView`
+  so the first connected, sized canvas draws immediately. Thumbnail grid items
+  should keep the default stable draw strategy to avoid extra repaint churn in
+  persistent layouts.
+- Hover previews may enter `fastReady` from a Plot-owned cached chart display
+  model before the full canonical preview path finishes. `fastReady` is still a
+  Plot-provided render model; Thumbnail must not build curves from Session to
+  create it. Its signature should remain the underlying calculated-data
+  signature so a later full preview with the same data does not replace the
+  hover thumbnail node.
+- Targeted preview invalidation must not downgrade an existing `fastReady`,
+  `rawReady`, or `ready` preview to `loading` while replacement plot data is
+  pending. Keep the last nonblank model visible and refresh it when Plot
+  publishes a matching calculated-data or display-model cache event.
+- Explorer hover thumbnail DOM cache keys should include only fields that
+  affect the hover thumbnail node or plotted output. Processing-stage metadata
+  such as curve-type labels must not evict a nonblank hover thumbnail when the
+  plot model signature is unchanged.
 - Thumbnail preview queues must consume `IPlotService.getCachedCalculatedData`;
   they must not call `getCalculatedData` to create plot models inside the
   thumbnail frame budget.

@@ -9,6 +9,7 @@ import {
 } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import {
   createPlotMainChart,
+  type PlotMainChartDrawStrategy,
   type PlotMainChartProps,
 } from "src/cs/workbench/contrib/plot/browser/plotMainChart";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
@@ -20,6 +21,7 @@ import {
 } from "src/cs/workbench/services/plot/common/plotSettings";
 
 export type PlotMainViewProps = {
+  readonly drawStrategy?: PlotMainChartDrawStrategy;
   readonly model: PlotMainRenderModel;
   readonly onXAxisLabelChange?: (nextLabel: string) => void;
   readonly onYAxisLabelChange?: (nextLabel: string) => void;
@@ -44,6 +46,7 @@ export type PlotMainView = {
 };
 
 export const createPlotMainChartProps = ({
+  drawStrategy,
   model,
   onXAxisLabelChange,
   onYAxisLabelChange,
@@ -68,6 +71,7 @@ export const createPlotMainChartProps = ({
     curveLineWidth: Number(originOpenPlotOptions.lineWidth) || DEFAULT_ORIGIN_PLOT_OPTIONS.lineWidth,
     curvePlotType: Number(originOpenPlotOptions.type ?? DEFAULT_ORIGIN_PLOT_OPTIONS.type),
     curveSymbolShape: Number(originOpenPlotOptions.symbolShape ?? DEFAULT_ORIGIN_PLOT_OPTIONS.symbolShape),
+    drawStrategy,
     effectiveYScale: yScaleMode,
     focusedSeriesColor: "#2563eb",
     highlightOverlays: [],

@@ -77,8 +77,149 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		assert.equal(cachedCalls, 1);
 		assert.equal(calculatedCalls, 1);
 		service.invalidate(["file-a"]);
-		assert.equal(service.get("file-a").kind, "idle");
-		assert.deepEqual(changedFileIds, ["file-a", "file-a"]);
+		assert.equal(service.get("file-a").kind, "ready");
+		assert.deepEqual(changedFileIds, ["file-a"]);
+	});
+
+	test("hover previews use cached Plot display models as fast thumbnails", () => {
+		const service = store.add(new BrowserThumbnailPreviewService(
+			{
+				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => ({
+					activeFile: null,
+					fileId,
+					kind: "iv",
+					pointsCount: 1,
+					seriesList: [],
+					signature: `calculated:${fileId}`,
+					source: { fileId, inputKind: "record" },
+					xDomain: [0, 1],
+					xUnitLabel: "V",
+					yDomain: [0, 1],
+					yUnitLabel: "A",
+				}),
+				getCachedPlotDisplayModel: ({ fileId }: { readonly fileId: string }) => ({
+					chart: {
+						defaultXAxisTitle: "x",
+						defaultYAxisTitle: "y",
+						model: {
+							axisLabels: null,
+							pointsCount: 1,
+							seriesList: [{
+								data: [{ x: 0, y: 0 }],
+								id: "series-a",
+								name: "A",
+							}],
+							xDomain: [0, 1],
+							xUnitLabel: "V",
+							yDomain: [0, 1],
+							yUnitLabel: "A",
+						},
+						plotXFactor: 1,
+						plotYFactor: 1,
+						xAxisTitle: "x",
+						xAxisTitleContext: { axis: "x", fileId, pane: "chart", plotType: "iv" },
+						yAxisTitle: "y",
+						yAxisTitleContext: { axis: "y", fileId, pane: "chart", plotType: "iv" },
+						yScaleMode: "linear",
+					},
+					fileId,
+					inspector: null,
+					plotType: "iv",
+					unitControl: null,
+				}),
+				getCalculatedData: () => {
+					throw new Error("fast thumbnails should not synchronously calculate when display cache is warm");
+				},
+				getState: () => ({ activePlotType: "iv" }),
+				onDidChangeCalculatedDataCache: Event.None,
+				onDidChangePlotState: Event.None,
+				prefetchCalculatedData: () => undefined,
+				prefetchPlotDisplayModel: () => undefined,
+			} as unknown as IPlotService,
+			createSessionService(["file-a"]) as unknown as ISessionService,
+		));
+
+		const state = service.request("file-a", "hover");
+
+		assert.equal(state.kind, "fastReady");
+		assert.equal(state.kind === "fastReady" ? state.signature : "", "calculated:file-a");
+		assert.equal(state.kind === "fastReady" ? state.model.seriesList.length : 0, 1);
+	});
+
+	test("fast thumbnails stay stable when full calculated data has the same signature", () => {
+		const displayModelEmitter = new Emitter<{ readonly fileId: string; readonly plotType: string }>();
+		let displayCacheWarm = true;
+		const service = store.add(new BrowserThumbnailPreviewService(
+			{
+				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => ({
+					activeFile: null,
+					fileId,
+					kind: "iv",
+					pointsCount: 1,
+					seriesList: [],
+					signature: `calculated:${fileId}`,
+					source: { fileId, inputKind: "record" },
+					xDomain: [0, 1],
+					xUnitLabel: "V",
+					yDomain: [0, 1],
+					yUnitLabel: "A",
+				}),
+				getCachedPlotDisplayModel: ({ fileId }: { readonly fileId: string }) => displayCacheWarm
+					? {
+						chart: {
+							defaultXAxisTitle: "x",
+							defaultYAxisTitle: "y",
+							model: {
+								axisLabels: null,
+								pointsCount: 1,
+								seriesList: [{
+									data: [{ x: 0, y: 0 }],
+									id: "series-a",
+									name: "A",
+								}],
+								xDomain: [0, 1],
+								xUnitLabel: "V",
+								yDomain: [0, 1],
+								yUnitLabel: "A",
+							},
+							plotXFactor: 1,
+							plotYFactor: 1,
+							xAxisTitle: "x",
+							xAxisTitleContext: { axis: "x", fileId, pane: "chart", plotType: "iv" },
+							yAxisTitle: "y",
+							yAxisTitleContext: { axis: "y", fileId, pane: "chart", plotType: "iv" },
+							yScaleMode: "linear",
+						},
+						fileId,
+						inspector: null,
+						plotType: "iv",
+						unitControl: null,
+					}
+					: null,
+				getCalculatedData: () => {
+					throw new Error("fast thumbnail stability should not synchronously calculate");
+				},
+				getState: () => ({ activePlotType: "iv" }),
+				onDidChangeCalculatedDataCache: Event.None,
+				onDidChangePlotDisplayModelCache: displayModelEmitter.event,
+				onDidChangePlotState: Event.None,
+				prefetchCalculatedData: () => undefined,
+				prefetchPlotDisplayModel: () => undefined,
+			} as unknown as IPlotService,
+			createSessionService(["file-a"]) as unknown as ISessionService,
+		));
+		const changedFileIds: string[] = [];
+		store.add(service.onDidChangePreview(event => {
+			changedFileIds.push(event.fileId);
+		}));
+
+		assert.equal(service.request("file-a", "hover").kind, "fastReady");
+		changedFileIds.length = 0;
+		displayCacheWarm = false;
+		displayModelEmitter.fire({ fileId: "file-a", plotType: "iv" });
+
+		assert.equal(service.get("file-a").kind, "fastReady");
+		assert.deepEqual(changedFileIds, []);
 	});
 
 	test("hover request retries a cached loading preview", () => {
@@ -409,7 +550,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		});
 
 		assert.equal(service.get("file-a").kind, "ready");
-		assert.equal(service.get("file-b").kind, "idle");
+		assert.equal(service.get("file-b").kind, "ready");
 	});
 
 	test("bitmap drawing skips detached canvases instead of using fallback dimensions", () => {
