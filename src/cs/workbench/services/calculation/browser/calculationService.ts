@@ -6,7 +6,7 @@ import {
   Disposable,
   toDisposable,
 } from "src/cs/base/common/lifecycle";
-import { logPerf, startPerf } from "src/cs/workbench/common/perf";
+import { getPerfNow, logPerf, startPerf } from "src/cs/workbench/common/perf";
 import {
   calculateRecordsInWorker,
   type CalculationRecordsWorkerOutput,
@@ -28,6 +28,7 @@ const CALCULATION_BACKGROUND_CHUNK_SIZE = 1;
 const CALCULATION_BACKGROUND_DELAY_MS = 0;
 const CALCULATION_INTERACTIVE_CHUNK_SIZE = 1;
 const CALCULATION_INTERACTIVE_PRIORITY_LIMIT = 24;
+const CALCULATION_WORKER_CONCURRENCY_LIMIT = 1;
 
 type CalculationChunkResult = {
   readonly committedFileCount: number;
@@ -52,6 +53,18 @@ type CalculationChunkInput = {
 
 type CalculationRecordsByFile = ReturnType<typeof createCalculatedRecordsByFile>;
 
+type CalculationWorkerSlot = {
+  readonly activeWorkerCountBefore: number;
+  readonly queuedWorkerCountBefore: number;
+  readonly release: () => void;
+  readonly workerWaitMs: number;
+};
+
+type PendingCalculationWorkerSlot = {
+  readonly mode: CalculationChunkMode;
+  readonly resolve: () => void;
+};
+
 const EMPTY_CALCULATION_CHUNK_RESULT: CalculationChunkResult = {
   committedFileCount: 0,
   fileIds: [],
@@ -68,6 +81,8 @@ export class CalculationService extends Disposable implements ICalculationServic
   private isBackgroundCalculationInFlight = false;
   private isInteractiveCalculationInFlight = false;
   private nextCalculationWorkerRequestId = 1;
+  private activeCalculationWorkerCount = 0;
+  private readonly pendingCalculationWorkerSlots: PendingCalculationWorkerSlot[] = [];
 
   constructor(
     @ISessionService private readonly sessionService: ISessionService,
@@ -84,6 +99,7 @@ export class CalculationService extends Disposable implements ICalculationServic
       this.cancelScheduledCalculation();
       this.clearPendingFiles();
       this.clearInteractivePriorityFiles();
+      this.releasePendingCalculationWorkerSlots();
     }));
     this.update();
   }
@@ -274,63 +290,106 @@ export class CalculationService extends Disposable implements ICalculationServic
       requestId,
       worker: true,
     });
-    const workerResult = await calculateRecordsInWorker({
-      file,
-      requestId,
-      sessionVersion: chunkInput.sessionVersion,
-    });
+    const workerSlot = await this.acquireCalculationWorkerSlot(chunkInput.mode);
 
-    if (this.isDisposed) {
-      endBuildPerf({ result: "disposed", worker: true });
+    if (!workerSlot) {
+      endBuildPerf({
+        result: "disposed",
+        worker: true,
+        workerConcurrencyLimit: CALCULATION_WORKER_CONCURRENCY_LIMIT,
+      });
       return EMPTY_CALCULATION_CHUNK_RESULT;
     }
 
-    if (this.isCurrentCalculationWorkerResult(chunkInput, workerResult, requestId)) {
-      const records: CalculationRecordsByFile = {
-        curvesByFileId: { [fileId]: workerResult.curves },
-        metricsByFileId: { [fileId]: workerResult.metrics },
-      };
+    const workerSlotMetadata = this.createCalculationWorkerSlotMetadata(workerSlot);
+    try {
+      if (this.isDisposed) {
+        endBuildPerf({
+          result: "disposed",
+          worker: true,
+          ...workerSlotMetadata,
+        });
+        return EMPTY_CALCULATION_CHUNK_RESULT;
+      }
+
+      if (!this.isCurrentCalculationChunkInput(chunkInput)) {
+        endBuildPerf({
+          fileIds: chunkInput.fileIds,
+          result: "staleBeforeWorker",
+          worker: true,
+          ...workerSlotMetadata,
+        });
+        return EMPTY_CALCULATION_CHUNK_RESULT;
+      }
+
+      const workerResult = await calculateRecordsInWorker({
+        file,
+        requestId,
+        sessionVersion: chunkInput.sessionVersion,
+      });
+
+      if (this.isDisposed) {
+        endBuildPerf({
+          result: "disposed",
+          worker: true,
+          ...workerSlotMetadata,
+        });
+        return EMPTY_CALCULATION_CHUNK_RESULT;
+      }
+
+      if (this.isCurrentCalculationWorkerResult(chunkInput, workerResult, requestId)) {
+        const records: CalculationRecordsByFile = {
+          curvesByFileId: { [fileId]: workerResult.curves },
+          metricsByFileId: { [fileId]: workerResult.metrics },
+        };
+        endBuildPerf({
+          curveCount: countRecordArrayItems(records.curvesByFileId),
+          fileIds: chunkInput.fileIds,
+          metricCount: countRecordArrayItems(records.metricsByFileId),
+          result: "worker",
+          worker: true,
+          ...workerSlotMetadata,
+        });
+        return this.commitCalculatedRecords(chunkInput.fileIds, records);
+      }
+
+      if (workerResult) {
+        endBuildPerf({
+          fileIds: chunkInput.fileIds,
+          result: "staleWorkerResult",
+          worker: true,
+          ...workerSlotMetadata,
+        });
+        return EMPTY_CALCULATION_CHUNK_RESULT;
+      }
+
+      if (!this.isCurrentCalculationChunkInput(chunkInput)) {
+        endBuildPerf({
+          fileIds: chunkInput.fileIds,
+          result: "staleWorkerFallbackSkipped",
+          worker: true,
+          ...workerSlotMetadata,
+        });
+        return EMPTY_CALCULATION_CHUNK_RESULT;
+      }
+
+      const records = createCalculatedRecordsByFile(
+        chunkInput.filesById,
+        chunkInput.fileIds,
+      );
       endBuildPerf({
         curveCount: countRecordArrayItems(records.curvesByFileId),
         fileIds: chunkInput.fileIds,
         metricCount: countRecordArrayItems(records.metricsByFileId),
-        result: "worker",
-        worker: true,
+        result: "workerFallback",
+        worker: false,
+        workerFallback: true,
+        ...workerSlotMetadata,
       });
       return this.commitCalculatedRecords(chunkInput.fileIds, records);
+    } finally {
+      workerSlot.release();
     }
-
-    if (workerResult) {
-      endBuildPerf({
-        fileIds: chunkInput.fileIds,
-        result: "staleWorkerResult",
-        worker: true,
-      });
-      return EMPTY_CALCULATION_CHUNK_RESULT;
-    }
-
-    if (!this.isCurrentCalculationChunkInput(chunkInput)) {
-      endBuildPerf({
-        fileIds: chunkInput.fileIds,
-        result: "staleWorkerFallbackSkipped",
-        worker: true,
-      });
-      return EMPTY_CALCULATION_CHUNK_RESULT;
-    }
-
-    const records = createCalculatedRecordsByFile(
-      chunkInput.filesById,
-      chunkInput.fileIds,
-    );
-    endBuildPerf({
-      curveCount: countRecordArrayItems(records.curvesByFileId),
-      fileIds: chunkInput.fileIds,
-      metricCount: countRecordArrayItems(records.metricsByFileId),
-      result: "workerFallback",
-      worker: false,
-      workerFallback: true,
-    });
-    return this.commitCalculatedRecords(chunkInput.fileIds, records);
   }
 
   private takePendingCalculationChunkInput({
@@ -433,6 +492,80 @@ export class CalculationService extends Disposable implements ICalculationServic
       sessionVersion: chunkInput.sessionVersion,
       ...metadata,
     });
+  }
+
+  private async acquireCalculationWorkerSlot(mode: CalculationChunkMode): Promise<CalculationWorkerSlot | null> {
+    if (this.isDisposed) {
+      return null;
+    }
+
+    const requestedAt = getPerfNow();
+    const activeWorkerCountBefore = this.activeCalculationWorkerCount;
+    const queuedWorkerCountBefore = this.pendingCalculationWorkerSlots.length;
+    if (this.activeCalculationWorkerCount < CALCULATION_WORKER_CONCURRENCY_LIMIT) {
+      this.activeCalculationWorkerCount += 1;
+      return {
+        activeWorkerCountBefore,
+        queuedWorkerCountBefore,
+        release: () => this.releaseCalculationWorkerSlot(),
+        workerWaitMs: 0,
+      };
+    }
+
+    await new Promise<void>(resolve => {
+      this.pendingCalculationWorkerSlots.push({ mode, resolve });
+    });
+    if (this.isDisposed) {
+      this.releaseCalculationWorkerSlot();
+      return null;
+    }
+
+    return {
+      activeWorkerCountBefore,
+      queuedWorkerCountBefore,
+      release: () => this.releaseCalculationWorkerSlot(),
+      workerWaitMs: getPerfNow() - requestedAt,
+    };
+  }
+
+  private releaseCalculationWorkerSlot(): void {
+    this.activeCalculationWorkerCount = Math.max(0, this.activeCalculationWorkerCount - 1);
+    if (this.isDisposed) {
+      this.releasePendingCalculationWorkerSlots();
+      return;
+    }
+
+    if (this.activeCalculationWorkerCount >= CALCULATION_WORKER_CONCURRENCY_LIMIT) {
+      return;
+    }
+
+    const nextSlotIndex = this.pendingCalculationWorkerSlots.findIndex(slot => slot.mode === "foreground");
+    const [nextSlot] = this.pendingCalculationWorkerSlots.splice(
+      nextSlotIndex >= 0 ? nextSlotIndex : 0,
+      1,
+    );
+    if (!nextSlot) {
+      return;
+    }
+
+    this.activeCalculationWorkerCount += 1;
+    nextSlot.resolve();
+  }
+
+  private releasePendingCalculationWorkerSlots(): void {
+    const pendingSlots = this.pendingCalculationWorkerSlots.splice(0);
+    for (const slot of pendingSlots) {
+      slot.resolve();
+    }
+  }
+
+  private createCalculationWorkerSlotMetadata(slot: CalculationWorkerSlot): Record<string, unknown> {
+    return {
+      activeWorkerCountBefore: slot.activeWorkerCountBefore,
+      queuedWorkerCountBefore: slot.queuedWorkerCountBefore,
+      workerConcurrencyLimit: CALCULATION_WORKER_CONCURRENCY_LIMIT,
+      workerWaitMs: slot.workerWaitMs,
+    };
   }
 
   private commitCalculatedRecords(

@@ -1,25 +1,145 @@
 import { readThumbnailHoverDomState } from "./apply.mjs";
 
+const THUMBNAIL_HOVER_LIST_WHEEL_DELTA_Y = 420;
+
 export const readVisibleThumbnailHoverTargets = async (page, count) => page.evaluate((targetCount) =>
-  [...document.querySelectorAll(".file-list-item[data-file-id]")]
-    .map((item, itemIndex) => ({
-      chartState: item.dataset.chartState || null,
-      fileId: item.dataset.fileId || "",
-      hasChartData: item.dataset.hasChartData === "true",
-      itemIndex,
-      label: (item.textContent || "").trim().replace(/\s+/g, " ").slice(0, 160),
-      selected: item.dataset.selected === "true",
-    }))
-    .filter(target =>
-      target.fileId &&
-      (target.hasChartData ||
-        target.chartState === "ready" ||
-        target.chartState === "queued" ||
-        target.chartState === "processing")
-    )
-    .slice(0, targetCount),
+  {
+    const viewport = document.querySelector(".file-list-tree-viewport");
+    const scrollTop = viewport instanceof HTMLElement ? viewport.scrollTop : null;
+    return [...document.querySelectorAll(".file-list-item[data-file-id]")]
+      .map((item, itemIndex) => ({
+        chartState: item.dataset.chartState || null,
+        fileId: item.dataset.fileId || "",
+        hasChartData: item.dataset.hasChartData === "true",
+        itemIndex,
+        label: (item.textContent || "").trim().replace(/\s+/g, " ").slice(0, 160),
+        rowIndex: Number(item.closest(".ui-list__row")?.getAttribute("data-index") ?? itemIndex),
+        scrollTop,
+        selected: item.dataset.selected === "true",
+      }))
+      .filter(target =>
+        target.fileId &&
+        (target.hasChartData ||
+          target.chartState === "ready" ||
+          target.chartState === "queued" ||
+          target.chartState === "processing")
+      )
+      .slice(0, targetCount);
+  },
   count,
 );
+
+export const collectThumbnailHoverTargets = async (page, count, timeoutMs = 5000) => {
+  const startedAt = Date.now();
+  const targetsByFileId = new Map();
+  const rememberTargets = (targets) => {
+    for (const target of targets) {
+      if (target.fileId && !targetsByFileId.has(target.fileId)) {
+        targetsByFileId.set(target.fileId, target);
+      }
+    }
+  };
+
+  await page.evaluate(() => {
+    const viewport = document.querySelector(".file-list-tree .ui-list__viewport") ??
+      document.querySelector(".file-list-tree-viewport");
+    if (viewport instanceof HTMLElement) {
+      viewport.scrollTop = 0;
+      viewport.dispatchEvent(new Event("scroll", { bubbles: true }));
+    }
+  }).catch(() => {});
+  await scrollThumbnailHoverListByWheel(page, -100000);
+  await page.waitForTimeout(30);
+
+  let stagnantScrollCount = 0;
+  while (Date.now() - startedAt < timeoutMs && targetsByFileId.size < count) {
+    const visibleTargets = await readVisibleThumbnailHoverTargets(page, count);
+    rememberTargets(visibleTargets);
+    if (targetsByFileId.size >= count) {
+      break;
+    }
+
+    const beforeCount = targetsByFileId.size;
+    const beforeFirstRowIndex = visibleTargets[0]?.rowIndex ?? null;
+    const wheelScrolled = await scrollThumbnailHoverListByWheel(page, THUMBNAIL_HOVER_LIST_WHEEL_DELTA_Y);
+    if (!wheelScrolled) {
+      await page.evaluate(() => {
+        const viewport = document.querySelector(".file-list-tree .ui-list__viewport") ??
+          document.querySelector(".file-list-tree-viewport");
+        if (!(viewport instanceof HTMLElement)) {
+          return;
+        }
+        const row = document.querySelector(".file-list-item")?.getBoundingClientRect().height ?? 22;
+        const step = Math.max(row, viewport.clientHeight - row * 2);
+        viewport.scrollTop += step;
+        viewport.dispatchEvent(new Event("scroll", { bubbles: true }));
+      }).catch(() => {});
+    }
+
+    await page.waitForTimeout(40);
+    const nextVisibleTargets = await readVisibleThumbnailHoverTargets(page, count);
+    rememberTargets(nextVisibleTargets);
+    const nextFirstRowIndex = nextVisibleTargets[0]?.rowIndex ?? null;
+    if (targetsByFileId.size === beforeCount && nextFirstRowIndex === beforeFirstRowIndex) {
+      stagnantScrollCount += 1;
+    } else {
+      stagnantScrollCount = 0;
+    }
+    if (stagnantScrollCount >= 2) {
+      break;
+    }
+  }
+
+  return [...targetsByFileId.values()].slice(0, count);
+};
+
+export const scrollThumbnailHoverListByWheel = async (page, deltaY) => {
+  const viewport = page.locator(".file-list-tree .ui-list__viewport, .file-list-tree-viewport").first();
+  const box = await viewport.boundingBox().catch(() => null);
+  if (!box) {
+    return false;
+  }
+  await page.mouse.move(box.x + Math.min(24, box.width / 2), box.y + Math.min(24, box.height / 2));
+  await page.mouse.wheel(0, deltaY);
+  await page.waitForTimeout(30);
+  return true;
+};
+
+export const waitForCollectedThumbnailHoverTargets = async (
+  page,
+  count,
+  timeoutMs = 15000,
+  settleMs = 2500,
+) => {
+  const startedAt = Date.now();
+  let lastGrowthAt = startedAt;
+  let bestTargets = [];
+  while (Date.now() - startedAt < timeoutMs) {
+    const remainingMs = Math.max(100, timeoutMs - (Date.now() - startedAt));
+    const targets = await collectThumbnailHoverTargets(page, count, Math.min(1000, remainingMs));
+    if (targets.length > bestTargets.length) {
+      bestTargets = targets;
+      lastGrowthAt = Date.now();
+    }
+    if (bestTargets.length >= count || Date.now() - lastGrowthAt >= settleMs) {
+      return bestTargets.slice(0, count);
+    }
+    await page.waitForTimeout(200);
+  }
+  return bestTargets.slice(0, count);
+};
+
+export const mergeThumbnailHoverTargets = (...targetLists) => {
+  const targetsByFileId = new Map();
+  for (const targets of targetLists) {
+    for (const target of targets ?? []) {
+      if (target?.fileId && !targetsByFileId.has(target.fileId)) {
+        targetsByFileId.set(target.fileId, target);
+      }
+    }
+  }
+  return [...targetsByFileId.values()];
+};
 
 export const waitForVisibleThumbnailHoverTargets = async (page, count, timeoutMs) => {
   const startedAt = Date.now();
@@ -32,6 +152,60 @@ export const waitForVisibleThumbnailHoverTargets = async (page, count, timeoutMs
     await page.waitForTimeout(20);
   }
   return targets;
+};
+
+export const scrollThumbnailHoverTargetIntoView = async (page, target, timeoutMs = 1000) => {
+  const fileId = typeof target === "string" ? target : target?.fileId;
+  if (!fileId) {
+    return false;
+  }
+
+  const startedAt = Date.now();
+  let resetToTop = false;
+  while (Date.now() - startedAt < timeoutMs) {
+    const found = await page.evaluate((targetFileId) => {
+      const target = [...document.querySelectorAll(".file-list-item[data-file-id]")]
+        .find(item => item instanceof HTMLElement && item.dataset.fileId === targetFileId) ?? null;
+      if (target instanceof HTMLElement) {
+        target.scrollIntoView({ block: "center" });
+        return true;
+      }
+      return false;
+    }, fileId).catch(() => false);
+    if (found) {
+      return true;
+    }
+
+    const shouldResetToTop = !resetToTop;
+    const wheelScrolled = await scrollThumbnailHoverListByWheel(
+      page,
+      shouldResetToTop ? -100000 : THUMBNAIL_HOVER_LIST_WHEEL_DELTA_Y,
+    );
+    const scrollState = wheelScrolled
+      ? { didScroll: true }
+      : await page.evaluate((reset) => {
+        const viewport = document.querySelector(".file-list-tree .ui-list__viewport") ??
+          document.querySelector(".file-list-tree-viewport");
+        if (!(viewport instanceof HTMLElement)) {
+          return { didScroll: false };
+        }
+        const row = document.querySelector(".file-list-item")?.getBoundingClientRect().height ?? 22;
+        if (reset) {
+          viewport.scrollTop = 0;
+        } else {
+          const step = Math.max(row, viewport.clientHeight - row * 2);
+          viewport.scrollTop += step;
+        }
+        viewport.dispatchEvent(new Event("scroll", { bubbles: true }));
+        return { didScroll: true };
+      }, shouldResetToTop).catch(() => ({ didScroll: false }));
+    resetToTop = true;
+    if (!scrollState.didScroll) {
+      break;
+    }
+    await page.waitForTimeout(16);
+  }
+  return false;
 };
 
 export const dispatchSyntheticFileHover = async (page, fileId, previousFileId = null) => page.evaluate(({
@@ -70,6 +244,19 @@ export const dispatchSyntheticFileHover = async (page, fileId, previousFileId = 
   fileId,
   previousFileId,
 });
+
+export const dispatchSyntheticFileHoverTarget = async (page, target, previousFileId = null) => {
+  const fileId = typeof target === "string" ? target : target?.fileId;
+  if (!fileId) {
+    return false;
+  }
+  const visibleDispatch = await dispatchSyntheticFileHover(page, fileId, previousFileId).catch(() => false);
+  if (visibleDispatch) {
+    return true;
+  }
+  await scrollThumbnailHoverTargetIntoView(page, target);
+  return dispatchSyntheticFileHover(page, fileId, previousFileId).catch(() => false);
+};
 
 export const dispatchSyntheticFileMouseOut = async (page, fileId) => page.evaluate((targetFileId) => {
   const target = [...document.querySelectorAll(".file-list-item[data-file-id]")]
@@ -304,15 +491,18 @@ export const runThumbnailHoverStress = async ({
   timeoutMs,
 }) => {
   const before = await readThumbnailHoverDomState(page);
-  const targets = await readVisibleThumbnailHoverTargets(page, count);
+  const targets = await waitForCollectedThumbnailHoverTargets(
+    page,
+    count,
+    Math.min(timeoutMs, 15000),
+  );
   const samples = [];
   const startedAt = Date.now();
   let previousFileId = null;
 
   for (const target of targets) {
     const hoverStartedAt = Date.now();
-    const dispatched = await dispatchSyntheticFileHover(page, target.fileId, previousFileId)
-      .catch(() => false);
+    const dispatched = await dispatchSyntheticFileHoverTarget(page, target, previousFileId);
     if (!dispatched) {
       samples.push({
         ...target,
@@ -388,7 +578,7 @@ export const runLiveThumbnailHoverStress = async ({
   timeoutMs,
   watchOnly = false,
 }) => {
-  const targets = await waitForVisibleThumbnailHoverTargets(page, count, Math.min(timeoutMs, 5000));
+  let targets = await waitForVisibleThumbnailHoverTargets(page, count, Math.min(timeoutMs, 5000));
   const watchedTarget = targets[0] ?? null;
   if (!watchedTarget) {
     return {
@@ -409,6 +599,18 @@ export const runLiveThumbnailHoverStress = async ({
   let eventCount = 0;
   let previousFileId = null;
   while (Date.now() - startedAt < liveMs) {
+    if (
+      !watchOnly &&
+      targets.length < count &&
+      eventCount > 0 &&
+      eventCount % Math.max(1, targets.length) === 0
+    ) {
+      targets = mergeThumbnailHoverTargets(
+        targets,
+        await collectThumbnailHoverTargets(page, count, Math.min(500, timeoutMs)),
+      ).slice(0, count);
+    }
+
     const target = watchOnly
       ? watchedTarget
       : targets[eventCount % targets.length];
@@ -416,8 +618,7 @@ export const runLiveThumbnailHoverStress = async ({
       break;
     }
 
-    const dispatched = await dispatchSyntheticFileHover(page, target.fileId, previousFileId)
-      .catch(() => false);
+    const dispatched = await dispatchSyntheticFileHoverTarget(page, target, previousFileId);
     if (dispatched) {
       previousFileId = target.fileId;
     }
@@ -426,7 +627,7 @@ export const runLiveThumbnailHoverStress = async ({
   }
 
   if (watchedTarget.fileId !== previousFileId) {
-    await dispatchSyntheticFileHover(page, watchedTarget.fileId, previousFileId).catch(() => false);
+    await dispatchSyntheticFileHoverTarget(page, watchedTarget, previousFileId).catch(() => false);
     await page.waitForTimeout(Math.max(50, intervalMs * 2));
   }
 

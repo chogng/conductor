@@ -166,7 +166,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
     sessionEvents.dispose();
   });
 
-  test("runs interactive priority calculation in a worker while background calculation is in flight", async () => {
+  test("runs one calculation worker at a time and gives queued interactive work the next slot", async () => {
     const originalWorker = globalThis.Worker;
     const sessionEvents = new Emitter<SessionChangeEvent>();
     const calculatedCommitFileIds: string[][] = [];
@@ -174,16 +174,23 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       readonly message: CalculationRecordsWorkerRequest;
       readonly worker: TestWorker;
     }> = [];
+    let activeWorkerCount = 0;
+    let maxActiveWorkerCount = 0;
     class TestWorker {
       public onerror: ((event: ErrorEvent) => void) | null = null;
       public onmessage: ((event: MessageEvent) => void) | null = null;
+
+      constructor() {
+        activeWorkerCount += 1;
+        maxActiveWorkerCount = Math.max(maxActiveWorkerCount, activeWorkerCount);
+      }
 
       public postMessage(message: CalculationRecordsWorkerRequest): void {
         workerRecords.push({ message, worker: this });
       }
 
       public terminate(): void {
-        return;
+        activeWorkerCount = Math.max(0, activeWorkerCount - 1);
       }
     }
 
@@ -212,23 +219,26 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       assert.deepEqual(calculatedCommitFileIds, []);
 
       contribution.prioritizeCalculationFile("file-c");
-      assert.equal(workerRecords.length, 2);
-      assert.equal(workerRecords[1].message.payload?.fileId, "file-c");
+      assert.equal(workerRecords.length, 1);
       assert.deepEqual(calculatedCommitFileIds, []);
-
-      completeCalculationWorker(workerRecords[1]);
-      await waitForCalculationWorkerResult();
-
-      assert.deepEqual(calculatedCommitFileIds, [["file-c"]]);
 
       completeCalculationWorker(workerRecords[0]);
       await waitForCalculationWorkerResult();
 
-      assert.deepEqual(calculatedCommitFileIds, [["file-c"], ["file-a"]]);
+      assert.equal(workerRecords.length, 2);
+      assert.equal(workerRecords[1].message.payload?.fileId, "file-c");
+      assert.deepEqual(calculatedCommitFileIds, [["file-a"]]);
+      assert.equal(maxActiveWorkerCount, 1);
+
+      completeCalculationWorker(workerRecords[1]);
+      await waitForCalculationWorkerResult();
+
+      assert.deepEqual(calculatedCommitFileIds, [["file-a"], ["file-c"]]);
 
       await waitForPendingCalculation();
       assert.equal(workerRecords.length, 3);
       assert.equal(workerRecords[2].message.payload?.fileId, "file-b");
+      assert.equal(maxActiveWorkerCount, 1);
     } finally {
       contribution?.dispose();
       sessionEvents.dispose();

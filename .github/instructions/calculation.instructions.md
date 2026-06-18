@@ -67,7 +67,8 @@ flowchart TD
     ExplorerPriority[Explorer selection / hover / visible thumbnails] --> CalculationService[ICalculationService]
     CalculationService --> Queue[Pending calculation queue]
     Queue --> Calculation
-    Queue --> Worker[Background calculation worker]
+    Queue --> WorkerSlot[Single calculation worker slot]
+    WorkerSlot --> Worker[Calculation worker]
     Worker --> Calculation
 ```
 
@@ -123,6 +124,7 @@ sequenceDiagram
         Calculation->>Calculation: prioritize changed file ids in pending calculation queue
         Calculation->>Calculation: reorder pending queue by interactive priority lane
         loop interactive foreground chunk when prioritized
+            Calculation->>Calculation: acquire single calculation worker slot
             Calculation->>Worker: calculateRecords(priorityFile, requestId, input signature)
             Worker->>Records: createCalculatedRecordsByFile({ fileId: slimFile }, [fileId])
             Records->>Curves: createCalculatedCurveRecordsByFile(...)
@@ -134,8 +136,10 @@ sequenceDiagram
             Calculation->>Calculation: verify current input signature
             Calculation->>Session: commitCalculatedRecordsBatch({ curves, metrics }[])
             Session-->>Consumers: onDidChangeSession(calculatedRecordsChanged)
+            Calculation->>Calculation: release calculation worker slot
         end
         loop background chunks
+            Calculation->>Calculation: acquire single calculation worker slot
             Calculation->>Worker: calculateRecords(file, requestId, input signature)
             Worker->>Records: createCalculatedRecordsByFile({ fileId: slimFile }, [fileId])
             Records->>Curves: createCalculatedCurveRecordsByFile(...)
@@ -151,6 +155,7 @@ sequenceDiagram
             else input changed while worker was running
                 Calculation-->>Calculation: ignore stale worker result
             end
+            Calculation->>Calculation: release calculation worker slot
         end
     else derived output or unrelated session event
         Calculation-->>Calculation: no-op
@@ -192,6 +197,13 @@ Session boundary rules:
   calculation input signature before commit. Session version alone is not a
   stale-result guard because unrelated calculated-record commits can advance
   session version while the calculation input remains valid.
+- Interactive foreground and ordinary background calculation share a single
+  calculation worker slot. This keeps worker CPU pressure bounded while
+  retaining foreground priority: if a foreground request arrives while a
+  background worker is already running, the foreground request waits for that
+  slot and takes the next worker turn before more background work. Build-record
+  perf entries include worker wait metadata so this CPU/latency tradeoff can be
+  measured in performance reports.
 - `ICalculationService.prioritizeCalculationFile(s)` accepts interactive
   priority hints from workbench orchestration such as Explorer selection,
   hover thumbnails, and visible thumbnail ranges. It records a bounded

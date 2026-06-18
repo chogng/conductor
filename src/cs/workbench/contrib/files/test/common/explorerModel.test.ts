@@ -113,9 +113,11 @@ suite("workbench/contrib/files/common/explorerModel", () => {
 
     assert.deepEqual(files, [
       {
+        chartState: "ready",
         file: undefined,
         fileId: "raw-1",
         fileName: "processed.csv",
+        hasChartData: true,
         itemKey: "raw-key",
         normalizedCsvPath: undefined,
         relativePath: "batch/raw.csv",
@@ -169,9 +171,11 @@ suite("workbench/contrib/files/common/explorerModel", () => {
 
     assert.deepEqual(files, [
       {
+        chartState: "ready",
         file: undefined,
         fileId: "raw-1",
         fileName: "canonical.csv",
+        hasChartData: true,
         itemKey: "source-item",
         normalizedCsvPath: "C:/normalized/raw.csv",
         relativePath: "batch/canonical.csv",
@@ -206,8 +210,10 @@ suite("workbench/contrib/files/common/explorerModel", () => {
 
     assert.deepEqual(files.map(file => ({
       badgeState: file.badgeState,
+      chartState: file.chartState,
       curveType: file.curveType,
       curveTypeBadgeLabel: file.curveTypeBadgeLabel,
+      hasChartData: file.hasChartData,
     })), [
       {
         badgeState: {
@@ -216,8 +222,10 @@ suite("workbench/contrib/files/common/explorerModel", () => {
           label: "output",
           source: "assessment",
         },
+        chartState: "ready",
         curveType: "output",
         curveTypeBadgeLabel: "output",
+        hasChartData: true,
       },
     ]);
   });

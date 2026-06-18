@@ -48,6 +48,9 @@ import {
   waitForTraceCompletion,
 } from "./templateApplyPerformanceTrace/runtime.mjs";
 import {
+  resolveTemplateApplyPerformanceTraceScenario,
+} from "./templateApplyPerformanceTrace/scenarios.mjs";
+import {
   runLiveThumbnailHoverStress,
   runThumbnailHoverStress,
 } from "./templateApplyPerformanceTrace/thumbnailHover.mjs";
@@ -64,40 +67,69 @@ const parseArgs = () => {
     }
   }
 
-  const fileCount = readPositiveInteger(args.get("files"), 40);
+  const scenarioName = args.get("scenario") || null;
+  const scenario = resolveTemplateApplyPerformanceTraceScenario(scenarioName);
+  const scenarioDefaults = scenario?.defaults ?? {};
+  const fileCount = readPositiveInteger(args.get("files"), scenarioDefaults.fileCount ?? 40);
   return {
     analysisPerf: !flags.has("no-analysis-perf"),
-    autoBrowser: flags.has("auto-browser"),
-    autoFolder: flags.has("auto-folder"),
+    autoBrowser: readBooleanFlag(flags, "auto-browser", scenarioDefaults.autoBrowser ?? false),
+    autoFolder: readBooleanFlag(flags, "auto-folder", scenarioDefaults.autoFolder ?? false),
     browserChannel: args.get("browser-channel") || null,
     clean: !flags.has("keep-data"),
-    fileSwitch: flags.has("file-switch"),
-    fileSwitchCount: readPositiveInteger(args.get("file-switch-count"), Math.min(20, fileCount)),
+    fileSwitch: readBooleanFlag(flags, "file-switch", scenarioDefaults.fileSwitch ?? false),
+    fileSwitchCount: readPositiveInteger(
+      args.get("file-switch-count"),
+      scenarioDefaults.fileSwitchCount ?? Math.min(20, fileCount),
+    ),
     fileSwitchIntervalMs: readPositiveInteger(
       args.get("file-switch-interval-ms") || args.get("file-switch-storm-interval-ms"),
-      16,
+      scenarioDefaults.fileSwitchIntervalMs ?? 16,
     ),
-    fileSwitchLive: flags.has("file-switch-live"),
-    fileSwitchLiveMs: readPositiveInteger(args.get("file-switch-live-ms"), 8000),
+    fileSwitchLive: readBooleanFlag(flags, "file-switch-live", scenarioDefaults.fileSwitchLive ?? false),
+    fileSwitchLiveMs: readPositiveInteger(args.get("file-switch-live-ms"), scenarioDefaults.fileSwitchLiveMs ?? 8000),
     fileCount,
-    liveStressParallel: flags.has("live-stress-parallel"),
+    liveStressParallel: readBooleanFlag(flags, "live-stress-parallel", scenarioDefaults.liveStressParallel ?? false),
     outputRoot: path.resolve(args.get("out") || defaultOutputRoot),
-    profile: args.get("profile") || "healthy",
-    rowCount: readPositiveInteger(args.get("rows"), 4000),
-    runtime: args.get("runtime") || "browser",
+    profile: args.get("profile") || scenarioDefaults.profile || "healthy",
+    rowCount: readPositiveInteger(args.get("rows"), scenarioDefaults.rowCount ?? 4000),
+    runtime: args.get("runtime") || scenarioDefaults.runtime || "browser",
     sampleMs: readPositiveInteger(args.get("sample-ms"), 100),
-    scenario: args.get("scenario") || null,
+    scenario: scenarioName,
     splitReports: !flags.has("no-split-reports"),
-    thumbnailHover: flags.has("thumbnail-hover"),
-    thumbnailHoverCount: readPositiveInteger(args.get("thumbnail-hover-count"), Math.min(12, fileCount)),
-    thumbnailHoverLive: flags.has("thumbnail-hover-live"),
-    thumbnailHoverLiveMs: readPositiveInteger(args.get("thumbnail-hover-live-ms"), 8000),
-    thumbnailHoverLiveWatchOnly: flags.has("thumbnail-hover-live-watch-only"),
-    thumbnailHoverStormIntervalMs: readPositiveInteger(args.get("thumbnail-hover-storm-interval-ms"), 16),
-    timeoutMs: readPositiveInteger(args.get("timeout-ms"), 120000),
+    thumbnailHover: readBooleanFlag(flags, "thumbnail-hover", scenarioDefaults.thumbnailHover ?? false),
+    thumbnailHoverCount: readPositiveInteger(
+      args.get("thumbnail-hover-count"),
+      scenarioDefaults.thumbnailHoverCount ?? Math.min(12, fileCount),
+    ),
+    thumbnailHoverLive: readBooleanFlag(flags, "thumbnail-hover-live", scenarioDefaults.thumbnailHoverLive ?? false),
+    thumbnailHoverLiveMs: readPositiveInteger(
+      args.get("thumbnail-hover-live-ms"),
+      scenarioDefaults.thumbnailHoverLiveMs ?? 8000,
+    ),
+    thumbnailHoverLiveWatchOnly: readBooleanFlag(
+      flags,
+      "thumbnail-hover-live-watch-only",
+      scenarioDefaults.thumbnailHoverLiveWatchOnly ?? false,
+    ),
+    thumbnailHoverStormIntervalMs: readPositiveInteger(
+      args.get("thumbnail-hover-storm-interval-ms"),
+      scenarioDefaults.thumbnailHoverStormIntervalMs ?? 16,
+    ),
+    timeoutMs: readPositiveInteger(args.get("timeout-ms"), scenarioDefaults.timeoutMs ?? 120000),
     variant: args.get("variant") || args.get("run-label") || null,
     writeFullReport: !flags.has("no-full-report"),
   };
+};
+
+const readBooleanFlag = (flags, name, fallback) => {
+  if (flags.has(`no-${name}`)) {
+    return false;
+  }
+  if (flags.has(name)) {
+    return true;
+  }
+  return fallback;
 };
 
 const readPositiveInteger = (value, fallback) => {
@@ -151,6 +183,13 @@ const main = async () => {
     });
 
     console.log(`[template-apply-performance-trace] runtime=${options.runtime}`);
+    console.log(`[template-apply-performance-trace] scenario=${options.scenario ?? "custom"}`);
+    console.log(`[template-apply-performance-trace] workload=${JSON.stringify({
+      fileCount: options.fileCount,
+      fileSwitchCount: options.fileSwitchCount,
+      rowCount: options.rowCount,
+      thumbnailHoverCount: options.thumbnailHoverCount,
+    })}`);
     console.log(`[template-apply-performance-trace] fixture=${fixtureRoot}`);
     console.log(`[template-apply-performance-trace] profile=${fixture.profile} composition=${JSON.stringify(fixture.composition)}`);
     console.log("[template-apply-performance-trace] Click Open Folder in the app and select the fixture directory.");

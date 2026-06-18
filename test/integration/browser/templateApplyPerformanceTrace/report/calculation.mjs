@@ -9,6 +9,11 @@ export const summarizePerfEntriesBy = (entries, stage, predicate) =>
     .filter(entry => entry.stage === stage && predicate(entry))
     .map(entry => entry.meta?.durationMs));
 
+export const summarizePerfMetaBy = (entries, stage, key, predicate) =>
+  summarizeDurations(entries
+    .filter(entry => entry.stage === stage && predicate(entry))
+    .map(entry => entry.meta?.[key]));
+
 export const summarizeCalculationBuildMetrics = (analysisPerfReport) => {
   const entries = getAnalysisPerfEntries(analysisPerfReport);
   const isWorker = entry => entry.meta?.worker === true;
@@ -27,6 +32,15 @@ export const summarizeCalculationBuildMetrics = (analysisPerfReport) => {
     ),
     workerBackground: summarizePerfEntriesBy(entries, "calculationContribution.buildRecords", entry =>
       isWorker(entry) && isBackground(entry)
+    ),
+    workerForegroundWait: summarizePerfMetaBy(entries, "calculationContribution.buildRecords", "workerWaitMs", entry =>
+      isWorker(entry) && isForeground(entry)
+    ),
+    workerBackgroundWait: summarizePerfMetaBy(entries, "calculationContribution.buildRecords", "workerWaitMs", entry =>
+      isWorker(entry) && isBackground(entry)
+    ),
+    workerWait: summarizePerfMetaBy(entries, "calculationContribution.buildRecords", "workerWaitMs", entry =>
+      isWorker(entry)
     ),
   };
 };

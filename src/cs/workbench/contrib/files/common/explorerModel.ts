@@ -541,9 +541,11 @@ export const createChartExplorerFilesFromRecords = (
 			rawFile?.xAxisRole ??
 			null;
 		files.push({
+			chartState: "ready",
 			file: file.raw.file ?? rawFile?.file,
 			fileId,
 			fileName: String(file.name ?? file.raw.fileName ?? rawFile?.fileName ?? fileId).trim() || fileId,
+			hasChartData: true,
 			itemKey: getOptionalString(rawFile?.itemKey ?? file.raw.rawKey),
 			normalizedCsvPath: file.raw.normalizedCsvPath ?? rawFile?.normalizedCsvPath,
 			relativePath: file.raw.relativePath ?? rawFile?.relativePath ?? null,
@@ -598,9 +600,11 @@ export const createChartExplorerFiles = (
 		const curveType = processedFile.curveType ?? rawFile?.curveType ?? null;
 		const xAxisRole = processedFile.xAxisRole ?? rawFile?.xAxisRole ?? null;
 		files.push({
+			chartState: "ready",
 			file: rawFile?.file,
 			fileId,
 			fileName: getFileName(processedFile, rawFile, fileId),
+			hasChartData: true,
 			itemKey: getOptionalString(rawFile?.itemKey),
 			normalizedCsvPath: rawFile?.normalizedCsvPath,
 			relativePath: rawFile?.relativePath ?? null,

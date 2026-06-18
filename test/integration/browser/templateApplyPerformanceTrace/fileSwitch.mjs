@@ -1,5 +1,8 @@
 import {
-  readVisibleThumbnailHoverTargets,
+  collectThumbnailHoverTargets,
+  mergeThumbnailHoverTargets,
+  scrollThumbnailHoverTargetIntoView,
+  waitForCollectedThumbnailHoverTargets,
   waitForVisibleThumbnailHoverTargets,
 } from "./thumbnailHover.mjs";
 
@@ -87,6 +90,19 @@ export const dispatchSyntheticFileSelect = async (page, fileId) => page.evaluate
   target.dispatchEvent(new MouseEvent("click", eventInit));
   return true;
 }, fileId);
+
+export const dispatchSyntheticFileSelectTarget = async (page, target) => {
+  const fileId = typeof target === "string" ? target : target?.fileId;
+  if (!fileId) {
+    return false;
+  }
+  const visibleDispatch = await dispatchSyntheticFileSelect(page, fileId).catch(() => false);
+  if (visibleDispatch) {
+    return true;
+  }
+  await scrollThumbnailHoverTargetIntoView(page, target);
+  return dispatchSyntheticFileSelect(page, fileId).catch(() => false);
+};
 
 export const waitForSelectedFile = async (page, fileId, timeoutMs) => page.waitForFunction(
   (targetFileId) => {
@@ -300,7 +316,7 @@ export const runFileSwitchStress = async ({
 }) => {
   const before = await inspectMainChartState(page);
   const targets = orderSwitchTargets(
-    await readVisibleThumbnailHoverTargets(page, count + 1),
+    await waitForCollectedThumbnailHoverTargets(page, count + 1, Math.min(timeoutMs, 15000)),
     count,
   );
   const samples = [];
@@ -309,8 +325,7 @@ export const runFileSwitchStress = async ({
   for (const target of targets) {
     const beforeState = await inspectMainChartState(page);
     const switchStartedAt = Date.now();
-    const dispatched = await dispatchSyntheticFileSelect(page, target.fileId)
-      .catch(() => false);
+    const dispatched = await dispatchSyntheticFileSelectTarget(page, target);
     if (!dispatched) {
       samples.push({
         ...target,
@@ -374,7 +389,7 @@ export const runLiveFileSwitchStress = async ({
   page,
   timeoutMs,
 }) => {
-  const targets = orderSwitchTargets(
+  let targets = orderSwitchTargets(
     await waitForVisibleThumbnailHoverTargets(page, count + 1, Math.min(timeoutMs, 5000)),
     count,
   );
@@ -399,6 +414,20 @@ export const runLiveFileSwitchStress = async ({
   let lastSwitchStartedAt = null;
   let lastTarget = null;
   while (Date.now() - startedAt < liveMs) {
+    if (
+      targets.length < count &&
+      eventCount > 0 &&
+      eventCount % Math.max(1, targets.length) === 0
+    ) {
+      targets = orderSwitchTargets(
+        mergeThumbnailHoverTargets(
+          targets,
+          await collectThumbnailHoverTargets(page, count + 1, Math.min(500, timeoutMs)),
+        ),
+        count,
+      );
+    }
+
     const target = targets[eventCount % targets.length];
     if (!target) {
       break;
@@ -407,7 +436,7 @@ export const runLiveFileSwitchStress = async ({
     lastBeforeState = await inspectMainChartState(page);
     lastSwitchStartedAt = Date.now();
     lastTarget = target;
-    await dispatchSyntheticFileSelect(page, target.fileId).catch(() => false);
+    await dispatchSyntheticFileSelectTarget(page, target);
     eventCount += 1;
     await page.waitForTimeout(intervalMs);
   }
