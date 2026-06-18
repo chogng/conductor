@@ -1,6 +1,7 @@
 export const templateApplyPerformanceTraceScenarios = {
   "chart-targets-200": {
     description: "400 imported files, 200 expected chart targets, live + stable hover and file switch stress.",
+    historyKey: "chart-targets-200.coordinated",
     defaults: {
       fileCount: 400,
       fileSwitch: true,
@@ -8,6 +9,7 @@ export const templateApplyPerformanceTraceScenarios = {
       fileSwitchIntervalMs: 16,
       fileSwitchLive: true,
       fileSwitchLiveMs: 12000,
+      liveStressCoordinated: true,
       liveStressParallel: true,
       profile: "healthy",
       rowCount: 4000,

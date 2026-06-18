@@ -559,6 +559,86 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       bridge.dispose();
     }
   });
+
+  test("syncs selected chart file before a pending frame sync", async () => {
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+    const scheduledFrames: FrameRequestCallback[] = [];
+    const canceledFrames = new Set<number>();
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      scheduledFrames.push(callback);
+      return scheduledFrames.length;
+    }) as typeof requestAnimationFrame;
+    globalThis.cancelAnimationFrame = ((handle: number): void => {
+      canceledFrames.add(handle);
+    }) as typeof cancelAnimationFrame;
+
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const chartActiveFileIds: (string | null)[] = [];
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      chartActiveFileIds,
+      explorerService,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+    }));
+    try {
+      commitRawFilesForTest(session, [
+        {
+          columnCount: 2,
+          fileId: "file-a",
+          fileName: "A.csv",
+          rowCount: 2,
+          rows: [],
+        },
+        {
+          columnCount: 2,
+          fileId: "file-b",
+          fileName: "B.csv",
+          rowCount: 2,
+          rows: [],
+        },
+      ]);
+      commitTemplateOutputForTest(session, {
+        curveType: "transfer",
+        fileId: "file-a",
+        fileName: "A.csv",
+        series: [{
+          groupIndex: 0,
+          id: "series-a",
+          y: [1, 2],
+        }],
+        xGroups: [[0, 1]],
+      });
+      commitTemplateOutputForTest(session, {
+        curveType: "transfer",
+        fileId: "file-b",
+        fileName: "B.csv",
+        series: [{
+          groupIndex: 0,
+          id: "series-b",
+          y: [1, 2],
+        }],
+        xGroups: [[0, 1]],
+      });
+      explorerService.setPendingSourceFiles(true);
+      assert.equal(scheduledFrames.length, 1);
+
+      explorerService.select({
+        fileId: "file-b",
+        kind: "chart",
+      });
+      await Promise.resolve();
+
+      assert.equal(canceledFrames.has(1), true);
+      assert.equal(chartActiveFileIds.at(-1), "file-b");
+    } finally {
+      bridge.dispose();
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+      globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+    }
+  });
 });
 
 const createPlotService = (): Parameters<typeof createExplorerPaneInput>[0]["plotService"] => ({
@@ -596,11 +676,13 @@ const createPlotService = (): Parameters<typeof createExplorerPaneInput>[0]["plo
 });
 
 const createDomainBridgeOptionsForTest = ({
+  chartActiveFileIds,
   explorerService,
   prioritizedCalculationFileIds,
   prioritizedTemplateFileIds,
   session,
 }: {
+  readonly chartActiveFileIds?: (string | null)[];
   readonly explorerService: ExplorerService;
   readonly prioritizedCalculationFileIds: string[];
   readonly prioritizedTemplateFileIds: string[];
@@ -624,7 +706,9 @@ const createDomainBridgeOptionsForTest = ({
     },
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["calculationService"],
   chartService: {
-    updateViewInput: () => undefined,
+    updateViewInput: input => {
+      chartActiveFileIds?.push(input.activeFileId ?? null);
+    },
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["chartService"],
   explorerService,
   layoutService: {
@@ -636,6 +720,7 @@ const createDomainBridgeOptionsForTest = ({
     getState: () => ({ activePlotType: "iv" }),
     onDidChangePlotState: Event.None,
     prefetchCalculatedData: () => undefined,
+    prefetchPlotDisplayModel: () => undefined,
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["plotService"],
   sessionService: session,
   settingsService: {

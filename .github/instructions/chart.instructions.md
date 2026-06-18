@@ -168,6 +168,9 @@ Chart's active plot host may request eager first draw from `PlotMainView` so a
 newly selected chart paints on the first connected, sized frame. Keep the
 strategy explicit in Chart view composition; do not make Plot's reusable chart
 widget eager by default.
+Only the main chart pane should use eager first draw during active file
+switches. Detail panes such as Inspector should use stable draw so secondary
+canvas work does not compete with the main chart's first visible frame.
 Chart may pass a render signature derived from the current Plot display model
 file id, plot type, pane, domains, and series sizes into `PlotMainView` so the
 canvas can expose which target it has drawn for diagnostics and performance

@@ -21,6 +21,9 @@ import {
   runLiveFileSwitchStress,
 } from "./templateApplyPerformanceTrace/fileSwitch.mjs";
 import {
+  runCoordinatedLiveInteractionStress,
+} from "./templateApplyPerformanceTrace/liveInteraction.mjs";
+import {
   formatMs,
   summarizeAnalysisPerfReport,
   summarizeFileSwitchLiveStress,
@@ -89,6 +92,11 @@ const parseArgs = () => {
     fileSwitchLive: readBooleanFlag(flags, "file-switch-live", scenarioDefaults.fileSwitchLive ?? false),
     fileSwitchLiveMs: readPositiveInteger(args.get("file-switch-live-ms"), scenarioDefaults.fileSwitchLiveMs ?? 8000),
     fileCount,
+    liveStressCoordinated: readBooleanFlag(
+      flags,
+      "live-stress-coordinated",
+      scenarioDefaults.liveStressCoordinated ?? false,
+    ),
     liveStressParallel: readBooleanFlag(flags, "live-stress-parallel", scenarioDefaults.liveStressParallel ?? false),
     outputRoot: path.resolve(args.get("out") || defaultOutputRoot),
     profile: args.get("profile") || scenarioDefaults.profile || "healthy",
@@ -187,6 +195,8 @@ const main = async () => {
     console.log(`[template-apply-performance-trace] workload=${JSON.stringify({
       fileCount: options.fileCount,
       fileSwitchCount: options.fileSwitchCount,
+      liveStressCoordinated: options.liveStressCoordinated,
+      liveStressParallel: options.liveStressParallel,
       rowCount: options.rowCount,
       thumbnailHoverCount: options.thumbnailHoverCount,
     })}`);
@@ -315,15 +325,59 @@ const main = async () => {
           targetCount: fileSwitchLive?.targetCount ?? null,
         });
       };
-      const liveStressTasks = [
-        ...(options.thumbnailHoverLive ? [runThumbnailHoverLiveStressTask] : []),
-        ...(options.fileSwitchLive ? [runFileSwitchLiveStressTask] : []),
-      ];
-      if (options.liveStressParallel) {
-        await Promise.all(liveStressTasks.map(task => task()));
+      if (
+        options.liveStressCoordinated &&
+        options.liveStressParallel &&
+        options.thumbnailHoverLive &&
+        options.fileSwitchLive &&
+        !options.thumbnailHoverLiveWatchOnly
+      ) {
+        await phaseRecorder.mark("live.thumbnailHover.start", {
+          coordinated: true,
+          count: options.thumbnailHoverCount,
+          intervalMs: options.thumbnailHoverStormIntervalMs,
+          liveMs: options.thumbnailHoverLiveMs,
+          watchOnly: false,
+        });
+        await phaseRecorder.mark("live.fileSwitch.start", {
+          coordinated: true,
+          count: options.fileSwitchCount,
+          intervalMs: options.fileSwitchIntervalMs,
+          liveMs: options.fileSwitchLiveMs,
+        });
+        const coordinatedLive = await runCoordinatedLiveInteractionStress({
+          fileSwitchCount: options.fileSwitchCount,
+          fileSwitchIntervalMs: options.fileSwitchIntervalMs,
+          fileSwitchLiveMs: options.fileSwitchLiveMs,
+          page: runtime.page,
+          thumbnailHoverCount: options.thumbnailHoverCount,
+          thumbnailHoverIntervalMs: options.thumbnailHoverStormIntervalMs,
+          thumbnailHoverLiveMs: options.thumbnailHoverLiveMs,
+          timeoutMs: options.timeoutMs,
+        });
+        thumbnailHoverLive = coordinatedLive.thumbnailHoverLive;
+        fileSwitchLive = coordinatedLive.fileSwitchLive;
+        await phaseRecorder.mark("live.thumbnailHover.end", {
+          coordinated: true,
+          eventCount: thumbnailHoverLive?.eventCount ?? null,
+          targetCount: thumbnailHoverLive?.targetCount ?? null,
+        });
+        await phaseRecorder.mark("live.fileSwitch.end", {
+          coordinated: true,
+          eventCount: fileSwitchLive?.eventCount ?? null,
+          targetCount: fileSwitchLive?.targetCount ?? null,
+        });
       } else {
-        for (const task of liveStressTasks) {
-          await task();
+        const liveStressTasks = [
+          ...(options.thumbnailHoverLive ? [runThumbnailHoverLiveStressTask] : []),
+          ...(options.fileSwitchLive ? [runFileSwitchLiveStressTask] : []),
+        ];
+        if (options.liveStressParallel) {
+          await Promise.all(liveStressTasks.map(task => task()));
+        } else {
+          for (const task of liveStressTasks) {
+            await task();
+          }
         }
       }
       await processingDone;

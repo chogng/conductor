@@ -180,7 +180,7 @@ export const installFileSwitchLiveObserver = async (page) => page.evaluate(() =>
     wallTime: Date.now(),
   });
 
-  const readCanvasSnapshot = (canvas) => {
+  const readCanvasSnapshot = (canvas, { samplePixels = true } = {}) => {
     if (!(canvas instanceof HTMLCanvasElement) || canvas.width <= 0 || canvas.height <= 0) {
       return {
         canvasHeight: canvas instanceof HTMLCanvasElement ? canvas.height : null,
@@ -192,12 +192,24 @@ export const installFileSwitchLiveObserver = async (page) => page.evaluate(() =>
       };
     }
 
+    const canvasRenderSignature = canvas.dataset.plotRenderSignature ?? null;
+    if (!samplePixels) {
+      return {
+        canvasHeight: canvas.height,
+        canvasNonBlank: Boolean(canvasRenderSignature),
+        canvasRenderSignature,
+        canvasSignature: null,
+        canvasVisible: true,
+        canvasWidth: canvas.width,
+      };
+    }
+
     const context = canvas.getContext("2d");
     if (!context) {
       return {
         canvasHeight: canvas.height,
         canvasNonBlank: false,
-        canvasRenderSignature: canvas.dataset.plotRenderSignature ?? null,
+        canvasRenderSignature,
         canvasSignature: null,
         canvasVisible: true,
         canvasWidth: canvas.width,
@@ -221,18 +233,18 @@ export const installFileSwitchLiveObserver = async (page) => page.evaluate(() =>
     return {
       canvasHeight: canvas.height,
       canvasNonBlank: nonBlank,
-      canvasRenderSignature: canvas.dataset.plotRenderSignature ?? null,
+      canvasRenderSignature,
       canvasSignature: `${canvas.width}x${canvas.height}:${hash >>> 0}`,
       canvasVisible: true,
       canvasWidth: canvas.width,
     };
   };
 
-  const readState = (reason) => {
+  const readState = (reason, { samplePixels = true } = {}) => {
     const selected = document.querySelector(".file-list-item[data-selected=\"true\"][data-file-id]");
     const canvas = document.querySelector(".plot_main_chart_canvas");
     const emptyTitle = document.querySelector(".chart_view_empty_title");
-    const snapshot = readCanvasSnapshot(canvas);
+    const snapshot = readCanvasSnapshot(canvas, { samplePixels });
     const traceTime = readTraceTime();
     return {
       ...snapshot,
@@ -247,8 +259,8 @@ export const installFileSwitchLiveObserver = async (page) => page.evaluate(() =>
   };
 
   let lastSignature = "";
-  const pushState = (reason) => {
-    const state = readState(reason);
+  const pushState = (reason, { samplePixels = true } = {}) => {
+    const state = readState(reason, { samplePixels });
     const signature = [
       state.selectedFileId ?? "",
       state.selectedChartState ?? "",
@@ -265,33 +277,40 @@ export const installFileSwitchLiveObserver = async (page) => page.evaluate(() =>
     events.push(state);
   };
 
-  const observer = new MutationObserver(() => pushState("mutation"));
+  const observer = new MutationObserver(() => pushState("mutation", { samplePixels: false }));
   observer.observe(document.body || document.documentElement, {
     attributes: true,
-    attributeFilter: ["data-selected", "data-chart-state", "data-has-chart-data", "class", "style"],
+    attributeFilter: [
+      "data-chart-state",
+      "data-has-chart-data",
+      "data-plot-render-signature",
+      "data-selected",
+      "class",
+      "style",
+    ],
     childList: true,
     subtree: true,
   });
-  const interval = window.setInterval(() => pushState("tick"), 50);
-  pushState("start");
+  const interval = window.setInterval(() => pushState("tick", { samplePixels: false }), 50);
+  pushState("start", { samplePixels: false });
 
   globalTarget.__fileSwitchLiveTrace = {
     dispatches,
     events,
     recordDispatch: (fileId) => {
-      const state = readState("dispatch");
+      const state = readState("dispatch", { samplePixels: false });
       dispatches.push({
         fileId: String(fileId ?? ""),
         state,
         timestamp: state.timestamp,
         wallTime: state.wallTime,
       });
-      pushState("dispatch");
+      pushState("dispatch", { samplePixels: false });
     },
     stop: () => {
       observer.disconnect();
       window.clearInterval(interval);
-      pushState("stop");
+      pushState("stop", { samplePixels: false });
       return {
         dispatches: [...dispatches],
         events: [...events],

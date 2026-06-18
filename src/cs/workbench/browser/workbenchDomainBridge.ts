@@ -86,7 +86,7 @@ export class WorkbenchDomainBridge extends Disposable {
     this._register(this.options.explorerService.onDidChangePendingSourceFiles(() => this.scheduleSync()));
     this._register(this.options.explorerService.onDidChangeSelection(event => {
       this.prioritizeProcessingFile(event.selectedFileId);
-      this.scheduleSync();
+      this.scheduleInteractiveSync();
     }));
     this._register(this.options.explorerService.onDidChangeHoveredFile(event => {
       this.prioritizeProcessingFile(event.fileId);
@@ -104,10 +104,12 @@ export class WorkbenchDomainBridge extends Disposable {
   }
 
   private cancelScheduledSync: (() => void) | null = null;
+  private scheduledSyncKind: "frame" | "microtask" | null = null;
 
   public sync(): void {
     this.cancelScheduledSync?.();
     this.cancelScheduledSync = null;
+    this.scheduledSyncKind = null;
     this.runSync();
   }
 
@@ -118,8 +120,10 @@ export class WorkbenchDomainBridge extends Disposable {
 
     const run = (): void => {
       this.cancelScheduledSync = null;
+      this.scheduledSyncKind = null;
       this.runSync();
     };
+    this.scheduledSyncKind = "frame";
     if (typeof globalThis.requestAnimationFrame === "function") {
       const handle = globalThis.requestAnimationFrame(run);
       this.cancelScheduledSync = () => {
@@ -132,6 +136,34 @@ export class WorkbenchDomainBridge extends Disposable {
     this.cancelScheduledSync = () => {
       globalThis.clearTimeout(handle);
     };
+  }
+
+  private scheduleInteractiveSync(): void {
+    if (this.scheduledSyncKind === "microtask") {
+      return;
+    }
+
+    this.cancelScheduledSync?.();
+    let canceled = false;
+    this.scheduledSyncKind = "microtask";
+    this.cancelScheduledSync = () => {
+      canceled = true;
+    };
+    const run = (): void => {
+      if (canceled || this.scheduledSyncKind !== "microtask") {
+        return;
+      }
+
+      this.cancelScheduledSync = null;
+      this.scheduledSyncKind = null;
+      this.runSync();
+    };
+    if (typeof globalThis.queueMicrotask === "function") {
+      globalThis.queueMicrotask(run);
+      return;
+    }
+
+    globalThis.setTimeout(run, 0);
   }
 
   private runSync(): void {

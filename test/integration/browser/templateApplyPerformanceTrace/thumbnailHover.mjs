@@ -105,6 +105,26 @@ export const scrollThumbnailHoverListByWheel = async (page, deltaY) => {
   return true;
 };
 
+export const readVisibleThumbnailHoverRowRange = async (page) => page.evaluate(() => {
+  const rows = [...document.querySelectorAll(".file-list-tree .ui-list__row[data-index]")]
+    .map(row => Number(row.getAttribute("data-index")))
+    .filter(Number.isFinite);
+  const rowHeight = document.querySelector(".file-list-item")?.getBoundingClientRect().height ?? 22;
+  const viewport = document.querySelector(".file-list-tree .ui-list__viewport") ??
+    document.querySelector(".file-list-tree-viewport");
+  return {
+    firstRowIndex: rows.length ? Math.min(...rows) : null,
+    lastRowIndex: rows.length ? Math.max(...rows) : null,
+    rowHeight,
+    viewportHeight: viewport instanceof HTMLElement ? viewport.clientHeight : null,
+  };
+}).catch(() => ({
+  firstRowIndex: null,
+  lastRowIndex: null,
+  rowHeight: 22,
+  viewportHeight: null,
+}));
+
 export const waitForCollectedThumbnailHoverTargets = async (
   page,
   count,
@@ -161,6 +181,7 @@ export const scrollThumbnailHoverTargetIntoView = async (page, target, timeoutMs
   }
 
   const startedAt = Date.now();
+  const targetRowIndex = Number(target?.rowIndex);
   let resetToTop = false;
   while (Date.now() - startedAt < timeoutMs) {
     const found = await page.evaluate((targetFileId) => {
@@ -176,11 +197,10 @@ export const scrollThumbnailHoverTargetIntoView = async (page, target, timeoutMs
       return true;
     }
 
-    const shouldResetToTop = !resetToTop;
-    const wheelScrolled = await scrollThumbnailHoverListByWheel(
-      page,
-      shouldResetToTop ? -100000 : THUMBNAIL_HOVER_LIST_WHEEL_DELTA_Y,
-    );
+    const range = await readVisibleThumbnailHoverRowRange(page);
+    const deltaY = resolveWheelDeltaForTargetRow(targetRowIndex, range, !resetToTop);
+    const shouldResetToTop = deltaY === -100000;
+    const wheelScrolled = await scrollThumbnailHoverListByWheel(page, deltaY);
     const scrollState = wheelScrolled
       ? { didScroll: true }
       : await page.evaluate((reset) => {
@@ -206,6 +226,29 @@ export const scrollThumbnailHoverTargetIntoView = async (page, target, timeoutMs
     await page.waitForTimeout(16);
   }
   return false;
+};
+
+const resolveWheelDeltaForTargetRow = (targetRowIndex, range, shouldResetToTop) => {
+  const firstRowIndex = Number(range?.firstRowIndex);
+  const lastRowIndex = Number(range?.lastRowIndex);
+  const rowHeight = Math.max(1, Number(range?.rowHeight) || 22);
+  if (
+    Number.isFinite(targetRowIndex) &&
+    Number.isFinite(firstRowIndex) &&
+    Number.isFinite(lastRowIndex)
+  ) {
+    if (targetRowIndex < firstRowIndex) {
+      const rows = Math.max(1, firstRowIndex - targetRowIndex + 2);
+      return -Math.min(2400, Math.max(THUMBNAIL_HOVER_LIST_WHEEL_DELTA_Y, rows * rowHeight));
+    }
+    if (targetRowIndex > lastRowIndex) {
+      const rows = Math.max(1, targetRowIndex - lastRowIndex + 2);
+      return Math.min(2400, Math.max(THUMBNAIL_HOVER_LIST_WHEEL_DELTA_Y, rows * rowHeight));
+    }
+    return THUMBNAIL_HOVER_LIST_WHEEL_DELTA_Y;
+  }
+
+  return shouldResetToTop ? -100000 : THUMBNAIL_HOVER_LIST_WHEEL_DELTA_Y;
 };
 
 export const dispatchSyntheticFileHover = async (page, fileId, previousFileId = null) => page.evaluate(({

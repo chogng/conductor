@@ -91,7 +91,7 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   const inspectorDisplayModel = plotDisplayModel.inspector;
   const inspectorPlotView = inspectorDisplayModel
     ? createPlotMainView({
-      drawStrategy: "eager",
+      drawStrategy: "stable",
       model: inspectorDisplayModel.model,
       onXAxisLabelChange: props.onInspectorXAxisLabelChange,
       onYAxisLabelChange: props.onInspectorYAxisLabelChange,

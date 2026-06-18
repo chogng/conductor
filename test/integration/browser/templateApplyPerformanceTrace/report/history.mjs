@@ -17,11 +17,13 @@ export const createScenarioKey = (options) => {
     return createWorkloadScenarioKey(options);
   }
 
+  const scenario = resolveTemplateApplyPerformanceTraceScenario(options.scenario);
+  const scenarioHistoryKey = scenario?.historyKey ?? options.scenario;
   if (isScenarioDefaultWorkload(options)) {
-    return options.scenario;
+    return scenarioHistoryKey;
   }
 
-  return `${options.scenario}.override.${createWorkloadScenarioKey(options)}`;
+  return `${scenarioHistoryKey}.override.${createWorkloadScenarioKey(options)}`;
 };
 
 const createWorkloadScenarioKey = (options) => [
@@ -35,7 +37,7 @@ const createWorkloadScenarioKey = (options) => [
   options.fileSwitchLive ? "live-switch" : null,
   options.thumbnailHover ? "stable-hover" : null,
   options.fileSwitch ? "stable-switch" : null,
-  options.liveStressParallel ? "parallel" : "serial",
+  options.liveStressCoordinated ? "coordinated" : options.liveStressParallel ? "parallel" : "serial",
 ].filter(Boolean).join(".");
 
 const isScenarioDefaultWorkload = (options) => {
