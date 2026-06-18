@@ -139,7 +139,7 @@ const getFileName = getExplorerTreeFileName;
 const FILE_HOVER_HIDE_DELAY_MS = 120;
 const FILE_HOVER_THUMBNAIL_WIDTH = 360;
 const FILE_HOVER_THUMBNAIL_VIEWPORT_RATIO = 0.44;
-const HOVER_THUMBNAIL_CACHE_LIMIT = 12;
+const HOVER_THUMBNAIL_CACHE_LIMIT = 32;
 const FILE_ASSESSMENT_REASON_SEPARATOR = "\u001d";
 
 const getFileHoverThumbnailWidth = (): number =>
@@ -2070,16 +2070,24 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
-    container.replaceChildren();
     if (content.kind === "thumbnail") {
-      container.appendChild(this.getHoverThumbnail(
+      const thumbnail = this.getHoverThumbnail(
         content.fileId,
         content.file,
         content.isSelected,
-      ));
+      );
+      if (
+        container.childElementCount === 1 &&
+        container.firstElementChild === thumbnail
+      ) {
+        return;
+      }
+
+      container.replaceChildren(thumbnail);
       return;
     }
 
+    container.replaceChildren();
     const details = document.createElement("dl");
     details.className = "file-list-hover-assessment";
     details.dataset.warning = content.isWarning ? "true" : "false";

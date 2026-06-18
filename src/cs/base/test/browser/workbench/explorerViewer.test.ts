@@ -436,11 +436,18 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       assert.equal(hoverLayer.querySelector(".thumbnail_view_chart_loading"), null);
       const readyThumbnail = hoverLayer.querySelector(".thumbnail_view");
       assert.ok(readyThumbnail);
+      const replaceChildren = hoverLayer.replaceChildren.bind(hoverLayer);
+      let replaceCount = 0;
+      hoverLayer.replaceChildren = (...nodes: (Node | string)[]): void => {
+        replaceCount += 1;
+        replaceChildren(...nodes);
+      };
 
       previewEmitter.fire({ fileId: "file-a" });
 
       assert.equal(contextViewService.showCount, 1);
       assert.equal(contextViewService.renderedElement, hoverLayer);
+      assert.equal(replaceCount, 0);
       assert.equal(hoverLayer.querySelector(".thumbnail_view"), readyThumbnail);
 
       item.dispatchEvent(new MouseEvent("mouseover", {

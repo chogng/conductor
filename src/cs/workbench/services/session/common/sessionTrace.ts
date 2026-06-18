@@ -47,6 +47,16 @@ type SessionSnapshotTraceOptions = {
 
 const DEFAULT_SAMPLE_SIZE = 3;
 
+type SessionSnapshotTraceAggregate = Omit<SessionSnapshotTraceSummary, "sampleFiles">;
+
+type CachedSessionSnapshotTrace = {
+  readonly aggregate: SessionSnapshotTraceAggregate;
+  readonly fileSummariesById: ReadonlyMap<FileId, SessionSnapshotTraceFileSummary>;
+};
+
+let cachedTraceSnapshot: SessionSnapshot | null = null;
+let cachedTraceSummary: CachedSessionSnapshotTrace | null = null;
+
 export const logSessionSnapshotTrace = (
   traceStage: string,
   snapshot: SessionSnapshot,
@@ -74,7 +84,24 @@ export const createSessionSnapshotTraceSummary = (
   snapshot: SessionSnapshot,
   options: SessionSnapshotTraceOptions = {},
 ): SessionSnapshotTraceSummary => {
+  const cachedSummary = getCachedSessionSnapshotTrace(snapshot);
+  return {
+    ...cachedSummary.aggregate,
+    sampleFiles: getSampleFileIds(snapshot, options)
+      .map(fileId => cachedSummary.fileSummariesById.get(fileId))
+      .filter((file): file is SessionSnapshotTraceFileSummary => Boolean(file)),
+  };
+};
+
+const getCachedSessionSnapshotTrace = (
+  snapshot: SessionSnapshot,
+): CachedSessionSnapshotTrace => {
+  if (cachedTraceSnapshot === snapshot && cachedTraceSummary) {
+    return cachedTraceSummary;
+  }
+
   const files = getOrderedFiles(snapshot);
+  const fileSummariesById = new Map<FileId, SessionSnapshotTraceFileSummary>();
   let rawTableCount = 0;
   let seriesCount = 0;
   let curveCount = 0;
@@ -87,39 +114,41 @@ export const createSessionSnapshotTraceSummary = (
 
   for (const file of files) {
     const fileSummary = summarizeFileRecord(file);
+    fileSummariesById.set(file.id, fileSummary);
     rawTableCount += fileSummary.rawTableCount;
     seriesCount += fileSummary.seriesCount;
     curveCount += fileSummary.curveCount;
     baseCurveCount += fileSummary.baseCurveCount;
+    derivedCurveCount += fileSummary.curveCount - fileSummary.baseCurveCount;
     pointCount += fileSummary.pointCount;
     metricCount += Object.keys(file.metricsByKey).length;
     templateRunCount += Object.keys(file.templateRunsById).length;
     if (fileSummary.baseCurveCount > 0) {
       processedFileCount += 1;
     }
-    for (const curve of Object.values(file.curvesByKey)) {
-      if (curve.curveGeneration !== "base") {
-        derivedCurveCount += 1;
-      }
-    }
   }
 
-  return {
-    baseCurveCount,
-    curveCount,
-    derivedCurveCount,
-    fileCount: Object.keys(snapshot.filesById).length,
-    fileOrderCount: snapshot.fileOrder.length,
-    metricCount,
-    pointCount,
-    processedFileCount,
-    rawTableCount,
-    sampleFiles: getSampleFiles(snapshot, options).map(summarizeFileRecord),
-    schemaVersion: snapshot.schemaVersion,
-    seriesCount,
-    sessionVersion: snapshot.sessionVersion,
-    templateRunCount,
+  const summary: CachedSessionSnapshotTrace = {
+    aggregate: {
+      baseCurveCount,
+      curveCount,
+      derivedCurveCount,
+      fileCount: Object.keys(snapshot.filesById).length,
+      fileOrderCount: snapshot.fileOrder.length,
+      metricCount,
+      pointCount,
+      processedFileCount,
+      rawTableCount,
+      schemaVersion: snapshot.schemaVersion,
+      seriesCount,
+      sessionVersion: snapshot.sessionVersion,
+      templateRunCount,
+    },
+    fileSummariesById,
   };
+  cachedTraceSnapshot = snapshot;
+  cachedTraceSummary = summary;
+  return summary;
 };
 
 const getOrderedFiles = (snapshot: SessionSnapshot): FileRecord[] =>
@@ -130,20 +159,17 @@ const getOrderedFiles = (snapshot: SessionSnapshot): FileRecord[] =>
     .map(fileId => snapshot.filesById[fileId])
     .filter((file): file is FileRecord => Boolean(file));
 
-const getSampleFiles = (
+const getSampleFileIds = (
   snapshot: SessionSnapshot,
   options: SessionSnapshotTraceOptions,
-): FileRecord[] => {
+): FileId[] => {
   const sampleSize = normalizeSampleSize(options.sampleSize);
   const preferredFileIds = uniqueStrings((options.fileIds ?? []).map(normalizeId));
-  const sampleIds = uniqueStrings([
+  return uniqueStrings([
     ...preferredFileIds,
     ...snapshot.fileOrder,
     ...Object.keys(snapshot.filesById),
   ]).slice(0, sampleSize);
-  return sampleIds
-    .map(fileId => snapshot.filesById[fileId])
-    .filter((file): file is FileRecord => Boolean(file));
 };
 
 const summarizeFileRecord = (file: FileRecord): SessionSnapshotTraceFileSummary => {

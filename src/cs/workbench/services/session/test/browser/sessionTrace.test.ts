@@ -12,6 +12,9 @@ import {
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { createProcessedFileSessionCommit } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import { createSessionReadModel } from "src/cs/workbench/services/session/common/sessionReadModel";
+import {
+  createSessionSnapshotTraceSummary,
+} from "src/cs/workbench/services/session/common/sessionTrace";
 import type { FileImportResult } from "src/cs/workbench/services/files/common/files";
 
 suite("workbench/services/session/test/browser/sessionTrace", () => {
@@ -68,6 +71,30 @@ suite("workbench/services/session/test/browser/sessionTrace", () => {
     } finally {
       restorePerf();
     }
+  });
+
+  test("keeps requested sample files specific to each snapshot trace summary", () => {
+    const session = store.add(new SessionService());
+    session.commitFileImport(createFileImportResultForTest("file-a"));
+    session.commitFileImport(createFileImportResultForTest("file-b"));
+    commitProcessedOutputForTest(session, "file-a", [1e-9, 1e-6]);
+    commitProcessedOutputForTest(session, "file-b", [2e-9, 2e-6]);
+
+    const snapshot = session.getSnapshot();
+    const first = createSessionSnapshotTraceSummary(snapshot, {
+      fileIds: ["file-b"],
+      sampleSize: 1,
+    });
+    const second = createSessionSnapshotTraceSummary(snapshot, {
+      fileIds: ["file-a"],
+      sampleSize: 1,
+    });
+
+    assert.equal(first.processedFileCount, 2);
+    assert.equal(second.processedFileCount, 2);
+    assert.equal(first.pointCount, second.pointCount);
+    assert.deepEqual(first.sampleFiles.map(file => file.fileId), ["file-b"]);
+    assert.deepEqual(second.sampleFiles.map(file => file.fileId), ["file-a"]);
   });
 });
 
@@ -128,3 +155,27 @@ const createFileImportResultForTest = (fileId: string): FileImportResult => ({
     },
   }],
 });
+
+const commitProcessedOutputForTest = (
+  session: SessionService,
+  fileId: string,
+  y: readonly number[],
+): void => {
+  const commit = createProcessedFileSessionCommit(
+    session.getSnapshot(),
+    {
+      curveType: "output (vd)",
+      fileId,
+      fileName: "Output.csv",
+      series: [{
+        groupIndex: 0,
+        id: `${fileId}-series`,
+        y: new Float64Array(y),
+      }],
+      xAxisRole: "vd",
+      xGroups: [new Float64Array([0, 1])],
+    },
+  );
+  assert.ok(commit);
+  session.commitTemplateOutput(commit);
+};

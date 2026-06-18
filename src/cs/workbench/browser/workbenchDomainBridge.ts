@@ -19,7 +19,7 @@ import {
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { createChartViewInput } from "src/cs/workbench/services/chart/browser/chartViewInput";
-import { createChartFileOptionsFromRecords } from "src/cs/workbench/services/chart/common/chartFileOptions";
+import type { ChartFileOption } from "src/cs/workbench/services/chart/common/chartFileOptions";
 import type { IChartService } from "src/cs/workbench/services/chart/common/chart";
 import { getOriginOpenPlotOptions, type ISettingsService } from "src/cs/workbench/services/settings/common/settings";
 import type { IPlotService, PlotType } from "src/cs/workbench/services/plot/common/plot";
@@ -211,13 +211,13 @@ export class WorkbenchDomainBridge extends Disposable {
       readModel,
     ).selectedProcessedFileId,
   ) {
-    const chartFileOptions = createChartFileOptionsFromRecords(
-      snapshot.filesById,
-      snapshot.fileOrder,
-    );
     const chartActiveFileId = resolveExplorerSelectedFileId(
       activeFileId,
-      chartFileOptions.map(option => option.fileId),
+      readModel.processedFileIds,
+    );
+    const chartFileOptions = createActiveChartFileOptions(
+      snapshot,
+      chartActiveFileId,
     );
     return createChartViewInput({
       activeFileId: chartActiveFileId,
@@ -253,6 +253,25 @@ export class WorkbenchDomainBridge extends Disposable {
     this.options.thumbnailPreviewService.prefetch(nearbyFileIds, "nearby");
   }
 }
+
+const createActiveChartFileOptions = (
+  snapshot: SessionSnapshot,
+  activeFileId: string | null,
+): ChartFileOption[] => {
+  if (!activeFileId) {
+    return [];
+  }
+
+  const file = snapshot.filesById[activeFileId];
+  if (!file) {
+    return [];
+  }
+
+  return [{
+    fileId: activeFileId,
+    fileName: String(file.raw.fileName ?? activeFileId),
+  }];
+};
 
 export const shouldPrefetchExplorerThumbnails = ({
   activeWorkbenchMainPart,
