@@ -9,6 +9,7 @@ import {
   type ExplorerSelectionKind,
   type IExplorerService,
 } from "src/cs/workbench/contrib/files/browser/files";
+import type { ICalculationService } from "src/cs/workbench/services/calculation/common/calculation";
 import type { WorkbenchMainPart } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
   createChartExplorerFilesFromRecords,
@@ -63,6 +64,7 @@ import type { IThumbnailPreviewService } from "src/cs/workbench/services/thumbna
 export type WorkbenchDomainBridgeOptions = {
   readonly chartService: IChartService;
   readonly assessmentQueueService: IAssessmentQueueService;
+  readonly calculationService: ICalculationService;
   readonly explorerService: IExplorerService;
   readonly layoutService: IWorkbenchLayoutService;
   readonly plotService: IPlotService;
@@ -171,6 +173,7 @@ export class WorkbenchDomainBridge extends Disposable {
       explorerSelection.selectedProcessedFileId,
     );
     if (chartViewInput.activeFileId) {
+      this.options.calculationService.prioritizeCalculationFile(chartViewInput.activeFileId);
       this.options.plotService.prefetchCalculatedData([chartViewInput.activeFileId], "active");
       this.options.plotService.prefetchPlotDisplayModel({
         fileId: chartViewInput.activeFileId,
@@ -236,6 +239,7 @@ export class WorkbenchDomainBridge extends Disposable {
     }
 
     this.options.templateApplyWorkflowService.prioritizeProcessingFile(fileId);
+    this.options.calculationService.prioritizeCalculationFile(fileId);
   }
 
   private prioritizeVisibleExplorerFiles(
@@ -258,6 +262,8 @@ export class WorkbenchDomainBridge extends Disposable {
       return;
     }
 
+    this.options.calculationService.prioritizeCalculationFiles(visibleFileIds);
+    this.options.calculationService.prioritizeCalculationFiles(nearbyFileIds);
     this.options.thumbnailPreviewService.prefetch(visibleFileIds, "visible");
     this.options.thumbnailPreviewService.prefetch(nearbyFileIds, "nearby");
   }

@@ -170,7 +170,7 @@ suite("workbench/services/template/browser/templateApplyController", () => {
 
     assert.deepEqual(
       startedJobs[0].processingQueueRef.current.map(entry => entry.fileId),
-      ["file-c", "file-b", "file-a", "file-d"],
+      ["file-b", "file-c", "file-a", "file-d"],
     );
     controller.dispose();
   });

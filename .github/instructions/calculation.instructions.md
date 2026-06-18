@@ -19,8 +19,10 @@ Calculation owns:
 - reusable calculation result builders from `FileRecord` inputs;
 - metric record builders from base curves and metric inputs;
 - calculation input signatures and cache policy helpers;
-- the lifecycle contribution that reruns calculations when relevant session
-  facts change and commits calculated canonical records through `ISessionService`.
+- the injectable calculation service that reruns calculations when relevant
+  session facts change, owns the pending calculation queue, accepts explicit
+  file-priority hints, and commits calculated canonical records through
+  `ISessionService`.
 
 Calculation does not own:
 
@@ -34,7 +36,7 @@ Calculation does not own:
 
 | File | Responsibility |
 | --- | --- |
-| `common/calculation.ts` | Calculation contribution id and compatibility re-exports for shared calculation types. |
+| `common/calculation.ts` | Defines `ICalculationService`, the calculation contribution id, and compatibility re-exports for shared calculation types. |
 | `common/calculationTypes.ts` | Shared pure calculation value types such as points, calculation kinds, calculated-data kinds, and algorithm option methods. |
 | `common/calculationExecutor.ts` | Pure calculation dispatcher: resolves calculation descriptors and executes the selected algorithm. |
 | `common/calculationRecordBuilder.ts` | Pure facade that builds calculation `CurveRecord` and `MetricRecord` commit payloads from session facts by delegating to focused record builders. |
@@ -48,7 +50,8 @@ Calculation does not own:
 | `common/vth.ts` | Vth calculation family. |
 | `common/sweepSegmentation.ts` | Bidirectional sweep segmentation helper shared by calculation algorithms. |
 | `common/ionIoff.ts` | Ion/Ioff current-window calculation helpers, including automatic and manual target-window selection. |
-| `browser/calculation.contribution.ts` | Watches session changes, reruns calculation helpers, and commits calculated curves and metrics through `ISessionService`. |
+| `browser/calculationService.ts` | Injectable owner of calculation signatures, the pending calculation queue, short interactive priority lane, foreground/background calculation chunks, file-priority hints, and calculated record commits through `ISessionService`. |
+| `browser/calculation.contribution.ts` | Registers `ICalculationService` and starts calculation lifecycle wiring. No queue or algorithm ownership. |
 
 ## Flow
 
@@ -59,11 +62,16 @@ flowchart TD
     Calculation --> MetricRecords[MetricRecord[]]
     CurveRecords --> SessionCommit[ISessionService.commitCalculatedRecordsBatch]
     MetricRecords --> SessionCommit
+    ExplorerPriority[Explorer selection / hover / visible thumbnails] --> CalculationService[ICalculationService]
+    CalculationService --> Queue[Pending calculation queue]
+    Queue --> Calculation
 ```
 
-`calculation.contribution.ts` is lifecycle glue. It may subscribe to session
-events and call calculation helpers, but complex algorithm or record-building
-logic belongs in `common/*` helpers.
+`calculationService.ts` is lifecycle and queue glue. It may subscribe to
+session events, prioritize already-pending calculation files, and call
+calculation helpers, but complex algorithm or record-building logic belongs in
+`common/*` helpers. `calculation.contribution.ts` remains registration-only
+glue.
 
 ## Session Sequence
 
@@ -73,41 +81,47 @@ session state and must not mutate `SessionModel` internals.
 ```mermaid
 sequenceDiagram
     participant Session as ISessionService
-    participant Contribution as calculation.contribution.ts
+    participant DomainBridge as WorkbenchDomainBridge
+    participant Calculation as ICalculationService
     participant Records as calculationRecordBuilder.ts
     participant Curves as calculationCurveRecordBuilder.ts
     participant Metrics as calculationMetricRecordBuilder.ts
     participant Consumers as Plot / Parameters / Export / Search
 
-    Session-->>Contribution: onDidChangeSession(event)
-    Contribution->>Contribution: shouldUpdateCalculationForSessionChange(event)
-    Contribution->>Contribution: resolve affected file ids from event.fileIds
+    DomainBridge-->>Calculation: prioritizeCalculationFile(selection / hover)
+    DomainBridge-->>Calculation: prioritizeCalculationFiles(visible thumbnails)
+    Calculation->>Calculation: remember short interactive priority lane
+    Calculation->>Calculation: move matching pending file ids to front
+    Session-->>Calculation: onDidChangeSession(event)
+    Calculation->>Calculation: shouldUpdateCalculationForSessionChange(event)
+    Calculation->>Calculation: resolve affected file ids from event.fileIds
     alt input change affects calculation
-        Contribution->>Session: getSnapshot()
-        Session-->>Contribution: SessionSnapshot
+        Calculation->>Session: getSnapshot()
+        Session-->>Calculation: SessionSnapshot
         loop affected file or all files when scope is unknown
-            Contribution->>Records: createCalculatedRecordsInputSignature(singleFileById, [fileId])
+            Calculation->>Records: createCalculatedRecordsInputSignature(singleFileById, [fileId])
             Records->>Curves: createCalculatedCurveRecordsInputSignature(singleFileById, [fileId])
             Records->>Metrics: createCalculatedMetricRecordsInputSignature(singleFileById, [fileId])
             alt file signature changed
-            Contribution->>Contribution: collect file for this update batch
+            Calculation->>Calculation: collect file for this update batch
         else signature unchanged
-            Contribution-->>Contribution: no-op
+            Calculation-->>Calculation: no-op
         end
         end
-        Contribution->>Contribution: prioritize changed file ids in pending calculation queue
+        Calculation->>Calculation: prioritize changed file ids in pending calculation queue
+        Calculation->>Calculation: reorder pending queue by interactive priority lane
         loop foreground first file, then background chunks
-            Contribution->>Records: createCalculatedRecordsByFile(chunkFilesById, chunkFileIds)
+            Calculation->>Records: createCalculatedRecordsByFile(chunkFilesById, chunkFileIds)
             Records->>Curves: createCalculatedCurveRecordsByFile(chunkFilesById, chunkFileIds)
             Curves-->>Records: CurveRecord[] by file
             Records->>Metrics: createCalculatedMetricRecordsByFile(chunkFilesById, chunkFileIds)
             Metrics-->>Records: MetricRecord[] by file
-            Records-->>Contribution: curvesByFileId and metricsByFileId
-            Contribution->>Session: commitCalculatedRecordsBatch({ curves, metrics }[])
+            Records-->>Calculation: curvesByFileId and metricsByFileId
+            Calculation->>Session: commitCalculatedRecordsBatch({ curves, metrics }[])
             Session-->>Consumers: onDidChangeSession(calculatedRecordsChanged)
         end
     else derived output or unrelated session event
-        Contribution-->>Contribution: no-op
+        Calculation-->>Calculation: no-op
     end
 ```
 
@@ -134,6 +148,14 @@ Session boundary rules:
   may run in the foreground to make the newest/selected file drawable quickly;
   remaining files should run as background chunks so a large apply/import phase
   does not monopolize the renderer thread.
+- `ICalculationService.prioritizeCalculationFile(s)` accepts interactive
+  priority hints from workbench orchestration such as Explorer selection,
+  hover thumbnails, and visible thumbnail ranges. It records a bounded
+  latest-first interactive priority lane and reorders matching files that are
+  already pending calculation. If a touched file enters pending calculation
+  later, the queued work must also honor the remembered priority lane. The API
+  must not enqueue unrelated extra calculation work for completed or unchanged
+  files.
 - `calculationRecordBuilder.ts` is the contribution-facing facade for
   calculated canonical record payloads. It delegates record-family details to
   focused builders and remains pure.

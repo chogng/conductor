@@ -110,8 +110,8 @@ flowchart TD
   signals, but Explorer, Chart, Thumbnail, and Plot must not mutate template
   processing queues directly. The workflow may retain a short ordered priority
   lane of recently touched file ids so rapid hover/file-switch interactions
-  promote the touched set ahead of background work instead of letting the last
-  touched file starve earlier ones.
+  promote the current/latest touched file first while keeping the touched set
+  ahead of background work.
 - Template views subscribe to `ITemplateService.onDidChangeTemplateViewInput`
   and then reread `ITemplateService.getViewInput()`. The event must not carry
   `TemplateViewInput` as the data channel.
@@ -122,6 +122,9 @@ flowchart TD
   Consumers subscribe to `onDidChangeFileStates` and reread
   `getFileApplyStates()`; Explorer projects that owner state into badges and
   chart-state presentation without adding/removing file tree items.
+  The workflow owner marks queued files as `processing` when
+  `ITemplateApplyService` starts a single-file worker/backend task, then marks
+  them `ready`, `failed`, or removes them through the same owner state.
 - Template apply may consume the current table preview through injected
   `ITableService` public state/model APIs. Do not pass table row readers,
   source-existence callbacks, or table model methods through

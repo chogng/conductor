@@ -6,7 +6,7 @@ import assert from "assert";
 
 import { Emitter, type Event } from "src/cs/base/common/event";
 import {
-  CalculationContribution,
+  CalculationService,
   shouldUpdateCalculationForSessionChange,
 } from "src/cs/workbench/services/calculation/browser/calculation.contribution";
 import type {
@@ -98,7 +98,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       "file-a": createFileRecord("file-a", "series-a", "base-a"),
       "file-b": createFileRecord("file-b", "series-b", "base-b"),
     });
-    const contribution = new CalculationContribution(createSessionServiceStub({
+    const contribution = new CalculationService(createSessionServiceStub({
       commitCurvesBatch: input => curveCommits.push(...input),
       commitCalculatedRecordsBatch: input => {
         curveCommits.push(...input.map(commit => ({
@@ -142,7 +142,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       "file-b": createFileRecord("file-b", "series-b", "base-b"),
       "file-c": createFileRecord("file-c", "series-c", "base-c"),
     });
-    const contribution = new CalculationContribution(createSessionServiceStub({
+    const contribution = new CalculationService(createSessionServiceStub({
       commitCurvesBatch: () => undefined,
       commitCalculatedRecordsBatch: input => {
         calculatedCommitFileIds.push(input.map(commit => commit.fileId));
@@ -168,7 +168,7 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
       "file-b": createFileRecord("file-b", "series-b", "base-b"),
       "file-c": createFileRecord("file-c", "series-c", "base-c"),
     });
-    const contribution = new CalculationContribution(createSessionServiceStub({
+    const contribution = new CalculationService(createSessionServiceStub({
       commitCurvesBatch: () => undefined,
       commitCalculatedRecordsBatch: input => {
         calculatedCommitFileIds.push(input.map(commit => commit.fileId));
@@ -190,6 +190,99 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
     }));
 
     assert.deepEqual(calculatedCommitFileIds, [["file-c"]]);
+
+    contribution.dispose();
+    sessionEvents.dispose();
+  });
+
+  test("prioritizes requested pending calculation files ahead of background backlog", async () => {
+    const sessionEvents = new Emitter<SessionChangeEvent>();
+    const calculatedCommitFileIds: string[][] = [];
+    const snapshot = createSnapshot({
+      "file-a": createFileRecord("file-a", "series-a", "base-a"),
+      "file-b": createFileRecord("file-b", "series-b", "base-b"),
+      "file-c": createFileRecord("file-c", "series-c", "base-c"),
+    });
+    const contribution = new CalculationService(createSessionServiceStub({
+      commitCurvesBatch: () => undefined,
+      commitCalculatedRecordsBatch: input => {
+        calculatedCommitFileIds.push(input.map(commit => commit.fileId));
+      },
+      commitMetricsBatch: () => undefined,
+      getSnapshot: () => snapshot,
+      onDidChangeSession: sessionEvents.event,
+    }));
+    calculatedCommitFileIds.length = 0;
+
+    contribution.prioritizeCalculationFile("file-c");
+    await waitForPendingCalculation();
+
+    assert.deepEqual(calculatedCommitFileIds, [["file-c", "file-b"]]);
+
+    contribution.dispose();
+    sessionEvents.dispose();
+  });
+
+  test("keeps requested calculation files prioritized when they enter pending later", () => {
+    const sessionEvents = new Emitter<SessionChangeEvent>();
+    const calculatedCommitFileIds: string[][] = [];
+    let snapshot = createSnapshot({
+      "file-a": createFileRecord("file-a", "series-a", "base-a"),
+    });
+    const contribution = new CalculationService(createSessionServiceStub({
+      commitCurvesBatch: () => undefined,
+      commitCalculatedRecordsBatch: input => {
+        calculatedCommitFileIds.push(input.map(commit => commit.fileId));
+      },
+      commitMetricsBatch: () => undefined,
+      getSnapshot: () => snapshot,
+      onDidChangeSession: sessionEvents.event,
+    }));
+    calculatedCommitFileIds.length = 0;
+
+    contribution.prioritizeCalculationFile("file-c");
+    snapshot = createSnapshot({
+      "file-a": createFileRecord("file-a", "series-a", "base-a"),
+      "file-b": createFileRecord("file-b", "series-b", "base-b"),
+      "file-c": createFileRecord("file-c", "series-c", "base-c"),
+      "file-d": createFileRecord("file-d", "series-d", "base-d"),
+    });
+    sessionEvents.fire(createSessionChangeEvent("curvesChanged", 2));
+
+    assert.deepEqual(calculatedCommitFileIds, [["file-c"]]);
+
+    contribution.dispose();
+    sessionEvents.dispose();
+  });
+
+  test("uses the most recent calculation priority when pending files arrive later", () => {
+    const sessionEvents = new Emitter<SessionChangeEvent>();
+    const calculatedCommitFileIds: string[][] = [];
+    let snapshot = createSnapshot({
+      "file-a": createFileRecord("file-a", "series-a", "base-a"),
+    });
+    const contribution = new CalculationService(createSessionServiceStub({
+      commitCurvesBatch: () => undefined,
+      commitCalculatedRecordsBatch: input => {
+        calculatedCommitFileIds.push(input.map(commit => commit.fileId));
+      },
+      commitMetricsBatch: () => undefined,
+      getSnapshot: () => snapshot,
+      onDidChangeSession: sessionEvents.event,
+    }));
+    calculatedCommitFileIds.length = 0;
+
+    contribution.prioritizeCalculationFile("file-c");
+    contribution.prioritizeCalculationFile("file-b");
+    snapshot = createSnapshot({
+      "file-a": createFileRecord("file-a", "series-a", "base-a"),
+      "file-b": createFileRecord("file-b", "series-b", "base-b"),
+      "file-c": createFileRecord("file-c", "series-c", "base-c"),
+      "file-d": createFileRecord("file-d", "series-d", "base-d"),
+    });
+    sessionEvents.fire(createSessionChangeEvent("curvesChanged", 2));
+
+    assert.deepEqual(calculatedCommitFileIds, [["file-b"]]);
 
     contribution.dispose();
     sessionEvents.dispose();

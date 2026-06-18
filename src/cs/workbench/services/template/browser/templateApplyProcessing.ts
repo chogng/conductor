@@ -82,6 +82,7 @@ type SchedulerRefs = {
 type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
 type SchedulerCallbacks = {
+  onFileProcessingStart?: (fileId: string) => void;
   onWorkerErrorPayload?: (payload: unknown) => void;
   onSourceFileRemoved?: (fileId: string) => void;
   hasSourceFile: (fileId: string | null | undefined) => boolean;
@@ -225,6 +226,7 @@ export const startProcessingJob = ({
   extractionConfig,
   fileTemplateSelectionsByFileId,
   messageType = "processFile",
+  onFileProcessingStart,
   onWorkerErrorPayload,
   onSourceFileRemoved,
   processingJobIdRef,
@@ -331,6 +333,7 @@ export const startProcessingJob = ({
       if (removedQueuedFileIdsRef.current.has(nextEntry.fileId)) continue;
 
       activeCount += 1;
+      onFileProcessingStart?.(nextEntry.fileId);
       logPerf("processing:file-start", {
         activeCount,
         fileId: nextEntry.fileId,
@@ -619,6 +622,7 @@ export const startRuleProcessingJob = ({
   finalQueue,
   groupedPrepared,
   incremental,
+  onFileProcessingStart,
   onWorkerErrorPayload,
   onSourceFileRemoved,
   processingJobIdRef,
@@ -728,6 +732,7 @@ export const startRuleProcessingJob = ({
       extractionConfigByFileId.set(nextEntry.fileId, extractionConfig);
 
       activeCount += 1;
+      onFileProcessingStart?.(nextEntry.fileId);
       logPerf("processing:file-start", {
         activeCount,
         fileId: nextEntry.fileId,

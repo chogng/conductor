@@ -536,13 +536,15 @@ suite("workbench/browser/workbench thumbnail prefetch gating", () => {
 suite("workbench/browser/WorkbenchDomainBridge", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("prioritizes selected explorer files immediately during template processing", () => {
+  test("prioritizes selected explorer files immediately during template and calculation processing", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
-    const prioritizedFileIds: string[] = [];
+    const prioritizedTemplateFileIds: string[] = [];
+    const prioritizedCalculationFileIds: string[] = [];
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
-      prioritizedFileIds,
+      prioritizedCalculationFileIds,
+      prioritizedTemplateFileIds,
       session,
     }));
     try {
@@ -551,7 +553,8 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         kind: "chart",
       });
 
-      assert.deepEqual(prioritizedFileIds, ["file-b"]);
+      assert.deepEqual(prioritizedTemplateFileIds, ["file-b"]);
+      assert.deepEqual(prioritizedCalculationFileIds, ["file-b"]);
     } finally {
       bridge.dispose();
     }
@@ -594,16 +597,32 @@ const createPlotService = (): Parameters<typeof createExplorerPaneInput>[0]["plo
 
 const createDomainBridgeOptionsForTest = ({
   explorerService,
-  prioritizedFileIds,
+  prioritizedCalculationFileIds,
+  prioritizedTemplateFileIds,
   session,
 }: {
   readonly explorerService: ExplorerService;
-  readonly prioritizedFileIds: string[];
+  readonly prioritizedCalculationFileIds: string[];
+  readonly prioritizedTemplateFileIds: string[];
   readonly session: SessionService;
 }): ConstructorParameters<typeof WorkbenchDomainBridge>[0] => ({
   assessmentQueueService: {
     prioritizeRawTables: () => undefined,
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["assessmentQueueService"],
+  calculationService: {
+    prioritizeCalculationFile: fileId => {
+      if (fileId) {
+        prioritizedCalculationFileIds.push(fileId);
+      }
+    },
+    prioritizeCalculationFiles: fileIds => {
+      prioritizedCalculationFileIds.push(
+        ...fileIds
+          .map(fileId => String(fileId ?? "").trim())
+          .filter(Boolean),
+      );
+    },
+  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["calculationService"],
   chartService: {
     updateViewInput: () => undefined,
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["chartService"],
@@ -631,7 +650,7 @@ const createDomainBridgeOptionsForTest = ({
     getFileApplyStates: () => new Map(),
     onDidChangeFileStates: Event.None,
     onDidChangeProcessingStatus: Event.None,
-    prioritizeProcessingFile: fileId => prioritizedFileIds.push(fileId),
+    prioritizeProcessingFile: fileId => prioritizedTemplateFileIds.push(fileId),
     processingStatus: {
       processed: 0,
       state: "processing",

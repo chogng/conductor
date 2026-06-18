@@ -286,12 +286,18 @@ suite("workbench/browser/workbench layout integration", () => {
           assessmentPriorities.push(priority);
         },
       },
+      calculationService: {
+        prioritizeCalculationFile: () => undefined,
+        prioritizeCalculationFiles: () => undefined,
+      },
       chartService: {
         onDidChangeChartState: Event.None,
         updateViewInput: () => undefined,
       },
       explorerService: {
         hasPendingSourceFiles: false,
+        hoveredFileId: null,
+        onDidChangeHoveredFile: Event.None,
         onDidChangePendingSourceFiles: Event.None,
         onDidChangeSelection: Event.None,
         onDidChangeVisibleFileIds: visibleFileIdsEmitter.event,
@@ -365,6 +371,7 @@ suite("workbench/browser/workbench layout integration", () => {
   });
 
   test("sync prefetches the active chart file at active plot priority", () => {
+    const calculationPriorities: string[] = [];
     const plotPrefetches: Array<{ fileIds: readonly string[]; priority: string }> = [];
     const plotDisplayPrefetches: Array<{ fileId?: string | null; plotType?: string; priority: string; sessionVersion?: number }> = [];
     const chartActiveFileIds: Array<string | null | undefined> = [];
@@ -372,6 +379,20 @@ suite("workbench/browser/workbench layout integration", () => {
       assessmentQueueService: {
         enqueueRawTables: () => undefined,
         prioritizeRawTables: () => undefined,
+      },
+      calculationService: {
+        prioritizeCalculationFile: fileId => {
+          if (fileId) {
+            calculationPriorities.push(fileId);
+          }
+        },
+        prioritizeCalculationFiles: fileIds => {
+          calculationPriorities.push(
+            ...fileIds
+              .map(fileId => String(fileId ?? "").trim())
+              .filter(Boolean),
+          );
+        },
       },
       chartService: {
         onDidChangeChartState: Event.None,
@@ -381,6 +402,8 @@ suite("workbench/browser/workbench layout integration", () => {
       },
       explorerService: {
         hasPendingSourceFiles: false,
+        hoveredFileId: null,
+        onDidChangeHoveredFile: Event.None,
         onDidChangePendingSourceFiles: Event.None,
         onDidChangeSelection: Event.None,
         onDidChangeVisibleFileIds: Event.None,
@@ -456,6 +479,7 @@ suite("workbench/browser/workbench layout integration", () => {
       bridge.sync();
 
       assert.deepEqual(chartActiveFileIds, ["file-a"]);
+      assert.deepEqual(calculationPriorities, ["file-a"]);
       assert.deepEqual(plotPrefetches, [
         { fileIds: ["file-a"], priority: "active" },
       ]);
@@ -562,6 +586,10 @@ const createWorkbenchOptions = ({
       enqueueRawTables: () => undefined,
       prioritizeRawTables: () => undefined,
     },
+    calculationService: {
+      prioritizeCalculationFile: () => undefined,
+      prioritizeCalculationFiles: () => undefined,
+    },
     chartService: {
       onDidChangeChartState: Event.None,
       updateViewInput: () => undefined,
@@ -576,6 +604,8 @@ const createWorkbenchOptions = ({
     dialogsService: {} as WorkbenchService<"dialogsService">,
     explorerService: {
       hasPendingSourceFiles: false,
+      hoveredFileId: null,
+      onDidChangeHoveredFile: Event.None,
       onDidChangeVisibleFileIds: Event.None,
       onDidChangePendingSourceFiles: Event.None,
       onDidChangeSelection: Event.None,

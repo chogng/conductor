@@ -23,6 +23,7 @@ import {
   ChartViewId,
   type IChartService,
 } from "src/cs/workbench/services/chart/common/chart";
+import type { ICalculationService } from "src/cs/workbench/services/calculation/common/calculation";
 import type {
   IAssessmentQueueService,
 } from "src/cs/workbench/services/assessment/common/assessment";
@@ -117,6 +118,7 @@ type WorkbenchSessionSnapshot = SessionSnapshot;
 export type WorkbenchOptions = {
   readonly assessmentQueueService?: IAssessmentQueueService;
   readonly className?: string;
+  readonly calculationService?: ICalculationService;
   readonly chartService?: IChartService;
   readonly commandService?: ICommandService;
   readonly contextKeyService?: IContextKeyService;
@@ -216,6 +218,7 @@ export class Workbench extends Layout {
   private readonly templateApplyWorkflowService: ITemplateApplyWorkflowService;
   private readonly dialogsService: IFileDialogService;
   private readonly assessmentQueueService: IAssessmentQueueService;
+  private readonly calculationService: ICalculationService;
   private readonly chartService: IChartService;
   private readonly explorerService: IExplorerService;
   private readonly filesService: IFileService;
@@ -266,6 +269,9 @@ export class Workbench extends Layout {
     }
     if (!options.assessmentQueueService) {
       throw new Error("Workbench requires IAssessmentQueueService.");
+    }
+    if (!options.calculationService) {
+      throw new Error("Workbench requires ICalculationService.");
     }
     if (!options.dialogsService) {
       throw new Error("Workbench requires IFileDialogService.");
@@ -323,6 +329,7 @@ export class Workbench extends Layout {
     }
     this.filesService = options.filesService;
     this.assessmentQueueService = options.assessmentQueueService;
+    this.calculationService = options.calculationService;
     this.chartService = options.chartService;
     this.dialogsService = options.dialogsService;
     this.explorerService = options.explorerService;
@@ -351,6 +358,7 @@ export class Workbench extends Layout {
     this.settingsService.update(this.getSettingsServiceOptions());
     this.domainBridge = this._register(new WorkbenchDomainBridge({
       assessmentQueueService: this.assessmentQueueService,
+      calculationService: this.calculationService,
       chartService: this.chartService,
       explorerService: this.explorerService,
       layoutService: this.layoutService,

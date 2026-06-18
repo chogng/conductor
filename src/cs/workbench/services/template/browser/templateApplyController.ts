@@ -506,22 +506,40 @@ export class TemplateApplyController {
 
   public prioritizeProcessingFile(fileId: string): void {
     const normalizedFileId = normalizeTemplateApplyFileId(fileId);
-    if (!normalizedFileId || this._processingStatus.state !== "processing") {
+    if (!normalizedFileId) {
+      return;
+    }
+
+    if (this._processingStatus.state !== "processing") {
+      logPerf("templateApplyController.prioritizeProcessingFile", {
+        fileApplyState: this.fileStatesByFileId.get(normalizedFileId)?.state ?? "none",
+        fileId: normalizedFileId,
+        processingState: this._processingStatus.state,
+        result: "notProcessing",
+      });
       return;
     }
 
     const currentQueue = this.processingQueueRef.current;
+    const fileApplyState = this.fileStatesByFileId.get(normalizedFileId)?.state ?? "none";
     this.rememberInteractivePriorityFile(normalizedFileId);
     const nextQueue = prioritizeTemplateProcessingQueue(currentQueue, this.interactivePriorityFileIds);
-    if (isSameProcessingQueue(currentQueue, nextQueue)) {
-      return;
+    const previousQueueIndex = currentQueue.findIndex(entry => entry.fileId === normalizedFileId);
+    const changed = !isSameProcessingQueue(currentQueue, nextQueue);
+    if (changed) {
+      this.processingQueueRef.current = nextQueue;
     }
 
-    this.processingQueueRef.current = nextQueue;
     logPerf("templateApplyController.prioritizeProcessingFile", {
+      changed,
+      fileApplyState,
       fileId: normalizedFileId,
+      previousQueueIndex,
       priorityFileCount: this.interactivePriorityFileIds.length,
       queueLength: nextQueue.length,
+      result: previousQueueIndex >= 0
+        ? changed ? "reordered" : "alreadyPrioritized"
+        : fileApplyState === "processing" ? "inFlight" : fileApplyState,
     });
   }
 
@@ -1282,6 +1300,7 @@ export class TemplateApplyController {
         this.markWorkerFileFailed(payload);
         this.options.onExtractionError?.(buildWorkerExtractionError(payload));
       },
+      onFileProcessingStart: this.markFileProcessing,
       processingJobIdRef: this.processingJobIdRef,
       processingQueueRef: this.processingQueueRef,
       processingStopOnErrorRef: this.processingStopOnErrorRef,
@@ -1518,6 +1537,7 @@ export class TemplateApplyController {
         this.markWorkerFileFailed(payload);
         this.options.onExtractionError?.(buildWorkerExtractionError(payload));
       },
+      onFileProcessingStart: this.markFileProcessing,
       processingJobIdRef: this.processingJobIdRef,
       processingQueueRef: this.processingQueueRef,
       processingStopOnErrorRef: this.processingStopOnErrorRef,
@@ -1561,11 +1581,15 @@ export class TemplateApplyController {
     });
   }
 
+  private readonly markFileProcessing = (fileId: string): void => {
+    this.setFileApplyState(fileId, { state: "processing" });
+  };
+
   private rememberInteractivePriorityFile(fileId: string): void {
     this.interactivePriorityFileIds = [
-      ...this.interactivePriorityFileIds.filter(priorityFileId => priorityFileId !== fileId),
       fileId,
-    ].slice(-TEMPLATE_INTERACTIVE_PRIORITY_LIMIT);
+      ...this.interactivePriorityFileIds.filter(priorityFileId => priorityFileId !== fileId),
+    ].slice(0, TEMPLATE_INTERACTIVE_PRIORITY_LIMIT);
   }
 
   private clearInteractivePriorityFiles(): void {
