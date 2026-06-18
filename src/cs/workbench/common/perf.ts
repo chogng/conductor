@@ -5,6 +5,7 @@ type PerfMeta = Record<string, unknown>;
 
 type PerfLogOptions = {
   force?: boolean;
+  silent?: boolean;
 };
 
 export type PerfEntry = {
@@ -65,6 +66,10 @@ export const logPerf = (
   if (!options.force && !isPerfEnabled()) return;
 
   recordPerfEntry(stage, meta);
+
+  if (options.silent) {
+    return;
+  }
 
   const duration = Number(meta.durationMs);
   const durationText = Number.isFinite(duration)

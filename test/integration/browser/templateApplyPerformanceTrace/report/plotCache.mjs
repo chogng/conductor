@@ -8,11 +8,24 @@ export const summarizePlotCacheMetrics = (analysisPerfReport) => {
   const entries = getAnalysisPerfEntries(analysisPerfReport);
   const displayCacheEntries = entries
     .filter(entry => entry.stage === "plotService.cachePlotDisplayModel");
+  const inspectorCacheEntries = entries
+    .filter(entry => entry.stage === "plotService.cachePlotInspectorDisplayModel");
   const trimEntries = entries
     .filter(entry => entry.stage === "plotService.trimPlotDisplayModelCache");
-  const clearQueuedFullEntries = entries
-    .filter(entry => entry.stage === "plotService.clearQueuedFullPlotDisplayModel");
+  const inspectorTrimEntries = entries
+    .filter(entry => entry.stage === "plotService.trimPlotInspectorDisplayModelCache");
+  const clearQueuedInspectorEntries = entries
+    .filter(entry => entry.stage === "plotService.clearQueuedInspectorDisplayModel");
+  const inspectorPrefetchScheduledEntries = entries
+    .filter(entry => entry.stage === "chartViewPane.scheduleInspectorPrefetch");
+  const inspectorPrefetchCanceledEntries = entries
+    .filter(entry => entry.stage === "chartViewPane.cancelInspectorPrefetch");
+  const inspectorPrefetchFiredEntries = entries
+    .filter(entry => entry.stage === "chartViewPane.fireInspectorPrefetch");
+  const inspectorPrefetchSkippedEntries = entries
+    .filter(entry => entry.stage === "chartViewPane.skipInspectorPrefetch");
   const resultCounts = countBy(displayCacheEntries.map(entry => entry.meta?.result));
+  const inspectorResultCounts = countBy(inspectorCacheEntries.map(entry => entry.meta?.result));
   const readMaxMeta = (items, key) => {
     const values = items
       .map(item => readNumber(item.meta?.[key]))
@@ -33,9 +46,24 @@ export const summarizePlotCacheMetrics = (analysisPerfReport) => {
       trimEventCount: trimEntries.length,
       upgraded: readNumber(resultCounts.upgraded) ?? 0,
     },
-    fullDisplayQueue: {
-      clearEventCount: clearQueuedFullEntries.length,
-      cleared: sumMeta(clearQueuedFullEntries, "cleared"),
+    inspectorDisplayModelCache: {
+      created: readNumber(inspectorResultCounts.created) ?? 0,
+      eventCount: inspectorCacheEntries.length,
+      kept: readNumber(inspectorResultCounts.kept) ?? 0,
+      limit: readMaxMeta(inspectorCacheEntries, "limit") ?? readMaxMeta(inspectorTrimEntries, "limit"),
+      maxSize: readMaxMeta(inspectorCacheEntries, "cacheSize") ?? readMaxMeta(inspectorTrimEntries, "cacheSize"),
+      trimmed: sumMeta(inspectorTrimEntries, "trimmed"),
+      trimEventCount: inspectorTrimEntries.length,
+    },
+    inspectorDisplayQueue: {
+      clearEventCount: clearQueuedInspectorEntries.length,
+      cleared: sumMeta(clearQueuedInspectorEntries, "cleared"),
+    },
+    inspectorPrefetchScheduler: {
+      canceled: inspectorPrefetchCanceledEntries.length,
+      fired: inspectorPrefetchFiredEntries.length,
+      scheduled: inspectorPrefetchScheduledEntries.length,
+      skipped: inspectorPrefetchSkippedEntries.length,
     },
   };
 };

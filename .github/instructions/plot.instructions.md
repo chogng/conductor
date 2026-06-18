@@ -65,10 +65,10 @@ flowchart TD
     PlotService --> Queue[Priority prefetch queue]
     Queue --> Worker[Plot worker]
     Worker --> Cache[CalculatedData cache]
-    Worker --> ChartDisplay[Chart-only PlotDisplayModel]
+    Worker --> ChartDisplay[Main chart PlotDisplayModel]
     ChartDisplay --> DisplayCache[PlotDisplayModel cache]
-    Worker --> FullDisplay[Full PlotDisplayModel with inspector]
-    FullDisplay --> DisplayCache
+    Worker --> InspectorDisplay[Inspector PlotPaneDisplayModel]
+    InspectorDisplay --> InspectorCache[Inspector display cache]
     PlotService --> Cache[CalculatedData cache]
     Cache --> DisplayCache
     DisplayCache --> Model[PlotRenderModel]
@@ -91,6 +91,7 @@ export interface IPlotService {
   getState(): PlotState;
   getCachedCalculatedData(input: PlotCalculatedDataInput): CalculatedData | null;
   getCachedPlotDisplayModel(input: PlotDisplayModelInput): PlotDisplayModel | null;
+  getCachedPlotInspectorDisplayModel(input: PlotDisplayModelInput): PlotPaneDisplayModel | null;
   getCachedPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
   getCalculatedData(input: PlotCalculatedDataInput): CalculatedData | null;
   getLegendLabels(fileId: FileId): Readonly<Record<SeriesId, string>>;
@@ -98,6 +99,7 @@ export interface IPlotService {
   getPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
   getPlotMainRenderModel(input: PlotMainRenderModelInput): PlotMainRenderModel | null;
   prefetchCalculatedData(fileIds: readonly FileId[], priority: PlotCalculatedDataPrefetchPriority, plotType?: PlotType): void;
+  prefetchPlotInspectorDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
   prefetchPlotDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
   setActivePlotType(plotType: PlotType): void;
   setAxisTitleOverride(context: PlotAxisTitleContext, title: string, defaultTitle: string): void;
@@ -154,23 +156,26 @@ storage, for these controls.
   when Worker is available. `PlotService` accepts fresh results, writes the
   display-model cache, ignores stale results, and falls back only from the
   scheduled prefetch path.
-- Plot display-model prefetch is staged: active chart work first publishes a
-  chart-only `PlotDisplayModel` so Chart can paint the main canvas, then queues a
-  full model that adds the inspector derivative. The cache may be upgraded from
-  chart-only to full, but a full cache entry must not be replaced by chart-only
-  data.
-- Full display-model prefetch is active chart detail completion work, not
-  thumbnail first-paint work. Once chart-only output is available for the active
-  chart, the queued full/inspector stage should run at background priority and
-  must not occupy the reserved interactive capacity needed by active chart, file
-  switch, or hover thumbnail requests. Hover, visible, nearby, and idle
-  thumbnail warmup should keep chart-only display models unless the active chart
-  requests the same target.
+- Plot display-model prefetch is split by pane. Main chart work publishes a
+  chart-only `PlotDisplayModel` so Chart can paint the main canvas. Inspector
+  derivative work is requested through `prefetchPlotInspectorDisplayModel` and
+  cached separately as a `PlotPaneDisplayModel`. Inspector readiness must not
+  replace the main chart display cache entry.
+- Inspector display-model prefetch is active chart detail completion work, not
+  thumbnail first-paint work. Inspector work should run at background priority
+  and must not occupy the reserved interactive capacity needed by active chart,
+  file switch, or hover thumbnail requests. Hover, visible, nearby, and idle
+  thumbnail warmup should keep chart-only display models and must not request
+  inspector models.
+- Chart should request Inspector display-model prefetch only after the active
+  chart target has settled. Plot accepts Inspector prefetch as secondary pane
+  completion and caches it separately; stale rapid-switch targets should be
+  canceled by the Chart host before they enter the Plot queue.
 - Active and hover display-model prefetch may synchronously cache the cheap
   chart-only display model when calculated data is already warm. This gives
   Chart and hover thumbnails a first drawable frame without waiting behind
-  background worker display-model work; only active chart requests should queue
-  the full inspector model afterward.
+  background worker display-model work; only Chart's visible Inspector pane
+  should request the inspector model afterward.
 - Active and hover display-model prefetch may also synchronously warm the
   calculated-data cache for only the requested file when the session already has
   drawable canonical curves. Keep this interactive warm path file-scoped and do

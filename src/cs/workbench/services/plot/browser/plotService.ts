@@ -30,6 +30,7 @@ import {
   type PlotFileAxisSettings,
   type PlotLegendModel,
   type PlotMainRenderModelInput,
+  type PlotPaneDisplayModel,
   type PlotState,
   type PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
@@ -40,6 +41,7 @@ import {
   calculatePlotDisplayModelInWorker,
 } from "src/cs/workbench/services/plot/browser/plotCalculatedDataWorkerClient";
 import {
+  createPlotInspectorDisplayModelFromCalculatedData,
   createPlotDisplayModelFromCalculatedData,
   getPlotAxisTitleStateKey,
 } from "src/cs/workbench/services/plot/browser/plotDisplayModel";
@@ -86,11 +88,17 @@ const CALCULATED_DATA_PREFETCH_FRAME_BUDGET_MS = 6;
 const PLOT_PREFETCH_MAX_IN_FLIGHT = 2;
 const PLOT_BACKGROUND_PREFETCH_MAX_IN_FLIGHT = 1;
 const PLOT_DISPLAY_MODEL_CACHE_LIMIT = 240;
+const PLOT_INSPECTOR_DISPLAY_MODEL_CACHE_LIMIT = 48;
 
-type PlotDisplayModelPrefetchStage = "chart" | "full";
+type PlotDisplayModelPrefetchStage = "chart" | "inspector";
 
 type PlotDisplayModelCacheEntry = {
   readonly model: PlotDisplayModel;
+  lastUsed: number;
+};
+
+type PlotInspectorDisplayModelCacheEntry = {
+  readonly model: PlotPaneDisplayModel;
   lastUsed: number;
 };
 
@@ -141,6 +149,8 @@ export class PlotService extends Disposable implements IPlotService {
   private nextCalculatedDataWorkerRequestId = 1;
   private readonly plotDisplayModelCacheByKey = new Map<string, PlotDisplayModelCacheEntry>();
   private plotDisplayModelCacheUse = 0;
+  private readonly plotInspectorDisplayModelCacheByKey = new Map<string, PlotInspectorDisplayModelCacheEntry>();
+  private plotInspectorDisplayModelCacheUse = 0;
   private readonly queuedPlotDisplayModelPrefetchByKey = new Map<string, QueuedPlotDisplayModelPrefetch>();
   private readonly inFlightPlotDisplayModelPrefetchByKey = new Map<string, InFlightPlotPrefetch>();
   private cancelQueuedPlotDisplayModelPrefetch: (() => void) | null = null;
@@ -201,7 +211,33 @@ export class PlotService extends Disposable implements IPlotService {
       return null;
     }
 
-    return this.getCachedPlotDisplayModelForKey(this.getPlotDisplayModelCacheKey(
+    const key = this.getPlotDisplayModelCacheKey(
+      calculatedData,
+      input,
+    );
+    const cached = this.getCachedPlotDisplayModelForKey(key);
+    if (!cached) {
+      return null;
+    }
+
+    return {
+      ...cached,
+      inspector: this.getCachedPlotInspectorDisplayModelForKey(key),
+    };
+  }
+
+  public getCachedPlotInspectorDisplayModel(input: PlotDisplayModelInput): PlotPaneDisplayModel | null {
+    const snapshot = this.resolveSnapshot(input.snapshot);
+    const calculatedData = this.getCachedCalculatedData({
+      fileId: input.fileId,
+      plotType: input.plotType,
+      snapshot: snapshot ?? undefined,
+    });
+    if (!calculatedData) {
+      return null;
+    }
+
+    return this.getCachedPlotInspectorDisplayModelForKey(this.getPlotDisplayModelCacheKey(
       calculatedData,
       input,
     ));
@@ -292,6 +328,9 @@ export class PlotService extends Disposable implements IPlotService {
     const model = this.createPlotDisplayModel(calculatedData, input, snapshot ?? undefined);
     if (model && calculatedData) {
       this.cachePlotDisplayModel(calculatedData, input, model);
+      if (model.inspector) {
+        this.cachePlotInspectorDisplayModel(calculatedData, input, model.inspector);
+      }
     }
     return model;
   }
@@ -314,6 +353,26 @@ export class PlotService extends Disposable implements IPlotService {
       calculatedData,
       hiddenLegendKeys: input.hiddenLegendKeys,
       includeInspector,
+      legendLabels: input.legendLabels,
+    });
+  }
+
+  private createPlotInspectorDisplayModel(
+    calculatedData: CalculatedData | null,
+    input: PlotDisplayModelInput,
+    snapshot: SessionSnapshot | undefined,
+  ): PlotPaneDisplayModel | null {
+    const fileId = String(calculatedData?.source.fileId ?? "").trim();
+    if (!calculatedData || !fileId) {
+      return null;
+    }
+
+    const axisSettings = snapshot ? this.getAxisSettings(snapshot) : undefined;
+    return createPlotInspectorDisplayModelFromCalculatedData({
+      axisSettings,
+      axisTitleOverridesByKey: this.state.axisTitleOverridesByKey,
+      calculatedData,
+      hiddenLegendKeys: input.hiddenLegendKeys,
       legendLabels: input.legendLabels,
     });
   }
@@ -425,16 +484,7 @@ export class PlotService extends Disposable implements IPlotService {
       plotType,
       snapshot,
     }) : null;
-    if (cachedDisplayModel?.inspector) {
-      endPerf({
-        cacheHit: true,
-        calculatedDataWarmed,
-        plotType,
-        result: "fullCacheHit",
-      });
-      return;
-    }
-    if (cachedDisplayModel && !shouldPrefetchFullPlotDisplayModel(priority)) {
+    if (cachedDisplayModel) {
       endPerf({
         cacheHit: true,
         calculatedDataWarmed,
@@ -443,16 +493,13 @@ export class PlotService extends Disposable implements IPlotService {
       });
       return;
     }
-    const stage: PlotDisplayModelPrefetchStage = cachedDisplayModel ? "full" : "chart";
-    const requestPriority = stage === "full"
-      ? getFullPlotDisplayModelPrefetchPriority(priority)
-      : priority;
+    const stage: PlotDisplayModelPrefetchStage = "chart";
     const request: QueuedPlotDisplayModelPrefetch = {
       fileId,
       hiddenLegendKeys: [...(input.hiddenLegendKeys ?? [])],
       legendLabels: { ...(input.legendLabels ?? {}) },
       plotType,
-      priority: requestPriority,
+      priority,
       stage,
     };
     if (
@@ -522,6 +569,135 @@ export class PlotService extends Disposable implements IPlotService {
       result: "queued",
       requestedPriority: priority,
       stage,
+    });
+  }
+
+  public prefetchPlotInspectorDisplayModel(
+    input: PlotDisplayModelInput,
+    priority: PlotCalculatedDataPrefetchPriority,
+  ): void {
+    const endPerf = startPerf("plotService.prefetchPlotInspectorDisplayModel", {
+      fileId: input.fileId ?? null,
+      priority,
+      requestedPlotType: input.plotType ?? null,
+    });
+    const snapshot = this.resolveSnapshot(input.snapshot);
+    if (!snapshot) {
+      endPerf({ result: "noSnapshot" });
+      return;
+    }
+
+    const plotType = input.plotType && isPlotType(input.plotType)
+      ? input.plotType
+      : this.state.activePlotType;
+    const fileId = normalizeStateKey(input.fileId);
+    if (!fileId) {
+      endPerf({ result: "noFileId" });
+      return;
+    }
+
+    let calculatedData = this.getCachedCalculatedData({
+      fileId,
+      plotType,
+      snapshot,
+    });
+    let calculatedDataWarmed = false;
+    if (!calculatedData && this.isCalculatedDataUnavailable(fileId, plotType)) {
+      endPerf({
+        plotType,
+        result: "calculatedDataUnavailable",
+      });
+      return;
+    }
+    if (!calculatedData && isInteractivePlotPrefetchPriority(priority)) {
+      calculatedData = this.getCalculatedData({
+        fileId,
+        plotType,
+        snapshot,
+      });
+      calculatedDataWarmed = Boolean(calculatedData);
+    }
+
+    const cachedInspector = calculatedData ? this.getCachedPlotInspectorDisplayModel({
+      fileId,
+      hiddenLegendKeys: input.hiddenLegendKeys,
+      legendLabels: input.legendLabels,
+      plotType,
+      snapshot,
+    }) : null;
+    if (cachedInspector) {
+      endPerf({
+        cacheHit: true,
+        calculatedDataWarmed,
+        plotType,
+        result: "inspectorCacheHit",
+      });
+      return;
+    }
+
+    const request: QueuedPlotDisplayModelPrefetch = {
+      fileId,
+      hiddenLegendKeys: [...(input.hiddenLegendKeys ?? [])],
+      legendLabels: { ...(input.legendLabels ?? {}) },
+      plotType,
+      priority: getInspectorPlotDisplayModelPrefetchPriority(priority),
+      stage: "inspector",
+    };
+    const key = getQueuedPlotDisplayModelPrefetchKey(request);
+    if (priority === "active") {
+      this.clearQueuedInspectorDisplayModelPrefetchExcept(key);
+    }
+    const calculatedDataCacheKey = calculatedData
+      ? this.getPlotDisplayModelPrefetchKey(calculatedData, {
+        ...input,
+        stage: "inspector",
+      })
+      : null;
+    const inFlight = calculatedDataCacheKey
+      ? this.inFlightPlotDisplayModelPrefetchByKey.get(calculatedDataCacheKey)
+      : undefined;
+    if (inFlight) {
+      if (
+        CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[request.priority] <
+        CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[inFlight.priority]
+      ) {
+        this.inFlightPlotDisplayModelPrefetchByKey.set(calculatedDataCacheKey!, {
+          ...inFlight,
+          priority: request.priority,
+        });
+      }
+      this.queuedPlotDisplayModelPrefetchByKey.delete(key);
+      endPerf({
+        inFlight: true,
+        plotType,
+        result: "inFlightPromoted",
+        requestedPriority: priority,
+        stage: request.stage,
+      });
+      return;
+    }
+
+    const queued = this.queuedPlotDisplayModelPrefetchByKey.get(key);
+    if (
+      !queued ||
+      CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[request.priority] <
+        CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[queued.priority]
+    ) {
+      this.queuedPlotDisplayModelPrefetchByKey.set(key, request);
+    }
+
+    if (!calculatedData) {
+      this.prefetchCalculatedData([fileId], priority, plotType);
+    }
+    this.schedulePlotDisplayModelPrefetch();
+    endPerf({
+      calculatedDataReady: Boolean(calculatedData),
+      calculatedDataWarmed,
+      plotType,
+      queueLength: this.queuedPlotDisplayModelPrefetchByKey.size,
+      result: "queued",
+      requestedPriority: priority,
+      stage: request.stage,
     });
   }
 
@@ -750,6 +926,13 @@ export class PlotService extends Disposable implements IPlotService {
       const keyContext = getPlotDisplayModelContextFromKey(key);
       if (keyContext && fileIds.has(keyContext.fileId)) {
         this.plotDisplayModelCacheByKey.delete(key);
+        addPlotCacheChange(plotDisplayModelChanges, keyContext);
+      }
+    }
+    for (const key of [...this.plotInspectorDisplayModelCacheByKey.keys()]) {
+      const keyContext = getPlotDisplayModelContextFromKey(key);
+      if (keyContext && fileIds.has(keyContext.fileId)) {
+        this.plotInspectorDisplayModelCacheByKey.delete(key);
         addPlotCacheChange(plotDisplayModelChanges, keyContext);
       }
     }
@@ -1044,6 +1227,8 @@ export class PlotService extends Disposable implements IPlotService {
   private clearPlotDisplayModelCache(): void {
     this.plotDisplayModelCacheByKey.clear();
     this.plotDisplayModelCacheUse = 0;
+    this.plotInspectorDisplayModelCacheByKey.clear();
+    this.plotInspectorDisplayModelCacheUse = 0;
   }
 
   private clearQueuedPlotDisplayModelPrefetch(): void {
@@ -1138,6 +1323,23 @@ export class PlotService extends Disposable implements IPlotService {
     this.schedulePlotDisplayModelPrefetch();
   }
 
+  private clearQueuedInspectorDisplayModelPrefetchExcept(nextKey: string): void {
+    let cleared = 0;
+    for (const [key, request] of [...this.queuedPlotDisplayModelPrefetchByKey]) {
+      if (key !== nextKey && request.stage === "inspector") {
+        this.queuedPlotDisplayModelPrefetchByKey.delete(key);
+        cleared += 1;
+      }
+    }
+
+    if (cleared) {
+      logPerf("plotService.clearQueuedInspectorDisplayModel", {
+        cleared,
+        queueLength: this.queuedPlotDisplayModelPrefetchByKey.size,
+      });
+    }
+  }
+
   private tryCacheImmediateInteractiveChartDisplayModel(
     request: QueuedPlotDisplayModelPrefetch,
     calculatedData: CalculatedData,
@@ -1157,8 +1359,7 @@ export class PlotService extends Disposable implements IPlotService {
       return false;
     }
 
-    const cached = this.cachePlotDisplayModel(calculatedData, request, model);
-    this.scheduleFullPlotDisplayModelPrefetchIfNeeded(request, cached);
+    this.cachePlotDisplayModel(calculatedData, request, model);
     return true;
   }
 
@@ -1167,11 +1368,20 @@ export class PlotService extends Disposable implements IPlotService {
     calculatedData: CalculatedData,
     snapshot: SessionSnapshot,
   ): void {
+    if (request.stage === "inspector") {
+      this.prefetchPlotInspectorDisplayModelForCalculatedData(
+        request,
+        calculatedData,
+        snapshot,
+      );
+      return;
+    }
+
     const cacheKey = this.getPlotDisplayModelCacheKey(calculatedData, request);
     const prefetchKey = this.getPlotDisplayModelPrefetchKey(calculatedData, request);
     const cached = this.getCachedPlotDisplayModelForKey(cacheKey);
     if (
-      (cached && (request.stage === "chart" || cached.inspector)) ||
+      cached ||
       this.inFlightPlotDisplayModelPrefetchByKey.has(prefetchKey)
     ) {
       return;
@@ -1189,7 +1399,7 @@ export class PlotService extends Disposable implements IPlotService {
       calculatedData,
       fileId: request.fileId,
       hiddenLegendKeys: request.hiddenLegendKeys,
-      includeInspector: request.stage === "full",
+      includeInspector: false,
       legendLabels: request.legendLabels,
       plotType: request.plotType,
       requestId,
@@ -1216,11 +1426,10 @@ export class PlotService extends Disposable implements IPlotService {
           calculatedData,
           request,
           currentSnapshot,
-          request.stage === "full",
+          false,
         );
         if (model) {
           this.cachePlotDisplayModel(calculatedData, request, model);
-          this.scheduleFullPlotDisplayModelPrefetchIfNeeded(request, model);
         }
         this.scheduleCalculatedDataPrefetch();
         this.schedulePlotDisplayModelPrefetch();
@@ -1239,38 +1448,85 @@ export class PlotService extends Disposable implements IPlotService {
       }
 
       this.cachePlotDisplayModel(calculatedData, request, result.displayModel);
-      this.scheduleFullPlotDisplayModelPrefetchIfNeeded(request, result.displayModel);
       this.scheduleCalculatedDataPrefetch();
       this.schedulePlotDisplayModelPrefetch();
     });
   }
 
-  private scheduleFullPlotDisplayModelPrefetchIfNeeded(
+  private prefetchPlotInspectorDisplayModelForCalculatedData(
     request: QueuedPlotDisplayModelPrefetch,
-    model: PlotDisplayModel,
+    calculatedData: CalculatedData,
+    snapshot: SessionSnapshot,
   ): void {
+    const cacheKey = this.getPlotDisplayModelCacheKey(calculatedData, request);
+    const prefetchKey = this.getPlotDisplayModelPrefetchKey(calculatedData, request);
+    const cached = this.getCachedPlotInspectorDisplayModelForKey(cacheKey);
     if (
-      request.stage !== "chart" ||
-      model.inspector ||
-      !shouldPrefetchFullPlotDisplayModel(request.priority)
+      cached ||
+      this.inFlightPlotDisplayModelPrefetchByKey.has(prefetchKey)
     ) {
       return;
     }
 
-    const priority = getFullPlotDisplayModelPrefetchPriority(request.priority);
-    this.queuePlotDisplayModelPrefetch({
+    const generation = this.plotDisplayModelPrefetchGeneration;
+    const requestId = this.nextPlotDisplayModelWorkerRequestId++;
+    this.inFlightPlotDisplayModelPrefetchByKey.set(prefetchKey, {
+      priority: request.priority,
+      requestId,
+    });
+    void calculatePlotDisplayModelInWorker({
+      axisSettings: this.getAxisSettings(snapshot),
+      axisTitleOverridesByKey: this.state.axisTitleOverridesByKey,
+      calculatedData,
       fileId: request.fileId,
       hiddenLegendKeys: request.hiddenLegendKeys,
+      includeInspector: true,
       legendLabels: request.legendLabels,
       plotType: request.plotType,
-      priority,
-      stage: "full",
-    });
-    logPerf("plotService.queueFullPlotDisplayModel", {
-      fileId: request.fileId,
-      plotType: request.plotType,
-      priority,
-      sourcePriority: request.priority,
+      requestId,
+      sessionVersion: snapshot.sessionVersion,
+    }).then((result) => {
+      this.deleteInFlightPlotDisplayModelPrefetch(prefetchKey, requestId);
+      if (generation !== this.plotDisplayModelPrefetchGeneration) {
+        this.scheduleCalculatedDataPrefetch();
+        this.schedulePlotDisplayModelPrefetch();
+        return;
+      }
+
+      const currentSnapshot = this.resolveSnapshot(undefined);
+      const requestedFile = snapshot.filesById[request.fileId] ?? null;
+      const currentFile = currentSnapshot?.filesById[request.fileId] ?? null;
+      if (!currentSnapshot || currentFile !== requestedFile) {
+        this.scheduleCalculatedDataPrefetch();
+        this.schedulePlotDisplayModelPrefetch();
+        return;
+      }
+
+      const inspectorModel = result?.displayModel?.inspector ??
+        this.createPlotInspectorDisplayModel(
+          calculatedData,
+          request,
+          currentSnapshot,
+        );
+      if (
+        result &&
+        (
+          result.requestId !== requestId ||
+          result.sessionVersion !== snapshot.sessionVersion ||
+          result.fileId !== request.fileId ||
+          result.plotType !== request.plotType
+        )
+      ) {
+        this.scheduleCalculatedDataPrefetch();
+        this.schedulePlotDisplayModelPrefetch();
+        return;
+      }
+
+      if (inspectorModel) {
+        this.cachePlotInspectorDisplayModel(calculatedData, request, inspectorModel);
+      }
+      this.scheduleCalculatedDataPrefetch();
+      this.schedulePlotDisplayModelPrefetch();
     });
   }
 
@@ -1361,59 +1617,86 @@ export class PlotService extends Disposable implements IPlotService {
     model: PlotDisplayModel,
   ): PlotDisplayModel {
     const key = this.getPlotDisplayModelCacheKey(calculatedData, input);
+    const chartModel = model.inspector
+      ? { ...model, inspector: null }
+      : model;
     const cachedEntry = this.plotDisplayModelCacheByKey.get(key);
     const cached = cachedEntry?.model;
     if (cached) {
       cachedEntry.lastUsed = ++this.plotDisplayModelCacheUse;
-      if (cached.inspector || !model.inspector) {
-        logPerf("plotService.cachePlotDisplayModel", {
-          cacheSize: this.plotDisplayModelCacheByKey.size,
-          fileId: model.fileId,
-          hasInspector: Boolean(cached.inspector),
-          limit: PLOT_DISPLAY_MODEL_CACHE_LIMIT,
-          plotType: model.plotType,
-          result: "kept",
-          signature: calculatedData.signature,
-        });
-        return cached;
-      }
-
-      this.plotDisplayModelCacheByKey.set(key, {
-        lastUsed: ++this.plotDisplayModelCacheUse,
-        model,
-      });
-      this.trimPlotDisplayModelCache();
-      this.onDidChangePlotDisplayModelCacheEmitter.fire({
-        fileId: model.fileId,
-        plotType: model.plotType,
-      });
       logPerf("plotService.cachePlotDisplayModel", {
         cacheSize: this.plotDisplayModelCacheByKey.size,
-        fileId: model.fileId,
-        hasInspector: Boolean(model.inspector),
+        fileId: chartModel.fileId,
+        hasInspector: false,
         limit: PLOT_DISPLAY_MODEL_CACHE_LIMIT,
-        plotType: model.plotType,
-        result: "upgraded",
+        plotType: chartModel.plotType,
+        result: "kept",
         signature: calculatedData.signature,
       });
-      return model;
+      return cached;
     }
 
     this.plotDisplayModelCacheByKey.set(key, {
       lastUsed: ++this.plotDisplayModelCacheUse,
-      model,
+      model: chartModel,
     });
     this.trimPlotDisplayModelCache();
     this.onDidChangePlotDisplayModelCacheEmitter.fire({
-      fileId: model.fileId,
-      plotType: model.plotType,
+      fileId: chartModel.fileId,
+      pane: "chart",
+      plotType: chartModel.plotType,
     });
     logPerf("plotService.cachePlotDisplayModel", {
       cacheSize: this.plotDisplayModelCacheByKey.size,
-      fileId: model.fileId,
-      hasInspector: Boolean(model.inspector),
+      fileId: chartModel.fileId,
+      hasInspector: false,
       limit: PLOT_DISPLAY_MODEL_CACHE_LIMIT,
-      plotType: model.plotType,
+      plotType: chartModel.plotType,
+      result: "created",
+      signature: calculatedData.signature,
+    });
+    return chartModel;
+  }
+
+  private cachePlotInspectorDisplayModel(
+    calculatedData: CalculatedData,
+    input: PlotDisplayModelInput,
+    model: PlotPaneDisplayModel,
+  ): PlotPaneDisplayModel {
+    const key = this.getPlotDisplayModelCacheKey(calculatedData, input);
+    const fileId = normalizeStateKey(calculatedData.source.fileId);
+    if (!fileId || !isPlotType(calculatedData.kind)) {
+      return model;
+    }
+    const cachedEntry = this.plotInspectorDisplayModelCacheByKey.get(key);
+    if (cachedEntry) {
+      cachedEntry.lastUsed = ++this.plotInspectorDisplayModelCacheUse;
+      logPerf("plotService.cachePlotInspectorDisplayModel", {
+        cacheSize: this.plotInspectorDisplayModelCacheByKey.size,
+        fileId,
+        limit: PLOT_INSPECTOR_DISPLAY_MODEL_CACHE_LIMIT,
+        plotType: calculatedData.kind,
+        result: "kept",
+        signature: calculatedData.signature,
+      });
+      return cachedEntry.model;
+    }
+
+    this.plotInspectorDisplayModelCacheByKey.set(key, {
+      lastUsed: ++this.plotInspectorDisplayModelCacheUse,
+      model,
+    });
+    this.trimPlotInspectorDisplayModelCache();
+    this.onDidChangePlotDisplayModelCacheEmitter.fire({
+      fileId,
+      pane: "inspector",
+      plotType: calculatedData.kind,
+    });
+    logPerf("plotService.cachePlotInspectorDisplayModel", {
+      cacheSize: this.plotInspectorDisplayModelCacheByKey.size,
+      fileId,
+      limit: PLOT_INSPECTOR_DISPLAY_MODEL_CACHE_LIMIT,
+      plotType: calculatedData.kind,
       result: "created",
       signature: calculatedData.signature,
     });
@@ -1427,6 +1710,16 @@ export class PlotService extends Disposable implements IPlotService {
     }
 
     cached.lastUsed = ++this.plotDisplayModelCacheUse;
+    return cached.model;
+  }
+
+  private getCachedPlotInspectorDisplayModelForKey(key: string): PlotPaneDisplayModel | null {
+    const cached = this.plotInspectorDisplayModelCacheByKey.get(key);
+    if (!cached) {
+      return null;
+    }
+
+    cached.lastUsed = ++this.plotInspectorDisplayModelCacheUse;
     return cached.model;
   }
 
@@ -1458,6 +1751,39 @@ export class PlotService extends Disposable implements IPlotService {
       logPerf("plotService.trimPlotDisplayModelCache", {
         cacheSize: this.plotDisplayModelCacheByKey.size,
         limit: PLOT_DISPLAY_MODEL_CACHE_LIMIT,
+        trimmed,
+      });
+    }
+  }
+
+  private trimPlotInspectorDisplayModelCache(): void {
+    if (this.plotInspectorDisplayModelCacheByKey.size <= PLOT_INSPECTOR_DISPLAY_MODEL_CACHE_LIMIT) {
+      return;
+    }
+
+    let trimmed = 0;
+    while (this.plotInspectorDisplayModelCacheByKey.size > PLOT_INSPECTOR_DISPLAY_MODEL_CACHE_LIMIT) {
+      let oldestKey: string | null = null;
+      let oldestLastUsed = Number.POSITIVE_INFINITY;
+      for (const [key, entry] of this.plotInspectorDisplayModelCacheByKey) {
+        if (entry.lastUsed < oldestLastUsed) {
+          oldestKey = key;
+          oldestLastUsed = entry.lastUsed;
+        }
+      }
+
+      if (!oldestKey) {
+        break;
+      }
+
+      this.plotInspectorDisplayModelCacheByKey.delete(oldestKey);
+      trimmed += 1;
+    }
+
+    if (trimmed) {
+      logPerf("plotService.trimPlotInspectorDisplayModelCache", {
+        cacheSize: this.plotInspectorDisplayModelCacheByKey.size,
+        limit: PLOT_INSPECTOR_DISPLAY_MODEL_CACHE_LIMIT,
         trimmed,
       });
     }
@@ -1672,13 +1998,13 @@ const getQueuedPlotDisplayModelPrefetchKey = (
     stableRecordKey(input.legendLabels),
   ].join("|");
 
-const getFullPlotDisplayModelPrefetchPriority = (
+const getInspectorPlotDisplayModelPrefetchPriority = (
   priority: PlotCalculatedDataPrefetchPriority,
 ): PlotCalculatedDataPrefetchPriority => {
   switch (priority) {
     case "active":
-    case "hover":
       return "visible";
+    case "hover":
     case "visible":
       return "nearby";
     case "nearby":
@@ -1687,14 +2013,11 @@ const getFullPlotDisplayModelPrefetchPriority = (
   }
 };
 
-const shouldPrefetchFullPlotDisplayModel = (priority: PlotCalculatedDataPrefetchPriority): boolean =>
-  priority === "active";
-
 const getPlotDisplayModelPrefetchOrder = (
   prefetch: QueuedPlotDisplayModelPrefetch,
 ): number =>
   CALCULATED_DATA_PREFETCH_PRIORITY_ORDER[prefetch.priority] * 2 +
-  (prefetch.stage === "full" ? 1 : 0);
+  (prefetch.stage === "inspector" ? 1 : 0);
 
 const stableStringList = (values: readonly string[]): string =>
   [...new Set(values.map(normalizeStateKey).filter(Boolean))]

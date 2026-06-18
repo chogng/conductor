@@ -97,7 +97,14 @@ export const createPerformanceMetricRow = ({
     plotDisplayCacheMaxSize: readNumber(plotCache.displayModelCache.maxSize),
     plotDisplayCacheTrimmed: readNumber(plotCache.displayModelCache.trimmed),
     plotDisplayCacheUpgraded: readNumber(plotCache.displayModelCache.upgraded),
-    plotDisplayFullQueueCleared: readNumber(plotCache.fullDisplayQueue.cleared),
+    plotInspectorCacheCreated: readNumber(plotCache.inspectorDisplayModelCache.created),
+    plotInspectorCacheMaxSize: readNumber(plotCache.inspectorDisplayModelCache.maxSize),
+    plotInspectorCacheTrimmed: readNumber(plotCache.inspectorDisplayModelCache.trimmed),
+    plotInspectorPrefetchCanceled: readNumber(plotCache.inspectorPrefetchScheduler.canceled),
+    plotInspectorPrefetchFired: readNumber(plotCache.inspectorPrefetchScheduler.fired),
+    plotInspectorPrefetchScheduled: readNumber(plotCache.inspectorPrefetchScheduler.scheduled),
+    plotInspectorPrefetchSkipped: readNumber(plotCache.inspectorPrefetchScheduler.skipped),
+    plotInspectorQueueCleared: readNumber(plotCache.inspectorDisplayQueue.cleared),
     sessionCalculatedCommitP95Ms: summaryP95(
       applyProcessing?.perf?.stageDurationMs?.["sessionService.commitCalculatedRecordsBatch"],
     ),
@@ -150,7 +157,14 @@ export const metricHistoryKeys = [
   "plotDisplayCacheCreated",
   "plotDisplayCacheUpgraded",
   "plotDisplayCacheTrimmed",
-  "plotDisplayFullQueueCleared",
+  "plotInspectorCacheMaxSize",
+  "plotInspectorCacheCreated",
+  "plotInspectorCacheTrimmed",
+  "plotInspectorPrefetchScheduled",
+  "plotInspectorPrefetchFired",
+  "plotInspectorPrefetchCanceled",
+  "plotInspectorPrefetchSkipped",
+  "plotInspectorQueueCleared",
 ];
 
 export const readHistoryRows = (historyPath) => {
@@ -239,7 +253,7 @@ export const writeHistorySvg = (svgPath, rows, scenarioKey) => {
     "fileSwitchDuringChartDrawnP95Ms",
     "maxUsedJsHeapMb",
     "plotDisplayCacheMaxSize",
-    "plotDisplayCacheUpgraded",
+    "plotInspectorPrefetchFired",
     "meanCpuPercent",
   ];
   const width = 980;

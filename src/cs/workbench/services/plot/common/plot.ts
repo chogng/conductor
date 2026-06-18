@@ -65,6 +65,7 @@ export type PlotCalculatedDataCacheChangeEvent = {
 
 export type PlotDisplayModelCacheChangeEvent = {
   readonly fileId: FileId;
+  readonly pane?: "chart" | "inspector";
   readonly plotType: PlotType;
 };
 
@@ -125,6 +126,7 @@ export interface IPlotService {
   getState(): PlotState;
   getCachedCalculatedData(input: PlotCalculatedDataInput): CalculatedData | null;
   getCachedPlotDisplayModel(input: PlotDisplayModelInput): PlotDisplayModel | null;
+  getCachedPlotInspectorDisplayModel(input: PlotDisplayModelInput): PlotPaneDisplayModel | null;
   getCachedPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
   getCalculatedData(input: PlotCalculatedDataInput): CalculatedData | null;
   getFileAxisSettings(snapshot: SessionSnapshot): PlotFileAxisSettings;
@@ -133,6 +135,7 @@ export interface IPlotService {
   getPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
   getPlotMainRenderModel(input: PlotMainRenderModelInput): PlotMainRenderModel | null;
   prefetchCalculatedData(fileIds: readonly FileId[], priority: PlotCalculatedDataPrefetchPriority, plotType?: PlotType): void;
+  prefetchPlotInspectorDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
   prefetchPlotDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
   setAxisTitleOverride(context: PlotAxisTitleContext, title: string, defaultTitle: string): void;
   setAxisUnit(fileId: FileId, axis: PlotAxis, unit: XUnit | YUnit): Promise<void>;

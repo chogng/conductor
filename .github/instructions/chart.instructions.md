@@ -128,7 +128,8 @@ sequenceDiagram
         PlotService-->>ChartViewPane: onDidChangeCalculatedDataCache(activeFileId)
         PlotService-->>ChartViewPane: onDidChangePlotDisplayModelCache(activeFileId, chart-only)
         ChartViewPane->>ChartViewPane: render main chart while inspector is pending
-        PlotService-->>ChartViewPane: onDidChangePlotDisplayModelCache(activeFileId, full)
+        ChartViewPane->>PlotService: prefetchPlotInspectorDisplayModel(activeFileId, "active") after Inspector-visible active file stays stable
+        PlotService-->>ChartViewPane: onDidChangePlotDisplayModelCache(activeFileId, inspector)
         ChartViewPane->>PlotService: getCachedPlotDisplayModel / getCachedPlotLegendModel
     end
     ChartViewPane->>ChartViewPane: render from current service state
@@ -160,10 +161,17 @@ model, legend model, and legend labels from Plot.
 `ChartViewPane` must use Plot's cached display/legend APIs during render and
 request active display-model prefetch on cache miss; it must not synchronously
 create calculated Plot data or Plot display models in the chart render path.
+When the Inspector pane is visible and the cached main chart display model has
+no inspector pane model yet, `ChartViewPane` should request
+`IPlotService.prefetchPlotInspectorDisplayModel(...)` only after the active
+file/plot/legend target has stayed stable long enough to indicate user
+settlement. It should not ask the main chart display prefetch path to build
+inspector data, and rapid active file switches should cancel stale pending
+Inspector prefetch work before it reaches Plot.
 `ChartViewPane` must treat staged Plot display models as valid: if `chart` is
 present and `inspector` is still `null`, render the main chart immediately and
-show only the inspector pane as pending. It must rerender when Plot upgrades the
-same cache entry to a full model.
+show only the inspector pane as pending. It must rerender when Plot publishes
+an inspector cache change for the same active file and plot type.
 Chart's active plot host may request eager first draw from `PlotMainView` so a
 newly selected chart paints on the first connected, sized frame. Keep the
 strategy explicit in Chart view composition; do not make Plot's reusable chart

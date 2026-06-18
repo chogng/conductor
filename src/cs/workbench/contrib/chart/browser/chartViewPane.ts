@@ -8,6 +8,7 @@ import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { Action, toAction, type IAction } from "src/cs/base/common/actions";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
+import { logPerf } from "src/cs/workbench/common/perf";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import { ChartViewId } from "src/cs/workbench/services/chart/common/chart";
@@ -58,6 +59,8 @@ import type { ChartViewProps } from "src/cs/workbench/contrib/chart/browser/view
 
 import "src/cs/workbench/contrib/chart/browser/media/chart.css";
 
+const INSPECTOR_PREFETCH_STABLE_DELAY_MS = 320;
+
 export class ChartViewPane extends ViewPane {
   private readonly previewPart: HTMLElement;
   private readonly headerTabs = document.createElement("div");
@@ -71,6 +74,8 @@ export class ChartViewPane extends ViewPane {
   private legendContext: LegendContext | null = null;
   private editingLegendKey: string | null = null;
   private fallbackActivePlotType: PlotType = "iv";
+  private pendingInspectorPrefetchHandle: ReturnType<typeof globalThis.setTimeout> | null = null;
+  private pendingInspectorPrefetchKey: string | null = null;
   private props: ChartViewInput = EMPTY_CHART_VIEW_INPUT;
 
   constructor(
@@ -170,6 +175,7 @@ export class ChartViewPane extends ViewPane {
     this.paneStore.dispose();
     this.headerStore.dispose();
     this.chartPanel.dispose();
+    this.cancelPendingInspectorPrefetch();
     this.disposeLegendPopover();
     this.content.replaceChildren();
     this.previewPart.remove();
@@ -342,14 +348,127 @@ export class ChartViewPane extends ViewPane {
       plotType,
     });
     if (!model && fileId) {
+      this.cancelPendingInspectorPrefetch();
       this.plotService.prefetchPlotDisplayModel({
         fileId,
         hiddenLegendKeys,
         legendLabels,
         plotType,
       }, "active");
+    } else if (
+      model &&
+      !model.inspector &&
+      fileId &&
+      this.chartService.getState().visibleDetailPanes.includes("inspector")
+    ) {
+      this.scheduleInspectorPrefetch({
+        fileId,
+        hiddenLegendKeys,
+        legendLabels,
+        plotType,
+      });
+    } else {
+      this.cancelPendingInspectorPrefetch();
     }
     return model;
+  }
+
+  private scheduleInspectorPrefetch(input: {
+    readonly fileId: string;
+    readonly hiddenLegendKeys: readonly string[];
+    readonly legendLabels: Readonly<Record<string, string>>;
+    readonly plotType: PlotType;
+  }): void {
+    const key = this.createInspectorPrefetchKey(input);
+    if (this.pendingInspectorPrefetchKey === key) {
+      return;
+    }
+
+    this.cancelPendingInspectorPrefetch("superseded");
+    this.pendingInspectorPrefetchKey = key;
+    logPerf("chartViewPane.scheduleInspectorPrefetch", {
+      delayMs: INSPECTOR_PREFETCH_STABLE_DELAY_MS,
+      fileId: input.fileId,
+      plotType: input.plotType,
+    }, { silent: true });
+    this.pendingInspectorPrefetchHandle = globalThis.setTimeout(() => {
+      this.pendingInspectorPrefetchHandle = null;
+      this.pendingInspectorPrefetchKey = null;
+      if (!this.isInspectorPrefetchTargetCurrent(input, key)) {
+        logPerf("chartViewPane.skipInspectorPrefetch", {
+          fileId: input.fileId,
+          plotType: input.plotType,
+          reason: "stale-target",
+        }, { silent: true });
+        return;
+      }
+
+      logPerf("chartViewPane.fireInspectorPrefetch", {
+        fileId: input.fileId,
+        plotType: input.plotType,
+      }, { silent: true });
+      this.plotService.prefetchPlotInspectorDisplayModel({
+        fileId: input.fileId,
+        hiddenLegendKeys: input.hiddenLegendKeys,
+        legendLabels: input.legendLabels,
+        plotType: input.plotType,
+      }, "active");
+    }, INSPECTOR_PREFETCH_STABLE_DELAY_MS);
+  }
+
+  private createInspectorPrefetchKey(input: {
+    readonly fileId: string;
+    readonly hiddenLegendKeys: readonly string[];
+    readonly legendLabels: Readonly<Record<string, string>>;
+    readonly plotType: PlotType;
+  }): string {
+    return [
+      input.fileId,
+      input.plotType,
+      [...input.hiddenLegendKeys].join(","),
+      Object.entries(input.legendLabels)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([labelKey, label]) => `${labelKey}:${label}`)
+        .join(","),
+    ].join("|");
+  }
+
+  private isInspectorPrefetchTargetCurrent(input: {
+    readonly fileId: string;
+    readonly hiddenLegendKeys: readonly string[];
+    readonly legendLabels: Readonly<Record<string, string>>;
+    readonly plotType: PlotType;
+  }, key: string): boolean {
+    if (
+      normalizeChartFileId(this.props.activeFileId) !== input.fileId ||
+      this.getActivePlotType() !== input.plotType ||
+      !this.chartService.getState().visibleDetailPanes.includes("inspector")
+    ) {
+      return false;
+    }
+
+    const legendContext = this.getCurrentLegendContext(this.props);
+    return key === this.createInspectorPrefetchKey({
+      fileId: input.fileId,
+      hiddenLegendKeys: this.getHiddenLegendKeys(legendContext),
+      legendLabels: this.getLegendLabels(legendContext),
+      plotType: input.plotType,
+    });
+  }
+
+  private cancelPendingInspectorPrefetch(reason: string = "cancelled"): void {
+    if (this.pendingInspectorPrefetchHandle == null) {
+      this.pendingInspectorPrefetchKey = null;
+      return;
+    }
+
+    globalThis.clearTimeout(this.pendingInspectorPrefetchHandle);
+    logPerf("chartViewPane.cancelInspectorPrefetch", {
+      key: this.pendingInspectorPrefetchKey,
+      reason,
+    }, { silent: true });
+    this.pendingInspectorPrefetchHandle = null;
+    this.pendingInspectorPrefetchKey = null;
   }
 
   private updateChartPanelTabState(): void {

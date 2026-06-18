@@ -9,6 +9,7 @@ import {
 import {
   type PlotAxisTitleContext,
   type PlotDisplayModel,
+  type PlotPaneDisplayModel,
   type PlotType,
 } from "src/cs/workbench/services/plot/common/plot";
 import { resolveAxisTitleLabel } from "src/cs/workbench/services/plot/common/plotAxisLabels";
@@ -38,6 +39,95 @@ export type CreatePlotDisplayModelInput = {
 export const createPlotDisplayModelFromCalculatedData = (
   input: CreatePlotDisplayModelInput,
 ): PlotDisplayModel | null => {
+  const parts = createPlotDisplayModelParts(input);
+  if (!parts) {
+    return null;
+  }
+
+  const chartXTitleContext = createAxisTitleContext({
+    axis: "x",
+    fileId: parts.fileId,
+    pane: "chart",
+    plotType: parts.chartData.kind as PlotType,
+  });
+  const chartYTitleContext = createAxisTitleContext({
+    axis: "y",
+    fileId: parts.fileId,
+    pane: "chart",
+    plotType: parts.chartData.kind as PlotType,
+  });
+  const chartDefaultXAxisTitle = resolveAxisTitleLabel(
+    parts.chartData.activeFile?.xLabel,
+    "X",
+  );
+  const chartDefaultYAxisTitle = resolveAxisTitleLabel(
+    parts.chartData.activeFile?.yLabel,
+    "Y",
+  );
+
+  return {
+    chart: {
+      defaultXAxisTitle: chartDefaultXAxisTitle,
+      defaultYAxisTitle: chartDefaultYAxisTitle,
+      model: createPlotMainRenderModel(parts.chartData),
+      plotXFactor: parts.displayUnits.xFactor,
+      plotXUnitLabel: parts.displayUnits.xUnit,
+      plotYFactor: parts.displayUnits.yFactor,
+      plotYUnitLabel: parts.displayUnits.yUnit,
+      xAxisTitle: getAxisTitle(input.axisTitleOverridesByKey, chartXTitleContext, chartDefaultXAxisTitle),
+      xAxisTitleContext: chartXTitleContext,
+      yAxisTitle: getAxisTitle(input.axisTitleOverridesByKey, chartYTitleContext, chartDefaultYAxisTitle),
+      yAxisTitleContext: chartYTitleContext,
+      yScaleMode: parts.yScaleMode,
+    },
+    fileId: parts.fileId,
+    inspector: input.includeInspector === false
+      ? null
+      : createInspectorDisplayModel({
+        axisTitleOverridesByKey: input.axisTitleOverridesByKey,
+        chartData: parts.chartData,
+        displayUnits: parts.displayUnits,
+        fileId: parts.fileId,
+        hiddenLegendKeys: parts.hiddenLegendKeys,
+        yScaleMode: parts.yScaleMode,
+      }),
+    plotType: parts.chartData.kind as PlotType,
+    unitControl: createUnitControlModel(parts.chartData, input.axisSettings),
+  };
+};
+
+export const createPlotInspectorDisplayModelFromCalculatedData = (
+  input: CreatePlotDisplayModelInput,
+): PlotPaneDisplayModel | null => {
+  const parts = createPlotDisplayModelParts(input);
+  if (!parts) {
+    return null;
+  }
+
+  return createInspectorDisplayModel({
+    axisTitleOverridesByKey: input.axisTitleOverridesByKey,
+    chartData: parts.chartData,
+    displayUnits: parts.displayUnits,
+    fileId: parts.fileId,
+    hiddenLegendKeys: parts.hiddenLegendKeys,
+    yScaleMode: parts.yScaleMode,
+  });
+};
+
+const createPlotDisplayModelParts = (
+  input: CreatePlotDisplayModelInput,
+): {
+  readonly chartData: CalculatedData;
+  readonly displayUnits: {
+    readonly xFactor: number;
+    readonly xUnit: string | undefined;
+    readonly yFactor: number;
+    readonly yUnit: string | undefined;
+  };
+  readonly fileId: string;
+  readonly hiddenLegendKeys: readonly string[];
+  readonly yScaleMode: "linear" | "log";
+} | null => {
   const calculatedData = input.calculatedData;
   const fileId = String(calculatedData?.source.fileId ?? "").trim();
   if (!calculatedData || !fileId) {
@@ -51,56 +141,12 @@ export const createPlotDisplayModelFromCalculatedData = (
   );
   const displayUnits = resolveDisplayUnits(chartData, input.axisSettings);
   const yScaleMode = resolveYScale(chartData, input.axisSettings);
-
-  const chartXTitleContext = createAxisTitleContext({
-    axis: "x",
-    fileId,
-    pane: "chart",
-    plotType: chartData.kind as PlotType,
-  });
-  const chartYTitleContext = createAxisTitleContext({
-    axis: "y",
-    fileId,
-    pane: "chart",
-    plotType: chartData.kind as PlotType,
-  });
-  const chartDefaultXAxisTitle = resolveAxisTitleLabel(
-    chartData.activeFile?.xLabel,
-    "X",
-  );
-  const chartDefaultYAxisTitle = resolveAxisTitleLabel(
-    chartData.activeFile?.yLabel,
-    "Y",
-  );
-
   return {
-    chart: {
-      defaultXAxisTitle: chartDefaultXAxisTitle,
-      defaultYAxisTitle: chartDefaultYAxisTitle,
-      model: createPlotMainRenderModel(chartData),
-      plotXFactor: displayUnits.xFactor,
-      plotXUnitLabel: displayUnits.xUnit,
-      plotYFactor: displayUnits.yFactor,
-      plotYUnitLabel: displayUnits.yUnit,
-      xAxisTitle: getAxisTitle(input.axisTitleOverridesByKey, chartXTitleContext, chartDefaultXAxisTitle),
-      xAxisTitleContext: chartXTitleContext,
-      yAxisTitle: getAxisTitle(input.axisTitleOverridesByKey, chartYTitleContext, chartDefaultYAxisTitle),
-      yAxisTitleContext: chartYTitleContext,
-      yScaleMode,
-    },
+    chartData,
+    displayUnits,
     fileId,
-    inspector: input.includeInspector === false
-      ? null
-      : createInspectorDisplayModel({
-        axisTitleOverridesByKey: input.axisTitleOverridesByKey,
-        chartData,
-        displayUnits,
-        fileId,
-        hiddenLegendKeys,
-        yScaleMode,
-      }),
-    plotType: chartData.kind as PlotType,
-    unitControl: createUnitControlModel(chartData, input.axisSettings),
+    hiddenLegendKeys,
+    yScaleMode,
   };
 };
 

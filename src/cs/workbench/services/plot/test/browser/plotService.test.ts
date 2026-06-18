@@ -905,14 +905,14 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.equal(cached?.inspector, null);
       assert.deepEqual(calculatedEvents, ["iv:file-active"]);
       assert.deepEqual(displayEvents, ["iv:file-active"]);
-      assert.equal(scheduledFrameCount, 1);
+      assert.equal(scheduledFrameCount, 0);
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
       globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
     }
   });
 
-  test("keeps full display model prefetch in the background behind active data", async () => {
+  test("keeps inspector display model prefetch in the background behind active data", async () => {
     const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
     const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
     const originalWorker = globalThis.Worker;
@@ -1021,6 +1021,16 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         plotType: "iv",
         snapshot,
       }, "active");
+      service.prefetchPlotInspectorDisplayModel({
+        fileId: "file-a",
+        plotType: "iv",
+        snapshot,
+      }, "active");
+      service.prefetchPlotInspectorDisplayModel({
+        fileId: "file-b",
+        plotType: "iv",
+        snapshot,
+      }, "active");
 
       scheduledFrames.shift()?.(0);
 
@@ -1028,7 +1038,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         workerRecords.map(record =>
           `${record.message.type}:${record.message.payload?.fileId}:${record.message.payload?.includeInspector}`,
         ),
-        ["calculateDisplayModel:file-a:true"],
+        ["calculateDisplayModel:file-b:true"],
       );
 
       service.prefetchCalculatedData(["file-c"], "active", "iv");
@@ -1039,7 +1049,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
           `${record.message.type}:${record.message.payload?.fileId ?? record.message.payload?.file?.id}`,
         ),
         [
-          "calculateDisplayModel:file-a",
+          "calculateDisplayModel:file-b",
           "calculateData:file-c",
         ],
       );
@@ -1134,6 +1144,11 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         snapshot,
       });
       service.prefetchPlotDisplayModel({
+        fileId: "file-active",
+        plotType: "iv",
+        snapshot,
+      }, "active");
+      service.prefetchPlotInspectorDisplayModel({
         fileId: "file-active",
         plotType: "iv",
         snapshot,
@@ -1758,7 +1773,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     }));
   });
 
-  test("publishes chart display model before inspector display model", async () => {
+  test("publishes chart display model separately from inspector display model", async () => {
     const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
     const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
     const originalWorker = globalThis.Worker;
@@ -1777,7 +1792,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         createSettingsServiceStub(),
         store.add(new TestStorageService()),
       ));
-      const events: Array<{ fileId: string; plotType: string }> = [];
+      const events: Array<{ fileId: string; pane?: string; plotType: string }> = [];
       store.add(service.onDidChangePlotDisplayModelCache(event => {
         events.push(event);
       }));
@@ -1801,9 +1816,14 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       assert.ok(chartOnly?.chart.model);
       assert.equal(chartOnly?.inspector, null);
       assert.deepEqual(events, [
-        { fileId: "file-a", plotType: "iv" },
+        { fileId: "file-a", pane: "chart", plotType: "iv" },
       ]);
 
+      service.prefetchPlotInspectorDisplayModel({
+        fileId: "file-a",
+        plotType: "iv",
+        snapshot,
+      }, "active");
       scheduledFrames.shift()?.(0);
       await Promise.resolve();
 
@@ -1813,9 +1833,14 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         snapshot,
       });
       assert.ok(full?.inspector?.model);
+      assert.ok(service.getCachedPlotInspectorDisplayModel({
+        fileId: "file-a",
+        plotType: "iv",
+        snapshot,
+      }));
       assert.deepEqual(events, [
-        { fileId: "file-a", plotType: "iv" },
-        { fileId: "file-a", plotType: "iv" },
+        { fileId: "file-a", pane: "chart", plotType: "iv" },
+        { fileId: "file-a", pane: "inspector", plotType: "iv" },
       ]);
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
