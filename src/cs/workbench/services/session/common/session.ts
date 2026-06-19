@@ -91,6 +91,16 @@ export type CommitFileImportResult = {
   readonly skippedDuplicateFileIds: readonly FileId[];
 };
 
+export type CommitFileImportRawTableAssessmentInput =
+  Omit<RawTableAssessmentRecord, "fileId" | "rawTableId" | "sourceRawTableVersion"> & {
+    readonly fileId: FileId;
+    readonly rawTableId?: string | null;
+  };
+
+export type CommitFileImportOptions = {
+  readonly rawTableAssessments?: readonly CommitFileImportRawTableAssessmentInput[];
+};
+
 export interface ISessionService {
   readonly _serviceBrand: undefined;
   readonly onDidChangeSession: Event<SessionChangeEvent>;
@@ -99,7 +109,7 @@ export interface ISessionService {
   readonly clearMetricInput: (fileId: string, metricKey: MetricKey) => void;
 
   clearSession(): void;
-  commitFileImport(result: FileImportResult): CommitFileImportResult;
+  commitFileImport(result: FileImportResult, options?: CommitFileImportOptions): CommitFileImportResult;
   commitRawTableAssessment(assessment: RawTableAssessmentRecord): void;
   commitRawTableAssessments(assessments: readonly RawTableAssessmentRecord[]): void;
   commitTemplateOutput(input: CommitTemplateOutputInput): void;

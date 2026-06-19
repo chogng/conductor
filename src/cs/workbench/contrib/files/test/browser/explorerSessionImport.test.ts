@@ -14,6 +14,7 @@ import type {
 import type { ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
 import type { ImportFileAssessment } from "src/cs/workbench/services/assessment/common/assessment";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
+import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/test/browser/explorerSessionImport", () => {
@@ -164,6 +165,10 @@ suite("workbench/contrib/files/test/browser/explorerSessionImport", () => {
   test("commits prepared import assessments with the imported raw table version", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
+    const events: SessionChangeEvent[] = [];
+    const disposable = session.onDidChangeSession(event => {
+      events.push(event);
+    });
 
     commitExplorerSessionImport({
       explorerService,
@@ -191,6 +196,8 @@ suite("workbench/contrib/files/test/browser/explorerSessionImport", () => {
     assert.equal(assessment.blocks[0].label, "Transfer");
     assert.equal(assessment.blocks[0].family, "iv");
     assert.equal(assessment.blocks[0].ivMode, "transfer");
+    assert.deepEqual(events.map(event => event.reason), ["rawTablesChanged"]);
+    disposable.dispose();
   });
 });
 

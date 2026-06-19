@@ -795,6 +795,42 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.equal(file.measurementBlocksById["block-a"].family, "iv");
   });
 
+  test("commits file import and prepared assessment in one raw table event", () => {
+    const session = store.add(new SessionService());
+    const events: SessionChangeEvent[] = [];
+    const disposable = session.onDidChangeSession(event => {
+      events.push(event);
+    });
+    const assessment = createRawTableAssessment(0);
+
+    const result = session.commitFileImport(createSingleRawTableImportResult(), {
+      rawTableAssessments: [{
+        blocks: assessment.blocks,
+        createdAt: assessment.createdAt,
+        diagnostics: assessment.diagnostics,
+        fileId: assessment.fileId,
+        groups: assessment.groups,
+        rawTableId: assessment.rawTableId,
+      }],
+    });
+
+    assert.deepEqual(result, {
+      importedFileIds: ["file-a"],
+      skippedDuplicateFileIds: [],
+    });
+    const file = session.getSnapshot().filesById["file-a"];
+    assert.equal(file.assessmentsByRawTableId["table-a"].sourceRawTableVersion, 1);
+    assert.deepEqual(file.measurementBlockOrder, ["block-a"]);
+    assert.deepEqual(events, [{
+      fileIds: ["file-a"],
+      rawTableIds: ["table-a"],
+      rawTableRefs: [{ fileId: "file-a", rawTableId: "table-a" }],
+      reason: "rawTablesChanged",
+      sessionVersion: 1,
+    }]);
+    disposable.dispose();
+  });
+
   test("commits multiple raw table assessments with one change event", () => {
     const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];

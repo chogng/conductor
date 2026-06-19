@@ -16,8 +16,10 @@ import {
 import {
   createRawTableAssessmentRecordFromImportAssessment,
 } from "src/cs/workbench/services/assessment/common/assessmentRecord";
-import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
-import type { ISessionService } from "src/cs/workbench/services/session/common/session";
+import type {
+  CommitFileImportRawTableAssessmentInput,
+  ISessionService,
+} from "src/cs/workbench/services/session/common/session";
 import {
   markTemplateApplyPerformanceTrace,
 } from "src/cs/workbench/contrib/files/browser/templateApplyPerformanceTrace";
@@ -37,7 +39,6 @@ type ExplorerSessionImportOptions = {
     ISessionService,
     | "clearSession"
     | "commitFileImport"
-    | "commitRawTableAssessments"
     | "getSnapshot"
   >;
 };
@@ -68,17 +69,20 @@ export const commitExplorerSessionImport = ({
   const importResult = createFileImportResultFromRecords(
     normalizedFiles.map(file => file.importRecord),
   );
+  const preparedAssessments = createPreparedImportAssessmentInputs(normalizedFiles);
   markTemplateApplyPerformanceTrace("import.session.commit.start", {
     fileCount: normalizedFiles.length,
     mode,
-    preparedAssessmentCount: normalizedFiles.filter(file => file.preparedAssessment).length,
+    preparedAssessmentCount: preparedAssessments.length,
   });
 
   if (mode === "replace") {
     sessionService.clearSession();
-    const commitResult = sessionService.commitFileImport(importResult);
+    const commitResult = sessionService.commitFileImport(importResult, {
+      rawTableAssessments: preparedAssessments,
+    });
     const committedFileIds = commitResult.importedFileIds;
-    commitPreparedImportAssessments(normalizedFiles, committedFileIds, sessionService);
+    markPreparedImportAssessmentsCommitted(preparedAssessments, committedFileIds);
     markTemplateApplyPerformanceTrace("import.session.commit.complete", {
       committedFileCount: committedFileIds.length,
       mode,
@@ -100,9 +104,11 @@ export const commitExplorerSessionImport = ({
     };
   }
 
-  const commitResult = sessionService.commitFileImport(importResult);
+  const commitResult = sessionService.commitFileImport(importResult, {
+    rawTableAssessments: preparedAssessments,
+  });
   const committedFileIds = commitResult.importedFileIds;
-  commitPreparedImportAssessments(normalizedFiles, committedFileIds, sessionService);
+  markPreparedImportAssessmentsCommitted(preparedAssessments, committedFileIds);
   markTemplateApplyPerformanceTrace("import.session.commit.complete", {
     committedFileCount: committedFileIds.length,
     mode,
@@ -135,49 +141,52 @@ export const commitExplorerSessionImport = ({
   };
 };
 
-const commitPreparedImportAssessments = (
+const createPreparedImportAssessmentInputs = (
   importedFiles: readonly NormalizedPreparedFileImportInfo[],
-  committedFileIds: readonly string[],
-  sessionService: Pick<ISessionService, "commitRawTableAssessments" | "getSnapshot">,
-): void => {
-  const committedFileIdSet = new Set(committedFileIds);
-  if (!committedFileIdSet.size) {
-    return;
-  }
-
-  const snapshot = sessionService.getSnapshot();
-  const assessments: RawTableAssessmentRecord[] = [];
+): CommitFileImportRawTableAssessmentInput[] => {
+  const assessments: CommitFileImportRawTableAssessmentInput[] = [];
   for (const importedFile of importedFiles) {
-    if (!committedFileIdSet.has(importedFile.fileId) || !importedFile.preparedAssessment) {
+    if (!importedFile.preparedAssessment) {
       continue;
     }
 
-    const file = snapshot.filesById[importedFile.fileId];
-    const rawTableId = normalizeFileId(file?.raw.tableOrder[0]);
-    const table = rawTableId ? file?.raw.tablesById[rawTableId] : undefined;
-    const sourceRawTableVersion = rawTableId
-      ? Math.floor(Number(file?.rawTableVersionsById?.[rawTableId]))
-      : NaN;
-    if (!file || !rawTableId || !table || !Number.isFinite(sourceRawTableVersion)) {
+    const rawTableId = normalizeFileId(importedFile.importRecord.raw.rawTableOrder[0]);
+    const table = rawTableId ? importedFile.importRecord.raw.rawTablesById[rawTableId] : undefined;
+    if (!rawTableId || !table) {
       continue;
     }
 
-    assessments.push(createRawTableAssessmentRecordFromImportAssessment({
+    const assessment = createRawTableAssessmentRecordFromImportAssessment({
       assessment: importedFile.preparedAssessment,
       columnCount: table.columnCount,
-      fileId: file.id,
-      fileName: file.name,
+      fileId: importedFile.fileId,
+      fileName: importedFile.importRecord.name,
       rawTableId,
       rowCount: table.rowCount,
-      sourceRawTableVersion,
-    }));
+      sourceRawTableVersion: 0,
+    });
+    assessments.push({
+      blocks: assessment.blocks,
+      createdAt: assessment.createdAt,
+      diagnostics: assessment.diagnostics,
+      fileId: assessment.fileId,
+      groups: assessment.groups,
+      rawTableId: assessment.rawTableId,
+    });
   }
 
-  if (assessments.length) {
-    sessionService.commitRawTableAssessments(assessments);
-  }
+  return assessments;
+};
+
+const markPreparedImportAssessmentsCommitted = (
+  assessments: readonly CommitFileImportRawTableAssessmentInput[],
+  committedFileIds: readonly string[],
+): void => {
+  const committedFileIdSet = new Set(committedFileIds);
   markTemplateApplyPerformanceTrace("import.assessment.prepared.commit", {
-    assessmentCount: assessments.length,
+    assessmentCount: assessments.filter(assessment =>
+      committedFileIdSet.has(normalizeFileId(assessment.fileId) ?? "")
+    ).length,
     committedFileCount: committedFileIdSet.size,
   });
 };

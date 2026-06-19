@@ -264,9 +264,11 @@ flowchart TD
     DesktopRust --> DesktopMain
     DesktopMain --> Converter
     Converter --> Result[FileConversionResult]
-    Workflow --> Session[ISessionService.commitFileImport]
+    Converter --> PreparedAssessment[prepared import assessment]
+    Workflow --> Session[ISessionService.commitFileImport result + rawTableAssessments]
     Session --> WorkflowResult[CommitFileImportResult: committed ids / skipped duplicate ids]
     Result --> Session
+    PreparedAssessment --> Session
     Session --> Consumers[SessionChangeEvent subscribers]
     Consumers --> Assessment[IAssessmentService]
     Consumers --> Explorer[Explorer resources]
@@ -338,7 +340,7 @@ sequenceDiagram
     View->>Explorer: setVisibleFileIds(visible, nearby)
     Explorer-->>Bridge: onDidChangeVisibleFileIds
     Bridge->>Queue: prioritizeRawTables(visible, nearby)
-    Queue->>Session: commitRawTableAssessments(confirmed/unknown result)
+    Queue->>Session: commitRawTableAssessments(missing/confirmed/unknown result)
     Session-->>Bridge: assessmentChanged
     Bridge->>Explorer: updatePaneInput(files with assessment badgeState)
 ```

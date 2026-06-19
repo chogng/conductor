@@ -39,7 +39,7 @@ export interface ISessionService {
 
   getSnapshot(): SessionSnapshot;
 
-  commitFileImport(result: FileConversionResult): CommitFileImportResult;
+  commitFileImport(result: FileConversionResult, options?: CommitFileImportOptions): CommitFileImportResult;
   commitRawTableAssessment(result: RawTableAssessmentRecord): void;
   commitTemplateOutput(input: CommitTemplateOutputInput): void;
   commitTemplateOutputs(inputs: readonly CommitTemplateOutputInput[]): void;

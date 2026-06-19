@@ -33,6 +33,8 @@ import {
 import {
   ISessionService,
   type CommitCalculatedRecordsBatchInput,
+  type CommitFileImportOptions,
+  type CommitFileImportRawTableAssessmentInput,
   type CommitFileImportResult,
   type CommitCurvesBatchInput,
   type CommitCurvesInput,
@@ -136,7 +138,10 @@ export class SessionService extends Disposable implements ISessionServiceType {
     return this.snapshot;
   };
 
-  public commitFileImport = (result: FileImportResult): CommitFileImportResult => {
+  public commitFileImport = (
+    result: FileImportResult,
+    options: CommitFileImportOptions = {},
+  ): CommitFileImportResult => {
     const importedRecords = result.files
       .map(createFileRecordFromImportedFile)
       .filter((record): record is FileRecord => Boolean(record));
@@ -177,10 +182,19 @@ export class SessionService extends Disposable implements ISessionServiceType {
       };
     }
     const rawTableRefs = createRawTableRefs(committedRecords);
+    const assessmentRecords = createImportRawTableAssessmentRecords(
+      options.rawTableAssessments ?? [],
+      nextFilesById,
+      committedRecords.map(record => record.id),
+    );
+    const assessmentCommit = commitRawTableAssessmentsToFiles(
+      nextFilesById,
+      assessmentRecords,
+    );
 
     this.replaceSnapshot({
       ...this.snapshot,
-      filesById: nextFilesById,
+      filesById: assessmentCommit.filesById,
       fileOrder: nextFileOrder,
     }, "rawTablesChanged", {
       fileIds: committedRecords.map(record => record.id),
@@ -222,76 +236,21 @@ export class SessionService extends Disposable implements ISessionServiceType {
   };
 
   public commitRawTableAssessments = (assessments: readonly RawTableAssessmentRecord[]): void => {
-    let nextFilesById = this.snapshot.filesById;
-    const committedFileIds: FileId[] = [];
-    const committedRawTableIds: string[] = [];
-    const committedRawTableRefs: RawTableRef[] = [];
-
-    for (const assessment of assessments) {
-      const fileId = normalizeId(assessment.fileId);
-      const rawTableId = normalizeId(assessment.rawTableId);
-      const file = fileId ? nextFilesById[fileId] : undefined;
-      if (!file || !rawTableId || !file.raw.tablesById[rawTableId]) {
-        continue;
-      }
-
-      const rawTableVersion = file.rawTableVersionsById?.[rawTableId] ?? 0;
-      if (rawTableVersion !== assessment.sourceRawTableVersion) {
-        continue;
-      }
-
-      const measurementBlocksById = removeMeasurementBlocksForRawTable(
-        file.measurementBlocksById ?? {},
-        rawTableId,
-      );
-      const measurementBlockOrder = file.measurementBlockOrder.filter(blockId =>
-        Boolean(measurementBlocksById[blockId])
-      );
-      const committedBlocks: MeasurementBlockRecord[] = [];
-      for (const block of assessment.blocks) {
-        const normalizedBlock = normalizeMeasurementBlock(block, fileId, rawTableId);
-        if (!normalizedBlock) {
-          continue;
-        }
-
-        measurementBlocksById[normalizedBlock.id] = normalizedBlock;
-        committedBlocks.push(normalizedBlock);
-      }
-      const committedBlockIds = getUniqueIds(committedBlocks.map(block => block.id));
-      const committedAssessment: RawTableAssessmentRecord = {
-        ...assessment,
-        fileId,
-        rawTableId,
-        blocks: committedBlocks,
-      };
-      nextFilesById = {
-        ...nextFilesById,
-        [fileId]: {
-          ...file,
-          assessmentsByRawTableId: {
-            ...(file.assessmentsByRawTableId ?? {}),
-            [rawTableId]: committedAssessment,
-          },
-          measurementBlocksById,
-          measurementBlockOrder: [...measurementBlockOrder, ...committedBlockIds],
-        },
-      };
-      committedFileIds.push(fileId);
-      committedRawTableIds.push(rawTableId);
-      committedRawTableRefs.push({ fileId, rawTableId });
-    }
-
-    if (nextFilesById === this.snapshot.filesById) {
+    const assessmentCommit = commitRawTableAssessmentsToFiles(
+      this.snapshot.filesById,
+      assessments,
+    );
+    if (!assessmentCommit.changed) {
       return;
     }
 
     this.replaceSnapshot({
       ...this.snapshot,
-      filesById: nextFilesById,
+      filesById: assessmentCommit.filesById,
     }, "assessmentChanged", {
-      fileIds: uniqueStrings(committedFileIds),
-      rawTableIds: uniqueStrings(committedRawTableIds),
-      rawTableRefs: uniqueRawTableRefs(committedRawTableRefs),
+      fileIds: uniqueStrings(assessmentCommit.fileIds),
+      rawTableIds: uniqueStrings(assessmentCommit.rawTableIds),
+      rawTableRefs: uniqueRawTableRefs(assessmentCommit.rawTableRefs),
     });
   };
 
@@ -756,6 +715,129 @@ export class SessionService extends Disposable implements ISessionServiceType {
 const EMPTY_FILE_IMPORT_COMMIT_RESULT: CommitFileImportResult = {
   importedFileIds: [],
   skippedDuplicateFileIds: [],
+};
+
+type RawTableAssessmentCommitResult = {
+  readonly changed: boolean;
+  readonly fileIds: readonly FileId[];
+  readonly filesById: Record<FileId, FileRecord>;
+  readonly rawTableIds: readonly string[];
+  readonly rawTableRefs: readonly RawTableRef[];
+};
+
+const createImportRawTableAssessmentRecords = (
+  assessments: readonly CommitFileImportRawTableAssessmentInput[],
+  filesById: Record<FileId, FileRecord>,
+  committedFileIds: readonly FileId[],
+): RawTableAssessmentRecord[] => {
+  if (!assessments.length || !committedFileIds.length) {
+    return [];
+  }
+
+  const committedFileIdSet = new Set(committedFileIds);
+  const records: RawTableAssessmentRecord[] = [];
+  for (const assessment of assessments) {
+    const fileId = normalizeId(assessment.fileId);
+    if (!fileId || !committedFileIdSet.has(fileId)) {
+      continue;
+    }
+
+    const file = filesById[fileId];
+    const rawTableId = normalizeId(assessment.rawTableId) ||
+      normalizeId(file?.raw.tableOrder[0]);
+    if (!file || !rawTableId || !file.raw.tablesById[rawTableId]) {
+      continue;
+    }
+
+    const sourceRawTableVersion = Math.floor(Number(file.rawTableVersionsById?.[rawTableId]));
+    if (!Number.isFinite(sourceRawTableVersion)) {
+      continue;
+    }
+
+    records.push({
+      blocks: assessment.blocks,
+      createdAt: assessment.createdAt,
+      diagnostics: assessment.diagnostics,
+      fileId,
+      groups: assessment.groups,
+      rawTableId,
+      sourceRawTableVersion,
+    });
+  }
+
+  return records;
+};
+
+const commitRawTableAssessmentsToFiles = (
+  initialFilesById: Record<FileId, FileRecord>,
+  assessments: readonly RawTableAssessmentRecord[],
+): RawTableAssessmentCommitResult => {
+  let nextFilesById = initialFilesById;
+  const committedFileIds: FileId[] = [];
+  const committedRawTableIds: string[] = [];
+  const committedRawTableRefs: RawTableRef[] = [];
+
+  for (const assessment of assessments) {
+    const fileId = normalizeId(assessment.fileId);
+    const rawTableId = normalizeId(assessment.rawTableId);
+    const file = fileId ? nextFilesById[fileId] : undefined;
+    if (!file || !rawTableId || !file.raw.tablesById[rawTableId]) {
+      continue;
+    }
+
+    const rawTableVersion = file.rawTableVersionsById?.[rawTableId] ?? 0;
+    if (rawTableVersion !== assessment.sourceRawTableVersion) {
+      continue;
+    }
+
+    const measurementBlocksById = removeMeasurementBlocksForRawTable(
+      file.measurementBlocksById ?? {},
+      rawTableId,
+    );
+    const measurementBlockOrder = file.measurementBlockOrder.filter(blockId =>
+      Boolean(measurementBlocksById[blockId])
+    );
+    const committedBlocks: MeasurementBlockRecord[] = [];
+    for (const block of assessment.blocks) {
+      const normalizedBlock = normalizeMeasurementBlock(block, fileId, rawTableId);
+      if (!normalizedBlock) {
+        continue;
+      }
+
+      measurementBlocksById[normalizedBlock.id] = normalizedBlock;
+      committedBlocks.push(normalizedBlock);
+    }
+    const committedBlockIds = getUniqueIds(committedBlocks.map(block => block.id));
+    const committedAssessment: RawTableAssessmentRecord = {
+      ...assessment,
+      fileId,
+      rawTableId,
+      blocks: committedBlocks,
+    };
+    nextFilesById = {
+      ...nextFilesById,
+      [fileId]: {
+        ...file,
+        assessmentsByRawTableId: {
+          ...(file.assessmentsByRawTableId ?? {}),
+          [rawTableId]: committedAssessment,
+        },
+        measurementBlocksById,
+        measurementBlockOrder: [...measurementBlockOrder, ...committedBlockIds],
+      },
+    };
+    committedFileIds.push(fileId);
+    committedRawTableIds.push(rawTableId);
+    committedRawTableRefs.push({ fileId, rawTableId });
+  }
+
+  return {
+    changed: nextFilesById !== initialFilesById,
+    fileIds: committedFileIds,
+    filesById: nextFilesById,
+    rawTableIds: committedRawTableIds,
+    rawTableRefs: committedRawTableRefs,
+  };
 };
 
 const createSourceFileIdsByKey = (
