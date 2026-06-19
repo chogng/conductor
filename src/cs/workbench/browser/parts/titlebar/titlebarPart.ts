@@ -15,24 +15,15 @@ import {
   DisposableStore,
   type IDisposable,
 } from "src/cs/base/common/lifecycle";
-import { Emitter } from "src/cs/base/common/event";
 import { ICommandService } from "src/cs/platform/commands/common/commands";
-import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { INativeHostService } from "src/cs/platform/native/common/native";
-import {
-  IWorkbenchLayoutService,
-  Parts,
-} from "src/cs/workbench/services/layout/browser/layoutService";
 import { localize } from "src/cs/nls";
 import * as WorkbenchTitlebarActions from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 import type { WorkbenchTitlebarPageButton } from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 import {
-  getWorkbenchWindowState,
-  ITitleService,
-  type WorkbenchTitlebarActivePage,
   type WorkbenchTitlebarFileOption,
-  type WorkbenchTitlebarState,
 } from "src/cs/workbench/services/title/browser/titleService";
+import type { WorkbenchTitlebarProps } from "src/cs/workbench/browser/parts/titlebar/windowTitle";
 
 export const WORKBENCH_TITLEBAR_DRAG_REGION_STYLE = {
   WebkitAppRegion: "drag",
@@ -42,50 +33,6 @@ export const WORKBENCH_TITLEBAR_ID = "workbench-titlebar";
 
 const WORKBENCH_TITLEBAR_HEIGHT = 35;
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
-
-type WorkbenchTitlebarUpdateAction = {
-  readonly commandId?: string;
-  readonly isVisible: boolean;
-  readonly isReadyToInstall?: boolean;
-  readonly version?: string | null;
-};
-
-export type WorkbenchTitlebarWindowControlsSide = "right";
-
-export type WorkbenchTitlebarChrome = {
-  readonly leadingInset?: "macos-window-controls";
-  readonly showBrandIcon?: boolean;
-  readonly windowControlsSide?: WorkbenchTitlebarWindowControlsSide;
-};
-
-export const getWorkbenchTitlebarChrome = (
-  windowState: ReturnType<typeof getWorkbenchWindowState>,
-): WorkbenchTitlebarChrome => {
-  if (windowState.isMacintoshDesktopShell) {
-    return {
-      leadingInset: "macos-window-controls",
-      showBrandIcon: false,
-    };
-  }
-
-  if (windowState.isWindowsDesktopShell) {
-    return {
-      showBrandIcon: true,
-      windowControlsSide: "right",
-    };
-  }
-
-  return {};
-};
-
-type WorkbenchTitlebarProps = Omit<WorkbenchTitlebarState, "activePage"> & {
-  readonly activePage: WorkbenchTitlebarActivePage;
-  readonly chrome?: WorkbenchTitlebarChrome;
-  readonly commandService?: ICommandService;
-  readonly id?: string;
-  readonly nativeHostService?: INativeHostService;
-  readonly updateAction?: WorkbenchTitlebarUpdateAction;
-};
 
 const appendChildren = <T extends HTMLElement | SVGElement>(
   parent: T,
@@ -769,122 +716,3 @@ export class WorkbenchTitlebarPart {
     this.contentArea = null;
   }
 }
-
-export class BrowserTitleService extends Disposable implements ITitleService {
-  public declare readonly _serviceBrand: undefined;
-
-  private readonly onDidChangeTitlebarStateEmitter =
-    this._register(new Emitter<void>());
-  private titlebarState: WorkbenchTitlebarState = {};
-
-  public readonly onDidChangeTitlebarState =
-    this.onDidChangeTitlebarStateEmitter.event;
-
-  public constructor(
-    @ICommandService private readonly commandService: ICommandService,
-    @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-    @INativeHostService private readonly nativeHostService: INativeHostService,
-  ) {
-    super();
-
-    this._register(this.layoutService.onDidChangeWorkbenchNavigation(() => {
-      this.onDidChangeTitlebarStateEmitter.fire();
-    }));
-    this._register(this.layoutService.onDidChangePartVisibility(event => {
-      if (event.partId === Parts.SIDEBAR_PART) {
-        this.onDidChangeTitlebarStateEmitter.fire();
-      }
-    }));
-  }
-
-  public attachTitlebarPart(parent: HTMLElement): IDisposable {
-    const disposables = new DisposableStore();
-    const part = new WorkbenchTitlebarPart(parent);
-    const render = (): void => {
-      const props = this.getTitlebarProps();
-      if (!props) {
-        part.clear();
-        return;
-      }
-
-      part.update(props);
-      part.layout();
-    };
-
-    render();
-    disposables.add(this.onDidChangeTitlebarState(render));
-    disposables.add(part);
-
-    return disposables;
-  }
-
-  public getTitlebarState(): WorkbenchTitlebarState | undefined {
-    const state = this.titlebarState;
-    const navigation = this.layoutService.getWorkbenchNavigationState();
-    const windowState = getWorkbenchWindowState();
-    const enabled = state.enabled ?? windowState.isDesktopChromePreviewEnabled;
-
-    if (!enabled) {
-      return undefined;
-    }
-
-    return {
-      activeFileId: state.activeFileId,
-      activePage: state.activePage ?? navigation.activeMainPart,
-      canNavigateBack:
-        state.canNavigateBack ?? navigation.historyIndex > 0,
-      canNavigateForward:
-        state.canNavigateForward ??
-        navigation.historyIndex < navigation.historyLength - 1,
-      chartIntentCommandId: state.chartIntentCommandId,
-      fileSelectionCommandId: state.fileSelectionCommandId,
-      fileOptions: state.fileOptions,
-      installUpdateCommandId: state.installUpdateCommandId,
-      isSidebarVisible:
-        state.isSidebarVisible ??
-        this.layoutService.isVisible(Parts.SIDEBAR_PART),
-      isUpdateReadyToInstall: state.isUpdateReadyToInstall,
-      showFileSelector: state.showFileSelector,
-      updateVersion: state.updateVersion,
-    };
-  }
-
-  private getTitlebarProps(): WorkbenchTitlebarProps | undefined {
-    const state = this.getTitlebarState();
-
-    if (!state) {
-      return undefined;
-    }
-
-    const windowState = getWorkbenchWindowState();
-    return {
-      ...state,
-      activePage: state.activePage ?? "table",
-      id: WORKBENCH_TITLEBAR_ID,
-      chrome: getWorkbenchTitlebarChrome(windowState),
-      commandService: this.commandService,
-      nativeHostService: this.nativeHostService,
-      updateAction: {
-        commandId: state.installUpdateCommandId,
-        isVisible: Boolean(state.isUpdateReadyToInstall),
-        isReadyToInstall: state.isUpdateReadyToInstall,
-        version: state.updateVersion,
-      },
-    };
-  }
-
-  public layout(): void {
-    this.onDidChangeTitlebarStateEmitter.fire();
-  }
-
-  public updateTitlebarState(state: WorkbenchTitlebarState = {}): void {
-    this.titlebarState = state;
-    this.onDidChangeTitlebarStateEmitter.fire();
-  }
-}
-
-registerSingleton(
-  ITitleService,
-  BrowserTitleService,
-  InstantiationType.Delayed,
-);

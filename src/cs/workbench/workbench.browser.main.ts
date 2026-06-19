@@ -66,7 +66,7 @@ import "src/cs/workbench/services/assessment/browser/assessment.contribution";
 //#region --- workbench browser
 
 import "src/cs/workbench/browser/style";
-import "src/cs/workbench/browser/parts/titlebar/titlebarPart";
+import "src/cs/workbench/browser/parts/titlebar/windowTitle";
 
 //#endregion
 

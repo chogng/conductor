@@ -66,10 +66,10 @@ import {
 } from "src/cs/workbench/browser/contextkeys";
 import { Layout } from "src/cs/workbench/browser/layout";
 import {
-  getWorkbenchWindowState,
   type ITitleService,
   type WorkbenchTitlebarState,
 } from "src/cs/workbench/services/title/browser/titleService";
+import { getWorkbenchWindowState } from "src/cs/workbench/browser/parts/titlebar/windowTitle";
 import {
   AuxiliaryBarViews,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";

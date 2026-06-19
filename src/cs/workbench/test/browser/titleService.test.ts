@@ -15,15 +15,13 @@ import type {
 import {
   BrowserTitleService,
   getWorkbenchTitlebarChrome,
-} from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
+  getWorkbenchWindowState,
+} from "src/cs/workbench/browser/parts/titlebar/windowTitle";
 import {
   BrowserWorkbenchLayoutService,
   Parts,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
-import {
-  getWorkbenchWindowState,
-} from "src/cs/workbench/services/title/browser/titleService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 class TestStorageService extends AbstractStorageService {

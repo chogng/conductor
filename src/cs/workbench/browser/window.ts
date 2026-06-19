@@ -3,9 +3,9 @@ import {
   type IDisposable,
 } from "src/cs/base/common/lifecycle";
 import {
-  shouldShowDesktopCommandBar,
   type ITitleService,
 } from "src/cs/workbench/services/title/browser/titleService";
+import { shouldShowDesktopCommandBar } from "src/cs/workbench/browser/parts/titlebar/windowTitle";
 import { applyWorkbenchStyle, type WorkbenchStyle } from "src/cs/workbench/browser/style";
 
 import "src/cs/workbench/browser/media/window.css";
