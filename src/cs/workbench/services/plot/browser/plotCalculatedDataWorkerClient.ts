@@ -23,8 +23,9 @@ import { getPerfNow, logPerf } from "src/cs/workbench/common/perf";
 
 const PLOT_CALCULATED_DATA_WORKER_TIMEOUT_MS = 15_000;
 
-type PlotWorkerLane = "background" | "interactive";
+type PlotWorkerLane = "background" | "detail" | "interactive";
 type PlotWorkerRequestKind = "calculateData" | "calculateDisplayModel";
+export type PlotDisplayModelWorkerLane = PlotWorkerLane;
 
 export type PlotCalculatedDataWorkerInput = {
   readonly file: FileRecord;
@@ -54,6 +55,7 @@ export type PlotDisplayModelWorkerInput = {
   readonly priority?: PlotCalculatedDataPrefetchPriority;
   readonly requestId: number;
   readonly sessionVersion: number;
+  readonly workerLane?: PlotDisplayModelWorkerLane;
 };
 
 export type PlotDisplayModelWorkerOutput = {
@@ -140,7 +142,7 @@ export const calculatePlotDisplayModelInWorker = (
   return requestPlotWorker({
     expectedResultType: "calculateDisplayModelResult",
     kind: "calculateDisplayModel",
-    lane: getPlotWorkerLane(input.priority),
+    lane: input.workerLane ?? getPlotWorkerLane(input.priority),
     message: {
       payload: {
         axisSettings: input.axisSettings,
@@ -334,6 +336,7 @@ class ReusablePlotWorkerLane {
 
 const plotWorkerLanes: Record<PlotWorkerLane, ReusablePlotWorkerLane> = {
   background: new ReusablePlotWorkerLane("background"),
+  detail: new ReusablePlotWorkerLane("detail"),
   interactive: new ReusablePlotWorkerLane("interactive"),
 };
 

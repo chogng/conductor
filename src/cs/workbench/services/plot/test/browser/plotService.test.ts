@@ -1252,7 +1252,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     }
   });
 
-  test("keeps inspector display model prefetch in the background behind active data", async () => {
+  test("keeps inspector display model prefetch behind active chart data", async () => {
     const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
     const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
     const originalWorker = globalThis.Worker;
@@ -1396,6 +1396,127 @@ suite("workbench/services/plot/test/browser/plotService", () => {
 
       completeDisplayWorker(workerRecords[0]);
       completeDataWorker(workerRecords[1]);
+      await Promise.resolve();
+    } finally {
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+      globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+      globalThis.Worker = originalWorker;
+    }
+  });
+
+  test("does not starve active inspector prefetch behind visible display work", async () => {
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+    const originalWorker = globalThis.Worker;
+    const scheduledFrames: FrameRequestCallback[] = [];
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      scheduledFrames.push(callback);
+      return scheduledFrames.length;
+    }) as typeof requestAnimationFrame;
+    globalThis.cancelAnimationFrame = (() => undefined) as typeof cancelAnimationFrame;
+
+    type WorkerRecord = {
+      readonly message: {
+        readonly payload?: {
+          readonly fileId?: string;
+          readonly includeInspector?: boolean;
+          readonly plotType?: "iv";
+          readonly requestId?: number;
+          readonly sessionVersion?: number;
+        };
+        readonly type?: string;
+      };
+      readonly worker: TestWorker;
+    };
+    const workerRecords: WorkerRecord[] = [];
+    class TestWorker {
+      public onerror: ((event: ErrorEvent) => void) | null = null;
+      public onmessage: ((event: MessageEvent) => void) | null = null;
+
+      public postMessage(message: WorkerRecord["message"]): void {
+        workerRecords.push({ message, worker: this });
+      }
+
+      public terminate(): void {
+        return;
+      }
+    }
+
+    const completeDisplayWorker = (record: WorkerRecord): void => {
+      const payload = record.message.payload;
+      record.worker.onmessage?.({
+        data: {
+          payload: {
+            displayModel: null,
+            fileId: payload?.fileId ?? "",
+            plotType: payload?.plotType ?? "iv",
+            requestId: payload?.requestId ?? 0,
+            sessionVersion: payload?.sessionVersion ?? 0,
+          },
+          type: "calculateDisplayModelResult",
+        },
+      } as MessageEvent);
+    };
+
+    try {
+      globalThis.Worker = TestWorker as unknown as typeof Worker;
+      const snapshot = createSnapshot({
+        "file-active": createFileRecord("file-active", "series-active", "Active"),
+        "file-visible": createFileRecord("file-visible", "series-visible", "Visible"),
+      }, ["file-visible", "file-active"]);
+      const service = store.add(new PlotService(
+        createSessionServiceStub(snapshot),
+        createSettingsServiceStub(),
+        store.add(new TestStorageService()),
+      ));
+
+      service.getCalculatedData({ fileId: "file-visible", plotType: "iv", snapshot });
+      service.getCalculatedData({ fileId: "file-active", plotType: "iv", snapshot });
+      service.prefetchPlotDisplayModel({
+        fileId: "file-visible",
+        plotType: "iv",
+        snapshot,
+      }, "visible");
+
+      scheduledFrames.shift()?.(0);
+      assert.deepEqual(
+        workerRecords.map(record =>
+          `${record.message.type}:${record.message.payload?.fileId}:${record.message.payload?.includeInspector}`,
+        ),
+        ["calculateDisplayModel:file-visible:false"],
+      );
+
+      service.prefetchPlotDisplayModel({
+        fileId: "file-active",
+        plotType: "iv",
+        snapshot,
+      }, "active");
+      service.prefetchPlotInspectorDisplayModel({
+        fileId: "file-active",
+        plotType: "iv",
+        snapshot,
+      }, "active");
+      scheduledFrames.shift()?.(0);
+
+      assert.deepEqual(
+        workerRecords.map(record =>
+          `${record.message.type}:${record.message.payload?.fileId}:${record.message.payload?.includeInspector}`,
+        ),
+        [
+          "calculateDisplayModel:file-visible:false",
+          "calculateDisplayModel:file-active:true",
+        ],
+      );
+
+      completeDisplayWorker(workerRecords[1]);
+      await Promise.resolve();
+      assert.ok(service.getCachedPlotDisplayModel({
+        fileId: "file-active",
+        plotType: "iv",
+        snapshot,
+      })?.inspector);
+
+      completeDisplayWorker(workerRecords[0]);
       await Promise.resolve();
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
@@ -2048,10 +2169,17 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         plotType: "iv",
         snapshot,
       }, "active");
-	      runScheduledFrame(scheduledFrame);
-      await Promise.resolve();
+      const immediatelyCached = service.getCachedPlotDisplayModel({
+        fileId: "file-a",
+        plotType: "iv",
+        snapshot,
+      });
+      if (!immediatelyCached) {
+        runScheduledFrame(scheduledFrame);
+        await Promise.resolve();
+      }
 
-      assert.ok(service.getCachedPlotDisplayModel({
+      assert.ok(immediatelyCached ?? service.getCachedPlotDisplayModel({
         fileId: "file-a",
         plotType: "iv",
         snapshot,

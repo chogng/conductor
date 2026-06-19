@@ -39,6 +39,7 @@ import { createPlotMainRenderModel } from "src/cs/workbench/services/plot/browse
 import {
   calculatePlotDataInWorker,
   calculatePlotDisplayModelInWorker,
+  type PlotDisplayModelWorkerLane,
 } from "src/cs/workbench/services/plot/browser/plotCalculatedDataWorkerClient";
 import {
   createPlotInspectorDisplayModelFromCalculatedData,
@@ -126,6 +127,7 @@ type QueuedPlotDisplayModelPrefetch = {
   readonly plotType: PlotType;
   readonly priority: PlotCalculatedDataPrefetchPriority;
   readonly stage: PlotDisplayModelPrefetchStage;
+  readonly workerLane?: PlotDisplayModelWorkerLane;
 };
 
 type PlotDisplayModelPrefetchResult = {
@@ -143,6 +145,7 @@ type PlotDisplayModelPrefetchResult = {
 };
 
 type InFlightPlotPrefetch = {
+  readonly lane?: PlotDisplayModelWorkerLane;
   readonly priority: PlotCalculatedDataPrefetchPriority;
   readonly requestId: number;
 };
@@ -794,6 +797,7 @@ export class PlotService extends Disposable implements IPlotService {
       plotType,
       priority: getInspectorPlotDisplayModelPrefetchPriority(priority),
       stage: "inspector",
+      workerLane: priority === "active" ? "detail" : undefined,
     };
     const key = getQueuedPlotDisplayModelPrefetchKey(request);
     if (priority === "active") {
@@ -1413,7 +1417,7 @@ export class PlotService extends Disposable implements IPlotService {
         break;
       }
 
-      if (!this.canStartPlotPrefetch(next.priority)) {
+      if (!this.canStartPlotPrefetch(next.priority, next.workerLane)) {
         this.queuedPlotDisplayModelPrefetchByKey.set(
           getQueuedPlotDisplayModelPrefetchKey(next),
           next,
@@ -1545,6 +1549,7 @@ export class PlotService extends Disposable implements IPlotService {
     const generation = this.plotDisplayModelPrefetchGeneration;
     const requestId = this.nextPlotDisplayModelWorkerRequestId++;
     this.inFlightPlotDisplayModelPrefetchByKey.set(prefetchKey, {
+      lane: request.workerLane,
       priority: request.priority,
       requestId,
     });
@@ -1560,6 +1565,7 @@ export class PlotService extends Disposable implements IPlotService {
       priority: request.priority,
       requestId,
       sessionVersion: snapshot.sessionVersion,
+      workerLane: request.workerLane,
     }).then((result) => {
       this.deleteInFlightPlotDisplayModelPrefetch(prefetchKey, requestId);
       if (generation !== this.plotDisplayModelPrefetchGeneration) {
@@ -1627,6 +1633,7 @@ export class PlotService extends Disposable implements IPlotService {
     const generation = this.plotDisplayModelPrefetchGeneration;
     const requestId = this.nextPlotDisplayModelWorkerRequestId++;
     this.inFlightPlotDisplayModelPrefetchByKey.set(prefetchKey, {
+      lane: request.workerLane,
       priority: request.priority,
       requestId,
     });
@@ -1642,6 +1649,7 @@ export class PlotService extends Disposable implements IPlotService {
       priority: request.priority,
       requestId,
       sessionVersion: snapshot.sessionVersion,
+      workerLane: request.workerLane,
     }).then((result) => {
       this.deleteInFlightPlotDisplayModelPrefetch(prefetchKey, requestId);
       if (generation !== this.plotDisplayModelPrefetchGeneration) {
@@ -1737,8 +1745,16 @@ export class PlotService extends Disposable implements IPlotService {
     }
   }
 
-  private canStartPlotPrefetch(priority: PlotCalculatedDataPrefetchPriority): boolean {
-    if (this.getTotalInFlightPlotPrefetchCount() >= PLOT_PREFETCH_MAX_IN_FLIGHT) {
+  private canStartPlotPrefetch(
+    priority: PlotCalculatedDataPrefetchPriority,
+    workerLane?: PlotDisplayModelWorkerLane,
+  ): boolean {
+    if (workerLane === "detail") {
+      return this.getDetailInFlightPlotPrefetchCount() < 1 &&
+        this.getNonDetailInFlightPlotPrefetchCount() < PLOT_PREFETCH_MAX_IN_FLIGHT;
+    }
+
+    if (this.getNonDetailInFlightPlotPrefetchCount() >= PLOT_PREFETCH_MAX_IN_FLIGHT) {
       return false;
     }
 
@@ -1749,8 +1765,24 @@ export class PlotService extends Disposable implements IPlotService {
     return this.getBackgroundInFlightPlotPrefetchCount() < PLOT_BACKGROUND_PREFETCH_MAX_IN_FLIGHT;
   }
 
-  private getTotalInFlightPlotPrefetchCount(): number {
-    return this.inFlightCalculatedDataPrefetchByKey.size + this.inFlightPlotDisplayModelPrefetchByKey.size;
+  private getNonDetailInFlightPlotPrefetchCount(): number {
+    let count = this.inFlightCalculatedDataPrefetchByKey.size;
+    for (const inFlight of this.inFlightPlotDisplayModelPrefetchByKey.values()) {
+      if (inFlight.lane !== "detail") {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  private getDetailInFlightPlotPrefetchCount(): number {
+    let count = 0;
+    for (const inFlight of this.inFlightPlotDisplayModelPrefetchByKey.values()) {
+      if (inFlight.lane === "detail") {
+        count += 1;
+      }
+    }
+    return count;
   }
 
   private getBackgroundInFlightPlotPrefetchCount(): number {
@@ -1761,7 +1793,7 @@ export class PlotService extends Disposable implements IPlotService {
       }
     }
     for (const inFlight of this.inFlightPlotDisplayModelPrefetchByKey.values()) {
-      if (!isInteractivePlotPrefetchPriority(inFlight.priority)) {
+      if (inFlight.lane !== "detail" && !isInteractivePlotPrefetchPriority(inFlight.priority)) {
         count += 1;
       }
     }
@@ -2212,7 +2244,7 @@ const getInspectorPlotDisplayModelPrefetchPriority = (
 ): PlotCalculatedDataPrefetchPriority => {
   switch (priority) {
     case "active":
-      return "visible";
+      return "active";
     case "hover":
     case "visible":
       return "nearby";
