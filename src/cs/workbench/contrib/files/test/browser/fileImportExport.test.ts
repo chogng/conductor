@@ -12,6 +12,7 @@ import { FileService } from "../../../../../platform/files/common/fileService.ts
 import { IMPORT_ERROR_NOTIFICATION_ID } from "../../browser/fileConstants.ts";
 import type {
   FileConverterBackend,
+  FileConverterPreparePayload,
   FileConverterPreparedFile,
 } from "../../../../services/files/common/fileConverterBackend.ts";
 import { NotificationService } from "../../../../services/notification/common/notificationService.ts";
@@ -541,6 +542,58 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.equal(failedFiles.length, 0);
   });
 
+  test("passes source metadata to path batch prepare backend", async () => {
+    const failedFiles: FileImportPrepareFailure[] = [];
+    const payloads: FileConverterPreparePayload[] = [];
+    const backend = createFileConverterBackendStub({
+      canPrepareFile: () => true,
+      prepareFilesStream: async (nextPayloads, onResult) => {
+        payloads.push(...nextPayloads);
+        const results = nextPayloads.map((payload, index): FileConverterPreparedFile => ({
+          csvText: `Vg,Id\n0,${index}`,
+          ok: true,
+          sourcePath: payload.path,
+        }));
+        results.forEach((result, index) => onResult({ index, result }));
+        return results;
+      },
+    });
+
+    const acceptedCount = await prepareRemainingPendingImportFiles({
+      canApplyResult: () => true,
+      failedFiles,
+      fileConverterBackend: backend,
+      onPreparedFiles: () => undefined,
+      pendingImportFiles: [
+        createPathPendingFile("A.csv", "folder/A.csv"),
+        createPathPendingFile("B.csv", "folder/B.csv"),
+      ],
+      skippedIndexes: new Set<number>(),
+    });
+
+    assert.equal(acceptedCount, 2);
+    assert.deepEqual(payloads.map(payload => ({
+      fileName: payload.fileName,
+      path: payload.path,
+      sourceMtimeMs: payload.sourceMtimeMs,
+      sourceSizeBytes: payload.sourceSizeBytes,
+    })), [
+      {
+        fileName: "A.csv",
+        path: "/C:/data/A.csv",
+        sourceMtimeMs: 123,
+        sourceSizeBytes: 12,
+      },
+      {
+        fileName: "B.csv",
+        path: "/C:/data/B.csv",
+        sourceMtimeMs: 123,
+        sourceSizeBytes: 12,
+      },
+    ]);
+    assert.equal(failedFiles.length, 0);
+  });
+
   test("dropped file import appends instead of replacing existing files", async () => {
     const appendedFileNames: string[] = [];
     const replacedFileNames: string[] = [];
@@ -777,7 +830,7 @@ function createControlledPathBackend(): FileConverterBackend & {
   resolve(fileName: string, csvText: string): void;
 } {
   const requests = new Map<string, {
-    readonly payload: { readonly fileName: string; readonly path: string };
+    readonly payload: FileConverterPreparePayload;
     readonly resolve: (value: FileConverterPreparedFile) => void;
   }>();
   const fileNames: string[] = [];

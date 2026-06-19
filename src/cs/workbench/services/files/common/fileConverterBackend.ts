@@ -15,8 +15,10 @@ export const IFileConverterBackendService =
 export type FileConverterPreparedFile = {
 	readonly columnCount?: number;
 	readonly csvText?: string;
+	readonly batchCommandSize?: number;
 	readonly batchDurationMs?: number;
 	readonly batchParallelism?: number;
+	readonly batchWorkerCount?: number;
 	readonly cacheHit?: boolean;
 	readonly durationMs?: number;
 	readonly health?: RawTableHealthRecord;
@@ -55,6 +57,13 @@ export type FileConverterConvertedCsv = {
 	readonly sizeBytes?: number;
 };
 
+export type FileConverterPreparePayload = {
+	readonly fileName: string;
+	readonly path: string;
+	readonly sourceMtimeMs?: number;
+	readonly sourceSizeBytes?: number;
+};
+
 export type ConvertedCsvReaderService = {
 	canReadConvertedCsv(): boolean;
 	readConvertedCsv(payload: { path: string; maxRows?: number }): Promise<FileConverterConvertedCsv>;
@@ -62,10 +71,10 @@ export type ConvertedCsvReaderService = {
 
 export type FileConverterBackend = ConvertedCsvReaderService & {
 	canPrepareFile(): boolean;
-	prepareFile(payload: { fileName: string; path: string }): Promise<FileConverterPreparedFile>;
-	prepareFiles?(payloads: readonly { fileName: string; path: string }[]): Promise<readonly FileConverterPreparedFile[]>;
+	prepareFile(payload: FileConverterPreparePayload): Promise<FileConverterPreparedFile>;
+	prepareFiles?(payloads: readonly FileConverterPreparePayload[]): Promise<readonly FileConverterPreparedFile[]>;
 	prepareFilesStream?(
-		payloads: readonly { fileName: string; path: string }[],
+		payloads: readonly FileConverterPreparePayload[],
 		onResult: (message: { index: number; result: FileConverterPreparedFile }) => void,
 	): Promise<readonly FileConverterPreparedFile[]>;
 };

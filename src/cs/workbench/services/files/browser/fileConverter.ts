@@ -336,6 +336,8 @@ export const convertImportFile = async (
     const result = await fileConverterBackend.prepareFile({
       fileName: metadata.fileName,
       path: sourcePath,
+      sourceMtimeMs: metadata.lastModified,
+      sourceSizeBytes: metadata.size,
     });
     if (!result?.ok) {
       finishPerf({

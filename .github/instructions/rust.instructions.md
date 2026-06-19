@@ -340,7 +340,9 @@ For folder imports, keep the main/Rust boundary batch-aware but badge-friendly:
   file conversion service contract.
 - Prefer small result chunks over maximum batch throughput. The current desktop
   default is tuned for badge latency, with large CSV batches split into small
-  Rust commands and Rust batch internal parallelism kept bounded.
+  Rust commands and Rust batch internal parallelism kept bounded. Large folder
+  batches may cap active batch workers below the full Rust processing pool to
+  avoid CPU spikes colliding with renderer session commits and badge projection.
 - Cache prepare descriptors by normalized path, source size, and source mtime.
   Cache hits must be cloned and marked so trace reports can distinguish them.
 - Bad CSV health states should complete the file with health metadata when

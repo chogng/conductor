@@ -11,6 +11,7 @@ import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
   IFileConverterBackendService,
   type FileConverterConvertedCsv,
+  type FileConverterPreparePayload,
   type FileConverterPreparedFile,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import {
@@ -22,10 +23,10 @@ type DesktopIpcRenderer = {
 };
 
 type FileConverterBridge = {
-  prepareFileConversion?: (payload: { fileName: string; path: string }) => Promise<FileConverterPreparedFile>;
-  prepareFileConversions?: (payload: readonly { fileName: string; path: string }[]) => Promise<readonly FileConverterPreparedFile[]>;
+  prepareFileConversion?: (payload: FileConverterPreparePayload) => Promise<FileConverterPreparedFile>;
+  prepareFileConversions?: (payload: readonly FileConverterPreparePayload[]) => Promise<readonly FileConverterPreparedFile[]>;
   prepareFileConversionsStream?: (
-    payload: readonly { fileName: string; path: string }[],
+    payload: readonly FileConverterPreparePayload[],
     onResult: (message: { index: number; result: FileConverterPreparedFile }) => void,
   ) => Promise<readonly FileConverterPreparedFile[]>;
   readConvertedCsvFileWithRust?: (payload: { path: string; maxRows?: number }) => Promise<FileConverterConvertedCsv>;
@@ -102,7 +103,7 @@ export class FileConversionService extends Disposable implements IFileConverterB
     return hasBridgeMethod("readConvertedCsvFileWithRust") || hasIpcRenderer();
   }
 
-  public prepareFile(payload: { fileName: string; path: string }): Promise<FileConverterPreparedFile> {
+  public prepareFile(payload: FileConverterPreparePayload): Promise<FileConverterPreparedFile> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("prepareFileConversion")) {
       return getBridgeMethod(bridge, "prepareFileConversion")(payload);
@@ -111,7 +112,7 @@ export class FileConversionService extends Disposable implements IFileConverterB
     return invoke<FileConverterPreparedFile>(workbenchIpcChannels.fileConversionPrepare, payload);
   }
 
-  public prepareFiles(payloads: readonly { fileName: string; path: string }[]): Promise<readonly FileConverterPreparedFile[]> {
+  public prepareFiles(payloads: readonly FileConverterPreparePayload[]): Promise<readonly FileConverterPreparedFile[]> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("prepareFileConversions")) {
       return getBridgeMethod(bridge, "prepareFileConversions")(payloads);
@@ -121,7 +122,7 @@ export class FileConversionService extends Disposable implements IFileConverterB
   }
 
   public prepareFilesStream(
-    payloads: readonly { fileName: string; path: string }[],
+    payloads: readonly FileConverterPreparePayload[],
     onResult: (message: { index: number; result: FileConverterPreparedFile }) => void,
   ): Promise<readonly FileConverterPreparedFile[]> {
     const bridge = getBridge();

@@ -140,6 +140,10 @@ const RUST_PROCESSING_POOL_SIZE = resolveRustProcessingPoolSize({
 const TABLE_FOREGROUND_IDLE_GRACE_MS = 16;
 const FILE_IMPORT_BACKGROUND_MAX_ACTIVE = Math.max(1, RUST_PROCESSING_POOL_SIZE);
 const FILE_IMPORT_RUST_BATCH_MAX_ACTIVE = FILE_IMPORT_BACKGROUND_MAX_ACTIVE;
+const FILE_IMPORT_RUST_BATCH_LARGE_MAX_ACTIVE = Math.max(
+  1,
+  Math.ceil(FILE_IMPORT_RUST_BATCH_MAX_ACTIVE / 2),
+);
 const FILE_IMPORT_RUST_BATCH_PARALLELISM = 1;
 const FILE_IMPORT_RUST_BATCH_SMALL_COMMAND_SIZE = 4;
 const FILE_IMPORT_RUST_BATCH_LARGE_COMMAND_SIZE = 2;
@@ -1188,10 +1192,18 @@ function normalizeFileConversionPreparePayload(payload) {
       : inputPath
         ? path.basename(inputPath)
         : "";
+  const sourceMtimeMs = payload && typeof payload === "object"
+    ? readOptionalNonNegativeNumber(payload.sourceMtimeMs)
+    : null;
+  const sourceSizeBytes = payload && typeof payload === "object"
+    ? readOptionalNonNegativeNumber(payload.sourceSizeBytes)
+    : null;
 
   return {
     fileName,
     inputPath,
+    sourceMtimeMs,
+    sourceSizeBytes,
   };
 }
 
@@ -1207,6 +1219,11 @@ function createFileConversionPrepareFailure(code, message, durationMs = null) {
 function readNonNegativeDurationMs(value, fallback) {
   const durationMs = Number(value);
   return Number.isFinite(durationMs) && durationMs >= 0 ? durationMs : fallback;
+}
+
+function readOptionalNonNegativeNumber(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
 }
 
 function cloneFileImportPrepareValue(value) {
@@ -1321,9 +1338,64 @@ async function statFileConversionInput(inputPath) {
   }
 }
 
+async function resolveFileConversionInputMetadata(payload) {
+  const {
+    fileName,
+    inputPath,
+    sourceMtimeMs,
+    sourceSizeBytes,
+  } = normalizeFileConversionPreparePayload(payload);
+
+  if (!inputPath) {
+    return {
+      metadata: null,
+      ok: false,
+      result: createFileConversionPrepareFailure(
+        "INVALID_IMPORT_PATH",
+        "Invalid import file path.",
+      ),
+    };
+  }
+
+  if (sourceMtimeMs !== null && sourceSizeBytes !== null) {
+    return {
+      metadata: {
+        fileName,
+        inputPath,
+        sourceMtimeMs,
+        sourceSizeBytes,
+      },
+      ok: true,
+      result: null,
+    };
+  }
+
+  const stat = await statFileConversionInput(inputPath);
+  if (!stat.ok) {
+    return {
+      metadata: null,
+      ok: false,
+      result: stat.result,
+    };
+  }
+
+  return {
+    metadata: {
+      fileName,
+      inputPath,
+      sourceMtimeMs: stat.mtimeMs,
+      sourceSizeBytes: stat.size,
+    },
+    ok: true,
+    result: null,
+  };
+}
+
 function createPreparedCsvImportResult({
+  batchCommandSize = undefined,
   batchDurationMs = undefined,
   batchParallelism = undefined,
+  batchWorkerCount = undefined,
   fileName,
   inputPath,
   result,
@@ -1339,8 +1411,10 @@ function createPreparedCsvImportResult({
   return {
     ok: true,
     assessment: result?.assessment,
+    ...(batchCommandSize !== undefined ? { batchCommandSize } : {}),
     ...(batchDurationMs !== undefined ? { batchDurationMs } : {}),
     ...(batchParallelism !== undefined ? { batchParallelism } : {}),
+    ...(batchWorkerCount !== undefined ? { batchWorkerCount } : {}),
     columnCount: Number(result?.columnCount) || 0,
     durationMs,
     health: result?.health,
@@ -1436,26 +1510,12 @@ async function prepareFileConversionFromMetadata(metadata) {
 }
 
 async function prepareFileConversionFromPath(payload) {
-  const { fileName, inputPath } = normalizeFileConversionPreparePayload(payload);
-
-  if (!inputPath) {
-    return createFileConversionPrepareFailure(
-      "INVALID_IMPORT_PATH",
-      "Invalid import file path.",
-    );
+  const resolved = await resolveFileConversionInputMetadata(payload);
+  if (!resolved.ok || !resolved.metadata) {
+    return resolved.result;
   }
 
-  const stat = await statFileConversionInput(inputPath);
-  if (!stat.ok) {
-    return stat.result;
-  }
-
-  return prepareFileConversionFromMetadata({
-    fileName,
-    inputPath,
-    sourceMtimeMs: stat.mtimeMs,
-    sourceSizeBytes: stat.size,
-  });
+  return prepareFileConversionFromMetadata(resolved.metadata);
 }
 
 function chunkFileConversionEntries(entries, chunkSize) {
@@ -1472,6 +1532,12 @@ function getFileImportRustBatchCommandSize(entryCount) {
     : FILE_IMPORT_RUST_BATCH_SMALL_COMMAND_SIZE;
 }
 
+function getFileImportRustBatchMaxActive(entryCount) {
+  return entryCount > FILE_IMPORT_RUST_BATCH_LARGE_THRESHOLD
+    ? Math.min(FILE_IMPORT_RUST_BATCH_MAX_ACTIVE, FILE_IMPORT_RUST_BATCH_LARGE_MAX_ACTIVE)
+    : FILE_IMPORT_RUST_BATCH_MAX_ACTIVE;
+}
+
 function readBatchImportResults(response) {
   if (Array.isArray(response)) {
     return response;
@@ -1482,7 +1548,7 @@ function readBatchImportResults(response) {
   return [];
 }
 
-async function prepareCsvFileConversionBatchChunk(entries, setResult) {
+async function prepareCsvFileConversionBatchChunk(entries, setResult, scheduler) {
   const startedAt = Date.now();
   let response;
   try {
@@ -1528,8 +1594,10 @@ async function prepareCsvFileConversionBatchChunk(entries, setResult) {
     }
 
     const prepared = createPreparedCsvImportResult({
+      batchCommandSize: scheduler.batchCommandSize,
       batchDurationMs,
       batchParallelism,
+      batchWorkerCount: scheduler.workerCount,
       fileName: entry.fileName,
       inputPath: entry.inputPath,
       result,
@@ -1561,13 +1629,14 @@ async function prepareCsvFileConversionBatchEntries(entries, setResult) {
     return;
   }
 
+  const batchCommandSize = getFileImportRustBatchCommandSize(uncachedEntries.length);
   const chunks = chunkFileConversionEntries(
     uncachedEntries,
-    getFileImportRustBatchCommandSize(uncachedEntries.length),
+    batchCommandSize,
   );
   let nextChunkIndex = 0;
   const workerCount = Math.min(
-    FILE_IMPORT_RUST_BATCH_MAX_ACTIVE,
+    getFileImportRustBatchMaxActive(uncachedEntries.length),
     chunks.length,
   );
 
@@ -1580,7 +1649,10 @@ async function prepareCsvFileConversionBatchEntries(entries, setResult) {
         return;
       }
 
-      await prepareCsvFileConversionBatchChunk(chunk, setResult);
+      await prepareCsvFileConversionBatchChunk(chunk, setResult, {
+        batchCommandSize,
+        workerCount,
+      });
     }
   }));
 }
@@ -1594,29 +1666,17 @@ async function prepareFileConversionsFromPathEntries(entries, onResult = undefin
   };
 
   await Promise.all(entries.map(async (entry, index) => {
-    const { fileName, inputPath } = normalizeFileConversionPreparePayload(entry);
-    if (!inputPath) {
-      setResult(index, createFileConversionPrepareFailure(
-        "INVALID_IMPORT_PATH",
-        "Invalid import file path.",
-      ));
-      return;
-    }
-
-    const stat = await statFileConversionInput(inputPath);
-    if (!stat.ok) {
-      setResult(index, stat.result);
+    const resolved = await resolveFileConversionInputMetadata(entry);
+    if (!resolved.ok || !resolved.metadata) {
+      setResult(index, resolved.result);
       return;
     }
 
     const metadata = {
-      fileName,
+      ...resolved.metadata,
       index,
-      inputPath,
-      sourceMtimeMs: stat.mtimeMs,
-      sourceSizeBytes: stat.size,
     };
-    if (isSupportedRustInputPath(inputPath) && !isSupportedRustExcelInputPath(inputPath)) {
+    if (isSupportedRustInputPath(metadata.inputPath) && !isSupportedRustExcelInputPath(metadata.inputPath)) {
       csvEntries.push(metadata);
       return;
     }

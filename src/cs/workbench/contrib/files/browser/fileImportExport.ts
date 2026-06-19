@@ -65,6 +65,7 @@ import {
 } from "src/cs/workbench/contrib/files/browser/templateApplyPerformanceTrace";
 import type {
   FileConverterBackend,
+  FileConverterPreparePayload,
   FileConverterPreparedFile,
 } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import {
@@ -1475,7 +1476,7 @@ async function prepareRemainingPendingImportFilesBatch({
     return null;
   }
 
-  const payloads: Array<{ fileName: string; path: string }> = [];
+  const payloads: FileConverterPreparePayload[] = [];
   const batchFiles: PendingImportFile[] = [];
   for (const index of remainingIndexes) {
     const pendingImportFile = pendingImportFiles[index];
@@ -1491,6 +1492,8 @@ async function prepareRemainingPendingImportFilesBatch({
     payloads.push({
       fileName: pendingImportFile.sourceName,
       path: source.path.trim(),
+      sourceMtimeMs: pendingImportFile.lastModified,
+      sourceSizeBytes: pendingImportFile.sourceSize,
     });
     batchFiles.push(pendingImportFile);
   }
@@ -1728,13 +1731,19 @@ async function prepareRemainingPendingImportFilesBatch({
     markTemplateApplyPerformanceTrace("import.prepare.backend.invoke.start", {
       fileCount: payloads.length,
       mode: backendMode,
+      sourceMetadataCount: payloads.filter(payload =>
+        Number.isFinite(payload.sourceMtimeMs) &&
+        Number.isFinite(payload.sourceSizeBytes)
+      ).length,
       totalSizeBytes: batchFiles.reduce((sum, file) => sum + file.sourceSize, 0),
     });
     const results = backendMode === "stream"
         ? await fileConverterBackend.prepareFilesStream!(payloads, message => {
           markTemplateApplyPerformanceTrace("import.prepare.backend.result", {
+            batchCommandSize: Number(message.result?.batchCommandSize) || null,
             batchDurationMs: readTraceDurationMs(message.result?.batchDurationMs),
             batchParallelism: Number(message.result?.batchParallelism) || null,
+            batchWorkerCount: Number(message.result?.batchWorkerCount) || null,
             cacheHit: message.result?.cacheHit === true,
             code: message.result?.code ?? null,
             fileName: batchFiles[message.index]?.sourceName ?? null,
@@ -1758,8 +1767,10 @@ async function prepareRemainingPendingImportFilesBatch({
     for (let offset = 0; offset < batchFiles.length; offset += 1) {
       if (!scheduledOffsets.has(offset)) {
         markTemplateApplyPerformanceTrace("import.prepare.backend.result", {
+          batchCommandSize: Number(results[offset]?.batchCommandSize) || null,
           batchDurationMs: readTraceDurationMs(results[offset]?.batchDurationMs),
           batchParallelism: Number(results[offset]?.batchParallelism) || null,
+          batchWorkerCount: Number(results[offset]?.batchWorkerCount) || null,
           cacheHit: results[offset]?.cacheHit === true,
           code: results[offset]?.code ?? null,
           fileName: batchFiles[offset]?.sourceName ?? null,
