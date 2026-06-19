@@ -236,6 +236,54 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     });
   });
 
+  test("applies owned legend state when display requests omit legend overrides", () => {
+    const snapshot = createSnapshot();
+    const service = store.add(new PlotService(
+      createSessionServiceStub(snapshot),
+      createSettingsServiceStub(),
+      store.add(new TestStorageService()),
+    ));
+
+    service.setLegendLabel("file-a", "series-a", "Edited A");
+    service.toggleHiddenLegendKey("file-a", "iv", "series-b", ["series-a", "series-b"]);
+
+    const displayModel = service.getPlotDisplayModel({
+      fileId: "file-a",
+      plotType: "iv",
+      snapshot,
+    });
+    const cachedDisplayModel = service.getCachedPlotDisplayModel({
+      fileId: "file-a",
+      plotType: "iv",
+      snapshot,
+    });
+
+    assert.deepEqual(displayModel?.chart.model.seriesList.map(series => series.id), ["series-a"]);
+    assert.equal(displayModel?.chart.model.seriesList[0]?.name, "Edited A");
+    assert.deepEqual(cachedDisplayModel?.chart.model.seriesList.map(series => series.id), ["series-a"]);
+    assert.equal(cachedDisplayModel?.chart.model.seriesList[0]?.name, "Edited A");
+
+    const prefetchService = store.add(new PlotService(
+      createSessionServiceStub(snapshot),
+      createSettingsServiceStub(),
+      store.add(new TestStorageService()),
+    ));
+    prefetchService.setLegendLabel("file-a", "series-a", "Edited A");
+    prefetchService.toggleHiddenLegendKey("file-a", "iv", "series-b", ["series-a", "series-b"]);
+    prefetchService.prefetchPlotDisplayModel({
+      fileId: "file-a",
+      plotType: "iv",
+    }, "active");
+
+    const prefetchedDisplayModel = prefetchService.getCachedPlotDisplayModel({
+      fileId: "file-a",
+      plotType: "iv",
+      snapshot,
+    });
+    assert.deepEqual(prefetchedDisplayModel?.chart.model.seriesList.map(series => series.id), ["series-a"]);
+    assert.equal(prefetchedDisplayModel?.chart.model.seriesList[0]?.name, "Edited A");
+  });
+
   test("limits y unit controls to the current plot output family", () => {
     const currentService = store.add(new PlotService(
       createSessionServiceStub(),
@@ -2622,6 +2670,32 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     service.setLegendLabel("file-a", "series-a", null);
 
     assert.deepEqual(service.getLegendLabels("file-a"), {});
+  });
+
+  test("owns legend visibility by file and plot type", () => {
+    const service = store.add(new PlotService(
+      createSessionServiceStub(),
+      createSettingsServiceStub(),
+      store.add(new TestStorageService()),
+    ));
+
+    service.toggleHiddenLegendKey("file-a", "iv", "series-b", ["series-a", "series-b"]);
+    service.toggleHiddenLegendKey("file-a", "gm", "series-c", ["series-c"]);
+
+    assert.deepEqual(service.getHiddenLegendKeys("file-a", "iv", ["series-a", "series-b"]), ["series-b"]);
+    assert.deepEqual(service.getHiddenLegendKeys("file-a", "gm", ["series-c"]), ["series-c"]);
+    assert.deepEqual(service.getHiddenLegendKeys("file-a", "iv", ["series-a"]), []);
+    assert.deepEqual(service.getState().hiddenLegendKeysByPlotKey, {
+      "file-a:gm": ["series-c"],
+      "file-a:iv": ["series-b"],
+    });
+
+    service.toggleHiddenLegendKey("file-a", "iv", "series-b", ["series-a", "series-b"]);
+
+    assert.deepEqual(service.getHiddenLegendKeys("file-a", "iv", ["series-a", "series-b"]), []);
+    assert.deepEqual(service.getState().hiddenLegendKeysByPlotKey, {
+      "file-a:gm": ["series-c"],
+    });
   });
 
   test("invalidates plot models only for plot-relevant session changes", () => {

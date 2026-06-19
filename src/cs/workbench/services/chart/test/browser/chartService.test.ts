@@ -23,16 +23,12 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 		}));
 
 		service.toggleDetailPane("inspector");
-		service.toggleHiddenLegendKey("file-a:iv", "series-b", ["series-a", "series-b"]);
 
 		assert.deepEqual(service.getState(), {
 			visibleDetailPanes: ["inspector"],
-			hiddenLegendKeysByContext: {
-				"file-a:iv": ["series-b"],
-			},
 			legendPopoverContextKey: null,
 		});
-		assert.equal(states.length, 2);
+		assert.equal(states.length, 1);
 	});
 
 	test("starts with inspector hidden until the user opens it in the current run", () => {
@@ -65,17 +61,6 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 			null,
 		]);
 		assert.equal(service.getState().legendPopoverContextKey, null);
-	});
-
-	test("filters stale legend keys without mutating chart state", () => {
-		const service = createService();
-
-		service.toggleHiddenLegendKey("file-a:iv", "series-b", ["series-a", "series-b"]);
-
-		assert.deepEqual(service.getHiddenLegendKeys("file-a:iv", ["series-a"]), []);
-		assert.deepEqual(service.getState().hiddenLegendKeysByContext, {
-			"file-a:iv": ["series-b"],
-		});
 	});
 
 	test("publishes chart view input", () => {

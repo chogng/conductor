@@ -56,8 +56,9 @@ Plot owner APIs include:
 - `getState()`;
 - cached non-creating reads: `getCachedCalculatedData`, `getCachedPlotDisplayModel`, `getCachedPlotInspectorDisplayModel`, `getCachedPlotLegendModel`;
 - creating reads where appropriate: `getCalculatedData`, `getPlotDisplayModel`, `getPlotLegendModel`, `getPlotMainRenderModel`;
+- legend state reads: `getHiddenLegendKeys`, `getLegendLabels`;
 - prefetch APIs: calculated data, chart display model, inspector display model, batch display models;
-- state mutations: `setActivePlotType`, `setAxisUnit`, `setYScale`, `setAxisTitleOverride`, `setLegendLabel`.
+- state mutations: `setActivePlotType`, `setAxisUnit`, `setYScale`, `setAxisTitleOverride`, `setLegendLabel`, `toggleHiddenLegendKey`.
 
 `setAxisUnit` and `setYScale` are Plot owner APIs. Their persistence currently
 uses platform storage; callers should not write settings/storage directly.
@@ -95,6 +96,7 @@ render inputs.
 ## Chart And Widget Rules
 
 - Chart views call cached display/legend APIs in render and request active prefetch on miss.
+- Display-model reads and prefetches apply Plot-owned legend visibility and labels by default; consumers should omit those fields unless they intentionally need an explicit override.
 - Chart should not call `getPlotDisplayModel` in active render.
 - Chart may request inspector display-model prefetch only as secondary pane completion after the active chart target settles.
 - Active inspector work stays secondary to main chart display and uses a separate detail lane so older background prefetches cannot starve it and later active data can still run; startup and bridge-level chart prewarm remain chart-main only, while inspector targets come from the settled visible detail-pane path after the pane is opened in the current run.

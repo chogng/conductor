@@ -31,6 +31,7 @@ export const isPlotType = (value: unknown): value is PlotType =>
 export type PlotState = {
   readonly axisTitleOverridesByKey: Readonly<Record<string, string>>;
   readonly activePlotType: PlotType;
+  readonly hiddenLegendKeysByPlotKey: Readonly<Record<string, readonly SeriesId[]>>;
   readonly legendLabelsByFileId: Readonly<Record<FileId, Readonly<Record<SeriesId, string>>>>;
 };
 
@@ -130,6 +131,7 @@ export interface IPlotService {
   getCachedPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
   getCalculatedData(input: PlotCalculatedDataInput): CalculatedData | null;
   getFileAxisSettings(snapshot: SessionSnapshot): PlotFileAxisSettings;
+  getHiddenLegendKeys(fileId: FileId, plotType: PlotType, liveLegendKeys: readonly SeriesId[]): readonly SeriesId[];
   getLegendLabels(fileId: FileId): Readonly<Record<SeriesId, string>>;
   getPlotDisplayModel(input: PlotDisplayModelInput): PlotDisplayModel | null;
   getPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
@@ -143,5 +145,6 @@ export interface IPlotService {
   setAxisUnit(fileId: FileId, axis: PlotAxis, unit: XUnit | YUnit): Promise<void>;
   setActivePlotType(plotType: PlotType): void;
   setLegendLabel(fileId: FileId, seriesId: SeriesId, label: string | null): void;
+  toggleHiddenLegendKey(fileId: FileId, plotType: PlotType, seriesId: SeriesId, liveLegendKeys: readonly SeriesId[]): void;
   setYScale(fileId: FileId, scale: "linear" | "log"): Promise<void>;
 }

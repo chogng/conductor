@@ -32,7 +32,6 @@ export class ChartService extends Disposable implements IChartServiceType {
 		super();
 		this.state = {
 			visibleDetailPanes: DEFAULT_VISIBLE_DETAIL_PANES,
-			hiddenLegendKeysByContext: {},
 			legendPopoverContextKey: null,
 		};
 	}
@@ -70,49 +69,6 @@ export class ChartService extends Disposable implements IChartServiceType {
 		});
 	}
 
-	public getHiddenLegendKeys(
-		contextKey: string,
-		liveLegendKeys: readonly string[],
-	): readonly string[] {
-		const liveKeys = new Set(normalizeStrings(liveLegendKeys));
-		return (this.state.hiddenLegendKeysByContext[contextKey] ?? [])
-			.filter(legendKey => liveKeys.has(legendKey));
-	}
-
-	public toggleHiddenLegendKey(
-		contextKey: string,
-		legendKey: string,
-		liveLegendKeys: readonly string[],
-	): void {
-		const normalizedContextKey = normalizeString(contextKey);
-		const normalizedLegendKey = normalizeString(legendKey);
-		if (!normalizedContextKey || !normalizedLegendKey) {
-			return;
-		}
-
-		const liveKeys = normalizeStrings(liveLegendKeys);
-		if (!liveKeys.includes(normalizedLegendKey)) {
-			return;
-		}
-
-		const current = this.getHiddenLegendKeys(normalizedContextKey, liveKeys);
-		const next = current.includes(normalizedLegendKey)
-			? current.filter(item => item !== normalizedLegendKey)
-			: [...current, normalizedLegendKey];
-		const hiddenLegendKeysByContext = {
-			...this.state.hiddenLegendKeysByContext,
-		};
-		if (next.length) {
-			hiddenLegendKeysByContext[normalizedContextKey] = next;
-		} else {
-			delete hiddenLegendKeysByContext[normalizedContextKey];
-		}
-
-		this.updateState({
-			hiddenLegendKeysByContext,
-		});
-	}
-
 	private updateState(updates: Partial<ChartState>): void {
 		const nextState = {
 			...this.state,
@@ -140,42 +96,12 @@ const normalizeDetailPanes = (
 	return result;
 };
 
-const normalizeStrings = (values: readonly string[]): readonly string[] => {
-	const result: string[] = [];
-	const seen = new Set<string>();
-	for (const value of values) {
-		const normalized = normalizeString(value);
-		if (!normalized || seen.has(normalized)) {
-			continue;
-		}
-
-		seen.add(normalized);
-		result.push(normalized);
-	}
-
-	return result;
-};
-
 const normalizeString = (value: string): string =>
 	String(value ?? "").trim();
 
 const isSameChartState = (current: ChartState, next: ChartState): boolean =>
 	areStringArraysEqual(current.visibleDetailPanes, next.visibleDetailPanes) &&
-	areHiddenLegendMapsEqual(current.hiddenLegendKeysByContext, next.hiddenLegendKeysByContext) &&
 	current.legendPopoverContextKey === next.legendPopoverContextKey;
-
-const areHiddenLegendMapsEqual = (
-	first: Readonly<Record<string, readonly string[]>>,
-	second: Readonly<Record<string, readonly string[]>>,
-): boolean => {
-	const firstKeys = Object.keys(first).sort();
-	const secondKeys = Object.keys(second).sort();
-	if (!areStringArraysEqual(firstKeys, secondKeys)) {
-		return false;
-	}
-
-	return firstKeys.every(key => areStringArraysEqual(first[key] ?? [], second[key] ?? []));
-};
 
 const areStringArraysEqual = (
 	first: readonly string[],

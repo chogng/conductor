@@ -7,6 +7,7 @@ import assert from "assert";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { ICommandEvent, ICommandService } from "src/cs/platform/commands/common/commands";
+import { CHART_LEGEND_ACTION_ID } from "src/cs/workbench/contrib/chart/browser/chartActions";
 import { ChartViewPane } from "src/cs/workbench/contrib/chart/browser/chartViewPane";
 import type { IChartTitleEditService } from "src/cs/workbench/contrib/chart/browser/chartTitleEditService";
 import type { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
@@ -20,6 +21,7 @@ import type {
 import type {
 	IPlotService,
 	PlotDisplayModel,
+	PlotLegendModel,
 	PlotPaneDisplayModel,
 } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
@@ -92,6 +94,61 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 			globalThis.clearTimeout = originalClearTimeout;
 		}
 	});
+
+	test("keeps a single header action group after committing a legend edit", async () => {
+		if (typeof document === "undefined") {
+			return;
+		}
+
+		const input = createChartViewInput({
+			activeFileId: "file-a",
+			activePlotType: "iv",
+			chartFileOptions: [{ fileId: "file-a", fileName: "file-a.csv" }],
+			hasChartData: true,
+		});
+		const chartService = createChartServiceForTest(input);
+		const plotService = createPlotServiceForLegendEditTest();
+		const pane = store.add(new ChartViewPane(
+			chartService,
+			createChartTitleEditServiceForTest(),
+			createCommandServiceForTest(chartService, []),
+			createExplorerServiceForTest(),
+			plotService,
+			createSettingsServiceForTest(),
+		));
+
+		try {
+			assert.equal(pane.element.querySelectorAll(".chart_view_detail_actions").length, 1);
+
+			const legendButton = pane.element.querySelector<HTMLButtonElement>(
+				`button[data-action-id="${CHART_LEGEND_ACTION_ID}"]`,
+			);
+			assert.ok(legendButton);
+			legendButton.click();
+			await Promise.resolve();
+
+			const editButton = pane.element.querySelector<HTMLButtonElement>(".chart_legend_edit");
+			assert.ok(editButton);
+			editButton.click();
+			await Promise.resolve();
+
+			const inputElement = pane.element.querySelector<HTMLInputElement>(".chart_legend_inline_input");
+			assert.ok(inputElement);
+			inputElement.value = "Edited";
+			inputElement.dispatchEvent(new Event("input", { bubbles: true }));
+			inputElement.dispatchEvent(new KeyboardEvent("keydown", {
+				bubbles: true,
+				key: "Enter",
+			}));
+			await Promise.resolve();
+
+			assert.equal(plotService.getLegendLabels("file-a")["series-a"], "Edited");
+			assert.equal(pane.element.querySelectorAll(".chart_view_detail_actions").length, 1);
+			assert.equal(pane.element.querySelectorAll(`button[data-action-id="${CHART_LEGEND_ACTION_ID}"]`).length, 1);
+		} finally {
+			pane.dispose();
+		}
+	});
 });
 
 const createChartServiceForTest = (
@@ -99,25 +156,26 @@ const createChartServiceForTest = (
 ): IChartService => {
 	const onDidChangeChartStateEmitter = new Emitter<ChartState>();
 	let visibleDetailPanes: readonly ChartDetailPane[] = [];
+	let legendPopoverContextKey: string | null = null;
 	const getState = (): ChartState => ({
-		hiddenLegendKeysByContext: {},
-		legendPopoverContextKey: null,
+		legendPopoverContextKey,
 		visibleDetailPanes,
 	});
 
 	return {
 		_serviceBrand: undefined,
-		getHiddenLegendKeys: () => [],
 		getState,
 		getViewInput: () => input,
 		onDidChangeChartState: onDidChangeChartStateEmitter.event,
 		onDidChangeChartViewInput: Event.None,
-		setLegendPopoverContextKey: () => undefined,
+		setLegendPopoverContextKey: (contextKey) => {
+			legendPopoverContextKey = contextKey;
+			onDidChangeChartStateEmitter.fire(getState());
+		},
 		toggleDetailPane: (pane) => {
 			visibleDetailPanes = visibleDetailPanes.includes(pane) ? [] : [pane];
 			onDidChangeChartStateEmitter.fire(getState());
 		},
-		toggleHiddenLegendKey: () => undefined,
 		updateViewInput: () => undefined,
 	};
 };
@@ -161,10 +219,12 @@ const createPlotServiceForTest = (
 	cancelQueuedPlotInspectorDisplayModelPrefetch: () => undefined,
 	getCachedPlotDisplayModel: () => createPlotDisplayModel(),
 	getCachedPlotLegendModel: () => null,
+	getHiddenLegendKeys: () => [],
 	getLegendLabels: () => ({}),
 	getState: () => ({
 		activePlotType: "iv",
 		axisTitleOverridesByKey: {},
+		hiddenLegendKeysByPlotKey: {},
 		legendLabelsByFileId: {},
 	}),
 	onDidChangeCalculatedDataCache: Event.None,
@@ -177,9 +237,53 @@ const createPlotServiceForTest = (
 	setAxisTitleOverride: () => undefined,
 	setActivePlotType: () => undefined,
 	setLegendLabel: () => undefined,
+	toggleHiddenLegendKey: () => undefined,
 	setYScale: async () => undefined,
 	setAxisUnit: async () => undefined,
 } as unknown as IPlotService);
+
+const createPlotServiceForLegendEditTest = (): IPlotService => {
+	const onDidChangePlotStateEmitter = new Emitter<ReturnType<IPlotService["getState"]>>();
+	let legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>> = {};
+	const getState = () => ({
+		activePlotType: "iv" as const,
+		axisTitleOverridesByKey: {},
+		hiddenLegendKeysByPlotKey: {},
+		legendLabelsByFileId,
+	});
+	return {
+		_serviceBrand: undefined,
+		cancelQueuedPlotInspectorDisplayModelPrefetch: () => undefined,
+		getCachedPlotDisplayModel: () => createPlotDisplayModel(),
+		getCachedPlotLegendModel: () => createPlotLegendModel(),
+		getHiddenLegendKeys: () => [],
+		getLegendLabels: (fileId) => legendLabelsByFileId[fileId] ?? {},
+		getState,
+		onDidChangeCalculatedDataCache: Event.None,
+		onDidChangePlotDisplayModelCache: Event.None,
+		onDidChangePlotState: onDidChangePlotStateEmitter.event,
+		prefetchCalculatedData: () => undefined,
+		prefetchPlotDisplayModel: () => undefined,
+		prefetchPlotInspectorDisplayModel: () => undefined,
+		setAxisTitleOverride: () => undefined,
+		setActivePlotType: () => undefined,
+		setLegendLabel: (fileId, seriesId, label) => {
+			legendLabelsByFileId = label
+				? {
+					...legendLabelsByFileId,
+					[fileId]: {
+						...(legendLabelsByFileId[fileId] ?? {}),
+						[seriesId]: label,
+					},
+				}
+				: {};
+			onDidChangePlotStateEmitter.fire(getState());
+		},
+		toggleHiddenLegendKey: () => undefined,
+		setYScale: async () => undefined,
+		setAxisUnit: async () => undefined,
+	} as unknown as IPlotService;
+};
 
 const createPlotDisplayModel = (): PlotDisplayModel => ({
 	chart: createPlotPaneDisplayModel("chart"),
@@ -187,6 +291,12 @@ const createPlotDisplayModel = (): PlotDisplayModel => ({
 	inspector: null,
 	plotType: "iv",
 	unitControl: null,
+});
+
+const createPlotLegendModel = (): PlotLegendModel => ({
+	fileId: "file-a",
+	plotType: "iv",
+	seriesList: createPlotModel().seriesList,
 });
 
 const createPlotPaneDisplayModel = (

@@ -144,6 +144,13 @@ type PlotDisplayModelPrefetchResult = {
   readonly stage?: PlotDisplayModelPrefetchStage;
 };
 
+type ResolvedPlotDisplayModelInput = PlotDisplayModelInput & {
+  readonly fileId: FileId;
+  readonly hiddenLegendKeys: readonly SeriesId[];
+  readonly legendLabels: Readonly<Record<SeriesId, string>>;
+  readonly plotType: PlotType;
+};
+
 type InFlightPlotPrefetch = {
   readonly lane?: PlotDisplayModelWorkerLane;
   readonly priority: PlotCalculatedDataPrefetchPriority;
@@ -165,6 +172,7 @@ export class PlotService extends Disposable implements IPlotService {
   private state: PlotState = {
     axisTitleOverridesByKey: {},
     activePlotType: "iv",
+    hiddenLegendKeysByPlotKey: {},
     legendLabelsByFileId: {},
   };
   private readonly calculatedDataCacheByFile = new WeakMap<FileRecord, Partial<Record<PlotType, CalculatedData>>>();
@@ -239,9 +247,14 @@ export class PlotService extends Disposable implements IPlotService {
       return null;
     }
 
+    const resolvedInput = this.resolvePlotDisplayModelInput(input, calculatedData);
+    if (!resolvedInput) {
+      return null;
+    }
+
     const key = this.getPlotDisplayModelCacheKey(
       calculatedData,
-      input,
+      resolvedInput,
     );
     const cached = this.getCachedPlotDisplayModelForKey(key);
     if (!cached) {
@@ -265,9 +278,14 @@ export class PlotService extends Disposable implements IPlotService {
       return null;
     }
 
+    const resolvedInput = this.resolvePlotDisplayModelInput(input, calculatedData);
+    if (!resolvedInput) {
+      return null;
+    }
+
     return this.getCachedPlotInspectorDisplayModelForKey(this.getPlotDisplayModelCacheKey(
       calculatedData,
-      input,
+      resolvedInput,
     ));
   }
 
@@ -329,6 +347,29 @@ export class PlotService extends Disposable implements IPlotService {
       : {};
   }
 
+  public getHiddenLegendKeys(
+    fileId: FileId,
+    plotType: PlotType,
+    liveLegendKeys: readonly SeriesId[],
+  ): readonly SeriesId[] {
+    const key = getPlotLegendStateKey(fileId, plotType);
+    if (!key) {
+      return [];
+    }
+
+    const liveKeys = new Set(normalizeUniqueStringList(liveLegendKeys));
+    return this.getStoredHiddenLegendKeys(fileId, plotType)
+      .filter(legendKey => liveKeys.has(legendKey));
+  }
+
+  private getStoredHiddenLegendKeys(
+    fileId: FileId,
+    plotType: PlotType,
+  ): readonly SeriesId[] {
+    const key = getPlotLegendStateKey(fileId, plotType);
+    return key ? this.state.hiddenLegendKeysByPlotKey[key] ?? [] : [];
+  }
+
   public getPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null {
     return this.createPlotLegendModel(this.getCalculatedData(input));
   }
@@ -346,6 +387,33 @@ export class PlotService extends Disposable implements IPlotService {
     };
   }
 
+  private resolvePlotDisplayModelInput(
+    input: PlotDisplayModelInput,
+    calculatedData?: CalculatedData | null,
+  ): ResolvedPlotDisplayModelInput | null {
+    const fileId = normalizeStateKey(calculatedData?.source.fileId) || normalizeStateKey(input.fileId);
+    const plotType = isPlotType(calculatedData?.kind)
+      ? calculatedData.kind
+      : input.plotType && isPlotType(input.plotType)
+        ? input.plotType
+        : this.state.activePlotType;
+    if (!fileId || !isPlotType(plotType)) {
+      return null;
+    }
+
+    return {
+      ...input,
+      fileId,
+      hiddenLegendKeys: input.hiddenLegendKeys !== undefined
+        ? normalizeUniqueStringList(input.hiddenLegendKeys)
+        : this.getStoredHiddenLegendKeys(fileId, plotType),
+      legendLabels: input.legendLabels !== undefined
+        ? normalizeLegendLabelMap(input.legendLabels)
+        : this.getLegendLabels(fileId),
+      plotType,
+    };
+  }
+
   public getPlotDisplayModel(input: PlotDisplayModelInput): PlotDisplayModel | null {
     const snapshot = this.resolveSnapshot(input.snapshot);
     const calculatedData = this.getCalculatedData({
@@ -353,11 +421,14 @@ export class PlotService extends Disposable implements IPlotService {
       plotType: input.plotType,
       snapshot: snapshot ?? undefined,
     });
-    const model = this.createPlotDisplayModel(calculatedData, input, snapshot ?? undefined);
-    if (model && calculatedData) {
-      this.cachePlotDisplayModel(calculatedData, input, model);
+    const resolvedInput = this.resolvePlotDisplayModelInput(input, calculatedData);
+    const model = resolvedInput
+      ? this.createPlotDisplayModel(calculatedData, resolvedInput, snapshot ?? undefined)
+      : null;
+    if (model && calculatedData && resolvedInput) {
+      this.cachePlotDisplayModel(calculatedData, resolvedInput, model);
       if (model.inspector) {
-        this.cachePlotInspectorDisplayModel(calculatedData, input, model.inspector);
+        this.cachePlotInspectorDisplayModel(calculatedData, resolvedInput, model.inspector);
       }
     }
     return model;
@@ -612,14 +683,19 @@ export class PlotService extends Disposable implements IPlotService {
     if (!fileId) {
       return null;
     }
+    const plotType = input.plotType && isPlotType(input.plotType)
+      ? input.plotType
+      : this.state.activePlotType;
 
     return {
       fileId,
-      hiddenLegendKeys: [...(input.hiddenLegendKeys ?? [])],
-      legendLabels: { ...(input.legendLabels ?? {}) },
-      plotType: input.plotType && isPlotType(input.plotType)
-        ? input.plotType
-        : this.state.activePlotType,
+      hiddenLegendKeys: input.hiddenLegendKeys !== undefined
+        ? normalizeUniqueStringList(input.hiddenLegendKeys)
+        : this.getStoredHiddenLegendKeys(fileId, plotType),
+      legendLabels: input.legendLabels !== undefined
+        ? normalizeLegendLabelMap(input.legendLabels)
+        : this.getLegendLabels(fileId),
+      plotType,
       priority,
       stage: "chart",
     };
@@ -757,6 +833,15 @@ export class PlotService extends Disposable implements IPlotService {
       endPerf({ result: "noFileId" });
       return;
     }
+    const resolvedInput = this.resolvePlotDisplayModelInput({
+      ...input,
+      fileId,
+      plotType,
+    });
+    if (!resolvedInput) {
+      endPerf({ result: "noFileId" });
+      return;
+    }
 
     let calculatedData = this.getCachedCalculatedData({
       fileId,
@@ -782,8 +867,8 @@ export class PlotService extends Disposable implements IPlotService {
 
     const cachedInspector = calculatedData ? this.getCachedPlotInspectorDisplayModel({
       fileId,
-      hiddenLegendKeys: input.hiddenLegendKeys,
-      legendLabels: input.legendLabels,
+      hiddenLegendKeys: resolvedInput.hiddenLegendKeys,
+      legendLabels: resolvedInput.legendLabels,
       plotType,
       snapshot,
     }) : null;
@@ -799,8 +884,8 @@ export class PlotService extends Disposable implements IPlotService {
 
     const request: QueuedPlotDisplayModelPrefetch = {
       fileId,
-      hiddenLegendKeys: [...(input.hiddenLegendKeys ?? [])],
-      legendLabels: { ...(input.legendLabels ?? {}) },
+      hiddenLegendKeys: [...resolvedInput.hiddenLegendKeys],
+      legendLabels: { ...resolvedInput.legendLabels },
       plotType,
       priority: getInspectorPlotDisplayModelPrefetchPriority(priority),
       stage: "inspector",
@@ -811,10 +896,7 @@ export class PlotService extends Disposable implements IPlotService {
       this.clearQueuedInspectorDisplayModelPrefetchExcept(key);
     }
     const calculatedDataCacheKey = calculatedData
-      ? this.getPlotDisplayModelPrefetchKey(calculatedData, {
-        ...input,
-        stage: "inspector",
-      })
+      ? this.getPlotDisplayModelPrefetchKey(calculatedData, request)
       : null;
     const inFlight = calculatedDataCacheKey
       ? this.inFlightPlotDisplayModelPrefetchByKey.get(calculatedDataCacheKey)
@@ -1014,6 +1096,41 @@ export class PlotService extends Disposable implements IPlotService {
     });
   }
 
+  public toggleHiddenLegendKey(
+    fileId: FileId,
+    plotType: PlotType,
+    seriesId: SeriesId,
+    liveLegendKeys: readonly SeriesId[],
+  ): void {
+    const key = getPlotLegendStateKey(fileId, plotType);
+    const normalizedSeriesId = normalizeStateKey(seriesId);
+    if (!key || !normalizedSeriesId) {
+      return;
+    }
+
+    const liveKeys = normalizeUniqueStringList(liveLegendKeys);
+    if (!liveKeys.includes(normalizedSeriesId)) {
+      return;
+    }
+
+    const current = this.getHiddenLegendKeys(fileId, plotType, liveKeys);
+    const next = current.includes(normalizedSeriesId)
+      ? current.filter(item => item !== normalizedSeriesId)
+      : [...current, normalizedSeriesId];
+    const hiddenLegendKeysByPlotKey = {
+      ...this.state.hiddenLegendKeysByPlotKey,
+    };
+    if (next.length) {
+      hiddenLegendKeysByPlotKey[key] = next;
+    } else {
+      delete hiddenLegendKeysByPlotKey[key];
+    }
+
+    this.updateState({
+      hiddenLegendKeysByPlotKey,
+    });
+  }
+
   private updateState(updates: Partial<PlotState>): void {
     const nextState = {
       ...this.state,
@@ -1022,6 +1139,7 @@ export class PlotService extends Disposable implements IPlotService {
     if (
       this.state.activePlotType === nextState.activePlotType &&
       areRecordMapsEqual(this.state.axisTitleOverridesByKey, nextState.axisTitleOverridesByKey) &&
+      areStringArrayMapsEqual(this.state.hiddenLegendKeysByPlotKey, nextState.hiddenLegendKeysByPlotKey) &&
       areNestedRecordMapsEqual(this.state.legendLabelsByFileId, nextState.legendLabelsByFileId)
     ) {
       return;
@@ -2217,6 +2335,16 @@ const getPlotDisplayModelContextFromKey = (
     : null;
 };
 
+const getPlotLegendStateKey = (
+  fileId: FileId,
+  plotType: PlotType,
+): string | null => {
+  const normalizedFileId = normalizeStateKey(fileId);
+  return normalizedFileId && isPlotType(plotType)
+    ? `${normalizedFileId}:${plotType}`
+    : null;
+};
+
 const addPlotCacheChange = (
   changes: PlotCacheChangeMap,
   context: { readonly fileId: FileId; readonly plotType: PlotType },
@@ -2335,8 +2463,54 @@ const areNestedRecordMapsEqual = (
     );
 };
 
+const areStringArraysEqual = (
+  first: readonly string[],
+  second: readonly string[],
+): boolean =>
+  first.length === second.length &&
+  first.every((value, index) => value === second[index]);
+
+const areStringArrayMapsEqual = (
+  first: Readonly<Record<string, readonly string[]>>,
+  second: Readonly<Record<string, readonly string[]>>,
+): boolean => {
+  const firstKeys = Object.keys(first).sort();
+  const secondKeys = Object.keys(second).sort();
+  return areStringArraysEqual(firstKeys, secondKeys) &&
+    firstKeys.every(key => areStringArraysEqual(first[key] ?? [], second[key] ?? []));
+};
+
 const normalizeStateKey = (value: unknown): string =>
   String(value ?? "").trim();
+
+const normalizeUniqueStringList = (values: readonly unknown[]): string[] => {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const normalized = normalizeStateKey(value);
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
+};
+
+const normalizeLegendLabelMap = (
+  labels: Readonly<Record<string, string>>,
+): Readonly<Record<string, string>> => {
+  const result: Record<string, string> = {};
+  for (const [key, label] of Object.entries(labels)) {
+    const normalizedKey = normalizeStateKey(key);
+    const normalizedLabel = String(label ?? "").trim();
+    if (normalizedKey && normalizedLabel) {
+      result[normalizedKey] = normalizedLabel;
+    }
+  }
+  return result;
+};
 
 const readLegacyStringMap = (value: unknown): Record<string, string> => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {

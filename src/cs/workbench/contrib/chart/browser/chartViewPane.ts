@@ -67,6 +67,7 @@ export class ChartViewPane extends ViewPane {
   private readonly previewPart: HTMLElement;
   private readonly headerTabs = document.createElement("div");
   private readonly headerActions = document.createElement("div");
+  private readonly headerActionBar: ActionBar;
   private readonly paneStore = new DisposableStore();
   private readonly headerStore = new DisposableStore();
   private readonly content = document.createElement("div");
@@ -98,6 +99,16 @@ export class ChartViewPane extends ViewPane {
     this.updateChartPanelTabState();
     this.headerTabs.className = "chart_view_header_tabs";
     this.headerActions.className = "chart_view_header_actions";
+    this.headerActionBar = this.paneStore.add(new ActionBar({
+      ariaLabel: localize("chart.header.actions", "Chart actions"),
+      actionViewItemProvider: (action, options) => new ChartHeaderActionViewItem(
+        action,
+        getHeaderActionIcon(action.id),
+        options,
+      ),
+      className: "chart_view_detail_actions",
+      contentClassName: "chart_view_detail_action_items",
+    }));
     this.content.className = "chart_view_pane_content";
     this.content.append(this.chartPanel.element);
     this.previewPart = createPreviewPart({
@@ -190,6 +201,7 @@ export class ChartViewPane extends ViewPane {
   }
 
   private renderHeader(props: ChartViewInput): void {
+    this.headerActionBar.clear();
     this.headerStore.clear();
     this.legendAction = null;
     const activeFile = resolveActiveChartFileOption(props);
@@ -218,7 +230,9 @@ export class ChartViewPane extends ViewPane {
       }));
     }
 
-    this.headerActions.append(this.createHeaderActions(props));
+    if (this.updateHeaderActions(props)) {
+      this.headerActions.append(this.headerActionBar.domNode);
+    }
 
     if (activeFile && props.showFileSelect !== false) {
       this.headerActions.append(createFileSelect(
@@ -256,19 +270,12 @@ export class ChartViewPane extends ViewPane {
   }
 
   private getChartPanelProps(props: ChartViewInput): ChartViewProps {
-    const legendContext = this.getCurrentLegendContext(props);
-    const hiddenLegendKeys = this.getHiddenLegendKeys(legendContext);
-    const legendLabels = this.getLegendLabels(legendContext);
     const baseProps = toChartPanelProps(
       props,
       this.getActivePlotType(),
       this.chartService.getState().visibleDetailPanes,
     );
-    const plotDisplayModel = this.getPlotDisplayModel(
-      props,
-      hiddenLegendKeys,
-      legendLabels,
-    );
+    const plotDisplayModel = this.getPlotDisplayModel(props);
     const displayProps = {
       ...baseProps,
       originOpenPlotOptions: getOriginOpenPlotOptions(this.settingsService.getConductorSettings()),
@@ -339,16 +346,12 @@ export class ChartViewPane extends ViewPane {
 
   private getPlotDisplayModel(
     props: ChartViewInput,
-    hiddenLegendKeys: readonly string[] = [],
-    legendLabels: Readonly<Record<string, string>> = {},
   ): PlotDisplayModel | null {
     const fileId = normalizeChartFileId(props.activeFileId);
     const plotType = this.getActivePlotType();
     const isInspectorVisible = this.chartService.getState().visibleDetailPanes.includes("inspector");
     const model = this.plotService.getCachedPlotDisplayModel({
       fileId,
-      hiddenLegendKeys,
-      legendLabels,
       plotType,
     });
     if (!isInspectorVisible) {
@@ -359,8 +362,6 @@ export class ChartViewPane extends ViewPane {
       this.cancelPendingInspectorPrefetch();
       this.plotService.prefetchPlotDisplayModel({
         fileId,
-        hiddenLegendKeys,
-        legendLabels,
         plotType,
       }, "active");
     } else if (
@@ -371,8 +372,6 @@ export class ChartViewPane extends ViewPane {
     ) {
       this.scheduleInspectorPrefetch({
         fileId,
-        hiddenLegendKeys,
-        legendLabels,
         plotType,
       });
     } else {
@@ -383,8 +382,6 @@ export class ChartViewPane extends ViewPane {
 
   private scheduleInspectorPrefetch(input: {
     readonly fileId: string;
-    readonly hiddenLegendKeys: readonly string[];
-    readonly legendLabels: Readonly<Record<string, string>>;
     readonly plotType: PlotType;
   }): void {
     const key = this.createInspectorPrefetchKey(input);
@@ -402,7 +399,7 @@ export class ChartViewPane extends ViewPane {
     this.pendingInspectorPrefetchHandle = globalThis.setTimeout(() => {
       this.pendingInspectorPrefetchHandle = null;
       this.pendingInspectorPrefetchKey = null;
-      if (!this.isInspectorPrefetchTargetCurrent(input, key)) {
+      if (!this.isInspectorPrefetchTargetCurrent(input)) {
         logPerf("chartViewPane.skipInspectorPrefetch", {
           fileId: input.fileId,
           plotType: input.plotType,
@@ -417,8 +414,6 @@ export class ChartViewPane extends ViewPane {
       }, { silent: true });
       this.plotService.prefetchPlotInspectorDisplayModel({
         fileId: input.fileId,
-        hiddenLegendKeys: input.hiddenLegendKeys,
-        legendLabels: input.legendLabels,
         plotType: input.plotType,
       }, "active");
     }, INSPECTOR_PREFETCH_STABLE_DELAY_MS);
@@ -426,42 +421,23 @@ export class ChartViewPane extends ViewPane {
 
   private createInspectorPrefetchKey(input: {
     readonly fileId: string;
-    readonly hiddenLegendKeys: readonly string[];
-    readonly legendLabels: Readonly<Record<string, string>>;
     readonly plotType: PlotType;
   }): string {
     return [
       input.fileId,
       input.plotType,
-      [...input.hiddenLegendKeys].join(","),
-      Object.entries(input.legendLabels)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([labelKey, label]) => `${labelKey}:${label}`)
-        .join(","),
     ].join("|");
   }
 
   private isInspectorPrefetchTargetCurrent(input: {
     readonly fileId: string;
-    readonly hiddenLegendKeys: readonly string[];
-    readonly legendLabels: Readonly<Record<string, string>>;
     readonly plotType: PlotType;
-  }, key: string): boolean {
-    if (
+  }): boolean {
+    return !(
       normalizeChartFileId(this.props.activeFileId) !== input.fileId ||
       this.getActivePlotType() !== input.plotType ||
       !this.chartService.getState().visibleDetailPanes.includes("inspector")
-    ) {
-      return false;
-    }
-
-    const legendContext = this.getCurrentLegendContext(this.props);
-    return key === this.createInspectorPrefetchKey({
-      fileId: input.fileId,
-      hiddenLegendKeys: this.getHiddenLegendKeys(legendContext),
-      legendLabels: this.getLegendLabels(legendContext),
-      plotType: input.plotType,
-    });
+    );
   }
 
   private cancelPendingInspectorPrefetch(reason: string = "cancelled"): void {
@@ -485,18 +461,7 @@ export class ChartViewPane extends ViewPane {
     this.chartPanel.element.setAttribute("aria-labelledby", getPlotTabId(this.getActivePlotType()));
   }
 
-  private createHeaderActions(props: ChartViewInput): HTMLElement {
-    const actionBar = new ActionBar({
-      ariaLabel: localize("chart.header.actions", "Chart actions"),
-      actionViewItemProvider: (action, options) => new ChartHeaderActionViewItem(
-        action,
-        getHeaderActionIcon(action.id),
-        options,
-      ),
-      className: "chart_view_detail_actions",
-      contentClassName: "chart_view_detail_action_items",
-    });
-    this.headerStore.add(actionBar);
+  private updateHeaderActions(props: ChartViewInput): boolean {
     const actions = [
       this.createLegendAction(props),
       this.createDetailPaneAction({
@@ -505,11 +470,11 @@ export class ChartViewPane extends ViewPane {
         pane: "inspector",
       }),
     ].filter((action): action is IAction => Boolean(action));
-    actionBar.push(actions, {
+    this.headerActionBar.push(actions, {
       className: "chart_view_header_icon_btn",
       label: false,
     });
-    return actionBar.domNode;
+    return actions.length > 0;
   }
 
   private createDetailPaneAction({
@@ -672,9 +637,9 @@ export class ChartViewPane extends ViewPane {
   }
 
   private toggleLegendItem(context: LegendContext, legendKey: string): void {
-    const key = this.getLegendStateKey(context);
-    this.chartService.toggleHiddenLegendKey(
-      key,
+    this.plotService.toggleHiddenLegendKey(
+      context.fileId,
+      context.plotType,
       legendKey,
       context.seriesList.map(series => series.id),
     );
@@ -711,9 +676,9 @@ export class ChartViewPane extends ViewPane {
       return [];
     }
 
-    const key = this.getLegendStateKey(context);
-    return this.chartService.getHiddenLegendKeys(
-      key,
+    return this.plotService.getHiddenLegendKeys(
+      context.fileId,
+      context.plotType,
       context.seriesList.map(series => series.id),
     );
   }

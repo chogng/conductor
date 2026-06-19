@@ -24,7 +24,6 @@ export type ChartAxisTitleEditRequest = {
 
 export type ChartState = {
 	readonly visibleDetailPanes: readonly ChartDetailPane[];
-	readonly hiddenLegendKeysByContext: Readonly<Record<string, readonly string[]>>;
 	readonly legendPopoverContextKey: string | null;
 };
 
@@ -39,6 +38,4 @@ export interface IChartService {
 	updateViewInput(input: ChartViewInput): void;
 	toggleDetailPane(pane: ChartDetailPane): void;
 	setLegendPopoverContextKey(contextKey: string | null): void;
-	getHiddenLegendKeys(contextKey: string, liveLegendKeys: readonly string[]): readonly string[];
-	toggleHiddenLegendKey(contextKey: string, legendKey: string, liveLegendKeys: readonly string[]): void;
 }
