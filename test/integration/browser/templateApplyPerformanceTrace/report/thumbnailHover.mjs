@@ -37,6 +37,7 @@ export const summarizeThumbnailHoverStress = (result, perfReport) => {
     requestedCount: result.requestedCount,
     sampledCount: samples.length,
     targetCount: result.targetCount,
+    targetSourceCounts: countBy(samples.map(sample => sample.source ?? "dom")),
     tooltipVisibleCount: samples.filter(sample => sample.hoverState?.tooltipVisible).length,
     tooltipVisibleMs: summarizeDurations(samples.map(sample => sample.tooltipVisibleMs)),
   };
@@ -192,6 +193,7 @@ export const summarizeThumbnailHoverLiveStress = (result, perfReport, phaseAncho
     },
     requestedCount: result.requestedCount,
     targetCount: result.targetCount,
+    targetSourceCounts: countBy((result.targets ?? []).map(target => target.source ?? "dom")),
     ...targetSampleSummary,
     targetPlotChartCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotChartCached"),
     targetPlotFullCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotFullCached"),

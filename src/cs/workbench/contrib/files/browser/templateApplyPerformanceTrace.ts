@@ -19,11 +19,31 @@ export type TemplateApplyPerformanceTraceEvent = {
   readonly wallTime: number;
 };
 
+export type TemplateApplyPerformanceTraceChartTarget = {
+  readonly chartState: "none" | "queued" | "processing" | "ready" | "failed" | "skipped";
+  readonly fileId: string;
+  readonly fileName: string;
+  readonly hasChartData: boolean;
+  readonly index: number;
+  readonly label: string;
+  readonly rowIndex: number;
+  readonly selected: boolean;
+  readonly source: "trace-api";
+};
+
+export type TemplateApplyPerformanceTraceTargetApi = {
+  readonly getChartTargets: () => readonly TemplateApplyPerformanceTraceChartTarget[];
+  readonly getSelectedChartTargetFileId: () => string | null;
+  readonly selectChartTarget: (fileId: string, reveal?: boolean | "force") => string | null;
+  readonly setHoveredChartTarget: (fileId: string | null) => string | null;
+};
+
 type TemplateApplyPerformanceTraceGlobal = {
   enabled: boolean;
   events: TemplateApplyPerformanceTraceEvent[];
   mark: (stage: string, meta?: TemplateApplyPerformanceTraceMeta) => TemplateApplyPerformanceTraceEvent | null;
   reset: () => void;
+  targetApi?: TemplateApplyPerformanceTraceTargetApi;
 };
 
 type TraceGlobalTarget = typeof globalThis & {
@@ -120,6 +140,18 @@ export const markTemplateApplyPerformanceTrace = (
 
 export const resetTemplateApplyPerformanceTrace = (): void => {
   getTraceGlobal().reset();
+};
+
+export const registerTemplateApplyPerformanceTraceTargetApi = (
+  api: TemplateApplyPerformanceTraceTargetApi,
+): (() => void) => {
+  const trace = getTraceGlobal();
+  trace.targetApi = api;
+  return () => {
+    if (trace.targetApi === api) {
+      delete trace.targetApi;
+    }
+  };
 };
 
 const readRendererMemorySnapshot = (): TemplateApplyPerformanceTraceMeta => {

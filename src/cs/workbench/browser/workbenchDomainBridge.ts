@@ -17,6 +17,8 @@ import {
   resolveExplorerSelectedFileId,
   toExplorerBadgeLabel,
   type ExplorerFileEntry,
+  buildExplorerTree,
+  type ExplorerTreeNode,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import { createChartViewInput } from "src/cs/workbench/services/chart/browser/chartViewInput";
@@ -64,6 +66,11 @@ import {
   assessFastImportBadge,
 } from "src/cs/workbench/services/assessment/common/fileAssessment";
 import type { IThumbnailPreviewService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
+import {
+  isTemplateApplyPerformanceTraceEnabled,
+  registerTemplateApplyPerformanceTraceTargetApi,
+  type TemplateApplyPerformanceTraceChartTarget,
+} from "src/cs/workbench/contrib/files/browser/templateApplyPerformanceTrace";
 
 export type WorkbenchDomainBridgeOptions = {
   readonly chartService: IChartService;
@@ -105,6 +112,16 @@ export class WorkbenchDomainBridge extends Disposable {
     this._register(this.options.layoutService.onDidChangeWorkbenchNavigation(() => this.scheduleSync()));
     this._register(this.options.sessionService.onDidChangeSession(() => this.scheduleSync()));
     this._register({ dispose: () => this.cancelScheduledSync?.() });
+    if (isTemplateApplyPerformanceTraceEnabled()) {
+      this._register({
+        dispose: registerTemplateApplyPerformanceTraceTargetApi({
+          getChartTargets: () => this.getPerformanceTraceChartTargets(),
+          getSelectedChartTargetFileId: () => this.getPerformanceTraceSelectedChartTargetFileId(),
+          selectChartTarget: (fileId, reveal = "force") => this.selectPerformanceTraceChartTarget(fileId, reveal),
+          setHoveredChartTarget: fileId => this.setPerformanceTraceHoveredChartTarget(fileId),
+        }),
+      });
+    }
   }
 
   private cancelScheduledSync: (() => void) | null = null;
@@ -357,6 +374,76 @@ export class WorkbenchDomainBridge extends Disposable {
       requestedFileCount: normalizedFileIds.length,
     });
   }
+
+  private getPerformanceTraceChartTargets(): readonly TemplateApplyPerformanceTraceChartTarget[] {
+    const snapshot = this.options.sessionService.getSnapshot();
+    const readModel = createSessionReadModel(snapshot);
+    const currentPaneInput = this.options.explorerService.getPaneInput();
+    const paneInput = currentPaneInput?.mode === "chart"
+      ? currentPaneInput
+      : this.getExplorerPaneInput(snapshot, readModel);
+    const rowIndicesByFileId = createTraceRowIndicesByFileId(
+      paneInput.files,
+      this.options.explorerService.expandedFolderKeys,
+    );
+    const selectedFileId = this.options.explorerService.selectedProcessedFileId ?? paneInput.selectedFileId;
+    return paneInput.files
+      .map((file, index) => {
+        const fileId = String(file.fileId ?? "").trim();
+        if (!fileId) {
+          return null;
+        }
+
+        const hasChartData = file.hasChartData === true || hasFileChartData(snapshot.filesById[fileId]);
+        const chartState = file.chartState ?? (hasChartData ? "ready" : "none");
+        if (!hasTraceChartTargetState(chartState, hasChartData)) {
+          return null;
+        }
+
+        const fileName = String(file.fileName ?? snapshot.filesById[fileId]?.raw.fileName ?? fileId);
+        return {
+          chartState,
+          fileId,
+          fileName,
+          hasChartData,
+          index,
+          label: fileName,
+          rowIndex: rowIndicesByFileId.get(fileId) ?? index,
+          selected: selectedFileId === fileId,
+          source: "trace-api",
+        } satisfies TemplateApplyPerformanceTraceChartTarget;
+      })
+      .filter((target): target is TemplateApplyPerformanceTraceChartTarget => Boolean(target));
+  }
+
+  private selectPerformanceTraceChartTarget(fileId: string, reveal: boolean | "force"): string | null {
+    const normalizedFileId = String(fileId ?? "").trim();
+    if (!normalizedFileId) {
+      return null;
+    }
+
+    const targets = this.getPerformanceTraceChartTargets();
+    return this.options.explorerService.select({
+      candidateFileIds: targets.map(target => target.fileId),
+      fileId: normalizedFileId,
+      kind: "chart",
+    }, reveal);
+  }
+
+  private getPerformanceTraceSelectedChartTargetFileId(): string | null {
+    return this.options.explorerService.selectedProcessedFileId;
+  }
+
+  private setPerformanceTraceHoveredChartTarget(fileId: string | null): string | null {
+    const normalizedFileId = String(fileId ?? "").trim();
+    if (!normalizedFileId) {
+      this.options.explorerService.setHoveredFileId(null);
+      return null;
+    }
+
+    this.options.explorerService.setHoveredFileId(normalizedFileId);
+    return normalizedFileId;
+  }
 }
 
 const createActiveChartFileOptions = (
@@ -376,6 +463,49 @@ const createActiveChartFileOptions = (
     fileId: activeFileId,
     fileName: String(file.raw.fileName ?? activeFileId),
   }];
+};
+
+const hasTraceChartTargetState = (
+  chartState: TemplateApplyPerformanceTraceChartTarget["chartState"],
+  hasChartData: boolean,
+): boolean =>
+  hasChartData ||
+  chartState === "queued" ||
+  chartState === "processing" ||
+  chartState === "ready";
+
+const createTraceRowIndicesByFileId = (
+  files: readonly ExplorerFileEntry[],
+  expandedFolderKeys: readonly string[],
+): ReadonlyMap<string, number> => {
+  const rowIndicesByFileId = new Map<string, number>();
+  const expandedFolderKeySet = new Set(expandedFolderKeys);
+  const shouldTreatFoldersAsExpanded = expandedFolderKeySet.size === 0;
+  let rowIndex = 0;
+
+  const visit = (nodes: readonly ExplorerTreeNode<ExplorerFileEntry>[]): void => {
+    for (const node of nodes) {
+      const currentRowIndex = rowIndex;
+      rowIndex += 1;
+      if (node.kind === "file") {
+        const fileId = String(node.entry?.fileId ?? "").trim();
+        if (fileId && !rowIndicesByFileId.has(fileId)) {
+          rowIndicesByFileId.set(fileId, currentRowIndex);
+        }
+        continue;
+      }
+
+      if (
+        node.children?.length &&
+        (shouldTreatFoldersAsExpanded || expandedFolderKeySet.has(node.key))
+      ) {
+        visit(node.children);
+      }
+    }
+  };
+
+  visit(buildExplorerTree(files));
+  return rowIndicesByFileId;
 };
 
 export const shouldPrefetchExplorerThumbnails = ({

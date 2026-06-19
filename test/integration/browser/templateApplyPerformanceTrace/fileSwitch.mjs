@@ -3,8 +3,10 @@ import {
   mergeThumbnailHoverTargets,
   scrollThumbnailHoverTargetIntoView,
   waitForCollectedThumbnailHoverTargets,
-  waitForVisibleThumbnailHoverTargets,
 } from "./thumbnailHover.mjs";
+import {
+  dispatchTraceChartTargetSelect,
+} from "./targets.mjs";
 
 export const inspectMainChartState = async (page) => page.evaluate(() => {
   const readCanvasSnapshot = (canvas) => {
@@ -56,6 +58,8 @@ export const inspectMainChartState = async (page) => page.evaluate(() => {
   };
 
   const selected = document.querySelector(".file-list-item[data-selected=\"true\"][data-file-id]");
+  const traceSelectedFileId = window.__conductorTemplateApplyPerformanceTrace?.targetApi
+    ?.getSelectedChartTargetFileId?.() ?? null;
   const canvas = document.querySelector(".plot_main_chart_canvas");
   const emptyTitle = document.querySelector(".chart_view_empty_title");
   const chartView = document.querySelector(".chart_view[data-chart-display-state]");
@@ -67,7 +71,7 @@ export const inspectMainChartState = async (page) => page.evaluate(() => {
     chartPendingFileId: chartView instanceof HTMLElement ? chartView.dataset.pendingFileId ?? null : null,
     chartPendingPlotType: chartView instanceof HTMLElement ? chartView.dataset.pendingPlotType ?? null : null,
     selectedChartState: selected instanceof HTMLElement ? selected.dataset.chartState ?? null : null,
-    selectedFileId: selected instanceof HTMLElement ? selected.dataset.fileId ?? null : null,
+    selectedFileId: selected instanceof HTMLElement ? selected.dataset.fileId ?? null : traceSelectedFileId,
     selectedHasChartData: selected instanceof HTMLElement ? selected.dataset.hasChartData === "true" : null,
   };
 });
@@ -95,10 +99,14 @@ export const dispatchSyntheticFileSelect = async (page, fileId) => page.evaluate
   return true;
 }, fileId);
 
-export const dispatchSyntheticFileSelectTarget = async (page, target) => {
+export const dispatchSyntheticFileSelectTarget = async (page, target, reveal = "force") => {
   const fileId = typeof target === "string" ? target : target?.fileId;
   if (!fileId) {
     return false;
+  }
+  const traceDispatch = await dispatchTraceChartTargetSelect(page, fileId, reveal);
+  if (traceDispatch) {
+    return true;
   }
   const visibleDispatch = await dispatchSyntheticFileSelect(page, fileId).catch(() => false);
   if (visibleDispatch) {
@@ -111,7 +119,11 @@ export const dispatchSyntheticFileSelectTarget = async (page, target) => {
 export const waitForSelectedFile = async (page, fileId, timeoutMs) => page.waitForFunction(
   (targetFileId) => {
     const selected = document.querySelector(".file-list-item[data-selected=\"true\"][data-file-id]");
-    return selected instanceof HTMLElement && selected.dataset.fileId === targetFileId;
+    const traceSelectedFileId = window.__conductorTemplateApplyPerformanceTrace?.targetApi
+      ?.getSelectedChartTargetFileId?.() ?? null;
+    return (
+      selected instanceof HTMLElement && selected.dataset.fileId === targetFileId
+    ) || traceSelectedFileId === targetFileId;
   },
   fileId,
   { timeout: Math.min(timeoutMs, 5000) },
@@ -120,8 +132,13 @@ export const waitForSelectedFile = async (page, fileId, timeoutMs) => page.waitF
 export const waitForMainChartCanvas = async (page, fileId, timeoutMs) => page.waitForFunction(
   (targetFileId) => {
     const selected = document.querySelector(".file-list-item[data-selected=\"true\"][data-file-id]");
-    return selected instanceof HTMLElement &&
-      selected.dataset.fileId === targetFileId &&
+    const traceSelectedFileId = window.__conductorTemplateApplyPerformanceTrace?.targetApi
+      ?.getSelectedChartTargetFileId?.() ?? null;
+    return (
+      selected instanceof HTMLElement &&
+        selected.dataset.fileId === targetFileId ||
+      traceSelectedFileId === targetFileId
+    ) &&
       Boolean(document.querySelector(".plot_main_chart_canvas"));
   },
   fileId,
@@ -131,7 +148,12 @@ export const waitForMainChartCanvas = async (page, fileId, timeoutMs) => page.wa
 export const waitForMainChartDrawn = async (page, fileId, previousCanvasSignature, timeoutMs) => page.waitForFunction(
   ({ targetFileId, previousSignature }) => {
     const selected = document.querySelector(".file-list-item[data-selected=\"true\"][data-file-id]");
-    if (!(selected instanceof HTMLElement) || selected.dataset.fileId !== targetFileId) {
+    const traceSelectedFileId = window.__conductorTemplateApplyPerformanceTrace?.targetApi
+      ?.getSelectedChartTargetFileId?.() ?? null;
+    if (
+      !(selected instanceof HTMLElement && selected.dataset.fileId === targetFileId) &&
+      traceSelectedFileId !== targetFileId
+    ) {
       return false;
     }
 
@@ -244,8 +266,13 @@ export const installFileSwitchLiveObserver = async (page) => page.evaluate(() =>
     };
   };
 
+  const readTraceSelectedFileId = () =>
+    globalTarget.__conductorTemplateApplyPerformanceTrace?.targetApi
+      ?.getSelectedChartTargetFileId?.() ?? null;
+
   const readState = (reason, { samplePixels = true } = {}) => {
     const selected = document.querySelector(".file-list-item[data-selected=\"true\"][data-file-id]");
+    const traceSelectedFileId = readTraceSelectedFileId();
     const canvas = document.querySelector(".plot_main_chart_canvas");
     const emptyTitle = document.querySelector(".chart_view_empty_title");
     const chartView = document.querySelector(".chart_view[data-chart-display-state]");
@@ -259,7 +286,7 @@ export const installFileSwitchLiveObserver = async (page) => page.evaluate(() =>
       chartPendingPlotType: chartView instanceof HTMLElement ? chartView.dataset.pendingPlotType ?? null : null,
       reason,
       selectedChartState: selected instanceof HTMLElement ? selected.dataset.chartState ?? null : null,
-      selectedFileId: selected instanceof HTMLElement ? selected.dataset.fileId ?? null : null,
+      selectedFileId: selected instanceof HTMLElement ? selected.dataset.fileId ?? null : traceSelectedFileId,
       selectedHasChartData: selected instanceof HTMLElement ? selected.dataset.hasChartData === "true" : null,
       timestamp: traceTime.timestamp,
       wallTime: traceTime.wallTime,
@@ -432,7 +459,7 @@ export const runLiveFileSwitchStress = async ({
   timeoutMs,
 }) => {
   let targets = orderSwitchTargets(
-    await waitForVisibleThumbnailHoverTargets(page, count + 1, Math.min(timeoutMs, 5000)),
+    await waitForCollectedThumbnailHoverTargets(page, count + 1, Math.min(timeoutMs, 5000), 750),
     count,
   );
   if (!targets.length) {

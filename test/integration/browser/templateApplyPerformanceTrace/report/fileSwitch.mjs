@@ -1,4 +1,5 @@
 import {
+  countBy,
   readNumber,
   roundMetric,
   summarizeDurations,
@@ -109,6 +110,7 @@ export const summarizeFileSwitchStress = (result) => {
     selectedCount: samples.filter(sample => sample.selectedMs != null).length,
     selectedMs: summarizeDurations(samples.map(sample => sample.selectedMs)),
     targetCount: result.targetCount,
+    targetSourceCounts: countBy(samples.map(sample => sample.source ?? "dom")),
   };
 };
 
@@ -196,6 +198,7 @@ export const summarizeFileSwitchLiveStress = (result, phaseAnchors = [], perfRep
     settleSelectedMs: readNumber(settleSample?.selectedMs),
     settleState: settleSample?.afterState ?? null,
     targetCount: result.targetCount,
+    targetSourceCounts: countBy((result.targets ?? []).map(target => target.source ?? "dom")),
     ...targetSampleSummary,
     targetPlotMainDrawnMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotMainDrawn"),
     targetPlotChartCachedMs: summarizeTargetPerfMilestoneOffset(targetPerfMilestones, "plotChartCached"),

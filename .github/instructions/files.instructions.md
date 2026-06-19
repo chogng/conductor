@@ -240,6 +240,11 @@ do not trade first/all badge latency for oversized Rust responses.
 Import and template-apply performance changes should be verified with
 `test:template-apply-performance-trace`. Run at least 200 files for desktop and
 browser, and include `--profile=mixed` when touching health/failure handling.
+Use the 260 chart-target cache-lifecycle scenario when validating plot display
+cache retention or eviction behavior. The `conductorTemplateApplyPerformanceTrace`
+global may expose trace-only chart target APIs so the runner can read session
+targets and dispatch Explorer-owned chart selection without depending on
+virtualized DOM discovery; do not use that API as a product command surface.
 The reports under `.build/bench/template-apply-performance-trace/` are the
 source of truth for first/half/all badge time, prepare completion, backend
 invoke, Rust p50/p95, materialize, append, long task, RSS, JS heap, apply

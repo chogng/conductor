@@ -1,4 +1,10 @@
 import { readThumbnailHoverDomState } from "./apply.mjs";
+import {
+  clearTraceChartTargetHoverIntent,
+  dispatchTraceChartTargetHoverIntent,
+  readTraceChartTargets,
+  waitForTraceChartTargets,
+} from "./targets.mjs";
 
 const THUMBNAIL_HOVER_LIST_WHEEL_DELTA_Y = 420;
 
@@ -42,6 +48,10 @@ export const collectThumbnailHoverTargets = async (page, count, timeoutMs = 5000
     }
     return grew;
   };
+  rememberTargets(await readTraceChartTargets(page, count));
+  if (targetsByFileId.size >= count) {
+    return [...targetsByFileId.values()].slice(0, count);
+  }
 
   await page.evaluate(() => {
     const viewport = document.querySelector(".file-list-tree .ui-list__viewport") ??
@@ -197,12 +207,24 @@ export const waitForCollectedThumbnailHoverTargets = async (
 ) => {
   const startedAt = Date.now();
   let lastGrowthAt = startedAt;
-  let bestTargets = [];
+  let bestTargets = await waitForTraceChartTargets(
+    page,
+    count,
+    Math.min(timeoutMs, 1500),
+    250,
+  );
+  if (bestTargets.length > 0) {
+    lastGrowthAt = Date.now();
+  }
+  if (bestTargets.length >= count) {
+    return bestTargets.slice(0, count);
+  }
   while (Date.now() - startedAt < timeoutMs) {
     const remainingMs = Math.max(100, timeoutMs - (Date.now() - startedAt));
     const targets = await collectThumbnailHoverTargets(page, count, Math.min(1000, remainingMs));
-    if (targets.length > bestTargets.length) {
-      bestTargets = targets;
+    const mergedTargets = mergeThumbnailHoverTargets(bestTargets, targets);
+    if (mergedTargets.length > bestTargets.length) {
+      bestTargets = mergedTargets;
       lastGrowthAt = Date.now();
     }
     if (bestTargets.length >= count || Date.now() - lastGrowthAt >= settleMs) {
@@ -357,6 +379,7 @@ export const dispatchSyntheticFileHoverTarget = async (page, target, previousFil
   if (!fileId) {
     return false;
   }
+  await dispatchTraceChartTargetHoverIntent(page, fileId);
   const visibleDispatch = await dispatchSyntheticFileHover(page, fileId, previousFileId).catch(() => false);
   if (visibleDispatch) {
     return true;
@@ -378,7 +401,7 @@ export const dispatchSyntheticFileMouseOut = async (page, fileId) => page.evalua
     relatedTarget: document.body,
   }));
   return true;
-}, fileId);
+}, fileId).finally(() => clearTraceChartTargetHoverIntent(page));
 
 
 export const installThumbnailHoverLiveObserver = async (page, watchedFileId) => page.evaluate((targetFileId) => {
@@ -686,7 +709,7 @@ export const runLiveThumbnailHoverStress = async ({
   timeoutMs,
   watchOnly = false,
 }) => {
-  let targets = await waitForVisibleThumbnailHoverTargets(page, count, Math.min(timeoutMs, 5000));
+  let targets = await waitForCollectedThumbnailHoverTargets(page, count, Math.min(timeoutMs, 5000), 750);
   const watchedTarget = targets[0] ?? null;
   if (!watchedTarget) {
     return {

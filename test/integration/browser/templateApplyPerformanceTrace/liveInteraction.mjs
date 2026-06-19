@@ -15,7 +15,7 @@ import {
   readVisibleThumbnailHoverTargets,
   scrollThumbnailHoverListByWheel,
   stopThumbnailHoverLiveObserver,
-  waitForVisibleThumbnailHoverTargets,
+  waitForCollectedThumbnailHoverTargets,
 } from "./thumbnailHover.mjs";
 
 const LIVE_INTERACTION_SCROLL_DELTA_Y = 420;
@@ -32,10 +32,11 @@ export const runCoordinatedLiveInteractionStress = async ({
   timeoutMs,
 }) => {
   const requestedTargetCount = Math.max(thumbnailHoverCount, fileSwitchCount);
-  let targets = orderPendingInteractionTargets(await waitForVisibleThumbnailHoverTargets(
+  let targets = orderPendingInteractionTargets(await waitForCollectedThumbnailHoverTargets(
     page,
     requestedTargetCount,
     Math.min(timeoutMs, 5000),
+    750,
   ));
   const watchedTarget = targets[0] ?? null;
   if (!watchedTarget) {
@@ -54,70 +55,35 @@ export const runCoordinatedLiveInteractionStress = async ({
 
   const startedAt = Date.now();
   const liveMs = Math.max(thumbnailHoverLiveMs, fileSwitchLiveMs);
-  const intervalMs = Math.max(1, Math.min(thumbnailHoverIntervalMs, fileSwitchIntervalMs));
-  const attemptedFileIds = new Set();
-  let hoverEventCount = 0;
-  let switchEventCount = 0;
-  let targetCursor = 0;
-  let previousHoverFileId = null;
-  let lastSwitchStartedAt = null;
-  let lastSwitchTarget = null;
   const liveDeadlineAt = startedAt + liveMs;
-
-  while (Date.now() < liveDeadlineAt) {
-    const target = await resolveNextCoordinatedTarget({
-      attemptedFileIds,
+  const [hoverLane, switchLane] = await Promise.all([
+    runCoordinatedThumbnailHoverLane({
       count: requestedTargetCount,
+      intervalMs: thumbnailHoverIntervalMs,
+      liveDeadlineAt,
+      liveMs: thumbnailHoverLiveMs,
       page,
+      previousTargets: targets,
+      startedAt,
+      watchedTarget,
+    }),
+    runCoordinatedFileSwitchLane({
+      count: fileSwitchCount,
+      intervalMs: fileSwitchIntervalMs,
+      liveDeadlineAt,
+      liveMs: fileSwitchLiveMs,
+      page,
+      startedAt,
       targets,
-      targetCursor,
-    });
-    targets = target.targets;
-    targetCursor = target.targetCursor;
-    if (!target.value) {
-      break;
-    }
-    if (Date.now() >= liveDeadlineAt) {
-      break;
-    }
-
-    attemptedFileIds.add(target.value.fileId);
-    const elapsedMs = Date.now() - startedAt;
-    if (elapsedMs < thumbnailHoverLiveMs) {
-      const dispatched = await dispatchSyntheticFileHoverTarget(
-        page,
-        target.value,
-        previousHoverFileId,
-      );
-      if (dispatched) {
-        previousHoverFileId = target.value.fileId;
-      }
-      hoverEventCount += 1;
-    }
-
-    if (Date.now() - startedAt < fileSwitchLiveMs) {
-      lastSwitchStartedAt = Date.now();
-      lastSwitchTarget = target.value;
-      await dispatchSyntheticFileSelectTarget(page, target.value);
-      switchEventCount += 1;
-    }
-
-    const remainingMs = liveDeadlineAt - Date.now();
-    if (remainingMs > 0) {
-      await page.waitForTimeout(Math.min(intervalMs, remainingMs));
-    }
-  }
-
-  if (watchedTarget.fileId !== previousHoverFileId) {
-    await dispatchSyntheticFileHoverTarget(page, watchedTarget, previousHoverFileId).catch(() => false);
-    await page.waitForTimeout(Math.max(50, thumbnailHoverIntervalMs * 2));
-  }
+    }),
+  ]);
+  targets = orderPendingInteractionTargets(mergeThumbnailHoverTargets(targets, hoverLane.targets));
 
   const settleSample = await settleLastFileSwitch({
     beforeState: null,
     page,
-    switchStartedAt: lastSwitchStartedAt,
-    target: lastSwitchTarget,
+    switchStartedAt: switchLane.lastSwitchStartedAt,
+    target: switchLane.lastSwitchTarget,
     timeoutMs,
   });
   const durationMs = Date.now() - startedAt;
@@ -127,7 +93,7 @@ export const runCoordinatedLiveInteractionStress = async ({
   return {
     fileSwitchLive: {
       durationMs,
-      eventCount: switchEventCount,
+      eventCount: switchLane.eventCount,
       intervalMs: fileSwitchIntervalMs,
       liveMs: fileSwitchLiveMs,
       requestedCount: fileSwitchCount,
@@ -138,7 +104,7 @@ export const runCoordinatedLiveInteractionStress = async ({
     },
     thumbnailHoverLive: {
       durationMs,
-      eventCount: hoverEventCount,
+      eventCount: hoverLane.eventCount,
       intervalMs: thumbnailHoverIntervalMs,
       liveMs: thumbnailHoverLiveMs,
       requestedCount: thumbnailHoverCount,
@@ -148,6 +114,113 @@ export const runCoordinatedLiveInteractionStress = async ({
       watchOnly: false,
       watchedTarget,
     },
+  };
+};
+
+const runCoordinatedThumbnailHoverLane = async ({
+  count,
+  intervalMs,
+  liveDeadlineAt,
+  liveMs,
+  page,
+  previousTargets,
+  startedAt,
+  watchedTarget,
+}) => {
+  const attemptedFileIds = new Set();
+  let targets = previousTargets;
+  let eventCount = 0;
+  let targetCursor = 0;
+  let previousHoverFileId = null;
+  while (Date.now() < liveDeadlineAt && Date.now() - startedAt < liveMs) {
+    const target = await resolveNextCoordinatedTarget({
+      attemptedFileIds,
+      count,
+      page,
+      targets,
+      targetCursor,
+    });
+    targets = target.targets;
+    targetCursor = target.targetCursor;
+    if (!target.value) {
+      break;
+    }
+    if (Date.now() >= liveDeadlineAt || Date.now() - startedAt >= liveMs) {
+      break;
+    }
+
+    attemptedFileIds.add(target.value.fileId);
+    const dispatched = await dispatchSyntheticFileHoverTarget(
+      page,
+      target.value,
+      previousHoverFileId,
+    );
+    if (dispatched) {
+      previousHoverFileId = target.value.fileId;
+    }
+    eventCount += 1;
+
+    const remainingMs = Math.min(
+      liveDeadlineAt - Date.now(),
+      startedAt + liveMs - Date.now(),
+    );
+    if (remainingMs > 0) {
+      await page.waitForTimeout(Math.min(intervalMs, remainingMs));
+    }
+  }
+
+  if (watchedTarget.fileId !== previousHoverFileId) {
+    await dispatchSyntheticFileHoverTarget(page, watchedTarget, previousHoverFileId).catch(() => false);
+    await page.waitForTimeout(Math.max(50, intervalMs * 2));
+  }
+
+  return {
+    eventCount,
+    targets,
+  };
+};
+
+const runCoordinatedFileSwitchLane = async ({
+  count,
+  intervalMs,
+  liveDeadlineAt,
+  liveMs,
+  page,
+  startedAt,
+  targets,
+}) => {
+  const switchTargets = orderPendingInteractionTargets(targets).slice(0, count);
+  let eventCount = 0;
+  let lastSwitchStartedAt = null;
+  let lastSwitchTarget = null;
+  while (
+    switchTargets.length > 0 &&
+    Date.now() < liveDeadlineAt &&
+    Date.now() - startedAt < liveMs
+  ) {
+    const target = switchTargets[eventCount % switchTargets.length];
+    if (!target) {
+      break;
+    }
+
+    lastSwitchStartedAt = Date.now();
+    lastSwitchTarget = target;
+    await dispatchSyntheticFileSelectTarget(page, target);
+    eventCount += 1;
+
+    const remainingMs = Math.min(
+      liveDeadlineAt - Date.now(),
+      startedAt + liveMs - Date.now(),
+    );
+    if (remainingMs > 0) {
+      await page.waitForTimeout(Math.min(intervalMs, remainingMs));
+    }
+  }
+
+  return {
+    eventCount,
+    lastSwitchStartedAt,
+    lastSwitchTarget,
   };
 };
 
