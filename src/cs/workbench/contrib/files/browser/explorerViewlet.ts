@@ -47,7 +47,9 @@ import {
   mergeExplorerSourceEntries,
   resolveExplorerSelectionAfterRemoval,
   resolveExplorerSelectedFileId,
+  summarizeExplorerBadgeProjection,
   toExplorerBadgeLabel,
+  type ExplorerBadgeProjectionSummary,
   type ExplorerFileEntry,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { TOGGLE_THUMBNAIL_VIEW_ACTION_ID } from "src/cs/workbench/contrib/thumbnail/common/thumbnail";
@@ -97,6 +99,7 @@ export class ExplorerViewPane extends ViewPane {
     readonly replaceSourceKeys: readonly string[] | null;
   } | null = null;
   private lastBadgeProjectionFiles: readonly ExplorerFileEntry[] | null = null;
+  private lastBadgeProjectionSignature: string | null = null;
   private isDragging = false;
   private disposed = false;
   private templateLoadRunId = 0;
@@ -370,7 +373,17 @@ export class ExplorerViewPane extends ViewPane {
     }
 
     this.lastBadgeProjectionFiles = files;
-    markExplorerBadgeProjection(files);
+    const summary = summarizeExplorerBadgeProjection(files);
+    if (!summary.totalFileCount) {
+      this.lastBadgeProjectionSignature = null;
+      return;
+    }
+    if (this.lastBadgeProjectionSignature === summary.signature) {
+      return;
+    }
+
+    this.lastBadgeProjectionSignature = summary.signature;
+    markExplorerBadgeProjection(summary);
   }
 
   private readonly handleCancelRenameFile = (): void => {
@@ -923,42 +936,19 @@ export class ExplorerViewPane extends ViewPane {
 }
 
 const markExplorerBadgeProjection = (
-  files: readonly ExplorerFileEntry[],
+  summary: ExplorerBadgeProjectionSummary,
 ): void => {
-  if (!files.length) {
+  if (!summary.totalFileCount) {
     return;
   }
 
-  let assessmentBadgeCount = 0;
-  let fastBadgeCount = 0;
-  let pendingBadgeCount = 0;
-  let loadingSourceCount = 0;
-  let failedSourceCount = 0;
-  for (const file of files) {
-    if (file.badgeState?.kind === "ready" || file.badgeState?.kind === "unknown") {
-      if (file.badgeState.source === "assessment") {
-        assessmentBadgeCount += 1;
-      } else if (file.badgeState.source === "fast") {
-        fastBadgeCount += 1;
-      }
-    } else if (file.badgeState?.kind === "pending") {
-      pendingBadgeCount += 1;
-    }
-
-    if (file.sourceStatus === "pending" || file.sourceStatus === "preparing") {
-      loadingSourceCount += 1;
-    } else if (file.sourceStatus === "failed") {
-      failedSourceCount += 1;
-    }
-  }
-
   markTemplateApplyPerformanceTrace("import.badge.projection", {
-    assessmentBadgeCount,
-    failedSourceCount,
-    fastBadgeCount,
-    loadingSourceCount,
-    pendingBadgeCount,
-    totalFileCount: files.length,
+    assessmentBadgeCount: summary.assessmentBadgeCount,
+    failedSourceCount: summary.failedSourceCount,
+    fastBadgeCount: summary.fastBadgeCount,
+    loadingSourceCount: summary.loadingSourceCount,
+    pendingBadgeCount: summary.pendingBadgeCount,
+    totalFileCount: summary.totalFileCount,
   });
 };
 

@@ -13,6 +13,7 @@ import {
   createRawExplorerFiles,
   getExplorerTreeFileKey,
   mergeExplorerSourceEntries,
+  summarizeExplorerBadgeProjection,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -41,6 +42,98 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     assert.equal(buildExplorerTree([itemKeyEntry])[0]?.children?.[0]?.key, "source-item");
     assert.equal(getExplorerTreeFileKey(fallbackEntry), "file:batch/raw.csv");
     assert.equal(buildExplorerTree([fallbackEntry])[0]?.children?.[0]?.key, "file:batch/raw.csv");
+  });
+
+  test("summarizeExplorerBadgeProjection ignores chart-only metadata", () => {
+    const tableSummary = summarizeExplorerBadgeProjection([
+      {
+        badgeState: {
+          confidence: "confirmed",
+          kind: "ready",
+          label: "transfer",
+          source: "assessment",
+        },
+        fileId: "file-a",
+        fileName: "A.csv",
+      },
+      {
+        badgeState: {
+          kind: "unknown",
+          source: "assessment",
+        },
+        fileId: "file-b",
+        fileName: "B.csv",
+      },
+    ]);
+    const chartSummary = summarizeExplorerBadgeProjection([
+      {
+        badgeState: {
+          confidence: "confirmed",
+          kind: "ready",
+          label: "transfer",
+          source: "assessment",
+        },
+        chartMessage: "Ready",
+        chartState: "ready",
+        fileId: "file-a",
+        fileName: "Processed A.csv",
+        hasChartData: true,
+      },
+      {
+        badgeState: {
+          kind: "unknown",
+          source: "assessment",
+        },
+        chartState: "none",
+        fileId: "file-b",
+        fileName: "Processed B.csv",
+        hasChartData: false,
+      },
+    ]);
+
+    assert.equal(tableSummary.signature, chartSummary.signature);
+    assert.deepEqual(
+      {
+        assessmentBadgeCount: tableSummary.assessmentBadgeCount,
+        failedSourceCount: tableSummary.failedSourceCount,
+        fastBadgeCount: tableSummary.fastBadgeCount,
+        loadingSourceCount: tableSummary.loadingSourceCount,
+        pendingBadgeCount: tableSummary.pendingBadgeCount,
+        totalFileCount: tableSummary.totalFileCount,
+      },
+      {
+        assessmentBadgeCount: chartSummary.assessmentBadgeCount,
+        failedSourceCount: chartSummary.failedSourceCount,
+        fastBadgeCount: chartSummary.fastBadgeCount,
+        loadingSourceCount: chartSummary.loadingSourceCount,
+        pendingBadgeCount: chartSummary.pendingBadgeCount,
+        totalFileCount: chartSummary.totalFileCount,
+      },
+    );
+
+    const skippedSummary = summarizeExplorerBadgeProjection([
+      {
+        badgeState: {
+          confidence: "confirmed",
+          kind: "ready",
+          label: "transfer",
+          source: "assessment",
+        },
+        fileId: "file-a",
+        fileName: "A.csv",
+      },
+      {
+        badgeState: {
+          kind: "error",
+          message: "Skipped",
+        },
+        chartState: "skipped",
+        fileId: "file-b",
+        fileName: "B.csv",
+      },
+    ]);
+    assert.notEqual(tableSummary.signature, skippedSummary.signature);
+    assert.equal(skippedSummary.assessmentBadgeCount, 1);
   });
 
   test("createRawExplorerFiles projects consumed assessment labels", () => {

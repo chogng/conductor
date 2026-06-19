@@ -15,7 +15,7 @@ import type {
 suite("workbench/contrib/files/test/browser/explorerService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("stores table and chart selections independently", () => {
+  test("shares explorer selection between table and chart", () => {
     const service = store.add(new ExplorerService());
     const events: ExplorerSelectionChangeEvent[] = [];
     const disposable = store.add(service.onDidChangeSelection(event => {
@@ -25,7 +25,7 @@ suite("workbench/contrib/files/test/browser/explorerService", () => {
     service.select({ kind: "table", fileId: " table-a " });
     service.select({ kind: "chart", fileId: "chart-a" });
 
-    assert.equal(service.selectedRawFileId, "table-a");
+    assert.equal(service.selectedRawFileId, "chart-a");
     assert.equal(service.selectedProcessedFileId, "chart-a");
     assert.deepEqual(events, [
       { kind: "table", selectedFileId: "table-a" },

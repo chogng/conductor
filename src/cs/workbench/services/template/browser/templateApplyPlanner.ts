@@ -31,6 +31,7 @@ export type TemplateProcessingPlan = {
 export type TemplateProcessingPlanMode = "auto" | "manual" | "rule";
 
 export type TemplateProcessingPlanOptions = {
+	readonly allowAssessmentGatedFiles?: boolean;
 	readonly canProcessFile?: boolean;
 	readonly canReadConvertedCsv?: boolean;
 	readonly mode?: TemplateProcessingPlanMode;
@@ -56,7 +57,6 @@ export function buildTemplateProcessingPlan(
 	const queue: ProcessingQueueItem[] = [];
 	const skippedFiles: TemplateProcessingSkippedFile[] = [];
 	const queuedIds = new Set<string>();
-	const mode = options.mode ?? "auto";
 
 	for (const entry of Array.isArray(rawFiles) ? rawFiles : []) {
 		const fileId = String(entry?.fileId ?? "").trim();
@@ -88,7 +88,7 @@ export function buildTemplateProcessingPlan(
 		}
 
 		const assessment = createTemplateProcessingAssessment(entry);
-		if (mode === "auto") {
+		if (!options.allowAssessmentGatedFiles) {
 			const skipReason = getTemplateProcessingSkipReason(assessment);
 			if (skipReason) {
 				skippedFiles.push({

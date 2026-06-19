@@ -39,8 +39,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
   private readonly onDidChangePaneInputEmitter = this._register(new Emitter<void>());
   public readonly onDidChangePaneInput = this.onDidChangePaneInputEmitter.event;
 
-  private currentRawFileId: string | null = null;
-  private currentProcessedFileId: string | null = null;
+  private currentSelectedFileId: string | null = null;
   private currentHoveredFileId: string | null = null;
   private currentExpandedFolderKeys: readonly string[] = [];
   private knownFolderKeys: readonly string[] = [];
@@ -57,7 +56,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
   };
 
   public get selectedRawFileId(): string | null {
-    return this.getSelectedFileId("table");
+    return this.currentSelectedFileId;
   }
 
   public get hasPendingSourceFiles(): boolean {
@@ -65,7 +64,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
   }
 
   public get selectedProcessedFileId(): string | null {
-    return this.getSelectedFileId("chart");
+    return this.currentSelectedFileId;
   }
 
   public get hoveredFileId(): string | null {
@@ -247,12 +246,12 @@ export class ExplorerService extends Disposable implements IExplorerService {
         return {
           accepted: false,
           changed: false,
-          selectedFileId: this.getSelectedFileId(target.kind),
+          selectedFileId: this.getSelectedFileId(),
         };
       }
     }
 
-    const result = this.setSelectedFileId(target.kind, nextFileId);
+    const result = this.setSelectedFileId(nextFileId);
     this.fireSelectionChange(target.kind, result);
     return {
       accepted: true,
@@ -261,18 +260,16 @@ export class ExplorerService extends Disposable implements IExplorerService {
     };
   }
 
-  private getSelectedFileId(kind: ExplorerSelectionKind): string | null {
-    return kind === "table"
-      ? this.currentRawFileId
-      : this.currentProcessedFileId;
+  private getSelectedFileId(): string | null {
+    return this.currentSelectedFileId;
   }
 
-  private setSelectedFileId(kind: ExplorerSelectionKind, fileId: string | null): {
+  private setSelectedFileId(fileId: string | null): {
     readonly changed: boolean;
     readonly selectedFileId: string | null;
   } {
     const nextFileId = normalizeExplorerFileId(fileId);
-    const currentFileId = this.getSelectedFileId(kind);
+    const currentFileId = this.getSelectedFileId();
     if (currentFileId === nextFileId) {
       return {
         changed: false,
@@ -280,11 +277,7 @@ export class ExplorerService extends Disposable implements IExplorerService {
       };
     }
 
-    if (kind === "table") {
-      this.currentRawFileId = nextFileId;
-    } else {
-      this.currentProcessedFileId = nextFileId;
-    }
+    this.currentSelectedFileId = nextFileId;
 
     return {
       changed: true,

@@ -122,7 +122,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     });
 
     assert.equal(input.selectionKind, "chart");
-    assert.equal(input.selectedFileId, "file-a");
+    assert.equal(input.selectedFileId, null);
     assert.deepEqual(input.files.map(file => file.fileId), ["file-a", "raw-only"]);
     assert.deepEqual(input.thumbnailFiles.map(file => file.fileId), ["file-a"]);
     assert.equal(input.thumbnailPlotModelsByFileId, undefined);
@@ -262,6 +262,11 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     const readModel = createSessionReadModel(snapshot);
     const explorerService = store.add(new ExplorerService());
     explorerService.setViewLayout("thumbnail");
+    explorerService.select({
+      candidateFileIds: ["file-a", "raw-only"],
+      fileId: "file-a",
+      kind: "table",
+    });
 
     const input = createExplorerPaneInput({
       activePlotType: "iv",
@@ -289,7 +294,66 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.equal(input.originOpenPlotOptions, DEFAULT_ORIGIN_PLOT_OPTIONS);
     assert.deepEqual(input.plotAxisSettings, { x: { show: true } });
 
-    assert.equal(explorerService.selectedProcessedFileId, null);
+    assert.equal(explorerService.selectedProcessedFileId, "file-a");
+  });
+
+  test("does not invent thumbnail selection outside the shared explorer selection", () => {
+    const session = store.add(new SessionService());
+    commitRawFilesForTest(session, [
+      {
+        fileId: "file-a",
+        fileName: "Processed A.csv",
+        rowCount: 2,
+        columnCount: 2,
+      },
+      {
+        fileId: "raw-only",
+        fileName: "Raw Only.csv",
+        rowCount: 2,
+        columnCount: 2,
+      },
+    ]);
+    commitTemplateOutputForTest(session, {
+      curveType: "transfer",
+      fileId: "file-a",
+      fileName: "Processed A.csv",
+      series: [{
+        groupIndex: 0,
+        id: "series-a",
+        y: [1, 2],
+      }],
+      xGroups: [[0, 1]],
+    });
+    const snapshot = session.getSnapshot();
+    const readModel = createSessionReadModel(snapshot);
+    const explorerService = store.add(new ExplorerService());
+    explorerService.setViewLayout("thumbnail");
+    explorerService.select({
+      candidateFileIds: ["file-a", "raw-only"],
+      fileId: "raw-only",
+      kind: "table",
+    });
+
+    const input = createExplorerPaneInput({
+      activePlotType: "iv",
+      explorerService,
+      mode: "chart",
+      plotService: createPlotService(),
+      readModel,
+      snapshot,
+      templateState: {
+        formState: createEmptyTemplateConfig(),
+        mode: "management",
+        selectedTemplateId: null,
+        selectionsByFileId: {},
+        templateListVersion: 0,
+      },
+    });
+
+    assert.equal(input.selectedFileId, null);
+    assert.deepEqual(input.files.map(file => file.fileId), ["file-a"]);
+    assert.equal(explorerService.selectedRawFileId, "raw-only");
+    assert.equal(explorerService.selectedProcessedFileId, "raw-only");
   });
 
   test("projects fast badge estimates before full assessment is ready", () => {

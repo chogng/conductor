@@ -178,7 +178,7 @@ suite("workbench/services/template/test/browser/templateApplyPlanner", () => {
 		);
 	});
 
-	test("buildTemplateProcessingPlan allows assessment-gated files for manual and rule modes", () => {
+	test("buildTemplateProcessingPlan skips assessment-gated files for manual and rule modes by default", () => {
 		const files: SessionFile[] = [
 			{
 				...createProcessableAssessment({
@@ -222,23 +222,92 @@ suite("workbench/services/template/test/browser/templateApplyPlanner", () => {
 
 		for (const mode of ["manual", "rule"] as const) {
 			const plan = buildTemplateProcessingPlan(files, null, { mode });
-			assert.deepEqual(plan.queue.map(entry => entry.fileId), [
-				"file-needs-template",
-				"file-low-confidence",
-				"file-unknown",
-				"file-missing-assessment",
-			]);
+			assert.deepEqual(plan.queue.map(entry => entry.fileId), []);
 			assert.deepEqual(
 				plan.skippedFiles.map(file => ({
 					fileId: file.fileId,
 					reason: file.reason,
 				})),
-				[{
-					fileId: "file-invalid",
-					reason: "invalidSource",
-				}],
+				[
+					{
+						fileId: "file-needs-template",
+						reason: "needsTemplate",
+					},
+					{
+						fileId: "file-low-confidence",
+						reason: "lowConfidence",
+					},
+					{
+						fileId: "file-unknown",
+						reason: "unknownCurveType",
+					},
+					{
+						fileId: "file-missing-assessment",
+						reason: "missingAssessment",
+					},
+					{
+						fileId: "file-invalid",
+						reason: "invalidSource",
+					},
+				],
 			);
 		}
+	});
+
+	test("buildTemplateProcessingPlan allows explicit assessment-gated overrides", () => {
+		const files: SessionFile[] = [
+			{
+				...createProcessableAssessment({
+					curveTypeNeedsTemplate: true,
+				}),
+				file: {},
+				fileId: "file-needs-template",
+				fileName: "Needs Template.csv",
+			},
+			{
+				...createProcessableAssessment({
+					curveType: "unknown",
+					curveTypeConfidence: "medium",
+				}),
+				file: {},
+				fileId: "file-unknown",
+				fileName: "Unknown.csv",
+			},
+			{
+				file: {},
+				fileId: "file-missing-assessment",
+				fileName: "Pending Assessment.csv",
+			},
+			{
+				...createProcessableAssessment(),
+				assessmentHealth: "decodeFailed",
+				file: {},
+				fileId: "file-invalid",
+				fileName: "Invalid.csv",
+				templateEligibility: "notEligible",
+			},
+		];
+
+		const plan = buildTemplateProcessingPlan(files, null, {
+			allowAssessmentGatedFiles: true,
+			mode: "manual",
+		});
+
+		assert.deepEqual(plan.queue.map(entry => entry.fileId), [
+			"file-needs-template",
+			"file-unknown",
+			"file-missing-assessment",
+		]);
+		assert.deepEqual(
+			plan.skippedFiles.map(file => ({
+				fileId: file.fileId,
+				reason: file.reason,
+			})),
+			[{
+				fileId: "file-invalid",
+				reason: "invalidSource",
+			}],
+		);
 	});
 
 	test("buildTemplateProcessingPlan moves the active file to the front", () => {

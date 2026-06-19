@@ -210,6 +210,7 @@ export class WorkbenchDomainBridge extends Disposable {
     const explorerSelection = reconcileExplorerSessionSelection(
       this.options.explorerService,
       readModel,
+      this.options.layoutService.activeWorkbenchMainPart,
     );
     this.options.tableService.open(createRawTableSource(explorerSelection.selectedRawFileId));
 
@@ -461,7 +462,7 @@ export class WorkbenchDomainBridge extends Disposable {
       paneInput.files,
       this.options.explorerService.expandedFolderKeys,
     );
-    const selectedFileId = this.options.explorerService.selectedProcessedFileId ?? paneInput.selectedFileId;
+    const selectedFileId = getExplorerSelectedFileId(this.options.explorerService) ?? paneInput.selectedFileId;
     return paneInput.files
       .map((file, index) => {
         const fileId = String(file.fileId ?? "").trim();
@@ -506,7 +507,7 @@ export class WorkbenchDomainBridge extends Disposable {
   }
 
   private getPerformanceTraceSelectedChartTargetFileId(): string | null {
-    return this.options.explorerService.selectedProcessedFileId;
+    return getExplorerSelectedFileId(this.options.explorerService);
   }
 
   private setPerformanceTraceHoveredChartTarget(fileId: string | null): string | null {
@@ -633,39 +634,32 @@ export const resolveExplorerSessionSelection = (
   readModel: SessionReadModel,
 ): ExplorerSessionSelection => {
   const input = createExplorerSessionSelectionInput(readModel);
+  const selectedFileId = resolveExplorerSelectedFileId(
+    getExplorerSelectedFileId(explorerService),
+    input.rawFileIds,
+  );
   return {
-    selectedProcessedFileId: resolveExplorerSelectedFileId(
-      explorerService.selectedProcessedFileId,
-      input.rawFileIds,
-    ),
-    selectedRawFileId: resolveExplorerSelectedFileId(
-      explorerService.selectedRawFileId,
-      input.rawFileIds,
-    ),
+    selectedProcessedFileId: selectedFileId,
+    selectedRawFileId: selectedFileId,
   };
 };
 
 export const reconcileExplorerSessionSelection = (
   explorerService: IExplorerService,
   readModel: SessionReadModel,
+  kind: ExplorerSelectionKind = "table",
 ): ExplorerSessionSelection => {
   const input = createExplorerSessionSelectionInput(readModel);
-  const selectedProcessedFileId = reconcileExplorerSelectedFileId(
+  const selectedFileId = reconcileExplorerSelectedFileId(
     explorerService,
-    "chart",
-    explorerService.selectedProcessedFileId,
-    input.rawFileIds,
-  );
-  const selectedRawFileId = reconcileExplorerSelectedFileId(
-    explorerService,
-    "table",
-    explorerService.selectedRawFileId,
+    kind,
+    getExplorerSelectedFileId(explorerService),
     input.rawFileIds,
   );
 
   return {
-    selectedProcessedFileId,
-    selectedRawFileId,
+    selectedProcessedFileId: selectedFileId,
+    selectedRawFileId: selectedFileId,
   };
 };
 
@@ -697,10 +691,8 @@ export const createExplorerPaneInput = ({
     });
   const fileIds = getExplorerPaneFileIds(files);
   const selectionFileIds = fileIds;
-  const selectedFileId = resolveExplorerSelectedFileId(
-    selectionKind === "chart"
-      ? explorerService.selectedProcessedFileId
-      : explorerService.selectedRawFileId,
+  const selectedFileId = resolveVisibleExplorerSelectedFileId(
+    getExplorerSelectedFileId(explorerService),
     selectionFileIds,
   );
   const currentTemplate = createCurrentTemplateSelectionDisplay({
@@ -735,6 +727,32 @@ const reconcileExplorerSelectedFileId = (
     kind,
   });
   return nextSelectedFileId;
+};
+
+const getExplorerSelectedFileId = (
+  explorerService: ExplorerSelectionState,
+): string | null => {
+  const normalizedRawFileId = normalizeExplorerSelectionFileId(explorerService.selectedRawFileId);
+  if (normalizedRawFileId) {
+    return normalizedRawFileId;
+  }
+
+  return normalizeExplorerSelectionFileId(explorerService.selectedProcessedFileId);
+};
+
+const resolveVisibleExplorerSelectedFileId = (
+  selectedFileId: string | null,
+  fileIds: readonly string[],
+): string | null => {
+  const normalizedSelectedFileId = normalizeExplorerSelectionFileId(selectedFileId);
+  return normalizedSelectedFileId && fileIds.includes(normalizedSelectedFileId)
+    ? normalizedSelectedFileId
+    : null;
+};
+
+const normalizeExplorerSelectionFileId = (fileId: unknown): string | null => {
+  const normalized = String(fileId ?? "").trim();
+  return normalized || null;
 };
 
 const getExplorerPaneFileIds = (

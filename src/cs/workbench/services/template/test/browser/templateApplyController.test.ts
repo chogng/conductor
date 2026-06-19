@@ -400,7 +400,7 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     assert.equal(extractionConfig.yUnit, "A");
   });
 
-  test("manual apply queues files that need template review or have weak assessment", () => {
+  test("manual apply skips files that need template review or have weak assessment", () => {
     const queuedFileIds: string[][] = [];
     const controller = createController({
       sessionService: createSessionService(),
@@ -429,12 +429,32 @@ suite("workbench/services/template/browser/templateApplyController", () => {
 
     const result = controller.handleTemplateApplied(createManualTemplateConfig()) as { ok: boolean };
 
-    assert.equal(result.ok, true);
-    assert.deepEqual(queuedFileIds, [[
-      "file-needs-template",
-      "file-low-confidence",
-      "file-unknown",
-    ]]);
+    assert.equal(result.ok, false);
+    assert.deepEqual(queuedFileIds, []);
+    assert.deepEqual(
+      [...controller.getFileApplyStates()].map(([fileId, state]) => ({
+        code: state.code,
+        fileId,
+        state: state.state,
+      })),
+      [
+        {
+          code: "needsTemplate",
+          fileId: "file-needs-template",
+          state: "skipped",
+        },
+        {
+          code: "lowConfidence",
+          fileId: "file-low-confidence",
+          state: "skipped",
+        },
+        {
+          code: "unknownCurveType",
+          fileId: "file-unknown",
+          state: "skipped",
+        },
+      ],
+    );
     controller.dispose();
   });
 

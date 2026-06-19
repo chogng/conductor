@@ -79,6 +79,16 @@ export type ExplorerFileEntry = {
 	readonly curveTypeReasons?: readonly string[];
 };
 
+export type ExplorerBadgeProjectionSummary = {
+	readonly assessmentBadgeCount: number;
+	readonly failedSourceCount: number;
+	readonly fastBadgeCount: number;
+	readonly loadingSourceCount: number;
+	readonly pendingBadgeCount: number;
+	readonly signature: string;
+	readonly totalFileCount: number;
+};
+
 export type ExplorerTreeNode<TEntry extends ExplorerFileEntry = ExplorerFileEntry> = {
 	readonly children?: ExplorerTreeNode<TEntry>[];
 	readonly entry?: TEntry;
@@ -150,6 +160,73 @@ export const getExplorerTreeFileKey = <TEntry extends ExplorerFileEntry>(
 	entry.fileId ?? entry.itemKey ?? `file:${(pathParts ?? [
 		...normalizePath(entry.relativePath),
 	]).join("/") || getExplorerFileName(entry)}`;
+
+export const summarizeExplorerBadgeProjection = (
+	files: readonly ExplorerFileEntry[],
+): ExplorerBadgeProjectionSummary => {
+	let assessmentBadgeCount = 0;
+	let fastBadgeCount = 0;
+	let pendingBadgeCount = 0;
+	let loadingSourceCount = 0;
+	let failedSourceCount = 0;
+	const signatureParts: string[] = [];
+
+	for (const file of files) {
+		const badgeState = file.badgeState;
+		if (badgeState?.kind === "ready" || badgeState?.kind === "unknown") {
+			if (badgeState.source === "assessment") {
+				assessmentBadgeCount += 1;
+			} else if (badgeState.source === "fast") {
+				fastBadgeCount += 1;
+			}
+		} else if (badgeState?.kind === "pending") {
+			pendingBadgeCount += 1;
+		}
+
+		if (file.sourceStatus === "pending" || file.sourceStatus === "preparing") {
+			loadingSourceCount += 1;
+		} else if (file.sourceStatus === "failed") {
+			failedSourceCount += 1;
+		}
+
+		signatureParts.push(createExplorerBadgeProjectionFileSignature(file));
+	}
+
+	return {
+		assessmentBadgeCount,
+		failedSourceCount,
+		fastBadgeCount,
+		loadingSourceCount,
+		pendingBadgeCount,
+		signature: signatureParts.join("\u001e"),
+		totalFileCount: files.length,
+	};
+};
+
+const createExplorerBadgeProjectionFileSignature = (file: ExplorerFileEntry): string => {
+	const badgeState = file.badgeState;
+	const badgeMessage =
+		badgeState?.kind === "error" ||
+		badgeState?.kind === "ready" ||
+		badgeState?.kind === "unknown"
+			? badgeState.message ?? ""
+			: "";
+	return [
+		getExplorerTreeFileKey(file),
+		file.sourceStatus ?? "",
+		file.sourceStatusMessage ?? "",
+		file.assessmentHealth ?? "",
+		file.assessmentHealthMessage ?? "",
+		file.templateEligibility ?? "",
+		badgeState?.kind ?? "",
+		badgeMessage,
+		badgeState?.kind === "ready" ? badgeState.label : "",
+		badgeState?.kind === "ready" ? badgeState.confidence : "",
+		badgeState?.kind === "ready" ? badgeState.source : "",
+		badgeState?.kind === "unknown" ? badgeState.source : "",
+		badgeState?.kind === "unknown" ? badgeState.suspectedType ?? "" : "",
+	].join("\u001f");
+};
 
 export const buildExplorerTree = <TEntry extends ExplorerFileEntry>(
 	entries: readonly TEntry[],
