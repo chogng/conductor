@@ -149,6 +149,97 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 			pane.dispose();
 		}
 	});
+
+	test("opens the legend from the chart display model while the legend cache is pending", async () => {
+		if (typeof document === "undefined") {
+			return;
+		}
+
+		const input = createChartViewInput({
+			activeFileId: "file-a",
+			activePlotType: "iv",
+			chartFileOptions: [{ fileId: "file-a", fileName: "file-a.csv" }],
+			hasChartData: true,
+		});
+		const chartService = createChartServiceForTest(input);
+		const pane = store.add(new ChartViewPane(
+			chartService,
+			createChartTitleEditServiceForTest(),
+			createCommandServiceForTest(chartService, []),
+			createExplorerServiceForTest(),
+			createPlotServiceForTest([]),
+			createSettingsServiceForTest(),
+		));
+
+		try {
+			const legendButton = pane.element.querySelector<HTMLButtonElement>(
+				`button[data-action-id="${CHART_LEGEND_ACTION_ID}"]`,
+			);
+			assert.ok(legendButton);
+			assert.equal(legendButton.disabled, false);
+
+			legendButton.click();
+			await Promise.resolve();
+
+			assert.ok(pane.element.querySelector(".chart_legend"));
+		} finally {
+			pane.dispose();
+		}
+	});
+
+	test("keeps chart-owned header action controls mounted while inspector data is processing", async () => {
+		if (typeof document === "undefined") {
+			return;
+		}
+
+		const input = createChartViewInput({
+			activeFileId: "file-a",
+			activePlotType: "iv",
+			chartFileOptions: [{ fileId: "file-a", fileName: "file-a.csv" }],
+			hasChartData: true,
+		});
+		const chartService = createChartServiceForTest(input);
+		chartService.toggleDetailPane("inspector");
+		const plotService = createPlotServiceForHeaderStabilityTest();
+		const pane = store.add(new ChartViewPane(
+			chartService,
+			createChartTitleEditServiceForTest(),
+			createCommandServiceForTest(chartService, []),
+			createExplorerServiceForTest(),
+			plotService,
+			createSettingsServiceForTest(),
+		));
+
+		try {
+			const actionBar = pane.element.querySelector<HTMLElement>(".chart_view_detail_actions");
+			const legendButton = pane.element.querySelector<HTMLButtonElement>(
+				`button[data-action-id="${CHART_LEGEND_ACTION_ID}"]`,
+			);
+			const inspectorButton = pane.element.querySelector<HTMLButtonElement>(
+				"button[aria-label='chart.inspector.heading']",
+			);
+			assert.ok(actionBar);
+			assert.ok(legendButton);
+			assert.ok(inspectorButton);
+
+			plotService.firePlotStateChange();
+			await Promise.resolve();
+
+			assert.strictEqual(pane.element.querySelector(".chart_view_detail_actions"), actionBar);
+			assert.strictEqual(
+				pane.element.querySelector(`button[data-action-id="${CHART_LEGEND_ACTION_ID}"]`),
+				legendButton,
+			);
+			assert.strictEqual(
+				pane.element.querySelector("button[aria-label='chart.inspector.heading']"),
+				inspectorButton,
+			);
+			assert.equal(pane.element.querySelectorAll(".chart_view_detail_actions").length, 1);
+			assert.equal(pane.element.querySelectorAll(`button[data-action-id="${CHART_LEGEND_ACTION_ID}"]`).length, 1);
+		} finally {
+			pane.dispose();
+		}
+	});
 });
 
 const createChartServiceForTest = (
@@ -230,6 +321,7 @@ const createPlotServiceForTest = (
 	onDidChangeCalculatedDataCache: Event.None,
 	onDidChangePlotDisplayModelCache: Event.None,
 	onDidChangePlotState: Event.None,
+	prefetchCalculatedData: () => undefined,
 	prefetchPlotDisplayModel: () => undefined,
 	prefetchPlotInspectorDisplayModel: (request, priority) => {
 		prefetches.push(`${request.fileId}:${priority}`);
@@ -283,6 +375,42 @@ const createPlotServiceForLegendEditTest = (): IPlotService => {
 		setYScale: async () => undefined,
 		setAxisUnit: async () => undefined,
 	} as unknown as IPlotService;
+};
+
+const createPlotServiceForHeaderStabilityTest = (): IPlotService & {
+	readonly firePlotStateChange: () => void;
+} => {
+	const onDidChangePlotStateEmitter = new Emitter<ReturnType<IPlotService["getState"]>>();
+	const getState = () => ({
+		activePlotType: "iv" as const,
+		axisTitleOverridesByKey: {},
+		hiddenLegendKeysByPlotKey: {},
+		legendLabelsByFileId: {},
+	});
+	return {
+		_serviceBrand: undefined,
+		cancelQueuedPlotInspectorDisplayModelPrefetch: () => undefined,
+		firePlotStateChange: () => onDidChangePlotStateEmitter.fire(getState()),
+		getCachedPlotDisplayModel: () => createPlotDisplayModel(),
+		getCachedPlotLegendModel: () => createPlotLegendModel(),
+		getHiddenLegendKeys: () => [],
+		getLegendLabels: () => ({}),
+		getState,
+		onDidChangeCalculatedDataCache: Event.None,
+		onDidChangePlotDisplayModelCache: Event.None,
+		onDidChangePlotState: onDidChangePlotStateEmitter.event,
+		prefetchCalculatedData: () => undefined,
+		prefetchPlotDisplayModel: () => undefined,
+		prefetchPlotInspectorDisplayModel: () => undefined,
+		setAxisTitleOverride: () => undefined,
+		setActivePlotType: () => undefined,
+		setLegendLabel: () => undefined,
+		toggleHiddenLegendKey: () => undefined,
+		setYScale: async () => undefined,
+		setAxisUnit: async () => undefined,
+	} as unknown as IPlotService & {
+		readonly firePlotStateChange: () => void;
+	};
 };
 
 const createPlotDisplayModel = (): PlotDisplayModel => ({

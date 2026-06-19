@@ -5,7 +5,7 @@
 import ChartPanel from "src/cs/workbench/contrib/chart/browser/chartPanel";
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
-import { Action, toAction, type IAction } from "src/cs/base/common/actions";
+import { Action } from "src/cs/base/common/actions";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { ICommandService } from "src/cs/platform/commands/common/commands";
 import { localize } from "src/cs/nls";
@@ -68,11 +68,14 @@ export class ChartViewPane extends ViewPane {
   private readonly headerTabs = document.createElement("div");
   private readonly headerActions = document.createElement("div");
   private readonly headerActionBar: ActionBar;
+  private headerUnitControls: HTMLElement | null = null;
+  private headerFileSelect: HTMLElement | null = null;
   private readonly paneStore = new DisposableStore();
   private readonly headerStore = new DisposableStore();
   private readonly content = document.createElement("div");
   private readonly chartPanel: ChartPanel;
-  private legendAction: Action | null = null;
+  private readonly legendAction: Action;
+  private readonly inspectorAction: Action;
   private legendPopover: LegendPopover | null = null;
   private legendContext: LegendContext | null = null;
   private editingLegendKey: string | null = null;
@@ -109,6 +112,33 @@ export class ChartViewPane extends ViewPane {
       className: "chart_view_detail_actions",
       contentClassName: "chart_view_detail_action_items",
     }));
+    this.legendAction = this.paneStore.add(new Action(
+      CHART_LEGEND_ACTION_ID,
+      localize("chart.legend.heading", "Legend"),
+      "",
+      false,
+      (): void => this.toggleLegendPopover(),
+    ));
+    this.legendAction.tooltip = localize("chart.legend.tooltip", "Show chart legend");
+    this.legendAction.checked = false;
+    this.inspectorAction = this.paneStore.add(new Action(
+      CHART_INSPECTOR_ACTION_ID,
+      localize("chart.inspector.heading", "Inspector"),
+      "",
+      true,
+      (): void => this.toggleVisibleDetailPane("inspector"),
+    ));
+    this.inspectorAction.tooltip = localize("chart.inspector.heading", "Inspector");
+    this.inspectorAction.checked = false;
+    this.headerActionBar.push([
+      this.legendAction,
+      this.inspectorAction,
+    ], {
+      className: "chart_view_header_icon_btn",
+      label: false,
+    });
+    this.headerActionBar.domNode.hidden = true;
+    this.headerActions.append(this.headerActionBar.domNode);
     this.content.className = "chart_view_pane_content";
     this.content.append(this.chartPanel.element);
     this.previewPart = createPreviewPart({
@@ -201,16 +231,16 @@ export class ChartViewPane extends ViewPane {
   }
 
   private renderHeader(props: ChartViewInput): void {
-    this.headerActionBar.clear();
     this.headerStore.clear();
-    this.legendAction = null;
     const activeFile = resolveActiveChartFileOption(props);
     const isEmpty = props.hasChartData !== true;
     this.previewPart.dataset.headerVisible = isEmpty ? "false" : "true";
     this.headerTabs.replaceChildren();
-    this.headerActions.replaceChildren();
+    this.removeHeaderUnitControls();
+    this.removeHeaderFileSelect();
 
     if (isEmpty) {
+      this.syncHeaderActions(null, false);
       return;
     }
 
@@ -222,7 +252,7 @@ export class ChartViewPane extends ViewPane {
 
     const unitState = this.getUnitControlState(props);
     if (unitState) {
-      this.headerActions.append(createChartUnitControls({
+      this.setHeaderUnitControls(createChartUnitControls({
         onDidChangeScale: (fileId, scale) => this.updatePlotYScale(fileId, scale),
         onDidChangeUnit: (fileId, axis, unit) => this.updatePlotUnit(fileId, axis, unit),
         state: unitState,
@@ -230,18 +260,44 @@ export class ChartViewPane extends ViewPane {
       }));
     }
 
-    if (this.updateHeaderActions(props)) {
-      this.headerActions.append(this.headerActionBar.domNode);
-    }
+    this.syncHeaderActions(this.getCurrentLegendContext(props), true);
 
     if (activeFile && props.showFileSelect !== false) {
-      this.headerActions.append(createFileSelect(
+      this.setHeaderFileSelect(createFileSelect(
         props,
         activeFile,
         this.headerStore,
         fileId => this.selectChartFile(fileId, props),
       ));
     }
+  }
+
+  private setHeaderUnitControls(element: HTMLElement): void {
+    if (this.headerUnitControls) {
+      this.headerUnitControls.replaceWith(element);
+    } else {
+      this.headerActions.insertBefore(element, this.headerActionBar.domNode);
+    }
+    this.headerUnitControls = element;
+  }
+
+  private removeHeaderUnitControls(): void {
+    this.headerUnitControls?.remove();
+    this.headerUnitControls = null;
+  }
+
+  private setHeaderFileSelect(element: HTMLElement): void {
+    if (this.headerFileSelect) {
+      this.headerFileSelect.replaceWith(element);
+    } else {
+      this.headerActions.append(element);
+    }
+    this.headerFileSelect = element;
+  }
+
+  private removeHeaderFileSelect(): void {
+    this.headerFileSelect?.remove();
+    this.headerFileSelect = null;
   }
 
   private selectChartFile(fileId: string | null, props: ChartViewInput): void {
@@ -461,67 +517,26 @@ export class ChartViewPane extends ViewPane {
     this.chartPanel.element.setAttribute("aria-labelledby", getPlotTabId(this.getActivePlotType()));
   }
 
-  private updateHeaderActions(props: ChartViewInput): boolean {
-    const actions = [
-      this.createLegendAction(props),
-      this.createDetailPaneAction({
-        id: CHART_INSPECTOR_ACTION_ID,
-        label: localize("chart.inspector.heading", "Inspector"),
-        pane: "inspector",
-      }),
-    ].filter((action): action is IAction => Boolean(action));
-    this.headerActionBar.push(actions, {
-      className: "chart_view_header_icon_btn",
-      label: false,
-    });
-    return actions.length > 0;
+  private syncHeaderActions(legendContext: LegendContext | null, visible: boolean): void {
+    this.headerActionBar.domNode.hidden = !visible;
+    this.legendAction.enabled = visible && Boolean(legendContext);
+    this.legendAction.class = undefined;
+    this.legendAction.checked = visible && Boolean(legendContext) && this.isLegendPopoverCurrent(this.props);
+    this.inspectorAction.enabled = visible;
+    this.inspectorAction.checked = visible && this.chartService.getState().visibleDetailPanes.includes("inspector");
   }
 
-  private createDetailPaneAction({
-    id,
-    label,
-    pane,
-  }: {
-    readonly id: string;
-    readonly label: string;
-    readonly pane: ChartDetailPane;
-  }): IAction {
-    const isActive = this.chartService.getState().visibleDetailPanes.includes(pane);
-    return toAction({
-      checked: isActive,
-      id,
-      label,
-      tooltip: label,
-      run: () => {
-        this.toggleVisibleDetailPane(pane);
-      },
-    });
-  }
-
-  private createLegendAction(props: ChartViewInput): IAction | null {
-    const legendContext = this.getCurrentLegendContext(props);
+  private toggleLegendPopover(): void {
+    const legendContext = this.getCurrentLegendContext(this.props);
     if (!legendContext) {
-      return null;
+      return;
     }
 
-    const legendAction = new Action(
-      CHART_LEGEND_ACTION_ID,
-      localize("chart.legend.heading", "Legend"),
-      "",
-      true,
-      (): void => {
-        const contextKey = this.getLegendStateKey(legendContext);
-        const currentContextKey = this.chartService.getState().legendPopoverContextKey;
-        this.chartService.setLegendPopoverContextKey(
-          currentContextKey === contextKey ? null : contextKey,
-        );
-      },
+    const contextKey = this.getLegendStateKey(legendContext);
+    const currentContextKey = this.chartService.getState().legendPopoverContextKey;
+    this.chartService.setLegendPopoverContextKey(
+      currentContextKey === contextKey ? null : contextKey,
     );
-    legendAction.checked = this.isLegendPopoverCurrent(props);
-    legendAction.tooltip = localize("chart.legend.tooltip", "Show chart legend");
-    this.headerStore.add(legendAction);
-    this.legendAction = legendAction;
-    return legendAction;
   }
 
   private closeLegendPopover(): void {
@@ -535,9 +550,7 @@ export class ChartViewPane extends ViewPane {
     this.legendPopover = null;
     this.legendContext = null;
     this.editingLegendKey = null;
-    if (this.legendAction) {
-      this.legendAction.checked = false;
-    }
+    this.legendAction.checked = false;
   }
 
   private closeStaleLegendPopover(props: ChartViewInput): void {
@@ -662,13 +675,34 @@ export class ChartViewPane extends ViewPane {
       fileId,
       plotType,
     });
-    if (!legendModel && fileId) {
-      this.plotService.prefetchCalculatedData([fileId], "active", plotType);
-    }
-    return getLegendContext(
+    const legendContext = getLegendContext(
       legendModel,
       plotType,
     );
+    if (legendContext) {
+      return legendContext;
+    }
+
+    if (!legendModel && fileId) {
+      this.plotService.prefetchCalculatedData([fileId], "active", plotType);
+    }
+    const displayModel = this.plotService.getCachedPlotDisplayModel({
+      fileId,
+      plotType,
+    });
+    if (
+      displayModel?.fileId === fileId &&
+      displayModel.plotType === plotType &&
+      displayModel.chart.model.seriesList.length
+    ) {
+      return {
+        fileId,
+        plotType,
+        seriesList: displayModel.chart.model.seriesList,
+      };
+    }
+
+    return null;
   }
 
   private getHiddenLegendKeys(context: LegendContext | null): readonly string[] {
