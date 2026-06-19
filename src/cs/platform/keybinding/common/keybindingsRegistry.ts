@@ -7,8 +7,8 @@ import { LinkedList } from "src/cs/base/common/linkedList";
 import {
   decodeKeybinding,
   getCurrentKeybindingPlatform,
+  type Keybinding,
   type KeybindingPlatform,
-  type SimpleKeybinding,
 } from "src/cs/base/common/keybindings";
 import type { ContextKeyExpression } from "src/cs/platform/contextkey/common/contextkey";
 
@@ -37,7 +37,7 @@ export interface IKeybindingRule extends IKeybindings {
 }
 
 export interface IKeybindingItem {
-  readonly keybinding: SimpleKeybinding;
+  readonly keybinding: Keybinding;
   readonly command: string;
   readonly commandArgs?: unknown;
   readonly when?: ContextKeyExpression | null;
@@ -157,7 +157,7 @@ function bindToPlatform(
 }
 
 function createKeybindingItem(
-  keybinding: SimpleKeybinding,
+  keybinding: Keybinding,
   rule: IKeybindingRule,
   weight2: number,
 ): IKeybindingItem {
@@ -182,4 +182,3 @@ function compareKeybindingItems(first: IKeybindingItem, second: IKeybindingItem)
 
   return first.weight2 - second.weight2;
 }
-

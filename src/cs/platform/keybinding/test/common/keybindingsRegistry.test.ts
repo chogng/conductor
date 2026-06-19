@@ -1,6 +1,6 @@
 import assert from "assert";
 
-import { KeyCode, KeyMod } from "src/cs/base/common/keyCodes";
+import { KeyChord, KeyCode, KeyMod } from "src/cs/base/common/keyCodes";
 import { getCurrentKeybindingPlatform } from "src/cs/base/common/keybindings";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
@@ -35,7 +35,7 @@ suite("platform/keybinding/common/keybindingsRegistry", () => {
 
     assert.ok(KeybindingsRegistry.getDefaultKeybindings().some(item =>
       item.command === id &&
-      item.keybinding.keyCode === KeyCode.KeyP &&
+      item.keybinding[0]?.keyCode === KeyCode.KeyP &&
       item.weight1 === KeybindingWeight.WorkbenchContrib
     ));
 
@@ -59,15 +59,38 @@ suite("platform/keybinding/common/keybindingsRegistry", () => {
       .find(candidate => candidate.command === id);
 
     assert.ok(item);
-    assert.equal(item.keybinding.keyCode, KeyCode.KeyP);
+    assert.equal(item.keybinding[0]?.keyCode, KeyCode.KeyP);
     assert.equal(
-      item.keybinding.metaKey,
+      item.keybinding[0]?.metaKey,
       getCurrentKeybindingPlatform() === "mac",
     );
     assert.equal(
-      item.keybinding.ctrlKey,
+      item.keybinding[0]?.ctrlKey,
       getCurrentKeybindingPlatform() !== "mac",
     );
+
+    disposable.dispose();
+  });
+
+  test("resolves chord keybindings", () => {
+    const id = newTestCommandId();
+    const disposable = store.add(KeybindingsRegistry.registerKeybindingRule({
+      id,
+      primary: KeyChord(
+        KeyMod.CtrlCmd | KeyCode.KeyK,
+        KeyMod.CtrlCmd | KeyCode.KeyS,
+      ),
+      weight: KeybindingWeight.WorkbenchContrib,
+    }));
+
+    const item = KeybindingsRegistry
+      .getDefaultKeybindingsForPlatform(getCurrentKeybindingPlatform())
+      .find(candidate => candidate.command === id);
+
+    assert.ok(item);
+    assert.equal(item.keybinding.length, 2);
+    assert.equal(item.keybinding[0]?.keyCode, KeyCode.KeyK);
+    assert.equal(item.keybinding[1]?.keyCode, KeyCode.KeyS);
 
     disposable.dispose();
   });
@@ -77,4 +100,3 @@ function newTestCommandId(): string {
   testCommandCounter += 1;
   return `test.keybinding.${testCommandCounter}`;
 }
-
