@@ -91,6 +91,7 @@ export type WorkbenchDomainBridgeOptions = {
 
 export class WorkbenchDomainBridge extends Disposable {
   private readonly recentInteractiveChartTargetFileIds: string[] = [];
+  private didPrefetchInitialActiveInspectorTarget = false;
 
   constructor(
     private readonly options: WorkbenchDomainBridgeOptions,
@@ -232,11 +233,14 @@ export class WorkbenchDomainBridge extends Disposable {
     );
     if (chartViewInput.activeFileId && chartViewInput.hasChartData) {
       this.options.calculationService.prioritizeCalculationFile(chartViewInput.activeFileId);
-      this.options.plotService.prefetchPlotDisplayModel({
+      const plotType = chartViewInput.activePlotType ?? this.options.plotService.getState().activePlotType;
+      const input = {
         fileId: chartViewInput.activeFileId,
-        plotType: chartViewInput.activePlotType,
+        plotType,
         snapshot,
-      }, "active");
+      };
+      this.options.plotService.prefetchPlotDisplayModel(input, "active");
+      this.prefetchInitialActivePlotInspectorDisplayTarget(input);
     }
     this.options.chartService.updateViewInput(chartViewInput);
     endPerf({
@@ -426,6 +430,24 @@ export class WorkbenchDomainBridge extends Disposable {
     endPerf({
       requestedFileCount: normalizedFileIds.length,
     });
+  }
+
+  private prefetchInitialActivePlotInspectorDisplayTarget(
+    input: {
+      readonly fileId: string;
+      readonly plotType: PlotType;
+      readonly snapshot: SessionSnapshot;
+    },
+  ): void {
+    if (this.didPrefetchInitialActiveInspectorTarget) {
+      return;
+    }
+    if (!this.options.chartService.getState().visibleDetailPanes.includes("inspector")) {
+      return;
+    }
+
+    this.didPrefetchInitialActiveInspectorTarget = true;
+    this.options.plotService.prefetchPlotInspectorDisplayModel(input, "active");
   }
 
   private getPerformanceTraceChartTargets(): readonly TemplateApplyPerformanceTraceChartTarget[] {

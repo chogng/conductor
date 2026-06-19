@@ -29,7 +29,13 @@ export const startViteServer = async () => {
 
 export const withTraceQuery = (url) => `${url}${url.includes("?") ? "&" : "?"}${traceQuery}`;
 
-export const openRuntime = async ({ autoFolderPath, browserChannel, runtime, baseUrl }) => {
+export const openRuntime = async ({
+  autoFolderPath,
+  baseUrl,
+  browserChannel,
+  initialLocalStorage = {},
+  runtime,
+}) => {
   if (runtime === "desktop") {
     const build = spawnSync("npm", ["run", "build:desktop:core"], {
       cwd: workspace,
@@ -53,6 +59,7 @@ export const openRuntime = async ({ autoFolderPath, browserChannel, runtime, bas
       },
     });
     const page = await app.firstWindow();
+    await installInitialLocalStorage(page, initialLocalStorage);
     await page.setViewportSize(stressViewport).catch(() => {});
     return {
       browser: null,
@@ -68,6 +75,7 @@ export const openRuntime = async ({ autoFolderPath, browserChannel, runtime, bas
     headless: false,
   });
   const page = await browser.newPage({ viewport: stressViewport });
+  await installInitialLocalStorage(page, initialLocalStorage);
   await page.goto(withTraceQuery(`${baseUrl}/src/cs/code/browser/workbench/workbench-dev.html`), {
     waitUntil: "domcontentloaded",
   });
@@ -78,6 +86,19 @@ export const openRuntime = async ({ autoFolderPath, browserChannel, runtime, bas
     processRootPid: resolveBrowserProcessPid(browser) ??
       findNewBrowserProcessRootPid(processRowsBeforeLaunch),
   };
+};
+
+const installInitialLocalStorage = async (page, entries) => {
+  const storageEntries = Object.entries(entries ?? {});
+  if (!storageEntries.length) {
+    return;
+  }
+
+  await page.addInitScript((items) => {
+    for (const [key, value] of items) {
+      window.localStorage.setItem(key, value);
+    }
+  }, storageEntries);
 };
 
 export const getOpenFolderButton = (page) =>
@@ -448,4 +469,3 @@ export const waitForTraceCompletion = async ({
       `${expectedAssessmentBadgeCount} assessment badges. Last state: ${JSON.stringify(latest?.dom)}`,
   );
 };
-

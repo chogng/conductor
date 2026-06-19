@@ -1525,6 +1525,68 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     }
   });
 
+  test("cancels queued inspector display model prefetch work", () => {
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+    const originalWorker = globalThis.Worker;
+    const scheduledFrames: FrameRequestCallback[] = [];
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      scheduledFrames.push(callback);
+      return scheduledFrames.length;
+    }) as typeof requestAnimationFrame;
+    globalThis.cancelAnimationFrame = (() => undefined) as typeof cancelAnimationFrame;
+
+    type WorkerRecord = {
+      readonly message: {
+        readonly payload?: {
+          readonly fileId?: string;
+          readonly includeInspector?: boolean;
+        };
+        readonly type?: string;
+      };
+    };
+    const workerRecords: WorkerRecord[] = [];
+    class TestWorker {
+      public onerror: ((event: ErrorEvent) => void) | null = null;
+      public onmessage: ((event: MessageEvent) => void) | null = null;
+
+      public postMessage(message: WorkerRecord["message"]): void {
+        workerRecords.push({ message });
+      }
+
+      public terminate(): void {
+        return;
+      }
+    }
+
+    try {
+      globalThis.Worker = TestWorker as unknown as typeof Worker;
+      const snapshot = createSnapshot({
+        "file-active": createFileRecord("file-active", "series-active", "Active"),
+      }, ["file-active"]);
+      const service = store.add(new PlotService(
+        createSessionServiceStub(snapshot),
+        createSettingsServiceStub(),
+        store.add(new TestStorageService()),
+      ));
+
+      service.getCalculatedData({ fileId: "file-active", plotType: "iv", snapshot });
+      service.prefetchPlotInspectorDisplayModel({
+        fileId: "file-active",
+        plotType: "iv",
+        snapshot,
+      }, "active");
+      service.cancelQueuedPlotInspectorDisplayModelPrefetch();
+      scheduledFrames.shift()?.(0);
+
+      assert.deepEqual(workerRecords, []);
+    } finally {
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+      globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+      globalThis.Worker = originalWorker;
+    }
+  });
+
   test("keeps active display prefetch when another file changes", async () => {
     const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
     const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;

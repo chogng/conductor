@@ -93,6 +93,7 @@ const parseArgs = () => {
     fileSwitchLive: readBooleanFlag(flags, "file-switch-live", scenarioDefaults.fileSwitchLive ?? false),
     fileSwitchLiveMs: readPositiveInteger(args.get("file-switch-live-ms"), scenarioDefaults.fileSwitchLiveMs ?? 8000),
     fileCount,
+    inspector: readInspectorMode(args.get("inspector")),
     liveStressCoordinated: readBooleanFlag(
       flags,
       "live-stress-coordinated",
@@ -150,6 +151,33 @@ const readPositiveInteger = (value, fallback) => {
   return Number.isInteger(number) && number > 0 ? number : fallback;
 };
 
+const readInspectorMode = (value) => {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  if (normalized === "hidden" || normalized === "off" || normalized === "closed") {
+    return "hidden";
+  }
+  if (normalized === "visible" || normalized === "on" || normalized === "open") {
+    return "visible";
+  }
+
+  throw new Error(`Unknown inspector mode "${value}". Use hidden or visible.`);
+};
+
+const createInitialLocalStorage = (options) => {
+  if (!options.inspector) {
+    return {};
+  }
+
+  return {
+    "conductor.storage.0.chart.visibleDetailPanes": JSON.stringify({
+      visibleDetailPanes: options.inspector === "visible" ? ["inspector"] : [],
+    }),
+  };
+};
+
 const main = async () => {
   const options = parseArgs();
   assert.ok(options.runtime === "browser" || options.runtime === "desktop", "runtime must be browser or desktop");
@@ -173,6 +201,7 @@ const main = async () => {
       autoFolderPath: options.runtime === "desktop" && options.autoFolder ? fixtureRoot : null,
       baseUrl: server.baseUrl,
       browserChannel: options.browserChannel,
+      initialLocalStorage: createInitialLocalStorage(options),
       runtime: options.runtime,
     });
     phaseRecorder = createPhaseRecorder(runtime.page, options.runtime);

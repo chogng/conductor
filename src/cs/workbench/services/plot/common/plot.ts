@@ -134,6 +134,7 @@ export interface IPlotService {
   getPlotDisplayModel(input: PlotDisplayModelInput): PlotDisplayModel | null;
   getPlotLegendModel(input: PlotCalculatedDataInput): PlotLegendModel | null;
   getPlotMainRenderModel(input: PlotMainRenderModelInput): PlotMainRenderModel | null;
+  cancelQueuedPlotInspectorDisplayModelPrefetch(): void;
   prefetchCalculatedData(fileIds: readonly FileId[], priority: PlotCalculatedDataPrefetchPriority, plotType?: PlotType): void;
   prefetchPlotInspectorDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;
   prefetchPlotDisplayModel(input: PlotDisplayModelInput, priority: PlotCalculatedDataPrefetchPriority): void;

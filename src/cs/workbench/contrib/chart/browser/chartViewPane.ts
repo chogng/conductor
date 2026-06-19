@@ -341,12 +341,17 @@ export class ChartViewPane extends ViewPane {
   ): PlotDisplayModel | null {
     const fileId = normalizeChartFileId(props.activeFileId);
     const plotType = this.getActivePlotType();
+    const isInspectorVisible = this.chartService.getState().visibleDetailPanes.includes("inspector");
     const model = this.plotService.getCachedPlotDisplayModel({
       fileId,
       hiddenLegendKeys,
       legendLabels,
       plotType,
     });
+    if (!isInspectorVisible) {
+      this.cancelPendingInspectorPrefetch();
+      this.plotService.cancelQueuedPlotInspectorDisplayModelPrefetch();
+    }
     if (!model && fileId) {
       this.cancelPendingInspectorPrefetch();
       this.plotService.prefetchPlotDisplayModel({
@@ -359,7 +364,7 @@ export class ChartViewPane extends ViewPane {
       model &&
       !model.inspector &&
       fileId &&
-      this.chartService.getState().visibleDetailPanes.includes("inspector")
+      isInspectorVisible
     ) {
       this.scheduleInspectorPrefetch({
         fileId,

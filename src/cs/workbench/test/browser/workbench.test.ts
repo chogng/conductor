@@ -15,6 +15,7 @@ import {
   WorkbenchDomainBridge,
 } from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
+import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type {
   FileImportResult,
   ImportedFileRecord,
@@ -562,11 +563,13 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     const explorerService = store.add(new ExplorerService());
     const plotCalculatedPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    const plotInspectorPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
     commitChartFilesForTest(session, ["file-a", "file-b", "file-c"]);
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
       plotCalculatedPrefetches,
       plotDisplayPrefetches,
+      plotInspectorPrefetches,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
       session,
@@ -578,6 +581,91 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       assert.deepEqual(plotDisplayPrefetches, [
         { fileIds: ["file-a", "file-b"], priority: "visible" },
         { fileIds: ["file-c"], priority: "nearby" },
+      ]);
+      assert.deepEqual(plotInspectorPrefetches, []);
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("does not prewarm inspector targets while inspector pane is hidden", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    const plotInspectorPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    commitChartFilesForTest(session, ["file-a", "file-b"]);
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      plotDisplayPrefetches,
+      plotInspectorPrefetches,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+      visibleDetailPanes: [],
+    }));
+    try {
+      explorerService.setVisibleFileIds(["file-a"], ["file-b"]);
+
+      assert.deepEqual(plotDisplayPrefetches, [
+        { fileIds: ["file-a"], priority: "visible" },
+        { fileIds: ["file-b"], priority: "nearby" },
+      ]);
+      assert.deepEqual(plotInspectorPrefetches, []);
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("does not immediately prewarm inspector for later chart selections", async () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const plotInspectorPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    commitChartFilesForTest(session, ["file-a", "file-b"]);
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      plotInspectorPrefetches,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+    }));
+    try {
+      bridge.sync();
+      explorerService.select({
+        fileId: "file-b",
+        kind: "chart",
+      });
+      await Promise.resolve();
+
+      assert.deepEqual(uniquePrefetches(plotInspectorPrefetches), [
+        { fileIds: ["file-a"], priority: "active" },
+      ]);
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("prewarms active inspector target when inspector pane is visible at startup", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    const plotInspectorPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    commitChartFilesForTest(session, ["file-a"]);
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      plotDisplayPrefetches,
+      plotInspectorPrefetches,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+    }));
+    try {
+      bridge.sync();
+
+      assert.deepEqual(uniquePrefetches(plotDisplayPrefetches), [
+        { fileIds: ["file-a"], priority: "active" },
+      ]);
+      assert.deepEqual(uniquePrefetches(plotInspectorPrefetches), [
+        { fileIds: ["file-a"], priority: "active" },
       ]);
     } finally {
       bridge.dispose();
@@ -860,10 +948,12 @@ const createDomainBridgeOptionsForTest = ({
   explorerService,
   plotCalculatedPrefetches,
   plotDisplayPrefetches,
+  plotInspectorPrefetches,
   prioritizedCalculationFileIds,
   prioritizedTemplateFileIds,
   session,
   thumbnailPrefetches,
+  visibleDetailPanes = ["inspector"],
 }: {
   readonly chartActiveFileIds?: (string | null)[];
   readonly chartViewInputs?: Array<{ readonly activeFileId: string | null; readonly hasChartData?: boolean }>;
@@ -871,10 +961,12 @@ const createDomainBridgeOptionsForTest = ({
   readonly explorerService: ExplorerService;
   readonly plotCalculatedPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
   readonly plotDisplayPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
+  readonly plotInspectorPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
   readonly prioritizedCalculationFileIds: string[];
   readonly prioritizedTemplateFileIds: string[];
   readonly session: SessionService;
   readonly thumbnailPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
+  readonly visibleDetailPanes?: readonly ["inspector"] | readonly [];
 }): ConstructorParameters<typeof WorkbenchDomainBridge>[0] => ({
 	  assessmentQueueService: {
 	    prioritizeRawTables: () => undefined,
@@ -894,14 +986,19 @@ const createDomainBridgeOptionsForTest = ({
     },
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["calculationService"],
   chartService: {
-    updateViewInput: input => {
+    getState: () => ({
+      hiddenLegendKeysByContext: {},
+      legendPopoverContextKey: null,
+      visibleDetailPanes,
+    }),
+    updateViewInput: (input: ChartViewInput) => {
       chartActiveFileIds?.push(input.activeFileId ?? null);
       chartViewInputs?.push({
         activeFileId: input.activeFileId ?? null,
         hasChartData: input.hasChartData,
       });
     },
-  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["chartService"],
+  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["chartService"],
   explorerService,
   layoutService: {
     activeWorkbenchMainPart: "chart",
@@ -931,6 +1028,12 @@ const createDomainBridgeOptionsForTest = ({
         fileIds: inputs
           .map(input => String(input.fileId ?? "").trim())
           .filter(Boolean),
+        priority,
+      });
+    },
+    prefetchPlotInspectorDisplayModel: (input, priority) => {
+      plotInspectorPrefetches?.push({
+        fileIds: input.fileId ? [input.fileId] : [],
         priority,
       });
     },
@@ -976,6 +1079,27 @@ const createDomainBridgeOptionsForTest = ({
     },
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["thumbnailPreviewService"],
 });
+
+const uniquePrefetches = (
+  prefetches: readonly { readonly fileIds: readonly string[]; readonly priority: string }[],
+): Array<{ readonly fileIds: readonly string[]; readonly priority: string }> => {
+  const seen = new Set<string>();
+  const result: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+  for (const prefetch of prefetches) {
+    const fileIds = [...prefetch.fileIds];
+    const key = `${prefetch.priority}:${fileIds.join(",")}`;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push({
+      fileIds,
+      priority: prefetch.priority,
+    });
+  }
+  return result;
+};
 
 const commitChartFilesForTest = (
   session: SessionService,

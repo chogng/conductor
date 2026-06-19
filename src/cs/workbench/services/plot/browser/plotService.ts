@@ -410,6 +410,13 @@ export class PlotService extends Disposable implements IPlotService {
     return calculatedData ? createPlotMainRenderModel(calculatedData) : null;
   }
 
+  public cancelQueuedPlotInspectorDisplayModelPrefetch(): void {
+    this.clearQueuedInspectorDisplayModelPrefetchExcept(null);
+    if (!this.queuedPlotDisplayModelPrefetchByKey.size) {
+      this.cancelScheduledPlotDisplayModelPrefetch();
+    }
+  }
+
   public prefetchCalculatedData(
     fileIds: readonly FileId[],
     priority: PlotCalculatedDataPrefetchPriority,
@@ -1482,7 +1489,7 @@ export class PlotService extends Disposable implements IPlotService {
     this.schedulePlotDisplayModelPrefetch();
   }
 
-  private clearQueuedInspectorDisplayModelPrefetchExcept(nextKey: string): void {
+  private clearQueuedInspectorDisplayModelPrefetchExcept(nextKey: string | null): void {
     let cleared = 0;
     for (const [key, request] of [...this.queuedPlotDisplayModelPrefetchByKey]) {
       if (key !== nextKey && request.stage === "inspector") {

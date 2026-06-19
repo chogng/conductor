@@ -97,7 +97,8 @@ render inputs.
 - Chart views call cached display/legend APIs in render and request active prefetch on miss.
 - Chart should not call `getPlotDisplayModel` in active render.
 - Chart may request inspector display-model prefetch only as secondary pane completion after the active chart target settles.
-- Active inspector work stays secondary to main chart display and uses a separate detail lane so older background prefetches cannot starve it and later active data can still run; non-active inspector work remains background priority and cached separately from main chart display.
+- Active inspector work stays secondary to main chart display and uses a separate detail lane so older background prefetches cannot starve it and later active data can still run; startup may warm the initial active inspector target, while later active switches should come from the settled detail-pane path.
+- Hidden inspector panes should not keep queued inspector prefetch work alive; consumers should call Plot's queued-inspector cancellation API when the Chart-owned pane visibility turns off.
 - Plot render models are reusable by Chart, Thumbnail, Export, and Search.
 - First paint uses a display downsample budget tied to visible pixel width.
 - `PlotMainChart` may expose host-provided render signatures for diagnostics.
