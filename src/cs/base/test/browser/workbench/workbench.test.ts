@@ -341,6 +341,7 @@ suite("workbench/browser/workbench layout integration", () => {
         update: () => undefined,
       },
       templateService: {
+        getCachedTemplates: () => [],
         getState: () => ({
           formState: createEmptyTemplateConfig(),
           mode: "management",
@@ -463,6 +464,7 @@ suite("workbench/browser/workbench layout integration", () => {
         update: () => undefined,
       },
       templateService: {
+        getCachedTemplates: () => [],
         getState: () => ({
           formState: createEmptyTemplateConfig(),
           mode: "management",
@@ -484,9 +486,7 @@ suite("workbench/browser/workbench layout integration", () => {
 
       assert.deepEqual(chartActiveFileIds, ["file-a"]);
       assert.deepEqual(calculationPriorities, ["file-a"]);
-      assert.deepEqual(plotPrefetches, [
-        { fileIds: ["file-a"], priority: "active" },
-      ]);
+      assert.deepEqual(plotPrefetches, []);
       assert.deepEqual(plotDisplayPrefetches, [
         {
           fileId: "file-a",
@@ -499,6 +499,7 @@ suite("workbench/browser/workbench layout integration", () => {
       bridge.dispose();
     }
   });
+
 });
 
 const createProcessedSnapshot = (fileId: string): SessionSnapshot => ({
@@ -632,6 +633,14 @@ const createWorkbenchOptions = ({
       updatePaneInput: () => undefined,
     } as unknown as WorkbenchService<"explorerService">,
     exportService: {
+      getState: () => ({
+        canvasScope: "current",
+        curveMode: "all",
+        filteredKind: "transfer",
+        originMode: "merged",
+        selectedContentKeys: [],
+        selectedCurveKeys: [],
+      }),
       onDidChangeExportState: Event.None,
       updateViewState: () => undefined,
     } as unknown as WorkbenchService<"exportService">,
@@ -646,16 +655,17 @@ const createWorkbenchOptions = ({
     pathService: {} as WorkbenchService<"pathService">,
     plotService: {
       onDidChangePlotState: Event.None,
+      onDidChangePlotDisplayModelCache: Event.None,
       getCachedCalculatedData: () => null,
+      getCachedPlotDisplayModel: () => null,
+      getCachedPlotLegendModel: () => null,
       getCalculatedData: () => null,
+      getLegendLabels: () => ({}),
       getPlotMainRenderModel: () => null,
       getState: () => ({ activePlotType: "iv" }),
       onDidChangeCalculatedDataCache: Event.None,
       prefetchCalculatedData: () => undefined,
     } as unknown as WorkbenchService<"plotService">,
-    searchService: {
-      setPlotModel: () => undefined,
-    } as unknown as WorkbenchService<"searchService">,
     sessionService,
     settingsService: {
       onDidChangeConductorSettings: Event.None,
@@ -696,6 +706,7 @@ const createWorkbenchOptions = ({
       update: () => undefined,
     } as unknown as WorkbenchService<"templateApplyWorkflowService">,
     templateService: {
+      getCachedTemplates: () => [],
       onDidChangeTemplateState: Event.None,
       getState: () => ({
         formState: createEmptyTemplateConfig(),

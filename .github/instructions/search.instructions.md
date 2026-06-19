@@ -22,7 +22,7 @@ calculation, or Session mutation.
 | File | Responsibility |
 | --- | --- |
 | `common/search.ts` | service contract, query/result types, navigation targets. |
-| `browser/searchService.ts` | query/selection state owner, session/plot subscriber. |
+| `browser/searchService.ts` | query/selection state owner, session/chart/plot subscriber. |
 | `browser/searchIndex.ts` | pure index builder from files/raw tables/blocks/curves/metrics. |
 | `browser/searchNavigation.ts` | result -> Explorer/Table/Plot/Parameters reveal commands. |
 | `contrib/search/browser/searchViewPane.ts` | view shell. |
@@ -31,7 +31,7 @@ calculation, or Session mutation.
 ## Flow
 
 ```txt
-SessionSnapshot + optional cached PlotDisplayModel
+SessionSnapshot + Chart state/input + optional cached PlotDisplayModel
   -> SearchIndex / SearchPointLookupModel
   -> ISearchService query
   -> SearchResult[]
@@ -45,8 +45,9 @@ active state.
 ## Chart Point Lookup
 
 Chart point lookup consumes a Search-owned projection of the current cached
-`PlotDisplayModel`. Workbench may prefetch active Plot display models on cache
-miss, but must not synchronously create them during Search render.
+`PlotDisplayModel`. SearchService may request active Plot display-model prefetch
+on cache miss, but must not synchronously create display models during Search
+render.
 
 Panes:
 

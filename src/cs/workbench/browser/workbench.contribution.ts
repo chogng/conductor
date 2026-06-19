@@ -43,10 +43,6 @@ import {
   type IPlotService as IPlotServiceType,
 } from "src/cs/workbench/services/plot/common/plot";
 import {
-  ISearchService,
-  type ISearchService as ISearchServiceType,
-} from "src/cs/workbench/services/search/common/search";
-import {
   IThumbnailPreviewService,
   type IThumbnailPreviewService as IThumbnailPreviewServiceType,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
@@ -181,7 +177,6 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @IExportService exportService: IExportServiceType,
     @IParametersService parametersService: IParametersService,
     @IPlotService plotService: IPlotServiceType,
-    @ISearchService searchService: ISearchServiceType,
     @ISettingsService settingsService: ISettingsServiceType,
     @IPathService pathService: IPathServiceType,
     @IWorkbenchLayoutService layoutService: IWorkbenchLayoutServiceType,
@@ -217,7 +212,6 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       filesService,
       parametersService,
       plotService,
-      searchService,
       settingsService,
       pathService,
       layoutService,

@@ -36,10 +36,6 @@ import {
   type IParametersService,
 } from "src/cs/workbench/services/parameters/common/parameters";
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
-import type {
-  ISearchService,
-} from "src/cs/workbench/services/search/common/search";
-import { createSearchPointLookupModelFromPlotDisplay } from "src/cs/workbench/services/search/browser/searchModel";
 import type { IThumbnailPreviewService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
   SettingsViewId,
@@ -157,7 +153,6 @@ export type WorkbenchOptions = {
   readonly notificationService?: NotificationService;
   readonly parametersService?: IParametersService;
   readonly plotService?: IPlotService;
-  readonly searchService?: ISearchService;
   readonly settingsService?: ISettingsService;
   readonly viewsService?: IViewsService;
   readonly id?: string;
@@ -211,7 +206,6 @@ export class Workbench extends Layout {
   private readonly notificationService: NotificationService;
   private readonly parametersService: IParametersService;
   private readonly plotService: IPlotService;
-  private readonly searchService: ISearchService;
   private readonly settingsService: ISettingsService;
   private readonly pathService: IPathService;
   private readonly viewsService: IViewsService;
@@ -298,9 +292,6 @@ export class Workbench extends Layout {
     if (!options.plotService) {
       throw new Error("Workbench requires IPlotService.");
     }
-    if (!options.searchService) {
-      throw new Error("Workbench requires ISearchService.");
-    }
     if (!options.settingsService) {
       throw new Error("Workbench requires ISettingsService.");
     }
@@ -333,7 +324,6 @@ export class Workbench extends Layout {
     this.notificationService = options.notificationService;
     this.parametersService = options.parametersService;
     this.plotService = options.plotService;
-    this.searchService = options.searchService;
     this.settingsService = options.settingsService;
     this.activeWorkbenchViewContext = ActiveWorkbenchViewContext.bindTo(options.contextKeyService);
     this.activeWorkbenchMainPartContext = ActiveWorkbenchMainPartContext.bindTo(options.contextKeyService);
@@ -734,7 +724,6 @@ export class Workbench extends Layout {
         this.renderParametersView(snapshot, this.getSelectedProcessedFileId(readModel));
         break;
       case "search":
-        this.renderSearchView(snapshot, readModel);
         break;
       case "settings":
         break;
@@ -743,29 +732,6 @@ export class Workbench extends Layout {
         this.renderExportView(activeFile, activeFileRecord, snapshot, readModel);
         break;
     }
-  }
-
-  private renderSearchView(
-    snapshot = this.session.getSnapshot(),
-    readModel = createSessionReadModel(snapshot),
-  ): void {
-    const fileId = this.getSelectedProcessedFileId(readModel);
-    const normalizedFileId = String(fileId ?? "").trim();
-    const plotDisplayModel = normalizedFileId
-      ? this.plotService.getCachedPlotDisplayModel({
-          fileId: normalizedFileId,
-          snapshot,
-        })
-      : null;
-    if (!plotDisplayModel && normalizedFileId) {
-      this.plotService.prefetchPlotDisplayModel({
-        fileId: normalizedFileId,
-        snapshot,
-      }, "active");
-    }
-    this.searchService.setPointLookupModel(createSearchPointLookupModelFromPlotDisplay(plotDisplayModel, {
-      includeInspector: this.chartService.getState().visibleDetailPanes.includes("inspector"),
-    }));
   }
 
   private renderExportView(

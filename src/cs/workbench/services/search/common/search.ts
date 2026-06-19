@@ -127,7 +127,6 @@ export interface ISearchService {
 	resolveResultTarget(result: SearchResult): SearchNavigationTarget | null;
 	searchSnapshot(snapshot: SessionSnapshot, query?: Partial<SearchQuery>): readonly SearchResult[];
 	searchPointsAtText(model: PlotMainRenderModel | null, text: string): readonly SearchPoint[] | null;
-	setPointLookupModel(model: SearchPointLookupModel | null): void;
 	setQuery(query: SearchQuery): void;
 	updateQuery(updates: Partial<SearchQuery>): void;
 	setInterpolationMode(interpolationMode: SearchInterpolationMode): void;

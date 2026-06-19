@@ -5,10 +5,26 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import {
+	IChartService,
+	type IChartService as IChartServiceType,
+} from "src/cs/workbench/services/chart/common/chart";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
-import { searchSeriesAtX } from "src/cs/workbench/services/search/browser/searchModel";
+import {
+	createSearchPointLookupModelFromPlotDisplay,
+	searchSeriesAtX,
+} from "src/cs/workbench/services/search/browser/searchModel";
 import { buildSearchIndex } from "src/cs/workbench/services/search/browser/searchIndex";
-import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
+import {
+	IPlotService,
+	type IPlotService as IPlotServiceType,
+	type PlotDisplayModelInput,
+} from "src/cs/workbench/services/plot/common/plot";
+import {
+	ISessionService,
+	type ISessionService as ISessionServiceType,
+	type SessionSnapshot,
+} from "src/cs/workbench/services/session/common/session";
 import {
 	ISearchService,
 	type ISearchService as ISearchServiceType,
@@ -45,6 +61,23 @@ export class SearchService extends Disposable implements ISearchServiceType {
 		selectedResultId: null,
 	};
 	private pointLookupModel: SearchPointLookupModel | null = null;
+
+	constructor(
+		@IChartService private readonly chartService?: IChartServiceType,
+		@IPlotService private readonly plotService?: IPlotServiceType,
+		@ISessionService private readonly sessionService?: ISessionServiceType,
+	) {
+		super();
+
+		if (this.chartService && this.plotService && this.sessionService) {
+			this._register(this.chartService.onDidChangeChartState(() => this.refreshPointLookupModel()));
+			this._register(this.chartService.onDidChangeChartViewInput(() => this.refreshPointLookupModel()));
+			this._register(this.plotService.onDidChangePlotState(() => this.refreshPointLookupModel()));
+			this._register(this.plotService.onDidChangePlotDisplayModelCache(() => this.refreshPointLookupModel()));
+			this._register(this.sessionService.onDidChangeSession(() => this.refreshPointLookupModel()));
+			this.refreshPointLookupModel();
+		}
+	}
 
 	public getState(): SearchState {
 		return this.state;
@@ -139,6 +172,33 @@ export class SearchService extends Disposable implements ISearchServiceType {
 		this.onDidChangeSearchPointLookupModelEmitter.fire(model);
 	}
 
+	private refreshPointLookupModel(): void {
+		if (!this.chartService || !this.plotService || !this.sessionService) {
+			return;
+		}
+
+		const chartInput = this.chartService.getViewInput();
+		const fileId = normalizeSearchText(chartInput?.activeFileId ?? "").trim();
+		if (!fileId || chartInput?.hasChartData !== true) {
+			this.setPointLookupModel(null);
+			return;
+		}
+
+		const snapshot = this.sessionService.getSnapshot();
+		const plotDisplayModelInput = this.createPointLookupPlotDisplayModelInput(
+			fileId,
+			chartInput.activePlotType ?? this.plotService.getState().activePlotType,
+			snapshot,
+		);
+		const plotDisplayModel = this.plotService.getCachedPlotDisplayModel(plotDisplayModelInput);
+		if (!plotDisplayModel) {
+			this.plotService.prefetchPlotDisplayModel(plotDisplayModelInput, "active");
+		}
+		this.setPointLookupModel(createSearchPointLookupModelFromPlotDisplay(plotDisplayModel, {
+			includeInspector: this.chartService.getState().visibleDetailPanes.includes("inspector"),
+		}));
+	}
+
 	public setQuery(query: SearchQuery): void {
 		this.updateState({
 			query: normalizeSearchQuery(query),
@@ -181,6 +241,47 @@ export class SearchService extends Disposable implements ISearchServiceType {
 
 		this.state = nextState;
 		this.onDidChangeSearchStateEmitter.fire(nextState);
+	}
+
+	private createPointLookupPlotDisplayModelInput(
+		fileId: string,
+		plotType: PlotDisplayModelInput["plotType"],
+		snapshot: SessionSnapshot,
+	): PlotDisplayModelInput {
+		const legendModel = this.plotService?.getCachedPlotLegendModel({
+			fileId,
+			plotType,
+			snapshot,
+		});
+		const liveLegendKeys = legendModel?.seriesList.map(series => series.id) ?? [];
+		return {
+			fileId,
+			hiddenLegendKeys: liveLegendKeys.length
+				? this.chartService?.getHiddenLegendKeys(`${fileId}:${plotType}`, liveLegendKeys) ?? []
+				: [],
+			legendLabels: this.getPointLookupLegendLabels(fileId, liveLegendKeys),
+			plotType,
+			snapshot,
+		};
+	}
+
+	private getPointLookupLegendLabels(
+		fileId: string,
+		liveLegendKeys: readonly string[],
+	): Readonly<Record<string, string>> {
+		const labels = this.plotService?.getLegendLabels(fileId) ?? {};
+		if (!liveLegendKeys.length) {
+			return labels;
+		}
+
+		const liveKeys = new Set(liveLegendKeys);
+		const next: Record<string, string> = {};
+		for (const [legendKey, label] of Object.entries(labels)) {
+			if (liveKeys.has(legendKey)) {
+				next[legendKey] = label;
+			}
+		}
+		return next;
 	}
 }
 

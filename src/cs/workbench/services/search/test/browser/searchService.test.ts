@@ -4,13 +4,15 @@
 
 import assert from "assert";
 
+import { Emitter, Event } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { createSearchPointLookupModelFromPlotDisplay } from "src/cs/workbench/services/search/browser/searchModel";
 import { SearchService } from "src/cs/workbench/services/search/browser/searchService";
 import type { SearchPointLookupModel, SearchState } from "src/cs/workbench/services/search/common/search";
-import type { PlotDisplayModel } from "src/cs/workbench/services/plot/common/plot";
+import type { IChartService } from "src/cs/workbench/services/chart/common/chart";
+import type { IPlotService, PlotDisplayModel, PlotDisplayModelInput, PlotLegendModel } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
-import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
+import type { ISessionService, SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
 
 suite("workbench/services/search/test/browser/searchService", () => {
@@ -77,6 +79,56 @@ suite("workbench/services/search/test/browser/searchService", () => {
 
 		assert.equal(service.getPointLookupModel(), null);
 		assert.deepEqual(models, [model, null]);
+	});
+
+	test("refreshes point lookup from chart legend visibility and plot labels", () => {
+		const plotStateEmitter = store.add(new Emitter<ReturnType<IPlotService["getState"]>>());
+		const plotDisplayInputs: PlotDisplayModelInput[] = [];
+		let legendLabels: Readonly<Record<string, string>> = {
+			"series-a": "Edited A",
+			stale: "Stale",
+		};
+		const service = store.add(new SearchService(
+			createChartServiceForPointLookupTest(),
+			createPlotServiceForPointLookupTest({
+				legendLabels: () => legendLabels,
+				onDidChangePlotState: plotStateEmitter.event,
+				plotDisplayInputs,
+			}),
+			createSessionServiceForPointLookupTest(),
+		));
+
+		assert.deepEqual({
+			input: {
+				hiddenLegendKeys: plotDisplayInputs.at(-1)?.hiddenLegendKeys,
+				legendLabels: plotDisplayInputs.at(-1)?.legendLabels,
+				plotType: plotDisplayInputs.at(-1)?.plotType,
+			},
+			seriesNames: service.getPointLookupModel()?.panes[0]?.model.seriesList.map(series => series.name),
+		}, {
+			input: {
+				hiddenLegendKeys: ["series-b"],
+				legendLabels: {
+					"series-a": "Edited A",
+				},
+				plotType: "iv",
+			},
+			seriesNames: ["Edited A"],
+		});
+
+		legendLabels = { "series-a": "Renamed A" };
+		plotStateEmitter.fire({
+			activePlotType: "iv",
+			axisTitleOverridesByKey: {},
+			legendLabelsByFileId: {
+				"file-a": legendLabels,
+			},
+		});
+
+		assert.deepEqual(
+			service.getPointLookupModel()?.panes[0]?.model.seriesList.map(series => series.name),
+			["Renamed A"],
+		);
 	});
 
 	test("creates point lookup model from plot display", () => {
@@ -159,7 +211,9 @@ const createSearchPointLookupModel = (): SearchPointLookupModel => ({
 	],
 });
 
-const createPlotModel = (): PlotMainRenderModel => ({
+const createPlotModel = (
+	seriesName = "A",
+): PlotMainRenderModel => ({
 	axisLabels: null,
 	pointsCount: 2,
 	seriesList: [{
@@ -169,7 +223,7 @@ const createPlotModel = (): PlotMainRenderModel => ({
 		],
 		id: "series-a",
 		kind: "iv",
-		name: "A",
+		name: seriesName,
 	}],
 	xDomain: [0, 2],
 	xUnitLabel: "V",
@@ -179,12 +233,15 @@ const createPlotModel = (): PlotMainRenderModel => ({
 
 const createPlotDisplayModelForTest = (
 	fileId: string,
-	options: { readonly includeInspector?: boolean } = {},
+	options: {
+		readonly includeInspector?: boolean;
+		readonly seriesName?: string;
+	} = {},
 ): PlotDisplayModel => {
 	const chart: PlotDisplayModel["chart"] = {
 		defaultXAxisTitle: "X",
 		defaultYAxisTitle: "Y",
-		model: createPlotModel(),
+		model: createPlotModel(options.seriesName),
 		plotXFactor: 1,
 		plotYFactor: 1,
 		xAxisTitle: "X",
@@ -227,6 +284,75 @@ const createPlotDisplayModelForTest = (
 		unitControl: null,
 	};
 };
+
+const createChartServiceForPointLookupTest = (): IChartService => ({
+	getHiddenLegendKeys: (contextKey, liveLegendKeys) =>
+		contextKey === "file-a:iv"
+			? liveLegendKeys.filter(legendKey => legendKey === "series-b")
+			: [],
+	getState: () => ({
+		hiddenLegendKeysByContext: {
+			"file-a:iv": ["series-b"],
+		},
+		legendPopoverContextKey: null,
+		visibleDetailPanes: [],
+	}),
+	getViewInput: () => ({
+		activeFileId: "file-a",
+		activePlotType: "iv",
+		chartFileOptions: [{ fileId: "file-a", fileName: "file-a.csv" }],
+		hasChartData: true,
+		shouldMountCharts: true,
+	}),
+	onDidChangeChartState: Event.None,
+	onDidChangeChartViewInput: Event.None,
+	setLegendPopoverContextKey: () => undefined,
+	toggleDetailPane: () => undefined,
+	toggleHiddenLegendKey: () => undefined,
+	updateViewInput: () => undefined,
+} as IChartService);
+
+const createPlotServiceForPointLookupTest = ({
+	legendLabels,
+	onDidChangePlotState,
+	plotDisplayInputs,
+}: {
+	readonly legendLabels: () => Readonly<Record<string, string>>;
+	readonly onDidChangePlotState: IPlotService["onDidChangePlotState"];
+	readonly plotDisplayInputs: PlotDisplayModelInput[];
+}): IPlotService => ({
+	getCachedPlotDisplayModel: (input) => {
+		plotDisplayInputs.push(input);
+		return createPlotDisplayModelForTest(String(input.fileId ?? ""), {
+			seriesName: input.legendLabels?.["series-a"] ?? "Series A",
+		});
+	},
+	getCachedPlotLegendModel: (): PlotLegendModel => ({
+		fileId: "file-a",
+		plotType: "iv",
+		seriesList: [
+			{ data: [], id: "series-a", name: "Series A" },
+			{ data: [], id: "series-b", name: "Series B" },
+		],
+	}),
+	getLegendLabels: () => legendLabels(),
+	getState: () => ({
+		activePlotType: "iv",
+		axisTitleOverridesByKey: {},
+		legendLabelsByFileId: {
+			"file-a": legendLabels(),
+		},
+	}),
+	onDidChangeCalculatedDataCache: Event.None,
+	onDidChangePlotDisplayModelCache: Event.None,
+	onDidChangePlotState,
+	prefetchPlotDisplayModel: () => undefined,
+} as unknown as IPlotService);
+
+const createSessionServiceForPointLookupTest = (): ISessionService => ({
+	getSnapshot: () => createSnapshot(),
+	onDidChangeSession: Event.None,
+} as unknown as ISessionService);
 
 const createSnapshot = (): SessionSnapshot => ({
 	fileOrder: ["file-a"],
