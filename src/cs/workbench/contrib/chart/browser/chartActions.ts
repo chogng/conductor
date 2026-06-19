@@ -25,10 +25,13 @@ export class ChartHeaderActionViewItem extends ActionViewItem {
 
   protected override updateChecked(): void {
     super.updateChecked();
-    if (!this.label || this.action.id !== CHART_LEGEND_ACTION_ID) {
+    if (!this.label) {
       return;
     }
-    this.label.dataset.actionId = CHART_LEGEND_ACTION_ID;
+    this.label.dataset.actionId = this.action.id;
+    if (this.action.id !== CHART_LEGEND_ACTION_ID) {
+      return;
+    }
     this.label.setAttribute("aria-haspopup", "dialog");
     this.label.setAttribute("aria-expanded", String(Boolean(this.action.checked)));
   }

@@ -7,16 +7,19 @@ import assert from "assert";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { ICommandEvent, ICommandService } from "src/cs/platform/commands/common/commands";
-import { CHART_LEGEND_ACTION_ID } from "src/cs/workbench/contrib/chart/browser/chartActions";
+import {
+	CHART_INSPECTOR_ACTION_ID,
+	CHART_LEGEND_ACTION_ID,
+} from "src/cs/workbench/contrib/chart/browser/chartActions";
 import { ChartViewPane } from "src/cs/workbench/contrib/chart/browser/chartViewPane";
 import type { IChartTitleEditService } from "src/cs/workbench/contrib/chart/browser/chartTitleEditService";
 import type { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import { createChartViewInput } from "src/cs/workbench/services/chart/browser/chartViewInput";
+import { TOGGLE_CHART_INSPECTOR_COMMAND_ID } from "src/cs/workbench/services/chart/common/chart";
 import type {
 	ChartDetailPane,
 	ChartState,
 	IChartService,
-	TOGGLE_CHART_INSPECTOR_COMMAND_ID,
 } from "src/cs/workbench/services/chart/common/chart";
 import type {
 	IPlotService,
@@ -75,7 +78,7 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 			assert.deepEqual(prefetches, []);
 
 			const inspectorButton = pane.element.querySelector<HTMLButtonElement>(
-				"button[aria-label='chart.inspector.heading']",
+				`button[data-action-id="${CHART_INSPECTOR_ACTION_ID}"]`,
 			);
 			assert.ok(inspectorButton);
 			inspectorButton.click();
@@ -83,7 +86,7 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 
 			assert.deepEqual(chartService.getState().visibleDetailPanes, ["inspector"]);
 			assert.deepEqual(commandIds, [TOGGLE_CHART_INSPECTOR_COMMAND_ID]);
-			assert.notEqual(pendingTimeout, null);
+			assert.ok(pendingTimeout !== null);
 
 			pendingTimeout?.();
 
@@ -134,12 +137,10 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 
 			const inputElement = pane.element.querySelector<HTMLInputElement>(".chart_legend_inline_input");
 			assert.ok(inputElement);
+			inputElement.focus();
 			inputElement.value = "Edited";
-			inputElement.dispatchEvent(new Event("input", { bubbles: true }));
-			inputElement.dispatchEvent(new KeyboardEvent("keydown", {
-				bubbles: true,
-				key: "Enter",
-			}));
+			inputElement.dispatchEvent(new globalThis.Event("input", { bubbles: true }));
+			inputElement.dispatchEvent(new globalThis.FocusEvent("blur"));
 			await Promise.resolve();
 
 			assert.equal(plotService.getLegendLabels("file-a")["series-a"], "Edited");
@@ -216,7 +217,7 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 				`button[data-action-id="${CHART_LEGEND_ACTION_ID}"]`,
 			);
 			const inspectorButton = pane.element.querySelector<HTMLButtonElement>(
-				"button[aria-label='chart.inspector.heading']",
+				`button[data-action-id="${CHART_INSPECTOR_ACTION_ID}"]`,
 			);
 			assert.ok(actionBar);
 			assert.ok(legendButton);
@@ -225,13 +226,13 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 			plotService.firePlotStateChange();
 			await Promise.resolve();
 
-			assert.strictEqual(pane.element.querySelector(".chart_view_detail_actions"), actionBar);
-			assert.strictEqual(
+			assert.equal(pane.element.querySelector(".chart_view_detail_actions"), actionBar);
+			assert.equal(
 				pane.element.querySelector(`button[data-action-id="${CHART_LEGEND_ACTION_ID}"]`),
 				legendButton,
 			);
-			assert.strictEqual(
-				pane.element.querySelector("button[aria-label='chart.inspector.heading']"),
+			assert.equal(
+				pane.element.querySelector(`button[data-action-id="${CHART_INSPECTOR_ACTION_ID}"]`),
 				inspectorButton,
 			);
 			assert.equal(pane.element.querySelectorAll(".chart_view_detail_actions").length, 1);

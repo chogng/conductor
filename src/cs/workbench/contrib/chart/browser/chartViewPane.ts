@@ -521,7 +521,9 @@ export class ChartViewPane extends ViewPane {
     this.headerActionBar.domNode.hidden = !visible;
     this.legendAction.enabled = visible && Boolean(legendContext);
     this.legendAction.class = undefined;
-    this.legendAction.checked = visible && Boolean(legendContext) && this.isLegendPopoverCurrent(this.props);
+    this.legendAction.checked = visible &&
+      Boolean(legendContext) &&
+      this.chartService.getState().legendPopoverContextKey === this.getLegendStateKey(legendContext);
     this.inspectorAction.enabled = visible;
     this.inspectorAction.checked = visible && this.chartService.getState().visibleDetailPanes.includes("inspector");
   }
