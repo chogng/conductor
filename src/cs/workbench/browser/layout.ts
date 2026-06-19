@@ -316,11 +316,18 @@ export class Layout extends Disposable {
     }
 
     const splitView = this.splitView.current;
-    splitView.getPaneElement(this.sidebarPart.paneId)?.replaceChildren(this.sidebar);
-    splitView.getPaneElement("workbench-main")?.replaceChildren(this.main);
-    splitView
-      .getPaneElement(this.auxiliaryBarPart.paneId)
-      ?.replaceChildren(this.auxiliaryBar);
+    const sidebarPane = splitView.getPaneElement(this.sidebarPart.paneId);
+    if (sidebarPane) {
+      replaceChildrenIfChanged(sidebarPane, this.sidebar);
+    }
+    const mainPane = splitView.getPaneElement("workbench-main");
+    if (mainPane) {
+      replaceChildrenIfChanged(mainPane, this.main);
+    }
+    const auxiliaryBarPane = splitView.getPaneElement(this.auxiliaryBarPart.paneId);
+    if (auxiliaryBarPane) {
+      replaceChildrenIfChanged(auxiliaryBarPane, this.auxiliaryBar);
+    }
     this.shell.className = workbenchActive
       ? "workbench_layout_shell"
       : "workbench_layout_shell workbench_layout_shell--hidden";
