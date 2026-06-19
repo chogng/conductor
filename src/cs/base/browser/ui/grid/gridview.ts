@@ -1,3 +1,5 @@
+import { replaceChildrenIfChanged } from "src/cs/base/browser/dom";
+
 import "src/cs/base/browser/ui/grid/gridview.css";
 
 export type GridViewOrientation = "horizontal" | "vertical";
@@ -109,9 +111,7 @@ export class GridView {
       nextItemElements.push(itemElement);
     }
 
-    if (!areChildrenEqual(this.element, nextItemElements)) {
-      this.element.replaceChildren(...nextItemElements);
-    }
+    replaceChildrenIfChanged(this.element, ...nextItemElements);
   }
 };
 
@@ -120,10 +120,3 @@ export const createGridView = (options: GridViewOptions): HTMLDivElement =>
 
 const toGridLocationKey = (location: GridLocation): string =>
   location.join(",");
-
-const areChildrenEqual = (
-  parent: HTMLElement,
-  children: readonly HTMLElement[],
-): boolean =>
-  parent.children.length === children.length &&
-  children.every((child, index) => parent.children[index] === child);

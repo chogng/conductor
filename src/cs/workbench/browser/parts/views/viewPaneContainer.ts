@@ -1,6 +1,11 @@
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
-import { DisposableResizeObserver, getClientArea, getWindow } from "src/cs/base/browser/dom";
+import {
+  DisposableResizeObserver,
+  getClientArea,
+  getWindow,
+  replaceChildrenIfChanged,
+} from "src/cs/base/browser/dom";
 import { ActionBar, type IActionViewItemProvider } from "src/cs/base/browser/ui/actionbar/actionbar";
 import type { IAction } from "src/cs/base/common/actions";
 import type { IView, IViewPaneContainer } from "src/cs/workbench/common/views";
@@ -372,7 +377,7 @@ export class ViewPaneContainer implements IViewPaneContainer {
         visibleViews.push(pane.element);
       }
     }
-    this.body.replaceChildren(...visibleViews);
+    replaceChildrenIfChanged(this.body, ...visibleViews);
     this.renderTitleArea();
   }
 

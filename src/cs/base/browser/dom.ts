@@ -453,6 +453,20 @@ export function reset(parent: HTMLElement, ...children: Array<Node | string>): v
     append(parent, ...children);
 }
 
+export function replaceChildrenIfChanged(
+    parent: HTMLElement,
+    ...children: readonly Node[]
+): void {
+    if (
+        parent.childNodes.length === children.length &&
+        children.every((child, index) => parent.childNodes[index] === child)
+    ) {
+        return;
+    }
+
+    parent.replaceChildren(...children);
+}
+
 export function $(description: string, attrs?: Record<string, unknown>, ...children: Array<Node | string>): HTMLElement {
     const match = /^([a-zA-Z][\w-]*)?((?:\.[\w-]+)*)(?:#([\w-]+))?$/.exec(description);
     const tagName = match?.[1] || "div";

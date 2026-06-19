@@ -7,6 +7,7 @@ import {
   createMenuItemLabel,
   type MenuItemAction,
 } from "src/cs/base/browser/ui/menu/menu";
+import { replaceChildrenIfChanged } from "src/cs/base/browser/dom";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Separator, type IAction } from "src/cs/base/common/actions";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
@@ -161,7 +162,10 @@ export class TemplateView {
         this.activePickField = null;
         this.clearTemplateTableSelection();
       }
-      this.configElement.replaceChildren(nextMode === "management" ? this.getApplyView().element : this.getEditorView().element);
+      replaceChildrenIfChanged(
+        this.configElement,
+        nextMode === "management" ? this.getApplyView().element : this.getEditorView().element,
+      );
     }
 
     if (nextMode === "management") {

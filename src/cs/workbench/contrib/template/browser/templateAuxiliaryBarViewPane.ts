@@ -8,6 +8,7 @@ import {
   type IContextMenuService as IContextMenuServiceType,
 } from "src/cs/platform/contextview/browser/contextView";
 import { ICommandService } from "src/cs/platform/commands/common/commands";
+import { replaceChildrenIfChanged } from "src/cs/base/browser/dom";
 import { ITableService } from "src/cs/workbench/services/table/common/table";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
@@ -61,9 +62,7 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
 
   public update(input: TemplateViewInput | null): void {
     this.templateView.update(this.createViewOptions(input));
-    if (this.templateView.configElement.parentElement !== this.content) {
-      this.content.replaceChildren(this.templateView.configElement);
-    }
+    replaceChildrenIfChanged(this.content, this.templateView.configElement);
   }
 
   public dispose(): void {

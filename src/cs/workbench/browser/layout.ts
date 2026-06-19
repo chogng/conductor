@@ -1,4 +1,5 @@
 import { Disposable, MutableDisposable } from "src/cs/base/common/lifecycle";
+import { replaceChildrenIfChanged } from "src/cs/base/browser/dom";
 import SplitView, {
   type SplitViewPane,
   type SplitViewResizeEvent,
@@ -536,20 +537,6 @@ const updatePaneElement = (
     section.inert = false;
   }
   replaceOptionalChildIfChanged(section, children);
-};
-
-const replaceChildrenIfChanged = (
-  parent: HTMLElement,
-  ...children: readonly Node[]
-): void => {
-  if (
-    parent.childNodes.length === children.length &&
-    children.every((child, index) => parent.childNodes[index] === child)
-  ) {
-    return;
-  }
-
-  parent.replaceChildren(...children);
 };
 
 const replaceOptionalChildIfChanged = (

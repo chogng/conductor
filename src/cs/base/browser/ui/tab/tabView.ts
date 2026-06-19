@@ -1,4 +1,5 @@
 import { Disposable, DisposableStore, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
+import { replaceChildrenIfChanged } from "src/cs/base/browser/dom";
 import {
   getTabsButtonClassName,
   getTabsInstanceId,
@@ -128,7 +129,7 @@ export abstract class TabView<TTabId extends string> extends Disposable {
   private renderPanel(): void {
     const tab = this.getTab(this.activeTabId);
     const view = this.getView(this.activeTabId);
-    this.panel.replaceChildren(view.element);
+    replaceChildrenIfChanged(this.panel, view.element);
     this.panel.setAttribute("role", "tabpanel");
     if (tab?.__panelId) {
       this.panel.id = tab.__panelId;

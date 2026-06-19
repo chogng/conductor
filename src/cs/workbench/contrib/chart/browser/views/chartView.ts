@@ -8,6 +8,7 @@ import {
   type PlotMainView,
   type PlotMainViewProps,
 } from "src/cs/workbench/contrib/plot/browser/plotView";
+import { replaceChildrenIfChanged } from "src/cs/base/browser/dom";
 import type {
   ChartPane,
   ChartViewInput,
@@ -158,7 +159,7 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
       inspectorPlotView?.dispose();
       inspectorPlotView = null;
       inspectorPendingView = null;
-      inspectorHost.replaceChildren();
+      replaceChildrenIfChanged(inspectorHost);
       return;
     }
 
@@ -170,16 +171,14 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
       }
 
       inspectorPlotView = createPlotMainView(createInspectorPlotMainViewProps(nextProps, nextDisplayModel));
-      inspectorHost.replaceChildren(inspectorPlotView.element);
+      replaceChildrenIfChanged(inspectorHost, inspectorPlotView.element);
       return;
     }
 
     inspectorPlotView?.dispose();
     inspectorPlotView = null;
     inspectorPendingView ??= createInspectorPendingView();
-    if (inspectorHost.firstElementChild !== inspectorPendingView) {
-      inspectorHost.replaceChildren(inspectorPendingView);
-    }
+    replaceChildrenIfChanged(inspectorHost, inspectorPendingView);
   }
 };
 
@@ -324,13 +323,7 @@ const syncVisiblePanes = (
   if (visiblePanes.includes("inspector")) {
     panes.push(inspectorPane);
   }
-  if (
-    panes.length === main.children.length &&
-    panes.every((pane, index) => main.children[index] === pane)
-  ) {
-    return;
-  }
-  main.replaceChildren(...panes);
+  replaceChildrenIfChanged(main, ...panes);
 };
 
 const canUpdateChartViewInPlace = (

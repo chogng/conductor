@@ -1,6 +1,11 @@
 import assert from "assert";
 
-import { addDisposableListener, clearNode, EventType } from "../../browser/dom.ts";
+import {
+  addDisposableListener,
+  clearNode,
+  EventType,
+  replaceChildrenIfChanged,
+} from "../../browser/dom.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/test/browser/dom", () => {
@@ -44,5 +49,28 @@ suite("base/test/browser/dom", () => {
     clearNode(node as unknown as HTMLElement);
 
     assert.deepEqual(removed, ["first", "second"]);
+  });
+
+  test("replaceChildrenIfChanged preserves identical child nodes", () => {
+    const parent = document.createElement("div");
+    const child = document.createElement("span");
+    parent.appendChild(child);
+    const originalReplaceChildren = parent.replaceChildren.bind(parent);
+    let replaceCalls = 0;
+    parent.replaceChildren = (...children) => {
+      replaceCalls++;
+      originalReplaceChildren(...children);
+    };
+
+    replaceChildrenIfChanged(parent, child);
+
+    assert.equal(replaceCalls, 0);
+    assert.equal(parent.firstChild, child);
+
+    const nextChild = document.createElement("strong");
+    replaceChildrenIfChanged(parent, nextChild);
+
+    assert.equal(replaceCalls, 1);
+    assert.equal(parent.firstChild, nextChild);
   });
 });
