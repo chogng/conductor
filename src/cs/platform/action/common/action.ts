@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  * Copyright (c) Conductor Studio. All rights reserved.
- * 要支持 keybinding 字段：补 platform/keybinding/common/keybindingsRegistry.ts。
  * 要支持上游隐藏/重置菜单状态：再补 actions.contribution.ts 和 menuResetAction.ts。
  *--------------------------------------------------------------------------------------------*/
 

@@ -12,8 +12,13 @@ import type {
   ILocalizedString,
 } from "src/cs/platform/action/common/action";
 import { CommandsRegistry, type ICommandService } from "src/cs/platform/commands/common/commands";
-import type { ContextKeyExpression, IContextKeyService } from "src/cs/platform/contextkey/common/contextkey";
+import { ContextKeyExpr, type ContextKeyExpression, type IContextKeyService } from "src/cs/platform/contextkey/common/contextkey";
 import { createDecorator, type ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
+import {
+  KeybindingsRegistry,
+  KeybindingWeight,
+  type IKeybindingRule,
+} from "src/cs/platform/keybinding/common/keybindingsRegistry";
 
 export interface IMenuItem {
   readonly command: ICommandAction;
@@ -286,19 +291,9 @@ export class MenuItemAction implements IAction {
 
 type OneOrN<T> = T | T[];
 
-interface IKeybindingRuleOptions {
-  readonly when?: ContextKeyExpression;
-  readonly weight?: number;
-  readonly primary?: number;
-  readonly secondary?: readonly number[];
-  readonly mac?: { readonly primary?: number; readonly secondary?: readonly number[] };
-  readonly win?: { readonly primary?: number; readonly secondary?: readonly number[] };
-  readonly linux?: { readonly primary?: number; readonly secondary?: readonly number[] };
-}
-
 interface IAction2CommonOptions extends ICommandAction {
   readonly menu?: OneOrN<{ readonly id: MenuId; readonly precondition?: null } & Omit<IMenuItem, "command">>;
-  readonly keybinding?: OneOrN<IKeybindingRuleOptions>;
+  readonly keybinding?: OneOrN<Omit<IKeybindingRule, "id" | "weight"> & { readonly weight?: number }>;
 }
 
 interface IBaseAction2Options extends IAction2CommonOptions {
@@ -328,7 +323,7 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
   const disposables: IDisposable[] = [];
   const action = new ctor();
 
-  const { f1, menu, keybinding: _keybinding, ...command } = action.desc;
+  const { f1, menu, keybinding, ...command } = action.desc;
 
   if (CommandsRegistry.getCommand(command.id)) {
     throw new Error(`Cannot register two commands with the same id: ${command.id}`);
@@ -366,6 +361,24 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
       when: command.precondition,
     }));
     disposables.push(MenuRegistry.addCommand(command));
+  }
+
+  if (Array.isArray(keybinding)) {
+    for (const item of keybinding) {
+      disposables.push(KeybindingsRegistry.registerKeybindingRule({
+        ...item,
+        id: command.id,
+        weight: item.weight ?? KeybindingWeight.WorkbenchContrib,
+        when: command.precondition ? ContextKeyExpr.and(command.precondition, item.when) : item.when,
+      }));
+    }
+  } else if (keybinding) {
+    disposables.push(KeybindingsRegistry.registerKeybindingRule({
+      ...keybinding,
+      id: command.id,
+      weight: keybinding.weight ?? KeybindingWeight.WorkbenchContrib,
+      when: command.precondition ? ContextKeyExpr.and(command.precondition, keybinding.when) : keybinding.when,
+    }));
   }
 
   return combinedDisposable(...disposables);

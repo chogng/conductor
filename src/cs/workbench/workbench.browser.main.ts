@@ -7,6 +7,7 @@ import "src/cs/platform/contextkey/browser/contextKeyService";
 import "src/cs/platform/contextview/browser/contextMenuService";
 import "src/cs/platform/contextview/browser/contextViewService";
 import "src/cs/platform/hover/browser/hoverService";
+import "src/cs/platform/keybinding/browser/keybindingService";
 import "src/cs/platform/languagePacks/browser/languagePacks";
 import "src/cs/platform/quickinput/browser/media/quickInput.css";
 import "src/cs/platform/quickinput/browser/quickInputService";

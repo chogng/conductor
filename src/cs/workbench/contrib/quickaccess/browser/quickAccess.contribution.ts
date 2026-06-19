@@ -1,4 +1,5 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { KeyCode, KeyMod } from "src/cs/base/common/keyCodes";
 import { localize } from "src/cs/nls";
 import { Registry } from "src/cs/platform/registry/common/platform";
 import { Action2, IMenuService, registerAction2 } from "src/cs/platform/actions/common/actions";
@@ -9,6 +10,7 @@ import {
   IContextKeyService,
   type IContextKeyService as IContextKeyServiceType,
 } from "src/cs/platform/contextkey/common/contextkey";
+import { KeybindingWeight } from "src/cs/platform/keybinding/common/keybindingsRegistry";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import {
   QuickAccessExtensions,
@@ -45,6 +47,10 @@ registerAction2(class QuickOpenAction extends Action2 {
       metadata: {
         description: localize("workbench.commands.quickOpen", "Show quick access"),
       },
+      keybinding: {
+        primary: KeyMod.CtrlCmd | KeyCode.KeyP,
+        weight: KeybindingWeight.WorkbenchContrib,
+      },
     });
   }
 
@@ -63,6 +69,10 @@ registerAction2(class ShowCommandsAction extends Action2 {
       title: localize("workbench.commands.showCommands", "Show available commands"),
       metadata: {
         description: localize("workbench.commands.showCommands", "Show available commands"),
+      },
+      keybinding: {
+        primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyP,
+        weight: KeybindingWeight.WorkbenchContrib,
       },
     });
   }

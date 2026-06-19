@@ -79,6 +79,10 @@ import {
   type IContextKeyService as IContextKeyServiceType,
 } from "src/cs/platform/contextkey/common/contextkey";
 import {
+  IKeybindingService,
+  type IKeybindingService as IKeybindingServiceType,
+} from "src/cs/platform/keybinding/common/keybinding";
+import {
   CommandsRegistry,
   ICommandService,
   type ICommandService as ICommandServiceType,
@@ -169,6 +173,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @IContextKeyService contextKeyService: IContextKeyServiceType,
     @ICommandService commandService: ICommandServiceType,
     @IMenuService menuService: IMenuServiceType,
+    @IKeybindingService _keybindingService: IKeybindingServiceType,
     @IChartService chartService: IChartServiceType,
     @ICalculationService calculationService: ICalculationServiceType,
     @IAssessmentQueueService assessmentQueueService: IAssessmentQueueServiceType,
