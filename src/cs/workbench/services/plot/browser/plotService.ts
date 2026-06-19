@@ -1269,6 +1269,7 @@ export class PlotService extends Disposable implements IPlotService {
     void calculatePlotDataInWorker({
       file,
       plotType,
+      priority,
       requestId,
       sessionVersion,
     }).then((result) => {
@@ -1554,6 +1555,7 @@ export class PlotService extends Disposable implements IPlotService {
       includeInspector: false,
       legendLabels: request.legendLabels,
       plotType: request.plotType,
+      priority: request.priority,
       requestId,
       sessionVersion: snapshot.sessionVersion,
     }).then((result) => {
@@ -1635,6 +1637,7 @@ export class PlotService extends Disposable implements IPlotService {
       includeInspector: true,
       legendLabels: request.legendLabels,
       plotType: request.plotType,
+      priority: request.priority,
       requestId,
       sessionVersion: snapshot.sessionVersion,
     }).then((result) => {

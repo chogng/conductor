@@ -114,6 +114,12 @@ export const createPerformanceMetricRow = ({
   );
   const thumbnailDuring = analysis.thumbnailHoverLive?.phaseWindows?.duringProcessing;
   const thumbnailAfter = analysis.thumbnailHoverLive?.phaseWindows?.afterProcessing;
+  const importDispatch = analysis.phaseAnalysis?.windowsByName?.importDispatch;
+  const importUntilReady = analysis.phaseAnalysis?.windowsByName?.importUntilReady;
+  const liveFileSwitch = analysis.phaseAnalysis?.windowsByName?.liveFileSwitch;
+  const liveThumbnailHover = analysis.phaseAnalysis?.windowsByName?.liveThumbnailHover;
+  const stableFileSwitch = analysis.phaseAnalysis?.windowsByName?.stableFileSwitch;
+  const stableThumbnailHover = analysis.phaseAnalysis?.windowsByName?.stableThumbnailHover;
   const thumbnailHoverIdentityMismatch = summarizeStageDuration(
     analysisPerfReport?.entries ?? [],
     "thumbnailHover.identityMismatch",
@@ -165,7 +171,14 @@ export const createPerformanceMetricRow = ({
     fileSwitchStableTraceApiTargetCount: readNumber(analysis.fileSwitch?.targetSourceCounts?.["trace-api"]) ?? 0,
     importAllBadgeMs: readNumber(milestones.allAssessmentBadgeMs),
     importAllPrepareMs: readNumber(milestones.allPrepareCompleteMs),
+    importDispatchMaxCpuPercent: readNumber(importDispatch?.resources?.maxCpuPercent),
     importSessionCommitMs: readNumber(milestones.sessionCommitMs),
+    importUntilReadyMaxCpuPercent: readNumber(importUntilReady?.resources?.maxCpuPercent),
+    applyProcessingMaxCpuPercent: readNumber(applyProcessing?.resources?.maxCpuPercent),
+    liveFileSwitchMaxCpuPercent: readNumber(liveFileSwitch?.resources?.maxCpuPercent),
+    liveThumbnailHoverMaxCpuPercent: readNumber(liveThumbnailHover?.resources?.maxCpuPercent),
+    stableFileSwitchMaxCpuPercent: readNumber(stableFileSwitch?.resources?.maxCpuPercent),
+    stableThumbnailHoverMaxCpuPercent: readNumber(stableThumbnailHover?.resources?.maxCpuPercent),
     maxCpuPercent: readNumber(analysis.resources?.maxCpuPercent),
     maxRssMb: readNumber(analysis.resources?.maxRssMb),
     maxTotalJsHeapMb: readNumber(analysis.resources?.maxTotalJsHeapMb),
@@ -231,6 +244,25 @@ export const createPerformanceMetricRow = ({
     plotDisplayTargetPrewarmP95Ms: summaryP95(plotDisplayTargetPrewarm),
     plotDisplayTargetPrewarmRecentCount: readNumber(plotDisplayTargetPrewarmReasons.recent) ?? 0,
     plotDisplayTargetPrewarmVisibleCount: readNumber(plotDisplayTargetPrewarmReasons.visible) ?? 0,
+    plotWorkerBackgroundDispatchCount: countPerfStageMetaValue(
+      analysisPerfReport?.entries ?? [],
+      "plotWorkerClient.dispatch",
+      "lane",
+      "background",
+    ),
+    plotWorkerCreatedCount: countPerfStage(analysisPerfReport?.entries ?? [], "plotWorkerClient.createWorker"),
+    plotWorkerDispatchCount: countPerfStage(analysisPerfReport?.entries ?? [], "plotWorkerClient.dispatch"),
+    plotWorkerInteractiveDispatchCount: countPerfStageMetaValue(
+      analysisPerfReport?.entries ?? [],
+      "plotWorkerClient.dispatch",
+      "lane",
+      "interactive",
+    ),
+    plotWorkerMaxQueueLength: maxPerfStageNumber(
+      analysisPerfReport?.entries ?? [],
+      "plotWorkerClient.dispatch",
+      "queueLength",
+    ),
     plotMainDrawCount: summaryCount(plotMainDraw),
     plotMainDrawP95Ms: summaryP95(plotMainDraw),
     plotInspectorCacheCreated: readNumber(plotCache.inspectorDisplayModelCache.created),
@@ -324,6 +356,13 @@ export const metricHistoryKeys = [
   "calculationWorkerForegroundWaitP95Ms",
   "calculationWorkerBackgroundWaitP95Ms",
   "calculationWorkerWaitP95Ms",
+  "importDispatchMaxCpuPercent",
+  "importUntilReadyMaxCpuPercent",
+  "applyProcessingMaxCpuPercent",
+  "liveFileSwitchMaxCpuPercent",
+  "liveThumbnailHoverMaxCpuPercent",
+  "stableFileSwitchMaxCpuPercent",
+  "stableThumbnailHoverMaxCpuPercent",
   "maxUsedJsHeapMb",
   "maxRssMb",
   "meanCpuPercent",
@@ -360,6 +399,11 @@ export const metricHistoryKeys = [
   "plotDisplayTargetPrewarmP95Ms",
   "plotDisplayTargetPrewarmRecentCount",
   "plotDisplayTargetPrewarmVisibleCount",
+  "plotWorkerBackgroundDispatchCount",
+  "plotWorkerCreatedCount",
+  "plotWorkerDispatchCount",
+  "plotWorkerInteractiveDispatchCount",
+  "plotWorkerMaxQueueLength",
   "plotMainDrawCount",
   "plotMainDrawP95Ms",
   "plotInspectorCacheMaxSize",
@@ -421,6 +465,26 @@ const sumPerfStageNumber = (entries, stage, key) =>
 
     return total + (readNumber(entry.meta?.[key]) ?? 0);
   }, 0);
+
+const countPerfStage = (entries, stage) =>
+  (entries ?? []).reduce((total, entry) => (
+    entry?.stage === stage ? total + 1 : total
+  ), 0);
+
+const countPerfStageMetaValue = (entries, stage, key, value) =>
+  (entries ?? []).reduce((total, entry) => (
+    entry?.stage === stage && String(entry.meta?.[key] ?? "") === value
+      ? total + 1
+      : total
+  ), 0);
+
+const maxPerfStageNumber = (entries, stage, key) => {
+  const values = (entries ?? [])
+    .filter(entry => entry?.stage === stage)
+    .map(entry => readNumber(entry.meta?.[key]))
+    .filter(value => value != null);
+  return values.length ? Math.max(...values) : null;
+};
 
 export const readHistoryRows = (historyPath) => {
   if (!existsSync(historyPath)) {
@@ -512,6 +576,9 @@ export const writeHistorySvg = (svgPath, rows, scenarioKey) => {
     "fileSwitchDuringCanvasNonBlankP95Ms",
     "fileSwitchDuringChartDrawnP95Ms",
     "fileSwitchDuringRenderSignatureLagP95Ms",
+    "importDispatchMaxCpuPercent",
+    "applyProcessingMaxCpuPercent",
+    "liveFileSwitchMaxCpuPercent",
     "maxUsedJsHeapMb",
     "plotDisplayCacheMaxSize",
     "plotDisplayCacheHardLimit",
@@ -523,6 +590,8 @@ export const writeHistorySvg = (svgPath, rows, scenarioKey) => {
     "plotDisplayCacheTrimmedActive",
     "plotDisplayBatchPrewarmQueuedCount",
     "plotDisplayTargetPrewarmRecentCount",
+    "plotWorkerCreatedCount",
+    "plotWorkerMaxQueueLength",
     "plotMainDrawP95Ms",
     "workbenchSelectionRefreshP95Ms",
     "plotInspectorPrefetchFired",

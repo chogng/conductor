@@ -45,7 +45,7 @@ It does not own:
 | `src/cs/workbench/services/plot/common/plotSettings.ts` | Unit, scale, visibility, plot type settings. |
 | `src/cs/workbench/services/plot/browser/plotService.ts` | Subscribes to session, maintains plot state, builds and caches plot render models. |
 | `src/cs/workbench/services/plot/browser/plotCalculatedDataWorker.ts` | Browser worker entry that builds calculated plot data for queued prefetch work off the renderer UI thread. |
-| `src/cs/workbench/services/plot/browser/plotCalculatedDataWorkerClient.ts` | Plot-owned worker adapter for async calculated-data and display-model prefetch requests, timeouts, and fallback. |
+| `src/cs/workbench/services/plot/browser/plotCalculatedDataWorkerClient.ts` | Plot-owned worker adapter for async calculated-data and display-model prefetch requests, interactive/background worker lane reuse, timeouts, and fallback. |
 | `src/cs/workbench/services/plot/browser/plotDisplayModel.ts` | Pure display-model builder shared by PlotService and the Plot worker. No DOM. |
 | `src/cs/workbench/services/plot/browser/plotRenderModel.ts` | Converts session curves/metrics to normalized render model. Target home for current `plotMainRenderModel`. |
 | `src/cs/workbench/services/plot/browser/plotViewModel.ts` | Domains, ticks, point model, downsampling, signed-log helpers. Target home for current plot view-model math. |
@@ -130,6 +130,11 @@ storage, for these controls.
 - Plot worker calculated-data requests should send only the file fields needed
   for plot calculation, such as base curves, series labels/order, and latest
   template axis metadata. Do not post full raw table row stores to the worker.
+- Plot worker client should reuse bounded interactive/background lanes instead
+  of creating a fresh worker for each prefetch request. Background work remains
+  serialized on the background lane; active and hover work may use the
+  interactive lane so foreground requests can still run while background
+  warmup is in progress.
 - `getCachedCalculatedData` is a non-creating read for consumers that must not
   run calculation work in their own frame budget.
 - `getCachedPlotDisplayModel` and `getCachedPlotLegendModel` are non-creating

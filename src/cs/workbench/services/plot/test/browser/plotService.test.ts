@@ -403,6 +403,114 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     }
   });
 
+  test("reuses the background plot worker across serial prefetch requests", async () => {
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+    const originalWorker = globalThis.Worker;
+    const scheduledFrames: FrameRequestCallback[] = [];
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      scheduledFrames.push(callback);
+      return scheduledFrames.length;
+    }) as typeof requestAnimationFrame;
+    globalThis.cancelAnimationFrame = (() => undefined) as typeof cancelAnimationFrame;
+
+    type WorkerRecord = {
+      readonly message: {
+        readonly payload?: {
+          readonly file?: FileRecord;
+          readonly plotType?: "iv";
+          readonly requestId?: number;
+          readonly sessionVersion?: number;
+        };
+      };
+      readonly worker: TestWorker;
+    };
+    const workerRecords: WorkerRecord[] = [];
+    let workerCreateCount = 0;
+    class TestWorker {
+      public onerror: ((event: ErrorEvent) => void) | null = null;
+      public onmessage: ((event: MessageEvent) => void) | null = null;
+
+      constructor() {
+        workerCreateCount += 1;
+      }
+
+      public postMessage(message: WorkerRecord["message"]): void {
+        workerRecords.push({ message, worker: this });
+      }
+
+      public terminate(): void {
+        return;
+      }
+    }
+
+    const completeWorker = (record: WorkerRecord): void => {
+      const payload = record.message.payload;
+      const fileId = payload?.file?.id ?? "";
+      record.worker.onmessage?.({
+        data: {
+          payload: {
+            calculatedData: {
+              activeFile: null,
+              kind: payload?.plotType ?? "iv",
+              pointsCount: 0,
+              seriesList: [],
+              signature: `worker-result:${fileId}`,
+              source: {
+                fileId,
+                inputKind: "record",
+              },
+              xDomain: [0, 1],
+              xUnitLabel: "",
+              yDomain: [0, 1],
+              yUnitLabel: "",
+            },
+            fileId,
+            plotType: payload?.plotType ?? "iv",
+            requestId: payload?.requestId ?? 0,
+            sessionVersion: payload?.sessionVersion ?? 0,
+          },
+          type: "calculateDataResult",
+        },
+      } as MessageEvent);
+    };
+
+    try {
+      globalThis.Worker = TestWorker as unknown as typeof Worker;
+      const snapshot = createSnapshot({
+        "file-a": createFileRecord("file-a", "series-a", "A"),
+        "file-b": createFileRecord("file-b", "series-b", "B"),
+      }, ["file-a", "file-b"]);
+      const service = store.add(new PlotService(
+        createSessionServiceStub(snapshot),
+        createSettingsServiceStub(),
+        store.add(new TestStorageService()),
+      ));
+
+      service.prefetchCalculatedData(["file-a"], "visible", "iv");
+      scheduledFrames.shift()?.(0);
+      assert.equal(workerCreateCount, 1);
+      assert.equal(workerRecords[0]?.message.payload?.file?.id, "file-a");
+
+      completeWorker(workerRecords[0]);
+      await Promise.resolve();
+
+      service.prefetchCalculatedData(["file-b"], "visible", "iv");
+      scheduledFrames.shift()?.(0);
+
+      assert.equal(workerCreateCount, 1);
+      assert.equal(workerRecords[1]?.message.payload?.file?.id, "file-b");
+      assert.equal(workerRecords[1]?.worker, workerRecords[0]?.worker);
+
+      completeWorker(workerRecords[1]);
+      await Promise.resolve();
+    } finally {
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+      globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+      globalThis.Worker = originalWorker;
+    }
+  });
+
   test("caches worker empty calculated data result as unavailable", async () => {
     const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
     const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
@@ -1518,14 +1626,19 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       scheduledFrames.shift()?.(0);
       assert.deepEqual(
         workerRecords.map(record => `${record.message.type}:${record.message.payload?.sessionVersion}`),
+        ["calculateDisplayModel:1"],
+      );
+
+      completeDisplayWorker(workerRecords[0]);
+      await Promise.resolve();
+      scheduledFrames.shift()?.(0);
+      assert.deepEqual(
+        workerRecords.map(record => `${record.message.type}:${record.message.payload?.sessionVersion}`),
         [
           "calculateDisplayModel:1",
           "calculateDisplayModel:2",
         ],
       );
-
-      completeDisplayWorker(workerRecords[0]);
-      await Promise.resolve();
 
       service.prefetchPlotDisplayModel({
         fileId: "file-a",
