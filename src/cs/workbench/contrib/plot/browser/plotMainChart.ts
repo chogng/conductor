@@ -474,13 +474,24 @@ const drawRangeOverlay = (
   context.restore();
 };
 
+const readCanvasSurfaceSize = (canvas: HTMLCanvasElement): PlotMainChartSize => {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    height: Math.max(
+      1,
+      Math.floor(canvas.parentElement?.clientHeight || canvas.clientHeight || rect.height || 420),
+    ),
+    width: Math.max(
+      1,
+      Math.floor(canvas.parentElement?.clientWidth || canvas.clientWidth || rect.width || 720),
+    ),
+  };
+};
+
 const clearHoverOverlay = (canvas: HTMLCanvasElement): void => {
-  const context = applyCanvasSize(
-    canvas,
-    Math.max(MIN_CHART_WIDTH, canvas.parentElement?.clientWidth || canvas.clientWidth || 720),
-    Math.max(MIN_CHART_HEIGHT, canvas.parentElement?.clientHeight || canvas.clientHeight || 420),
-  );
-  context?.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+  const { height, width } = readCanvasSurfaceSize(canvas);
+  const context = applyCanvasSize(canvas, width, height);
+  context?.clearRect(0, 0, width, height);
 };
 
 const drawHoverOverlay = (
@@ -489,8 +500,7 @@ const drawHoverOverlay = (
   scale: ChartScale,
   entries: readonly PlotReadoutEntry[],
 ): void => {
-  const width = Math.max(320, canvas.parentElement?.clientWidth || canvas.clientWidth || 720);
-  const height = Math.max(220, canvas.parentElement?.clientHeight || canvas.clientHeight || 420);
+  const { height, width } = readCanvasSurfaceSize(canvas);
   const context = applyCanvasSize(canvas, width, height);
   if (!context || !entries.length) return;
 
@@ -698,8 +708,8 @@ const readChartLayoutSize = (element: HTMLElement): PlotMainChartSize | null => 
   }
 
   return {
-    height: Math.max(MIN_CHART_HEIGHT, height),
-    width: Math.max(MIN_CHART_WIDTH, width),
+    height,
+    width,
   };
 };
 

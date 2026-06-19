@@ -134,6 +134,40 @@ suite("workbench/contrib/plot/test/browser/plotMainView", () => {
     }
   });
 
+  test("uses the connected chart host height without forcing the fallback minimum", async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const host = document.createElement("div");
+    host.style.height = "156px";
+    host.style.width = "640px";
+    document.body.append(host);
+
+    const element = createPlotMainChart(createPlotMainChartProps({
+      model: createPlotModel(),
+      plotType: "iv",
+    }));
+    element.style.minHeight = "0";
+    const canvas = element.querySelector(".plot_main_chart_canvas") as HTMLCanvasElement | null;
+    const hoverCanvas = element.querySelector(".plot_main_chart_hover_canvas") as HTMLCanvasElement | null;
+    assert.ok(canvas);
+    assert.ok(hoverCanvas);
+
+    try {
+      host.append(element);
+      await animationFrames(3);
+
+      assert.equal(canvas.style.width, "640px");
+      assert.equal(canvas.style.height, "156px");
+      assert.equal(hoverCanvas.style.width, "640px");
+      assert.equal(hoverCanvas.style.height, "156px");
+    } finally {
+      element.dispose();
+      host.remove();
+    }
+  });
+
   test("marks the canvas with the rendered plot signature", async () => {
     if (typeof document === "undefined") {
       return;

@@ -779,7 +779,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("does not immediately prewarm inspector for later chart selections", async () => {
+  test("keeps inspector prewarm out of bridge chart selection sync", async () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const plotInspectorPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
@@ -799,15 +799,13 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       });
       await Promise.resolve();
 
-      assert.deepEqual(uniquePrefetches(plotInspectorPrefetches), [
-        { fileIds: ["file-a"], priority: "active" },
-      ]);
+      assert.deepEqual(uniquePrefetches(plotInspectorPrefetches), []);
     } finally {
       bridge.dispose();
     }
   });
 
-  test("prewarms active inspector target when inspector pane is visible at startup", () => {
+  test("keeps startup chart prewarm chart-main only when inspector pane is visible", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
@@ -827,9 +825,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       assert.deepEqual(uniquePrefetches(plotDisplayPrefetches), [
         { fileIds: ["file-a"], priority: "active" },
       ]);
-      assert.deepEqual(uniquePrefetches(plotInspectorPrefetches), [
-        { fileIds: ["file-a"], priority: "active" },
-      ]);
+      assert.deepEqual(uniquePrefetches(plotInspectorPrefetches), []);
     } finally {
       bridge.dispose();
     }
