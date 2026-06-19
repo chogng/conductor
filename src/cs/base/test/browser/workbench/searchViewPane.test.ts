@@ -117,6 +117,57 @@ suite("base/browser/workbench/searchViewPane", () => {
       service.dispose();
     }
   });
+
+  test("keeps point lookup sections collapsed across search state refreshes", async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const service = new TestSearchService(createSearchPointLookupModel("a", [0, 2], true));
+    const pane = new SearchViewPane(service as unknown as ISearchService);
+    document.body.append(pane.element);
+
+    const inspectorSection = pane.element.querySelector<HTMLElement>(
+      ".search_result_section[data-pane-id='inspector']",
+    );
+    const header = inspectorSection?.querySelector<HTMLButtonElement>(".search_result_section_title");
+    const body = inspectorSection?.querySelector<HTMLElement>(".search_result_section_body");
+    assert.ok(inspectorSection);
+    assert.ok(header);
+    assert.ok(body);
+
+    try {
+      assert.equal(header.getAttribute("aria-expanded"), "true");
+      assert.equal(body.hidden, false);
+
+      header.click();
+      await Promise.resolve();
+
+      assert.equal(inspectorSection.dataset.collapsed, "true");
+      assert.equal(header.getAttribute("aria-expanded"), "false");
+      assert.equal(body.hidden, true);
+      assert.equal(getComputedStyle(body).display, "none");
+
+      service.fireSearchState();
+      await Promise.resolve();
+
+      const nextInspectorSection = pane.element.querySelector<HTMLElement>(
+        ".search_result_section[data-pane-id='inspector']",
+      );
+      const nextHeader = nextInspectorSection?.querySelector<HTMLButtonElement>(".search_result_section_title");
+      const nextBody = nextInspectorSection?.querySelector<HTMLElement>(".search_result_section_body");
+      assert.ok(nextInspectorSection);
+      assert.ok(nextHeader);
+      assert.ok(nextBody);
+      assert.equal(nextInspectorSection.dataset.collapsed, "true");
+      assert.equal(nextHeader.getAttribute("aria-expanded"), "false");
+      assert.equal(nextBody.hidden, true);
+      assert.equal(getComputedStyle(nextBody).display, "none");
+    } finally {
+      pane.dispose();
+      service.dispose();
+    }
+  });
 });
 
 class TestSearchService extends Disposable {
@@ -193,11 +244,20 @@ const createSearchState = (
 const createSearchPointLookupModel = (
   id: string,
   xDomain: [number, number],
+  includeInspector = false,
 ): SearchPointLookupModel => ({
-  panes: [{
-    id: "main",
-    model: createPlotMainRenderModel(id, xDomain),
-  }],
+  panes: [
+    {
+      id: "main",
+      model: createPlotMainRenderModel(id, xDomain),
+    },
+    ...(includeInspector
+      ? [{
+          id: "inspector" as const,
+          model: createPlotMainRenderModel(`${id}-inspector`, xDomain),
+        }]
+      : []),
+  ],
 });
 
 const createPlotMainRenderModel = (

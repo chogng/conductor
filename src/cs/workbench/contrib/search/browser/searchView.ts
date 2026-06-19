@@ -7,11 +7,13 @@ import {
   createInputBoxField,
   getInputBoxFieldState,
 } from "src/cs/base/browser/ui/inputbox/inputBoxField";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
   createSelectBox,
   type SelectBox,
   type SelectBoxOptions,
 } from "src/cs/base/browser/ui/selectBox/selectBox";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { formatNumber } from "src/cs/workbench/services/calculation/common/numberFormat";
@@ -62,6 +64,7 @@ class SearchViewController {
   private readonly body = document.createElement("div");
   private currentInput: SearchViewInput;
   private bodyRenderSignature = "";
+  private readonly collapsedPaneIds = new Set<SearchPointLookupPaneId>();
   private interpolationSelectSignature = "";
 
   constructor(input: SearchViewInput) {
@@ -189,7 +192,14 @@ class SearchViewController {
 
     this.replaceBody(
       createSearchResultsSignature(populatedPaneResults),
-      ...populatedPaneResults.map(result => createSearchResultSection(result.pane, result.results)),
+      ...populatedPaneResults.map(result =>
+        createSearchResultSection({
+          collapsed: this.collapsedPaneIds.has(result.pane.id),
+          onToggle: (paneId, collapsed) => this.setPaneCollapsed(paneId, collapsed),
+          pane: result.pane,
+          results: result.results,
+        }),
+      ),
     );
   }
 
@@ -200,6 +210,17 @@ class SearchViewController {
 
     this.body.replaceChildren(...children);
     this.bodyRenderSignature = signature;
+  }
+
+  private setPaneCollapsed(
+    paneId: SearchPointLookupPaneId,
+    collapsed: boolean,
+  ): void {
+    if (collapsed) {
+      this.collapsedPaneIds.add(paneId);
+      return;
+    }
+    this.collapsedPaneIds.delete(paneId);
   }
 
   private createInterpolationSelectOptions(
@@ -233,22 +254,61 @@ const getSearchInputValue = (
   return queryText === "" ? formatInputValue(resolveInitialSearchX(model.xDomain)) : queryText;
 };
 
-const createSearchResultSection = (
-  pane: SearchPointLookupPaneModel,
-  results: readonly SearchPoint[],
-): HTMLElement => {
+const createSearchResultSection = ({
+  collapsed,
+  onToggle,
+  pane,
+  results,
+}: {
+  readonly collapsed: boolean;
+  readonly onToggle: (paneId: SearchPointLookupPaneId, collapsed: boolean) => void;
+  readonly pane: SearchPointLookupPaneModel;
+  readonly results: readonly SearchPoint[];
+}): HTMLElement => {
   const section = document.createElement("section");
   section.className = "search_result_section";
+  section.dataset.collapsed = String(collapsed);
+  section.dataset.paneId = pane.id;
 
-  const title = document.createElement("div");
+  const bodyId = `search_result_section_${pane.id}_body`;
+  const title = document.createElement("button");
+  title.type = "button";
   title.className = "search_result_section_title";
-  title.textContent = getSearchPaneLabel(pane.id);
+  title.setAttribute("aria-controls", bodyId);
+  title.setAttribute("aria-expanded", String(!collapsed));
 
-  section.append(
-    title,
+  const twisty = document.createElement("span");
+  twisty.className = "search_result_section_twisty";
+  twisty.setAttribute("aria-hidden", "true");
+  twisty.append(createLxIcon({ icon: LxIcon.chevronRight, size: 14 }));
+
+  const label = document.createElement("span");
+  label.className = "search_result_section_label";
+  label.textContent = getSearchPaneLabel(pane.id);
+
+  const count = document.createElement("span");
+  count.className = "search_result_section_count";
+  count.textContent = String(results.length);
+
+  const body = document.createElement("div");
+  body.id = bodyId;
+  body.className = "search_result_section_body";
+  body.hidden = collapsed;
+  body.append(
     createSearchResultsHeader(),
     ...results.map((result, index) => createSearchResult(result, index)),
   );
+
+  title.addEventListener(EventType.CLICK, () => {
+    const nextCollapsed = section.dataset.collapsed !== "true";
+    section.dataset.collapsed = String(nextCollapsed);
+    title.setAttribute("aria-expanded", String(!nextCollapsed));
+    body.hidden = nextCollapsed;
+    onToggle(pane.id, nextCollapsed);
+  });
+
+  title.append(twisty, label, count);
+  section.append(title, body);
   return section;
 };
 
