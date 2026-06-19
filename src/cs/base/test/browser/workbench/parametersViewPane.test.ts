@@ -114,11 +114,14 @@ suite("base/browser/workbench/parametersViewPane", () => {
 });
 
 const createParametersViewPane = (
-  state: ParametersViewState,
+  options: ParametersViewOptions,
 ): ParametersViewPane => new ParametersViewPane(
   {
     onDidChangeParametersViewState: Event.None,
-    getViewState: () => state,
+    getViewState: (): ParametersViewState => ({
+      kind: "table",
+      ...options,
+    }),
   } as unknown as IParametersService,
   {
     notify: () => ({ dispose: () => undefined }),
