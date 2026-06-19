@@ -257,7 +257,7 @@ export class SearchService extends Disposable implements ISearchServiceType {
 		return {
 			fileId,
 			hiddenLegendKeys: liveLegendKeys.length
-				? this.chartService?.getHiddenLegendKeys(`${fileId}:${plotType}`, liveLegendKeys) ?? []
+				? this.plotService?.getHiddenLegendKeys(fileId, plotType, liveLegendKeys) ?? []
 				: [],
 			legendLabels: this.getPointLookupLegendLabels(fileId, liveLegendKeys),
 			plotType,

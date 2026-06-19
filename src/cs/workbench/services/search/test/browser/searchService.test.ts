@@ -81,7 +81,7 @@ suite("workbench/services/search/test/browser/searchService", () => {
 		assert.deepEqual(models, [model, null]);
 	});
 
-	test("refreshes point lookup from chart legend visibility and plot labels", () => {
+	test("refreshes point lookup from plot legend visibility and labels", () => {
 		const plotStateEmitter = store.add(new Emitter<ReturnType<IPlotService["getState"]>>());
 		const plotDisplayInputs: PlotDisplayModelInput[] = [];
 		let legendLabels: Readonly<Record<string, string>> = {
@@ -286,14 +286,7 @@ const createPlotDisplayModelForTest = (
 };
 
 const createChartServiceForPointLookupTest = (): IChartService => ({
-	getHiddenLegendKeys: (contextKey, liveLegendKeys) =>
-		contextKey === "file-a:iv"
-			? liveLegendKeys.filter(legendKey => legendKey === "series-b")
-			: [],
 	getState: () => ({
-		hiddenLegendKeysByContext: {
-			"file-a:iv": ["series-b"],
-		},
 		legendPopoverContextKey: null,
 		visibleDetailPanes: [],
 	}),
@@ -308,7 +301,6 @@ const createChartServiceForPointLookupTest = (): IChartService => ({
 	onDidChangeChartViewInput: Event.None,
 	setLegendPopoverContextKey: () => undefined,
 	toggleDetailPane: () => undefined,
-	toggleHiddenLegendKey: () => undefined,
 	updateViewInput: () => undefined,
 } as IChartService);
 
@@ -335,6 +327,10 @@ const createPlotServiceForPointLookupTest = ({
 			{ data: [], id: "series-b", name: "Series B" },
 		],
 	}),
+	getHiddenLegendKeys: (fileId, plotType, liveLegendKeys) =>
+		fileId === "file-a" && plotType === "iv"
+			? liveLegendKeys.filter(legendKey => legendKey === "series-b")
+			: [],
 	getLegendLabels: () => legendLabels(),
 	getState: () => ({
 		activePlotType: "iv",
