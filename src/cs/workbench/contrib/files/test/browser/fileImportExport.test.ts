@@ -22,6 +22,7 @@ import {
   collectFolderImportFiles,
   collectPendingImportFiles,
   FileSourceWorkflow,
+  getPendingImportAppendBatchSize,
   getPendingImportPrepareConcurrency,
   getFolderImportSupportForFileService,
   prepareFirstPendingImportFile,
@@ -50,6 +51,14 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     assert.equal(getPendingImportPrepareConcurrency(4), 8);
     assert.equal(getPendingImportPrepareConcurrency(8), 16);
     assert.equal(getPendingImportPrepareConcurrency(64), 16);
+  });
+
+  test("pending import append window keeps first feedback quick before bulk landing", () => {
+    assert.equal(getPendingImportAppendBatchSize(199, 50), 50);
+    assert.equal(getPendingImportAppendBatchSize(200, 0), 50);
+    assert.equal(getPendingImportAppendBatchSize(200, 49), 50);
+    assert.equal(getPendingImportAppendBatchSize(200, 50), 100);
+    assert.equal(getPendingImportAppendBatchSize(520, 250), 100);
   });
 
   test("folder import does not require browser folder picker for non-HTML file services", () => {
@@ -591,6 +600,39 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
         sourceSizeBytes: 12,
       },
     ]);
+    assert.equal(failedFiles.length, 0);
+  });
+
+  test("streams large path batch imports through a larger append window after first feedback", async () => {
+    const failedFiles: FileImportPrepareFailure[] = [];
+    const appendCounts: number[] = [];
+    const backend = createFileConverterBackendStub({
+      canPrepareFile: () => true,
+      prepareFilesStream: async (payloads, onResult) => {
+        const results = payloads.map((payload, index): FileConverterPreparedFile => ({
+          csvText: `Vg,Id\n0,${index}`,
+          ok: true,
+          sourcePath: payload.path,
+        }));
+        results.forEach((result, index) => onResult({ index, result }));
+        return results;
+      },
+    });
+
+    const acceptedCount = await prepareRemainingPendingImportFiles({
+      canApplyResult: () => true,
+      failedFiles,
+      fileConverterBackend: backend,
+      onPreparedFiles: preparedFiles => {
+        appendCounts.push(preparedFiles.length);
+      },
+      pendingImportFiles: Array.from({ length: 200 }, (_value, index) =>
+        createPathPendingFile(`${index}.csv`, `folder/${index}.csv`)),
+      skippedIndexes: new Set<number>(),
+    });
+
+    assert.equal(acceptedCount, 200);
+    assert.deepEqual(appendCounts, [50, 100, 50]);
     assert.equal(failedFiles.length, 0);
   });
 

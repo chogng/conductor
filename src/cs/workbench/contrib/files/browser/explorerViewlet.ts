@@ -90,6 +90,13 @@ export class ExplorerViewPane extends ViewPane {
   private internalFiles: PreparedFileImportEntry[] = [];
   private pendingSourceEntries: ExplorerFileEntry[] = [];
   private replaceSourceKeys: string[] | null = null;
+  private mergedFilesCache: {
+    readonly committedFiles: readonly ExplorerFileEntry[];
+    readonly files: ExplorerFileEntry[];
+    readonly pendingSourceEntries: readonly ExplorerFileEntry[];
+    readonly replaceSourceKeys: readonly string[] | null;
+  } | null = null;
+  private lastBadgeProjectionFiles: readonly ExplorerFileEntry[] | null = null;
   private isDragging = false;
   private disposed = false;
   private templateLoadRunId = 0;
@@ -262,11 +269,33 @@ export class ExplorerViewPane extends ViewPane {
   }
 
   private get files(): ExplorerFileEntry[] {
-    return mergeExplorerSourceEntries({
-      files: this.committedFiles,
+    const committedFiles = this.committedFiles;
+    if (!this.pendingSourceEntries.length && !this.replaceSourceKeys?.length) {
+      return committedFiles;
+    }
+
+    const cache = this.mergedFilesCache;
+    if (
+      cache &&
+      cache.committedFiles === committedFiles &&
+      cache.pendingSourceEntries === this.pendingSourceEntries &&
+      cache.replaceSourceKeys === this.replaceSourceKeys
+    ) {
+      return cache.files;
+    }
+
+    const files = mergeExplorerSourceEntries({
+      files: committedFiles,
       pendingSourceEntries: this.pendingSourceEntries,
       replaceSourceKeys: this.replaceSourceKeys,
     });
+    this.mergedFilesCache = {
+      committedFiles,
+      files,
+      pendingSourceEntries: this.pendingSourceEntries,
+      replaceSourceKeys: this.replaceSourceKeys,
+    };
+    return files;
   }
 
   private get committedFiles(): ExplorerFileEntry[] {
@@ -295,7 +324,7 @@ export class ExplorerViewPane extends ViewPane {
   private createExplorerViewProps(): ExplorerViewProps {
     const input = this.paneInput;
     const files = this.files;
-    markExplorerBadgeProjection(files);
+    this.markExplorerBadgeProjection(files);
     return {
       selectedFileId: this.selectedFileId,
       expandedFolderKeys: this.explorerService.expandedFolderKeys,
@@ -333,6 +362,15 @@ export class ExplorerViewPane extends ViewPane {
       thumbnailFiles: input.thumbnailFiles,
       thumbnailPlotModelsByFileId: input.thumbnailPlotModelsByFileId,
     };
+  }
+
+  private markExplorerBadgeProjection(files: readonly ExplorerFileEntry[]): void {
+    if (this.lastBadgeProjectionFiles === files) {
+      return;
+    }
+
+    this.lastBadgeProjectionFiles = files;
+    markExplorerBadgeProjection(files);
   }
 
   private readonly handleCancelRenameFile = (): void => {

@@ -99,6 +99,8 @@ export type {
 } from "src/cs/workbench/services/files/common/files";
 
 const PENDING_IMPORT_APPEND_BATCH_SIZE = 50;
+const PENDING_IMPORT_BULK_APPEND_BATCH_SIZE = 100;
+const PENDING_IMPORT_BULK_APPEND_THRESHOLD = 200;
 const PENDING_IMPORT_PREPARE_MIN_CONCURRENCY = 4;
 const PENDING_IMPORT_PREPARE_DEFAULT_CONCURRENCY = 8;
 const PENDING_IMPORT_PREPARE_MAX_CONCURRENCY = 16;
@@ -136,6 +138,22 @@ export function getPendingImportPrepareConcurrency(
     PENDING_IMPORT_PREPARE_MIN_CONCURRENCY,
     Math.min(PENDING_IMPORT_PREPARE_MAX_CONCURRENCY, scaledConcurrency),
   );
+}
+
+export function getPendingImportAppendBatchSize(
+  totalCount: number,
+  acceptedCount: number,
+): number {
+  const normalizedTotalCount = Math.max(0, Math.floor(Number(totalCount)));
+  const normalizedAcceptedCount = Math.max(0, Math.floor(Number(acceptedCount)));
+  if (
+    normalizedTotalCount >= PENDING_IMPORT_BULK_APPEND_THRESHOLD &&
+    normalizedAcceptedCount >= PENDING_IMPORT_APPEND_BATCH_SIZE
+  ) {
+    return PENDING_IMPORT_BULK_APPEND_BATCH_SIZE;
+  }
+
+  return PENDING_IMPORT_APPEND_BATCH_SIZE;
 }
 
 export type PreparedFileImportEntry = {
@@ -1355,9 +1373,13 @@ export async function prepareRemainingPendingImportFiles({
     }
 
     const preparedFiles: PreparedFileImport[] = [];
+    const appendBatchSize = getPendingImportAppendBatchSize(
+      remainingIndexes.length,
+      acceptedCount,
+    );
     while (
       nextAppendOffset < remainingIndexes.length &&
-      preparedFiles.length < PENDING_IMPORT_APPEND_BATCH_SIZE
+      preparedFiles.length < appendBatchSize
     ) {
       const index = remainingIndexes[nextAppendOffset];
       if (!completedIndexes.has(index)) {
@@ -1378,6 +1400,8 @@ export async function prepareRemainingPendingImportFiles({
     const appendStartedAt = getPerfNow();
     onPreparedFiles(preparedFiles);
     markTemplateApplyPerformanceTrace("import.prepare.append", {
+      acceptedBeforeAppendCount: acceptedCount,
+      appendBatchSize,
       durationMs: getPerfNow() - appendStartedAt,
       fileCount: preparedFiles.length,
       mode: "workers",
@@ -1437,7 +1461,7 @@ export async function prepareRemainingPendingImportFiles({
   );
 
   while (flushReadyImports() > 0) {
-    // Drain completed batches larger than PENDING_IMPORT_APPEND_BATCH_SIZE.
+    // Drain completed batches larger than the current append window.
   }
   markTemplateApplyPerformanceTrace("import.prepare.complete", {
     acceptedCount,
@@ -1541,9 +1565,15 @@ async function prepareRemainingPendingImportFilesBatch({
     }
 
     if (readyFiles.length) {
+      const appendBatchSize = getPendingImportAppendBatchSize(
+        batchFiles.length,
+        acceptedCount,
+      );
       const appendStartedAt = getPerfNow();
       onPreparedFiles(readyFiles);
       markTemplateApplyPerformanceTrace("import.prepare.append", {
+        acceptedBeforeAppendCount: acceptedCount,
+        appendBatchSize,
         durationMs: getPerfNow() - appendStartedAt,
         fileCount: readyFiles.length,
         mode: "batch",
@@ -1564,8 +1594,12 @@ async function prepareRemainingPendingImportFilesBatch({
 
   const flushReadyImportsWhenUseful = (): number => {
     const flushableOffsetCount = getFlushableOffsetCount();
+    const appendBatchSize = getPendingImportAppendBatchSize(
+      batchFiles.length,
+      acceptedCount,
+    );
     if (
-      flushableOffsetCount < PENDING_IMPORT_APPEND_BATCH_SIZE &&
+      flushableOffsetCount < appendBatchSize &&
       completedOffsets.size < batchFiles.length
     ) {
       return 0;
