@@ -316,7 +316,6 @@ const createFileSelector = ({
 
 const createQuickAccessButton = (
   commandService?: ICommandService,
-  hoverStore?: DisposableStore,
 ): HTMLButtonElement => {
   const action =
     WorkbenchTitlebarActions.createWorkbenchTitlebarQuickAccessButton();
@@ -324,7 +323,6 @@ const createQuickAccessButton = (
     {
       id: action.id,
       "aria-label": action.title,
-      title: action.title,
       className: "titlebar-quick-access-button",
     },
     createLxIcon(action.icon, 14, "opacity-80"),
@@ -337,7 +335,6 @@ const createQuickAccessButton = (
   label.className = "titlebar-quick-access-label";
   label.textContent = action.title;
   button.appendChild(label);
-  setupTooltipHover(button, action.title, hoverStore);
 
   return button;
 };
@@ -521,7 +518,7 @@ const createWorkbenchTitlebarView = (
     className: "titlebar-center",
   });
 
-  center.appendChild(createQuickAccessButton(commandService, hoverStore));
+  center.appendChild(createQuickAccessButton(commandService));
 
   if (showFileSelector && normalizedFileOptions.length > 0) {
     const selector = createFileSelector({
