@@ -49,6 +49,10 @@ import type {
   ExplorerEditableData,
   ExplorerThumbnailPlotModel,
 } from "src/cs/workbench/contrib/files/browser/files";
+import {
+  isTemplateApplyPerformanceTraceEnabled,
+  markTemplateApplyPerformanceTrace,
+} from "src/cs/workbench/contrib/files/browser/templateApplyPerformanceTrace";
 import { FileKind, ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
 import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";
@@ -62,6 +66,8 @@ import type { FilesExplorerBadgeColors } from "src/cs/workbench/services/setting
 import {
   buildExplorerTree,
   collectExplorerFolderKeys,
+  createExplorerFilePresentationSignature,
+  createExplorerTreeStructureSignature,
   getExplorerTreeFileKey,
   getExplorerTreeFileName,
   type ExplorerFileEntry,
@@ -193,6 +199,8 @@ type FileItemTemplate = {
   readonly content: HTMLDivElement;
   readonly editorStore: DisposableStore;
   fileId: string | null;
+  filePresentationSignature: string;
+  fileRenderKey: string | null;
   readonly host: HTMLElement;
   readonly label: IResourceLabel;
   readonly removeButton: HTMLButtonElement;
@@ -557,6 +565,63 @@ const getFileIdsFromTreeNodes = (
   return result;
 };
 
+const applyFileItemShellState = (
+  host: HTMLElement,
+  {
+    fileEntry,
+    fileId,
+    fileName,
+    isEditing,
+    isSelected,
+  }: {
+    readonly fileEntry: ExplorerFileEntry;
+    readonly fileId: string | null;
+    readonly fileName: string;
+    readonly isEditing: boolean;
+    readonly isSelected: boolean;
+  },
+): void => {
+  if (host.className !== "file-list-item") {
+    host.className = "file-list-item";
+  }
+  delete host.dataset.expanded;
+  host.removeAttribute("title");
+  host.setAttribute(
+    "aria-label",
+    localize("files.import.fileItemAriaLabel", "File {fileName}", { fileName }),
+  );
+  if (isSelected) {
+    host.dataset.selected = "true";
+  } else {
+    delete host.dataset.selected;
+  }
+  if (fileId) {
+    host.dataset.fileId = fileId;
+  } else {
+    delete host.dataset.fileId;
+  }
+  if (fileEntry.chartState) {
+    host.dataset.chartState = fileEntry.chartState;
+  } else {
+    delete host.dataset.chartState;
+  }
+  if (typeof fileEntry.hasChartData === "boolean") {
+    host.dataset.hasChartData = fileEntry.hasChartData ? "true" : "false";
+  } else {
+    delete host.dataset.hasChartData;
+  }
+  if (isEditing) {
+    host.dataset.editing = "true";
+  } else {
+    delete host.dataset.editing;
+  }
+  if (fileEntry?.itemKey) {
+    host.dataset.itemKey = fileEntry.itemKey;
+  } else {
+    delete host.dataset.itemKey;
+  }
+};
+
 const createAssessmentRow = (
   label: string,
   value: string | readonly string[],
@@ -734,6 +799,23 @@ export class ExplorerViewer implements IDisposable {
       this.explorerAppearance,
       nextExplorerAppearance,
     );
+    if (isTemplateApplyPerformanceTraceEnabled()) {
+      markTemplateApplyPerformanceTrace("explorer.viewer.setProps", {
+        changedPresentationKeyCount: changedPresentationKeys.length,
+        fileCount: nextProps.files.length,
+        nextMode: nextProps.mode,
+        nextSelectedFileId,
+        nextViewLayout,
+        previousMode: this.props.mode,
+        previousSelectedFileId,
+        previousViewLayout: getEffectiveViewLayout(this.props),
+        shouldClearPlotCache,
+        shouldUpdateExplorerAppearance,
+        shouldUpdateFolderExpansion,
+        shouldUpdateOptions,
+        shouldUpdateTree,
+      });
+    }
 
     this.props = nextProps;
     if (shouldUpdateExplorerAppearance) {
@@ -749,6 +831,15 @@ export class ExplorerViewer implements IDisposable {
 
     if (shouldUpdateTree) {
       this.updateTreeModel(nextTreeStructureSignature);
+      if (isTemplateApplyPerformanceTraceEnabled()) {
+        markTemplateApplyPerformanceTrace("explorer.tree.setChildren", {
+          fileCount: nextProps.files.length,
+          folderCount: this.treeModel.folderKeys.length,
+          mode: nextProps.mode,
+          selectedFileId: nextSelectedFileId,
+          viewLayout: nextViewLayout,
+        });
+      }
       const reconciledExpandedFolderKeys =
         this.props.onFolderKeysChange?.(this.treeModel.folderKeys) ??
         nextExpandedFolderKeys;
@@ -775,9 +866,26 @@ export class ExplorerViewer implements IDisposable {
         ...(shouldUpdateExplorerAppearance ? { delegate: this.treeDelegate } : {}),
       };
       if (Object.keys(treeOptionsUpdate).length) {
+        if (isTemplateApplyPerformanceTraceEnabled()) {
+          markTemplateApplyPerformanceTrace("explorer.tree.updateOptions", {
+            collapsedKeys: Boolean(treeOptionsUpdate.collapsedKeys),
+            delegate: Boolean(treeOptionsUpdate.delegate),
+            mode: nextProps.mode,
+            selectedKey: treeOptionsUpdate.selectedKey ?? null,
+            viewLayout: nextViewLayout,
+          });
+        }
         this.treeView.updateOptions(treeOptionsUpdate);
       }
 
+      if (changedPresentationKeys.length && isTemplateApplyPerformanceTraceEnabled()) {
+        markTemplateApplyPerformanceTrace("explorer.tree.rerenderByKeys", {
+          keyCount: changedPresentationKeys.length,
+          mode: nextProps.mode,
+          sampleKeys: changedPresentationKeys.slice(0, 8),
+          viewLayout: nextViewLayout,
+        });
+      }
       this.treeView.rerenderByKeys(changedPresentationKeys);
     }
 
@@ -934,14 +1042,7 @@ export class ExplorerViewer implements IDisposable {
   private createTreeStructureSignature(
     files: readonly ExplorerFileEntry[],
   ): string {
-    return files
-      .map((entry) => [
-        entry.fileId ?? "",
-        entry.itemKey ?? "",
-        entry.relativePath ?? "",
-        getFileName(entry),
-      ].join("\u001f"))
-      .join("\u001e");
+    return createExplorerTreeStructureSignature(files);
   }
 
   private createFilePresentationSignatures(
@@ -971,43 +1072,15 @@ export class ExplorerViewer implements IDisposable {
     entry: ExplorerFileEntry,
     props: ExplorerViewerProps,
   ): string {
-    const badgeState = entry.badgeState;
-    return [
-      entry.chartMessage ?? "",
-      entry.chartState ?? "",
-      entry.fileId ?? "",
-      entry.hasChartData === true ? "1" : "0",
-      entry.sourceStatus ?? "",
-      entry.sourceStatusMessage ?? "",
-      entry.assessmentHealth ?? "",
-      entry.assessmentHealthMessage ?? "",
-      entry.templateEligibility ?? "",
-      badgeState?.kind ?? "",
-      badgeState?.kind === "error" ||
-        badgeState?.kind === "ready"
-        ? badgeState.message ?? ""
-        : "",
-      badgeState?.kind === "ready" ? badgeState.label : "",
-      badgeState?.kind === "ready" ? badgeState.confidence : "",
-      badgeState?.kind === "ready" ? badgeState.source : "",
-      badgeState?.kind === "unknown" ? badgeState.source : "",
-      badgeState?.kind === "unknown" ? badgeState.message ?? "" : "",
-      badgeState?.kind === "unknown" ? badgeState.suspectedType ?? "" : "",
-      entry.curveType ?? "",
-      entry.curveTypeBadgeLabel ?? "",
-      entry.curveTypeConfidence ?? "",
-      entry.curveTypeNeedsTemplate === true ? "1" : "0",
-      (entry.curveTypeReasons ?? []).join("\u001d"),
-      this.getBadgeColorSignature(props.explorerAppearance?.badgeColors),
-      this.resolveFileTemplateLabel(entry, props),
-      getTemplateSelectionId(
+    return createExplorerFilePresentationSignature(entry, {
+      badgeColorSignature: this.getBadgeColorSignature(props.explorerAppearance?.badgeColors),
+      isEditing: props.editable?.isEditing === true &&
+        props.editable.resource.fileId === entry.fileId,
+      templateLabel: this.resolveFileTemplateLabel(entry, props),
+      templateSelectionId: getTemplateSelectionId(
         this.resolveFileTemplateSelection(entry.fileId, props),
       ),
-      props.editable?.isEditing === true &&
-        props.editable.resource.fileId === entry.fileId
-        ? "editing"
-        : "",
-    ].join("\u001f");
+    });
   }
 
   private getBadgeColorSignature(
@@ -1320,10 +1393,18 @@ export class ExplorerViewer implements IDisposable {
   };
 
   private readonly disposeTreeElement = (
-    _node: ITreeNode<FileTreeNode>,
+    node: ITreeNode<FileTreeNode>,
     _index: number,
     template: TreeItemTemplate,
   ): void => {
+    if (isTemplateApplyPerformanceTraceEnabled()) {
+      markTemplateApplyPerformanceTrace("explorer.tree.disposeElement", {
+        fileId: node.element.kind === "file" ? node.element.entry?.fileId ?? null : null,
+        kind: node.element.kind,
+        key: node.element.key,
+        templateFileId: template.file.fileId,
+      });
+    }
     if (this.hoverAnchor === template.file.host) {
       this.hideFileItemHover(template.file.host);
     }
@@ -1404,43 +1485,57 @@ export class ExplorerViewer implements IDisposable {
     const pendingAssessment = createFilePendingAssessment(fileEntry);
     const { host } = template;
     const fileKey = getFileRenderKey(fileEntry);
-    template.assessment.bind(fileKey);
+    const presentationSignature = this.createFilePresentationSignature(fileEntry, this.props);
     if (this.hoverAnchor === host && template.fileId !== fileId) {
       this.hideFileItemHover(host);
     }
 
-    host.className = "file-list-item";
-    delete host.dataset.expanded;
-    host.removeAttribute("title");
-    host.setAttribute(
-      "aria-label",
-      localize("files.import.fileItemAriaLabel", "File {fileName}", { fileName }),
-    );
-    if (isSelected) {
-      host.dataset.selected = "true";
-    } else {
-      delete host.dataset.selected;
+    applyFileItemShellState(host, {
+      fileEntry,
+      fileId,
+      fileName,
+      isEditing,
+      isSelected,
+    });
+    const canReuseRenderedPresentation =
+      !isEditing &&
+      template.fileRenderKey === fileKey &&
+      template.filePresentationSignature === presentationSignature &&
+      template.content.parentElement === host &&
+      template.actions.parentElement === host;
+    template.fileId = fileId;
+    if (canReuseRenderedPresentation) {
+      if (isTemplateApplyPerformanceTraceEnabled()) {
+        markTemplateApplyPerformanceTrace("explorer.fileItem.reuse", {
+          chartState: fileEntry.chartState ?? null,
+          fileId,
+          fileKey,
+          mode: this.props.mode,
+          selected: isSelected,
+          viewLayout: getEffectiveViewLayout(this.props),
+        });
+      }
+      return;
     }
-    if (fileId) {
-      host.dataset.fileId = fileId;
-    } else {
-      delete host.dataset.fileId;
+
+    if (isTemplateApplyPerformanceTraceEnabled()) {
+      markTemplateApplyPerformanceTrace("explorer.fileItem.render", {
+        actionsAttached: template.actions.parentElement === host,
+        chartState: fileEntry.chartState ?? null,
+        contentAttached: template.content.parentElement === host,
+        fileId,
+        fileKey,
+        isEditing,
+        mode: this.props.mode,
+        samePresentationSignature: template.filePresentationSignature === presentationSignature,
+        sameRenderKey: template.fileRenderKey === fileKey,
+        selected: isSelected,
+        viewLayout: getEffectiveViewLayout(this.props),
+      });
     }
-    if (fileEntry.chartState) {
-      host.dataset.chartState = fileEntry.chartState;
-    } else {
-      delete host.dataset.chartState;
-    }
-    if (typeof fileEntry.hasChartData === "boolean") {
-      host.dataset.hasChartData = fileEntry.hasChartData ? "true" : "false";
-    } else {
-      delete host.dataset.hasChartData;
-    }
-    if (isEditing) {
-      host.dataset.editing = "true";
-    } else {
-      delete host.dataset.editing;
-    }
+    template.fileRenderKey = fileKey;
+    template.filePresentationSignature = presentationSignature;
+    template.assessment.bind(fileKey);
     const hoverAssessment = assessment ?? (fastAssessment?.isWarning ? fastAssessment : null);
     if (hoverAssessment) {
       host.dataset.autoType = hoverAssessment.type;
@@ -1473,13 +1568,6 @@ export class ExplorerViewer implements IDisposable {
       delete host.dataset.badgeSource;
     }
 
-    if (fileEntry?.itemKey) {
-      host.dataset.itemKey = fileEntry.itemKey;
-    } else {
-      delete host.dataset.itemKey;
-    }
-
-    template.fileId = fileId;
     template.editorStore.clear();
     template.label.element.style.display = "";
     template.label.setResource(
@@ -1734,6 +1822,8 @@ export class ExplorerViewer implements IDisposable {
       content,
       editorStore: new DisposableStore(),
       fileId: null,
+      filePresentationSignature: "",
+      fileRenderKey: null,
       host,
       label,
       removeButton,

@@ -18,6 +18,9 @@ import {
   dispatchBrowserFixtureDrop,
 } from "./templateApplyPerformanceTrace/fixture.mjs";
 import {
+  runExplorerModeSwitchProbe,
+} from "./templateApplyPerformanceTrace/explorerModeSwitch.mjs";
+import {
   runFileSwitchStress,
   runLiveFileSwitchStress,
 } from "./templateApplyPerformanceTrace/fileSwitch.mjs";
@@ -100,6 +103,12 @@ const parseArgs = () => {
       scenarioDefaults.liveStressCoordinated ?? false,
     ),
     liveStressParallel: readBooleanFlag(flags, "live-stress-parallel", scenarioDefaults.liveStressParallel ?? false),
+    modeSwitch: readBooleanFlag(flags, "mode-switch", scenarioDefaults.modeSwitch ?? false),
+    modeSwitchAfterApply: readBooleanFlag(
+      flags,
+      "mode-switch-after-apply",
+      scenarioDefaults.modeSwitchAfterApply ?? false,
+    ),
     outputRoot: path.resolve(args.get("out") || defaultOutputRoot),
     profile: args.get("profile") || scenarioDefaults.profile || "healthy",
     rowCount: readPositiveInteger(args.get("rows"), scenarioDefaults.rowCount ?? 4000),
@@ -231,6 +240,8 @@ const main = async () => {
       fileSwitchCount: options.fileSwitchCount,
       liveStressCoordinated: options.liveStressCoordinated,
       liveStressParallel: options.liveStressParallel,
+      modeSwitch: options.modeSwitch,
+      modeSwitchAfterApply: options.modeSwitchAfterApply,
       rowCount: options.rowCount,
       targetCollectionTimeoutMs: options.targetCollectionTimeoutMs,
       thumbnailHoverCount: options.thumbnailHoverCount,
@@ -279,6 +290,23 @@ const main = async () => {
       assessmentBadgeCount: finalState.dom?.assessment ?? null,
       prepareCompletionCount: fixture.expectedPrepareCompletionCount,
     });
+    let modeSwitch = null;
+    if (options.modeSwitch) {
+      console.log("[template-apply-performance-trace] Running Explorer table/chart mode switch probe...");
+      await phaseRecorder.mark("modeSwitch.start");
+      modeSwitch = await runExplorerModeSwitchProbe({
+        page: runtime.page,
+        timeoutMs: options.timeoutMs,
+      });
+      await phaseRecorder.mark("modeSwitch.end", {
+        eventCounts: modeSwitch.eventCounts,
+      });
+      console.log(`[template-apply-performance-trace] modeSwitch=${JSON.stringify({
+        afterChart: modeSwitch.afterChart?.state ?? null,
+        afterTable: modeSwitch.afterTable?.state ?? null,
+        eventCounts: modeSwitch.eventCounts,
+      }, null, 2)}`);
+    }
     let thumbnailApply = null;
     let thumbnailHover = null;
     let thumbnailHoverLive = null;
@@ -487,6 +515,39 @@ const main = async () => {
         thumbnailHover: Boolean(thumbnailHover),
       });
     }
+    let modeSwitchAfterApply = null;
+    if (options.modeSwitchAfterApply) {
+      if (!thumbnailApply) {
+        console.log("[template-apply-performance-trace] Applying template before Explorer mode switch probe...");
+        await phaseRecorder.mark("apply.stable.start", {
+          reason: "mode-switch",
+        });
+        thumbnailApply = await runTemplateApplyForThumbnailHover({
+          expectedReadyCount: options.fileSwitchCount,
+          expectedTargetCount: Math.min(options.fileSwitchCount, options.fileCount),
+          page: runtime.page,
+          timeoutMs: options.timeoutMs,
+        });
+        await phaseRecorder.mark("processing.done", {
+          processingBatchMs: thumbnailApply.durationMs,
+          reason: "mode-switch",
+        });
+      }
+      console.log("[template-apply-performance-trace] Running Explorer post-apply table/chart mode switch probe...");
+      await phaseRecorder.mark("modeSwitchAfterApply.start");
+      modeSwitchAfterApply = await runExplorerModeSwitchProbe({
+        page: runtime.page,
+        timeoutMs: options.timeoutMs,
+      });
+      await phaseRecorder.mark("modeSwitchAfterApply.end", {
+        eventCounts: modeSwitchAfterApply.eventCounts,
+      });
+      console.log(`[template-apply-performance-trace] modeSwitchAfterApply=${JSON.stringify({
+        afterChart: modeSwitchAfterApply.afterChart?.state ?? null,
+        afterTable: modeSwitchAfterApply.afterTable?.state ?? null,
+        eventCounts: modeSwitchAfterApply.eventCounts,
+      }, null, 2)}`);
+    }
     sampler.stop();
     const analysisPerfReport = options.analysisPerf
       ? await readAnalysisPerfReport(runtime.page)
@@ -558,6 +619,8 @@ const main = async () => {
       thumbnailHoverLive,
       fileSwitch,
       fileSwitchLive,
+      modeSwitch,
+      modeSwitchAfterApply,
       traceEvents: reportTraceState.events,
     };
     const reportPath = path.join(options.outputRoot, `${runId}-${options.runtime}.json`);

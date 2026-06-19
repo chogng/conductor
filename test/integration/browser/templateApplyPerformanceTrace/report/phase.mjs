@@ -62,6 +62,8 @@ export const createPhaseWindows = (anchors) => {
     createWindow("liveFileSwitch", "live.fileSwitch.start", "live.fileSwitch.end"),
     createWindow("liveFileSwitchDuringProcessing", "live.fileSwitch.start", "processing.done"),
     createWindow("liveFileSwitchAfterProcessing", "processing.done", "live.fileSwitch.end"),
+    createWindow("modeSwitch", "modeSwitch.start", "modeSwitch.end"),
+    createWindow("modeSwitchAfterApply", "modeSwitchAfterApply.start", "modeSwitchAfterApply.end"),
     createWindow("stableThumbnailHover", "stable.thumbnailHover.start", "stable.thumbnailHover.end"),
     createWindow("stableFileSwitch", "stable.fileSwitch.start", "stable.fileSwitch.end"),
     createWindow("postProcessingStable", "processing.done", "stable.end"),

@@ -89,6 +89,13 @@ export type ExplorerBadgeProjectionSummary = {
 	readonly totalFileCount: number;
 };
 
+export type ExplorerFilePresentationSignatureOptions = {
+	readonly badgeColorSignature: string;
+	readonly isEditing: boolean;
+	readonly templateLabel: string;
+	readonly templateSelectionId: string;
+};
+
 export type ExplorerTreeNode<TEntry extends ExplorerFileEntry = ExplorerFileEntry> = {
 	readonly children?: ExplorerTreeNode<TEntry>[];
 	readonly entry?: TEntry;
@@ -227,6 +234,55 @@ const createExplorerBadgeProjectionFileSignature = (file: ExplorerFileEntry): st
 		badgeState?.kind === "unknown" ? badgeState.suspectedType ?? "" : "",
 	].join("\u001f");
 };
+
+export const createExplorerFilePresentationSignature = (
+	entry: ExplorerFileEntry,
+	options: ExplorerFilePresentationSignatureOptions,
+): string => {
+	const badgeState = entry.badgeState;
+	const badgeMessage =
+		badgeState?.kind === "error" ||
+		badgeState?.kind === "ready"
+			? badgeState.message ?? ""
+			: "";
+	return [
+		entry.fileId ?? "",
+		entry.sourceStatus ?? "",
+		entry.sourceStatusMessage ?? "",
+		entry.assessmentHealth ?? "",
+		entry.assessmentHealthMessage ?? "",
+		entry.templateEligibility ?? "",
+		badgeState?.kind ?? "",
+		badgeMessage,
+		badgeState?.kind === "ready" ? badgeState.label : "",
+		badgeState?.kind === "ready" ? badgeState.confidence : "",
+		badgeState?.kind === "ready" ? badgeState.source : "",
+		badgeState?.kind === "unknown" ? badgeState.source : "",
+		badgeState?.kind === "unknown" ? badgeState.message ?? "" : "",
+		badgeState?.kind === "unknown" ? badgeState.suspectedType ?? "" : "",
+		entry.curveType ?? "",
+		entry.curveTypeBadgeLabel ?? "",
+		entry.curveTypeConfidence ?? "",
+		entry.curveTypeNeedsTemplate === true ? "1" : "0",
+		(entry.curveTypeReasons ?? []).join("\u001d"),
+		options.badgeColorSignature,
+		options.templateLabel,
+		options.templateSelectionId,
+		options.isEditing ? "editing" : "",
+	].join("\u001f");
+};
+
+export const createExplorerTreeStructureSignature = (
+	files: readonly ExplorerFileEntry[],
+): string =>
+	files
+		.map((entry) => [
+			entry.fileId ?? "",
+			entry.itemKey ?? "",
+			entry.relativePath ?? "",
+			getExplorerFileName(entry),
+		].join("\u001f"))
+		.join("\u001e");
 
 export const buildExplorerTree = <TEntry extends ExplorerFileEntry>(
 	entries: readonly TEntry[],

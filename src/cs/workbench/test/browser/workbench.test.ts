@@ -231,6 +231,105 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.deepEqual(input.files.map(file => file.chartState), ["ready", "none"]);
   });
 
+  test("keeps chart apply states from replacing assessment badges", () => {
+    const snapshot = store.add(new SessionService()).getSnapshot();
+    const input = createExplorerPaneInput({
+      activePlotType: "iv",
+      explorerService: store.add(new ExplorerService()),
+      mode: "chart",
+      plotService: createPlotService(),
+      readModel: {
+        hasChartData: false,
+        hasSessionData: true,
+        processedFileIds: [],
+        processedFiles: [],
+        rawFiles: [
+          {
+            curveType: "unknown",
+            curveTypeNeedsTemplate: true,
+            fileId: "unknown-file",
+            fileName: "Unknown.csv",
+          },
+          {
+            curveType: "transfer",
+            fileId: "failed-file",
+            fileName: "Failed.csv",
+          },
+          {
+            curveType: "output",
+            fileId: "queued-file",
+            fileName: "Queued.csv",
+          },
+        ],
+      },
+      snapshot,
+      applyStatesByFileId: new Map([
+        ["unknown-file", {
+          code: "unknownCurveType",
+          message: "Unknown.csv has unknown curve type.",
+          state: "skipped",
+        }],
+        ["failed-file", {
+          code: "workerError",
+          message: "Failed.csv could not be extracted.",
+          state: "failed",
+        }],
+        ["queued-file", {
+          state: "queued",
+        }],
+      ]),
+      templateState: {
+        formState: createEmptyTemplateConfig(),
+        mode: "management",
+        selectedTemplateId: null,
+        selectionsByFileId: {},
+        templateListVersion: 0,
+      },
+    });
+
+    assert.deepEqual(
+      input.files.map(file => ({
+        badgeState: file.badgeState,
+        chartMessage: file.chartMessage,
+        chartState: file.chartState,
+        fileId: file.fileId,
+      })),
+      [
+        {
+          badgeState: {
+            kind: "unknown",
+            source: "assessment",
+          },
+          chartMessage: "Unknown.csv has unknown curve type.",
+          chartState: "skipped",
+          fileId: "unknown-file",
+        },
+        {
+          badgeState: {
+            confidence: "confirmed",
+            kind: "ready",
+            label: "transfer",
+            source: "assessment",
+          },
+          chartMessage: "Failed.csv could not be extracted.",
+          chartState: "failed",
+          fileId: "failed-file",
+        },
+        {
+          badgeState: {
+            confidence: "confirmed",
+            kind: "ready",
+            label: "output",
+            source: "assessment",
+          },
+          chartMessage: null,
+          chartState: "queued",
+          fileId: "queued-file",
+        },
+      ],
+    );
+  });
+
   test("creates chart thumbnail input from processed file projection", () => {
     const session = store.add(new SessionService());
     commitRawFilesForTest(session, [

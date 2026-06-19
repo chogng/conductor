@@ -793,7 +793,7 @@ const applyChartExplorerStates = (
     const chartMessage = getChartStateMessage(applyState);
     return {
       ...file,
-      badgeState: resolveChartBadgeState(file, applyState),
+      badgeState: file.badgeState,
       chartMessage,
       chartState,
       hasChartData,
@@ -831,22 +831,6 @@ const getChartStateMessage = (
   }
 
   return null;
-};
-
-const resolveChartBadgeState = (
-  file: ExplorerFileEntry,
-  applyState: TemplateApplyFileState | undefined,
-): ExplorerFileEntry["badgeState"] => {
-  switch (applyState?.state) {
-    case "queued":
-    case "processing":
-      return { kind: "pending" };
-    case "failed":
-    case "skipped":
-      return { kind: "error", message: applyState.message };
-    default:
-      return file.badgeState;
-  }
 };
 
 const applyFastExplorerBadge = (

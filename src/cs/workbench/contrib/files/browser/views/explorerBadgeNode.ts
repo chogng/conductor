@@ -2,6 +2,11 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import {
+  isTemplateApplyPerformanceTraceEnabled,
+  markTemplateApplyPerformanceTrace,
+} from "src/cs/workbench/contrib/files/browser/templateApplyPerformanceTrace";
+
 export type ExplorerBadgePresentation = {
   readonly color?: string | null;
   readonly fileKey: string;
@@ -25,6 +30,12 @@ export class ExplorerBadgeNode {
       return;
     }
 
+    if (isTemplateApplyPerformanceTraceEnabled()) {
+      markTemplateApplyPerformanceTrace("explorer.badge.bind", {
+        fileKey,
+        previousFileKey: this.boundFileKey,
+      });
+    }
     this.boundFileKey = fileKey;
     this.lastKey = "";
   }
@@ -40,6 +51,17 @@ export class ExplorerBadgeNode {
     }
 
     this.lastKey = key;
+    if (isTemplateApplyPerformanceTraceEnabled()) {
+      markTemplateApplyPerformanceTrace("explorer.badge.apply", {
+        color: badge?.color ?? null,
+        fileKey,
+        isConnected: this.node.isConnected,
+        label: badge?.label ?? null,
+        source: badge?.source ?? null,
+        state: badge?.state ?? null,
+        title: badge?.title ?? null,
+      });
+    }
     this.apply(badge);
   }
 

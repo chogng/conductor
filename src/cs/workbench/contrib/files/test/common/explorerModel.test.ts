@@ -8,6 +8,8 @@ import type { FileRecord } from "src/cs/workbench/services/session/common/sessio
 
 import {
   buildExplorerTree,
+  createExplorerFilePresentationSignature,
+  createExplorerTreeStructureSignature,
   createChartExplorerFiles,
   createChartExplorerFilesFromRecords,
   createRawExplorerFiles,
@@ -134,6 +136,90 @@ suite("workbench/contrib/files/common/explorerModel", () => {
     ]);
     assert.notEqual(tableSummary.signature, skippedSummary.signature);
     assert.equal(skippedSummary.assessmentBadgeCount, 1);
+  });
+
+  test("createExplorerFilePresentationSignature ignores chart-only metadata", () => {
+    const options = {
+      badgeColorSignature: "output:green",
+      isEditing: false,
+      templateLabel: "Auto extraction",
+      templateSelectionId: "auto",
+    };
+    const file = {
+      badgeState: {
+        confidence: "confirmed",
+        kind: "ready",
+        label: "output",
+        source: "assessment",
+      },
+      curveType: "output",
+      curveTypeBadgeLabel: "output",
+      curveTypeConfidence: "high",
+      fileId: "file-a",
+      fileName: "A.csv",
+    } as const;
+
+    assert.equal(
+      createExplorerFilePresentationSignature(file, options),
+      createExplorerFilePresentationSignature({
+        ...file,
+        chartMessage: "Ready",
+        chartState: "ready",
+        hasChartData: true,
+      }, options),
+    );
+
+    assert.notEqual(
+      createExplorerFilePresentationSignature(file, options),
+      createExplorerFilePresentationSignature({
+        ...file,
+        badgeState: {
+          kind: "error",
+          message: "Skipped",
+        },
+        chartMessage: "Skipped",
+        chartState: "skipped",
+        hasChartData: false,
+      }, options),
+    );
+  });
+
+  test("createExplorerTreeStructureSignature ignores chart-only metadata", () => {
+    const files = [
+      {
+        fileId: "file-a",
+        fileName: "A.csv",
+        itemKey: "raw:a",
+        relativePath: "folder/A.csv",
+      },
+      {
+        fileId: "file-b",
+        fileName: "B.csv",
+        itemKey: "raw:b",
+        relativePath: "folder/B.csv",
+      },
+    ];
+
+    assert.equal(
+      createExplorerTreeStructureSignature(files),
+      createExplorerTreeStructureSignature(files.map(file => ({
+        ...file,
+        chartMessage: "Ready",
+        chartState: "ready",
+        hasChartData: true,
+      }))),
+    );
+
+    assert.notEqual(
+      createExplorerTreeStructureSignature(files),
+      createExplorerTreeStructureSignature([
+        files[0],
+        {
+          ...files[1],
+          relativePath: "renamed/B.csv",
+        },
+      ]),
+    );
   });
 
   test("createRawExplorerFiles projects consumed assessment labels", () => {
