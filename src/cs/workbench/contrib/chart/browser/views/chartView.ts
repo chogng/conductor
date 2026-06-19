@@ -84,10 +84,8 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   let currentProps = props;
   let currentVisiblePanes = visiblePanes;
   const chartPlotView = createPlotMainView(createChartPlotMainViewProps(props, plotDisplayModel));
-  const inspectorDisplayModel = plotDisplayModel.inspector;
-  let inspectorPlotView: PlotMainView | null = inspectorDisplayModel
-    ? createPlotMainView(createInspectorPlotMainViewProps(props, plotDisplayModel))
-    : null;
+  let inspectorPlotView: PlotMainView | null = null;
+  let inspectorPendingView: HTMLElement | null = null;
 
   const chartHost = document.createElement("div");
   chartHost.className = "chart_view_host";
@@ -95,7 +93,6 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
 
   const inspectorHost = document.createElement("div");
   inspectorHost.className = "chart_view_host";
-  inspectorHost.append(inspectorPlotView?.element ?? createInspectorPendingView());
 
   const main = document.createElement("div");
   main.className = "chart_view_main";
@@ -109,6 +106,7 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   inspectorPane.className = "chart_view_main_pane chart_view_inspector_pane";
   inspectorPane.append(inspectorHost);
 
+  syncInspectorHost(props, plotDisplayModel, visiblePanes);
   syncVisiblePanes(main, mainPane, inspectorPane, visiblePanes);
   root.append(main);
   Object.defineProperty(root, "dispose", {
@@ -140,22 +138,9 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
 
       chartPlotView.update(createChartPlotMainViewProps(nextProps, nextDisplayModel));
 
-      const nextInspectorDisplayModel = nextDisplayModel.inspector;
-      if (nextInspectorDisplayModel) {
-        if (inspectorPlotView) {
-          inspectorPlotView.update(createInspectorPlotMainViewProps(nextProps, nextDisplayModel));
-        } else {
-          inspectorPlotView = createPlotMainView(createInspectorPlotMainViewProps(nextProps, nextDisplayModel));
-          inspectorHost.replaceChildren(inspectorPlotView.element);
-        }
-      } else if (inspectorPlotView) {
-        inspectorPlotView.dispose();
-        inspectorPlotView = null;
-        inspectorHost.replaceChildren(createInspectorPendingView());
-      }
-
       currentProps = nextProps;
       currentVisiblePanes = normalizeVisiblePanes(nextProps.visiblePanes);
+      syncInspectorHost(nextProps, nextDisplayModel, currentVisiblePanes);
       main.dataset.paneCount = String(currentVisiblePanes.length);
       syncVisiblePanes(main, mainPane, inspectorPane, currentVisiblePanes);
       return true;
@@ -163,6 +148,39 @@ export const createChartView = (props: ChartViewProps): ChartViewElement => {
   });
 
   return root;
+
+  function syncInspectorHost(
+    nextProps: ChartViewProps,
+    nextDisplayModel: PlotDisplayModel,
+    nextVisiblePanes: readonly ChartPane[],
+  ): void {
+    if (!nextVisiblePanes.includes("inspector")) {
+      inspectorPlotView?.dispose();
+      inspectorPlotView = null;
+      inspectorPendingView = null;
+      inspectorHost.replaceChildren();
+      return;
+    }
+
+    if (nextDisplayModel.inspector) {
+      inspectorPendingView = null;
+      if (inspectorPlotView) {
+        inspectorPlotView.update(createInspectorPlotMainViewProps(nextProps, nextDisplayModel));
+        return;
+      }
+
+      inspectorPlotView = createPlotMainView(createInspectorPlotMainViewProps(nextProps, nextDisplayModel));
+      inspectorHost.replaceChildren(inspectorPlotView.element);
+      return;
+    }
+
+    inspectorPlotView?.dispose();
+    inspectorPlotView = null;
+    inspectorPendingView ??= createInspectorPendingView();
+    if (inspectorHost.firstElementChild !== inspectorPendingView) {
+      inspectorHost.replaceChildren(inspectorPendingView);
+    }
+  }
 };
 
 const isFastPendingDisplayTarget = (props: ChartViewProps): boolean =>

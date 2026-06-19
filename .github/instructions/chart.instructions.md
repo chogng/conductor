@@ -98,6 +98,7 @@ Do not pass Plot-owned behavior or Explorer selection callbacks through
 - Background visible, nearby, and recent chart prewarm paths should stay chart-main only unless they add an explicit budget; inspector display models are detail-pane work and should not churn the bounded inspector cache.
 - Do not request inspector display-model prefetch while the inspector detail pane is hidden; restoring a hidden inspector pane should keep startup chart prefetch chart-only until the user opens the pane.
 - When the inspector detail pane is hidden, cancel queued inspector prefetch work through Plot rather than leaving hidden-pane warmups in the queue.
+- Hidden inspector panes should not mount inspector plot DOM, canvas, resize observers, or pending inspector placeholders; mount them lazily when the pane becomes visible.
 - Rapid active file switches should cancel stale inspector prefetch before it reaches Plot.
 - Active chart hosts may request eager first draw for the main chart pane; detail panes keep stable scheduled draw behavior.
 - Keep chart-mode content mounted across active file switches when structural state remains chart data with cached display model.

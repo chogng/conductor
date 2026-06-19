@@ -137,6 +137,59 @@ suite("workbench/contrib/chart/test/browser/chartPanel", () => {
       host.remove();
     }
   });
+
+  test("mounts inspector canvas only while inspector pane is visible", async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const host = document.createElement("div");
+    host.style.height = "720px";
+    host.style.width = "640px";
+    document.body.append(host);
+
+    const panel = new ChartPanel(createChartProps("file-a", 2, {
+      hasInspector: true,
+      inspectorPointsCount: 3,
+      visiblePanes: ["chart"],
+    }));
+
+    try {
+      host.append(panel.element);
+      await animationFrames(1);
+
+      let canvases = getChartCanvases(panel);
+      assert.equal(canvases.length, 1);
+      assert.ok(canvases[0]?.dataset.plotRenderSignature?.startsWith("file-a|iv|chart|"));
+      assert.equal(panel.element.querySelector(".chart_view_inspector_pane"), null);
+
+      panel.update(createChartProps("file-a", 2, {
+        hasInspector: true,
+        inspectorPointsCount: 3,
+        visiblePanes: ["chart", "inspector"],
+      }));
+      await animationFrames(2);
+
+      canvases = getChartCanvases(panel);
+      assert.equal(canvases.length, 2);
+      assert.ok(canvases[1]?.dataset.plotRenderSignature?.startsWith("file-a|iv|inspector|"));
+
+      panel.update(createChartProps("file-a", 2, {
+        hasInspector: true,
+        inspectorPointsCount: 3,
+        visiblePanes: ["chart"],
+      }));
+      await animationFrames(1);
+
+      canvases = getChartCanvases(panel);
+      assert.equal(canvases.length, 1);
+      assert.ok(canvases[0]?.dataset.plotRenderSignature?.startsWith("file-a|iv|chart|"));
+      assert.equal(panel.element.querySelector(".chart_view_inspector_pane"), null);
+    } finally {
+      panel.dispose();
+      host.remove();
+    }
+  });
 });
 
 const createChartProps = (
