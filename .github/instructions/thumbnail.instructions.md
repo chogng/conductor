@@ -201,6 +201,7 @@ sequenceDiagram
     ExplorerViewer->>ExplorerService: setVisibleFileIds(visible, nearby)
     ExplorerService-->>DomainBridge: onDidChangeVisibleFileIds
     DomainBridge->>DomainBridge: only continue when chart mode uses thumbnail layout
+    DomainBridge->>ThumbnailPreviewService: prefetch(recentInteractive, "recent")
     DomainBridge->>ThumbnailPreviewService: prefetch(visible, "visible")
     DomainBridge->>ThumbnailPreviewService: prefetch(nearby, "nearby")
     ThumbnailPreviewService->>Plot: prefetchCalculatedData(visible, "visible")
@@ -242,13 +243,18 @@ sequenceDiagram
     ExplorerViewer->>ExplorerService: setHoveredFileId(fileId)
     ExplorerService-->>DomainBridge: onDidChangeHoveredFile(fileId)
     DomainBridge->>TemplateWorkflow: prioritizeProcessingFile(fileId)
-    ExplorerViewer->>ContextViewService: showContextView({ getAnchor, render, getWidth }, hoverHost)
-    ContextViewService-->>ExplorerViewer: IOpenContextView
-    ExplorerViewer->>HoverContainer: create Explorer-owned hover shell
+    alt no compatible hover shell is open
+        ExplorerViewer->>ContextViewService: showContextView({ getAnchor, render, getWidth }, hoverHost)
+        ContextViewService-->>ExplorerViewer: IOpenContextView
+        ExplorerViewer->>HoverContainer: create Explorer-owned hover shell
+    else thumbnail hover shell already open
+        ExplorerViewer->>HoverContainer: reuse Explorer-owned hover shell for the new anchor
+    end
     ExplorerViewer->>ThumbnailPreviewService: request(fileId, "hover")
     ThumbnailPreviewService->>Plot: prefetchCalculatedData(fileId, "hover")
     ThumbnailPreviewService-->>ExplorerViewer: cached ready or loading state
     ExplorerViewer->>ThumbnailView: createThumbnailView({ file, optional plotModel, renderer, drawStrategy: "eager" })
+    ExplorerViewer->>ExplorerViewer: verify thumbnail DOM identity matches fileId
     ThumbnailView->>ThumbnailRenderer: render thumbnail content
     ThumbnailPreviewService->>ThumbnailPreviewService: process hover preview on queued frame
     ThumbnailPreviewService->>Plot: getCachedCalculatedData(fileId)
@@ -278,7 +284,11 @@ Do not create thumbnail-specific duplicates of Explorer file item commands such 
 - Thumbnail clicks may travel through an existing Explorer UI callback such as `onSelectFile`, but the target selection operation must remain upstream-shaped Explorer selection (`IExplorerService.select(...)`), not thumbnail-owned state.
 - Thumbnail file item actions must reuse the same Explorer/files action ids and command handlers as tree file items.
 - Tree layout hover thumbnail previews must use Explorer-owned hover triggers and context-view containers. Explorer filters out files that are not chart-previewable; files in queued, processing, or ready chart states may request thumbnail-owned preview content even while `hasChartData` is still false so the hover can show a loading preview and promote interactive work.
-- Visible/nearby thumbnail preview prefetch runs only while Explorer is in chart thumbnail layout. Tree layout hover previews stay on-demand through hover priority so ordinary tree scrolling does not warm thumbnail previews for every visible file.
+- Visible/nearby thumbnail preview prefetch runs only while Explorer is in chart
+  thumbnail layout. Recent thumbnail preview prefetch is limited to files that
+  were actually active or hovered recently. Tree layout hover previews stay
+  on-demand through hover priority so ordinary tree scrolling does not warm
+  thumbnail previews for every visible file.
 - Loading thumbnail previews should render a nonblank thumbnail-owned placeholder
   unless an older plot model is available, so hover and thumbnail layout do not
   present an empty chart frame while queued preview work runs.
@@ -309,6 +319,11 @@ Do not create thumbnail-specific duplicates of Explorer file item commands such 
   into the existing canvas when a newer Plot model arrives. If a refresh
   temporarily resolves to `loading` after a nonblank canvas exists, keep the old
   canvas visible until a replacement Plot model is ready.
+- Explorer may reuse the outer hover context-view shell when moving between
+  thumbnail file items, but the thumbnail content node remains file-owned.
+  Reused shells must relayout from the current hover anchor, and Explorer must
+  verify the rendered thumbnail node's file identity before showing it so async
+  preview updates cannot cross files.
 - Explorer hover thumbnail cache identity must not include selection/active
   visual state. Toggle active classes in place, and keep cached detached hover
   thumbnail nodes updated from `onDidChangePreview` so file switching cannot
@@ -316,6 +331,9 @@ Do not create thumbnail-specific duplicates of Explorer file item commands such 
 - Thumbnail preview queues must consume `IPlotService.getCachedCalculatedData`;
   they must not call `getCalculatedData` to create plot models inside the
   thumbnail frame budget.
+- Thumbnail preview scheduling priority is `hover`, `visible`, `recent`,
+  `nearby`, then `idle`. Recent is for active/hover targets that were just
+  switched away from and should not depend on a fixed imported-file count.
 - If the Plot cache is not warm yet, thumbnail preview queues keep the file in
   `loading` and retry when Plot publishes `onDidChangeCalculatedDataCache`
   instead of polling every frame or dropping the request.

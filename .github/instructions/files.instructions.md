@@ -382,10 +382,19 @@ Explorer-side wiring rules:
 - Explorer owns tree/list hover triggers, timing, anchor, positioning,
   context-view container, and dismissal. Thumbnail owns the preview content
   rendering inside that Explorer-owned container.
+- Explorer may reuse its hover context-view shell for thumbnail-to-thumbnail
+  hover moves, but it must keep the rendered thumbnail node keyed and verified
+  by file identity before display so preview events from one file cannot replace
+  another file's hover content.
 - Explorer may publish the currently hovered file id as Explorer UI state so
   `WorkbenchDomainBridge` can promote interactive cross-domain work such as
   template apply processing. Explorer still must not perform template, plot, or
   thumbnail cache work directly from hover handlers.
+- Workbench-domain composition may remember a bounded set of recently active or
+  hovered chart file ids, but it should only hand the just-deprioritized
+  interactive chart target to Plot/Thumbnail as a `recent` warmup target. This
+  recent tier is a cache/scheduler hint only; Explorer remains the owner of
+  hover/selection state and must not own Plot or Thumbnail work.
 - Explorer owns the more actionbar placement and `IExplorerService.viewLayout`.
   The thumbnail contribution owns the thumbnail-specific toggle action/command
   and thumbnail UI/rendering content.

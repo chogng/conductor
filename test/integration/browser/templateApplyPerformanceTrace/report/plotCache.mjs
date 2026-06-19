@@ -50,6 +50,7 @@ export const summarizePlotCacheMetrics = (analysisPerfReport) => {
       trimmedIdle: sumMeta(trimEntries, "trimmedIdle"),
       trimmedNearby: sumMeta(trimEntries, "trimmedNearby"),
       trimmedProtected: sumMeta(trimEntries, "trimmedProtected"),
+      trimmedRecent: sumMeta(trimEntries, "trimmedRecent"),
       trimmedVisible: sumMeta(trimEntries, "trimmedVisible"),
       trimEventCount: trimEntries.length,
       upgraded: readNumber(resultCounts.upgraded) ?? 0,

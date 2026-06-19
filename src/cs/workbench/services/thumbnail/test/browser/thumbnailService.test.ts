@@ -470,7 +470,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		assert.equal(service.get("file-b").kind, "ready");
 	});
 
-	test("preview prefetch processes visible files before nearby backlog", async () => {
+	test("preview prefetch processes visible then recent files before nearby backlog", async () => {
 		const calculatedFileIds: string[] = [];
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
@@ -494,16 +494,19 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 				"nearby-b",
 				"nearby-c",
 				"nearby-d",
+				"recent-a",
 				"visible-a",
 			]) as unknown as ISessionService,
 		));
 
 		service.prefetch(["nearby-a", "nearby-b", "nearby-c", "nearby-d"], "nearby");
+		service.prefetch(["recent-a"], "recent");
 		service.prefetch(["visible-a"], "visible");
 
 		await timeout();
 
 		assert.equal(calculatedFileIds[0], "visible-a");
+		assert.equal(calculatedFileIds[1], "recent-a");
 	});
 
 	test("preview prefetch refreshes when plot cache becomes warm", async () => {

@@ -1875,7 +1875,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     }));
   });
 
-  test("evicts background display models before active hover and visible targets", async () => {
+  test("evicts background display models before active hover visible and recent targets", async () => {
     const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
     const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
     const originalWorker = globalThis.Worker;
@@ -1912,7 +1912,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         store.add(new TestStorageService()),
       ));
 
-      for (let index = 0; index < 237; index += 1) {
+      for (let index = 0; index < 236; index += 1) {
         assert.ok(service.getPlotDisplayModel({
           fileId: `file-${index}`,
           plotType: "iv",
@@ -1920,8 +1920,12 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         }));
       }
 
+      service.getCalculatedData({ fileId: "file-236", plotType: "iv", snapshot });
+      service.prefetchPlotDisplayModel({ fileId: "file-236", plotType: "iv", snapshot }, "visible");
+      await flushFrames();
+
       service.getCalculatedData({ fileId: "file-237", plotType: "iv", snapshot });
-      service.prefetchPlotDisplayModel({ fileId: "file-237", plotType: "iv", snapshot }, "visible");
+      service.prefetchPlotDisplayModel({ fileId: "file-237", plotType: "iv", snapshot }, "recent");
       await flushFrames();
 
       for (const fileId of ["file-238", "file-239"]) {
@@ -1937,6 +1941,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       await flushFrames();
 
       assert.ok(service.getCachedPlotDisplayModel({ fileId: "file-0", plotType: "iv", snapshot }));
+      assert.ok(service.getCachedPlotDisplayModel({ fileId: "file-236", plotType: "iv", snapshot }));
       assert.ok(service.getCachedPlotDisplayModel({ fileId: "file-237", plotType: "iv", snapshot }));
       assert.ok(service.getCachedPlotDisplayModel({ fileId: "file-240", plotType: "iv", snapshot }));
       assert.equal(service.getCachedPlotDisplayModel({ fileId: "file-238", plotType: "iv", snapshot }), null);

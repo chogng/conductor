@@ -12,7 +12,7 @@ export const IThumbnailService = createDecorator<IThumbnailService>("thumbnailSe
 export const IThumbnailPreviewService = createDecorator<IThumbnailPreviewService>("thumbnailPreviewService");
 export const ThumbnailContributionId = "workbench.contrib.thumbnail";
 
-export type ThumbnailPreviewPriority = "hover" | "visible" | "nearby" | "idle";
+export type ThumbnailPreviewPriority = "hover" | "visible" | "recent" | "nearby" | "idle";
 
 export type ThumbnailPreviewPlotModel = PlotMainRenderModelSource & {
 	readonly signature: string;
@@ -58,6 +58,6 @@ export interface IThumbnailPreviewService {
 
 	get(fileId: string): ThumbnailPreviewState;
 	request(fileId: string, priority: ThumbnailPreviewPriority): ThumbnailPreviewState;
-	prefetch(fileIds: readonly string[], priority: "visible" | "nearby" | "idle"): void;
+	prefetch(fileIds: readonly string[], priority: "visible" | "recent" | "nearby" | "idle"): void;
 	invalidate(fileIds?: readonly string[]): void;
 }

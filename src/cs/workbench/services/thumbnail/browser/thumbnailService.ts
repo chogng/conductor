@@ -28,8 +28,9 @@ import {
 const PREVIEW_PRIORITY_ORDER: Readonly<Record<ThumbnailPreviewPriority, number>> = {
 	hover: 0,
 	visible: 1,
-	nearby: 2,
-	idle: 3,
+	recent: 2,
+	nearby: 3,
+	idle: 4,
 };
 const PREVIEW_BATCH_LIMIT = 4;
 const PREVIEW_FRAME_BUDGET_MS = 6;
@@ -185,7 +186,7 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 		return next;
 	}
 
-	public prefetch(fileIds: readonly string[], priority: "visible" | "nearby" | "idle"): void {
+	public prefetch(fileIds: readonly string[], priority: "visible" | "recent" | "nearby" | "idle"): void {
 		const endPerf = startPerf(`thumbnailPreview.prefetch.${priority}`, {
 			fileCount: fileIds.length,
 		});

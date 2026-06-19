@@ -1926,10 +1926,52 @@ export class ExplorerViewer implements IDisposable {
     }
 
     const previousContent = this.hoverContent;
+    if (this.tryReuseFileItemHoverView(item, content, previousContent)) {
+      return;
+    }
+
     this.closeFileItemHoverView(previousContent);
     this.hoverAnchor = item;
     this.hoverContent = content;
     this.openFileItemHoverView(item, content);
+  }
+
+  private tryReuseFileItemHoverView(
+    item: HTMLElement,
+    content: HoverContent,
+    previousContent: HoverContent | null,
+  ): boolean {
+    if (
+      !this.hoverView ||
+      !this.hoverContainer ||
+      !previousContent ||
+      previousContent.kind !== "thumbnail" ||
+      content.kind !== "thumbnail"
+    ) {
+      return false;
+    }
+
+    const previousAnchor = this.hoverAnchor;
+    this.hoverAnchor = item;
+    this.hoverContent = content;
+    this.renderHoverContent(this.hoverContainer);
+    if (!this.isRenderedHoverContentCurrent(this.hoverContainer, content)) {
+      this.hoverAnchor = previousAnchor;
+      this.hoverContent = previousContent;
+      this.closeFileItemHoverView(previousContent);
+      return false;
+    }
+
+    if (previousContent.fileId !== content.fileId) {
+      this.warmCachedDetachedHoverThumbnail(previousContent.fileId);
+    }
+    logPerf("thumbnailHover.reuseShell", {
+      cacheSize: this.hoverThumbnailCache.size,
+      fileId: content.fileId,
+      previousFileId: previousContent.fileId,
+    });
+    this.scheduleFileItemHoverLayout();
+    return true;
   }
 
   private setFolderActionMenuActive(active: boolean): void {
@@ -1965,7 +2007,7 @@ export class ExplorerViewer implements IDisposable {
       anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL,
       anchorPosition: AnchorPosition.RIGHT,
       canRelayout: true,
-      getAnchor: () => item,
+      getAnchor: () => this.hoverAnchor ?? item,
       getWidth: isThumbnailHover
         ? getFileHoverThumbnailWidth
         : undefined,
@@ -2080,6 +2122,8 @@ export class ExplorerViewer implements IDisposable {
     }
 
     if (content.kind === "thumbnail") {
+      container.dataset.hoverKind = "thumbnail";
+      container.dataset.hoverFileId = content.fileId;
       const thumbnail = this.getHoverThumbnail(
         content.fileId,
         content.file,
@@ -2089,15 +2133,25 @@ export class ExplorerViewer implements IDisposable {
         container.childElementCount === 1 &&
         container.firstElementChild === thumbnail
       ) {
+        if (!this.isRenderedHoverContentCurrent(container, content)) {
+          container.replaceChildren();
+          return;
+        }
         this.refreshCachedHoverThumbnail(content.fileId);
         return;
       }
 
       container.replaceChildren(thumbnail);
+      if (!this.isRenderedHoverContentCurrent(container, content)) {
+        container.replaceChildren();
+        return;
+      }
       this.refreshCachedHoverThumbnail(content.fileId);
       return;
     }
 
+    delete container.dataset.hoverFileId;
+    container.dataset.hoverKind = "assessment";
     container.replaceChildren();
     const details = document.createElement("dl");
     details.className = "file-list-hover-assessment";
@@ -2370,7 +2424,32 @@ export class ExplorerViewer implements IDisposable {
     cached.isLoading = isLoading;
     cached.plotModel = plotModel ?? cached.plotModel;
     cached.plotModelSignature = plotModelSignature || cached.plotModelSignature;
+    cached.node.dataset.hoverFileId = normalizedFileId;
     cached.node.dataset.hoverPlotSignature = cached.plotModelSignature;
+  }
+
+  private isRenderedHoverContentCurrent(
+    container: HTMLElement,
+    content: HoverContent,
+  ): boolean {
+    if (content.kind !== "thumbnail") {
+      return true;
+    }
+
+    const child = container.firstElementChild;
+    const renderedFileId = child instanceof HTMLElement
+      ? String(child.dataset.hoverFileId ?? "").trim()
+      : "";
+    if (container.childElementCount === 1 && renderedFileId === content.fileId) {
+      return true;
+    }
+
+    logPerf("thumbnailHover.identityMismatch", {
+      childCount: container.childElementCount,
+      expectedFileId: content.fileId,
+      renderedFileId,
+    });
+    return false;
   }
 
   private warmDetachedHoverThumbnail(

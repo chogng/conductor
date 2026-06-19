@@ -628,12 +628,14 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
         bubbles: true,
         relatedTarget: null,
       }));
+      assert.equal(contextViewService.showCount, 1);
       assert.equal(contextViewService.renderedElement?.querySelector(".thumbnail_view")?.getAttribute("data-hover-file-id"), "file-a");
 
       items[1].dispatchEvent(new MouseEvent("mouseover", {
         bubbles: true,
         relatedTarget: items[0],
       }));
+      assert.equal(contextViewService.showCount, 1);
       assert.equal(contextViewService.renderedElement?.querySelector(".thumbnail_view")?.getAttribute("data-hover-file-id"), "file-b");
 
       readyFiles.add("file-a");
@@ -644,6 +646,124 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       previewEmitter.fire({ fileId: "file-b" });
 
       assert.deepEqual(warmedSignatures, ["plot:file-a"]);
+    } finally {
+      viewer.dispose();
+      previewEmitter.dispose();
+      labels.dispose();
+      hoverHost.remove();
+    }
+  });
+
+  test("reuses thumbnail hover shell across files without mixing thumbnail identity", () => {
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    const contextViewService = new TestContextViewService();
+    const previewEmitter = new Emitter<{ readonly fileId: string }>();
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const viewer = new ExplorerViewer(host, hoverHost, {
+      ...createViewerProps(),
+      contextViewService,
+      files: [
+        {
+          badgeState: {
+            confidence: "confirmed",
+            kind: "ready",
+            label: "iv",
+            source: "assessment",
+          },
+          chartState: "ready",
+          curveType: "IV",
+          curveTypeBadgeLabel: "iv",
+          curveTypeConfidence: "high",
+          curveTypeReasons: ["matched voltage/current columns"],
+          fileId: "file-a",
+          fileName: "A.csv",
+          hasChartData: true,
+          itemKey: "file-a",
+        },
+        {
+          badgeState: {
+            confidence: "confirmed",
+            kind: "ready",
+            label: "iv",
+            source: "assessment",
+          },
+          chartState: "ready",
+          curveType: "IV",
+          curveTypeBadgeLabel: "iv",
+          curveTypeConfidence: "high",
+          curveTypeReasons: ["matched voltage/current columns"],
+          fileId: "file-b",
+          fileName: "B.csv",
+          hasChartData: true,
+          itemKey: "file-b",
+        },
+      ],
+      mode: "chart",
+      thumbnailPreviewService: {
+        get: (fileId) => ({
+          kind: "ready",
+          model: createThumbnailPlotModel(fileId),
+          signature: `plot:${fileId}`,
+        }),
+        invalidate: () => undefined,
+        onDidChangePreview: previewEmitter.event,
+        prefetch: () => undefined,
+        request: (fileId) => ({
+          kind: "ready",
+          model: createThumbnailPlotModel(fileId),
+          signature: `plot:${fileId}`,
+        }),
+      },
+      thumbnailService: {
+        clear: () => undefined,
+        drawPlotThumbnail: () => undefined,
+        warmPlotThumbnail: () => undefined,
+      },
+      viewLayout: "tree",
+    }, labels);
+
+    try {
+      const items = host.querySelectorAll<HTMLElement>(".file-list-item");
+      assert.equal(items.length, 2);
+
+      items[0].dispatchEvent(new MouseEvent("mouseover", {
+        bubbles: true,
+        relatedTarget: null,
+      }));
+
+      const hoverLayer = contextViewService.renderedElement;
+      assert.ok(hoverLayer);
+      const firstThumbnail = hoverLayer.querySelector<HTMLElement>(".thumbnail_view");
+      assert.ok(firstThumbnail);
+      assert.equal(contextViewService.showCount, 1);
+      assert.equal(contextViewService.delegate?.getAnchor(), items[0]);
+      assert.equal(firstThumbnail.getAttribute("data-hover-file-id"), "file-a");
+      assert.equal(firstThumbnail.getAttribute("data-hover-plot-signature"), "plot:file-a");
+
+      items[1].dispatchEvent(new MouseEvent("mouseover", {
+        bubbles: true,
+        relatedTarget: items[0],
+      }));
+
+      assert.equal(contextViewService.showCount, 1);
+      assert.equal(contextViewService.renderedElement, hoverLayer);
+      assert.equal(contextViewService.delegate?.getAnchor(), items[1]);
+      const secondThumbnail = hoverLayer.querySelector<HTMLElement>(".thumbnail_view");
+      assert.ok(secondThumbnail);
+      assert.equal(secondThumbnail === firstThumbnail, false);
+      assert.equal(secondThumbnail.getAttribute("data-hover-file-id"), "file-b");
+      assert.equal(secondThumbnail.getAttribute("data-hover-plot-signature"), "plot:file-b");
+
+      previewEmitter.fire({ fileId: "file-a" });
+
+      assert.equal(contextViewService.showCount, 1);
+      assert.equal(contextViewService.renderedElement, hoverLayer);
+      assert.equal(contextViewService.renderedElement?.querySelector(".thumbnail_view")?.getAttribute("data-hover-file-id"), "file-b");
+      assert.equal(contextViewService.renderedElement?.querySelector(".thumbnail_view")?.getAttribute("data-hover-plot-signature"), "plot:file-b");
     } finally {
       viewer.dispose();
       previewEmitter.dispose();

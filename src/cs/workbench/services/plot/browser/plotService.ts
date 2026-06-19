@@ -80,8 +80,9 @@ const CALCULATED_DATA_PREFETCH_PRIORITY_ORDER: Readonly<Record<PlotCalculatedDat
   active: 0,
   hover: 1,
   visible: 2,
-  nearby: 3,
-  idle: 4,
+  recent: 3,
+  nearby: 4,
+  idle: 5,
 };
 const CALCULATED_DATA_PREFETCH_BATCH_LIMIT = 4;
 const CALCULATED_DATA_PREFETCH_FRAME_BUDGET_MS = 6;
@@ -93,9 +94,10 @@ const PLOT_INSPECTOR_DISPLAY_MODEL_CACHE_LIMIT = 48;
 const PLOT_DISPLAY_MODEL_CACHE_RETENTION_ORDER: Readonly<Record<PlotCalculatedDataPrefetchPriority, number>> = {
   idle: 0,
   nearby: 1,
-  visible: 2,
-  hover: 3,
-  active: 4,
+  recent: 2,
+  visible: 3,
+  hover: 4,
+  active: 5,
 };
 
 type PlotDisplayModelPrefetchStage = "chart" | "inspector";
@@ -1939,6 +1941,7 @@ export class PlotService extends Disposable implements IPlotService {
     if (trimmed) {
       const trimmedIdle = readCount(trimmedRetentionPriorities, "idle");
       const trimmedNearby = readCount(trimmedRetentionPriorities, "nearby");
+      const trimmedRecent = readCount(trimmedRetentionPriorities, "recent");
       logPerf("plotService.trimPlotDisplayModelCache", {
         cacheSize: this.plotDisplayModelCacheByKey.size,
         hardLimit: PLOT_DISPLAY_MODEL_CACHE_HARD_LIMIT,
@@ -1950,6 +1953,7 @@ export class PlotService extends Disposable implements IPlotService {
         trimmedIdle,
         trimmedNearby,
         trimmedProtected: trimmed - trimmedIdle - trimmedNearby,
+        trimmedRecent,
         trimmedRetentionPriorities: serializeCountMap(trimmedRetentionPriorities),
         trimmedVisible: readCount(trimmedRetentionPriorities, "visible"),
       });
@@ -2206,6 +2210,8 @@ const getInspectorPlotDisplayModelPrefetchPriority = (
       return "visible";
     case "hover":
     case "visible":
+      return "nearby";
+    case "recent":
       return "nearby";
     case "nearby":
     case "idle":

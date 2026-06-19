@@ -72,6 +72,8 @@ import {
   type TemplateApplyPerformanceTraceChartTarget,
 } from "src/cs/workbench/contrib/files/browser/templateApplyPerformanceTrace";
 
+const RECENT_INTERACTIVE_CHART_TARGET_LIMIT = 16;
+
 export type WorkbenchDomainBridgeOptions = {
   readonly chartService: IChartService;
   readonly assessmentQueueService: IAssessmentQueueService;
@@ -88,6 +90,8 @@ export type WorkbenchDomainBridgeOptions = {
 };
 
 export class WorkbenchDomainBridge extends Disposable {
+  private readonly recentInteractiveChartTargetFileIds: string[] = [];
+
   constructor(
     private readonly options: WorkbenchDomainBridgeOptions,
   ) {
@@ -189,6 +193,7 @@ export class WorkbenchDomainBridge extends Disposable {
 
   private runSync(): void {
     const snapshot = this.options.sessionService.getSnapshot();
+    this.pruneRecentInteractiveChartTargets(snapshot);
     const endPerf = startPerf("workbenchDomainBridge.sync", {
       fileCount: Object.keys(snapshot.filesById).length,
       sessionVersion: snapshot.sessionVersion,
@@ -294,13 +299,61 @@ export class WorkbenchDomainBridge extends Disposable {
     fileId: string | null,
     plotPriority: PlotCalculatedDataPrefetchPriority,
   ): void {
-    if (!fileId) {
+    const normalizedFileId = String(fileId ?? "").trim();
+    if (!normalizedFileId) {
       return;
     }
 
-    this.options.templateApplyWorkflowService.prioritizeProcessingFile(fileId);
-    this.options.calculationService.prioritizeCalculationFile(fileId);
-    this.prefetchPlotDisplayTargets([fileId], plotPriority, "interactiveTarget");
+    const newlyRecentFileIds = this.rememberRecentInteractiveChartTarget(normalizedFileId);
+    this.options.templateApplyWorkflowService.prioritizeProcessingFile(normalizedFileId);
+    this.options.calculationService.prioritizeCalculationFile(normalizedFileId);
+    this.prefetchPlotDisplayTargets([normalizedFileId], plotPriority, "interactiveTarget");
+    this.prefetchRecentInteractiveChartTargets(newlyRecentFileIds);
+  }
+
+  private rememberRecentInteractiveChartTarget(fileId: string): readonly string[] {
+    const normalizedFileId = String(fileId ?? "").trim();
+    if (!normalizedFileId) {
+      return [];
+    }
+
+    const previousInteractiveFileId = this.recentInteractiveChartTargetFileIds[0] ?? null;
+    const existingIndex = this.recentInteractiveChartTargetFileIds.indexOf(normalizedFileId);
+    if (existingIndex >= 0) {
+      this.recentInteractiveChartTargetFileIds.splice(existingIndex, 1);
+    }
+    this.recentInteractiveChartTargetFileIds.unshift(normalizedFileId);
+    if (this.recentInteractiveChartTargetFileIds.length > RECENT_INTERACTIVE_CHART_TARGET_LIMIT) {
+      this.recentInteractiveChartTargetFileIds.length = RECENT_INTERACTIVE_CHART_TARGET_LIMIT;
+    }
+
+    return previousInteractiveFileId && previousInteractiveFileId !== normalizedFileId
+      ? [previousInteractiveFileId]
+      : [];
+  }
+
+  private prefetchRecentInteractiveChartTargets(fileIds: readonly string[]): void {
+    const recentFileIds = fileIds
+      .map(fileId => String(fileId ?? "").trim())
+      .filter(Boolean);
+    if (!recentFileIds.length || this.options.layoutService.activeWorkbenchMainPart !== "chart") {
+      return;
+    }
+
+    this.prefetchPlotDisplayTargets(
+      recentFileIds,
+      "recent",
+      "recentInteractiveTargets",
+    );
+    this.options.thumbnailPreviewService.prefetch(recentFileIds, "recent");
+  }
+
+  private pruneRecentInteractiveChartTargets(snapshot: SessionSnapshot): void {
+    for (let index = this.recentInteractiveChartTargetFileIds.length - 1; index >= 0; index -= 1) {
+      if (!snapshot.filesById[this.recentInteractiveChartTargetFileIds[index]!]) {
+        this.recentInteractiveChartTargetFileIds.splice(index, 1);
+      }
+    }
   }
 
   private prioritizeVisibleExplorerFiles(

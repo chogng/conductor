@@ -114,6 +114,14 @@ export const createPerformanceMetricRow = ({
   );
   const thumbnailDuring = analysis.thumbnailHoverLive?.phaseWindows?.duringProcessing;
   const thumbnailAfter = analysis.thumbnailHoverLive?.phaseWindows?.afterProcessing;
+  const thumbnailHoverIdentityMismatch = summarizeStageDuration(
+    analysisPerfReport?.entries ?? [],
+    "thumbnailHover.identityMismatch",
+  );
+  const thumbnailHoverShellReuse = summarizeStageDuration(
+    analysisPerfReport?.entries ?? [],
+    "thumbnailHover.reuseShell",
+  );
   const switchDuring = analysis.fileSwitchLive?.phaseWindows?.duringProcessing;
   const switchAfter = analysis.fileSwitchLive?.phaseWindows?.afterProcessing;
   const flat = {
@@ -171,6 +179,7 @@ export const createPerformanceMetricRow = ({
     plotDisplayCacheTrimmedBackground: readNumber(plotCache.displayModelCache.trimmedBackground),
     plotDisplayCacheTrimmedHover: readNumber(plotCache.displayModelCache.trimmedHover),
     plotDisplayCacheTrimmedProtected: readNumber(plotCache.displayModelCache.trimmedProtected),
+    plotDisplayCacheTrimmedRecent: readNumber(plotCache.displayModelCache.trimmedRecent),
     plotDisplayCacheTrimmedVisible: readNumber(plotCache.displayModelCache.trimmedVisible),
     plotDisplayCacheUpgraded: readNumber(plotCache.displayModelCache.upgraded),
     plotDisplayBatchPrewarmActiveCount: readNumber(plotDisplayBatchPrewarmReasons.active) ?? 0,
@@ -208,6 +217,7 @@ export const createPerformanceMetricRow = ({
       "plotService.prefetchPlotDisplayModels",
       "requestCount",
     ),
+    plotDisplayBatchPrewarmRecentCount: readNumber(plotDisplayBatchPrewarmReasons.recent) ?? 0,
     plotDisplayBatchPrewarmVisibleCount: readNumber(plotDisplayBatchPrewarmReasons.visible) ?? 0,
     plotDisplayTargetPrewarmActiveCount: readNumber(plotDisplayTargetPrewarmReasons.active) ?? 0,
     plotDisplayTargetPrewarmCount: summaryCount(plotDisplayTargetPrewarm),
@@ -219,6 +229,7 @@ export const createPerformanceMetricRow = ({
     plotDisplayTargetPrewarmHoverCount: readNumber(plotDisplayTargetPrewarmReasons.hover) ?? 0,
     plotDisplayTargetPrewarmNearbyCount: readNumber(plotDisplayTargetPrewarmReasons.nearby) ?? 0,
     plotDisplayTargetPrewarmP95Ms: summaryP95(plotDisplayTargetPrewarm),
+    plotDisplayTargetPrewarmRecentCount: readNumber(plotDisplayTargetPrewarmReasons.recent) ?? 0,
     plotDisplayTargetPrewarmVisibleCount: readNumber(plotDisplayTargetPrewarmReasons.visible) ?? 0,
     plotMainDrawCount: summaryCount(plotMainDraw),
     plotMainDrawP95Ms: summaryP95(plotMainDraw),
@@ -239,6 +250,8 @@ export const createPerformanceMetricRow = ({
     thumbnailAfterNonBlankP95Ms: summaryP95(thumbnailAfter?.targetCanvasNonBlankMs),
     thumbnailDuringNonBlankP95Ms: summaryP95(thumbnailDuring?.targetCanvasNonBlankMs),
     thumbnailFlickerCount: readNumber(analysis.thumbnailHoverLive?.blankAfterNonBlankCount) ?? 0,
+    thumbnailHoverIdentityMismatchCount: summaryCount(thumbnailHoverIdentityMismatch),
+    thumbnailHoverShellReuseCount: summaryCount(thumbnailHoverShellReuse),
     thumbnailLiveTargetCount: readNumber(analysis.thumbnailHoverLive?.targetCount),
     thumbnailLiveTraceApiTargetCount: readNumber(analysis.thumbnailHoverLive?.targetSourceCounts?.["trace-api"]) ?? 0,
     thumbnailLiveUniqueDispatchCount: readNumber(analysis.thumbnailHoverLive?.uniqueDispatchedFileCount),
@@ -281,6 +294,8 @@ export const metricHistoryKeys = [
   "applyEventLoopLagP95Ms",
   "thumbnailAfterNonBlankP95Ms",
   "thumbnailDuringNonBlankP95Ms",
+  "thumbnailHoverIdentityMismatchCount",
+  "thumbnailHoverShellReuseCount",
   "thumbnailLiveTargetCount",
   "thumbnailLiveTraceApiTargetCount",
   "thumbnailLiveUniqueDispatchCount",
@@ -320,6 +335,7 @@ export const metricHistoryKeys = [
   "plotDisplayCacheTrimmed",
   "plotDisplayCacheTrimmedBackground",
   "plotDisplayCacheTrimmedProtected",
+  "plotDisplayCacheTrimmedRecent",
   "plotDisplayCacheTrimmedVisible",
   "plotDisplayCacheTrimmedHover",
   "plotDisplayCacheTrimmedActive",
@@ -333,6 +349,7 @@ export const metricHistoryKeys = [
   "plotDisplayBatchPrewarmNearbyCount",
   "plotDisplayBatchPrewarmP95Ms",
   "plotDisplayBatchPrewarmQueuedCount",
+  "plotDisplayBatchPrewarmRecentCount",
   "plotDisplayBatchPrewarmRequestCount",
   "plotDisplayBatchPrewarmVisibleCount",
   "plotDisplayTargetPrewarmActiveCount",
@@ -341,6 +358,7 @@ export const metricHistoryKeys = [
   "plotDisplayTargetPrewarmHoverCount",
   "plotDisplayTargetPrewarmNearbyCount",
   "plotDisplayTargetPrewarmP95Ms",
+  "plotDisplayTargetPrewarmRecentCount",
   "plotDisplayTargetPrewarmVisibleCount",
   "plotMainDrawCount",
   "plotMainDrawP95Ms",
@@ -487,6 +505,8 @@ export const writeHistorySvg = (svgPath, rows, scenarioKey) => {
     "calculationWorkerForegroundWaitP95Ms",
     "calculationWorkerWaitP95Ms",
     "thumbnailDuringNonBlankP95Ms",
+    "thumbnailHoverShellReuseCount",
+    "thumbnailHoverIdentityMismatchCount",
     "fileSwitchDuringPendingDisplayP95Ms",
     "fileSwitchDuringStaleCanvasClearedP95Ms",
     "fileSwitchDuringCanvasNonBlankP95Ms",
@@ -497,10 +517,12 @@ export const writeHistorySvg = (svgPath, rows, scenarioKey) => {
     "plotDisplayCacheHardLimit",
     "plotDisplayCacheTrimmedBackground",
     "plotDisplayCacheTrimmedProtected",
+    "plotDisplayCacheTrimmedRecent",
     "plotDisplayCacheTrimmedVisible",
     "plotDisplayCacheTrimmedHover",
     "plotDisplayCacheTrimmedActive",
     "plotDisplayBatchPrewarmQueuedCount",
+    "plotDisplayTargetPrewarmRecentCount",
     "plotMainDrawP95Ms",
     "workbenchSelectionRefreshP95Ms",
     "plotInspectorPrefetchFired",

@@ -592,6 +592,41 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
+  test("backs recently interactive chart targets with recent plot and thumbnail priority", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const plotDisplayPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    const prioritizedTemplateFileIds: string[] = [];
+    const prioritizedCalculationFileIds: string[] = [];
+    const thumbnailPrefetches: Array<{ readonly fileIds: readonly string[]; readonly priority: string }> = [];
+    commitChartFilesForTest(session, ["file-a", "file-b"]);
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      plotDisplayPrefetches,
+      prioritizedCalculationFileIds,
+      prioritizedTemplateFileIds,
+      session,
+      thumbnailPrefetches,
+    }));
+    try {
+      explorerService.setHoveredFileId("file-a");
+      explorerService.setHoveredFileId("file-b");
+
+      assert.deepEqual(prioritizedTemplateFileIds, ["file-a", "file-b"]);
+      assert.deepEqual(prioritizedCalculationFileIds, ["file-a", "file-b"]);
+      assert.deepEqual(plotDisplayPrefetches, [
+        { fileIds: ["file-a"], priority: "hover" },
+        { fileIds: ["file-b"], priority: "hover" },
+        { fileIds: ["file-a"], priority: "recent" },
+      ]);
+      assert.deepEqual(thumbnailPrefetches, [
+        { fileIds: ["file-a"], priority: "recent" },
+      ]);
+    } finally {
+      bridge.dispose();
+    }
+  });
+
   test("delegates cached background chart plot display targets to PlotService", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
@@ -799,6 +834,7 @@ const createDomainBridgeOptionsForTest = ({
   prioritizedCalculationFileIds,
   prioritizedTemplateFileIds,
   session,
+  thumbnailPrefetches,
 }: {
   readonly chartActiveFileIds?: (string | null)[];
   readonly chartViewInputs?: Array<{ readonly activeFileId: string | null; readonly hasChartData?: boolean }>;
@@ -809,6 +845,7 @@ const createDomainBridgeOptionsForTest = ({
   readonly prioritizedCalculationFileIds: string[];
   readonly prioritizedTemplateFileIds: string[];
   readonly session: SessionService;
+  readonly thumbnailPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
 }): ConstructorParameters<typeof WorkbenchDomainBridge>[0] => ({
   assessmentQueueService: {
     prioritizeRawTables: () => undefined,
@@ -912,7 +949,12 @@ const createDomainBridgeOptionsForTest = ({
     updateViewInput: () => undefined,
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["templateService"],
   thumbnailPreviewService: {
-    prefetch: () => undefined,
+    prefetch: (fileIds, priority) => {
+      thumbnailPrefetches?.push({
+        fileIds: [...fileIds],
+        priority,
+      });
+    },
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["thumbnailPreviewService"],
 });
 

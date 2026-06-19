@@ -179,15 +179,19 @@ export const summarizeAnalysisPerfReport = (report) => {
     String(entry.stage ?? "").startsWith("thumbnail")
   );
   const thumbnailHoverRenders = entries.filter(entry => entry.stage === "thumbnailHover.render");
+  const thumbnailHoverShellReuses = entries.filter(entry => entry.stage === "thumbnailHover.reuseShell");
+  const thumbnailHoverIdentityMismatches = entries.filter(entry => entry.stage === "thumbnailHover.identityMismatch");
   const thumbnailPreviewRequests = entries.filter(entry => entry.stage === "thumbnailPreview.request");
   return {
     entryCount: entries.length,
     stageCounts: countBy(entries.map(entry => entry.stage)),
     thumbnail: {
       entryCount: thumbnailEntries.length,
+      hoverIdentityMismatchCount: thumbnailHoverIdentityMismatches.length,
       hoverRenderCacheHits: countBy(thumbnailHoverRenders.map(entry => entry.meta?.cacheHit)),
       hoverRenderModelSources: countBy(thumbnailHoverRenders.map(entry => entry.meta?.plotModelSource)),
       hoverRenderPreviewStates: countBy(thumbnailHoverRenders.map(entry => entry.meta?.previewState)),
+      hoverShellReuseCount: thumbnailHoverShellReuses.length,
       previewRequestMs: summarizeStageDuration(entries, "thumbnailPreview.request"),
       previewRequestPriorities: countBy(thumbnailPreviewRequests.map(entry => entry.meta?.priority)),
       previewRequestStates: countBy(thumbnailPreviewRequests.map(entry => entry.meta?.state)),

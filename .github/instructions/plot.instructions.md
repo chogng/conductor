@@ -60,6 +60,7 @@ flowchart TD
     Session[SessionSnapshot] --> PlotService[IPlotService]
     ChartActive[Chart active file] --> PlotService
     HoverPreview[Hover thumbnail file] --> PlotService
+    RecentTargets[Recent active/hover chart targets] --> PlotService
     ThumbnailRange[Thumbnail-layout visible/nearby file ids] --> PlotService
     PlotService --> State[PlotState]
     PlotService --> Queue[Priority prefetch queue]
@@ -141,8 +142,9 @@ storage, for these controls.
 - Plot calculated-data prefetch skips entries that are already cached for the
   same file id and plot type; it must not spend frame budget on warmed data.
 - Plot calculated-data prefetch priority follows the user-facing surface:
-  active chart file, hover thumbnail, visible thumbnails, nearby thumbnails, idle.
-- Plot prefetch scheduling must reserve interactive capacity. Visible/nearby/idle
+  active chart file, hover thumbnail, visible thumbnails, recent interactive
+  chart targets, nearby thumbnails, idle.
+- Plot prefetch scheduling must reserve interactive capacity. Visible/recent/nearby/idle
   background work must not occupy every worker slot; active chart and hover work
   must be able to start while background prefetch is still running.
 - Queued calculated-data prefetch must be canceled when the active plot type
@@ -170,7 +172,7 @@ storage, for these controls.
 - Inspector display-model prefetch is active chart detail completion work, not
   thumbnail first-paint work. Inspector work should run at background priority
   and must not occupy the reserved interactive capacity needed by active chart,
-  file switch, or hover thumbnail requests. Hover, visible, nearby, and idle
+  file switch, or hover thumbnail requests. Hover, visible, recent, nearby, and idle
   thumbnail warmup should keep chart-only display models and must not request
   inspector models.
 - Chart should request Inspector display-model prefetch only after the active
@@ -191,16 +193,17 @@ storage, for these controls.
   `onDidChangePlotDisplayModelCache` events for those file/plot pairs instead
   of waking every Chart/Thumbnail consumer through `onDidChangePlotState`.
 - Plot display-model cache is bounded by `PlotService` and should use
-  tiered recent-use eviction. Active, hover, and visible display targets should
-  be retained ahead of nearby/idle background warmup; within the same retention
-  tier, evict the least recently used entry. Use a soft limit for nearby/idle
-  background warmup and a higher hard cap for interactive targets; crossing the
-  soft limit must first shed background entries and should only evict
-  active/hover/visible entries when the hard cap is exceeded. Eviction is cache
-  lifecycle only and should be silent; data-change invalidation remains the path
-  that publishes `onDidChangePlotDisplayModelCache`. Cached reads for active
-  chart, hover thumbnail, and file switching should refresh recency and may
-  promote retention so interactive targets survive background warmup pressure.
+  tiered recent-use eviction. Active, hover, visible, and recent display targets
+  should be retained ahead of nearby/idle background warmup; within the same
+  retention tier, evict the least recently used entry. Use a soft limit for
+  nearby/idle background warmup and a higher hard cap for interactive targets;
+  crossing the soft limit must first shed background entries and should only
+  evict active/hover/visible/recent entries when the hard cap is exceeded.
+  Eviction is cache lifecycle only and should be silent; data-change
+  invalidation remains the path that publishes `onDidChangePlotDisplayModelCache`.
+  Cached reads for active chart, hover thumbnail, file switching, and recent
+  interaction backfill should refresh recency and may promote retention so
+  interactive targets survive background warmup pressure.
 - Plot render models are currently built from template/base curve records and
   Plot-owned settings. `calculatedRecordsChanged`, `metricsChanged`, and
   derived-only `curvesChanged` events must not invalidate active chart or hover
@@ -209,7 +212,7 @@ storage, for these controls.
 - Chart views should request `prefetchPlotDisplayModel(..., "active")` on a
   cached display-model miss. They should not call `getPlotDisplayModel` in the
   active render path.
-- Domain bridges that know active, hover, visible, or nearby chart targets
+- Domain bridges that know active, hover, visible, recent, or nearby chart targets
   should call `prefetchPlotDisplayModel` for a single target or
   `prefetchPlotDisplayModels` for a target set. PlotService owns the decision
   to warm calculated data, skip cached display models, or promote queued work.
@@ -217,10 +220,11 @@ storage, for these controls.
   is in chart thumbnail layout; tree-layout hover previews use hover priority
   on demand.
 - When the workbench is already in Chart mode, DomainBridge may also prewarm
-  chart-only display models for Explorer hover, visible, and nearby chart file
-  targets. This is a cache warmup for rapid active-file switching; it should use
-  Plot's existing priority levels (`hover`, `visible`, `nearby`) and must not
-  request Inspector display models or mutate Chart-owned state.
+  chart-only display models for Explorer hover, recent, visible, and nearby
+  chart file targets. This is a cache warmup for rapid active-file switching;
+  it should use Plot's existing priority levels (`hover`, `recent`, `visible`,
+  `nearby`) and must not request Inspector display models or mutate Chart-owned
+  state.
 - Plot render models must be stable and reusable by Chart/Thumbnail/Export.
 - Chart canvas drawing should use a display downsample budget tied to the
   visible pixel width. Full point arrays remain in the render model for readout

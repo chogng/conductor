@@ -56,7 +56,7 @@ export type PlotCalculatedDataInput = {
   readonly snapshot?: SessionSnapshot;
 };
 
-export type PlotCalculatedDataPrefetchPriority = "active" | "hover" | "visible" | "nearby" | "idle";
+export type PlotCalculatedDataPrefetchPriority = "active" | "hover" | "visible" | "recent" | "nearby" | "idle";
 
 export type PlotCalculatedDataCacheChangeEvent = {
   readonly fileId: FileId;
