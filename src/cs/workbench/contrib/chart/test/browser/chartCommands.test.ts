@@ -11,6 +11,8 @@ import {
 } from "src/cs/platform/actions/common/actions";
 import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
+import { StorageScope } from "src/cs/platform/storage/common/storage";
+import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import { registerChartCommands } from "src/cs/workbench/contrib/chart/browser/chartCommands";
 import { ChartTitleEditService, IChartTitleEditService } from "src/cs/workbench/contrib/chart/browser/chartTitleEditService";
 import { ChartService } from "src/cs/workbench/services/chart/browser/chartService";
@@ -24,10 +26,11 @@ import {
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/chart/test/browser/chartCommands", () => {
-  ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test("inspector toggle command delegates to chart service", () => {
 		const commandRegistration = registerChartCommands();
-		const service = new ChartService();
+		const storageService = new TestStorageService();
+		const service = new ChartService(storageService);
 		const accessor = createAccessor([
 			[IChartService, service],
 		]);
@@ -40,6 +43,7 @@ suite("workbench/contrib/chart/test/browser/chartCommands", () => {
 
 		commandRegistration.dispose();
 		service.dispose();
+		storageService.dispose();
 	});
 
 	test("axis title edit commands delegate to chart title edit service", () => {
@@ -86,4 +90,31 @@ function getCommandPaletteIds(): Set<string> {
 	return new Set(MenuRegistry.getMenuItems(MenuId.CommandPalette)
 		.filter(isIMenuItem)
 		.map(item => item.command.id));
+}
+
+class TestStorageService extends AbstractStorageService {
+	private readonly values = new Map<string, string>();
+
+	protected readValue(key: string, scope: StorageScope): string | undefined {
+		return this.values.get(this.storageKey(key, scope));
+	}
+
+	protected writeValue(key: string, scope: StorageScope, value: string): void {
+		this.values.set(this.storageKey(key, scope), value);
+	}
+
+	protected deleteValue(key: string, scope: StorageScope): void {
+		this.values.delete(this.storageKey(key, scope));
+	}
+
+	protected readKeys(scope: StorageScope): string[] {
+		const prefix = `${scope}:`;
+		return [...this.values.keys()]
+			.filter(key => key.startsWith(prefix))
+			.map(key => key.slice(prefix.length));
+	}
+
+	private storageKey(key: string, scope: StorageScope): string {
+		return `${scope}:${key}`;
+	}
 }

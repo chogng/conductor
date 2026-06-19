@@ -33,7 +33,7 @@ import type { ISettingsService } from "src/cs/workbench/services/settings/common
 suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("prefetches inspector only after the pane is opened in the current run", async () => {
+	test("prefetches inspector only after the pane is visible", async () => {
 		if (typeof document === "undefined") {
 			return;
 		}

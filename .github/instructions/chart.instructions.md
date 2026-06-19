@@ -15,7 +15,7 @@ view embedding in Chart.
 `IChartService` owns:
 
 - chart shell state and chart view input snapshot;
-- detail pane visibility for the current runtime;
+- profile-persisted detail pane visibility initialized into runtime state;
 - legend/inspector popover UI state;
 - chart header action state;
 - commands that affect chart shell UI.
@@ -96,7 +96,7 @@ Do not pass Plot-owned behavior or Explorer selection callbacks through
 - Replace pending display only with a matching real Plot display cache result.
 - Main chart and inspector display models are staged. Render main chart immediately when chart display is ready, even if inspector is pending.
 - Request inspector display-model prefetch only after the active file/plot/legend target has settled.
-- Startup chart prewarm stays chart-main only. Do not restore inspector detail pane visibility from storage; inspector display work belongs to the settled visible-pane path after the user opens the pane in the current run.
+- Startup chart prewarm stays chart-main only. Restore inspector detail pane visibility from chart profile storage, but keep inspector display work on the settled visible-pane path after the shell observes a visible pane.
 - Later active file switches should keep inspector work on the settled detail-pane path instead of immediately warming every transient selection.
 - Background visible, nearby, and recent chart prewarm paths should stay chart-main only unless they add an explicit budget; inspector display models are detail-pane work and should not churn the bounded inspector cache.
 - Do not request inspector display-model prefetch while the inspector detail pane is hidden; restoring a hidden inspector pane should keep startup chart prefetch chart-only until the user opens the pane.

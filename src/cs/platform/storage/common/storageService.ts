@@ -129,7 +129,7 @@ export abstract class AbstractStorageService implements IStorageService, IDispos
 	protected abstract deleteValue(key: string, scope: StorageScope): void;
 	protected abstract readKeys(scope: StorageScope): string[];
 
-	private fireDidChangeValue(
+	protected fireDidChangeValue(
 		key: string,
 		scope: StorageScope,
 		target: StorageTarget | undefined,

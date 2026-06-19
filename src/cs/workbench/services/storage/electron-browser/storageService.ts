@@ -134,6 +134,7 @@ export class NativeWorkbenchStorageService
 			}
 
 			this.values.set(storageKey, value);
+			this.fireDidChangeValue(key, scope, StorageTarget.USER);
 		}));
 	}
 

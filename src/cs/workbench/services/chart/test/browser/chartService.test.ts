@@ -5,15 +5,25 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import {
+	StorageScope,
+	StorageTarget,
+} from "src/cs/platform/storage/common/storage";
+import { AbstractStorageService } from "src/cs/platform/storage/common/storageService";
 import { createChartViewInput } from "src/cs/workbench/services/chart/browser/chartViewInput";
 import { ChartService } from "src/cs/workbench/services/chart/browser/chartService";
 import type {
 	ChartState,
 } from "src/cs/workbench/services/chart/common/chart";
 
+const CHART_VISIBLE_DETAIL_PANES_STORAGE_KEY = "chart.visibleDetailPanes";
+
 suite("workbench/services/chart/test/browser/chartService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const createService = (): ChartService => store.add(new ChartService());
+	const createStorageService = (): TestStorageService => store.add(new TestStorageService());
+	const createService = (
+		storageService = createStorageService(),
+	): ChartService => store.add(new ChartService(storageService));
 
 	test("owns chart shell state outside session", () => {
 		const service = createService();
@@ -31,7 +41,7 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 		assert.equal(states.length, 1);
 	});
 
-	test("starts with inspector hidden until the user opens it in the current run", () => {
+	test("starts with inspector hidden when storage is empty", () => {
 		const service = createService();
 
 		assert.deepEqual(service.getState().visibleDetailPanes, []);
@@ -42,6 +52,65 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 
 		service.toggleDetailPane("inspector");
 
+		assert.deepEqual(service.getState().visibleDetailPanes, []);
+	});
+
+	test("restores visible detail panes from profile storage", () => {
+		const storageService = createStorageService();
+		storageService.store(
+			CHART_VISIBLE_DETAIL_PANES_STORAGE_KEY,
+			{ visibleDetailPanes: ["inspector", "unknown", "inspector"] },
+			StorageScope.PROFILE,
+			StorageTarget.USER,
+		);
+
+		const service = createService(storageService);
+
+		assert.deepEqual(service.getState().visibleDetailPanes, ["inspector"]);
+	});
+
+	test("persists visible detail pane changes to profile storage", () => {
+		const storageService = createStorageService();
+		const service = createService(storageService);
+
+		service.toggleDetailPane("inspector");
+		assert.deepEqual(
+			storageService.getObject(CHART_VISIBLE_DETAIL_PANES_STORAGE_KEY, StorageScope.PROFILE),
+			{ visibleDetailPanes: ["inspector"] },
+		);
+
+		service.toggleDetailPane("inspector");
+		assert.deepEqual(
+			storageService.getObject(CHART_VISIBLE_DETAIL_PANES_STORAGE_KEY, StorageScope.PROFILE),
+			{ visibleDetailPanes: [] },
+		);
+	});
+
+	test("updates visible detail panes from profile storage changes", () => {
+		const storageService = createStorageService();
+		const service = createService(storageService);
+		const states: ChartState[] = [];
+		store.add(service.onDidChangeChartState(state => {
+			states.push(state);
+		}));
+
+		storageService.store(
+			CHART_VISIBLE_DETAIL_PANES_STORAGE_KEY,
+			{ visibleDetailPanes: ["inspector", "unknown"] },
+			StorageScope.PROFILE,
+			StorageTarget.USER,
+		);
+		storageService.store(
+			CHART_VISIBLE_DETAIL_PANES_STORAGE_KEY,
+			{ visibleDetailPanes: [] },
+			StorageScope.PROFILE,
+			StorageTarget.USER,
+		);
+
+		assert.deepEqual(
+			states.map(state => state.visibleDetailPanes),
+			[["inspector"], []],
+		);
 		assert.deepEqual(service.getState().visibleDetailPanes, []);
 	});
 
@@ -173,3 +242,30 @@ suite("workbench/services/chart/test/browser/chartService", () => {
 		assert.equal(input.hasChartData, false);
 	});
 });
+
+class TestStorageService extends AbstractStorageService {
+	private readonly values = new Map<string, string>();
+
+	protected readValue(key: string, scope: StorageScope): string | undefined {
+		return this.values.get(this.storageKey(key, scope));
+	}
+
+	protected writeValue(key: string, scope: StorageScope, value: string): void {
+		this.values.set(this.storageKey(key, scope), value);
+	}
+
+	protected deleteValue(key: string, scope: StorageScope): void {
+		this.values.delete(this.storageKey(key, scope));
+	}
+
+	protected readKeys(scope: StorageScope): string[] {
+		const prefix = `${scope}:`;
+		return [...this.values.keys()]
+			.filter(key => key.startsWith(prefix))
+			.map(key => key.slice(prefix.length));
+	}
+
+	private storageKey(key: string, scope: StorageScope): string {
+		return `${scope}:${key}`;
+	}
+}

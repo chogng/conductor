@@ -3,8 +3,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from "src/cs/base/common/event";
-import { Disposable } from "src/cs/base/common/lifecycle";
+import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import {
+	IStorageService,
+	StorageScope,
+	StorageTarget,
+	type IStorageService as IStorageServiceType,
+} from "src/cs/platform/storage/common/storage";
 import {
 	IChartService,
 	type ChartDetailPane,
@@ -13,7 +19,12 @@ import {
 } from "src/cs/workbench/services/chart/common/chart";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 
+const CHART_VISIBLE_DETAIL_PANES_STORAGE_KEY = "chart.visibleDetailPanes";
 const DEFAULT_VISIBLE_DETAIL_PANES: readonly ChartDetailPane[] = [];
+
+type StoredChartVisibleDetailPanes = {
+	readonly visibleDetailPanes?: readonly unknown[];
+};
 
 export class ChartService extends Disposable implements IChartServiceType {
 	public declare readonly _serviceBrand: undefined;
@@ -28,12 +39,15 @@ export class ChartService extends Disposable implements IChartServiceType {
 	private state: ChartState;
 	private viewInput: ChartViewInput | null = null;
 
-	constructor() {
+	constructor(
+		@IStorageService private readonly storageService: IStorageServiceType,
+	) {
 		super();
 		this.state = {
-			visibleDetailPanes: DEFAULT_VISIBLE_DETAIL_PANES,
+			visibleDetailPanes: this.readStoredVisibleDetailPanes(),
 			legendPopoverContextKey: null,
 		};
+		this.registerStorageListeners();
 	}
 
 	public getState(): ChartState {
@@ -57,9 +71,11 @@ export class ChartService extends Disposable implements IChartServiceType {
 		const nextVisibleDetailPanes = this.state.visibleDetailPanes.includes(pane)
 			? this.state.visibleDetailPanes.filter(item => item !== pane)
 			: [...this.state.visibleDetailPanes, pane];
+		const visibleDetailPanes = normalizeDetailPanes(nextVisibleDetailPanes);
 		this.updateState({
-			visibleDetailPanes: normalizeDetailPanes(nextVisibleDetailPanes),
+			visibleDetailPanes,
 		});
+		this.storeVisibleDetailPanes(visibleDetailPanes);
 	}
 
 	public setLegendPopoverContextKey(contextKey: string | null): void {
@@ -81,6 +97,40 @@ export class ChartService extends Disposable implements IChartServiceType {
 		this.state = nextState;
 		this.onDidChangeChartStateEmitter.fire(nextState);
 	}
+
+	private readStoredVisibleDetailPanes(): readonly ChartDetailPane[] {
+		const stored = this.storageService.getObject<StoredChartVisibleDetailPanes>(
+			CHART_VISIBLE_DETAIL_PANES_STORAGE_KEY,
+			StorageScope.PROFILE,
+		);
+		return normalizeStoredVisibleDetailPanes(stored);
+	}
+
+	private registerStorageListeners(): void {
+		const storageDisposables = this._register(new DisposableStore());
+		this.storageService.onDidChangeValue(
+			StorageScope.PROFILE,
+			CHART_VISIBLE_DETAIL_PANES_STORAGE_KEY,
+			storageDisposables,
+		)(() => {
+			this.restoreVisibleDetailPanesFromStorage();
+		});
+	}
+
+	private restoreVisibleDetailPanesFromStorage(): void {
+		this.updateState({
+			visibleDetailPanes: this.readStoredVisibleDetailPanes(),
+		});
+	}
+
+	private storeVisibleDetailPanes(visibleDetailPanes: readonly ChartDetailPane[]): void {
+		this.storageService.store(
+			CHART_VISIBLE_DETAIL_PANES_STORAGE_KEY,
+			{ visibleDetailPanes },
+			StorageScope.PROFILE,
+			StorageTarget.USER,
+		);
+	}
 }
 
 const normalizeDetailPanes = (
@@ -95,6 +145,11 @@ const normalizeDetailPanes = (
 
 	return result;
 };
+
+const normalizeStoredVisibleDetailPanes = (
+	stored: StoredChartVisibleDetailPanes | undefined,
+): readonly ChartDetailPane[] =>
+	normalizeDetailPanes(stored?.visibleDetailPanes ?? DEFAULT_VISIBLE_DETAIL_PANES);
 
 const normalizeString = (value: string): string =>
 	String(value ?? "").trim();
