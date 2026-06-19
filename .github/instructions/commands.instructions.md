@@ -1,151 +1,89 @@
 ---
-description: Command entry and service dispatch architecture - command IDs, handlers, actions, controllers, contribution registration, target normalization, and how commands call services without mutating views or session models directly.
+description: Command entry and service dispatch architecture - command IDs, handlers, actions, controllers, contribution registration, and target normalization.
 applyTo: 'src/cs/workbench/**/{*Commands.ts,*Actions.ts,*.contribution.ts,*Controller.ts},src/cs/platform/commands/**'
 ---
 # Commands and Dispatch
 
-Commands are the public entry points for user intent. Services own state and domain work. Views render state. Keep these roles separate.
+Commands are public entry points for user intent. Services own state and domain
+work. Views render state.
 
-Use this file when adding commands, menu items, toolbar buttons, context-menu entries, keyboard shortcuts, or controllers that coordinate services.
+Use this file when adding command ids, actions, menu items, toolbar buttons,
+context-menu entries, keybindings, or workflow controllers.
 
-## Command ID Naming
+## ID Naming
 
-Command and action IDs describe the owning operation, not the UI entry point
-that happens to invoke it. A titlebar button, toolbar button, sidebar item,
-context menu item, or keybinding should execute the same owner command instead
-of introducing a location-scoped command such as `titlebar.selectFile`.
+- Command/action ids describe the owning operation, not the UI location.
+- Reuse the same owner command from titlebar, toolbar, menu, context menu, and keybinding entries.
+- Use UI-location names only for DOM ids, CSS hooks, test selectors, or local runtime action ids.
+- Workbench mode vocabulary is `table` and `chart`; avoid legacy/generic labels such as `analysis`.
 
-Use UI-location names only for DOM ids, CSS hooks, test selectors, or local
-runtime action ids that are not command ids.
+Avoid ids such as `titlebar.selectFile` when the owner is Files/Explorer or
+workbench mode switching.
 
-Workbench mode commands use the mode vocabulary: `table` and `chart`. Do not
-rename chart-mode file selection to a generic legacy label such as `analysis`,
-and do not hide a mode switch behind a titlebar-specific command name.
+## Choose The Entry Type
 
+| Need | Prefer |
+| --- | --- |
+| Callable logical operation with no UI placement | `CommandsRegistry.registerCommand(...)` |
+| Menu, toolbar, keybinding, Command Palette, `when`, category, telemetry metadata | `registerAction2(...)` |
+| Mutable UI object with live `label`, `tooltip`, `enabled`, or `checked` | runtime `Action` / `IAction` |
+| Temporary local DOM gesture with no reuse or domain effect | local callback |
 
-## Choosing Command, Action2, or runtime Action
+`Action2` registers a command with the same id. Do not also call
+`CommandsRegistry.registerCommand(...)` with that id.
 
-Before adding an entry point, classify the user intent. Do not start by mechanically choosing `Action2` or `CommandsRegistry`.
+Command Palette visibility comes from `MenuId.CommandPalette` menu actions.
+Use `registerAction2({ f1: true, ... })` or explicit menu registration. Do not
+make quick access scan bare `CommandsRegistry` to compensate for missing action
+registration.
 
-| User need | Prefer | Rule |
-| --- | --- | --- |
-| A callable logical operation with no required UI placement | `CommandsRegistry.registerCommand(...)` | Command is the lowest executable entry point. |
-| A command needs menu, toolbar, keybinding, Command Palette, `when`, category, or telemetry metadata | `registerAction2(...)` | `Action2` is a declarative command/menu/keybinding contribution. |
-| A UI component needs a mutable action instance with changing `label`, `tooltip`, `enabled`, or `checked` | runtime `Action` / `IAction` | `Action` is a runtime object; `Action2` is not a live UI object. |
-| A temporary local UI gesture with no reuse and no domain effect | local callback | Do not over-register commands. |
-
-Remember:
-
-```txt
-Action  = a runtime action object
-Action2 = a declarative command/menu/keybinding registration
-Command = the executable entry point
-```
-
-`Action2` registers a command with the same id as the action descriptor. This
-matches upstream: an `Action2` can be the command entry when the operation needs
-menu/keybinding/Command Palette metadata. Do not register
-`CommandsRegistry.registerCommand(...)` and `registerAction2(...)` with the same
-id.
-
-When there is no UI metadata, use `CommandsRegistry.registerCommand(...)`
-directly. When there is UI metadata, use `Action2` and keep `run(...)` small:
-normalize arguments if needed and delegate to a handler, controller, or service.
-Do not invent a second internal command id just to wrap every Action2 unless the
-operation genuinely needs a separate non-UI command surface.
-
-## Command Palette visibility
-
-Follow the upstream VS Code path: the command palette is built from
-`MenuId.CommandPalette` menu actions, not by scanning
-`CommandsRegistry.getCommands()`.
-
-Use one of these registration paths for commands that should appear in command
-search:
-
-- `registerAction2(...)` with `f1: true`. This registers the executable command
-  and contributes it to `MenuId.CommandPalette`.
-- `MenuRegistry.addCommand(...)` or an explicit `MenuRegistry.appendMenuItem(...)`
-  only when the feature already owns lower-level menu wiring and `Action2` is
-  not the right abstraction.
-
-A bare `CommandsRegistry.registerCommand(...)` command is callable through
-`ICommandService`, but it is not automatically a user-visible command palette
-entry. Do not "fix" missing command search results by teaching the quick access
-provider to scan `CommandsRegistry`; register the missing user-visible
-operation as an action/menu contribution beside the feature owner instead.
-
-## Command layers
-
-Use this ownership chain:
+## Command Flow
 
 ```txt
-button / menu / keybinding / context menu
+button/menu/keybinding/context menu
   -> action
   -> command id
-  -> command handler
+  -> handler
   -> optional controller
-  -> service method
-  -> session commit, service state update, or external side effect
-  -> service event
-  -> view render
+  -> owner service method
+  -> session commit, service state update, or side effect
+  -> service/session event
+  -> view rerender
 ```
 
-Do not skip from a button directly into a view mutation when the action is a domain action. Small local DOM interactions may stay in the view; cross-view or reusable behavior must be a command or service method.
+Small local DOM interactions may stay in the view. Cross-view, reusable, or
+domain behavior must be a command or service API.
 
-## File responsibilities
+## File Responsibilities
 
 | File | Responsibility | Must not do |
 | --- | --- | --- |
-| `src/cs/platform/commands/common/commands.ts` | Defines `ICommandService`, `CommandsRegistry`, command metadata, command events. Platform-level only. | Import workbench services or contrib views. |
-| `src/cs/workbench/contrib/<feature>/browser/<feature>Commands.ts` | Registers bare command IDs or exports command handlers for a feature. Validates args, resolves services through `ServicesAccessor`, delegates. | Own long-lived state, mutate DOM, mutate `SessionModel` directly. |
-| `src/cs/workbench/contrib/<feature>/browser/<feature>Actions.ts` | Defines `Action2` classes and runtime action helpers. `Action2.run(...)` may call command handlers, controllers, or services directly when that action id is the command id. | Reimplement substantial command logic. |
-| `src/cs/workbench/contrib/<feature>/browser/<feature>.contribution.ts` | Entry point that registers commands/actions/menu items/keybindings, wires lifecycle contributions, and registers views. | Become a domain service or a large controller. |
-| `src/cs/workbench/contrib/<feature>/browser/<feature>Controller.ts` | Optional coordinator for multi-step workflows: dialogs, progress, notifications, batching, worker start/stop. | Store canonical records or become a substitute service. |
-| `src/cs/workbench/services/<domain>/common/<domain>.ts` | Service interface, records, event types, command-facing target/input types if they are domain-level. | Register UI commands. |
-| `src/cs/workbench/services/<domain>/browser/<domain>Service.ts` | State owner and domain implementation. | Depend on views or command files. |
+| `platform/commands/common/commands.ts` | platform command service/registry | import workbench services/views |
+| `contrib/<feature>/browser/<feature>Commands.ts` | command ids/handlers; validate args and delegate | own state, mutate DOM, mutate Session |
+| `contrib/<feature>/browser/<feature>Actions.ts` | `Action2` classes and runtime action helpers | duplicate business logic |
+| `contrib/<feature>/browser/<feature>.contribution.ts` | register commands/actions/menus/keybindings/views | become a service/controller |
+| `contrib/<feature>/browser/<feature>Controller.ts` | optional multi-step workflow coordinator | store canonical records |
+| `services/<domain>/common/<domain>.ts` | service contract and target/input types | register UI commands |
+| `services/<domain>/browser/<domain>Service.ts` | state owner and domain implementation | depend on views/commands |
 
-## Command handler rules
+## Handler Rules
 
-A command handler should usually do only five things:
+A handler should usually:
 
 1. Normalize and validate arguments.
-2. Resolve the service or optional controller through `ServicesAccessor`.
-3. Resolve a `CommandTarget` if the command acts on a specific file/table/block/curve/metric.
-4. Call a service method or controller method.
+2. Resolve services/controllers through `ServicesAccessor`.
+3. Normalize a `CommandTarget` if needed.
+4. Call the owner service/controller.
 5. Return a value or `undefined`.
 
-Pattern:
-
-```ts
-CommandsRegistry.registerCommand({
-  id: ExplorerCommandId.ImportFolder,
-  metadata: {
-    description: localize('explorer.importFolder', 'Import Folder'),
-  },
-  handler: async (accessor, rawTarget?: unknown) => {
-    const explorerService = accessor.get(IExplorerService);
-    const target = normalizeExplorerCommandTarget(rawTarget);
-
-    await explorerService.importFolder(target);
-  },
-});
-```
-
-## Dispatch targets
-
-Use explicit command targets. Do not use a global session `activeTarget` as the universal dispatch input.
-
 Targets are pure records. They identify what the command acts on; they do not
-perform the action themselves. Command handlers, actions, and view gestures
-normalize unknown input into target records, then call the owner service,
-model, or controller.
+perform the action.
 
 Prefer:
 
 ```ts
-tableService.select(target, 'force');
-explorerService.select(resource, 'force');
+tableService.select(target, "force");
+explorerService.select(resource, "force");
 ownerService.update(target, update);
 ```
 
@@ -153,175 +91,66 @@ Avoid:
 
 ```ts
 target.select();
-result.open();
-row.toggle();
+row.open();
+curve.toggle();
 ```
 
-If no explicit target is supplied, ask the owning service for its own current
-selection/focus/query state. Do not ask another view for DOM state, and do not
-store the target in Session unless it is canonical analysis data.
+If a command palette invocation has no target, ask the owning service for its
+own current selection/focus/query. Do not ask a view for DOM state and do not
+store active command targets in Session.
 
-```ts
-export type CommandTarget =
-  | { readonly kind: 'explorerResource'; readonly resourceId: ExplorerResourceId }
-  | { readonly kind: 'file'; readonly fileId: FileId }
-  | { readonly kind: 'rawTable'; readonly fileId: FileId; readonly rawTableId: RawTableId }
-  | { readonly kind: 'rawTableRange'; readonly fileId: FileId; readonly rawTableId: RawTableId; readonly range: RangeRef }
-  | { readonly kind: 'measurementBlock'; readonly fileId: FileId; readonly blockId: MeasurementBlockId }
-  | { readonly kind: 'series'; readonly fileId: FileId; readonly seriesId: SeriesId }
-  | { readonly kind: 'curve'; readonly fileId: FileId; readonly curveKey: CurveKey }
-  | { readonly kind: 'metric'; readonly fileId: FileId; readonly metricKey: MetricKey };
-```
+## Target Shape
 
-When a command is invoked from a view, the view should pass the precise target. When invoked from the command palette without a target, the handler may ask the owning service for its local active/focused/selected state.
+Use explicit target records when a command acts on a domain object:
 
-Examples:
+| Kind | Core fields |
+| --- | --- |
+| `explorerResource` | `resourceId` |
+| `file` | `fileId` |
+| `rawTable` | `fileId`, `rawTableId` |
+| `rawTableRange` | `fileId`, `rawTableId`, `range` |
+| `measurementBlock` | `fileId`, `blockId` |
+| `series` | `fileId`, `seriesId` |
+| `curve` | `fileId`, `curveKey` |
+| `metric` | `fileId`, `metricKey` |
 
-```ts
-const target = normalizeCommandTarget(rawTarget)
-  ?? explorerService.getSelectedResourceTarget();
-```
+Do not pass DOM nodes, view instances, or partial ad-hoc objects through
+command APIs.
 
-```ts
-const target = normalizeTableRangeTarget(rawTarget)
-  ?? tableService.getActiveRangeTarget();
-```
+## Dispatch Owners
 
-## Service dispatch table
-
-| Command family | Command file | Target owner | Handler delegates to | Notes |
-| --- | --- | --- | --- | --- |
-| Workbench navigation, mode switch, sidebar visibility, native window chrome | `browser/actions/layoutActions.ts` and `browser/actions/windowActions.ts` | `IWorkbenchLayoutService` for layout/mode/sidebar, native window host for window controls, `ITitleService` only for titlebar render state | Layout service methods or native window command helpers | `browser/parts/titlebar` renders buttons and invokes owner command ids. Do not register layout/window commands from titlebar files. |
-| Explorer add-data/remove/select/toggle layout | `contrib/files/browser/fileCommands.ts` plus `fileActions.ts` / `fileActions.contribution.ts` | Explorer action/handler or `IExplorerService` for view/model behavior | Upstream-shaped `IExplorerService` methods, session/file services, or focused source/conversion helpers | Explorer commands should not reach into `ExplorerViewPane` after migration. Do not invent placeholder Explorer service methods when the behavior belongs to an action/handler or another domain service. |
-| File system read/write/watch | platform services, not workbench commands by default | `IFileService` | `IFileService` | Low-level filesystem capability; not Explorer state. |
-| Raw import conversion | Explorer action/source workflow, not a user-facing command by default | `workbench/services/files` conversion contracts and `ISessionService` for canonical commit | `fileConverter.ts` through Explorer source workflow/controller | Command handlers should not inline conversion and session commit. Delegate to a source workflow/controller; after conversion succeeds, that workflow caller commits through `ISessionService` and lets session events notify consumers. |
-| Re-assess raw table | `assessmentCommands.ts` | `IAssessmentService` | `IAssessmentService.assessRawTable`, then `ISessionService.commitRawTableAssessment` | Optional developer/user command. Assessment remains the only block detector. |
-| Table reveal/copy/select | `tableCommands.ts` | `ITableService` | `ITableService` | Commands may also use `IExplorerService` or `ISearchService` target refs. |
-| Template save/delete/import/apply | `templateCommands.ts` | `ITemplateService` / `ITemplateApplyService` | Template service or controller | Apply is a multi-step workflow; controller is acceptable. |
-| Plot type/unit/scale/visibility | `plotCommands.ts` | `IPlotService` | `IPlotService` | Chart should not own these commands unless they only affect chart chrome. |
-| Chart legend/inspector/pane layout | `chartCommands.ts` | `IChartService` | `IChartService` | Chart shell commands do not rebuild plot data. |
-| Thumbnail refresh/toggle presentation | `thumbnailCommands.ts` or Explorer command | `IThumbnailService` / `IExplorerService` | Thumbnail or Explorer service | Layout toggle belongs to Explorer; bitmap cache belongs to Thumbnail. |
-| Search query/open result | `searchCommands.ts` | `ISearchService` | `ISearchService`; then target owner service for reveal | Search result navigation dispatches to Table/Explorer/Plot as needed. |
-| Export Origin/CSV/ZIP | `exportCommands.ts` | `IExportService` | `IExportService` | Export service builds plans. Command handles UX entry and notifications. |
-| Show Parameters view | `parametersCommands.ts` | `IWorkbenchLayoutService` | Layout service `navigateToView("chart")` and `selectAuxiliaryBarView("parameters")` | Showing the Parameters pane is workbench navigation, not Parameters service state. Auxiliary bar buttons should use the same `ParametersCommandId.showParameters` command id. |
-| Parameter metric input | `parametersCommands.ts` | `IParametersService` | `IParametersService`; may commit metric input to session | UI selection stays in Parameters; calculation input may be canonical. |
-
-## Actions vs commands
-
-Commands are callable operations. Actions are UI affordances that invoke commands.
-
-Use actions for:
-
-- toolbar buttons;
-- menu entries;
-- context-menu entries;
-- keybinding registration;
-- command-palette registration metadata;
-- enablement/context-key wiring.
-
-Do not put business logic in actions. If the same behavior can be triggered from a button, menu, and keybinding, all three should execute the same command ID.
+| Command family | Owner |
+| --- | --- |
+| workbench navigation/mode/sidebar/window chrome | layout service or native host; titlebar only renders buttons |
+| Explorer add/remove/select/toggle layout | `IExplorerService` or `IExplorerWorkflowService` |
+| low-level filesystem operations | `IFileService`, usually not user-facing workbench commands |
+| raw import conversion | Explorer source workflow + files conversion helpers + Session commit |
+| assessment | `IAssessmentService` then Session commit |
+| table reveal/copy/select | `ITableService` |
+| template save/delete/import/apply | `ITemplateService` / apply controller |
+| plot type/unit/scale/visibility | `IPlotService` |
+| chart legend/inspector/focus | `IChartService` or explicit chart view workflow service |
+| thumbnail cache/layout | `IThumbnailService` for cache, `IExplorerService` for layout |
+| search query/open result | `ISearchService`, then target owner for reveal |
+| export | `IExportService` |
+| parameters pane navigation | workbench layout; metric input belongs to `IParametersService` |
 
 ## Controllers
 
-A controller is allowed when a workflow is more than a single service call.
+Use a controller only when a workflow is more than one service call: dialog,
+progress, notifications, batching, worker lifecycle, or user-facing error
+translation.
 
-Good controller responsibilities:
+Controllers must not own canonical records, parse raw tables, detect
+measurement blocks, store chart/table/search state long term, or replace a
+service API.
 
-- open a dialog;
-- collect files or folders;
-- show progress or notification;
-- batch several service commits;
-- start or stop a worker through a service boundary;
-- translate UI errors into user-facing messages.
+## Do Not
 
-Bad controller responsibilities:
-
-- owning canonical records;
-- parsing raw tables;
-- detecting IV/CV/block structure;
-- storing chart/table/search state long term;
-- replacing service APIs.
-
-## Contribution entry points
-
-Every feature should have a small contribution file.
-
-```ts
-export const ExplorerContributionId = 'workbench.contrib.explorer';
-
-class ExplorerContribution extends Disposable implements IWorkbenchContribution {
-  constructor(
-    @IExplorerService explorerService: IExplorerService,
-    @ICommandService commandService: ICommandService,
-  ) {
-    super();
-    this._register(registerExplorerCommands());
-    this._register(registerExplorerActions());
-    this._register(explorerService.onDidChangeExplorer(() => {
-      // update context keys or derived view state only
-    }));
-  }
-}
-```
-
-Contribution files wire registration and lifecycle. They should not become large render loops.
-
-## Event flow after a command
-
-```mermaid
-flowchart TD
-    UI[Button/Menu/Keybinding/View] --> Action[Action / UI event]
-    Action --> CommandService[ICommandService.executeCommand]
-    CommandService --> Handler[CommandsRegistry handler]
-    Handler --> Controller[Optional controller]
-    Handler --> Service[Domain service]
-    Controller --> Service
-    Service --> Session[Optional ISessionService commit]
-    Service --> DomainEvent[Service event]
-    Session --> SessionEvent[SessionChangeEvent]
-    SessionEvent --> ConsumerServices[Assessment/Table/Plot/Parameters/Search/Export]
-    DomainEvent --> View[View render]
-    ConsumerServices --> View
-```
-
-## Do not
-
-- Do not let command handlers edit DOM directly.
-- Do not let actions duplicate command logic.
-- Do not let views mutate `SessionModel` directly.
-- Do not register broad command handlers inside `workbench.ts` unless the command is truly global workbench behavior.
-- Do not make `SessionService` dispatch user workflows; it should commit canonical state and emit events.
-- Do not make `ChartService` own plot commands. Plot commands belong to `IPlotService`.
-- Do not make Explorer command handlers inline `IFileService`, conversion, and `ISessionService` calls for full import; delegate to an Explorer source workflow/controller.
-- Do not make Explorer commands call `fileConverter.ts` directly; Explorer source workflow owns source collection, conversion, diagnostics, and session commit ordering. `IExplorerService` remains the owner for Explorer UI state such as selection, reveal, layout, and context.
-
-
-## Command target fields
-
-### `CommandTarget`
-
-| Field | Meaning |
-| --- | --- |
-| `kind` | Target kind: file/rawTable/block/series/curve/metric/tableRange/etc. |
-| `fileId` | File target. |
-| `rawTableId` | Raw table target. |
-| `measurementBlockId` | Block target. |
-| `seriesId` | Series target. |
-| `curveKey` | Curve target. |
-| `metricKey` | Metric target. |
-| `range` | Raw table range target. |
-
-Command handlers normalize unknown args into explicit command targets before calling services. Do not pass raw DOM nodes, view instances, or partial ad-hoc objects through command APIs.
-
-## Controller fields
-
-A controller should expose workflow inputs instead of owning records.
-
-| Input | Meaning |
-| --- | --- |
-| `target` | Normalized command target. |
-| `source` | Dialog/drop/context source metadata. |
-| `options` | Workflow options such as replace/append/stopOnError. |
-| `onProgress` | Optional progress callback. |
-
-Long-lived canonical fields belong to services/session, not controllers.
+- Do not edit DOM directly from handlers.
+- Do not duplicate command logic in actions.
+- Do not mutate `SessionModel` from views/actions/handlers.
+- Do not register broad feature commands in `workbench.ts` unless truly global.
+- Do not make `SessionService` dispatch user workflows.
+- Do not make Chart own Plot commands.
+- Do not inline Explorer import conversion/session commit in command handlers; delegate to Explorer source workflow.

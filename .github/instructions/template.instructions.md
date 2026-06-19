@@ -1,167 +1,81 @@
 ---
-description: Template service — template CRUD, template application, template run records, worker boundary, and conversion from assessment blocks to series/curves. Use when working under `src/cs/workbench/services/template` or template contrib views.
+description: Template service - template CRUD, application workflow, run records, worker boundary, and conversion from assessment blocks to series/curves.
 applyTo: 'src/cs/workbench/services/template/**,src/cs/workbench/contrib/template/**'
 ---
 # Template
 
-Template consumes assessment. It does not decide whether a table is IV/CV/CF/PV/IT.
+Template consumes assessment. It does not decide whether a table is
+IV/CV/CF/PV/IT.
 
 ## Ownership
 
-`ITemplateService` owns:
+`ITemplateService` owns template CRUD, selection rules, form state, per-file
+template selections, and template view input.
 
-- template CRUD public API;
-- template selection rules;
-- template form state and template selections;
-- publishing template view input.
+`ITemplateStoreService` owns template persistence backend access. Desktop
+`template.json` persistence uses platform file service and
+`IJSONEditingService`; Electron main only exposes generic file capability.
 
-`ITemplateStoreService` owns:
+`ITemplateApplyWorkflowService` owns planning, apply progress, per-file apply
+state, queue prioritization, applying templates to raw files/assessment blocks,
+and committing template outputs through Session.
 
-- template persistence backend access;
-- the browser unavailable implementation for runtimes without a template store;
-- the electron-browser desktop implementation that persists Template-owned data.
+`ITemplateApplyService` owns worker/backend job start/cancel/terminate and
+worker payload/result translation.
 
-Desktop `template.json` persistence belongs to Template. It uses the platform
-file service and the workbench `IJSONEditingService` for JSON file writes. The
-template store schema and normalization stay under `workbench/services/template`;
-main process only exposes the generic file capability and must not own template
-CRUD IPC.
+Template does not own assessment, raw import, table selection state, plot
+rendering, or chart state.
 
-`ITemplateApplyWorkflowService` owns:
-
-- template run planning;
-- applying templates to session raw files and assessment blocks;
-- producing `TemplateRunRecord`, series, base curves, and warnings/errors;
-- consuming current table/session/template input through `update(...)`;
-- coordinating with `ITemplateApplyService` for worker execution.
-
-`ITemplateApplyService` owns:
-
-- worker boundary;
-- start/cancel/terminate processing jobs;
-- translating worker payloads into service-level results.
-
-Template does not own:
-
-- assessment;
-- raw table import;
-- table selection state;
-- plot rendering;
-- chart state.
-
-## Core files
+## Core Files
 
 | File | Responsibility |
 | --- | --- |
-| `src/cs/workbench/services/template/common/template.ts` | Defines `ITemplateService`, `TemplateRecord`, `TemplateConfig`, template CRUD contracts. |
-| `src/cs/workbench/services/template/common/templateStore.ts` | Defines `ITemplateStoreService`, the template persistence backend contract, and template storage data normalization. |
-| `src/cs/workbench/services/template/common/templateRun.ts` | Defines `TemplateRunRecord`, `TemplateRunInput`, warnings/errors, config fingerprint. |
-| `src/cs/workbench/services/template/common/templateSelection.ts` | Template selection records and helpers. |
-| `src/cs/workbench/services/template/browser/templateService.ts` | Implements template CRUD, selection state, and read APIs. |
-| `src/cs/workbench/services/template/browser/templateStoreService.ts` | Browser template store fallback for runtimes without desktop persistence. |
-| `src/cs/workbench/services/template/electron-browser/templateStoreService.ts` | Desktop renderer template store backed by `IJSONEditingService` and `IFileService`. |
-| `src/cs/workbench/services/template/browser/templateApplyService.ts` | Worker boundary implementation. No DOM. |
-| `src/cs/workbench/services/template/browser/templateApplyPlanner.ts` | Builds run plan from assessment blocks and config. Pure enough to test. |
-| `src/cs/workbench/services/template/browser/template.contribution.ts` | Registers services and template lifecycle contribution. |
-| `src/cs/workbench/contrib/template/browser/templateViewPane.ts` | Template UI shell. Renders service state and sends commands. |
-| `src/cs/workbench/services/template/browser/templateApplyController.ts` | Template apply workflow service/controller. Coordinates apply workflow around service boundaries; target is to keep it thin and service-facing. |
+| `common/template.ts` | service contract, `TemplateRecord`, `TemplateConfig`, CRUD contracts. |
+| `common/templateStore.ts` | persistence backend contract and data normalization. |
+| `common/templateRun.ts` | run records, inputs, warnings/errors, config fingerprint. |
+| `common/templateSelection.ts` | selection records/helpers. |
+| `browser/templateService.ts` | CRUD, selection state, read APIs. |
+| `browser/templateStoreService.ts` / `electron-browser/templateStoreService.ts` | browser fallback and desktop persistence. |
+| `browser/templateApplyService.ts` | worker/backend boundary. |
+| `browser/templateApplyPlanner.ts` | pure plan from config + assessment blocks. |
+| `browser/templateApplyController.ts` | workflow service/controller: apply, progress, batching. |
+| `contrib/template/browser/templateViewPane.ts` | UI shell; renders service state and sends commands. |
 
 ## Flow
 
-```mermaid
-flowchart TD
-    Snapshot[SessionSnapshot] --> Template[ITemplateService]
-    Template --> Assessment[Assessment blocks]
-    Template --> Config[TemplateConfig]
-    DomainBridge[WorkbenchDomainBridge] --> Workflow[ITemplateApplyWorkflowService.update]
-    DomainBridge --> Prioritize[ITemplateApplyWorkflowService.prioritizeProcessingFile]
-    Prioritize --> Planner
-    TemplateView --> Workflow
-    Assessment --> Planner[TemplateApplyPlanner]
-    Config --> Planner
-    Planner --> Worker[ITemplateApplyService]
-    Worker --> Result[TemplateApplyResult]
-    Result --> Commit[ISessionService.commitTemplateOutputs]
-    Workflow --> Status[onDidChangeProcessingStatus]
-    Workflow --> FileStates[onDidChangeFileStates]
-    Status --> DomainBridge
-    FileStates --> DomainBridge
+```txt
+SessionSnapshot + Template state + Explorer/chart active file
+  -> TemplateApplyWorkflowInput
+  -> TemplateApplyPlanner
+  -> ITemplateApplyService worker/backend
+  -> TemplateRunRecord + series + base curves + diagnostics
+  -> ISessionService.commitTemplateOutputs(...)
+  -> processing status and per-file state events
 ```
 
 ## Rules
 
-- Template reads block source ranges and column maps from assessment.
-- Template may ask Table for currently selected range only as explicit user input.
-  Template UI consumes `ITableService` directly from its DI view pane for table
-  selection/highlight. Do not pass `ITableService` through `TemplateViewInput`.
-- Template apply is an owner API on `ITemplateApplyWorkflowService`. Template UI
-  invokes `applyTemplate(...)` / `applyTemplateIncremental(...)`; do not pass
-  Workbench apply callbacks through `TemplateViewInput`.
-- `WorkbenchDomainBridge` may keep `TemplateViewInput` and
-  `TemplateApplyWorkflowInput` current by subscribing to session/template owner
-  events and rereading owner public state.
-- `TemplateApplyWorkflowInput.activeFileId` is the current Explorer/chart
-  selection projected by `WorkbenchDomainBridge`. Template apply planning must
-  move that file to the front of full, incremental, and rule queues so the
-  current chart receives template output before background files.
-- `ITemplateApplyWorkflowService.prioritizeProcessingFile(fileId)` is the
-  owner API for interactive queue promotion during an active apply run.
-  `WorkbenchDomainBridge` may call it from Explorer hover or selection-derived
-  signals, but Explorer, Chart, Thumbnail, and Plot must not mutate template
-  processing queues directly. The workflow may retain a short ordered priority
-  lane of recently touched file ids so rapid hover/file-switch interactions
-  promote the current/latest touched file first while keeping the touched set
-  ahead of background work.
-- Template views subscribe to `ITemplateService.onDidChangeTemplateViewInput`
-  and then reread `ITemplateService.getViewInput()`. The event must not carry
-  `TemplateViewInput` as the data channel.
-- Template apply progress belongs to `ITemplateApplyWorkflowService`. Consumers
-  subscribe to `onDidChangeProcessingStatus` and reread `processingStatus`; they
-  do not infer progress completion from Session or Plot events.
-- Per-file template apply readiness belongs to `ITemplateApplyWorkflowService`.
-  Consumers subscribe to `onDidChangeFileStates` and reread
-  `getFileApplyStates()`; Explorer projects that owner state into badges and
-  chart-state presentation without adding/removing file tree items.
-  The workflow owner marks queued files as `processing` when
-  `ITemplateApplyService` starts a single-file worker/backend task, then marks
-  them `ready`, `failed`, or removes them through the same owner state.
-- Template apply may consume the current table preview through injected
-  `ITableService` public state/model APIs. Do not pass table row readers,
-  source-existence callbacks, or table model methods through
-  `TemplateApplyWorkflowInput`.
-- Template result records should include config fingerprint and source block ids.
-- Re-running a template replaces only affected template output. Completed file
-  outputs may be coalesced and committed through `commitTemplateOutputs(...)`
-  so one UI frame does not produce one session event per file.
-- Apply planning skips files whose assessment is missing, unknown, low
-  confidence, or marked as needing template review. Those files remain in the
-  Explorer tree through the stable raw/session projection and are shown through
-  Explorer assessment badges; Template must not remove them from Explorer or
-  process them by default.
-- Full and incremental apply must not start while another extraction job is
-  running or while Explorer still has pending/preparing source rows from
-  import. The workflow returns a warning instead of building a partial queue
-  from only the files already committed to Session.
-- Template processing cleanup consumes `SessionChangeEvent`: `filesRemoved`
-  removes affected queued files, and `sessionCleared` terminates and resets the
-  active processing worker. Do not route this cleanup through Explorer submit
-  events or Workbench-only callbacks.
+- Template reads block source ranges and column maps from Assessment.
+- Template may read current table selection through injected `ITableService` public APIs only as explicit user input.
+- Do not pass `ITableService`, table row readers, or table model methods through Template view/workflow input.
+- Template apply is an owner API on `ITemplateApplyWorkflowService`; UI invokes apply methods instead of receiving Workbench callbacks.
+- WorkbenchDomainBridge may keep workflow input current by subscribing and rereading owner services.
+- `activeFileId` should move the current chart/Explorer target to the front of full, incremental, and rule queues.
+- `prioritizeProcessingFile(fileId)` is the owner API for interactive queue promotion from hover/selection signals.
+- The workflow may retain a short latest-first priority lane, but Explorer/Chart/Thumbnail/Plot must not mutate template queues directly.
+- Progress belongs to `ITemplateApplyWorkflowService`; consumers subscribe and reread `processingStatus`.
+- Per-file readiness belongs to the workflow; Explorer projects it into badges/chart-state without adding/removing file tree items.
+- Mark files `processing` when a single-file task starts, then `ready`, `failed`, or remove through the same owner state.
+- Result records include config fingerprint and source block ids.
+- Coalesce completed file outputs through `commitTemplateOutputs(...)` when possible.
+- Skip missing, unknown, low-confidence, or review-required assessments by default; keep those files visible through Explorer badges.
+- Full/incremental apply must not start while another extraction job is running or while Explorer has pending/preparing sources.
+- Session cleanup: `filesRemoved` removes affected queued files; `sessionCleared` terminates and resets active processing.
 
-## Command entry and dispatch
+## Commands
 
-Template commands cover template management and application. Template application is a workflow and may use a controller.
-
-Recommended files:
-
-| File | Responsibility |
-| --- | --- |
-| `src/cs/workbench/contrib/template/browser/templateCommands.ts` | Registers save/delete/import/apply/select template commands. |
-| `src/cs/workbench/contrib/template/browser/templateActions.ts` | UI actions that execute template commands. |
-| `src/cs/workbench/services/template/browser/templateApplyController.ts` | Coordinates apply workflow, worker boundary, notifications, and session batching through `ITemplateApplyWorkflowService`. |
-| `src/cs/workbench/services/template/browser/templateService.ts` | Template management and state. |
-| `src/cs/workbench/services/template/browser/templateApplyService.ts` | Worker/service boundary for template application. |
-
-Apply command flow:
+Template commands cover template management and application. Apply is a
+workflow and may use a controller.
 
 ```txt
 template.apply command
@@ -169,30 +83,20 @@ template.apply command
   -> ITemplateService / ITemplateApplyService
   -> assessment blocks from SessionSnapshot
   -> TemplateRunRecord + curves/series
-  -> ISessionService commitTemplateOutput(s)
+  -> ISessionService commitTemplateOutputs
 ```
 
-The command/controller must not re-detect table structure.
+Commands/controllers must not re-detect table structure.
 
-## Do not
+## Field Catalog
+
+Use `records.instructions.md` for `TemplateRecord`, `TemplateConfig`,
+`TemplateState`, `TemplateApplyWorkflowInput`, and `TemplateRunRecord`.
+
+## Do Not
 
 - Do not infer IV/CV/transfer/output from raw headers here.
 - Do not store template form draft state in Session.
-- Do not let worker payload format leak into session records.
-- Do not let TemplateView mutate session directly.
-
-
-## Field catalog
-
-Use `records.instructions.md` for template record field definitions:
-`TemplateRecord`, `TemplateConfig`, and `TemplateRunRecord`.
-
-## Component split
-
-| Component | Responsibility |
-| --- | --- |
-| `TemplateService` | Template CRUD entry point, selection state, run APIs. |
-| `TemplateStoreService` | Template persistence backend access through the desktop JSON editing/file services. |
-| `TemplateApplyService` | Worker lifecycle boundary. |
-| `TemplateApplyWorkflowService` / `TemplateApplyController` | User workflow coordination: apply, progress, notification, batching. |
-| `TemplateApplyPlanner` | Pure plan from config + assessment blocks. |
+- Do not let worker payload format leak into Session records.
+- Do not let TemplateView mutate Session directly.
+- Do not route processing cleanup through Explorer submit events or Workbench-only callbacks.

@@ -1,5 +1,5 @@
 ---
-description: Search service — query state, search index, raw table/block/curve/metric results, and source range navigation. Use when working under `src/cs/workbench/services/search` or search views.
+description: Search service - query state, search index, raw table/block/curve/metric results, source range navigation, and plot point search.
 applyTo: 'src/cs/workbench/services/search/**,src/cs/workbench/contrib/search/**'
 ---
 # Search
@@ -8,164 +8,80 @@ Search is a consumer and indexer. It does not produce canonical data.
 
 ## Ownership
 
-`ISearchService` owns:
+`ISearchService` owns query state, selected result, indexes from Session,
+results for raw cells/tables/groups/blocks/columns/curves/metrics/parameters,
+and navigation target generation.
 
-- search query state;
-- selected search result;
-- search indexes built from session snapshot;
-- search results for raw cells, raw tables, groups, blocks, columns, curves, metrics, parameters;
-- navigation target generation using `RawTableRangeRef`, block id, curve key, or metric key.
+It consumes Session, assessment results, optional Plot display models for
+currently plotted chart/inspector series, and owner services for reveal
+requests. It does not own import, assessment, template execution, plot
+calculation, or Session mutation.
 
-It consumes:
-
-- `SessionSnapshot`;
-- assessment results;
-- optional `IPlotService` display models for currently plotted chart and inspector series labels;
-- table service for reveal requests.
-
-It does not own:
-
-- raw table import;
-- assessment;
-- template execution;
-- plot calculation;
-- canonical session mutation.
-
-## Core files
+## Core Files
 
 | File | Responsibility |
 | --- | --- |
-| `src/cs/workbench/services/search/common/search.ts` | Defines `ISearchService`, `SearchQuery`, `SearchResult`, result kinds, navigation targets. |
-| `src/cs/workbench/services/search/browser/searchService.ts` | Owns query/selection state, subscribes to session/plot, returns results. |
-| `src/cs/workbench/services/search/browser/searchIndex.ts` | Builds searchable index from files, raw tables, assessment blocks, curves, metrics. Pure enough to test. |
-| `src/cs/workbench/services/search/browser/searchNavigation.ts` | Converts search result to Explorer/Table/Plot/Parameters reveal commands. |
-| `src/cs/workbench/contrib/search/browser/searchViewPane.ts` | View pane shell. Renders search view and forwards query/selection changes. |
-| `src/cs/workbench/contrib/search/browser/searchView.ts` | DOM/UI renderer for results. Does not read session directly. |
-
-## Result shape
-
-```ts
-export type SearchResult = {
-  readonly kind: SearchResultKind;
-  readonly title: string;
-  readonly preview?: string;
-  readonly fileId?: FileId;
-  readonly rawTableId?: RawTableId;
-  readonly sourceRange?: RawTableRangeRef;
-  readonly measurementBlockId?: MeasurementBlockId;
-  readonly curveKey?: CurveKey;
-  readonly metricKey?: MetricKey;
-};
-```
+| `common/search.ts` | service contract, query/result types, navigation targets. |
+| `browser/searchService.ts` | query/selection state owner, session/plot subscriber. |
+| `browser/searchIndex.ts` | pure index builder from files/raw tables/blocks/curves/metrics. |
+| `browser/searchNavigation.ts` | result -> Explorer/Table/Plot/Parameters reveal commands. |
+| `contrib/search/browser/searchViewPane.ts` | view shell. |
+| `contrib/search/browser/searchView.ts` | DOM/UI renderer; no Session reads. |
 
 ## Flow
 
-```mermaid
-flowchart TD
-    Session[SessionSnapshot] --> Index[SearchIndex]
-    PlotCache[IPlotService.getCachedPlotDisplayModel] --> SearchPlot[SearchPlotModel chart + inspector]
-    PlotMiss[cache miss] --> PlotPrefetch[IPlotService.prefetchPlotDisplayModel active]
-    PlotPrefetch --> PlotCache
-    SearchPlot --> SearchView[SearchView point tables]
-    Query[SearchQuery] --> Search[ISearchService]
-    Index --> Search
-    Search --> Results[SearchResult]
-    Results --> Navigation[Explorer/Table/Plot/Parameters reveal]
-```
-
-## Command entry and dispatch
-
-Search commands own query execution and result navigation.
-
-Recommended files:
-
-| File | Responsibility |
-| --- | --- |
-| `src/cs/workbench/contrib/search/browser/searchCommands.ts` | Registers focus search, run search, clear search, open result commands. |
-| `src/cs/workbench/contrib/search/browser/searchActions.ts` | UI entries for search commands. |
-| `src/cs/workbench/services/search/browser/searchService.ts` | Owns query state, selected result, and search index. |
-
-Open-result dispatch:
-
 ```txt
-search.openResult command
-  -> ISearchService.resolveResultTarget(resultId)
-  -> dispatch by target kind
-     rawTableRange -> ITableService.revealRange
-     curve -> IPlotService.revealCurve / set visibility
-     metric -> IParametersService.revealMetric
-     file/resource -> IExplorerService.revealResource
+SessionSnapshot + optional cached PlotDisplayModel
+  -> SearchIndex / SearchPlotModel
+  -> ISearchService query
+  -> SearchResult[]
+  -> explicit reveal target dispatch
 ```
 
-Search should navigate by explicit target refs, not by global session active state.
+Search result navigation uses refs such as `RawTableRangeRef`, block id, curve
+key, metric key, file id, or resource id. It must not depend on global Session
+active state.
 
-## Plot point search modes
+## Plot Point Search
 
-Plot point search consumes a Search-owned projection of the current
-`PlotDisplayModel`. Workbench bridges `IPlotService.getCachedPlotDisplayModel(...)`
-into `SearchPlotModel` with two panes and calls
-`IPlotService.prefetchPlotDisplayModel(..., "active")` on cache miss. It must
-not synchronously create plot display models during Workbench/Search render.
+Plot point search consumes a Search-owned projection of the current cached
+`PlotDisplayModel`. Workbench may prefetch active Plot display models on cache
+miss, but must not synchronously create them during Search render.
 
-| Pane | Source | UI behavior |
-| --- | --- | --- |
-| `chart` | `PlotDisplayModel.chart.model` | Main plot point table. |
-| `inspector` | `PlotDisplayModel.inspector.model` | Second-order/inspector point table. |
+Panes:
 
-The Search view owns one X input and one interpolation-mode select. It applies
-the same X and mode to both panes and renders separate tables for the main chart
-and second-order pane. These calculated point results are derived display data:
-do not write them back to Session.
+- `chart`: main plot point table from chart display model.
+- `inspector`: second-order/inspector point table.
 
-Search plot-point lookup currently supports one interpolation algorithm:
-linear interpolation between adjacent finite points. The Search view may expose
-this as a select box with two query modes:
+The view owns one X input and one interpolation select applied to both panes.
+Point lookup results are derived display data and must not be written to
+Session.
+
+Supported modes:
 
 | Mode | Behavior |
 | --- | --- |
-| `linear` | Use exact points when present, otherwise linearly interpolate between adjacent X points. |
-| `none` | Require an exact X point; return a no-exact-match result when the X value is within the series domain but absent. |
+| `linear` | exact point when present, otherwise linear interpolation between adjacent finite X points |
+| `none` | exact X point required |
 
-Do not add an interpolation algorithm option unless the corresponding algorithm
-exists in `searchModel.ts` and is covered by `searchModel.test.ts`.
+Do not add interpolation options without implementing and testing the algorithm
+in search model code.
 
-## Search view layout
+## View Rules
 
-Search auxiliary-bar form rows should follow the same two-column control layout
-used by neighboring chart auxiliary views:
+- Search form rows use the same two-column control layout as neighboring chart auxiliary views.
+- Control column children use `min-width: 0` and `width: 100%`.
+- X input is text with `inputMode = "decimal"`, not `type = "number"`.
+- Do not rebuild the full Search view for every `SearchQuery` change; update current result table in place so input focus survives.
 
-```css
-grid-template-columns: minmax(min(104px, 38%), 34%) minmax(0, 1fr);
-column-gap: 12px;
-```
+## Field Catalog
 
-The label column and control column resize with the auxiliary-bar width, while
-the gap stays fixed. InputBox, select, dropdown, and similar controls in the
-second column should keep `min-width: 0` and `width: 100%` so they shrink and
-expand inside the available control column instead of overflowing or staying at
-an intrinsic width.
+Use `records.instructions.md` for `SearchQuery`, `SearchResult`,
+`SearchPlotModel`, and `SearchPlotPaneModel`.
 
-The Search X input should use a text input with `inputMode = "decimal"` rather
-than `type = "number"`. The view parses the text through SearchService when
-searching, and text input preserves valid editing intermediates such as `1.`,
-`.5`, and `-0.` while the user is still typing.
+## Do Not
 
-Do not rebuild the full Search view for every `SearchQuery` change. Text entry
-and interpolation-mode changes should update `SearchService` query state and
-refresh the current view's result table in place. Rebuilding the view should be
-reserved for plot-model changes, otherwise the input DOM is replaced and focus
-is lost after each keystroke.
-
-## Do not
-
-- Do not re-detect block structure in search.
-- Do not update canonical records from search results.
+- Do not re-detect block structure.
+- Do not update canonical records from results.
 - Do not store query state in Session.
-- Do not make SearchView read session directly.
-
-
-## Field catalog
-
-Use `records.instructions.md` for shared search result fields such as
-`SearchResult`. Keep query state service-local to `ISearchService`; it is not
-session canonical data.
+- Do not make SearchView read Session directly.

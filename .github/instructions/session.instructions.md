@@ -1,155 +1,83 @@
 ---
-description: Session service — canonical records, commit API, snapshots, read models, and change events. Use when working under `src/cs/workbench/services/session`.
+description: Session service - canonical records, commit APIs, snapshots, read models, and change events.
 applyTo: 'src/cs/workbench/services/session/**'
 ---
 # Session
 
-`SessionService` is the canonical in-memory ledger for the current analysis session.
-
-It is not a view state store and not an orchestration service for every UI action.
+`SessionService` is the canonical in-memory ledger for the current analysis
+session. It is not a view-state store and not a workflow dispatcher.
 
 ## Concepts
 
 | Name | Meaning |
 | --- | --- |
-| `ISessionService` | Public service interface: snapshot, events, and commit methods. |
-| `SessionService` | Browser implementation and only mutator of `SessionModel`. |
-| `SessionModel` | Internal canonical data state. |
-| `SessionSnapshot` | Read-only data exposed to consumers. |
-| `SessionReadModel` | Derived projection for common read patterns. |
-| `SessionChangeEvent` | Specific invalidation event after canonical changes. |
+| `ISessionService` | public snapshot/events/commit API |
+| `SessionService` | only mutator of `SessionModel` |
+| `SessionModel` | internal canonical data state |
+| `SessionSnapshot` | read-only consumer data |
+| `SessionReadModel` | derived read projection |
+| `SessionChangeEvent` | specific invalidation event |
 
-## Core files
+## Core Files
 
 | File | Responsibility |
 | --- | --- |
-| `src/cs/workbench/services/session/common/session.ts` | Defines `ISessionService`, `SessionSnapshot`, commit input types, public events. No implementation. |
-| `src/cs/workbench/services/session/common/sessionModel.ts` | Defines canonical records: `SessionModel`, `FileRecord`, series, curves, metrics, template run, calculation cache. |
-| `src/cs/workbench/services/session/common/sessionEvents.ts` | Defines `SessionChangeEvent`, reasons, affected ids, event helper types. |
-| `src/cs/workbench/services/session/common/sessionReadModel.ts` | Builds read-only projections: raw tables by id, assessments, active file fallback, curves by family, metrics by series. No mutation. |
-| `src/cs/workbench/services/session/common/sessionModelAdapter.ts` | Temporary compatibility adapter from legacy `SessionFile`/`ProcessedEntry` shapes. Shrink over time. |
-| `src/cs/workbench/services/session/browser/sessionService.ts` | Owns mutable model, validates commits, increments versions, emits specific events. |
+| `common/session.ts` | service contract, snapshot, commit inputs, events. |
+| `common/sessionModel.ts` | canonical records: files, raw, assessment, template, series, curves, metrics, cache. |
+| `common/sessionEvents.ts` | change reasons, affected ids, helper types. |
+| `common/sessionReadModel.ts` | read-only projections. |
+| `common/sessionModelAdapter.ts` | temporary legacy adapter; shrink over time. |
+| `browser/sessionService.ts` | mutable model owner, validation, versioning, events. |
 
-## Public interface shape
+## Canonical Data Only
 
-```ts
-export interface ISessionService {
-  readonly _serviceBrand: undefined;
-  readonly onDidChangeSession: Event<SessionChangeEvent>;
+Session may store imported files, raw tables/versions, assessments, blocks,
+template runs, series, curves, metrics, metric inputs, and rebuildable
+calculation cache descriptors.
 
-  getSnapshot(): SessionSnapshot;
+Session must not store table selection/focus/scroll, chart zoom/popovers, active
+plot tabs, template drafts, search queries, export dialog state, worker refs,
+request ids, row caches, or thumbnail caches.
 
-  commitFileImport(result: FileConversionResult, options?: CommitFileImportOptions): CommitFileImportResult;
-  commitRawTableAssessment(result: RawTableAssessmentRecord): void;
-  commitTemplateOutput(input: CommitTemplateOutputInput): void;
-  commitTemplateOutputs(inputs: readonly CommitTemplateOutputInput[]): void;
-  commitTemplateRun(input: CommitTemplateRunInput): void;
-  commitCalculatedRecordsBatch(inputs: CommitCalculatedRecordsBatchInput): void;
-  commitCurves(input: CommitCurvesInput): void;
-  commitCurvesBatch(inputs: readonly CommitCurvesInput[]): void;
-  commitMetrics(input: CommitMetricsInput): void;
-  commitMetricsBatch(inputs: readonly CommitMetricsInput[]): void;
-
-  renameFile(fileId: FileId, name: string): boolean;
-  setMetricInput(input: MetricInputRecord): void;
-  clearMetricInput(fileId: FileId, metricKey: MetricKey): void;
-
-  removeFiles(fileIds: readonly FileId[]): void;
-  clearSession(): void;
-}
-```
-
-## Canonical data only
-
-Session may store:
-
-- files and raw tables;
-- raw table versions;
-- assessment records;
-- measurement blocks;
-- template run records;
-- series;
-- curves;
-- metrics;
-- metric inputs that affect calculation;
-- rebuildable calculation cache.
-
-Session must not store:
-
-- `SessionViewState`;
-- table selection/focus/scroll;
-- chart zoom/legend/popover state;
-- active plot tab;
-- template form draft state;
-- search query;
-- export dialog option state;
-- worker refs or request ids;
-- row cache or thumbnail cache.
-
-## Active target rule
-
-Do not add a global `activeTarget` as the owner of all interactions.
-
-Use service-specific active state:
-
-```txt
-Explorer selected resource -> IExplorerService
-Table selected cell/range  -> ITableService
-Plot active plot type      -> IPlotService
-Chart active pane/popover  -> IChartService
-Parameters selected metric -> IParametersService
-Search selected result     -> ISearchService
-Export selected options    -> IExportService
-```
-
-Use `CommandTarget` for command arguments.
-
-## Commit rules
+## Commit Rules
 
 - Every canonical mutation goes through `SessionService`.
-- Every commit validates affected file/raw table/curve ids.
-- File import commits return the actual committed file ids and duplicate source
-  ids skipped by Session. Callers may use that result for selection follow-up.
-- Assessment commits must check `sourceRawTableVersion`.
+- Every commit validates affected ids.
+- Import commits return committed file ids and skipped duplicate source ids for caller follow-up.
+- Assessment commits check `sourceRawTableVersion`.
 - Raw table replacement invalidates stale assessments, template runs, curves, and metrics for that raw table.
-- Calculation output that includes derived curves and metrics should use
-  `commitCalculatedRecordsBatch` so Session can update both record families in
-  one snapshot and emit one `calculatedRecordsChanged` event.
-- Events include affected ids; consumers should ignore unrelated changes.
+- Calculation output that includes derived curves and metrics should use `commitCalculatedRecordsBatch`.
+- Events include affected ids; consumers ignore unrelated changes.
 
-## Command entry and dispatch
+## Workflow Boundary
 
-`ISessionService` is not a user-workflow dispatcher. Commands may call session commit methods, but only after another service/controller has produced a domain result.
+Commands may call Session commit methods only after another service/controller
+has produced the domain result.
 
-Recommended command boundaries:
-
-| Command | Preferred owner | Session method |
+| Workflow | Preferred producer | Session method |
 | --- | --- | --- |
-| clear session | Explorer or Workbench global command | `ISessionService.clearSession()` |
-| remove file/resource | Explorer action/controller after resolving Explorer context | `ISessionService.removeFiles(...)`; call `IExplorerService.select(...)` separately for Explorer selection follow-up |
-| commit import | Explorer source workflow/controller after conversion succeeds | `ISessionService.commitFileImport(...)` |
-| commit assessment | Assessment contribution/command | `ISessionService.commitRawTableAssessment(...)` |
-| commit template/curves | Template service/controller | `ISessionService.commitTemplateOutput(...)` / `commitTemplateOutputs(...)` for produced template output; `commitTemplateRun(...)` and `commitCurves(...)` remain explicit lower-level commits |
-| commit calculated curves/metrics | Calculation contribution after pure builders finish | `ISessionService.commitCalculatedRecordsBatch(...)` |
-| commit metric input | Parameters service | `ISessionService.setMetricInput(...)` |
+| import | Explorer source workflow after conversion | `commitFileImport` |
+| assessment | assessment contribution/command | `commitRawTableAssessment` |
+| template | template workflow/controller | `commitTemplateOutput(s)` |
+| calculated curves/metrics | calculation service | `commitCalculatedRecordsBatch` |
+| metric input | parameters service | `setMetricInput` / `clearMetricInput` |
+| file removal | Explorer action/controller | `removeFiles` plus separate Explorer selection follow-up |
+| clear session | Explorer or global Workbench command | `clearSession` |
 
-Do not add commands that mutate internal `SessionModel` fields directly. Use
-explicit commit APIs. Do not make another service fire a submit/request event
-only so Workbench can mutate Session; the caller that owns the workflow result
-should call `ISessionService`, and consumers should react to the resulting
-`SessionChangeEvent`.
+Do not make another service fire request/submit events only so Workbench can
+mutate Session. The caller that owns the workflow result calls Session, and
+consumers react to `SessionChangeEvent`.
 
-## Do not
+## Field Catalog
+
+Use `records.instructions.md` for `SessionModel`, `FileRecord`,
+`SeriesRecord`, `CurveRecord`, `MetricRecord`, and related canonical fields.
+
+## Do Not
 
 - Do not expose mutable `SessionModel`.
-- Do not let views call internal adapter functions.
-- Do not emit `Event<void>` for all changes after migration.
+- Do not let views call internal adapters.
+- Do not collapse all changes into `Event<void>`.
 - Do not make `SessionService` call Chart/Table/Template directly.
 - Do not store service caches or UI state in `FileRecord`.
-
-
-## Field catalog
-
-Use `records.instructions.md` for canonical session record field definitions:
-`SessionModel`, `FileRecord`, `SeriesRecord`, `CurveRecord`, and
-`MetricRecord`.
+- Do not add global `activeTarget`; use owner-specific active state and command targets.

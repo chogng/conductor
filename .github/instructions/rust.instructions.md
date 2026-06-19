@@ -1,52 +1,43 @@
 ---
-description: Rust execution branch guidelines for Conductor desktop - how electron-browser service implementations call Rust, which stages Rust may take over, what data may cross the Rust/TypeScript boundary, and how results are normalized back into domain records.
+description: Rust execution branch guidelines for Conductor desktop - runtime route, domain boundaries, payload shape, parity, fallback, and lifecycle.
 applyTo: 'src/cs/workbench/services/{files,assessment,table,template,plot,parameters,export,origin,search}/**,src/cs/platform/rust/**,src/cs/code/electron-main/{rustHostChannels.ts,rustHostService.ts,app.ts},src/cs/base/parts/sandbox/electron-browser/preload.ts,cli/**,extensions/**'
 ---
 # Rust Execution Branch
 
-Rust is an execution branch for desktop service implementations. It is not a separate workbench domain, not a replacement for commands, and not a second product session.
+Rust is a desktop data-plane execution branch. It is not a separate workbench
+domain, command layer, view layer, or second product session.
 
-Use this document when moving expensive file/table/template/plot/export/metric work from TypeScript into the Rust CLI source under `cli/`, or browser Excel/WASM Rust extension crates under `extensions/`.
-
-## Core rule
-
-Desktop code may bypass the TypeScript implementation of a heavy stage, but it must not bypass the TypeScript architecture.
+## Core Flow
 
 ```txt
 Command / Action / View
-  -> domain service contract in common
-  -> browser implementation or electron-browser implementation
-  -> electron-browser implementation calls Rust when running on desktop
-  -> service normalizes and validates result
-  -> SessionService commit or service event
-  -> View render
+  -> common domain service contract
+  -> browser or electron-browser implementation
+  -> desktop implementation may call conductor-rs through IPC/preload
+  -> service validates and normalizes result
+  -> Session commit or service event
+  -> views consume normal domain models
 ```
 
-Do not create a parallel Rust command layer, Rust view layer, or Rust session layer.
+TypeScript remains the control plane: commands, service contracts,
+orchestration, Session commits, stale-result checks, fallback policy, view
+state, DOM, and user-facing notifications.
 
-## Desktop helper CLI route
+Rust may own heavy execution and runtime caches for file conversion, workbook
+sheet extraction, table reads, assessment, template extraction, metric/Rc
+calculation, plot-frame construction, downsampling, search, and export artifact
+generation.
 
-Conductor desktop uses Rust as a bundled helper CLI/binary, not as an external
-user-installed dependency and not as Rust source invoked directly by Electron.
-This follows the upstream VS Code CLI shape: Rust source lives in the repository,
-the build compiles it with Cargo, and runtime code executes the compiled binary.
+## Runtime Route
 
-Target shape:
+Desktop runs Rust as a bundled helper binary:
 
 ```txt
-Conductor Studio.app / desktop package
-  resources/bin/conductor-rs
-
-Electron main process
-  spawn(conductor-rs, ["--stdio-worker"])
+Conductor Studio.app resources/bin/conductor-rs
+Electron main spawn(conductor-rs, ["--stdio-worker"])
 ```
 
-`--stdio-worker` is the protocol mode. It does not make the binary a separate
-product boundary. Keep the product/runtime name CLI-like (`conductor-rs`) and
-keep worker terminology for the transport, process pool, and lifecycle where it
-is technically accurate.
-
-Runtime resolution should prefer this order:
+Resolution order:
 
 ```txt
 CONDUCTOR_RS_CLI_PATH
@@ -56,442 +47,166 @@ development target/release output
 ```
 
 Production desktop builds must not require users to install Rust, Cargo, or an
-external `conductor-rs` CLI. Development builds may compile or point to local
-Cargo output. Packaged macOS builds must preserve executable bits and include
-the helper binary in signing/notarization validation. Workbench domain services
-should continue to call domain IPC/preload methods and should not learn
-executable file names.
+external CLI. Packaged macOS builds must preserve executable bits and include
+the helper in signing/notarization validation.
 
-## Naming rule
+Workbench services call domain IPC/preload methods; they must not know concrete
+executable names outside the Electron main resolver boundary.
 
-Do not add names like:
+## Naming
+
+Do not add generic Rust names in workbench services:
 
 ```txt
 IRustService
 RustBackend
-FileConverterBackend
 processWithRust
 applyTemplateWithRust
+explorer.importFolderWithRust
 ```
 
-Prefer domain names that match the browser implementation:
+Prefer domain/runtime names:
 
 ```txt
-services/files/browser/fileConverterBackendService.ts
 services/files/electron-browser/fileConversionService.ts
-
-services/table/browser/tableRowsReader.ts
 services/table/electron-browser/tableRowsReader.ts
-
-services/template/browser/templateApplyService.ts
 services/template/electron-browser/templateApplyService.ts
-
-services/plot/browser/plotService.ts
 services/plot/electron-browser/plotService.ts
-
-services/export/browser/exportService.ts
 services/export/electron-browser/exportService.ts
 ```
 
-A file in `electron-browser` is already the desktop branch. If clarity is needed, put this at the top of the file:
+The `electron-browser` folder already signals desktop branch. Use `bridge`
+only at preload/main IPC boundaries.
 
-```ts
-// Desktop implementation of the same domain service. Heavy data stages are executed by conductor-rs through Electron IPC/preload.
-```
+## Semantic Parity
 
-The word `bridge` is acceptable only at the Electron preload/main-process boundary, where it describes the technical IPC bridge. Do not leak `Bridge` names into workbench domain services.
+TypeScript remains the semantic baseline. Rust may accelerate or mirror domain
+execution, but it must not silently fork product rules.
 
-## Command rule
+When changing a rule mirrored under `cli/` or `extensions/`, update both sides
+in the same change. This is mandatory for assessment family/role/confidence,
+auto extraction planning, calculation, export, plot, search, and table rules
+with Rust branches.
 
-Commands do not fork for Rust.
-
-Do not add command ids such as:
-
-```txt
-explorer.importFolderWithRust
-template.applyWithRust
-plot.rebuildWithRust
-export.originCsvWithRust
-```
-
-Use the same command id in browser and desktop:
-
-```txt
-explorer.importFolder
-template.apply
-plot.rebuild
-export.originCsv
-```
-
-The command handler dispatches to the domain service. The domain service implementation decides which execution branch is active.
-
-```mermaid
-flowchart TD
-    UI[Button / Menu / Keybinding] --> Command[Same command id]
-    Command --> Service[Domain service]
-    Service --> BrowserImpl[browser implementation]
-    Service --> DesktopImpl[electron-browser implementation]
-    DesktopImpl --> Rust[conductor-rs via IPC/preload]
-    BrowserImpl --> TS[TypeScript / browser worker / WASM]
-    Rust --> Normalize[Normalize to domain record]
-    TS --> Normalize
-    Normalize --> Commit[Session commit or service event]
-```
-
-## Rust is data-plane, TypeScript is control-plane
-
-Rust may own heavy execution and runtime caches. TypeScript owns product state and service orchestration.
-
-Rust may do:
-
-- file conversion;
-- workbook sheet extraction;
-- raw table scanning;
-- assessment execution;
-- table preview row/cell reads;
-- template extraction;
-- metric/Rc calculation;
-- plot-frame construction and downsampling;
-- export artifact generation.
-
-TypeScript still owns:
-
-- command/action registration;
-- service contracts;
-- controller workflow;
-- session commits;
-- version/signature validation;
-- view state;
-- DOM rendering;
-- user-facing notifications;
-- fallback policy.
-
-Rust must never directly mutate `SessionModel`, table selection, chart state, Explorer state, or UI DOM.
-
-## TypeScript/Rust semantic parity
-
-TypeScript remains the semantic baseline for domain heuristics. Rust may
-accelerate or mirror the data-plane execution, but it must not silently fork
-the product rules.
-
-When changing a domain rule in TypeScript, check whether a Rust mirror exists
-under `cli/` or `extensions/`. If it does, update both sides in the same
-change. This is mandatory for:
-
-- assessment family/role/confidence rules such as
-  `src/cs/workbench/services/assessment/common/fileAssessment.ts` and
-  `cli/src/assessment.rs` / `cli/src/detect.rs`;
-- auto extraction planning rules such as
-  `src/cs/workbench/services/assessment/common/autoTemplatePlan*.ts` and
-  `cli/src/detect.rs`;
-- calculation, export, plot, search, or table rules that have a Rust execution
-  branch.
-
-After a mirrored rule change, run the matching compatibility verifier. For
-auto extraction and assessment-derived template planning, run:
+Run the matching verifier. For auto extraction and assessment-derived planning:
 
 ```txt
 npm run verify:rust-auto-extraction
 ```
 
-If no verifier exists for the touched rule, add one or extend the nearest
-existing verifier before relying on the Rust branch. Do not approve a Rust/TS
-rule change based only on one side's unit tests.
+If no verifier exists for a mirrored rule, add or extend one before relying on
+the Rust branch.
 
-## Stage ownership and return boundaries
+## Stage Boundaries
 
-Only return data at stable stage boundaries. Do not return intermediate arrays just because Rust has them.
+Return data only at stable domain boundaries:
 
-| Stage | TS owner | Desktop Rust branch may do | Return to TS | Do not return by default |
-| --- | --- | --- | --- | --- |
-| File conversion | `files/electron-browser/fileConversionService.ts` behind the file conversion service contract | CSV/XLS/XLSX parse, sheet split, normalized CSV artifact creation | `FileConversionResult`-compatible descriptors, `RawTableRecord` metadata, `normalizedCsvPath`, manifest, diagnostics | full CSV text, full workbook data |
-| Assessment | `assessment/electron-browser/assessmentService.ts` | block/group/header/data/column-role/sweep inference | `RawTableAssessmentRecord` | raw rows |
-| Table preview | `table/electron-browser/tableRowsReader.ts` | row chunk reads, cell reads, raw table metadata reads | bounded rows chunk or selected cell values | whole table |
-| Template apply | `template/electron-browser/templateApplyService.ts` | auto extraction, curve/series extraction, template process | `TemplateRunRecord`, `SeriesRecord` descriptors, curve descriptors/handles, diagnostics | full curve points unless small/fallback |
-| Plot | `plot/electron-browser/plotService.ts` | domain calculation, unit scaling, log transform, downsampling, plot frame construction | `PlotRenderModel` / plot frame bounded by display needs | all original points |
-| Parameters/metrics | `parameters/electron-browser/parametersService.ts` or metric calculator helper | gm, SS, Vth, Ion/Ioff, Rc, fit windows | `MetricRecord`, scalar values, bounded fit preview, diagnostics | full intermediate arrays |
-| Export | `export/electron-browser/exportService.ts` | stream CSV/ZIP/artifact generation | `ExportArtifactRecord`: path, fileName, size, diagnostics | large CSV text |
-| Search | future `search/electron-browser/searchService.ts` | indexed search over raw dataset/curves | result refs, snippets, counts, `RawTableRangeRef` | matched full rows or whole tables |
+| Stage | TS owner | Rust may do | Return to TS |
+| --- | --- | --- | --- |
+| File conversion | files electron-browser conversion service | parse CSV/XLS/XLSX, split sheets, create normalized CSV artifacts | `FileConversionResult`-compatible descriptors, raw table metadata, diagnostics |
+| Assessment | assessment service | block/group/role inference | `RawTableAssessmentRecord` |
+| Table preview | table rows reader | chunk/cell/raw metadata reads | bounded rows or selected cells |
+| Template apply | template apply service | extraction/process | `TemplateRunRecord`, series/curve descriptors, diagnostics |
+| Plot | plot service | calculation, scaling, log transform, downsampling, plot frame | `PlotRenderModel` / bounded plot frame |
+| Parameters | parameters/metric service | metrics and fits | `MetricRecord`, scalar values, bounded fit preview |
+| Export | export service | stream CSV/ZIP/artifacts | artifact descriptor |
+| Search | search service | indexed search | refs, snippets, counts |
 
-## Result normalization rule
-
-Rust output is not a workbench record until a TypeScript service normalizes it.
+Rust output is not a workbench record until a TypeScript service normalizes it:
 
 ```txt
-Rust JSON result
-  -> service-local validation
+Rust JSON
+  -> service validation
   -> domain record normalization
   -> stale-result check
-  -> session commit or service event
+  -> Session commit or service event
 ```
 
-Example:
+## Payload Rules
 
-```txt
-Rust import result
-  -> FileConversionResult / RawTableRecord
+Every long-lived Rust request must include enough identity to reject stale
+results: request id, session version, file id, raw table id/version, assessment
+version, template config fingerprint, curve signature, or other stage-specific
+signature.
 
-Rust assessment result
-  -> RawTableAssessmentRecord
+Before committing, check that the source still exists and versions/signatures
+still match. Drop stale results silently unless a user-visible operation needs
+a cancellation message.
 
-Rust template result
-  -> TemplateRunRecord / SeriesRecord / CurveRecord descriptor
+Return freely:
 
-Rust metric result
-  -> MetricRecord
-
-Rust export result
-  -> ExportArtifactRecord
-```
-
-Do not let Rust payload types leak into Views. Views should consume the same domain models regardless of browser or desktop runtime.
-
-## Boundary payload shape
-
-Use a small envelope for cross-runtime responses. Keep errors typed and recoverable.
-
-```ts
-export type RustStageResult<T> =
-  | {
-      readonly ok: true;
-      readonly value: T;
-      readonly diagnostics?: readonly RustDiagnostic[];
-      readonly timings?: RustTimings;
-    }
-  | {
-      readonly ok: false;
-      readonly code: RustErrorCode;
-      readonly message?: string;
-      readonly recoverable?: boolean;
-    };
-```
-
-A domain service may hide this envelope from callers and expose only domain-specific success/failure types.
-
-## Identity and stale-result checks
-
-Every Rust request that can outlive the current UI turn must include enough identity to reject stale results.
-
-```ts
-export type RustRequestIdentity = {
-  readonly requestId: string;
-  readonly sessionVersion: number;
-  readonly fileId: FileId;
-  readonly rawTableId?: RawTableId;
-  readonly rawTableVersion?: number;
-  readonly assessmentVersion?: number;
-  readonly templateRunId?: TemplateRunId;
-  readonly configFingerprint?: string;
-  readonly curveSignature?: string;
-};
-```
-
-Before committing any Rust result, the service must check:
-
-```txt
-file still exists
-rawTableVersion still matches
-assessment/config signature still matches
-requestId is still current for this service request
-curve/metric signatures still match when applicable
-```
-
-If the result is stale, drop it silently unless a user-visible operation explicitly needs a cancellation message.
-
-## Large-data rule
-
-The main performance win is avoiding JS heap pressure and cross-boundary copies.
-
-Return these freely:
-
-- descriptors;
-- ids and handles;
-- versions/signatures;
-- diagnostics;
+- descriptors, ids, handles, versions, signatures;
+- diagnostics and timings;
 - scalar metrics;
-- bounded preview rows;
-- bounded plot frames;
+- bounded preview rows or plot frames;
 - export artifact paths.
 
-Do not return these by default:
+Do not return by default:
 
 - full converted CSV text;
-- full raw table rows;
+- whole raw tables;
 - full curve point arrays;
-- full intermediate metric arrays;
+- large intermediate metric arrays;
 - full export text.
 
-If a full payload must be returned for a small file or tests, mark it as a compatibility path and keep the large-file path artifact/handle-based.
+If a full payload remains for small files/tests, mark it as a compatibility path
+and keep the large-file path artifact/handle based.
 
-## Import Badge Prepare Rule
+Names in canonical records should describe what the app has, not which runtime
+produced it: `EngineDatasetRef`, `EngineCurveRef`, `ExportArtifactRecord`, not
+`RustDataset`.
 
-Desktop import badge readiness is a latency-sensitive Rust path.
+## Import Badge Prepare
 
-For CSV import assessment, do not build a full `EngineDataset` only to show a
-badge. Use the import summary path: decode/health check, stream CSV records,
-retain bounded preview rows, and return `rowCount`, `columnCount`,
-`maxCellLengths`, `health`, and assessment. Full row storage belongs to `open`
-and table preview paths, not to badge prepare.
+Desktop import badge readiness is latency-sensitive. CSV badge prepare should
+use the import summary path: decode/health check, stream records, bounded
+preview rows, `rowCount`, `columnCount`, `maxCellLengths`, `health`, and
+assessment. Full row storage belongs to open/table preview paths.
 
-For folder imports, keep the main/Rust boundary batch-aware but badge-friendly:
+Folder import may use `assessImportBatch`, descriptor caching by normalized
+path/size/mtime, and bounded Rust worker parallelism. Electron main must still
+emit per-file prepare results through the files service contract. Prefer small
+result chunks and badge latency over maximum batch throughput.
 
-- `assessImportBatch` may process multiple file paths in one stdio request.
-- Electron main must still emit per-file prepare results through the existing
-  file conversion service contract.
-- Prefer small result chunks over maximum batch throughput. The current desktop
-  default is tuned for badge latency, with large CSV batches split into small
-  Rust commands and Rust batch internal parallelism kept bounded. Large folder
-  batches may cap active batch workers below the full Rust processing pool to
-  avoid CPU spikes colliding with renderer session commits and badge projection.
-- Cache prepare descriptors by normalized path, source size, and source mtime.
-  Cache hits must be cloned and marked so trace reports can distinguish them.
-- Bad CSV health states should complete the file with health metadata when
-  possible; truly failed converter paths should fail only that file, not the
-  whole folder batch.
+When changing this path, run template apply performance traces for desktop and
+browser at 200 files minimum; include `--profile=mixed` for health/failure
+handling.
 
-When changing this path, run the template apply performance trace script for
-both desktop and browser, at 200 files minimum:
+## Runtime Registration
 
-```txt
-npm run test:template-apply-performance-trace -- --runtime=desktop --auto-folder --files=200 --rows=4000
-npm run test:template-apply-performance-trace -- --runtime=desktop --auto-folder --files=200 --rows=4000 --profile=mixed
-npm run test:template-apply-performance-trace -- --runtime=browser --auto-browser --files=200 --rows=4000
-npm run test:template-apply-performance-trace -- --runtime=browser --auto-browser --files=200 --rows=4000 --profile=mixed
-```
-
-Use the JSON reports under `.build/bench/template-apply-performance-trace/` to
-compare first/half/all badge time, prepare completion time, backend invoke
-time, Rust p50/p95, materialization/append cost, long tasks, RSS, JS heap,
-apply processing, calculation, thumbnail hover, and file switch metrics.
-
-## Handle and artifact records
-
-When Rust keeps large data in process or writes a temp artifact, TypeScript should store a descriptor, not the payload.
-
-```ts
-export type EngineDatasetRef = {
-  readonly kind: 'engineDataset';
-  readonly fileId: FileId;
-  readonly rawTableId: RawTableId;
-  readonly rawTableVersion: number;
-  readonly engineId: string;
-  readonly normalizedCsvPath?: string;
-  readonly signature: string;
-};
-
-export type EngineCurveRef = {
-  readonly kind: 'engineCurve';
-  readonly fileId: FileId;
-  readonly curveKey: CurveKey;
-  readonly pointCount: number;
-  readonly domain: DomainRecord;
-  readonly engineId: string;
-  readonly signature: string;
-};
-
-export type ExportArtifactRecord = {
-  readonly kind: 'csv' | 'zip' | 'directory';
-  readonly path: string;
-  readonly fileName: string;
-  readonly sizeBytes?: number;
-  readonly createdAt: number;
-};
-```
-
-Names intentionally avoid `Rust*` in canonical records. A record should describe what the app has, not which runtime produced it.
-
-## Runtime registration pattern
-
-`common` defines the service contract. Runtime folders select implementation.
+`common` defines service contracts. Runtime folders select implementations.
+Consumers import only common interfaces.
 
 ```txt
 services/plot/common/plot.ts
-  IPlotService, PlotRenderModel, PlotState
-
 services/plot/browser/plotService.ts
-  browser implementation using TS/WASM/browser worker
-
 services/plot/electron-browser/plotService.ts
-  desktop implementation using conductor-rs through Electron IPC/preload
 ```
 
-Service consumers import only the common interface.
+Fallback is owned by the domain service, not commands or views. Use
+stage-specific fallback: browser converter only for safe file sizes/types,
+normalized CSV reader for table preview, TS downsampling for small inline
+curves, TS export only when output size is safe for JS memory. Do not write one
+global fallback rule.
 
-```ts
-import { IPlotService } from 'src/cs/workbench/services/plot/common/plot';
-```
+Rust runtime state is cache-like and must be disposable/rebuildable. Invalidate
+or dispose it when files/raw tables/templates/curves/metrics/export artifacts
+are removed or replaced, when Session clears, or when workers exit/crash.
+TypeScript Session is the recovery source.
 
-They must not import the browser/electron-browser implementation directly.
+## File-Level Comment
 
-## Fallback policy
-
-Fallback is owned by the domain service, not by commands or views.
-
-Recommended defaults:
-
-| Stage | Desktop failure policy |
-| --- | --- |
-| File conversion | Fall back only when the browser converter can safely handle the file size/type; otherwise report conversion error. |
-| Assessment | Fall back to WASM/TS only if schemas are compatible. |
-| Table preview | Fall back to normalized CSV reader if available. |
-| Template apply | Fall back to TS when Rust reports unsupported config. |
-| Plot | Fall back to TS downsampling for small/inline curves. |
-| Parameters/metrics | Fall back to TS calculation if signatures and algorithms are compatible. |
-| Export | Fall back to TS export only when output size and plan are safe for JS memory. |
-
-Do not write one global fallback rule.
-
-## Lifecycle and disposal
-
-Rust runtime state is cache-like and must be disposable/rebuildable.
-
-Dispose or invalidate Rust-held data when:
-
-- a file is removed;
-- a raw table is replaced;
-- a template is re-applied to the same block;
-- curve descriptors are invalidated;
-- metrics are invalidated;
-- export artifacts expire;
-- the session is cleared;
-- the worker exits or crashes.
-
-TypeScript session is the recovery source. If the Rust worker restarts, services should lazily reopen normalized CSV artifacts and recompute curve/metric handles from `FileRecord`, `RawTableRecord`, `RawTableAssessmentRecord`, and `TemplateRunRecord` descriptors.
-
-## Desktop Branch Targets
-
-Use these domain-specific desktop branches for Rust-backed heavy work:
-
-```txt
-services/files/electron-browser/fileConversionService.ts
-  file conversion and normalized CSV reads
-
-workbench/contrib/files/browser/fileActions.ts
-workbench/contrib/files/browser/fileImportExport.ts
-  Explorer add-data command/action flow and source collection
-
-services/table/electron-browser/tableRowsReader.ts
-services/template/electron-browser/templateApplyService.ts
-services/export/electron-browser/exportService.ts
-services/parameters/electron-browser/*
-```
-
-Preload/main process bridge method names can remain as compatibility IPC surface until replaced. Workbench domain code should wrap them behind domain names.
-
-## Acceptable file-level comment
-
-If a new `electron-browser` file uses Rust heavily, use a short comment. Do not encode Rust into every class or method name.
+If a new `electron-browser` file uses Rust heavily, a short comment is enough:
 
 ```ts
 // Desktop implementation of file conversion. Uses conductor-rs for workbook conversion and normalized CSV artifacts; returns FileConversionResult-compatible descriptors.
 ```
 
-## Do not
+## Do Not
 
 - Do not create `IRustService` as a general-purpose workbench service.
-- Do not expose Rust calls to Views.
-- Do not create Rust-specific command ids.
-- Do not suffix domain methods with `WithRust`.
-- Do not prefix new workbench records with `Rust` when the record is canonical.
-- Do not let Rust commit session.
+- Do not expose Rust calls to views.
+- Do not create Rust-specific command ids or `WithRust` methods.
+- Do not let Rust mutate Session, Explorer, Table, Chart, or DOM state.
+- Do not prefix canonical records with `Rust`.
 - Do not return large payloads when an artifact path, handle, descriptor, preview slice, or plot frame is enough.

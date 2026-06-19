@@ -1,113 +1,72 @@
 ---
-description: Use when asked to work on telemetry events
+description: Use when adding or changing telemetry events.
 ---
+# Telemetry
 
-Patterns for GDPR-compliant telemetry in Conductor with proper type safety and privacy protection.
+Telemetry must be type-safe, GDPR-classified, and privacy-minimal.
 
-## Implementation Pattern
+## Pattern
 
-### 1. Define Types
-```typescript
+Define event and classification types:
+
+```ts
 type MyFeatureEvent = {
-    action: string;
-    duration: number;
-    success: boolean;
-    errorCode?: string;
+  action: string;
+  durationMs: number;
+  success: boolean;
+  errorCode?: string;
 };
 
 type MyFeatureClassification = {
-    action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action performed.' };
-    duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds.' };
-    success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether action succeeded.' };
-    errorCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Error code if action failed.' };
-    owner: 'yourGitHubUsername';
-    comment: 'Tracks MyFeature usage and performance.';
+  action: { classification: "SystemMetaData"; purpose: "FeatureInsight"; comment: "The action performed." };
+  durationMs: { classification: "SystemMetaData"; purpose: "PerformanceAndHealth"; isMeasurement: true; comment: "Duration in milliseconds." };
+  success: { classification: "SystemMetaData"; purpose: "FeatureInsight"; isMeasurement: true; comment: "Whether the operation succeeded." };
+  errorCode: { classification: "SystemMetaData"; purpose: "PerformanceAndHealth"; comment: "Stable error code when failed." };
+  owner: "yourGitHubUsername";
+  comment: "Tracks MyFeature usage and performance.";
 };
 ```
 
-### 2.1. Send Event
-```typescript
-this.telemetryService.publicLog2<MyFeatureEvent, MyFeatureClassification>('myFeatureAction', {
-    action: 'buttonClick',
-    duration: 150,
-    success: true
+Send normal events with `publicLog2`:
+
+```ts
+this.telemetryService.publicLog2<MyFeatureEvent, MyFeatureClassification>("myFeatureAction", {
+  action: "buttonClick",
+  durationMs: 150,
+  success: true,
 });
 ```
 
-### 2.2. Error Events
-For error-specific telemetry with stack traces or error messages:
-```typescript
-type MyErrorEvent = {
-    operation: string;
-    errorMessage: string;
-    duration?: number;
-};
+Send error events with `publicLogError2` and classify actual error messages or
+stacks as `CallstackOrException`.
 
-type MyErrorClassification = {
-    operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The operation that failed.' };
-    errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message.' };
-    duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time until failure.' };
-    owner: 'yourGitHubUsername';
-    comment: 'Tracks MyFeature errors for reliability.';
-};
+Inject `ITelemetryService` through DI.
 
-this.telemetryService.publicLogError2<MyErrorEvent, MyErrorClassification>('myFeatureError', {
-    operation: 'fileRead',
-    errorMessage: error.message,
-    duration: 1200
-});
-```
+## Classifications
 
-### 3. Service Injection
-```typescript
-constructor(
-    @ITelemetryService private readonly telemetryService: ITelemetryService,
-) { super(); }
-```
+| Classification | Use |
+| --- | --- |
+| `SystemMetaData` | feature usage, preferences, ids, counts, durations, success flags |
+| `CallstackOrException` | actual error messages, stack traces, exception details |
+| `PublicNonPersonalData` | already public data; rare |
 
-## GDPR Classifications & Purposes
+Purposes:
 
-**Classifications (choose the most restrictive):**
-- `SystemMetaData` - **Most common.** Non-personal system info, user preferences, feature usage, identifiers (extension IDs, language types, counts, durations, success flags)
-- `CallstackOrException` - Error messages, stack traces, exception details. **Only for actual error information.**
-- `PublicNonPersonalData` - Data already publicly available (rare)
+- `FeatureInsight`: feature usage/adoption.
+- `PerformanceAndHealth`: errors, performance, diagnostics.
 
-**Purposes (combine with different classifications):**
-- `FeatureInsight` - **Default.** Understanding how features are used, user behavior patterns, feature adoption
-- `PerformanceAndHealth` - **For errors & performance.** Metrics, error rates, performance measurements, diagnostics
+Required:
 
-**Required Properties:**
-- `comment` - Clear explanation of what the field contains and why it's collected
-- `owner` - GitHub username (infer from branch or ask)
-- `isMeasurement: true` - **Required** for all numeric values flags used in calculations
+- `owner`;
+- field `comment`;
+- `isMeasurement: true` for numeric values used in calculations/metrics.
 
-## Error Events
+## Naming And Privacy
 
-Use `publicLogError2` for errors with `CallstackOrException` classification:
-
-```typescript
-this.telemetryService.publicLogError2<ErrorEvent, ErrorClassification>('myFeatureError', {
-	errorMessage: error.message,
-	errorCode: 'MYFEATURE_001',
-	context: 'initialization'
-});
-```
-
-## Naming & Privacy Rules
-
-**Naming Conventions:**
-- Event names: `camelCase` with context (`extensionActivationError`, `chatMessageSent`)
-- Property names: specific and descriptive (`agentId` not `id`, `durationMs` not `duration`)
-- Common patterns: `success/hasError/isEnabled`, `sessionId/extensionId`, `type/kind/source`
-
-**Critical Don'ts:**
-- ❌ No PII (usernames, emails, file paths, content)
-- ❌ Missing `owner` field in classification (infer from branch name or ask user)
-- ❌ Vague comments ("user data" → "selected language identifier")
-- ❌ Wrong classification
-- ❌ Missing `isMeasurement` on numeric metrics
-
-**Privacy Requirements:**
-- Minimize data collection to essential insights only
-- Use hashes/categories instead of raw values when possible
-- Document clear purpose for each data point
+- Event names use camelCase with context.
+- Property names are specific: `agentId`, `durationMs`, `kind`, `source`.
+- Common booleans: `success`, `hasError`, `isEnabled`.
+- Do not collect PII: usernames, emails, file paths, file contents, raw user input.
+- Prefer categories or hashes over raw values.
+- Minimize to essential insight only.
+- Do not use vague comments or incorrect classifications.

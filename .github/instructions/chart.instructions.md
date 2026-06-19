@@ -1,258 +1,126 @@
 ---
-description: Chart service — chart shell, view hosting, chart pane state, and rendering plot output. Use when working under `src/cs/workbench/services/chart` or chart contrib views.
+description: Chart service - chart shell, view hosting, chart pane state, and rendering Plot output.
 applyTo: 'src/cs/workbench/services/chart/**,src/cs/workbench/contrib/chart/**'
 ---
 # Chart
 
 Chart is the rendering host for Plot. It is not the drawing-domain owner.
 
-If a change concerns series data, domains, units, y-scale, plot type, visibility, or render models, put it in Plot. If a change concerns chart pane shell, detail pane visibility, popovers, headers, and embedding the plot view, put it in Chart.
+Put series data, domains, units, y-scale, plot type, visibility, and render
+models in Plot. Put chart pane shell, detail panes, popovers, headers, and plot
+view embedding in Chart.
 
 ## Ownership
 
 `IChartService` owns:
 
-- chart shell state;
-- chart detail pane visibility;
+- chart shell state and chart view input snapshot;
+- detail pane visibility;
 - legend/inspector popover UI state;
 - chart header action state;
-- embedding and updating `PlotMainView` / `ChartPanel`;
 - commands that affect chart shell UI.
 
-It consumes:
+It consumes `IPlotService` render/display models and plot state. It does not
+own raw session data extraction, domains/ticks/downsampling, unit conversion,
+raw curves/metrics, or thumbnail bitmap generation.
 
-- `IPlotService` render models and plot state;
-- `IWorkbenchLayoutService` / layout services as needed;
-- context menu/action services for UI presentation.
-
-It does not own:
-
-- plot data extraction from session;
-- domain/tick/downsampling logic;
-- unit conversion logic;
-- raw curves or metrics;
-- thumbnail bitmap generation.
-
-## Core files
+## Core Files
 
 | File | Responsibility |
 | --- | --- |
-| `src/cs/workbench/services/chart/common/chart.ts` | Defines `IChartService`, chart shell state, pane state, chart events, and chart commands. |
-| `src/cs/workbench/services/chart/browser/chartService.ts` | Owns chart shell state and publishes chart shell input. No raw session data extraction, no Plot model creation, and no view-local request events. |
-| `src/cs/workbench/contrib/chart/browser/chart.contribution.ts` | Registers chart commands and the chart view contribution. |
-| `src/cs/workbench/contrib/chart/browser/chartViewPane.ts` | View pane shell. Hosts header, actions, detail pane, and plot view. Subscribes to owner services and rereads Chart/Plot/Settings state through public APIs. |
-| `src/cs/workbench/contrib/chart/browser/chartPanel.ts` | Chart panel composition. Receives plot/chart props. No session reads. |
-| `src/cs/workbench/contrib/chart/browser/chartActions.ts` | Chart shell actions: inspector, legend, pane toggles. Handlers call `IChartService` or `IPlotService`. |
-| `src/cs/workbench/contrib/chart/browser/chartTitleEditService.ts` | Conductor-specific workflow bridge for command-dispatched axis-title edit focus. It calls the registered `ChartViewPane` handler and does not own chart state. |
-| `src/cs/workbench/contrib/chart/browser/chartFileSelect.ts` | UI selector adapter. Target: ask Explorer/Plot services for options instead of reading session directly. |
+| `services/chart/common/chart.ts` | chart service contract, shell state, pane state, events, commands. |
+| `services/chart/browser/chartService.ts` | chart shell state owner and view input publisher. |
+| `contrib/chart/browser/chart.contribution.ts` | chart command/view contribution registration. |
+| `contrib/chart/browser/chartViewPane.ts` | view pane shell; subscribes and rereads owner services. |
+| `contrib/chart/browser/chartPanel.ts` | chart panel composition from props; no Session reads. |
+| `contrib/chart/browser/chartActions.ts` | chart shell actions. |
+| `contrib/chart/browser/chartTitleEditService.ts` | command-to-view workflow bridge for axis-title edit focus. |
+| `contrib/chart/browser/chartFileSelect.ts` | file selector UI adapter. |
 
 ## Flow
 
-```mermaid
-flowchart TD
-    ChartService[IChartService] --> ViewInput[ChartViewInput: chart shell refs]
-    ViewInput --> ChartViewPane[ChartViewPane]
-    Plot[IPlotService] --> ChartViewPane
-    Settings[ISettingsService] --> ChartViewPane
-    ChartViewPane --> PlotView[PlotMainView]
-    PlotView --> Canvas[Chart drawing widget]
+```txt
+IChartService ChartViewInput
+  -> ChartViewPane
+  -> IPlotService cached display/legend reads
+  -> PlotMainView / ChartPanel
+  -> canvas/widget rendering
 ```
 
-## Boundary examples
+## Boundary
 
 Belongs to Plot:
 
-```txt
-active plot type
-x/y unit conversion
-y-scale mode
-series visibility
-axis domains
-legend labels derived from series
-```
+- active plot type;
+- x/y unit conversion;
+- y-scale mode;
+- series visibility/focus;
+- axis domains/ticks;
+- legend labels derived from series;
+- plot display/render models.
 
 Belongs to Chart:
 
-```txt
-legend popover open/closed
-inspector pane visible/hidden
-header action visibility
-chart pane layout
-edit-title UI trigger
-```
+- legend popover open/closed;
+- inspector/detail pane visible/hidden;
+- header action visibility;
+- chart pane layout;
+- focus/edit-title UI workflow.
 
-## Command entry and dispatch
+## Command Dispatch
 
 Chart commands own chart chrome, not plot data.
 
-Recommended files:
-
-| File | Responsibility |
+| Behavior | Owner |
 | --- | --- |
-| `src/cs/workbench/contrib/chart/browser/chartCommands.ts` | Registers toggle legend, toggle inspector, focus chart, edit chart title commands. |
-| `src/cs/workbench/contrib/chart/browser/chartActions.ts` | Header buttons/menu entries for chart commands. |
-| `src/cs/workbench/contrib/chart/browser/chartTitleEditService.ts` | Explicit command-to-view workflow bridge for axis-title edit focus. |
-| `src/cs/workbench/services/chart/browser/chartService.ts` | Owns chart shell state and publishes chart view input. |
+| plot type / unit / scale / series visibility / legend label / axis title value | `IPlotService` |
+| legend popover / inspector pane / chart focus | `IChartService` |
+| axis-title edit focus | `IChartTitleEditService` -> registered `ChartViewPane` handler |
+| chart file selection | `IExplorerService.select({ kind: "chart", fileId }, "force")` |
 
-Boundary:
+If a chart header button changes plot data presentation, it should execute a
+Plot command, not a Chart command.
 
-```txt
-plot type / unit / scale / series visibility -> IPlotService
-legend popover / inspector pane / chart focus -> IChartService
-axis-title edit focus command -> IChartTitleEditService -> ChartViewPane registered handler
-```
+Do not pass Plot-owned behavior or Explorer selection callbacks through
+`ChartViewInput`; `ChartViewPane` can call owner services directly.
 
-If a chart header button changes plot type, it should execute a plot command, not a chart command.
+## Render Rules
 
-Chart view plot-control wiring:
+- `ChartViewPane` subscribes to Plot and rereads cached display, legend model, and legend labels from Plot.
+- Do not pass Plot display/legend models through `ChartViewInput`.
+- On cache miss, request `prefetchPlotDisplayModel(..., "active")` and render Chart-owned pending display for the active file.
+- Pending display is visual state only; it is not a fake `PlotDisplayModel`.
+- Replace pending display only with a matching real Plot display cache result.
+- Main chart and inspector display models are staged. Render main chart immediately when chart display is ready, even if inspector is pending.
+- Request inspector display-model prefetch only after the active file/plot/legend target has settled.
+- Rapid active file switches should cancel stale inspector prefetch before it reaches Plot.
+- Active chart hosts may request eager first draw for the main chart pane; detail panes keep stable scheduled draw behavior.
+- Keep chart-mode content mounted across active file switches when structural state remains chart data with cached display model.
+- Rebuild only on structural mode changes: empty, processing, module-loading, or no cached display model.
+- `ChartViewInput.processingStatus` is only for no-chart-data loading/empty state.
+- When file selector is hidden and active chart has data, `chartFileOptions` should contain only the active option needed by the view.
+- `onDidChangeChartViewInput` announces snapshot changes; panes must reread `IChartService.getViewInput()`.
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant ChartViewPane
-    participant ExplorerService as IExplorerService
-    participant PlotService as IPlotService
-    participant DomainBridge as WorkbenchDomainBridge
-    participant ChartService as IChartService
+## Workbench Refresh Rules
 
-    User->>ChartViewPane: select chart file
-    ChartViewPane->>ExplorerService: select({ kind: chart, fileId }, force)
-    ExplorerService-->>DomainBridge: onDidChangeSelection
-    DomainBridge->>ChartService: updateViewInput(next input)
-    User->>ChartViewPane: change plot type / unit / scale / edit axis title / edit legend label
-    ChartViewPane->>PlotService: setActivePlotType / setAxisUnit / setYScale / setAxisTitleOverride / setLegendLabel
-    PlotService-->>ChartViewPane: onDidChangePlotState
-    ChartViewPane->>PlotService: getCachedPlotDisplayModel / getCachedPlotLegendModel / getLegendLabels
-    alt plot cache miss
-        ChartViewPane->>PlotService: prefetchPlotDisplayModel(activeFileId, "active")
-        ChartViewPane->>ChartViewPane: render fast pending display for active file without keeping stale canvas
-        PlotService-->>ChartViewPane: onDidChangeCalculatedDataCache(activeFileId)
-        PlotService-->>ChartViewPane: onDidChangePlotDisplayModelCache(activeFileId, chart-only)
-        ChartViewPane->>ChartViewPane: replace pending display with main chart while inspector is pending
-        ChartViewPane->>PlotService: prefetchPlotInspectorDisplayModel(activeFileId, "active") after Inspector-visible active file stays stable
-        PlotService-->>ChartViewPane: onDidChangePlotDisplayModelCache(activeFileId, inspector)
-        ChartViewPane->>PlotService: getCachedPlotDisplayModel / getCachedPlotLegendModel
-    end
-    ChartViewPane->>ChartViewPane: render from current service state
-```
+Explorer chart-file selection flows through Explorer -> WorkbenchDomainBridge ->
+Chart input without forcing a full workbench shell refresh.
 
-Axis-title edit focus command wiring:
+Session, Plot, Template, Settings, and Export changes should not trigger full
+shell refreshes just to update Chart-adjacent auxiliary views. Use scoped
+auxiliary-surface refreshes when possible; keep layout/navigation and active
+auxiliary-view changes on the full shell path.
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant CommandService as ICommandService
-    participant ChartCommand as chartCommands.ts
-    participant TitleEditService as IChartTitleEditService
-    participant ChartViewPane
-    participant ChartPanel
+## Field Catalog
 
-    User->>CommandService: execute edit x/y axis title command
-    CommandService->>ChartCommand: handler(axis, pane)
-    ChartCommand->>TitleEditService: editAxisTitle({ axis, pane })
-    TitleEditService->>ChartViewPane: call registered handler
-    ChartViewPane->>ChartPanel: editAxisTitle(pane, axis)
-```
+Use `records.instructions.md` for `ChartState` and `ChartViewInput`.
+`ChartViewInput` may project Plot, Explorer, Settings, or processing facts for
+rendering, but must not become a callback bag or Plot model data path.
 
-Do not pass Plot-owned behavior through `ChartViewInput` callbacks when
-`ChartViewPane` can call the `IPlotService` owner API directly.
-Do not pass Plot display models or legend models through `ChartViewInput`;
-`ChartViewPane` subscribes to `IPlotService` and rereads the current display
-model, legend model, and legend labels from Plot.
-`ChartViewPane` must use Plot's cached display/legend APIs during render and
-request active display-model prefetch on cache miss; it must not synchronously
-create calculated Plot data or Plot display models in the chart render path.
-On a cache miss for the active chart target, `ChartViewPane`/`ChartPanel`
-should render a Chart-owned fast pending display that carries the target file
-identity and clears or replaces any stale canvas. This pending display is
-visual state only; it must not be represented as a fake `PlotDisplayModel` and
-must be replaced only by a matching real Plot display cache result.
-When the Inspector pane is visible and the cached main chart display model has
-no inspector pane model yet, `ChartViewPane` should request
-`IPlotService.prefetchPlotInspectorDisplayModel(...)` only after the active
-file/plot/legend target has stayed stable long enough to indicate user
-settlement. It should not ask the main chart display prefetch path to build
-inspector data, and rapid active file switches should cancel stale pending
-Inspector prefetch work before it reaches Plot.
-`ChartViewPane` must treat staged Plot display models as valid: if `chart` is
-present and `inspector` is still `null`, render the main chart immediately and
-show only the inspector pane as pending. It must rerender when Plot publishes
-an inspector cache change for the same active file and plot type.
-Chart's active plot host may request eager first draw from `PlotMainView` so a
-newly selected chart paints on the first connected, sized frame. Keep the
-strategy explicit in Chart view composition; do not make Plot's reusable chart
-widget eager by default.
-When an existing active chart is already mounted, eager updates may draw the
-main canvas synchronously during `PlotMainView.update(...)` if layout size is
-available. This is limited to the main chart pane; Inspector and other detail
-surfaces should keep stable scheduled draw behavior.
-`ChartPanel` must keep chart-mode content mounted across active file switches
-when the structural state is still chart data with a cached display model.
-Update the existing `ChartView`/`PlotMainView` and let Plot redraw the canvas;
-only rebuild when the panel changes structural mode, such as empty, processing,
-module-loading, or no cached display model.
-Only the main chart pane should use eager first draw during active file
-switches. Detail panes such as Inspector should use stable draw so secondary
-canvas work does not compete with the main chart's first visible frame.
-Chart may pass a render signature derived from the current Plot display model
-file id, plot type, pane, domains, and series sizes into `PlotMainView` so the
-canvas can expose which target it has drawn for diagnostics and performance
-tests. This signature is host metadata only; Chart must still consume Plot
-display models and must not derive plot data from Session.
-Explorer chart-file selection should flow through `IExplorerService` into
-`WorkbenchDomainBridge` and then `IChartService.updateViewInput(...)` without
-forcing a full Workbench shell refresh. Selection-only changes may refresh
-active-file dependent auxiliary surfaces after the critical chart propagation
-has had a turn, but should not re-run view container visibility, layout, or
-window chrome updates.
-Session, Plot, Template, Settings, and Export state changes should not trigger
-full Workbench shell refreshes just to keep Chart-adjacent auxiliary views in
-sync. `WorkbenchDomainBridge` owns Explorer/Table/Chart input propagation; the
-Workbench shell may schedule a coalesced auxiliary-surface refresh for Export,
-Parameters, Search, and auxiliary-bar chrome that depends on these data states.
-Keep layout/navigation and active auxiliary-view changes on the full shell
-refresh path.
-Auxiliary-surface refreshes should be scoped to the active auxiliary view and
-the relevant session change reason. For example, Export does not need to refresh
-for calculated-record changes while its selected export content is IV-only, but
-must stay conservative when derived export content such as metrics, gm, gds, SS,
-or Vth is selected.
-Do not pass Explorer selection through `ChartViewInput` callbacks; chart file
-selection is translated by `ChartViewPane` into `IExplorerService.select(...)`.
-Do not pass settings mutations through `ChartViewInput`; settings panes write
-through `ISettingsService` owner APIs and only consume projected settings data.
-Do not pass plot rendering settings through Chart input when the chart view can
-read them from `ISettingsService`.
-`ChartViewInput.processingStatus` is only for the no-chart-data loading/empty
-state. Once the active file has chart data, background template progress must
-not remain in `ChartViewInput`, because changing progress counters would
-recreate the chart panel and flicker the current canvas.
-When the chart file selector is hidden, `ChartViewInput.chartFileOptions`
-should not carry the whole background file list after the active chart has data.
-Keep only the active file option needed by the current view so background file
-completion does not change Chart input and recreate the chart panel.
-`IChartService.onDidChangeChartViewInput` only tells the pane that the
-Chart-owned input snapshot changed; `ChartViewPane` must reread
-`IChartService.getViewInput()` instead of consuming input from the event.
-Do not publish `onDidRequest*` events from `IChartService` for view-local focus
-workflows. Use an explicit contrib/chart workflow service and handler
-registration when a command needs the current chart view to focus or enter edit
-mode.
+## Do Not
 
-## Do not
-
-- Do not read `SessionSnapshot.curvesByKey` from ChartService.
+- Do not read `SessionSnapshot.curvesByKey` from `ChartService`.
 - Do not compute plot domains in chart files.
-- Do not let thumbnail import chart internals to draw mini-plots.
+- Do not let Thumbnail import chart internals to draw mini-plots.
 - Do not store chart shell UI state in Session.
-
-
-## Field catalog
-
-Use `records.instructions.md` for shared chart state fields such as
-`ChartState`. `ChartViewInput` is a Chart-owned view input snapshot: it may
-project Plot, Explorer, Settings, or processing facts for rendering, but it
-must not become a callback bag or a data path for Plot models.
-
-Chart state is shell state. Plot data, units, scale, series visibility,
-domains, and labels belong to Plot.
+- Do not publish `onDidRequest*` events from `IChartService`; use explicit workflow services for view-local focus/edit commands.

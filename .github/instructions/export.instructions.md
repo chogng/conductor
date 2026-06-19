@@ -1,114 +1,61 @@
 ---
-description: Origin Export service - Origin/CSV export plan construction from session records and plot models. Use when working under `src/cs/workbench/services/export` or export views.
+description: Origin Export service - Origin/CSV export plan construction from session records and plot models.
 applyTo: 'src/cs/workbench/services/export/**,src/cs/workbench/contrib/export/**,src/cs/workbench/contrib/origin/**'
 ---
 # Origin Export
 
-Origin Export builds export plans and payloads. It is not Chart and not Plot.
+Export builds export plans and payloads. It is not Chart and not Plot.
 
 ## Ownership
 
 `IExportService` owns:
 
-- export option state;
-- selected export scope;
-- selected curves/content keys;
-- Origin/CSV payload planning;
-- mapping plot/session records into export payloads;
-- Origin export execution entry points such as open-in-Origin and ZIP export;
-- export validation and user-facing errors.
+- export option state, scope, and selected content keys;
+- Origin/CSV payload planning and validation;
+- mapping Session/Plot/Parameters data into export payloads;
+- open-in-Origin, ZIP export, and user-facing export errors.
 
-It consumes:
+It consumes Session snapshots, Plot display models, Settings export options,
+Parameters output when selected, and platform file/dialog services. It does not
+own chart rendering, plot domain calculation, assessment, template execution,
+or canonical Session mutation.
 
-- `SessionSnapshot` for canonical records;
-- `IPlotService` for display-consistent plot models;
-- `ISettingsService` for export display settings;
-- `IParametersService` for parameter table output if exporting parameters;
-- platform file/dialog services for save/open actions when needed.
-
-It does not own:
-
-- chart rendering;
-- plot domain calculation;
-- assessment;
-- template execution;
-- session canonical mutation.
-
-## Core files
+## Core Files
 
 | File | Responsibility |
 | --- | --- |
-| `src/cs/workbench/services/export/common/export.ts` | Defines `IExportService`, export scope/options, export plan, payload types. |
-| `src/cs/workbench/services/export/common/originExport.ts` | Origin-specific payload types and content key definitions. |
-| `src/cs/workbench/services/export/browser/exportService.ts` | Owns export option state, builds export plans, validates selection. |
-| `src/cs/workbench/services/export/browser/originExportService.ts` | Origin bridge: open in Origin, zip fallback, Origin-specific side effects. |
-| `src/cs/workbench/services/export/browser/csvExportService.ts` | CSV/export-file generation if needed. |
-| `src/cs/workbench/contrib/export/browser/export.contribution.ts` | Registers the Export auxiliary-bar view. |
-| `src/cs/workbench/contrib/export/browser/exportViewPane.ts` | Export UI shell. Renders service state and calls `IExportService`. |
+| `common/export.ts` | service contract, scopes/options, plan/payload types. |
+| `common/originExport.ts` | Origin payload and content key types. |
+| `browser/exportService.ts` | option state, plan building, validation. |
+| `browser/originExportService.ts` | Origin bridge and side effects. |
+| `browser/csvExportService.ts` | CSV/export file generation. |
+| `contrib/export/browser/exportViewPane.ts` | UI shell that renders and invokes `IExportService`. |
 
 ## Flow
 
-```mermaid
-flowchart TD
-    ExportView[ExportView] --> ExportService[IExportService]
-    Session[SessionSnapshot] --> ExportService
-    Plot[IPlotService] --> ExportService
-    Parameters[IParametersService] --> ExportService
-    ExportService --> Plan[ExportPlan]
-    Plan --> Origin[Origin payload / zip / open]
-    Plan --> Csv[CSV payload]
+```txt
+Export UI / command
+  -> IExportService
+  -> Session + Plot + Parameters + Settings owner APIs
+  -> ExportPlan
+  -> Origin / ZIP / CSV side effect
 ```
 
 ## Rules
 
-- Export should use Plot models when the exported result is display-oriented.
-- Export should use Session records when the exported result is canonical data-oriented.
-- Export options are service state, not session state, unless saved project settings are introduced.
+- Use Plot models for display-oriented export.
+- Use Session records for canonical data-oriented export.
+- Export option state is service-local unless saved project export settings are intentionally introduced.
+- Workbench may sync current selection/snapshot into Export state, but export execution rereads owner APIs.
+- Notification/toast side effects belong to export/origin execution, not Workbench callback bags.
 
-## Command entry and dispatch
+## Field Catalog
 
-ExportService owns export planning, option state, and payload generation. View
-buttons may call `IExportService` directly. If export operations are exposed as
-Command Palette, menu, or keybinding entries, add command/action files that
-normalize arguments and delegate to `IExportService`.
+Use `records.instructions.md` for `ExportState` and `ExportPlan`.
 
-Recommended files:
+## Do Not
 
-| File | Responsibility |
-| --- | --- |
-| `src/cs/workbench/contrib/export/browser/export.contribution.ts` | Registers the Export view contribution. |
-| `src/cs/workbench/contrib/export/browser/exportViewPane.ts` | Renders export controls and invokes `IExportService`. |
-| `src/cs/workbench/services/export/browser/exportService.ts` | Builds export plans from session and plot models. |
-
-Command flow:
-
-```txt
-export view button or export.originZip command
-  -> IExportService.exportOriginZip(options)
-  -> IExportService.buildOriginExportPlan(input)
-  -> platform save/open side effect
-  -> notification
-```
-
-The command/controller should not rebuild plot domains; ask `IPlotService` or `IExportService`.
-
-Do not register a Workbench callback bag for export execution. Workbench may
-sync current selection/snapshot into `IExportService.updateViewState(...)`, but
-`IExportService.openInOrigin()` and `IExportService.exportOriginZip()` build
-their payloads by rereading Export-owned state plus Session, Plot, and Settings
-owner APIs. Notification/toast side effects belong to the export/origin
-execution path, not to a Workbench-supplied `showToast` callback.
-
-## Do not
-
-- Do not read ChartViewPane state to export data.
+- Do not read `ChartViewPane` state to export data.
 - Do not recompute plot domains independently from Plot.
 - Do not mutate curves or metrics during export.
 - Do not put export option state in Session.
-
-
-## Field catalog
-
-Use `records.instructions.md` for shared export fields such as `ExportPlan`.
-Keep `ExportState` service-local unless saved project export settings are
-intentionally introduced.

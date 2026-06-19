@@ -2,146 +2,77 @@
 description: Service component naming rules and manager-boundary guidance. Use when introducing a service helper, controller, store, model, provider, adapter, planner, reader, registry, or cache.
 applyTo: 'src/cs/workbench/services/**,src/cs/workbench/contrib/**'
 ---
-# Service Components and Manager Boundaries
+# Service Components
 
-Avoid vague manager hierarchies. A class named `Manager` usually hides the real ownership question. Prefer names that state whether the component owns state, coordinates a workflow, builds a projection, reads data, adapts payloads, or caches output.
+Avoid vague manager hierarchies. Prefer names that state whether the component
+owns state, coordinates a workflow, builds a projection, reads data, adapts
+payloads, or caches output.
 
-## Component naming and nesting rules
+## Naming
 
-Do not create vague nested managers such as `ExplorerManager` containing `ImportManager`, `SelectionManager`, and `ViewManager`. Use names that expose ownership and lifetime.
+| Suffix | Use when | Must not do |
+| --- | --- | --- |
+| `Service` | injectable owner of domain/service state | depend on views or DOM |
+| `Controller` | transient user workflow coordination | own canonical records or replace service APIs |
+| `Model` | data shape or pure projection | call services or mutate Session |
+| `Store` | local service/view-service state with events | store Session-owned canonical records |
+| `Registry` | id-to-handler/provider/descriptor map | orchestrate workflows |
+| `Provider` | external data/capability behind an interface | interpret measurement semantics |
+| `Reader` | reads from existing source | own import state |
+| `Adapter` | converts one representation to another | make hidden domain decisions |
+| `Planner` | creates execution/export/apply plan from immutable input | start workers or mutate Session |
+| `Cache` | caches reproducible output | become source of truth |
 
-| Name suffix | Use when | Owns state? | Example | Must not do |
-| --- | --- | --- | --- | --- |
-| `Service` | The component is injectable and owns domain or service state. | Yes, when state belongs to the domain. | `ExplorerService`, `PlotService` | Depend on views or DOM. |
-| `Controller` | The component coordinates a user workflow, command, dialog, notification, or worker operation. | Only transient workflow state. | `TemplateApplyController` | Become the canonical owner of records; create upstream-looking controllers when an upstream file shape already exists. |
-| `Model` | The component is a pure data shape or projection builder. | No long-lived mutable state. | `explorerModel.ts`, `PlotRenderModel` | Call services or mutate session. |
-| `Store` | The component owns local service state with events. | Yes, but only local service/view-service state. | `draftStateStore.ts` | Store canonical records that belong in Session; extract Explorer selection state before `ExplorerService` proves insufficient. |
-| `Registry` | The component maps ids to handlers/providers/descriptors. | Registry entries only. | `ViewsRegistry` | Orchestrate workflows. |
-| `Provider` | The component supplies external data/capability behind an interface. | Usually no canonical state. | `IFileSystemProvider` | Interpret measurement semantics. |
-| `Reader` | The component reads data from an existing source. | Cache only if explicitly stated. | `RawTableRowsReader` | Own import state. |
-| `Adapter` | The component converts one representation to another. | No. | `sessionModelAdapter.ts` | Make domain decisions not encoded in input. |
-| `Planner` | The component creates an execution/export/apply plan from immutable input. | No. | `templateApplyPlanner.ts` | Start workers or mutate session. |
-| `Cache` | The component caches reproducible output. | Cache only. | `thumbnailBitmap.ts` cache keys | Become the source of truth. |
+Use `Manager` only when none of these names is accurate.
 
-If a component seems to need sub-managers, split by responsibility instead of nesting manager classes. Prefer this shape:
-
-```txt
-ExplorerService
-  owns ExplorerState and emits Explorer events
-
-fileActions.ts / fileActions.contribution.ts
-  register and implement Explorer commands/actions
-
-common/explorerModel.ts
-  defines Explorer resource/item model and tree helpers
-```
-
-Do not use this shape:
+## Service File Pattern
 
 ```txt
-ExplorerManager
-  ImportManager
-  SelectionManager
-  FolderManager
-  ThumbnailManager
+common/<domain>.ts          service interface, events, input/target types
+common/<domain>Records.ts   canonical records when needed
+common/<domain>State.ts     service-local state
+common/<domain>Model.ts     derived render/read models
+browser/<domain>Service.ts  injectable owner
+browser/<domain>Controller.ts optional workflow coordinator
+browser/<domain>Store.ts    optional local mutable helper
+browser/<domain>*.contribution.ts registration/lifecycle only
 ```
 
+## Helper Rules
 
-## Service file pattern
+A helper is allowed when owner and lifetime are explicit:
 
-Use this pattern for each service domain:
+- model helpers define records/projections;
+- source workflow helpers coordinate dialogs/drop/folder collection and return prepared results;
+- readers read existing storage;
+- adapters normalize payloads;
+- planners produce deterministic plans;
+- caches store reproducible output keyed by signatures.
 
-```txt
-common/<domain>.ts
-  service interface, service events, command-facing input/target types
+Target helpers may normalize, compare, serialize, or label values. They must
+not call services, mutate owner state, register listeners, or own lifecycle.
 
-common/<domain>Records.ts
-  canonical records owned by Session or produced by this service
-
-common/<domain>State.ts
-  service-local state, never Session canonical data unless explicitly stated
-
-common/<domain>Model.ts
-  derived render/read models
-
-browser/<domain>Service.ts
-  injectable owner of service state and implementation
-
-browser/<domain>Controller.ts
-  optional workflow coordinator called by commands
-
-browser/<domain>Store.ts
-  optional local mutable state helper used by the service
-
-browser/<domain>*.contribution.ts
-  registration and lifecycle wiring only
-```
-
-## When a helper is allowed
-
-A helper is allowed when its owner and lifetime are explicit:
-
-| Helper | Allowed responsibility |
-| --- | --- |
-| `common/explorerModel.ts` | Define Explorer resource/item model and tree helpers. |
-| `fileActions.ts` / `fileImportExport.ts` workflow helpers | Open dialogs, collect dropped files, call conversion helpers, and return prepared imports or conversion results to the workflow caller. |
-| `rawTableRowsReaderService.ts` | Read rows from inline or normalized CSV storage. |
-| `fileAssessment.ts` | Convert browser import previews into assessment inputs/results only. |
-| `templateApplyPlanner.ts` | Create a deterministic apply plan from template config and assessment blocks. |
-| `plotRenderModel.ts` | Build plot render models from session curves and plot state. |
-| `thumbnailBitmap.ts` | Render/cache thumbnail bitmap output keyed by plot model signature. |
-| `exportService.ts` | Build export plans from plot/session/export state. |
-
-## Owner APIs and target helpers
-
-For all `workbench/services/**` and `workbench/contrib/**` code, target/helper
-objects must not hide service behavior. A target helper may normalize,
-compare, serialize, or label a value. It must not call services, mutate owner
-state, register listeners, or own lifecycle.
-
-Prefer:
-
-```txt
-FeatureService owns state and exposes select/reveal/update/toggle methods.
-FeatureTarget is a pure record.
-featureTarget.ts normalizes or compares FeatureTarget values.
-FeatureView creates targets and calls FeatureService.
-```
+## Forbidden Shape
 
 Avoid:
 
 ```txt
-FeatureTarget.select()
-FeatureRow.toggle()
-FeatureCell.reveal()
-FeatureSelectionManager owns state beside FeatureService
-```
-
-If a helper needs public methods, events, disposal, and direct access to
-services, it is not a target helper. Make the ownership explicit as a service,
-controller, store, or model, and keep the public API on the owner boundary.
-
-## Forbidden patterns
-
-Do not introduce these patterns:
-
-```txt
-ExplorerManager -> ImportManager -> FileManager
+ExplorerManager -> ImportManager -> SelectionManager
 ChartManager -> PlotManager -> AxisManager
 SessionManager -> FileManager -> RecordManager
 ```
 
-Use explicit ownership instead:
+Prefer explicit ownership:
 
 ```txt
 ExplorerService owns ExplorerState.
-fileActions.ts / fileImportExport.ts coordinate Explorer add-data workflows.
-fileConverter.ts converts files into raw table records.
-SessionService commits canonical imported records.
+fileActions.ts / fileImportExport.ts coordinate add-data workflows.
+fileConverter.ts converts sources into raw records.
+SessionService commits canonical records.
 PlotService owns plot state and render models.
 ChartService owns chart shell state only.
 ```
 
-## Rule for nested objects
-
-A service may contain private helpers, but the public architecture must not require understanding a tree of managers. If a helper needs its own public API, lifecycle, events, and tests, it is probably either a separate service, a controller, or a store.
+If a private helper needs public API, events, disposal, direct service access,
+and tests, make it an explicit service, controller, store, or model instead of
+a nested manager.

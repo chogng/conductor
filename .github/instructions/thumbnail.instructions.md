@@ -1,415 +1,171 @@
 ---
-description: Thumbnail feature instructions - render inputs, bitmap/cache lifecycle, thumbnail view UI, and Explorer thumbnail mode integration.
+description: Thumbnail feature instructions - render ownership, preview cache lifecycle, UI boundaries, and Explorer thumbnail integration.
 applyTo: 'src/cs/workbench/services/thumbnail/**,src/cs/workbench/contrib/thumbnail/**'
 ---
 # Thumbnail
 
-Thumbnail renders compact previews from Plot models and provides thumbnail-specific UI affordances for Explorer.
-
-It should not independently rebuild curve data from Session when Plot can provide the render model.
+Thumbnail renders compact previews from Plot models. It must not rebuild curve
+data from Session when Plot can provide a render model.
 
 ## Ownership
 
-`IThumbnailService` owns:
+`IThumbnailService` owns bitmap rendering and cache lifecycle:
 
-- thumbnail cache;
-- bitmap/render lifecycle;
-- thumbnail sizing and cache invalidation from render inputs, cache keys, and explicit thumbnail cache commands;
-- warming cached thumbnail bitmaps for hover/thumbnail consumers before their
-  canvas is visible;
-- converting `PlotRenderModel` into thumbnail output;
-- bitmap output used by Explorer thumbnail layout and hover previews.
+- render `PlotRenderModel` into thumbnail canvas/bitmap output;
+- cache by render-affecting input signature;
+- warm cached bitmaps for hover or thumbnail consumers before their canvas is visible;
+- clear/invalidate only through render keys or explicit thumbnail cache commands.
 
-`IThumbnailPreviewService` owns:
+`IThumbnailPreviewService` owns per-file preview state:
 
-- per-file thumbnail preview state;
-- hover/visible/nearby/idle preview request and prefetch APIs;
+- preview request priorities: `hover`, `visible`, `recent`, `nearby`, `idle`;
 - preview cache invalidation from Session and Plot changes;
-- publishing `onDidChangePreview` so Explorer can refresh only the active hover
-  popover or affected thumbnail item.
+- Plot cache lookup and retry when calculated/display data becomes available;
+- `onDidChangePreview` so Explorer refreshes only the active hover or affected grid item.
 
-`src/cs/workbench/contrib/thumbnail` owns:
+`src/cs/workbench/contrib/thumbnail` owns reusable thumbnail UI:
 
-- reusable thumbnail view components;
-- thumbnail CSS;
-- thumbnail layout/cache affordance action ids, commands, and `Action2` registrations;
-- thumbnail-specific command dispatch, including the command that toggles Explorer between its tree and thumbnail layouts by delegating to `IExplorerService`.
+- `createThumbnailView` and thumbnail CSS;
+- thumbnail-specific action/command ids;
+- thumbnail command handlers that delegate layout changes to `IExplorerService`.
 
-Explorer/files owns:
+Explorer/files owns every Explorer concern:
 
-- the Explorer resource manager semantic model;
-- both Explorer presentation layouts: `tree` and `thumbnail`;
-- the shared Explorer file item action/command set used by both layouts;
-- Explorer tree state;
-- Explorer selection, expansion, folder/file ordering, and source workflow state;
-- the Explorer container, tree/grid/hover trigger, hover context-view placement, and rerender lifecycle that consume thumbnail UI;
-- deciding which Explorer files should be shown as thumbnails;
-- filtering or narrowing Explorer thumbnail inputs before they are handed to thumbnail UI;
-- the more actionbar placement that lets users switch between Explorer tree and thumbnail layouts.
+- `tree` and `thumbnail` layout state;
+- Explorer selection, ordering, expansion, visibility, hover triggers, and context-view placement;
+- which files appear as thumbnail candidates;
+- shared file item commands/actions used by both tree and thumbnail layouts.
 
-Thumbnail consumes:
+Thumbnail does not own Explorer selection/layout, raw session curves, assessment,
+chart shell state, export payloads, file import, or Explorer file filtering.
 
-- `IPlotService` or plot-provided render models;
-- `IExplorerService` only for commands that request Explorer layout changes;
-- plot settings needed for consistent display.
-
-Thumbnail does not own:
-
-- Explorer tree state;
-- Explorer view layout state;
-- Explorer selection;
-- raw session curves;
-- assessment;
-- chart shell state;
-- export payloads;
-- file import/source collection workflow.
-- Explorer thumbnail file filtering.
-
-## Core files
+## Core Files
 
 | File | Responsibility |
 | --- | --- |
-| `src/cs/workbench/services/thumbnail/common/thumbnail.ts` | Defines `IThumbnailService`, thumbnail request/result/cache key types. |
-| `src/cs/workbench/services/thumbnail/browser/thumbnailService.ts` | Owns bitmap cache/rendering plus preview cache, invalidation, request scheduling, and rendering coordination. |
-| `src/cs/workbench/services/thumbnail/browser/thumbnailBitmap.ts` | Converts `PlotRenderModel` into bitmap/canvas output. No session reads. |
-| `src/cs/workbench/contrib/thumbnail/common/thumbnail.ts` | Defines thumbnail contribution action/command ids. |
-| `src/cs/workbench/contrib/thumbnail/browser/thumbnailView.ts` | Reusable thumbnail UI component. Receives display metadata and thumbnail render models. |
-| `src/cs/workbench/contrib/thumbnail/browser/thumbnailActions.ts` | Registers thumbnail `Action2` entries. |
-| `src/cs/workbench/contrib/thumbnail/browser/thumbnailCommands.ts` | Command handlers for thumbnail affordances. Handlers normalize and delegate to services. |
-| `src/cs/workbench/contrib/thumbnail/browser/thumbnail.contribution.ts` | Registers thumbnail contribution side effects, actions, and CSS. |
-
-## Flow
-
-```mermaid
-flowchart TD
-    ExplorerService[IExplorerService getContext/select/layout] --> ExplorerViewer[ExplorerViewer]
-    Plot[IPlotService / plot render models] --> ThumbnailService[IThumbnailService]
-    ExplorerViewer --> ThumbnailView[createThumbnailView]
-    ThumbnailView --> ThumbnailService
-    ThumbnailService --> Cache[Thumbnail bitmap cache]
-```
+| `src/cs/workbench/services/thumbnail/common/thumbnail.ts` | Thumbnail service contract and request/result types. |
+| `src/cs/workbench/services/thumbnail/browser/thumbnailService.ts` | Bitmap cache/rendering, preview cache, invalidation, request scheduling. |
+| `src/cs/workbench/services/thumbnail/browser/thumbnailBitmap.ts` | Convert `PlotRenderModel` into canvas/bitmap output. No Session reads. |
+| `src/cs/workbench/contrib/thumbnail/common/thumbnail.ts` | Thumbnail action/command ids. |
+| `src/cs/workbench/contrib/thumbnail/browser/thumbnailView.ts` | Reusable thumbnail component. Receives file display metadata and plot render models. |
+| `src/cs/workbench/contrib/thumbnail/browser/thumbnailCommands.ts` | Thumbnail command handlers. Normalize and delegate to services. |
+| `src/cs/workbench/contrib/thumbnail/browser/thumbnailActions.ts` | `Action2` wrappers for thumbnail commands. |
+| `src/cs/workbench/contrib/thumbnail/browser/thumbnail.contribution.ts` | Registers thumbnail actions and CSS. |
 
 ## Explorer Integration
 
-Explorer is one resource manager with two layouts: `tree` and `thumbnail`. The user switches layouts from the Explorer more actionbar thumbnail button. The button executes the thumbnail toggle action, and the command delegates to `IExplorerService.toggleViewLayout()`.
+Explorer is one resource manager with two layouts. The thumbnail toggle action
+is thumbnail-specific UI, but the command delegates to
+`IExplorerService.toggleViewLayout()` because Explorer owns layout state.
 
-Selection is still Explorer selection. Selecting a thumbnail is equivalent to selecting the corresponding Explorer list item. The selection request must flow through the existing Explorer selection surface, currently `IExplorerService.select(target, reveal?)` with context read through `IExplorerService.getContext()` or the existing pane input props derived from it. Do not introduce a thumbnail selection owner or a parallel selected-file state.
+Selection is still Explorer selection. A thumbnail click is equivalent to a
+tree item selection and must flow through the existing Explorer selection
+surface, currently `IExplorerService.select(target, reveal?)`.
 
-Thumbnail view components must not own selection, Explorer ordering, or layout mode. They only render active/selection props supplied by Explorer and use the thumbnail rendering surface provided by the thumbnail feature. Do not make the UI ownership rule depend on a specific low-level canvas method name.
+Tree hover previews also stay Explorer-owned. Explorer owns the hover trigger,
+delay, anchor, context-view container, placement, layout, and dismissal.
+Thumbnail owns only the preview content rendered through `createThumbnailView`.
 
-Tree layout hover previews follow the same boundary. The hover trigger is an Explorer tree/list item, so Explorer owns the hover event handling, delay, context-view container, anchor, positioning, and dismissal. The preview content inside that Explorer-owned container is thumbnail UI rendered through `createThumbnailView(...)` and the thumbnail rendering surface.
-
-While chart processing is active, Explorer may open a thumbnail hover for a file
-whose item projection is still stale `none` / `hasChartData=false` so the
-Thumbnail view can render its fast loading canvas immediately. `failed` and
-`skipped` remain terminal and should not produce thumbnail hover content.
-When a previously hovered file becomes ready while its hover node is detached,
-or a ready hover thumbnail is switched away from, Explorer may ask
-`IThumbnailService` to warm the bitmap cache for that plot model; Explorer must
-not render or own the bitmap itself.
-
-## Wiring Contract
-
-Tree and thumbnail layouts share the same Explorer wiring. They differ only in DOM presentation.
-
-Layout toggle command sequence:
+While chart processing is active, Explorer may open a hover preview for queued,
+processing, or ready chart files even when the current item projection is still
+stale. Failed and skipped files are terminal and should not produce thumbnail
+hover content.
 
 ```mermaid
-sequenceDiagram
-    actor User
-    participant ExplorerViewPane
-    participant CommandService as ICommandService
-    participant ThumbnailAction as ToggleThumbnailViewAction
-    participant ThumbnailCommand as toggleThumbnailViewHandler
-    participant ExplorerService as IExplorerService
-
-    User->>ExplorerViewPane: click Explorer more actionbar Thumbnail
-    ExplorerViewPane->>CommandService: executeCommand(TOGGLE_THUMBNAIL_VIEW_ACTION_ID)
-    CommandService->>ThumbnailAction: run(accessor)
-    ThumbnailAction->>ThumbnailCommand: toggleThumbnailViewHandler(accessor)
-    ThumbnailCommand->>ExplorerService: toggleViewLayout()
-    ExplorerService-->>ExplorerViewPane: onDidChangeViewLayout(viewLayout)
-    ExplorerViewPane->>ExplorerViewPane: update Explorer props
-    ExplorerViewPane->>ExplorerViewer: render tree or thumbnail layout
+flowchart TD
+    ExplorerService[IExplorerService layout/selection/visibility] --> ExplorerViewer[ExplorerViewer]
+    Plot[IPlotService cached render data] --> ThumbnailPreviewService[IThumbnailPreviewService]
+    ThumbnailPreviewService --> ThumbnailView[createThumbnailView]
+    ThumbnailView --> ThumbnailService[IThumbnailService]
+    ThumbnailService --> Cache[bitmap cache]
 ```
 
-Selection sequence:
+## Preview Flow
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant ExplorerViewer
-    participant ExplorerViewPane
-    participant ExplorerService as IExplorerService
-    participant DomainBridge as WorkbenchDomainBridge
+1. Explorer supplies file display metadata, active state, and an optional Plot model to `createThumbnailView`.
+2. Thumbnail view creates or updates the canvas and asks the thumbnail renderer to draw from the Plot model.
+3. Thumbnail service reads or updates its bitmap cache by render input signature.
+4. Explorer publishes visible/nearby file ids while thumbnail layout is active.
+5. Domain bridge prefetches recent, visible, and nearby thumbnail previews.
+6. Preview service reads Plot cached data, keeps loading state on miss, and retries on Plot cache events.
+7. Preview service fires `onDidChangePreview(fileId)`.
+8. Explorer refreshes only the active hover or affected thumbnail grid item.
 
-    alt tree layout
-        User->>ExplorerViewer: select tree file item
-        ExplorerViewer->>ExplorerViewPane: onSelectFile(fileId)
-    else thumbnail layout
-        User->>ExplorerViewer: click thumbnail file item
-        ExplorerViewer->>ExplorerViewPane: onSelectFile(fileId)
-    end
-    ExplorerViewPane->>ExplorerService: select({ kind, fileId, candidateFileIds }, reveal?)
-    ExplorerService-->>DomainBridge: onDidChangeSelection({ kind, selectedFileId })
-    DomainBridge->>ExplorerService: updatePaneInput({ selectedFileId, files, ... })
-    ExplorerViewPane->>ExplorerViewer: setProps({ selectedFileId })
-    ExplorerViewer->>ExplorerViewer: createThumbnailView({ isActive })
-```
+## DOM and Performance
 
-File item action sequence:
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant ExplorerViewer
-    participant CommandService as ICommandService
-    participant FilesAction as existing files Action2
-    participant FilesCommand as existing files command handler
-    participant ExplorerFiles as Explorer/files service or workflow
-
-    alt tree layout
-        User->>ExplorerViewer: invoke file item action
-    else thumbnail layout
-        User->>ExplorerViewer: invoke same file item action
-    end
-    ExplorerViewer->>CommandService: executeCommand(existing files action id, fileId, args)
-    CommandService->>FilesAction: run(accessor, fileId, args)
-    FilesAction->>FilesCommand: handler(accessor, fileId, args)
-    FilesCommand->>ExplorerFiles: call existing Explorer/files service or workflow API
-```
-
-Thumbnail render sequence:
-
-```mermaid
-sequenceDiagram
-    participant ExplorerViewer
-    participant ExplorerService as IExplorerService
-    participant DomainBridge as WorkbenchDomainBridge
-    participant Plot as IPlotService
-    participant ThumbnailView as createThumbnailView
-    participant ThumbnailRenderer as thumbnail rendering surface
-    participant ThumbnailService as thumbnail service/cache
-    participant ThumbnailPreviewService as IThumbnailPreviewService
-
-    ExplorerViewer->>ThumbnailView: createThumbnailView({ file, plotModel, isActive, renderer })
-    ThumbnailView->>ThumbnailView: create canvas
-    ThumbnailView->>ThumbnailRenderer: render thumbnail from PlotRenderModel
-    ThumbnailRenderer->>ThumbnailService: read/update cache by render input signature
-    ThumbnailService-->>ThumbnailRenderer: cached or rendered bitmap output
-    ThumbnailRenderer-->>ThumbnailView: thumbnail content updated
-    ExplorerViewer->>ExplorerService: setVisibleFileIds(visible, nearby)
-    ExplorerService-->>DomainBridge: onDidChangeVisibleFileIds
-    DomainBridge->>DomainBridge: only continue when chart mode uses thumbnail layout
-    DomainBridge->>ThumbnailPreviewService: prefetch(recentInteractive, "recent")
-    DomainBridge->>ThumbnailPreviewService: prefetch(visible, "visible")
-    DomainBridge->>ThumbnailPreviewService: prefetch(nearby, "nearby")
-    ThumbnailPreviewService->>Plot: prefetchCalculatedData(visible, "visible")
-    ThumbnailPreviewService->>Plot: prefetchCalculatedData(nearby, "nearby")
-    ThumbnailPreviewService->>ThumbnailPreviewService: process queued previews by priority and frame budget
-    ThumbnailPreviewService->>Plot: getCachedCalculatedData(fileId)
-    alt cache miss
-        ThumbnailPreviewService-->>ExplorerViewer: keep loading state
-        Plot->>Plot: queue worker-backed calculated-data prefetch
-        Plot-->>ThumbnailPreviewService: onDidChangeCalculatedDataCache(fileId)
-        ThumbnailPreviewService->>Plot: getCachedCalculatedData(fileId)
-    end
-    ThumbnailPreviewService-->>ExplorerViewer: onDidChangePreview(fileId)
-    ExplorerViewer->>ExplorerViewer: refresh affected thumbnail grid item in place when thumbnail layout is active
-```
-
-Tree item hover thumbnail preview sequence:
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant ExplorerViewer
-    participant ExplorerService as IExplorerService
-    participant DomainBridge as WorkbenchDomainBridge
-    participant TemplateWorkflow as ITemplateApplyWorkflowService
-    participant ContextViewService as IContextViewService
-    participant HoverContainer as Explorer hover context-view container
-    participant Plot as IPlotService
-    participant ThumbnailPreviewService as IThumbnailPreviewService
-    participant ThumbnailView as createThumbnailView
-    participant ThumbnailRenderer as thumbnail rendering surface
-
-    User->>ExplorerViewer: hover tree/list file item
-    ExplorerViewer->>ExplorerViewer: resolve hover fileId + display metadata
-    ExplorerViewer->>ExplorerViewer: check Explorer chart previewability
-    alt file is not previewable
-        ExplorerViewer-->>User: no thumbnail hover content
-    else previewable chart file
-    ExplorerViewer->>ExplorerService: setHoveredFileId(fileId)
-    ExplorerService-->>DomainBridge: onDidChangeHoveredFile(fileId)
-    DomainBridge->>TemplateWorkflow: prioritizeProcessingFile(fileId)
-    alt no compatible hover shell is open
-        ExplorerViewer->>ContextViewService: showContextView({ getAnchor, render, getWidth }, hoverHost)
-        ContextViewService-->>ExplorerViewer: IOpenContextView
-        ExplorerViewer->>HoverContainer: create Explorer-owned hover shell
-    else thumbnail hover shell already open
-        ExplorerViewer->>HoverContainer: reuse Explorer-owned hover shell for the new anchor
-    end
-    ExplorerViewer->>ThumbnailPreviewService: request(fileId, "hover")
-    ThumbnailPreviewService->>Plot: prefetchCalculatedData(fileId, "hover")
-    ThumbnailPreviewService-->>ExplorerViewer: cached ready or loading state
-    ExplorerViewer->>ThumbnailView: createThumbnailView({ file, optional plotModel, renderer, drawStrategy: "eager" })
-    ExplorerViewer->>ExplorerViewer: verify thumbnail DOM identity matches fileId
-    ThumbnailView->>ThumbnailRenderer: render thumbnail content
-    ThumbnailPreviewService->>ThumbnailPreviewService: process hover preview on queued frame
-    ThumbnailPreviewService->>Plot: getCachedCalculatedData(fileId)
-    alt cache miss
-        ThumbnailPreviewService-->>ExplorerViewer: keep loading state
-        Plot->>Plot: queue worker-backed calculated-data prefetch
-        Plot-->>ThumbnailPreviewService: onDidChangeCalculatedDataCache(fileId)
-        ThumbnailPreviewService->>Plot: getCachedCalculatedData(fileId)
-    end
-    ThumbnailPreviewService-->>ExplorerViewer: onDidChangePreview(fileId)
-    ExplorerViewer->>ContextViewService: layout()
-    User->>ExplorerViewer: leave item or hover container
-    ExplorerViewer->>ExplorerService: setHoveredFileId(null)
-    ExplorerViewer->>ContextViewService: hide/dismiss context view
-    end
-```
-
-Do not create thumbnail-specific duplicates of Explorer file item commands such as remove, rename, template assignment, reveal, or selection. If a thumbnail UI affordance invokes an Explorer file operation, it must call the existing Explorer/files command or selection path.
+- Thumbnail grid items should be keyed by stable file id and updated in place.
+- Preview completion should refresh only the affected thumbnail item.
+- Replace container children only for real insertion, removal, or ordering changes.
+- Reuse existing thumbnail views and redraw into existing canvas when the Plot model changes.
+- Keep the last nonblank canvas visible if a refresh temporarily resolves to `loading`.
+- Hover cache keys should include only fields that affect the hover thumbnail node or plotted output.
+- Hover cache identity must not include active/selection visual state; toggle those classes in place.
+- Reused hover shells must relayout from the current anchor and verify thumbnail file identity before showing async updates.
+- Keyed DOM reuse is separate from `FastDomNode`-style repeated style write deduplication. Add a common primitive only when multiple surfaces share the same keyed DOM reuse need.
 
 ## Rules
 
-- Thumbnail cache invalidates on plot model changes.
-- Cache key must include file id, plot type, unit/scale settings, and relevant curve signatures.
-- Thumbnail render code should accept `PlotRenderModel`, not `ProcessedEntry` or raw session records.
-- Thumbnail view components may receive minimal display metadata such as file id, file name, and active marker props, but must not rebuild plot/session data.
-- Thumbnail service/common code must not decide which Explorer files are visible as thumbnails. Any file filtering, field filter option building, or visible file id narrowing belongs to Explorer/files view-model code.
-- Thumbnail clicks may travel through an existing Explorer UI callback such as `onSelectFile`, but the target selection operation must remain upstream-shaped Explorer selection (`IExplorerService.select(...)`), not thumbnail-owned state.
-- Thumbnail file item actions must reuse the same Explorer/files action ids and command handlers as tree file items.
-- Tree layout hover thumbnail previews must use Explorer-owned hover triggers and context-view containers. Explorer filters out files that are not chart-previewable; files in queued, processing, or ready chart states may request thumbnail-owned preview content even while `hasChartData` is still false so the hover can show a loading preview and promote interactive work.
-- Visible/nearby thumbnail preview prefetch runs only while Explorer is in chart
-  thumbnail layout. Recent thumbnail preview prefetch is limited to files that
-  were actually active or hovered recently. Tree layout hover previews stay
-  on-demand through hover priority so ordinary tree scrolling does not warm
-  thumbnail previews for every visible file.
-- Loading thumbnail previews should render a nonblank thumbnail-owned placeholder
-  unless an older plot model is available, so hover and thumbnail layout do not
-  present an empty chart frame while queued preview work runs.
-- Hover previews may request `drawStrategy: "eager"` from `createThumbnailView`
-  so the first connected, sized canvas draws immediately. Thumbnail grid items
-  should keep the default stable draw strategy to avoid extra repaint churn in
-  persistent layouts.
-- Hover previews may enter `fastReady` from a Plot-owned cached chart display
-  model before the full canonical preview path finishes. `fastReady` is still a
-  Plot-provided render model; Thumbnail must not build curves from Session to
-  create it. Its signature should remain the underlying calculated-data
-  signature so a later full preview with the same data does not replace the
-  hover thumbnail node.
-- If a preview with a calculated-data signature later gains a Plot display-model
-  cache for the same signature, treat `ready -> fastReady` as a cache-source
-  upgrade and publish `onDidChangePreview` so detached hover thumbnails can be
-  refreshed and warmed. Do not downgrade `fastReady` to `ready` or `loading`
-  while replacement data with the same signature is pending.
-- Targeted preview invalidation must not downgrade an existing `fastReady`,
-  `rawReady`, or `ready` preview to `loading` while replacement plot data is
-  pending. Keep the last nonblank model visible and refresh it when Plot
-  publishes a matching calculated-data or display-model cache event.
-- Explorer hover thumbnail DOM cache keys should include only fields that
-  affect the hover thumbnail node or plotted output. Processing-stage metadata
-  such as curve-type labels must not evict a nonblank hover thumbnail when the
-  plot model signature is unchanged.
-- Explorer hover thumbnails should reuse the existing thumbnail view and redraw
-  into the existing canvas when a newer Plot model arrives. If a refresh
-  temporarily resolves to `loading` after a nonblank canvas exists, keep the old
-  canvas visible until a replacement Plot model is ready.
-- Explorer may reuse the outer hover context-view shell when moving between
-  thumbnail file items, but the thumbnail content node remains file-owned.
-  Reused shells must relayout from the current hover anchor, and Explorer must
-  verify the rendered thumbnail node's file identity before showing it so async
-  preview updates cannot cross files.
-- Explorer hover thumbnail cache identity must not include selection/active
-  visual state. Toggle active classes in place, and keep cached detached hover
-  thumbnail nodes updated from `onDidChangePreview` so file switching cannot
-  force a canvas replacement on the next hover.
-- Thumbnail preview queues must consume `IPlotService.getCachedCalculatedData`;
-  they must not call `getCalculatedData` to create plot models inside the
-  thumbnail frame budget.
-- Thumbnail preview scheduling priority is `hover`, `visible`, `recent`,
-  `nearby`, then `idle`. Recent is for active/hover targets that were just
-  switched away from and should not depend on a fixed imported-file count.
-- If the Plot cache is not warm yet, thumbnail preview queues keep the file in
-  `loading` and retry when Plot publishes `onDidChangeCalculatedDataCache`
-  instead of polling every frame or dropping the request.
-- Targeted Session invalidation for a loading thumbnail preview must preserve
-  the pending preview priority and retry the affected file against the new
-  snapshot. Do not drop the loading intent before Plot cache notifications can
-  make the preview ready.
-- Explorer may clear its own hover DOM cache when render props change, but must not directly clear `IThumbnailService`'s global bitmap cache as part of ordinary view rerendering. Thumbnail bitmap cache invalidation is driven by render keys/signatures or explicit thumbnail cache commands.
-- Do not place reusable thumbnail UI under `src/cs/workbench/contrib/files/browser/views/thumbnail`.
-- Do not keep Explorer-specific prefixes in thumbnail contribution file names or exported UI names. Prefer `thumbnailView.ts`, `createThumbnailView`, and `ThumbnailViewProps`.
-- If Explorer consumes thumbnail UI, Explorer imports from `src/cs/workbench/contrib/thumbnail/browser/...`.
-- Do not model thumbnail mode as a separate resource manager or standalone workbench view. It is Explorer's `thumbnail` layout.
+- Thumbnail render code accepts `PlotRenderModel`, not `ProcessedEntry` or raw Session records.
+- Thumbnail view components may receive file id, file name, active state, and plot settings, but must not rebuild plot/session data.
+- Thumbnail cache keys must include file id, plot type, unit/scale settings, and relevant curve/model signatures.
+- Loading previews should render a nonblank thumbnail-owned placeholder unless an older plot model is available.
+- Hover previews may request eager draw so the first connected, sized canvas draws immediately.
+- Thumbnail grid items should use the stable draw strategy to avoid repaint churn in persistent layouts.
+- `fastReady` is a Plot-provided display-model cache source, not a Session-derived shortcut.
+- Treat `ready -> fastReady` for the same calculated-data signature as a cache-source upgrade.
+- Do not downgrade `fastReady`, `rawReady`, or `ready` to `loading` while replacement data with the same signature is pending.
+- Preview queues must consume `IPlotService.getCachedCalculatedData`; they must not call `getCalculatedData` inside the thumbnail frame budget.
+- If Plot cache is not warm, keep the preview in `loading` and retry on `onDidChangeCalculatedDataCache`.
+- Targeted Session invalidation must preserve pending preview priority for affected loading previews.
+- Recent preview prefetch is limited to files that were actually active or hovered recently.
+- Tree layout hover previews are on-demand through hover priority; ordinary tree scrolling must not warm every visible thumbnail.
 
-## Command Entry and Dispatch
+## Commands
 
-Thumbnail commands/actions live in the thumbnail contribution only when the user-facing affordance is thumbnail-specific. The current command is the thumbnail layout toggle. Explorer file item actions remain in the shared Explorer/files action set and are used by both tree and thumbnail layouts. The toggle command delegates to Explorer because Explorer owns the `tree`/`thumbnail` layout state. If a cache clear command is added later, it must dispatch to `IThumbnailService.clear()`.
+Thumbnail commands/actions live in thumbnail contribution only when the
+user-facing affordance is thumbnail-specific. Explorer file item actions remain
+in the shared Explorer/files action set and are used by both layouts.
 
-Recommended files:
+Do not register thumbnail toggle actions in
+`src/cs/workbench/contrib/files/browser/fileActions.ts`.
 
-| File | Responsibility |
-| --- | --- |
-| `src/cs/workbench/contrib/thumbnail/common/thumbnail.ts` | Thumbnail action/command ids such as `TOGGLE_THUMBNAIL_VIEW_ACTION_ID`. |
-| `src/cs/workbench/contrib/thumbnail/browser/thumbnailCommands.ts` | Thumbnail layout toggle command handler. Add cache clear here only if it delegates to `IThumbnailService.clear()`. |
-| `src/cs/workbench/contrib/thumbnail/browser/thumbnailActions.ts` | `Action2` wrappers for thumbnail commands. |
-| `src/cs/workbench/contrib/thumbnail/browser/thumbnail.contribution.ts` | Imports `thumbnailActions.ts` so actions are registered. |
-| `src/cs/workbench/services/thumbnail/browser/thumbnailService.ts` | Render/cache thumbnails from plot models. |
+Do not put thumbnail command handlers in
+`src/cs/workbench/contrib/files/browser/fileCommands.ts`.
 
-See the Wiring Contract sequence diagrams for the exact command calls and interfaces.
+If a cache clear command is added later, it must delegate to
+`IThumbnailService.clear()`.
 
-Do not register thumbnail toggle actions in `src/cs/workbench/contrib/files/browser/fileActions.ts`.
-Do not put thumbnail command handlers in `src/cs/workbench/contrib/files/browser/fileCommands.ts`.
+## API Shape
+
+The current public render surface is direct canvas drawing:
+
+```ts
+IThumbnailService.drawPlotThumbnail(target, options)
+```
+
+`ThumbnailBitmapOptions` should stay limited to render-affecting inputs:
+
+- `model`: Plot render-model source and stable signature;
+- `plotType`: plot type to render;
+- `originOpenPlotOptions`: optional Origin display settings;
+- `plotAxisSettings`: optional plot axis/display settings.
+
+Cache keys are an internal `thumbnailBitmap.ts` detail until a public caller
+needs keyed lookup, targeted invalidation, diagnostics, or telemetry.
+
+Add explicit async request/result contracts only when thumbnail rendering truly
+becomes async, cancellable, worker-backed, exported, or telemetry/reporting
+needs structured diagnostics.
 
 ## Do Not
 
 - Do not duplicate plot domain/downsampling logic in thumbnail code.
 - Do not store thumbnail cache in Session.
 - Do not import ChartViewPane or ChartPanel to render thumbnails.
-- Do not create `files/browser/views/thumbnail` for reusable thumbnail components.
+- Do not create reusable thumbnail UI under `src/cs/workbench/contrib/files/browser/views/thumbnail`.
 - Do not use `explorerThumbnail...` names for files or exported UI symbols inside `contrib/thumbnail`.
-- Do not move Explorer selection or layout state into thumbnail contribution code.
-- Do not move Explorer tree item hover trigger, hover timing, anchor, positioning, or context-view lifecycle into thumbnail contribution code.
-- Do not invent `setSelectedFile`, `selectedThumbnailId`, or other selection state APIs for thumbnails. Use the upstream-shaped Explorer `select(...)` and `getContext()` surfaces.
-- Do not add thumbnail-specific duplicates of Explorer file item actions or commands. Tree and thumbnail layouts use one Explorer action/command set.
-- Do not add thumbnail file visibility/filter helpers under `src/cs/workbench/services/thumbnail`. Those helpers are Explorer/files responsibility.
-- Do not have Explorer views call `IThumbnailService.clear()` for normal prop changes. Use cache-key invalidation or an explicit thumbnail cache command.
-
-## API Fields
-
-Do not introduce public thumbnail request/result/cache-key records until there is a caller that needs them. The current public surface is direct rendering into a browser canvas:
-
-```ts
-IThumbnailService.drawPlotThumbnail(target, options)
-```
-
-### `ThumbnailBitmapOptions`
-
-| Field | Meaning |
-| --- | --- |
-| `model` | Plot render-model source plus its stable `signature`. |
-| `plotType` | Plot type to render. |
-| `originOpenPlotOptions` | Optional Origin display settings that affect thumbnail style. |
-| `plotAxisSettings` | Optional plot axis/display settings that affect thumbnail style. |
-
-Cache keys are an internal implementation detail of `thumbnailBitmap.ts`. They should include every render-affecting field used by the bitmap renderer, but they should not be exported as `ThumbnailCacheKey` unless a future cache API exposes keyed lookup, targeted invalidation, diagnostics, or telemetry.
-
-Only add a `ThumbnailResult`-style return type if thumbnail rendering becomes asynchronous or needs to report render diagnostics to a caller. Synchronous canvas drawing does not need `createdAt` or `diagnostics`.
-
-## Future Async/Batch Rendering
-
-If thumbnail rendering grows beyond synchronous canvas drawing, add explicit request/result contracts at that time. Valid triggers include:
-
-- async thumbnail rendering service with cancellation, priority, retry, or queue scheduling;
-- batch image generation for many Explorer files at once;
-- exporting thumbnail images as artifacts;
-- remote or worker-backed thumbnail rendering;
-- user-visible render failures;
-- telemetry or diagnostics for render failures, fallback paths, timing, cache hit rate, or worker errors.
-
-When one of these triggers exists, define the request/result fields from the actual caller needs. Do not add generic `diagnostics`, `createdAt`, request size, or public cache-key fields preemptively.
+- Do not move Explorer selection, layout state, ordering, hover timing, anchor, or context-view lifecycle into thumbnail contribution code.
+- Do not invent `setSelectedFile`, `selectedThumbnailId`, or parallel thumbnail selection APIs.
+- Do not add thumbnail-specific duplicates of Explorer file item actions or commands.
+- Do not add thumbnail file visibility/filter helpers under `src/cs/workbench/services/thumbnail`.
+- Do not have Explorer views call `IThumbnailService.clear()` for normal prop changes.

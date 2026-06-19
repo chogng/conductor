@@ -4,187 +4,110 @@ applyTo: 'src/cs/code/electron-main/app.ts,src/cs/platform/window/**,src/cs/plat
 ---
 # Desktop Appearance
 
-Use this document when changing desktop window appearance, transparent chrome,
-native material, title bar integration, sidebar backgrounds, theme-driven
-window state, or renderer classes that affect the root workbench surface.
-
-Desktop appearance is a two-layer system. Do not debug translucent sidebar
-color as a single CSS opacity problem.
+Desktop appearance is a two-layer system:
 
 ```txt
-windows behind this app
-  -> native window material or opaque fallback surface
-  -> renderer DOM/CSS root, workbench, title bar, and sidebar backgrounds
-  -> observed sidebar color
+native window material / opaque fallback
+  -> renderer DOM/CSS root, workbench, titlebar, sidebar backgrounds
+  -> observed surface color
 ```
 
-If either layer is dark, opaque, inactive, or using the wrong theme source, the
-final sidebar can look wrong even when the other layer is configured correctly.
+If either layer is wrong, the sidebar/titlebar can look wrong even when CSS
+opacity appears correct.
 
 ## Native Layer
 
-The native layer owns Electron/macOS window material and platform window
-options. Its owners are `platform/theme/electron-main` for theme source and
-appearance values, and `platform/window/electron-main` plus the electron-main
-app path for applying those values to windows. Workbench CSS must not own this
-behavior.
+Native owns Electron/macOS window material and platform options:
+`platform/theme/electron-main`, `platform/window/electron-main`, and the
+Electron main app path. Workbench CSS must not own native material behavior.
 
 For macOS translucent chrome:
 
-- Prefer a normal titled window with `titleBarStyle: 'hiddenInset'`.
-- Use a clear window background such as `#00000000`.
-- Use native vibrancy, currently `vibrancy: 'menu'`, for the active translucent
-  state.
-- Do not rely on `transparent: true` as the visual effect. A pure transparent
-  window shows through content, but it is not the same as macOS material.
-- Do not use macOS `titleBarOverlay` to mimic Windows title bar behavior unless
-  there is a proven platform reason.
+- prefer titled window with `titleBarStyle: "hiddenInset"`;
+- use clear background such as `#00000000`;
+- use native vibrancy for active translucent state;
+- do not rely on `transparent: true` as the visual effect;
+- do not use macOS `titleBarOverlay` to mimic Windows unless explicitly needed.
 
-MacOS material follows the system native theme. Before deriving an opaque
-surface color from `nativeTheme.shouldUseDarkColors`, or before applying window
-material, sync `nativeTheme.themeSource` from the app theme mode:
+Sync `nativeTheme.themeSource` from app theme before deriving material or
+opaque surface colors:
 
 ```txt
-app theme light -> nativeTheme.themeSource = 'light'
-app theme dark  -> nativeTheme.themeSource = 'dark'
-app theme auto  -> nativeTheme.themeSource = 'system'
+light -> nativeTheme.themeSource = "light"
+dark  -> nativeTheme.themeSource = "dark"
+auto  -> nativeTheme.themeSource = "system"
 ```
 
-This is easy to miss. If the app renderer is light but `nativeTheme.themeSource`
-is still system dark, AppKit can produce a dark opaque/material result behind a
-light renderer. The symptom looks like a sidebar opacity bug, but the root cause
-is the native layer using the wrong effective theme.
+Focused translucent state and unfocused/opaque surface state must stay in sync
+between main and renderer. Main should send explicit opaque-surface payloads;
+CSS should not infer focus or vibrancy state.
 
-Main-process theme settings must flow through `IThemeMainService`, which
-consumes `IConfigurationService`. Do not reintroduce ad hoc settings helpers in
-`code/electron-main/app.ts` to interpret `theme`, `backgroundColor`, or
-`transparentChrome`.
-
-MacOS focus state also matters:
-
-```txt
-focused window
-  -> clear background
-  -> vibrancy enabled
-  -> renderer uses translucent workbench/sidebar/titlebar backgrounds
-
-unfocused or opaque surface state
-  -> vibrancy disabled
-  -> native background becomes #f9f9f9 in light mode or #000000 in dark mode
-  -> renderer receives an opaque-surface event and uses the same surface color
-```
-
-When changing this flow, keep the native state and renderer state in sync. The
-main process should send an explicit opaque-surface payload to the renderer
-instead of expecting CSS to infer focus or vibrancy state.
+Main-process theme settings flow through `IThemeMainService` consuming
+`IConfigurationService`. Do not add ad hoc settings readers in `app.ts`.
 
 ## Renderer Layer
 
-The renderer layer owns DOM classes, CSS variables, and component backgrounds.
-It must not accidentally cover the native material with an opaque parent.
-
-Important surfaces:
+Renderer owns DOM classes, CSS variables, and component backgrounds.
 
 | Surface | Owner |
 | --- | --- |
-| root/body/#root transparent or opaque shell state | theme service plus `style.css` |
-| `.workbench_window` parent surface and transparent chrome tint | `workbench/browser/media/window.css` |
-| title bar surface | `workbench/browser/parts/titlebar/media/titlebar.css` |
-| sidebar chrome contents and transparency | `workbench/browser/parts/sidebar/media/sidebarpart.css` |
+| root/body/#root transparent or opaque shell state | theme service + `style.css` |
+| `.workbench_window` shell/tint | `workbench/browser/media/window.css` |
+| title bar surface | `parts/titlebar/media/titlebar.css` |
+| sidebar surface | `parts/sidebar/media/sidebarpart.css` |
 
-For transparent chrome, the root and `#root` background must stay transparent.
-The `.workbench_window` shell may carry one semi-transparent tint over native
-material for the card-based Conductor layout. Keep that shell tint translucent;
-a fully opaque parent background can completely hide native material.
+For transparent chrome, root and `#root` stay transparent. Use one tint
+strategy at a time; current Conductor shell tint is on `.workbench_window`,
+with titlebar/sidebar transparent over it.
 
-When the main content is a card with rounded corners, use one tint strategy at
-a time. The current Conductor card-shell pattern puts the tint on
-`.workbench_window`, while sidebar and title bar stay transparent so they show
-the same shell tint. Do not also add sidebar/titlebar tint layers unless the
-product intentionally wants double compositing.
-
-Keep component backgrounds with the component that owns the surface:
-
-- Put workbench shell background rules in `window.css`.
-- Put title bar background rules in `titlebar.css`.
-- Put sidebar background rules in `sidebarpart.css`.
-- Use global `style.css` only for cross-surface variables and root/body shell
-  state.
-
-Do not depend on only global CSS for component surfaces. Import order and
-specificity can reintroduce an opaque component background after the global
-rule runs.
-
-The transparent chrome tint should use a renderer color over native material,
-not a fully opaque theme color. Keep the tint value in one place so visual
-tuning has an obvious effect.
-
-## Windows Guardrails
-
-Windows behavior is intentionally separate from macOS material.
-
-- Preserve existing Windows Mica behavior unless the task explicitly asks for a
-  Windows appearance change.
-- Keep Windows tests in place when touching shared window appearance helpers.
-- Do not toggle `setBackgroundMaterial` at runtime for macOS parity work.
-- Do not let macOS-specific `vibrancy`, `titleBarStyle`, or opaque-surface
-  changes alter Windows title bar overlay or Mica paths.
-
-If a change is meant to be macOS-only, assert that in the owning helper and add
-or update tests that run the Windows path on non-Windows hosts.
-
-## Debugging Checklist
-
-When the sidebar is too dark, too flat, or differs from another Electron app,
-check both layers before tuning colors.
-
-Native checks:
-
-- Current platform and `BrowserWindow.isFocused()`.
-- Applied `backgroundColor`, `vibrancy`, `transparent`, `titleBarStyle`, and
-  title bar overlay options.
-- `nativeTheme.themeSource` and `nativeTheme.shouldUseDarkColors`.
-- Whether the window is in focused translucent mode or unfocused opaque surface
-  mode.
-
-Renderer checks from DevTools:
-
-```js
-document.documentElement.className;
-getComputedStyle(document.body).backgroundColor;
-getComputedStyle(document.querySelector('.workbench_window')).backgroundColor;
-getComputedStyle(document.querySelector('.titlebar-root')).backgroundColor;
-getComputedStyle(document.querySelector('.workbench_layout_sidebar')).backgroundColor;
-getComputedStyle(document.documentElement).getPropertyValue('--desktop-opaque-surface-background');
-```
+Do not depend only on global CSS for component surfaces; import order and
+specificity can reintroduce opaque backgrounds.
 
 Expected class flow:
 
 ```txt
-transparent chrome enabled
-  -> html.workbench-transparent-chrome
-
-macOS renderer bridge available
-  -> html.workbench-transparent-chrome-macos
-
-native opaque surface active
-  -> html.workbench-opaque-surface
+transparent chrome enabled -> html.workbench-transparent-chrome
+macOS renderer bridge available -> html.workbench-transparent-chrome-macos
+native opaque surface active -> html.workbench-opaque-surface
 ```
 
-If another Electron app turns light gray when unfocused over a dark window, but
-this app turns dark gray, first inspect `nativeTheme.themeSource` and the
-renderer opaque-surface class before adjusting opacity.
+## Windows Guardrails
+
+- Preserve Windows Mica unless the task explicitly changes Windows appearance.
+- Keep Windows tests when touching shared helpers.
+- Do not toggle `setBackgroundMaterial` for macOS parity.
+- Do not let macOS `vibrancy`, `titleBarStyle`, or opaque-surface changes alter Windows overlay/Mica paths.
+
+## Debugging
+
+Check native:
+
+- platform and `BrowserWindow.isFocused()`;
+- `backgroundColor`, `vibrancy`, `transparent`, `titleBarStyle`, overlay;
+- `nativeTheme.themeSource` and `shouldUseDarkColors`;
+- focused translucent vs unfocused opaque state.
+
+Check renderer:
+
+```js
+document.documentElement.className;
+getComputedStyle(document.body).backgroundColor;
+getComputedStyle(document.querySelector(".workbench_window")).backgroundColor;
+getComputedStyle(document.querySelector(".titlebar-root")).backgroundColor;
+getComputedStyle(document.querySelector(".workbench_layout_sidebar")).backgroundColor;
+getComputedStyle(document.documentElement).getPropertyValue("--desktop-opaque-surface-background");
+```
+
+If a light renderer becomes dark when unfocused, inspect `nativeTheme.themeSource`
+and opaque-surface class before tuning opacity.
 
 ## Tests
 
-Window appearance changes should include focused tests at the owning layer:
+Appearance changes need owner-layer tests:
 
-- electron-main window tests for macOS focused/unfocused style state and
-  Windows unchanged behavior;
-- renderer theme service tests for macOS class detection and opaque-surface IPC;
-- CSS review for root/body/#root, `.workbench_window`, title bar, and sidebar
-  backgrounds.
+- electron-main focused/unfocused macOS style state and Windows unchanged behavior;
+- renderer theme service macOS class detection and opaque-surface IPC;
+- CSS review for root/body/#root, `.workbench_window`, titlebar, sidebar.
 
-Do not call a translucent chrome fix complete until the test or manual
-verification covers both a focused translucent window and an unfocused/covered
-opaque surface window.
+Do not call translucent chrome work complete until focused translucent and
+unfocused/covered opaque states are covered by test or manual verification.
