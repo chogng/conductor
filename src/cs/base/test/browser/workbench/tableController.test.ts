@@ -100,6 +100,7 @@ function createTableState(): TableState {
 
 function createTableModel(): TableControllerModel {
 	return {
+		adjustColumnDisplayScale: () => false,
 		ensureRows: async () => undefined,
 		getColumnDisplayProfile: colIndex => createRawColumnDisplayProfile(colIndex),
 		getHighlight: (): TableHighlight => ({}),
@@ -115,6 +116,7 @@ function createTableModel(): TableControllerModel {
 		onDidChangeRevealCell: () => noopDisposable,
 		onDidChangeSelection: () => noopDisposable,
 		onDidChangeState: () => noopDisposable,
+		resetColumnDisplayScale: () => false,
 		subscribeRowsVersion: () => noopDisposable,
 	};
 }

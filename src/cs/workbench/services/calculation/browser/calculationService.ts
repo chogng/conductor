@@ -339,8 +339,8 @@ export class CalculationService extends Disposable implements ICalculationServic
 
       if (this.isCurrentCalculationWorkerResult(chunkInput, workerResult, requestId)) {
         const records: CalculationRecordsByFile = {
-          curvesByFileId: { [fileId]: workerResult.curves },
-          metricsByFileId: { [fileId]: workerResult.metrics },
+          curvesByFileId: { [fileId]: [...workerResult.curves] },
+          metricsByFileId: { [fileId]: [...workerResult.metrics] },
         };
         endBuildPerf({
           curveCount: countRecordArrayItems(records.curvesByFileId),
@@ -913,6 +913,7 @@ export const shouldUpdateCalculationForSessionChange = (
     case "metricsChanged":
       return false;
   }
+  return false;
 };
 
 const hasBaseCurveChange = (event: SessionChangeEvent): boolean => {

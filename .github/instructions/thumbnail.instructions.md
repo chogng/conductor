@@ -215,7 +215,7 @@ sequenceDiagram
         ThumbnailPreviewService->>Plot: getCachedCalculatedData(fileId)
     end
     ThumbnailPreviewService-->>ExplorerViewer: onDidChangePreview(fileId)
-    ExplorerViewer->>ExplorerViewer: schedule thumbnail grid render when thumbnail layout is active
+    ExplorerViewer->>ExplorerViewer: refresh affected thumbnail grid item in place when thumbnail layout is active
 ```
 
 Tree item hover thumbnail preview sequence:

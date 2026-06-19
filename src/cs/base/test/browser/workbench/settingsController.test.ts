@@ -2,9 +2,18 @@ import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
 import { SettingsController } from "src/cs/workbench/contrib/settings/browser/settingsController";
-import { NoOpNotification, type INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import {
+  NoOpNotification,
+  NotificationsFilter,
+  type INotificationService,
+} from "src/cs/workbench/services/notification/common/notificationService";
 import type { ICommandEvent, ICommandService } from "src/cs/platform/commands/common/commands";
-import type { ConductorSettings, ISettingsService, SettingsViewInput } from "src/cs/workbench/services/settings/common/settings";
+import type {
+  ConductorSettings,
+  ISettingsService,
+  NumericDisplayMode,
+  SettingsViewInput,
+} from "src/cs/workbench/services/settings/common/settings";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/settings/browser/settingsController", () => {
@@ -133,10 +142,10 @@ function createSettingsService(
   return {
     _serviceBrand: undefined,
     settings: initialSettings,
-    onDidChangeConductorSettings: Event.None,
-    onDidChangeNumericDisplayMode: Event.None,
-    onDidChangeOriginSettingsViewInput: Event.None,
-    onDidChangeSettingsViewInput: Event.None,
+    onDidChangeConductorSettings: Event.None as Event<ConductorSettings | null>,
+    onDidChangeNumericDisplayMode: Event.None as Event<NumericDisplayMode>,
+    onDidChangeOriginSettingsViewInput: Event.None as Event<void>,
+    onDidChangeSettingsViewInput: Event.None as Event<void>,
     canCheckOriginHealth: () => false,
     canManageOrigin: () => false,
     canRunOriginCleanup: () => false,
@@ -168,14 +177,25 @@ function createCommandService(deferred = new Deferred<unknown>()): ICommandServi
     _serviceBrand: undefined,
     onDidExecuteCommand: Event.None as Event<ICommandEvent>,
     onWillExecuteCommand: Event.None as Event<ICommandEvent>,
-    executeCommand: async () => deferred.promise,
+    executeCommand: <R = unknown>() => deferred.promise as Promise<R | undefined>,
   };
 }
 
 function createNotificationService(): INotificationService {
   return {
+    _serviceBrand: undefined,
+    onDidChangeFilter: Event.None as Event<void>,
+    error: () => undefined,
+    getFilter: () => NotificationsFilter.ERROR,
+    getFilters: () => [],
+    info: () => undefined,
     notify: () => new NoOpNotification(),
-  } as INotificationService;
+    prompt: () => new NoOpNotification(),
+    removeFilter: () => undefined,
+    setFilter: () => undefined,
+    status: () => ({ close: () => undefined }),
+    warn: () => undefined,
+  };
 }
 
 function createSettingsViewInput(settings: ConductorSettings): SettingsViewInput {

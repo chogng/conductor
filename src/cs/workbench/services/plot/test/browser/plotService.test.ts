@@ -184,10 +184,10 @@ suite("workbench/services/plot/test/browser/plotService", () => {
 
   test("does not synchronously create calculated data for files without base curves", () => {
     const file = createFileRecord();
-    file.curvesByKey = {};
-    file.seriesById = {};
-    file.seriesOrder = [];
-    file.latestTemplateRunId = null;
+	    file.curvesByKey = {};
+	    file.seriesById = {};
+	    file.seriesOrder = [];
+	    file.latestTemplateRunId = undefined;
     file.templateRunsById = {};
     const snapshot = createSnapshot({ "file-a": file });
     const service = store.add(new PlotService(
@@ -513,7 +513,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       ));
 
       service.prefetchCalculatedData(["file-a"], "visible", "iv");
-      scheduledFrame?.(0);
+	      runScheduledFrame(scheduledFrame);
       await Promise.resolve();
       await Promise.resolve();
 
@@ -2048,7 +2048,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         plotType: "iv",
         snapshot,
       }, "active");
-      scheduledFrame?.(0);
+	      runScheduledFrame(scheduledFrame);
       await Promise.resolve();
 
       assert.ok(service.getCachedPlotDisplayModel({
@@ -2335,7 +2335,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       service.setActivePlotType("gm");
 
       assert.equal(canceledFrame, true);
-      scheduledFrame?.(0);
+	      runScheduledFrame(scheduledFrame);
       assert.equal(curveReads, 0);
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
@@ -2383,7 +2383,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       ));
 
       assert.equal(canceledFrame, true);
-      scheduledFrame?.(0);
+	      runScheduledFrame(scheduledFrame);
       assert.equal(curveReads, 0);
     } finally {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
@@ -2407,9 +2407,10 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       "Custom X",
       initial!.chart.defaultXAxisTitle,
     );
-    const edited = service.getPlotDisplayModel({ snapshot });
-    assert.equal(edited?.chart.xAxisTitle, "Custom X");
-    assert.equal(edited?.inspector.xAxisTitle, "Gate");
+	    const edited = service.getPlotDisplayModel({ snapshot });
+	    assert.equal(edited?.chart.xAxisTitle, "Custom X");
+	    assert.ok(edited?.inspector);
+	    assert.equal(edited.inspector.xAxisTitle, "Gate");
 
     service.setAxisTitleOverride(
       initial!.chart.xAxisTitleContext,
@@ -2510,6 +2511,11 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     assert.equal(changeCount, 3);
   });
 });
+
+const runScheduledFrame = (callback: FrameRequestCallback | null): void => {
+  assert.ok(callback);
+  callback(0);
+};
 
 class TestStorageService extends AbstractStorageService {
   private readonly values = new Map<string, string>();

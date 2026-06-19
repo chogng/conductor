@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { Event as BaseEvent } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type {
 	ExportState,
@@ -20,7 +21,7 @@ import type { ProcessedEntry } from "src/cs/workbench/services/session/common/se
 import { BrowserExportService } from "src/cs/workbench/services/export/browser/exportService";
 import { NotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
-let exportTestStore: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite> | undefined;
+let exportTestStore: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>;
 
 suite("workbench/services/export/browser/exportService", () => {
 	exportTestStore = ensureNoDisposablesAreLeakedInTestSuite();
@@ -208,14 +209,14 @@ const createExportService = (
 	snapshot: SessionSnapshot = createEmptySnapshot(),
 	legendLabelsByFileId: Readonly<Record<string, Readonly<Record<string, string>>>> = {},
 ): BrowserExportService => {
-	const notificationService = exportTestStore?.add(new NotificationService()) ?? new NotificationService();
+	const notificationService = exportTestStore.add(new NotificationService());
 	const service = new BrowserExportService(
 		createSessionServiceStub(snapshot),
 		createSettingsServiceStub(),
 		createPlotServiceStub(legendLabelsByFileId),
 		notificationService,
 	);
-	exportTestStore?.add(service);
+	exportTestStore.add(service);
 	return service;
 };
 
@@ -237,7 +238,7 @@ const createPlotServiceStub = (
 		yUnitByFileId: {},
 	}),
 	getLegendLabels: (fileId: string) => legendLabelsByFileId[fileId] ?? {},
-	onDidChangeCalculatedDataCache: Event.None,
+		onDidChangeCalculatedDataCache: BaseEvent.None,
 } as unknown as IPlotService);
 
 const createEmptySnapshot = (): SessionSnapshot => ({

@@ -1,3 +1,5 @@
+import { readTraceChartTargets } from "./targets.mjs";
+
 export const readThumbnailHoverDomState = async (page) => page.evaluate(() => {
   const fileItems = [...document.querySelectorAll(".file-list-item[data-file-id]")];
   const chartStateCounts = fileItems.reduce((counts, item) => {
@@ -20,6 +22,26 @@ export const readThumbnailHoverDomState = async (page) => page.evaluate(() => {
   };
 });
 
+export const readTemplateApplyReadinessState = async (page) => {
+  const [dom, targets] = await Promise.all([
+    readThumbnailHoverDomState(page),
+    readTraceChartTargets(page),
+  ]);
+  const traceTargetStateCounts = targets.reduce((counts, target) => {
+    const key = target.chartState || "none";
+    counts[key] = (counts[key] ?? 0) + 1;
+    return counts;
+  }, {});
+  const traceReadyTargets = targets.filter(isReadyTraceTarget);
+  return {
+    ...dom,
+    traceTargetCount: targets.length,
+    traceTargetReadyCount: traceReadyTargets.length,
+    traceTargetSamples: targets.slice(0, 8),
+    traceTargetStateCounts,
+  };
+};
+
 export const getApplyAllButton = (page) =>
   page.getByRole("button", { name: /^(应用到所有|Apply to All)$/ });
 
@@ -33,41 +55,118 @@ export const waitForApplyAllReady = async (page, timeoutMs) => page.waitForFunct
   { timeout: timeoutMs },
 );
 
+export const waitForTemplateApplyProcessingVisible = async (page, timeoutMs) => page.waitForFunction(
+  () => {
+    const traceTargets = window.__conductorTemplateApplyPerformanceTrace?.targetApi
+      ?.getChartTargets?.() ?? [];
+    if (traceTargets.some(target => isActiveTraceTarget(target))) {
+      return true;
+    }
+
+    return [...document.querySelectorAll(".file-list-item[data-file-id]")]
+      .some(item => {
+        const state = item.dataset.chartState;
+        return state === "queued" ||
+          state === "processing" ||
+          state === "ready" ||
+          state === "skipped";
+      });
+
+    function isActiveTraceTarget(target) {
+      return target?.hasChartData === true ||
+        target?.chartState === "queued" ||
+        target?.chartState === "processing" ||
+        target?.chartState === "ready";
+    }
+  },
+  undefined,
+  { timeout: timeoutMs },
+);
+
 export const runTemplateApplyForThumbnailHover = async ({
   expectedReadyCount,
+  expectedTargetCount = expectedReadyCount,
   page,
   timeoutMs,
 }) => {
-  const before = await readThumbnailHoverDomState(page);
+  const expectedReadyTargetCount = Math.max(
+    1,
+    Math.min(
+      Math.max(1, expectedReadyCount),
+      Math.max(1, expectedTargetCount),
+    ),
+  );
+  const before = await readTemplateApplyReadinessState(page);
   await waitForApplyAllReady(page, timeoutMs);
   const startedAt = Date.now();
   await getApplyAllButton(page).click();
-  await page.waitForFunction(
-    ({ expectedReadyCount: expected }) => {
-      const fileItems = [...document.querySelectorAll(".file-list-item[data-file-id]")];
-      const required = Math.min(
-        Math.max(1, expected),
-        Math.max(1, fileItems.length),
-      );
-      const readyItems = fileItems.filter(item =>
-        item.dataset.hasChartData === "true" ||
-        item.dataset.chartState === "ready"
-      );
-      return readyItems.length >= required;
-    },
-    { expectedReadyCount },
-    { timeout: timeoutMs },
-  );
+  try {
+    await waitForTemplateApplyReadyTargets(page, expectedReadyTargetCount, timeoutMs);
+  } catch (error) {
+    const lastState = await readTemplateApplyReadinessState(page);
+    throw new Error(
+      `Timed out waiting for ${expectedReadyTargetCount} template-applied chart targets. ` +
+        `Last state: ${JSON.stringify(createTemplateApplyReadinessErrorState(lastState))}`,
+      { cause: error },
+    );
+  }
   await page.waitForTimeout(300);
-  const after = await readThumbnailHoverDomState(page);
+  const after = await readTemplateApplyReadinessState(page);
   return {
     after,
     before,
     durationMs: Date.now() - startedAt,
     expectedReadyCount,
+    expectedReadyTargetCount,
+    expectedTargetCount,
   };
 };
 
+export const waitForTemplateApplyReadyTargets = async (
+  page,
+  expectedReadyTargetCount,
+  timeoutMs,
+) => page.waitForFunction(
+  ({ expectedReadyTargetCount: expected }) => {
+    const required = Math.max(1, expected);
+    const traceTargets = window.__conductorTemplateApplyPerformanceTrace?.targetApi
+      ?.getChartTargets?.() ?? [];
+    if (traceTargets.length > 0) {
+      const readyTargetCount = traceTargets.filter(target =>
+        target?.hasChartData === true ||
+        target?.chartState === "ready"
+      ).length;
+      return traceTargets.length >= required && readyTargetCount >= required;
+    }
+
+    const fileItems = [...document.querySelectorAll(".file-list-item[data-file-id]")];
+    const domRequired = Math.min(
+      required,
+      Math.max(1, fileItems.length),
+    );
+    const readyItems = fileItems.filter(item =>
+      item.dataset.hasChartData === "true" ||
+      item.dataset.chartState === "ready"
+    );
+    return readyItems.length >= domRequired;
+  },
+  { expectedReadyTargetCount },
+  { timeout: timeoutMs },
+);
+
+const isReadyTraceTarget = (target) =>
+  target.hasChartData === true ||
+  target.chartState === "ready";
+
+const createTemplateApplyReadinessErrorState = (state) => ({
+  chartReadyCount: state.chartReadyCount,
+  chartStateCounts: state.chartStateCounts,
+  fileItemCount: state.fileItemCount,
+  traceTargetCount: state.traceTargetCount,
+  traceTargetReadyCount: state.traceTargetReadyCount,
+  traceTargetSamples: state.traceTargetSamples,
+  traceTargetStateCounts: state.traceTargetStateCounts,
+});
 
 export const waitForTemplateProcessingBatch = async (page, timeoutMs) => page.waitForFunction(
   () => Boolean(window.conductorAnalysisPerf?.getReport?.()?.entries?.some(entry =>
@@ -76,4 +175,3 @@ export const waitForTemplateProcessingBatch = async (page, timeoutMs) => page.wa
   undefined,
   { timeout: timeoutMs },
 ).catch(() => null);
-

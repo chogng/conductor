@@ -25,6 +25,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
         fileName: "File A",
       },
       plotModel: {
+        pointsCount: 0,
         seriesList: [],
         signature: "plot:file-a",
         xDomain: [0, 1],
@@ -72,6 +73,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
         fileId: "file-a",
       },
       plotModel: {
+        pointsCount: 0,
         seriesList: [],
         signature: "plot:file-a",
         xDomain: [0, 1],
@@ -121,6 +123,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
         fileId: "file-a",
       },
       plotModel: {
+        pointsCount: 0,
         seriesList: [],
         signature: "plot:file-a",
         xDomain: [0, 1],
@@ -205,6 +208,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
         fileName: "File A",
       },
       plotModel: {
+        pointsCount: 0,
         seriesList: [],
         signature: "plot:file-a:1",
         xDomain: [0, 1],
@@ -241,6 +245,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
           fileName: "File A",
         },
         plotModel: {
+          pointsCount: 0,
           seriesList: [],
           signature: "plot:file-a:2",
           xDomain: [0, 1],
@@ -283,6 +288,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
         fileName: "File A",
       },
       plotModel: {
+        pointsCount: 0,
         seriesList: [],
         signature: "plot:file-a:1",
         xDomain: [0, 1],
@@ -316,6 +322,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
           fileName: "File A",
         },
         plotModel: {
+          pointsCount: 0,
           seriesList: [],
           signature: "plot:file-a:2",
           xDomain: [0, 1],
@@ -348,6 +355,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
         fileId: "file-a",
       },
       plotModel: {
+        pointsCount: 0,
         seriesList: [],
         signature: "plot:file-a",
         xDomain: [0, 1],
@@ -406,6 +414,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
       },
       isActive: false,
       plotModel: {
+        pointsCount: 0,
         seriesList: [],
         signature: "plot:file-a",
         xDomain: [0, 1],
@@ -441,6 +450,7 @@ suite("workbench/contrib/thumbnail/test/browser/thumbnailView", () => {
         },
         isActive: true,
         plotModel: {
+          pointsCount: 0,
           seriesList: [],
           signature: "plot:file-a",
           xDomain: [0, 1],

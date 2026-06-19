@@ -23,6 +23,11 @@ import {
   SET_FILE_TEMPLATE_COMMAND_ID,
   SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/common/files";
+import type {
+  IThumbnailService,
+  ThumbnailPreviewChangeEvent,
+  ThumbnailPreviewPlotModel,
+} from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import { AUTO_TEMPLATE_ID } from "src/cs/workbench/services/template/common/autoTemplate";
 import { DEFAULT_EXPLORER_APPEARANCE } from "src/cs/workbench/services/appearance/common/appearance";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -330,7 +335,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const host = document.createElement("div");
     const hoverHost = document.createElement("div");
     const labels = new ResourceLabels();
-    const previewEmitter = new Emitter<{ readonly fileId: string }>();
+    const previewEmitter = new Emitter<ThumbnailPreviewChangeEvent>();
     let modelReady = false;
     document.body.append(hoverHost);
     hoverHost.append(host);
@@ -339,7 +344,14 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       ...createViewerProps(),
       mode: "chart",
       thumbnailPreviewService: {
-        get: () => ({ kind: "idle" }),
+        _serviceBrand: undefined,
+        get: () => modelReady
+          ? {
+              kind: "ready",
+              model: createThumbnailPlotModel("file-a"),
+              signature: "plot:file-a",
+            }
+          : { kind: "loading" },
         invalidate: () => undefined,
         onDidChangePreview: previewEmitter.event,
         prefetch: () => undefined,
@@ -351,11 +363,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             }
           : { kind: "loading" },
       },
-      thumbnailService: {
-        clear: () => undefined,
-        drawPlotThumbnail: () => undefined,
-        warmPlotThumbnail: () => undefined,
-      },
+      thumbnailService: createThumbnailService(),
       viewLayout: "thumbnail",
     };
     const viewer = new ExplorerViewer(host, hoverHost, props, labels);
@@ -387,7 +395,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const hoverHost = document.createElement("div");
     const labels = new ResourceLabels();
     const contextViewService = new TestContextViewService();
-    const previewEmitter = new Emitter<{ readonly fileId: string }>();
+    const previewEmitter = new Emitter<ThumbnailPreviewChangeEvent>();
     let modelReady = false;
     document.body.append(hoverHost);
     hoverHost.append(host);
@@ -397,7 +405,14 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       contextViewService,
       mode: "chart",
       thumbnailPreviewService: {
-        get: () => ({ kind: "idle" }),
+        _serviceBrand: undefined,
+        get: () => modelReady
+          ? {
+              kind: "ready",
+              model: createThumbnailPlotModel("file-a"),
+              signature: "plot:file-a",
+            }
+          : { kind: "loading" },
         invalidate: () => undefined,
         onDidChangePreview: previewEmitter.event,
         prefetch: () => undefined,
@@ -409,11 +424,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             }
           : { kind: "loading" },
       },
-      thumbnailService: {
-        clear: () => undefined,
-        drawPlotThumbnail: () => undefined,
-        warmPlotThumbnail: () => undefined,
-      },
+      thumbnailService: createThumbnailService(),
       viewLayout: "tree",
     }, labels);
 
@@ -504,20 +515,17 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       }],
       mode: "chart",
       thumbnailPreviewService: {
+        _serviceBrand: undefined,
         get: () => ({ kind: "idle" }),
         invalidate: () => undefined,
-        onDidChangePreview: Event.None,
+        onDidChangePreview: NoThumbnailPreviewEvent,
         prefetch: () => undefined,
         request: () => {
           requestCount += 1;
           return { kind: "loading" };
         },
       },
-      thumbnailService: {
-        clear: () => undefined,
-        drawPlotThumbnail: () => undefined,
-        warmPlotThumbnail: () => undefined,
-      },
+      thumbnailService: createThumbnailService(),
       viewLayout: "tree",
     }, labels);
 
@@ -547,7 +555,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const hoverHost = document.createElement("div");
     const labels = new ResourceLabels();
     const contextViewService = new TestContextViewService();
-    const previewEmitter = new Emitter<{ readonly fileId: string }>();
+    const previewEmitter = new Emitter<ThumbnailPreviewChangeEvent>();
     const readyFiles = new Set<string>();
     const warmedSignatures: string[] = [];
     document.body.append(hoverHost);
@@ -561,12 +569,12 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           badgeState: {
             confidence: "confirmed",
             kind: "ready",
-            label: "iv",
+            label: "transfer",
             source: "assessment",
           },
           chartState: "processing",
           curveType: "IV",
-          curveTypeBadgeLabel: "iv",
+          curveTypeBadgeLabel: "transfer",
           curveTypeConfidence: "high",
           curveTypeReasons: ["matched voltage/current columns"],
           fileId: "file-a",
@@ -577,12 +585,12 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           badgeState: {
             confidence: "confirmed",
             kind: "ready",
-            label: "iv",
+            label: "transfer",
             source: "assessment",
           },
           chartState: "processing",
           curveType: "IV",
-          curveTypeBadgeLabel: "iv",
+          curveTypeBadgeLabel: "transfer",
           curveTypeConfidence: "high",
           curveTypeReasons: ["matched voltage/current columns"],
           fileId: "file-b",
@@ -592,6 +600,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       ],
       mode: "chart",
       thumbnailPreviewService: {
+        _serviceBrand: undefined,
         get: (fileId) => readyFiles.has(fileId)
           ? {
               kind: "ready",
@@ -610,13 +619,11 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
             }
           : { kind: "loading" },
       },
-      thumbnailService: {
-        clear: () => undefined,
-        drawPlotThumbnail: () => undefined,
+      thumbnailService: createThumbnailService({
         warmPlotThumbnail: (options) => {
           warmedSignatures.push(options.model.signature);
         },
-      },
+      }),
       viewLayout: "tree",
     }, labels);
 
@@ -659,7 +666,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const hoverHost = document.createElement("div");
     const labels = new ResourceLabels();
     const contextViewService = new TestContextViewService();
-    const previewEmitter = new Emitter<{ readonly fileId: string }>();
+    const previewEmitter = new Emitter<ThumbnailPreviewChangeEvent>();
     document.body.append(hoverHost);
     hoverHost.append(host);
 
@@ -671,12 +678,12 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           badgeState: {
             confidence: "confirmed",
             kind: "ready",
-            label: "iv",
+            label: "transfer",
             source: "assessment",
           },
           chartState: "ready",
           curveType: "IV",
-          curveTypeBadgeLabel: "iv",
+          curveTypeBadgeLabel: "transfer",
           curveTypeConfidence: "high",
           curveTypeReasons: ["matched voltage/current columns"],
           fileId: "file-a",
@@ -688,12 +695,12 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           badgeState: {
             confidence: "confirmed",
             kind: "ready",
-            label: "iv",
+            label: "transfer",
             source: "assessment",
           },
           chartState: "ready",
           curveType: "IV",
-          curveTypeBadgeLabel: "iv",
+          curveTypeBadgeLabel: "transfer",
           curveTypeConfidence: "high",
           curveTypeReasons: ["matched voltage/current columns"],
           fileId: "file-b",
@@ -704,6 +711,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       ],
       mode: "chart",
       thumbnailPreviewService: {
+        _serviceBrand: undefined,
         get: (fileId) => ({
           kind: "ready",
           model: createThumbnailPlotModel(fileId),
@@ -718,11 +726,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           signature: `plot:${fileId}`,
         }),
       },
-      thumbnailService: {
-        clear: () => undefined,
-        drawPlotThumbnail: () => undefined,
-        warmPlotThumbnail: () => undefined,
-      },
+      thumbnailService: createThumbnailService(),
       viewLayout: "tree",
     }, labels);
 
@@ -789,12 +793,12 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           badgeState: {
             confidence: "confirmed",
             kind: "ready",
-            label: "iv",
+            label: "transfer",
             source: "assessment",
           },
           chartState: "ready",
           curveType: "IV",
-          curveTypeBadgeLabel: "iv",
+          curveTypeBadgeLabel: "transfer",
           curveTypeConfidence: "high",
           curveTypeReasons: ["matched voltage/current columns"],
           fileId: "file-a",
@@ -806,12 +810,12 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           badgeState: {
             confidence: "confirmed",
             kind: "ready",
-            label: "iv",
+            label: "transfer",
             source: "assessment",
           },
           chartState: "ready",
           curveType: "IV",
-          curveTypeBadgeLabel: "iv",
+          curveTypeBadgeLabel: "transfer",
           curveTypeConfidence: "high",
           curveTypeReasons: ["matched voltage/current columns"],
           fileId: "file-b",
@@ -822,13 +826,14 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       ],
       mode: "chart",
       thumbnailPreviewService: {
+        _serviceBrand: undefined,
         get: (fileId) => ({
           kind: "ready",
           model: createThumbnailPlotModel(fileId),
           signature: `plot:${fileId}`,
         }),
         invalidate: () => undefined,
-        onDidChangePreview: Event.None,
+        onDidChangePreview: NoThumbnailPreviewEvent,
         prefetch: () => undefined,
         request: (fileId) => ({
           kind: "ready",
@@ -836,13 +841,11 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           signature: `plot:${fileId}`,
         }),
       },
-      thumbnailService: {
-        clear: () => undefined,
-        drawPlotThumbnail: () => undefined,
+      thumbnailService: createThumbnailService({
         warmPlotThumbnail: (options) => {
           warmedSignatures.push(options.model.signature);
         },
-      },
+      }),
       viewLayout: "tree",
     }, labels);
 
@@ -879,7 +882,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const hoverHost = document.createElement("div");
     const labels = new ResourceLabels();
     const contextViewService = new TestContextViewService();
-    const previewEmitter = new Emitter<{ readonly fileId: string }>();
+    const previewEmitter = new Emitter<ThumbnailPreviewChangeEvent>();
     document.body.append(hoverHost);
     hoverHost.append(host);
 
@@ -891,11 +894,11 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           badgeState: {
             confidence: "confirmed",
             kind: "ready",
-            label: "iv",
+            label: "transfer",
             source: "assessment",
           },
           curveType: "IV",
-          curveTypeBadgeLabel: "iv",
+          curveTypeBadgeLabel: "transfer",
           curveTypeConfidence: "high",
           curveTypeReasons: ["matched voltage/current columns"],
           fileId: "file-a",
@@ -906,11 +909,11 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           badgeState: {
             confidence: "confirmed",
             kind: "ready",
-            label: "iv",
+            label: "transfer",
             source: "assessment",
           },
           curveType: "IV",
-          curveTypeBadgeLabel: "iv",
+          curveTypeBadgeLabel: "transfer",
           curveTypeConfidence: "high",
           curveTypeReasons: ["matched voltage/current columns"],
           fileId: "file-b",
@@ -920,6 +923,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       ],
       mode: "chart",
       thumbnailPreviewService: {
+        _serviceBrand: undefined,
         get: () => ({ kind: "idle" }),
         invalidate: () => undefined,
         onDidChangePreview: previewEmitter.event,
@@ -930,11 +934,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           signature: `plot:${fileId}`,
         }),
       },
-      thumbnailService: {
-        clear: () => undefined,
-        drawPlotThumbnail: () => undefined,
-        warmPlotThumbnail: () => undefined,
-      },
+      thumbnailService: createThumbnailService(),
       viewLayout: "tree",
     }, labels);
 
@@ -1036,7 +1036,7 @@ const createViewerProps = (): ExplorerViewerProps => ({
       source: "assessment",
     },
     curveType: "IV",
-    curveTypeBadgeLabel: "iv",
+    curveTypeBadgeLabel: "transfer",
     curveTypeConfidence: "high",
     curveTypeReasons: ["matched voltage/current columns"],
     fileId: "file-a",
@@ -1049,17 +1049,14 @@ const createViewerProps = (): ExplorerViewerProps => ({
   onRemoveFolder: () => undefined,
   onSelectFile: () => undefined,
   thumbnailPreviewService: {
-    onDidChangePreview: Event.None,
+    _serviceBrand: undefined,
+    onDidChangePreview: NoThumbnailPreviewEvent,
     get: () => ({ kind: "idle" }),
     invalidate: () => undefined,
     prefetch: () => undefined,
     request: () => ({ kind: "idle" }),
   },
-  thumbnailService: {
-    clear: () => undefined,
-    drawPlotThumbnail: () => undefined,
-    warmPlotThumbnail: () => undefined,
-  },
+  thumbnailService: createThumbnailService(),
 });
 
 const timeout = (ms: number): Promise<void> =>
@@ -1071,7 +1068,20 @@ const animationFrames = async (count: number): Promise<void> => {
   }
 };
 
-const createThumbnailPlotModel = (fileId: string) => ({
+const NoThumbnailPreviewEvent = Event.None as Event<ThumbnailPreviewChangeEvent>;
+
+const createThumbnailService = (
+  overrides: Partial<Pick<IThumbnailService, "clear" | "drawPlotThumbnail" | "warmPlotThumbnail">> = {},
+): IThumbnailService => ({
+  _serviceBrand: undefined,
+  clear: () => undefined,
+  drawPlotThumbnail: () => undefined,
+  warmPlotThumbnail: () => undefined,
+  ...overrides,
+});
+
+const createThumbnailPlotModel = (fileId: string): ThumbnailPreviewPlotModel => ({
+  pointsCount: 0,
   seriesList: [],
   signature: `plot:${fileId}`,
   xDomain: [0, 1] as [number, number],

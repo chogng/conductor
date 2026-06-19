@@ -33,9 +33,10 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		const service = store.add(new BrowserThumbnailService());
 
 		service.warmPlotThumbnail({
-			model: {
-				seriesList: [{
-					data: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
+				model: {
+					pointsCount: 2,
+					seriesList: [{
+						data: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
 					id: "series-a",
 					name: "A",
 				}],
@@ -667,9 +668,10 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 
 		drawThumbnailBitmap({
 			canvas,
-			options: {
-				model: {
-					seriesList: [],
+				options: {
+					model: {
+						pointsCount: 0,
+						seriesList: [],
 					signature: "detached",
 					xDomain: [0, 1],
 					xUnitLabel: "V",

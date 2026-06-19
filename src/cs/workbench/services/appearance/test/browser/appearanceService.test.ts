@@ -23,7 +23,7 @@ suite("workbench/services/appearance/browser/appearanceService", () => {
       filesExplorerDensity: "compact",
       filesExplorerShowBadges: true,
     }));
-    const service = store.add(new BrowserAppearanceService(settings as ISettingsService));
+    const service = store.add(new BrowserAppearanceService(settings as unknown as ISettingsService));
     let changes = 0;
     const disposable = store.add(service.onDidChangeAppearance(() => {
       changes += 1;

@@ -1785,7 +1785,7 @@ async function prepareRemainingPendingImportFilesBatch({
             index: message.index,
             ok: Boolean(message.result?.ok),
             resultDurationMs: readTraceDurationMs(message.result?.durationMs),
-            source: message.result?.source ?? null,
+            source: message.result?.sourcePath ?? message.result?.sourceName ?? null,
             sourceSizeBytes: batchFiles[message.index]?.sourceSize ?? null,
           });
           scheduleResult(message.index, message.result);
@@ -1812,7 +1812,7 @@ async function prepareRemainingPendingImportFilesBatch({
           index: offset,
           ok: Boolean(results[offset]?.ok),
           resultDurationMs: readTraceDurationMs(results[offset]?.durationMs),
-          source: results[offset]?.source ?? null,
+          source: results[offset]?.sourcePath ?? results[offset]?.sourceName ?? null,
           sourceSizeBytes: batchFiles[offset]?.sourceSize ?? null,
         });
       }
@@ -2382,6 +2382,11 @@ const createDroppedFileSource = ({
   relativePath,
 }: DroppedFile): FileSource => createFileSource(file, relativePath);
 
+const getFileSourceSize = (source: FileSource): number =>
+  source.kind === "path"
+    ? source.size
+    : source.file.size;
+
 export const collectDroppedFiles = async (
   dataTransfer: DataTransfer,
 ): Promise<FileSource[]> => {
@@ -2430,7 +2435,7 @@ export const collectDroppedFiles = async (
     durationMs: getPerfNow() - startedAt,
     itemCount: items.length,
     sourceCount: sources.length,
-    totalSizeBytes: sources.reduce((sum, source) => sum + source.file.size, 0),
+    totalSizeBytes: sources.reduce((sum, source) => sum + getFileSourceSize(source), 0),
   });
 
   return sources;

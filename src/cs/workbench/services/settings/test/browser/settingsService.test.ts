@@ -18,7 +18,7 @@ import type {
   SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
 
-let settingsTestStore: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite> | undefined;
+let settingsTestStore: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>;
 
 suite("workbench/services/settings/browser/settingsService", () => {
   settingsTestStore = ensureNoDisposablesAreLeakedInTestSuite();
@@ -266,7 +266,7 @@ suite("workbench/services/settings/browser/settingsService", () => {
 });
 
 const createBrowserSettingsService = (): BrowserSettingsService =>
-  settingsTestStore?.add(new BrowserSettingsService(
+  settingsTestStore.add(new BrowserSettingsService(
     settingsTestStore.add(new ConfigurationService()),
   )) ?? new BrowserSettingsService(new ConfigurationService());
 

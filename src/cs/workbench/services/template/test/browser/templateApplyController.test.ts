@@ -694,7 +694,7 @@ suite("workbench/services/template/browser/templateApplyController", () => {
 
   test("batches template output commits on the next turn", async () => {
     const queuedFileIds: string[][] = [];
-    const committedBatches: CommitTemplateOutputInput[][] = [];
+	    const committedBatches: Array<readonly CommitTemplateOutputInput[]> = [];
     let snapshot = createTemplateOutputSnapshot(["file-a", "file-b"]);
     const controller = createController({
       sessionService: createSessionService(undefined, {
@@ -738,7 +738,7 @@ suite("workbench/services/template/browser/templateApplyController", () => {
   test("publishes per-file apply states from plan and commits", async () => {
     const queuedFileIds: string[][] = [];
     let snapshot = createTemplateOutputSnapshot(["file-a", "file-b"]);
-    const changedFileIds: readonly string[][] = [];
+	    const changedFileIds: Array<readonly string[]> = [];
     const controller = createController({
       sessionService: createSessionService(undefined, {
         commitTemplateOutputs: () => {
@@ -821,7 +821,7 @@ suite("workbench/services/template/browser/templateApplyController", () => {
   test("drops pending template output commits from stale jobs", async () => {
     const queuedFileIds: string[][] = [];
     const startedJobs: ProcessingJobOptions[] = [];
-    const committedBatches: CommitTemplateOutputInput[][] = [];
+	    const committedBatches: Array<readonly CommitTemplateOutputInput[]> = [];
     const snapshot = createTemplateOutputSnapshot(["file-a"]);
     const controller = createController({
       sessionService: createSessionService(undefined, {

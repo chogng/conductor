@@ -22,6 +22,7 @@ import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
 import { ChartViewId } from "src/cs/workbench/services/chart/common/chart";
 import { ExplorerViewId } from "src/cs/workbench/contrib/files/browser/files";
 import { SettingsViewId } from "src/cs/workbench/services/settings/common/settings";
+import type { ThumbnailPreviewChangeEvent } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import {
   createEmptySessionModel,
@@ -381,12 +382,12 @@ suite("workbench/browser/workbench layout integration", () => {
         prioritizeRawTables: () => undefined,
       },
       calculationService: {
-        prioritizeCalculationFile: fileId => {
+        prioritizeCalculationFile: (fileId: string | null | undefined) => {
           if (fileId) {
             calculationPriorities.push(fileId);
           }
         },
-        prioritizeCalculationFiles: fileIds => {
+        prioritizeCalculationFiles: (fileIds: readonly (string | null | undefined)[]) => {
           calculationPriorities.push(
             ...fileIds
               .map(fileId => String(fileId ?? "").trim())
@@ -554,6 +555,7 @@ const createProcessedFileRecord = (fileId: string): FileRecord => {
       },
     },
     seriesOrder: [seriesId],
+    templateRunsById: {},
   };
 };
 
@@ -583,10 +585,12 @@ const createWorkbenchOptions = ({
 
   return {
     assessmentQueueService: {
+      _serviceBrand: undefined,
       enqueueRawTables: () => undefined,
       prioritizeRawTables: () => undefined,
     },
     calculationService: {
+      _serviceBrand: undefined,
       prioritizeCalculationFile: () => undefined,
       prioritizeCalculationFiles: () => undefined,
     },
@@ -688,11 +692,12 @@ const createWorkbenchOptions = ({
         templateListVersion: 0,
       }),
       updateViewInput: () => undefined,
-    } as unknown as WorkbenchService<"templateService">,
-    thumbnailPreviewService: {
-      get: () => ({ kind: "idle" }),
+	    } as unknown as WorkbenchService<"templateService">,
+	    thumbnailPreviewService: {
+	      _serviceBrand: undefined,
+	      get: () => ({ kind: "idle" }),
       invalidate: () => undefined,
-      onDidChangePreview: Event.None,
+      onDidChangePreview: Event.None as Event<ThumbnailPreviewChangeEvent>,
       prefetch: () => undefined,
       request: () => ({ kind: "idle" }),
     },

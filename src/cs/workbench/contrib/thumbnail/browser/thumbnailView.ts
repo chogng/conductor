@@ -221,14 +221,16 @@ const updateChartThumbnail = (
   root.style.aspectRatio = "16 / 9";
   const existingBadge = root.querySelector<HTMLElement>(".thumbnail_view_selection_badge");
   if (props.plotModel && props.thumbnailService) {
+    const plotModel = props.plotModel;
+    const thumbnailService = props.thumbnailService;
     root.querySelector(".thumbnail_view_chart_loading")?.remove();
     const canvas = root.querySelector<HTMLCanvasElement>("canvas.thumbnail_view_chart_canvas");
     if (canvas) {
       canvas.classList.remove("thumbnail_view_chart_loading_canvas");
       canvas.title = props.file.fileName ?? props.file.fileId ?? "";
       drawOrScheduleThumbnailDraw(canvas, props.drawStrategy, () => {
-        props.thumbnailService.drawPlotThumbnail(canvas, {
-          model: props.plotModel,
+        thumbnailService.drawPlotThumbnail(canvas, {
+          model: plotModel,
           originOpenPlotOptions: props.originOpenPlotOptions,
           plotAxisSettings: props.plotAxisSettings,
           plotType: props.plotType,

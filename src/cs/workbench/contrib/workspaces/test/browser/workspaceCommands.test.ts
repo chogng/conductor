@@ -1,7 +1,7 @@
 import assert from "assert";
 
 import { Event } from "../../../../../base/common/event.ts";
-import { Disposable } from "../../../../../base/common/lifecycle.ts";
+import { Disposable, type IDisposable } from "../../../../../base/common/lifecycle.ts";
 import { URI } from "../../../../../base/common/uri.ts";
 import {
   IFileDialogService,
@@ -9,8 +9,9 @@ import {
 } from "../../../../../platform/dialogs/common/dialogs.ts";
 import {
   FileType,
-  IFileService,
-  type IFileContent,
+	  IFileService,
+	  type IFileChange,
+	  type IFileContent,
   type IFileService as IFileServiceType,
   type IFileStat,
   type IFileSystemProvider,
@@ -173,13 +174,19 @@ suite("workbench/contrib/workspaces/test/browser/workspaceCommands", () => {
 });
 
 function createPathService(userHome: URI): IPathServiceType {
+  function resolveUserHome(options: { preferLocal: true }): URI;
+  function resolveUserHome(options?: { preferLocal: boolean }): Promise<URI>;
+  function resolveUserHome(options?: { preferLocal: boolean }): URI | Promise<URI> {
+    return options?.preferLocal ? userHome : Promise.resolve(userHome);
+  }
+
   return {
     _serviceBrand: undefined,
     defaultUriScheme: "file",
     fileURI: async (path: string) => URI.file(path),
     path: Promise.resolve({} as IPathServiceType["path"] extends Promise<infer T> ? T : never),
     resolvedUserHome: userHome,
-    userHome: () => userHome,
+    userHome: resolveUserHome,
   };
 }
 
@@ -240,7 +247,7 @@ class TestStorageService extends AbstractStorageService implements IStorageServi
 
 class TestFileService implements IFileServiceType {
   public readonly _serviceBrand = undefined;
-  public readonly onDidFilesChange = Event.None;
+  public readonly onDidFilesChange = Event.None as Event<readonly IFileChange[]>;
   private readonly existingResources: Set<string>;
 
   constructor(
@@ -250,7 +257,7 @@ class TestFileService implements IFileServiceType {
     this.existingResources = new Set(existingResources.map(resource => resource.toString()));
   }
 
-  public registerProvider(_scheme: string, _provider: IFileSystemProvider): Disposable {
+  public registerProvider(_scheme: string, _provider: IFileSystemProvider): IDisposable {
     return Disposable.None;
   }
 
@@ -289,7 +296,7 @@ class TestFileService implements IFileServiceType {
     });
   }
 
-  public watch(_resource: URI, _options?: IWatchOptions): Disposable {
+  public watch(_resource: URI, _options?: IWatchOptions): IDisposable {
     return Disposable.None;
   }
 }

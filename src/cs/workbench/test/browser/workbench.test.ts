@@ -20,6 +20,7 @@ import type {
   ImportedFileRecord,
 } from "src/cs/workbench/services/files/common/files";
 import { DEFAULT_ORIGIN_PLOT_OPTIONS } from "src/cs/workbench/services/origin/common/originPlotOptions";
+import type { PlotDisplayModel } from "src/cs/workbench/services/plot/common/plot";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { createProcessedFileSessionCommit } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import { createSessionReadModel } from "src/cs/workbench/services/session/common/sessionReadModel";
@@ -315,10 +316,11 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       },
     ]);
     session.commitRawTableAssessment({
-      blocks: [{
-        columnCount: 2,
-        columns: { columns: [] },
-        family: "iv",
+	      blocks: [{
+	        columnCount: 2,
+	        columns: { columns: [] },
+	        diagnosticCodes: [],
+	        family: "iv",
         fileId: "ready-file",
         id: "ready-block",
         ivMode: "transfer",
@@ -473,20 +475,10 @@ suite("workbench/browser/workbench search plot model", () => {
     const prefetches: Array<{ readonly fileId: string | null; readonly priority: string }> = [];
     let cachedReady = false;
     const snapshot = new SessionService().getSnapshot();
-    const plotService = {
-      getCachedPlotDisplayModel: ({ fileId }: { readonly fileId?: string | null }) => cachedReady
-        ? {
-            chart: {
-              model: {
-                seriesList: [],
-              },
-            },
-            fileId: fileId ?? "file-a",
-            inspector: null,
-            plotType: "iv",
-            unitControl: null,
-          }
-        : null,
+	    const plotService = {
+	      getCachedPlotDisplayModel: ({ fileId }: { readonly fileId?: string | null }) => cachedReady
+	        ? createPlotDisplayModelForTest(fileId ?? "file-a")
+	        : null,
       prefetchPlotDisplayModel: (
         input: { readonly fileId?: string | null },
         priority: string,
@@ -790,6 +782,43 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
   });
 });
 
+const createPlotDisplayModelForTest = (fileId: string): PlotDisplayModel => ({
+  chart: {
+    defaultXAxisTitle: "X",
+    defaultYAxisTitle: "Y",
+    model: {
+      axisLabels: null,
+      pointsCount: 0,
+      seriesList: [],
+      xDomain: [0, 1],
+      xUnitLabel: "V",
+      yDomain: [0, 1],
+      yUnitLabel: "A",
+    },
+    plotXFactor: 1,
+    plotYFactor: 1,
+    xAxisTitle: "X",
+    xAxisTitleContext: {
+      axis: "x",
+      fileId,
+      pane: "chart",
+      plotType: "iv",
+    },
+    yAxisTitle: "Y",
+    yAxisTitleContext: {
+      axis: "y",
+      fileId,
+      pane: "chart",
+      plotType: "iv",
+    },
+    yScaleMode: "linear",
+  },
+  fileId,
+  inspector: null,
+  plotType: "iv",
+  unitControl: null,
+});
+
 const createPlotService = (): Parameters<typeof createExplorerPaneInput>[0]["plotService"] => ({
   getCalculatedData: ({ fileId }) => {
     const normalizedFileId = String(fileId ?? "").trim();
@@ -847,9 +876,9 @@ const createDomainBridgeOptionsForTest = ({
   readonly session: SessionService;
   readonly thumbnailPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
 }): ConstructorParameters<typeof WorkbenchDomainBridge>[0] => ({
-  assessmentQueueService: {
-    prioritizeRawTables: () => undefined,
-  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["assessmentQueueService"],
+	  assessmentQueueService: {
+	    prioritizeRawTables: () => undefined,
+	  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["assessmentQueueService"],
   calculationService: {
     prioritizeCalculationFile: fileId => {
       if (fileId) {
@@ -879,20 +908,10 @@ const createDomainBridgeOptionsForTest = ({
     onDidChangeWorkbenchNavigation: Event.None,
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["layoutService"],
   plotService: {
-    ...createPlotService(),
-    getCachedPlotDisplayModel: ({ fileId }) => (cachedPlotDisplayFileIds ?? []).includes(String(fileId ?? "").trim())
-      ? {
-          chart: {
-            model: {
-              seriesList: [],
-            },
-          },
-          fileId: String(fileId ?? "").trim(),
-          inspector: null,
-          plotType: "iv",
-          unitControl: null,
-        }
-      : null,
+	    ...createPlotService(),
+	    getCachedPlotDisplayModel: ({ fileId }) => (cachedPlotDisplayFileIds ?? []).includes(String(fileId ?? "").trim())
+	      ? createPlotDisplayModelForTest(String(fileId ?? "").trim())
+	      : null,
     getState: () => ({ activePlotType: "iv" }),
     onDidChangePlotState: Event.None,
     prefetchCalculatedData: (fileIds, priority) => {
@@ -917,26 +936,26 @@ const createDomainBridgeOptionsForTest = ({
     },
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["plotService"],
   sessionService: session,
-  settingsService: {
-    getConductorSettings: () => undefined,
-    onDidChangeConductorSettings: Event.None,
-  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["settingsService"],
-  tableService: {
-    getViewInput: () => null,
-    open: () => undefined,
-  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["tableService"],
+	  settingsService: {
+	    getConductorSettings: () => undefined,
+	    onDidChangeConductorSettings: Event.None,
+	  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["settingsService"],
+	  tableService: {
+	    getViewInput: () => null,
+	    open: () => undefined,
+	  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["tableService"],
   templateApplyWorkflowService: {
     getFileApplyStates: () => new Map(),
     onDidChangeFileStates: Event.None,
     onDidChangeProcessingStatus: Event.None,
-    prioritizeProcessingFile: fileId => prioritizedTemplateFileIds.push(fileId),
+	    prioritizeProcessingFile: (fileId: string) => prioritizedTemplateFileIds.push(fileId),
     processingStatus: {
       processed: 0,
       state: "processing",
       total: 0,
-    },
-    update: () => undefined,
-  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["templateApplyWorkflowService"],
+	    },
+	    update: () => undefined,
+	  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["templateApplyWorkflowService"],
   templateService: {
     getState: () => ({
       formState: createEmptyTemplateConfig(),
@@ -944,10 +963,10 @@ const createDomainBridgeOptionsForTest = ({
       selectedTemplateId: null,
       selectionsByFileId: {},
       templateListVersion: 0,
-    }),
-    onDidChangeTemplateState: Event.None,
-    updateViewInput: () => undefined,
-  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["templateService"],
+	    }),
+	    onDidChangeTemplateState: Event.None,
+	    updateViewInput: () => undefined,
+	  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["templateService"],
   thumbnailPreviewService: {
     prefetch: (fileIds, priority) => {
       thumbnailPrefetches?.push({

@@ -381,7 +381,6 @@ suite("workbench/services/export/browser/csvExport", () => {
     });
 
     const axis = jobs[0].capabilities?.axis;
-    assert.equal(axis?.commands, undefined);
     assert.deepEqual(axis?.appearance, {
       x: {
         showGrid: false,

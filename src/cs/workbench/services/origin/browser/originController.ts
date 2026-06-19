@@ -70,13 +70,13 @@ export type OriginCsvJob = JsonRecord & {
   };
 };
 
+type OriginActionCapabilities = ReturnType<typeof buildOriginCapabilitiesFromActions>;
+
 export type OriginCsvJobCapabilities = {
-  axis?: JsonRecord;
+  axis?: OriginActionCapabilities["axis"];
   import?: JsonRecord;
   plot?: JsonRecord;
-  style?: {
-    commands: string[];
-  };
+  style?: OriginActionCapabilities["style"];
 };
 
 export type OriginPayloadBuilder = (options?: {

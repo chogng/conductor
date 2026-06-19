@@ -14,9 +14,10 @@ suite("workbench/contrib/plot/test/browser/plotMainView", () => {
   test("maps persisted axis drawing settings into chart props", () => {
     const props = createPlotMainChartProps({
       model: createPlotModel(),
-      originOpenPlotOptions: {
-        command: "",
-        lineWidth: 3,
+	      originOpenPlotOptions: {
+	        command: "",
+	        legendFontSize: 18,
+	        lineWidth: 3,
         postCommands: [],
         symbolShape: 5,
         type: 202,

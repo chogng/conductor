@@ -121,9 +121,10 @@ self.onmessage = (event: MessageEvent<PlotWorkerRequest>): void => {
   const payload = message.payload;
   try {
     if (message.type === "calculateDisplayModel") {
-      const calculatedData = payload?.calculatedData ?? null;
-      const fileId = String(payload?.fileId ?? calculatedData?.source.fileId ?? "").trim();
-      const plotType = payload?.plotType ?? calculatedData?.kind;
+      const displayPayload: PlotDisplayModelWorkerRequest["payload"] = message.payload;
+      const calculatedData = displayPayload?.calculatedData ?? null;
+      const fileId = String(displayPayload?.fileId ?? calculatedData?.source.fileId ?? "").trim();
+      const plotType = displayPayload?.plotType ?? calculatedData?.kind;
       if (!fileId || !plotType) {
         throw new Error("Plot worker display request is missing file or plot type.");
       }
@@ -131,26 +132,27 @@ self.onmessage = (event: MessageEvent<PlotWorkerRequest>): void => {
       self.postMessage({
         payload: {
           displayModel: createPlotDisplayModelFromCalculatedData({
-            axisSettings: payload?.axisSettings,
-            axisTitleOverridesByKey: payload?.axisTitleOverridesByKey,
+            axisSettings: displayPayload?.axisSettings,
+            axisTitleOverridesByKey: displayPayload?.axisTitleOverridesByKey,
             calculatedData,
-            hiddenLegendKeys: payload?.hiddenLegendKeys,
-            includeInspector: payload?.includeInspector,
-            legendLabels: payload?.legendLabels,
+            hiddenLegendKeys: displayPayload?.hiddenLegendKeys,
+            includeInspector: displayPayload?.includeInspector,
+            legendLabels: displayPayload?.legendLabels,
           }),
           fileId,
           plotType: plotType as PlotType,
-          requestId: toInteger(payload?.requestId, 0),
-          sessionVersion: toInteger(payload?.sessionVersion, 0),
+          requestId: toInteger(displayPayload?.requestId, 0),
+          sessionVersion: toInteger(displayPayload?.sessionVersion, 0),
         },
         type: "calculateDisplayModelResult",
       } satisfies PlotDisplayModelWorkerResult);
       return;
     }
 
-    const file = payload?.file;
-    const fileId = String(payload?.fileId ?? file?.id ?? "").trim();
-    const plotType = payload?.plotType;
+    const calculatedPayload: PlotCalculatedDataWorkerRequest["payload"] = message.payload;
+    const file = calculatedPayload?.file;
+    const fileId = String(calculatedPayload?.fileId ?? file?.id ?? "").trim();
+    const plotType = calculatedPayload?.plotType;
     if (!file || !fileId || !plotType) {
       throw new Error("Plot worker request is missing file or plot type.");
     }
@@ -164,8 +166,8 @@ self.onmessage = (event: MessageEvent<PlotWorkerRequest>): void => {
         calculatedData,
         fileId,
         plotType,
-        requestId: toInteger(payload?.requestId, 0),
-        sessionVersion: toInteger(payload?.sessionVersion, 0),
+        requestId: toInteger(calculatedPayload?.requestId, 0),
+        sessionVersion: toInteger(calculatedPayload?.sessionVersion, 0),
       },
       type: "calculateDataResult",
     } satisfies PlotCalculatedDataWorkerResult);

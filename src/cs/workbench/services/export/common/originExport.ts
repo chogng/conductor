@@ -22,13 +22,15 @@ import {
 } from "src/cs/workbench/services/calculation/common/calculationCacheAccess";
 import { resolveOriginLogPositiveMinForRange } from "src/cs/workbench/services/export/common/originAxisRange";
 
+type ProcessedNumberArrayLike = readonly number[] | Float64Array;
+
 type ProcessedSeriesLike = {
   groupIndex?: number;
   id?: string;
   label?: string;
   name?: string;
   legendValue?: unknown;
-  y?: number[];
+  y?: ProcessedNumberArrayLike;
   yCol?: number;
 };
 
@@ -42,8 +44,8 @@ type ProcessedEntryLike = {
   xLabel?: string;
   xUnit?: string;
   xAxisRole?: string;
-  xGroups?: number[][];
-  series?: ProcessedSeriesLike[];
+  xGroups?: readonly ProcessedNumberArrayLike[];
+  series?: readonly ProcessedSeriesLike[];
   yLabel?: string;
   yUnit?: string;
   originExportPlotCommand?: string;
@@ -378,9 +380,14 @@ const resolveAxisTitleWithUnit = (
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 
+const mapNumberArray = (
+  values: ProcessedNumberArrayLike,
+  callback: (value: number) => number,
+): number[] => Array.from(values, (value) => callback(Number(value)));
+
 const buildPoints = (
-  xArr?: number[],
-  yArr?: number[],
+  xArr?: ProcessedNumberArrayLike,
+  yArr?: ProcessedNumberArrayLike,
 ): Array<{ x: number; y: number }> => {
   if (!xArr || !yArr) return [];
 
@@ -563,8 +570,10 @@ const buildOriginCurveEntriesForCanvas = (
       const yArr = series?.y;
       const rowCount = Math.min(xArr?.length ?? 0, yArr?.length ?? 0);
       if (!xArr || !yArr || rowCount <= 0) return null;
-      const scaledYArr =
-        yScaleFactor === 1 ? yArr.map((value) => Number(value)) : yArr.map((value) => Number(value) * yScaleFactor);
+      const scaledYArr = mapNumberArray(
+        yArr,
+        (value) => value * yScaleFactor,
+      );
       const exportYArr = scaledYArr.map((value) =>
         Number.isFinite(value) ? resolveYValueForOriginFile(file, value) : value,
       );
@@ -573,7 +582,10 @@ const buildOriginCurveEntriesForCanvas = (
         fileId: String(file?.fileId ?? canvasLabel),
         label: resolveCurveLabel(series, index),
         rowCount,
-        xArr: xScaleFactor === 1 ? xArr : xArr.map((value) => Number(value) * xScaleFactor),
+        xArr: mapNumberArray(
+          xArr,
+          (value) => value * xScaleFactor,
+        ),
         yArr: exportYArr,
         xLongName,
         xUnits,
@@ -974,8 +986,8 @@ const cloneSeriesWithDerivedY = (
 
 const buildDerivedSeriesList = (
   file: ProcessedEntryLike,
-  xGroups: number[][],
-  seriesList: ProcessedSeriesLike[],
+  xGroups: readonly ProcessedNumberArrayLike[],
+  seriesList: readonly ProcessedSeriesLike[],
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries,
   deriveY: (
     series: ProcessedSeriesLike,

@@ -5,8 +5,8 @@ import {
   type DomainRecord,
   type FileRecord,
   type IvCurveMode,
-  type MeasurementBlockRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
+import type { MeasurementBlockRecord } from "src/cs/workbench/services/assessment/common/measurement";
 import type {
   ProcessedEntry,
   ProcessedSeries,

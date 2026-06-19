@@ -2051,7 +2051,9 @@ const createTableModel = ({
       }
 
       const autoScaleExponent = chooseColumnScaleExponentFromCells(numericSamples);
-      const scaleExponent = Number.isInteger(overrideScaleExponent)
+      const hasManualScaleExponent =
+        typeof overrideScaleExponent === "number" && Number.isInteger(overrideScaleExponent);
+      const scaleExponent = hasManualScaleExponent
         ? clampColumnDisplayScaleExponent(overrideScaleExponent)
         : autoScaleExponent;
       const profile: ColumnDisplayProfile = {
@@ -2059,7 +2061,7 @@ const createTableModel = ({
         columnId: String(normalizedColIndex),
         mode: "columnScale",
         isNumericColumn: true,
-        isScaleManual: Number.isInteger(overrideScaleExponent) || undefined,
+        isScaleManual: hasManualScaleExponent || undefined,
         scaleExponent,
         headerSuffix: toScaleHeaderSuffix(scaleExponent),
         significantDigits: DEFAULT_TABLE_DISPLAY_SIGNIFICANT_DIGITS,

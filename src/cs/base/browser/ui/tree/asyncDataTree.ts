@@ -3,7 +3,7 @@ import {
   ObjectTree,
   type IObjectTreeOptions,
 } from "src/cs/base/browser/ui/tree/objectTree";
-import type { IAsyncDataSource } from "src/cs/base/browser/ui/tree/tree";
+import type { IAsyncDataSource, ITreeNode } from "src/cs/base/browser/ui/tree/tree";
 
 export type IAsyncDataTreeOptions<TInput, T> =
   Omit<IObjectTreeOptions<T>, "getChildren" | "items"> & {
@@ -92,14 +92,32 @@ export class AsyncDataTree<TInput, T> implements ListHandle {
     const options = this.options;
 
     return {
-      ...options,
+      className: options.className,
+      collapsedKeys: options.collapsedKeys,
       delegate: {
         getHeight: (node) => options.delegate.getHeight(node.element),
       },
+      disposeEmpty: options.disposeEmpty,
+      empty: options.empty,
       expandOnlyOnTwistieClick: this.mapExpandOnlyOnTwistieClick(),
+      gap: options.gap,
       getChildren: (node) => node.children,
       getKey: (node, index, depth) => options.getKey(node.element, index, depth),
       items,
+      minVirtualCount: options.minVirtualCount,
+      onDidChangeCollapseState: options.onDidChangeCollapseState,
+      onDidRenderRange: options.onDidRenderRange
+        ? (event) => options.onDidRenderRange?.({
+            rendered: event.rendered.map(node => this.toTreeNode(node)),
+            renderedEnd: event.renderedEnd,
+            renderedStart: event.renderedStart,
+            visible: event.visible.map(node => this.toTreeNode(node)),
+            visibleEnd: event.visibleEnd,
+            visibleStart: event.visibleStart,
+          })
+        : undefined,
+      onKeyDown: options.onKeyDown,
+      onScroll: options.onScroll,
       onSelect: options.onSelect
         ? (event) =>
             options.onSelect?.({
@@ -136,8 +154,22 @@ export class AsyncDataTree<TInput, T> implements ListHandle {
                 container,
               )
           : undefined,
+        disposeTemplate: options.renderer.disposeTemplate,
+        renderTemplate: options.renderer.renderTemplate,
       },
+      overscanRows: options.overscanRows,
       selectedKey: options.selectedKey,
+      viewportClassName: options.viewportClassName,
+    };
+  }
+
+  private toTreeNode(node: ITreeNode<AsyncDataTreeNode<T>>): ITreeNode<T> {
+    return {
+      children: node.element.children.map(child => child.element),
+      collapsible: node.collapsible,
+      collapsed: node.collapsed,
+      depth: node.depth,
+      element: node.element.element,
     };
   }
 

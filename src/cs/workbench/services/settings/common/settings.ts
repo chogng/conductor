@@ -25,7 +25,7 @@ import {
   type NumericDisplayMode,
 } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 
-export type { OriginCleanupResult, OriginHealthResult };
+export type { NumericDisplayMode, OriginCleanupResult, OriginHealthResult };
 
 export type FilesExplorerDensity = "compact" | "default" | "comfortable";
 export type FilesExplorerBadgeColor =

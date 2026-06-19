@@ -68,7 +68,7 @@ type OriginExportFile = {
   readonly fileName?: string;
   readonly series?: ProcessedEntry["series"];
   readonly xAxisRole?: string;
-  readonly xGroups?: number[][];
+  readonly xGroups?: ProcessedEntry["xGroups"];
   readonly xLabel?: string;
   readonly xUnit?: string;
   readonly yLabel?: string;

@@ -41,12 +41,17 @@ suite("workbench/services/appearance/common/appearance", () => {
   });
 
   test("falls back invalid Explorer appearance settings", () => {
-    assert.deepStrictEqual(getWorkbenchAppearanceSnapshot({
+    const invalidSettings = {
       filesExplorerBadgeColors: {
         output: "magenta",
       },
       filesExplorerDensity: "wide",
       filesExplorerShowBadges: "false",
-    }).explorer, DEFAULT_EXPLORER_APPEARANCE);
+    } as unknown as Parameters<typeof getWorkbenchAppearanceSnapshot>[0];
+
+    assert.deepStrictEqual(
+      getWorkbenchAppearanceSnapshot(invalidSettings).explorer,
+      DEFAULT_EXPLORER_APPEARANCE,
+    );
   });
 });

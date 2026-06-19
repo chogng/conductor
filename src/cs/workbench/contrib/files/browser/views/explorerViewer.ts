@@ -247,6 +247,11 @@ type HoverThumbnailCacheEntry = {
   lastUsed: number;
 };
 
+type ThumbnailGridItemCacheEntry = {
+  readonly node: HTMLButtonElement;
+  thumbnail: HTMLElement;
+};
+
 const hasFileItemAssessment = (
   fileEntry: ExplorerFileEntry,
   reasons: readonly string[],
@@ -602,13 +607,14 @@ export class ExplorerViewer implements IDisposable {
   private readonly treeView: ObjectTree<FileTreeNode, TreeItemTemplate>;
   private readonly thumbnailHost: HTMLDivElement;
   private readonly hoverThumbnailCache = new Map<string, HoverThumbnailCacheEntry>();
+  private readonly thumbnailGridItemCache = new Map<string, ThumbnailGridItemCacheEntry>();
   private hoverView: IOpenContextView | null = null;
   private hoverContainer: HTMLElement | null = null;
   private hoverAnchor: HTMLElement | null = null;
   private hoverContent: HoverContent | null = null;
   private hoverHideTimeout: ReturnType<typeof setTimeout> | null = null;
   private hoverLayoutFrame: number | null = null;
-  private thumbnailGridRenderFrame: number | null = null;
+  private thumbnailVisibleFileIds: readonly string[] = [];
   private hoverViewToken = 0;
   private hoverCacheUse = 0;
   private explorerAppearance: ExplorerAppearance = DEFAULT_EXPLORER_APPEARANCE;
@@ -681,7 +687,7 @@ export class ExplorerViewer implements IDisposable {
         this.refreshCachedHoverThumbnail(event.fileId);
       }
       if (getEffectiveViewLayout(this.props) === "thumbnail") {
-        this.scheduleThumbnailGridRender();
+        this.refreshThumbnailGridItem(event.fileId);
       }
     }));
   }
@@ -865,9 +871,9 @@ export class ExplorerViewer implements IDisposable {
   dispose(): void {
     this.cancelFileItemHoverHide();
     this.cancelFileItemHoverLayout();
-    this.cancelThumbnailGridRender();
     this.closeFileItemHoverView();
     this.clearHoverThumbnailCache();
+    this.clearThumbnailGridCache();
     this.disposables.dispose();
   }
 
@@ -1537,15 +1543,43 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private renderThumbnailGrid(): void {
+    const files = this.getThumbnailFiles();
     if (getEffectiveViewLayout(this.props) !== "thumbnail") {
-      this.thumbnailHost.replaceChildren();
+      this.thumbnailVisibleFileIds = [];
+      this.pruneThumbnailGridCache(files);
       return;
     }
 
-    const files = this.getThumbnailFiles();
-    this.thumbnailHost.replaceChildren(
-      ...files.map(file => this.createThumbnailItem(file)),
-    );
+    this.publishThumbnailVisibleFileIds(files);
+
+    const nextKeys = new Set<string>();
+    const nodes: HTMLButtonElement[] = [];
+    files.forEach((file, index) => {
+      const key = createThumbnailGridItemKey(file, index);
+      nextKeys.add(key);
+
+      let entry = this.thumbnailGridItemCache.get(key);
+      if (!entry) {
+        entry = this.createThumbnailItem(key);
+        this.thumbnailGridItemCache.set(key, entry);
+      }
+
+      this.updateThumbnailItem(entry, file, "request");
+      nodes.push(entry.node);
+    });
+
+    for (const [key, entry] of this.thumbnailGridItemCache) {
+      if (nextKeys.has(key)) {
+        continue;
+      }
+
+      entry.node.remove();
+      this.thumbnailGridItemCache.delete(key);
+    }
+
+    if (!areSameChildNodes(this.thumbnailHost, nodes)) {
+      this.thumbnailHost.replaceChildren(...nodes);
+    }
   }
 
   private getThumbnailFiles(): ThumbnailFileLike[] {
@@ -1572,20 +1606,46 @@ export class ExplorerViewer implements IDisposable {
     return thumbnailFiles.filter(file => fileIds.has(String(file.fileId ?? "").trim()));
   }
 
-  private createThumbnailItem(file: ThumbnailFileLike): HTMLButtonElement {
-    const fileName = String(file.fileName ?? file.fileId ?? "");
-    const fileId = String(file.fileId ?? "").trim();
-    const previewState = this.getThumbnailPreviewState(fileId, "visible");
-    const plotModel = getPreviewPlotModel(previewState) ?? this.getThumbnailPlotModel(fileId);
-    const isLoading = previewState.kind === "loading" && !plotModel;
+  private createThumbnailItem(key: string): ThumbnailGridItemCacheEntry {
     const item = document.createElement("button");
     item.type = "button";
     item.className = "file-list-thumbnail-item";
-    item.setAttribute(
+    item.dataset.thumbnailKey = key;
+    item.addEventListener("click", () => {
+      this.props.onSelectFile(String(item.dataset.fileId ?? "").trim() || null);
+    });
+    return {
+      node: item,
+      thumbnail: document.createElement("div"),
+    };
+  }
+
+  private updateThumbnailItem(
+    entry: ThumbnailGridItemCacheEntry,
+    file: ThumbnailFileLike,
+    previewReadMode: "get" | "request",
+  ): void {
+    const fileName = String(file.fileName ?? file.fileId ?? "");
+    const fileId = String(file.fileId ?? "").trim();
+    const previewState = previewReadMode === "request"
+      ? this.getThumbnailPreviewState(fileId, "visible")
+      : this.props.thumbnailPreviewService.get(fileId);
+    const previewPlotModel = getPreviewPlotModel(previewState);
+    const plotModel = previewPlotModel ??
+      this.getThumbnailPlotModel(fileId) ??
+      this.getCachedHoverThumbnailPlotModel(fileId);
+    const isLoading = previewState.kind === "loading" && !plotModel;
+    entry.node.setAttribute(
       "aria-label",
       localize("files.import.fileItemAriaLabel", "File {fileName}", { fileName }),
     );
-    item.append(createThumbnailView({
+    if (fileId) {
+      entry.node.dataset.fileId = fileId;
+    } else {
+      delete entry.node.dataset.fileId;
+    }
+
+    const thumbnailProps = {
       file,
       isLoading,
       isActive: fileId === (this.props.selectedFileId ?? null),
@@ -1594,29 +1654,61 @@ export class ExplorerViewer implements IDisposable {
       plotModel,
       plotType: this.props.activePlotType ?? "iv",
       thumbnailService: this.props.thumbnailService,
-    }));
-    item.addEventListener("click", () => this.props.onSelectFile(fileId || null));
-    return item;
+    };
+    if (!entry.thumbnail.classList.contains("thumbnail_view")) {
+      entry.thumbnail = createThumbnailView(thumbnailProps);
+    } else if (!updateThumbnailView(entry.thumbnail, thumbnailProps)) {
+      const nextThumbnail = createThumbnailView(thumbnailProps);
+      entry.thumbnail.replaceWith(nextThumbnail);
+      entry.thumbnail = nextThumbnail;
+    }
+
+    if (entry.thumbnail.parentElement !== entry.node) {
+      entry.node.replaceChildren(entry.thumbnail);
+    }
   }
 
-  private scheduleThumbnailGridRender(): void {
-    if (this.thumbnailGridRenderFrame !== null) {
+  private refreshThumbnailGridItem(fileId: string): void {
+    const normalizedFileId = String(fileId ?? "").trim();
+    if (!normalizedFileId) {
       return;
     }
 
-    this.thumbnailGridRenderFrame = requestAnimationFrame(() => {
-      this.thumbnailGridRenderFrame = null;
-      this.renderThumbnailGrid();
-    });
-  }
-
-  private cancelThumbnailGridRender(): void {
-    if (this.thumbnailGridRenderFrame === null) {
+    const entry = this.thumbnailGridItemCache.get(normalizedFileId);
+    const file = getThumbnailFileLikeFromProps(normalizedFileId, this.props);
+    if (!entry || !file) {
       return;
     }
 
-    cancelAnimationFrame(this.thumbnailGridRenderFrame);
-    this.thumbnailGridRenderFrame = null;
+    this.updateThumbnailItem(entry, file, "get");
+  }
+
+  private publishThumbnailVisibleFileIds(files: readonly ThumbnailFileLike[]): void {
+    if (!this.props.onVisibleFileIdsChange) {
+      return;
+    }
+
+    const visibleFileIds = files
+      .map(file => String(file.fileId ?? "").trim())
+      .filter(fileId => fileId.length > 0);
+    if (areStringArraysEqual(this.thumbnailVisibleFileIds, visibleFileIds)) {
+      return;
+    }
+
+    this.thumbnailVisibleFileIds = visibleFileIds;
+    this.props.onVisibleFileIdsChange(visibleFileIds, []);
+  }
+
+  private pruneThumbnailGridCache(files: readonly ThumbnailFileLike[]): void {
+    const keys = new Set(files.map((file, index) => createThumbnailGridItemKey(file, index)));
+    for (const [key, entry] of this.thumbnailGridItemCache) {
+      if (keys.has(key)) {
+        continue;
+      }
+
+      entry.node.remove();
+      this.thumbnailGridItemCache.delete(key);
+    }
   }
 
   private createFileItemTemplate(host: HTMLElement): FileItemTemplate {
@@ -2356,6 +2448,13 @@ export class ExplorerViewer implements IDisposable {
       : null;
   }
 
+  private getCachedHoverThumbnailPlotModel(fileId: string): ExplorerThumbnailPlotModel | null {
+    const normalizedFileId = String(fileId ?? "").trim();
+    return normalizedFileId
+      ? this.hoverThumbnailCache.get(normalizedFileId)?.plotModel ?? null
+      : null;
+  }
+
   private getThumbnailPreviewState(
     fileId: string,
     priority: "hover" | "visible",
@@ -2485,6 +2584,13 @@ export class ExplorerViewer implements IDisposable {
       entry.node.remove();
     }
     this.hoverThumbnailCache.clear();
+  }
+
+  private clearThumbnailGridCache(): void {
+    for (const entry of this.thumbnailGridItemCache.values()) {
+      entry.node.remove();
+    }
+    this.thumbnailGridItemCache.clear();
   }
 
   private shouldClearThumbnailPlotCache(
@@ -2701,6 +2807,39 @@ function getThumbnailHoverPlotModelSource(
   return fallbackPlotModel ? "explorer" : "none";
 }
 
+function createThumbnailGridItemKey(
+  file: ThumbnailFileLike,
+  index: number,
+): string {
+  const fileId = String(file.fileId ?? "").trim();
+  if (fileId) {
+    return fileId;
+  }
+
+  return [
+    "__thumbnail",
+    index,
+    String(file.fileName ?? "").trim(),
+  ].join("\u001f");
+}
+
+function areSameChildNodes(
+  container: HTMLElement,
+  nodes: readonly HTMLElement[],
+): boolean {
+  if (container.childElementCount !== nodes.length) {
+    return false;
+  }
+
+  for (let index = 0; index < nodes.length; index += 1) {
+    if (container.children[index] !== nodes[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function createHoverThumbnailFileSignature(file: ThumbnailFileLike): string {
   return [
     file.fileId ?? "",
@@ -2813,11 +2952,15 @@ function isSameHoverContent(
     return false;
   }
 
-  if (left.kind === "thumbnail") {
+  if (left.kind === "thumbnail" && right.kind === "thumbnail") {
     return (
       left.fileId === right.fileId &&
       left.isSelected === right.isSelected
     );
+  }
+
+  if (left.kind !== "assessment" || right.kind !== "assessment") {
+    return false;
   }
 
   return (

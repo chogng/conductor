@@ -169,9 +169,9 @@ const countArrayLength = (value: unknown): number => {
 
   if (
     ArrayBuffer.isView(value) &&
-    typeof (value as { readonly length?: unknown }).length === "number"
+    typeof (value as unknown as { readonly length?: unknown }).length === "number"
   ) {
-    return (value as { readonly length: number }).length;
+    return (value as unknown as { readonly length: number }).length;
   }
 
   return 0;

@@ -7,6 +7,7 @@ import {
   readThumbnailHoverDomState,
   runTemplateApplyForThumbnailHover,
   waitForApplyAllReady,
+  waitForTemplateApplyProcessingVisible,
   waitForTemplateProcessingBatch,
 } from "./templateApplyPerformanceTrace/apply.mjs";
 import { defaultOutputRoot } from "./templateApplyPerformanceTrace/constants.mjs";
@@ -269,18 +270,7 @@ const main = async () => {
       });
       await getApplyAllButton(runtime.page).click();
       await phaseRecorder.mark("apply.click.end");
-      await runtime.page.waitForFunction(
-        () => [...document.querySelectorAll(".file-list-item[data-file-id]")]
-          .some(item => {
-            const state = item.dataset.chartState;
-            return state === "queued" ||
-              state === "processing" ||
-              state === "ready" ||
-              state === "skipped";
-          }),
-        undefined,
-        { timeout: options.timeoutMs },
-      );
+      await waitForTemplateApplyProcessingVisible(runtime.page, options.timeoutMs);
       await phaseRecorder.mark("apply.processing-visible");
       const afterClick = await readThumbnailHoverDomState(runtime.page);
       let processingBatchMs = null;
@@ -408,6 +398,7 @@ const main = async () => {
         });
         thumbnailApply = await runTemplateApplyForThumbnailHover({
           expectedReadyCount: options.thumbnailHoverCount,
+          expectedTargetCount: Math.min(options.thumbnailHoverCount, options.fileCount),
           page: runtime.page,
           timeoutMs: options.timeoutMs,
         });
@@ -438,6 +429,7 @@ const main = async () => {
         });
         thumbnailApply = await runTemplateApplyForThumbnailHover({
           expectedReadyCount: options.fileSwitchCount,
+          expectedTargetCount: Math.min(options.fileSwitchCount, options.fileCount),
           page: runtime.page,
           timeoutMs: options.timeoutMs,
         });

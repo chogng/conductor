@@ -418,7 +418,7 @@ export class BrowserThumbnailPreviewService extends Disposable implements IThumb
 				snapshot,
 			})
 			: null;
-		if (displayModel) {
+		if (cachedCalculatedData && displayModel) {
 			return {
 				kind: "fastReady",
 				model: {

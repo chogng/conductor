@@ -33,7 +33,7 @@ export type WorkbenchAppearanceSnapshot = {
 
 const EXPLORER_APPEARANCE_BY_DENSITY: Record<
   FilesExplorerDensity,
-  Omit<ExplorerAppearance, "showBadges">
+  Omit<ExplorerAppearance, "badgeColors" | "showBadges">
 > = {
   compact: {
     actionSize: 22,

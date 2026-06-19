@@ -141,11 +141,11 @@ const createFileImportResultForTest = (fileId: string): FileImportResult => ({
           rowCount: 2,
           rows: {
             kind: "inline",
-            values: [
-              ["Vd", "Id"],
-              [0, 1e-9],
-              [1, 1e-6],
-            ],
+	            values: [
+	              ["Vd", "Id"],
+	              ["0", "1e-9"],
+	              ["1", "1e-6"],
+	            ],
           },
           source: {
             kind: "csv",

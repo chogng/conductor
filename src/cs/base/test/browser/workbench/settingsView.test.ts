@@ -230,6 +230,15 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     },
     handleCheckForUpdates: noop,
     language: "system",
+    numericDisplayModeOptions: [
+      { label: "Raw", value: "raw" },
+      { label: "Smart", value: "smart" },
+    ],
+    numericDisplaySettings: {
+      isSaving: false,
+      mode: "raw",
+      onModeChange: noop,
+    },
     onLanguageChange: noop,
     onNavigateBack: noop,
     onResetLayoutState: noop,

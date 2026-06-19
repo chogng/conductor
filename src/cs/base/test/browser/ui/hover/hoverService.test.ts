@@ -65,12 +65,13 @@ suite("base/test/browser/ui/hover/hoverService", () => {
     let action: Action | undefined;
 
     try {
-      const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
-      setBaseLayerHoverDelegate(hoverService);
+	      const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
+	      setBaseLayerHoverDelegate(hoverService);
 
-      action = new Action("test.action", "Before", undefined, true, () => {
-        action.tooltip = "After";
-      });
+	      action = new Action("test.action", "Before", undefined, true, () => {
+	        assert.ok(action);
+	        action.tooltip = "After";
+	      });
       action.tooltip = "Before";
       actionBar.push(action, { label: false });
       container.appendChild(actionBar.domNode);
