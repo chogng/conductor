@@ -45,6 +45,7 @@ export type ProcessingMessageType = "processFile" | "processFileAuto";
 
 export type PreparedRuleProcessingGroup = {
   extractionConfig: unknown;
+  messageType?: ProcessingMessageType;
   queue: ProcessingQueueItem[];
 };
 
@@ -670,6 +671,7 @@ export const startRuleProcessingJob = ({
       entry,
       extractionConfig: group.extractionConfig,
       groupIndex,
+      messageType: group.messageType ?? "processFile",
     })),
   );
   const finishBatchPerf = startPerf("processing:rule-batch", {
@@ -724,7 +726,7 @@ export const startRuleProcessingJob = ({
 
       const nextTask = ruleQueue.shift();
       if (!nextTask) break;
-      const { entry: nextEntry, extractionConfig, groupIndex } = nextTask;
+      const { entry: nextEntry, extractionConfig, groupIndex, messageType } = nextTask;
       processingQueueRef.current = processingQueueRef.current.filter(
         (entry) => entry.fileId !== nextEntry.fileId,
       );
@@ -737,7 +739,7 @@ export const startRuleProcessingJob = ({
         activeCount,
         fileId: nextEntry.fileId,
         fileName: nextEntry.fileName,
-        mode: "processFile",
+        mode: messageType,
         queuedCount: ruleQueue.length,
         ruleGroupIndex: groupIndex,
       });
@@ -746,7 +748,7 @@ export const startRuleProcessingJob = ({
         startPerf("processing:file-roundtrip", {
           fileId: nextEntry.fileId,
           fileName: nextEntry.fileName,
-          mode: "processFile",
+          mode: messageType,
           ruleGroupIndex: groupIndex,
         }),
       );
@@ -755,7 +757,7 @@ export const startRuleProcessingJob = ({
           const backendProcessed = await tryProcessFileWithBackend({
             entry: nextEntry,
             extractionConfig,
-            messageType: "processFile",
+            messageType,
           });
           if (jobId !== processingJobIdRef.current) return;
           if (backendProcessed) {
@@ -864,7 +866,7 @@ export const startRuleProcessingJob = ({
             return;
           }
           worker.postMessage({
-            type: "processFile",
+            type: messageType,
             payload: {
               assessment: nextEntry.assessment ?? null,
               config: extractionConfig,

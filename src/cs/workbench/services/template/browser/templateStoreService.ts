@@ -4,8 +4,10 @@
 
 import { localize } from "src/cs/nls";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import { ITemplateStoreService } from "src/cs/workbench/services/template/common/templateStore";
-import type { TemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
+import {
+  ITemplateStoreService,
+  type TemplateStoreSaveInput,
+} from "src/cs/workbench/services/template/common/templateStore";
 
 const getServiceUnavailableMessage = (): string =>
   localize("templateStore.desktopBridgeUnavailable", "Template store desktop bridge unavailable.");
@@ -21,7 +23,7 @@ export class BrowserTemplateStoreService implements ITemplateStoreService {
     return unavailable();
   }
 
-  public saveTemplate(_template: TemplateConfig): Promise<unknown> {
+  public saveTemplate(_template: TemplateStoreSaveInput): Promise<unknown> {
     return unavailable();
   }
 

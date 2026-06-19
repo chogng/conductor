@@ -18,6 +18,7 @@ suite("workbench/services/template/test/browser/templateApplyInput", () => {
 				processedFileIds: ["file-b"],
 				rawFiles: [{ fileId: "file-a", fileName: "raw.csv" }],
 			} as SessionReadModel,
+			templateRecords: [{ id: "template-a", name: "Template A" }],
 			templateState: {
 				formState: {},
 				mode: "management",
@@ -37,6 +38,7 @@ suite("workbench/services/template/test/browser/templateApplyInput", () => {
 			kind: "template",
 			templateId: "template-a",
 		});
+		assert.deepEqual(input.templateRecords, [{ id: "template-a", name: "Template A" }]);
 		assert.equal(input.activeFileId, "file-a");
 	});
 });

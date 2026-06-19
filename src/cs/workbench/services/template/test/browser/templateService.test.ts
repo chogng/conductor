@@ -176,6 +176,49 @@ suite("workbench/services/template/browser/templateService", () => {
     sessionEvents.dispose();
   });
 
+  test("sets file template selections through service owner API", () => {
+    const { service } = createTemplateServiceForTest();
+
+    service.setFileTemplateSelection(" file-a ", createTemplateSelection(" template-a "));
+    service.setFileTemplateSelection("file-b", { kind: "auto" });
+    service.setFileTemplateSelection(" ", createTemplateSelection("template-ignored"));
+
+    assert.deepEqual(service.getState().selectionsByFileId, {
+      "file-a": createTemplateSelection("template-a"),
+      "file-b": { kind: "auto" },
+    });
+    service.dispose();
+  });
+
+  test("clears file template selections when deleting a template", async () => {
+    const savedTemplate = {
+      ...createEmptyTemplateConfig({
+        name: "Transfer",
+      }),
+      id: "template-a",
+    };
+    const templateStoreService = createTemplateStoreServiceForTest({
+      templates: [savedTemplate],
+    });
+    const { service } = createTemplateServiceForTest(templateStoreService);
+
+    await service.getTemplates();
+    service.setSelectionsByFileId({
+      "file-a": createTemplateSelection("template-a"),
+      "file-b": createTemplateSelection("template-b"),
+      "file-c": { kind: "auto" },
+    });
+
+    await service.deleteTemplate("template-a");
+
+    assert.deepEqual(service.getState().selectionsByFileId, {
+      "file-b": createTemplateSelection("template-b"),
+      "file-c": { kind: "auto" },
+    });
+    assert.deepEqual(templateStoreService.deletedTemplateIds, ["template-a"]);
+    service.dispose();
+  });
+
   test("delegates template persistence to store service", async () => {
     const template = createEmptyTemplateConfig({
       name: "Transfer",
@@ -191,12 +234,14 @@ suite("workbench/services/template/browser/templateService", () => {
     const { service } = createTemplateServiceForTest(templateStoreService);
 
     assert.deepEqual(await service.getTemplates(), [savedTemplate]);
+    assert.deepEqual(service.getCachedTemplates(), [savedTemplate]);
     assert.equal(await service.saveTemplate(template), savedTemplate);
     assert.equal(service.getState().templateListVersion, 1);
 
     await service.deleteTemplate("template-a");
 
     assert.deepEqual(templateStoreService.deletedTemplateIds, ["template-a"]);
+    assert.deepEqual(service.getCachedTemplates(), []);
     assert.equal(service.getState().templateListVersion, 2);
     service.dispose();
   });

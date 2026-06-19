@@ -49,6 +49,11 @@ export type TemplateRecord = Partial<TemplateConfig> &
     readonly [key: string]: unknown;
   };
 
+export type TemplateSaveInput = TemplateConfig &
+  Partial<{
+    readonly id: string | null;
+  }>;
+
 export type TemplateEditorCancelOptions = {
   readonly fallbackTemplate?: TemplateRecord | null;
   readonly stopOnError?: boolean;
@@ -77,6 +82,7 @@ export type TemplateApplyWorkflowInput = {
   rawFiles?: SessionFile[];
   templateSelection?: TemplateSelection;
   fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
+  templateRecords?: readonly TemplateRecord[];
 };
 
 export type TemplateApplyFileState =
@@ -104,14 +110,16 @@ export interface ITemplateService {
   editTemplate(template: TemplateRecord): boolean;
   exportTemplate(template?: TemplateRecord | TemplateConfig | null): string | null;
   finishTemplateEditor(template: TemplateRecord): void;
+  getCachedTemplates(): readonly TemplateRecord[];
   getTemplates(): Promise<TemplateRecord[]>;
   getState(): TemplateState;
   getViewInput(): TemplateViewInput | null;
   deleteTemplate(id: string): Promise<void>;
-  saveTemplate(template: TemplateConfig): Promise<TemplateRecord>;
+  saveTemplate(template: TemplateSaveInput): Promise<TemplateRecord>;
   setMode: TemplateStateSetter<TemplateMode>;
   setSelectedTemplateId: TemplateStateSetter<string | null>;
   setFormState: TemplateStateSetter<TemplateConfig>;
+  setFileTemplateSelection(fileId: string, selection: TemplateSelection): void;
   setSelectionsByFileId: TemplateStateSetter<TemplateSelectionsByFileId>;
   updateViewInput(input: TemplateViewInput): void;
 }

@@ -2,7 +2,11 @@ import assert from "assert";
 
 import { AUTO_TEMPLATE_ID } from "src/cs/workbench/services/template/common/autoTemplate";
 import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
-import { createTemplateApplyViewState, shouldSyncTemplateEditorTableSelection } from "src/cs/workbench/contrib/template/browser/views/templateView";
+import {
+  createTemplateApplyViewState,
+  resolveTemplateSaveId,
+  shouldSyncTemplateEditorTableSelection,
+} from "src/cs/workbench/contrib/template/browser/views/templateView";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/template/test/browser/templateView", () => {
@@ -60,5 +64,11 @@ suite("workbench/contrib/template/test/browser/templateView", () => {
   test("syncs template table selection only in the template editor", () => {
     assert.equal(shouldSyncTemplateEditorTableSelection("management"), false);
     assert.equal(shouldSyncTemplateEditorTableSelection("editor"), true);
+  });
+
+  test("resolves custom template id for editor saves", () => {
+    assert.equal(resolveTemplateSaveId(" template-a "), "template-a");
+    assert.equal(resolveTemplateSaveId(AUTO_TEMPLATE_ID), undefined);
+    assert.equal(resolveTemplateSaveId(null), undefined);
   });
 });

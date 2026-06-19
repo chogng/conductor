@@ -8,6 +8,7 @@ import {
 	createCurrentTemplateSelectionDisplay,
 	createTemplateSelection,
 	removeTemplateSelectionsForFiles,
+	removeTemplateSelectionsForTemplate,
 	resolveTemplateSelectionForFile,
 } from "src/cs/workbench/services/template/common/templateSelection";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -48,6 +49,23 @@ suite("workbench/services/template/test/common/templateSelection", () => {
 			),
 			{
 				"file-b": createTemplateSelection("template-b"),
+			},
+		);
+	});
+
+	test("removes selections for deleted templates", () => {
+		assert.deepEqual(
+			removeTemplateSelectionsForTemplate(
+				{
+					"file-a": createTemplateSelection("template-a"),
+					"file-b": createTemplateSelection("template-b"),
+					"file-c": { kind: "auto" },
+				},
+				"template-a",
+			),
+			{
+				"file-b": createTemplateSelection("template-b"),
+				"file-c": { kind: "auto" },
 			},
 		);
 	});

@@ -14,7 +14,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 suite("workbench/services/template/common/autoTemplate", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
   test("auto template id is only the special auto extraction option", () => {
-    assert.equal(AUTO_TEMPLATE_ID, "__auto__");
+    assert.equal(AUTO_TEMPLATE_ID, "0");
+    assert.equal(isAutoTemplateId("0"), true);
+    assert.equal(isAutoTemplateId(0), true);
     assert.equal(isAutoTemplateId("__auto__"), true);
     assert.equal(isAutoTemplateId("user-template"), false);
     assert.equal(isAutoTemplateId(null), false);

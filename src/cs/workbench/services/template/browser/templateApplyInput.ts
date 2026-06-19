@@ -13,6 +13,7 @@ export type TemplateApplyInputOptions = {
 	readonly activeFileId?: string | null;
 	readonly hasPendingSourceFiles?: boolean;
 	readonly readModel: SessionReadModel;
+	readonly templateRecords?: TemplateApplyWorkflowInput["templateRecords"];
 	readonly templateState: TemplateState;
 };
 
@@ -20,6 +21,7 @@ export const createTemplateApplyInput = ({
 	activeFileId,
 	hasPendingSourceFiles,
 	readModel,
+	templateRecords,
 	templateState,
 }: TemplateApplyInputOptions): TemplateApplyWorkflowInput => ({
 	activeFileId: normalizeActiveFileId(activeFileId),
@@ -28,6 +30,7 @@ export const createTemplateApplyInput = ({
 	processedFileIds: readModel.processedFileIds,
 	rawFiles: readModel.rawFiles,
 	templateSelection: createTemplateSelection(templateState.selectedTemplateId),
+	templateRecords,
 });
 
 const normalizeActiveFileId = (fileId: string | null | undefined): string | null => {

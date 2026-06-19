@@ -112,7 +112,7 @@ export class WorkbenchDomainBridge extends Disposable {
     this._register(this.options.plotService.onDidChangePlotState(() => this.scheduleSync()));
     this._register(this.options.templateApplyWorkflowService.onDidChangeProcessingStatus(() => this.scheduleSync()));
     this._register(this.options.templateApplyWorkflowService.onDidChangeFileStates(() => this.scheduleSync()));
-    this._register(this.options.templateService.onDidChangeTemplateState(() => this.scheduleSync()));
+    this._register(this.options.templateService.onDidChangeTemplateState(() => this.scheduleInteractiveSync()));
     this._register(this.options.layoutService.onDidChangeWorkbenchNavigation(() => this.scheduleSync()));
     this._register(this.options.sessionService.onDidChangeSession(() => this.scheduleSync()));
     this._register({ dispose: () => this.cancelScheduledSync?.() });
@@ -217,6 +217,7 @@ export class WorkbenchDomainBridge extends Disposable {
       activeFileId: explorerSelection.selectedProcessedFileId ?? explorerSelection.selectedRawFileId,
       hasPendingSourceFiles: this.options.explorerService.hasPendingSourceFiles,
       readModel,
+      templateRecords: this.options.templateService.getCachedTemplates(),
       templateState: this.options.templateService.getState(),
     }));
     this.options.templateService.updateViewInput({

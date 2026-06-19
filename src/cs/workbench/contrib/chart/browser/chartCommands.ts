@@ -9,6 +9,8 @@ import type { ServicesAccessor } from "src/cs/platform/instantiation/common/inst
 import {
   EDIT_CHART_X_AXIS_TITLE_COMMAND_ID,
   EDIT_CHART_Y_AXIS_TITLE_COMMAND_ID,
+  IChartService,
+  TOGGLE_CHART_INSPECTOR_COMMAND_ID,
   type ChartAxis,
   type ChartAxisTitlePane,
 } from "src/cs/workbench/services/chart/common/chart";
@@ -18,6 +20,23 @@ import {
 
 export const registerChartCommands = (): IDisposable => {
   const disposables = new DisposableStore();
+  disposables.add(registerAction2(class ToggleChartInspectorAction extends Action2 {
+    public constructor() {
+      super({
+        category: localize("chart.commands.category", "Chart"),
+        f1: true,
+        id: TOGGLE_CHART_INSPECTOR_COMMAND_ID,
+        title: localize("chart.commands.toggleInspector", "Toggle Inspector"),
+        metadata: {
+          description: localize("chart.commands.toggleInspector", "Toggle Inspector"),
+        },
+      });
+    }
+
+    public run(accessor: ServicesAccessor): void {
+      accessor.get(IChartService).toggleDetailPane("inspector");
+    }
+  }));
   disposables.add(registerAction2(class EditChartXAxisTitleAction extends Action2 {
     public constructor() {
       super({

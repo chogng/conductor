@@ -68,6 +68,28 @@ export const removeTemplateSelectionsForFiles = (
   return next ?? fileSelections;
 };
 
+export const removeTemplateSelectionsForTemplate = (
+  fileSelections: TemplateSelectionsByFileId,
+  templateId: string | null | undefined,
+): TemplateSelectionsByFileId => {
+  const normalizedTemplateId = String(templateId ?? "").trim();
+  if (!normalizedTemplateId) {
+    return fileSelections;
+  }
+
+  let next: TemplateSelectionsByFileId | null = null;
+  for (const [fileId, selection] of Object.entries(fileSelections)) {
+    if (selection.kind !== "template" || selection.templateId !== normalizedTemplateId) {
+      continue;
+    }
+
+    next ??= { ...fileSelections };
+    delete next[fileId];
+  }
+
+  return next ?? fileSelections;
+};
+
 export const getTemplateSelectionLabel = (
   selection: TemplateSelection,
   templates: readonly TemplateRecord[] | null | undefined,

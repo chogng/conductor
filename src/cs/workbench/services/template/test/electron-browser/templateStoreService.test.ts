@@ -139,7 +139,7 @@ suite("workbench/services/template/electron-browser/templateStoreService", () =>
 		);
 
 		assert.deepStrictEqual(await service.getTemplates(), []);
-		assert.equal(files.getWrittenContent(resource), "{\n  \"templates\": []\n}\n");
+		assert.equal(files.getWrittenContent(resource), "{\n  \"templates\": [],\n  \"nextTemplateId\": 1\n}\n");
 
 		const first = await service.saveTemplate(createEmptyTemplateConfig({
 			name: "Template",
@@ -152,12 +152,61 @@ suite("workbench/services/template/electron-browser/templateStoreService", () =>
 		const templates = await service.getTemplates() as StoredTemplate[];
 
 		assert.equal(templates.length, 1);
+		assert.equal(first.id, "1");
 		assert.equal(second.id, first.id);
 		assert.deepStrictEqual(templates[0].yColumns, [2]);
 		assert.ok(files.getWrittenContent(resource)?.includes("\"templates\""));
 
+		const renamed = await service.saveTemplate({
+			...createEmptyTemplateConfig({
+				name: "Renamed Template",
+				yColumns: [3],
+			}),
+			id: first.id,
+		}) as StoredTemplate;
+		const renamedTemplates = await service.getTemplates() as StoredTemplate[];
+
+		assert.equal(renamed.id, first.id);
+		assert.equal(renamedTemplates.length, 1);
+		assert.equal(renamedTemplates[0].name, "Renamed Template");
+		assert.deepStrictEqual(renamedTemplates[0].yColumns, [3]);
+
 		await service.deleteTemplate(String(first.id));
 
 		assert.deepStrictEqual(await service.getTemplates(), []);
+
+		const next = await service.saveTemplate(createEmptyTemplateConfig({
+			name: "Next Template",
+			yColumns: [4],
+		})) as StoredTemplate;
+
+		assert.equal(next.id, "2");
+	});
+
+	test("migrates legacy templates to stable stored ids", async () => {
+		const userDataPath = "C:\\Users\\test\\AppData\\Roaming\\Conductor Studio";
+		const resource = URI.joinPath(getAppSettingsHome(userDataPath), TEMPLATE_FILENAME);
+		const files = new MemoryFileService();
+		await files.writeFile(resource, JSON.stringify({
+			templates: [{
+				name: "Legacy Template",
+				yColumns: [1],
+			}],
+		}));
+		const service = new ElectronTemplateStoreService(
+			files,
+			new JSONEditingService(files),
+			new TestNativeHostService(userDataPath),
+		);
+
+		const templates = await service.getTemplates() as StoredTemplate[];
+		const persisted = JSON.parse(files.getWrittenContent(resource) || "{}");
+		const loadedAgain = await service.getTemplates() as StoredTemplate[];
+
+		assert.equal(templates.length, 1);
+		assert.equal(templates[0].id, "1");
+		assert.equal(persisted.templates[0].id, "1");
+		assert.equal(persisted.nextTemplateId, 2);
+		assert.equal(loadedAgain[0].id, "1");
 	});
 });

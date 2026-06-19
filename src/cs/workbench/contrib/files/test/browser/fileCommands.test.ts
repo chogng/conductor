@@ -46,12 +46,8 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     }));
     const templateService = {
       _serviceBrand: undefined,
-      setSelectionsByFileId: (updater: (previous: Record<string, TemplateSelection>) => Record<string, TemplateSelection>) => {
-        const next = updater({});
-        const selection = next["file-1"];
-        if (selection) {
-          templateSelection = { fileId: "file-1", selection };
-        }
+      setFileTemplateSelection: (fileId: string, selection: TemplateSelection) => {
+        templateSelection = { fileId, selection };
       },
     } as unknown as ITemplateService;
     const explorerService = createExplorerServiceStub({
@@ -163,12 +159,8 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     });
     const templateService = {
       _serviceBrand: undefined,
-      setSelectionsByFileId: (updater: (previous: Record<string, TemplateSelection>) => Record<string, TemplateSelection>) => {
-        const next = updater({});
-        const selection = next["file-2"];
-        if (selection) {
-          templateSelection = { fileId: "file-2", selection };
-        }
+      setFileTemplateSelection: (fileId: string, selection: TemplateSelection) => {
+        templateSelection = { fileId, selection };
       },
     } as unknown as ITemplateService;
     const accessor = createAccessor([

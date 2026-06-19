@@ -15,6 +15,7 @@ import {
   type TemplateRecord,
   type TemplateState,
   type TemplateMode,
+  type TemplateSaveInput,
   type TemplateViewInput,
 } from "src/cs/workbench/services/template/common/template";
 import { isAutoTemplateId } from "src/cs/workbench/services/template/common/autoTemplate";
@@ -26,6 +27,8 @@ import {
 } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import {
   removeTemplateSelectionsForFiles,
+  removeTemplateSelectionsForTemplate,
+  type TemplateSelection,
   type TemplateSelectionsByFileId,
 } from "src/cs/workbench/services/template/common/templateSelection";
 import { ITemplateStoreService } from "src/cs/workbench/services/template/common/templateStore";
@@ -44,6 +47,7 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
 
   private state: TemplateState = createDefaultTemplateState();
   private viewInput: TemplateViewInput | null = null;
+  private cachedTemplates: readonly TemplateRecord[] = [];
 
   public constructor(
     @ISessionService private readonly sessionService: ISessionService,
@@ -167,20 +171,32 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
     return this.viewInput;
   }
 
+  getCachedTemplates(): readonly TemplateRecord[] {
+    return this.cachedTemplates;
+  }
+
   async getTemplates(): Promise<TemplateRecord[]> {
     const remote = await this.templateStoreService.getTemplates();
-    return filterUserTemplateRecords(remote) as TemplateRecord[];
+    const templates = filterUserTemplateRecords(remote) as TemplateRecord[];
+    this.cachedTemplates = templates;
+    return templates;
   }
 
   async deleteTemplate(id: string): Promise<void> {
     await this.templateStoreService.deleteTemplate(id);
-    this.markTemplateListChanged();
+    this.cachedTemplates = this.cachedTemplates.filter(template => getTemplateId(template) !== id);
+    this.updateState({
+      selectionsByFileId: removeTemplateSelectionsForTemplate(this.state.selectionsByFileId, id),
+      templateListVersion: this.state.templateListVersion + 1,
+    });
   }
 
-  async saveTemplate(template: TemplateConfig): Promise<TemplateRecord> {
+  async saveTemplate(template: TemplateSaveInput): Promise<TemplateRecord> {
     const saved = await this.templateStoreService.saveTemplate(template);
+    const savedTemplate = isTemplateRecord(saved) ? saved : template;
+    this.cachedTemplates = upsertCachedTemplate(this.cachedTemplates, savedTemplate);
     this.markTemplateListChanged();
-    return isTemplateRecord(saved) ? saved : template;
+    return savedTemplate;
   }
 
   readonly setMode = (value: TemplateMode | ((previous: TemplateMode) => TemplateMode)): void => {
@@ -194,6 +210,25 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
   readonly setFormState = (value: TemplateConfig | ((previous: TemplateConfig) => TemplateConfig)): void => {
     this.updateState({ formState: resolveNext(value, this.state.formState) });
   };
+
+  setFileTemplateSelection(fileId: string, selection: TemplateSelection): void {
+    const normalizedFileId = String(fileId ?? "").trim();
+    const normalizedSelection = normalizeTemplateSelection(selection);
+    if (!normalizedFileId || !normalizedSelection) {
+      return;
+    }
+
+    this.setSelectionsByFileId(previous => {
+      if (isSameStoredTemplateSelection(previous[normalizedFileId], normalizedSelection)) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        [normalizedFileId]: normalizedSelection,
+      };
+    });
+  }
 
   readonly setSelectionsByFileId = (
     value: TemplateSelectionsByFileId | ((previous: TemplateSelectionsByFileId) => TemplateSelectionsByFileId),
@@ -253,6 +288,47 @@ const isTemplateRecord = (value: unknown): value is TemplateRecord =>
 const getTemplateId = (template: TemplateRecord): string | null => {
   const templateId = String(template.id ?? "").trim();
   return templateId && !isAutoTemplateId(templateId) ? templateId : null;
+};
+
+const normalizeTemplateSelection = (
+  selection: TemplateSelection,
+): TemplateSelection | null => {
+  if (selection.kind === "auto") {
+    return { kind: "auto" };
+  }
+
+  const templateId = String(selection.templateId ?? "").trim();
+  return templateId ? { kind: "template", templateId } : null;
+};
+
+const isSameStoredTemplateSelection = (
+  current: TemplateSelection | undefined,
+  next: TemplateSelection,
+): boolean =>
+  current?.kind === next.kind &&
+  (
+    current?.kind !== "template" ||
+    next.kind === "template" &&
+      current.templateId === next.templateId
+  );
+
+const upsertCachedTemplate = (
+  templates: readonly TemplateRecord[],
+  template: TemplateRecord,
+): readonly TemplateRecord[] => {
+  const templateId = getTemplateId(template);
+  if (!templateId) {
+    return templates;
+  }
+
+  const index = templates.findIndex(entry => getTemplateId(entry) === templateId);
+  if (index === -1) {
+    return [...templates, template];
+  }
+
+  const next = [...templates];
+  next[index] = template;
+  return next;
 };
 
 const getTemplateStopOnError = (

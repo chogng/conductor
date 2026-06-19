@@ -1,15 +1,12 @@
 import { Separator, SubmenuAction, type IAction } from "src/cs/base/common/actions";
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
-import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
     createCheckedMenuItemLabel,
     createMenu,
-    createMenuAction,
     createMenuActionFromAction,
     type Menu,
 } from "src/cs/base/browser/ui/menu/menu";
-import { LxIcon } from "src/cs/base/common/lxicon";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
     IContextMenuService,
@@ -25,11 +22,9 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 
     private readonly closeDisposables = this._register(new DisposableStore());
     private readonly menuDisposables = this._register(new DisposableStore());
-    private readonly submenuDisposables = this._register(new DisposableStore());
     private activeDelegate: IContextMenuDelegate | undefined;
+    private activeMenu: Menu | null = null;
     private blockElement: HTMLElement | null = null;
-    private submenuActionId: string | null = null;
-    private submenuContainer: HTMLElement | null = null;
 
     private readonly onDidShowContextMenuEmitter = this._register(new Emitter<void>());
     private readonly onDidHideContextMenuEmitter = this._register(new Emitter<void>());
@@ -87,6 +82,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
         });
         menu.actionRunner = delegate.actionRunner ?? menu.actionRunner;
         this.appendActions(menu, delegate, actions);
+        this.activeMenu = menu;
 
         this.menuDisposables.add(menu.onDidRun(event => {
             if (event.error) {
@@ -104,9 +100,25 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
         actions: readonly IAction[],
         submenuIds = new Set<string>(),
     ): void {
-        for (const action of actions) {
+        for (const action of this.createContextMenuActions(delegate, actions, submenuIds)) {
             if (action instanceof Separator) {
                 menu.appendSeparator();
+                continue;
+            }
+
+            menu.appendItem(action);
+        }
+    }
+
+    private createContextMenuActions(
+        delegate: IContextMenuDelegate,
+        actions: readonly IAction[],
+        submenuIds = new Set<string>(),
+    ): IAction[] {
+        const menuActions: IAction[] = [];
+        for (const action of actions) {
+            if (action instanceof Separator) {
+                menuActions.push(action);
                 continue;
             }
 
@@ -116,107 +128,28 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
                     continue;
                 }
 
-                const nextSubmenuIds = new Set([...submenuIds, action.id]);
-                menu.appendItem(createMenuAction({
-                    autoHide: false,
-                    id: action.id,
-                    label: action.label,
-                    onMouseEnter: event => {
-                        this.showSubmenu(delegate, action, event.currentTarget, nextSubmenuIds);
-                    },
-                    right: createLxIcon({ icon: LxIcon.chevronRight, size: 14 }),
-                    run: event => {
-                        this.showSubmenu(delegate, action, getSubmenuAnchor(event), nextSubmenuIds);
-                    },
-                }));
+                menuActions.push(new SubmenuAction(
+                    action.id,
+                    action.label,
+                    this.createContextMenuActions(delegate, action.actions, new Set([...submenuIds, action.id])),
+                    action.class,
+                ));
                 continue;
             }
 
             const checkedRepresentation = action.checked !== undefined
                 ? delegate.getCheckedActionsRepresentation?.(action) ?? "checkbox"
                 : undefined;
-            menu.appendItem(createMenuActionFromAction(action, {
+            menuActions.push(createMenuActionFromAction(action, {
                 checked: action.checked,
                 left: checkedRepresentation ? createCheckedMenuItemLabel(action.label, checkedRepresentation) : undefined,
-                onMouseEnter: () => this.hideSubmenu(),
                 right: delegate.getKeyBinding?.(action)?.getLabel(),
                 run: event => {
                     return this.runAction(action, delegate, event as IContextMenuEvent | undefined);
                 },
             }));
         }
-    }
-
-    private showSubmenu(
-        delegate: IContextMenuDelegate,
-        action: SubmenuAction,
-        anchor: EventTarget | null,
-        submenuIds: Set<string>,
-    ): void {
-        if (!(anchor instanceof HTMLElement)) {
-            return;
-        }
-
-        if (this.submenuActionId === action.id && this.submenuContainer) {
-            return;
-        }
-
-        this.hideSubmenu();
-        this.submenuActionId = action.id;
-
-        const container = document.createElement("div");
-        container.className = "context-view fixed ui-menu-container ui-submenu-container";
-        container.style.position = "fixed";
-        container.style.zIndex = `${getContextViewZIndex(this.contextViewService.getContextViewElement()) + 1}`;
-        document.body.appendChild(container);
-        this.submenuContainer = container;
-
-        const menu = createMenu({
-            className: delegate.getMenuClassName?.(),
-        });
-        menu.actionRunner = delegate.actionRunner ?? menu.actionRunner;
-        this.appendActions(menu, delegate, action.actions, submenuIds);
-        container.append(menu.domNode);
-        this.layoutSubmenu(container, anchor);
-
-        this.submenuDisposables.add(menu);
-        this.submenuDisposables.add(menu.onDidRun(event => {
-            if (event.error) {
-                console.error("Failed to run context submenu action.", event.error);
-            }
-        }));
-        this.submenuDisposables.add(addElementListener(menu.domNode, "menuitemactionrun", () => this.hide(false)));
-        this.submenuDisposables.add({
-            dispose: () => {
-                container.remove();
-                if (this.submenuContainer === container) {
-                    this.submenuContainer = null;
-                    this.submenuActionId = null;
-                }
-            },
-        });
-    }
-
-    private layoutSubmenu(container: HTMLElement, anchor: HTMLElement): void {
-        const anchorRect = anchor.getBoundingClientRect();
-        const menuRect = container.getBoundingClientRect();
-        const gap = 4;
-        const left = anchorRect.right + gap + menuRect.width <= window.innerWidth
-            ? anchorRect.right + gap
-            : Math.max(0, anchorRect.left - gap - menuRect.width);
-        const top = Math.min(
-            Math.max(0, anchorRect.top),
-            Math.max(0, window.innerHeight - menuRect.height),
-        );
-
-        container.style.left = `${Math.floor(left)}px`;
-        container.style.top = `${Math.floor(top)}px`;
-    }
-
-    private hideSubmenu(): void {
-        this.submenuDisposables.clear();
-        this.submenuActionId = null;
-        this.submenuContainer = null;
+        return menuActions;
     }
 
     private installCloseListeners(): void {
@@ -245,7 +178,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
                 return;
             }
 
-            if (this.submenuContainer?.contains(target)) {
+            if (this.activeMenu?.contains(target)) {
                 return;
             }
 
@@ -306,7 +239,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
         const delegate = this.activeDelegate;
         this.activeDelegate = undefined;
         this.closeDisposables.clear();
-        this.hideSubmenu();
+        this.activeMenu = null;
         this.hideMouseBlock();
         this.menuDisposables.clear();
         delegate.onHide?.(didCancel);
@@ -356,19 +289,6 @@ function addElementListener(element: HTMLElement, type: string, listener: (event
     return {
         dispose: () => element.removeEventListener(type, listener),
     };
-}
-
-function getSubmenuAnchor(event: unknown): HTMLElement | null {
-    if (!(event instanceof Event)) {
-        return null;
-    }
-
-    const target = event.currentTarget ?? event.target;
-    if (!(target instanceof Element)) {
-        return null;
-    }
-
-    return target.closest<HTMLElement>(".ui-menu__item");
 }
 
 function getContextViewZIndex(element: HTMLElement): number {

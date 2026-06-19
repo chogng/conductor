@@ -66,10 +66,7 @@ export const setFileTemplateHandler: ICommandHandler<[unknown, unknown]> = (
   }
 
   const templateService = accessor.get(ITemplateService);
-  templateService.setSelectionsByFileId(previous => ({
-    ...previous,
-    [normalizedFileId]: selection,
-  }));
+  templateService.setFileTemplateSelection(normalizedFileId, selection);
 };
 
 export const sliceFileWithTemplateHandler: ICommandHandler<[unknown, unknown]> = (

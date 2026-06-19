@@ -6,11 +6,6 @@ import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
-	IStorageService,
-	StorageScope,
-	StorageTarget,
-} from "src/cs/platform/storage/common/storage";
-import {
 	IChartService,
 	type ChartDetailPane,
 	type ChartState,
@@ -18,8 +13,7 @@ import {
 } from "src/cs/workbench/services/chart/common/chart";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 
-const CHART_VISIBLE_DETAIL_PANES_STORAGE_KEY = "chart.visibleDetailPanes";
-const DEFAULT_VISIBLE_DETAIL_PANES: readonly ChartDetailPane[] = ["inspector"];
+const DEFAULT_VISIBLE_DETAIL_PANES: readonly ChartDetailPane[] = [];
 
 export class ChartService extends Disposable implements IChartServiceType {
 	public declare readonly _serviceBrand: undefined;
@@ -34,12 +28,10 @@ export class ChartService extends Disposable implements IChartServiceType {
 	private state: ChartState;
 	private viewInput: ChartViewInput | null = null;
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-	) {
+	constructor() {
 		super();
 		this.state = {
-			visibleDetailPanes: this.readStoredVisibleDetailPanes(),
+			visibleDetailPanes: DEFAULT_VISIBLE_DETAIL_PANES,
 			hiddenLegendKeysByContext: {},
 			legendPopoverContextKey: null,
 		};
@@ -130,33 +122,8 @@ export class ChartService extends Disposable implements IChartServiceType {
 			return;
 		}
 
-		const shouldStoreVisibleDetailPanes =
-			!areStringArraysEqual(this.state.visibleDetailPanes, nextState.visibleDetailPanes);
 		this.state = nextState;
-		if (shouldStoreVisibleDetailPanes) {
-			this.storeVisibleDetailPanes(nextState.visibleDetailPanes);
-		}
 		this.onDidChangeChartStateEmitter.fire(nextState);
-	}
-
-	private readStoredVisibleDetailPanes(): readonly ChartDetailPane[] {
-		const stored = this.storageService.getObject<{
-			readonly visibleDetailPanes?: readonly unknown[];
-		}>(CHART_VISIBLE_DETAIL_PANES_STORAGE_KEY, StorageScope.PROFILE);
-		if (stored && Array.isArray(stored.visibleDetailPanes)) {
-			return normalizeDetailPanes(stored.visibleDetailPanes);
-		}
-
-		return DEFAULT_VISIBLE_DETAIL_PANES;
-	}
-
-	private storeVisibleDetailPanes(visibleDetailPanes: readonly ChartDetailPane[]): void {
-		this.storageService.store(
-			CHART_VISIBLE_DETAIL_PANES_STORAGE_KEY,
-			{ visibleDetailPanes: normalizeDetailPanes(visibleDetailPanes) },
-			StorageScope.PROFILE,
-			StorageTarget.USER,
-		);
 	}
 }
 

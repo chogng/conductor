@@ -4,7 +4,7 @@
 
 import assert from "assert";
 
-import { Event } from "src/cs/base/common/event";
+import { Emitter, Event } from "src/cs/base/common/event";
 import {
   createSearchPlotModelFromCachedPlotDisplay,
   resolveInitialWorkbenchViewMode,
@@ -790,6 +790,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
       session,
+      visibleDetailPanes: ["inspector"],
     }));
     try {
       bridge.sync();
@@ -818,6 +819,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
       session,
+      visibleDetailPanes: ["inspector"],
     }));
     try {
       bridge.sync();
@@ -1027,6 +1029,46 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       bridge.dispose();
     }
   });
+
+  test("syncs file template selections before the next frame", async () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const templateStateEmitter = new Emitter<unknown>();
+    const templateApplyInputs: Array<{
+      readonly fileTemplateSelectionsByFileId?: Record<string, unknown>;
+    }> = [];
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      explorerService,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+      templateApplyInputs,
+      templateStateEvent: templateStateEmitter.event,
+      templateStateValue: {
+        formState: createEmptyTemplateConfig(),
+        mode: "management",
+        selectedTemplateId: null,
+        selectionsByFileId: {
+          "file-a": createTemplateSelection("template-custom"),
+        },
+        templateListVersion: 1,
+      },
+    }));
+    try {
+      templateStateEmitter.fire(undefined);
+      await Promise.resolve();
+
+      assert.deepEqual(templateApplyInputs.at(-1)?.fileTemplateSelectionsByFileId, {
+        "file-a": {
+          kind: "template",
+          templateId: "template-custom",
+        },
+      });
+    } finally {
+      bridge.dispose();
+      templateStateEmitter.dispose();
+    }
+  });
 });
 
 const createPlotDisplayModelForTest = (fileId: string): PlotDisplayModel => ({
@@ -1112,7 +1154,10 @@ const createDomainBridgeOptionsForTest = ({
   prioritizedTemplateFileIds,
   session,
   thumbnailPrefetches,
-  visibleDetailPanes = ["inspector"],
+  templateApplyInputs,
+  templateStateEvent = Event.None,
+  templateStateValue,
+  visibleDetailPanes = [],
 }: {
   readonly chartActiveFileIds?: (string | null)[];
   readonly chartViewInputs?: Array<{ readonly activeFileId: string | null; readonly hasChartData?: boolean }>;
@@ -1125,6 +1170,15 @@ const createDomainBridgeOptionsForTest = ({
   readonly prioritizedTemplateFileIds: string[];
   readonly session: SessionService;
   readonly thumbnailPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
+  readonly templateApplyInputs?: Array<{ readonly fileTemplateSelectionsByFileId?: Record<string, unknown> }>;
+  readonly templateStateEvent?: Event<unknown>;
+  readonly templateStateValue?: {
+    readonly formState: ReturnType<typeof createEmptyTemplateConfig>;
+    readonly mode: "management";
+    readonly selectedTemplateId: string | null;
+    readonly selectionsByFileId: Record<string, ReturnType<typeof createTemplateSelection>>;
+    readonly templateListVersion: number;
+  };
   readonly visibleDetailPanes?: readonly ["inspector"] | readonly [];
 }): ConstructorParameters<typeof WorkbenchDomainBridge>[0] => ({
 	  assessmentQueueService: {
@@ -1216,17 +1270,20 @@ const createDomainBridgeOptionsForTest = ({
       state: "processing",
       total: 0,
 	    },
-	    update: () => undefined,
+	    update: input => {
+	      templateApplyInputs?.push(input as { readonly fileTemplateSelectionsByFileId?: Record<string, unknown> });
+	    },
 	  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["templateApplyWorkflowService"],
   templateService: {
-    getState: () => ({
+    getCachedTemplates: () => [],
+    getState: () => templateStateValue ?? ({
       formState: createEmptyTemplateConfig(),
       mode: "management",
       selectedTemplateId: null,
       selectionsByFileId: {},
       templateListVersion: 0,
 	    }),
-	    onDidChangeTemplateState: Event.None,
+	    onDidChangeTemplateState: templateStateEvent,
 	    updateViewInput: () => undefined,
 	  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["templateService"],
   thumbnailPreviewService: {

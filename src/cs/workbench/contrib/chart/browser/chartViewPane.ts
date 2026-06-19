@@ -7,6 +7,7 @@ import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { Action, toAction, type IAction } from "src/cs/base/common/actions";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { ICommandService } from "src/cs/platform/commands/common/commands";
 import { localize } from "src/cs/nls";
 import { logPerf } from "src/cs/workbench/common/perf";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
@@ -49,6 +50,7 @@ import {
 } from "src/cs/workbench/services/settings/common/settings";
 import {
   IChartService,
+  TOGGLE_CHART_INSPECTOR_COMMAND_ID,
   type ChartAxisTitleEditRequest,
   type ChartDetailPane,
 } from "src/cs/workbench/services/chart/common/chart";
@@ -81,6 +83,7 @@ export class ChartViewPane extends ViewPane {
   constructor(
     @IChartService private readonly chartService: IChartService,
     @IChartTitleEditService private readonly chartTitleEditService: IChartTitleEditService,
+    @ICommandService private readonly commandService: ICommandService,
     @IExplorerService private readonly explorerService: IExplorerService,
     @IPlotService private readonly plotService: IPlotService,
     @ISettingsService private readonly settingsService: ISettingsService,
@@ -674,7 +677,9 @@ export class ChartViewPane extends ViewPane {
   }
 
   private toggleVisibleDetailPane(pane: ChartDetailPane): void {
-    this.chartService.toggleDetailPane(pane);
+    if (pane === "inspector") {
+      void this.commandService.executeCommand(TOGGLE_CHART_INSPECTOR_COMMAND_ID);
+    }
   }
 
   private getActivePlotType(): PlotType {

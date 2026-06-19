@@ -46,7 +46,7 @@ rendering, or chart state.
 ```txt
 SessionSnapshot + Template state + Explorer/chart active file
   -> TemplateApplyWorkflowInput
-  -> TemplateApplyPlanner
+  -> TemplateApplyPlanner / per-file template selection routing
   -> ITemplateApplyService worker/backend
   -> TemplateRunRecord + series + base curves + diagnostics
   -> ISessionService.commitTemplateOutputs(...)
@@ -60,6 +60,7 @@ SessionSnapshot + Template state + Explorer/chart active file
 - Do not pass `ITableService`, table row readers, or table model methods through Template view/workflow input.
 - Template apply is an owner API on `ITemplateApplyWorkflowService`; UI invokes apply methods instead of receiving Workbench callbacks.
 - WorkbenchDomainBridge may keep workflow input current by subscribing and rereading owner services.
+- Per-file template selections belong to `ITemplateService`; apply workflow resolves them and may split one batch into auto and custom-template groups.
 - `activeFileId` should move the current chart/Explorer target to the front of full, incremental, and rule queues.
 - `prioritizeProcessingFile(fileId)` is the owner API for interactive queue promotion from hover/selection signals.
 - The workflow may retain a short latest-first priority lane, but Explorer/Chart/Thumbnail/Plot must not mutate template queues directly.

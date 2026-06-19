@@ -3,7 +3,7 @@ import { ActionBar, ActionsOrientation, type ActionBarContent, type ActionBarOpt
 import { BaseActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
-import { IAction, Separator } from "src/cs/base/common/actions";
+import { EmptySubmenuAction, IAction, Separator, SubmenuAction } from "src/cs/base/common/actions";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 
@@ -69,13 +69,34 @@ type MenuItemData = {
 
 const menuItemData = new WeakMap<IAction, MenuItemData>();
 
+type MenuSubmenuEntry = {
+    readonly container: HTMLElement;
+    readonly menu: Menu;
+    close(): void;
+    contains(target: Node): boolean;
+};
+
+type MenuSubmenuData = {
+    active: MenuSubmenuEntry | undefined;
+};
+
 export class Menu extends ActionBar {
+    private readonly submenuData: MenuSubmenuData;
+
     constructor(options: MenuOptions = {}) {
-        super(createMenuActionBarOptions(options));
+        const submenuData: MenuSubmenuData = {
+            active: undefined,
+        };
+        super(createMenuActionBarOptions(options, submenuData));
+        this.submenuData = submenuData;
     }
 
     public appendItem(action: IAction): void {
         this.push(action);
+    }
+
+    public contains(target: Node): boolean {
+        return this.domNode.contains(target) || !!this.submenuData.active?.contains(target);
     }
 
     public override appendSeparator(): HTMLDivElement {
@@ -92,6 +113,16 @@ export class Menu extends ActionBar {
         groupLabel.textContent = label;
         this.append(groupLabel);
         return groupLabel;
+    }
+
+    public override clear(): void {
+        this.submenuData.active?.close();
+        super.clear();
+    }
+
+    public override dispose(): void {
+        this.submenuData.active?.close();
+        super.dispose();
     }
 }
 
@@ -222,9 +253,10 @@ function createIconNode(icon: MenuIcon | undefined): Node | undefined {
     return createLxIcon({ icon, size: 14 });
 }
 
-function createMenuActionBarOptions(options: MenuOptions): ActionBarOptions {
+function createMenuActionBarOptions(options: MenuOptions, submenuData: MenuSubmenuData): ActionBarOptions {
     return {
-        actionViewItemProvider: createMenuActionViewItem,
+        actionViewItemProvider: (action, itemOptions) =>
+            createMenuActionViewItem(action, itemOptions, submenuData, options),
         className: classNames("ui-menu", options.className),
         contentClassName: "ui-menu__list",
         createContent: options.withScrollArea === false ? undefined : createMenuScrollContent,
@@ -249,12 +281,21 @@ function createMenuScrollContent(element: HTMLElement): ActionBarContent {
     };
 }
 
-const createMenuActionViewItem: IActionViewItemProvider = (action, options) => {
+const createMenuActionViewItem = (
+    action: IAction,
+    options: IActionViewItemOptions,
+    submenuData: MenuSubmenuData,
+    menuOptions: MenuOptions,
+) => {
     if (action instanceof Separator) {
         return undefined;
     }
 
-    return new MenuActionViewItem(action, options);
+    if (action instanceof SubmenuAction) {
+        return new SubmenuMenuActionViewItem(action, options, submenuData, menuOptions);
+    }
+
+    return new MenuActionViewItem(action, options, submenuData);
 };
 
 class MenuActionViewItem extends BaseActionViewItem {
@@ -263,6 +304,8 @@ class MenuActionViewItem extends BaseActionViewItem {
     constructor(
         action: IAction,
         options: IActionViewItemOptions,
+        private readonly submenuData: MenuSubmenuData,
+        private readonly closeSubmenuOnMouseEnter = true,
     ) {
         super(undefined, action, {
             ...options,
@@ -305,11 +348,14 @@ class MenuActionViewItem extends BaseActionViewItem {
             }
             container.append(right);
         }
-        if (this.data?.onMouseEnter) {
+        if (this.closeSubmenuOnMouseEnter || this.data?.onMouseEnter) {
             const action = this.action;
-            const onMouseEnter = this.data.onMouseEnter;
+            const onMouseEnter = this.data?.onMouseEnter;
             this._register(addDisposableListener(container, "mouseenter", event => {
                 if (action.enabled) {
+                    if (this.closeSubmenuOnMouseEnter) {
+                        this.submenuData.active?.close();
+                    }
                     onMouseEnter?.(event);
                 }
             }));
@@ -406,6 +452,165 @@ class MenuActionViewItem extends BaseActionViewItem {
     }
 }
 
+class SubmenuMenuActionViewItem extends MenuActionViewItem {
+    private readonly submenuDisposables = this._register(new DisposableStore());
+    private readonly emptySubmenuActions = this._register(new DisposableStore());
+    private submenuEntry: MenuSubmenuEntry | undefined;
+
+    constructor(
+        private readonly submenuAction: SubmenuAction,
+        options: IActionViewItemOptions,
+        private readonly submenuData: MenuSubmenuData,
+        private readonly menuOptions: MenuOptions,
+    ) {
+        super(submenuAction, options, submenuData, false);
+    }
+
+    public override render(container: HTMLElement): void {
+        super.render(container);
+        container.classList.add("ui-menu__item--submenu");
+
+        if (this.label) {
+            this.label.tabIndex = 0;
+            this.label.setAttribute("aria-haspopup", "true");
+            this.updateAriaExpanded(false);
+        }
+
+        const right = document.createElement("span");
+        right.className = "ui-menu__item-right ui-menu__submenu-indicator";
+        right.setAttribute("aria-hidden", "true");
+        right.append(createLxIcon({ icon: LxIcon.chevronRight, size: 14 }));
+        container.append(right);
+
+        this._register(addDisposableListener(container, "mouseenter", () => {
+            if (this.submenuAction.enabled) {
+                this.showSubmenu(false);
+            }
+        }));
+        this._register(addDisposableListener(container, "keydown", event => {
+            if (event.key !== "ArrowRight" && event.key !== "Enter") {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            this.showSubmenu(true);
+        }));
+    }
+
+    public override dispose(): void {
+        this.closeSubmenu();
+        super.dispose();
+    }
+
+    protected override async run(): Promise<void> {
+        this.showSubmenu(true);
+    }
+
+    protected override updateEnabled(): void {
+        // Native menus keep submenu entries interactive even when their child actions vary in enablement.
+    }
+
+    private showSubmenu(focusFirstItem: boolean): void {
+        if (!this.element) {
+            return;
+        }
+
+        if (this.submenuEntry && this.submenuData.active === this.submenuEntry) {
+            if (focusFirstItem) {
+                this.submenuEntry.menu.focus();
+            }
+            return;
+        }
+
+        this.submenuData.active?.close();
+        this.submenuDisposables.clear();
+        this.emptySubmenuActions.clear();
+        this.element.dataset.highlighted = "true";
+        this.updateAriaExpanded(true);
+
+        const container = document.createElement("div");
+        container.className = "context-view fixed ui-menu-container ui-submenu-container";
+        container.style.position = "fixed";
+        container.style.zIndex = `${getMenuZIndex(this.element) + 1}`;
+        document.body.append(container);
+
+        const menu = createMenu({
+            className: this.menuOptions.className,
+            withScrollArea: this.menuOptions.withScrollArea,
+        });
+        menu.actionRunner = this.actionRunner;
+
+        for (const action of this.getSubmenuActions()) {
+            if (action instanceof Separator) {
+                menu.appendSeparator();
+                continue;
+            }
+
+            menu.appendItem(action);
+        }
+
+        container.append(menu.domNode);
+        const { left, top } = calculateSubmenuLayout(
+            this.element.getBoundingClientRect(),
+            container.getBoundingClientRect(),
+            {
+                height: window.innerHeight,
+                width: window.innerWidth,
+            },
+        );
+        container.style.left = `${Math.floor(left)}px`;
+        container.style.top = `${Math.floor(top)}px`;
+
+        const entry: MenuSubmenuEntry = {
+            container,
+            menu,
+            close: () => this.closeSubmenu(),
+            contains: target => container.contains(target) || menu.contains(target),
+        };
+        this.submenuEntry = entry;
+        this.submenuData.active = entry;
+
+        this.submenuDisposables.add(menu);
+        this.submenuDisposables.add(addDisposableListener(menu.domNode, "menuitemactionrun", () => {
+            this.element?.dispatchEvent(new CustomEvent("menuitemactionrun", { bubbles: true }));
+        }));
+        this.submenuDisposables.add({
+            dispose: () => {
+                container.remove();
+            },
+        });
+
+        if (focusFirstItem) {
+            menu.focus();
+        }
+    }
+
+    private closeSubmenu(): void {
+        if (this.submenuData.active === this.submenuEntry) {
+            this.submenuData.active = undefined;
+        }
+
+        delete this.element?.dataset.highlighted;
+        this.updateAriaExpanded(false);
+        this.submenuEntry = undefined;
+        this.submenuDisposables.clear();
+        this.emptySubmenuActions.clear();
+    }
+
+    private getSubmenuActions(): readonly IAction[] {
+        if (this.submenuAction.actions.length > 0) {
+            return this.submenuAction.actions;
+        }
+
+        return [this.emptySubmenuActions.add(new EmptySubmenuAction())];
+    }
+
+    private updateAriaExpanded(expanded: boolean): void {
+        this.label?.setAttribute("aria-expanded", expanded ? "true" : "false");
+    }
+}
+
 const menuToolbarActionData = new WeakMap<IAction, MenuItemAction>();
 
 function createMenuItemToolbarAction(
@@ -458,6 +663,33 @@ class MenuItemActionViewItem extends BaseActionViewItem {
 
 function getMenuItemData(action: IAction): MenuItemData | undefined {
     return menuItemData.get(action);
+}
+
+export function calculateSubmenuLayout(
+    anchorRect: Pick<DOMRectReadOnly, "left" | "right" | "top">,
+    menuRect: Pick<DOMRectReadOnly, "height" | "width">,
+    viewport: { readonly height: number; readonly width: number },
+): { readonly left: number; readonly top: number } {
+    return {
+        left: anchorRect.right + menuRect.width <= viewport.width
+            ? anchorRect.right
+            : Math.max(0, anchorRect.left - menuRect.width),
+        top: Math.min(
+            Math.max(0, anchorRect.top),
+            Math.max(0, viewport.height - menuRect.height),
+        ),
+    };
+}
+
+function getMenuZIndex(element: HTMLElement): number {
+    for (let current: HTMLElement | null = element; current; current = current.parentElement) {
+        const value = Number(current.style.zIndex || getComputedStyle(current).zIndex);
+        if (Number.isFinite(value)) {
+            return value;
+        }
+    }
+
+    return 2575;
 }
 
 function classNames(...names: Array<string | undefined>): string {

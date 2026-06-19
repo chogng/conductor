@@ -10,15 +10,18 @@ import { URI } from "src/cs/base/common/uri";
 import { IJSONEditingService } from "src/cs/workbench/services/configuration/common/jsonEditing";
 import {
 	buildDefaultTemplateStoreData,
+	createTemplateStoreId,
 	ITemplateStoreService,
 	normalizeStoredTemplate,
 	normalizeTemplateStoreData,
+	normalizeTemplateStoreDataWithMetadata,
+	normalizeTemplateStoreId,
 	TEMPLATE_FILENAME,
 	type StoredTemplate,
 	type TemplateStoreData,
+	type TemplateStoreSaveInput,
 	toTemplateNameKey,
 } from "src/cs/workbench/services/template/common/templateStore";
-import type { TemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 
 export class ElectronTemplateStoreService implements ITemplateStoreService {
 	public declare readonly _serviceBrand: undefined;
@@ -37,12 +40,12 @@ export class ElectronTemplateStoreService implements ITemplateStoreService {
 		return (await this.readStore()).templates;
 	}
 
-	public async saveTemplate(template: TemplateConfig): Promise<unknown> {
+	public async saveTemplate(template: TemplateStoreSaveInput): Promise<unknown> {
 		const store = await this.readStore();
-		const templateId = (template as { readonly id?: unknown }).id;
+		const templateId = normalizeTemplateStoreId(template.id);
 		const normalizedTemplate = normalizeStoredTemplate({
 			...template,
-			id: templateId || `tpl_user_${Date.now()}`,
+			id: templateId ?? createTemplateStoreId(store.nextTemplateId),
 		});
 
 		if (!normalizedTemplate) {
@@ -58,15 +61,22 @@ export class ElectronTemplateStoreService implements ITemplateStoreService {
 						: current,
 				)
 				: [...store.templates, normalizedTemplate];
+		const nextStore = normalizeTemplateStoreData({
+			...store,
+			templates,
+		});
 
-		await this.writeStore({ templates });
-		return templates[existingIndex >= 0 ? existingIndex : templates.length - 1];
+		await this.writeStore(nextStore);
+		return nextStore.templates[existingIndex >= 0 ? existingIndex : nextStore.templates.length - 1];
 	}
 
 	public async deleteTemplate(id: string): Promise<void> {
 		const store = await this.readStore();
 		const templates = store.templates.filter(template => String(template.id) !== id);
-		await this.writeStore({ templates });
+		await this.writeStore({
+			...store,
+			templates,
+		});
 	}
 
 	private async resolveTemplateResource(): Promise<URI> {
@@ -83,7 +93,11 @@ export class ElectronTemplateStoreService implements ITemplateStoreService {
 		}
 
 		const content = await this.fileService.readFile(resource, { encoding: "utf8" });
-		return normalizeTemplateStoreData(JSON.parse(content.value || "{}"));
+		const normalized = normalizeTemplateStoreDataWithMetadata(JSON.parse(content.value || "{}"));
+		if (normalized.didChange) {
+			await this.writeStore(normalized.data);
+		}
+		return normalized.data;
 	}
 
 	private async writeStore(store: TemplateStoreData): Promise<void> {

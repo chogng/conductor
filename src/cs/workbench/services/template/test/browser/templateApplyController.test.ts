@@ -667,6 +667,81 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     controller.dispose();
   });
 
+  test("auto apply routes file-level template selections through custom template processing", () => {
+    const queuedFileIds: string[][] = [];
+    const startedJobs: Array<ProcessingJobOptions | RuleProcessingJobOptions> = [];
+    const controller = createController({
+      sessionService: createSessionService(),
+      tableService: createTableService(),
+      templateProcessingBackendService: createTemplateProcessingBackend(),
+      showResults: () => undefined,
+      templateApplyService: createTemplateApplyService(queuedFileIds, startedJobs),
+    });
+
+    const customTemplate = {
+      ...createManualTemplateConfig(),
+      id: "template-custom",
+      name: "Custom Template",
+      y: "CH1 Current",
+    };
+    controller.update({
+      fileTemplateSelectionsByFileId: {
+        "file-needs-template": {
+          kind: "template",
+          templateId: "template-custom",
+        },
+      },
+      processedFileIds: [],
+      rawFiles: [
+        createSessionFile("file-auto"),
+        createSessionFile("file-needs-template", {
+          curveType: "unknown",
+          curveTypeConfidence: "medium",
+          curveTypeNeedsTemplate: true,
+          xAxisRole: null,
+        }),
+      ],
+      templateRecords: [customTemplate],
+    });
+    const result = controller.handleTemplateApplied({
+      autoExtractionMode: true,
+      stopOnError: false,
+    }) as { ok: boolean };
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(queuedFileIds, [["file-auto", "file-needs-template"]]);
+    const startedJob = startedJobs[0] as RuleProcessingJobOptions | undefined;
+    assert.ok(startedJob);
+    const groups = startedJob.groupedPrepared.map(group => ({
+      config: group.extractionConfig as Record<string, unknown>,
+      fileIds: group.queue.map(entry => entry.fileId),
+      messageType: group.messageType,
+    }));
+    assert.deepEqual(groups[0], {
+      config: {
+        autoExtractionMode: true,
+        stopOnError: false,
+      },
+      fileIds: ["file-auto"],
+      messageType: "processFileAuto",
+    });
+    assert.deepEqual(groups[1]?.fileIds, ["file-needs-template"]);
+    assert.equal(groups[1]?.messageType, "processFile");
+    assert.deepEqual(groups[1]?.config.yCols, [1]);
+    assert.equal(groups[1]?.config.yUnit, "A");
+    assert.deepEqual(
+      [...controller.getFileApplyStates()].map(([fileId, state]) => ({
+        fileId,
+        state: state.state,
+      })),
+      [
+        { fileId: "file-auto", state: "queued" },
+        { fileId: "file-needs-template", state: "queued" },
+      ],
+    );
+    controller.dispose();
+  });
+
   test("fires processing status changes for bridge consumers", () => {
     const queuedFileIds: string[][] = [];
     const startedJobs: ProcessingJobOptions[] = [];
@@ -1021,6 +1096,7 @@ const createTemplateApplyService = (
   },
   startRuleProcessingJob: (jobOptions) => {
     queuedFileIds.push(jobOptions.finalQueue.map((entry) => entry.fileId));
+    startedJobs.push(jobOptions);
   },
   terminateProcessingWorker: () => undefined,
 });

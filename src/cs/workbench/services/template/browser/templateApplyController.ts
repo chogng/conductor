@@ -22,7 +22,10 @@ import {
   logSessionSnapshotTrace,
 } from "src/cs/workbench/services/session/common/sessionTrace";
 import { prepareExtraction } from "src/cs/workbench/services/template/common/extractionValidation";
-import { isAutoTemplateConfig } from "src/cs/workbench/services/template/common/autoTemplate";
+import {
+  AUTO_TEMPLATE_ID,
+  isAutoTemplateConfig,
+} from "src/cs/workbench/services/template/common/autoTemplate";
 import { normalizeExtractionErrorDetails } from "src/cs/workbench/services/template/common/extractionErrors";
 import { stableStringify } from "src/cs/workbench/services/template/common/templateStableKey";
 import {
@@ -39,6 +42,8 @@ import type {
   ProcessingStatus,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import type {
+  PreparedRuleProcessingGroup,
+  ProcessingMessageType,
   ProcessingJobOptions,
   ProcessingQueueItem,
   RuleProcessingJobOptions,
@@ -56,7 +61,9 @@ import {
   ITemplateApplyWorkflowService,
   type TemplateApplyFileState,
   type TemplateApplyWorkflowInput,
+  type TemplateRecord,
 } from "src/cs/workbench/services/template/common/template";
+import { validateTemplateForApply } from "src/cs/workbench/services/template/common/templateValidation";
 import {
   ITemplateProcessingBackendService,
   type TemplateProcessingBackend,
@@ -105,6 +112,27 @@ type StartExtractionJobOptions = {
   clearTemplateOutputBeforeRun: boolean;
   stopOnError: boolean;
 };
+
+type StartGroupedExtractionJobOptions = {
+  finalQueue: ProcessingQueueItem[];
+  groupedPrepared: PreparedRuleProcessingGroup[];
+  incremental: boolean;
+  stopOnError: boolean;
+};
+
+type TemplateSelectionGroupPlan =
+  | {
+      readonly ok: true;
+      readonly finalQueue: ProcessingQueueItem[];
+      readonly groupedPrepared: PreparedRuleProcessingGroup[];
+      readonly plan: TemplateProcessingPlan;
+      readonly warnings: string[];
+    }
+  | {
+      readonly ok: false;
+      readonly feedback: { readonly message: string; readonly ok: false; readonly type: "warning" };
+      readonly plan?: TemplateProcessingPlan;
+    };
 
 const TEMPLATE_OUTPUT_FLUSH_DELAY_MS = 32;
 const TEMPLATE_INTERACTIVE_PRIORITY_LIMIT = 24;
@@ -174,6 +202,46 @@ const isSameProcessingQueue = (
 const normalizeTemplateApplyFileId = (fileId: unknown): string | null => {
   const normalized = String(fileId ?? "").trim();
   return normalized || null;
+};
+
+const getTemplateRecordId = (template: TemplateRecord): string | null => {
+  const templateId = String(template.id ?? "").trim();
+  return templateId || null;
+};
+
+const createTemplateRecordsById = (
+  templates: readonly TemplateRecord[],
+): ReadonlyMap<string, TemplateRecord> => {
+  const recordsById = new Map<string, TemplateRecord>();
+  for (const template of templates) {
+    const templateId = getTemplateRecordId(template);
+    if (templateId) {
+      recordsById.set(templateId, template);
+    }
+  }
+  return recordsById;
+};
+
+const getOrCreatePreparedGroup = (
+  groupsByKey: Map<string, PreparedRuleProcessingGroup>,
+  key: string,
+  options: {
+    readonly extractionConfig: unknown;
+    readonly messageType: ProcessingMessageType;
+  },
+): PreparedRuleProcessingGroup => {
+  const existing = groupsByKey.get(key);
+  if (existing) {
+    return existing;
+  }
+
+  const group: PreparedRuleProcessingGroup = {
+    extractionConfig: options.extractionConfig,
+    messageType: options.messageType,
+    queue: [],
+  };
+  groupsByKey.set(key, group);
+  return group;
 };
 
 const resolveRuleCurveFilterInfo = (rule: {
@@ -305,6 +373,12 @@ const getSkippedFileState = (
         state: "skipped",
         code: skippedFile.reason,
         message: localize("template.apply.skippedMissingAssessment", "{fileName} has no usable assessment yet.", { fileName }),
+      };
+    case "missingTemplate":
+      return {
+        state: "skipped",
+        code: skippedFile.reason,
+        message: localize("template.apply.skippedMissingTemplate", "{fileName} has no selected template available.", { fileName }),
       };
     case "needsTemplate":
       return {
@@ -803,6 +877,38 @@ export class TemplateApplyController {
     }
 
     if (isAutoTemplateConfig(config)) {
+      const fileSelectionPlan = this.createFileTemplateSelectionPlan(config, null);
+      if (fileSelectionPlan) {
+        if (!fileSelectionPlan.ok) {
+          if (fileSelectionPlan.plan) {
+            this.applyTemplateProcessingPlanStates(fileSelectionPlan.plan, true);
+          }
+          return fileSelectionPlan.feedback;
+        }
+
+        const invalidSkippedFile = getFirstInvalidSkippedFile(fileSelectionPlan.plan.skippedFiles);
+        if (invalidSkippedFile && config?.stopOnError) {
+          this.applyStoppedInvalidSourceState(invalidSkippedFile, true);
+          return buildStoppedOnInvalidSourceFeedback(invalidSkippedFile);
+        }
+
+        this.applyTemplateProcessingPlanStates(fileSelectionPlan.plan, true);
+        this.lastAppliedTemplateConfigFingerprintRef.current = this.createApplyFingerprint(config);
+        this.startGroupedExtractionJob({
+          finalQueue: fileSelectionPlan.finalQueue,
+          groupedPrepared: fileSelectionPlan.groupedPrepared,
+          incremental: false,
+          stopOnError: Boolean(config?.stopOnError),
+        });
+
+        return buildExtractionStartFeedback({
+          count: fileSelectionPlan.finalQueue.length,
+          messageKey: "extract_started",
+          meta: {},
+          warnings: fileSelectionPlan.warnings,
+        });
+      }
+
       const endPlanPerf = this.startApplyPlanPerf("full", "auto");
       const plan = buildTemplateProcessingPlan(
         rawFiles,
@@ -824,7 +930,7 @@ export class TemplateApplyController {
       }
 
       this.applyTemplateProcessingPlanStates(plan, true);
-      this.lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
+      this.lastAppliedTemplateConfigFingerprintRef.current = this.createApplyFingerprint(config);
       this.startExtractionJob({
         extractionConfig: config,
         messageType: "processFileAuto",
@@ -867,7 +973,7 @@ export class TemplateApplyController {
     }
 
     this.applyTemplateProcessingPlanStates(plan, true);
-    this.lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
+    this.lastAppliedTemplateConfigFingerprintRef.current = this.createApplyFingerprint(config);
     this.startExtractionJob({
       extractionConfig: prepared.extractionConfig,
       queue: plan.queue,
@@ -919,7 +1025,7 @@ export class TemplateApplyController {
         };
       }
 
-      if (stableStringify(config) !== lastFingerprint) {
+      if (this.createApplyFingerprint(config) !== lastFingerprint) {
         return {
           message: localize("template.applyNewFiles.requiresSameConfig", "Template changed. Please Apply to All again."),
           ok: false,
@@ -928,6 +1034,37 @@ export class TemplateApplyController {
       }
 
       const processedIds = resolveProcessedFileIds(this.input);
+      const fileSelectionPlan = this.createFileTemplateSelectionPlan(config, processedIds);
+      if (fileSelectionPlan) {
+        if (!fileSelectionPlan.ok) {
+          if (fileSelectionPlan.plan) {
+            this.applyTemplateProcessingPlanStates(fileSelectionPlan.plan, false);
+          }
+          return fileSelectionPlan.feedback;
+        }
+
+        const invalidSkippedFile = getFirstInvalidSkippedFile(fileSelectionPlan.plan.skippedFiles);
+        if (invalidSkippedFile && config?.stopOnError) {
+          this.applyStoppedInvalidSourceState(invalidSkippedFile, false);
+          return buildStoppedOnInvalidSourceFeedback(invalidSkippedFile);
+        }
+
+        this.applyTemplateProcessingPlanStates(fileSelectionPlan.plan, false);
+        this.startGroupedExtractionJob({
+          finalQueue: fileSelectionPlan.finalQueue,
+          groupedPrepared: fileSelectionPlan.groupedPrepared,
+          incremental: true,
+          stopOnError: Boolean(config?.stopOnError),
+        });
+
+        return buildExtractionStartFeedback({
+          count: fileSelectionPlan.finalQueue.length,
+          messageKey: "apply_to_new_files_started",
+          meta: {},
+          warnings: fileSelectionPlan.warnings,
+        });
+      }
+
       const endPlanPerf = this.startApplyPlanPerf("incremental", "auto");
       const plan = buildTemplateProcessingPlan(
         rawFiles,
@@ -988,7 +1125,7 @@ export class TemplateApplyController {
       };
     }
 
-    if (stableStringify(config) !== lastFingerprint) {
+    if (this.createApplyFingerprint(config) !== lastFingerprint) {
       return {
         message: localize("template.applyNewFiles.requiresSameConfig", "Template changed. Please Apply to All again."),
         ok: false,
@@ -1195,6 +1332,183 @@ export class TemplateApplyController {
     };
   }
 
+  private createApplyFingerprint(config: Record<string, unknown>): string {
+    return stableStringify({
+      config,
+      fileTemplateSelectionsByFileId: this.input.fileTemplateSelectionsByFileId ?? {},
+    });
+  }
+
+  private createFileTemplateSelectionPlan(
+    config: Record<string, unknown>,
+    processedIds: ReadonlySet<string> | null,
+  ): TemplateSelectionGroupPlan | null {
+    const {
+      fileTemplateSelectionsByFileId = {},
+      rawFiles = [],
+      templateRecords = [],
+    } = this.input;
+    const templatesById = createTemplateRecordsById(templateRecords);
+    const autoRawFiles: typeof rawFiles = [];
+    const templateRawFiles: typeof rawFiles = [];
+    const templateByFileId = new Map<string, TemplateRecord>();
+    const missingTemplateFiles: TemplateProcessingSkippedFile[] = [];
+
+    for (const entry of rawFiles) {
+      const fileId = normalizeTemplateApplyFileId(entry.fileId);
+      if (!fileId || processedIds?.has(fileId)) {
+        continue;
+      }
+
+      const selection = fileTemplateSelectionsByFileId[fileId];
+      if (selection?.kind !== "template") {
+        autoRawFiles.push(entry);
+        continue;
+      }
+
+      const template = templatesById.get(String(selection.templateId ?? "").trim());
+      if (!template) {
+        missingTemplateFiles.push({
+          fileId,
+          fileName: entry.fileName,
+          reason: "missingTemplate",
+        });
+        continue;
+      }
+
+      templateRawFiles.push(entry);
+      templateByFileId.set(fileId, template);
+    }
+
+    if (!templateRawFiles.length && !missingTemplateFiles.length) {
+      return null;
+    }
+
+    const autoPlan = buildTemplateProcessingPlan(
+      autoRawFiles,
+      processedIds,
+      this.createTemplateProcessingPlanOptions(),
+    );
+    const templatePlan = buildTemplateProcessingPlan(
+      templateRawFiles,
+      processedIds,
+      {
+        ...this.createTemplateProcessingPlanOptions("manual"),
+        allowAssessmentGatedFiles: true,
+      },
+    );
+    const finalQueue = prioritizeTemplateProcessingQueue(
+      [...autoPlan.queue, ...templatePlan.queue],
+      this.input.activeFileId,
+    );
+    const plan: TemplateProcessingPlan = {
+      queue: finalQueue,
+      skippedFiles: [
+        ...autoPlan.skippedFiles,
+        ...templatePlan.skippedFiles,
+        ...missingTemplateFiles,
+      ],
+    };
+
+    if (!finalQueue.length) {
+      return {
+        ok: false,
+        feedback: buildNoProcessableFilesFeedback(plan.skippedFiles),
+        plan,
+      };
+    }
+
+    const groupedPrepared = this.createFileTemplateSelectionGroups(
+      config,
+      finalQueue,
+      templateByFileId,
+    );
+    if (!groupedPrepared.ok) {
+      return {
+        ok: false,
+        feedback: groupedPrepared.feedback,
+        plan,
+      };
+    }
+
+    return {
+      ok: true,
+      finalQueue,
+      groupedPrepared: groupedPrepared.groups,
+      plan,
+      warnings: buildSkippedAssessmentWarnings(plan.skippedFiles),
+    };
+  }
+
+  private createFileTemplateSelectionGroups(
+    autoConfig: Record<string, unknown>,
+    finalQueue: readonly ProcessingQueueItem[],
+    templateByFileId: ReadonlyMap<string, TemplateRecord>,
+  ):
+    | { readonly ok: true; readonly groups: PreparedRuleProcessingGroup[] }
+    | { readonly ok: false; readonly feedback: { readonly message: string; readonly ok: false; readonly type: "warning" } } {
+    const groupsByKey = new Map<string, PreparedRuleProcessingGroup>();
+    const stopOnError = Boolean(autoConfig?.stopOnError);
+
+    for (const entry of finalQueue) {
+      const template = templateByFileId.get(entry.fileId);
+      if (!template) {
+        const autoGroup = getOrCreatePreparedGroup(groupsByKey, `auto:${AUTO_TEMPLATE_ID}`, {
+          extractionConfig: autoConfig,
+          messageType: "processFileAuto",
+        });
+        autoGroup.queue.push(entry);
+        continue;
+      }
+
+      const templateId = getTemplateRecordId(template) ?? entry.fileId;
+      const groupKey = `template:${templateId}`;
+      let group = groupsByKey.get(groupKey);
+      if (!group) {
+        const validation = validateTemplateForApply(template);
+        if (!validation.ok || !validation.normalized) {
+          return {
+            ok: false,
+            feedback: {
+              message: validation.message || localize("template.invalidConfiguration", "Invalid configuration"),
+              ok: false,
+              type: "warning",
+            },
+          };
+        }
+
+        const prepared = this.prepareExtractionRun({
+          ...(validation.normalized as Record<string, unknown>),
+          stopOnError,
+        });
+        if (!prepared.ok) {
+          return {
+            ok: false,
+            feedback: {
+              message: prepared.message || localize("template.invalidConfiguration", "Invalid configuration"),
+              ok: false,
+              type: "warning",
+            },
+          };
+        }
+
+        group = {
+          extractionConfig: prepared.extractionConfig,
+          messageType: "processFile",
+          queue: [],
+        };
+        groupsByKey.set(groupKey, group);
+      }
+
+      group.queue.push(entry);
+    }
+
+    return {
+      ok: true,
+      groups: [...groupsByKey.values()].filter(group => group.queue.length > 0),
+    };
+  }
+
   private startApplyPlanPerf(
     operation: "full" | "incremental" | "rule",
     mode: TemplateProcessingPlanOptions["mode"],
@@ -1315,6 +1629,45 @@ export class TemplateApplyController {
       onSourceFileRemoved: (fileId) => this.deleteFileApplyStates([fileId]),
       removedQueuedFileIdsRef: this.removedQueuedFileIdsRef,
       clearTemplateOutputBeforeRun,
+      showResults: this.options.showResults,
+      templateSelection,
+      commitTemplateOutput: this.commitTemplateOutput,
+      clearTemplateOutput: this.clearTemplateOutput,
+      setProcessingStatus: this.setProcessingStatus,
+      stopOnError,
+      tryProcessFileWithBackend: this.tryProcessFileWithBackend,
+    });
+  };
+
+  private readonly startGroupedExtractionJob = ({
+    finalQueue,
+    groupedPrepared,
+    incremental,
+    stopOnError,
+  }: StartGroupedExtractionJobOptions): void => {
+    const {
+      fileTemplateSelectionsByFileId,
+      templateSelection,
+    } = this.input;
+    this.clearInteractivePriorityFiles();
+    this.options.templateApplyService.startRuleProcessingJob({
+      templateProcessingBackendService: this.options.templateProcessingBackendService,
+      finalQueue,
+      fileTemplateSelectionsByFileId,
+      groupedPrepared,
+      incremental,
+      onWorkerErrorPayload: (payload) => {
+        this.markWorkerFileFailed(payload);
+        this.options.onExtractionError?.(buildWorkerExtractionError(payload));
+      },
+      onFileProcessingStart: this.markFileProcessing,
+      processingJobIdRef: this.processingJobIdRef,
+      processingQueueRef: this.processingQueueRef,
+      processingStopOnErrorRef: this.processingStopOnErrorRef,
+      processingWorkerRef: this.processingWorkerRef,
+      hasSourceFile: this.hasSourceFile,
+      onSourceFileRemoved: (fileId) => this.deleteFileApplyStates([fileId]),
+      removedQueuedFileIdsRef: this.removedQueuedFileIdsRef,
       showResults: this.options.showResults,
       templateSelection,
       commitTemplateOutput: this.commitTemplateOutput,
@@ -1530,7 +1883,7 @@ export class TemplateApplyController {
     if (unmatchedFiles.length) {
       warnings.push(...buildSkippedAssessmentWarnings(unmatchedFiles));
     }
-    this.lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
+    this.lastAppliedTemplateConfigFingerprintRef.current = this.createApplyFingerprint(config as Record<string, unknown>);
     this.clearInteractivePriorityFiles();
     this.options.templateApplyService.startRuleProcessingJob({
       templateProcessingBackendService: this.options.templateProcessingBackendService,

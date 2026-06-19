@@ -12,6 +12,7 @@ import {
 export type TemplateProcessingSkipReason =
 	| "invalidSource"
 	| "missingAssessment"
+	| "missingTemplate"
 	| "needsTemplate"
 	| "lowConfidence"
 	| "unknownCurveType"

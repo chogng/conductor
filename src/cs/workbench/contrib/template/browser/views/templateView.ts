@@ -76,6 +76,15 @@ const TEMPLATE_NOTIFICATION_ID = "template.notification";
 export const shouldSyncTemplateEditorTableSelection = (mode: TemplateMode): boolean =>
   mode === "editor";
 
+export const resolveTemplateSaveId = (
+  selectedTemplateId: string | null | undefined,
+): string | undefined => {
+  const templateId = String(selectedTemplateId ?? "").trim();
+  return templateId && !isAutoTemplateId(templateId)
+    ? templateId
+    : undefined;
+};
+
 export type TemplateApplyStateInput = {
   readonly config: TemplateConfig;
   readonly selectedTemplateId: string | null;
@@ -594,8 +603,12 @@ export class TemplateView {
     }
 
     try {
+      const templateId = resolveTemplateSaveId(
+        this.props.templateService.getState().selectedTemplateId,
+      );
       const persistedTemplate = {
         ...validation.normalized,
+        ...(templateId ? { id: templateId } : {}),
         name,
       };
       const saved = await this.props.templateService.saveTemplate({

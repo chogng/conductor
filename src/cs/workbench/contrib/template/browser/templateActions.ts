@@ -349,6 +349,7 @@ async function importTemplatePayload(
   const templates = await templateService.getTemplates();
   const nameKey = toTemplateNameKey(draft.name);
   const conflict = templates.find((template) => toTemplateNameKey(template.name) === nameKey);
+  let overwriteTemplateId: string | undefined;
   if (conflict) {
     let suffix = 1;
     let newName = `${draft.name}(${suffix})`;
@@ -368,7 +369,10 @@ async function importTemplatePayload(
     if (shouldRename) {
       draft.name = newName;
     } else if (conflict.id) {
-      await templateService.deleteTemplate(String(conflict.id));
+      const templateId = String(conflict.id).trim();
+      if (templateId) {
+        overwriteTemplateId = templateId;
+      }
     }
   }
 
@@ -384,6 +388,7 @@ async function importTemplatePayload(
 
   const saved = await templateService.saveTemplate({
     ...validation.normalized,
+    ...(overwriteTemplateId ? { id: overwriteTemplateId } : {}),
     name: draft.name,
   });
   templateService.selectTemplate({

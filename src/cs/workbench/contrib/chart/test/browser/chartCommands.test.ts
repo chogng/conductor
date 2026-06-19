@@ -13,15 +13,35 @@ import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import type { ServicesAccessor, ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
 import { registerChartCommands } from "src/cs/workbench/contrib/chart/browser/chartCommands";
 import { ChartTitleEditService, IChartTitleEditService } from "src/cs/workbench/contrib/chart/browser/chartTitleEditService";
+import { ChartService } from "src/cs/workbench/services/chart/browser/chartService";
 import {
 	EDIT_CHART_X_AXIS_TITLE_COMMAND_ID,
 	EDIT_CHART_Y_AXIS_TITLE_COMMAND_ID,
+	IChartService,
+	TOGGLE_CHART_INSPECTOR_COMMAND_ID,
 	type ChartAxisTitleEditRequest,
 } from "src/cs/workbench/services/chart/common/chart";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/chart/test/browser/chartCommands", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
+	test("inspector toggle command delegates to chart service", () => {
+		const commandRegistration = registerChartCommands();
+		const service = new ChartService();
+		const accessor = createAccessor([
+			[IChartService, service],
+		]);
+
+		CommandsRegistry.getCommand(TOGGLE_CHART_INSPECTOR_COMMAND_ID)?.handler(accessor);
+		assert.deepEqual(service.getState().visibleDetailPanes, ["inspector"]);
+
+		CommandsRegistry.getCommand(TOGGLE_CHART_INSPECTOR_COMMAND_ID)?.handler(accessor);
+		assert.deepEqual(service.getState().visibleDetailPanes, []);
+
+		commandRegistration.dispose();
+		service.dispose();
+	});
+
 	test("axis title edit commands delegate to chart title edit service", () => {
 		const commandRegistration = registerChartCommands();
 		const service = new ChartTitleEditService();
