@@ -2,9 +2,11 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import type { PlotDisplayModel } from "src/cs/workbench/services/plot/common/plot";
 import type {
   SearchInterpolationMode,
   SearchPoint,
+  SearchPointLookupModel,
   SearchPointStatus,
 } from "src/cs/workbench/services/search/common/search";
 
@@ -44,6 +46,32 @@ export const searchSeriesAtX = (
       y: located.y,
     };
   });
+};
+
+export const createSearchPointLookupModelFromPlotDisplay = (
+  plotDisplayModel: PlotDisplayModel | null,
+  {
+    includeInspector = false,
+  }: {
+    readonly includeInspector?: boolean;
+  } = {},
+): SearchPointLookupModel | null => {
+  if (!plotDisplayModel) {
+    return null;
+  }
+
+  return {
+    panes: [
+      {
+        id: "main",
+        model: plotDisplayModel.chart.model,
+      },
+      ...(includeInspector && plotDisplayModel.inspector ? [{
+        id: "inspector" as const,
+        model: plotDisplayModel.inspector.model,
+      }] : []),
+    ],
+  };
 };
 
 const searchPoint = (

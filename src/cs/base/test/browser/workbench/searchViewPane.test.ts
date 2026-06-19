@@ -13,7 +13,7 @@ import { searchSeriesAtX } from "src/cs/workbench/services/search/browser/search
 import type {
   ISearchService,
   SearchInterpolationMode,
-  SearchPlotModel,
+  SearchPointLookupModel,
   SearchState,
 } from "src/cs/workbench/services/search/common/search";
 
@@ -25,7 +25,7 @@ suite("base/browser/workbench/searchViewPane", () => {
       return;
     }
 
-    const service = new TestSearchService(createSearchPlotModel("a", [0, 2]));
+    const service = new TestSearchService(createSearchPointLookupModel("a", [0, 2]));
     const pane = new SearchViewPane(service as unknown as ISearchService);
     document.body.append(pane.element);
 
@@ -40,7 +40,7 @@ suite("base/browser/workbench/searchViewPane", () => {
     const contentMutations = observeChildMutations(content);
 
     try {
-      service.setPlotModel(createSearchPlotModel("b", [2, 4]));
+      service.setPointLookupModel(createSearchPointLookupModel("b", [2, 4]));
       await Promise.resolve();
 
       assert.equal(contentMutations.records.length, 0);
@@ -60,7 +60,7 @@ suite("base/browser/workbench/searchViewPane", () => {
       return;
     }
 
-    const service = new TestSearchService(createSearchPlotModel("a", [0, 2]));
+    const service = new TestSearchService(createSearchPointLookupModel("a", [0, 2]));
     const pane = new SearchViewPane(service as unknown as ISearchService);
     document.body.append(pane.element);
 
@@ -98,7 +98,7 @@ suite("base/browser/workbench/searchViewPane", () => {
       return;
     }
 
-    const service = new TestSearchService(createSearchPlotModel("a", [0, 2]));
+    const service = new TestSearchService(createSearchPointLookupModel("a", [0, 2]));
     const pane = new SearchViewPane(service as unknown as ISearchService);
     document.body.append(pane.element);
 
@@ -121,13 +121,13 @@ suite("base/browser/workbench/searchViewPane", () => {
 
 class TestSearchService extends Disposable {
   private readonly onDidChangeSearchStateEmitter = this._register(new Emitter<SearchState>());
-  private readonly onDidChangeSearchPlotModelEmitter = this._register(new Emitter<SearchPlotModel | null>());
+  private readonly onDidChangeSearchPointLookupModelEmitter = this._register(new Emitter<SearchPointLookupModel | null>());
   public readonly onDidChangeSearchState = this.onDidChangeSearchStateEmitter.event;
-  public readonly onDidChangeSearchPlotModel = this.onDidChangeSearchPlotModelEmitter.event;
+  public readonly onDidChangeSearchPointLookupModel = this.onDidChangeSearchPointLookupModelEmitter.event;
   private state = createSearchState();
 
   constructor(
-    private plotModel: SearchPlotModel | null,
+    private pointLookupModel: SearchPointLookupModel | null,
   ) {
     super();
   }
@@ -136,13 +136,13 @@ class TestSearchService extends Disposable {
     return this.state;
   }
 
-  public getPlotModel(): SearchPlotModel | null {
-    return this.plotModel;
+  public getPointLookupModel(): SearchPointLookupModel | null {
+    return this.pointLookupModel;
   }
 
-  public setPlotModel(model: SearchPlotModel | null): void {
-    this.plotModel = model;
-    this.onDidChangeSearchPlotModelEmitter.fire(model);
+  public setPointLookupModel(model: SearchPointLookupModel | null): void {
+    this.pointLookupModel = model;
+    this.onDidChangeSearchPointLookupModelEmitter.fire(model);
   }
 
   public setQueryText = (text: string): void => {
@@ -155,7 +155,7 @@ class TestSearchService extends Disposable {
     this.onDidChangeSearchStateEmitter.fire(this.state);
   };
 
-  public searchPlotModelAtText = (
+  public searchPointsAtText = (
     model: PlotMainRenderModel | null,
     text: string,
   ) => {
@@ -190,12 +190,12 @@ const createSearchState = (
   selectedResultId: null,
 });
 
-const createSearchPlotModel = (
+const createSearchPointLookupModel = (
   id: string,
   xDomain: [number, number],
-): SearchPlotModel => ({
+): SearchPointLookupModel => ({
   panes: [{
-    id: "chart",
+    id: "main",
     model: createPlotMainRenderModel(id, xDomain),
   }],
 });

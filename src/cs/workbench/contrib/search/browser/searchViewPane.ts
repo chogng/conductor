@@ -36,7 +36,7 @@ export class SearchViewPane extends ViewPane {
     this.content.className = "search_view_content";
     this.pane.append(this.content);
     this.body.append(this.pane);
-    this._register(this.searchService.onDidChangeSearchPlotModel(() => {
+    this._register(this.searchService.onDidChangeSearchPointLookupModel(() => {
       this.renderSearch();
     }));
     this._register(this.searchService.onDidChangeSearchState(() => {
@@ -57,10 +57,10 @@ export class SearchViewPane extends ViewPane {
 
   private createSearchViewInput(): SearchViewInput {
     return {
-      model: this.searchService.getPlotModel(),
+      model: this.searchService.getPointLookupModel(),
       onInterpolationModeChange: this.searchService.setInterpolationMode,
-      onSearchPlotModelAtText: (plotModel, text) =>
-        this.searchService.searchPlotModelAtText(plotModel, text),
+      onSearchPointsAtText: (plotModel, text) =>
+        this.searchService.searchPointsAtText(plotModel, text),
       searchState: this.searchService.getState(),
       onQueryTextChange: this.searchService.setQueryText,
     };

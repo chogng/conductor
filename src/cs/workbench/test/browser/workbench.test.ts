@@ -5,10 +5,7 @@
 import assert from "assert";
 
 import { Emitter, Event } from "src/cs/base/common/event";
-import {
-  createSearchPlotModelFromCachedPlotDisplay,
-  resolveInitialWorkbenchViewMode,
-} from "src/cs/workbench/browser/workbench";
+import { resolveInitialWorkbenchViewMode } from "src/cs/workbench/browser/workbench";
 import {
   createExplorerPaneInput,
   shouldPrefetchExplorerThumbnails,
@@ -631,44 +628,6 @@ suite("workbench/browser/workbench initial mode", () => {
 
     assert.equal(createSessionReadModel(session.getSnapshot()).hasChartData, true);
     assert.equal(resolveInitialWorkbenchViewMode(session.getSnapshot()), "table");
-  });
-});
-
-suite("workbench/browser/workbench search plot model", () => {
-  test("reads cached plot display model and prefetches on miss", () => {
-    const prefetches: Array<{ readonly fileId: string | null; readonly priority: string }> = [];
-    let cachedReady = false;
-    const snapshot = new SessionService().getSnapshot();
-	    const plotService = {
-	      getCachedPlotDisplayModel: ({ fileId }: { readonly fileId?: string | null }) => cachedReady
-	        ? createPlotDisplayModelForTest(fileId ?? "file-a")
-	        : null,
-      prefetchPlotDisplayModel: (
-        input: { readonly fileId?: string | null },
-        priority: string,
-      ) => {
-        prefetches.push({ fileId: input.fileId ?? null, priority });
-      },
-    };
-
-    assert.equal(createSearchPlotModelFromCachedPlotDisplay({
-      fileId: "file-a",
-      plotService,
-      snapshot,
-    }), null);
-    assert.deepEqual(prefetches, [
-      { fileId: "file-a", priority: "active" },
-    ]);
-
-    cachedReady = true;
-    const model = createSearchPlotModelFromCachedPlotDisplay({
-      fileId: "file-a",
-      plotService,
-      snapshot,
-    });
-
-    assert.deepEqual(model?.panes.map(pane => pane.id), ["chart"]);
-    assert.equal(prefetches.length, 1);
   });
 });
 

@@ -18,19 +18,19 @@ import { formatNumber } from "src/cs/workbench/services/calculation/common/numbe
 import { getPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
 import type {
   SearchInterpolationMode,
-  SearchPlotModel,
-  SearchPlotPaneId,
-  SearchPlotPaneModel,
+  SearchPointLookupModel,
+  SearchPointLookupPaneId,
+  SearchPointLookupPaneModel,
   SearchPoint,
   SearchState,
 } from "src/cs/workbench/services/search/common/search";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
 
 export type SearchViewInput = {
-  readonly model: SearchPlotModel | null;
+  readonly model: SearchPointLookupModel | null;
   readonly searchState: SearchState;
   readonly onQueryTextChange: (text: string) => void;
-  readonly onSearchPlotModelAtText: (
+  readonly onSearchPointsAtText: (
     model: PlotMainRenderModel | null,
     text: string,
   ) => readonly SearchPoint[] | null;
@@ -161,7 +161,7 @@ class SearchViewController {
   private renderSearchResults(): void {
     const {
       model,
-      onSearchPlotModelAtText,
+      onSearchPointsAtText,
     } = this.currentInput;
     const primaryModel = getPrimarySearchModel(model);
     if (!model || !primaryModel) {
@@ -171,7 +171,7 @@ class SearchViewController {
 
     const paneResults = model.panes.map(pane => ({
       pane,
-      results: onSearchPlotModelAtText(pane.model, this.input.value),
+      results: onSearchPointsAtText(pane.model, this.input.value),
     }));
     if (paneResults.some(result => !result.results)) {
       this.replaceBody("empty:invalid", createSearchEmpty(localize("search.invalidX", "Enter a numeric X value.")));
@@ -179,7 +179,7 @@ class SearchViewController {
     }
 
     const populatedPaneResults = paneResults.filter((result): result is {
-      readonly pane: SearchPlotPaneModel;
+      readonly pane: SearchPointLookupPaneModel;
       readonly results: readonly SearchPoint[];
     } => Boolean(result.results?.length));
     if (!populatedPaneResults.length) {
@@ -222,7 +222,7 @@ class SearchViewController {
   }
 }
 
-const getPrimarySearchModel = (model: SearchPlotModel | null): PlotMainRenderModel | null =>
+const getPrimarySearchModel = (model: SearchPointLookupModel | null): PlotMainRenderModel | null =>
   model?.panes[0]?.model ?? null;
 
 const getSearchInputValue = (
@@ -234,7 +234,7 @@ const getSearchInputValue = (
 };
 
 const createSearchResultSection = (
-  pane: SearchPlotPaneModel,
+  pane: SearchPointLookupPaneModel,
   results: readonly SearchPoint[],
 ): HTMLElement => {
   const section = document.createElement("section");
@@ -252,11 +252,11 @@ const createSearchResultSection = (
   return section;
 };
 
-const getSearchPaneLabel = (paneId: SearchPlotPaneId): string => {
+const getSearchPaneLabel = (paneId: SearchPointLookupPaneId): string => {
   if (paneId === "inspector") {
     return localize("search.pane.inspector", "Second order");
   }
-  return localize("search.pane.chart", "Main chart");
+  return localize("search.pane.main", "Main chart");
 };
 
 const createSearchResultsHeader = (): HTMLElement => {
@@ -369,7 +369,7 @@ const formatSearchColumns = (
 
 const createSearchResultsSignature = (
   paneResults: readonly {
-    readonly pane: SearchPlotPaneModel;
+    readonly pane: SearchPointLookupPaneModel;
     readonly results: readonly SearchPoint[];
   }[],
 ): string => {

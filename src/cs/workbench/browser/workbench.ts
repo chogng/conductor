@@ -38,8 +38,8 @@ import {
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import type {
   ISearchService,
-  SearchPlotModel,
 } from "src/cs/workbench/services/search/common/search";
+import { createSearchPointLookupModelFromPlotDisplay } from "src/cs/workbench/services/search/browser/searchModel";
 import type { IThumbnailPreviewService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
   SettingsViewId,
@@ -128,9 +128,11 @@ type WorkbenchFullRefreshReason =
   | "activeAuxiliaryBarView";
 
 type WorkbenchAuxiliaryRefreshReason =
+  | "chartState"
   | "explorerSelection"
   | "settings"
   | "plotState"
+  | "plotDisplayModelCache"
   | "exportState"
   | "templateState"
   | `session:${string}`;
@@ -182,46 +184,6 @@ const getInitialLanguagePreference = (): LanguagePreference => {
 export const resolveInitialWorkbenchViewMode = (
   _snapshot: WorkbenchSessionSnapshot,
 ): WorkbenchMainPart => "table";
-
-export const createSearchPlotModelFromCachedPlotDisplay = ({
-  fileId,
-  plotService,
-  snapshot,
-}: {
-  readonly fileId: string | null;
-  readonly plotService: Pick<IPlotService, "getCachedPlotDisplayModel" | "prefetchPlotDisplayModel">;
-  readonly snapshot: SessionSnapshot;
-}): SearchPlotModel | null => {
-  const normalizedFileId = String(fileId ?? "").trim();
-  if (!normalizedFileId) {
-    return null;
-  }
-
-  const plotDisplayModel = plotService.getCachedPlotDisplayModel({
-    fileId: normalizedFileId,
-    snapshot,
-  });
-  if (!plotDisplayModel) {
-    plotService.prefetchPlotDisplayModel({
-      fileId: normalizedFileId,
-      snapshot,
-    }, "active");
-    return null;
-  }
-
-  return {
-    panes: [
-      {
-        id: "chart",
-        model: plotDisplayModel.chart.model,
-      },
-      ...(plotDisplayModel.inspector ? [{
-        id: "inspector" as const,
-        model: plotDisplayModel.inspector.model,
-      }] : []),
-    ],
-  };
-};
 
 //#endregion
 
@@ -409,6 +371,9 @@ export class Workbench extends Layout {
     this._register(this.explorerService.onDidChangeSelection(() => {
       this.scheduleWorkbenchAuxiliarySurfacesRefresh("explorerSelection", false);
     }));
+    this._register(this.chartService.onDidChangeChartState(() => {
+      this.scheduleWorkbenchAuxiliarySurfacesRefresh("chartState", false);
+    }));
     this._register({
       dispose: () => {
         this.cancelScheduledAuxiliarySurfacesRefresh?.();
@@ -418,6 +383,9 @@ export class Workbench extends Layout {
     });
     this._register(this.plotService.onDidChangePlotState(() => {
       this.scheduleWorkbenchAuxiliarySurfacesRefresh("plotState", true);
+    }));
+    this._register(this.plotService.onDidChangePlotDisplayModelCache(() => {
+      this.scheduleWorkbenchAuxiliarySurfacesRefresh("plotDisplayModelCache", false);
     }));
     this._register(this.exportService.onDidChangeExportState(state => {
       if (this.shouldRefreshAuxiliarySurfacesForExportState(state)) {
@@ -781,10 +749,22 @@ export class Workbench extends Layout {
     snapshot = this.session.getSnapshot(),
     readModel = createSessionReadModel(snapshot),
   ): void {
-    this.searchService.setPlotModel(createSearchPlotModelFromCachedPlotDisplay({
-      fileId: this.getSelectedProcessedFileId(readModel),
-      plotService: this.plotService,
-      snapshot,
+    const fileId = this.getSelectedProcessedFileId(readModel);
+    const normalizedFileId = String(fileId ?? "").trim();
+    const plotDisplayModel = normalizedFileId
+      ? this.plotService.getCachedPlotDisplayModel({
+          fileId: normalizedFileId,
+          snapshot,
+        })
+      : null;
+    if (!plotDisplayModel && normalizedFileId) {
+      this.plotService.prefetchPlotDisplayModel({
+        fileId: normalizedFileId,
+        snapshot,
+      }, "active");
+    }
+    this.searchService.setPointLookupModel(createSearchPointLookupModelFromPlotDisplay(plotDisplayModel, {
+      includeInspector: this.chartService.getState().visibleDetailPanes.includes("inspector"),
     }));
   }
 

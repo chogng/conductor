@@ -1,5 +1,5 @@
 ---
-description: Search service - query state, search index, raw table/block/curve/metric results, source range navigation, and plot point search.
+description: Search service - query state, search index, raw table/block/curve/metric results, source range navigation, and chart point lookup.
 applyTo: 'src/cs/workbench/services/search/**,src/cs/workbench/contrib/search/**'
 ---
 # Search
@@ -32,7 +32,7 @@ calculation, or Session mutation.
 
 ```txt
 SessionSnapshot + optional cached PlotDisplayModel
-  -> SearchIndex / SearchPlotModel
+  -> SearchIndex / SearchPointLookupModel
   -> ISearchService query
   -> SearchResult[]
   -> explicit reveal target dispatch
@@ -42,16 +42,16 @@ Search result navigation uses refs such as `RawTableRangeRef`, block id, curve
 key, metric key, file id, or resource id. It must not depend on global Session
 active state.
 
-## Plot Point Search
+## Chart Point Lookup
 
-Plot point search consumes a Search-owned projection of the current cached
+Chart point lookup consumes a Search-owned projection of the current cached
 `PlotDisplayModel`. Workbench may prefetch active Plot display models on cache
 miss, but must not synchronously create them during Search render.
 
 Panes:
 
-- `chart`: main plot point table from chart display model.
-- `inspector`: second-order/inspector point table.
+- `main`: point lookup table from the central main chart display model.
+- `inspector`: point lookup table from the central inspector/detail chart display model.
 
 The view owns one X input and one interpolation select applied to both panes.
 Point lookup results are derived display data and must not be written to
@@ -77,7 +77,7 @@ in search model code.
 ## Field Catalog
 
 Use `records.instructions.md` for `SearchQuery`, `SearchResult`,
-`SearchPlotModel`, and `SearchPlotPaneModel`.
+`SearchPointLookupModel`, and `SearchPointLookupPaneModel`.
 
 ## Do Not
 

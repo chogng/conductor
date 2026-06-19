@@ -104,30 +104,30 @@ export type SearchPoint = {
 	readonly y: number | null;
 };
 
-export type SearchPlotPaneId = "chart" | "inspector";
+export type SearchPointLookupPaneId = "main" | "inspector";
 
-export type SearchPlotPaneModel = {
-	readonly id: SearchPlotPaneId;
+export type SearchPointLookupPaneModel = {
+	readonly id: SearchPointLookupPaneId;
 	readonly model: PlotMainRenderModel;
 };
 
-export type SearchPlotModel = {
-	readonly panes: readonly SearchPlotPaneModel[];
+export type SearchPointLookupModel = {
+	readonly panes: readonly SearchPointLookupPaneModel[];
 };
 
 export interface ISearchService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeSearchState: Event<SearchState>;
-	readonly onDidChangeSearchPlotModel: Event<SearchPlotModel | null>;
+	readonly onDidChangeSearchPointLookupModel: Event<SearchPointLookupModel | null>;
 
 	buildIndex(snapshot: SessionSnapshot): SearchIndex;
-	getPlotModel(): SearchPlotModel | null;
+	getPointLookupModel(): SearchPointLookupModel | null;
 	getState(): SearchState;
 	resolveResultTarget(result: SearchResult): SearchNavigationTarget | null;
 	searchSnapshot(snapshot: SessionSnapshot, query?: Partial<SearchQuery>): readonly SearchResult[];
-	searchPlotModelAtText(model: PlotMainRenderModel | null, text: string): readonly SearchPoint[] | null;
-	setPlotModel(model: SearchPlotModel | null): void;
+	searchPointsAtText(model: PlotMainRenderModel | null, text: string): readonly SearchPoint[] | null;
+	setPointLookupModel(model: SearchPointLookupModel | null): void;
 	setQuery(query: SearchQuery): void;
 	updateQuery(updates: Partial<SearchQuery>): void;
 	setInterpolationMode(interpolationMode: SearchInterpolationMode): void;

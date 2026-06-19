@@ -16,7 +16,7 @@ import {
 	type SearchInterpolationMode,
 	type SearchNavigationTarget,
 	type SearchPoint,
-	type SearchPlotModel,
+	type SearchPointLookupModel,
 	type SearchQuery,
 	type SearchResult,
 	type SearchResultKind,
@@ -37,14 +37,14 @@ export class SearchService extends Disposable implements ISearchServiceType {
 
 	private readonly onDidChangeSearchStateEmitter = this._register(new Emitter<SearchState>());
 	public readonly onDidChangeSearchState = this.onDidChangeSearchStateEmitter.event;
-	private readonly onDidChangeSearchPlotModelEmitter = this._register(new Emitter<SearchPlotModel | null>());
-	public readonly onDidChangeSearchPlotModel = this.onDidChangeSearchPlotModelEmitter.event;
+	private readonly onDidChangeSearchPointLookupModelEmitter = this._register(new Emitter<SearchPointLookupModel | null>());
+	public readonly onDidChangeSearchPointLookupModel = this.onDidChangeSearchPointLookupModelEmitter.event;
 
 	private state: SearchState = {
 		query: defaultSearchQuery,
 		selectedResultId: null,
 	};
-	private plotModel: SearchPlotModel | null = null;
+	private pointLookupModel: SearchPointLookupModel | null = null;
 
 	public getState(): SearchState {
 		return this.state;
@@ -54,8 +54,8 @@ export class SearchService extends Disposable implements ISearchServiceType {
 		return buildSearchIndex(snapshot);
 	}
 
-	public getPlotModel(): SearchPlotModel | null {
-		return this.plotModel;
+	public getPointLookupModel(): SearchPointLookupModel | null {
+		return this.pointLookupModel;
 	}
 
 	public searchSnapshot(
@@ -114,7 +114,7 @@ export class SearchService extends Disposable implements ISearchServiceType {
 		return null;
 	}
 
-	public searchPlotModelAtText(
+	public searchPointsAtText(
 		model: PlotMainRenderModel | null,
 		text: string,
 	): readonly SearchPoint[] | null {
@@ -130,13 +130,13 @@ export class SearchService extends Disposable implements ISearchServiceType {
 		return searchSeriesAtX(model.seriesList, x, this.state.query.interpolationMode);
 	}
 
-	public setPlotModel(model: SearchPlotModel | null): void {
-		if (this.plotModel === model) {
+	public setPointLookupModel(model: SearchPointLookupModel | null): void {
+		if (this.pointLookupModel === model) {
 			return;
 		}
 
-		this.plotModel = model;
-		this.onDidChangeSearchPlotModelEmitter.fire(model);
+		this.pointLookupModel = model;
+		this.onDidChangeSearchPointLookupModelEmitter.fire(model);
 	}
 
 	public setQuery(query: SearchQuery): void {

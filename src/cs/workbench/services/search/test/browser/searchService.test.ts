@@ -5,8 +5,10 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import { createSearchPointLookupModelFromPlotDisplay } from "src/cs/workbench/services/search/browser/searchModel";
 import { SearchService } from "src/cs/workbench/services/search/browser/searchService";
-import type { SearchPlotModel, SearchState } from "src/cs/workbench/services/search/common/search";
+import type { SearchPointLookupModel, SearchState } from "src/cs/workbench/services/search/common/search";
+import type { PlotDisplayModel } from "src/cs/workbench/services/plot/common/plot";
 import type { PlotMainRenderModel } from "src/cs/workbench/services/plot/common/plotModel";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
 import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
@@ -61,30 +63,43 @@ suite("workbench/services/search/test/browser/searchService", () => {
 		assert.equal(changeCount, 0);
 	});
 
-	test("owns current plot model input outside the view", () => {
+	test("owns current point lookup model input outside the view", () => {
 		const service = store.add(new SearchService());
-		const models: Array<SearchPlotModel | null> = [];
-		store.add(service.onDidChangeSearchPlotModel(model => {
+		const models: Array<SearchPointLookupModel | null> = [];
+		store.add(service.onDidChangeSearchPointLookupModel(model => {
 			models.push(model);
 		}));
-		const model = createSearchPlotModel();
+		const model = createSearchPointLookupModel();
 
-		service.setPlotModel(model);
-		service.setPlotModel(model);
-		service.setPlotModel(null);
+		service.setPointLookupModel(model);
+		service.setPointLookupModel(model);
+		service.setPointLookupModel(null);
 
-		assert.equal(service.getPlotModel(), null);
+		assert.equal(service.getPointLookupModel(), null);
 		assert.deepEqual(models, [model, null]);
 	});
 
-	test("searches plot model points from query text", () => {
+	test("creates point lookup model from plot display", () => {
+		const model = createSearchPointLookupModelFromPlotDisplay(createPlotDisplayModelForTest("file-a"));
+		assert.deepEqual(model?.panes.map(pane => pane.id), ["main"]);
+	});
+
+	test("includes inspector point lookup pane only when requested", () => {
+		const plotDisplayModel = createPlotDisplayModelForTest("file-a", { includeInspector: true });
+		assert.deepEqual(createSearchPointLookupModelFromPlotDisplay(plotDisplayModel)?.panes.map(pane => pane.id), ["main"]);
+		assert.deepEqual(createSearchPointLookupModelFromPlotDisplay(plotDisplayModel, {
+			includeInspector: true,
+		})?.panes.map(pane => pane.id), ["main", "inspector"]);
+	});
+
+	test("searches pane model points from query text", () => {
 		const service = store.add(new SearchService());
 		const model = createPlotModel();
 
-		const results = service.searchPlotModelAtText(model, "1");
-		const interpolated = service.searchPlotModelAtText(model, "0.5");
+		const results = service.searchPointsAtText(model, "1");
+		const interpolated = service.searchPointsAtText(model, "0.5");
 		service.setInterpolationMode("none");
-		const exactOnly = service.searchPlotModelAtText(model, "0.5");
+		const exactOnly = service.searchPointsAtText(model, "0.5");
 
 		assert.equal(results?.[0]?.seriesId, "series-a");
 		assert.equal(results?.[0]?.status, "ready");
@@ -93,7 +108,7 @@ suite("workbench/services/search/test/browser/searchService", () => {
 		assert.equal(interpolated?.[0]?.y, 5);
 		assert.equal(exactOnly?.[0]?.status, "noExactMatch");
 		assert.equal(exactOnly?.[0]?.y, null);
-		assert.equal(service.searchPlotModelAtText(model, "not-a-number"), null);
+		assert.equal(service.searchPointsAtText(model, "not-a-number"), null);
 	});
 
 	test("indexes session snapshot records and resolves navigation targets", () => {
@@ -128,10 +143,10 @@ suite("workbench/services/search/test/browser/searchService", () => {
 	});
 });
 
-const createSearchPlotModel = (): SearchPlotModel => ({
+const createSearchPointLookupModel = (): SearchPointLookupModel => ({
 	panes: [
 		{
-			id: "chart",
+			id: "main",
 			model: createPlotModel(),
 		},
 		{
@@ -161,6 +176,57 @@ const createPlotModel = (): PlotMainRenderModel => ({
 	yDomain: [0, 20],
 	yUnitLabel: "A",
 });
+
+const createPlotDisplayModelForTest = (
+	fileId: string,
+	options: { readonly includeInspector?: boolean } = {},
+): PlotDisplayModel => {
+	const chart: PlotDisplayModel["chart"] = {
+		defaultXAxisTitle: "X",
+		defaultYAxisTitle: "Y",
+		model: createPlotModel(),
+		plotXFactor: 1,
+		plotYFactor: 1,
+		xAxisTitle: "X",
+		xAxisTitleContext: {
+			axis: "x",
+			fileId,
+			pane: "chart",
+			plotType: "iv",
+		},
+		yAxisTitle: "Y",
+		yAxisTitleContext: {
+			axis: "y",
+			fileId,
+			pane: "chart",
+			plotType: "iv",
+		},
+		yScaleMode: "linear",
+	};
+	return {
+		chart,
+		fileId,
+		inspector: options.includeInspector
+			? {
+					...chart,
+					model: {
+						...chart.model,
+						yDomain: [0, 10],
+					},
+					xAxisTitleContext: {
+						...chart.xAxisTitleContext,
+						pane: "inspector",
+					},
+					yAxisTitleContext: {
+						...chart.yAxisTitleContext,
+						pane: "inspector",
+					},
+				}
+			: null,
+		plotType: "iv",
+		unitControl: null,
+	};
+};
 
 const createSnapshot = (): SessionSnapshot => ({
 	fileOrder: ["file-a"],
