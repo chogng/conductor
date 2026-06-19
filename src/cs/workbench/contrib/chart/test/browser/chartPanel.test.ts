@@ -90,27 +90,92 @@ suite("workbench/contrib/chart/test/browser/chartPanel", () => {
       host.remove();
     }
   });
+
+  test("updates inspector canvas in place across plot tab switches", async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const host = document.createElement("div");
+    host.style.height = "720px";
+    host.style.width = "640px";
+    document.body.append(host);
+
+    const panel = new ChartPanel(createChartProps("file-a", 2, {
+      hasInspector: true,
+      inspectorPointsCount: 3,
+      plotType: "iv",
+      visiblePanes: ["chart", "inspector"],
+    }));
+
+    try {
+      host.append(panel.element);
+      await animationFrames(1);
+
+      const initialCanvases = getChartCanvases(panel);
+      assert.equal(initialCanvases.length, 2);
+      const [chartCanvas, inspectorCanvas] = initialCanvases;
+      assert.ok(chartCanvas?.dataset.plotRenderSignature?.startsWith("file-a|iv|chart|"));
+      assert.ok(inspectorCanvas?.dataset.plotRenderSignature?.startsWith("file-a|iv|inspector|"));
+
+      panel.update(createChartProps("file-a", 4, {
+        hasInspector: true,
+        inspectorPointsCount: 5,
+        plotType: "vth",
+        visiblePanes: ["chart", "inspector"],
+      }));
+      await animationFrames(1);
+
+      const nextCanvases = getChartCanvases(panel);
+      assert.equal(nextCanvases.length, 2);
+      assert.strictEqual(nextCanvases[0], chartCanvas);
+      assert.strictEqual(nextCanvases[1], inspectorCanvas);
+      assert.ok(chartCanvas?.dataset.plotRenderSignature?.startsWith("file-a|vth|chart|"));
+      assert.ok(inspectorCanvas?.dataset.plotRenderSignature?.startsWith("file-a|vth|inspector|"));
+    } finally {
+      panel.dispose();
+      host.remove();
+    }
+  });
 });
 
 const createChartProps = (
   fileId: string,
   pointsCount = 2,
+  options: {
+    readonly hasInspector?: boolean;
+    readonly inspectorPointsCount?: number;
+    readonly plotType?: "iv" | "ss" | "gm" | "vth";
+    readonly visiblePanes?: readonly ["chart", "inspector"] | readonly ["chart"];
+  } = {},
 ): ChartViewProps => ({
   activeFileId: fileId,
-  activePlotType: "iv",
+  activePlotType: options.plotType ?? "iv",
   hasChartData: true,
-  plotDisplayModel: createPlotDisplayModel(fileId, pointsCount),
-  visiblePanes: ["chart"],
+  plotDisplayModel: createPlotDisplayModel(fileId, pointsCount, options),
+  visiblePanes: options.visiblePanes ?? ["chart"],
 });
 
 const createPlotDisplayModel = (
   fileId: string,
   pointsCount: number,
+  options: {
+    readonly hasInspector?: boolean;
+    readonly inspectorPointsCount?: number;
+    readonly plotType?: "iv" | "ss" | "gm" | "vth";
+  } = {},
 ): PlotDisplayModel => ({
-  chart: createPlotPaneDisplayModel(fileId, "chart", pointsCount),
+  chart: createPlotPaneDisplayModel(fileId, "chart", pointsCount, options.plotType),
   fileId,
-  inspector: null,
-  plotType: "iv",
+  inspector: options.hasInspector
+    ? createPlotPaneDisplayModel(
+      fileId,
+      "inspector",
+      options.inspectorPointsCount ?? pointsCount,
+      options.plotType,
+    )
+    : null,
+  plotType: options.plotType ?? "iv",
   unitControl: null,
 });
 
@@ -118,6 +183,7 @@ const createPlotPaneDisplayModel = (
   fileId: string,
   pane: "chart" | "inspector",
   pointsCount: number,
+  plotType: "iv" | "ss" | "gm" | "vth" = "iv",
 ): PlotPaneDisplayModel => ({
   defaultXAxisTitle: "Vd",
   defaultYAxisTitle: "Id",
@@ -131,14 +197,14 @@ const createPlotPaneDisplayModel = (
     axis: "x",
     fileId,
     pane,
-    plotType: "iv",
+    plotType,
   },
   yAxisTitle: "Id",
   yAxisTitleContext: {
     axis: "y",
     fileId,
     pane,
-    plotType: "iv",
+    plotType,
   },
   yScaleMode: "linear",
 });
@@ -168,3 +234,6 @@ const animationFrames = async (count: number): Promise<void> => {
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
   }
 };
+
+const getChartCanvases = (panel: ChartPanel): HTMLCanvasElement[] =>
+  Array.from(panel.element.querySelectorAll(".plot_main_chart_canvas"));

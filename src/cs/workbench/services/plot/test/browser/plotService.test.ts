@@ -52,6 +52,136 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     assert.equal(changeCount, 1);
   });
 
+  test("keeps cached inspector display models across active plot type switches", () => {
+    const snapshot = createSnapshot();
+    const service = store.add(new PlotService(
+      createSessionServiceStub(snapshot),
+      createSettingsServiceStub(),
+      store.add(new TestStorageService()),
+    ));
+
+    const ivModel = service.getPlotDisplayModel({
+      fileId: "file-a",
+      plotType: "iv",
+      snapshot,
+    });
+    assert.ok(ivModel?.chart);
+    assert.ok(ivModel?.inspector);
+
+    service.setActivePlotType("vth");
+
+    const cachedIvModel = service.getCachedPlotDisplayModel({
+      fileId: "file-a",
+      plotType: "iv",
+      snapshot,
+    });
+    assert.strictEqual(cachedIvModel?.chart, ivModel?.chart);
+    assert.strictEqual(cachedIvModel?.inspector, ivModel?.inspector);
+
+    const vthModel = service.getPlotDisplayModel({
+      fileId: "file-a",
+      plotType: "vth",
+      snapshot,
+    });
+    assert.ok(vthModel?.chart);
+    assert.ok(vthModel?.inspector);
+
+    service.setActivePlotType("iv");
+
+    const cachedVthModel = service.getCachedPlotDisplayModel({
+      fileId: "file-a",
+      plotType: "vth",
+      snapshot,
+    });
+    assert.strictEqual(cachedVthModel?.chart, vthModel?.chart);
+    assert.strictEqual(cachedVthModel?.inspector, vthModel?.inspector);
+  });
+
+  test("does not enqueue inspector prefetch work for cached plot types after tab switches", () => {
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+    const originalWorker = globalThis.Worker;
+    const scheduledFrames: FrameRequestCallback[] = [];
+    let workerMessageCount = 0;
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      scheduledFrames.push(callback);
+      return scheduledFrames.length;
+    }) as typeof requestAnimationFrame;
+    globalThis.cancelAnimationFrame = (() => undefined) as typeof cancelAnimationFrame;
+
+    class TestWorker {
+      public onerror: ((event: ErrorEvent) => void) | null = null;
+      public onmessage: ((event: MessageEvent) => void) | null = null;
+
+      public postMessage(): void {
+        workerMessageCount += 1;
+      }
+
+      public terminate(): void {
+        return;
+      }
+    }
+
+    try {
+      globalThis.Worker = TestWorker as unknown as typeof Worker;
+      const snapshot = createSnapshot();
+      const service = store.add(new PlotService(
+        createSessionServiceStub(snapshot),
+        createSettingsServiceStub(),
+        store.add(new TestStorageService()),
+      ));
+      const cacheEvents: string[] = [];
+      store.add(service.onDidChangePlotDisplayModelCache(event => {
+        cacheEvents.push(`${event.plotType}:${event.pane ?? "all"}:${event.fileId}`);
+      }));
+
+      const ivModel = service.getPlotDisplayModel({
+        fileId: "file-a",
+        plotType: "iv",
+        snapshot,
+      });
+      const vthModel = service.getPlotDisplayModel({
+        fileId: "file-a",
+        plotType: "vth",
+        snapshot,
+      });
+      assert.ok(ivModel?.inspector);
+      assert.ok(vthModel?.inspector);
+      cacheEvents.length = 0;
+
+      service.setActivePlotType("vth");
+      service.prefetchPlotInspectorDisplayModel({
+        fileId: "file-a",
+        plotType: "vth",
+        snapshot,
+      }, "active");
+      service.setActivePlotType("iv");
+      service.prefetchPlotInspectorDisplayModel({
+        fileId: "file-a",
+        plotType: "iv",
+        snapshot,
+      }, "active");
+
+      assert.deepEqual(cacheEvents, []);
+      assert.equal(scheduledFrames.length, 0);
+      assert.equal(workerMessageCount, 0);
+      assert.strictEqual(service.getCachedPlotDisplayModel({
+        fileId: "file-a",
+        plotType: "iv",
+        snapshot,
+      })?.inspector, ivModel.inspector);
+      assert.strictEqual(service.getCachedPlotDisplayModel({
+        fileId: "file-a",
+        plotType: "vth",
+        snapshot,
+      })?.inspector, vthModel.inspector);
+    } finally {
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+      globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+      globalThis.Worker = originalWorker;
+    }
+  });
+
   test("does not synchronously create calculated data for files without base curves", () => {
     const file = createFileRecord();
     file.curvesByKey = {};

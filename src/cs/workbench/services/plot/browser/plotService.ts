@@ -885,9 +885,11 @@ export class PlotService extends Disposable implements IPlotService {
 
     this.clearQueuedCalculatedDataPrefetch();
     this.clearQueuedPlotDisplayModelPrefetch();
-    this.updateState({
+    this.state = {
+      ...this.state,
       activePlotType: plotType,
-    });
+    };
+    this.onDidChangePlotStateEmitter.fire(this.state);
   }
 
   public async setAxisUnit(
