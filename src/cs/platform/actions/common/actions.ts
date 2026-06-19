@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, type Event } from "src/cs/base/common/event";
+import { Separator, SubmenuAction, type IAction } from "src/cs/base/common/actions";
 import { combinedDisposable, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { LinkedList } from "src/cs/base/common/linkedList";
 import type {
@@ -10,9 +11,9 @@ import type {
   ICommandActionTitle,
   ILocalizedString,
 } from "src/cs/platform/action/common/action";
-import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
-import type { ContextKeyExpression } from "src/cs/platform/contextkey/common/contextkey";
-import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
+import { CommandsRegistry, type ICommandService } from "src/cs/platform/commands/common/commands";
+import type { ContextKeyExpression, IContextKeyService } from "src/cs/platform/contextkey/common/contextkey";
+import { createDecorator, type ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 
 export interface IMenuItem {
   readonly command: ICommandAction;
@@ -46,6 +47,7 @@ export class MenuId {
   private static readonly instances = new Map<string, MenuId>();
 
   public static readonly CommandPalette = new MenuId("CommandPalette");
+  public static readonly AuxiliaryBarTitle = new MenuId("AuxiliaryBarTitle");
 
   public static for(identifier: string): MenuId {
     return MenuId.instances.get(identifier) ?? new MenuId(identifier);
@@ -57,6 +59,40 @@ export class MenuId {
     }
     MenuId.instances.set(id, this);
   }
+}
+
+export interface IMenuActionOptions {
+  readonly arg?: unknown;
+  readonly args?: readonly unknown[];
+  readonly shouldForwardArgs?: boolean;
+  readonly renderShortTitle?: boolean;
+}
+
+export interface IMenuChangeEvent {
+  readonly menu: IMenu;
+  readonly isStructuralChange: boolean;
+  readonly isEnablementChange: boolean;
+  readonly isToggleChange: boolean;
+}
+
+export interface IMenu extends IDisposable {
+  readonly onDidChange: Event<IMenuChangeEvent>;
+  getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
+}
+
+export interface IMenuCreateOptions {
+  readonly emitEventsForSubmenuChanges?: boolean;
+}
+
+export const IMenuService = createDecorator<IMenuService>("menuService");
+
+export interface IMenuService {
+  readonly _serviceBrand: undefined;
+
+  createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu;
+  getMenuActions(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
+  getMenuContexts(id: MenuId): ReadonlySet<string>;
+  resetHiddenStates(ids?: readonly MenuId[]): void;
 }
 
 export interface IMenuRegistryChangeEvent {
@@ -176,6 +212,78 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
   }
 };
 
+export class SubmenuItemAction extends SubmenuAction {
+  public constructor(
+    public readonly item: ISubmenuItem,
+    actions: readonly IAction[],
+  ) {
+    super(`submenuitem.${item.submenu.id}`, titleToString(item.title), actions, "submenu");
+  }
+}
+
+export class MenuItemAction implements IAction {
+  public static label(action: ICommandAction, options?: IMenuActionOptions): string {
+    return options?.renderShortTitle && action.shortTitle
+      ? titleToString(action.shortTitle)
+      : titleToString(action.title);
+  }
+
+  public readonly item: ICommandAction;
+  public readonly alt: MenuItemAction | undefined;
+
+  public readonly id: string;
+  public readonly label: string;
+  public readonly tooltip: string;
+  public readonly class: string | undefined;
+  public readonly enabled: boolean;
+  public readonly checked?: boolean;
+  public readonly icon: ICommandAction["icon"];
+
+  public constructor(
+    item: ICommandAction,
+    alt: ICommandAction | undefined,
+    private readonly options: IMenuActionOptions | undefined,
+    contextKeyService: IContextKeyService,
+    private readonly commandService: ICommandService,
+  ) {
+    this.item = item;
+    this.id = item.id;
+    this.label = MenuItemAction.label(item, options);
+    this.tooltip = titleToString(item.tooltip);
+    this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
+    this.checked = undefined;
+    this.icon = item.icon;
+    this.class = undefined;
+
+    if (item.toggled) {
+      const toggled = "condition" in item.toggled ? item.toggled : { condition: item.toggled };
+      this.checked = contextKeyService.contextMatchesRules(toggled.condition);
+      if (this.checked) {
+        this.label = titleToString(toggled.title) || this.label;
+        this.tooltip = titleToString(toggled.tooltip) || this.tooltip;
+        this.icon = toggled.icon ?? this.icon;
+      }
+    }
+
+    this.alt = alt ? new MenuItemAction(alt, undefined, options, contextKeyService, commandService) : undefined;
+  }
+
+  public async run(...args: unknown[]): Promise<void> {
+    let runArgs: unknown[] = [];
+    if (this.options?.args) {
+      runArgs = [...runArgs, ...this.options.args];
+    } else if ("arg" in (this.options ?? {})) {
+      runArgs = [...runArgs, this.options?.arg];
+    }
+
+    if (this.options?.shouldForwardArgs) {
+      runArgs = [...runArgs, ...args];
+    }
+
+    await this.commandService.executeCommand(this.id, ...runArgs);
+  }
+}
+
 type OneOrN<T> = T | T[];
 
 interface IKeybindingRuleOptions {
@@ -261,4 +369,16 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
   }
 
   return combinedDisposable(...disposables);
+}
+
+export function cleanGroupedActions(groups: readonly [string, readonly IAction[]][]): IAction[] {
+  return Separator.join(...groups.map(([, actions]) => [...actions]));
+}
+
+function titleToString(title: ICommandActionTitle | undefined): string {
+  if (!title) {
+    return "";
+  }
+
+  return typeof title === "string" ? title : title.value;
 }

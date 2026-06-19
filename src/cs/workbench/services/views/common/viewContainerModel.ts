@@ -1,6 +1,6 @@
 import { Emitter, Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
-import { IContextKeyService, type ContextKeyExpression } from "src/cs/platform/contextkey/common/contextkey";
+import { getContextKeyRulesKeys, IContextKeyService, type ContextKeyRules } from "src/cs/platform/contextkey/common/contextkey";
 import type {
   IAddedViewDescriptorRef,
   IAddedViewDescriptorState,
@@ -319,8 +319,8 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
     return visibleIndex;
   }
 
-  private trackContextKeys(expression: ContextKeyExpression | string | undefined): void {
-    for (const key of getContextKeys(expression)) {
+  private trackContextKeys(expression: ContextKeyRules): void {
+    for (const key of getContextKeyRulesKeys(expression)) {
       this.contextKeys.add(key);
     }
   }
@@ -340,23 +340,4 @@ function compareItems(a: ViewDescriptorItem, b: ViewDescriptorItem): number {
   }
 
   return a.viewDescriptor.id.localeCompare(b.viewDescriptor.id);
-}
-
-function getContextKeys(expression: ContextKeyExpression | string | undefined): readonly string[] {
-  if (!expression) {
-    return [];
-  }
-
-  if (typeof expression === "string") {
-    return expression
-      .split("&&")
-      .map(clause => clause.replace(/^!/, "").split(/[=!]=/)[0].trim())
-      .filter(Boolean);
-  }
-
-  if ("expressions" in expression) {
-    return expression.expressions.flatMap(child => getContextKeys(child));
-  }
-
-  return [expression.key];
 }

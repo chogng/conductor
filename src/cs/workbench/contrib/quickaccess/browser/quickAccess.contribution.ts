@@ -1,10 +1,14 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { Registry } from "src/cs/platform/registry/common/platform";
-import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
+import { Action2, IMenuService, registerAction2 } from "src/cs/platform/actions/common/actions";
 import {
   ICommandService,
 } from "src/cs/platform/commands/common/commands";
+import {
+  IContextKeyService,
+  type IContextKeyService as IContextKeyServiceType,
+} from "src/cs/platform/contextkey/common/contextkey";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import {
   QuickAccessExtensions,
@@ -73,6 +77,8 @@ class QuickAccessContribution extends Disposable implements IWorkbenchContributi
   public constructor(
     @IQuickInputService quickInputService: IQuickInputService,
     @ICommandService commandService: ICommandService,
+    @IMenuService menuService: IMenuService,
+    @IContextKeyService contextKeyService: IContextKeyServiceType,
     @IExplorerService explorerService: IExplorerService,
     @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
   ) {
@@ -92,7 +98,7 @@ class QuickAccessContribution extends Disposable implements IWorkbenchContributi
     this._register(registry.registerQuickAccessProvider({
       prefix: COMMANDS_QUICK_ACCESS_PREFIX,
       placeholder: localize("quickAccess.commands.placeholder", "Search commands"),
-      provider: new CommandsQuickAccessProvider(commandService),
+      provider: new CommandsQuickAccessProvider(commandService, menuService, contextKeyService),
     }));
   }
 }

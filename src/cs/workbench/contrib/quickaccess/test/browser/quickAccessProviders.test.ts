@@ -1,6 +1,15 @@
 import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
+import { DisposableStore } from "src/cs/base/common/lifecycle";
+import {
+  MenuId,
+  MenuRegistry,
+} from "src/cs/platform/actions/common/actions";
+import { MenuService } from "src/cs/platform/actions/common/menuService";
+import type { ICommandEvent, ICommandService } from "src/cs/platform/commands/common/commands";
+import { ContextKeyService } from "src/cs/platform/contextkey/browser/contextKeyService";
+import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
 import type { IQuickAccessController } from "src/cs/platform/quickinput/common/quickAccess";
 import type {
   IQuickInputService,
@@ -15,6 +24,7 @@ import {
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
   COMMANDS_QUICK_ACCESS_PREFIX,
+  CommandsQuickAccessProvider,
 } from "src/cs/workbench/contrib/quickaccess/browser/commandsQuickAccess";
 import {
   DefaultQuickAccessProvider,
@@ -25,7 +35,8 @@ import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/b
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
-  ensureNoDisposablesAreLeakedInTestSuite();
+  const store = ensureNoDisposablesAreLeakedInTestSuite();
+
   test("default provider switches to file and command providers", async () => {
     const shownPrefixes: string[] = [];
     const provider = new DefaultQuickAccessProvider(createQuickInputService(shownPrefixes));
@@ -72,6 +83,31 @@ suite("workbench/contrib/quickaccess/test/browser/quickAccessProviders", () => {
         kind: "chart",
       },
     }]);
+  });
+
+  test("commands provider reads context-aware command palette actions", async () => {
+    const disposables = store.add(new DisposableStore());
+    const contextKeyService = disposables.add(new ContextKeyService());
+    const commandService = createCommandService();
+    const menuService = disposables.add(new MenuService(commandService));
+    disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+      command: { id: "test.visibleCommand", title: "Visible Command" },
+      when: ContextKeyExpr.has("showVisibleCommand"),
+    }));
+    disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+      command: {
+        id: "test.disabledCommand",
+        precondition: ContextKeyExpr.has("canRunDisabledCommand"),
+        title: "Disabled Command",
+      },
+    }));
+    const provider = new CommandsQuickAccessProvider(commandService, menuService, contextKeyService);
+
+    assert.deepEqual((await provider.provide("Command")).map(pick => pick.id), []);
+
+    contextKeyService.setContext("showVisibleCommand", true);
+
+    assert.deepEqual((await provider.provide("Command")).map(pick => pick.id), ["test.visibleCommand"]);
   });
 });
 
@@ -142,5 +178,14 @@ function createExplorerService(
     toggleViewLayout: () => undefined,
     getPaneInput: () => paneInput,
     updatePaneInput: () => undefined,
+  };
+}
+
+function createCommandService(): ICommandService {
+  return {
+    _serviceBrand: undefined,
+    onDidExecuteCommand: Event.None as Event<ICommandEvent>,
+    onWillExecuteCommand: Event.None as Event<ICommandEvent>,
+    executeCommand: async () => undefined,
   };
 }

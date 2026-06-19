@@ -1,6 +1,7 @@
 // Shared workbench registrations for browser and desktop renderers.
 
 import "src/cs/platform/jsonschemas/common/jsonContributionRegistry";
+import "src/cs/platform/actions/common/menuService";
 import "src/cs/workbench/common/configuration";
 import "src/cs/workbench/common/views";
 import "src/cs/workbench/services/commands/common/commandService";

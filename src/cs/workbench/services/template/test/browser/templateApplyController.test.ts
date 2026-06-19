@@ -432,11 +432,16 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     assert.equal(result.ok, false);
     assert.deepEqual(queuedFileIds, []);
     assert.deepEqual(
-      [...controller.getFileApplyStates()].map(([fileId, state]) => ({
-        code: state.code,
-        fileId,
-        state: state.state,
-      })),
+      [...controller.getFileApplyStates()].map(([fileId, state]) => {
+        if (state.state !== "skipped") {
+          throw new Error(`Expected ${fileId} to be skipped.`);
+        }
+        return {
+          code: state.code,
+          fileId,
+          state: state.state,
+        };
+      }),
       [
         {
           code: "needsTemplate",

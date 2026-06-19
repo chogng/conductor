@@ -3,6 +3,9 @@ import assert from "assert";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import type { IAction } from "src/cs/base/common/actions";
+import type {
+  IMenuService,
+} from "src/cs/platform/actions/common/actions";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { ContextKeyService } from "src/cs/platform/contextkey/browser/contextKeyService";
 import { StorageScope } from "src/cs/platform/storage/common/storage";
@@ -582,6 +585,15 @@ const createWorkbenchOptions = ({
     getState: () => ({}),
     onDidChangeState: () => () => undefined,
   };
+  const menuService: IMenuService = {
+    _serviceBrand: undefined,
+    createMenu: () => {
+      throw new Error("Test menu service does not create menus.");
+    },
+    getMenuActions: () => [],
+    getMenuContexts: () => new Set(),
+    resetHiddenStates: () => undefined,
+  };
 
   return {
     assessmentQueueService: {
@@ -625,6 +637,7 @@ const createWorkbenchOptions = ({
     } as unknown as WorkbenchService<"exportService">,
     filesService: {} as WorkbenchService<"filesService">,
     layoutService,
+    menuService,
     notificationService,
     parametersService: {
       onDidChangeParametersViewState: Event.None,

@@ -1,14 +1,17 @@
 import { PickerQuickAccessProvider } from "src/cs/platform/quickinput/browser/pickerQuickAccess";
 import { isLocalizedString, type ICommandActionTitle } from "src/cs/platform/action/common/action";
 import {
-  isIMenuItem,
+  IMenuService,
   MenuId,
-  MenuRegistry,
-  type IMenuItem,
+  MenuItemAction,
 } from "src/cs/platform/actions/common/actions";
 import {
   ICommandService,
 } from "src/cs/platform/commands/common/commands";
+import {
+  IContextKeyService,
+  type IContextKeyService as IContextKeyServiceType,
+} from "src/cs/platform/contextkey/common/contextkey";
 import {
   type QuickAccessItem,
 } from "src/cs/platform/quickinput/common/quickAccess";
@@ -24,15 +27,21 @@ type QuickAccessCommand = QuickAccessItem & {
 export class CommandsQuickAccessProvider extends PickerQuickAccessProvider<QuickAccessCommand> {
   public constructor(
     @ICommandService private readonly commandService: ICommandService,
+    @IMenuService private readonly menuService: IMenuService,
+    @IContextKeyService private readonly contextKeyService: IContextKeyServiceType,
   ) {
     super();
   }
 
   protected getPicks(filter: string): readonly QuickAccessCommand[] {
     const normalizedFilter = filter.trim().toLowerCase();
-    const commands = getQuickAccessCommands(commandId => {
-      void this.commandService.executeCommand(commandId);
-    });
+    const commands = getQuickAccessCommands(
+      this.menuService,
+      this.contextKeyService,
+      commandId => {
+        void this.commandService.executeCommand(commandId);
+      },
+    );
     if (!normalizedFilter) {
       return commands;
     }
@@ -44,19 +53,23 @@ export class CommandsQuickAccessProvider extends PickerQuickAccessProvider<Quick
 }
 
 const getQuickAccessCommands = (
+  menuService: IMenuService,
+  contextKeyService: IContextKeyServiceType,
   runCommand: (commandId: string) => void,
 ): readonly QuickAccessCommand[] => {
-  const items = MenuRegistry.getMenuItems(MenuId.CommandPalette);
+  const groups = menuService.getMenuActions(MenuId.CommandPalette, contextKeyService);
   const commands = new Map<string, QuickAccessCommand>();
 
-  for (const item of items) {
-    if (!isIMenuItem(item)) {
-      continue;
-    }
+  for (const [, actions] of groups) {
+    for (const action of actions) {
+      if (!(action instanceof MenuItemAction)) {
+        continue;
+      }
 
-    const command = createQuickAccessCommand(item, runCommand);
-    if (command) {
-      commands.set(command.id, command);
+      const command = createQuickAccessCommand(action, runCommand);
+      if (command) {
+        commands.set(command.id, command);
+      }
     }
   }
 
@@ -66,20 +79,19 @@ const getQuickAccessCommands = (
 };
 
 const createQuickAccessCommand = (
-  item: IMenuItem,
+  action: MenuItemAction,
   runCommand: (commandId: string) => void,
 ): QuickAccessCommand | null => {
-  const label = titleToString(item.command.title);
-  if (!item.command.id || !label) {
+  if (!action.enabled || !action.id || !action.label) {
     return null;
   }
 
-  const commandId = item.command.id;
+  const commandId = action.id;
   return {
     accept: () => runCommand(commandId),
     id: commandId,
-    label,
-    description: titleToString(item.command.category),
+    label: action.label,
+    description: titleToString(action.item.category),
   };
 };
 

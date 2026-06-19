@@ -3,7 +3,7 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
     createContextKeyChangeEvent,
-    evaluateContextKeyExpression,
+    evaluateContextKeyRules,
     IContextKeyService,
     type ContextKeyRules,
     type ContextKeyValue,
@@ -22,20 +22,18 @@ export class ContextKeyService extends Disposable implements IContextKeyServiceT
     public readonly onDidChangeContext = this.onDidChangeContextEmitter.event;
 
     public createKey<T extends ContextKeyValue>(key: string, defaultValue: T): IContextKey<T> {
-        if (!this.values.has(key)) {
-            this.setContext(key, defaultValue);
-        }
-
+        this.setContext(key, defaultValue);
         return new BoundContextKey(key, defaultValue, this);
     }
 
     public setContext(key: string, value: ContextKeyValue): void {
+        const hasKey = this.values.has(key);
         const previousValue = this.values.get(key);
-        if (previousValue === value && (this.values.has(key) || typeof value !== "undefined")) {
+        if ((!hasKey && typeof value === "undefined") || (hasKey && previousValue === value)) {
             return;
         }
 
-        if (typeof value === "undefined" || value === null) {
+        if (typeof value === "undefined") {
             this.values.delete(key);
         }
         else {
@@ -58,46 +56,11 @@ export class ContextKeyService extends Disposable implements IContextKeyServiceT
     }
 
     public contextMatchesRules(rules: ContextKeyRules): boolean {
-        if (!rules) {
-            return true;
-        }
-
-        if (typeof rules === "string") {
-            return this.contextMatchesStringRules(rules);
-        }
-
-        return evaluateContextKeyExpression(rules, this);
+        return evaluateContextKeyRules(rules, this);
     }
 
     public createScoped(_target: HTMLElement): IScopedContextKeyService {
         return new ScopedContextKeyService(this);
-    }
-
-    private contextMatchesStringRules(rules: string): boolean {
-        const clauses = rules.split("&&").map(clause => clause.trim()).filter(Boolean);
-        return clauses.every(clause => this.contextMatchesStringClause(clause));
-    }
-
-    private contextMatchesStringClause(clause: string): boolean {
-        if (clause.startsWith("!")) {
-            return !this.getValue(clause.slice(1).trim());
-        }
-
-        const notEqualsIndex = clause.indexOf("!=");
-        if (notEqualsIndex >= 0) {
-            const key = clause.slice(0, notEqualsIndex).trim();
-            const value = parseContextKeyValue(clause.slice(notEqualsIndex + 2).trim());
-            return this.getValue(key) !== value;
-        }
-
-        const equalsIndex = clause.indexOf("==");
-        if (equalsIndex >= 0) {
-            const key = clause.slice(0, equalsIndex).trim();
-            const value = parseContextKeyValue(clause.slice(equalsIndex + 2).trim());
-            return this.getValue(key) === value;
-        }
-
-        return Boolean(this.getValue(clause));
     }
 }
 
@@ -113,24 +76,26 @@ class ScopedContextKeyService extends Disposable implements IScopedContextKeySer
     constructor(parent: IContextKeyServiceType) {
         super();
         this.parent = parent;
-        this._register(parent.onDidChangeContext(event => this.onDidChangeContextEmitter.fire(event)));
+        this._register(parent.onDidChangeContext(event => {
+            if (!event.allKeysContainedIn(this.values.keys())) {
+                this.onDidChangeContextEmitter.fire(event);
+            }
+        }));
     }
 
     public createKey<T extends ContextKeyValue>(key: string, defaultValue: T): IContextKey<T> {
-        if (!this.values.has(key) && typeof this.parent.getValue(key) === "undefined") {
-            this.setContext(key, defaultValue);
-        }
-
+        this.setContext(key, defaultValue);
         return new BoundContextKey(key, defaultValue, this);
     }
 
     public setContext(key: string, value: ContextKeyValue): void {
+        const hasKey = this.values.has(key);
         const previousValue = this.values.get(key);
-        if (previousValue === value && (this.values.has(key) || typeof value !== "undefined")) {
+        if ((!hasKey && typeof value === "undefined") || (hasKey && previousValue === value)) {
             return;
         }
 
-        if (typeof value === "undefined" || value === null) {
+        if (typeof value === "undefined") {
             this.values.delete(key);
         }
         else {
@@ -157,42 +122,11 @@ class ScopedContextKeyService extends Disposable implements IScopedContextKeySer
     }
 
     public contextMatchesRules(rules: ContextKeyRules): boolean {
-        if (!rules) {
-            return true;
-        }
-
-        if (typeof rules === "string") {
-            const clauses = rules.split("&&").map(clause => clause.trim()).filter(Boolean);
-            return clauses.every(clause => this.contextMatchesStringClause(clause));
-        }
-
-        return evaluateContextKeyExpression(rules, this);
+        return evaluateContextKeyRules(rules, this);
     }
 
     public createScoped(_target: HTMLElement): IScopedContextKeyService {
         return new ScopedContextKeyService(this);
-    }
-
-    private contextMatchesStringClause(clause: string): boolean {
-        if (clause.startsWith("!")) {
-            return !this.getValue(clause.slice(1).trim());
-        }
-
-        const notEqualsIndex = clause.indexOf("!=");
-        if (notEqualsIndex >= 0) {
-            const key = clause.slice(0, notEqualsIndex).trim();
-            const value = parseContextKeyValue(clause.slice(notEqualsIndex + 2).trim());
-            return this.getValue(key) !== value;
-        }
-
-        const equalsIndex = clause.indexOf("==");
-        if (equalsIndex >= 0) {
-            const key = clause.slice(0, equalsIndex).trim();
-            const value = parseContextKeyValue(clause.slice(equalsIndex + 2).trim());
-            return this.getValue(key) === value;
-        }
-
-        return Boolean(this.getValue(clause));
     }
 }
 
@@ -218,36 +152,6 @@ class BoundContextKey<T extends ContextKeyValue> implements IContextKey<T> {
     public get(): T | undefined {
         return this.service.getValue<T>(this.key);
     }
-}
-
-function parseContextKeyValue(rawValue: string): ContextKeyValue {
-    const value = rawValue.trim();
-    if (value === "true") {
-        return true;
-    }
-
-    if (value === "false") {
-        return false;
-    }
-
-    if (value === "undefined") {
-        return undefined;
-    }
-
-    if (value === "null") {
-        return null;
-    }
-
-    if ((value.startsWith("'") && value.endsWith("'")) || (value.startsWith("\"") && value.endsWith("\""))) {
-        return value.slice(1, -1);
-    }
-
-    const numberValue = Number(value);
-    if (value !== "" && Number.isFinite(numberValue)) {
-        return numberValue;
-    }
-
-    return value;
 }
 
 registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Delayed);

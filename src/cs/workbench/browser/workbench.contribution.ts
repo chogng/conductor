@@ -84,6 +84,10 @@ import {
   type ICommandService as ICommandServiceType,
 } from "src/cs/platform/commands/common/commands";
 import {
+  IMenuService,
+  type IMenuService as IMenuServiceType,
+} from "src/cs/platform/actions/common/actions";
+import {
   IStorageService,
   type IStorageService as IStorageServiceType,
 } from "src/cs/platform/storage/common/storage";
@@ -164,6 +168,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @IFileDialogService dialogsService: IFileDialogServiceType,
     @IContextKeyService contextKeyService: IContextKeyServiceType,
     @ICommandService commandService: ICommandServiceType,
+    @IMenuService menuService: IMenuServiceType,
     @IChartService chartService: IChartServiceType,
     @ICalculationService calculationService: ICalculationServiceType,
     @IAssessmentQueueService assessmentQueueService: IAssessmentQueueServiceType,
@@ -211,6 +216,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       settingsService,
       pathService,
       layoutService,
+      menuService,
       nativeHostService,
       notificationService,
       titleService,

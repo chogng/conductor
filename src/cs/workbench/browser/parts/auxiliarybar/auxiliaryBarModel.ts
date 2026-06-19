@@ -1,4 +1,6 @@
 import type { IAction } from "src/cs/base/common/actions";
+import type { IMenuService } from "src/cs/platform/actions/common/actions";
+import type { IContextKeyService } from "src/cs/platform/contextkey/common/contextkey";
 import {
   AuxiliaryBarViews,
   createAuxiliaryBarActions,
@@ -23,7 +25,8 @@ export type AuxiliaryBarState = {
 export type AuxiliaryBarInput = {
   readonly mode: AuxiliaryBarMode;
   readonly activeView: string;
-  readonly onDidChangeActiveView: (view: AuxiliaryBarView) => void;
+  readonly contextKeyService: IContextKeyService;
+  readonly menuService: IMenuService;
   readonly templateMode: TemplateAuxiliaryBarMode;
   readonly visible: boolean;
 };
@@ -49,13 +52,9 @@ export class AuxiliaryBarModel {
       actions: input.visible && input.mode === "chart"
         ? createAuxiliaryBarActions({
             activeView,
+            contextKeyService: input.contextKeyService,
+            menuService: input.menuService,
             mode: input.mode,
-            onSelect: (view) => {
-              const nextView = resolveAuxiliaryBarView(view, input.mode);
-              if (activeView !== nextView) {
-                input.onDidChangeActiveView(nextView);
-              }
-            },
           })
         : [],
       title: input.visible ? getAuxiliaryBarTitleForMode(input.mode, input.templateMode) : "",

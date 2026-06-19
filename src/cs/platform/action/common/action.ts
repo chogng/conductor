@@ -1,7 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  * Copyright (c) Conductor Studio. All rights reserved.
- * 要让 Action2.menu 真正驱动 UI 菜单：补 menuService.ts，并把对应 UI 改成从 IMenuService 取菜单。
- * 要支持 Command Palette/F1 展示：补命令面板消费 MenuId.CommandPalette 的路径。
  * 要支持 keybinding 字段：补 platform/keybinding/common/keybindingsRegistry.ts。
  * 要支持上游隐藏/重置菜单状态：再补 actions.contribution.ts 和 menuResetAction.ts。
  *--------------------------------------------------------------------------------------------*/

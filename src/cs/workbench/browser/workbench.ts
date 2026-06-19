@@ -13,6 +13,7 @@ import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs"
 import type { IFileService } from "src/cs/platform/files/common/files";
 import type { INativeHostService } from "src/cs/platform/native/common/native";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
+import type { IMenuService } from "src/cs/platform/actions/common/actions";
 import type { IStorageService } from "src/cs/platform/storage/common/storage";
 import type {
   IContextKey,
@@ -32,7 +33,6 @@ import {
   type IExplorerService,
 } from "src/cs/workbench/contrib/files/browser/files";
 import {
-  ParametersCommandId,
   type IParametersService,
 } from "src/cs/workbench/services/parameters/common/parameters";
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
@@ -103,9 +103,9 @@ import type {
   ITemplateApplyWorkflowService,
   ITemplateService,
 } from "src/cs/workbench/services/template/common/template";
-import {
-  type ExportState,
-  type IExportService,
+import type {
+  ExportState,
+  IExportService,
 } from "src/cs/workbench/services/export/common/export";
 import type {
   ProcessedEntry,
@@ -150,6 +150,7 @@ export type WorkbenchOptions = {
   readonly sessionService?: ISessionServiceType;
   readonly storageService?: IStorageService;
   readonly layoutService?: IWorkbenchLayoutService;
+  readonly menuService?: IMenuService;
   readonly nativeHostService?: INativeHostService;
   readonly notificationService?: NotificationService;
   readonly parametersService?: IParametersService;
@@ -232,6 +233,7 @@ export class Workbench extends Layout {
   private languagePreference: LanguagePreference = getInitialLanguagePreference();
   private readonly session: ISessionServiceType;
   private readonly commandService: ICommandService;
+  private readonly contextKeyService: IContextKeyService;
   private readonly activeWorkbenchViewContext: IContextKey<string> | null = null;
   private readonly activeWorkbenchMainPartContext: IContextKey<WorkbenchMainPart | ""> | null = null;
   private readonly activeAuxiliaryBarViewContext: IContextKey<string> | null = null;
@@ -243,6 +245,7 @@ export class Workbench extends Layout {
   private readonly explorerService: IExplorerService;
   private readonly filesService: IFileService;
   private readonly layoutService: IWorkbenchLayoutService;
+  private readonly menuService: IMenuService;
   private readonly notificationService: NotificationService;
   private readonly parametersService: IParametersService;
   private readonly plotService: IPlotService;
@@ -321,6 +324,9 @@ export class Workbench extends Layout {
     if (!options.layoutService) {
       throw new Error("Workbench requires IWorkbenchLayoutService.");
     }
+    if (!options.menuService) {
+      throw new Error("Workbench requires IMenuService.");
+    }
     if (!options.notificationService) {
       throw new Error("Workbench requires INotificationService.");
     }
@@ -359,7 +365,9 @@ export class Workbench extends Layout {
     this.explorerService = options.explorerService;
     this.exportService = options.exportService;
     this.commandService = options.commandService;
+    this.contextKeyService = options.contextKeyService;
     this.layoutService = options.layoutService;
+    this.menuService = options.menuService;
     this.notificationService = options.notificationService;
     this.parametersService = options.parametersService;
     this.plotService = options.plotService;
@@ -464,6 +472,7 @@ export class Workbench extends Layout {
     }, { silent: true });
     const snapshot = this.session.getSnapshot();
     const readModel = createSessionReadModel(snapshot);
+    this.updateWorkbenchModeContextKeys();
     this.updateViewContainers();
     this.updateContextKeys();
     this.renderAuxiliaryBarView(snapshot, readModel);
@@ -530,6 +539,7 @@ export class Workbench extends Layout {
     if (needsChromeRefresh) {
       const isWorkbenchActive = this.activeView !== "settings";
       const isAuxiliaryBarVisible = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+      this.updateWorkbenchModeContextKeys();
       this.updateAuxiliaryBar(isWorkbenchActive && isAuxiliaryBarVisible);
       this.updateContextKeys();
     }
@@ -682,11 +692,15 @@ export class Workbench extends Layout {
   }
 
   private updateContextKeys(): void {
-    this.activeWorkbenchViewContext?.set(this.activeView);
-    this.activeWorkbenchMainPartContext?.set(this.activeWorkbenchMainPart);
+    this.updateWorkbenchModeContextKeys();
     this.activeAuxiliaryBarViewContext?.set(
       this.auxiliaryBarModel.getActiveView(this.activeWorkbenchMainPart),
     );
+  }
+
+  private updateWorkbenchModeContextKeys(): void {
+    this.activeWorkbenchViewContext?.set(this.activeView);
+    this.activeWorkbenchMainPartContext?.set(this.activeWorkbenchMainPart);
   }
 
   private closeAuxiliaryBarViews(): void {
@@ -717,8 +731,9 @@ export class Workbench extends Layout {
 
     const state = this.auxiliaryBarModel.update({
       activeView: this.layoutService.activeAuxiliaryBarView,
+      contextKeyService: this.contextKeyService,
+      menuService: this.menuService,
       mode: this.activeWorkbenchMainPart,
-      onDidChangeActiveView: view => this.selectAuxiliaryBarView(view),
       templateMode: this.templateService.getState().mode,
       visible,
     });
@@ -731,15 +746,6 @@ export class Workbench extends Layout {
     for (const view of state.views) {
       this.viewsService.setViewVisible(view.viewId, view.visible);
     }
-  }
-
-  private selectAuxiliaryBarView(view: string): void {
-    if (view === "parameters") {
-      void this.commandService.executeCommand(ParametersCommandId.showParameters);
-      return;
-    }
-
-    this.layoutService.selectAuxiliaryBarView(view);
   }
 
   private renderAuxiliaryBarView(

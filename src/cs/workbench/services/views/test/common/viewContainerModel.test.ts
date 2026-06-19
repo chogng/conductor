@@ -130,4 +130,34 @@ suite("workbench/services/views/common/viewContainerModel", () => {
     model.dispose();
     contextKeyService.dispose();
   });
+
+  test("updates active descriptors for any key in an or expression", () => {
+    const contextKeyService = new ContextKeyService();
+    const model = new ViewContainerModel({
+      ctorDescriptor: new SyncDescriptor(TestViewPaneContainer),
+      id: "workbench.auxiliary",
+      title: "Auxiliary",
+    } satisfies ViewContainer, contextKeyService);
+
+    model.add([{
+      viewDescriptor: {
+        ctorDescriptor: new SyncDescriptor(TestView),
+        id: "workbench.searchOrExport",
+        name: "Search or Export",
+        when: ContextKeyExpr.or(
+          ContextKeyExpr.equals("activeAuxiliaryBarView", "search"),
+          ContextKeyExpr.equals("activeAuxiliaryBarView", "export"),
+        ),
+      },
+    }]);
+
+    assert.deepStrictEqual(model.activeViewDescriptors.map(view => view.id), []);
+
+    contextKeyService.setContext("activeAuxiliaryBarView", "export");
+
+    assert.deepStrictEqual(model.activeViewDescriptors.map(view => view.id), ["workbench.searchOrExport"]);
+
+    model.dispose();
+    contextKeyService.dispose();
+  });
 });
