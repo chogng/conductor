@@ -658,13 +658,17 @@ export class ChartViewPane extends ViewPane {
   }
 
   private updateLegendLabel(context: LegendContext, legendKey: string, defaultLabel: string, nextLabel: string): void {
+    const currentLabelOverride = this.getLegendLabels(context)[legendKey] ?? null;
+    const nextLabelOverride = resolveLegendLabelOverride(nextLabel, defaultLabel);
     this.plotService.setLegendLabel(
       context.fileId,
       legendKey,
-      resolveLegendLabelOverride(nextLabel, defaultLabel),
+      nextLabelOverride,
     );
-    this.updateChartPanel(this.props);
-    this.refreshLegendPopover();
+    if (currentLabelOverride === nextLabelOverride) {
+      this.updateChartPanel(this.props);
+      this.refreshLegendPopover();
+    }
   }
 
   private toggleLegendItem(context: LegendContext, legendKey: string): void {
