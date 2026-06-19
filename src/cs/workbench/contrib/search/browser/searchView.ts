@@ -2,8 +2,17 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBoxField";
-import { createSelectBox, type SelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
+import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
+import {
+  createInputBoxField,
+  getInputBoxFieldState,
+} from "src/cs/base/browser/ui/inputbox/inputBoxField";
+import {
+  createSelectBox,
+  type SelectBox,
+  type SelectBoxOptions,
+} from "src/cs/base/browser/ui/selectBox/selectBox";
+import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { formatNumber } from "src/cs/workbench/services/calculation/common/numberFormat";
 import { getPlotColor } from "src/cs/workbench/services/plot/common/plotColors";
@@ -29,83 +38,143 @@ export type SearchViewInput = {
 };
 
 export type SearchViewElement = HTMLElement & {
-  readonly dispose?: () => void;
+  readonly dispose: () => void;
+  readonly update: (input: SearchViewInput) => void;
 };
 
-export const createSearchView = ({
-  model,
-  searchState,
-  onInterpolationModeChange,
-  onQueryTextChange,
-  onSearchPlotModelAtText,
-}: SearchViewInput): SearchViewElement => {
-  const disposables: SelectBox<SearchInterpolationMode>[] = [];
-  const primaryModel = getPrimarySearchModel(model);
-  const section = document.createElement("section") as SearchViewElement;
-  section.className = "search_pane";
-  section.setAttribute("aria-label", localize("search.heading", "Search"));
+export const createSearchView = (input: SearchViewInput): SearchViewElement =>
+  new SearchViewController(input).element;
 
-  const control = document.createElement("div");
-  control.className = "search_control";
-
-  const label = document.createElement("span");
-  label.className = "search_label";
-  label.textContent = localize("search.xInput", "X value");
-
-  const inputField = createInputBoxField({
+class SearchViewController {
+  private readonly store = new DisposableStore();
+  private readonly section = document.createElement("section") as SearchViewElement;
+  private readonly inputField = createInputBoxField({
     ariaLabel: localize("search.xInput", "X value"),
     className: "search_input",
-    disabled: !primaryModel,
+    disabled: true,
     inputClassName: "search_input_native",
     type: "text",
-    value: primaryModel ? getSearchInputValue(searchState, primaryModel) : "",
+    value: "",
   });
-  const input = inputField.input;
-  input.inputMode = "decimal";
+  private readonly input = this.inputField.input;
+  private readonly algorithmSelect: SelectBox<SearchInterpolationMode>;
+  private readonly summary = document.createElement("span");
+  private readonly body = document.createElement("div");
+  private currentInput: SearchViewInput;
+  private bodyRenderSignature = "";
+  private interpolationSelectSignature = "";
 
-  const algorithmLabel = document.createElement("span");
-  algorithmLabel.className = "search_label";
-  algorithmLabel.textContent = localize("search.interpolation.label", "Interpolation algorithm");
-
-  let renderSearchResults = (): void => {};
-  const algorithmSelect = createSearchInterpolationSelect({
-    disabled: !primaryModel,
-    onInterpolationModeChange: mode => {
-      onInterpolationModeChange(mode);
-      renderSearchResults();
-    },
-    value: searchState.query.interpolationMode,
-  });
-  disposables.push(algorithmSelect);
-
-  const summary = document.createElement("span");
-  summary.className = "search_summary";
-  if (primaryModel) {
-    summary.textContent = localize("search.summary", "{seriesCount} series, {pointsCount} points, X {xDomain}", {
-      pointsCount: primaryModel.pointsCount,
-      seriesCount: primaryModel.seriesList.length,
-      xDomain: formatDomain(primaryModel.xDomain),
+  constructor(input: SearchViewInput) {
+    this.currentInput = input;
+    this.section.className = "search_pane";
+    this.section.setAttribute("aria-label", localize("search.heading", "Search"));
+    Object.defineProperties(this.section, {
+      dispose: {
+        value: (): void => this.dispose(),
+      },
+      update: {
+        value: (nextInput: SearchViewInput): void => this.update(nextInput),
+      },
     });
+
+    const control = document.createElement("div");
+    control.className = "search_control";
+
+    const label = document.createElement("span");
+    label.className = "search_label";
+    label.textContent = localize("search.xInput", "X value");
+    this.input.inputMode = "decimal";
+
+    const algorithmLabel = document.createElement("span");
+    algorithmLabel.className = "search_label";
+    algorithmLabel.textContent = localize("search.interpolation.label", "Interpolation algorithm");
+
+    this.algorithmSelect = this.store.add(createSelectBox(
+      this.createInterpolationSelectOptions(true, input.searchState.query.interpolationMode),
+    ));
+
+    this.summary.className = "search_summary";
+    this.body.className = "search_results";
+    control.append(label, this.inputField.element, algorithmLabel, this.algorithmSelect.domNode, this.summary);
+    this.section.append(control, this.body);
+
+    this.store.add(addDisposableListener(this.input, EventType.INPUT, () => {
+      this.currentInput.onQueryTextChange(this.input.value);
+      this.renderSearchResults();
+    }));
+
+    this.update(input);
   }
 
-  control.append(label, inputField.element, algorithmLabel, algorithmSelect.domNode, summary);
-
-  const body = document.createElement("div");
-  body.className = "search_results";
-
-  if (!model || !primaryModel) {
-    body.replaceChildren(createSearchEmpty(localize("search.empty.model", "No chart data to search.")));
-    section.append(control, body);
-    return section;
+  public get element(): SearchViewElement {
+    return this.section;
   }
 
-  const render = () => {
+  private update(input: SearchViewInput): void {
+    this.currentInput = input;
+    const primaryModel = getPrimarySearchModel(input.model);
+    this.syncInput(primaryModel, input.searchState);
+    this.syncInterpolationSelect(!primaryModel, input.searchState.query.interpolationMode);
+    this.syncSummary(primaryModel);
+    this.renderSearchResults();
+  }
+
+  private syncInput(
+    primaryModel: PlotMainRenderModel | null,
+    searchState: SearchState,
+  ): void {
+    const disabled = !primaryModel;
+    this.input.disabled = disabled;
+    this.inputField.field.dataset.state = getInputBoxFieldState({ disabled });
+    const nextValue = primaryModel ? getSearchInputValue(searchState, primaryModel) : "";
+    if (this.input.value !== nextValue) {
+      this.input.value = nextValue;
+    }
+  }
+
+  private syncInterpolationSelect(
+    disabled: boolean,
+    value: SearchInterpolationMode,
+  ): void {
+    const signature = `${disabled ? "disabled" : "enabled"}:${value}`;
+    if (this.interpolationSelectSignature === signature) {
+      return;
+    }
+
+    this.algorithmSelect.update(this.createInterpolationSelectOptions(disabled, value));
+    this.interpolationSelectSignature = signature;
+  }
+
+  private syncSummary(primaryModel: PlotMainRenderModel | null): void {
+    const nextSummary = primaryModel
+      ? localize("search.summary", "{seriesCount} series, {pointsCount} points, X {xDomain}", {
+          pointsCount: primaryModel.pointsCount,
+          seriesCount: primaryModel.seriesList.length,
+          xDomain: formatDomain(primaryModel.xDomain),
+        })
+      : "";
+    if (this.summary.textContent !== nextSummary) {
+      this.summary.textContent = nextSummary;
+    }
+  }
+
+  private renderSearchResults(): void {
+    const {
+      model,
+      onSearchPlotModelAtText,
+    } = this.currentInput;
+    const primaryModel = getPrimarySearchModel(model);
+    if (!model || !primaryModel) {
+      this.replaceBody("empty:model", createSearchEmpty(localize("search.empty.model", "No chart data to search.")));
+      return;
+    }
+
     const paneResults = model.panes.map(pane => ({
       pane,
-      results: onSearchPlotModelAtText(pane.model, input.value),
+      results: onSearchPlotModelAtText(pane.model, this.input.value),
     }));
     if (paneResults.some(result => !result.results)) {
-      body.replaceChildren(createSearchEmpty(localize("search.invalidX", "Enter a numeric X value.")));
+      this.replaceBody("empty:invalid", createSearchEmpty(localize("search.invalidX", "Enter a numeric X value.")));
       return;
     }
 
@@ -114,33 +183,44 @@ export const createSearchView = ({
       readonly results: readonly SearchPoint[];
     } => Boolean(result.results?.length));
     if (!populatedPaneResults.length) {
-      body.replaceChildren(createSearchEmpty(localize("search.noSeries", "No series available.")));
+      this.replaceBody("empty:no-series", createSearchEmpty(localize("search.noSeries", "No series available.")));
       return;
     }
 
-    body.replaceChildren(
+    this.replaceBody(
+      createSearchResultsSignature(populatedPaneResults),
       ...populatedPaneResults.map(result => createSearchResultSection(result.pane, result.results)),
     );
-  };
-  renderSearchResults = render;
+  }
 
-  input.addEventListener("input", () => {
-    onQueryTextChange(input.value);
-    render();
-  });
-  render();
+  private replaceBody(signature: string, ...children: Node[]): void {
+    if (this.bodyRenderSignature === signature) {
+      return;
+    }
 
-  section.append(control, body);
-  Object.defineProperty(section, "dispose", {
-    value: (): void => {
-      for (const disposable of disposables) {
-        disposable.dispose();
-      }
-      section.replaceChildren();
-    },
-  });
-  return section;
-};
+    this.body.replaceChildren(...children);
+    this.bodyRenderSignature = signature;
+  }
+
+  private createInterpolationSelectOptions(
+    disabled: boolean,
+    value: SearchInterpolationMode,
+  ): SelectBoxOptions<SearchInterpolationMode> {
+    return createSearchInterpolationSelectOptions({
+      disabled,
+      onInterpolationModeChange: mode => {
+        this.currentInput.onInterpolationModeChange(mode);
+        this.renderSearchResults();
+      },
+      value,
+    });
+  }
+
+  private dispose(): void {
+    this.store.dispose();
+    this.section.replaceChildren();
+  }
+}
 
 const getPrimarySearchModel = (model: SearchPlotModel | null): PlotMainRenderModel | null =>
   model?.panes[0]?.model ?? null;
@@ -287,7 +367,30 @@ const formatSearchColumns = (
   };
 };
 
-const createSearchInterpolationSelect = ({
+const createSearchResultsSignature = (
+  paneResults: readonly {
+    readonly pane: SearchPlotPaneModel;
+    readonly results: readonly SearchPoint[];
+  }[],
+): string => {
+  const parts: string[] = [];
+  for (const { pane, results } of paneResults) {
+    parts.push(pane.id, String(results.length));
+    for (const result of results) {
+      parts.push(
+        result.seriesId,
+        result.seriesName,
+        result.status,
+        String(result.x),
+        String(result.y ?? ""),
+        String(result.color ?? ""),
+      );
+    }
+  }
+  return parts.join("\u001f");
+};
+
+const createSearchInterpolationSelectOptions = ({
   disabled,
   onInterpolationModeChange,
   value,
@@ -295,8 +398,7 @@ const createSearchInterpolationSelect = ({
   readonly disabled: boolean;
   readonly onInterpolationModeChange: (mode: SearchInterpolationMode) => void;
   readonly value: SearchInterpolationMode;
-}): SelectBox<SearchInterpolationMode> =>
-  createSelectBox({
+}): SelectBoxOptions<SearchInterpolationMode> => ({
     ariaLabel: localize("search.interpolation.selectLabel", "Search algorithm"),
     className: "search_select",
     disabled,

@@ -4,8 +4,9 @@
 
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { ActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
+import { replaceChildrenIfChanged } from "src/cs/base/browser/dom";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import { toAction, type IAction } from "src/cs/base/common/actions";
+import { Action, type IAction } from "src/cs/base/common/actions";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
@@ -40,10 +41,33 @@ import "src/cs/workbench/browser/parts/views/media/views.css";
 const COPY_TABLE_ACTION_ID = "parameters.copyTable";
 
 export class ParametersViewPane extends ViewPane {
+  private readonly shellStore = new DisposableStore();
   private readonly renderStore = new DisposableStore();
   private readonly pane = document.createElement("div");
   private readonly view = document.createElement("div");
   private readonly content = document.createElement("div");
+  private readonly emptyRoot = document.createElement("div");
+  private readonly tableRoot = document.createElement("div");
+  private readonly tableToolbar = document.createElement("div");
+  private readonly tableTitle = document.createElement("div");
+  private readonly tableScroll = document.createElement("div");
+  private readonly copyAction = this.shellStore.add(new Action(
+    COPY_TABLE_ACTION_ID,
+    localize("parameters.copyTable.label", "Copy table"),
+    undefined,
+    false,
+    () => void this.copyCurrentParameterTable(),
+  ));
+  private readonly tableActionBar = this.shellStore.add(new ActionBar({
+    ariaLabel: localize("parameters.table.actions", "Parameter table actions"),
+    className: "parameters_table_actionbar",
+    actionViewItemProvider: (action, itemOptions) =>
+      action.id === COPY_TABLE_ACTION_ID
+        ? new CopyTableActionViewItem(action, itemOptions)
+        : undefined,
+  }));
+  private currentParametersOptions: ParametersViewOptions | null = null;
+  private tableRenderSignature = "";
 
   constructor(
     @IParametersService private readonly parametersService: IParametersService,
@@ -58,6 +82,18 @@ export class ParametersViewPane extends ViewPane {
     this.pane.className = "parameters_pane";
     this.view.className = "parameters_view";
     this.content.className = "parameters_view_content";
+    this.emptyRoot.className = "workbench-view-pane__empty";
+    this.tableRoot.className = "parameters_table_layout";
+    this.tableToolbar.className = "parameters_table_toolbar";
+    this.tableToolbar.setAttribute("role", "toolbar");
+    this.tableToolbar.setAttribute("aria-label", localize("parameters.toolbar.ariaLabel", "Parameter table"));
+    this.tableTitle.className = "parameters_table_toolbar_title";
+    this.tableTitle.textContent = localize("chart.views.parameters", "Parameters");
+    this.copyAction.tooltip = localize("parameters.copyTable.label", "Copy table");
+    this.tableActionBar.push(this.copyAction);
+    this.tableToolbar.append(this.tableTitle, this.tableActionBar.domNode);
+    this.tableScroll.className = "parameters_table_scroll";
+    this.tableRoot.append(this.tableToolbar, this.tableScroll);
     this.view.append(this.content);
     this.pane.append(this.view);
     this.body.append(this.pane);
@@ -78,51 +114,27 @@ export class ParametersViewPane extends ViewPane {
 
   renderParameters(options: ParametersViewOptions): void {
     this.renderStore.clear();
+    this.currentParametersOptions = options;
+    this.copyAction.enabled = options.rows.length > 0;
 
-    const root = document.createElement("div");
-    root.className = "parameters_table_layout";
+    const nextSignature = createParametersTableRenderSignature(options);
+    if (this.tableRenderSignature !== nextSignature) {
+      renderParametersView(this.tableScroll, options);
+      this.tableRenderSignature = nextSignature;
+    }
 
-    const toolbar = document.createElement("div");
-    toolbar.className = "parameters_table_toolbar";
-    toolbar.setAttribute("role", "toolbar");
-    toolbar.setAttribute("aria-label", localize("parameters.toolbar.ariaLabel", "Parameter table"));
-
-    const title = document.createElement("div");
-    title.className = "parameters_table_toolbar_title";
-    title.textContent = localize("chart.views.parameters", "Parameters");
-
-    const actionBar = this.renderStore.add(new ActionBar({
-      ariaLabel: localize("parameters.table.actions", "Parameter table actions"),
-      className: "parameters_table_actionbar",
-      actionViewItemProvider: (action, itemOptions) =>
-        action.id === COPY_TABLE_ACTION_ID
-          ? new CopyTableActionViewItem(action, itemOptions)
-          : undefined,
-    }));
-    actionBar.push(toAction({
-      id: COPY_TABLE_ACTION_ID,
-      label: localize("parameters.copyTable.label", "Copy table"),
-      tooltip: localize("parameters.copyTable.label", "Copy table"),
-      enabled: options.rows.length > 0,
-      run: () => void this.copyParameterTable(options),
-    }));
-
-    toolbar.append(title, actionBar.domNode);
-
-    const tableHost = document.createElement("div");
-    tableHost.className = "parameters_table_scroll";
-    renderParametersView(tableHost, options);
-
-    root.append(toolbar, tableHost);
-    this.content.replaceChildren(root);
+    replaceChildrenIfChanged(this.content, this.tableRoot);
   }
 
   renderEmpty(message: string): void {
     this.renderStore.clear();
-    const root = document.createElement("div");
-    root.className = "workbench-view-pane__empty";
-    root.textContent = message;
-    this.content.replaceChildren(root);
+    this.currentParametersOptions = null;
+    this.copyAction.enabled = false;
+    this.tableRenderSignature = "";
+    if (this.emptyRoot.textContent !== message) {
+      this.emptyRoot.textContent = message;
+    }
+    replaceChildrenIfChanged(this.content, this.emptyRoot);
   }
 
   renderRcSummary(options: {
@@ -130,6 +142,7 @@ export class ParametersViewPane extends ViewPane {
     summary: RcCalculationSummary | null;
   }): void {
     this.renderStore.clear();
+    this.clearParametersTableState();
     renderRcSummaryView(this.content, options);
   }
 
@@ -137,6 +150,7 @@ export class ParametersViewPane extends ViewPane {
     series: RcCurveChartSeries[];
   }): void {
     this.renderStore.clear();
+    this.clearParametersTableState();
     renderRcCurveHeaderView(this.content, options);
   }
 
@@ -144,14 +158,36 @@ export class ParametersViewPane extends ViewPane {
     rows: RcCurveRow[];
   }): void {
     this.renderStore.clear();
+    this.clearParametersTableState();
     renderRcCurveRowsView(this.content, options);
   }
 
   public override dispose(): void {
     this.renderStore.dispose();
+    this.shellStore.dispose();
+    this.currentParametersOptions = null;
     this.content.replaceChildren();
     this.pane.remove();
     super.dispose();
+  }
+
+  private clearParametersTableState(): void {
+    this.currentParametersOptions = null;
+    this.copyAction.enabled = false;
+    this.tableRenderSignature = "";
+  }
+
+  private async copyCurrentParameterTable(): Promise<void> {
+    if (this.currentParametersOptions) {
+      await this.copyParameterTable(this.currentParametersOptions);
+      return;
+    }
+
+    this.notificationService.notify({
+      id: "parameters.copyTable",
+      message: localize("parameters.copyTable.empty", "No parameter rows to copy."),
+      severity: Severity.Warning,
+    });
   }
 
   private async copyParameterTable(options: ParametersViewOptions): Promise<void> {
@@ -183,6 +219,48 @@ export class ParametersViewPane extends ViewPane {
     }
   }
 }
+
+const createParametersTableRenderSignature = (
+  options: ParametersViewOptions,
+): string => {
+  const parts = [
+    options.gmMetricHeader,
+    options.showTransferMetrics ? "transfer" : "output",
+    String(options.rows.length),
+  ];
+  for (const row of options.rows) {
+    parts.push(
+      String(row.id ?? ""),
+      String(row.legendHeader ?? ""),
+      row.name,
+      String(row.isPending ?? false),
+      String(row.currentMethod ?? ""),
+      String(row.ion ?? ""),
+      String(row.xAtIon ?? ""),
+      String(row.ioff ?? ""),
+      String(row.xAtIoff ?? ""),
+      String(row.ionIoff ?? ""),
+      String(row.gmMaxAbs ?? ""),
+      String(row.xAtGmMaxAbs ?? ""),
+      String(row.thresholdVoltage ?? ""),
+      String(row.thresholdVoltageElectron ?? ""),
+      String(row.thresholdVoltageHole ?? ""),
+      String(row.ss ?? ""),
+      String(row.ssConfidence ?? ""),
+      String(row.xAtSs ?? ""),
+      String(row.jon ?? ""),
+    );
+    if (options.showTransferMetrics && !row.isPending) {
+      parts.push(
+        String(options.buildCurrentTooltip?.("ion", row) ?? ""),
+        String(options.buildCurrentTooltip?.("ioff", row) ?? ""),
+        String(options.buildCurrentTooltip?.("ratio", row) ?? ""),
+        String(options.buildSsTooltip?.(row) ?? ""),
+      );
+    }
+  }
+  return parts.join("\u001f");
+};
 
 const writeClipboardText = async (text: string): Promise<void> => {
   if (navigator.clipboard?.writeText) {

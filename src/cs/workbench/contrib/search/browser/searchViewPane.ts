@@ -2,9 +2,14 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { replaceChildrenIfChanged } from "src/cs/base/browser/dom";
 import { localize } from "src/cs/nls";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
-import { createSearchView, type SearchViewElement } from "src/cs/workbench/contrib/search/browser/searchView";
+import {
+  createSearchView,
+  type SearchViewElement,
+  type SearchViewInput,
+} from "src/cs/workbench/contrib/search/browser/searchView";
 import {
   ISearchService,
   SearchViewId,
@@ -34,20 +39,31 @@ export class SearchViewPane extends ViewPane {
     this._register(this.searchService.onDidChangeSearchPlotModel(() => {
       this.renderSearch();
     }));
+    this._register(this.searchService.onDidChangeSearchState(() => {
+      this.renderSearch();
+    }));
     this.renderSearch();
   }
 
   private renderSearch(): void {
-    this.currentView?.dispose?.();
-    this.currentView = createSearchView({
+    const input = this.createSearchViewInput();
+    if (!this.currentView) {
+      this.currentView = createSearchView(input);
+    } else {
+      this.currentView.update(input);
+    }
+    replaceChildrenIfChanged(this.content, this.currentView);
+  }
+
+  private createSearchViewInput(): SearchViewInput {
+    return {
       model: this.searchService.getPlotModel(),
       onInterpolationModeChange: this.searchService.setInterpolationMode,
       onSearchPlotModelAtText: (plotModel, text) =>
         this.searchService.searchPlotModelAtText(plotModel, text),
       searchState: this.searchService.getState(),
       onQueryTextChange: this.searchService.setQueryText,
-    });
-    this.content.replaceChildren(this.currentView);
+    };
   }
 
   public override dispose(): void {
