@@ -370,7 +370,7 @@ const createInspectorPlotMainViewProps = (
   }
 
   return {
-    drawStrategy: "stable",
+    drawStrategy: "eager",
     model: inspectorDisplayModel.model,
     onXAxisLabelChange: props.onInspectorXAxisLabelChange,
     onYAxisLabelChange: props.onInspectorYAxisLabelChange,

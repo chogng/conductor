@@ -69,6 +69,53 @@ suite("workbench/contrib/plot/test/browser/plotMainView", () => {
     }
   });
 
+  test("keeps the canvas visually sized while stable drawing waits for animated layout", async () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const host = document.createElement("div");
+    host.style.height = "360px";
+    host.style.width = "640px";
+    document.body.append(host);
+
+    const element = createPlotMainChart(createPlotMainChartProps({
+      model: createPlotModel(),
+      plotType: "iv",
+    }));
+    const canvas = element.querySelector(".plot_main_chart_canvas") as HTMLCanvasElement | null;
+    assert.ok(canvas);
+
+    try {
+      host.append(element);
+      await animationFrames(3);
+
+      const initialPixelWidth = canvas.width;
+      assert.equal(canvas.style.width, "640px");
+      assert.equal(initialPixelWidth, expectedPixelWidth(640));
+
+      host.style.width = "660px";
+      await animationFrames(1);
+
+      assert.equal(canvas.style.width, "660px");
+      assert.equal(canvas.width, initialPixelWidth);
+
+      host.style.width = "680px";
+      await animationFrames(1);
+
+      assert.equal(canvas.style.width, "680px");
+      assert.equal(canvas.width, initialPixelWidth);
+
+      await animationFrames(2);
+
+      assert.equal(canvas.style.width, "680px");
+      assert.equal(canvas.width, expectedPixelWidth(680));
+    } finally {
+      element.dispose();
+      host.remove();
+    }
+  });
+
   test("keeps waiting when the main chart is mounted after the first frame", async () => {
     if (typeof document === "undefined") {
       return;
@@ -313,3 +360,6 @@ const animationFrames = async (count: number): Promise<void> => {
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
   }
 };
+
+const expectedPixelWidth = (cssWidth: number): number =>
+  Math.max(1, Math.round(cssWidth * (window.devicePixelRatio || 1)));

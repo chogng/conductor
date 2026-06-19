@@ -187,6 +187,17 @@ const MIN_DRAW_POINTS_PER_SERIES = 600;
 const DRAW_POINTS_PER_PIXEL = 2;
 const canvasBackingStoreSizes = new WeakMap<HTMLCanvasElement, CanvasBackingStoreSize>();
 
+const syncCanvasCssSize = (canvas: HTMLCanvasElement, width: number, height: number): void => {
+  const cssWidth = `${width}px`;
+  const cssHeight = `${height}px`;
+  if (canvas.style.width !== cssWidth) {
+    canvas.style.width = cssWidth;
+  }
+  if (canvas.style.height !== cssHeight) {
+    canvas.style.height = cssHeight;
+  }
+};
+
 const resolvePlotYKey = (
   effectiveYScale: PlotMainChartProps["effectiveYScale"],
   yScaleMode: PlotMainChartProps["yScaleMode"],
@@ -805,6 +816,15 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
     );
     clearHoverOverlay(hoverCanvas);
   };
+  const syncCanvasCssSizeToLayout = (): void => {
+    const nextSize = readChartLayoutSize(root);
+    if (!nextSize) {
+      return;
+    }
+
+    syncCanvasCssSize(canvas, nextSize.width, nextSize.height);
+    syncCanvasCssSize(hoverCanvas, nextSize.width, nextSize.height);
+  };
   const render = (): void => {
     animationFrame = 0;
     if (disposed) {
@@ -828,6 +848,8 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
     }
 
     if (!isSameChartSize(pendingSize, nextSize)) {
+      syncCanvasCssSize(canvas, nextSize.width, nextSize.height);
+      syncCanvasCssSize(hoverCanvas, nextSize.width, nextSize.height);
       pendingSize = nextSize;
       requestRender();
       return;
@@ -865,7 +887,11 @@ export const createPlotMainChart = (props: PlotMainChartProps): PlotMainChartEle
     drawCurrentChart(nextSize, reason);
     return true;
   };
-  const resizeObserver = new ResizeObserver(requestRender);
+  const handleObservedResize = (): void => {
+    syncCanvasCssSizeToLayout();
+    requestRender();
+  };
+  const resizeObserver = new ResizeObserver(handleObservedResize);
   resizeObserver.observe(root);
   queueMicrotask(requestRender);
 
