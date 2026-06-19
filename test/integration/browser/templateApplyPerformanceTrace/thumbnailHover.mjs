@@ -33,11 +33,14 @@ export const collectThumbnailHoverTargets = async (page, count, timeoutMs = 5000
   const startedAt = Date.now();
   const targetsByFileId = new Map();
   const rememberTargets = (targets) => {
+    let grew = false;
     for (const target of targets) {
       if (target.fileId && !targetsByFileId.has(target.fileId)) {
         targetsByFileId.set(target.fileId, target);
+        grew = true;
       }
     }
+    return grew;
   };
 
   await page.evaluate(() => {
@@ -86,11 +89,72 @@ export const collectThumbnailHoverTargets = async (page, count, timeoutMs = 5000
       stagnantScrollCount = 0;
     }
     if (stagnantScrollCount >= 2) {
-      break;
+      const beforeSweepCount = targetsByFileId.size;
+      await sweepThumbnailHoverTargetCollection(
+        page,
+        count,
+        rememberTargets,
+        Math.max(100, timeoutMs - (Date.now() - startedAt)),
+      );
+      if (targetsByFileId.size >= count || targetsByFileId.size === beforeSweepCount) {
+        break;
+      }
+      stagnantScrollCount = 0;
     }
   }
 
   return [...targetsByFileId.values()].slice(0, count);
+};
+
+const sweepThumbnailHoverTargetCollection = async (
+  page,
+  count,
+  rememberTargets,
+  timeoutMs,
+) => {
+  const state = await page.evaluate(() => {
+    const viewport = document.querySelector(".file-list-tree .ui-list__viewport") ??
+      document.querySelector(".file-list-tree-viewport");
+    if (!(viewport instanceof HTMLElement)) {
+      return null;
+    }
+    const rowHeight = document.querySelector(".file-list-item")?.getBoundingClientRect().height ?? 22;
+    return {
+      clientHeight: viewport.clientHeight,
+      rowHeight,
+      scrollHeight: viewport.scrollHeight,
+    };
+  }).catch(() => null);
+  if (!state || state.scrollHeight <= state.clientHeight) {
+    return false;
+  }
+
+  const maxScrollTop = Math.max(0, state.scrollHeight - state.clientHeight);
+  const step = Math.max(state.rowHeight * 8, state.clientHeight - state.rowHeight * 2);
+  const positions = [];
+  for (let scrollTop = 0; scrollTop < maxScrollTop; scrollTop += step) {
+    positions.push(scrollTop);
+  }
+  positions.push(maxScrollTop);
+
+  const startedAt = Date.now();
+  let grew = false;
+  for (const scrollTop of positions) {
+    if (Date.now() - startedAt >= timeoutMs) {
+      break;
+    }
+    await page.evaluate((nextScrollTop) => {
+      const viewport = document.querySelector(".file-list-tree .ui-list__viewport") ??
+        document.querySelector(".file-list-tree-viewport");
+      if (viewport instanceof HTMLElement) {
+        viewport.scrollTop = nextScrollTop;
+        viewport.dispatchEvent(new Event("scroll", { bubbles: true }));
+      }
+    }, scrollTop).catch(() => {});
+    await page.waitForTimeout(20);
+    grew = rememberTargets(await readVisibleThumbnailHoverTargets(page, count)) || grew;
+  }
+  return grew;
 };
 
 export const scrollThumbnailHoverListByWheel = async (page, deltaY) => {
@@ -531,13 +595,14 @@ export const inspectVisibleThumbnailHover = async (page) => page.evaluate(() => 
 export const runThumbnailHoverStress = async ({
   count,
   page,
+  targetCollectionTimeoutMs = Math.min(timeoutMs, 15000),
   timeoutMs,
 }) => {
   const before = await readThumbnailHoverDomState(page);
   const targets = await waitForCollectedThumbnailHoverTargets(
     page,
     count,
-    Math.min(timeoutMs, 15000),
+    targetCollectionTimeoutMs,
   );
   const samples = [];
   const startedAt = Date.now();

@@ -39,6 +39,7 @@ export const summarizePlotCacheMetrics = (analysisPerfReport) => {
     displayModelCache: {
       created: readNumber(resultCounts.created) ?? 0,
       eventCount: displayCacheEntries.length,
+      hardLimit: readMaxMeta(displayCacheEntries, "hardLimit") ?? readMaxMeta(trimEntries, "hardLimit"),
       kept: readNumber(resultCounts.kept) ?? 0,
       limit: readMaxMeta(displayCacheEntries, "limit") ?? readMaxMeta(trimEntries, "limit"),
       maxSize: readMaxMeta(displayCacheEntries, "cacheSize") ?? readMaxMeta(trimEntries, "cacheSize"),
@@ -48,6 +49,7 @@ export const summarizePlotCacheMetrics = (analysisPerfReport) => {
       trimmedHover: sumMeta(trimEntries, "trimmedHover"),
       trimmedIdle: sumMeta(trimEntries, "trimmedIdle"),
       trimmedNearby: sumMeta(trimEntries, "trimmedNearby"),
+      trimmedProtected: sumMeta(trimEntries, "trimmedProtected"),
       trimmedVisible: sumMeta(trimEntries, "trimmedVisible"),
       trimEventCount: trimEntries.length,
       upgraded: readNumber(resultCounts.upgraded) ?? 0,

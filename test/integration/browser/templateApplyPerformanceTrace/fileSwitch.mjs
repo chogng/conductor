@@ -353,11 +353,12 @@ export const isPendingFileSwitchTarget = (target) =>
 export const runFileSwitchStress = async ({
   count,
   page,
+  targetCollectionTimeoutMs = Math.min(timeoutMs, 15000),
   timeoutMs,
 }) => {
   const before = await inspectMainChartState(page);
   const targets = orderSwitchTargets(
-    await waitForCollectedThumbnailHoverTargets(page, count + 1, Math.min(timeoutMs, 15000)),
+    await waitForCollectedThumbnailHoverTargets(page, count + 1, targetCollectionTimeoutMs),
     count,
   );
   const samples = [];

@@ -1823,7 +1823,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
   test("bounds plot display model cache while keeping recently used targets", () => {
     const filesById: Record<string, FileRecord> = {};
     const fileOrder: string[] = [];
-    for (let index = 0; index < 260; index += 1) {
+    for (let index = 0; index < 340; index += 1) {
       const fileId = `file-${index}`;
       filesById[fileId] = createFileRecord(fileId, `series-${index}`, `Series ${index}`);
       fileOrder.push(fileId);
@@ -1836,7 +1836,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       store.add(new TestStorageService()),
     ));
 
-    for (let index = 0; index < 240; index += 1) {
+    for (let index = 0; index < 320; index += 1) {
       assert.ok(service.getPlotDisplayModel({
         fileId: `file-${index}`,
         plotType: "iv",
@@ -1850,7 +1850,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       snapshot,
     }));
 
-    for (let index = 240; index < 260; index += 1) {
+    for (let index = 320; index < 340; index += 1) {
       assert.ok(service.getPlotDisplayModel({
         fileId: `file-${index}`,
         plotType: "iv",
@@ -1869,7 +1869,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
       snapshot,
     }), null);
     assert.ok(service.getCachedPlotDisplayModel({
-      fileId: "file-259",
+      fileId: "file-339",
       plotType: "iv",
       snapshot,
     }));

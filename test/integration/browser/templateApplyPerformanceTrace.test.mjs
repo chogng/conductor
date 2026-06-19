@@ -105,6 +105,10 @@ const parseArgs = () => {
     sampleMs: readPositiveInteger(args.get("sample-ms"), 100),
     scenario: scenarioName,
     splitReports: !flags.has("no-split-reports"),
+    targetCollectionTimeoutMs: readPositiveInteger(
+      args.get("target-collection-timeout-ms"),
+      scenarioDefaults.targetCollectionTimeoutMs ?? 15000,
+    ),
     thumbnailHover: readBooleanFlag(flags, "thumbnail-hover", scenarioDefaults.thumbnailHover ?? false),
     thumbnailHoverCount: readPositiveInteger(
       args.get("thumbnail-hover-count"),
@@ -198,6 +202,7 @@ const main = async () => {
       liveStressCoordinated: options.liveStressCoordinated,
       liveStressParallel: options.liveStressParallel,
       rowCount: options.rowCount,
+      targetCollectionTimeoutMs: options.targetCollectionTimeoutMs,
       thumbnailHoverCount: options.thumbnailHoverCount,
     })}`);
     console.log(`[template-apply-performance-trace] fixture=${fixtureRoot}`);
@@ -418,6 +423,7 @@ const main = async () => {
       thumbnailHover = await runThumbnailHoverStress({
         count: options.thumbnailHoverCount,
         page: runtime.page,
+        targetCollectionTimeoutMs: options.targetCollectionTimeoutMs,
         timeoutMs: options.timeoutMs,
       });
       await phaseRecorder.mark("stable.thumbnailHover.end", {
@@ -447,6 +453,7 @@ const main = async () => {
       fileSwitch = await runFileSwitchStress({
         count: options.fileSwitchCount,
         page: runtime.page,
+        targetCollectionTimeoutMs: options.targetCollectionTimeoutMs,
         timeoutMs: options.timeoutMs,
       });
       await phaseRecorder.mark("stable.fileSwitch.end", {

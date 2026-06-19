@@ -88,6 +88,7 @@ const CALCULATED_DATA_PREFETCH_FRAME_BUDGET_MS = 6;
 const PLOT_PREFETCH_MAX_IN_FLIGHT = 2;
 const PLOT_BACKGROUND_PREFETCH_MAX_IN_FLIGHT = 1;
 const PLOT_DISPLAY_MODEL_CACHE_LIMIT = 240;
+const PLOT_DISPLAY_MODEL_CACHE_HARD_LIMIT = 320;
 const PLOT_INSPECTOR_DISPLAY_MODEL_CACHE_LIMIT = 48;
 const PLOT_DISPLAY_MODEL_CACHE_RETENTION_ORDER: Readonly<Record<PlotCalculatedDataPrefetchPriority, number>> = {
   idle: 0,
@@ -1778,6 +1779,7 @@ export class PlotService extends Disposable implements IPlotService {
       logPerf("plotService.cachePlotDisplayModel", {
         cacheSize: this.plotDisplayModelCacheByKey.size,
         fileId: chartModel.fileId,
+        hardLimit: PLOT_DISPLAY_MODEL_CACHE_HARD_LIMIT,
         hasInspector: false,
         limit: PLOT_DISPLAY_MODEL_CACHE_LIMIT,
         plotType: chartModel.plotType,
@@ -1803,6 +1805,7 @@ export class PlotService extends Disposable implements IPlotService {
     logPerf("plotService.cachePlotDisplayModel", {
       cacheSize: this.plotDisplayModelCacheByKey.size,
       fileId: chartModel.fileId,
+      hardLimit: PLOT_DISPLAY_MODEL_CACHE_HARD_LIMIT,
       hasInspector: false,
       limit: PLOT_DISPLAY_MODEL_CACHE_LIMIT,
       plotType: chartModel.plotType,
@@ -1902,10 +1905,14 @@ export class PlotService extends Disposable implements IPlotService {
     let trimmed = 0;
     const trimmedRetentionPriorities = new Map<string, number>();
     while (this.plotDisplayModelCacheByKey.size > PLOT_DISPLAY_MODEL_CACHE_LIMIT) {
+      const allowInteractiveTrim = this.plotDisplayModelCacheByKey.size > PLOT_DISPLAY_MODEL_CACHE_HARD_LIMIT;
       let oldestKey: string | null = null;
       let oldestLastUsed = Number.POSITIVE_INFINITY;
       let oldestRetentionOrder = Number.POSITIVE_INFINITY;
       for (const [key, entry] of this.plotDisplayModelCacheByKey) {
+        if (!allowInteractiveTrim && !isBackgroundPlotDisplayModelCacheRetention(entry.retentionPriority)) {
+          continue;
+        }
         const retentionOrder = PLOT_DISPLAY_MODEL_CACHE_RETENTION_ORDER[entry.retentionPriority];
         if (
           retentionOrder < oldestRetentionOrder ||
@@ -1934,6 +1941,7 @@ export class PlotService extends Disposable implements IPlotService {
       const trimmedNearby = readCount(trimmedRetentionPriorities, "nearby");
       logPerf("plotService.trimPlotDisplayModelCache", {
         cacheSize: this.plotDisplayModelCacheByKey.size,
+        hardLimit: PLOT_DISPLAY_MODEL_CACHE_HARD_LIMIT,
         limit: PLOT_DISPLAY_MODEL_CACHE_LIMIT,
         trimmed,
         trimmedActive: readCount(trimmedRetentionPriorities, "active"),
@@ -1941,6 +1949,7 @@ export class PlotService extends Disposable implements IPlotService {
         trimmedHover: readCount(trimmedRetentionPriorities, "hover"),
         trimmedIdle,
         trimmedNearby,
+        trimmedProtected: trimmed - trimmedIdle - trimmedNearby,
         trimmedRetentionPriorities: serializeCountMap(trimmedRetentionPriorities),
         trimmedVisible: readCount(trimmedRetentionPriorities, "visible"),
       });
@@ -2245,6 +2254,11 @@ const serializeCountMap = (counts: ReadonlyMap<string, number>): string =>
 
 const isInteractivePlotPrefetchPriority = (priority: PlotCalculatedDataPrefetchPriority): boolean =>
   priority === "active" || priority === "hover";
+
+const isBackgroundPlotDisplayModelCacheRetention = (
+  priority: PlotCalculatedDataPrefetchPriority,
+): boolean =>
+  priority === "idle" || priority === "nearby";
 
 const areRecordMapsEqual = (
   first: Readonly<Record<string, string>>,
