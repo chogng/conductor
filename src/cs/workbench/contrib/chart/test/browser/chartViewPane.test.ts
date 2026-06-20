@@ -40,9 +40,9 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 
 		const originalSetTimeout = globalThis.setTimeout;
 		const originalClearTimeout = globalThis.clearTimeout;
-		let pendingTimeout: (() => void) | null = null;
+		const pendingTimeout: { run: (() => void) | null } = { run: null };
 		globalThis.setTimeout = ((handler: TimerHandler) => {
-			pendingTimeout = () => {
+			pendingTimeout.run = () => {
 				if (typeof handler === "function") {
 					handler();
 				}
@@ -50,7 +50,7 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 			return 1;
 		}) as typeof globalThis.setTimeout;
 		globalThis.clearTimeout = (() => {
-			pendingTimeout = null;
+			pendingTimeout.run = null;
 		}) as typeof globalThis.clearTimeout;
 
 		const prefetches: string[] = [];
@@ -73,7 +73,7 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 
 		try {
 			assert.deepEqual(chartService.getState().visibleDetailPanes, []);
-			assert.equal(pendingTimeout, null);
+			assert.equal(pendingTimeout.run, null);
 			assert.deepEqual(commandIds, []);
 			assert.deepEqual(prefetches, []);
 
@@ -86,9 +86,10 @@ suite("workbench/contrib/chart/test/browser/chartViewPane", () => {
 
 			assert.deepEqual(chartService.getState().visibleDetailPanes, ["inspector"]);
 			assert.deepEqual(commandIds, [TOGGLE_CHART_INSPECTOR_COMMAND_ID]);
-			assert.ok(pendingTimeout !== null);
+			const runPendingTimeout = pendingTimeout.run;
+			assert.ok(runPendingTimeout !== null);
 
-			pendingTimeout?.();
+			runPendingTimeout();
 
 			assert.deepEqual(prefetches, ["file-a:active"]);
 		} finally {
@@ -259,7 +260,7 @@ const createChartServiceForTest = (
 		getState,
 		getViewInput: () => input,
 		onDidChangeChartState: onDidChangeChartStateEmitter.event,
-		onDidChangeChartViewInput: Event.None,
+		onDidChangeChartViewInput: Event.None as Event<void>,
 		setLegendPopoverContextKey: (contextKey) => {
 			legendPopoverContextKey = contextKey;
 			onDidChangeChartStateEmitter.fire(getState());
@@ -324,7 +325,10 @@ const createPlotServiceForTest = (
 	onDidChangePlotState: Event.None,
 	prefetchCalculatedData: () => undefined,
 	prefetchPlotDisplayModel: () => undefined,
-	prefetchPlotInspectorDisplayModel: (request, priority) => {
+	prefetchPlotInspectorDisplayModel: (
+		request: Parameters<IPlotService["prefetchPlotInspectorDisplayModel"]>[0],
+		priority: Parameters<IPlotService["prefetchPlotInspectorDisplayModel"]>[1],
+	) => {
 		prefetches.push(`${request.fileId}:${priority}`);
 	},
 	setAxisTitleOverride: () => undefined,
@@ -350,7 +354,7 @@ const createPlotServiceForLegendEditTest = (): IPlotService => {
 		getCachedPlotDisplayModel: () => createPlotDisplayModel(),
 		getCachedPlotLegendModel: () => createPlotLegendModel(),
 		getHiddenLegendKeys: () => [],
-		getLegendLabels: (fileId) => legendLabelsByFileId[fileId] ?? {},
+		getLegendLabels: (fileId: string) => legendLabelsByFileId[fileId] ?? {},
 		getState,
 		onDidChangeCalculatedDataCache: Event.None,
 		onDidChangePlotDisplayModelCache: Event.None,
@@ -360,7 +364,7 @@ const createPlotServiceForLegendEditTest = (): IPlotService => {
 		prefetchPlotInspectorDisplayModel: () => undefined,
 		setAxisTitleOverride: () => undefined,
 		setActivePlotType: () => undefined,
-		setLegendLabel: (fileId, seriesId, label) => {
+		setLegendLabel: (fileId: string, seriesId: string, label: string | null) => {
 			legendLabelsByFileId = label
 				? {
 					...legendLabelsByFileId,

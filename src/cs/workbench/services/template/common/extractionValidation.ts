@@ -9,6 +9,18 @@ import {
   inferXSegmentationSuggestionFromPreview,
   resolveXSegmentationMode,
 } from "src/cs/workbench/services/template/common/xSegmentation";
+import {
+  normalizeColumnIndexes,
+  resolveTemplateXYBinding,
+  type ResolvedSeriesBinding,
+} from "src/cs/workbench/services/template/common/templateXYBinding";
+import {
+  getTemplateXRangeColumns,
+  haveTemplateXRangesSameRows,
+  normalizeTemplateXRanges,
+  resolveTemplateXRange,
+  type TemplateXRange,
+} from "src/cs/workbench/services/template/common/templateXRange";
 
 type CellRef = {
   rowIndex: number;
@@ -18,6 +30,8 @@ type CellRef = {
 type TemplateConfigLike = Partial<{
   xDataStart: string;
   xDataEnd: string;
+  xColumns: number[];
+  xRanges: TemplateXRange[];
   xSegmentationMode: "auto" | "points" | "segments";
   xSegmentCount: string;
   xPointsPerGroup: string;
@@ -37,10 +51,12 @@ type TemplateConfigLike = Partial<{
 
 type ExtractionConfig = {
   xCol: number;
+  xCols: number[];
   startRow: number;
   endRow: number | "end";
   xSegmentationMode?: "auto" | "points" | "segments";
   yCols: number[];
+  seriesBindings: readonly ResolvedSeriesBinding[];
   autoDetectCurveType: boolean;
   bottomTitle: string;
   legendPrefix: string;
@@ -145,7 +161,19 @@ export function prepareExtraction({
   const normalizedConfig = templateValidation.normalized as TemplateConfigLike;
   const warnings: string[] = [];
 
-  const xStart = parseCellRef(normalizedConfig?.xDataStart || "");
+  const xRanges = normalizeTemplateXRanges(
+    normalizedConfig?.xRanges,
+    normalizedConfig?.xDataStart,
+    normalizedConfig?.xDataEnd,
+    normalizedConfig?.xColumns,
+  );
+  const firstXRange = resolveTemplateXRange(xRanges[0]);
+  const xStart = firstXRange
+    ? {
+        colIndex: firstXRange.startCell.colIndex,
+        rowIndex: firstXRange.startCell.rowIndex,
+      }
+    : parseCellRef(normalizedConfig?.xDataStart || "");
   if (!xStart) {
     return {
       ok: false,
@@ -158,10 +186,23 @@ export function prepareExtraction({
     };
   }
 
-  const xEndRaw = String(normalizedConfig?.xDataEnd ?? "").trim();
-  const useEndKeyword = !xEndRaw || xEndRaw.toLowerCase() === "end";
+  if (xRanges.length > 1 && !haveTemplateXRangesSameRows(xRanges)) {
+    return {
+      ok: false,
+      type: "warning",
+      message: msg(
+        "template.validation.xRangesSameRows",
+        null,
+        "X ranges must use the same row range.",
+      ),
+    };
+  }
 
-  const xEnd = useEndKeyword ? null : parseCellRef(xEndRaw);
+  const useEndKeyword = firstXRange
+    ? firstXRange.endRow === "end"
+    : !String(normalizedConfig?.xDataEnd ?? "").trim() ||
+      String(normalizedConfig?.xDataEnd ?? "").trim().toLowerCase() === "end";
+  const xEnd = firstXRange?.endCell ?? (useEndKeyword ? null : parseCellRef(normalizedConfig?.xDataEnd ?? ""));
   if (!useEndKeyword && !xEnd) {
     return {
       ok: false,
@@ -173,7 +214,6 @@ export function prepareExtraction({
       ),
     };
   }
-
   if (!useEndKeyword && xStart.colIndex !== (xEnd as CellRef).colIndex) {
     return {
       ok: false,
@@ -443,12 +483,15 @@ export function prepareExtraction({
     }
   }
 
-  const yColsFromToggle = Array.isArray(normalizedConfig?.yColumns)
-    ? normalizedConfig.yColumns
-    : [];
-  let yCols = yColsFromToggle;
-
-  const uniqueYCols = Array.from(new Set(yCols)).sort((a, b) => a - b);
+  const xColsFromRanges = getTemplateXRangeColumns(xRanges);
+  const xColsFromSelection = xColsFromRanges.length
+    ? xColsFromRanges
+    : normalizeColumnIndexes(normalizedConfig?.xColumns);
+  const uniqueYCols = normalizeColumnIndexes(normalizedConfig?.yColumns);
+  const xyBinding = resolveTemplateXYBinding({
+    x: { columns: xColsFromSelection.length ? xColsFromSelection : [xCol] },
+    y: { columns: uniqueYCols },
+  });
 
   if (uniqueYCols.length === 0) {
     return {
@@ -461,7 +504,27 @@ export function prepareExtraction({
       ),
     };
   }
-  if (uniqueYCols.includes(xCol)) {
+  if (!xyBinding.ok) {
+    return {
+      ok: false,
+      type: "warning",
+      message: xyBinding.code === "pairedCountMismatch"
+        ? msg(
+            "template.validation.xyColumnCountMismatch",
+            { xCount: xyBinding.xCount, yCount: xyBinding.yCount },
+            `X 列数量 ${xyBinding.xCount}，Y 列数量 ${xyBinding.yCount}，无法按列配对。`,
+          )
+        : msg(
+            "template.validation.xColumnsRequired",
+            null,
+            "Please select at least one X column.",
+          ),
+    };
+  }
+
+  const resolvedXCols = normalizeColumnIndexes(xyBinding.seriesBindings.map(binding => binding.xCol));
+  const resolvedYCols = normalizeColumnIndexes(xyBinding.seriesBindings.map(binding => binding.yCol));
+  if (xyBinding.seriesBindings.some(binding => binding.xCol === binding.yCol)) {
     return {
       ok: false,
       type: "warning",
@@ -475,10 +538,12 @@ export function prepareExtraction({
 
   const extractionConfig: ExtractionConfig = {
     xCol,
+    xCols: resolvedXCols,
     startRow,
     endRow,
     xSegmentationMode: segmentationMode,
-    yCols: uniqueYCols,
+    yCols: resolvedYCols,
+    seriesBindings: xyBinding.seriesBindings,
     autoDetectCurveType: Boolean(normalizedConfig?.autoDetectCurveType),
     bottomTitle: normalizedConfig?.bottomTitle ?? "",
     legendPrefix: normalizedConfig?.legendPrefix ?? "",

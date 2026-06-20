@@ -1576,6 +1576,9 @@ export class TemplateApplyController {
       if (messageType !== "processFile") {
         return null;
       }
+      if (!isBackendCompatibleExtractionConfig(extractionConfig)) {
+        return null;
+      }
 
       const response = await this.options.templateProcessingBackendService.processFile({
         assessment: entry.assessment ?? null,
@@ -1986,6 +1989,27 @@ const isSameTemplateApplyFileState = (
       current.code === next.code &&
       current.message === next.message
   );
+
+const isBackendCompatibleExtractionConfig = (config: unknown): boolean => {
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    return false;
+  }
+
+  const record = config as Record<string, unknown>;
+  if (!Array.isArray(record.seriesBindings)) {
+    return true;
+  }
+
+  const xCol = Number(record.xCol);
+  return record.seriesBindings.every(binding => {
+    if (!binding || typeof binding !== "object") {
+      return false;
+    }
+
+    const bindingRecord = binding as { readonly xCol?: unknown };
+    return Number(bindingRecord.xCol) === xCol;
+  });
+};
 
 export class BrowserTemplateApplyWorkflowService
   extends TemplateApplyController

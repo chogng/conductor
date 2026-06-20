@@ -46,8 +46,13 @@ export const buildAutoTemplateConfig = (
     bottomTitle: plan.bottomTitle,
     leftTitle: plan.leftTitle,
     legendPrefix: plan.legendPrefix,
-    xDataEnd: "",
-    xDataStart: toCellLabel(plan.dataStartRowIndex, plan.xCol),
+	    xDataEnd: "",
+	    xDataStart: toCellLabel(plan.dataStartRowIndex, plan.xCol),
+	    xColumns: [plan.xCol],
+	    xRanges: [{
+	      start: toCellLabel(plan.dataStartRowIndex, plan.xCol),
+	      end: "End",
+	    }],
     xPointsPerGroup: normalizedGroupSize !== null ? String(normalizedGroupSize) : "",
     xSegmentationMode: plan.xSegmentationMode,
     xUnit: plan.xUnit,
@@ -104,9 +109,14 @@ export const buildAutoWorkerConfig = (
     legendPrefix: plan.legendPrefix,
     startRow: plan.dataStartRowIndex,
     xCol: plan.xCol,
+    xCols: [plan.xCol],
     xSegmentationMode: plan.xSegmentationMode,
     xUnit: plan.xUnit,
     yCols: [...plan.yCols],
+    seriesBindings: plan.yCols.map(yCol => ({
+      xCol: plan.xCol,
+      yCol,
+    })),
     yLegendStartCell:
       plan.legendStartColIndex !== null && plan.legendStartRowIndex !== null
         ? {

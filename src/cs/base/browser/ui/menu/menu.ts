@@ -304,7 +304,7 @@ class MenuActionViewItem extends BaseActionViewItem {
     constructor(
         action: IAction,
         options: IActionViewItemOptions,
-        private readonly submenuData: MenuSubmenuData,
+        protected readonly submenuData: MenuSubmenuData,
         private readonly closeSubmenuOnMouseEnter = true,
     ) {
         super(undefined, action, {
@@ -460,7 +460,7 @@ class SubmenuMenuActionViewItem extends MenuActionViewItem {
     constructor(
         private readonly submenuAction: SubmenuAction,
         options: IActionViewItemOptions,
-        private readonly submenuData: MenuSubmenuData,
+        submenuData: MenuSubmenuData,
         private readonly menuOptions: MenuOptions,
     ) {
         super(submenuAction, options, submenuData, false);

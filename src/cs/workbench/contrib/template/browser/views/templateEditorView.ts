@@ -9,6 +9,16 @@ import type { IContextMenuService } from "src/cs/platform/contextview/browser/co
 import { localize } from "src/cs/nls";
 import { X_UNIT_VALUES, Y_UNIT_VALUES } from "src/cs/workbench/services/plot/common/units";
 import type { TemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
+import { toColumnLabel } from "src/cs/workbench/services/template/common/templateCellRef";
+import {
+  formatTemplateXRangeLabel,
+  getTemplateXRangeColumns,
+  getTemplateXRangeLegacyFields,
+  normalizeTemplateXRange,
+  normalizeTemplateXRanges,
+  type TemplateXRange,
+} from "src/cs/workbench/services/template/common/templateXRange";
+import { normalizeColumnIndexes } from "src/cs/workbench/services/template/common/templateXYBinding";
 
 export type TemplatePickFieldName =
   | "xDataStart"
@@ -17,6 +27,8 @@ export type TemplatePickFieldName =
   | "xPointsPerGroup"
   | "yLegendStart"
   | "yLegendCount";
+
+export type TemplateColumnPickTarget = "xRanges" | "yColumns";
 
 type TemplateStringFieldName = Exclude<
   {
@@ -27,8 +39,6 @@ type TemplateStringFieldName = Exclude<
 
 type TemplateEditorInputName =
   | "name"
-  | "xDataStart"
-  | "xDataEnd"
   | "xSegmentCount"
   | "xPointsPerGroup"
   | "bottomTitle"
@@ -43,7 +53,9 @@ type TemplateSectionId = "x" | "y" | "optional";
 export type TemplateEditorViewOptions = {
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly onCancel: () => void;
+  readonly onClearXRanges: () => void;
   readonly onClearYColumns: () => void;
+  readonly onColumnPickTargetChange: (target: TemplateColumnPickTarget) => void;
   readonly onPickFieldFocus: (field: TemplatePickFieldName | null) => void;
   readonly onSave: () => void;
   readonly onUpdateConfig: (updates: Partial<TemplateConfig>) => void;
@@ -51,13 +63,13 @@ export type TemplateEditorViewOptions = {
 
 export type TemplateEditorViewState = {
   readonly activePickField: TemplatePickFieldName | null;
+  readonly activeColumnPickTarget: TemplateColumnPickTarget;
   readonly config: TemplateConfig;
+  readonly selectedXRangeLabels: readonly string[];
   readonly selectedYColumnLabels: readonly string[];
 };
 
 const PICKABLE_TEMPLATE_FIELDS: ReadonlySet<TemplateEditorInputName> = new Set([
-  "xDataStart",
-  "xDataEnd",
   "xSegmentCount",
   "xPointsPerGroup",
   "yLegendStart",
@@ -100,14 +112,16 @@ export class TemplateEditorView {
   private readonly xUnit: SelectField<TemplateConfig["xUnit"]>;
   private readonly yLegendTarget: SelectField<TemplateConfig["yLegendTarget"]>;
   private readonly yUnit: SelectField<TemplateConfig["yUnit"]>;
-  private readonly yColumnsSummary: HTMLElement;
-  private readonly yColumnsClearButton: HTMLButtonElement;
+  private readonly xRangeInput: TemplateChipInput;
+  private readonly yColumnsInput: TemplateChipInput;
   private readonly focusInputValues = new Map<TemplateEditorInputName, string>();
+  private currentState: TemplateEditorViewState;
 
   constructor(
     private readonly options: TemplateEditorViewOptions,
     state: TemplateEditorViewState,
   ) {
+    this.currentState = state;
     this.element = document.createElement("div");
     this.element.className = "template_editor_view template_view_content";
 
@@ -159,12 +173,16 @@ export class TemplateEditorView {
     saveActions.append(saveButton, cancelButton);
     templateFields.append(saveActions);
 
-    const xDataStartInput = this.createField(xFields, localize("template.fields.xStart", "Start"), "xDataStart", {
-      placeholder: localize("template.fields.cellPlaceholder", "Click or enter a cell"),
-    });
-    const xDataEndInput = this.createField(xFields, localize("template.fields.xEnd", "End"), "xDataEnd", {
-      placeholder: "End",
-    });
+    this.xRangeInput = this.disposables.add(new TemplateChipInput({
+      label: localize("template.fields.x", "X"),
+      placeholder: localize("template.fields.xRangePlaceholder", "E2:End"),
+      onClear: () => this.options.onClearXRanges(),
+      onCommitText: text => this.commitXRangeText(text),
+      onFocus: () => this.focusSelectionTarget("xRanges"),
+      onRemove: index => this.updateXRanges(removeAt(this.currentState.config.xRanges, index)),
+      onReorder: (fromIndex, toIndex) => this.updateXRanges(moveItem(this.currentState.config.xRanges, fromIndex, toIndex)),
+    }));
+    xFields.append(this.xRangeInput.element);
 
     this.xSegmentationMode = this.createSelectField(
       xFields,
@@ -179,45 +197,19 @@ export class TemplateEditorView {
     const xSegmentCountInput = this.createField(xFields, localize("template.fields.xSegmentCount", "Segment count"), "xSegmentCount");
     const xPointsPerGroupInput = this.createField(xFields, localize("template.fields.xPointsPerGroup", "Point count"), "xPointsPerGroup");
 
-    const yColumnsField = document.createElement("div");
-    yColumnsField.className = "template_selection_field";
-
-    const yColumnsFieldLabel = document.createElement("span");
-    yColumnsFieldLabel.className = "template_field_label";
-    yColumnsFieldLabel.textContent = localize("template.fields.yColumns", "Y columns");
-    yColumnsField.append(yColumnsFieldLabel);
-
-    const yColumnsContent = document.createElement("div");
-    yColumnsContent.className = "template_selection_content";
-
-    const yColumnsHeader = document.createElement("div");
-    yColumnsHeader.className = "template_selection_header";
-
-    const yColumnsLabel = document.createElement("span");
-    yColumnsLabel.className = "template_selection_label";
-    yColumnsLabel.textContent = localize("template.fields.yColumns", "Y columns");
-
-    this.yColumnsClearButton = document.createElement("button");
-    this.yColumnsClearButton.type = "button";
-    this.yColumnsClearButton.className = "template_selection_clear";
-    this.yColumnsClearButton.textContent = localize("template.fields.clearYColumns", "Clear");
-    this.disposables.add(addDisposableListener(this.yColumnsClearButton, "click", () => {
-      this.options.onClearYColumns();
+    this.yColumnsInput = this.disposables.add(new TemplateChipInput({
+      label: localize("template.fields.yColumns", "Y columns"),
+      placeholder: localize("template.fields.yColumnPlaceholder", "B 列"),
+      onClear: () => this.options.onClearYColumns(),
+      onCommitText: text => this.commitYColumnText(text),
+      onFocus: () => this.focusSelectionTarget("yColumns"),
+      onRemove: index => this.updateYColumns(removeAt(this.currentState.config.yColumns, index)),
+      onReorder: (fromIndex, toIndex) => this.updateYColumns(moveItem(this.currentState.config.yColumns, fromIndex, toIndex)),
     }));
-
-    yColumnsHeader.append(yColumnsLabel, this.yColumnsClearButton);
-
-    this.yColumnsSummary = document.createElement("p");
-    this.yColumnsSummary.className = "template_selection_summary";
-    this.yColumnsSummary.setAttribute("aria-live", "polite");
-    yColumnsContent.append(yColumnsHeader, this.yColumnsSummary);
-    yColumnsField.append(yColumnsContent);
-    yFields.append(yColumnsField);
+    yFields.append(this.yColumnsInput.element);
 
     this.inputs = {
       name: nameInput,
-      xDataStart: xDataStartInput,
-      xDataEnd: xDataEndInput,
       xSegmentCount: xSegmentCountInput,
       xPointsPerGroup: xPointsPerGroupInput,
       bottomTitle: this.createField(optionalFields, localize("template.fields.bottomTitle", "X title"), "bottomTitle", {
@@ -279,11 +271,10 @@ export class TemplateEditorView {
   }
 
   public update(state: TemplateEditorViewState): void {
+    this.currentState = state;
     const config = state.config;
     const values: Record<keyof typeof this.inputs, string> = {
       name: config.name,
-      xDataStart: config.xDataStart,
-      xDataEnd: getTemplateInputValue("xDataEnd", config.xDataEnd),
       xSegmentCount: config.xSegmentCount,
       xPointsPerGroup: config.xPointsPerGroup,
       bottomTitle: config.bottomTitle,
@@ -318,13 +309,20 @@ export class TemplateEditorView {
       value: config.yUnit,
       options: Y_UNIT_OPTIONS,
     });
-    const hasYColumns = state.selectedYColumnLabels.length > 0;
-    this.yColumnsClearButton.hidden = !hasYColumns;
-    this.yColumnsSummary.textContent = hasYColumns
-      ? localize("template.fields.selectedYColumns", "已选中列：{columns}", {
-          columns: state.selectedYColumnLabels.join(", "),
-        })
-      : localize("template.validation.noYColumns", "Select preview columns that follow the X range.");
+    this.xRangeInput.update({
+      active: state.activeColumnPickTarget === "xRanges",
+      tokens: state.selectedXRangeLabels.map((label, index) => ({
+        id: `x-${index}-${label}`,
+        label,
+      })),
+    });
+    this.yColumnsInput.update({
+      active: state.activeColumnPickTarget === "yColumns",
+      tokens: state.selectedYColumnLabels.map((label, index) => ({
+        id: `y-${index}-${label}`,
+        label,
+      })),
+    });
   }
 
   public dispose(): void {
@@ -413,6 +411,46 @@ export class TemplateEditorView {
     }
     container.append(field);
     return input;
+  }
+
+  private focusSelectionTarget(target: TemplateColumnPickTarget): void {
+    this.options.onPickFieldFocus(null);
+    this.options.onColumnPickTargetChange(target);
+  }
+
+  private commitXRangeText(text: string): boolean {
+    const xRange = normalizeTemplateXRange(text);
+    if (!xRange) {
+      return false;
+    }
+
+    this.updateXRanges([...this.currentState.config.xRanges, xRange]);
+    return true;
+  }
+
+  private commitYColumnText(text: string): boolean {
+    const columns = parseYColumnInput(text);
+    if (!columns.length) {
+      return false;
+    }
+
+    this.updateYColumns([...this.currentState.config.yColumns, ...columns]);
+    return true;
+  }
+
+  private updateXRanges(ranges: readonly TemplateXRange[]): void {
+    const xRanges = normalizeTemplateXRanges(ranges);
+    this.options.onUpdateConfig({
+      ...getTemplateXRangeLegacyFields(xRanges),
+      xColumns: getTemplateXRangeColumns(xRanges),
+      xRanges,
+    });
+  }
+
+  private updateYColumns(columns: readonly unknown[]): void {
+    this.options.onUpdateConfig({
+      yColumns: normalizeColumnIndexes(columns),
+    });
   }
 
   private handleInputFocus(input: HTMLInputElement): void {
@@ -533,6 +571,7 @@ export class TemplateEditorView {
 
     field.dataset.picking = active ? "true" : "false";
   }
+
 }
 
 type SelectField<T extends string> = {
@@ -606,6 +645,196 @@ class TemplateFormSection {
   }
 }
 
+type TemplateChipToken = {
+  readonly id: string;
+  readonly label: string;
+};
+
+class TemplateChipInput {
+  public readonly element: HTMLElement;
+  private readonly clearButton: HTMLButtonElement;
+  private readonly disposables = new DisposableStore();
+  private readonly input: HTMLInputElement;
+  private readonly tokenDisposables = this.disposables.add(new DisposableStore());
+  private readonly tokensElement: HTMLElement;
+  private dragIndex: number | null = null;
+  private tokenCount = 0;
+
+  constructor(
+    private readonly options: {
+      readonly label: string;
+      readonly placeholder: string;
+      readonly onClear: () => void;
+      readonly onCommitText: (text: string) => boolean;
+      readonly onFocus: () => void;
+      readonly onRemove: (index: number) => void;
+      readonly onReorder: (fromIndex: number, toIndex: number) => void;
+    },
+  ) {
+    this.element = document.createElement("div");
+    this.element.className = "template_chip_field";
+
+    const labelElement = document.createElement("span");
+    labelElement.className = "template_field_label";
+    labelElement.textContent = options.label;
+
+    const content = document.createElement("div");
+    content.className = "template_chip_content";
+
+    const surface = document.createElement("div");
+    surface.className = "template_chip_surface";
+    surface.tabIndex = -1;
+
+    this.tokensElement = document.createElement("div");
+    this.tokensElement.className = "template_chip_tokens";
+
+    this.input = document.createElement("input");
+    this.input.className = "template_chip_text_input";
+    this.input.placeholder = options.placeholder;
+    this.input.type = "text";
+    this.input.setAttribute("aria-label", options.label);
+
+    this.clearButton = document.createElement("button");
+    this.clearButton.type = "button";
+    this.clearButton.className = "template_selection_clear";
+    this.clearButton.textContent = localize("template.fields.clearColumns", "Clear");
+
+    surface.append(this.tokensElement, this.input);
+    content.append(surface, this.clearButton);
+    this.element.append(labelElement, content);
+
+    this.disposables.add(addDisposableListener(surface, "click", () => {
+      this.options.onFocus();
+      this.input.focus();
+    }));
+    this.disposables.add(addDisposableListener(this.input, "focus", () => {
+      this.options.onFocus();
+    }));
+    this.disposables.add(addDisposableListener(this.input, "keydown", event => {
+      if (event.isComposing) {
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.commitInput();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.input.value = "";
+        this.input.dataset.invalid = "false";
+        this.input.blur();
+      } else if (event.key === "Backspace" && !this.input.value && this.tokenCount > 0) {
+        event.preventDefault();
+        this.options.onRemove(this.tokenCount - 1);
+      }
+    }));
+    this.disposables.add(addDisposableListener(this.input, "blur", () => {
+      this.commitInput();
+    }));
+    this.disposables.add(addDisposableListener(this.clearButton, "click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.options.onClear();
+      this.input.focus();
+    }));
+  }
+
+  public update({
+    active,
+    tokens,
+  }: {
+    readonly active: boolean;
+    readonly tokens: readonly TemplateChipToken[];
+  }): void {
+    this.element.dataset.picking = active ? "true" : "false";
+    this.tokenCount = tokens.length;
+    this.clearButton.hidden = tokens.length === 0;
+    this.tokenDisposables.clear();
+    this.tokensElement.replaceChildren(...tokens.map((token, index) => this.createToken(token, index)));
+  }
+
+  private createToken(token: TemplateChipToken, index: number): HTMLElement {
+    const chip = document.createElement("span");
+    chip.className = "template_chip_token";
+    chip.draggable = true;
+    chip.dataset.index = String(index);
+
+    const label = document.createElement("span");
+    label.className = "template_chip_label";
+    label.textContent = token.label;
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "template_chip_remove";
+    removeButton.setAttribute("aria-label", localize("template.fields.removeChip", "Remove {label}", {
+      label: token.label,
+    }));
+    removeButton.append(createLxIcon({ icon: LxIcon.close, size: 12 }));
+
+    chip.append(label, removeButton);
+    this.tokenDisposables.add(addDisposableListener(removeButton, "click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.options.onRemove(index);
+      this.input.focus();
+    }));
+    this.tokenDisposables.add(addDisposableListener(chip, "dragstart", event => {
+      this.dragIndex = index;
+      event.dataTransfer?.setData("text/plain", token.id);
+      event.dataTransfer?.setDragImage(chip, 8, 8);
+      chip.dataset.dragging = "true";
+    }));
+    this.tokenDisposables.add(addDisposableListener(chip, "dragover", event => {
+      if (this.dragIndex === null || this.dragIndex === index) {
+        return;
+      }
+      event.preventDefault();
+      chip.dataset.dropTarget = "true";
+    }));
+    this.tokenDisposables.add(addDisposableListener(chip, "dragleave", () => {
+      chip.dataset.dropTarget = "false";
+    }));
+    this.tokenDisposables.add(addDisposableListener(chip, "drop", event => {
+      event.preventDefault();
+      chip.dataset.dropTarget = "false";
+      if (this.dragIndex !== null && this.dragIndex !== index) {
+        this.options.onReorder(this.dragIndex, index);
+      }
+      this.dragIndex = null;
+    }));
+    this.tokenDisposables.add(addDisposableListener(chip, "dragend", () => {
+      this.dragIndex = null;
+      chip.dataset.dragging = "false";
+      chip.dataset.dropTarget = "false";
+    }));
+
+    return chip;
+  }
+
+  private commitInput(): void {
+    const text = this.input.value.trim();
+    if (!text) {
+      this.input.dataset.invalid = "false";
+      return;
+    }
+
+    if (!this.options.onCommitText(text)) {
+      this.input.dataset.invalid = "true";
+      return;
+    }
+
+    this.input.value = "";
+    this.input.dataset.invalid = "false";
+  }
+
+  public dispose(): void {
+    this.disposables.dispose();
+    this.element.replaceChildren();
+    this.element.remove();
+  }
+}
+
 const createField = ({
   id,
   label,
@@ -642,12 +871,45 @@ const createField = ({
 
 const getTemplateFieldId = (name: string): string => `template_editor_${name}`;
 
-const getTemplateInputValue = (
-  name: TemplateEditorInputName,
-  value: string,
-): string =>
-  name === "xDataEnd" && value.trim().toLowerCase() === "end"
-    ? ""
-    : value;
-
 const labelToId = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+
+const parseYColumnInput = (text: string): number[] =>
+  normalizeColumnIndexes(
+    text
+      .split(/[,\s;，、]+/g)
+      .map(value => parseColumnLabel(value)),
+  );
+
+const parseColumnLabel = (value: string): number | null => {
+  const label = value.trim().replace(/列$/u, "").toUpperCase();
+  if (!/^[A-Z]+$/.test(label)) {
+    return null;
+  }
+
+  let column = 0;
+  for (const char of label) {
+    column = column * 26 + (char.charCodeAt(0) - 64);
+  }
+  return column - 1;
+};
+
+const removeAt = <T>(items: readonly T[], index: number): T[] =>
+  items.filter((_, currentIndex) => currentIndex !== index);
+
+const moveItem = <T>(items: readonly T[], fromIndex: number, toIndex: number): T[] => {
+  if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= items.length || toIndex >= items.length) {
+    return [...items];
+  }
+
+  const next = [...items];
+  const [item] = next.splice(fromIndex, 1);
+  if (item !== undefined) {
+    next.splice(toIndex, 0, item);
+  }
+  return next;
+};
+
+export const formatTemplateYColumnLabel = (columnIndex: number): string =>
+  localize("template.fields.yColumnChip", "{column} 列", {
+    column: toColumnLabel(columnIndex),
+  });

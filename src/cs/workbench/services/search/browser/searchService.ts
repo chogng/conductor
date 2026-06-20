@@ -63,20 +63,18 @@ export class SearchService extends Disposable implements ISearchServiceType {
 	private pointLookupModel: SearchPointLookupModel | null = null;
 
 	constructor(
-		@IChartService private readonly chartService?: IChartServiceType,
-		@IPlotService private readonly plotService?: IPlotServiceType,
-		@ISessionService private readonly sessionService?: ISessionServiceType,
+		@IChartService private readonly chartService: IChartServiceType,
+		@IPlotService private readonly plotService: IPlotServiceType,
+		@ISessionService private readonly sessionService: ISessionServiceType,
 	) {
 		super();
 
-		if (this.chartService && this.plotService && this.sessionService) {
-			this._register(this.chartService.onDidChangeChartState(() => this.refreshPointLookupModel()));
-			this._register(this.chartService.onDidChangeChartViewInput(() => this.refreshPointLookupModel()));
-			this._register(this.plotService.onDidChangePlotState(() => this.refreshPointLookupModel()));
-			this._register(this.plotService.onDidChangePlotDisplayModelCache(() => this.refreshPointLookupModel()));
-			this._register(this.sessionService.onDidChangeSession(() => this.refreshPointLookupModel()));
-			this.refreshPointLookupModel();
-		}
+		this._register(this.chartService.onDidChangeChartState(() => this.refreshPointLookupModel()));
+		this._register(this.chartService.onDidChangeChartViewInput(() => this.refreshPointLookupModel()));
+		this._register(this.plotService.onDidChangePlotState(() => this.refreshPointLookupModel()));
+		this._register(this.plotService.onDidChangePlotDisplayModelCache(() => this.refreshPointLookupModel()));
+		this._register(this.sessionService.onDidChangeSession(() => this.refreshPointLookupModel()));
+		this.refreshPointLookupModel();
 	}
 
 	public getState(): SearchState {
@@ -173,10 +171,6 @@ export class SearchService extends Disposable implements ISearchServiceType {
 	}
 
 	private refreshPointLookupModel(): void {
-		if (!this.chartService || !this.plotService || !this.sessionService) {
-			return;
-		}
-
 		const chartInput = this.chartService.getViewInput();
 		const fileId = normalizeSearchText(chartInput?.activeFileId ?? "").trim();
 		if (!fileId || chartInput?.hasChartData !== true) {
@@ -245,10 +239,10 @@ export class SearchService extends Disposable implements ISearchServiceType {
 
 	private createPointLookupPlotDisplayModelInput(
 		fileId: string,
-		plotType: PlotDisplayModelInput["plotType"],
+		plotType: NonNullable<PlotDisplayModelInput["plotType"]>,
 		snapshot: SessionSnapshot,
 	): PlotDisplayModelInput {
-		const legendModel = this.plotService?.getCachedPlotLegendModel({
+		const legendModel = this.plotService.getCachedPlotLegendModel({
 			fileId,
 			plotType,
 			snapshot,
@@ -257,7 +251,7 @@ export class SearchService extends Disposable implements ISearchServiceType {
 		return {
 			fileId,
 			hiddenLegendKeys: liveLegendKeys.length
-				? this.plotService?.getHiddenLegendKeys(fileId, plotType, liveLegendKeys) ?? []
+				? this.plotService.getHiddenLegendKeys(fileId, plotType, liveLegendKeys)
 				: [],
 			legendLabels: this.getPointLookupLegendLabels(fileId, liveLegendKeys),
 			plotType,
@@ -269,7 +263,7 @@ export class SearchService extends Disposable implements ISearchServiceType {
 		fileId: string,
 		liveLegendKeys: readonly string[],
 	): Readonly<Record<string, string>> {
-		const labels = this.plotService?.getLegendLabels(fileId) ?? {};
+		const labels = this.plotService.getLegendLabels(fileId);
 		if (!liveLegendKeys.length) {
 			return labels;
 		}

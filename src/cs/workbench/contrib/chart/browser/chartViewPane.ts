@@ -518,12 +518,13 @@ export class ChartViewPane extends ViewPane {
   }
 
   private syncHeaderActions(legendContext: LegendContext | null, visible: boolean): void {
+    const legendContextKey = legendContext ? this.getLegendStateKey(legendContext) : null;
     this.headerActionBar.domNode.hidden = !visible;
     this.legendAction.enabled = visible && Boolean(legendContext);
     this.legendAction.class = undefined;
     this.legendAction.checked = visible &&
-      Boolean(legendContext) &&
-      this.chartService.getState().legendPopoverContextKey === this.getLegendStateKey(legendContext);
+      legendContextKey !== null &&
+      this.chartService.getState().legendPopoverContextKey === legendContextKey;
     this.inspectorAction.enabled = visible;
     this.inspectorAction.checked = visible && this.chartService.getState().visibleDetailPanes.includes("inspector");
   }

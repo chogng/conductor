@@ -27,6 +27,7 @@ import type {
   SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
+import type { TemplateApplyWorkflowInput } from "src/cs/workbench/services/template/common/template";
 import { createTemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -1223,16 +1224,16 @@ const createDomainBridgeOptionsForTest = ({
     getFileApplyStates: () => new Map(),
     onDidChangeFileStates: Event.None,
     onDidChangeProcessingStatus: Event.None,
-	    prioritizeProcessingFile: (fileId: string) => prioritizedTemplateFileIds.push(fileId),
+    prioritizeProcessingFile: (fileId: string) => prioritizedTemplateFileIds.push(fileId),
     processingStatus: {
       processed: 0,
       state: "processing",
       total: 0,
-	    },
-	    update: input => {
-	      templateApplyInputs?.push(input as { readonly fileTemplateSelectionsByFileId?: Record<string, unknown> });
-	    },
-	  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["templateApplyWorkflowService"],
+    },
+    update: (input: TemplateApplyWorkflowInput) => {
+      templateApplyInputs?.push(input as { readonly fileTemplateSelectionsByFileId?: Record<string, unknown> });
+    },
+  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["templateApplyWorkflowService"],
   templateService: {
     getCachedTemplates: () => [],
     getState: () => templateStateValue ?? ({

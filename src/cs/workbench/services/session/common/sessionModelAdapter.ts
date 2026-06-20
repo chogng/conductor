@@ -25,6 +25,7 @@ import {
   createEmptyTemplateConfig,
   type TemplateConfig,
 } from "src/cs/workbench/services/template/common/templateConfigUtils";
+import { normalizeColumnIndexes } from "src/cs/workbench/services/template/common/templateXYBinding";
 import type {
   BaseCurveFamily,
   CacheKey,
@@ -1322,6 +1323,7 @@ const createTemplateConfigRecord = (
   config: TemplateConfig,
 ): TemplateConfigRecord => ({
   name: normalizeOptionalText(config.name),
+  xColumns: normalizeColumnIndexes(config.xColumns),
   xDataStart: parseNumberOr(config.xDataStart, 0),
   xDataEnd: parseNumberOr(config.xDataEnd, 0),
   xSegmentationMode: config.xSegmentationMode,
@@ -1356,10 +1358,21 @@ const createTemplateConfigRecordFromAppliedConfig = (
 
   const yCols = readNumberArray(config.yCols);
   const yColumns = yCols.length ? yCols : readNumberArray(config.yColumns);
+  const xCols = readNumberArray(config.xCols);
+  const xColumns = xCols.length ? xCols : readNumberArray(config.xColumns);
+  const xCol = readConfigNumber(config, "xCol");
+  const resolvedXColumns = xColumns.length
+    ? xColumns
+    : xCol !== undefined
+      ? [xCol]
+      : shouldDefaultExtractionXColumn(config)
+        ? [0]
+        : fallbackRecord.xColumns;
 
   return {
     ...fallbackRecord,
     name: normalizeOptionalText(config.name) ?? fallbackRecord.name,
+    xColumns: resolvedXColumns,
     xDataStart:
       readConfigNumber(config, "xDataStart") ??
       readConfigNumber(config, "startRow") ??
@@ -1433,6 +1446,11 @@ const createTemplateConfigFallbackFromProcessedFile = (
     yUnit: readRecordString(processedFile, "yUnit"),
   };
 };
+
+const shouldDefaultExtractionXColumn = (config: Record<string, unknown>): boolean =>
+  config.startRow !== undefined ||
+  config.yCols !== undefined ||
+  config.seriesBindings !== undefined;
 
 const normalizeXSegmentationMode = (
   value: unknown,

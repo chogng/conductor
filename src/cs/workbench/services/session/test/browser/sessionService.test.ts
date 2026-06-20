@@ -411,6 +411,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
       fileId: "file-a",
       selection: { kind: "auto" },
       config: {
+        xColumns: [0],
         xDataStart: 0,
         xDataEnd: 1,
         xSegmentationMode: "auto",

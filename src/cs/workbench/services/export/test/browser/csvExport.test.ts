@@ -1607,6 +1607,7 @@ const createFileRecord = (ivMode: "transfer" | "output"): FileRecord => {
           bottomTitle: ivMode === "transfer" ? "Gate Voltage" : "Drain Voltage",
           leftTitle: "Drain Current",
           stopOnError: false,
+          xColumns: [0],
           xDataEnd: 2,
           xDataStart: 0,
           xSegmentationMode: "auto",

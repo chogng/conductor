@@ -554,6 +554,7 @@ const createFileRecord = (
           bottomTitle: "Gate Voltage",
           leftTitle: "Drain Current",
           stopOnError: false,
+          xColumns: [0],
           xDataEnd: 2,
           xDataStart: 0,
           xSegmentationMode: "auto",

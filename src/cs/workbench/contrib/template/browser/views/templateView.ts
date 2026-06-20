@@ -35,20 +35,30 @@ import type {
 } from "src/cs/workbench/services/template/common/template";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { ITableService, TableSelection } from "src/cs/workbench/services/table/common/table";
-import { toColumnLabel } from "src/cs/workbench/services/template/common/templateCellRef";
 import { TemplateApplyView } from "src/cs/workbench/contrib/template/browser/views/templateApplyView";
 import {
   TemplateEditorView,
+  type TemplateColumnPickTarget,
   type TemplatePickFieldName,
+  formatTemplateYColumnLabel,
 } from "src/cs/workbench/contrib/template/browser/views/templateEditorView";
 import {
   areTableCellsEqual,
+  areTableRangesEqual,
   areColumnIndexesEqual,
   normalizeColumnIndexes,
   resolveTemplateCellSelection,
   resolveTemplateCellSelectionUpdate,
   resolveTemplateColumnSelectionUpdate,
+  resolveTemplateXRangeSelectionUpdate,
 } from "src/cs/workbench/contrib/template/browser/templateSelection";
+import {
+  areTemplateXRangesEqual,
+  formatTemplateXRangeLabel,
+  getTemplateXRangeColumns,
+  getTemplateXRangeLegacyFields,
+  normalizeTemplateXRanges,
+} from "src/cs/workbench/services/template/common/templateXRange";
 
 import "src/cs/workbench/contrib/template/browser/views/media/templateView.css";
 
@@ -61,7 +71,9 @@ export type TemplateViewOptions = {
   readonly tableService?: Pick<
     ITableService,
     | "clearHighlight"
+    | "clearSelection"
     | "getSelection"
+    | "getViewInput"
     | "onDidChangeSelection"
     | "select"
   >;
@@ -125,8 +137,10 @@ export class TemplateView {
   public readonly configElement: HTMLElement;
   private props: TemplateViewOptions;
   private activePickField: PickFieldName | null = null;
+  private activeColumnPickTarget: TemplateColumnPickTarget = "yColumns";
   private disposeTableSelectionListener: (() => void) | null = null;
   private lastTableSelection: TableSelection | null = null;
+  private pendingXRangeSelectionIndex: number | null = null;
   private tableService: TemplateViewOptions["tableService"] | null = null;
   private mode: TemplateMode | null = null;
   private stopOnErrorDraft: boolean | null = null;
@@ -236,8 +250,18 @@ export class TemplateView {
         return;
       }
 
-      if (!areColumnIndexesEqual(previous?.selectedColumns, selection.selectedColumns)) {
-        this.updateTemplateFormState(resolveTemplateColumnSelectionUpdate(selection));
+      const activeTarget = this.getActiveColumnPickTarget();
+      if (activeTarget === "yColumns" && !areColumnIndexesEqual(previous?.selectedColumns, selection.selectedColumns)) {
+        this.updateTemplateFormState(resolveTemplateColumnSelectionUpdate(selection, activeTarget));
+      }
+
+      if (activeTarget === "xRanges" && !areTableRangesEqual(previous?.ranges, selection.ranges)) {
+        const config = this.getEffectiveTemplateFormState();
+        this.updateTemplateFormState(resolveTemplateXRangeSelectionUpdate(selection, {
+          existingRanges: config.xRanges,
+          replaceFrom: this.pendingXRangeSelectionIndex ?? config.xRanges.length,
+          rowCount: this.getCurrentTableRowCount(),
+        }));
       }
 
       if (!areTableCellsEqual(previous?.activeCell, selection.activeCell)) {
@@ -255,13 +279,26 @@ export class TemplateView {
       ...updates,
     };
 
+    if (Array.isArray(updates.xRanges)) {
+      const xRanges = normalizeTemplateXRanges(updates.xRanges, next.xDataStart, next.xDataEnd, next.xColumns);
+      changed = !areTemplateXRangesEqual(current.xRanges, xRanges);
+      const legacyFields = getTemplateXRangeLegacyFields(xRanges);
+      next.xRanges = xRanges;
+      next.xColumns = getTemplateXRangeColumns(xRanges);
+      next.xDataStart = legacyFields.xDataStart;
+      next.xDataEnd = legacyFields.xDataEnd;
+    } else if (Array.isArray(updates.xColumns)) {
+      changed = changed || !areColumnIndexesEqual(current.xColumns, updates.xColumns);
+      next.xColumns = normalizeColumnIndexes(updates.xColumns);
+    }
     if (Array.isArray(updates.yColumns)) {
-      changed = !areColumnIndexesEqual(current.yColumns, updates.yColumns);
-      next.yColumns = updates.yColumns;
+      const yColumns = normalizeColumnIndexes(updates.yColumns);
+      changed = changed || !areColumnIndexesEqual(current.yColumns, yColumns);
+      next.yColumns = yColumns;
     }
 
     for (const [key, value] of Object.entries(updates)) {
-      if (key === "yColumns") {
+      if (key === "xColumns" || key === "xRanges" || key === "yColumns") {
         continue;
       }
       if (current[key as keyof TemplateConfig] !== value) {
@@ -286,8 +323,10 @@ export class TemplateView {
       return;
     }
 
-    const columns = normalizeColumnIndexes(this.getEffectiveTemplateFormState().yColumns);
-    this.syncTableSelectedColumns(columns);
+    const config = this.getEffectiveTemplateFormState();
+    if (this.getActiveColumnPickTarget() === "yColumns") {
+      this.syncTableSelectedColumns(normalizeColumnIndexes(config.yColumns));
+    }
     this.syncTableActiveCell();
   }
 
@@ -298,17 +337,8 @@ export class TemplateView {
     }
 
     const selection = tableService.getSelection();
-    if (selection.selectedColumns?.length) {
-      tableService.select({
-        kind: "columns",
-        columns: [],
-      });
-    }
-    if (selection.activeCell) {
-      tableService.select({
-        kind: "cell",
-        cell: null,
-      });
+    if (selection.selectedColumns?.length || selection.activeCell || selection.ranges?.length) {
+      tableService.clearSelection();
     }
     tableService.clearHighlight();
   }
@@ -327,6 +357,13 @@ export class TemplateView {
       kind: "columns",
       columns,
     });
+  }
+
+  private getCurrentTableRowCount(): number | null {
+    const rowCount = this.tableService?.getViewInput()?.tableState.file?.rowCount;
+    return typeof rowCount === "number" && Number.isInteger(rowCount) && rowCount > 0
+      ? rowCount
+      : null;
   }
 
   private syncTableActiveCell(options: { clearInvalid?: boolean } = {}): void {
@@ -427,8 +464,17 @@ export class TemplateView {
     if (!this.editorView) {
       this.editorView = new TemplateEditorView({
         contextMenuService: this.props.contextMenuService,
+        onClearXRanges: () => this.clearXRanges(),
         onCancel: () => this.cancelTemplateEditor(),
         onClearYColumns: () => this.clearYColumns(),
+        onColumnPickTargetChange: (target) => {
+          this.activeColumnPickTarget = target;
+          this.pendingXRangeSelectionIndex = target === "xRanges"
+            ? this.getEffectiveTemplateFormState().xRanges.length
+            : null;
+          this.syncTableSelectionState();
+          this.updateEditorView();
+        },
         onPickFieldFocus: (field) => {
           this.activePickField = field;
           this.syncTableActiveCell({ clearInvalid: Boolean(field) });
@@ -450,6 +496,7 @@ export class TemplateView {
 
   private clearYColumns(): void {
     this.updateTemplateFormState({ yColumns: [] });
+    this.pendingXRangeSelectionIndex = null;
     const selection = this.tableService?.getSelection();
     if (!selection || !selection.selectedColumns?.length) {
       return;
@@ -461,13 +508,36 @@ export class TemplateView {
     });
   }
 
+  private clearXRanges(): void {
+    this.pendingXRangeSelectionIndex = 0;
+    this.updateTemplateFormState({
+      xColumns: [],
+      xDataEnd: "",
+      xDataStart: "",
+      xRanges: [],
+    });
+    const selection = this.tableService?.getSelection();
+    if (!selection || this.getActiveColumnPickTarget() !== "xRanges") {
+      return;
+    }
+
+    this.tableService?.clearSelection();
+  }
+
   private getEditorViewState() {
     const config = this.getEffectiveTemplateFormState();
     return {
       activePickField: this.activePickField,
+      activeColumnPickTarget: this.getActiveColumnPickTarget(),
       config,
-      selectedYColumnLabels: normalizeColumnIndexes(config.yColumns).map((column) => toColumnLabel(column)),
+      selectedXRangeLabels: normalizeTemplateXRanges(config.xRanges, config.xDataStart, config.xDataEnd, config.xColumns)
+        .map(range => formatTemplateXRangeLabel(range)),
+      selectedYColumnLabels: normalizeColumnIndexes(config.yColumns).map(column => formatTemplateYColumnLabel(column)),
     };
+  }
+
+  private getActiveColumnPickTarget(): TemplateColumnPickTarget {
+    return this.activeColumnPickTarget;
   }
 
   private createTemplateActions(): IAction[] {

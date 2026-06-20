@@ -5,6 +5,8 @@
 import { createDecorator } from "../../../../platform/instantiation/common/instantiation.js";
 import { AUTO_TEMPLATE_ID } from "./autoTemplate.js";
 import type { TemplateConfig } from "./templateConfigUtils.js";
+import { normalizeColumnIndexes } from "./templateXYBinding.js";
+import { normalizeTemplateXRanges, type TemplateXRange } from "./templateXRange.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -14,10 +16,13 @@ export type TemplateStoreSaveInput = TemplateConfig & {
 
 export type StoredTemplate = JsonRecord & {
 	id?: unknown;
+	xColumns: number[];
+	xRanges: TemplateXRange[];
 	xSegmentationMode: string;
 	xPoints: string;
 	xSegments: string;
 	selectedColumns: number[];
+	yColumns: number[];
 };
 
 export type TemplateStoreData = {
@@ -82,9 +87,25 @@ export function normalizeStoredTemplate(template: unknown): StoredTemplate | nul
 	if (!isRecord(template)) {
 		return null;
 	}
+	const { xyBindingMode: _xyBindingMode, ...templateWithoutDeprecatedBindingMode } = template;
+	const rawYColumns = Array.isArray(template.yColumns)
+		? template.yColumns
+		: Array.isArray(template.selectedColumns)
+			? template.selectedColumns
+			: [];
 
+	const xColumns = normalizeColumnIndexes(
+		Array.isArray(template.xColumns) ? template.xColumns : [],
+	);
 	return {
-		...template,
+		...templateWithoutDeprecatedBindingMode,
+		xColumns,
+		xRanges: normalizeTemplateXRanges(
+			Array.isArray(template.xRanges) ? template.xRanges : undefined,
+			template.xDataStart,
+			template.xDataEnd,
+			xColumns,
+		),
 		xSegmentationMode: normalizeXSegmentationMode(
 			template.xSegmentationMode,
 		),
@@ -93,6 +114,7 @@ export function normalizeStoredTemplate(template: unknown): StoredTemplate | nul
 		selectedColumns: Array.isArray(template.selectedColumns)
 			? template.selectedColumns.map(n => Number(n)).filter(Number.isFinite)
 			: [],
+		yColumns: normalizeColumnIndexes(rawYColumns),
 	};
 }
 

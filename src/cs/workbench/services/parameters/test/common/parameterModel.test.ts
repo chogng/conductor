@@ -240,6 +240,7 @@ const createCanonicalFileRecord = (
         appliedAt: 1,
         config: {
           stopOnError: false,
+          xColumns: [0],
           xDataEnd: 1,
           xDataStart: 0,
           xSegmentationMode: "auto",

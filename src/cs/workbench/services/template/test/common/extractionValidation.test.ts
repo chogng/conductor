@@ -92,4 +92,65 @@ suite("workbench/services/template/common/extractionValidation", () => {
     }
     assert.match(result.message, /extractSegmentsCellPositiveInt/);
   });
+
+  test("multiple X columns resolve X and Y columns by index", () => {
+    const result = prepareExtraction({
+      rawData: [{}],
+      previewFile: { rowCount: 9 },
+      getPreviewRow: () => [],
+      config: {
+        bottomTitle: "",
+        legendPrefix: "",
+        xColumns: [3, 5, 7],
+        xDataEnd: "D9",
+        xDataStart: "D2",
+        xPointsPerGroup: "",
+        xSegmentCount: "",
+        xSegmentationMode: "auto",
+        xUnit: "V",
+        yColumns: [4, 6, 8],
+        yUnit: "A",
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) {
+      assert.fail(result.message);
+    }
+
+    const extractionConfig = result.extractionConfig as Record<string, unknown>;
+    assert.deepEqual(extractionConfig.seriesBindings, [
+      { xCol: 3, yCol: 4, xRange: undefined, yRange: undefined, groupKey: undefined },
+      { xCol: 5, yCol: 6, xRange: undefined, yRange: undefined, groupKey: undefined },
+      { xCol: 7, yCol: 8, xRange: undefined, yRange: undefined, groupKey: undefined },
+    ]);
+    assert.deepEqual(extractionConfig.xCols, [3, 5, 7]);
+    assert.deepEqual(extractionConfig.yCols, [4, 6, 8]);
+  });
+
+  test("multiple X columns reject mismatched X and Y counts", () => {
+    const result = prepareExtraction({
+      rawData: [{}],
+      previewFile: { rowCount: 9 },
+      getPreviewRow: () => [],
+      config: {
+        bottomTitle: "",
+        legendPrefix: "",
+        xColumns: [3, 5, 7],
+        xDataEnd: "D9",
+        xDataStart: "D2",
+        xPointsPerGroup: "",
+        xSegmentCount: "",
+        xSegmentationMode: "auto",
+        xUnit: "V",
+        yColumns: [4, 6],
+        yUnit: "A",
+      },
+    });
+
+    if (result.ok) {
+      assert.fail("Expected extraction to fail.");
+    }
+    assert.match(result.message, /^template\.validation\.xyColumnCountMismatch/);
+  });
 });

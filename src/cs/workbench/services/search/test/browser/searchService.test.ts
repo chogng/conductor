@@ -19,7 +19,7 @@ suite("workbench/services/search/test/browser/searchService", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("owns search query state outside session", () => {
-		const service = store.add(new SearchService());
+		const service = store.add(createSearchServiceForTest());
 		const states: SearchState[] = [];
 		store.add(service.onDidChangeSearchState(state => {
 			states.push(state);
@@ -47,7 +47,7 @@ suite("workbench/services/search/test/browser/searchService", () => {
 	});
 
 	test("skips duplicate search state notifications", () => {
-		const service = store.add(new SearchService());
+		const service = store.add(createSearchServiceForTest());
 		let changeCount = 0;
 		store.add(service.onDidChangeSearchState(() => {
 			changeCount += 1;
@@ -66,7 +66,7 @@ suite("workbench/services/search/test/browser/searchService", () => {
 	});
 
 	test("owns current point lookup model input outside the view", () => {
-		const service = store.add(new SearchService());
+		const service = store.add(createSearchServiceForTest());
 		const models: Array<SearchPointLookupModel | null> = [];
 		store.add(service.onDidChangeSearchPointLookupModel(model => {
 			models.push(model);
@@ -120,6 +120,7 @@ suite("workbench/services/search/test/browser/searchService", () => {
 		plotStateEmitter.fire({
 			activePlotType: "iv",
 			axisTitleOverridesByKey: {},
+			hiddenLegendKeysByPlotKey: {},
 			legendLabelsByFileId: {
 				"file-a": legendLabels,
 			},
@@ -145,7 +146,7 @@ suite("workbench/services/search/test/browser/searchService", () => {
 	});
 
 	test("searches pane model points from query text", () => {
-		const service = store.add(new SearchService());
+		const service = store.add(createSearchServiceForTest());
 		const model = createPlotModel();
 
 		const results = service.searchPointsAtText(model, "1");
@@ -164,7 +165,7 @@ suite("workbench/services/search/test/browser/searchService", () => {
 	});
 
 	test("indexes session snapshot records and resolves navigation targets", () => {
-		const service = store.add(new SearchService());
+		const service = store.add(createSearchServiceForTest());
 		const results = service.searchSnapshot(createSnapshot(), {
 			kinds: ["rawCell", "curve", "metric", "block"],
 			scope: "all",
@@ -194,6 +195,72 @@ suite("workbench/services/search/test/browser/searchService", () => {
 		});
 	});
 });
+
+const createSearchServiceForTest = (): SearchService =>
+	new SearchService(
+		createIdleChartServiceForTest(),
+		createIdlePlotServiceForTest(),
+		createIdleSessionServiceForTest(),
+	);
+
+const createIdleChartServiceForTest = (): IChartService => ({
+	_serviceBrand: undefined,
+	getState: () => ({
+		legendPopoverContextKey: null,
+		visibleDetailPanes: [],
+	}),
+	getViewInput: () => null,
+	onDidChangeChartState: Event.None as IChartService["onDidChangeChartState"],
+	onDidChangeChartViewInput: Event.None as Event<void>,
+	setLegendPopoverContextKey: () => undefined,
+	toggleDetailPane: () => undefined,
+	updateViewInput: () => undefined,
+});
+
+const createIdlePlotServiceForTest = (): IPlotService => ({
+	_serviceBrand: undefined,
+	cancelQueuedPlotInspectorDisplayModelPrefetch: () => undefined,
+	getCachedCalculatedData: () => null,
+	getCachedPlotDisplayModel: () => null,
+	getCachedPlotInspectorDisplayModel: () => null,
+	getCachedPlotLegendModel: () => null,
+	getCalculatedData: () => null,
+	getFileAxisSettings: () => ({
+		xUnitByFileId: {},
+		yScaleByFileId: {},
+		yUnitByFileId: {},
+	}),
+	getHiddenLegendKeys: () => [],
+	getLegendLabels: () => ({}),
+	getPlotDisplayModel: () => null,
+	getPlotLegendModel: () => null,
+	getPlotMainRenderModel: () => null,
+	getState: () => ({
+		activePlotType: "iv",
+		axisTitleOverridesByKey: {},
+		hiddenLegendKeysByPlotKey: {},
+		legendLabelsByFileId: {},
+	}),
+	onDidChangeCalculatedDataCache: Event.None as IPlotService["onDidChangeCalculatedDataCache"],
+	onDidChangePlotDisplayModelCache: Event.None as IPlotService["onDidChangePlotDisplayModelCache"],
+	onDidChangePlotState: Event.None as IPlotService["onDidChangePlotState"],
+	prefetchCalculatedData: () => undefined,
+	prefetchPlotDisplayModel: () => undefined,
+	prefetchPlotDisplayModels: () => undefined,
+	prefetchPlotInspectorDisplayModel: () => undefined,
+	setActivePlotType: () => undefined,
+	setAxisTitleOverride: () => undefined,
+	setAxisUnit: async () => undefined,
+	setLegendLabel: () => undefined,
+	setYScale: async () => undefined,
+	toggleHiddenLegendKey: () => undefined,
+});
+
+const createIdleSessionServiceForTest = (): ISessionService => ({
+	_serviceBrand: undefined,
+	getSnapshot: () => createSnapshot(),
+	onDidChangeSession: Event.None,
+} as unknown as ISessionService);
 
 const createSearchPointLookupModel = (): SearchPointLookupModel => ({
 	panes: [
@@ -286,6 +353,7 @@ const createPlotDisplayModelForTest = (
 };
 
 const createChartServiceForPointLookupTest = (): IChartService => ({
+	_serviceBrand: undefined,
 	getState: () => ({
 		legendPopoverContextKey: null,
 		visibleDetailPanes: [],
@@ -297,12 +365,12 @@ const createChartServiceForPointLookupTest = (): IChartService => ({
 		hasChartData: true,
 		shouldMountCharts: true,
 	}),
-	onDidChangeChartState: Event.None,
-	onDidChangeChartViewInput: Event.None,
+	onDidChangeChartState: Event.None as IChartService["onDidChangeChartState"],
+	onDidChangeChartViewInput: Event.None as Event<void>,
 	setLegendPopoverContextKey: () => undefined,
 	toggleDetailPane: () => undefined,
 	updateViewInput: () => undefined,
-} as IChartService);
+});
 
 const createPlotServiceForPointLookupTest = ({
 	legendLabels,
@@ -313,7 +381,8 @@ const createPlotServiceForPointLookupTest = ({
 	readonly onDidChangePlotState: IPlotService["onDidChangePlotState"];
 	readonly plotDisplayInputs: PlotDisplayModelInput[];
 }): IPlotService => ({
-	getCachedPlotDisplayModel: (input) => {
+	_serviceBrand: undefined,
+	getCachedPlotDisplayModel: (input: PlotDisplayModelInput) => {
 		plotDisplayInputs.push(input);
 		return createPlotDisplayModelForTest(String(input.fileId ?? ""), {
 			seriesName: input.legendLabels?.["series-a"] ?? "Series A",
@@ -327,7 +396,11 @@ const createPlotServiceForPointLookupTest = ({
 			{ data: [], id: "series-b", name: "Series B" },
 		],
 	}),
-	getHiddenLegendKeys: (fileId, plotType, liveLegendKeys) =>
+	getHiddenLegendKeys: (
+		fileId: string,
+		plotType: NonNullable<PlotDisplayModelInput["plotType"]>,
+		liveLegendKeys: readonly string[],
+	) =>
 		fileId === "file-a" && plotType === "iv"
 			? liveLegendKeys.filter(legendKey => legendKey === "series-b")
 			: [],
@@ -335,6 +408,7 @@ const createPlotServiceForPointLookupTest = ({
 	getState: () => ({
 		activePlotType: "iv",
 		axisTitleOverridesByKey: {},
+		hiddenLegendKeysByPlotKey: {},
 		legendLabelsByFileId: {
 			"file-a": legendLabels(),
 		},

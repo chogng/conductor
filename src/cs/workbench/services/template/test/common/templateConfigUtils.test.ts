@@ -36,4 +36,19 @@ suite("workbench/services/template/common/templateConfigUtils", () => {
       "",
     );
   });
+
+  test("template config derives legacy X columns without storing an XY mode", () => {
+    const oneYColumn = normalizeTemplateConfigRecord({
+      xDataStart: "D5",
+      yColumns: [4],
+    });
+    assert.deepEqual(oneYColumn.xColumns, [3]);
+
+    const multipleYColumns = normalizeTemplateConfigRecord({
+      xDataStart: "D5",
+      yColumns: [4, 5],
+    });
+    assert.deepEqual(multipleYColumns.xColumns, [3]);
+    assert.deepEqual(multipleYColumns.yColumns, [4, 5]);
+  });
 });

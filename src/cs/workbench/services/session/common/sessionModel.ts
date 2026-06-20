@@ -129,6 +129,7 @@ export type TemplateRunRecord = {
 
 export type TemplateConfigRecord = {
   name?: string;
+  xColumns: number[];
   xDataStart: number;
   xDataEnd: number;
   xSegmentationMode: "auto" | "points" | "segments";

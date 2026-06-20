@@ -112,6 +112,10 @@ type ProcessedWorkerFile = Record<string, unknown> & {
         readonly columns?: readonly unknown[];
     };
 };
+type WorkerSeriesBinding = {
+    readonly xCol: number;
+    readonly yCol: number;
+};
 type TemplateWorkerScope = {
     onmessage:
         | ((event: MessageEvent<{
@@ -169,6 +173,41 @@ const parseNumberStrict = (raw: unknown): number | null => {
         return Number.isFinite(num) ? num : null;
     }
     return null;
+};
+const normalizeWorkerSeriesBindings = (
+    config: Record<string, unknown>,
+    fallbackXCol: number,
+    fallbackYCols: readonly number[],
+): WorkerSeriesBinding[] => {
+    const rawBindings = Array.isArray(config?.seriesBindings)
+        ? config.seriesBindings
+        : [];
+    const bindings = rawBindings
+        .map((entry): WorkerSeriesBinding | null => {
+            if (!entry || typeof entry !== "object") {
+                return null;
+            }
+            const record = entry as { readonly xCol?: unknown; readonly yCol?: unknown };
+            const xCol = Number(record.xCol);
+            const yCol = Number(record.yCol);
+            if (!Number.isInteger(xCol) || xCol < 0) {
+                return null;
+            }
+            if (!Number.isInteger(yCol) || yCol < 0) {
+                return null;
+            }
+            return { xCol, yCol };
+        })
+        .filter((entry): entry is WorkerSeriesBinding => Boolean(entry));
+
+    if (bindings.length) {
+        return bindings;
+    }
+
+    return fallbackYCols.map(yCol => ({
+        xCol: fallbackXCol,
+        yCol,
+    }));
 };
 const trimCompactExponent = (text: string): string => text.replace(/e([+-])0+(\d+)/i, "e$1$2");
 const trimTrailingZeros = (text: string): string => trimCompactExponent(text
@@ -380,6 +419,22 @@ const buildUniformSampleIndices = (lengthRaw: unknown, targetRaw: unknown): numb
     }
     idx[idx.length - 1] = last;
     return idx;
+};
+const downsampleFloat64Array = (
+    source: Float64Array,
+    targetPoints: number,
+    sampleIdx: readonly number[] | null,
+): Float64Array => {
+    const downsampled = new Float64Array(targetPoints);
+    if (!sampleIdx) {
+        downsampled.set(source);
+        return downsampled;
+    }
+
+    for (let i = 0; i < targetPoints; i++) {
+        downsampled[i] = source[sampleIdx[i]];
+    }
+    return downsampled;
 };
 const buildPreviewMetadataAndIndex = async (
     file: File,
@@ -688,7 +743,10 @@ const processFile = async (
     const segmentCount = Number(config?.segmentCount);
     const xSegmentationMode = String(config?.xSegmentationMode ?? "").trim().toLowerCase();
     const isAutoSegmentationMode = xSegmentationMode === "auto";
-    const yCols = Array.isArray(config?.yCols) ? config.yCols.map(Number) : [];
+    const legacyYCols = Array.isArray(config?.yCols) ? config.yCols.map(Number) : [];
+    const seriesBindings = normalizeWorkerSeriesBindings(config, xCol, legacyYCols);
+    const yCols = seriesBindings.map(binding => binding.yCol);
+    const singleXColumnBinding = seriesBindings.every(binding => binding.xCol === xCol);
     const groupSizeCell = config?.groupSizeCell ?? null;
     const yLegendStartCell = config?.yLegendStartCell ?? null;
     const yLegendStartValueRaw = config?.yLegendStartValue ?? null;
@@ -1067,7 +1125,10 @@ const processFile = async (
         return { mode, finalCount };
     };
     const xFullByGroup = Array.from({ length: groups }, () => new Float64Array(groupSize));
-    const yFullByGroup = Array.from({ length: groups }, () => yCols.map(() => new Float64Array(groupSize)));
+    const xFullByBindingGroup = singleXColumnBinding
+        ? null
+        : Array.from({ length: groups }, () => seriesBindings.map(() => new Float64Array(groupSize)));
+    const yFullByGroup = Array.from({ length: groups }, () => seriesBindings.map(() => new Float64Array(groupSize)));
     // Optional: map Y Data points to curve legends (best-effort).
     // Supports two common layouts:
     // - "yCol": Y Data points are laid out horizontally (same row, col step) and map to Y columns.
@@ -1224,17 +1285,31 @@ const processFile = async (
                 const localIndex = currentRowIndex - startRow;
                 const groupIndex = Math.floor(localIndex / groupSize);
                 const indexInGroup = localIndex % groupSize;
-                const xRaw = row[xCol];
-                const xVal = parseNumberStrict(xRaw);
-                if (xVal === null) {
-                    const cellRef = `${getExcelColumnLabel(xCol)}${currentRowIndex + 1}`;
-                    reject(new Error(`${fileName}: Invalid X at ${cellRef} (${JSON.stringify(xRaw ?? "")}).`));
-                    parser.abort();
-                    return;
+                if (singleXColumnBinding) {
+                    const xRaw = row[xCol];
+                    const xVal = parseNumberStrict(xRaw);
+                    if (xVal === null) {
+                        const cellRef = `${getExcelColumnLabel(xCol)}${currentRowIndex + 1}`;
+                        reject(new Error(`${fileName}: Invalid X at ${cellRef} (${JSON.stringify(xRaw ?? "")}).`));
+                        parser.abort();
+                        return;
+                    }
+                    xFullByGroup[groupIndex][indexInGroup] = xVal;
                 }
-                xFullByGroup[groupIndex][indexInGroup] = xVal;
-                for (let yi = 0; yi < yCols.length; yi++) {
-                    const yCol = yCols[yi];
+                for (let yi = 0; yi < seriesBindings.length; yi++) {
+                    const binding = seriesBindings[yi];
+                    const yCol = binding.yCol;
+                    if (!singleXColumnBinding && xFullByBindingGroup) {
+                        const xRaw = row[binding.xCol];
+                        const xVal = parseNumberStrict(xRaw);
+                        if (xVal === null) {
+                            const cellRef = `${getExcelColumnLabel(binding.xCol)}${currentRowIndex + 1}`;
+                            reject(new Error(`${fileName}: Invalid X at ${cellRef} (${JSON.stringify(xRaw ?? "")}).`));
+                            parser.abort();
+                            return;
+                        }
+                        xFullByBindingGroup[groupIndex][yi][indexInGroup] = xVal;
+                    }
                     const yRaw = row[yCol];
                     const yVal = parseNumberStrict(yRaw);
                     if (yVal === null) {
@@ -1292,27 +1367,41 @@ const processFile = async (
     const xGroups: Float64Array[] = [];
     const series: ProcessedWorkerSeries[] = [];
     for (let g = 0; g < groups; g++) {
-        const xFull = xFullByGroup[g];
-        const xDown = new Float64Array(targetPoints);
-        if (!sampleIdx) {
-            xDown.set(xFull);
-        }
-        else {
-            for (let i = 0; i < targetPoints; i++) {
-                xDown[i] = xFull[sampleIdx[i]];
+        let singleXColumnGroupIndex = -1;
+        if (singleXColumnBinding) {
+            const xFull = xFullByGroup[g];
+            const xDown = downsampleFloat64Array(xFull, targetPoints, sampleIdx);
+            for (let i = 0; i < xDown.length; i++) {
+                const xVal = xDown[i];
+                if (Number.isFinite(xVal)) {
+                    if (xVal < minX)
+                        minX = xVal;
+                    if (xVal > maxX)
+                        maxX = xVal;
+                }
             }
+            singleXColumnGroupIndex = xGroups.length;
+            xGroups.push(xDown);
         }
-        for (let i = 0; i < xDown.length; i++) {
-            const xVal = xDown[i];
-            if (Number.isFinite(xVal)) {
-                if (xVal < minX)
-                    minX = xVal;
-                if (xVal > maxX)
-                    maxX = xVal;
+        for (let yi = 0; yi < seriesBindings.length; yi++) {
+            const binding = seriesBindings[yi];
+            const xGroupIndex = singleXColumnBinding
+                ? singleXColumnGroupIndex
+                : xGroups.length;
+            if (!singleXColumnBinding && xFullByBindingGroup) {
+                const xFull = xFullByBindingGroup[g][yi];
+                const xDown = downsampleFloat64Array(xFull, targetPoints, sampleIdx);
+                for (let i = 0; i < xDown.length; i++) {
+                    const xVal = xDown[i];
+                    if (Number.isFinite(xVal)) {
+                        if (xVal < minX)
+                            minX = xVal;
+                        if (xVal > maxX)
+                            maxX = xVal;
+                    }
+                }
+                xGroups.push(xDown);
             }
-        }
-        xGroups.push(xDown);
-        for (let yi = 0; yi < yCols.length; yi++) {
             const yFull = yFullByGroup[g][yi];
             const yDown = new Float64Array(targetPoints);
             if (!sampleIdx) {
@@ -1332,7 +1421,7 @@ const processFile = async (
                         maxY = yVal;
                 }
             }
-            const yCol = yCols[yi];
+            const yCol = binding.yCol;
             const yLabel = getExcelColumnLabel(yCol);
             const legendLabel = yLegendMode === "yCol"
                 ? (yLegendLabels?.[yi] ?? null)
@@ -1358,10 +1447,14 @@ const processFile = async (
                     : `${prefix}${labelValue}`;
             })();
             series.push({
-                id: `${fileId}_${yCol}_${g}`,
+                id: singleXColumnBinding
+                    ? `${fileId}_${yCol}_${g}`
+                    : `${fileId}_${binding.xCol}_${yCol}_${g}`,
                 name: seriesName,
                 fileId,
-                groupIndex: g,
+                groupIndex: xGroupIndex,
+                sourceGroupIndex: g,
+                xCol: binding.xCol,
                 yCol,
                 y: yDown,
                 legendLabel,
@@ -1402,6 +1495,8 @@ const processFile = async (
         x: {
             col: xCol,
             colLabel: getExcelColumnLabel(xCol),
+            columns: seriesBindings.map(binding => binding.xCol),
+            columnLabels: seriesBindings.map(binding => getExcelColumnLabel(binding.xCol)),
             startRow: startRow + 1,
             endRow: endRow + 1,
             points: groupSize,
@@ -1414,6 +1509,7 @@ const processFile = async (
             columns: yCols,
             columnLabels: yCols.map(getExcelColumnLabel),
         },
+        seriesBindings,
         xGroups,
         series,
         domain,

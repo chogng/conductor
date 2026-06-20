@@ -227,6 +227,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
     assert.equal(record.latestTemplateRunId, templateRun?.id);
     assert.equal(record.templateRunsById[templateRun?.id ?? ""], templateRun);
     assert.equal(templateRun?.config.name, "Transfer Template");
+    assert.deepEqual(templateRun?.config.xColumns, []);
     assert.equal(templateRun?.config.xDataStart, 12);
     assert.equal(templateRun?.config.xDataEnd, 48);
     assert.equal(templateRun?.config.xPointsPerGroup, 2);
@@ -446,6 +447,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
     assert.equal(config?.name, "Manual Transfer");
     assert.equal(config?.xDataStart, 1);
     assert.equal(config?.xDataEnd, 2);
+    assert.deepEqual(config?.xColumns, [0]);
     assert.equal(config?.xSegmentationMode, "points");
     assert.equal(config?.xPointsPerGroup, 2);
     assert.deepEqual(config?.yColumns, [1]);

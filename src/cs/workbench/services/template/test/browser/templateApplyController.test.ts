@@ -389,7 +389,15 @@ suite("workbench/services/template/browser/templateApplyController", () => {
     assert.equal(extractionConfig.startRow, 1);
     assert.equal(extractionConfig.endRow, 2);
     assert.equal(extractionConfig.xSegmentationMode, "points");
+    assert.deepEqual(extractionConfig.xCols, [0]);
     assert.deepEqual(extractionConfig.yCols, [1]);
+    assert.deepEqual(extractionConfig.seriesBindings, [{
+      xCol: 0,
+      yCol: 1,
+      xRange: undefined,
+      yRange: undefined,
+      groupKey: undefined,
+    }]);
     assert.deepEqual(extractionConfig.groupSizeCell, {
       colIndex: 1,
       rowIndex: 0,
@@ -1055,7 +1063,7 @@ const createSessionService = (
 
 const createTemplateApplyService = (
   queuedFileIds: string[][],
-  startedJobs: ProcessingJobOptions[] = [],
+  startedJobs: Array<ProcessingJobOptions | RuleProcessingJobOptions> = [],
   serviceOptions: {
     readonly commitProcessedEntries?: boolean;
     readonly markProcessing?: boolean;

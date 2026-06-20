@@ -67,6 +67,7 @@ const createFileRecord = (): FileRecord => ({
 			config: {
 				name: "Template",
 				stopOnError: true,
+				xColumns: [0],
 				xDataEnd: 2,
 				xDataStart: 1,
 				xSegmentationMode: "auto",
