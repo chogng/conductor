@@ -19,6 +19,7 @@ import {
 import { isPlotType } from "src/cs/workbench/services/plot/common/plot";
 import {
   IPlotService,
+  PlotTypes,
   type PlotAxis,
   type PlotAxisTitleContext,
   type PlotCalculatedDataCacheChangeEvent,
@@ -158,6 +159,13 @@ type InFlightPlotPrefetch = {
 };
 
 type PlotCacheChangeMap = Map<FileId, Set<PlotType>>;
+
+type PlotStateUpdateOptions = {
+  readonly afterStateAssigned?: () => void;
+  readonly clearDisplayModelCache?: boolean;
+};
+
+type LegendDisplayModelInputByPlotType = ReadonlyMap<PlotType, PlotDisplayModelInput>;
 
 export class PlotService extends Disposable implements IPlotService {
   public declare readonly _serviceBrand: undefined;
@@ -1076,6 +1084,7 @@ export class PlotService extends Disposable implements IPlotService {
       return;
     }
 
+    const previousLegendInputs = this.createCurrentLegendDisplayModelInputs(normalizedFileId);
     const nextLabels = { ...currentLabels };
     if (normalizedLabel) {
       nextLabels[normalizedSeriesId] = normalizedLabel;
@@ -1093,6 +1102,9 @@ export class PlotService extends Disposable implements IPlotService {
 
     this.updateState({
       legendLabelsByFileId,
+    }, {
+      afterStateAssigned: () => this.cacheCurrentLegendDisplayModels(normalizedFileId, previousLegendInputs),
+      clearDisplayModelCache: false,
     });
   }
 
@@ -1103,8 +1115,9 @@ export class PlotService extends Disposable implements IPlotService {
     liveLegendKeys: readonly SeriesId[],
   ): void {
     const key = getPlotLegendStateKey(fileId, plotType);
+    const normalizedFileId = normalizeStateKey(fileId);
     const normalizedSeriesId = normalizeStateKey(seriesId);
-    if (!key || !normalizedSeriesId) {
+    if (!key || !normalizedFileId || !normalizedSeriesId) {
       return;
     }
 
@@ -1114,6 +1127,12 @@ export class PlotService extends Disposable implements IPlotService {
     }
 
     const current = this.getHiddenLegendKeys(fileId, plotType, liveKeys);
+    const previousLegendInput: PlotDisplayModelInput = {
+      fileId: normalizedFileId,
+      hiddenLegendKeys: current,
+      legendLabels: this.getLegendLabels(normalizedFileId),
+      plotType,
+    };
     const next = current.includes(normalizedSeriesId)
       ? current.filter(item => item !== normalizedSeriesId)
       : [...current, normalizedSeriesId];
@@ -1128,10 +1147,13 @@ export class PlotService extends Disposable implements IPlotService {
 
     this.updateState({
       hiddenLegendKeysByPlotKey,
+    }, {
+      afterStateAssigned: () => this.cacheCurrentLegendDisplayModel(normalizedFileId, plotType, previousLegendInput),
+      clearDisplayModelCache: false,
     });
   }
 
-  private updateState(updates: Partial<PlotState>): void {
+  private updateState(updates: Partial<PlotState>, options: PlotStateUpdateOptions = {}): void {
     const nextState = {
       ...this.state,
       ...updates,
@@ -1146,9 +1168,88 @@ export class PlotService extends Disposable implements IPlotService {
     }
 
     this.state = nextState;
-    this.clearPlotDisplayModelCache();
-    this.clearQueuedPlotDisplayModelPrefetch();
+    if (options.clearDisplayModelCache !== false) {
+      this.clearPlotDisplayModelCache();
+      this.clearQueuedPlotDisplayModelPrefetch();
+    }
+    options.afterStateAssigned?.();
     this.onDidChangePlotStateEmitter.fire(nextState);
+  }
+
+  private createCurrentLegendDisplayModelInputs(fileId: FileId): LegendDisplayModelInputByPlotType {
+    const normalizedFileId = normalizeStateKey(fileId);
+    const inputs = new Map<PlotType, PlotDisplayModelInput>();
+    if (!normalizedFileId) {
+      return inputs;
+    }
+
+    for (const plotType of PlotTypes) {
+      inputs.set(plotType, {
+        fileId: normalizedFileId,
+        hiddenLegendKeys: this.getStoredHiddenLegendKeys(normalizedFileId, plotType),
+        legendLabels: this.getLegendLabels(normalizedFileId),
+        plotType,
+      });
+    }
+    return inputs;
+  }
+
+  private cacheCurrentLegendDisplayModels(
+    fileId: FileId,
+    previousInputs: LegendDisplayModelInputByPlotType,
+  ): void {
+    for (const plotType of PlotTypes) {
+      this.cacheCurrentLegendDisplayModel(fileId, plotType, previousInputs.get(plotType));
+    }
+  }
+
+  private cacheCurrentLegendDisplayModel(
+    fileId: FileId,
+    plotType: PlotType,
+    previousInput: PlotDisplayModelInput | undefined,
+  ): void {
+    const normalizedFileId = normalizeStateKey(fileId);
+    if (!normalizedFileId || !isPlotType(plotType)) {
+      return;
+    }
+
+    const snapshot = this.resolveSnapshot(undefined);
+    if (!snapshot) {
+      return;
+    }
+
+    const calculatedData = this.getCachedCalculatedData({
+      fileId: normalizedFileId,
+      plotType,
+      snapshot,
+    });
+    if (!calculatedData) {
+      return;
+    }
+
+    const resolvedInput = this.resolvePlotDisplayModelInput({
+      fileId: normalizedFileId,
+      plotType,
+    }, calculatedData);
+    if (!resolvedInput) {
+      return;
+    }
+
+    const model = this.createPlotDisplayModel(calculatedData, resolvedInput, snapshot, false);
+    if (!model) {
+      return;
+    }
+
+    this.cachePlotDisplayModel(calculatedData, resolvedInput, model);
+    if (
+      previousInput &&
+      this.getCachedPlotInspectorDisplayModelForKey(this.getPlotDisplayModelCacheKey(calculatedData, previousInput))
+    ) {
+      const inspectorModel = this.createPlotInspectorDisplayModel(calculatedData, resolvedInput, snapshot);
+      if (inspectorModel) {
+        this.cachePlotInspectorDisplayModel(calculatedData, resolvedInput, inspectorModel);
+      }
+    }
   }
 
   private invalidatePlotModelsForSessionChange(event: SessionChangeEvent): void {

@@ -271,6 +271,12 @@ html.workbench-transparent-chrome-windows .titlebar-root {
   -webkit-app-region: no-drag;
 }
 
+.titlebar-right-spacer {
+  flex: 0 0 6px;
+  height: 100%;
+  -webkit-app-region: drag;
+}
+
 .left-toolbar-container {
   align-items: center;
   display: flex;

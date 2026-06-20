@@ -435,6 +435,11 @@ const createMacWindowControlsSpacer = (): HTMLElement => {
   return spacer;
 };
 
+const createTrailingSpacer = (): HTMLElement => createElement("div", {
+  className: "titlebar-right-spacer",
+  "aria-hidden": "true",
+});
+
 const createWorkbenchTitlebarView = (
   {
     activePage,
@@ -599,6 +604,8 @@ const createWorkbenchTitlebarView = (
     windowControlsContainer.style.width = "138px";
     windowControlsContainer.style.flexShrink = "0";
     rightControls.appendChild(windowControlsContainer);
+  } else {
+    rightControls.appendChild(createTrailingSpacer());
   }
 
   const leftToolbarContainer = appendChildren(

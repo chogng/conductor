@@ -284,6 +284,89 @@ suite("workbench/services/plot/test/browser/plotService", () => {
     assert.equal(prefetchedDisplayModel?.chart.model.seriesList[0]?.name, "Edited A");
   });
 
+  test("keeps inspector display model ready when legend visibility changes", () => {
+    const snapshot = createSnapshot();
+    const service = store.add(new PlotService(
+      createSessionServiceStub(snapshot),
+      createSettingsServiceStub(),
+      store.add(new TestStorageService()),
+    ));
+
+    const initial = service.getPlotDisplayModel({
+      fileId: "file-a",
+      plotType: "iv",
+      snapshot,
+    });
+    assert.ok(initial?.inspector);
+
+    const events: Array<{ fileId: string; pane?: string; plotType: string }> = [];
+    store.add(service.onDidChangePlotDisplayModelCache(event => {
+      events.push(event);
+    }));
+
+    service.toggleHiddenLegendKey("file-a", "iv", "series-b", ["series-a", "series-b"]);
+
+    const cached = service.getCachedPlotDisplayModel({
+      fileId: "file-a",
+      plotType: "iv",
+      snapshot,
+    });
+
+    assert.deepEqual(cached?.chart.model.seriesList.map(series => series.id), ["series-a"]);
+    assert.ok(cached?.inspector);
+    assert.deepEqual(cached.inspector.model.seriesList.map(series => series.id), ["series-a:second-derivative"]);
+    assert.deepEqual(events, [
+      { fileId: "file-a", pane: "chart", plotType: "iv" },
+      { fileId: "file-a", pane: "inspector", plotType: "iv" },
+    ]);
+  });
+
+  test("keeps legend visibility updates chart-only when inspector cache is absent", () => {
+    const snapshot = createSnapshot();
+    const service = store.add(new PlotService(
+      createSessionServiceStub(snapshot),
+      createSettingsServiceStub(),
+      store.add(new TestStorageService()),
+    ));
+
+    service.getCalculatedData({
+      fileId: "file-a",
+      plotType: "iv",
+      snapshot,
+    });
+    service.prefetchPlotDisplayModel({
+      fileId: "file-a",
+      plotType: "iv",
+      snapshot,
+    }, "active");
+
+    const chartOnly = service.getCachedPlotDisplayModel({
+      fileId: "file-a",
+      plotType: "iv",
+      snapshot,
+    });
+    assert.equal(chartOnly?.inspector, null);
+
+    const events: Array<{ fileId: string; pane?: string; plotType: string }> = [];
+    store.add(service.onDidChangePlotDisplayModelCache(event => {
+      events.push(event);
+    }));
+
+    service.toggleHiddenLegendKey("file-a", "iv", "series-b", ["series-a", "series-b"]);
+
+    const cached = service.getCachedPlotDisplayModel({
+      fileId: "file-a",
+      plotType: "iv",
+      snapshot,
+    });
+
+    assert.deepEqual(cached?.chart.model.seriesList.map(series => series.id), ["series-a"]);
+    assert.equal(cached?.inspector, null);
+    assert.deepEqual(events, [
+      { fileId: "file-a", pane: "chart", plotType: "iv" },
+    ]);
+  });
+
   test("limits y unit controls to the current plot output family", () => {
     const currentService = store.add(new PlotService(
       createSessionServiceStub(),
