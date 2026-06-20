@@ -704,10 +704,11 @@ class TemplateChipInput {
     this.element.append(labelElement, content);
 
     this.disposables.add(addDisposableListener(surface, "click", () => {
-      this.options.onFocus();
+      this.revealInput();
       this.input.focus();
     }));
     this.disposables.add(addDisposableListener(this.input, "focus", () => {
+      this.revealInput();
       this.options.onFocus();
     }));
     this.disposables.add(addDisposableListener(this.input, "keydown", event => {
@@ -731,11 +732,13 @@ class TemplateChipInput {
     }));
     this.disposables.add(addDisposableListener(this.input, "blur", () => {
       this.commitInput();
+      this.syncInputVisibility();
     }));
     this.disposables.add(addDisposableListener(this.clearButton, "click", event => {
       event.preventDefault();
       event.stopPropagation();
       this.options.onClear();
+      this.revealInput();
       this.input.focus();
     }));
   }
@@ -752,6 +755,7 @@ class TemplateChipInput {
     this.clearButton.hidden = tokens.length === 0;
     this.tokenDisposables.clear();
     this.tokensElement.replaceChildren(...tokens.map((token, index) => this.createToken(token, index)));
+    this.syncInputVisibility();
   }
 
   private createToken(token: TemplateChipToken, index: number): HTMLElement {
@@ -777,6 +781,7 @@ class TemplateChipInput {
       event.preventDefault();
       event.stopPropagation();
       this.options.onRemove(index);
+      this.revealInput();
       this.input.focus();
     }));
     this.tokenDisposables.add(addDisposableListener(chip, "dragstart", event => {
@@ -810,6 +815,17 @@ class TemplateChipInput {
     }));
 
     return chip;
+  }
+
+  private revealInput(): void {
+    this.input.hidden = false;
+    this.input.placeholder = this.tokenCount > 0 ? "" : this.options.placeholder;
+  }
+
+  private syncInputVisibility(): void {
+    const hasTokens = this.tokenCount > 0;
+    this.input.placeholder = hasTokens ? "" : this.options.placeholder;
+    this.input.hidden = hasTokens && !this.input.value && document.activeElement !== this.input;
   }
 
   private commitInput(): void {
