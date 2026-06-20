@@ -53,8 +53,6 @@ type TemplateSectionId = "x" | "y" | "optional";
 export type TemplateEditorViewOptions = {
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly onCancel: () => void;
-  readonly onClearXRanges: () => void;
-  readonly onClearYColumns: () => void;
   readonly onColumnPickTargetChange: (target: TemplateColumnPickTarget) => void;
   readonly onPickFieldFocus: (field: TemplatePickFieldName | null) => void;
   readonly onSave: () => void;
@@ -176,7 +174,6 @@ export class TemplateEditorView {
     this.xRangeInput = this.disposables.add(new TemplateChipInput({
       label: localize("template.fields.x", "X"),
       placeholder: localize("template.fields.xRangePlaceholder", "拖拽或输入选区"),
-      onClear: () => this.options.onClearXRanges(),
       onCommitText: text => this.commitXRangeText(text),
       onFocus: () => this.focusSelectionTarget("xRanges"),
       onRemove: index => this.updateXRanges(removeAt(this.currentState.config.xRanges, index)),
@@ -200,7 +197,6 @@ export class TemplateEditorView {
     this.yColumnsInput = this.disposables.add(new TemplateChipInput({
       label: localize("template.fields.yColumns", "Y columns"),
       placeholder: localize("template.fields.yColumnPlaceholder", "B 列"),
-      onClear: () => this.options.onClearYColumns(),
       onCommitText: text => this.commitYColumnText(text),
       onFocus: () => this.focusSelectionTarget("yColumns"),
       onRemove: index => this.updateYColumns(removeAt(this.currentState.config.yColumns, index)),
@@ -652,9 +648,9 @@ type TemplateChipToken = {
 
 class TemplateChipInput {
   public readonly element: HTMLElement;
-  private readonly clearButton: HTMLButtonElement;
   private readonly disposables = new DisposableStore();
   private readonly input: HTMLInputElement;
+  private readonly surface: HTMLElement;
   private readonly tokenDisposables = this.disposables.add(new DisposableStore());
   private readonly tokensElement: HTMLElement;
   private dragIndex: number | null = null;
@@ -664,7 +660,6 @@ class TemplateChipInput {
     private readonly options: {
       readonly label: string;
       readonly placeholder: string;
-      readonly onClear: () => void;
       readonly onCommitText: (text: string) => boolean;
       readonly onFocus: () => void;
       readonly onRemove: (index: number) => void;
@@ -681,9 +676,10 @@ class TemplateChipInput {
     const content = document.createElement("div");
     content.className = "template_chip_content";
 
-    const surface = document.createElement("div");
-    surface.className = "template_chip_surface";
-    surface.tabIndex = -1;
+    this.surface = document.createElement("div");
+    this.surface.className = "template_chip_surface";
+    this.surface.dataset.hasTokens = "false";
+    this.surface.tabIndex = -1;
 
     this.tokensElement = document.createElement("div");
     this.tokensElement.className = "template_chip_tokens";
@@ -694,16 +690,11 @@ class TemplateChipInput {
     this.input.type = "text";
     this.input.setAttribute("aria-label", options.label);
 
-    this.clearButton = document.createElement("button");
-    this.clearButton.type = "button";
-    this.clearButton.className = "template_selection_clear";
-    this.clearButton.textContent = localize("template.fields.clearColumns", "Clear");
-
-    surface.append(this.tokensElement, this.input);
-    content.append(surface, this.clearButton);
+    this.surface.append(this.tokensElement, this.input);
+    content.append(this.surface);
     this.element.append(labelElement, content);
 
-    this.disposables.add(addDisposableListener(surface, "click", () => {
+    this.disposables.add(addDisposableListener(this.surface, "click", () => {
       this.revealInput();
       this.input.focus();
     }));
@@ -734,13 +725,6 @@ class TemplateChipInput {
       this.commitInput();
       this.syncInputVisibility();
     }));
-    this.disposables.add(addDisposableListener(this.clearButton, "click", event => {
-      event.preventDefault();
-      event.stopPropagation();
-      this.options.onClear();
-      this.revealInput();
-      this.input.focus();
-    }));
   }
 
   public update({
@@ -752,7 +736,7 @@ class TemplateChipInput {
   }): void {
     this.element.dataset.picking = active ? "true" : "false";
     this.tokenCount = tokens.length;
-    this.clearButton.hidden = tokens.length === 0;
+    this.surface.dataset.hasTokens = tokens.length > 0 ? "true" : "false";
     this.tokenDisposables.clear();
     this.tokensElement.replaceChildren(...tokens.map((token, index) => this.createToken(token, index)));
     this.syncInputVisibility();

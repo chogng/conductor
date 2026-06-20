@@ -464,9 +464,7 @@ export class TemplateView {
     if (!this.editorView) {
       this.editorView = new TemplateEditorView({
         contextMenuService: this.props.contextMenuService,
-        onClearXRanges: () => this.clearXRanges(),
         onCancel: () => this.cancelTemplateEditor(),
-        onClearYColumns: () => this.clearYColumns(),
         onColumnPickTargetChange: (target) => {
           this.activeColumnPickTarget = target;
           this.pendingXRangeSelectionIndex = target === "xRanges"
@@ -492,36 +490,6 @@ export class TemplateView {
 
   private updateEditorView(): void {
     this.editorView?.update(this.getEditorViewState());
-  }
-
-  private clearYColumns(): void {
-    this.updateTemplateFormState({ yColumns: [] });
-    this.pendingXRangeSelectionIndex = null;
-    const selection = this.tableService?.getSelection();
-    if (!selection || !selection.selectedColumns?.length) {
-      return;
-    }
-
-    this.tableService?.select({
-      kind: "columns",
-      columns: [],
-    });
-  }
-
-  private clearXRanges(): void {
-    this.pendingXRangeSelectionIndex = 0;
-    this.updateTemplateFormState({
-      xColumns: [],
-      xDataEnd: "",
-      xDataStart: "",
-      xRanges: [],
-    });
-    const selection = this.tableService?.getSelection();
-    if (!selection || this.getActiveColumnPickTarget() !== "xRanges") {
-      return;
-    }
-
-    this.tableService?.clearSelection();
   }
 
   private getEditorViewState() {
