@@ -5,7 +5,6 @@
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import type { IActionViewItem } from "src/cs/base/browser/ui/actionbar/actionViewItem";
-import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
   ActionRunner,
   toAction,
@@ -13,7 +12,6 @@ import {
   type IActionRunner,
 } from "src/cs/base/common/actions";
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
-import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import {
   ICommandService,
@@ -25,6 +23,10 @@ import {
   TableController,
   type TableControllerProps,
 } from "src/cs/workbench/contrib/table/browser/tableController";
+import {
+  createTableValueStepperControl,
+  type TableValueStepperControl,
+} from "src/cs/workbench/contrib/table/browser/tableValueStepperControl";
 import { ITableWidgetService } from "src/cs/workbench/contrib/table/browser/tableWidgetService";
 import { TableCommandId, TableViewId } from "src/cs/workbench/contrib/table/common/table";
 import {
@@ -56,13 +58,6 @@ type HeaderState = {
   readonly shouldUpdateDimensions: boolean;
 };
 
-type ZoomControl = {
-  readonly element: HTMLElement;
-  readonly decreaseButton: HTMLButtonElement;
-  readonly increaseButton: HTMLButtonElement;
-  readonly value: HTMLSpanElement;
-};
-
 const ZOOM_CONTROL_ACTION_ID = "table.header.zoom";
 
 export class TableViewPane extends ViewPane {
@@ -80,7 +75,7 @@ export class TableViewPane extends ViewPane {
     label: localize("table.zoomControl", "Table zoom"),
     run: () => undefined,
   });
-  private readonly zoomControl: ZoomControl;
+  private readonly zoomControl: TableValueStepperControl;
   private controller: TableController | null = null;
   private props: TableViewPaneProps | null = null;
   private headerMode: HeaderMode | null = null;
@@ -181,42 +176,33 @@ export class TableViewPane extends ViewPane {
     super.dispose();
   }
 
-  private createZoomControl(): ZoomControl {
-    const element = document.createElement("div");
-    element.className = "table_view_zoom_control";
-    element.setAttribute("role", "group");
-    element.setAttribute("aria-label", localize("table.zoomControl", "Table zoom"));
-
-    const decreaseButton = createZoomButton({
-      className: "table_view_zoom_button table_view_zoom_button_minus",
-      icon: LxIcon.remove,
-      label: localize("table.zoomOut", "Zoom out"),
-      shortcut: "Control+-",
-    });
-    const value = document.createElement("span");
-    value.className = "table_view_zoom_value";
-    value.setAttribute("aria-live", "polite");
-    const increaseButton = createZoomButton({
-      className: "table_view_zoom_button table_view_zoom_button_plus",
-      icon: LxIcon.add,
-      label: localize("table.zoomIn", "Zoom in"),
-      shortcut: "Control+=",
+  private createZoomControl(): TableValueStepperControl {
+    const control = createTableValueStepperControl({
+      ariaLabel: localize("table.zoomControl", "Table zoom"),
+      decrease: {
+        className: "table_view_zoom_button_minus",
+        label: localize("table.zoomOut", "Zoom out"),
+        keyShortcuts: "Control+-",
+      },
+      increase: {
+        className: "table_view_zoom_button_plus",
+        label: localize("table.zoomIn", "Zoom in"),
+        keyShortcuts: "Control+=",
+      },
+      value: {
+        kind: "text",
+        live: "polite",
+      },
     });
 
-    this.store.add(addDisposableListener(decreaseButton, EventType.CLICK, () => {
+    this.store.add(addDisposableListener(control.decreaseButton, EventType.CLICK, () => {
       void this.commandService.executeCommand(TableCommandId.zoomOut);
     }));
-    this.store.add(addDisposableListener(increaseButton, EventType.CLICK, () => {
+    this.store.add(addDisposableListener(control.increaseButton, EventType.CLICK, () => {
       void this.commandService.executeCommand(TableCommandId.zoomIn);
     }));
 
-    element.append(decreaseButton, value, increaseButton);
-    return {
-      decreaseButton,
-      element,
-      increaseButton,
-      value,
-    };
+    return control;
   }
 
   protected override layoutBody(_height: number, _width: number): void {
@@ -255,9 +241,11 @@ export class TableViewPane extends ViewPane {
 
   private updateZoomControl(): void {
     const zoomPercent = this.controller?.getZoomPercent() ?? TABLE_WIDGET_DEFAULT_ZOOM_PERCENT;
-    setText(this.zoomControl.value, `${zoomPercent}%`);
-    setDisabled(this.zoomControl.decreaseButton, zoomPercent <= TABLE_WIDGET_MIN_ZOOM_PERCENT);
-    setDisabled(this.zoomControl.increaseButton, zoomPercent >= TABLE_WIDGET_MAX_ZOOM_PERCENT);
+    this.zoomControl.setValue(`${zoomPercent}%`);
+    this.zoomControl.setDisabled({
+      decrease: zoomPercent <= TABLE_WIDGET_MIN_ZOOM_PERCENT,
+      increase: zoomPercent >= TABLE_WIDGET_MAX_ZOOM_PERCENT,
+    });
   }
 }
 
@@ -326,40 +314,6 @@ const setHidden = (element: HTMLElement, hidden: boolean): void => {
   if (element.hidden !== hidden) {
     element.hidden = hidden;
   }
-};
-
-const setDisabled = (element: HTMLButtonElement, disabled: boolean): void => {
-  if (element.disabled !== disabled) {
-    element.disabled = disabled;
-  }
-  const ariaDisabled = String(disabled);
-  if (element.getAttribute("aria-disabled") !== ariaDisabled) {
-    element.setAttribute("aria-disabled", ariaDisabled);
-  }
-};
-
-const createZoomButton = ({
-  className,
-  icon,
-  label,
-  shortcut,
-}: {
-  readonly className: string;
-  readonly icon: LxIconDefinition;
-  readonly label: string;
-  readonly shortcut: string;
-}): HTMLButtonElement => {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = className;
-  button.title = label;
-  button.setAttribute("aria-label", label);
-  button.setAttribute("aria-keyshortcuts", shortcut);
-  button.append(createLxIcon({
-    icon,
-    size: 14,
-  }));
-  return button;
 };
 
 const getHeaderLabel = (mode: HeaderMode): string => {

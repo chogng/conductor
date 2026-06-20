@@ -6,6 +6,10 @@ import { NullHoverDelegate, type IHoverDelegate } from "src/cs/base/browser/ui/h
 import { localize } from "src/cs/nls";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { createEmptyView } from "src/cs/workbench/contrib/table/browser/emptyView";
+import {
+  createTableValueStepperControl,
+  type TableValueStepperControl,
+} from "src/cs/workbench/contrib/table/browser/tableValueStepperControl";
 import type { TableModel } from "src/cs/workbench/services/table/common/table";
 import {
   formatCell,
@@ -787,6 +791,7 @@ export class TableWidget {
   private readonly bodyGrid: BodyRow[] = [];
   private readonly bodyDataColumns: HTMLTableColElement[] = [];
   private readonly headerCells: HTMLElement[] = [];
+  private readonly headerColumnScaleControls = new WeakMap<HTMLElement, TableValueStepperControl>();
   private headerColumnCount = 0;
   private bodyTotalRowCount = 0;
   private bodyStartRowIndex = 0;
@@ -1438,7 +1443,8 @@ export class TableWidget {
             column: columnLabel,
           }),
         );
-        cell.append(button, scaleControl, resizeHandle);
+        cell.append(button, scaleControl.element, resizeHandle);
+        this.headerColumnScaleControls.set(cell, scaleControl);
         this.headerCells.push(cell);
         this.headerContent.insertBefore(cell, this.headerTrailingSpacer);
       }
@@ -1449,38 +1455,39 @@ export class TableWidget {
     return changed;
   }
 
-  private createColumnScaleControl(colIndex: number): HTMLElement {
-    const control = document.createElement("div");
-    control.className = "table_view_zoom_control table_view_column_scale_control";
-    control.dataset.colIndex = String(colIndex);
-    control.setAttribute("role", "group");
-    control.setAttribute("aria-label", localize("table.preview.columnScaleControl", "Column scale"));
-    control.hidden = true;
-
-    const decreaseButton = document.createElement("button");
-    decreaseButton.type = "button";
-    decreaseButton.className = "table_view_zoom_button table_view_column_scale_button table_view_column_scale_button_minus";
-    decreaseButton.dataset.scaleAction = "decrease";
-    decreaseButton.dataset.colIndex = String(colIndex);
-    decreaseButton.textContent = "-";
-    decreaseButton.setAttribute("aria-label", localize("table.preview.decreaseColumnScale", "Decrease column scale exponent"));
-
-    const valueButton = document.createElement("button");
-    valueButton.type = "button";
-    valueButton.className = "table_view_zoom_value table_view_column_scale_value table_view_column_scale_button";
-    valueButton.dataset.scaleAction = "reset";
-    valueButton.dataset.colIndex = String(colIndex);
-    valueButton.setAttribute("aria-label", localize("table.preview.resetColumnScale", "Reset column scale to automatic"));
-
-    const increaseButton = document.createElement("button");
-    increaseButton.type = "button";
-    increaseButton.className = "table_view_zoom_button table_view_column_scale_button table_view_column_scale_button_plus";
-    increaseButton.dataset.scaleAction = "increase";
-    increaseButton.dataset.colIndex = String(colIndex);
-    increaseButton.textContent = "+";
-    increaseButton.setAttribute("aria-label", localize("table.preview.increaseColumnScale", "Increase column scale exponent"));
-
-    control.append(decreaseButton, valueButton, increaseButton);
+  private createColumnScaleControl(colIndex: number): TableValueStepperControl {
+    const colIndexValue = String(colIndex);
+    const control = createTableValueStepperControl({
+      ariaLabel: localize("table.preview.columnScaleControl", "Column scale"),
+      className: "table_view_column_scale_control",
+      decrease: {
+        className: "table_view_column_scale_button table_view_column_scale_button_minus",
+        dataset: {
+          colIndex: colIndexValue,
+          scaleAction: "decrease",
+        },
+        label: localize("table.preview.decreaseColumnScale", "Decrease column scale exponent"),
+      },
+      increase: {
+        className: "table_view_column_scale_button table_view_column_scale_button_plus",
+        dataset: {
+          colIndex: colIndexValue,
+          scaleAction: "increase",
+        },
+        label: localize("table.preview.increaseColumnScale", "Increase column scale exponent"),
+      },
+      value: {
+        className: "table_view_column_scale_value table_view_column_scale_button",
+        dataset: {
+          colIndex: colIndexValue,
+          scaleAction: "reset",
+        },
+        kind: "button",
+        label: localize("table.preview.resetColumnScale", "Reset column scale to automatic"),
+      },
+    });
+    control.element.dataset.colIndex = colIndexValue;
+    control.element.hidden = true;
     return control;
   }
 
@@ -1551,7 +1558,7 @@ export class TableWidget {
     }
 
     const button = cell.querySelector<HTMLButtonElement>(".table_view_column_button");
-    const scaleControl = cell.querySelector<HTMLElement>(".table_view_column_scale_control");
+    const scaleControl = this.headerColumnScaleControls.get(cell);
     const resizeHandle = cell.querySelector<HTMLElement>(".table_view_column_resize_handle");
     const columnLabel = TableGridModel.getTableGridColumnLabel(colIndex);
     const profile = tableModel.getColumnDisplayProfile(colIndex);
@@ -1592,7 +1599,7 @@ export class TableWidget {
   }
 
   private syncHeaderColumnScaleControl(
-    control: HTMLElement | null,
+    control: TableValueStepperControl | undefined,
     colIndex: number,
     profile: ColumnDisplayProfile,
   ): boolean {
@@ -1603,42 +1610,32 @@ export class TableWidget {
     const showControl = profile.mode === "columnScale" &&
       profile.isNumericColumn &&
       (Boolean(profile.headerSuffix) || Boolean(profile.isScaleManual));
-    let changed = setHidden(control, !showControl);
+    let changed = setHidden(control.element, !showControl);
     if (!showControl) {
       return changed;
     }
 
     const colIndexValue = String(colIndex);
-    if (control.dataset.colIndex !== colIndexValue) {
-      control.dataset.colIndex = colIndexValue;
+    if (control.element.dataset.colIndex !== colIndexValue) {
+      control.element.dataset.colIndex = colIndexValue;
       changed = true;
     }
 
-    for (const button of Array.from(control.querySelectorAll<HTMLButtonElement>(".table_view_column_scale_button"))) {
-      if (button.dataset.colIndex !== colIndexValue) {
-        button.dataset.colIndex = colIndexValue;
-        changed = true;
-      }
+    if (setColumnScaleControlColumnIndex(control, colIndexValue)) {
+      changed = true;
     }
-
-    const valueButton = control.querySelector<HTMLButtonElement>(".table_view_column_scale_value");
     const valueText = `×10${toSuperscriptExponent(profile.scaleExponent)}`;
-    if (valueButton?.textContent !== valueText) {
-      if (valueButton) {
-        valueButton.textContent = valueText;
-      }
+    if (control.setValue(valueText)) {
       changed = true;
     }
-    if (valueButton && valueButton.disabled !== !profile.isScaleManual) {
-      valueButton.disabled = !profile.isScaleManual;
+    if (control.setDisabled({ value: !profile.isScaleManual })) {
       changed = true;
     }
 
     const ariaLabel = profile.isScaleManual
       ? localize("table.preview.columnScaleManual", "Column scale {scale}, manually adjusted", { scale: valueText })
       : localize("table.preview.columnScaleAutomatic", "Column scale {scale}, automatic", { scale: valueText });
-    if (control.getAttribute("aria-label") !== ariaLabel) {
-      control.setAttribute("aria-label", ariaLabel);
+    if (control.setAriaLabel(ariaLabel)) {
       changed = true;
     }
 
@@ -2982,6 +2979,24 @@ const getTableWidgetColumnWidthSourceKey = (
   sourceKey: string | null | undefined,
 ): string | null =>
   typeof sourceKey === "string" && sourceKey.trim() ? sourceKey.trim() : null;
+
+const setColumnScaleControlColumnIndex = (
+  control: TableValueStepperControl,
+  colIndexValue: string,
+): boolean => {
+  let changed = false;
+  for (const element of [
+    control.decreaseButton,
+    control.valueElement,
+    control.increaseButton,
+  ]) {
+    if (element.dataset.colIndex !== colIndexValue) {
+      element.dataset.colIndex = colIndexValue;
+      changed = true;
+    }
+  }
+  return changed;
+};
 
 const setHidden = (element: HTMLElement, hidden: boolean): boolean => {
   if (element.hidden === hidden) {
