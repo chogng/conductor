@@ -71,7 +71,7 @@
     "@typescript-eslint/eslint-plugin": "^8.57.0",
     "@typescript-eslint/parser": "^8.57.0",
     "autoprefixer": "^10.4.22",
-    "electron": "^37.2.0",
+    "electron": "^42.2.0",
     "electron-builder": "^26.0.12",
     "eslint": "^9.39.1",
     "globals": "^16.5.0",

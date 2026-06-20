@@ -119,17 +119,13 @@ suite("workbench/browser/titleService", () => {
     const windowsChrome = getWorkbenchTitlebarChrome(windowsState);
 
     assert.deepStrictEqual({
-      macLeadingInset: macChrome.leadingInset,
       macShowBrandIcon: macChrome.showBrandIcon,
       macWindowControlsSide: macChrome.windowControlsSide,
-      windowsLeadingInset: windowsChrome.leadingInset,
       windowsShowBrandIcon: windowsChrome.showBrandIcon,
       windowsWindowControlsSide: windowsChrome.windowControlsSide,
     }, {
-      macLeadingInset: "macos-window-controls",
       macShowBrandIcon: false,
-      macWindowControlsSide: undefined,
-      windowsLeadingInset: undefined,
+      macWindowControlsSide: "left",
       windowsShowBrandIcon: true,
       windowsWindowControlsSide: "right",
     });

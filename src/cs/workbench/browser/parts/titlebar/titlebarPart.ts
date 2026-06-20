@@ -424,6 +424,17 @@ class WorkbenchTitlebarView extends Disposable {
   }
 }
 
+const createMacWindowControlsSpacer = (): HTMLElement => {
+  const spacer = createElement("div", {
+    className: "window-controls-container",
+    "aria-hidden": "true",
+  });
+  spacer.style.width = "70px";
+  spacer.style.flexShrink = "0";
+  spacer.style.setProperty("-webkit-app-region", "drag");
+  return spacer;
+};
+
 const createWorkbenchTitlebarView = (
   {
     activePage,
@@ -444,7 +455,6 @@ const createWorkbenchTitlebarView = (
   hoverStore?: DisposableStore,
 ): WorkbenchTitlebarView => {
   const showBrandIcon = chrome?.showBrandIcon ?? true;
-  const leadingInset = chrome?.leadingInset;
   const windowControlsSide = chrome?.windowControlsSide;
   const normalizedFileOptions =
     WorkbenchTitlebarActions.normalizeWorkbenchTitlebarFileOptions(fileOptions);
@@ -582,23 +592,29 @@ const createWorkbenchTitlebarView = (
   rightControls.appendChild(pageActionBar.domNode);
 
   if (windowControlsSide === "right") {
-    rightControls.appendChild(createElement("div", {
-      className: "titlebar-window-controls-spacer titlebar-window-controls-spacer--right",
+    const windowControlsContainer = createElement("div", {
+      className: "window-controls-container",
       "aria-hidden": "true",
-    }));
+    });
+    windowControlsContainer.style.width = "138px";
+    windowControlsContainer.style.flexShrink = "0";
+    rightControls.appendChild(windowControlsContainer);
   }
 
+  const leftToolbarContainer = appendChildren(
+    createElement("div", { className: "left-toolbar-container" }),
+    [
+      brand,
+      navActionBar.domNode,
+    ],
+  );
   const leftControls = appendChildren(
     createElement("div", { className: "titlebar-left" }),
     [
-      leadingInset === "macos-window-controls"
-        ? createElement("div", {
-          className: "titlebar-leading-inset titlebar-leading-inset--macos-window-controls",
-          "aria-hidden": "true",
-        })
+      windowControlsSide === "left"
+        ? createMacWindowControlsSpacer()
         : null,
-      brand,
-      navActionBar.domNode,
+      leftToolbarContainer,
     ],
   );
 
@@ -647,7 +663,6 @@ const shouldRecreateTitlebar = (
   prev.showFileSelector !== next.showFileSelector ||
   prev.fileSelectionCommandId !== next.fileSelectionCommandId ||
   prev.chartIntentCommandId !== next.chartIntentCommandId ||
-  prev.chrome?.leadingInset !== next.chrome?.leadingInset ||
   prev.chrome?.showBrandIcon !== next.chrome?.showBrandIcon ||
   prev.chrome?.windowControlsSide !== next.chrome?.windowControlsSide ||
   prev.updateAction?.isVisible !== next.updateAction?.isVisible ||

@@ -12,7 +12,7 @@ type WindowCall = readonly [string, unknown?];
 
 suite("platform/window/electron-main/window", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
-  test("creates opaque macOS window with hidden titlebar and standard chrome", () => {
+  test("creates opaque macOS window with custom titlebar overlay and standard frame", () => {
     withPlatform("darwin", () => {
       const windowMain = createDesktopWindowMain();
 
@@ -35,8 +35,8 @@ suite("platform/window/electron-main/window", () => {
       }, {
         backgroundColor: "#f3f4f6",
         frame: true,
-        titleBarOverlay: undefined,
-        titleBarStyle: "hiddenInset",
+        titleBarOverlay: true,
+        titleBarStyle: "hidden",
         transparent: false,
         vibrancy: undefined,
       });

@@ -2,10 +2,9 @@
 .titlebar-root {
   align-items: center;
   background: rgb(var(--bg-page));
+  box-sizing: border-box;
   display: flex;
   height: 35px;
-  padding-left: 12px;
-  padding-right: 12px;
   -webkit-app-region: drag;
 }
 
@@ -260,23 +259,29 @@ html.workbench-transparent-chrome-windows .titlebar-root {
   color: rgb(var(--accent)) !important;
 }
 
-.titlebar-leading-inset {
-  height: 100%;
-  pointer-events: none;
-}
-
-.titlebar-leading-inset--macos-window-controls {
-  flex: 0 0 60px;
-}
-
 /* Reserved space for Electron's native window controls overlay. */
-.titlebar-window-controls-spacer {
+.window-controls-container {
+  display: flex;
+  flex-grow: 0;
+  flex-shrink: 0;
   height: 100%;
-  pointer-events: none;
+  text-align: center;
+  width: 0;
+  z-index: 3000;
+  -webkit-app-region: no-drag;
 }
 
-.titlebar-window-controls-spacer--right {
-  flex: 0 0 138px;
+.left-toolbar-container {
+  align-items: center;
+  display: flex;
+  flex-grow: 0;
+  flex-shrink: 0;
+  height: 100%;
+  padding-left: 8px;
+  position: relative;
+  text-align: center;
+  z-index: 2500;
+  -webkit-app-region: no-drag;
 }
 
 /* Compact titlebar menu primitives used by titlebar actions and overflow affordances. */
@@ -354,7 +359,7 @@ html.workbench-transparent-chrome-windows .titlebar-root {
 /* Narrow viewport adjustments keep titlebar controls reachable without wrapping. */
 @media (max-width: 640px) {
   .titlebar-root {
-    padding: 6px 8px;
+    padding: 0;
   }
 
   .titlebar-brand {

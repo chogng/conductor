@@ -33,10 +33,9 @@ export type WorkbenchWindowState = {
   readonly isWindowsDesktopShell: boolean;
 };
 
-export type WorkbenchTitlebarWindowControlsSide = "right";
+export type WorkbenchTitlebarWindowControlsSide = "left" | "right";
 
 export type WorkbenchTitlebarChrome = {
-  readonly leadingInset?: "macos-window-controls";
   readonly showBrandIcon?: boolean;
   readonly windowControlsSide?: WorkbenchTitlebarWindowControlsSide;
 };
@@ -114,8 +113,8 @@ export const getWorkbenchTitlebarChrome = (
 ): WorkbenchTitlebarChrome => {
   if (windowState.isMacintoshDesktopShell) {
     return {
-      leadingInset: "macos-window-controls",
       showBrandIcon: false,
+      windowControlsSide: "left",
     };
   }
 

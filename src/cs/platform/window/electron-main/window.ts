@@ -84,13 +84,17 @@ export class DesktopWindowMain {
     theme,
   }: DefaultBrowserWindowOptions): BrowserWindowConstructorOptions {
     const hideNativeWindowFrame = process.platform === "win32";
+    const hideNativeTitleBar =
+      process.platform === "darwin" || hideNativeWindowFrame;
     const appearanceStyle = resolveDesktopWindowAppearanceStyle(
       appearance ?? null,
       theme.backgroundColor,
       process.platform,
       { isFocused: true },
     );
-    const titleBarOverlay = process.platform === "win32"
+    const titleBarOverlay = process.platform === "darwin"
+      ? true
+      : process.platform === "win32"
       ? {
           color: appearanceStyle.titleBarOverlayColor,
           symbolColor: theme.foregroundColor,
@@ -112,11 +116,7 @@ export class DesktopWindowMain {
       frame: !hideNativeWindowFrame,
       show: false,
       titleBarOverlay,
-      titleBarStyle: process.platform === "darwin"
-        ? "hiddenInset"
-        : process.platform === "win32"
-        ? "hidden"
-        : undefined,
+      titleBarStyle: hideNativeTitleBar ? "hidden" : undefined,
       vibrancy: appearanceStyle.vibrancy,
       visualEffectState: appearanceStyle.visualEffectState,
       webPreferences: {
