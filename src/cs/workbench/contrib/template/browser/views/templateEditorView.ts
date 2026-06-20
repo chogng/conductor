@@ -132,12 +132,12 @@ export class TemplateEditorView {
     );
     const xFields = this.createSection(
       form,
-      localize("template.sections.x", "X"),
+      localize("template.sections.dataSelection", "Data selection"),
       "x",
     );
     const yFields = this.createSection(
       form,
-      localize("template.sections.y", "Y"),
+      localize("template.sections.legend", "Legend"),
       "y",
     );
     const optionalFields = this.createSection(
@@ -191,8 +191,6 @@ export class TemplateEditorView {
         this.updateXSegmentationFields(value);
       },
     );
-    const xSegmentCountInput = this.createField(xFields, localize("template.fields.xSegmentCount", "Segment count"), "xSegmentCount");
-    const xPointsPerGroupInput = this.createField(xFields, localize("template.fields.xPointsPerGroup", "Point count"), "xPointsPerGroup");
 
     this.yColumnsInput = this.disposables.add(new TemplateChipInput({
       label: localize("template.fields.yColumns", "Y columns"),
@@ -202,7 +200,10 @@ export class TemplateEditorView {
       onRemove: index => this.updateYColumns(removeAt(this.currentState.config.yColumns, index)),
       onReorder: (fromIndex, toIndex) => this.updateYColumns(moveItem(this.currentState.config.yColumns, fromIndex, toIndex)),
     }));
-    yFields.append(this.yColumnsInput.element);
+    xFields.append(this.yColumnsInput.element);
+
+    const xSegmentCountInput = this.createField(xFields, localize("template.fields.xSegmentCount", "Segment count"), "xSegmentCount");
+    const xPointsPerGroupInput = this.createField(xFields, localize("template.fields.xPointsPerGroup", "Point count"), "xPointsPerGroup");
 
     this.inputs = {
       name: nameInput,

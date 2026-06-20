@@ -200,7 +200,7 @@ html[data-nav="keyboard"] .template_field .inputbox_field[data-picking="true"]::
   display: grid;
   min-width: 0;
   grid-template-columns: minmax(min(104px, 38%), 34%) minmax(0, 1fr);
-  align-items: start;
+  align-items: center;
   column-gap: 12px;
   row-gap: 4px;
 }
