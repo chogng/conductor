@@ -235,7 +235,7 @@ html[data-nav="keyboard"] .template_field .inputbox_field[data-picking="true"]::
 .template_chip_surface {
   display: flex;
   box-sizing: border-box;
-  min-height: 36px;
+  min-height: 30px;
   min-width: 0;
   flex-wrap: wrap;
   align-items: center;
@@ -243,15 +243,11 @@ html[data-nav="keyboard"] .template_field .inputbox_field[data-picking="true"]::
   border: 1px solid rgb(var(--border) / 1);
   border-radius: 8px;
   background-color: rgb(var(--bg-page) / 1);
-  padding: 4px;
+  padding: 0 10px;
 }
 
 .template_chip_field[data-picking="true"] .template_chip_surface {
   border-color: rgb(var(--accent) / 1);
-}
-
-.template_chip_field:focus-within .template_chip_surface {
-  box-shadow: 0 0 0 2px rgb(var(--accent) / 0.12);
 }
 
 .template_chip_tokens {

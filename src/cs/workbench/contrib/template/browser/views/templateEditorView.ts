@@ -175,7 +175,7 @@ export class TemplateEditorView {
 
     this.xRangeInput = this.disposables.add(new TemplateChipInput({
       label: localize("template.fields.x", "X"),
-      placeholder: localize("template.fields.xRangePlaceholder", "E2:End"),
+      placeholder: localize("template.fields.xRangePlaceholder", "拖拽或输入选区"),
       onClear: () => this.options.onClearXRanges(),
       onCommitText: text => this.commitXRangeText(text),
       onFocus: () => this.focusSelectionTarget("xRanges"),
