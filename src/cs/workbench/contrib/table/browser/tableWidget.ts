@@ -701,6 +701,7 @@ type BodyCell = {
   appliedHidden?: boolean;
   appliedRowIndex?: number;
   appliedSelected?: boolean;
+  appliedSelectionFrame?: string;
   appliedText?: string;
   appliedTitle?: string;
 };
@@ -726,12 +727,23 @@ type AppliedCellState = {
   readonly selectedRanges: readonly TableGridModel.TableGridCellRange[];
 };
 
+type SelectionFrameEdges = {
+  readonly bottom: boolean;
+  readonly left: boolean;
+  readonly right: boolean;
+  readonly top: boolean;
+};
+
 type ColumnResizeState = {
   readonly colIndex: number;
   readonly guideLeft: number;
   readonly startClientX: number;
   readonly startGuideLeft: number;
   readonly startWidth: number;
+};
+
+type BodyRangeSelectionState = {
+  readonly pointerId: number;
 };
 
 export class TableWidget {
@@ -759,6 +771,7 @@ export class TableWidget {
   private readonly bottomSpacerRow = document.createElement("tr");
   private readonly bottomSpacerCell = document.createElement("td");
   private readonly columnResizeStore = new DisposableStore();
+  private readonly bodyRangeSelectionStore = new DisposableStore();
   private readonly scrollArea = new Scrollbar({
     axis: "both",
     className: "table_view_scroll_area",
@@ -801,6 +814,9 @@ export class TableWidget {
   private columnWidths = new Map<number, number>();
   private pendingColumnWidthStorageTimeout: number | null = null;
   private columnResizeState: ColumnResizeState | null = null;
+  private bodyRangeSelectionState: BodyRangeSelectionState | null = null;
+  private suppressNextBodyClick = false;
+  private bodyClickSuppressionTimeout: number | null = null;
   private rangeAnchorCell: TableGridModel.TableGridCellPosition | null = null;
   private rangeFocusCell: TableGridModel.TableGridCellPosition | null = null;
   private zoomPercent = TABLE_WIDGET_DEFAULT_ZOOM_PERCENT;
@@ -858,6 +874,9 @@ export class TableWidget {
     this.store.add(addDisposableListener(this.bodyRows, EventType.CLICK, event => {
       this.onBodyClick(event as MouseEvent);
     }));
+    this.store.add(addDisposableListener(this.bodyRows, EventType.POINTER_DOWN, event => {
+      this.onBodyPointerDown(event as PointerEvent);
+    }, { passive: false }));
     this.store.add(addDisposableListener(this.element, EventType.KEY_DOWN, event => {
       this.onKeyDown(event as KeyboardEvent);
     }));
@@ -866,6 +885,7 @@ export class TableWidget {
     }, { passive: false }));
     this.store.add(this.onDidChangeZoomEmitter);
     this.store.add(this.columnResizeStore);
+    this.store.add(this.bodyRangeSelectionStore);
     this.prepareGrid();
     this.bindTableState(props.tableModel);
     this.syncColumnWidthSource();
@@ -903,6 +923,8 @@ export class TableWidget {
     this.disposeStateListener?.();
     this.disposeStateListener = null;
     this.endColumnResize();
+    this.endBodyRangeSelection();
+    this.clearBodyClickSuppression();
     this.disposeBodyCellHovers();
     this.store.dispose();
     this.scrollArea.dispose();
@@ -2007,9 +2029,10 @@ export class TableWidget {
         for (let columnOffset = 0; columnOffset < columnCount; columnOffset += 1) {
           const colIndex = startColumnIndex + columnOffset;
           this.updateCellState(row.cells[columnOffset], {
-            active: isActiveCell(activeCell, rowIndex, colIndex),
+            active: selectedRanges.length === 0 && isActiveCell(activeCell, rowIndex, colIndex),
             highlighted: highlightedColumns.has(colIndex),
             selected: isSelectedCell(rowIndex, colIndex, next),
+            selectionFrame: getSelectionFrame(rowIndex, colIndex, selectedRanges),
           });
         }
       }
@@ -2028,9 +2051,10 @@ export class TableWidget {
       for (let rowOffset = 0; rowOffset < rowCount; rowOffset += 1) {
         const rowIndex = this.bodyStartRowIndex + rowOffset;
         this.updateCellState(this.bodyGrid[rowOffset].cells[columnOffset], {
-          active: isActiveCell(activeCell, rowIndex, colIndex),
+          active: selectedRanges.length === 0 && isActiveCell(activeCell, rowIndex, colIndex),
           highlighted: highlightedColumns.has(colIndex),
           selected: isSelectedCell(rowIndex, colIndex, next),
+          selectionFrame: getSelectionFrame(rowIndex, colIndex, selectedRanges),
         });
       }
     }
@@ -2069,9 +2093,10 @@ export class TableWidget {
     }
 
     this.updateCellState(cell, {
-      active,
+      active: active && state.selectedRanges.length === 0,
       highlighted: state.highlightedColumns.has(activeCell.colIndex),
       selected: isSelectedCell(activeCell.rowIndex, activeCell.colIndex, state),
+      selectionFrame: getSelectionFrame(activeCell.rowIndex, activeCell.colIndex, state.selectedRanges),
     });
   }
 
@@ -2153,6 +2178,7 @@ export class TableWidget {
       readonly active: boolean;
       readonly highlighted: boolean;
       readonly selected: boolean;
+      readonly selectionFrame: SelectionFrameEdges;
     },
   ): void {
     const element = cell.element;
@@ -2170,6 +2196,16 @@ export class TableWidget {
     if (cell.appliedHighlighted !== state.highlighted) {
       element.dataset.highlighted = state.highlighted ? "true" : "false";
       cell.appliedHighlighted = state.highlighted;
+    }
+
+    const selectionFrame = serializeSelectionFrame(state.selectionFrame);
+    if (cell.appliedSelectionFrame !== selectionFrame) {
+      element.dataset.selectionFrame = selectionFrame === "" ? "false" : "true";
+      element.style.setProperty("--table-view-selection-frame-top", state.selectionFrame.top ? "2px" : "0");
+      element.style.setProperty("--table-view-selection-frame-right", state.selectionFrame.right ? "2px" : "0");
+      element.style.setProperty("--table-view-selection-frame-bottom", state.selectionFrame.bottom ? "2px" : "0");
+      element.style.setProperty("--table-view-selection-frame-left", state.selectionFrame.left ? "2px" : "0");
+      cell.appliedSelectionFrame = selectionFrame;
     }
   }
 
@@ -2647,15 +2683,161 @@ export class TableWidget {
     return offset;
   }
 
-  private onBodyClick(event: MouseEvent): void {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) {
+  private onBodyPointerDown(event: PointerEvent): void {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      this.columnResizeState
+    ) {
       return;
     }
 
-    const cell = target.closest<HTMLTableCellElement>(".table_view_cell");
-    if (!cell || !this.bodyRows.contains(cell)) {
+    const target = this.getBodyCellPositionFromEvent(event);
+    if (!target) {
       return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.clearNativeSelection();
+    this.endBodyRangeSelection();
+
+    const didSelect = event.shiftKey
+      ? this.selectRangeToCell(target, false)
+      : this.selectBodyAnchorCell(target);
+    if (!didSelect) {
+      return;
+    }
+
+    this.beginBodyClickSuppression();
+    this.bodyRangeSelectionState = {
+      pointerId: event.pointerId,
+    };
+    this.element.classList.add("table_view--selecting_cells");
+    this.focus();
+
+    const targetWindow = this.element.ownerDocument.defaultView;
+    if (!targetWindow) {
+      return;
+    }
+
+    this.bodyRangeSelectionStore.add(addDisposableListener(
+      targetWindow,
+      EventType.POINTER_MOVE,
+      moveEvent => {
+        this.onBodyPointerMove(moveEvent as PointerEvent);
+      },
+      { passive: false },
+    ));
+    this.bodyRangeSelectionStore.add(addDisposableListener(targetWindow, EventType.POINTER_UP, event => {
+      this.onBodyPointerUp(event as PointerEvent);
+    }, { passive: false }));
+    this.bodyRangeSelectionStore.add(addDisposableListener(targetWindow, "pointercancel", event => {
+      this.onBodyPointerUp(event as PointerEvent);
+    }, { passive: false }));
+    this.bodyRangeSelectionStore.add(addDisposableListener(targetWindow, EventType.BLUR, () => {
+      this.endBodyRangeSelection();
+      this.releaseBodyClickSuppressionSoon();
+    }));
+  }
+
+  private onBodyPointerMove(event: PointerEvent): void {
+    const state = this.bodyRangeSelectionState;
+    if (!state || event.pointerId !== state.pointerId) {
+      return;
+    }
+
+    if ((event.buttons & 1) === 0) {
+      this.endBodyRangeSelection();
+      this.releaseBodyClickSuppressionSoon();
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.clearNativeSelection();
+
+    const target = this.getBodyCellPositionFromEvent(event);
+    if (!target || areActiveCellsEqual(this.rangeFocusCell, target)) {
+      return;
+    }
+
+    if (this.selectRangeToCell(target, false)) {
+      this.beginBodyClickSuppression();
+    }
+  }
+
+  private onBodyPointerUp(event: PointerEvent): void {
+    const state = this.bodyRangeSelectionState;
+    if (!state || event.pointerId !== state.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.clearNativeSelection();
+    this.endBodyRangeSelection();
+    this.releaseBodyClickSuppressionSoon();
+    this.focus();
+  }
+
+  private endBodyRangeSelection(): void {
+    if (this.bodyRangeSelectionState) {
+      this.bodyRangeSelectionState = null;
+      this.element.classList.remove("table_view--selecting_cells");
+    }
+    this.bodyRangeSelectionStore.clear();
+  }
+
+  private selectBodyAnchorCell(target: TableGridModel.TableGridCellPosition): boolean {
+    const tableFile = this.props.tableState.file;
+    const didSelect = this.select({
+      kind: "cell",
+      cell: {
+        colIndex: target.colIndex,
+        fileId: tableFile?.fileId ?? null,
+        rowIndex: target.rowIndex,
+        sheetId: tableFile?.sheetId ?? null,
+      },
+    });
+    if (!didSelect) {
+      return false;
+    }
+
+    this.rangeAnchorCell = target;
+    this.rangeFocusCell = target;
+    return true;
+  }
+
+  private getBodyCellPositionFromEvent(
+    event: Pick<PointerEvent | MouseEvent, "clientX" | "clientY" | "target">,
+  ): TableGridModel.TableGridCellPosition | null {
+    return this.getBodyCellPositionFromTarget(event.target) ??
+      this.getBodyCellPositionFromPoint(event.clientX, event.clientY);
+  }
+
+  private getBodyCellPositionFromPoint(
+    clientX: number,
+    clientY: number,
+  ): TableGridModel.TableGridCellPosition | null {
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+      return null;
+    }
+
+    const element = this.element.ownerDocument.elementFromPoint(clientX, clientY);
+    return this.getBodyCellPositionFromTarget(element);
+  }
+
+  private getBodyCellPositionFromTarget(
+    target: EventTarget | null,
+  ): TableGridModel.TableGridCellPosition | null {
+    if (!(target instanceof HTMLElement)) {
+      return null;
+    }
+
+    const cell = target.closest<HTMLTableCellElement>(".table_view_cell");
+    if (!cell || cell.hidden || !this.bodyRows.contains(cell)) {
+      return null;
     }
 
     const rowIndex = Number(cell.dataset.rowIndex);
@@ -2666,12 +2848,67 @@ export class TableWidget {
       !Number.isInteger(colIndex) ||
       colIndex < 0
     ) {
+      return null;
+    }
+
+    return { colIndex, rowIndex };
+  }
+
+  private clearNativeSelection(): void {
+    const selection = this.element.ownerDocument.getSelection?.() ??
+      this.element.ownerDocument.defaultView?.getSelection?.();
+    selection?.removeAllRanges();
+  }
+
+  private beginBodyClickSuppression(): void {
+    this.suppressNextBodyClick = true;
+    this.clearBodyClickSuppressionTimeout();
+  }
+
+  private releaseBodyClickSuppressionSoon(): void {
+    this.clearBodyClickSuppressionTimeout();
+    const targetWindow = this.element.ownerDocument.defaultView;
+    if (!targetWindow) {
+      this.suppressNextBodyClick = false;
+      return;
+    }
+
+    this.bodyClickSuppressionTimeout = targetWindow.setTimeout(() => {
+      this.suppressNextBodyClick = false;
+      this.bodyClickSuppressionTimeout = null;
+    }, 50);
+  }
+
+  private clearBodyClickSuppression(): void {
+    this.suppressNextBodyClick = false;
+    this.clearBodyClickSuppressionTimeout();
+  }
+
+  private clearBodyClickSuppressionTimeout(): void {
+    if (this.bodyClickSuppressionTimeout === null) {
+      return;
+    }
+
+    this.element.ownerDocument.defaultView?.clearTimeout(this.bodyClickSuppressionTimeout);
+    this.bodyClickSuppressionTimeout = null;
+  }
+
+  private onBodyClick(event: MouseEvent): void {
+    if (this.suppressNextBodyClick) {
+      this.clearBodyClickSuppression();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    const target = this.getBodyCellPositionFromEvent(event);
+    if (!target) {
       return;
     }
 
     const { tableState } = this.props;
     const tableFile = tableState.file;
-    if (event.shiftKey && this.selectRangeToCell({ colIndex, rowIndex }, true)) {
+    if (event.shiftKey && this.selectRangeToCell(target, true)) {
       this.focus();
       return;
     }
@@ -2681,9 +2918,9 @@ export class TableWidget {
     this.select({
       kind: "cell",
       cell: {
-        colIndex,
+        colIndex: target.colIndex,
         fileId: tableFile?.fileId ?? null,
-        rowIndex,
+        rowIndex: target.rowIndex,
         sheetId: tableFile?.sheetId ?? null,
       },
     });
@@ -2920,6 +3157,38 @@ const isSelectedCell = (
     colIndex >= range.startCol &&
     colIndex <= range.endCol,
   );
+
+const getSelectionFrame = (
+  rowIndex: number,
+  colIndex: number,
+  ranges: readonly TableGridModel.TableGridCellRange[],
+): SelectionFrameEdges => {
+  let top = false;
+  let right = false;
+  let bottom = false;
+  let left = false;
+
+  for (const range of ranges) {
+    if (
+      rowIndex < range.startRow ||
+      rowIndex > range.endRow ||
+      colIndex < range.startCol ||
+      colIndex > range.endCol
+    ) {
+      continue;
+    }
+
+    top ||= rowIndex === range.startRow;
+    right ||= colIndex === range.endCol;
+    bottom ||= rowIndex === range.endRow;
+    left ||= colIndex === range.startCol;
+  }
+
+  return { bottom, left, right, top };
+};
+
+const serializeSelectionFrame = (frame: SelectionFrameEdges): string =>
+  `${frame.top ? "t" : ""}${frame.right ? "r" : ""}${frame.bottom ? "b" : ""}${frame.left ? "l" : ""}`;
 
 const normalizeActiveCell = (
   cell: TableSelection["activeCell"],

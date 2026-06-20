@@ -230,6 +230,92 @@ suite("base/browser/workbench tableWidget layout", () => {
       widget.dispose();
     }
   });
+
+  test("drags body cells into a table range without native text selection", async () => {
+    let selection: TableSelection = {};
+    const selectionListeners = new Set<(selection: TableSelection) => void>();
+    const selectedTargets: (TableWidgetSelectionTarget | null)[] = [];
+    const widget = new TableWidget({
+      onSelect: target => {
+        selectedTargets.push(target);
+        selection = applySelectionTarget(selection, target);
+        for (const callback of Array.from(selectionListeners)) {
+          callback(selection);
+        }
+        return true;
+      },
+      tableModel: createTableWidgetModel(() => selection, {
+        onDidChangeSelection: callback => {
+          selectionListeners.add(callback);
+          return () => {
+            selectionListeners.delete(callback);
+          };
+        },
+      }),
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 500, 280);
+      widget.layout();
+      await timeout(120);
+
+      const startCell = getVisibleCell(widget.element, 0, 0);
+      const innerCell = getVisibleCell(widget.element, 1, 1);
+      const endCell = getVisibleCell(widget.element, 2, 2);
+      document.getSelection()?.selectAllChildren(startCell);
+      assert.ok((document.getSelection()?.toString() ?? "").length > 0);
+
+      dispatchPointerEvent(startCell, "pointerdown", {
+        buttons: 1,
+        clientX: 10,
+        clientY: 10,
+        pointerId: 7,
+      });
+      dispatchPointerEvent(endCell, "pointermove", {
+        buttons: 1,
+        clientX: 20,
+        clientY: 20,
+        pointerId: 7,
+      });
+      dispatchPointerEvent(endCell, "pointerup", {
+        buttons: 0,
+        clientX: 20,
+        clientY: 20,
+        pointerId: 7,
+      });
+
+      assert.deepEqual(selectedTargets.map(target => target?.kind), ["cell", "range"]);
+      assert.deepEqual(selection.activeCell, {
+        colIndex: 2,
+        fileId: "file-a",
+        rowIndex: 2,
+        sheetId: null,
+      });
+      assert.deepEqual(selection.ranges, [{
+        endCol: 2,
+        endRow: 2,
+        startCol: 0,
+        startRow: 0,
+        fileId: "file-a",
+        sheetId: null,
+      }]);
+      assert.equal(startCell.dataset.selectionFrame, "true");
+      assert.equal(startCell.style.getPropertyValue("--table-view-selection-frame-top"), "2px");
+      assert.equal(startCell.style.getPropertyValue("--table-view-selection-frame-left"), "2px");
+      assert.equal(innerCell.dataset.selectionFrame, "false");
+      assert.equal(endCell.dataset.active, "false");
+      assert.equal(endCell.dataset.selectionFrame, "true");
+      assert.equal(endCell.style.getPropertyValue("--table-view-selection-frame-right"), "2px");
+      assert.equal(endCell.style.getPropertyValue("--table-view-selection-frame-bottom"), "2px");
+      assert.equal(document.getSelection()?.toString(), "");
+    } finally {
+      widget.dispose();
+    }
+  });
 });
 
 function createTableWidgetState(): TableState {
@@ -255,6 +341,9 @@ function createTableWidgetState(): TableState {
 
 function createTableWidgetModel(
   getSelection: () => TableSelection = () => ({}),
+  options: {
+    readonly onDidChangeSelection?: TableWidgetModel["onDidChangeSelection"];
+  } = {},
 ): TableWidgetModel {
   return {
     adjustColumnDisplayScale: () => false,
@@ -278,7 +367,7 @@ function createTableWidgetModel(
     getState: createTableWidgetState,
     onDidChangeHighlight: () => noopDisposable,
     onDidChangeRevealCell: () => noopDisposable,
-    onDidChangeSelection: () => noopDisposable,
+    onDidChangeSelection: options.onDidChangeSelection ?? (() => noopDisposable),
     onDidChangeState: () => noopDisposable,
     resetColumnDisplayScale: () => false,
     subscribeRowsVersion: () => noopDisposable,
@@ -302,7 +391,23 @@ function applySelectionTarget(
     };
   }
 
-  return selection;
+  if (target.kind === "cell") {
+    return {
+      activeCell: target.cell,
+      selectedColumns: selection.selectedColumns ?? [],
+    };
+  }
+
+  return {
+    activeCell: {
+      colIndex: target.range.endCol,
+      fileId: target.range.fileId ?? null,
+      rowIndex: target.range.endRow,
+      sheetId: target.range.sheetId ?? null,
+    },
+    ranges: [target.range],
+    selectedColumns: selection.selectedColumns ?? [],
+  };
 }
 
 function createSmartTableWidgetModel(): TableWidgetModel {
@@ -448,28 +553,46 @@ function setElementClientSize(element: HTMLElement, width: number, height: numbe
   });
 }
 
-function getVisibleCellText(root: HTMLElement, rowIndex: number, colIndex: number): string | undefined {
+function dispatchPointerEvent(
+  element: HTMLElement,
+  type: string,
+  init: PointerEventInit,
+): void {
+  element.dispatchEvent(new PointerEvent(type, {
+    bubbles: true,
+    button: 0,
+    cancelable: true,
+    pointerType: "mouse",
+    ...init,
+  }));
+}
+
+function getVisibleCell(root: HTMLElement, rowIndex: number, colIndex: number): HTMLElement {
+  const cell = findVisibleCell(root, rowIndex, colIndex);
+  if (!cell) {
+    assert.fail(`Expected visible cell ${rowIndex}:${colIndex}`);
+  }
+  return cell;
+}
+
+function findVisibleCell(root: HTMLElement, rowIndex: number, colIndex: number): HTMLElement | undefined {
   const cells = root.querySelectorAll<HTMLElement>(
     `.table_view_cell[data-row-index="${rowIndex}"][data-col-index="${colIndex}"]`,
   );
   for (const cell of Array.from(cells)) {
     if (!cell.hidden) {
-      return cell.textContent ?? "";
+      return cell;
     }
   }
   return undefined;
 }
 
+function getVisibleCellText(root: HTMLElement, rowIndex: number, colIndex: number): string | undefined {
+  return findVisibleCell(root, rowIndex, colIndex)?.textContent ?? undefined;
+}
+
 function getVisibleCellTitle(root: HTMLElement, rowIndex: number, colIndex: number): string | undefined {
-  const cells = root.querySelectorAll<HTMLElement>(
-    `.table_view_cell[data-row-index="${rowIndex}"][data-col-index="${colIndex}"]`,
-  );
-  for (const cell of Array.from(cells)) {
-    if (!cell.hidden) {
-      return cell.getAttribute("title") ?? undefined;
-    }
-  }
-  return undefined;
+  return findVisibleCell(root, rowIndex, colIndex)?.getAttribute("title") ?? undefined;
 }
 
 function getHoverLineText(content: IManagedHoverContentOrFactory | undefined): string | undefined {
