@@ -144,6 +144,21 @@ suite("workbench/services/table/common/numericFormat", () => {
       scaleExponent: 6,
       headerSuffix: toScaleHeaderSuffix(6),
     }), "1019.8");
+    assert.equal(formatCell("810.09486E+006", {
+      ...profile,
+      scaleExponent: 7,
+      headerSuffix: toScaleHeaderSuffix(7),
+    }), "81.0095");
+    assert.equal(formatCell("810.09486E+006", {
+      ...profile,
+      scaleExponent: 7,
+      headerSuffix: toScaleHeaderSuffix(7),
+      significantDigits: 4,
+    }), "81.01");
+    assert.equal(formatCell("81.009486", {
+      ...rawScaleProfile,
+      significantDigits: 4,
+    }), "81.01");
     assert.equal(formatCell("1.000000", {
       ...rawScaleProfile,
       mode: "raw",

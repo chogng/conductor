@@ -172,8 +172,24 @@ export type TableModel = {
 	subscribeRowsVersion: (callback: (event: TableRowsVersionChangeEvent) => void) => () => void;
 };
 
+export type TableViewModel = Pick<
+	TableModel,
+	| "ensureRows"
+	| "getColumnDisplayProfile"
+	| "getHighlight"
+	| "getRow"
+	| "getRowsVersion"
+	| "getSelection"
+	| "getState"
+	| "onDidChangeHighlight"
+	| "onDidChangeRevealCell"
+	| "onDidChangeSelection"
+	| "onDidChangeState"
+	| "subscribeRowsVersion"
+>;
+
 export type TableViewInput = {
-	readonly tableModel: TableModel;
+	readonly tableModel: TableViewModel;
 	readonly tableState: TableState;
 };
 
@@ -211,14 +227,18 @@ export interface ITableService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeSelection: Event<TableSelection>;
 	readonly onDidChangeTableViewInput: Event<void>;
+	adjustColumnDisplayScale(colIndex: number, deltaExponent: number): boolean;
 	clearSelection(): boolean;
 	clearHighlight(): void;
 	getColumnWidths(sourceKey: string | null | undefined): readonly TableColumnWidth[];
+	getPreviewRow(rowIndex: number): unknown[] | null;
 	getSelection(): TableSelection;
 	getSelectionText(maxCellCount?: number): Promise<TableSelectionTextResult>;
 	getViewInput(): TableViewInput | null;
-	open(source: TableSource | null): TableModel;
+	highlightColumns(columnIndexes: readonly number[]): void;
+	open(source: TableSource | null): void;
 	reveal(target: TableRevealTarget | null, options?: TableRevealOptions): boolean;
+	resetColumnDisplayScale(colIndex: number): boolean;
 	select(target: TableSelectionTarget | null, reveal?: TableRevealMode): boolean;
 	selectAllColumns(): boolean;
 	storeColumnWidths(

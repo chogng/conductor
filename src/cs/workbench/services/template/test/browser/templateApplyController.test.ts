@@ -1026,12 +1026,14 @@ const createTableService = ({
 }: {
   readonly getRow?: (rowIndex: number) => unknown;
   readonly previewFile?: unknown;
-} = {}): Pick<ITableService, "getViewInput"> => ({
+} = {}): Pick<ITableService, "getPreviewRow" | "getViewInput"> => ({
+  getPreviewRow: rowIndex => {
+    const row = getRow(rowIndex);
+    return Array.isArray(row) ? row : null;
+  },
   getViewInput: () => ({
-    tableModel: {
-      getRow,
-      getState: () => ({ file: previewFile }),
-    },
+    tableModel: {} as never,
+    tableState: { file: previewFile } as never,
   } as ReturnType<ITableService["getViewInput"]>),
 });
 

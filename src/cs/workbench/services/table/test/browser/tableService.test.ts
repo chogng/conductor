@@ -7,6 +7,7 @@ import { AbstractStorageService } from "src/cs/platform/storage/common/storageSe
 import type {
   TableRowsReaderProvider,
   TableState,
+  TableViewModel,
 } from "src/cs/workbench/services/table/common/table";
 import {
   TableService,
@@ -233,10 +234,10 @@ suite("workbench/services/table/browser/tableService", () => {
       changeCount += 1;
     }));
 
-    const model = service.open({ fileId: "file-a" });
+    service.open({ fileId: "file-a" });
     sessionService.setRawFiles([createRawFile()]);
 
-    assert.equal(service.getViewInput()?.tableModel, model);
+    assert.notEqual(service.getViewInput()?.tableModel, null);
     assert.equal(service.getViewInput()?.tableState.selectedFileId, "file-a");
     assert.equal(changeCount, 2);
     disposable.dispose();
@@ -252,9 +253,11 @@ suite("workbench/services/table/browser/tableService", () => {
       changeCount += 1;
     }));
 
-    const model = service.open({ fileId: "file-a" });
+    service.open({ fileId: "file-a" });
     const firstOpenChangeCount = changeCount;
-    const sameModel = service.open({ fileId: "file-a" });
+    const model = getRequiredTableViewModel(service);
+    service.open({ fileId: "file-a" });
+    const sameModel = getRequiredTableViewModel(service);
 
     assert.equal(sameModel, model);
     assert.equal(changeCount, firstOpenChangeCount);
@@ -423,7 +426,8 @@ suite("workbench/services/table/browser/tableService", () => {
       sourceKey: "source-key-a",
       sourceVersion: 1,
     }];
-    let model = service.open({ fileId: "file-a" });
+    service.open({ fileId: "file-a" });
+    let model = getRequiredTableViewModel(service);
     let refreshCount = 0;
     const disposeListener = model.onDidChangeState(() => {
       refreshCount += 1;
@@ -486,11 +490,41 @@ suite("workbench/services/table/browser/tableService", () => {
     });
     assert.equal(service.selectAllColumns(), false);
 
-    const model = service.open({ fileId: "file-a" });
+    service.open({ fileId: "file-a" });
     await waitForTableService();
+    const model = getRequiredTableViewModel(service);
 
     assert.equal(service.selectAllColumns(), true);
     assert.deepEqual(model.getSelection().selectedColumns, [0, 1]);
+    service.dispose();
+  });
+
+  test("adjusts column display scale through the service owner API", async () => {
+    const { service } = createTableServiceFixture({
+      rawFiles: [createRawFile({ normalizedCsvPath: "C:/tmp/raw.csv" })],
+      settingsService: createSettingsServiceStub({
+        getConductorSettings: () => ({ numericDisplayMode: "smart" }),
+      }),
+      tableRowsReaderService: createRowsTableReader([
+        ["CH1 Current"],
+        ["-3.70327E-009"],
+        ["-3.49201E-009"],
+        ["-3.04700E-009"],
+      ]),
+    });
+
+    assert.equal(service.adjustColumnDisplayScale(0, 1), false);
+    service.open({ fileId: "file-a" });
+    await waitForTableService();
+    const model = getRequiredTableViewModel(service);
+
+    assert.equal(model.getColumnDisplayProfile(0).scaleExponent, -9);
+    assert.equal(service.adjustColumnDisplayScale(0, 1), true);
+    assert.equal(model.getColumnDisplayProfile(0).scaleExponent, -8);
+    assert.equal(model.getColumnDisplayProfile(0).isScaleManual, true);
+    assert.equal(service.resetColumnDisplayScale(0), true);
+    assert.equal(model.getColumnDisplayProfile(0).scaleExponent, -9);
+    assert.equal(model.getColumnDisplayProfile(0).isScaleManual, undefined);
     service.dispose();
   });
 
@@ -547,8 +581,9 @@ suite("workbench/services/table/browser/tableService", () => {
       cell: { colIndex: 0, rowIndex: 0 },
     }), false);
 
-    const model = service.open({ fileId: "file-a", sheetId: "sheet-a" });
+    service.open({ fileId: "file-a", sheetId: "sheet-a" });
     await waitForTableService();
+    const model = getRequiredTableViewModel(service);
 
     assert.deepEqual(service.getSelection(), normalizeTableSelection(null));
     assert.equal(service.select({
@@ -609,14 +644,15 @@ suite("workbench/services/table/browser/tableService", () => {
         ["A4", "B4", "C4"],
       ]),
     });
-    const model = service.open({ fileId: "file-a" });
+    service.open({ fileId: "file-a" });
     await waitForTableService();
+    const model = getRequiredTableViewModel(service);
     const highlightEvents: unknown[] = [];
     model.onDidChangeHighlight((highlight) => {
       highlightEvents.push(highlight);
     });
 
-    model.highlightColumns([1, 2]);
+    service.highlightColumns([1, 2]);
     assert.deepEqual(model.getHighlight().columns, [1, 2]);
 
     service.clearHighlight();
@@ -652,8 +688,9 @@ suite("workbench/services/table/browser/tableService", () => {
       cell: { colIndex: 0, rowIndex: 0 },
     }), false);
 
-    const model = service.open({ fileId: "file-a", sheetId: "sheet-a" });
+    service.open({ fileId: "file-a", sheetId: "sheet-a" });
     await waitForTableService();
+    const model = getRequiredTableViewModel(service);
     const revealEvents: unknown[] = [];
     model.onDidChangeRevealCell((cell) => {
       revealEvents.push(cell);
@@ -1009,6 +1046,12 @@ const createRowsTableReader = (
       };
     },
   });
+};
+
+const getRequiredTableViewModel = (service: TableService): TableViewModel => {
+  const model = service.getViewInput()?.tableModel;
+  assert.ok(model);
+  return model;
 };
 
 const waitForTableService = async (): Promise<void> => {

@@ -50,6 +50,10 @@ type TableCell = NonNullable<ReturnType<TableModel["getRevealCell"]>>;
 type TableSelection = ReturnType<TableModel["getSelection"]>;
 type TableRange = NonNullable<TableSelection["ranges"]>[number];
 type TableFile = NonNullable<TableState["file"]>;
+type TableServiceViewInput = {
+  readonly tableModel: TableModel;
+  readonly tableState: TableState;
+};
 
 export { createTableModelWithScope } from "src/cs/workbench/services/table/browser/tableModel";
 
@@ -405,13 +409,13 @@ export class TableService extends Disposable implements ITableService {
     this.refreshFromSession();
   }
 
-  public open(source: TableSource | null): TableModel {
+  public open(source: TableSource | null): void {
     const nextSource = normalizeTableSource(source);
     if (isSameTableSource(this.currentSource, nextSource) && this.tableModel) {
-      return this.tableModel;
+      return;
     }
     this.currentSource = nextSource;
-    return this.refreshFromSession();
+    this.refreshFromSession();
   }
 
   private refreshFromSession(options: { forceViewInput?: boolean } = {}): TableModel {
@@ -476,6 +480,18 @@ export class TableService extends Disposable implements ITableService {
     return toTableColumnWidths(stored ?? {});
   }
 
+  public getPreviewRow(rowIndex: number): unknown[] | null {
+    return this.getActiveTableModel()?.getRow(rowIndex) ?? null;
+  }
+
+  public adjustColumnDisplayScale(colIndex: number, deltaExponent: number): boolean {
+    return this.getActiveTableModel()?.adjustColumnDisplayScale(colIndex, deltaExponent) ?? false;
+  }
+
+  public resetColumnDisplayScale(colIndex: number): boolean {
+    return this.getActiveTableModel()?.resetColumnDisplayScale(colIndex) ?? false;
+  }
+
   public async getSelectionText(
     maxCellCount: number = TABLE_COPY_MAX_CELLS,
   ): Promise<TableSelectionTextResult> {
@@ -508,6 +524,10 @@ export class TableService extends Disposable implements ITableService {
 
   public clearHighlight(): void {
     this.getActiveTableModel()?.clearHighlight();
+  }
+
+  public highlightColumns(columnIndexes: readonly number[]): void {
+    this.getActiveTableModel()?.highlightColumns(columnIndexes);
   }
 
   public clearSelection(): boolean {
@@ -589,7 +609,7 @@ export class TableService extends Disposable implements ITableService {
   }
 
   private updateViewInput(
-    input: TableViewInput,
+    input: TableServiceViewInput,
     options: { forceViewInput?: boolean } = {},
   ): void {
     if (!options.forceViewInput && this.viewInput && isSameTableViewInput(this.viewInput, input)) {
@@ -602,7 +622,7 @@ export class TableService extends Disposable implements ITableService {
   }
 
   private getActiveTableModel(): TableModel | null {
-    return this.tableModel ?? this.viewInput?.tableModel ?? null;
+    return this.tableModel;
   }
 
   private revealTarget(

@@ -355,7 +355,14 @@ export const getTableColumnHeaderSelectionMode = (
 
 const toControllerProps = (
   props: TableViewPaneProps,
-  tableService: Pick<ITableService, "getColumnWidths" | "select" | "storeColumnWidths">,
+  tableService: Pick<
+    ITableService,
+    | "adjustColumnDisplayScale"
+    | "getColumnWidths"
+    | "resetColumnDisplayScale"
+    | "select"
+    | "storeColumnWidths"
+  >,
   commandService: Pick<ICommandService, "executeCommand">,
   hoverService: IHoverService,
   templateMode: TemplateMode,
@@ -367,6 +374,9 @@ const toControllerProps = (
   onCopySelection: () => {
     void commandService.executeCommand(TableCommandId.copySelection);
   },
+  onAdjustColumnDisplayScale: (colIndex, deltaExponent) =>
+    tableService.adjustColumnDisplayScale(colIndex, deltaExponent),
+  onResetColumnDisplayScale: colIndex => tableService.resetColumnDisplayScale(colIndex),
   onSelect: (target, reveal) => tableService.select(target, reveal),
   storeColumnWidths: (sourceKey, widths) => tableService.storeColumnWidths(sourceKey, widths),
 });

@@ -15,6 +15,7 @@ const MIN_SCIENTIFIC_SCALE_BUCKET_COUNT = 2;
 const ADJACENT_SCALE_BUCKET_MAX_SPAN = 3;
 const LOWER_SMALL_VALUE_BUCKET_MIN_RATIO = 0.05;
 const LOWER_SMALL_VALUE_MAX_EXPONENT = -3;
+const MAX_TABLE_DISPLAY_SIGNIFICANT_DIGITS = 12;
 const SUPERSCRIPT_DIGITS: Record<string, string> = {
 	"+": "⁺",
 	"-": "⁻",
@@ -107,25 +108,10 @@ export const formatScaledNumber = (
 		return null;
 	}
 
-	const scientificSignificantDigits = getScientificMantissaSignificantDigits(rawValue);
-	if (scientificSignificantDigits !== null) {
-		return trimInsignificantTrailingZeros(
-			toPlainPrecision(
-				scaledValue,
-				Math.max(scientificSignificantDigits, Math.max(1, Math.floor(Number(profile.significantDigits) || DEFAULT_TABLE_DISPLAY_SIGNIFICANT_DIGITS))),
-			),
-		);
-	}
-
-	const scaledPlainDecimals = getScaledPlainDecimalPlaces(rawValue, profile.scaleExponent);
-	if (scaledPlainDecimals !== null) {
-		return trimInsignificantTrailingZeros(scaledValue.toFixed(scaledPlainDecimals));
-	}
-
 	return trimInsignificantTrailingZeros(
 		toPlainPrecision(
 			scaledValue,
-			Math.max(1, Math.floor(Number(profile.significantDigits) || DEFAULT_TABLE_DISPLAY_SIGNIFICANT_DIGITS)),
+			normalizeSignificantDigits(profile.significantDigits),
 		),
 	);
 };
@@ -146,45 +132,6 @@ export const formatRawCell = (value: unknown): string => {
 		return "";
 	}
 	return String(value);
-};
-
-const getScientificMantissaSignificantDigits = (value: unknown): number | null => {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const text = value.trim();
-	const exponentIndex = text.search(/[eE]/);
-	if (exponentIndex < 0) {
-		return null;
-	}
-
-	const mantissaDigits = text
-		.slice(0, exponentIndex)
-		.replace(/^[+-]/, "")
-		.replace(".", "")
-		.replace(/^0+/, "")
-		.replace(/0+$/, "");
-	return Math.min(12, Math.max(1, mantissaDigits.length));
-};
-
-const getScaledPlainDecimalPlaces = (value: unknown, scaleExponent: number): number | null => {
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const text = value.trim();
-	if (!NUMERIC_CELL_PATTERN.test(text) || SCIENTIFIC_NUMERIC_CELL_PATTERN.test(text)) {
-		return null;
-	}
-
-	const decimalIndex = text.indexOf(".");
-	if (decimalIndex < 0) {
-		return null;
-	}
-
-	const rawDecimalPlaces = text.length - decimalIndex - 1;
-	return Math.min(12, Math.max(0, rawDecimalPlaces + Math.trunc(Number(scaleExponent) || 0)));
 };
 
 const chooseScaleBucket = (samples: readonly NumericScaleSample[]): number => {
@@ -309,15 +256,26 @@ const trimInsignificantTrailingZeros = (text: string): string => {
 	return trimmed === "-0" ? "0" : trimmed;
 };
 
+const normalizeSignificantDigits = (value: number): number =>
+	Math.min(
+		MAX_TABLE_DISPLAY_SIGNIFICANT_DIGITS,
+		Math.max(1, Math.floor(Number(value) || DEFAULT_TABLE_DISPLAY_SIGNIFICANT_DIGITS)),
+	);
+
 const toPlainPrecision = (value: number, significantDigits: number): string => {
 	const precisionText = value.toPrecision(significantDigits);
 	if (!/[eE]/.test(precisionText)) {
 		return precisionText;
 	}
 
+	const roundedValue = Number(precisionText);
+	if (!Number.isFinite(roundedValue)) {
+		return precisionText;
+	}
+
 	const fixedDigits = Math.max(
 		0,
-		significantDigits - Math.floor(Math.log10(Math.abs(value) || 1)) - 1,
+		significantDigits - Math.floor(Math.log10(Math.abs(roundedValue) || 1)) - 1,
 	);
-	return value.toFixed(Math.min(12, fixedDigits));
+	return roundedValue.toFixed(Math.min(12, fixedDigits));
 };

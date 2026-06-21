@@ -22,6 +22,8 @@ export type TableControllerProps = {
   readonly getColumnWidths?: (sourceKey: string | null | undefined) => readonly TableColumnWidth[];
   readonly hoverDelegate?: IHoverDelegate;
   readonly onCopySelection?: () => void;
+  readonly onAdjustColumnDisplayScale: (colIndex: number, deltaExponent: number) => boolean;
+  readonly onResetColumnDisplayScale: (colIndex: number) => boolean;
   readonly onSelect: (
     target: TableWidgetSelectionTarget | null,
     reveal?: TableWidgetRevealMode,
@@ -116,6 +118,8 @@ const toWidgetProps = ({
   getColumnWidths,
   hoverDelegate,
   onCopySelection,
+  onAdjustColumnDisplayScale,
+  onResetColumnDisplayScale,
   onSelect,
   storeColumnWidths,
 }: TableControllerProps): TableWidgetProps => ({
@@ -123,6 +127,8 @@ const toWidgetProps = ({
   getColumnWidths,
   hoverDelegate,
   onCopySelection,
+  onAdjustColumnDisplayScale,
+  onResetColumnDisplayScale,
   onSelect,
   storeColumnWidths,
   tableModel,

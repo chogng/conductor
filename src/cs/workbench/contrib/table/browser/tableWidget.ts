@@ -24,8 +24,8 @@ import {
   type PerformanceStageState,
 } from "src/cs/workbench/contrib/performance/browser/performanceMeasurements";
 import type {
-  TableModel,
   TableRowsVersionChangeEvent,
+  TableViewModel,
 } from "src/cs/workbench/services/table/common/table";
 import {
   formatCell,
@@ -46,23 +46,7 @@ export type TableWidgetColumnWidthTarget = TableColumnWidth;
 
 export type TableWidgetRevealMode = boolean | "force";
 
-export type TableWidgetModel = Pick<
-  TableModel,
-  | "adjustColumnDisplayScale"
-  | "ensureRows"
-  | "getColumnDisplayProfile"
-  | "getHighlight"
-  | "getRow"
-  | "getRowsVersion"
-  | "getSelection"
-  | "getState"
-  | "onDidChangeHighlight"
-  | "onDidChangeRevealCell"
-  | "onDidChangeSelection"
-  | "onDidChangeState"
-  | "resetColumnDisplayScale"
-  | "subscribeRowsVersion"
->;
+export type TableWidgetModel = TableViewModel;
 
 type TableState = ReturnType<TableWidgetModel["getState"]>;
 type TableSelection = ReturnType<TableWidgetModel["getSelection"]>;
@@ -81,6 +65,8 @@ export type TableWidgetProps = {
   readonly getColumnWidths?: (sourceKey: string | null | undefined) => readonly TableColumnWidth[];
   readonly hoverDelegate?: IHoverDelegate;
   readonly onCopySelection?: () => void;
+  readonly onAdjustColumnDisplayScale: (colIndex: number, deltaExponent: number) => boolean;
+  readonly onResetColumnDisplayScale: (colIndex: number) => boolean;
   readonly onSelect: (
     target: TableWidgetSelectionTarget | null,
     reveal?: TableWidgetRevealMode,
@@ -1320,11 +1306,11 @@ export class TableWidget {
     const action = button.dataset.scaleAction;
     let changed = false;
     if (action === "decrease") {
-      changed = this.props.tableModel.adjustColumnDisplayScale(colIndex, -1);
+      changed = this.props.onAdjustColumnDisplayScale(colIndex, -1);
     } else if (action === "increase") {
-      changed = this.props.tableModel.adjustColumnDisplayScale(colIndex, 1);
+      changed = this.props.onAdjustColumnDisplayScale(colIndex, 1);
     } else if (action === "reset") {
-      changed = this.props.tableModel.resetColumnDisplayScale(colIndex);
+      changed = this.props.onResetColumnDisplayScale(colIndex);
     }
 
     if (!changed) {

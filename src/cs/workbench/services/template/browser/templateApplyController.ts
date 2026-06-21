@@ -150,7 +150,7 @@ type TemplateApplyControllerOptions = {
     | "getSnapshot"
     | "onDidChangeSession"
   >;
-  tableService: Pick<ITableService, "getViewInput">;
+  tableService: Pick<ITableService, "getPreviewRow" | "getViewInput">;
   templateProcessingBackendService: TemplateProcessingBackend;
   templateApplyService: ITemplateApplyService<
     ProcessingJobOptions,
@@ -1296,11 +1296,11 @@ export class TemplateApplyController {
     config: Record<string, unknown>,
   ): PreparedExtractionResult => {
     const { rawFiles = [] } = this.input;
-    const tableModel = this.options.tableService.getViewInput()?.tableModel ?? null;
+    const tableInput = this.options.tableService.getViewInput();
     const prepared = prepareExtraction({
       config,
-      getPreviewRow: rowIndex => tableModel?.getRow(rowIndex) ?? null,
-      previewFile: tableModel?.getState().file ?? null,
+      getPreviewRow: rowIndex => this.options.tableService.getPreviewRow(rowIndex),
+      previewFile: tableInput?.tableState.file ?? null,
       rawData: rawFiles,
     }) as PreparedExtractionResult & {
       extractionConfig?: unknown;
