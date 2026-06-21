@@ -200,7 +200,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     }
   });
 
-  test("creates template submenus without loading placeholders when user templates are available", () => {
+  test("creates template submenu and direct slice action when user templates are available", () => {
     const host = document.createElement("div");
     const hoverHost = document.createElement("div");
     const labels = new ResourceLabels();
@@ -221,7 +221,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       const sliceTemplate = actions.find(action => action.id === SLICE_FILE_WITH_TEMPLATE_COMMAND_ID);
 
       assert.ok(setTemplate instanceof SubmenuAction);
-      assert.ok(sliceTemplate instanceof SubmenuAction);
+      assert.ok(sliceTemplate);
+      assert.equal(sliceTemplate instanceof SubmenuAction, false);
       assert.equal(setTemplate.enabled, true);
       assert.equal(sliceTemplate.enabled, true);
       assert.deepEqual(

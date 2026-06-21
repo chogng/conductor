@@ -9,8 +9,9 @@ IV/CV/CF/PV/IT.
 
 ## Ownership
 
-`ITemplateService` owns template CRUD, selection rules, form state, per-file
-template selections, and template view input.
+`ITemplateService` owns template CRUD, the cached template list and list
+events, selection rules, form state, per-file template selections, and template
+view input.
 
 `ITemplateStoreService` owns template persistence backend access. Desktop
 `template.json` persistence uses platform file service and
@@ -61,6 +62,9 @@ SessionSnapshot + Template state + Explorer/chart active file
 - Template apply is an owner API on `ITemplateApplyWorkflowService`; UI invokes apply methods instead of receiving Workbench callbacks.
 - WorkbenchDomainBridge may keep workflow input current by subscribing and rereading owner services.
 - Per-file template selections belong to `ITemplateService`; apply workflow resolves them and may split one batch into auto and custom-template groups.
+- Template list consumers must read `ITemplateService.getTemplateList()` and
+  subscribe to `onDidChangeTemplateList`; they must not maintain a second
+  template list cache in Explorer or Template UI.
 - `activeFileId` should move the current chart/Explorer target to the front of full, incremental, and rule queues.
 - `prioritizeProcessingFile(fileId)` is the owner API for interactive queue promotion from hover/selection signals.
 - The workflow may retain a short latest-first priority lane, but Explorer/Chart/Thumbnail/Plot must not mutate template queues directly.

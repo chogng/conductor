@@ -342,6 +342,7 @@ suite("workbench/browser/workbench layout integration", () => {
       },
       templateService: {
         getCachedTemplates: () => [],
+        getTemplateList: () => [],
         getState: () => ({
           formState: createEmptyTemplateConfig(),
           mode: "management",
@@ -349,6 +350,7 @@ suite("workbench/browser/workbench layout integration", () => {
           selectionsByFileId: {},
           templateListVersion: 0,
         }),
+        onDidChangeTemplateList: Event.None,
         onDidChangeTemplateState: Event.None,
         updateViewInput: () => undefined,
       },
@@ -465,6 +467,7 @@ suite("workbench/browser/workbench layout integration", () => {
       },
       templateService: {
         getCachedTemplates: () => [],
+        getTemplateList: () => [],
         getState: () => ({
           formState: createEmptyTemplateConfig(),
           mode: "management",
@@ -472,6 +475,7 @@ suite("workbench/browser/workbench layout integration", () => {
           selectionsByFileId: {},
           templateListVersion: 0,
         }),
+        onDidChangeTemplateList: Event.None,
         onDidChangeTemplateState: Event.None,
         updateViewInput: () => undefined,
       },
@@ -707,6 +711,8 @@ const createWorkbenchOptions = ({
     } as unknown as WorkbenchService<"templateApplyWorkflowService">,
     templateService: {
       getCachedTemplates: () => [],
+      getTemplateList: () => [],
+      onDidChangeTemplateList: Event.None,
       onDidChangeTemplateState: Event.None,
       getState: () => ({
         formState: createEmptyTemplateConfig(),

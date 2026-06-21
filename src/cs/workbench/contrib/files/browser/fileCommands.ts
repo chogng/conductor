@@ -2,13 +2,8 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from "src/cs/nls";
 import type { ICommandHandler } from "src/cs/platform/commands/common/commands";
 import { IExplorerService, IExplorerWorkflowService, type ExplorerSelectionKind } from "src/cs/workbench/contrib/files/browser/files";
-import {
-  INotificationService,
-  Severity,
-} from "src/cs/workbench/services/notification/common/notificationService";
 import { ITemplateService } from "src/cs/workbench/services/template/common/template";
 import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 
@@ -69,23 +64,16 @@ export const setFileTemplateHandler: ICommandHandler<[unknown, unknown]> = (
   templateService.setFileTemplateSelection(normalizedFileId, selection);
 };
 
-export const sliceFileWithTemplateHandler: ICommandHandler<[unknown, unknown]> = (
+export const sliceFileWithTemplateHandler: ICommandHandler<[unknown]> = (
   accessor,
   fileId,
-  selection,
 ) => {
-  if (!normalizeCommandFileId(fileId) || !isTemplateSelection(selection)) {
+  const normalizedFileId = normalizeCommandFileId(fileId);
+  if (!normalizedFileId) {
     return;
   }
 
-  accessor.get(INotificationService).notify({
-    id: "files.sliceWithTemplateUnsupported",
-    message: localize(
-      "files.sliceWithTemplateUnsupported",
-      "Slicing imported files with a template is not available yet.",
-    ),
-    severity: Severity.Info,
-  });
+  accessor.get(IExplorerWorkflowService).sliceFileWithTemplate(normalizedFileId);
 };
 
 const normalizeCommandFileId = (fileId: unknown): string | null => {

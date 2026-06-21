@@ -375,6 +375,19 @@ export class FileSourceWorkflow implements IDisposable {
     void this.doOpenFolderDialog();
   }
 
+  public importGeneratedFiles(
+    newFiles: readonly FileSource[],
+    options: {
+      readonly preserveSelection?: boolean;
+      readonly shouldContinue?: () => boolean;
+    } = {},
+  ): Promise<void> {
+    return this.importFiles(newFiles, {
+      preserveSelection: options.preserveSelection ?? true,
+      shouldContinue: options.shouldContinue,
+    });
+  }
+
   private handleSelectFiles(selectedFiles: FileSource[]): void {
     this.clearImportedFolderWatch();
     this.options.onDraggingChange(false);

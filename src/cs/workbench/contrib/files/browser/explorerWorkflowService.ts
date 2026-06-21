@@ -38,6 +38,15 @@ export class ExplorerWorkflowService extends Disposable implements IExplorerWork
     this.getActiveHandler()?.removeFile(normalizedFileId);
   }
 
+  public sliceFileWithTemplate(fileId: string): void {
+    const normalizedFileId = normalizeExplorerWorkflowFileId(fileId);
+    if (!normalizedFileId) {
+      return;
+    }
+
+    this.getActiveHandler()?.sliceFileWithTemplate(normalizedFileId);
+  }
+
   private getActiveHandler(): ExplorerWorkflowHandler | null {
     let activeHandler: ExplorerWorkflowHandler | null = null;
     for (const handler of this.handlers) {

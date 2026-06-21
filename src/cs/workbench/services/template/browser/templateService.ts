@@ -40,6 +40,10 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
 
   private readonly onDidChangeTemplateStateEmitter = this._register(new Emitter<TemplateState>());
   public readonly onDidChangeTemplateState = this.onDidChangeTemplateStateEmitter.event;
+  private readonly onDidChangeTemplateListEmitter =
+    this._register(new Emitter<readonly TemplateRecord[]>());
+  public readonly onDidChangeTemplateList =
+    this.onDidChangeTemplateListEmitter.event;
   private readonly onDidChangeTemplateViewInputEmitter =
     this._register(new Emitter<void>());
   public readonly onDidChangeTemplateViewInput =
@@ -48,6 +52,9 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
   private state: TemplateState = createDefaultTemplateState();
   private viewInput: TemplateViewInput | null = null;
   private cachedTemplates: readonly TemplateRecord[] = [];
+  private hasLoadedTemplates = false;
+  private templateListRefresh: Promise<readonly TemplateRecord[]> | null = null;
+  private templateListRefreshRunId = 0;
 
   public constructor(
     @ISessionService private readonly sessionService: ISessionService,
@@ -175,27 +182,62 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
     return this.cachedTemplates;
   }
 
+  getTemplateList(): readonly TemplateRecord[] {
+    return this.cachedTemplates;
+  }
+
+  hasLoadedTemplateList(): boolean {
+    return this.hasLoadedTemplates;
+  }
+
+  async refreshTemplates(): Promise<readonly TemplateRecord[]> {
+    if (this.templateListRefresh) {
+      return this.templateListRefresh;
+    }
+
+    const refresh = this.loadTemplatesFromStore();
+    this.templateListRefresh = refresh;
+    try {
+      return await refresh;
+    } finally {
+      if (this.templateListRefresh === refresh) {
+        this.templateListRefresh = null;
+      }
+    }
+  }
+
   async getTemplates(): Promise<TemplateRecord[]> {
+    return [...await this.refreshTemplates()];
+  }
+
+  private async loadTemplatesFromStore(): Promise<readonly TemplateRecord[]> {
+    const runId = this.templateListRefreshRunId + 1;
+    this.templateListRefreshRunId = runId;
     const remote = await this.templateStoreService.getTemplates();
     const templates = filterUserTemplateRecords(remote) as TemplateRecord[];
-    this.cachedTemplates = templates;
+    if (this.templateListRefreshRunId === runId) {
+      this.setCachedTemplates(templates);
+      this.hasLoadedTemplates = true;
+      return this.cachedTemplates;
+    }
+
     return templates;
   }
 
   async deleteTemplate(id: string): Promise<void> {
     await this.templateStoreService.deleteTemplate(id);
-    this.cachedTemplates = this.cachedTemplates.filter(template => getTemplateId(template) !== id);
+    this.invalidateTemplateListRefresh();
+    this.setCachedTemplates(this.cachedTemplates.filter(template => getTemplateId(template) !== id));
     this.updateState({
       selectionsByFileId: removeTemplateSelectionsForTemplate(this.state.selectionsByFileId, id),
-      templateListVersion: this.state.templateListVersion + 1,
     });
   }
 
   async saveTemplate(template: TemplateSaveInput): Promise<TemplateRecord> {
     const saved = await this.templateStoreService.saveTemplate(template);
     const savedTemplate = isTemplateRecord(saved) ? saved : template;
-    this.cachedTemplates = upsertCachedTemplate(this.cachedTemplates, savedTemplate);
-    this.markTemplateListChanged();
+    this.invalidateTemplateListRefresh();
+    this.setCachedTemplates(upsertCachedTemplate(this.cachedTemplates, savedTemplate));
     return savedTemplate;
   }
 
@@ -258,12 +300,6 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
     this.onDidChangeTemplateViewInputEmitter.fire(undefined);
   }
 
-  private markTemplateListChanged(): void {
-    this.updateState({
-      templateListVersion: this.state.templateListVersion + 1,
-    });
-  }
-
   private readonly handleSessionChanged = (event: SessionChangeEvent): void => {
     if (event.reason === "sessionCleared") {
       if (Object.keys(this.state.selectionsByFileId).length > 0) {
@@ -280,6 +316,25 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
       removeTemplateSelectionsForFiles(previous, event.fileIds ?? []),
     );
   };
+
+  private setCachedTemplates(templates: readonly TemplateRecord[]): void {
+    const normalizedTemplates = filterUserTemplateRecords(templates) as TemplateRecord[];
+    this.hasLoadedTemplates = true;
+    if (areTemplateListsEqual(this.cachedTemplates, normalizedTemplates)) {
+      return;
+    }
+
+    this.cachedTemplates = normalizedTemplates;
+    this.updateState({
+      templateListVersion: this.state.templateListVersion + 1,
+    });
+    this.onDidChangeTemplateListEmitter.fire(this.cachedTemplates);
+  }
+
+  private invalidateTemplateListRefresh(): void {
+    this.templateListRefreshRunId += 1;
+    this.templateListRefresh = null;
+  }
 }
 
 const isTemplateRecord = (value: unknown): value is TemplateRecord =>
@@ -330,6 +385,17 @@ const upsertCachedTemplate = (
   next[index] = template;
   return next;
 };
+
+const areTemplateListsEqual = (
+  current: readonly TemplateRecord[],
+  next: readonly TemplateRecord[],
+): boolean =>
+  current.length === next.length &&
+  current.every((template, index) =>
+    getTemplateRecordSignature(template) === getTemplateRecordSignature(next[index]));
+
+const getTemplateRecordSignature = (template: TemplateRecord | undefined): string =>
+  JSON.stringify(template ?? null);
 
 const getTemplateStopOnError = (
   template: Partial<TemplateConfig> | null,

@@ -1232,11 +1232,16 @@ export class ExplorerViewer implements IDisposable {
         fileId,
         label: localize("files.item.setTemplate", "Set with Template"),
       }),
-      this.createTemplateMenuAction({
-        actionPrefix: SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
-        commandId: SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
-        fileId,
+      createMenuAction({
+        enabled: this.hasUserTemplates(),
+        id: SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
         label: localize("files.item.sliceWithTemplate", "Slice with Template"),
+        run: () => {
+          void this.props.commandService.executeCommand(
+            SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
+            fileId,
+          );
+        },
       }),
     ];
 

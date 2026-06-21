@@ -25,6 +25,7 @@ export type SelectBoxOptions<T extends string> = {
     readonly onDidSelect: (value: T) => void;
     readonly options: readonly SelectBoxOption<T>[];
     readonly dropdownClassName?: string;
+    readonly dropdownZIndex?: number;
     readonly value: T;
 };
 
@@ -48,6 +49,7 @@ export class SelectBox<T extends string> extends Disposable {
             matchAnchorWidth: options.matchAnchorWidth ?? true,
             render: container => this.renderOptions(container),
             role: "listbox",
+            zIndex: options.dropdownZIndex,
         }));
 
         this.dropdown = this._register(new Dropdown({
@@ -100,6 +102,7 @@ export class SelectBox<T extends string> extends Disposable {
             className: getDropdownClassName(options.dropdownClassName),
             matchAnchorWidth: options.matchAnchorWidth ?? true,
             render: container => this.renderOptions(container),
+            zIndex: options.dropdownZIndex,
         });
     }
 

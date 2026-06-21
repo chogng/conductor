@@ -190,6 +190,41 @@ suite("workbench/services/template/browser/templateService", () => {
     service.dispose();
   });
 
+  test("owns template list snapshots and publishes list changes", async () => {
+    const savedTemplate = {
+      ...createEmptyTemplateConfig({
+        name: "Transfer",
+      }),
+      id: "template-a",
+    };
+    const templateStoreService = createTemplateStoreServiceForTest({
+      templates: [savedTemplate, { id: AUTO_TEMPLATE_ID, name: "Auto" }],
+    });
+    const { service } = createTemplateServiceForTest(templateStoreService);
+    const listEvents: Array<readonly unknown[]> = [];
+    const disposable = service.onDidChangeTemplateList(templates => {
+      listEvents.push(templates);
+    });
+
+    assert.equal(service.hasLoadedTemplateList(), false);
+    assert.deepEqual(service.getTemplateList(), []);
+
+    assert.deepEqual(await service.refreshTemplates(), [savedTemplate]);
+
+    assert.equal(service.hasLoadedTemplateList(), true);
+    assert.deepEqual(service.getTemplateList(), [savedTemplate]);
+    assert.equal(service.getState().templateListVersion, 1);
+    assert.equal(listEvents.length, 1);
+
+    assert.deepEqual(await service.refreshTemplates(), [savedTemplate]);
+
+    assert.equal(service.getState().templateListVersion, 1);
+    assert.equal(listEvents.length, 1);
+
+    disposable.dispose();
+    service.dispose();
+  });
+
   test("clears file template selections when deleting a template", async () => {
     const savedTemplate = {
       ...createEmptyTemplateConfig({

@@ -113,7 +113,7 @@ export class SliceFileWithTemplateAction extends Action2 {
     });
   }
 
-  public run(accessor: ServicesAccessor, fileId: unknown, selection: unknown): void {
-    sliceFileWithTemplateHandler(accessor, fileId, selection);
+  public run(accessor: ServicesAccessor, fileId: unknown): void {
+    sliceFileWithTemplateHandler(accessor, fileId);
   }
 }

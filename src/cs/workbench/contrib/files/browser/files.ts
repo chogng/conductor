@@ -138,6 +138,7 @@ export interface ExplorerWorkflowHandler {
   openFolderImport(): void;
   closeFolder(): void;
   removeFile(fileId: string): void;
+  sliceFileWithTemplate(fileId: string): void;
 }
 
 export interface IExplorerWorkflowService {
@@ -147,4 +148,5 @@ export interface IExplorerWorkflowService {
   openFolderImport(): void;
   closeFolder(): void;
   removeFile(fileId: string): void;
+  sliceFileWithTemplate(fileId: string): void;
 }

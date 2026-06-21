@@ -1236,6 +1236,7 @@ const createDomainBridgeOptionsForTest = ({
   } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["templateApplyWorkflowService"],
   templateService: {
     getCachedTemplates: () => [],
+    getTemplateList: () => [],
     getState: () => templateStateValue ?? ({
       formState: createEmptyTemplateConfig(),
       mode: "management",
@@ -1243,6 +1244,7 @@ const createDomainBridgeOptionsForTest = ({
       selectionsByFileId: {},
       templateListVersion: 0,
 	    }),
+	    onDidChangeTemplateList: Event.None,
 	    onDidChangeTemplateState: templateStateEvent,
 	    updateViewInput: () => undefined,
 	  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["templateService"],

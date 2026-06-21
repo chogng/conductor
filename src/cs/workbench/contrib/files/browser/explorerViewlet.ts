@@ -63,6 +63,7 @@ import {
 import {
   markTemplateApplyPerformanceTrace,
 } from "src/cs/workbench/contrib/files/browser/templateApplyPerformanceTrace";
+import { SliceWithTemplateController } from "src/cs/workbench/contrib/files/browser/sliceWithTemplateController";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
   assessFastImportBadge,
@@ -72,10 +73,7 @@ import {
   IThumbnailPreviewService,
   IThumbnailService,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
-import {
-  ITemplateService,
-  type TemplateRecord,
-} from "src/cs/workbench/services/template/common/template";
+import { ITemplateService } from "src/cs/workbench/services/template/common/template";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
 
@@ -87,6 +85,7 @@ export class ExplorerViewPane extends ViewPane {
   private readonly explorerHost: HTMLDivElement;
   private readonly listRef: { current: ListHandle | null } = { current: null };
   private readonly sourceWorkflow: FileSourceWorkflow;
+  private readonly sliceWithTemplateController: SliceWithTemplateController;
   private explorerView: ExplorerView | null = null;
   private input: ExplorerPaneInput | null = null;
   private internalFiles: PreparedFileImportEntry[] = [];
@@ -102,9 +101,6 @@ export class ExplorerViewPane extends ViewPane {
   private lastBadgeProjectionSignature: string | null = null;
   private isDragging = false;
   private disposed = false;
-  private templateLoadRunId = 0;
-  private templateRecords: TemplateRecord[] = [];
-  private isTemplateListLoading = false;
   private pendingLocalExpandedFolderKeys: readonly string[] | null = null;
   private cancelPendingSourceSyncView: (() => void) | null = null;
 
@@ -169,6 +165,14 @@ export class ExplorerViewPane extends ViewPane {
       },
       syncView: () => this.syncView(),
     });
+    this.sliceWithTemplateController = this._register(new SliceWithTemplateController({
+      filesService: this.filesService,
+      getFiles: () => this.committedFiles,
+      notificationService: this.notificationService,
+      removeOriginalFile: fileId => this.handleRemoveFile(fileId),
+      sourceWorkflow: this.sourceWorkflow,
+      templateService: this.templateService,
+    }));
 
     this._register(this.explorerService.onDidChangePaneInput(() => {
       this.update(this.explorerService.getPaneInput());
@@ -193,8 +197,16 @@ export class ExplorerViewPane extends ViewPane {
           this.handleRemoveFile(fileId);
         }
       },
+      sliceFileWithTemplate: fileId => {
+        if (this.fileIds.includes(fileId)) {
+          this.sliceWithTemplateController.open(fileId);
+        }
+      },
     }));
     this._register(this.appearanceService.onDidChangeAppearance(() => {
+      this.syncView();
+    }));
+    this._register(this.templateService.onDidChangeTemplateList(() => {
       this.syncView();
     }));
 
@@ -344,7 +356,7 @@ export class ExplorerViewPane extends ViewPane {
       currentTemplateSelection: input.currentTemplateSelection,
       fileTemplateSelectionsByFileId: input.fileTemplateSelectionsByFileId,
       editable: this.explorerService.getContext().editable,
-      templateRecords: this.templateRecords,
+      templateRecords: this.templateService.getTemplateList(),
       files,
       folderImportSupport: getFolderImportSupportForFileService(this.filesService),
       isDragging: this.isDragging,
@@ -750,31 +762,17 @@ export class ExplorerViewPane extends ViewPane {
   }
 
   private readonly loadTemplates = (): void => {
-    if (this.isTemplateListLoading) {
-      return;
-    }
-
-    const runId = this.templateLoadRunId + 1;
-    this.templateLoadRunId = runId;
-    this.isTemplateListLoading = true;
-    this.syncView();
-
-    this.templateService.getTemplates()
-      .then((templates) => {
-        if (this.disposed || this.templateLoadRunId !== runId) {
-          return;
+    this.templateService.refreshTemplates()
+      .then(() => {
+        if (!this.disposed) {
+          this.syncView();
         }
-
-        this.templateRecords = templates;
-        this.isTemplateListLoading = false;
-        this.syncView();
       })
       .catch((error) => {
-        if (this.disposed || this.templateLoadRunId !== runId) {
+        if (this.disposed) {
           return;
         }
 
-        this.isTemplateListLoading = false;
         console.error("Failed to load templates for file context menu.", error);
         this.syncView();
       });

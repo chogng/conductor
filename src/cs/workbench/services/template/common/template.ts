@@ -100,6 +100,7 @@ export const ITemplateApplyWorkflowService =
 
 export interface ITemplateService {
   readonly _serviceBrand: undefined;
+  readonly onDidChangeTemplateList: Event<readonly TemplateRecord[]>;
   readonly onDidChangeTemplateState: Event<TemplateState>;
   readonly onDidChangeTemplateViewInput: Event<void>;
 
@@ -111,7 +112,10 @@ export interface ITemplateService {
   exportTemplate(template?: TemplateRecord | TemplateConfig | null): string | null;
   finishTemplateEditor(template: TemplateRecord): void;
   getCachedTemplates(): readonly TemplateRecord[];
+  getTemplateList(): readonly TemplateRecord[];
   getTemplates(): Promise<TemplateRecord[]>;
+  hasLoadedTemplateList(): boolean;
+  refreshTemplates(): Promise<readonly TemplateRecord[]>;
   getState(): TemplateState;
   getViewInput(): TemplateViewInput | null;
   deleteTemplate(id: string): Promise<void>;

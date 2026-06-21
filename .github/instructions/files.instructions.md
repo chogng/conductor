@@ -126,6 +126,20 @@ Explorer drop/dialog/clipboard/folder
   -> Explorer resources / Table / Assessment / Template / Plot / Search / Export
 ```
 
+Slice with template follows the same ownership split:
+
+```txt
+Explorer context menu
+  -> files.item.sliceWithTemplate command
+  -> IExplorerWorkflowService.sliceFileWithTemplate(fileId)
+  -> SliceWithTemplateController modal
+  -> IFileService read/write/delete actual files
+  -> FileSourceWorkflow.importGeneratedFiles(...)
+  -> fileConverter.ts
+  -> ISessionService.commitFileImport(...)
+  -> Explorer resources / downstream subscribers
+```
+
 Pending source entries are display-only Explorer rows. They must not be
 committed to Session, selected as real files, used for duplicate detection, or
 participate in file actions. When conversion commits the real file, Explorer

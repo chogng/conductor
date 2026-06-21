@@ -79,9 +79,6 @@ export type TemplateViewOptions = {
   >;
 };
 
-let cachedTemplates: TemplateRecord[] | null = null;
-let templatesLoading = false;
-let cachedTemplatesVersion = -1;
 type PickFieldName = TemplatePickFieldName;
 const TEMPLATE_NOTIFICATION_ID = "template.notification";
 
@@ -410,22 +407,16 @@ export class TemplateView {
   }
 
   private ensureTemplatesLoaded(): void {
-    const templateListVersion = this.props.templateService.getState().templateListVersion;
-    if ((cachedTemplates !== null && cachedTemplatesVersion === templateListVersion) || templatesLoading) {
+    if (this.props.templateService.hasLoadedTemplateList()) {
       return;
     }
 
-    templatesLoading = true;
-    this.props.templateService.getTemplates()
-      .then((remote) => {
-        cachedTemplates = remote;
-        cachedTemplatesVersion = templateListVersion;
-        templatesLoading = false;
+    this.props.templateService.refreshTemplates()
+      .then(() => {
         this.updateApplyView();
         this.updateEditorView();
       })
       .catch((err) => {
-        templatesLoading = false;
         this.showNotification(
           localize("template.loadFailed", "Failed to load templates: {error}", {
             error: err instanceof Error ? err.message : String(err),
@@ -456,7 +447,7 @@ export class TemplateView {
       config: this.readTemplateFormState(),
       selectedTemplateId: this.readSelectedTemplateId(),
       stopOnErrorDraft: this.stopOnErrorDraft,
-      templates: cachedTemplates,
+      templates: this.props.templateService.getTemplateList(),
     });
   }
 
@@ -523,7 +514,7 @@ export class TemplateView {
       }),
     ];
 
-    const templates = cachedTemplates ?? [];
+    const templates = this.props.templateService.getTemplateList();
     for (const template of templates) {
       const templateId = String(template.id ?? "");
       if (!templateId) {
@@ -680,9 +671,9 @@ export class TemplateView {
     if (
       selectedTemplateId &&
       !isAutoTemplateId(selectedTemplateId) &&
-      cachedTemplates
+      this.props.templateService.hasLoadedTemplateList()
     ) {
-      const found = cachedTemplates.find((template) => template.id === selectedTemplateId);
+      const found = this.props.templateService.getTemplateList().find((template) => template.id === selectedTemplateId);
       if (found) {
         this.stopOnErrorDraft = Boolean(found.stopOnError);
         this.props.templateService.cancelTemplateEditor({
