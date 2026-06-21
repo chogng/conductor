@@ -124,6 +124,11 @@
   padding-right: 1rem;
 }
 
+.modal_body--scroll {
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .modal_footer {
   display: flex;
   justify-content: flex-end;

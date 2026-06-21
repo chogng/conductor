@@ -3,6 +3,7 @@ import { addDisposableListener, append, EventType, reset } from "src/cs/base/bro
 import { createButton as createActionButton, updateButton as updateActionButton } from "src/cs/base/browser/ui/button/button";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
+  MODAL_BODY_SCROLL_CLASS,
   createModalCloseActionBar,
   getModalDialogClassName,
   getModalDialogId,
@@ -23,8 +24,9 @@ import {
   type SettingsSectionEntry,
   type SettingsSectionId,
 } from "src/cs/workbench/contrib/settings/browser/settingsLayout";
-import { renderReleaseNotesMarkdown } from "src/cs/workbench/contrib/settings/browser/releaseNotesMarkdownRenderer";
+import { renderSettingsMarkdown } from "src/cs/workbench/contrib/settings/browser/settingsMarkdownRenderer";
 import { readBundledReleaseNotesMarkdown } from "src/cs/workbench/contrib/settings/browser/releaseNotesReader";
+import { readBundledUserGuideMarkdown } from "src/cs/workbench/contrib/settings/browser/userGuideReader";
 import { SettingsTree, type SettingsTreeSection } from "src/cs/workbench/contrib/settings/browser/settingsTree";
 import type { LanguagePreference } from "src/cs/base/common/platform";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
@@ -229,9 +231,15 @@ type AppearanceSectionTemplate = {
   readonly badgePreview: HTMLElement;
 };
 
-type ActiveReleaseNotesDialog = {
+type ActiveSettingsDocumentDialog = {
   readonly disposeStore: DisposableStore;
   readonly overlay: HTMLElement;
+};
+
+type SettingsDocumentDialogOptions = {
+  readonly idBase: string;
+  readonly title: string;
+  readonly markdown: string;
 };
 
 export class SettingsView {
@@ -245,7 +253,7 @@ export class SettingsView {
   private generalTree: SettingsTree | null = null;
   private options: SettingsViewOptions;
   private activeBadgeLabelValue = "transfer";
-  private releaseNotesDialog: ActiveReleaseNotesDialog | null = null;
+  private settingsDocumentDialog: ActiveSettingsDocumentDialog | null = null;
 
   constructor(container: HTMLElement, options: SettingsViewOptions) {
     this.root = document.createElement("section");
@@ -276,7 +284,7 @@ export class SettingsView {
   }
 
   dispose(): void {
-    this.closeReleaseNotesDialog();
+    this.closeSettingsDocumentDialog();
     this.renderDisposables.dispose();
     this.contentScroll.dispose();
     this.root.remove();
@@ -699,6 +707,12 @@ export class SettingsView {
         onClick: () => this.showReleaseNotesDialog(),
         variant: "secondary",
       })),
+      cardRow("settings-user-guide-card", localize("settings.userGuide.title", "User Guide"), this.createButton({
+        id: "settings-user-guide-show-btn",
+        label: localize("settings.userGuide.showButton", "Show User Guide"),
+        onClick: () => this.showUserGuideDialog(),
+        variant: "secondary",
+      })),
       cardRow("settings-app-update-card", localize("settings.appUpdate.title", "App Updates"), this.createButton({
         id: "settings-app-update-check-btn",
         label: this.options.appUpdateChecking ? localize("settings.appUpdate.checking", "Checking...") : localize("settings.appUpdate.checkButton", "Check for Updates"),
@@ -710,7 +724,23 @@ export class SettingsView {
   }
 
   private showReleaseNotesDialog(): void {
-    this.closeReleaseNotesDialog();
+    this.showSettingsDocumentDialog({
+      idBase: "settings-release-notes",
+      markdown: this.createReleaseNotesMarkdown(),
+      title: localize("settings.releaseNotes.dialogTitle", "Release Notes"),
+    });
+  }
+
+  private showUserGuideDialog(): void {
+    this.showSettingsDocumentDialog({
+      idBase: "settings-user-guide",
+      markdown: readBundledUserGuideMarkdown(),
+      title: localize("settings.userGuide.dialogTitle", "User Guide"),
+    });
+  }
+
+  private showSettingsDocumentDialog(options: SettingsDocumentDialogOptions): void {
+    this.closeSettingsDocumentDialog();
 
     const disposeStore = new DisposableStore();
     const overlay = document.createElement("div");
@@ -720,11 +750,11 @@ export class SettingsView {
     backdrop.className = MODAL_BACKDROP_CLASS;
     overlay.appendChild(backdrop);
 
-    const dialogId = getModalDialogId("settings-release-notes") ?? "settings-release-notes-dialog";
-    const titleId = getModalTitleId("settings-release-notes", "settings-release-notes");
+    const dialogId = getModalDialogId(options.idBase) ?? `${options.idBase}-dialog`;
+    const titleId = getModalTitleId(options.idBase, options.idBase);
     const panel = document.createElement("section");
     panel.className = getModalDialogClassName({
-      className: "settings-release-notes-modal",
+      className: "settings-document-modal",
       size: "xl",
       variant: "solid",
     });
@@ -735,51 +765,51 @@ export class SettingsView {
     panel.setAttribute("aria-labelledby", titleId);
 
     const header = document.createElement("header");
-    header.className = "modal_header settings-release-notes-modal__header";
-    const titleWrap = div("settings-release-notes-modal__titleWrap");
-    titleWrap.append(createLxIcon({ className: "settings-release-notes-modal__titleIcon", icon: LxIcon.fileText, size: 18 }));
+    header.className = "modal_header settings-document-modal__header";
+    const titleWrap = div("settings-document-modal__titleWrap");
+    titleWrap.append(createLxIcon({ className: "settings-document-modal__titleIcon", icon: LxIcon.fileText, size: 18 }));
     const heading = document.createElement("h2");
-    heading.className = "modal_title settings-release-notes-modal__title";
+    heading.className = "modal_title settings-document-modal__title";
     heading.id = titleId;
-    heading.textContent = localize("settings.releaseNotes.dialogTitle", "Release Notes");
+    heading.textContent = options.title;
     titleWrap.appendChild(heading);
 
     const closeActionBar = disposeStore.add(createModalCloseActionBar({
-      className: "settings-release-notes-modal__close",
-      id: "settings.releaseNotes.close",
-      label: localize("settings.releaseNotes.close", "Close"),
-      run: () => this.closeReleaseNotesDialog(),
+      className: "settings-document-modal__close",
+      id: "settings.document.close",
+      label: localize("settings.document.close", "Close"),
+      run: () => this.closeSettingsDocumentDialog(),
     }));
     header.append(titleWrap, closeActionBar.domNode);
 
     const body = document.createElement("div");
-    body.className = "modal_body settings-release-notes-modal__body";
-    body.appendChild(renderReleaseNotesMarkdown(this.createReleaseNotesMarkdown()));
+    body.className = `modal_body ${MODAL_BODY_SCROLL_CLASS} settings-document-modal__body`;
+    body.appendChild(renderSettingsMarkdown(options.markdown));
 
     panel.append(header, body);
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
 
-    this.releaseNotesDialog = { disposeStore, overlay };
+    this.settingsDocumentDialog = { disposeStore, overlay };
     disposeStore.add(addDisposableListener(backdrop, EventType.MOUSE_DOWN, event => {
       if (event.target === backdrop) {
-        this.closeReleaseNotesDialog();
+        this.closeSettingsDocumentDialog();
       }
     }));
     disposeStore.add(addDisposableListener(document, EventType.KEY_DOWN, event => {
       if (event.key === "Escape") {
-        this.closeReleaseNotesDialog();
+        this.closeSettingsDocumentDialog();
       }
     }));
     queueMicrotask(() => panel.focus());
   }
 
-  private closeReleaseNotesDialog(): void {
-    const dialog = this.releaseNotesDialog;
+  private closeSettingsDocumentDialog(): void {
+    const dialog = this.settingsDocumentDialog;
     if (!dialog) {
       return;
     }
-    this.releaseNotesDialog = null;
+    this.settingsDocumentDialog = null;
     dialog.disposeStore.dispose();
     dialog.overlay.remove();
   }

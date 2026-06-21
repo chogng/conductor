@@ -7,6 +7,7 @@ import { LxIcon } from "src/cs/base/common/lxicon";
 export const MODAL_OVERLAY_CLASS = "modal-overlay";
 export const MODAL_BACKDROP_CLASS = "modal-backdrop";
 export const MODAL_DIALOG_BASE_CLASS = "modal";
+export const MODAL_BODY_SCROLL_CLASS = "modal_body--scroll";
 
 export type ModalVariant = "default" | "primary" | "glass" | "solid" | "flat";
 export type ModalSize = "sm" | "md" | "lg" | "xl";

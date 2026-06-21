@@ -1,6 +1,6 @@
 import assert from "assert";
 
-import { renderReleaseNotesMarkdown } from "src/cs/workbench/contrib/settings/browser/releaseNotesMarkdownRenderer";
+import { renderSettingsMarkdown } from "src/cs/workbench/contrib/settings/browser/settingsMarkdownRenderer";
 import { SettingsView, type SettingsViewOptions } from "src/cs/workbench/contrib/settings/browser/settingsView";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -218,7 +218,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.ok(dialog);
       assert.equal(dialog.getAttribute("role"), "dialog");
       assert.ok(dialog.textContent?.includes("Conductor Studio 0.0.0"));
-      assert.ok(dialog.querySelector(".release-notes-markdown table"));
+      assert.ok(dialog.querySelector(".settings-markdown table"));
+      assert.ok(dialog.querySelector(".modal_body--scroll.settings-document-modal__body"));
 
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
       assert.equal(document.querySelector("#settings-release-notes-dialog"), null);
@@ -229,8 +230,32 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }
   });
 
-  test("renders release notes markdown as safe DOM", () => {
-    const root = renderReleaseNotesMarkdown(`# Title
+  test("opens user guide modal from about section", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const view = new SettingsView(container, createSettingsViewOptions({ activeSettingsSection: "about" }));
+
+    try {
+      getButton(container, "settings-user-guide-show-btn").click();
+
+      const dialog = document.querySelector<HTMLElement>("#settings-user-guide-dialog");
+      assert.ok(dialog);
+      assert.equal(dialog.getAttribute("role"), "dialog");
+      assert.ok(dialog.textContent?.includes("Conductor Studio"));
+      assert.ok(dialog.querySelector(".settings-markdown h1"));
+      assert.ok(dialog.querySelector(".modal_body--scroll.settings-document-modal__body"));
+
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+      assert.equal(document.querySelector("#settings-user-guide-dialog"), null);
+    }
+    finally {
+      view.dispose();
+      container.remove();
+    }
+  });
+
+  test("renders settings markdown as safe DOM", () => {
+    const root = renderSettingsMarkdown(`# Title
 
 Paragraph with **strong text**, *emphasis*, \`code\`, [safe](https://example.com), [relative](docs/release.md), and [unsafe](javascript:alert(1)).
 
