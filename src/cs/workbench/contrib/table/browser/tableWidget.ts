@@ -80,6 +80,15 @@ export type ResolveTableGridColumnViewportRangeOptions = {
   readonly zoomPercent: number;
 };
 
+export type ResolveTableGridDisplayColumnCountOptions = {
+  readonly getColumnWidth: (colIndex: number) => number;
+  readonly maxDisplayedCount?: number;
+  readonly overscanCount?: number;
+  readonly totalCount: unknown;
+  readonly viewportWidth: unknown;
+  readonly zoomPercent: number;
+};
+
 export type ResolveTableGridColumnResizeTargetOptions = {
   readonly button: unknown;
   readonly clientX: unknown;
@@ -258,6 +267,51 @@ export const resolveTableGridColumnViewportRange = ({
     endIndex,
     renderedCount: endIndex - startIndex,
   }, offsets[startIndex] ?? 0, offsets[endIndex] ?? 0, totalWidth);
+};
+
+export const resolveTableGridDisplayColumnCount = ({
+  getColumnWidth,
+  maxDisplayedCount = TABLE_GRID_MAX_RENDERED_COLUMNS,
+  overscanCount = TABLE_GRID_COLUMN_OVERSCAN_COLUMNS,
+  totalCount,
+  viewportWidth,
+  zoomPercent,
+}: ResolveTableGridDisplayColumnCountOptions): number => {
+  const safeTotalCount = toSafeCount(totalCount);
+  if (safeTotalCount === 0) {
+    return 0;
+  }
+
+  const safeMaxDisplayedCount = Math.max(
+    safeTotalCount,
+    toSafeCount(maxDisplayedCount),
+  );
+  const safeViewportWidth = Math.max(0, Number(viewportWidth) || 0);
+  if (safeViewportWidth <= 0 || safeTotalCount >= safeMaxDisplayedCount) {
+    return safeTotalCount;
+  }
+
+  const scale = getTableGridZoomScale(zoomPercent);
+  let displayedCount = safeTotalCount;
+  let displayedWidth = 0;
+  for (let colIndex = 0; colIndex < safeTotalCount; colIndex += 1) {
+    displayedWidth += TableColumnLayout.clampWidth(getColumnWidth(colIndex)) * scale;
+  }
+
+  while (displayedCount < safeMaxDisplayedCount && displayedWidth < safeViewportWidth) {
+    displayedWidth += TableColumnLayout.clampWidth(getColumnWidth(displayedCount)) * scale;
+    displayedCount += 1;
+  }
+
+  const safeOverscanCount = Math.max(0, toSafeCount(overscanCount));
+  if (displayedCount > safeTotalCount) {
+    displayedCount = Math.min(
+      safeMaxDisplayedCount,
+      displayedCount + safeOverscanCount,
+    );
+  }
+
+  return displayedCount;
 };
 
 export const getTableGridSpacerHeights = (
@@ -632,6 +686,8 @@ export const resolveTableGridRange = TableGridModel.resolveTableGridRange;
 export const resolveTableGridViewportRange = TableGridModel.resolveTableGridViewportRange;
 export const resolveTableGridColumnViewportRange =
   TableGridModel.resolveTableGridColumnViewportRange;
+export const resolveTableGridDisplayColumnCount =
+  TableGridModel.resolveTableGridDisplayColumnCount;
 export const getTableGridSpacerHeights = TableGridModel.getTableGridSpacerHeights;
 export const resolveTableGridKeyboardTarget = TableGridModel.resolveTableGridKeyboardTarget;
 export const resolveTableGridCellRange = TableGridModel.resolveTableGridCellRange;
@@ -1362,11 +1418,19 @@ export class TableWidget {
 
   private resolveVisibleColumnRange(totalCount: unknown): TableGridModel.TableGridColumnRange {
     const rowHeaderWidth = TableGridModel.getTableGridRowHeaderWidth(this.zoomPercent);
-    return TableGridModel.resolveTableGridColumnViewportRange({
+    const viewportWidth = Math.max(0, this.scrollArea.viewport.clientWidth - rowHeaderWidth);
+    const displayColumnCount = TableGridModel.resolveTableGridDisplayColumnCount({
       totalCount,
+      maxDisplayedCount: TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS,
+      viewportWidth,
+      zoomPercent: this.zoomPercent,
+      getColumnWidth: colIndex => this.getColumnWidth(colIndex),
+    });
+    return TableGridModel.resolveTableGridColumnViewportRange({
+      totalCount: displayColumnCount,
       maxRenderedCount: TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS,
       scrollLeft: this.scrollArea.viewport.scrollLeft,
-      viewportWidth: this.scrollArea.viewport.clientWidth - rowHeaderWidth,
+      viewportWidth,
       zoomPercent: this.zoomPercent,
       getColumnWidth: colIndex => this.getColumnWidth(colIndex),
     });

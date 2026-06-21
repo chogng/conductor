@@ -59,6 +59,36 @@ suite("base/browser/workbench tableWidget layout", () => {
     }
   });
 
+  test("fills wide viewports with bounded virtual empty columns", async () => {
+    const widget = new TableWidget({
+      onSelect: () => true,
+      tableModel: {
+        ...createTableWidgetModel(),
+        getRow: rowIndex => [
+          `A${rowIndex + 1}`,
+          `B${rowIndex + 1}`,
+          `C${rowIndex + 1}`,
+        ],
+      },
+      tableState: createTableWidgetState({ columnCount: 3 }),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 800, 280);
+      widget.layout();
+      await timeout(120);
+
+      assert.equal(getVisibleCellText(widget.element, 0, 2), "C1");
+      assert.equal(getVisibleCellText(widget.element, 0, 3), "");
+      assert.equal(getVisibleColumnHeaderText(widget.element, 3), "D");
+    } finally {
+      widget.dispose();
+    }
+  });
+
   test("renders scaled numeric cells from column display profiles", async () => {
     const hoverDelegate = new TestHoverDelegate();
     const widget = new TableWidget({
@@ -318,14 +348,19 @@ suite("base/browser/workbench tableWidget layout", () => {
   });
 });
 
-function createTableWidgetState(): TableState {
+function createTableWidgetState(
+  options: {
+    readonly columnCount?: number;
+  } = {},
+): TableState {
+  const columnCount = options.columnCount ?? 10;
   return {
-    dimensions: "20 x 10",
+    dimensions: `20 x ${columnCount}`,
     file: {
-      columnCount: 10,
+      columnCount,
       fileId: "file-a",
       fileName: "sample.csv",
-      maxCellLengths: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+      maxCellLengths: Array.from({ length: columnCount }, () => 2),
       rowCount: 20,
       sourceKey: "file-a",
     },
@@ -589,6 +624,20 @@ function findVisibleCell(root: HTMLElement, rowIndex: number, colIndex: number):
 
 function getVisibleCellText(root: HTMLElement, rowIndex: number, colIndex: number): string | undefined {
   return findVisibleCell(root, rowIndex, colIndex)?.textContent ?? undefined;
+}
+
+function getVisibleColumnHeaderText(root: HTMLElement, colIndex: number): string | undefined {
+  const cells = root.querySelectorAll<HTMLElement>(
+    `.table_view_grid_header_cell[aria-colindex="${colIndex + 1}"]`,
+  );
+  for (const cell of Array.from(cells)) {
+    if (!cell.hidden) {
+      return cell.querySelector<HTMLButtonElement>(
+        ".table_view_column_button",
+      )?.textContent ?? undefined;
+    }
+  }
+  return undefined;
 }
 
 function getVisibleCellTitle(root: HTMLElement, rowIndex: number, colIndex: number): string | undefined {

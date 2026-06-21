@@ -12,6 +12,7 @@ import {
   resolveTableGridColumnResizeGuideLeft,
   resolveTableGridColumnResizeTarget,
   resolveTableGridColumnViewportRange,
+  resolveTableGridDisplayColumnCount,
   resolveTableGridRange,
   resolveTableGridKeyboardTarget,
   resolveTableGridViewportRange,
@@ -207,6 +208,33 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
       totalWidth: 800,
       trailingWidth: 320,
     });
+  });
+
+  test("extends narrow tables with bounded virtual display columns", () => {
+    assert.equal(resolveTableGridDisplayColumnCount({
+      totalCount: 3,
+      viewportWidth: 500,
+      zoomPercent: 100,
+      maxDisplayedCount: 8,
+      overscanCount: 1,
+      getColumnWidth: () => 160,
+    }), 5);
+    assert.equal(resolveTableGridDisplayColumnCount({
+      totalCount: 3,
+      viewportWidth: 120,
+      zoomPercent: 100,
+      maxDisplayedCount: 8,
+      overscanCount: 1,
+      getColumnWidth: () => 160,
+    }), 3);
+    assert.equal(resolveTableGridDisplayColumnCount({
+      totalCount: 20,
+      viewportWidth: 4_000,
+      zoomPercent: 100,
+      maxDisplayedCount: 8,
+      overscanCount: 1,
+      getColumnWidth: () => 160,
+    }), 20);
   });
 
   test("resolves arrow keyboard targets", () => {
