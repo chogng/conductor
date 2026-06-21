@@ -78,6 +78,10 @@ class MemoryFileService implements IFileService {
 		}]);
 	}
 
+	public async moveFileToTrash(resource: URI): Promise<void> {
+		await this.deleteFile(resource);
+	}
+
 	public async realpath(resource: URI): Promise<URI> {
 		return resource;
 	}

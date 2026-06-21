@@ -76,6 +76,7 @@ const testNativeHostService: INativeHostService = {
     canceled: true,
     filePaths: [],
   }),
+  showMessageBox: async () => ({ response: 0 }),
   showItemInFolder: async () => undefined,
   toggleDevTools: async () => undefined,
   reloadWindow: async () => undefined,

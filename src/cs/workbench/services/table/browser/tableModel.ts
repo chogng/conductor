@@ -8,8 +8,10 @@ import type {
   SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import {
+  type TableDirtyRange,
   type TableModel,
   type TableRowsReaderProvider,
+  type TableRowsVersionChangeEvent,
   type TableSource,
   toTableSourceKey,
 } from "src/cs/workbench/services/table/common/table";
@@ -441,11 +443,12 @@ export const mergeChunkRangeRows = ({
 export const createTableRowCacheVersion = () => {
   let rowsVersion = 0;
   let rowsNotifyRaf = 0;
-  const rowsSubscribers = new Set<() => void>();
+  let pendingRowsChange: Omit<TableRowsVersionChangeEvent, "version"> | null = null;
+  const rowsSubscribers = new Set<(event: TableRowsVersionChangeEvent) => void>();
 
   const getRowsVersion = () => rowsVersion;
 
-  const subscribeRowsVersion = (callback: () => void) => {
+  const subscribeRowsVersion = (callback: (event: TableRowsVersionChangeEvent) => void) => {
     rowsSubscribers.add(callback);
     return () => rowsSubscribers.delete(callback);
   };
@@ -456,19 +459,32 @@ export const createTableRowCacheVersion = () => {
 
     cancelAnimationFrame(rowsNotifyRaf);
     rowsNotifyRaf = 0;
+    pendingRowsChange = null;
   };
 
-  const notifyRowsVersion = () => {
+  const notifyRowsVersion = (
+    change: Partial<Omit<TableRowsVersionChangeEvent, "version">> = {},
+  ) => {
+    pendingRowsChange = mergeTableRowsChange(pendingRowsChange, change);
     if (typeof window === "undefined") return;
     if (rowsNotifyRaf) return;
 
     rowsNotifyRaf = requestAnimationFrame(() => {
       rowsNotifyRaf = 0;
       rowsVersion += 1;
+      const event: TableRowsVersionChangeEvent = {
+        ...(pendingRowsChange ?? {
+          full: true,
+          kind: "reset" as const,
+          ranges: [],
+        }),
+        version: rowsVersion,
+      };
+      pendingRowsChange = null;
 
       for (const callback of Array.from(rowsSubscribers)) {
         try {
-          callback();
+          callback(event);
         } catch {
           // A broken listener must not prevent the row cache from advancing.
         }
@@ -482,6 +498,155 @@ export const createTableRowCacheVersion = () => {
     notifyRowsVersion,
     subscribeRowsVersion,
   };
+};
+
+const mergeTableRowsChange = (
+  current: Omit<TableRowsVersionChangeEvent, "version"> | null,
+  next: Partial<Omit<TableRowsVersionChangeEvent, "version">>,
+): Omit<TableRowsVersionChangeEvent, "version"> => {
+  const nextKind = next.kind ?? "reset";
+  const nextFull = Boolean(next.full) || nextKind === "reset";
+  if (!current || current.full || nextFull) {
+    return {
+      full: current?.full || nextFull,
+      kind: current?.kind === "display" || nextKind === "display"
+        ? "display"
+        : current?.kind === "reset" || nextKind === "reset"
+          ? "reset"
+          : "content",
+      ranges: current && !nextFull
+        ? mergeTableDirtyRanges(current.ranges, next.ranges ?? [])
+        : nextFull
+          ? []
+          : mergeTableDirtyRanges([], next.ranges ?? []),
+    };
+  }
+
+  return {
+    full: false,
+    kind: current.kind === "display" || nextKind === "display" ? "display" : "content",
+    ranges: mergeTableDirtyRanges(current.ranges, next.ranges ?? []),
+  };
+};
+
+const mergeTableDirtyRanges = (
+  first: readonly TableDirtyRange[],
+  second: readonly TableDirtyRange[],
+): readonly TableDirtyRange[] => {
+  const ranges = [...first, ...second]
+    .map(normalizeTableDirtyRange)
+    .filter((range): range is TableDirtyRange => Boolean(range))
+    .sort((left, right) =>
+      (left.startRow ?? 0) - (right.startRow ?? 0) ||
+      (left.startCol ?? 0) - (right.startCol ?? 0),
+    );
+  if (ranges.length <= 1) {
+    return ranges;
+  }
+
+  const merged: TableDirtyRange[] = [];
+  for (const range of ranges) {
+    const previous = merged[merged.length - 1];
+    if (
+      previous &&
+      (previous.startCol ?? -1) === (range.startCol ?? -1) &&
+      (previous.endCol ?? -1) === (range.endCol ?? -1) &&
+      hasTableDirtyRowBounds(previous) &&
+      hasTableDirtyRowBounds(range) &&
+      previous.endRow >= range.startRow
+    ) {
+      merged[merged.length - 1] = {
+        ...previous,
+        endRow: Math.max(previous.endRow, range.endRow),
+      };
+    } else if (
+      previous &&
+      !hasTableDirtyRowBounds(previous) &&
+      !hasTableDirtyRowBounds(range) &&
+      (previous.startCol ?? -1) === (range.startCol ?? -1) &&
+      (previous.endCol ?? -1) === (range.endCol ?? -1)
+    ) {
+      continue;
+    } else {
+      merged.push(range);
+    }
+  }
+  return merged;
+};
+
+const hasTableDirtyRowBounds = (
+  range: TableDirtyRange,
+): range is TableDirtyRange & { readonly endRow: number; readonly startRow: number } =>
+  typeof range.startRow === "number" && typeof range.endRow === "number";
+
+const normalizeTableDirtyRange = (
+  range: TableDirtyRange,
+): TableDirtyRange | null => {
+  const hasStartRow = typeof range.startRow !== "undefined";
+  const hasEndRow = typeof range.endRow !== "undefined";
+  if (hasStartRow !== hasEndRow) {
+    return null;
+  }
+
+  const hasStartCol = typeof range.startCol !== "undefined";
+  const hasEndCol = typeof range.endCol !== "undefined";
+  if (hasStartCol !== hasEndCol) {
+    return null;
+  }
+
+  const startRow = hasStartRow ? toSafeIndex(range.startRow) : undefined;
+  const endRow = hasEndRow ? toSafeIndex(range.endRow) : undefined;
+  if (
+    (typeof startRow !== "undefined" && startRow === null) ||
+    (typeof endRow !== "undefined" && endRow === null) ||
+    (typeof startRow === "number" && typeof endRow === "number" && endRow <= startRow)
+  ) {
+    return null;
+  }
+
+  const startCol = hasStartCol ? toSafeIndex(range.startCol) : undefined;
+  const endCol = hasEndCol ? toSafeIndex(range.endCol) : undefined;
+  if (
+    (typeof startCol !== "undefined" && startCol === null) ||
+    (typeof endCol !== "undefined" && endCol === null) ||
+    (typeof startCol === "number" && typeof endCol === "number" && endCol <= startCol)
+  ) {
+    return null;
+  }
+
+  return {
+    ...(typeof startRow === "number" ? { startRow } : {}),
+    ...(typeof endRow === "number" ? { endRow } : {}),
+    ...(startCol !== undefined && startCol !== null ? { startCol } : {}),
+    ...(endCol !== undefined && endCol !== null ? { endCol } : {}),
+  };
+};
+
+const toTableDirtyRangesFromRows = (
+  rows: Iterable<unknown>,
+): readonly TableDirtyRange[] => {
+  const rowIndexes = Array.from(rows)
+    .map(toSafeIndex)
+    .filter((index): index is number => index !== null)
+    .sort((left, right) => left - right);
+  if (!rowIndexes.length) {
+    return [];
+  }
+
+  const ranges: TableDirtyRange[] = [];
+  let startRow = rowIndexes[0];
+  let endRow = startRow + 1;
+  for (const rowIndex of rowIndexes.slice(1)) {
+    if (rowIndex <= endRow) {
+      endRow = Math.max(endRow, rowIndex + 1);
+    } else {
+      ranges.push({ startRow, endRow });
+      startRow = rowIndex;
+      endRow = rowIndex + 1;
+    }
+  }
+  ranges.push({ startRow, endRow });
+  return ranges;
 };
 
 export const buildTableCellReadRequests = ({
@@ -1088,6 +1253,8 @@ const createTableModel = ({
   const columnDisplayProfileCacheRef = createTableRef(new Map<string, ColumnDisplayProfile>());
   const columnDisplayScaleOverridesRef = createTableRef(new Map<string, number>());
   const columnDisplayScaleOverrideVersionRef = createTableRef(0);
+  const numericDisplayModeRef = createTableRef<NumericDisplayMode>(numericDisplayMode);
+  numericDisplayModeRef.current = numericDisplayMode;
 
   const notifyStateChanged = memoCallback(
     (): void => {
@@ -1281,15 +1448,42 @@ const createTableModel = ({
     return pendingChunks;
   }, []);
 
-  const notifyTableDisplayProfileChanged = memoCallback(() => {
+  const notifyTableDisplayProfileChanged = memoCallback((
+    change: Partial<Omit<TableRowsVersionChangeEvent, "version">> = {
+      full: true,
+      kind: "display",
+      ranges: [],
+    },
+  ) => {
     columnDisplayProfileCacheRef.current = new Map();
     cancelRowsVersionNotification();
-    notifyRowsVersion();
+    notifyRowsVersion({
+      full: change.full ?? true,
+      kind: change.kind ?? "display",
+      ranges: change.ranges ?? [],
+    });
   }, [cancelRowsVersionNotification, columnDisplayProfileCacheRef, notifyRowsVersion]);
 
-  const notifyTableRowsCacheChanged = memoCallback(() => {
-    notifyTableDisplayProfileChanged();
-  }, [notifyTableDisplayProfileChanged]);
+  const notifyTableRowsCacheChanged = memoCallback((
+    ranges: readonly TableDirtyRange[] = [],
+  ) => {
+    if (numericDisplayModeRef.current === "smart") {
+      notifyTableDisplayProfileChanged();
+      return;
+    }
+
+    columnDisplayProfileCacheRef.current = new Map();
+    notifyRowsVersion({
+      full: ranges.length === 0,
+      kind: ranges.length === 0 ? "reset" : "content",
+      ranges,
+    });
+  }, [
+    columnDisplayProfileCacheRef,
+    notifyRowsVersion,
+    notifyTableDisplayProfileChanged,
+    numericDisplayModeRef,
+  ]);
 
   const mergePreviewSeedRows = memoCallback(
     (fileId: string, startRow: number, rows: unknown[][]) => {
@@ -1309,7 +1503,10 @@ const createTableModel = ({
         maxChunks: TABLE_MAX_CACHED_UI_CHUNKS_PER_FILE,
       });
       if (merged.complete && previewCacheFileIdRef.current === fileId) {
-        notifyTableRowsCacheChanged();
+        notifyTableRowsCacheChanged([{
+          startRow: safeStart,
+          endRow: safeStart + safeRows.length,
+        }]);
       }
       return merged.complete;
     },
@@ -2121,7 +2318,16 @@ const createTableModel = ({
       const overrideKey = createColumnDisplayScaleOverrideKey(profile.rawTableId, normalizedColIndex);
       columnDisplayScaleOverridesRef.current.set(overrideKey, nextScaleExponent);
       columnDisplayScaleOverrideVersionRef.current += 1;
-      notifyTableDisplayProfileChanged();
+      notifyTableDisplayProfileChanged({
+        full: false,
+        kind: "display",
+        ranges: [{
+          startRow: 0,
+          endRow: Math.max(0, Math.floor(Number(previewFileRef.current?.rowCount) || 0)),
+          startCol: normalizedColIndex,
+          endCol: normalizedColIndex + 1,
+        }],
+      });
       return true;
     },
     [
@@ -2129,6 +2335,7 @@ const createTableModel = ({
       columnDisplayScaleOverridesRef,
       getColumnDisplayProfile,
       notifyTableDisplayProfileChanged,
+      previewFileRef,
     ],
   );
 
@@ -2147,7 +2354,16 @@ const createTableModel = ({
       }
 
       columnDisplayScaleOverrideVersionRef.current += 1;
-      notifyTableDisplayProfileChanged();
+      notifyTableDisplayProfileChanged({
+        full: false,
+        kind: "display",
+        ranges: [{
+          startRow: 0,
+          endRow: Math.max(0, Math.floor(Number(currentFile?.rowCount) || 0)),
+          startCol: normalizedColIndex,
+          endCol: normalizedColIndex + 1,
+        }],
+      });
       return true;
     },
     [
@@ -2301,7 +2517,7 @@ const createTableModel = ({
                   rowCache.set(rowIndex, row);
                 }
                 if (previewCacheFileIdRef.current === sourceKey) {
-                  notifyTableRowsCacheChanged();
+                  notifyTableRowsCacheChanged(toTableDirtyRangesFromRows(rowsByIndex.keys()));
                 }
                 return;
               }
@@ -2333,7 +2549,10 @@ const createTableModel = ({
       }
 
       if (changed && previewCacheFileIdRef.current === sourceKey) {
-        notifyTableRowsCacheChanged();
+        notifyTableRowsCacheChanged(ranges.map(([startRow, endRow]) => ({
+          startRow,
+          endRow,
+        })));
       }
     },
     [
@@ -2391,7 +2610,7 @@ const createTableModel = ({
         maxRangeRows: PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS,
       });
 
-      let shouldNotifyTableRows = false;
+      const dirtyRanges: TableDirtyRange[] = [];
       const requests: Array<Promise<void>> = [];
 
       for (const range of missingRanges) {
@@ -2437,7 +2656,7 @@ const createTableModel = ({
             previewCacheFileIdRef.current === sourceKey &&
             merged.mergedChunkStarts.length > 0
           ) {
-            shouldNotifyTableRows = true;
+            dirtyRanges.push({ startRow: rangeStart, endRow: rangeEnd });
           }
         })()
           .catch(() => {
@@ -2462,8 +2681,8 @@ const createTableModel = ({
       if (!requests.length) return;
       await Promise.all(requests);
 
-      if (shouldNotifyTableRows) {
-        notifyTableRowsCacheChanged();
+      if (dirtyRanges.length > 0) {
+        notifyTableRowsCacheChanged(dirtyRanges);
       }
     },
     [

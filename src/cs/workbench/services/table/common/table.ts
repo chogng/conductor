@@ -104,6 +104,24 @@ type TableCellReadRequest = {
 	rowIndex: number;
 };
 
+/**
+ * Half-open dirty range from the table model. Missing row/column bounds mean
+ * the change applies to the currently visible span on that axis.
+ */
+export type TableDirtyRange = {
+	readonly endCol?: number;
+	readonly endRow?: number;
+	readonly startCol?: number;
+	readonly startRow?: number;
+};
+
+export type TableRowsVersionChangeEvent = {
+	readonly full: boolean;
+	readonly kind: "content" | "display" | "reset";
+	readonly ranges: readonly TableDirtyRange[];
+	readonly version: number;
+};
+
 export type TableState = {
 	readonly selectedFileId: string | null;
 	readonly selectedSheetId?: string | null;
@@ -151,7 +169,7 @@ export type TableModel = {
 	onDidChangeRevealCell: (callback: (cell: TableCell | null) => void) => () => void;
 	selectAllColumns: () => boolean;
 	setSelection: (selection: TableSelection | null) => void;
-	subscribeRowsVersion: (callback: () => void) => () => void;
+	subscribeRowsVersion: (callback: (event: TableRowsVersionChangeEvent) => void) => () => void;
 };
 
 export type TableViewInput = {

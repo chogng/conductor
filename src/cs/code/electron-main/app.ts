@@ -162,7 +162,7 @@ const rustWorkerHost = new RustWorkerHost({
   }),
 });
 const mainProcessServer = new ElectronIPCServer();
-const localFileSystemProvider = new DiskFileSystemProvider();
+const localFileSystemProvider = new DiskFileSystemProvider(filePath => shell.trashItem(filePath));
 const dialogMainService = new DialogMainService();
 const nativeHostMainService = new NativeHostMainService(dialogMainService);
 let mainWindow = null;
@@ -285,6 +285,10 @@ class MainFileSystemProvider implements IFileSystemProvider {
 
   public deleteFile(resource: URI): Promise<void> {
     return this.provider.deleteFile(resource);
+  }
+
+  public moveFileToTrash(resource: URI): Promise<void> {
+    return this.provider.moveFileToTrash(resource);
   }
 
   public realpath(resource: URI): Promise<URI> {
@@ -1004,6 +1008,10 @@ function createNativeHostChannel(): IServerChannel<string> {
           } as T;
         }
         return nativeHostMainService.showOpenDialogForWindow(win, args[0]) as Promise<T>;
+      }
+
+      if (command === "showMessageBox") {
+        return nativeHostMainService.showMessageBoxForWindow(win, args[0]) as Promise<T>;
       }
 
       if (command === "showItemInFolder") {

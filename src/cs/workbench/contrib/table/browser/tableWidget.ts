@@ -4,13 +4,18 @@ import { DisposableStore, MutableDisposable } from "src/cs/base/common/lifecycle
 import type { IManagedHover } from "src/cs/base/browser/ui/hover/hover";
 import { NullHoverDelegate, type IHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { localize } from "src/cs/nls";
-import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
+import {
+  TableWidget as BaseTableWidget,
+} from "src/cs/base/browser/ui/table/tableWidget";
 import { createEmptyView } from "src/cs/workbench/contrib/table/browser/emptyView";
 import {
   createTableValueStepperControl,
   type TableValueStepperControl,
 } from "src/cs/workbench/contrib/table/browser/tableValueStepperControl";
-import type { TableModel } from "src/cs/workbench/services/table/common/table";
+import type {
+  TableModel,
+  TableRowsVersionChangeEvent,
+} from "src/cs/workbench/services/table/common/table";
 import {
   formatCell,
   formatRawCell,
@@ -756,23 +761,11 @@ type BodyCell = {
   readonly element: HTMLTableCellElement;
   readonly hover: MutableDisposable<IManagedHover>;
   appliedActive?: boolean;
-  appliedColIndex?: number;
   appliedHighlighted?: boolean;
-  appliedHidden?: boolean;
-  appliedRowIndex?: number;
   appliedSelected?: boolean;
   appliedSelectionFrame?: string;
   appliedText?: string;
   appliedTitle?: string;
-};
-
-type BodyRow = {
-  readonly element: HTMLTableRowElement;
-  readonly leadingSpacer: HTMLTableCellElement;
-  readonly cells: BodyCell[];
-  readonly trailingSpacer: HTMLTableCellElement;
-  appliedHidden?: boolean;
-  appliedRowIndex?: number;
 };
 
 type ActiveCell = {
@@ -806,69 +799,33 @@ type BodyRangeSelectionState = {
   readonly pointerId: number;
 };
 
+type DirtyRowsPatchResult = "full" | "ignored" | "patched";
+
 export class TableWidget {
   public readonly element: HTMLElement;
   private readonly onDidChangeZoomEmitter = new Emitter<number>();
   public readonly onDidChangeZoom = this.onDidChangeZoomEmitter.event;
   private readonly store = new DisposableStore();
-  private readonly body = document.createElement("div");
-  private readonly header = document.createElement("div");
-  private readonly headerCorner = document.createElement("div");
-  private readonly headerScroll = document.createElement("div");
-  private readonly headerContent = document.createElement("div");
-  private readonly headerLeadingSpacer = document.createElement("div");
-  private readonly headerTrailingSpacer = document.createElement("div");
-  private readonly columnResizeGuide = document.createElement("div");
-  private readonly content = document.createElement("div");
-  private readonly table = document.createElement("table");
-  private readonly columnGroup = document.createElement("colgroup");
-  private readonly bodyRows = document.createElement("tbody");
-  private readonly rowHeaderColumn = document.createElement("col");
-  private readonly bodyLeadingSpacerColumn = document.createElement("col");
-  private readonly bodyTrailingSpacerColumn = document.createElement("col");
-  private readonly topSpacerRow = document.createElement("tr");
-  private readonly topSpacerCell = document.createElement("td");
-  private readonly bottomSpacerRow = document.createElement("tr");
-  private readonly bottomSpacerCell = document.createElement("td");
+  private readonly grid: BaseTableWidget;
   private readonly columnResizeStore = new DisposableStore();
   private readonly bodyRangeSelectionStore = new DisposableStore();
-  private readonly scrollArea = new Scrollbar({
-    axis: "both",
-    className: "table_view_scroll_area",
-    observeResize: false,
-    onScroll: () => this.onTableScroll(),
-    viewportClassName: "table_view_preview",
-  });
   private disposeSelectionListener: (() => void) | null = null;
   private disposeHighlightListener: (() => void) | null = null;
   private disposeRevealCellListener: (() => void) | null = null;
   private disposeRowsVersionListener: (() => void) | null = null;
   private disposeStateListener: (() => void) | null = null;
-  private readonly bodyGrid: BodyRow[] = [];
-  private readonly bodyDataColumns: HTMLTableColElement[] = [];
-  private readonly headerCells: HTMLElement[] = [];
+  private readonly bodyCellStates = new WeakMap<HTMLTableCellElement, BodyCell>();
   private readonly headerColumnScaleControls = new WeakMap<HTMLElement, TableValueStepperControl>();
-  private headerColumnCount = 0;
   private bodyTotalRowCount = 0;
   private bodyStartRowIndex = 0;
   private bodyRowCount = 0;
   private bodyTotalColumnCount = 0;
   private bodyStartColumnIndex = 0;
   private bodyColumnCount = 0;
-  private bodyColumnLeadingWidth = 0;
-  private bodyColumnRenderedWidth = 0;
-  private bodyColumnTrailingWidth = 0;
   private layoutTimeoutId: number | null = null;
   private renderedInputKey: string | null = null;
   private renderedZoomPercent: number | null = null;
   private renderedSourceKey: string | null = null;
-  private renderedRowsSourceKey: string | null = null;
-  private renderedRowsVersion: number | null = null;
-  private renderedRowsDisplayVersion: number | null = null;
-  private renderedRowsStartIndex = 0;
-  private renderedRowsRowCount = 0;
-  private renderedRowsStartColumnIndex = 0;
-  private renderedRowsColumnCount = 0;
   private pendingEnsureRowsKey: string | null = null;
   private appliedCellState: AppliedCellState | null = null;
   private columnWidthSourceKey: string | null = null;
@@ -885,59 +842,46 @@ export class TableWidget {
 
   constructor(props: TableWidgetProps) {
     this.props = props;
-    this.element = document.createElement("div");
-    this.element.className = "table_view";
+    this.grid = this.store.add(new BaseTableWidget({
+      getColumnWidth: colIndex => this.getColumnWidth(colIndex),
+      renderer: {
+        clearBodyCell: cell => this.updateCellDisplay(this.getBodyCellState(cell), "", ""),
+        disposeBodyCell: cell => this.getBodyCellState(cell).hover.clear(),
+        renderBodyCell: (cell, descriptor) => this.renderBodyCell(cell, descriptor.rowIndex, descriptor.colIndex),
+        renderColumnHeader: (cell, descriptor) => {
+          this.syncHeaderColumnElement(cell, descriptor.colIndex, this.props.tableModel);
+        },
+        renderRowHeader: (cell, descriptor) => {
+          const label = cell.firstElementChild;
+          if (label) {
+            label.textContent = TableGridModel.getTableGridRowLabel(descriptor.rowIndex);
+          }
+        },
+      },
+    }));
+    this.element = this.grid.element;
     this.element.tabIndex = 0;
     this.element.setAttribute("role", "region");
     this.element.setAttribute("aria-label", localize("table.view.ariaLabel", "Table"));
-    this.body.className = "table_view_body";
-    this.header.className = "table_view_grid_header";
-    this.headerCorner.className = "table_view_grid_header_corner";
-    this.headerScroll.className = "table_view_grid_header_scroll";
-    this.headerContent.className = "table_view_grid_header_content";
-    this.headerLeadingSpacer.className = "table_view_grid_header_spacer";
-    this.headerTrailingSpacer.className = "table_view_grid_header_spacer";
-    this.columnResizeGuide.className = "table_view_column_resize_guide";
-    this.columnResizeGuide.setAttribute("aria-hidden", "true");
-    this.columnResizeGuide.hidden = true;
-    this.content.className = "table_view_content";
-    this.table.className = "table_view_grid";
-    this.rowHeaderColumn.className = "table_view_row_header_col";
-    this.bodyLeadingSpacerColumn.className = "table_view_column_spacer_col";
-    this.bodyTrailingSpacerColumn.className = "table_view_column_spacer_col";
-    this.headerCorner.setAttribute("aria-hidden", "true");
-    this.headerLeadingSpacer.setAttribute("aria-hidden", "true");
-    this.headerTrailingSpacer.setAttribute("aria-hidden", "true");
-    this.headerContent.append(this.headerLeadingSpacer, this.headerTrailingSpacer);
-    this.headerScroll.append(this.headerContent);
-    this.header.append(this.headerCorner, this.headerScroll);
-    this.topSpacerRow.className = "table_view_virtual_spacer";
-    this.topSpacerRow.setAttribute("aria-hidden", "true");
-    this.topSpacerCell.className = "table_view_virtual_spacer_cell";
-    this.bottomSpacerRow.className = "table_view_virtual_spacer";
-    this.bottomSpacerRow.setAttribute("aria-hidden", "true");
-    this.bottomSpacerCell.className = "table_view_virtual_spacer_cell";
-    this.topSpacerRow.append(this.topSpacerCell);
-    this.bottomSpacerRow.append(this.bottomSpacerCell);
-    this.table.append(this.columnGroup, this.bodyRows);
-    this.content.append(this.table);
-    this.body.append(this.header, this.scrollArea.element, this.columnResizeGuide);
-    this.element.append(this.body);
-    this.store.add(addDisposableListener(this.headerContent, EventType.CLICK, event => {
-      this.onHeaderClick(event as MouseEvent);
+    // Base table events describe viewport facts; this widget keeps data and selection ownership.
+    this.store.add(this.grid.onDidScroll(() => {
+      this.onTableScroll();
     }));
-    this.store.add(addDisposableListener(this.headerContent, EventType.POINTER_DOWN, event => {
+    this.store.add(this.grid.onDidClickHeader(event => {
+      this.onHeaderClick(event);
+    }));
+    this.store.add(this.grid.onDidPointerDownHeader(event => {
       const handle = this.getColumnResizeHandle(event.target);
-      if (handle && this.headerContent.contains(handle)) {
-        this.onColumnResizeStart(event as PointerEvent);
+      if (handle && this.grid.containsHeaderTarget(handle)) {
+        this.onColumnResizeStart(event);
       }
     }));
-    this.store.add(addDisposableListener(this.bodyRows, EventType.CLICK, event => {
-      this.onBodyClick(event as MouseEvent);
+    this.store.add(this.grid.onDidClickBody(event => {
+      this.onBodyClick(event);
     }));
-    this.store.add(addDisposableListener(this.bodyRows, EventType.POINTER_DOWN, event => {
-      this.onBodyPointerDown(event as PointerEvent);
-    }, { passive: false }));
+    this.store.add(this.grid.onDidPointerDownBody(event => {
+      this.onBodyPointerDown(event);
+    }));
     this.store.add(addDisposableListener(this.element, EventType.KEY_DOWN, event => {
       this.onKeyDown(event as KeyboardEvent);
     }));
@@ -947,7 +891,6 @@ export class TableWidget {
     this.store.add(this.onDidChangeZoomEmitter);
     this.store.add(this.columnResizeStore);
     this.store.add(this.bodyRangeSelectionStore);
-    this.prepareGrid();
     this.bindTableState(props.tableModel);
     this.syncColumnWidthSource();
     this.renderedInputKey = getTableWidgetInputKey(props);
@@ -988,9 +931,6 @@ export class TableWidget {
     this.clearBodyClickSuppression();
     this.disposeBodyCellHovers();
     this.store.dispose();
-    this.scrollArea.dispose();
-    this.element.replaceChildren();
-    this.element.remove();
   }
 
   public layout(): void {
@@ -1023,11 +963,11 @@ export class TableWidget {
 
   private layoutNow(): void {
     this.clearScheduledLayout();
-    this.scrollArea.layout();
+    this.grid.layout();
     if (this.shouldRenderTableOnLayout()) {
       const needsLayout = this.renderTable();
       if (needsLayout) {
-        this.scrollArea.layout();
+        this.grid.layout();
       }
     }
     this.syncHeaderScroll();
@@ -1152,7 +1092,7 @@ export class TableWidget {
     this.scheduleStoreColumnWidths();
 
     if (this.isTableVisible()) {
-      this.syncColumnLayout(this.getBodyColumnRange(), this.props.tableModel);
+      this.renderTable();
       this.layoutNow();
     }
     return true;
@@ -1226,24 +1166,7 @@ export class TableWidget {
   }
 
   public scrollHorizontally(delta: number): boolean {
-    if (!this.isTableVisible()) {
-      return false;
-    }
-
-    const viewport = this.scrollArea.viewport;
-    const previousScrollLeft = viewport.scrollLeft;
-    const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
-    const nextScrollLeft = Math.min(
-      maxScrollLeft,
-      Math.max(0, previousScrollLeft + delta),
-    );
-    if (nextScrollLeft === previousScrollLeft) {
-      return false;
-    }
-
-    viewport.scrollLeft = nextScrollLeft;
-    this.syncHeaderScroll();
-    return true;
+    return this.grid.scrollHorizontally(delta);
   }
 
   private bindTableState(tableModel: TableWidgetModel): void {
@@ -1252,12 +1175,11 @@ export class TableWidget {
     this.disposeRevealCellListener?.();
     this.disposeRowsVersionListener?.();
     this.disposeStateListener?.();
-    this.resetRenderedRows();
     this.disposeSelectionListener = tableModel.onDidChangeSelection(() => {
       this.syncSelectionState();
     });
-    this.disposeRowsVersionListener = tableModel.subscribeRowsVersion(() => {
-      this.syncRows();
+    this.disposeRowsVersionListener = tableModel.subscribeRowsVersion(event => {
+      this.syncRows(event);
     });
     this.disposeHighlightListener = tableModel.onDidChangeHighlight(() => {
       this.syncSelectionState();
@@ -1286,13 +1208,12 @@ export class TableWidget {
     if (this.renderedSourceKey !== sourceKey) {
       this.renderedSourceKey = sourceKey;
       this.pendingEnsureRowsKey = null;
-      this.resetRenderedRows();
       this.appliedCellState = null;
       this.rangeAnchorCell = null;
       this.rangeFocusCell = null;
       this.syncColumnResizeGuide();
       this.clearRowsText();
-      this.scrollArea.viewport.scrollTop = 0;
+      this.grid.resetScrollTop();
     }
 
     if (!tableState.selectedFileId || !tableFile) {
@@ -1301,18 +1222,15 @@ export class TableWidget {
         this.bodyRowCount > 0 &&
         this.bodyColumnCount > 0
       ) {
-        if (this.scrollArea.viewport.firstChild !== this.content) {
-          this.scrollArea.viewport.replaceChildren(this.content);
-        }
-        this.header.hidden = false;
+        this.grid.attachContent();
+        this.grid.setHeaderVisible(true);
         this.layoutNow();
         this.syncHeaderScroll();
         return;
       }
 
-      this.header.hidden = true;
-      this.scrollArea.viewport.replaceChildren();
-      this.scrollArea.viewport.append(createEmptyView({
+      this.grid.setHeaderVisible(false);
+      this.grid.replaceViewportContent(createEmptyView({
         title: tableState.loadState.state === "error"
           ? localize("table.preview.unreadableTitle", "File content cannot be decoded")
           : undefined,
@@ -1330,9 +1248,8 @@ export class TableWidget {
     }
 
     if (tableState.loadState.state === "error") {
-      this.header.hidden = true;
-      this.scrollArea.viewport.replaceChildren();
-      this.scrollArea.viewport.append(createEmptyView({
+      this.grid.setHeaderVisible(false);
+      this.grid.replaceViewportContent(createEmptyView({
         title: localize("table.preview.unreadableTitle", "File content cannot be decoded"),
         description: tableState.loadState.message ||
           localize("table.preview.unreadableHint", "The system cannot confirm this file is a valid CSV table."),
@@ -1343,9 +1260,8 @@ export class TableWidget {
     }
 
     if (tableState.loadState.state === "loading") {
-      this.header.hidden = true;
-      this.scrollArea.viewport.replaceChildren();
-      this.scrollArea.viewport.append(createEmptyView({
+      this.grid.setHeaderVisible(false);
+      this.grid.replaceViewportContent(createEmptyView({
         title: localize("table.preview.loadingTitle", "Loading preview..."),
         description: tableState.loadState.message ||
           localize("table.preview.loadingHint", "Parsing CSV preview, please wait."),
@@ -1355,11 +1271,7 @@ export class TableWidget {
       return;
     }
 
-    const didAttachContent = this.scrollArea.viewport.firstChild !== this.content;
-    if (didAttachContent) {
-      this.scrollArea.viewport.replaceChildren(this.content);
-    }
-
+    const didAttachContent = this.grid.attachContent();
     const needsLayout = this.renderTable();
     if (didAttachContent || needsLayout) {
       this.layoutNow();
@@ -1374,66 +1286,37 @@ export class TableWidget {
     const zoomChanged = this.renderedZoomPercent !== zoomPercent;
     if (zoomChanged) {
       this.renderedZoomPercent = zoomPercent;
-      this.body.style.setProperty(
+      this.grid.setBodyStyleProperty(
         "--table-view-zoom",
         String(TableGridModel.getTableGridZoomScale(zoomPercent)),
       );
     }
 
-    const rowRange = this.resolveVisibleRowRange(tableFile?.rowCount);
-    const columnRange = this.resolveVisibleColumnRange(tableFile?.columnCount);
-    const columnCount = columnRange.renderedCount;
-    const rowCount = rowRange.renderedCount;
-    if (rowCount === 0 || columnCount === 0) {
-      this.header.hidden = true;
-      this.scrollArea.viewport.replaceChildren(createEmptyView({
+    if (!tableFile || tableFile.rowCount <= 0 || tableFile.columnCount <= 0) {
+      this.grid.setHeaderVisible(false);
+      this.grid.replaceViewportContent(createEmptyView({
         description: localize("table.preview.emptyHint", "Select a file to preview"),
       }));
       this.syncColumnResizeGuide();
       return true;
     }
 
-    this.header.hidden = false;
-    const headerChanged = this.ensureHeaderGrid();
-    const gridChanged = this.renderBody(tableModel, rowRange, columnRange);
-    const columnLayoutChanged = this.syncColumnLayout(columnRange, tableModel);
+    this.grid.setHeaderVisible(true);
+    const gridChanged = this.grid.render({
+      columnCount: tableFile.columnCount,
+      renderVersion: this.getRowsRenderVersion(),
+      rowCount: tableFile.rowCount,
+      zoomPercent,
+    });
+    this.syncCachedGridState();
+    this.syncSelectionState();
     this.syncColumnResizeGuide();
 
     if (tableFile?.fileId) {
-      this.ensureRows(tableModel, tableFile.sourceKey ?? tableFile.fileId, rowRange);
+      this.ensureRows(tableModel, tableFile.sourceKey ?? tableFile.fileId, this.getBodyRowRange());
     }
 
-    return headerChanged || gridChanged || columnLayoutChanged || zoomChanged;
-  }
-
-  private resolveVisibleRowRange(totalCount: unknown): TableGridModel.TableGridRange {
-    return TableGridModel.resolveTableGridViewportRange({
-      totalCount,
-      maxRenderedCount: TableGridModel.TABLE_GRID_MAX_RENDERED_ROWS,
-      rowHeight: TableGridModel.getTableGridRowHeight(this.zoomPercent),
-      scrollTop: this.scrollArea.viewport.scrollTop,
-      viewportHeight: this.scrollArea.viewport.clientHeight,
-    });
-  }
-
-  private resolveVisibleColumnRange(totalCount: unknown): TableGridModel.TableGridColumnRange {
-    const rowHeaderWidth = TableGridModel.getTableGridRowHeaderWidth(this.zoomPercent);
-    const viewportWidth = Math.max(0, this.scrollArea.viewport.clientWidth - rowHeaderWidth);
-    const displayColumnCount = TableGridModel.resolveTableGridDisplayColumnCount({
-      totalCount,
-      maxDisplayedCount: TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS,
-      viewportWidth,
-      zoomPercent: this.zoomPercent,
-      getColumnWidth: colIndex => this.getColumnWidth(colIndex),
-    });
-    return TableGridModel.resolveTableGridColumnViewportRange({
-      totalCount: displayColumnCount,
-      maxRenderedCount: TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS,
-      scrollLeft: this.scrollArea.viewport.scrollLeft,
-      viewportWidth,
-      zoomPercent: this.zoomPercent,
-      getColumnWidth: colIndex => this.getColumnWidth(colIndex),
-    });
+    return gridChanged || zoomChanged;
   }
 
   private ensureRows(
@@ -1459,64 +1342,49 @@ export class TableWidget {
     }
   }
 
-  private resetRenderedRows(): void {
-    this.renderedRowsSourceKey = null;
-    this.renderedRowsVersion = null;
-    this.renderedRowsDisplayVersion = null;
-    this.renderedRowsStartIndex = 0;
-    this.renderedRowsRowCount = 0;
-    this.renderedRowsStartColumnIndex = 0;
-    this.renderedRowsColumnCount = 0;
-  }
+  private syncHeaderColumnElement(
+    cell: HTMLElement,
+    colIndex: number,
+    tableModel: TableWidgetModel,
+  ): void {
+    let button = cell.querySelector<HTMLButtonElement>(".table_view_column_button");
+    let scaleControl = this.headerColumnScaleControls.get(cell);
+    let resizeHandle = cell.querySelector<HTMLElement>(".table_view_column_resize_handle");
 
-  private ensureHeaderGrid(): boolean {
-    let changed = false;
-    if (this.headerColumnCount < TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS) {
-      const startIndex = this.headerColumnCount;
-      this.headerColumnCount = TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS;
-
-      for (
-        let colIndex = startIndex;
-        colIndex < TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS;
-        colIndex += 1
-      ) {
-        const cell = document.createElement("div");
-        const button = document.createElement("button");
-        const columnLabel = TableGridModel.getTableGridColumnLabel(colIndex);
-        cell.className = "table_view_grid_header_cell";
-        cell.setAttribute("role", "columnheader");
-        button.type = "button";
-        button.className = "table_view_column_button";
-        button.dataset.colIndex = String(colIndex);
-        button.textContent = columnLabel;
-        button.setAttribute(
-          "aria-label",
-          localize("table.preview.toggleColumn", "Toggle column {column}", {
-            column: columnLabel,
-          }),
-        );
-        const scaleControl = this.createColumnScaleControl(colIndex);
-        const resizeHandle = document.createElement("span");
-        resizeHandle.className = "table_view_column_resize_handle";
-        resizeHandle.dataset.colIndex = String(colIndex);
-        resizeHandle.setAttribute("role", "separator");
-        resizeHandle.setAttribute("aria-orientation", "vertical");
-        resizeHandle.setAttribute(
-          "aria-label",
-          localize("table.preview.resizeColumn", "Resize column {column}", {
-            column: columnLabel,
-          }),
-        );
-        cell.append(button, scaleControl.element, resizeHandle);
-        this.headerColumnScaleControls.set(cell, scaleControl);
-        this.headerCells.push(cell);
-        this.headerContent.insertBefore(cell, this.headerTrailingSpacer);
-      }
-
-      changed = true;
+    if (!button || !scaleControl || !resizeHandle) {
+      cell.replaceChildren();
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "table_view_column_button";
+      scaleControl = this.createColumnScaleControl(colIndex);
+      resizeHandle = document.createElement("span");
+      resizeHandle.className = "table_view_column_resize_handle";
+      resizeHandle.setAttribute("role", "separator");
+      resizeHandle.setAttribute("aria-orientation", "vertical");
+      cell.append(button, scaleControl.element, resizeHandle);
+      this.headerColumnScaleControls.set(cell, scaleControl);
     }
 
-    return changed;
+    const columnLabel = TableGridModel.getTableGridColumnLabel(colIndex);
+    const profile = tableModel.getColumnDisplayProfile(colIndex);
+    const colIndexValue = String(colIndex);
+    button.dataset.colIndex = colIndexValue;
+    button.textContent = columnLabel;
+    button.setAttribute(
+      "aria-label",
+      localize("table.preview.toggleColumn", "Toggle column {column}", {
+        column: columnLabel,
+      }),
+    );
+    resizeHandle.dataset.colIndex = colIndexValue;
+    resizeHandle.setAttribute(
+      "aria-label",
+      localize("table.preview.resizeColumn", "Resize column {column}", {
+        column: columnLabel,
+      }),
+    );
+    this.syncHeaderColumnScaleControl(scaleControl, colIndex, profile);
+    cell.setAttribute("aria-colindex", String(colIndex + 1));
   }
 
   private createColumnScaleControl(colIndex: number): TableValueStepperControl {
@@ -1553,113 +1421,6 @@ export class TableWidget {
     control.element.dataset.colIndex = colIndexValue;
     control.element.hidden = true;
     return control;
-  }
-
-  private syncColumnLayout(
-    columnRange: TableGridModel.TableGridColumnRange,
-    tableModel: TableWidgetModel,
-  ): boolean {
-    let changed = this.syncColumnSpacers(columnRange);
-    for (
-      let columnOffset = 0;
-      columnOffset < TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS;
-      columnOffset += 1
-    ) {
-      const colIndex = columnRange.startIndex + columnOffset;
-      const isVisible = columnOffset < columnRange.renderedCount;
-      if (this.syncHeaderColumn(columnOffset, isVisible ? colIndex : null, tableModel)) {
-        changed = true;
-      }
-      const width = isVisible
-        ? this.getColumnCssWidth(colIndex)
-        : "";
-      this.applyHeaderColumnWidth(columnOffset, width);
-      this.applyBodyColumnWidth(columnOffset, width);
-    }
-    return changed;
-  }
-
-  private syncColumnSpacers(columnRange: TableGridModel.TableGridColumnRange): boolean {
-    const leadingWidth = `${columnRange.leadingWidth}px`;
-    const trailingWidth = `${columnRange.trailingWidth}px`;
-    let changed = false;
-    if (setElementWidth(this.headerLeadingSpacer, leadingWidth)) {
-      changed = true;
-    }
-    if (setElementWidth(this.headerTrailingSpacer, trailingWidth)) {
-      changed = true;
-    }
-    if (setColumnWidth(this.bodyLeadingSpacerColumn, leadingWidth)) {
-      changed = true;
-    }
-    if (setColumnWidth(this.bodyTrailingSpacerColumn, trailingWidth)) {
-      changed = true;
-    }
-    for (const row of this.bodyGrid) {
-      if (setElementWidth(row.leadingSpacer, leadingWidth)) {
-        changed = true;
-      }
-      if (setElementWidth(row.trailingSpacer, trailingWidth)) {
-        changed = true;
-      }
-    }
-    return changed;
-  }
-
-  private syncHeaderColumn(
-    columnOffset: number,
-    colIndex: number | null,
-    tableModel: TableWidgetModel,
-  ): boolean {
-    const cell = this.headerCells[columnOffset];
-    if (!cell) {
-      return false;
-    }
-
-    let changed = setHidden(cell, colIndex === null);
-    if (colIndex === null) {
-      return changed;
-    }
-
-    const button = cell.querySelector<HTMLButtonElement>(".table_view_column_button");
-    const scaleControl = this.headerColumnScaleControls.get(cell);
-    const resizeHandle = cell.querySelector<HTMLElement>(".table_view_column_resize_handle");
-    const columnLabel = TableGridModel.getTableGridColumnLabel(colIndex);
-    const profile = tableModel.getColumnDisplayProfile(colIndex);
-    const headerText = columnLabel;
-    const colIndexValue = String(colIndex);
-    const ariaColIndex = String(colIndex + 1);
-    if (button?.dataset.colIndex !== colIndexValue || button?.textContent !== headerText) {
-      if (button) {
-        button.dataset.colIndex = colIndexValue;
-        button.textContent = headerText;
-        button.setAttribute(
-          "aria-label",
-          localize("table.preview.toggleColumn", "Toggle column {column}", {
-            column: headerText,
-          }),
-        );
-      }
-      if (resizeHandle) {
-        resizeHandle.dataset.colIndex = colIndexValue;
-        resizeHandle.setAttribute(
-          "aria-label",
-          localize("table.preview.resizeColumn", "Resize column {column}", {
-            column: columnLabel,
-          }),
-        );
-      }
-      changed = true;
-    }
-    if (this.syncHeaderColumnScaleControl(scaleControl, colIndex, profile)) {
-      changed = true;
-    }
-    if (cell.getAttribute("aria-colindex") !== ariaColIndex) {
-      cell.setAttribute("aria-colindex", ariaColIndex);
-      changed = true;
-    }
-
-    return changed;
   }
 
   private syncHeaderColumnScaleControl(
@@ -1706,58 +1467,25 @@ export class TableWidget {
     return changed;
   }
 
-  private applyHeaderColumnWidth(columnOffset: number, width: string): void {
-    const cell = this.headerCells[columnOffset];
-    if (!cell) {
-      return;
-    }
-
-    setElementWidth(cell, width);
-  }
-
-  private applyBodyColumnWidth(columnOffset: number, width: string): void {
-    const column = this.bodyDataColumns[columnOffset];
-    if (column) {
-      setColumnWidth(column, width);
-    }
-
-    for (const row of this.bodyGrid) {
-      const cell = row.cells[columnOffset];
-      if (cell) {
-        setElementWidth(cell.element, width);
-      }
-    }
-  }
-
-  private renderBody(
-    tableModel: TableWidgetModel,
-    rowRange: TableGridModel.TableGridRange,
-    columnRange: TableGridModel.TableGridColumnRange,
-  ): boolean {
-    const gridChanged = this.ensureBodyGrid(rowRange, columnRange);
-    this.table.setAttribute("aria-rowcount", String(rowRange.totalCount));
-    this.table.setAttribute("aria-colcount", String(columnRange.totalCount));
-    this.syncRowsTextIfNeeded(tableModel, rowRange, columnRange);
-    this.syncSelectionState();
-
-    return gridChanged;
-  }
-
-  private syncRows(): void {
+  private syncRows(event?: TableRowsVersionChangeEvent): void {
     if (!this.isTableVisible()) {
       this.render();
       return;
     }
 
-    const tableModel = this.props.tableModel;
-    const columnRange = this.getBodyColumnRange();
-    this.syncColumnLayout(columnRange, tableModel);
-    this.syncRowsTextIfNeeded(
-      tableModel,
-      this.getBodyRowRange(),
-      columnRange,
-    );
+    const patchResult = event ? this.patchDirtyRows(event) : "full";
+    if (patchResult === "full") {
+      this.renderTable();
+    }
     this.syncHeaderScroll();
+  }
+
+  private patchDirtyRows(event: TableRowsVersionChangeEvent): DirtyRowsPatchResult {
+    if (event.full || event.kind !== "content" || event.ranges.length === 0) {
+      return "full";
+    }
+
+    return this.grid.rerenderDirtyBodyCells(event.ranges, this.getRowsRenderVersion());
   }
 
   private getBodyRowRange(): TableGridModel.TableGridRange {
@@ -1770,278 +1498,60 @@ export class TableWidget {
   }
 
   private getBodyColumnRange(): TableGridModel.TableGridColumnRange {
+    const columnRange = this.grid.getState().columnRange;
     return {
-      totalCount: this.bodyTotalColumnCount,
-      startIndex: this.bodyStartColumnIndex,
-      endIndex: this.bodyStartColumnIndex + this.bodyColumnCount,
-      renderedCount: this.bodyColumnCount,
-      leadingWidth: this.bodyColumnLeadingWidth,
-      renderedWidth: this.bodyColumnRenderedWidth,
-      totalWidth: this.bodyColumnLeadingWidth +
-        this.bodyColumnRenderedWidth +
-        this.bodyColumnTrailingWidth,
-      trailingWidth: this.bodyColumnTrailingWidth,
+      totalCount: columnRange.totalCount,
+      startIndex: columnRange.startIndex,
+      endIndex: columnRange.endIndex,
+      renderedCount: columnRange.renderedCount,
+      leadingWidth: columnRange.leadingWidth,
+      renderedWidth: columnRange.renderedWidth,
+      totalWidth: columnRange.totalWidth,
+      trailingWidth: columnRange.trailingWidth,
     };
   }
 
-  private syncRowsTextIfNeeded(
-    tableModel: TableWidgetModel,
-    rowRange: TableGridModel.TableGridRange,
-    columnRange: TableGridModel.TableGridColumnRange,
-  ): void {
-    const rowsVersion = tableModel.getRowsVersion();
-    const displayVersion = this.props.tableState.displayVersion ?? 0;
-    const sourceKey = this.renderedSourceKey;
-    if (
-      this.renderedRowsSourceKey === sourceKey &&
-      this.renderedRowsVersion === rowsVersion &&
-      this.renderedRowsDisplayVersion === displayVersion &&
-      this.renderedRowsStartIndex === rowRange.startIndex &&
-      this.renderedRowsRowCount === rowRange.renderedCount &&
-      this.renderedRowsStartColumnIndex === columnRange.startIndex &&
-      this.renderedRowsColumnCount === columnRange.renderedCount
-    ) {
-      return;
-    }
-
-    for (let rowOffset = 0; rowOffset < rowRange.renderedCount; rowOffset += 1) {
-      const row = this.bodyGrid[rowOffset];
-      const rowIndex = rowRange.startIndex + rowOffset;
-      const cells = tableModel.getRow(rowIndex) ?? [];
-      for (let columnOffset = 0; columnOffset < columnRange.renderedCount; columnOffset += 1) {
-        const colIndex = columnRange.startIndex + columnOffset;
-        const cell = row.cells[columnOffset];
-        const rawValue = cells[colIndex];
-        const profile = tableModel.getColumnDisplayProfile(colIndex);
-        const displayText = formatCell(rawValue, profile);
-        this.updateCellDisplay(
-          cell,
-          displayText,
-          getCellDisplayTitle(rawValue, displayText, profile),
-        );
-      }
-    }
-
-    this.renderedRowsSourceKey = sourceKey;
-    this.renderedRowsVersion = rowsVersion;
-    this.renderedRowsDisplayVersion = displayVersion;
-    this.renderedRowsStartIndex = rowRange.startIndex;
-    this.renderedRowsRowCount = rowRange.renderedCount;
-    this.renderedRowsStartColumnIndex = columnRange.startIndex;
-    this.renderedRowsColumnCount = columnRange.renderedCount;
+  private getRowsRenderVersion(): string {
+    return [
+      this.renderedSourceKey ?? "",
+      this.props.tableModel.getRowsVersion(),
+      this.props.tableState.displayVersion ?? 0,
+    ].join("\u001f");
   }
 
-  private prepareGrid(): void {
-    this.ensureHeaderGrid();
-    this.ensureBodyColumns();
-    this.ensureBodyCells();
-    this.syncBodyGridVisibility({
-      totalCount: 0,
-      startIndex: 0,
-      endIndex: 0,
-      renderedCount: 0,
-    }, {
-      totalCount: 0,
-      startIndex: 0,
-      endIndex: 0,
-      renderedCount: 0,
-      leadingWidth: 0,
-      renderedWidth: 0,
-      totalWidth: 0,
-      trailingWidth: 0,
-    });
-  }
-
-  private ensureBodyGrid(
-    rowRange: TableGridModel.TableGridRange,
-    columnRange: TableGridModel.TableGridColumnRange,
-  ): boolean {
-    const columnsChanged = this.ensureBodyColumns();
-    const gridChanged = this.ensureBodyCells();
-    const visibleRangeChanged = this.syncBodyGridVisibility(rowRange, columnRange);
-
-    if (visibleRangeChanged) {
-      this.appliedCellState = null;
-    }
-
-    return columnsChanged || gridChanged || visibleRangeChanged;
-  }
-
-  private ensureBodyColumns(): boolean {
-    if (this.bodyDataColumns.length > 0) {
-      return false;
-    }
-
-    this.columnGroup.append(this.rowHeaderColumn, this.bodyLeadingSpacerColumn);
-
-    for (
-      let colIndex = 0;
-      colIndex < TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS;
-      colIndex += 1
-    ) {
-      const column = document.createElement("col");
-      column.className = "table_view_data_col";
-      this.bodyDataColumns.push(column);
-      this.columnGroup.append(column);
-    }
-
-    this.columnGroup.append(this.bodyTrailingSpacerColumn);
-
-    return true;
-  }
-
-  private ensureBodyCells(): boolean {
-    if (this.bodyGrid.length > 0) {
-      return false;
-    }
-
-    this.bodyRows.append(this.topSpacerRow);
-
-    for (
-      let rowIndex = 0;
-      rowIndex < TableGridModel.TABLE_GRID_MAX_RENDERED_ROWS;
-      rowIndex += 1
-    ) {
-      const row = document.createElement("tr");
-      const rowHeader = document.createElement("th");
-      const rowHeaderLabel = document.createElement("span");
-      const leadingSpacer = document.createElement("td");
-      const trailingSpacer = document.createElement("td");
-      const cells: BodyCell[] = [];
-
-      rowHeader.scope = "row";
-      rowHeaderLabel.className = "table_view_row_header_label";
-      rowHeaderLabel.textContent = TableGridModel.getTableGridRowLabel(rowIndex);
-      rowHeader.append(rowHeaderLabel);
-      row.append(rowHeader);
-      leadingSpacer.className = "table_view_column_spacer_cell";
-      leadingSpacer.setAttribute("aria-hidden", "true");
-      row.append(leadingSpacer);
-
-      for (
-        let colIndex = 0;
-        colIndex < TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS;
-        colIndex += 1
-      ) {
-        const cell = document.createElement("td");
-        const hover = this.store.add(new MutableDisposable<IManagedHover>());
-        cell.className = "table_view_cell";
-        cell.dataset.rowIndex = String(rowIndex);
-        cell.dataset.colIndex = String(colIndex);
-        row.append(cell);
-        cells.push({ element: cell, hover });
-      }
-
-      trailingSpacer.className = "table_view_column_spacer_cell";
-      trailingSpacer.setAttribute("aria-hidden", "true");
-      row.append(trailingSpacer);
-
-      this.bodyGrid.push({
-        element: row,
-        leadingSpacer,
-        cells,
-        trailingSpacer,
-      });
-      this.bodyRows.append(row);
-    }
-
-    this.bodyRows.append(this.bottomSpacerRow);
-
-    return true;
-  }
-
-  private syncBodyGridVisibility(
-    rowRange: TableGridModel.TableGridRange,
-    columnRange: TableGridModel.TableGridColumnRange,
-  ): boolean {
-    const rowCount = rowRange.renderedCount;
-    const columnCount = columnRange.renderedCount;
+  private syncCachedGridState(): void {
+    const { rowRange, columnRange } = this.grid.getState();
     const changed = this.bodyStartRowIndex !== rowRange.startIndex ||
       this.bodyTotalRowCount !== rowRange.totalCount ||
-      this.bodyRowCount !== rowCount ||
+      this.bodyRowCount !== rowRange.renderedCount ||
       this.bodyStartColumnIndex !== columnRange.startIndex ||
       this.bodyTotalColumnCount !== columnRange.totalCount ||
-      this.bodyColumnCount !== columnCount;
-    const spacerChanged = this.syncVirtualSpacers(rowRange, columnCount);
+      this.bodyColumnCount !== columnRange.renderedCount;
     this.bodyTotalRowCount = rowRange.totalCount;
     this.bodyStartRowIndex = rowRange.startIndex;
-    this.bodyRowCount = rowCount;
+    this.bodyRowCount = rowRange.renderedCount;
     this.bodyTotalColumnCount = columnRange.totalCount;
     this.bodyStartColumnIndex = columnRange.startIndex;
-    this.bodyColumnCount = columnCount;
-    this.bodyColumnLeadingWidth = columnRange.leadingWidth;
-    this.bodyColumnRenderedWidth = columnRange.renderedWidth;
-    this.bodyColumnTrailingWidth = columnRange.trailingWidth;
-
-    for (let rowIndex = 0; rowIndex < this.bodyGrid.length; rowIndex += 1) {
-      const row = this.bodyGrid[rowIndex];
-      const actualRowIndex = rowRange.startIndex + rowIndex;
-      const rowHidden = rowIndex >= rowCount;
-      if (row.appliedHidden !== rowHidden) {
-        row.element.hidden = rowHidden;
-        row.appliedHidden = rowHidden;
-      }
-      if (!rowHidden && row.appliedRowIndex !== actualRowIndex) {
-        const label = row.element.firstElementChild?.firstElementChild;
-        if (label) {
-          label.textContent = TableGridModel.getTableGridRowLabel(actualRowIndex);
-        }
-        row.element.setAttribute("aria-rowindex", String(actualRowIndex + 1));
-        row.appliedRowIndex = actualRowIndex;
-      }
-
-      for (let colIndex = 0; colIndex < row.cells.length; colIndex += 1) {
-        const cell = row.cells[colIndex];
-        const actualColIndex = columnRange.startIndex + colIndex;
-        const cellHidden = colIndex >= columnCount;
-        if (cell.appliedHidden !== cellHidden) {
-          cell.element.hidden = cellHidden;
-          cell.appliedHidden = cellHidden;
-        }
-        if (!rowHidden && !cellHidden && (
-          cell.appliedRowIndex !== actualRowIndex ||
-          cell.appliedColIndex !== actualColIndex
-        )) {
-          cell.element.dataset.colIndex = String(actualColIndex);
-          cell.element.dataset.rowIndex = String(actualRowIndex);
-          cell.element.setAttribute("aria-colindex", String(actualColIndex + 1));
-          cell.appliedRowIndex = actualRowIndex;
-          cell.appliedColIndex = actualColIndex;
-        }
-      }
+    this.bodyColumnCount = columnRange.renderedCount;
+    if (changed) {
+      this.appliedCellState = null;
     }
-
-    for (
-      let colIndex = 0;
-      colIndex < TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS;
-      colIndex += 1
-    ) {
-      const column = this.bodyDataColumns[colIndex];
-      if (column) {
-        column.hidden = colIndex >= columnCount;
-      }
-    }
-
-    return changed || spacerChanged;
   }
 
-  private syncVirtualSpacers(
-    rowRange: TableGridModel.TableGridRange,
-    columnCount: number,
-  ): boolean {
-    const { topHeight, bottomHeight } = TableGridModel.getTableGridSpacerHeights(
-      rowRange,
-      TableGridModel.getTableGridRowHeight(this.zoomPercent),
+  private renderBodyCell(
+    element: HTMLTableCellElement,
+    rowIndex: number,
+    colIndex: number,
+  ): void {
+    const row = this.props.tableModel.getRow(rowIndex) ?? [];
+    const rawValue = row[colIndex];
+    const profile = this.props.tableModel.getColumnDisplayProfile(colIndex);
+    const displayText = formatCell(rawValue, profile);
+    this.updateCellDisplay(
+      this.getBodyCellState(element),
+      displayText,
+      getCellDisplayTitle(rawValue, displayText, profile),
     );
-    const colSpan = Math.max(1, columnCount + 3);
-    const topChanged = syncSpacerRow(this.topSpacerRow, this.topSpacerCell, topHeight, colSpan);
-    const bottomChanged = syncSpacerRow(
-      this.bottomSpacerRow,
-      this.bottomSpacerCell,
-      bottomHeight,
-      colSpan,
-    );
-    return topChanged || bottomChanged;
   }
 
   private syncSelectionState(): void {
@@ -2085,11 +1595,14 @@ export class TableWidget {
     if (!previous) {
       this.syncHeaderColumns(TableGridModel.range(columnCount), next);
       for (let rowOffset = 0; rowOffset < rowCount; rowOffset += 1) {
-        const row = this.bodyGrid[rowOffset];
         const rowIndex = this.bodyStartRowIndex + rowOffset;
         for (let columnOffset = 0; columnOffset < columnCount; columnOffset += 1) {
+          const cell = this.getVisibleBodyCell(rowOffset, columnOffset);
+          if (!cell) {
+            continue;
+          }
           const colIndex = startColumnIndex + columnOffset;
-          this.updateCellState(row.cells[columnOffset], {
+          this.updateCellState(cell, {
             active: selectedRanges.length === 0 && isActiveCell(activeCell, rowIndex, colIndex),
             highlighted: highlightedColumns.has(colIndex),
             selected: isSelectedCell(rowIndex, colIndex, next),
@@ -2110,8 +1623,12 @@ export class TableWidget {
     for (const colIndex of changedColumns) {
       const columnOffset = colIndex - startColumnIndex;
       for (let rowOffset = 0; rowOffset < rowCount; rowOffset += 1) {
+        const cell = this.getVisibleBodyCell(rowOffset, columnOffset);
+        if (!cell) {
+          continue;
+        }
         const rowIndex = this.bodyStartRowIndex + rowOffset;
-        this.updateCellState(this.bodyGrid[rowOffset].cells[columnOffset], {
+        this.updateCellState(cell, {
           active: selectedRanges.length === 0 && isActiveCell(activeCell, rowIndex, colIndex),
           highlighted: highlightedColumns.has(colIndex),
           selected: isSelectedCell(rowIndex, colIndex, next),
@@ -2148,7 +1665,7 @@ export class TableWidget {
 
     const rowOffset = activeCell.rowIndex - this.bodyStartRowIndex;
     const columnOffset = activeCell.colIndex - this.bodyStartColumnIndex;
-    const cell = this.bodyGrid[rowOffset]?.cells[columnOffset];
+    const cell = this.getVisibleBodyCell(rowOffset, columnOffset);
     if (!cell) {
       return;
     }
@@ -2167,7 +1684,7 @@ export class TableWidget {
   ): void {
     for (const columnOffset of columns) {
       const colIndex = this.bodyStartColumnIndex + columnOffset;
-      const cell = this.headerCells[columnOffset];
+      const cell = this.grid.getColumnHeaderCellElement(columnOffset);
       if (!cell) {
         continue;
       }
@@ -2181,16 +1698,31 @@ export class TableWidget {
   }
 
   private isTableVisible(): boolean {
-    return this.scrollArea.viewport.firstChild === this.content &&
-      this.bodyRowCount > 0 &&
-      this.bodyColumnCount > 0;
+    return this.grid.isContentVisible();
   }
 
   private shouldRenderTableOnLayout(): boolean {
     const { tableState } = this.props;
-    return this.scrollArea.viewport.firstChild === this.content &&
+    return this.grid.isContentAttached() &&
       tableState.loadState.state !== "loading" &&
       Boolean(tableState.selectedFileId && tableState.file);
+  }
+
+  private getVisibleBodyCell(rowOffset: number, columnOffset: number): BodyCell | null {
+    const element = this.grid.getBodyCellElement(rowOffset, columnOffset);
+    return element ? this.getBodyCellState(element) : null;
+  }
+
+  private getBodyCellState(element: HTMLTableCellElement): BodyCell {
+    let cell = this.bodyCellStates.get(element);
+    if (!cell) {
+      cell = {
+        element,
+        hover: this.store.add(new MutableDisposable<IManagedHover>()),
+      };
+      this.bodyCellStates.set(element, cell);
+    }
+    return cell;
   }
 
   private updateCellDisplay(cell: BodyCell, text: string, title: string): void {
@@ -2218,19 +1750,11 @@ export class TableWidget {
   }
 
   private disposeBodyCellHovers(): void {
-    for (const row of this.bodyGrid) {
-      for (const cell of row.cells) {
-        cell.hover.clear();
-      }
-    }
+    this.grid.forEachBodyCellElement(cell => this.getBodyCellState(cell).hover.clear());
   }
 
   private clearRowsText(): void {
-    for (const row of this.bodyGrid) {
-      for (const cell of row.cells) {
-        this.updateCellDisplay(cell, "", "");
-      }
-    }
+    this.grid.clearBodyCells();
   }
 
   private updateCellState(
@@ -2277,13 +1801,13 @@ export class TableWidget {
     }
 
     const scaleButton = target.closest<HTMLButtonElement>(".table_view_column_scale_button");
-    if (scaleButton && this.headerContent.contains(scaleButton)) {
+    if (scaleButton && this.grid.containsHeaderTarget(scaleButton)) {
       this.onColumnScaleButtonClick(event, scaleButton);
       return;
     }
 
     const button = target.closest<HTMLButtonElement>(".table_view_column_button");
-    if (!button || !this.headerContent.contains(button)) {
+    if (!button || !this.grid.containsHeaderTarget(button)) {
       return;
     }
 
@@ -2333,9 +1857,9 @@ export class TableWidget {
       button: event.button,
       clientX: event.clientX,
       columnRange: this.getBodyColumnRange(),
-      containerLeft: this.body.getBoundingClientRect().left,
+      containerLeft: this.grid.getBodyLeft(),
       getColumnWidth: index => this.getColumnWidth(index),
-      scrollLeft: this.scrollArea.viewport.scrollLeft,
+      scrollLeft: this.grid.getScrollLeft(),
       zoomPercent: this.zoomPercent,
     });
     if (colIndex === null) {
@@ -2347,8 +1871,8 @@ export class TableWidget {
         colIndex,
         columnRange: this.getBodyColumnRange(),
         getColumnWidth: index => this.getColumnWidth(index),
-        scrollLeft: this.scrollArea.viewport.scrollLeft,
-        visible: !this.header.hidden,
+        scrollLeft: this.grid.getScrollLeft(),
+        visible: this.grid.isHeaderVisible(),
         zoomPercent: this.zoomPercent,
       });
     if (startGuideLeft === null) {
@@ -2400,7 +1924,7 @@ export class TableWidget {
     const guideLeft = TableGridModel.resolveTableGridColumnResizeDragGuideLeft({
       startGuideLeft: state.startGuideLeft,
       startWidth: state.startWidth,
-      visible: !this.header.hidden,
+      visible: this.grid.isHeaderVisible(),
       width,
       zoomPercent: this.zoomPercent,
     });
@@ -2431,41 +1955,18 @@ export class TableWidget {
   }
 
   private getColumnResizeBoundaryLeft(colIndex: number): number | null {
-    const columnOffset = colIndex - this.bodyStartColumnIndex;
-    if (columnOffset < 0 || columnOffset >= this.bodyColumnCount) {
-      return null;
-    }
-
-    const headerCell = this.headerCells[columnOffset];
-    if (!headerCell || headerCell.hidden) {
-      return null;
-    }
-
-    return headerCell.getBoundingClientRect().right - this.body.getBoundingClientRect().left;
+    return this.grid.getColumnResizeBoundaryLeft(colIndex);
   }
 
   private getColumnWidth(colIndex: number): number {
     return this.columnWidths.get(colIndex) ?? TableColumnLayout.defaultWidth;
   }
 
-  private getColumnCssWidth(colIndex: number): string {
-    const width = this.getColumnWidth(colIndex) *
-      TableGridModel.getTableGridZoomScale(this.zoomPercent);
-    return `${width}px`;
-  }
-
   private syncColumnResizeGuide(): void {
     const left = this.columnResizeState
       ? this.columnResizeState.guideLeft
       : null;
-    if (left === null) {
-      this.columnResizeGuide.hidden = true;
-      this.columnResizeGuide.style.left = "";
-      return;
-    }
-
-    this.columnResizeGuide.hidden = false;
-    this.columnResizeGuide.style.left = `${left}px`;
+    this.grid.syncColumnResizeGuide(left);
   }
 
   private onKeyDown(event: KeyboardEvent): void {
@@ -2680,68 +2181,22 @@ export class TableWidget {
     return Math.max(
       1,
       Math.floor(
-        this.scrollArea.viewport.clientHeight /
+        this.grid.getViewportClientHeight() /
           TableGridModel.getTableGridRowHeight(this.zoomPercent),
       ),
     );
   }
 
   private revealCell(cell: TableCell): void {
-    const verticalChanged = this.revealCellVertically(cell.rowIndex);
-    const horizontalChanged = this.revealCellHorizontally(cell.colIndex);
-    if (verticalChanged || horizontalChanged) {
+    if (this.grid.revealCell(
+      cell.rowIndex,
+      cell.colIndex,
+      this.zoomPercent,
+      colIndex => this.getColumnWidth(colIndex),
+    )) {
       this.renderTable();
       this.syncHeaderScroll();
     }
-  }
-
-  private revealCellVertically(rowIndex: number): boolean {
-    const viewport = this.scrollArea.viewport;
-    const rowHeight = TableGridModel.getTableGridRowHeight(this.zoomPercent);
-    const top = rowIndex * rowHeight;
-    const bottom = top + rowHeight;
-    const viewportTop = viewport.scrollTop;
-    const viewportBottom = viewportTop + viewport.clientHeight;
-    const nextScrollTop = top < viewportTop
-      ? top
-      : bottom > viewportBottom
-        ? bottom - viewport.clientHeight
-        : viewportTop;
-    if (Math.abs(nextScrollTop - viewportTop) < 0.5) {
-      return false;
-    }
-
-    viewport.scrollTop = Math.max(0, nextScrollTop);
-    return true;
-  }
-
-  private revealCellHorizontally(colIndex: number): boolean {
-    const viewport = this.scrollArea.viewport;
-    const scale = TableGridModel.getTableGridZoomScale(this.zoomPercent);
-    const rowHeaderWidth = TableGridModel.getTableGridRowHeaderWidth(this.zoomPercent);
-    const left = this.getColumnOffset(colIndex, scale);
-    const right = left + (this.getColumnWidth(colIndex) * scale);
-    const viewportLeft = viewport.scrollLeft + rowHeaderWidth;
-    const viewportRight = viewport.scrollLeft + viewport.clientWidth;
-    const nextScrollLeft = left < viewportLeft
-      ? left - rowHeaderWidth
-      : right > viewportRight
-        ? right - viewport.clientWidth
-        : viewport.scrollLeft;
-    if (Math.abs(nextScrollLeft - viewport.scrollLeft) < 0.5) {
-      return false;
-    }
-
-    viewport.scrollLeft = Math.max(0, nextScrollLeft);
-    return true;
-  }
-
-  private getColumnOffset(colIndex: number, scale: number): number {
-    let offset = TableGridModel.getTableGridRowHeaderWidth(this.zoomPercent);
-    for (let index = 0; index < colIndex; index += 1) {
-      offset += this.getColumnWidth(index) * scale;
-    }
-    return offset;
   }
 
   private onBodyPointerDown(event: PointerEvent): void {
@@ -2897,7 +2352,7 @@ export class TableWidget {
     }
 
     const cell = target.closest<HTMLTableCellElement>(".table_view_cell");
-    if (!cell || cell.hidden || !this.bodyRows.contains(cell)) {
+    if (!cell || cell.hidden || !this.grid.containsBodyTarget(cell)) {
       return null;
     }
 
@@ -2989,10 +2444,7 @@ export class TableWidget {
   }
 
   private syncHeaderScroll(): void {
-    const scrollLeft = this.scrollArea.viewport.scrollLeft;
-    this.headerContent.style.transform = scrollLeft === 0
-      ? ""
-      : `translateX(${-scrollLeft}px)`;
+    this.grid.syncHeaderScroll();
     this.syncColumnResizeGuide();
   }
 
@@ -3069,54 +2521,6 @@ const setHidden = (element: HTMLElement, hidden: boolean): boolean => {
 
   element.hidden = hidden;
   return true;
-};
-
-const setElementWidth = (element: HTMLElement, width: string): boolean => {
-  let changed = false;
-  if (element.style.width !== width) {
-    element.style.width = width;
-    changed = true;
-  }
-  if (element.style.minWidth !== width) {
-    element.style.minWidth = width;
-    changed = true;
-  }
-  if (element.style.maxWidth !== width) {
-    element.style.maxWidth = width;
-    changed = true;
-  }
-  return changed;
-};
-
-const setColumnWidth = (column: HTMLTableColElement, width: string): boolean => {
-  if (column.style.width === width) {
-    return false;
-  }
-
-  column.style.width = width;
-  return true;
-};
-
-const syncSpacerRow = (
-  row: HTMLTableRowElement,
-  cell: HTMLTableCellElement,
-  height: number,
-  colSpan: number,
-): boolean => {
-  const visible = height > 0;
-  let changed = setHidden(row, !visible);
-  if (cell.colSpan !== colSpan) {
-    cell.colSpan = colSpan;
-    changed = true;
-  }
-
-  const nextHeight = visible ? `${height}px` : "";
-  if (cell.style.height !== nextHeight) {
-    cell.style.height = nextHeight;
-    changed = true;
-  }
-
-  return changed;
 };
 
 const getTableWidgetInputKey = ({

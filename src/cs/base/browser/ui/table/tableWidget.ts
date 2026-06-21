@@ -1,438 +1,253 @@
-import { clearNode, getContentHeight, getContentWidth } from "src/cs/base/browser/dom";
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
+import { Emitter, type Event } from "src/cs/base/common/event";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { ListView } from "src/cs/base/browser/ui/list/listView";
-import type { ListRenderState } from "src/cs/base/browser/ui/list/list";
-import SplitView, {
-  type SplitViewPane,
-  type SplitViewResizeEvent,
-} from "src/cs/base/browser/ui/splitview/splitview";
-import { getBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
-import type {
-  ITableColumn,
-  ITableRenderer,
-  ITableSelectEvent,
-  ITableVirtualDelegate,
-} from "src/cs/base/browser/ui/table/table";
-import { TableError } from "src/cs/base/browser/ui/table/table";
+import {
+	VirtualTable,
+	VirtualTableGridModel,
+	type VirtualTableCellRange,
+	type VirtualTableOptions,
+	type VirtualTableRenderer,
+	type VirtualTableRenderOptions,
+	type VirtualTableScrollEvent,
+	type VirtualTableState,
+	type VirtualTableVisibleRangeChangeEvent,
+} from "src/cs/base/browser/ui/table/virtualTable";
 
 import "src/cs/base/browser/ui/table/table.css";
 
-type CellTemplate = {
-  readonly container: HTMLElement;
-  readonly data: unknown;
+export type TableWidgetRenderer = VirtualTableRenderer;
+
+export type TableWidgetOptions = VirtualTableOptions & {
+	readonly className?: string;
 };
 
-type RowTemplateData<TRow> = {
-  readonly cells: CellTemplate[];
-  readonly container: HTMLElement;
-  index: number;
-  row: TRow;
+/**
+ * Half-open dirty range in logical table coordinates. Missing row or column
+ * bounds mean the change applies to the currently visible span on that axis.
+ */
+export type TableWidgetDirtyRange = {
+	readonly endCol?: number;
+	readonly endRow?: number;
+	readonly startCol?: number;
+	readonly startRow?: number;
 };
 
-export type TableOptions<TRow> = {
-  readonly className?: string;
-  readonly empty?: (container: HTMLElement) => void;
-  readonly disposeEmpty?: (container: HTMLElement) => void;
-  readonly getKey: (row: TRow, index: number) => string;
-  readonly minVirtualCount?: number;
-  readonly onKeyDown?: (event: KeyboardEvent) => void;
-  readonly onSelect?: (event: ITableSelectEvent<TRow>) => void;
-  readonly overscanRows?: number;
-  readonly rowGap?: number;
-  readonly selectedKey?: string | null;
-};
+export type TableWidgetPatchResult = "ignored" | "patched";
 
-export type TableOptionsUpdate<TRow> = Partial<TableOptions<TRow>> & {
-  readonly getKey?: (row: TRow, index: number) => string;
-};
+/**
+ * Stable base table entry point for workbench consumers, mirroring the upstream
+ * shape where callers depend on one widget owner instead of structure class
+ * maps. Feature code can add one root class, subscribe to events, and provide
+ * renderers for domain content.
+ *
+ * The pooled DOM skeleton and its CSS hooks are owned by the base table.
+ */
+export class TableWidget implements IDisposable {
+	public readonly element: HTMLElement;
+	public readonly onDidChangeVisibleRange: Event<VirtualTableVisibleRangeChangeEvent>;
+	public readonly onDidScroll: Event<VirtualTableScrollEvent>;
 
-const DEFAULT_COLUMN_WIDTH = 120;
+	private readonly disposables = new DisposableStore();
+	private readonly onDidClickBodyEmitter = this.disposables.add(new Emitter<MouseEvent>());
+	private readonly onDidClickHeaderEmitter = this.disposables.add(new Emitter<MouseEvent>());
+	private readonly onDidPointerDownBodyEmitter = this.disposables.add(new Emitter<PointerEvent>());
+	private readonly onDidPointerDownHeaderEmitter = this.disposables.add(new Emitter<PointerEvent>());
+	private readonly virtualTable: VirtualTable;
 
-const classNames = (...names: Array<string | undefined>): string =>
-  names
-    .flatMap((name) => name?.split(/\s+/g) ?? [])
-    .filter(Boolean)
-    .join(" ");
+	public readonly onDidClickBody = this.onDidClickBodyEmitter.event;
+	public readonly onDidClickHeader = this.onDidClickHeaderEmitter.event;
+	public readonly onDidPointerDownBody = this.onDidPointerDownBodyEmitter.event;
+	public readonly onDidPointerDownHeader = this.onDidPointerDownHeaderEmitter.event;
 
-export class Table<TRow> implements IDisposable {
-  public readonly domNode: HTMLElement;
-  private readonly bodyElement: HTMLDivElement;
-  private readonly headerElement: HTMLDivElement;
-  private readonly disposables = new DisposableStore();
-  private readonly headerDisposables = this.disposables.add(new DisposableStore());
-  private readonly rowTemplates = new Map<string, RowTemplateData<TRow>>();
-  private readonly splitView: SplitView;
-  private readonly list: ListView<TRow>;
-  private readonly renderers: ITableRenderer<unknown, unknown>[];
-  private options: TableOptions<TRow>;
-  private columnSizes: number[];
-  private rows: TRow[] = [];
-  private cachedHeight = 0;
-  private cachedWidth = 0;
+	public constructor(options: TableWidgetOptions) {
+		const { className, ...virtualOptions } = options;
+		this.virtualTable = this.disposables.add(new VirtualTable(virtualOptions));
+		this.element = this.virtualTable.element;
+		this.onDidChangeVisibleRange = this.virtualTable.onDidChangeVisibleRange;
+		this.onDidScroll = this.virtualTable.onDidScroll;
+		addRootClassName(this.element, className);
+		this.disposables.add(addDisposableListener(this.virtualTable.headerContent, EventType.CLICK, event => {
+			this.onDidClickHeaderEmitter.fire(event as MouseEvent);
+		}));
+		this.disposables.add(addDisposableListener(this.virtualTable.headerContent, EventType.POINTER_DOWN, event => {
+			this.onDidPointerDownHeaderEmitter.fire(event as PointerEvent);
+		}));
+		this.disposables.add(addDisposableListener(this.virtualTable.bodyRows, EventType.CLICK, event => {
+			this.onDidClickBodyEmitter.fire(event as MouseEvent);
+		}));
+		this.disposables.add(addDisposableListener(this.virtualTable.bodyRows, EventType.POINTER_DOWN, event => {
+			this.onDidPointerDownBodyEmitter.fire(event as PointerEvent);
+		}, { passive: false }));
+	}
 
-  public constructor(
-    private readonly user: string,
-    container: HTMLElement,
-    private readonly virtualDelegate: ITableVirtualDelegate<TRow>,
-    private readonly columns: readonly ITableColumn<TRow, unknown>[],
-    renderers: readonly ITableRenderer<unknown, unknown>[],
-    options: TableOptions<TRow>,
-  ) {
-    this.options = options;
-    this.renderers = this.resolveRenderers(renderers);
-    this.columnSizes = columns.map((column) =>
-      Math.max(column.minimumWidth ?? DEFAULT_COLUMN_WIDTH, column.weight),
-    );
+	public dispose(): void {
+		this.disposables.dispose();
+	}
 
-    this.domNode = document.createElement("div");
-    this.headerElement = document.createElement("div");
-    this.bodyElement = document.createElement("div");
-    this.domNode.append(this.headerElement, this.bodyElement);
-    container.appendChild(this.domNode);
+	public layout(): void {
+		this.virtualTable.layout();
+	}
 
-    this.splitView = this.disposables.add(new SplitView({
-      className: "ui-table__header-split-view",
-      onDidResize: (event) => this.onDidResizeColumns(event),
-      onDidResizeEnd: (event) => this.onDidResizeColumns(event),
-      orientation: "horizontal",
-      panes: this.createHeaderPanes(),
-      style: {
-        height: `${this.virtualDelegate.headerRowHeight}px`,
-        lineHeight: `${this.virtualDelegate.headerRowHeight}px`,
-      },
-    }));
-    this.headerElement.appendChild(this.splitView.element);
-    this.renderHeaders();
+	public render(options: VirtualTableRenderOptions): boolean {
+		return this.virtualTable.render(options);
+	}
 
-    this.list = this.disposables.add(new ListView(this.bodyElement, {
-      delegate: {
-        getHeight: (row) => this.virtualDelegate.getHeight(row),
-      },
-      disposeEmpty: options.disposeEmpty,
-      disposeItem: (row, index) => this.disposeRow(row, index),
-      empty: options.empty,
-      getKey: options.getKey,
-      gap: options.rowGap,
-      items: this.rows,
-      minVirtualCount: options.minVirtualCount,
-      onKeyDown: options.onKeyDown,
-      onSelect: (row, index, browserEvent) => {
-        this.options.onSelect?.({ browserEvent, index, row });
-      },
-      overscanRows: options.overscanRows,
-      renderItem: (row, index, state, container) => this.renderRow(row, index, state, container),
-      role: "rowgroup",
-      rowRole: "row",
-      selectedKey: options.selectedKey,
-      viewportClassName: "ui-table__viewport",
-    }));
+	public getState(): VirtualTableState {
+		return this.virtualTable.getState();
+	}
 
-    for (const column of columns) {
-      if (column.onDidChangeWidthConstraints) {
-        column.onDidChangeWidthConstraints(() => this.layout(this.cachedHeight, this.cachedWidth), undefined, this.disposables);
-      }
-    }
+	public isContentVisible(): boolean {
+		return this.virtualTable.isContentVisible();
+	}
 
-    this.updateClasses();
-  }
+	public isContentAttached(): boolean {
+		return this.virtualTable.isContentAttached();
+	}
 
-  public get length(): number {
-    return this.rows.length;
-  }
+	public attachContent(): boolean {
+		return this.virtualTable.attachContent();
+	}
 
-  public getColumnLabels(): string[] {
-    return this.columns.map((column) => column.label);
-  }
+	public replaceViewportContent(element?: HTMLElement): void {
+		this.virtualTable.replaceViewportContent(element);
+	}
 
-  public row(index: number): TRow {
-    const row = this.rows[index];
-    if (typeof row === "undefined") {
-      throw new TableError(this.user, `Row ${index} not found.`);
-    }
+	public resetScrollTop(): void {
+		this.virtualTable.resetScrollTop();
+	}
 
-    return row;
-  }
+	public scrollHorizontally(delta: number): boolean {
+		return this.virtualTable.scrollHorizontally(delta);
+	}
 
-  public setRows(rows: readonly TRow[]): void {
-    this.rows = [...rows];
-    this.updateList();
-  }
+	public revealCell(
+		rowIndex: number,
+		colIndex: number,
+		zoomPercent: number,
+		getColumnWidth: (colIndex: number) => number,
+	): boolean {
+		return this.virtualTable.revealCell(rowIndex, colIndex, zoomPercent, getColumnWidth);
+	}
 
-  public splice(start: number, deleteCount: number, rows: readonly TRow[] = []): void {
-    this.rows.splice(start, deleteCount, ...rows);
-    this.updateList();
-  }
+	public getBodyCellElement(rowOffset: number, columnOffset: number): HTMLTableCellElement | null {
+		return this.virtualTable.getBodyCell(rowOffset, columnOffset);
+	}
 
-  public updateOptions(options: TableOptionsUpdate<TRow>): void {
-    this.options = {
-      ...this.options,
-      ...options,
-      getKey: options.getKey ?? this.options.getKey,
-    };
-    this.updateClasses();
-    this.updateList();
-  }
+	public getColumnHeaderCellElement(columnOffset: number): HTMLElement | null {
+		return this.virtualTable.getColumnHeaderCell(columnOffset);
+	}
 
-  public resizeColumn(index: number, percentage: number): void {
-    if (index < 0 || index >= this.columnSizes.length || this.cachedWidth <= 0) {
-      return;
-    }
+	public forEachBodyCellElement(callback: (cell: HTMLTableCellElement) => void): void {
+		this.virtualTable.forEachBodyCell(cell => callback(cell.element));
+	}
 
-    this.columnSizes[index] = Math.round((percentage / 100) * this.cachedWidth);
-    this.updateHeaderPanes();
-    this.layout(this.cachedHeight, this.cachedWidth);
-  }
+	public clearBodyCells(): void {
+		this.virtualTable.clearBodyCells();
+	}
 
-  public layout(height?: number, width?: number): void {
-    this.cachedHeight = height ?? getContentHeight(this.domNode);
-    this.cachedWidth = width ?? getContentWidth(this.domNode);
+	public rerenderDirtyBodyCells(
+		ranges: readonly TableWidgetDirtyRange[],
+		renderVersion: unknown,
+	): TableWidgetPatchResult {
+		const visibleRanges = this.toVisibleBodyCellRanges(ranges);
+		if (visibleRanges.length === 0) {
+			return "ignored";
+		}
 
-    this.domNode.style.height = `${Math.max(0, this.cachedHeight)}px`;
-    this.domNode.style.width = `${Math.max(0, this.cachedWidth)}px`;
-    this.updateHeaderPanes();
-    this.list.layout(
-      Math.max(0, this.cachedHeight - this.virtualDelegate.headerRowHeight),
-      this.cachedWidth,
-    );
-  }
+		this.virtualTable.rerenderBodyCells(visibleRanges, renderVersion);
+		return "patched";
+	}
 
-  public focus(): void {
-    this.list.focus();
-  }
+	public containsBodyTarget(target: EventTarget | null): boolean {
+		const targetWindow = this.element.ownerDocument.defaultView;
+		return Boolean(targetWindow && target instanceof targetWindow.Node && this.virtualTable.bodyRows.contains(target));
+	}
 
-  public getHTMLElement(): HTMLElement {
-    return this.domNode;
-  }
+	public containsHeaderTarget(target: EventTarget | null): boolean {
+		const targetWindow = this.element.ownerDocument.defaultView;
+		return Boolean(targetWindow && target instanceof targetWindow.Node && this.virtualTable.headerContent.contains(target));
+	}
 
-  public dispose(): void {
-    for (const template of this.rowTemplates.values()) {
-      this.disposeRowTemplate(template);
-    }
-    this.rowTemplates.clear();
-    this.disposables.dispose();
-    this.domNode.remove();
-  }
+	public getBodyLeft(): number {
+		return this.virtualTable.body.getBoundingClientRect().left;
+	}
 
-  private updateClasses(): void {
-    this.domNode.className = classNames("ui-table", this.options.className);
-    this.domNode.setAttribute("role", "table");
-    this.headerElement.className = "ui-table__header";
-    this.headerElement.setAttribute("role", "row");
-    this.bodyElement.className = "ui-table__body";
-  }
+	public getScrollLeft(): number {
+		return this.virtualTable.viewport.scrollLeft;
+	}
 
-  private createHeaderPanes(): SplitViewPane[] {
-    return this.columns.map((column, index) => ({
-      className: "ui-table__header-pane",
-      id: String(index),
-      maxSize: column.maximumWidth,
-      minSize: column.minimumWidth,
-      size: this.columnSizes[index] ?? column.weight,
-    }));
-  }
+	public getViewportClientHeight(): number {
+		return this.virtualTable.viewport.clientHeight;
+	}
 
-  private updateHeaderPanes(): void {
-    this.splitView.update({
-      className: "ui-table__header-split-view",
-      onDidResize: (event) => this.onDidResizeColumns(event),
-      onDidResizeEnd: (event) => this.onDidResizeColumns(event),
-      orientation: "horizontal",
-      panes: this.createHeaderPanes(),
-      style: {
-        height: `${this.virtualDelegate.headerRowHeight}px`,
-        lineHeight: `${this.virtualDelegate.headerRowHeight}px`,
-      },
-    });
-    this.renderHeaders();
-    this.syncColumnSizesFromHeaders();
-    this.layoutRenderedColumns();
-  }
+	public setBodyStyleProperty(name: string, value: string): void {
+		this.virtualTable.body.style.setProperty(name, value);
+	}
 
-  private renderHeaders(): void {
-    this.headerDisposables.clear();
+	public setHeaderVisible(visible: boolean): void {
+		this.virtualTable.header.hidden = !visible;
+	}
 
-    for (let index = 0; index < this.columns.length; index += 1) {
-      const column = this.columns[index];
-      const pane = this.splitView.getPaneElement(String(index));
-      if (!pane) {
-        continue;
-      }
+	public isHeaderVisible(): boolean {
+		return !this.virtualTable.header.hidden;
+	}
 
-      let cell = pane.querySelector<HTMLElement>(".ui-table__header-cell");
-      if (!cell) {
-        cell = document.createElement("div");
-        cell.className = "ui-table__header-cell";
-        cell.setAttribute("role", "columnheader");
-        cell.dataset.colIndex = String(index);
-        pane.appendChild(cell);
-      }
-      cell.textContent = column.label;
-      if (column.tooltip) {
-        cell.title = column.tooltip;
-        this.headerDisposables.add(getBaseLayerHoverDelegate().setupManagedHover(cell, column.tooltip));
-      } else {
-        cell.removeAttribute("title");
-      }
-    }
-  }
+	public getColumnResizeBoundaryLeft(colIndex: number): number | null {
+		return this.virtualTable.getColumnResizeBoundaryLeft(colIndex);
+	}
 
-  private onDidResizeColumns(event: SplitViewResizeEvent): void {
-    this.columnSizes = event.sizes.map((size) => Math.max(0, size));
-    this.layoutRenderedColumns();
-  }
+	public syncColumnResizeGuide(left: number | null): void {
+		this.virtualTable.syncColumnResizeGuide(left);
+	}
 
-  private updateList(): void {
-    this.list.setProps({
-      delegate: {
-        getHeight: (row) => this.virtualDelegate.getHeight(row),
-      },
-      disposeEmpty: this.options.disposeEmpty,
-      disposeItem: (row, index) => this.disposeRow(row, index),
-      empty: this.options.empty,
-      getKey: this.options.getKey,
-      gap: this.options.rowGap,
-      items: this.rows,
-      minVirtualCount: this.options.minVirtualCount,
-      onKeyDown: this.options.onKeyDown,
-      onSelect: (row, index, browserEvent) => {
-        this.options.onSelect?.({ browserEvent, index, row });
-      },
-      overscanRows: this.options.overscanRows,
-      renderItem: (row, index, state, container) => this.renderRow(row, index, state, container),
-      role: "rowgroup",
-      rowRole: "row",
-      selectedKey: this.options.selectedKey,
-      viewportClassName: "ui-table__viewport",
-    });
-  }
+	public syncHeaderScroll(): void {
+		this.virtualTable.syncHeaderScroll();
+	}
 
-  private resolveRenderers(
-    renderers: readonly ITableRenderer<unknown, unknown>[],
-  ): ITableRenderer<unknown, unknown>[] {
-    const rendererMap = new Map(renderers.map((renderer) => [renderer.templateId, renderer]));
+	private toVisibleBodyCellRanges(
+		dirtyRanges: readonly TableWidgetDirtyRange[],
+	): VirtualTableCellRange[] {
+		const state = this.virtualTable.getState();
+		const visibleRowStart = state.rowRange.startIndex;
+		const visibleRowEnd = state.rowRange.endIndex;
+		const visibleColStart = state.columnRange.startIndex;
+		const visibleColEnd = state.columnRange.endIndex;
+		const ranges: VirtualTableCellRange[] = [];
+		for (const dirtyRange of dirtyRanges) {
+			const startRow = Math.max(visibleRowStart, dirtyRange.startRow ?? visibleRowStart);
+			const endRow = Math.min(visibleRowEnd, dirtyRange.endRow ?? visibleRowEnd);
+			const startCol = Math.max(visibleColStart, dirtyRange.startCol ?? visibleColStart);
+			const endCol = Math.min(visibleColEnd, dirtyRange.endCol ?? visibleColEnd);
+			if (startRow >= endRow || startCol >= endCol) {
+				continue;
+			}
 
-    return this.columns.map((column) => {
-      const renderer = rendererMap.get(column.templateId);
-      if (!renderer) {
-        throw new TableError(this.user, `Cell renderer for template id ${column.templateId} not found.`);
-      }
+			ranges.push({
+				startRow,
+				endRow: endRow - 1,
+				startCol,
+				endCol: endCol - 1,
+			});
+		}
 
-      return renderer;
-    });
-  }
-
-  private renderRow(row: TRow, index: number, state: ListRenderState, mount: HTMLElement): void {
-    const key = this.options.getKey(row, index);
-    const template = this.ensureRowTemplate(key, row, index);
-    if (template.container.parentElement !== mount) {
-      mount.replaceChildren(template.container);
-    }
-    template.container.setAttribute("aria-rowindex", String(index + 1));
-    template.container.dataset.index = String(index);
-
-    for (let columnIndex = 0; columnIndex < this.columns.length; columnIndex += 1) {
-      const column = this.columns[columnIndex];
-      const renderer = this.renderers[columnIndex];
-      const cellTemplate = template.cells[columnIndex];
-
-      if (!column || !renderer || !cellTemplate) {
-        continue;
-      }
-
-      renderer.renderElement(column.project(row), index, cellTemplate.data, state);
-    }
-  }
-
-  private ensureRowTemplate(key: string, row: TRow, index: number): RowTemplateData<TRow> {
-    let template = this.rowTemplates.get(key);
-    if (template) {
-      template.row = row;
-      template.index = index;
-      return template;
-    }
-
-    const container = document.createElement("div");
-    container.className = "ui-table__row";
-    container.setAttribute("role", "presentation");
-
-    const cells = this.columns.map((_, columnIndex) => {
-      const cell = document.createElement("div");
-      cell.className = "ui-table__cell";
-      cell.setAttribute("role", "cell");
-      cell.dataset.colIndex = String(columnIndex);
-      cell.style.width = `${this.columnSizes[columnIndex] ?? DEFAULT_COLUMN_WIDTH}px`;
-      container.appendChild(cell);
-
-      return {
-        container: cell,
-        data: this.renderers[columnIndex].renderTemplate(cell),
-      };
-    });
-
-    template = {
-      cells,
-      container,
-      index,
-      row,
-    };
-    this.rowTemplates.set(key, template);
-    return template;
-  }
-
-  private disposeRow(row: TRow, index: number): void {
-    const key = this.options.getKey(row, index);
-    const template = this.rowTemplates.get(key);
-    if (!template) {
-      return;
-    }
-
-    this.disposeRowTemplate(template);
-    this.rowTemplates.delete(key);
-  }
-
-  private disposeRowTemplate(template: RowTemplateData<TRow>): void {
-    for (let columnIndex = 0; columnIndex < template.cells.length; columnIndex += 1) {
-      const renderer = this.renderers[columnIndex];
-      const column = this.columns[columnIndex];
-      const cellTemplate = template.cells[columnIndex];
-      if (!renderer || !column || !cellTemplate) {
-        continue;
-      }
-
-      renderer.disposeElement?.(
-        column.project(template.row),
-        template.index,
-        cellTemplate.data,
-        {
-          focused: false,
-          index: template.index,
-          selected: false,
-        },
-      );
-      renderer.disposeTemplate(cellTemplate.data);
-      clearNode(cellTemplate.container);
-    }
-    template.container.remove();
-  }
-
-  private layoutRenderedColumns(): void {
-    for (const template of this.rowTemplates.values()) {
-      for (let index = 0; index < template.cells.length; index += 1) {
-        template.cells[index].container.style.width = `${this.columnSizes[index] ?? DEFAULT_COLUMN_WIDTH}px`;
-      }
-    }
-  }
-
-  private syncColumnSizesFromHeaders(): void {
-    for (let index = 0; index < this.columns.length; index += 1) {
-      const pane = this.splitView.getPaneElement(String(index));
-      const width = pane?.getBoundingClientRect().width ?? 0;
-      if (width > 0) {
-        this.columnSizes[index] = width;
-      }
-    }
-  }
+		return ranges;
+	}
 }
 
-export type ITableOptions<TRow> = TableOptions<TRow>;
-export type ITableOptionsUpdate<TRow> = TableOptionsUpdate<TRow>;
+export { VirtualTableGridModel };
+
+function addRootClassName(element: HTMLElement, className: string | undefined): void {
+	if (!className) {
+		return;
+	}
+
+	for (const name of className.split(/\s+/g)) {
+		if (name) {
+			element.classList.add(name);
+		}
+	}
+}

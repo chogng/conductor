@@ -83,6 +83,10 @@ class MemoryFileService implements IFileService {
 		}]);
 	}
 
+	public async moveFileToTrash(resource: URI): Promise<void> {
+		await this.deleteFile(resource);
+	}
+
 	public async realpath(resource: URI): Promise<URI> {
 		return resource;
 	}
@@ -120,6 +124,10 @@ class TestNativeHostService implements INativeHostService {
 
 	public async showOpenDialog(_options: INativeOpenDialogOptions): Promise<INativeOpenDialogResult> {
 		return { canceled: true, filePaths: [] };
+	}
+
+	public async showMessageBox(): Promise<{ readonly response: number }> {
+		return { response: 0 };
 	}
 
 	public async showItemInFolder(): Promise<void> {}

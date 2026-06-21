@@ -1,6 +1,9 @@
 import assert from "assert";
 
 import {
+  VirtualTableGridModel,
+} from "src/cs/base/browser/ui/table/tableWidget";
+import {
   getTableGridColumnLabel,
   getTableGridRowLabel,
   getTableGridRowHeaderWidth,
@@ -447,5 +450,39 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
       visible: false,
       zoomPercent: 100,
     }), null);
+  });
+
+  test("base virtual table model resolves bounded viewport ranges", () => {
+    assert.deepEqual(VirtualTableGridModel.resolveViewportRange({
+      totalCount: 100,
+      maxRenderedCount: 4,
+      rowHeight: 28,
+      scrollTop: 28 * 20,
+      viewportHeight: 56,
+    }), {
+      totalCount: 100,
+      startIndex: 12,
+      endIndex: 16,
+      renderedCount: 4,
+    });
+  });
+
+  test("base virtual table model keeps logical columns beyond the pooled count", () => {
+    assert.equal(VirtualTableGridModel.resolveDisplayColumnCount({
+      totalCount: 20,
+      viewportWidth: 4_000,
+      zoomPercent: 100,
+      maxDisplayedCount: 8,
+      overscanCount: 1,
+      getColumnWidth: () => 160,
+    }), 20);
+    assert.equal(VirtualTableGridModel.resolveDisplayColumnCount({
+      totalCount: 3,
+      viewportWidth: 500,
+      zoomPercent: 100,
+      maxDisplayedCount: 8,
+      overscanCount: 1,
+      getColumnWidth: () => 160,
+    }), 5);
   });
 });

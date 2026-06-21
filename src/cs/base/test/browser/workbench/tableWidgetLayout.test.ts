@@ -19,6 +19,7 @@ import {
 import { getTableColumnHeaderSelectionMode } from "src/cs/workbench/contrib/table/browser/tableViewPane";
 import type {
   TableSelection,
+  TableRowsVersionChangeEvent,
   TableState,
 } from "src/cs/workbench/services/table/common/table";
 import { toScaleHeaderSuffix } from "src/cs/workbench/services/table/common/numericFormat";
@@ -157,6 +158,51 @@ suite("base/browser/workbench tableWidget layout", () => {
       );
       assert.equal(getVisibleScaleText(widget.element), "×10⁻⁹");
       assert.equal(getVisibleCellText(widget.element, 0, 0), "1000");
+    } finally {
+      widget.dispose();
+    }
+  });
+
+  test("patches only visible content dirty cells", async () => {
+    const dynamicModel = createContentDirtyTableWidgetModel();
+    const widget = new TableWidget({
+      onSelect: () => true,
+      tableModel: dynamicModel.model,
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 500, 280);
+      widget.layout();
+      await timeout(120);
+
+      assert.equal(getVisibleCellText(widget.element, 0, 0), "A1");
+      assert.equal(getVisibleCellText(widget.element, 0, 1), "B1");
+
+      dynamicModel.setCell(0, 0, "A1 outside");
+      dynamicModel.setCell(0, 1, "B1 outside");
+      dynamicModel.fireRowsVersion({
+        full: false,
+        kind: "content",
+        ranges: [{ startRow: 10, endRow: 11 }],
+      });
+
+      assert.equal(getVisibleCellText(widget.element, 0, 0), "A1");
+      assert.equal(getVisibleCellText(widget.element, 0, 1), "B1");
+
+      dynamicModel.setCell(0, 0, "A1 patched");
+      dynamicModel.setCell(0, 1, "B1 should-not-patch");
+      dynamicModel.fireRowsVersion({
+        full: false,
+        kind: "content",
+        ranges: [{ startRow: 0, endRow: 1, startCol: 0, endCol: 1 }],
+      });
+
+      assert.equal(getVisibleCellText(widget.element, 0, 0), "A1 patched");
+      assert.equal(getVisibleCellText(widget.element, 0, 1), "B1");
     } finally {
       widget.dispose();
     }
@@ -476,6 +522,54 @@ function createSmartTableWidgetModel(): TableWidgetModel {
   };
 }
 
+function createContentDirtyTableWidgetModel(): {
+  readonly model: TableWidgetModel;
+  readonly fireRowsVersion: (change: Omit<TableRowsVersionChangeEvent, "version">) => void;
+  readonly setCell: (rowIndex: number, colIndex: number, value: string) => void;
+} {
+  let rowsVersion = 1;
+  const subscribers = new Set<(event: TableRowsVersionChangeEvent) => void>();
+  const rows = Array.from({ length: 20 }, (_row, rowIndex) => [
+    `A${rowIndex + 1}`,
+    `B${rowIndex + 1}`,
+    `C${rowIndex + 1}`,
+    `D${rowIndex + 1}`,
+    `E${rowIndex + 1}`,
+    `F${rowIndex + 1}`,
+    `G${rowIndex + 1}`,
+    `H${rowIndex + 1}`,
+    `I${rowIndex + 1}`,
+    `J${rowIndex + 1}`,
+  ]);
+
+  return {
+    fireRowsVersion: change => {
+      rowsVersion += 1;
+      const event: TableRowsVersionChangeEvent = {
+        ...change,
+        version: rowsVersion,
+      };
+      for (const callback of Array.from(subscribers)) {
+        callback(event);
+      }
+    },
+    model: {
+      ...createTableWidgetModel(),
+      getRow: rowIndex => rows[rowIndex] ?? [],
+      getRowsVersion: () => rowsVersion,
+      subscribeRowsVersion: callback => {
+        subscribers.add(callback);
+        return () => {
+          subscribers.delete(callback);
+        };
+      },
+    },
+    setCell: (rowIndex, colIndex, value) => {
+      rows[rowIndex][colIndex] = value;
+    },
+  };
+}
+
 function createDynamicScaleTableWidgetModel(): {
   readonly model: TableWidgetModel;
   readonly fireRowsVersion: () => void;
@@ -484,11 +578,17 @@ function createDynamicScaleTableWidgetModel(): {
   let rowsVersion = 1;
   let scaleExponent = -6;
   let isScaleManual = false;
-  const subscribers = new Set<() => void>();
+  const subscribers = new Set<(event: TableRowsVersionChangeEvent) => void>();
   const fireRowsVersion = () => {
     rowsVersion += 1;
+    const event: TableRowsVersionChangeEvent = {
+      full: true,
+      kind: "display",
+      ranges: [],
+      version: rowsVersion,
+    };
     for (const callback of Array.from(subscribers)) {
-      callback();
+      callback(event);
     }
   };
 

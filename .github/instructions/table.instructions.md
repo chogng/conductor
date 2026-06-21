@@ -36,7 +36,9 @@ canonical Session records.
 | `browser/tableModel.ts` | per-table data model: source switching, row cache, selection/highlight/reveal, worker/reader lifecycle. |
 | `browser/tableRowsReaderService.ts` | browser row reader fallback. |
 | `electron-browser/tableRowsReader.ts` | desktop row/cell reads through Rust IPC/preload. |
-| `contrib/table/browser/tableWidget.ts` | grid DOM, virtual scroll, keyboard/mouse/wheel, local selection, zoom, column resize. |
+| `base/browser/ui/table/tableWidget.ts` / `table.css` | Conductor-specific two-dimensional table widget facade and structural CSS over the virtual table base. |
+| `base/browser/ui/table/virtualTable.ts` | two-dimensional virtual table engine: visible range calculation, pooled corner/header/body DOM, scroll spacers, cell descriptor rebinding, and scroll/visible-range fact events. |
+| `contrib/table/browser/tableWidget.ts` | raw table adapter/renderers over the base table widget, keyboard/mouse/wheel, local selection, zoom, column resize. |
 | `contrib/table/browser/tableController.ts` | adapter from view input/callbacks to widget props. |
 | `contrib/table/browser/tableWidgetService.ts` | active widget controller registry for commands. |
 | `contrib/table/browser/tableCommands.ts` / `tableActions.ts` | commands and action registration. |
@@ -52,9 +54,51 @@ Session/settings/command/search bridge
   -> ITableService.open(source) / reveal / select
   -> tableModel loads rows through reader
   -> TableController consumes view input
-  -> TableWidget renders and emits selection/width/zoom callbacks
+  -> TableWidget adapts table state to base table widget renderers
+  -> base table widget owns structural CSS and facade defaults
+  -> base VirtualTable reuses visible cell DOM and emits scroll/visible-range facts
+  -> TableWidget emits selection/width/zoom callbacks
   -> TableService stores external selection and width state
 ```
+
+## Base Table Boundary
+
+The base table owns UI mechanics that are independent of raw-table semantics:
+
+- virtual scroll math, overscan, visible row/column ranges, and spacer sizing;
+- pooled corner/header/row-header/body DOM and descriptor rebinding;
+- structural CSS hooks, header/body scroll synchronization, and reveal geometry;
+- fact events such as `onDidScroll` and `onDidChangeVisibleRange`.
+
+Follow the upstream widget shape: feature code depends on the base
+`TableWidget` facade as the single owner surface. Do not expose or pass around a
+map of structural class names. The base table owns those hooks and feature code
+adds at most a root class plus domain-specific state classes or data attributes.
+`TableWidget` should compose the lower-level virtual table engine instead of
+inheriting from it, so engine DOM parts do not become public widget API by
+accident.
+
+Feature widgets consume those facts by subscribing and rereading owner state.
+They should not make each logical cell a long-lived component or subscribe each
+cell to model data. Instead, the feature widget adapts model state into render
+versions and cell/header renderers for the currently visible pool.
+
+Row/cache updates are aggregated by the table model. `subscribeRowsVersion`
+emits dirty ranges as half-open model coordinates; the base widget intersects
+those ranges with the current visible row/column span and rerenders only pooled
+body cells that are visible and affected. Feature widgets decide whether a
+dirty kind is safe for body-only patching. Display, layout, reset, or structure
+changes may still rerender the whole visible table because they can affect
+headers, geometry, or formatting policy.
+
+Keep domain behavior out of the base table:
+
+- raw row cache, worker requests, source identity, and selected text belong to
+  `ITableService` / `tableModel`;
+- numeric formatting, display profiles, persisted column widths, and table
+  source lifecycle stay in the table feature owner;
+- selection/focus/highlight can use base geometry helpers, but persistence and
+  command-visible snapshots remain owned by the active table widget/service.
 
 ## Selection
 
