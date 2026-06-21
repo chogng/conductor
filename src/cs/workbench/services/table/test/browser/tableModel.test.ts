@@ -563,6 +563,12 @@ suite("workbench/services/table/browser/tableModel display profiles", () => {
     assert.equal(model.adjustColumnDisplayScale(0, -2), true);
     assert.equal(model.getColumnDisplayProfile(0).scaleExponent, -10);
 
+    assert.equal(model.adjustColumnDisplayScale(0, -20), true);
+    assert.equal(model.getColumnDisplayProfile(0).scaleExponent, -30);
+
+    assert.equal(model.adjustColumnDisplayScale(0, 70), true);
+    assert.equal(model.getColumnDisplayProfile(0).scaleExponent, 40);
+
     assert.equal(model.resetColumnDisplayScale(0), true);
     const resetProfile = model.getColumnDisplayProfile(0);
     assert.equal(resetProfile.scaleExponent, -9);

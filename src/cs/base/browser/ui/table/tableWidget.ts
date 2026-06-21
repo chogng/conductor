@@ -579,11 +579,16 @@ export class TableWidget implements IDisposable {
 
 	private canStartColumnResizeFromTarget(target: EventTarget | null): boolean {
 		const targetWindow = this.element.ownerDocument.defaultView;
-		if (!targetWindow || !(target instanceof targetWindow.Element)) {
+		if (!targetWindow || !(target instanceof targetWindow.Node)) {
 			return true;
 		}
 
-		return !target.closest("button,input,select,textarea,a,[contenteditable='true'],[role='button']");
+		const element = target instanceof targetWindow.Element ? target : target.parentElement;
+		if (!element) {
+			return true;
+		}
+
+		return !element.closest("button,input,select,textarea,a,[contenteditable='true'],[role='button']");
 	}
 
 	private toVisibleBodyCellRanges(

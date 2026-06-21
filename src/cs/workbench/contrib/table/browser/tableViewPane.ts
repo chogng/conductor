@@ -36,7 +36,7 @@ import {
   type TableWidgetSize,
 } from "src/cs/base/browser/ui/table/tableWidget";
 import {
-  type TableWidgetColumnHeaderSelectionMode,
+  type TableWidgetColumnHeaderSelection,
 } from "src/cs/workbench/contrib/table/browser/tableWidget";
 import {
   ITableDropTargetService,
@@ -348,10 +348,15 @@ const formatTableWidgetSize = (size: TableWidgetSize | null): string => {
   return `${size.rowCount} × ${size.columnCount}`;
 };
 
-export const getTableColumnHeaderSelectionMode = (
+export const getTableColumnHeaderSelection = (
   templateMode: TemplateMode,
-): TableWidgetColumnHeaderSelectionMode =>
-  templateMode === "editor" ? "multi" : "single";
+): TableWidgetColumnHeaderSelection =>
+  templateMode === "editor" ? "multi" : "disabled";
+
+export const getCanAdjustColumnScale = (
+  templateMode: TemplateMode,
+): boolean =>
+  templateMode === "management";
 
 const toControllerProps = (
   props: TableViewPaneProps,
@@ -361,7 +366,8 @@ const toControllerProps = (
   templateMode: TemplateMode,
 ): TableControllerProps => ({
   ...props,
-  columnHeaderSelectionMode: getTableColumnHeaderSelectionMode(templateMode),
+  canAdjustColumnScale: getCanAdjustColumnScale(templateMode),
+  columnHeaderSelection: getTableColumnHeaderSelection(templateMode),
   getColumnWidths: sourceKey => tableService.getColumnWidths(sourceKey),
   hoverDelegate: hoverService,
   onCopySelection: () => {

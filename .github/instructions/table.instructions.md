@@ -60,7 +60,10 @@ Session/settings/command/search bridge
   -> TableWidget emits selection callbacks and exposes base size/zoom/column-resize callbacks
   -> TableService stores external selection and width state
 
-TableWidget header scale stepper
+TableWidget header scale badge / shared stepper
+  -> TableViewPane derives header selection and scale-adjustment policy from template mode
+  -> TableController forwards the policy to TableWidget
+  -> TableWidget keeps column selection and scale adjustment mutually exclusive
   -> ITableService.adjustColumnDisplayScale / resetColumnDisplayScale
   -> TableService delegates to its active tableModel
   -> tableModel emits display rows-version dirty ranges

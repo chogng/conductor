@@ -50,6 +50,25 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 		}
 	});
 
+	test("does not start column resize from button text nodes", () => {
+		const { events, listener, widget } = createResizableTableWidget();
+		try {
+			const button = widget.element.querySelector<HTMLButtonElement>(".table_view_grid_header_cell button");
+			const text = button?.firstChild;
+			assert.ok(text);
+
+			text.dispatchEvent(createPointerEvent(widget, "pointerdown", 208, 1));
+			dispatchColumnResizeMove(widget, 248);
+			dispatchColumnResizeEnd(widget, 248);
+
+			assert.equal(widget.element.classList.contains("table_view--resizing_column"), false);
+			assert.deepEqual(events, []);
+		} finally {
+			listener.dispose();
+			widget.dispose();
+		}
+	});
+
 	test("deduplicates body cells visited through logical ranges", () => {
 		const { listener, widget } = createResizableTableWidget();
 		try {
@@ -166,7 +185,10 @@ function createResizableTableWidget(mode?: TableWidgetColumnResizeMode): {
 				cell.textContent = `${descriptor.colIndex}:${descriptor.rowIndex}`;
 			},
 			renderColumnHeader: (cell, descriptor) => {
-				cell.textContent = String(descriptor.colIndex);
+				const button = document.createElement("button");
+				button.type = "button";
+				button.textContent = String(descriptor.colIndex);
+				cell.replaceChildren(button);
 			},
 			renderRowHeader: (cell, descriptor) => {
 				cell.textContent = String(descriptor.rowIndex);
