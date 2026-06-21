@@ -88,7 +88,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       );
       assert.equal(
         getHoverLineText(hoverDelegate.hovers[0]?.content),
-        "Raw: -3.70327E-009\nDisplay: -3.70327 ×10⁻⁹",
+        "-3.70327E-009",
       );
     } finally {
       widget.dispose();

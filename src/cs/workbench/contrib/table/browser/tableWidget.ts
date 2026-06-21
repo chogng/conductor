@@ -3088,13 +3088,7 @@ const getCellDisplayTitle = (
     return "";
   }
 
-  const scaledText = profile.headerSuffix
-    ? `${displayText} ${profile.headerSuffix}`
-    : displayText;
-  return [
-    localize("table.preview.rawValue", "Raw: {value}", { value: rawText }),
-    localize("table.preview.displayValue", "Display: {value}", { value: scaledText }),
-  ].join("\n");
+  return rawText;
 };
 
 const createCellDisplayHoverContent = (ownerDocument: Document, title: string): HTMLElement => {
