@@ -1,7 +1,15 @@
 import { localize } from "src/cs/nls";
-import { append, reset } from "src/cs/base/browser/dom";
+import { addDisposableListener, append, EventType, reset } from "src/cs/base/browser/dom";
 import { createButton as createActionButton, updateButton as updateActionButton } from "src/cs/base/browser/ui/button/button";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
+import {
+  createModalCloseActionBar,
+  getModalDialogClassName,
+  getModalDialogId,
+  getModalTitleId,
+  MODAL_BACKDROP_CLASS,
+  MODAL_OVERLAY_CLASS,
+} from "src/cs/base/browser/ui/modal/modal";
 import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { createSelectBox, type SelectBox, type SelectBoxOption } from "src/cs/base/browser/ui/selectBox/selectBox";
 import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollbar";
@@ -15,6 +23,7 @@ import {
   type SettingsSectionEntry,
   type SettingsSectionId,
 } from "src/cs/workbench/contrib/settings/browser/settingsLayout";
+import { renderReleaseNotesMarkdown } from "src/cs/workbench/contrib/settings/browser/releaseNotesMarkdownRenderer";
 import { SettingsTree, type SettingsTreeSection } from "src/cs/workbench/contrib/settings/browser/settingsTree";
 import type { LanguagePreference } from "src/cs/base/common/platform";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
@@ -219,6 +228,11 @@ type AppearanceSectionTemplate = {
   readonly badgePreview: HTMLElement;
 };
 
+type ActiveReleaseNotesDialog = {
+  readonly disposeStore: DisposableStore;
+  readonly overlay: HTMLElement;
+};
+
 export class SettingsView {
   private readonly renderDisposables = new DisposableStore();
   private readonly root: HTMLElement;
@@ -230,6 +244,7 @@ export class SettingsView {
   private generalTree: SettingsTree | null = null;
   private options: SettingsViewOptions;
   private activeBadgeLabelValue = "transfer";
+  private releaseNotesDialog: ActiveReleaseNotesDialog | null = null;
 
   constructor(container: HTMLElement, options: SettingsViewOptions) {
     this.root = document.createElement("section");
@@ -260,6 +275,7 @@ export class SettingsView {
   }
 
   dispose(): void {
+    this.closeReleaseNotesDialog();
     this.renderDisposables.dispose();
     this.contentScroll.dispose();
     this.root.remove();
@@ -676,6 +692,12 @@ export class SettingsView {
     const { appUpdateSettings } = this.options;
     container.appendChild(settingsSection(localize("settings.nav.about", "About"),
       cardRow("settings-about-version-card", localize("settings.about.versionTitle", "Current Version"), text("p", "settings-code-value", appUpdateSettings.currentVersion || localize("settings.about.versionUnknown", "Unknown"))),
+      cardRow("settings-release-notes-card", localize("settings.releaseNotes.title", "Release Notes"), this.createButton({
+        id: "settings-release-notes-show-btn",
+        label: localize("settings.releaseNotes.showButton", "Show Release Notes"),
+        onClick: () => this.showReleaseNotesDialog(),
+        variant: "secondary",
+      })),
       cardRow("settings-app-update-card", localize("settings.appUpdate.title", "App Updates"), this.createButton({
         id: "settings-app-update-check-btn",
         label: this.options.appUpdateChecking ? localize("settings.appUpdate.checking", "Checking...") : localize("settings.appUpdate.checkButton", "Check for Updates"),
@@ -684,6 +706,88 @@ export class SettingsView {
         variant: "secondary",
       })),
     ));
+  }
+
+  private showReleaseNotesDialog(): void {
+    this.closeReleaseNotesDialog();
+
+    const disposeStore = new DisposableStore();
+    const overlay = document.createElement("div");
+    overlay.className = MODAL_OVERLAY_CLASS;
+
+    const backdrop = document.createElement("div");
+    backdrop.className = MODAL_BACKDROP_CLASS;
+    overlay.appendChild(backdrop);
+
+    const dialogId = getModalDialogId("settings-release-notes") ?? "settings-release-notes-dialog";
+    const titleId = getModalTitleId("settings-release-notes", "settings-release-notes");
+    const panel = document.createElement("section");
+    panel.className = getModalDialogClassName({
+      className: "settings-release-notes-modal",
+      size: "xl",
+      variant: "solid",
+    });
+    panel.id = dialogId;
+    panel.tabIndex = -1;
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-labelledby", titleId);
+
+    const header = document.createElement("header");
+    header.className = "modal_header settings-release-notes-modal__header";
+    const titleWrap = div("settings-release-notes-modal__titleWrap");
+    titleWrap.append(createLxIcon({ className: "settings-release-notes-modal__titleIcon", icon: LxIcon.fileText, size: 18 }));
+    const heading = document.createElement("h2");
+    heading.className = "modal_title settings-release-notes-modal__title";
+    heading.id = titleId;
+    heading.textContent = localize("settings.releaseNotes.dialogTitle", "Release Notes");
+    titleWrap.appendChild(heading);
+
+    const closeActionBar = disposeStore.add(createModalCloseActionBar({
+      className: "settings-release-notes-modal__close",
+      id: "settings.releaseNotes.close",
+      label: localize("settings.releaseNotes.close", "Close"),
+      run: () => this.closeReleaseNotesDialog(),
+    }));
+    header.append(titleWrap, closeActionBar.domNode);
+
+    const body = document.createElement("div");
+    body.className = "modal_body settings-release-notes-modal__body";
+    body.appendChild(renderReleaseNotesMarkdown(this.createReleaseNotesMarkdown()));
+
+    panel.append(header, body);
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    this.releaseNotesDialog = { disposeStore, overlay };
+    disposeStore.add(addDisposableListener(backdrop, EventType.MOUSE_DOWN, event => {
+      if (event.target === backdrop) {
+        this.closeReleaseNotesDialog();
+      }
+    }));
+    disposeStore.add(addDisposableListener(document, EventType.KEY_DOWN, event => {
+      if (event.key === "Escape") {
+        this.closeReleaseNotesDialog();
+      }
+    }));
+    queueMicrotask(() => panel.focus());
+  }
+
+  private closeReleaseNotesDialog(): void {
+    const dialog = this.releaseNotesDialog;
+    if (!dialog) {
+      return;
+    }
+    this.releaseNotesDialog = null;
+    dialog.disposeStore.dispose();
+    dialog.overlay.remove();
+  }
+
+  private createReleaseNotesMarkdown(): string {
+    const version = this.options.appUpdateSettings.currentVersion || localize("settings.releaseNotes.unknownVersion", "Current Version");
+    return localize("settings.releaseNotes.defaultMarkdown", "# Conductor Studio {version}\n\n## Highlights\n\n- Added an in-app Release Notes viewer in Settings.\n- Added safe Markdown rendering for release note content.\n\n## Supported Content\n\n| Content | Status |\n| --- | --- |\n| Headings, paragraphs, and lists | Supported |\n| Links and images | Supported |\n| Code blocks and tables | Supported |\n| Controlled video media | Supported |\n\n## Notes\n\nRelease notes content is rendered as safe DOM nodes and embedded HTML is ignored.", {
+      version,
+    });
   }
 
   private createDefaults(settings: ChartDefaultSettings): HTMLElement {

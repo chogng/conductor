@@ -1,5 +1,6 @@
 import assert from "assert";
 
+import { renderReleaseNotesMarkdown } from "src/cs/workbench/contrib/settings/browser/releaseNotesMarkdownRenderer";
 import { SettingsView, type SettingsViewOptions } from "src/cs/workbench/contrib/settings/browser/settingsView";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -203,6 +204,61 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       view.dispose();
       container.remove();
     }
+  });
+
+  test("opens release notes modal from about section", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const view = new SettingsView(container, createSettingsViewOptions({ activeSettingsSection: "about" }));
+
+    try {
+      getButton(container, "settings-release-notes-show-btn").click();
+
+      const dialog = document.querySelector<HTMLElement>("#settings-release-notes-dialog");
+      assert.ok(dialog);
+      assert.equal(dialog.getAttribute("role"), "dialog");
+      assert.ok(dialog.textContent?.includes("Conductor Studio 0.0.0"));
+      assert.ok(dialog.querySelector(".release-notes-markdown table"));
+
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+      assert.equal(document.querySelector("#settings-release-notes-dialog"), null);
+    }
+    finally {
+      view.dispose();
+      container.remove();
+    }
+  });
+
+  test("renders release notes markdown as safe DOM", () => {
+    const root = renderReleaseNotesMarkdown(`# Title
+
+Paragraph with **strong text**, *emphasis*, \`code\`, [safe](https://example.com), [relative](docs/release.md), and [unsafe](javascript:alert(1)).
+
+![Alt text](https://example.com/image.png)
+![Bad image](data:image/svg+xml;base64,AAAA)
+
+| Content | Status |
+| --- | --- |
+| Tables | Supported |
+
+@[video](https://example.com/demo.mp4 "Demo video")
+
+<script>alert(1)</script>`);
+
+    assert.equal(root.querySelector("h1")?.textContent, "Title");
+    assert.equal(root.querySelector("strong")?.textContent, "strong text");
+    assert.equal(root.querySelector("em")?.textContent, "emphasis");
+    assert.equal(root.querySelector("code")?.textContent, "code");
+    assert.equal(root.querySelector("a")?.getAttribute("href"), "https://example.com");
+    assert.equal(root.querySelectorAll("a").length, 1);
+    assert.ok(root.textContent?.includes("relative"));
+    assert.equal(root.querySelector("img")?.getAttribute("src"), "https://example.com/image.png");
+    assert.equal(root.querySelectorAll("img").length, 1);
+    assert.equal(root.querySelector("video source")?.getAttribute("src"), "https://example.com/demo.mp4");
+    assert.equal(root.querySelector("video")?.getAttribute("preload"), "metadata");
+    assert.ok(root.textContent?.includes("Demo video"));
+    assert.equal(root.querySelector("script"), null);
+    assert.ok(root.textContent?.includes("<script>alert(1)</script>"));
   });
 });
 

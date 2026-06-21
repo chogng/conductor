@@ -211,11 +211,12 @@ function sliceRowsByColumnGroup(
   rows: readonly (readonly string[])[],
   group: TemplateSliceColumnGroup,
 ): readonly (readonly string[])[] {
-  if (group.columns === null) {
+  const columns = group.columns;
+  if (columns === null) {
     return rows.map(row => [...row]);
   }
 
-  return rows.map(row => group.columns.map(column => row[column] ?? ""));
+  return rows.map(row => columns.map(column => row[column] ?? ""));
 }
 
 function readPositiveInteger(value: unknown): number | null {

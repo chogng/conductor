@@ -1,5 +1,9 @@
 import "src/cs/base/browser/ui/modal/modal.css";
 
+import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
+import { Action } from "src/cs/base/common/actions";
+import { LxIcon } from "src/cs/base/common/lxicon";
+
 export const MODAL_OVERLAY_CLASS = "modal-overlay";
 export const MODAL_BACKDROP_CLASS = "modal-backdrop";
 export const MODAL_DIALOG_BASE_CLASS = "modal";
@@ -7,6 +11,14 @@ export const MODAL_DIALOG_BASE_CLASS = "modal";
 export type ModalVariant = "default" | "primary" | "glass" | "solid" | "flat";
 export type ModalSize = "sm" | "md" | "lg" | "xl";
 export type ModalInitialFocus = "dialog" | "first";
+
+export type ModalCloseActionBarOptions = {
+  readonly ariaLabel?: string;
+  readonly className?: string;
+  readonly id?: string;
+  readonly label: string;
+  readonly run: () => void;
+};
 
 const MODAL_DIALOG_VARIANTS: Record<ModalVariant, string> = {
   default: "modal--primary",
@@ -55,6 +67,33 @@ export const getModalDialogId = (idBase: string | undefined): string | undefined
 
 export const getModalUiMarker = (dataUi: string | undefined): string | undefined =>
   typeof dataUi === "string" && dataUi.trim() ? dataUi.trim() : undefined;
+
+export class ModalCloseActionBar extends ActionBar {
+  constructor(options: ModalCloseActionBarOptions) {
+    super({
+      ariaLabel: options.ariaLabel ?? options.label,
+      className: ["modal_headerActions", options.className].filter(Boolean).join(" "),
+    });
+
+    const action = this._register(new Action(
+      options.id ?? "modal.close",
+      options.label,
+      "",
+      true,
+      options.run,
+    ));
+    action.tooltip = options.label;
+    action.icon = LxIcon.close;
+    this.push(action, {
+      className: "modal_headerAction",
+      icon: true,
+      label: false,
+    });
+  }
+}
+
+export const createModalCloseActionBar = (options: ModalCloseActionBarOptions): ModalCloseActionBar =>
+  new ModalCloseActionBar(options);
 
 const slugifyModalToken = (input: unknown): string =>
   String(input ?? "")

@@ -9,6 +9,7 @@ import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
   MODAL_BACKDROP_CLASS,
   MODAL_OVERLAY_CLASS,
+  createModalCloseActionBar,
   getModalDialogClassName,
   getModalDialogId,
   getModalTitleId,
@@ -75,7 +76,6 @@ type SliceDialogState = {
 
 type ActiveSliceDialog = {
   readonly body: HTMLElement;
-  readonly closeButton: HTMLButtonElement;
   readonly disposeStore: DisposableStore;
   readonly expectedLabel: HTMLElement;
   readonly filePrefixInput: HTMLInputElement;
@@ -200,15 +200,13 @@ export class SliceWithTemplateController extends Disposable {
     title.id = titleId;
     title.textContent = localize("files.sliceWithTemplate.title", "Slice");
     titleWrap.append(title);
-    const closeButton = createButton({
-      ariaLabel: localize("files.sliceWithTemplate.close", "Close"),
+    const closeActionBar = disposeStore.add(createModalCloseActionBar({
       className: "slice-template-modal__close",
-      content: createLxIcon({ icon: LxIcon.close, size: 14 }),
-      size: "iconSm",
-      title: localize("files.sliceWithTemplate.close", "Close"),
-      variant: "icon",
-    });
-    header.append(titleWrap, closeButton);
+      id: "files.sliceWithTemplate.close",
+      label: localize("files.sliceWithTemplate.close", "Close"),
+      run: () => this.close(),
+    }));
+    header.append(titleWrap, closeActionBar.domNode);
 
     const body = document.createElement("form");
     body.className = "modal_body slice-template-modal__body";
@@ -291,7 +289,6 @@ export class SliceWithTemplateController extends Disposable {
 
     const dialog: ActiveSliceDialog = {
       body,
-      closeButton,
       disposeStore,
       expectedLabel,
       filePrefixInput,
@@ -312,7 +309,6 @@ export class SliceWithTemplateController extends Disposable {
     disposeStore.add(this.options.templateService.onDidChangeTemplateList(() => {
       this.handleTemplateListChanged(dialog);
     }));
-    disposeStore.add(addDisposableListener(closeButton, EventType.CLICK, () => this.close()));
     disposeStore.add(addDisposableListener(backdrop, EventType.MOUSE_DOWN, event => {
       if (event.target === backdrop) {
         this.close();

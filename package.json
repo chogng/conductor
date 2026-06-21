@@ -61,11 +61,13 @@
   "dependencies": {
     "@chogng/lxicon": "^1.0.14",
     "electron-updater": "^6.8.3",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "markdown-it": "^14.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@playwright/test": "^1.60.0",
+    "@types/markdown-it": "^14.1.2",
     "@types/mocha": "^10.0.10",
     "@types/papaparse": "^5.5.2",
     "@typescript-eslint/eslint-plugin": "^8.57.0",

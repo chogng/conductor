@@ -74,23 +74,47 @@
 .modal_header {
   display: flex;
   align-items: center;
+  box-sizing: border-box;
+  height: 35px;
+  border-bottom: 1px solid rgb(var(--border) / 0.72);
   padding-left: 1rem;
   padding-right: 1rem;
-  padding-top: 1rem;
+  padding-top: 0px;
   padding-bottom: 0px;
 }
 
 .modal_title {
-  font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  font-size: 1.25rem;
-  line-height: 1.75rem;
-  font-weight: 500;
+  font-family: var(--font-family-base, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: 1rem;
+  line-height: 1.25rem;
+  font-weight: 600;
   --tw-text-opacity: 1;
   color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
 }
 
 .modal_headerRight {
   flex-shrink: 0;
+}
+
+.modal_headerActions {
+  flex: 0 0 auto;
+}
+
+.modal_headerActions .ui-actionbar__items {
+  gap: 0px;
+}
+
+.modal_headerAction {
+  width: 22px;
+  height: 22px;
+  border-radius: 0.375rem;
+  color: rgb(var(--text-secondary) / 1);
+  cursor: pointer;
+}
+
+.modal_headerAction:hover {
+  background-color: rgb(var(--bg-200) / 0.75);
+  color: rgb(var(--text-primary) / 1);
 }
 
 .modal_body {
