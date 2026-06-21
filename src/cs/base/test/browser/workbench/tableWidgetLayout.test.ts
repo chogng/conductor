@@ -91,6 +91,64 @@ suite("base/browser/workbench tableWidget layout", () => {
     }
   });
 
+  test("keeps rendered table DOM while selected source is loading", async () => {
+    const widget = new TableWidget({
+      onSelect: () => true,
+      tableModel: createTableWidgetModel(),
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 500, 280);
+      widget.layout();
+      await timeout(120);
+
+      const headerButton = getColumnHeaderButton(widget.element, 0);
+      const bodyCell = getVisibleCell(widget.element, 0, 0);
+      assert.equal(bodyCell.textContent, "A1");
+
+      widget.update({
+        onSelect: () => true,
+        tableModel: createTableWidgetModel(),
+        tableState: createTableWidgetState({
+          fileId: "file-b",
+          loadState: {
+            message: "Loading preview...",
+            state: "loading",
+          },
+          sourceKey: "file-b",
+        }),
+      });
+
+      assert.equal(headerButton.isConnected, true);
+      assert.equal(bodyCell.isConnected, true);
+      assert.equal(widget.element.querySelector(".table_view_empty"), null);
+
+      widget.update({
+        onSelect: () => true,
+        tableModel: createTableWidgetModel(() => ({}), {
+          getRow: rowIndex => [
+            `next-A${rowIndex + 1}`,
+            `next-B${rowIndex + 1}`,
+          ],
+        }),
+        tableState: createTableWidgetState({
+          fileId: "file-b",
+          sourceKey: "file-b",
+        }),
+      });
+
+      assert.equal(getColumnHeaderButton(widget.element, 0), headerButton);
+      assert.equal(getVisibleCell(widget.element, 0, 0), bodyCell);
+      assert.equal(bodyCell.textContent, "next-A1");
+    } finally {
+      widget.dispose();
+    }
+  });
+
   test("exposes rendered size and base zoom state", async () => {
     const widget = new TableWidget({
       onSelect: () => true,
@@ -520,32 +578,44 @@ suite("base/browser/workbench tableWidget layout", () => {
 function createTableWidgetState(
   options: {
     readonly columnCount?: number;
+    readonly file?: TableState["file"] | null;
+    readonly fileId?: string;
+    readonly loadState?: TableState["loadState"];
+    readonly rowCount?: number;
+    readonly sourceKey?: string;
   } = {},
 ): TableState {
+  const fileId = options.fileId ?? "file-a";
+  const sourceKey = options.sourceKey ?? fileId;
+  const rowCount = options.rowCount ?? 20;
   const columnCount = options.columnCount ?? 10;
+  const file = options.file === undefined
+    ? {
+        columnCount,
+        fileId,
+        fileName: "sample.csv",
+        maxCellLengths: Array.from({ length: columnCount }, () => 2),
+        rowCount,
+        sourceKey,
+      }
+    : options.file;
   return {
-    dimensions: `20 x ${columnCount}`,
-    file: {
-      columnCount,
-      fileId: "file-a",
-      fileName: "sample.csv",
-      maxCellLengths: Array.from({ length: columnCount }, () => 2),
-      rowCount: 20,
-      sourceKey: "file-a",
-    },
+    dimensions: file ? `${rowCount} x ${columnCount}` : undefined,
+    file,
     fileName: "sample.csv",
-    loadState: {
+    loadState: options.loadState ?? {
       message: "",
       state: "ready",
     },
-    selectedFileId: "file-a",
-    sourceKey: "file-a",
+    selectedFileId: fileId,
+    sourceKey,
   };
 }
 
 function createTableWidgetModel(
   getSelection: () => TableSelection = () => ({}),
   options: {
+    readonly getRow?: TableWidgetModel["getRow"];
     readonly onDidChangeSelection?: TableWidgetModel["onDidChangeSelection"];
   } = {},
 ): TableWidgetModel {
@@ -554,7 +624,7 @@ function createTableWidgetModel(
     ensureRows: async () => undefined,
     getColumnDisplayProfile: colIndex => createRawColumnDisplayProfile(colIndex),
     getHighlight: () => ({}),
-    getRow: rowIndex => [
+    getRow: options.getRow ?? (rowIndex => [
       `A${rowIndex + 1}`,
       `B${rowIndex + 1}`,
       `C${rowIndex + 1}`,
@@ -565,7 +635,7 @@ function createTableWidgetModel(
       `H${rowIndex + 1}`,
       `I${rowIndex + 1}`,
       `J${rowIndex + 1}`,
-    ],
+    ]),
     getRowsVersion: () => 1,
     getSelection,
     getState: createTableWidgetState,

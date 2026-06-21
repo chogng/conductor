@@ -574,8 +574,7 @@ export class TableWidget {
       if (!tableState.selectedFileId || !tableFile) {
         if (
           tableState.loadState.state === "loading" &&
-          this.bodyRowCount > 0 &&
-          this.bodyColumnCount > 0
+          this.shouldKeepRenderedTableWhileLoading()
         ) {
           outcome = "loadingPreviousTable";
           didAttachContent = this.grid.attachContent();
@@ -618,6 +617,17 @@ export class TableWidget {
       }
 
       if (tableState.loadState.state === "loading") {
+        if (this.shouldKeepRenderedTableWhileLoading()) {
+          outcome = "loadingRenderedTable";
+          didAttachContent = this.grid.attachContent();
+          this.grid.setHeaderVisible(true);
+          if (didAttachContent) {
+            this.layoutNow();
+          }
+          this.syncHeaderScroll();
+          return;
+        }
+
         outcome = "loading";
         this.grid.setHeaderVisible(false);
         this.resetGridSize();
@@ -1169,6 +1179,11 @@ export class TableWidget {
 
   private isTableVisible(): boolean {
     return this.grid.isContentVisible();
+  }
+
+  private shouldKeepRenderedTableWhileLoading(): boolean {
+    return this.bodyRowCount > 0 &&
+      this.bodyColumnCount > 0;
   }
 
   private shouldRenderTableOnLayout(): boolean {
