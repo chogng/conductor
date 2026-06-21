@@ -158,6 +158,7 @@
   "files.sliceWithTemplate.errorInvalidPointsPerGroup": "模板的每组点数必须是正整数。",
   "files.sliceWithTemplate.errorInvalidRange": "模板必须定义有效的 X 数据范围。",
   "files.sliceWithTemplate.errorInvalidSegmentCount": "模板分段数必须是正整数。",
+  "files.sliceWithTemplate.errorInvalidXYColumns": "模板的 X/Y 列无法配对用于切片。",
   "files.sliceWithTemplate.errorNoRows": "切片目标没有 CSV 行。",
   "files.sliceWithTemplate.errorPointRowsNotDivisible": "X 范围共有 {total} 行，无法按每组 {points} 个点整除。",
   "files.sliceWithTemplate.errorSegmentRowsNotDivisible": "X 范围共有 {total} 行，无法按 {segments} 个分段整除。",

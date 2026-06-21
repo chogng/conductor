@@ -14,6 +14,10 @@ import {
   type TemplateConfig,
 } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import type { TemplateRecord } from "src/cs/workbench/services/template/common/template";
+import {
+  normalizeColumnIndexes,
+  resolveTemplateXYBinding,
+} from "src/cs/workbench/services/template/common/templateXYBinding";
 
 export type TemplateSliceOutput = {
   readonly content: string;
@@ -35,8 +39,15 @@ export type TemplateSlicePlanInput = {
 };
 
 const CSV_MIME_TYPE = "text/csv;charset=utf-8";
+const ALL_COLUMNS_SLICE_GROUP: TemplateSliceColumnGroup = {
+  columns: null,
+};
 
 export const TEMPLATE_SLICE_FILE_MIME_TYPE = CSV_MIME_TYPE;
+
+type TemplateSliceColumnGroup = {
+  readonly columns: readonly number[] | null;
+};
 
 export function createTemplateSlicePlan({
   csvText,
@@ -59,20 +70,25 @@ export function createTemplateSlicePlan({
   }
 
   const { groupSize, groups } = resolveSliceGrouping(config, rows, range);
+  const columnGroups = resolveSliceColumnGroups(config);
   const prefix = normalizeTemplateSliceFilePrefix(filePrefixName);
-  const headerRows = rows.slice(0, range.startRow);
   const slices: TemplateSliceOutput[] = [];
+  let sliceIndex = 1;
 
-  for (let groupIndex = 0; groupIndex < groups; groupIndex += 1) {
-    const startRow = range.startRow + groupIndex * groupSize;
-    const dataRows = rows.slice(startRow, startRow + groupSize);
-    const sliceRows = [...headerRows, ...dataRows];
-    slices.push({
-      content: serializeCsvRows(sliceRows),
-      fileName: `${prefix}_${groupIndex + 1}.csv`,
-      index: groupIndex + 1,
-      rowCount: dataRows.length,
-    });
+  for (const columnGroup of columnGroups) {
+    const headerRows = sliceRowsByColumnGroup(rows.slice(0, range.startRow), columnGroup);
+    for (let groupIndex = 0; groupIndex < groups; groupIndex += 1) {
+      const startRow = range.startRow + groupIndex * groupSize;
+      const dataRows = sliceRowsByColumnGroup(rows.slice(startRow, startRow + groupSize), columnGroup);
+      const sliceRows = [...headerRows, ...dataRows];
+      slices.push({
+        content: serializeCsvRows(sliceRows),
+        fileName: `${prefix}_${sliceIndex}.csv`,
+        index: sliceIndex,
+        rowCount: dataRows.length,
+      });
+      sliceIndex += 1;
+    }
   }
 
   return {
@@ -149,6 +165,57 @@ function resolveSliceGrouping(
     groupSize: range.total,
     groups: 1,
   };
+}
+
+function resolveSliceColumnGroups(config: TemplateConfig): readonly TemplateSliceColumnGroup[] {
+  const xColumns = normalizeColumnIndexes(config.xColumns);
+  const yColumns = normalizeColumnIndexes(config.yColumns);
+  if (!xColumns.length && !yColumns.length) {
+    return [ALL_COLUMNS_SLICE_GROUP];
+  }
+  if (!xColumns.length) {
+    return [{
+      columns: yColumns,
+    }];
+  }
+  if (!yColumns.length) {
+    return xColumns.map(column => ({
+      columns: [column],
+    }));
+  }
+
+  const xyBinding = resolveTemplateXYBinding({
+    x: { columns: xColumns },
+    y: { columns: yColumns },
+  });
+  if (!xyBinding.ok) {
+    throw new Error("Template X/Y columns cannot be paired for slicing.");
+  }
+
+  const columnsByX = new Map<number, number[]>();
+  for (const binding of xyBinding.seriesBindings) {
+    const columns = columnsByX.get(binding.xCol) ?? [binding.xCol];
+    columns.push(binding.yCol);
+    columnsByX.set(binding.xCol, columns);
+  }
+
+  return xColumns
+    .map(xColumn => columnsByX.get(xColumn))
+    .filter((columns): columns is number[] => Boolean(columns?.length))
+    .map(columns => ({
+      columns: normalizeColumnIndexes(columns),
+    }));
+}
+
+function sliceRowsByColumnGroup(
+  rows: readonly (readonly string[])[],
+  group: TemplateSliceColumnGroup,
+): readonly (readonly string[])[] {
+  if (group.columns === null) {
+    return rows.map(row => [...row]);
+  }
+
+  return rows.map(row => group.columns.map(column => row[column] ?? ""));
 }
 
 function readPositiveInteger(value: unknown): number | null {

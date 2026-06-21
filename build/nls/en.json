@@ -158,6 +158,7 @@
   "files.sliceWithTemplate.errorInvalidPointsPerGroup": "Template points per group must be a positive integer.",
   "files.sliceWithTemplate.errorInvalidRange": "Template must define a valid X data range.",
   "files.sliceWithTemplate.errorInvalidSegmentCount": "Template segment count must be a positive integer.",
+  "files.sliceWithTemplate.errorInvalidXYColumns": "Template X/Y columns cannot be paired for slicing.",
   "files.sliceWithTemplate.errorNoRows": "Slice target has no CSV rows.",
   "files.sliceWithTemplate.errorPointRowsNotDivisible": "X range has {total} rows, which is not divisible by {points} points per group.",
   "files.sliceWithTemplate.errorSegmentRowsNotDivisible": "X range has {total} rows, which is not divisible by {segments} segments.",

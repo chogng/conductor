@@ -115,10 +115,14 @@ export class SliceWithTemplateController extends Disposable {
     }
 
     this.close();
-    const templates = this.getCachedUserTemplates();
+    const templateState = this.options.templateService.getState();
+    const templates = resolveTemplateSliceTemplatesForState({
+      templateState,
+      templates: this.getCachedUserTemplates(),
+    });
     const selectedTemplateId = resolveTemplateSliceSelectedTemplateId({
       fileId: normalizedFileId,
-      templateState: this.options.templateService.getState(),
+      templateState,
       templates,
     });
     const sourcePath = normalizePathText(file.sourcePath);
@@ -276,7 +280,7 @@ export class SliceWithTemplateController extends Disposable {
       disabled: true,
       label: localize("files.sliceWithTemplate.sliceButton", "Slice"),
       size: "control",
-      type: "submit",
+      type: "button",
       variant: "primary",
     });
     footer.append(sliceButton);
@@ -337,6 +341,10 @@ export class SliceWithTemplateController extends Disposable {
       };
       this.syncDialog(dialog);
     }));
+    disposeStore.add(addDisposableListener(sliceButton, EventType.CLICK, event => {
+      event.preventDefault();
+      void this.sliceActiveDialog();
+    }));
     disposeStore.add(addDisposableListener(body, "submit", event => {
       event.preventDefault();
       void this.sliceActiveDialog();
@@ -358,6 +366,11 @@ export class SliceWithTemplateController extends Disposable {
         return;
       }
 
+      const templateState = this.options.templateService.getState();
+      const resolvedTemplates = resolveTemplateSliceTemplatesForState({
+        templateState,
+        templates,
+      });
       dialog.state = {
         ...dialog.state,
         csvText,
@@ -366,11 +379,11 @@ export class SliceWithTemplateController extends Disposable {
           currentTemplateId: dialog.state.selectedTemplateId,
           fileId: dialog.state.fileId,
           preserveCurrentTemplate: dialog.state.hasUserSelectedTemplate,
-          templateState: this.options.templateService.getState(),
-          templates,
+          templateState,
+          templates: resolvedTemplates,
         }),
         statusMessage: null,
-        templates,
+        templates: resolvedTemplates,
       };
       this.syncDialog(dialog);
     } catch (error) {
@@ -409,7 +422,10 @@ export class SliceWithTemplateController extends Disposable {
       return;
     }
 
-    const templates = this.options.templateService.getTemplateList();
+    const templates = resolveTemplateSliceTemplatesForState({
+      templateState,
+      templates: this.options.templateService.getTemplateList(),
+    });
     dialog.state = {
       ...dialog.state,
       selectedTemplateId: resolveTemplateSliceSelectedTemplateId({
@@ -429,14 +445,18 @@ export class SliceWithTemplateController extends Disposable {
       return;
     }
 
-    const templates = this.options.templateService.getTemplateList();
+    const templateState = this.options.templateService.getState();
+    const templates = resolveTemplateSliceTemplatesForState({
+      templateState,
+      templates: this.options.templateService.getTemplateList(),
+    });
     dialog.state = {
       ...dialog.state,
       selectedTemplateId: resolveTemplateSliceSelectedTemplateId({
         currentTemplateId: dialog.state.selectedTemplateId,
         fileId: dialog.state.fileId,
         preserveCurrentTemplate: dialog.state.hasUserSelectedTemplate,
-        templateState: this.options.templateService.getState(),
+        templateState,
         templates,
       }),
       templates,
@@ -488,7 +508,7 @@ export class SliceWithTemplateController extends Disposable {
         ? localize("files.sliceWithTemplate.slicing", "Slicing...")
         : localize("files.sliceWithTemplate.sliceButton", "Slice"),
       size: "control",
-      type: "submit",
+      type: "button",
       variant: "primary",
     });
 
@@ -794,9 +814,46 @@ export function resolveTemplateSliceSelectedTemplateId({
   return "";
 }
 
+export function resolveTemplateSliceTemplatesForState({
+  templateState,
+  templates,
+}: {
+  readonly templateState: TemplateState;
+  readonly templates: readonly TemplateRecord[];
+}): readonly TemplateRecord[] {
+  const selectedTemplateId = String(templateState.selectedTemplateId ?? "").trim();
+  if (!selectedTemplateId || !hasTemplateFormConfigValue(templateState.formState)) {
+    return templates;
+  }
+
+  const index = templates.findIndex(template => String(template.id ?? "").trim() === selectedTemplateId);
+  if (index === -1) {
+    return templates;
+  }
+
+  const nextTemplates = [...templates];
+  nextTemplates[index] = {
+    ...nextTemplates[index],
+    ...templateState.formState,
+    id: selectedTemplateId,
+  };
+  return nextTemplates;
+}
+
 function hasUserTemplateId(templates: readonly TemplateRecord[], templateId: string): boolean {
   return Boolean(templateId) &&
     templates.some(template => String(template.id ?? "").trim() === templateId);
+}
+
+function hasTemplateFormConfigValue(formState: TemplateState["formState"]): boolean {
+  return Boolean(
+    String(formState.name ?? "").trim() ||
+    String(formState.xDataStart ?? "").trim() ||
+    String(formState.xDataEnd ?? "").trim() ||
+    formState.xColumns.length ||
+    formState.xRanges.length ||
+    formState.yColumns.length,
+  );
 }
 
 function resolveSliceInputPath(file: ExplorerFileEntry): string | null {
@@ -838,6 +895,8 @@ function localizeSliceErrorMessage(message: string): string {
       return localize("files.sliceWithTemplate.errorInvalidSegmentCount", "Template segment count must be a positive integer.");
     case "Template points per group must be a positive integer.":
       return localize("files.sliceWithTemplate.errorInvalidPointsPerGroup", "Template points per group must be a positive integer.");
+    case "Template X/Y columns cannot be paired for slicing.":
+      return localize("files.sliceWithTemplate.errorInvalidXYColumns", "Template X/Y columns cannot be paired for slicing.");
   }
 
   const segmentMatch = /^X range has (\d+) rows, which is not divisible by (\d+) segments\.$/.exec(message);
