@@ -209,7 +209,15 @@
 }
 
 .table_view_cell {
-	text-indent: var(--table-view-cell-padding-x);
+	text-indent: 0;
+}
+
+.table_view_cell_content {
+	display: block;
+	padding: 0 var(--table-view-cell-padding-x);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .table_view_column_resize_guide {

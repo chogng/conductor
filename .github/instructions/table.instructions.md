@@ -110,6 +110,14 @@ header scale controls. Layout, reset, or structure changes may still rerender
 the whole visible table because they can affect headers, geometry, or formatting
 policy.
 
+When a body cell stays bound to the same model row/column and only its render
+version changes, the base table should call the content-only body renderer
+instead of rebinding the cell container. Rebinding pooled cell containers is for
+scroll/visible-range descriptor changes, not for source data text changes.
+Column header render versions should stay separate from body data render
+versions so switching source row content does not force header, frame, focus, or
+selection DOM state to be rewritten.
+
 Keep domain behavior out of the base table:
 
 - raw row cache, worker requests, source identity, and selected text belong to

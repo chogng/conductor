@@ -116,11 +116,21 @@ export type VirtualTableCellDescriptor = {
 };
 
 export type VirtualTableBodyCell = {
+	readonly content: HTMLSpanElement;
 	readonly element: HTMLTableCellElement;
 	appliedColIndex?: number;
 	appliedHidden?: boolean;
 	appliedRenderVersion?: unknown;
 	appliedRowIndex?: number;
+	renderedColIndex?: number;
+	renderedRowIndex?: number;
+};
+
+type VirtualTableHeaderCell = {
+	readonly element: HTMLElement;
+	appliedColIndex?: number;
+	appliedHidden?: boolean;
+	appliedRenderVersion?: unknown;
 };
 
 type VirtualTableBodyRow = {
@@ -135,6 +145,7 @@ type VirtualTableBodyRow = {
 
 export type VirtualTableRenderOptions = {
 	readonly columnCount: unknown;
+	readonly headerRenderVersion?: unknown;
 	readonly renderVersion?: unknown;
 	readonly rowCount: unknown;
 	readonly zoomPercent: number;
@@ -158,6 +169,7 @@ export type VirtualTableRenderer = {
 	readonly clearBodyCell?: (cell: HTMLTableCellElement) => void;
 	readonly disposeBodyCell?: (cell: HTMLTableCellElement) => void;
 	readonly renderBodyCell: (cell: HTMLTableCellElement, descriptor: Required<Pick<VirtualTableCellDescriptor, "colIndex" | "columnOffset" | "rowIndex" | "rowOffset">>) => void;
+	readonly renderBodyCellContent?: (content: HTMLElement, descriptor: Required<Pick<VirtualTableCellDescriptor, "colIndex" | "columnOffset" | "rowIndex" | "rowOffset">>) => void;
 	readonly renderColumnHeader: (cell: HTMLElement, descriptor: Required<Pick<VirtualTableCellDescriptor, "colIndex" | "columnOffset">>) => void;
 	readonly renderCorner?: (cell: HTMLElement) => void;
 	readonly renderRowHeader: (cell: HTMLTableCellElement, descriptor: Required<Pick<VirtualTableCellDescriptor, "rowIndex" | "rowOffset">>) => void;
@@ -166,6 +178,7 @@ export type VirtualTableRenderer = {
 type VirtualTableClassNames = {
 	readonly body: string;
 	readonly cell: string;
+	readonly cellContent: string;
 	readonly columnResizeGuide: string;
 	readonly columnSpacerCell: string;
 	readonly columnSpacerCol: string;
@@ -190,6 +203,7 @@ type VirtualTableClassNames = {
 const VIRTUAL_TABLE_CLASS_NAMES: VirtualTableClassNames = {
 	body: "table_view_body",
 	cell: "table_view_cell",
+	cellContent: "table_view_cell_content",
 	columnResizeGuide: "table_view_column_resize_guide",
 	columnSpacerCell: "table_view_column_spacer_cell",
 	columnSpacerCol: "table_view_column_spacer_col",
@@ -686,7 +700,7 @@ export class VirtualTable implements IDisposable {
 	private readonly disposables = new DisposableStore();
 	private readonly onDidChangeVisibleRangeEmitter = this.disposables.add(new Emitter<VirtualTableVisibleRangeChangeEvent>());
 	private readonly onDidScrollEmitter = this.disposables.add(new Emitter<VirtualTableScrollEvent>());
-	private readonly headerCells: HTMLElement[] = [];
+	private readonly headerCells: VirtualTableHeaderCell[] = [];
 	private readonly headerCorner: HTMLDivElement;
 	private readonly headerLeadingSpacer: HTMLDivElement;
 	private readonly headerScroll: HTMLDivElement;
@@ -823,7 +837,7 @@ export class VirtualTable implements IDisposable {
 		if (rowCount === 0 || columnCount === 0) {
 			const bodyVisibilityChanged = this.syncBodyGridVisibility(rowRange, columnRange, previousState);
 			const columnLayoutChanged = this.syncColumnLayout(columnRange);
-			this.renderVisibleHeaders(columnRange);
+			this.renderVisibleHeaders(columnRange, options.headerRenderVersion);
 			this.syncHeaderScroll();
 			this.syncColumnResizeGuide(null);
 			if (visibleRangeChanged) {
@@ -832,16 +846,16 @@ export class VirtualTable implements IDisposable {
 			return bodyVisibilityChanged || columnLayoutChanged || visibleRangeChanged || zoomChanged;
 		}
 
-		this.header.hidden = false;
+		setHidden(this.header, false);
 		const headerChanged = this.ensureHeaderGrid();
 		const columnsChanged = this.ensureBodyColumns();
 		const cellsChanged = this.ensureBodyCells();
 		const bodyVisibilityChanged = this.syncBodyGridVisibility(rowRange, columnRange, previousState);
 		const columnLayoutChanged = this.syncColumnLayout(columnRange);
-		this.renderVisibleHeaders(columnRange);
+		this.renderVisibleHeaders(columnRange, options.headerRenderVersion);
 		this.renderVisibleBody(rowRange, columnRange, options.renderVersion);
-		this.table.setAttribute("aria-rowcount", String(rowRange.totalCount));
-		this.table.setAttribute("aria-colcount", String(columnRange.totalCount));
+		setElementAttribute(this.table, "aria-rowcount", String(rowRange.totalCount));
+		setElementAttribute(this.table, "aria-colcount", String(columnRange.totalCount));
 		this.syncHeaderScroll();
 		if (visibleRangeChanged) {
 			this.onDidChangeVisibleRangeEmitter.fire({ previous: previousState, current: nextState });
@@ -857,6 +871,8 @@ export class VirtualTable implements IDisposable {
 		this.forEachBodyCell(cell => {
 			this.options.renderer.clearBodyCell?.(cell.element);
 			cell.appliedRenderVersion = undefined;
+			cell.renderedColIndex = undefined;
+			cell.renderedRowIndex = undefined;
 		});
 	}
 
@@ -887,15 +903,20 @@ export class VirtualTable implements IDisposable {
 						continue;
 					}
 
-					this.options.renderer.renderBodyCell(cell.element, {
+					const descriptor = {
 						rowIndex,
 						rowOffset,
 						colIndex,
 						columnOffset,
-					});
+					};
+					if (this.options.renderer.renderBodyCellContent) {
+						this.options.renderer.renderBodyCellContent(cell.content, descriptor);
+					} else {
+						this.options.renderer.renderBodyCell(cell.element, descriptor);
+					}
 					cell.appliedRenderVersion = renderVersion;
-					cell.appliedRowIndex = rowIndex;
-					cell.appliedColIndex = colIndex;
+					cell.renderedRowIndex = rowIndex;
+					cell.renderedColIndex = colIndex;
 				}
 			}
 		}
@@ -914,7 +935,7 @@ export class VirtualTable implements IDisposable {
 	}
 
 	public getColumnHeaderCell(columnOffset: number): HTMLElement | null {
-		return this.headerCells[columnOffset] ?? null;
+		return this.headerCells[columnOffset]?.element ?? null;
 	}
 
 	public isContentVisible(): boolean {
@@ -986,7 +1007,7 @@ export class VirtualTable implements IDisposable {
 			return null;
 		}
 
-		const headerCell = this.headerCells[columnOffset];
+		const headerCell = this.headerCells[columnOffset]?.element;
 		if (!headerCell || headerCell.hidden) {
 			return null;
 		}
@@ -996,12 +1017,14 @@ export class VirtualTable implements IDisposable {
 
 	public syncColumnResizeGuide(left: number | null): void {
 		if (left === null) {
-			this.columnResizeGuide.hidden = true;
-			this.columnResizeGuide.style.left = "";
+			setHidden(this.columnResizeGuide, true);
+			if (this.columnResizeGuide.style.left) {
+				this.columnResizeGuide.style.left = "";
+			}
 			return;
 		}
 
-		this.columnResizeGuide.hidden = false;
+		setHidden(this.columnResizeGuide, false);
 		this.columnResizeGuide.style.left = `${left}px`;
 	}
 
@@ -1083,7 +1106,7 @@ export class VirtualTable implements IDisposable {
 				const cell = document.createElement("div");
 				cell.className = this.classNames.headerCell;
 				cell.setAttribute("role", "columnheader");
-				this.headerCells.push(cell);
+				this.headerCells.push({ element: cell });
 				this.headerContent.insertBefore(cell, this.headerTrailingSpacer);
 			}
 
@@ -1136,11 +1159,14 @@ export class VirtualTable implements IDisposable {
 
 			for (let colIndex = 0; colIndex < this.maxRenderedColumns; colIndex += 1) {
 				const cell = document.createElement("td");
+				const content = document.createElement("span");
 				cell.className = this.classNames.cell;
+				content.className = this.classNames.cellContent;
 				cell.dataset.rowIndex = String(rowIndex);
 				cell.dataset.colIndex = String(colIndex);
+				cell.append(content);
 				row.append(cell);
-				cells.push({ element: cell });
+				cells.push({ content, element: cell });
 			}
 
 			trailingSpacer.className = this.classNames.columnSpacerCell;
@@ -1205,7 +1231,7 @@ export class VirtualTable implements IDisposable {
 	}
 
 	private applyHeaderColumnWidth(columnOffset: number, width: string): boolean {
-		const cell = this.headerCells[columnOffset];
+		const cell = this.headerCells[columnOffset]?.element;
 		return cell ? setElementWidth(cell, width) : false;
 	}
 
@@ -1276,7 +1302,7 @@ export class VirtualTable implements IDisposable {
 		for (let colIndex = 0; colIndex < this.maxRenderedColumns; colIndex += 1) {
 			const column = this.bodyDataColumns[colIndex];
 			if (column) {
-				column.hidden = colIndex >= columnCount;
+				setHidden(column, colIndex >= columnCount);
 			}
 		}
 
@@ -1299,7 +1325,7 @@ export class VirtualTable implements IDisposable {
 		return topChanged || bottomChanged;
 	}
 
-	private renderVisibleHeaders(columnRange: VirtualTableColumnRange): void {
+	private renderVisibleHeaders(columnRange: VirtualTableColumnRange, renderVersion: unknown): void {
 		for (let columnOffset = 0; columnOffset < this.maxRenderedColumns; columnOffset += 1) {
 			const cell = this.headerCells[columnOffset];
 			if (!cell) {
@@ -1307,17 +1333,28 @@ export class VirtualTable implements IDisposable {
 			}
 
 			const hidden = columnOffset >= columnRange.renderedCount;
-			setHidden(cell, hidden);
+			if (setHidden(cell.element, hidden)) {
+				cell.appliedHidden = hidden;
+			}
 			if (hidden) {
 				continue;
 			}
 
 			const colIndex = columnRange.startIndex + columnOffset;
-			this.options.renderer.renderColumnHeader(cell, {
+			if (
+				cell.appliedColIndex === colIndex &&
+				cell.appliedRenderVersion === renderVersion
+			) {
+				continue;
+			}
+
+			this.options.renderer.renderColumnHeader(cell.element, {
 				colIndex,
 				columnOffset,
 			});
-			cell.setAttribute("aria-colindex", String(colIndex + 1));
+			setElementAttribute(cell.element, "aria-colindex", String(colIndex + 1));
+			cell.appliedColIndex = colIndex;
+			cell.appliedRenderVersion = renderVersion;
 		}
 	}
 
@@ -1332,21 +1369,28 @@ export class VirtualTable implements IDisposable {
 			for (let columnOffset = 0; columnOffset < columnRange.renderedCount; columnOffset += 1) {
 				const colIndex = columnRange.startIndex + columnOffset;
 				const cell = row.cells[columnOffset];
-				if (
-					cell.appliedRenderVersion === renderVersion &&
-					cell.appliedRowIndex === rowIndex &&
-					cell.appliedColIndex === colIndex
-				) {
+				const hasRenderedDescriptor = cell.renderedRowIndex === rowIndex &&
+					cell.renderedColIndex === colIndex;
+				const hasRenderedVersion = cell.appliedRenderVersion === renderVersion;
+				if (hasRenderedDescriptor && hasRenderedVersion) {
 					continue;
 				}
 
-				this.options.renderer.renderBodyCell(cell.element, {
+				const descriptor = {
 					rowIndex,
 					rowOffset,
 					colIndex,
 					columnOffset,
-				});
+				};
+				if (!hasRenderedDescriptor || !this.options.renderer.renderBodyCellContent) {
+					this.options.renderer.renderBodyCell(cell.element, descriptor);
+				}
+				if (this.options.renderer.renderBodyCellContent) {
+					this.options.renderer.renderBodyCellContent(cell.content, descriptor);
+				}
 				cell.appliedRenderVersion = renderVersion;
+				cell.renderedRowIndex = rowIndex;
+				cell.renderedColIndex = colIndex;
 			}
 		}
 	}
@@ -1696,6 +1740,15 @@ const setHidden = (element: HTMLElement, hidden: boolean): boolean => {
 	}
 
 	element.hidden = hidden;
+	return true;
+};
+
+const setElementAttribute = (element: Element, name: string, value: string): boolean => {
+	if (element.getAttribute(name) === value) {
+		return false;
+	}
+
+	element.setAttribute(name, value);
 	return true;
 };
 

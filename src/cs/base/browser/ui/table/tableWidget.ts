@@ -69,6 +69,7 @@ export type TableWidgetRenderer = {
 	readonly clearBodyCell?: (cell: HTMLTableCellElement) => void;
 	readonly disposeBodyCell?: (cell: HTMLTableCellElement) => void;
 	readonly renderBodyCell: (cell: HTMLTableCellElement, descriptor: TableWidgetBodyCellDescriptor) => void;
+	readonly renderBodyCellContent?: (content: HTMLElement, descriptor: TableWidgetBodyCellDescriptor) => void;
 	readonly renderColumnHeader: (cell: HTMLElement, descriptor: TableWidgetColumnHeaderDescriptor) => void;
 	readonly renderCorner?: (cell: HTMLElement) => void;
 	readonly renderRowHeader: (cell: HTMLTableCellElement, descriptor: TableWidgetRowHeaderDescriptor) => void;
@@ -113,6 +114,7 @@ export type TableWidgetSize = {
 
 export type TableWidgetRenderOptions = {
 	readonly columnCount: number;
+	readonly headerRenderVersion?: unknown;
 	readonly renderVersion?: unknown;
 	readonly rowCount: number;
 };
@@ -415,7 +417,10 @@ export class TableWidget implements IDisposable {
 	}
 
 	public setHeaderVisible(visible: boolean): void {
-		this.virtualTable.header.hidden = !visible;
+		const hidden = !visible;
+		if (this.virtualTable.header.hidden !== hidden) {
+			this.virtualTable.header.hidden = hidden;
+		}
 		if (!visible) {
 			this.endColumnResize(false);
 		}

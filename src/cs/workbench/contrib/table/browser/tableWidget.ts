@@ -153,6 +153,7 @@ export type TableWidgetProps = {
 };
 
 type BodyCell = {
+  readonly content: HTMLElement;
   readonly element: HTMLTableCellElement;
   readonly hover: MutableDisposable<IManagedHover>;
   appliedActive?: boolean;
@@ -235,7 +236,12 @@ export class TableWidget {
       renderer: {
         clearBodyCell: cell => this.updateCellDisplay(this.getBodyCellState(cell), "", ""),
         disposeBodyCell: cell => this.getBodyCellState(cell).hover.clear(),
-        renderBodyCell: (cell, descriptor) => this.renderBodyCell(cell, descriptor.rowIndex, descriptor.colIndex),
+        renderBodyCell: cell => {
+          this.getBodyCellState(cell);
+        },
+        renderBodyCellContent: (content, descriptor) => {
+          this.renderBodyCellContent(content, descriptor.rowIndex, descriptor.colIndex);
+        },
         renderColumnHeader: (cell, descriptor) => {
           this.syncHeaderColumnElement(cell, descriptor.colIndex, this.props.tableModel);
         },
@@ -632,23 +638,27 @@ export class TableWidget {
       const { tableState } = this.props;
       const tableFile = tableState.file;
       const sourceKey = tableState.sourceKey ?? tableState.selectedFileId ?? null;
-      this.element.dataset.state = tableState.loadState.state;
+      const keepRenderedTableWhilePendingSource = this.shouldKeepRenderedTableWhilePendingSource(
+        tableFile,
+        sourceKey,
+      );
+      if (
+        !keepRenderedTableWhilePendingSource &&
+        this.element.dataset.state !== tableState.loadState.state
+      ) {
+        this.element.dataset.state = tableState.loadState.state;
+      }
 
-      if (this.renderedSourceKey !== sourceKey) {
+      if (this.renderedSourceKey !== sourceKey && !keepRenderedTableWhilePendingSource) {
         this.renderedSourceKey = sourceKey;
         this.pendingEnsureRowsKey = null;
-        this.appliedCellState = null;
         this.rangeAnchorCell = null;
         this.rangeFocusCell = null;
-        this.clearRowsText();
         this.grid.resetScrollTop();
       }
 
       if (!tableState.selectedFileId || !tableFile) {
-        if (
-          tableState.loadState.state === "loading" &&
-          this.shouldKeepRenderedTableWhileLoading()
-        ) {
+        if (keepRenderedTableWhilePendingSource) {
           outcome = "loadingPreviousTable";
           didAttachContent = this.grid.attachContent();
           this.grid.setHeaderVisible(true);
@@ -690,7 +700,7 @@ export class TableWidget {
       }
 
       if (tableState.loadState.state === "loading") {
-        if (this.shouldKeepRenderedTableWhileLoading()) {
+        if (keepRenderedTableWhilePendingSource) {
           outcome = "loadingRenderedTable";
           didAttachContent = this.grid.attachContent();
           this.grid.setHeaderVisible(true);
@@ -739,6 +749,16 @@ export class TableWidget {
 
     try {
       if (!tableFile || tableFile.rowCount <= 0 || tableFile.columnCount <= 0) {
+        if (this.shouldKeepRenderedTableWhilePendingSource(
+          tableFile,
+          tableState.sourceKey ?? tableState.selectedFileId ?? null,
+        )) {
+          outcome = "pendingSource";
+          this.grid.attachContent();
+          this.grid.setHeaderVisible(true);
+          return false;
+        }
+
         outcome = "empty";
         this.grid.setHeaderVisible(false);
         this.resetGridSize();
@@ -751,6 +771,7 @@ export class TableWidget {
       this.grid.setHeaderVisible(true);
       gridChanged = this.grid.render({
         columnCount: tableFile.columnCount,
+        headerRenderVersion: this.getHeaderRenderVersion(),
         renderVersion: this.getRowsRenderVersion(),
         rowCount: tableFile.rowCount,
       });
@@ -775,6 +796,7 @@ export class TableWidget {
   private resetGridSize(): void {
     this.grid.render({
       columnCount: 0,
+      headerRenderVersion: this.getHeaderRenderVersion(),
       renderVersion: this.getRowsRenderVersion(),
       rowCount: 0,
     });
@@ -840,23 +862,25 @@ export class TableWidget {
     const columnLabel = VirtualTableGridModel.getColumnLabel(colIndex);
     const profile = tableModel.getColumnDisplayProfile(colIndex);
     const colIndexValue = String(colIndex);
-    button.dataset.colIndex = colIndexValue;
-    button.textContent = columnLabel;
-    button.setAttribute(
+    setDatasetValue(button, "colIndex", colIndexValue);
+    setElementText(button, columnLabel);
+    setElementAttribute(
+      button,
       "aria-label",
       localize("table.preview.toggleColumn", "Toggle column {column}", {
         column: columnLabel,
       }),
     );
-    resizeHandle.dataset.colIndex = colIndexValue;
-    resizeHandle.setAttribute(
+    setDatasetValue(resizeHandle, "colIndex", colIndexValue);
+    setElementAttribute(
+      resizeHandle,
       "aria-label",
       localize("table.preview.resizeColumn", "Resize column {column}", {
         column: columnLabel,
       }),
     );
     this.syncHeaderColumnScaleControl(scaleControl, colIndex, profile);
-    cell.setAttribute("aria-colindex", String(colIndex + 1));
+    setElementAttribute(cell, "aria-colindex", String(colIndex + 1));
   }
 
   private createColumnScaleControl(colIndex: number): TableValueStepperControl {
@@ -1048,6 +1072,13 @@ export class TableWidget {
     ].join("\u001f");
   }
 
+  private getHeaderRenderVersion(): string {
+    return [
+      this.props.tableModel.getRowsVersion(),
+      this.props.tableState.displayVersion ?? 0,
+    ].join("\u001f");
+  }
+
   private getPerformanceStageContext(state: PerformanceStageState): PerformanceStageContext {
     const { tableState } = this.props;
     const tableFile = tableState.file;
@@ -1111,12 +1142,16 @@ export class TableWidget {
     return true;
   }
 
-  private renderBodyCell(
-    element: HTMLTableCellElement,
+  private renderBodyCellContent(
+    content: HTMLElement,
     rowIndex: number,
     colIndex: number,
   ): void {
     this.tracedBodyCellRenderCount += 1;
+    const element = content.closest<HTMLTableCellElement>(".table_view_cell");
+    if (!element) {
+      return;
+    }
     const row = this.props.tableModel.getRow(rowIndex) ?? [];
     const rawValue = row[colIndex];
     const profile = this.props.tableModel.getColumnDisplayProfile(colIndex);
@@ -1307,9 +1342,21 @@ export class TableWidget {
     return this.grid.isContentVisible();
   }
 
-  private shouldKeepRenderedTableWhileLoading(): boolean {
-    return this.bodyRowCount > 0 &&
-      this.bodyColumnCount > 0;
+  private shouldKeepRenderedTableWhilePendingSource(
+    tableFile: TableWidgetState["file"] | null | undefined,
+    sourceKey: string | null,
+  ): boolean {
+    const hasSelectedSource = Boolean(this.props.tableState.selectedFileId && sourceKey);
+    const isPendingSelectedSource = hasSelectedSource &&
+      !tableFile &&
+      this.props.tableState.loadState.state !== "error";
+    const isLoadingSource = hasSelectedSource &&
+      this.props.tableState.loadState.state === "loading";
+    if (!isPendingSelectedSource && !isLoadingSource) {
+      return false;
+    }
+
+    return this.grid.isContentAttached();
   }
 
   private shouldRenderTableOnLayout(): boolean {
@@ -1328,6 +1375,7 @@ export class TableWidget {
     let cell = this.bodyCellStates.get(element);
     if (!cell) {
       cell = {
+        content: getOrCreateBodyCellContent(element),
         element,
         hover: this.store.add(new MutableDisposable<IManagedHover>()),
       };
@@ -1338,7 +1386,7 @@ export class TableWidget {
 
   private updateCellDisplay(cell: BodyCell, text: string, title: string): void {
     if (cell.appliedText !== text) {
-      cell.element.textContent = text;
+      cell.content.textContent = text;
       cell.appliedText = text;
     }
     if (cell.appliedTitle !== title) {
@@ -1362,10 +1410,6 @@ export class TableWidget {
 
   private disposeBodyCellHovers(): void {
     this.grid.forEachBodyCellElement(cell => this.getBodyCellState(cell).hover.clear());
-  }
-
-  private clearRowsText(): void {
-    this.grid.clearBodyCells();
   }
 
   private updateCellState(
@@ -2029,6 +2073,46 @@ const setHidden = (element: HTMLElement, hidden: boolean): boolean => {
 
   element.hidden = hidden;
   return true;
+};
+
+const setElementText = (element: HTMLElement, text: string): boolean => {
+  if (element.textContent === text) {
+    return false;
+  }
+
+  element.textContent = text;
+  return true;
+};
+
+const setElementAttribute = (element: Element, name: string, value: string): boolean => {
+  if (element.getAttribute(name) === value) {
+    return false;
+  }
+
+  element.setAttribute(name, value);
+  return true;
+};
+
+const setDatasetValue = (element: HTMLElement, key: string, value: string): boolean => {
+  if (element.dataset[key] === value) {
+    return false;
+  }
+
+  element.dataset[key] = value;
+  return true;
+};
+
+const getOrCreateBodyCellContent = (element: HTMLTableCellElement): HTMLElement => {
+  const existing = element.querySelector<HTMLElement>(".table_view_cell_content");
+  if (existing) {
+    return existing;
+  }
+
+  const content = element.ownerDocument.createElement("span");
+  content.className = "table_view_cell_content";
+  content.textContent = element.textContent ?? "";
+  element.replaceChildren(content);
+  return content;
 };
 
 const getTableWidgetInputKey = ({

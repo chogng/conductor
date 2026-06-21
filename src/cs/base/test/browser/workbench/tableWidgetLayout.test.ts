@@ -109,12 +109,42 @@ suite("base/browser/workbench tableWidget layout", () => {
 
       const headerButton = getColumnHeaderButton(widget.element, 0);
       const bodyCell = getVisibleCell(widget.element, 0, 0);
+      const content = bodyCell.querySelector<HTMLElement>(".table_view_cell_content");
+      assert.ok(content);
       assert.equal(bodyCell.textContent, "A1");
+
+      const mutations: MutationRecord[] = [];
+      const observer = new MutationObserver(records => {
+        mutations.push(...records);
+      });
+      observer.observe(widget.element, {
+        attributes: true,
+        characterData: true,
+        childList: true,
+        subtree: true,
+      });
 
       widget.update({
         onSelect: () => true,
         tableModel: createTableWidgetModel(),
         tableState: createTableWidgetState({
+          file: null,
+          fileId: "file-b",
+          sourceKey: "file-b",
+        }),
+      });
+
+      assert.equal(headerButton.isConnected, true);
+      assert.equal(bodyCell.isConnected, true);
+      assert.equal(bodyCell.querySelector<HTMLElement>(".table_view_cell_content"), content);
+      assert.equal(bodyCell.textContent, "A1");
+      assert.equal(widget.element.querySelector(".table_view_empty"), null);
+
+      widget.update({
+        onSelect: () => true,
+        tableModel: createTableWidgetModel(),
+        tableState: createTableWidgetState({
+          file: null,
           fileId: "file-b",
           loadState: {
             message: "Loading preview...",
@@ -126,6 +156,8 @@ suite("base/browser/workbench tableWidget layout", () => {
 
       assert.equal(headerButton.isConnected, true);
       assert.equal(bodyCell.isConnected, true);
+      assert.equal(bodyCell.querySelector<HTMLElement>(".table_view_cell_content"), content);
+      assert.equal(bodyCell.textContent, "A1");
       assert.equal(widget.element.querySelector(".table_view_empty"), null);
 
       widget.update({
@@ -142,9 +174,175 @@ suite("base/browser/workbench tableWidget layout", () => {
         }),
       });
 
+      await timeout(0);
+      observer.disconnect();
+
       assert.equal(getColumnHeaderButton(widget.element, 0), headerButton);
       assert.equal(getVisibleCell(widget.element, 0, 0), bodyCell);
+      assert.equal(bodyCell.querySelector<HTMLElement>(".table_view_cell_content"), content);
       assert.equal(bodyCell.textContent, "next-A1");
+      assert.deepEqual(
+        mutations
+          .filter(mutation => !isBodyCellContentMutation(mutation))
+          .map(mutation => ({
+            attributeName: mutation.attributeName,
+            target: getMutationTargetClassName(mutation),
+            type: mutation.type,
+          })),
+        [],
+      );
+    } finally {
+      widget.dispose();
+    }
+  });
+
+  test("keeps rendered table shell while loading before visible ranges are cached", () => {
+    const widget = new TableWidget({
+      onSelect: () => true,
+      tableModel: createTableWidgetModel(),
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const content = widget.element.querySelector<HTMLElement>(".table_view_content");
+      assert.ok(content);
+
+      widget.update({
+        onSelect: () => true,
+        tableModel: createTableWidgetModel(),
+        tableState: createTableWidgetState({
+          file: null,
+          fileId: "file-b",
+          loadState: {
+            message: "Loading preview...",
+            state: "loading",
+          },
+          sourceKey: "file-b",
+        }),
+      });
+
+      assert.equal(widget.element.querySelector(".table_view_content"), content);
+      assert.equal(content.isConnected, true);
+      assert.equal(widget.element.querySelector(".table_view_empty"), null);
+    } finally {
+      widget.dispose();
+    }
+  });
+
+  test("keeps rendered table DOM when loading source emits a full rows reset", async () => {
+    const dynamicModel = createContentDirtyTableWidgetModel();
+    const widget = new TableWidget({
+      onSelect: () => true,
+      tableModel: dynamicModel.model,
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 500, 280);
+      widget.layout();
+      await timeout(120);
+
+      const bodyCell = getVisibleCell(widget.element, 0, 0);
+      const content = bodyCell.querySelector<HTMLElement>(".table_view_cell_content");
+      assert.ok(content);
+      assert.equal(content.textContent, "A1");
+
+      widget.update({
+        onSelect: () => true,
+        tableModel: dynamicModel.model,
+        tableState: createTableWidgetState({
+          file: null,
+          fileId: "file-b",
+          loadState: {
+            message: "Loading preview...",
+            state: "loading",
+          },
+          sourceKey: "file-b",
+        }),
+      });
+      dynamicModel.fireRowsVersion({
+        full: true,
+        kind: "reset",
+        ranges: [],
+      });
+
+      await timeout(0);
+
+      assert.equal(widget.element.querySelector(".table_view_empty"), null);
+      assert.equal(getVisibleCell(widget.element, 0, 0), bodyCell);
+      assert.equal(bodyCell.querySelector<HTMLElement>(".table_view_cell_content"), content);
+      assert.equal(content.textContent, "A1");
+    } finally {
+      widget.dispose();
+    }
+  });
+
+  test("switches ready sources by patching body content without mutating body cells", async () => {
+    const widget = new TableWidget({
+      onSelect: () => true,
+      tableModel: createTableWidgetModel(),
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 500, 280);
+      widget.layout();
+      await timeout(120);
+
+      const bodyCell = getVisibleCell(widget.element, 0, 0);
+      const content = bodyCell.querySelector<HTMLElement>(".table_view_cell_content");
+      assert.ok(content);
+      assert.equal(content.textContent, "A1");
+
+      const mutations: MutationRecord[] = [];
+      const observer = new MutationObserver(records => {
+        mutations.push(...records);
+      });
+      observer.observe(widget.element, {
+        attributes: true,
+        characterData: true,
+        childList: true,
+        subtree: true,
+      });
+
+      widget.update({
+        onSelect: () => true,
+        tableModel: createTableWidgetModel(() => ({}), {
+          getRow: rowIndex => [
+            `next-A${rowIndex + 1}`,
+            `next-B${rowIndex + 1}`,
+          ],
+        }),
+        tableState: createTableWidgetState({
+          fileId: "file-b",
+          sourceKey: "file-b",
+        }),
+      });
+
+      await timeout(0);
+      observer.disconnect();
+
+      assert.equal(getVisibleCell(widget.element, 0, 0), bodyCell);
+      assert.equal(bodyCell.querySelector<HTMLElement>(".table_view_cell_content"), content);
+      assert.equal(content.textContent, "next-A1");
+      assert.ok(mutations.length > 0);
+      assert.deepEqual(
+        mutations
+          .filter(mutation => !isBodyCellContentMutation(mutation))
+          .map(mutation => ({
+            attributeName: mutation.attributeName,
+            target: getMutationTargetClassName(mutation),
+            type: mutation.type,
+          })),
+        [],
+      );
     } finally {
       widget.dispose();
     }
@@ -932,6 +1130,21 @@ function setElementClientSize(element: HTMLElement, width: number, height: numbe
     configurable: true,
     value: height,
   });
+}
+
+function isBodyCellContentMutation(mutation: MutationRecord): boolean {
+  return Boolean(getMutationTargetElement(mutation)?.closest(".table_view_cell_content"));
+}
+
+function getMutationTargetClassName(mutation: MutationRecord): string {
+  const element = getMutationTargetElement(mutation);
+  return element?.getAttribute("class") ?? mutation.target.nodeName;
+}
+
+function getMutationTargetElement(mutation: MutationRecord): Element | null {
+  return mutation.target instanceof Element
+    ? mutation.target
+    : mutation.target.parentElement;
 }
 
 function dispatchPointerEvent(

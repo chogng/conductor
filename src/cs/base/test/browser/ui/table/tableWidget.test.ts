@@ -80,6 +80,58 @@ suite("base/test/browser/ui/table/tableWidget", () => {
 		}
 	});
 
+	test("rerenders body content without rebinding unchanged body cells", () => {
+		const bodyRenders: string[] = [];
+		const contentRenders: string[] = [];
+		const headerRenders: string[] = [];
+		const widget = new TableWidget({
+			getColumnWidth: () => 160,
+			renderer: {
+				renderBodyCell: (cell, descriptor) => {
+					bodyRenders.push(`${descriptor.rowIndex}:${descriptor.colIndex}`);
+					cell.dataset.boundCell = `${descriptor.rowIndex}:${descriptor.colIndex}`;
+				},
+				renderBodyCellContent: (content, descriptor) => {
+					contentRenders.push(`${descriptor.rowIndex}:${descriptor.colIndex}`);
+					content.textContent = `v:${descriptor.rowIndex}:${descriptor.colIndex}`;
+				},
+				renderColumnHeader: (cell, descriptor) => {
+					headerRenders.push(String(descriptor.colIndex));
+					cell.textContent = String(descriptor.colIndex);
+				},
+				renderRowHeader: (cell, descriptor) => {
+					cell.textContent = String(descriptor.rowIndex);
+				},
+			},
+		});
+		document.body.append(widget.element);
+		try {
+			const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+			assert.ok(viewport);
+			setElementClientSize(viewport, 500, 280);
+			widget.attachContent();
+			widget.render({ columnCount: 5, rowCount: 20, renderVersion: "a" });
+			const bodyRenderCount = bodyRenders.length;
+			const contentRenderCount = contentRenders.length;
+			const headerRenderCount = headerRenders.length;
+			const cell = widget.getBodyCellElement(0, 0);
+			assert.ok(cell);
+			assert.equal(cell.dataset.boundCell, "0:0");
+			assert.equal(cell.textContent, "v:0:0");
+
+			widget.render({ columnCount: 5, rowCount: 20, renderVersion: "b" });
+
+			assert.equal(widget.getBodyCellElement(0, 0), cell);
+			assert.equal(bodyRenders.length, bodyRenderCount);
+			assert.equal(headerRenders.length, headerRenderCount);
+			assert.ok(contentRenders.length > contentRenderCount);
+			assert.equal(cell.dataset.boundCell, "0:0");
+			assert.equal(cell.textContent, "v:0:0");
+		} finally {
+			widget.dispose();
+		}
+	});
+
 	test("resolves changed selection ranges without repainting unchanged interiors", () => {
 		assert.deepEqual(VirtualTableGridModel.getChangedCellRanges([
 			{ startRow: 0, endRow: 4, startCol: 0, endCol: 4 },
