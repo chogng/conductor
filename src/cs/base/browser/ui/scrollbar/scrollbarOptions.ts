@@ -41,6 +41,9 @@ export type ScrollbarScrollPosition = {
 };
 
 export type ScrollbarHandle = IDisposable & {
+  getScrollDimensions(): ScrollbarScrollDimensions;
+  getScrollPosition(): ScrollbarScrollPosition;
+  setScrollPosition(position: Partial<ScrollbarScrollPosition>): void;
   update(): void;
   updateScrollPosition(): void;
   setOptions(options: Partial<Omit<ScrollbarControllerOptions, "root" | "viewport">>): void;

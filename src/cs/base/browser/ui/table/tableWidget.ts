@@ -397,7 +397,7 @@ export class TableWidget implements IDisposable {
 			containerLeft: this.virtualTable.body.getBoundingClientRect().left,
 			getColumnWidth: index => this.options.getColumnWidth(index),
 			hitSlop: this.options.columnResize.hitSlop,
-			scrollLeft: this.virtualTable.viewport.scrollLeft,
+			scrollLeft: this.virtualTable.getScrollPosition().scrollLeft,
 			zoomPercent: this.zoomPercent,
 		});
 		if (colIndex === null) {
@@ -409,7 +409,7 @@ export class TableWidget implements IDisposable {
 				colIndex,
 				columnRange: this.getColumnRange(),
 				getColumnWidth: index => this.options.getColumnWidth(index),
-				scrollLeft: this.virtualTable.viewport.scrollLeft,
+				scrollLeft: this.virtualTable.getScrollPosition().scrollLeft,
 				visible: this.isHeaderVisible(),
 				zoomPercent: this.zoomPercent,
 			});

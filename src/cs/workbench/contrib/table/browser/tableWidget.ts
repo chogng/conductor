@@ -18,6 +18,12 @@ import {
   createTableValueStepperControl,
   type TableValueStepperControl,
 } from "src/cs/workbench/contrib/table/browser/tableValueStepperControl";
+import {
+  isTablePerformanceInstrumentationEnabled,
+  isTablePerformanceTraceEnabled,
+  startTablePerformanceTrace,
+  type TablePerformanceTraceMeta,
+} from "src/cs/workbench/contrib/table/browser/tablePerformanceTrace";
 import type {
   TableModel,
   TableRowsVersionChangeEvent,
@@ -124,6 +130,8 @@ type BodyRangeSelectionState = {
 
 type DirtyRowsPatchResult = "full" | "ignored" | "patched";
 
+type TableWidgetPerformanceTraceEnd = (meta?: TablePerformanceTraceMeta) => void;
+
 export class TableWidget {
   public readonly element: HTMLElement;
   public readonly onDidChangeSize: Event<TableWidgetSize>;
@@ -158,6 +166,8 @@ export class TableWidget {
   private bodyClickSuppressionTimeout: number | null = null;
   private rangeAnchorCell: TableWidgetCellPosition | null = null;
   private rangeFocusCell: TableWidgetCellPosition | null = null;
+  private tracedBodyCellRenderCount = 0;
+  private tracedHeaderCellRenderCount = 0;
   private props: TableWidgetProps;
 
   constructor(props: TableWidgetProps) {
@@ -279,15 +289,27 @@ export class TableWidget {
   }
 
   private layoutNow(): void {
-    this.clearScheduledLayout();
-    this.grid.layout();
-    if (this.shouldRenderTableOnLayout()) {
-      const needsLayout = this.renderTable();
-      if (needsLayout) {
-        this.grid.layout();
+    const endTrace = this.startPerformanceTrace("table.layout");
+    let renderedTable = false;
+    let secondLayout = false;
+    try {
+      this.clearScheduledLayout();
+      this.grid.layout();
+      if (this.shouldRenderTableOnLayout()) {
+        renderedTable = true;
+        const needsLayout = this.renderTable();
+        if (needsLayout) {
+          secondLayout = true;
+          this.grid.layout();
+        }
       }
+      this.syncHeaderScroll();
+    } finally {
+      endTrace({
+        renderedTable,
+        secondLayout,
+      });
     }
-    this.syncHeaderScroll();
   }
 
   public focus(): void {
@@ -400,24 +422,47 @@ export class TableWidget {
       return false;
     }
 
+    const previousWidth = this.getColumnWidth(colIndex);
+    const endTrace = this.startPerformanceTrace("table.columnWidth.set", {
+      colIndex,
+      previousWidth,
+      requestedWidth: Number(target.width),
+    });
+    let changed = false;
+    let renderedTable = false;
+    let laidOut = false;
     const width = TableColumnLayout.clampWidth(Number(target.width));
-    if (this.getColumnWidth(colIndex) === width) {
-      return false;
-    }
+    try {
+      if (previousWidth === width) {
+        return false;
+      }
 
-    this.columnWidths = new Map(this.columnWidths);
-    if (width === TableColumnLayout.defaultWidth) {
-      this.columnWidths.delete(colIndex);
-    } else {
-      this.columnWidths.set(colIndex, width);
-    }
-    this.scheduleStoreColumnWidths();
+      changed = true;
+      this.columnWidths = new Map(this.columnWidths);
+      if (width === TableColumnLayout.defaultWidth) {
+        this.columnWidths.delete(colIndex);
+      } else {
+        this.columnWidths.set(colIndex, width);
+      }
+      this.scheduleStoreColumnWidths();
 
-    if (this.isTableVisible()) {
-      this.renderTable();
-      this.layoutNow();
+      if (this.isTableVisible()) {
+        renderedTable = true;
+        this.renderTable();
+        laidOut = true;
+        this.layoutNow();
+      }
+      return true;
+    } finally {
+      endTrace({
+        changed,
+        colIndex,
+        laidOut,
+        previousWidth,
+        renderedTable,
+        width,
+      });
     }
-    return true;
   }
 
   private syncColumnWidthSource(): void {
@@ -522,111 +567,142 @@ export class TableWidget {
   }
 
   private render(): void {
-    const { tableState } = this.props;
-    const tableFile = tableState.file;
-    const sourceKey = tableState.sourceKey ?? tableState.selectedFileId ?? null;
-    this.element.dataset.state = tableState.loadState.state;
+    const endTrace = this.startPerformanceTrace("table.widget.render");
+    let outcome = "table";
+    let didAttachContent = false;
+    let needsLayout = false;
+    try {
+      const { tableState } = this.props;
+      const tableFile = tableState.file;
+      const sourceKey = tableState.sourceKey ?? tableState.selectedFileId ?? null;
+      this.element.dataset.state = tableState.loadState.state;
 
-    if (this.renderedSourceKey !== sourceKey) {
-      this.renderedSourceKey = sourceKey;
-      this.pendingEnsureRowsKey = null;
-      this.appliedCellState = null;
-      this.rangeAnchorCell = null;
-      this.rangeFocusCell = null;
-      this.clearRowsText();
-      this.grid.resetScrollTop();
-    }
+      if (this.renderedSourceKey !== sourceKey) {
+        this.renderedSourceKey = sourceKey;
+        this.pendingEnsureRowsKey = null;
+        this.appliedCellState = null;
+        this.rangeAnchorCell = null;
+        this.rangeFocusCell = null;
+        this.clearRowsText();
+        this.grid.resetScrollTop();
+      }
 
-    if (!tableState.selectedFileId || !tableFile) {
-      if (
-        tableState.loadState.state === "loading" &&
-        this.bodyRowCount > 0 &&
-        this.bodyColumnCount > 0
-      ) {
-        this.grid.attachContent();
-        this.grid.setHeaderVisible(true);
+      if (!tableState.selectedFileId || !tableFile) {
+        if (
+          tableState.loadState.state === "loading" &&
+          this.bodyRowCount > 0 &&
+          this.bodyColumnCount > 0
+        ) {
+          outcome = "loadingPreviousTable";
+          didAttachContent = this.grid.attachContent();
+          this.grid.setHeaderVisible(true);
+          this.layoutNow();
+          this.syncHeaderScroll();
+          return;
+        }
+
+        outcome = tableState.loadState.state === "error" ? "emptyError" : "empty";
+        this.grid.setHeaderVisible(false);
+        this.resetGridSize();
+        this.grid.replaceViewportContent(createEmptyView({
+          title: tableState.loadState.state === "error"
+            ? localize("table.preview.unreadableTitle", "File content cannot be decoded")
+            : undefined,
+          description: tableState.loadState.state === "loading"
+            ? tableState.loadState.message ||
+              localize("table.preview.loadingHint", "Parsing CSV preview, please wait.")
+            : tableState.loadState.state === "error"
+              ? tableState.loadState.message ||
+                localize("table.preview.unreadableHint", "The system cannot confirm this file is a valid CSV table.")
+              : localize("table.preview.emptyHint", "Select a file to preview"),
+        }));
         this.layoutNow();
-        this.syncHeaderScroll();
         return;
       }
 
-      this.grid.setHeaderVisible(false);
-      this.resetGridSize();
-      this.grid.replaceViewportContent(createEmptyView({
-        title: tableState.loadState.state === "error"
-          ? localize("table.preview.unreadableTitle", "File content cannot be decoded")
-          : undefined,
-        description: tableState.loadState.state === "loading"
-          ? tableState.loadState.message ||
-            localize("table.preview.loadingHint", "Parsing CSV preview, please wait.")
-          : tableState.loadState.state === "error"
-            ? tableState.loadState.message ||
-              localize("table.preview.unreadableHint", "The system cannot confirm this file is a valid CSV table.")
-            : localize("table.preview.emptyHint", "Select a file to preview"),
-      }));
-      this.layoutNow();
-      return;
-    }
+      if (tableState.loadState.state === "error") {
+        outcome = "error";
+        this.grid.setHeaderVisible(false);
+        this.resetGridSize();
+        this.grid.replaceViewportContent(createEmptyView({
+          title: localize("table.preview.unreadableTitle", "File content cannot be decoded"),
+          description: tableState.loadState.message ||
+            localize("table.preview.unreadableHint", "The system cannot confirm this file is a valid CSV table."),
+        }));
+        this.layoutNow();
+        return;
+      }
 
-    if (tableState.loadState.state === "error") {
-      this.grid.setHeaderVisible(false);
-      this.resetGridSize();
-      this.grid.replaceViewportContent(createEmptyView({
-        title: localize("table.preview.unreadableTitle", "File content cannot be decoded"),
-        description: tableState.loadState.message ||
-          localize("table.preview.unreadableHint", "The system cannot confirm this file is a valid CSV table."),
-      }));
-      this.layoutNow();
-      return;
-    }
+      if (tableState.loadState.state === "loading") {
+        outcome = "loading";
+        this.grid.setHeaderVisible(false);
+        this.resetGridSize();
+        this.grid.replaceViewportContent(createEmptyView({
+          title: localize("table.preview.loadingTitle", "Loading preview..."),
+          description: tableState.loadState.message ||
+            localize("table.preview.loadingHint", "Parsing CSV preview, please wait."),
+        }));
+        this.layoutNow();
+        return;
+      }
 
-    if (tableState.loadState.state === "loading") {
-      this.grid.setHeaderVisible(false);
-      this.resetGridSize();
-      this.grid.replaceViewportContent(createEmptyView({
-        title: localize("table.preview.loadingTitle", "Loading preview..."),
-        description: tableState.loadState.message ||
-          localize("table.preview.loadingHint", "Parsing CSV preview, please wait."),
-      }));
-      this.layoutNow();
-      return;
+      didAttachContent = this.grid.attachContent();
+      needsLayout = this.renderTable();
+      if (didAttachContent || needsLayout) {
+        this.layoutNow();
+      }
+      this.syncHeaderScroll();
+    } finally {
+      endTrace({
+        didAttachContent,
+        needsLayout,
+        outcome,
+      });
     }
-
-    const didAttachContent = this.grid.attachContent();
-    const needsLayout = this.renderTable();
-    if (didAttachContent || needsLayout) {
-      this.layoutNow();
-    }
-    this.syncHeaderScroll();
   }
 
   private renderTable(): boolean {
+    const endTrace = this.startPerformanceTrace("table.renderTable");
     const { tableModel, tableState } = this.props;
     const tableFile = tableState.file;
+    const bodyCellRenderCountStart = this.tracedBodyCellRenderCount;
+    const headerCellRenderCountStart = this.tracedHeaderCellRenderCount;
+    let gridChanged = false;
+    let outcome = "table";
 
-    if (!tableFile || tableFile.rowCount <= 0 || tableFile.columnCount <= 0) {
-      this.grid.setHeaderVisible(false);
-      this.resetGridSize();
-      this.grid.replaceViewportContent(createEmptyView({
-        description: localize("table.preview.emptyHint", "Select a file to preview"),
-      }));
-      return true;
+    try {
+      if (!tableFile || tableFile.rowCount <= 0 || tableFile.columnCount <= 0) {
+        outcome = "empty";
+        this.grid.setHeaderVisible(false);
+        this.resetGridSize();
+        this.grid.replaceViewportContent(createEmptyView({
+          description: localize("table.preview.emptyHint", "Select a file to preview"),
+        }));
+        return true;
+      }
+
+      this.grid.setHeaderVisible(true);
+      gridChanged = this.grid.render({
+        columnCount: tableFile.columnCount,
+        renderVersion: this.getRowsRenderVersion(),
+        rowCount: tableFile.rowCount,
+      });
+      this.syncCachedGridState();
+      this.syncSelectionState();
+
+      if (tableFile?.fileId) {
+        this.ensureRows(tableModel, tableFile.sourceKey ?? tableFile.fileId, this.getBodyRowRange());
+      }
+
+      return gridChanged;
+    } finally {
+      endTrace({
+        bodyCellRenderCount: this.tracedBodyCellRenderCount - bodyCellRenderCountStart,
+        gridChanged,
+        headerCellRenderCount: this.tracedHeaderCellRenderCount - headerCellRenderCountStart,
+        outcome,
+      });
     }
-
-    this.grid.setHeaderVisible(true);
-    const gridChanged = this.grid.render({
-      columnCount: tableFile.columnCount,
-      renderVersion: this.getRowsRenderVersion(),
-      rowCount: tableFile.rowCount,
-    });
-    this.syncCachedGridState();
-    this.syncSelectionState();
-
-    if (tableFile?.fileId) {
-      this.ensureRows(tableModel, tableFile.sourceKey ?? tableFile.fileId, this.getBodyRowRange());
-    }
-
-    return gridChanged;
   }
 
   private resetGridSize(): void {
@@ -649,9 +725,20 @@ export class TableWidget {
     }
 
     this.pendingEnsureRowsKey = requestKey;
+    const endTrace = this.startPerformanceTrace("table.rows.ensure", {
+      endRow: rowRange.endIndex,
+      requestedRows: Math.max(0, rowRange.endIndex - rowRange.startIndex),
+      startRow: rowRange.startIndex,
+    });
     void tableModel.ensureRows(sourceKey, rowRange.startIndex, rowRange.endIndex).then(
-      () => this.clearPendingEnsureRows(requestKey),
-      () => this.clearPendingEnsureRows(requestKey),
+      () => {
+        endTrace({ status: "resolved" });
+        this.clearPendingEnsureRows(requestKey);
+      },
+      () => {
+        endTrace({ status: "rejected" });
+        this.clearPendingEnsureRows(requestKey);
+      },
     );
   }
 
@@ -666,6 +753,7 @@ export class TableWidget {
     colIndex: number,
     tableModel: TableWidgetModel,
   ): void {
+    this.tracedHeaderCellRenderCount += 1;
     let button = cell.querySelector<HTMLButtonElement>(".table_view_column_button");
     let scaleControl = this.headerColumnScaleControls.get(cell);
     let resizeHandle = this.headerColumnResizeHandles.get(cell);
@@ -785,16 +873,34 @@ export class TableWidget {
   }
 
   private syncRows(event?: TableRowsVersionChangeEvent): void {
-    if (!this.isTableVisible()) {
-      this.render();
-      return;
-    }
+    const endTrace = this.startPerformanceTrace("table.rows.sync", {
+      dirtyRangeCount: event?.ranges.length ?? 0,
+      full: event?.full ?? true,
+      kind: event?.kind ?? "reset",
+      rowsVersion: event?.version ?? null,
+    });
+    let patchResult: DirtyRowsPatchResult = "full";
+    let tableVisible = false;
+    const bodyCellRenderCountStart = this.tracedBodyCellRenderCount;
+    try {
+      tableVisible = this.isTableVisible();
+      if (!tableVisible) {
+        this.render();
+        return;
+      }
 
-    const patchResult = event ? this.patchDirtyRows(event) : "full";
-    if (patchResult === "full") {
-      this.renderTable();
+      patchResult = event ? this.patchDirtyRows(event) : "full";
+      if (patchResult === "full") {
+        this.renderTable();
+      }
+      this.syncHeaderScroll();
+    } finally {
+      endTrace({
+        bodyCellRenderCount: this.tracedBodyCellRenderCount - bodyCellRenderCountStart,
+        patchResult,
+        tableVisible,
+      });
     }
-    this.syncHeaderScroll();
   }
 
   private patchDirtyRows(event: TableRowsVersionChangeEvent): DirtyRowsPatchResult {
@@ -822,7 +928,61 @@ export class TableWidget {
     ].join("\u001f");
   }
 
-  private syncCachedGridState(): void {
+  private getPerformanceTraceMeta(): TablePerformanceTraceMeta {
+    const { tableState } = this.props;
+    const tableFile = tableState.file;
+    const { columnRange, rowRange } = this.grid.getState();
+    return {
+      columnCount: tableFile?.columnCount ?? 0,
+      displayVersion: tableState.displayVersion ?? null,
+      loadState: tableState.loadState.state,
+      rowCount: tableFile?.rowCount ?? 0,
+      selectedFileId: tableState.selectedFileId ?? null,
+      sourceKey: tableState.sourceKey ?? tableFile?.sourceKey ?? tableState.selectedFileId ?? null,
+      visibleColumnStart: columnRange.startIndex,
+      visibleColumns: columnRange.renderedCount,
+      visibleRowStart: rowRange.startIndex,
+      visibleRows: rowRange.renderedCount,
+      zoomPercent: this.grid.getZoomPercent(),
+    };
+  }
+
+  private getPerformanceMeasurementMeta(): TablePerformanceTraceMeta {
+    const { columnRange, rowRange } = this.grid.getState();
+    return {
+      visibleColumns: columnRange.renderedCount,
+      visibleRows: rowRange.renderedCount,
+    };
+  }
+
+  private startPerformanceTrace(
+    stage: string,
+    meta: TablePerformanceTraceMeta = {},
+  ): TableWidgetPerformanceTraceEnd {
+    if (!isTablePerformanceInstrumentationEnabled()) {
+      return () => undefined;
+    }
+
+    const shouldTrace = isTablePerformanceTraceEnabled();
+    const endTrace = startTablePerformanceTrace(stage, {
+      ...(shouldTrace ? this.getPerformanceTraceMeta() : {}),
+      ...meta,
+    }, {
+      ...this.getPerformanceMeasurementMeta(),
+      ...meta,
+    });
+    return (endMeta: TablePerformanceTraceMeta = {}) => {
+      endTrace({
+        ...(shouldTrace ? this.getPerformanceTraceMeta() : {}),
+        ...endMeta,
+      }, {
+        ...this.getPerformanceMeasurementMeta(),
+        ...endMeta,
+      });
+    };
+  }
+
+  private syncCachedGridState(): boolean {
     const { rowRange, columnRange } = this.grid.getState();
     const changed = this.bodyStartRowIndex !== rowRange.startIndex ||
       this.bodyTotalRowCount !== rowRange.totalCount ||
@@ -839,6 +999,20 @@ export class TableWidget {
     if (changed) {
       this.appliedCellState = null;
     }
+    return changed;
+  }
+
+  private syncVisibleGridState(): boolean {
+    if (!this.syncCachedGridState()) {
+      return false;
+    }
+
+    this.syncSelectionState();
+    const tableFile = this.props.tableState.file;
+    if (tableFile?.fileId) {
+      this.ensureRows(this.props.tableModel, tableFile.sourceKey ?? tableFile.fileId, this.getBodyRowRange());
+    }
+    return true;
   }
 
   private renderBodyCell(
@@ -846,6 +1020,7 @@ export class TableWidget {
     rowIndex: number,
     colIndex: number,
   ): void {
+    this.tracedBodyCellRenderCount += 1;
     const row = this.props.tableModel.getRow(rowIndex) ?? [];
     const rawValue = row[colIndex];
     const profile = this.props.tableModel.getColumnDisplayProfile(colIndex);
@@ -858,90 +1033,112 @@ export class TableWidget {
   }
 
   private syncSelectionState(): void {
-    if (!this.isTableVisible()) {
-      return;
-    }
+    const endTrace = this.startPerformanceTrace("table.selection.sync");
+    let changedColumnCount = 0;
+    let fullSync = false;
+    let rangesChanged = false;
+    let tableVisible = false;
+    let touchedCellCount = 0;
+    try {
+      tableVisible = this.isTableVisible();
+      if (!tableVisible) {
+        return;
+      }
 
-    const { tableModel } = this.props;
-    const rowCount = this.bodyRowCount;
-    const columnCount = this.bodyColumnCount;
-    const startColumnIndex = this.bodyStartColumnIndex;
-    const selection = tableModel.getSelection();
-    const activeCell = normalizeActiveCell(
-      selection.activeCell,
-      this.bodyStartRowIndex,
-      rowCount,
-      startColumnIndex,
-      columnCount,
-    );
-    const selectedColumns = toColumnSet(selection.selectedColumns, startColumnIndex, columnCount);
-    const selectedRanges = toVisibleRanges(
-      selection.ranges,
-      this.bodyStartRowIndex,
-      rowCount,
-      startColumnIndex,
-      columnCount,
-    );
-    const highlightedColumns = toColumnSet(
-      tableModel.getHighlight().columns,
-      startColumnIndex,
-      columnCount,
-    );
-    const previous = this.appliedCellState;
-    const next: AppliedCellState = {
-      activeCell,
-      highlightedColumns,
-      selectedColumns,
-      selectedRanges,
-    };
+      const { tableModel } = this.props;
+      const rowCount = this.bodyRowCount;
+      const columnCount = this.bodyColumnCount;
+      const startColumnIndex = this.bodyStartColumnIndex;
+      const selection = tableModel.getSelection();
+      const activeCell = normalizeActiveCell(
+        selection.activeCell,
+        this.bodyStartRowIndex,
+        rowCount,
+        startColumnIndex,
+        columnCount,
+      );
+      const selectedColumns = toColumnSet(selection.selectedColumns, startColumnIndex, columnCount);
+      const selectedRanges = toVisibleRanges(
+        selection.ranges,
+        this.bodyStartRowIndex,
+        rowCount,
+        startColumnIndex,
+        columnCount,
+      );
+      const highlightedColumns = toColumnSet(
+        tableModel.getHighlight().columns,
+        startColumnIndex,
+        columnCount,
+      );
+      const previous = this.appliedCellState;
+      const next: AppliedCellState = {
+        activeCell,
+        highlightedColumns,
+        selectedColumns,
+        selectedRanges,
+      };
 
-    if (!previous) {
-      this.syncHeaderColumns(VirtualTableGridModel.range(columnCount), next);
-      for (let rowOffset = 0; rowOffset < rowCount; rowOffset += 1) {
-        const rowIndex = this.bodyStartRowIndex + rowOffset;
-        for (let columnOffset = 0; columnOffset < columnCount; columnOffset += 1) {
+      if (!previous) {
+        fullSync = true;
+        changedColumnCount = columnCount;
+        this.syncHeaderColumns(VirtualTableGridModel.range(columnCount), next);
+        for (let rowOffset = 0; rowOffset < rowCount; rowOffset += 1) {
+          const rowIndex = this.bodyStartRowIndex + rowOffset;
+          for (let columnOffset = 0; columnOffset < columnCount; columnOffset += 1) {
+            const cell = this.getVisibleBodyCell(rowOffset, columnOffset);
+            if (!cell) {
+              continue;
+            }
+            const colIndex = startColumnIndex + columnOffset;
+            this.updateCellState(cell, {
+              active: selectedRanges.length === 0 && isActiveCell(activeCell, rowIndex, colIndex),
+              highlighted: highlightedColumns.has(colIndex),
+              selected: isSelectedCell(rowIndex, colIndex, next),
+              selectionFrame: getSelectionFrame(rowIndex, colIndex, selectedRanges),
+            });
+            touchedCellCount += 1;
+          }
+        }
+        this.appliedCellState = next;
+        return;
+      }
+
+      rangesChanged = !areCellRangesEqual(previous.selectedRanges, next.selectedRanges);
+      const changedColumns = rangesChanged
+        ? VirtualTableGridModel.range(columnCount).map(columnOffset => startColumnIndex + columnOffset)
+        : getChangedColumns(previous, next, startColumnIndex, columnCount);
+      changedColumnCount = changedColumns.length;
+      this.syncHeaderColumns(changedColumns.map(colIndex => colIndex - startColumnIndex), next);
+
+      for (const colIndex of changedColumns) {
+        const columnOffset = colIndex - startColumnIndex;
+        for (let rowOffset = 0; rowOffset < rowCount; rowOffset += 1) {
           const cell = this.getVisibleBodyCell(rowOffset, columnOffset);
           if (!cell) {
             continue;
           }
-          const colIndex = startColumnIndex + columnOffset;
+          const rowIndex = this.bodyStartRowIndex + rowOffset;
           this.updateCellState(cell, {
             active: selectedRanges.length === 0 && isActiveCell(activeCell, rowIndex, colIndex),
             highlighted: highlightedColumns.has(colIndex),
             selected: isSelectedCell(rowIndex, colIndex, next),
             selectionFrame: getSelectionFrame(rowIndex, colIndex, selectedRanges),
           });
+          touchedCellCount += 1;
         }
       }
+
+      this.syncActiveCells(previous.activeCell, activeCell, next);
       this.appliedCellState = next;
-      return;
+    } finally {
+      endTrace({
+        changedColumnCount,
+        fullSync,
+        rangesChanged,
+        tableVisible,
+        touchedCellCount,
+      });
     }
-
-    const rangesChanged = !areCellRangesEqual(previous.selectedRanges, next.selectedRanges);
-    const changedColumns = rangesChanged
-      ? VirtualTableGridModel.range(columnCount).map(columnOffset => startColumnIndex + columnOffset)
-      : getChangedColumns(previous, next, startColumnIndex, columnCount);
-    this.syncHeaderColumns(changedColumns.map(colIndex => colIndex - startColumnIndex), next);
-
-    for (const colIndex of changedColumns) {
-      const columnOffset = colIndex - startColumnIndex;
-      for (let rowOffset = 0; rowOffset < rowCount; rowOffset += 1) {
-        const cell = this.getVisibleBodyCell(rowOffset, columnOffset);
-        if (!cell) {
-          continue;
-        }
-        const rowIndex = this.bodyStartRowIndex + rowOffset;
-        this.updateCellState(cell, {
-          active: selectedRanges.length === 0 && isActiveCell(activeCell, rowIndex, colIndex),
-          highlighted: highlightedColumns.has(colIndex),
-          selected: isSelectedCell(rowIndex, colIndex, next),
-          selectionFrame: getSelectionFrame(rowIndex, colIndex, selectedRanges),
-        });
-      }
-    }
-
-    this.syncActiveCells(previous.activeCell, activeCell, next);
-    this.appliedCellState = next;
   }
 
   private syncActiveCells(
@@ -1636,12 +1833,25 @@ export class TableWidget {
   }
 
   private onTableScroll(): void {
-    this.syncHeaderScroll();
-    if (!this.isTableVisible()) {
-      return;
-    }
+    const endTrace = this.startPerformanceTrace("table.scroll");
+    let tableVisible = false;
+    let visibleRangeChanged = false;
+    const bodyCellRenderCountStart = this.tracedBodyCellRenderCount;
+    try {
+      this.syncHeaderScroll();
+      tableVisible = this.isTableVisible();
+      if (!tableVisible) {
+        return;
+      }
 
-    this.renderTable();
+      visibleRangeChanged = this.syncVisibleGridState();
+    } finally {
+      endTrace({
+        bodyCellRenderCount: this.tracedBodyCellRenderCount - bodyCellRenderCountStart,
+        tableVisible,
+        visibleRangeChanged,
+      });
+    }
   }
 }
 

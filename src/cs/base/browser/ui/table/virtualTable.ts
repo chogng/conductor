@@ -655,6 +655,7 @@ export class VirtualTable implements IDisposable {
 	private readonly topSpacerCell = document.createElement("td");
 	private readonly topSpacerRow = document.createElement("tr");
 	private headerColumnCount = 0;
+	private lastRenderOptions: VirtualTableRenderOptions | null = null;
 	private renderedZoomPercent: number | null = null;
 	private state: VirtualTableState = {
 		rowRange: {
@@ -762,14 +763,14 @@ export class VirtualTable implements IDisposable {
 	}
 
 	public render(options: VirtualTableRenderOptions): boolean {
+		this.lastRenderOptions = options;
 		const previousState = this.state;
 		const zoomChanged = this.renderedZoomPercent !== options.zoomPercent;
 		if (zoomChanged) {
 			this.renderedZoomPercent = options.zoomPercent;
 		}
 
-		const rowRange = this.resolveVisibleRowRange(options.rowCount, options.zoomPercent);
-		const columnRange = this.resolveVisibleColumnRange(options.columnCount, options.zoomPercent);
+		const { rowRange, columnRange } = this.resolveVisibleState(options);
 		const rowCount = rowRange.renderedCount;
 		const columnCount = columnRange.renderedCount;
 		const nextState = { rowRange, columnRange };
@@ -898,8 +899,12 @@ export class VirtualTable implements IDisposable {
 		return true;
 	}
 
+	public getScrollPosition(): VirtualTableScrollEvent {
+		return this.scrollArea.getScrollPosition();
+	}
+
 	public resetScrollTop(): void {
-		this.viewport.scrollTop = 0;
+		this.scrollArea.setScrollPosition({ scrollTop: 0 });
 	}
 
 	public scrollHorizontally(delta: number): boolean {
@@ -907,17 +912,10 @@ export class VirtualTable implements IDisposable {
 			return false;
 		}
 
-		const previousScrollLeft = this.viewport.scrollLeft;
-		const maxScrollLeft = Math.max(0, this.viewport.scrollWidth - this.viewport.clientWidth);
-		const nextScrollLeft = Math.min(
-			maxScrollLeft,
-			Math.max(0, previousScrollLeft + delta),
-		);
-		if (nextScrollLeft === previousScrollLeft) {
+		if (!this.scrollArea.scrollBy({ scrollLeft: delta })) {
 			return false;
 		}
 
-		this.viewport.scrollLeft = nextScrollLeft;
 		this.syncHeaderScroll();
 		return true;
 	}
@@ -959,7 +957,7 @@ export class VirtualTable implements IDisposable {
 	}
 
 	public syncHeaderScroll(): void {
-		const scrollLeft = this.viewport.scrollLeft;
+		const { scrollLeft } = this.getScrollPosition();
 		this.headerContent.style.transform = scrollLeft === 0
 			? ""
 			: `translateX(${-scrollLeft}px)`;
@@ -967,10 +965,33 @@ export class VirtualTable implements IDisposable {
 
 	private onScroll(): void {
 		this.syncHeaderScroll();
+		this.renderVisibleRangeFromScroll();
+		const { scrollLeft, scrollTop } = this.getScrollPosition();
 		this.onDidScrollEmitter.fire({
-			scrollLeft: this.viewport.scrollLeft,
-			scrollTop: this.viewport.scrollTop,
+			scrollLeft,
+			scrollTop,
 		});
+	}
+
+	private renderVisibleRangeFromScroll(): void {
+		const options = this.lastRenderOptions;
+		if (!options || !this.isContentAttached()) {
+			return;
+		}
+
+		const nextState = this.resolveVisibleState(options);
+		if (isVirtualTableStateEqual(this.state, nextState)) {
+			return;
+		}
+
+		this.render(options);
+	}
+
+	private resolveVisibleState(options: VirtualTableRenderOptions): VirtualTableState {
+		return {
+			rowRange: this.resolveVisibleRowRange(options.rowCount, options.zoomPercent),
+			columnRange: this.resolveVisibleColumnRange(options.columnCount, options.zoomPercent),
+		};
 	}
 
 	private resolveVisibleRowRange(totalCount: unknown, zoomPercent: number): VirtualTableRange {
@@ -978,7 +999,7 @@ export class VirtualTable implements IDisposable {
 			totalCount,
 			maxRenderedCount: this.maxRenderedRows,
 			rowHeight: VirtualTableGridModel.getRowHeight(zoomPercent),
-			scrollTop: this.viewport.scrollTop,
+			scrollTop: this.getScrollPosition().scrollTop,
 			viewportHeight: this.viewport.clientHeight,
 		});
 	}
@@ -996,7 +1017,7 @@ export class VirtualTable implements IDisposable {
 		return VirtualTableGridModel.resolveColumnViewportRange({
 			totalCount: displayColumnCount,
 			maxRenderedCount: this.maxRenderedColumns,
-			scrollLeft: this.viewport.scrollLeft,
+			scrollLeft: this.getScrollPosition().scrollLeft,
 			viewportWidth,
 			zoomPercent,
 			getColumnWidth: colIndex => this.options.getColumnWidth(colIndex),
@@ -1285,7 +1306,7 @@ export class VirtualTable implements IDisposable {
 		const rowHeight = VirtualTableGridModel.getRowHeight(zoomPercent);
 		const top = rowIndex * rowHeight;
 		const bottom = top + rowHeight;
-		const viewportTop = this.viewport.scrollTop;
+		const { scrollTop: viewportTop } = this.getScrollPosition();
 		const viewportBottom = viewportTop + this.viewport.clientHeight;
 		const nextScrollTop = top < viewportTop
 			? top
@@ -1296,7 +1317,7 @@ export class VirtualTable implements IDisposable {
 			return false;
 		}
 
-		this.viewport.scrollTop = Math.max(0, nextScrollTop);
+		this.scrollArea.setScrollPosition({ scrollTop: Math.max(0, nextScrollTop) });
 		return true;
 	}
 
@@ -1309,18 +1330,19 @@ export class VirtualTable implements IDisposable {
 		const rowHeaderWidth = VirtualTableGridModel.getRowHeaderWidth(zoomPercent);
 		const left = this.getColumnOffset(colIndex, zoomPercent, getColumnWidth);
 		const right = left + (getColumnWidth(colIndex) * scale);
-		const viewportLeft = this.viewport.scrollLeft + rowHeaderWidth;
-		const viewportRight = this.viewport.scrollLeft + this.viewport.clientWidth;
+		const { scrollLeft } = this.getScrollPosition();
+		const viewportLeft = scrollLeft + rowHeaderWidth;
+		const viewportRight = scrollLeft + this.viewport.clientWidth;
 		const nextScrollLeft = left < viewportLeft
 			? left - rowHeaderWidth
 			: right > viewportRight
 				? right - this.viewport.clientWidth
-				: this.viewport.scrollLeft;
-		if (Math.abs(nextScrollLeft - this.viewport.scrollLeft) < 0.5) {
+				: scrollLeft;
+		if (Math.abs(nextScrollLeft - scrollLeft) < 0.5) {
 			return false;
 		}
 
-		this.viewport.scrollLeft = Math.max(0, nextScrollLeft);
+		this.scrollArea.setScrollPosition({ scrollLeft: Math.max(0, nextScrollLeft) });
 		return true;
 	}
 

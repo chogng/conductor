@@ -20,6 +20,8 @@ import type {
   ScrollbarControllerOptions,
   ScrollbarHandle,
   ScrollbarOrientation,
+  ScrollbarScrollDimensions,
+  ScrollbarScrollPosition,
 } from "src/cs/base/browser/ui/scrollbar/scrollbarOptions";
 import { ScrollbarState } from "src/cs/base/browser/ui/scrollbar/scrollbarState";
 
@@ -177,6 +179,30 @@ export class ScrollbarController implements ScrollbarHandle {
 
   updateScrollPosition(): void {
     this.updateThumbOffsets();
+  }
+
+  getScrollDimensions(): ScrollbarScrollDimensions {
+    return this.readScrollDimensions();
+  }
+
+  getScrollPosition(): ScrollbarScrollPosition {
+    return this.readScrollPosition();
+  }
+
+  setScrollPosition(position: Partial<ScrollbarScrollPosition>): void {
+    if (this.options.setScrollPosition) {
+      this.options.setScrollPosition(position);
+    } else {
+      if (typeof position.scrollLeft === "number") {
+        this.options.viewport.scrollLeft = position.scrollLeft;
+      }
+      if (typeof position.scrollTop === "number") {
+        this.options.viewport.scrollTop = position.scrollTop;
+      }
+    }
+
+    this.onScrollPositionChange?.(this.readScrollPosition());
+    this.scheduleThumbOffsetsUpdate();
   }
 
   dispose(): void {
@@ -522,22 +548,6 @@ export class ScrollbarController implements ScrollbarHandle {
 
   private readScrollPosition() {
     return this.options.getScrollPosition?.() ?? getScrollPosition(this.options.viewport);
-  }
-
-  private setScrollPosition(position: { scrollLeft?: number; scrollTop?: number }): void {
-    if (this.options.setScrollPosition) {
-      this.options.setScrollPosition(position);
-    } else {
-      if (typeof position.scrollLeft === "number") {
-        this.options.viewport.scrollLeft = position.scrollLeft;
-      }
-      if (typeof position.scrollTop === "number") {
-        this.options.viewport.scrollTop = position.scrollTop;
-      }
-    }
-
-    this.onScrollPositionChange?.(this.readScrollPosition());
-    this.scheduleThumbOffsetsUpdate();
   }
 
   private emitScrollEvent(inSmoothScrolling: boolean): void {
