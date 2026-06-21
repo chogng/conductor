@@ -216,9 +216,6 @@ export class ExplorerViewPane extends ViewPane {
 
   public update(input: ExplorerPaneInput | null): void {
     this.input = input;
-    if (!input) {
-      return;
-    }
 
     if (!this.explorerView) {
       this.explorerView = new ExplorerView(this.explorerHost, this.createExplorerViewProps());
