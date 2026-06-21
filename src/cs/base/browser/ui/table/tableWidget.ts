@@ -5,10 +5,7 @@
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import {
-	VirtualTable,
-	VirtualTableGridModel,
-} from "src/cs/base/browser/ui/table/virtualTable";
+import { VirtualTable, VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable";
 
 import "src/cs/base/browser/ui/table/table.css";
 

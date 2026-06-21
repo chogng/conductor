@@ -1,4 +1,4 @@
-import { distinct, equals as arraysEqual } from "src/cs/base/common/arrays";
+import { distinct, equals as arraysEqual } from "../../../base/common/arrays.js";
 import {
   ConfigurationTarget,
   getConfigurationValue,
