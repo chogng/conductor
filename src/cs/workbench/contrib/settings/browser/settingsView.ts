@@ -24,6 +24,7 @@ import {
   type SettingsSectionId,
 } from "src/cs/workbench/contrib/settings/browser/settingsLayout";
 import { renderReleaseNotesMarkdown } from "src/cs/workbench/contrib/settings/browser/releaseNotesMarkdownRenderer";
+import { readBundledReleaseNotesMarkdown } from "src/cs/workbench/contrib/settings/browser/releaseNotesReader";
 import { SettingsTree, type SettingsTreeSection } from "src/cs/workbench/contrib/settings/browser/settingsTree";
 import type { LanguagePreference } from "src/cs/base/common/platform";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
@@ -784,9 +785,9 @@ export class SettingsView {
   }
 
   private createReleaseNotesMarkdown(): string {
-    const version = this.options.appUpdateSettings.currentVersion || localize("settings.releaseNotes.unknownVersion", "Current Version");
-    return localize("settings.releaseNotes.defaultMarkdown", "# Conductor Studio {version}\n\n## Highlights\n\n- Added an in-app Release Notes viewer in Settings.\n- Added safe Markdown rendering for release note content.\n\n## Supported Content\n\n| Content | Status |\n| --- | --- |\n| Headings, paragraphs, and lists | Supported |\n| Links and images | Supported |\n| Code blocks and tables | Supported |\n| Controlled video media | Supported |\n\n## Notes\n\nRelease notes content is rendered as safe DOM nodes and embedded HTML is ignored.", {
-      version,
+    return readBundledReleaseNotesMarkdown({
+      currentVersion: this.options.appUpdateSettings.currentVersion,
+      fallbackVersionLabel: localize("settings.releaseNotes.unknownVersion", "Current Version"),
     });
   }
 

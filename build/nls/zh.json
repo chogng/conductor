@@ -472,7 +472,6 @@
   "settings.origin.plot.xyPairsLabel": "XY 配对",
   "settings.origin.title": "Origin 可执行文件路径",
   "settings.releaseNotes.close": "关闭",
-  "settings.releaseNotes.defaultMarkdown": "# Conductor Studio {version}\n\n## 亮点\n\n- 在设置中新增应用内发行说明查看器。\n- 为发行说明内容新增安全 Markdown 渲染。\n\n## 支持的内容\n\n| 内容 | 状态 |\n| --- | --- |\n| 标题、段落和列表 | 已支持 |\n| 链接和图片 | 已支持 |\n| 代码块和表格 | 已支持 |\n| 受控视频媒体 | 已支持 |\n\n## 说明\n\n发行说明内容会渲染为安全 DOM 节点，嵌入的 HTML 会被忽略。",
   "settings.releaseNotes.dialogTitle": "发行说明",
   "settings.releaseNotes.showButton": "显示发行说明",
   "settings.releaseNotes.title": "发行说明",

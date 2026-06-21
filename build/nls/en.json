@@ -469,7 +469,6 @@
   "settings.origin.plot.xyPairsLabel": "XY pairs",
   "settings.origin.title": "Origin Executable Path",
   "settings.releaseNotes.close": "Close",
-  "settings.releaseNotes.defaultMarkdown": "# Conductor Studio {version}\n\n## Highlights\n\n- Added an in-app Release Notes viewer in Settings.\n- Added safe Markdown rendering for release note content.\n\n## Supported Content\n\n| Content | Status |\n| --- | --- |\n| Headings, paragraphs, and lists | Supported |\n| Links and images | Supported |\n| Code blocks and tables | Supported |\n| Controlled video media | Supported |\n\n## Notes\n\nRelease notes content is rendered as safe DOM nodes and embedded HTML is ignored.",
   "settings.releaseNotes.dialogTitle": "Release Notes",
   "settings.releaseNotes.showButton": "Show Release Notes",
   "settings.releaseNotes.title": "Release Notes",
