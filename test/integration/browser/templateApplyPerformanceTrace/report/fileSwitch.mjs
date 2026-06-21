@@ -12,22 +12,28 @@ import {
 } from "./milestones.mjs";
 import {
   durationFromDispatch,
+  filterInteractionEventsByWindow,
   firstDispatchesByFileForWindow,
+  getNextDispatchTimestamp,
   phaseWindowByName,
 } from "./interactionCommon.mjs";
 
 export const createLiveFileSwitchTargetSamples = (result, window = null) => {
   const events = Array.isArray(result?.trace?.events) ? result.trace.events : [];
   const dispatches = Array.isArray(result?.trace?.dispatches) ? result.trace.dispatches : [];
+  const windowEvents = filterInteractionEventsByWindow(events, window);
   return firstDispatchesByFileForWindow(dispatches, window).map((dispatch) => {
     const fileId = String(dispatch.fileId ?? "");
+    const dispatchTimestamp = readNumber(dispatch.timestamp);
     const dispatchSignature = dispatch.state?.canvasSignature ?? null;
     const dispatchRenderSignature = dispatch.state?.canvasRenderSignature ?? null;
-    const fileEvents = events.filter(event =>
+    const nextDispatchTimestamp = getNextDispatchTimestamp(dispatches, dispatch);
+    const fileEvents = windowEvents.filter(event =>
       event.selectedFileId === fileId &&
       readNumber(event.timestamp) != null &&
-      readNumber(dispatch.timestamp) != null &&
-      event.timestamp >= dispatch.timestamp
+      dispatchTimestamp != null &&
+      event.timestamp >= dispatchTimestamp &&
+      (nextDispatchTimestamp == null || event.timestamp < nextDispatchTimestamp)
     );
     const selected = fileEvents[0] ?? null;
     const canvasVisible = fileEvents.find(event => event.canvasVisible);
@@ -82,6 +88,7 @@ export const createLiveFileSwitchTargetSamples = (result, window = null) => {
       dispatchTimestamp: roundMetric(readNumber(dispatch.timestamp)),
       dispatchWallTime: roundMetric(getTraceEventWallTime(dispatch)),
       fileId,
+      nextDispatchTimestamp: roundMetric(nextDispatchTimestamp),
       pendingDisplayMs: durationFromDispatch(dispatch, pendingDisplay),
       readySelectedMs: durationFromDispatch(dispatch, readySelected),
       renderSignatureChangedMs: durationFromDispatch(dispatch, renderSignatureChanged),

@@ -12,7 +12,9 @@ import {
 } from "./milestones.mjs";
 import {
   durationFromDispatch,
+  filterInteractionEventsByWindow,
   firstDispatchesByFileForWindow,
+  getNextDispatchTimestamp,
   phaseWindowByName,
 } from "./interactionCommon.mjs";
 
@@ -46,13 +48,17 @@ export const summarizeThumbnailHoverStress = (result, perfReport) => {
 export const createLiveHoverTargetSamples = (result, window = null) => {
   const events = Array.isArray(result?.trace?.events) ? result.trace.events : [];
   const dispatches = Array.isArray(result?.trace?.dispatches) ? result.trace.dispatches : [];
+  const windowEvents = filterInteractionEventsByWindow(events, window);
   return firstDispatchesByFileForWindow(dispatches, window).map((dispatch) => {
     const fileId = String(dispatch.fileId ?? "");
-    const fileEvents = events.filter(event =>
+    const dispatchTimestamp = readNumber(dispatch.timestamp);
+    const nextDispatchTimestamp = getNextDispatchTimestamp(dispatches, dispatch);
+    const fileEvents = windowEvents.filter(event =>
       event.fileId === fileId &&
       readNumber(event.timestamp) != null &&
-      readNumber(dispatch.timestamp) != null &&
-      event.timestamp >= dispatch.timestamp
+      dispatchTimestamp != null &&
+      event.timestamp >= dispatchTimestamp &&
+      (nextDispatchTimestamp == null || event.timestamp < nextDispatchTimestamp)
     );
     const tooltip = fileEvents.find(event => event.tooltipVisible);
     const canvasVisible = fileEvents.find(event => event.canvasVisible);
@@ -82,6 +88,7 @@ export const createLiveHoverTargetSamples = (result, window = null) => {
       dispatchTimestamp: roundMetric(readNumber(dispatch.timestamp)),
       dispatchWallTime: roundMetric(getTraceEventWallTime(dispatch)),
       fileId,
+      nextDispatchTimestamp: roundMetric(nextDispatchTimestamp),
       plotSignatureChangeCount: Math.max(0, plotSignatures.size - 1),
       stableReadyMs: durationFromDispatch(dispatch, stableReady),
       tooltipMs: durationFromDispatch(dispatch, tooltip),

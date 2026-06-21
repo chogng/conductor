@@ -60,6 +60,8 @@ import {
 } from "src/cs/workbench/services/template/common/templateSelection";
 import {
   getRawTableRefsForFileIds,
+  type AssessmentQueueSnapshot,
+  type AssessmentRawTableQueueState,
   type IAssessmentQueueService,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import {
@@ -109,6 +111,7 @@ export class WorkbenchDomainBridge extends Disposable {
     this._register(this.options.explorerService.onDidChangeVisibleFileIds(event => {
       this.prioritizeVisibleExplorerFiles(event.visibleFileIds, event.nearbyFileIds);
     }));
+    this._register(this.options.assessmentQueueService.onDidChangeAssessmentQueueState(() => this.scheduleSync()));
     this._register(this.options.plotService.onDidChangePlotState(() => this.scheduleSync()));
     this._register(this.options.templateApplyWorkflowService.onDidChangeProcessingStatus(() => this.scheduleSync()));
     this._register(this.options.templateApplyWorkflowService.onDidChangeFileStates(() => this.scheduleSync()));
@@ -264,6 +267,7 @@ export class WorkbenchDomainBridge extends Disposable {
       plotService: this.options.plotService,
       readModel,
       snapshot,
+      assessmentQueueSnapshot: this.options.assessmentQueueService.getQueueSnapshot(),
       applyStatesByFileId: this.options.templateApplyWorkflowService.getFileApplyStates(),
       templateState: this.options.templateService.getState(),
     });
@@ -584,6 +588,7 @@ type CreateExplorerPaneInputOptions = {
   readonly plotService: Pick<IPlotService, "getCalculatedData">;
   readonly readModel: SessionReadModel;
   readonly snapshot: SessionSnapshot;
+  readonly assessmentQueueSnapshot?: AssessmentQueueSnapshot;
   readonly applyStatesByFileId?: ReadonlyMap<string, TemplateApplyFileState>;
   readonly templateState: TemplateState;
 };
@@ -653,6 +658,7 @@ export const createExplorerPaneInput = ({
   plotAxisSettings,
   readModel,
   snapshot,
+  assessmentQueueSnapshot,
   applyStatesByFileId,
   templateState,
 }: CreateExplorerPaneInputOptions): ExplorerPaneInput => {
@@ -666,7 +672,14 @@ export const createExplorerPaneInput = ({
       snapshot.fileOrder,
       rawFiles,
     )
-    : applyFastExplorerBadges(createRawExplorerFiles(rawFiles), snapshot), {
+    : applyFastExplorerBadges(
+      applyAssessmentQueueExplorerBadges(
+        createRawExplorerFiles(rawFiles),
+        snapshot,
+        assessmentQueueSnapshot,
+      ),
+      snapshot,
+    ), {
       applyStatesByFileId,
       isChartMode,
       snapshot,
@@ -751,6 +764,71 @@ const applyFastExplorerBadges = (
 ): ExplorerFileEntry[] =>
   files.map(file => applyFastExplorerBadge(file, snapshot));
 
+const applyAssessmentQueueExplorerBadges = (
+  files: readonly ExplorerFileEntry[],
+  snapshot: SessionSnapshot,
+  queueSnapshot: AssessmentQueueSnapshot | undefined,
+): ExplorerFileEntry[] => {
+  if (!queueSnapshot?.rawTables.length) {
+    return [...files];
+  }
+
+  const queueStatesByRefKey = createAssessmentQueueStatesByRefKey(queueSnapshot);
+  return files.map(file => applyAssessmentQueueExplorerBadge(file, snapshot, queueStatesByRefKey));
+};
+
+const applyAssessmentQueueExplorerBadge = (
+  file: ExplorerFileEntry,
+  snapshot: SessionSnapshot,
+  queueStatesByRefKey: ReadonlyMap<string, AssessmentRawTableQueueState>,
+): ExplorerFileEntry => {
+  if (file.badgeState?.kind !== "pending") {
+    return file;
+  }
+
+  const fileId = String(file.fileId ?? "").trim();
+  const fileRecord = fileId ? snapshot.filesById[fileId] : undefined;
+  const match = findExplorerRawTable(file, fileRecord);
+  if (!fileId || !match) {
+    return file;
+  }
+
+  const queueState = queueStatesByRefKey.get(createRawTableRefKey(fileId, match.rawTableId));
+  if (!queueState) {
+    return file;
+  }
+
+  return {
+    ...file,
+    badgeState: {
+      kind: "pending",
+      queueState: queueState.state,
+      source: "assessment",
+    },
+  };
+};
+
+const createAssessmentQueueStatesByRefKey = (
+  snapshot: AssessmentQueueSnapshot,
+): ReadonlyMap<string, AssessmentRawTableQueueState> => {
+  const statesByRefKey = new Map<string, AssessmentRawTableQueueState>();
+  for (const state of snapshot.rawTables) {
+    const fileId = String(state.fileId ?? "").trim();
+    const rawTableId = String(state.rawTableId ?? "").trim();
+    if (!fileId || !rawTableId) {
+      continue;
+    }
+
+    const key = createRawTableRefKey(fileId, rawTableId);
+    const current = statesByRefKey.get(key);
+    if (!current || state.state === "running") {
+      statesByRefKey.set(key, state);
+    }
+  }
+
+  return statesByRefKey;
+};
+
 const applyChartExplorerStates = (
   files: readonly ExplorerFileEntry[],
   {
@@ -825,7 +903,7 @@ const applyFastExplorerBadge = (
 
   const fileId = String(file.fileId ?? "").trim();
   const fileRecord = fileId ? snapshot.filesById[fileId] : undefined;
-  const table = findExplorerRawTable(file, fileRecord);
+  const table = findExplorerRawTable(file, fileRecord)?.table ?? null;
   const fastBadge = assessFastImportBadge({
     fileName: file.fileName ?? fileRecord?.raw.fileName,
     relativePath: file.relativePath ?? fileRecord?.raw.relativePath,
@@ -882,22 +960,32 @@ const isUnhealthyRawTable = (
 const findExplorerRawTable = (
   file: ExplorerFileEntry,
   fileRecord: FileRecord | undefined,
-): TableRecord | null => {
+): { readonly rawTableId: string; readonly table: TableRecord } | null => {
   if (!fileRecord) {
     return null;
   }
 
   const sourceKey = String(file.sourceKey ?? "").trim();
   if (sourceKey) {
-    const table = Object.values(fileRecord.raw.tablesById)
-      .find(candidate => candidate.tableKey === sourceKey);
-    if (table) {
-      return table;
+    const entry = Object.entries(fileRecord.raw.tablesById)
+      .find(([, candidate]) => candidate.tableKey === sourceKey);
+    if (entry) {
+      const [rawTableId, table] = entry;
+      return {
+        rawTableId,
+        table,
+      };
     }
   }
 
   const firstTableId = fileRecord.raw.tableOrder[0];
-  return firstTableId ? fileRecord.raw.tablesById[firstTableId] ?? null : null;
+  const table = firstTableId ? fileRecord.raw.tablesById[firstTableId] ?? null : null;
+  return firstTableId && table
+    ? {
+        rawTableId: firstTableId,
+        table,
+      }
+    : null;
 };
 
 const getFastBadgeRows = (
@@ -917,3 +1005,8 @@ const createRawTableSource = (fileId: string | null): TableSource | null => {
   const normalizedFileId = String(fileId ?? "").trim();
   return normalizedFileId ? { fileId: normalizedFileId } : null;
 };
+
+const createRawTableRefKey = (
+  fileId: string,
+  rawTableId: string,
+): string => `${fileId}\u0000${rawTableId}`;

@@ -43,7 +43,11 @@ export type ExplorerBadgeState =
 			readonly message?: string | null;
 			readonly source: "fast" | "assessment";
 		}
-	| { readonly kind: "pending" }
+	| {
+			readonly kind: "pending";
+			readonly queueState?: "queued" | "running";
+			readonly source?: "assessment";
+		}
 	| { readonly kind: "none" }
 	| {
 			readonly kind: "unknown";
@@ -230,6 +234,8 @@ const createExplorerBadgeProjectionFileSignature = (file: ExplorerFileEntry): st
 		badgeState?.kind === "ready" ? badgeState.label : "",
 		badgeState?.kind === "ready" ? badgeState.confidence : "",
 		badgeState?.kind === "ready" ? badgeState.source : "",
+		badgeState?.kind === "pending" ? badgeState.source ?? "" : "",
+		badgeState?.kind === "pending" ? badgeState.queueState ?? "" : "",
 		badgeState?.kind === "unknown" ? badgeState.source : "",
 		badgeState?.kind === "unknown" ? badgeState.suspectedType ?? "" : "",
 	].join("\u001f");
@@ -257,6 +263,8 @@ export const createExplorerFilePresentationSignature = (
 		badgeState?.kind === "ready" ? badgeState.label : "",
 		badgeState?.kind === "ready" ? badgeState.confidence : "",
 		badgeState?.kind === "ready" ? badgeState.source : "",
+		badgeState?.kind === "pending" ? badgeState.source ?? "" : "",
+		badgeState?.kind === "pending" ? badgeState.queueState ?? "" : "",
 		badgeState?.kind === "unknown" ? badgeState.source : "",
 		badgeState?.kind === "unknown" ? badgeState.message ?? "" : "",
 		badgeState?.kind === "unknown" ? badgeState.suspectedType ?? "" : "",

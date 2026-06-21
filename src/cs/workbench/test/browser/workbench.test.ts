@@ -70,6 +70,50 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     });
   });
 
+  test("projects assessment queue state into raw explorer badges", () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    commitRawFilesForTest(session, [{
+      columnCount: 0,
+      fileId: "file-a",
+      fileName: "notes.csv",
+      rowCount: 0,
+      rows: [],
+    }]);
+
+    const snapshot = session.getSnapshot();
+    const input = createExplorerPaneInput({
+      activePlotType: "iv",
+      assessmentQueueSnapshot: {
+        rawTables: [{
+          fileId: "file-a",
+          priority: "visible",
+          rawTableId: "file-a",
+          sourceRawTableVersion: 1,
+          state: "running",
+        }],
+      },
+      explorerService,
+      mode: "table",
+      plotService: createPlotService(),
+      readModel: createSessionReadModel(snapshot),
+      snapshot,
+      templateState: {
+        formState: createEmptyTemplateConfig(),
+        mode: "management",
+        selectedTemplateId: null,
+        selectionsByFileId: {},
+        templateListVersion: 0,
+      },
+    });
+
+    assert.deepEqual(input.files[0]?.badgeState, {
+      kind: "pending",
+      queueState: "running",
+      source: "assessment",
+    });
+  });
+
   test("keeps chart tree input on the stable raw file projection", () => {
     const session = store.add(new SessionService());
     commitRawFilesForTest(session, [
@@ -1141,9 +1185,13 @@ const createDomainBridgeOptionsForTest = ({
   };
   readonly visibleDetailPanes?: readonly ["inspector"] | readonly [];
 }): ConstructorParameters<typeof WorkbenchDomainBridge>[0] => ({
-	  assessmentQueueService: {
-	    prioritizeRawTables: () => undefined,
-	  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["assessmentQueueService"],
+  assessmentQueueService: {
+    _serviceBrand: undefined,
+    enqueueRawTables: () => undefined,
+    getQueueSnapshot: () => ({ rawTables: [] }),
+    onDidChangeAssessmentQueueState: Event.None as Event<void>,
+    prioritizeRawTables: () => undefined,
+  },
   calculationService: {
     prioritizeCalculationFile: fileId => {
       if (fileId) {

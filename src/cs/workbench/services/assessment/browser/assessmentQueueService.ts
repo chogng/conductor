@@ -2,12 +2,15 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
   IAssessmentQueueService,
   IAssessmentService,
   type AssessmentQueuePriority,
+  type AssessmentQueueSnapshot,
+  type AssessmentRawTableQueueState,
   type IAssessmentQueueService as IAssessmentQueueServiceType,
   type IAssessmentService as IAssessmentServiceType,
   type RawTableAssessmentRecord,
@@ -31,6 +34,7 @@ const RAW_TABLE_ASSESSMENT_PREVIEW_ROWS = 256;
 const RAW_TABLE_ASSESSMENT_BACKGROUND_COMMIT_BATCH_SIZE = 16;
 
 type QueuedRawTableAssessment = {
+  readonly priority: AssessmentQueuePriority;
   readonly ref: RawTableRef;
   readonly sourceRawTableVersion: number;
 };
@@ -38,11 +42,15 @@ type QueuedRawTableAssessment = {
 export class AssessmentQueueService extends Disposable implements IAssessmentQueueServiceType {
   public declare readonly _serviceBrand: undefined;
 
+  private readonly onDidChangeAssessmentQueueStateEmitter = this._register(new Emitter<void>());
+  public readonly onDidChangeAssessmentQueueState = this.onDidChangeAssessmentQueueStateEmitter.event;
+
   private readonly pendingBackgroundRefsByKey = new Map<string, QueuedRawTableAssessment>();
   private readonly pendingNearbyRefsByKey = new Map<string, QueuedRawTableAssessment>();
   private readonly pendingVisibleRefsByKey = new Map<string, QueuedRawTableAssessment>();
   private readonly preferredOrderByKey = new Map<string, number>();
   private readonly preferredPriorityByKey = new Map<string, AssessmentQueuePriority>();
+  private currentRawTableAssessment: QueuedRawTableAssessment | null = null;
   private disposed = false;
   private isAssessmentQueueRunning = false;
   private nextPreferredOrder = 0;
@@ -72,9 +80,11 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
   }
 
   public enqueueRawTables(refs: readonly RawTableRef[]): void {
+    let didChangeQueue = false;
     for (const ref of uniqueRawTableRefs(refs)) {
       const key = getRawTableRefKey(ref);
-      const entry = this.createQueuedRawTableAssessment(ref);
+      const priority = this.preferredPriorityByKey.get(key) ?? "background";
+      const entry = this.createQueuedRawTableAssessment(ref, priority);
       if (!entry) {
         continue;
       }
@@ -85,11 +95,14 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
       }
 
       this.deletePendingRawTableRef(key);
-      const priority = this.preferredPriorityByKey.get(key) ?? "background";
       this.getQueueForPriority(priority).set(key, entry);
       this.reorderQueueForPriority(priority);
+      didChangeQueue = true;
     }
 
+    if (didChangeQueue) {
+      this.fireAssessmentQueueStateChange();
+    }
     this.startAssessmentQueue();
   }
 
@@ -97,21 +110,39 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     refs: readonly RawTableRef[],
     priority: AssessmentQueuePriority,
   ): void {
+    let didChangeQueue = false;
     for (const ref of uniqueRawTableRefs(refs)) {
       const key = getRawTableRefKey(ref);
       this.preferredPriorityByKey.set(key, priority);
       this.preferredOrderByKey.set(key, this.nextPreferredOrder);
       this.nextPreferredOrder += 1;
 
-      const entry = this.createQueuedRawTableAssessment(ref);
+      const entry = this.createQueuedRawTableAssessment(ref, priority);
       if (!entry) {
         continue;
       }
 
       this.movePendingRawTableRef(entry, key, priority);
+      didChangeQueue = true;
     }
 
+    if (didChangeQueue) {
+      this.fireAssessmentQueueStateChange();
+    }
     this.startAssessmentQueue();
+  }
+
+  public getQueueSnapshot(): AssessmentQueueSnapshot {
+    return {
+      rawTables: [
+        ...this.getQueueSnapshotForPriority("visible"),
+        ...this.getQueueSnapshotForPriority("nearby"),
+        ...this.getQueueSnapshotForPriority("background"),
+        ...(this.currentRawTableAssessment
+          ? [toRawTableQueueState(this.currentRawTableAssessment, "running")]
+          : []),
+      ],
+    };
   }
 
   private startAssessmentQueue(): void {
@@ -135,7 +166,13 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
           break;
         }
 
-        const assessment = await this.assessRawTableRef(entry);
+        this.setCurrentRawTableAssessment(entry);
+        let assessment: RawTableAssessmentRecord | null = null;
+        try {
+          assessment = await this.assessRawTableRef(entry);
+        } finally {
+          this.clearCurrentRawTableAssessment(entry);
+        }
         if (!assessment || this.disposed) {
           continue;
         }
@@ -267,6 +304,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
 
   private createQueuedRawTableAssessment(
     ref: RawTableRef,
+    priority: AssessmentQueuePriority,
   ): QueuedRawTableAssessment | null {
     const snapshot = this.sessionService.getSnapshot();
     const file = snapshot.filesById[ref.fileId];
@@ -281,9 +319,35 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     }
 
     return {
+      priority,
       ref,
       sourceRawTableVersion,
     };
+  }
+
+  private getQueueSnapshotForPriority(
+    priority: AssessmentQueuePriority,
+  ): AssessmentRawTableQueueState[] {
+    return [...this.getQueueForPriority(priority).values()]
+      .map(entry => toRawTableQueueState(entry, "queued"));
+  }
+
+  private setCurrentRawTableAssessment(
+    entry: QueuedRawTableAssessment,
+  ): void {
+    this.currentRawTableAssessment = entry;
+    this.fireAssessmentQueueStateChange();
+  }
+
+  private clearCurrentRawTableAssessment(
+    entry: QueuedRawTableAssessment,
+  ): void {
+    if (this.currentRawTableAssessment !== entry) {
+      return;
+    }
+
+    this.currentRawTableAssessment = null;
+    this.fireAssessmentQueueStateChange();
   }
 
   private isCurrentRawTableVersion(
@@ -314,11 +378,19 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
   }
 
   private clearQueuedRawTableRefs(): void {
+    const didChangeQueue = this.hasPendingRawTableRefs() ||
+      this.currentRawTableAssessment !== null ||
+      this.preferredOrderByKey.size > 0 ||
+      this.preferredPriorityByKey.size > 0;
     this.pendingBackgroundRefsByKey.clear();
     this.pendingNearbyRefsByKey.clear();
     this.pendingVisibleRefsByKey.clear();
+    this.currentRawTableAssessment = null;
     this.preferredOrderByKey.clear();
     this.preferredPriorityByKey.clear();
+    if (didChangeQueue) {
+      this.fireAssessmentQueueStateChange();
+    }
   }
 
   private deleteQueuedRawTableRefsForFiles(fileIds: readonly string[]): void {
@@ -331,6 +403,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
       return;
     }
 
+    let didChangeQueue = false;
     for (const map of [
       this.pendingBackgroundRefsByKey,
       this.pendingNearbyRefsByKey,
@@ -341,8 +414,27 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
       for (const key of [...map.keys()]) {
         if (normalizedFileIds.has(getFileIdFromRawTableRefKey(key))) {
           map.delete(key);
+          didChangeQueue = true;
         }
       }
+    }
+
+    if (
+      this.currentRawTableAssessment &&
+      normalizedFileIds.has(this.currentRawTableAssessment.ref.fileId)
+    ) {
+      this.currentRawTableAssessment = null;
+      didChangeQueue = true;
+    }
+
+    if (didChangeQueue) {
+      this.fireAssessmentQueueStateChange();
+    }
+  }
+
+  private fireAssessmentQueueStateChange(): void {
+    if (!this.disposed) {
+      this.onDidChangeAssessmentQueueStateEmitter.fire(undefined);
     }
   }
 }
@@ -432,6 +524,17 @@ const shiftPendingRawTableRef = (
 const getRawTableRefKey = (
   ref: RawTableRef,
 ): string => `${ref.fileId}\u0000${ref.rawTableId}`;
+
+const toRawTableQueueState = (
+  entry: QueuedRawTableAssessment,
+  state: AssessmentRawTableQueueState["state"],
+): AssessmentRawTableQueueState => ({
+  fileId: entry.ref.fileId,
+  priority: entry.priority,
+  rawTableId: entry.ref.rawTableId,
+  sourceRawTableVersion: entry.sourceRawTableVersion,
+  state,
+});
 
 const getFileIdFromRawTableRefKey = (
   key: string,

@@ -286,6 +286,8 @@ suite("workbench/browser/workbench layout integration", () => {
     const bridge = new WorkbenchDomainBridge({
       assessmentQueueService: {
         enqueueRawTables: () => undefined,
+        getQueueSnapshot: () => ({ rawTables: [] }),
+        onDidChangeAssessmentQueueState: Event.None as Event<void>,
         prioritizeRawTables: (_rawTableRefs: unknown, priority: string) => {
           assessmentPriorities.push(priority);
         },
@@ -385,6 +387,8 @@ suite("workbench/browser/workbench layout integration", () => {
     const bridge = new WorkbenchDomainBridge({
       assessmentQueueService: {
         enqueueRawTables: () => undefined,
+        getQueueSnapshot: () => ({ rawTables: [] }),
+        onDidChangeAssessmentQueueState: Event.None as Event<void>,
         prioritizeRawTables: () => undefined,
       },
       calculationService: {
@@ -604,6 +608,8 @@ const createWorkbenchOptions = ({
     assessmentQueueService: {
       _serviceBrand: undefined,
       enqueueRawTables: () => undefined,
+      getQueueSnapshot: () => ({ rawTables: [] }),
+      onDidChangeAssessmentQueueState: Event.None as Event<void>,
       prioritizeRawTables: () => undefined,
     },
     calculationService: {

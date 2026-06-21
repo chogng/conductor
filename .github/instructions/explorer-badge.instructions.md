@@ -46,6 +46,7 @@ Explorer reports actual rendered range from ObjectTree/List. Do not calculate
 visible rows   -> assessment priority visible
 overscan rows  -> assessment priority nearby
 remaining rows -> assessment priority background
+assessment queue state -> WorkbenchDomainBridge -> ExplorerFileEntry.badgeState
 ```
 
 Assessment queue entries dedupe by raw table identity and source version. Drop

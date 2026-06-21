@@ -169,6 +169,48 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		assessmentQueueService.dispose();
 	});
 
+	test("publishes queued and running raw table assessment state", async () => {
+		const sessionService = store.add(new SessionService());
+		const assessmentService = new TestAssessmentService();
+		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
+		const assessmentQueueService = store.add(new AssessmentQueueService(
+			sessionService,
+			assessmentService,
+			rawTableRowsReaderService,
+		));
+		const observedStates: string[][] = [];
+		const disposable = store.add(assessmentQueueService.onDidChangeAssessmentQueueState(() => {
+			observedStates.push(assessmentQueueService.getQueueSnapshot().rawTables.map(state =>
+				`${state.state}:${state.priority}:${state.fileId}:${state.rawTableId}:${state.sourceRawTableVersion}`
+			));
+		}));
+
+		sessionService.commitFileImport(createInlineImportResult());
+		assessmentQueueService.enqueueRawTables([
+			{ fileId: "file-a", rawTableId: "table-a" },
+		]);
+		await waitUntil(() => assessmentQueueService.getQueueSnapshot().rawTables.some(state => state.state === "running"));
+
+		assert.deepEqual(assessmentQueueService.getQueueSnapshot(), {
+			rawTables: [{
+				fileId: "file-a",
+				priority: "background",
+				rawTableId: "table-a",
+				sourceRawTableVersion: 1,
+				state: "running",
+			}],
+		});
+		assert.ok(observedStates.some(state => state.includes("queued:background:file-a:table-a:1")));
+		assert.ok(observedStates.some(state => state.includes("running:background:file-a:table-a:1")));
+
+		rawTableRowsReaderService.resolveFirstRead();
+		await waitUntil(() => assessmentQueueService.getQueueSnapshot().rawTables.length === 0);
+
+		assert.equal(assessmentService.inputs.length, 1);
+		disposable.dispose();
+		assessmentQueueService.dispose();
+	});
+
 	test("cleans queued and preferred assessment refs when files are removed or session clears", () => {
 		const eventEmitter = new Emitter<SessionChangeEvent>();
 		const sessionService = {

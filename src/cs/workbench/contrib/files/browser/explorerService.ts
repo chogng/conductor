@@ -442,6 +442,12 @@ const areExplorerFilesEqual = (
       file.badgeState?.kind === nextFile.badgeState?.kind &&
       file.fileVersion === nextFile.fileVersion &&
       (
+        file.badgeState?.kind !== "pending" ||
+        nextFile.badgeState?.kind === "pending" &&
+          file.badgeState.source === nextFile.badgeState.source &&
+          file.badgeState.queueState === nextFile.badgeState.queueState
+      ) &&
+      (
         file.badgeState?.kind !== "error" ||
         nextFile.badgeState?.kind === "error" &&
           file.badgeState.message === nextFile.badgeState.message

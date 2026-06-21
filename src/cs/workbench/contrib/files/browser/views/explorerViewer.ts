@@ -178,6 +178,7 @@ type FileSourceStatusBadge = {
 type FilePendingAssessment = {
   readonly label: string;
   readonly isWarning: boolean;
+  readonly source?: "assessment";
   readonly state: "pending";
   readonly title: string;
 };
@@ -352,15 +353,19 @@ const createFileSourceStatusBadge = (
 const createFilePendingAssessment = (
   fileEntry: ExplorerFileEntry,
 ): FilePendingAssessment | null => {
-  if (fileEntry.badgeState?.kind !== "pending") {
+  const badgeState = fileEntry.badgeState;
+  if (badgeState?.kind !== "pending") {
     return null;
   }
 
   return {
     label: "...",
     isWarning: false,
+    ...(badgeState.source ? { source: badgeState.source } : {}),
     state: "pending",
-    title: localize("files.autoAnalyzing", "Analyzing"),
+    title: badgeState.queueState === "queued"
+      ? localize("files.autoQueued", "Waiting for assessment")
+      : localize("files.autoAnalyzing", "Analyzing"),
   };
 };
 

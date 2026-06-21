@@ -19,6 +19,31 @@ export const firstDispatchesByFile = (dispatches) => {
   return firstDispatches;
 };
 
+export const filterInteractionEventsByWindow = (events, window) =>
+  window
+    ? filterByWindow(events, window, getTraceEventWallTime)
+    : events;
+
+export const getNextDispatchTimestamp = (dispatches, dispatch) => {
+  const start = readNumber(dispatch?.timestamp);
+  if (start == null) {
+    return null;
+  }
+
+  let next = null;
+  for (const candidate of dispatches ?? []) {
+    const timestamp = readNumber(candidate?.timestamp);
+    if (timestamp == null || timestamp <= start) {
+      continue;
+    }
+    if (next == null || timestamp < next) {
+      next = timestamp;
+    }
+  }
+
+  return next;
+};
+
 export const durationFromDispatch = (dispatch, event) => {
   const start = readNumber(dispatch?.timestamp);
   const end = readNumber(event?.timestamp);
@@ -31,7 +56,5 @@ export const phaseWindowByName = (phaseAnchors, name) =>
 
 export const firstDispatchesByFileForWindow = (dispatches, window) =>
   firstDispatchesByFile(
-    window
-      ? filterByWindow(dispatches, window, getTraceEventWallTime)
-      : dispatches,
+    filterInteractionEventsByWindow(dispatches, window),
   );

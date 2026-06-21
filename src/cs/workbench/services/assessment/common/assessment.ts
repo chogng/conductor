@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
+import type { Event } from "src/cs/base/common/event";
 import type { AssessmentDiagnostic } from "src/cs/workbench/services/assessment/common/diagnostics";
 import type {
   IvSweepMode,
@@ -78,10 +79,27 @@ export interface IAssessmentService {
 
 export type AssessmentQueuePriority = "visible" | "nearby" | "background";
 
+// Conductor-specific service-local queue state for Explorer projections.
+// This is not a canonical Session record.
+export type AssessmentRawTableQueueState = {
+  readonly fileId: string;
+  readonly priority: AssessmentQueuePriority;
+  readonly rawTableId: string;
+  readonly sourceRawTableVersion: number;
+  readonly state: "queued" | "running";
+};
+
+export type AssessmentQueueSnapshot = {
+  readonly rawTables: readonly AssessmentRawTableQueueState[];
+};
+
 export interface IAssessmentQueueService {
   readonly _serviceBrand: undefined;
 
+  readonly onDidChangeAssessmentQueueState: Event<void>;
+
   enqueueRawTables(refs: readonly RawTableRef[]): void;
+  getQueueSnapshot(): AssessmentQueueSnapshot;
   prioritizeRawTables(
     refs: readonly RawTableRef[],
     priority: AssessmentQueuePriority,
