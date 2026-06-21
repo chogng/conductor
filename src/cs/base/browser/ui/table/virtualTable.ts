@@ -912,10 +912,15 @@ export class VirtualTable implements IDisposable {
 			return false;
 		}
 
-		if (!this.scrollArea.scrollBy({ scrollLeft: delta })) {
+		const { scrollLeft } = this.getScrollPosition();
+		const { scrollWidth, clientWidth } = this.scrollArea.getScrollDimensions();
+		const maxScrollLeft = Math.max(0, scrollWidth - clientWidth);
+		const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, scrollLeft + delta));
+		if (Math.abs(nextScrollLeft - scrollLeft) < 0.5) {
 			return false;
 		}
 
+		this.scrollArea.setScrollPosition({ scrollLeft: nextScrollLeft });
 		this.syncHeaderScroll();
 		return true;
 	}

@@ -64,37 +64,6 @@ export class Scrollbar {
     this.controller.setScrollPosition(position);
   }
 
-  public scrollBy(delta: Partial<ScrollbarScrollPosition>): boolean {
-    const dimensions = this.getScrollDimensions();
-    const position = this.getScrollPosition();
-    const maxScrollLeft = Math.max(0, dimensions.scrollWidth - dimensions.clientWidth);
-    const maxScrollTop = Math.max(0, dimensions.scrollHeight - dimensions.clientHeight);
-    const nextScrollLeft = typeof delta.scrollLeft === "number"
-      ? Math.max(0, Math.min(maxScrollLeft, position.scrollLeft + delta.scrollLeft))
-      : position.scrollLeft;
-    const nextScrollTop = typeof delta.scrollTop === "number"
-      ? Math.max(0, Math.min(maxScrollTop, position.scrollTop + delta.scrollTop))
-      : position.scrollTop;
-
-    if (
-      Math.abs(nextScrollLeft - position.scrollLeft) < 0.5 &&
-      Math.abs(nextScrollTop - position.scrollTop) < 0.5
-    ) {
-      return false;
-    }
-
-    const nextPosition: Partial<ScrollbarScrollPosition> = {};
-    if (Math.abs(nextScrollLeft - position.scrollLeft) >= 0.5) {
-      nextPosition.scrollLeft = nextScrollLeft;
-    }
-    if (Math.abs(nextScrollTop - position.scrollTop) >= 0.5) {
-      nextPosition.scrollTop = nextScrollTop;
-    }
-
-    this.setScrollPosition(nextPosition);
-    return true;
-  }
-
   public dispose(): void {
     this.controller.dispose();
   }
