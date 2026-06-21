@@ -27,7 +27,7 @@ import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle"
 import { AnchorAxisAlignment, AnchorPosition } from "src/cs/base/common/layout";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { isMacintosh, isWindows } from "src/cs/base/common/platform";
-import { SubmenuAction, type IAction } from "src/cs/base/common/actions";
+import { Separator, SubmenuAction, type IAction } from "src/cs/base/common/actions";
 import { CommandsRegistry, type ICommandService } from "src/cs/platform/commands/common/commands";
 import type {
   IContextMenuService,
@@ -1205,27 +1205,21 @@ export class ExplorerViewer implements IDisposable {
   };
 
   private createFileContextActions(fileId: string): IAction[] {
-    const actions: IAction[] = [
-      createMenuAction({
-        id: REMOVE_FILE_ITEM_COMMAND_ID,
-        label: localize("files.item.delete", "Delete"),
-        run: () => {
-          void this.props.commandService.executeCommand(
-            REMOVE_FILE_ITEM_COMMAND_ID,
-            fileId,
-          );
-        },
-      }),
-      createMenuAction({
-        id: RENAME_FILE_ITEM_COMMAND_ID,
-        label: localize("files.item.rename", "Rename"),
-        run: () => {
-          void this.props.commandService.executeCommand(
-            RENAME_FILE_ITEM_COMMAND_ID,
-            fileId,
-          );
-        },
-      }),
+    const revealActions: IAction[] = this.canRevealFileInOS(fileId)
+      ? [
+          createMenuAction({
+            id: REVEAL_IN_OS_COMMAND_ID,
+            label: getRevealInOSLabel(),
+            run: () => {
+              void this.props.commandService.executeCommand(
+                REVEAL_IN_OS_COMMAND_ID,
+                fileId,
+              );
+            },
+          }),
+        ]
+      : [];
+    const templateActions: IAction[] = [
       this.createTemplateMenuAction({
         actionPrefix: SET_FILE_TEMPLATE_COMMAND_ID,
         commandId: SET_FILE_TEMPLATE_COMMAND_ID,
@@ -1244,21 +1238,30 @@ export class ExplorerViewer implements IDisposable {
         },
       }),
     ];
-
-    if (this.canRevealFileInOS(fileId)) {
-      actions.push(createMenuAction({
-        id: REVEAL_IN_OS_COMMAND_ID,
-        label: getRevealInOSLabel(),
+    const editActions: IAction[] = [
+      createMenuAction({
+        id: RENAME_FILE_ITEM_COMMAND_ID,
+        label: localize("files.item.rename", "Rename"),
         run: () => {
           void this.props.commandService.executeCommand(
-            REVEAL_IN_OS_COMMAND_ID,
+            RENAME_FILE_ITEM_COMMAND_ID,
             fileId,
           );
         },
-      }));
-    }
+      }),
+      createMenuAction({
+        id: REMOVE_FILE_ITEM_COMMAND_ID,
+        label: localize("files.item.delete", "Delete"),
+        run: () => {
+          void this.props.commandService.executeCommand(
+            REMOVE_FILE_ITEM_COMMAND_ID,
+            fileId,
+          );
+        },
+      }),
+    ];
 
-    return actions;
+    return Separator.join(revealActions, templateActions, editActions);
   }
 
   private canRevealFileInOS(fileId: string): boolean {

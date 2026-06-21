@@ -10,16 +10,20 @@ import type {
   IContextViewService,
   IOpenContextView,
 } from "src/cs/platform/contextview/browser/contextView";
-import { SubmenuAction, type IAction } from "src/cs/base/common/actions";
+import { Separator, SubmenuAction, type IAction } from "src/cs/base/common/actions";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { Emitter, Event } from "src/cs/base/common/event";
 import { ObjectTree } from "src/cs/base/browser/ui/tree/objectTree";
+import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import { ResourceLabels } from "src/cs/workbench/browser/labels";
 import {
   ExplorerViewer,
   type ExplorerViewerProps,
 } from "src/cs/workbench/contrib/files/browser/views/explorerViewer";
 import {
+  REMOVE_FILE_ITEM_COMMAND_ID,
+  RENAME_FILE_ITEM_COMMAND_ID,
+  REVEAL_IN_OS_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
   SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/common/files";
@@ -234,6 +238,50 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       viewer.dispose();
       labels.dispose();
       hoverHost.remove();
+    }
+  });
+
+  test("orders file context actions into reveal, template, and edit groups", () => {
+    const revealRegistration = CommandsRegistry.registerCommand(REVEAL_IN_OS_COMMAND_ID, () => undefined);
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    const baseProps = createViewerProps();
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const viewer = new ExplorerViewer(host, hoverHost, {
+      ...baseProps,
+      files: [{
+        ...baseProps.files[0],
+        normalizedCsvPath: "/tmp/A.csv",
+      }],
+      templateRecords: [{
+        id: "template-a",
+        name: "Template A",
+      }],
+    }, labels);
+
+    try {
+      const actions = getFileContextActions(viewer, "file-a");
+
+      assert.deepEqual(
+        actions.map(action => action.id),
+        [
+          REVEAL_IN_OS_COMMAND_ID,
+          Separator.ID,
+          SET_FILE_TEMPLATE_COMMAND_ID,
+          SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
+          Separator.ID,
+          RENAME_FILE_ITEM_COMMAND_ID,
+          REMOVE_FILE_ITEM_COMMAND_ID,
+        ],
+      );
+    } finally {
+      viewer.dispose();
+      labels.dispose();
+      hoverHost.remove();
+      revealRegistration.dispose();
     }
   });
 
