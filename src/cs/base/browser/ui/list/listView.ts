@@ -14,7 +14,7 @@ import type {
 } from "src/cs/base/browser/ui/list/list";
 import { RangeMap } from "src/cs/base/browser/ui/list/rangeMap";
 import { RowCache, type RowCacheRow } from "src/cs/base/browser/ui/list/rowCache";
-import { ScrollbarController } from "src/cs/base/browser/ui/scrollbar/scrollbarController";
+import { ScrollableElement } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 
 import "src/cs/base/browser/ui/list/list.css";
 
@@ -75,7 +75,7 @@ export class ListView<T> implements IDisposable {
   private readonly viewport: HTMLDivElement;
   private readonly stage: HTMLDivElement;
   private readonly emptyContainer: HTMLDivElement;
-  private readonly scrollbar: ScrollbarController;
+  private readonly scrollableElement: ScrollableElement;
   private readonly rows = new Map<string, RowEntry<T>>();
   private readonly rowsByIndex = new Map<number, RowEntry<T>>();
   private readonly rowCache = new RowCache(() => this.createRow());
@@ -115,7 +115,7 @@ export class ListView<T> implements IDisposable {
     this.root.append(this.emptyContainer, this.viewport);
     this.host.appendChild(this.root);
 
-    this.scrollbar = this.disposables.add(new ScrollbarController({
+    this.scrollableElement = this.disposables.add(new ScrollableElement({
       axis: "y",
       getScrollDimensions: this.getScrollDimensions,
       getScrollPosition: this.getScrollPosition,
@@ -380,7 +380,7 @@ export class ListView<T> implements IDisposable {
       if (this.scrollTop !== this.pendingScrollTop) {
         this.scrollTop = this.pendingScrollTop;
         this.render();
-        this.scrollbar.updateScrollPosition();
+        this.scrollableElement.updateScrollPosition();
         this.props.onScroll?.(new CustomEvent("scroll", {
           detail: {
             clientHeight: this.viewportHeight,
@@ -575,7 +575,7 @@ export class ListView<T> implements IDisposable {
     }
 
     this.scrollbarContentHeight = contentHeight;
-    this.scrollbar.update();
+    this.scrollableElement.update();
   }
 
   private readonly getScrollDimensions = () => ({

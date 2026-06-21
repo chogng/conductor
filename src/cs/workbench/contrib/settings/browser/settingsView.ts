@@ -13,7 +13,7 @@ import {
 } from "src/cs/base/browser/ui/modal/modal";
 import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { createSelectBox, type SelectBox, type SelectBoxOption } from "src/cs/base/browser/ui/selectBox/selectBox";
-import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollbar";
+import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";

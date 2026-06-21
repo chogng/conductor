@@ -2,22 +2,17 @@ import {
   AbstractScrollbar,
   type ScrollbarPartDelegate,
 } from "src/cs/base/browser/ui/scrollbar/abstractScrollbar";
-import type {
-  ScrollbarMetrics,
-  ScrollbarOrientation,
-} from "src/cs/base/browser/ui/scrollbar/scrollbarOptions";
+import type { ScrollbarOrientation } from "src/cs/base/browser/ui/scrollbar/scrollbarState";
+import type { ScrollbarVisibilityPolicy } from "src/cs/base/browser/ui/scrollbar/scrollbarVisibilityController";
 
 export class HorizontalScrollbar extends AbstractScrollbar {
   constructor(
     orientation: ScrollbarOrientation,
     root: HTMLElement,
     delegate: ScrollbarPartDelegate,
+    visibilityPolicy?: ScrollbarVisibilityPolicy,
   ) {
-    super(orientation, root, delegate, "scrollAreaTrackX", "scrollAreaThumbX");
-  }
-
-  protected getThumbSize(metrics: ScrollbarMetrics): number {
-    return metrics.xThumbSize;
+    super(orientation, root, delegate, "scrollAreaTrackX", "scrollAreaThumbX", visibilityPolicy);
   }
 
   protected applyThumbSize(size: number): void {

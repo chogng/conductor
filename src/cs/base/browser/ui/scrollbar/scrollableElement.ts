@@ -2,41 +2,33 @@ import {
   addDisposableListener,
   DisposableResizeObserver,
   EventType,
-  getDomRect,
   getScrollDimensions,
   getScrollPosition,
   observeMutations,
   scheduleAtNextAnimationFrame,
 } from "src/cs/base/browser/dom";
-import { StandardMouseEvent } from "src/cs/base/browser/mouseEvent";
 import {
   DisposableStore,
   type IDisposable,
 } from "src/cs/base/common/lifecycle";
 import { ScrollState, type ScrollEvent } from "src/cs/base/common/scrollable";
-import { ScrollbarAssembler } from "src/cs/base/browser/ui/scrollbar/scrollbarAssembler";
+import { HorizontalScrollbar } from "src/cs/base/browser/ui/scrollbar/horizontalScrollbar";
 import type {
+  ScrollbarOptions,
   ScrollbarAxis,
-  ScrollbarControllerOptions,
-  ScrollbarHandle,
-  ScrollbarOrientation,
   ScrollbarScrollDimensions,
   ScrollbarScrollPosition,
-} from "src/cs/base/browser/ui/scrollbar/scrollbarOptions";
-import { ScrollbarState } from "src/cs/base/browser/ui/scrollbar/scrollbarState";
+  ScrollableElementHandle,
+  ScrollableElementOptions,
+} from "src/cs/base/browser/ui/scrollbar/scrollableElementOptions";
+import type { ScrollbarOrientation } from "src/cs/base/browser/ui/scrollbar/scrollbarState";
+import { VerticalScrollbar } from "src/cs/base/browser/ui/scrollbar/verticalScrollbar";
 
 import "src/cs/base/browser/ui/scrollbar/media/scrollbar.css";
 
 const WHEEL_LINE_DELTA_PX = 40;
 const HORIZONTAL_WHEEL_SMOOTHING = 0.24;
 const HORIZONTAL_WHEEL_STOP_THRESHOLD_PX = 0.5;
-
-type DragState = {
-  readonly orientation: ScrollbarOrientation;
-  readonly startPointer: number;
-  readonly startScroll: number;
-  readonly thumbSize: number;
-};
 
 type WheelClassifierItem = {
   readonly deltaX: number;
@@ -97,26 +89,25 @@ class WheelClassifier {
   }
 }
 
-export class ScrollbarController implements ScrollbarHandle {
+export class ScrollableElement implements ScrollableElementHandle {
   private readonly store = new DisposableStore();
-  private readonly state = new ScrollbarState();
-  private readonly assembler: ScrollbarAssembler;
+  private readonly verticalScrollbar: VerticalScrollbar;
+  private readonly horizontalScrollbar: HorizontalScrollbar;
   private readonly wheelClassifier = new WheelClassifier();
   private axis: ScrollbarAxis;
   private observeContentMutations: boolean;
   private observeResize: boolean;
   private handleMouseWheel: boolean;
   private onScroll?: (event: ScrollEvent) => void;
-  private onScrollPositionChange?: ScrollbarControllerOptions["onScrollPositionChange"];
+  private onScrollPositionChange?: ScrollableElementOptions["onScrollPositionChange"];
   private scrollState = new ScrollState(false, 0, 0, 0, 0, 0, 0);
   private metricsRaf: IDisposable | null = null;
   private thumbRaf: IDisposable | null = null;
   private horizontalWheelRaf: IDisposable | null = null;
   private horizontalWheelTarget = 0;
-  private dragState: DragState | null = null;
   private disposed = false;
 
-  constructor(private readonly options: ScrollbarControllerOptions) {
+  constructor(private readonly options: ScrollableElementOptions) {
     this.axis = options.axis ?? "y";
     this.observeContentMutations = options.observeContentMutations ?? true;
     this.observeResize = options.observeResize ?? true;
@@ -131,16 +122,33 @@ export class ScrollbarController implements ScrollbarHandle {
       this.options.viewport.dataset.scrollbarMode = "virtual";
     }
 
-    this.assembler = this.store.add(new ScrollbarAssembler(this.options.root, {
-      onThumbPointerDown: this.handleThumbPointerDown,
-      onTrackPointerDown: this.handleTrackPointerDown,
-    }));
+    const scrollbarDelegate = {
+      onDragEnd: this.handleScrollbarDragEnd,
+      onDragStart: this.handleScrollbarDragStart,
+      onScrollPositionChange: this.handleScrollbarScrollPositionChange,
+    };
+    this.verticalScrollbar = this.store.add(
+      new VerticalScrollbar(
+        "y",
+        this.options.root,
+        scrollbarDelegate,
+        this.options.verticalScrollbarVisibility,
+      ),
+    );
+    this.horizontalScrollbar = this.store.add(
+      new HorizontalScrollbar(
+        "x",
+        this.options.root,
+        scrollbarDelegate,
+        this.options.horizontalScrollbarVisibility,
+      ),
+    );
 
     this.registerListeners();
     this.scheduleMetricsUpdate();
   }
 
-  setOptions(options: Partial<Omit<ScrollbarControllerOptions, "root" | "viewport">>): void {
+  setOptions(options: Partial<Omit<ScrollableElementOptions, "root" | "viewport">>): void {
     if (options.axis) {
       this.axis = options.axis;
       this.options.viewport.dataset.axis = this.axis;
@@ -169,11 +177,18 @@ export class ScrollbarController implements ScrollbarHandle {
       this.onScrollPositionChange = options.onScrollPositionChange;
     }
 
+    if (options.verticalScrollbarVisibility !== undefined) {
+      this.verticalScrollbar.setVisibilityPolicy(options.verticalScrollbarVisibility);
+    }
+
+    if (options.horizontalScrollbarVisibility !== undefined) {
+      this.horizontalScrollbar.setVisibilityPolicy(options.horizontalScrollbarVisibility);
+    }
+
     this.scheduleMetricsUpdate();
   }
 
   update(): void {
-    this.state.measure(this.readScrollDimensions(), this.axis);
     this.updateThumbOffsets();
   }
 
@@ -239,16 +254,6 @@ export class ScrollbarController implements ScrollbarHandle {
       EventType.WHEEL,
       this.handleWheel,
       { passive: false },
-    ));
-    this.store.add(addDisposableListener(
-      targetWindow,
-      EventType.MOUSE_MOVE,
-      this.handleMouseMove,
-    ));
-    this.store.add(addDisposableListener(
-      targetWindow,
-      EventType.MOUSE_UP,
-      this.handleMouseUp,
     ));
     if (this.observeResize) {
       this.store.add(addDisposableListener(
@@ -356,92 +361,25 @@ export class ScrollbarController implements ScrollbarHandle {
     }
   };
 
-  private readonly handleMouseMove = (event: MouseEvent): void => {
-    const drag = this.dragState;
-    if (!drag) {
-      return;
-    }
-
-    const mouseEvent = new StandardMouseEvent(window, event);
-    const viewport = this.options.viewport;
-
-    if (drag.orientation === "y") {
-      const delta = mouseEvent.clientY - drag.startPointer;
-      const { clientHeight, scrollHeight } = this.readScrollDimensions();
-      const trackRange = Math.max(1, clientHeight - drag.thumbSize);
-      const scrollRange = Math.max(1, scrollHeight - clientHeight);
-      this.setScrollPosition({
-        scrollTop: drag.startScroll + (delta * scrollRange) / trackRange,
-      });
-      return;
-    }
-
-    const delta = mouseEvent.clientX - drag.startPointer;
-    const { clientWidth, scrollWidth } = this.readScrollDimensions();
-    const trackRange = Math.max(1, clientWidth - drag.thumbSize);
-    const scrollRange = Math.max(1, scrollWidth - clientWidth);
-    this.scrollHorizontalNow(drag.startScroll + (delta * scrollRange) / trackRange);
+  private readonly handleScrollbarDragStart = (): void => {
+    this.cancelHorizontalWheelAnimation();
+    this.options.root.dataset.scrollbarActive = "true";
   };
 
-  private readonly handleMouseUp = (): void => {
-    this.dragState = null;
+  private readonly handleScrollbarDragEnd = (): void => {
     this.options.root.dataset.scrollbarActive = "false";
   };
 
-  private readonly handleThumbPointerDown = (
+  private readonly handleScrollbarScrollPositionChange = (
     orientation: ScrollbarOrientation,
-    event: MouseEvent,
+    scrollPosition: number,
   ): void => {
-    event.preventDefault();
-    event.stopPropagation();
-    this.cancelHorizontalWheelAnimation();
-    this.options.root.dataset.scrollbarActive = "true";
-
-    const position = this.readScrollPosition();
-    this.dragState = orientation === "y"
-      ? {
-        orientation,
-        startPointer: event.clientY,
-        startScroll: position.scrollTop,
-        thumbSize: this.state.metrics.yThumbSize,
-      }
-      : {
-        orientation,
-        startPointer: event.clientX,
-        startScroll: position.scrollLeft,
-        thumbSize: this.state.metrics.xThumbSize,
-      };
-  };
-
-  private readonly handleTrackPointerDown = (
-    orientation: ScrollbarOrientation,
-    event: MouseEvent,
-  ): void => {
-    if (event.target !== event.currentTarget) {
-      return;
-    }
-
-    const viewport = this.options.viewport;
-    const rect = getDomRect(event.currentTarget as HTMLElement);
-
     if (orientation === "y") {
-      const thumbSize = this.state.metrics.yThumbSize;
-      const clickOffset = event.clientY - rect.top;
-      const { clientHeight, scrollHeight } = this.readScrollDimensions();
-      const maxThumbTravel = Math.max(1, clientHeight - thumbSize);
-      const ratio = Math.max(0, Math.min(1, (clickOffset - thumbSize / 2) / maxThumbTravel));
-      this.setScrollPosition({
-        scrollTop: ratio * Math.max(0, scrollHeight - clientHeight),
-      });
+      this.setScrollPosition({ scrollTop: scrollPosition });
       return;
     }
 
-    const thumbSize = this.state.metrics.xThumbSize;
-    const clickOffset = event.clientX - rect.left;
-    const { clientWidth, scrollWidth } = this.readScrollDimensions();
-    const maxThumbTravel = Math.max(1, clientWidth - thumbSize);
-    const ratio = Math.max(0, Math.min(1, (clickOffset - thumbSize / 2) / maxThumbTravel));
-    this.scrollHorizontalNow(ratio * Math.max(0, scrollWidth - clientWidth));
+    this.scrollHorizontalNow(scrollPosition);
   };
 
   private scheduleMetricsUpdate = (): void => {
@@ -475,11 +413,21 @@ export class ScrollbarController implements ScrollbarHandle {
   private updateThumbOffsets(): void {
     const dimensions = this.readScrollDimensions();
     const position = this.readScrollPosition();
-    this.assembler.update(
-      this.state.metrics,
-      this.state.getThumbOffset(dimensions, position, "x"),
-      this.state.getThumbOffset(dimensions, position, "y"),
-    );
+    const allowY = this.axis === "y" || this.axis === "both";
+    const allowX = this.axis === "x" || this.axis === "both";
+
+    this.verticalScrollbar.update({
+      enabled: allowY,
+      scrollPosition: position.scrollTop,
+      scrollSize: dimensions.scrollHeight,
+      visibleSize: dimensions.clientHeight,
+    });
+    this.horizontalScrollbar.update({
+      enabled: allowX,
+      scrollPosition: position.scrollLeft,
+      scrollSize: dimensions.scrollWidth,
+      visibleSize: dimensions.clientWidth,
+    });
   }
 
   private normalizeWheelDelta(event: WheelEvent, delta: number): number {
@@ -570,3 +518,75 @@ export class ScrollbarController implements ScrollbarHandle {
     }
   }
 }
+
+export class Scrollbar {
+  public readonly element: HTMLDivElement;
+  public readonly viewport: HTMLDivElement;
+
+  private readonly scrollableElement: ScrollableElement;
+
+  public constructor(options: ScrollbarOptions = {}) {
+    this.element = document.createElement("div");
+    this.viewport = document.createElement("div");
+    this.element.append(this.viewport);
+
+    this.applyOptions(options);
+    this.scrollableElement = new ScrollableElement({
+      axis: options.axis ?? "y",
+      observeContentMutations: options.observeContentMutations ?? true,
+      observeResize: options.observeResize ?? true,
+      horizontalScrollbarVisibility: options.horizontalScrollbarVisibility,
+      onScroll: options.onScroll,
+      root: this.element,
+      verticalScrollbarVisibility: options.verticalScrollbarVisibility,
+      viewport: this.viewport,
+    });
+  }
+
+  public update(options: ScrollbarOptions = {}): void {
+    this.applyOptions(options);
+    this.scrollableElement.setOptions({
+      axis: options.axis ?? "y",
+      observeContentMutations: options.observeContentMutations ?? true,
+      observeResize: options.observeResize ?? true,
+      horizontalScrollbarVisibility: options.horizontalScrollbarVisibility,
+      onScroll: options.onScroll,
+      verticalScrollbarVisibility: options.verticalScrollbarVisibility,
+    });
+    this.scrollableElement.update();
+  }
+
+  public layout(): void {
+    this.scrollableElement.update();
+  }
+
+  public getScrollDimensions(): ScrollbarScrollDimensions {
+    return this.scrollableElement.getScrollDimensions();
+  }
+
+  public getScrollPosition(): ScrollbarScrollPosition {
+    return this.scrollableElement.getScrollPosition();
+  }
+
+  public setScrollPosition(position: Partial<ScrollbarScrollPosition>): void {
+    this.scrollableElement.setScrollPosition(position);
+  }
+
+  public dispose(): void {
+    this.scrollableElement.dispose();
+  }
+
+  private applyOptions({
+    axis = "y",
+    className = "",
+    viewportClassName = "",
+  }: ScrollbarOptions): void {
+    this.element.className = className ? `scrollArea ${className}` : "scrollArea";
+    this.viewport.className = viewportClassName
+      ? `scrollAreaViewport ${viewportClassName}`
+      : "scrollAreaViewport";
+    this.viewport.dataset.axis = axis;
+  }
+}
+
+export default Scrollbar;

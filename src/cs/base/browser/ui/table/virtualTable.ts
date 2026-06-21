@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
+import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 

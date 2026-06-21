@@ -8,7 +8,7 @@ import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBoxField";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { createSelectBox } from "src/cs/base/browser/ui/selectBox/selectBox";
-import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollbar";
+import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import { DisposableStore, toDisposable } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";

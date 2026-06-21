@@ -5,7 +5,7 @@ import {
   normalizeLxIconSvgMarkup,
   type LxIconDefinition,
 } from "src/cs/base/browser/ui/lxicon/lxicon";
-import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
+import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import type {
   NotificationToastOptions,

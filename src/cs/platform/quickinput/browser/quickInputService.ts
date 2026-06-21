@@ -1,6 +1,6 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
-import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
+import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import { localize } from "src/cs/nls";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { QuickAccessController } from "src/cs/platform/quickinput/browser/quickAccess";

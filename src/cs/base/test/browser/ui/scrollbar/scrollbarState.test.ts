@@ -8,65 +8,83 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 
 suite("base/test/browser/ui/scrollbar/scrollbarState", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
-  test("ScrollbarState hides metrics when content fits", () => {
+  test("ScrollbarState reports no scrollbar when content fits", () => {
     const state = new ScrollbarState();
-    const changed = state.measure({
-      clientHeight: 100,
-      clientWidth: 100,
-      scrollHeight: 100,
-      scrollWidth: 100,
-    }, "both");
+    state.update({
+      enabled: true,
+      scrollPosition: 0,
+      scrollSize: 100,
+      visibleSize: 100,
+    });
 
-    assert.equal(changed, false);
-    assert.deepEqual(state.metrics, {
-      showX: false,
-      showY: false,
-      xThumbSize: 0,
-      yThumbSize: 0,
+    assert.deepStrictEqual({
+      desiredFromDelta: state.getDesiredScrollPositionFromDelta(20),
+      desiredFromOffset: state.getDesiredScrollPositionFromOffset(50),
+      needed: state.isNeeded(),
+      thumbOffset: state.getThumbOffset(),
+      thumbSize: state.getThumbSize(),
+    }, {
+      desiredFromDelta: 0,
+      desiredFromOffset: 0,
+      needed: false,
+      thumbOffset: 0,
+      thumbSize: 0,
     });
   });
 
-  test("ScrollbarState measures visible axes and minimum thumb sizes", () => {
+  test("ScrollbarState computes thumb size and offset", () => {
     const state = new ScrollbarState();
-    const changed = state.measure({
-      clientHeight: 100,
-      clientWidth: 200,
-      scrollHeight: 1000,
-      scrollWidth: 1000,
-    }, "both");
+    state.update({
+      enabled: true,
+      scrollPosition: 400,
+      scrollSize: 1000,
+      visibleSize: 200,
+    });
 
-    assert.equal(changed, true);
-    assert.equal(state.metrics.showX, true);
-    assert.equal(state.metrics.showY, true);
-    assert.equal(state.metrics.xThumbSize, 40);
-    assert.equal(state.metrics.yThumbSize, MIN_SCROLLBAR_THUMB_SIZE);
+    assert.deepStrictEqual({
+      needed: state.isNeeded(),
+      thumbOffset: state.getThumbOffset(),
+      thumbSize: state.getThumbSize(),
+    }, {
+      needed: true,
+      thumbOffset: 80,
+      thumbSize: 40,
+    });
   });
 
-  test("ScrollbarState respects axis filtering", () => {
+  test("ScrollbarState enforces minimum thumb size", () => {
     const state = new ScrollbarState();
-    state.measure({
-      clientHeight: 100,
-      clientWidth: 100,
-      scrollHeight: 1000,
-      scrollWidth: 1000,
-    }, "y");
+    state.update({
+      enabled: true,
+      scrollPosition: 200,
+      scrollSize: 500,
+      visibleSize: 100,
+    });
 
-    assert.equal(state.metrics.showX, false);
-    assert.equal(state.metrics.showY, true);
+    assert.deepStrictEqual({
+      thumbOffset: state.getThumbOffset(),
+      thumbSize: state.getThumbSize(),
+    }, {
+      thumbOffset: 38,
+      thumbSize: MIN_SCROLLBAR_THUMB_SIZE,
+    });
   });
 
-  test("ScrollbarState computes thumb offsets from scroll position", () => {
+  test("ScrollbarState computes desired scroll positions", () => {
     const state = new ScrollbarState();
-    const dimensions = {
-      clientHeight: 100,
-      clientWidth: 200,
-      scrollHeight: 500,
-      scrollWidth: 1000,
-    };
+    state.update({
+      enabled: true,
+      scrollPosition: 100,
+      scrollSize: 500,
+      visibleSize: 100,
+    });
 
-    state.measure(dimensions, "both");
-
-    assert.equal(state.getThumbOffset(dimensions, { scrollLeft: 400, scrollTop: 200 }, "x"), 80);
-    assert.equal(state.getThumbOffset(dimensions, { scrollLeft: 400, scrollTop: 200 }, "y"), 38);
+    assert.deepStrictEqual({
+      fromDelta: state.getDesiredScrollPositionFromDelta(38),
+      fromOffset: state.getDesiredScrollPositionFromOffset(50),
+    }, {
+      fromDelta: 300,
+      fromOffset: 200,
+    });
   });
 });

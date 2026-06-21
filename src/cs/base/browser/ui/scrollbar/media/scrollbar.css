@@ -49,7 +49,8 @@
 }
 
 .scrollArea:hover > .scrollAreaTrack,
-.scrollArea[data-scrollbar-active="true"] > .scrollAreaTrack {
+.scrollArea[data-scrollbar-active="true"] > .scrollAreaTrack,
+.scrollAreaTrack[data-scrollbar-visibility="visible"] {
   opacity: 1;
   pointer-events: auto;
 }

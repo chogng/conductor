@@ -2,7 +2,7 @@ import { addDisposableListener, append } from "src/cs/base/browser/dom";
 import { ActionBar, ActionsOrientation, type ActionBarContent, type ActionBarOptions, type IActionViewItemProvider } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { BaseActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
+import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import { EmptySubmenuAction, IAction, Separator, SubmenuAction } from "src/cs/base/common/actions";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
