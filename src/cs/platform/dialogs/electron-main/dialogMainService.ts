@@ -2,6 +2,8 @@ import {
   dialog,
   type BrowserWindow,
   type FileFilter,
+  type MessageBoxOptions,
+  type MessageBoxReturnValue,
   type OpenDialogOptions,
   type OpenDialogReturnValue,
 } from "electron";
@@ -29,6 +31,16 @@ export class DialogMainService {
       : dialog.showOpenDialog(normalizedOptions);
   }
 
+  public async showMessageBox(
+    options: unknown,
+    window?: BrowserWindow,
+  ): Promise<MessageBoxReturnValue> {
+    const normalizedOptions = this.normalizeMessageBoxOptions(options);
+    return window
+      ? dialog.showMessageBox(window, normalizedOptions)
+      : dialog.showMessageBox(normalizedOptions);
+  }
+
   private normalizeOpenDialogOptions(options: unknown): OpenDialogOptions {
     const record =
       options && typeof options === "object" && !Array.isArray(options)
@@ -46,6 +58,29 @@ export class DialogMainService {
       filters: this.normalizeFilters(record.filters),
       properties,
       title: typeof record.title === "string" ? record.title : undefined,
+    };
+  }
+
+  private normalizeMessageBoxOptions(options: unknown): MessageBoxOptions {
+    const record =
+      options && typeof options === "object" && !Array.isArray(options)
+        ? options as Record<string, unknown>
+        : {};
+    const buttons = Array.isArray(record.buttons)
+      ? record.buttons.filter((button): button is string => typeof button === "string")
+      : undefined;
+
+    return {
+      buttons,
+      cancelId: typeof record.cancelId === "number" ? record.cancelId : undefined,
+      checkboxChecked: typeof record.checkboxChecked === "boolean"
+        ? record.checkboxChecked
+        : undefined,
+      checkboxLabel: typeof record.checkboxLabel === "string" ? record.checkboxLabel : undefined,
+      detail: typeof record.detail === "string" ? record.detail : undefined,
+      message: typeof record.message === "string" ? record.message : "",
+      title: typeof record.title === "string" ? record.title : undefined,
+      type: isMessageBoxType(record.type) ? record.type : "none",
     };
   }
 
@@ -71,4 +106,12 @@ export class DialogMainService {
         };
       });
   }
+}
+
+function isMessageBoxType(value: unknown): value is NonNullable<MessageBoxOptions["type"]> {
+  return value === "none" ||
+    value === "info" ||
+    value === "error" ||
+    value === "question" ||
+    value === "warning";
 }

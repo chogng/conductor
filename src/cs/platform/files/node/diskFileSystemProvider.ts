@@ -35,6 +35,10 @@ export class DiskFileSystemProvider {
   public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
   private readonly watchers = new Map<string, IDisposable>();
 
+  public constructor(
+    private readonly trashItem?: (filePath: string) => Promise<void>,
+  ) {}
+
   public async stat(resource: URI): Promise<IFileStat> {
     const target = this.toFilePath(resource);
     const stats = await fs.promises.stat(target);
@@ -112,6 +116,22 @@ export class DiskFileSystemProvider {
     const didExist = await this.exists(resource);
 
     await fs.promises.rm(this.toFilePath(resource), { force: true });
+
+    if (didExist) {
+      this.onDidFilesChangeEmitter.fire([{
+        resource,
+        type: FileChangeType.DELETED,
+      }]);
+    }
+  }
+
+  public async moveFileToTrash(resource: URI): Promise<void> {
+    if (!this.trashItem) {
+      throw new Error("Moving files to trash is not supported by this file system provider.");
+    }
+
+    const didExist = await this.exists(resource);
+    await this.trashItem(this.toFilePath(resource));
 
     if (didExist) {
       this.onDidFilesChangeEmitter.fire([{

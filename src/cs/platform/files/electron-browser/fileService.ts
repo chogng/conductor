@@ -64,6 +64,10 @@ export class ElectronBrowserFileService extends Disposable implements IFileServi
     return this.channel.call("deleteFile", [resource]);
   }
 
+  public moveFileToTrash(resource: URI): Promise<void> {
+    return this.channel.call("moveFileToTrash", [resource]);
+  }
+
   public realpath(resource: URI): Promise<URI> {
     return this.channel.call("realpath", [resource]);
   }

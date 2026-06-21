@@ -28,7 +28,7 @@ workbench/contrib/files/IExplorerService
   resource tree, selection, expansion, tree/thumbnail layout
 
 workbench/contrib/files/IExplorerWorkflowService
-  view-local source/removal workflow dispatch
+  view-local source/close/delete workflow dispatch
 ```
 
 Do not introduce `IFileViewService`, `IFilesExplorerService`, or
@@ -48,13 +48,13 @@ the closest-looking name.
 
 Use user-facing "Import" in labels if appropriate, but use precise internal
 names: collect sources, convert files, commit converted files, upload,
-download, copy, or remove.
+download, copy, close from Explorer, or delete from disk.
 
 ## Platform Boundary
 
 `IFileService` is filesystem capability only. It owns provider registration,
-`exists`, `readDir`, `readFile`, `writeFile`, `realpath`, `stat`, `watch`, and
-provider change events.
+`exists`, `readDir`, `readFile`, `writeFile`, `deleteFile`,
+`moveFileToTrash`, `realpath`, `stat`, `watch`, and provider change events.
 
 `IFileService` does not own Explorer tree state, selected resource, CSV/Excel
 parsing, raw table records, assessment, or Session commits.
@@ -94,7 +94,7 @@ generation, Session mutation, or DOM rendering.
 | --- | --- |
 | `contrib/files/browser/files.ts` | `IExplorerService`, `IExplorerWorkflowService`, view/context contracts. |
 | `contrib/files/browser/explorerService.ts` | Explorer state/model, selection/reveal, layout, expansion, pane input events. |
-| `contrib/files/browser/explorerWorkflowService.ts` | Dispatches view-local source/removal workflows registered by `ExplorerViewPane`. |
+| `contrib/files/browser/explorerWorkflowService.ts` | Dispatches view-local source/close/delete workflows registered by `ExplorerViewPane`. |
 | `contrib/files/common/explorerModel.ts` | Explorer resources/items/tree helpers. |
 | `contrib/files/common/explorerFileNestingTrie.ts` | Explorer display-only file nesting pattern matching. |
 | `contrib/files/browser/explorerViewlet.ts` | Explorer `ViewPane` host and sidebar actions. |
@@ -138,6 +138,23 @@ Explorer context menu
   -> fileConverter.ts
   -> ISessionService.commitFileImport(...)
   -> Explorer resources / downstream subscribers
+```
+
+Explorer item close/delete keeps row lifecycle and filesystem lifecycle
+separate:
+
+```txt
+Explorer item close button
+  -> files.item.close command
+  -> IExplorerWorkflowService.closeFile(fileId)
+  -> ExplorerViewPane removes the imported row from Explorer/Session
+
+Explorer item context menu Delete
+  -> files.item.delete command
+  -> IExplorerWorkflowService.deleteFile(fileId)
+  -> IDialogService confirms move to trash
+  -> IFileService.moveFileToTrash(...)
+  -> ExplorerViewPane removes the imported row from Explorer/Session after success
 ```
 
 Pending source entries are display-only Explorer rows. They must not be

@@ -15,7 +15,7 @@ export const closeFolderHandler: ICommandHandler = accessor => {
   accessor.get(IExplorerWorkflowService).closeFolder();
 };
 
-export const removeFileItemHandler: ICommandHandler<[unknown]> = (
+export const closeFileItemHandler: ICommandHandler<[unknown]> = (
   accessor,
   fileId,
 ) => {
@@ -24,7 +24,19 @@ export const removeFileItemHandler: ICommandHandler<[unknown]> = (
     return;
   }
 
-  accessor.get(IExplorerWorkflowService).removeFile(normalizedFileId);
+  accessor.get(IExplorerWorkflowService).closeFile(normalizedFileId);
+};
+
+export const deleteFileItemHandler: ICommandHandler<[unknown]> = (
+  accessor,
+  fileId,
+) => {
+  const normalizedFileId = normalizeCommandFileId(fileId);
+  if (!normalizedFileId) {
+    return;
+  }
+
+  accessor.get(IExplorerWorkflowService).deleteFile(normalizedFileId);
 };
 
 export const renameFileItemHandler: ICommandHandler<[unknown]> = (

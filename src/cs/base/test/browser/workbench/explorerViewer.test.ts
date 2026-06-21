@@ -21,7 +21,8 @@ import {
   type ExplorerViewerProps,
 } from "src/cs/workbench/contrib/files/browser/views/explorerViewer";
 import {
-  REMOVE_FILE_ITEM_COMMAND_ID,
+  CLOSE_FILE_ITEM_COMMAND_ID,
+  DELETE_FILE_ITEM_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
   REVEAL_IN_OS_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
@@ -274,7 +275,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
           Separator.ID,
           RENAME_FILE_ITEM_COMMAND_ID,
-          REMOVE_FILE_ITEM_COMMAND_ID,
+          DELETE_FILE_ITEM_COMMAND_ID,
         ],
       );
     } finally {
@@ -282,6 +283,41 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       labels.dispose();
       hoverHost.remove();
       revealRegistration.dispose();
+    }
+  });
+
+  test("uses close command for the file item close button", () => {
+    const host = document.createElement("div");
+    const hoverHost = document.createElement("div");
+    const labels = new ResourceLabels();
+    const commands: Array<{ readonly args: readonly unknown[]; readonly id: string }> = [];
+    document.body.append(hoverHost);
+    hoverHost.append(host);
+
+    const viewer = new ExplorerViewer(host, hoverHost, {
+      ...createViewerProps(),
+      commandService: {
+        executeCommand: async (id: string, ...args: unknown[]) => {
+          commands.push({ args, id });
+          return undefined;
+        },
+      },
+    }, labels);
+
+    try {
+      const closeButton = host.querySelector<HTMLButtonElement>(".file-list-item-remove");
+      assert.ok(closeButton);
+
+      closeButton.click();
+
+      assert.deepEqual(commands, [{
+        args: ["file-a"],
+        id: CLOSE_FILE_ITEM_COMMAND_ID,
+      }]);
+    } finally {
+      viewer.dispose();
+      labels.dispose();
+      hoverHost.remove();
     }
   });
 

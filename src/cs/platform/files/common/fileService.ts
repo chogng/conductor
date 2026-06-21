@@ -64,6 +64,15 @@ export class FileService extends Disposable implements IFileService {
     return this.withProvider(resource).deleteFile(resource);
   }
 
+  public moveFileToTrash(resource: URI): Promise<void> {
+    const provider = this.withProvider(resource);
+    if (!provider.moveFileToTrash) {
+      return Promise.reject(new Error(`File system provider for '${resource.scheme}' does not support moving files to trash.`));
+    }
+
+    return provider.moveFileToTrash(resource);
+  }
+
   public realpath(resource: URI): Promise<URI> {
     return this.withProvider(resource).realpath(resource);
   }

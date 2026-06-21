@@ -512,7 +512,7 @@ export function prepareExtraction({
         ? msg(
             "template.validation.xyColumnCountMismatch",
             { xCount: xyBinding.xCount, yCount: xyBinding.yCount },
-            `X 列数量 ${xyBinding.xCount}，Y 列数量 ${xyBinding.yCount}，无法按列配对。`,
+            `X column count ${xyBinding.xCount} does not match Y column count ${xyBinding.yCount}.`,
           )
         : msg(
             "template.validation.xColumnsRequired",

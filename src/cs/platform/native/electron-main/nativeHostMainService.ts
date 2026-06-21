@@ -6,6 +6,11 @@ type NativeOpenDialogResult = {
   readonly filePaths: readonly string[];
 };
 
+type NativeMessageBoxResult = {
+  readonly checkboxChecked?: boolean;
+  readonly response: number;
+};
+
 export class NativeHostMainService {
   constructor(
     private readonly dialogMainService: DialogMainService,
@@ -16,6 +21,16 @@ export class NativeHostMainService {
     options: unknown,
   ): Promise<NativeOpenDialogResult> {
     return this.dialogMainService.showOpenDialog(
+      options,
+      win && !win.isDestroyed() ? win : undefined,
+    );
+  }
+
+  public showMessageBoxForWindow(
+    win: BrowserWindow | null | undefined,
+    options: unknown,
+  ): Promise<NativeMessageBoxResult> {
+    return this.dialogMainService.showMessageBox(
       options,
       win && !win.isDestroyed() ? win : undefined,
     );

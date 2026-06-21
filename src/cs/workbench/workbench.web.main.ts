@@ -17,6 +17,7 @@ import "src/cs/workbench/services/template/browser/templateStoreService.ts";
 import "src/cs/workbench/services/template/browser/templateProcessingBackendService.ts";
 import "src/cs/workbench/services/parameters/browser/rcCalculationBackendService.ts";
 import "src/cs/workbench/services/dialogs/browser/fileDialogService.ts";
+import "src/cs/workbench/services/dialogs/browser/dialogService.ts";
 import "src/cs/workbench/services/lifecycle/browser/lifecycleService.ts";
 import "src/cs/workbench/services/path/browser/pathService.ts";
 

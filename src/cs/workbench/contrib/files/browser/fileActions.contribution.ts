@@ -5,8 +5,9 @@
 import { registerAction2 } from "src/cs/platform/actions/common/actions";
 import {
   AddFolderAction,
+  CloseFileItemAction,
   CloseFolderAction,
-  RemoveFileItemAction,
+  DeleteFileItemAction,
   RenameFileItemAction,
   SetFileTemplateAction,
   SliceFileWithTemplateAction,
@@ -14,7 +15,8 @@ import {
 
 registerAction2(AddFolderAction);
 registerAction2(CloseFolderAction);
-registerAction2(RemoveFileItemAction);
+registerAction2(CloseFileItemAction);
+registerAction2(DeleteFileItemAction);
 registerAction2(RenameFileItemAction);
 registerAction2(SetFileTemplateAction);
 registerAction2(SliceFileWithTemplateAction);

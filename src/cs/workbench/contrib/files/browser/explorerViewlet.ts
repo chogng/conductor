@@ -3,15 +3,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from "src/cs/nls";
+import { URI } from "src/cs/base/common/uri";
 import { createMenuAction } from "src/cs/base/browser/ui/menu/menu";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import { toAction } from "src/cs/base/common/actions";
 import { LxIcon } from "src/cs/base/common/lxicon";
+import { isWindows } from "src/cs/base/common/platform";
 import { ICommandService } from "src/cs/platform/commands/common/commands";
 import {
   IContextMenuService,
   IContextViewService,
 } from "src/cs/platform/contextview/browser/contextView";
+import { IDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import { IFileService } from "src/cs/platform/files/common/files";
 import type { WorkbenchSidebarAction } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
@@ -108,6 +111,7 @@ export class ExplorerViewPane extends ViewPane {
     @ICommandService private readonly commandService: ICommandService,
     @IContextMenuService private readonly contextMenuService: IContextMenuService,
     @IContextViewService private readonly contextViewService: IContextViewService,
+    @IDialogService private readonly dialogService: IDialogService,
     @IExplorerService private readonly explorerService: IExplorerService,
     @IExplorerWorkflowService private readonly explorerWorkflowService: IExplorerWorkflowService,
     @IFileConverterBackendService private readonly fileConverterBackendService: FileConverterBackend,
@@ -169,7 +173,7 @@ export class ExplorerViewPane extends ViewPane {
       filesService: this.filesService,
       getFiles: () => this.committedFiles,
       notificationService: this.notificationService,
-      removeOriginalFile: fileId => this.handleRemoveFile(fileId),
+      removeOriginalFile: fileId => this.handleCloseFile(fileId),
       sourceWorkflow: this.sourceWorkflow,
       templateService: this.templateService,
     }));
@@ -192,9 +196,14 @@ export class ExplorerViewPane extends ViewPane {
     this._register(this.explorerWorkflowService.registerHandler({
       openFolderImport: () => this.openFileDialog(),
       closeFolder: () => this.closeFolder(),
-      removeFile: fileId => {
+      closeFile: fileId => {
         if (this.fileIds.includes(fileId)) {
-          this.handleRemoveFile(fileId);
+          this.handleCloseFile(fileId);
+        }
+      },
+      deleteFile: fileId => {
+        if (this.fileIds.includes(fileId)) {
+          void this.handleDeleteFile(fileId);
         }
       },
       sliceFileWithTemplate: fileId => {
@@ -647,9 +656,70 @@ export class ExplorerViewPane extends ViewPane {
     this.syncView();
   };
 
-  private readonly handleRemoveFile = (fileId: string | null): void => {
+  private readonly handleCloseFile = (fileId: string | null): void => {
     const normalizedFileId = normalizeFileId(fileId);
     if (!normalizedFileId) {
+      return;
+    }
+
+    this.sourceWorkflow.rememberRemovedFiles([normalizedFileId]);
+    this.notifyExplorerFilesRemoved([normalizedFileId]);
+    this.removeFiles([normalizedFileId]);
+    this.syncView();
+  };
+
+  private readonly handleDeleteFile = async (fileId: string | null): Promise<void> => {
+    const normalizedFileId = normalizeFileId(fileId);
+    if (!normalizedFileId) {
+      return;
+    }
+
+    const file = this.files.find(entry => entry.fileId === normalizedFileId);
+    const deletePath = getExplorerFileDeletePath(file);
+    if (!file || !deletePath) {
+      this.notificationService.error(localize(
+        "files.item.deleteUnavailable",
+        "This file does not have a local path that can be deleted.",
+      ));
+      return;
+    }
+
+    const trashName = getSystemTrashName();
+    const { confirmed } = await this.dialogService.confirm({
+      cancelButton: localize("files.item.delete.cancel", "Cancel"),
+      detail: localize(
+        "files.item.delete.confirmDetail",
+        "You can restore this file from the {trashName}.",
+        { trashName },
+      ),
+      message: localize(
+        "files.item.delete.confirmMessage",
+        "Move '{fileName}' to the {trashName}?",
+        { fileName: file.fileName || file.relativePath || normalizedFileId, trashName },
+      ),
+      primaryButton: localize(
+        "files.item.delete.moveToTrash",
+        "Move to {trashName}",
+        { trashName },
+      ),
+      type: "warning",
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await this.filesService.moveFileToTrash(URI.file(deletePath));
+    } catch (error) {
+      this.notificationService.error(localize(
+        "files.item.deleteFailed",
+        "Failed to move '{fileName}' to the {trashName}: {error}",
+        {
+          error: getErrorMessage(error),
+          fileName: file.fileName || file.relativePath || normalizedFileId,
+          trashName,
+        },
+      ));
       return;
     }
 
@@ -1059,6 +1129,28 @@ function getActionAnchor(event: unknown): HTMLElement {
 function normalizeRelativePath(value: unknown): string | null {
   const relativePath = String(value ?? "").trim();
   return relativePath || null;
+}
+
+function getExplorerFileDeletePath(file: ExplorerFileEntry | undefined): string | null {
+  const sourcePath = String(file?.sourcePath ?? "").trim();
+  if (sourcePath) {
+    return sourcePath;
+  }
+
+  const normalizedCsvPath = String(file?.normalizedCsvPath ?? "").trim();
+  return normalizedCsvPath || null;
+}
+
+function getSystemTrashName(): string {
+  return isWindows
+    ? localize("files.item.recycleBin", "Recycle Bin")
+    : localize("files.item.trash", "Trash");
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error
+    ? error.message
+    : String(error ?? localize("files.item.deleteUnknownError", "Unknown error"));
 }
 
 function normalizeFileId(value: unknown): string | null {

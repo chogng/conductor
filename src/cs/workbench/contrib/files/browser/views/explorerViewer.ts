@@ -38,8 +38,9 @@ import { localize } from "src/cs/nls";
 import { logPerf } from "src/cs/workbench/common/perf";
 import {
   type FilesViewLayout,
+  CLOSE_FILE_ITEM_COMMAND_ID,
+  DELETE_FILE_ITEM_COMMAND_ID,
   REVEAL_IN_OS_COMMAND_ID,
-  REMOVE_FILE_ITEM_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
   SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
@@ -1250,11 +1251,11 @@ export class ExplorerViewer implements IDisposable {
         },
       }),
       createMenuAction({
-        id: REMOVE_FILE_ITEM_COMMAND_ID,
+        id: DELETE_FILE_ITEM_COMMAND_ID,
         label: localize("files.item.delete", "Delete"),
         run: () => {
           void this.props.commandService.executeCommand(
-            REMOVE_FILE_ITEM_COMMAND_ID,
+            DELETE_FILE_ITEM_COMMAND_ID,
             fileId,
           );
         },
@@ -1626,7 +1627,7 @@ export class ExplorerViewer implements IDisposable {
     ));
     template.removeButton.setAttribute(
       "aria-label",
-      localize("files.import.removeFileButtonLabel", "Remove {fileName}", { fileName }),
+      localize("files.import.closeFileButtonLabel", "Close {fileName}", { fileName }),
     );
     template.removeButton.hidden = !fileEntry.fileId;
     template.actions.hidden = isEditing;
@@ -1839,7 +1840,7 @@ export class ExplorerViewer implements IDisposable {
     removeButton.addEventListener("click", (event) => {
       event.stopPropagation();
       void this.props.commandService.executeCommand(
-        REMOVE_FILE_ITEM_COMMAND_ID,
+        CLOSE_FILE_ITEM_COMMAND_ID,
         template.fileId,
       );
     });

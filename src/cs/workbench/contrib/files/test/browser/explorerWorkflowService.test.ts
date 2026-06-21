@@ -14,7 +14,8 @@ suite("workbench/contrib/files/test/browser/explorerWorkflowService", () => {
     const service = store.add(new ExplorerWorkflowService());
     let importRequests = 0;
     let closeRequests = 0;
-    const removedFileIds: string[] = [];
+    const closedFileIds: string[] = [];
+    const deletedFileIds: string[] = [];
     const slicedFileIds: string[] = [];
     const registration = store.add(service.registerHandler({
       openFolderImport: () => {
@@ -23,8 +24,11 @@ suite("workbench/contrib/files/test/browser/explorerWorkflowService", () => {
       closeFolder: () => {
         closeRequests += 1;
       },
-      removeFile: fileId => {
-        removedFileIds.push(fileId);
+      closeFile: fileId => {
+        closedFileIds.push(fileId);
+      },
+      deleteFile: fileId => {
+        deletedFileIds.push(fileId);
       },
       sliceFileWithTemplate: fileId => {
         slicedFileIds.push(fileId);
@@ -33,21 +37,26 @@ suite("workbench/contrib/files/test/browser/explorerWorkflowService", () => {
 
     service.openFolderImport();
     service.closeFolder();
-    service.removeFile(" file-a ");
-    service.removeFile(" ");
+    service.closeFile(" file-a ");
+    service.closeFile(" ");
+    service.deleteFile(" file-b ");
+    service.deleteFile(" ");
     service.sliceFileWithTemplate(" file-c ");
     service.sliceFileWithTemplate(" ");
 
     assert.equal(importRequests, 1);
     assert.equal(closeRequests, 1);
-    assert.deepEqual(removedFileIds, ["file-a"]);
+    assert.deepEqual(closedFileIds, ["file-a"]);
+    assert.deepEqual(deletedFileIds, ["file-b"]);
     assert.deepEqual(slicedFileIds, ["file-c"]);
 
     registration.dispose();
-    service.removeFile("file-b");
+    service.closeFile("file-d");
+    service.deleteFile("file-e");
     service.sliceFileWithTemplate("file-d");
 
-    assert.deepEqual(removedFileIds, ["file-a"]);
+    assert.deepEqual(closedFileIds, ["file-a"]);
+    assert.deepEqual(deletedFileIds, ["file-b"]);
     assert.deepEqual(slicedFileIds, ["file-c"]);
     service.dispose();
   });

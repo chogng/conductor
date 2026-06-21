@@ -7,16 +7,18 @@ import { Action2 } from "src/cs/platform/actions/common/actions";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import {
   ADD_FOLDER_ACTION_ID,
+  CLOSE_FILE_ITEM_COMMAND_ID,
   CLOSE_FOLDER_ACTION_ID,
-  REMOVE_FILE_ITEM_COMMAND_ID,
+  DELETE_FILE_ITEM_COMMAND_ID,
   RENAME_FILE_ITEM_COMMAND_ID,
   SET_FILE_TEMPLATE_COMMAND_ID,
   SLICE_FILE_WITH_TEMPLATE_COMMAND_ID,
 } from "src/cs/workbench/contrib/files/common/files";
 import {
   addFolderHandler,
+  closeFileItemHandler,
   closeFolderHandler,
-  removeFileItemHandler,
+  deleteFileItemHandler,
   renameFileItemHandler,
   setFileTemplateHandler,
   sliceFileWithTemplateHandler,
@@ -54,19 +56,35 @@ export class CloseFolderAction extends Action2 {
   }
 }
 
-export class RemoveFileItemAction extends Action2 {
+export class CloseFileItemAction extends Action2 {
   public constructor() {
     super({
-      id: REMOVE_FILE_ITEM_COMMAND_ID,
-      title: localize("files.item.delete", "Delete"),
+      id: CLOSE_FILE_ITEM_COMMAND_ID,
+      title: localize("files.item.close", "Close"),
       metadata: {
-        description: localize("files.actions.removeFileItem", "Remove an imported file from the Explorer."),
+        description: localize("files.actions.closeFileItem", "Close an imported file in the Explorer."),
       },
     });
   }
 
   public run(accessor: ServicesAccessor, fileId: unknown): void {
-    removeFileItemHandler(accessor, fileId);
+    closeFileItemHandler(accessor, fileId);
+  }
+}
+
+export class DeleteFileItemAction extends Action2 {
+  public constructor() {
+    super({
+      id: DELETE_FILE_ITEM_COMMAND_ID,
+      title: localize("files.item.delete", "Delete"),
+      metadata: {
+        description: localize("files.actions.deleteFileItem", "Move an imported file to the system trash."),
+      },
+    });
+  }
+
+  public run(accessor: ServicesAccessor, fileId: unknown): void {
+    deleteFileItemHandler(accessor, fileId);
   }
 }
 

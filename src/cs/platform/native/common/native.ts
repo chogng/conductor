@@ -29,6 +29,22 @@ export interface INativeOpenDialogResult {
     readonly filePaths: readonly string[];
 }
 
+export interface INativeMessageBoxOptions {
+    readonly buttons?: readonly string[];
+    readonly cancelId?: number;
+    readonly checkboxChecked?: boolean;
+    readonly checkboxLabel?: string;
+    readonly detail?: string;
+    readonly message: string;
+    readonly title?: string;
+    readonly type?: "none" | "info" | "error" | "question" | "warning";
+}
+
+export interface INativeMessageBoxResult {
+    readonly checkboxChecked?: boolean;
+    readonly response: number;
+}
+
 export interface INativeWindowControlsOptions {
     readonly height?: number;
     readonly backgroundColor?: string;
@@ -49,6 +65,7 @@ export interface INativeHostService {
 
     getEnvironment(): Promise<INativeHostEnvironment>;
     showOpenDialog(options: INativeOpenDialogOptions): Promise<INativeOpenDialogResult>;
+    showMessageBox(options: INativeMessageBoxOptions): Promise<INativeMessageBoxResult>;
     showItemInFolder(path: string): Promise<void>;
     toggleDevTools(): Promise<void>;
     reloadWindow(): Promise<void>;

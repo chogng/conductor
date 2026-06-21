@@ -359,6 +359,10 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     return Promise.reject(new Error("Browser file handles are read-only."));
   }
 
+  public moveFileToTrash(_resource: URI): Promise<void> {
+    return Promise.reject(new Error("Browser file handles cannot be moved to trash."));
+  }
+
   public async realpath(resource: URI): Promise<URI> {
     if (this.getFile(resource)) {
       return resource;

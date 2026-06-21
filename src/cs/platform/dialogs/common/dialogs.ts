@@ -1,7 +1,10 @@
 import type { CancellationToken } from "src/cs/base/common/async";
+import type { Event } from "src/cs/base/common/event";
 import type { URI } from "src/cs/base/common/uri";
+import { localize } from "src/cs/nls";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 
+export const IDialogService = createDecorator<IDialogService>("dialogService");
 export const IFileDialogService = createDecorator<IFileDialogService>("fileDialogService");
 
 export type DialogType = "none" | "info" | "error" | "question" | "warning";
@@ -96,6 +99,34 @@ export interface ICheckbox {
 
 export interface ICheckboxResult {
   readonly checkboxChecked?: boolean;
+}
+
+export interface IDialogHandler {
+  confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
+}
+
+export interface IDialogService {
+  readonly _serviceBrand: undefined;
+
+  readonly onWillShowDialog: Event<void>;
+  readonly onDidShowDialog: Event<void>;
+
+  confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
+}
+
+export abstract class AbstractDialogHandler implements IDialogHandler {
+  protected getConfirmationButtons(confirmation: IConfirmation): string[] {
+    return [
+      confirmation.primaryButton ?? localize("dialog.yes", "Yes"),
+      confirmation.cancelButton ?? localize("dialog.cancel", "Cancel"),
+    ];
+  }
+
+  protected getDialogType(type: DialogType | undefined): DialogType | undefined {
+    return type;
+  }
+
+  public abstract confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
 }
 
 export type FileFilter = {

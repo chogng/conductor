@@ -6,17 +6,30 @@ import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
 import { toDisposable } from "src/cs/base/common/lifecycle";
+import type { URI } from "src/cs/base/common/uri";
 import type {
   IContextMenuService,
   IContextViewService,
 } from "src/cs/platform/contextview/browser/contextView";
+import type { ICommandService } from "src/cs/platform/commands/common/commands";
+import type { IDialogService } from "src/cs/platform/dialogs/common/dialogs";
+import type { IFileService } from "src/cs/platform/files/common/files";
 import { ExplorerViewPane } from "src/cs/workbench/contrib/files/browser/explorerViewlet";
+import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import {
+  type ExplorerPaneInput,
   type IExplorerService,
+  type ExplorerSelectionTarget,
+  type ExplorerWorkflowHandler,
   type IExplorerWorkflowService,
 } from "src/cs/workbench/contrib/files/browser/files";
-import { DEFAULT_EXPLORER_APPEARANCE } from "src/cs/workbench/services/appearance/common/appearance";
-import type { ITemplateService, TemplateState } from "src/cs/workbench/services/template/common/template";
+import { DEFAULT_EXPLORER_APPEARANCE, type IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
+import type { ITemplateService, TemplateSaveInput, TemplateState } from "src/cs/workbench/services/template/common/template";
+import type { FileConverterBackend } from "src/cs/workbench/services/files/common/fileConverterBackend";
+import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
+import type { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import type { ISessionService } from "src/cs/workbench/services/session/common/session";
+import type { IThumbnailPreviewService, IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/browser/explorerViewlet", () => {
@@ -33,54 +46,141 @@ suite("workbench/contrib/files/browser/explorerViewlet", () => {
       pane.dispose();
     }
   });
+
+  test("moves a confirmed file delete to trash before removing the imported file", async () => {
+    let workflowHandler: ExplorerWorkflowHandler | null = null;
+    const movedPaths: string[] = [];
+    const removedFileIds: string[][] = [];
+    const pane = createExplorerViewPane({
+      confirm: async () => ({ confirmed: true }),
+      moveFileToTrash: async resource => {
+        movedPaths.push(resource.fsPath);
+      },
+      onRegisterHandler: handler => {
+        workflowHandler = handler;
+      },
+      paneInput: createPaneInput([{
+        fileId: "file-a",
+        fileName: "source.csv",
+        relativePath: "source.csv",
+        sourcePath: "/tmp/source.csv",
+      }]),
+      removeFiles: fileIds => {
+        removedFileIds.push([...fileIds]);
+      },
+    });
+
+    try {
+      assert.ok(workflowHandler);
+      (workflowHandler as ExplorerWorkflowHandler).deleteFile("file-a");
+      await flushPromises();
+
+      assert.deepEqual(movedPaths, ["/tmp/source.csv"]);
+      assert.deepEqual(removedFileIds, [["file-a"]]);
+    } finally {
+      pane.dispose();
+    }
+  });
+
+  test("does not move or remove a file when delete confirmation is canceled", async () => {
+    let workflowHandler: ExplorerWorkflowHandler | null = null;
+    const movedPaths: string[] = [];
+    const removedFileIds: string[][] = [];
+    const pane = createExplorerViewPane({
+      confirm: async () => ({ confirmed: false }),
+      moveFileToTrash: async resource => {
+        movedPaths.push(resource.fsPath);
+      },
+      onRegisterHandler: handler => {
+        workflowHandler = handler;
+      },
+      paneInput: createPaneInput([{
+        fileId: "file-a",
+        fileName: "source.csv",
+        relativePath: "source.csv",
+        sourcePath: "/tmp/source.csv",
+      }]),
+      removeFiles: fileIds => {
+        removedFileIds.push([...fileIds]);
+      },
+    });
+
+    try {
+      assert.ok(workflowHandler);
+      (workflowHandler as ExplorerWorkflowHandler).deleteFile("file-a");
+      await flushPromises();
+
+      assert.deepEqual(movedPaths, []);
+      assert.deepEqual(removedFileIds, []);
+    } finally {
+      pane.dispose();
+    }
+  });
 });
 
-const createExplorerViewPane = (): ExplorerViewPane =>
+type CreateExplorerViewPaneOptions = {
+  readonly confirm?: IDialogService["confirm"];
+  readonly moveFileToTrash?: (resource: URI) => Promise<void>;
+  readonly onRegisterHandler?: (handler: ExplorerWorkflowHandler) => void;
+  readonly paneInput?: ExplorerPaneInput | null;
+  readonly removeFiles?: (fileIds: readonly string[]) => void;
+};
+
+const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): ExplorerViewPane =>
   new ExplorerViewPane(
     {
       executeCommand: async () => undefined,
-    },
+    } as unknown as ICommandService,
     {
       showContextMenu: () => undefined,
     } as unknown as IContextMenuService,
     {} as unknown as IContextViewService,
-    createExplorerService(),
     {
-      registerHandler: () => toDisposable(() => undefined),
+      confirm: options.confirm ?? (async () => ({ confirmed: false })),
+      onDidShowDialog: Event.None,
+      onWillShowDialog: Event.None,
+    } as unknown as IDialogService,
+    createExplorerService(options.paneInput ?? null),
+    {
+      registerHandler: (handler: ExplorerWorkflowHandler) => {
+        options.onRegisterHandler?.(handler);
+        return toDisposable(() => undefined);
+      },
     } as unknown as IExplorerWorkflowService,
-    {},
+    {} as unknown as FileConverterBackend,
     {
       getProvider: () => undefined,
-    },
+      moveFileToTrash: options.moveFileToTrash ?? (async () => undefined),
+    } as unknown as IFileService,
     {
       getAppearance: () => ({ explorer: DEFAULT_EXPLORER_APPEARANCE }),
       onDidChangeAppearance: Event.None,
-    },
-    {},
+    } as unknown as IAppearanceService,
+    {} as unknown as IWorkbenchLayoutService,
     {
       notify: () => undefined,
-    },
+    } as unknown as INotificationService,
     {
       getSnapshot: () => ({ filesById: {}, fileOrder: [] }),
-      removeFiles: () => undefined,
+      removeFiles: options.removeFiles ?? (() => undefined),
       renameFile: () => undefined,
-    },
+    } as unknown as ISessionService,
     {
       onDidChangePreview: Event.None,
       get: () => ({ kind: "idle" }),
       invalidate: () => undefined,
       prefetch: () => undefined,
       request: () => ({ kind: "idle" }),
-    },
+    } as unknown as IThumbnailPreviewService,
     {
       clear: () => undefined,
       drawPlotThumbnail: () => undefined,
       warmPlotThumbnail: () => undefined,
-    },
+    } as unknown as IThumbnailService,
     createTemplateService(),
   );
 
-const createExplorerService = (): IExplorerService => ({
+const createExplorerService = (paneInput: ExplorerPaneInput | null): IExplorerService => ({
   _serviceBrand: undefined,
   expandedFolderKeys: [],
   hasPendingSourceFiles: false,
@@ -109,11 +209,11 @@ const createExplorerService = (): IExplorerService => ({
     },
     viewLayout: "tree",
   }),
-  getPaneInput: () => null,
+  getPaneInput: () => paneInput,
   reconcileExpandedFolderKeys: () => [],
   refresh: async () => undefined,
   registerView: () => toDisposable(() => undefined),
-  select: target => target.fileId,
+  select: (target: ExplorerSelectionTarget) => target.fileId,
   setEditable: () => undefined,
   setExpandedFolderKeys: () => undefined,
   setHoveredFileId: () => undefined,
@@ -123,7 +223,21 @@ const createExplorerService = (): IExplorerService => ({
   setVisibleFileIds: () => undefined,
   toggleViewLayout: () => undefined,
   updatePaneInput: () => undefined,
+} as unknown as IExplorerService);
+
+const createPaneInput = (files: ExplorerFileEntry[]): ExplorerPaneInput => ({
+  files,
+  mode: "table",
+  selectedFileId: null,
+  selectionKind: "table",
+  thumbnailFiles: [],
 });
+
+const flushPromises = async (): Promise<void> => {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+};
 
 const createTemplateService = (): ITemplateService => ({
   _serviceBrand: undefined,
@@ -144,7 +258,7 @@ const createTemplateService = (): ITemplateService => ({
   getViewInput: () => null,
   hasLoadedTemplateList: () => true,
   refreshTemplates: async () => [],
-  saveTemplate: async template => template,
+  saveTemplate: async (template: TemplateSaveInput) => template,
   selectTemplate: () => false,
   setFileTemplateSelection: () => undefined,
   setFormState: () => undefined,
@@ -152,10 +266,10 @@ const createTemplateService = (): ITemplateService => ({
   setSelectedTemplateId: () => undefined,
   setSelectionsByFileId: () => undefined,
   updateViewInput: () => undefined,
-});
+} as unknown as ITemplateService);
 
 const EmptyTemplateState: TemplateState = {
-  formState: {},
+  formState: {} as TemplateState["formState"],
   mode: "management",
   selectedTemplateId: null,
   selectionsByFileId: {},

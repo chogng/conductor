@@ -202,7 +202,7 @@ function getXYBindingValidationMessage(result: Exclude<ReturnType<typeof resolve
   if (result.code === "pairedCountMismatch") {
     return localize(
       "template.validation.xyColumnCountMismatch",
-      "X 列数量 {xCount}，Y 列数量 {yCount}，无法按列配对。",
+      "X column count {xCount} does not match Y column count {yCount}.",
       { xCount: result.xCount, yCount: result.yCount },
     );
   }

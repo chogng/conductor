@@ -173,7 +173,7 @@ export class TemplateEditorView {
 
     this.xRangeInput = this.disposables.add(new TemplateChipInput({
       label: localize("template.fields.x", "X"),
-      placeholder: localize("template.fields.xRangePlaceholder", "拖拽或输入选区"),
+      placeholder: localize("template.fields.xRangePlaceholder", "Drop or enter a range"),
       onCommitText: text => this.commitXRangeText(text),
       onFocus: () => this.focusSelectionTarget("xRanges"),
       onRemove: index => this.updateXRanges(removeAt(this.currentState.config.xRanges, index)),
@@ -194,7 +194,7 @@ export class TemplateEditorView {
 
     this.yColumnsInput = this.disposables.add(new TemplateChipInput({
       label: localize("template.fields.yColumns", "Y columns"),
-      placeholder: localize("template.fields.yColumnPlaceholder", "B 列"),
+      placeholder: localize("template.fields.yColumnPlaceholder", "Column B"),
       onCommitText: text => this.commitYColumnText(text),
       onFocus: () => this.focusSelectionTarget("yColumns"),
       onRemove: index => this.updateYColumns(removeAt(this.currentState.config.yColumns, index)),
@@ -911,6 +911,6 @@ const moveItem = <T>(items: readonly T[], fromIndex: number, toIndex: number): T
 };
 
 export const formatTemplateYColumnLabel = (columnIndex: number): string =>
-  localize("template.fields.yColumnChip", "{column} 列", {
+  localize("template.fields.yColumnChip", "Column {column}", {
     column: toColumnLabel(columnIndex),
   });

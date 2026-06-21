@@ -96,4 +96,29 @@ suite("platform/files/test/node/diskFileSystemProvider", () => {
       fs.rmSync(root, { force: true, recursive: true });
     }
   });
+
+  test("DiskFileSystemProvider moves files to trash and emits a delete change", async () => {
+    const root = createTempDir();
+    try {
+      const filePath = path.join(root, "source.csv");
+      fs.writeFileSync(filePath, "Vg,Id\n0,1", "utf8");
+      const trashedPaths: string[] = [];
+      const provider = new DiskFileSystemProvider(async trashedPath => {
+        trashedPaths.push(trashedPath);
+        await fs.promises.rm(trashedPath, { force: true });
+      });
+      const changes: string[] = [];
+      store.add(provider.onDidFilesChange(events => {
+        changes.push(...events.map(event => `${event.resource.fsPath}:${event.type}`));
+      }));
+
+      await provider.moveFileToTrash(URI.file(filePath));
+
+      assert.deepEqual(trashedPaths, [filePath]);
+      assert.equal(fs.existsSync(filePath), false);
+      assert.deepEqual(changes, [`${filePath}:2`]);
+    } finally {
+      fs.rmSync(root, { force: true, recursive: true });
+    }
+  });
 });
