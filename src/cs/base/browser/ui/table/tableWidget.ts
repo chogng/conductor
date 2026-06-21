@@ -8,21 +8,126 @@ import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle"
 import {
 	VirtualTable,
 	VirtualTableGridModel,
-	type VirtualTableCellRange,
-	type VirtualTableOptions,
-	type VirtualTableRenderer,
-	type VirtualTableRenderOptions,
-	type VirtualTableScrollEvent,
-	type VirtualTableState,
-	type VirtualTableVisibleRangeChangeEvent,
 } from "src/cs/base/browser/ui/table/virtualTable";
 
 import "src/cs/base/browser/ui/table/table.css";
 
-export type TableWidgetRenderer = VirtualTableRenderer;
+export const TABLE_WIDGET_DEFAULT_ZOOM_PERCENT = 100;
+export const TABLE_WIDGET_MIN_ZOOM_PERCENT = 50;
+export const TABLE_WIDGET_MAX_ZOOM_PERCENT = 200;
+export const TABLE_WIDGET_ZOOM_STEP_PERCENT = 10;
 
-export type TableWidgetOptions = VirtualTableOptions & {
+const TABLE_WIDGET_RESIZING_COLUMN_CLASS = "table_view--resizing_column";
+const TABLE_WIDGET_COLUMN_RESIZE_HANDLE_CLASS = "table_view_column_resize_handle";
+
+export type TableWidgetRange = {
+	readonly totalCount: number;
+	readonly startIndex: number;
+	readonly endIndex: number;
+	readonly renderedCount: number;
+};
+
+export type TableWidgetColumnRange = TableWidgetRange & {
+	readonly leadingWidth: number;
+	readonly renderedWidth: number;
+	readonly totalWidth: number;
+	readonly trailingWidth: number;
+};
+
+export type TableWidgetCellPosition = {
+	readonly rowIndex: number;
+	readonly colIndex: number;
+};
+
+export type TableWidgetCellRange = {
+	readonly endCol: number;
+	readonly endRow: number;
+	readonly startCol: number;
+	readonly startRow: number;
+};
+
+export type TableWidgetBodyCellDescriptor = {
+	readonly colIndex: number;
+	readonly columnOffset: number;
+	readonly rowIndex: number;
+	readonly rowOffset: number;
+};
+
+export type TableWidgetColumnHeaderDescriptor = {
+	readonly colIndex: number;
+	readonly columnOffset: number;
+};
+
+export type TableWidgetRowHeaderDescriptor = {
+	readonly rowIndex: number;
+	readonly rowOffset: number;
+};
+
+/**
+ * Renderer boundary for pooled cells. Implementations should be idempotent:
+ * the same DOM cell will be rebound to many row/column descriptors while
+ * scrolling.
+ */
+export type TableWidgetRenderer = {
+	readonly clearBodyCell?: (cell: HTMLTableCellElement) => void;
+	readonly disposeBodyCell?: (cell: HTMLTableCellElement) => void;
+	readonly renderBodyCell: (cell: HTMLTableCellElement, descriptor: TableWidgetBodyCellDescriptor) => void;
+	readonly renderColumnHeader: (cell: HTMLElement, descriptor: TableWidgetColumnHeaderDescriptor) => void;
+	readonly renderCorner?: (cell: HTMLElement) => void;
+	readonly renderRowHeader: (cell: HTMLTableCellElement, descriptor: TableWidgetRowHeaderDescriptor) => void;
+};
+
+export type TableWidgetOptions = {
 	readonly className?: string;
+	readonly columnResize?: TableWidgetColumnResizeOptions;
+	readonly getColumnWidth: (colIndex: number) => number;
+	readonly maxRenderedColumns?: number;
+	readonly maxRenderedRows?: number;
+	readonly renderer: TableWidgetRenderer;
+};
+
+export type TableWidgetColumnResizeOptions = {
+	readonly enabled?: boolean;
+	readonly hitSlop?: number;
+};
+
+export type TableWidgetColumnResizeEvent = {
+	readonly colIndex: number;
+	readonly width: number;
+};
+
+type TableWidgetColumnResizeState = {
+	readonly colIndex: number;
+	readonly guideLeft: number;
+	readonly startClientX: number;
+	readonly startGuideLeft: number;
+	readonly startWidth: number;
+};
+
+export type TableWidgetSize = {
+	readonly columnCount: number;
+	readonly rowCount: number;
+};
+
+export type TableWidgetRenderOptions = {
+	readonly columnCount: number;
+	readonly renderVersion?: unknown;
+	readonly rowCount: number;
+};
+
+export type TableWidgetScrollEvent = {
+	readonly scrollLeft: number;
+	readonly scrollTop: number;
+};
+
+export type TableWidgetState = {
+	readonly columnRange: TableWidgetColumnRange;
+	readonly rowRange: TableWidgetRange;
+};
+
+export type TableWidgetVisibleRangeChangeEvent = {
+	readonly current: TableWidgetState;
+	readonly previous: TableWidgetState;
 };
 
 /**
@@ -48,33 +153,46 @@ export type TableWidgetPatchResult = "ignored" | "patched";
  */
 export class TableWidget implements IDisposable {
 	public readonly element: HTMLElement;
-	public readonly onDidChangeVisibleRange: Event<VirtualTableVisibleRangeChangeEvent>;
-	public readonly onDidScroll: Event<VirtualTableScrollEvent>;
+	public readonly onDidChangeVisibleRange: Event<TableWidgetVisibleRangeChangeEvent>;
+	public readonly onDidScroll: Event<TableWidgetScrollEvent>;
+	public readonly onDidChangeSize: Event<TableWidgetSize>;
+	public readonly onDidChangeZoom: Event<number>;
+	public readonly onDidResizeColumn: Event<TableWidgetColumnResizeEvent>;
 
 	private readonly disposables = new DisposableStore();
+	private readonly columnResizeStore = this.disposables.add(new DisposableStore());
+	private readonly onDidChangeSizeEmitter = this.disposables.add(new Emitter<TableWidgetSize>());
+	private readonly onDidChangeZoomEmitter = this.disposables.add(new Emitter<number>());
+	private readonly onDidResizeColumnEmitter = this.disposables.add(new Emitter<TableWidgetColumnResizeEvent>());
 	private readonly onDidClickBodyEmitter = this.disposables.add(new Emitter<MouseEvent>());
 	private readonly onDidClickHeaderEmitter = this.disposables.add(new Emitter<MouseEvent>());
 	private readonly onDidPointerDownBodyEmitter = this.disposables.add(new Emitter<PointerEvent>());
-	private readonly onDidPointerDownHeaderEmitter = this.disposables.add(new Emitter<PointerEvent>());
+	private columnResizeState: TableWidgetColumnResizeState | null = null;
+	private lastRenderOptions: TableWidgetRenderOptions | null = null;
+	private size: TableWidgetSize = { columnCount: 0, rowCount: 0 };
 	private readonly virtualTable: VirtualTable;
+	private zoomPercent = TABLE_WIDGET_DEFAULT_ZOOM_PERCENT;
 
 	public readonly onDidClickBody = this.onDidClickBodyEmitter.event;
 	public readonly onDidClickHeader = this.onDidClickHeaderEmitter.event;
 	public readonly onDidPointerDownBody = this.onDidPointerDownBodyEmitter.event;
-	public readonly onDidPointerDownHeader = this.onDidPointerDownHeaderEmitter.event;
 
-	public constructor(options: TableWidgetOptions) {
+	public constructor(private readonly options: TableWidgetOptions) {
 		const { className, ...virtualOptions } = options;
 		this.virtualTable = this.disposables.add(new VirtualTable(virtualOptions));
 		this.element = this.virtualTable.element;
 		this.onDidChangeVisibleRange = this.virtualTable.onDidChangeVisibleRange;
 		this.onDidScroll = this.virtualTable.onDidScroll;
+		this.onDidChangeSize = this.onDidChangeSizeEmitter.event;
+		this.onDidChangeZoom = this.onDidChangeZoomEmitter.event;
+		this.onDidResizeColumn = this.onDidResizeColumnEmitter.event;
+		this.syncZoomStyle();
 		addRootClassName(this.element, className);
 		this.disposables.add(addDisposableListener(this.virtualTable.headerContent, EventType.CLICK, event => {
 			this.onDidClickHeaderEmitter.fire(event as MouseEvent);
 		}));
 		this.disposables.add(addDisposableListener(this.virtualTable.headerContent, EventType.POINTER_DOWN, event => {
-			this.onDidPointerDownHeaderEmitter.fire(event as PointerEvent);
+			this.onColumnResizeStart(event as PointerEvent);
 		}));
 		this.disposables.add(addDisposableListener(this.virtualTable.bodyRows, EventType.CLICK, event => {
 			this.onDidClickBodyEmitter.fire(event as MouseEvent);
@@ -85,6 +203,7 @@ export class TableWidget implements IDisposable {
 	}
 
 	public dispose(): void {
+		this.endColumnResize();
 		this.disposables.dispose();
 	}
 
@@ -92,12 +211,80 @@ export class TableWidget implements IDisposable {
 		this.virtualTable.layout();
 	}
 
-	public render(options: VirtualTableRenderOptions): boolean {
-		return this.virtualTable.render(options);
+	public render(options: TableWidgetRenderOptions): boolean {
+		this.lastRenderOptions = options;
+		const previousSize = this.size;
+		this.size = toTableWidgetSize(options);
+		if (!isTableWidgetSizeEqual(previousSize, this.size)) {
+			this.onDidChangeSizeEmitter.fire(this.size);
+		}
+		if (this.size.rowCount === 0 || this.size.columnCount === 0) {
+			this.endColumnResize();
+		}
+		this.syncZoomStyle();
+		return this.virtualTable.render({
+			...options,
+			zoomPercent: this.zoomPercent,
+		});
 	}
 
-	public getState(): VirtualTableState {
+	public getState(): TableWidgetState {
 		return this.virtualTable.getState();
+	}
+
+	public getSize(): TableWidgetSize {
+		return this.size;
+	}
+
+	public getZoomPercent(): number {
+		return this.zoomPercent;
+	}
+
+	public getZoomScale(): number {
+		return VirtualTableGridModel.getZoomScale(this.zoomPercent);
+	}
+
+	public getRowHeight(): number {
+		return VirtualTableGridModel.getRowHeight(this.zoomPercent);
+	}
+
+	public setZoomPercent(zoomPercent: number): boolean {
+		const nextZoomPercent = clampTableWidgetZoomPercent(zoomPercent);
+		if (nextZoomPercent === this.zoomPercent) {
+			return false;
+		}
+
+		this.zoomPercent = nextZoomPercent;
+		this.syncZoomStyle();
+		if (this.lastRenderOptions) {
+			this.render(this.lastRenderOptions);
+		}
+		this.onDidChangeZoomEmitter.fire(nextZoomPercent);
+		return true;
+	}
+
+	public resetZoom(): boolean {
+		return this.setZoomPercent(TABLE_WIDGET_DEFAULT_ZOOM_PERCENT);
+	}
+
+	public zoomIn(): boolean {
+		return this.setZoomPercent(this.zoomPercent + TABLE_WIDGET_ZOOM_STEP_PERCENT);
+	}
+
+	public zoomOut(): boolean {
+		return this.setZoomPercent(this.zoomPercent - TABLE_WIDGET_ZOOM_STEP_PERCENT);
+	}
+
+	public isColumnResizeActive(): boolean {
+		return this.columnResizeState !== null;
+	}
+
+	public createColumnResizeHandle(): HTMLElement {
+		const handle = this.element.ownerDocument.createElement("span");
+		handle.className = TABLE_WIDGET_COLUMN_RESIZE_HANDLE_CLASS;
+		handle.setAttribute("role", "separator");
+		handle.setAttribute("aria-orientation", "vertical");
+		return handle;
 	}
 
 	public isContentVisible(): boolean {
@@ -127,10 +314,8 @@ export class TableWidget implements IDisposable {
 	public revealCell(
 		rowIndex: number,
 		colIndex: number,
-		zoomPercent: number,
-		getColumnWidth: (colIndex: number) => number,
 	): boolean {
-		return this.virtualTable.revealCell(rowIndex, colIndex, zoomPercent, getColumnWidth);
+		return this.virtualTable.revealCell(rowIndex, colIndex, this.zoomPercent, this.options.getColumnWidth);
 	}
 
 	public getBodyCellElement(rowOffset: number, columnOffset: number): HTMLTableCellElement | null {
@@ -172,51 +357,168 @@ export class TableWidget implements IDisposable {
 		return Boolean(targetWindow && target instanceof targetWindow.Node && this.virtualTable.headerContent.contains(target));
 	}
 
-	public getBodyLeft(): number {
-		return this.virtualTable.body.getBoundingClientRect().left;
-	}
-
-	public getScrollLeft(): number {
-		return this.virtualTable.viewport.scrollLeft;
-	}
-
 	public getViewportClientHeight(): number {
 		return this.virtualTable.viewport.clientHeight;
 	}
 
-	public setBodyStyleProperty(name: string, value: string): void {
-		this.virtualTable.body.style.setProperty(name, value);
-	}
-
 	public setHeaderVisible(visible: boolean): void {
 		this.virtualTable.header.hidden = !visible;
+		if (!visible) {
+			this.endColumnResize();
+		}
 	}
 
 	public isHeaderVisible(): boolean {
 		return !this.virtualTable.header.hidden;
 	}
 
-	public getColumnResizeBoundaryLeft(colIndex: number): number | null {
-		return this.virtualTable.getColumnResizeBoundaryLeft(colIndex);
-	}
-
-	public syncColumnResizeGuide(left: number | null): void {
-		this.virtualTable.syncColumnResizeGuide(left);
-	}
-
 	public syncHeaderScroll(): void {
 		this.virtualTable.syncHeaderScroll();
+		this.syncColumnResizeGuide();
+	}
+
+	private syncZoomStyle(): void {
+		this.virtualTable.body.style.setProperty(
+			"--table-view-zoom",
+			String(this.getZoomScale()),
+		);
+	}
+
+	private onColumnResizeStart(event: PointerEvent): boolean {
+		if (
+			event.defaultPrevented ||
+			this.options.columnResize?.enabled !== true ||
+			!this.canStartColumnResizeFromTarget(event.target)
+		) {
+			return false;
+		}
+
+		const colIndex = VirtualTableGridModel.resolveColumnResizeTarget({
+			button: event.button,
+			clientX: event.clientX,
+			columnRange: this.getColumnRange(),
+			containerLeft: this.virtualTable.body.getBoundingClientRect().left,
+			getColumnWidth: index => this.options.getColumnWidth(index),
+			hitSlop: this.options.columnResize.hitSlop,
+			scrollLeft: this.virtualTable.viewport.scrollLeft,
+			zoomPercent: this.zoomPercent,
+		});
+		if (colIndex === null) {
+			return false;
+		}
+
+		const startGuideLeft = this.virtualTable.getColumnResizeBoundaryLeft(colIndex) ??
+			VirtualTableGridModel.resolveColumnResizeGuideLeft({
+				colIndex,
+				columnRange: this.getColumnRange(),
+				getColumnWidth: index => this.options.getColumnWidth(index),
+				scrollLeft: this.virtualTable.viewport.scrollLeft,
+				visible: this.isHeaderVisible(),
+				zoomPercent: this.zoomPercent,
+			});
+		if (startGuideLeft === null) {
+			return false;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+		this.endColumnResize();
+		this.columnResizeState = {
+			colIndex,
+			guideLeft: startGuideLeft,
+			startClientX: event.clientX,
+			startGuideLeft,
+			startWidth: this.options.getColumnWidth(colIndex),
+		};
+		this.element.classList.add(TABLE_WIDGET_RESIZING_COLUMN_CLASS);
+		this.syncColumnResizeGuide();
+		this.startColumnResizeTracking();
+		return true;
+	}
+
+	private startColumnResizeTracking(): void {
+		const targetWindow = this.element.ownerDocument.defaultView;
+		if (!targetWindow) {
+			this.endColumnResize();
+			return;
+		}
+
+		this.columnResizeStore.add(addDisposableListener(
+			targetWindow,
+			EventType.POINTER_MOVE,
+			event => this.onColumnResizeMove(event as PointerEvent),
+		));
+		this.columnResizeStore.add(addDisposableListener(targetWindow, EventType.POINTER_UP, () => {
+			this.endColumnResize();
+		}));
+		this.columnResizeStore.add(addDisposableListener(targetWindow, "pointercancel", () => {
+			this.endColumnResize();
+		}));
+	}
+
+	private onColumnResizeMove(event: PointerEvent): void {
+		const state = this.columnResizeState;
+		if (!state) {
+			return;
+		}
+
+		event.preventDefault();
+		const width = VirtualTableGridModel.resizeColumnWidth(
+			state.startWidth,
+			event.clientX - state.startClientX,
+			this.zoomPercent,
+		);
+		const guideLeft = VirtualTableGridModel.resolveColumnResizeDragGuideLeft({
+			startGuideLeft: state.startGuideLeft,
+			startWidth: state.startWidth,
+			visible: this.isHeaderVisible(),
+			width,
+			zoomPercent: this.zoomPercent,
+		});
+		const nextState = guideLeft === null
+			? state
+			: { ...state, guideLeft };
+		this.columnResizeState = nextState;
+		this.onDidResizeColumnEmitter.fire({ colIndex: nextState.colIndex, width });
+		this.syncColumnResizeGuide();
+	}
+
+	private endColumnResize(): void {
+		if (this.columnResizeState) {
+			this.columnResizeState = null;
+			this.element.classList.remove(TABLE_WIDGET_RESIZING_COLUMN_CLASS);
+		}
+
+		this.syncColumnResizeGuide();
+		this.columnResizeStore.clear();
+	}
+
+	private syncColumnResizeGuide(): void {
+		this.virtualTable.syncColumnResizeGuide(this.columnResizeState?.guideLeft ?? null);
+	}
+
+	private getColumnRange(): TableWidgetColumnRange {
+		return this.virtualTable.getState().columnRange;
+	}
+
+	private canStartColumnResizeFromTarget(target: EventTarget | null): boolean {
+		const targetWindow = this.element.ownerDocument.defaultView;
+		if (!targetWindow || !(target instanceof targetWindow.Element)) {
+			return true;
+		}
+
+		return !target.closest("button,input,select,textarea,a,[contenteditable='true'],[role='button']");
 	}
 
 	private toVisibleBodyCellRanges(
 		dirtyRanges: readonly TableWidgetDirtyRange[],
-	): VirtualTableCellRange[] {
+	): TableWidgetCellRange[] {
 		const state = this.virtualTable.getState();
 		const visibleRowStart = state.rowRange.startIndex;
 		const visibleRowEnd = state.rowRange.endIndex;
 		const visibleColStart = state.columnRange.startIndex;
 		const visibleColEnd = state.columnRange.endIndex;
-		const ranges: VirtualTableCellRange[] = [];
+		const ranges: TableWidgetCellRange[] = [];
 		for (const dirtyRange of dirtyRanges) {
 			const startRow = Math.max(visibleRowStart, dirtyRange.startRow ?? visibleRowStart);
 			const endRow = Math.min(visibleRowEnd, dirtyRange.endRow ?? visibleRowEnd);
@@ -238,7 +540,29 @@ export class TableWidget implements IDisposable {
 	}
 }
 
-export { VirtualTableGridModel };
+function clampTableWidgetZoomPercent(zoomPercent: number): number {
+	return Math.min(
+		TABLE_WIDGET_MAX_ZOOM_PERCENT,
+		Math.max(TABLE_WIDGET_MIN_ZOOM_PERCENT, Math.floor(Number(zoomPercent) || 0)),
+	);
+}
+
+function toTableWidgetSize(options: TableWidgetRenderOptions): TableWidgetSize {
+	return {
+		columnCount: toSafeCount(options.columnCount),
+		rowCount: toSafeCount(options.rowCount),
+	};
+}
+
+function toSafeCount(value: unknown): number {
+	const count = Math.floor(Number(value));
+	return Number.isFinite(count) && count > 0 ? count : 0;
+}
+
+function isTableWidgetSizeEqual(first: TableWidgetSize, second: TableWidgetSize): boolean {
+	return first.columnCount === second.columnCount &&
+		first.rowCount === second.rowCount;
+}
 
 function addRootClassName(element: HTMLElement, className: string | undefined): void {
 	if (!className) {

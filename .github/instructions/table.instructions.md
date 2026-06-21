@@ -38,7 +38,7 @@ canonical Session records.
 | `electron-browser/tableRowsReader.ts` | desktop row/cell reads through Rust IPC/preload. |
 | `base/browser/ui/table/tableWidget.ts` / `table.css` | Conductor-specific two-dimensional table widget facade and structural CSS over the virtual table base. |
 | `base/browser/ui/table/virtualTable.ts` | two-dimensional virtual table engine: visible range calculation, pooled corner/header/body DOM, scroll spacers, cell descriptor rebinding, and scroll/visible-range fact events. |
-| `contrib/table/browser/tableWidget.ts` | raw table adapter/renderers over the base table widget, keyboard/mouse/wheel, local selection, zoom, column resize. |
+| `contrib/table/browser/tableWidget.ts` | raw table adapter/renderers over the base table widget, keyboard/mouse/wheel, local selection, zoom controls, and column width persistence callbacks. |
 | `contrib/table/browser/tableController.ts` | adapter from view input/callbacks to widget props. |
 | `contrib/table/browser/tableWidgetService.ts` | active widget controller registry for commands. |
 | `contrib/table/browser/tableCommands.ts` / `tableActions.ts` | commands and action registration. |
@@ -55,9 +55,9 @@ Session/settings/command/search bridge
   -> tableModel loads rows through reader
   -> TableController consumes view input
   -> TableWidget adapts table state to base table widget renderers
-  -> base table widget owns structural CSS and facade defaults
+  -> base table widget owns structural CSS, zoom state, column resize mechanics, and facade defaults
   -> base VirtualTable reuses visible cell DOM and emits scroll/visible-range facts
-  -> TableWidget emits selection/width/zoom callbacks
+  -> TableWidget emits selection callbacks and exposes base size/zoom/column-resize callbacks
   -> TableService stores external selection and width state
 ```
 
@@ -66,9 +66,16 @@ Session/settings/command/search bridge
 The base table owns UI mechanics that are independent of raw-table semantics:
 
 - virtual scroll math, overscan, visible row/column ranges, and spacer sizing;
+- table size snapshots from the row/column counts passed by feature code;
+- zoom state, zoom bounds, zoom scale CSS, and zoom geometry used for row
+  height, column width scaling, reveal, and resize guides;
+- column resize interaction mechanics, including header boundary hit testing,
+  drag tracking, resize guide display, zoom-aware width deltas, and the
+  `onDidResizeColumn` fact event;
 - pooled corner/header/row-header/body DOM and descriptor rebinding;
 - structural CSS hooks, header/body scroll synchronization, and reveal geometry;
-- fact events such as `onDidScroll` and `onDidChangeVisibleRange`.
+- fact events such as `onDidScroll`, `onDidChangeVisibleRange`,
+  `onDidChangeSize`, and `onDidChangeZoom`.
 
 Pure grid geometry helpers live in the base `VirtualTableGridModel`. Contrib
 imports those helpers directly and must not re-export compatibility wrappers or
@@ -101,6 +108,11 @@ Keep domain behavior out of the base table:
   `ITableService` / `tableModel`;
 - numeric formatting, display profiles, persisted column widths, and table
   source lifecycle stay in the table feature owner;
+- zoom controls, commands, and persistence policy may be feature-specific, but
+  they should drive the base table zoom API instead of duplicating zoom state;
+- column width persistence and source-key scoping stay in `ITableService` /
+  the table feature owner; feature widgets should subscribe to base resize
+  facts and call their own width owner APIs;
 - selection/focus/highlight can use base geometry helpers, but persistence and
   command-visible snapshots remain owned by the active table widget/service.
 

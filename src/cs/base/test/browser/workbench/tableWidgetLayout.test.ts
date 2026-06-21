@@ -24,6 +24,7 @@ import type {
 } from "src/cs/workbench/services/table/common/table";
 import { toScaleHeaderSuffix } from "src/cs/workbench/services/table/common/numericFormat";
 import type { ColumnDisplayProfile } from "src/cs/workbench/services/table/common/tableDisplayProfile";
+import { TableColumnLayout } from "src/cs/workbench/services/table/common/tableColumnLayout";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("base/browser/workbench tableWidget layout", () => {
@@ -85,6 +86,123 @@ suite("base/browser/workbench tableWidget layout", () => {
       assert.equal(getVisibleCellText(widget.element, 0, 2), "C1");
       assert.equal(getVisibleCellText(widget.element, 0, 3), "");
       assert.equal(getVisibleColumnHeaderText(widget.element, 3), "D");
+    } finally {
+      widget.dispose();
+    }
+  });
+
+  test("exposes rendered size and base zoom state", async () => {
+    const widget = new TableWidget({
+      onSelect: () => true,
+      tableModel: createTableWidgetModel(),
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+    const sizeEvents: unknown[] = [];
+    const sizeListener = widget.onDidChangeSize(value => {
+      sizeEvents.push(value);
+    });
+    const zoomEvents: number[] = [];
+    const zoomListener = widget.onDidChangeZoom(value => {
+      zoomEvents.push(value);
+    });
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 500, 280);
+      widget.layout();
+      await timeout(120);
+
+      assert.deepEqual(widget.getSize(), { columnCount: 10, rowCount: 20 });
+      assert.deepEqual(sizeEvents, []);
+      widget.update({
+        onSelect: () => true,
+        tableModel: createTableWidgetModel(),
+        tableState: createTableWidgetState({ columnCount: 4 }),
+      });
+      assert.deepEqual(widget.getSize(), { columnCount: 4, rowCount: 20 });
+      assert.deepEqual(sizeEvents, [{ columnCount: 4, rowCount: 20 }]);
+      assert.equal(widget.getZoomPercent(), 100);
+      assert.equal(widget.zoomIn(), true);
+      assert.equal(widget.getZoomPercent(), 110);
+      assert.equal(
+        widget.element.querySelector<HTMLElement>(".table_view_body")?.style.getPropertyValue("--table-view-zoom"),
+        "1.1",
+      );
+      assert.equal(getVisibleCellText(widget.element, 0, 0), "A1");
+
+      assert.equal(widget.resetZoom(), true);
+      assert.equal(widget.getZoomPercent(), 100);
+      assert.deepEqual(zoomEvents, [110, 100]);
+    } finally {
+      sizeListener.dispose();
+      zoomListener.dispose();
+      widget.dispose();
+    }
+  });
+
+  test("resizes columns through the base table resize event", async () => {
+    const storedWidths: unknown[] = [];
+    const widget = new TableWidget({
+      onSelect: () => true,
+      storeColumnWidths: (_sourceKey, widths) => {
+        storedWidths.push(widths);
+      },
+      tableModel: createTableWidgetModel(),
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 500, 280);
+      widget.layout();
+      await timeout(120);
+
+      const handle = getColumnResizeHandle(widget.element, 0);
+      const rect = handle.getBoundingClientRect();
+      const targetWindow = widget.element.ownerDocument.defaultView;
+      assert.ok(targetWindow);
+      const startClientX = rect.left + (rect.width / 2);
+      const clientY = rect.top + 2;
+
+      dispatchPointerEvent(handle, "pointerdown", {
+        buttons: 1,
+        clientX: startClientX,
+        clientY,
+        pointerId: 9,
+      });
+      assert.equal(widget.element.classList.contains("table_view--resizing_column"), true);
+
+      targetWindow.dispatchEvent(new PointerEvent("pointermove", {
+        bubbles: true,
+        buttons: 1,
+        cancelable: true,
+        clientX: startClientX + 40,
+        clientY,
+        pointerId: 9,
+        pointerType: "mouse",
+      }));
+      await timeout(160);
+
+      assert.deepEqual(storedWidths.at(-1), [{
+        colIndex: 0,
+        width: TableColumnLayout.defaultWidth + 40,
+      }]);
+
+      targetWindow.dispatchEvent(new PointerEvent("pointerup", {
+        bubbles: true,
+        button: 0,
+        buttons: 0,
+        cancelable: true,
+        clientX: startClientX + 40,
+        clientY,
+        pointerId: 9,
+        pointerType: "mouse",
+      }));
+      assert.equal(widget.element.classList.contains("table_view--resizing_column"), false);
     } finally {
       widget.dispose();
     }
@@ -331,6 +449,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       tableState: createTableWidgetState(),
     });
     document.body.append(widget.element);
+    let nativeSelectionText: HTMLElement | null = null;
 
     try {
       const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
@@ -342,7 +461,10 @@ suite("base/browser/workbench tableWidget layout", () => {
       const startCell = getVisibleCell(widget.element, 0, 0);
       const innerCell = getVisibleCell(widget.element, 1, 1);
       const endCell = getVisibleCell(widget.element, 2, 2);
-      document.getSelection()?.selectAllChildren(startCell);
+      nativeSelectionText = document.createElement("span");
+      nativeSelectionText.textContent = "native selection";
+      document.body.append(nativeSelectionText);
+      document.getSelection()?.selectAllChildren(nativeSelectionText);
       assert.ok((document.getSelection()?.toString() ?? "").length > 0);
 
       dispatchPointerEvent(startCell, "pointerdown", {
@@ -372,10 +494,10 @@ suite("base/browser/workbench tableWidget layout", () => {
         sheetId: null,
       });
       assert.deepEqual(selection.ranges, [{
-        endCol: 2,
+        startRow: 0,
         endRow: 2,
         startCol: 0,
-        startRow: 0,
+        endCol: 2,
         fileId: "file-a",
         sheetId: null,
       }]);
@@ -389,6 +511,7 @@ suite("base/browser/workbench tableWidget layout", () => {
       assert.equal(endCell.style.getPropertyValue("--table-view-selection-frame-bottom"), "2px");
       assert.equal(document.getSelection()?.toString(), "");
     } finally {
+      nativeSelectionText?.remove();
       widget.dispose();
     }
   });
@@ -662,6 +785,14 @@ function getColumnHeaderButton(element: HTMLElement, colIndex: number): HTMLButt
   );
   assert.ok(button);
   return button;
+}
+
+function getColumnResizeHandle(element: HTMLElement, colIndex: number): HTMLElement {
+  const handle = element.querySelector<HTMLElement>(
+    `.table_view_grid_header_cell[aria-colindex="${colIndex + 1}"] .table_view_column_resize_handle`,
+  );
+  assert.ok(handle);
+  return handle;
 }
 
 function createRawColumnDisplayProfile(colIndex: number): ColumnDisplayProfile {

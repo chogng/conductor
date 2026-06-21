@@ -2,7 +2,7 @@ import assert from "assert";
 
 import {
   VirtualTableGridModel,
-} from "src/cs/base/browser/ui/table/tableWidget";
+} from "src/cs/base/browser/ui/table/virtualTable";
 import {
   TableColumnLayout,
   toStoredTableColumnLayout,

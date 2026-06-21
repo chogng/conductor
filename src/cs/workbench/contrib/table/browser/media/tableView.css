@@ -206,22 +206,8 @@
   cursor: default;
 }
 
-.table_view_column_resize_handle {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 2;
-  width: 8px;
-  cursor: col-resize;
-  touch-action: none;
-}
-
-.table_view--resizing_column,
-.table_view--resizing_column *,
 .table_view--selecting_cells,
 .table_view--selecting_cells * {
-  cursor: col-resize;
   user-select: none;
 }
 

@@ -1,19 +1,18 @@
 import { addDisposableListener, EventType, isEditableElement } from "src/cs/base/browser/dom";
-import { Emitter } from "src/cs/base/common/event";
+import type { Event } from "src/cs/base/common/event";
 import { DisposableStore, MutableDisposable } from "src/cs/base/common/lifecycle";
 import type { IManagedHover } from "src/cs/base/browser/ui/hover/hover";
 import { NullHoverDelegate, type IHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { localize } from "src/cs/nls";
 import {
+  TABLE_WIDGET_DEFAULT_ZOOM_PERCENT,
   TableWidget as BaseTableWidget,
-  VirtualTableGridModel,
+  type TableWidgetCellPosition,
+  type TableWidgetCellRange,
+  type TableWidgetRange,
+  type TableWidgetSize,
 } from "src/cs/base/browser/ui/table/tableWidget";
-import type {
-  VirtualTableCellPosition,
-  VirtualTableCellRange,
-  VirtualTableColumnRange,
-  VirtualTableRange,
-} from "src/cs/base/browser/ui/table/virtualTable";
+import { VirtualTableGridModel } from "src/cs/base/browser/ui/table/virtualTable";
 import { createEmptyView } from "src/cs/workbench/contrib/table/browser/emptyView";
 import {
   createTableValueStepperControl,
@@ -35,22 +34,12 @@ import {
 } from "src/cs/workbench/services/table/common/tableColumnLayout";
 
 const TABLE_WIDGET_COLUMN_LAYOUT_STORAGE_DEBOUNCE_MS = 120;
-export const TABLE_WIDGET_DEFAULT_ZOOM_PERCENT = 100;
-export const TABLE_WIDGET_MIN_ZOOM_PERCENT = 50;
-export const TABLE_WIDGET_MAX_ZOOM_PERCENT = 200;
-export const TABLE_WIDGET_ZOOM_STEP_PERCENT = 10;
 
 export type TableWidgetColumnWidth = TableColumnWidth;
 
 export type TableWidgetColumnWidthTarget = TableColumnWidth;
 
 export type TableWidgetRevealMode = boolean | "force";
-
-const clampTableWidgetZoomPercent = (zoomPercent: number): number =>
-  Math.min(
-    TABLE_WIDGET_MAX_ZOOM_PERCENT,
-    Math.max(TABLE_WIDGET_MIN_ZOOM_PERCENT, Math.floor(Number(zoomPercent) || 0)),
-  );
 
 export type TableWidgetModel = Pick<
   TableModel,
@@ -119,7 +108,7 @@ type AppliedCellState = {
   readonly activeCell: ActiveCell | null;
   readonly highlightedColumns: Set<number>;
   readonly selectedColumns: Set<number>;
-  readonly selectedRanges: readonly VirtualTableCellRange[];
+  readonly selectedRanges: readonly TableWidgetCellRange[];
 };
 
 type SelectionFrameEdges = {
@@ -127,14 +116,6 @@ type SelectionFrameEdges = {
   readonly left: boolean;
   readonly right: boolean;
   readonly top: boolean;
-};
-
-type ColumnResizeState = {
-  readonly colIndex: number;
-  readonly guideLeft: number;
-  readonly startClientX: number;
-  readonly startGuideLeft: number;
-  readonly startWidth: number;
 };
 
 type BodyRangeSelectionState = {
@@ -145,11 +126,10 @@ type DirtyRowsPatchResult = "full" | "ignored" | "patched";
 
 export class TableWidget {
   public readonly element: HTMLElement;
-  private readonly onDidChangeZoomEmitter = new Emitter<number>();
-  public readonly onDidChangeZoom = this.onDidChangeZoomEmitter.event;
+  public readonly onDidChangeSize: Event<TableWidgetSize>;
+  public readonly onDidChangeZoom: Event<number>;
   private readonly store = new DisposableStore();
   private readonly grid: BaseTableWidget;
-  private readonly columnResizeStore = new DisposableStore();
   private readonly bodyRangeSelectionStore = new DisposableStore();
   private disposeSelectionListener: (() => void) | null = null;
   private disposeHighlightListener: (() => void) | null = null;
@@ -157,6 +137,7 @@ export class TableWidget {
   private disposeRowsVersionListener: (() => void) | null = null;
   private disposeStateListener: (() => void) | null = null;
   private readonly bodyCellStates = new WeakMap<HTMLTableCellElement, BodyCell>();
+  private readonly headerColumnResizeHandles = new WeakMap<HTMLElement, HTMLElement>();
   private readonly headerColumnScaleControls = new WeakMap<HTMLElement, TableValueStepperControl>();
   private bodyTotalRowCount = 0;
   private bodyStartRowIndex = 0;
@@ -166,25 +147,23 @@ export class TableWidget {
   private bodyColumnCount = 0;
   private layoutTimeoutId: number | null = null;
   private renderedInputKey: string | null = null;
-  private renderedZoomPercent: number | null = null;
   private renderedSourceKey: string | null = null;
   private pendingEnsureRowsKey: string | null = null;
   private appliedCellState: AppliedCellState | null = null;
   private columnWidthSourceKey: string | null = null;
   private columnWidths = new Map<number, number>();
   private pendingColumnWidthStorageTimeout: number | null = null;
-  private columnResizeState: ColumnResizeState | null = null;
   private bodyRangeSelectionState: BodyRangeSelectionState | null = null;
   private suppressNextBodyClick = false;
   private bodyClickSuppressionTimeout: number | null = null;
-  private rangeAnchorCell: VirtualTableCellPosition | null = null;
-  private rangeFocusCell: VirtualTableCellPosition | null = null;
-  private zoomPercent = TABLE_WIDGET_DEFAULT_ZOOM_PERCENT;
+  private rangeAnchorCell: TableWidgetCellPosition | null = null;
+  private rangeFocusCell: TableWidgetCellPosition | null = null;
   private props: TableWidgetProps;
 
   constructor(props: TableWidgetProps) {
     this.props = props;
     this.grid = this.store.add(new BaseTableWidget({
+      columnResize: { enabled: true },
       getColumnWidth: colIndex => this.getColumnWidth(colIndex),
       renderer: {
         clearBodyCell: cell => this.updateCellDisplay(this.getBodyCellState(cell), "", ""),
@@ -202,6 +181,8 @@ export class TableWidget {
       },
     }));
     this.element = this.grid.element;
+    this.onDidChangeSize = this.grid.onDidChangeSize;
+    this.onDidChangeZoom = this.grid.onDidChangeZoom;
     this.element.tabIndex = 0;
     this.element.setAttribute("role", "region");
     this.element.setAttribute("aria-label", localize("table.view.ariaLabel", "Table"));
@@ -212,11 +193,8 @@ export class TableWidget {
     this.store.add(this.grid.onDidClickHeader(event => {
       this.onHeaderClick(event);
     }));
-    this.store.add(this.grid.onDidPointerDownHeader(event => {
-      const handle = this.getColumnResizeHandle(event.target);
-      if (handle && this.grid.containsHeaderTarget(handle)) {
-        this.onColumnResizeStart(event);
-      }
+    this.store.add(this.grid.onDidResizeColumn(event => {
+      this.setColumnWidth(event);
     }));
     this.store.add(this.grid.onDidClickBody(event => {
       this.onBodyClick(event);
@@ -230,8 +208,6 @@ export class TableWidget {
     this.store.add(addDisposableListener(this.element, EventType.WHEEL, event => {
       this.onWheel(event as WheelEvent);
     }, { passive: false }));
-    this.store.add(this.onDidChangeZoomEmitter);
-    this.store.add(this.columnResizeStore);
     this.store.add(this.bodyRangeSelectionStore);
     this.bindTableState(props.tableModel);
     this.syncColumnWidthSource();
@@ -268,7 +244,6 @@ export class TableWidget {
     this.disposeRowsVersionListener = null;
     this.disposeStateListener?.();
     this.disposeStateListener = null;
-    this.endColumnResize();
     this.endBodyRangeSelection();
     this.clearBodyClickSuppression();
     this.disposeBodyCellHovers();
@@ -387,7 +362,11 @@ export class TableWidget {
   }
 
   public getZoomPercent(): number {
-    return this.zoomPercent;
+    return this.grid.getZoomPercent();
+  }
+
+  public getSize(): TableWidgetSize {
+    return this.grid.getSize();
   }
 
   public resetZoom(): boolean {
@@ -395,22 +374,23 @@ export class TableWidget {
   }
 
   public zoomIn(): boolean {
-    return this.setZoomPercent(this.zoomPercent + TABLE_WIDGET_ZOOM_STEP_PERCENT);
+    return this.applyZoomChange(() => this.grid.zoomIn());
   }
 
   public zoomOut(): boolean {
-    return this.setZoomPercent(this.zoomPercent - TABLE_WIDGET_ZOOM_STEP_PERCENT);
+    return this.applyZoomChange(() => this.grid.zoomOut());
   }
 
   private setZoomPercent(zoomPercent: number): boolean {
-    const nextZoomPercent = clampTableWidgetZoomPercent(zoomPercent);
-    if (nextZoomPercent === this.zoomPercent) {
+    return this.applyZoomChange(() => this.grid.setZoomPercent(zoomPercent));
+  }
+
+  private applyZoomChange(callback: () => boolean): boolean {
+    if (!callback()) {
       return false;
     }
 
-    this.zoomPercent = nextZoomPercent;
     this.render();
-    this.onDidChangeZoomEmitter.fire(nextZoomPercent);
     return true;
   }
 
@@ -553,7 +533,6 @@ export class TableWidget {
       this.appliedCellState = null;
       this.rangeAnchorCell = null;
       this.rangeFocusCell = null;
-      this.syncColumnResizeGuide();
       this.clearRowsText();
       this.grid.resetScrollTop();
     }
@@ -572,6 +551,7 @@ export class TableWidget {
       }
 
       this.grid.setHeaderVisible(false);
+      this.resetGridSize();
       this.grid.replaceViewportContent(createEmptyView({
         title: tableState.loadState.state === "error"
           ? localize("table.preview.unreadableTitle", "File content cannot be decoded")
@@ -584,31 +564,30 @@ export class TableWidget {
               localize("table.preview.unreadableHint", "The system cannot confirm this file is a valid CSV table.")
             : localize("table.preview.emptyHint", "Select a file to preview"),
       }));
-      this.syncColumnResizeGuide();
       this.layoutNow();
       return;
     }
 
     if (tableState.loadState.state === "error") {
       this.grid.setHeaderVisible(false);
+      this.resetGridSize();
       this.grid.replaceViewportContent(createEmptyView({
         title: localize("table.preview.unreadableTitle", "File content cannot be decoded"),
         description: tableState.loadState.message ||
           localize("table.preview.unreadableHint", "The system cannot confirm this file is a valid CSV table."),
       }));
-      this.syncColumnResizeGuide();
       this.layoutNow();
       return;
     }
 
     if (tableState.loadState.state === "loading") {
       this.grid.setHeaderVisible(false);
+      this.resetGridSize();
       this.grid.replaceViewportContent(createEmptyView({
         title: localize("table.preview.loadingTitle", "Loading preview..."),
         description: tableState.loadState.message ||
           localize("table.preview.loadingHint", "Parsing CSV preview, please wait."),
       }));
-      this.syncColumnResizeGuide();
       this.layoutNow();
       return;
     }
@@ -623,23 +602,14 @@ export class TableWidget {
 
   private renderTable(): boolean {
     const { tableModel, tableState } = this.props;
-    const zoomPercent = this.zoomPercent;
     const tableFile = tableState.file;
-    const zoomChanged = this.renderedZoomPercent !== zoomPercent;
-    if (zoomChanged) {
-      this.renderedZoomPercent = zoomPercent;
-      this.grid.setBodyStyleProperty(
-        "--table-view-zoom",
-        String(VirtualTableGridModel.getZoomScale(zoomPercent)),
-      );
-    }
 
     if (!tableFile || tableFile.rowCount <= 0 || tableFile.columnCount <= 0) {
       this.grid.setHeaderVisible(false);
+      this.resetGridSize();
       this.grid.replaceViewportContent(createEmptyView({
         description: localize("table.preview.emptyHint", "Select a file to preview"),
       }));
-      this.syncColumnResizeGuide();
       return true;
     }
 
@@ -648,23 +618,30 @@ export class TableWidget {
       columnCount: tableFile.columnCount,
       renderVersion: this.getRowsRenderVersion(),
       rowCount: tableFile.rowCount,
-      zoomPercent,
     });
     this.syncCachedGridState();
     this.syncSelectionState();
-    this.syncColumnResizeGuide();
 
     if (tableFile?.fileId) {
       this.ensureRows(tableModel, tableFile.sourceKey ?? tableFile.fileId, this.getBodyRowRange());
     }
 
-    return gridChanged || zoomChanged;
+    return gridChanged;
+  }
+
+  private resetGridSize(): void {
+    this.grid.render({
+      columnCount: 0,
+      renderVersion: this.getRowsRenderVersion(),
+      rowCount: 0,
+    });
+    this.syncCachedGridState();
   }
 
   private ensureRows(
     tableModel: TableWidgetModel,
     sourceKey: string,
-    rowRange: VirtualTableRange,
+    rowRange: TableWidgetRange,
   ): void {
     const requestKey = `${sourceKey}\u001f${rowRange.startIndex}\u001f${rowRange.endIndex}`;
     if (this.pendingEnsureRowsKey === requestKey) {
@@ -691,7 +668,7 @@ export class TableWidget {
   ): void {
     let button = cell.querySelector<HTMLButtonElement>(".table_view_column_button");
     let scaleControl = this.headerColumnScaleControls.get(cell);
-    let resizeHandle = cell.querySelector<HTMLElement>(".table_view_column_resize_handle");
+    let resizeHandle = this.headerColumnResizeHandles.get(cell);
 
     if (!button || !scaleControl || !resizeHandle) {
       cell.replaceChildren();
@@ -699,12 +676,10 @@ export class TableWidget {
       button.type = "button";
       button.className = "table_view_column_button";
       scaleControl = this.createColumnScaleControl(colIndex);
-      resizeHandle = document.createElement("span");
-      resizeHandle.className = "table_view_column_resize_handle";
-      resizeHandle.setAttribute("role", "separator");
-      resizeHandle.setAttribute("aria-orientation", "vertical");
+      resizeHandle = this.grid.createColumnResizeHandle();
       cell.append(button, scaleControl.element, resizeHandle);
       this.headerColumnScaleControls.set(cell, scaleControl);
+      this.headerColumnResizeHandles.set(cell, resizeHandle);
     }
 
     const columnLabel = VirtualTableGridModel.getColumnLabel(colIndex);
@@ -830,26 +805,12 @@ export class TableWidget {
     return this.grid.rerenderDirtyBodyCells(event.ranges, this.getRowsRenderVersion());
   }
 
-  private getBodyRowRange(): VirtualTableRange {
+  private getBodyRowRange(): TableWidgetRange {
     return {
       totalCount: this.bodyTotalRowCount,
       startIndex: this.bodyStartRowIndex,
       endIndex: this.bodyStartRowIndex + this.bodyRowCount,
       renderedCount: this.bodyRowCount,
-    };
-  }
-
-  private getBodyColumnRange(): VirtualTableColumnRange {
-    const columnRange = this.grid.getState().columnRange;
-    return {
-      totalCount: columnRange.totalCount,
-      startIndex: columnRange.startIndex,
-      endIndex: columnRange.endIndex,
-      renderedCount: columnRange.renderedCount,
-      leadingWidth: columnRange.leadingWidth,
-      renderedWidth: columnRange.renderedWidth,
-      totalWidth: columnRange.totalWidth,
-      trailingWidth: columnRange.trailingWidth,
     };
   }
 
@@ -1194,121 +1155,8 @@ export class TableWidget {
     this.focus();
   }
 
-  private onColumnResizeStart(event: PointerEvent): void {
-    const colIndex = VirtualTableGridModel.resolveColumnResizeTarget({
-      button: event.button,
-      clientX: event.clientX,
-      columnRange: this.getBodyColumnRange(),
-      containerLeft: this.grid.getBodyLeft(),
-      getColumnWidth: index => this.getColumnWidth(index),
-      scrollLeft: this.grid.getScrollLeft(),
-      zoomPercent: this.zoomPercent,
-    });
-    if (colIndex === null) {
-      return;
-    }
-
-    const startGuideLeft = this.getColumnResizeBoundaryLeft(colIndex) ??
-      VirtualTableGridModel.resolveColumnResizeGuideLeft({
-        colIndex,
-        columnRange: this.getBodyColumnRange(),
-        getColumnWidth: index => this.getColumnWidth(index),
-        scrollLeft: this.grid.getScrollLeft(),
-        visible: this.grid.isHeaderVisible(),
-        zoomPercent: this.zoomPercent,
-      });
-    if (startGuideLeft === null) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    this.endColumnResize();
-    this.columnResizeState = {
-      colIndex,
-      guideLeft: startGuideLeft,
-      startClientX: event.clientX,
-      startGuideLeft,
-      startWidth: this.getColumnWidth(colIndex),
-    };
-    this.element.classList.add("table_view--resizing_column");
-    this.syncColumnResizeGuide();
-
-    const targetWindow = this.element.ownerDocument.defaultView;
-    if (!targetWindow) {
-      return;
-    }
-
-    this.columnResizeStore.add(addDisposableListener(
-      targetWindow,
-      EventType.POINTER_MOVE,
-      moveEvent => {
-        this.onColumnResizeMove(moveEvent as PointerEvent);
-      },
-    ));
-    this.columnResizeStore.add(addDisposableListener(targetWindow, EventType.POINTER_UP, () => {
-      this.endColumnResize();
-    }));
-  }
-
-  private onColumnResizeMove(event: PointerEvent): void {
-    const state = this.columnResizeState;
-    if (!state) {
-      return;
-    }
-
-    event.preventDefault();
-    const width = VirtualTableGridModel.resizeColumnWidth(
-      state.startWidth,
-      event.clientX - state.startClientX,
-      this.zoomPercent,
-    );
-    const guideLeft = VirtualTableGridModel.resolveColumnResizeDragGuideLeft({
-      startGuideLeft: state.startGuideLeft,
-      startWidth: state.startWidth,
-      visible: this.grid.isHeaderVisible(),
-      width,
-      zoomPercent: this.zoomPercent,
-    });
-    if (guideLeft !== null) {
-      this.columnResizeState = {
-        ...state,
-        guideLeft,
-      };
-    }
-    this.setColumnWidth({ colIndex: state.colIndex, width });
-    this.syncColumnResizeGuide();
-  }
-
-  private endColumnResize(): void {
-    if (this.columnResizeState) {
-      this.columnResizeState = null;
-      this.element.classList.remove("table_view--resizing_column");
-    }
-
-    this.syncColumnResizeGuide();
-    this.columnResizeStore.clear();
-  }
-
-  private getColumnResizeHandle(target: EventTarget | null): HTMLElement | null {
-    return target instanceof HTMLElement
-      ? target.closest<HTMLElement>(".table_view_column_resize_handle")
-      : null;
-  }
-
-  private getColumnResizeBoundaryLeft(colIndex: number): number | null {
-    return this.grid.getColumnResizeBoundaryLeft(colIndex);
-  }
-
   private getColumnWidth(colIndex: number): number {
     return this.columnWidths.get(colIndex) ?? TableColumnLayout.defaultWidth;
-  }
-
-  private syncColumnResizeGuide(): void {
-    const left = this.columnResizeState
-      ? this.columnResizeState.guideLeft
-      : null;
-    this.grid.syncColumnResizeGuide(left);
   }
 
   private onKeyDown(event: KeyboardEvent): void {
@@ -1461,7 +1309,7 @@ export class TableWidget {
     event.stopPropagation();
   }
 
-  private getNavigationCell(): VirtualTableCellPosition | null {
+  private getNavigationCell(): TableWidgetCellPosition | null {
     const tableFile = this.props.tableState.file;
     if (!tableFile) {
       return null;
@@ -1487,12 +1335,12 @@ export class TableWidget {
     };
   }
 
-  private getRangeFocusCell(): VirtualTableCellPosition | null {
+  private getRangeFocusCell(): TableWidgetCellPosition | null {
     return this.rangeFocusCell ?? this.getNavigationCell();
   }
 
   private selectRangeToCell(
-    target: VirtualTableCellPosition,
+    target: TableWidgetCellPosition,
     reveal: boolean,
   ): boolean {
     const tableFile = this.props.tableState.file;
@@ -1524,7 +1372,7 @@ export class TableWidget {
       1,
       Math.floor(
         this.grid.getViewportClientHeight() /
-          VirtualTableGridModel.getRowHeight(this.zoomPercent),
+          this.grid.getRowHeight(),
       ),
     );
   }
@@ -1533,8 +1381,6 @@ export class TableWidget {
     if (this.grid.revealCell(
       cell.rowIndex,
       cell.colIndex,
-      this.zoomPercent,
-      colIndex => this.getColumnWidth(colIndex),
     )) {
       this.renderTable();
       this.syncHeaderScroll();
@@ -1545,7 +1391,7 @@ export class TableWidget {
     if (
       event.defaultPrevented ||
       event.button !== 0 ||
-      this.columnResizeState
+      this.grid.isColumnResizeActive()
     ) {
       return;
     }
@@ -1647,7 +1493,7 @@ export class TableWidget {
     this.bodyRangeSelectionStore.clear();
   }
 
-  private selectBodyAnchorCell(target: VirtualTableCellPosition): boolean {
+  private selectBodyAnchorCell(target: TableWidgetCellPosition): boolean {
     const tableFile = this.props.tableState.file;
     const didSelect = this.select({
       kind: "cell",
@@ -1669,7 +1515,7 @@ export class TableWidget {
 
   private getBodyCellPositionFromEvent(
     event: Pick<PointerEvent | MouseEvent, "clientX" | "clientY" | "target">,
-  ): VirtualTableCellPosition | null {
+  ): TableWidgetCellPosition | null {
     return this.getBodyCellPositionFromTarget(event.target) ??
       this.getBodyCellPositionFromPoint(event.clientX, event.clientY);
   }
@@ -1677,7 +1523,7 @@ export class TableWidget {
   private getBodyCellPositionFromPoint(
     clientX: number,
     clientY: number,
-  ): VirtualTableCellPosition | null {
+  ): TableWidgetCellPosition | null {
     if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
       return null;
     }
@@ -1688,7 +1534,7 @@ export class TableWidget {
 
   private getBodyCellPositionFromTarget(
     target: EventTarget | null,
-  ): VirtualTableCellPosition | null {
+  ): TableWidgetCellPosition | null {
     if (!(target instanceof HTMLElement)) {
       return null;
     }
@@ -1787,7 +1633,6 @@ export class TableWidget {
 
   private syncHeaderScroll(): void {
     this.grid.syncHeaderScroll();
-    this.syncColumnResizeGuide();
   }
 
   private onTableScroll(): void {
@@ -1939,8 +1784,8 @@ const toVisibleRanges = (
   rowCount: number,
   startColumnIndex: number,
   columnCount: number,
-): readonly VirtualTableCellRange[] => {
-  const visibleRanges: VirtualTableCellRange[] = [];
+): readonly TableWidgetCellRange[] => {
+  const visibleRanges: TableWidgetCellRange[] = [];
   const endRowIndex = startRowIndex + rowCount - 1;
   const endColumnIndex = startColumnIndex + columnCount - 1;
 
@@ -1980,7 +1825,7 @@ const isSelectedCell = (
 const getSelectionFrame = (
   rowIndex: number,
   colIndex: number,
-  ranges: readonly VirtualTableCellRange[],
+  ranges: readonly TableWidgetCellRange[],
 ): SelectionFrameEdges => {
   let top = false;
   let right = false;
@@ -2057,8 +1902,8 @@ const areActiveCellsEqual = (
 };
 
 const areCellRangesEqual = (
-  first: readonly VirtualTableCellRange[],
-  second: readonly VirtualTableCellRange[],
+  first: readonly TableWidgetCellRange[],
+  second: readonly TableWidgetCellRange[],
 ): boolean => {
   if (first.length !== second.length) {
     return false;

@@ -33,6 +33,9 @@ import {
   TABLE_WIDGET_DEFAULT_ZOOM_PERCENT,
   TABLE_WIDGET_MAX_ZOOM_PERCENT,
   TABLE_WIDGET_MIN_ZOOM_PERCENT,
+  type TableWidgetSize,
+} from "src/cs/base/browser/ui/table/tableWidget";
+import {
   type TableWidgetColumnHeaderSelectionMode,
 } from "src/cs/workbench/contrib/table/browser/tableWidget";
 import {
@@ -52,10 +55,8 @@ export type TableViewPaneProps = TableViewInput;
 type HeaderMode = "empty" | "file";
 
 type HeaderState = {
-  readonly dimensions?: string;
   readonly fileName: string;
   readonly mode: HeaderMode;
-  readonly shouldUpdateDimensions: boolean;
 };
 
 const ZOOM_CONTROL_ACTION_ID = "table.header.zoom";
@@ -150,6 +151,7 @@ export class TableViewPane extends ViewPane {
         this.templateService.getState().mode,
       ));
       this.store.add(this.tableWidgetService.registerController(this.controller));
+      this.store.add(this.controller.onDidChangeSize(() => this.updateDimensions()));
       this.store.add(this.controller.onDidChangeZoom(() => this.updateZoomControl()));
       this.content.append(this.controller.element);
     } else {
@@ -161,10 +163,10 @@ export class TableViewPane extends ViewPane {
         this.templateService.getState().mode,
       ));
     }
-    const { dimensions, fileName, mode, shouldUpdateDimensions } = getHeaderState(props);
+    const { fileName, mode } = getHeaderState(props);
     this.updateHeaderMode(mode);
     this.updateHeaderCenter(fileName, mode === "file");
-    this.updateHeaderRight(dimensions, shouldUpdateDimensions);
+    this.updateHeaderRight();
   }
 
   public dispose(): void {
@@ -223,11 +225,8 @@ export class TableViewPane extends ViewPane {
     setHidden(this.headerCenter, !isVisible);
   }
 
-  private updateHeaderRight(dimensions: string | undefined, shouldUpdateDimensions: boolean): void {
-    if (shouldUpdateDimensions) {
-      setText(this.dimensions, dimensions ?? "");
-      setHidden(this.dimensions, !dimensions);
-    }
+  private updateHeaderRight(): void {
+    this.updateDimensions();
     this.updateZoomControl();
   }
 
@@ -246,6 +245,12 @@ export class TableViewPane extends ViewPane {
       decrease: zoomPercent <= TABLE_WIDGET_MIN_ZOOM_PERCENT,
       increase: zoomPercent >= TABLE_WIDGET_MAX_ZOOM_PERCENT,
     });
+  }
+
+  private updateDimensions(): void {
+    const dimensions = formatTableWidgetSize(this.controller?.getSize() ?? null);
+    setText(this.dimensions, dimensions);
+    setHidden(this.dimensions, !dimensions);
   }
 }
 
@@ -330,11 +335,17 @@ const getHeaderState = ({ tableState }: TableViewPaneProps): HeaderState => {
   const hasSelectedFile = Boolean(tableState.selectedFileId && tableState.fileName);
 
   return {
-    dimensions: tableState.dimensions,
     fileName: tableState.fileName,
     mode: hasSelectedFile ? "file" : "empty",
-    shouldUpdateDimensions: tableState.loadState.state !== "loading" || !hasSelectedFile,
   };
+};
+
+const formatTableWidgetSize = (size: TableWidgetSize | null): string => {
+  if (!size || size.rowCount <= 0 || size.columnCount <= 0) {
+    return "";
+  }
+
+  return `${size.rowCount} × ${size.columnCount}`;
 };
 
 export const getTableColumnHeaderSelectionMode = (
