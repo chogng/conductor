@@ -9,6 +9,7 @@ import {
   TableWidget as BaseTableWidget,
   type TableWidgetCellPosition,
   type TableWidgetCellRange,
+  type TableWidgetDirtyRange,
   type TableWidgetRange,
   type TableWidgetSize,
 } from "src/cs/base/browser/ui/table/tableWidget";
@@ -23,10 +24,6 @@ import {
   type PerformanceStageContext,
   type PerformanceStageState,
 } from "src/cs/workbench/contrib/performance/browser/performanceMeasurements";
-import type {
-  TableRowsVersionChangeEvent,
-  TableViewModel,
-} from "src/cs/workbench/services/table/common/table";
 import {
   formatCell,
   formatRawCell,
@@ -46,12 +43,88 @@ export type TableWidgetColumnWidthTarget = TableColumnWidth;
 
 export type TableWidgetRevealMode = boolean | "force";
 
-export type TableWidgetModel = TableViewModel;
+export type TableWidgetCell = {
+  readonly fileId?: string | null;
+  readonly sheetId?: string | null;
+  readonly rowIndex: number;
+  readonly colIndex: number;
+};
 
-type TableState = ReturnType<TableWidgetModel["getState"]>;
-type TableSelection = ReturnType<TableWidgetModel["getSelection"]>;
-type TableCell = NonNullable<TableSelection["activeCell"]>;
-type TableRange = NonNullable<TableSelection["ranges"]>[number];
+export type TableWidgetSelectionRange = {
+  readonly fileId?: string | null;
+  readonly sheetId?: string | null;
+  readonly startRow: number;
+  readonly endRow: number;
+  readonly startCol: number;
+  readonly endCol: number;
+};
+
+export type TableWidgetSelection = {
+  readonly activeCell?: TableWidgetCell | null;
+  readonly selectedColumns?: readonly number[];
+  readonly ranges?: readonly TableWidgetSelectionRange[];
+};
+
+export type TableWidgetFile = {
+  readonly fileId: string;
+  readonly fileName: string;
+  readonly sheetId?: string | null;
+  readonly sourceKey?: string;
+  readonly rowCount: number;
+  readonly columnCount: number;
+};
+
+export type TableWidgetLoadState = {
+  readonly state: "idle" | "loading" | "ready" | "error";
+  readonly message: string;
+};
+
+export type TableWidgetState = {
+  readonly selectedFileId: string | null;
+  readonly selectedSheetId?: string | null;
+  readonly sourceKey?: string | null;
+  readonly fileName: string;
+  readonly file: TableWidgetFile | null;
+  readonly loadState: TableWidgetLoadState;
+  readonly dimensions?: string;
+  readonly displayVersion?: number;
+};
+
+type TableWidgetHighlight = {
+  readonly columns?: readonly number[];
+  readonly ranges?: readonly TableWidgetSelectionRange[];
+};
+
+type TableWidgetRowsVersionChangeEvent = {
+  readonly full: boolean;
+  readonly kind: "content" | "display" | "reset";
+  readonly ranges: readonly TableWidgetDirtyRange[];
+  readonly version: number;
+};
+
+export type TableWidgetModel = {
+  readonly ensureRows: (
+    fileId: string,
+    startRow: number,
+    endRow: number,
+  ) => Promise<void>;
+  readonly getColumnDisplayProfile: (colIndex: number) => ColumnDisplayProfile;
+  readonly getHighlight: () => TableWidgetHighlight;
+  readonly getRow: (rowIndex: number) => unknown[] | null;
+  readonly getRowsVersion: () => number;
+  readonly getSelection: () => TableWidgetSelection;
+  readonly getState: () => TableWidgetState;
+  readonly onDidChangeHighlight: (callback: (highlight: TableWidgetHighlight) => void) => () => void;
+  readonly onDidChangeRevealCell: (callback: (cell: TableWidgetCell | null) => void) => () => void;
+  readonly onDidChangeSelection: (callback: (selection: TableWidgetSelection) => void) => () => void;
+  readonly onDidChangeState: (callback: () => void) => () => void;
+  readonly subscribeRowsVersion: (callback: (event: TableWidgetRowsVersionChangeEvent) => void) => () => void;
+};
+
+type TableState = TableWidgetState;
+type TableSelection = TableWidgetSelection;
+type TableCell = TableWidgetCell;
+type TableRange = TableWidgetSelectionRange;
 
 export type TableWidgetSelectionTarget =
   | { readonly kind: "cell"; readonly cell: TableCell | null }
@@ -65,8 +138,8 @@ export type TableWidgetProps = {
   readonly getColumnWidths?: (sourceKey: string | null | undefined) => readonly TableColumnWidth[];
   readonly hoverDelegate?: IHoverDelegate;
   readonly onCopySelection?: () => void;
-  readonly onAdjustColumnDisplayScale: (colIndex: number, deltaExponent: number) => boolean;
-  readonly onResetColumnDisplayScale: (colIndex: number) => boolean;
+  readonly onAdjustColumnDisplayScale?: (colIndex: number, deltaExponent: number) => boolean;
+  readonly onResetColumnDisplayScale?: (colIndex: number) => boolean;
   readonly onSelect: (
     target: TableWidgetSelectionTarget | null,
     reveal?: TableWidgetRevealMode,
@@ -866,7 +939,7 @@ export class TableWidget {
     return changed;
   }
 
-  private syncRows(event?: TableRowsVersionChangeEvent): void {
+  private syncRows(event?: TableWidgetRowsVersionChangeEvent): void {
     const endTrace = this.performance.start("table.rows.sync", {
       dirtyRangeCount: event?.ranges.length ?? 0,
       full: event?.full ?? true,
@@ -897,12 +970,65 @@ export class TableWidget {
     }
   }
 
-  private patchDirtyRows(event: TableRowsVersionChangeEvent): DirtyRowsPatchResult {
-    if (event.full || event.kind !== "content" || event.ranges.length === 0) {
+  private patchDirtyRows(event: TableWidgetRowsVersionChangeEvent): DirtyRowsPatchResult {
+    if (event.full || event.ranges.length === 0) {
       return "full";
     }
 
-    return this.grid.rerenderDirtyBodyCells(event.ranges, this.getRowsRenderVersion());
+    if (event.kind === "content") {
+      return this.grid.rerenderDirtyBodyCells(event.ranges, this.getRowsRenderVersion());
+    }
+
+    if (event.kind === "display") {
+      return this.patchDirtyDisplayRows(event.ranges);
+    }
+
+    return "full";
+  }
+
+  private patchDirtyDisplayRows(ranges: readonly TableWidgetDirtyRange[]): DirtyRowsPatchResult {
+    const headersPatched = this.syncDirtyDisplayHeaders(ranges);
+    const bodyPatchResult = this.grid.rerenderDirtyBodyCells(ranges, this.getRowsRenderVersion());
+    return headersPatched || bodyPatchResult === "patched" ? "patched" : "ignored";
+  }
+
+  private syncDirtyDisplayHeaders(ranges: readonly TableWidgetDirtyRange[]): boolean {
+    const { columnRange } = this.grid.getState();
+    const columnOffsets = this.getDirtyVisibleColumnOffsets(ranges);
+    let changed = false;
+    for (const columnOffset of columnOffsets) {
+      const cell = this.grid.getColumnHeaderCellElement(columnOffset);
+      if (!cell || cell.hidden) {
+        continue;
+      }
+
+      this.syncHeaderColumnElement(
+        cell,
+        columnRange.startIndex + columnOffset,
+        this.props.tableModel,
+      );
+      changed = true;
+    }
+    return changed;
+  }
+
+  private getDirtyVisibleColumnOffsets(ranges: readonly TableWidgetDirtyRange[]): readonly number[] {
+    const { columnRange } = this.grid.getState();
+    const visibleStart = columnRange.startIndex;
+    const visibleEnd = columnRange.endIndex;
+    const columnOffsets = new Set<number>();
+    for (const range of ranges) {
+      const startCol = Math.max(visibleStart, range.startCol ?? visibleStart);
+      const endCol = Math.min(visibleEnd, range.endCol ?? visibleEnd);
+      if (startCol >= endCol) {
+        continue;
+      }
+
+      for (let colIndex = startCol; colIndex < endCol; colIndex += 1) {
+        columnOffsets.add(colIndex - visibleStart);
+      }
+    }
+    return Array.from(columnOffsets).sort((left, right) => left - right);
   }
 
   private getBodyRowRange(): TableWidgetRange {
@@ -1321,11 +1447,11 @@ export class TableWidget {
     const action = button.dataset.scaleAction;
     let changed = false;
     if (action === "decrease") {
-      changed = this.props.onAdjustColumnDisplayScale(colIndex, -1);
+      changed = this.props.onAdjustColumnDisplayScale?.(colIndex, -1) ?? false;
     } else if (action === "increase") {
-      changed = this.props.onAdjustColumnDisplayScale(colIndex, 1);
+      changed = this.props.onAdjustColumnDisplayScale?.(colIndex, 1) ?? false;
     } else if (action === "reset") {
-      changed = this.props.onResetColumnDisplayScale(colIndex);
+      changed = this.props.onResetColumnDisplayScale?.(colIndex) ?? false;
     }
 
     if (!changed) {

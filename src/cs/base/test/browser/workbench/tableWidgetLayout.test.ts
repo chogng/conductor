@@ -14,18 +14,19 @@ import type { IHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate"
 import {
   TableWidget,
   type TableWidgetModel,
+  type TableWidgetSelection,
   type TableWidgetSelectionTarget,
+  type TableWidgetState,
 } from "src/cs/workbench/contrib/table/browser/tableWidget";
 import { getTableColumnHeaderSelectionMode } from "src/cs/workbench/contrib/table/browser/tableViewPane";
-import type {
-  TableSelection,
-  TableRowsVersionChangeEvent,
-  TableState,
-} from "src/cs/workbench/services/table/common/table";
 import { toScaleHeaderSuffix } from "src/cs/workbench/services/table/common/numericFormat";
 import type { ColumnDisplayProfile } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import { TableColumnLayout } from "src/cs/workbench/services/table/common/tableColumnLayout";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+
+type TableWidgetRowsVersionChangeEvent = Parameters<
+  Parameters<TableWidgetModel["subscribeRowsVersion"]>[0]
+>[0];
 
 suite("base/browser/workbench tableWidget layout", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -339,6 +340,41 @@ suite("base/browser/workbench tableWidget layout", () => {
     }
   });
 
+  test("patches visible display dirty cells from column scale changes", async () => {
+    const dynamicModel = createDynamicScaleTableWidgetModel();
+    const widget = new TableWidget({
+      onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
+      onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
+      onSelect: () => true,
+      tableModel: dynamicModel.model,
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 300, 280);
+      widget.layout();
+      await timeout(120);
+
+      assert.equal(getVisibleScaleText(widget.element), "×10⁻⁶");
+      assert.equal(getVisibleCellText(widget.element, 0, 0), "1");
+
+      dynamicModel.setScaleExponent(-9);
+      dynamicModel.fireRowsVersion({
+        full: false,
+        kind: "display",
+        ranges: [{ startRow: 0, endRow: 20, startCol: 0, endCol: 1 }],
+      });
+
+      assert.equal(getVisibleScaleText(widget.element), "×10⁻⁹");
+      assert.equal(getVisibleCellText(widget.element, 0, 0), "1000");
+    } finally {
+      widget.dispose();
+    }
+  });
+
   test("patches only visible content dirty cells", async () => {
     const dynamicModel = createContentDirtyTableWidgetModel();
     const widget = new TableWidget({
@@ -387,6 +423,8 @@ suite("base/browser/workbench tableWidget layout", () => {
   test("adjusts column scale from the header stepper", async () => {
     const dynamicModel = createDynamicScaleTableWidgetModel();
     const widget = new TableWidget({
+      onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
+      onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
       onSelect: () => true,
       tableModel: dynamicModel.model,
       tableState: createTableWidgetState(),
@@ -421,7 +459,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   });
 
   test("uses single-toggle selection for column header clicks by default", async () => {
-    let selection: TableSelection = {};
+    let selection: TableWidgetSelection = {};
     const selectedColumns: number[][] = [];
     const widget = new TableWidget({
       onSelect: target => {
@@ -452,7 +490,7 @@ suite("base/browser/workbench tableWidget layout", () => {
   });
 
   test("keeps additive column header selection when multi mode is requested", async () => {
-    let selection: TableSelection = {};
+    let selection: TableWidgetSelection = {};
     const selectedColumns: number[][] = [];
     const widget = new TableWidget({
       columnHeaderSelectionMode: "multi",
@@ -484,8 +522,8 @@ suite("base/browser/workbench tableWidget layout", () => {
   });
 
   test("drags body cells into a table range without native text selection", async () => {
-    let selection: TableSelection = {};
-    const selectionListeners = new Set<(selection: TableSelection) => void>();
+    let selection: TableWidgetSelection = {};
+    const selectionListeners = new Set<(selection: TableWidgetSelection) => void>();
     const selectedTargets: (TableWidgetSelectionTarget | null)[] = [];
     const widget = new TableWidget({
       onSelect: target => {
@@ -578,13 +616,13 @@ suite("base/browser/workbench tableWidget layout", () => {
 function createTableWidgetState(
   options: {
     readonly columnCount?: number;
-    readonly file?: TableState["file"] | null;
+    readonly file?: TableWidgetState["file"] | null;
     readonly fileId?: string;
-    readonly loadState?: TableState["loadState"];
+    readonly loadState?: TableWidgetState["loadState"];
     readonly rowCount?: number;
     readonly sourceKey?: string;
   } = {},
-): TableState {
+): TableWidgetState {
   const fileId = options.fileId ?? "file-a";
   const sourceKey = options.sourceKey ?? fileId;
   const rowCount = options.rowCount ?? 20;
@@ -613,14 +651,13 @@ function createTableWidgetState(
 }
 
 function createTableWidgetModel(
-  getSelection: () => TableSelection = () => ({}),
+  getSelection: () => TableWidgetSelection = () => ({}),
   options: {
     readonly getRow?: TableWidgetModel["getRow"];
     readonly onDidChangeSelection?: TableWidgetModel["onDidChangeSelection"];
   } = {},
 ): TableWidgetModel {
   return {
-    adjustColumnDisplayScale: () => false,
     ensureRows: async () => undefined,
     getColumnDisplayProfile: colIndex => createRawColumnDisplayProfile(colIndex),
     getHighlight: () => ({}),
@@ -643,15 +680,14 @@ function createTableWidgetModel(
     onDidChangeRevealCell: () => noopDisposable,
     onDidChangeSelection: options.onDidChangeSelection ?? (() => noopDisposable),
     onDidChangeState: () => noopDisposable,
-    resetColumnDisplayScale: () => false,
     subscribeRowsVersion: () => noopDisposable,
   };
 }
 
 function applySelectionTarget(
-  selection: TableSelection,
+  selection: TableWidgetSelection,
   target: TableWidgetSelectionTarget | null,
-): TableSelection {
+): TableWidgetSelection {
   if (!target) {
     return {};
   }
@@ -717,11 +753,11 @@ function createSmartTableWidgetModel(): TableWidgetModel {
 
 function createContentDirtyTableWidgetModel(): {
   readonly model: TableWidgetModel;
-  readonly fireRowsVersion: (change: Omit<TableRowsVersionChangeEvent, "version">) => void;
+  readonly fireRowsVersion: (change: Omit<TableWidgetRowsVersionChangeEvent, "version">) => void;
   readonly setCell: (rowIndex: number, colIndex: number, value: string) => void;
 } {
   let rowsVersion = 1;
-  const subscribers = new Set<(event: TableRowsVersionChangeEvent) => void>();
+  const subscribers = new Set<(event: TableWidgetRowsVersionChangeEvent) => void>();
   const rows = Array.from({ length: 20 }, (_row, rowIndex) => [
     `A${rowIndex + 1}`,
     `B${rowIndex + 1}`,
@@ -738,7 +774,7 @@ function createContentDirtyTableWidgetModel(): {
   return {
     fireRowsVersion: change => {
       rowsVersion += 1;
-      const event: TableRowsVersionChangeEvent = {
+      const event: TableWidgetRowsVersionChangeEvent = {
         ...change,
         version: rowsVersion,
       };
@@ -764,20 +800,29 @@ function createContentDirtyTableWidgetModel(): {
 }
 
 function createDynamicScaleTableWidgetModel(): {
+  readonly adjustColumnDisplayScale: (colIndex: number, deltaExponent: number) => boolean;
   readonly model: TableWidgetModel;
-  readonly fireRowsVersion: () => void;
+  readonly fireRowsVersion: (change?: Omit<TableWidgetRowsVersionChangeEvent, "version">) => void;
+  readonly resetColumnDisplayScale: (colIndex: number) => boolean;
   readonly setScaleExponent: (scaleExponent: number) => void;
 } {
   let rowsVersion = 1;
   let scaleExponent = -6;
   let isScaleManual = false;
-  const subscribers = new Set<(event: TableRowsVersionChangeEvent) => void>();
-  const fireRowsVersion = () => {
-    rowsVersion += 1;
-    const event: TableRowsVersionChangeEvent = {
+  const subscribers = new Set<(event: TableWidgetRowsVersionChangeEvent) => void>();
+  const fireRowsVersion = (
+    change: Omit<TableWidgetRowsVersionChangeEvent, "version"> = {
       full: true,
       kind: "display",
       ranges: [],
+    },
+  ) => {
+    rowsVersion += 1;
+    const event: TableWidgetRowsVersionChangeEvent = {
+      full: true,
+      kind: "display",
+      ranges: [],
+      ...change,
       version: rowsVersion,
     };
     for (const callback of Array.from(subscribers)) {
@@ -786,15 +831,15 @@ function createDynamicScaleTableWidgetModel(): {
   };
 
   return {
+    adjustColumnDisplayScale: (_colIndex, deltaExponent) => {
+      scaleExponent += Math.trunc(Number(deltaExponent) || 0);
+      isScaleManual = true;
+      fireRowsVersion();
+      return true;
+    },
     fireRowsVersion,
     model: {
       ...createTableWidgetModel(),
-      adjustColumnDisplayScale: (_colIndex, deltaExponent) => {
-        scaleExponent += Math.trunc(Number(deltaExponent) || 0);
-        isScaleManual = true;
-        fireRowsVersion();
-        return true;
-      },
       getColumnDisplayProfile: () => createScaledColumnDisplayProfile(scaleExponent, isScaleManual),
       getRow: () => [
         "1.00000E-006",
@@ -815,12 +860,12 @@ function createDynamicScaleTableWidgetModel(): {
           subscribers.delete(callback);
         };
       },
-      resetColumnDisplayScale: () => {
-        scaleExponent = -6;
-        isScaleManual = false;
-        fireRowsVersion();
-        return true;
-      },
+    },
+    resetColumnDisplayScale: () => {
+      scaleExponent = -6;
+      isScaleManual = false;
+      fireRowsVersion();
+      return true;
     },
     setScaleExponent: nextScaleExponent => {
       scaleExponent = nextScaleExponent;

@@ -59,6 +59,12 @@ Session/settings/command/search bridge
   -> base VirtualTable reuses visible cell DOM and emits scroll/visible-range facts
   -> TableWidget emits selection callbacks and exposes base size/zoom/column-resize callbacks
   -> TableService stores external selection and width state
+
+TableWidget header scale stepper
+  -> ITableService.adjustColumnDisplayScale / resetColumnDisplayScale
+  -> TableService delegates to its active tableModel
+  -> tableModel emits display rows-version dirty ranges
+  -> TableWidget rerenders affected visible cells and header scale controls
 ```
 
 ## Base Table Boundary
@@ -98,9 +104,11 @@ Row/cache updates are aggregated by the table model. `subscribeRowsVersion`
 emits dirty ranges as half-open model coordinates; the base widget intersects
 those ranges with the current visible row/column span and rerenders only pooled
 body cells that are visible and affected. Feature widgets decide whether a
-dirty kind is safe for body-only patching. Display, layout, reset, or structure
-changes may still rerender the whole visible table because they can affect
-headers, geometry, or formatting policy.
+dirty kind is safe for body-only patching. Column display-profile dirty ranges
+must also resync affected visible headers because formatting policy is shown in
+header scale controls. Layout, reset, or structure changes may still rerender
+the whole visible table because they can affect headers, geometry, or formatting
+policy.
 
 Keep domain behavior out of the base table:
 

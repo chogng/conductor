@@ -11,6 +11,7 @@ import {
   type TableWidgetSelectionTarget,
 } from "src/cs/workbench/contrib/table/browser/tableWidget";
 import type { TableColumnWidth } from "src/cs/workbench/services/table/common/tableColumnLayout";
+import type { ITableService } from "src/cs/workbench/services/table/common/table";
 
 export type TableControllerModel = TableWidgetModel;
 
@@ -22,8 +23,6 @@ export type TableControllerProps = {
   readonly getColumnWidths?: (sourceKey: string | null | undefined) => readonly TableColumnWidth[];
   readonly hoverDelegate?: IHoverDelegate;
   readonly onCopySelection?: () => void;
-  readonly onAdjustColumnDisplayScale: (colIndex: number, deltaExponent: number) => boolean;
-  readonly onResetColumnDisplayScale: (colIndex: number) => boolean;
   readonly onSelect: (
     target: TableWidgetSelectionTarget | null,
     reveal?: TableWidgetRevealMode,
@@ -33,6 +32,7 @@ export type TableControllerProps = {
     widths: readonly TableColumnWidth[],
   ) => void;
   readonly tableModel: TableControllerModel;
+  readonly tableService: ITableService;
   readonly tableState: TableState;
 };
 
@@ -118,17 +118,18 @@ const toWidgetProps = ({
   getColumnWidths,
   hoverDelegate,
   onCopySelection,
-  onAdjustColumnDisplayScale,
-  onResetColumnDisplayScale,
   onSelect,
   storeColumnWidths,
+  tableService,
 }: TableControllerProps): TableWidgetProps => ({
   columnHeaderSelectionMode,
   getColumnWidths,
   hoverDelegate,
   onCopySelection,
-  onAdjustColumnDisplayScale,
-  onResetColumnDisplayScale,
+  onAdjustColumnDisplayScale: (colIndex, deltaExponent) =>
+    tableService.adjustColumnDisplayScale(colIndex, deltaExponent),
+  onResetColumnDisplayScale: colIndex =>
+    tableService.resetColumnDisplayScale(colIndex),
   onSelect,
   storeColumnWidths,
   tableModel,
