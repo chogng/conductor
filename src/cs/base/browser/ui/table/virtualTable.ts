@@ -472,6 +472,50 @@ export namespace VirtualTableGridModel {
 		endCol: Math.max(first.colIndex, second.colIndex),
 	});
 
+	export const getChangedCellRanges = (
+		previousRanges: readonly VirtualTableCellRange[],
+		nextRanges: readonly VirtualTableCellRange[],
+	): VirtualTableCellRange[] => {
+		const previous = normalizeCellRanges(previousRanges);
+		const next = normalizeCellRanges(nextRanges);
+		if (areCellRangeListsEqual(previous, next)) {
+			return [];
+		}
+
+		const result: VirtualTableCellRange[] = [];
+		const seen = new Set<string>();
+		const add = (range: VirtualTableCellRange | null): void => {
+			if (!range) {
+				return;
+			}
+			const key = `${range.startRow}:${range.endRow}:${range.startCol}:${range.endCol}`;
+			if (seen.has(key)) {
+				return;
+			}
+			seen.add(key);
+			result.push(range);
+		};
+
+		for (const range of subtractCellRangeLists(previous, next)) {
+			add(range);
+		}
+		for (const range of subtractCellRangeLists(next, previous)) {
+			add(range);
+		}
+		for (const range of previous) {
+			for (const edge of getCellRangeEdges(range)) {
+				add(edge);
+			}
+		}
+		for (const range of next) {
+			for (const edge of getCellRangeEdges(range)) {
+				add(edge);
+			}
+		}
+
+		return result;
+	};
+
 	export const getColumnLabel = (index: number): string => {
 		const safeIndex = Math.max(0, toSafeIndex(index));
 		let value = safeIndex + 1;
@@ -1379,6 +1423,157 @@ const toSafeCount = (value: unknown): number => {
 const toSafeIndex = (value: unknown): number => {
 	const index = Math.floor(Number(value));
 	return Number.isInteger(index) && index >= 0 ? index : -1;
+};
+
+const normalizeCellRanges = (ranges: readonly VirtualTableCellRange[]): VirtualTableCellRange[] =>
+	ranges.map(normalizeCellRange).filter(range => range !== null);
+
+const normalizeCellRange = (range: VirtualTableCellRange): VirtualTableCellRange | null => {
+	const startRow = toSafeIndex(range.startRow);
+	const endRow = toSafeIndex(range.endRow);
+	const startCol = toSafeIndex(range.startCol);
+	const endCol = toSafeIndex(range.endCol);
+	if (startRow < 0 || endRow < 0 || startCol < 0 || endCol < 0) {
+		return null;
+	}
+
+	return {
+		startRow: Math.min(startRow, endRow),
+		endRow: Math.max(startRow, endRow),
+		startCol: Math.min(startCol, endCol),
+		endCol: Math.max(startCol, endCol),
+	};
+};
+
+const areCellRangeListsEqual = (
+	first: readonly VirtualTableCellRange[],
+	second: readonly VirtualTableCellRange[],
+): boolean => {
+	if (first.length !== second.length) {
+		return false;
+	}
+
+	for (let index = 0; index < first.length; index += 1) {
+		const left = first[index];
+		const right = second[index];
+		if (
+			!left ||
+			!right ||
+			left.startRow !== right.startRow ||
+			left.endRow !== right.endRow ||
+			left.startCol !== right.startCol ||
+			left.endCol !== right.endCol
+		) {
+			return false;
+		}
+	}
+
+	return true;
+};
+
+const subtractCellRangeLists = (
+	source: readonly VirtualTableCellRange[],
+	subtract: readonly VirtualTableCellRange[],
+): VirtualTableCellRange[] => {
+	let remaining = [...source];
+	for (const range of subtract) {
+		remaining = remaining.flatMap(candidate => subtractCellRange(candidate, range));
+	}
+	return remaining;
+};
+
+const subtractCellRange = (
+	source: VirtualTableCellRange,
+	subtract: VirtualTableCellRange,
+): VirtualTableCellRange[] => {
+	const intersection = intersectCellRange(source, subtract);
+	if (!intersection) {
+		return [source];
+	}
+
+	const ranges: VirtualTableCellRange[] = [];
+	const add = (range: VirtualTableCellRange): void => {
+		if (range.startRow <= range.endRow && range.startCol <= range.endCol) {
+			ranges.push(range);
+		}
+	};
+
+	add({
+		startRow: source.startRow,
+		endRow: intersection.startRow - 1,
+		startCol: source.startCol,
+		endCol: source.endCol,
+	});
+	add({
+		startRow: intersection.endRow + 1,
+		endRow: source.endRow,
+		startCol: source.startCol,
+		endCol: source.endCol,
+	});
+	add({
+		startRow: intersection.startRow,
+		endRow: intersection.endRow,
+		startCol: source.startCol,
+		endCol: intersection.startCol - 1,
+	});
+	add({
+		startRow: intersection.startRow,
+		endRow: intersection.endRow,
+		startCol: intersection.endCol + 1,
+		endCol: source.endCol,
+	});
+
+	return ranges;
+};
+
+const intersectCellRange = (
+	first: VirtualTableCellRange,
+	second: VirtualTableCellRange,
+): VirtualTableCellRange | null => {
+	const range = {
+		startRow: Math.max(first.startRow, second.startRow),
+		endRow: Math.min(first.endRow, second.endRow),
+		startCol: Math.max(first.startCol, second.startCol),
+		endCol: Math.min(first.endCol, second.endCol),
+	};
+	return range.startRow <= range.endRow && range.startCol <= range.endCol ? range : null;
+};
+
+const getCellRangeEdges = (range: VirtualTableCellRange): VirtualTableCellRange[] => {
+	const edges: VirtualTableCellRange[] = [{
+		startRow: range.startRow,
+		endRow: range.startRow,
+		startCol: range.startCol,
+		endCol: range.endCol,
+	}];
+
+	if (range.endRow !== range.startRow) {
+		edges.push({
+			startRow: range.endRow,
+			endRow: range.endRow,
+			startCol: range.startCol,
+			endCol: range.endCol,
+		});
+	}
+
+	if (range.endRow - range.startRow > 1) {
+		edges.push({
+			startRow: range.startRow + 1,
+			endRow: range.endRow - 1,
+			startCol: range.startCol,
+			endCol: range.startCol,
+		});
+		if (range.endCol !== range.startCol) {
+			edges.push({
+				startRow: range.startRow + 1,
+				endRow: range.endRow - 1,
+				startCol: range.endCol,
+				endCol: range.endCol,
+			});
+		}
+	}
+
+	return edges;
 };
 
 function isVirtualTableStateEqual(

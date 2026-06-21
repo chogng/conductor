@@ -86,7 +86,10 @@ export type TableWidgetOptions = {
 export type TableWidgetColumnResizeOptions = {
 	readonly enabled?: boolean;
 	readonly hitSlop?: number;
+	readonly mode?: TableWidgetColumnResizeMode;
 };
+
+export type TableWidgetColumnResizeMode = "commit" | "live";
 
 export type TableWidgetColumnResizeEvent = {
 	readonly colIndex: number;
@@ -96,9 +99,11 @@ export type TableWidgetColumnResizeEvent = {
 type TableWidgetColumnResizeState = {
 	readonly colIndex: number;
 	readonly guideLeft: number;
+	readonly hasWidthChange: boolean;
 	readonly startClientX: number;
 	readonly startGuideLeft: number;
 	readonly startWidth: number;
+	readonly width: number;
 };
 
 export type TableWidgetSize = {
@@ -200,7 +205,7 @@ export class TableWidget implements IDisposable {
 	}
 
 	public dispose(): void {
-		this.endColumnResize();
+		this.endColumnResize(false);
 		this.disposables.dispose();
 	}
 
@@ -216,7 +221,7 @@ export class TableWidget implements IDisposable {
 			this.onDidChangeSizeEmitter.fire(this.size);
 		}
 		if (this.size.rowCount === 0 || this.size.columnCount === 0) {
-			this.endColumnResize();
+			this.endColumnResize(false);
 		}
 		this.syncZoomStyle();
 		return this.virtualTable.render({
@@ -327,6 +332,57 @@ export class TableWidget implements IDisposable {
 		this.virtualTable.forEachBodyCell(cell => callback(cell.element));
 	}
 
+	public forEachBodyCellInRanges(
+		ranges: readonly TableWidgetCellRange[],
+		callback: (cell: HTMLTableCellElement, descriptor: TableWidgetBodyCellDescriptor) => void,
+	): number {
+		const { columnRange, rowRange } = this.virtualTable.getState();
+		const visited = new Set<string>();
+		let count = 0;
+		for (const range of ranges) {
+			const startRow = Math.max(rowRange.startIndex, Math.floor(Number(range.startRow)));
+			const endRow = Math.min(rowRange.endIndex - 1, Math.floor(Number(range.endRow)));
+			const startCol = Math.max(columnRange.startIndex, Math.floor(Number(range.startCol)));
+			const endCol = Math.min(columnRange.endIndex - 1, Math.floor(Number(range.endCol)));
+			if (
+				!Number.isInteger(startRow) ||
+				!Number.isInteger(endRow) ||
+				!Number.isInteger(startCol) ||
+				!Number.isInteger(endCol) ||
+				startRow > endRow ||
+				startCol > endCol
+			) {
+				continue;
+			}
+
+			for (let rowIndex = startRow; rowIndex <= endRow; rowIndex += 1) {
+				const rowOffset = rowIndex - rowRange.startIndex;
+				for (let colIndex = startCol; colIndex <= endCol; colIndex += 1) {
+					const columnOffset = colIndex - columnRange.startIndex;
+					const key = `${rowOffset}:${columnOffset}`;
+					if (visited.has(key)) {
+						continue;
+					}
+					const cell = this.virtualTable.getBodyCell(rowOffset, columnOffset);
+					if (!cell || cell.hidden) {
+						continue;
+					}
+
+					visited.add(key);
+					count += 1;
+					callback(cell, {
+						rowIndex,
+						rowOffset,
+						colIndex,
+						columnOffset,
+					});
+				}
+			}
+		}
+
+		return count;
+	}
+
 	public clearBodyCells(): void {
 		this.virtualTable.clearBodyCells();
 	}
@@ -361,7 +417,7 @@ export class TableWidget implements IDisposable {
 	public setHeaderVisible(visible: boolean): void {
 		this.virtualTable.header.hidden = !visible;
 		if (!visible) {
-			this.endColumnResize();
+			this.endColumnResize(false);
 		}
 	}
 
@@ -419,13 +475,16 @@ export class TableWidget implements IDisposable {
 
 		event.preventDefault();
 		event.stopPropagation();
-		this.endColumnResize();
+		this.endColumnResize(false);
+		const startWidth = this.options.getColumnWidth(colIndex);
 		this.columnResizeState = {
 			colIndex,
 			guideLeft: startGuideLeft,
+			hasWidthChange: false,
 			startClientX: event.clientX,
 			startGuideLeft,
-			startWidth: this.options.getColumnWidth(colIndex),
+			startWidth,
+			width: startWidth,
 		};
 		this.element.classList.add(TABLE_WIDGET_RESIZING_COLUMN_CLASS);
 		this.syncColumnResizeGuide();
@@ -436,7 +495,7 @@ export class TableWidget implements IDisposable {
 	private startColumnResizeTracking(): void {
 		const targetWindow = this.element.ownerDocument.defaultView;
 		if (!targetWindow) {
-			this.endColumnResize();
+			this.endColumnResize(false);
 			return;
 		}
 
@@ -446,10 +505,10 @@ export class TableWidget implements IDisposable {
 			event => this.onColumnResizeMove(event as PointerEvent),
 		));
 		this.columnResizeStore.add(addDisposableListener(targetWindow, EventType.POINTER_UP, () => {
-			this.endColumnResize();
+			this.endColumnResize(true);
 		}));
 		this.columnResizeStore.add(addDisposableListener(targetWindow, "pointercancel", () => {
-			this.endColumnResize();
+			this.endColumnResize(false);
 		}));
 	}
 
@@ -474,20 +533,35 @@ export class TableWidget implements IDisposable {
 		});
 		const nextState = guideLeft === null
 			? state
-			: { ...state, guideLeft };
+			: {
+				...state,
+				guideLeft,
+				hasWidthChange: state.hasWidthChange || width !== state.startWidth,
+				width,
+			};
 		this.columnResizeState = nextState;
-		this.onDidResizeColumnEmitter.fire({ colIndex: nextState.colIndex, width });
+		if (this.getColumnResizeMode() === "live") {
+			this.onDidResizeColumnEmitter.fire({ colIndex: nextState.colIndex, width });
+		}
 		this.syncColumnResizeGuide();
 	}
 
-	private endColumnResize(): void {
-		if (this.columnResizeState) {
+	private endColumnResize(commit: boolean): void {
+		const state = this.columnResizeState;
+		if (state) {
 			this.columnResizeState = null;
 			this.element.classList.remove(TABLE_WIDGET_RESIZING_COLUMN_CLASS);
+			if (commit && this.getColumnResizeMode() === "commit" && state.hasWidthChange) {
+				this.onDidResizeColumnEmitter.fire({ colIndex: state.colIndex, width: state.width });
+			}
 		}
 
 		this.syncColumnResizeGuide();
 		this.columnResizeStore.clear();
+	}
+
+	private getColumnResizeMode(): TableWidgetColumnResizeMode {
+		return this.options.columnResize?.mode ?? "commit";
 	}
 
 	private syncColumnResizeGuide(): void {

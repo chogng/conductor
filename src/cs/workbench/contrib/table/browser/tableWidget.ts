@@ -19,11 +19,10 @@ import {
   type TableValueStepperControl,
 } from "src/cs/workbench/contrib/table/browser/tableValueStepperControl";
 import {
-  isTablePerformanceInstrumentationEnabled,
-  isTablePerformanceTraceEnabled,
-  startTablePerformanceTrace,
-  type TablePerformanceTraceMeta,
-} from "src/cs/workbench/contrib/table/browser/tablePerformanceTrace";
+  createPerformanceStageRecorder,
+  type PerformanceStageContext,
+  type PerformanceStageState,
+} from "src/cs/workbench/contrib/performance/browser/performanceMeasurements";
 import type {
   TableModel,
   TableRowsVersionChangeEvent,
@@ -130,14 +129,13 @@ type BodyRangeSelectionState = {
 
 type DirtyRowsPatchResult = "full" | "ignored" | "patched";
 
-type TableWidgetPerformanceTraceEnd = (meta?: TablePerformanceTraceMeta) => void;
-
 export class TableWidget {
   public readonly element: HTMLElement;
   public readonly onDidChangeSize: Event<TableWidgetSize>;
   public readonly onDidChangeZoom: Event<number>;
   private readonly store = new DisposableStore();
   private readonly grid: BaseTableWidget;
+  private readonly performance = createPerformanceStageRecorder(state => this.getPerformanceStageContext(state));
   private readonly bodyRangeSelectionStore = new DisposableStore();
   private disposeSelectionListener: (() => void) | null = null;
   private disposeHighlightListener: (() => void) | null = null;
@@ -173,7 +171,7 @@ export class TableWidget {
   constructor(props: TableWidgetProps) {
     this.props = props;
     this.grid = this.store.add(new BaseTableWidget({
-      columnResize: { enabled: true },
+      columnResize: { enabled: true, mode: "commit" },
       getColumnWidth: colIndex => this.getColumnWidth(colIndex),
       renderer: {
         clearBodyCell: cell => this.updateCellDisplay(this.getBodyCellState(cell), "", ""),
@@ -289,7 +287,7 @@ export class TableWidget {
   }
 
   private layoutNow(): void {
-    const endTrace = this.startPerformanceTrace("table.layout");
+    const endTrace = this.performance.start("table.layout");
     let renderedTable = false;
     let secondLayout = false;
     try {
@@ -423,7 +421,7 @@ export class TableWidget {
     }
 
     const previousWidth = this.getColumnWidth(colIndex);
-    const endTrace = this.startPerformanceTrace("table.columnWidth.set", {
+    const endTrace = this.performance.start("table.columnWidth.set", {
       colIndex,
       previousWidth,
       requestedWidth: Number(target.width),
@@ -567,7 +565,7 @@ export class TableWidget {
   }
 
   private render(): void {
-    const endTrace = this.startPerformanceTrace("table.widget.render");
+    const endTrace = this.performance.start("table.widget.render");
     let outcome = "table";
     let didAttachContent = false;
     let needsLayout = false;
@@ -662,7 +660,7 @@ export class TableWidget {
   }
 
   private renderTable(): boolean {
-    const endTrace = this.startPerformanceTrace("table.renderTable");
+    const endTrace = this.performance.start("table.renderTable");
     const { tableModel, tableState } = this.props;
     const tableFile = tableState.file;
     const bodyCellRenderCountStart = this.tracedBodyCellRenderCount;
@@ -725,7 +723,7 @@ export class TableWidget {
     }
 
     this.pendingEnsureRowsKey = requestKey;
-    const endTrace = this.startPerformanceTrace("table.rows.ensure", {
+    const endTrace = this.performance.start("table.rows.ensure", {
       endRow: rowRange.endIndex,
       requestedRows: Math.max(0, rowRange.endIndex - rowRange.startIndex),
       startRow: rowRange.startIndex,
@@ -873,7 +871,7 @@ export class TableWidget {
   }
 
   private syncRows(event?: TableRowsVersionChangeEvent): void {
-    const endTrace = this.startPerformanceTrace("table.rows.sync", {
+    const endTrace = this.performance.start("table.rows.sync", {
       dirtyRangeCount: event?.ranges.length ?? 0,
       full: event?.full ?? true,
       kind: event?.kind ?? "reset",
@@ -928,57 +926,33 @@ export class TableWidget {
     ].join("\u001f");
   }
 
-  private getPerformanceTraceMeta(): TablePerformanceTraceMeta {
+  private getPerformanceStageContext(state: PerformanceStageState): PerformanceStageContext {
     const { tableState } = this.props;
     const tableFile = tableState.file;
     const { columnRange, rowRange } = this.grid.getState();
-    return {
-      columnCount: tableFile?.columnCount ?? 0,
-      displayVersion: tableState.displayVersion ?? null,
-      loadState: tableState.loadState.state,
-      rowCount: tableFile?.rowCount ?? 0,
-      selectedFileId: tableState.selectedFileId ?? null,
-      sourceKey: tableState.sourceKey ?? tableFile?.sourceKey ?? tableState.selectedFileId ?? null,
-      visibleColumnStart: columnRange.startIndex,
-      visibleColumns: columnRange.renderedCount,
-      visibleRowStart: rowRange.startIndex,
-      visibleRows: rowRange.renderedCount,
-      zoomPercent: this.grid.getZoomPercent(),
-    };
-  }
-
-  private getPerformanceMeasurementMeta(): TablePerformanceTraceMeta {
-    const { columnRange, rowRange } = this.grid.getState();
-    return {
+    const measurement = {
       visibleColumns: columnRange.renderedCount,
       visibleRows: rowRange.renderedCount,
     };
-  }
-
-  private startPerformanceTrace(
-    stage: string,
-    meta: TablePerformanceTraceMeta = {},
-  ): TableWidgetPerformanceTraceEnd {
-    if (!isTablePerformanceInstrumentationEnabled()) {
-      return () => undefined;
+    if (!state.trace) {
+      return { measurement };
     }
 
-    const shouldTrace = isTablePerformanceTraceEnabled();
-    const endTrace = startTablePerformanceTrace(stage, {
-      ...(shouldTrace ? this.getPerformanceTraceMeta() : {}),
-      ...meta,
-    }, {
-      ...this.getPerformanceMeasurementMeta(),
-      ...meta,
-    });
-    return (endMeta: TablePerformanceTraceMeta = {}) => {
-      endTrace({
-        ...(shouldTrace ? this.getPerformanceTraceMeta() : {}),
-        ...endMeta,
-      }, {
-        ...this.getPerformanceMeasurementMeta(),
-        ...endMeta,
-      });
+    return {
+      measurement,
+      trace: {
+        columnCount: tableFile?.columnCount ?? 0,
+        displayVersion: tableState.displayVersion ?? null,
+        loadState: tableState.loadState.state,
+        rowCount: tableFile?.rowCount ?? 0,
+        selectedFileId: tableState.selectedFileId ?? null,
+        sourceKey: tableState.sourceKey ?? tableFile?.sourceKey ?? tableState.selectedFileId ?? null,
+        visibleColumnStart: columnRange.startIndex,
+        visibleColumns: columnRange.renderedCount,
+        visibleRowStart: rowRange.startIndex,
+        visibleRows: rowRange.renderedCount,
+        zoomPercent: this.grid.getZoomPercent(),
+      },
     };
   }
 
@@ -1033,7 +1007,7 @@ export class TableWidget {
   }
 
   private syncSelectionState(): void {
-    const endTrace = this.startPerformanceTrace("table.selection.sync");
+    const endTrace = this.performance.start("table.selection.sync");
     let changedColumnCount = 0;
     let fullSync = false;
     let rangesChanged = false;
@@ -1104,31 +1078,25 @@ export class TableWidget {
       }
 
       rangesChanged = !areCellRangesEqual(previous.selectedRanges, next.selectedRanges);
-      const changedColumns = rangesChanged
-        ? VirtualTableGridModel.range(columnCount).map(columnOffset => startColumnIndex + columnOffset)
-        : getChangedColumns(previous, next, startColumnIndex, columnCount);
+      const changedColumns = getChangedColumns(previous, next, startColumnIndex, columnCount);
       changedColumnCount = changedColumns.length;
       this.syncHeaderColumns(changedColumns.map(colIndex => colIndex - startColumnIndex), next);
 
-      for (const colIndex of changedColumns) {
-        const columnOffset = colIndex - startColumnIndex;
-        for (let rowOffset = 0; rowOffset < rowCount; rowOffset += 1) {
-          const cell = this.getVisibleBodyCell(rowOffset, columnOffset);
-          if (!cell) {
-            continue;
-          }
-          const rowIndex = this.bodyStartRowIndex + rowOffset;
-          this.updateCellState(cell, {
-            active: selectedRanges.length === 0 && isActiveCell(activeCell, rowIndex, colIndex),
-            highlighted: highlightedColumns.has(colIndex),
-            selected: isSelectedCell(rowIndex, colIndex, next),
-            selectionFrame: getSelectionFrame(rowIndex, colIndex, selectedRanges),
-          });
-          touchedCellCount += 1;
-        }
-      }
+      touchedCellCount += this.syncBodyCellsInRanges(
+        getChangedSelectionCellRanges({
+          changedColumns,
+          columnCount,
+          next,
+          previous,
+          rangesChanged,
+          rowCount,
+          startColumnIndex,
+          startRowIndex: this.bodyStartRowIndex,
+        }),
+        next,
+      );
 
-      this.syncActiveCells(previous.activeCell, activeCell, next);
+      touchedCellCount += this.syncActiveCells(previous.activeCell, activeCell, next);
       this.appliedCellState = next;
     } finally {
       endTrace({
@@ -1145,29 +1113,29 @@ export class TableWidget {
     previous: ActiveCell | null,
     next: ActiveCell | null,
     state: Pick<AppliedCellState, "highlightedColumns" | "selectedColumns" | "selectedRanges">,
-  ): void {
+  ): number {
     if (areActiveCellsEqual(previous, next)) {
-      return;
+      return 0;
     }
 
-    this.updateActiveCellState(previous, false, state);
-    this.updateActiveCellState(next, true, state);
+    return this.updateActiveCellState(previous, false, state) +
+      this.updateActiveCellState(next, true, state);
   }
 
   private updateActiveCellState(
     activeCell: ActiveCell | null,
     active: boolean,
     state: Pick<AppliedCellState, "highlightedColumns" | "selectedColumns" | "selectedRanges">,
-  ): void {
+  ): number {
     if (!activeCell) {
-      return;
+      return 0;
     }
 
     const rowOffset = activeCell.rowIndex - this.bodyStartRowIndex;
     const columnOffset = activeCell.colIndex - this.bodyStartColumnIndex;
     const cell = this.getVisibleBodyCell(rowOffset, columnOffset);
     if (!cell) {
-      return;
+      return 0;
     }
 
     this.updateCellState(cell, {
@@ -1175,6 +1143,22 @@ export class TableWidget {
       highlighted: state.highlightedColumns.has(activeCell.colIndex),
       selected: isSelectedCell(activeCell.rowIndex, activeCell.colIndex, state),
       selectionFrame: getSelectionFrame(activeCell.rowIndex, activeCell.colIndex, state.selectedRanges),
+    });
+    return 1;
+  }
+
+  private syncBodyCellsInRanges(
+    ranges: readonly TableWidgetCellRange[],
+    state: AppliedCellState,
+  ): number {
+    return this.grid.forEachBodyCellInRanges(ranges, (element, descriptor) => {
+      const cell = this.getBodyCellState(element);
+      this.updateCellState(cell, {
+        active: state.selectedRanges.length === 0 && isActiveCell(state.activeCell, descriptor.rowIndex, descriptor.colIndex),
+        highlighted: state.highlightedColumns.has(descriptor.colIndex),
+        selected: isSelectedCell(descriptor.rowIndex, descriptor.colIndex, state),
+        selectionFrame: getSelectionFrame(descriptor.rowIndex, descriptor.colIndex, state.selectedRanges),
+      });
     });
   }
 
@@ -1833,7 +1817,7 @@ export class TableWidget {
   }
 
   private onTableScroll(): void {
-    const endTrace = this.startPerformanceTrace("table.scroll");
+    const endTrace = this.performance.start("table.scroll");
     let tableVisible = false;
     let visibleRangeChanged = false;
     const bodyCellRenderCountStart = this.tracedBodyCellRenderCount;
@@ -2173,6 +2157,53 @@ const getChangedColumns = (
   return Array.from(columns)
     .filter((colIndex) => colIndex >= startColumnIndex && colIndex < endColumnIndex)
     .sort((a, b) => a - b);
+};
+
+const getChangedSelectionCellRanges = ({
+  changedColumns,
+  columnCount,
+  next,
+  previous,
+  rangesChanged,
+  rowCount,
+  startColumnIndex,
+  startRowIndex,
+}: {
+  readonly changedColumns: readonly number[];
+  readonly columnCount: number;
+  readonly next: AppliedCellState;
+  readonly previous: AppliedCellState;
+  readonly rangesChanged: boolean;
+  readonly rowCount: number;
+  readonly startColumnIndex: number;
+  readonly startRowIndex: number;
+}): readonly TableWidgetCellRange[] => {
+  const ranges: TableWidgetCellRange[] = [];
+  const endRow = startRowIndex + rowCount - 1;
+  const endColumn = startColumnIndex + columnCount - 1;
+  if (rowCount <= 0 || columnCount <= 0) {
+    return ranges;
+  }
+
+  for (const colIndex of changedColumns) {
+    if (colIndex < startColumnIndex || colIndex > endColumn) {
+      continue;
+    }
+    ranges.push({
+      startRow: startRowIndex,
+      endRow,
+      startCol: colIndex,
+      endCol: colIndex,
+    });
+  }
+
+  if (rangesChanged) {
+    ranges.push(
+      ...VirtualTableGridModel.getChangedCellRanges(previous.selectedRanges, next.selectedRanges),
+    );
+  }
+
+  return ranges;
 };
 
 const getWheelDelta = (event: WheelEvent): number => {

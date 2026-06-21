@@ -28,6 +28,9 @@ import {
   runCoordinatedLiveInteractionStress,
 } from "./templateApplyPerformanceTrace/liveInteraction.mjs";
 import {
+  runTableInteractionProbe,
+} from "./templateApplyPerformanceTrace/tableInteraction.mjs";
+import {
   formatMs,
   summarizeAnalysisPerfReport,
   summarizeFileSwitchLiveStress,
@@ -48,6 +51,7 @@ import {
   installPageTraceObservers,
   openRuntime,
   readAnalysisPerfReport,
+  readPerformanceTraceReport,
   readTraceState,
   startResourceSampler,
   startViteServer,
@@ -116,6 +120,25 @@ const parseArgs = () => {
     sampleMs: readPositiveInteger(args.get("sample-ms"), 100),
     scenario: scenarioName,
     splitReports: !flags.has("no-split-reports"),
+    tableInteraction: readBooleanFlag(flags, "table-interaction", scenarioDefaults.tableInteraction ?? false),
+    tableResizeCount: readPositiveInteger(args.get("table-resize-count"), scenarioDefaults.tableResizeCount ?? 2),
+    tableResizeDeltaPx: readPositiveInteger(
+      args.get("table-resize-delta-px"),
+      scenarioDefaults.tableResizeDeltaPx ?? 48,
+    ),
+    tableSelectionCount: readPositiveInteger(
+      args.get("table-selection-count"),
+      scenarioDefaults.tableSelectionCount ?? 6,
+    ),
+    tableScrollCount: readPositiveInteger(args.get("table-scroll-count"), scenarioDefaults.tableScrollCount ?? 8),
+    tableScrollDeltaX: readPositiveInteger(
+      args.get("table-scroll-delta-x"),
+      scenarioDefaults.tableScrollDeltaX ?? 320,
+    ),
+    tableScrollDeltaY: readPositiveInteger(
+      args.get("table-scroll-delta-y"),
+      scenarioDefaults.tableScrollDeltaY ?? 560,
+    ),
     targetCollectionTimeoutMs: readPositiveInteger(
       args.get("target-collection-timeout-ms"),
       scenarioDefaults.targetCollectionTimeoutMs ?? 15000,
@@ -243,6 +266,10 @@ const main = async () => {
       modeSwitch: options.modeSwitch,
       modeSwitchAfterApply: options.modeSwitchAfterApply,
       rowCount: options.rowCount,
+      tableInteraction: options.tableInteraction,
+      tableResizeCount: options.tableResizeCount,
+      tableSelectionCount: options.tableSelectionCount,
+      tableScrollCount: options.tableScrollCount,
       targetCollectionTimeoutMs: options.targetCollectionTimeoutMs,
       thumbnailHoverCount: options.thumbnailHoverCount,
     })}`);
@@ -312,6 +339,7 @@ const main = async () => {
     let thumbnailHoverLive = null;
     let fileSwitch = null;
     let fileSwitchLive = null;
+    let tableInteraction = null;
     if (options.thumbnailHoverLive || options.fileSwitchLive) {
       const liveLabels = [
         options.thumbnailHoverLive ? "thumbnail hover" : null,
@@ -548,10 +576,41 @@ const main = async () => {
         eventCounts: modeSwitchAfterApply.eventCounts,
       }, null, 2)}`);
     }
+    if (options.tableInteraction) {
+      console.log("[template-apply-performance-trace] Running table scroll + range selection + column width interaction probe...");
+      await phaseRecorder.mark("tableInteraction.start", {
+        resizeCount: options.tableResizeCount,
+        selectionCount: options.tableSelectionCount,
+        scrollCount: options.tableScrollCount,
+      });
+      tableInteraction = await runTableInteractionProbe({
+        page: runtime.page,
+        resizeCount: options.tableResizeCount,
+        resizeDeltaPx: options.tableResizeDeltaPx,
+        selectionCount: options.tableSelectionCount,
+        scrollCount: options.tableScrollCount,
+        scrollDeltaX: options.tableScrollDeltaX,
+        scrollDeltaY: options.tableScrollDeltaY,
+        timeoutMs: options.timeoutMs,
+      });
+      await phaseRecorder.mark("tableInteraction.end", {
+        resizedCount: tableInteraction.resize?.resizedCount ?? null,
+        selectedCount: tableInteraction.selection?.selectedCount ?? null,
+        scrollChangedCount: tableInteraction.scroll?.changedCount ?? null,
+      });
+      console.log(`[template-apply-performance-trace] tableInteraction=${JSON.stringify({
+        finalState: tableInteraction.finalState,
+        initialState: tableInteraction.initialState,
+        resizedCount: tableInteraction.resize?.resizedCount ?? null,
+        selectedCount: tableInteraction.selection?.selectedCount ?? null,
+        scrollChangedCount: tableInteraction.scroll?.changedCount ?? null,
+      }, null, 2)}`);
+    }
     sampler.stop();
     const analysisPerfReport = options.analysisPerf
       ? await readAnalysisPerfReport(runtime.page)
       : null;
+    const performanceTraceReport = await readPerformanceTraceReport(runtime.page);
     const reportTraceState = await readTraceState(runtime.page).catch(() => finalState);
     const milestones = summarizeMilestones(finalState.events, {
       expectedAssessmentBadgeCount: fixture.expectedAssessmentBadgeCount,
@@ -604,6 +663,7 @@ const main = async () => {
     const report = {
       analysis,
       analysisPerfReport,
+      performanceTraceReport,
       fixture,
       fixtureRoot,
       generatedAt,
@@ -621,6 +681,7 @@ const main = async () => {
       fileSwitchLive,
       modeSwitch,
       modeSwitchAfterApply,
+      tableInteraction,
       traceEvents: reportTraceState.events,
     };
     const reportPath = path.join(options.outputRoot, `${runId}-${options.runtime}.json`);
@@ -636,11 +697,13 @@ const main = async () => {
         generatedAt,
         milestones,
         options,
+        performanceTraceReport,
         phaseAnchors: phaseRecorder.anchors,
         rawReportPath: options.writeFullReport ? reportPath : null,
         resourceSamples: sampler.samples,
         runId,
         runtime: options.runtime,
+        tableInteraction,
         thumbnailApply,
       })
       : null;

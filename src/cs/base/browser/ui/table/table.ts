@@ -14,6 +14,7 @@ export {
 	type TableWidgetColumnHeaderDescriptor,
 	type TableWidgetColumnRange,
 	type TableWidgetColumnResizeEvent,
+	type TableWidgetColumnResizeMode,
 	type TableWidgetColumnResizeOptions,
 	type TableWidgetDirtyRange,
 	type TableWidgetOptions,

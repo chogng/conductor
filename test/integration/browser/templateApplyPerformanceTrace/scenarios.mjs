@@ -1,7 +1,7 @@
 export const templateApplyPerformanceTraceScenarios = {
   "chart-targets-200": {
     description: "400 imported files, 200 expected chart targets, live + stable hover and file switch stress.",
-    historyKey: "chart-targets-200.coordinated",
+    historyKey: "chart-targets-200.coordinated.table-interaction",
     defaults: {
       fileCount: 400,
       fileSwitch: true,
@@ -13,6 +13,13 @@ export const templateApplyPerformanceTraceScenarios = {
       liveStressParallel: true,
       profile: "healthy",
       rowCount: 4000,
+      tableInteraction: true,
+      tableResizeCount: 2,
+      tableResizeDeltaPx: 48,
+      tableSelectionCount: 6,
+      tableScrollCount: 8,
+      tableScrollDeltaX: 320,
+      tableScrollDeltaY: 560,
       thumbnailHover: true,
       thumbnailHoverCount: 200,
       thumbnailHoverLive: true,
@@ -23,7 +30,7 @@ export const templateApplyPerformanceTraceScenarios = {
   },
   "chart-targets-260-cache-lifecycle": {
     description: "520 imported files, 260 expected chart targets, cache-lifecycle pressure over the plot display cache limit.",
-    historyKey: "chart-targets-260.cache-lifecycle",
+    historyKey: "chart-targets-260.cache-lifecycle.table-interaction",
     defaults: {
       fileCount: 520,
       fileSwitch: true,
@@ -35,6 +42,13 @@ export const templateApplyPerformanceTraceScenarios = {
       liveStressParallel: true,
       profile: "healthy",
       rowCount: 4000,
+      tableInteraction: true,
+      tableResizeCount: 2,
+      tableResizeDeltaPx: 48,
+      tableSelectionCount: 6,
+      tableScrollCount: 8,
+      tableScrollDeltaX: 320,
+      tableScrollDeltaY: 560,
       targetCollectionTimeoutMs: 30000,
       thumbnailHover: true,
       thumbnailHoverCount: 260,

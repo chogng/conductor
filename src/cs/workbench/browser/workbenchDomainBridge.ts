@@ -70,7 +70,7 @@ import {
   isTemplateApplyPerformanceTraceEnabled,
   registerTemplateApplyPerformanceTraceTargetApi,
   type TemplateApplyPerformanceTraceChartTarget,
-} from "src/cs/workbench/contrib/files/browser/templateApplyPerformanceTrace";
+} from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 
 const RECENT_INTERACTIVE_CHART_TARGET_LIMIT = 16;
 

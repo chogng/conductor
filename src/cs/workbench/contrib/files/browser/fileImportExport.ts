@@ -62,7 +62,7 @@ import {
 } from "src/cs/workbench/services/files/browser/fileConverter";
 import {
   markTemplateApplyPerformanceTrace,
-} from "src/cs/workbench/contrib/files/browser/templateApplyPerformanceTrace";
+} from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 import type {
   FileConverterBackend,
   FileConverterPreparePayload,

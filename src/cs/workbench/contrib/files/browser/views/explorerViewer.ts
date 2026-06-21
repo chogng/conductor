@@ -53,7 +53,7 @@ import type {
 import {
   isTemplateApplyPerformanceTraceEnabled,
   markTemplateApplyPerformanceTrace,
-} from "src/cs/workbench/contrib/files/browser/templateApplyPerformanceTrace";
+} from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 import { FileKind, ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
 import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { PlotType } from "src/cs/workbench/services/plot/common/plot";

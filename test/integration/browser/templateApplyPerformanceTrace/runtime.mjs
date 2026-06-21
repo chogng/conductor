@@ -398,6 +398,10 @@ export const readAnalysisPerfReport = async (page) => page.evaluate(() =>
   window.conductorAnalysisPerf?.getReport?.() ?? null
 ).catch(() => null);
 
+export const readPerformanceTraceReport = async (page) => page.evaluate(() =>
+  window.__conductorPerformanceTrace?.getReport?.() ?? null
+).catch(() => null);
+
 export const markPageTrace = async (page, stage, meta = {}) => page.evaluate(({
   meta: markMeta,
   stage: markStage,

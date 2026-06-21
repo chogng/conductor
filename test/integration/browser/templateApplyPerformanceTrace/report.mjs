@@ -8,5 +8,6 @@ export * from "./report/interactionCommon.mjs";
 export * from "./report/thumbnailHover.mjs";
 export * from "./report/fileSwitch.mjs";
 export * from "./report/calculation.mjs";
+export * from "./report/table.mjs";
 export * from "./report/history.mjs";
 export * from "./report/artifacts.mjs";

@@ -81,6 +81,7 @@ import "src/cs/workbench/browser/workbench.contribution";
 //#region --- workbench contributions
 
 import "src/cs/workbench/contrib/chart/browser/chart.contribution";
+import "src/cs/workbench/contrib/performance/browser/performance.contribution";
 import "src/cs/workbench/contrib/thumbnail/browser/thumbnail.contribution";
 import "src/cs/workbench/contrib/sash/browser/sash.contribution";
 import "src/cs/workbench/contrib/table/browser/table.contribution";

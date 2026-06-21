@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { getPerfNow } from "src/cs/workbench/common/perf";
+import { getPerformanceNow } from "src/cs/base/common/performance";
 
 const TRACE_STORAGE_KEY = "conductor.templateApplyPerformanceTrace";
 const TRACE_QUERY_KEY = "conductorTemplateApplyPerformanceTrace";
@@ -85,7 +85,7 @@ const shouldLogTraceToConsole = (): boolean =>
 
 const getTimeOrigin = (): number => {
   const timeOrigin = Number(globalThis.performance?.timeOrigin);
-  return Number.isFinite(timeOrigin) ? timeOrigin : Date.now() - getPerfNow();
+  return Number.isFinite(timeOrigin) ? timeOrigin : Date.now() - getPerformanceNow();
 };
 
 const getTraceGlobal = (): TemplateApplyPerformanceTraceGlobal => {
@@ -113,7 +113,7 @@ const getTraceGlobal = (): TemplateApplyPerformanceTraceGlobal => {
         },
         stage,
         timeOrigin: getTimeOrigin(),
-        timestamp: getPerfNow(),
+        timestamp: getPerformanceNow(),
         wallTime: Date.now(),
       };
       nextId += 1;

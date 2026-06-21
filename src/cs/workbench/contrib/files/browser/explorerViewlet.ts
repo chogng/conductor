@@ -65,7 +65,7 @@ import {
 } from "src/cs/workbench/contrib/files/browser/explorerSessionImport";
 import {
   markTemplateApplyPerformanceTrace,
-} from "src/cs/workbench/contrib/files/browser/templateApplyPerformanceTrace";
+} from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 import { SliceWithTemplateController } from "src/cs/workbench/contrib/files/browser/sliceWithTemplateController";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {

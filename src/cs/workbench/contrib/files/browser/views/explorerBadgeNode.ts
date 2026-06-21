@@ -5,7 +5,7 @@
 import {
   isTemplateApplyPerformanceTraceEnabled,
   markTemplateApplyPerformanceTrace,
-} from "src/cs/workbench/contrib/files/browser/templateApplyPerformanceTrace";
+} from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 
 export type ExplorerBadgePresentation = {
   readonly color?: string | null;

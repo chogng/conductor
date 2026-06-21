@@ -18,6 +18,7 @@ import {
 import { createImportReportBlock } from "./import.mjs";
 import { createPlotCacheReportBlock } from "./plotCache.mjs";
 import { createResourcesReportBlock } from "./resources.mjs";
+import { createTablePerformanceReportBlock } from "./table.mjs";
 import { createThumbnailHoverReportBlock } from "./thumbnailHover.mjs";
 
 export const createReportBlocks = ({
@@ -27,10 +28,12 @@ export const createReportBlocks = ({
   metricsRow,
   options,
   phaseAnchors,
+  performanceTraceReport,
   rawReportPath,
   resourceSamples,
   runId,
   runtime,
+  tableInteraction,
   thumbnailApply,
 }) => ({
   apply: createApplyReportBlock({
@@ -67,6 +70,10 @@ export const createReportBlocks = ({
     variant: metricsRow.variant,
   },
   thumbnailHover: createThumbnailHoverReportBlock({ analysis }),
+  table: createTablePerformanceReportBlock({
+    performanceTraceReport,
+    tableInteraction,
+  }),
 });
 
 export const writePerformanceArtifacts = ({
@@ -77,10 +84,12 @@ export const writePerformanceArtifacts = ({
   milestones,
   options,
   phaseAnchors,
+  performanceTraceReport,
   rawReportPath,
   resourceSamples,
   runId,
   runtime,
+  tableInteraction,
   thumbnailApply,
 }) => {
   const metricsRow = createPerformanceMetricRow({
@@ -89,6 +98,7 @@ export const writePerformanceArtifacts = ({
     generatedAt,
     milestones,
     options,
+    performanceTraceReport,
     runId,
     runtime,
     thumbnailApply,
@@ -110,10 +120,12 @@ export const writePerformanceArtifacts = ({
     metricsRow,
     options,
     phaseAnchors,
+    performanceTraceReport,
     rawReportPath,
     resourceSamples,
     runId,
     runtime,
+    tableInteraction,
     thumbnailApply,
   });
   const blockPaths = {};

@@ -22,7 +22,7 @@ import type {
 } from "src/cs/workbench/services/session/common/session";
 import {
   markTemplateApplyPerformanceTrace,
-} from "src/cs/workbench/contrib/files/browser/templateApplyPerformanceTrace";
+} from "src/cs/workbench/contrib/performance/browser/templateApplyPerformanceTrace";
 
 export type ExplorerSessionImportResult = {
   readonly importedFileIds: readonly string[];

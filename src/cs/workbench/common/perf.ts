@@ -1,3 +1,5 @@
+import { getPerformanceNow } from "src/cs/base/common/performance";
+
 const PERF_STORAGE_KEY = "conductor.perf";
 const PERF_ENTRY_LIMIT = 5_000;
 
@@ -54,8 +56,7 @@ export const isPerfEnabled = (): boolean => {
 };
 
 export const getPerfNow = (): number => {
-  const perf = globalThis.performance;
-  return perf && typeof perf.now === "function" ? perf.now() : Date.now();
+  return getPerformanceNow();
 };
 
 export const logPerf = (

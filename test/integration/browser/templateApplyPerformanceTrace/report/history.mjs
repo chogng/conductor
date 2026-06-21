@@ -14,6 +14,7 @@ import {
 } from "./common.mjs";
 import { summarizeCalculationBuildMetrics } from "./calculation.mjs";
 import { summarizePlotCacheMetrics } from "./plotCache.mjs";
+import { createTablePerformanceMetrics } from "./table.mjs";
 import { resolveTemplateApplyPerformanceTraceScenario } from "../scenarios.mjs";
 
 export const createScenarioKey = (options) => {
@@ -41,6 +42,9 @@ const createWorkloadScenarioKey = (options) => [
   options.fileSwitchLive ? "live-switch" : null,
   options.thumbnailHover ? "stable-hover" : null,
   options.fileSwitch ? "stable-switch" : null,
+  options.tableInteraction
+    ? `table${options.tableScrollCount}x${options.tableSelectionCount}x${options.tableResizeCount}`
+    : null,
   options.liveStressCoordinated ? "coordinated" : options.liveStressParallel ? "parallel" : "serial",
 ].filter(Boolean).join(".");
 
@@ -59,6 +63,7 @@ export const createPerformanceMetricRow = ({
   generatedAt,
   milestones,
   options,
+  performanceTraceReport,
   runId,
   runtime,
   thumbnailApply,
@@ -130,6 +135,7 @@ export const createPerformanceMetricRow = ({
   );
   const switchDuring = analysis.fileSwitchLive?.phaseWindows?.duringProcessing;
   const switchAfter = analysis.fileSwitchLive?.phaseWindows?.afterProcessing;
+  const tableMetrics = createTablePerformanceMetrics(performanceTraceReport);
   const flat = {
     applyEventLoopLagCount: summaryCount(applyProcessing?.eventLoopLagMs),
     applyEventLoopLagP95Ms: summaryP95(applyProcessing?.eventLoopLagMs),
@@ -279,6 +285,7 @@ export const createPerformanceMetricRow = ({
     sessionTemplateCommitP95Ms: summaryP95(
       applyProcessing?.perf?.stageDurationMs?.["sessionService.commitTemplateOutput"],
     ),
+    ...tableMetrics,
     thumbnailAfterNonBlankP95Ms: summaryP95(thumbnailAfter?.targetCanvasNonBlankMs),
     thumbnailDuringNonBlankP95Ms: summaryP95(thumbnailDuring?.targetCanvasNonBlankMs),
     thumbnailFlickerCount: readNumber(analysis.thumbnailHoverLive?.blankAfterNonBlankCount) ?? 0,
@@ -414,6 +421,31 @@ export const metricHistoryKeys = [
   "plotInspectorPrefetchCanceled",
   "plotInspectorPrefetchSkipped",
   "plotInspectorQueueCleared",
+  "tableBodyCellRenderCount",
+  "tableColumnWidthChangedCount",
+  "tableColumnWidthSetCount",
+  "tableColumnWidthSetMaxMs",
+  "tableColumnWidthSetP95Ms",
+  "tableHeaderCellRenderCount",
+  "tableLayoutCount",
+  "tableLayoutP95Ms",
+  "tableMaxVisibleColumns",
+  "tableMaxVisibleRows",
+  "tableRenderTableCount",
+  "tableRenderTableMaxMs",
+  "tableRenderTableP95Ms",
+  "tableRowsEnsureCount",
+  "tableRowsEnsureP95Ms",
+  "tableRowsSyncCount",
+  "tableRowsSyncP95Ms",
+  "tableScrollCount",
+  "tableScrollMaxMs",
+  "tableScrollP95Ms",
+  "tableSelectionSyncCount",
+  "tableSelectionSyncP95Ms",
+  "tableTouchedCellCount",
+  "tableWidgetRenderCount",
+  "tableWidgetRenderP95Ms",
   "workbenchRefreshCount",
   "workbenchRefreshP95Ms",
   "workbenchRefreshNavigationCount",
@@ -593,6 +625,11 @@ export const writeHistorySvg = (svgPath, rows, scenarioKey) => {
     "plotWorkerCreatedCount",
     "plotWorkerMaxQueueLength",
     "plotMainDrawP95Ms",
+    "tableColumnWidthSetP95Ms",
+    "tableRenderTableP95Ms",
+    "tableRowsSyncP95Ms",
+    "tableScrollP95Ms",
+    "tableWidgetRenderP95Ms",
     "workbenchSelectionRefreshP95Ms",
     "plotInspectorPrefetchFired",
     "meanCpuPercent",
