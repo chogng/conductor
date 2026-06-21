@@ -1,3 +1,4 @@
+import { distinct, equals as arraysEqual } from "src/cs/base/common/arrays";
 import {
   ConfigurationTarget,
   getConfigurationValue,
@@ -669,14 +670,6 @@ function cloneOverride(override: IOverrides): IOverrides {
     keys: [...override.keys],
     contents: deepClone(override.contents),
   };
-}
-
-function distinct(values: readonly string[]): string[] {
-  return [...new Set(values)];
-}
-
-function arraysEqual(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function deepClone<T>(value: T): T {
