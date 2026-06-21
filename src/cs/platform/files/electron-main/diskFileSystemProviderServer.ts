@@ -55,6 +55,8 @@ export class DiskFileSystemProviderChannel implements IServerChannel<string> {
           URI.revive(args[0]),
           String(args[1] ?? ""),
         ) as Promise<T>;
+      case "deleteFile":
+        return this.provider.deleteFile(URI.revive(args[0])) as Promise<T>;
       case "realpath":
         return this.provider.realpath(URI.revive(args[0])) as Promise<T>;
       case "watch":

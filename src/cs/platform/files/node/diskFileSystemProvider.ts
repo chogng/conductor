@@ -108,6 +108,19 @@ export class DiskFileSystemProvider {
     }]);
   }
 
+  public async deleteFile(resource: URI): Promise<void> {
+    const didExist = await this.exists(resource);
+
+    await fs.promises.rm(this.toFilePath(resource), { force: true });
+
+    if (didExist) {
+      this.onDidFilesChangeEmitter.fire([{
+        resource,
+        type: FileChangeType.DELETED,
+      }]);
+    }
+  }
+
   public async realpath(resource: URI): Promise<URI> {
     const target = await fs.promises.realpath(this.toFilePath(resource));
     return URI.file(path.normalize(target));

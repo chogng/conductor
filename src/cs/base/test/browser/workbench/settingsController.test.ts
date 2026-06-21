@@ -42,13 +42,13 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
 
       assert.equal(switchButton.getAttribute("aria-checked"), "false");
       assert.ok(switchButton.classList.contains("ui-switch--animate"));
-      assert.equal(switchButton.disabled, true);
+      assert.equal(switchButton.disabled, false);
       assert.equal(getComputedStyle(switchButton).opacity, "1");
 
       controller.update(createSettingsViewInput(service.settings));
       assert.equal(getButton(container, "settings-explorer-badges-toggle"), switchButton);
       assert.equal(switchButton.getAttribute("aria-checked"), "false");
-      assert.equal(switchButton.disabled, true);
+      assert.equal(switchButton.disabled, false);
       assert.ok(switchButton.classList.contains("ui-switch--animate"));
       assert.equal(getComputedStyle(switchButton).opacity, "1");
 
@@ -92,13 +92,13 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
 
       assert.equal(switchButton.getAttribute("aria-checked"), "false");
       assert.ok(switchButton.classList.contains("ui-switch--animate"));
-      assert.equal(switchButton.disabled, true);
+      assert.equal(switchButton.disabled, false);
       assert.equal(getComputedStyle(switchButton).opacity, "1");
 
       controller.update(createSettingsViewInput(service.settings));
       assert.equal(getButton(container, "settings-transparent-chrome-toggle"), switchButton);
       assert.equal(switchButton.getAttribute("aria-checked"), "false");
-      assert.equal(switchButton.disabled, true);
+      assert.equal(switchButton.disabled, false);
       assert.ok(switchButton.classList.contains("ui-switch--animate"));
       assert.equal(getComputedStyle(switchButton).opacity, "1");
 
@@ -111,6 +111,50 @@ suite("workbench/contrib/settings/browser/settingsController", () => {
       assert.equal(switchButton.getAttribute("aria-checked"), "false");
       assert.equal(switchButton.disabled, false);
       assert.equal(getComputedStyle(switchButton).opacity, "1");
+    }
+    finally {
+      controller.dispose();
+      container.remove();
+    }
+  });
+
+  test("keeps numeric display switch on the pending value while saving", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const updateDeferred = new Deferred<ConductorSettings | null>();
+    const service = createSettingsService({ numericDisplayMode: "raw" }, updateDeferred);
+    const controller = new SettingsController(
+      container,
+      createSettingsViewInput(service.settings),
+      service,
+      createCommandService(),
+      createNotificationService(),
+    );
+
+    try {
+      const switchButton = getButton(container, "settings-numeric-display-toggle");
+      assert.equal(switchButton.getAttribute("aria-checked"), "false");
+
+      switchButton.click();
+
+      assert.equal(getButton(container, "settings-numeric-display-toggle"), switchButton);
+      assert.equal(switchButton.getAttribute("aria-checked"), "true");
+      assert.equal(switchButton.disabled, false);
+
+      controller.update(createSettingsViewInput(service.settings));
+      assert.equal(getButton(container, "settings-numeric-display-toggle"), switchButton);
+      assert.equal(switchButton.getAttribute("aria-checked"), "true");
+      assert.equal(switchButton.disabled, false);
+
+      service.settings = { numericDisplayMode: "smart" };
+      controller.update(createSettingsViewInput(service.settings));
+      updateDeferred.resolve(service.settings);
+      await settled();
+
+      assert.equal(getButton(container, "settings-numeric-display-toggle"), switchButton);
+      assert.equal(switchButton.getAttribute("aria-checked"), "true");
+      assert.equal(switchButton.disabled, false);
     }
     finally {
       controller.dispose();

@@ -283,6 +283,10 @@ class MainFileSystemProvider implements IFileSystemProvider {
     return this.provider.writeFile(resource, content);
   }
 
+  public deleteFile(resource: URI): Promise<void> {
+    return this.provider.deleteFile(resource);
+  }
+
   public realpath(resource: URI): Promise<URI> {
     return this.provider.realpath(resource);
   }

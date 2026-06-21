@@ -49,6 +49,10 @@ suite("platform/files/test/common/fileService", () => {
       this.seenPaths.push(URI.revive(resource).path);
     }
 
+    public async deleteFile(resource: URI): Promise<void> {
+      this.seenPaths.push(URI.revive(resource).path);
+    }
+
     public async realpath(resource: URI): Promise<URI> {
       this.seenPaths.push(URI.revive(resource).path);
       return resource;
@@ -83,7 +87,9 @@ suite("platform/files/test/common/fileService", () => {
     assert.equal(await service.exists(resource), true);
     assert.equal((await service.stat(resource)).type, FileType.File);
     assert.equal((await service.readFile(resource)).value, "Vg,Id\n0,1");
+    await service.deleteFile(resource);
     assert.deepEqual(provider.seenPaths, [
+      "/folder/transfer%25.csv",
       "/folder/transfer%25.csv",
       "/folder/transfer%25.csv",
       "/folder/transfer%25.csv",

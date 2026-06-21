@@ -16,6 +16,91 @@ const noop = () => undefined;
 
 suite("workbench/contrib/settings/browser/settingsView", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
+
+  test("renders numeric display as an optimization switch with description", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const view = new SettingsView(container, createSettingsViewOptions({ activeSettingsSection: "general" }));
+
+    try {
+      const switchButton = getButton(container, "settings-numeric-display-toggle");
+      assert.equal(switchButton.getAttribute("aria-checked"), "false");
+      assert.equal(switchButton.getAttribute("aria-label"), "优化表格数值显示");
+      assert.ok(container.textContent?.includes("优化表格数值显示"));
+      assert.ok(container.textContent?.includes("优化科学计数法以合适小数位显示以更好的预览"));
+      assert.equal(container.querySelector("#settings-numeric-display-dropdown"), null);
+    }
+    finally {
+      view.dispose();
+      container.remove();
+    }
+  });
+
+  test("updates general setting items without replacing or reinserting their controls", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const view = new SettingsView(container, createSettingsViewOptions({ activeSettingsSection: "general" }));
+    let observer: MutationObserver | null = null;
+    let labelObserver: MutationObserver | null = null;
+
+    try {
+      const languageSelect = getButton(container, "settings-language-dropdown");
+      const closeBehaviorSelect = getButton(container, "settings-close-behavior-dropdown");
+      const numericDisplaySwitch = getButton(container, "settings-numeric-display-toggle");
+      const generalSettingsList = getGeneralSettingsList(container);
+      const numericDisplayLabel = getNumericDisplayLabel(container);
+      const numericDisplayTitle = getElement(numericDisplayLabel, ".settings-title");
+      const numericDisplayDescription = getElement(numericDisplayLabel, ".settings-description");
+      const listMutations: MutationRecord[] = [];
+      const labelMutations: MutationRecord[] = [];
+      observer = new MutationObserver(records => listMutations.push(...records));
+      observer.observe(generalSettingsList, { childList: true });
+      labelObserver = new MutationObserver(records => labelMutations.push(...records));
+      labelObserver.observe(numericDisplayLabel, { childList: true });
+
+      numericDisplaySwitch.click();
+      assert.ok(numericDisplaySwitch.classList.contains("ui-switch--animate"));
+
+      view.update(createSettingsViewOptions({
+        activeSettingsSection: "general",
+        windowCloseBehaviorOptions: [
+          { label: "Minimize to Tray", value: "minimizeToTray" },
+          { label: "Quit", value: "quit" },
+        ],
+        windowCloseSettings: {
+          behavior: "minimizeToTray",
+          isSaving: true,
+          onBehaviorChange: noop,
+        },
+        numericDisplaySettings: {
+          isSaving: true,
+          optimized: true,
+          onOptimizedChange: noop,
+        },
+      }));
+      await settled();
+
+      assert.equal(getButton(container, "settings-language-dropdown"), languageSelect);
+      assert.equal(getButton(container, "settings-close-behavior-dropdown"), closeBehaviorSelect);
+      assert.equal(getButton(container, "settings-numeric-display-toggle"), numericDisplaySwitch);
+      assert.equal(getElement(getNumericDisplayLabel(container), ".settings-title"), numericDisplayTitle);
+      assert.equal(getElement(getNumericDisplayLabel(container), ".settings-description"), numericDisplayDescription);
+      assert.equal(getSelectLabel(closeBehaviorSelect), "Minimize to Tray");
+      assert.equal(closeBehaviorSelect.disabled, true);
+      assert.equal(numericDisplaySwitch.getAttribute("aria-checked"), "true");
+      assert.equal(numericDisplaySwitch.disabled, false);
+      assert.ok(numericDisplaySwitch.classList.contains("ui-switch--animate"));
+      assert.equal(listMutations.length, 0);
+      assert.equal(labelMutations.length, 0);
+    }
+    finally {
+      observer?.disconnect();
+      labelObserver?.disconnect();
+      view.dispose();
+      container.remove();
+    }
+  });
+
   test("updates appearance controls without replacing the active section template", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -87,8 +172,8 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
       assert.equal(getButtonByAriaLabel(container, "transfer color: Green").dataset.selected, "true");
       assert.ok(explorerBadgesSwitch.classList.contains("ui-switch--animate"));
       assert.ok(transparentChromeSwitch.classList.contains("ui-switch--animate"));
-      assert.equal(explorerBadgesSwitch.disabled, true);
-      assert.equal(transparentChromeSwitch.disabled, true);
+      assert.equal(explorerBadgesSwitch.disabled, false);
+      assert.equal(transparentChromeSwitch.disabled, false);
       assert.equal(getComputedStyle(explorerBadgesSwitch).opacity, "1");
       assert.equal(getComputedStyle(transparentChromeSwitch).opacity, "1");
       assert.equal(explorerBadgesSwitch.getAttribute("aria-checked"), "false");
@@ -139,10 +224,32 @@ function getInput(container: HTMLElement, id: string): HTMLInputElement {
   return input;
 }
 
+function getGeneralSettingsList(container: HTMLElement): HTMLElement {
+  const list = container.querySelector<HTMLElement>("#settings-general-section .settings-list");
+  assert.ok(list);
+  return list;
+}
+
+function getNumericDisplayLabel(container: HTMLElement): HTMLElement {
+  const label = container.querySelector<HTMLElement>("#settings-numeric-display-card .settings-heading");
+  assert.ok(label);
+  return label;
+}
+
+function getElement(container: HTMLElement, selector: string): HTMLElement {
+  const element = container.querySelector<HTMLElement>(selector);
+  assert.ok(element);
+  return element;
+}
+
 function getSelectLabel(button: HTMLButtonElement): string {
   const label = button.querySelector<HTMLElement>(".ui-selectbox__label");
   assert.ok(label);
   return label.textContent ?? "";
+}
+
+async function settled(): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, 0));
 }
 
 function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}): SettingsViewOptions {
@@ -230,14 +337,10 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
     },
     handleCheckForUpdates: noop,
     language: "system",
-    numericDisplayModeOptions: [
-      { label: "Raw", value: "raw" },
-      { label: "Smart", value: "smart" },
-    ],
     numericDisplaySettings: {
       isSaving: false,
-      mode: "raw",
-      onModeChange: noop,
+      optimized: false,
+      onOptimizedChange: noop,
     },
     onLanguageChange: noop,
     onNavigateBack: noop,

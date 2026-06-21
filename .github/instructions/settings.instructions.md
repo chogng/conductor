@@ -57,6 +57,8 @@ not introduce a parallel settings store.
 | `platform/origin/electron-main/*` | Origin configuration owner and IPC workflow split. |
 | `platform/languagePacks/**`, `workbench/services/localization/**`, `contrib/localization/**` | display-language services and command/action wiring. |
 | `contrib/settings/browser/settingsController.ts` | form drafts, validation, saving state, dispatch to settings service or owner commands. |
+| `contrib/settings/browser/settingsLayout.ts` | settings section ids, navigation grouping, and section icon metadata. |
+| `contrib/settings/browser/settingsTree.ts` | stable keyed settings item widgets; owns fixed label/control DOM and control instance reuse for standard setting items. |
 | `contrib/settings/browser/settingsView.ts` | pure DOM rendering; callbacks only. |
 | `contrib/settings/browser/settingsViewPane.ts` | DI shell, controller lifecycle, settings view-input subscription. |
 | `contrib/settings/browser/settings.contribution.ts` | view/contribution registration. |

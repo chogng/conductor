@@ -7,11 +7,17 @@ import { createSelectBox, type SelectBox, type SelectBoxOption } from "src/cs/ba
 import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
-import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/services/template/common/fileNameMatching";
+import {
+  createSettingsNavGroups,
+  getSettingsSectionIcon,
+  type SettingsSectionEntry,
+  type SettingsSectionId,
+} from "src/cs/workbench/contrib/settings/browser/settingsLayout";
+import { SettingsTree, type SettingsTreeSection } from "src/cs/workbench/contrib/settings/browser/settingsTree";
 import type { LanguagePreference } from "src/cs/base/common/platform";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
-import type { NumericDisplayMode } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import type {
   Feedback,
 } from "src/cs/workbench/contrib/settings/common/feedback";
@@ -79,9 +85,9 @@ type WindowCloseSettings = {
 };
 
 type NumericDisplaySettings = {
-  mode: NumericDisplayMode;
+  optimized: boolean;
   isSaving: boolean;
-  onModeChange: (mode: NumericDisplayMode) => Promise<void> | void;
+  onOptimizedChange: (optimized: boolean) => Promise<void> | void;
 };
 
 type AppearanceSettings = {
@@ -149,7 +155,7 @@ type SettingsViewProps = {
   windowCloseSettings: WindowCloseSettings;
 };
 
-export type SettingsSectionId = "general" | "appearance" | "origin" | "about";
+export type { SettingsSectionId };
 
 export type SettingsViewOptions = SettingsViewProps & {
   activeSettingsSection: SettingsSectionId;
@@ -171,23 +177,12 @@ export type SettingsViewOptions = SettingsViewProps & {
   setPostCommandsDraft: (value: string) => void;
   setTickLabelFontSizeDraft: (value: string) => void;
   setXyPairsDraft: (value: string) => void;
-  settingsSections: SelectOptionWithId[];
-  numericDisplayModeOptions: SelectOption[];
+  settingsSections: SettingsSectionEntry[];
   themeModeOptions: SelectOption[];
   tickLabelFontSizeDraft: string;
   windowCloseBehaviorOptions: SelectOption[];
   xyPairsDraft: string;
   yScaleOptions: SelectOption[];
-};
-
-type SelectOptionWithId = {
-  id: SettingsSectionId;
-  label: string;
-};
-
-type SettingsNavGroup = {
-  label: string;
-  sectionIds: readonly SettingsSectionId[];
 };
 
 type FieldOptions = {
@@ -232,6 +227,7 @@ export class SettingsView {
     viewportClassName: "settings-view-content-scroll-viewport",
   });
   private appearanceSection: AppearanceSectionTemplate | null = null;
+  private generalTree: SettingsTree | null = null;
   private options: SettingsViewOptions;
   private activeBadgeLabelValue = "transfer";
 
@@ -252,6 +248,12 @@ export class SettingsView {
       return;
     }
 
+    if (canReuseGeneralSectionTemplate(this.options, options)) {
+      this.options = options;
+      this.updateGeneralSection();
+      return;
+    }
+
     this.options = options;
     this.root.setAttribute("aria-label", localize("settings.section.ariaLabel", "Settings"));
     this.render();
@@ -266,6 +268,7 @@ export class SettingsView {
   private render(): void {
     this.renderDisposables.clear();
     this.appearanceSection = null;
+    this.generalTree = null;
     reset(this.root);
     this.root.appendChild(this.createLayout());
     queueMicrotask(() => this.contentScroll.layout());
@@ -310,7 +313,7 @@ export class SettingsView {
     const nav = document.createElement("nav");
     nav.className = "settings-view-nav-list";
     const buttons: HTMLButtonElement[] = [];
-    const groups = this.settingsNavGroups();
+    const groups = createSettingsNavGroups();
     for (const group of groups) {
       const groupElement = div("settings-view-nav-group");
       const groupLabel = text("p", "settings-view-nav-group-label", group.label);
@@ -331,7 +334,7 @@ export class SettingsView {
           button.setAttribute("aria-current", "page");
         }
         button.append(
-          createLxIcon({ className: "settings-view-nav-item-icon", icon: settingsSectionIcon(section.id), size: 16 }),
+          createLxIcon({ className: "settings-view-nav-item-icon", icon: getSettingsSectionIcon(section.id), size: 16 }),
           text("span", "settings-view-nav-item-label", section.label),
         );
         button.addEventListener("click", () => this.options.setActiveSettingsSection(section.id));
@@ -358,23 +361,6 @@ export class SettingsView {
     return aside;
   }
 
-  private settingsNavGroups(): readonly SettingsNavGroup[] {
-    return [
-      {
-        label: localize("settings.nav.group.personal", "Personal"),
-        sectionIds: ["general", "appearance"],
-      },
-      {
-        label: localize("settings.nav.group.integrations", "Integrations"),
-        sectionIds: ["origin"],
-      },
-      {
-        label: localize("settings.nav.group.system", "System"),
-        sectionIds: ["about"],
-      },
-    ];
-  }
-
   private createContent(): HTMLElement {
     const content = div("settings-view-content");
     if (this.options.activeSettingsSection === "origin") {
@@ -393,44 +379,10 @@ export class SettingsView {
   }
 
   private renderGeneral(container: HTMLElement): void {
-    container.appendChild(settingsSection(localize("settings.nav.general", "General"),
-      cardRow("settings-language-card", localize("settings.language.title", "Language"), this.createSelect({
-        id: "settings-language-dropdown",
-        value: this.options.language,
-        onChange: value => {
-          if (value === "system" || value === "zh" || value === "en") {
-            void this.options.onLanguageChange(value);
-          }
-        },
-        options: [
-          { value: "system", label: localize("settings.language.system", "System") },
-          { value: "zh", label: localize("settings.language.zh", "Chinese") },
-          { value: "en", label: localize("settings.language.en", "English") },
-        ],
-      })),
-      cardRow("settings-close-behavior-card", localize("settings.closeBehavior.title", "Close Window"), this.createSelect({
-        id: "settings-close-behavior-dropdown",
-        value: this.options.windowCloseSettings.behavior,
-        onChange: value => {
-          if (value === "minimizeToTray" || value === "quit") {
-            void this.options.windowCloseSettings.onBehaviorChange(value);
-          }
-        },
-        options: this.options.windowCloseBehaviorOptions,
-        disabled: this.options.windowCloseSettings.isSaving,
-      })),
-      cardRow("settings-numeric-display-card", localize("settings.numericDisplay.title", "Numeric Display"), this.createSelect({
-        id: "settings-numeric-display-dropdown",
-        value: this.options.numericDisplaySettings.mode,
-        onChange: value => {
-          if (value === "raw" || value === "smart") {
-            void this.options.numericDisplaySettings.onModeChange(value);
-          }
-        },
-        options: this.options.numericDisplayModeOptions,
-        disabled: this.options.numericDisplaySettings.isSaving,
-      })),
-    ));
+    const generalTree = this.renderDisposables.add(new SettingsTree());
+    generalTree.update(this.createGeneralSettingsTree());
+    this.generalTree = generalTree;
+    container.appendChild(generalTree.element);
 
     container.append(
       settingsSection(
@@ -443,6 +395,70 @@ export class SettingsView {
         this.createFileNameMatching(this.options.fileNameMatchingSettings),
       ),
     );
+  }
+
+  private updateGeneralSection(): void {
+    if (!this.generalTree) {
+      this.render();
+      return;
+    }
+
+    this.generalTree.update(this.createGeneralSettingsTree());
+    queueMicrotask(() => this.contentScroll.layout());
+  }
+
+  private createGeneralSettingsTree(): readonly SettingsTreeSection[] {
+    return [
+      {
+        id: "settings-general-section",
+        title: localize("settings.nav.general", "General"),
+        items: [
+          {
+            id: "settings-language-card",
+            controlId: "settings-language-dropdown",
+            kind: "select",
+            title: localize("settings.language.title", "Language"),
+            value: this.options.language,
+            onChange: value => {
+              if (value === "system" || value === "zh" || value === "en") {
+                void this.options.onLanguageChange(value);
+              }
+            },
+            options: [
+              { value: "system", label: localize("settings.language.system", "System") },
+              { value: "zh", label: localize("settings.language.zh", "Chinese") },
+              { value: "en", label: localize("settings.language.en", "English") },
+            ],
+          },
+          {
+            id: "settings-close-behavior-card",
+            controlId: "settings-close-behavior-dropdown",
+            disabled: this.options.windowCloseSettings.isSaving,
+            kind: "select",
+            title: localize("settings.closeBehavior.title", "Close Window"),
+            value: this.options.windowCloseSettings.behavior,
+            onChange: value => {
+              if (value === "minimizeToTray" || value === "quit") {
+                void this.options.windowCloseSettings.onBehaviorChange(value);
+              }
+            },
+            options: this.options.windowCloseBehaviorOptions,
+          },
+          {
+            id: "settings-numeric-display-card",
+            ariaLabel: localize("settings.numericDisplay.title", "优化表格数值显示"),
+            checked: this.options.numericDisplaySettings.optimized,
+            controlId: "settings-numeric-display-toggle",
+            description: localize("settings.numericDisplay.description", "优化科学计数法以合适小数位显示以更好的预览"),
+            kind: "switch",
+            title: localize("settings.numericDisplay.title", "优化表格数值显示"),
+            onChange: checked => {
+              void this.options.numericDisplaySettings.onOptimizedChange(checked);
+            },
+          },
+        ],
+      },
+    ];
   }
 
   private renderAppearance(container: HTMLElement): void {
@@ -478,7 +494,6 @@ export class SettingsView {
     const explorerBadgesSwitch = this.createSwitchWidget({
       ariaLabel: localize("settings.explorerBadges.title", "Explorer Badges"),
       checked: appearanceSettings.showExplorerBadges,
-      disabled: appearanceSettings.isExplorerBadgeSaving,
       id: "settings-explorer-badges-toggle",
       onChange: checked => {
         void this.options.appearanceSettings.onExplorerBadgeVisibilityChange(checked);
@@ -596,7 +611,6 @@ export class SettingsView {
     const transparentChromeSwitch = this.createSwitchWidget({
       ariaLabel: localize("settings.transparentChrome.title", "Translucent sidebar"),
       checked: appearanceSettings.transparentChrome,
-      disabled: appearanceSettings.isSaving,
       id: "settings-transparent-chrome-toggle",
       onChange: checked => {
         void this.options.appearanceSettings.onTransparentChromeChange(checked);
@@ -940,17 +954,6 @@ export class SettingsView {
     return widget;
   }
 
-  private createSwitch(options: {
-    ariaLabel: string;
-    checked: boolean;
-    disabled?: boolean;
-    id: string;
-    onChange: (checked: boolean) => void;
-  }): HTMLButtonElement {
-    const widget = this.createSwitchWidget(options);
-    return widget.domNode;
-  }
-
   private updateAppearanceSection(current: SettingsViewOptions, next: SettingsViewOptions): void {
     const template = this.appearanceSection;
     if (!template) {
@@ -993,13 +996,11 @@ export class SettingsView {
     }
 
     if (
-      currentAppearance.showExplorerBadges !== nextAppearance.showExplorerBadges ||
-      currentAppearance.isExplorerBadgeSaving !== nextAppearance.isExplorerBadgeSaving
+      currentAppearance.showExplorerBadges !== nextAppearance.showExplorerBadges
     ) {
       template.explorerBadgesSwitch.update({
         checked: nextAppearance.showExplorerBadges,
         className: "settings-switch",
-        disabled: nextAppearance.isExplorerBadgeSaving,
         id: "settings-explorer-badges-toggle",
       });
       template.explorerBadgesSwitch.domNode.setAttribute("aria-label", localize("settings.explorerBadges.title", "Explorer Badges"));
@@ -1028,13 +1029,11 @@ export class SettingsView {
     this.updateBackgroundControls(template, currentAppearance, nextAppearance);
 
     if (
-      currentAppearance.transparentChrome !== nextAppearance.transparentChrome ||
-      currentAppearance.isSaving !== nextAppearance.isSaving
+      currentAppearance.transparentChrome !== nextAppearance.transparentChrome
     ) {
       template.transparentChromeSwitch.update({
         checked: nextAppearance.transparentChrome,
         className: "settings-switch",
-        disabled: nextAppearance.isSaving,
         id: "settings-transparent-chrome-toggle",
       });
       template.transparentChromeSwitch.domNode.setAttribute("aria-label", localize("settings.transparentChrome.title", "Translucent sidebar"));
@@ -1264,22 +1263,6 @@ function getSettingsList(section: HTMLElement): HTMLElement {
   return list;
 }
 
-function settingsSectionIcon(sectionId: SettingsSectionId): LxIconDefinition {
-  if (sectionId === "appearance") {
-    return LxIcon.appearance;
-  }
-
-  if (sectionId === "origin") {
-    return LxIcon.origin;
-  }
-
-  if (sectionId === "about") {
-    return LxIcon.infoCircle;
-  }
-
-  return LxIcon.gear;
-}
-
 function title(value: string): HTMLElement {
   return text("h3", "settings-title", value);
 }
@@ -1331,9 +1314,57 @@ const canReuseAppearanceSectionTemplate = (
   return true;
 };
 
+const canReuseGeneralSectionTemplate = (
+  current: SettingsViewOptions,
+  next: SettingsViewOptions,
+): boolean => {
+  if (current.activeSettingsSection !== "general" || next.activeSettingsSection !== "general") {
+    return false;
+  }
+
+  if (current.language !== next.language || !settingsSectionsEqual(current.settingsSections, next.settingsSections)) {
+    return false;
+  }
+
+  return chartDefaultSettingsEqual(current, next) && fileNameMatchingSettingsEqual(current, next);
+};
+
+function chartDefaultSettingsEqual(current: SettingsViewOptions, next: SettingsViewOptions): boolean {
+  const currentSettings = current.chartDefaultSettings;
+  const nextSettings = next.chartDefaultSettings;
+  return current.axisTitleFontSizeDraft === next.axisTitleFontSizeDraft &&
+    current.tickLabelFontSizeDraft === next.tickLabelFontSizeDraft &&
+    selectOptionsEqual(current.yScaleOptions, next.yScaleOptions) &&
+    currentSettings.axisTitleFontSize === nextSettings.axisTitleFontSize &&
+    currentSettings.defaultYScaleForCf === nextSettings.defaultYScaleForCf &&
+    currentSettings.defaultYScaleForCv === nextSettings.defaultYScaleForCv &&
+    currentSettings.defaultYScaleForOutput === nextSettings.defaultYScaleForOutput &&
+    currentSettings.defaultYScaleForPv === nextSettings.defaultYScaleForPv &&
+    currentSettings.defaultYScaleForTransfer === nextSettings.defaultYScaleForTransfer &&
+    currentSettings.isSaving === nextSettings.isSaving &&
+    currentSettings.tickLabelFontSize === nextSettings.tickLabelFontSize &&
+    feedbackEqual(currentSettings.feedback, nextSettings.feedback);
+}
+
+function fileNameMatchingSettingsEqual(current: SettingsViewOptions, next: SettingsViewOptions): boolean {
+  const currentSettings = current.fileNameMatchingSettings;
+  const nextSettings = next.fileNameMatchingSettings;
+  return current.fileNameFieldSeparatorsDraft === next.fileNameFieldSeparatorsDraft &&
+    currentSettings.fieldSeparators === nextSettings.fieldSeparators &&
+    currentSettings.isSaving === nextSettings.isSaving &&
+    feedbackEqual(currentSettings.feedback, nextSettings.feedback);
+}
+
+function feedbackEqual(
+  current: { readonly message: string; readonly type: string },
+  next: { readonly message: string; readonly type: string },
+): boolean {
+  return current.message === next.message && current.type === next.type;
+}
+
 function settingsSectionsEqual(
-  current: readonly SelectOptionWithId[],
-  next: readonly SelectOptionWithId[],
+  current: readonly SettingsSectionEntry[],
+  next: readonly SettingsSectionEntry[],
 ): boolean {
   if (current.length !== next.length) {
     return false;

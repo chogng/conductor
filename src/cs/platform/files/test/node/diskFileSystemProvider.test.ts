@@ -76,4 +76,24 @@ suite("platform/files/test/node/diskFileSystemProvider", () => {
       fs.rmSync(root, { force: true, recursive: true });
     }
   });
+
+  test("DiskFileSystemProvider deletes files and emits a delete change", async () => {
+    const root = createTempDir();
+    try {
+      const filePath = path.join(root, "source.csv");
+      fs.writeFileSync(filePath, "Vg,Id\n0,1", "utf8");
+      const provider = new DiskFileSystemProvider();
+      const changes: string[] = [];
+      store.add(provider.onDidFilesChange(events => {
+        changes.push(...events.map(event => `${event.resource.fsPath}:${event.type}`));
+      }));
+
+      await provider.deleteFile(URI.file(filePath));
+
+      assert.equal(fs.existsSync(filePath), false);
+      assert.deepEqual(changes, [`${filePath}:2`]);
+    } finally {
+      fs.rmSync(root, { force: true, recursive: true });
+    }
+  });
 });

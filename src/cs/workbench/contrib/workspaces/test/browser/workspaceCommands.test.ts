@@ -282,6 +282,10 @@ class TestFileService implements IFileServiceType {
     throw new Error("Not implemented.");
   }
 
+  public deleteFile(_resource: URI): Promise<void> {
+    throw new Error("Not implemented.");
+  }
+
   public realpath(resource: URI): Promise<URI> {
     return Promise.resolve(resource);
   }

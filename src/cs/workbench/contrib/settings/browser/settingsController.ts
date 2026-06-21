@@ -16,8 +16,8 @@ import {
 import {
   SettingsView,
   type SettingsViewOptions,
-  type SettingsSectionId,
 } from "src/cs/workbench/contrib/settings/browser/settingsView";
+import type { SettingsSectionId } from "src/cs/workbench/contrib/settings/browser/settingsLayout";
 import {
   normalizeBoundedInt,
   normalizeTrimmedString,
@@ -34,7 +34,6 @@ import {
   type ISettingsService,
   type SettingsViewInput,
 } from "src/cs/workbench/services/settings/common/settings";
-import type { NumericDisplayMode } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { WorkbenchCommandId } from "src/cs/workbench/browser/actions/workbenchCommands";
 import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
@@ -98,7 +97,9 @@ export class SettingsController {
   private explorerAppearanceSaving = false;
   private pendingExplorerBadgeColors: Record<string, FilesExplorerBadgeColor> | null = null;
   private pendingExplorerBadgeVisibility: boolean | null = null;
+  private pendingNumericDisplayMode: "raw" | "smart" | null = null;
   private pendingTransparentChrome: boolean | null = null;
+  private transparentChromeSaving = false;
   private numericDisplaySaving = false;
   private windowCloseSaving = false;
   private cleanupNotificationSignature: string | null = null;
@@ -355,7 +356,6 @@ export class SettingsController {
       fileNameMatchingSettings: this.fileNameMatchingSettings,
       handleCheckForUpdates: () => void this.checkForUpdates(),
       language: this.options.language,
-      numericDisplayModeOptions: this.numericDisplayModeOptions,
       numericDisplaySettings: this.numericDisplaySettings,
       originLegendFontSizeDraft: this.drafts.originLegendFontSizeDraft,
       onLanguageChange: language => {
@@ -496,10 +496,11 @@ export class SettingsController {
   }
 
   private get numericDisplaySettings(): SettingsViewOptions["numericDisplaySettings"] {
+    const mode = this.pendingNumericDisplayMode ?? normalizeNumericDisplayMode(this.settings.numericDisplayMode);
     return {
-      mode: normalizeNumericDisplayMode(this.settings.numericDisplayMode),
+      optimized: mode === "smart",
       isSaving: this.numericDisplaySaving,
-      onModeChange: value => this.setNumericDisplayMode(value),
+      onOptimizedChange: value => this.setNumericDisplayOptimized(value),
     };
   }
 
@@ -649,13 +650,6 @@ export class SettingsController {
     ];
   }
 
-  private get numericDisplayModeOptions(): SelectOption[] {
-    return [
-      { value: "raw", label: localize("settings.numericDisplay.raw", "raw") },
-      { value: "smart", label: localize("settings.numericDisplay.smart", "smart") },
-    ];
-  }
-
   private get yScaleOptions(): SelectOption[] {
     return [
       { value: "linear", label: localize("settings.yScale.linear", "Linear") },
@@ -765,16 +759,40 @@ export class SettingsController {
     }
   }
 
-  private async setNumericDisplayMode(mode: NumericDisplayMode): Promise<void> {
-    const normalizedMode = normalizeNumericDisplayMode(mode);
-    if (normalizedMode === normalizeNumericDisplayMode(this.settings.numericDisplayMode)) {
+  private async setNumericDisplayOptimized(optimized: boolean): Promise<void> {
+    const normalizedMode = optimized ? "smart" : "raw";
+    const currentMode = this.pendingNumericDisplayMode ?? normalizeNumericDisplayMode(this.settings.numericDisplayMode);
+    if (normalizedMode === currentMode) {
       return;
     }
 
+    this.pendingNumericDisplayMode = normalizedMode;
+    this.render();
+    if (!this.numericDisplaySaving) {
+      await this.flushNumericDisplayMode();
+    }
+  }
+
+  private async flushNumericDisplayMode(): Promise<void> {
     this.numericDisplaySaving = true;
     this.render();
     try {
-      await this.service.updateSettings({ numericDisplayMode: normalizedMode });
+      while (this.pendingNumericDisplayMode !== null) {
+        const mode = this.pendingNumericDisplayMode;
+        try {
+          await this.service.updateSettings({ numericDisplayMode: mode });
+        }
+        catch {
+          if (this.pendingNumericDisplayMode === mode) {
+            this.pendingNumericDisplayMode = null;
+          }
+          break;
+        }
+        if (this.pendingNumericDisplayMode === mode) {
+          this.pendingNumericDisplayMode = null;
+        }
+        this.render();
+      }
     } finally {
       this.numericDisplaySaving = false;
       this.render();
@@ -901,19 +919,41 @@ export class SettingsController {
 
   private async setTransparentChrome(enabled: boolean): Promise<void> {
     const transparentChrome = Boolean(enabled);
-    if (this.appearanceSaving || transparentChrome === normalizeWorkbenchAppearance(this.settings).transparentChrome) {
+    const currentTransparentChrome = this.pendingTransparentChrome ?? normalizeWorkbenchAppearance(this.settings).transparentChrome;
+    if (transparentChrome === currentTransparentChrome) {
       return;
     }
 
     this.pendingTransparentChrome = transparentChrome;
-    this.appearanceSaving = true;
+    this.render();
+    if (!this.transparentChromeSaving) {
+      await this.flushTransparentChrome();
+    }
+  }
+
+  private async flushTransparentChrome(): Promise<void> {
+    this.transparentChromeSaving = true;
     this.render();
     try {
-      await this.commandService.executeCommand(ThemeCommandId.setTransparentChrome, transparentChrome);
+      while (this.pendingTransparentChrome !== null) {
+        const transparentChrome = this.pendingTransparentChrome;
+        try {
+          await this.commandService.executeCommand(ThemeCommandId.setTransparentChrome, transparentChrome);
+        }
+        catch {
+          if (this.pendingTransparentChrome === transparentChrome) {
+            this.pendingTransparentChrome = null;
+          }
+          break;
+        }
+        if (this.pendingTransparentChrome === transparentChrome) {
+          this.pendingTransparentChrome = null;
+        }
+        this.render();
+      }
     }
     finally {
-      this.appearanceSaving = false;
-      this.pendingTransparentChrome = null;
+      this.transparentChromeSaving = false;
       this.render();
     }
   }
@@ -938,26 +978,44 @@ export class SettingsController {
   }
 
   private async setFilesExplorerShowBadges(enabled: boolean): Promise<void> {
-    if (this.explorerBadgeSaving) {
-      return;
-    }
-
     const showBadges = normalizeFilesExplorerShowBadges(enabled);
-    if (showBadges === normalizeFilesExplorerShowBadges(this.settings.filesExplorerShowBadges)) {
+    const currentShowBadges = this.pendingExplorerBadgeVisibility ?? normalizeFilesExplorerShowBadges(this.settings.filesExplorerShowBadges);
+    if (showBadges === currentShowBadges) {
       return;
     }
 
     this.pendingExplorerBadgeVisibility = showBadges;
+    this.render();
+    if (!this.explorerBadgeSaving) {
+      await this.flushFilesExplorerShowBadges();
+    }
+  }
+
+  private async flushFilesExplorerShowBadges(): Promise<void> {
     this.explorerBadgeSaving = true;
     this.render();
     try {
-      await this.service.updateSettings({
-        filesExplorerShowBadges: showBadges,
-      });
+      while (this.pendingExplorerBadgeVisibility !== null) {
+        const showBadges = this.pendingExplorerBadgeVisibility;
+        try {
+          await this.service.updateSettings({
+            filesExplorerShowBadges: showBadges,
+          });
+        }
+        catch {
+          if (this.pendingExplorerBadgeVisibility === showBadges) {
+            this.pendingExplorerBadgeVisibility = null;
+          }
+          break;
+        }
+        if (this.pendingExplorerBadgeVisibility === showBadges) {
+          this.pendingExplorerBadgeVisibility = null;
+        }
+        this.render();
+      }
     }
     finally {
       this.explorerBadgeSaving = false;
-      this.pendingExplorerBadgeVisibility = null;
       this.render();
     }
   }
