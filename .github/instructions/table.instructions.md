@@ -70,6 +70,10 @@ The base table owns UI mechanics that are independent of raw-table semantics:
 - structural CSS hooks, header/body scroll synchronization, and reveal geometry;
 - fact events such as `onDidScroll` and `onDidChangeVisibleRange`.
 
+Pure grid geometry helpers live in the base `VirtualTableGridModel`. Contrib
+imports those helpers directly and must not re-export compatibility wrappers or
+add geometry, resize, label, or keyboard navigation algorithms there.
+
 Follow the upstream widget shape: feature code depends on the base
 `TableWidget` facade as the single owner surface. Do not expose or pass around a
 map of structural class names. The base table owns those hooks and feature code

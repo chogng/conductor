@@ -4,24 +4,6 @@ import {
   VirtualTableGridModel,
 } from "src/cs/base/browser/ui/table/tableWidget";
 import {
-  getTableGridColumnLabel,
-  getTableGridRowLabel,
-  getTableGridRowHeaderWidth,
-  getTableGridRowHeight,
-  getTableGridSpacerHeights,
-  getTableGridZoomScale,
-  resolveTableGridCellRange,
-  resolveTableGridColumnResizeDragGuideLeft,
-  resolveTableGridColumnResizeGuideLeft,
-  resolveTableGridColumnResizeTarget,
-  resolveTableGridColumnViewportRange,
-  resolveTableGridDisplayColumnCount,
-  resolveTableGridRange,
-  resolveTableGridKeyboardTarget,
-  resolveTableGridViewportRange,
-  resizeTableGridColumnWidth,
-} from "src/cs/workbench/contrib/table/browser/tableWidget";
-import {
   TableColumnLayout,
   toStoredTableColumnLayout,
   toTableColumnWidths,
@@ -78,7 +60,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   });
 
   test("resolves bounded render ranges", () => {
-    assert.deepEqual(resolveTableGridRange({
+    assert.deepEqual(VirtualTableGridModel.resolveRange({
       totalCount: 500,
       startIndex: 20,
       maxRenderedCount: 80,
@@ -89,7 +71,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
       renderedCount: 80,
     });
 
-    assert.deepEqual(resolveTableGridRange({
+    assert.deepEqual(VirtualTableGridModel.resolveRange({
       totalCount: 50,
       startIndex: 40,
       maxRenderedCount: 80,
@@ -102,7 +84,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   });
 
   test("normalizes empty or invalid render ranges", () => {
-    assert.deepEqual(resolveTableGridRange({
+    assert.deepEqual(VirtualTableGridModel.resolveRange({
       totalCount: -1,
       startIndex: 10,
       maxRenderedCount: 80,
@@ -113,7 +95,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
       renderedCount: 0,
     });
 
-    assert.deepEqual(resolveTableGridRange({
+    assert.deepEqual(VirtualTableGridModel.resolveRange({
       totalCount: 12,
       startIndex: 99,
       maxRenderedCount: 4,
@@ -126,7 +108,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   });
 
   test("resolves viewport ranges with overscan", () => {
-    assert.deepEqual(resolveTableGridViewportRange({
+    assert.deepEqual(VirtualTableGridModel.resolveViewportRange({
       totalCount: 1_000,
       scrollTop: 280,
       viewportHeight: 280,
@@ -142,7 +124,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   });
 
   test("clamps viewport ranges near the end", () => {
-    assert.deepEqual(resolveTableGridViewportRange({
+    assert.deepEqual(VirtualTableGridModel.resolveViewportRange({
       totalCount: 100,
       scrollTop: 2_800,
       viewportHeight: 280,
@@ -158,7 +140,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   });
 
   test("computes virtual spacer heights", () => {
-    assert.deepEqual(getTableGridSpacerHeights({
+    assert.deepEqual(VirtualTableGridModel.getSpacerHeights({
       totalCount: 100,
       startIndex: 10,
       endIndex: 20,
@@ -172,7 +154,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   test("resolves horizontal column viewport ranges", () => {
     const widths = [100, 200, 300, 100, 100];
 
-    assert.deepEqual(resolveTableGridColumnViewportRange({
+    assert.deepEqual(VirtualTableGridModel.resolveColumnViewportRange({
       totalCount: widths.length,
       scrollLeft: 250,
       viewportWidth: 250,
@@ -193,7 +175,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   });
 
   test("overscans and caps horizontal column viewport ranges", () => {
-    assert.deepEqual(resolveTableGridColumnViewportRange({
+    assert.deepEqual(VirtualTableGridModel.resolveColumnViewportRange({
       totalCount: 10,
       scrollLeft: 320,
       viewportWidth: 160,
@@ -214,7 +196,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   });
 
   test("extends narrow tables with bounded virtual display columns", () => {
-    assert.equal(resolveTableGridDisplayColumnCount({
+    assert.equal(VirtualTableGridModel.resolveDisplayColumnCount({
       totalCount: 3,
       viewportWidth: 500,
       zoomPercent: 100,
@@ -222,7 +204,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
       overscanCount: 1,
       getColumnWidth: () => 160,
     }), 5);
-    assert.equal(resolveTableGridDisplayColumnCount({
+    assert.equal(VirtualTableGridModel.resolveDisplayColumnCount({
       totalCount: 3,
       viewportWidth: 120,
       zoomPercent: 100,
@@ -230,7 +212,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
       overscanCount: 1,
       getColumnWidth: () => 160,
     }), 3);
-    assert.equal(resolveTableGridDisplayColumnCount({
+    assert.equal(VirtualTableGridModel.resolveDisplayColumnCount({
       totalCount: 20,
       viewportWidth: 4_000,
       zoomPercent: 100,
@@ -241,14 +223,14 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   });
 
   test("resolves arrow keyboard targets", () => {
-    assert.deepEqual(resolveTableGridKeyboardTarget({
+    assert.deepEqual(VirtualTableGridModel.resolveKeyboardTarget({
       rowCount: 10,
       columnCount: 5,
       currentCell: { rowIndex: 3, colIndex: 2 },
       key: "ArrowDown",
     }), { rowIndex: 4, colIndex: 2 });
 
-    assert.deepEqual(resolveTableGridKeyboardTarget({
+    assert.deepEqual(VirtualTableGridModel.resolveKeyboardTarget({
       rowCount: 10,
       columnCount: 5,
       currentCell: { rowIndex: 0, colIndex: 0 },
@@ -257,7 +239,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   });
 
   test("resolves page and edge keyboard targets", () => {
-    assert.deepEqual(resolveTableGridKeyboardTarget({
+    assert.deepEqual(VirtualTableGridModel.resolveKeyboardTarget({
       rowCount: 100,
       columnCount: 5,
       currentCell: { rowIndex: 20, colIndex: 2 },
@@ -265,14 +247,14 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
       pageRowCount: 12,
     }), { rowIndex: 32, colIndex: 2 });
 
-    assert.deepEqual(resolveTableGridKeyboardTarget({
+    assert.deepEqual(VirtualTableGridModel.resolveKeyboardTarget({
       rowCount: 100,
       columnCount: 5,
       currentCell: { rowIndex: 20, colIndex: 2 },
       key: "Home",
     }), { rowIndex: 20, colIndex: 0 });
 
-    assert.deepEqual(resolveTableGridKeyboardTarget({
+    assert.deepEqual(VirtualTableGridModel.resolveKeyboardTarget({
       rowCount: 100,
       columnCount: 5,
       currentCell: { rowIndex: 20, colIndex: 2 },
@@ -282,13 +264,13 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   });
 
   test("rejects keyboard targets for empty tables or unsupported keys", () => {
-    assert.equal(resolveTableGridKeyboardTarget({
+    assert.equal(VirtualTableGridModel.resolveKeyboardTarget({
       rowCount: 0,
       columnCount: 5,
       key: "ArrowDown",
     }), null);
 
-    assert.equal(resolveTableGridKeyboardTarget({
+    assert.equal(VirtualTableGridModel.resolveKeyboardTarget({
       rowCount: 10,
       columnCount: 5,
       key: "Escape",
@@ -296,7 +278,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   });
 
   test("resolves normalized cell ranges", () => {
-    assert.deepEqual(resolveTableGridCellRange(
+    assert.deepEqual(VirtualTableGridModel.resolveCellRange(
       { rowIndex: 5, colIndex: 4 },
       { rowIndex: 2, colIndex: 8 },
     ), {
@@ -308,25 +290,25 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   });
 
   test("labels spreadsheet rows and columns", () => {
-    assert.equal(getTableGridColumnLabel(0), "A");
-    assert.equal(getTableGridColumnLabel(25), "Z");
-    assert.equal(getTableGridColumnLabel(26), "AA");
-    assert.equal(getTableGridColumnLabel(701), "ZZ");
-    assert.equal(getTableGridRowLabel(0), "1");
-    assert.equal(getTableGridRowLabel(41), "42");
+    assert.equal(VirtualTableGridModel.getColumnLabel(0), "A");
+    assert.equal(VirtualTableGridModel.getColumnLabel(25), "Z");
+    assert.equal(VirtualTableGridModel.getColumnLabel(26), "AA");
+    assert.equal(VirtualTableGridModel.getColumnLabel(701), "ZZ");
+    assert.equal(VirtualTableGridModel.getRowLabel(0), "1");
+    assert.equal(VirtualTableGridModel.getRowLabel(41), "42");
   });
 
   test("scales grid metrics", () => {
-    assert.equal(getTableGridZoomScale(0), 1);
-    assert.equal(getTableGridZoomScale(10), 0.25);
-    assert.equal(getTableGridZoomScale(150), 1.5);
-    assert.equal(getTableGridRowHeight(150), 42);
+    assert.equal(VirtualTableGridModel.getZoomScale(0), 1);
+    assert.equal(VirtualTableGridModel.getZoomScale(10), 0.25);
+    assert.equal(VirtualTableGridModel.getZoomScale(150), 1.5);
+    assert.equal(VirtualTableGridModel.getRowHeight(150), 42);
   });
 
   test("resizes logical column widths independent of zoom", () => {
-    assert.equal(resizeTableGridColumnWidth(240, 60, 150), 280);
-    assert.equal(resizeTableGridColumnWidth(240, -1_000, 100), 0);
-    assert.equal(resizeTableGridColumnWidth(240, 1_000, 50), 640);
+    assert.equal(VirtualTableGridModel.resizeColumnWidth(240, 60, 150), 280);
+    assert.equal(VirtualTableGridModel.resizeColumnWidth(240, -1_000, 100), 0);
+    assert.equal(VirtualTableGridModel.resizeColumnWidth(240, 1_000, 50), 640);
   });
 
   test("resolves column resize targets from pointer input", () => {
@@ -337,7 +319,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
     };
     const getColumnWidth = () => 80;
 
-    assert.equal(resolveTableGridColumnResizeTarget({
+    assert.equal(VirtualTableGridModel.resolveColumnResizeTarget({
       button: 0,
       clientX: 548,
       columnRange,
@@ -346,7 +328,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
       scrollLeft: 0,
       zoomPercent: 100,
     }), 4);
-    assert.equal(resolveTableGridColumnResizeTarget({
+    assert.equal(VirtualTableGridModel.resolveColumnResizeTarget({
       button: 1,
       clientX: 548,
       columnRange,
@@ -355,7 +337,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
       scrollLeft: 0,
       zoomPercent: 100,
     }), null);
-    assert.equal(resolveTableGridColumnResizeTarget({
+    assert.equal(VirtualTableGridModel.resolveColumnResizeTarget({
       button: 0,
       clientX: 700,
       columnRange,
@@ -370,7 +352,7 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   test("prefers the later column when zero-width resize boundaries overlap", () => {
     const widths = [160, 0, 120];
 
-    assert.equal(resolveTableGridColumnResizeTarget({
+    assert.equal(VirtualTableGridModel.resolveColumnResizeTarget({
       button: 0,
       clientX: 308,
       columnRange: {
@@ -392,14 +374,14 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
       leadingWidth: 220,
     };
 
-    assert.equal(resolveTableGridColumnResizeGuideLeft({
+    assert.equal(VirtualTableGridModel.resolveColumnResizeGuideLeft({
       colIndex: 3,
       columnRange,
       getColumnWidth: colIndex => colIndex === 2 ? 100 : 80,
       scrollLeft: 30,
       zoomPercent: 100,
     }), 418);
-    assert.equal(resolveTableGridColumnResizeGuideLeft({
+    assert.equal(VirtualTableGridModel.resolveColumnResizeGuideLeft({
       colIndex: 3,
       columnRange,
       getColumnWidth: () => 100,
@@ -407,43 +389,43 @@ suite("workbench/contrib/table/browser/tableWidget grid model", () => {
       visible: false,
       zoomPercent: 100,
     }), null);
-    assert.equal(resolveTableGridColumnResizeGuideLeft({
+    assert.equal(VirtualTableGridModel.resolveColumnResizeGuideLeft({
       colIndex: 5,
       columnRange,
       getColumnWidth: () => 100,
       scrollLeft: 0,
       zoomPercent: 100,
     }), null);
-    assert.equal(resolveTableGridColumnResizeGuideLeft({
+    assert.equal(VirtualTableGridModel.resolveColumnResizeGuideLeft({
       colIndex: null,
       columnRange,
       getColumnWidth: () => 100,
       scrollLeft: 0,
       zoomPercent: 100,
     }), null);
-    assert.equal(getTableGridRowHeaderWidth(150), 72);
+    assert.equal(VirtualTableGridModel.getRowHeaderWidth(150), 72);
   });
 
   test("resolves column resize drag guide positions from the locked boundary", () => {
-    assert.equal(resolveTableGridColumnResizeDragGuideLeft({
+    assert.equal(VirtualTableGridModel.resolveColumnResizeDragGuideLeft({
       startGuideLeft: 300,
       startWidth: 160,
       width: 220,
       zoomPercent: 100,
     }), 360);
-    assert.equal(resolveTableGridColumnResizeDragGuideLeft({
+    assert.equal(VirtualTableGridModel.resolveColumnResizeDragGuideLeft({
       startGuideLeft: 300,
       startWidth: 160,
       width: 220,
       zoomPercent: 150,
     }), 390);
-    assert.equal(resolveTableGridColumnResizeDragGuideLeft({
+    assert.equal(VirtualTableGridModel.resolveColumnResizeDragGuideLeft({
       startGuideLeft: 300,
       startWidth: 160,
       width: -20,
       zoomPercent: 100,
     }), 140);
-    assert.equal(resolveTableGridColumnResizeDragGuideLeft({
+    assert.equal(VirtualTableGridModel.resolveColumnResizeDragGuideLeft({
       startGuideLeft: 300,
       startWidth: 160,
       width: 220,

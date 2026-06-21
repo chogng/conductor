@@ -228,6 +228,8 @@ export namespace VirtualTableGridModel {
 	export const DEFAULT_MAX_RENDERED_COLUMNS = 24;
 	export const DEFAULT_ROW_HEADER_WIDTH = 48;
 	export const DEFAULT_ROW_HEIGHT = 28;
+	export const DEFAULT_MIN_COLUMN_WIDTH = 0;
+	export const DEFAULT_MAX_COLUMN_WIDTH = 640;
 	export const DEFAULT_COLUMN_OVERSCAN_COLUMNS = 2;
 	export const DEFAULT_OVERSCAN_ROWS = 8;
 
@@ -508,7 +510,7 @@ export namespace VirtualTableGridModel {
 	): number => {
 		const scale = getZoomScale(zoomPercent);
 		const delta = (Number(deltaClientX) || 0) / scale;
-		return Math.max(0, Math.round((Number(startWidth) || 0) + delta));
+		return clampColumnWidth(Math.round((Number(startWidth) || 0) + delta));
 	};
 
 	export const resolveColumnResizeTarget = ({
@@ -517,28 +519,42 @@ export namespace VirtualTableGridModel {
 		columnRange,
 		containerLeft,
 		getColumnWidth,
-		hitSlop = 6,
+		hitSlop = 10,
 		scrollLeft,
 		zoomPercent,
 	}: ResolveVirtualTableColumnResizeTargetOptions): number | null => {
-		if (button !== 0) {
+		if (Math.floor(Number(button)) !== 0) {
 			return null;
 		}
-		const x = Number(clientX) - Number(containerLeft);
-		if (!Number.isFinite(x)) {
+		const safeClientX = Number(clientX);
+		const safeContainerLeft = Number(containerLeft);
+		if (!Number.isFinite(safeClientX) || !Number.isFinite(safeContainerLeft)) {
 			return null;
 		}
+		const x = safeClientX - safeContainerLeft;
 		const safeScrollLeft = Math.max(0, Number(scrollLeft) || 0);
 		const scale = getZoomScale(zoomPercent);
-		let right = columnRange.leadingWidth - safeScrollLeft;
+		const safeHitSlop = Math.max(0, Number(hitSlop) || 0);
+		let right = getRowHeaderWidth(zoomPercent) + columnRange.leadingWidth - safeScrollLeft;
+		let closestColIndex: number | null = null;
+		let closestDistance = Number.POSITIVE_INFINITY;
 		for (let offset = 0; offset < columnRange.renderedCount; offset += 1) {
 			const colIndex = columnRange.startIndex + offset;
 			right += getScaledColumnWidth(colIndex, getColumnWidth, scale);
-			if (Math.abs(x - right) <= hitSlop) {
-				return colIndex;
+			const distance = Math.abs(x - right);
+			const tied = Math.abs(distance - closestDistance) < 0.001;
+			if (
+				distance <= safeHitSlop &&
+				(
+					distance < closestDistance ||
+					(tied && (closestColIndex === null || colIndex > closestColIndex))
+				)
+			) {
+				closestColIndex = colIndex;
+				closestDistance = distance;
 			}
 		}
-		return null;
+		return closestColIndex;
 	};
 
 	export const resolveColumnResizeGuideLeft = ({
@@ -561,7 +577,7 @@ export namespace VirtualTableGridModel {
 		}
 
 		const scale = getZoomScale(zoomPercent);
-		let left = columnRange.leadingWidth - (Number(scrollLeft) || 0);
+		let left = getRowHeaderWidth(zoomPercent) + columnRange.leadingWidth - (Number(scrollLeft) || 0);
 		for (let index = columnRange.startIndex; index <= safeColIndex; index += 1) {
 			left += getScaledColumnWidth(index, getColumnWidth, scale);
 		}
@@ -585,7 +601,7 @@ export namespace VirtualTableGridModel {
 	};
 
 	export const getZoomScale = (zoomPercent: number): number =>
-		Math.max(0.1, (Number(zoomPercent) || 100) / 100);
+		Math.max(0.25, Number(zoomPercent) / 100 || 1);
 
 	export const getRowHeaderWidth = (zoomPercent: number): number =>
 		DEFAULT_ROW_HEADER_WIDTH * getZoomScale(zoomPercent);
@@ -1385,7 +1401,18 @@ const getScaledColumnWidth = (
 	getColumnWidth: (colIndex: number) => number,
 	scale: number,
 ): number =>
-	Math.max(0, getColumnWidth(colIndex) * scale);
+	clampColumnWidth(getColumnWidth(colIndex)) * scale;
+
+const clampColumnWidth = (value: unknown): number => {
+	const width = Math.round(Number(value));
+	if (!Number.isFinite(width)) {
+		return VirtualTableGridModel.DEFAULT_MIN_COLUMN_WIDTH;
+	}
+	return Math.min(
+		VirtualTableGridModel.DEFAULT_MAX_COLUMN_WIDTH,
+		Math.max(VirtualTableGridModel.DEFAULT_MIN_COLUMN_WIDTH, width),
+	);
+};
 
 const getScaledColumnWidths = (
 	count: number,

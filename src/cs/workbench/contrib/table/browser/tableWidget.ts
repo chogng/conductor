@@ -6,7 +6,14 @@ import { NullHoverDelegate, type IHoverDelegate } from "src/cs/base/browser/ui/h
 import { localize } from "src/cs/nls";
 import {
   TableWidget as BaseTableWidget,
+  VirtualTableGridModel,
 } from "src/cs/base/browser/ui/table/tableWidget";
+import type {
+  VirtualTableCellPosition,
+  VirtualTableCellRange,
+  VirtualTableColumnRange,
+  VirtualTableRange,
+} from "src/cs/base/browser/ui/table/virtualTable";
 import { createEmptyView } from "src/cs/workbench/contrib/table/browser/emptyView";
 import {
   createTableValueStepperControl,
@@ -44,671 +51,6 @@ const clampTableWidgetZoomPercent = (zoomPercent: number): number =>
     TABLE_WIDGET_MAX_ZOOM_PERCENT,
     Math.max(TABLE_WIDGET_MIN_ZOOM_PERCENT, Math.floor(Number(zoomPercent) || 0)),
   );
-
-export namespace TableGridModel {
-export type TableGridRange = {
-  readonly totalCount: number;
-  readonly startIndex: number;
-  readonly endIndex: number;
-  readonly renderedCount: number;
-};
-
-export type ResolveTableGridRangeOptions = {
-  readonly maxRenderedCount: number;
-  readonly startIndex?: number;
-  readonly totalCount: unknown;
-};
-
-export type ResolveTableGridViewportRangeOptions = {
-  readonly maxRenderedCount: number;
-  readonly overscanCount?: number;
-  readonly rowHeight: number;
-  readonly scrollTop: unknown;
-  readonly totalCount: unknown;
-  readonly viewportHeight: unknown;
-};
-
-export type TableGridColumnRange = TableGridRange & {
-  readonly leadingWidth: number;
-  readonly renderedWidth: number;
-  readonly totalWidth: number;
-  readonly trailingWidth: number;
-};
-
-export type ResolveTableGridColumnViewportRangeOptions = {
-  readonly getColumnWidth: (colIndex: number) => number;
-  readonly maxRenderedCount: number;
-  readonly overscanCount?: number;
-  readonly scrollLeft: unknown;
-  readonly totalCount: unknown;
-  readonly viewportWidth: unknown;
-  readonly zoomPercent: number;
-};
-
-export type ResolveTableGridDisplayColumnCountOptions = {
-  readonly getColumnWidth: (colIndex: number) => number;
-  readonly maxDisplayedCount?: number;
-  readonly overscanCount?: number;
-  readonly totalCount: unknown;
-  readonly viewportWidth: unknown;
-  readonly zoomPercent: number;
-};
-
-export type ResolveTableGridColumnResizeTargetOptions = {
-  readonly button: unknown;
-  readonly clientX: unknown;
-  readonly columnRange: Pick<TableGridColumnRange, "leadingWidth" | "renderedCount" | "startIndex">;
-  readonly containerLeft: unknown;
-  readonly getColumnWidth: (colIndex: number) => number;
-  readonly hitSlop?: number;
-  readonly scrollLeft: unknown;
-  readonly zoomPercent: number;
-};
-
-export type ResolveTableGridColumnResizeGuideOptions = {
-  readonly colIndex?: number | null;
-  readonly columnRange: Pick<TableGridColumnRange, "leadingWidth" | "renderedCount" | "startIndex">;
-  readonly getColumnWidth: (colIndex: number) => number;
-  readonly scrollLeft: unknown;
-  readonly visible?: boolean;
-  readonly zoomPercent: number;
-};
-
-export type ResolveTableGridColumnResizeDragGuideOptions = {
-  readonly startGuideLeft: unknown;
-  readonly startWidth: unknown;
-  readonly visible?: boolean;
-  readonly width: unknown;
-  readonly zoomPercent: number;
-};
-
-export type TableGridSpacerHeights = {
-  readonly topHeight: number;
-  readonly bottomHeight: number;
-};
-
-export type TableGridCellPosition = {
-  readonly rowIndex: number;
-  readonly colIndex: number;
-};
-
-export type ResolveTableGridKeyboardTargetOptions = {
-  readonly columnCount: unknown;
-  readonly currentCell?: TableGridCellPosition | null;
-  readonly key: string;
-  readonly pageRowCount?: number;
-  readonly rowCount: unknown;
-  readonly toBoundary?: boolean;
-};
-
-export type TableGridCellRange = {
-  readonly endCol: number;
-  readonly endRow: number;
-  readonly startCol: number;
-  readonly startRow: number;
-};
-
-export const TABLE_GRID_MAX_RENDERED_ROWS = 80;
-export const TABLE_GRID_MAX_RENDERED_COLUMNS = 24;
-export const TABLE_GRID_DEFAULT_ROW_HEADER_WIDTH = 48;
-export const TABLE_GRID_DEFAULT_ROW_HEIGHT = 28;
-export const TABLE_GRID_COLUMN_OVERSCAN_COLUMNS = 2;
-export const TABLE_GRID_OVERSCAN_ROWS = 8;
-
-export const resolveTableGridRange = ({
-  maxRenderedCount,
-  startIndex = 0,
-  totalCount,
-}: ResolveTableGridRangeOptions): TableGridRange => {
-  const safeTotalCount = toSafeCount(totalCount);
-  const safeMaxRenderedCount = toSafeCount(maxRenderedCount);
-  if (safeTotalCount === 0 || safeMaxRenderedCount === 0) {
-    return {
-      totalCount: safeTotalCount,
-      startIndex: 0,
-      endIndex: 0,
-      renderedCount: 0,
-    };
-  }
-
-  const safeStartIndex = Math.min(
-    Math.max(0, toSafeIndex(startIndex)),
-    safeTotalCount - 1,
-  );
-  const endIndex = Math.min(safeTotalCount, safeStartIndex + safeMaxRenderedCount);
-
-  return {
-    totalCount: safeTotalCount,
-    startIndex: safeStartIndex,
-    endIndex,
-    renderedCount: endIndex - safeStartIndex,
-  };
-};
-
-export const resolveTableGridViewportRange = ({
-  maxRenderedCount,
-  overscanCount = TABLE_GRID_OVERSCAN_ROWS,
-  rowHeight,
-  scrollTop,
-  totalCount,
-  viewportHeight,
-}: ResolveTableGridViewportRangeOptions): TableGridRange => {
-  const safeTotalCount = toSafeCount(totalCount);
-  const safeMaxRenderedCount = toSafeCount(maxRenderedCount);
-  if (safeTotalCount === 0 || safeMaxRenderedCount === 0) {
-    return resolveTableGridRange({
-      totalCount: safeTotalCount,
-      maxRenderedCount: safeMaxRenderedCount,
-    });
-  }
-
-  const safeRowHeight = Math.max(1, Number(rowHeight) || TABLE_GRID_DEFAULT_ROW_HEIGHT);
-  const firstVisibleIndex = Math.floor(Math.max(0, Number(scrollTop) || 0) / safeRowHeight);
-  const safeViewportHeight = Math.max(0, Number(viewportHeight) || 0);
-  if (safeViewportHeight <= 0) {
-    return resolveTableGridRange({
-      totalCount: safeTotalCount,
-      startIndex: firstVisibleIndex,
-      maxRenderedCount: safeMaxRenderedCount,
-    });
-  }
-
-  const safeOverscanCount = Math.max(0, toSafeCount(overscanCount));
-  const visibleCount = Math.max(1, Math.ceil(safeViewportHeight / safeRowHeight));
-  const renderedCount = Math.min(
-    safeMaxRenderedCount,
-    visibleCount + (safeOverscanCount * 2),
-  );
-  const startIndex = Math.max(0, firstVisibleIndex - safeOverscanCount);
-  const maxStartIndex = Math.max(0, safeTotalCount - renderedCount);
-
-  return resolveTableGridRange({
-    totalCount: safeTotalCount,
-    startIndex: Math.min(startIndex, maxStartIndex),
-    maxRenderedCount: renderedCount,
-  });
-};
-
-export const resolveTableGridColumnViewportRange = ({
-  getColumnWidth,
-  maxRenderedCount,
-  overscanCount = TABLE_GRID_COLUMN_OVERSCAN_COLUMNS,
-  scrollLeft,
-  totalCount,
-  viewportWidth,
-  zoomPercent,
-}: ResolveTableGridColumnViewportRangeOptions): TableGridColumnRange => {
-  const safeTotalCount = toSafeCount(totalCount);
-  const safeMaxRenderedCount = toSafeCount(maxRenderedCount);
-  if (safeTotalCount === 0 || safeMaxRenderedCount === 0) {
-    return toColumnRange(resolveTableGridRange({
-      totalCount: safeTotalCount,
-      maxRenderedCount: safeMaxRenderedCount,
-    }), 0, 0, 0);
-  }
-
-  const scale = getTableGridZoomScale(zoomPercent);
-  const widths = getScaledColumnWidths(safeTotalCount, getColumnWidth, scale);
-  const offsets = getPrefixSums(widths);
-  const totalWidth = offsets[offsets.length - 1] ?? 0;
-  const safeScrollLeft = Math.max(0, Number(scrollLeft) || 0);
-  const safeViewportWidth = Math.max(0, Number(viewportWidth) || 0);
-  const firstVisibleIndex = findColumnIndexAtOffset(widths, offsets, safeScrollLeft);
-  const visibleEndIndex = findColumnEndIndexAtOffset(
-    offsets,
-    safeScrollLeft + safeViewportWidth,
-  );
-  const safeOverscanCount = Math.max(0, toSafeCount(overscanCount));
-  const startIndex = Math.max(0, firstVisibleIndex - safeOverscanCount);
-  const endIndex = Math.min(
-    safeTotalCount,
-    Math.max(startIndex + 1, visibleEndIndex + safeOverscanCount),
-    startIndex + safeMaxRenderedCount,
-  );
-
-  return toColumnRange({
-    totalCount: safeTotalCount,
-    startIndex,
-    endIndex,
-    renderedCount: endIndex - startIndex,
-  }, offsets[startIndex] ?? 0, offsets[endIndex] ?? 0, totalWidth);
-};
-
-export const resolveTableGridDisplayColumnCount = ({
-  getColumnWidth,
-  maxDisplayedCount = TABLE_GRID_MAX_RENDERED_COLUMNS,
-  overscanCount = TABLE_GRID_COLUMN_OVERSCAN_COLUMNS,
-  totalCount,
-  viewportWidth,
-  zoomPercent,
-}: ResolveTableGridDisplayColumnCountOptions): number => {
-  const safeTotalCount = toSafeCount(totalCount);
-  if (safeTotalCount === 0) {
-    return 0;
-  }
-
-  const safeMaxDisplayedCount = Math.max(
-    safeTotalCount,
-    toSafeCount(maxDisplayedCount),
-  );
-  const safeViewportWidth = Math.max(0, Number(viewportWidth) || 0);
-  if (safeViewportWidth <= 0 || safeTotalCount >= safeMaxDisplayedCount) {
-    return safeTotalCount;
-  }
-
-  const scale = getTableGridZoomScale(zoomPercent);
-  let displayedCount = safeTotalCount;
-  let displayedWidth = 0;
-  for (let colIndex = 0; colIndex < safeTotalCount; colIndex += 1) {
-    displayedWidth += TableColumnLayout.clampWidth(getColumnWidth(colIndex)) * scale;
-  }
-
-  while (displayedCount < safeMaxDisplayedCount && displayedWidth < safeViewportWidth) {
-    displayedWidth += TableColumnLayout.clampWidth(getColumnWidth(displayedCount)) * scale;
-    displayedCount += 1;
-  }
-
-  const safeOverscanCount = Math.max(0, toSafeCount(overscanCount));
-  if (displayedCount > safeTotalCount) {
-    displayedCount = Math.min(
-      safeMaxDisplayedCount,
-      displayedCount + safeOverscanCount,
-    );
-  }
-
-  return displayedCount;
-};
-
-export const getTableGridSpacerHeights = (
-  range: TableGridRange,
-  rowHeight: number,
-): TableGridSpacerHeights => {
-  const safeRowHeight = Math.max(1, Number(rowHeight) || TABLE_GRID_DEFAULT_ROW_HEIGHT);
-  return {
-    topHeight: range.startIndex * safeRowHeight,
-    bottomHeight: Math.max(0, range.totalCount - range.endIndex) * safeRowHeight,
-  };
-};
-
-export const resolveTableGridKeyboardTarget = ({
-  columnCount,
-  currentCell,
-  key,
-  pageRowCount = 1,
-  rowCount,
-  toBoundary = false,
-}: ResolveTableGridKeyboardTargetOptions): TableGridCellPosition | null => {
-  const safeRowCount = toSafeCount(rowCount);
-  const safeColumnCount = toSafeCount(columnCount);
-  if (safeRowCount === 0 || safeColumnCount === 0) {
-    return null;
-  }
-
-  const current = normalizeCellPosition(currentCell, safeRowCount, safeColumnCount);
-  const maxRow = safeRowCount - 1;
-  const maxCol = safeColumnCount - 1;
-  const pageRows = Math.max(1, toSafeCount(pageRowCount));
-
-  switch (key) {
-    case "ArrowUp":
-      return {
-        rowIndex: toBoundary ? 0 : Math.max(0, current.rowIndex - 1),
-        colIndex: current.colIndex,
-      };
-    case "ArrowDown":
-      return {
-        rowIndex: toBoundary ? maxRow : Math.min(maxRow, current.rowIndex + 1),
-        colIndex: current.colIndex,
-      };
-    case "ArrowLeft":
-      return {
-        rowIndex: current.rowIndex,
-        colIndex: toBoundary ? 0 : Math.max(0, current.colIndex - 1),
-      };
-    case "ArrowRight":
-      return {
-        rowIndex: current.rowIndex,
-        colIndex: toBoundary ? maxCol : Math.min(maxCol, current.colIndex + 1),
-      };
-    case "PageUp":
-      return {
-        rowIndex: Math.max(0, current.rowIndex - pageRows),
-        colIndex: current.colIndex,
-      };
-    case "PageDown":
-      return {
-        rowIndex: Math.min(maxRow, current.rowIndex + pageRows),
-        colIndex: current.colIndex,
-      };
-    case "Home":
-      return {
-        rowIndex: toBoundary ? 0 : current.rowIndex,
-        colIndex: 0,
-      };
-    case "End":
-      return {
-        rowIndex: toBoundary ? maxRow : current.rowIndex,
-        colIndex: maxCol,
-      };
-  }
-
-  return null;
-};
-
-export const resolveTableGridCellRange = (
-  anchor: TableGridCellPosition,
-  target: TableGridCellPosition,
-): TableGridCellRange => {
-  const anchorRow = Math.max(0, toSafeIndex(anchor?.rowIndex));
-  const anchorCol = Math.max(0, toSafeIndex(anchor?.colIndex));
-  const targetRow = Math.max(0, toSafeIndex(target?.rowIndex));
-  const targetCol = Math.max(0, toSafeIndex(target?.colIndex));
-
-  return {
-    endCol: Math.max(anchorCol, targetCol),
-    endRow: Math.max(anchorRow, targetRow),
-    startCol: Math.min(anchorCol, targetCol),
-    startRow: Math.min(anchorRow, targetRow),
-  };
-};
-
-export const getTableGridColumnLabel = (index: number): string => {
-  let value = Math.max(0, toSafeIndex(index)) + 1;
-  let label = "";
-  while (value > 0) {
-    const remainder = (value - 1) % 26;
-    label = String.fromCharCode(65 + remainder) + label;
-    value = Math.floor((value - 1) / 26);
-  }
-  return label;
-};
-
-export const getTableGridRowLabel = (rowIndex: number): string =>
-  String(Math.max(0, toSafeIndex(rowIndex)) + 1);
-
-export const formatTableGridCell = (value: unknown): string => {
-  if (value === null || value === undefined) {
-    return "";
-  }
-  return String(value);
-};
-
-export const range = (count: number): number[] => {
-  const safeCount = toSafeCount(count);
-  const result: number[] = [];
-  for (let index = 0; index < safeCount; index += 1) {
-    result.push(index);
-  }
-  return result;
-};
-
-export const resizeTableGridColumnWidth = (
-  startWidth: number,
-  deltaPixels: number,
-  zoomPercent: number,
-): number =>
-  TableColumnLayout.clampWidth(
-    startWidth + (deltaPixels / getTableGridZoomScale(zoomPercent)),
-  );
-
-export const resolveTableGridColumnResizeTarget = ({
-  button,
-  clientX,
-  columnRange,
-  containerLeft,
-  getColumnWidth,
-  hitSlop = 10,
-  scrollLeft,
-  zoomPercent,
-}: ResolveTableGridColumnResizeTargetOptions): number | null => {
-  if (Math.floor(Number(button)) !== 0) {
-    return null;
-  }
-
-  const startIndex = toSafeIndex(columnRange.startIndex);
-  const renderedCount = toSafeCount(columnRange.renderedCount);
-  const safeClientX = Number(clientX);
-  const safeContainerLeft = Number(containerLeft);
-  if (startIndex < 0 ||
-    renderedCount === 0 ||
-    !Number.isFinite(safeClientX) ||
-    !Number.isFinite(safeContainerLeft)) {
-    return null;
-  }
-
-  const pointerLeft = safeClientX - safeContainerLeft;
-  const safeHitSlop = Math.max(0, Number(hitSlop) || 0);
-  let closestColIndex: number | null = null;
-  let closestDistance = Number.POSITIVE_INFINITY;
-  for (let colIndex = startIndex; colIndex < startIndex + renderedCount; colIndex += 1) {
-    const boundaryLeft = resolveTableGridColumnBoundaryLeft({
-      colIndex,
-      columnRange,
-      getColumnWidth,
-      scrollLeft,
-      zoomPercent,
-    });
-    if (boundaryLeft === null) {
-      continue;
-    }
-
-    const distance = Math.abs(pointerLeft - boundaryLeft);
-    const tied = Math.abs(distance - closestDistance) < 0.001;
-    if (
-      distance <= safeHitSlop &&
-      (
-        distance < closestDistance ||
-        (tied && (closestColIndex === null || colIndex > closestColIndex))
-      )
-    ) {
-      closestColIndex = colIndex;
-      closestDistance = distance;
-    }
-  }
-
-  return closestColIndex;
-};
-
-export const resolveTableGridColumnResizeGuideLeft = ({
-  colIndex,
-  columnRange,
-  getColumnWidth,
-  scrollLeft,
-  visible = true,
-  zoomPercent,
-}: ResolveTableGridColumnResizeGuideOptions): number | null => {
-  if (!visible) {
-    return null;
-  }
-
-  return resolveTableGridColumnBoundaryLeft({
-    colIndex,
-    columnRange,
-    getColumnWidth,
-    scrollLeft,
-    zoomPercent,
-  });
-};
-
-export const resolveTableGridColumnResizeDragGuideLeft = ({
-  startGuideLeft,
-  startWidth,
-  visible = true,
-  width,
-  zoomPercent,
-}: ResolveTableGridColumnResizeDragGuideOptions): number | null => {
-  if (!visible) {
-    return null;
-  }
-
-  const safeStartGuideLeft = Number(startGuideLeft);
-  if (!Number.isFinite(safeStartGuideLeft)) {
-    return null;
-  }
-
-  const scale = getTableGridZoomScale(zoomPercent);
-  const clampedStartWidth = TableColumnLayout.clampWidth(Number(startWidth));
-  const clampedWidth = TableColumnLayout.clampWidth(Number(width));
-  return safeStartGuideLeft + ((clampedWidth - clampedStartWidth) * scale);
-};
-
-const resolveTableGridColumnBoundaryLeft = ({
-  colIndex,
-  columnRange,
-  getColumnWidth,
-  scrollLeft,
-  zoomPercent,
-}: Omit<ResolveTableGridColumnResizeGuideOptions, "visible">): number | null => {
-  if (colIndex === null || colIndex === undefined) {
-    return null;
-  }
-
-  const safeColIndex = toSafeIndex(colIndex);
-  const startIndex = toSafeIndex(columnRange.startIndex);
-  const renderedCount = toSafeCount(columnRange.renderedCount);
-  if (
-    startIndex < 0 ||
-    safeColIndex < startIndex ||
-    renderedCount === 0 ||
-    safeColIndex >= startIndex + renderedCount
-  ) {
-    return null;
-  }
-
-  const scale = getTableGridZoomScale(zoomPercent);
-  let boundaryOffset = Math.max(0, Number(columnRange.leadingWidth) || 0);
-  for (let index = startIndex; index <= safeColIndex; index += 1) {
-    boundaryOffset += TableColumnLayout.clampWidth(getColumnWidth(index)) * scale;
-  }
-
-  return getTableGridRowHeaderWidth(zoomPercent) +
-    boundaryOffset -
-    Math.max(0, Number(scrollLeft) || 0);
-};
-
-export const getTableGridZoomScale = (zoomPercent: number): number =>
-  Math.max(0.25, Number(zoomPercent) / 100 || 1);
-
-export const getTableGridRowHeaderWidth = (zoomPercent: number): number =>
-  TABLE_GRID_DEFAULT_ROW_HEADER_WIDTH * getTableGridZoomScale(zoomPercent);
-
-export const getTableGridRowHeight = (zoomPercent: number): number =>
-  TABLE_GRID_DEFAULT_ROW_HEIGHT * getTableGridZoomScale(zoomPercent);
-
-const toSafeCount = (value: unknown): number => {
-  const count = Math.floor(Number(value));
-  return Number.isInteger(count) && count > 0 ? count : 0;
-};
-
-const toSafeIndex = (value: unknown): number => {
-  const index = Math.floor(Number(value));
-  return Number.isInteger(index) && index >= 0 ? index : -1;
-};
-
-const normalizeCellPosition = (
-  cell: TableGridCellPosition | null | undefined,
-  rowCount: number,
-  columnCount: number,
-): TableGridCellPosition => ({
-  rowIndex: Math.min(Math.max(0, toSafeIndex(cell?.rowIndex)), rowCount - 1),
-  colIndex: Math.min(Math.max(0, toSafeIndex(cell?.colIndex)), columnCount - 1),
-});
-
-const getScaledColumnWidths = (
-  columnCount: number,
-  getColumnWidth: (colIndex: number) => number,
-  scale: number,
-): number[] => {
-  const widths: number[] = [];
-  for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
-    widths.push(TableColumnLayout.clampWidth(getColumnWidth(colIndex)) * scale);
-  }
-  return widths;
-};
-
-const getPrefixSums = (values: readonly number[]): number[] => {
-  const offsets = [0];
-  for (const value of values) {
-    offsets.push((offsets[offsets.length - 1] ?? 0) + value);
-  }
-  return offsets;
-};
-
-const findColumnIndexAtOffset = (
-  widths: readonly number[],
-  offsets: readonly number[],
-  offset: number,
-): number => {
-  if (widths.length === 0) {
-    return 0;
-  }
-
-  for (let index = 0; index < widths.length; index += 1) {
-    if ((offsets[index] ?? 0) + widths[index] > offset) {
-      return index;
-    }
-  }
-
-  return widths.length - 1;
-};
-
-const findColumnEndIndexAtOffset = (
-  offsets: readonly number[],
-  offset: number,
-): number => {
-  for (let index = 1; index < offsets.length; index += 1) {
-    if ((offsets[index] ?? 0) >= offset) {
-      return index;
-    }
-  }
-
-  return Math.max(0, offsets.length - 1);
-};
-
-const toColumnRange = (
-  range: TableGridRange,
-  leadingWidth: number,
-  renderedEndWidth: number,
-  totalWidth: number,
-): TableGridColumnRange => ({
-  ...range,
-  leadingWidth,
-  renderedWidth: Math.max(0, renderedEndWidth - leadingWidth),
-  totalWidth,
-  trailingWidth: Math.max(0, totalWidth - renderedEndWidth),
-});
-
-}
-
-export const TABLE_GRID_MAX_RENDERED_ROWS = TableGridModel.TABLE_GRID_MAX_RENDERED_ROWS;
-export const TABLE_GRID_MAX_RENDERED_COLUMNS = TableGridModel.TABLE_GRID_MAX_RENDERED_COLUMNS;
-export const TABLE_GRID_DEFAULT_ROW_HEADER_WIDTH =
-  TableGridModel.TABLE_GRID_DEFAULT_ROW_HEADER_WIDTH;
-export const TABLE_GRID_DEFAULT_ROW_HEIGHT = TableGridModel.TABLE_GRID_DEFAULT_ROW_HEIGHT;
-export const TABLE_GRID_COLUMN_OVERSCAN_COLUMNS = TableGridModel.TABLE_GRID_COLUMN_OVERSCAN_COLUMNS;
-export const TABLE_GRID_OVERSCAN_ROWS = TableGridModel.TABLE_GRID_OVERSCAN_ROWS;
-export const resolveTableGridRange = TableGridModel.resolveTableGridRange;
-export const resolveTableGridViewportRange = TableGridModel.resolveTableGridViewportRange;
-export const resolveTableGridColumnViewportRange =
-  TableGridModel.resolveTableGridColumnViewportRange;
-export const resolveTableGridDisplayColumnCount =
-  TableGridModel.resolveTableGridDisplayColumnCount;
-export const getTableGridSpacerHeights = TableGridModel.getTableGridSpacerHeights;
-export const resolveTableGridKeyboardTarget = TableGridModel.resolveTableGridKeyboardTarget;
-export const resolveTableGridCellRange = TableGridModel.resolveTableGridCellRange;
-export const getTableGridColumnLabel = TableGridModel.getTableGridColumnLabel;
-export const getTableGridRowLabel = TableGridModel.getTableGridRowLabel;
-export const formatTableGridCell = TableGridModel.formatTableGridCell;
-export const range = TableGridModel.range;
-export const resizeTableGridColumnWidth = TableGridModel.resizeTableGridColumnWidth;
-export const resolveTableGridColumnResizeTarget = TableGridModel.resolveTableGridColumnResizeTarget;
-export const resolveTableGridColumnResizeGuideLeft =
-  TableGridModel.resolveTableGridColumnResizeGuideLeft;
-export const resolveTableGridColumnResizeDragGuideLeft =
-  TableGridModel.resolveTableGridColumnResizeDragGuideLeft;
-export const getTableGridZoomScale = TableGridModel.getTableGridZoomScale;
-export const getTableGridRowHeaderWidth = TableGridModel.getTableGridRowHeaderWidth;
-export const getTableGridRowHeight = TableGridModel.getTableGridRowHeight;
 
 export type TableWidgetModel = Pick<
   TableModel,
@@ -777,7 +119,7 @@ type AppliedCellState = {
   readonly activeCell: ActiveCell | null;
   readonly highlightedColumns: Set<number>;
   readonly selectedColumns: Set<number>;
-  readonly selectedRanges: readonly TableGridModel.TableGridCellRange[];
+  readonly selectedRanges: readonly VirtualTableCellRange[];
 };
 
 type SelectionFrameEdges = {
@@ -835,8 +177,8 @@ export class TableWidget {
   private bodyRangeSelectionState: BodyRangeSelectionState | null = null;
   private suppressNextBodyClick = false;
   private bodyClickSuppressionTimeout: number | null = null;
-  private rangeAnchorCell: TableGridModel.TableGridCellPosition | null = null;
-  private rangeFocusCell: TableGridModel.TableGridCellPosition | null = null;
+  private rangeAnchorCell: VirtualTableCellPosition | null = null;
+  private rangeFocusCell: VirtualTableCellPosition | null = null;
   private zoomPercent = TABLE_WIDGET_DEFAULT_ZOOM_PERCENT;
   private props: TableWidgetProps;
 
@@ -854,7 +196,7 @@ export class TableWidget {
         renderRowHeader: (cell, descriptor) => {
           const label = cell.firstElementChild;
           if (label) {
-            label.textContent = TableGridModel.getTableGridRowLabel(descriptor.rowIndex);
+            label.textContent = VirtualTableGridModel.getRowLabel(descriptor.rowIndex);
           }
         },
       },
@@ -1288,7 +630,7 @@ export class TableWidget {
       this.renderedZoomPercent = zoomPercent;
       this.grid.setBodyStyleProperty(
         "--table-view-zoom",
-        String(TableGridModel.getTableGridZoomScale(zoomPercent)),
+        String(VirtualTableGridModel.getZoomScale(zoomPercent)),
       );
     }
 
@@ -1322,7 +664,7 @@ export class TableWidget {
   private ensureRows(
     tableModel: TableWidgetModel,
     sourceKey: string,
-    rowRange: TableGridModel.TableGridRange,
+    rowRange: VirtualTableRange,
   ): void {
     const requestKey = `${sourceKey}\u001f${rowRange.startIndex}\u001f${rowRange.endIndex}`;
     if (this.pendingEnsureRowsKey === requestKey) {
@@ -1365,7 +707,7 @@ export class TableWidget {
       this.headerColumnScaleControls.set(cell, scaleControl);
     }
 
-    const columnLabel = TableGridModel.getTableGridColumnLabel(colIndex);
+    const columnLabel = VirtualTableGridModel.getColumnLabel(colIndex);
     const profile = tableModel.getColumnDisplayProfile(colIndex);
     const colIndexValue = String(colIndex);
     button.dataset.colIndex = colIndexValue;
@@ -1488,7 +830,7 @@ export class TableWidget {
     return this.grid.rerenderDirtyBodyCells(event.ranges, this.getRowsRenderVersion());
   }
 
-  private getBodyRowRange(): TableGridModel.TableGridRange {
+  private getBodyRowRange(): VirtualTableRange {
     return {
       totalCount: this.bodyTotalRowCount,
       startIndex: this.bodyStartRowIndex,
@@ -1497,7 +839,7 @@ export class TableWidget {
     };
   }
 
-  private getBodyColumnRange(): TableGridModel.TableGridColumnRange {
+  private getBodyColumnRange(): VirtualTableColumnRange {
     const columnRange = this.grid.getState().columnRange;
     return {
       totalCount: columnRange.totalCount,
@@ -1593,7 +935,7 @@ export class TableWidget {
     };
 
     if (!previous) {
-      this.syncHeaderColumns(TableGridModel.range(columnCount), next);
+      this.syncHeaderColumns(VirtualTableGridModel.range(columnCount), next);
       for (let rowOffset = 0; rowOffset < rowCount; rowOffset += 1) {
         const rowIndex = this.bodyStartRowIndex + rowOffset;
         for (let columnOffset = 0; columnOffset < columnCount; columnOffset += 1) {
@@ -1616,7 +958,7 @@ export class TableWidget {
 
     const rangesChanged = !areCellRangesEqual(previous.selectedRanges, next.selectedRanges);
     const changedColumns = rangesChanged
-      ? TableGridModel.range(columnCount).map(columnOffset => startColumnIndex + columnOffset)
+      ? VirtualTableGridModel.range(columnCount).map(columnOffset => startColumnIndex + columnOffset)
       : getChangedColumns(previous, next, startColumnIndex, columnCount);
     this.syncHeaderColumns(changedColumns.map(colIndex => colIndex - startColumnIndex), next);
 
@@ -1853,7 +1195,7 @@ export class TableWidget {
   }
 
   private onColumnResizeStart(event: PointerEvent): void {
-    const colIndex = TableGridModel.resolveTableGridColumnResizeTarget({
+    const colIndex = VirtualTableGridModel.resolveColumnResizeTarget({
       button: event.button,
       clientX: event.clientX,
       columnRange: this.getBodyColumnRange(),
@@ -1867,7 +1209,7 @@ export class TableWidget {
     }
 
     const startGuideLeft = this.getColumnResizeBoundaryLeft(colIndex) ??
-      TableGridModel.resolveTableGridColumnResizeGuideLeft({
+      VirtualTableGridModel.resolveColumnResizeGuideLeft({
         colIndex,
         columnRange: this.getBodyColumnRange(),
         getColumnWidth: index => this.getColumnWidth(index),
@@ -1916,12 +1258,12 @@ export class TableWidget {
     }
 
     event.preventDefault();
-    const width = TableGridModel.resizeTableGridColumnWidth(
+    const width = VirtualTableGridModel.resizeColumnWidth(
       state.startWidth,
       event.clientX - state.startClientX,
       this.zoomPercent,
     );
-    const guideLeft = TableGridModel.resolveTableGridColumnResizeDragGuideLeft({
+    const guideLeft = VirtualTableGridModel.resolveColumnResizeDragGuideLeft({
       startGuideLeft: state.startGuideLeft,
       startWidth: state.startWidth,
       visible: this.grid.isHeaderVisible(),
@@ -1990,7 +1332,7 @@ export class TableWidget {
       return;
     }
 
-    const target = TableGridModel.resolveTableGridKeyboardTarget({
+    const target = VirtualTableGridModel.resolveKeyboardTarget({
       key: event.key,
       currentCell: event.shiftKey
         ? this.getRangeFocusCell()
@@ -2119,7 +1461,7 @@ export class TableWidget {
     event.stopPropagation();
   }
 
-  private getNavigationCell(): TableGridModel.TableGridCellPosition | null {
+  private getNavigationCell(): VirtualTableCellPosition | null {
     const tableFile = this.props.tableState.file;
     if (!tableFile) {
       return null;
@@ -2145,12 +1487,12 @@ export class TableWidget {
     };
   }
 
-  private getRangeFocusCell(): TableGridModel.TableGridCellPosition | null {
+  private getRangeFocusCell(): VirtualTableCellPosition | null {
     return this.rangeFocusCell ?? this.getNavigationCell();
   }
 
   private selectRangeToCell(
-    target: TableGridModel.TableGridCellPosition,
+    target: VirtualTableCellPosition,
     reveal: boolean,
   ): boolean {
     const tableFile = this.props.tableState.file;
@@ -2159,7 +1501,7 @@ export class TableWidget {
     }
 
     const anchor = this.rangeAnchorCell ?? this.getNavigationCell() ?? target;
-    const range = TableGridModel.resolveTableGridCellRange(anchor, target);
+    const range = VirtualTableGridModel.resolveCellRange(anchor, target);
     const didSelect = this.select({
       kind: "range",
       range: {
@@ -2182,7 +1524,7 @@ export class TableWidget {
       1,
       Math.floor(
         this.grid.getViewportClientHeight() /
-          TableGridModel.getTableGridRowHeight(this.zoomPercent),
+          VirtualTableGridModel.getRowHeight(this.zoomPercent),
       ),
     );
   }
@@ -2305,7 +1647,7 @@ export class TableWidget {
     this.bodyRangeSelectionStore.clear();
   }
 
-  private selectBodyAnchorCell(target: TableGridModel.TableGridCellPosition): boolean {
+  private selectBodyAnchorCell(target: VirtualTableCellPosition): boolean {
     const tableFile = this.props.tableState.file;
     const didSelect = this.select({
       kind: "cell",
@@ -2327,7 +1669,7 @@ export class TableWidget {
 
   private getBodyCellPositionFromEvent(
     event: Pick<PointerEvent | MouseEvent, "clientX" | "clientY" | "target">,
-  ): TableGridModel.TableGridCellPosition | null {
+  ): VirtualTableCellPosition | null {
     return this.getBodyCellPositionFromTarget(event.target) ??
       this.getBodyCellPositionFromPoint(event.clientX, event.clientY);
   }
@@ -2335,7 +1677,7 @@ export class TableWidget {
   private getBodyCellPositionFromPoint(
     clientX: number,
     clientY: number,
-  ): TableGridModel.TableGridCellPosition | null {
+  ): VirtualTableCellPosition | null {
     if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
       return null;
     }
@@ -2346,7 +1688,7 @@ export class TableWidget {
 
   private getBodyCellPositionFromTarget(
     target: EventTarget | null,
-  ): TableGridModel.TableGridCellPosition | null {
+  ): VirtualTableCellPosition | null {
     if (!(target instanceof HTMLElement)) {
       return null;
     }
@@ -2597,8 +1939,8 @@ const toVisibleRanges = (
   rowCount: number,
   startColumnIndex: number,
   columnCount: number,
-): readonly TableGridModel.TableGridCellRange[] => {
-  const visibleRanges: TableGridModel.TableGridCellRange[] = [];
+): readonly VirtualTableCellRange[] => {
+  const visibleRanges: VirtualTableCellRange[] = [];
   const endRowIndex = startRowIndex + rowCount - 1;
   const endColumnIndex = startColumnIndex + columnCount - 1;
 
@@ -2638,7 +1980,7 @@ const isSelectedCell = (
 const getSelectionFrame = (
   rowIndex: number,
   colIndex: number,
-  ranges: readonly TableGridModel.TableGridCellRange[],
+  ranges: readonly VirtualTableCellRange[],
 ): SelectionFrameEdges => {
   let top = false;
   let right = false;
@@ -2715,8 +2057,8 @@ const areActiveCellsEqual = (
 };
 
 const areCellRangesEqual = (
-  first: readonly TableGridModel.TableGridCellRange[],
-  second: readonly TableGridModel.TableGridCellRange[],
+  first: readonly VirtualTableCellRange[],
+  second: readonly VirtualTableCellRange[],
 ): boolean => {
   if (first.length !== second.length) {
     return false;
