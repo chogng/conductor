@@ -34,7 +34,7 @@ at the type name.
 | `RawTableRecord` | `ISessionService` | `fileConverter.ts` | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
 | `RawTableSourceRecord` | converter/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
 | `RawTableRowsRecord` | converter/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
-| `RawTableAssessmentRecord` | Assessment + Session | `IAssessmentService` | Tied to raw table version; stores groups, blocks, diagnostics. |
+| `RawTableAssessmentRecord` | Assessment + Session | `IAssessmentService` | Tied to raw table version and assessment rule version; stores groups, blocks, diagnostics. |
 | `MeasurementGroupRecord` | Assessment + Session | assessment | Group/device labels and ordered block ids. |
 | `MeasurementBlockRecord` | Assessment + Session | assessment | Measurement family/mode/source ranges/column roles. |
 | `SeriesRecord` | Template/calculation + Session | template or curve commit | Series metadata and raw/block provenance. |

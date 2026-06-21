@@ -2,10 +2,11 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type {
-	AssessRawTableInput,
-	ImportFileAssessment,
-	RawTableAssessmentRecord,
+import {
+	ASSESSMENT_RULE_VERSION,
+	type AssessRawTableInput,
+	type ImportFileAssessment,
+	type RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import type { AssessmentDiagnostic } from "src/cs/workbench/services/assessment/common/diagnostics";
 import type {
@@ -42,6 +43,7 @@ export const createRawTableAssessmentRecordFromImportAssessment = (
 	}));
 
 	return {
+		assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
 		fileId: input.fileId,
 		rawTableId: input.rawTableId,
 		sourceRawTableVersion: input.sourceRawTableVersion,

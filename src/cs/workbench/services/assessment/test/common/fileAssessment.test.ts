@@ -283,6 +283,36 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
     assert.match(result.reasons.join(" "), /capacitance-voltage/i);
   });
 
+  test("does not treat a CSV extension as capacitance evidence", () => {
+    const result = assessFile({
+      fileName: "3_1.csv",
+      metadata: extractFileMetadata([
+        ["CH1 Voltage", "CH1 Current", "CH1 Resistance"],
+        ["-3.00000E+000", "-3.70327E-009", "810.09486E+006"],
+      ]),
+    });
+
+    assert.equal(result.curveType, "unknown");
+    assert.equal(result.xAxisRole, null);
+    assert.equal(result.confidence, "low");
+    assert.equal(result.needsTemplate, true);
+  });
+
+  test("keeps explicit Cs-voltage headers classified as cv", () => {
+    const result = assessFile({
+      fileName: "sample.csv",
+      metadata: extractFileMetadata([
+        ["Voltage", "Cs"],
+        ["0", "1e-12"],
+      ]),
+    });
+
+    assert.equal(result.curveType, "cv");
+    assert.equal(result.xAxisRole, null);
+    assert.equal(result.confidence, "medium");
+    assert.equal(result.needsTemplate, false);
+  });
+
   test("classifies Cp-freq files as cf without needing a template", () => {
     const result = assessFile({
       fileName: "#CF-10um-10_2026-01-09-11-09-36.xls",

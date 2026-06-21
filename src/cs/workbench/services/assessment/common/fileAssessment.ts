@@ -529,6 +529,72 @@ const normalizeCompactText = (value: unknown): string =>
     .toLowerCase()
     .replace(/[\s_\-./()[\]{}:=]+/g, "");
 
+const getSemanticTokens = (value: unknown): string[] =>
+  normalizeCellText(value)
+    .toLowerCase()
+    .split(/[^a-z0-9]+/g)
+    .filter(Boolean);
+
+const hasSemanticToken = (value: unknown, token: string): boolean =>
+  getSemanticTokens(value).includes(token);
+
+const hasSeparatedCurveCode = (
+  value: unknown,
+  code: "cf" | "cv" | "pv",
+): boolean => {
+  const text = normalizeCellText(value).toLowerCase();
+  if (!text) return false;
+
+  const pattern = new RegExp(
+    `(^|[^a-z0-9])${code[0]}[\\s_\\-./]*${code[1]}([^a-z0-9]|$)`,
+    "i",
+  );
+  return pattern.test(text);
+};
+
+const hasCvHint = (value: unknown): boolean => {
+  const compact = normalizeCompactText(value);
+  return hasSeparatedCurveCode(value, "cv") || compact.includes("capacitancevoltage");
+};
+
+const hasCfHint = (value: unknown): boolean => {
+  const compact = normalizeCompactText(value);
+  return hasSeparatedCurveCode(value, "cf") || compact.includes("capacitancefrequency");
+};
+
+const hasPvHint = (value: unknown): boolean => {
+  const compact = normalizeCompactText(value);
+  return hasSeparatedCurveCode(value, "pv") || compact.includes("pulsevoltage");
+};
+
+const hasCapacitanceHint = (value: unknown): boolean => {
+  const compact = normalizeCompactText(value);
+  if (!compact) return false;
+  if (compact.includes("capacitance")) return true;
+  return (
+    hasSemanticToken(value, "cp") ||
+    hasSemanticToken(value, "cs") ||
+    hasSemanticToken(value, "cap") ||
+    (hasSemanticToken(value, "c") && (hasCvHint(value) || hasCfHint(value)))
+  );
+};
+
+const hasFrequencyHint = (value: unknown): boolean => {
+  const compact = normalizeCompactText(value);
+  return hasCfHint(value) ||
+    compact.includes("freq") ||
+    compact.includes("frequency") ||
+    compact.includes("hz");
+};
+
+const hasVoltageHint = (value: unknown): boolean => {
+  const compact = normalizeCompactText(value);
+  return hasCvHint(value) ||
+    hasSemanticToken(value, "vp") ||
+    compact.includes("voltage") ||
+    compact.includes("bias");
+};
+
 export const assessFastImportBadge = ({
   fileName,
   relativePath,
@@ -632,22 +698,19 @@ const detectNonIvCurveKind = (
 
   const compact = normalizeCompactText(text);
   if (
-    /\bcf\b/.test(text) ||
-    compact.includes("capacitancefrequency") ||
-    text.includes("frequency")
+    hasCfHint(text) ||
+    compact.includes("frequency")
   ) {
     return "cf";
   }
   if (
-    /\bcv\b/.test(text) ||
-    compact.includes("capacitancevoltage") ||
+    hasCvHint(text) ||
     text.includes("capacitance")
   ) {
     return "cv";
   }
   if (
-    /\bpv\b/.test(text) ||
-    compact.includes("pulsevoltage") ||
+    hasPvHint(text) ||
     text.includes("pulse")
   ) {
     return "pv";
@@ -677,22 +740,15 @@ const detectCapacitanceCurveKind = ({
   ];
   const labelTexts = [templateXAxisLabel, xAxisLabel];
   const fileNameCompact = normalizeCompactText(fileName);
-  const metadataCompact = metadataLikeTexts.map((value) => normalizeCompactText(value));
-  const labelCompact = labelTexts.map((value) => normalizeCompactText(value));
-  const allCompact = [fileNameCompact, ...metadataCompact, ...labelCompact].filter(Boolean);
   const hasFileNameCvHint =
-    fileNameCompact.includes("cv") && !fileNameCompact.includes("svc");
-  const hasFileNameCfHint =
-    fileNameCompact.includes("cf") ||
-    fileNameCompact.includes("freq");
+    hasCvHint(fileName) && !fileNameCompact.includes("svc");
+  const hasFileNameCfHint = hasFrequencyHint(fileName);
 
-  const hasCapacitanceY = allCompact.some(
-    (value) =>
-      value.includes("cp") ||
-      value.includes("cs") ||
-      value.includes("cap") ||
-      value.includes("capacit"),
-  );
+  const hasCapacitanceY = [
+    fileName,
+    ...metadataLikeTexts,
+    ...labelTexts,
+  ].some(hasCapacitanceHint);
   if (!hasCapacitanceY && !hasFileNameCvHint && !hasFileNameCfHint) return null;
 
   if (hasFileNameCvHint) {
@@ -704,35 +760,26 @@ const detectCapacitanceCurveKind = ({
     };
   }
 
-  const hasFreqHint = allCompact.some(
-    (value) =>
-      value.includes("freq") ||
-      value.includes("frequency") ||
-      value.includes("hz") ||
-      /(^|[^a-z0-9])cf([^a-z0-9]|$)/.test(value),
-  );
-  if (hasFreqHint || hasFileNameCfHint) {
+  const metadataHasFrequency = metadataLikeTexts.some(hasFrequencyHint);
+  const labelHasFrequency = labelTexts.some(hasFrequencyHint);
+  if (metadataHasFrequency || labelHasFrequency || hasFileNameCfHint) {
     return {
       confidence: "medium",
       curveType: "cf",
       reason: "Filename/labels identify a capacitance-frequency sweep (Cp/C-f).",
-      source: hasFileNameCfHint ? "filename" : "label",
+      source: hasFileNameCfHint ? "filename" : metadataHasFrequency ? "metadata" : "label",
     };
   }
 
-  const hasVoltageHint = allCompact.some(
-    (value) =>
-      value.includes("cv") ||
-      value.includes("vp") ||
-      value.includes("voltage") ||
-      value.includes("bias"),
-  );
-  if (hasVoltageHint) {
+  const metadataHasVoltage = metadataLikeTexts.some(hasVoltageHint);
+  const labelHasVoltage = labelTexts.some(hasVoltageHint);
+  const fileNameHasVoltage = hasCapacitanceHint(fileName) && hasVoltageHint(fileName);
+  if (metadataHasVoltage || labelHasVoltage || fileNameHasVoltage) {
     return {
       confidence: "medium",
       curveType: "cv",
       reason: "Filename/labels identify a capacitance-voltage sweep (Cp/C-V).",
-      source: "label",
+      source: metadataHasVoltage ? "metadata" : labelHasVoltage ? "label" : "filename",
     };
   }
 

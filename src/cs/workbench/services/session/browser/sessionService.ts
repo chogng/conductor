@@ -755,6 +755,7 @@ const createImportRawTableAssessmentRecords = (
     }
 
     records.push({
+      assessmentRuleVersion: normalizeAssessmentRuleVersion(assessment.assessmentRuleVersion) ?? 0,
       blocks: assessment.blocks,
       createdAt: assessment.createdAt,
       diagnostics: assessment.diagnostics,
@@ -810,6 +811,7 @@ const commitRawTableAssessmentsToFiles = (
     const committedBlockIds = getUniqueIds(committedBlocks.map(block => block.id));
     const committedAssessment: RawTableAssessmentRecord = {
       ...assessment,
+      assessmentRuleVersion: normalizeAssessmentRuleVersion(assessment.assessmentRuleVersion) ?? 0,
       fileId,
       rawTableId,
       blocks: committedBlocks,
@@ -1479,6 +1481,11 @@ const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
 const normalizeId = (value: unknown): string => String(value ?? "").trim();
+
+const normalizeAssessmentRuleVersion = (value: unknown): number | undefined => {
+  const version = Math.floor(Number(value));
+  return Number.isFinite(version) && version > 0 ? version : undefined;
+};
 
 const normalizeOptionalText = (value: unknown): string | undefined => {
   const text = String(value ?? "").trim();

@@ -519,19 +519,87 @@ fn has_fast_iv_or_ivt_hint(value: &str) -> bool {
             .any(|token| token == "ivt")
 }
 
+fn is_curve_code_separator(ch: char) -> bool {
+    ch.is_ascii_whitespace()
+        || matches!(
+            ch,
+            '_' | '-' | '.' | '/' | '(' | ')' | '[' | ']' | '{' | '}' | ':' | '='
+        )
+}
+
+fn has_semantic_token(value: &str, expected: &str) -> bool {
+    let text = clean_cell_text(value).to_ascii_lowercase();
+    text.split(|ch: char| !ch.is_ascii_alphanumeric())
+        .any(|token| token == expected)
+}
+
+fn has_curve_code_hint(value: &str, first: char, second: char) -> bool {
+    let chars = clean_cell_text(value)
+        .to_ascii_lowercase()
+        .chars()
+        .collect::<Vec<_>>();
+    for index in 0..chars.len() {
+        if chars[index] != first {
+            continue;
+        }
+        if index > 0 && chars[index - 1].is_ascii_alphanumeric() {
+            continue;
+        }
+
+        let mut next_index = index + 1;
+        while next_index < chars.len() && is_curve_code_separator(chars[next_index]) {
+            next_index += 1;
+        }
+        if next_index >= chars.len() || chars[next_index] != second {
+            continue;
+        }
+
+        let after_index = next_index + 1;
+        if after_index >= chars.len() || !chars[after_index].is_ascii_alphanumeric() {
+            return true;
+        }
+    }
+
+    false
+}
+
+fn has_cv_hint(value: &str) -> bool {
+    has_curve_code_hint(value, 'c', 'v')
+        || normalize_header_compact(value).contains("capacitancevoltage")
+}
+
+fn has_cf_hint(value: &str) -> bool {
+    has_curve_code_hint(value, 'c', 'f')
+        || normalize_header_compact(value).contains("capacitancefrequency")
+}
+
+fn has_pv_hint(value: &str) -> bool {
+    has_curve_code_hint(value, 'p', 'v') || normalize_header_compact(value).contains("pulsevoltage")
+}
+
 fn has_capacitance_hint(value: &str) -> bool {
-    value.contains("cp") || value.contains("cs") || value.contains("cap")
+    let compact = normalize_header_compact(value);
+    compact.contains("capacitance")
+        || has_semantic_token(value, "cp")
+        || has_semantic_token(value, "cs")
+        || has_semantic_token(value, "cap")
+        || (has_semantic_token(value, "c") && (has_cv_hint(value) || has_cf_hint(value)))
 }
 
 fn has_frequency_hint(value: &str) -> bool {
-    value.contains("freq") || value.contains("frequency") || value.contains("hz") || value == "cf"
+    let compact = normalize_header_compact(value);
+    has_cf_hint(value)
+        || compact.contains("freq")
+        || compact.contains("frequency")
+        || compact.contains("hz")
 }
 
 fn has_voltage_hint(value: &str) -> bool {
-    value.contains("cv")
-        || value.contains("vp")
-        || value.contains("voltage")
-        || value.contains("bias")
+    let compact = normalize_header_compact(value);
+    has_cv_hint(value)
+        || has_semantic_token(value, "vp")
+        || compact.contains("voltage")
+        || compact.contains("bias")
 }
 
 fn detect_non_iv_curve(
@@ -542,10 +610,6 @@ fn detect_non_iv_curve(
     let mut metadata_text = vec![metadata.setup_title.clone(), metadata.x_axis_data.clone()];
     metadata_text.extend(metadata.data_name_columns.clone());
     let metadata_compact = metadata_text
-        .iter()
-        .map(|value| normalize_header_compact(value))
-        .collect::<Vec<_>>();
-    let header_compact = headers
         .iter()
         .map(|value| normalize_header_compact(value))
         .collect::<Vec<_>>();
@@ -560,7 +624,7 @@ fn detect_non_iv_curve(
     // Exact vp/in/ipt tokens are pulse hints only when they come from metadata
     // such as DataName; ordinary two-column Cp-vp headers are CV data.
     let header_has_pulse_hint = headers.iter().any(|value| has_fast_iv_or_ivt_hint(value));
-    let file_has_pulse_hint = file_compact.contains("pv") || has_fast_iv_or_ivt_hint(file_name);
+    let file_has_pulse_hint = has_pv_hint(file_name) || has_fast_iv_or_ivt_hint(file_name);
     if metadata_has_pulse_hint || header_has_pulse_hint || file_has_pulse_hint {
         let source = if metadata_has_pulse_hint {
             "metadata"
@@ -580,16 +644,13 @@ fn detect_non_iv_curve(
         });
     }
 
-    let has_file_cv_hint = file_compact.contains("cv") && !file_compact.contains("svc");
-    let has_file_cf_hint =
-        file_compact.contains("cf") || file_compact.contains("freq") || file_compact.contains("hz");
-    let has_capacitance = has_capacitance_hint(&file_compact)
-        || metadata_compact
+    let has_file_cv_hint = has_cv_hint(file_name) && !file_compact.contains("svc");
+    let has_file_cf_hint = has_frequency_hint(file_name);
+    let has_capacitance = has_capacitance_hint(file_name)
+        || metadata_text
             .iter()
             .any(|value| has_capacitance_hint(value))
-        || header_compact
-            .iter()
-            .any(|value| has_capacitance_hint(value));
+        || headers.iter().any(|value| has_capacitance_hint(value));
     if !has_capacitance && !has_file_cv_hint && !has_file_cf_hint {
         return None;
     }
@@ -602,10 +663,8 @@ fn detect_non_iv_curve(
         });
     }
 
-    let metadata_has_frequency = metadata_compact
-        .iter()
-        .any(|value| has_frequency_hint(value));
-    let header_has_frequency = header_compact.iter().any(|value| has_frequency_hint(value));
+    let metadata_has_frequency = metadata_text.iter().any(|value| has_frequency_hint(value));
+    let header_has_frequency = headers.iter().any(|value| has_frequency_hint(value));
     if has_file_cf_hint || metadata_has_frequency || header_has_frequency {
         let source = if has_file_cf_hint {
             "filename"
@@ -621,8 +680,8 @@ fn detect_non_iv_curve(
         });
     }
 
-    let metadata_has_voltage = metadata_compact.iter().any(|value| has_voltage_hint(value));
-    let header_has_voltage = header_compact.iter().any(|value| has_voltage_hint(value));
+    let metadata_has_voltage = metadata_text.iter().any(|value| has_voltage_hint(value));
+    let header_has_voltage = headers.iter().any(|value| has_voltage_hint(value));
     if metadata_has_voltage || header_has_voltage {
         return Some(NonIvCurveEvidence {
             confidence: "medium",

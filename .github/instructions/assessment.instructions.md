@@ -37,6 +37,8 @@ rendering, table UI selection, or search indexing beyond diagnostics metadata.
 ## Flow
 
 ```txt
+workbench restored / current session audit
+  -> AssessmentQueueService.enqueueRawTables
 rawTablesChanged
   -> SessionSnapshot / RawTableRecord
   -> IAssessmentService.assessRawTable

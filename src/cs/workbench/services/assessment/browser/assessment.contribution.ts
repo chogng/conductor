@@ -36,6 +36,7 @@ export class AssessmentContribution extends Disposable implements IWorkbenchCont
 				this.enqueueChangedRawTables(event);
 			}
 		}));
+		this.enqueueCurrentRawTables();
 	}
 
 	public override dispose(): void {
@@ -53,6 +54,20 @@ export class AssessmentContribution extends Disposable implements IWorkbenchCont
 			event.rawTableRefs,
 			event.fileIds,
 			event.rawTableIds,
+			snapshot,
+		));
+	}
+
+	private enqueueCurrentRawTables(): void {
+		if (this.disposed) {
+			return;
+		}
+
+		const snapshot = this.sessionService.getSnapshot();
+		this.assessmentQueueService.enqueueRawTables(getRawTableRefsForAssessmentEvent(
+			undefined,
+			undefined,
+			undefined,
 			snapshot,
 		));
 	}

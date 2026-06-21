@@ -8,6 +8,7 @@ import { Emitter } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import { AssessmentContribution } from "src/cs/workbench/services/assessment/browser/assessment.contribution";
 import { AssessmentQueueService } from "src/cs/workbench/services/assessment/browser/assessmentQueueService";
+import { ASSESSMENT_RULE_VERSION } from "src/cs/workbench/services/assessment/common/assessment";
 import type {
 	AssessRawTableInput,
 	IAssessmentService,
@@ -106,6 +107,43 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		assert.equal(assessmentService.inputs.length, 18);
 
 		disposable.dispose();
+		contribution.dispose();
+		assessmentQueueService.dispose();
+	});
+
+	test("reassesses restored raw tables when the assessment rule version is stale", async () => {
+		const sessionService = store.add(new SessionService());
+		sessionService.commitFileImport(createInlineImportResult());
+		sessionService.commitRawTableAssessment(createRawTableAssessmentRecord({
+			assessmentRuleVersion: ASSESSMENT_RULE_VERSION - 1,
+			fileId: "file-a",
+			rawTableId: "table-a",
+			sourceRawTableVersion: 1,
+		}));
+		const assessmentService = new TestAssessmentService();
+		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
+		const assessmentQueueService = store.add(new AssessmentQueueService(
+			sessionService,
+			assessmentService,
+			rawTableRowsReaderService,
+		));
+		const contribution = store.add(new AssessmentContribution(
+			sessionService,
+			assessmentQueueService,
+		));
+
+		await waitUntil(() => assessmentService.inputs.length === 1);
+
+		const file = sessionService.getSnapshot().filesById["file-a"];
+		assert.equal(
+			file.assessmentsByRawTableId["table-a"]?.assessmentRuleVersion,
+			ASSESSMENT_RULE_VERSION,
+		);
+		assert.deepEqual(
+			assessmentService.inputs.map(input => input.sourceRawTableVersion),
+			[1],
+		);
+
 		contribution.dispose();
 		assessmentQueueService.dispose();
 	});
@@ -285,37 +323,57 @@ class TestAssessmentService implements IAssessmentService {
 	public assessRawTable(input: AssessRawTableInput): Promise<RawTableAssessmentRecord> {
 		this.inputs.push(input);
 		const blockId = input.rawTableId === "table-a" ? "block-a" : `block-${input.rawTableId}`;
-		return Promise.resolve({
-			blocks: [{
-				columnCount: 2,
-				columns: {
-					columns: [],
-				},
-				diagnosticCodes: [],
-				family: "iv",
-				fileId: input.fileId,
-				id: blockId,
-				label: "Block A",
-				rawTableId: input.rawTableId,
-				rowCount: 1,
-				source: {
-					fullRange: {
-						endCol: 1,
-						endRow: 1,
-						startCol: 0,
-						startRow: 0,
-					},
-				},
-			}],
-			createdAt: 123,
-			diagnostics: [],
+		return Promise.resolve(createRawTableAssessmentRecord({
 			fileId: input.fileId,
-			groups: [],
 			rawTableId: input.rawTableId,
+			blockId,
 			sourceRawTableVersion: input.sourceRawTableVersion,
-		});
+		}));
 	}
 }
+
+const createRawTableAssessmentRecord = ({
+	assessmentRuleVersion = ASSESSMENT_RULE_VERSION,
+	blockId = "block-a",
+	fileId,
+	rawTableId,
+	sourceRawTableVersion,
+}: {
+	readonly assessmentRuleVersion?: number;
+	readonly blockId?: string;
+	readonly fileId: string;
+	readonly rawTableId: string;
+	readonly sourceRawTableVersion: number;
+}): RawTableAssessmentRecord => ({
+	assessmentRuleVersion,
+	blocks: [{
+		columnCount: 2,
+		columns: {
+			columns: [],
+		},
+		diagnosticCodes: [],
+		family: "iv",
+		fileId,
+		id: blockId,
+		label: "Block A",
+		rawTableId,
+		rowCount: 1,
+		source: {
+			fullRange: {
+				endCol: 1,
+				endRow: 1,
+				startCol: 0,
+				startRow: 0,
+			},
+		},
+	}],
+	createdAt: 123,
+	diagnostics: [],
+	fileId,
+	groups: [],
+	rawTableId,
+	sourceRawTableVersion,
+});
 
 const createInlineImportResult = (): FileImportResult => ({
 	createdAt: 123,

@@ -19,6 +19,10 @@ export const IAssessmentService = createDecorator<IAssessmentService>("assessmen
 export const IAssessmentQueueService = createDecorator<IAssessmentQueueService>("assessmentQueueService");
 export const AssessmentContributionId = "workbench.services.assessment.lifecycle";
 
+// Bump this when assessment heuristics change in a way that should invalidate
+// stored raw table assessment records.
+export const ASSESSMENT_RULE_VERSION = 1;
+
 export type AssessmentRows = readonly (readonly string[])[];
 
 export type ImportFileAxisRole = "vg" | "vd" | null;
@@ -60,6 +64,7 @@ export type AssessRawTableInput = {
 };
 
 export type RawTableAssessmentRecord = {
+  readonly assessmentRuleVersion: number;
   readonly fileId: string;
   readonly rawTableId: string;
   readonly sourceRawTableVersion: number;

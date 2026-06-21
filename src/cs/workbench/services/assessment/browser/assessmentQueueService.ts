@@ -6,6 +6,7 @@ import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
+  ASSESSMENT_RULE_VERSION,
   IAssessmentQueueService,
   IAssessmentService,
   type AssessmentQueuePriority,
@@ -473,9 +474,14 @@ export const getRawTableRefsForAssessmentEvent = (
 const hasCurrentAssessment = (
   file: FileRecord,
   rawTableId: string,
-): boolean =>
-  file.assessmentsByRawTableId[rawTableId]?.sourceRawTableVersion ===
-    (file.rawTableVersionsById[rawTableId] ?? 0);
+): boolean => {
+  const assessment = file.assessmentsByRawTableId[rawTableId];
+  return Boolean(
+    assessment &&
+      assessment.sourceRawTableVersion === (file.rawTableVersionsById[rawTableId] ?? 0) &&
+      assessment.assessmentRuleVersion === ASSESSMENT_RULE_VERSION,
+  );
+};
 
 const isAssessableTable = (
   table: TableRecord | undefined,

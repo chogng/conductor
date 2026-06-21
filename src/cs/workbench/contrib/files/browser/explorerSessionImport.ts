@@ -166,6 +166,7 @@ const createPreparedImportAssessmentInputs = (
       sourceRawTableVersion: 0,
     });
     assessments.push({
+      assessmentRuleVersion: assessment.assessmentRuleVersion,
       blocks: assessment.blocks,
       createdAt: assessment.createdAt,
       diagnostics: assessment.diagnostics,

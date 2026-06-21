@@ -5,6 +5,7 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import { ASSESSMENT_RULE_VERSION } from "src/cs/workbench/services/assessment/common/assessment";
 import { AssessmentService } from "src/cs/workbench/services/assessment/browser/assessmentService";
 
 suite("workbench/services/assessment/test/browser/assessmentService", () => {
@@ -44,6 +45,7 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
 
     assert.equal(result.fileId, "file-a");
     assert.equal(result.rawTableId, "raw-a");
+    assert.equal(result.assessmentRuleVersion, ASSESSMENT_RULE_VERSION);
     assert.equal(result.sourceRawTableVersion, 3);
     assert.equal(result.blocks.length, 1);
     assert.equal(result.blocks[0].fileId, "file-a");

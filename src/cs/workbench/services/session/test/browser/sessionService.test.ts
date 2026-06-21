@@ -14,6 +14,7 @@ import {
   createProcessedFileSessionCommit,
   createRawFilesFromRecords,
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
+import { ASSESSMENT_RULE_VERSION } from "src/cs/workbench/services/assessment/common/assessment";
 import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
 import type { CalculatedPlotsByKey } from "src/cs/workbench/services/calculation/common/calculationReadModel";
 import type {
@@ -806,6 +807,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
 
     const result = session.commitFileImport(createSingleRawTableImportResult(), {
       rawTableAssessments: [{
+        assessmentRuleVersion: assessment.assessmentRuleVersion,
         blocks: assessment.blocks,
         createdAt: assessment.createdAt,
         diagnostics: assessment.diagnostics,
@@ -1477,6 +1479,7 @@ const createRawTableAssessment = (
   rawTableId = "table-a",
   blockId = "block-a",
 ): RawTableAssessmentRecord => ({
+  assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
   blocks: [{
     columnCount: 2,
     columns: {

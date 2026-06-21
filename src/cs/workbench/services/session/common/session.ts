@@ -92,9 +92,10 @@ export type CommitFileImportResult = {
 };
 
 export type CommitFileImportRawTableAssessmentInput =
-  Omit<RawTableAssessmentRecord, "fileId" | "rawTableId" | "sourceRawTableVersion"> & {
+  Omit<RawTableAssessmentRecord, "assessmentRuleVersion" | "fileId" | "rawTableId" | "sourceRawTableVersion"> & {
     readonly fileId: FileId;
     readonly rawTableId?: string | null;
+    readonly assessmentRuleVersion?: number;
   };
 
 export type CommitFileImportOptions = {

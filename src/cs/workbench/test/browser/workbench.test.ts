@@ -12,6 +12,7 @@ import {
   WorkbenchDomainBridge,
 } from "src/cs/workbench/browser/workbenchDomainBridge";
 import { ExplorerService } from "src/cs/workbench/contrib/files/browser/explorerService";
+import { ASSESSMENT_RULE_VERSION } from "src/cs/workbench/services/assessment/common/assessment";
 import type { ChartViewInput } from "src/cs/workbench/services/chart/common/chartViewInput";
 import type {
   FileImportResult,
@@ -522,7 +523,8 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       },
     ]);
     session.commitRawTableAssessment({
-	      blocks: [{
+      assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+      blocks: [{
 	        columnCount: 2,
 	        columns: { columns: [] },
 	        diagnosticCodes: [],
