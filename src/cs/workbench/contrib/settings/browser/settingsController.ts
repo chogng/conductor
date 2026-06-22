@@ -356,6 +356,12 @@ export class SettingsController {
       fileNameFieldSeparatorsDraft: this.drafts.fileNameFieldSeparatorsDraft,
       fileNameMatchingSettings: this.fileNameMatchingSettings,
       handleCheckForUpdates: () => void this.checkForUpdates(),
+      handleShowReleaseNotes: () => {
+        void this.commandService.executeCommand(
+          UpdateCommandId.showCurrentReleaseNotes,
+          this.options.appUpdateSettings.currentVersion,
+        );
+      },
       language: this.options.language,
       numericDisplaySettings: this.numericDisplaySettings,
       originLegendFontSizeDraft: this.drafts.originLegendFontSizeDraft,

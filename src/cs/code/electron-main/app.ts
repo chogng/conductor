@@ -2260,6 +2260,15 @@ function handleDesktopCommand(event, payload) {
     void updateService?.installDownloadedUpdate();
     return;
   }
+
+  if (command === "apply-specific-update") {
+    const packagePath =
+      payload && typeof payload.packagePath === "string" ? payload.packagePath : "";
+    if (packagePath) {
+      void updateService?.applySpecificUpdate(packagePath);
+    }
+    return;
+  }
 }
 
 function handleDesktopAutoUpdateStatusGet(event) {
@@ -2324,6 +2333,11 @@ if (hasSingleInstanceLock) {
   );
   ipcMain.handle(ipcChannels.desktopAutoUpdateInstallDownloaded, () =>
     updateService?.installDownloadedUpdate(),
+  );
+  ipcMain.handle(ipcChannels.desktopAutoUpdateApplySpecific, (_event, packagePath: unknown) =>
+    typeof packagePath === "string" && packagePath.trim()
+      ? updateService?.applySpecificUpdate(packagePath)
+      : undefined,
   );
   ipcMain.handle(ipcChannels.desktopAppearanceSet, handleDesktopAppearanceSet);
   ipcMain.handle(ipcChannels.fileConversionPrepare, handleFileConversionPrepare);
@@ -2413,6 +2427,7 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateCheck);
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateCheckAndInstall);
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateInstallDownloaded);
+  ipcMain.removeHandler(ipcChannels.desktopAutoUpdateApplySpecific);
   ipcMain.removeHandler(ipcChannels.desktopAppearanceSet);
   ipcMain.removeHandler(ipcChannels.fileConversionPrepare);
   ipcMain.removeHandler(ipcChannels.fileConversionPrepareBatch);

@@ -9,12 +9,14 @@ import { createDecorator } from "src/cs/platform/instantiation/common/instantiat
 export const UpdateContributionId = "workbench.contrib.update";
 
 export const UpdateCommandId = {
+  applyUpdate: "_update.applyupdate",
   check: "update.check",
   checking: "update.checking",
   downloadNow: "update.downloadNow",
   downloading: "update.downloading",
   install: "update.install",
   restart: "update.restart",
+  showCurrentReleaseNotes: "update.showCurrentReleaseNotes",
   state: "_update.state",
   updating: "update.updating",
 } as const;
@@ -77,6 +79,7 @@ export interface IWorkbenchUpdateService {
   checkForUpdatesAndInstall(): Promise<unknown>;
   getStatus(): DesktopUpdateStatus;
   installDownloadedUpdate(): Promise<unknown>;
+  applySpecificUpdate(packagePath: string): Promise<unknown>;
 }
 
 const DESKTOP_UPDATE_STATES = new Set<DesktopUpdateState>([
@@ -106,11 +109,11 @@ export const normalizeDesktopUpdateStatus = (
   const raw = value && typeof value === "object"
     ? value as Record<string, unknown>
     : {};
-  const status = typeof raw.status === "string" && DESKTOP_UPDATE_STATES.has(raw.status as DesktopUpdateState)
-    ? raw.status as DesktopUpdateState
+  const status = isDesktopUpdateState(raw.status)
+    ? raw.status
     : fallback.status;
-  const channel = typeof raw.channel === "string" && DESKTOP_UPDATE_CHANNELS.has(raw.channel as DesktopUpdateChannel)
-    ? raw.channel as DesktopUpdateChannel
+  const channel = isDesktopUpdateChannel(raw.channel)
+    ? raw.channel
     : fallback.channel;
   const version = normalizeNullableString(raw.version);
   const message = normalizeNullableString(raw.message);
@@ -123,6 +126,12 @@ export const normalizeDesktopUpdateStatus = (
     message,
   };
 };
+
+const isDesktopUpdateState = (value: unknown): value is DesktopUpdateState =>
+  typeof value === "string" && DESKTOP_UPDATE_STATES.has(value as DesktopUpdateState);
+
+const isDesktopUpdateChannel = (value: unknown): value is DesktopUpdateChannel =>
+  typeof value === "string" && DESKTOP_UPDATE_CHANNELS.has(value as DesktopUpdateChannel);
 
 export const isDesktopUpdateStatusEqual = (
   current: DesktopUpdateStatus,

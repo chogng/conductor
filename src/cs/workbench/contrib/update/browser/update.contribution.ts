@@ -24,6 +24,7 @@ import {
   type IWorkbenchUpdateService as IWorkbenchUpdateServiceType,
 } from "src/cs/workbench/contrib/update/common/update";
 import { registerUpdateCommands } from "src/cs/workbench/contrib/update/browser/update";
+import { ReleaseNotesEditor } from "src/cs/workbench/contrib/update/browser/releaseNotesEditor";
 import { UpdateTitleBarEntry } from "src/cs/workbench/contrib/update/browser/updateTitleBarEntry";
 
 export class UpdateContribution extends Disposable implements IWorkbenchContribution {
@@ -37,7 +38,8 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
     super();
 
     this.updateStateContextKey = CONTEXT_UPDATE_STATE.bindTo(contextKeyService);
-    this._register(registerUpdateCommands());
+    const releaseNotesEditor = this._register(instantiationService.createInstance(ReleaseNotesEditor));
+    this._register(registerUpdateCommands(releaseNotesEditor));
     this._register(instantiationService.createInstance(UpdateTitleBarEntry));
     this._register(this.updateService.onDidChangeStatus(() => this.syncUpdateState()));
     this.syncUpdateState();

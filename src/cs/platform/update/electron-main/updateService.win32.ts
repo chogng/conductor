@@ -1,6 +1,9 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
+import http, { type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { App, BrowserWindow, Dialog, MessageBoxOptions } from "electron";
 import { createRequire } from "node:module";
+import path from "node:path";
 
 export type DesktopUpdateChannel =
   | "github"
@@ -93,8 +96,10 @@ export class Win32UpdateService {
   private autoUpdater: any = null;
   private autoUpdateTimer: NodeJS.Timeout | null = null;
   private autoUpdateConfiguredFeedUrl: string | null = null;
+  private autoUpdateListenersRegistered = false;
   private isAutoUpdateConfigured = false;
   private autoUpdateInstallAfterDownloadRequested = false;
+  private localPackageFeedServer: Server | null = null;
   private status: DesktopUpdateStatus = {
     status: "idle",
     version: null,
@@ -114,6 +119,7 @@ export class Win32UpdateService {
       clearInterval(this.autoUpdateTimer);
       this.autoUpdateTimer = null;
     }
+    this.stopLocalPackageFeedServer();
   }
 
   async setup(): Promise<void> {
@@ -295,6 +301,80 @@ export class Win32UpdateService {
     return true;
   }
 
+  async applySpecificUpdate(packagePath: string): Promise<boolean> {
+    if (this.status.isStoreManaged) {
+      await this.showStoreManagedDialog();
+      return false;
+    }
+
+    if (!AUTO_UPDATE_SUPPORTED_PLATFORMS.has(process.platform)) {
+      const message = this.options.localize("update.unsupportedWindowsOnly");
+      this.setStatus("unsupported", null, "unsupported", message);
+      await this.showInfoDialog(message);
+      return false;
+    }
+
+    if (!this.options.app.isPackaged) {
+      const message = this.options.localize("update.disabledDevelopment");
+      this.setStatus("disabled", null, "none", message);
+      await this.showInfoDialog(message);
+      return false;
+    }
+
+    const resolvedPackagePath = path.resolve(packagePath.trim());
+    if (path.extname(resolvedPackagePath).toLowerCase() !== ".exe") {
+      await this.showInfoDialog(this.options.localize("update.localPackageInvalid"));
+      return false;
+    }
+
+    let stat: fs.Stats;
+    try {
+      stat = await fs.promises.stat(resolvedPackagePath);
+    } catch (error) {
+      this.options.warn("[update] Local update package not found.", error);
+      await this.showInfoDialog(this.options.localize("update.localPackageNotFound"));
+      return false;
+    }
+
+    if (!stat.isFile()) {
+      await this.showInfoDialog(this.options.localize("update.localPackageInvalid"));
+      return false;
+    }
+
+    const updater = await this.ensureAutoUpdater();
+    if (!updater || !this.autoUpdater) {
+      this.setStatus("disabled", null, "none", "electron-updater is unavailable.");
+      this.options.warn("[update] electron-updater dependency is missing.");
+      return false;
+    }
+
+    const feed = await this.prepareLocalPackageFeed(resolvedPackagePath);
+    this.registerUpdaterListeners();
+    this.isAutoUpdateConfigured = true;
+    this.autoUpdateConfiguredFeedUrl = feed.url;
+    this.autoUpdateInstallAfterDownloadRequested = false;
+    this.autoUpdater.autoDownload = true;
+    this.autoUpdater.autoInstallOnAppQuit = true;
+    this.autoUpdater.disableDifferentialDownload = true;
+    this.autoUpdater.updateInfoAndProvider = null;
+    this.autoUpdater.checkForUpdatesPromise = null;
+    this.autoUpdater.downloadPromise = null;
+    this.autoUpdater.setFeedURL({
+      provider: "generic",
+      url: feed.url,
+    });
+
+    this.setStatus(
+      "idle",
+      feed.version,
+      "generic",
+      this.options.localize("update.localPackageFeedMessage", { path: resolvedPackagePath }),
+    );
+    this.options.log(`[update] Using local update package: ${resolvedPackagePath}`);
+    const result: any = await this.checkForUpdates({ manual: true });
+    return !!result && result.isUpdateAvailable !== false;
+  }
+
   private async ensureAutoUpdater() {
     if (this.autoUpdater) return this.autoUpdater;
 
@@ -338,6 +418,8 @@ export class Win32UpdateService {
 
   private registerUpdaterListeners(): void {
     if (!this.autoUpdater) return;
+    if (this.autoUpdateListenersRegistered) return;
+    this.autoUpdateListenersRegistered = true;
 
     this.autoUpdater.on("checking-for-update", () => {
       this.setStatus("checking");
@@ -435,5 +517,129 @@ export class Win32UpdateService {
     }
 
     await this.options.dialog.showMessageBox(options);
+  }
+
+  private async prepareLocalPackageFeed(packagePath: string): Promise<{ readonly url: string; readonly version: string }> {
+    const feedDir = path.join(this.options.app.getPath("userData"), "update-debug-feed");
+    await fs.promises.rm(feedDir, { force: true, recursive: true });
+    await fs.promises.mkdir(feedDir, { recursive: true });
+
+    const packageName = path.basename(packagePath);
+    const feedPackagePath = path.join(feedDir, packageName);
+    await fs.promises.copyFile(packagePath, feedPackagePath);
+    const packageStat = await fs.promises.stat(feedPackagePath);
+    const sha512 = await this.computeFileSha512(feedPackagePath);
+    const version = this.getNextDebugUpdateVersion();
+    const releaseDate = new Date().toISOString();
+    const latestYml = [
+      `version: ${version}`,
+      "files:",
+      `  - url: ${JSON.stringify(packageName)}`,
+      `    sha512: ${sha512}`,
+      `    size: ${packageStat.size}`,
+      `path: ${JSON.stringify(packageName)}`,
+      `sha512: ${sha512}`,
+      `releaseDate: '${releaseDate}'`,
+      "",
+    ].join("\n");
+
+    await fs.promises.writeFile(path.join(feedDir, "latest.yml"), latestYml, "utf8");
+    const url = await this.startLocalPackageFeedServer(feedDir);
+    return { url, version };
+  }
+
+  private async startLocalPackageFeedServer(feedDir: string): Promise<string> {
+    this.stopLocalPackageFeedServer();
+
+    const server = http.createServer((request, response) => {
+      this.serveLocalPackageFeedFile(feedDir, request, response);
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", () => {
+        server.off("error", reject);
+        resolve();
+      });
+    });
+
+    this.localPackageFeedServer = server;
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      this.stopLocalPackageFeedServer();
+      throw new Error("Failed to start local update package feed.");
+    }
+
+    return `http://127.0.0.1:${address.port}`;
+  }
+
+  private stopLocalPackageFeedServer(): void {
+    const server = this.localPackageFeedServer;
+    if (!server) return;
+
+    this.localPackageFeedServer = null;
+    server.close(error => {
+      if (error) {
+        this.options.warn("[update] Failed to stop local update package feed.", error);
+      }
+    });
+  }
+
+  private serveLocalPackageFeedFile(
+    feedDir: string,
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): void {
+    const pathname = decodeURIComponent(
+      new URL(request.url || "/", "http://127.0.0.1").pathname,
+    );
+    const target = path.resolve(feedDir, `.${pathname.replace(/\//g, path.sep)}`);
+    if (!this.isPathInside(feedDir, target)) {
+      response.writeHead(403);
+      response.end("Forbidden");
+      return;
+    }
+
+    fs.promises.stat(target).then(stat => {
+      if (!stat.isFile()) {
+        response.writeHead(404);
+        response.end("Not found");
+        return;
+      }
+
+      response.writeHead(200, {
+        "Content-Length": stat.size,
+        "Content-Type": path.extname(target).toLowerCase() === ".yml"
+          ? "text/yaml; charset=utf-8"
+          : "application/octet-stream",
+      });
+      fs.createReadStream(target).pipe(response);
+    }, () => {
+      response.writeHead(404);
+      response.end("Not found");
+    });
+  }
+
+  private isPathInside(root: string, target: string): boolean {
+    const relative = path.relative(root, target);
+    return relative === "" || (!!relative && !relative.startsWith("..") && !path.isAbsolute(relative));
+  }
+
+  private computeFileSha512(filePath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const hash = crypto.createHash("sha512");
+      const stream = fs.createReadStream(filePath);
+      stream.on("error", reject);
+      stream.on("data", chunk => hash.update(chunk));
+      stream.on("end", () => resolve(hash.digest("base64")));
+    });
+  }
+
+  private getNextDebugUpdateVersion(): string {
+    const match = /^(\d+)\.(\d+)\.(\d+)/.exec(this.options.app.getVersion());
+    if (!match) {
+      return "999.999.999";
+    }
+
+    return `${Number(match[1])}.${Number(match[2])}.${Number(match[3]) + 1}`;
   }
 }

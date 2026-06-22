@@ -39,6 +39,10 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
           calls.push("check");
           return "checked";
         },
+        applySpecificUpdate: async (packagePath: string) => {
+          calls.push(`apply:${packagePath}`);
+          return true;
+        },
         checkForUpdatesAndInstall: async () => {
           calls.push("checkAndInstall");
           return true;
@@ -78,9 +82,15 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
         message: null,
       }]);
       assert.strictEqual(await service.checkForUpdates(), "checked");
+      assert.strictEqual(await service.applySpecificUpdate("C:\\updates\\setup.exe"), true);
       assert.strictEqual(await service.checkForUpdatesAndInstall(), true);
       assert.strictEqual(await service.installDownloadedUpdate(), true);
-      assert.deepStrictEqual(calls, ["check", "checkAndInstall", "install"]);
+      assert.deepStrictEqual(calls, [
+        "check",
+        "apply:C:\\updates\\setup.exe",
+        "checkAndInstall",
+        "install",
+      ]);
     } finally {
       listener.dispose();
       service.dispose();
@@ -91,7 +101,7 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
   });
 
   test("falls back to conductor IPC when desktopApp bridge is unavailable", async () => {
-    const invokedChannels: string[] = [];
+    const invokedCalls: Array<{ readonly channel: string; readonly args: readonly unknown[] }> = [];
     const restoreWindow = installDesktopWindow({
       conductor: {
         ipcRenderer: {
@@ -105,9 +115,9 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
               message: null,
             };
           },
-          invoke: async (channel: string) => {
-            invokedChannels.push(channel);
-            return channel;
+          invoke: async (channel: string, ...args: unknown[]) => {
+            invokedCalls.push({ channel, args });
+            return { channel, args };
           },
         },
       },
@@ -126,17 +136,23 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
       await service.checkForUpdates();
       await service.checkForUpdatesAndInstall();
       await service.installDownloadedUpdate();
+      await service.applySpecificUpdate("C:\\updates\\setup.exe");
 
-      assert.deepStrictEqual(invokedChannels, [
-        workbenchIpcChannels.desktopAutoUpdateCheck,
-        workbenchIpcChannels.desktopAutoUpdateCheckAndInstall,
-        workbenchIpcChannels.desktopAutoUpdateInstallDownloaded,
+      assert.deepStrictEqual(invokedCalls, [
+        { channel: workbenchIpcChannels.desktopAutoUpdateCheck, args: [] },
+        { channel: workbenchIpcChannels.desktopAutoUpdateCheckAndInstall, args: [] },
+        { channel: workbenchIpcChannels.desktopAutoUpdateInstallDownloaded, args: [] },
+        {
+          channel: workbenchIpcChannels.desktopAutoUpdateApplySpecific,
+          args: ["C:\\updates\\setup.exe"],
+        },
       ]);
     } finally {
       service.dispose();
       restoreWindow();
     }
   });
+
 });
 
 function installDesktopWindow(value: unknown): () => void {

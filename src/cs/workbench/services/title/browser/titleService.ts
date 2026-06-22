@@ -23,10 +23,12 @@ export type WorkbenchTitlebarState = {
   readonly enabled?: boolean;
   readonly fileSelectionCommandId?: string;
   readonly fileOptions?: WorkbenchTitlebarFileOption[];
-  readonly installUpdateCommandId?: string;
+  readonly installUpdateCommandId?: string | null;
   readonly isSidebarVisible?: boolean;
   readonly isUpdateReadyToInstall?: boolean;
+  readonly isUpdateVisible?: boolean;
   readonly showFileSelector?: boolean;
+  readonly updateCommandId?: string | null;
   readonly updateTooltip?: string | null;
   readonly updateVersion?: string | null;
 };

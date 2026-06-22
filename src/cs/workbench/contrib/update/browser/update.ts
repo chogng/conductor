@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { isWindows } from "src/cs/base/common/platform";
 import { localize } from "src/cs/nls";
 import {
   Action2,
@@ -12,12 +13,16 @@ import {
 } from "src/cs/platform/actions/common/actions";
 import { CommandsRegistry } from "src/cs/platform/commands/common/commands";
 import { ContextKeyExpr } from "src/cs/platform/contextkey/common/contextkey";
+import { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import {
   CONTEXT_UPDATE_STATE,
   IWorkbenchUpdateService,
   UpdateCommandId,
 } from "src/cs/workbench/contrib/update/common/update";
+import type { ReleaseNotesEditor } from "src/cs/workbench/contrib/update/browser/releaseNotesEditor";
+
+type UpdateReleaseNotesEditor = Pick<ReleaseNotesEditor, "show">;
 
 export const appendUpdateMenuItems = (menuId: MenuId, group: string): IDisposable => {
   const disposables = new DisposableStore();
@@ -77,7 +82,7 @@ export const appendUpdateMenuItems = (menuId: MenuId, group: string): IDisposabl
   return disposables;
 };
 
-export const registerUpdateCommands = (): IDisposable => {
+export const registerUpdateCommands = (releaseNotesEditor?: UpdateReleaseNotesEditor): IDisposable => {
   const disposables = new DisposableStore();
 
   disposables.add(registerAction2(class CheckForUpdatesAction extends Action2 {
@@ -97,6 +102,58 @@ export const registerUpdateCommands = (): IDisposable => {
       return accessor.get(IWorkbenchUpdateService).checkForUpdates();
     }
   }));
+
+  disposables.add(registerAction2(class ShowCurrentReleaseNotesAction extends Action2 {
+    public constructor() {
+      super({
+        category: localize("update.commands.category", "Update"),
+        f1: true,
+        id: UpdateCommandId.showCurrentReleaseNotes,
+        title: localize("update.commands.showCurrentReleaseNotes", "Show Current Release Notes"),
+        metadata: {
+          description: localize("update.commands.showCurrentReleaseNotes.description", "Show bundled release notes for the current app version."),
+        },
+      });
+    }
+
+    public run(_accessor: ServicesAccessor, currentVersion?: unknown): boolean {
+      return releaseNotesEditor?.show(normalizeReleaseNotesVersion(currentVersion)) ?? false;
+    }
+  }));
+
+  if (isWindows) {
+    disposables.add(registerAction2(class DeveloperApplyUpdateAction extends Action2 {
+      public constructor() {
+        super({
+          category: localize("update.commands.developerCategory", "Developer"),
+          f1: true,
+          id: UpdateCommandId.applyUpdate,
+          precondition: CONTEXT_UPDATE_STATE.isEqualTo("idle"),
+          title: localize("update.commands.applyUpdate", "Apply Update..."),
+          metadata: {
+            description: localize("update.commands.applyUpdate.description", "Apply a local Windows setup package for update debugging."),
+          },
+        });
+      }
+
+      public async run(accessor: ServicesAccessor): Promise<unknown> {
+        const updateService = accessor.get(IWorkbenchUpdateService);
+        const fileDialogService = accessor.get(IFileDialogService);
+        const updatePath = await fileDialogService.showOpenDialog({
+          canSelectFiles: true,
+          filters: [{ name: localize("update.commands.applyUpdate.setupFilter", "Setup"), extensions: ["exe"] }],
+          openLabel: localize("update.commands.applyUpdate.openLabel", "Update"),
+          title: localize("update.commands.applyUpdate.pickTitle", "Apply Update"),
+        });
+
+        if (!updatePath?.[0]) {
+          return undefined;
+        }
+
+        return updateService.applySpecificUpdate(updatePath[0].fsPath);
+      }
+    }));
+  }
 
   disposables.add(CommandsRegistry.registerCommand({
     id: UpdateCommandId.downloadNow,
@@ -150,3 +207,6 @@ export const registerUpdateCommands = (): IDisposable => {
 
   return disposables;
 };
+
+const normalizeReleaseNotesVersion = (value: unknown): string | null =>
+  typeof value === "string" && value.trim() ? value.trim() : null;

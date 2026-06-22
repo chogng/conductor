@@ -8,7 +8,7 @@ import type StateBlock from "markdown-it/lib/rules_block/state_block.mjs";
 import { safeSetInnerHtml, type DomSanitizerConfig } from "src/cs/base/browser/domSanitize";
 import { Schemas } from "src/cs/base/common/network";
 
-export type SettingsMarkdownRenderOptions = {
+export type WorkbenchMarkdownRenderOptions = {
   readonly className?: string;
 };
 
@@ -67,26 +67,26 @@ const sanitizeConfig: DomSanitizerConfig = {
   allowRelativeMediaPaths: true,
 };
 
-const markdown = createSettingsMarkdownIt();
+const markdown = createWorkbenchMarkdownIt();
 
-type SettingsMarkdownRenderEnv = {
+type WorkbenchMarkdownRenderEnv = {
   readonly linkStack: boolean[];
 };
 
-export function renderSettingsMarkdown(
+export function renderWorkbenchMarkdown(
   markdownText: string,
-  options: SettingsMarkdownRenderOptions = {},
+  options: WorkbenchMarkdownRenderOptions = {},
 ): HTMLElement {
   const root = document.createElement("div");
-  root.className = options.className ?? "settings-markdown";
-  const env: SettingsMarkdownRenderEnv = { linkStack: [] };
+  root.className = options.className ?? "workbench-markdown";
+  const env: WorkbenchMarkdownRenderEnv = { linkStack: [] };
   const unsafeHtml = markdown.render(String(markdownText ?? ""), env);
   safeSetInnerHtml(root, unsafeHtml, sanitizeConfig);
-  enforceSettingsMarkdownResourcePolicy(root);
+  enforceWorkbenchMarkdownResourcePolicy(root);
   return root;
 }
 
-function createSettingsMarkdownIt(): MarkdownIt {
+function createWorkbenchMarkdownIt(): MarkdownIt {
   const md = new MarkdownIt({
     breaks: false,
     html: false,
@@ -95,9 +95,9 @@ function createSettingsMarkdownIt(): MarkdownIt {
   });
 
   md.validateLink = url => isAllowedLinkUrl(url) || isAllowedMediaUrl(url);
-  md.block.ruler.before("paragraph", "settings_video", parseVideoBlock);
+  md.block.ruler.before("paragraph", "workbench_video", parseVideoBlock);
   md.renderer.rules.link_open = (tokens, index, options, _env, self) => {
-    const env = _env as SettingsMarkdownRenderEnv;
+    const env = _env as WorkbenchMarkdownRenderEnv;
     const token = tokens[index];
     const href = token.attrGet("href") ?? "";
     const title = token.attrGet("title") ?? undefined;
@@ -117,7 +117,7 @@ function createSettingsMarkdownIt(): MarkdownIt {
     return self.renderToken(tokens, index, options);
   };
   md.renderer.rules.link_close = (_tokens, _index, _options, _env) => {
-    const env = _env as SettingsMarkdownRenderEnv;
+    const env = _env as WorkbenchMarkdownRenderEnv;
     return env.linkStack.pop() === false ? "" : "</a>";
   };
   md.renderer.rules.image = (tokens, index) => {
@@ -139,7 +139,7 @@ function createSettingsMarkdownIt(): MarkdownIt {
     }
     return `<img ${attributes.join(" ")}>`;
   };
-  md.renderer.rules.settings_video = (tokens, index) => {
+  md.renderer.rules.workbench_video = (tokens, index) => {
     const token = tokens[index];
     const src = token.attrGet("src") ?? "";
     if (!isAllowedMediaUrl(src)) {
@@ -178,7 +178,7 @@ function parseVideoBlock(state: StateBlock, startLine: number, _endLine: number,
     return true;
   }
 
-  const token = state.push("settings_video", "video", 0);
+  const token = state.push("workbench_video", "video", 0);
   token.block = true;
   token.attrSet("src", video.src);
   if (video.title) {
@@ -209,7 +209,7 @@ function parseVideoDirective(line: string): { readonly src: string; readonly tit
   };
 }
 
-function enforceSettingsMarkdownResourcePolicy(root: HTMLElement): void {
+function enforceWorkbenchMarkdownResourcePolicy(root: HTMLElement): void {
   for (const link of Array.from(root.querySelectorAll<HTMLAnchorElement>("a[href]"))) {
     if (!isAllowedLinkUrl(link.getAttribute("href") ?? "")) {
       link.replaceWith(document.createTextNode(link.textContent ?? ""));

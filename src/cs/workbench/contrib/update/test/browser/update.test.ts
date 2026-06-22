@@ -4,6 +4,8 @@
 
 import assert from "assert";
 
+import { isWindows } from "src/cs/base/common/platform";
+import { URI } from "src/cs/base/common/uri";
 import { Event } from "src/cs/base/common/event";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import {
@@ -17,6 +19,7 @@ import {
   type ICommandEvent,
   type ICommandService as ICommandServiceType,
 } from "src/cs/platform/commands/common/commands";
+import { IFileDialogService, type IOpenDialogOptions } from "src/cs/platform/dialogs/common/dialogs";
 import type {
   ServicesAccessor,
   ServiceIdentifier,
@@ -36,8 +39,15 @@ suite("workbench/contrib/update/test/browser/update", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 
   test("registers update commands against the update service owner", async () => {
-    const registration = registerUpdateCommands();
+    const releaseNotesVersions: Array<string | null | undefined> = [];
+    const registration = registerUpdateCommands({
+      show: currentVersion => {
+        releaseNotesVersions.push(currentVersion);
+        return true;
+      },
+    });
     const calls: string[] = [];
+    const dialogOptions: IOpenDialogOptions[] = [];
     const status: DesktopUpdateStatus = {
       status: "downloaded",
       version: "1.2.3",
@@ -62,12 +72,23 @@ suite("workbench/contrib/update/test/browser/update", () => {
           calls.push("check");
           return "checked";
         },
+        applySpecificUpdate: async packagePath => {
+          calls.push(`apply:${packagePath}`);
+          return true;
+        },
         getStatus: () => status,
         installDownloadedUpdate: async () => {
           calls.push("install");
           return true;
         },
       })],
+      [IFileDialogService, {
+        _serviceBrand: undefined,
+        showOpenDialog: async (options: IOpenDialogOptions) => {
+          dialogOptions.push(options);
+          return [URI.file("C:\\updates\\Conductor-Studio-1.5.20-windows-x64-setup.exe")];
+        },
+      }],
     ]);
 
     try {
@@ -75,16 +96,41 @@ suite("workbench/contrib/update/test/browser/update", () => {
       await CommandsRegistry.getCommand(UpdateCommandId.downloadNow)?.handler(accessor);
       await CommandsRegistry.getCommand(UpdateCommandId.install)?.handler(accessor);
       await CommandsRegistry.getCommand(UpdateCommandId.restart)?.handler(accessor);
+      if (isWindows) {
+        await CommandsRegistry.getCommand(UpdateCommandId.applyUpdate)?.handler(accessor);
+      }
+      await CommandsRegistry.getCommand(UpdateCommandId.showCurrentReleaseNotes)?.handler(accessor, "1.2.3");
       const commandState = await CommandsRegistry.getCommand(UpdateCommandId.state)?.handler(accessor);
 
       assert.deepStrictEqual({
         calls,
+        commandPaletteHasApplyUpdate: getCommandPaletteIds().has(UpdateCommandId.applyUpdate),
         commandPaletteHasUpdateCheck: getCommandPaletteIds().has(UpdateCommandId.check),
+        commandPaletteHasReleaseNotes: getCommandPaletteIds().has(UpdateCommandId.showCurrentReleaseNotes),
         commandState,
+        dialogOptions,
+        releaseNotesVersions,
       }, {
-        calls: ["check", "check", "install", "install"],
+        calls: [
+          "check",
+          "check",
+          "install",
+          "install",
+          ...(isWindows ? ["apply:C:\\updates\\Conductor-Studio-1.5.20-windows-x64-setup.exe"] : []),
+        ],
+        commandPaletteHasApplyUpdate: isWindows,
         commandPaletteHasUpdateCheck: true,
+        commandPaletteHasReleaseNotes: true,
         commandState: status,
+        dialogOptions: isWindows
+          ? [{
+            canSelectFiles: true,
+            filters: [{ name: "update.commands.applyUpdate.setupFilter", extensions: ["exe"] }],
+            openLabel: "update.commands.applyUpdate.openLabel",
+            title: "update.commands.applyUpdate.pickTitle",
+          }]
+          : [],
+        releaseNotesVersions: ["1.2.3"],
       });
     } finally {
       registration.dispose();
@@ -145,6 +191,7 @@ function createUpdateService(
       message: null,
     }),
     installDownloadedUpdate: async () => undefined,
+    applySpecificUpdate: async () => undefined,
     onDidChangeStatus: Event.None as Event<DesktopUpdateStatus>,
     ...overrides,
   };

@@ -16,6 +16,7 @@ import {
 } from "src/cs/workbench/contrib/update/common/update";
 
 type DesktopAppBridge = {
+  readonly applySpecificUpdate?: (packagePath: string) => Promise<unknown> | unknown;
   readonly checkForUpdates?: () => Promise<unknown> | unknown;
   readonly checkForUpdatesAndInstall?: () => Promise<unknown> | unknown;
   readonly getAutoUpdateStatus?: () => unknown;
@@ -97,6 +98,18 @@ export class WorkbenchUpdateService extends Disposable implements IWorkbenchUpda
     return this.invokeDesktopUpdateChannel(workbenchIpcChannels.desktopAutoUpdateInstallDownloaded);
   }
 
+  public applySpecificUpdate(packagePath: string): Promise<unknown> {
+    const bridge = getDesktopAppBridge();
+    if (typeof bridge?.applySpecificUpdate === "function") {
+      return Promise.resolve(bridge.applySpecificUpdate(packagePath));
+    }
+
+    return this.invokeDesktopUpdateChannel(
+      workbenchIpcChannels.desktopAutoUpdateApplySpecific,
+      packagePath,
+    );
+  }
+
   private readCurrentStatus(): DesktopUpdateStatus {
     const bridge = getDesktopAppBridge();
     if (typeof bridge?.getAutoUpdateStatus === "function") {
@@ -165,13 +178,13 @@ export class WorkbenchUpdateService extends Disposable implements IWorkbenchUpda
     this.onDidChangeStatusEmitter.fire(this.getStatus());
   }
 
-  private invokeDesktopUpdateChannel(channel: string): Promise<unknown> {
+  private invokeDesktopUpdateChannel(channel: string, ...args: unknown[]): Promise<unknown> {
     const ipcRenderer = getIpcRenderer();
     if (typeof ipcRenderer?.invoke !== "function") {
       return Promise.resolve(undefined);
     }
 
-    return ipcRenderer.invoke(channel);
+    return ipcRenderer.invoke(channel, ...args);
   }
 }
 

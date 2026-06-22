@@ -24,8 +24,10 @@ suite("workbench/services/update/test/browser/updateService", () => {
       assert.strictEqual(await service.checkForUpdates(), undefined);
       assert.strictEqual(await service.checkForUpdatesAndInstall(), undefined);
       assert.strictEqual(await service.installDownloadedUpdate(), undefined);
+      assert.strictEqual(await service.applySpecificUpdate("C:\\updates\\setup.exe"), undefined);
     } finally {
       service.dispose();
     }
   });
+
 });

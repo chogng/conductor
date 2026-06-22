@@ -196,6 +196,8 @@ suite("workbench/browser/titleService", () => {
       fileSelectionCommandId: "files.pick",
       installUpdateCommandId: "update.install",
       isUpdateReadyToInstall: true,
+      isUpdateVisible: true,
+      updateCommandId: "update.downloadNow",
     });
 
     const state = titleService.getTitlebarState();
@@ -204,10 +206,14 @@ suite("workbench/browser/titleService", () => {
       chartIntentCommandId: state?.chartIntentCommandId,
       fileSelectionCommandId: state?.fileSelectionCommandId,
       installUpdateCommandId: state?.installUpdateCommandId,
+      isUpdateVisible: state?.isUpdateVisible,
+      updateCommandId: state?.updateCommandId,
     }, {
       chartIntentCommandId: "chart.intent",
       fileSelectionCommandId: "files.pick",
       installUpdateCommandId: "update.install",
+      isUpdateVisible: true,
+      updateCommandId: "update.downloadNow",
     });
 
     titleService.dispose();
@@ -227,6 +233,8 @@ suite("workbench/browser/titleService", () => {
     titleService.patchTitlebarState({
       installUpdateCommandId: "update.install",
       isUpdateReadyToInstall: true,
+      isUpdateVisible: true,
+      updateCommandId: "update.install",
       updateVersion: "1.2.3",
     });
     layoutService.navigateToView("chart");
@@ -239,6 +247,8 @@ suite("workbench/browser/titleService", () => {
       fileSelectionCommandId: state?.fileSelectionCommandId,
       installUpdateCommandId: state?.installUpdateCommandId,
       isUpdateReadyToInstall: state?.isUpdateReadyToInstall,
+      isUpdateVisible: state?.isUpdateVisible,
+      updateCommandId: state?.updateCommandId,
       updateVersion: state?.updateVersion,
     }, {
       activePage: "chart",
@@ -246,6 +256,8 @@ suite("workbench/browser/titleService", () => {
       fileSelectionCommandId: "files.pick",
       installUpdateCommandId: "update.install",
       isUpdateReadyToInstall: true,
+      isUpdateVisible: true,
+      updateCommandId: "update.install",
       updateVersion: "1.2.3",
     });
 

@@ -26,8 +26,7 @@ import {
   type SettingsSectionEntry,
   type SettingsSectionId,
 } from "src/cs/workbench/contrib/settings/browser/settingsLayout";
-import { renderSettingsMarkdown } from "src/cs/workbench/contrib/settings/browser/settingsMarkdownRenderer";
-import { readBundledReleaseNotesMarkdown } from "src/cs/workbench/contrib/settings/browser/releaseNotesReader";
+import { renderWorkbenchMarkdown } from "src/cs/workbench/browser/markdownRenderer";
 import { readBundledUserGuideMarkdown } from "src/cs/workbench/contrib/settings/browser/userGuideReader";
 import {
   getSettingsSearchWords,
@@ -209,6 +208,7 @@ export type SettingsViewOptions = SettingsViewProps & {
   cleanupKeepSuccessOptions: SelectOption[];
   fileNameFieldSeparatorsDraft: string;
   handleCheckForUpdates: () => void;
+  handleShowReleaseNotes: () => void;
   originLegendFontSizeDraft: string;
   plotCommandDraft: string;
   postCommandsDraft: string;
@@ -866,7 +866,7 @@ export class SettingsView {
             control: this.createButton({
               id: "settings-release-notes-show-btn",
               label: localize("settings.releaseNotes.showButton", "Show Release Notes"),
-              onClick: () => this.showReleaseNotesDialog(),
+              onClick: this.options.handleShowReleaseNotes,
               variant: "secondary",
             }),
             description: localize("settings.releaseNotes.description", "Review recent product changes and fixes."),
@@ -903,14 +903,6 @@ export class SettingsView {
       },
     ]);
     container.appendChild(aboutTree.element);
-  }
-
-  private showReleaseNotesDialog(): void {
-    this.showSettingsDocumentDialog({
-      idBase: "settings-release-notes",
-      markdown: this.createReleaseNotesMarkdown(),
-      title: localize("settings.releaseNotes.dialogTitle", "Release Notes"),
-    });
   }
 
   private showUserGuideDialog(): void {
@@ -966,7 +958,9 @@ export class SettingsView {
 
     const body = document.createElement("div");
     body.className = `modal_body ${MODAL_BODY_SCROLL_CLASS} settings-document-modal__body`;
-    body.appendChild(renderSettingsMarkdown(options.markdown));
+    body.appendChild(renderWorkbenchMarkdown(options.markdown, {
+      className: "settings-markdown",
+    }));
 
     panel.append(header, body);
     overlay.appendChild(panel);
@@ -994,13 +988,6 @@ export class SettingsView {
     this.settingsDocumentDialog = null;
     dialog.disposeStore.dispose();
     dialog.overlay.remove();
-  }
-
-  private createReleaseNotesMarkdown(): string {
-    return readBundledReleaseNotesMarkdown({
-      currentVersion: this.options.appUpdateSettings.currentVersion,
-      fallbackVersionLabel: localize("settings.releaseNotes.unknownVersion", "Current Version"),
-    });
   }
 
   private createChartSettingsTree(settings: ChartDefaultSettings): readonly SettingsTreeSection[] {

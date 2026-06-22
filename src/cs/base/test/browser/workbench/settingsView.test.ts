@@ -1,6 +1,6 @@
 import assert from "assert";
 
-import { renderSettingsMarkdown } from "src/cs/workbench/contrib/settings/browser/settingsMarkdownRenderer";
+import { renderWorkbenchMarkdown } from "src/cs/workbench/browser/markdownRenderer";
 import { SettingsView, type SettingsViewOptions } from "src/cs/workbench/contrib/settings/browser/settingsView";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -206,23 +206,22 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
     }
   });
 
-  test("opens release notes modal from about section", () => {
+  test("dispatches release notes intent from about section", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
-    const view = new SettingsView(container, createSettingsViewOptions({ activeSettingsSection: "about" }));
+    let showReleaseNotesCount = 0;
+    const view = new SettingsView(container, createSettingsViewOptions({
+      activeSettingsSection: "about",
+      handleShowReleaseNotes: () => {
+        showReleaseNotesCount++;
+      },
+    }));
 
     try {
       getButton(container, "settings-release-notes-show-btn").click();
 
-      const dialog = document.querySelector<HTMLElement>("#settings-release-notes-dialog");
-      assert.ok(dialog);
-      assert.equal(dialog.getAttribute("role"), "dialog");
-      assert.ok(dialog.textContent?.includes("Conductor Studio 0.0.0"));
-      assert.ok(dialog.querySelector(".settings-markdown table"));
-      assert.ok(dialog.querySelector(".modal_body--scroll.settings-document-modal__body"));
-
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-      assert.equal(document.querySelector("#settings-release-notes-dialog"), null);
+      assert.equal(showReleaseNotesCount, 1);
+      assert.equal(document.querySelector(".settings-document-modal"), null);
     }
     finally {
       view.dispose();
@@ -255,7 +254,7 @@ suite("workbench/contrib/settings/browser/settingsView", () => {
   });
 
   test("renders settings markdown as safe DOM", () => {
-    const root = renderSettingsMarkdown(`# Title
+    const root = renderWorkbenchMarkdown(`# Title
 
 Paragraph with **strong text**, *emphasis*, \`code\`, [safe](https://example.com), [relative](docs/release.md), and [unsafe](javascript:alert(1)).
 
@@ -417,6 +416,7 @@ function createSettingsViewOptions(overrides: SettingsViewOptionOverrides = {}):
       onFieldSeparatorsChange: noop,
     },
     handleCheckForUpdates: noop,
+    handleShowReleaseNotes: noop,
     language: "system",
     numericDisplaySettings: {
       isSaving: false,

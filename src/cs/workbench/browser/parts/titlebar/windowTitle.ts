@@ -203,7 +203,9 @@ export class BrowserTitleService extends Disposable implements ITitleService {
         state.isSidebarVisible ??
         this.layoutService.isVisible(Parts.SIDEBAR_PART),
       isUpdateReadyToInstall: state.isUpdateReadyToInstall,
+      isUpdateVisible: state.isUpdateVisible,
       showFileSelector: state.showFileSelector,
+      updateCommandId: state.updateCommandId,
       updateTooltip: state.updateTooltip,
       updateVersion: state.updateVersion,
     };
@@ -225,8 +227,8 @@ export class BrowserTitleService extends Disposable implements ITitleService {
       commandService: this.commandService,
       nativeHostService: this.nativeHostService,
       updateAction: {
-        commandId: state.installUpdateCommandId,
-        isVisible: Boolean(state.isUpdateReadyToInstall),
+        commandId: state.updateCommandId ?? state.installUpdateCommandId ?? undefined,
+        isVisible: Boolean(state.isUpdateVisible ?? state.isUpdateReadyToInstall),
         isReadyToInstall: state.isUpdateReadyToInstall,
         tooltip: state.updateTooltip,
         version: state.updateVersion,

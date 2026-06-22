@@ -30,6 +30,9 @@ const MAIN_MESSAGE_DEFAULTS: Record<string, string> = {
   "update.disabledDevelopment": localize("update.disabledDevelopment", "Auto update is disabled in development."),
   "update.errorReasonPrefix": localize("update.errorReasonPrefix", "Reason: {message}"),
   "update.failed": localize("update.failed", "Auto update failed."),
+  "update.localPackageFeedMessage": localize("update.localPackageFeedMessage", "Using local update package: {path}"),
+  "update.localPackageInvalid": localize("update.localPackageInvalid", "Please choose a Windows setup package (.exe)."),
+  "update.localPackageNotFound": localize("update.localPackageNotFound", "The selected update package no longer exists."),
   "update.notEnabled": localize("update.notEnabled", "Auto update is not enabled in this build."),
   "update.ok": localize("update.ok", "OK"),
   "update.retrySuggestion": localize(

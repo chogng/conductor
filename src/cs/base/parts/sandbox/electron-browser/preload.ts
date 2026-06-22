@@ -127,6 +127,14 @@ function createDesktopAppBridge(ipcRenderer: IpcRenderer) {
       return ipcRenderer.invoke(workbenchIpcChannels.desktopAutoUpdateInstallDownloaded);
     },
 
+    async applySpecificUpdate(packagePath: unknown) {
+      if (typeof packagePath !== "string" || packagePath.trim().length === 0) {
+        return undefined;
+      }
+
+      return ipcRenderer.invoke(workbenchIpcChannels.desktopAutoUpdateApplySpecific, packagePath);
+    },
+
     onAutoUpdateStatusChange(listener: unknown) {
       if (typeof listener !== "function") {
         return () => undefined;

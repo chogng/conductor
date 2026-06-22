@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from "src/cs/base/common/event";
+import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
@@ -22,7 +22,11 @@ const BROWSER_UPDATE_STATUS: DesktopUpdateStatus = Object.freeze({
 export class BrowserUpdateService extends Disposable implements IWorkbenchUpdateServiceType {
   public declare readonly _serviceBrand: undefined;
 
-  public readonly onDidChangeStatus = Event.None as Event<DesktopUpdateStatus>;
+  private readonly onDidChangeStatusEmitter =
+    this._register(new Emitter<DesktopUpdateStatus>());
+  public readonly onDidChangeStatus = this.onDidChangeStatusEmitter.event;
+
+  private status = BROWSER_UPDATE_STATUS;
 
   public canCheckForUpdates(): boolean {
     return false;
@@ -37,10 +41,14 @@ export class BrowserUpdateService extends Disposable implements IWorkbenchUpdate
   }
 
   public getStatus(): DesktopUpdateStatus {
-    return BROWSER_UPDATE_STATUS;
+    return { ...this.status };
   }
 
   public installDownloadedUpdate(): Promise<unknown> {
+    return Promise.resolve(undefined);
+  }
+
+  public applySpecificUpdate(_packagePath: string): Promise<unknown> {
     return Promise.resolve(undefined);
   }
 }

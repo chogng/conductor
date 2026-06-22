@@ -130,10 +130,15 @@ class TestUpdateService extends Disposable implements IWorkbenchUpdateService {
     return Promise.resolve(undefined);
   }
 
+  public applySpecificUpdate(_packagePath: string): Promise<unknown> {
+    return Promise.resolve(undefined);
+  }
+
   public setStatus(status: DesktopUpdateStatus): void {
     this.status = status;
     this.onDidChangeStatusEmitter.fire(status);
   }
+
 }
 
 function createCommandService(commands: string[]): ICommandServiceType {

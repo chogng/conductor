@@ -49,6 +49,6 @@ if (-not (Test-Path -LiteralPath $sourceWasm)) {
   throw "Built xlsx WASM not found: $sourceWasm"
 }
 
-$targetWasm = Join-Path $ProjectRoot "src\cs\workbench\services\analysisFile\browser\xlsx.wasm"
+$targetWasm = Join-Path $ProjectRoot "src\cs\workbench\services\files\browser\xlsx.wasm"
 Copy-Item -LiteralPath $sourceWasm -Destination $targetWasm -Force
 Write-Host "[build-rs-xlsx-wasm] Copied xlsx WASM to $targetWasm"

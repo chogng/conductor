@@ -1,0 +1,166 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+.update-release-notes-modal {
+  max-height: min(760px, calc(100vh - 32px));
+}
+
+.update-release-notes-modal__header {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.update-release-notes-modal__titleWrap {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.update-release-notes-modal__titleIcon {
+  flex: 0 0 auto;
+  color: rgb(var(--text-secondary) / 1);
+}
+
+.update-release-notes-modal__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-release-notes-modal__close {
+  flex: 0 0 auto;
+}
+
+.update-release-notes-modal__body {
+  padding: 18px 20px 20px;
+}
+
+.update-release-notes-markdown {
+  color: rgb(var(--text-primary) / 1);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.update-release-notes-markdown > :first-child {
+  margin-top: 0;
+}
+
+.update-release-notes-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.update-release-notes-markdown h1,
+.update-release-notes-markdown h2,
+.update-release-notes-markdown h3,
+.update-release-notes-markdown h4,
+.update-release-notes-markdown h5,
+.update-release-notes-markdown h6 {
+  margin: 22px 0 10px;
+  color: rgb(var(--text-primary) / 1);
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.update-release-notes-markdown h1 {
+  font-size: 24px;
+}
+
+.update-release-notes-markdown h2 {
+  font-size: 18px;
+}
+
+.update-release-notes-markdown h3 {
+  font-size: 16px;
+}
+
+.update-release-notes-markdown p,
+.update-release-notes-markdown ul,
+.update-release-notes-markdown ol,
+.update-release-notes-markdown blockquote,
+.update-release-notes-markdown table,
+.update-release-notes-markdown pre,
+.update-release-notes-markdown video {
+  margin: 12px 0;
+}
+
+.update-release-notes-markdown ul,
+.update-release-notes-markdown ol {
+  padding-left: 22px;
+}
+
+.update-release-notes-markdown li + li {
+  margin-top: 4px;
+}
+
+.update-release-notes-markdown a {
+  color: rgb(var(--accent-primary) / 1);
+  text-decoration: none;
+}
+
+.update-release-notes-markdown a:hover {
+  text-decoration: underline;
+}
+
+.update-release-notes-markdown code {
+  border-radius: 4px;
+  background: rgb(var(--bg-200) / 0.85);
+  padding: 1px 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875em;
+}
+
+.update-release-notes-markdown pre {
+  overflow-x: auto;
+  border: 1px solid rgb(var(--border) / 0.72);
+  border-radius: 8px;
+  background: rgb(var(--bg-page) / 0.9);
+  padding: 14px;
+}
+
+.update-release-notes-markdown pre code {
+  display: block;
+  background: transparent;
+  padding: 0;
+  white-space: pre;
+}
+
+.update-release-notes-markdown blockquote {
+  border-left: 3px solid rgb(var(--accent-primary) / 0.55);
+  color: rgb(var(--text-secondary) / 1);
+  padding-left: 14px;
+}
+
+.update-release-notes-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border: 1px solid rgb(var(--border) / 0.72);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.update-release-notes-markdown th,
+.update-release-notes-markdown td {
+  border-bottom: 1px solid rgb(var(--border) / 0.62);
+  padding: 9px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.update-release-notes-markdown th {
+  background: rgb(var(--bg-200) / 0.65);
+  font-weight: 650;
+}
+
+.update-release-notes-markdown tr:last-child td {
+  border-bottom: 0;
+}
+
+.update-release-notes-markdown img,
+.update-release-notes-markdown video {
+  display: block;
+  max-width: 100%;
+  border-radius: 8px;
+}

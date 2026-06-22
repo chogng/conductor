@@ -10,6 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 import { UpdateTitleBarEntry } from "src/cs/workbench/contrib/update/browser/updateTitleBarEntry";
 import { getUpdateTooltipText } from "src/cs/workbench/contrib/update/browser/updateTooltip";
 import {
+  UpdateCommandId,
   type DesktopUpdateStatus,
   type IWorkbenchUpdateService,
 } from "src/cs/workbench/contrib/update/common/update";
@@ -37,6 +38,8 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
       assert.deepStrictEqual(titleService.state, {
         installUpdateCommandId: "update.install",
         isUpdateReadyToInstall: true,
+        isUpdateVisible: true,
+        updateCommandId: UpdateCommandId.install,
         updateTooltip: getUpdateTooltipText(status, true),
         updateVersion: "1.2.3",
       });
@@ -47,7 +50,35 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
     }
   });
 
-  test("clears titlebar ready state when update is no longer downloaded", () => {
+  test("projects available update status into titlebar state", () => {
+    const status: DesktopUpdateStatus = {
+      status: "available",
+      version: "1.2.4",
+      channel: "github",
+      isStoreManaged: false,
+      message: null,
+    };
+    const updateService = new TestUpdateService(status);
+    const titleService = new TestTitleService();
+    const entry = new UpdateTitleBarEntry(updateService, titleService);
+
+    try {
+      assert.deepStrictEqual(titleService.state, {
+        installUpdateCommandId: "update.install",
+        isUpdateReadyToInstall: false,
+        isUpdateVisible: true,
+        updateCommandId: UpdateCommandId.downloadNow,
+        updateTooltip: getUpdateTooltipText(status, true),
+        updateVersion: "1.2.4",
+      });
+    } finally {
+      entry.dispose();
+      titleService.dispose();
+      updateService.dispose();
+    }
+  });
+
+  test("clears titlebar update state when update is idle", () => {
     const updateService = new TestUpdateService({
       status: "downloaded",
       version: "1.2.3",
@@ -60,7 +91,7 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
 
     try {
       updateService.setStatus({
-        status: "checking",
+        status: "idle",
         version: "1.2.3",
         channel: "github",
         isStoreManaged: false,
@@ -70,6 +101,8 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
       assert.deepStrictEqual(titleService.state, {
         installUpdateCommandId: "update.install",
         isUpdateReadyToInstall: false,
+        isUpdateVisible: false,
+        updateCommandId: null,
         updateTooltip: null,
         updateVersion: null,
       });
@@ -112,10 +145,15 @@ class TestUpdateService extends Disposable implements IWorkbenchUpdateService {
     return Promise.resolve(undefined);
   }
 
+  public applySpecificUpdate(_packagePath: string): Promise<unknown> {
+    return Promise.resolve(undefined);
+  }
+
   public setStatus(status: DesktopUpdateStatus): void {
     this.status = status;
     this.onDidChangeStatusEmitter.fire(status);
   }
+
 }
 
 class TestTitleService extends Disposable implements ITitleService {
