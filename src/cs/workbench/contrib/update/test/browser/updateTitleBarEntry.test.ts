@@ -29,6 +29,7 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
       channel: "github",
       isStoreManaged: false,
       message: null,
+      progressPercent: null,
     };
     const updateService = new TestUpdateService(status);
     const titleService = new TestTitleService();
@@ -40,6 +41,8 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
         isUpdateReadyToInstall: true,
         isUpdateVisible: true,
         updateCommandId: UpdateCommandId.install,
+        updateLabel: "update.titlebar.install",
+        updateProgressPercent: null,
         updateTooltip: getUpdateTooltipText(status, true),
         updateVersion: "1.2.3",
       });
@@ -57,6 +60,7 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
       channel: "github",
       isStoreManaged: false,
       message: null,
+      progressPercent: null,
     };
     const updateService = new TestUpdateService(status);
     const titleService = new TestTitleService();
@@ -68,6 +72,8 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
         isUpdateReadyToInstall: false,
         isUpdateVisible: true,
         updateCommandId: UpdateCommandId.downloadNow,
+        updateLabel: "update.titlebar.download",
+        updateProgressPercent: null,
         updateTooltip: getUpdateTooltipText(status, true),
         updateVersion: "1.2.4",
       });
@@ -85,6 +91,7 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
       channel: "github",
       isStoreManaged: false,
       message: null,
+      progressPercent: null,
     });
     const titleService = new TestTitleService();
     const entry = new UpdateTitleBarEntry(updateService, titleService);
@@ -96,6 +103,7 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
         channel: "github",
         isStoreManaged: false,
         message: null,
+        progressPercent: null,
       });
 
       assert.deepStrictEqual(titleService.state, {
@@ -103,8 +111,41 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
         isUpdateReadyToInstall: false,
         isUpdateVisible: false,
         updateCommandId: null,
+        updateLabel: null,
+        updateProgressPercent: null,
         updateTooltip: null,
         updateVersion: null,
+      });
+    } finally {
+      entry.dispose();
+      titleService.dispose();
+      updateService.dispose();
+    }
+  });
+
+  test("projects downloading progress into titlebar state", () => {
+    const status: DesktopUpdateStatus = {
+      status: "downloading",
+      version: "1.2.4",
+      channel: "generic",
+      isStoreManaged: false,
+      message: null,
+      progressPercent: 42,
+    };
+    const updateService = new TestUpdateService(status);
+    const titleService = new TestTitleService();
+    const entry = new UpdateTitleBarEntry(updateService, titleService);
+
+    try {
+      assert.deepStrictEqual(titleService.state, {
+        installUpdateCommandId: "update.install",
+        isUpdateReadyToInstall: false,
+        isUpdateVisible: true,
+        updateCommandId: UpdateCommandId.downloading,
+        updateLabel: 'update.titlebar.downloadingProgress:{"percent":42}',
+        updateProgressPercent: 42,
+        updateTooltip: getUpdateTooltipText(status, true),
+        updateVersion: "1.2.4",
       });
     } finally {
       entry.dispose();

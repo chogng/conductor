@@ -23,9 +23,11 @@ import {
   type DesktopUpdateState,
   type IWorkbenchUpdateService as IWorkbenchUpdateServiceType,
 } from "src/cs/workbench/contrib/update/common/update";
-import { registerUpdateCommands } from "src/cs/workbench/contrib/update/browser/update";
+import { registerDeveloperUpdateCommand, registerUpdateCommands } from "src/cs/workbench/contrib/update/browser/update";
 import { ReleaseNotesEditor } from "src/cs/workbench/contrib/update/browser/releaseNotesEditor";
 import { UpdateTitleBarEntry } from "src/cs/workbench/contrib/update/browser/updateTitleBarEntry";
+
+registerDeveloperUpdateCommand();
 
 export class UpdateContribution extends Disposable implements IWorkbenchContribution {
   private readonly updateStateContextKey: IContextKey<DesktopUpdateState>;

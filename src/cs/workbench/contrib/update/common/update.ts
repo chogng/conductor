@@ -51,6 +51,7 @@ export type DesktopUpdateStatus = {
   readonly channel: DesktopUpdateChannel;
   readonly isStoreManaged: boolean;
   readonly message: string | null;
+  readonly progressPercent: number | null;
 };
 
 export const DEFAULT_DESKTOP_UPDATE_STATUS: DesktopUpdateStatus = Object.freeze({
@@ -59,6 +60,7 @@ export const DEFAULT_DESKTOP_UPDATE_STATUS: DesktopUpdateStatus = Object.freeze(
   channel: "none",
   isStoreManaged: false,
   message: null,
+  progressPercent: null,
 });
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<DesktopUpdateState>(
@@ -117,6 +119,7 @@ export const normalizeDesktopUpdateStatus = (
     : fallback.channel;
   const version = normalizeNullableString(raw.version);
   const message = normalizeNullableString(raw.message);
+  const progressPercent = normalizeProgressPercent(raw.progressPercent);
 
   return {
     status,
@@ -124,6 +127,7 @@ export const normalizeDesktopUpdateStatus = (
     channel,
     isStoreManaged: channel === "store" || raw.isStoreManaged === true,
     message,
+    progressPercent,
   };
 };
 
@@ -141,7 +145,8 @@ export const isDesktopUpdateStatusEqual = (
   current.version === next.version &&
   current.channel === next.channel &&
   current.isStoreManaged === next.isStoreManaged &&
-  current.message === next.message;
+  current.message === next.message &&
+  current.progressPercent === next.progressPercent;
 
 export const isDesktopUpdateReadyToInstall = (
   status: DesktopUpdateStatus,
@@ -154,4 +159,12 @@ const normalizeNullableString = (value: unknown): string | null => {
 
   const trimmed = value.trim();
   return trimmed || null;
+};
+
+const normalizeProgressPercent = (value: unknown): number | null => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(value)));
 };

@@ -29,6 +29,8 @@ export type WorkbenchTitlebarState = {
   readonly isUpdateVisible?: boolean;
   readonly showFileSelector?: boolean;
   readonly updateCommandId?: string | null;
+  readonly updateLabel?: string | null;
+  readonly updateProgressPercent?: number | null;
   readonly updateTooltip?: string | null;
   readonly updateVersion?: string | null;
 };

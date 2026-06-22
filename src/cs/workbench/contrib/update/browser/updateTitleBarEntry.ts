@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { localize } from "src/cs/nls";
 import {
   IWorkbenchUpdateService,
   isDesktopUpdateReadyToInstall,
@@ -43,6 +44,8 @@ export class UpdateTitleBarEntry extends Disposable {
         : null,
       isUpdateReadyToInstall: isReadyToInstall,
       isUpdateVisible: isVisible,
+      updateLabel: isVisible ? getDesktopUpdateTitlebarLabel(status) : null,
+      updateProgressPercent: isVisible ? getDesktopUpdateTitlebarProgressPercent(status) : null,
       updateTooltip: isVisible
         ? getUpdateTooltipText(status, canCheckForUpdates)
         : null,
@@ -79,3 +82,33 @@ const getDesktopUpdateTitlebarCommandId = (
       return null;
   }
 };
+
+const getDesktopUpdateTitlebarLabel = (status: DesktopUpdateStatus): string => {
+  switch (status.status) {
+    case "available":
+      return localize("update.titlebar.download", "Download");
+    case "checking":
+      return localize("update.titlebar.checking", "Checking...");
+    case "downloading":
+      return status.progressPercent === null
+        ? localize("update.titlebar.downloading", "Downloading...")
+        : localize("update.titlebar.downloadingProgress", "{percent}%", {
+            percent: status.progressPercent,
+          });
+    case "downloaded":
+      return localize("update.titlebar.install", "Install");
+    case "updating":
+      return localize("update.titlebar.installing", "Installing...");
+    case "error":
+      return localize("update.titlebar.error", "Update Error");
+    case "idle":
+    case "disabled":
+    case "unsupported":
+      return localize("menu.update.available", "Update");
+  }
+};
+
+const getDesktopUpdateTitlebarProgressPercent = (
+  status: DesktopUpdateStatus,
+): number | null =>
+  status.status === "downloading" ? status.progressPercent : null;

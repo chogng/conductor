@@ -44,6 +44,8 @@ export type WorkbenchTitlebarUpdateAction = {
   readonly commandId?: string;
   readonly isVisible: boolean;
   readonly isReadyToInstall?: boolean;
+  readonly label?: string | null;
+  readonly progressPercent?: number | null;
   readonly tooltip?: string | null;
   readonly version?: string | null;
 };
@@ -206,6 +208,8 @@ export class BrowserTitleService extends Disposable implements ITitleService {
       isUpdateVisible: state.isUpdateVisible,
       showFileSelector: state.showFileSelector,
       updateCommandId: state.updateCommandId,
+      updateLabel: state.updateLabel,
+      updateProgressPercent: state.updateProgressPercent,
       updateTooltip: state.updateTooltip,
       updateVersion: state.updateVersion,
     };
@@ -230,6 +234,8 @@ export class BrowserTitleService extends Disposable implements ITitleService {
         commandId: state.updateCommandId ?? state.installUpdateCommandId ?? undefined,
         isVisible: Boolean(state.isUpdateVisible ?? state.isUpdateReadyToInstall),
         isReadyToInstall: state.isUpdateReadyToInstall,
+        label: state.updateLabel,
+        progressPercent: state.updateProgressPercent,
         tooltip: state.updateTooltip,
         version: state.updateVersion,
       },

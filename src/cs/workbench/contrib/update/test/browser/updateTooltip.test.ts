@@ -40,11 +40,26 @@ suite("workbench/contrib/update/test/browser/updateTooltip", () => {
       channel: "github",
       isStoreManaged: false,
       message: null,
+      progressPercent: null,
     }, true);
 
     assert.ok(text.includes("update.tooltip.downloadedTitle"));
     assert.ok(text.includes("1.2.3"));
     assert.ok(text.includes("update.tooltip.downloadedMessage"));
+  });
+
+  test("formats downloading progress in tooltip text", () => {
+    const text = getUpdateTooltipText({
+      status: "downloading",
+      version: "1.2.4",
+      channel: "generic",
+      isStoreManaged: false,
+      message: null,
+      progressPercent: 42,
+    }, true);
+
+    assert.ok(text.includes("update.tooltip.downloadingTitle"));
+    assert.ok(text.includes("update.tooltip.downloadingProgressMessage"));
   });
 
   test("renders update status and dispatches the current action", () => {
@@ -54,6 +69,7 @@ suite("workbench/contrib/update/test/browser/updateTooltip", () => {
       channel: "github",
       isStoreManaged: false,
       message: null,
+      progressPercent: null,
     });
     const commands: string[] = [];
     const tooltip = new UpdateTooltip(updateService, createCommandService(commands));
@@ -82,6 +98,7 @@ suite("workbench/contrib/update/test/browser/updateTooltip", () => {
         channel: "github",
         isStoreManaged: false,
         message: null,
+        progressPercent: null,
       });
 
       assert.strictEqual(

@@ -49,6 +49,8 @@ export type WorkbenchTitlebarQuickAccessButton = {
 export type WorkbenchTitlebarActivePage = LayoutView | string;
 
 export type WorkbenchTitlebarUpdateInfo = {
+  readonly label?: string | null;
+  readonly progressPercent?: number | null;
   readonly tooltip?: string | null;
   readonly version?: string | null;
 };
@@ -119,8 +121,12 @@ export const createWorkbenchTitlebarQuickAccessButton =
   title: localize("titlebar.quickAccess", "Search commands/files"),
 });
 
-export const getWorkbenchTitlebarUpdateLabel = (): string =>
-  localize("menu.update.available", "Update");
+export const getWorkbenchTitlebarUpdateLabel = (
+  updateAction?: WorkbenchTitlebarUpdateInfo,
+): string => {
+  const label = updateAction?.label?.trim();
+  return label || localize("menu.update.available", "Update");
+};
 
 export const getWorkbenchTitlebarUpdateTitle = (
   updateAction?: WorkbenchTitlebarUpdateInfo,
@@ -130,7 +136,7 @@ export const getWorkbenchTitlebarUpdateTitle = (
     return tooltip;
   }
 
-  const label = getWorkbenchTitlebarUpdateLabel();
+  const label = getWorkbenchTitlebarUpdateLabel(updateAction);
   const version =
     typeof updateAction?.version === "string" && updateAction.version.trim()
       ? updateAction.version.trim()

@@ -201,7 +201,7 @@ const getUpdateTooltipModel = (
       };
     case "downloading":
       return {
-        message: status.message ?? localize("update.tooltip.downloadingMessage", "Downloading the update."),
+        message: status.message ?? getDownloadingUpdateMessage(status.progressPercent),
         statusLabel: getUpdateStateLabel(status.status),
         title: localize("update.tooltip.downloadingTitle", "Downloading Update"),
       };
@@ -247,6 +247,13 @@ const getUpdateTooltipModel = (
       };
   }
 };
+
+const getDownloadingUpdateMessage = (progressPercent: number | null): string =>
+  progressPercent === null
+    ? localize("update.tooltip.downloadingMessage", "Downloading the update.")
+    : localize("update.tooltip.downloadingProgressMessage", "Downloading the update ({percent}% complete).", {
+        percent: progressPercent,
+      });
 
 const getUpdateStateLabel = (state: DesktopUpdateState): string => {
   switch (state) {

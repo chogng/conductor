@@ -118,8 +118,19 @@ function getMainLanguage() {
   );
 }
 
+function isUpdateDebugBuild() {
+  if (process.env.CONDUCTOR_UPDATE_DEBUG === "1") {
+    return true;
+  }
+
+  return app.isPackaged &&
+    process.platform === "win32" &&
+    fs.existsSync(path.join(process.resourcesPath, UPDATE_DEBUG_BUILD_MARKER_FILE));
+}
+
 const isDev = !app.isPackaged;
 const isWindows = process.platform === "win32";
+const UPDATE_DEBUG_BUILD_MARKER_FILE = "update-debug-build";
 // The desktop renderer follows VS Code's code/electron-browser/workbench entry shape.
 // Main stays responsible for native windows, IPC, updater, tray, and worker processes.
 const devUrl =
@@ -128,7 +139,11 @@ const devUrl =
 const isWindowsStorePackage =
   process.platform === "win32" && Reflect.get(process, "windowsStore") === true;
 const APP_DISPLAY_NAME = product.nameLong;
-const APP_USER_MODEL_ID = isDev ? `${product.appId}.dev` : product.appId;
+const APP_USER_MODEL_ID = isDev
+  ? `${product.appId}.dev`
+  : isUpdateDebugBuild()
+    ? `${product.appId}.updateDebug`
+    : product.appId;
 const DEFAULT_WORKBENCH_BACKGROUND_COLOR = "#f3f4f6";
 const desktopWindowMain = new DesktopWindowMain(DEFAULT_WORKBENCH_BACKGROUND_COLOR);
 const BOOT_WINDOW_SETTLE_MS = 80;
@@ -1906,6 +1921,10 @@ function createUpdateService() {
     isWindowsStorePackage,
     packageJsonPath: path.join(getAppRootPath(), "package.json"),
     onStatusChange: broadcastAutoUpdateStatus,
+    prepareToQuitForUpdate: () => {
+      trayMainService.markQuitRequested();
+      stopAllRustEngines();
+    },
     localize: mainMessage,
     log: (message: string) => {
       if (isDesktopBootProfileEnabled()) {

@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { Disposable, DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { isWindows } from "src/cs/base/common/platform";
 import { localize } from "src/cs/nls";
 import {
@@ -121,40 +121,6 @@ export const registerUpdateCommands = (releaseNotesEditor?: UpdateReleaseNotesEd
     }
   }));
 
-  if (isWindows) {
-    disposables.add(registerAction2(class DeveloperApplyUpdateAction extends Action2 {
-      public constructor() {
-        super({
-          category: localize("update.commands.developerCategory", "Developer"),
-          f1: true,
-          id: UpdateCommandId.applyUpdate,
-          precondition: CONTEXT_UPDATE_STATE.isEqualTo("idle"),
-          title: localize("update.commands.applyUpdate", "Apply Update..."),
-          metadata: {
-            description: localize("update.commands.applyUpdate.description", "Apply a local Windows setup package for update debugging."),
-          },
-        });
-      }
-
-      public async run(accessor: ServicesAccessor): Promise<unknown> {
-        const updateService = accessor.get(IWorkbenchUpdateService);
-        const fileDialogService = accessor.get(IFileDialogService);
-        const updatePath = await fileDialogService.showOpenDialog({
-          canSelectFiles: true,
-          filters: [{ name: localize("update.commands.applyUpdate.setupFilter", "Setup"), extensions: ["exe"] }],
-          openLabel: localize("update.commands.applyUpdate.openLabel", "Update"),
-          title: localize("update.commands.applyUpdate.pickTitle", "Apply Update"),
-        });
-
-        if (!updatePath?.[0]) {
-          return undefined;
-        }
-
-        return updateService.applySpecificUpdate(updatePath[0].fsPath);
-      }
-    }));
-  }
-
   disposables.add(CommandsRegistry.registerCommand({
     id: UpdateCommandId.downloadNow,
     handler: accessor => accessor.get(IWorkbenchUpdateService).checkForUpdates(),
@@ -206,6 +172,43 @@ export const registerUpdateCommands = (releaseNotesEditor?: UpdateReleaseNotesEd
   }));
 
   return disposables;
+};
+
+export const registerDeveloperUpdateCommand = (): IDisposable => {
+  if (!isWindows) {
+    return Disposable.None;
+  }
+
+  return registerAction2(class DeveloperApplyUpdateAction extends Action2 {
+    public constructor() {
+      super({
+        category: localize("update.commands.developerCategory", "Developer"),
+        f1: true,
+        id: UpdateCommandId.applyUpdate,
+        title: localize("update.commands.applyUpdate", "Apply Update..."),
+        metadata: {
+          description: localize("update.commands.applyUpdate.description", "Apply a local Windows setup package for update debugging."),
+        },
+      });
+    }
+
+    public async run(accessor: ServicesAccessor): Promise<unknown> {
+      const updateService = accessor.get(IWorkbenchUpdateService);
+      const fileDialogService = accessor.get(IFileDialogService);
+      const updatePath = await fileDialogService.showOpenDialog({
+        canSelectFiles: true,
+        filters: [{ name: localize("update.commands.applyUpdate.setupFilter", "Setup"), extensions: ["exe"] }],
+        openLabel: localize("update.commands.applyUpdate.openLabel", "Update"),
+        title: localize("update.commands.applyUpdate.pickTitle", "Apply Update"),
+      });
+
+      if (!updatePath?.[0]) {
+        return undefined;
+      }
+
+      return updateService.applySpecificUpdate(updatePath[0].fsPath);
+    }
+  });
 };
 
 const normalizeReleaseNotesVersion = (value: unknown): string | null =>

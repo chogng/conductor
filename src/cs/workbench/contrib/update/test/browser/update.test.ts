@@ -26,6 +26,7 @@ import type {
 } from "src/cs/platform/instantiation/common/instantiation";
 import {
   appendUpdateMenuItems,
+  registerDeveloperUpdateCommand,
   registerUpdateCommands,
 } from "src/cs/workbench/contrib/update/browser/update";
 import {
@@ -54,6 +55,7 @@ suite("workbench/contrib/update/test/browser/update", () => {
       channel: "github",
       isStoreManaged: false,
       message: null,
+      progressPercent: null,
     };
     let accessor!: ServicesAccessor;
     const commandService: ICommandServiceType = {
@@ -96,9 +98,6 @@ suite("workbench/contrib/update/test/browser/update", () => {
       await CommandsRegistry.getCommand(UpdateCommandId.downloadNow)?.handler(accessor);
       await CommandsRegistry.getCommand(UpdateCommandId.install)?.handler(accessor);
       await CommandsRegistry.getCommand(UpdateCommandId.restart)?.handler(accessor);
-      if (isWindows) {
-        await CommandsRegistry.getCommand(UpdateCommandId.applyUpdate)?.handler(accessor);
-      }
       await CommandsRegistry.getCommand(UpdateCommandId.showCurrentReleaseNotes)?.handler(accessor, "1.2.3");
       const commandState = await CommandsRegistry.getCommand(UpdateCommandId.state)?.handler(accessor);
 
@@ -116,20 +115,12 @@ suite("workbench/contrib/update/test/browser/update", () => {
           "check",
           "install",
           "install",
-          ...(isWindows ? ["apply:C:\\updates\\Conductor-Studio-1.5.20-windows-x64-setup.exe"] : []),
         ],
-        commandPaletteHasApplyUpdate: isWindows,
+        commandPaletteHasApplyUpdate: false,
         commandPaletteHasUpdateCheck: true,
         commandPaletteHasReleaseNotes: true,
         commandState: status,
-        dialogOptions: isWindows
-          ? [{
-            canSelectFiles: true,
-            filters: [{ name: "update.commands.applyUpdate.setupFilter", extensions: ["exe"] }],
-            openLabel: "update.commands.applyUpdate.openLabel",
-            title: "update.commands.applyUpdate.pickTitle",
-          }]
-          : [],
+        dialogOptions: [],
         releaseNotesVersions: ["1.2.3"],
       });
     } finally {
@@ -163,6 +154,55 @@ suite("workbench/contrib/update/test/browser/update", () => {
       registration.dispose();
     }
   });
+
+  test("registers the developer apply update command independently", async () => {
+    const registration = registerDeveloperUpdateCommand();
+    const calls: string[] = [];
+    const dialogOptions: IOpenDialogOptions[] = [];
+    const accessor = createAccessor([
+      [IWorkbenchUpdateService, createUpdateService({
+        applySpecificUpdate: async packagePath => {
+          calls.push(`apply:${packagePath}`);
+          return true;
+        },
+      })],
+      [IFileDialogService, {
+        _serviceBrand: undefined,
+        showOpenDialog: async (options: IOpenDialogOptions) => {
+          dialogOptions.push(options);
+          return [URI.file("C:\\updates\\Conductor-Studio-1.5.20-windows-x64-setup.exe")];
+        },
+      }],
+    ]);
+
+    try {
+      assert.equal(getCommandPaletteIds().has(UpdateCommandId.applyUpdate), isWindows);
+
+      if (isWindows) {
+        await CommandsRegistry.getCommand(UpdateCommandId.applyUpdate)?.handler(accessor);
+      }
+
+      assert.deepStrictEqual({
+        calls,
+        dialogOptions,
+      }, isWindows
+        ? {
+          calls: ["apply:C:\\updates\\Conductor-Studio-1.5.20-windows-x64-setup.exe"],
+          dialogOptions: [{
+            canSelectFiles: true,
+            filters: [{ name: "update.commands.applyUpdate.setupFilter", extensions: ["exe"] }],
+            openLabel: "update.commands.applyUpdate.openLabel",
+            title: "update.commands.applyUpdate.pickTitle",
+          }],
+        }
+        : {
+          calls: [],
+          dialogOptions: [],
+        });
+    } finally {
+      registration.dispose();
+    }
+  });
 });
 
 function createAccessor(
@@ -189,6 +229,7 @@ function createUpdateService(
       channel: "none",
       isStoreManaged: false,
       message: null,
+      progressPercent: null,
     }),
     installDownloadedUpdate: async () => undefined,
     applySpecificUpdate: async () => undefined,

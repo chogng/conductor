@@ -16,6 +16,7 @@ out
 out-test
 dist-ssr
 release
+release-update-debug/
 target/
 .build/
 *.local

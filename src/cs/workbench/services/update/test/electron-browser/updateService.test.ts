@@ -28,6 +28,7 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
           channel: "github",
           isStoreManaged: false,
           message: " Ready ",
+          progressPercent: 100,
         }),
         onAutoUpdateStatusChange: (listener: (status: unknown) => void) => {
           listeners.push(listener);
@@ -64,6 +65,7 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
         channel: "github",
         isStoreManaged: false,
         message: "Ready",
+        progressPercent: 100,
       });
 
       listeners[0]?.({
@@ -72,6 +74,7 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
         channel: "invalid",
         isStoreManaged: false,
         message: "",
+        progressPercent: 42.4,
       });
 
       assert.deepStrictEqual(changes, [{
@@ -80,6 +83,7 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
         channel: "github",
         isStoreManaged: false,
         message: null,
+        progressPercent: 42,
       }]);
       assert.strictEqual(await service.checkForUpdates(), "checked");
       assert.strictEqual(await service.applySpecificUpdate("C:\\updates\\setup.exe"), true);
@@ -113,6 +117,7 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
               channel: "generic",
               isStoreManaged: false,
               message: null,
+              progressPercent: 150,
             };
           },
           invoke: async (channel: string, ...args: unknown[]) => {
@@ -131,6 +136,7 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
         channel: "generic",
         isStoreManaged: false,
         message: null,
+        progressPercent: 100,
       });
 
       await service.checkForUpdates();

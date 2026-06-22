@@ -17,6 +17,7 @@ const BROWSER_UPDATE_STATUS: DesktopUpdateStatus = Object.freeze({
   channel: "unsupported",
   isStoreManaged: false,
   message: null,
+  progressPercent: null,
 });
 
 export class BrowserUpdateService extends Disposable implements IWorkbenchUpdateServiceType {

@@ -4,6 +4,7 @@ import http, { type IncomingMessage, type Server, type ServerResponse } from "no
 import type { App, BrowserWindow, Dialog, MessageBoxOptions } from "electron";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { Transform } from "node:stream";
 
 export type DesktopUpdateChannel =
   | "github"
@@ -29,6 +30,7 @@ export interface DesktopUpdateStatus {
   readonly channel: DesktopUpdateChannel;
   readonly isStoreManaged: boolean;
   readonly message: string | null;
+  readonly progressPercent: number | null;
 }
 
 export interface Win32UpdateServiceOptions {
@@ -39,6 +41,7 @@ export interface Win32UpdateServiceOptions {
   readonly packageJsonPath: string;
   readonly getDialogWindow: () => BrowserWindow | null;
   readonly onStatusChange: (status: DesktopUpdateStatus) => void;
+  readonly prepareToQuitForUpdate?: () => void;
   readonly localize: (key: string, vars?: Record<string, unknown>) => string;
   readonly log: (message: string) => void;
   readonly warn: (message: string, error?: unknown) => void;
@@ -47,6 +50,8 @@ export interface Win32UpdateServiceOptions {
 const AUTO_UPDATE_INITIAL_DELAY_MS = 15 * 1000;
 const AUTO_UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const AUTO_UPDATE_SUPPORTED_PLATFORMS = new Set(["win32"]);
+const LOCAL_PACKAGE_FEED_DEFAULT_THROTTLE_KBPS = 4096;
+const LOCAL_PACKAGE_FEED_THROTTLE_ENV = "CONDUCTOR_UPDATE_DEBUG_THROTTLE_KBPS";
 const PACKAGED_AUTO_UPDATE_CONFIG = {
   provider: "github",
   owner: "chogng",
@@ -75,6 +80,46 @@ const normalizeAutoUpdateUrl = (value: unknown) => {
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error || "");
+
+const normalizeProgressPercent = (value: unknown): number | null => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(value)));
+};
+
+const getLocalPackageFeedThrottleBytesPerSecond = (): number => {
+  const rawValue = process.env[LOCAL_PACKAGE_FEED_THROTTLE_ENV];
+  if (rawValue === undefined || rawValue.trim() === "") {
+    return LOCAL_PACKAGE_FEED_DEFAULT_THROTTLE_KBPS * 1024;
+  }
+
+  const kbps = Number(rawValue);
+  if (!Number.isFinite(kbps) || kbps < 0) {
+    return LOCAL_PACKAGE_FEED_DEFAULT_THROTTLE_KBPS * 1024;
+  }
+
+  return Math.round(kbps * 1024);
+};
+
+const createLocalPackageThrottleStream = (bytesPerSecond: number): Transform => {
+  let nextChunkAt = Date.now();
+
+  return new Transform({
+    transform(chunk, _encoding, callback) {
+      const now = Date.now();
+      const chunkBytes = Buffer.isBuffer(chunk)
+        ? chunk.byteLength
+        : Buffer.byteLength(String(chunk));
+      const delayMs = Math.max(0, nextChunkAt - now);
+      nextChunkAt = Math.max(now, nextChunkAt) +
+        Math.ceil((chunkBytes / bytesPerSecond) * 1000);
+
+      setTimeout(() => callback(null, chunk), delayMs);
+    },
+  });
+};
 
 const resolveAutoUpdateFeedUrl = () =>
   normalizeAutoUpdateUrl(
@@ -106,6 +151,7 @@ export class Win32UpdateService {
     channel: "none",
     isStoreManaged: false,
     message: null,
+    progressPercent: null,
   };
 
   constructor(private readonly options: Win32UpdateServiceOptions) {}
@@ -297,7 +343,9 @@ export class Win32UpdateService {
 
     this.autoUpdateInstallAfterDownloadRequested = false;
     this.setStatus("updating");
-    this.autoUpdater.quitAndInstall();
+    this.prepareToQuitForUpdate();
+    // Run the NSIS updater silently and relaunch the app when installation finishes.
+    this.autoUpdater.quitAndInstall(true, true);
     return true;
   }
 
@@ -359,6 +407,7 @@ export class Win32UpdateService {
     this.autoUpdater.updateInfoAndProvider = null;
     this.autoUpdater.checkForUpdatesPromise = null;
     this.autoUpdater.downloadPromise = null;
+    await this.clearDownloadedUpdateCache();
     this.autoUpdater.setFeedURL({
       provider: "generic",
       url: feed.url,
@@ -373,6 +422,30 @@ export class Win32UpdateService {
     this.options.log(`[update] Using local update package: ${resolvedPackagePath}`);
     const result: any = await this.checkForUpdates({ manual: true });
     return !!result && result.isUpdateAvailable !== false;
+  }
+
+  private async clearDownloadedUpdateCache(): Promise<void> {
+    if (!this.autoUpdater) return;
+
+    try {
+      const helper = typeof this.autoUpdater.getOrCreateDownloadHelper === "function"
+        ? await this.autoUpdater.getOrCreateDownloadHelper()
+        : this.autoUpdater.downloadedUpdateHelper;
+      if (helper && typeof helper.clear === "function") {
+        await helper.clear();
+      }
+    } catch (error) {
+      this.options.warn("[update] Failed to clear local update package cache.", error);
+    }
+  }
+
+  private prepareToQuitForUpdate(): void {
+    try {
+      this.options.prepareToQuitForUpdate?.();
+    } catch (error) {
+      this.options.warn("[update] Failed to prepare app quit for update install.", error);
+    }
+    this.stopPolling();
   }
 
   private async ensureAutoUpdater() {
@@ -431,9 +504,20 @@ export class Win32UpdateService {
       this.options.log(`[update] Update ${info?.version || "unknown"} is available.`);
     });
 
-    this.autoUpdater.on("download-progress", () => {
-      this.setStatus("downloading");
-      this.options.log("[update] Downloading update...");
+    this.autoUpdater.on("download-progress", (progress: any) => {
+      const progressPercent = normalizeProgressPercent(progress?.percent);
+      this.setStatus(
+        "downloading",
+        this.status.version,
+        this.status.channel,
+        this.status.message,
+        progressPercent,
+      );
+      this.options.log(
+        progressPercent === null
+          ? "[update] Downloading update..."
+          : `[update] Downloading update... ${progressPercent}%`,
+      );
     });
 
     this.autoUpdater.on("update-not-available", (info: any) => {
@@ -466,6 +550,7 @@ export class Win32UpdateService {
     version = this.status.version,
     channel = this.status.channel,
     message = this.status.message,
+    progressPercent: number | null = null,
   ): void {
     this.status = {
       status,
@@ -473,6 +558,7 @@ export class Win32UpdateService {
       channel,
       isStoreManaged: channel === "store",
       message: typeof message === "string" && message.trim() ? message.trim() : null,
+      progressPercent: normalizeProgressPercent(progressPercent),
     };
     this.options.onStatusChange(this.getStatus());
   }
@@ -612,7 +698,18 @@ export class Win32UpdateService {
           ? "text/yaml; charset=utf-8"
           : "application/octet-stream",
       });
-      fs.createReadStream(target).pipe(response);
+
+      const stream = fs.createReadStream(target);
+      stream.on("error", error => response.destroy(error));
+      const throttleBytesPerSecond = path.extname(target).toLowerCase() === ".yml"
+        ? 0
+        : getLocalPackageFeedThrottleBytesPerSecond();
+      if (throttleBytesPerSecond > 0) {
+        stream.pipe(createLocalPackageThrottleStream(throttleBytesPerSecond)).pipe(response);
+        return;
+      }
+
+      stream.pipe(response);
     }, () => {
       response.writeHead(404);
       response.end("Not found");

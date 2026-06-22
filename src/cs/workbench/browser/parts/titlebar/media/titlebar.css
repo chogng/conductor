@@ -52,7 +52,7 @@ html.workbench-transparent-chrome-windows .titlebar-root {
 }
 
 .titlebar-brand-icon {
-  background-image: url("../../../../../../../resources/brand/conductor-light.svg");
+  background-image: url("../../../../../../../resources/brand/conductor.svg");
   background-position: center center;
   background-repeat: no-repeat;
   background-size: 16px;
@@ -174,14 +174,6 @@ html.workbench-transparent-chrome-windows .titlebar-root {
   height: 100%;
 }
 
-.titlebar-controls--nav {
-  margin-left: 16px;
-}
-
-.titlebar-controls--nav-compact {
-  margin-left: 0;
-}
-
 .titlebar-actionbar {
   flex: 0 0 auto;
   height: 100%;
@@ -258,6 +250,31 @@ html.workbench-transparent-chrome-windows .titlebar-root {
   color: rgb(var(--text-primary));
 }
 
+.titlebar-update-button {
+  min-width: 76px;
+}
+
+.titlebar-update-button--progress {
+  background:
+    linear-gradient(
+      90deg,
+      rgb(var(--accent) / 0.22) var(--titlebar-update-progress),
+      transparent var(--titlebar-update-progress)
+    );
+  color: rgb(var(--text-primary));
+  min-width: 116px;
+}
+
+.titlebar-update-button--progress:hover {
+  background:
+    linear-gradient(
+      90deg,
+      rgb(var(--accent) / 0.28) var(--titlebar-update-progress),
+      transparent var(--titlebar-update-progress)
+    ),
+    rgb(var(--bg-200) / 0.5);
+}
+
 .titlebar-page-button--active,
 .dark .titlebar-page-button--active {
   color: rgb(var(--accent)) !important;
@@ -286,6 +303,7 @@ html.workbench-transparent-chrome-windows .titlebar-root {
   display: flex;
   flex-grow: 0;
   flex-shrink: 0;
+  gap: 10px;
   height: 100%;
   padding-left: 8px;
   position: relative;

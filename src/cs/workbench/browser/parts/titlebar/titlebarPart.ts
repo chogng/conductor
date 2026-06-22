@@ -495,7 +495,6 @@ const createWorkbenchTitlebarView = (
   const navActionBar = createTitlebarActionBar([
     "titlebar-controls",
     "titlebar-controls--nav",
-    showBrandIcon ? "" : "titlebar-controls--nav-compact",
   ].filter(Boolean).join(" "));
   actionBarDisposables.push(navActionBar);
   const sidebarButton =
@@ -553,15 +552,29 @@ const createWorkbenchTitlebarView = (
   if (updateAction?.isVisible === true) {
     const updateTitle =
       WorkbenchTitlebarActions.getWorkbenchTitlebarUpdateTitle(updateAction);
+    const updateProgressPercent =
+      normalizeTitlebarUpdateProgressPercent(updateAction.progressPercent);
     const updateButton = createElement("button", {
       id: WorkbenchTitlebarActions.WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID,
       type: "button",
       "aria-label": updateTitle,
       title: updateTitle,
-      className: "titlebar-action-button",
+      className: [
+        "titlebar-action-button",
+        "titlebar-update-button",
+        updateProgressPercent !== null
+          ? "titlebar-update-button--progress"
+          : "",
+      ].filter(Boolean).join(" "),
     });
     updateButton.textContent =
-      WorkbenchTitlebarActions.getWorkbenchTitlebarUpdateLabel();
+      WorkbenchTitlebarActions.getWorkbenchTitlebarUpdateLabel(updateAction);
+    if (updateProgressPercent !== null) {
+      updateButton.style.setProperty(
+        "--titlebar-update-progress",
+        `${updateProgressPercent}%`,
+      );
+    }
     updateButton.addEventListener("click", () => {
       if (updateAction.commandId) {
         void commandService?.executeCommand(updateAction.commandId);
@@ -673,10 +686,20 @@ const shouldRecreateTitlebar = (
   prev.chrome?.showBrandIcon !== next.chrome?.showBrandIcon ||
   prev.chrome?.windowControlsSide !== next.chrome?.windowControlsSide ||
   prev.updateAction?.isVisible !== next.updateAction?.isVisible ||
+  prev.updateAction?.label !== next.updateAction?.label ||
+  prev.updateAction?.progressPercent !== next.updateAction?.progressPercent ||
   prev.updateAction?.tooltip !== next.updateAction?.tooltip ||
   prev.updateAction?.version !== next.updateAction?.version ||
   prev.updateAction?.commandId !== next.updateAction?.commandId ||
   !sameFileOptions(prev.fileOptions, next.fileOptions);
+
+const normalizeTitlebarUpdateProgressPercent = (value: unknown): number | null => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(value)));
+};
 
 export class WorkbenchTitlebarPart {
   private contentArea: HTMLElement | null = null;

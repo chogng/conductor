@@ -198,6 +198,8 @@ suite("workbench/browser/titleService", () => {
       isUpdateReadyToInstall: true,
       isUpdateVisible: true,
       updateCommandId: "update.downloadNow",
+      updateLabel: "Downloading 42%",
+      updateProgressPercent: 42,
     });
 
     const state = titleService.getTitlebarState();
@@ -208,12 +210,16 @@ suite("workbench/browser/titleService", () => {
       installUpdateCommandId: state?.installUpdateCommandId,
       isUpdateVisible: state?.isUpdateVisible,
       updateCommandId: state?.updateCommandId,
+      updateLabel: state?.updateLabel,
+      updateProgressPercent: state?.updateProgressPercent,
     }, {
       chartIntentCommandId: "chart.intent",
       fileSelectionCommandId: "files.pick",
       installUpdateCommandId: "update.install",
       isUpdateVisible: true,
       updateCommandId: "update.downloadNow",
+      updateLabel: "Downloading 42%",
+      updateProgressPercent: 42,
     });
 
     titleService.dispose();
@@ -235,6 +241,8 @@ suite("workbench/browser/titleService", () => {
       isUpdateReadyToInstall: true,
       isUpdateVisible: true,
       updateCommandId: "update.install",
+      updateLabel: "Install Update",
+      updateProgressPercent: null,
       updateVersion: "1.2.3",
     });
     layoutService.navigateToView("chart");
@@ -249,6 +257,8 @@ suite("workbench/browser/titleService", () => {
       isUpdateReadyToInstall: state?.isUpdateReadyToInstall,
       isUpdateVisible: state?.isUpdateVisible,
       updateCommandId: state?.updateCommandId,
+      updateLabel: state?.updateLabel,
+      updateProgressPercent: state?.updateProgressPercent,
       updateVersion: state?.updateVersion,
     }, {
       activePage: "chart",
@@ -258,6 +268,8 @@ suite("workbench/browser/titleService", () => {
       isUpdateReadyToInstall: true,
       isUpdateVisible: true,
       updateCommandId: "update.install",
+      updateLabel: "Install Update",
+      updateProgressPercent: null,
       updateVersion: "1.2.3",
     });
 

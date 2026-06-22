@@ -53,6 +53,7 @@
     "dist:desktop": "npm run build:desktop && npm run verify:py-worker && electron-builder",
     "dist:desktop:store": "npm run build:desktop && npm run verify:py-worker && node --experimental-strip-types build/win32/build-appx.ts",
     "dist:desktop:oneclick": "node scripts/run-powershell.mjs scripts/pack-desktop-oneclick.ps1",
+    "dist:desktop:update-debug": "node scripts/run-powershell.mjs scripts/pack-desktop-update-debug.ps1",
     "pack:desktop:oneclick": "node scripts/run-powershell.mjs scripts/pack-desktop-oneclick.ps1 -DirOnly",
     "verify:auto-update-config": "node --experimental-strip-types build/win32/verify-auto-update-config.ts",
     "dist:desktop:publish": "node scripts/run-powershell.mjs scripts/release-desktop-local.ps1",
