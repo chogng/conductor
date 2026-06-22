@@ -130,7 +130,7 @@ const getDefaultPageActionIcon = (
   action: WorkbenchTitlebarPageButton,
 ): LxIconDefinition => {
   if (action.id === "table") {
-    return LxIcon.downloadTray;
+    return LxIcon.table;
   }
 
   if (action.id === "chart") {

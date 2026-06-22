@@ -4,10 +4,10 @@
 
 import {
 	lxAdd as renderAdd,
-	lxAnalysis as renderAnalysis,
 	lxAppearance as renderAppearance,
 	lxArrowLeft as renderArrowLeft,
 	lxArrowRight as renderArrowRight,
+	lxChart as renderChart,
 	lxCheck as renderCheck,
 	lxChevronDown as renderChevronDown,
 	lxChevronRight as renderChevronRight,
@@ -36,6 +36,7 @@ import {
 	lxScreenFull as renderScreenFull,
 	lxScreenNormal as renderScreenNormal,
 	lxSummary as renderSummary,
+	lxTable as renderTable,
 	lxPinned as renderPinned,
 	lxUnpin as renderUnpin,
 	lxXlsLetterFilled as renderXlsLetterFilled,
@@ -63,10 +64,6 @@ export const lxiconsLibrary = {
 		render: () =>
 			`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><path stroke="#000" stroke-linejoin="round" d="M7.118 2.984a1 1 0 0 1 1.764 0l5.008 9.766A1 1 0 0 1 13 14.2H3a1 1 0 0 1-.89-1.45Z"/><path stroke="#000" stroke-linecap="round" d="M8 5.5v3.5"/><circle cx="8" cy="11.4" r=".75" fill="#000"/></svg>`,
 	},
-	analysis: {
-		id: "analysis",
-		render: renderAnalysis,
-	},
 	appearance: {
 		id: "appearance",
 		render: renderAppearance,
@@ -81,7 +78,7 @@ export const lxiconsLibrary = {
 	},
 	chart: {
 		id: "chart",
-		render: renderAnalysis,
+		render: renderChart,
 	},
 	check: {
 		id: "check",
@@ -213,6 +210,10 @@ export const lxiconsLibrary = {
 	summary: {
 		id: "summary",
 		render: renderSummary,
+	},
+	table: {
+		id: "table",
+		render: renderTable,
 	},
 	trashFlat: {
 		id: "trash-flat",

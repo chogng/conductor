@@ -52,13 +52,17 @@ html.workbench-transparent-chrome-windows .titlebar-root {
 }
 
 .titlebar-brand-icon {
-  background-image: url("../../../../../../../resources/brand/conductor.svg");
+  background-image: url("../../../../../../../resources/brand/conductor-light.svg");
   background-position: center center;
   background-repeat: no-repeat;
   background-size: 16px;
   flex: 0 0 auto;
   height: 16px;
   width: 16px;
+}
+
+.dark .titlebar-brand-icon {
+  background-image: url("../../../../../../../resources/brand/conductor-dark.svg");
 }
 
 /* Center region: active file selector. */

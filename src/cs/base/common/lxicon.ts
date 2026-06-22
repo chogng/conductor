@@ -48,7 +48,6 @@ export const lxLayoutSidebarLeftOffEmpty = registerLibraryIcon(lxiconsLibrary.la
 export const lxLayoutSidebarRightEmpty = registerLibraryIcon(lxiconsLibrary.layoutSidebarRightEmpty);
 export const lxMoreHorizontal = registerLibraryIcon(lxiconsLibrary.moreHorizontal);
 export const lxAdd = registerLibraryIcon(lxiconsLibrary.add);
-export const lxAnalysis = registerLibraryIcon(lxiconsLibrary.analysis);
 export const lxAppearance = registerLibraryIcon(lxiconsLibrary.appearance);
 export const lxChart = registerLibraryIcon(lxiconsLibrary.chart);
 export const lxArrowLeft = registerLibraryIcon(lxiconsLibrary.arrowLeft);
@@ -80,6 +79,7 @@ export const lxSettings = registerLibraryIcon(lxiconsLibrary.settings);
 export const lxScreenFull = registerLibraryIcon(lxiconsLibrary.screenFull);
 export const lxScreenNormal = registerLibraryIcon(lxiconsLibrary.screenNormal);
 export const lxSummary = registerLibraryIcon(lxiconsLibrary.summary);
+export const lxTable = registerLibraryIcon(lxiconsLibrary.table);
 export const lxPinned = registerLibraryIcon(lxiconsLibrary.pinned);
 export const lxUnpin = registerLibraryIcon(lxiconsLibrary.unpin);
 export const lxRefresh = registerLibraryIcon(lxiconsLibrary.refresh);
@@ -88,7 +88,6 @@ export const LxIcon = {
 	add: lxAdd,
 	alertCircle: lxAlertCircle,
 	alertTriangle: lxAlertTriangle,
-	analysis: lxAnalysis,
 	appearance: lxAppearance,
 	arrowLeft: lxArrowLeft,
 	arrowRight: lxArrowRight,
@@ -124,6 +123,7 @@ export const LxIcon = {
 	screenFull: lxScreenFull,
 	screenNormal: lxScreenNormal,
 	summary: lxSummary,
+	table: lxTable,
 	pinned: lxPinned,
 	unpin: lxUnpin,
 	xlsGreen: lxXlsGreen,

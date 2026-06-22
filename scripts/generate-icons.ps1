@@ -1,5 +1,7 @@
 param(
   [string]$SourceIcon = "",
+  [string]$HeaderSourceIcon = "",
+  [string]$SidebarSourceIcon = "",
   [string]$Version = ""
 )
 
@@ -213,7 +215,7 @@ function Write-InstallerSidebar {
     $graphics.FillRectangle($gradient, $rect)
     $graphics.DrawImage($logo, 43, 42, 78, 78)
     Draw-CenteredText -Graphics $graphics -Text "Conductor Studio" -Font $titleFont -Brush $whiteBrush -Y 138 -Width 164
-    Draw-CenteredText -Graphics $graphics -Text "Analysis Workspace" -Font $captionFont -Brush $softBrush -Y 163 -Width 164
+    Draw-CenteredText -Graphics $graphics -Text "Conductor Workspace" -Font $captionFont -Brush $softBrush -Y 163 -Width 164
     $graphics.DrawLine($linePen, 38, 220, 126, 220)
     Draw-CenteredText -Graphics $graphics -Text $DisplayVersion -Font $captionFont -Brush $softBrush -Y 238 -Width 164
     $sidebar.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Bmp)
@@ -251,6 +253,36 @@ if (-not (Test-Path -LiteralPath $SourceIcon)) {
   Fail "source icon not found at $SourceIcon"
 }
 
+if ([string]::IsNullOrWhiteSpace($HeaderSourceIcon)) {
+  $defaultHeaderSourceIcon = Resolve-ProjectPath "resources\win32\header-icon.png"
+  if (Test-Path -LiteralPath $defaultHeaderSourceIcon) {
+    $HeaderSourceIcon = $defaultHeaderSourceIcon
+  } else {
+    $HeaderSourceIcon = $SourceIcon
+  }
+} elseif (-not [System.IO.Path]::IsPathRooted($HeaderSourceIcon)) {
+  $HeaderSourceIcon = Resolve-ProjectPath $HeaderSourceIcon
+}
+
+if (-not (Test-Path -LiteralPath $HeaderSourceIcon)) {
+  Fail "header source icon not found at $HeaderSourceIcon"
+}
+
+if ([string]::IsNullOrWhiteSpace($SidebarSourceIcon)) {
+  $defaultSidebarSourceIcon = Resolve-ProjectPath "resources\win32\sidebar-icon.png"
+  if (Test-Path -LiteralPath $defaultSidebarSourceIcon) {
+    $SidebarSourceIcon = $defaultSidebarSourceIcon
+  } else {
+    $SidebarSourceIcon = $SourceIcon
+  }
+} elseif (-not [System.IO.Path]::IsPathRooted($SidebarSourceIcon)) {
+  $SidebarSourceIcon = Resolve-ProjectPath $SidebarSourceIcon
+}
+
+if (-not (Test-Path -LiteralPath $SidebarSourceIcon)) {
+  Fail "sidebar source icon not found at $SidebarSourceIcon"
+}
+
 if ([string]::IsNullOrWhiteSpace($Version)) {
   try {
     $packageJson = Get-Content -LiteralPath $packageJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -268,6 +300,8 @@ New-Item -ItemType Directory -Force -Path $win32Dir, $darwinDir, $linuxDir, $app
 Add-Type -AssemblyName System.Drawing
 
 $source = [System.Drawing.Bitmap]::FromFile($SourceIcon)
+$headerSource = [System.Drawing.Bitmap]::FromFile($HeaderSourceIcon)
+$sidebarSource = [System.Drawing.Bitmap]::FromFile($SidebarSourceIcon)
 try {
   $pngSizes = @(16, 20, 24, 32, 40, 48, 64, 70, 71, 128, 150, 256, 300, 512, 1024, 1080)
   foreach ($size in $pngSizes) {
@@ -282,13 +316,17 @@ try {
   Save-AppxPng -Source $source -Width 150 -Height 150 -IconSize 150 -OutputPath (Join-Path $appxDir "Square150x150Logo.png")
   Save-AppxPng -Source $source -Width 310 -Height 150 -IconSize 150 -OutputPath (Join-Path $appxDir "Wide310x150Logo.png")
   Save-AppxPng -Source $source -Width 310 -Height 310 -IconSize 310 -OutputPath (Join-Path $appxDir "LargeTile.png")
-  Write-InstallerHeader -Source $source -OutputPath (Join-Path $win32Dir "header.bmp")
-  Write-InstallerSidebar -Source $source -OutputPath (Join-Path $win32Dir "sidebar.bmp") -DisplayVersion $Version
+  Write-InstallerHeader -Source $headerSource -OutputPath (Join-Path $win32Dir "header.bmp")
+  Write-InstallerSidebar -Source $sidebarSource -OutputPath (Join-Path $win32Dir "sidebar.bmp") -DisplayVersion $Version
 } finally {
+  $sidebarSource.Dispose()
+  $headerSource.Dispose()
   $source.Dispose()
 }
 
 Write-Host "[generate-icons] Source: $SourceIcon"
+Write-Host "[generate-icons] Header source: $HeaderSourceIcon"
+Write-Host "[generate-icons] Sidebar source: $SidebarSourceIcon"
 Write-Host "[generate-icons] Version: $Version"
 Write-Host "[generate-icons] Updated resources/win32 and resources/linux generated assets."
 Write-Host "[generate-icons] Keep the macOS icon at resources/darwin/icon.icns in sync with the source artwork."
