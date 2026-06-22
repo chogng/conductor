@@ -64,7 +64,7 @@ suite("workbench/browser/layout", () => {
 
   test("auxiliary bar width follows workbench part bounds", () => {
     assert.equal(AUXILIARY_BAR_MIN_WIDTH_PX, 170);
-    assert.equal(AUXILIARY_BAR_DEFAULT_WIDTH_PX, 250);
+    assert.equal(AUXILIARY_BAR_DEFAULT_WIDTH_PX, 260);
     assert.equal(AUXILIARY_BAR_MAX_WIDTH_PX, Number.POSITIVE_INFINITY);
   });
 

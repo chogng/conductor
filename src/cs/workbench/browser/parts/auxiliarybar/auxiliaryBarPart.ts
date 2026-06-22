@@ -20,7 +20,7 @@ const AuxiliaryBarClassName = "workbench_layout_auxiliarybar";
 const AuxiliaryBarPaneId = "workbench-auxiliarybar";
 const WorkbenchAuxiliaryBarWidthStorageKey = "workbench.auxiliarybar.width";
 
-export const AUXILIARY_BAR_DEFAULT_WIDTH_PX = 250;
+export const AUXILIARY_BAR_DEFAULT_WIDTH_PX = 280;
 export const AUXILIARY_BAR_MIN_WIDTH_PX = 170;
 export const AUXILIARY_BAR_MAX_WIDTH_PX = Number.POSITIVE_INFINITY;
 
