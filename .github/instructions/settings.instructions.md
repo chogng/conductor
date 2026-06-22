@@ -26,6 +26,39 @@ SettingsView control
 
 Settings events are facts. Do not use them as hidden commands.
 
+## Settings Tree Rendering
+
+Follow the upstream Settings editor shape at a Conductor scale:
+
+```txt
+SettingsViewOptions
+  -> SettingsView builds SettingsTreeSection records
+  -> SettingsTree.update(sections)
+  -> section id reuses the section widget
+  -> item id reuses the setting row
+  -> fixed title/description/control slots are patched
+  -> built-in controls emit SettingsTree.onDidChangeItem
+  -> control kind or structure changes replace only that item
+```
+
+`SettingsTree` owns the fixed DOM slots for setting rows:
+
+- title and optional description on the left;
+- a control container slot on the right.
+
+Controls are interchangeable slot content. Use built-in `select` and `switch`
+items for standard preferences. Use `custom` items for composite controls such
+as color swatches, reset buttons, path pickers, action bars, toolbars, or
+grouped actions. `SettingsTree` does not inspect or style the internals of a
+custom container; `SettingsView` owns that container's layout and interaction
+callbacks.
+
+Sections are rendering groups, not state owners. User edits flow from the
+tree `onDidChangeItem` event or a custom control's typed intent callback to
+`SettingsController`, then to `ISettingsService` or an owner command. After the
+owner publishes a changed snapshot, `SettingsView.update` rebuilds section
+records and `SettingsTree` patches by stable ids.
+
 ## Configuration vs Storage
 
 Use configuration for user preferences: schema/defaults, Settings UI,
@@ -58,7 +91,7 @@ not introduce a parallel settings store.
 | `platform/languagePacks/**`, `workbench/services/localization/**`, `contrib/localization/**` | display-language services and command/action wiring. |
 | `contrib/settings/browser/settingsController.ts` | form drafts, validation, saving state, dispatch to settings service or owner commands. |
 | `contrib/settings/browser/settingsLayout.ts` | settings section ids, navigation grouping, and section icon metadata. |
-| `contrib/settings/browser/settingsTree.ts` | stable keyed settings item widgets; owns fixed label/control DOM and control instance reuse for standard setting items. |
+| `contrib/settings/browser/settingsTree.ts` | stable keyed settings item widgets; owns fixed label/control DOM and control instance reuse for standard and composite setting items. |
 | `contrib/settings/browser/settingsView.ts` | pure DOM rendering; callbacks only. |
 | `contrib/settings/browser/settingsViewPane.ts` | DI shell, controller lifecycle, settings view-input subscription. |
 | `contrib/settings/browser/settings.contribution.ts` | view/contribution registration. |

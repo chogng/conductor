@@ -1,6 +1,7 @@
 import { append } from "src/cs/base/browser/dom";
 import { SelectBox, createSelectBox, type SelectBoxOption } from "src/cs/base/browser/ui/selectBox/selectBox";
 import { SwitchWidget } from "src/cs/base/browser/ui/switch/switchWidget";
+import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
 
 export type SettingsTreeSelectOption = {
@@ -19,7 +20,6 @@ export type SettingsTreeSelectItem = SettingsTreeItemBase & {
   readonly controlId: string;
   readonly disabled?: boolean;
   readonly kind: "select";
-  readonly onChange: (value: string) => void;
   readonly options: readonly SettingsTreeSelectOption[];
   readonly value: string;
 };
@@ -30,10 +30,29 @@ export type SettingsTreeSwitchItem = SettingsTreeItemBase & {
   readonly controlId: string;
   readonly disabled?: boolean;
   readonly kind: "switch";
-  readonly onChange: (checked: boolean) => void;
 };
 
-export type SettingsTreeItem = SettingsTreeSelectItem | SettingsTreeSwitchItem;
+export type SettingsTreeCustomItem = SettingsTreeItemBase & {
+  readonly control: HTMLElement;
+  readonly kind: "custom";
+};
+
+export type SettingsTreeItem =
+  | SettingsTreeCustomItem
+  | SettingsTreeSelectItem
+  | SettingsTreeSwitchItem;
+
+export type SettingsTreeItemChangeEvent =
+  | {
+    readonly id: string;
+    readonly kind: "select";
+    readonly value: string;
+  }
+  | {
+    readonly checked: boolean;
+    readonly id: string;
+    readonly kind: "switch";
+  };
 
 export type SettingsTreeSection = {
   readonly id: string;
@@ -41,11 +60,18 @@ export type SettingsTreeSection = {
   readonly title: string;
 };
 
+// Small upstream-shaped settings tree: section and item ids are stable keys,
+// built-in controls report facts through onDidChangeItem, and business updates
+// stay with SettingsView/SettingsController.
 export class SettingsTree extends Disposable {
   public readonly element = div("settings-tree");
+  private readonly onDidChangeItemEmitter = this._register(new Emitter<SettingsTreeItemChangeEvent>());
+  public readonly onDidChangeItem: Event<SettingsTreeItemChangeEvent> = this.onDidChangeItemEmitter.event;
   private readonly sections = new Map<string, SettingsTreeSectionWidget>();
 
   public update(sections: readonly SettingsTreeSection[]): void {
+    // Patch by id so unchanged sections and controls keep focus, DOM state, and
+    // widget instances across settings snapshot updates.
     const nextSectionIds = new Set(sections.map(section => section.id));
     for (const [id, section] of this.sections) {
       if (!nextSectionIds.has(id)) {
@@ -58,7 +84,10 @@ export class SettingsTree extends Disposable {
       const section = sections[index];
       let instance = this.sections.get(section.id);
       if (!instance) {
-        instance = this._register(new SettingsTreeSectionWidget(section));
+        instance = this._register(new SettingsTreeSectionWidget(
+          section,
+          event => this.onDidChangeItemEmitter.fire(event),
+        ));
         this.sections.set(section.id, instance);
       }
       else {
@@ -81,7 +110,10 @@ class SettingsTreeSectionWidget extends Disposable {
   private readonly listElement = div("settings-list");
   private readonly items = new Map<string, SettingsTreeItemWidget>();
 
-  constructor(section: SettingsTreeSection) {
+  constructor(
+    section: SettingsTreeSection,
+    private readonly onDidChangeItem: (event: SettingsTreeItemChangeEvent) => void,
+  ) {
     super();
     this.element.id = section.id;
     this.element.append(this.titleElement, this.listElement);
@@ -91,6 +123,8 @@ class SettingsTreeSectionWidget extends Disposable {
   public update(section: SettingsTreeSection): void {
     this.titleElement.textContent = section.title;
 
+    // Item ids are the row-level reuse boundary. A different control kind gets
+    // a fresh widget, but value-only updates patch the existing row.
     const nextItemIds = new Set(section.items.map(item => item.id));
     for (const [id, item] of this.items) {
       if (!nextItemIds.has(id)) {
@@ -109,7 +143,7 @@ class SettingsTreeSectionWidget extends Disposable {
       }
 
       if (!instance) {
-        instance = this._register(new SettingsTreeItemWidget(item));
+        instance = this._register(new SettingsTreeItemWidget(item, this.onDidChangeItem));
         this.items.set(item.id, instance);
       }
       else {
@@ -134,11 +168,14 @@ export class SettingsTreeItemWidget extends Disposable {
   private readonly descriptionElement = text("p", "settings-description", "");
   private readonly controlElement = div("settings-row-control");
   private readonly controlDisposables = this._register(new DisposableStore());
-  private control: SelectBox<string> | SwitchWidget | null = null;
+  private control: HTMLElement | SelectBox<string> | SwitchWidget | null = null;
   private controlKind: SettingsTreeItem["kind"] | null = null;
   private currentItem: SettingsTreeItem;
 
-  constructor(item: SettingsTreeItem) {
+  constructor(
+    item: SettingsTreeItem,
+    private readonly onDidChangeItem: (event: SettingsTreeItemChangeEvent) => void,
+  ) {
     super();
     this.currentItem = item;
     this.labelElement.append(this.titleElement, this.descriptionElement);
@@ -155,6 +192,12 @@ export class SettingsTreeItemWidget extends Disposable {
     this.currentItem = item;
     this.element.id = item.id;
     this.updateLabel(item);
+    this.controlElement.className = "settings-row-control";
+
+    if (item.kind === "custom") {
+      this.updateCustomControl(item);
+      return;
+    }
 
     if (!this.control || this.controlKind !== item.kind) {
       this.controlDisposables.clear();
@@ -185,7 +228,7 @@ export class SettingsTreeItemWidget extends Disposable {
     this.descriptionElement.textContent = item.description ?? "";
   }
 
-  private createControl(item: SettingsTreeItem): SelectBox<string> | SwitchWidget {
+  private createControl(item: SettingsTreeSelectItem | SettingsTreeSwitchItem): SelectBox<string> | SwitchWidget {
     if (item.kind === "select") {
       const select = createSelectBox({
         id: item.controlId,
@@ -208,6 +251,17 @@ export class SettingsTreeItemWidget extends Disposable {
     });
     this.controlDisposables.add(widget);
     return widget;
+  }
+
+  private updateCustomControl(item: SettingsTreeCustomItem): void {
+    // Custom controls are pre-owned by SettingsView. The tree only moves them
+    // into the fixed control slot and avoids replacing the node unnecessarily.
+    this.controlDisposables.clear();
+    this.control = item.control;
+    this.controlKind = item.kind;
+    if (this.controlElement.childNodes.length !== 1 || this.controlElement.firstChild !== item.control) {
+      this.controlElement.replaceChildren(item.control);
+    }
   }
 
   private updateSelectControl(select: SelectBox<string>, item: SettingsTreeSelectItem): void {
@@ -234,14 +288,22 @@ export class SettingsTreeItemWidget extends Disposable {
   private readonly handleSelect = (value: string): void => {
     const current = this.currentItem;
     if (current.kind === "select") {
-      current.onChange(value);
+      this.onDidChangeItem({
+        id: current.id,
+        kind: "select",
+        value,
+      });
     }
   };
 
   private readonly handleSwitch = (checked: boolean): void => {
     const current = this.currentItem;
     if (current.kind === "switch") {
-      current.onChange(checked);
+      this.onDidChangeItem({
+        checked,
+        id: current.id,
+        kind: "switch",
+      });
     }
   };
 }

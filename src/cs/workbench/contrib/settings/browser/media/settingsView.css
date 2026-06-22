@@ -236,33 +236,13 @@
 }
 
 .settings-row-control {
+  align-self: center;
   flex: 0 0 auto;
   width: fit-content;
 }
 
-.settings-split-row-control {
-  flex: 0 1 320px;
-  width: min(320px, 100%);
-  min-width: 0px;
-}
-
-.settings-split-row-control--actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.settings-split-row-control--stack {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.settings-row-control > .settings-select {
-  width: 300px;
-}
-
-.settings-row-control .settings-switch {
-  margin-top: 0.125rem;
+.settings-row-control .settings-select {
+  width: 150px;
 }
 
 .settings-heading .settings-description {
@@ -270,15 +250,15 @@
 }
 
 .settings-description {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 12px;
+  line-height: 16px;
   --tw-text-opacity: 1;
   color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1));
 }
 
 .settings-title {
-  font-size: 1.0625rem;
-  line-height: 1.5rem;
+  font-size: 13px;
+  line-height: 16px;
   font-weight: 600;
   --tw-text-opacity: 1;
   color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
@@ -286,10 +266,17 @@
 
 .settings-label,
 .settings-hint {
-  font-size: 0.75rem;
   line-height: 1rem;
   --tw-text-opacity: 1;
   color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1));
+}
+
+.settings-label {
+  font-size: 12px;
+}
+
+.settings-hint {
+  font-size: 11px;
 }
 
 .settings-code-value {
@@ -318,10 +305,6 @@
 
 .settings-grid--three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.settings-grid--five {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .settings-field > :not([hidden]) ~ :not([hidden]) {
@@ -413,24 +396,16 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem;
+  gap: 12px;
   justify-content: flex-end;
 }
 
 .settings-color-input {
-  height: 2rem;
-  width: 2rem;
-  border-radius: 50%;
-  border: 1px solid rgb(var(--border) / 1);
-  padding: 0;
-  cursor: pointer;
-  overflow: hidden;
-  background: none;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.settings-color-input:hover {
-  transform: scale(1.08);
+  position: absolute;
+  height: 1px;
+  width: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .settings-color-input::-webkit-color-swatch-wrapper {
@@ -442,13 +417,19 @@
   border-radius: 50%;
 }
 
+.settings-reset-action {
+  display: inline-flex;
+  height: 24px;
+  width: 24px;
+}
+
 .settings-reset-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  width: 2rem;
-  height: 2rem;
+  width: 24px;
+  height: 24px;
   padding: 0;
   cursor: pointer;
   transition: background-color 0.15s ease, transform 0.2s ease, opacity 0.15s ease, color 0.15s ease;
@@ -469,16 +450,21 @@
   cursor: not-allowed;
 }
 
+.settings-reset-button__icon {
+  height: 16px;
+  width: 16px;
+}
+
 .settings-color-swatches {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .settings-color-swatch {
-  height: 2rem;
-  width: 2rem;
+  height: 24px;
+  width: 24px;
   border-radius: 50%;
   border-width: 1px;
   --tw-border-opacity: 1;
@@ -497,39 +483,24 @@
 
 .settings-badge-colors {
   display: flex;
-  flex-direction: column;
-  width: 100%;
-  gap: 0.75rem;
-}
-
-.settings-badge-color-selector-row {
-  display: flex;
-  width: 100%;
-}
-
-.settings-badge-color-selector-row > .settings-select {
-  width: 100%;
-}
-
-.settings-badge-color-options-row {
-  display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  gap: 0.75rem;
-  margin-top: 0.25rem;
+  justify-content: flex-end;
+  width: max-content;
+  max-width: 100%;
+  gap: 12px;
 }
 
 .settings-badge-color-options {
   display: flex;
   min-width: 0;
+  flex: 0 1 auto;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .settings-badge-color-swatch {
-  height: 1.5rem;
-  width: 1.5rem;
+  height: 24px;
+  width: 24px;
   border: 1px solid rgb(var(--border) / 1);
   border-radius: 50%;
   background-color: rgb(var(--bg-200) / 1);
@@ -787,8 +758,8 @@
 }
 
 .settings-switch {
-  --switch-width: 40px;
-  --switch-height: 22px;
+  --switch-width: 32px;
+  --switch-height: 18px;
 }
 
 .settings-row-control .settings-switch:disabled {
@@ -830,8 +801,7 @@
     padding: 1.5rem 0 2rem;
   }
 
-  .settings-grid--three,
-  .settings-grid--five {
+  .settings-grid--three {
     grid-template-columns: repeat(1, minmax(0, 1fr));
   }
 
@@ -842,17 +812,22 @@
   }
 
   .settings-row-control,
-  .settings-split-row-control,
   .settings-color-controls,
   .settings-path-controls .settings-button {
+    align-self: stretch;
     width: 100%;
   }
 
-  .settings-row-control > .settings-select {
+  .settings-row-control .settings-select {
     width: 100%;
   }
 
-  .settings-split-row-control--actions,
+  .settings-badge-colors {
+    align-items: flex-start;
+    flex-direction: column;
+    width: 100%;
+  }
+
   .settings-color-controls {
     justify-content: flex-start;
   }
