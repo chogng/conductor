@@ -24,9 +24,9 @@ import {
   type TableControllerProps,
 } from "src/cs/workbench/contrib/table/browser/tableController";
 import {
-  createTableValueStepperControl,
-  type TableValueStepperControl,
-} from "src/cs/workbench/contrib/table/browser/tableValueStepperControl";
+  createTableStepper,
+  type TableStepper,
+} from "src/cs/workbench/contrib/table/browser/tableStepper";
 import { ITableWidgetService } from "src/cs/workbench/contrib/table/browser/tableWidgetService";
 import { TableCommandId, TableViewId } from "src/cs/workbench/contrib/table/common/table";
 import {
@@ -76,7 +76,7 @@ export class TableViewPane extends ViewPane {
     label: localize("table.zoomControl", "Table zoom"),
     run: () => undefined,
   });
-  private readonly zoomControl: TableValueStepperControl;
+  private readonly zoomControl: TableStepper;
   private controller: TableController | null = null;
   private props: TableViewPaneProps | null = null;
   private headerMode: HeaderMode | null = null;
@@ -178,20 +178,22 @@ export class TableViewPane extends ViewPane {
     super.dispose();
   }
 
-  private createZoomControl(): TableValueStepperControl {
-    const control = createTableValueStepperControl({
+  private createZoomControl(): TableStepper {
+    const control = createTableStepper({
       ariaLabel: localize("table.zoomControl", "Table zoom"),
+      className: "table_view_zoom_control",
       decrease: {
-        className: "table_view_zoom_button_minus",
+        className: "table_view_zoom_button table_view_zoom_button_minus",
         label: localize("table.zoomOut", "Zoom out"),
         keyShortcuts: "Control+-",
       },
       increase: {
-        className: "table_view_zoom_button_plus",
+        className: "table_view_zoom_button table_view_zoom_button_plus",
         label: localize("table.zoomIn", "Zoom in"),
         keyShortcuts: "Control+=",
       },
       value: {
+        className: "table_view_zoom_value",
         kind: "text",
         live: "polite",
       },

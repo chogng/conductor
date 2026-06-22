@@ -652,8 +652,10 @@ suite("base/browser/workbench tableWidget layout", () => {
       assert.equal(getVisibleCellText(widget.element, 0, 0), "1");
 
       clickElementCenterByHitTarget(getVisibleScaleBadge(widget.element));
+      assert.equal(getVisibleColumnScaleControlButton(widget.element, "value").textContent, "-6");
       getVisibleColumnScaleControlButton(widget.element, "plus").click();
       assert.equal(getVisibleScaleText(widget.element), "×10⁻⁵");
+      assert.equal(getVisibleColumnScaleControlButton(widget.element, "value").textContent, "-5");
       assert.equal(getVisibleCellText(widget.element, 0, 0), "0.1");
 
       getVisibleColumnScaleControlButton(widget.element, "minus").click();
@@ -664,6 +666,85 @@ suite("base/browser/workbench tableWidget layout", () => {
       getVisibleColumnScaleControlButton(widget.element, "value").click();
       assert.equal(getVisibleScaleText(widget.element), "×10⁻⁶");
       assert.equal(getVisibleCellText(widget.element, 0, 0), "1");
+    } finally {
+      widget.dispose();
+    }
+  });
+
+  test("positions the column scale stepper inside the hovered column header", async () => {
+    const dynamicModel = createDynamicScaleTableWidgetModel();
+    const widget = new TableWidget({
+      onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
+      onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
+      onSelect: () => true,
+      tableModel: dynamicModel.model,
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 300, 280);
+      widget.layout();
+      await timeout(120);
+
+      const headerCell = getColumnHeaderCell(widget.element, 0);
+      const bodyCell = getVisibleCell(widget.element, 0, 0);
+      const sharedControl = widget.element.querySelector<HTMLElement>(".table_view_column_scale_control");
+      assert.ok(sharedControl);
+      widget.element.getBoundingClientRect = () => new DOMRect(12, 18, 360, 280);
+      headerCell.getBoundingClientRect = () => new DOMRect(60, 46, 176, 28);
+      bodyCell.getBoundingClientRect = () => new DOMRect(60, 78, 176, 28);
+      sharedControl.getBoundingClientRect = () => new DOMRect(0, 0, 112, 24);
+
+      dispatchPointerEvent(headerCell, "pointermove", {
+        clientX: 80,
+        clientY: 56,
+        pointerId: 10,
+      });
+
+      const control = getVisibleColumnScaleControl(widget.element);
+      assert.equal(control.style.left, "56px");
+      assert.equal(control.style.top, "30px");
+      assert.equal(control.style.width, "160px");
+      assert.equal(control.style.height, "");
+      const targetWindow = widget.element.ownerDocument.defaultView;
+      assert.ok(targetWindow);
+      assert.equal(targetWindow.getComputedStyle(control).fontSize, "11px");
+      assert.equal(
+        targetWindow.getComputedStyle(getVisibleColumnScaleControlButton(widget.element, "value")).opacity,
+        "1",
+      );
+      assert.equal(
+        targetWindow.getComputedStyle(getVisibleColumnScaleControlButton(widget.element, "minus")).flexGrow,
+        "0",
+      );
+      assert.equal(
+        targetWindow.getComputedStyle(getVisibleColumnScaleControlButton(widget.element, "plus")).flexGrow,
+        "0",
+      );
+      assert.equal(
+        targetWindow.getComputedStyle(getVisibleColumnScaleControlButton(widget.element, "value")).flexGrow,
+        "1",
+      );
+
+      dispatchPointerEvent(headerCell, "pointermove", {
+        clientX: 80,
+        clientY: 60,
+        pointerId: 10,
+      });
+      assert.equal(getVisibleColumnScaleControl(widget.element), control);
+
+      dispatchPointerEvent(bodyCell, "pointermove", {
+        clientX: 80,
+        clientY: 79,
+        pointerId: 10,
+      });
+      assert.equal(
+        widget.element.querySelector<HTMLElement>(".table_view_column_scale_control:not([hidden])"),
+        null,
+      );
     } finally {
       widget.dispose();
     }
@@ -694,6 +775,35 @@ suite("base/browser/workbench tableWidget layout", () => {
 
       assert.equal(getVisibleScaleText(widget.element), "×10⁻⁵");
       assert.equal(widget.element.classList.contains("table_view--resizing_column"), false);
+    } finally {
+      widget.dispose();
+    }
+  });
+
+  test("keeps the column resize handle hittable while the scale stepper is visible", async () => {
+    const dynamicModel = createDynamicScaleTableWidgetModel();
+    const widget = new TableWidget({
+      onAdjustColumnDisplayScale: dynamicModel.adjustColumnDisplayScale,
+      onResetColumnDisplayScale: dynamicModel.resetColumnDisplayScale,
+      onSelect: () => true,
+      tableModel: dynamicModel.model,
+      tableState: createTableWidgetState(),
+    });
+    document.body.append(widget.element);
+
+    try {
+      const viewport = widget.element.querySelector<HTMLElement>(".table_view_preview");
+      assert.ok(viewport);
+      setElementClientSize(viewport, 300, 280);
+      widget.layout();
+      await timeout(120);
+
+      clickElementCenterByHitTarget(getVisibleScaleBadge(widget.element));
+      assert.ok(getVisibleColumnScaleControl(widget.element));
+
+      const handle = getColumnResizeHandle(widget.element, 0);
+      const { hitTarget } = getElementCenterHitTarget(handle);
+      assert.equal(hitTarget.closest(".table_view_column_resize_handle"), handle);
     } finally {
       widget.dispose();
     }
@@ -1214,6 +1324,12 @@ function getVisibleScaleBadge(element: HTMLElement): HTMLButtonElement {
   return badge;
 }
 
+function getVisibleColumnScaleControl(element: HTMLElement): HTMLElement {
+  const control = element.querySelector<HTMLElement>(".table_view_column_scale_control:not([hidden])");
+  assert.ok(control);
+  return control;
+}
+
 function getVisibleColumnScaleControlButton(
   element: HTMLElement,
   kind: "minus" | "plus" | "value",
@@ -1232,6 +1348,14 @@ function getColumnHeaderButton(element: HTMLElement, colIndex: number): HTMLButt
   );
   assert.ok(button);
   return button;
+}
+
+function getColumnHeaderCell(element: HTMLElement, colIndex: number): HTMLElement {
+  const cell = element.querySelector<HTMLElement>(
+    `.table_view_grid_header_cell[aria-colindex="${colIndex + 1}"]`,
+  );
+  assert.ok(cell);
+  return cell;
 }
 
 function getColumnResizeHandle(element: HTMLElement, colIndex: number): HTMLElement {

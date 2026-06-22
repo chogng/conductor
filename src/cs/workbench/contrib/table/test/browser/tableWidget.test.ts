@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 suite("workbench/contrib/table/browser/tableWidget grid model", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
   test("defines widget column width bounds", () => {
-    assert.equal(TableColumnLayout.defaultWidth, 160);
+    assert.equal(TableColumnLayout.defaultWidth, 90);
     assert.equal(TableColumnLayout.minWidth, 0);
     assert.equal(TableColumnLayout.maxWidth, 640);
   });

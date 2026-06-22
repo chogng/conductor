@@ -18,7 +18,7 @@
 .table_view_body {
 	--table-view-zoom: 1;
 	--table-view-row-header-width: calc(48px * var(--table-view-zoom));
-	--table-view-column-width: calc(160px * var(--table-view-zoom));
+	--table-view-column-width: calc(90px * var(--table-view-zoom));
 	--table-view-row-height: calc(28px * var(--table-view-zoom));
 	--table-view-cell-padding-y: calc(4px * var(--table-view-zoom));
 	--table-view-cell-padding-x: calc(8px * var(--table-view-zoom));

@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-export const TABLE_COLUMN_DEFAULT_WIDTH = 160;
+export const TABLE_COLUMN_DEFAULT_WIDTH = 90;
 export const TABLE_COLUMN_MIN_WIDTH = 0;
 export const TABLE_COLUMN_MAX_WIDTH = 640;
 
