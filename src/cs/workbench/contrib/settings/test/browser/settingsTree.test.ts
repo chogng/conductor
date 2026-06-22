@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 suite("workbench/contrib/settings/test/browser/settingsTree", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("reuses custom item controls across keyed updates", () => {
+  test("reuses item controls across keyed updates", () => {
     if (typeof document === "undefined") {
       return;
     }
@@ -28,7 +28,6 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
           {
             control,
             id: "settings-custom-card",
-            kind: "custom",
             title: "Custom",
           },
         ],
@@ -45,7 +44,6 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
             control,
             description: "Updated description",
             id: "settings-custom-card",
-            kind: "custom",
             title: "Updated Custom",
           },
         ],
@@ -64,7 +62,7 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
     );
   });
 
-  test("mounts custom control containers without layout variants", () => {
+  test("mounts control containers without layout variants", () => {
     if (typeof document === "undefined") {
       return;
     }
@@ -80,7 +78,6 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
           {
             control,
             id: "settings-layout-card",
-            kind: "custom",
             title: "Layout",
           },
         ],
@@ -92,69 +89,51 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
     assert.equal(controlSlot?.firstChild, control);
   });
 
-  test("uses fixed control slot for built-in controls", () => {
+  test("replaces the control slot when the caller supplies a different control", () => {
     if (typeof document === "undefined") {
       return;
     }
 
     const tree = store.add(new SettingsTree());
+    const firstControl = document.createElement("button");
+    firstControl.id = "settings-first-control";
+    const secondControl = document.createElement("button");
+    secondControl.id = "settings-second-control";
+
     tree.update([
       {
         id: "settings-test-section",
         title: "Section",
         items: [
           {
-            ariaLabel: "Switch",
-            checked: false,
-            controlId: "settings-switch-control",
+            control: firstControl,
             description: "Description",
             id: "settings-switch-card",
-            kind: "switch",
-            title: "Switch",
+            title: "Control",
+          },
+        ],
+      },
+    ]);
+    const card = tree.element.querySelector("#settings-switch-card");
+
+    tree.update([
+      {
+        id: "settings-test-section",
+        title: "Section",
+        items: [
+          {
+            control: secondControl,
+            id: "settings-switch-card",
+            title: "Control",
           },
         ],
       },
     ]);
 
     const controlSlot = tree.element.querySelector("#settings-switch-card .settings-row-control");
+    assert.equal(tree.element.querySelector("#settings-switch-card"), card);
     assert.equal(controlSlot?.className, "settings-row-control");
-    assert.equal(controlSlot?.firstChild, tree.element.querySelector("#settings-switch-control"));
-  });
-
-  test("emits onDidChangeItem for built-in controls", () => {
-    if (typeof document === "undefined") {
-      return;
-    }
-
-    const tree = store.add(new SettingsTree());
-    const events: unknown[] = [];
-    store.add(tree.onDidChangeItem(event => events.push(event)));
-
-    tree.update([
-      {
-        id: "settings-test-section",
-        title: "Section",
-        items: [
-          {
-            ariaLabel: "Switch",
-            checked: false,
-            controlId: "settings-switch-control",
-            id: "settings-switch-card",
-            kind: "switch",
-            title: "Switch",
-          },
-        ],
-      },
-    ]);
-
-    tree.element.querySelector<HTMLButtonElement>("#settings-switch-control")?.click();
-
-    assert.deepEqual(events, [
-      {
-        checked: true,
-        id: "settings-switch-card",
-        kind: "switch",
-      },
-    ]);
+    assert.equal(controlSlot?.firstChild, secondControl);
+    assert.equal(tree.element.querySelector("#settings-first-control"), null);
   });
 });

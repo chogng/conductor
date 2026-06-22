@@ -29,7 +29,7 @@ import {
 import { renderSettingsMarkdown } from "src/cs/workbench/contrib/settings/browser/settingsMarkdownRenderer";
 import { readBundledReleaseNotesMarkdown } from "src/cs/workbench/contrib/settings/browser/releaseNotesReader";
 import { readBundledUserGuideMarkdown } from "src/cs/workbench/contrib/settings/browser/userGuideReader";
-import { SettingsTree, type SettingsTreeItemChangeEvent, type SettingsTreeSection } from "src/cs/workbench/contrib/settings/browser/settingsTree";
+import { SettingsTree, type SettingsTreeSection } from "src/cs/workbench/contrib/settings/browser/settingsTree";
 import type { LanguagePreference } from "src/cs/base/common/platform";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type {
@@ -267,6 +267,7 @@ type SettingsDocumentDialogOptions = {
 
 export class SettingsView {
   private readonly renderDisposables = new DisposableStore();
+  private readonly generalControlDisposables = new DisposableStore();
   private readonly root: HTMLElement;
   private readonly contentScroll = new Scrollbar({
     className: "settings-view-content-scroll",
@@ -308,12 +309,14 @@ export class SettingsView {
 
   dispose(): void {
     this.closeSettingsDocumentDialog();
+    this.generalControlDisposables.dispose();
     this.renderDisposables.dispose();
     this.contentScroll.dispose();
     this.root.remove();
   }
 
   private render(): void {
+    this.generalControlDisposables.clear();
     this.renderDisposables.clear();
     this.appearanceSection = null;
     this.generalTree = null;
@@ -347,16 +350,23 @@ export class SettingsView {
       text("span", "settings-view-nav-back-label", localize("settings.nav.back", "Back")),
     );
 
-    const search = document.createElement("label");
-    search.className = "settings-view-search";
+    const search = document.createElement("div");
+    search.className = "settings-view-search inputbox_field";
+    search.dataset.state = "enable";
     search.appendChild(createLxIcon({ className: "settings-view-search-icon", icon: LxIcon.search, size: 14 }));
     const searchInput = createInputBox({
       ariaLabel: localize("settings.nav.searchPlaceholder", "Search settings..."),
-      inputClassName: "settings-view-search-input",
+      inputClassName: "inputbox_native settings-view-search-input",
       placeholder: localize("settings.nav.searchPlaceholder", "Search settings..."),
-      type: "search",
+      type: "text",
     });
-    search.appendChild(searchInput);
+    const clearSearchButton = document.createElement("button");
+    clearSearchButton.type = "button";
+    clearSearchButton.className = "settings-view-search-clear";
+    clearSearchButton.hidden = true;
+    clearSearchButton.setAttribute("aria-label", localize("settings.nav.clearSearch", "Clear search"));
+    clearSearchButton.appendChild(createLxIcon({ className: "settings-view-search-clear-icon", icon: LxIcon.close, size: 14 }));
+    search.append(searchInput, clearSearchButton);
 
     const nav = document.createElement("nav");
     nav.className = "settings-view-nav-list";
@@ -393,8 +403,9 @@ export class SettingsView {
       nav.appendChild(groupElement);
     }
 
-    searchInput.addEventListener("input", () => {
+    const updateSearchFilter = () => {
       const query = searchInput.value.trim().toLocaleLowerCase();
+      clearSearchButton.hidden = !query;
       for (const button of buttons) {
         button.hidden = Boolean(query) && !(button.dataset.label ?? "").includes(query);
       }
@@ -403,6 +414,13 @@ export class SettingsView {
           .some(button => !button.hidden);
         group.hidden = !hasVisibleItem;
       }
+    };
+
+    searchInput.addEventListener("input", updateSearchFilter);
+    clearSearchButton.addEventListener("click", () => {
+      searchInput.value = "";
+      updateSearchFilter();
+      searchInput.focus();
     });
 
     aside.append(div("settings-view-nav-header", backButton), search, nav);
@@ -427,8 +445,8 @@ export class SettingsView {
   }
 
   private renderGeneral(container: HTMLElement): void {
+    this.generalControlDisposables.clear();
     const generalTree = this.renderDisposables.add(new SettingsTree());
-    this.renderDisposables.add(generalTree.onDidChangeItem(event => this.handleGeneralSettingsTreeChange(event)));
     generalTree.update(this.createGeneralSettingsTree());
     this.generalTree = generalTree;
     container.appendChild(generalTree.element);
@@ -448,35 +466,13 @@ export class SettingsView {
       return;
     }
 
+    this.generalControlDisposables.clear();
     this.generalTree.update(this.createGeneralSettingsTree());
     queueMicrotask(() => this.contentScroll.layout());
   }
 
-  private handleGeneralSettingsTreeChange(event: SettingsTreeItemChangeEvent): void {
-    if (event.kind === "select") {
-      if (event.id === "settings-language-card") {
-        if (event.value === "system" || event.value === "zh" || event.value === "en") {
-          void this.options.onLanguageChange(event.value);
-        }
-        return;
-      }
-
-      if (event.id === "settings-close-behavior-card") {
-        if (event.value === "minimizeToTray" || event.value === "quit") {
-          void this.options.windowCloseSettings.onBehaviorChange(event.value);
-        }
-      }
-      return;
-    }
-
-    if (event.id === "settings-numeric-display-card") {
-      void this.options.numericDisplaySettings.onOptimizedChange(event.checked);
-    }
-  }
-
   private createChartSettingsSection(settings: ChartDefaultSettings): HTMLElement {
     const chartTree = this.renderDisposables.add(new SettingsTree());
-    this.renderDisposables.add(chartTree.onDidChangeItem(event => this.handleChartSettingsTreeChange(event)));
     chartTree.update(this.createChartSettingsTree(settings));
 
     const chartList = getSettingsList(chartTree.element);
@@ -489,37 +485,6 @@ export class SettingsView {
     return chartTree.element;
   }
 
-  private handleChartSettingsTreeChange(event: SettingsTreeItemChangeEvent): void {
-    if (event.kind !== "select") {
-      return;
-    }
-
-    const settings = this.options.chartDefaultSettings;
-    if (event.id === "settings-default-transfer-y-scale-card") {
-      void settings.onDefaultYScaleForTransferChange(event.value);
-      return;
-    }
-
-    if (event.id === "settings-default-output-y-scale-card") {
-      void settings.onDefaultYScaleForOutputChange(event.value);
-      return;
-    }
-
-    if (event.id === "settings-default-cv-y-scale-card") {
-      void settings.onDefaultYScaleForCvChange(event.value);
-      return;
-    }
-
-    if (event.id === "settings-default-cf-y-scale-card") {
-      void settings.onDefaultYScaleForCfChange(event.value);
-      return;
-    }
-
-    if (event.id === "settings-default-pv-y-scale-card") {
-      void settings.onDefaultYScaleForPvChange(event.value);
-    }
-  }
-
   private createGeneralSettingsTree(): readonly SettingsTreeSection[] {
     return [
       {
@@ -527,35 +492,51 @@ export class SettingsView {
         title: localize("settings.nav.general", "General"),
         items: [
           {
+            control: this.createSelect({
+              id: "settings-language-dropdown",
+              value: this.options.language,
+              onChange: value => {
+                if (value === "system" || value === "zh" || value === "en") {
+                  void this.options.onLanguageChange(value);
+                }
+              },
+              options: [
+                { value: "system", label: localize("settings.language.system", "System") },
+                { value: "zh", label: localize("settings.language.zh", "Chinese") },
+                { value: "en", label: localize("settings.language.en", "English") },
+              ],
+            }, this.generalControlDisposables),
             id: "settings-language-card",
-            controlId: "settings-language-dropdown",
             description: localize("settings.language.description", "Choose the display language used by the app."),
-            kind: "select",
             title: localize("settings.language.title", "Language"),
-            value: this.options.language,
-            options: [
-              { value: "system", label: localize("settings.language.system", "System") },
-              { value: "zh", label: localize("settings.language.zh", "Chinese") },
-              { value: "en", label: localize("settings.language.en", "English") },
-            ],
           },
           {
+            control: this.createSelect({
+              id: "settings-close-behavior-dropdown",
+              value: this.options.windowCloseSettings.behavior,
+              onChange: value => {
+                if (value === "minimizeToTray" || value === "quit") {
+                  void this.options.windowCloseSettings.onBehaviorChange(value);
+                }
+              },
+              options: this.options.windowCloseBehaviorOptions,
+              disabled: this.options.windowCloseSettings.isSaving,
+            }, this.generalControlDisposables),
             id: "settings-close-behavior-card",
-            controlId: "settings-close-behavior-dropdown",
             description: localize("settings.closeBehavior.description", "Choose what happens when the main window is closed."),
-            disabled: this.options.windowCloseSettings.isSaving,
-            kind: "select",
             title: localize("settings.closeBehavior.title", "Close Window"),
-            value: this.options.windowCloseSettings.behavior,
-            options: this.options.windowCloseBehaviorOptions,
           },
           {
+            control: this.createSwitchWidget({
+              ariaLabel: localize("settings.numericDisplay.title", "优化表格数值显示"),
+              checked: this.options.numericDisplaySettings.optimized,
+              id: "settings-numeric-display-toggle",
+              onChange: checked => {
+                void this.options.numericDisplaySettings.onOptimizedChange(checked);
+              },
+            }, this.generalControlDisposables).domNode,
             id: "settings-numeric-display-card",
-            ariaLabel: localize("settings.numericDisplay.title", "优化表格数值显示"),
-            checked: this.options.numericDisplaySettings.optimized,
-            controlId: "settings-numeric-display-toggle",
             description: localize("settings.numericDisplay.description", "优化科学计数法以合适小数位显示以更好的预览"),
-            kind: "switch",
             title: localize("settings.numericDisplay.title", "优化表格数值显示"),
           },
         ],
@@ -681,35 +662,30 @@ export class SettingsView {
             control: themeSelect.domNode,
             description: localize("settings.theme.description", "Choose the workbench color theme."),
             id: "settings-theme-card",
-            kind: "custom",
             title: localize("settings.theme.title", "Theme"),
           },
           {
             control: explorerDensitySelect.domNode,
             description: localize("settings.explorerDensity.description", "Choose how compact file rows appear in Explorer."),
             id: "settings-explorer-density-card",
-            kind: "custom",
             title: localize("settings.explorerDensity.title", "Explorer Density"),
           },
           {
             control: explorerBadgesSwitch.domNode,
             description: localize("settings.explorerBadges.description", "Show measurement badges beside files in Explorer."),
             id: "settings-explorer-badges-card",
-            kind: "custom",
             title: localize("settings.explorerBadges.title", "Explorer Badges"),
           },
           {
             control: badgeColorSwatches,
             description: localize("settings.explorerBadgeColors.description", "Choose Explorer badge colors by measurement label."),
             id: "settings-explorer-badge-colors-card",
-            kind: "custom",
             title: localize("settings.explorerBadgeColors.title", "Badge Colors"),
           },
           {
             control: layoutResetActionContainer,
             description: localize("settings.layout.description", "Reset sidebar width and hidden workbench parts."),
             id: "settings-layout-card",
-            kind: "custom",
             title: localize("settings.layout.title", "Layout"),
           },
           {
@@ -721,14 +697,12 @@ export class SettingsView {
             ),
             description: localize("settings.background.description", "Choose the workbench page background color."),
             id: "settings-background-card",
-            kind: "custom",
             title: localize("settings.background.title", "Background"),
           },
           {
             control: transparentChromeSwitch.domNode,
             description: localize("settings.transparentChrome.description", "Let the sidebar blend with the desktop window surface."),
             id: "settings-transparent-chrome-card",
-            kind: "custom",
             title: localize("settings.transparentChrome.title", "Translucent sidebar"),
           },
         ],
@@ -759,9 +733,6 @@ export class SettingsView {
       headingBlock(localize("settings.origin.title", "Origin Executable Path"), localize("settings.origin.description", "Choose the Origin app used to open files.")),
       this.createPathControls(originSettings),
     );
-    if (!originSettings.isConfigurable) {
-      pathCard.appendChild(text("p", "settings-description", localize("settings.origin.notConfigurableHint", "Origin path configuration is available in Windows desktop app only.")));
-    }
     const originSection = settingsSection(localize("settings.nav.origin", "Origin"), pathCard);
     const originList = getSettingsList(originSection);
 
@@ -795,7 +766,6 @@ export class SettingsView {
             control: text("p", "settings-code-value", appUpdateSettings.currentVersion || localize("settings.about.versionUnknown", "Unknown")),
             description: localize("settings.about.versionDescription", "The installed Conductor Studio version."),
             id: "settings-about-version-card",
-            kind: "custom",
             title: localize("settings.about.versionTitle", "Current Version"),
           },
           {
@@ -807,7 +777,6 @@ export class SettingsView {
             }),
             description: localize("settings.releaseNotes.description", "Review recent product changes and fixes."),
             id: "settings-release-notes-card",
-            kind: "custom",
             title: localize("settings.releaseNotes.title", "Release Notes"),
           },
           {
@@ -819,7 +788,6 @@ export class SettingsView {
             }),
             description: localize("settings.userGuide.description", "Open the bundled guide for common workflows."),
             id: "settings-user-guide-card",
-            kind: "custom",
             title: localize("settings.userGuide.title", "User Guide"),
           },
           {
@@ -832,7 +800,6 @@ export class SettingsView {
             }),
             description: localize("settings.appUpdate.description", "Check whether a newer version is available."),
             id: "settings-app-update-card",
-            kind: "custom",
             title: localize("settings.appUpdate.title", "App Updates"),
           },
         ],
@@ -946,50 +913,60 @@ export class SettingsView {
         title: localize("settings.chartDefaults.sectionTitle", "Chart"),
         items: [
           {
+            control: this.createSelect({
+              id: "settings-default-transfer-y-scale-select",
+              value: settings.defaultYScaleForTransfer,
+              onChange: value => void settings.onDefaultYScaleForTransferChange(value),
+              options: this.options.yScaleOptions,
+              disabled: settings.isSaving,
+            }),
             id: "settings-default-transfer-y-scale-card",
-            controlId: "settings-default-transfer-y-scale-select",
             description: localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
-            disabled: settings.isSaving,
-            kind: "select",
-            options: this.options.yScaleOptions,
             title: localize("settings.chartScaleDefaults.transferCurve", "Transfer"),
-            value: settings.defaultYScaleForTransfer,
           },
           {
+            control: this.createSelect({
+              id: "settings-default-output-y-scale-select",
+              value: settings.defaultYScaleForOutput,
+              onChange: value => void settings.onDefaultYScaleForOutputChange(value),
+              options: this.options.yScaleOptions,
+              disabled: settings.isSaving,
+            }),
             id: "settings-default-output-y-scale-card",
-            controlId: "settings-default-output-y-scale-select",
-            disabled: settings.isSaving,
-            kind: "select",
-            options: this.options.yScaleOptions,
             title: localize("settings.chartScaleDefaults.outputCurve", "Output"),
-            value: settings.defaultYScaleForOutput,
           },
           {
+            control: this.createSelect({
+              id: "settings-default-cv-y-scale-select",
+              value: settings.defaultYScaleForCv,
+              onChange: value => void settings.onDefaultYScaleForCvChange(value),
+              options: this.options.yScaleOptions,
+              disabled: settings.isSaving,
+            }),
             id: "settings-default-cv-y-scale-card",
-            controlId: "settings-default-cv-y-scale-select",
-            disabled: settings.isSaving,
-            kind: "select",
-            options: this.options.yScaleOptions,
             title: localize("settings.chartScaleDefaults.cvCurve", "C-V"),
-            value: settings.defaultYScaleForCv,
           },
           {
+            control: this.createSelect({
+              id: "settings-default-cf-y-scale-select",
+              value: settings.defaultYScaleForCf,
+              onChange: value => void settings.onDefaultYScaleForCfChange(value),
+              options: this.options.yScaleOptions,
+              disabled: settings.isSaving,
+            }),
             id: "settings-default-cf-y-scale-card",
-            controlId: "settings-default-cf-y-scale-select",
-            disabled: settings.isSaving,
-            kind: "select",
-            options: this.options.yScaleOptions,
             title: localize("settings.chartScaleDefaults.cfCurve", "C-f"),
-            value: settings.defaultYScaleForCf,
           },
           {
+            control: this.createSelect({
+              id: "settings-default-pv-y-scale-select",
+              value: settings.defaultYScaleForPv,
+              onChange: value => void settings.onDefaultYScaleForPvChange(value),
+              options: this.options.yScaleOptions,
+              disabled: settings.isSaving,
+            }),
             id: "settings-default-pv-y-scale-card",
-            controlId: "settings-default-pv-y-scale-select",
-            disabled: settings.isSaving,
-            kind: "select",
-            options: this.options.yScaleOptions,
             title: localize("settings.chartScaleDefaults.pvCurve", "P-V"),
-            value: settings.defaultYScaleForPv,
           },
         ],
       },
@@ -1060,10 +1037,17 @@ export class SettingsView {
 
   private createPathControls(settings: OriginSettingsSectionProps): HTMLElement {
     const controls = div("settings-path-controls");
+    const pathValue = settings.currentPath || (settings.isLoading
+      ? localize("settings.origin.loading", "Loading...")
+      : localize("settings.origin.notConfigurableHint", "Origin path configuration is available in Windows desktop app only."));
     controls.append(
-      div("settings-path-value",
-        text("p", "settings-path-text", settings.currentPath || (settings.isLoading ? localize("settings.origin.loading", "Loading...") : localize("settings.origin.notConfigurableHint", "Origin path configuration is available in Windows desktop app only."))),
-      ),
+      createInputBox({
+        ariaLabel: localize("settings.origin.title", "Origin Executable Path"),
+        id: "settings-origin-path-value-input",
+        inputClassName: "inputbox_native inputbox_field settings-path-input",
+        readOnly: true,
+        value: pathValue,
+      }),
       this.createButton({
         id: "settings-origin-path-choose-btn",
         label: localize("settings.origin.choosePathButton", "Choose Origin.exe"),
@@ -1179,7 +1163,7 @@ export class SettingsView {
     return container;
   }
 
-  private createSelectWidget(options: FieldOptions): SelectBox<string> {
+  private createSelectWidget(options: FieldOptions, disposables?: DisposableStore): SelectBox<string> {
     const select = createSelectBox({
       id: options.id,
       className: "settings-select",
@@ -1188,12 +1172,12 @@ export class SettingsView {
       options: options.options as readonly SelectBoxOption<string>[],
       onDidSelect: options.onChange,
     });
-    this.renderDisposables.add(select);
+    (disposables ?? this.renderDisposables).add(select);
     return select;
   }
 
-  private createSelect(options: FieldOptions): HTMLButtonElement {
-    return this.createSelectWidget(options).domNode;
+  private createSelect(options: FieldOptions, disposables?: DisposableStore): HTMLButtonElement {
+    return this.createSelectWidget(options, disposables).domNode;
   }
 
   private updateSelectWidget(widget: SelectBox<string>, options: FieldOptions): void {
@@ -1230,8 +1214,8 @@ export class SettingsView {
     disabled?: boolean;
     id: string;
     onChange: (checked: boolean) => void;
-  }): SwitchWidget {
-    const widget = this.renderDisposables.add(new SwitchWidget({
+  }, disposables?: DisposableStore): SwitchWidget {
+    const widget = (disposables ?? this.renderDisposables).add(new SwitchWidget({
       checked: options.checked,
       className: "settings-switch",
       disabled: options.disabled,

@@ -430,6 +430,7 @@
   "settings.nav.appearance": "Appearance",
   "settings.nav.ariaLabel": "Settings sections",
   "settings.nav.back": "Back",
+  "settings.nav.clearSearch": "Clear search",
   "settings.nav.general": "General",
   "settings.nav.group.integrations": "Integrations",
   "settings.nav.group.personal": "Personal",
