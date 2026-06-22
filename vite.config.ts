@@ -91,7 +91,7 @@ export default defineConfig({
     esbuildOptions: {
       tsconfigRaw: esbuildTsconfigRaw,
     },
-    exclude: ["@chogng/lxicon", "cogicon"],
+    exclude: ["@chogng/lxicons", "cogicon"],
   },
   build: {
     rollupOptions: {

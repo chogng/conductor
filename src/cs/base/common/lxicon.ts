@@ -37,7 +37,7 @@ import {
   lxXlsLetterFilled as renderXlsLetterFilled,
   lxXlsGreen as renderXlsGreen,
   lxTrashFlat as renderTrashFlat,
-} from "@chogng/lxicon";
+} from "@chogng/lxicons";
 
 export type LxIconRenderer = () => string;
 

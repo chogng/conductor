@@ -1,7 +1,7 @@
 {
   "name": "conductor",
   "private": true,
-  "version": "0.5.19",
+  "version": "1.5.19",
   "type": "module",
   "main": "desktop-dist/src/main.js",
   "scripts": {
@@ -59,7 +59,7 @@
     "release:desktop:local": "node scripts/run-powershell.mjs scripts/release-desktop-local.ps1"
   },
   "dependencies": {
-    "@chogng/lxicon": "^1.0.14",
+    "@chogng/lxicons": "^1.0.17",
     "electron-updater": "^6.8.3",
     "jszip": "^3.10.1",
     "markdown-it": "^14.2.0"
