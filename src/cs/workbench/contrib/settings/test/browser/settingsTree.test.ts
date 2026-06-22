@@ -136,4 +136,34 @@ suite("workbench/contrib/settings/test/browser/settingsTree", () => {
     assert.equal(controlSlot?.firstChild, secondControl);
     assert.equal(tree.element.querySelector("#settings-first-control"), null);
   });
+
+  test("stores item search text on the card", () => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const tree = store.add(new SettingsTree());
+    const control = document.createElement("button");
+
+    tree.update([
+      {
+        id: "settings-test-section",
+        title: "Section",
+        items: [
+          {
+            control,
+            description: "Search Description",
+            id: "settings-search-card",
+            searchText: "Option Label",
+            title: "Search Title",
+          },
+        ],
+      },
+    ]);
+
+    assert.equal(
+      tree.element.querySelector<HTMLElement>("#settings-search-card")?.dataset.search,
+      "search title search description option label",
+    );
+  });
 });

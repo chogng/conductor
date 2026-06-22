@@ -58,6 +58,23 @@ control's typed intent callback to `SettingsController`, then to
 snapshot, `SettingsView.update` rebuilds section records and `SettingsTree`
 patches by stable ids.
 
+## Settings Search
+
+Settings search is local `SettingsView` view state. It does not go through
+`ISearchService`, commands, configuration, or `ISettingsService`.
+
+```txt
+SettingsView search input
+  -> SettingsView.searchQuery
+  -> SettingsView renders all settings sections
+  -> setting cards filter by item-level search text
+  -> matching controls keep their normal SettingsController callbacks
+```
+
+`SettingsTreeItem.searchText` is rendering metadata for a row card. It may
+include option labels, field labels, or aliases that help the view filter rows,
+but it must not encode control behavior or persistence details.
+
 ## Configuration vs Storage
 
 Use configuration for user preferences: schema/defaults, Settings UI,
@@ -90,6 +107,7 @@ not introduce a parallel settings store.
 | `platform/languagePacks/**`, `workbench/services/localization/**`, `contrib/localization/**` | display-language services and command/action wiring. |
 | `contrib/settings/browser/settingsController.ts` | form drafts, validation, saving state, dispatch to settings service or owner commands. |
 | `contrib/settings/browser/settingsLayout.ts` | settings section ids, navigation grouping, and section icon metadata. |
+| `contrib/settings/browser/settingsSearch.ts` | settings search text normalization, query tokenization, and row/card matching helpers. |
 | `contrib/settings/browser/settingsTree.ts` | stable keyed settings item widgets; owns fixed label/control DOM slots for caller-owned controls. |
 | `contrib/settings/browser/settingsView.ts` | pure DOM rendering; callbacks only. |
 | `contrib/settings/browser/settingsViewPane.ts` | DI shell, controller lifecycle, settings view-input subscription. |

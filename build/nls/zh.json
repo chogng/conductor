@@ -511,6 +511,8 @@
   "settings.releaseNotes.showButton": "显示发行说明",
   "settings.releaseNotes.title": "发行说明",
   "settings.releaseNotes.unknownVersion": "当前版本",
+  "settings.search.noResultsDescription": "试试其他搜索词。",
+  "settings.search.noResultsTitle": "没有找到设置",
   "settings.section.ariaLabel": "设置",
   "settings.theme.dark": "深色",
   "settings.theme.description": "选择工作台颜色主题",

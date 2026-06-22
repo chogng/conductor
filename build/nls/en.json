@@ -504,6 +504,8 @@
   "settings.releaseNotes.showButton": "Show Release Notes",
   "settings.releaseNotes.title": "Release Notes",
   "settings.releaseNotes.unknownVersion": "Current Version",
+  "settings.search.noResultsDescription": "Try a different search term.",
+  "settings.search.noResultsTitle": "No settings found",
   "settings.section.ariaLabel": "Settings",
   "settings.theme.dark": "Dark",
   "settings.theme.description": "Choose the workbench color theme",

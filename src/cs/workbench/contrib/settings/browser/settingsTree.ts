@@ -1,10 +1,12 @@
 import { append } from "src/cs/base/browser/dom";
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { normalizeSettingsSearchText } from "src/cs/workbench/contrib/settings/browser/settingsSearch";
 
 export type SettingsTreeItem = {
   readonly control: HTMLElement;
   readonly description?: string;
   readonly id: string;
+  readonly searchText?: string;
   readonly title: string;
 };
 
@@ -118,6 +120,7 @@ export class SettingsTreeItemWidget extends Disposable {
 
   public update(item: SettingsTreeItem): void {
     this.element.id = item.id;
+    this.updateSearchText(item);
     this.updateLabel(item);
     this.controlElement.className = "settings-row-control";
     this.updateControl(item.control);
@@ -133,6 +136,16 @@ export class SettingsTreeItemWidget extends Disposable {
     this.titleElement.textContent = item.title;
     this.descriptionElement.hidden = !item.description;
     this.descriptionElement.textContent = item.description ?? "";
+  }
+
+  private updateSearchText(item: SettingsTreeItem): void {
+    const searchText = normalizeSettingsSearchText(item.title, item.description, item.searchText);
+    if (searchText) {
+      this.element.dataset.search = searchText;
+    }
+    else {
+      delete this.element.dataset.search;
+    }
   }
 
   private updateControl(control: HTMLElement): void {

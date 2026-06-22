@@ -29,6 +29,14 @@ import {
 import { renderSettingsMarkdown } from "src/cs/workbench/contrib/settings/browser/settingsMarkdownRenderer";
 import { readBundledReleaseNotesMarkdown } from "src/cs/workbench/contrib/settings/browser/releaseNotesReader";
 import { readBundledUserGuideMarkdown } from "src/cs/workbench/contrib/settings/browser/userGuideReader";
+import {
+  getSettingsSearchWords,
+  hasSettingsSearchQuery,
+  normalizeSettingsSearchText,
+  setSettingsSearchText,
+  type SettingsSearchTerm,
+  settingsSearchMatches,
+} from "src/cs/workbench/contrib/settings/browser/settingsSearch";
 import { SettingsTree, type SettingsTreeSection } from "src/cs/workbench/contrib/settings/browser/settingsTree";
 import type { LanguagePreference } from "src/cs/base/common/platform";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
@@ -277,6 +285,7 @@ export class SettingsView {
   private generalTree: SettingsTree | null = null;
   private options: SettingsViewOptions;
   private activeBadgeLabelValue = "transfer";
+  private searchQuery = "";
   private settingsDocumentDialog: ActiveSettingsDocumentDialog | null = null;
 
   constructor(container: HTMLElement, options: SettingsViewOptions) {
@@ -289,14 +298,14 @@ export class SettingsView {
   }
 
   update(options: SettingsViewOptions): void {
-    if (canReuseAppearanceSectionTemplate(this.options, options)) {
+    if (!hasSettingsSearchQuery(this.searchQuery) && canReuseAppearanceSectionTemplate(this.options, options)) {
       const current = this.options;
       this.options = options;
       this.updateAppearanceSection(current, options);
       return;
     }
 
-    if (canReuseGeneralSectionTemplate(this.options, options)) {
+    if (!hasSettingsSearchQuery(this.searchQuery) && canReuseGeneralSectionTemplate(this.options, options)) {
       this.options = options;
       this.updateGeneralSection();
       return;
@@ -322,6 +331,15 @@ export class SettingsView {
     this.generalTree = null;
     reset(this.root);
     this.root.appendChild(this.createLayout());
+    queueMicrotask(() => this.contentScroll.layout());
+  }
+
+  private refreshContent(): void {
+    this.generalControlDisposables.clear();
+    this.renderDisposables.clear();
+    this.appearanceSection = null;
+    this.generalTree = null;
+    this.contentScroll.viewport.replaceChildren(this.createContent());
     queueMicrotask(() => this.contentScroll.layout());
   }
 
@@ -359,6 +377,7 @@ export class SettingsView {
       inputClassName: "inputbox_native settings-view-search-input",
       placeholder: localize("settings.nav.searchPlaceholder", "Search settings..."),
       type: "text",
+      value: this.searchQuery,
     });
     const clearSearchButton = document.createElement("button");
     clearSearchButton.type = "button";
@@ -370,7 +389,6 @@ export class SettingsView {
 
     const nav = document.createElement("nav");
     nav.className = "settings-view-nav-list";
-    const buttons: HTMLButtonElement[] = [];
     const groups = createSettingsNavGroups();
     for (const group of groups) {
       const groupElement = div("settings-view-nav-group");
@@ -387,7 +405,6 @@ export class SettingsView {
         button.type = "button";
         button.className = "settings-view-nav-item";
         button.dataset.selected = String(isActive);
-        button.dataset.label = section.label.toLocaleLowerCase();
         if (isActive) {
           button.setAttribute("aria-current", "page");
         }
@@ -396,32 +413,30 @@ export class SettingsView {
           text("span", "settings-view-nav-item-label", section.label),
         );
         button.addEventListener("click", () => this.options.setActiveSettingsSection(section.id));
-        buttons.push(button);
         groupItems.appendChild(button);
       }
       groupElement.append(groupLabel, groupItems);
       nav.appendChild(groupElement);
     }
 
-    const updateSearchFilter = () => {
-      const query = searchInput.value.trim().toLocaleLowerCase();
-      clearSearchButton.hidden = !query;
-      for (const button of buttons) {
-        button.hidden = Boolean(query) && !(button.dataset.label ?? "").includes(query);
-      }
-      for (const group of Array.from(nav.querySelectorAll<HTMLElement>(".settings-view-nav-group"))) {
-        const hasVisibleItem = Array.from(group.querySelectorAll<HTMLButtonElement>(".settings-view-nav-item"))
-          .some(button => !button.hidden);
-        group.hidden = !hasVisibleItem;
-      }
+    const updateSearchState = () => {
+      const queryWords = getSettingsSearchWords(searchInput.value);
+      clearSearchButton.hidden = queryWords.length === 0;
     };
 
-    searchInput.addEventListener("input", updateSearchFilter);
+    searchInput.addEventListener("input", () => {
+      this.searchQuery = searchInput.value;
+      updateSearchState();
+      this.refreshContent();
+    });
     clearSearchButton.addEventListener("click", () => {
       searchInput.value = "";
-      updateSearchFilter();
+      this.searchQuery = "";
+      updateSearchState();
+      this.refreshContent();
       searchInput.focus();
     });
+    updateSearchState();
 
     aside.append(div("settings-view-nav-header", backButton), search, nav);
     return aside;
@@ -429,6 +444,12 @@ export class SettingsView {
 
   private createContent(): HTMLElement {
     const content = div("settings-view-content");
+    const queryWords = getSettingsSearchWords(this.searchQuery);
+    if (queryWords.length > 0) {
+      this.renderSearchResults(content, queryWords);
+      return content;
+    }
+
     if (this.options.activeSettingsSection === "origin") {
       this.renderOrigin(content);
     }
@@ -442,6 +463,45 @@ export class SettingsView {
       this.renderGeneral(content);
     }
     return content;
+  }
+
+  private renderSearchResults(container: HTMLElement, queryWords: readonly string[]): void {
+    container.classList.add("settings-view-content--search");
+    this.renderGeneral(container);
+    this.renderAppearance(container);
+    this.renderOrigin(container);
+    this.renderAbout(container);
+
+    const resultCount = this.filterSearchResults(container, queryWords);
+    if (resultCount === 0) {
+      container.appendChild(this.createEmptySearchResults());
+    }
+  }
+
+  private filterSearchResults(container: HTMLElement, queryWords: readonly string[]): number {
+    let resultCount = 0;
+    for (const card of Array.from(container.querySelectorAll<HTMLElement>(".settings-card"))) {
+      const isMatch = settingsSearchMatches(card.dataset.search ?? "", queryWords);
+      card.hidden = !isMatch;
+      if (isMatch) {
+        resultCount++;
+      }
+    }
+
+    for (const section of Array.from(container.querySelectorAll<HTMLElement>(".settings-section"))) {
+      section.hidden = !Array.from(section.querySelectorAll<HTMLElement>(".settings-card"))
+        .some(card => !card.hidden);
+    }
+
+    return resultCount;
+  }
+
+  private createEmptySearchResults(): HTMLElement {
+    return div(
+      "settings-search-empty",
+      title(localize("settings.search.noResultsTitle", "No settings found")),
+      text("p", "settings-description", localize("settings.search.noResultsDescription", "Try a different search term.")),
+    );
   }
 
   private renderGeneral(container: HTMLElement): void {
@@ -486,6 +546,11 @@ export class SettingsView {
   }
 
   private createGeneralSettingsTree(): readonly SettingsTreeSection[] {
+    const languageOptions = [
+      { value: "system", label: localize("settings.language.system", "System") },
+      { value: "zh", label: localize("settings.language.zh", "Chinese") },
+      { value: "en", label: localize("settings.language.en", "English") },
+    ];
     return [
       {
         id: "settings-general-section",
@@ -500,14 +565,11 @@ export class SettingsView {
                   void this.options.onLanguageChange(value);
                 }
               },
-              options: [
-                { value: "system", label: localize("settings.language.system", "System") },
-                { value: "zh", label: localize("settings.language.zh", "Chinese") },
-                { value: "en", label: localize("settings.language.en", "English") },
-              ],
+              options: languageOptions,
             }, this.generalControlDisposables),
             id: "settings-language-card",
             description: localize("settings.language.description", "Choose the display language used by the app."),
+            searchText: normalizeSettingsSearchText(optionLabels(languageOptions)),
             title: localize("settings.language.title", "Language"),
           },
           {
@@ -524,6 +586,7 @@ export class SettingsView {
             }, this.generalControlDisposables),
             id: "settings-close-behavior-card",
             description: localize("settings.closeBehavior.description", "Choose what happens when the main window is closed."),
+            searchText: normalizeSettingsSearchText(optionLabels(this.options.windowCloseBehaviorOptions)),
             title: localize("settings.closeBehavior.title", "Close Window"),
           },
           {
@@ -662,12 +725,14 @@ export class SettingsView {
             control: themeSelect.domNode,
             description: localize("settings.theme.description", "Choose the workbench color theme."),
             id: "settings-theme-card",
+            searchText: normalizeSettingsSearchText(optionLabels(this.options.themeModeOptions)),
             title: localize("settings.theme.title", "Theme"),
           },
           {
             control: explorerDensitySelect.domNode,
             description: localize("settings.explorerDensity.description", "Choose how compact file rows appear in Explorer."),
             id: "settings-explorer-density-card",
+            searchText: normalizeSettingsSearchText(optionLabels(appearanceSettings.explorerDensityOptions)),
             title: localize("settings.explorerDensity.title", "Explorer Density"),
           },
           {
@@ -680,6 +745,10 @@ export class SettingsView {
             control: badgeColorSwatches,
             description: localize("settings.explorerBadgeColors.description", "Choose Explorer badge colors by measurement label."),
             id: "settings-explorer-badge-colors-card",
+            searchText: normalizeSettingsSearchText(
+              optionLabels(appearanceSettings.explorerBadgeColorLabels),
+              optionLabels(appearanceSettings.explorerBadgeColorOptions),
+            ),
             title: localize("settings.explorerBadgeColors.title", "Badge Colors"),
           },
           {
@@ -728,17 +797,42 @@ export class SettingsView {
 
   private renderOrigin(container: HTMLElement): void {
     const { originSettings } = this.options;
+    const originPathTitle = localize("settings.origin.title", "Origin Executable Path");
+    const originPathDescription = localize("settings.origin.description", "Choose the Origin app used to open files.");
     const pathCard = card("settings-origin-path-card", "settings-card-block");
+    setSettingsSearchText(
+      pathCard,
+      originPathTitle,
+      originPathDescription,
+      originSettings.currentPath,
+      localize("settings.origin.choosePathButton", "Choose Origin.exe"),
+      localize("settings.origin.checkButton", "Check Connection"),
+      localize("settings.origin.notConfigurableHint", "Origin path configuration is available in Windows desktop app only."),
+    );
     pathCard.append(
-      headingBlock(localize("settings.origin.title", "Origin Executable Path"), localize("settings.origin.description", "Choose the Origin app used to open files.")),
+      headingBlock(originPathTitle, originPathDescription),
       this.createPathControls(originSettings),
     );
     const originSection = settingsSection(localize("settings.nav.origin", "Origin"), pathCard);
     const originList = getSettingsList(originSection);
 
+    const cleanupTitle = localize("settings.origin.cleanup.title", "Runtime Cleanup");
+    const cleanupDescription = localize("settings.origin.cleanup.description", "Manage automatic cleanup for Origin runtime cache.");
     const cleanupCard = card("settings-origin-cleanup-card", "settings-card-block");
+    setSettingsSearchText(
+      cleanupCard,
+      cleanupTitle,
+      cleanupDescription,
+      localize("settings.origin.cleanup.enableLabel", "Auto cleanup"),
+      optionLabels(this.options.cleanupEnabledOptions),
+      localize("settings.origin.cleanup.keepSuccessLabel", "Keep successful jobs"),
+      optionLabels(this.options.cleanupKeepSuccessOptions),
+      localize("settings.origin.cleanup.failedDaysLabel", "Keep failed jobs (days)"),
+      optionLabels(this.options.cleanupFailedDaysOptions),
+      localize("settings.origin.cleanup.runButton", "Run Cleanup Now"),
+    );
     cleanupCard.append(
-      headingBlock(localize("settings.origin.cleanup.title", "Runtime Cleanup"), localize("settings.origin.cleanup.description", "Manage automatic cleanup for Origin runtime cache.")),
+      headingBlock(cleanupTitle, cleanupDescription),
       this.createOriginCleanupGrid(originSettings),
       div("settings-actions-end", this.createButton({
         id: "settings-origin-cleanup-run-btn",
@@ -777,6 +871,7 @@ export class SettingsView {
             }),
             description: localize("settings.releaseNotes.description", "Review recent product changes and fixes."),
             id: "settings-release-notes-card",
+            searchText: localize("settings.releaseNotes.showButton", "Show Release Notes"),
             title: localize("settings.releaseNotes.title", "Release Notes"),
           },
           {
@@ -788,6 +883,7 @@ export class SettingsView {
             }),
             description: localize("settings.userGuide.description", "Open the bundled guide for common workflows."),
             id: "settings-user-guide-card",
+            searchText: localize("settings.userGuide.showButton", "Show User Guide"),
             title: localize("settings.userGuide.title", "User Guide"),
           },
           {
@@ -800,6 +896,7 @@ export class SettingsView {
             }),
             description: localize("settings.appUpdate.description", "Check whether a newer version is available."),
             id: "settings-app-update-card",
+            searchText: localize("settings.appUpdate.checkButton", "Check for Updates"),
             title: localize("settings.appUpdate.title", "App Updates"),
           },
         ],
@@ -922,6 +1019,7 @@ export class SettingsView {
             }),
             id: "settings-default-transfer-y-scale-card",
             description: localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
+            searchText: normalizeSettingsSearchText(optionLabels(this.options.yScaleOptions)),
             title: localize("settings.chartScaleDefaults.transferCurve", "Transfer"),
           },
           {
@@ -933,6 +1031,10 @@ export class SettingsView {
               disabled: settings.isSaving,
             }),
             id: "settings-default-output-y-scale-card",
+            searchText: normalizeSettingsSearchText(
+              localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
+              optionLabels(this.options.yScaleOptions),
+            ),
             title: localize("settings.chartScaleDefaults.outputCurve", "Output"),
           },
           {
@@ -944,6 +1046,10 @@ export class SettingsView {
               disabled: settings.isSaving,
             }),
             id: "settings-default-cv-y-scale-card",
+            searchText: normalizeSettingsSearchText(
+              localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
+              optionLabels(this.options.yScaleOptions),
+            ),
             title: localize("settings.chartScaleDefaults.cvCurve", "C-V"),
           },
           {
@@ -955,6 +1061,10 @@ export class SettingsView {
               disabled: settings.isSaving,
             }),
             id: "settings-default-cf-y-scale-card",
+            searchText: normalizeSettingsSearchText(
+              localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
+              optionLabels(this.options.yScaleOptions),
+            ),
             title: localize("settings.chartScaleDefaults.cfCurve", "C-f"),
           },
           {
@@ -966,6 +1076,10 @@ export class SettingsView {
               disabled: settings.isSaving,
             }),
             id: "settings-default-pv-y-scale-card",
+            searchText: normalizeSettingsSearchText(
+              localize("settings.chartScaleDefaults.description", "Choose the default Y-axis scale for each curve family."),
+              optionLabels(this.options.yScaleOptions),
+            ),
             title: localize("settings.chartScaleDefaults.pvCurve", "P-V"),
           },
         ],
@@ -975,9 +1089,18 @@ export class SettingsView {
 
   private createChartDefaults(settings: ChartDefaultSettings): HTMLElement {
     const container = card("settings-chart-defaults-card", "settings-card-block");
+    const titleText = localize("settings.chartTypographyDefaults.title", "Chart Typography Defaults");
+    const description = localize("settings.chartTypographyDefaults.description", "Choose default chart title and tick label sizes.");
+    setSettingsSearchText(
+      container,
+      titleText,
+      description,
+      localize("settings.chartTypographyDefaults.titleSize", "Title"),
+      localize("settings.chartTypographyDefaults.tickLabel", "Tick label"),
+    );
     container.appendChild(headingBlock(
-      localize("settings.chartTypographyDefaults.title", "Chart Typography Defaults"),
-      localize("settings.chartTypographyDefaults.description", "Choose default chart title and tick label sizes."),
+      titleText,
+      description,
     ));
     const grid = div("settings-grid settings-grid--three");
     grid.append(
@@ -1012,10 +1135,15 @@ export class SettingsView {
 
   private createFileNameMatching(settings: FileNameMatchingSettings): HTMLElement {
     const container = card("settings-filename-matching-card", "settings-card-block");
-    container.appendChild(headingBlock(localize("settings.filenameMatching.title", "Filename Field Matching"), localize("settings.filenameMatching.description", "Choose which separator characters split filename fields for template rules.")));
+    const titleText = localize("settings.filenameMatching.title", "Filename Field Matching");
+    const description = localize("settings.filenameMatching.description", "Choose which separator characters split filename fields for template rules.");
+    const separatorsLabel = localize("settings.filenameMatching.label", "Field separators");
+    const hint = localize("settings.filenameMatching.hint", "Each character acts as a separator. The default is {value}.", { value: DEFAULT_FILE_NAME_FIELD_SEPARATORS });
+    setSettingsSearchText(container, titleText, description, separatorsLabel, hint);
+    container.appendChild(headingBlock(titleText, description));
     const body = div("settings-field");
     body.append(
-      label(localize("settings.filenameMatching.label", "Field separators")),
+      label(separatorsLabel),
       this.createInput({
         id: "settings-filename-separators-input",
         value: this.options.fileNameFieldSeparatorsDraft,
@@ -1028,7 +1156,7 @@ export class SettingsView {
         disabled: settings.isSaving,
         inputClassName: "font-mono",
       }),
-      text("p", "settings-hint", localize("settings.filenameMatching.hint", "Each character acts as a separator. The default is {value}.", { value: DEFAULT_FILE_NAME_FIELD_SEPARATORS })),
+      text("p", "settings-hint", hint),
     );
     container.appendChild(body);
     appendFeedback(container, settings.feedback);
@@ -1096,7 +1224,21 @@ export class SettingsView {
 
   private createOriginPlot(settings: OriginSettingsSectionProps): HTMLElement {
     const container = card("settings-origin-plot-card", "settings-card-block");
-    container.appendChild(headingBlock(localize("settings.origin.plot.title", "Default Plot Settings"), localize("settings.origin.plot.description", "Used by \"Open in Origin\".")));
+    const titleText = localize("settings.origin.plot.title", "Default Plot Settings");
+    const description = localize("settings.origin.plot.description", "Used by \"Open in Origin\".");
+    setSettingsSearchText(
+      container,
+      titleText,
+      description,
+      localize("settings.origin.plot.xyPairsLabel", "XY pairs"),
+      localize("settings.origin.plot.xyPairsHint", "LabTalk expression, for example ((1,2)) or ((1,2),(3,4))."),
+      localize("settings.origin.plot.commandLabel", "Plot command override"),
+      localize("settings.origin.plot.commandHint", "Optional full LabTalk command. If set, it overrides plot type and XY pairs."),
+      localize("chart.legend.fontSize", "Legend size"),
+      localize("settings.origin.plot.postCommandsLabel", "Post-plot commands"),
+      localize("settings.origin.plot.postCommandsHint", "One LabTalk command per line, executed after plotting."),
+    );
+    container.appendChild(headingBlock(titleText, description));
     container.append(
       field(localize("settings.origin.plot.xyPairsLabel", "XY pairs"), this.createInput({
         id: "settings-origin-plot-xy-pairs-input",
@@ -1624,6 +1766,10 @@ function settingsSectionsEqual(
     const nextOption = next[index];
     return option.id === nextOption?.id && option.label === nextOption.label;
   });
+}
+
+function optionLabels(options: readonly SelectOption[]): readonly string[] {
+  return options.map(option => option.label);
 }
 
 function selectOptionsEqual(
