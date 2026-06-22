@@ -20,8 +20,8 @@ import {
   getTableColumnScaleStepperTarget,
   isTableColumnScaleStepperVisible,
   syncTableColumnScaleStepper,
-  type TableColumnScaleStepper,
   type TableColumnScaleStepperTarget,
+  type TableStepper,
 } from "src/cs/workbench/contrib/table/browser/tableStepper";
 import {
   createPerformanceStageRecorder,
@@ -201,7 +201,7 @@ export class TableWidget {
   public readonly onDidChangeZoom: Event<number>;
   private readonly store = new DisposableStore();
   private readonly grid: BaseTableWidget;
-  private readonly columnScaleControl: TableColumnScaleStepper;
+  private readonly columnScaleControl: TableStepper;
   private readonly performance = createPerformanceStageRecorder(state => this.getPerformanceStageContext(state));
   private readonly bodyRangeSelectionStore = new DisposableStore();
   private disposeSelectionListener: (() => void) | null = null;

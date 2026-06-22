@@ -97,16 +97,14 @@ export const createTableStepper = ({
   };
 };
 
-export type TableColumnScaleStepper = TableStepper;
-
-export type TableColumnScaleStepperAction = "decrease" | "increase" | "reset";
+type TableColumnScaleStepperAction = "decrease" | "increase" | "reset";
 
 export type TableColumnScaleStepperTarget = {
   readonly action: TableColumnScaleStepperAction;
   readonly colIndex: number;
 };
 
-export const createTableColumnScaleStepper = (): TableColumnScaleStepper => {
+export const createTableColumnScaleStepper = (): TableStepper => {
   const stepper = createTableStepper({
     ariaLabel: localize("table.preview.columnScaleControl", "Column scale"),
     className: "table_view_column_scale_control",
@@ -138,7 +136,7 @@ export const createTableColumnScaleStepper = (): TableColumnScaleStepper => {
 };
 
 export const getTableColumnScaleStepperTarget = (
-  stepper: TableColumnScaleStepper,
+  stepper: TableStepper,
   eventTarget: EventTarget | null,
 ): TableColumnScaleStepperTarget | null => {
   if (!(eventTarget instanceof Element)) {
@@ -158,7 +156,7 @@ export const getTableColumnScaleStepperTarget = (
 };
 
 export const syncTableColumnScaleStepper = (
-  stepper: TableColumnScaleStepper,
+  stepper: TableStepper,
   colIndex: number,
   profile: ColumnDisplayProfile,
 ): boolean => {
@@ -169,11 +167,6 @@ export const syncTableColumnScaleStepper = (
   }
 
   const colIndexValue = String(colIndex);
-  if (stepper.element.dataset.colIndex !== colIndexValue) {
-    stepper.element.dataset.colIndex = colIndexValue;
-    changed = true;
-  }
-
   if (setTableColumnScaleStepperIndex(stepper, colIndexValue)) {
     changed = true;
   }
@@ -264,7 +257,7 @@ const getTableColumnScaleStepperValueText = (profile: ColumnDisplayProfile): str
   String(profile.scaleExponent);
 
 const setTableColumnScaleStepperIndex = (
-  stepper: TableColumnScaleStepper,
+  stepper: TableStepper,
   colIndexValue: string,
 ): boolean => {
   let changed = false;
