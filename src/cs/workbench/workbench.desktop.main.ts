@@ -46,12 +46,14 @@ import "src/cs/workbench/services/template/electron-browser/templateStoreService
 import "src/cs/workbench/services/template/electron-browser/templateProcessingBackendService.ts";
 import "src/cs/workbench/services/parameters/electron-browser/rcCalculationBackendService.ts";
 import "src/cs/workbench/services/path/electron-browser/pathService.ts";
+import "src/cs/workbench/services/update/electron-browser/updateService.ts";
 
 //#endregion
 
 //#region --- workbench contributions
 
 import "src/cs/workbench/contrib/files/electron-browser/fileActions.contribution.ts";
+import "src/cs/workbench/contrib/update/browser/update.contribution.ts";
 import "src/cs/workbench/electron-browser/parts/dialogs/dialog.contribution.ts";
 import "src/cs/workbench/contrib/splash/electron-sandbox/splash.contribution.ts";
 

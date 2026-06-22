@@ -27,6 +27,7 @@ export type WorkbenchTitlebarState = {
   readonly isSidebarVisible?: boolean;
   readonly isUpdateReadyToInstall?: boolean;
   readonly showFileSelector?: boolean;
+  readonly updateTooltip?: string | null;
   readonly updateVersion?: string | null;
 };
 
@@ -38,5 +39,6 @@ export interface ITitleService {
   attachTitlebarPart(parent: HTMLElement): IDisposable;
   getTitlebarState(): WorkbenchTitlebarState | undefined;
   layout(): void;
+  patchTitlebarState(state: WorkbenchTitlebarState): void;
   updateTitlebarState(state?: WorkbenchTitlebarState): void;
 }

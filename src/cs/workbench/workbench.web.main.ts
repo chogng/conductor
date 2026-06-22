@@ -20,5 +20,6 @@ import "src/cs/workbench/services/dialogs/browser/fileDialogService.ts";
 import "src/cs/workbench/services/dialogs/browser/dialogService.ts";
 import "src/cs/workbench/services/lifecycle/browser/lifecycleService.ts";
 import "src/cs/workbench/services/path/browser/pathService.ts";
+import "src/cs/workbench/services/update/browser/updateService.ts";
 
 //#endregion

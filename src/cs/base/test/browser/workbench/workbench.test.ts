@@ -740,6 +740,7 @@ const createWorkbenchOptions = ({
     titleService: {
       attachTitlebarPart: () => Disposable.None,
       layout: () => undefined,
+      patchTitlebarState: () => undefined,
       updateTitlebarState: () => undefined,
     } as unknown as WorkbenchService<"titleService">,
     viewsService,

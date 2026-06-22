@@ -673,6 +673,7 @@ const shouldRecreateTitlebar = (
   prev.chrome?.showBrandIcon !== next.chrome?.showBrandIcon ||
   prev.chrome?.windowControlsSide !== next.chrome?.windowControlsSide ||
   prev.updateAction?.isVisible !== next.updateAction?.isVisible ||
+  prev.updateAction?.tooltip !== next.updateAction?.tooltip ||
   prev.updateAction?.version !== next.updateAction?.version ||
   prev.updateAction?.commandId !== next.updateAction?.commandId ||
   !sameFileOptions(prev.fileOptions, next.fileOptions);

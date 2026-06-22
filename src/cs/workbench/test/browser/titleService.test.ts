@@ -214,6 +214,45 @@ suite("workbench/browser/titleService", () => {
     layoutService.dispose();
     storage.dispose();
   });
+
+  test("patches titlebar state without replacing derived layout state", () => {
+    const storage = new TestStorageService();
+    const layoutService = new BrowserWorkbenchLayoutService(storage);
+    const titleService = new BrowserTitleService(testCommandService, layoutService, testNativeHostService);
+
+    titleService.updateTitlebarState({
+      enabled: true,
+      fileSelectionCommandId: "files.pick",
+    });
+    titleService.patchTitlebarState({
+      installUpdateCommandId: "update.install",
+      isUpdateReadyToInstall: true,
+      updateVersion: "1.2.3",
+    });
+    layoutService.navigateToView("chart");
+
+    const state = titleService.getTitlebarState();
+
+    assert.deepStrictEqual({
+      activePage: state?.activePage,
+      canNavigateBack: state?.canNavigateBack,
+      fileSelectionCommandId: state?.fileSelectionCommandId,
+      installUpdateCommandId: state?.installUpdateCommandId,
+      isUpdateReadyToInstall: state?.isUpdateReadyToInstall,
+      updateVersion: state?.updateVersion,
+    }, {
+      activePage: "chart",
+      canNavigateBack: true,
+      fileSelectionCommandId: "files.pick",
+      installUpdateCommandId: "update.install",
+      isUpdateReadyToInstall: true,
+      updateVersion: "1.2.3",
+    });
+
+    titleService.dispose();
+    layoutService.dispose();
+    storage.dispose();
+  });
 });
 
 const createEnvironmentService = ({

@@ -6,7 +6,6 @@ import { Registry } from "src/cs/platform/registry/common/platform";
 import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
 import { Workbench } from "src/cs/workbench/browser/workbench";
 import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
-import { WorkbenchCommandId } from "src/cs/workbench/browser/actions/workbenchCommands";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import { createAuxiliaryBarActionViewItem } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
 import { createSidebarActionViewItem } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
@@ -234,13 +233,6 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
         description: localize("workbench.commands.resetLayoutState", "Reset workbench layout state"),
       },
     }));
-    this._register(CommandsRegistry.registerCommand({
-      id: WorkbenchCommandId.checkForUpdates,
-      handler: () => checkForUpdates(),
-      metadata: {
-        description: localize("workbench.commands.checkForUpdates", "Check for app updates"),
-      },
-    }));
     this._register(
       scheduleAtNextAnimationFrame(window, () => {
         markBootUiReady("workbench");
@@ -272,15 +264,6 @@ function registerContainer(id: string, title: string, location: ViewContainerLoc
     }]),
   }, location, { isDefault: true, doNotRegisterOpenCommand: true });
 }
-
-const checkForUpdates = async (): Promise<boolean> => {
-  const desktopApp = (window as Window & {
-    readonly desktopApp?: {
-      checkForUpdatesAndInstall?: () => Promise<boolean> | boolean;
-    };
-  }).desktopApp;
-  return Boolean(await desktopApp?.checkForUpdatesAndInstall?.());
-};
 
 registerWorkbenchContribution2(
   WorkbenchContributionId,

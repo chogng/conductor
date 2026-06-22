@@ -13,7 +13,9 @@ export type DesktopUpdateState =
   | "idle"
   | "checking"
   | "available"
+  | "downloading"
   | "downloaded"
+  | "updating"
   | "error"
   | "disabled"
   | "unsupported";
@@ -288,6 +290,7 @@ export class Win32UpdateService {
     if (this.status.status !== "downloaded") return false;
 
     this.autoUpdateInstallAfterDownloadRequested = false;
+    this.setStatus("updating");
     this.autoUpdater.quitAndInstall();
     return true;
   }
@@ -344,6 +347,11 @@ export class Win32UpdateService {
     this.autoUpdater.on("update-available", (info: any) => {
       this.setStatus("available", info?.version || null);
       this.options.log(`[update] Update ${info?.version || "unknown"} is available.`);
+    });
+
+    this.autoUpdater.on("download-progress", () => {
+      this.setStatus("downloading");
+      this.options.log("[update] Downloading update...");
     });
 
     this.autoUpdater.on("update-not-available", (info: any) => {

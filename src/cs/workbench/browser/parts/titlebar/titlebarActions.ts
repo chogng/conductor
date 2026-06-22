@@ -49,6 +49,7 @@ export type WorkbenchTitlebarQuickAccessButton = {
 export type WorkbenchTitlebarActivePage = LayoutView | string;
 
 export type WorkbenchTitlebarUpdateInfo = {
+  readonly tooltip?: string | null;
   readonly version?: string | null;
 };
 
@@ -124,6 +125,11 @@ export const getWorkbenchTitlebarUpdateLabel = (): string =>
 export const getWorkbenchTitlebarUpdateTitle = (
   updateAction?: WorkbenchTitlebarUpdateInfo,
 ): string => {
+  const tooltip = updateAction?.tooltip?.trim();
+  if (tooltip) {
+    return tooltip;
+  }
+
   const label = getWorkbenchTitlebarUpdateLabel();
   const version =
     typeof updateAction?.version === "string" && updateAction.version.trim()

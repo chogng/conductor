@@ -1,0 +1,74 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+.update-tooltip {
+  display: flex;
+  min-width: 260px;
+  max-width: 320px;
+  flex-direction: column;
+  gap: 10px;
+  color: rgb(var(--text-secondary) / 1);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.update-tooltip__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.update-tooltip__title {
+  color: rgb(var(--text-primary) / 1);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.update-tooltip__details {
+  display: grid;
+  gap: 4px;
+}
+
+.update-tooltip__detail-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.update-tooltip__detail-label {
+  color: rgb(var(--text-tertiary) / 1);
+}
+
+.update-tooltip__detail-value {
+  min-width: 0;
+  color: rgb(var(--text-primary) / 1);
+  overflow-wrap: anywhere;
+}
+
+.update-tooltip__message {
+  color: rgb(var(--text-secondary) / 1);
+}
+
+.update-tooltip__buttons {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.update-tooltip__button {
+  min-height: 26px;
+  padding: 4px 10px;
+  border: 1px solid rgb(var(--accent) / 0.4);
+  border-radius: 4px;
+  background: rgb(var(--accent) / 1);
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.update-tooltip__button:hover,
+.update-tooltip__button:focus-visible {
+  background: rgb(var(--accent-hover) / 1);
+}

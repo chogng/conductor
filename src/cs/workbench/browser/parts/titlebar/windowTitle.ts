@@ -44,6 +44,7 @@ export type WorkbenchTitlebarUpdateAction = {
   readonly commandId?: string;
   readonly isVisible: boolean;
   readonly isReadyToInstall?: boolean;
+  readonly tooltip?: string | null;
   readonly version?: string | null;
 };
 
@@ -203,6 +204,7 @@ export class BrowserTitleService extends Disposable implements ITitleService {
         this.layoutService.isVisible(Parts.SIDEBAR_PART),
       isUpdateReadyToInstall: state.isUpdateReadyToInstall,
       showFileSelector: state.showFileSelector,
+      updateTooltip: state.updateTooltip,
       updateVersion: state.updateVersion,
     };
   }
@@ -226,12 +228,21 @@ export class BrowserTitleService extends Disposable implements ITitleService {
         commandId: state.installUpdateCommandId,
         isVisible: Boolean(state.isUpdateReadyToInstall),
         isReadyToInstall: state.isUpdateReadyToInstall,
+        tooltip: state.updateTooltip,
         version: state.updateVersion,
       },
     };
   }
 
   public layout(): void {
+    this.onDidChangeTitlebarStateEmitter.fire();
+  }
+
+  public patchTitlebarState(state: WorkbenchTitlebarState): void {
+    this.titlebarState = {
+      ...this.titlebarState,
+      ...state,
+    };
     this.onDidChangeTitlebarStateEmitter.fire();
   }
 

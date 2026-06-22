@@ -37,6 +37,7 @@ import {
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { WorkbenchCommandId } from "src/cs/workbench/browser/actions/workbenchCommands";
 import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layoutCommands";
+import { UpdateCommandId } from "src/cs/workbench/contrib/update/common/update";
 import {
   DEFAULT_WORKBENCH_BACKGROUND_COLOR,
   normalizeWorkbenchAppearance,
@@ -1087,7 +1088,7 @@ export class SettingsController {
     this.drafts.appUpdateChecking = true;
     this.render();
     try {
-      await this.commandService.executeCommand(WorkbenchCommandId.checkForUpdates);
+      await this.commandService.executeCommand(UpdateCommandId.check);
     }
     catch {
       // Update check result is shown by desktop shell dialogs.
