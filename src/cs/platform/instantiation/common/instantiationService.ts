@@ -90,6 +90,7 @@ export class InstantiationService implements IInstantiationService, IDisposable 
     }
 
     this.disposed = true;
+    this.parent?.children.delete(this);
 
     for (const child of this.children) {
       child.dispose();
@@ -185,6 +186,7 @@ export class InstantiationService implements IInstantiationService, IDisposable 
   }
 
   private createDelayedServiceInstance<T>(descriptor: SyncDescriptor<T>): T {
+    const child = new InstantiationService(undefined, this.strict, this);
     const earlyListeners = new Map<string, LinkedList<EarlyServiceEventListener>>();
     const boundProperties = Object.create(null) as Record<PropertyKey, unknown>;
     let initialized = false;
@@ -195,7 +197,7 @@ export class InstantiationService implements IInstantiationService, IDisposable 
       if (!initialized) {
         initialized = true;
         try {
-          instance = this.createInstanceFromConstructor(
+          instance = child.createInstanceFromConstructor(
             descriptor.ctor,
             descriptor.staticArguments,
           );

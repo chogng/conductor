@@ -63,7 +63,7 @@
     "release:desktop:local": "node scripts/run-powershell.mjs scripts/release-desktop-local.ps1"
   },
   "dependencies": {
-    "@chogng/lxicons": "^1.0.18",
+    "@chogng/lxicons": "^1.0.19",
     "electron-updater": "^6.8.3",
     "jszip": "^3.10.1",
     "markdown-it": "^14.2.0"
