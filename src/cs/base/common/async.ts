@@ -443,6 +443,58 @@ export class RunOnceScheduler<Runner extends (...args: never[]) => unknown = () 
     }
 }
 
+export interface IdleDeadline {
+    readonly didTimeout: boolean;
+    timeRemaining(): number;
+}
+
+type IdleApi = {
+    readonly requestIdleCallback?: (
+        callback: (deadline: IdleDeadline) => void,
+        options?: { readonly timeout?: number },
+    ) => number;
+    readonly cancelIdleCallback?: (handle: number) => void;
+};
+
+export let _runWhenIdle: (
+    targetWindow: IdleApi,
+    callback: (idle: IdleDeadline) => void,
+    timeout?: number,
+) => IDisposable;
+
+export let runWhenGlobalIdle: (
+    callback: (idle: IdleDeadline) => void,
+    timeout?: number,
+) => IDisposable;
+
+(() => {
+    _runWhenIdle = (targetWindow, runner, timeoutMs) => {
+        if (
+            typeof targetWindow.requestIdleCallback === "function" &&
+            typeof targetWindow.cancelIdleCallback === "function"
+        ) {
+            const handle = targetWindow.requestIdleCallback(
+                runner,
+                typeof timeoutMs === "number" ? { timeout: timeoutMs } : undefined,
+            );
+            return toDisposable(() => targetWindow.cancelIdleCallback?.(handle));
+        }
+
+        const handle = setTimeout(() => {
+            const end = Date.now() + 15;
+            runner(Object.freeze({
+                didTimeout: true,
+                timeRemaining: () => Math.max(0, end - Date.now()),
+            }));
+        }, 0);
+
+        return toDisposable(() => clearTimeout(handle));
+    };
+
+    runWhenGlobalIdle = (runner, timeoutMs) =>
+        _runWhenIdle(globalThis as IdleApi, runner, timeoutMs);
+})();
+
 export class TaskSequentializer implements IDisposable {
     private readonly pending = new DisposableStore();
     private current: Promise<unknown> | undefined;

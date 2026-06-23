@@ -1,3 +1,4 @@
+import { _runWhenIdle, type IdleDeadline } from "src/cs/base/common/async";
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable, DisposableStore, type IDisposable, toDisposable } from "src/cs/base/common/lifecycle";
 import { StandardMouseEvent, type IMouseEvent } from "src/cs/base/browser/mouseEvent";
@@ -601,4 +602,12 @@ export function runAtThisOrScheduleAtNextAnimationFrame(targetWindow: Window, ru
     }
 
     return scheduleAtNextAnimationFrame(targetWindow, runner, priority);
+}
+
+export function runWhenWindowIdle(
+    targetWindow: Window | typeof globalThis,
+    callback: (idle: IdleDeadline) => void,
+    timeout?: number,
+): IDisposable {
+    return _runWhenIdle(targetWindow, callback, timeout);
 }

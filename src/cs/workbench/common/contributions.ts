@@ -1,3 +1,4 @@
+import { runWhenGlobalIdle, type IdleDeadline } from "src/cs/base/common/async";
 import { Disposable, DisposableStore, isDisposable } from "src/cs/base/common/lifecycle";
 import type { IInstantiationService, ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
 import { IInstantiationService as IInstantiationServiceId } from "src/cs/platform/instantiation/common/instantiation";
@@ -55,6 +56,7 @@ class WorkbenchContributionsRegistry extends Disposable implements IWorkbenchCon
   private readonly instanceDisposables = this._register(new DisposableStore());
   private readonly timingsByPhase = new Map<LifecyclePhase, Array<[string, number]>>();
   private restoredResolve: (() => void) | undefined;
+  private restoredResolved = false;
 
   public readonly whenRestored = new Promise<void>(resolve => {
     this.restoredResolve = resolve;
@@ -146,20 +148,67 @@ class WorkbenchContributionsRegistry extends Disposable implements IWorkbenchCon
     const contributions = this.contributionsByPhase.get(phase);
     if (!contributions) {
       if (phase === LifecyclePhase.Restored) {
-        this.restoredResolve?.();
+        this.resolveRestored();
       }
       return;
     }
 
     this.contributionsByPhase.delete(phase);
 
+    if (phase === LifecyclePhase.Restored || phase === LifecyclePhase.Eventually) {
+      void this.doInstantiateLatePhase(contributions, phase);
+      return;
+    }
+
     for (const contribution of contributions) {
       this.safeCreateContribution(contribution, phase);
     }
+  }
 
-    if (phase === LifecyclePhase.Restored) {
-      this.restoredResolve?.();
+  private async doInstantiateLatePhase(
+    contributions: readonly IWorkbenchContributionRegistration[],
+    phase: LifecyclePhase,
+  ): Promise<void> {
+    if (phase === LifecyclePhase.Eventually) {
+      await this.whenRestored;
     }
+
+    this.doInstantiateWhenIdle(contributions, phase);
+  }
+
+  private doInstantiateWhenIdle(
+    contributions: readonly IWorkbenchContributionRegistration[],
+    phase: LifecyclePhase,
+  ): void {
+    let index = 0;
+    const forcedTimeout = phase === LifecyclePhase.Eventually ? 3000 : 500;
+
+    const instantiateSome = (idle: IdleDeadline): void => {
+      while (index < contributions.length) {
+        this.safeCreateContribution(contributions[index], phase);
+        index += 1;
+
+        if (index < contributions.length && idle.timeRemaining() < 1) {
+          this._register(runWhenGlobalIdle(instantiateSome, forcedTimeout));
+          return;
+        }
+      }
+
+      if (phase === LifecyclePhase.Restored) {
+        this.resolveRestored();
+      }
+    };
+
+    this._register(runWhenGlobalIdle(instantiateSome, forcedTimeout));
+  }
+
+  private resolveRestored(): void {
+    if (this.restoredResolved) {
+      return;
+    }
+
+    this.restoredResolved = true;
+    this.restoredResolve?.();
   }
 
   private safeCreateContribution(contribution: IWorkbenchContributionRegistration, phase: LifecyclePhase): void {

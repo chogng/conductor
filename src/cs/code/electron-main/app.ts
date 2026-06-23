@@ -148,6 +148,7 @@ const DEFAULT_WORKBENCH_BACKGROUND_COLOR = "#f3f4f6";
 const desktopWindowMain = new DesktopWindowMain(DEFAULT_WORKBENCH_BACKGROUND_COLOR);
 const BOOT_WINDOW_SETTLE_MS = 80;
 const BOOT_UI_READY_FALLBACK_MS = 3500;
+const SHARED_PROCESS_STARTUP_CONTRIBUTIONS_DELAY_MS = 1000;
 const RUST_PROCESSING_POOL_SIZE = resolveRustProcessingPoolSize({
   availableParallelism: os.availableParallelism(),
   envValue: process.env.CONDUCTOR_RUST_PROCESSING_POOL_SIZE,
@@ -178,6 +179,12 @@ const rustWorkerHost = new RustWorkerHost({
 });
 const mainProcessServer = new ElectronIPCServer();
 const localFileSystemProvider = new DiskFileSystemProvider(filePath => shell.trashItem(filePath));
+let sharedProcessStartupContributionsState:
+  | "pending"
+  | "scheduled"
+  | "running"
+  | "complete" = "pending";
+let sharedProcessStartupContributionsTimer: ReturnType<typeof setTimeout> | null = null;
 const dialogMainService = new DialogMainService();
 const nativeHostMainService = new NativeHostMainService(dialogMainService);
 let mainWindow = null;
@@ -639,6 +646,7 @@ function resolveRustExcelConverterPath() {
 }
 
 function createRustProcessingResultTempDir(fileId) {
+  runSharedProcessStartupContributionsOnce("rust-processing");
   const safeFileId = String(fileId || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
   const root = getTempRootDir();
   fs.mkdirSync(root, { recursive: true });
@@ -646,6 +654,7 @@ function createRustProcessingResultTempDir(fileId) {
 }
 
 function createRustOriginExportTempPath(fileId, csvName) {
+  runSharedProcessStartupContributionsOnce("origin-export-stream");
   const safeFileId = String(fileId || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
   const safeCsvName = String(csvName || "origin.csv")
     .replace(/[/\\?%*:|"<>]+/g, "_")
@@ -1109,7 +1118,52 @@ function createSharedProcessContributionContext() {
   };
 }
 
+function runSharedProcessStartupContributionsOnce(reason = "startup") {
+  if (
+    sharedProcessStartupContributionsState === "complete" ||
+    sharedProcessStartupContributionsState === "running"
+  ) {
+    return;
+  }
+
+  if (sharedProcessStartupContributionsTimer) {
+    clearTimeout(sharedProcessStartupContributionsTimer);
+    sharedProcessStartupContributionsTimer = null;
+  }
+
+  const startedAt = Date.now();
+  sharedProcessStartupContributionsState = "running";
+  logDesktopBoot("shared-process:startup:start", `(reason=${reason})`);
+
+  try {
+    runSharedProcessStartupContributions(createSharedProcessContributionContext());
+  } finally {
+    sharedProcessStartupContributionsState = "complete";
+    logDesktopBoot(
+      "shared-process:startup:done",
+      `(reason=${reason} duration=${Date.now() - startedAt}ms)`,
+    );
+  }
+}
+
+function scheduleSharedProcessStartupContributions(reason = "post-window") {
+  if (sharedProcessStartupContributionsState !== "pending") {
+    return;
+  }
+
+  sharedProcessStartupContributionsState = "scheduled";
+  logDesktopBoot(
+    "shared-process:startup:scheduled",
+    `(reason=${reason} delay=${SHARED_PROCESS_STARTUP_CONTRIBUTIONS_DELAY_MS}ms)`,
+  );
+  sharedProcessStartupContributionsTimer = setTimeout(() => {
+    sharedProcessStartupContributionsTimer = null;
+    runSharedProcessStartupContributionsOnce(reason);
+  }, SHARED_PROCESS_STARTUP_CONTRIBUTIONS_DELAY_MS);
+}
+
 function ensureRustExcelJobRoot() {
+  runSharedProcessStartupContributionsOnce("rust-excel");
   const jobRoot = getRustExcelJobRootDir();
   fs.mkdirSync(jobRoot, { recursive: true });
   return jobRoot;
@@ -2219,6 +2273,7 @@ async function showMainWindowAfterBoot(win) {
   mainWindowBootShown = true;
   await new Promise((resolve) => setTimeout(resolve, BOOT_WINDOW_SETTLE_MS));
   logDesktopBoot("main-window:show:done");
+  scheduleSharedProcessStartupContributions("main-window-shown");
 }
 
 function handleWorkbenchBootstrapUiReady(event, payload) {
@@ -2324,7 +2379,6 @@ if (hasSingleInstanceLock) {
   configureRuntimeCachePath();
   configureCodeCachePath();
   await mainConfigurationService.initialize();
-  runSharedProcessStartupContributions(createSharedProcessContributionContext());
   trayMainService.createTray();
   updateService = createUpdateService();
   mainProcessServer.registerChannel(
@@ -2396,7 +2450,10 @@ if (hasSingleInstanceLock) {
     originMainService,
     originCsvScriptPath: ORIGIN_CSV_SCRIPT_PATH,
     originCsvWorkerPath: ORIGIN_CSV_WORKER_PATH,
-    runtimeRootDir: getOriginRuntimeRootDir,
+    runtimeRootDir: () => {
+      runSharedProcessStartupContributionsOnce("origin-runtime");
+      return getOriginRuntimeRootDir();
+    },
   });
   void prewarmRustProcessingPool();
   themeMainServiceListener = mainThemeService.onDidChangeColorScheme(() => syncBootWindowTheme());

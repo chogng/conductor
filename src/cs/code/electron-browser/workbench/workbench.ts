@@ -1,4 +1,5 @@
 import { ipcRenderer } from "src/cs/base/parts/sandbox/electron-browser/globals";
+import { runWhenWindowIdle } from "src/cs/base/browser/dom";
 import { mainWindow } from "src/cs/base/browser/window";
 import {
   isLanguagePreference,
@@ -334,8 +335,10 @@ function startWorkbench(): void {
     lifecycleService.phase = LifecyclePhase.Restored;
   }, 0);
   mainWindow.setTimeout(() => {
-    lifecycleService.phase = LifecyclePhase.Eventually;
-  }, 3000);
+    runWhenWindowIdle(mainWindow, () => {
+      lifecycleService.phase = LifecyclePhase.Eventually;
+    }, 2500);
+  }, 2500);
 }
 
 const startMs = getBootNowMs();
