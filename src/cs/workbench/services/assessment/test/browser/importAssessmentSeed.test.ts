@@ -8,11 +8,11 @@ import {
   isSupportedImportFileName,
 } from "src/cs/workbench/services/files/common/files";
 import {
-  assessImportFile,
-} from "src/cs/workbench/services/assessment/browser/fileAssessment";
+  createImportAssessmentSeedFromFile,
+} from "src/cs/workbench/services/assessment/browser/importAssessmentSeed";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
-suite("workbench/services/assessment/test/browser/importFileAssessment", () => {
+suite("workbench/services/assessment/test/browser/importAssessmentSeed", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
   test("isSupportedImportFileName accepts csv/xls/xlsx with case-insensitive suffixes", () => {
     assert.equal(isSupportedImportFileName("sample.csv"), true);
@@ -29,7 +29,7 @@ suite("workbench/services/assessment/test/browser/importFileAssessment", () => {
     assert.equal(isExcelImportFileName("sample.csv"), false);
   });
 
-  test("assessImportFile detects transfer metadata on import", async () => {
+  test("creates transfer seed evidence from import metadata", async () => {
     const file = new File(
       [
         [
@@ -46,17 +46,17 @@ suite("workbench/services/assessment/test/browser/importFileAssessment", () => {
       { type: "text/csv" },
     );
 
-    const result = await assessImportFile(file);
+    const result = await createImportAssessmentSeedFromFile(file);
 
     assert.equal(result.curveFamily, "iv");
     assert.equal(result.curveType, "transfer (vg)");
     assert.equal(result.curveTypeConfidence, "high");
-    assert.equal(result.curveTypeNeedsTemplate, false);
+    assert.equal(result.curveTypeNeedsReview, false);
     assert.equal(result.ivMode, "transfer");
     assert.equal(result.xAxisRole, "vg");
   });
 
-  test("assessImportFile infers output from stripped CH1/CH2 data when shape evidence is strong", async () => {
+  test("creates output seed evidence from strong stripped CH1/CH2 shape", async () => {
     const file = new File(
       [
         [
@@ -71,18 +71,18 @@ suite("workbench/services/assessment/test/browser/importFileAssessment", () => {
       { type: "text/csv" },
     );
 
-    const result = await assessImportFile(file);
+    const result = await createImportAssessmentSeedFromFile(file);
 
     assert.equal(result.curveFamily, "iv");
     assert.equal(result.curveType, "output (vd)");
     assert.equal(result.curveTypeConfidence, "medium");
-    assert.equal(result.curveTypeNeedsTemplate, false);
+    assert.equal(result.curveTypeNeedsReview, false);
     assert.equal(result.ivMode, "output");
     assert.equal(result.xAxisRole, "vd");
     assert.match(result.curveTypeReasons.join(" "), /output-like Id-Vd/i);
   });
 
-  test("assessImportFile treats transient transfer CSV headers as transfer metadata", async () => {
+  test("creates transfer seed evidence from transient transfer CSV headers", async () => {
     const rows = [
       ["2026-04-21-19-10-07_(MOS_IV_Transient_DC_Sweep)Id", "Ig_vg@ vs=0.0"],
       ["vg(V)", "id(-0.1)", "vg(V)", "ig(-0.1)", "vg(V)", "id(-1.0)", "vg(V)", "ig(-1.0)"],
@@ -93,12 +93,12 @@ suite("workbench/services/assessment/test/browser/importFileAssessment", () => {
       type: "text/csv;charset=utf-8",
     });
 
-    const result = await assessImportFile(file);
+    const result = await createImportAssessmentSeedFromFile(file);
 
     assert.equal(result.curveFamily, "iv");
     assert.equal(result.curveType, "transfer (vg)");
     assert.equal(result.curveTypeConfidence, "high");
-    assert.equal(result.curveTypeNeedsTemplate, false);
+    assert.equal(result.curveTypeNeedsReview, false);
     assert.equal(result.ivMode, "transfer");
     assert.equal(result.xAxisRole, "vg");
   });

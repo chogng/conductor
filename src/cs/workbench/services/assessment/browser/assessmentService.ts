@@ -11,13 +11,13 @@ import {
   type AssessmentRows,
   type AssessRawTableInput,
   type IAssessmentService as IAssessmentServiceType,
-  type ImportFileAssessment,
+  type ImportAssessmentSeed,
   type RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import {
-  assessImportFile,
-  assessImportRows,
-} from "src/cs/workbench/services/assessment/browser/fileAssessment";
+  createImportAssessmentSeedFromFile,
+  createImportAssessmentSeedFromRows,
+} from "src/cs/workbench/services/assessment/browser/importAssessmentSeed";
 import { RawTableAssessmentEngine } from "src/cs/workbench/services/assessment/browser/rawTableAssessmentEngine";
 import {
   ISchemaProfileService,
@@ -34,15 +34,15 @@ export class AssessmentService extends Disposable implements IAssessmentServiceT
     super();
   }
 
-  public assessImportFile(file: AssessmentFileInput): Promise<ImportFileAssessment> {
-    return assessImportFile(file);
+  public createImportAssessmentSeedFromFile(file: AssessmentFileInput): Promise<ImportAssessmentSeed> {
+    return createImportAssessmentSeedFromFile(file);
   }
 
-  public assessImportRows(
+  public createImportAssessmentSeedFromRows(
     fileName: string,
     rows: AssessmentRows,
-  ): Promise<ImportFileAssessment> {
-    return assessImportRows(fileName, rows);
+  ): Promise<ImportAssessmentSeed> {
+    return createImportAssessmentSeedFromRows(fileName, rows);
   }
 
   public async assessRawTable(

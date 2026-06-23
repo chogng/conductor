@@ -31,26 +31,26 @@ export const ASSESSMENT_RULE_VERSION = 2;
 
 export type AssessmentRows = readonly (readonly string[])[];
 
-export type ImportFileAxisRole = "vg" | "vd" | null;
+export type ImportAssessmentSeedAxisRole = "vg" | "vd" | null;
 
-export type ImportFileAxisRoleSource =
+export type ImportAssessmentSeedAxisRoleSource =
   | "filename"
-  | "title"
+  | "hint"
   | "label"
   | "metadata"
   | "schemaProfile"
   | "shape"
   | null;
 
-export type ImportFileAssessment = {
+export type ImportAssessmentSeed = {
   curveFamily: MeasurementFamily;
   curveType: string | null;
   curveTypeConfidence: "high" | "medium" | "low";
-  curveTypeNeedsTemplate: boolean;
+  curveTypeNeedsReview: boolean;
   curveTypeReasons: string[];
   ivMode?: IvSweepMode | null;
-  xAxisRole: ImportFileAxisRole;
-  xAxisRoleSource: ImportFileAxisRoleSource;
+  xAxisRole: ImportAssessmentSeedAxisRole;
+  xAxisRoleSource: ImportAssessmentSeedAxisRoleSource;
 };
 
 export type AssessmentFileInput = {
@@ -92,8 +92,8 @@ export type RawTableAssessmentRecord = {
 export interface IAssessmentService {
   readonly _serviceBrand: undefined;
 
-  assessImportFile(file: AssessmentFileInput): Promise<ImportFileAssessment>;
-  assessImportRows(fileName: string, rows: AssessmentRows): Promise<ImportFileAssessment>;
+  createImportAssessmentSeedFromFile(file: AssessmentFileInput): Promise<ImportAssessmentSeed>;
+  createImportAssessmentSeedFromRows(fileName: string, rows: AssessmentRows): Promise<ImportAssessmentSeed>;
   assessRawTable(input: AssessRawTableInput): Promise<RawTableAssessmentRecord>;
 }
 

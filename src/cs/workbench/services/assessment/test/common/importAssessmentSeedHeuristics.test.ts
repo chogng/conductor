@@ -4,15 +4,15 @@
 
 import assert from "assert";
 import {
-  assessFile,
-  extractFileMetadata,
-} from "../../common/fileAssessment.ts";
+  createImportAssessmentSeed,
+  extractImportAssessmentSeedMetadata,
+} from "../../common/importAssessmentSeedHeuristics.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
-suite("workbench/services/assessment/test/common/fileAssessment", () => {
+suite("workbench/services/assessment/test/common/importAssessmentSeedHeuristics", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
   test("classifies standard transfer metadata with high confidence", () => {
-    const metadata = extractFileMetadata([
+    const metadata = extractImportAssessmentSeedMetadata([
       ["SetupTitle", "Transfer_DB"],
       ["TestParameter", "Channel.VName", "Vg", "Vd", "Vs"],
       ["TestParameter", "Channel.Func", "VAR1", "VAR2", "CONST"],
@@ -25,7 +25,7 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
       ["DataName", "Vg", "Id", "Ig"],
     ]);
 
-    const result = assessFile({
+    const result = createImportAssessmentSeed({
       fileName: "Transfer_DB [sample].csv",
       metadata,
     });
@@ -33,11 +33,11 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
     assert.equal(result.curveType, "transfer");
     assert.equal(result.xAxisRole, "vg");
     assert.equal(result.confidence, "high");
-    assert.equal(result.needsTemplate, false);
+    assert.equal(result.needsReview, false);
   });
 
   test("classifies standard output metadata with high confidence", () => {
-    const metadata = extractFileMetadata([
+    const metadata = extractImportAssessmentSeedMetadata([
       ["SetupTitle", "Output"],
       ["TestParameter", "Channel.VName", "Vg", "Vd", "Vs"],
       ["TestParameter", "Channel.Func", "VAR2", "VAR1", "CONST"],
@@ -50,7 +50,7 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
       ["DataName", "Vd", "Ig", "Id"],
     ]);
 
-    const result = assessFile({
+    const result = createImportAssessmentSeed({
       fileName: "Output [sample].csv",
       metadata,
     });
@@ -61,7 +61,7 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
   });
 
   test("treats Trans_Br files as transfer when metadata says Vg", () => {
-    const metadata = extractFileMetadata([
+    const metadata = extractImportAssessmentSeedMetadata([
       ["SetupTitle", "Trans_Br"],
       ["TestParameter", "Output.Graph.XAxis.Data", "Vg"],
       [
@@ -72,7 +72,7 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
       ["DataName", "Vg", "Id", "Ig"],
     ]);
 
-    const result = assessFile({
+    const result = createImportAssessmentSeed({
       fileName: "Trans_Br [sample].csv",
       metadata,
     });
@@ -83,7 +83,7 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
   });
 
   test("accepts single-swept transfer files that only declare VAR1", () => {
-    const metadata = extractFileMetadata([
+    const metadata = extractImportAssessmentSeedMetadata([
       ["SetupTitle", "Transfer1-3"],
       ["TestParameter", "Channel.VName", "Vg", "Vs", "Vd"],
       ["TestParameter", "Channel.Func", "VAR1", "CONST", "CONST"],
@@ -96,7 +96,7 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
       ["DataName", "Vg", "Id", "gm"],
     ]);
 
-    const result = assessFile({
+    const result = createImportAssessmentSeed({
       fileName: "Transfer1-3.csv",
       metadata,
     });
@@ -107,7 +107,7 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
   });
 
   test("keeps stripped CH1/CH2 sweeps unknown without extra hints", () => {
-    const metadata = extractFileMetadata([
+    const metadata = extractImportAssessmentSeedMetadata([
       [
         "Repeat",
         "VAR2",
@@ -120,7 +120,7 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
       ["1", "1", "1", "-3.00000E+000", "-3.7E-9", "-60.00000E+000", "1.3E-9"],
     ]);
 
-    const result = assessFile({
+    const result = createImportAssessmentSeed({
       fileName: "sample.csv",
       metadata,
     });
@@ -128,12 +128,12 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
     assert.equal(result.curveType, "unknown");
     assert.equal(result.xAxisRole, null);
     assert.equal(result.confidence, "low");
-    assert.equal(result.needsTemplate, true);
+    assert.equal(result.needsReview, true);
     assert.match(result.reasons.join(" "), /CH1\/CH2 sweep columns/i);
   });
 
   test("infers output from stripped sweeps when current dynamics contradict transfer filename hints", () => {
-    const metadata = extractFileMetadata([
+    const metadata = extractImportAssessmentSeedMetadata([
       [
         "Repeat",
         "VAR2",
@@ -149,7 +149,7 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
       ["1", "1", "4", "0.00000E+000", "-1.0E-7", "-60.00000E+000", "1.1E-9"],
     ]);
 
-    const result = assessFile({
+    const result = createImportAssessmentSeed({
       fileName: "tran.csv",
       metadata,
     });
@@ -157,12 +157,12 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
     assert.equal(result.curveType, "output");
     assert.equal(result.xAxisRole, "vd");
     assert.equal(result.confidence, "medium");
-    assert.equal(result.needsTemplate, false);
+    assert.equal(result.needsReview, false);
     assert.match(result.reasons.join(" "), /output-like Id-Vd/i);
   });
 
   test("infers transfer from stripped sweeps when the fixed channel carries the drain-current response", () => {
-    const metadata = extractFileMetadata([
+    const metadata = extractImportAssessmentSeedMetadata([
       [
         "Repeat",
         "VAR2",
@@ -179,7 +179,7 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
       ["1", "1", "5", "6.00000E+001", "1.0E-10", "2.00000E+000", "1.0E-4"],
     ]);
 
-    const result = assessFile({
+    const result = createImportAssessmentSeed({
       fileName: "sample.csv",
       metadata,
     });
@@ -187,12 +187,12 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
     assert.equal(result.curveType, "transfer");
     assert.equal(result.xAxisRole, "vg");
     assert.equal(result.confidence, "medium");
-    assert.equal(result.needsTemplate, false);
+    assert.equal(result.needsReview, false);
     assert.match(result.reasons.join(" "), /transfer-like Vg response/i);
   });
 
   test("uses filename plus stripped sweep shape as a low-confidence output hint", () => {
-    const metadata = extractFileMetadata([
+    const metadata = extractImportAssessmentSeedMetadata([
       [
         "Repeat",
         "VAR2",
@@ -207,7 +207,7 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
       ["1", "1", "3", "5.00000E-001", "1.2E-9", "2.00000E+000", "1.3E-9"],
     ]);
 
-    const result = assessFile({
+    const result = createImportAssessmentSeed({
       fileName: "out.csv",
       metadata,
     });
@@ -215,12 +215,12 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
     assert.equal(result.curveType, "output");
     assert.equal(result.xAxisRole, "vd");
     assert.equal(result.confidence, "low");
-    assert.equal(result.needsTemplate, true);
+    assert.equal(result.needsReview, true);
     assert.match(result.reasons.join(" "), /CH2 Voltage sweeping/i);
   });
 
   test("keeps stripped CH1/CH2 sweeps unknown when both channels vary", () => {
-    const metadata = extractFileMetadata([
+    const metadata = extractImportAssessmentSeedMetadata([
       [
         "Repeat",
         "VAR2",
@@ -235,7 +235,7 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
       ["1", "1", "3", "2.00000E+000", "1.4E-9", "2.00000E+000", "1.5E-9"],
     ]);
 
-    const result = assessFile({
+    const result = createImportAssessmentSeed({
       fileName: "tran.csv",
       metadata,
     });
@@ -243,32 +243,32 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
     assert.equal(result.curveType, "unknown");
     assert.equal(result.xAxisRole, null);
     assert.equal(result.confidence, "low");
-    assert.equal(result.needsTemplate, true);
+    assert.equal(result.needsReview, true);
     assert.match(result.reasons.join(" "), /CH1\/CH2 sweep columns/i);
   });
 
   test("returns unknown when strong metadata conflicts", () => {
-    const metadata = extractFileMetadata([
+    const metadata = extractImportAssessmentSeedMetadata([
       ["SetupTitle", "Transfer_DB"],
       ["TestParameter", "Output.Graph.XAxis.Data", "Vg"],
       ["DataName", "Vd", "Id", "Ig"],
     ]);
 
-    const result = assessFile({
+    const result = createImportAssessmentSeed({
       fileName: "conflict.csv",
       metadata,
     });
 
     assert.equal(result.curveType, "unknown");
     assert.equal(result.confidence, "low");
-    assert.equal(result.needsTemplate, true);
+    assert.equal(result.needsReview, true);
     assert.match(result.reasons[0], /disagree/i);
   });
 
-  test("classifies Cp-V files as cv without needing a template", () => {
-    const result = assessFile({
+  test("classifies Cp-V files as cv without review", () => {
+    const result = createImportAssessmentSeed({
       fileName: "#CV-60um-5,10kHz_2026-01-09-10-09-59.xls",
-      metadata: extractFileMetadata([
+      metadata: extractImportAssessmentSeedMetadata([
         ["{c_v_ext}", "2026-01-08-21-55-45"],
         ["{(C_V_C_V_EXT)Cp_vp@ vn=0.0}", "vn=0.00000"],
         ["vp", "Cp"],
@@ -279,14 +279,14 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
     assert.equal(result.curveType, "cv");
     assert.equal(result.xAxisRole, null);
     assert.equal(result.confidence, "medium");
-    assert.equal(result.needsTemplate, false);
+    assert.equal(result.needsReview, false);
     assert.match(result.reasons.join(" "), /capacitance-voltage/i);
   });
 
   test("does not treat a CSV extension as capacitance evidence", () => {
-    const result = assessFile({
+    const result = createImportAssessmentSeed({
       fileName: "3_1.csv",
-      metadata: extractFileMetadata([
+      metadata: extractImportAssessmentSeedMetadata([
         ["CH1 Voltage", "CH1 Current", "CH1 Resistance"],
         ["-3.00000E+000", "-3.70327E-009", "810.09486E+006"],
       ]),
@@ -295,13 +295,13 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
     assert.equal(result.curveType, "unknown");
     assert.equal(result.xAxisRole, null);
     assert.equal(result.confidence, "low");
-    assert.equal(result.needsTemplate, true);
+    assert.equal(result.needsReview, true);
   });
 
   test("keeps explicit Cs-voltage headers classified as cv", () => {
-    const result = assessFile({
+    const result = createImportAssessmentSeed({
       fileName: "sample.csv",
-      metadata: extractFileMetadata([
+      metadata: extractImportAssessmentSeedMetadata([
         ["Voltage", "Cs"],
         ["0", "1e-12"],
       ]),
@@ -310,13 +310,13 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
     assert.equal(result.curveType, "cv");
     assert.equal(result.xAxisRole, null);
     assert.equal(result.confidence, "medium");
-    assert.equal(result.needsTemplate, false);
+    assert.equal(result.needsReview, false);
   });
 
-  test("classifies Cp-freq files as cf without needing a template", () => {
-    const result = assessFile({
+  test("classifies Cp-freq files as cf without review", () => {
+    const result = createImportAssessmentSeed({
       fileName: "#CF-10um-10_2026-01-09-11-09-36.xls",
-      metadata: extractFileMetadata([
+      metadata: extractImportAssessmentSeedMetadata([
         ["{c_freq_ext}", "2026-01-09-11-07-05"],
         ["{(C_freq_ext_C_Freq_EXT)Cp_freq@ vn=1.0}", "vn=1.00000"],
         ["freq", "Cp(vp=0.00000)"],
@@ -327,14 +327,14 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
     assert.equal(result.curveType, "cf");
     assert.equal(result.xAxisRole, null);
     assert.equal(result.confidence, "medium");
-    assert.equal(result.needsTemplate, false);
+    assert.equal(result.needsReview, false);
     assert.match(result.reasons.join(" "), /capacitance-frequency/i);
   });
 
-  test("classifies FastIV pulse-voltage files as pv without needing a template", () => {
-    const result = assessFile({
+  test("classifies FastIV pulse-voltage files as pv without review", () => {
+    const result = createImportAssessmentSeed({
       fileName: "W-AOHZOAO-W-380C-PV-D100-WAKE UP_2026-01-15-16-25-29.xls",
-      metadata: extractFileMetadata([
+      metadata: extractImportAssessmentSeedMetadata([
         ["{i_v_fastiv_ivt-D150}", "2026-01-15-16-20-41"],
         ["vp", "`vp", "ipt", "Time", "vp", "in"],
       ]),
@@ -342,26 +342,26 @@ suite("workbench/services/assessment/test/common/fileAssessment", () => {
 
     assert.equal(result.curveType, "pv");
     assert.equal(result.xAxisRole, null);
-    assert.equal(result.needsTemplate, false);
+    assert.equal(result.needsReview, false);
     assert.match(result.reasons.join(" "), /pulse-voltage|fastiv/i);
   });
 
-  test("uses template x-axis labels when metadata is absent", () => {
-    const result = assessFile({
+  test("uses x-axis label hints when metadata is absent", () => {
+    const result = createImportAssessmentSeed({
       fileName: "sample.csv",
-      templateXAxisLabel: "Drain Voltage (V)",
+      xAxisLabelHint: "Drain Voltage (V)",
     });
 
     assert.equal(result.curveType, "output");
     assert.equal(result.xAxisRole, "vd");
-    assert.equal(result.xAxisRoleSource, "title");
+    assert.equal(result.xAxisRoleSource, "hint");
     assert.equal(result.confidence, "low");
-    assert.equal(result.needsTemplate, true);
-    assert.match(result.reasons.join(" "), /template x label suggests Vd/i);
+    assert.equal(result.needsReview, true);
+    assert.match(result.reasons.join(" "), /x-axis label hint suggests Vd/i);
   });
 
-  test("extractFileMetadata keeps stripped sweep stats to the first VAR2 segment", () => {
-    const metadata = extractFileMetadata([
+  test("extractImportAssessmentSeedMetadata keeps stripped sweep stats to the first VAR2 segment", () => {
+    const metadata = extractImportAssessmentSeedMetadata([
       [
         "Repeat",
         "VAR2",

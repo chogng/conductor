@@ -24,7 +24,7 @@ import {
 	normalizeCellText,
 	parseFiniteNumber,
 } from "src/cs/workbench/common/cellText";
-import type { ImportFileAssessment } from "src/cs/workbench/services/assessment/common/assessment";
+import type { ImportAssessmentSeed } from "src/cs/workbench/services/assessment/common/assessment";
 
 export type ColumnKind = "numeric" | "text" | "mixed" | "empty";
 
@@ -121,7 +121,7 @@ export const createMeasurementColumnProfile = ({
 	semanticCandidates,
 	structure,
 }: {
-	readonly assessment: ImportFileAssessment;
+	readonly assessment: ImportAssessmentSeed;
 	readonly columnProfiles?: readonly ColumnProfile[];
 	readonly rows: AssessmentRows;
 	readonly semanticCandidates?: readonly ColumnSemanticCandidate[];

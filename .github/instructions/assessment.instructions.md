@@ -32,7 +32,7 @@ rendering, table UI selection, or search indexing beyond diagnostics metadata.
 | `common/measurement.ts` | blocks, groups, column maps, sweep/mode/family types. |
 | `common/diagnostics.ts` | diagnostic severity, codes, messages, source ranges. |
 | `common/rawTableStructure.ts` | header row, unit row, data region, block region, and schema fingerprint detection. |
-| `common/fileAssessment.ts` | legacy file-level import/preview classifier and metadata extractor used as seed evidence; do not add new block-aware rules here. |
+| `common/importAssessmentSeedHeuristics.ts` | file-level import/preview seed heuristics and metadata extractor; do not add new block-aware rules here. |
 | `common/columnProfile.ts` | neutral raw-table column kind and numeric-stat profiling. |
 | `common/layoutCandidate.ts` | shape-only layout candidates and X/Y binding drafts for UI prefill; no measurement semantics. |
 | `common/builtinSemanticLexicon.json` | maintained semantic vocabulary for header-token role evidence; not user-generated rules. |
@@ -46,10 +46,9 @@ rendering, table UI selection, or search indexing beyond diagnostics metadata.
 | `../schemaProfile/browser/schemaProfileStoreService.ts` | profile-scope persistence and versioned schema profile snapshots. |
 | `../schemaProfile/browser/schemaProfileService.ts` | schema profile owner API consumed by Assessment. |
 | `browser/assessmentService.ts` | browser orchestration and branch selection. |
-| `browser/rawTableAssessmentEngine.ts` | raw table assessment workflow that composes legacy classification with V2 structure evidence. |
+| `browser/rawTableAssessmentEngine.ts` | raw table assessment workflow that composes import seed evidence with structure, profile, semantic, block, and decision evidence. |
 | `browser/assessmentDecisionPolicy.ts` | decision gate from assessment evidence to ready/inferred/review/unknown states. |
-| `browser/legacyAssessmentAdapter.ts` | migration bridge for legacy file-level assessment classification. |
-| `browser/fileAssessment.ts` | browser adapter from import previews to shared rules. |
+| `browser/importAssessmentSeed.ts` | browser adapter from import file/row previews to import seed evidence. |
 | `browser/assessment.contribution.ts` | session subscriber that schedules/commits assessments. |
 | `test/fixtures/**` | fixture corpus for Assessment V2 invariants: structure, layout, column semantics, profile exact-match safety, and auto-apply gates. |
 

@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type {
-	ImportFileAssessment,
+	ImportAssessmentSeed,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import type {
 	ColumnProfile,
@@ -25,7 +25,7 @@ type ProfileFamilyInference = {
 	readonly family: MeasurementFamily;
 	readonly curveType: string;
 	readonly ivMode?: IvSweepMode | null;
-	readonly xAxisRole?: ImportFileAssessment["xAxisRole"];
+	readonly xAxisRole?: ImportAssessmentSeed["xAxisRole"];
 	readonly reason: string;
 };
 
@@ -38,10 +38,10 @@ export const createProfileBackedAssessment = ({
 	columnProfiles,
 	schemaProfile,
 }: {
-	readonly assessment: ImportFileAssessment;
+	readonly assessment: ImportAssessmentSeed;
 	readonly columnProfiles: readonly ColumnProfile[];
 	readonly schemaProfile: SchemaProfile | null;
-}): ImportFileAssessment => {
+}): ImportAssessmentSeed => {
 	if (!schemaProfile || assessment.curveFamily !== "unknown") {
 		return assessment;
 	}
@@ -59,7 +59,7 @@ export const createProfileBackedAssessment = ({
 		curveFamily: inference.family,
 		curveType: inference.curveType,
 		curveTypeConfidence: "high",
-		curveTypeNeedsTemplate: false,
+		curveTypeNeedsReview: false,
 		curveTypeReasons: appendReason(assessment.curveTypeReasons, inference.reason),
 		ivMode: inference.ivMode ?? assessment.ivMode ?? null,
 		xAxisRole: inference.xAxisRole ?? assessment.xAxisRole,

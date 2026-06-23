@@ -35,7 +35,7 @@ import {
   MAX_FOLDER_WALK_DEPTH,
 } from "src/cs/workbench/contrib/files/browser/fileConstants";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
-import type { ImportFileAssessment } from "src/cs/workbench/services/assessment/common/assessment";
+import type { ImportAssessmentSeed } from "src/cs/workbench/services/assessment/common/assessment";
 import {
   buildFileSourceIdentityKey,
   buildItemKey,
@@ -174,7 +174,7 @@ export type PreparedFileImportInfo = SessionFile & {
   readonly size: number;
   readonly lastModified: number;
   readonly normalizedCsvPath?: string | null;
-  readonly preparedAssessment?: ImportFileAssessment;
+  readonly preparedAssessment?: ImportAssessmentSeed;
   readonly relativePath?: string | null;
   readonly sourceKey?: string;
   readonly sourcePath?: string | null;
@@ -199,7 +199,7 @@ export type PendingImportSourceStatus = "pending" | "preparing" | "failed";
 
 export type PendingImportSourceStatusChange = {
   readonly message?: string | null;
-  readonly preparedAssessment?: ImportFileAssessment;
+  readonly preparedAssessment?: ImportAssessmentSeed;
   readonly status: PendingImportSourceStatus;
 };
 

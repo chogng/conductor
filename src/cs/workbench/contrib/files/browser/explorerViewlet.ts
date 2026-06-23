@@ -69,9 +69,9 @@ import {
 import { SliceWithTemplateController } from "src/cs/workbench/contrib/files/browser/sliceWithTemplateController";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
-  assessFastImportBadge,
-} from "src/cs/workbench/services/assessment/common/fileAssessment";
-import type { ImportFileAssessment } from "src/cs/workbench/services/assessment/common/assessment";
+  createFastImportBadgeAssessment,
+} from "src/cs/workbench/services/assessment/common/importAssessmentSeedHeuristics";
+import type { ImportAssessmentSeed } from "src/cs/workbench/services/assessment/common/assessment";
 import {
   IThumbnailPreviewService,
   IThumbnailService,
@@ -1066,7 +1066,7 @@ function createPendingSourceEntry({
 }
 
 function createPendingAssessmentBadgeState(
-  assessment: ImportFileAssessment | undefined,
+  assessment: ImportAssessmentSeed | undefined,
 ): ExplorerFileEntry["badgeState"] | undefined {
   if (!assessment) {
     return undefined;
@@ -1099,7 +1099,7 @@ function createPendingAssessmentBadgeState(
 function createPendingFastBadgeState(
   pendingFile: PendingImportFile,
 ): ExplorerFileEntry["badgeState"] {
-  const fastBadge = assessFastImportBadge({
+  const fastBadge = createFastImportBadgeAssessment({
     fileName: pendingFile.sourceName,
     relativePath: pendingFile.relativePath,
   });

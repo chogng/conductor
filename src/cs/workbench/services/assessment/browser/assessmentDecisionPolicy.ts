@@ -2,7 +2,7 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ImportFileAssessment } from "src/cs/workbench/services/assessment/common/assessment";
+import type { ImportAssessmentSeed } from "src/cs/workbench/services/assessment/common/assessment";
 import type { AssessmentDecision } from "src/cs/workbench/services/assessment/common/assessmentDecision";
 import type { MeasurementColumnRef } from "src/cs/workbench/services/assessment/common/measurement";
 import type { MeasurementColumnProfile } from "src/cs/workbench/services/assessment/common/columnProfile";
@@ -15,7 +15,7 @@ export const createAssessmentDecision = ({
 	columnProfile,
 	layoutCandidates,
 }: {
-	readonly assessment: ImportFileAssessment;
+	readonly assessment: ImportAssessmentSeed;
 	readonly columnProfile: MeasurementColumnProfile;
 	readonly layoutCandidates?: readonly LayoutCandidate[];
 }): AssessmentDecision => {
@@ -54,7 +54,7 @@ export const createAssessmentDecision = ({
 		};
 	}
 
-	if (confidence >= 0.9 && !assessment.curveTypeNeedsTemplate) {
+	if (confidence >= 0.9 && !assessment.curveTypeNeedsReview) {
 		return {
 			state: "ready",
 			autoApplyAllowed: true,
@@ -72,7 +72,7 @@ export const createAssessmentDecision = ({
 };
 
 const hasRequiredBindings = (
-	assessment: ImportFileAssessment,
+	assessment: ImportAssessmentSeed,
 	columns: readonly MeasurementColumnRef[],
 ): boolean => {
 	switch (assessment.curveFamily) {
@@ -96,7 +96,7 @@ const hasRequiredBindings = (
 };
 
 const hasIvBindings = (
-	assessment: ImportFileAssessment,
+	assessment: ImportAssessmentSeed,
 	columns: readonly MeasurementColumnRef[],
 ): boolean => {
 	const xRoles: readonly MeasurementColumnRef["role"][] = assessment.xAxisRole === "vg"

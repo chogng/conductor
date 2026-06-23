@@ -79,7 +79,7 @@ export type ExplorerFileEntry = {
 	readonly curveType?: string | null;
 	readonly curveTypeBadgeLabel?: string | null;
 	readonly curveTypeConfidence?: "high" | "medium" | "low";
-	readonly curveTypeNeedsTemplate?: boolean;
+	readonly curveTypeNeedsReview?: boolean;
 	readonly curveTypeReasons?: readonly string[];
 };
 
@@ -271,7 +271,7 @@ export const createExplorerFilePresentationSignature = (
 		entry.curveType ?? "",
 		entry.curveTypeBadgeLabel ?? "",
 		entry.curveTypeConfidence ?? "",
-		entry.curveTypeNeedsTemplate === true ? "1" : "0",
+		entry.curveTypeNeedsReview === true ? "1" : "0",
 		(entry.curveTypeReasons ?? []).join("\u001d"),
 		options.badgeColorSignature,
 		options.templateLabel,
@@ -551,20 +551,20 @@ const hasFileRecordChartData = (file: FileRecord): boolean =>
 const hasExplorerAssessmentSummary = (
 	file: Pick<
 		SessionFile | ProcessedEntry,
-		"curveType" | "curveTypeConfidence" | "curveTypeNeedsTemplate" | "curveTypeReasons"
+		"curveType" | "curveTypeConfidence" | "curveTypeNeedsReview" | "curveTypeReasons"
 	>,
 ): boolean =>
 	Boolean(
 		getOptionalNullableString(file.curveType) ||
 			file.curveTypeConfidence ||
-			file.curveTypeNeedsTemplate === true ||
+			file.curveTypeNeedsReview === true ||
 			file.curveTypeReasons?.length,
 	);
 
 const createExplorerAssessmentBadgeState = (
 	file: Pick<
 		SessionFile | ProcessedEntry,
-		"curveType" | "curveTypeConfidence" | "curveTypeNeedsTemplate" | "curveTypeReasons"
+		"curveType" | "curveTypeConfidence" | "curveTypeNeedsReview" | "curveTypeReasons"
 	>,
 	xAxisRole?: SessionFile["xAxisRole"],
 ): ExplorerBadgeState => {
@@ -646,7 +646,7 @@ export const createRawExplorerFiles = (
 			file.xAxisRole,
 		),
 		curveTypeConfidence: file.curveTypeConfidence,
-		curveTypeNeedsTemplate: file.curveTypeNeedsTemplate,
+		curveTypeNeedsReview: file.curveTypeNeedsReview,
 		curveTypeReasons: file.curveTypeReasons,
 	}));
 
@@ -697,13 +697,13 @@ export const createChartExplorerFilesFromRecords = (
 			badgeState: createExplorerAssessmentBadgeState({
 				curveType,
 				curveTypeConfidence: rawFile?.curveTypeConfidence,
-				curveTypeNeedsTemplate: rawFile?.curveTypeNeedsTemplate,
+				curveTypeNeedsReview: rawFile?.curveTypeNeedsReview,
 				curveTypeReasons: rawFile?.curveTypeReasons,
 			}, xAxisRole),
 			curveType,
 			curveTypeBadgeLabel: getExplorerCurveTypeBadgeLabel(curveType, xAxisRole),
 			curveTypeConfidence: rawFile?.curveTypeConfidence,
-			curveTypeNeedsTemplate: rawFile?.curveTypeNeedsTemplate,
+			curveTypeNeedsReview: rawFile?.curveTypeNeedsReview,
 			curveTypeReasons: rawFile?.curveTypeReasons,
 		});
 	};
@@ -757,16 +757,16 @@ export const createChartExplorerFiles = (
 				curveType,
 				curveTypeConfidence:
 					processedFile.curveTypeConfidence ?? rawFile?.curveTypeConfidence,
-				curveTypeNeedsTemplate:
-					processedFile.curveTypeNeedsTemplate ?? rawFile?.curveTypeNeedsTemplate,
+				curveTypeNeedsReview:
+					processedFile.curveTypeNeedsReview ?? rawFile?.curveTypeNeedsReview,
 				curveTypeReasons: processedFile.curveTypeReasons ?? rawFile?.curveTypeReasons,
 			}, xAxisRole),
 			curveType,
 			curveTypeBadgeLabel: getExplorerCurveTypeBadgeLabel(curveType, xAxisRole),
 			curveTypeConfidence:
 				processedFile.curveTypeConfidence ?? rawFile?.curveTypeConfidence,
-			curveTypeNeedsTemplate:
-				processedFile.curveTypeNeedsTemplate ?? rawFile?.curveTypeNeedsTemplate,
+			curveTypeNeedsReview:
+				processedFile.curveTypeNeedsReview ?? rawFile?.curveTypeNeedsReview,
 			curveTypeReasons: processedFile.curveTypeReasons ?? rawFile?.curveTypeReasons,
 		});
 	}

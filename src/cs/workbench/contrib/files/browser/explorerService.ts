@@ -480,7 +480,7 @@ const areExplorerFilesEqual = (
       file.curveType === nextFile.curveType &&
       file.curveTypeBadgeLabel === nextFile.curveTypeBadgeLabel &&
       file.curveTypeConfidence === nextFile.curveTypeConfidence &&
-      file.curveTypeNeedsTemplate === nextFile.curveTypeNeedsTemplate &&
+      file.curveTypeNeedsReview === nextFile.curveTypeNeedsReview &&
       areStringArraysEqual(file.curveTypeReasons ?? [], nextFile.curveTypeReasons ?? []);
   });
 
@@ -527,7 +527,7 @@ const areProcessedEntriesEqual = (
       file.curveFilterField === nextFile.curveFilterField &&
       file.curveType === nextFile.curveType &&
       file.curveTypeConfidence === nextFile.curveTypeConfidence &&
-      file.curveTypeNeedsTemplate === nextFile.curveTypeNeedsTemplate &&
+      file.curveTypeNeedsReview === nextFile.curveTypeNeedsReview &&
       file.supportsSs === nextFile.supportsSs &&
       file.xAxisRole === nextFile.xAxisRole &&
       file.xAxisRoleSource === nextFile.xAxisRoleSource &&

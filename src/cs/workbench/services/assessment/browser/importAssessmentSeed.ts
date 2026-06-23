@@ -6,34 +6,34 @@ import Papa from "papaparse";
 import type {
   AssessmentFileInput,
   AssessmentRows,
-  ImportFileAssessment,
+  ImportAssessmentSeed,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import type {
   IvSweepMode,
   MeasurementFamily,
 } from "src/cs/workbench/services/assessment/common/measurement";
 import {
-  assessFile,
-  extractFileMetadata,
+  createImportAssessmentSeed,
+  extractImportAssessmentSeedMetadata,
   type CurveKind,
-} from "src/cs/workbench/services/assessment/common/fileAssessment";
+} from "src/cs/workbench/services/assessment/common/importAssessmentSeedHeuristics";
 
 const FILE_ASSESSMENT_PREVIEW_BYTES = 128 * 1024;
 const FILE_ASSESSMENT_PREVIEW_ROWS = 256;
 
-export const assessImportRows = async (
+export const createImportAssessmentSeedFromRows = async (
   fileName: string,
   rows: AssessmentRows,
-): Promise<ImportFileAssessment> => {
-  const assessment = assessFile({
+): Promise<ImportAssessmentSeed> => {
+  const assessment = createImportAssessmentSeed({
     fileName,
-    metadata: extractFileMetadata(rows.map(row => [...row])),
+    metadata: extractImportAssessmentSeedMetadata(rows.map(row => [...row])),
   });
   return {
     curveFamily: getMeasurementFamily(assessment.curveType),
     curveType: assessment.curveTypeLabel,
     curveTypeConfidence: assessment.confidence,
-    curveTypeNeedsTemplate: assessment.needsTemplate,
+    curveTypeNeedsReview: assessment.needsReview,
     curveTypeReasons: assessment.reasons,
     ivMode: getIvMode(assessment.curveType),
     xAxisRole: assessment.xAxisRole,
@@ -62,9 +62,9 @@ const getIvMode = (
   return null;
 };
 
-export const assessImportFile = async (
+export const createImportAssessmentSeedFromFile = async (
   file: AssessmentFileInput,
-): Promise<ImportFileAssessment> => {
+): Promise<ImportAssessmentSeed> => {
   const previewText = await file
     .slice(0, FILE_ASSESSMENT_PREVIEW_BYTES)
     .text();
@@ -77,5 +77,5 @@ export const assessImportFile = async (
         row.map(value => String(value ?? ""))
       )
     : [];
-  return assessImportRows(file?.name ?? "", rows);
+  return createImportAssessmentSeedFromRows(file?.name ?? "", rows);
 };

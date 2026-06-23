@@ -5,7 +5,7 @@
 import Papa from "papaparse";
 
 import { startPerf } from "src/cs/workbench/common/perf";
-import type { ImportFileAssessment } from "src/cs/workbench/services/assessment/common/assessment";
+import type { ImportAssessmentSeed } from "src/cs/workbench/services/assessment/common/assessment";
 import {
   isExcelFileImportSourceName,
   type FileImportSourceKind,
@@ -41,7 +41,7 @@ const BROWSER_XLSX_CONVERSION_TIMEOUT_MS = 30_000;
 const BROWSER_XLSX_MAX_BYTES = 32 * 1024 * 1024;
 
 export type ConvertedImportFile = {
-  assessment?: ImportFileAssessment;
+  assessment?: ImportAssessmentSeed;
   columnCount?: number;
   file: File;
   health?: RawTableHealthRecord;

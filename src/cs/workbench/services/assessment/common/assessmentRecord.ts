@@ -5,7 +5,7 @@
 import {
 	ASSESSMENT_RULE_VERSION,
 	type AssessRawTableInput,
-	type ImportFileAssessment,
+	type ImportAssessmentSeed,
 	type RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import {
@@ -44,7 +44,7 @@ import { findExactSchemaProfileMatch } from "src/cs/workbench/services/schemaPro
 
 export type CreateRawTableAssessmentRecordInput =
 	Omit<AssessRawTableInput, "rows"> & {
-		readonly assessment: ImportFileAssessment;
+		readonly assessment: ImportAssessmentSeed;
 		readonly blocks?: readonly MeasurementBlockRecord[];
 		readonly columnProfile?: MeasurementColumnProfile;
 		readonly columnProfiles?: readonly ColumnProfile[];
@@ -142,7 +142,7 @@ export const getColumnCount = (rows: readonly (readonly unknown[])[]): number =>
 };
 
 export const getAssessmentConfidenceScore = (
-	assessment: ImportFileAssessment,
+	assessment: ImportAssessmentSeed,
 ): number => {
 	const confidence = assessment.curveTypeConfidence;
 	switch (confidence) {

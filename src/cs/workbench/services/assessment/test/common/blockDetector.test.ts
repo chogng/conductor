@@ -5,18 +5,18 @@
 import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import type { ImportFileAssessment } from "src/cs/workbench/services/assessment/common/assessment";
+import type { ImportAssessmentSeed } from "src/cs/workbench/services/assessment/common/assessment";
 import { detectMeasurementBlocks } from "src/cs/workbench/services/assessment/common/blockDetector";
 
 suite("workbench/services/assessment/common/blockDetector", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("creates a measurement block from assessed table evidence", () => {
-		const assessment: ImportFileAssessment = {
+		const assessment: ImportAssessmentSeed = {
 			curveFamily: "iv",
 			curveType: "output (vd)",
 			curveTypeConfidence: "high",
-			curveTypeNeedsTemplate: false,
+			curveTypeNeedsReview: false,
 			curveTypeReasons: ["Output graph uses Vd as the x-axis."],
 			ivMode: "output",
 			xAxisRole: "vd",

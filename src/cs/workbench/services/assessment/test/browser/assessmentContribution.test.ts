@@ -13,7 +13,7 @@ import { ASSESSMENT_RULE_VERSION } from "src/cs/workbench/services/assessment/co
 import type {
 	AssessRawTableInput,
 	IAssessmentService,
-	ImportFileAssessment,
+	ImportAssessmentSeed,
 	RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
@@ -468,14 +468,14 @@ class TestAssessmentService implements IAssessmentService {
 
 	public readonly inputs: AssessRawTableInput[] = [];
 
-	public assessImportFile(_file: File): Promise<ImportFileAssessment> {
+	public createImportAssessmentSeedFromFile(_file: File): Promise<ImportAssessmentSeed> {
 		return Promise.reject(new Error("Not implemented."));
 	}
 
-	public assessImportRows(
+	public createImportAssessmentSeedFromRows(
 		_fileName: string,
 		_rows: readonly (readonly string[])[],
-	): Promise<ImportFileAssessment> {
+	): Promise<ImportAssessmentSeed> {
 		return Promise.reject(new Error("Not implemented."));
 	}
 

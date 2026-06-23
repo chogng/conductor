@@ -61,8 +61,8 @@ import {
   type IAssessmentQueueService,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import {
-  assessFastImportBadge,
-} from "src/cs/workbench/services/assessment/common/fileAssessment";
+  createFastImportBadgeAssessment,
+} from "src/cs/workbench/services/assessment/common/importAssessmentSeedHeuristics";
 import type { IThumbnailPreviewService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import {
   isTemplateApplyPerformanceTraceEnabled,
@@ -992,7 +992,7 @@ const applyFastExplorerBadge = (
   const fileId = String(file.fileId ?? "").trim();
   const fileRecord = fileId ? snapshot.filesById[fileId] : undefined;
   const table = findExplorerRawTable(file, fileRecord)?.table ?? null;
-  const fastBadge = assessFastImportBadge({
+  const fastBadge = createFastImportBadgeAssessment({
     fileName: file.fileName ?? fileRecord?.raw.fileName,
     relativePath: file.relativePath ?? fileRecord?.raw.relativePath,
     rows: getFastBadgeRows(table),

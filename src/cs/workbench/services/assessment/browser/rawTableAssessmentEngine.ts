@@ -25,23 +25,14 @@ import {
 	normalizePositiveCount,
 } from "src/cs/workbench/services/assessment/common/assessmentRecord";
 import { createAssessmentDecision } from "src/cs/workbench/services/assessment/browser/assessmentDecisionPolicy";
-import type { AssessmentEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
 import { createProfileBackedAssessment } from "src/cs/workbench/services/assessment/common/schemaProfileAssessment";
-import { LegacyAssessmentAdapter } from "src/cs/workbench/services/assessment/browser/legacyAssessmentAdapter";
+import { createImportAssessmentSeedFromRows } from "src/cs/workbench/services/assessment/browser/importAssessmentSeed";
 
 export class RawTableAssessmentEngine {
-	private readonly legacyAssessmentAdapter: LegacyAssessmentAdapter;
-
-	constructor(
-		legacyAssessmentAdapter = new LegacyAssessmentAdapter(),
-	) {
-		this.legacyAssessmentAdapter = legacyAssessmentAdapter;
-	}
-
 	public async assess(
 		input: AssessRawTableInput,
 	): Promise<RawTableAssessmentRecord> {
-		const assessment = await this.legacyAssessmentAdapter.assessImportRows(
+		const seedAssessment = await createImportAssessmentSeedFromRows(
 			input.fileName ?? input.rawTableId,
 			input.rows,
 		);
@@ -61,7 +52,7 @@ export class RawTableAssessmentEngine {
 			profiles: input.schemaProfiles ?? [],
 		});
 		const effectiveAssessment = createProfileBackedAssessment({
-			assessment,
+			assessment: seedAssessment,
 			columnProfiles,
 			schemaProfile: schemaProfileMatch?.profile ?? null,
 		});
@@ -96,21 +87,6 @@ export class RawTableAssessmentEngine {
 			columnProfile,
 			layoutCandidates,
 		});
-		const evidence: AssessmentEvidence = {
-			structure,
-			columnProfiles,
-			layoutCandidates,
-			semanticCandidates,
-			blocks,
-			sourceMetadata: {
-				fileId: input.fileId,
-				rawTableId: input.rawTableId,
-				fileName: input.fileName,
-				rowCount,
-				columnCount,
-				sourceRawTableVersion: input.sourceRawTableVersion,
-			},
-		};
 		return createRawTableAssessmentRecordFromImportAssessment({
 			...input,
 			assessment: effectiveAssessment,

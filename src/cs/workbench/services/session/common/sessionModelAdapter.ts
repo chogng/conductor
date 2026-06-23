@@ -428,7 +428,7 @@ type RawFileAssessmentSummary = Pick<
   | "assessmentSemanticCandidates"
   | "curveType"
   | "curveTypeConfidence"
-  | "curveTypeNeedsTemplate"
+  | "curveTypeNeedsReview"
   | "curveTypeReasons"
   | "xAxisRole"
   | "xAxisRoleSource"
@@ -477,7 +477,7 @@ const createRawFileAssessmentSummary = (
       : undefined,
     curveType: curveType ?? null,
     curveTypeConfidence: normalizeBlockConfidence(block?.confidence),
-    curveTypeNeedsTemplate: block ? block.family === "unknown" : undefined,
+    curveTypeNeedsReview: block ? block.family === "unknown" : undefined,
     curveTypeReasons: reasons?.length ? reasons : undefined,
     xAxisRole,
     xAxisRoleSource: xAxisRole ? "metadata" : null,

@@ -18,7 +18,7 @@ export type SessionFile = {
   templateEligibility?: "eligible" | "notEligible" | "needsUserAction";
   curveType?: string | null;
   curveTypeConfidence?: "high" | "medium" | "low";
-  curveTypeNeedsTemplate?: boolean;
+  curveTypeNeedsReview?: boolean;
   curveTypeReasons?: string[];
   assessmentAutoApplyAllowed?: boolean;
   assessmentBlocks?: readonly MeasurementBlockRecord[];
@@ -32,7 +32,7 @@ export type SessionFile = {
   xAxisRole?: "vg" | "vd" | null;
   xAxisRoleSource?:
     | "filename"
-    | "title"
+    | "hint"
     | "label"
     | "metadata"
     | "shape"
@@ -63,12 +63,12 @@ export type ProcessedEntry = {
   curveFilterField?: string | null;
   curveType?: string;
   curveTypeConfidence?: "high" | "medium" | "low";
-  curveTypeNeedsTemplate?: boolean;
+  curveTypeNeedsReview?: boolean;
   curveTypeReasons?: string[];
   xAxisRole?: "vg" | "vd" | null;
   xAxisRoleSource?:
     | "filename"
-    | "title"
+    | "hint"
     | "label"
     | "metadata"
     | "shape"

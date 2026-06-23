@@ -12,7 +12,7 @@ import type {
   PreparedFileImportInfo,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import type { ImportedFileRecord } from "src/cs/workbench/services/files/common/files";
-import type { ImportFileAssessment } from "src/cs/workbench/services/assessment/common/assessment";
+import type { ImportAssessmentSeed } from "src/cs/workbench/services/assessment/common/assessment";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -178,7 +178,7 @@ suite("workbench/contrib/files/test/browser/explorerSessionImport", () => {
             curveFamily: "iv",
             curveType: "Transfer",
             curveTypeConfidence: "high",
-            curveTypeNeedsTemplate: false,
+            curveTypeNeedsReview: false,
             curveTypeReasons: ["Detected transfer data."],
             ivMode: "transfer",
             xAxisRole: "vg",
@@ -205,7 +205,7 @@ const createPreparedFileImportInfo = (
   fileId: string,
   fileName: string,
   options: {
-    readonly preparedAssessment?: ImportFileAssessment;
+    readonly preparedAssessment?: ImportAssessmentSeed;
     readonly relativePath?: string | null;
     readonly sourceKey?: string;
   } = {},

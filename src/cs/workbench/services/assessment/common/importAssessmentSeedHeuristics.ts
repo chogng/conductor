@@ -3,9 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * File assessment infers curve type, axis role, confidence, and whether a
- * template is needed from import metadata and preview rows. Template selection
- * and extraction logic live under services/template.
+ * File-level seed heuristics infer curve family, axis role, confidence, and
+ * manual-review hints from import metadata and preview rows. Block-aware
+ * assessment evidence is built by RawTableAssessmentEngine.
  */
 
 import {
@@ -24,17 +24,17 @@ export type CurveKind =
   | "cf"
   | "unknown";
 
-export type FileAssessmentConfidence = "high" | "medium" | "low";
+export type ImportAssessmentSeedConfidence = "high" | "medium" | "low";
 
-export type FileAssessmentSource =
+export type ImportAssessmentSeedSource =
   | "metadata"
   | "filename"
-  | "title"
+  | "hint"
   | "label"
   | "shape"
   | null;
 
-export type FileMetadata = {
+export type ImportAssessmentSeedMetadata = {
   channelFuncs: string[];
   channelVNames: string[];
   dataNameColumns: string[];
@@ -53,18 +53,18 @@ export type FileMetadata = {
   xAxisData: string;
 };
 
-export type FileAssessment = {
-  confidence: FileAssessmentConfidence;
+export type ImportAssessmentSeed = {
+  confidence: ImportAssessmentSeedConfidence;
   curveType: CurveKind;
   curveTypeLabel: string | null;
-  needsTemplate: boolean;
+  needsReview: boolean;
   reasons: string[];
   xAxisRole: AxisRole | null;
-  xAxisRoleSource: FileAssessmentSource;
+  xAxisRoleSource: ImportAssessmentSeedSource;
 };
 
 export type FastImportBadgeAssessment = {
-  confidence: Extract<FileAssessmentConfidence, "medium" | "low">;
+  confidence: Extract<ImportAssessmentSeedConfidence, "medium" | "low">;
   curveType: Exclude<CurveKind, "unknown">;
   curveTypeLabel: string;
   reason: string;
@@ -78,18 +78,18 @@ export type FastImportBadgeInput = {
   readonly sheetName?: unknown;
 };
 
-type FileAssessmentInput = {
+type ImportAssessmentSeedInput = {
   fileName?: unknown;
   fileNameRole?: AxisRole | null;
-  metadata?: Partial<FileMetadata> | null;
-  templateXAxisLabel?: unknown;
+  metadata?: Partial<ImportAssessmentSeedMetadata> | null;
+  xAxisLabelHint?: unknown;
   xAxisLabel?: unknown;
 };
 
 type FileEvidence = {
   reason: string;
   role: AxisRole;
-  source: NonNullable<FileAssessmentSource>;
+  source: NonNullable<ImportAssessmentSeedSource>;
   weight: number;
 };
 
@@ -336,9 +336,9 @@ const collectStrippedSweepShapeStats = (
   };
 };
 
-export const extractFileMetadata = (
+export const extractImportAssessmentSeedMetadata = (
   rows: Array<Array<unknown> | null | undefined>,
-): FileMetadata => {
+): ImportAssessmentSeedMetadata => {
   let setupTitle = "";
   let xAxisData = "";
   let notesText = "";
@@ -595,7 +595,7 @@ const hasVoltageHint = (value: unknown): boolean => {
     compact.includes("bias");
 };
 
-export const assessFastImportBadge = ({
+export const createFastImportBadgeAssessment = ({
   fileName,
   relativePath,
   rows,
@@ -722,23 +722,23 @@ const detectNonIvCurveKind = (
 const detectCapacitanceCurveKind = ({
   fileName,
   metadata,
-  templateXAxisLabel,
+  xAxisLabelHint,
   xAxisLabel,
 }: Pick<
-  FileAssessmentInput,
-  "fileName" | "metadata" | "templateXAxisLabel" | "xAxisLabel"
+  ImportAssessmentSeedInput,
+  "fileName" | "metadata" | "xAxisLabelHint" | "xAxisLabel"
 >): {
-  confidence: FileAssessmentConfidence;
+  confidence: ImportAssessmentSeedConfidence;
   curveType: Exclude<CurveKind, "transfer" | "output" | "unknown">;
   reason: string;
-  source: NonNullable<FileAssessmentSource>;
+  source: NonNullable<ImportAssessmentSeedSource>;
 } | null => {
   const metadataLikeTexts = [
     metadata?.setupTitle,
     metadata?.xAxisData,
     ...(Array.isArray(metadata?.dataNameColumns) ? metadata.dataNameColumns : []),
   ];
-  const labelTexts = [templateXAxisLabel, xAxisLabel];
+  const labelTexts = [xAxisLabelHint, xAxisLabel];
   const fileNameCompact = normalizeCompactText(fileName);
   const hasFileNameCvHint =
     hasCvHint(fileName) && !fileNameCompact.includes("svc");
@@ -789,11 +789,11 @@ const detectCapacitanceCurveKind = ({
 const detectPulseVoltageCurveKind = ({
   fileName,
   metadata,
-}: Pick<FileAssessmentInput, "fileName" | "metadata">): {
-  confidence: FileAssessmentConfidence;
+}: Pick<ImportAssessmentSeedInput, "fileName" | "metadata">): {
+  confidence: ImportAssessmentSeedConfidence;
   curveType: "pv";
   reason: string;
-  source: NonNullable<FileAssessmentSource>;
+  source: NonNullable<ImportAssessmentSeedSource>;
 } | null => {
   const hasFastIvOrIvtHint = (value: unknown): boolean => {
     const text = normalizeCellText(value).toLowerCase();
@@ -821,12 +821,12 @@ const detectPulseVoltageCurveKind = ({
   };
 };
 
-const reasonPrefixBySource: Record<NonNullable<FileAssessmentSource>, string> = {
+const reasonPrefixBySource: Record<NonNullable<ImportAssessmentSeedSource>, string> = {
   filename: "Filename",
   label: "Axis label",
   metadata: "Metadata",
   shape: "Shape",
-  title: "Template X label",
+  hint: "X-axis label hint",
 };
 
 const toRoleLabel = (role: AxisRole): string => (role === "vg" ? "Vg" : "Vd");
@@ -835,7 +835,7 @@ const pushEvidence = (
   evidence: FileEvidence[],
   role: AxisRole | null,
   weight: number,
-  source: NonNullable<FileAssessmentSource>,
+  source: NonNullable<ImportAssessmentSeedSource>,
   message: string,
 ) => {
   if (!role) return;
@@ -851,9 +851,9 @@ const collectRoleEvidence = ({
   fileName,
   fileNameRole,
   metadata,
-  templateXAxisLabel,
+  xAxisLabelHint,
   xAxisLabel,
-}: FileAssessmentInput): FileEvidence[] => {
+}: ImportAssessmentSeedInput): FileEvidence[] => {
   const evidence: FileEvidence[] = [];
   const normalizedMetadata = metadata ?? {};
   const fileNameRoleFromText = detectAxisRole(fileName);
@@ -898,10 +898,10 @@ const collectRoleEvidence = ({
 
   pushEvidence(
     evidence,
-    detectAxisRole(templateXAxisLabel),
+    detectAxisRole(xAxisLabelHint),
     6,
-    "title",
-    `suggests ${toRoleLabel(detectAxisRole(templateXAxisLabel) ?? "vg")}.`,
+    "hint",
+    `suggests ${toRoleLabel(detectAxisRole(xAxisLabelHint) ?? "vg")}.`,
   );
 
   pushEvidence(
@@ -918,7 +918,7 @@ const collectRoleEvidence = ({
       fileNameRole,
       4,
       "filename",
-      `matched ${toRoleLabel(fileNameRole)} template keywords.`,
+      `matched ${toRoleLabel(fileNameRole)} axis-role keywords.`,
     );
   }
 
@@ -1019,29 +1019,29 @@ const hasStrongMetadataConflict = (evidence: FileEvidence[]): boolean => {
 
 const resolveRoleSource = (
   winningEvidence: FileEvidence[],
-): NonNullable<FileAssessmentSource> | null => {
+): NonNullable<ImportAssessmentSeedSource> | null => {
   if (!winningEvidence.length) return null;
   if (winningEvidence.some((entry) => entry.source === "metadata")) return "metadata";
-  if (winningEvidence.some((entry) => entry.source === "title")) return "title";
+  if (winningEvidence.some((entry) => entry.source === "hint")) return "hint";
   if (winningEvidence.some((entry) => entry.source === "label")) return "label";
   if (winningEvidence.some((entry) => entry.source === "filename")) return "filename";
   if (winningEvidence.some((entry) => entry.source === "shape")) return "shape";
   return null;
 };
 
-export const assessFile = ({
+export const createImportAssessmentSeed = ({
   fileName,
   fileNameRole = null,
   metadata,
-  templateXAxisLabel,
+  xAxisLabelHint,
   xAxisLabel,
-}: FileAssessmentInput): FileAssessment => {
+}: ImportAssessmentSeedInput): ImportAssessmentSeed => {
   const normalizedMetadata = metadata ?? {};
   const evidence = collectRoleEvidence({
     fileName,
     fileNameRole,
     metadata: normalizedMetadata,
-    templateXAxisLabel,
+    xAxisLabelHint,
     xAxisLabel,
   });
 
@@ -1064,7 +1064,7 @@ export const assessFile = ({
   const strippedMetadataReason =
     normalizedMetadata.isStrippedChannelSweep && !evidence.length
       ? [
-          "Shape only exposes generic CH1/CH2 sweep columns, so the gate/drain meaning is not reliable without a template.",
+          "Shape only exposes generic CH1/CH2 sweep columns, so the gate/drain meaning still needs review.",
         ]
       : [];
   const pulseVoltageCurve = detectPulseVoltageCurveKind({
@@ -1076,7 +1076,7 @@ export const assessFile = ({
       confidence: pulseVoltageCurve.confidence,
       curveType: pulseVoltageCurve.curveType,
       curveTypeLabel: buildCurveTypeLabel(pulseVoltageCurve.curveType, null),
-      needsTemplate: false,
+      needsReview: false,
       reasons: [pulseVoltageCurve.reason],
       xAxisRole: null,
       xAxisRoleSource: pulseVoltageCurve.source,
@@ -1085,7 +1085,7 @@ export const assessFile = ({
   const capacitanceCurve = detectCapacitanceCurveKind({
     fileName,
     metadata: normalizedMetadata,
-    templateXAxisLabel,
+    xAxisLabelHint,
     xAxisLabel,
   });
 
@@ -1095,7 +1095,7 @@ export const assessFile = ({
         confidence: capacitanceCurve.confidence,
         curveType: capacitanceCurve.curveType,
         curveTypeLabel: buildCurveTypeLabel(capacitanceCurve.curveType, null),
-        needsTemplate: false,
+        needsReview: false,
         reasons: [capacitanceCurve.reason],
         xAxisRole: null,
         xAxisRoleSource: capacitanceCurve.source,
@@ -1126,7 +1126,7 @@ export const assessFile = ({
       confidence: "low",
       curveType: "unknown",
       curveTypeLabel: buildCurveTypeLabel("unknown", null),
-      needsTemplate: true,
+      needsReview: true,
       reasons,
       xAxisRole: null,
       xAxisRoleSource: null,
@@ -1136,7 +1136,7 @@ export const assessFile = ({
   const hasMetadataSupport = winningEvidence.some((entry) => entry.source === "metadata");
   const curveType = winningRole === "vg" ? "transfer" : "output";
 
-  let confidence: FileAssessmentConfidence = "low";
+  let confidence: ImportAssessmentSeedConfidence = "low";
   if (hasMetadataSupport && strongestWinningWeight >= 14 && scoreGap >= 10) {
     confidence = "high";
   } else if ((hasMetadataSupport && scoreGap >= 6) || scoreGap >= 8) {
@@ -1150,9 +1150,9 @@ export const assessFile = ({
       confidence: "low",
       curveType: "unknown",
       curveTypeLabel: buildCurveTypeLabel("unknown", null),
-      needsTemplate: true,
+      needsReview: true,
       reasons: [
-        "Shape only exposes generic CH1/CH2 sweep columns, so the gate/drain meaning is not reliable without a template.",
+        "Shape only exposes generic CH1/CH2 sweep columns, so the gate/drain meaning still needs review.",
         ...winningEvidence
           .sort((left, right) => right.weight - left.weight)
           .slice(0, 3)
@@ -1167,7 +1167,7 @@ export const assessFile = ({
     confidence,
     curveType,
     curveTypeLabel: buildCurveTypeLabel(curveType, winningRole),
-    needsTemplate: confidence === "low",
+    needsReview: confidence === "low",
     reasons: winningEvidence
       .sort((left, right) => right.weight - left.weight)
       .slice(0, MAX_ASSESSMENT_REASONS)

@@ -260,7 +260,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
         rawFiles: [
           {
             curveType: "unknown",
-            curveTypeNeedsTemplate: true,
+            curveTypeNeedsReview: true,
             fileId: "unknown-file",
             fileName: "Unknown.csv",
           },

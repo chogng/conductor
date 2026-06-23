@@ -20,9 +20,9 @@ import {
 suite("workbench/services/assessment/test/browser/assessmentService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("assesses import rows through the service owner", async () => {
+  test("creates import assessment seed through the service owner", async () => {
     const service = store.add(new AssessmentService());
-    const result = await service.assessImportRows("transfer.csv", [
+    const result = await service.createImportAssessmentSeedFromRows("transfer.csv", [
       ["SetupTitle", "Transfer_DB"],
       ["TestParameter", "Channel.VName", "Vg", "Vd", "Vs"],
       ["TestParameter", "Channel.Func", "VAR1", "VAR2", "CONST"],
@@ -34,7 +34,7 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
     assert.equal(result.curveFamily, "iv");
     assert.equal(result.curveType, "transfer (vg)");
     assert.equal(result.curveTypeConfidence, "high");
-    assert.equal(result.curveTypeNeedsTemplate, false);
+    assert.equal(result.curveTypeNeedsReview, false);
     assert.equal(result.ivMode, "transfer");
     assert.equal(result.xAxisRole, "vg");
   });

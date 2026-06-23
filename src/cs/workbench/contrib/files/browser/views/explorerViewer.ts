@@ -281,7 +281,7 @@ const hasFileItemAssessment = (
   Boolean(
     String(fileEntry.curveType ?? "").trim() ||
       fileEntry.curveTypeConfidence ||
-      fileEntry.curveTypeNeedsTemplate === true ||
+      fileEntry.curveTypeNeedsReview === true ||
       reasons.length,
   );
 
@@ -318,7 +318,7 @@ const createFileItemAssessment = (
     label,
     isWarning:
       badgeState.kind === "unknown" ||
-      fileEntry?.curveTypeNeedsTemplate === true ||
+      fileEntry?.curveTypeNeedsReview === true ||
       fileEntry?.curveTypeConfidence === "low",
     source: "assessment",
     state: badgeState.kind === "unknown" ? "unknown" : "ready",
