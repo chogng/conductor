@@ -5,7 +5,6 @@ import { Registry } from "src/cs/platform/registry/common/platform";
 import { Action2, registerAction2 } from "src/cs/platform/actions/common/actions";
 import { KeybindingWeight } from "src/cs/platform/keybinding/common/keybindingsRegistry";
 import {
-  IInstantiationService,
   type ServicesAccessor,
 } from "src/cs/platform/instantiation/common/instantiation";
 import {
@@ -78,26 +77,24 @@ registerAction2(class ShowCommandsAction extends Action2 {
 });
 
 class QuickAccessContribution extends Disposable implements IWorkbenchContribution {
-  public constructor(
-    @IInstantiationService instantiationService: IInstantiationService,
-  ) {
+  public constructor() {
     super();
 
     const registry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.QuickAccess);
     this._register(registry.registerQuickAccessProvider({
+      ctor: DefaultQuickAccessProvider,
       prefix: "",
       placeholder: localize("quickAccess.placeholder", "Search commands/files"),
-      provider: instantiationService.createInstance(DefaultQuickAccessProvider),
     }));
     this._register(registry.registerQuickAccessProvider({
+      ctor: FilesQuickAccessProvider,
       prefix: FILES_QUICK_ACCESS_PREFIX,
       placeholder: localize("quickAccess.files.placeholder", "Search files"),
-      provider: instantiationService.createInstance(FilesQuickAccessProvider),
     }));
     this._register(registry.registerQuickAccessProvider({
+      ctor: CommandsQuickAccessProvider,
       prefix: COMMANDS_QUICK_ACCESS_PREFIX,
       placeholder: localize("quickAccess.commands.placeholder", "Search commands"),
-      provider: instantiationService.createInstance(CommandsQuickAccessProvider),
     }));
   }
 }

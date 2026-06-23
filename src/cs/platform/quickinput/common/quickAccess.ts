@@ -11,9 +11,9 @@ export interface QuickAccessProvider {
 }
 
 export type QuickAccessProviderDescriptor = {
+  readonly ctor: new (...args: any[]) => QuickAccessProvider;
   readonly prefix: string;
   readonly placeholder?: string;
-  readonly provider: QuickAccessProvider;
 };
 
 export interface QuickAccessOptions {

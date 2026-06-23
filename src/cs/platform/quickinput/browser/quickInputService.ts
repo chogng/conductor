@@ -3,7 +3,9 @@ import { createInputBox } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollableElement";
 import { localize } from "src/cs/nls";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import { IInstantiationService, type IInstantiationService as IInstantiationServiceType } from "src/cs/platform/instantiation/common/instantiation";
 import { QuickAccessController } from "src/cs/platform/quickinput/browser/quickAccess";
+import type { IQuickAccessController } from "src/cs/platform/quickinput/common/quickAccess";
 import {
   IQuickInputService,
   type IQuickInputService as IQuickInputServiceType,
@@ -25,9 +27,22 @@ type ActiveQuickPick = {
 export class BrowserQuickInputService extends Disposable implements IQuickInputServiceType {
   public declare readonly _serviceBrand: undefined;
 
-  public readonly quickAccess: QuickAccessController = new QuickAccessController(this);
+  private quickAccessController: IQuickAccessController | undefined;
+  public get quickAccess(): IQuickAccessController {
+    if (!this.quickAccessController) {
+      this.quickAccessController = this._register(this.instantiationService.createInstance(QuickAccessController));
+    }
+
+    return this.quickAccessController;
+  }
 
   private activeQuickPick: ActiveQuickPick | null = null;
+
+  public constructor(
+    @IInstantiationService private readonly instantiationService: IInstantiationServiceType,
+  ) {
+    super();
+  }
 
   public pick<T extends QuickPickItem>(options: QuickPickOptions<T>): Promise<T | undefined> {
     this.close();
