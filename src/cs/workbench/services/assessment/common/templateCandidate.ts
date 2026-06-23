@@ -4,6 +4,8 @@
 
 import type { Template } from "src/cs/workbench/services/template/common/template";
 
+// TemplateCandidate is an Assessment result containing a concrete Template snapshot.
+// It is not a Recipe and is not persisted as a user template unless explicitly saved.
 export type TemplateCandidateSource =
   | {
       readonly kind: "recipe";
