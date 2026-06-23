@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { createNLSConfiguration, setNLSConfiguration } from "src/cs/nls";
 import type {
   IContextMenuService,
   IContextViewDelegate,
@@ -103,6 +104,8 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
       assert.ok(content);
       assert.equal(content.hasAttribute("title"), false);
 
+      setNLSConfiguration(createNLSConfiguration("zh"));
+
       const item = host.querySelector<HTMLElement>(".file-list-item");
       assert.ok(item);
       item.dispatchEvent(new MouseEvent("mouseover", {
@@ -116,9 +119,9 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
           row.querySelector(".file-list-hover-assessment-value")?.textContent ?? "",
         ]);
       assert.deepEqual(rows, [
-        ["File:", "Output_.csv"],
-        ["Path:", "293K/output"],
-        ["Type:", "output"],
+        ["文件：", "Output_.csv"],
+        ["路径：", "293K/output"],
+        ["类型：", "output"],
       ]);
 
       viewer.setProps({
@@ -128,6 +131,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
 
       assert.equal(content.hasAttribute("title"), false);
     } finally {
+      setNLSConfiguration(createNLSConfiguration("en"));
       viewer.dispose();
       labels.dispose();
       hoverHost.remove();
