@@ -527,6 +527,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     ]);
     session.commitRawTableAssessment({
       assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+      schemaProfileVersion: 0,
       blocks: [{
 	        columnCount: 2,
 	        columns: { columns: [] },

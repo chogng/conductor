@@ -699,7 +699,7 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
 
 class TestSchemaProfileService implements ISchemaProfileService {
 	public declare readonly _serviceBrand: undefined;
-	public readonly onDidChangeSchemaProfiles = Event.None;
+	public readonly onDidChangeSchemaProfiles = Event.None as Event<SchemaProfileSnapshot>;
 
 	public constructor(
 		private readonly snapshot: SchemaProfileSnapshot,

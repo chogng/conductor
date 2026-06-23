@@ -277,7 +277,6 @@ const hasRequiredAssessmentBlockBindings = (
 				return hasRoleWithUnit(block.columns.columns, ["voltage", "vg", "vd"]) &&
 					hasRoleWithUnit(block.columns.columns, ["current", "id"]);
 			case "it":
-			case "unknown":
 				return false;
 		}
 	});

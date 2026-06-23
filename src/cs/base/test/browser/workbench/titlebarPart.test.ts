@@ -1,7 +1,7 @@
 import assert from "assert";
 
 import { Event } from "src/cs/base/common/event";
-import type { ICommandService } from "src/cs/platform/commands/common/commands";
+import type { ICommandEvent, ICommandService } from "src/cs/platform/commands/common/commands";
 import { WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID } from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 import { WorkbenchTitlebarPart } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 
@@ -204,8 +204,8 @@ suite("workbench/browser/parts/titlebar/titlebarPart", () => {
 
 const createCommandService = (calls: string[]): ICommandService => ({
   _serviceBrand: undefined,
-  onWillExecuteCommand: Event.None,
-  onDidExecuteCommand: Event.None,
+  onWillExecuteCommand: Event.None as Event<ICommandEvent>,
+  onDidExecuteCommand: Event.None as Event<ICommandEvent>,
   executeCommand: async commandId => {
     calls.push(commandId);
     return undefined;

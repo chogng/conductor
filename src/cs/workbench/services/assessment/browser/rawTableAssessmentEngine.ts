@@ -257,7 +257,7 @@ const hasProfileUnit = (
 const appendReason = (
 	reasons: readonly string[],
 	reason: string,
-): readonly string[] =>
+): string[] =>
 	reasons.includes(reason)
-		? reasons
+		? [...reasons]
 		: [...reasons, reason];
