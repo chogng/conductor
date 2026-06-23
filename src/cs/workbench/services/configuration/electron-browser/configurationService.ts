@@ -11,10 +11,15 @@ import {
 	Configuration,
 	ConfigurationModel,
 } from "src/cs/platform/configuration/common/configurationModels";
+import {
+	ConfigurationChannelClient,
+	CONFIGURATION_CHANNEL_NAME,
+} from "src/cs/platform/configuration/common/configurationIpc";
 import { ConfigurationService } from "src/cs/platform/configuration/common/configurationService";
 import { getUserSettingsResource } from "src/cs/platform/environment/common/environmentService";
 import { IFileService } from "src/cs/platform/files/common/files";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import { IMainProcessService } from "src/cs/platform/ipc/common/mainProcessService";
 import { INativeHostService } from "src/cs/platform/native/common/native";
 import { UserConfiguration } from "src/cs/workbench/services/configuration/browser/configuration";
 import {
@@ -28,14 +33,19 @@ export class ElectronBrowserConfigurationService extends ConfigurationService im
 	public readonly restrictedSettings: RestrictedSettings = NO_RESTRICTED_SETTINGS;
 	public readonly onDidChangeRestrictedSettings = onDidChangeRestrictedSettingsNone;
 
+	private readonly configurationChannelClient: ConfigurationChannelClient;
 	private readonly userConfiguration: Promise<UserConfiguration>;
 
 	public constructor(
 		@IFileService private readonly fileService: IFileService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IMainProcessService mainProcessService: IMainProcessService,
 	) {
 		super();
 
+		this.configurationChannelClient = new ConfigurationChannelClient(
+			mainProcessService.getChannel(CONFIGURATION_CHANNEL_NAME),
+		);
 		this.userConfiguration = this.createUserConfiguration();
 		void this.reloadConfiguration().catch(error => {
 			console.error("Failed to load user settings.", error);
@@ -70,8 +80,7 @@ export class ElectronBrowserConfigurationService extends ConfigurationService im
 			return;
 		}
 
-		const userConfiguration = await this.userConfiguration;
-		await userConfiguration.writeConfiguration(model);
+		await this.configurationChannelClient.updateUserConfiguration(model.toRaw());
 	}
 
 	public async whenRemoteConfigurationLoaded(): Promise<void> {}

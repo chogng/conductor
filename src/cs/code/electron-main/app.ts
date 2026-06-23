@@ -46,6 +46,10 @@ import {
   normalizeConductorSettings,
   type ConductorSettings,
 } from "../../platform/configuration/common/configurationRegistry.js";
+import {
+  ConfigurationChannel,
+  CONFIGURATION_CHANNEL_NAME,
+} from "../../platform/configuration/common/configurationIpc.js";
 import { ConfigurationService } from "../../platform/configuration/common/configurationService.js";
 import { getUserSettingsResource } from "../../platform/environment/common/environmentService.js";
 import { workbenchIpcChannels as ipcChannels } from "../../workbench/common/ipcChannels.js";
@@ -2388,6 +2392,10 @@ if (hasSingleInstanceLock) {
   mainProcessServer.registerChannel(
     STORAGE_CHANNEL_NAME,
     new StorageMainChannel(mainStorageService),
+  );
+  mainProcessServer.registerChannel(
+    CONFIGURATION_CHANNEL_NAME,
+    new ConfigurationChannel(mainConfigurationService),
   );
   mainProcessServer.registerChannel(nativeHostChannelName, createNativeHostChannel());
 

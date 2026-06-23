@@ -126,6 +126,18 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
     }
   }
 
+  public async updateUserConfiguration(raw: Record<string, unknown>): Promise<void> {
+    const previous = Configuration.parse(this.configuration.toData());
+    const model = parseConfigurationModel(raw);
+
+    await this.writeConfigurationForTarget(ConfigurationTarget.USER, model);
+
+    const change = this.updateModelForTarget(ConfigurationTarget.USER, model);
+    if (change.keys.length || change.overrides.length) {
+      this.fireDidChangeConfiguration(change, previous, ConfigurationTarget.USER);
+    }
+  }
+
   public inspect<T>(
     key: string,
     overrides: IConfigurationOverrides = {},

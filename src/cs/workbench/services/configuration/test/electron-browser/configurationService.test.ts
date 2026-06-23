@@ -4,9 +4,19 @@ import { Emitter } from "src/cs/base/common/event";
 import { toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { isWindows } from "src/cs/base/common/platform";
 import { URI } from "src/cs/base/common/uri";
+import type { CancellationToken } from "src/cs/base/common/async";
+import type {
+	IChannel,
+	IServerChannel,
+} from "src/cs/base/parts/ipc/common/ipc";
 import {
 	ConfigurationTarget,
 } from "src/cs/platform/configuration/common/configuration";
+import {
+	ConfigurationChannel,
+	CONFIGURATION_CHANNEL_NAME,
+} from "src/cs/platform/configuration/common/configurationIpc";
+import { ConfigurationService } from "src/cs/platform/configuration/common/configurationService";
 import { getUserSettingsResource } from "src/cs/platform/environment/common/environmentService";
 import {
 	FileChangeType,
@@ -18,6 +28,7 @@ import {
 	type IReadFileOptions,
 	type IWatchOptions,
 } from "src/cs/platform/files/common/files";
+import type { IMainProcessService } from "src/cs/platform/ipc/common/mainProcessService";
 import type {
 	INativeHostEnvironment,
 	INativeHostService,
@@ -139,6 +150,42 @@ class TestNativeHostService implements INativeHostService {
 	public async updateWindowControls(): Promise<void> {}
 }
 
+class TestMainProcessService implements IMainProcessService {
+	public declare readonly _serviceBrand: undefined;
+	private readonly channels = new Map<string, IChannel>();
+
+	public constructor(configurationService: ConfigurationService) {
+		this.registerChannel(
+			CONFIGURATION_CHANNEL_NAME,
+			new ConfigurationChannel(configurationService),
+		);
+	}
+
+	public getChannel(channelName: string): IChannel {
+		const channel = this.channels.get(channelName);
+		if (!channel) {
+			throw new Error(`Unknown test channel: ${channelName}`);
+		}
+		return channel;
+	}
+
+	public registerChannel(channelName: string, channel: IServerChannel<string>): void {
+		this.channels.set(channelName, toClientChannel(channel));
+	}
+}
+
+function toClientChannel(serverChannel: IServerChannel<string>): IChannel {
+	return {
+		call: <T>(
+			command: string,
+			arg?: unknown,
+			cancellationToken?: CancellationToken,
+		) => serverChannel.call<T>("window:1", command, arg, cancellationToken),
+		listen: <T>(event: string, arg?: unknown) =>
+			serverChannel.listen<T>("window:1", event, arg),
+	};
+}
+
 suite("workbench/services/configuration/electron-browser/configurationService", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 	test("uses userDataPath/User/settings.json as the user settings resource", () => {
@@ -157,10 +204,13 @@ suite("workbench/services/configuration/electron-browser/configurationService", 
 		const settingsResource = getUserSettingsResource(userDataPath);
 		const files = new MemoryFileService();
 		files.setContent(settingsResource, "{ \"editor.tabSize\": 4 }");
+		const mainConfigurationService = new ConfigurationService(settingsResource, files);
+		await mainConfigurationService.initialize();
 
 		const service = new ElectronBrowserConfigurationService(
 			files,
 			new TestNativeHostService(userDataPath),
+			new TestMainProcessService(mainConfigurationService),
 		);
 		await service.reloadConfiguration();
 
@@ -169,20 +219,25 @@ suite("workbench/services/configuration/electron-browser/configurationService", 
 		await service.updateValue("editor.tabSize", 2, ConfigurationTarget.USER);
 
 		assert.equal(service.getValue("editor.tabSize"), 2);
+		assert.equal(mainConfigurationService.getValue("editor.tabSize"), 2);
 		assert.equal(
 			files.getWrittenContent(settingsResource),
 			"{\n  \"editor.tabSize\": 2\n}\n",
 		);
 		service.dispose();
+		mainConfigurationService.dispose();
 	});
 
 	test("writes override settings under language keys", async () => {
 		const userDataPath = "C:\\Users\\lanxi\\AppData\\Roaming\\Conductor Studio";
 		const settingsResource = getUserSettingsResource(userDataPath);
 		const files = new MemoryFileService();
+		const mainConfigurationService = new ConfigurationService(settingsResource, files);
+		await mainConfigurationService.initialize();
 		const service = new ElectronBrowserConfigurationService(
 			files,
 			new TestNativeHostService(userDataPath),
+			new TestMainProcessService(mainConfigurationService),
 		);
 		await service.reloadConfiguration();
 
@@ -197,6 +252,34 @@ suite("workbench/services/configuration/electron-browser/configurationService", 
 			files.getWrittenContent(settingsResource),
 			"{\n  \"[json]\": {\n    \"editor.tabSize\": 2\n  }\n}\n",
 		);
+		assert.equal(
+			mainConfigurationService.getValue("editor.tabSize", { overrideIdentifier: "json" }),
+			2,
+		);
 		service.dispose();
+		mainConfigurationService.dispose();
+	});
+
+	test("updates main process settings used by native close behavior", async () => {
+		const userDataPath = "C:\\Users\\lanxi\\AppData\\Roaming\\Conductor Studio";
+		const settingsResource = getUserSettingsResource(userDataPath);
+		const files = new MemoryFileService();
+		const mainConfigurationService = new ConfigurationService(settingsResource, files);
+		await mainConfigurationService.initialize();
+
+		const service = new ElectronBrowserConfigurationService(
+			files,
+			new TestNativeHostService(userDataPath),
+			new TestMainProcessService(mainConfigurationService),
+		);
+		await service.reloadConfiguration();
+
+		await service.updateValue("windowCloseBehavior", "quit", ConfigurationTarget.USER);
+
+		assert.equal(service.getValue("windowCloseBehavior"), "quit");
+		assert.equal(mainConfigurationService.getValue("windowCloseBehavior"), "quit");
+
+		service.dispose();
+		mainConfigurationService.dispose();
 	});
 });

@@ -128,6 +128,7 @@ export interface IConfigurationService {
     target: ConfigurationTarget,
     options?: IConfigurationUpdateOptions,
   ): Promise<void>;
+  updateUserConfiguration(raw: Record<string, unknown>): Promise<void>;
 
   inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<Readonly<T>>;
 
@@ -406,6 +407,7 @@ export abstract class AbstractConfigurationService implements IConfigurationServ
     target: ConfigurationTarget,
     options?: IConfigurationUpdateOptions,
   ): Promise<void>;
+  public abstract updateUserConfiguration(raw: Record<string, unknown>): Promise<void>;
 
   public abstract inspect<T>(
     key: string,
