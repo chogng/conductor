@@ -17,7 +17,7 @@ import {
 import {
 	normalizeCellText,
 } from "src/cs/workbench/common/cellText";
-import builtinLexicon from "./builtinLexicon.json";
+import builtinSemanticLexicon from "./builtinSemanticLexicon.json";
 
 export type EvidenceSource =
 	| "header"
@@ -409,20 +409,20 @@ const normalizeCompactText = (
 		.toLowerCase()
 		.replace(/[\s_\-./()[\]{}:=`]+/g, "");
 
-type BuiltinLexiconKey = keyof typeof builtinLexicon;
+type BuiltinSemanticLexiconKey = keyof typeof builtinSemanticLexicon;
 
 const matchesLexicon = (
 	value: {
 		readonly compact: string;
 		readonly normalized: string;
 	},
-	key: BuiltinLexiconKey,
+	key: BuiltinSemanticLexiconKey,
 	options: {
 		readonly contains?: boolean;
 		readonly prefix?: boolean;
 	} = {},
 ): boolean =>
-	builtinLexicon[key].some(term => {
+	builtinSemanticLexicon[key].some(term => {
 		const normalizedTerm = normalizeCellText(term).toLowerCase();
 		const compactTerm = normalizeCompactText(normalizedTerm);
 		if (!compactTerm) {

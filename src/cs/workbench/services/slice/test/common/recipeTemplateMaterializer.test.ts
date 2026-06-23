@@ -13,9 +13,9 @@ import type {
 } from "src/cs/workbench/services/assessment/common/measurement";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
-import { materializeRecipeTemplateCandidate } from "src/cs/workbench/services/slice/common/recipeTemplateResolver";
+import { materializeRecipeTemplate } from "src/cs/workbench/services/slice/common/recipeTemplateMaterializer";
 
-suite("workbench/services/slice/test/common/recipeTemplateResolver", () => {
+suite("workbench/services/slice/test/common/recipeTemplateMaterializer", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("materializes builtin IV transfer recipe into a block-aware template", () => {
@@ -24,31 +24,31 @@ suite("workbench/services/slice/test/common/recipeTemplateResolver", () => {
 
 		const evidence = createEvidence();
 		const evaluation = evaluateRecipeSelector(recipe, evidence);
-		const candidate = materializeRecipeTemplateCandidate({
+		const materializedTemplate = materializeRecipeTemplate({
 			recipe,
 			evidence,
 			evaluation,
 		});
 
-		assert.ok(candidate);
-		assert.equal(candidate.state, "ready");
-		assert.equal(candidate.recipeId, "builtin.iv.transfer");
-		assert.equal(candidate.template.schemaVersion, 1);
-		assert.equal(candidate.template.blocks.length, 1);
-		assert.deepEqual(candidate.template.blocks[0]?.rowRange, {
+		assert.ok(materializedTemplate);
+		assert.equal(materializedTemplate.state, "ready");
+		assert.equal(materializedTemplate.recipeId, "builtin.iv.transfer");
+		assert.equal(materializedTemplate.template.schemaVersion, 1);
+		assert.equal(materializedTemplate.template.blocks.length, 1);
+		assert.deepEqual(materializedTemplate.template.blocks[0]?.rowRange, {
 			startRow: 1,
 			endRow: 3,
 		});
-		assert.deepEqual(candidate.template.blocks[0]?.x, {
+		assert.deepEqual(materializedTemplate.template.blocks[0]?.x, {
 			columns: [0],
 			unit: "V",
 		});
-		assert.deepEqual(candidate.template.blocks[0]?.y, {
+		assert.deepEqual(materializedTemplate.template.blocks[0]?.y, {
 			columns: [1],
 			unit: "A",
 		});
-		assert.equal(candidate.template.blocks[0]?.segmentation.kind, "auto");
-		assert.ok(candidate.templateFingerprint);
+		assert.equal(materializedTemplate.template.blocks[0]?.segmentation.kind, "auto");
+		assert.ok(materializedTemplate.templateFingerprint);
 	});
 });
 

@@ -28,7 +28,7 @@ Slice owns recipe interpretation for automatic execution:
 - `RecipeSelector` evaluation against `AssessmentEvidence`;
 - `RecipeProjection` materialization into canonical block-aware `Template`
   snapshots;
-- recipe candidate ordering and automatic-template choice.
+- materialized-template ordering and automatic-template choice.
 
 Assessment owns the evidence consumed by recipe interpretation. Recipe must not
 infer measurement family, roles, units, or table structure from raw rows.
@@ -54,7 +54,7 @@ Automatic recipe materialization lives in Slice files:
 | File | Responsibility |
 | --- | --- |
 | `slice/common/recipeSelectorEvaluator.ts` | evaluates `RecipeSelector` against `AssessmentEvidence`. |
-| `slice/common/recipeTemplateResolver.ts` | materializes matched captures into concrete `Template` snapshots. |
+| `slice/common/recipeTemplateMaterializer.ts` | materializes matched captures into concrete `Template` snapshots. |
 
 ## Flow
 
@@ -87,13 +87,13 @@ RecipeService reload/change
 - `RecipeProjection` describes how matched captures become a concrete
   `Template`.
 - `RecipeService` may validate, fingerprint, and publish recipes. It must not
-  evaluate recipes against raw tables or create candidates.
+  evaluate recipes against raw tables or materialize templates.
 - New selector predicates belong in `recipeSelector.ts`, validation in
   `recipeCodec.ts`, and matching behavior in Slice's
   `recipeSelectorEvaluator.ts`.
 - New projection nodes belong in `recipeProjection.ts`, validation in
   `recipeCodec.ts`, and materialization behavior in Slice's
-  `recipeTemplateResolver.ts`.
+  `recipeTemplateMaterializer.ts`.
 - `RecipeAssociation` is only for static routing from a selector to an existing
   `templateId`; do not use it for selector/projection derivation.
 - `RecipeProvider` should only be introduced for true TypeScript provider

@@ -35,7 +35,7 @@ rendering, table UI selection, or search indexing beyond diagnostics metadata.
 | `common/fileAssessment.ts` | legacy file-level import/preview classifier and metadata extractor used as seed evidence; do not add new block-aware rules here. |
 | `common/columnProfile.ts` | neutral raw-table column kind and numeric-stat profiling. |
 | `common/layoutCandidate.ts` | shape-only layout candidates and X/Y binding drafts for UI prefill; no measurement semantics. |
-| `common/builtinLexicon.json` | maintained semantic vocabulary for header-token role evidence; not user-generated rules. |
+| `common/builtinSemanticLexicon.json` | maintained semantic vocabulary for header-token role evidence; not user-generated rules. |
 | `common/semanticCandidate.ts` | role, unit, confidence, evidence, and display-scale candidates. |
 | `common/schemaProfileAssessment.ts` | pure exact-schema-profile family/mode inference layered on top of Assessment column profiles. |
 | `common/blockDetector.ts` | measurement block construction from structure ranges, column maps, and family evidence. |
@@ -93,7 +93,7 @@ rawTablesChanged
   multiple `repeatedHeader` block regions; keep this conservative and do not use
   fuzzy header similarity to split auto-applied blocks.
 - `ColumnProfile` is neutral numeric/text evidence. Semantic role and unit evidence belongs in `ColumnSemanticCandidate`.
-- Built-in semantic vocabulary belongs in `builtinLexicon.json`. Keep it narrow,
+- Built-in semantic vocabulary belongs in `builtinSemanticLexicon.json`. Keep it narrow,
   maintained, and evidence-oriented; do not generate per-file rule JSON from
   imported data.
 - `LayoutCandidate` is neutral table-shape evidence. It may identify simple XY,

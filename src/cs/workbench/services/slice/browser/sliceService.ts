@@ -37,9 +37,9 @@ import {
 } from "src/cs/workbench/services/slice/common/slice";
 import { executeSlicePlan } from "src/cs/workbench/services/slice/common/sliceExecutor";
 import {
-	resolveRecipeTemplateCandidates,
-	selectRecipeTemplateCandidate,
-} from "src/cs/workbench/services/slice/common/recipeTemplateResolver";
+	materializeRecipeTemplates,
+	selectAutomaticRecipeTemplate,
+} from "src/cs/workbench/services/slice/common/recipeTemplateMaterializer";
 import {
 	createSliceAssessmentSignature,
 	createSlicePlan,
@@ -104,8 +104,8 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			if (!plan) {
 				didChange = this.setFileState(ref.fileId, {
 					state: "skipped",
-					code: "slice.autoTemplateMissing",
-					message: "No selected assessment template is available for automatic slicing.",
+					code: "slice.autoRecipeTemplateMissing",
+					message: "No Recipe-backed template is available for automatic slicing.",
 				}) || didChange;
 				continue;
 			}
@@ -217,14 +217,14 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			rowCount: table.rowCount,
 			columnCount: table.columnCount,
 		});
-		const selectedRecipeTemplate = selectRecipeTemplateCandidate(
-			resolveRecipeTemplateCandidates({
+		const automaticTemplate = selectAutomaticRecipeTemplate(
+			materializeRecipeTemplates({
 				evidence,
 				recipeSnapshot,
 			}),
 			true,
 		);
-		if (!selectedRecipeTemplate) {
+		if (!automaticTemplate) {
 			return null;
 		}
 
@@ -238,8 +238,8 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				recipeSnapshot.fingerprint,
 			),
 			measurement: getSliceMeasurementBinding(assessment),
-			template: selectedRecipeTemplate.template,
-			templateFingerprint: selectedRecipeTemplate.templateFingerprint,
+			template: automaticTemplate.template,
+			templateFingerprint: automaticTemplate.templateFingerprint,
 		});
 	}
 

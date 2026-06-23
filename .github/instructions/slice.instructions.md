@@ -34,7 +34,7 @@ returns a `SliceCommit`. It must not call services or reread Session.
 | `common/slicePlanner.ts` | pure plan/range generation and assessment signature helpers. |
 | `common/sliceExecutor.ts` | pure row execution into `SliceCommit`. |
 | `common/recipeSelectorEvaluator.ts` | pure finite-DSL evaluator for `RecipeSelector` against Assessment evidence. |
-| `common/recipeTemplateResolver.ts` | pure Recipe selector/projection materialization into concrete `Template` snapshots for automatic slicing. |
+| `common/recipeTemplateMaterializer.ts` | pure Recipe selector/projection materialization into concrete `Template` snapshots for automatic slicing. |
 | `browser/sliceService.ts` | injectable owner for queue, selection, progress state, row reading, and Session commit. |
 | `browser/autoSlice.contribution.ts` | lifecycle subscriber from `assessmentChanged` to `ISliceService.enqueueAuto(...)`. |
 | `browser/slicePriority.contribution.ts` | lifecycle subscriber from Explorer selection/hover facts to `ISliceService.prioritize(...)`. |

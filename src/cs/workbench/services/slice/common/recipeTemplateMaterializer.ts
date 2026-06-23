@@ -23,7 +23,7 @@ import type {
   TemplateRowRange,
 } from "src/cs/workbench/services/template/common/templateSpec";
 
-export type RecipeTemplateCandidate = {
+export type MaterializedRecipeTemplate = {
   readonly id: string;
   readonly recipeId: string;
   readonly recipeVersion: number;
@@ -35,44 +35,44 @@ export type RecipeTemplateCandidate = {
   readonly diagnosticCodes: readonly string[];
 };
 
-export const resolveRecipeTemplateCandidates = ({
+export const materializeRecipeTemplates = ({
   evidence,
   recipeSnapshot,
 }: {
   readonly evidence: AssessmentEvidence;
   readonly recipeSnapshot?: RecipeSnapshot;
-}): readonly RecipeTemplateCandidate[] => {
-  const candidates: RecipeTemplateCandidate[] = [];
+}): readonly MaterializedRecipeTemplate[] => {
+  const materializedTemplates: MaterializedRecipeTemplate[] = [];
   for (const recipe of recipeSnapshot?.recipes ?? []) {
     const evaluation = evaluateRecipeSelector(recipe, evidence);
-    const candidate = materializeRecipeTemplateCandidate({
+    const materializedTemplate = materializeRecipeTemplate({
       recipe,
       evidence,
       evaluation,
     });
-    if (candidate) {
-      candidates.push(candidate);
+    if (materializedTemplate) {
+      materializedTemplates.push(materializedTemplate);
     }
   }
 
-  return candidates.sort((left, right) =>
+  return materializedTemplates.sort((left, right) =>
     right.confidence - left.confidence ||
     left.id.localeCompare(right.id)
   );
 };
 
-export const selectRecipeTemplateCandidate = (
-  candidates: readonly RecipeTemplateCandidate[],
+export const selectAutomaticRecipeTemplate = (
+  materializedTemplates: readonly MaterializedRecipeTemplate[],
   autoApplyAllowed: boolean,
-): RecipeTemplateCandidate | null => {
+): MaterializedRecipeTemplate | null => {
   if (!autoApplyAllowed) {
     return null;
   }
 
-  return candidates.find(candidate => candidate.state === "ready") ?? null;
+  return materializedTemplates.find(template => template.state === "ready") ?? null;
 };
 
-export const materializeRecipeTemplateCandidate = ({
+export const materializeRecipeTemplate = ({
   recipe,
   evidence,
   evaluation,
@@ -80,7 +80,7 @@ export const materializeRecipeTemplateCandidate = ({
   readonly recipe: Recipe;
   readonly evidence: AssessmentEvidence;
   readonly evaluation: RecipeSelectorEvaluation;
-}): RecipeTemplateCandidate | null => {
+}): MaterializedRecipeTemplate | null => {
   if (!evaluation.matched || !evaluation.matches.length) {
     return null;
   }
@@ -124,12 +124,12 @@ export const materializeRecipeTemplateCandidate = ({
   const templateFingerprint = createTemplateFingerprint(template);
 
   return {
-    id: `candidate:${recipe.id}:${recipe.version}`,
+    id: `recipe-template:${recipe.id}:${recipe.version}`,
     recipeId: recipe.id,
     recipeVersion: recipe.version,
     template,
     templateFingerprint,
-    confidence: getCandidateConfidence(matches, evidence),
+    confidence: getTemplateConfidence(matches, evidence),
     state: diagnostics.size ? "review" : "ready",
     reasons: matches.flatMap(match => match.reasons),
     diagnosticCodes: [...diagnostics],
@@ -247,7 +247,7 @@ const getBlockDataRowRange = (
   };
 };
 
-const getCandidateConfidence = (
+const getTemplateConfidence = (
   matches: readonly RecipeSelectorBlockMatch[],
   evidence: AssessmentEvidence,
 ): number => {
