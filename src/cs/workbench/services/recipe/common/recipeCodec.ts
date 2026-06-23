@@ -44,6 +44,22 @@ const RECIPE_COLUMN_EXPRESSION_KINDS = new Set([
   "literalColumns",
 ]);
 
+const RECIPE_BLOCK_PROJECTION_SOURCES = new Set([
+  "eachMatchedBlock",
+  "singleMatchedBlock",
+]);
+
+const RECIPE_SEGMENTATION_PROJECTION_KINDS = new Set([
+  "auto",
+  "none",
+]);
+
+const RECIPE_LEGEND_PROJECTION_TARGETS = new Set([
+  "auto",
+  "yColumn",
+  "group",
+]);
+
 export const createRecipeSnapshot = (
   recipesInput: readonly unknown[],
   version = 1,
@@ -185,6 +201,9 @@ const validateRecipeSelector = (
     if (predicate.kind === "canonicalUnit" && typeof predicate.capture === "string" && predicate.capture.trim()) {
       capturedNames.add(predicate.capture.trim());
     }
+    if (predicate.kind === "sourceHint") {
+      validateSourceHintPredicate(predicate as Record<string, unknown>, diagnostics, recipeId);
+    }
   }
 };
 
@@ -204,8 +223,15 @@ const validateRecipeProjection = (
   if (blocks.rowRange !== "block.dataRange") {
     diagnostics.push(createRecipeDiagnostic(recipeId, "recipe.invalidRowRangeProjection", "Recipe block projection must use block.dataRange."));
   }
+  if (!RECIPE_BLOCK_PROJECTION_SOURCES.has(String(blocks.source))) {
+    diagnostics.push(createRecipeDiagnostic(recipeId, "recipe.invalidBlockSourceProjection", "Recipe block projection source is invalid."));
+  }
   validateRecipeColumnProjection(blocks.x, capturedNames, diagnostics, recipeId);
   validateRecipeColumnProjection(blocks.y, capturedNames, diagnostics, recipeId);
+  validateRecipeSegmentationProjection(blocks.segmentation, diagnostics, recipeId);
+  validateRecipeLegendProjection(blocks.legend, diagnostics, recipeId);
+  validateRecipeTitleProjection(blocks.titles, capturedNames, diagnostics, recipeId);
+  validateRecipeStopOnError(projection.stopOnError, diagnostics, recipeId);
 };
 
 const validateRecipeColumnProjection = (
@@ -240,6 +266,9 @@ const validateRecipeColumnExpression = (
   if (expression.kind === "capturedColumns" && !capturedNames.has(String(expression.capture ?? "").trim())) {
     diagnostics.push(createRecipeDiagnostic(recipeId, "recipe.unknownCapture", `Recipe references unknown capture: ${String(expression.capture ?? "")}`));
   }
+  if (expression.kind === "literalColumns" && !isValidColumnList(expression.columns)) {
+    diagnostics.push(createRecipeDiagnostic(recipeId, "recipe.invalidLiteralColumns", "Recipe literal column projection must contain zero-based integer columns."));
+  }
 };
 
 const validateRecipeValueExpression = (
@@ -258,6 +287,72 @@ const validateRecipeValueExpression = (
   }
 };
 
+const validateSourceHintPredicate = (
+  predicate: Record<string, unknown>,
+  diagnostics: RecipeDiagnostic[],
+  recipeId: string,
+): void => {
+  if (Array.isArray(predicate.instrumentAny) && predicate.instrumentAny.length) {
+    diagnostics.push(createRecipeDiagnostic(recipeId, "recipe.unsupportedSourceHintInstrument", "Recipe sourceHint.instrumentAny is unsupported until Assessment provides instrument metadata."));
+  }
+};
+
+const validateRecipeSegmentationProjection = (
+  value: unknown,
+  diagnostics: RecipeDiagnostic[],
+  recipeId: string,
+): void => {
+  const projection = isObjectRecord(value) ? value : null;
+  if (!projection || !RECIPE_SEGMENTATION_PROJECTION_KINDS.has(String(projection.kind))) {
+    diagnostics.push(createRecipeDiagnostic(recipeId, "recipe.invalidSegmentationProjection", "Recipe segmentation projection is invalid."));
+  }
+};
+
+const validateRecipeLegendProjection = (
+  value: unknown,
+  diagnostics: RecipeDiagnostic[],
+  recipeId: string,
+): void => {
+  const projection = isObjectRecord(value) ? value : null;
+  if (!projection || !RECIPE_LEGEND_PROJECTION_TARGETS.has(String(projection.target))) {
+    diagnostics.push(createRecipeDiagnostic(recipeId, "recipe.invalidLegendProjection", "Recipe legend projection is invalid."));
+  }
+};
+
+const validateRecipeTitleProjection = (
+  value: unknown,
+  capturedNames: ReadonlySet<string>,
+  diagnostics: RecipeDiagnostic[],
+  recipeId: string,
+): void => {
+  if (value === undefined) {
+    return;
+  }
+
+  const projection = isObjectRecord(value) ? value : null;
+  if (!projection) {
+    diagnostics.push(createRecipeDiagnostic(recipeId, "recipe.invalidTitleProjection", "Recipe title projection must be an object."));
+    return;
+  }
+
+  if (projection.bottom !== undefined) {
+    validateRecipeValueExpression(projection.bottom, capturedNames, diagnostics, recipeId);
+  }
+  if (projection.left !== undefined) {
+    validateRecipeValueExpression(projection.left, capturedNames, diagnostics, recipeId);
+  }
+};
+
+const validateRecipeStopOnError = (
+  value: unknown,
+  diagnostics: RecipeDiagnostic[],
+  recipeId: string,
+): void => {
+  if (value !== undefined && typeof value !== "boolean") {
+    diagnostics.push(createRecipeDiagnostic(recipeId, "recipe.invalidStopOnError", "Recipe stopOnError must be a boolean."));
+  }
+};
+
 const hasAnySelectorPredicates = (selector: RecipeSelector): boolean =>
   getSelectorPredicates(selector).length > 0;
 
@@ -269,6 +364,14 @@ const getSelectorPredicates = (selector: RecipeSelector): readonly RecipeSelecto
 
 const readPredicateArray = (value: unknown): readonly RecipeSelectorPredicate[] =>
   Array.isArray(value) ? value as RecipeSelectorPredicate[] : [];
+
+const isValidColumnList = (value: unknown): boolean =>
+  Array.isArray(value) &&
+  value.length > 0 &&
+  value.every(column =>
+    Number.isInteger(column) &&
+    column >= 0
+  );
 
 const createRecipeDiagnostic = (
   recipeId: string,

@@ -286,9 +286,8 @@ const evaluateSourceHintPredicate = (
     predicate.fileNameIncludesAny.some(value => fileName.includes(normalizeText(value)));
   const matchesExtension = !predicate.extensionAny?.length ||
     predicate.extensionAny.some(value => extension === normalizeExtension(value));
-  const matchesInstrument = !predicate.instrumentAny?.length;
 
-  return matchesFileName && matchesExtension && matchesInstrument
+  return matchesFileName && matchesExtension
     ? { matched: true, reason: "sourceHint" }
     : { matched: false, diagnosticCode: "recipeSelector.sourceHintMismatch" };
 };

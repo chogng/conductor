@@ -68,7 +68,6 @@ export type SourceHintSelectorPredicate = {
   readonly kind: "sourceHint";
   readonly fileNameIncludesAny?: readonly string[];
   readonly extensionAny?: readonly string[];
-  readonly instrumentAny?: readonly string[];
 };
 
 export type SchemaFingerprintSelectorPredicate = {

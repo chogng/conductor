@@ -93,6 +93,50 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 		assert.deepEqual(sliceService.enqueuedRefs, []);
 	});
 
+	test("does not enqueue assessments after latest manual slice run", () => {
+		const sessionService = store.add(new SessionService());
+		sessionService.commitFileImport(createImportResult());
+		const assessment = createAssessment();
+		sessionService.commitRawTableAssessment(assessment);
+		const template = createTemplate();
+		sessionService.commitSliceRuns([{
+			run: {
+				id: "slice-run-manual",
+				fileId: "file-a",
+				rawTableId: "table-a",
+				mode: "manual",
+				selection: {
+					kind: "inline",
+					template,
+				},
+				sourceRawTableVersion: assessment.sourceRawTableVersion,
+				template,
+				templateFingerprint: "template:manual",
+				inputRanges: [{
+					fileId: "file-a",
+					rawTableId: "table-a",
+					range: {
+						startRow: 1,
+						endRow: 2,
+						startCol: 0,
+						endCol: 1,
+					},
+				}],
+				outputSeriesIds: [],
+				outputCurveKeys: [],
+				warnings: [],
+				errors: [],
+			},
+			series: [],
+			curves: [],
+		}]);
+		const sliceService = new TestSliceService();
+
+		store.add(new AutoSliceContribution(sessionService, sliceService));
+
+		assert.deepEqual(sliceService.enqueuedRefs, []);
+	});
+
 	test("runs raw import through assessment selected template into slice curves", async () => {
 		const sessionService = store.add(new SessionService());
 		const rowsReaderService = new TestRawTableRowsReaderService();

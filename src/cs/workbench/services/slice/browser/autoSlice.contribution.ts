@@ -123,15 +123,21 @@ const shouldAutoSliceAssessment = (
 ): boolean =>
 	assessment.decision.autoApplyAllowed === true &&
 	Boolean(assessment.selectedTemplate) &&
-	!hasCurrentAutoSliceRun(file, rawTableId, assessment);
+	!hasBlockingSliceRun(file, rawTableId, assessment);
 
-const hasCurrentAutoSliceRun = (
+const hasBlockingSliceRun = (
 	file: FileRecord,
 	rawTableId: string,
 	assessment: RawTableAssessmentRecord,
 ): boolean => {
 	const run = file.latestSliceRunId ? file.sliceRunsById?.[file.latestSliceRunId] : undefined;
-	if (!run || run.mode !== "auto" || run.rawTableId !== rawTableId) {
+	if (!run || run.rawTableId !== rawTableId) {
+		return false;
+	}
+	if (run.mode === "manual") {
+		return true;
+	}
+	if (run.mode !== "auto") {
 		return false;
 	}
 

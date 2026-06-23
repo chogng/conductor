@@ -98,7 +98,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 				continue;
 			}
 
-			this.queue.push({ ref, plan });
+			this.enqueueSliceEntry({ ref, plan });
 			didChange = this.setFileState(ref.fileId, { state: "queued" }) || didChange;
 		}
 		if (didChange) {
@@ -126,7 +126,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			return;
 		}
 
-		this.queue.push({ ref: normalizedRef, plan });
+		this.enqueueSliceEntry({ ref: normalizedRef, plan });
 		if (this.setFileState(normalizedRef.fileId, { state: "queued" })) {
 			this.fireSliceStateChange();
 		}
@@ -268,6 +268,16 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		}
 
 		void this.drainSliceQueue();
+	}
+
+	private enqueueSliceEntry(entry: SliceQueueEntry): void {
+		const index = this.queue.findIndex(candidate => sameRawTableRef(candidate.ref, entry.ref));
+		if (index === -1) {
+			this.queue.push(entry);
+			return;
+		}
+
+		this.queue[index] = entry;
 	}
 
 	private async drainSliceQueue(): Promise<void> {
@@ -497,6 +507,13 @@ const uniqueRawTableRefs = (
 	}
 	return result;
 };
+
+const sameRawTableRef = (
+	left: RawTableRef,
+	right: RawTableRef,
+): boolean =>
+	left.fileId === right.fileId &&
+	left.rawTableId === right.rawTableId;
 
 const normalizeText = (value: unknown): string => String(value ?? "").trim();
 

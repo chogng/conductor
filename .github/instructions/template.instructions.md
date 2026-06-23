@@ -4,14 +4,14 @@ applyTo: 'src/cs/workbench/services/template/**,src/cs/workbench/contrib/templat
 ---
 # Template
 
-`Template` describes raw table / measurement data structure. It is not divided
-by consumers. Assessment, slicing, and binding are interpreters of the same
-`Template`.
+`Template` is a concrete extraction/slicing spec for raw tables whose
+measurement structure has already been determined. It is materialized by
+Assessment or created by users, then executed by Slice.
 
 Do not add consumer-shaped template sections such as `template.assessment`,
-`template.slicing`, or `template.binding`. Structure facts belong under
-`source`, `table`, `table.layout`, `table.blocks`, `table.fields`,
-`measurement`, and `defaults`.
+`template.slicing`, or `template.binding`. Do not make Template describe how to
+detect raw table structure, measurement family, roles, or units; those facts
+belong to Assessment evidence and Recipe-backed candidate derivation.
 
 Legacy/manual extraction presets are not the domain `Template`; name them
 `TemplateApplyPresetRecord` / `TemplateApplyConfig`.
@@ -45,7 +45,7 @@ table selection state, plot rendering, or chart state.
 
 | File | Responsibility |
 | --- | --- |
-| `common/templateSpec.ts` | pure `Template` data-structure spec: source, table, layout, blocks, fields, measurement, defaults. |
+| `common/templateSpec.ts` | pure block-aware `Template` spec: row ranges, axis bindings, segmentation, legends, titles, applicability, and execution defaults. |
 | `common/builtinTemplateSpecs.ts` | built-in domain template specs. |
 | `common/template.ts` | template catalog service contract, `TemplateApplyPresetRecord`, CRUD contracts, `getTemplate(id)`, and re-exported template spec types. |
 | `common/templateLegacyAdapter.ts` | migration adapter from historical/manual presets into canonical block-aware `Template`. |
@@ -73,9 +73,8 @@ into canonical `Template` snapshots before Slice runs.
 
 ## Rules
 
-- `Template` is a data-structure spec. Assessment checks whether raw data
-  matches it; slicing locates ranges from it; binding maps fields/roles/units
-  from it.
+- `Template` is a concrete extraction/slicing spec. Assessment chooses or
+  materializes it after structure is known; Slice executes it.
 - Engines should consume `Template`, not consumer-specific sub-templates.
 - Legacy/manual apply presets may be bridged through `TemplateApplyConfig` and
   `templateLegacyAdapter`; they are inputs to `Template` snapshots, not an

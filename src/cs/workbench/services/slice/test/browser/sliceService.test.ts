@@ -89,6 +89,31 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		assert.deepEqual(state.fileStates.get("file-a"), { state: "queued" });
 	});
 
+	test("keeps one pending automatic slice plan per raw table", () => {
+		const sessionService = store.add(new SessionService());
+		const sliceService = store.add(new SliceService(sessionService));
+		sessionService.commitFileImport(createImportResult());
+		sessionService.commitRawTableAssessment(createAssessment({
+			templateFingerprint: "template:first",
+		}));
+
+		sliceService.enqueueAuto([{
+			fileId: "file-a",
+			rawTableId: "table-a",
+		}]);
+		sessionService.commitRawTableAssessment(createAssessment({
+			templateFingerprint: "template:second",
+		}));
+		sliceService.enqueueAuto([{
+			fileId: "file-a",
+			rawTableId: "table-a",
+		}]);
+
+		const state = sliceService.getState();
+		assert.equal(state.queueLength, 1);
+		assert.deepEqual(state.fileStates.get("file-a"), { state: "queued" });
+	});
+
 	test("executes queued automatic slices when rows are available", async () => {
 		const sessionService = store.add(new SessionService());
 		const rowsReaderService = new TestRawTableRowsReaderService([
