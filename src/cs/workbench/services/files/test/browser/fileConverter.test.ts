@@ -37,6 +37,7 @@ suite("workbench/services/files/test/browser/fileConverter", () => {
     assert.equal(result.normalizedCsvPath, null);
     assert.equal(result.normalizedSizeBytes, file.size);
     assert.equal(result.sourceName, "sample.csv");
+    assert.equal("assessment" in result, false);
   });
 
   test("loads normalized CSV artifacts through the conversion boundary", async () => {

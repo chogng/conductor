@@ -71,7 +71,10 @@ import { ISessionService } from "src/cs/workbench/services/session/common/sessio
 import {
   createFastImportBadgeAssessment,
 } from "src/cs/workbench/services/assessment/common/importAssessmentSeedHeuristics";
-import type { ImportAssessmentSeed } from "src/cs/workbench/services/assessment/common/assessment";
+import {
+  IAssessmentService,
+  type ImportAssessmentSeed,
+} from "src/cs/workbench/services/assessment/common/assessment";
 import {
   IThumbnailPreviewService,
   IThumbnailService,
@@ -128,6 +131,7 @@ export class ExplorerViewPane extends ViewPane {
     @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
     @INotificationService private readonly notificationService: INotificationService,
     @ISessionService private readonly sessionService: ISessionService,
+    @IAssessmentService private readonly assessmentService: IAssessmentService,
     @IThumbnailPreviewService private readonly thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @ITemplateService private readonly templateService: ITemplateService,
@@ -156,6 +160,8 @@ export class ExplorerViewPane extends ViewPane {
 
     this.sourceWorkflow = new FileSourceWorkflow({
       commandService: this.commandService,
+      createPreparedAssessmentFromRows: (fileName, rows) =>
+        this.assessmentService.createImportAssessmentSeedFromRows(fileName, rows),
       fileConverterBackendService: this.fileConverterBackendService,
       filesService: this.filesService,
       getFiles: () => this.committedFiles,

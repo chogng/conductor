@@ -15,6 +15,9 @@ import type {
   FileConverterPreparePayload,
   FileConverterPreparedFile,
 } from "../../../../services/files/common/fileConverterBackend.ts";
+import {
+  createImportAssessmentSeedFromRows,
+} from "../../../../services/assessment/browser/importAssessmentSeed.ts";
 import { NotificationService } from "../../../../services/notification/common/notificationService.ts";
 import {
   canImportFolderWithFileService,
@@ -385,6 +388,26 @@ suite("workbench/contrib/files/test/browser/fileImportExport", () => {
     });
 
     assert.equal(firstImport.result?.prepared.fileInfo.fileName, "flaky-content.csv");
+    assert.equal(failedFiles.length, 0);
+  });
+
+  test("creates prepared assessment from converted inline rows", async () => {
+    const failedFiles: FileImportPrepareFailure[] = [];
+    const firstImport = await prepareFirstPendingImportFile({
+      canApplyResult: () => true,
+      createPreparedAssessmentFromRows: createImportAssessmentSeedFromRows,
+      failedFiles,
+      fileConverterBackend: createFileConverterBackendStub(),
+      pendingImportFiles: [
+        createDataPendingFile("transfer.csv", "device/transfer.csv"),
+      ],
+      selectedRelativePath: null,
+    });
+
+    const assessment = firstImport.result?.prepared.fileInfo.preparedAssessment;
+    assert.ok(assessment);
+    assert.equal(assessment.curveFamily, "iv");
+    assert.equal(assessment.ivMode, "transfer");
     assert.equal(failedFiles.length, 0);
   });
 

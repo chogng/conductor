@@ -7,7 +7,6 @@ import type {
 	RawTableHealthRecord,
 	TemplateEligibility,
 } from "src/cs/workbench/services/files/common/rawTable";
-import type { ImportAssessmentSeed } from "src/cs/workbench/services/assessment/common/assessment";
 
 export const IFileConverterBackendService =
 	createDecorator<IFileConverterBackendService>("fileConverterBackendService");
@@ -26,7 +25,6 @@ export type FileConverterPreparedFile = {
 	readonly maxCellLengths?: readonly number[];
 	readonly normalizedCsvPath?: string | null;
 	readonly normalizedSizeBytes?: number;
-	readonly assessment?: ImportAssessmentSeed;
 	readonly ok?: boolean;
 	readonly rowCount?: number;
 	readonly sheets?: readonly FileConverterPreparedSheet[];

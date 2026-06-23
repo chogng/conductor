@@ -120,7 +120,8 @@ subscribe to table/template/assessment state.
 Explorer drop/dialog/clipboard/folder
   -> source collection / pending Explorer entries
   -> fileConverter.ts
-  -> FileConversionResult + optional prepared assessment
+  -> FileConversionResult
+  -> fileImportExport.ts optional prepared assessment seed from converted row preview
   -> ISessionService.commitFileImport(...)
   -> SessionChangeEvent subscribers
   -> Explorer resources / Table / Assessment / Template / Plot / Search / Export
