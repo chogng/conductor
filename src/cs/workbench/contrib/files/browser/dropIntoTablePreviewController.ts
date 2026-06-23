@@ -4,6 +4,7 @@
 
 import { DragAndDropObserver } from "src/cs/base/browser/dom";
 import { Disposable, DisposableStore, toDisposable } from "src/cs/base/common/lifecycle";
+import { IInstantiationService } from "src/cs/platform/instantiation/common/instantiation";
 import type { IWorkbenchContribution } from "src/cs/workbench/common/contributions";
 import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import {
@@ -25,6 +26,13 @@ type TablePreviewDropTargetRegistration = {
   readonly target: HTMLElement;
 };
 
+type DropImportServices = {
+  readonly explorerService: IExplorerService;
+  readonly fileConverterBackendService: IFileConverterBackendService;
+  readonly notificationService: INotificationService;
+  readonly sessionService: ISessionService;
+};
+
 const TABLE_PREVIEW_DRAGGING_CLASS_NAME = "workbench_preview_area_part--dragging";
 
 export class DropIntoTablePreviewController extends Disposable implements IWorkbenchContribution {
@@ -34,10 +42,7 @@ export class DropIntoTablePreviewController extends Disposable implements IWorkb
 
   public constructor(
     @ITableDropTargetService private readonly tableDropTargetService: ITableDropTargetService,
-    @ISessionService private readonly sessionService: ISessionService,
-    @IExplorerService private readonly explorerService: IExplorerService,
-    @IFileConverterBackendService private readonly fileConverterBackendService: IFileConverterBackendService,
-    @INotificationService private readonly notificationService: INotificationService,
+    @IInstantiationService private readonly instantiationService: IInstantiationService,
   ) {
     super();
     this._register(this.tableDropTargetService.onDidChangeDropTarget(target => {
@@ -114,35 +119,53 @@ export class DropIntoTablePreviewController extends Disposable implements IWorkb
   }
 
   private async importDroppedFiles(dataTransfer: DataTransfer | null): Promise<void> {
+    return this.instantiationService.invokeFunction(accessor => this.importDroppedFilesWithServices(
+      dataTransfer,
+      {
+        explorerService: accessor.get(IExplorerService),
+        fileConverterBackendService: accessor.get(IFileConverterBackendService),
+        notificationService: accessor.get(INotificationService),
+        sessionService: accessor.get(ISessionService),
+      },
+    ));
+  }
+
+  private async importDroppedFilesWithServices(
+    dataTransfer: DataTransfer | null,
+    services: DropImportServices,
+  ): Promise<void> {
     const {
       errorMessage,
       preparedFiles,
     } = await prepareDroppedFilesForImport({
       dataTransfer,
-      fileConverterBackend: this.fileConverterBackendService,
+      fileConverterBackend: services.fileConverterBackendService,
       selectedRelativePath: null,
     });
 
     if (!preparedFiles.length) {
-      this.showImportError(errorMessage);
+      this.showImportError(errorMessage, services.notificationService);
       return;
     }
 
     commitExplorerSessionImport({
-      explorerService: this.explorerService,
+      explorerService: services.explorerService,
       importedFiles: preparedFiles.map(prepared => prepared.fileInfo),
       mode: "append",
-      sessionService: this.sessionService,
+      sessionService: services.sessionService,
     });
-    this.showImportError(errorMessage);
+    this.showImportError(errorMessage, services.notificationService);
   }
 
-  private showImportError(message: string | null): void {
+  private showImportError(
+    message: string | null,
+    notificationService: INotificationService,
+  ): void {
     if (!message) {
       return;
     }
 
-    this.notificationService.notify({
+    notificationService.notify({
       id: "dropIntoTablePreview.importError",
       message,
       severity: Severity.Warning,

@@ -24,22 +24,30 @@ type QuickAccessCommand = QuickAccessItem & {
   readonly description: string;
 };
 
+type ServiceOrResolver<T> = T | (() => T);
+
+const resolveService = <T>(serviceOrResolver: ServiceOrResolver<T>): T =>
+  typeof serviceOrResolver === "function"
+    ? (serviceOrResolver as () => T)()
+    : serviceOrResolver;
+
 export class CommandsQuickAccessProvider extends PickerQuickAccessProvider<QuickAccessCommand> {
   public constructor(
-    @ICommandService private readonly commandService: ICommandService,
-    @IMenuService private readonly menuService: IMenuService,
-    @IContextKeyService private readonly contextKeyService: IContextKeyServiceType,
+    @ICommandService private readonly commandService: ServiceOrResolver<ICommandService>,
+    @IMenuService private readonly menuService: ServiceOrResolver<IMenuService>,
+    @IContextKeyService private readonly contextKeyService: ServiceOrResolver<IContextKeyServiceType>,
   ) {
     super();
   }
 
   protected getPicks(filter: string): readonly QuickAccessCommand[] {
     const normalizedFilter = filter.trim().toLowerCase();
+    const commandService = resolveService(this.commandService);
     const commands = getQuickAccessCommands(
-      this.menuService,
-      this.contextKeyService,
+      resolveService(this.menuService),
+      resolveService(this.contextKeyService),
       commandId => {
-        void this.commandService.executeCommand(commandId);
+        void commandService.executeCommand(commandId);
       },
     );
     if (!normalizedFilter) {

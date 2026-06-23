@@ -340,6 +340,19 @@ const getInitialLanguagePreference = (): LanguagePreference => {
     : "system";
 };
 
+const getBootNowMs = (): number =>
+  typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+
+const logWorkbenchBoot = (stage: string, extra = ""): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.__CONDUCTOR_BOOT_LOG__?.(stage, extra);
+};
+
 export const resolveInitialWorkbenchViewMode = (
   _snapshot: WorkbenchSessionSnapshot,
 ): WorkbenchMainPart => "table";
@@ -421,6 +434,7 @@ export class Workbench extends Layout {
   }
 
   private scheduleServiceLayerStartup(): void {
+    logWorkbenchBoot("workbench:service-layer:scheduled");
     this._register(scheduleAtNextAnimationFrame(window, () => {
       if (this.disposed) {
         return;
@@ -442,11 +456,23 @@ export class Workbench extends Layout {
     }
 
     this.serviceStartupState = "starting";
+    const startedAt = getBootNowMs();
+    logWorkbenchBoot("workbench:service-layer:start");
     try {
       this.installServiceLayer(this.services.value);
       this.serviceStartupState = "started";
+      logWorkbenchBoot(
+        "workbench:service-layer:ready",
+        `(duration=${Math.round(getBootNowMs() - startedAt)}ms)`,
+      );
     } catch (error) {
       this.serviceStartupState = "failed";
+      logWorkbenchBoot(
+        "workbench:service-layer:failed",
+        `(duration=${Math.round(getBootNowMs() - startedAt)}ms message=${
+          error instanceof Error ? error.message : String(error)
+        })`,
+      );
       throw error;
     }
   }

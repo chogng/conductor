@@ -44,6 +44,7 @@
     "test:integration:browser": "node test/integration/browser/folderImport.test.mjs",
     "test:template-apply-performance-trace": "node test/integration/browser/templateApplyPerformanceTrace.test.mjs",
     "test:desktop-core": "npm run build:desktop:core && mocha --ui tdd test/integration/node/originRunner.test.mjs test/integration/node/analysisStorageService.test.mjs",
+    "trace:desktop-startup": "node scripts/trace-desktop-startup.mjs",
     "test:unit:browser": "node test/unit/browser/index.js",
     "preview:titlebar-update": "node test/unit/browser/preview.js titlebar-update",
     "test:origin-runner": "npm run build:desktop:core && mocha --ui tdd test/integration/node/originRunner.test.mjs",

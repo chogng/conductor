@@ -6,10 +6,15 @@ import assert from "assert";
 
 import { Emitter, Event as BaseEvent } from "src/cs/base/common/event";
 import type { DisposableStore } from "src/cs/base/common/lifecycle";
+import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
+import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";
 import { IExplorerService } from "src/cs/workbench/contrib/files/browser/files";
 import { DropIntoTablePreviewController } from "src/cs/workbench/contrib/files/browser/dropIntoTablePreviewController";
 import { IFileConverterBackendService } from "src/cs/workbench/services/files/common/fileConverterBackend";
-import { NotificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import {
+  INotificationService,
+  NotificationService,
+} from "src/cs/workbench/services/notification/common/notificationService";
 import { ISessionService } from "src/cs/workbench/services/session/common/session";
 import type { ITableDropTargetService } from "src/cs/workbench/services/table/browser/tableDropTargetService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -79,12 +84,15 @@ function createController(
   dropTargetService: ITableDropTargetService,
   store: Pick<DisposableStore, "add">,
 ): DropIntoTablePreviewController {
+  const instantiationService = store.add(new InstantiationService(new ServiceCollection(
+    [ISessionService, createSessionService()],
+    [IExplorerService, createExplorerService()],
+    [IFileConverterBackendService, createFileConverterBackendService()],
+    [INotificationService, store.add(new NotificationService())],
+  )));
   return new DropIntoTablePreviewController(
     dropTargetService,
-    createSessionService(),
-    createExplorerService(),
-    createFileConverterBackendService(),
-    store.add(new NotificationService()),
+    instantiationService,
   );
 }
 

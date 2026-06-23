@@ -8,10 +8,13 @@ import {
 } from "src/cs/platform/commands/common/commands";
 import {
   IContextKeyService,
-  type IContextKeyService as IContextKeyServiceType,
 } from "src/cs/platform/contextkey/common/contextkey";
 import { KeybindingWeight } from "src/cs/platform/keybinding/common/keybindingsRegistry";
-import type { ServicesAccessor } from "src/cs/platform/instantiation/common/instantiation";
+import {
+  IInstantiationService,
+  type ServiceIdentifier,
+  type ServicesAccessor,
+} from "src/cs/platform/instantiation/common/instantiation";
 import {
   QuickAccessExtensions,
   type IQuickAccessRegistry,
@@ -85,30 +88,35 @@ registerAction2(class ShowCommandsAction extends Action2 {
 
 class QuickAccessContribution extends Disposable implements IWorkbenchContribution {
   public constructor(
-    @IQuickInputService quickInputService: IQuickInputService,
-    @ICommandService commandService: ICommandService,
-    @IMenuService menuService: IMenuService,
-    @IContextKeyService contextKeyService: IContextKeyServiceType,
-    @IExplorerService explorerService: IExplorerService,
-    @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+    @IInstantiationService instantiationService: IInstantiationService,
   ) {
     super();
+
+    const resolve = <T>(id: ServiceIdentifier<T>): () => T =>
+      () => instantiationService.invokeFunction(accessor => accessor.get(id));
 
     const registry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.QuickAccess);
     this._register(registry.registerQuickAccessProvider({
       prefix: "",
       placeholder: localize("quickAccess.placeholder", "Search commands/files"),
-      provider: new DefaultQuickAccessProvider(quickInputService),
+      provider: new DefaultQuickAccessProvider(resolve(IQuickInputService)),
     }));
     this._register(registry.registerQuickAccessProvider({
       prefix: FILES_QUICK_ACCESS_PREFIX,
       placeholder: localize("quickAccess.files.placeholder", "Search files"),
-      provider: new FilesQuickAccessProvider(explorerService, layoutService),
+      provider: new FilesQuickAccessProvider(
+        resolve(IExplorerService),
+        resolve(IWorkbenchLayoutService),
+      ),
     }));
     this._register(registry.registerQuickAccessProvider({
       prefix: COMMANDS_QUICK_ACCESS_PREFIX,
       placeholder: localize("quickAccess.commands.placeholder", "Search commands"),
-      provider: new CommandsQuickAccessProvider(commandService, menuService, contextKeyService),
+      provider: new CommandsQuickAccessProvider(
+        resolve(ICommandService),
+        resolve(IMenuService),
+        resolve(IContextKeyService),
+      ),
     }));
   }
 }

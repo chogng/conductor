@@ -1,4 +1,11 @@
-import { DisposableStore, isDisposable, type IDisposable } from "../../../base/common/lifecycle.js";
+import type { Event } from "../../../base/common/event.js";
+import { LinkedList } from "../../../base/common/linkedList.js";
+import {
+  DisposableStore,
+  isDisposable,
+  toDisposable,
+  type IDisposable,
+} from "../../../base/common/lifecycle.js";
 import { SyncDescriptor } from "./descriptors.js";
 import { registerSingletonServiceDescriptors } from "./extensions.js";
 import {
@@ -8,6 +15,11 @@ import {
   _util,
 } from "./instantiation.js";
 import { ServiceCollection } from "./serviceCollection.js";
+
+type EarlyServiceEventListener = {
+  disposable?: IDisposable;
+  listener: Parameters<Event<unknown>>;
+};
 
 export class InstantiationService implements IInstantiationService, IDisposable {
   public declare readonly _serviceBrand: undefined;
@@ -109,9 +121,9 @@ export class InstantiationService implements IInstantiationService, IDisposable 
     const entry = this.getServiceInstanceOrDescriptor(id);
 
     if (entry instanceof SyncDescriptor) {
-      const instance = this.createInstance(entry);
-      this.setCreatedServiceInstance(id, instance);
-      this.servicesToDispose.add(instance);
+      const owner = this.getServiceOwner(id);
+      const instance = owner.createServiceInstance(entry);
+      owner.setCreatedServiceInstance(id, instance);
       return instance;
     }
 
@@ -150,9 +162,158 @@ export class InstantiationService implements IInstantiationService, IDisposable 
     throw new Error(`Cannot cache unknown service '${id}'.`);
   }
 
+  private getServiceOwner<T>(id: ServiceIdentifier<T>): InstantiationService {
+    if (this.services.get(id) instanceof SyncDescriptor) {
+      return this;
+    }
+
+    if (this.parent) {
+      return this.parent.getServiceOwner(id);
+    }
+
+    throw new Error(`Cannot create unknown service '${id}'.`);
+  }
+
+  private createServiceInstance<T>(descriptor: SyncDescriptor<T>): T {
+    if (descriptor.supportsDelayedInstantiation) {
+      return this.createDelayedServiceInstance(descriptor);
+    }
+
+    const instance = this.createInstance(descriptor);
+    this.servicesToDispose.add(instance);
+    return instance;
+  }
+
+  private createDelayedServiceInstance<T>(descriptor: SyncDescriptor<T>): T {
+    const earlyListeners = new Map<string, LinkedList<EarlyServiceEventListener>>();
+    const boundProperties = Object.create(null) as Record<PropertyKey, unknown>;
+    let initialized = false;
+    let instance: T | undefined;
+    let error: unknown;
+
+    const getInstance = (): T => {
+      if (!initialized) {
+        initialized = true;
+        try {
+          instance = this.createInstanceFromConstructor(
+            descriptor.ctor,
+            descriptor.staticArguments,
+          );
+          this.servicesToDispose.add(instance);
+          this.replayEarlyServiceEventListeners(instance, earlyListeners);
+        } catch (caughtError) {
+          error = caughtError;
+          earlyListeners.clear();
+        }
+      }
+
+      if (error) {
+        throw error;
+      }
+
+      return instance!;
+    };
+
+    return new Proxy(Object.create(null), {
+      get: (_target, key: PropertyKey): unknown => {
+        if (!initialized && isEventPropertyKey(key)) {
+          return createEarlyServiceEvent(
+            key,
+            () => initialized,
+            getInstance,
+            earlyListeners,
+          );
+        }
+
+        if (key in boundProperties) {
+          return boundProperties[key];
+        }
+
+        const value = (getInstance() as Record<PropertyKey, unknown>)[key];
+        if (typeof value !== "function") {
+          return value;
+        }
+
+        const boundValue = value.bind(instance);
+        boundProperties[key] = boundValue;
+        return boundValue;
+      },
+      getPrototypeOf: () => descriptor.ctor.prototype,
+      set: (_target, key: PropertyKey, value: unknown): boolean => {
+        (getInstance() as Record<PropertyKey, unknown>)[key] = value;
+        return true;
+      },
+    }) as T;
+  }
+
+  private replayEarlyServiceEventListeners<T>(
+    instance: T,
+    earlyListeners: Map<string, LinkedList<EarlyServiceEventListener>>,
+  ): void {
+    const service = instance as Record<string, unknown>;
+    for (const [key, listeners] of earlyListeners) {
+      const event = service[key];
+      if (typeof event !== "function") {
+        continue;
+      }
+
+      for (const listener of listeners) {
+        listener.disposable = (event as Event<unknown>).apply(instance, listener.listener);
+      }
+    }
+
+    earlyListeners.clear();
+  }
+
   private throwIfDisposed(): void {
     if (this.disposed) {
       throw new Error("InstantiationService has been disposed.");
     }
   }
 }
+
+const isEventPropertyKey = (key: PropertyKey): key is string =>
+  typeof key === "string" &&
+  (key.startsWith("onDid") || key.startsWith("onWill"));
+
+const createEarlyServiceEvent = (
+  key: string,
+  isInitialized: () => boolean,
+  getInstance: () => unknown,
+  earlyListeners: Map<string, LinkedList<EarlyServiceEventListener>>,
+): Event<unknown> => {
+  let listeners = earlyListeners.get(key);
+  if (!listeners) {
+    listeners = new LinkedList<EarlyServiceEventListener>();
+    earlyListeners.set(key, listeners);
+  }
+
+  return (listener, thisArgs, disposables) => {
+    if (isInitialized()) {
+      const instance = getInstance() as Record<string, unknown>;
+      const event = instance[key];
+      if (typeof event === "function") {
+        return (event as Event<unknown>)(listener, thisArgs, disposables);
+      }
+    }
+
+    const entry: EarlyServiceEventListener = {
+      listener: [listener, thisArgs, disposables],
+    };
+    const remove = listeners.push(entry);
+    const disposable = toDisposable(() => {
+      remove();
+      entry.disposable?.dispose();
+    });
+
+    if (disposables) {
+      if (Array.isArray(disposables)) {
+        disposables.push(disposable);
+      } else {
+        disposables.add(disposable);
+      }
+    }
+
+    return disposable;
+  };
+};

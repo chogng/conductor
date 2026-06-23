@@ -11,9 +11,16 @@ import { COMMANDS_QUICK_ACCESS_PREFIX } from "src/cs/workbench/contrib/quickacce
 
 export const FILES_QUICK_ACCESS_PREFIX = "file ";
 
+type ServiceOrResolver<T> = T | (() => T);
+
+const resolveService = <T>(serviceOrResolver: ServiceOrResolver<T>): T =>
+  typeof serviceOrResolver === "function"
+    ? (serviceOrResolver as () => T)()
+    : serviceOrResolver;
+
 export class DefaultQuickAccessProvider extends PickerQuickAccessProvider {
   public constructor(
-    @IQuickInputService private readonly quickInputService: IQuickInputService,
+    @IQuickInputService private readonly quickInputService: ServiceOrResolver<IQuickInputService>,
   ) {
     super();
   }
@@ -21,13 +28,13 @@ export class DefaultQuickAccessProvider extends PickerQuickAccessProvider {
   protected getPicks(): readonly QuickAccessItem[] {
     return [
       {
-        accept: () => this.quickInputService.quickAccess.show(FILES_QUICK_ACCESS_PREFIX),
+        accept: () => resolveService(this.quickInputService).quickAccess.show(FILES_QUICK_ACCESS_PREFIX),
         description: localize("quickAccess.files.description", "Switch the active workbench file"),
         id: "quickAccess.gotoFiles",
         label: localize("quickAccess.files.label", "Go to File"),
       },
       {
-        accept: () => this.quickInputService.quickAccess.show(COMMANDS_QUICK_ACCESS_PREFIX),
+        accept: () => resolveService(this.quickInputService).quickAccess.show(COMMANDS_QUICK_ACCESS_PREFIX),
         description: localize("quickAccess.commands.description", "Search available commands"),
         id: "quickAccess.gotoCommands",
         label: localize("quickAccess.commands.label", "Go to Commands"),
@@ -38,15 +45,17 @@ export class DefaultQuickAccessProvider extends PickerQuickAccessProvider {
 
 export class FilesQuickAccessProvider extends PickerQuickAccessProvider {
   public constructor(
-    @IExplorerService private readonly explorerService: IExplorerService,
-    @IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+    @IExplorerService private readonly explorerService: ServiceOrResolver<IExplorerService>,
+    @IWorkbenchLayoutService private readonly layoutService: ServiceOrResolver<IWorkbenchLayoutService>,
   ) {
     super();
   }
 
   protected getPicks(filter: string): readonly QuickAccessItem[] {
-    const paneInput = this.explorerService.getPaneInput();
-    const selectionKind = this.layoutService.activeWorkbenchMainPart;
+    const explorerService = resolveService(this.explorerService);
+    const layoutService = resolveService(this.layoutService);
+    const paneInput = explorerService.getPaneInput();
+    const selectionKind = layoutService.activeWorkbenchMainPart;
     if (!paneInput || paneInput.selectionKind !== selectionKind) {
       return [];
     }
@@ -64,7 +73,7 @@ export class FilesQuickAccessProvider extends PickerQuickAccessProvider {
         const label = String(file.fileName ?? fileId).trim() || fileId;
         const item: QuickAccessItem = {
           accept: () => {
-            this.explorerService.select({
+            explorerService.select({
               candidateFileIds,
               fileId,
               kind: selectionKind,
