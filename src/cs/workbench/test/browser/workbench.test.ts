@@ -28,6 +28,7 @@ import type {
   ProcessedEntry,
   SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
+import type { TableSource } from "src/cs/workbench/services/table/common/table";
 import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import type { TemplateApplyWorkflowInput } from "src/cs/workbench/services/template/common/template";
 import { createTemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
@@ -853,6 +854,51 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
+  test("defers startup secondary projection while opening table source immediately", async () => {
+    const session = store.add(new SessionService());
+    const explorerService = store.add(new ExplorerService());
+    const chartViewInputs: Array<{ readonly activeFileId: string | null; readonly hasChartData?: boolean }> = [];
+    const tableSources: Array<string | null> = [];
+    const templateApplyInputs: Array<{
+      readonly fileTemplateSelectionsByFileId?: Record<string, unknown>;
+    }> = [];
+    commitRawFilesForTest(session, [
+      {
+        columnCount: 2,
+        fileId: "file-a",
+        fileName: "A.csv",
+        rowCount: 2,
+        rows: [],
+      },
+    ]);
+    const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
+      chartViewInputs,
+      explorerService,
+      prioritizedCalculationFileIds: [],
+      prioritizedTemplateFileIds: [],
+      session,
+      tableSources,
+      templateApplyInputs,
+    }));
+    try {
+      bridge.sync({ deferSecondaryWork: true });
+
+      assert.deepEqual(tableSources, ["file-a"]);
+      assert.deepEqual(templateApplyInputs, []);
+      assert.deepEqual(chartViewInputs, []);
+
+      await new Promise(resolve => globalThis.setTimeout(resolve, 0));
+
+      assert.equal(templateApplyInputs.length, 1);
+      assert.deepEqual(chartViewInputs.at(-1), {
+        activeFileId: "file-a",
+        hasChartData: false,
+      });
+    } finally {
+      bridge.dispose();
+    }
+  });
+
   test("backs recently interactive chart targets with recent plot and thumbnail priority", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
@@ -1174,6 +1220,7 @@ const createDomainBridgeOptionsForTest = ({
   prioritizedTemplateFileIds,
   session,
   thumbnailPrefetches,
+  tableSources,
   templateApplyInputs,
   templateStateEvent = Event.None,
   templateStateValue,
@@ -1190,6 +1237,7 @@ const createDomainBridgeOptionsForTest = ({
   readonly prioritizedTemplateFileIds: string[];
   readonly session: SessionService;
   readonly thumbnailPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
+  readonly tableSources?: Array<string | null>;
   readonly templateApplyInputs?: Array<{ readonly fileTemplateSelectionsByFileId?: Record<string, unknown> }>;
   readonly templateStateEvent?: Event<unknown>;
   readonly templateStateValue?: {
@@ -1282,7 +1330,9 @@ const createDomainBridgeOptionsForTest = ({
 	  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["settingsService"],
 	  tableService: {
 	    getViewInput: () => null,
-	    open: () => undefined,
+	    open: (source: TableSource | null) => {
+        tableSources?.push(source?.fileId ?? null);
+      },
 	  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["tableService"],
   templateApplyWorkflowService: {
     getFileApplyStates: () => new Map(),

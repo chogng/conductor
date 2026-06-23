@@ -747,7 +747,7 @@ export class Workbench extends Layout {
         }
       });
       measureWorkbenchBoot("workbench:service-layer:install:domain-sync", () => {
-        domainBridge.sync();
+        domainBridge.sync({ deferSecondaryWork: initialViewMode === "table" });
       });
       measureWorkbenchBoot("workbench:service-layer:install:refresh-initial", () => {
         this.refreshWorkbench("initial");

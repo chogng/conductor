@@ -2,7 +2,8 @@
  * Copyright (c) Conductor Studio. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from "src/cs/base/common/lifecycle";
+import { runWhenGlobalIdle } from "src/cs/base/common/async";
+import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { startPerf } from "src/cs/workbench/common/perf";
 import {
   type ExplorerPaneInput,
@@ -76,6 +77,10 @@ import {
 
 const RECENT_INTERACTIVE_CHART_TARGET_LIMIT = 16;
 
+export type WorkbenchDomainBridgeSyncOptions = {
+  readonly deferSecondaryWork?: boolean;
+};
+
 export type WorkbenchDomainBridgeOptions = {
   readonly chartService: IChartService;
   readonly assessmentQueueService: IAssessmentQueueService;
@@ -119,7 +124,13 @@ export class WorkbenchDomainBridge extends Disposable {
     this._register(this.options.templateService.onDidChangeTemplateList(() => this.scheduleInteractiveSync()));
     this._register(this.options.layoutService.onDidChangeWorkbenchNavigation(() => this.scheduleSync()));
     this._register(this.options.sessionService.onDidChangeSession(() => this.scheduleSync()));
-    this._register({ dispose: () => this.cancelScheduledSync?.() });
+    this._register({
+      dispose: () => {
+        this.cancelScheduledSync?.();
+        this.cancelScheduledSync = null;
+        this.cancelDeferredSecondarySync();
+      },
+    });
     if (isTemplateApplyPerformanceTraceEnabled()) {
       this._register({
         dispose: registerTemplateApplyPerformanceTraceTargetApi({
@@ -133,16 +144,18 @@ export class WorkbenchDomainBridge extends Disposable {
   }
 
   private cancelScheduledSync: (() => void) | null = null;
+  private cancelScheduledDeferredSecondarySync: (() => void) | null = null;
   private scheduledSyncKind: "frame" | "microtask" | null = null;
 
-  public sync(): void {
+  public sync(options: WorkbenchDomainBridgeSyncOptions = {}): void {
     this.cancelScheduledSync?.();
     this.cancelScheduledSync = null;
     this.scheduledSyncKind = null;
-    this.runSync();
+    this.runSync(options);
   }
 
   private scheduleSync(): void {
+    this.cancelDeferredSecondarySync();
     if (this.cancelScheduledSync) {
       return;
     }
@@ -168,6 +181,7 @@ export class WorkbenchDomainBridge extends Disposable {
   }
 
   private scheduleInteractiveSync(): void {
+    this.cancelDeferredSecondarySync();
     if (this.scheduledSyncKind === "microtask") {
       return;
     }
@@ -195,10 +209,12 @@ export class WorkbenchDomainBridge extends Disposable {
     globalThis.setTimeout(run, 0);
   }
 
-  private runSync(): void {
+  private runSync({ deferSecondaryWork = false }: WorkbenchDomainBridgeSyncOptions = {}): void {
+    this.cancelDeferredSecondarySync();
     const snapshot = this.options.sessionService.getSnapshot();
     this.pruneRecentInteractiveChartTargets(snapshot);
     const endPerf = startPerf("workbenchDomainBridge.sync", {
+      deferSecondaryWork,
       fileCount: Object.keys(snapshot.filesById).length,
       sessionVersion: snapshot.sessionVersion,
     });
@@ -217,6 +233,95 @@ export class WorkbenchDomainBridge extends Disposable {
     );
     this.options.tableService.open(createRawTableSource(explorerSelection.selectedRawFileId));
 
+    if (deferSecondaryWork) {
+      this.scheduleDeferredSecondarySync();
+      endPerf({
+        deferredSecondaryWork: true,
+        processedFileCount: readModel.processedFileIds.length,
+        rawFileCount: readModel.rawFiles.length,
+      });
+      return;
+    }
+
+    this.syncSecondaryProjection(snapshot, readModel, explorerSelection);
+    endPerf({
+      deferredSecondaryWork: false,
+      processedFileCount: readModel.processedFileIds.length,
+      rawFileCount: readModel.rawFiles.length,
+    });
+  }
+
+  private scheduleDeferredSecondarySync(): void {
+    this.cancelDeferredSecondarySync();
+    let disposed = false;
+    let frameHandle: number | null = null;
+    let idleHandle: IDisposable | null = null;
+    const run = (): void => {
+      if (disposed) {
+        return;
+      }
+
+      this.cancelScheduledDeferredSecondarySync = null;
+      this.runDeferredSecondarySync();
+    };
+
+    if (
+      typeof globalThis.requestAnimationFrame === "function" &&
+      typeof globalThis.cancelAnimationFrame === "function"
+    ) {
+      frameHandle = globalThis.requestAnimationFrame(() => {
+        frameHandle = null;
+        if (disposed) {
+          return;
+        }
+
+        idleHandle = runWhenGlobalIdle(run, 500);
+      });
+      this.cancelScheduledDeferredSecondarySync = () => {
+        disposed = true;
+        if (frameHandle !== null) {
+          globalThis.cancelAnimationFrame(frameHandle);
+        }
+        idleHandle?.dispose();
+      };
+      return;
+    }
+
+    idleHandle = runWhenGlobalIdle(run, 500);
+    this.cancelScheduledDeferredSecondarySync = () => {
+      disposed = true;
+      idleHandle?.dispose();
+    };
+  }
+
+  private cancelDeferredSecondarySync(): void {
+    this.cancelScheduledDeferredSecondarySync?.();
+    this.cancelScheduledDeferredSecondarySync = null;
+  }
+
+  private runDeferredSecondarySync(): void {
+    const snapshot = this.options.sessionService.getSnapshot();
+    const endPerf = startPerf("workbenchDomainBridge.deferredSync", {
+      fileCount: Object.keys(snapshot.filesById).length,
+      sessionVersion: snapshot.sessionVersion,
+    });
+    const readModel = createSessionReadModel(snapshot);
+    const explorerSelection = resolveExplorerSessionSelection(
+      this.options.explorerService,
+      readModel,
+    );
+    this.syncSecondaryProjection(snapshot, readModel, explorerSelection);
+    endPerf({
+      processedFileCount: readModel.processedFileIds.length,
+      rawFileCount: readModel.rawFiles.length,
+    });
+  }
+
+  private syncSecondaryProjection(
+    snapshot: SessionSnapshot,
+    readModel: SessionReadModel,
+    explorerSelection: ExplorerSessionSelection,
+  ): void {
     this.options.templateApplyWorkflowService.update(createTemplateApplyInput({
       activeFileId: explorerSelection.selectedProcessedFileId ?? explorerSelection.selectedRawFileId,
       hasPendingSourceFiles: this.options.explorerService.hasPendingSourceFiles,
@@ -247,10 +352,6 @@ export class WorkbenchDomainBridge extends Disposable {
       this.options.plotService.prefetchPlotDisplayModel(input, "active");
     }
     this.options.chartService.updateViewInput(chartViewInput);
-    endPerf({
-      processedFileCount: readModel.processedFileIds.length,
-      rawFileCount: readModel.rawFiles.length,
-    });
   }
 
   private getExplorerPaneInput(
