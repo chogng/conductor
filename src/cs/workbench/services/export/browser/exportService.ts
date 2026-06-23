@@ -37,10 +37,7 @@ import {
   type OriginExportPlan,
   type OriginYAxisScaleMode,
 } from "src/cs/workbench/services/export/common/originExport";
-import {
-  getLatestTemplateRunRecord,
-  type FileRecord,
-} from "src/cs/workbench/services/session/common/sessionModel";
+import type { FileRecord } from "src/cs/workbench/services/session/common/sessionModel";
 import { getFileRecordAxisProjection } from "src/cs/workbench/services/session/common/sessionRecordProjection";
 import type {
   ProcessedEntry,
@@ -446,11 +443,9 @@ export class BrowserExportService extends Disposable implements IExportService {
   ): string {
     const record = this.resolveOriginFileRecord(input, file);
     const axisProjection = record ? getFileRecordAxisProjection(record) : undefined;
-    const templateRun = record ? getLatestTemplateRunRecord(record) : undefined;
     if (axis === "x") {
       return String(
         axisProjection?.xLabel ??
-          templateRun?.config.bottomTitle ??
           file?.xLabel ??
           "",
       );
@@ -458,7 +453,6 @@ export class BrowserExportService extends Disposable implements IExportService {
 
     return String(
       axisProjection?.yLabel ??
-        templateRun?.config.leftTitle ??
         file?.yLabel ??
         "",
     );

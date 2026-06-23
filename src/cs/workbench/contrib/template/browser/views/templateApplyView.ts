@@ -9,6 +9,7 @@ import { LxIcon } from "src/cs/base/common/lxicon";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import { localize } from "src/cs/nls";
+import { SliceCommandId } from "src/cs/workbench/contrib/slice/common/slice";
 import { TemplateCommandId } from "src/cs/workbench/services/template/common/template";
 
 export type TemplateApplyViewOptions = {
@@ -107,7 +108,7 @@ export class TemplateApplyView {
     });
     applyAllButton.className = `${applyAllButton.className} template_button`;
     applyAllButton.addEventListener("click", () => {
-      void this.options.commandService.executeCommand(TemplateCommandId.applyTemplate);
+      void this.options.commandService.executeCommand(SliceCommandId.runWithTemplate);
     });
 
     const applyNewButton = createButton({
@@ -117,7 +118,7 @@ export class TemplateApplyView {
     });
     applyNewButton.className = `${applyNewButton.className} template_button`;
     applyNewButton.addEventListener("click", () => {
-      void this.options.commandService.executeCommand(TemplateCommandId.applyTemplateIncremental);
+      void this.options.commandService.executeCommand(SliceCommandId.runWithTemplateIncremental);
     });
 
     applyActions.append(applyAllButton, applyNewButton);

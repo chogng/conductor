@@ -25,7 +25,7 @@ import type {
 	INativeOpenDialogResult,
 } from "src/cs/platform/native/common/native";
 import { JSONEditingService } from "src/cs/workbench/services/configuration/common/jsonEditingService";
-import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
+import { createEmptyTemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
 import {
 	TEMPLATE_FILENAME,
 	type StoredTemplate,
@@ -157,11 +157,11 @@ suite("workbench/services/template/electron-browser/templateStoreService", () =>
 		assert.deepStrictEqual(await service.getTemplates(), []);
 		assert.equal(files.getWrittenContent(resource), "{\n  \"templates\": [],\n  \"nextTemplateId\": 1\n}\n");
 
-		const first = await service.saveTemplate(createEmptyTemplateConfig({
+		const first = await service.saveTemplate(createEmptyTemplateApplyConfig({
 			name: "Template",
 			yColumns: [1],
 		})) as StoredTemplate;
-		const second = await service.saveTemplate(createEmptyTemplateConfig({
+		const second = await service.saveTemplate(createEmptyTemplateApplyConfig({
 			name: " template ",
 			yColumns: [2],
 		})) as StoredTemplate;
@@ -174,7 +174,7 @@ suite("workbench/services/template/electron-browser/templateStoreService", () =>
 		assert.ok(files.getWrittenContent(resource)?.includes("\"templates\""));
 
 		const renamed = await service.saveTemplate({
-			...createEmptyTemplateConfig({
+			...createEmptyTemplateApplyConfig({
 				name: "Renamed Template",
 				yColumns: [3],
 			}),
@@ -191,7 +191,7 @@ suite("workbench/services/template/electron-browser/templateStoreService", () =>
 
 		assert.deepStrictEqual(await service.getTemplates(), []);
 
-		const next = await service.saveTemplate(createEmptyTemplateConfig({
+		const next = await service.saveTemplate(createEmptyTemplateApplyConfig({
 			name: "Next Template",
 			yColumns: [4],
 		})) as StoredTemplate;

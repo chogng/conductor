@@ -9,6 +9,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 import type { IPlotService } from "src/cs/workbench/services/plot/common/plot";
 import type { ISessionService } from "src/cs/workbench/services/session/common/session";
 import {
+	createSessionChangeEvent,
+	type SessionChangeEvent,
+} from "src/cs/workbench/services/session/common/sessionEvents";
+import {
 	BrowserThumbnailPreviewService,
 	BrowserThumbnailService,
 } from "src/cs/workbench/services/thumbnail/browser/thumbnailService";
@@ -551,11 +555,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 	});
 
 	test("targeted session changes retry loading hover previews", () => {
-		const sessionEmitter = store.add(new Emitter<{
-			readonly fileIds?: readonly string[];
-			readonly reason: "templateRunChanged";
-			readonly sessionVersion: number;
-		}>());
+		const sessionEmitter = store.add(new Emitter<SessionChangeEvent>());
 		let modelReady = false;
 		let calculatedCalls = 0;
 		const service = store.add(new BrowserThumbnailPreviewService(
@@ -589,11 +589,9 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		assert.equal(calculatedCalls, 1);
 
 		modelReady = true;
-		sessionEmitter.fire({
+		sessionEmitter.fire(createSessionChangeEvent("sliceRunChanged", 2, {
 			fileIds: ["file-a"],
-			reason: "templateRunChanged",
-			sessionVersion: 2,
-		});
+		}));
 
 		assert.equal(service.get("file-a").kind, "ready");
 		assert.equal(calculatedCalls, 2);
@@ -601,11 +599,7 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 	});
 
 	test("session changes invalidate only affected thumbnail previews", async () => {
-		const sessionEmitter = store.add(new Emitter<{
-			readonly fileIds?: readonly string[];
-			readonly reason: "templateRunChanged";
-			readonly sessionVersion: number;
-		}>());
+		const sessionEmitter = store.add(new Emitter<SessionChangeEvent>());
 		const service = store.add(new BrowserThumbnailPreviewService(
 			{
 				getCachedCalculatedData: ({ fileId }: { readonly fileId: string }) => ({
@@ -649,11 +643,9 @@ suite("workbench/services/thumbnail/test/browser/thumbnailService", () => {
 		assert.equal(service.get("file-a").kind, "ready");
 		assert.equal(service.get("file-b").kind, "ready");
 
-		sessionEmitter.fire({
+		sessionEmitter.fire(createSessionChangeEvent("sliceRunChanged", 2, {
 			fileIds: ["file-b"],
-			reason: "templateRunChanged",
-			sessionVersion: 2,
-		});
+		}));
 
 		assert.equal(service.get("file-a").kind, "ready");
 		assert.equal(service.get("file-b").kind, "ready");

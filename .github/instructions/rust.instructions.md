@@ -70,7 +70,7 @@ Prefer domain/runtime names:
 ```txt
 services/files/electron-browser/fileConversionService.ts
 services/table/electron-browser/tableRowsReader.ts
-services/template/electron-browser/templateApplyService.ts
+services/slice/electron-browser/sliceService.ts
 services/plot/electron-browser/plotService.ts
 services/export/electron-browser/exportService.ts
 ```
@@ -106,7 +106,7 @@ Return data only at stable domain boundaries:
 | File conversion | files electron-browser conversion service | parse CSV/XLS/XLSX, split sheets, create normalized CSV artifacts | `FileConversionResult`-compatible descriptors, raw table metadata, diagnostics |
 | Assessment | assessment service | block/group/role inference | `RawTableAssessmentRecord` |
 | Table preview | table rows reader | chunk/cell/raw metadata reads | bounded rows or selected cells |
-| Template apply | template apply service | extraction/process | `TemplateRunRecord`, series/curve descriptors, diagnostics |
+| Slice execution | slice service | extraction/process | `SliceRun`, series/curve descriptors, diagnostics |
 | Plot | plot service | calculation, scaling, log transform, downsampling, plot frame | `PlotRenderModel` / bounded plot frame |
 | Parameters | parameters/metric service | metrics and fits | `MetricRecord`, scalar values, bounded fit preview |
 | Export | export service | stream CSV/ZIP/artifacts | artifact descriptor |

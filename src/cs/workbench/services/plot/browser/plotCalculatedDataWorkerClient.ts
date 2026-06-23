@@ -15,9 +15,10 @@ import type {
   PlotDisplayModelWorkerRequest,
 } from "src/cs/workbench/services/plot/browser/plotCalculatedDataWorker";
 import type { FileAxisSettingsByFileId } from "src/cs/workbench/services/session/browser/fileSemanticsSync";
-import type {
-  FileId,
-  FileRecord,
+import {
+  getLatestSliceRunRecord,
+  type FileId,
+  type FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import { getPerfNow, logPerf } from "src/cs/workbench/common/perf";
 
@@ -89,9 +90,7 @@ export const calculatePlotDataInWorker = (
 };
 
 const createPlotWorkerFileRecord = (file: FileRecord): FileRecord => {
-  const latestTemplateRun = file.latestTemplateRunId
-    ? file.templateRunsById[file.latestTemplateRunId]
-    : undefined;
+  const latestSliceRun = getLatestSliceRunRecord(file);
   const curvesByKey: FileRecord["curvesByKey"] = {};
   for (const [key, curve] of Object.entries(file.curvesByKey)) {
     if (curve.curveGeneration === "base") {
@@ -126,12 +125,12 @@ const createPlotWorkerFileRecord = (file: FileRecord): FileRecord => {
     rawTableVersionsById: {},
     seriesById,
     seriesOrder: file.seriesOrder.filter(seriesId => curveSeriesIds.has(seriesId)),
-    templateRunsById: latestTemplateRun
-      ? { [latestTemplateRun.id]: latestTemplateRun }
-      : {},
   };
-  if (latestTemplateRun) {
-    workerFile.latestTemplateRunId = latestTemplateRun.id;
+  if (latestSliceRun) {
+    workerFile.latestSliceRunId = latestSliceRun.id;
+    workerFile.sliceRunsById = {
+      [latestSliceRun.id]: latestSliceRun,
+    };
   }
   return workerFile;
 };

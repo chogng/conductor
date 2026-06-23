@@ -14,7 +14,7 @@ import type {
 export type SessionChangeReason =
 	| "rawTablesChanged"
 	| "assessmentChanged"
-	| "templateRunChanged"
+	| "sliceRunChanged"
 	| "curvesChanged"
 	| "metricsChanged"
 	| "calculatedRecordsChanged"

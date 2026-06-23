@@ -49,12 +49,10 @@ export class AssessmentService extends Disposable implements IAssessmentServiceT
     input: AssessRawTableInput,
   ): Promise<RawTableAssessmentRecord> {
     const schemaProfileSnapshot = this.schemaProfileService?.getSnapshot();
+    const schemaProfiles = input.schemaProfiles ?? schemaProfileSnapshot?.profiles ?? [];
     return this.rawTableAssessmentEngine.assess({
       ...input,
-      schemaProfiles: [
-        ...(schemaProfileSnapshot?.profiles ?? []),
-        ...(input.schemaProfiles ?? []),
-      ],
+      schemaProfiles,
       schemaProfileVersion: input.schemaProfileVersion ?? schemaProfileSnapshot?.version ?? 0,
     });
   }

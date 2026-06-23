@@ -14,7 +14,7 @@
   ],
   "columns": {
     "freq": {
-      "role": "unknown",
+      "role": "frequency",
       "unit": "Hz",
       "unitConfirmed": true
     },

@@ -46,9 +46,9 @@ import {
   type TableViewInput,
 } from "src/cs/workbench/services/table/common/table";
 import {
-  ITemplateService,
+  ITemplateViewStateService,
   type TemplateMode,
-} from "src/cs/workbench/services/template/common/template";
+} from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 
 export type TableViewPaneProps = TableViewInput;
 
@@ -89,7 +89,7 @@ export class TableViewPane extends ViewPane {
     @ITableWidgetService private readonly tableWidgetService: ITableWidgetService,
     @ICommandService private readonly commandService: ICommandService,
     @IHoverService private readonly hoverService: IHoverService,
-    @ITemplateService private readonly templateService: ITemplateService,
+    @ITemplateViewStateService private readonly templateViewStateService: ITemplateViewStateService,
   ) {
     super({
       id: TableViewId,
@@ -131,7 +131,7 @@ export class TableViewPane extends ViewPane {
         this.update(input);
       }
     }));
-    this._register(this.templateService.onDidChangeTemplateState(() => {
+    this._register(this.templateViewStateService.onDidChangeTemplateState(() => {
       if (this.props) {
         this.update(this.props);
       }
@@ -185,7 +185,7 @@ export class TableViewPane extends ViewPane {
       this.tableService,
       this.commandService,
       this.hoverService,
-      this.templateService.getState().mode,
+      this.templateViewStateService.getState().mode,
     ));
     this.store.add(this.tableWidgetService.registerController(this.controller));
     this.store.add(this.controller.onDidChangeSize(() => this.updateDimensions()));
@@ -201,7 +201,7 @@ export class TableViewPane extends ViewPane {
       this.tableService,
       this.commandService,
       this.hoverService,
-      this.templateService.getState().mode,
+      this.templateViewStateService.getState().mode,
     ));
     this.updateHeaderRight();
   }

@@ -4,10 +4,11 @@
 
 import { isPerfEnabled, logPerf } from "src/cs/workbench/common/perf";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
-import type {
-  CurveRecord,
-  FileId,
-  FileRecord,
+import {
+  getLatestSliceRunRecord,
+  type CurveRecord,
+  type FileId,
+  type FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 
 export type SessionSnapshotTraceSummary = {
@@ -24,7 +25,7 @@ export type SessionSnapshotTraceSummary = {
   readonly schemaVersion: number;
   readonly seriesCount: number;
   readonly sessionVersion: number;
-  readonly templateRunCount: number;
+  readonly sliceRunCount: number;
 };
 
 export type SessionSnapshotTraceFileSummary = {
@@ -32,8 +33,8 @@ export type SessionSnapshotTraceFileSummary = {
   readonly curveCount: number;
   readonly fileId: FileId;
   readonly fileName: string;
-  readonly latestTemplateRunCurveCount: number;
-  readonly latestTemplateRunId: string | null;
+  readonly latestSliceRunCurveCount: number;
+  readonly latestSliceRunId: string | null;
   readonly pointCount: number;
   readonly rawTableCount: number;
   readonly seriesCount: number;
@@ -110,7 +111,7 @@ const getCachedSessionSnapshotTrace = (
   let pointCount = 0;
   let processedFileCount = 0;
   let metricCount = 0;
-  let templateRunCount = 0;
+  let sliceRunCount = 0;
 
   for (const file of files) {
     const fileSummary = summarizeFileRecord(file);
@@ -122,7 +123,7 @@ const getCachedSessionSnapshotTrace = (
     derivedCurveCount += fileSummary.curveCount - fileSummary.baseCurveCount;
     pointCount += fileSummary.pointCount;
     metricCount += Object.keys(file.metricsByKey).length;
-    templateRunCount += Object.keys(file.templateRunsById).length;
+    sliceRunCount += Object.keys(file.sliceRunsById ?? {}).length;
     if (fileSummary.baseCurveCount > 0) {
       processedFileCount += 1;
     }
@@ -142,7 +143,7 @@ const getCachedSessionSnapshotTrace = (
       schemaVersion: snapshot.schemaVersion,
       seriesCount,
       sessionVersion: snapshot.sessionVersion,
-      templateRunCount,
+      sliceRunCount,
     },
     fileSummariesById,
   };
@@ -175,16 +176,14 @@ const getSampleFileIds = (
 const summarizeFileRecord = (file: FileRecord): SessionSnapshotTraceFileSummary => {
   const curves = Object.values(file.curvesByKey);
   const baseCurves = curves.filter(isBaseCurve);
-  const latestTemplateRun = file.latestTemplateRunId
-    ? file.templateRunsById[file.latestTemplateRunId]
-    : undefined;
+  const latestSliceRun = getLatestSliceRunRecord(file);
   return {
     baseCurveCount: baseCurves.length,
     curveCount: curves.length,
     fileId: file.id,
     fileName: file.name || file.raw.fileName,
-    latestTemplateRunCurveCount: latestTemplateRun?.outputCurveKeys.length ?? 0,
-    latestTemplateRunId: latestTemplateRun?.id ?? null,
+    latestSliceRunCurveCount: latestSliceRun?.outputCurveKeys.length ?? 0,
+    latestSliceRunId: latestSliceRun?.id ?? null,
     pointCount: curves.reduce((count, curve) => count + curve.points.length, 0),
     rawTableCount: uniqueStrings([
       ...file.raw.tableOrder,

@@ -66,9 +66,9 @@ Subscriptions must be disposed through the owner lifecycle.
 
 | State kind | Owner | Examples |
 | --- | --- | --- |
-| Canonical model state | `ISessionService` and domain commit APIs | raw files, assessments, template runs, curves, metrics |
-| Domain service state | The domain service | plot settings, chart view input, template form state, table source/selection snapshot |
-| View state | The view/widget/service that renders it | focus, local selection, scroll, expansion, hover, layout mode |
+| Canonical model state | `ISessionService` and domain commit APIs | raw files, assessments, slice runs, curves, metrics |
+| Domain service state | The domain service | plot settings, chart view input, template catalog state, table source/selection snapshot |
+| View state | The view/widget/service that renders it | focus, local selection, template form draft, scroll, expansion, hover, layout mode |
 | Derived model | Producer service | plot render model, table display profile, search model, thumbnail preview |
 
 Do not promote local state into a global service unless it has a real
@@ -128,7 +128,8 @@ Runtime folders:
 | `ISessionService` | canonical session ledger and change events |
 | `IAssessmentService` | raw table interpretation: groups, blocks, roles, diagnostics |
 | `ITableService` | table source, rows, selection snapshot, reveal/highlight |
-| `ITemplateService` / apply workflow | template management, planning, processing, template run outputs |
+| `ITemplateService` | saved template catalog, legacy preset CRUD, and canonical `Template` reads |
+| `ITemplateViewStateService` | Template UI selected-template/form editor state |
 | calculation services/helpers | derived curves and metrics commit payloads |
 | `IPlotService` | plot render models, plot settings, series visibility/focus |
 | `IChartService` | chart shell/view input and chart-local UI state |
@@ -179,7 +180,7 @@ Specific flow owners:
 
 - Import/source collection: Explorer/files workflow coordinates; converter returns results; Session commits.
 - Assessment: Assessment service reads raw tables and commits assessment records.
-- Template apply: Template/apply workflow reads assessment/template state and commits runs/series/curves.
+- Slice execution: Slice reads Assessment-selected/manual Template state and commits SliceRun/series/base curves.
 - Calculation: calculation services derive curves/metrics and commit through Session.
 - Plot: Plot consumes canonical curves/metrics and produces render models.
 - Chart: Chart hosts plot UI; it does not interpret raw session facts.
@@ -189,7 +190,7 @@ Specific flow owners:
 ## Canonical Session
 
 `SessionModel` is the canonical in-memory ledger. It stores imported files,
-raw tables, assessments, template runs, series, curves, metrics, metric inputs,
+raw tables, assessments, slice runs, series, curves, metrics, metric inputs,
 and rebuildable calculation cache descriptors.
 
 Keep out of Session:
@@ -240,9 +241,9 @@ Before approving a change, verify:
 
 | State kind | Owner | Examples |
 | --- | --- | --- |
-| Canonical model state | `ISessionService` and domain commit APIs | raw files, assessments, template runs, curves, metrics |
-| Domain service state | The domain service | plot settings, chart view input, template form state, table source/selection snapshot |
-| View state | The view/widget/service that renders it | focus, local selection, scroll, expansion, hover, layout mode |
+| Canonical model state | `ISessionService` and domain commit APIs | raw files, assessments, slice runs, curves, metrics |
+| Domain service state | The domain service | plot settings, chart view input, template catalog state, table source/selection snapshot |
+| View state | The view/widget/service that renders it | focus, local selection, template form draft, scroll, expansion, hover, layout mode |
 | Derived model | Producer service | plot render model, table display profile, search model, thumbnail preview |
 
 Do not promote local state into a global service unless it has a real workbench-wide owner, lifecycle, and external contract.
@@ -299,7 +300,8 @@ Runtime folders:
 | `ISessionService` | canonical session ledger and change events |
 | `IAssessmentService` | raw table interpretation: groups, blocks, roles, diagnostics |
 | `ITableService` | table source, rows, selection snapshot, reveal/highlight |
-| `ITemplateService` / apply workflow | template management, planning, processing, template run outputs |
+| `ITemplateService` | saved template catalog, legacy preset CRUD, and canonical `Template` reads |
+| `ITemplateViewStateService` | Template UI selected-template/form editor state |
 | calculation services/helpers | derived curves and metrics commit payloads |
 | `IPlotService` | plot render models, plot settings, series visibility/focus |
 | `IChartService` | chart shell/view input and chart-local UI state |
@@ -350,7 +352,7 @@ Specific flow owners:
 
 - Import/source collection: Explorer/files workflow coordinates; converter returns results; Session commits.
 - Assessment: Assessment service reads raw tables and commits assessment records.
-- Template apply: Template/apply workflow reads assessment/template state and commits runs/series/curves.
+- Slice execution: Slice reads Assessment-selected/manual Template state and commits SliceRun/series/base curves.
 - Calculation: calculation services derive curves/metrics and commit through Session.
 - Plot: Plot consumes canonical curves/metrics and produces render models.
 - Chart: Chart hosts plot UI; it does not interpret raw session facts.
@@ -360,7 +362,7 @@ Specific flow owners:
 ## Canonical Session
 
 `SessionModel` is the canonical in-memory ledger. It stores imported files,
-raw tables, assessments, template runs, series, curves, metrics, metric inputs,
+raw tables, assessments, slice runs, series, curves, metrics, metric inputs,
 and rebuildable calculation cache descriptors.
 
 Keep out of Session:

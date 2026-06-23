@@ -10,18 +10,23 @@ import {
 import { ICommandService } from "src/cs/platform/commands/common/commands";
 import { replaceChildrenIfChanged } from "src/cs/base/browser/dom";
 import { ITableService } from "src/cs/workbench/services/table/common/table";
+import { ISessionService } from "src/cs/workbench/services/session/common/session";
+import { createSessionReadModel } from "src/cs/workbench/services/session/common/sessionReadModel";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import {
   ITemplateService,
   TemplateAuxiliaryBarViewId,
   type ITemplateService as ITemplateServiceType,
-  type TemplateViewInput,
 } from "src/cs/workbench/services/template/common/template";
 import {
   TemplateView,
   type TemplateViewOptions,
 } from "src/cs/workbench/contrib/template/browser/views/templateView";
+import {
+  ITemplateViewStateService,
+  type ITemplateViewStateService as ITemplateViewStateServiceType,
+} from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 
 import "src/cs/workbench/contrib/template/browser/media/templateViewPane.css";
 
@@ -36,8 +41,10 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
     @ICommandService private readonly commandService: ICommandService,
     @IContextMenuService private readonly contextMenuService: IContextMenuServiceType,
     @INotificationService private readonly notificationService: INotificationService,
+    @ISessionService private readonly sessionService: ISessionService,
     @ITableService private readonly tableService: ITableService,
     @ITemplateService private readonly templateService: ITemplateServiceType,
+    @ITemplateViewStateService private readonly templateViewStateService: ITemplateViewStateServiceType,
   ) {
     super({
       id: TemplateAuxiliaryBarViewId,
@@ -47,24 +54,24 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
     });
     this.body.setAttribute("aria-label", TEMPLATE_TITLE);
     this.content.className = "template_pane template_pane--auxiliary";
-    this.templateView = new TemplateView(this.createViewOptions(this.templateService.getViewInput()));
+    this.templateView = new TemplateView(this.createViewOptions());
     this.content.append(this.templateView.configElement);
     this.body.append(this.content);
-    this._register(this.templateService.onDidChangeTemplateViewInput(() => {
-      this.update(this.templateService.getViewInput());
+    this._register(this.sessionService.onDidChangeSession(() => {
+      this.update();
     }));
-    this._register(this.templateService.onDidChangeTemplateState(() => {
+    this._register(this.templateViewStateService.onDidChangeTemplateState(() => {
       this.updateTitle();
-      this.update(this.templateService.getViewInput());
+      this.update();
     }));
-    this._register(this.templateService.onDidChangeTemplateList(() => {
-      this.update(this.templateService.getViewInput());
+    this._register(this.templateService.onDidChangeTemplates(() => {
+      this.update();
     }));
     this.updateTitle();
   }
 
-  public update(input: TemplateViewInput | null): void {
-    this.templateView.update(this.createViewOptions(input));
+  public update(): void {
+    this.templateView.update(this.createViewOptions());
     replaceChildrenIfChanged(this.content, this.templateView.configElement);
   }
 
@@ -80,20 +87,20 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
   }
 
   private getTitle(): string {
-    return this.templateService.getState().mode === "editor"
+    return this.templateViewStateService.getState().mode === "editor"
       ? TEMPLATE_EDITOR_TITLE
       : TEMPLATE_TITLE;
   }
 
-  private createViewOptions(input: TemplateViewInput | null): TemplateViewOptions {
+  private createViewOptions(): TemplateViewOptions {
     return {
-      ...input,
       commandService: this.commandService,
       contextMenuService: this.contextMenuService,
       notificationService: this.notificationService,
-      rawFiles: input?.rawFiles ?? [],
+      rawFiles: createSessionReadModel(this.sessionService.getSnapshot()).rawFiles,
       tableService: this.tableService,
       templateService: this.templateService,
+      templateViewStateService: this.templateViewStateService,
     };
   }
 }

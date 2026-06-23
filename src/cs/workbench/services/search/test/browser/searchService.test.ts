@@ -536,5 +536,4 @@ const createFileRecord = (): FileRecord => ({
 		},
 	},
 	seriesOrder: ["series-a"],
-	templateRunsById: {},
 });

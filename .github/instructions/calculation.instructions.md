@@ -52,7 +52,8 @@ SessionChangeEvent / SessionSnapshot
 
 ## Update Triggers
 
-- Rerun on `templateRunChanged`, `filesRemoved`, `sessionCleared`, and `metricInputsChanged`.
+- Rerun on `sliceRunChanged`, `filesRemoved`, `sessionCleared`, and
+  `metricInputsChanged`.
 - Rerun on `curvesChanged` only when base curves changed.
 - Do not rerun on derived/second-derived curve commits, calculated record commits, metric commits, raw table changes, or assessment changes unless they become calculation inputs.
 - When `fileIds` are available, recompute only those files.
@@ -63,7 +64,9 @@ SessionChangeEvent / SessionSnapshot
 - Read Session only through `ISessionService.getSnapshot()`.
 - Write canonical results only through Session commit APIs.
 - `calculationService.ts` owns lifecycle/queue glue; algorithm and record-building logic belongs in `common/*`.
-- Worker payloads include only what is required: base curves, matching series, metric inputs, latest template metadata, and minimal raw file identity.
+- Worker payloads include only what is required: base curves, matching series,
+  metric inputs, latest `SliceRun` template metadata, and minimal raw file
+  identity.
 - Do not send raw table rows, assessment state, or full snapshots to the worker.
 - Worker results must be checked against per-file input signatures; session version alone is not enough.
 - Interactive foreground and background work share one calculation worker slot to bound CPU pressure.

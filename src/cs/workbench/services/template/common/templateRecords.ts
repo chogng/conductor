@@ -4,19 +4,19 @@
 
 import { isAutoTemplateId } from "src/cs/workbench/services/template/common/autoTemplate";
 
-export type UserTemplateRecord = Record<string, unknown> & {
+export type UserTemplateApplyPresetRecord = Record<string, unknown> & {
   readonly id?: unknown;
 };
 
-const isTemplateRecord = (value: unknown): value is UserTemplateRecord =>
+const isTemplateApplyPresetRecord = (value: unknown): value is UserTemplateApplyPresetRecord =>
   Boolean(value) && typeof value === "object";
 
-export const filterUserTemplateRecords = (templates: unknown): UserTemplateRecord[] => {
+export const filterUserTemplateApplyPresetRecords = (templates: unknown): UserTemplateApplyPresetRecord[] => {
   if (!Array.isArray(templates)) {
     return [];
   }
 
-  return templates.filter((template): template is UserTemplateRecord =>
-    isTemplateRecord(template) && !isAutoTemplateId(template.id),
+  return templates.filter((template): template is UserTemplateApplyPresetRecord =>
+    isTemplateApplyPresetRecord(template) && !isAutoTemplateId(template.id),
   );
 };

@@ -9,7 +9,7 @@ import {
   replaceCalculatedCurvesInRecords,
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import type { SessionSnapshot } from "src/cs/workbench/services/session/common/session";
-import { getLatestTemplateRunRecord } from "src/cs/workbench/services/session/common/sessionModel";
+import { getLatestSliceRunRecord } from "src/cs/workbench/services/session/common/sessionModel";
 import {
   getFileRecordAxisProjection,
   getFileRecordCurveType,
@@ -19,7 +19,7 @@ import {
   type RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
-import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
+import { createEmptyTemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
 
 suite("workbench/services/session/test/common/sessionModelAdapter", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -110,7 +110,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
       fileName: "Transfer.csv",
     }]);
     const templateConfig = {
-      ...createEmptyTemplateConfig(),
+      ...createEmptyTemplateApplyConfig(),
       name: "Transfer Template",
       xDataStart: "12",
       xDataEnd: "48",
@@ -161,7 +161,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
       },
       snapshot,
       {
-        appliedTemplateConfig: templateConfig,
+        appliedTemplateApplyConfig: templateConfig,
         appliedTemplateSelection: { kind: "template", templateId: "template-a" },
       },
     );
@@ -220,24 +220,23 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
 
     const record = calculatedRecords.filesById["file-a"];
 
-    const templateRun = getLatestTemplateRunRecord(record);
-    assert.equal(templateRun?.selection.kind, "template");
+    const sliceRun = getLatestSliceRunRecord(record);
+    assert.equal(sliceRun?.selection.kind, "saved");
     assert.equal(
-      templateRun?.selection.kind === "template"
-        ? templateRun.selection.templateId
+      sliceRun?.selection.kind === "saved"
+        ? sliceRun.selection.templateId
         : null,
       "template-a",
     );
-    assert.equal(templateRun?.fileId, "file-a");
-    assert.equal(record.latestTemplateRunId, templateRun?.id);
-    assert.equal(record.templateRunsById[templateRun?.id ?? ""], templateRun);
-    assert.equal(templateRun?.config.name, "Transfer Template");
-    assert.deepEqual(templateRun?.config.xColumns, []);
-    assert.equal(templateRun?.config.xDataStart, 12);
-    assert.equal(templateRun?.config.xDataEnd, 48);
-    assert.equal(templateRun?.config.xPointsPerGroup, 2);
-    assert.equal(templateRun?.config.yLegendStep, 0.5);
-    assert.deepEqual(templateRun?.config.yColumns, [2, 3]);
+    assert.equal(sliceRun?.fileId, "file-a");
+    assert.equal(record.latestSliceRunId, sliceRun?.id);
+    assert.equal(record.sliceRunsById?.[sliceRun?.id ?? ""], sliceRun);
+    assert.equal(sliceRun?.template.name, "Transfer Template");
+    assert.deepEqual(sliceRun?.template.blocks[0]?.x.columns, []);
+    assert.equal(sliceRun?.template.blocks[0]?.rowRange.startRow, 12);
+    assert.equal(sliceRun?.template.blocks[0]?.rowRange.endRow, 48);
+    assert.deepEqual(sliceRun?.template.blocks[0]?.segmentation, { kind: "fixedPoints", pointsPerGroup: 2 });
+    assert.deepEqual(sliceRun?.template.blocks[0]?.y.columns, [2, 3]);
     const axis = getFileRecordAxisProjection(record);
     assert.equal(axis.xLabel, "Gate Voltage");
     assert.equal(axis.xAxisRole, "vg");
@@ -293,7 +292,10 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
 
     const assessment: RawTableAssessmentRecord = {
       assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+      ruleSetFingerprint: "rule:test",
+      templateCatalogVersion: 0,
       schemaProfileVersion: 0,
+      templateCandidates: [],
       blocks: [{
         id: "file-a:block:0",
         fileId: "file-a",
@@ -539,16 +541,16 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
         appliedTemplateSelection: { kind: "template", templateId: "template-a" },
       },
     );
-    const templateRun = getLatestTemplateRunRecord(processedRecords.filesById["file-a"]);
+    const sliceRun = getLatestSliceRunRecord(processedRecords.filesById["file-a"]);
 
-    assert.equal(templateRun?.selection.kind, "template");
+    assert.equal(sliceRun?.selection.kind, "saved");
     assert.equal(
-      templateRun?.selection.kind === "template"
-        ? templateRun.selection.templateId
+      sliceRun?.selection.kind === "saved"
+        ? sliceRun.selection.templateId
         : null,
       "template-a",
     );
-    assert.equal(templateRun?.mode, "manual");
+    assert.equal(sliceRun?.mode, "manual");
   });
 
   test("records the applied extraction config for processed files", () => {
@@ -573,7 +575,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
       },
       createSnapshot(rawRecords),
       {
-        appliedTemplateConfig: {
+        appliedTemplateApplyConfig: {
           name: "Manual Transfer",
           bottomTitle: "Vg",
           endRow: 2,
@@ -588,19 +590,19 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
         },
       },
     );
-    const config = getLatestTemplateRunRecord(processedRecords.filesById["file-a"])?.config;
+    const template = getLatestSliceRunRecord(processedRecords.filesById["file-a"])?.template;
+    const block = template?.blocks[0];
 
-    assert.equal(config?.name, "Manual Transfer");
-    assert.equal(config?.xDataStart, 1);
-    assert.equal(config?.xDataEnd, 2);
-    assert.deepEqual(config?.xColumns, [0]);
-    assert.equal(config?.xSegmentationMode, "points");
-    assert.equal(config?.xPointsPerGroup, 2);
-    assert.deepEqual(config?.yColumns, [1]);
-    assert.equal(config?.bottomTitle, "Vg");
-    assert.equal(config?.leftTitle, "Id");
-    assert.equal(config?.xUnit, "V");
-    assert.equal(config?.yUnit, "A");
+    assert.equal(template?.name, "Manual Transfer");
+    assert.equal(block?.rowRange.startRow, 1);
+    assert.equal(block?.rowRange.endRow, 2);
+    assert.deepEqual(block?.x.columns, [0]);
+    assert.deepEqual(block?.segmentation, { kind: "fixedPoints", pointsPerGroup: 2 });
+    assert.deepEqual(block?.y.columns, [1]);
+    assert.equal(block?.titles?.bottom, "Vg");
+    assert.equal(block?.titles?.left, "Id");
+    assert.equal(block?.x.unit, "V");
+    assert.equal(block?.y.unit, "A");
   });
 });
 

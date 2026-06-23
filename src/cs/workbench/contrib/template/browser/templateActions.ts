@@ -13,25 +13,30 @@ import {
   Severity,
 } from "src/cs/workbench/services/notification/common/notificationService";
 import { TemplateImportController } from "src/cs/workbench/services/template/browser/templateImportController";
+import { downloadTemplateBundle } from "src/cs/workbench/services/template/browser/templateFileTransfer";
 import {
-  AUTO_TEMPLATE_CONFIG_FIELD,
   isAutoTemplateId,
 } from "src/cs/workbench/services/template/common/autoTemplate";
 import {
-  cloneTemplateConfig,
-  normalizeTemplateConfigRecord,
+  cloneTemplateApplyConfig,
+  normalizeTemplateApplyConfigRecord,
   toTemplateNameKey,
-} from "src/cs/workbench/services/template/common/templateConfigUtils";
+} from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
 import {
-  ITemplateApplyWorkflowService,
   ITemplateService,
   TemplateCommandId,
-  type TemplateRecord,
+  type TemplateApplyPresetRecord,
 } from "src/cs/workbench/services/template/common/template";
 import {
-  validateTemplateForApply,
   validateTemplateForSave,
 } from "src/cs/workbench/services/template/common/templateValidation";
+import {
+  runSliceWithTemplateHandler,
+} from "src/cs/workbench/contrib/slice/browser/sliceCommands";
+import {
+  ITemplateViewStateService,
+  type ITemplateViewStateService as ITemplateViewStateServiceType,
+} from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 
 export function registerTemplateActions(): void {
   registerAction2(SelectTemplateAction);
@@ -57,8 +62,7 @@ export class SelectTemplateAction extends Action2 {
   }
 
   public run(accessor: ServicesAccessor, template?: unknown): void {
-    const templateService = accessor.get(ITemplateService);
-    templateService.selectTemplate(normalizeTemplateActionTarget(template));
+    accessor.get(ITemplateViewStateService).selectTemplate(normalizeTemplateActionTarget(template));
   }
 }
 
@@ -76,7 +80,7 @@ export class CreateTemplateAction extends Action2 {
   }
 
   public run(accessor: ServicesAccessor, template?: unknown): void {
-    accessor.get(ITemplateService).createTemplateDraft(normalizeTemplateActionTarget(template));
+    accessor.get(ITemplateViewStateService).createTemplateDraft(normalizeTemplateActionTarget(template));
   }
 }
 
@@ -130,14 +134,14 @@ export class EditTemplateAction extends Action2 {
   }
 
   public run(accessor: ServicesAccessor, template: unknown): void {
-    const templateService = accessor.get(ITemplateService);
+    const templateViewStateService = accessor.get(ITemplateViewStateService);
     const target = normalizeTemplateActionTarget(template)
-      ?? createCurrentTemplateActionTarget(templateService);
+      ?? createCurrentTemplateActionTarget(templateViewStateService);
     if (!target) {
       return;
     }
 
-    templateService.editTemplate(target);
+    templateViewStateService.editTemplate(target);
   }
 }
 
@@ -155,9 +159,10 @@ export class ExportTemplateAction extends Action2 {
   }
 
   public run(accessor: ServicesAccessor, template?: unknown): void {
-    const templateService = accessor.get(ITemplateService);
-    const target = normalizeTemplateActionTarget(template);
-    const exported = templateService.exportTemplate(target ?? undefined);
+    const templateViewStateService = accessor.get(ITemplateViewStateService);
+    const target = normalizeTemplateActionTarget(template)
+      ?? createCurrentTemplateActionTarget(templateViewStateService);
+    const exported = exportTemplateBundle(target);
     if (!exported) {
       accessor.get(INotificationService).notify({
         id: "template.notification",
@@ -171,8 +176,6 @@ export class ExportTemplateAction extends Action2 {
 export class ApplyTemplateAction extends Action2 {
   public constructor() {
     super({
-      category: localize("template.commands.category", "Template"),
-      f1: true,
       id: TemplateCommandId.applyTemplate,
       title: localize("template.commands.applyTemplate", "Apply Template to All"),
       metadata: {
@@ -189,8 +192,6 @@ export class ApplyTemplateAction extends Action2 {
 export class ApplyTemplateIncrementalAction extends Action2 {
   public constructor() {
     super({
-      category: localize("template.commands.category", "Template"),
-      f1: true,
       id: TemplateCommandId.applyTemplateIncremental,
       title: localize("template.commands.applyTemplateIncremental", "Apply Template to New Files"),
       metadata: {
@@ -216,64 +217,32 @@ export class SetTemplateStopOnErrorAction extends Action2 {
   }
 
   public run(accessor: ServicesAccessor, value?: unknown): void {
-    const templateService = accessor.get(ITemplateService);
-    const current = templateService.getState().formState.stopOnError;
+    const templateViewStateService = accessor.get(ITemplateViewStateService);
+    const current = templateViewStateService.getState().formState.stopOnError;
     const stopOnError = typeof value === "boolean" ? value : !current;
-    templateService.setFormState(previous => ({
+    templateViewStateService.setFormState(previous => ({
       ...previous,
       stopOnError,
     }));
   }
 }
 
-function normalizeTemplateActionTarget(value: unknown): TemplateRecord | null {
+function normalizeTemplateActionTarget(value: unknown): TemplateApplyPresetRecord | null {
   return value && typeof value === "object"
-    ? value as TemplateRecord
+    ? value as TemplateApplyPresetRecord
     : null;
 }
 
 function applyTemplate(accessor: ServicesAccessor, incremental: boolean): void {
-  const templateService = accessor.get(ITemplateService);
-  const workflowService = accessor.get(ITemplateApplyWorkflowService);
-  const notificationService = accessor.get(INotificationService);
-  const state = templateService.getState();
-  const config = state.formState;
-  const selectedTemplateId = state.selectedTemplateId;
-  if (!selectedTemplateId || isAutoTemplateId(selectedTemplateId)) {
-    const autoConfig = {
-      ...config,
-      [AUTO_TEMPLATE_CONFIG_FIELD]: true,
-    };
-    if (incremental) {
-      workflowService.applyTemplateIncremental(autoConfig);
-    } else {
-      workflowService.applyTemplate(autoConfig);
-    }
-    return;
-  }
-
-  const validation = validateTemplateForApply(config);
-  if (!validation.ok || !validation.normalized) {
-    notificationService.notify({
-      id: "template.notification",
-      message: validation.message || localize("template.invalidConfiguration", "Invalid configuration"),
-      severity: Severity.Warning,
-    });
-    return;
-  }
-
-  if (incremental) {
-    workflowService.applyTemplateIncremental(validation.normalized);
-  } else {
-    workflowService.applyTemplate(validation.normalized);
-  }
+  runSliceWithTemplateHandler(accessor, { incremental });
 }
 
 async function deleteTemplate(accessor: ServicesAccessor, template: unknown): Promise<void> {
   const templateService = accessor.get(ITemplateService);
+  const templateViewStateService = accessor.get(ITemplateViewStateService);
   const notificationService = accessor.get(INotificationService);
   const target = normalizeTemplateActionTarget(template)
-    ?? createCurrentTemplateActionTarget(templateService);
+    ?? createCurrentTemplateActionTarget(templateViewStateService);
   const templateId = getTemplateActionTargetId(target);
   if (!templateId) {
     return;
@@ -288,7 +257,7 @@ async function deleteTemplate(accessor: ServicesAccessor, template: unknown): Pr
 
   try {
     await templateService.deleteTemplate(templateId);
-    templateService.selectTemplate({
+    templateViewStateService.selectTemplate({
       stopOnError: target?.stopOnError,
     });
     notificationService.notify({
@@ -308,6 +277,7 @@ async function deleteTemplate(accessor: ServicesAccessor, template: unknown): Pr
 
 async function importTemplate(accessor: ServicesAccessor): Promise<void> {
   const templateService = accessor.get(ITemplateService);
+  const templateViewStateService = accessor.get(ITemplateViewStateService);
   const notificationService = accessor.get(INotificationService);
   const controller = new TemplateImportController(
     accessor.get(IFileDialogService),
@@ -317,7 +287,7 @@ async function importTemplate(accessor: ServicesAccessor): Promise<void> {
 
   try {
     await controller.importTemplateFromDialog(async (payload) => {
-      await importTemplatePayload(payload, templateService, notificationService);
+      await importTemplatePayload(payload, templateService, templateViewStateService, notificationService);
     });
   } catch (err) {
     notificationService.notify({
@@ -331,12 +301,13 @@ async function importTemplate(accessor: ServicesAccessor): Promise<void> {
 async function importTemplatePayload(
   payload: unknown,
   templateService: ITemplateService,
+  templateViewStateService: ITemplateViewStateServiceType,
   notificationService: INotificationService,
 ): Promise<void> {
   const entry = payload && typeof payload === "object"
     ? payload as Record<string, unknown>
     : {};
-  const draft = normalizeTemplateConfigRecord(entry);
+  const draft = normalizeTemplateApplyConfigRecord(entry);
   if (!draft.name) {
     notificationService.notify({
       id: "template.notification",
@@ -346,7 +317,7 @@ async function importTemplatePayload(
     return;
   }
 
-  const templates = await templateService.getTemplates();
+  const templates = await templateService.refreshTemplates();
   const nameKey = toTemplateNameKey(draft.name);
   const conflict = templates.find((template) => toTemplateNameKey(template.name) === nameKey);
   let overwriteTemplateId: string | undefined;
@@ -391,8 +362,8 @@ async function importTemplatePayload(
     ...(overwriteTemplateId ? { id: overwriteTemplateId } : {}),
     name: draft.name,
   });
-  templateService.selectTemplate({
-    ...cloneTemplateConfig(saved),
+  templateViewStateService.selectTemplate({
+    ...cloneTemplateApplyConfig(saved),
     id: saved.id,
   });
   notificationService.notify({
@@ -403,8 +374,8 @@ async function importTemplatePayload(
   });
 }
 
-function createCurrentTemplateActionTarget(templateService: ITemplateService): TemplateRecord | null {
-  const state = templateService.getState();
+function createCurrentTemplateActionTarget(templateViewStateService: ITemplateViewStateServiceType): TemplateApplyPresetRecord | null {
+  const state = templateViewStateService.getState();
   if (!state.selectedTemplateId || isAutoTemplateId(state.selectedTemplateId)) {
     return null;
   }
@@ -415,7 +386,19 @@ function createCurrentTemplateActionTarget(templateService: ITemplateService): T
   };
 }
 
-function getTemplateActionTargetId(template: TemplateRecord | null): string | null {
+function exportTemplateBundle(template: TemplateApplyPresetRecord | null): string | null {
+  if (!template?.name) {
+    return null;
+  }
+
+  return downloadTemplateBundle({
+    version: 1,
+    source: "conductor",
+    ...cloneTemplateApplyConfig(template),
+  });
+}
+
+function getTemplateActionTargetId(template: TemplateApplyPresetRecord | null): string | null {
   const templateId = String(template?.id ?? "").trim();
   return templateId && !isAutoTemplateId(templateId) ? templateId : null;
 }

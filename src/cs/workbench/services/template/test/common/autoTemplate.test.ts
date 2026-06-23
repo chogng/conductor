@@ -5,8 +5,7 @@
 import assert from "assert";
 
 import {
-  AUTO_TEMPLATE_ID,
-  isAutoTemplateConfig,
+  isAutoTemplateApplyConfig,
   isAutoTemplateId,
 } from "src/cs/workbench/services/template/common/autoTemplate";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -14,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 suite("workbench/services/template/common/autoTemplate", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
   test("auto template id is only the special auto extraction option", () => {
-    assert.equal(AUTO_TEMPLATE_ID, "0");
+    assert.equal(isAutoTemplateId("auto"), true);
     assert.equal(isAutoTemplateId("0"), true);
     assert.equal(isAutoTemplateId(0), true);
     assert.equal(isAutoTemplateId("__auto__"), true);
@@ -23,8 +22,8 @@ suite("workbench/services/template/common/autoTemplate", () => {
   });
 
   test("auto template config is marked by auto extraction mode", () => {
-    assert.equal(isAutoTemplateConfig({ autoExtractionMode: true }), true);
-    assert.equal(isAutoTemplateConfig({ autoExtractionMode: false }), false);
-    assert.equal(isAutoTemplateConfig({}), false);
+    assert.equal(isAutoTemplateApplyConfig({ autoExtractionMode: true }), true);
+    assert.equal(isAutoTemplateApplyConfig({ autoExtractionMode: false }), false);
+    assert.equal(isAutoTemplateApplyConfig({}), false);
   });
 });

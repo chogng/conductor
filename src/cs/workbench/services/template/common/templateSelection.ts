@@ -4,13 +4,19 @@
 
 import { localize } from "src/cs/nls";
 import {
-  AUTO_TEMPLATE_ID,
   isAutoTemplateId,
 } from "src/cs/workbench/services/template/common/autoTemplate";
-import type { TemplateRecord } from "src/cs/workbench/services/template/common/template";
+import type { TemplateApplyPresetRecord } from "src/cs/workbench/services/template/common/template";
+import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
+
+const AUTO_TEMPLATE_SELECTION_ID = "auto";
 
 export type TemplateSelection =
   | { readonly kind: "auto" }
+  | { readonly kind: "saved"; readonly templateId: string }
+  | { readonly kind: "inline"; readonly template: Template }
+  // Compatibility with UI state written before the TemplateSelection split.
+  // New code should emit "saved".
   | { readonly kind: "template"; readonly templateId: string };
 
 export type TemplateSelectionsByFileId = Record<string, TemplateSelection>;
@@ -29,13 +35,37 @@ export const createTemplateSelection = (
   }
 
   return {
-    kind: "template",
+    kind: "saved",
     templateId: normalizedTemplateId,
   };
 };
 
-export const getTemplateSelectionId = (selection: TemplateSelection): string =>
-  selection.kind === "auto" ? AUTO_TEMPLATE_ID : selection.templateId;
+export const createInlineTemplateSelection = (template: Template): TemplateSelection => ({
+  kind: "inline",
+  template,
+});
+
+export const isSavedTemplateSelection = (
+  selection: TemplateSelection | null | undefined,
+): selection is Extract<TemplateSelection, { readonly kind: "saved" | "template" }> =>
+  selection?.kind === "saved" || selection?.kind === "template";
+
+export const getTemplateSelectionTemplateId = (
+  selection: TemplateSelection | null | undefined,
+): string | null =>
+  isSavedTemplateSelection(selection)
+    ? String(selection.templateId ?? "").trim() || null
+    : null;
+
+export const getTemplateSelectionId = (selection: TemplateSelection): string => {
+  if (selection.kind === "auto") {
+    return AUTO_TEMPLATE_SELECTION_ID;
+  }
+  if (selection.kind === "inline") {
+    return `inline:${selection.template.id}`;
+  }
+  return selection.templateId;
+};
 
 export const resolveTemplateSelectionForFile = (
   fileId: string | null | undefined,
@@ -79,7 +109,7 @@ export const removeTemplateSelectionsForTemplate = (
 
   let next: TemplateSelectionsByFileId | null = null;
   for (const [fileId, selection] of Object.entries(fileSelections)) {
-    if (selection.kind !== "template" || selection.templateId !== normalizedTemplateId) {
+    if (getTemplateSelectionTemplateId(selection) !== normalizedTemplateId) {
       continue;
     }
 
@@ -92,14 +122,19 @@ export const removeTemplateSelectionsForTemplate = (
 
 export const getTemplateSelectionLabel = (
   selection: TemplateSelection,
-  templates: readonly TemplateRecord[] | null | undefined,
+  templates: readonly TemplateApplyPresetRecord[] | null | undefined,
 ): string => {
   if (selection.kind === "auto") {
     return localize("template.autoExtraction", "Auto extraction");
   }
+  if (selection.kind === "inline") {
+    return selection.template.name;
+  }
 
-  return templates?.find((template) => template.id === selection.templateId)?.name ||
-    selection.templateId;
+  const templateId = getTemplateSelectionTemplateId(selection);
+  return templates?.find((template) => template.id === templateId)?.name ||
+    templateId ||
+    localize("template.unknownTemplate", "Unknown template");
 };
 
 export const createCurrentTemplateSelectionDisplay = ({
@@ -118,8 +153,9 @@ export const createCurrentTemplateSelectionDisplay = ({
   }
 
   const normalizedFormName = String(formName ?? "").trim();
+  const templateId = getTemplateSelectionTemplateId(selection) ?? "";
   return {
-    label: normalizedFormName || selection.templateId,
+    label: normalizedFormName || templateId,
     selection,
   };
 };

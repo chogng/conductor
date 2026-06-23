@@ -21,6 +21,7 @@ export type MeasurementColumnRole =
   | "is"
   | "capacitance"
   | "conductance"
+  | "frequency"
   | "time"
   | "voltage"
   | "current"

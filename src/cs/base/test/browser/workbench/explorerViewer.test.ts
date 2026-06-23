@@ -34,12 +34,13 @@ import type {
   ThumbnailPreviewChangeEvent,
   ThumbnailPreviewPlotModel,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
-import { AUTO_TEMPLATE_ID } from "src/cs/workbench/services/template/common/autoTemplate";
 import { DEFAULT_EXPLORER_APPEARANCE } from "src/cs/workbench/services/appearance/common/appearance";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/contrib/files/browser/explorerViewer", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
+  const autoTemplateSelectionId = "auto";
+
   test("opens file item hover in the global context view layer", () => {
     const host = document.createElement("div");
     const hoverHost = document.createElement("div");
@@ -250,7 +251,7 @@ suite("workbench/contrib/files/browser/explorerViewer", () => {
     const viewer = new ExplorerViewer(host, hoverHost, {
       ...createViewerProps(),
       templateRecords: [{
-        id: AUTO_TEMPLATE_ID,
+        id: autoTemplateSelectionId,
         name: "Auto extraction",
       }],
     }, labels);

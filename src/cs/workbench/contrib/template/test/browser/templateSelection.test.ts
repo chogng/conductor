@@ -1,7 +1,7 @@
 import assert from "assert";
 
 import { toColumnLabel } from "src/cs/workbench/services/template/common/templateCellRef";
-import type { TemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
+import type { TemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
 import {
   areTableCellsEqual,
   areColumnIndexesEqual,
@@ -125,7 +125,7 @@ suite("workbench/contrib/template/test/browser/templateSelection", () => {
   });
 
   test("template selection resolves focused field back to active cell", () => {
-    const config: TemplateConfig = {
+    const config: TemplateApplyConfig = {
       bottomTitle: "",
       leftTitle: "",
       legendPrefix: "",

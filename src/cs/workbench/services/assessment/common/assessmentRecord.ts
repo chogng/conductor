@@ -7,6 +7,8 @@ import {
 	type AssessRawTableInput,
 	type ImportFileAssessment,
 	type RawTableAssessmentRecord,
+	type SelectedTemplateCandidate,
+	type TemplateCandidateSummary,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import {
 	createUnknownAssessmentDecision,
@@ -52,8 +54,10 @@ export type CreateRawTableAssessmentRecordInput =
 		readonly layoutCandidates?: readonly LayoutCandidate[];
 		readonly rows?: AssessRawTableInput["rows"];
 		readonly schemaProfile?: SchemaProfile | null;
+		readonly selectedTemplate?: SelectedTemplateCandidate;
 		readonly semanticCandidates?: readonly ColumnSemanticCandidate[];
 		readonly structure?: RawTableStructure;
+		readonly templateCandidates?: readonly TemplateCandidateSummary[];
 	};
 
 export const createRawTableAssessmentRecordFromImportAssessment = (
@@ -117,6 +121,8 @@ export const createRawTableAssessmentRecordFromImportAssessment = (
 
 	return {
 		assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+		ruleSetFingerprint: normalizeRuleSetFingerprint(input.ruleSnapshot?.fingerprint),
+		templateCatalogVersion: normalizeTemplateCatalogVersion(input.templateSnapshot?.version),
 		schemaProfileVersion,
 		fileId: input.fileId,
 		rawTableId: input.rawTableId,
@@ -127,6 +133,8 @@ export const createRawTableAssessmentRecordFromImportAssessment = (
 		semanticCandidates,
 		groups: [],
 		blocks,
+		templateCandidates: input.templateCandidates ?? [],
+		selectedTemplate: input.selectedTemplate,
 		decision,
 		diagnostics,
 		createdAt: Date.now(),
@@ -164,6 +172,16 @@ export const normalizePositiveCount = (value: unknown): number | undefined => {
 };
 
 export const normalizeSchemaProfileVersion = (value: unknown): number => {
+	const version = Math.floor(Number(value));
+	return Number.isFinite(version) && version >= 0 ? version : 0;
+};
+
+export const normalizeRuleSetFingerprint = (value: unknown): string => {
+	const fingerprint = String(value ?? "").trim();
+	return fingerprint || "rule:legacy";
+};
+
+export const normalizeTemplateCatalogVersion = (value: unknown): number => {
 	const version = Math.floor(Number(value));
 	return Number.isFinite(version) && version >= 0 ? version : 0;
 };

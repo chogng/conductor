@@ -23,7 +23,7 @@ session. It is not a view-state store and not a workflow dispatcher.
 | File | Responsibility |
 | --- | --- |
 | `common/session.ts` | service contract, snapshot, commit inputs, events. |
-| `common/sessionModel.ts` | canonical records: files, raw, assessment, template, series, curves, metrics, cache. |
+| `common/sessionModel.ts` | canonical records: files, raw, assessment, slice runs, series, curves, metrics, cache. |
 | `common/sessionEvents.ts` | change reasons, affected ids, helper types. |
 | `common/sessionReadModel.ts` | read-only projections. |
 | `common/sessionModelAdapter.ts` | temporary legacy adapter; shrink over time. |
@@ -32,8 +32,8 @@ session. It is not a view-state store and not a workflow dispatcher.
 ## Canonical Data Only
 
 Session may store imported files, raw tables/versions, assessments, blocks,
-template runs, series, curves, metrics, metric inputs, and rebuildable
-calculation cache descriptors.
+slice runs, series, curves, metrics, metric inputs, and rebuildable calculation
+cache descriptors.
 
 Session must not store table selection/focus/scroll, chart zoom/popovers, active
 plot tabs, template drafts, search queries, export dialog state, worker refs,
@@ -45,7 +45,7 @@ request ids, row caches, or thumbnail caches.
 - Every commit validates affected ids.
 - Import commits return committed file ids and skipped duplicate source ids for caller follow-up.
 - Assessment commits check `sourceRawTableVersion`.
-- Raw table replacement invalidates stale assessments, template runs, curves, and metrics for that raw table.
+- Raw table replacement invalidates stale assessments, slice runs, curves, and metrics for that raw table.
 - Calculation output that includes derived curves and metrics should use `commitCalculatedRecordsBatch`.
 - Events include affected ids; consumers ignore unrelated changes.
 
@@ -58,7 +58,7 @@ has produced the domain result.
 | --- | --- | --- |
 | import | Explorer source workflow after conversion | `commitFileImport` |
 | assessment | assessment contribution/command | `commitRawTableAssessment` |
-| template | template workflow/controller | `commitTemplateOutput(s)` |
+| slice | slice service after planning/execution | `commitSliceRuns` |
 | calculated curves/metrics | calculation service | `commitCalculatedRecordsBatch` |
 | metric input | parameters service | `setMetricInput` / `clearMetricInput` |
 | file removal | Explorer action/controller | `removeFiles` plus separate Explorer selection follow-up |
@@ -67,6 +67,9 @@ has produced the domain result.
 Do not make another service fire request/submit events only so Workbench can
 mutate Session. The caller that owns the workflow result calls Session, and
 consumers react to `SessionChangeEvent`.
+
+Do not add Template-owned run/output commit or cleanup APIs. Template execution
+results enter Session only through Slice commits.
 
 ## Field Catalog
 

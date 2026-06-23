@@ -29,10 +29,17 @@ import {
   INotificationService,
   Severity,
 } from "src/cs/workbench/services/notification/common/notificationService";
-import type { ITemplateService, TemplateRecord, TemplateState } from "src/cs/workbench/services/template/common/template";
+import type {
+  ITemplateViewStateService,
+  TemplateState,
+} from "src/cs/workbench/contrib/template/browser/templateViewStateService";
+import type { ITemplateService, TemplateApplyPresetRecord } from "src/cs/workbench/services/template/common/template";
+import type { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import {
   createTemplateSelection,
+  getTemplateSelectionTemplateId,
   resolveTemplateSelectionForFile,
+  type TemplateSelectionsByFileId,
 } from "src/cs/workbench/services/template/common/templateSelection";
 import type { ExplorerFileEntry } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type { FileSourceWorkflow } from "src/cs/workbench/contrib/files/browser/fileImportExport";
@@ -52,8 +59,10 @@ export type SliceWithTemplateControllerOptions = {
   readonly getFiles: () => readonly ExplorerFileEntry[];
   readonly notificationService: INotificationService;
   readonly removeOriginalFile: (fileId: string) => void;
+  readonly sliceService: ISliceService;
   readonly sourceWorkflow: FileSourceWorkflow;
   readonly templateService: ITemplateService;
+  readonly templateViewStateService: ITemplateViewStateService;
 };
 
 type SliceDialogState = {
@@ -71,7 +80,7 @@ type SliceDialogState = {
   statusMessage: string | null;
   storagePath: string;
   targetLabel: string;
-  templates: readonly TemplateRecord[];
+  templates: readonly TemplateApplyPresetRecord[];
 };
 
 type ActiveSliceDialog = {
@@ -115,12 +124,14 @@ export class SliceWithTemplateController extends Disposable {
     }
 
     this.close();
-    const templateState = this.options.templateService.getState();
+    const templateState = this.options.templateViewStateService.getState();
+    const sliceState = this.options.sliceService.getState();
     const templates = resolveTemplateSliceTemplatesForState({
       templateState,
       templates: this.getCachedUserTemplates(),
     });
     const selectedTemplateId = resolveTemplateSliceSelectedTemplateId({
+      fileTemplateSelectionsByFileId: sliceState.templateSelectionsByFileId,
       fileId: normalizedFileId,
       templateState,
       templates,
@@ -303,11 +314,14 @@ export class SliceWithTemplateController extends Disposable {
       targetInput,
     };
 
-    disposeStore.add(this.options.templateService.onDidChangeTemplateState(templateState => {
+    disposeStore.add(this.options.templateViewStateService.onDidChangeTemplateState(templateState => {
       this.handleTemplateStateChanged(dialog, templateState);
     }));
-    disposeStore.add(this.options.templateService.onDidChangeTemplateList(() => {
+    disposeStore.add(this.options.templateService.onDidChangeTemplates(() => {
       this.handleTemplateListChanged(dialog);
+    }));
+    disposeStore.add(this.options.sliceService.onDidChangeSliceState(() => {
+      this.handleSliceStateChanged(dialog);
     }));
     disposeStore.add(addDisposableListener(backdrop, EventType.MOUSE_DOWN, event => {
       if (event.target === backdrop) {
@@ -362,7 +376,7 @@ export class SliceWithTemplateController extends Disposable {
         return;
       }
 
-      const templateState = this.options.templateService.getState();
+      const templateState = this.options.templateViewStateService.getState();
       const resolvedTemplates = resolveTemplateSliceTemplatesForState({
         templateState,
         templates,
@@ -373,6 +387,7 @@ export class SliceWithTemplateController extends Disposable {
         isLoading: false,
         selectedTemplateId: resolveTemplateSliceSelectedTemplateId({
           currentTemplateId: dialog.state.selectedTemplateId,
+          fileTemplateSelectionsByFileId: this.options.sliceService.getState().templateSelectionsByFileId,
           fileId: dialog.state.fileId,
           preserveCurrentTemplate: dialog.state.hasUserSelectedTemplate,
           templateState,
@@ -426,6 +441,7 @@ export class SliceWithTemplateController extends Disposable {
       ...dialog.state,
       selectedTemplateId: resolveTemplateSliceSelectedTemplateId({
         currentTemplateId: dialog.state.selectedTemplateId,
+        fileTemplateSelectionsByFileId: this.options.sliceService.getState().templateSelectionsByFileId,
         fileId: dialog.state.fileId,
         preserveCurrentTemplate: dialog.state.hasUserSelectedTemplate,
         templateState,
@@ -441,7 +457,7 @@ export class SliceWithTemplateController extends Disposable {
       return;
     }
 
-    const templateState = this.options.templateService.getState();
+    const templateState = this.options.templateViewStateService.getState();
     const templates = resolveTemplateSliceTemplatesForState({
       templateState,
       templates: this.options.templateService.getTemplateList(),
@@ -450,6 +466,32 @@ export class SliceWithTemplateController extends Disposable {
       ...dialog.state,
       selectedTemplateId: resolveTemplateSliceSelectedTemplateId({
         currentTemplateId: dialog.state.selectedTemplateId,
+        fileTemplateSelectionsByFileId: this.options.sliceService.getState().templateSelectionsByFileId,
+        fileId: dialog.state.fileId,
+        preserveCurrentTemplate: dialog.state.hasUserSelectedTemplate,
+        templateState,
+        templates,
+      }),
+      templates,
+    };
+    this.syncDialog(dialog);
+  }
+
+  private handleSliceStateChanged(dialog: ActiveSliceDialog): void {
+    if (this.activeDialog !== dialog || dialog.state.isSlicing) {
+      return;
+    }
+
+    const templateState = this.options.templateViewStateService.getState();
+    const templates = resolveTemplateSliceTemplatesForState({
+      templateState,
+      templates: this.options.templateService.getTemplateList(),
+    });
+    dialog.state = {
+      ...dialog.state,
+      selectedTemplateId: resolveTemplateSliceSelectedTemplateId({
+        currentTemplateId: dialog.state.selectedTemplateId,
+        fileTemplateSelectionsByFileId: this.options.sliceService.getState().templateSelectionsByFileId,
         fileId: dialog.state.fileId,
         preserveCurrentTemplate: dialog.state.hasUserSelectedTemplate,
         templateState,
@@ -713,7 +755,7 @@ export class SliceWithTemplateController extends Disposable {
     return this.options.getFiles().find(file => String(file.fileId ?? "").trim() === fileId) ?? null;
   }
 
-  private getCachedUserTemplates(): readonly TemplateRecord[] {
+  private getCachedUserTemplates(): readonly TemplateApplyPresetRecord[] {
     return this.options.templateService.getTemplateList();
   }
 
@@ -739,7 +781,7 @@ function createSwitchField(labelText: string, control: HTMLElement): HTMLElement
   return row;
 }
 
-function createUserTemplateOptions(templates: readonly TemplateRecord[]): SelectBoxOption<string>[] {
+function createUserTemplateOptions(templates: readonly TemplateApplyPresetRecord[]): SelectBoxOption<string>[] {
   return templates
     .map(template => {
       const templateId = String(template.id ?? "").trim();
@@ -770,24 +812,26 @@ function createTemplateSelectOptions(
 }
 
 function findTemplateById(
-  templates: readonly TemplateRecord[],
+  templates: readonly TemplateApplyPresetRecord[],
   templateId: string,
-): TemplateRecord | null {
+): TemplateApplyPresetRecord | null {
   return templates.find(template => String(template.id ?? "").trim() === templateId) ?? null;
 }
 
 export function resolveTemplateSliceSelectedTemplateId({
   currentTemplateId,
   fileId,
+  fileTemplateSelectionsByFileId = {},
   preserveCurrentTemplate = false,
   templateState,
   templates,
 }: {
   readonly currentTemplateId?: string | null;
   readonly fileId: string | null | undefined;
+  readonly fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
   readonly preserveCurrentTemplate?: boolean;
   readonly templateState: TemplateState;
-  readonly templates: readonly TemplateRecord[];
+  readonly templates: readonly TemplateApplyPresetRecord[];
 }): string {
   const normalizedCurrentTemplateId = String(currentTemplateId ?? "").trim();
   if (preserveCurrentTemplate && hasUserTemplateId(templates, normalizedCurrentTemplateId)) {
@@ -797,14 +841,12 @@ export function resolveTemplateSliceSelectedTemplateId({
   const currentSelection = createTemplateSelection(templateState.selectedTemplateId);
   const resolvedSelection = resolveTemplateSelectionForFile(
     fileId,
-    templateState.selectionsByFileId,
+    fileTemplateSelectionsByFileId,
     currentSelection,
   );
-  if (
-    resolvedSelection.kind === "template" &&
-    hasUserTemplateId(templates, resolvedSelection.templateId)
-  ) {
-    return resolvedSelection.templateId;
+  const resolvedTemplateId = getTemplateSelectionTemplateId(resolvedSelection);
+  if (resolvedTemplateId && hasUserTemplateId(templates, resolvedTemplateId)) {
+    return resolvedTemplateId;
   }
 
   return "";
@@ -815,8 +857,8 @@ export function resolveTemplateSliceTemplatesForState({
   templates,
 }: {
   readonly templateState: TemplateState;
-  readonly templates: readonly TemplateRecord[];
-}): readonly TemplateRecord[] {
+  readonly templates: readonly TemplateApplyPresetRecord[];
+}): readonly TemplateApplyPresetRecord[] {
   const selectedTemplateId = String(templateState.selectedTemplateId ?? "").trim();
   if (!selectedTemplateId || !hasTemplateFormConfigValue(templateState.formState)) {
     return templates;
@@ -836,7 +878,7 @@ export function resolveTemplateSliceTemplatesForState({
   return nextTemplates;
 }
 
-function hasUserTemplateId(templates: readonly TemplateRecord[], templateId: string): boolean {
+function hasUserTemplateId(templates: readonly TemplateApplyPresetRecord[], templateId: string): boolean {
   return Boolean(templateId) &&
     templates.some(template => String(template.id ?? "").trim() === templateId);
 }

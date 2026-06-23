@@ -107,11 +107,13 @@ import {
   type SessionReadModel,
 } from "src/cs/workbench/services/session/common/sessionReadModel";
 import {
-  ITemplateApplyWorkflowService,
-  ITemplateService,
-  type ITemplateApplyWorkflowService as ITemplateApplyWorkflowServiceType,
-  type ITemplateService as ITemplateServiceType,
-} from "src/cs/workbench/services/template/common/template";
+  ITemplateViewStateService,
+  type ITemplateViewStateService as ITemplateViewStateServiceType,
+} from "src/cs/workbench/contrib/template/browser/templateViewStateService";
+import {
+  ISliceService,
+  type ISliceService as ISliceServiceType,
+} from "src/cs/workbench/services/slice/common/slice";
 import {
   IExportService,
   type ExportState,
@@ -171,14 +173,14 @@ export type WorkbenchOptions = {
   readonly parametersService?: IParametersService;
   readonly plotService?: IPlotService;
   readonly settingsService?: ISettingsService;
+  readonly sliceService?: ISliceService;
   readonly viewsService?: IViewsService;
   readonly id?: string;
   readonly instantiationService?: IInstantiationService;
   readonly showDesktopCommandBar?: boolean;
   readonly showSkeleton?: boolean;
   readonly style?: WorkbenchStyle;
-  readonly templateApplyWorkflowService?: ITemplateApplyWorkflowService;
-  readonly templateService?: ITemplateService;
+  readonly templateViewStateService?: ITemplateViewStateService;
   readonly thumbnailPreviewService?: IThumbnailPreviewService;
   readonly tableService?: ITableService;
   readonly titleService?: ITitleService;
@@ -206,9 +208,9 @@ type WorkbenchServices = {
   readonly plotService: IPlotService;
   readonly sessionService: ISessionServiceType;
   readonly settingsService: ISettingsService;
+  readonly sliceService: ISliceServiceType;
   readonly tableService: ITableService;
-  readonly templateApplyWorkflowService: ITemplateApplyWorkflowServiceType;
-  readonly templateService: ITemplateServiceType;
+  readonly templateViewStateService: ITemplateViewStateServiceType;
   readonly thumbnailPreviewService: IThumbnailPreviewService;
   readonly titleService: ITitleService;
   readonly viewsService: IViewsService;
@@ -230,9 +232,9 @@ const hasExplicitWorkbenchServices = (options: WorkbenchOptions): boolean =>
     options.plotService &&
     options.sessionService &&
     options.settingsService &&
+    options.sliceService &&
     options.tableService &&
-    options.templateApplyWorkflowService &&
-    options.templateService &&
+    options.templateViewStateService &&
     options.thumbnailPreviewService &&
     options.titleService &&
     options.viewsService,
@@ -367,12 +369,12 @@ const resolveWorkbenchServices = (
     plotService: requireWorkbenchService("IPlotService", options.plotService),
     sessionService: requireWorkbenchService("ISessionService", options.sessionService),
     settingsService: requireWorkbenchService("ISettingsService", options.settingsService),
+    sliceService: requireWorkbenchService("ISliceService", options.sliceService),
     tableService: requireWorkbenchService("ITableService", options.tableService),
-    templateApplyWorkflowService: requireWorkbenchService(
-      "ITemplateApplyWorkflowService",
-      options.templateApplyWorkflowService,
+    templateViewStateService: requireWorkbenchService(
+      "ITemplateViewStateService",
+      options.templateViewStateService,
     ),
-    templateService: requireWorkbenchService("ITemplateService", options.templateService),
     thumbnailPreviewService: requireWorkbenchService("IThumbnailPreviewService", options.thumbnailPreviewService),
     titleService: requireWorkbenchService("ITitleService", options.titleService ?? shellServices.titleService),
     viewsService: requireWorkbenchService("IViewsService", options.viewsService),
@@ -454,20 +456,20 @@ const createWorkbenchServicesFromAccessor = (
     options.settingsService,
     () => accessor.get(ISettingsService),
   ),
+  sliceService: resolveWorkbenchDependency(
+    "ISliceService",
+    options.sliceService,
+    () => accessor.get(ISliceService),
+  ),
   tableService: resolveWorkbenchDependency(
     "ITableService",
     options.tableService,
     () => accessor.get(ITableService),
   ),
-  templateApplyWorkflowService: resolveWorkbenchDependency(
-    "ITemplateApplyWorkflowService",
-    options.templateApplyWorkflowService,
-    () => accessor.get(ITemplateApplyWorkflowService),
-  ),
-  templateService: resolveWorkbenchDependency(
-    "ITemplateService",
-    options.templateService,
-    () => accessor.get(ITemplateService),
+  templateViewStateService: resolveWorkbenchDependency(
+    "ITemplateViewStateService",
+    options.templateViewStateService,
+    () => accessor.get(ITemplateViewStateService),
   ),
   thumbnailPreviewService: resolveWorkbenchDependency(
     "IThumbnailPreviewService",
@@ -517,7 +519,6 @@ export class Workbench extends Layout {
   private activeWorkbenchViewContext: IContextKey<string> | null = null;
   private activeWorkbenchMainPartContext: IContextKey<WorkbenchMainPart | ""> | null = null;
   private activeAuxiliaryBarViewContext: IContextKey<string> | null = null;
-  private templateApplyWorkflowService!: ITemplateApplyWorkflowServiceType;
   private assessmentQueueService!: IAssessmentQueueService;
   private calculationService!: ICalculationService;
   private chartService!: IChartService;
@@ -528,9 +529,10 @@ export class Workbench extends Layout {
   private parametersService!: IParametersService;
   private plotService!: IPlotService;
   private settingsService!: ISettingsService;
+  private sliceService!: ISliceServiceType;
   private viewsService!: IViewsService;
   private tableService!: ITableService;
-  private templateService!: ITemplateServiceType;
+  private templateViewStateService!: ITemplateViewStateServiceType;
   private thumbnailPreviewService!: IThumbnailPreviewService;
   private titleService!: ITitleService;
   private exportService!: IExportService;
@@ -646,11 +648,11 @@ export class Workbench extends Layout {
         this.parametersService = services.parametersService;
         this.plotService = services.plotService;
         this.settingsService = services.settingsService;
+        this.sliceService = services.sliceService;
         this.session = services.sessionService;
         this.viewsService = services.viewsService;
         this.tableService = services.tableService;
-        this.templateApplyWorkflowService = services.templateApplyWorkflowService;
-        this.templateService = services.templateService;
+        this.templateViewStateService = services.templateViewStateService;
         this.thumbnailPreviewService = services.thumbnailPreviewService;
         this.titleService = services.titleService;
       });
@@ -681,9 +683,8 @@ export class Workbench extends Layout {
           plotService: this.plotService,
           sessionService: this.session,
           settingsService: this.settingsService,
+          sliceService: this.sliceService,
           tableService: this.tableService,
-          templateApplyWorkflowService: this.templateApplyWorkflowService,
-          templateService: this.templateService,
           thumbnailPreviewService: this.thumbnailPreviewService,
         })),
       );
@@ -718,7 +719,7 @@ export class Workbench extends Layout {
           }
           this.lastObservedExportState = state;
         }));
-        this._register(this.templateService.onDidChangeTemplateState(() => {
+        this._register(this.templateViewStateService.onDidChangeTemplateState(() => {
           this.scheduleWorkbenchAuxiliarySurfacesRefresh("templateState", true);
         }));
         this._register(this.layoutService.onDidChangeWorkbenchNavigation(() => {
@@ -1214,7 +1215,7 @@ export class Workbench extends Layout {
       contextKeyService: this.contextKeyService,
       menuService: this.menuService,
       mode: this.activeWorkbenchMainPart,
-      templateMode: this.templateService.getState().mode,
+      templateMode: this.templateViewStateService.getState().mode,
       visible,
     });
     this.updateAuxiliaryBarPaneContainer({

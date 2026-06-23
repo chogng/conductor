@@ -6,11 +6,12 @@ import type {
   CalculationRecordsWorkerMessage,
   CalculationRecordsWorkerRequest,
 } from "src/cs/workbench/services/calculation/browser/calculationWorker";
-import type {
-  CurveRecord,
-  FileId,
-  FileRecord,
-  MetricRecord,
+import {
+  getLatestSliceRunRecord,
+  type CurveRecord,
+  type FileId,
+  type FileRecord,
+  type MetricRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
 
 const CALCULATION_WORKER_TIMEOUT_MS = 30_000;
@@ -93,9 +94,7 @@ export const calculateRecordsInWorker = (
 };
 
 const createCalculationWorkerFileRecord = (file: FileRecord): FileRecord => {
-  const latestTemplateRun = file.latestTemplateRunId
-    ? file.templateRunsById[file.latestTemplateRunId]
-    : undefined;
+  const latestSliceRun = getLatestSliceRunRecord(file);
   const curvesByKey: FileRecord["curvesByKey"] = {};
   for (const [key, curve] of Object.entries(file.curvesByKey)) {
     if (curve.curveGeneration === "base") {
@@ -130,15 +129,15 @@ const createCalculationWorkerFileRecord = (file: FileRecord): FileRecord => {
     rawTableVersionsById: {},
     seriesById,
     seriesOrder: file.seriesOrder.filter(seriesId => curveSeriesIds.has(seriesId)),
-    templateRunsById: latestTemplateRun
-      ? { [latestTemplateRun.id]: latestTemplateRun }
-      : {},
   };
   if (file.metricInputsByKey) {
     workerFile.metricInputsByKey = file.metricInputsByKey;
   }
-  if (latestTemplateRun) {
-    workerFile.latestTemplateRunId = latestTemplateRun.id;
+  if (latestSliceRun) {
+    workerFile.latestSliceRunId = latestSliceRun.id;
+    workerFile.sliceRunsById = {
+      [latestSliceRun.id]: latestSliceRun,
+    };
   }
   return workerFile;
 };

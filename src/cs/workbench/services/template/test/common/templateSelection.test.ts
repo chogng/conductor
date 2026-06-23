@@ -7,6 +7,8 @@ import assert from "assert";
 import {
 	createCurrentTemplateSelectionDisplay,
 	createTemplateSelection,
+	getTemplateSelectionId,
+	getTemplateSelectionTemplateId,
 	removeTemplateSelectionsForFiles,
 	removeTemplateSelectionsForTemplate,
 	resolveTemplateSelectionForFile,
@@ -17,11 +19,17 @@ suite("workbench/services/template/test/common/templateSelection", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
 	test("creates auto and saved template selections", () => {
 		assert.deepEqual(createTemplateSelection(null), { kind: "auto" });
+		assert.deepEqual(createTemplateSelection("auto"), { kind: "auto" });
+		assert.deepEqual(createTemplateSelection("0"), { kind: "auto" });
 		assert.deepEqual(createTemplateSelection("__auto__"), { kind: "auto" });
 		assert.deepEqual(createTemplateSelection(" template-a "), {
-			kind: "template",
+			kind: "saved",
 			templateId: "template-a",
 		});
+	});
+
+	test("uses a non-persisted auto selection id for UI comparisons", () => {
+		assert.equal(getTemplateSelectionId({ kind: "auto" }), "auto");
 	});
 
 	test("resolves file selection before current selection", () => {
@@ -33,9 +41,16 @@ suite("workbench/services/template/test/common/templateSelection", () => {
 				{ "file-a": createTemplateSelection("template-file") },
 				current,
 			),
-			{ kind: "template", templateId: "template-file" },
+			{ kind: "saved", templateId: "template-file" },
 		);
 		assert.equal(resolveTemplateSelectionForFile("file-b", {}, current), current);
+	});
+
+	test("reads legacy template selections as saved template ids", () => {
+		assert.equal(
+			getTemplateSelectionTemplateId({ kind: "template", templateId: " template-a " }),
+			"template-a",
+		);
 	});
 
 	test("removes selections for deleted files", () => {
@@ -82,13 +97,13 @@ suite("workbench/services/template/test/common/templateSelection", () => {
 			selectedTemplateId: "template-a",
 		}), {
 			label: "My Template",
-			selection: { kind: "template", templateId: "template-a" },
+			selection: { kind: "saved", templateId: "template-a" },
 		});
 		assert.deepEqual(createCurrentTemplateSelectionDisplay({
 			selectedTemplateId: "template-a",
 		}), {
 			label: "template-a",
-			selection: { kind: "template", templateId: "template-a" },
+			selection: { kind: "saved", templateId: "template-a" },
 		});
 	});
 });

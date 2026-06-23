@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    "iv/transfer.json",
+    "iv/output.json",
+    "capacitance/cv.json",
+    "capacitance/cf.json",
+    "currentTime/it.json"
+  ]
+}

@@ -1,5 +1,5 @@
 import {
-  getLatestTemplateRunRecord,
+  getLatestSliceRunRecord,
   type BaseCurveFamily,
   type BaseCurveRecord,
   type DomainRecord,
@@ -7,6 +7,8 @@ import {
   type IvCurveMode,
 } from "src/cs/workbench/services/session/common/sessionModel";
 import type { MeasurementBlockRecord } from "src/cs/workbench/services/assessment/common/measurement";
+import type { SliceRun } from "src/cs/workbench/services/slice/common/slice";
+import type { TemplateBlock } from "src/cs/workbench/services/template/common/templateSpec";
 import type {
   ProcessedEntry,
   ProcessedSeries,
@@ -122,14 +124,14 @@ export const getFileRecordCurveType = (
 export const getFileRecordAxisProjection = (
   file: FileRecord,
 ): FileRecordAxisProjection => {
-  const templateRun = getLatestTemplateRunRecord(file);
+  const sliceRun = getLatestSliceRunRecord(file);
   const ivMode = getFileRecordIvMode(file);
   return {
     xAxisRole: getXAxisRoleFromIvMode(ivMode),
-    xLabel: templateRun?.config.bottomTitle,
-    xUnit: templateRun?.config.xUnit,
-    yLabel: templateRun?.config.leftTitle,
-    yUnit: templateRun?.config.yUnit,
+    xLabel: getSliceTemplateBlockText(sliceRun, (block) => block.titles?.bottom),
+    xUnit: getSliceTemplateBlockText(sliceRun, (block) => block.x.unit),
+    yLabel: getSliceTemplateBlockText(sliceRun, (block) => block.titles?.left),
+    yUnit: getSliceTemplateBlockText(sliceRun, (block) => block.y.unit),
   };
 };
 
@@ -185,6 +187,24 @@ const getFileRecordIvMode = (file: FileRecord): IvCurveMode | null =>
     block.family === "iv" && block.ivMode && block.ivMode !== "unknown"
   )?.ivMode as IvCurveMode | undefined ??
   null;
+
+const getSliceTemplateBlockText = (
+  sliceRun: SliceRun | undefined,
+  readValue: (block: TemplateBlock) => string | undefined,
+): string | undefined => {
+  for (const block of sliceRun?.template.blocks ?? []) {
+    const value = normalizeOptionalText(readValue(block));
+    if (value) {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const normalizeOptionalText = (value: unknown): string | undefined => {
+  const text = String(value ?? "").trim();
+  return text || undefined;
+};
 
 const toBaseCurveFamily = (value: unknown): BaseCurveFamily | null =>
   value === "iv" ||

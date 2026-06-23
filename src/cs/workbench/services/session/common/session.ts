@@ -9,7 +9,6 @@
 import type { Event } from "src/cs/base/common/event";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type {
-  CalculationCacheRecord,
   CurveGeneration,
   CurveRecord,
   FileId,
@@ -17,46 +16,19 @@ import type {
   MetricInputRecord,
   MetricKey,
   MetricRecord,
-  SeriesId,
-  SeriesRecord,
-  TemplateRunRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import type { TemplateSelectionRecord } from "src/cs/workbench/services/template/common/templateRun";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
 import type { FileImportResult } from "src/cs/workbench/services/files/common/files";
 import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
+import type { SliceCommit } from "src/cs/workbench/services/slice/common/slice";
 
 export const ISessionService = createDecorator<ISessionService>("sessionService");
-
-export type CommitTemplateOutputOptions = {
-  readonly appliedTemplateConfig?: unknown;
-  readonly appliedTemplateSelection?: TemplateSelectionRecord;
-};
-
-export type CommitTemplateRunInput =
-  | TemplateRunRecord
-  | {
-      readonly kind: "clearTemplateOutput";
-      readonly fileIds?: readonly FileId[];
-    }
-  | {
-      readonly run: TemplateRunRecord;
-      readonly calculationCache?: CalculationCacheRecord;
-      readonly fileName?: string;
-      readonly seriesById?: Readonly<Record<SeriesId, SeriesRecord>>;
-      readonly seriesOrder?: readonly SeriesId[];
-    };
 
 export type CommitCurvesInput = {
   readonly fileId: FileId;
   readonly curves: readonly CurveRecord[];
   readonly replace?: boolean;
   readonly replaceGenerations?: readonly CurveGeneration[];
-};
-
-export type CommitTemplateOutputInput = {
-  readonly templateRun: CommitTemplateRunInput;
-  readonly curves: CommitCurvesInput;
 };
 
 export type CommitCurvesBatchInput = readonly CommitCurvesInput[];
@@ -92,11 +64,12 @@ export type CommitFileImportResult = {
 };
 
 export type CommitFileImportRawTableAssessmentInput =
-  Omit<RawTableAssessmentRecord, "assessmentRuleVersion" | "fileId" | "rawTableId" | "schemaProfileVersion" | "sourceRawTableVersion"> & {
+  Omit<RawTableAssessmentRecord, "assessmentRuleVersion" | "fileId" | "rawTableId" | "schemaProfileVersion" | "sourceRawTableVersion" | "templateCatalogVersion"> & {
     readonly fileId: FileId;
     readonly rawTableId?: string | null;
     readonly assessmentRuleVersion?: number;
     readonly schemaProfileVersion?: number;
+    readonly templateCatalogVersion?: number;
   };
 
 export type CommitFileImportOptions = {
@@ -114,9 +87,7 @@ export interface ISessionService {
   commitFileImport(result: FileImportResult, options?: CommitFileImportOptions): CommitFileImportResult;
   commitRawTableAssessment(assessment: RawTableAssessmentRecord): void;
   commitRawTableAssessments(assessments: readonly RawTableAssessmentRecord[]): void;
-  commitTemplateOutput(input: CommitTemplateOutputInput): void;
-  commitTemplateOutputs(inputs: readonly CommitTemplateOutputInput[]): void;
-  commitTemplateRun(input: CommitTemplateRunInput): void;
+  commitSliceRuns(inputs: readonly SliceCommit[]): void;
   commitCalculatedRecordsBatch(inputs: CommitCalculatedRecordsBatchInput): void;
   commitCurves(input: CommitCurvesInput): void;
   commitCurvesBatch(inputs: CommitCurvesBatchInput): void;

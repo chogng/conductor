@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "id": "builtin.capacitance.cv",
+  "version": 1,
+  "priority": 90,
+  "enabled": true,
+  "scope": {
+    "measurementFamilies": ["cv"]
+  },
+  "match": {
+    "all": [
+      {
+        "kind": "blockFamily",
+        "family": "cv",
+        "minConfidence": 0.75
+      },
+      {
+        "kind": "columnRole",
+        "capture": "x",
+        "within": "matchedBlock",
+        "roleAny": ["vg", "vd", "voltage"],
+        "axis": "x",
+        "canonicalUnit": "V",
+        "minCount": 1,
+        "maxCount": 1
+      },
+      {
+        "kind": "columnRole",
+        "capture": "y",
+        "within": "matchedBlock",
+        "roleAny": ["capacitance"],
+        "axis": "y",
+        "canonicalUnit": "F",
+        "minCount": 1
+      }
+    ]
+  },
+  "emit": {
+    "name": {
+      "kind": "literal",
+      "value": "Detected CV"
+    },
+    "blocks": {
+      "source": "eachMatchedBlock",
+      "rowRange": "block.dataRange",
+      "x": {
+        "columns": {
+          "kind": "capturedColumns",
+          "capture": "x"
+        },
+        "unit": {
+          "kind": "capturedCommonUnit",
+          "capture": "x"
+        }
+      },
+      "y": {
+        "columns": {
+          "kind": "capturedColumns",
+          "capture": "y"
+        },
+        "unit": {
+          "kind": "capturedCommonUnit",
+          "capture": "y"
+        }
+      },
+      "segmentation": {
+        "kind": "auto"
+      },
+      "legend": {
+        "target": "auto"
+      }
+    },
+    "stopOnError": false
+  }
+}

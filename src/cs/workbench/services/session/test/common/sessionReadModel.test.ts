@@ -12,6 +12,7 @@ import {
   createSessionReadModel,
 } from "src/cs/workbench/services/session/common/sessionReadModel";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import type { SliceRun } from "src/cs/workbench/services/slice/common/slice";
 
 suite("workbench/services/session/test/common/sessionReadModel", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
@@ -102,6 +103,103 @@ suite("workbench/services/session/test/common/sessionReadModel", () => {
       ivData?.seriesList[0]?.data.map((point) => point.y),
       [1e-12, 1e-9, 1e-6],
     );
+  });
+
+  test("uses latest slice run template axes for projections", () => {
+    const rawRecords = mergeRawFilesIntoRecords({}, [], [{
+      fileId: "file-a",
+      fileName: "Transfer.csv",
+      sheetId: "sheet-1",
+    }]);
+    const processedRecords = mergeProcessedFileIntoRecords(
+      rawRecords.filesById,
+      rawRecords.fileOrder,
+      {
+        bottomTitle: "Legacy Gate",
+        fileId: "file-a",
+        fileName: "Transfer.csv",
+        curveType: "transfer",
+        xAxisRole: "vg",
+        xUnit: "V",
+        yUnit: "A",
+        leftTitle: "Legacy Current",
+        xGroups: [[0, 1, 2]],
+        series: [{
+          id: "series-1",
+          groupIndex: 0,
+          y: [1e-12, 1e-9, 1e-6],
+          yCol: 1,
+        }],
+      },
+      createSnapshot({
+        ...rawRecords,
+      }),
+    );
+    const sliceRun: SliceRun = {
+      id: "slice-run-a",
+      fileId: "file-a",
+      rawTableId: "sheet-1",
+      mode: "auto",
+      selection: { kind: "auto" },
+      sourceRawTableVersion: 0,
+      template: {
+        schemaVersion: 1,
+        name: "Slice Transfer",
+        version: 1,
+        blocks: [{
+          rowRange: {
+            startRow: 1,
+            endRow: "end",
+          },
+          x: {
+            columns: [0],
+            unit: "mV",
+          },
+          y: {
+            columns: [1],
+            unit: "uA",
+          },
+          segmentation: {
+            kind: "auto",
+          },
+          legend: {
+            target: "auto",
+          },
+          titles: {
+            bottom: "Slice Gate",
+            left: "Slice Current",
+          },
+        }],
+        stopOnError: false,
+      },
+      templateFingerprint: "template:fingerprint",
+      inputRanges: [],
+      outputSeriesIds: ["series-1"],
+      outputCurveKeys: ["base:iv:transfer:series-1"],
+      warnings: [],
+      errors: [],
+    };
+    const file = processedRecords.filesById["file-a"]!;
+    const snapshot = createSnapshot({
+      ...processedRecords,
+      filesById: {
+        ...processedRecords.filesById,
+        "file-a": {
+          ...file,
+          latestSliceRunId: sliceRun.id,
+          sliceRunsById: {
+            [sliceRun.id]: sliceRun,
+          },
+        },
+      },
+    });
+
+    const readModel = createSessionReadModel(snapshot);
+
+    assert.equal(readModel.processedFiles[0]?.xLabel, "Slice Gate");
+    assert.equal(readModel.processedFiles[0]?.xUnit, "mV");
+    assert.equal(readModel.processedFiles[0]?.yLabel, "Slice Current");
+    assert.equal(readModel.processedFiles[0]?.yUnit, "uA");
   });
 
   test("reuses the read model for the same immutable snapshot", () => {

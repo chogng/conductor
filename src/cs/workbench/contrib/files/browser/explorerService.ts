@@ -20,6 +20,10 @@ import {
   type IExplorerView,
   type ExplorerViewLayout,
 } from "src/cs/workbench/contrib/files/browser/files";
+import {
+  getTemplateSelectionTemplateId,
+  type TemplateSelection,
+} from "src/cs/workbench/services/template/common/templateSelection";
 
 export class ExplorerService extends Disposable implements IExplorerService {
   public declare readonly _serviceBrand: undefined;
@@ -374,11 +378,9 @@ const isSameExplorerPaneInput = (
   next: ExplorerPaneInput,
 ): boolean =>
   current.activePlotType === next.activePlotType &&
-  current.currentTemplateLabel === next.currentTemplateLabel &&
   current.mode === next.mode &&
   current.selectedFileId === next.selectedFileId &&
   current.selectionKind === next.selectionKind &&
-  isSameTemplateSelection(current.currentTemplateSelection, next.currentTemplateSelection) &&
   areTemplateSelectionsEqual(
     current.fileTemplateSelectionsByFileId ?? {},
     next.fileTemplateSelectionsByFileId ?? {},
@@ -394,14 +396,21 @@ const isSameExplorerPaneInput = (
   );
 
 const isSameTemplateSelection = (
-  current: ExplorerPaneInput["currentTemplateSelection"],
-  next: ExplorerPaneInput["currentTemplateSelection"],
-): boolean =>
-  current?.kind === next?.kind &&
-  (
-    current?.kind !== "template" ||
-    (next?.kind === "template" && current.templateId === next.templateId)
-  );
+  current: TemplateSelection | undefined,
+  next: TemplateSelection | undefined,
+): boolean => {
+  if (current?.kind === "auto" || next?.kind === "auto") {
+    return current?.kind === next?.kind;
+  }
+  if (current?.kind === "inline" || next?.kind === "inline") {
+    return current?.kind === "inline" &&
+      next?.kind === "inline" &&
+      current.template.id === next.template.id &&
+      current.template.version === next.template.version;
+  }
+
+  return getTemplateSelectionTemplateId(current) === getTemplateSelectionTemplateId(next);
+};
 
 const areTemplateSelectionsEqual = (
   current: NonNullable<ExplorerPaneInput["fileTemplateSelectionsByFileId"]>,

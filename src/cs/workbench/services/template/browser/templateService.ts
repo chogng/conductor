@@ -6,183 +6,56 @@ import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
-  downloadTemplateBundle,
-} from "src/cs/workbench/services/template/browser/templateFileTransfer";
-import {
   ITemplateService as ITemplateServiceId,
-  type TemplateEditorCancelOptions,
   type ITemplateService,
-  type TemplateRecord,
-  type TemplateState,
-  type TemplateMode,
-  type TemplateSaveInput,
-  type TemplateViewInput,
+  type TemplateApplyPresetRecord,
+  type TemplateApplyPresetSaveInput,
+  type TemplateSnapshot,
 } from "src/cs/workbench/services/template/common/template";
 import { isAutoTemplateId } from "src/cs/workbench/services/template/common/autoTemplate";
-import { filterUserTemplateRecords } from "src/cs/workbench/services/template/common/templateRecords";
+import { filterUserTemplateApplyPresetRecords } from "src/cs/workbench/services/template/common/templateRecords";
+import { createTemplateSnapshotFromApplyPresets } from "src/cs/workbench/services/template/common/templateLegacyAdapter";
 import {
-  cloneTemplateConfig,
-  createEmptyTemplateConfig,
-  type TemplateConfig,
-} from "src/cs/workbench/services/template/common/templateConfigUtils";
-import {
-  removeTemplateSelectionsForFiles,
-  removeTemplateSelectionsForTemplate,
-  type TemplateSelection,
-  type TemplateSelectionsByFileId,
-} from "src/cs/workbench/services/template/common/templateSelection";
-import { ITemplateStoreService } from "src/cs/workbench/services/template/common/templateStore";
-import { ISessionService } from "src/cs/workbench/services/session/common/session";
-import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
+  ITemplateStoreService,
+} from "src/cs/workbench/services/template/common/templateStore";
 
 export class BrowserTemplateService extends Disposable implements ITemplateService {
   public declare readonly _serviceBrand: undefined;
 
-  private readonly onDidChangeTemplateStateEmitter = this._register(new Emitter<TemplateState>());
-  public readonly onDidChangeTemplateState = this.onDidChangeTemplateStateEmitter.event;
-  private readonly onDidChangeTemplateListEmitter =
-    this._register(new Emitter<readonly TemplateRecord[]>());
-  public readonly onDidChangeTemplateList =
-    this.onDidChangeTemplateListEmitter.event;
-  private readonly onDidChangeTemplateViewInputEmitter =
-    this._register(new Emitter<void>());
-  public readonly onDidChangeTemplateViewInput =
-    this.onDidChangeTemplateViewInputEmitter.event;
+  private readonly onDidChangeTemplatesEmitter =
+    this._register(new Emitter<readonly TemplateApplyPresetRecord[]>());
+  public readonly onDidChangeTemplates =
+    this.onDidChangeTemplatesEmitter.event;
 
-  private state: TemplateState = createDefaultTemplateState();
-  private viewInput: TemplateViewInput | null = null;
-  private cachedTemplates: readonly TemplateRecord[] = [];
+  private cachedTemplates: readonly TemplateApplyPresetRecord[] = [];
   private hasLoadedTemplates = false;
-  private templateListRefresh: Promise<readonly TemplateRecord[]> | null = null;
+  private templateListVersion = 0;
+  private templateListRefresh: Promise<readonly TemplateApplyPresetRecord[]> | null = null;
   private templateListRefreshRunId = 0;
 
   public constructor(
-    @ISessionService private readonly sessionService: ISessionService,
     @ITemplateStoreService private readonly templateStoreService: ITemplateStoreService,
   ) {
     super();
-
-    this._register(this.sessionService.onDidChangeSession(this.handleSessionChanged));
   }
 
-  downloadTemplateBundle(bundle: unknown): string {
-    return downloadTemplateBundle(bundle);
+  getSnapshot(): TemplateSnapshot {
+    return createTemplateSnapshotFromApplyPresets(
+      this.cachedTemplates,
+      this.templateListVersion,
+    );
   }
 
-  selectTemplate(template: TemplateRecord | null = null): boolean {
-    const stopOnError = getTemplateStopOnError(template, this.state.formState.stopOnError);
-    if (!template) {
-      this.updateState({
-        selectedTemplateId: null,
-        formState: createEmptyTemplateConfig({
-          stopOnError,
-        }),
-        mode: "management",
-      });
-      return true;
-    }
-
-    const templateId = getTemplateId(template);
+  getTemplate(id: string): TemplateSnapshot["templates"][number] | undefined {
+    const templateId = String(id ?? "").trim();
     if (!templateId) {
-      this.updateState({
-        selectedTemplateId: null,
-        formState: createEmptyTemplateConfig({
-          stopOnError,
-        }),
-        mode: "management",
-      });
-      return true;
+      return undefined;
     }
 
-    this.updateState({
-      selectedTemplateId: templateId,
-      formState: cloneTemplateConfig(template),
-      mode: "management",
-    });
-    return true;
+    return this.getSnapshot().templates.find(template => String(template.id ?? "").trim() === templateId);
   }
 
-  createTemplateDraft(template: Partial<TemplateConfig> | null = null): void {
-    this.updateState({
-      selectedTemplateId: null,
-      formState: createEmptyTemplateConfig({
-        stopOnError: getTemplateStopOnError(template, this.state.formState.stopOnError),
-      }),
-      mode: "editor",
-    });
-  }
-
-  cancelTemplateEditor(options: TemplateEditorCancelOptions = {}): void {
-    const fallbackTemplate = options.fallbackTemplate;
-    const templateId = fallbackTemplate ? getTemplateId(fallbackTemplate) : null;
-    if (fallbackTemplate && templateId) {
-      this.updateState({
-        selectedTemplateId: templateId,
-        formState: cloneTemplateConfig(fallbackTemplate),
-        mode: "management",
-      });
-      return;
-    }
-
-    const stopOnError = typeof options.stopOnError === "boolean"
-      ? options.stopOnError
-      : this.state.formState.stopOnError;
-    this.updateState({
-      selectedTemplateId: null,
-      formState: createEmptyTemplateConfig({
-        stopOnError,
-      }),
-      mode: "management",
-    });
-  }
-
-  editTemplate(template: TemplateRecord): boolean {
-    const templateId = getTemplateId(template);
-    if (!templateId) {
-      return false;
-    }
-
-    this.updateState({
-      selectedTemplateId: templateId,
-      formState: cloneTemplateConfig(template),
-      mode: "editor",
-    });
-    return true;
-  }
-
-  exportTemplate(template: TemplateRecord | TemplateConfig | null | undefined = this.state.formState): string | null {
-    if (!template?.name) {
-      return null;
-    }
-
-    return this.downloadTemplateBundle({
-      version: 1,
-      source: "conductor",
-      ...cloneTemplateConfig(template),
-    });
-  }
-
-  finishTemplateEditor(template: TemplateRecord): void {
-    this.updateState({
-      selectedTemplateId: getTemplateId(template),
-      formState: cloneTemplateConfig(template),
-      mode: "management",
-    });
-  }
-
-  getState(): TemplateState {
-    return this.state;
-  }
-
-  getViewInput(): TemplateViewInput | null {
-    return this.viewInput;
-  }
-
-  getCachedTemplates(): readonly TemplateRecord[] {
-    return this.cachedTemplates;
-  }
-
-  getTemplateList(): readonly TemplateRecord[] {
+  getTemplateList(): readonly TemplateApplyPresetRecord[] {
     return this.cachedTemplates;
   }
 
@@ -190,7 +63,7 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
     return this.hasLoadedTemplates;
   }
 
-  async refreshTemplates(): Promise<readonly TemplateRecord[]> {
+  async refreshTemplates(): Promise<readonly TemplateApplyPresetRecord[]> {
     if (this.templateListRefresh) {
       return this.templateListRefresh;
     }
@@ -206,15 +79,11 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
     }
   }
 
-  async getTemplates(): Promise<TemplateRecord[]> {
-    return [...await this.refreshTemplates()];
-  }
-
-  private async loadTemplatesFromStore(): Promise<readonly TemplateRecord[]> {
+  private async loadTemplatesFromStore(): Promise<readonly TemplateApplyPresetRecord[]> {
     const runId = this.templateListRefreshRunId + 1;
     this.templateListRefreshRunId = runId;
     const remote = await this.templateStoreService.getTemplates();
-    const templates = filterUserTemplateRecords(remote) as TemplateRecord[];
+    const templates = filterUserTemplateApplyPresetRecords(remote) as TemplateApplyPresetRecord[];
     if (this.templateListRefreshRunId === runId) {
       this.setCachedTemplates(templates);
       this.hasLoadedTemplates = true;
@@ -228,107 +97,26 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
     await this.templateStoreService.deleteTemplate(id);
     this.invalidateTemplateListRefresh();
     this.setCachedTemplates(this.cachedTemplates.filter(template => getTemplateId(template) !== id));
-    this.updateState({
-      selectionsByFileId: removeTemplateSelectionsForTemplate(this.state.selectionsByFileId, id),
-    });
   }
 
-  async saveTemplate(template: TemplateSaveInput): Promise<TemplateRecord> {
+  async saveTemplate(template: TemplateApplyPresetSaveInput): Promise<TemplateApplyPresetRecord> {
     const saved = await this.templateStoreService.saveTemplate(template);
-    const savedTemplate = isTemplateRecord(saved) ? saved : template;
+    const savedTemplate = isTemplateApplyPresetRecord(saved) ? saved : template;
     this.invalidateTemplateListRefresh();
     this.setCachedTemplates(upsertCachedTemplate(this.cachedTemplates, savedTemplate));
     return savedTemplate;
   }
 
-  readonly setMode = (value: TemplateMode | ((previous: TemplateMode) => TemplateMode)): void => {
-    this.updateState({ mode: resolveNext(value, this.state.mode) });
-  };
-
-  readonly setSelectedTemplateId = (value: string | null | ((previous: string | null) => string | null)): void => {
-    this.updateState({ selectedTemplateId: resolveNext(value, this.state.selectedTemplateId) });
-  };
-
-  readonly setFormState = (value: TemplateConfig | ((previous: TemplateConfig) => TemplateConfig)): void => {
-    this.updateState({ formState: resolveNext(value, this.state.formState) });
-  };
-
-  setFileTemplateSelection(fileId: string, selection: TemplateSelection): void {
-    const normalizedFileId = String(fileId ?? "").trim();
-    const normalizedSelection = normalizeTemplateSelection(selection);
-    if (!normalizedFileId || !normalizedSelection) {
-      return;
-    }
-
-    this.setSelectionsByFileId(previous => {
-      if (isSameStoredTemplateSelection(previous[normalizedFileId], normalizedSelection)) {
-        return previous;
-      }
-
-      return {
-        ...previous,
-        [normalizedFileId]: normalizedSelection,
-      };
-    });
-  }
-
-  readonly setSelectionsByFileId = (
-    value: TemplateSelectionsByFileId | ((previous: TemplateSelectionsByFileId) => TemplateSelectionsByFileId),
-  ): void => {
-    this.updateState({ selectionsByFileId: resolveNext(value, this.state.selectionsByFileId) });
-  };
-
-  private updateState(updates: Partial<TemplateState>): void {
-    const nextState: TemplateState = {
-      ...this.state,
-      ...updates,
-    };
-    if (isSameTemplateState(this.state, nextState)) {
-      return;
-    }
-
-    this.state = nextState;
-    this.onDidChangeTemplateStateEmitter.fire(nextState);
-  }
-
-  updateViewInput(input: TemplateViewInput): void {
-    if (this.viewInput && isSameTemplateViewInput(this.viewInput, input)) {
-      return;
-    }
-
-    this.viewInput = input;
-    this.onDidChangeTemplateViewInputEmitter.fire(undefined);
-  }
-
-  private readonly handleSessionChanged = (event: SessionChangeEvent): void => {
-    if (event.reason === "sessionCleared") {
-      if (Object.keys(this.state.selectionsByFileId).length > 0) {
-        this.updateState({ selectionsByFileId: {} });
-      }
-      return;
-    }
-
-    if (event.reason !== "filesRemoved" || !event.fileIds?.length) {
-      return;
-    }
-
-    this.setSelectionsByFileId(previous =>
-      removeTemplateSelectionsForFiles(previous, event.fileIds ?? []),
-    );
-  };
-
-  private setCachedTemplates(templates: readonly TemplateRecord[]): void {
-    const normalizedTemplates = filterUserTemplateRecords(templates) as TemplateRecord[];
+  private setCachedTemplates(templates: readonly TemplateApplyPresetRecord[]): void {
+    const normalizedTemplates = filterUserTemplateApplyPresetRecords(templates) as TemplateApplyPresetRecord[];
     this.hasLoadedTemplates = true;
     if (areTemplateListsEqual(this.cachedTemplates, normalizedTemplates)) {
       return;
     }
 
     this.cachedTemplates = normalizedTemplates;
-    this.updateState({
-      templateListVersion: this.state.templateListVersion + 1,
-    });
-    this.onDidChangeTemplateListEmitter.fire(this.cachedTemplates);
+    this.templateListVersion += 1;
+    this.onDidChangeTemplatesEmitter.fire(this.cachedTemplates);
   }
 
   private invalidateTemplateListRefresh(): void {
@@ -337,40 +125,18 @@ export class BrowserTemplateService extends Disposable implements ITemplateServi
   }
 }
 
-const isTemplateRecord = (value: unknown): value is TemplateRecord =>
+const isTemplateApplyPresetRecord = (value: unknown): value is TemplateApplyPresetRecord =>
   Boolean(value) && typeof value === "object";
 
-const getTemplateId = (template: TemplateRecord): string | null => {
+const getTemplateId = (template: TemplateApplyPresetRecord): string | null => {
   const templateId = String(template.id ?? "").trim();
   return templateId && !isAutoTemplateId(templateId) ? templateId : null;
 };
 
-const normalizeTemplateSelection = (
-  selection: TemplateSelection,
-): TemplateSelection | null => {
-  if (selection.kind === "auto") {
-    return { kind: "auto" };
-  }
-
-  const templateId = String(selection.templateId ?? "").trim();
-  return templateId ? { kind: "template", templateId } : null;
-};
-
-const isSameStoredTemplateSelection = (
-  current: TemplateSelection | undefined,
-  next: TemplateSelection,
-): boolean =>
-  current?.kind === next.kind &&
-  (
-    current?.kind !== "template" ||
-    next.kind === "template" &&
-      current.templateId === next.templateId
-  );
-
 const upsertCachedTemplate = (
-  templates: readonly TemplateRecord[],
-  template: TemplateRecord,
-): readonly TemplateRecord[] => {
+  templates: readonly TemplateApplyPresetRecord[],
+  template: TemplateApplyPresetRecord,
+): readonly TemplateApplyPresetRecord[] => {
   const templateId = getTemplateId(template);
   if (!templateId) {
     return templates;
@@ -387,65 +153,14 @@ const upsertCachedTemplate = (
 };
 
 const areTemplateListsEqual = (
-  current: readonly TemplateRecord[],
-  next: readonly TemplateRecord[],
+  current: readonly TemplateApplyPresetRecord[],
+  next: readonly TemplateApplyPresetRecord[],
 ): boolean =>
   current.length === next.length &&
   current.every((template, index) =>
-    getTemplateRecordSignature(template) === getTemplateRecordSignature(next[index]));
+    getTemplateApplyPresetSignature(template) === getTemplateApplyPresetSignature(next[index]));
 
-const getTemplateRecordSignature = (template: TemplateRecord | undefined): string =>
+const getTemplateApplyPresetSignature = (template: TemplateApplyPresetRecord | undefined): string =>
   JSON.stringify(template ?? null);
-
-const getTemplateStopOnError = (
-  template: Partial<TemplateConfig> | null,
-  fallback: boolean,
-): boolean =>
-  typeof template?.stopOnError === "boolean"
-    ? template.stopOnError
-    : fallback;
-
-const createDefaultTemplateState = (): TemplateState => ({
-  mode: "management",
-  selectedTemplateId: null,
-  formState: createEmptyTemplateConfig(),
-  selectionsByFileId: {},
-  templateListVersion: 0,
-});
-
-const resolveNext = <T,>(value: T | ((previous: T) => T), previous: T): T =>
-  typeof value === "function"
-    ? (value as (previous: T) => T)(previous)
-    : value;
-
-const isSameTemplateState = (
-  current: TemplateState,
-  next: TemplateState,
-): boolean =>
-  current.mode === next.mode &&
-  current.selectedTemplateId === next.selectedTemplateId &&
-  current.formState === next.formState &&
-  current.selectionsByFileId === next.selectionsByFileId &&
-  current.templateListVersion === next.templateListVersion;
-
-const isSameTemplateViewInput = (
-  current: TemplateViewInput,
-  next: TemplateViewInput,
-): boolean =>
-  areRawFilesEqual(current.rawFiles ?? [], next.rawFiles ?? []);
-
-const areRawFilesEqual = (
-  current: NonNullable<TemplateViewInput["rawFiles"]>,
-  next: NonNullable<TemplateViewInput["rawFiles"]>,
-): boolean =>
-  current.length === next.length &&
-  current.every((file, index) =>
-    file.fileId === next[index]?.fileId &&
-    file.fileName === next[index]?.fileName &&
-    file.normalizedCsvPath === next[index]?.normalizedCsvPath &&
-    file.relativePath === next[index]?.relativePath &&
-    file.sourceKey === next[index]?.sourceKey &&
-    file.sourcePath === next[index]?.sourcePath &&
-    file.sourceVersion === next[index]?.sourceVersion);
 
 registerSingleton(ITemplateServiceId, BrowserTemplateService, InstantiationType.Delayed);

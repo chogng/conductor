@@ -69,7 +69,9 @@ uses platform storage; callers should not write settings/storage directly.
 - Consumers request prefetch on cache miss instead of synchronously creating expensive data in render.
 - Calculated-data and display-model prefetch are separate cache warmups.
 - PlotService owns dedupe, cache-hit skip, queue promotion, stale-result checks, and perf counters.
-- Worker requests send only fields needed for plot calculation; do not post full raw table stores.
+- Worker requests send only fields needed for plot calculation: base curves,
+  matching series, latest `SliceRun` template metadata, and minimal raw file
+  identity. Do not post full raw table stores.
 - Use bounded interactive/background worker lanes. Reserve interactive capacity for active chart and hover work.
 - Prefetch priority follows user-facing urgency: active chart, hover thumbnail, visible thumbnails, recent interactive targets, nearby thumbnails, idle.
 - Visible/nearby thumbnail backfill runs only while Explorer is in chart thumbnail layout.

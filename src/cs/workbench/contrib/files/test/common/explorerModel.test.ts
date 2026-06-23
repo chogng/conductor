@@ -654,6 +654,5 @@ const createFileRecord = (
       }
       : {},
     seriesOrder: hasChartData ? ["series-1"] : [],
-    templateRunsById: {},
   };
 };

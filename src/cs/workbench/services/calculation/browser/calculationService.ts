@@ -899,9 +899,9 @@ export class CalculationService extends Disposable implements ICalculationServic
 export const shouldUpdateCalculationForSessionChange = (
   event: SessionChangeEvent,
 ): boolean => {
-  switch (event.reason) {
-    case "templateRunChanged":
-    case "filesRemoved":
+	  switch (event.reason) {
+	    case "sliceRunChanged":
+	    case "filesRemoved":
     case "sessionCleared":
     case "metricInputsChanged":
       return true;

@@ -5,11 +5,12 @@ import type {
   RawTableHealthRecord,
   TemplateEligibility,
 } from "src/cs/workbench/services/files/common/rawTable";
+import type { SliceRun, SliceRunId } from "src/cs/workbench/services/slice/common/slice";
+import type { Template } from "src/cs/workbench/services/template/common/templateSpec";
 
 export type FileId = string;
 export type SheetId = string;
 export type SeriesId = string;
-export type TemplateRunId = string;
 export type CacheKey = string;
 export type FileKind = FileImportSourceKind;
 
@@ -49,6 +50,8 @@ export type MetricKey = `${MetricFamily}:${SeriesId}:${string}`;
 
 export type TemplateSelectionRecord =
   | { kind: "auto" }
+  | { kind: "saved"; templateId: string }
+  | { kind: "inline"; template: Template }
   | { kind: "template"; templateId: string };
 
 export type SessionModel = {
@@ -67,8 +70,8 @@ export type FileRecord = {
   assessmentsByRawTableId: Record<SheetId, RawTableAssessmentRecord>;
   measurementBlocksById: Record<string, MeasurementBlockRecord>;
   measurementBlockOrder: string[];
-  templateRunsById: Record<TemplateRunId, TemplateRunRecord>;
-  latestTemplateRunId?: TemplateRunId;
+  sliceRunsById?: Record<SliceRunId, SliceRun>;
+  latestSliceRunId?: SliceRunId;
   seriesById: Record<SeriesId, SeriesRecord>;
   seriesOrder: SeriesId[];
   curvesByKey: Record<string, CurveRecord>;
@@ -111,53 +114,11 @@ export type TableRowStoreRecord =
 
 export type TableRowRecord = readonly unknown[];
 
-export type TemplateRunRecord = {
-  id: TemplateRunId;
-  fileId: FileId;
-  selection: TemplateSelectionRecord;
-  config: TemplateConfigRecord;
-  input?: TemplateInputRecord;
-  sourceBlockIds: string[];
-  outputSeriesIds: SeriesId[];
-  outputCurveKeys: CurveKey[];
-  configFingerprint: string;
-  mode: "auto" | "manual" | "rule";
-  appliedAt: number;
-  warnings: string[];
-  errors: string[];
-};
-
-export type TemplateConfigRecord = {
-  name?: string;
-  xColumns: number[];
-  xDataStart: number;
-  xDataEnd: number;
-  xSegmentationMode: "auto" | "points" | "segments";
-  xSegmentCount?: number;
-  xPointsPerGroup?: number;
-  xUnit?: string;
-  yLegendStart?: number;
-  yLegendCount?: number;
-  yLegendStep?: number;
-  yLegendTarget: "auto" | "yColumn" | "group";
-  yUnit?: string;
-  stopOnError: boolean;
-  bottomTitle?: string;
-  leftTitle?: string;
-  legendPrefix?: string;
-  yColumns: number[];
-};
-
-export type TemplateInputRecord = {
-  xRange?: TableRangeRef;
-  yRanges?: TableRangeRef[];
-};
-
-export const getLatestTemplateRunRecord = (
-  file: Pick<FileRecord, "latestTemplateRunId" | "templateRunsById">,
-): TemplateRunRecord | undefined => {
-  const templateRunId = file.latestTemplateRunId;
-  return templateRunId ? file.templateRunsById[templateRunId] : undefined;
+export const getLatestSliceRunRecord = (
+  file: Pick<FileRecord, "latestSliceRunId" | "sliceRunsById">,
+): SliceRun | undefined => {
+  const sliceRunId = file.latestSliceRunId;
+  return sliceRunId ? file.sliceRunsById?.[sliceRunId] : undefined;
 };
 
 export type TableRangeRef = {

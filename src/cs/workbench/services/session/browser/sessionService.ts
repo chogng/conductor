@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Browser implementation of the session data table. This is the only mutable
-// owner for canonical imported files, assessments, template runs, curves, and metrics.
+// owner for canonical imported files, assessments, slice runs, curves, and metrics.
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
@@ -20,13 +20,10 @@ import {
   type MetricRecord,
   type RawTableRef,
   type RawRecord,
+  type SeriesRecord,
   type TableRecord,
   type TableRowStoreRecord,
-  type TemplateRunRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import {
-  resetProcessedRecords,
-} from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import {
   logSessionSnapshotTrace,
 } from "src/cs/workbench/services/session/common/sessionTrace";
@@ -40,11 +37,16 @@ import {
   type CommitCurvesInput,
   type CommitMetricsBatchInput,
   type CommitMetricsInput,
-  type CommitTemplateOutputInput,
-  type CommitTemplateRunInput,
   type SessionSnapshot,
   type ISessionService as ISessionServiceType,
 } from "src/cs/workbench/services/session/common/session";
+import type {
+  SliceCommit,
+  SliceRun,
+} from "src/cs/workbench/services/slice/common/slice";
+import type {
+  TemplateSelection,
+} from "src/cs/workbench/services/template/common/templateSelection";
 import {
   createSessionChangeEvent,
   type SessionAffectedRecords,
@@ -63,6 +65,10 @@ import type {
   RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import { createUnknownAssessmentDecision } from "src/cs/workbench/services/assessment/common/assessmentDecision";
+import {
+  normalizeRuleSetFingerprint,
+  normalizeTemplateCatalogVersion,
+} from "src/cs/workbench/services/assessment/common/assessmentRecord";
 import type {
   MeasurementBlockRecord,
 } from "src/cs/workbench/services/assessment/common/measurement";
@@ -256,180 +262,44 @@ export class SessionService extends Disposable implements ISessionServiceType {
     });
   };
 
-  public commitTemplateRun = (input: CommitTemplateRunInput): void => {
-    if (isClearTemplateOutputCommitInput(input)) {
-      this.clearTemplateOutput(input.fileIds);
-      return;
-    }
-
-    const templateRunInput = getTemplateRunFromCommitInput(input);
-    const templateRun = templateRunInput ? normalizeTemplateRunRecord(templateRunInput) : null;
-    const file = templateRun ? this.snapshot.filesById[templateRun.fileId] : undefined;
-    if (!templateRun || !file) {
-      return;
-    }
-    const payload = getTemplateRunCommitPayload(input);
-
-    const current = file.templateRunsById[templateRun.id];
-    if (
-      current === templateRun &&
-      file.latestTemplateRunId === templateRun.id &&
-      !payload
-    ) {
-      return;
-    }
-    const fileName = payload?.fileName ? normalizeId(payload.fileName) : null;
-    const nextFile: FileRecord = {
-      ...file,
-      ...(payload && "calculationCache" in payload ? { calculationCache: payload.calculationCache } : {}),
-      ...(payload?.seriesById ? { seriesById: { ...payload.seriesById } } : {}),
-      ...(payload?.seriesOrder ? { seriesOrder: [...payload.seriesOrder] } : {}),
-      ...(fileName
-        ? {
-            name: fileName,
-            raw: {
-              ...file.raw,
-              fileName,
-            },
-          }
-        : {}),
-      templateRunsById: {
-        ...file.templateRunsById,
-        [templateRun.id]: templateRun,
-      },
-      latestTemplateRunId: templateRun.id,
-    };
-
-    this.replaceSnapshot({
-      ...this.snapshot,
-      filesById: {
-        ...this.snapshot.filesById,
-        [templateRun.fileId]: nextFile,
-      },
-    }, "templateRunChanged", {
-      curveKeys: templateRun.outputCurveKeys,
-      fileIds: [templateRun.fileId],
-      seriesIds: templateRun.outputSeriesIds,
-    });
-  };
-
-  public commitTemplateOutput = (input: CommitTemplateOutputInput): void => {
-    this.commitTemplateOutputs([input]);
-  };
-
-  public commitTemplateOutputs = (inputs: readonly CommitTemplateOutputInput[]): void => {
-    const inputList = Array.isArray(inputs) ? inputs : [];
-    const inputCount = inputList.length;
-    const inputFileIds = inputList.flatMap(input => input.curves?.fileId ? [input.curves.fileId] : []);
-    const endPerf = startPerf("sessionService.commitTemplateOutput", {
-      batchSize: inputCount,
-      fileIds: inputFileIds,
-      sessionVersion: this.snapshot.sessionVersion,
-    });
-    logSessionSnapshotTrace("sessionService.commitTemplateOutputs.before", this.snapshot, {
-      batchSize: inputCount,
-    }, {
-      fileIds: inputList.flatMap(input => input.curves?.fileId ? [input.curves.fileId] : []),
-    });
+  public commitSliceRuns = (inputs: readonly SliceCommit[]): void => {
     let nextFilesById = this.snapshot.filesById;
     const committedFileIds: FileId[] = [];
     const committedCurveKeys: SessionCurveKey[] = [];
     const committedSeriesIds: string[] = [];
 
-    for (const input of inputList) {
-      const templateRunInput = getTemplateRunFromCommitInput(input.templateRun);
-      const templateRun = templateRunInput ? normalizeTemplateRunRecord(templateRunInput) : null;
-      const file = templateRun ? nextFilesById[templateRun.fileId] : undefined;
-      if (!templateRun || !file) {
+    for (const input of Array.isArray(inputs) ? inputs : []) {
+      const run = normalizeSliceRunRecord(input.run);
+      const file = run ? nextFilesById[run.fileId] : undefined;
+      if (!run || !file || !file.raw.tablesById[run.rawTableId]) {
         continue;
       }
 
-      const payload = getTemplateRunCommitPayload(input.templateRun);
-      const current = file.templateRunsById[templateRun.id];
-      const fileName = payload?.fileName ? normalizeId(payload.fileName) : null;
-      let nextFile: FileRecord = {
-        ...file,
-        ...(payload && "calculationCache" in payload ? { calculationCache: payload.calculationCache } : {}),
-        ...(payload?.seriesById ? { seriesById: { ...payload.seriesById } } : {}),
-        ...(payload?.seriesOrder ? { seriesOrder: [...payload.seriesOrder] } : {}),
-        ...(fileName
-          ? {
-              name: fileName,
-              raw: {
-                ...file.raw,
-                fileName,
-              },
-            }
-          : {}),
-        templateRunsById: {
-          ...file.templateRunsById,
-          [templateRun.id]: templateRun,
-        },
-        latestTemplateRunId: templateRun.id,
-      };
-
-      const templateRunChanged =
-        current !== templateRun ||
-        file.latestTemplateRunId !== templateRun.id ||
-        Boolean(payload);
-      const curvesCommit = input.curves.fileId === templateRun.fileId
-        ? createCurvesFileCommit(nextFile, input.curves, templateRun.fileId)
-        : null;
-
-      if (!templateRunChanged && !curvesCommit) {
+      const commit = createSliceRunFileCommit(file, input, run);
+      if (!commit) {
         continue;
-      }
-
-      if (curvesCommit) {
-        nextFile = curvesCommit.file;
       }
 
       if (nextFilesById === this.snapshot.filesById) {
         nextFilesById = { ...nextFilesById };
       }
-      nextFilesById[templateRun.fileId] = nextFile;
-      committedFileIds.push(templateRun.fileId);
-      committedCurveKeys.push(...templateRun.outputCurveKeys, ...(curvesCommit?.curveKeys ?? []));
-      committedSeriesIds.push(...templateRun.outputSeriesIds, ...(curvesCommit?.seriesIds ?? []));
+      nextFilesById[run.fileId] = commit.file;
+      committedFileIds.push(run.fileId);
+      committedCurveKeys.push(...run.outputCurveKeys, ...commit.curveKeys);
+      committedSeriesIds.push(...run.outputSeriesIds, ...commit.seriesIds);
     }
 
     if (nextFilesById === this.snapshot.filesById) {
-      endPerf({
-        committed: false,
-        fileIds: inputFileIds,
-      });
-      logSessionSnapshotTrace("sessionService.commitTemplateOutputs.noop", this.snapshot, {
-        batchSize: inputCount,
-        committed: false,
-      });
       return;
     }
 
     this.replaceSnapshot({
       ...this.snapshot,
       filesById: nextFilesById,
-    }, "templateRunChanged", {
+    }, "sliceRunChanged", {
       curveKeys: uniqueStrings(committedCurveKeys),
       fileIds: uniqueStrings(committedFileIds),
       seriesIds: uniqueStrings(committedSeriesIds),
-    });
-    endPerf({
-      committed: true,
-      committedCurveCount: uniqueStrings(committedCurveKeys).length,
-      committedFileCount: uniqueStrings(committedFileIds).length,
-      committedFileIds: uniqueStrings(committedFileIds),
-      committedSeriesCount: uniqueStrings(committedSeriesIds).length,
-      fileIds: inputFileIds,
-      nextSessionVersion: this.snapshot.sessionVersion,
-    });
-    logSessionSnapshotTrace("sessionService.commitTemplateOutputs.after", this.snapshot, {
-      batchSize: inputCount,
-      committed: true,
-      committedCurveCount: uniqueStrings(committedCurveKeys).length,
-      committedFileCount: uniqueStrings(committedFileIds).length,
-      committedSeriesCount: uniqueStrings(committedSeriesIds).length,
-    }, {
-      fileIds: committedFileIds,
     });
   };
 
@@ -663,24 +533,6 @@ export class SessionService extends Disposable implements ISessionServiceType {
     });
   };
 
-  private clearTemplateOutput(fileIds?: readonly string[]): void {
-    const nextRecords = resetProcessedRecords(
-      this.snapshot.filesById,
-      this.snapshot.fileOrder,
-      fileIds,
-    );
-    if (nextRecords.filesById === this.snapshot.filesById) {
-      return;
-    }
-
-    this.replaceSnapshot({
-      ...this.snapshot,
-      ...nextRecords,
-    }, "templateRunChanged", {
-      fileIds: fileIds ? uniqueStrings(fileIds.map(normalizeId)) : getSnapshotFileIds(this.snapshot),
-    });
-  }
-
   private replaceSnapshot(
     snapshot: SessionSnapshot,
     reason: SessionChangeReason,
@@ -758,6 +610,8 @@ const createImportRawTableAssessmentRecords = (
 
     records.push({
       assessmentRuleVersion: normalizeAssessmentRuleVersion(assessment.assessmentRuleVersion) ?? 0,
+      ruleSetFingerprint: normalizeRuleSetFingerprint(assessment.ruleSetFingerprint),
+      templateCatalogVersion: normalizeTemplateCatalogVersion(assessment.templateCatalogVersion),
       schemaProfileVersion: normalizeSchemaProfileVersion(assessment.schemaProfileVersion),
       blocks: assessment.blocks,
       columnProfiles: assessment.columnProfiles ?? [],
@@ -769,8 +623,10 @@ const createImportRawTableAssessmentRecords = (
       layoutCandidates: assessment.layoutCandidates ?? [],
       rawTableId,
       semanticCandidates: assessment.semanticCandidates ?? [],
+      selectedTemplate: assessment.selectedTemplate,
       sourceRawTableVersion,
       structure: assessment.structure ?? createEmptyRawTableStructure(),
+      templateCandidates: assessment.templateCandidates ?? [],
     });
   }
 
@@ -820,6 +676,8 @@ const commitRawTableAssessmentsToFiles = (
     const committedAssessment: RawTableAssessmentRecord = {
       ...assessment,
       assessmentRuleVersion: normalizeAssessmentRuleVersion(assessment.assessmentRuleVersion) ?? 0,
+      ruleSetFingerprint: normalizeRuleSetFingerprint(assessment.ruleSetFingerprint),
+      templateCatalogVersion: normalizeTemplateCatalogVersion(assessment.templateCatalogVersion),
       schemaProfileVersion: normalizeSchemaProfileVersion(assessment.schemaProfileVersion),
       fileId,
       rawTableId,
@@ -828,7 +686,9 @@ const commitRawTableAssessmentsToFiles = (
       decision: assessment.decision ?? createUnknownAssessmentDecision(),
       layoutCandidates: assessment.layoutCandidates ?? [],
       semanticCandidates: assessment.semanticCandidates ?? [],
+      selectedTemplate: assessment.selectedTemplate,
       structure: assessment.structure ?? createEmptyRawTableStructure(),
+      templateCandidates: assessment.templateCandidates ?? [],
     };
     nextFilesById = {
       ...nextFilesById,
@@ -923,7 +783,6 @@ const createFileRecordFromImportedFile = (
     assessmentsByRawTableId: {},
     measurementBlocksById: {},
     measurementBlockOrder: [],
-    templateRunsById: {},
     seriesById: {},
     seriesOrder: [],
     curvesByKey: {},
@@ -1192,42 +1051,55 @@ const normalizeFileIdSet = (fileIds: readonly string[]): Set<string> =>
       .filter((fileId) => fileId.length > 0),
   );
 
-type TemplateRunCommitPayload = Extract<CommitTemplateRunInput, { readonly run: TemplateRunRecord }>;
+const createSliceRunFileCommit = (
+  file: FileRecord,
+  input: SliceCommit,
+  run: SliceRun,
+): {
+  readonly file: FileRecord;
+  readonly curveKeys: readonly SessionCurveKey[];
+  readonly seriesIds: readonly string[];
+} | null => {
+  const seriesRecords = normalizeSliceSeriesRecords(input.series, run.fileId);
+  const seriesById: Record<string, SeriesRecord> = {};
+  const seriesOrder: string[] = [];
+  for (const series of seriesRecords) {
+    seriesById[series.id] = series;
+    if (!seriesOrder.includes(series.id)) {
+      seriesOrder.push(series.id);
+    }
+  }
 
-const getTemplateRunFromCommitInput = (
-  input: CommitTemplateRunInput,
-): TemplateRunRecord | null =>
-  isClearTemplateOutputCommitInput(input)
-    ? null
-    : isTemplateRunCommitPayload(input)
-      ? input.run
-      : input;
+  const fileWithRun: FileRecord = {
+    ...file,
+    sliceRunsById: {
+      ...file.sliceRunsById,
+      [run.id]: run,
+    },
+    latestSliceRunId: run.id,
+    seriesById,
+    seriesOrder,
+  };
+  const curvesCommit = createCurvesFileCommit(fileWithRun, {
+    fileId: run.fileId,
+    curves: input.curves,
+    replaceGenerations: ["base"],
+  }, run.fileId);
 
-const getTemplateRunCommitPayload = (
-  input: CommitTemplateRunInput,
-): TemplateRunCommitPayload | null =>
-  isClearTemplateOutputCommitInput(input)
-    ? null
-    : isTemplateRunCommitPayload(input)
-      ? input
-      : null;
+  return {
+    curveKeys: curvesCommit?.curveKeys ?? [],
+    file: curvesCommit?.file ?? fileWithRun,
+    seriesIds: seriesOrder,
+  };
+};
 
-const isTemplateRunCommitPayload = (
-  input: CommitTemplateRunInput,
-): input is TemplateRunCommitPayload =>
-  Boolean(input && typeof input === "object" && "run" in input);
-
-const isClearTemplateOutputCommitInput = (
-  input: CommitTemplateRunInput,
-): input is Extract<CommitTemplateRunInput, { readonly kind: "clearTemplateOutput" }> =>
-  Boolean(input && typeof input === "object" && "kind" in input && input.kind === "clearTemplateOutput");
-
-const normalizeTemplateRunRecord = (
-  input: TemplateRunRecord,
-): TemplateRunRecord | null => {
-  const id = normalizeId(input.id);
-  const fileId = normalizeId(input.fileId);
-  if (!id || !fileId) {
+const normalizeSliceRunRecord = (
+  input: SliceRun,
+): SliceRun | null => {
+  const id = normalizeId(input?.id);
+  const fileId = normalizeId(input?.fileId);
+  const rawTableId = normalizeId(input?.rawTableId);
+  if (!id || !fileId || !rawTableId) {
     return null;
   }
 
@@ -1235,10 +1107,11 @@ const normalizeTemplateRunRecord = (
     ...input,
     id,
     fileId,
-    sourceBlockIds: uniqueStrings(
-      (Array.isArray(input.sourceBlockIds) ? input.sourceBlockIds : [])
-        .map(normalizeId),
-    ),
+    rawTableId,
+    selection: normalizeTemplateSelection(input.selection),
+    sourceRawTableVersion: normalizeNonNegativeInteger(input.sourceRawTableVersion),
+    sourceAssessmentSignature: normalizeOptionalText(input.sourceAssessmentSignature),
+    inputRanges: normalizeSliceInputRanges(input.inputRanges, fileId, rawTableId),
     outputSeriesIds: uniqueStrings(
       (Array.isArray(input.outputSeriesIds) ? input.outputSeriesIds : [])
         .map(normalizeId),
@@ -1247,10 +1120,86 @@ const normalizeTemplateRunRecord = (
       (Array.isArray(input.outputCurveKeys) ? input.outputCurveKeys : [])
         .map(normalizeId),
     ) as SessionCurveKey[],
-    appliedAt: Number.isFinite(Number(input.appliedAt)) ? Number(input.appliedAt) : 0,
     warnings: readTextArray(input.warnings),
     errors: readTextArray(input.errors),
   };
+};
+
+const normalizeSliceSeriesRecords = (
+  series: readonly SeriesRecord[],
+  fileId: string,
+): SeriesRecord[] => {
+  const records: SeriesRecord[] = [];
+  for (const entry of Array.isArray(series) ? series : []) {
+    const id = normalizeId(entry.id);
+    if (entry.fileId !== fileId || !id) {
+      continue;
+    }
+
+    records.push({
+      ...entry,
+      id,
+      fileId,
+    });
+  }
+  return records;
+};
+
+const normalizeSliceInputRanges = (
+  ranges: SliceRun["inputRanges"],
+  fileId: string,
+  rawTableId: string,
+): SliceRun["inputRanges"] => {
+  const result: Array<SliceRun["inputRanges"][number]> = [];
+  for (const entry of Array.isArray(ranges) ? ranges : []) {
+    const range = normalizeSliceRange(entry.range);
+    if (range) {
+      result.push({
+        fileId,
+        rawTableId,
+        range,
+      });
+    }
+  }
+  return result;
+};
+
+const normalizeSliceRange = (
+  range: SliceRun["inputRanges"][number]["range"] | undefined,
+): SliceRun["inputRanges"][number]["range"] | null => {
+  const startRow = normalizeNonNegativeInteger(range?.startRow);
+  const endRow = normalizeNonNegativeInteger(range?.endRow);
+  const startCol = normalizeNonNegativeInteger(range?.startCol);
+  const endCol = normalizeNonNegativeInteger(range?.endCol);
+  if (endRow < startRow || endCol < startCol) {
+    return null;
+  }
+
+  return {
+    startRow,
+    endRow,
+    startCol,
+    endCol,
+  };
+};
+
+const normalizeNonNegativeInteger = (value: unknown): number => {
+  const numberValue = Math.floor(Number(value));
+  return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : 0;
+};
+
+const normalizeTemplateSelection = (
+  selection: TemplateSelection,
+): TemplateSelection => {
+  if (selection?.kind === "inline" && selection.template) {
+    return selection;
+  }
+  if (selection?.kind === "saved" || selection?.kind === "template") {
+    const templateId = normalizeId(selection.templateId);
+    return templateId ? { kind: "saved", templateId } : { kind: "auto" };
+  }
+
+  return { kind: "auto" };
 };
 
 const normalizeMetricInput = (

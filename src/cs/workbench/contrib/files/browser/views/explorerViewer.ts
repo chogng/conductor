@@ -95,11 +95,12 @@ import type { PlotAxisSettings } from "src/cs/workbench/services/plot/common/plo
 import {
   createTemplateSelection,
   getTemplateSelectionId,
+  getTemplateSelectionTemplateId,
   resolveTemplateSelectionForFile,
   type TemplateSelection,
   type TemplateSelectionsByFileId,
 } from "src/cs/workbench/services/template/common/templateSelection";
-import type { TemplateRecord } from "src/cs/workbench/services/template/common/template";
+import type { TemplateApplyPresetRecord } from "src/cs/workbench/services/template/common/template";
 import { isAutoTemplateId } from "src/cs/workbench/services/template/common/autoTemplate";
 
 export type ExplorerViewerProps = {
@@ -118,7 +119,7 @@ export type ExplorerViewerProps = {
   readonly currentTemplateSelection?: TemplateSelection;
   readonly fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
   readonly editable?: ExplorerEditableData | null;
-  readonly templateRecords?: readonly TemplateRecord[];
+  readonly templateRecords?: readonly TemplateApplyPresetRecord[];
   readonly files: ExplorerFileEntry[];
   readonly mode?: WorkbenchMainPart;
   readonly viewLayout?: FilesViewLayout;
@@ -203,7 +204,7 @@ type FileHoverContext = {
 
 type FileItemTemplate = {
   readonly actions: HTMLDivElement;
-  readonly assessment: ExplorerBadgeNode;
+  readonly badge: ExplorerBadgeNode;
   readonly content: HTMLDivElement;
   readonly editorStore: DisposableStore;
   fileId: string | null;
@@ -1600,16 +1601,21 @@ export class ExplorerViewer implements IDisposable {
     if (selection.kind === "auto") {
       return localize("template.autoExtraction", "Auto extraction");
     }
-
-    if (
-      currentSelection.kind === "template" &&
-      selection.templateId === currentSelection.templateId
-    ) {
-      return props.currentTemplateLabel || selection.templateId;
+    if (selection.kind === "inline") {
+      return selection.template.name;
     }
 
-    return props.templateRecords?.find(template => template.id === selection.templateId)?.name ||
-      selection.templateId;
+    const selectionTemplateId = getTemplateSelectionTemplateId(selection);
+    if (
+      selectionTemplateId &&
+      selectionTemplateId === getTemplateSelectionTemplateId(currentSelection)
+    ) {
+      return props.currentTemplateLabel || selectionTemplateId;
+    }
+
+    return props.templateRecords?.find(template => template.id === selectionTemplateId)?.name ||
+      selectionTemplateId ||
+      localize("template.unknownTemplate", "Unknown template");
   }
 
   private resolveFileTemplateSelection(
@@ -1697,7 +1703,7 @@ export class ExplorerViewer implements IDisposable {
     }
     template.fileRenderKey = fileKey;
     template.filePresentationSignature = presentationSignature;
-    template.assessment.bind(fileKey);
+    template.badge.bind(fileKey);
     const hoverAssessment = assessment ?? (fastAssessment?.isWarning ? fastAssessment : null);
     if (hoverAssessment) {
       host.dataset.autoType = hoverAssessment.type;
@@ -1773,7 +1779,7 @@ export class ExplorerViewer implements IDisposable {
     const badge = sourceStatus?.status === "failed"
       ? sourceStatus
       : assessment ?? fastAssessment ?? sourceStatus ?? pendingAssessment;
-    template.assessment.setBadge(fileKey, createBadgePresentation(
+    template.badge.setBadge(fileKey, createBadgePresentation(
       fileKey,
       badge,
       this.explorerAppearance.badgeColors,
@@ -1973,14 +1979,14 @@ export class ExplorerViewer implements IDisposable {
     const assessmentHost = document.createElement("span");
     assessmentHost.className = "file-list-item-assessment";
     assessmentHost.hidden = true;
-    const assessment = new ExplorerBadgeNode(assessmentHost);
+    const badge = new ExplorerBadgeNode(assessmentHost);
 
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "file-list-item-remove";
     const template: FileItemTemplate = {
       actions,
-      assessment,
+      badge,
       content,
       editorStore: new DisposableStore(),
       fileId: null,

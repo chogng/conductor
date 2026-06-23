@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "id": "builtin.iv.output",
+  "version": 1,
+  "priority": 95,
+  "enabled": true,
+  "scope": {
+    "measurementFamilies": ["iv"]
+  },
+  "match": {
+    "all": [
+      {
+        "kind": "blockFamily",
+        "family": "iv",
+        "minConfidence": 0.75
+      },
+      {
+        "kind": "blockMode",
+        "ivMode": "output",
+        "minConfidence": 0.75
+      },
+      {
+        "kind": "columnRole",
+        "capture": "x",
+        "within": "matchedBlock",
+        "roleAny": ["vd"],
+        "axis": "x",
+        "canonicalUnit": "V",
+        "minCount": 1,
+        "maxCount": 1
+      },
+      {
+        "kind": "columnRole",
+        "capture": "y",
+        "within": "matchedBlock",
+        "roleAny": ["id", "current"],
+        "axis": "y",
+        "canonicalUnit": "A",
+        "minCount": 1
+      }
+    ]
+  },
+  "emit": {
+    "name": {
+      "kind": "literal",
+      "value": "Detected IV Output"
+    },
+    "blocks": {
+      "source": "eachMatchedBlock",
+      "rowRange": "block.dataRange",
+      "x": {
+        "columns": {
+          "kind": "capturedColumns",
+          "capture": "x"
+        },
+        "unit": {
+          "kind": "capturedCommonUnit",
+          "capture": "x"
+        }
+      },
+      "y": {
+        "columns": {
+          "kind": "capturedColumns",
+          "capture": "y"
+        },
+        "unit": {
+          "kind": "capturedCommonUnit",
+          "capture": "y"
+        }
+      },
+      "segmentation": {
+        "kind": "auto"
+      },
+      "legend": {
+        "target": "auto"
+      }
+    },
+    "stopOnError": false
+  }
+}

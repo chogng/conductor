@@ -1,7 +1,6 @@
 import assert from "assert";
 
-import { AUTO_TEMPLATE_ID } from "src/cs/workbench/services/template/common/autoTemplate";
-import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
+import { createEmptyTemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
 import {
   createTemplateApplyViewState,
   resolveTemplateSaveId,
@@ -11,8 +10,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common
 
 suite("workbench/contrib/template/test/browser/templateView", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
+  const autoTemplateSelectionId = "auto";
+
   test("createTemplateApplyViewState uses loaded templates for the selected label", () => {
-    const config = createEmptyTemplateConfig({
+    const config = createEmptyTemplateApplyConfig({
       name: "Transfer",
     });
 
@@ -32,14 +33,14 @@ suite("workbench/contrib/template/test/browser/templateView", () => {
   });
 
   test("createTemplateApplyViewState falls back to auto label and draft stop-on-error", () => {
-    const config = createEmptyTemplateConfig({
+    const config = createEmptyTemplateApplyConfig({
       name: "",
       stopOnError: false,
     });
 
     const state = createTemplateApplyViewState({
       config,
-      selectedTemplateId: AUTO_TEMPLATE_ID,
+      selectedTemplateId: autoTemplateSelectionId,
       stopOnErrorDraft: true,
       templates: null,
     });
@@ -51,7 +52,7 @@ suite("workbench/contrib/template/test/browser/templateView", () => {
 
   test("createTemplateApplyViewState falls back to selected template id before templates load", () => {
     const state = createTemplateApplyViewState({
-      config: createEmptyTemplateConfig(),
+      config: createEmptyTemplateApplyConfig(),
       selectedTemplateId: "template-a",
       stopOnErrorDraft: null,
       templates: null,
@@ -68,7 +69,7 @@ suite("workbench/contrib/template/test/browser/templateView", () => {
 
   test("resolves custom template id for editor saves", () => {
     assert.equal(resolveTemplateSaveId(" template-a "), "template-a");
-    assert.equal(resolveTemplateSaveId(AUTO_TEMPLATE_ID), undefined);
+    assert.equal(resolveTemplateSaveId(autoTemplateSelectionId), undefined);
     assert.equal(resolveTemplateSaveId(null), undefined);
   });
 });

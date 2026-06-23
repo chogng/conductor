@@ -4,7 +4,6 @@ import {
   logSessionSnapshotTrace,
 } from "src/cs/workbench/services/session/common/sessionTrace";
 import {
-  getLatestTemplateRunRecord,
   type FileId,
   type FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
@@ -123,9 +122,9 @@ export const createProcessedEntryFromFileRecord = (
     xAxisRole: axis.xAxisRole,
     xGroups: getFileRecordXGroups(file),
     xLabel: axis.xLabel,
-    xUnit: axis.xUnit ?? getLatestTemplateRunRecord(file)?.config.xUnit,
+    xUnit: axis.xUnit,
     yLabel: axis.yLabel,
-    yUnit: axis.yUnit ?? getLatestTemplateRunRecord(file)?.config.yUnit,
+    yUnit: axis.yUnit,
   };
 };
 

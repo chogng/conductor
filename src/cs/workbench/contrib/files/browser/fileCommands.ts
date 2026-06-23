@@ -4,7 +4,7 @@
 
 import type { ICommandHandler } from "src/cs/platform/commands/common/commands";
 import { IExplorerService, IExplorerWorkflowService, type ExplorerSelectionKind } from "src/cs/workbench/contrib/files/browser/files";
-import { ITemplateService } from "src/cs/workbench/services/template/common/template";
+import { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 
 export const addFolderHandler: ICommandHandler = accessor => {
@@ -72,8 +72,8 @@ export const setFileTemplateHandler: ICommandHandler<[unknown, unknown]> = (
     return;
   }
 
-  const templateService = accessor.get(ITemplateService);
-  templateService.setFileTemplateSelection(normalizedFileId, selection);
+  const sliceService = accessor.get(ISliceService);
+  sliceService.setTemplateSelection(normalizedFileId, selection);
 };
 
 export const sliceFileWithTemplateHandler: ICommandHandler<[unknown]> = (
@@ -103,7 +103,15 @@ const isTemplateSelection = (value: unknown): value is TemplateSelection => {
     return true;
   }
 
-  return candidate.kind === "template" &&
+  if (
+    (candidate.kind === "saved" || candidate.kind === "template") &&
     typeof candidate.templateId === "string" &&
-    candidate.templateId.trim().length > 0;
+    candidate.templateId.trim().length > 0
+  ) {
+    return true;
+  }
+
+  return candidate.kind === "inline" &&
+    Boolean(candidate.template) &&
+    typeof candidate.template === "object";
 };

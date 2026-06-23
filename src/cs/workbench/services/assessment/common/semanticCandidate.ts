@@ -133,6 +133,9 @@ const inferColumnRole = (
 	if (matchesLexicon(text, "conductance", { contains: true })) {
 		return "conductance";
 	}
+	if (matchesLexicon(text, "frequency", { contains: true })) {
+		return "frequency";
+	}
 	if (matchesLexicon(text, "time", { contains: true })) {
 		return "time";
 	}
@@ -342,6 +345,8 @@ const getDefaultUnitForRole = (
 			return "F";
 		case "conductance":
 			return "S";
+		case "frequency":
+			return "Hz";
 		case "time":
 			return "s";
 		case "unknown":

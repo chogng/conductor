@@ -49,16 +49,11 @@ import type {
   FileRecord,
   TableRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import { createTemplateApplyInput } from "src/cs/workbench/services/template/browser/templateApplyInput";
 import type {
-  TemplateApplyFileState,
-  ITemplateApplyWorkflowService,
-  ITemplateService,
-  TemplateState,
-} from "src/cs/workbench/services/template/common/template";
-import {
-  createCurrentTemplateSelectionDisplay,
-} from "src/cs/workbench/services/template/common/templateSelection";
+  ISliceService,
+  SliceFileState,
+  SliceState,
+} from "src/cs/workbench/services/slice/common/slice";
 import {
   getRawTableRefsForFileIds,
   type AssessmentQueueSnapshot,
@@ -90,9 +85,8 @@ export type WorkbenchDomainBridgeOptions = {
   readonly plotService: IPlotService;
   readonly sessionService: ISessionService;
   readonly settingsService: ISettingsService;
+  readonly sliceService: ISliceService;
   readonly tableService: ITableService;
-  readonly templateApplyWorkflowService: ITemplateApplyWorkflowService;
-  readonly templateService: ITemplateService;
   readonly thumbnailPreviewService: IThumbnailPreviewService;
 };
 
@@ -118,10 +112,7 @@ export class WorkbenchDomainBridge extends Disposable {
     }));
     this._register(this.options.assessmentQueueService.onDidChangeAssessmentQueueState(() => this.scheduleSync()));
     this._register(this.options.plotService.onDidChangePlotState(() => this.scheduleSync()));
-    this._register(this.options.templateApplyWorkflowService.onDidChangeProcessingStatus(() => this.scheduleSync()));
-    this._register(this.options.templateApplyWorkflowService.onDidChangeFileStates(() => this.scheduleSync()));
-    this._register(this.options.templateService.onDidChangeTemplateState(() => this.scheduleInteractiveSync()));
-    this._register(this.options.templateService.onDidChangeTemplateList(() => this.scheduleInteractiveSync()));
+    this._register(this.options.sliceService.onDidChangeSliceState(() => this.scheduleInteractiveSync()));
     this._register(this.options.layoutService.onDidChangeWorkbenchNavigation(() => this.scheduleSync()));
     this._register(this.options.sessionService.onDidChangeSession(() => this.scheduleSync()));
     this._register({
@@ -322,19 +313,11 @@ export class WorkbenchDomainBridge extends Disposable {
     readModel: SessionReadModel,
     explorerSelection: ExplorerSessionSelection,
   ): void {
-    this.options.templateApplyWorkflowService.update(createTemplateApplyInput({
-      activeFileId: explorerSelection.selectedProcessedFileId ?? explorerSelection.selectedRawFileId,
-      hasPendingSourceFiles: this.options.explorerService.hasPendingSourceFiles,
-      readModel,
-      templateRecords: this.options.templateService.getTemplateList(),
-      templateState: this.options.templateService.getState(),
-    }));
-    this.options.templateService.updateViewInput({
-      rawFiles: readModel.rawFiles,
-    });
+    const sliceState = this.options.sliceService.getState();
     this.options.explorerService.updatePaneInput(this.getExplorerPaneInput(
       snapshot,
       readModel,
+      sliceState,
     ));
     const chartViewInput = this.getChartViewInput(
       snapshot,
@@ -357,6 +340,7 @@ export class WorkbenchDomainBridge extends Disposable {
   private getExplorerPaneInput(
     snapshot: SessionSnapshot,
     readModel: SessionReadModel,
+    sliceState: SliceState = this.options.sliceService.getState(),
   ): ExplorerPaneInput {
     const conductorSettings = this.options.settingsService.getConductorSettings();
     return createExplorerPaneInput({
@@ -369,8 +353,7 @@ export class WorkbenchDomainBridge extends Disposable {
       readModel,
       snapshot,
       assessmentQueueSnapshot: this.options.assessmentQueueService.getQueueSnapshot(),
-      applyStatesByFileId: this.options.templateApplyWorkflowService.getFileApplyStates(),
-      templateState: this.options.templateService.getState(),
+      sliceState,
     });
   }
 
@@ -399,7 +382,6 @@ export class WorkbenchDomainBridge extends Disposable {
       activePlotType: this.options.plotService.getState().activePlotType,
       chartFileOptions,
       hasChartData: hasActiveChartData,
-      processingStatus: this.options.templateApplyWorkflowService.processingStatus,
       showFileSelect: false,
       shouldMountCharts: false,
     });
@@ -415,7 +397,6 @@ export class WorkbenchDomainBridge extends Disposable {
     }
 
     const newlyRecentFileIds = this.rememberRecentInteractiveChartTarget(normalizedFileId);
-    this.options.templateApplyWorkflowService.prioritizeProcessingFile(normalizedFileId);
     this.options.calculationService.prioritizeCalculationFile(normalizedFileId);
     this.prefetchPlotDisplayTargets([normalizedFileId], plotPriority, "interactiveTarget");
     this.prefetchRecentInteractiveChartTargets(newlyRecentFileIds);
@@ -690,8 +671,7 @@ type CreateExplorerPaneInputOptions = {
   readonly readModel: SessionReadModel;
   readonly snapshot: SessionSnapshot;
   readonly assessmentQueueSnapshot?: AssessmentQueueSnapshot;
-  readonly applyStatesByFileId?: ReadonlyMap<string, TemplateApplyFileState>;
-  readonly templateState: TemplateState;
+  readonly sliceState: SliceState;
 };
 
 type ExplorerSessionSelection = {
@@ -760,8 +740,7 @@ export const createExplorerPaneInput = ({
   readModel,
   snapshot,
   assessmentQueueSnapshot,
-  applyStatesByFileId,
-  templateState,
+  sliceState,
 }: CreateExplorerPaneInputOptions): ExplorerPaneInput => {
   const rawFiles = readModel.rawFiles;
   const isChartMode = mode === "chart";
@@ -782,8 +761,8 @@ export const createExplorerPaneInput = ({
       rawFiles,
     )
     : rawExplorerFiles, {
-      applyStatesByFileId,
       isChartMode,
+      sliceState,
       snapshot,
     });
   const fileIds = getExplorerPaneFileIds(files);
@@ -792,15 +771,9 @@ export const createExplorerPaneInput = ({
     getExplorerSelectedFileId(explorerService),
     selectionFileIds,
   );
-  const currentTemplate = createCurrentTemplateSelectionDisplay({
-    formName: templateState.formState.name,
-    selectedTemplateId: templateState.selectedTemplateId,
-  });
   return {
     activePlotType,
-    currentTemplateLabel: currentTemplate.label,
-    currentTemplateSelection: currentTemplate.selection,
-    fileTemplateSelectionsByFileId: templateState.selectionsByFileId,
+    fileTemplateSelectionsByFileId: sliceState.templateSelectionsByFileId,
     files,
     mode,
     originOpenPlotOptions,
@@ -935,12 +908,12 @@ const createAssessmentQueueStatesByRefKey = (
 const applyChartExplorerStates = (
   files: readonly ExplorerFileEntry[],
   {
-    applyStatesByFileId,
     isChartMode,
+    sliceState,
     snapshot,
   }: {
-    readonly applyStatesByFileId?: ReadonlyMap<string, TemplateApplyFileState>;
     readonly isChartMode: boolean;
+    readonly sliceState: SliceState;
     readonly snapshot: SessionSnapshot;
   },
 ): ExplorerFileEntry[] => {
@@ -951,9 +924,9 @@ const applyChartExplorerStates = (
   return files.map(file => {
     const fileId = String(file.fileId ?? "").trim();
     const hasChartData = hasFileChartData(snapshot.filesById[fileId]);
-    const applyState = fileId ? applyStatesByFileId?.get(fileId) : undefined;
-    const chartState = resolveChartState(applyState, hasChartData);
-    const chartMessage = getChartStateMessage(applyState);
+    const ownerState = fileId ? resolveExplorerFileProcessingState(sliceState.fileStates.get(fileId)) : undefined;
+    const chartState = resolveChartState(ownerState, hasChartData);
+    const chartMessage = getChartStateMessage(ownerState);
     return {
       ...file,
       badgeState: file.badgeState,
@@ -964,13 +937,25 @@ const applyChartExplorerStates = (
   });
 };
 
+type ExplorerFileProcessingState = SliceFileState;
+
+const resolveExplorerFileProcessingState = (
+  sliceState: SliceFileState | undefined,
+): ExplorerFileProcessingState | undefined => {
+  if (sliceState && sliceState.state !== "none") {
+    return sliceState;
+  }
+
+  return undefined;
+};
+
 const hasFileChartData = (
   file: FileRecord | undefined,
 ): boolean =>
   Boolean(file && Object.keys(file.curvesByKey ?? {}).length > 0);
 
 const resolveChartState = (
-  applyState: TemplateApplyFileState | undefined,
+  applyState: ExplorerFileProcessingState | undefined,
   hasChartData: boolean,
 ): NonNullable<ExplorerFileEntry["chartState"]> => {
   if (hasChartData) {
@@ -987,7 +972,7 @@ const resolveChartState = (
 };
 
 const getChartStateMessage = (
-  applyState: TemplateApplyFileState | undefined,
+  applyState: ExplorerFileProcessingState | undefined,
 ): string | null => {
   if (applyState?.state === "failed" || applyState?.state === "skipped") {
     return applyState.message;

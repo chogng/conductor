@@ -24,11 +24,16 @@ import {
   type IExplorerWorkflowService,
 } from "src/cs/workbench/contrib/files/browser/files";
 import { DEFAULT_EXPLORER_APPEARANCE, type IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
-import type { ITemplateService, TemplateSaveInput, TemplateState } from "src/cs/workbench/services/template/common/template";
+import type { ITemplateService, TemplateApplyPresetSaveInput } from "src/cs/workbench/services/template/common/template";
+import type {
+  ITemplateViewStateService,
+  TemplateState,
+} from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 import type { FileConverterBackend } from "src/cs/workbench/services/files/common/fileConverterBackend";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import type { ISessionService } from "src/cs/workbench/services/session/common/session";
+import type { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import type { IThumbnailPreviewService, IThumbnailService } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -178,6 +183,8 @@ const createExplorerViewPane = (options: CreateExplorerViewPaneOptions = {}): Ex
       warmPlotThumbnail: () => undefined,
     } as unknown as IThumbnailService,
     createTemplateService(),
+    createTemplateViewStateService(),
+    createSliceService(),
   );
 
 const createExplorerService = (paneInput: ExplorerPaneInput | null): IExplorerService => ({
@@ -241,37 +248,46 @@ const flushPromises = async (): Promise<void> => {
 
 const createTemplateService = (): ITemplateService => ({
   _serviceBrand: undefined,
-  onDidChangeTemplateList: Event.None,
-  onDidChangeTemplateState: Event.None,
-  onDidChangeTemplateViewInput: Event.None,
-  cancelTemplateEditor: () => undefined,
-  createTemplateDraft: () => undefined,
+  onDidChangeTemplates: Event.None,
   deleteTemplate: async () => undefined,
-  downloadTemplateBundle: () => "",
-  editTemplate: () => false,
-  exportTemplate: () => null,
-  finishTemplateEditor: () => undefined,
-  getCachedTemplates: () => [],
-  getState: () => EmptyTemplateState,
+  getSnapshot: () => ({ templates: [], version: 0 }),
+  getTemplate: () => undefined,
   getTemplateList: () => [],
-  getTemplates: async () => [],
-  getViewInput: () => null,
   hasLoadedTemplateList: () => true,
   refreshTemplates: async () => [],
-  saveTemplate: async (template: TemplateSaveInput) => template,
-  selectTemplate: () => false,
-  setFileTemplateSelection: () => undefined,
-  setFormState: () => undefined,
-  setMode: () => undefined,
-  setSelectedTemplateId: () => undefined,
-  setSelectionsByFileId: () => undefined,
-  updateViewInput: () => undefined,
+  saveTemplate: async (template: TemplateApplyPresetSaveInput) => template,
 } as unknown as ITemplateService);
+
+const createTemplateViewStateService = (): ITemplateViewStateService => ({
+  _serviceBrand: undefined,
+  onDidChangeTemplateState: Event.None,
+  cancelTemplateEditor: () => undefined,
+  createTemplateDraft: () => undefined,
+  editTemplate: () => false,
+  finishTemplateEditor: () => undefined,
+  getState: () => EmptyTemplateState,
+  selectTemplate: () => false,
+  setFormState: () => undefined,
+} as unknown as ITemplateViewStateService);
+
+const createSliceService = (): ISliceService => ({
+  _serviceBrand: undefined,
+  cancel: () => undefined,
+  enqueueAuto: () => undefined,
+  getState: () => ({
+    activeFileId: null,
+    fileStates: new Map(),
+    queueLength: 0,
+    templateSelectionsByFileId: {},
+  }),
+  onDidChangeSliceState: Event.None as Event<void>,
+  prioritize: () => undefined,
+  runWithTemplate: () => undefined,
+  setTemplateSelection: () => undefined,
+} as unknown as ISliceService);
 
 const EmptyTemplateState: TemplateState = {
   formState: {} as TemplateState["formState"],
   mode: "management",
   selectedTemplateId: null,
-  selectionsByFileId: {},
-  templateListVersion: 0,
 };

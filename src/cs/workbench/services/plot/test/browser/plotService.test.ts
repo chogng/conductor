@@ -187,8 +187,6 @@ suite("workbench/services/plot/test/browser/plotService", () => {
 	    file.curvesByKey = {};
 	    file.seriesById = {};
 	    file.seriesOrder = [];
-	    file.latestTemplateRunId = undefined;
-    file.templateRunsById = {};
     const snapshot = createSnapshot({ "file-a": file });
     const service = store.add(new PlotService(
       createSessionServiceStub(snapshot),
@@ -1823,7 +1821,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
         sessionVersion: 2,
       };
       onDidChangeSessionEmitter.fire(createSessionChangeEvent(
-        "templateRunChanged",
+        "sliceRunChanged",
         2,
         { fileIds: ["file-other"] },
       ));
@@ -2783,7 +2781,7 @@ suite("workbench/services/plot/test/browser/plotService", () => {
 
   test("invalidates plot models only for plot-relevant session changes", () => {
     for (const reason of [
-      "templateRunChanged",
+      "sliceRunChanged",
       "curvesChanged",
       "filesRemoved",
       "sessionCleared",
@@ -2910,9 +2908,7 @@ const createSessionServiceStub = (
   commitMetricsBatch: () => undefined,
   commitRawTableAssessment: () => undefined,
   commitRawTableAssessments: () => undefined,
-  commitTemplateOutput: () => undefined,
-  commitTemplateOutputs: () => undefined,
-  commitTemplateRun: () => undefined,
+  commitSliceRuns: () => undefined,
   getSnapshot: () => snapshot,
   renameFile: () => false,
   removeFiles: () => undefined,
@@ -3009,7 +3005,6 @@ const createFileRecord = (
     },
     id: fileId,
     kind: "unknown",
-    latestTemplateRunId: "run-a",
     measurementBlockOrder: [],
     measurementBlocksById: {},
     metricsByKey: {},
@@ -3038,35 +3033,41 @@ const createFileRecord = (
       },
     },
     seriesOrder: [seriesA, "series-b"],
-    templateRunsById: {
+    latestSliceRunId: "run-a",
+    sliceRunsById: {
       "run-a": {
-        appliedAt: 1,
-        config: {
-          bottomTitle: "Gate",
-          leftTitle: "Drain current",
-          stopOnError: false,
-          xColumns: [0],
-          xDataEnd: 1,
-          xDataStart: 0,
-          xSegmentationMode: "auto",
-          xUnit,
-          yColumns: [1, 2],
-          yLegendTarget: "auto",
-          yUnit,
-        },
-        configFingerprint: "config-a",
-        errors: [],
         fileId,
         id: "run-a",
         mode: "auto",
+        rawTableId: fileId,
+        selection: { kind: "auto" },
+        sourceRawTableVersion: 0,
+        template: {
+          schemaVersion: 1,
+          name: "Template",
+          version: 1,
+          stopOnError: false,
+          blocks: [{
+            rowRange: { startRow: 0, endRow: 1 },
+            x: { columns: [0], unit: xUnit },
+            y: { columns: [1, 2], unit: yUnit },
+            segmentation: { kind: "auto" },
+            legend: { target: "auto" },
+            titles: {
+              bottom: "Gate",
+              left: "Drain current",
+            },
+          }],
+        },
+        templateFingerprint: "config-a",
+        inputRanges: [],
         outputCurveKeys: [
           curveAKey,
           curveBKey,
         ],
         outputSeriesIds: [seriesA, "series-b"],
-        selection: { kind: "auto" },
-        sourceBlockIds: [],
         warnings: [],
+        errors: [],
       },
     },
   };

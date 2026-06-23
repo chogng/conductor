@@ -118,6 +118,5 @@ function createFileRecord(
 			}
 			: {},
 		seriesOrder: hasChartData ? ["series-a"] : [],
-		templateRunsById: {},
 	};
 }

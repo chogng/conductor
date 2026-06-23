@@ -2331,9 +2331,9 @@ export class PlotService extends Disposable implements IPlotService {
 export const shouldInvalidatePlotModelsForSessionChange = (
   event: SessionChangeEvent,
 ): boolean => {
-  switch (event.reason) {
-    case "templateRunChanged":
-      return true;
+	  switch (event.reason) {
+	    case "sliceRunChanged":
+	      return true;
     case "curvesChanged":
       return hasPlotBaseCurveChange(event);
     case "filesRemoved":

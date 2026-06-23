@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from "src/cs/nls";
-import type { TemplateConfig } from "./templateConfigUtils";
+import type { TemplateApplyConfig } from "./templateApplyConfigUtils";
 import { normalizeYUnit } from "src/cs/workbench/services/plot/common/units";
 import { isCellLabel, parseCellLabel } from "./templateCellRef.ts";
 import {
@@ -21,7 +21,7 @@ import {
 export const Y_COLUMNS_REQUIRED_MESSAGE =
   "Y Data must be selected from the columns in the preview header.";
 
-type ValidationConfig = Partial<TemplateConfig>;
+type ValidationConfig = Partial<TemplateApplyConfig>;
 
 type NormalizedTemplateForSave<T extends ValidationConfig> = T & {
   bottomTitle: string;

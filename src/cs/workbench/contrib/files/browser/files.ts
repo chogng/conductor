@@ -34,8 +34,6 @@ export type ExplorerThumbnailPlotModel = PlotMainRenderModelSource & {
 
 export type ExplorerPaneInput = {
   readonly activePlotType?: PlotType;
-  readonly currentTemplateLabel?: string;
-  readonly currentTemplateSelection?: TemplateSelection;
   readonly fileTemplateSelectionsByFileId?: TemplateSelectionsByFileId;
   readonly files: ExplorerFileEntry[];
   readonly mode: WorkbenchMainPart;

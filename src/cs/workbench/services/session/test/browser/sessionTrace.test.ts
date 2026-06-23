@@ -10,12 +10,15 @@ import {
   getPerfEntries,
 } from "src/cs/workbench/common/perf";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
-import { createProcessedFileSessionCommit } from "src/cs/workbench/services/session/common/sessionModelAdapter";
+import { mergeProcessedFileIntoRecords } from "src/cs/workbench/services/session/common/sessionModelAdapter";
+import { getLatestSliceRunRecord, type CurveRecord } from "src/cs/workbench/services/session/common/sessionModel";
 import { createSessionReadModel } from "src/cs/workbench/services/session/common/sessionReadModel";
 import {
   createSessionSnapshotTraceSummary,
 } from "src/cs/workbench/services/session/common/sessionTrace";
 import type { FileImportResult } from "src/cs/workbench/services/files/common/files";
+import type { ProcessedEntry } from "src/cs/workbench/services/session/common/sessionTypes";
+import type { SliceCommit } from "src/cs/workbench/services/slice/common/slice";
 
 suite("workbench/services/session/test/browser/sessionTrace", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,24 +29,21 @@ suite("workbench/services/session/test/browser/sessionTrace", () => {
       const session = store.add(new SessionService());
       session.commitFileImport(createFileImportResultForTest("file-a"));
 
-      const commit = createProcessedFileSessionCommit(
-        session.getSnapshot(),
-        {
-          curveType: "output (vd)",
-          fileId: "file-a",
-          fileName: "Output.csv",
-          series: [{
-            groupIndex: 0,
-            id: "series-1",
-            y: new Float64Array([1e-9, 1e-6]),
-          }],
-          xAxisRole: "vd",
-          xGroups: [new Float64Array([0, 1])],
-        },
-      );
+      const commit = createProcessedSliceCommitForTest(session, {
+        curveType: "output (vd)",
+        fileId: "file-a",
+        fileName: "Output.csv",
+        series: [{
+          groupIndex: 0,
+          id: "series-1",
+          y: new Float64Array([1e-9, 1e-6]),
+        }],
+        xAxisRole: "vd",
+        xGroups: [new Float64Array([0, 1])],
+      });
       assert.ok(commit);
 
-      session.commitTemplateOutput(commit);
+      session.commitSliceRuns([commit]);
       const readModel = createSessionReadModel(session.getSnapshot());
 
       assert.deepEqual(readModel.processedFileIds, ["file-a"]);
@@ -53,7 +53,7 @@ suite("workbench/services/session/test/browser/sessionTrace", () => {
       const byTraceStage = new Map(
         traceEntries.map(entry => [String(entry.meta.traceStage), entry.meta]),
       );
-      const afterCommit = byTraceStage.get("sessionService.commitTemplateOutputs.after");
+      const afterCommit = byTraceStage.get("sessionService.replaceSnapshot");
       const readModelTrace = byTraceStage.get("createSessionReadModel");
 
       assert.ok(byTraceStage.has("sessionService.replaceSnapshot"));
@@ -95,6 +95,21 @@ suite("workbench/services/session/test/browser/sessionTrace", () => {
     assert.equal(first.pointCount, second.pointCount);
     assert.deepEqual(first.sampleFiles.map(file => file.fileId), ["file-b"]);
     assert.deepEqual(second.sampleFiles.map(file => file.fileId), ["file-a"]);
+  });
+
+  test("summarizes latest slice runs in snapshot traces", () => {
+    const session = store.add(new SessionService());
+    session.commitFileImport(createFileImportResultForTest("file-a"));
+    commitSliceRunForTest(session, "file-a");
+
+    const summary = createSessionSnapshotTraceSummary(session.getSnapshot(), {
+      fileIds: ["file-a"],
+      sampleSize: 1,
+    });
+
+    assert.equal(summary.sliceRunCount, 1);
+    assert.equal(summary.sampleFiles[0]?.latestSliceRunId, "slice-run:file-a");
+    assert.equal(summary.sampleFiles[0]?.latestSliceRunCurveCount, 1);
   });
 });
 
@@ -161,21 +176,134 @@ const commitProcessedOutputForTest = (
   fileId: string,
   y: readonly number[],
 ): void => {
-  const commit = createProcessedFileSessionCommit(
-    session.getSnapshot(),
-    {
-      curveType: "output (vd)",
-      fileId,
-      fileName: "Output.csv",
-      series: [{
-        groupIndex: 0,
-        id: `${fileId}-series`,
-        y: new Float64Array(y),
-      }],
-      xAxisRole: "vd",
-      xGroups: [new Float64Array([0, 1])],
-    },
-  );
+  const commit = createProcessedSliceCommitForTest(session, {
+    curveType: "output (vd)",
+    fileId,
+    fileName: "Output.csv",
+    series: [{
+      groupIndex: 0,
+      id: `${fileId}-series`,
+      y: new Float64Array(y),
+    }],
+    xAxisRole: "vd",
+    xGroups: [new Float64Array([0, 1])],
+  });
   assert.ok(commit);
-  session.commitTemplateOutput(commit);
+  session.commitSliceRuns([commit]);
+};
+
+const createProcessedSliceCommitForTest = (
+  session: SessionService,
+  file: ProcessedEntry,
+): SliceCommit | null => {
+  const snapshot = session.getSnapshot();
+  const records = mergeProcessedFileIntoRecords(
+    snapshot.filesById,
+    snapshot.fileOrder,
+    file,
+    snapshot,
+  );
+  const fileId = String(file.fileId ?? "").trim();
+  const record = fileId ? records.filesById[fileId] : undefined;
+  const run = record ? getLatestSliceRunRecord(record) : undefined;
+  if (!record || !run) {
+    return null;
+  }
+
+  return {
+    run,
+    series: run.outputSeriesIds
+      .map(seriesId => record.seriesById[seriesId])
+      .filter((series): series is SliceCommit["series"][number] => Boolean(series)),
+    curves: run.outputCurveKeys
+      .map(curveKey => record.curvesByKey[curveKey])
+      .filter((curve): curve is CurveRecord => Boolean(curve)),
+  };
+};
+
+const commitSliceRunForTest = (
+  session: SessionService,
+  fileId: string,
+): void => {
+  session.commitSliceRuns([{
+    run: {
+      id: `slice-run:${fileId}`,
+      fileId,
+      rawTableId: fileId,
+      mode: "auto",
+      selection: { kind: "auto" },
+      sourceRawTableVersion: 1,
+      sourceAssessmentSignature: "assessment:test",
+      template: {
+        schemaVersion: 1,
+        name: "Detected IV Transfer",
+        version: 1,
+        blocks: [{
+          rowRange: {
+            startRow: 1,
+            endRow: "end",
+          },
+          x: {
+            columns: [0],
+            unit: "V",
+          },
+          y: {
+            columns: [1],
+            unit: "A",
+          },
+          segmentation: {
+            kind: "auto",
+          },
+          legend: {
+            target: "auto",
+          },
+        }],
+        stopOnError: false,
+      },
+      templateFingerprint: "template:test",
+      inputRanges: [{
+        fileId,
+        rawTableId: fileId,
+        range: {
+          startRow: 1,
+          endRow: 2,
+          startCol: 0,
+          endCol: 1,
+        },
+      }],
+      outputSeriesIds: [`series:${fileId}`],
+      outputCurveKeys: [`base:iv:transfer:series:${fileId}`],
+      warnings: [],
+      errors: [],
+    },
+    series: [{
+      fileId,
+      sheetId: fileId,
+      id: `series:${fileId}`,
+      groupIndex: 0,
+      yCol: 1,
+      y: [1e-9, 1e-6],
+    }],
+    curves: [{
+      fileId,
+      seriesId: `series:${fileId}`,
+      curveGeneration: "base",
+      curveFamily: "iv",
+      ivMode: "transfer",
+      lineage: {
+        curveGeneration: "base",
+        baseFamily: "iv",
+        ivMode: "transfer",
+        baseSeries: {
+          fileId,
+          seriesId: `series:${fileId}`,
+        },
+      },
+      points: [
+        { x: 0, y: 1e-9 },
+        { x: 1, y: 1e-6 },
+      ],
+      signature: `curve:${fileId}`,
+    }],
+  }]);
 };

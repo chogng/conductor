@@ -28,6 +28,18 @@ import type {
 	SchemaProfile,
 	SchemaProfileSnapshot,
 } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
+import type {
+	ITemplateRuleService,
+	TemplateRuleChangeEvent,
+	TemplateRuleSnapshot,
+} from "src/cs/workbench/services/templateRule/common/templateRule";
+import type {
+	ITemplateService,
+	TemplateApplyPresetRecord,
+	TemplateApplyPresetSaveInput,
+	TemplateSnapshot,
+} from "src/cs/workbench/services/template/common/template";
+import { createTemplateSnapshotFromApplyPresets } from "src/cs/workbench/services/template/common/templateLegacyAdapter";
 import {
 	createSchemaProfileFromConfirmation,
 	type ConfirmSchemaProfileInput,
@@ -192,6 +204,96 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		assessmentQueueService.dispose();
 	});
 
+	test("reassesses raw tables when template rule fingerprint changes", async () => {
+		const sessionService = store.add(new SessionService());
+		const assessmentService = new TestAssessmentService();
+		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
+		const templateRuleService = new TestTemplateRuleService("rule:first");
+		const assessmentQueueService = store.add(new AssessmentQueueService(
+			sessionService,
+			assessmentService,
+			rawTableRowsReaderService,
+			undefined,
+			templateRuleService,
+		));
+		const contribution = store.add(new AssessmentContribution(
+			sessionService,
+			assessmentQueueService,
+		));
+
+		sessionService.commitFileImport(createInlineImportResult());
+		await waitUntil(() => assessmentService.inputs.length === 1);
+		assert.equal(
+			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.ruleSetFingerprint,
+			"rule:first",
+		);
+
+		templateRuleService.setFingerprint("rule:second");
+		await waitUntil(() => assessmentService.inputs.length === 2);
+
+		assert.deepEqual(
+			assessmentService.inputs.map(input => input.ruleSnapshot?.fingerprint),
+			["rule:first", "rule:second"],
+		);
+		assert.equal(
+			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.ruleSetFingerprint,
+			"rule:second",
+		);
+
+		contribution.dispose();
+		assessmentQueueService.dispose();
+	});
+
+	test("reassesses raw tables when template catalog version changes", async () => {
+		const sessionService = store.add(new SessionService());
+		const assessmentService = new TestAssessmentService();
+		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
+		const templateService = new TestTemplateService();
+		const assessmentQueueService = store.add(new AssessmentQueueService(
+			sessionService,
+			assessmentService,
+			rawTableRowsReaderService,
+			undefined,
+			undefined,
+			templateService,
+		));
+		const contribution = store.add(new AssessmentContribution(
+			sessionService,
+			assessmentQueueService,
+		));
+
+		sessionService.commitFileImport(createInlineImportResult());
+		await waitUntil(() => assessmentService.inputs.length === 1);
+		assert.equal(
+			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.templateCatalogVersion,
+			0,
+		);
+
+		templateService.setTemplates([{
+			id: "saved-transfer",
+			name: "Saved Transfer",
+			xDataStart: "A2",
+			yColumns: [1],
+			applicability: {
+				schemaFingerprint: "dataname|vg|id",
+				columnCount: 2,
+			},
+		}]);
+		await waitUntil(() => assessmentService.inputs.length === 2);
+
+		assert.deepEqual(
+			assessmentService.inputs.map(input => input.templateSnapshot?.version ?? 0),
+			[0, 1],
+		);
+		assert.equal(
+			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.templateCatalogVersion,
+			1,
+		);
+
+		contribution.dispose();
+		assessmentQueueService.dispose();
+	});
+
 	test("reassesses with confirmed schema profile evidence after profile changes", async () => {
 		const sessionService = store.add(new SessionService());
 		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
@@ -331,6 +433,119 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		assessmentQueueService.dispose();
 	});
 
+	test("discards stale queued assessment when schema profile version changes while rows are loading", async () => {
+		const sessionService = store.add(new SessionService());
+		const assessmentService = new TestAssessmentService();
+		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
+		const schemaProfileService = new TestSchemaProfileService();
+		const assessmentQueueService = store.add(new AssessmentQueueService(
+			sessionService,
+			assessmentService,
+			rawTableRowsReaderService,
+			schemaProfileService,
+		));
+		const contribution = store.add(new AssessmentContribution(
+			sessionService,
+			assessmentQueueService,
+		));
+
+		sessionService.commitFileImport(createInlineImportResult());
+		await waitUntil(() => rawTableRowsReaderService.inputs.length === 1);
+		schemaProfileService.setVersion(1);
+		rawTableRowsReaderService.resolveFirstRead();
+		await waitUntil(() => assessmentService.inputs.length === 1);
+
+		assert.deepEqual(
+			assessmentService.inputs.map(input => input.schemaProfileVersion),
+			[1],
+		);
+		assert.equal(
+			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.schemaProfileVersion,
+			1,
+		);
+
+		contribution.dispose();
+		assessmentQueueService.dispose();
+	});
+
+	test("discards stale queued assessment when template rule fingerprint changes while rows are loading", async () => {
+		const sessionService = store.add(new SessionService());
+		const assessmentService = new TestAssessmentService();
+		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
+		const templateRuleService = new TestTemplateRuleService("rule:first");
+		const assessmentQueueService = store.add(new AssessmentQueueService(
+			sessionService,
+			assessmentService,
+			rawTableRowsReaderService,
+			undefined,
+			templateRuleService,
+		));
+		const contribution = store.add(new AssessmentContribution(
+			sessionService,
+			assessmentQueueService,
+		));
+
+		sessionService.commitFileImport(createInlineImportResult());
+		await waitUntil(() => rawTableRowsReaderService.inputs.length === 1);
+		templateRuleService.setFingerprint("rule:second");
+		rawTableRowsReaderService.resolveFirstRead();
+		await waitUntil(() => assessmentService.inputs.length === 1);
+
+		assert.deepEqual(
+			assessmentService.inputs.map(input => input.ruleSnapshot?.fingerprint),
+			["rule:second"],
+		);
+		assert.equal(
+			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.ruleSetFingerprint,
+			"rule:second",
+		);
+
+		contribution.dispose();
+		assessmentQueueService.dispose();
+	});
+
+	test("discards stale queued assessment when template catalog version changes while rows are loading", async () => {
+		const sessionService = store.add(new SessionService());
+		const assessmentService = new TestAssessmentService();
+		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
+		const templateService = new TestTemplateService();
+		const assessmentQueueService = store.add(new AssessmentQueueService(
+			sessionService,
+			assessmentService,
+			rawTableRowsReaderService,
+			undefined,
+			undefined,
+			templateService,
+		));
+		const contribution = store.add(new AssessmentContribution(
+			sessionService,
+			assessmentQueueService,
+		));
+
+		sessionService.commitFileImport(createInlineImportResult());
+		await waitUntil(() => rawTableRowsReaderService.inputs.length === 1);
+		templateService.setTemplates([{
+			id: "saved-transfer",
+			name: "Saved Transfer",
+			xDataStart: "A2",
+			yColumns: [1],
+		}]);
+		rawTableRowsReaderService.resolveFirstRead();
+		await waitUntil(() => assessmentService.inputs.length === 1);
+
+		assert.deepEqual(
+			assessmentService.inputs.map(input => input.templateSnapshot?.version ?? 0),
+			[1],
+		);
+		assert.equal(
+			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.templateCatalogVersion,
+			1,
+		);
+
+		contribution.dispose();
+		assessmentQueueService.dispose();
+	});
+
 	test("publishes queued and running raw table assessment state", async () => {
 		const sessionService = store.add(new SessionService());
 		const assessmentService = new TestAssessmentService();
@@ -451,8 +666,10 @@ class TestAssessmentService implements IAssessmentService {
 			fileId: input.fileId,
 			rawTableId: input.rawTableId,
 			blockId,
+			ruleSetFingerprint: input.ruleSnapshot?.fingerprint ?? "rule:legacy",
 			schemaProfileVersion: input.schemaProfileVersion ?? 0,
 			sourceRawTableVersion: input.sourceRawTableVersion,
+			templateCatalogVersion: input.templateSnapshot?.version ?? 0,
 		}));
 	}
 }
@@ -462,18 +679,25 @@ const createRawTableAssessmentRecord = ({
 	blockId = "block-a",
 	fileId,
 	rawTableId,
+	ruleSetFingerprint = "rule:legacy",
 	schemaProfileVersion = 0,
 	sourceRawTableVersion,
+	templateCatalogVersion = 0,
 }: {
 	readonly assessmentRuleVersion?: number;
 	readonly blockId?: string;
 	readonly fileId: string;
 	readonly rawTableId: string;
+	readonly ruleSetFingerprint?: string;
 	readonly schemaProfileVersion?: number;
 	readonly sourceRawTableVersion: number;
+	readonly templateCatalogVersion?: number;
 }): RawTableAssessmentRecord => ({
 	assessmentRuleVersion,
+	ruleSetFingerprint,
+	templateCatalogVersion,
 	schemaProfileVersion,
+	templateCandidates: [],
 	blocks: [{
 		columnCount: 2,
 		columns: {
@@ -582,6 +806,76 @@ class TestSchemaProfileService implements ISchemaProfileService {
 		this.onDidChangeSchemaProfilesEmitter.fire(this.getSnapshot());
 	}
 }
+
+class TestTemplateRuleService implements ITemplateRuleService {
+	public declare readonly _serviceBrand: undefined;
+
+	private readonly onDidChangeRulesEmitter = new Emitter<TemplateRuleChangeEvent>();
+	public readonly onDidChangeRules = this.onDidChangeRulesEmitter.event;
+	private snapshot: TemplateRuleSnapshot;
+
+	public constructor(fingerprint: string) {
+		this.snapshot = createTemplateRuleSnapshotForTest(fingerprint);
+	}
+
+	public setFingerprint(fingerprint: string): void {
+		this.snapshot = createTemplateRuleSnapshotForTest(fingerprint);
+		this.onDidChangeRulesEmitter.fire({
+			version: this.snapshot.version,
+			fingerprint: this.snapshot.fingerprint,
+			changedRuleIds: [],
+		});
+	}
+
+	public getSnapshot(): TemplateRuleSnapshot {
+		return this.snapshot;
+	}
+
+	public async reload(): Promise<TemplateRuleSnapshot> {
+		return this.snapshot;
+	}
+}
+
+class TestTemplateService implements ITemplateService {
+	public declare readonly _serviceBrand: undefined;
+
+	private readonly onDidChangeTemplatesEmitter = new Emitter<readonly TemplateApplyPresetRecord[]>();
+	public readonly onDidChangeTemplates = this.onDidChangeTemplatesEmitter.event;
+
+	private templates: readonly TemplateApplyPresetRecord[] = [];
+	private templateListVersion = 0;
+
+	public setTemplates(templates: readonly TemplateApplyPresetRecord[]): void {
+		this.templates = templates;
+		this.templateListVersion += 1;
+		this.onDidChangeTemplatesEmitter.fire(this.templates);
+	}
+
+	public getSnapshot(): TemplateSnapshot {
+		return createTemplateSnapshotFromApplyPresets(
+			this.templates,
+			this.templateListVersion,
+		);
+	}
+	public getTemplate(id: string): TemplateSnapshot["templates"][number] | undefined {
+		const templateId = String(id ?? "").trim();
+		return this.getSnapshot().templates.find(template => String(template.id ?? "").trim() === templateId);
+	}
+	public getTemplateList(): readonly TemplateApplyPresetRecord[] { return this.templates; }
+	public hasLoadedTemplateList(): boolean { return true; }
+	public refreshTemplates(): Promise<readonly TemplateApplyPresetRecord[]> { return Promise.resolve(this.templates); }
+	public deleteTemplate(_id: string): Promise<void> { return Promise.resolve(); }
+	public saveTemplate(template: TemplateApplyPresetSaveInput): Promise<TemplateApplyPresetRecord> { return Promise.resolve(template); }
+}
+
+const createTemplateRuleSnapshotForTest = (
+	fingerprint: string,
+): TemplateRuleSnapshot => ({
+	version: 1,
+	fingerprint,
+	rules: [],
+	diagnostics: [],
+});
 
 const createInlineImportResult = (): FileImportResult => ({
 	createdAt: 123,

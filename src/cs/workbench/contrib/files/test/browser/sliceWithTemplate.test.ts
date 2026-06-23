@@ -13,8 +13,9 @@ import {
   resolveTemplateSliceSelectedTemplateId,
 } from "src/cs/workbench/contrib/files/browser/sliceWithTemplateController";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
-import type { TemplateRecord, TemplateState } from "src/cs/workbench/services/template/common/template";
-import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
+import type { TemplateState } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
+import type { TemplateApplyPresetRecord } from "src/cs/workbench/services/template/common/template";
+import { createEmptyTemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
 import { createTemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 
 suite("workbench/contrib/files/test/browser/sliceWithTemplate", () => {
@@ -160,12 +161,12 @@ suite("workbench/contrib/files/test/browser/sliceWithTemplate", () => {
 
   test("uses the file template selection before the global template selection", () => {
     assert.equal(resolveTemplateSliceSelectedTemplateId({
+      fileTemplateSelectionsByFileId: {
+        "file-a": createTemplateSelection("template-file"),
+      },
       fileId: "file-a",
       templateState: createTemplateState({
         selectedTemplateId: "template-global",
-        selectionsByFileId: {
-          "file-a": createTemplateSelection("template-file"),
-        },
       }),
       templates: [
         createTemplate({ id: "template-global", name: "Global" }),
@@ -192,7 +193,7 @@ suite("workbench/contrib/files/test/browser/sliceWithTemplate", () => {
   test("projects current selected template form state into slice templates", () => {
     const templates = resolveTemplateSliceTemplatesForState({
       templateState: createTemplateState({
-        formState: createEmptyTemplateConfig({
+        formState: createEmptyTemplateApplyConfig({
           name: "Template A",
           xRanges: [
             { start: "D2", end: "D3" },
@@ -222,7 +223,7 @@ suite("workbench/contrib/files/test/browser/sliceWithTemplate", () => {
   });
 });
 
-function createTemplate(overrides: Partial<TemplateRecord>): TemplateRecord {
+function createTemplate(overrides: Partial<TemplateApplyPresetRecord>): TemplateApplyPresetRecord {
   return {
     id: "template-1",
     name: "Template",
@@ -236,9 +237,7 @@ function createTemplateState(overrides: Partial<TemplateState> = {}): TemplateSt
   return {
     mode: "management",
     selectedTemplateId: null,
-    formState: createEmptyTemplateConfig(),
-    selectionsByFileId: {},
-    templateListVersion: 0,
+    formState: createEmptyTemplateApplyConfig(),
     ...overrides,
   };
 }

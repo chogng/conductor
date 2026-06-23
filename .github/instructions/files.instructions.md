@@ -140,6 +140,34 @@ Explorer context menu
   -> Explorer resources / downstream subscribers
 ```
 
+Per-file template selection is a Files command surface but not Files state:
+
+```txt
+Explorer context menu / template picker
+  -> files.item.setTemplate command
+  -> ISliceService.setTemplateSelection(fileId, selection)
+  -> SliceState.templateSelectionsByFileId
+  -> WorkbenchDomainBridge projects selection into Explorer pane input
+```
+
+The Explorer current-template menu display is view projection, not Bridge
+state:
+
+```txt
+ITemplateViewStateService.onDidChangeTemplateState / ITemplateService.onDidChangeTemplates
+  -> ExplorerViewPane rereads TemplateViewStateService + TemplateService
+  -> Explorer view props currentTemplateLabel/currentTemplateSelection
+```
+
+Slice progress/readiness is likewise projected, not owned, by Explorer:
+
+```txt
+ISliceService.onDidChangeSliceState
+  -> WorkbenchDomainBridge rereads SliceState
+  -> ExplorerPaneInput chartState/chartMessage
+  -> Explorer view renders status
+```
+
 Explorer item close/delete keeps row lifecycle and filesystem lifecycle
 separate:
 
@@ -207,6 +235,8 @@ Rules:
 - Add-data commands call `IExplorerWorkflowService` when the actual picker/drop/folder workflow is view-local.
 - Selection/reveal uses `IExplorerService.select(...)` and `IExplorerView.selectResource(...)`.
 - Rename starts editable state through `IExplorerService.setEditable(...)`; committed display-name metadata belongs to Session.
+- File-template selection delegates to `ISliceService.setTemplateSelection(...)`; Explorer owns the command surface, Slice owns the selection state and execution.
+- Slice file progress/readiness comes from `SliceState.fileStates`; Explorer must use it as the sole progress/readiness source.
 - Do not reach `ExplorerViewPane` through `IViewsService.getViewWithId(...)`.
 - Do not publish `onDidRequest*` events from `IExplorerService` as hidden commands.
 
@@ -217,7 +247,7 @@ Use `records.instructions.md` for:
 - `FileConversionResult`, `ImportedFileRecord`, `RawRecord`;
 - `RawTableRecord`, `RawTableSourceRecord`, `RawTableRowsRecord`;
 - `ExplorerState`, `ExplorerResource`, `ExplorerFileEntry`;
-- `TemplateApplyFileState`.
+- `SliceFileState`.
 
 `ExplorerSourceState` is the preferred target name for source workflow state.
 Existing migration code may still call it `ExplorerImportState`.

@@ -17,14 +17,12 @@ import type {
   SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import type {
-  CommitCurvesInput,
-  CommitTemplateRunInput,
   SessionSnapshot,
 } from "src/cs/workbench/services/session/common/session";
 import {
-  createEmptyTemplateConfig,
-  type TemplateConfig,
-} from "src/cs/workbench/services/template/common/templateConfigUtils";
+  createEmptyTemplateApplyConfig,
+  type TemplateApplyConfig,
+} from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
 import { normalizeColumnIndexes } from "src/cs/workbench/services/template/common/templateXYBinding";
 import type {
   BaseCurveFamily,
@@ -42,21 +40,21 @@ import type {
   RawRecord,
   SeriesRecord,
   SeriesId,
-  TemplateConfigRecord,
-  TemplateRunId,
-  TemplateRunRecord,
-  TemplateSelectionRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import { getLatestTemplateRunRecord } from "src/cs/workbench/services/session/common/sessionModel";
+import { getLatestSliceRunRecord } from "src/cs/workbench/services/session/common/sessionModel";
 import {
   getFileRecordCurveType,
 } from "src/cs/workbench/services/session/common/sessionRecordProjection";
+import type { SliceRun } from "src/cs/workbench/services/slice/common/slice";
+import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
+import type { Template, TemplateSegmentation } from "src/cs/workbench/services/template/common/templateSpec";
+import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 
 const CALCULATION_CACHE_PAYLOAD_VERSION = 2;
 
 type MergeProcessedFileOptions = {
-  readonly appliedTemplateConfig?: unknown;
-  readonly appliedTemplateSelection?: TemplateSelectionRecord;
+  readonly appliedTemplateApplyConfig?: unknown;
+  readonly appliedTemplateSelection?: TemplateSelection;
 };
 
 type ProcessedCalculationCachePayload = {
@@ -65,9 +63,25 @@ type ProcessedCalculationCachePayload = {
   touchedAt?: number;
 };
 
-export type ProcessedFileSessionCommit = {
-  readonly templateRun: CommitTemplateRunInput;
-  readonly curves: CommitCurvesInput;
+type LegacyTemplateApplyConfig = {
+  readonly name?: string;
+  readonly xColumns: number[];
+  readonly xDataStart: number;
+  readonly xDataEnd: number;
+  readonly xSegmentationMode: "auto" | "points" | "segments";
+  readonly xSegmentCount?: number;
+  readonly xPointsPerGroup?: number;
+  readonly xUnit?: string;
+  readonly yLegendStart?: number;
+  readonly yLegendCount?: number;
+  readonly yLegendStep?: number;
+  readonly yLegendTarget: "auto" | "yColumn" | "group";
+  readonly yUnit?: string;
+  readonly stopOnError: boolean;
+  readonly bottomTitle?: string;
+  readonly leftTitle?: string;
+  readonly legendPrefix?: string;
+  readonly yColumns: number[];
 };
 
 const createEmptyFileRecord = (fileId: string, fileName: string): FileRecord => {
@@ -81,7 +95,6 @@ const createEmptyFileRecord = (fileId: string, fileName: string): FileRecord => 
     assessmentsByRawTableId: {},
     measurementBlocksById: {},
     measurementBlockOrder: [],
-    templateRunsById: {},
     seriesById: {},
     seriesOrder: [],
     curvesByKey: {},
@@ -588,89 +601,6 @@ export const mergeProcessedFileIntoRecords = (
   };
 };
 
-export const createProcessedFileSessionCommit = (
-  snapshot: SessionSnapshot,
-  file: ProcessedEntry | null | undefined,
-  options: MergeProcessedFileOptions = {},
-): ProcessedFileSessionCommit | null => {
-  if (!file || typeof file !== "object") {
-    return null;
-  }
-
-  const fileId = readRecordString(file, "fileId");
-  if (!fileId) {
-    return null;
-  }
-
-  const current = snapshot.filesById[fileId] ??
-    createEmptyFileRecord(
-      fileId,
-      readRecordString(file, "fileName") ?? fileId,
-    );
-  let record = mergeProcessedFileRecord(
-    stripProcessedFileRecord(current),
-    file,
-    options,
-  );
-  const cachePayload = getProcessedCalculationCachePayload(file);
-  if (cachePayload) {
-    record = mergeCalculationCacheRecord(record, cachePayload);
-  }
-
-  const templateRun = getLatestTemplateRunRecord(record);
-  if (!templateRun) {
-    return null;
-  }
-
-  return {
-    templateRun: {
-      run: templateRun,
-      calculationCache: record.calculationCache,
-      fileName: record.name || record.raw.fileName,
-      seriesById: record.seriesById,
-      seriesOrder: record.seriesOrder,
-    },
-    curves: {
-      fileId,
-      curves: Object.values(record.curvesByKey).filter((curve) =>
-        curve.curveGeneration === "base"
-      ),
-      replaceGenerations: ["base"],
-    },
-  };
-};
-
-export const resetProcessedRecords = (
-  filesById: Readonly<Record<FileId, FileRecord>>,
-  fileOrder: readonly FileId[],
-  fileIds?: readonly FileId[],
-): Pick<SessionSnapshot, "filesById" | "fileOrder"> => {
-  const targetFileIds = fileIds
-    ? new Set(fileIds.map(normalizeId).filter(Boolean))
-    : null;
-  const nextFilesById: Record<FileId, FileRecord> = {};
-  let changed = false;
-  for (const [fileId, file] of Object.entries(filesById)) {
-    if (targetFileIds && !targetFileIds.has(fileId)) {
-      nextFilesById[fileId] = file;
-      continue;
-    }
-
-    if (hasProcessedFileRecord(file)) {
-      nextFilesById[fileId] = stripProcessedFileRecord(file);
-      changed = true;
-      continue;
-    }
-
-    nextFilesById[fileId] = file;
-  }
-
-  return {
-    filesById: changed ? nextFilesById : filesById as Record<FileId, FileRecord>,
-    fileOrder: [...fileOrder],
-  };
-};
-
 export const replaceCalculatedCurvesInRecords = (
   filesById: Readonly<Record<FileId, FileRecord>>,
   fileOrder: readonly FileId[],
@@ -941,8 +871,8 @@ const appendCalculatedFileOrder = (
 
 const stripProcessedFileRecord = (file: FileRecord): FileRecord => ({
   ...file,
-  templateRunsById: {},
-  latestTemplateRunId: undefined,
+  sliceRunsById: undefined,
+  latestSliceRunId: undefined,
   seriesById: {},
   seriesOrder: [],
   curvesByKey: filterCurveRecords(file.curvesByKey, (_key, curve) =>
@@ -953,17 +883,6 @@ const stripProcessedFileRecord = (file: FileRecord): FileRecord => ({
   metricInputsByKey: undefined,
   calculationCache: undefined,
 });
-
-const hasProcessedFileRecord = (file: FileRecord): boolean =>
-  Object.keys(file.templateRunsById).length > 0 ||
-  file.latestTemplateRunId !== undefined ||
-  Object.keys(file.seriesById).length > 0 ||
-  file.seriesOrder.length > 0 ||
-  Object.values(file.curvesByKey).some(curve => curve.curveGeneration === "base") ||
-  Object.keys(file.metricsByKey).length > 0 ||
-  file.metricsBySeriesId !== undefined ||
-  file.metricInputsByKey !== undefined ||
-  file.calculationCache !== undefined;
 
 const filterCurveRecords = (
   curvesByKey: Readonly<Record<SessionCurveKey, CurveRecord>>,
@@ -1109,10 +1028,10 @@ const mergeProcessedFileRecord = (
   options: MergeProcessedFileOptions = {},
 ): FileRecord => {
   const fileId = readRecordString(processedFile, "fileId") ?? record.id;
-  const emptyTemplateConfig = createEmptyTemplateConfig();
-  const templateConfig = createTemplateConfigRecordFromAppliedConfig(
-    options.appliedTemplateConfig,
-    emptyTemplateConfig,
+  const emptyTemplateApplyConfig = createEmptyTemplateApplyConfig();
+  const templateConfig = createTemplateApplyConfigRecordFromAppliedConfig(
+    options.appliedTemplateApplyConfig,
+    emptyTemplateApplyConfig,
     processedFile,
   );
   const xCanonicalFactor = getCanonicalXUnitFactor(templateConfig.xUnit);
@@ -1183,27 +1102,22 @@ const mergeProcessedFileRecord = (
     };
   }
 
-  const latestTemplateRun = getLatestTemplateRunRecord(record);
-  const templateSelection =
+  const latestSliceRun = getLatestSliceRunRecord(record);
+  const templateSelection = normalizeTemplateSelection(
     options.appliedTemplateSelection ??
-    latestTemplateRun?.selection ??
-    { kind: "auto" as const };
-  const fileName = readRecordString(processedFile, "fileName") ?? record.raw.fileName;
-  const configFingerprint = JSON.stringify(
-    options.appliedTemplateConfig ?? emptyTemplateConfig,
+    latestSliceRun?.selection ??
+    { kind: "auto" as const },
   );
-  const appliedAt = readNumber(processedFile, "appliedAt") ?? 0;
-  const templateRun = createTemplateRunRecord({
-    appliedAt,
+  const fileName = readRecordString(processedFile, "fileName") ?? record.raw.fileName;
+  const sliceRun = createLegacyProcessedSliceRun({
     config: templateConfig,
-    configFingerprint,
     errors: readStringArray(processedFile.errors),
     fileId,
-    mode: templateSelection.kind === "auto" ? "auto" : "manual",
     outputCurveKeys: Object.keys(curvesByKey) as SessionCurveKey[],
     outputSeriesIds: seriesOrder,
+    processedFile,
+    record,
     selection: templateSelection,
-    sourceBlockIds: readStringArray(processedFile.sourceBlockIds),
     warnings: readStringArray(processedFile.warnings),
   });
 
@@ -1214,11 +1128,11 @@ const mergeProcessedFileRecord = (
       ...record.raw,
       fileName,
     },
-    templateRunsById: {
-      ...record.templateRunsById,
-      [templateRun.id]: templateRun,
+    sliceRunsById: {
+      ...record.sliceRunsById,
+      [sliceRun.id]: sliceRun,
     },
-    latestTemplateRunId: templateRun.id,
+    latestSliceRunId: sliceRun.id,
     seriesById,
     seriesOrder,
     curvesByKey: {
@@ -1228,54 +1142,151 @@ const mergeProcessedFileRecord = (
   };
 };
 
-const createTemplateRunRecord = ({
-  appliedAt,
+const createLegacyProcessedSliceRun = ({
   config,
-  configFingerprint,
   errors,
   fileId,
-  mode,
   outputCurveKeys,
   outputSeriesIds,
+  processedFile,
+  record,
   selection,
-  sourceBlockIds,
   warnings,
 }: {
-  readonly appliedAt: number;
-  readonly config: TemplateConfigRecord;
-  readonly configFingerprint: string;
+  readonly config: LegacyTemplateApplyConfig;
   readonly errors: readonly string[];
   readonly fileId: FileId;
-  readonly mode: TemplateRunRecord["mode"];
   readonly outputCurveKeys: readonly SessionCurveKey[];
   readonly outputSeriesIds: readonly SeriesId[];
-  readonly selection: TemplateSelectionRecord;
-  readonly sourceBlockIds: readonly string[];
+  readonly processedFile: ProcessedEntry;
+  readonly record: FileRecord;
+  readonly selection: TemplateSelection;
   readonly warnings: readonly string[];
-}): TemplateRunRecord => {
-  const id = createTemplateRunId(fileId, appliedAt, configFingerprint);
-  return {
-    id,
-    fileId,
-    selection,
+}): SliceRun => {
+  const rawTableId = readRecordString(processedFile, "sheetId") ??
+    record.raw.tableOrder[0] ??
+    fileId;
+  const sourceRawTableVersion = record.rawTableVersionsById[rawTableId] ?? 0;
+  const template = createLegacyProcessedTemplate(config, fileId);
+  const templateFingerprint = createTemplateFingerprint(template);
+  const inputRanges = createLegacyProcessedSliceInputRanges({
     config,
-    sourceBlockIds: [...sourceBlockIds],
+    fileId,
+    processedFile,
+    rawTableId,
+  });
+  const appliedAt = Math.max(0, Math.floor(readNumber(processedFile, "appliedAt") ?? 0));
+  return {
+    id: `slice:${fileId}:${rawTableId}:${templateFingerprint}:${sourceRawTableVersion}:${hashString(String(appliedAt))}`,
+    fileId,
+    rawTableId,
+    mode: selection.kind === "auto" ? "auto" : "manual",
+    selection,
+    sourceRawTableVersion,
+    template,
+    templateFingerprint,
+    inputRanges,
     outputSeriesIds: [...outputSeriesIds],
     outputCurveKeys: [...outputCurveKeys],
-    configFingerprint,
-    mode,
-    appliedAt,
     warnings: [...warnings],
     errors: [...errors],
   };
 };
 
-const createTemplateRunId = (
-  fileId: FileId,
-  appliedAt: number,
-  configFingerprint: string,
-): TemplateRunId =>
-  `template-run:${fileId}:${Math.max(0, Math.floor(appliedAt))}:${hashString(configFingerprint)}`;
+const createLegacyProcessedTemplate = (
+  config: LegacyTemplateApplyConfig,
+  fileId: string,
+): Template => ({
+  schemaVersion: 1,
+  id: `processed:${fileId}`,
+  name: config.name ?? fileId,
+  version: 1,
+  stopOnError: config.stopOnError,
+  blocks: [{
+    rowRange: {
+      startRow: config.xDataStart,
+      endRow: config.xDataEnd,
+    },
+    x: {
+      columns: config.xColumns,
+      ...(config.xUnit ? { unit: config.xUnit } : {}),
+    },
+    y: {
+      columns: config.yColumns,
+      ...(config.yUnit ? { unit: config.yUnit } : {}),
+    },
+    segmentation: createLegacyProcessedTemplateSegmentation(config),
+    legend: {
+      target: config.yLegendTarget,
+      ...(config.legendPrefix ? { prefix: config.legendPrefix } : {}),
+    },
+    ...(config.bottomTitle || config.leftTitle
+      ? {
+        titles: {
+          ...(config.bottomTitle ? { bottom: config.bottomTitle } : {}),
+          ...(config.leftTitle ? { left: config.leftTitle } : {}),
+        },
+      }
+      : {}),
+  }],
+});
+
+const createLegacyProcessedTemplateSegmentation = (
+  config: LegacyTemplateApplyConfig,
+): TemplateSegmentation => {
+  if (config.xSegmentationMode === "points" && config.xPointsPerGroup) {
+    return { kind: "fixedPoints", pointsPerGroup: config.xPointsPerGroup };
+  }
+  if (config.xSegmentationMode === "segments" && config.xSegmentCount) {
+    return { kind: "fixedSegments", segmentCount: config.xSegmentCount };
+  }
+  return { kind: "auto" };
+};
+
+const createLegacyProcessedSliceInputRanges = ({
+  config,
+  fileId,
+  processedFile,
+  rawTableId,
+}: {
+  readonly config: LegacyTemplateApplyConfig;
+  readonly fileId: string;
+  readonly processedFile: ProcessedEntry;
+  readonly rawTableId: string;
+}): SliceRun["inputRanges"] => {
+  const columns = [...config.xColumns, ...config.yColumns].filter(Number.isFinite);
+  const startCol = columns.length ? Math.min(...columns) : 0;
+  const endCol = columns.length ? Math.max(...columns) : startCol;
+  const xGroups = readNumberMatrix(processedFile.xGroups);
+  const pointCount = Math.max(0, ...xGroups.map(group => group.length));
+  const startRow = Math.max(0, config.xDataStart);
+  const configuredEndRow = Math.max(startRow, config.xDataEnd);
+  const inferredEndRow = pointCount > 0 ? startRow + pointCount - 1 : startRow;
+  return [{
+    fileId,
+    rawTableId,
+    range: {
+      startRow,
+      endRow: Math.max(configuredEndRow, inferredEndRow),
+      startCol,
+      endCol,
+    },
+  }];
+};
+
+const normalizeTemplateSelection = (
+  selection: TemplateSelection,
+): TemplateSelection => {
+  if (selection.kind === "inline" && selection.template) {
+    return selection;
+  }
+  if (selection.kind === "saved" || selection.kind === "template") {
+    const templateId = String(selection.templateId ?? "").trim();
+    return templateId ? { kind: "saved", templateId } : { kind: "auto" };
+  }
+
+  return { kind: "auto" };
+};
 
 const hashString = (value: string): string => {
   let hash = 2166136261;
@@ -1291,12 +1302,12 @@ const mergeFileSemanticsRecord = (
   semantics: FileSemantics,
 ): FileRecord => {
   const fileName = normalizeOptionalText(semantics.sourceFileName) ?? record.raw.fileName;
-  const latestTemplateRun = getLatestTemplateRunRecord(record);
-  const nextTemplateRun = semantics.templateId && latestTemplateRun
+  const latestSliceRun = getLatestSliceRunRecord(record);
+  const nextSliceRun = semantics.templateId && latestSliceRun
     ? {
-        ...latestTemplateRun,
+        ...latestSliceRun,
         selection: {
-          kind: "template" as const,
+          kind: "saved" as const,
           templateId: semantics.templateId,
         },
         mode: "manual" as const,
@@ -1309,13 +1320,13 @@ const mergeFileSemanticsRecord = (
       ...record.raw,
       fileName,
     },
-    ...(nextTemplateRun
+    ...(nextSliceRun
       ? {
-          templateRunsById: {
-            ...record.templateRunsById,
-            [nextTemplateRun.id]: nextTemplateRun,
+          sliceRunsById: {
+            ...record.sliceRunsById,
+            [nextSliceRun.id]: nextSliceRun,
           },
-          latestTemplateRunId: nextTemplateRun.id,
+          latestSliceRunId: nextSliceRun.id,
         }
       : {}),
   };
@@ -1347,9 +1358,9 @@ const setSeriesLabelOverride = (
   },
 });
 
-const createTemplateConfigRecord = (
-  config: TemplateConfig,
-): TemplateConfigRecord => ({
+const createTemplateApplyConfigRecord = (
+  config: TemplateApplyConfig,
+): LegacyTemplateApplyConfig => ({
   name: normalizeOptionalText(config.name),
   xColumns: normalizeColumnIndexes(config.xColumns),
   xDataStart: parseNumberOr(config.xDataStart, 0),
@@ -1370,13 +1381,13 @@ const createTemplateConfigRecord = (
   yColumns: Array.isArray(config.yColumns) ? config.yColumns : [],
 });
 
-const createTemplateConfigRecordFromAppliedConfig = (
+const createTemplateApplyConfigRecordFromAppliedConfig = (
   config: unknown,
-  fallback: TemplateConfig,
+  fallback: TemplateApplyConfig,
   processedFile?: ProcessedEntry,
-): TemplateConfigRecord => {
-  const fallbackRecord = createTemplateConfigRecord(fallback);
-  const processedConfig = createTemplateConfigFallbackFromProcessedFile(processedFile);
+): LegacyTemplateApplyConfig => {
+  const fallbackRecord = createTemplateApplyConfigRecord(fallback);
+  const processedConfig = createTemplateApplyConfigFallbackFromProcessedFile(processedFile);
   if (!isObjectRecord(config)) {
     return {
       ...fallbackRecord,
@@ -1396,6 +1407,22 @@ const createTemplateConfigRecordFromAppliedConfig = (
       : shouldDefaultExtractionXColumn(config)
         ? [0]
         : fallbackRecord.xColumns;
+  const xSegmentCount =
+    readConfigNumber(config, "xSegmentCount") ??
+    readConfigNumber(config, "segmentCount") ??
+    fallbackRecord.xSegmentCount;
+  const xPointsPerGroup =
+    readConfigNumber(config, "xPointsPerGroup") ??
+    readConfigNumber(config, "groupSize") ??
+    fallbackRecord.xPointsPerGroup;
+  const xSegmentationMode = resolveLegacyTemplateSegmentationMode(
+    normalizeXSegmentationMode(
+      config.xSegmentationMode,
+      fallbackRecord.xSegmentationMode,
+    ),
+    xPointsPerGroup,
+    xSegmentCount,
+  );
 
   return {
     ...fallbackRecord,
@@ -1409,18 +1436,9 @@ const createTemplateConfigRecordFromAppliedConfig = (
       readConfigNumber(config, "xDataEnd") ??
       readConfigNumber(config, "endRow") ??
       fallbackRecord.xDataEnd,
-    xSegmentationMode: normalizeXSegmentationMode(
-      config.xSegmentationMode,
-      fallbackRecord.xSegmentationMode,
-    ),
-    xSegmentCount:
-      readConfigNumber(config, "xSegmentCount") ??
-      readConfigNumber(config, "segmentCount") ??
-      fallbackRecord.xSegmentCount,
-    xPointsPerGroup:
-      readConfigNumber(config, "xPointsPerGroup") ??
-      readConfigNumber(config, "groupSize") ??
-      fallbackRecord.xPointsPerGroup,
+    xSegmentationMode,
+    xSegmentCount,
+    xPointsPerGroup,
     xUnit: normalizeOptionalText(config.xUnit) ??
       processedConfig.xUnit ??
       fallbackRecord.xUnit,
@@ -1459,9 +1477,9 @@ const createTemplateConfigRecordFromAppliedConfig = (
   };
 };
 
-const createTemplateConfigFallbackFromProcessedFile = (
+const createTemplateApplyConfigFallbackFromProcessedFile = (
   processedFile: ProcessedEntry | undefined,
-): Partial<TemplateConfigRecord> => {
+): Partial<LegacyTemplateApplyConfig> => {
   if (!processedFile) {
     return {};
   }
@@ -1482,16 +1500,36 @@ const shouldDefaultExtractionXColumn = (config: Record<string, unknown>): boolea
 
 const normalizeXSegmentationMode = (
   value: unknown,
-  fallback: TemplateConfigRecord["xSegmentationMode"],
-): TemplateConfigRecord["xSegmentationMode"] =>
+  fallback: LegacyTemplateApplyConfig["xSegmentationMode"],
+): LegacyTemplateApplyConfig["xSegmentationMode"] =>
   value === "points" || value === "segments" || value === "auto"
     ? value
     : fallback;
 
+const resolveLegacyTemplateSegmentationMode = (
+  mode: LegacyTemplateApplyConfig["xSegmentationMode"],
+  xPointsPerGroup: number | undefined,
+  xSegmentCount: number | undefined,
+): LegacyTemplateApplyConfig["xSegmentationMode"] => {
+  if (mode !== "auto") {
+    return mode;
+  }
+  if (isPositiveNumber(xPointsPerGroup)) {
+    return "points";
+  }
+  if (isPositiveNumber(xSegmentCount)) {
+    return "segments";
+  }
+  return mode;
+};
+
+const isPositiveNumber = (value: number | undefined): boolean =>
+  typeof value === "number" && Number.isFinite(value) && value > 0;
+
 const normalizeYLegendTarget = (
   value: unknown,
-  fallback: TemplateConfigRecord["yLegendTarget"],
-): TemplateConfigRecord["yLegendTarget"] =>
+  fallback: LegacyTemplateApplyConfig["yLegendTarget"],
+): LegacyTemplateApplyConfig["yLegendTarget"] =>
   value === "yColumn" || value === "group" || value === "auto"
     ? value
     : fallback;

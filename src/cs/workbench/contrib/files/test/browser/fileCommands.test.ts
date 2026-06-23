@@ -5,7 +5,7 @@ import { CommandsRegistry } from "../../../../../platform/commands/common/comman
 import type { ServicesAccessor, ServiceIdentifier } from "../../../../../platform/instantiation/common/instantiation.ts";
 import { ExplorerWorkflowService } from "../../../../../workbench/contrib/files/browser/explorerWorkflowService.ts";
 import { IExplorerService, IExplorerWorkflowService } from "../../../../../workbench/contrib/files/browser/files.ts";
-import { ITemplateService } from "src/cs/workbench/services/template/common/template";
+import { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 import {
   ADD_FOLDER_ACTION_ID,
@@ -53,12 +53,12 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
         slicedFileId = fileId;
       },
     }));
-    const templateService = {
+    const sliceService = {
       _serviceBrand: undefined,
-      setFileTemplateSelection: (fileId: string, selection: TemplateSelection) => {
+      setTemplateSelection: (fileId: string, selection: TemplateSelection) => {
         templateSelection = { fileId, selection };
       },
-    } as unknown as ITemplateService;
+    } as unknown as ISliceService;
     const explorerService = createExplorerServiceStub({
       onSelect: (target, reveal) => {
         renameSelection = { reveal, target };
@@ -70,18 +70,18 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     const accessor = createAccessor([
       [IExplorerService, explorerService],
       [IExplorerWorkflowService, explorerWorkflowService],
-      [ITemplateService, templateService],
+      [ISliceService, sliceService],
     ]);
 
     closeFileItemHandler(accessor, " file-1 ");
     deleteFileItemHandler(accessor, " file-2 ");
     renameFileItemHandler(accessor, "file-1");
     setFileTemplateHandler(accessor, "file-1", {
-      kind: "template",
+      kind: "saved",
       templateId: "template-1",
     });
     setFileTemplateHandler(accessor, "file-2", {
-      kind: "template",
+      kind: "saved",
       templateId: " ",
     });
     sliceFileWithTemplateHandler(accessor, " file-3 ");
@@ -106,7 +106,7 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
     assert.deepEqual(templateSelection, {
       fileId: "file-1",
       selection: {
-        kind: "template",
+        kind: "saved",
         templateId: "template-1",
       },
     });
@@ -179,16 +179,16 @@ suite("workbench/contrib/files/test/browser/fileCommands", () => {
         editableState = state;
       },
     });
-    const templateService = {
+    const sliceService = {
       _serviceBrand: undefined,
-      setFileTemplateSelection: (fileId: string, selection: TemplateSelection) => {
+      setTemplateSelection: (fileId: string, selection: TemplateSelection) => {
         templateSelection = { fileId, selection };
       },
-    } as unknown as ITemplateService;
+    } as unknown as ISliceService;
     const accessor = createAccessor([
       [IExplorerService, explorerService],
       [IExplorerWorkflowService, explorerWorkflowService],
-      [ITemplateService, templateService],
+      [ISliceService, sliceService],
     ]);
 
     CommandsRegistry.getCommand(ADD_FOLDER_ACTION_ID)?.handler(accessor);

@@ -7,7 +7,7 @@ import {
   parseCellLabel,
   toCellLabel,
 } from "src/cs/workbench/services/template/common/templateCellRef";
-import type { TemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
+import type { TemplateApplyConfig } from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
 import {
   normalizeColumnIndexes,
 } from "src/cs/workbench/services/template/common/templateXYBinding";
@@ -70,7 +70,7 @@ export const areTableRangesEqual = (
 export const resolveTemplateColumnSelectionUpdate = (
   selection: TableSelection,
   target: TemplateColumnPickTarget = "yColumns",
-): Partial<TemplateConfig> => {
+): Partial<TemplateApplyConfig> => {
   const columns = normalizeColumnIndexes(selection.selectedColumns);
   return target === "yColumns" ? { yColumns: columns } : {};
 };
@@ -86,7 +86,7 @@ export const resolveTemplateXRangeSelectionUpdate = (
     readonly replaceFrom?: number;
     readonly rowCount?: number | null;
   } = {},
-): Partial<TemplateConfig> => {
+): Partial<TemplateApplyConfig> => {
   const selectedRanges = normalizeTableRanges(selection.ranges)
     .flatMap(range => createTemplateXRangesFromTableRange(range, rowCount));
   if (!selectedRanges.length) {
@@ -109,8 +109,8 @@ export const resolveTemplateXRangeSelectionUpdate = (
 export const resolveTemplateCellSelectionUpdate = (
   activeCell: TableCell | null | undefined,
   activePickField: TemplatePickFieldName | null,
-): Partial<TemplateConfig> => {
-  const updates: Partial<TemplateConfig> = {};
+): Partial<TemplateApplyConfig> => {
+  const updates: Partial<TemplateApplyConfig> = {};
   if (!activeCell || !activePickField) {
     return updates;
   }
@@ -188,7 +188,7 @@ function createTemplateXRangesFromTableRange(
 }
 
 export const resolveTemplateCellSelection = (
-  config: TemplateConfig,
+  config: TemplateApplyConfig,
   activePickField: TemplatePickFieldName | null,
   currentCell: TableCell | null | undefined,
 ): TableCell | null => {

@@ -4,9 +4,9 @@
 
 import assert from "assert";
 import {
-  buildAutoTemplateConfig,
+  buildAutoTemplateApplyConfig,
   buildAutoWorkerConfig,
-} from "../../../template/common/autoTemplateConfig.ts";
+} from "../../../template/common/autoTemplateApplyConfig.ts";
 import {
   inferAutoExtraction,
 } from "../../common/autoTemplatePlan.ts";
@@ -330,7 +330,7 @@ suite("workbench/services/assessment/common/autoTemplatePlan", () => {
     assert.equal(result.plan.legendStartColIndex, 7);
     assert.equal(result.plan.legendTarget, "group");
 
-    const templateConfig = buildAutoTemplateConfig(result.plan);
+    const templateConfig = buildAutoTemplateApplyConfig(result.plan);
     assert.equal(templateConfig.xDataStart, "D2");
     assert.equal(templateConfig.xPointsPerGroup, "4");
     assert.deepEqual(templateConfig.yColumns, [4]);
@@ -403,7 +403,7 @@ suite("workbench/services/assessment/common/autoTemplatePlan", () => {
     assert.ok(Math.abs(legendStep - 0.95) < 1e-12);
     assert.equal(result.plan.legendTarget, "group");
 
-    const templateConfig = buildAutoTemplateConfig(result.plan);
+    const templateConfig = buildAutoTemplateApplyConfig(result.plan);
     assert.equal(templateConfig.yLegendStart, "0.05");
     assert.equal(templateConfig.yLegendCount, "2");
     assert.equal(templateConfig.yLegendStep, "0.95");
@@ -479,7 +479,7 @@ suite("workbench/services/assessment/common/autoTemplatePlan", () => {
     assert.equal(result.plan.legendStep, null);
     assert.equal(result.plan.legendTarget, "yColumn");
 
-    const templateConfig = buildAutoTemplateConfig(result.plan);
+    const templateConfig = buildAutoTemplateApplyConfig(result.plan);
     assert.equal(templateConfig.yLegendStart, "0.05");
     assert.equal(templateConfig.yLegendCount, "1");
     assert.equal(templateConfig.yLegendStep, "");
@@ -519,7 +519,7 @@ suite("workbench/services/assessment/common/autoTemplatePlan", () => {
     assert.equal(result.plan.legendCount, 3);
     assert.equal(result.plan.legendStep, 2);
 
-    const templateConfig = buildAutoTemplateConfig(result.plan);
+    const templateConfig = buildAutoTemplateApplyConfig(result.plan);
     assert.equal(templateConfig.xDataStart, "A2");
     assert.deepEqual(templateConfig.yColumns, [1, 3, 5]);
     assert.equal(templateConfig.yLegendStart, "B1");

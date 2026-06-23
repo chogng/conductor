@@ -21,18 +21,22 @@ import type {
 } from "src/cs/workbench/services/files/common/files";
 import { DEFAULT_ORIGIN_PLOT_OPTIONS } from "src/cs/workbench/services/origin/common/originPlotOptions";
 import type { PlotDisplayModel } from "src/cs/workbench/services/plot/common/plot";
+import type { SliceState } from "src/cs/workbench/services/slice/common/slice";
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
-import { createProcessedFileSessionCommit } from "src/cs/workbench/services/session/common/sessionModelAdapter";
+import { mergeProcessedFileIntoRecords } from "src/cs/workbench/services/session/common/sessionModelAdapter";
+import {
+  getLatestSliceRunRecord,
+  type CurveRecord,
+} from "src/cs/workbench/services/session/common/sessionModel";
 import { createSessionReadModel } from "src/cs/workbench/services/session/common/sessionReadModel";
 import type {
   ProcessedEntry,
   SessionFile,
 } from "src/cs/workbench/services/session/common/sessionTypes";
 import type { TableSource } from "src/cs/workbench/services/table/common/table";
-import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
-import type { TemplateApplyWorkflowInput } from "src/cs/workbench/services/template/common/template";
 import { createTemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
+import type { SliceCommit } from "src/cs/workbench/services/slice/common/slice";
 
 suite("workbench/browser/workbench Explorer pane input", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,15 +51,11 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       plotService: createPlotService(),
       readModel: createSessionReadModel(session.getSnapshot()),
       snapshot: session.getSnapshot(),
-      templateState: {
-        formState: createEmptyTemplateConfig({ name: "Template A" }),
-        mode: "management",
-        selectedTemplateId: "template-a",
-        selectionsByFileId: {
+      sliceState: createSliceStateForTest({
+        templateSelectionsByFileId: {
           "file-a": createTemplateSelection("template-file"),
         },
-        templateListVersion: 0,
-      },
+      }),
     });
 
     assert.equal(input.selectionKind, "table");
@@ -63,13 +63,8 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.deepEqual(input.files, []);
     assert.deepEqual(input.quickAccessFiles, []);
     assert.deepEqual(input.thumbnailFiles, []);
-    assert.equal(input.currentTemplateLabel, "Template A");
-    assert.deepEqual(input.currentTemplateSelection, {
-      kind: "template",
-      templateId: "template-a",
-    });
     assert.deepEqual(input.fileTemplateSelectionsByFileId?.["file-a"], {
-      kind: "template",
+      kind: "saved",
       templateId: "template-file",
     });
   });
@@ -102,13 +97,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       plotService: createPlotService(),
       readModel: createSessionReadModel(snapshot),
       snapshot,
-      templateState: {
-        formState: createEmptyTemplateConfig(),
-        mode: "management",
-        selectedTemplateId: null,
-        selectionsByFileId: {},
-        templateListVersion: 0,
-      },
+      sliceState: createSliceStateForTest(),
     });
 
     assert.deepEqual(input.files[0]?.badgeState, {
@@ -158,13 +147,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       plotAxisSettings: { x: { show: true } },
       readModel,
       snapshot,
-      templateState: {
-        formState: createEmptyTemplateConfig(),
-        mode: "management",
-        selectedTemplateId: null,
-        selectionsByFileId: {},
-        templateListVersion: 0,
-      },
+      sliceState: createSliceStateForTest(),
     });
 
     assert.equal(input.selectionKind, "chart");
@@ -199,13 +182,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       plotAxisSettings: { x: { show: true } },
       readModel: createSessionReadModel(nextSnapshot),
       snapshot: nextSnapshot,
-      templateState: {
-        formState: createEmptyTemplateConfig(),
-        mode: "management",
-        selectedTemplateId: null,
-        selectionsByFileId: {},
-        templateListVersion: 0,
-      },
+      sliceState: createSliceStateForTest(),
     });
     const afterNextTemplateOutput = nextInput.files
       .map(file => `${file.itemKey ?? file.fileId}:${file.fileId}`)
@@ -258,16 +235,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       plotService: createPlotService(),
       readModel,
       snapshot,
-      applyStatesByFileId: new Map([
-        ["raw-only", { state: "ready" }],
-      ]),
-      templateState: {
-        formState: createEmptyTemplateConfig(),
-        mode: "management",
-        selectedTemplateId: null,
-        selectionsByFileId: {},
-        templateListVersion: 0,
-      },
+      sliceState: createSliceStateForTest(),
     });
 
     assert.equal(input.selectionKind, "chart");
@@ -277,7 +245,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     assert.deepEqual(input.files.map(file => file.chartState), ["ready", "none"]);
   });
 
-  test("keeps chart apply states from replacing assessment badges", () => {
+  test("keeps chart slice states from replacing assessment badges", () => {
     const snapshot = store.add(new SessionService()).getSnapshot();
     const input = createExplorerPaneInput({
       activePlotType: "iv",
@@ -309,28 +277,23 @@ suite("workbench/browser/workbench Explorer pane input", () => {
         ],
       },
       snapshot,
-      applyStatesByFileId: new Map([
-        ["unknown-file", {
-          code: "unknownCurveType",
-          message: "Unknown.csv has unknown curve type.",
-          state: "skipped",
-        }],
-        ["failed-file", {
-          code: "workerError",
-          message: "Failed.csv could not be extracted.",
-          state: "failed",
-        }],
-        ["queued-file", {
-          state: "queued",
-        }],
-      ]),
-      templateState: {
-        formState: createEmptyTemplateConfig(),
-        mode: "management",
-        selectedTemplateId: null,
-        selectionsByFileId: {},
-        templateListVersion: 0,
-      },
+      sliceState: createSliceStateForTest({
+        fileStates: new Map([
+          ["unknown-file", {
+            code: "unknownCurveType",
+            message: "Unknown.csv has unknown curve type.",
+            state: "skipped",
+          }],
+          ["failed-file", {
+            code: "slice.failed",
+            message: "Failed.csv could not be sliced.",
+            state: "failed",
+          }],
+          ["queued-file", {
+            state: "queued",
+          }],
+        ]),
+      }),
     });
 
     assert.deepEqual(
@@ -357,7 +320,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
             label: "transfer",
             source: "assessment",
           },
-          chartMessage: "Failed.csv could not be extracted.",
+          chartMessage: "Failed.csv could not be sliced.",
           chartState: "failed",
           fileId: "failed-file",
         },
@@ -374,6 +337,40 @@ suite("workbench/browser/workbench Explorer pane input", () => {
         },
       ],
     );
+  });
+
+  test("uses slice file states for chart state", () => {
+    const snapshot = store.add(new SessionService()).getSnapshot();
+    const input = createExplorerPaneInput({
+      activePlotType: "iv",
+      explorerService: store.add(new ExplorerService()),
+      mode: "chart",
+      plotService: createPlotService(),
+      readModel: {
+        hasChartData: false,
+        hasSessionData: true,
+        processedFileIds: [],
+        processedFiles: [],
+        rawFiles: [{
+          curveType: "transfer",
+          fileId: "file-a",
+          fileName: "A.csv",
+        }],
+      },
+      snapshot,
+      sliceState: createSliceStateForTest({
+        fileStates: new Map([
+          ["file-a", {
+            code: "slice.failed",
+            message: "Slice failed.",
+            state: "failed",
+          }],
+        ]),
+      }),
+    });
+
+    assert.equal(input.files[0]?.chartState, "failed");
+    assert.equal(input.files[0]?.chartMessage, "Slice failed.");
   });
 
   test("creates chart thumbnail input from processed file projection", () => {
@@ -422,13 +419,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       plotAxisSettings: { x: { show: true } },
       readModel,
       snapshot,
-      templateState: {
-        formState: createEmptyTemplateConfig(),
-        mode: "management",
-        selectedTemplateId: null,
-        selectionsByFileId: {},
-        templateListVersion: 0,
-      },
+      sliceState: createSliceStateForTest(),
     });
 
     assert.equal(input.selectionKind, "chart");
@@ -487,13 +478,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       plotService: createPlotService(),
       readModel,
       snapshot,
-      templateState: {
-        formState: createEmptyTemplateConfig(),
-        mode: "management",
-        selectedTemplateId: null,
-        selectionsByFileId: {},
-        templateListVersion: 0,
-      },
+      sliceState: createSliceStateForTest(),
     });
 
     assert.equal(input.selectedFileId, null);
@@ -528,7 +513,10 @@ suite("workbench/browser/workbench Explorer pane input", () => {
     ]);
     session.commitRawTableAssessment({
       assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+      ruleSetFingerprint: "rule:test",
+      templateCatalogVersion: 0,
       schemaProfileVersion: 0,
+      templateCandidates: [],
       blocks: [{
 	        columnCount: 2,
 	        columns: { columns: [] },
@@ -575,13 +563,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       plotService: createPlotService(),
       readModel: createSessionReadModel(snapshot),
       snapshot,
-      templateState: {
-        formState: createEmptyTemplateConfig(),
-        mode: "management",
-        selectedTemplateId: null,
-        selectionsByFileId: {},
-        templateListVersion: 0,
-      },
+      sliceState: createSliceStateForTest(),
     });
 
     assert.deepEqual(
@@ -648,13 +630,7 @@ suite("workbench/browser/workbench Explorer pane input", () => {
       plotService: createPlotService(),
       readModel: createSessionReadModel(snapshot),
       snapshot,
-      templateState: {
-        formState: createEmptyTemplateConfig(),
-        mode: "management",
-        selectedTemplateId: null,
-        selectionsByFileId: {},
-        templateListVersion: 0,
-      },
+      sliceState: createSliceStateForTest(),
     });
 
     const badgeState = input.files[0]?.badgeState;
@@ -713,7 +689,7 @@ suite("workbench/browser/workbench thumbnail prefetch gating", () => {
 suite("workbench/browser/WorkbenchDomainBridge", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-  test("prioritizes selected explorer files immediately during template and calculation processing", () => {
+  test("prioritizes selected explorer files immediately for calculation and plot prefetch", () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
     const prioritizedTemplateFileIds: string[] = [];
@@ -732,7 +708,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
         kind: "chart",
       });
 
-      assert.deepEqual(prioritizedTemplateFileIds, ["file-b"]);
+      assert.deepEqual(prioritizedTemplateFileIds, []);
       assert.deepEqual(prioritizedCalculationFileIds, ["file-b"]);
       assert.deepEqual(plotDisplayPrefetches, [
         { fileIds: ["file-b"], priority: "active" },
@@ -859,9 +835,6 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     const explorerService = store.add(new ExplorerService());
     const chartViewInputs: Array<{ readonly activeFileId: string | null; readonly hasChartData?: boolean }> = [];
     const tableSources: Array<string | null> = [];
-    const templateApplyInputs: Array<{
-      readonly fileTemplateSelectionsByFileId?: Record<string, unknown>;
-    }> = [];
     commitRawFilesForTest(session, [
       {
         columnCount: 2,
@@ -878,22 +851,20 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       prioritizedTemplateFileIds: [],
       session,
       tableSources,
-      templateApplyInputs,
     }));
     try {
       bridge.sync({ deferSecondaryWork: true });
 
       assert.deepEqual(tableSources, ["file-a"]);
-      assert.deepEqual(templateApplyInputs, []);
       assert.deepEqual(chartViewInputs, []);
 
       await new Promise(resolve => globalThis.setTimeout(resolve, 0));
 
-      assert.equal(templateApplyInputs.length, 1);
       assert.deepEqual(chartViewInputs.at(-1), {
         activeFileId: "file-a",
         hasChartData: false,
       });
+      assert.equal(explorerService.getPaneInput()?.selectedFileId, "file-a");
     } finally {
       bridge.dispose();
     }
@@ -919,7 +890,7 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
       explorerService.setHoveredFileId("file-a");
       explorerService.setHoveredFileId("file-b");
 
-      assert.deepEqual(prioritizedTemplateFileIds, ["file-a", "file-b"]);
+      assert.deepEqual(prioritizedTemplateFileIds, []);
       assert.deepEqual(prioritizedCalculationFileIds, ["file-a", "file-b"]);
       assert.deepEqual(plotDisplayPrefetches, [
         { fileIds: ["file-a"], priority: "hover" },
@@ -1096,43 +1067,31 @@ suite("workbench/browser/WorkbenchDomainBridge", () => {
     }
   });
 
-  test("syncs file template selections before the next frame", async () => {
+  test("syncs slice template selections into explorer pane input", async () => {
     const session = store.add(new SessionService());
     const explorerService = store.add(new ExplorerService());
-    const templateStateEmitter = new Emitter<unknown>();
-    const templateApplyInputs: Array<{
-      readonly fileTemplateSelectionsByFileId?: Record<string, unknown>;
-    }> = [];
+    const sliceStateEmitter = new Emitter<unknown>();
     const bridge = new WorkbenchDomainBridge(createDomainBridgeOptionsForTest({
       explorerService,
       prioritizedCalculationFileIds: [],
       prioritizedTemplateFileIds: [],
       session,
-      templateApplyInputs,
-      templateStateEvent: templateStateEmitter.event,
-      templateStateValue: {
-        formState: createEmptyTemplateConfig(),
-        mode: "management",
-        selectedTemplateId: null,
-        selectionsByFileId: {
-          "file-a": createTemplateSelection("template-custom"),
-        },
-        templateListVersion: 1,
+      sliceStateEvent: sliceStateEmitter.event,
+      sliceTemplateSelectionsByFileId: {
+        "file-a": createTemplateSelection("template-custom"),
       },
     }));
     try {
-      templateStateEmitter.fire(undefined);
+      sliceStateEmitter.fire(undefined);
       await Promise.resolve();
 
-      assert.deepEqual(templateApplyInputs.at(-1)?.fileTemplateSelectionsByFileId, {
-        "file-a": {
-          kind: "template",
-          templateId: "template-custom",
-        },
+      assert.deepEqual(explorerService.getPaneInput()?.fileTemplateSelectionsByFileId?.["file-a"], {
+        kind: "saved",
+        templateId: "template-custom",
       });
     } finally {
       bridge.dispose();
-      templateStateEmitter.dispose();
+      sliceStateEmitter.dispose();
     }
   });
 });
@@ -1208,6 +1167,18 @@ const createPlotService = (): Parameters<typeof createExplorerPaneInput>[0]["plo
   },
 });
 
+const createSliceStateForTest = ({
+  activeFileId = null,
+  fileStates = new Map(),
+  queueLength = 0,
+  templateSelectionsByFileId = {},
+}: Partial<SliceState> = {}): SliceState => ({
+  activeFileId,
+  fileStates,
+  queueLength,
+  templateSelectionsByFileId,
+});
+
 const createDomainBridgeOptionsForTest = ({
   chartActiveFileIds,
   chartViewInputs,
@@ -1219,11 +1190,10 @@ const createDomainBridgeOptionsForTest = ({
   prioritizedCalculationFileIds,
   prioritizedTemplateFileIds,
   session,
+  sliceStateEvent = Event.None,
+  sliceTemplateSelectionsByFileId,
   thumbnailPrefetches,
   tableSources,
-  templateApplyInputs,
-  templateStateEvent = Event.None,
-  templateStateValue,
   visibleDetailPanes = [],
 }: {
   readonly chartActiveFileIds?: (string | null)[];
@@ -1236,17 +1206,10 @@ const createDomainBridgeOptionsForTest = ({
   readonly prioritizedCalculationFileIds: string[];
   readonly prioritizedTemplateFileIds: string[];
   readonly session: SessionService;
+  readonly sliceStateEvent?: Event<unknown>;
+  readonly sliceTemplateSelectionsByFileId?: SliceState["templateSelectionsByFileId"];
   readonly thumbnailPrefetches?: Array<{ readonly fileIds: readonly string[]; readonly priority: string }>;
   readonly tableSources?: Array<string | null>;
-  readonly templateApplyInputs?: Array<{ readonly fileTemplateSelectionsByFileId?: Record<string, unknown> }>;
-  readonly templateStateEvent?: Event<unknown>;
-  readonly templateStateValue?: {
-    readonly formState: ReturnType<typeof createEmptyTemplateConfig>;
-    readonly mode: "management";
-    readonly selectedTemplateId: string | null;
-    readonly selectionsByFileId: Record<string, ReturnType<typeof createTemplateSelection>>;
-    readonly templateListVersion: number;
-  };
   readonly visibleDetailPanes?: readonly ["inspector"] | readonly [];
 }): ConstructorParameters<typeof WorkbenchDomainBridge>[0] => ({
   assessmentQueueService: {
@@ -1324,44 +1287,28 @@ const createDomainBridgeOptionsForTest = ({
     },
   } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["plotService"],
   sessionService: session,
-	  settingsService: {
-	    getConductorSettings: () => undefined,
-	    onDidChangeConductorSettings: Event.None,
-	  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["settingsService"],
-	  tableService: {
-	    getViewInput: () => null,
-	    open: (source: TableSource | null) => {
+  sliceService: {
+    _serviceBrand: undefined,
+    cancel: () => undefined,
+    enqueueAuto: () => undefined,
+    getState: () => createSliceStateForTest({
+      templateSelectionsByFileId: sliceTemplateSelectionsByFileId,
+    }),
+    onDidChangeSliceState: sliceStateEvent as Event<void>,
+    prioritize: () => undefined,
+    runWithTemplate: () => undefined,
+    setTemplateSelection: () => undefined,
+  } as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["sliceService"],
+  settingsService: {
+    getConductorSettings: () => undefined,
+    onDidChangeConductorSettings: Event.None,
+  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["settingsService"],
+  tableService: {
+    getViewInput: () => null,
+    open: (source: TableSource | null) => {
         tableSources?.push(source?.fileId ?? null);
       },
-	  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["tableService"],
-  templateApplyWorkflowService: {
-    getFileApplyStates: () => new Map(),
-    onDidChangeFileStates: Event.None,
-    onDidChangeProcessingStatus: Event.None,
-    prioritizeProcessingFile: (fileId: string) => prioritizedTemplateFileIds.push(fileId),
-    processingStatus: {
-      processed: 0,
-      state: "processing",
-      total: 0,
-    },
-    update: (input: TemplateApplyWorkflowInput) => {
-      templateApplyInputs?.push(input as { readonly fileTemplateSelectionsByFileId?: Record<string, unknown> });
-    },
-  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["templateApplyWorkflowService"],
-  templateService: {
-    getCachedTemplates: () => [],
-    getTemplateList: () => [],
-    getState: () => templateStateValue ?? ({
-      formState: createEmptyTemplateConfig(),
-      mode: "management",
-      selectedTemplateId: null,
-      selectionsByFileId: {},
-      templateListVersion: 0,
-	    }),
-	    onDidChangeTemplateList: Event.None,
-	    onDidChangeTemplateState: templateStateEvent,
-	    updateViewInput: () => undefined,
-	  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["templateService"],
+  } as unknown as ConstructorParameters<typeof WorkbenchDomainBridge>[0]["tableService"],
   thumbnailPreviewService: {
     prefetch: (fileIds, priority) => {
       thumbnailPrefetches?.push({
@@ -1423,12 +1370,32 @@ const commitTemplateOutputForTest = (
   session: SessionService,
   file: ProcessedEntry,
 ): void => {
-  const commit = createProcessedFileSessionCommit(session.getSnapshot(), file);
+  const snapshot = session.getSnapshot();
+  const records = mergeProcessedFileIntoRecords(
+    snapshot.filesById,
+    snapshot.fileOrder,
+    file,
+    snapshot,
+  );
+  const fileId = String(file.fileId ?? "").trim();
+  const record = fileId ? records.filesById[fileId] : undefined;
+  const run = record ? getLatestSliceRunRecord(record) : undefined;
+  const commit: SliceCommit | null = record && run
+    ? {
+      run,
+      series: run.outputSeriesIds
+        .map(seriesId => record.seriesById[seriesId])
+        .filter((series): series is SliceCommit["series"][number] => Boolean(series)),
+      curves: run.outputCurveKeys
+        .map(curveKey => record.curvesByKey[curveKey])
+        .filter((curve): curve is CurveRecord => Boolean(curve)),
+    }
+    : null;
   if (!commit) {
     return;
   }
 
-  session.commitTemplateOutput(commit);
+  session.commitSliceRuns([commit]);
 };
 
 const commitRawFilesForTest = (

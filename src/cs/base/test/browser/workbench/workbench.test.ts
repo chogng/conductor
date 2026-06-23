@@ -32,7 +32,6 @@ import {
   type BaseCurveKey,
   type FileRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import { createEmptyTemplateConfig } from "src/cs/workbench/services/template/common/templateConfigUtils";
 import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
@@ -334,28 +333,6 @@ suite("workbench/browser/workbench layout integration", () => {
       tableService: {
         open: () => undefined,
       },
-      templateApplyWorkflowService: {
-        getFileApplyStates: () => new Map(),
-        onDidChangeFileStates: Event.None,
-        onDidChangeProcessingStatus: Event.None,
-        processingStatus: "idle",
-        prioritizeProcessingFile: () => undefined,
-        update: () => undefined,
-      },
-      templateService: {
-        getCachedTemplates: () => [],
-        getTemplateList: () => [],
-        getState: () => ({
-          formState: createEmptyTemplateConfig(),
-          mode: "management",
-          selectedTemplateId: null,
-          selectionsByFileId: {},
-          templateListVersion: 0,
-        }),
-        onDidChangeTemplateList: Event.None,
-        onDidChangeTemplateState: Event.None,
-        updateViewInput: () => undefined,
-      },
       thumbnailPreviewService: {
         onDidChangePreview: Event.None,
         prefetch: (fileIds: readonly string[], priority: string) => {
@@ -461,28 +438,6 @@ suite("workbench/browser/workbench layout integration", () => {
       tableService: {
         open: () => undefined,
       },
-      templateApplyWorkflowService: {
-        getFileApplyStates: () => new Map(),
-        onDidChangeFileStates: Event.None,
-        onDidChangeProcessingStatus: Event.None,
-        processingStatus: "idle",
-        prioritizeProcessingFile: () => undefined,
-        update: () => undefined,
-      },
-      templateService: {
-        getCachedTemplates: () => [],
-        getTemplateList: () => [],
-        getState: () => ({
-          formState: createEmptyTemplateConfig(),
-          mode: "management",
-          selectedTemplateId: null,
-          selectionsByFileId: {},
-          templateListVersion: 0,
-        }),
-        onDidChangeTemplateList: Event.None,
-        onDidChangeTemplateState: Event.None,
-        updateViewInput: () => undefined,
-      },
       thumbnailPreviewService: {
         onDidChangePreview: Event.None,
         prefetch: () => undefined,
@@ -567,7 +522,6 @@ const createProcessedFileRecord = (fileId: string): FileRecord => {
       },
     },
     seriesOrder: [seriesId],
-    templateRunsById: {},
   };
 };
 
@@ -707,28 +661,14 @@ const createWorkbenchOptions = ({
       update: () => tableModel,
       updateViewInput: () => undefined,
     } as unknown as WorkbenchService<"tableService">,
-    templateApplyWorkflowService: {
-      getFileApplyStates: () => new Map(),
-      onDidChangeFileStates: Event.None,
-      onDidChangeProcessingStatus: Event.None,
-      processingStatus: "idle",
-      prioritizeProcessingFile: () => undefined,
-      update: () => undefined,
-    } as unknown as WorkbenchService<"templateApplyWorkflowService">,
-    templateService: {
-      getCachedTemplates: () => [],
-      getTemplateList: () => [],
-      onDidChangeTemplateList: Event.None,
+    templateViewStateService: {
       onDidChangeTemplateState: Event.None,
       getState: () => ({
-        formState: createEmptyTemplateConfig(),
+        formState: {},
         mode: "management",
         selectedTemplateId: null,
-        selectionsByFileId: {},
-        templateListVersion: 0,
       }),
-      updateViewInput: () => undefined,
-	    } as unknown as WorkbenchService<"templateService">,
+    } as unknown as WorkbenchService<"templateViewStateService">,
 	    thumbnailPreviewService: {
 	      _serviceBrand: undefined,
 	      get: () => ({ kind: "idle" }),

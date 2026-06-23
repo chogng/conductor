@@ -11,7 +11,7 @@ import {
 } from "src/cs/workbench/services/calculation/common/calculationCurveRecordBuilder";
 import {
   createCalculatedCurveRecordsByFile as createCalculatedCurveRecordsByFileFromPlots,
-  createProcessedFileSessionCommit,
+  mergeProcessedFileIntoRecords,
   createRawFilesFromRecords,
 } from "src/cs/workbench/services/session/common/sessionModelAdapter";
 import { ASSESSMENT_RULE_VERSION } from "src/cs/workbench/services/assessment/common/assessment";
@@ -22,15 +22,14 @@ import type {
   FileImportResult,
   ImportedFileRecord,
 } from "src/cs/workbench/services/files/common/files";
-import type { CommitTemplateOutputOptions } from "src/cs/workbench/services/session/common/session";
 import type {
   CurveRecord,
   MetricRecord,
   MetricKey,
-  TemplateRunRecord,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import { getLatestTemplateRunRecord } from "src/cs/workbench/services/session/common/sessionModel";
+import { getLatestSliceRunRecord } from "src/cs/workbench/services/session/common/sessionModel";
 import type { SessionChangeEvent } from "src/cs/workbench/services/session/common/sessionEvents";
+import type { SliceCommit } from "src/cs/workbench/services/slice/common/slice";
 import type {
   ProcessedEntry,
   SessionFile,
@@ -100,9 +99,9 @@ suite("workbench/services/session/test/browser/sessionService", () => {
   test("reports raw table refs on import change events", () => {
     const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
-    const dispose = session.onDidChangeSession(event => {
-      events.push(event);
-    });
+	  const dispose = session.onDidChangeSession(event => {
+	    events.push(event);
+	  });
 
     commitRawFilesForTest(session, [
       { fileId: "file-a", fileName: "Raw A.csv", sheetId: "data" },
@@ -167,7 +166,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.equal("setViewState" in context, false);
   });
 
-  test("stores applied template selection in canonical template run", () => {
+  test("stores applied template selection in canonical slice run", () => {
     const session = store.add(new SessionService());
 
     commitTemplateOutputForTest(session, {
@@ -182,8 +181,8 @@ suite("workbench/services/session/test/browser/sessionService", () => {
       appliedTemplateSelection: { kind: "template", templateId: "template-a" },
     });
 
-    assert.deepEqual(getLatestTemplateRunRecord(session.getSnapshot().filesById["file-a"])?.selection, {
-      kind: "template",
+    assert.deepEqual(getLatestSliceRunRecord(session.getSnapshot().filesById["file-a"])?.selection, {
+      kind: "saved",
       templateId: "template-a",
     });
   });
@@ -237,12 +236,12 @@ suite("workbench/services/session/test/browser/sessionService", () => {
       sheetId: "sheet-1",
       sheetName: "Sweep",
       rowCount: 4,
-      columnCount: 2,
-      maxCellLengths: [3, 4],
-      curveType: "transfer",
-      curveTypeConfidence: "high",
-      curveTypeReasons: ["metadata"],
-    }]);
+	      columnCount: 2,
+	      maxCellLengths: [3, 4],
+	      curveType: "transfer",
+	      curveTypeConfidence: "high",
+	      curveTypeReasons: ["metadata"],
+	    }]);
     commitTemplateOutputForTest(session, {
       fileId: "file-a",
       fileName: "Transfer.csv",
@@ -273,7 +272,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.equal(record.raw.tablesById["sheet-1"].sheetName, "Sweep");
     assert.equal(record.raw.tablesById["sheet-1"].rowCount, 4);
     assert.equal(getFileRecordCurveType(record), "transfer");
-    assert.equal(getLatestTemplateRunRecord(record)?.selection.kind, "template");
+    assert.equal(getLatestSliceRunRecord(record)?.selection.kind, "saved");
     assert.equal(record.seriesById["series-1"].legendValue, "Vd=1");
     const axis = getFileRecordAxisProjection(record);
     assert.equal(axis.xUnit, "V");
@@ -347,7 +346,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     ]);
   });
 
-  test("commits template runs, curves, and metrics through explicit APIs", () => {
+  test("commits base curves, derived curves, and metrics through explicit APIs", () => {
     const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
     const dispose = session.onDidChangeSession(event => {
@@ -356,21 +355,6 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw.csv" }]);
     events.length = 0;
 
-    const curve: CurveRecord = {
-      fileId: "file-a",
-      seriesId: "series-1",
-      curveGeneration: "base",
-      curveFamily: "iv",
-      ivMode: "transfer",
-      lineage: {
-        curveGeneration: "base",
-        baseFamily: "iv",
-        ivMode: "transfer",
-        baseSeries: { fileId: "file-a", seriesId: "series-1" },
-      },
-      points: [{ x: 0, y: 1 }],
-      signature: "curve-signature",
-    };
     const derivedCurve: CurveRecord = {
       fileId: "file-a",
       seriesId: "series-1",
@@ -408,31 +392,17 @@ suite("workbench/services/session/test/browser/sessionService", () => {
         candidateWindows: [],
       },
     };
-    const templateRun: TemplateRunRecord = {
-      id: "run-a",
+    commitTemplateOutputForTest(session, {
       fileId: "file-a",
-      selection: { kind: "auto" },
-      config: {
-        xColumns: [0],
-        xDataStart: 0,
-        xDataEnd: 1,
-        xSegmentationMode: "auto",
-        yLegendTarget: "auto",
-        stopOnError: false,
-        yColumns: [1],
-      },
-      sourceBlockIds: ["block-a"],
-      outputSeriesIds: ["series-1"],
-      outputCurveKeys: ["base:iv:transfer:series-1"],
-      configFingerprint: "config-a",
-      mode: "auto",
-      appliedAt: 1,
-      warnings: [],
-      errors: [],
-    };
-
-    session.commitTemplateRun(templateRun);
-    session.commitCurves({ fileId: "file-a", curves: [curve, derivedCurve] });
+      curveType: "transfer",
+      xGroups: [[0]],
+      series: [{
+        id: "series-1",
+        groupIndex: 0,
+        y: [1],
+      }],
+    });
+    session.commitCurves({ fileId: "file-a", curves: [derivedCurve] });
     session.commitCurves({
       fileId: "file-a",
       curves: [],
@@ -441,13 +411,13 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     session.commitMetrics({ fileId: "file-a", metrics: [metric] });
 
     const record = session.getSnapshot().filesById["file-a"];
-    assert.deepEqual(getLatestTemplateRunRecord(record), templateRun);
-    assert.equal(record.curvesByKey["base:iv:transfer:series-1"], curve);
+    assert.equal(getLatestSliceRunRecord(record)?.fileId, "file-a");
+    assert.equal(record.curvesByKey["base:iv:transfer:series-1"]?.curveGeneration, "base");
     assert.equal(record.curvesByKey["derived:gm:default:series-1"], undefined);
     assert.equal(record.metricsByKey[metricKey], metric);
     assert.deepEqual(record.metricsBySeriesId?.["series-1"], [metricKey]);
     assert.deepEqual(events.map(event => event.reason), [
-      "templateRunChanged",
+      "sliceRunChanged",
       "curvesChanged",
       "curvesChanged",
       "metricsChanged",
@@ -455,7 +425,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     dispose.dispose();
   });
 
-  test("commits template output through one session event", () => {
+  test("commits processed slice output through one session event", () => {
     const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
     const dispose = session.onDidChangeSession(event => {
@@ -476,14 +446,106 @@ suite("workbench/services/session/test/browser/sessionService", () => {
       }],
     });
 
-    assert.deepEqual(events.map(event => event.reason), ["templateRunChanged"]);
+    assert.deepEqual(events.map(event => event.reason), ["sliceRunChanged"]);
     assert.deepEqual(events[0]?.fileIds, ["file-a"]);
     assert.deepEqual(events[0]?.seriesIds, ["series-1"]);
     assert.ok(events[0]?.curveKeys?.includes("base:iv:transfer:series-1"));
     dispose.dispose();
   });
 
-  test("commits multiple template outputs through one session event", () => {
+  test("commits slice run, series, and base curves through one session event", () => {
+    const session = store.add(new SessionService());
+    const events: SessionChangeEvent[] = [];
+    const dispose = session.onDidChangeSession(event => {
+      events.push(event);
+    });
+    commitRawFilesForTest(session, [{
+      fileId: "file-a",
+      fileName: "Raw.csv",
+      rowCount: 2,
+      columnCount: 2,
+    }]);
+    events.length = 0;
+
+    session.commitSliceRuns([{
+      run: {
+        id: "slice-run-a",
+        fileId: "file-a",
+        rawTableId: "file-a",
+        mode: "auto",
+        selection: { kind: "auto" },
+        sourceRawTableVersion: 1,
+        sourceAssessmentSignature: "assessment-a",
+        template: {
+          schemaVersion: 1,
+          name: "Detected IV Transfer",
+          version: 1,
+          blocks: [{
+            rowRange: { startRow: 1, endRow: "end" },
+            x: { columns: [0], unit: "V" },
+            y: { columns: [1], unit: "A" },
+            segmentation: { kind: "auto" },
+            legend: { target: "auto" },
+          }],
+          stopOnError: false,
+        },
+        templateFingerprint: "template:test",
+        inputRanges: [{
+          fileId: "file-a",
+          rawTableId: "file-a",
+          range: {
+            startRow: 1,
+            endRow: 1,
+            startCol: 0,
+            endCol: 1,
+          },
+        }],
+        outputSeriesIds: ["series-1"],
+        outputCurveKeys: ["base:iv:transfer:series-1"],
+        warnings: [],
+        errors: [],
+      },
+      series: [{
+        fileId: "file-a",
+        sheetId: "file-a",
+        id: "series-1",
+        groupIndex: 0,
+        yCol: 1,
+        y: [1],
+      }],
+      curves: [{
+        fileId: "file-a",
+        seriesId: "series-1",
+        curveGeneration: "base",
+        curveFamily: "iv",
+        ivMode: "transfer",
+        lineage: {
+          curveGeneration: "base",
+          baseFamily: "iv",
+          ivMode: "transfer",
+          baseSeries: {
+            fileId: "file-a",
+            seriesId: "series-1",
+          },
+        },
+        points: [{ x: 0, y: 1 }],
+        signature: "curve-a",
+      }],
+    }]);
+
+    const record = session.getSnapshot().filesById["file-a"];
+    assert.equal(record.latestSliceRunId, "slice-run-a");
+    assert.equal(record.sliceRunsById?.["slice-run-a"]?.templateFingerprint, "template:test");
+    assert.equal(record.seriesById["series-1"].yCol, 1);
+    assert.equal(record.curvesByKey["base:iv:transfer:series-1"]?.signature, "curve-a");
+    assert.deepEqual(events.map(event => event.reason), ["sliceRunChanged"]);
+    assert.deepEqual(events[0]?.fileIds, ["file-a"]);
+    assert.deepEqual(events[0]?.seriesIds, ["series-1"]);
+    assert.deepEqual(events[0]?.curveKeys, ["base:iv:transfer:series-1"]);
+    dispose.dispose();
+  });
+
+  test("commits multiple slice outputs through one session event", () => {
     const session = store.add(new SessionService());
     const events: SessionChangeEvent[] = [];
     const dispose = session.onDidChangeSession(event => {
@@ -495,14 +557,14 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     ]);
     events.length = 0;
 
-    const first = createProcessedFileSessionCommit(session.getSnapshot(), {
+    const first = createProcessedSliceCommitForTest(session, {
       fileId: "file-a",
       fileName: "Processed A.csv",
       curveType: "transfer",
       xGroups: [[0]],
       series: [{ id: "series-a", groupIndex: 0, y: [1] }],
     });
-    const second = createProcessedFileSessionCommit(session.getSnapshot(), {
+    const second = createProcessedSliceCommitForTest(session, {
       fileId: "file-b",
       fileName: "Processed B.csv",
       curveType: "transfer",
@@ -512,9 +574,9 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.ok(first);
     assert.ok(second);
 
-    session.commitTemplateOutputs([first, second]);
+    session.commitSliceRuns([first, second]);
 
-    assert.deepEqual(events.map(event => event.reason), ["templateRunChanged"]);
+    assert.deepEqual(events.map(event => event.reason), ["sliceRunChanged"]);
     assert.deepEqual(events[0]?.fileIds, ["file-a", "file-b"]);
     assert.deepEqual(events[0]?.seriesIds, ["series-a", "series-b"]);
     assert.ok(events[0]?.curveKeys?.includes("base:iv:transfer:series-a"));
@@ -597,35 +659,6 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     assert.equal(record.curvesByKey["derived:gm:default:series-1"], derivedCurve);
     assert.equal(record.metricsByKey[metricKey], metric);
     dispose.dispose();
-  });
-
-  test("clears template output through the template commit API", () => {
-    const session = store.add(new SessionService());
-
-    commitRawFilesForTest(session, [{ fileId: "file-a", fileName: "Raw.csv" }]);
-    commitTemplateOutputForTest(session, {
-      fileId: "file-a",
-      fileName: "Processed.csv",
-      curveType: "transfer",
-      xGroups: [[0, 1]],
-      series: [{
-        id: "series-1",
-        groupIndex: 0,
-        y: [1, 2],
-      }],
-    });
-
-    session.commitTemplateRun({ kind: "clearTemplateOutput" });
-
-    const record = session.getSnapshot().filesById["file-a"];
-    assert.deepEqual(session.getSnapshot().fileOrder, ["file-a"]);
-    assert.deepEqual(Object.keys(record.raw.tablesById), ["file-a"]);
-    assert.equal(getLatestTemplateRunRecord(record), undefined);
-    assert.deepEqual(getFileRecordXGroups(record), []);
-    assert.deepEqual(record.seriesOrder, []);
-    assert.equal(record.curvesByKey["base:iv:transfer:series-1"], undefined);
-    assert.deepEqual(record.metricsByKey, {});
-    assert.equal(record.calculationCache, undefined);
   });
 
   test("adds and replaces raw files through canonical session methods", () => {
@@ -809,7 +842,9 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     const result = session.commitFileImport(createSingleRawTableImportResult(), {
       rawTableAssessments: [{
         assessmentRuleVersion: assessment.assessmentRuleVersion,
+        ruleSetFingerprint: assessment.ruleSetFingerprint,
         schemaProfileVersion: assessment.schemaProfileVersion,
+        templateCandidates: assessment.templateCandidates,
         blocks: assessment.blocks,
         columnProfiles: assessment.columnProfiles,
         createdAt: assessment.createdAt,
@@ -1315,15 +1350,28 @@ const createImportedFileRecordForTest = (
 const commitTemplateOutputForTest = (
   session: SessionService,
   file: ProcessedEntry | null | undefined,
-  options: CommitTemplateOutputOptions = {},
+  options: ProcessedOutputForTestOptions = {},
 ): void => {
+  const commit = createProcessedSliceCommitForTest(session, file, options);
+  if (commit) {
+    session.commitSliceRuns([commit]);
+  }
+};
+
+type ProcessedOutputForTestOptions = NonNullable<Parameters<typeof mergeProcessedFileIntoRecords>[4]>;
+
+const createProcessedSliceCommitForTest = (
+  session: SessionService,
+  file: ProcessedEntry | null | undefined,
+  options: ProcessedOutputForTestOptions = {},
+): SliceCommit | null => {
   if (!file || typeof file !== "object") {
-    return;
+    return null;
   }
 
   const fileId = String(file.fileId ?? "").trim();
   if (!fileId) {
-    return;
+    return null;
   }
 
   if (!session.getSnapshot().filesById[fileId]) {
@@ -1333,16 +1381,29 @@ const commitTemplateOutputForTest = (
     }]);
   }
 
-  const commit = createProcessedFileSessionCommit(
-    session.getSnapshot(),
+  const snapshot = session.getSnapshot();
+  const records = mergeProcessedFileIntoRecords(
+    snapshot.filesById,
+    snapshot.fileOrder,
     file,
+    snapshot,
     options,
   );
-  if (!commit) {
-    return;
+  const record = records.filesById[fileId];
+  const run = record ? getLatestSliceRunRecord(record) : undefined;
+  if (!record || !run) {
+    return null;
   }
 
-  session.commitTemplateOutput(commit);
+  return {
+    run,
+    series: run.outputSeriesIds
+      .map(seriesId => record.seriesById[seriesId])
+      .filter((series): series is SliceCommit["series"][number] => Boolean(series)),
+    curves: run.outputCurveKeys
+      .map(curveKey => record.curvesByKey[curveKey])
+      .filter((curve): curve is CurveRecord => Boolean(curve)),
+  };
 };
 
 const replaceDerivedCurvesForTest = (
@@ -1487,7 +1548,10 @@ const createRawTableAssessment = (
   blockId = "block-a",
 ): RawTableAssessmentRecord => ({
   assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
+  ruleSetFingerprint: "rule:test",
+  templateCatalogVersion: 0,
   schemaProfileVersion: 0,
+  templateCandidates: [],
   blocks: [{
     columnCount: 2,
     columns: {

@@ -10,10 +10,10 @@ import {
   resolveXSegmentationMode,
 } from "src/cs/workbench/services/template/common/xSegmentation";
 import {
-  normalizeTemplateConfigRecord,
-  type TemplateConfig,
-} from "src/cs/workbench/services/template/common/templateConfigUtils";
-import type { TemplateRecord } from "src/cs/workbench/services/template/common/template";
+  normalizeTemplateApplyConfigRecord,
+  type TemplateApplyConfig,
+} from "src/cs/workbench/services/template/common/templateApplyConfigUtils";
+import type { TemplateApplyPresetRecord } from "src/cs/workbench/services/template/common/template";
 import {
   normalizeColumnIndexes,
   resolveTemplateXYBinding,
@@ -35,7 +35,7 @@ export type TemplateSlicePlan = {
 export type TemplateSlicePlanInput = {
   readonly csvText: string;
   readonly filePrefixName: string;
-  readonly template: TemplateRecord;
+  readonly template: TemplateApplyPresetRecord;
 };
 
 const CSV_MIME_TYPE = "text/csv;charset=utf-8";
@@ -59,7 +59,7 @@ export function createTemplateSlicePlan({
     throw new Error("Slice target has no CSV rows.");
   }
 
-  const config = normalizeTemplateConfigRecord(template as Partial<TemplateConfig> & Record<string, unknown>);
+  const config = normalizeTemplateApplyConfigRecord(template as Partial<TemplateApplyConfig> & Record<string, unknown>);
   const range = resolveXRangeForPreview({
     previewRowCount: rows.length,
     xDataEnd: config.xDataEnd,
@@ -114,7 +114,7 @@ export function getTemplateSliceCount(input: TemplateSlicePlanInput): number {
 }
 
 function resolveSliceGrouping(
-  config: TemplateConfig,
+  config: TemplateApplyConfig,
   rows: readonly (readonly string[])[],
   range: NonNullable<ReturnType<typeof resolveXRangeForPreview>>,
 ): { readonly groupSize: number; readonly groups: number } {
@@ -167,7 +167,7 @@ function resolveSliceGrouping(
   };
 }
 
-function resolveSliceColumnGroups(config: TemplateConfig): readonly TemplateSliceColumnGroup[] {
+function resolveSliceColumnGroups(config: TemplateApplyConfig): readonly TemplateSliceColumnGroup[] {
   const xColumns = normalizeColumnIndexes(config.xColumns);
   const yColumns = normalizeColumnIndexes(config.yColumns);
   if (!xColumns.length && !yColumns.length) {

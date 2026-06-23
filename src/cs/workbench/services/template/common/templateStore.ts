@@ -3,14 +3,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from "../../../../platform/instantiation/common/instantiation.js";
-import { AUTO_TEMPLATE_ID } from "./autoTemplate.js";
-import type { TemplateConfig } from "./templateConfigUtils.js";
+import { isAutoTemplateId } from "./autoTemplate.js";
+import type { TemplateApplyConfig } from "./templateApplyConfigUtils.js";
 import { normalizeColumnIndexes } from "./templateXYBinding.js";
 import { normalizeTemplateXRanges, type TemplateXRange } from "./templateXRange.js";
 
 type JsonRecord = Record<string, unknown>;
 
-export type TemplateStoreSaveInput = TemplateConfig & {
+export type TemplateStoreSaveInput = TemplateApplyConfig & {
 	readonly id?: unknown;
 };
 
@@ -131,7 +131,7 @@ function parseCustomTemplateId(id: unknown): number | null {
 	const sequence = Number(normalized);
 	return Number.isSafeInteger(sequence) &&
 		sequence >= FIRST_CUSTOM_TEMPLATE_ID &&
-		normalized !== AUTO_TEMPLATE_ID
+		!isAutoTemplateId(normalized)
 		? sequence
 		: null;
 }

@@ -48,9 +48,9 @@ suite("workbench/services/calculation/test/browser/calculationContribution", () 
     }
   });
 
-  test("updates for template, removal, and clear changes", () => {
+  test("updates for slice, removal, clear, and metric input changes", () => {
     for (const reason of [
-      "templateRunChanged",
+      "sliceRunChanged",
       "filesRemoved",
       "sessionCleared",
       "metricInputsChanged",
@@ -475,9 +475,7 @@ const createSessionServiceStub = ({
   commitMetricsBatch,
   commitRawTableAssessment: () => undefined,
   commitRawTableAssessments: () => undefined,
-  commitTemplateOutput: () => undefined,
-  commitTemplateOutputs: () => undefined,
-  commitTemplateRun: () => undefined,
+  commitSliceRuns: () => undefined,
   getSnapshot,
   onDidChangeSession,
   renameFile: () => false,
@@ -525,7 +523,6 @@ const createFileRecord = (
     },
     id: fileId,
     kind: "unknown",
-    latestTemplateRunId: "run-a",
     measurementBlockOrder: [],
     measurementBlocksById: {},
     metricsByKey: {},
@@ -547,32 +544,38 @@ const createFileRecord = (
       },
     },
     seriesOrder: [seriesId],
-    templateRunsById: {
+    latestSliceRunId: "run-a",
+    sliceRunsById: {
       "run-a": {
-        appliedAt: 1,
-        config: {
-          bottomTitle: "Gate Voltage",
-          leftTitle: "Drain Current",
-          stopOnError: false,
-          xColumns: [0],
-          xDataEnd: 2,
-          xDataStart: 0,
-          xSegmentationMode: "auto",
-          xUnit: "V",
-          yColumns: [1],
-          yLegendTarget: "auto",
-          yUnit: "A",
-        },
-        configFingerprint: "config-a",
-        errors: [],
         fileId,
         id: "run-a",
         mode: "auto",
+        rawTableId: fileId,
+        selection: { kind: "auto" },
+        sourceRawTableVersion: 0,
+        template: {
+          schemaVersion: 1,
+          name: "Template",
+          version: 1,
+          stopOnError: false,
+          blocks: [{
+            rowRange: { startRow: 0, endRow: 2 },
+            x: { columns: [0], unit: "V" },
+            y: { columns: [1], unit: "A" },
+            segmentation: { kind: "auto" },
+            legend: { target: "auto" },
+            titles: {
+              bottom: "Gate Voltage",
+              left: "Drain Current",
+            },
+          }],
+        },
+        templateFingerprint: "config-a",
+        inputRanges: [],
         outputCurveKeys: [curveKey],
         outputSeriesIds: [seriesId],
-        selection: { kind: "auto" },
-        sourceBlockIds: [],
         warnings: [],
+        errors: [],
       },
     },
   };

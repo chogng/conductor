@@ -20,6 +20,11 @@ import type { SchemaProfile } from "src/cs/workbench/services/schemaProfile/comm
 import type {
   RawTableRef,
 } from "src/cs/workbench/services/session/common/sessionModel";
+import type { TemplateRuleSnapshot } from "src/cs/workbench/services/templateRule/common/templateRule";
+import type {
+  Template,
+  TemplateSnapshot,
+} from "src/cs/workbench/services/template/common/template";
 
 export const IAssessmentService = createDecorator<IAssessmentService>("assessmentService");
 export const IAssessmentQueueService = createDecorator<IAssessmentQueueService>("assessmentQueueService");
@@ -68,12 +73,16 @@ export type AssessRawTableInput = {
   readonly sourceRawTableVersion: number;
   readonly rows: AssessmentRows;
   readonly fileName?: string | null;
+  readonly ruleSnapshot?: TemplateRuleSnapshot;
   readonly schemaProfiles?: readonly SchemaProfile[];
   readonly schemaProfileVersion?: number;
+  readonly templateSnapshot?: TemplateSnapshot;
 };
 
 export type RawTableAssessmentRecord = {
   readonly assessmentRuleVersion: number;
+  readonly ruleSetFingerprint: string;
+  readonly templateCatalogVersion: number;
   readonly schemaProfileVersion: number;
   readonly fileId: string;
   readonly rawTableId: string;
@@ -84,9 +93,44 @@ export type RawTableAssessmentRecord = {
   readonly semanticCandidates: readonly ColumnSemanticCandidate[];
   readonly groups: readonly MeasurementGroupRecord[];
   readonly blocks: readonly MeasurementBlockRecord[];
+  readonly templateCandidates: readonly TemplateCandidateSummary[];
+  readonly selectedTemplate?: SelectedTemplateCandidate;
   readonly decision: AssessmentDecision;
   readonly diagnostics: readonly AssessmentDiagnostic[];
   readonly createdAt: number;
+};
+
+export type TemplateCandidateSource =
+  | {
+      readonly kind: "rule";
+      readonly ruleId: string;
+      readonly ruleVersion: number;
+    }
+  | {
+      readonly kind: "savedTemplate";
+      readonly templateId: string;
+      readonly templateVersion: number;
+    };
+
+export type TemplateCandidateSummary = {
+  readonly id: string;
+  readonly source: TemplateCandidateSource;
+  readonly templateFingerprint: string;
+  readonly confidence: number;
+  readonly state: "ready" | "review";
+  readonly reasons: readonly string[];
+  readonly diagnosticCodes: readonly string[];
+};
+
+export type TemplateCandidate = TemplateCandidateSummary & {
+  readonly template: Template;
+};
+
+export type SelectedTemplateCandidate = {
+  readonly candidateId: string;
+  readonly source: TemplateCandidateSource;
+  readonly template: Template;
+  readonly templateFingerprint: string;
 };
 
 export interface IAssessmentService {

@@ -29,19 +29,19 @@ at the type name.
 | Record | Owner | Producer | Invalidation / notes |
 | --- | --- | --- | --- |
 | `SessionModel` | `ISessionService` | session commits | Canonical root: `schemaVersion`, `sessionVersion`, `filesById`, `fileOrder`. |
-| `FileRecord` | `ISessionService` | import, assessment, template, calculation, metric commits | Owns one imported file/workbook lifecycle. |
+| `FileRecord` | `ISessionService` | import, assessment, slice, calculation, metric commits | Owns one imported file/workbook lifecycle. |
 | `RawRecord` | `ISessionService` | file conversion commit | Raw file facts and `rawTablesById`; no assessment/template/plot semantics. |
 | `RawTableRecord` | `ISessionService` | `fileConverter.ts` | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
 | `RawTableSourceRecord` | converter/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
 | `RawTableRowsRecord` | converter/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
-| `RawTableAssessmentRecord` | Assessment + Session | `IAssessmentService` | Tied to raw table version, assessment rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, decision, diagnostics. |
+| `RawTableAssessmentRecord` | Assessment + Session | `IAssessmentService` | Tied to raw table version, assessment rule version, rule set fingerprint, template catalog version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, template candidates, selected template snapshot, decision, diagnostics. |
 | `MeasurementGroupRecord` | Assessment + Session | assessment | Group/device labels and ordered block ids. |
 | `MeasurementBlockRecord` | Assessment + Session | assessment | Measurement family/mode/source ranges/column roles. |
-| `SeriesRecord` | Template/calculation + Session | template or curve commit | Series metadata and raw/block provenance. |
-| `CurveRecord` | Template/calculation + Session | template/calculation commit | Base/derived curve points, lineage, domain, signature. |
+| `SliceRun` | Slice + Session | slice execution | Executed template snapshot, source assessment signature, input ranges, output series ids, output curve keys, warnings, and errors. |
+| `SeriesRecord` | Slice/calculation + Session | slice or curve commit | Series metadata and raw/block provenance. |
+| `CurveRecord` | Slice/calculation + Session | slice/calculation commit | Base/derived curve points, lineage, domain, signature. |
 | `MetricRecord` | Parameters/calculation + Session | metric commit | Scalar/structured metric value with input signatures. |
 | `MetricInputRecord` | Parameters + Session | user/manual metric input | Canonical user input affecting metric computation. |
-| `TemplateRunRecord` | Template + Session | template apply commit | Effective config, input refs, output series/curve ids, fingerprint. |
 
 Session must not store view state such as selection, scroll, popovers, draft
 forms, search query, export dialog state, thumbnail caches, worker refs, or row
@@ -75,8 +75,7 @@ series, template decisions, or assessment confidence.
 | State/model | Owner | Storage | Invalidation |
 | --- | --- | --- | --- |
 | `ColumnDisplayProfile` | `TableModel` / `ITableService` | derived view/service state | raw source version, numeric display mode, cache clear |
-| `TemplateState` | `ITemplateService` | service-local | template persistence, form/editor/apply view interactions |
-| `TemplateApplyWorkflowInput` | `ITemplateApplyWorkflowService` | service-local workflow input | session/read-model, Explorer selection, pending import, Template state |
+| `TemplateState` | `ITemplateViewStateService` | service-local view state | selected-template/form/editor view interactions |
 | `PlotState` | `IPlotService` | service state/settings-backed pieces | plot setting changes |
 | `PlotRenderModel` | `IPlotService` | derived model/cache | source curve keys, settings, visibility/focus, signatures |
 | `ThumbnailPreviewState` | `IThumbnailPreviewService` | service-local cache state | Session/Plot cache changes, preview request priority |
@@ -87,7 +86,6 @@ series, template decisions, or assessment confidence.
 | `TableColumnWidth` | `ITableService` + storage | workspace view state | table source key or explicit width reset |
 | `ExplorerState` | `IExplorerService` | service state | Explorer selection/layout/expansion/source workflow changes |
 | `ExplorerResource` / `ExplorerFileEntry` | Explorer projection | derived view input | session, source workflow, badge/template/chart state projections |
-| `TemplateApplyFileState` | template apply workflow | service-local projection | processing queue/run updates |
 | `SearchQuery` / `SearchResult` | `ISearchService` | service state/model | query/options/session/plot index |
 | `ExportState` / `ExportPlan` | `IExportService` | service state/derived plan | export options/session/plot changes |
 | `ParametersState` / `ParameterRowModel` | `IParametersService` | service state/model | metrics, manual inputs, selected file/plot context |
@@ -128,6 +126,12 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
   automatic-apply allowance, confidence, and gating reasons.
 - `RawTableAssessmentRecord.schemaProfileVersion` records the profile snapshot
   used for semantic evidence; profile changes make older assessments stale.
+- `RawTableAssessmentRecord.ruleSetFingerprint` records the rule snapshot used
+  for template candidate derivation; rule changes make older candidates stale.
+- `RawTableAssessmentRecord.templateCatalogVersion` records the saved-template
+  catalog version used for exact saved-template candidates.
+- `RawTableAssessmentRecord.selectedTemplate` stores the Template snapshot that
+  Slice should execute for automatic mode.
 - Session raw-file read entries may project assessment schema fingerprints,
   column profiles, semantic candidates, blocks, layout candidates, and
   decisions for template planning or UI review; they remain derived read
@@ -154,11 +158,32 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 
 ### Template
 
-- `TemplateConfig` owns extraction configuration such as data rows, segmentation,
-  legend target, units, titles, y columns, and stop-on-error.
-- `TemplateState` owns editor/apply UI state; it is not session canonical data.
-- `TemplateRunRecord` owns effective config, selection, source inputs, outputs,
-  fingerprint, mode, warnings, and errors.
+- `Template` is a pure data-structure spec. It describes source hints, table
+  structure, layout, blocks, fields, measurement, and defaults. It is not
+  persisted in Session and must not be partitioned into assessment/slicing/
+  binding/apply sub-templates.
+- Assessment, slicing, and binding engines consume the same full
+  `Template` and interpret the fields they own.
+- `TemplateApplyConfig` owns legacy/manual extraction configuration such as
+  data rows, segmentation, legend target, units, titles, y columns, and
+  stop-on-error. It may be adapted into a canonical `Template` snapshot, but it
+  is not Session canonical data.
+- `TemplateApplyPresetRecord` owns saved user apply-preset data, not canonical
+  measurement structure.
+- `TemplateState` owns Template UI selected-template/form editor state through
+  `ITemplateViewStateService`; it is not session canonical data and does not
+  store per-file slicing selections.
+### Slice
+
+- `SliceRun` is the canonical fact for executing a concrete `Template`.
+- `SliceRun.template` is a snapshot from Assessment or manual input; Slice must
+  not reread Rule JSON to rebuild it.
+- `SliceRun.sourceAssessmentSignature` ties automatic runs to the Assessment
+  facts that selected the template.
+- `SliceCommit` atomically commits the `SliceRun`, produced `SeriesRecord`
+  values, and produced base `CurveRecord` values through Session.
+- Session read projections derive chart axis titles and units from the latest
+  `SliceRun.template`.
 
 ### Plot/calculation
 

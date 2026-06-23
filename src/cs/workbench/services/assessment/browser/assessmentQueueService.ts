@@ -23,8 +23,20 @@ import {
 } from "src/cs/workbench/services/files/common/rawTableRowsReader";
 import {
   ISchemaProfileService,
+  type SchemaProfile,
+  type SchemaProfileSnapshot,
   type ISchemaProfileService as ISchemaProfileServiceType,
 } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
+import {
+  ITemplateRuleService,
+  type ITemplateRuleService as ITemplateRuleServiceType,
+  type TemplateRuleSnapshot,
+} from "src/cs/workbench/services/templateRule/common/templateRule";
+import {
+  ITemplateService,
+  type ITemplateService as ITemplateServiceType,
+  type TemplateSnapshot,
+} from "src/cs/workbench/services/template/common/template";
 import type {
   FileRecord,
   RawTableRef,
@@ -42,7 +54,11 @@ const RAW_TABLE_ASSESSMENT_BACKGROUND_COMMIT_BATCH_SIZE = 16;
 type QueuedRawTableAssessment = {
   readonly priority: AssessmentQueuePriority;
   readonly ref: RawTableRef;
+  readonly ruleSetFingerprint: string;
+  readonly schemaProfileVersion: number;
+  readonly schemaProfiles: readonly SchemaProfile[];
   readonly sourceRawTableVersion: number;
+  readonly templateCatalogVersion: number;
 };
 
 export class AssessmentQueueService extends Disposable implements IAssessmentQueueServiceType {
@@ -66,6 +82,8 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     @IAssessmentService private readonly assessmentService: IAssessmentServiceType,
     @IRawTableRowsReaderService private readonly rawTableRowsReaderService: IRawTableRowsReaderServiceType,
     @ISchemaProfileService private readonly schemaProfileService?: ISchemaProfileServiceType,
+    @ITemplateRuleService private readonly templateRuleService?: ITemplateRuleServiceType,
+    @ITemplateService private readonly templateService?: ITemplateServiceType,
   ) {
     super();
     this._register(this.sessionService.onDidChangeSession(event => {
@@ -80,6 +98,16 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     }));
     if (this.schemaProfileService) {
       this._register(this.schemaProfileService.onDidChangeSchemaProfiles(() => {
+        this.enqueueRawTables(getRawTableRefsForAssessmentSnapshot(this.sessionService.getSnapshot()));
+      }));
+    }
+    if (this.templateRuleService) {
+      this._register(this.templateRuleService.onDidChangeRules(() => {
+        this.enqueueRawTables(getRawTableRefsForAssessmentSnapshot(this.sessionService.getSnapshot()));
+      }));
+    }
+    if (this.templateService) {
+      this._register(this.templateService.onDidChangeTemplates(() => {
         this.enqueueRawTables(getRawTableRefsForAssessmentSnapshot(this.sessionService.getSnapshot()));
       }));
     }
@@ -102,7 +130,12 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
       }
 
       const pending = this.getPendingRawTableRef(key);
-      if (pending?.sourceRawTableVersion === entry.sourceRawTableVersion) {
+      if (
+        pending?.sourceRawTableVersion === entry.sourceRawTableVersion &&
+        pending.ruleSetFingerprint === entry.ruleSetFingerprint &&
+        pending.schemaProfileVersion === entry.schemaProfileVersion &&
+        pending.templateCatalogVersion === entry.templateCatalogVersion
+      ) {
         continue;
       }
 
@@ -216,6 +249,12 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
   ): Promise<RawTableAssessmentRecord | null> {
     const targetRef = entry.ref;
     const queuedSourceRawTableVersion = entry.sourceRawTableVersion;
+    const queuedRuleSetFingerprint = entry.ruleSetFingerprint;
+    const queuedSchemaProfileVersion = entry.schemaProfileVersion;
+    const queuedTemplateCatalogVersion = entry.templateCatalogVersion;
+    const ruleSnapshot = this.getTemplateRuleSnapshot();
+    const templateSnapshot = this.getTemplateSnapshot();
+    const schemaProfileSnapshot = this.getSchemaProfileSnapshot();
     const snapshot = this.sessionService.getSnapshot();
     const file = snapshot.filesById[targetRef.fileId];
     if (!file) {
@@ -227,7 +266,9 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     if (!table || !isAssessableTable(table) || hasCurrentAssessment(
       file,
       rawTableId,
-      this.getSchemaProfileVersion(),
+      queuedSchemaProfileVersion,
+      ruleSnapshot.fingerprint,
+      templateSnapshot.version,
     )) {
       return null;
     }
@@ -239,13 +280,27 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     ) {
       return null;
     }
+    if (queuedRuleSetFingerprint !== ruleSnapshot.fingerprint) {
+      return null;
+    }
+    if (queuedSchemaProfileVersion !== schemaProfileSnapshot.version) {
+      return null;
+    }
+    if (queuedTemplateCatalogVersion !== templateSnapshot.version) {
+      return null;
+    }
 
     const rows = await readRowsForAssessment(file, table, this.rawTableRowsReaderService);
     if (!rows || this.disposed) {
       return null;
     }
 
-    if (!this.isCurrentRawTableVersion(targetRef, sourceRawTableVersion)) {
+    if (
+      !this.isCurrentRawTableVersion(targetRef, sourceRawTableVersion) ||
+      this.getTemplateRuleSnapshot().fingerprint !== queuedRuleSetFingerprint ||
+      this.getSchemaProfileVersion() !== queuedSchemaProfileVersion ||
+      this.getTemplateCatalogVersion() !== queuedTemplateCatalogVersion
+    ) {
       return null;
     }
 
@@ -254,10 +309,13 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
       fileId: file.id,
       fileName: getAssessmentSourceName(file),
       rawTableId,
+      ruleSnapshot,
       rowCount: table.rowCount,
       rows,
-      schemaProfileVersion: this.getSchemaProfileVersion(),
+      schemaProfiles: entry.schemaProfiles,
+      schemaProfileVersion: queuedSchemaProfileVersion,
       sourceRawTableVersion,
+      templateSnapshot,
     });
   }
 
@@ -324,6 +382,7 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     priority: AssessmentQueuePriority,
   ): QueuedRawTableAssessment | null {
     const snapshot = this.sessionService.getSnapshot();
+    const schemaProfileSnapshot = this.getSchemaProfileSnapshot();
     const file = snapshot.filesById[ref.fileId];
     const sourceRawTableVersion = file?.rawTableVersionsById[ref.rawTableId];
     if (
@@ -333,7 +392,9 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
       hasCurrentAssessment(
         file,
         ref.rawTableId,
-        this.getSchemaProfileVersion(),
+        schemaProfileSnapshot.version,
+        this.getTemplateRuleSnapshot().fingerprint,
+        this.getTemplateCatalogVersion(),
       )
     ) {
       return null;
@@ -342,7 +403,11 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
     return {
       priority,
       ref,
+      ruleSetFingerprint: this.getTemplateRuleSnapshot().fingerprint,
+      schemaProfileVersion: schemaProfileSnapshot.version,
+      schemaProfiles: schemaProfileSnapshot.profiles,
       sourceRawTableVersion,
+      templateCatalogVersion: this.getTemplateCatalogVersion(),
     };
   }
 
@@ -383,7 +448,23 @@ export class AssessmentQueueService extends Disposable implements IAssessmentQue
   }
 
   private getSchemaProfileVersion(): number {
-    return this.schemaProfileService?.getVersion() ?? 0;
+    return this.getSchemaProfileSnapshot().version;
+  }
+
+  private getSchemaProfileSnapshot(): SchemaProfileSnapshot {
+    return this.schemaProfileService?.getSnapshot() ?? EMPTY_SCHEMA_PROFILE_SNAPSHOT;
+  }
+
+  private getTemplateRuleSnapshot(): TemplateRuleSnapshot {
+    return this.templateRuleService?.getSnapshot() ?? EMPTY_TEMPLATE_RULE_SNAPSHOT;
+  }
+
+  private getTemplateSnapshot(): TemplateSnapshot {
+    return this.templateService?.getSnapshot() ?? EMPTY_TEMPLATE_SNAPSHOT;
+  }
+
+  private getTemplateCatalogVersion(): number {
+    return this.getTemplateSnapshot().version;
   }
 
   private reorderQueueForPriority(priority: AssessmentQueuePriority): void {
@@ -504,14 +585,35 @@ const hasCurrentAssessment = (
   file: FileRecord,
   rawTableId: string,
   schemaProfileVersion: number,
+  ruleSetFingerprint: string,
+  templateCatalogVersion: number,
 ): boolean => {
   const assessment = file.assessmentsByRawTableId[rawTableId];
   return Boolean(
     assessment &&
       assessment.sourceRawTableVersion === (file.rawTableVersionsById[rawTableId] ?? 0) &&
       assessment.assessmentRuleVersion === ASSESSMENT_RULE_VERSION &&
+      assessment.ruleSetFingerprint === ruleSetFingerprint &&
+      assessment.templateCatalogVersion === templateCatalogVersion &&
       assessment.schemaProfileVersion === schemaProfileVersion,
   );
+};
+
+const EMPTY_TEMPLATE_RULE_SNAPSHOT: TemplateRuleSnapshot = {
+  version: 0,
+  fingerprint: "rule:legacy",
+  rules: [],
+  diagnostics: [],
+};
+
+const EMPTY_TEMPLATE_SNAPSHOT: TemplateSnapshot = {
+  version: 0,
+  templates: [],
+};
+
+const EMPTY_SCHEMA_PROFILE_SNAPSHOT: SchemaProfileSnapshot = {
+  version: 0,
+  profiles: [],
 };
 
 const isAssessableTable = (

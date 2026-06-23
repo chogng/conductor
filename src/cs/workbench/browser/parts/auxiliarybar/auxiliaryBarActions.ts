@@ -28,8 +28,8 @@ import {
 } from "src/cs/workbench/services/search/common/search";
 import {
   TemplateAuxiliaryBarViewId,
-  type TemplateMode,
 } from "src/cs/workbench/services/template/common/template";
+import type { TemplateMode } from "src/cs/workbench/contrib/template/browser/templateViewStateService";
 
 export type AuxiliaryBarView = "template" | "search" | "export" | "parameters" | "settings";
 export type AuxiliaryBarMode = WorkbenchMainPart;

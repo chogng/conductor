@@ -77,6 +77,14 @@ import {
   IThumbnailService,
 } from "src/cs/workbench/services/thumbnail/common/thumbnail";
 import { ITemplateService } from "src/cs/workbench/services/template/common/template";
+import {
+  createCurrentTemplateSelectionDisplay,
+} from "src/cs/workbench/services/template/common/templateSelection";
+import {
+  ITemplateViewStateService,
+  type ITemplateViewStateService as ITemplateViewStateServiceType,
+} from "src/cs/workbench/contrib/template/browser/templateViewStateService";
+import { ISliceService } from "src/cs/workbench/services/slice/common/slice";
 import { INotificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import { IAppearanceService } from "src/cs/workbench/services/appearance/common/appearance";
 
@@ -123,6 +131,8 @@ export class ExplorerViewPane extends ViewPane {
     @IThumbnailPreviewService private readonly thumbnailPreviewService: IThumbnailPreviewService,
     @IThumbnailService private readonly thumbnailService: IThumbnailService,
     @ITemplateService private readonly templateService: ITemplateService,
+    @ITemplateViewStateService private readonly templateViewStateService: ITemplateViewStateServiceType,
+    @ISliceService private readonly sliceService: ISliceService,
   ) {
     super({
       id: ExplorerViewId,
@@ -174,8 +184,10 @@ export class ExplorerViewPane extends ViewPane {
       getFiles: () => this.committedFiles,
       notificationService: this.notificationService,
       removeOriginalFile: fileId => this.handleCloseFile(fileId),
+      sliceService: this.sliceService,
       sourceWorkflow: this.sourceWorkflow,
       templateService: this.templateService,
+      templateViewStateService: this.templateViewStateService,
     }));
 
     this._register(this.explorerService.onDidChangePaneInput(() => {
@@ -215,7 +227,10 @@ export class ExplorerViewPane extends ViewPane {
     this._register(this.appearanceService.onDidChangeAppearance(() => {
       this.syncView();
     }));
-    this._register(this.templateService.onDidChangeTemplateList(() => {
+    this._register(this.templateService.onDidChangeTemplates(() => {
+      this.syncView();
+    }));
+    this._register(this.templateViewStateService.onDidChangeTemplateState(() => {
       this.syncView();
     }));
 
@@ -345,6 +360,7 @@ export class ExplorerViewPane extends ViewPane {
   private createExplorerViewProps(): ExplorerViewProps {
     const input = this.paneInput;
     const files = this.files;
+    const currentTemplate = this.createCurrentTemplateSelectionDisplay();
     this.markExplorerBadgeProjection(files);
     return {
       selectedFileId: this.selectedFileId,
@@ -358,8 +374,8 @@ export class ExplorerViewPane extends ViewPane {
       plotAxisSettings: input.plotAxisSettings,
       thumbnailPreviewService: this.thumbnailPreviewService,
       thumbnailService: this.thumbnailService,
-      currentTemplateLabel: input.currentTemplateLabel,
-      currentTemplateSelection: input.currentTemplateSelection,
+      currentTemplateLabel: currentTemplate.label,
+      currentTemplateSelection: currentTemplate.selection,
       fileTemplateSelectionsByFileId: input.fileTemplateSelectionsByFileId,
       editable: this.explorerService.getContext().editable,
       templateRecords: this.templateService.getTemplateList(),
@@ -383,6 +399,14 @@ export class ExplorerViewPane extends ViewPane {
       thumbnailFiles: input.thumbnailFiles,
       thumbnailPlotModelsByFileId: input.thumbnailPlotModelsByFileId,
     };
+  }
+
+  private createCurrentTemplateSelectionDisplay(): ReturnType<typeof createCurrentTemplateSelectionDisplay> {
+    const templateState = this.templateViewStateService.getState();
+    return createCurrentTemplateSelectionDisplay({
+      formName: templateState.formState.name,
+      selectedTemplateId: templateState.selectedTemplateId,
+    });
   }
 
   private markExplorerBadgeProjection(files: readonly ExplorerFileEntry[]): void {

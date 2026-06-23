@@ -38,8 +38,9 @@ import "src/cs/workbench/services/search/browser/searchService";
 import "src/cs/workbench/services/session/browser/sessionService";
 import "src/cs/workbench/services/schemaProfile/browser/schemaProfileStoreService";
 import "src/cs/workbench/services/schemaProfile/browser/schemaProfileService";
-import "src/cs/workbench/services/template/browser/templateApplyController";
-import "src/cs/workbench/services/template/browser/templateApplyService";
+import "src/cs/workbench/services/slice/browser/sliceService";
+import "src/cs/workbench/services/templateRule/browser/templateRuleStoreService";
+import "src/cs/workbench/services/templateRule/browser/templateRuleService";
 import "src/cs/workbench/services/template/browser/templateService";
 import "src/cs/workbench/services/themes/browser/themeService";
 import "src/cs/workbench/services/thumbnail/browser/thumbnailService";
@@ -55,6 +56,7 @@ import "src/cs/workbench/services/table/browser/tableService";
 import "src/cs/workbench/contrib/chart/browser/chartTitleEditService";
 import "src/cs/workbench/contrib/files/browser/explorerService";
 import "src/cs/workbench/contrib/files/browser/explorerWorkflowService";
+import "src/cs/workbench/contrib/template/browser/templateViewStateService";
 
 //#endregion
 
@@ -62,6 +64,8 @@ import "src/cs/workbench/contrib/files/browser/explorerWorkflowService";
 
 import "src/cs/workbench/services/calculation/browser/calculation.contribution";
 import "src/cs/workbench/services/assessment/browser/assessment.contribution";
+import "src/cs/workbench/services/slice/browser/autoSlice.contribution";
+import "src/cs/workbench/services/slice/browser/slicePriority.contribution";
 
 //#endregion
 
@@ -95,6 +99,7 @@ import "src/cs/workbench/contrib/keybindings/browser/keybindings.contribution";
 import "src/cs/workbench/contrib/localization/browser/localization.contribution";
 import "src/cs/workbench/contrib/search/browser/search.contribution";
 import "src/cs/workbench/contrib/settings/browser/settings.contribution";
+import "src/cs/workbench/contrib/slice/browser/slice.contribution";
 import "src/cs/workbench/contrib/template/browser/template.contribution";
 import "src/cs/workbench/contrib/themes/browser/themes.contribution";
 import "src/cs/workbench/contrib/export/browser/export.contribution";

@@ -4,14 +4,14 @@
 
 import assert from "assert";
 
-import { filterUserTemplateRecords } from "src/cs/workbench/services/template/common/templateRecords";
+import { filterUserTemplateApplyPresetRecords } from "src/cs/workbench/services/template/common/templateRecords";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 
 suite("workbench/services/template/common/templateRecords", () => {
   ensureNoDisposablesAreLeakedInTestSuite();
-  test("template records keep only user templates", () => {
+  test("template records keep only user apply presets", () => {
     assert.deepEqual(
-      filterUserTemplateRecords([
+      filterUserTemplateApplyPresetRecords([
         { id: "__auto__", name: "Auto extraction" },
         { id: "tpl-1", name: "User template" },
         null,
