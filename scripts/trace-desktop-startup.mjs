@@ -78,6 +78,7 @@ const port = Number(process.env.DEV_PORT || 5194);
 const timeoutMs = Number(process.env.CONDUCTOR_DESKTOP_STARTUP_TRACE_TIMEOUT_MS || 30_000);
 const skipBuild = process.argv.includes("--skip-build");
 const traceRunCount = readPositiveIntegerArg("--runs", 1);
+// Keep dev as the default so existing startup trace commands remain unchanged.
 const traceMode = readStringArg("--mode", "dev");
 const validTraceModes = new Set(["dev", "prod-renderer", "packaged"]);
 if (!validTraceModes.has(traceMode)) {
@@ -103,6 +104,11 @@ const prodRendererWorkbenchPath = path.join(
   "workbench.html",
 );
 const prodRendererUrl = createBootProfileFileUrl(prodRendererWorkbenchPath);
+const traceStartUrl = traceMode === "dev"
+  ? devUrl
+  : traceMode === "prod-renderer"
+    ? prodRendererUrl
+    : null;
 const electronBin = isWin
   ? path.join(workspace, "node_modules", "electron", "dist", "electron.exe")
   : path.join(workspace, "node_modules", ".bin", "electron");
@@ -324,7 +330,17 @@ const durationFromExtra = (extra) => {
   return match ? Number(match[1]) : null;
 };
 
+const isRendererBootDiagnosticLine = (line) =>
+  line.startsWith("[desktop-diagnostic] renderer-console ") &&
+  line.includes("\"message\":\"[boot]");
+
 const handleElectronLine = (line, isError = false) => {
+  // The main process also emits renderer boot messages as desktop-diagnostic JSON.
+  // Skip that wrapper so the report is driven by the clean [renderer-console] lines.
+  if (isRendererBootDiagnosticLine(line)) {
+    return;
+  }
+
   const event = parseBootLine(line);
   if (!event) {
     if (line.trim()) {
@@ -448,12 +464,9 @@ const createSummary = () => {
   return {
     generatedAt: new Date().toISOString(),
     mode: traceMode,
+    // devUrl is kept for compatibility with older JSON consumers; startUrl is the active target.
     devUrl,
-    startUrl: traceMode === "dev"
-      ? devUrl
-      : traceMode === "prod-renderer"
-        ? prodRendererUrl
-        : null,
+    startUrl: traceStartUrl,
     prodRendererWorkbenchPath: traceMode === "prod-renderer" ? prodRendererWorkbenchPath : null,
     packagedAppPath: traceMode === "packaged" ? packagedAppPath : null,
     milestones: {
@@ -485,7 +498,6 @@ const createElectronEnv = ({ startUrl = null } = {}) => {
     CONDUCTOR_BOOT_PROFILE: "1",
     CONDUCTOR_CODE_CACHE_PATH: codeCacheDir,
     ELECTRON_NO_ATTACH_CONSOLE: "1",
-    ELECTRON_ENABLE_LOGGING: "1",
     ELECTRON_ENABLE_STACK_DUMPING: "1",
     ELECTRON_DISABLE_SECURITY_WARNINGS: "1",
   };
@@ -493,6 +505,12 @@ const createElectronEnv = ({ startUrl = null } = {}) => {
     env.ELECTRON_START_URL = startUrl;
   } else {
     delete env.ELECTRON_START_URL;
+  }
+  if (traceMode === "packaged") {
+    // Packaged Windows apps do not reliably inherit a console; Chromium logging keeps boot lines observable.
+    env.ELECTRON_ENABLE_LOGGING = "1";
+  } else {
+    delete env.ELECTRON_ENABLE_LOGGING;
   }
   delete env.ELECTRON_RUN_AS_NODE;
   return env;
@@ -542,7 +560,7 @@ const launchPackagedApp = () => {
 const launchTraceTarget = async () => {
   if (traceMode === "prod-renderer") {
     ensureProdRendererOutput();
-    return launchLocalElectron(prodRendererUrl);
+    return launchLocalElectron(traceStartUrl);
   }
 
   if (traceMode === "packaged") {
@@ -581,7 +599,7 @@ const launchTraceTarget = async () => {
   log("dev-server:ready");
   await warmupServer(`http://${host}:${port}`);
 
-  return launchLocalElectron(devUrl);
+  return launchLocalElectron(traceStartUrl);
 };
 
 process.once("SIGINT", () => {

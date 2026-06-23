@@ -2253,12 +2253,11 @@ function createMainWindow() {
     "workbench",
     "workbench.html",
   );
-  void win.loadFile(
-    workbenchFilePath,
-    isDesktopBootProfileEnabled()
-      ? { query: { bootProfile: "1" } }
-      : undefined,
-  );
+  // Packaged traces cannot use ELECTRON_START_URL; keep boot profiling on the real prod loadFile path.
+  const workbenchLoadOptions = isDesktopBootProfileEnabled()
+    ? { query: { bootProfile: "1" } }
+    : undefined;
+  void win.loadFile(workbenchFilePath, workbenchLoadOptions);
   return win;
 }
 
