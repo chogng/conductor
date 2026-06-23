@@ -133,6 +133,7 @@ import { registerNotificationCommands } from "src/cs/workbench/browser/parts/not
 type WorkbenchSessionSnapshot = SessionSnapshot;
 
 type WorkbenchFullRefreshReason =
+  | "deferredPeripheralViewContainers"
   | "initial"
   | "resetLayout"
   | "sameViewMode"
@@ -248,6 +249,80 @@ const requireWorkbenchService = <T>(serviceName: string, service: T | undefined)
   return service;
 };
 
+const getBootNowMs = (): number =>
+  typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+
+const logWorkbenchBoot = (stage: string, extra = ""): void => {
+  if (!isWorkbenchBootLoggingEnabled()) {
+    return;
+  }
+
+  window.__CONDUCTOR_BOOT_LOG__?.(stage, extra);
+};
+
+const isWorkbenchBootLoggingEnabled = (): boolean =>
+  typeof window !== "undefined" &&
+  typeof window.__CONDUCTOR_BOOT_LOG__ === "function";
+
+const getBootErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+const measureWorkbenchBoot = <T>(stage: string, run: () => T): T => {
+  if (!isWorkbenchBootLoggingEnabled()) {
+    return run();
+  }
+
+  const startedAt = getBootNowMs();
+  logWorkbenchBoot(`${stage}:start`);
+  try {
+    const result = run();
+    logWorkbenchBoot(
+      `${stage}:done`,
+      `(duration=${Math.round(getBootNowMs() - startedAt)}ms)`,
+    );
+    return result;
+  } catch (error) {
+    logWorkbenchBoot(
+      `${stage}:failed`,
+      `(duration=${Math.round(getBootNowMs() - startedAt)}ms message=${getBootErrorMessage(error)})`,
+    );
+    throw error;
+  }
+};
+
+const resolveWorkbenchDependency = <T>(
+  serviceName: string,
+  service: T | undefined,
+  resolve: () => T,
+): T => {
+  if (!isWorkbenchBootLoggingEnabled()) {
+    return service ?? resolve();
+  }
+
+  if (service) {
+    logWorkbenchBoot(`workbench:service:get:${serviceName}`, "(source=options duration=0ms)");
+    return service;
+  }
+
+  const startedAt = getBootNowMs();
+  try {
+    const resolved = resolve();
+    logWorkbenchBoot(
+      `workbench:service:get:${serviceName}`,
+      `(duration=${Math.round(getBootNowMs() - startedAt)}ms)`,
+    );
+    return resolved;
+  } catch (error) {
+    logWorkbenchBoot(
+      `workbench:service:get:${serviceName}:failed`,
+      `(duration=${Math.round(getBootNowMs() - startedAt)}ms message=${getBootErrorMessage(error)})`,
+    );
+    throw error;
+  }
+};
+
 const resolveWorkbenchShellServices = (options: WorkbenchOptions): WorkbenchShellServices => {
   if (
     !options.instantiationService ||
@@ -309,26 +384,106 @@ const createWorkbenchServicesFromAccessor = (
   shellServices: WorkbenchShellServices,
   accessor: ServicesAccessor,
 ): WorkbenchServices => ({
-  assessmentQueueService: options.assessmentQueueService ?? accessor.get(IAssessmentQueueService),
-  calculationService: options.calculationService ?? accessor.get(ICalculationService),
-  chartService: options.chartService ?? accessor.get(IChartService),
-  commandService: options.commandService ?? accessor.get(ICommandService),
-  contextKeyService: options.contextKeyService ?? accessor.get(IContextKeyService),
-  explorerService: options.explorerService ?? accessor.get(IExplorerService),
-  exportService: options.exportService ?? accessor.get(IExportService),
-  layoutService: options.layoutService ?? shellServices.layoutService ?? accessor.get(IWorkbenchLayoutService),
-  menuService: options.menuService ?? accessor.get(IMenuService),
-  notificationService: options.notificationService ?? accessor.get(INotificationService) as NotificationService,
-  parametersService: options.parametersService ?? accessor.get(IParametersService),
-  plotService: options.plotService ?? accessor.get(IPlotService),
-  sessionService: options.sessionService ?? accessor.get(ISessionService),
-  settingsService: options.settingsService ?? accessor.get(ISettingsService),
-  tableService: options.tableService ?? accessor.get(ITableService),
-  templateApplyWorkflowService: options.templateApplyWorkflowService ?? accessor.get(ITemplateApplyWorkflowService),
-  templateService: options.templateService ?? accessor.get(ITemplateService),
-  thumbnailPreviewService: options.thumbnailPreviewService ?? accessor.get(IThumbnailPreviewService),
-  titleService: options.titleService ?? shellServices.titleService ?? accessor.get(ITitleService),
-  viewsService: options.viewsService ?? accessor.get(IViewsService),
+  assessmentQueueService: resolveWorkbenchDependency(
+    "IAssessmentQueueService",
+    options.assessmentQueueService,
+    () => accessor.get(IAssessmentQueueService),
+  ),
+  calculationService: resolveWorkbenchDependency(
+    "ICalculationService",
+    options.calculationService,
+    () => accessor.get(ICalculationService),
+  ),
+  chartService: resolveWorkbenchDependency(
+    "IChartService",
+    options.chartService,
+    () => accessor.get(IChartService),
+  ),
+  commandService: resolveWorkbenchDependency(
+    "ICommandService",
+    options.commandService,
+    () => accessor.get(ICommandService),
+  ),
+  contextKeyService: resolveWorkbenchDependency(
+    "IContextKeyService",
+    options.contextKeyService,
+    () => accessor.get(IContextKeyService),
+  ),
+  explorerService: resolveWorkbenchDependency(
+    "IExplorerService",
+    options.explorerService,
+    () => accessor.get(IExplorerService),
+  ),
+  exportService: resolveWorkbenchDependency(
+    "IExportService",
+    options.exportService,
+    () => accessor.get(IExportService),
+  ),
+  layoutService: resolveWorkbenchDependency(
+    "IWorkbenchLayoutService",
+    options.layoutService ?? shellServices.layoutService,
+    () => accessor.get(IWorkbenchLayoutService),
+  ),
+  menuService: resolveWorkbenchDependency(
+    "IMenuService",
+    options.menuService,
+    () => accessor.get(IMenuService),
+  ),
+  notificationService: resolveWorkbenchDependency(
+    "INotificationService",
+    options.notificationService,
+    () => accessor.get(INotificationService) as NotificationService,
+  ),
+  parametersService: resolveWorkbenchDependency(
+    "IParametersService",
+    options.parametersService,
+    () => accessor.get(IParametersService),
+  ),
+  plotService: resolveWorkbenchDependency(
+    "IPlotService",
+    options.plotService,
+    () => accessor.get(IPlotService),
+  ),
+  sessionService: resolveWorkbenchDependency(
+    "ISessionService",
+    options.sessionService,
+    () => accessor.get(ISessionService),
+  ),
+  settingsService: resolveWorkbenchDependency(
+    "ISettingsService",
+    options.settingsService,
+    () => accessor.get(ISettingsService),
+  ),
+  tableService: resolveWorkbenchDependency(
+    "ITableService",
+    options.tableService,
+    () => accessor.get(ITableService),
+  ),
+  templateApplyWorkflowService: resolveWorkbenchDependency(
+    "ITemplateApplyWorkflowService",
+    options.templateApplyWorkflowService,
+    () => accessor.get(ITemplateApplyWorkflowService),
+  ),
+  templateService: resolveWorkbenchDependency(
+    "ITemplateService",
+    options.templateService,
+    () => accessor.get(ITemplateService),
+  ),
+  thumbnailPreviewService: resolveWorkbenchDependency(
+    "IThumbnailPreviewService",
+    options.thumbnailPreviewService,
+    () => accessor.get(IThumbnailPreviewService),
+  ),
+  titleService: resolveWorkbenchDependency(
+    "ITitleService",
+    options.titleService ?? shellServices.titleService,
+    () => accessor.get(ITitleService),
+  ),
+  viewsService: resolveWorkbenchDependency(
+    "IViewsService",
+    options.viewsService,
+    () => accessor.get(IViewsService),
+  ),
 });
 
 const getInitialLanguagePreference = (): LanguagePreference => {
@@ -338,19 +493,6 @@ const getInitialLanguagePreference = (): LanguagePreference => {
     isLanguagePreference(settings.language)
     ? settings.language
     : "system";
-};
-
-const getBootNowMs = (): number =>
-  typeof performance !== "undefined" && typeof performance.now === "function"
-    ? performance.now()
-    : Date.now();
-
-const logWorkbenchBoot = (stage: string, extra = ""): void => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.__CONDUCTOR_BOOT_LOG__?.(stage, extra);
 };
 
 export const resolveInitialWorkbenchViewMode = (
@@ -399,6 +541,7 @@ export class Workbench extends Layout {
   private scheduledAuxiliarySurfacesRefreshNeedsChrome = false;
   private lastObservedExportState: ExportState | null = null;
   private titlebarState: WorkbenchTitlebarState | undefined;
+  private deferPeripheralViewContainers = false;
   //#endregion
 
   //#region lifecycle and rendering
@@ -459,7 +602,8 @@ export class Workbench extends Layout {
     const startedAt = getBootNowMs();
     logWorkbenchBoot("workbench:service-layer:start");
     try {
-      this.installServiceLayer(this.services.value);
+      const services = this.resolveServiceLayerServices();
+      this.installServiceLayer(services);
       this.serviceStartupState = "started";
       logWorkbenchBoot(
         "workbench:service-layer:ready",
@@ -470,104 +614,160 @@ export class Workbench extends Layout {
       logWorkbenchBoot(
         "workbench:service-layer:failed",
         `(duration=${Math.round(getBootNowMs() - startedAt)}ms message=${
-          error instanceof Error ? error.message : String(error)
+          getBootErrorMessage(error)
         })`,
       );
       throw error;
     }
   }
 
-  private installServiceLayer(services: WorkbenchServices): void {
-    this.assessmentQueueService = services.assessmentQueueService;
-    this.calculationService = services.calculationService;
-    this.chartService = services.chartService;
-    this.commandService = services.commandService;
-    this.contextKeyService = services.contextKeyService;
-    this.explorerService = services.explorerService;
-    this.exportService = services.exportService;
-    this.layoutService = services.layoutService;
-    this.menuService = services.menuService;
-    this.notificationService = services.notificationService;
-    this.parametersService = services.parametersService;
-    this.plotService = services.plotService;
-    this.settingsService = services.settingsService;
-    this.session = services.sessionService;
-    this.viewsService = services.viewsService;
-    this.tableService = services.tableService;
-    this.templateApplyWorkflowService = services.templateApplyWorkflowService;
-    this.templateService = services.templateService;
-    this.thumbnailPreviewService = services.thumbnailPreviewService;
-    this.titleService = services.titleService;
+  private resolveServiceLayerServices(): WorkbenchServices {
+    return measureWorkbenchBoot(
+      "workbench:service-layer:resolve",
+      () => this.services.value,
+    );
+  }
 
-    this._register(new WorkbenchContextKeysHandler(this.contextKeyService));
-    this.activeWorkbenchViewContext = ActiveWorkbenchViewContext.bindTo(this.contextKeyService);
-    this.activeWorkbenchMainPartContext = ActiveWorkbenchMainPartContext.bindTo(this.contextKeyService);
-    this.activeAuxiliaryBarViewContext = ActiveAuxiliaryBarViewContext.bindTo(this.contextKeyService);
-    this.lastObservedExportState = this.exportService.getState();
-    this.titleService.updateTitlebarState(this.titlebarState);
-    const initialViewMode = resolveInitialWorkbenchViewMode(this.session.getSnapshot());
-    this._register(this.createNotificationsHandlers());
-    this.settingsService.update(this.getSettingsServiceOptions());
-    const domainBridge = this._register(new WorkbenchDomainBridge({
-      assessmentQueueService: this.assessmentQueueService,
-      calculationService: this.calculationService,
-      chartService: this.chartService,
-      explorerService: this.explorerService,
-      layoutService: this.layoutService,
-      plotService: this.plotService,
-      sessionService: this.session,
-      settingsService: this.settingsService,
-      tableService: this.tableService,
-      templateApplyWorkflowService: this.templateApplyWorkflowService,
-      templateService: this.templateService,
-      thumbnailPreviewService: this.thumbnailPreviewService,
-    }));
-    this.domainBridge = domainBridge;
-    this._register(this.settingsService.onDidChangeConductorSettings(() => {
-      this.scheduleWorkbenchAuxiliarySurfacesRefresh("settings", true);
-    }));
-    this._register(this.explorerService.onDidChangeSelection(() => {
-      this.scheduleWorkbenchAuxiliarySurfacesRefresh("explorerSelection", false);
-    }));
-    this._register(this.chartService.onDidChangeChartState(() => {
-      this.scheduleWorkbenchAuxiliarySurfacesRefresh("chartState", false);
-    }));
-    this._register({
-      dispose: () => {
-        this.cancelScheduledAuxiliarySurfacesRefresh?.();
-        this.cancelScheduledAuxiliarySurfacesRefresh = null;
-        this.scheduledAuxiliarySurfacesRefreshReasons.clear();
-      },
+  private installServiceLayer(services: WorkbenchServices): void {
+    measureWorkbenchBoot("workbench:service-layer:install", () => {
+      measureWorkbenchBoot("workbench:service-layer:install:assign", () => {
+        this.assessmentQueueService = services.assessmentQueueService;
+        this.calculationService = services.calculationService;
+        this.chartService = services.chartService;
+        this.commandService = services.commandService;
+        this.contextKeyService = services.contextKeyService;
+        this.explorerService = services.explorerService;
+        this.exportService = services.exportService;
+        this.layoutService = services.layoutService;
+        this.menuService = services.menuService;
+        this.notificationService = services.notificationService;
+        this.parametersService = services.parametersService;
+        this.plotService = services.plotService;
+        this.settingsService = services.settingsService;
+        this.session = services.sessionService;
+        this.viewsService = services.viewsService;
+        this.tableService = services.tableService;
+        this.templateApplyWorkflowService = services.templateApplyWorkflowService;
+        this.templateService = services.templateService;
+        this.thumbnailPreviewService = services.thumbnailPreviewService;
+        this.titleService = services.titleService;
+      });
+
+      measureWorkbenchBoot("workbench:service-layer:install:contextkeys", () => {
+        this._register(new WorkbenchContextKeysHandler(this.contextKeyService));
+        this.activeWorkbenchViewContext = ActiveWorkbenchViewContext.bindTo(this.contextKeyService);
+        this.activeWorkbenchMainPartContext = ActiveWorkbenchMainPartContext.bindTo(this.contextKeyService);
+        this.activeAuxiliaryBarViewContext = ActiveAuxiliaryBarViewContext.bindTo(this.contextKeyService);
+      });
+
+      const initialViewMode = measureWorkbenchBoot("workbench:service-layer:install:initial-state", () => {
+        this.lastObservedExportState = this.exportService.getState();
+        this.titleService.updateTitlebarState(this.titlebarState);
+        const viewMode = resolveInitialWorkbenchViewMode(this.session.getSnapshot());
+        this._register(this.createNotificationsHandlers());
+        this.settingsService.update(this.getSettingsServiceOptions());
+        return viewMode;
+      });
+
+      const domainBridge = measureWorkbenchBoot("workbench:service-layer:install:bridge-create", () =>
+        this._register(new WorkbenchDomainBridge({
+          assessmentQueueService: this.assessmentQueueService,
+          calculationService: this.calculationService,
+          chartService: this.chartService,
+          explorerService: this.explorerService,
+          layoutService: this.layoutService,
+          plotService: this.plotService,
+          sessionService: this.session,
+          settingsService: this.settingsService,
+          tableService: this.tableService,
+          templateApplyWorkflowService: this.templateApplyWorkflowService,
+          templateService: this.templateService,
+          thumbnailPreviewService: this.thumbnailPreviewService,
+        })),
+      );
+      this.domainBridge = domainBridge;
+
+      measureWorkbenchBoot("workbench:service-layer:install:listeners", () => {
+        this._register(this.settingsService.onDidChangeConductorSettings(() => {
+          this.scheduleWorkbenchAuxiliarySurfacesRefresh("settings", true);
+        }));
+        this._register(this.explorerService.onDidChangeSelection(() => {
+          this.scheduleWorkbenchAuxiliarySurfacesRefresh("explorerSelection", false);
+        }));
+        this._register(this.chartService.onDidChangeChartState(() => {
+          this.scheduleWorkbenchAuxiliarySurfacesRefresh("chartState", false);
+        }));
+        this._register({
+          dispose: () => {
+            this.cancelScheduledAuxiliarySurfacesRefresh?.();
+            this.cancelScheduledAuxiliarySurfacesRefresh = null;
+            this.scheduledAuxiliarySurfacesRefreshReasons.clear();
+          },
+        });
+        this._register(this.plotService.onDidChangePlotState(() => {
+          this.scheduleWorkbenchAuxiliarySurfacesRefresh("plotState", true);
+        }));
+        this._register(this.plotService.onDidChangePlotDisplayModelCache(() => {
+          this.scheduleWorkbenchAuxiliarySurfacesRefresh("plotDisplayModelCache", false);
+        }));
+        this._register(this.exportService.onDidChangeExportState(state => {
+          if (this.shouldRefreshAuxiliarySurfacesForExportState(state)) {
+            this.scheduleWorkbenchAuxiliarySurfacesRefresh("exportState", true);
+          }
+          this.lastObservedExportState = state;
+        }));
+        this._register(this.templateService.onDidChangeTemplateState(() => {
+          this.scheduleWorkbenchAuxiliarySurfacesRefresh("templateState", true);
+        }));
+        this._register(this.layoutService.onDidChangeWorkbenchNavigation(() => {
+          this.refreshWorkbench("navigation");
+        }));
+        this._register(this.layoutService.onDidChangeActiveAuxiliaryBarView(() => {
+          this.refreshWorkbench("activeAuxiliaryBarView");
+        }));
+        this._register(this.session.onDidChangeSession(event => {
+          if (this.shouldRefreshAuxiliarySurfacesForSessionChange(event)) {
+            this.scheduleWorkbenchAuxiliarySurfacesRefresh(`session:${event.reason}`, true);
+          }
+        }));
+      });
+
+      this.deferPeripheralViewContainers = true;
+      measureWorkbenchBoot("workbench:service-layer:install:reset-view", () => {
+        this.resetToView(initialViewMode);
+      });
+      measureWorkbenchBoot("workbench:service-layer:install:domain-sync", () => {
+        domainBridge.sync();
+      });
+      measureWorkbenchBoot("workbench:service-layer:install:refresh-initial", () => {
+        this.refreshWorkbench("initial");
+      });
+      this.scheduleDeferredPeripheralViewContainers();
     });
-    this._register(this.plotService.onDidChangePlotState(() => {
-      this.scheduleWorkbenchAuxiliarySurfacesRefresh("plotState", true);
-    }));
-    this._register(this.plotService.onDidChangePlotDisplayModelCache(() => {
-      this.scheduleWorkbenchAuxiliarySurfacesRefresh("plotDisplayModelCache", false);
-    }));
-    this._register(this.exportService.onDidChangeExportState(state => {
-      if (this.shouldRefreshAuxiliarySurfacesForExportState(state)) {
-        this.scheduleWorkbenchAuxiliarySurfacesRefresh("exportState", true);
+  }
+
+  private scheduleDeferredPeripheralViewContainers(): void {
+    if (!this.deferPeripheralViewContainers) {
+      return;
+    }
+
+    logWorkbenchBoot("workbench:service-layer:deferred-peripheral:scheduled");
+    this._register(scheduleAtNextAnimationFrame(window, () => {
+      if (this.disposed || !this.deferPeripheralViewContainers) {
+        return;
       }
-      this.lastObservedExportState = state;
+
+      this._register(runWhenWindowIdle(window, () => {
+        if (this.disposed || !this.deferPeripheralViewContainers) {
+          return;
+        }
+
+        measureWorkbenchBoot("workbench:service-layer:deferred-peripheral", () => {
+          this.deferPeripheralViewContainers = false;
+          this.refreshWorkbench("deferredPeripheralViewContainers");
+        });
+      }, 500));
     }));
-    this._register(this.templateService.onDidChangeTemplateState(() => {
-      this.scheduleWorkbenchAuxiliarySurfacesRefresh("templateState", true);
-    }));
-    this._register(this.layoutService.onDidChangeWorkbenchNavigation(() => {
-      this.refreshWorkbench("navigation");
-    }));
-    this._register(this.layoutService.onDidChangeActiveAuxiliaryBarView(() => {
-      this.refreshWorkbench("activeAuxiliaryBarView");
-    }));
-    this._register(this.session.onDidChangeSession(event => {
-      if (this.shouldRefreshAuxiliarySurfacesForSessionChange(event)) {
-        this.scheduleWorkbenchAuxiliarySurfacesRefresh(`session:${event.reason}`, true);
-      }
-    }));
-    this.resetToView(initialViewMode);
-    domainBridge.sync();
-    this.refreshWorkbench("initial");
   }
 
   private getActiveTitleService(): ITitleService | undefined {
@@ -608,13 +808,27 @@ export class Workbench extends Layout {
       mode: this.activeWorkbenchMainPart,
       reason,
     }, { silent: true });
-    const snapshot = this.session.getSnapshot();
-    const readModel = createSessionReadModel(snapshot);
-    this.updateWorkbenchModeContextKeys();
-    this.updateViewContainers();
-    this.updateContextKeys();
-    this.renderAuxiliaryBarView(snapshot, readModel);
-    this.renderWorkbench();
+    const snapshot = measureWorkbenchBoot(`workbench:refresh:${reason}:snapshot`, () =>
+      this.session.getSnapshot(),
+    );
+    const readModel = measureWorkbenchBoot(`workbench:refresh:${reason}:read-model`, () =>
+      createSessionReadModel(snapshot),
+    );
+    measureWorkbenchBoot(`workbench:refresh:${reason}:mode-context`, () => {
+      this.updateWorkbenchModeContextKeys();
+    });
+    measureWorkbenchBoot(`workbench:refresh:${reason}:view-containers`, () => {
+      this.updateViewContainers();
+    });
+    measureWorkbenchBoot(`workbench:refresh:${reason}:context`, () => {
+      this.updateContextKeys();
+    });
+    measureWorkbenchBoot(`workbench:refresh:${reason}:auxiliary-view`, () => {
+      this.renderAuxiliaryBarView(snapshot, readModel);
+    });
+    measureWorkbenchBoot(`workbench:refresh:${reason}:render`, () => {
+      this.renderWorkbench();
+    });
     endPerf({
       fileCount: Object.keys(snapshot.filesById).length,
       processedFileCount: readModel.processedFileIds.length,
@@ -729,26 +943,41 @@ export class Workbench extends Layout {
   }
 
   private renderWorkbench(): void {
-    this.setParts({
-      sidebar: this.getViewContainerElement(WorkbenchViewContainers.files, null),
-      workbench: this.getViewContainerElement(
-        WorkbenchViewContainers.main,
-        this.activeWorkbenchMainPart === "chart" ? this.getChartViewElement() : this.getTableViewElement(),
-      ),
-      auxiliaryBar: this.getViewContainerElement(
-        WorkbenchViewContainers.auxiliarybar,
-        this.getActiveAuxiliaryBarElement(),
-      ),
-      overlay: this.notifications.element,
-      settings: this.getViewContainerElement(WorkbenchViewContainers.settings, null),
+    const deferPeripheralViewContainers = this.shouldDeferPeripheralViewContainers();
+    measureWorkbenchBoot("workbench:render:set-parts", () => {
+      this.setParts({
+        sidebar: deferPeripheralViewContainers
+          ? null
+          : this.getViewContainerElement(WorkbenchViewContainers.files, null),
+        workbench: this.getViewContainerElement(
+          WorkbenchViewContainers.main,
+          this.activeWorkbenchMainPart === "chart" ? this.getChartViewElement() : this.getTableViewElement(),
+        ),
+        auxiliaryBar: deferPeripheralViewContainers
+          ? null
+          : this.getViewContainerElement(
+            WorkbenchViewContainers.auxiliarybar,
+            this.getActiveAuxiliaryBarElement(),
+          ),
+        overlay: this.notifications.element,
+        settings: this.getViewContainerElement(WorkbenchViewContainers.settings, null),
+      });
     });
-    this.layoutVisibleViewContainers();
-    this.window.update({
-      id: "workbench-page",
-      className: "workbench_root",
-      showDesktopCommandBar: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
-      showSkeleton: false,
-      titleService: this.titleService,
+
+    if (!deferPeripheralViewContainers) {
+      measureWorkbenchBoot("workbench:render:layout-containers", () => {
+        this.layoutVisibleViewContainers();
+      });
+    }
+
+    measureWorkbenchBoot("workbench:render:window-update", () => {
+      this.window.update({
+        id: "workbench-page",
+        className: "workbench_root",
+        showDesktopCommandBar: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
+        showSkeleton: false,
+        titleService: this.titleService,
+      });
     });
   }
 
@@ -815,27 +1044,53 @@ export class Workbench extends Layout {
     const isChartActive = this.activeWorkbenchMainPart === "chart";
     const isSidebarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
     const isAuxiliaryBarVisible = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+    const deferPeripheralViewContainers = this.shouldDeferPeripheralViewContainers();
 
-    if (isSidebarVisible) {
-      void this.viewsService.openViewContainer(WorkbenchViewContainers.files);
+    if (isSidebarVisible && !deferPeripheralViewContainers) {
+      measureWorkbenchBoot("workbench:view-containers:open:files", () => {
+        void this.viewsService.openViewContainer(WorkbenchViewContainers.files);
+      });
     }
-    if (isAuxiliaryBarVisible) {
-      void this.viewsService.openViewContainer(WorkbenchViewContainers.auxiliarybar);
+    if (isAuxiliaryBarVisible && !deferPeripheralViewContainers) {
+      measureWorkbenchBoot("workbench:view-containers:open:auxiliarybar", () => {
+        void this.viewsService.openViewContainer(WorkbenchViewContainers.auxiliarybar);
+      });
     }
 
     if (isWorkbenchActive) {
-      void this.viewsService.openViewContainer(WorkbenchViewContainers.main);
-      this.viewsService.closeViewContainer(WorkbenchViewContainers.settings);
+      measureWorkbenchBoot("workbench:view-containers:open:main", () => {
+        void this.viewsService.openViewContainer(WorkbenchViewContainers.main);
+      });
+      measureWorkbenchBoot("workbench:view-containers:close:settings", () => {
+        this.viewsService.closeViewContainer(WorkbenchViewContainers.settings);
+      });
     } else {
-      void this.viewsService.openViewContainer(WorkbenchViewContainers.settings);
+      measureWorkbenchBoot("workbench:view-containers:open:settings", () => {
+        void this.viewsService.openViewContainer(WorkbenchViewContainers.settings);
+      });
     }
 
-    this.viewsService.setViewVisible(ExplorerViewId, isWorkbenchActive && isSidebarVisible);
-    this.viewsService.setViewVisible(TableViewId, isWorkbenchActive && !isChartActive);
-    this.viewsService.setViewVisible(ChartViewId, isWorkbenchActive && isChartActive);
-    this.viewsService.setViewVisible(SettingsViewId, isSettingsActive);
-    this.updateSidebar(isWorkbenchActive && isSidebarVisible);
-    this.updateAuxiliaryBar(isWorkbenchActive && isAuxiliaryBarVisible);
+    measureWorkbenchBoot("workbench:view-containers:set-visible", () => {
+      this.viewsService.setViewVisible(
+        ExplorerViewId,
+        isWorkbenchActive && isSidebarVisible && !deferPeripheralViewContainers,
+      );
+      this.viewsService.setViewVisible(TableViewId, isWorkbenchActive && !isChartActive);
+      this.viewsService.setViewVisible(ChartViewId, isWorkbenchActive && isChartActive);
+      this.viewsService.setViewVisible(SettingsViewId, isSettingsActive);
+    });
+    if (!deferPeripheralViewContainers) {
+      measureWorkbenchBoot("workbench:view-containers:update-sidebar", () => {
+        this.updateSidebar(isWorkbenchActive && isSidebarVisible);
+      });
+      measureWorkbenchBoot("workbench:view-containers:update-auxiliarybar", () => {
+        this.updateAuxiliaryBar(isWorkbenchActive && isAuxiliaryBarVisible);
+      });
+    }
+  }
+
+  private shouldDeferPeripheralViewContainers(): boolean {
+    return this.deferPeripheralViewContainers && this.activeView !== "settings";
   }
 
   private updateContextKeys(): void {

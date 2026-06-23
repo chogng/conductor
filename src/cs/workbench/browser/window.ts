@@ -128,6 +128,8 @@ export class WorkbenchWindow extends Disposable {
   );
   private titlebarPart: IDisposable | undefined;
   private attachedTitleService: ITitleService | undefined;
+  private renderedSkeletonVisible: boolean | undefined;
+  private renderedSkeletonDesktopCommandBar: boolean | undefined;
 
   public readonly contentElement = this.contentHost;
 
@@ -183,15 +185,24 @@ export class WorkbenchWindow extends Disposable {
       this.clearTitlebar();
       this.attachedTitleService = titleService;
       this.titlebarPart = titleService.attachTitlebarPart(this.titlebarHost);
+      return;
     }
-
-    titleService.layout();
   }
 
   private renderSkeleton(
     showSkeleton: boolean,
     showDesktopCommandBar: boolean,
   ): void {
+    if (
+      this.renderedSkeletonVisible === showSkeleton &&
+      (!showSkeleton || this.renderedSkeletonDesktopCommandBar === showDesktopCommandBar)
+    ) {
+      return;
+    }
+
+    this.renderedSkeletonVisible = showSkeleton;
+    this.renderedSkeletonDesktopCommandBar = showSkeleton ? showDesktopCommandBar : undefined;
+
     if (!showSkeleton) {
       this.skeletonHost.replaceChildren();
       return;

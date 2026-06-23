@@ -1,5 +1,8 @@
 import { Disposable, MutableDisposable } from "src/cs/base/common/lifecycle";
-import { replaceChildrenIfChanged } from "src/cs/base/browser/dom";
+import {
+  replaceChildrenIfChanged,
+  scheduleAtNextAnimationFrame,
+} from "src/cs/base/browser/dom";
 import SplitView, {
   type SplitViewPane,
   type SplitViewResizeEvent,
@@ -17,6 +20,49 @@ import { WORKBENCH_TITLEBAR_PAGE_BUTTON_IDS } from "src/cs/workbench/browser/par
 import type { IStorageService } from "src/cs/platform/storage/common/storage";
 
 export type { LayoutView } from "src/cs/workbench/services/layout/browser/layoutService";
+
+const getLayoutBootNowMs = (): number =>
+  typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+
+const getLayoutBootErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+const logLayoutBoot = (stage: string, extra = ""): void => {
+  if (!isLayoutBootLoggingEnabled()) {
+    return;
+  }
+
+  window.__CONDUCTOR_BOOT_LOG__?.(stage, extra);
+};
+
+const isLayoutBootLoggingEnabled = (): boolean =>
+  typeof window !== "undefined" &&
+  typeof window.__CONDUCTOR_BOOT_LOG__ === "function";
+
+const measureLayoutBoot = <T>(stage: string, run: () => T): T => {
+  if (!isLayoutBootLoggingEnabled()) {
+    return run();
+  }
+
+  const startedAt = getLayoutBootNowMs();
+  logLayoutBoot(`${stage}:start`);
+  try {
+    const result = run();
+    logLayoutBoot(
+      `${stage}:done`,
+      `(duration=${Math.round(getLayoutBootNowMs() - startedAt)}ms)`,
+    );
+    return result;
+  } catch (error) {
+    logLayoutBoot(
+      `${stage}:failed`,
+      `(duration=${Math.round(getLayoutBootNowMs() - startedAt)}ms message=${getLayoutBootErrorMessage(error)})`,
+    );
+    throw error;
+  }
+};
 
 export const MAIN_MIN_WIDTH_PX = 220;
 export const TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX = 240;
@@ -101,6 +147,8 @@ export class Layout extends Disposable {
   private readonly sidebarPart: SidebarPart;
   private readonly auxiliaryBarPart: AuxiliaryBarPart;
   private readonly splitView = this._register(new MutableDisposable<SplitView>());
+  private readonly scheduledLayoutServiceUpdate =
+    this._register(new MutableDisposable());
   private readonly main = document.createElement("div");
   private readonly settingsMain = document.createElement("div");
   private readonly sidebar: HTMLElement;
@@ -216,26 +264,47 @@ export class Layout extends Disposable {
   }
 
   private render(): void {
-    const workbenchActive = isWorkbenchView(this.activeView);
-    if (this.parts.auxiliaryBar) {
-      this.hasRenderedAuxiliaryBarPane = true;
-    }
-    this.element.classList.toggle("sidebar-hidden", !this.isPartVisible(Parts.SIDEBAR_PART));
-    this.element.classList.toggle("auxiliarybar-hidden", !this.isPartVisible(Parts.AUXILIARYBAR_PART));
+    measureLayoutBoot("workbench:layout:render", () => {
+      const workbenchActive = isWorkbenchView(this.activeView);
+      const renderSingleWorkbenchPane = this.shouldRenderSingleWorkbenchPane(workbenchActive);
+      measureLayoutBoot("workbench:layout:render:classes", () => {
+        if (this.parts.auxiliaryBar) {
+          this.hasRenderedAuxiliaryBarPane = true;
+        }
+        this.element.classList.toggle("sidebar-hidden", !this.isPartVisible(Parts.SIDEBAR_PART));
+        this.element.classList.toggle("auxiliarybar-hidden", !this.isPartVisible(Parts.AUXILIARYBAR_PART));
+      });
 
-    replaceOptionalChildIfChanged(this.controller, this.parts.controller);
-    this.renderWorkbenchMain();
-    this.renderSettingsMain();
-    replaceOptionalChildIfChanged(this.overlay, this.parts.overlay);
-    replaceOptionalChildIfChanged(this.sidebar, this.parts.sidebar);
-    replaceOptionalChildIfChanged(this.auxiliaryBar, this.parts.auxiliaryBar);
-    this.renderSplit(workbenchActive);
-    this.renderViewStack(workbenchActive);
-    this.splitView.current?.relayout();
-    setWorkbenchSidebarPortal(null);
+      measureLayoutBoot("workbench:layout:render:parts", () => {
+        replaceOptionalChildIfChanged(this.controller, this.parts.controller);
+        this.renderWorkbenchMain();
+        this.renderSettingsMain();
+        replaceOptionalChildIfChanged(this.overlay, this.parts.overlay);
+        replaceOptionalChildIfChanged(this.sidebar, this.parts.sidebar);
+        replaceOptionalChildIfChanged(this.auxiliaryBar, this.parts.auxiliaryBar);
+      });
+      measureLayoutBoot("workbench:layout:render:workbench-shell", () => {
+        this.renderWorkbenchShell(workbenchActive, renderSingleWorkbenchPane);
+      });
+      measureLayoutBoot("workbench:layout:render:view-stack", () => {
+        this.renderViewStack(workbenchActive);
+      });
+      measureLayoutBoot("workbench:layout:render:split-relayout", () => {
+        this.splitView.current?.relayout();
+      });
+      setWorkbenchSidebarPortal(null);
 
-    this.updateLayoutService();
-    this.onDidRenderLayout();
+      measureLayoutBoot("workbench:layout:render:update-layout-service", () => {
+        if (renderSingleWorkbenchPane) {
+          this.scheduleLayoutServiceUpdate();
+        } else {
+          this.updateLayoutServiceNow();
+        }
+      });
+      measureLayoutBoot("workbench:layout:render:on-did-render", () => {
+        this.onDidRenderLayout();
+      });
+    });
   }
 
   protected onDidRenderLayout(): void {}
@@ -282,59 +351,100 @@ export class Layout extends Disposable {
     replaceChildrenIfChanged(this.settingsMain, this.settingsPane);
   }
 
-  private renderSplit(workbenchActive: boolean): void {
-    const panes = this.getSplitPanes();
-    const splitClassNames = ["workbench_layout_split"];
-    if (this.hasAuxiliaryBarPane()) {
-      splitClassNames.push("workbench_layout_split--with-auxiliarybar");
+  private renderWorkbenchShell(workbenchActive: boolean, renderSingleWorkbenchPane: boolean): void {
+    if (renderSingleWorkbenchPane) {
+      this.renderSingleWorkbenchPane(workbenchActive);
+      return;
     }
-    if (!workbenchActive) {
-      splitClassNames.push("workbench_layout_split--inactive");
-    }
-    if (workbenchActive && this.layoutTransitionPart === Parts.SIDEBAR_PART) {
-      splitClassNames.push("workbench_layout_split--animate-sidebar");
-    } else if (workbenchActive && this.layoutTransitionPart === Parts.AUXILIARYBAR_PART) {
-      splitClassNames.push("workbench_layout_split--animate-auxiliarybar");
-    }
-    const splitClassName = splitClassNames.join(" ");
 
-    if (!this.splitView.current) {
-      this.splitView.current = new SplitView({
-        className: splitClassName,
-        gap: 0,
-        onDidResizeEnd: (event) => this.handleResizeEnd(event),
-        orientation: "horizontal",
-        panes,
-      });
-    } else {
-      this.splitView.current.update({
-        className: splitClassName,
-        gap: 0,
-        onDidResizeEnd: (event) => this.handleResizeEnd(event),
-        orientation: "horizontal",
-        panes,
-      });
-    }
+    this.renderSplit(workbenchActive);
+  }
+
+  private shouldRenderSingleWorkbenchPane(workbenchActive: boolean): boolean {
+    return workbenchActive && !this.parts.sidebar && !this.parts.auxiliaryBar;
+  }
+
+  private renderSingleWorkbenchPane(workbenchActive: boolean): void {
+    measureLayoutBoot("workbench:layout:render:single-main", () => {
+      this.splitView.clear();
+      this.shell.className = workbenchActive
+        ? "workbench_layout_shell"
+        : "workbench_layout_shell workbench_layout_shell--hidden";
+      this.shell.setAttribute("aria-hidden", String(!workbenchActive));
+      this.shell.inert = !workbenchActive;
+      replaceChildrenIfChanged(this.shell, this.main);
+    });
+  }
+
+  private renderSplit(workbenchActive: boolean): void {
+    const panes = measureLayoutBoot("workbench:layout:render:split:panes", () => this.getSplitPanes());
+    const splitClassName = measureLayoutBoot("workbench:layout:render:split:class-name", () => {
+      const splitClassNames = ["workbench_layout_split"];
+      if (this.hasAuxiliaryBarPane()) {
+        splitClassNames.push("workbench_layout_split--with-auxiliarybar");
+      }
+      if (!workbenchActive) {
+        splitClassNames.push("workbench_layout_split--inactive");
+      }
+      if (workbenchActive && this.layoutTransitionPart === Parts.SIDEBAR_PART) {
+        splitClassNames.push("workbench_layout_split--animate-sidebar");
+      } else if (workbenchActive && this.layoutTransitionPart === Parts.AUXILIARYBAR_PART) {
+        splitClassNames.push("workbench_layout_split--animate-auxiliarybar");
+      }
+      return splitClassNames.join(" ");
+    });
+
+    measureLayoutBoot("workbench:layout:render:split:instance", () => {
+      if (!this.splitView.current) {
+        this.splitView.current = new SplitView({
+          className: splitClassName,
+          gap: 0,
+          onDidResizeEnd: (event) => this.handleResizeEnd(event),
+          orientation: "horizontal",
+          panes,
+        });
+      } else {
+        this.splitView.current.update({
+          className: splitClassName,
+          gap: 0,
+          onDidResizeEnd: (event) => this.handleResizeEnd(event),
+          orientation: "horizontal",
+          panes,
+        });
+      }
+    });
 
     const splitView = this.splitView.current;
+    if (!splitView) {
+      return;
+    }
+
     const sidebarPane = splitView.getPaneElement(this.sidebarPart.paneId);
     if (sidebarPane) {
-      replaceChildrenIfChanged(sidebarPane, this.sidebar);
+      measureLayoutBoot("workbench:layout:render:split:sidebar", () => {
+        replaceChildrenIfChanged(sidebarPane, this.sidebar);
+      });
     }
     const mainPane = splitView.getPaneElement("workbench-main");
     if (mainPane) {
-      replaceChildrenIfChanged(mainPane, this.main);
+      measureLayoutBoot("workbench:layout:render:split:main", () => {
+        replaceChildrenIfChanged(mainPane, this.main);
+      });
     }
     const auxiliaryBarPane = splitView.getPaneElement(this.auxiliaryBarPart.paneId);
     if (auxiliaryBarPane) {
-      replaceChildrenIfChanged(auxiliaryBarPane, this.auxiliaryBar);
+      measureLayoutBoot("workbench:layout:render:split:auxiliarybar", () => {
+        replaceChildrenIfChanged(auxiliaryBarPane, this.auxiliaryBar);
+      });
     }
-    this.shell.className = workbenchActive
-      ? "workbench_layout_shell"
-      : "workbench_layout_shell workbench_layout_shell--hidden";
-    this.shell.setAttribute("aria-hidden", String(!workbenchActive));
-    this.shell.inert = !workbenchActive;
-    replaceChildrenIfChanged(this.shell, splitView.element);
+    measureLayoutBoot("workbench:layout:render:split:shell", () => {
+      this.shell.className = workbenchActive
+        ? "workbench_layout_shell"
+        : "workbench_layout_shell workbench_layout_shell--hidden";
+      this.shell.setAttribute("aria-hidden", String(!workbenchActive));
+      this.shell.inert = !workbenchActive;
+      replaceChildrenIfChanged(this.shell, splitView.element);
+    });
   }
 
   private renderViewStack(workbenchActive: boolean): void {
@@ -439,6 +549,26 @@ export class Layout extends Disposable {
   private updateLayoutService(): void {
     this.workbenchLayoutService?.setPartHidden(false, Parts.EDITOR_PART);
     this.workbenchLayoutService?.layout();
+  }
+
+  private updateLayoutServiceNow(): void {
+    this.scheduledLayoutServiceUpdate.clear();
+    this.updateLayoutService();
+  }
+
+  private scheduleLayoutServiceUpdate(): void {
+    if (this.scheduledLayoutServiceUpdate.current) {
+      return;
+    }
+
+    logLayoutBoot("workbench:layout:deferred-layout-service:scheduled");
+    const targetWindow = this.element.ownerDocument.defaultView ?? window;
+    this.scheduledLayoutServiceUpdate.current = scheduleAtNextAnimationFrame(targetWindow, () => {
+      this.scheduledLayoutServiceUpdate.clear();
+      measureLayoutBoot("workbench:layout:deferred-layout-service", () => {
+        this.updateLayoutService();
+      });
+    });
   }
 
   private hasAuxiliaryBarPane(): boolean {

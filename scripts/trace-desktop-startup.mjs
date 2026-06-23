@@ -35,6 +35,7 @@ const warmupPaths = [
 
 const children = new Set();
 const events = [];
+const eventKeys = new Set();
 let targetReached = false;
 let targetFailure = null;
 
@@ -184,6 +185,11 @@ const parseBootLine = (line) => {
   };
 };
 
+const durationFromExtra = (extra) => {
+  const match = /duration=(\d+)ms/.exec(extra ?? "");
+  return match ? Number(match[1]) : null;
+};
+
 const handleElectronLine = (line, isError = false) => {
   if (line.trim()) {
     (isError ? console.error : console.log)(line);
@@ -193,6 +199,12 @@ const handleElectronLine = (line, isError = false) => {
   if (!event) {
     return;
   }
+
+  const eventKey = `${event.source}\0${event.elapsedMs}\0${event.stage}\0${durationFromExtra(event.extra) ?? ""}`;
+  if (eventKeys.has(eventKey)) {
+    return;
+  }
+  eventKeys.add(eventKey);
 
   events.push(event);
   if (event.stage === "workbench:service-layer:ready") {
@@ -279,10 +291,15 @@ const cleanup = async () => {
 const findEvent = (source, stage) =>
   events.find(event => event.source === source && event.stage === stage);
 
-const durationFromExtra = (extra) => {
-  const match = /duration=(\d+)ms/.exec(extra ?? "");
-  return match ? Number(match[1]) : null;
-};
+const createDurationBreakdown = (source, stagePrefix) =>
+  events
+    .filter(event => event.source === source && event.stage.startsWith(stagePrefix))
+    .map(event => ({
+      stage: event.stage,
+      elapsedMs: event.elapsedMs,
+      durationMs: durationFromExtra(event.extra),
+    }))
+    .filter(event => event.durationMs !== null);
 
 const createSummary = () => {
   const rendererUiReady = findEvent("renderer", "boot-ui:ready");
@@ -307,6 +324,12 @@ const createSummary = () => {
       mainRendererBootUiReadyMs: mainUiReady?.elapsedMs ?? null,
       mainWindowShownMs: mainWindowShown?.elapsedMs ?? null,
     },
+    serviceLayerBreakdown: createDurationBreakdown("renderer", "workbench:service-layer"),
+    serviceResolutionBreakdown: createDurationBreakdown("renderer", "workbench:service:get:"),
+    workbenchRefreshBreakdown: createDurationBreakdown("renderer", "workbench:refresh:"),
+    workbenchRenderBreakdown: createDurationBreakdown("renderer", "workbench:render:"),
+    viewContainerBreakdown: createDurationBreakdown("renderer", "workbench:view-containers:"),
+    layoutBreakdown: createDurationBreakdown("renderer", "workbench:layout:"),
     events,
   };
 };
@@ -389,7 +412,7 @@ try {
   attachLines(electronProc.stderr, line => handleElectronLine(line, true));
 
   await waitForTraceTarget(electronProc);
-  await sleep(300);
+  await sleep(900);
 
   const summary = createSummary();
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -400,6 +423,12 @@ try {
 
   log(`summary=${reportPath}`);
   log(`milestones=${JSON.stringify(summary.milestones)}`);
+  log(`serviceLayerBreakdown=${JSON.stringify(summary.serviceLayerBreakdown)}`);
+  log(`serviceResolutionBreakdown=${JSON.stringify(summary.serviceResolutionBreakdown)}`);
+  log(`workbenchRefreshBreakdown=${JSON.stringify(summary.workbenchRefreshBreakdown)}`);
+  log(`workbenchRenderBreakdown=${JSON.stringify(summary.workbenchRenderBreakdown)}`);
+  log(`viewContainerBreakdown=${JSON.stringify(summary.viewContainerBreakdown)}`);
+  log(`layoutBreakdown=${JSON.stringify(summary.layoutBreakdown)}`);
   await cleanup();
 } catch (error) {
   console.error(`[desktop-startup-trace] failed: ${getErrorMessage(error)}`);
