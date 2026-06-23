@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.5.19",
   "type": "module",
-  "main": "desktop-dist/src/main.js",
+  "main": "out/desktop/src/main.js",
   "scripts": {
     "preinstall": "node --experimental-strip-types build/npm/preinstall.ts",
     "postinstall": "node --experimental-strip-types build/npm/postinstall.ts",
@@ -103,8 +103,8 @@
       "winCodeSign": "1.1.0"
     },
     "files": [
-      "dist/**/*",
-      "desktop-dist/**/*",
+      "out/desktop/**/*",
+      "out/renderer/**/*",
       "package.json"
     ],
     "extraResources": [

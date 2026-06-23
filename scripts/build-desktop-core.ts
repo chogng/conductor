@@ -3,7 +3,7 @@
  *  Copyright (c) Conductor Studio contributors. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { getVersion } from '../build/lib/git.ts';
@@ -12,9 +12,9 @@ const packageJsonMarkerId = 'BUILD_INSERT_PACKAGE_CONFIGURATION';
 const tscExtraArgs = process.argv.slice(2);
 const isWatch = tscExtraArgs.includes('--watch') || tscExtraArgs.includes('-w');
 const projectRoot = process.cwd();
-const desktopDistDir = path.join(projectRoot, 'desktop-dist');
+const desktopOutDir = path.join(projectRoot, 'out', 'desktop');
 const packageJsonPath = path.join(projectRoot, 'package.json');
-const bootstrapMetaPath = path.join(desktopDistDir, 'src', 'bootstrap-meta.js');
+const bootstrapMetaPath = path.join(desktopOutDir, 'src', 'bootstrap-meta.js');
 const packageMarker = new RegExp(
 	`${packageJsonMarkerId}:\\s*"${packageJsonMarkerId}"`,
 );
@@ -26,8 +26,8 @@ const tscArgs = isWin
 	: ['tsc', '-p', 'src/tsconfig.desktop.json', ...tscExtraArgs];
 
 const inlinePackageConfiguration = (throwOnMissingMarker: boolean): void => {
-	mkdirSync(desktopDistDir, { recursive: true });
-	copyFileSync(packageJsonPath, path.join(desktopDistDir, 'package.json'));
+	mkdirSync(desktopOutDir, { recursive: true });
+	copyFileSync(packageJsonPath, path.join(desktopOutDir, 'package.json'));
 
 	const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
 	const commit = getVersion(projectRoot);
@@ -52,23 +52,7 @@ const inlinePackageConfiguration = (throwOnMissingMarker: boolean): void => {
 	);
 };
 
-const resetBootstrapMetaOutput = (): void => {
-	if (!existsSync(bootstrapMetaPath)) {
-		return;
-	}
-
-	const bootstrapMeta = readFileSync(bootstrapMetaPath, 'utf8');
-	if (!packageMarker.test(bootstrapMeta)) {
-		unlinkSync(bootstrapMetaPath);
-	}
-};
-
-const removeLegacyDesktopOutput = (): void => {
-	rmSync(path.join(desktopDistDir, 'desktop'), { recursive: true, force: true });
-};
-
-resetBootstrapMetaOutput();
-removeLegacyDesktopOutput();
+rmSync(desktopOutDir, { recursive: true, force: true });
 
 if (isWatch) {
 	const proc = spawn(tscCmd, tscArgs, { stdio: ['inherit', 'pipe', 'pipe'] });

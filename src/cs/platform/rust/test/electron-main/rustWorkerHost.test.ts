@@ -34,7 +34,7 @@ suite("platform/rust/electron-main/rustWorkerHost", () => {
 			env: {},
 			isDev: true,
 			platform: "win32",
-			resourcesPath: path.join(root, "desktop-dist"),
+			resourcesPath: path.join(root, "out"),
 		}), helperPath);
 	});
 
@@ -54,7 +54,7 @@ suite("platform/rust/electron-main/rustWorkerHost", () => {
 			env: {},
 			isDev: true,
 			platform: "win32",
-			resourcesPath: path.join(root, "desktop-dist"),
+			resourcesPath: path.join(root, "out"),
 		}), buildCachePath);
 	});
 

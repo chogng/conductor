@@ -42,7 +42,7 @@ const electronBuildWatchArgs = isWin
 const electronBin = isWin
   ? path.join(process.cwd(), "node_modules", "electron", "dist", "electron.exe")
   : path.join(process.cwd(), "node_modules", ".bin", "electron");
-const desktopDistDir = path.join(process.cwd(), "desktop-dist");
+const desktopOutDir = path.join(process.cwd(), "out", "desktop");
 
 const watchedExtensions = new Set([".cjs", ".js", ".mjs", ".json"]);
 const electronWatchReadyMarker = "Watching for file changes.";
@@ -447,7 +447,7 @@ const trackWatcher = (watcher: FSWatcher) => {
 };
 
 const startElectronWatchers = () => {
-  const rootDir = desktopDistDir;
+  const rootDir = desktopOutDir;
 
   try {
     const recursiveWatcher = watch(

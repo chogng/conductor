@@ -91,7 +91,7 @@ import { mainProcessMessage } from "./mainNls.js";
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-// app.ts is compiled to desktop-dist/src/cs/code/electron-main.
+// app.ts is compiled to out/desktop/src/cs/code/electron-main.
 const desktopPreloadPath = path.resolve(
   __dirname,
   "../../base/parts/sandbox/electron-browser/preload.js",
@@ -2182,12 +2182,13 @@ function createMainWindow() {
 
   logDesktopBoot(
     "load-file",
-    "(prod: dist/src/cs/code/electron-browser/workbench/workbench.html)",
+    "(prod: out/renderer/src/cs/code/electron-browser/workbench/workbench.html)",
   );
   void win.loadFile(
     path.join(
       getAppRootPath(),
-      "dist",
+      "out",
+      "renderer",
       "src",
       "cs",
       "code",

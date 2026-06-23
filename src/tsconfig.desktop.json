@@ -5,7 +5,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "rootDir": "..",
-    "outDir": "../desktop-dist",
+    "outDir": "../out/desktop",
     "types": ["node"],
     "strict": false
   },

@@ -2,7 +2,7 @@ import assert from "assert";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createConductorStoreMainService } from "../../../desktop-dist/src/cs/workbench/services/conductorStore/electron-main/conductorStoreMainService.js";
+import { createConductorStoreMainService } from "../../../out/desktop/src/cs/workbench/services/conductorStore/electron-main/conductorStoreMainService.js";
 
 const readJson = (filePath) => JSON.parse(fs.readFileSync(filePath, "utf8"));
 

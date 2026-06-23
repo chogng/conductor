@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import Mocha from "mocha";
 
 export const workspace = path.resolve(fileURLToPath(new URL("../../../", import.meta.url)));
-const outRoot = path.join(workspace, "out");
+const outRoot = path.join(workspace, "out", "test");
 const outSrcRoot = path.join(outRoot, "src");
 
 let prepared = false;

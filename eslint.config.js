@@ -7,9 +7,7 @@ import tsPlugin from '@typescript-eslint/eslint-plugin'
 export default defineConfig([
   // Ignore generated artifacts and local tooling outputs.
   globalIgnores([
-    'dist',
-    'desktop-dist',
-    'out-test',
+    'out',
     'release',
     'originbridge',
     'origin/bin',

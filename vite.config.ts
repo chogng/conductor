@@ -94,6 +94,7 @@ export default defineConfig({
     exclude: ["@chogng/lxicons", "cogicon"],
   },
   build: {
+    outDir: "out/renderer",
     rollupOptions: {
       input: {
         app: browserWorkbenchHtmlPath,
