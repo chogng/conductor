@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Conductor Browser Preview</title>
+  </head>
+  <body>
+    <div id="preview-root"></div>
+    <script type="module">
+      const serializeError = (error) => {
+        if (error instanceof Error) {
+          return {
+            message: error.message,
+            stack: error.stack,
+          };
+        }
+
+        return {
+          message: String(error),
+        };
+      };
+
+      const readModule = () => {
+        const module = new URLSearchParams(window.location.search).get("module");
+        if (!module) {
+          throw new Error("Missing browser preview module.");
+        }
+
+        return module;
+      };
+
+      const main = async () => {
+        await import(/* @vite-ignore */ readModule());
+        globalThis.__conductorBrowserPreviewReady = {
+          ok: true,
+        };
+      };
+
+      main().catch((error) => {
+        console.error(error);
+        globalThis.__conductorBrowserPreviewReady = {
+          ok: false,
+          error: serializeError(error),
+        };
+      });
+    </script>
+  </body>
+</html>

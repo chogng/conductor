@@ -44,6 +44,7 @@
     "test:template-apply-performance-trace": "node test/integration/browser/templateApplyPerformanceTrace.test.mjs",
     "test:desktop-core": "npm run build:desktop:core && mocha --ui tdd test/integration/node/originRunner.test.mjs test/integration/node/analysisStorageService.test.mjs",
     "test:unit:browser": "node test/unit/browser/index.js",
+    "preview:titlebar-update": "node test/unit/browser/preview.js titlebar-update",
     "test:origin-runner": "npm run build:desktop:core && mocha --ui tdd test/integration/node/originRunner.test.mjs",
     "typecheck": "tsc -p src/tsconfig.json --noEmit && tsc -p src/tsconfig.desktop.json --noEmit && tsc -p src/tsconfig.scripts.json --noEmit && npm run verify:nls && npm run verify:conductor-rs-artifacts",
     "preview": "vite preview",

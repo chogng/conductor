@@ -190,7 +190,6 @@ export class BrowserTitleService extends Disposable implements ITitleService {
     }
 
     return {
-      activeFileId: state.activeFileId,
       activePage: state.activePage ?? navigation.activeMainPart,
       canNavigateBack:
         state.canNavigateBack ?? navigation.historyIndex > 0,
@@ -198,15 +197,12 @@ export class BrowserTitleService extends Disposable implements ITitleService {
         state.canNavigateForward ??
         navigation.historyIndex < navigation.historyLength - 1,
       chartIntentCommandId: state.chartIntentCommandId,
-      fileSelectionCommandId: state.fileSelectionCommandId,
-      fileOptions: state.fileOptions,
       installUpdateCommandId: state.installUpdateCommandId,
       isSidebarVisible:
         state.isSidebarVisible ??
         this.layoutService.isVisible(Parts.SIDEBAR_PART),
       isUpdateReadyToInstall: state.isUpdateReadyToInstall,
       isUpdateVisible: state.isUpdateVisible,
-      showFileSelector: state.showFileSelector,
       updateCommandId: state.updateCommandId,
       updateLabel: state.updateLabel,
       updateProgressPercent: state.updateProgressPercent,

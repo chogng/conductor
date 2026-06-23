@@ -9,25 +9,16 @@ export type WorkbenchTitlebarActivePage =
   | LayoutView
   | string;
 
-export type WorkbenchTitlebarFileOption = {
-  readonly value: string;
-  readonly label: string;
-};
-
 export type WorkbenchTitlebarState = {
-  readonly activeFileId?: string | null;
   readonly activePage?: LayoutView;
   readonly canNavigateBack?: boolean;
   readonly canNavigateForward?: boolean;
   readonly chartIntentCommandId?: string;
   readonly enabled?: boolean;
-  readonly fileSelectionCommandId?: string;
-  readonly fileOptions?: WorkbenchTitlebarFileOption[];
   readonly installUpdateCommandId?: string | null;
   readonly isSidebarVisible?: boolean;
   readonly isUpdateReadyToInstall?: boolean;
   readonly isUpdateVisible?: boolean;
-  readonly showFileSelector?: boolean;
   readonly updateCommandId?: string | null;
   readonly updateLabel?: string | null;
   readonly updateProgressPercent?: number | null;

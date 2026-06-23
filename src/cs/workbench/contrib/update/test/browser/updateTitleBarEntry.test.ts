@@ -153,6 +153,151 @@ suite("workbench/contrib/update/test/browser/updateTitleBarEntry", () => {
       updateService.dispose();
     }
   });
+
+  test("projects in-progress and error statuses into titlebar state", () => {
+    const cases: Array<{
+      readonly canCheckForUpdates?: boolean;
+      readonly expectedCommandId: string | null;
+      readonly expectedLabel: string;
+      readonly expectedVersion: string | null;
+      readonly status: DesktopUpdateStatus;
+    }> = [
+      {
+        expectedCommandId: UpdateCommandId.checking,
+        expectedLabel: "update.titlebar.checking",
+        expectedVersion: null,
+        status: {
+          status: "checking",
+          version: null,
+          channel: "github",
+          isStoreManaged: false,
+          message: null,
+          progressPercent: null,
+        },
+      },
+      {
+        expectedCommandId: UpdateCommandId.updating,
+        expectedLabel: "update.titlebar.installing",
+        expectedVersion: "1.2.5",
+        status: {
+          status: "updating",
+          version: "1.2.5",
+          channel: "github",
+          isStoreManaged: false,
+          message: null,
+          progressPercent: null,
+        },
+      },
+      {
+        expectedCommandId: UpdateCommandId.check,
+        expectedLabel: "update.titlebar.error",
+        expectedVersion: null,
+        status: {
+          status: "error",
+          version: null,
+          channel: "github",
+          isStoreManaged: false,
+          message: "Failed to check for updates.",
+          progressPercent: null,
+        },
+      },
+      {
+        canCheckForUpdates: false,
+        expectedCommandId: null,
+        expectedLabel: "update.titlebar.error",
+        expectedVersion: null,
+        status: {
+          status: "error",
+          version: null,
+          channel: "none",
+          isStoreManaged: false,
+          message: "Updates are unavailable.",
+          progressPercent: null,
+        },
+      },
+    ];
+
+    for (const testCase of cases) {
+      const updateService = new TestUpdateService(
+        testCase.status,
+        testCase.canCheckForUpdates ?? true,
+      );
+      const titleService = new TestTitleService();
+      const entry = new UpdateTitleBarEntry(updateService, titleService);
+
+      try {
+        assert.deepStrictEqual(titleService.state, {
+          installUpdateCommandId: "update.install",
+          isUpdateReadyToInstall: false,
+          isUpdateVisible: true,
+          updateCommandId: testCase.expectedCommandId,
+          updateLabel: testCase.expectedLabel,
+          updateProgressPercent: null,
+          updateTooltip: getUpdateTooltipText(
+            testCase.status,
+            testCase.canCheckForUpdates ?? true,
+          ),
+          updateVersion: testCase.expectedVersion,
+        });
+      } finally {
+        entry.dispose();
+        titleService.dispose();
+        updateService.dispose();
+      }
+    }
+  });
+
+  test("hides titlebar update state for unavailable update statuses", () => {
+    const cases: DesktopUpdateStatus[] = [
+      {
+        status: "idle",
+        version: "1.2.3",
+        channel: "github",
+        isStoreManaged: false,
+        message: null,
+        progressPercent: null,
+      },
+      {
+        status: "disabled",
+        version: null,
+        channel: "none",
+        isStoreManaged: false,
+        message: "Updates are disabled.",
+        progressPercent: null,
+      },
+      {
+        status: "unsupported",
+        version: null,
+        channel: "unsupported",
+        isStoreManaged: false,
+        message: "Updates are unsupported.",
+        progressPercent: null,
+      },
+    ];
+
+    for (const status of cases) {
+      const updateService = new TestUpdateService(status);
+      const titleService = new TestTitleService();
+      const entry = new UpdateTitleBarEntry(updateService, titleService);
+
+      try {
+        assert.deepStrictEqual(titleService.state, {
+          installUpdateCommandId: "update.install",
+          isUpdateReadyToInstall: false,
+          isUpdateVisible: false,
+          updateCommandId: null,
+          updateLabel: null,
+          updateProgressPercent: null,
+          updateTooltip: null,
+          updateVersion: null,
+        });
+      } finally {
+        entry.dispose();
+        titleService.dispose();
+        updateService.dispose();
+      }
+    }
+  });
 });
 
 class TestUpdateService extends Disposable implements IWorkbenchUpdateService {
@@ -162,12 +307,15 @@ class TestUpdateService extends Disposable implements IWorkbenchUpdateService {
     this._register(new Emitter<DesktopUpdateStatus>());
   public readonly onDidChangeStatus = this.onDidChangeStatusEmitter.event;
 
-  public constructor(private status: DesktopUpdateStatus) {
+  public constructor(
+    private status: DesktopUpdateStatus,
+    private readonly canCheck = true,
+  ) {
     super();
   }
 
   public canCheckForUpdates(): boolean {
-    return true;
+    return this.canCheck;
   }
 
   public checkForUpdates(): Promise<unknown> {

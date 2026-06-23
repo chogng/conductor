@@ -8,21 +8,15 @@ import {
   type IActionViewItem,
   type IActionViewItemOptions,
 } from "src/cs/base/browser/ui/actionbar/actionViewItem";
-import { getBaseLayerHoverDelegate } from "src/cs/base/browser/ui/hover/hoverDelegate";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import {
   Disposable,
-  DisposableStore,
   type IDisposable,
 } from "src/cs/base/common/lifecycle";
 import { ICommandService } from "src/cs/platform/commands/common/commands";
 import { INativeHostService } from "src/cs/platform/native/common/native";
-import { localize } from "src/cs/nls";
 import * as WorkbenchTitlebarActions from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
 import type { WorkbenchTitlebarPageButton } from "src/cs/workbench/browser/parts/titlebar/titlebarActions";
-import {
-  type WorkbenchTitlebarFileOption,
-} from "src/cs/workbench/services/title/browser/titleService";
 import type { WorkbenchTitlebarProps } from "src/cs/workbench/browser/parts/titlebar/windowTitle";
 
 export const WORKBENCH_TITLEBAR_DRAG_REGION_STYLE = {
@@ -250,69 +244,105 @@ class TitlebarActionViewItem extends ActionViewItem {
   }
 }
 
+class TitlebarUpdateRuntimeAction extends Action {
+  public readonly titlebarClassName =
+    "titlebar-action-button titlebar-update-button";
+  public updateCommandId: string | undefined;
+  private progressPercent: number | null = null;
+
+  public constructor(
+    private readonly commandService: ICommandService | undefined,
+  ) {
+    super(
+      WorkbenchTitlebarActions.WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID,
+      "",
+      "",
+      true,
+    );
+  }
+
+  public override async run(): Promise<void> {
+    if (this.updateCommandId) {
+      await this.commandService?.executeCommand(this.updateCommandId);
+    }
+  }
+
+  public get updateProgressPercent(): number | null {
+    return this.progressPercent;
+  }
+
+  public setUpdateProgressPercent(value: number | null): void {
+    if (this.progressPercent !== value) {
+      this.progressPercent = value;
+      this.onDidChangeEmitter.fire({ class: this.class });
+    }
+  }
+}
+
+class TitlebarUpdateActionViewItem extends ActionViewItem {
+  constructor(
+    action: TitlebarUpdateRuntimeAction,
+    options: IActionViewItemOptions,
+  ) {
+    super(undefined, action, {
+      ...options,
+      icon: false,
+      label: true,
+    });
+  }
+
+  public override render(container: HTMLElement): void {
+    super.render(container);
+    if (this.label) {
+      this.label.id = this.action.id;
+    }
+    this.updateProgressStyle();
+  }
+
+  protected override updateClass(): void {
+    if (!this.label || !(this.action instanceof TitlebarUpdateRuntimeAction)) {
+      return;
+    }
+
+    this.label.className = this.action.titlebarClassName;
+    if (this.action.class) {
+      this.label.classList.add(...this.action.class.split(/\s+/g).filter(Boolean));
+    }
+    this.updateProgressStyle();
+  }
+
+  protected override updateLabel(): void {
+    super.updateLabel();
+    this.updateProgressStyle();
+  }
+
+  private updateProgressStyle(): void {
+    if (!this.label || !(this.action instanceof TitlebarUpdateRuntimeAction)) {
+      return;
+    }
+
+    this.label.style.removeProperty("--titlebar-update-progress");
+    if (this.action.updateProgressPercent !== null) {
+      this.label.style.setProperty(
+        "--titlebar-update-progress",
+        `${this.action.updateProgressPercent}%`,
+      );
+    }
+  }
+}
+
 const createTitlebarActionBar = (
   contentClassName: string,
 ): ActionBar => new ActionBar({
   className: "titlebar-actionbar",
   contentClassName,
   actionViewItemProvider: (action, options): IActionViewItem | undefined =>
-    isWorkbenchTitlebarRuntimeAction(action)
+    action instanceof TitlebarUpdateRuntimeAction
+      ? new TitlebarUpdateActionViewItem(action, options)
+      : isWorkbenchTitlebarRuntimeAction(action)
       ? new TitlebarActionViewItem(action, options)
       : undefined,
 });
-
-const setupTooltipHover = (
-  target: HTMLElement,
-  tooltip: string,
-  hoverStore?: DisposableStore,
-): void => {
-  if (!tooltip || !hoverStore) {
-    return;
-  }
-
-  target.removeAttribute("title");
-  target.setAttribute("aria-label", tooltip);
-  hoverStore.add(getBaseLayerHoverDelegate().setupManagedHover(target, tooltip));
-};
-
-const createFileSelector = ({
-  activeFileId,
-  commandId,
-  commandService,
-  options,
-}: {
-  activeFileId: string | null;
-  commandId?: string;
-  commandService?: ICommandService;
-  options: WorkbenchTitlebarFileOption[];
-}): { readonly element: HTMLElement; readonly select: HTMLSelectElement } => {
-  const wrapper = createElement("div", {
-    className: "titlebar-file-select",
-  });
-  const select = createElement("select", {
-    id: "workbench-titlebar-file-select",
-    className: "titlebar-file-select-native neutral-select",
-    "aria-label": localize("titlebar.fileAriaLabel", "File"),
-  });
-
-  select.value = activeFileId ?? "";
-  select.addEventListener("change", () => {
-    if (commandId) {
-      void commandService?.executeCommand(commandId, select.value);
-    }
-  });
-
-  for (const option of options) {
-    const optionElement = createElement("option", {
-      value: option.value,
-    });
-    optionElement.textContent = option.label;
-    select.appendChild(optionElement);
-  }
-
-  wrapper.appendChild(select);
-  return { element: wrapper, select };
-};
 
 const createQuickAccessButton = (
   commandService?: ICommandService,
@@ -343,7 +373,7 @@ type WorkbenchTitlebarViewRefs = {
   readonly sidebarAction: WorkbenchTitlebarRuntimeAction;
   readonly navActions: ReadonlyMap<string, WorkbenchTitlebarRuntimeAction>;
   readonly pageActions: ReadonlyMap<string, WorkbenchTitlebarRuntimeAction>;
-  readonly fileSelect?: HTMLSelectElement;
+  readonly updateAction?: TitlebarUpdateRuntimeAction;
 };
 
 class WorkbenchTitlebarView extends Disposable {
@@ -399,9 +429,8 @@ class WorkbenchTitlebarView extends Disposable {
       }
     }
 
-    const activeFileId = props.activeFileId ?? "";
-    if (this.refs.fileSelect && this.refs.fileSelect.value !== activeFileId) {
-      this.refs.fileSelect.value = activeFileId;
+    if (this.refs.updateAction && props.updateAction?.isVisible === true) {
+      syncTitlebarUpdateAction(this.refs.updateAction, props.updateAction);
     }
 
     this.syncWindowControls();
@@ -443,26 +472,19 @@ const createTrailingSpacer = (): HTMLElement => createElement("div", {
 const createWorkbenchTitlebarView = (
   {
     activePage,
-    activeFileId = null,
     chartIntentCommandId,
     chrome,
-    fileOptions = [],
-    fileSelectionCommandId,
     canNavigateBack = false,
     canNavigateForward = false,
     commandService,
     id = WORKBENCH_TITLEBAR_ID,
     isSidebarVisible = true,
     nativeHostService,
-    showFileSelector = false,
     updateAction,
   }: WorkbenchTitlebarProps,
-  hoverStore?: DisposableStore,
 ): WorkbenchTitlebarView => {
   const showBrandIcon = chrome?.showBrandIcon ?? true;
   const windowControlsSide = chrome?.windowControlsSide;
-  const normalizedFileOptions =
-    WorkbenchTitlebarActions.normalizeWorkbenchTitlebarFileOptions(fileOptions);
   const navButtons = WorkbenchTitlebarActions.createWorkbenchTitlebarNavButtons(
     canNavigateBack,
     canNavigateForward,
@@ -490,7 +512,7 @@ const createWorkbenchTitlebarView = (
   const actionBarDisposables: IDisposable[] = [];
   const navActionsById = new Map<string, WorkbenchTitlebarRuntimeAction>();
   const pageActionsById = new Map<string, WorkbenchTitlebarRuntimeAction>();
-  let fileSelect: HTMLSelectElement | undefined;
+  let updateRuntimeAction: TitlebarUpdateRuntimeAction | undefined;
 
   const navActionBar = createTitlebarActionBar([
     "titlebar-controls",
@@ -534,58 +556,19 @@ const createWorkbenchTitlebarView = (
 
   center.appendChild(createQuickAccessButton(commandService));
 
-  if (showFileSelector && normalizedFileOptions.length > 0) {
-    const selector = createFileSelector({
-      activeFileId: activeFileId,
-      commandId: fileSelectionCommandId,
-      commandService,
-      options: normalizedFileOptions,
-    });
-    center.appendChild(selector.element);
-    fileSelect = selector.select;
-  }
-
   const rightControls = createElement("div", {
     className: "titlebar-right titlebar-controls",
   });
 
-  if (updateAction?.isVisible === true) {
-    const updateTitle =
-      WorkbenchTitlebarActions.getWorkbenchTitlebarUpdateTitle(updateAction);
-    const updateProgressPercent =
-      normalizeTitlebarUpdateProgressPercent(updateAction.progressPercent);
-    const updateButton = createElement("button", {
-      id: WorkbenchTitlebarActions.WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID,
-      type: "button",
-      "aria-label": updateTitle,
-      title: updateTitle,
-      className: [
-        "titlebar-action-button",
-        "titlebar-update-button",
-        updateProgressPercent !== null
-          ? "titlebar-update-button--progress"
-          : "",
-      ].filter(Boolean).join(" "),
-    });
-    updateButton.textContent =
-      WorkbenchTitlebarActions.getWorkbenchTitlebarUpdateLabel(updateAction);
-    if (updateProgressPercent !== null) {
-      updateButton.style.setProperty(
-        "--titlebar-update-progress",
-        `${updateProgressPercent}%`,
-      );
-    }
-    updateButton.addEventListener("click", () => {
-      if (updateAction.commandId) {
-        void commandService?.executeCommand(updateAction.commandId);
-      }
-    });
-    setupTooltipHover(updateButton, updateTitle, hoverStore);
-    rightControls.appendChild(updateButton);
-  }
-
   const pageActionBar = createTitlebarActionBar("titlebar-controls");
   actionBarDisposables.push(pageActionBar);
+  if (updateAction?.isVisible === true) {
+    updateRuntimeAction = new TitlebarUpdateRuntimeAction(commandService);
+    syncTitlebarUpdateAction(updateRuntimeAction, updateAction);
+    actionBarDisposables.push(updateRuntimeAction);
+    pageActionBar.push(updateRuntimeAction, { label: true });
+  }
+
   for (const button of pageButtons) {
     const runtimeAction = createTitlebarRuntimeAction({
       commandId: button.commandId,
@@ -641,10 +624,10 @@ const createWorkbenchTitlebarView = (
   return new WorkbenchTitlebarView(
     appendChildren(header, [leftControls, center, rightControls]),
     {
-      fileSelect,
       navActions: navActionsById,
       pageActions: pageActionsById,
       sidebarAction: sidebarRuntimeAction,
+      updateAction: updateRuntimeAction,
     },
     nativeHostService,
     actionBarDisposables,
@@ -653,26 +636,7 @@ const createWorkbenchTitlebarView = (
 
 export const createWorkbenchTitlebarElement = (
   props: WorkbenchTitlebarProps,
-  hoverStore?: DisposableStore,
-): HTMLElement => createWorkbenchTitlebarView(props, hoverStore).element;
-
-const sameFileOptions = (
-  prevOptions: WorkbenchTitlebarFileOption[] | undefined,
-  nextOptions: WorkbenchTitlebarFileOption[] | undefined,
-): boolean => {
-  const prev =
-    WorkbenchTitlebarActions.normalizeWorkbenchTitlebarFileOptions(prevOptions);
-  const next =
-    WorkbenchTitlebarActions.normalizeWorkbenchTitlebarFileOptions(nextOptions);
-  if (prev.length !== next.length) {
-    return false;
-  }
-
-  return prev.every((option, index) =>
-    option.value === next[index]?.value &&
-    option.label === next[index]?.label,
-  );
-};
+): HTMLElement => createWorkbenchTitlebarView(props).element;
 
 const shouldRecreateTitlebar = (
   prev: WorkbenchTitlebarProps,
@@ -680,18 +644,10 @@ const shouldRecreateTitlebar = (
 ): boolean =>
   prev.id !== next.id ||
   prev.commandService !== next.commandService ||
-  prev.showFileSelector !== next.showFileSelector ||
-  prev.fileSelectionCommandId !== next.fileSelectionCommandId ||
   prev.chartIntentCommandId !== next.chartIntentCommandId ||
   prev.chrome?.showBrandIcon !== next.chrome?.showBrandIcon ||
   prev.chrome?.windowControlsSide !== next.chrome?.windowControlsSide ||
-  prev.updateAction?.isVisible !== next.updateAction?.isVisible ||
-  prev.updateAction?.label !== next.updateAction?.label ||
-  prev.updateAction?.progressPercent !== next.updateAction?.progressPercent ||
-  prev.updateAction?.tooltip !== next.updateAction?.tooltip ||
-  prev.updateAction?.version !== next.updateAction?.version ||
-  prev.updateAction?.commandId !== next.updateAction?.commandId ||
-  !sameFileOptions(prev.fileOptions, next.fileOptions);
+  prev.updateAction?.isVisible !== next.updateAction?.isVisible;
 
 const normalizeTitlebarUpdateProgressPercent = (value: unknown): number | null => {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -701,9 +657,27 @@ const normalizeTitlebarUpdateProgressPercent = (value: unknown): number | null =
   return Math.max(0, Math.min(100, Math.round(value)));
 };
 
+const syncTitlebarUpdateAction = (
+  action: TitlebarUpdateRuntimeAction,
+  updateAction: NonNullable<WorkbenchTitlebarProps["updateAction"]>,
+): void => {
+  const updateTitle =
+    WorkbenchTitlebarActions.getWorkbenchTitlebarUpdateTitle(updateAction);
+  const updateProgressPercent =
+    normalizeTitlebarUpdateProgressPercent(updateAction.progressPercent);
+
+  action.updateCommandId = updateAction.commandId;
+  action.label =
+    WorkbenchTitlebarActions.getWorkbenchTitlebarUpdateLabel(updateAction);
+  action.tooltip = updateTitle;
+  action.class = updateProgressPercent !== null
+    ? "titlebar-update-button--progress"
+    : "";
+  action.setUpdateProgressPercent(updateProgressPercent);
+};
+
 export class WorkbenchTitlebarPart {
   private contentArea: HTMLElement | null = null;
-  private readonly hoverStore = new DisposableStore();
   private renderedProps: WorkbenchTitlebarProps | undefined;
   private titlebarView: WorkbenchTitlebarView | undefined;
 
@@ -727,8 +701,7 @@ export class WorkbenchTitlebarPart {
     const contentArea = this.createContentArea();
     if (!this.renderedProps || shouldRecreateTitlebar(this.renderedProps, props)) {
       this.titlebarView?.dispose();
-      this.hoverStore.clear();
-      this.titlebarView = createWorkbenchTitlebarView(props, this.hoverStore);
+      this.titlebarView = createWorkbenchTitlebarView(props);
       contentArea.replaceChildren(this.titlebarView.element);
       this.titlebarView.syncWindowControls();
       this.renderedProps = props;
@@ -742,7 +715,6 @@ export class WorkbenchTitlebarPart {
 
   clear(): void {
     this.titlebarView?.dispose();
-    this.hoverStore.clear();
     this.contentArea?.replaceChildren();
     this.renderedProps = undefined;
     this.titlebarView = undefined;
@@ -754,7 +726,6 @@ export class WorkbenchTitlebarPart {
 
   dispose(): void {
     this.clear();
-    this.hoverStore.dispose();
     this.contentArea?.remove();
     this.contentArea = null;
   }

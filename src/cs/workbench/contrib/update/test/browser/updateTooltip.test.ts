@@ -114,6 +114,189 @@ suite("workbench/contrib/update/test/browser/updateTooltip", () => {
       updateService.dispose();
     }
   });
+
+  test("renders tooltip actions for each update status", () => {
+    const cases: Array<{
+      readonly canCheckForUpdates?: boolean;
+      readonly expectedActionCommandId?: string;
+      readonly expectedActionLabel?: string;
+      readonly expectedStatusLabel: string;
+      readonly expectedTitle: string;
+      readonly status: DesktopUpdateStatus;
+    }> = [
+      {
+        expectedActionCommandId: UpdateCommandId.check,
+        expectedActionLabel: "update.tooltip.checkButton",
+        expectedStatusLabel: "update.tooltip.state.idle",
+        expectedTitle: "update.tooltip.idleTitle",
+        status: {
+          status: "idle",
+          version: null,
+          channel: "none",
+          isStoreManaged: false,
+          message: null,
+          progressPercent: null,
+        },
+      },
+      {
+        expectedStatusLabel: "update.tooltip.state.checking",
+        expectedTitle: "update.tooltip.checkingTitle",
+        status: {
+          status: "checking",
+          version: null,
+          channel: "github",
+          isStoreManaged: false,
+          message: null,
+          progressPercent: null,
+        },
+      },
+      {
+        expectedActionCommandId: UpdateCommandId.downloadNow,
+        expectedActionLabel: "update.tooltip.downloadButton",
+        expectedStatusLabel: "update.tooltip.state.available",
+        expectedTitle: "update.tooltip.availableTitle",
+        status: {
+          status: "available",
+          version: "1.2.4",
+          channel: "github",
+          isStoreManaged: false,
+          message: null,
+          progressPercent: null,
+        },
+      },
+      {
+        expectedStatusLabel: "update.tooltip.state.downloading",
+        expectedTitle: "update.tooltip.downloadingTitle",
+        status: {
+          status: "downloading",
+          version: "1.2.4",
+          channel: "generic",
+          isStoreManaged: false,
+          message: null,
+          progressPercent: 42,
+        },
+      },
+      {
+        expectedActionCommandId: UpdateCommandId.install,
+        expectedActionLabel: "update.tooltip.installButton",
+        expectedStatusLabel: "update.tooltip.state.downloaded",
+        expectedTitle: "update.tooltip.downloadedTitle",
+        status: {
+          status: "downloaded",
+          version: "1.2.4",
+          channel: "github",
+          isStoreManaged: false,
+          message: null,
+          progressPercent: null,
+        },
+      },
+      {
+        expectedStatusLabel: "update.tooltip.state.updating",
+        expectedTitle: "update.tooltip.updatingTitle",
+        status: {
+          status: "updating",
+          version: "1.2.4",
+          channel: "github",
+          isStoreManaged: false,
+          message: null,
+          progressPercent: null,
+        },
+      },
+      {
+        expectedActionCommandId: UpdateCommandId.check,
+        expectedActionLabel: "update.tooltip.retryButton",
+        expectedStatusLabel: "update.tooltip.state.error",
+        expectedTitle: "update.tooltip.errorTitle",
+        status: {
+          status: "error",
+          version: null,
+          channel: "github",
+          isStoreManaged: false,
+          message: "Failed to check for updates.",
+          progressPercent: null,
+        },
+      },
+      {
+        canCheckForUpdates: false,
+        expectedStatusLabel: "update.tooltip.state.error",
+        expectedTitle: "update.tooltip.errorTitle",
+        status: {
+          status: "error",
+          version: null,
+          channel: "none",
+          isStoreManaged: false,
+          message: "Updates are unavailable.",
+          progressPercent: null,
+        },
+      },
+      {
+        expectedStatusLabel: "update.tooltip.state.disabled",
+        expectedTitle: "update.tooltip.disabledTitle",
+        status: {
+          status: "disabled",
+          version: null,
+          channel: "none",
+          isStoreManaged: false,
+          message: null,
+          progressPercent: null,
+        },
+      },
+      {
+        expectedStatusLabel: "update.tooltip.state.unsupported",
+        expectedTitle: "update.tooltip.unsupportedTitle",
+        status: {
+          status: "unsupported",
+          version: null,
+          channel: "unsupported",
+          isStoreManaged: false,
+          message: null,
+          progressPercent: null,
+        },
+      },
+    ];
+
+    for (const testCase of cases) {
+      const updateService = new TestUpdateService(
+        testCase.status,
+        testCase.canCheckForUpdates ?? true,
+      );
+      const commands: string[] = [];
+      const tooltip = new UpdateTooltip(updateService, createCommandService(commands));
+
+      try {
+        assert.strictEqual(
+          tooltip.domNode.querySelector(".update-tooltip__title")?.textContent,
+          testCase.expectedTitle,
+        );
+        assert.strictEqual(
+          tooltip.domNode.querySelector(".update-tooltip__detail-value")?.textContent,
+          testCase.expectedStatusLabel,
+        );
+
+        const actionButton =
+          tooltip.domNode.querySelector<HTMLButtonElement>(".update-tooltip__action");
+        if (testCase.expectedActionCommandId) {
+          assert.strictEqual(
+            tooltip.domNode.querySelector<HTMLElement>(".update-tooltip__buttons")?.style.display,
+            "",
+          );
+          assert.strictEqual(actionButton?.textContent, testCase.expectedActionLabel);
+          assert.strictEqual(actionButton?.dataset.commandId, testCase.expectedActionCommandId);
+          actionButton?.click();
+          assert.deepStrictEqual(commands, [testCase.expectedActionCommandId]);
+        } else {
+          assert.strictEqual(
+            tooltip.domNode.querySelector<HTMLElement>(".update-tooltip__buttons")?.style.display,
+            "none",
+          );
+          assert.strictEqual(actionButton?.dataset.commandId, "");
+        }
+      } finally {
+        tooltip.dispose();
+        updateService.dispose();
+      }
+    }
+  });
 });
 
 class TestUpdateService extends Disposable implements IWorkbenchUpdateService {
@@ -123,12 +306,15 @@ class TestUpdateService extends Disposable implements IWorkbenchUpdateService {
     this._register(new Emitter<DesktopUpdateStatus>());
   public readonly onDidChangeStatus = this.onDidChangeStatusEmitter.event;
 
-  public constructor(private status: DesktopUpdateStatus) {
+  public constructor(
+    private status: DesktopUpdateStatus,
+    private readonly canCheck = true,
+  ) {
     super();
   }
 
   public canCheckForUpdates(): boolean {
-    return true;
+    return this.canCheck;
   }
 
   public checkForUpdates(): Promise<unknown> {

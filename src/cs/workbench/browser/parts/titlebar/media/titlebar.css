@@ -112,61 +112,6 @@ html.workbench-transparent-chrome-windows .titlebar-root {
   white-space: nowrap;
 }
 
-.titlebar-file-select {
-  display: inline-flex;
-  flex: 0 0 auto;
-  max-width: 100%;
-  padding-left: 8px;
-  padding-right: 8px;
-  width: fit-content;
-  -webkit-app-region: no-drag;
-}
-
-.titlebar-file-select .ui-select_warp {
-  display: inline-flex;
-  flex: 0 0 auto;
-  max-width: 100%;
-  width: fit-content;
-}
-
-.titlebar-file-select .inputbox_field {
-  background: transparent;
-  border-color: transparent;
-  width: fit-content;
-}
-
-.titlebar-file-select .inputbox_native {
-  flex: none;
-  width: max-content;
-}
-
-.titlebar-file-select .inputbox_field[data-state="enable"]:hover,
-.titlebar-file-select .inputbox_field[data-state="enable"]:focus-within {
-  background: rgb(var(--bg-200) / 0.5);
-  color: rgb(var(--text-primary));
-}
-
-.titlebar-file-select-native {
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  color: rgb(var(--text-primary));
-  font-size: 14px;
-  height: 28px;
-  max-width: 36rem;
-  outline: none;
-  padding-left: 8px;
-  padding-right: 8px;
-  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease;
-  width: fit-content;
-  -webkit-app-region: no-drag;
-}
-
-.titlebar-file-select-native:hover,
-.titlebar-file-select-native:focus {
-  background: rgb(var(--bg-200) / 0.5);
-}
-
 /* Shared titlebar control rows. */
 .titlebar-controls {
   align-items: center;
@@ -251,7 +196,9 @@ html.workbench-transparent-chrome-windows .titlebar-root {
 }
 
 .titlebar-update-button {
-  min-width: 76px;
+  padding-left: 8px;
+  padding-right: 8px;
+  white-space: nowrap;
 }
 
 .titlebar-update-button--progress {
@@ -260,9 +207,8 @@ html.workbench-transparent-chrome-windows .titlebar-root {
       90deg,
       rgb(var(--accent) / 0.22) var(--titlebar-update-progress),
       transparent var(--titlebar-update-progress)
-    );
+  );
   color: rgb(var(--text-primary));
-  min-width: 116px;
 }
 
 .titlebar-update-button--progress:hover {
@@ -401,11 +347,6 @@ html.workbench-transparent-chrome-windows .titlebar-root {
 
   .titlebar-controls {
     gap: 2px;
-  }
-
-  .titlebar-file-select {
-    padding-left: 4px;
-    padding-right: 4px;
   }
 
   .titlebar-quick-access-button {

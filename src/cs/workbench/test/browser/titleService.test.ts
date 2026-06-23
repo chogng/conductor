@@ -193,7 +193,6 @@ suite("workbench/browser/titleService", () => {
     titleService.updateTitlebarState({
       chartIntentCommandId: "chart.intent",
       enabled: true,
-      fileSelectionCommandId: "files.pick",
       installUpdateCommandId: "update.install",
       isUpdateReadyToInstall: true,
       isUpdateVisible: true,
@@ -206,7 +205,6 @@ suite("workbench/browser/titleService", () => {
 
     assert.deepEqual({
       chartIntentCommandId: state?.chartIntentCommandId,
-      fileSelectionCommandId: state?.fileSelectionCommandId,
       installUpdateCommandId: state?.installUpdateCommandId,
       isUpdateVisible: state?.isUpdateVisible,
       updateCommandId: state?.updateCommandId,
@@ -214,7 +212,6 @@ suite("workbench/browser/titleService", () => {
       updateProgressPercent: state?.updateProgressPercent,
     }, {
       chartIntentCommandId: "chart.intent",
-      fileSelectionCommandId: "files.pick",
       installUpdateCommandId: "update.install",
       isUpdateVisible: true,
       updateCommandId: "update.downloadNow",
@@ -233,8 +230,8 @@ suite("workbench/browser/titleService", () => {
     const titleService = new BrowserTitleService(testCommandService, layoutService, testNativeHostService);
 
     titleService.updateTitlebarState({
+      chartIntentCommandId: "chart.intent",
       enabled: true,
-      fileSelectionCommandId: "files.pick",
     });
     titleService.patchTitlebarState({
       installUpdateCommandId: "update.install",
@@ -252,7 +249,7 @@ suite("workbench/browser/titleService", () => {
     assert.deepStrictEqual({
       activePage: state?.activePage,
       canNavigateBack: state?.canNavigateBack,
-      fileSelectionCommandId: state?.fileSelectionCommandId,
+      chartIntentCommandId: state?.chartIntentCommandId,
       installUpdateCommandId: state?.installUpdateCommandId,
       isUpdateReadyToInstall: state?.isUpdateReadyToInstall,
       isUpdateVisible: state?.isUpdateVisible,
@@ -263,7 +260,7 @@ suite("workbench/browser/titleService", () => {
     }, {
       activePage: "chart",
       canNavigateBack: true,
-      fileSelectionCommandId: "files.pick",
+      chartIntentCommandId: "chart.intent",
       installUpdateCommandId: "update.install",
       isUpdateReadyToInstall: true,
       isUpdateVisible: true,
@@ -284,8 +281,8 @@ suite("workbench/browser/titleService", () => {
     const titleService = new BrowserTitleService(testCommandService, layoutService, testNativeHostService);
 
     titleService.updateTitlebarState({
+      chartIntentCommandId: "chart.intent",
       enabled: true,
-      fileSelectionCommandId: "files.pick",
     });
     titleService.patchTitlebarState({
       installUpdateCommandId: "update.install",
@@ -298,14 +295,14 @@ suite("workbench/browser/titleService", () => {
       updateVersion: "1.2.3",
     });
     titleService.updateTitlebarState({
+      chartIntentCommandId: "chart.nextIntent",
       enabled: true,
-      fileSelectionCommandId: "files.next",
     });
 
     const state = titleService.getTitlebarState();
 
     assert.deepStrictEqual({
-      fileSelectionCommandId: state?.fileSelectionCommandId,
+      chartIntentCommandId: state?.chartIntentCommandId,
       installUpdateCommandId: state?.installUpdateCommandId,
       isUpdateReadyToInstall: state?.isUpdateReadyToInstall,
       isUpdateVisible: state?.isUpdateVisible,
@@ -315,7 +312,7 @@ suite("workbench/browser/titleService", () => {
       updateTooltip: state?.updateTooltip,
       updateVersion: state?.updateVersion,
     }, {
-      fileSelectionCommandId: "files.next",
+      chartIntentCommandId: "chart.nextIntent",
       installUpdateCommandId: "update.install",
       isUpdateReadyToInstall: true,
       isUpdateVisible: true,

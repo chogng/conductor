@@ -4,7 +4,6 @@ import { WorkbenchLayoutCommandId } from "src/cs/workbench/browser/actions/layou
 import { createWorkbenchSidebarToggleButton } from "src/cs/workbench/browser/parts/sidebar/sidebarActions";
 import { QuickAccessCommandId } from "src/cs/workbench/contrib/quickaccess/common/quickAccessCommands";
 import type { LayoutView } from "src/cs/workbench/services/layout/browser/layoutService";
-import type { WorkbenchTitlebarFileOption } from "src/cs/workbench/services/title/browser/titleService";
 
 export const WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID =
   "workbench-titlebar-update-button";
@@ -54,18 +53,6 @@ export type WorkbenchTitlebarUpdateInfo = {
   readonly tooltip?: string | null;
   readonly version?: string | null;
 };
-
-export const normalizeWorkbenchTitlebarFileOptions = (
-  options: WorkbenchTitlebarFileOption[] | undefined,
-): WorkbenchTitlebarFileOption[] =>
-  Array.isArray(options)
-    ? options.filter(
-        (option) =>
-          !!option &&
-          typeof option.value === "string" &&
-          typeof option.label === "string",
-      )
-    : [];
 
 export const createWorkbenchTitlebarSidebarButton = (
   isVisible: boolean,
