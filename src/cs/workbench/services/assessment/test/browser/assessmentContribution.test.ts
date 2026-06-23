@@ -28,17 +28,6 @@ import type {
 	SchemaProfile,
 	SchemaProfileSnapshot,
 } from "src/cs/workbench/services/schemaProfile/common/schemaProfile";
-import type {
-	IRecipeService,
-	RecipeSnapshot,
-} from "src/cs/workbench/services/recipe/common/recipe";
-import type {
-	ITemplateService,
-	TemplateApplyPresetRecord,
-	TemplateApplyPresetSaveInput,
-	TemplateSnapshot,
-} from "src/cs/workbench/services/template/common/template";
-import { createTemplateSnapshotFromApplyPresets } from "src/cs/workbench/services/template/common/templateLegacyAdapter";
 import {
 	createSchemaProfileFromConfirmation,
 	type ConfirmSchemaProfileInput,
@@ -198,96 +187,6 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 			[0, 1],
 		);
 		assert.equal(sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.schemaProfileVersion, 1);
-
-		contribution.dispose();
-		assessmentQueueService.dispose();
-	});
-
-	test("reassesses raw tables when recipe fingerprint changes", async () => {
-		const sessionService = store.add(new SessionService());
-		const assessmentService = new TestAssessmentService();
-		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
-		const recipeService = new TestRecipeService("recipe:first");
-		const assessmentQueueService = store.add(new AssessmentQueueService(
-			sessionService,
-			assessmentService,
-			rawTableRowsReaderService,
-			undefined,
-			recipeService,
-		));
-		const contribution = store.add(new AssessmentContribution(
-			sessionService,
-			assessmentQueueService,
-		));
-
-		sessionService.commitFileImport(createInlineImportResult());
-		await waitUntil(() => assessmentService.inputs.length === 1);
-		assert.equal(
-			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.recipeFingerprint,
-			"recipe:first",
-		);
-
-		recipeService.setFingerprint("recipe:second");
-		await waitUntil(() => assessmentService.inputs.length === 2);
-
-		assert.deepEqual(
-			assessmentService.inputs.map(input => input.recipeSnapshot?.fingerprint),
-			["recipe:first", "recipe:second"],
-		);
-		assert.equal(
-			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.recipeFingerprint,
-			"recipe:second",
-		);
-
-		contribution.dispose();
-		assessmentQueueService.dispose();
-	});
-
-	test("reassesses raw tables when template catalog version changes", async () => {
-		const sessionService = store.add(new SessionService());
-		const assessmentService = new TestAssessmentService();
-		const rawTableRowsReaderService = new TestRawTableRowsReaderService();
-		const templateService = new TestTemplateService();
-		const assessmentQueueService = store.add(new AssessmentQueueService(
-			sessionService,
-			assessmentService,
-			rawTableRowsReaderService,
-			undefined,
-			undefined,
-			templateService,
-		));
-		const contribution = store.add(new AssessmentContribution(
-			sessionService,
-			assessmentQueueService,
-		));
-
-		sessionService.commitFileImport(createInlineImportResult());
-		await waitUntil(() => assessmentService.inputs.length === 1);
-		assert.equal(
-			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.templateCatalogVersion,
-			0,
-		);
-
-		templateService.setTemplates([{
-			id: "saved-transfer",
-			name: "Saved Transfer",
-			xDataStart: "A2",
-			yColumns: [1],
-			applicability: {
-				schemaFingerprint: "dataname|vg|id",
-				columnCount: 2,
-			},
-		}]);
-		await waitUntil(() => assessmentService.inputs.length === 2);
-
-		assert.deepEqual(
-			assessmentService.inputs.map(input => input.templateSnapshot?.version ?? 0),
-			[0, 1],
-		);
-		assert.equal(
-			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.templateCatalogVersion,
-			1,
-		);
 
 		contribution.dispose();
 		assessmentQueueService.dispose();
@@ -467,84 +366,6 @@ suite("workbench/services/assessment/test/browser/assessmentContribution", () =>
 		assessmentQueueService.dispose();
 	});
 
-	test("discards stale queued assessment when recipe fingerprint changes while rows are loading", async () => {
-		const sessionService = store.add(new SessionService());
-		const assessmentService = new TestAssessmentService();
-		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
-		const recipeService = new TestRecipeService("recipe:first");
-		const assessmentQueueService = store.add(new AssessmentQueueService(
-			sessionService,
-			assessmentService,
-			rawTableRowsReaderService,
-			undefined,
-			recipeService,
-		));
-		const contribution = store.add(new AssessmentContribution(
-			sessionService,
-			assessmentQueueService,
-		));
-
-		sessionService.commitFileImport(createInlineImportResult());
-		await waitUntil(() => rawTableRowsReaderService.inputs.length === 1);
-		recipeService.setFingerprint("recipe:second");
-		rawTableRowsReaderService.resolveFirstRead();
-		await waitUntil(() => assessmentService.inputs.length === 1);
-
-		assert.deepEqual(
-			assessmentService.inputs.map(input => input.recipeSnapshot?.fingerprint),
-			["recipe:second"],
-		);
-		assert.equal(
-			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.recipeFingerprint,
-			"recipe:second",
-		);
-
-		contribution.dispose();
-		assessmentQueueService.dispose();
-	});
-
-	test("discards stale queued assessment when template catalog version changes while rows are loading", async () => {
-		const sessionService = store.add(new SessionService());
-		const assessmentService = new TestAssessmentService();
-		const rawTableRowsReaderService = new BlockingRawTableRowsReaderService();
-		const templateService = new TestTemplateService();
-		const assessmentQueueService = store.add(new AssessmentQueueService(
-			sessionService,
-			assessmentService,
-			rawTableRowsReaderService,
-			undefined,
-			undefined,
-			templateService,
-		));
-		const contribution = store.add(new AssessmentContribution(
-			sessionService,
-			assessmentQueueService,
-		));
-
-		sessionService.commitFileImport(createInlineImportResult());
-		await waitUntil(() => rawTableRowsReaderService.inputs.length === 1);
-		templateService.setTemplates([{
-			id: "saved-transfer",
-			name: "Saved Transfer",
-			xDataStart: "A2",
-			yColumns: [1],
-		}]);
-		rawTableRowsReaderService.resolveFirstRead();
-		await waitUntil(() => assessmentService.inputs.length === 1);
-
-		assert.deepEqual(
-			assessmentService.inputs.map(input => input.templateSnapshot?.version ?? 0),
-			[1],
-		);
-		assert.equal(
-			sessionService.getSnapshot().filesById["file-a"].assessmentsByRawTableId["table-a"]?.templateCatalogVersion,
-			1,
-		);
-
-		contribution.dispose();
-		assessmentQueueService.dispose();
-	});
-
 	test("publishes queued and running raw table assessment state", async () => {
 		const sessionService = store.add(new SessionService());
 		const assessmentService = new TestAssessmentService();
@@ -665,10 +486,8 @@ class TestAssessmentService implements IAssessmentService {
 			fileId: input.fileId,
 			rawTableId: input.rawTableId,
 			blockId,
-			recipeFingerprint: input.recipeSnapshot?.fingerprint ?? "recipe:legacy",
 			schemaProfileVersion: input.schemaProfileVersion ?? 0,
 			sourceRawTableVersion: input.sourceRawTableVersion,
-			templateCatalogVersion: input.templateSnapshot?.version ?? 0,
 		}));
 	}
 }
@@ -680,8 +499,6 @@ const createRawTableAssessmentRecord = ({
 	rawTableId,
 	schemaProfileVersion = 0,
 	sourceRawTableVersion,
-	templateCatalogVersion = 0,
-	recipeFingerprint = "recipe:legacy",
 }: {
 	readonly assessmentRuleVersion?: number;
 	readonly blockId?: string;
@@ -689,14 +506,9 @@ const createRawTableAssessmentRecord = ({
 	readonly rawTableId: string;
 	readonly schemaProfileVersion?: number;
 	readonly sourceRawTableVersion: number;
-	readonly templateCatalogVersion?: number;
-	readonly recipeFingerprint?: string;
 }): RawTableAssessmentRecord => ({
 	assessmentRuleVersion,
-	templateCatalogVersion,
-	recipeFingerprint,
 	schemaProfileVersion,
-	templateCandidates: [],
 	blocks: [{
 		columnCount: 2,
 		columns: {
@@ -805,71 +617,6 @@ class TestSchemaProfileService implements ISchemaProfileService {
 		this.onDidChangeSchemaProfilesEmitter.fire(this.getSnapshot());
 	}
 }
-
-class TestRecipeService implements IRecipeService {
-	public declare readonly _serviceBrand: undefined;
-
-	private readonly onDidChangeRecipesEmitter = new Emitter<void>();
-	public readonly onDidChangeRecipes = this.onDidChangeRecipesEmitter.event;
-	private snapshot: RecipeSnapshot;
-
-	public constructor(fingerprint: string) {
-		this.snapshot = createRecipeSnapshotForTest(fingerprint);
-	}
-
-	public setFingerprint(fingerprint: string): void {
-		this.snapshot = createRecipeSnapshotForTest(fingerprint);
-		this.onDidChangeRecipesEmitter.fire(undefined);
-	}
-
-	public getSnapshot(): RecipeSnapshot {
-		return this.snapshot;
-	}
-
-	public async reload(): Promise<void> {
-	}
-}
-
-class TestTemplateService implements ITemplateService {
-	public declare readonly _serviceBrand: undefined;
-
-	private readonly onDidChangeTemplatesEmitter = new Emitter<readonly TemplateApplyPresetRecord[]>();
-	public readonly onDidChangeTemplates = this.onDidChangeTemplatesEmitter.event;
-
-	private templates: readonly TemplateApplyPresetRecord[] = [];
-	private templateListVersion = 0;
-
-	public setTemplates(templates: readonly TemplateApplyPresetRecord[]): void {
-		this.templates = templates;
-		this.templateListVersion += 1;
-		this.onDidChangeTemplatesEmitter.fire(this.templates);
-	}
-
-	public getSnapshot(): TemplateSnapshot {
-		return createTemplateSnapshotFromApplyPresets(
-			this.templates,
-			this.templateListVersion,
-		);
-	}
-	public getTemplate(id: string): TemplateSnapshot["templates"][number] | undefined {
-		const templateId = String(id ?? "").trim();
-		return this.getSnapshot().templates.find(template => String(template.id ?? "").trim() === templateId);
-	}
-	public getTemplateList(): readonly TemplateApplyPresetRecord[] { return this.templates; }
-	public hasLoadedTemplateList(): boolean { return true; }
-	public refreshTemplates(): Promise<readonly TemplateApplyPresetRecord[]> { return Promise.resolve(this.templates); }
-	public deleteTemplate(_id: string): Promise<void> { return Promise.resolve(); }
-	public saveTemplate(template: TemplateApplyPresetSaveInput): Promise<TemplateApplyPresetRecord> { return Promise.resolve(template); }
-}
-
-const createRecipeSnapshotForTest = (
-	fingerprint: string,
-): RecipeSnapshot => ({
-	version: 1,
-	fingerprint,
-	recipes: [],
-	diagnostics: [],
-});
 
 const createInlineImportResult = (): FileImportResult => ({
 	createdAt: 123,

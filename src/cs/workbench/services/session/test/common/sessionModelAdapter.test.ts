@@ -292,10 +292,7 @@ suite("workbench/services/session/test/common/sessionModelAdapter", () => {
 
     const assessment: RawTableAssessmentRecord = {
       assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
-      recipeFingerprint: "recipe:test",
-      templateCatalogVersion: 0,
       schemaProfileVersion: 0,
-      templateCandidates: [],
       blocks: [{
         id: "file-a:block:0",
         fileId: "file-a",

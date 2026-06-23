@@ -26,13 +26,6 @@ import {
 } from "src/cs/workbench/services/assessment/common/assessmentRecord";
 import { createAssessmentDecision } from "src/cs/workbench/services/assessment/browser/assessmentDecisionPolicy";
 import type { AssessmentEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
-import {
-	toTemplateCandidateSummary,
-} from "src/cs/workbench/services/assessment/common/templateCandidate";
-import {
-	resolveTemplateCandidates,
-	selectTemplateCandidate,
-} from "src/cs/workbench/services/assessment/common/templateResolver";
 import { createProfileBackedAssessment } from "src/cs/workbench/services/assessment/common/schemaProfileAssessment";
 import { LegacyAssessmentAdapter } from "src/cs/workbench/services/assessment/browser/legacyAssessmentAdapter";
 
@@ -118,13 +111,6 @@ export class RawTableAssessmentEngine {
 				sourceRawTableVersion: input.sourceRawTableVersion,
 			},
 		};
-		const templateCandidates = resolveTemplateCandidates({
-			recipeSnapshot: input.recipeSnapshot,
-			evidence,
-			templateSnapshot: input.templateSnapshot,
-		});
-		const selectedTemplate = selectTemplateCandidate(templateCandidates, decision.autoApplyAllowed);
-
 		return createRawTableAssessmentRecordFromImportAssessment({
 			...input,
 			assessment: effectiveAssessment,
@@ -138,10 +124,8 @@ export class RawTableAssessmentEngine {
 			rows: input.rows,
 			schemaProfile: schemaProfileMatch?.profile ?? null,
 			schemaProfileVersion: input.schemaProfileVersion,
-			selectedTemplate,
 			semanticCandidates,
 			structure,
-			templateCandidates: templateCandidates.map(toTemplateCandidateSummary),
 		});
 	}
 }

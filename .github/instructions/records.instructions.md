@@ -34,7 +34,7 @@ at the type name.
 | `RawTableRecord` | `ISessionService` | `fileConverter.ts` | Physical rows/source/health/template eligibility. Use `rawTableId`; keep failed rows unavailable. |
 | `RawTableSourceRecord` | converter/session | CSV, Excel sheet, clipboard, manual, unknown | Source provenance only, not measurement semantics. |
 | `RawTableRowsRecord` | converter/session | inline, normalized CSV, unavailable | Large rows should use artifact/path references. |
-| `RawTableAssessmentRecord` | Assessment + Session | `IAssessmentService` | Tied to raw table version, assessment rule version, recipe fingerprint, template catalog version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, template candidates, selected template snapshot, decision, diagnostics. |
+| `RawTableAssessmentRecord` | Assessment + Session | `IAssessmentService` | Tied to raw table version, assessment rule version, and schema profile version; stores structure, column profiles, semantic candidates, groups, blocks, decision, and diagnostics. |
 | `MeasurementGroupRecord` | Assessment + Session | assessment | Group/device labels and ordered block ids. |
 | `MeasurementBlockRecord` | Assessment + Session | assessment | Measurement family/mode/source ranges/column roles. |
 | `SliceRun` | Slice + Session | slice execution | Executed template snapshot, source assessment signature, input ranges, output series ids, output curve keys, warnings, and errors. |
@@ -126,13 +126,9 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
   automatic-apply allowance, confidence, and gating reasons.
 - `RawTableAssessmentRecord.schemaProfileVersion` records the profile snapshot
   used for semantic evidence; profile changes make older assessments stale.
-- `RawTableAssessmentRecord.recipeFingerprint` records the recipe snapshot
-  used for template candidate derivation; recipe changes make older
-  candidates stale.
-- `RawTableAssessmentRecord.templateCatalogVersion` records the saved-template
-  catalog version used for exact saved-template candidates.
-- `RawTableAssessmentRecord.selectedTemplate` stores the Template snapshot that
-  Slice should execute for automatic mode.
+- Assessment records do not store Recipe fingerprints, Template catalog
+  versions, Template candidates, or selected Template snapshots. Slice owns
+  automatic recipe-to-Template materialization from current Assessment evidence.
 - Session raw-file read entries may project assessment schema fingerprints,
   column profiles, semantic candidates, blocks, layout candidates, and
   decisions for template planning or UI review; they remain derived read
@@ -177,10 +173,10 @@ path. Consumers subscribe, then call `getState()`, `getViewInput()`, or
 ### Slice
 
 - `SliceRun` is the canonical fact for executing a concrete `Template`.
-- `SliceRun.template` is a snapshot from Assessment or manual input; Slice must
-  not reread Recipe JSON to rebuild it.
+- `SliceRun.template` is the executed snapshot from automatic Recipe
+  materialization or manual input.
 - `SliceRun.sourceAssessmentSignature` ties automatic runs to the Assessment
-  facts that selected the template.
+  facts and Recipe fingerprint used to materialize the template.
 - `SliceCommit` atomically commits the `SliceRun`, produced `SeriesRecord`
   values, and produced base `CurveRecord` values through Session.
 - Session read projections derive chart axis titles and units from the latest

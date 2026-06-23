@@ -19,6 +19,13 @@ import {
 	IRawTableRowsReaderService,
 	type IRawTableRowsReaderService as IRawTableRowsReaderServiceType,
 } from "src/cs/workbench/services/files/common/rawTableRowsReader";
+import { createAssessmentEvidenceFromRecord } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
+import type { RawTableAssessmentRecord } from "src/cs/workbench/services/assessment/common/assessment";
+import {
+	IRecipeService,
+	type IRecipeService as IRecipeServiceType,
+	type RecipeSnapshot,
+} from "src/cs/workbench/services/recipe/common/recipe";
 import {
 	ISliceService,
 	type ISliceService as ISliceServiceType,
@@ -29,6 +36,10 @@ import {
 	type SliceState,
 } from "src/cs/workbench/services/slice/common/slice";
 import { executeSlicePlan } from "src/cs/workbench/services/slice/common/sliceExecutor";
+import {
+	resolveRecipeTemplateCandidates,
+	selectRecipeTemplateCandidate,
+} from "src/cs/workbench/services/slice/common/recipeTemplateResolver";
 import {
 	createSliceAssessmentSignature,
 	createSlicePlan,
@@ -63,6 +74,7 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		@ISessionService private readonly sessionService: ISessionServiceType,
 		@ITemplateService private readonly templateService?: ITemplateServiceType,
 		@IRawTableRowsReaderService private readonly rawTableRowsReaderService?: IRawTableRowsReaderServiceType,
+		@IRecipeService private readonly recipeService?: IRecipeServiceType,
 	) {
 		super();
 		this._register(this.sessionService.onDidChangeSession(event => {
@@ -95,6 +107,11 @@ export class SliceService extends Disposable implements ISliceServiceType {
 					code: "slice.autoTemplateMissing",
 					message: "No selected assessment template is available for automatic slicing.",
 				}) || didChange;
+				continue;
+			}
+
+			if (this.isLatestAutoRunCurrent(ref, plan)) {
+				didChange = this.setFileState(ref.fileId, { state: "ready" }) || didChange;
 				continue;
 			}
 
@@ -189,7 +206,25 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		const snapshot = this.sessionService.getSnapshot();
 		const file = snapshot.filesById[ref.fileId];
 		const assessment = file?.assessmentsByRawTableId[ref.rawTableId];
-		if (!file || !assessment?.selectedTemplate || assessment.decision.autoApplyAllowed !== true) {
+		const table = file?.raw.tablesById[ref.rawTableId];
+		if (!file || !assessment || !table || assessment.decision.autoApplyAllowed !== true) {
+			return null;
+		}
+
+		const recipeSnapshot = this.getRecipeSnapshot();
+		const evidence = createAssessmentEvidenceFromRecord(assessment, {
+			fileName: file.name,
+			rowCount: table.rowCount,
+			columnCount: table.columnCount,
+		});
+		const selectedRecipeTemplate = selectRecipeTemplateCandidate(
+			resolveRecipeTemplateCandidates({
+				evidence,
+				recipeSnapshot,
+			}),
+			true,
+		);
+		if (!selectedRecipeTemplate) {
 			return null;
 		}
 
@@ -198,10 +233,13 @@ export class SliceService extends Disposable implements ISliceServiceType {
 			mode: "auto",
 			ref,
 			selection: { kind: "auto" },
-			sourceAssessmentSignature: createSliceAssessmentSignature(assessment),
+			sourceAssessmentSignature: createSliceAssessmentSignature(
+				assessment,
+				recipeSnapshot.fingerprint,
+			),
 			measurement: getSliceMeasurementBinding(assessment),
-			template: assessment.selectedTemplate.template,
-			templateFingerprint: assessment.selectedTemplate.templateFingerprint,
+			template: selectedRecipeTemplate.template,
+			templateFingerprint: selectedRecipeTemplate.templateFingerprint,
 		});
 	}
 
@@ -349,12 +387,11 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		}
 
 		if (plan.mode === "auto") {
-			const assessment = file.assessmentsByRawTableId[plan.ref.rawTableId];
+			const currentPlan = this.createAutoPlan(plan.ref);
 			return Boolean(
-				assessment?.selectedTemplate &&
-					assessment.decision.autoApplyAllowed === true &&
-					createSliceAssessmentSignature(assessment) === plan.sourceAssessmentSignature &&
-					assessment.selectedTemplate.templateFingerprint === plan.templateFingerprint,
+				currentPlan &&
+					currentPlan.sourceAssessmentSignature === plan.sourceAssessmentSignature &&
+					currentPlan.templateFingerprint === plan.templateFingerprint,
 			);
 		}
 
@@ -406,6 +443,25 @@ export class SliceService extends Disposable implements ISliceServiceType {
 		}
 
 		return this.templateService.getTemplate(templateId) ?? null;
+	}
+
+	private getRecipeSnapshot(): RecipeSnapshot {
+		return this.recipeService?.getSnapshot() ?? EMPTY_RECIPE_SNAPSHOT;
+	}
+
+	private isLatestAutoRunCurrent(ref: RawTableRef, plan: SlicePlan): boolean {
+		const snapshot = this.sessionService.getSnapshot();
+		const file = snapshot.filesById[ref.fileId];
+		const run = file?.latestSliceRunId ? file.sliceRunsById?.[file.latestSliceRunId] : undefined;
+		return Boolean(
+			run &&
+				run.mode === "auto" &&
+				run.rawTableId === ref.rawTableId &&
+				run.sourceRawTableVersion === plan.sourceRawTableVersion &&
+				run.sourceAssessmentSignature === plan.sourceAssessmentSignature &&
+				run.templateFingerprint === plan.templateFingerprint &&
+				run.errors.length === 0,
+		);
 	}
 
 	private setFileState(fileId: string, state: SliceFileState): boolean {
@@ -516,6 +572,13 @@ const sameRawTableRef = (
 	left.rawTableId === right.rawTableId;
 
 const normalizeText = (value: unknown): string => String(value ?? "").trim();
+
+const EMPTY_RECIPE_SNAPSHOT: RecipeSnapshot = {
+	version: 0,
+	fingerprint: "recipe:legacy",
+	recipes: [],
+	diagnostics: [],
+};
 
 const isSameSliceFileState = (
 	current: SliceFileState | undefined,

@@ -168,7 +168,6 @@ const createPreparedImportAssessmentInputs = (
     });
     assessments.push({
       assessmentRuleVersion: assessment.assessmentRuleVersion,
-      recipeFingerprint: assessment.recipeFingerprint,
       blocks: assessment.blocks,
       columnProfiles: assessment.columnProfiles,
       createdAt: assessment.createdAt,
@@ -179,7 +178,6 @@ const createPreparedImportAssessmentInputs = (
       layoutCandidates: assessment.layoutCandidates,
       rawTableId: assessment.rawTableId,
       semanticCandidates: assessment.semanticCandidates,
-      templateCandidates: assessment.templateCandidates,
       structure: assessment.structure,
     });
   }

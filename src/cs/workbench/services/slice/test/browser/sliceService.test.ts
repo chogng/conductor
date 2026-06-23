@@ -17,6 +17,11 @@ import type { FileImportResult, ImportedFileRecord } from "src/cs/workbench/serv
 import { SessionService } from "src/cs/workbench/services/session/browser/sessionService";
 import { SliceService } from "src/cs/workbench/services/slice/browser/sliceService";
 import { createSliceAssessmentSignature } from "src/cs/workbench/services/slice/common/slicePlanner";
+import type {
+	IRecipeService,
+	RecipeSnapshot,
+} from "src/cs/workbench/services/recipe/common/recipe";
+import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 import type { ITemplateService, Template } from "src/cs/workbench/services/template/common/template";
 
 suite("workbench/services/slice/test/browser/sliceService", () => {
@@ -73,9 +78,14 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		});
 	});
 
-	test("queues automatic slice only when assessment selected a template", () => {
+	test("queues automatic slice when a recipe matches a ready assessment", () => {
 		const sessionService = store.add(new SessionService());
-		const sliceService = store.add(new SliceService(sessionService));
+		const sliceService = store.add(new SliceService(
+			sessionService,
+			undefined,
+			undefined,
+			new TestRecipeService(),
+		));
 		sessionService.commitFileImport(createImportResult());
 		sessionService.commitRawTableAssessment(createAssessment());
 
@@ -91,19 +101,21 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 
 	test("keeps one pending automatic slice plan per raw table", () => {
 		const sessionService = store.add(new SessionService());
-		const sliceService = store.add(new SliceService(sessionService));
+		const recipeService = new TestRecipeService("recipe:first");
+		const sliceService = store.add(new SliceService(
+			sessionService,
+			undefined,
+			undefined,
+			recipeService,
+		));
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableAssessment(createAssessment({
-			templateFingerprint: "template:first",
-		}));
+		sessionService.commitRawTableAssessment(createAssessment());
 
 		sliceService.enqueueAuto([{
 			fileId: "file-a",
 			rawTableId: "table-a",
 		}]);
-		sessionService.commitRawTableAssessment(createAssessment({
-			templateFingerprint: "template:second",
-		}));
+		recipeService.setFingerprint("recipe:second");
 		sliceService.enqueueAuto([{
 			fileId: "file-a",
 			rawTableId: "table-a",
@@ -121,7 +133,12 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			["0", "1"],
 			["1", "2"],
 		]);
-		const sliceService = store.add(new SliceService(sessionService, undefined, rowsReaderService));
+		const sliceService = store.add(new SliceService(
+			sessionService,
+			undefined,
+			rowsReaderService,
+			new TestRecipeService(),
+		));
 		sessionService.commitFileImport(createImportResult());
 		sessionService.commitRawTableAssessment(createAssessment());
 
@@ -133,7 +150,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 
 		const record = sessionService.getSnapshot().filesById["file-a"];
 		assert.equal(sliceService.getState().queueLength, 0);
-		assert.equal(record.latestSliceRunId, "slice:file-a:table-a:template:test:1");
+		assert.ok(record.latestSliceRunId);
 		assert.equal(record.sliceRunsById?.[record.latestSliceRunId!]?.errors.length, 0);
 		assert.deepEqual(record.seriesById["series-b0-y1"].y, [1, 2]);
 		assert.deepEqual(record.curvesByKey["base:iv:transfer:series-b0-y1"]?.points, [
@@ -149,12 +166,16 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 			["0", "1"],
 			["1", "2"],
 		]);
-		const sliceService = store.add(new SliceService(sessionService, undefined, rowsReaderService));
+		const recipeService = new TestRecipeService("recipe:first");
+		const sliceService = store.add(new SliceService(
+			sessionService,
+			undefined,
+			rowsReaderService,
+			recipeService,
+		));
 		sessionService.commitFileImport(createImportResult());
-		sessionService.commitRawTableAssessment(createAssessment({
-			recipeFingerprint: "recipe:first",
-			templateFingerprint: "template:first",
-		}));
+		const latestAssessment = createAssessment();
+		sessionService.commitRawTableAssessment(latestAssessment);
 
 		sliceService.enqueueAuto([{
 			fileId: "file-a",
@@ -162,25 +183,21 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		}]);
 		await waitUntil(() => rowsReaderService.inputs.length === 1);
 
-		const latestAssessment = createAssessment({
-			recipeFingerprint: "recipe:second",
-			templateFingerprint: "template:second",
-		});
-		sessionService.commitRawTableAssessment(latestAssessment);
+		recipeService.setFingerprint("recipe:second");
 		sliceService.enqueueAuto([{
 			fileId: "file-a",
 			rawTableId: "table-a",
 		}]);
 		rowsReaderService.resolveFirstRead();
 		await waitUntil(() =>
-			sessionService.getSnapshot().filesById["file-a"].latestSliceRunId === "slice:file-a:table-a:template:second:1"
+			Boolean(sessionService.getSnapshot().filesById["file-a"].latestSliceRunId)
 		);
 
 		const record = sessionService.getSnapshot().filesById["file-a"];
-		assert.deepEqual(Object.keys(record.sliceRunsById ?? {}), ["slice:file-a:table-a:template:second:1"]);
+		assert.equal(Object.keys(record.sliceRunsById ?? {}).length, 1);
 		assert.equal(
 			record.sliceRunsById?.[record.latestSliceRunId!]?.sourceAssessmentSignature,
-			createSliceAssessmentSignature(latestAssessment),
+			createSliceAssessmentSignature(latestAssessment, "recipe:second"),
 		);
 	});
 
@@ -227,7 +244,7 @@ suite("workbench/services/slice/test/browser/sliceService", () => {
 		assert.equal(sliceService.getState().fileStates.has("file-a"), false);
 	});
 
-	test("marks automatic slice skipped when assessment has no selected template", () => {
+	test("marks automatic slice skipped when no assessment can materialize a recipe template", () => {
 		const sessionService = store.add(new SessionService());
 		const sliceService = store.add(new SliceService(sessionService));
 		sessionService.commitFileImport(createImportResult());
@@ -321,16 +338,35 @@ const createTemplateServiceForTest = (template: Template | (() => Template)): IT
 	} as unknown as ITemplateService;
 };
 
-const createAssessment = ({
-	recipeFingerprint = "recipe:test",
-	templateFingerprint = "template:test",
-}: {
-	readonly recipeFingerprint?: string;
-	readonly templateFingerprint?: string;
-} = {}): RawTableAssessmentRecord => ({
+class TestRecipeService implements IRecipeService {
+	public declare readonly _serviceBrand: undefined;
+	public readonly onDidChangeRecipes = Event.None as Event<void>;
+	private fingerprint: string;
+
+	public constructor(fingerprint = "recipe:test") {
+		this.fingerprint = fingerprint;
+	}
+
+	public setFingerprint(fingerprint: string): void {
+		this.fingerprint = fingerprint;
+	}
+
+	public getSnapshot(): RecipeSnapshot {
+		return {
+			version: 1,
+			fingerprint: this.fingerprint,
+			recipes: builtinRecipes,
+			diagnostics: [],
+		};
+	}
+
+	public reload(): Promise<void> {
+		return Promise.resolve();
+	}
+}
+
+const createAssessment = (): RawTableAssessmentRecord => ({
 	assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
-	recipeFingerprint,
-	templateCatalogVersion: 0,
 	schemaProfileVersion: 0,
 	fileId: "file-a",
 	rawTableId: "table-a",
@@ -362,24 +398,41 @@ const createAssessment = ({
 			},
 		},
 		columns: {
-			columns: [],
+			columns: [{
+				rawCol: 0,
+				role: "vg",
+				unit: "V",
+				headerText: "Vg",
+				confidence: 0.95,
+				source: {
+					range: {
+						startRow: 0,
+						endRow: 2,
+						startCol: 0,
+						endCol: 0,
+					},
+				},
+			}, {
+				rawCol: 1,
+				role: "id",
+				unit: "A",
+				headerText: "Id",
+				confidence: 0.95,
+				source: {
+					range: {
+						startRow: 0,
+						endRow: 2,
+						startCol: 1,
+						endCol: 1,
+					},
+				},
+			}],
 		},
 		rowCount: 3,
 		columnCount: 2,
 		confidence: 0.95,
 		diagnosticCodes: [],
 	}],
-	templateCandidates: [],
-	selectedTemplate: {
-		candidateId: "candidate-a",
-		source: {
-			kind: "recipe",
-			recipeId: "recipe-a",
-			recipeVersion: 1,
-		},
-		template: createTemplate(),
-		templateFingerprint,
-	},
 	decision: {
 		state: "ready",
 		autoApplyAllowed: true,

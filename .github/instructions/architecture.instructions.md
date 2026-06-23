@@ -127,7 +127,7 @@ Runtime folders:
 | `fileConverter.ts` / files service helpers | CSV/XLS/XLSX/clipboard/manual conversion into raw table records |
 | `ISessionService` | canonical session ledger and change events |
 | `IAssessmentService` | raw table interpretation: groups, blocks, roles, diagnostics |
-| `IRecipeService` | passive built-in recipes used by Assessment to derive template candidates |
+| `IRecipeService` | passive built-in recipes used by Slice to derive automatic Template snapshots from Assessment evidence |
 | `ITableService` | table source, rows, selection snapshot, reveal/highlight |
 | `ITemplateService` | saved template catalog, legacy preset CRUD, and canonical `Template` reads |
 | `ITemplateViewStateService` | Template UI selected-template/form editor state |
@@ -181,7 +181,7 @@ Specific flow owners:
 
 - Import/source collection: Explorer/files workflow coordinates; converter returns results; Session commits.
 - Assessment: Assessment service reads raw tables and commits assessment records.
-- Slice execution: Slice reads Assessment-selected/manual Template state and commits SliceRun/series/base curves.
+- Slice execution: Slice reads Assessment evidence plus current Recipe/manual Template state and commits SliceRun/series/base curves.
 - Calculation: calculation services derive curves/metrics and commit through Session.
 - Plot: Plot consumes canonical curves/metrics and produces render models.
 - Chart: Chart hosts plot UI; it does not interpret raw session facts.
@@ -353,7 +353,7 @@ Specific flow owners:
 
 - Import/source collection: Explorer/files workflow coordinates; converter returns results; Session commits.
 - Assessment: Assessment service reads raw tables and commits assessment records.
-- Slice execution: Slice reads Assessment-selected/manual Template state and commits SliceRun/series/base curves.
+- Slice execution: Slice reads Assessment evidence plus current Recipe/manual Template state and commits SliceRun/series/base curves.
 - Calculation: calculation services derive curves/metrics and commit through Session.
 - Plot: Plot consumes canonical curves/metrics and produces render models.
 - Chart: Chart hosts plot UI; it does not interpret raw session facts.

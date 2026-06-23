@@ -124,18 +124,13 @@ export const createSliceAssessmentSignature = ({
 	assessmentRuleVersion,
 	schemaProfileVersion,
 	sourceRawTableVersion,
-	templateCatalogVersion,
-	recipeFingerprint,
 }: {
 	readonly assessmentRuleVersion: number;
 	readonly schemaProfileVersion: number;
 	readonly sourceRawTableVersion: number;
-	readonly templateCatalogVersion: number;
-	readonly recipeFingerprint: string;
-}): string => JSON.stringify({
+}, recipeFingerprint?: string): string => JSON.stringify({
 	assessmentRuleVersion,
 	schemaProfileVersion,
 	sourceRawTableVersion,
-	templateCatalogVersion,
-	recipeFingerprint,
+	recipeFingerprint: recipeFingerprint ? String(recipeFingerprint).trim() : undefined,
 });

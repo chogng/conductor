@@ -842,9 +842,7 @@ suite("workbench/services/session/test/browser/sessionService", () => {
     const result = session.commitFileImport(createSingleRawTableImportResult(), {
       rawTableAssessments: [{
         assessmentRuleVersion: assessment.assessmentRuleVersion,
-        recipeFingerprint: assessment.recipeFingerprint,
         schemaProfileVersion: assessment.schemaProfileVersion,
-        templateCandidates: assessment.templateCandidates,
         blocks: assessment.blocks,
         columnProfiles: assessment.columnProfiles,
         createdAt: assessment.createdAt,
@@ -1548,10 +1546,7 @@ const createRawTableAssessment = (
   blockId = "block-a",
 ): RawTableAssessmentRecord => ({
   assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
-  recipeFingerprint: "recipe:test",
-  templateCatalogVersion: 0,
   schemaProfileVersion: 0,
-  templateCandidates: [],
   blocks: [{
     columnCount: 2,
     columns: {

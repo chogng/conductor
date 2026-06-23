@@ -5,13 +5,13 @@ applyTo: 'src/cs/workbench/services/template/**,src/cs/workbench/contrib/templat
 # Template
 
 `Template` is a concrete extraction/slicing spec for raw tables whose
-measurement structure has already been determined. It is materialized by
-Assessment or created by users, then executed by Slice.
+measurement structure has already been determined. It is materialized from
+Recipe-backed automatic slicing or created by users, then executed by Slice.
 
 Do not add consumer-shaped template sections such as `template.assessment`,
 `template.slicing`, or `template.binding`. Do not make Template describe how to
 detect raw table structure, measurement family, roles, or units; those facts
-belong to Assessment evidence and Recipe-backed candidate derivation.
+belong to Assessment evidence.
 
 Legacy/manual extraction presets are not the domain `Template`; name them
 `TemplateApplyPresetRecord` / `TemplateApplyConfig`.
@@ -62,11 +62,9 @@ table selection state, plot rendering, or chart state.
 ## Flow
 
 ```txt
-TemplateService template list change
-  -> onDidChangeTemplates
-  -> AssessmentQueue captures templateCatalogVersion
-  -> Assessment may evaluate exact saved-template candidates
-  -> selected Template snapshot is stored on RawTableAssessmentRecord
+manual saved-template run
+  -> ISliceService.runWithTemplate(...)
+  -> SliceService resolves Template snapshot from TemplateService
   -> Slice executes the selected Template snapshot
 ```
 
@@ -75,8 +73,8 @@ into canonical `Template` snapshots before Slice runs.
 
 ## Rules
 
-- `Template` is a concrete extraction/slicing spec. Assessment chooses or
-  materializes it after structure is known; Slice executes it.
+- `Template` is a concrete extraction/slicing spec. Slice materializes it from
+  Recipe for automatic execution or resolves it from manual/saved input.
 - Engines should consume `Template`, not consumer-specific sub-templates.
 - Legacy/manual apply presets may be bridged through `TemplateApplyConfig` and
   `templateLegacyAdapter`; they are inputs to `Template` snapshots, not an

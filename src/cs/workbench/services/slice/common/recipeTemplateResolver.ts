@@ -3,13 +3,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { AssessmentEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
-import type { TemplateCandidate } from "src/cs/workbench/services/assessment/common/templateCandidate";
+import type { MeasurementBlockRecord } from "src/cs/workbench/services/assessment/common/measurement";
+import { evaluateRecipeSelector } from "src/cs/workbench/services/slice/common/recipeSelectorEvaluator";
 import type {
   RecipeSelectorBlockMatch,
   RecipeSelectorCapture,
   RecipeSelectorEvaluation,
-} from "src/cs/workbench/services/assessment/common/recipeSelectorEvaluator";
-import type { MeasurementBlockRecord } from "src/cs/workbench/services/assessment/common/measurement";
+} from "src/cs/workbench/services/slice/common/recipeSelectorEvaluator";
+import type { Recipe, RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
+import type {
+  RecipeColumnProjection,
+  RecipeValueExpression,
+} from "src/cs/workbench/services/recipe/common/recipeProjection";
 import { createTemplateFingerprint } from "src/cs/workbench/services/template/common/templateFingerprint";
 import type {
   Template,
@@ -17,13 +22,57 @@ import type {
   TemplateBlock,
   TemplateRowRange,
 } from "src/cs/workbench/services/template/common/templateSpec";
-import type {
-  RecipeColumnProjection,
-  RecipeValueExpression,
-} from "src/cs/workbench/services/recipe/common/recipeProjection";
-import type { Recipe } from "src/cs/workbench/services/recipe/common/recipe";
 
-export const materializeRecipeCandidate = ({
+export type RecipeTemplateCandidate = {
+  readonly id: string;
+  readonly recipeId: string;
+  readonly recipeVersion: number;
+  readonly template: Template;
+  readonly templateFingerprint: string;
+  readonly confidence: number;
+  readonly state: "ready" | "review";
+  readonly reasons: readonly string[];
+  readonly diagnosticCodes: readonly string[];
+};
+
+export const resolveRecipeTemplateCandidates = ({
+  evidence,
+  recipeSnapshot,
+}: {
+  readonly evidence: AssessmentEvidence;
+  readonly recipeSnapshot?: RecipeSnapshot;
+}): readonly RecipeTemplateCandidate[] => {
+  const candidates: RecipeTemplateCandidate[] = [];
+  for (const recipe of recipeSnapshot?.recipes ?? []) {
+    const evaluation = evaluateRecipeSelector(recipe, evidence);
+    const candidate = materializeRecipeTemplateCandidate({
+      recipe,
+      evidence,
+      evaluation,
+    });
+    if (candidate) {
+      candidates.push(candidate);
+    }
+  }
+
+  return candidates.sort((left, right) =>
+    right.confidence - left.confidence ||
+    left.id.localeCompare(right.id)
+  );
+};
+
+export const selectRecipeTemplateCandidate = (
+  candidates: readonly RecipeTemplateCandidate[],
+  autoApplyAllowed: boolean,
+): RecipeTemplateCandidate | null => {
+  if (!autoApplyAllowed) {
+    return null;
+  }
+
+  return candidates.find(candidate => candidate.state === "ready") ?? null;
+};
+
+export const materializeRecipeTemplateCandidate = ({
   recipe,
   evidence,
   evaluation,
@@ -31,7 +80,7 @@ export const materializeRecipeCandidate = ({
   readonly recipe: Recipe;
   readonly evidence: AssessmentEvidence;
   readonly evaluation: RecipeSelectorEvaluation;
-}): TemplateCandidate | null => {
+}): RecipeTemplateCandidate | null => {
   if (!evaluation.matched || !evaluation.matches.length) {
     return null;
   }
@@ -76,11 +125,8 @@ export const materializeRecipeCandidate = ({
 
   return {
     id: `candidate:${recipe.id}:${recipe.version}`,
-    source: {
-      kind: "recipe",
-      recipeId: recipe.id,
-      recipeVersion: recipe.version,
-    },
+    recipeId: recipe.id,
+    recipeVersion: recipe.version,
     template,
     templateFingerprint,
     confidence: getCandidateConfidence(matches, evidence),

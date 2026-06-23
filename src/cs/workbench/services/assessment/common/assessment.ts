@@ -20,14 +20,6 @@ import type { SchemaProfile } from "src/cs/workbench/services/schemaProfile/comm
 import type {
   RawTableRef,
 } from "src/cs/workbench/services/session/common/sessionModel";
-import type {
-  SelectedTemplateCandidate,
-  TemplateCandidateSummary,
-} from "src/cs/workbench/services/assessment/common/templateCandidate";
-import type { RecipeSnapshot } from "src/cs/workbench/services/recipe/common/recipe";
-import type {
-  TemplateSnapshot,
-} from "src/cs/workbench/services/template/common/template";
 
 export const IAssessmentService = createDecorator<IAssessmentService>("assessmentService");
 export const IAssessmentQueueService = createDecorator<IAssessmentQueueService>("assessmentQueueService");
@@ -76,16 +68,12 @@ export type AssessRawTableInput = {
   readonly sourceRawTableVersion: number;
   readonly rows: AssessmentRows;
   readonly fileName?: string | null;
-  readonly recipeSnapshot?: RecipeSnapshot;
   readonly schemaProfiles?: readonly SchemaProfile[];
   readonly schemaProfileVersion?: number;
-  readonly templateSnapshot?: TemplateSnapshot;
 };
 
 export type RawTableAssessmentRecord = {
   readonly assessmentRuleVersion: number;
-  readonly recipeFingerprint: string;
-  readonly templateCatalogVersion: number;
   readonly schemaProfileVersion: number;
   readonly fileId: string;
   readonly rawTableId: string;
@@ -96,8 +84,6 @@ export type RawTableAssessmentRecord = {
   readonly semanticCandidates: readonly ColumnSemanticCandidate[];
   readonly groups: readonly MeasurementGroupRecord[];
   readonly blocks: readonly MeasurementBlockRecord[];
-  readonly templateCandidates: readonly TemplateCandidateSummary[];
-  readonly selectedTemplate?: SelectedTemplateCandidate;
   readonly decision: AssessmentDecision;
   readonly diagnostics: readonly AssessmentDiagnostic[];
   readonly createdAt: number;

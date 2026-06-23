@@ -26,7 +26,6 @@ import type {
 	RunSliceWithTemplateInput,
 	SliceState,
 } from "src/cs/workbench/services/slice/common/slice";
-import { createSliceAssessmentSignature } from "src/cs/workbench/services/slice/common/slicePlanner";
 import type { Template } from "src/cs/workbench/services/template/common/template";
 import type { TemplateSelection } from "src/cs/workbench/services/template/common/templateSelection";
 import type {
@@ -38,7 +37,7 @@ import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinR
 suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test("enqueues ready selected assessments after assessment commit", () => {
+	test("enqueues ready auto-applicable assessments after assessment commit", () => {
 		const sessionService = store.add(new SessionService());
 		const sliceService = new TestSliceService();
 		store.add(new AutoSliceContribution(sessionService, sliceService));
@@ -50,47 +49,6 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 			fileId: "file-a",
 			rawTableId: "table-a",
 		}]]);
-	});
-
-	test("does not enqueue assessments already covered by latest auto slice run", () => {
-		const sessionService = store.add(new SessionService());
-		sessionService.commitFileImport(createImportResult());
-		const assessment = createAssessment();
-		sessionService.commitRawTableAssessment(assessment);
-		sessionService.commitSliceRuns([{
-			run: {
-				id: "slice-run-a",
-				fileId: "file-a",
-				rawTableId: "table-a",
-				mode: "auto",
-				selection: { kind: "auto" },
-				sourceRawTableVersion: assessment.sourceRawTableVersion,
-				sourceAssessmentSignature: createSliceAssessmentSignature(assessment),
-				template: createTemplate(),
-				templateFingerprint: "template:test",
-				inputRanges: [{
-					fileId: "file-a",
-					rawTableId: "table-a",
-					range: {
-						startRow: 1,
-						endRow: 2,
-						startCol: 0,
-						endCol: 1,
-					},
-				}],
-				outputSeriesIds: [],
-				outputCurveKeys: [],
-				warnings: [],
-				errors: [],
-			},
-			series: [],
-			curves: [],
-		}]);
-		const sliceService = new TestSliceService();
-
-		store.add(new AutoSliceContribution(sessionService, sliceService));
-
-		assert.deepEqual(sliceService.enqueuedRefs, []);
 	});
 
 	test("does not enqueue assessments after latest manual slice run", () => {
@@ -137,7 +95,7 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 		assert.deepEqual(sliceService.enqueuedRefs, []);
 	});
 
-	test("runs raw import through assessment selected template into slice curves", async () => {
+	test("runs raw import through recipe-materialized automatic template into slice curves", async () => {
 		const sessionService = store.add(new SessionService());
 		const rowsReaderService = new TestRawTableRowsReaderService();
 		const recipeService = new TestRecipeService();
@@ -146,12 +104,15 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 			sessionService,
 			assessmentService,
 			rowsReaderService,
+		));
+		const sliceService = store.add(new SliceService(
+			sessionService,
 			undefined,
+			rowsReaderService,
 			recipeService,
 		));
-		const sliceService = store.add(new SliceService(sessionService, undefined, rowsReaderService));
 		store.add(new AssessmentContribution(sessionService, assessmentQueueService));
-		store.add(new AutoSliceContribution(sessionService, sliceService));
+		store.add(new AutoSliceContribution(sessionService, sliceService, recipeService));
 
 		sessionService.commitFileImport(createImportResult());
 		await waitUntil(() =>
@@ -162,7 +123,6 @@ suite("workbench/services/slice/test/browser/autoSliceContribution", () => {
 		const run = file.sliceRunsById?.[file.latestSliceRunId!];
 		assert.equal(run?.mode, "auto");
 		assert.equal(run?.errors.length, 0);
-		assert.equal(file.assessmentsByRawTableId["table-a"]?.selectedTemplate?.source.kind, "recipe");
 		assert.deepEqual(file.curvesByKey["base:iv:transfer:series-b0-y2"]?.points, [
 			{ x: 0, y: 1 },
 			{ x: 1, y: 2 },
@@ -230,8 +190,6 @@ class TestRecipeService implements IRecipeService {
 
 const createAssessment = (): RawTableAssessmentRecord => ({
 	assessmentRuleVersion: ASSESSMENT_RULE_VERSION,
-	recipeFingerprint: "recipe:test",
-	templateCatalogVersion: 0,
 	schemaProfileVersion: 0,
 	fileId: "file-a",
 	rawTableId: "table-a",
@@ -241,18 +199,63 @@ const createAssessment = (): RawTableAssessmentRecord => ({
 	layoutCandidates: [],
 	semanticCandidates: [],
 	groups: [],
-	blocks: [],
-	templateCandidates: [],
-	selectedTemplate: {
-		candidateId: "candidate-a",
+	blocks: [{
+		id: "block-a",
+		fileId: "file-a",
+		rawTableId: "table-a",
+		label: "Transfer",
+		family: "iv",
+		ivMode: "transfer",
 		source: {
-			kind: "recipe",
-			recipeId: "recipe-a",
-			recipeVersion: 1,
+			fullRange: {
+				startRow: 0,
+				endRow: 2,
+				startCol: 0,
+				endCol: 2,
+			},
+			dataRange: {
+				startRow: 1,
+				endRow: 2,
+				startCol: 0,
+				endCol: 2,
+			},
 		},
-		template: createTemplate(),
-		templateFingerprint: "template:test",
-	},
+		columns: {
+			columns: [{
+				rawCol: 1,
+				role: "vg",
+				unit: "V",
+				headerText: "Vg",
+				confidence: 0.95,
+				source: {
+					range: {
+						startRow: 0,
+						endRow: 2,
+						startCol: 1,
+						endCol: 1,
+					},
+				},
+			}, {
+				rawCol: 2,
+				role: "id",
+				unit: "A",
+				headerText: "Id",
+				confidence: 0.95,
+				source: {
+					range: {
+						startRow: 0,
+						endRow: 2,
+						startCol: 2,
+						endCol: 2,
+					},
+				},
+			}],
+		},
+		rowCount: 3,
+		columnCount: 3,
+		confidence: 0.95,
+		diagnosticCodes: [],
+	}],
 	decision: {
 		state: "ready",
 		autoApplyAllowed: true,

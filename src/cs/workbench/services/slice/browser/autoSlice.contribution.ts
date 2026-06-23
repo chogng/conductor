@@ -14,6 +14,10 @@ import {
 	type SessionSnapshot,
 	type ISessionService as ISessionServiceType,
 } from "src/cs/workbench/services/session/common/session";
+import {
+	IRecipeService,
+	type IRecipeService as IRecipeServiceType,
+} from "src/cs/workbench/services/recipe/common/recipe";
 import type {
 	FileRecord,
 	RawTableRef,
@@ -24,7 +28,6 @@ import {
 	ISliceService,
 	type ISliceService as ISliceServiceType,
 } from "src/cs/workbench/services/slice/common/slice";
-import { createSliceAssessmentSignature } from "src/cs/workbench/services/slice/common/slicePlanner";
 
 export class AutoSliceContribution extends Disposable implements IWorkbenchContribution {
 	private disposed = false;
@@ -32,6 +35,7 @@ export class AutoSliceContribution extends Disposable implements IWorkbenchContr
 	public constructor(
 		@ISessionService private readonly sessionService: ISessionServiceType,
 		@ISliceService private readonly sliceService: ISliceServiceType,
+		@IRecipeService private readonly recipeService?: IRecipeServiceType,
 	) {
 		super();
 		this._register(this.sessionService.onDidChangeSession(event => {
@@ -39,6 +43,11 @@ export class AutoSliceContribution extends Disposable implements IWorkbenchContr
 				this.enqueueChangedAssessments(event);
 			}
 		}));
+		if (this.recipeService) {
+			this._register(this.recipeService.onDidChangeRecipes(() => {
+				this.enqueueCurrentAssessments();
+			}));
+		}
 		this.enqueueCurrentAssessments();
 	}
 
@@ -122,29 +131,17 @@ const shouldAutoSliceAssessment = (
 	assessment: RawTableAssessmentRecord,
 ): boolean =>
 	assessment.decision.autoApplyAllowed === true &&
-	Boolean(assessment.selectedTemplate) &&
-	!hasBlockingSliceRun(file, rawTableId, assessment);
+	!hasManualSliceRun(file, rawTableId);
 
-const hasBlockingSliceRun = (
+const hasManualSliceRun = (
 	file: FileRecord,
 	rawTableId: string,
-	assessment: RawTableAssessmentRecord,
 ): boolean => {
 	const run = file.latestSliceRunId ? file.sliceRunsById?.[file.latestSliceRunId] : undefined;
 	if (!run || run.rawTableId !== rawTableId) {
 		return false;
 	}
-	if (run.mode === "manual") {
-		return true;
-	}
-	if (run.mode !== "auto") {
-		return false;
-	}
-
-	return run.sourceRawTableVersion === assessment.sourceRawTableVersion &&
-		run.sourceAssessmentSignature === createSliceAssessmentSignature(assessment) &&
-		run.templateFingerprint === assessment.selectedTemplate?.templateFingerprint &&
-		run.errors.length === 0;
+	return run.mode === "manual";
 };
 
 const getRawTableRefsFromAffectedFiles = (

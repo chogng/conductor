@@ -64,13 +64,11 @@ export type CommitFileImportResult = {
 };
 
 export type CommitFileImportRawTableAssessmentInput =
-  Omit<RawTableAssessmentRecord, "assessmentRuleVersion" | "fileId" | "rawTableId" | "schemaProfileVersion" | "sourceRawTableVersion" | "templateCatalogVersion" | "recipeFingerprint"> & {
+  Omit<RawTableAssessmentRecord, "assessmentRuleVersion" | "fileId" | "rawTableId" | "schemaProfileVersion" | "sourceRawTableVersion"> & {
     readonly fileId: FileId;
     readonly rawTableId?: string | null;
     readonly assessmentRuleVersion?: number;
     readonly schemaProfileVersion?: number;
-    readonly templateCatalogVersion?: number;
-    readonly recipeFingerprint?: string;
   };
 
 export type CommitFileImportOptions = {

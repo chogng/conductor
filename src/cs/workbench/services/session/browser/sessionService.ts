@@ -65,10 +65,6 @@ import type {
   RawTableAssessmentRecord,
 } from "src/cs/workbench/services/assessment/common/assessment";
 import { createUnknownAssessmentDecision } from "src/cs/workbench/services/assessment/common/assessmentDecision";
-import {
-  normalizeRecipeFingerprint,
-  normalizeTemplateCatalogVersion,
-} from "src/cs/workbench/services/assessment/common/assessmentRecord";
 import type {
   MeasurementBlockRecord,
 } from "src/cs/workbench/services/assessment/common/measurement";
@@ -610,8 +606,6 @@ const createImportRawTableAssessmentRecords = (
 
     records.push({
       assessmentRuleVersion: normalizeAssessmentRuleVersion(assessment.assessmentRuleVersion) ?? 0,
-      recipeFingerprint: getRecipeFingerprint(assessment),
-      templateCatalogVersion: normalizeTemplateCatalogVersion(assessment.templateCatalogVersion),
       schemaProfileVersion: normalizeSchemaProfileVersion(assessment.schemaProfileVersion),
       blocks: assessment.blocks,
       columnProfiles: assessment.columnProfiles ?? [],
@@ -623,10 +617,8 @@ const createImportRawTableAssessmentRecords = (
       layoutCandidates: assessment.layoutCandidates ?? [],
       rawTableId,
       semanticCandidates: assessment.semanticCandidates ?? [],
-      selectedTemplate: assessment.selectedTemplate,
       sourceRawTableVersion,
       structure: assessment.structure ?? createEmptyRawTableStructure(),
-      templateCandidates: assessment.templateCandidates ?? [],
     });
   }
 
@@ -676,8 +668,6 @@ const commitRawTableAssessmentsToFiles = (
     const committedAssessment: RawTableAssessmentRecord = {
       ...assessment,
       assessmentRuleVersion: normalizeAssessmentRuleVersion(assessment.assessmentRuleVersion) ?? 0,
-      recipeFingerprint: getRecipeFingerprint(assessment),
-      templateCatalogVersion: normalizeTemplateCatalogVersion(assessment.templateCatalogVersion),
       schemaProfileVersion: normalizeSchemaProfileVersion(assessment.schemaProfileVersion),
       fileId,
       rawTableId,
@@ -686,9 +676,7 @@ const commitRawTableAssessmentsToFiles = (
       decision: assessment.decision ?? createUnknownAssessmentDecision(),
       layoutCandidates: assessment.layoutCandidates ?? [],
       semanticCandidates: assessment.semanticCandidates ?? [],
-      selectedTemplate: assessment.selectedTemplate,
       structure: assessment.structure ?? createEmptyRawTableStructure(),
-      templateCandidates: assessment.templateCandidates ?? [],
     };
     nextFilesById = {
       ...nextFilesById,
@@ -1448,15 +1436,6 @@ const normalizeId = (value: unknown): string => String(value ?? "").trim();
 const normalizeAssessmentRuleVersion = (value: unknown): number | undefined => {
   const version = Math.floor(Number(value));
   return Number.isFinite(version) && version > 0 ? version : undefined;
-};
-
-const getRecipeFingerprint = (
-  assessment: { readonly recipeFingerprint?: unknown },
-): string => {
-  const legacy = assessment as { readonly ruleSetFingerprint?: unknown };
-  return normalizeRecipeFingerprint(
-    assessment.recipeFingerprint ?? legacy.ruleSetFingerprint,
-  );
 };
 
 const normalizeSchemaProfileVersion = (value: unknown): number => {

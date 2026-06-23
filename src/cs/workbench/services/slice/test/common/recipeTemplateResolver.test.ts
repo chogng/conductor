@@ -6,18 +6,16 @@ import assert from "assert";
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
 import type { AssessmentEvidence } from "src/cs/workbench/services/assessment/common/assessmentEvidence";
-import { evaluateSavedTemplateCandidates } from "src/cs/workbench/services/assessment/common/savedTemplateEvaluator";
-import { materializeRecipeCandidate } from "src/cs/workbench/services/assessment/common/recipeProjectionMaterializer";
-import { evaluateRecipeSelector } from "src/cs/workbench/services/assessment/common/recipeSelectorEvaluator";
+import { evaluateRecipeSelector } from "src/cs/workbench/services/slice/common/recipeSelectorEvaluator";
 import type {
 	MeasurementBlockRecord,
 	MeasurementColumnRef,
 } from "src/cs/workbench/services/assessment/common/measurement";
 import { createEmptyRawTableStructure } from "src/cs/workbench/services/assessment/common/rawTableStructure";
-import type { Template } from "src/cs/workbench/services/template/common/template";
 import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
+import { materializeRecipeTemplateCandidate } from "src/cs/workbench/services/slice/common/recipeTemplateResolver";
 
-suite("workbench/services/assessment/test/common/templateCandidateMaterialization", () => {
+suite("workbench/services/slice/test/common/recipeTemplateResolver", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test("materializes builtin IV transfer recipe into a block-aware template", () => {
@@ -26,7 +24,7 @@ suite("workbench/services/assessment/test/common/templateCandidateMaterializatio
 
 		const evidence = createEvidence();
 		const evaluation = evaluateRecipeSelector(recipe, evidence);
-		const candidate = materializeRecipeCandidate({
+		const candidate = materializeRecipeTemplateCandidate({
 			recipe,
 			evidence,
 			evaluation,
@@ -34,7 +32,7 @@ suite("workbench/services/assessment/test/common/templateCandidateMaterializatio
 
 		assert.ok(candidate);
 		assert.equal(candidate.state, "ready");
-		assert.equal(candidate.source.kind, "recipe");
+		assert.equal(candidate.recipeId, "builtin.iv.transfer");
 		assert.equal(candidate.template.schemaVersion, 1);
 		assert.equal(candidate.template.blocks.length, 1);
 		assert.deepEqual(candidate.template.blocks[0]?.rowRange, {
@@ -51,63 +49,6 @@ suite("workbench/services/assessment/test/common/templateCandidateMaterializatio
 		});
 		assert.equal(candidate.template.blocks[0]?.segmentation.kind, "auto");
 		assert.ok(candidate.templateFingerprint);
-	});
-
-	test("creates saved-template candidates only for exact applicability matches", () => {
-		const template: Template = {
-			schemaVersion: 1,
-			id: "saved.transfer",
-			name: "Saved Transfer",
-			version: 2,
-			blocks: [{
-				rowRange: {
-					startRow: 1,
-					endRow: "end",
-				},
-				x: {
-					columns: [0],
-					unit: "V",
-				},
-				y: {
-					columns: [1],
-					unit: "A",
-				},
-				segmentation: {
-					kind: "auto",
-				},
-				legend: {
-					target: "auto",
-				},
-			}],
-			stopOnError: false,
-			applicability: {
-				schemaFingerprint: "schema-a",
-				columnCount: 2,
-			},
-		};
-
-		const candidates = evaluateSavedTemplateCandidates({
-			evidence: createEvidence(),
-			templateSnapshot: {
-				version: 7,
-				templates: [
-					template,
-					{
-						...template,
-						id: "saved.other",
-						applicability: {
-							schemaFingerprint: "schema-b",
-						},
-					},
-				],
-			},
-		});
-
-		assert.equal(candidates.length, 1);
-		assert.equal(candidates[0]?.source.kind, "savedTemplate");
-		assert.equal(candidates[0]?.source.kind === "savedTemplate" ? candidates[0].source.templateId : "", "saved.transfer");
-		assert.equal(candidates[0]?.confidence, 0.98);
-		assert.equal(candidates[0]?.state, "ready");
 	});
 });
 
@@ -150,7 +91,10 @@ const createEvidence = (): AssessmentEvidence => ({
 			},
 		},
 		columns: {
-			columns: createMeasurementColumns(),
+			columns: [
+				createColumn(0, "vg", "V"),
+				createColumn(1, "id", "A"),
+			],
 		},
 		rowCount: 4,
 		columnCount: 2,
@@ -160,21 +104,28 @@ const createEvidence = (): AssessmentEvidence => ({
 	sourceMetadata: {
 		fileId: "file-a",
 		rawTableId: "table-a",
-		fileName: "transfer.csv",
+		sourceRawTableVersion: 1,
 		rowCount: 4,
 		columnCount: 2,
-		sourceRawTableVersion: 1,
 	},
 });
 
-const createMeasurementColumns = (): readonly MeasurementColumnRef[] => [{
-	rawCol: 0,
-	headerText: "Vg",
-	role: "vg",
-	unit: "V",
-}, {
-	rawCol: 1,
-	headerText: "Id",
-	role: "id",
-	unit: "A",
-}];
+const createColumn = (
+	rawCol: number,
+	role: MeasurementColumnRef["role"],
+	unit: string,
+): MeasurementColumnRef => ({
+	rawCol,
+	role,
+	unit,
+	headerText: role,
+	confidence: 0.95,
+	source: {
+		range: {
+			startRow: 0,
+			endRow: 3,
+			startCol: rawCol,
+			endCol: rawCol,
+		},
+	},
+});

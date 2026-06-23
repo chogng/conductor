@@ -16,7 +16,6 @@ import type {
 import {
 	createSchemaProfileFromConfirmation,
 } from "src/cs/workbench/services/schemaProfile/common/schemaProfileConfirmation";
-import { builtinRecipes } from "src/cs/workbench/services/recipe/common/builtinRecipes.generated";
 
 suite("workbench/services/assessment/test/browser/assessmentService", () => {
   const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,12 +50,6 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
         ["DataName", "Vg", "Id"],
         ["DataValue", "-1", "-2.63E-12"],
       ],
-      recipeSnapshot: {
-        version: 1,
-        fingerprint: "recipe:test",
-        recipes: builtinRecipes,
-        diagnostics: [],
-      },
     });
 
     assert.equal(result.fileId, "file-a");
@@ -116,15 +109,9 @@ suite("workbench/services/assessment/test/browser/assessmentService", () => {
     assert.equal(result.blocks[0].family, "iv");
     assert.equal(result.blocks[0].ivMode, "transfer");
     assert.equal(result.blocks[0].confidence, 0.9);
-    assert.equal(result.recipeFingerprint, "recipe:test");
-    assert.equal(result.templateCatalogVersion, 0);
     assert.equal(result.decision.state, "ready");
     assert.equal(result.decision.autoApplyAllowed, true);
     assert.equal(result.decision.confidence, 0.9);
-    assert.equal(result.templateCandidates[0]?.source.kind, "recipe");
-    assert.equal(result.selectedTemplate?.source.kind, "recipe");
-    assert.equal(result.selectedTemplate?.template.blocks[0]?.x.columns[0], 1);
-    assert.equal(result.selectedTemplate?.template.blocks[0]?.y.columns[0], 2);
     assert.deepEqual(
       result.blocks[0].columns.columns.map(({ rawCol, role, unit, confidence }) => ({
         rawCol,
