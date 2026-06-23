@@ -15,17 +15,17 @@ export function hasSettingsSearchQuery(value: string): boolean {
 export function normalizeSettingsSearchText(...terms: readonly SettingsSearchTerm[]): string {
   const values: string[] = [];
   for (const term of terms) {
-    if (Array.isArray(term)) {
+    if (typeof term === "string") {
+      values.push(term);
+      continue;
+    }
+
+    if (term) {
       for (const value of term) {
         if (value) {
           values.push(value);
         }
       }
-      continue;
-    }
-
-    if (term) {
-      values.push(term);
     }
   }
   return values.join(" ").toLocaleLowerCase();

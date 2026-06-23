@@ -1243,9 +1243,6 @@ function createDynamicScaleTableWidgetModel(): {
   ) => {
     rowsVersion += 1;
     const event: TableWidgetRowsVersionChangeEvent = {
-      full: true,
-      kind: "display",
-      ranges: [],
       ...change,
       version: rowsVersion,
     };

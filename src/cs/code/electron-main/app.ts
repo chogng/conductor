@@ -1905,6 +1905,7 @@ function broadcastAutoUpdateStatus() {
     channel: "none",
     isStoreManaged: false,
     message: null,
+    progressPercent: null,
   };
   for (const win of BrowserWindow.getAllWindows()) {
     if (win.isDestroyed()) continue;
@@ -2297,6 +2298,7 @@ function handleDesktopAutoUpdateStatusGet(event) {
     channel: "none",
     isStoreManaged: false,
     message: null,
+    progressPercent: null,
   };
 }
 

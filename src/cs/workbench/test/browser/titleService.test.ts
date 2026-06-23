@@ -277,6 +277,59 @@ suite("workbench/browser/titleService", () => {
     layoutService.dispose();
     storage.dispose();
   });
+
+  test("preserves update patch when workbench replaces base titlebar state", () => {
+    const storage = new TestStorageService();
+    const layoutService = new BrowserWorkbenchLayoutService(storage);
+    const titleService = new BrowserTitleService(testCommandService, layoutService, testNativeHostService);
+
+    titleService.updateTitlebarState({
+      enabled: true,
+      fileSelectionCommandId: "files.pick",
+    });
+    titleService.patchTitlebarState({
+      installUpdateCommandId: "update.install",
+      isUpdateReadyToInstall: true,
+      isUpdateVisible: true,
+      updateCommandId: "update.install",
+      updateLabel: "Install Update",
+      updateProgressPercent: null,
+      updateTooltip: "Update Ready",
+      updateVersion: "1.2.3",
+    });
+    titleService.updateTitlebarState({
+      enabled: true,
+      fileSelectionCommandId: "files.next",
+    });
+
+    const state = titleService.getTitlebarState();
+
+    assert.deepStrictEqual({
+      fileSelectionCommandId: state?.fileSelectionCommandId,
+      installUpdateCommandId: state?.installUpdateCommandId,
+      isUpdateReadyToInstall: state?.isUpdateReadyToInstall,
+      isUpdateVisible: state?.isUpdateVisible,
+      updateCommandId: state?.updateCommandId,
+      updateLabel: state?.updateLabel,
+      updateProgressPercent: state?.updateProgressPercent,
+      updateTooltip: state?.updateTooltip,
+      updateVersion: state?.updateVersion,
+    }, {
+      fileSelectionCommandId: "files.next",
+      installUpdateCommandId: "update.install",
+      isUpdateReadyToInstall: true,
+      isUpdateVisible: true,
+      updateCommandId: "update.install",
+      updateLabel: "Install Update",
+      updateProgressPercent: null,
+      updateTooltip: "Update Ready",
+      updateVersion: "1.2.3",
+    });
+
+    titleService.dispose();
+    layoutService.dispose();
+    storage.dispose();
+  });
 });
 
 const createEnvironmentService = ({

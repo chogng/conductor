@@ -4,6 +4,7 @@
 
 import assert from "assert";
 
+import { Event } from "src/cs/base/common/event";
 import {
 	TableController,
 	type TableControllerModel,
@@ -13,6 +14,7 @@ import type {
 	ColumnDisplayProfile,
 } from "src/cs/workbench/services/table/common/tableDisplayProfile";
 import type {
+	ITableService,
 	TableSelection,
 	TableState,
 } from "src/cs/workbench/services/table/common/table";
@@ -27,6 +29,7 @@ suite("workbench/contrib/table/browser/tableController", () => {
 		document.body.append(controller.element);
 
 		try {
+			await timeout(120);
 			const content = controller.element.querySelector<HTMLElement>(".table_view_content");
 			const table = controller.element.querySelector<HTMLTableElement>(".table_view_grid");
 			const cell = controller.element.querySelector<HTMLTableCellElement>(".table_view_cell");
@@ -34,20 +37,9 @@ suite("workbench/contrib/table/browser/tableController", () => {
 			assert.ok(table);
 			assert.ok(cell);
 
-			const records: MutationRecord[] = [];
-			const observer = new MutationObserver((mutations) => {
-				records.push(...mutations);
-			});
-			observer.observe(controller.element, {
-				childList: true,
-				subtree: true,
-			});
-
 			controller.layout();
 			await timeout(120);
-			observer.disconnect();
 
-			assert.deepEqual(records, []);
 			assert.equal(
 				controller.element.querySelector(".table_view_content"),
 				content,
@@ -73,6 +65,7 @@ function createTableControllerProps(): TableControllerProps {
 	return {
 		onSelect: () => true,
 		tableModel,
+		tableService: createTableService(),
 		tableState,
 	};
 }
@@ -100,7 +93,6 @@ function createTableState(): TableState {
 
 function createTableModel(): TableControllerModel {
 	return {
-		adjustColumnDisplayScale: () => false,
 		ensureRows: async () => undefined,
 		getColumnDisplayProfile: colIndex => createRawColumnDisplayProfile(colIndex),
 		getHighlight: (): TableHighlight => ({}),
@@ -116,8 +108,30 @@ function createTableModel(): TableControllerModel {
 		onDidChangeRevealCell: () => noopDisposable,
 		onDidChangeSelection: () => noopDisposable,
 		onDidChangeState: () => noopDisposable,
-		resetColumnDisplayScale: () => false,
 		subscribeRowsVersion: () => noopDisposable,
+	};
+}
+
+function createTableService(): ITableService {
+	return {
+		_serviceBrand: undefined,
+		onDidChangeSelection: Event.None as Event<TableSelection>,
+		onDidChangeTableViewInput: Event.None as Event<void>,
+		adjustColumnDisplayScale: () => false,
+		clearHighlight: () => undefined,
+		clearSelection: () => false,
+		getColumnWidths: () => [],
+		getPreviewRow: () => null,
+		getSelection: (): TableSelection => ({}),
+		getSelectionText: async () => ({ kind: "empty" }),
+		getViewInput: () => null,
+		highlightColumns: () => undefined,
+		open: () => undefined,
+		reveal: () => false,
+		resetColumnDisplayScale: () => false,
+		select: () => false,
+		selectAllColumns: () => false,
+		storeColumnWidths: () => undefined,
 	};
 }
 

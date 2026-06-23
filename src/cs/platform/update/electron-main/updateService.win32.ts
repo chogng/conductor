@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ * Copyright (c) Conductor Studio. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
 import crypto from "node:crypto";
 import fs from "node:fs";
 import http, { type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -396,7 +400,27 @@ export class Win32UpdateService {
       return false;
     }
 
-    const feed = await this.prepareLocalPackageFeed(resolvedPackagePath);
+    const localPackageMessage = this.options.localize("update.localPackageFeedMessage", { path: resolvedPackagePath });
+    this.setStatus("checking", null, "generic", localPackageMessage);
+
+    let feed: { readonly url: string; readonly version: string };
+    try {
+      feed = await this.prepareLocalPackageFeed(resolvedPackagePath);
+    } catch (error) {
+      this.setStatus("error", null, "generic", this.options.localize("update.failed"));
+      this.options.warn("[update] Failed to prepare local update package feed.", error);
+      await this.showMessageBox({
+        type: "error",
+        title: this.options.appDisplayName,
+        message: this.options.localize("update.failed"),
+        detail: this.getFailureDetail(error),
+        buttons: [this.options.localize("update.ok")],
+        defaultId: 0,
+        noLink: true,
+      });
+      return false;
+    }
+
     this.registerUpdaterListeners();
     this.isAutoUpdateConfigured = true;
     this.autoUpdateConfiguredFeedUrl = feed.url;
@@ -414,10 +438,10 @@ export class Win32UpdateService {
     });
 
     this.setStatus(
-      "idle",
+      "checking",
       feed.version,
       "generic",
-      this.options.localize("update.localPackageFeedMessage", { path: resolvedPackagePath }),
+      localPackageMessage,
     );
     this.options.log(`[update] Using local update package: ${resolvedPackagePath}`);
     const result: any = await this.checkForUpdates({ manual: true });

@@ -20,6 +20,7 @@ suite("workbench/services/update/test/browser/updateService", () => {
         channel: "unsupported",
         isStoreManaged: false,
         message: null,
+        progressPercent: null,
       });
       assert.strictEqual(await service.checkForUpdates(), undefined);
       assert.strictEqual(await service.checkForUpdatesAndInstall(), undefined);

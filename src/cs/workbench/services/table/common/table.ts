@@ -179,6 +179,7 @@ export type TableViewModel = Pick<
 	| "getHighlight"
 	| "getRow"
 	| "getRowsVersion"
+	| "getRevealCell"
 	| "getSelection"
 	| "getState"
 	| "onDidChangeHighlight"

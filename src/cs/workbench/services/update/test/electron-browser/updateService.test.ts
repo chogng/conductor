@@ -106,6 +106,8 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
 
   test("falls back to conductor IPC when desktopApp bridge is unavailable", async () => {
     const invokedCalls: Array<{ readonly channel: string; readonly args: readonly unknown[] }> = [];
+    const removedListeners: string[] = [];
+    let statusListener: (event: unknown, payload: unknown) => void = () => undefined;
     const restoreWindow = installDesktopWindow({
       conductor: {
         ipcRenderer: {
@@ -124,11 +126,24 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
             invokedCalls.push({ channel, args });
             return { channel, args };
           },
+          on: (channel: string, listener: (event: unknown, payload: unknown) => void) => {
+            assert.strictEqual(channel, workbenchIpcChannels.desktopAutoUpdateStatusChanged);
+            statusListener = listener;
+            return undefined;
+          },
+          removeListener: (channel: string, listener: (event: unknown, payload: unknown) => void) => {
+            assert.strictEqual(channel, workbenchIpcChannels.desktopAutoUpdateStatusChanged);
+            assert.strictEqual(listener, statusListener);
+            removedListeners.push(channel);
+            return undefined;
+          },
         },
       },
     });
 
     const service = new WorkbenchUpdateService();
+    const changes: DesktopUpdateStatus[] = [];
+    const listener = service.onDidChangeStatus(status => changes.push(status));
     try {
       assert.deepStrictEqual(service.getStatus(), {
         status: "available",
@@ -139,6 +154,14 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
         progressPercent: 100,
       });
 
+      statusListener({}, {
+        status: "downloaded",
+        version: "1.3.1",
+        channel: "generic",
+        isStoreManaged: false,
+        message: "Ready",
+        progressPercent: null,
+      });
       await service.checkForUpdates();
       await service.checkForUpdatesAndInstall();
       await service.installDownloadedUpdate();
@@ -153,10 +176,23 @@ suite("workbench/services/update/test/electron-browser/updateService", () => {
           args: ["C:\\updates\\setup.exe"],
         },
       ]);
+      assert.deepStrictEqual(changes, [{
+        status: "downloaded",
+        version: "1.3.1",
+        channel: "generic",
+        isStoreManaged: false,
+        message: "Ready",
+        progressPercent: null,
+      }]);
     } finally {
+      listener.dispose();
       service.dispose();
       restoreWindow();
     }
+
+    assert.deepStrictEqual(removedListeners, [
+      workbenchIpcChannels.desktopAutoUpdateStatusChanged,
+    ]);
   });
 
 });

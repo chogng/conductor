@@ -255,10 +255,41 @@ export class BrowserTitleService extends Disposable implements ITitleService {
   }
 
   public updateTitlebarState(state: WorkbenchTitlebarState = {}): void {
-    this.titlebarState = state;
+    this.titlebarState = preserveTitlebarUpdateState(this.titlebarState, state);
     this.onDidChangeTitlebarStateEmitter.fire();
   }
 }
+
+const preserveTitlebarUpdateState = (
+  current: WorkbenchTitlebarState,
+  next: WorkbenchTitlebarState,
+): WorkbenchTitlebarState => ({
+  ...next,
+  installUpdateCommandId: next.installUpdateCommandId !== undefined
+    ? next.installUpdateCommandId
+    : current.installUpdateCommandId,
+  isUpdateReadyToInstall: next.isUpdateReadyToInstall !== undefined
+    ? next.isUpdateReadyToInstall
+    : current.isUpdateReadyToInstall,
+  isUpdateVisible: next.isUpdateVisible !== undefined
+    ? next.isUpdateVisible
+    : current.isUpdateVisible,
+  updateCommandId: next.updateCommandId !== undefined
+    ? next.updateCommandId
+    : current.updateCommandId,
+  updateLabel: next.updateLabel !== undefined
+    ? next.updateLabel
+    : current.updateLabel,
+  updateProgressPercent: next.updateProgressPercent !== undefined
+    ? next.updateProgressPercent
+    : current.updateProgressPercent,
+  updateTooltip: next.updateTooltip !== undefined
+    ? next.updateTooltip
+    : current.updateTooltip,
+  updateVersion: next.updateVersion !== undefined
+    ? next.updateVersion
+    : current.updateVersion,
+});
 
 registerSingleton(
   ITitleService,
