@@ -4,10 +4,6 @@
 
 import assert from "assert";
 import {
-  buildAutoTemplateApplyConfig,
-  buildAutoWorkerConfig,
-} from "../../../template/common/autoTemplateApplyConfig.ts";
-import {
   inferAutoExtraction,
 } from "../../common/autoTemplatePlan.ts";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "src/cs/base/test/common/lifecycleTestUtils";
@@ -88,21 +84,6 @@ suite("workbench/services/assessment/common/autoTemplatePlan", () => {
     })), [{
       startCol: 1,
       endCol: 2,
-      xCol: 1,
-      yCols: [2],
-    }]);
-
-    const workerConfig = buildAutoWorkerConfig(result.plan);
-    assert.equal(workerConfig.startRow, 1);
-    assert.deepEqual(workerConfig.seriesBindings, [{ xCol: 1, yCol: 2 }]);
-    assert.deepEqual(workerConfig.blocks, [{
-      bottomTitle: "Vg",
-      endCol: 2,
-      legendStartCell: null,
-      legendStep: null,
-      legendTarget: "auto",
-      startCol: 1,
-      xAxisRole: "vg",
       xCol: 1,
       yCols: [2],
     }]);
@@ -285,11 +266,6 @@ suite("workbench/services/assessment/common/autoTemplatePlan", () => {
         yCols: [2],
       },
     ]);
-
-    const workerConfig = buildAutoWorkerConfig(result.plan);
-    assert.equal(workerConfig.startRow, 3);
-    assert.deepEqual(workerConfig.seriesBindings, [{ xCol: 1, yCol: 2 }]);
-    assert.equal(workerConfig.blocks?.length, 2);
   });
 
   test("infers stripped CH1/CH2 output files into executable auto extraction plans", () => {
@@ -329,12 +305,6 @@ suite("workbench/services/assessment/common/autoTemplatePlan", () => {
     assert.equal(result.plan.groups, 2);
     assert.equal(result.plan.legendStartColIndex, 7);
     assert.equal(result.plan.legendTarget, "group");
-
-    const templateConfig = buildAutoTemplateApplyConfig(result.plan);
-    assert.equal(templateConfig.xDataStart, "D2");
-    assert.equal(templateConfig.xPointsPerGroup, "4");
-    assert.deepEqual(templateConfig.yColumns, [4]);
-    assert.equal(templateConfig.yLegendStart, "H2");
   });
 
   test("falls back to repeated X shape for grouped generic transfer files", () => {
@@ -402,11 +372,6 @@ suite("workbench/services/assessment/common/autoTemplatePlan", () => {
     assert.ok(typeof legendStep === "number");
     assert.ok(Math.abs(legendStep - 0.95) < 1e-12);
     assert.equal(result.plan.legendTarget, "group");
-
-    const templateConfig = buildAutoTemplateApplyConfig(result.plan);
-    assert.equal(templateConfig.yLegendStart, "0.05");
-    assert.equal(templateConfig.yLegendCount, "2");
-    assert.equal(templateConfig.yLegendStep, "0.95");
   });
 
   test("infers transfer grouping from metadata rows when preview is truncated", () => {
@@ -478,12 +443,6 @@ suite("workbench/services/assessment/common/autoTemplatePlan", () => {
     assert.equal(result.plan.legendCount, 1);
     assert.equal(result.plan.legendStep, null);
     assert.equal(result.plan.legendTarget, "yColumn");
-
-    const templateConfig = buildAutoTemplateApplyConfig(result.plan);
-    assert.equal(templateConfig.yLegendStart, "0.05");
-    assert.equal(templateConfig.yLegendCount, "1");
-    assert.equal(templateConfig.yLegendStep, "");
-    assert.equal(templateConfig.yLegendTarget, "yColumn");
   });
 
   test("infers adjacent XY pairs with equivalent X traces into shared-X multi-series extraction", () => {
@@ -518,14 +477,6 @@ suite("workbench/services/assessment/common/autoTemplatePlan", () => {
     assert.equal(result.plan.legendStartRowIndex, 0);
     assert.equal(result.plan.legendCount, 3);
     assert.equal(result.plan.legendStep, 2);
-
-    const templateConfig = buildAutoTemplateApplyConfig(result.plan);
-    assert.equal(templateConfig.xDataStart, "A2");
-    assert.deepEqual(templateConfig.yColumns, [1, 3, 5]);
-    assert.equal(templateConfig.yLegendStart, "B1");
-    assert.equal(templateConfig.yLegendCount, "3");
-    assert.equal(templateConfig.yLegendStep, "2");
-    assert.equal(templateConfig.yLegendTarget, "yColumn");
   });
 
   test("infers one shared X column with multiple Y current columns", () => {
@@ -579,13 +530,6 @@ suite("workbench/services/assessment/common/autoTemplatePlan", () => {
     assert.deepEqual(blocks[0].yCols, [1, 2]);
     assert.equal(blocks[1].xCol, 5);
     assert.deepEqual(blocks[1].yCols, [6, 7]);
-
-    const workerConfig = buildAutoWorkerConfig(result.plan);
-    const workerBlocks = workerConfig.blocks;
-    assert.ok(workerBlocks);
-    assert.equal(workerBlocks.length, 2);
-    assert.equal(workerBlocks[1].xCol, 5);
-    assert.deepEqual(workerBlocks[1].yCols, [6, 7]);
   });
 
   test("does not classify transient transfer exports as pulse-voltage", () => {

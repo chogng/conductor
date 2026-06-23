@@ -49,6 +49,7 @@ table selection state, plot rendering, or chart state.
 | `common/builtinTemplateSpecs.ts` | built-in domain template specs. |
 | `common/template.ts` | template catalog service contract, `TemplateApplyPresetRecord`, CRUD contracts, `getTemplate(id)`, and re-exported template spec types. |
 | `common/templateLegacyAdapter.ts` | migration adapter from historical/manual presets into canonical block-aware `Template`. |
+| `common/autoTemplateApplyConfig.ts` | legacy serializer from auto-extraction plan shape into editable apply/worker config records; do not add detection logic here. |
 | `common/templateApplyConfigUtils.ts` | legacy/manual apply config normalization and cloning. |
 | `common/templateStore.ts` | persistence backend contract and data normalization. |
 | `common/templateSelection.ts` | selection records/helpers. |

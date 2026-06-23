@@ -35,6 +35,7 @@ rendering, table UI selection, or search indexing beyond diagnostics metadata.
 | `common/layoutCandidate.ts` | shape-only layout candidates and X/Y binding drafts for UI prefill; no measurement semantics. |
 | `common/builtinLexicon.json` | maintained semantic vocabulary for header-token role evidence; not user-generated rules. |
 | `common/semanticCandidate.ts` | role, unit, confidence, evidence, and display-scale candidates. |
+| `common/schemaProfileAssessment.ts` | pure exact-schema-profile family/mode inference layered on top of Assessment column profiles. |
 | `common/blockDetector.ts` | measurement block construction from structure ranges, column maps, and family evidence. |
 | `common/assessmentEvidence.ts` | standard evidence snapshot consumed by recipe candidate evaluation. |
 | `common/recipeSelectorEvaluator.ts` | pure finite-DSL evaluator for `RecipeSelector` against Assessment evidence. |

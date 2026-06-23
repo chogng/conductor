@@ -3,11 +3,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AUTO_TEMPLATE_APPLY_CONFIG_FIELD } from "src/cs/workbench/services/template/common/autoTemplate";
-import type { AutoExtractionBlock, AutoExtractionPlan } from "src/cs/workbench/services/assessment/common/autoTemplatePlan";
 import { toCellLabel } from "src/cs/workbench/services/template/common/templateCellRef";
 
 type AutoWorkerBlockConfig = Pick<
-  AutoExtractionBlock,
+  AutoTemplateApplyBlock,
   | "bottomTitle"
   | "endCol"
   | "legendStep"
@@ -27,15 +26,51 @@ export type AutoWorkerConfig = Record<string, unknown> & {
   blocks?: AutoWorkerBlockConfig[];
 };
 
+export type AutoTemplateApplyPlan = {
+  readonly bottomTitle: string;
+  readonly blocks?: readonly AutoTemplateApplyBlock[];
+  readonly dataStartRowIndex: number;
+  readonly groups: number | null;
+  readonly leftTitle: string;
+  readonly legendPrefix: string;
+  readonly legendStartColIndex: number | null;
+  readonly legendStartRowIndex: number | null;
+  readonly legendStartValue: string | null;
+  readonly legendCount: number | null;
+  readonly legendStep: number | null;
+  readonly legendTarget: "auto" | "group" | "yColumn";
+  readonly xAxisRole: "vg" | "vd" | null;
+  readonly xCol: number;
+  readonly xPointsPerGroup: number | null;
+  readonly xSegmentationMode: "auto" | "points";
+  readonly xUnit: string;
+  readonly yCols: readonly number[];
+  readonly yUnit: string;
+};
+
+export type AutoTemplateApplyBlock = {
+  readonly bottomTitle: string;
+  readonly endCol: number;
+  readonly legendStartColIndex: number | null;
+  readonly legendStartRowIndex: number | null;
+  readonly legendStep: number | null;
+  readonly legendTarget: "auto" | "group" | "yColumn";
+  readonly startCol: number;
+  readonly xAxisRole: "vg" | "vd" | null;
+  readonly xCol: number;
+  readonly yCols: readonly number[];
+};
+
 const formatCompactNumber = (value: number | null | undefined): string => {
   if (!Number.isFinite(value)) return "";
   return `${Number(Number(value).toPrecision(12))}`;
 };
 
-// Shared serializer used by the template UI. This intentionally mirrors the
-// worker config model so auto-detected plans remain editable by users.
+// TODO(conductor-architecture): Migration bridge.
+// Serializes legacy auto-extraction plans into editable apply presets. New
+// automatic execution should consume Assessment-selected Templates through Slice.
 export const buildAutoTemplateApplyConfig = (
-  plan: AutoExtractionPlan,
+  plan: AutoTemplateApplyPlan,
 ): Record<string, unknown> => {
   const normalizedGroupSize =
     Number.isInteger(plan.xPointsPerGroup) && Number(plan.xPointsPerGroup) > 0
@@ -46,13 +81,13 @@ export const buildAutoTemplateApplyConfig = (
     bottomTitle: plan.bottomTitle,
     leftTitle: plan.leftTitle,
     legendPrefix: plan.legendPrefix,
-	    xDataEnd: "",
-	    xDataStart: toCellLabel(plan.dataStartRowIndex, plan.xCol),
-	    xColumns: [plan.xCol],
-	    xRanges: [{
-	      start: toCellLabel(plan.dataStartRowIndex, plan.xCol),
-	      end: "End",
-	    }],
+    xDataEnd: "",
+    xDataStart: toCellLabel(plan.dataStartRowIndex, plan.xCol),
+    xColumns: [plan.xCol],
+    xRanges: [{
+      start: toCellLabel(plan.dataStartRowIndex, plan.xCol),
+      end: "End",
+    }],
     xPointsPerGroup: normalizedGroupSize !== null ? String(normalizedGroupSize) : "",
     xSegmentationMode: plan.xSegmentationMode,
     xUnit: plan.xUnit,
@@ -70,7 +105,7 @@ export const buildAutoTemplateApplyConfig = (
 
 // Shared serializer used by the worker processing path.
 export const buildAutoWorkerConfig = (
-  plan: AutoExtractionPlan,
+  plan: AutoTemplateApplyPlan,
 ): AutoWorkerConfig => {
   const normalizedGroupSize =
     Number.isInteger(plan.xPointsPerGroup) && Number(plan.xPointsPerGroup) > 0
